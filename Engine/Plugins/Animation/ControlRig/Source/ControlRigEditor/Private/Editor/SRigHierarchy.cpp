@@ -418,10 +418,10 @@ void SRigHierarchy::BindCommands()
 		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bShowNulls; }));
 
 	CommandList->MapAction(
-		Commands.ShowRigidBodies,
-		FExecuteAction::CreateLambda([this]() { DisplaySettings.bShowRigidBodies = !DisplaySettings.bShowRigidBodies; RefreshTreeView(); }),
+		Commands.ShowPhysics,
+		FExecuteAction::CreateLambda([this]() { DisplaySettings.bShowPhysics = !DisplaySettings.bShowPhysics; RefreshTreeView(); }),
 		FCanExecuteAction(),
-		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bShowRigidBodies; }));
+		FIsActionChecked::CreateLambda([this]() { return DisplaySettings.bShowPhysics; }));
 
 	CommandList->MapAction(
 		Commands.ShowReferences,
@@ -2292,7 +2292,7 @@ bool SRigHierarchy::CanRenameItem() const
 	if(IsSingleSelected(false))
 	{
 		const FRigElementKey Key = GetSelectedKeys()[0];
-		if(Key.Type == ERigElementType::RigidBody ||
+		if(Key.Type == ERigElementType::Physics ||
 			Key.Type == ERigElementType::Reference)
 		{
 			return false;
@@ -2639,7 +2639,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			}
 			case ERigElementType::Control:
 			case ERigElementType::Null:
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			case ERigElementType::Reference:
 			{
 				for (const FRigElementKey& DraggedKey : RigDragDropOp->GetElements())
@@ -2648,7 +2648,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					{
 						case ERigElementType::Control:
 						case ERigElementType::Null:
-						case ERigElementType::RigidBody:
+						case ERigElementType::Physics:
 						case ERigElementType::Reference:
 						case ERigElementType::Connector:
 						case ERigElementType::Socket:

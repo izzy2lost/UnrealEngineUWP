@@ -566,7 +566,7 @@ public:
 		NullElement,
 		ControlElement,
 		CurveElement,
-		RigidBodyElement,
+		PhysicsElement,
 		ReferenceElement,
 		ConnectorElement,
 		SocketElement,
@@ -822,7 +822,7 @@ protected:
 		return InElement->GetType() == ERigElementType::Bone ||
 			InElement->GetType() == ERigElementType::Null ||
 			InElement->GetType() == ERigElementType::Control ||
-			InElement->GetType() == ERigElementType::RigidBody ||
+			InElement->GetType() == ERigElementType::Physics ||
 			InElement->GetType() == ERigElementType::Reference ||
 			InElement->GetType() == ERigElementType::Socket;
 	}
@@ -860,7 +860,7 @@ protected:
 	static bool IsClassOf(const FRigBaseElement* InElement)
 	{
 		return InElement->GetType() == ERigElementType::Bone ||
-			InElement->GetType() == ERigElementType::RigidBody ||
+			InElement->GetType() == ERigElementType::Physics ||
 			InElement->GetType() == ERigElementType::Reference ||
 			InElement->GetType() == ERigElementType::Socket;
 	}
@@ -1521,11 +1521,109 @@ private:
 };
 
 USTRUCT(BlueprintType)
-struct CONTROLRIG_API FRigRigidBodySettings
+struct CONTROLRIG_API FRigPhysicsSolverID
+{
+public:
+	
+	GENERATED_BODY()
+	
+	FRigPhysicsSolverID()
+		: Guid()
+	{
+	}
+
+	explicit FRigPhysicsSolverID(const FGuid& InGuid)
+		: Guid(InGuid)
+	{
+	}
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Physics, meta=(ShowOnlyInnerProperties))
+	FGuid Guid;
+
+	bool IsValid() const
+	{
+		return Guid.IsValid();
+	}
+
+	FString ToString() const
+	{
+		return Guid.ToString();
+	}
+
+	bool operator == (const FRigPhysicsSolverID& InOther) const
+	{
+		return Guid == InOther.Guid;
+	}
+
+	bool operator != (const FRigPhysicsSolverID& InOther) const
+	{
+		return !(*this == InOther);
+	}
+
+	friend FArchive& operator <<(FArchive& Ar, FRigPhysicsSolverID& ID)
+	{
+		Ar << ID.Guid;
+		return Ar;
+	}
+
+	friend uint32 GetTypeHash(const FRigPhysicsSolverID& InID)
+	{
+		return GetTypeHash(InID.Guid);
+	}
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigPhysicsSolverDescription
+{
+public:
+	
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Physics, meta=(ShowOnlyInnerProperties))
+	FRigPhysicsSolverID ID;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Physics, meta=(ShowOnlyInnerProperties))
+	FName Name;
+
+	FRigPhysicsSolverDescription()
+	: ID()
+	, Name(NAME_None)
+	{}
+	
+	FRigPhysicsSolverDescription(const FRigPhysicsSolverDescription& InOther)
+	{
+		*this = InOther;
+	}
+	
+	FRigPhysicsSolverDescription& operator=(const FRigPhysicsSolverDescription& InOther)
+	{
+		CopyFrom(&InOther);
+		return *this;
+	}
+
+	void Serialize(FArchive& Ar);
+	void Save(FArchive& Ar);
+	void Load(FArchive& Ar);
+	friend FArchive& operator<<(FArchive& Ar, FRigPhysicsSolverDescription& P)
+	{
+		P.Serialize(Ar);
+		return Ar;
+	}
+
+	static FGuid MakeGuid(const FString& InObjectPath, const FName& InSolverName);
+	static FRigPhysicsSolverID MakeID(const FString& InObjectPath, const FName& InSolverName);
+
+private:
+
+	void CopyFrom(const FRigPhysicsSolverDescription* InOther);
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FRigPhysicsSettings
 {
 	GENERATED_BODY()
 
-	FRigRigidBodySettings();
+	FRigPhysicsSettings();
 
 	void Save(FArchive& Ar);
 	void Load(FArchive& Ar);
@@ -1536,49 +1634,53 @@ struct CONTROLRIG_API FRigRigidBodySettings
 };
 
 USTRUCT(BlueprintType)
-struct CONTROLRIG_API FRigRigidBodyElement : public FRigSingleParentElement
+struct CONTROLRIG_API FRigPhysicsElement : public FRigSingleParentElement
 {
 public:
 	
 	GENERATED_BODY()
-	DECLARE_RIG_ELEMENT_METHODS(FRigRigidBodyElement)
+	DECLARE_RIG_ELEMENT_METHODS(FRigPhysicsElement)
 
 	static const EElementIndex ElementTypeIndex;
 
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Control, meta=(ShowOnlyInnerProperties))
-	FRigRigidBodySettings Settings;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Physics, meta=(ShowOnlyInnerProperties))
+	FRigPhysicsSolverID Solver;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = Physics, meta=(ShowOnlyInnerProperties))
+	FRigPhysicsSettings Settings;
 	
-	FRigRigidBodyElement()
-        : FRigRigidBodyElement(nullptr)
+	FRigPhysicsElement()
+        : FRigPhysicsElement(nullptr)
 	{ }
 	
-	FRigRigidBodyElement(const FRigRigidBodyElement& InOther)
+	FRigPhysicsElement(const FRigPhysicsElement& InOther)
 	{
 		*this = InOther;
 	}
 	
-	FRigRigidBodyElement& operator=(const FRigRigidBodyElement& InOther)
+	FRigPhysicsElement& operator=(const FRigPhysicsElement& InOther)
 	{
 		Super::operator=(InOther);
+		Solver = InOther.Solver;
 		Settings = InOther.Settings;
 		return *this;
 	}
 	
-	virtual ~FRigRigidBodyElement() override {}
+	virtual ~FRigPhysicsElement() override {}
 
 	virtual void Save(FArchive& A, ESerializationPhase SerializationPhase) override;
 	virtual void Load(FArchive& Ar, ESerializationPhase SerializationPhase) override;
 
 private:
-	explicit FRigRigidBodyElement(URigHierarchy* InOwner)
-		: FRigSingleParentElement(InOwner, ERigElementType::RigidBody)
+	explicit FRigPhysicsElement(URigHierarchy* InOwner)
+		: FRigSingleParentElement(InOwner, ERigElementType::Physics)
 	{ }
 	
 	virtual void CopyFrom(const FRigBaseElement* InOther) override;
 
 	static bool IsClassOf(const FRigBaseElement* InElement)
 	{
-		return InElement->GetType() == ERigElementType::RigidBody;
+		return InElement->GetType() == ERigElementType::Physics;
 	}
 
 	friend class URigHierarchy;

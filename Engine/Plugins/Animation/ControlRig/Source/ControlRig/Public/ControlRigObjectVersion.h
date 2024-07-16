@@ -101,6 +101,9 @@ struct CONTROLRIG_API FControlRigObjectVersion
 		// Add parent key to control rig pose
 		RigPoseWithParentKey,
 
+		// Physics solvers stored on hierarchy
+		ControlRigStoresPhysicsSolvers,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

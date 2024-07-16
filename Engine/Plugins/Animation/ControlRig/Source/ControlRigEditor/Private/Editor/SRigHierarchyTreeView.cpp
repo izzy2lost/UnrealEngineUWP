@@ -543,9 +543,13 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 			}
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			if(!Settings.bShowRigidBodies)
+			if(!Settings.bShowPhysics)
+			{
+				return false;
+			}
+			if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 			{
 				return false;
 			}
@@ -1114,7 +1118,7 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 	static const FSlateBrush* NullBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Null");
 	static const FSlateBrush* BoneImportedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneImported");
 	static const FSlateBrush* BoneUserBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.BoneUser");
-	static const FSlateBrush* RigidBodyBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
+	static const FSlateBrush* PhysicsBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
 	static const FSlateBrush* SocketOpenBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Open");
 	static const FSlateBrush* SocketClosedBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.Socket_Closed");
 	static const FSlateBrush* PrimaryConnectorBrush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorPrimary");
@@ -1195,9 +1199,9 @@ TPair<const FSlateBrush*, FSlateColor> SRigHierarchyItem::GetBrushForElementType
 
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			Brush = RigidBodyBrush;
+			Brush = PhysicsBrush;
 			break;
 		}
 		case ERigElementType::Reference:

@@ -522,9 +522,13 @@ bool SMultiRigHierarchyTreeView::AddElement(UControlRig* InControlRig, const FRi
 				}
 				break;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				if (!Settings.bShowRigidBodies)
+				if (!Settings.bShowPhysics)
+				{
+					return false;
+				}
+				if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
 				{
 					return false;
 				}
@@ -977,7 +981,7 @@ void SControlRigOutliner::Construct(const FArguments& InArgs, FControlRigEditMod
 	DisplaySettings.bShowNulls = false;
 	DisplaySettings.bShowReferences = false;
 	DisplaySettings.bShowSockets = false;
-	DisplaySettings.bShowRigidBodies = false;
+	DisplaySettings.bShowPhysics = false;
 	DisplaySettings.bHideParentsOnFilter = true;
 	DisplaySettings.bFlattenHierarchyOnFilter = true;
 	DisplaySettings.bShowConnectors = false;

@@ -4292,7 +4292,7 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
             	case ERigElementType::Null:
             	case ERigElementType::Curve:
             	case ERigElementType::Control:
-            	case ERigElementType::RigidBody:
+            	case ERigElementType::Physics:
             	case ERigElementType::Reference:
             	case ERigElementType::Connector:
             	case ERigElementType::Socket:

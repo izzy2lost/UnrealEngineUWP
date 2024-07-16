@@ -49,6 +49,7 @@ static TAutoConsoleVariable<int32> CVarControlRigHierarchyTracePrecision(TEXT("C
 static TAutoConsoleVariable<int32> CVarControlRigHierarchyTraceOnSpawn(TEXT("ControlRig.Hierarchy.TraceOnSpawn"), 0, TEXT("sets the number of frames to trace when a new hierarchy is spawned"));
 TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableRotationOrder(TEXT("ControlRig.Hierarchy.EnableRotationOrder"), true, TEXT("enables the rotation order for controls"));
 TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableModules(TEXT("ControlRig.Hierarchy.Modules"), true, TEXT("enables the modular rigging functionality"));
+TAutoConsoleVariable<bool> CVarControlRigHierarchyEnablePhysics(TEXT("ControlRig.Hierarchy.Physics"), false, TEXT("enables physics support for the rig hierarchy"));
 static int32 sRigHierarchyLastTrace = INDEX_NONE;
 static TCHAR sRigHierarchyTraceFormat[16];
 
@@ -240,7 +241,6 @@ void URigHierarchy::Save(FArchive& Ar)
 		
 		Ar << ElementMetadataToSave;
 	}
-	
 }
 
 void URigHierarchy::Load(FArchive& Ar)
@@ -540,7 +540,7 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 			sizeof(FRigNullElement),
 			sizeof(FRigControlElement),
 			sizeof(FRigCurveElement),
-			sizeof(FRigRigidBodyElement),
+			sizeof(FRigPhysicsElement),
 			sizeof(FRigReferenceElement),
 			sizeof(FRigConnectorElement),
 			sizeof(FRigSocketElement),
@@ -1142,6 +1142,24 @@ TArray<FRigElementKey> URigHierarchy::RestoreConnectorsFromStates(TArray<FRigCon
 		Keys.Add(Key);
 	}
 	return Keys;
+}
+
+const FRigPhysicsSolverDescription* URigHierarchy::FindPhysicsSolver(const FRigPhysicsSolverID& InID) const
+{
+	if(const UControlRig* ControlRig = Cast<UControlRig>(GetOuter()))
+	{
+		return ControlRig->FindPhysicsSolver(InID);
+	}
+	return nullptr;
+}
+
+const FRigPhysicsSolverDescription* URigHierarchy::FindPhysicsSolverByName(const FName& InName) const
+{
+	if(const UControlRig* ControlRig = Cast<UControlRig>(GetOuter()))
+	{
+		return ControlRig->FindPhysicsSolverByName(InName);
+	}
+	return nullptr;
 }
 
 TArray<FName> URigHierarchy::GetMetadataNames(FRigElementKey InItem) const
@@ -5125,13 +5143,13 @@ FRigBaseElement* URigHierarchy::MakeElement(ERigElementType InElementType, int32
 			Element = NewElement<FRigCurveElement>(InCount);
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
 			if(OutStructureSize)
 			{
-				*OutStructureSize = sizeof(FRigRigidBodyElement);
+				*OutStructureSize = sizeof(FRigPhysicsElement);
 			}
-			Element = NewElement<FRigRigidBodyElement>(InCount);
+			Element = NewElement<FRigPhysicsElement>(InCount);
 			break;
 		}
 		case ERigElementType::Reference:
@@ -5223,13 +5241,13 @@ void URigHierarchy::DestroyElement(FRigBaseElement*& InElement)
 			}
 			break;
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			FRigRigidBodyElement* ExistingElements = Cast<FRigRigidBodyElement>(InElement);
+			FRigPhysicsElement* ExistingElements = Cast<FRigPhysicsElement>(InElement);
 			for(int32 Index=0;Index<Count;Index++)
 			{
 				TGuardValue<const FRigBaseElement*> DestroyGuard(ElementBeingDestroyed, &ExistingElements[Index]);
-				ExistingElements[Index].~FRigRigidBodyElement(); 
+				ExistingElements[Index].~FRigPhysicsElement(); 
 			}
 			break;
 		}

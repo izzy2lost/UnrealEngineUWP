@@ -563,6 +563,9 @@ void UControlRig::InitializeFromCDO()
 			UControlRig* CDO = GetClass()->GetDefaultObject<UControlRig>();
 			URigHierarchy* Hierarchy = GetHierarchy();
 
+			// copy physics solvers
+			PhysicsSolvers = CDO->PhysicsSolvers;
+
 			// copy hierarchy
 			{
 				FRigHierarchyValidityBracket ValidityBracketA(Hierarchy);
@@ -571,6 +574,25 @@ void UControlRig::InitializeFromCDO()
 				TGuardValue<bool> Guard(Hierarchy->GetSuspendNotificationsFlag(), true);
 				Hierarchy->CopyHierarchy(CDO->GetHierarchy());
 				Hierarchy->ResetPoseToInitial(ERigElementType::All);
+			}
+
+			// update the physics solvers with new unique IDs and remap the physics solver IDs within hierarchy
+			{
+				TMap<FRigPhysicsSolverID, FRigPhysicsSolverID> PhysicsSolverMap;
+				for(FRigPhysicsSolverDescription& Solver : PhysicsSolvers)
+				{
+					const FRigPhysicsSolverID OldID = Solver.ID;
+					Solver.ID = FRigPhysicsSolverDescription::MakeID(GetPathName(), Solver.Name);
+					PhysicsSolverMap.Add(OldID, Solver.ID);
+				}
+				const TArray<FRigPhysicsElement*> PhysicsElements = Hierarchy->GetPhysicsElements();
+				for(FRigPhysicsElement* PhysicsElement : PhysicsElements)
+				{
+					if(const FRigPhysicsSolverID* NewID = PhysicsSolverMap.Find(PhysicsElement->Solver))
+					{
+						PhysicsElement->Solver = *NewID;
+					}
+				}
 			}
 
 #if WITH_EDITOR
@@ -1738,6 +1760,15 @@ void UControlRig::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 	Ar.UsingCustomVersion(FControlRigObjectVersion::GUID);
+
+	if (Ar.CustomVer(FControlRigObjectVersion::GUID) >= FControlRigObjectVersion::ControlRigStoresPhysicsSolvers)
+	{
+		Ar << PhysicsSolvers;
+	}
+	else
+	{
+		PhysicsSolvers.Reset();
+	}
 }
 
 void UControlRig::PostLoad()
@@ -3515,6 +3546,60 @@ void UControlRig::OnHierarchyTransformUndoRedo(URigHierarchy* InHierarchy, const
 			ControlModified().Broadcast(this, ControlElement, FRigControlModifiedContext(EControlRigSetKey::Never));
 		}
 	}
+}
+
+int32 UControlRig::NumPhysicsSolvers() const
+{
+	return PhysicsSolvers.Num();
+}
+
+const FRigPhysicsSolverDescription* UControlRig::GetPhysicsSolver(int32 InIndex) const
+{
+	if(PhysicsSolvers.IsValidIndex(InIndex))
+	{
+		return &PhysicsSolvers[InIndex];
+	}
+	return nullptr;
+}
+
+const FRigPhysicsSolverDescription* UControlRig::FindPhysicsSolver(const FRigPhysicsSolverID& InID) const
+{
+	return PhysicsSolvers.FindByPredicate([InID](const FRigPhysicsSolverDescription& Solver) -> bool
+	{
+		return Solver.ID == InID;
+	});
+}
+
+const FRigPhysicsSolverDescription* UControlRig::FindPhysicsSolverByName(const FName& InName) const
+{
+	return PhysicsSolvers.FindByPredicate([InName](const FRigPhysicsSolverDescription& Solver) -> bool
+	{
+		return Solver.Name == InName;
+	});
+}
+
+FRigPhysicsSolverID UControlRig::AddPhysicsSolver(FName InName, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
+	{
+		return FRigPhysicsSolverID();
+	}
+
+	if(InName.IsNone())
+	{
+		return FRigPhysicsSolverID();
+	}
+
+	const FName Name = UtilityHelpers::CreateUniqueName(InName, [this](const FName& InName) -> bool
+	{
+		return FindPhysicsSolverByName(InName) == nullptr;
+	});
+
+	FRigPhysicsSolverDescription Solver;
+	Solver.ID = FRigPhysicsSolverDescription::MakeID(GetPathName(), Name);
+	Solver.Name = Name;
+	PhysicsSolvers.Add(Solver);
+	return Solver.ID;
 }
 
 UControlRig::FPoseScope::FPoseScope(UControlRig* InControlRig, ERigElementType InFilter, const TArray<FRigElementKey>& InElements, const ERigTransformType::Type InTransformType)

@@ -868,3 +868,23 @@ protected:
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 	TAttribute<bool> EnabledAttribute;
 };
+
+class FRigPhysicsElementDetails : public FRigTransformElementDetails
+{
+public:
+
+	// Makes a new instance of this detail layout class for a specific detail view requesting it
+	static TSharedRef<IDetailCustomization> MakeInstance()
+	{
+		return MakeShareable(new FRigPhysicsElementDetails);
+	}
+
+	/** IDetailCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+
+	void CustomizeSettings(IDetailLayoutBuilder& DetailBuilder);
+
+private:
+
+	FText GetSolverNameText() const;
+};

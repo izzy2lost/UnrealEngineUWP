@@ -201,20 +201,22 @@ public:
         );
 
 	/**
-	* Adds a rigidbody to the hierarchy
-	* @param InName The suggested name of the new rigidbody - will eventually be corrected by the namespace
-	* @param InParent The (optional) parent of the new rigidbody. If you don't need a parent, pass FRigElementKey()
-	* @param InSettings All of the rigidbody's settings
-	* @param InLocalTransform The transform for the new rigidbody - in the space of the provided parent
+	* Adds a physics element to the hierarchy
+	* @param InName The suggested name of the new physics element - will eventually be corrected by the namespace
+	* @param InParent The (optional) parent of the new physics element. If you don't need a parent, pass FRigElementKey()
+	* @param InSolver The guid identifying the solver to use
+	* @param InSettings All of the physics element's settings
+	* @param InLocalTransform The transform for the new physics element - in the space of the provided parent
 	* @param bSetupUndo If set to true the stack will record the change for undo / redo
 	* @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
-	* @return The key for the newly created rigidbody.
+	* @return The key for the newly created physics element.
 	*/
 	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
-    FRigElementKey AddRigidBody(
+    FRigElementKey AddPhysicsElement(
     	FName InName,
     	FRigElementKey InParent,
-        FRigRigidBodySettings InSettings,
+    	FRigPhysicsSolverID InSolver,
+        FRigPhysicsSettings InSettings,
     	FTransform InLocalTransform,
     	bool bSetupUndo = false,
 		bool bPrintPythonCommand = false);
@@ -611,7 +613,7 @@ public:
 
 	TArray<FString> GetAddCurvePythonCommands(FRigCurveElement* Curve) const;
 
-	TArray<FString> GetAddRigidBodyPythonCommands(FRigRigidBodyElement* RigidBody) const;
+	TArray<FString> GetAddPhysicsElementPythonCommands(FRigPhysicsElement* PhysicsElement) const;
 
 	TArray<FString> GetAddConnectorPythonCommands(FRigConnectorElement* Connector) const;
 

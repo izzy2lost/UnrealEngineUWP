@@ -699,9 +699,52 @@ protected:
 
 private:
 	float DebugBoneRadiusMultiplier;
-	
+
+	// Physics Solvers
+	TArray<FRigPhysicsSolverDescription> PhysicsSolvers;
+
 public:
-	
+
+	/**
+	 * Returns the number of physics solvers
+	 * @return The number of physics solvers
+	 */
+	int32 NumPhysicsSolvers() const; 
+
+	/**
+	 * Returns a physics solver by index (or nullptr)
+	 * @param InIndex The index of the physics solver to return
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* GetPhysicsSolver(int32 InIndex) const; 
+
+	/**
+	 * Finds a new physics solver given its guid
+	 * @param InID The id identifying the physics solver
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolver(const FRigPhysicsSolverID& InID) const; 
+
+	/**
+	 * Finds a new physics solver given its name
+	 * @param InName The name identifying the physics solver in the scope of this control rig
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolverByName(const FName& InName) const; 
+
+	/**
+	 * Adds a physics solver to the hierarchy
+	 * @param InName The suggested name of the new physics solver - will eventually be corrected by the namespace
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return The ID for the newly created physics solver.
+	 */
+	UFUNCTION(BlueprintCallable, Category = ControlRig)
+	FRigPhysicsSolverID AddPhysicsSolver(
+		FName InName,
+		bool bSetupUndo = false,
+		bool bPrintPythonCommand = false);
+
 #if WITH_EDITOR	
 
 	void ToggleControlsVisible() { bControlsVisible = !bControlsVisible; }

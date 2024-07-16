@@ -866,12 +866,12 @@ void FRigBaseElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	if(!bAllControls || !bAllAnimationChannels)
 	{
 		GeneralCategory.AddCustomRow(FText::FromString(TEXT("Name")))
+		.IsEnabled(!bIsProcedural)
 		.NameContent()
 		[
 			SNew(STextBlock)
 			.Text(FText::FromString(TEXT("Name")))
 			.Font(IDetailLayoutBuilder::GetDetailFont())
-			.IsEnabled(!bIsProcedural)
 		]
 		.ValueContent()
 		[
@@ -5675,4 +5675,97 @@ void FRigConnectionRuleDetails::OnRuleContentChanged()
 	StructPropertyHandle->GetParentHandle()->NotifyPostChange(EPropertyChangeType::ValueSet);
 }
 
+void FRigPhysicsElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+{
+	FRigTransformElementDetails::CustomizeDetails(DetailBuilder);
+	CustomizeSettings(DetailBuilder);
+	CustomizeTransform(DetailBuilder);
+	CustomizeMetadata(DetailBuilder);
+}
+
+void FRigPhysicsElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBuilder)
+{
+	if(PerElementInfos.IsEmpty())
+	{
+		return;
+	}
+
+	if(IsAnyElementNotOfType(ERigElementType::Physics))
+	{
+		return;
+	}
+
+	const TSharedPtr<IPropertyHandle> SolverHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRigPhysicsElement, Solver));
+	DetailBuilder.HideProperty(SolverHandle);
+
+	const TSharedPtr<IPropertyHandle> SettingsHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FRigPhysicsElement, Settings));
+	DetailBuilder.HideProperty(SettingsHandle);
+
+	IDetailCategoryBuilder& PhysicsCategory = DetailBuilder.EditCategory(TEXT("Physics"), LOCTEXT("Physics", "Physics"));
+
+	FDetailWidgetRow& SolverNameRow = PhysicsCategory.AddCustomRow(LOCTEXT("SolverName", "Solver Name"));
+	SolverNameRow.IsEnabled(false);
+	SolverNameRow.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("SolverName", "Solver Name"))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	];
+	SolverNameRow.ValueContent()
+	[
+		SNew(SEditableText)
+		.Text(this, &FRigPhysicsElementDetails::GetSolverNameText)
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	];
+
+	PhysicsCategory
+	.AddProperty(SolverHandle)
+	.DisplayName(LOCTEXT("SolverGuid", "Solver Guid"))
+	.IsEnabled(false);
+
+	const bool bIsProcedural = IsAnyElementProcedural();
+
+	PhysicsCategory
+		.AddProperty(SettingsHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FRigPhysicsSettings, Mass)))
+		.IsEnabled(!bIsProcedural);
+}
+
+FText FRigPhysicsElementDetails::GetSolverNameText() const
+{
+	if(PerElementInfos.Num() > 0)
+	{
+		if(const URigHierarchy* Hierarchy = PerElementInfos[0].GetHierarchy())
+		{
+			TOptional<FText> FirstValue;
+			
+			for(const FPerElementInfo& Info : PerElementInfos)
+			{
+				if(const FRigPhysicsElement* PhysicsElement = Info.Element.Get<FRigPhysicsElement>())
+				{
+					if(const FRigPhysicsSolverDescription* Solver = Hierarchy->FindPhysicsSolver(PhysicsElement->Solver))
+					{
+						const FText SolverName = FText::FromName(Solver->Name);
+						if(FirstValue.IsSet())
+						{
+							if(!FirstValue.GetValue().EqualTo(SolverName))
+							{
+								return ControlRigDetailsMultipleValues;	
+							}
+						}
+						else
+						{
+							FirstValue = SolverName;
+						}
+					}
+				}
+			}
+
+			if(FirstValue.IsSet())
+			{
+				return FirstValue.GetValue();
+			}
+		}
+	}
+	return FText();
+}
 #undef LOCTEXT_NAMESPACE

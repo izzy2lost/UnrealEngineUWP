@@ -5,6 +5,7 @@
 #include "AnimationCoreLibrary.h"
 #include "UObject/Package.h"
 #include "ModularRig.h"
+#include "HelperUtil.h"
 
 #if WITH_EDITOR
 #include "Framework/Notifications/NotificationManager.h"
@@ -484,30 +485,48 @@ FRigElementKey URigHierarchyController::AddCurve(FName InName, float InValue, bo
 	return NewElement->Key;
 }
 
-FRigElementKey URigHierarchyController::AddRigidBody(FName InName, FRigElementKey InParent,
-                                                     FRigRigidBodySettings InSettings, FTransform InLocalTransform, bool bSetupUndo, bool bPrintPythonCommand)
+FRigElementKey URigHierarchyController::AddPhysicsElement(FName InName, FRigElementKey InParent, FRigPhysicsSolverID InSolver, 
+                                                          FRigPhysicsSettings InSettings, FTransform InLocalTransform, bool bSetupUndo, bool bPrintPythonCommand)
 {
 	if(!IsValid())
 	{
 		return FRigElementKey();
 	}
 
+	if(CVarControlRigHierarchyEnablePhysics.GetValueOnAnyThread() == false)
+	{
+		return FRigElementKey();
+	}
+
 	URigHierarchy* Hierarchy = GetHierarchy();
+
+	if(!InSolver.IsValid())
+	{
+		ReportError(TEXT("Physics Solver Guid is not valid"));
+		return FRigElementKey();
+	}
+
+	if(Hierarchy->FindPhysicsSolver(InSolver) == nullptr)
+	{
+		ReportErrorf(TEXT("Physics Solver with guid '%s' cannot be found."), *InSolver.ToString());
+		return FRigElementKey();
+	}
 
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if(bSetupUndo)
 	{
-		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add RigidBody", "Add RigidBody"));
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "Add Physics Element", "Add Physics Element"));
 		Hierarchy->Modify();
 	}
 #endif
 
-	FRigRigidBodyElement* NewElement = MakeElement<FRigRigidBodyElement>();
+	FRigPhysicsElement* NewElement = MakeElement<FRigPhysicsElement>();
 	{
 		TGuardValue<bool> DisableCacheValidityChecks(Hierarchy->bEnableCacheValidityCheck, false);		
-		NewElement->Key.Type = ERigElementType::RigidBody;
+		NewElement->Key.Type = ERigElementType::Physics;
 		NewElement->Key.Name = GetSafeNewName(InName, NewElement->Key.Type);
+		NewElement->Solver = InSolver;
 		NewElement->Settings = InSettings;
 		AddElement(NewElement, Hierarchy->Get(Hierarchy->GetIndex(InParent)), true, InName);
 
@@ -523,7 +542,7 @@ FRigElementKey URigHierarchyController::AddRigidBody(FName InName, FRigElementKe
 		UBlueprint* Blueprint = GetTypedOuter<UBlueprint>();
 		if (Blueprint)
 		{
-			TArray<FString> Commands = GetAddRigidBodyPythonCommands(NewElement);
+			TArray<FString> Commands = GetAddPhysicsElementPythonCommands(NewElement);
 			for (const FString& Command : Commands)
 			{
 				RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
@@ -1225,10 +1244,10 @@ FString URigHierarchyController::ExportToText(TArray<FRigElementKey> InKeys) con
 				FRigCurveElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
 				break;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				FRigRigidBodyElement DefaultElement;
-				FRigRigidBodyElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
+				FRigPhysicsElement DefaultElement;
+				FRigPhysicsElement::StaticStruct()->ExportText(PerElementData.Content, Element, &DefaultElement, nullptr, PPF_None, nullptr);
 				break;
 			}
 			case ERigElementType::Reference:
@@ -1399,10 +1418,10 @@ TArray<FRigElementKey> URigHierarchyController::ImportFromText(FString InContent
 				FRigCurveElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigCurveElement::StaticStruct()->GetName(), true);
 				break;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				NewElement = MakeElement<FRigRigidBodyElement>();
-				FRigRigidBodyElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigRigidBodyElement::StaticStruct()->GetName(), true);
+				NewElement = MakeElement<FRigPhysicsElement>();
+				FRigPhysicsElement::StaticStruct()->ImportText(*PerElementData.Content, NewElement, nullptr, EPropertyPortFlags::PPF_None, &ErrorPipe, FRigPhysicsElement::StaticStruct()->GetName(), true);
 				break;
 			}
 			case ERigElementType::Reference:
@@ -1727,9 +1746,9 @@ TArray<FString> URigHierarchyController::GetAddElementPythonCommands(FRigBaseEle
 	{
 		return GetAddCurvePythonCommands(CurveElement);
 	}
-	else if(FRigRigidBodyElement* RigidBodyElement = Cast<FRigRigidBodyElement>(Element))
+	else if(FRigPhysicsElement* PhysicsElement = Cast<FRigPhysicsElement>(Element))
 	{
-		return GetAddRigidBodyPythonCommands(RigidBodyElement);
+		return GetAddPhysicsElementPythonCommands(PhysicsElement);
 	}
 	else if(FRigReferenceElement* ReferenceElement = Cast<FRigReferenceElement>(Element))
 	{
@@ -1841,35 +1860,35 @@ TArray<FString> URigHierarchyController::GetAddCurvePythonCommands(FRigCurveElem
 		Hierarchy->GetCurveValue(Curve))};
 }
 
-TArray<FString> URigHierarchyController::GetAddRigidBodyPythonCommands(FRigRigidBodyElement* RigidBody) const
+TArray<FString> URigHierarchyController::GetAddPhysicsElementPythonCommands(FRigPhysicsElement* PhysicsElement) const
 {
 	TArray<FString> Commands;
-	FString TransformStr = RigVMPythonUtils::TransformToPythonString(RigidBody->Pose.Initial.Local.Transform);
+	FString TransformStr = RigVMPythonUtils::TransformToPythonString(PhysicsElement->Pose.Initial.Local.Transform);
 	
 	FString ParentKeyStr = "''";
-	if (RigidBody->ParentElement)
+	if (PhysicsElement->ParentElement)
 	{
-		ParentKeyStr = RigidBody->ParentElement->GetKey().ToPythonString();
+		ParentKeyStr = PhysicsElement->ParentElement->GetKey().ToPythonString();
 	}
 
-	FString RigidBodyNamePythonized = RigVMPythonUtils::PythonizeName(RigidBody->GetName());
-	FRigRigidBodySettings& Settings = RigidBody->Settings;
+	FString PhysicsElementNamePythonized = RigVMPythonUtils::PythonizeName(PhysicsElement->GetName());
+	FRigPhysicsSettings& Settings = PhysicsElement->Settings;
 	FString SettingsStr;
 	{
-		SettingsStr =FString::Printf(TEXT("rigid_body_settings_%s"),
-			*RigidBodyNamePythonized);
+		SettingsStr =FString::Printf(TEXT("physics_settings%s"),
+			*PhysicsElementNamePythonized);
 			
-		Commands.Add(FString::Printf(TEXT("rigid_body_settings_%s = unreal.RigRigidBodySettings()"),
-			*RigidBodyNamePythonized));
+		Commands.Add(FString::Printf(TEXT("physics_settings%s = unreal.RigPhysicsSettings()"),
+			*PhysicsElementNamePythonized));
 
 		Commands.Add(FString::Printf(TEXT("control_settings_%s.mass = %f"),
-			*RigidBodyNamePythonized,
+			*PhysicsElementNamePythonized,
 			Settings.Mass));	
 	}
 	
-	// FRigElementKey AddRigidBody(FName InName, FRigElementKey InParent, FRigRigidBodySettings InSettings, FTransform InLocalTransform, bool bSetupUndo = false);
-	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_rigid_body('%s', %s, %s, %s)"),
-		*RigidBody->GetName(),
+	// FRigElementKey AddPhysicsElement(FName InName, FRigElementKey InParent, FRigPhysicsSettings InSettings, FTransform InLocalTransform, bool bSetupUndo = false);
+	Commands.Add(FString::Printf(TEXT("hierarchy_controller.add_physics_element('%s', %s, %s, %s)"),
+		*PhysicsElement->GetName(),
 		*ParentKeyStr,
 		*SettingsStr,
 		*TransformStr));

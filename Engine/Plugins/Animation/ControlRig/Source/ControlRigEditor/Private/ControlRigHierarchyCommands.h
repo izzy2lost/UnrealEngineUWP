@@ -111,8 +111,8 @@ public:
 	/* Show spaces */
 	TSharedPtr< FUICommandInfo > ShowNulls;
 
-	/* Show rigidbodies */
-	TSharedPtr< FUICommandInfo > ShowRigidBodies;
+	/* Show physics */
+	TSharedPtr< FUICommandInfo > ShowPhysics;
 
 	/* Show references */
 	TSharedPtr< FUICommandInfo > ShowReferences;

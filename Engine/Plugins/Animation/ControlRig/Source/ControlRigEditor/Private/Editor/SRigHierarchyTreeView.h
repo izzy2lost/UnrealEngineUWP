@@ -25,7 +25,7 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 		bShowBones = true;
 		bShowControls = true;
 		bShowNulls = true;
-		bShowRigidBodies = true;
+		bShowPhysics = true;
 		bShowReferences = true;
 		bShowSockets = true;
 		bShowConnectors = true;
@@ -55,8 +55,8 @@ struct CONTROLRIGEDITOR_API FRigTreeDisplaySettings
 	/** Whether or not to show spaces in the hierarchy */
 	bool bShowNulls;
 
-	/** Whether or not to show rigidbodies in the hierarchy */
-	bool bShowRigidBodies;
+	/** Whether or not to show physics elements in the hierarchy */
+	bool bShowPhysics;
 
 	/** Whether or not to show references in the hierarchy */
 	bool bShowReferences;

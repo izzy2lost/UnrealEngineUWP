@@ -47,9 +47,9 @@ UScriptStruct* FRigBaseElement::GetElementStruct() const
 		{
 			return FRigReferenceElement::StaticStruct();
 		}
-		case ERigElementType::RigidBody:
+		case ERigElementType::Physics:
 		{
-			return FRigRigidBodyElement::StaticStruct();
+			return FRigPhysicsElement::StaticStruct();
 		}
 		case ERigElementType::Connector:
 		{
@@ -1308,55 +1308,106 @@ void FRigCurveElement::CopyFrom(const FRigBaseElement* InOther)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FRigRigidBodySettings
+// FRigPhysicsSolver
 ////////////////////////////////////////////////////////////////////////////////
 
-FRigRigidBodySettings::FRigRigidBodySettings()
+void FRigPhysicsSolverDescription::Serialize(FArchive& Ar)
+{
+	if (Ar.IsSaving() || Ar.IsObjectReferenceCollector() || Ar.IsCountingMemory())
+	{
+		Save(Ar);
+	}
+	else if (Ar.IsLoading())
+	{
+		Load(Ar);
+	}
+}
+
+void FRigPhysicsSolverDescription::Save(FArchive& Ar)
+{
+	Ar << ID;
+	Ar << Name;
+}
+
+void FRigPhysicsSolverDescription::Load(FArchive& Ar)
+{
+	Ar << ID;
+	Ar << Name;
+}
+
+FGuid FRigPhysicsSolverDescription::MakeGuid(const FString& InObjectPath, const FName& InSolverName)
+{
+	const FString CompletePath = FString::Printf(TEXT("%s|%s"), *InObjectPath, *InSolverName.ToString());
+	return FGuid::NewDeterministicGuid(CompletePath);
+}
+
+FRigPhysicsSolverID FRigPhysicsSolverDescription::MakeID(const FString& InObjectPath, const FName& InSolverName)
+{
+	return FRigPhysicsSolverID(MakeGuid(InObjectPath, InSolverName));
+}
+
+void FRigPhysicsSolverDescription::CopyFrom(const FRigPhysicsSolverDescription* InOther)
+{
+	if(InOther)
+	{
+		ID = InOther->ID;
+		Name = InOther->Name;
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FRigPhysicsSettings
+////////////////////////////////////////////////////////////////////////////////
+
+FRigPhysicsSettings::FRigPhysicsSettings()
 	: Mass(1.f)
 {
 }
 
-void FRigRigidBodySettings::Save(FArchive& Ar)
+void FRigPhysicsSettings::Save(FArchive& Ar)
 {
 	Ar << Mass;
 }
 
-void FRigRigidBodySettings::Load(FArchive& Ar)
+void FRigPhysicsSettings::Load(FArchive& Ar)
 {
 	Ar << Mass;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// FRigRigidBodyElement
+// FRigPhysicsElement
 ////////////////////////////////////////////////////////////////////////////////
 
-const FRigBaseElement::EElementIndex FRigRigidBodyElement::ElementTypeIndex = RigidBodyElement;
+const FRigBaseElement::EElementIndex FRigPhysicsElement::ElementTypeIndex = PhysicsElement;
 
-void FRigRigidBodyElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase)
+void FRigPhysicsElement::Save(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
 	Super::Save(Ar, SerializationPhase);
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
+		Ar << Solver;
 		Settings.Save(Ar);
 	}
 }
 
-void FRigRigidBodyElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
+void FRigPhysicsElement::Load(FArchive& Ar, ESerializationPhase SerializationPhase)
 {
 	Super::Load(Ar, SerializationPhase);
 
 	if(SerializationPhase == ESerializationPhase::StaticData)
 	{
+		Ar << Solver;
 		Settings.Load(Ar);
 	}
 }
 
-void FRigRigidBodyElement::CopyFrom(const FRigBaseElement* InOther)
+void FRigPhysicsElement::CopyFrom(const FRigBaseElement* InOther)
 {
 	Super::CopyFrom(InOther);
 	
-	const FRigRigidBodyElement* Source = CastChecked<FRigRigidBodyElement>(InOther);
+	const FRigPhysicsElement* Source = CastChecked<FRigPhysicsElement>(InOther);
+	Solver = Source->Solver;
 	Settings = Source->Settings;
 }
 

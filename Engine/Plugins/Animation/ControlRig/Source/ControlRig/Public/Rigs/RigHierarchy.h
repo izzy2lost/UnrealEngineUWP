@@ -31,6 +31,7 @@ DECLARE_MULTICAST_DELEGATE_ThreeParams(FRigHierarchyMetadataTagChangedDelegate, 
 
 extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableRotationOrder;
 extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnableModules;
+extern CONTROLRIG_API TAutoConsoleVariable<bool> CVarControlRigHierarchyEnablePhysics;
 
 UENUM()
 enum ERigTransformStackEntryType : int
@@ -661,7 +662,7 @@ public:
 	{
 		return Get<T>(GetIndex(InKey));
 	}
-	
+
 private:
 	/**
 	* Returns bone element for a given key, for scripting purpose only, for cpp usage, use Find<FRigBoneElement>()
@@ -923,22 +924,22 @@ public:
 	}
 
 	/**
-	 * Returns all RigidBody elements
+	 * Returns all Physics elements
 	 * @param bTraverse Returns the elements in order of a depth first traversal
 	 */
-	TArray<FRigRigidBodyElement*> GetRigidBodies(bool bTraverse = false) const
+	TArray<FRigPhysicsElement*> GetPhysicsElements(bool bTraverse = false) const
 	{
-		return GetElementsOfType<FRigRigidBodyElement>(bTraverse);
+		return GetElementsOfType<FRigPhysicsElement>(bTraverse);
 	}
 
 	/**
-	 * Returns all RigidBody elements
+	 * Returns all Physics elements
 	 * @param bTraverse Returns the elements in order of a depth first traversal
 	 */
-	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get RigidBodies", ScriptName = "GetRigidBodies"))
-    TArray<FRigElementKey> GetRigidBodyKeys(bool bTraverse = true) const
+	UFUNCTION(BlueprintCallable, Category = URigHierarchy, meta = (DisplayName = "Get Physics Keys", ScriptName = "GetPhysicsKeys"))
+    TArray<FRigElementKey> GetPhysicsKeys(bool bTraverse = true) const
 	{
-		return GetKeysOfType<FRigRigidBodyElement>(bTraverse);
+		return GetKeysOfType<FRigPhysicsElement>(bTraverse);
 	}
 
 	/**
@@ -1044,6 +1045,20 @@ public:
 			return GetNumberOfParents(Element.Index) == 0;
 		}, false);
 	}
+
+	/**
+	 * Finds a new physics solver given its guid
+	 * @param InID The id identifying the physics solver
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolver(const FRigPhysicsSolverID& InID) const; 
+
+	/**
+	 * Finds a new physics solver given its name
+	 * @param InName The name identifying the physics solver in the scope of this hierarchy
+	 * @return The physics solver
+	 */
+	const FRigPhysicsSolverDescription* FindPhysicsSolverByName(const FName& InName) const; 
 
 	/**
 	 * Returns the name of metadata for a given element
@@ -4453,7 +4468,7 @@ protected:
 			{
 				return 3;
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
 				return 4;
 			}
@@ -4501,7 +4516,7 @@ protected:
 			}
 			case 4:
 			{
-				return ERigElementType::RigidBody;
+				return ERigElementType::Physics;
 			}
 			case 5:
 			{

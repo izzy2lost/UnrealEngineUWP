@@ -26,14 +26,14 @@ enum class ERigElementType : uint8
 	Space = Null UMETA(Hidden),
 	Control = 0x004,
 	Curve = 0x008,
-	RigidBody = 0x010 UMETA(Hidden), 
+	Physics = 0x010, 
 	Reference = 0x020,
 	Connector = 0x040,
 	Socket = 0x080,
 	
 	First = Bone UMETA(Hidden), 
 	Last = Socket UMETA(Hidden), 
-	All = Bone | Null | Control | Curve | RigidBody | Reference | Connector | Socket,
+	All = Bone | Null | Control | Curve | Physics | Reference | Connector | Socket,
 	ToResetAfterConstructionEvent = Bone | Control | Curve | Socket UMETA(Hidden),
 };
 
@@ -1580,9 +1580,9 @@ public:
 			{
 				return FString::Printf(TEXT("Curve(%s)"), *Name.ToString());
 			}
-			case ERigElementType::RigidBody:
+			case ERigElementType::Physics:
 			{
-				return FString::Printf(TEXT("RigidBody(%s)"), *Name.ToString());
+				return FString::Printf(TEXT("Physics(%s)"), *Name.ToString());
 			}
 			case ERigElementType::Reference:
 			{
