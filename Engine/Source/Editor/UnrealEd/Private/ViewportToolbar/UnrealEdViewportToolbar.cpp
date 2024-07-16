@@ -1774,17 +1774,6 @@ FToolMenuEntry CreateCameraSubmenu(TWeakPtr<SEditorViewport> InViewport)
 
 static FFormatNamedArguments GetScreenPercentageFormatArguments(const FEditorViewportClient& ViewportClient)
 {
-	static auto CVarEditorViewportDefaultScreenPercentageRealTimeMode =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.RealTime"));
-	static auto CVarEditorViewportDefaultScreenPercentageMobileMode =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.Mobile"));
-	static auto CVarEditorViewportDefaultScreenPercentageVRMode =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.VR"));
-	static auto CVarEditorViewportDefaultScreenPercentagePathTracerMode =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.PathTracer"));
-	static auto CVarEditorViewportDefaultScreenPercentageMode =
-		IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.NonRealTime"));
-
 	const UEditorPerformanceProjectSettings* EditorProjectSettings = GetDefault<UEditorPerformanceProjectSettings>();
 	const UEditorPerformanceSettings* EditorUserSettings = GetDefault<UEditorPerformanceSettings>();
 	const FEngineShowFlags& EngineShowFlags = ViewportClient.EngineShowFlags;
@@ -1812,31 +1801,31 @@ static FFormatNamedArguments GetScreenPercentageFormatArguments(const FEditorVie
 	{
 		ProjectSetting = EditorProjectSettings->PathTracerScreenPercentageMode;
 		UserPreference = EditorUserSettings->PathTracerScreenPercentageMode;
-		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentagePathTracerMode;
+		CVarDefaultScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.PathTracer"));
 	}
 	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::VR)
 	{
 		ProjectSetting = EditorProjectSettings->VRScreenPercentageMode;
 		UserPreference = EditorUserSettings->VRScreenPercentageMode;
-		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageVRMode;
+		CVarDefaultScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.VR"));
 	}
 	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::Mobile)
 	{
 		ProjectSetting = EditorProjectSettings->MobileScreenPercentageMode;
 		UserPreference = EditorUserSettings->MobileScreenPercentageMode;
-		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageMobileMode;
+		CVarDefaultScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.Mobile"));
 	}
 	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::Desktop)
 	{
 		ProjectSetting = EditorProjectSettings->RealtimeScreenPercentageMode;
 		UserPreference = EditorUserSettings->RealtimeScreenPercentageMode;
-		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageRealTimeMode;
+		CVarDefaultScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.RealTime"));
 	}
 	else if (ViewportRenderingMode == EViewStatusForScreenPercentage::NonRealtime)
 	{
 		ProjectSetting = EditorProjectSettings->NonRealtimeScreenPercentageMode;
 		UserPreference = EditorUserSettings->NonRealtimeScreenPercentageMode;
-		CVarDefaultScreenPercentage = CVarEditorViewportDefaultScreenPercentageMode;
+		CVarDefaultScreenPercentage = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.ScreenPercentageMode.NonRealTime"));
 	}
 	else
 	{
