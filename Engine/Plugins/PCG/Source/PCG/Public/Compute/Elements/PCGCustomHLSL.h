@@ -14,7 +14,7 @@ enum class EPCGKernelType : uint8
 {
 	PointProcessor UMETA(Tooltip = "Kernel executes on each point in first input pin."),
 	PointGenerator UMETA(Tooltip = "Kernel executes for fixed number of points, configurable on node."),
-	Custom UMETA(Tooltip = "Execution thread counts and output buffer sizes configurable on node."),
+	Custom UMETA(Tooltip = "Execution thread counts and output buffer sizes configurable on node. All data read/write indices must be manually bounds checked."),
 };
 
 /** Total number of threads that will be dispatched for this kernel. */
@@ -84,6 +84,8 @@ public:
 	int GetPointCount() const { return PointCount; }
 	int GetFixedThreadCount() const { return FixedThreadCount; }
 
+	const UPCGPin* GetFirstInputPin() const;
+	const UPCGPin* GetSecondInputPin() const;
 	const UPCGPin* GetPointProcessingInputPin() const;
 	const UPCGPin* GetSecondPointProcessingInputPin() const;
 	const UPCGPin* GetFirstOutputPin() const;

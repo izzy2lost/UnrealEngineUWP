@@ -156,24 +156,24 @@ int UPCGCustomHLSLSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 	}
 	else if (KernelType == EPCGKernelType::Custom)
 	{
-		auto GetFromFirstInput = [this, Binding]()
+		auto GetFromFirstInput = [this, Binding]() -> int
 		{
-			const UPCGPin* InputPin = GetPointProcessingInputPin();
+			const UPCGPin* InputPin = GetFirstInputPin();
 			return GetProcessingElemCountForInputPin(InputPin, Binding);
 		};
 
-		auto GetFromSecondInput = [this, Binding]()
+		auto GetFromSecondInput = [this, Binding]() -> int
 		{
-			const UPCGPin* InputPin = GetSecondPointProcessingInputPin();
-			return GetProcessingElemCountForInputPin(InputPin, Binding);
+			const UPCGPin* InputPin = GetSecondInputPin();
+			return InputPin ? GetProcessingElemCountForInputPin(InputPin, Binding) : 0;
 		};
 
-		auto GetFromFirstInputXSecondInput = [this, Binding]()
+		auto GetFromFirstInputXSecondInput = [this, Binding]() -> int
 		{
-			const UPCGPin* FirstPin = GetPointProcessingInputPin();
-			const int FirstElemCount = GetProcessingElemCountForInputPin(FirstPin, Binding);
-			const UPCGPin* SecondPin = GetSecondPointProcessingInputPin();
-			const int SecondElemCount = GetProcessingElemCountForInputPin(SecondPin, Binding);
+			const UPCGPin* FirstPin = GetFirstInputPin();
+			const UPCGPin* SecondPin = GetSecondInputPin();
+			const int FirstElemCount = FirstPin ? GetProcessingElemCountForInputPin(FirstPin, Binding) : 0;
+			const int SecondElemCount = SecondPin ? GetProcessingElemCountForInputPin(SecondPin, Binding) : 0;
 			return FirstElemCount * SecondElemCount;
 		};
 
@@ -344,19 +344,21 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 		}
 	}
 
+	const bool bNeedsPointPin = KernelType == EPCGKernelType::PointProcessor || KernelType == EPCGKernelType::PointGenerator;
+
 	// No size set by kernel, fall back to pin settings.
 	if (OutputPin->Properties.BufferSizeMode == EPCGPinBufferSizeMode::FromFirstPin)
 	{
-		if (const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin())
+		if (const UPCGPin* InputPin = bNeedsPointPin ? GetPointProcessingInputPin() : GetFirstInputPin())
 		{
-			PinDesc = ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
+			PinDesc = ComputeInputPinDataDesc(InputPin, Binding);
 		}
 	}
 	else if (OutputPin->Properties.BufferSizeMode == EPCGPinBufferSizeMode::FromSecondPin)
 	{
-		if (const UPCGPin* PointProcessingInputPin = GetSecondPointProcessingInputPin())
+		if (const UPCGPin* InputPin = bNeedsPointPin ? GetSecondPointProcessingInputPin() : GetSecondInputPin())
 		{
-			PinDesc = ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
+			PinDesc = ComputeInputPinDataDesc(InputPin, Binding);
 		}
 	}
 	else if (OutputPin->Properties.BufferSizeMode == EPCGPinBufferSizeMode::FirstPinXSecondPin)
@@ -411,6 +413,26 @@ EPCGChangeType UPCGCustomHLSLSettings::GetChangeTypeForProperty(const FName& InP
 	return ChangeType;
 }
 #endif
+
+const UPCGPin* UPCGCustomHLSLSettings::GetFirstInputPin() const
+{
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		return !Node->GetInputPins().IsEmpty() ? Node->GetInputPins()[0] : nullptr;
+	}
+
+	return nullptr;
+}
+
+const UPCGPin* UPCGCustomHLSLSettings::GetSecondInputPin() const
+{
+	if (const UPCGNode* Node = Cast<UPCGNode>(GetOuter()))
+	{
+		return (Node->GetInputPins().Num() > 1) ? Node->GetInputPins()[1] : nullptr;
+	}
+
+	return nullptr;
+}
 
 const UPCGPin* UPCGCustomHLSLSettings::GetPointProcessingInputPin() const
 {
@@ -763,7 +785,9 @@ void UPCGCustomHLSLSettings::UpdatePinSettings()
 		}
 
 		// Primary pin settings driven by kernel (if not custom kernel type).
-		Properties.bDisplayBufferSizeSettings = PinIndex > 0 || KernelType == EPCGKernelType::Custom;
+		const bool bPinCanBeSized = PinIndex > 0 || KernelType == EPCGKernelType::Custom;
+		const bool bDataCanBeSized = Properties.AllowedTypes == EPCGDataType::Point;
+		Properties.bDisplayBufferSizeSettings = bPinCanBeSized && bDataCanBeSized;
 
 		// Output pins should always allow multiple connections.
 		// TODO this could be hoisted up somewhere in the future.
