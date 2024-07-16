@@ -1987,6 +1987,13 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 					RightSection.AddEntry(ViewModesSubmenu);
 				}
 
+				// Add the "Camera" submenu.
+				{
+					FToolMenuEntry CameraSubmenu = UE::LevelEditor::CreateLevelEditorViewportToolbarCameraSubmenu();
+					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+					RightSection.AddEntry(CameraSubmenu);
+				}
+
 				// Add the "Show" submenu.
 				{
 					// Stay backward-compatible with the old viewport toolbar.
@@ -2049,6 +2056,18 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 					CommandListRef, LevelEditorModule.GetAllLevelEditorToolbarViewMenuExtenders()
 				);
 				ViewportToolbarContext.AddExtender(ViewMenuExtenders);
+			}
+
+			// Stay backward-compatible with legacy options menu extenders
+			{
+				TSharedPtr<FExtender> ViewMenuExtenders = LevelEditorModule.AssembleExtenders(
+					CommandListRef, LevelEditorModule.GetAllLevelViewportOptionsMenuExtenders()
+				);
+
+				if (ViewMenuExtenders.IsValid())
+				{
+					ViewportToolbarContext.AddExtender(ViewMenuExtenders);
+				}
 			}
 		}
 

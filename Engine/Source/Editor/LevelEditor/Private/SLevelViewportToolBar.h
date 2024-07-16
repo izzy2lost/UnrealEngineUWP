@@ -203,28 +203,6 @@ private:
 	 */
 	TSharedRef<SWidget> GenerateViewModeOptionsMenu() const;
 
-	/**
-	 * @return The widget containing the perspective only FOV window.
-	 */
-	TSharedRef<SWidget> GenerateFOVMenu() const;
-
-	/** Called by the FOV slider in the perspective viewport to get the FOV value */
-	float OnGetFOVValue() const;
-
-	/** Called when the FOV slider is adjusted in the perspective viewport */
-	void OnFOVValueChanged( float NewValue );
-
-	/**
-	 * @return The widget containing the far view plane slider.
-	 */
-	TSharedRef<SWidget> GenerateFarViewPlaneMenu() const;
-
-	/** Called by the far view plane slider in the perspective viewport to get the far view plane value */
-	float OnGetFarViewPlaneValue() const;
-
-	/** Called when the far view plane slider is adjusted in the perspective viewport */
-	void OnFarViewPlaneValueChanged( float NewValue );
-
 	FReply OnRealtimeWarningClicked();
 	EVisibility GetRealtimeWarningVisibility() const;
 

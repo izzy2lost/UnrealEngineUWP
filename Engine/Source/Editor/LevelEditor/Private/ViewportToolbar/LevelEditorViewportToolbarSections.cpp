@@ -2,9 +2,13 @@
 
 #include "ViewportToolbar/LevelEditorViewportToolbarSections.h"
 
+#include "Bookmarks/BookmarkUI.h"
+#include "Bookmarks/IBookmarkTypeTools.h"
+#include "Camera/CameraActor.h"
 #include "EditorViewportCommands.h"
 #include "FoliageType.h"
 #include "GameFramework/ActorPrimitiveColorHandler.h"
+#include "GameFramework/WorldSettings.h"
 #include "GroomVisualizationData.h"
 #include "Layers/LayersSubsystem.h"
 #include "LevelEditor.h"
@@ -123,6 +127,156 @@ void PopulateShowLayersSubmenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InV
 
 			Section.AddMenuEntry(
 				NAME_None, FText::FromName(LayerName), FText::GetEmpty(), FSlateIcon(), Action, EUserInterfaceActionType::ToggleButton
+			);
+		}
+	}
+}
+
+void SetLevelViewportFOV(const TSharedRef<::SLevelViewport>& InLevelViewport, float InValue)
+{
+	bool bUpdateStoredFOV = true;
+
+	if (InLevelViewport->GetLevelViewportClient().GetActiveActorLock().IsValid())
+	{
+		if (ACameraActor* CameraActor =
+				Cast<ACameraActor>(InLevelViewport->GetLevelViewportClient().GetActiveActorLock().Get()))
+		{
+			CameraActor->GetCameraComponent()->FieldOfView = InValue;
+			bUpdateStoredFOV = false;
+		}
+	}
+
+	if (bUpdateStoredFOV)
+	{
+		InLevelViewport->GetLevelViewportClient().FOVAngle = InValue;
+	}
+
+	InLevelViewport->GetLevelViewportClient().ViewFOV = InValue;
+	InLevelViewport->GetLevelViewportClient().Invalidate();
+}
+
+void SetFarViewPlaneValue(const TSharedRef<::SLevelViewport>& InLevelViewport, float InValue)
+{
+	FLevelEditorViewportClient& ViewportClient = InLevelViewport->GetLevelViewportClient();
+	return ViewportClient.OverrideFarClipPlane(InValue);
+}
+
+float GetLevelViewportFOV(const TSharedRef<::SLevelViewport>& InLevelViewport)
+{
+	FLevelEditorViewportClient& ViewportClient = InLevelViewport->GetLevelViewportClient();
+	return ViewportClient.ViewFOV;
+}
+
+float GetFarViewPlaneValue(const TSharedRef<::SLevelViewport>& InLevelViewport)
+{
+	FLevelEditorViewportClient& ViewportClient = InLevelViewport->GetLevelViewportClient();
+	return ViewportClient.GetFarClipPlaneOverride();
+}
+
+// TODO: properly implement
+void SetCameraSpeed(const TSharedRef<::SLevelViewport>& InLevelViewport, float NewValue)
+{
+}
+
+void SetCameraSpeedScalarValue(const TSharedRef<::SLevelViewport>& InLevelViewport, float NewValue)
+{
+	if (InLevelViewport->GetViewportClient().IsValid())
+	{
+		InLevelViewport->GetViewportClient()->SetCameraSpeedScalar(NewValue);
+
+		// TODO: make sure something like this gets called if needed (e.g. future menus sharing code)
+		// Also, verify where/how to deal with this callback
+		// OnCamSpeedScalarChanged.ExecuteIfBound(NewValue);
+	}
+}
+
+// TODO: properly implement
+float GetCamSpeedSliderPosition(const TSharedRef<::SLevelViewport>& InLevelViewport)
+{
+	return 1.0f;
+}
+
+float GetCamSpeedScalarSliderPosition(const TSharedRef<::SLevelViewport>& InLevelViewport)
+{
+	float CamSpeedScalar = 1.0f;
+
+	if (InLevelViewport->GetViewportClient().IsValid())
+	{
+		CamSpeedScalar = (InLevelViewport->GetViewportClient()->GetCameraSpeedScalar());
+	}
+
+	return CamSpeedScalar;
+}
+
+bool AddJumpToBookmarkMenu(UToolMenu* InMenu, const TWeakPtr<::SLevelViewport>& InViewport)
+{
+	FToolMenuSection& Section =
+		InMenu->FindOrAddSection("JumpToBookmark", LOCTEXT("JumpToBookmarksSectionName", "Jump to Bookmark"));
+
+	// Add a menu entry for each bookmark
+	TSharedPtr<::SLevelViewport> SharedViewport = InViewport.Pin();
+	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
+
+	const int32 NumberOfBookmarks = static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
+	const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
+
+	bool bFoundAnyBookmarks = false;
+
+	for (int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex)
+	{
+		if (IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, &ViewportClient))
+		{
+			bFoundAnyBookmarks = true;
+			Section.AddMenuEntry(
+				NAME_None,
+				FLevelViewportCommands::Get().JumpToBookmarkCommands[BookmarkIndex],
+				FBookmarkUI::GetPlainLabel(BookmarkIndex),
+				FBookmarkUI::GetJumpToTooltip(BookmarkIndex),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
+			);
+		}
+	}
+
+	return bFoundAnyBookmarks;
+}
+
+void AddClearBookmarkMenu(UToolMenu* InMenu, const TWeakPtr<::SLevelViewport>& InViewport)
+{
+	FToolMenuSection& Section = InMenu->AddSection("Section");
+
+	// Add a menu entry for each bookmark
+	// FEditorModeTools& Tools = GLevelEditorModeTools();
+	TSharedPtr<::SLevelViewport> SharedViewport = InViewport.Pin();
+	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
+
+	const int32 NumberOfBookmarks = static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
+	const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
+
+	for (int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex)
+	{
+		if (IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, &ViewportClient))
+		{
+			Section.AddMenuEntry(
+				NAME_None,
+				FLevelViewportCommands::Get().ClearBookmarkCommands[BookmarkIndex],
+				FBookmarkUI::GetPlainLabel(BookmarkIndex)
+			);
+		}
+	}
+
+	for (int32 BookmarkIndex = NumberOfMappedBookmarks; BookmarkIndex < NumberOfBookmarks; ++BookmarkIndex)
+	{
+		if (IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, &ViewportClient))
+		{
+			FUIAction Action;
+			Action.ExecuteAction.BindSP(SharedViewport.ToSharedRef(), &::SLevelViewport::OnClearBookmark, BookmarkIndex);
+
+			Section.AddMenuEntry(
+				NAME_None,
+				FBookmarkUI::GetPlainLabel(BookmarkIndex),
+				FBookmarkUI::GetClearTooltip(BookmarkIndex),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.Clean"),
+				Action
 			);
 		}
 	}
@@ -817,13 +971,23 @@ FToolMenuEntry CreateShowHLODsSubmenu()
 
 								auto CreateDrawDistanceWidget = [](TSharedRef<SSpinBox<double>> InSpinBoxWidget)
 								{
-									return SNew(SBox).HAlign(HAlign_Right
-									)[SNew(SBox)
+									// clang-format off
+									return SNew(SBox)
+										.HAlign(HAlign_Right)
+										[
+											SNew(SBox)
 										  .Padding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
-										  .WidthOverride(100.0f
-										  )[SNew(SBorder)
+										  .WidthOverride(100.0f)
+											[
+												SNew(SBorder)
 												.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-												.Padding(FMargin(1.0f))[InSpinBoxWidget]]];
+												.Padding(FMargin(1.0f))
+												[
+													InSpinBoxWidget
+												]
+											]
+										];
+									// clang-format on
 								};
 
 								FToolMenuEntry MinDrawDistanceMenuEntry = FToolMenuEntry::InitWidget(
@@ -1608,6 +1772,451 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 					{
 						const FLevelViewportCommands& LevelViewportActions = FLevelViewportCommands::Get();
 						SettingsSection.AddMenuEntry(LevelViewportActions.AdvancedSettings);
+					}
+				}
+			}
+		)
+	);
+}
+
+void CreateCameraSpawnMenu(UToolMenu* InMenu)
+{
+	FToolMenuSection& Section = InMenu->AddSection("Section");
+	const FLevelViewportCommands& Actions = FLevelViewportCommands::Get();
+
+	for (TSharedPtr<FUICommandInfo> Camera : Actions.CreateCameras)
+	{
+		Section.AddMenuEntry(NAME_None, Camera);
+	}
+}
+
+void CreateBookmarksMenu(UToolMenu* InMenu, TWeakPtr<::SLevelViewport> InViewport)
+{
+	// Add a menu entry for each bookmark
+	TSharedPtr<::SLevelViewport> SharedViewport = InViewport.Pin();
+	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
+
+	FToolMenuSection& ManageBookmarksSection =
+		InMenu->FindOrAddSection("ManageBookmarks", LOCTEXT("ManageBookmarkSectionName", "Manage Bookmarks"));
+
+	bool bFoundBookmarks = false;
+
+	// Jump to Bookmark Section
+	{
+		bFoundBookmarks = Private::AddJumpToBookmarkMenu(InMenu, InViewport);
+	}
+
+	// Manage Bookmarks Section
+	{
+		// Set Bookmark Submenu
+		{
+			const int32 NumberOfBookmarks =
+				static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
+			const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
+
+			ManageBookmarksSection.AddSubMenu(
+				"SetBookmark",
+				LOCTEXT("SetBookmarkSubMenu", "Set Bookmark"),
+				LOCTEXT("SetBookmarkSubMenu_ToolTip", "Setting bookmarks"),
+				FNewToolMenuDelegate::CreateLambda(
+					[NumberOfMappedBookmarks](UToolMenu* InMenu)
+					{
+						const FLevelViewportCommands& Actions = FLevelViewportCommands::Get();
+
+						FToolMenuSection& SetBookmarksSection =
+							InMenu->FindOrAddSection("SetBookmark", LOCTEXT("SetBookmarkSectionName", "Set Bookmark"));
+
+						for (int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex)
+						{
+							SetBookmarksSection.AddMenuEntry(
+								NAME_None,
+								Actions.SetBookmarkCommands[BookmarkIndex],
+								FBookmarkUI::GetPlainLabel(BookmarkIndex),
+								FBookmarkUI::GetSetTooltip(BookmarkIndex),
+								FSlateIcon(FAppStyle::Get().GetStyleSetName(), "LevelViewport.ToggleActorPilotCameraView")
+							);
+						}
+					}
+				),
+				false,
+				FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.ToggleActorPilotCameraView"))
+			);
+		}
+
+		// Manage Bookmarks Submenu
+		{
+			if (bFoundBookmarks)
+			{
+				ManageBookmarksSection.AddSubMenu(
+					"ManageBookmarks",
+					LOCTEXT("ManageBookmarksSubMenu", "Manage Bookmarks"),
+					LOCTEXT("ManageBookmarksSubMenu_ToolTip", "Bookmarks related actions"),
+					FNewToolMenuDelegate::CreateLambda(
+						[bFoundBookmarks, InViewport](UToolMenu* InMenu)
+						{
+							if (!bFoundBookmarks)
+							{
+								return;
+							}
+
+							const FLevelViewportCommands& Actions = FLevelViewportCommands::Get();
+
+							FToolMenuSection& ManageBookmarksSubsection = InMenu->FindOrAddSection(
+								"ManageBookmarks", LOCTEXT("ManageBookmarkSectionName", "Manage Bookmarks")
+							);
+
+							ManageBookmarksSubsection.AddSubMenu(
+								"ClearBookmark",
+								LOCTEXT("ClearBookmarkSubMenu", "Clear Bookmark"),
+								LOCTEXT("ClearBookmarkSubMenu_ToolTip", "Clear viewport bookmarks"),
+								FNewToolMenuDelegate::CreateLambda(&Private::AddClearBookmarkMenu, InViewport),
+								false,
+								FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
+							);
+
+							FToolMenuEntry& CompactBookmarks =
+								ManageBookmarksSubsection.AddMenuEntry(Actions.CompactBookmarks);
+							CompactBookmarks.Icon =
+								FSlateIcon(FAppStyle::GetAppStyleSetName(), "AnimationEditor.ApplyCompression");
+
+							FToolMenuEntry& ClearBookmarks =
+								ManageBookmarksSubsection.AddMenuEntry(Actions.ClearAllBookmarks);
+							ClearBookmarks.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.Clean");
+						}
+					),
+					false,
+					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
+				);
+			}
+		}
+	}
+}
+
+FToolMenuEntry CreateFOVMenu(TWeakPtr<::SLevelViewport> InLevelViewportWeak)
+{
+	constexpr float FOVMin = 5.0f;
+	constexpr float FOVMax = 170.0f;
+
+	return UnrealEd::CreateNumericEntry(
+		"FOVAngle",
+		LOCTEXT("FOVAngle", "Field of View"),
+		LOCTEXT("FOVAngleTooltip", "Field of View"),
+		FCanExecuteAction(),
+		UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
+			[InLevelViewportWeak](float InValue)
+			{
+				if (TSharedPtr<::SLevelViewport> LevelViewport = InLevelViewportWeak.Pin())
+				{
+					Private::SetLevelViewportFOV(LevelViewport.ToSharedRef(), InValue);
+				}
+			}
+		),
+		TAttribute<float>::CreateLambda(
+			[InLevelViewportWeak]()
+			{
+				if (TSharedPtr<::SLevelViewport> Viewport = InLevelViewportWeak.Pin())
+				{
+					return Private::GetLevelViewportFOV(Viewport.ToSharedRef());
+				}
+
+				return FOVMin;
+			}
+		),
+		FOVMin,
+		FOVMax,
+		1
+	);
+}
+
+FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<::SLevelViewport> InInLevelViewportWeak)
+{
+	constexpr float FarMin = 0.0f;
+	constexpr float FarMax = 100000.0f;
+
+	return UnrealEd::CreateNumericEntry(
+		"FarViewPlane",
+		LOCTEXT("FarViewPlane", "Far View Plane"),
+		LOCTEXT("FarViewPlaneTooltip", "Far View Plane"),
+		FCanExecuteAction(),
+		UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
+			[InInLevelViewportWeak](float InValue)
+			{
+				if (TSharedPtr<::SLevelViewport> LevelViewport = InInLevelViewportWeak.Pin())
+				{
+					Private::SetFarViewPlaneValue(LevelViewport.ToSharedRef(), InValue);
+				}
+			}
+		),
+		TAttribute<float>::CreateLambda(
+			[InInLevelViewportWeak]()
+			{
+				if (TSharedPtr<::SLevelViewport> Viewport = InInLevelViewportWeak.Pin())
+				{
+					return Private::GetFarViewPlaneValue(Viewport.ToSharedRef());
+				}
+
+				return FarMax;
+			}
+		),
+		FarMin,
+		FarMax,
+		1
+	);
+}
+
+FToolMenuEntry CreateCameraSpeedSlider(TWeakPtr<::SLevelViewport> InLevelViewportWeak)
+{
+	constexpr float MinSpeed = 0.033f;
+	constexpr float MaxSpeed = 32.0f;
+
+	return UnrealEd::CreateNumericEntry(
+		"CameraSpeed",
+		LOCTEXT("CameraSpeedLabel", "Camera Speed"),
+		LOCTEXT("CameraSpeedTooltip", "Camera Speed"),
+		FCanExecuteAction(),
+		UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
+			[InLevelViewportWeak](float InValue)
+			{
+				if (TSharedPtr<::SLevelViewport> LevelViewport = InLevelViewportWeak.Pin())
+				{
+					Private::SetCameraSpeed(LevelViewport.ToSharedRef(), InValue);
+				}
+			}
+		),
+		TAttribute<float>::CreateLambda(
+			[InLevelViewportWeak]()
+			{
+				if (TSharedPtr<::SLevelViewport> Viewport = InLevelViewportWeak.Pin())
+				{
+					return Private::GetCamSpeedSliderPosition(Viewport.ToSharedRef());
+				}
+
+				return 1.0f;
+			}
+		),
+		MinSpeed,
+		MaxSpeed,
+		3
+	);
+}
+
+FToolMenuEntry CreateCameraSpeedScalarSlider(TWeakPtr<::SLevelViewport> InLevelViewportWeak)
+{
+	constexpr float MinSpeed = 1.0f;
+	constexpr float MaxSpeed = 128.0f;
+
+	return UnrealEd::CreateNumericEntry(
+		"CameraSpeedScalar",
+		LOCTEXT("CameraSpeedScalarLabel", "Speed Scalar"),
+		LOCTEXT("CameraSpeedScalarTooltip", "Scalar to increase camera movement range"),
+		FCanExecuteAction(),
+		UnrealEd::FNumericEntryExecuteActionDelegate::CreateLambda(
+			[InLevelViewportWeak](float InValue)
+			{
+				if (TSharedPtr<::SLevelViewport> LevelViewport = InLevelViewportWeak.Pin())
+				{
+					Private::SetCameraSpeedScalarValue(LevelViewport.ToSharedRef(), InValue);
+				}
+			}
+		),
+		TAttribute<float>::CreateLambda(
+			[InLevelViewportWeak]()
+			{
+				if (TSharedPtr<::SLevelViewport> Viewport = InLevelViewportWeak.Pin())
+				{
+					return Private::GetCamSpeedScalarSliderPosition(Viewport.ToSharedRef());
+				}
+
+				return MinSpeed;
+			}
+		),
+		MinSpeed,
+		MaxSpeed,
+		1
+	);
+}
+
+void CreateCameraSpeedMenu(UToolMenu* InMenu, const TWeakPtr<::SLevelViewport>& InLevelViewportWeak)
+{
+	FToolMenuSection& Section = InMenu->AddSection("Section");
+
+	Section.AddEntry(CreateCameraSpeedSlider(InLevelViewportWeak));
+	Section.AddEntry(CreateCameraSpeedScalarSlider(InLevelViewportWeak));
+}
+
+FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Camera",
+		LOCTEXT("CameraSubmenuLabel", "Camera"),
+		LOCTEXT("CameraSubmenuTooltip", "Viewport-related Camera settings"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* Submenu) -> void
+			{
+				TWeakPtr<::SLevelViewport> LevelViewportWeak = Submenu->FindContext<ULevelViewportContext>()->LevelViewport;
+
+				// TODO:
+				// add Select Active Camera
+
+				// Perspective Section
+				{
+					FToolMenuSection& PerspectiveSection =
+						Submenu->FindOrAddSection("Perspective", LOCTEXT("PerspectiveLabel", "Perspective"));
+
+					PerspectiveSection.AddMenuEntry(FEditorViewportCommands::Get().Perspective);
+
+					// TODO: show separator based on actual list of cameras
+					// PerspectiveSection.AddSeparator("PerspectiveSeparator");
+					// Camera list
+					// Camera types
+				}
+
+				// Orthographic Section
+				{
+					FToolMenuSection& OrthographicSection =
+						Submenu->FindOrAddSection("Orthographic", LOCTEXT("OrthographicLabel", "Orthographic"));
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Top);
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Bottom);
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Left);
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Right);
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Front);
+					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Back);
+
+					OrthographicSection.AddSeparator("PerspectiveSeparator");
+
+					OrthographicSection.AddEntry(CreateFOVMenu(LevelViewportWeak));
+					OrthographicSection.AddEntry(CreateFarViewPlaneMenu(LevelViewportWeak));
+				}
+
+				// Create Section
+				{
+					FToolMenuSection& CreateSection = Submenu->FindOrAddSection("Create", LOCTEXT("CreateLabel", "Create"));
+
+					CreateSection.AddSubMenu(
+						"CreateCamera",
+						LOCTEXT("CameraSubMenu", "Create Camera Here"),
+						LOCTEXT("CameraSubMenu_ToolTip", "Select a camera type to create at current viewport's location"),
+						FNewToolMenuDelegate::CreateLambda(
+							[](UToolMenu* InMenu)
+							{
+								CreateCameraSpawnMenu(InMenu);
+							}
+						),
+						false,
+						FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.CreateCamera")
+					);
+
+					CreateSection.AddSubMenu(
+						"Bookmarks",
+						LOCTEXT("BookmarksSubMenu", "Bookmarks"),
+						LOCTEXT("BookmarksSubMenu_ToolTip", "Bookmarks related actions"),
+						FNewToolMenuDelegate::CreateLambda(
+							[LevelViewportWeak](UToolMenu* InMenu)
+							{
+								CreateBookmarksMenu(InMenu, LevelViewportWeak);
+							}
+						),
+						false,
+						FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
+					);
+				}
+
+				// Positioning Section
+				{
+					FToolMenuSection& PositioningSection =
+						Submenu->FindOrAddSection("Positioning", LOCTEXT("PositioningLabel", "Positioning"));
+
+					// Camera Speed Submenu
+					{
+						PositioningSection.AddSubMenu(
+							"CameraSpeed",
+							LOCTEXT("CameraSpeedSubMenu", "Camera Speed"),
+							LOCTEXT("CameraSpeedSubMenu_ToolTip", "Camera Speed related actions"),
+							FNewToolMenuDelegate::CreateLambda(
+								[LevelViewportWeak](UToolMenu* InMenu)
+								{
+									CreateCameraSpeedMenu(InMenu, LevelViewportWeak);
+								}
+							),
+							false,
+							FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.ToggleActorPilotCameraView"))
+						);
+					}
+
+					PositioningSection.AddSeparator("PositioningSeparator_1");
+
+					// Frame Selection
+					{
+						FToolMenuEntry FocusViewportToSelection =
+							FToolMenuEntry::InitMenuEntry(FEditorViewportCommands::Get().FocusViewportToSelection);
+						FocusViewportToSelection.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+						FocusViewportToSelection.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.FrameActor");
+						PositioningSection.AddEntry(FocusViewportToSelection);
+					}
+
+					// Pilot Submenu
+					{
+						PositioningSection.AddSubMenu(
+							"Pilot",
+							LOCTEXT("PilotSubMenu", "Pilot"),
+							LOCTEXT("PilotSubMenu_ToolTip", "Pilot related actions"),
+							FNewToolMenuDelegate::CreateLambda(
+								[](UToolMenu* InMenu)
+								{
+									// TODO add create Pilot menu
+								}
+							),
+							false,
+							FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.PilotSelectedActor"))
+						);
+					}
+
+					PositioningSection.AddSeparator("PositioningSeparator_2");
+
+					// Move Camera/Object
+					{
+						FToolMenuEntry CameraToObjectMenu =
+							FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().SnapCameraToObject);
+						CameraToObjectMenu.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+						CameraToObjectMenu.Label = LOCTEXT("CameraToObjectLabel", "Move Camera to Object");
+						PositioningSection.AddEntry(CameraToObjectMenu);
+
+						FToolMenuEntry ObjectToCameraMenu =
+							FToolMenuEntry::InitMenuEntry(FLevelEditorCommands::Get().SnapObjectToCamera);
+						ObjectToCameraMenu.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+						ObjectToCameraMenu.Label = LOCTEXT("ObjectToCameraLabel", "Move Object to Camera");
+						PositioningSection.AddEntry(ObjectToCameraMenu);
+					}
+				}
+
+				// Options Section
+				{
+					FToolMenuSection& OptionsSection =
+						Submenu->FindOrAddSection("CameraOptions", LOCTEXT("OptionsLabel", "Options"));
+					// add Cinematic Viewport
+					// add Allow Cinematic Control
+					// add Game View
+
+					FToolMenuEntry AllowCinematicControl =
+						FToolMenuEntry::InitMenuEntry(FLevelViewportCommands::Get().ToggleCinematicPreview);
+					AllowCinematicControl.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+					OptionsSection.AddEntry(AllowCinematicControl);
+
+					FToolMenuEntry ToggleGameView =
+						FToolMenuEntry::InitMenuEntry(FLevelViewportCommands::Get().ToggleGameView);
+					ToggleGameView.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+					OptionsSection.AddEntry(ToggleGameView);
+
+					// This additional options section is used to force certain elements to appear after extensions
+					{
+						FToolMenuSection& AdditionalOptions =
+							Submenu->FindOrAddSection("AdditionalOptions", LOCTEXT("AdditionalOptionsLabel", ""));
+						AdditionalOptions.AddSeparator("AdditionalOptionsSeparator");
+
+						FToolMenuEntry HighResolutionScreenshot =
+							FToolMenuEntry::InitMenuEntry(FLevelViewportCommands::Get().HighResScreenshot);
+						HighResolutionScreenshot.UserInterfaceActionType = EUserInterfaceActionType::ToggleButton;
+						AdditionalOptions.AddEntry(HighResolutionScreenshot);
 					}
 				}
 			}

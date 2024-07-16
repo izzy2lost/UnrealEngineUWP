@@ -54,6 +54,8 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FLocationGridCheckboxListIsCheckedDelegat
 DECLARE_DELEGATE_OneParam(FScaleGridCheckboxListExecuteActionDelegate, int);
 DECLARE_DELEGATE_RetVal_OneParam(bool, FScaleGridCheckboxListIsCheckedDelegate, int);
 
+DECLARE_DELEGATE_OneParam(FNumericEntryExecuteActionDelegate, float);
+
 UNREALED_API TSharedRef<SWidget> BuildRotationGridCheckBoxList(
 	FName InExtentionHook,
 	const FText& InHeading,
@@ -97,6 +99,18 @@ UNREALED_API FToolMenuEntry CreateCheckboxSubmenu(
 	const FToolMenuCanExecuteAction& InCheckboxCanExecuteAction,
 	const FToolMenuGetActionCheckState& InCheckboxActionCheckState,
 	const FNewToolMenuChoice& InMakeMenu
+);
+
+UNREALED_API FToolMenuEntry CreateNumericEntry(
+	const FName InName,
+	const FText& InLabel,
+	const FText& InTooltip,
+	const FCanExecuteAction& InCanExecuteAction,
+	const FNumericEntryExecuteActionDelegate& InOnValueChanged,
+	const TAttribute<float>& InGetValue,
+	float InMinValue = 0.0f,
+	float InMaxValue = 1.0f,
+	int32 InMaxFractionalDigits = 2
 );
 
 } // namespace UE::UnrealEd

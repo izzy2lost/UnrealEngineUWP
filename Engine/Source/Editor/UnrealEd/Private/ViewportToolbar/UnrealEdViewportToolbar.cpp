@@ -1576,6 +1576,62 @@ FToolMenuEntry CreateCheckboxSubmenu(
 	return CheckBoxSubmenu;
 }
 
+FToolMenuEntry CreateNumericEntry(
+	const FName InName,
+	const FText& InLabel,
+	const FText& InTooltip,
+	const FCanExecuteAction& InCanExecuteAction,
+	const FNumericEntryExecuteActionDelegate& InOnValueChanged,
+	const TAttribute<float>& InGetValue,
+	float InMinValue,
+	float InMaxValue,
+	int32 InMaxFractionalDigits
+)
+{
+	const FMargin WidgetsMargin(2.0f, 0.0f, 3.0f, 0.0f);
+
+	FToolMenuEntry NumericEntry = FToolMenuEntry::InitMenuEntry(
+		InName,
+		FUIAction(FExecuteAction(), InCanExecuteAction),
+		// clang-format off
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Left)
+		.Padding(WidgetsMargin)
+		.AutoWidth()
+		[
+			SNew(STextBlock)
+			.Text(InLabel)
+		]
+		+ SHorizontalBox::Slot()
+		.VAlign(VAlign_Center)
+		.HAlign(HAlign_Right)
+		.Padding(FMargin(6.0f, 0))
+		.FillContentWidth(1.0)
+		[
+			SNew(SBox)
+			.Padding(WidgetsMargin)
+			.MinDesiredWidth(80.0f)
+			[
+				SNew(SNumericEntryBox<float>)
+				.ToolTipText(InTooltip)
+				.MinValue(InMinValue)
+				.MaxValue(InMaxValue)
+				.MaxSliderValue(InMaxValue)
+				.AllowSpin(true)
+				.MaxFractionalDigits(InMaxFractionalDigits)
+				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+				.OnValueChanged_Lambda([InOnValueChanged](float InValue){ InOnValueChanged.Execute(InValue); })
+				.Value_Lambda([InGetValue](){ return InGetValue.Get(); })
+			]
+		]
+		// clang-format on
+	);
+
+	return NumericEntry;
+}
+
 } // namespace UE::UnrealEd
 
 #undef LOCTEXT_NAMESPACE

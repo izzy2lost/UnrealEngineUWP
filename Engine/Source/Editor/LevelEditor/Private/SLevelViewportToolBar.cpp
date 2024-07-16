@@ -426,187 +426,6 @@ bool SLevelViewportToolBar::IsPerspectiveViewport() const
 	return false;
 }
 
-/**
- * Called to generate the set bookmark submenu
- */
-static void OnGenerateSetBookmarkMenu(UToolMenu* Menu, TWeakPtr<class SLevelViewport> Viewport)
-{
-	FToolMenuSection& Section = Menu->AddSection("Section");
-
-	// Add a menu entry for each bookmark
-	TSharedPtr<SLevelViewport> SharedViewport = Viewport.Pin();
-	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
-
-	const int32 NumberOfBookmarks = static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
-	const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
-
-	for( int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex )
-	{
-		Section.AddMenuEntry(
-			NAME_None,
-			FLevelViewportCommands::Get().SetBookmarkCommands[BookmarkIndex],
-			FBookmarkUI::GetPlainLabel(BookmarkIndex)
-		);
-	}
-
-	// Only mapped bookmarks will have predefined actions.
-	// So, create any additional actions we need to hit the max number of bookmarks.
-	for (int32 BookmarkIndex = NumberOfMappedBookmarks; BookmarkIndex < NumberOfBookmarks; ++BookmarkIndex)
-	{
-		FUIAction Action;
-		Action.ExecuteAction.BindSP(SharedViewport.ToSharedRef(), &SLevelViewport::OnSetBookmark, BookmarkIndex);
-
-		Section.AddMenuEntry(
-			NAME_None,
-			FBookmarkUI::GetPlainLabel(BookmarkIndex),
-			FBookmarkUI::GetSetTooltip(BookmarkIndex),
-			FBookmarkUI::GetDefaultIcon(),
-			Action);
-	}
-}
-
-/**
- * Called to generate the clear bookmark submenu
- */
-static void OnGenerateClearBookmarkMenu(UToolMenu* Menu, TWeakPtr<class SLevelViewport> Viewport)
-{
-	FToolMenuSection& Section = Menu->AddSection("Section");
-
-	// Add a menu entry for each bookmark
-	FEditorModeTools& Tools = GLevelEditorModeTools();
-	TSharedPtr<SLevelViewport> SharedViewport = Viewport.Pin();
-	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
-
-	const int32 NumberOfBookmarks = static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
-	const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
-
-	for( int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex )
-	{
-		if ( IBookmarkTypeTools::Get().CheckBookmark( BookmarkIndex , &ViewportClient ) )
-		{
-			Section.AddMenuEntry(
-				NAME_None,
-				FLevelViewportCommands::Get().ClearBookmarkCommands[ BookmarkIndex ],
-				FBookmarkUI::GetPlainLabel(BookmarkIndex)
-			);
-		}
-	}
-
-	for (int32 BookmarkIndex = NumberOfMappedBookmarks; BookmarkIndex < NumberOfBookmarks; ++BookmarkIndex)
-	{
-		if ( IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, &ViewportClient) )
-		{
-			FUIAction Action;
-			Action.ExecuteAction.BindSP(SharedViewport.ToSharedRef(), &SLevelViewport::OnClearBookmark, BookmarkIndex);
-			
-			Section.AddMenuEntry(
-				NAME_None,
-				FBookmarkUI::GetPlainLabel(BookmarkIndex),
-				FBookmarkUI::GetClearTooltip(BookmarkIndex),
-				FBookmarkUI::GetDefaultIcon(),
-				Action);
-		}
-	}
-}
-
-/**
- * Called to generate the jump to bookmark menu.
- */
-static bool GenerateJumpToBookmarkMenu(UToolMenu* Menu, TWeakPtr<class SLevelViewport> Viewport)
-{
-	FToolMenuSection& Section = Menu->AddSection("Section");
-
-	// Add a menu entry for each bookmark
-	
-	FEditorModeTools& Tools = GLevelEditorModeTools();
-	TSharedPtr<SLevelViewport> SharedViewport = Viewport.Pin();
-	FLevelEditorViewportClient& ViewportClient = SharedViewport->GetLevelViewportClient();
-
-	const int32 NumberOfBookmarks = static_cast<int32>(IBookmarkTypeTools::Get().GetMaxNumberOfBookmarks(&ViewportClient));
-	const int32 NumberOfMappedBookmarks = FMath::Min<int32>(AWorldSettings::NumMappedBookmarks, NumberOfBookmarks);
-
-	bool bFoundAnyBookmarks = false;
-
-	for( int32 BookmarkIndex = 0; BookmarkIndex < NumberOfMappedBookmarks; ++BookmarkIndex )
-	{
-		if ( IBookmarkTypeTools::Get().CheckBookmark( BookmarkIndex , &ViewportClient ) )
-		{
-			bFoundAnyBookmarks = true;
-			Section.AddMenuEntry(
-				NAME_None,
-				FLevelViewportCommands::Get().JumpToBookmarkCommands[BookmarkIndex]				
-			);
-		}
-	}
-
-	for (int32 BookmarkIndex = NumberOfMappedBookmarks; BookmarkIndex < NumberOfBookmarks; ++BookmarkIndex)
-	{
-		if ( IBookmarkTypeTools::Get().CheckBookmark(BookmarkIndex, &ViewportClient) )
-		{
-			bFoundAnyBookmarks = true;
-
-			FUIAction Action;
-			Action.ExecuteAction.BindSP(SharedViewport.ToSharedRef(), &SLevelViewport::OnJumpToBookmark, BookmarkIndex);
-			
-			Section.AddMenuEntry(
-				NAME_None,
-				FBookmarkUI::GetJumpToLabel(BookmarkIndex),
-				FBookmarkUI::GetJumpToTooltip(BookmarkIndex),
-				FBookmarkUI::GetDefaultIcon(),
-				Action);
-		}
-	}
-	
-	return bFoundAnyBookmarks;
-}
-
-/**
- * Called to generate the bookmark submenu
- */
-static void OnGenerateBookmarkMenu(UToolMenu* Menu, TWeakPtr<class SLevelViewport> Viewport)
-{
-	FEditorModeTools& Tools = GLevelEditorModeTools();
-
-	// true if a bookmark was found. 
-	bool bFoundBookmark = false;
-
-	// Get the viewport client to pass down to the CheckBookmark function
-	FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
-
-	bool bFoundBookmarks = false;
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportActiveBoookmarks", LOCTEXT("JumpToBookmarkHeader", "Active Bookmarks"));
-		bFoundBookmarks = GenerateJumpToBookmarkMenu(Menu, Viewport);
-	}
-
-	{
-		FToolMenuSection& Section = Menu->AddSection("LevelViewportBookmarkSubmenus");
-		Section.AddSubMenu(
-			"SetBookmark",
-			LOCTEXT("SetBookmarkSubMenu", "Set Bookmark"),
-			LOCTEXT("SetBookmarkSubMenu_ToolTip", "Set viewport bookmarks"),
-			FNewToolMenuDelegate::CreateStatic( &OnGenerateSetBookmarkMenu, Viewport )
-			);
-
-		const FLevelViewportCommands& Actions = FLevelViewportCommands::Get();
-		Section.AddMenuEntry( Actions.CompactBookmarks );
-
-		if( bFoundBookmarks )
-		{
-			Section.AddSubMenu(
-				"ClearBookmark",
-				LOCTEXT("ClearBookmarkSubMenu", "Clear Bookmark"),
-				LOCTEXT("ClearBookmarkSubMenu_ToolTip", "Clear viewport bookmarks"),
-				FNewToolMenuDelegate::CreateStatic( &OnGenerateClearBookmarkMenu, Viewport ),
-				false,
-				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
-				);
-
-			Section.AddMenuEntry( Actions.ClearAllBookmarks );
-		}
-	}
-}
-
 TSharedRef<SWidget> SLevelViewportToolBar::GenerateOptionsMenu() 
 {
 	static const FName MenuName("LevelEditor.LevelViewportToolBar.Options");
@@ -679,8 +498,8 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 
 			if( bIsPerspective )
 			{
-				Section.AddEntry(FToolMenuEntry::InitWidget("FOVAngle", GenerateFOVMenu(), LOCTEXT("FOVAngle", "Field of View (H)")));
-				Section.AddEntry(FToolMenuEntry::InitWidget("FarViewPlane", GenerateFarViewPlaneMenu(), LOCTEXT("FarViewPlane", "Far View Plane")));
+				Section.AddEntry(UE::LevelEditor::CreateFOVMenu(Viewport));
+				Section.AddEntry(UE::LevelEditor::CreateFarViewPlaneMenu(Viewport));
 			}
 
 			FEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
@@ -715,7 +534,7 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 					"Bookmark",
 					LOCTEXT("BookmarkSubMenu", "Bookmarks"),
 					LOCTEXT("BookmarkSubMenu_ToolTip", "Viewport location bookmarking"),
-					FNewToolMenuDelegate::CreateStatic(&OnGenerateBookmarkMenu, Viewport),
+					FNewToolMenuDelegate::CreateStatic(&UE::LevelEditor::CreateBookmarksMenu, Viewport),
 					false,
 					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.Bookmarks")
 				);
@@ -724,7 +543,7 @@ void SLevelViewportToolBar::FillOptionsMenu(UToolMenu* Menu)
 					"Camera",
 					LOCTEXT("CameraSubMeun", "Create Camera Here"),
 					LOCTEXT("CameraSubMenu_ToolTip", "Select a camera type to create at current viewport's location"),
-					FNewToolMenuDelegate::CreateSP(this, &SLevelViewportToolBar::GenerateCameraSpawnMenu),
+					FNewToolMenuDelegate::CreateStatic(&UE::LevelEditor::CreateCameraSpawnMenu),
 					false,
 					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "EditorViewport.SubMenu.CreateCamera")
 				);
@@ -1134,100 +953,6 @@ TSharedRef<SWidget> SLevelViewportToolBar::GenerateViewModeOptionsMenu() const
 	FLevelEditorViewportClient& ViewClient = Viewport.Pin()->GetLevelViewportClient();
 	const UWorld* World = ViewClient.GetWorld();
 	return BuildViewModeOptionsMenu(Viewport.Pin()->GetCommandList(), ViewClient.GetViewMode(), World ? World->GetFeatureLevel() : GMaxRHIFeatureLevel, ViewClient.GetViewModeParamNameMap());
-}
-
-TSharedRef<SWidget> SLevelViewportToolBar::GenerateFOVMenu() const
-{
-	const float FOVMin = 5.f;
-	const float FOVMax = 170.f;
-
-	return
-		SNew( SBox )
-		.HAlign( HAlign_Right )
-		[
-			SNew( SBox )
-			.Padding( FMargin(4.0f, 0.0f, 0.0f, 0.0f) )
-			.WidthOverride( 100.0f )
-			[
-				SNew ( SBorder )
-				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-				.Padding(FMargin(1.0f))
-				[
-					SNew(SSpinBox<float>)
-					.Style(&FAppStyle::Get(), "Menu.SpinBox")
-					.Font( FAppStyle::GetFontStyle( TEXT( "MenuItem.Font" ) ) )
-					.MinValue(FOVMin)
-					.MaxValue(FOVMax)
-					.Value( this, &SLevelViewportToolBar::OnGetFOVValue )
-					.OnValueChanged( const_cast<SLevelViewportToolBar*>(this), &SLevelViewportToolBar::OnFOVValueChanged )
-				]
-			]
-		];
-}
-
-float SLevelViewportToolBar::OnGetFOVValue( ) const
-{
-	return Viewport.Pin()->GetLevelViewportClient().ViewFOV;
-}
-
-void SLevelViewportToolBar::OnFOVValueChanged( float NewValue )
-{
-	bool bUpdateStoredFOV = true;
-	FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
-	if (ViewportClient.GetActiveActorLock().IsValid())
-	{
-		ACameraActor* CameraActor = Cast< ACameraActor >( ViewportClient.GetActiveActorLock().Get() );
-		if( CameraActor != NULL )
-		{
-			CameraActor->GetCameraComponent()->FieldOfView = NewValue;
-			bUpdateStoredFOV = false;
-		}
-	}
-
-	if ( bUpdateStoredFOV )
-	{
-		ViewportClient.FOVAngle = NewValue;
-	}
-
-	ViewportClient.ViewFOV = NewValue;
-	ViewportClient.Invalidate();
-}
-
-TSharedRef<SWidget> SLevelViewportToolBar::GenerateFarViewPlaneMenu() const
-{
-	return
-		SNew(SBox)
-		.HAlign(HAlign_Right)
-		[
-			SNew(SBox)
-			.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
-			.WidthOverride(100.0f)
-			[
-				SNew ( SBorder )
-				.BorderImage(FAppStyle::Get().GetBrush("Menu.WidgetBorder"))
-				.Padding(FMargin(1.0f))
-				[
-					SNew(SSpinBox<float>)
-					.Style(&FAppStyle::Get(), "Menu.SpinBox")
-					.ToolTipText(LOCTEXT("FarViewPlaneTooltip", "Distance to use as the far view plane, or zero to enable an infinite far view plane"))
-					.MinValue(0.0f)
-					.MaxValue(100000.0f)
-					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-					.Value(this, &SLevelViewportToolBar::OnGetFarViewPlaneValue)
-					.OnValueChanged(const_cast<SLevelViewportToolBar*>(this), &SLevelViewportToolBar::OnFarViewPlaneValueChanged)
-				]
-			]
-		];
-}
-
-float SLevelViewportToolBar::OnGetFarViewPlaneValue() const
-{
-	return Viewport.Pin()->GetLevelViewportClient().GetFarClipPlaneOverride();
-}
-
-void SLevelViewportToolBar::OnFarViewPlaneValueChanged( float NewValue )
-{
-	Viewport.Pin()->GetLevelViewportClient().OverrideFarClipPlane(NewValue);
 }
 
 double SLevelViewportToolBar::OnGetHLODInEditorMaxDrawDistanceValue() const
