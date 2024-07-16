@@ -199,6 +199,7 @@ public:
 	void PrintRelevantObjects(uint32 ArgTraits) const;
 	void PrintRelevantObjectsForConnections(const TArray<FString>& Args) const;
 	void PrintNetCullDistances(const TArray<FString>& Args) const;
+	void PrintPushBasedStatuses() const;
 
 protected:
 	IRISCORE_API virtual ~UObjectReplicationBridge();
