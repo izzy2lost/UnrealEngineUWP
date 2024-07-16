@@ -137,8 +137,17 @@ class TUniformBufferRef : public FUniformBufferRHIRef
 
 public:
 	/** Initializes the reference to null. */
-	TUniformBufferRef()
-	{}
+	TUniformBufferRef() = default;
+
+	/** Construct an instance from an existing RHI uniform buffer pointer. Validates at runtime that the type of the uniform buffer matches the template struct type. */
+	explicit TUniformBufferRef(FRHIUniformBuffer* InRHIRef)
+		: FUniformBufferRHIRef(InRHIRef)
+	{
+		checkf(!InRHIRef || TUniformBufferMetadataHelper<TBufferStruct>::GetStructMetadata()->GetLayoutPtr() == InRHIRef->GetLayoutPtr(),
+			TEXT("Attempted to create a uniform buffer of type '%s' from uniform buffer pointer of type '%s'"),
+			*TUniformBufferMetadataHelper<TBufferStruct>::GetStructMetadata()->GetLayout().Name,
+			*InRHIRef->GetLayout().Name);
+	}
 
 	/** Creates a uniform buffer with the given value, and returns a structured reference to it. */
 	static TUniformBufferRef<TBufferStruct> CreateUniformBufferImmediate(const TBufferStruct& Value, EUniformBufferUsage Usage, EUniformBufferValidation Validation = EUniformBufferValidation::ValidateResources)
@@ -165,11 +174,6 @@ public:
 	}
 
 private:
-
-	/** A private constructor used to coerce an arbitrary RHI uniform buffer reference to a structured reference. */
-	TUniformBufferRef(FRHIUniformBuffer* InRHIRef)
-	: FUniformBufferRHIRef(InRHIRef)
-	{}
 
 	template<typename TBufferStruct2>
 	friend class TUniformBuffer;
