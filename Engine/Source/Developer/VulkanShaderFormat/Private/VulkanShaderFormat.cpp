@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "VulkanShaderFormat.h"
 #include "VulkanCommon.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"

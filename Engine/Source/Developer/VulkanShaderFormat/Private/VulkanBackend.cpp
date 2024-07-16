@@ -30,8 +30,6 @@
 */
 
 #include "VulkanBackend.h"
-#include "VulkanShaderFormat.h"
-#include "VulkanBackend.h"
 #include "ShaderCompilerCommon.h"
 
 #include "VulkanCommon.h"
