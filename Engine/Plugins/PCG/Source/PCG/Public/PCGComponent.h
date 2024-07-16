@@ -153,7 +153,6 @@ public:
 public:
 	void ForEachManagedResource(TFunctionRef<void(UPCGManagedResource*)> InFunction);
 
-	/** Transactionable methods to be called from details UI */
 	void Generate();
 	void Cleanup();
 

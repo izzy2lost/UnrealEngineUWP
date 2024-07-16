@@ -403,10 +403,6 @@ void UPCGComponent::Generate()
 		return;
 	}
 
-#if WITH_EDITOR
-	FScopedTransaction Transaction(LOCTEXT("PCGGenerate", "Execute generation on PCG component"));
-#endif
-
 	GenerateLocal(/*bForce=*/false);
 }
 

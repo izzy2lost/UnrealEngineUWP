@@ -167,10 +167,14 @@ APCGWorldActor* APCGWorldActor::CreatePCGWorldActor(UWorld* InWorld)
 	{
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.OverrideLevel = InWorld->PersistentLevel;
+
+		// We don't want the PCGWorldActor creation to be part of a transaction, once it is created we add the flag to the actor
+		SpawnParams.ObjectFlags &= ~RF_Transactional;
 		PCGActor = InWorld->SpawnActor<APCGWorldActor>(SpawnParams);
 
 		if (PCGActor)
 		{
+			PCGActor->SetFlags(RF_Transactional);
 			PCGActor->RegisterToSubsystem();
 		}
 	}
