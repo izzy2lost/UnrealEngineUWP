@@ -545,6 +545,8 @@ void ANavigationData::RebuildAll()
 	LoadBeforeGeneratorRebuild();
 	FAssetCompilingManager::Get().FinishAllCompilation();
 	UE_LOG(LogNavigationDataBuild, Display, TEXT("   %s load time: %.2fs"), ANSI_TO_TCHAR(__FUNCTION__), (FPlatformTime::Seconds() - LoadTime));
+
+	PostLoadPreRebuild();
 	
 	ConditionalConstructGenerator(); //recreate generator
 	

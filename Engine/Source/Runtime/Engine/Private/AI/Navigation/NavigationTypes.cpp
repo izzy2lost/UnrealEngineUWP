@@ -343,6 +343,14 @@ FNavLinkAuxiliaryId FNavLinkAuxiliaryId::GenerateUniqueAuxiliaryId(FStringView P
 	return FNavLinkAuxiliaryId(AuxiliaryId);
 }
 
+FNavLinkId FNavLinkId::GenerateUniqueId()
+{
+	// Apply NavLinkIdBitMask to differentiate Legacy Ids (that do not have the mask set).
+	const uint64 UniqueId = UE::Navigation::NavLinkIdHelpers::Private::MakeIdFromGUID(FGuid::NewGuid()) | NavLinkIdBitMask;
+	UE_LOG(LogNavLink, VeryVerbose, TEXT("%hs id: %u."), __FUNCTION__, UniqueId);
+	return FNavLinkId(UniqueId);
+}
+
 FNavLinkId FNavLinkId::GenerateUniqueId(FNavLinkAuxiliaryId AuxiliaryId, FGuid ActorInstanceGuid)
 {
 	// Apply NavLinkIdBitMask to differentiate Legacy Ids (that do not have the mask set).

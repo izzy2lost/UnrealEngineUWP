@@ -23,6 +23,7 @@
 #include "WorldPartition/NavigationData/NavigationDataChunkActor.h"
 #include "Math/Color.h"
 #include "NavigationDataHandler.h"
+#include "BaseGeneratedNavLinksProxy.h"
 
 #if WITH_EDITOR
 #include "EditorSupportDelegates.h"
@@ -756,6 +757,61 @@ void ARecastNavMesh::CheckToDiscardSubLevelNavData(const UNavigationSystemBase& 
 	}
 }
 
+void ARecastNavMesh::RegisterGeneratedLinksProxy()
+{
+	if (!NavLinkJumpDownConfig.bLinkProxyRegistered && NavLinkJumpDownConfig.LinkProxy)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+			if (NavSys)
+			{
+				UE_LOG(LogNavLink, Log, TEXT("RegisterLinkProxy id: %llu ptr: 0x%p"), NavLinkJumpDownConfig.LinkProxyId.GetId(), NavLinkJumpDownConfig.LinkProxy.Get());
+
+				NavSys->RegisterCustomLink(*NavLinkJumpDownConfig.LinkProxy);
+				NavLinkJumpDownConfig.bLinkProxyRegistered = true;
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::UnregisterGeneratedLinksProxy()
+{
+	if (NavLinkJumpDownConfig.bLinkProxyRegistered && NavLinkJumpDownConfig.LinkProxy)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
+			if (NavSys)
+			{
+				UE_LOG(LogNavLink, Log, TEXT("UnregisterLinkProxy id: %llu ptr: 0x%p"), NavLinkJumpDownConfig.LinkProxyId.GetId(), NavLinkJumpDownConfig.LinkProxy.Get());
+
+				NavSys->UnregisterCustomLink(*NavLinkJumpDownConfig.LinkProxy);
+				NavLinkJumpDownConfig.bLinkProxyRegistered = false;
+			}
+		}
+	}
+}
+
+void ARecastNavMesh::CreateAndRegisterJumpDownLinksProxy(const FNavLinkId LinkProxyId /*= FNavLinkId::GenerateUniqueId()*/)
+{
+	if (!ensureMsgf(NavLinkJumpDownConfig.LinkProxy == nullptr, TEXT("LinkProxy is expected to have been cleanup before creating a new one. A new proxy was not created.")))
+	{
+		return;
+	}
+	
+	UBaseGeneratedNavLinksProxy* LinkProxy = NewObject<UBaseGeneratedNavLinksProxy>(this, NavLinkJumpDownConfig.LinkProxyClass);
+	if (LinkProxy)
+	{
+		NavLinkJumpDownConfig.LinkProxyId = LinkProxyId;
+		LinkProxy->UpdateLinkId(NavLinkJumpDownConfig.LinkProxyId);
+		LinkProxy->SetOwner(this);
+		NavLinkJumpDownConfig.LinkProxy = LinkProxy;
+
+		RegisterGeneratedLinksProxy();
+	}
+}
+
 void ARecastNavMesh::PostRegisterAllComponents()
 {
 	Super::PostRegisterAllComponents();
@@ -763,6 +819,13 @@ void ARecastNavMesh::PostRegisterAllComponents()
 	if (GetActorLocation().IsNearlyZero() == false)
 	{
 		ApplyWorldOffset(GetActorLocation(), /*unused*/false);
+	}
+
+	// Create and register link proxy if enabled.
+	if (NavLinkJumpDownConfig.bEnabled && NavLinkJumpDownConfig.LinkProxyClass.Get() != nullptr)
+	{
+		// Use existing proxy id.
+		CreateAndRegisterJumpDownLinksProxy(NavLinkJumpDownConfig.LinkProxyId);
 	}
 }
 
@@ -3604,6 +3667,20 @@ FRecastNavMeshGenerator* ARecastNavMesh::CreateGeneratorInstance()
 bool ARecastNavMesh::IsUsingActiveTilesGeneration(const UNavigationSystemV1& NavSys) const
 {
 	return SupportsRuntimeGeneration() && (NavSys.IsActiveTilesGenerationEnabled() || bIsWorldPartitioned);
+}
+
+void ARecastNavMesh::PostLoadPreRebuild()
+{
+	// If any, unregister previous generated links proxy.
+	UnregisterGeneratedLinksProxy();
+	NavLinkJumpDownConfig.LinkProxy = nullptr;
+
+	// Register new one if needed.
+	if (NavLinkJumpDownConfig.bEnabled && NavLinkJumpDownConfig.LinkProxyClass.Get() != nullptr)
+	{
+		// Since this is on rebuild, create a new proxy id.
+		CreateAndRegisterJumpDownLinksProxy();
+	}
 }
 
 void ARecastNavMesh::ConditionalConstructGenerator()

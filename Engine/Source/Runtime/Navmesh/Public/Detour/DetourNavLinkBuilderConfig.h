@@ -26,6 +26,9 @@ struct dtNavLinkBuilderJumpDownConfig
 	/// When filtering similar links, distance used to compare between segment endpoints to match similar links.
 	/// Use greater distance for more filtering (0 to deactivate filtering). [Limit: > 0] [Units: wu]
 	float filterDistanceThreshold = 80.f;
+
+	/// User id used to handle links made from this configuration.
+	unsigned long long linkUserId = 0;
 };
 
 /** Configuration for generated jump over links. */

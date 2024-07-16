@@ -1532,6 +1532,9 @@ public:
 	 *  The subset is be defined by navinvokers or loaded world partitioned cells. */
 	NAVIGATIONSYSTEM_API bool IsUsingActiveTilesGeneration(const UNavigationSystemV1& NavSys) const;
 
+	/** Runs after LoadBeforeGeneratorRebuild but before the rebuild. */
+	NAVIGATIONSYSTEM_API virtual void PostLoadPreRebuild() override;
+	
 	NAVIGATIONSYSTEM_API virtual void ConditionalConstructGenerator() override;
 	
 	bool ShouldGatherDataOnGameThread() const { return bDoFullyAsyncNavDataGathering == false; }
@@ -1560,6 +1563,12 @@ protected:
 	NAVIGATIONSYSTEM_API virtual FRecastNavMeshGenerator* CreateGeneratorInstance();
 
 	NAVIGATIONSYSTEM_API void CheckToDiscardSubLevelNavData(const UNavigationSystemBase& NavSys);
+	
+	void RegisterGeneratedLinksProxy();
+	void UnregisterGeneratedLinksProxy();
+
+	/* Create and register links proxy. It's expected to be called on load or when the navmesh is rebuilt. */
+	void CreateAndRegisterJumpDownLinksProxy(const FNavLinkId LinkProxyId = FNavLinkId::GenerateUniqueId());
 
 private:
 	friend struct FRecastGraphWrapper;

@@ -191,6 +191,11 @@ struct FNavLinkId
 	/**
 	 *  Helper function: returns unique ID number for custom links.
 	 */
+	static ENGINE_API FNavLinkId GenerateUniqueId();
+	
+	/**
+	 *  Helper function: returns unique ID number for custom links.
+	 */
 	static ENGINE_API FNavLinkId GenerateUniqueId(FNavLinkAuxiliaryId AuxiliaryId, FGuid ActorInstanceGuid);
 
 	friend inline uint32 GetTypeHash(FNavLinkId const& Value)

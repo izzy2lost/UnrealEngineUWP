@@ -638,6 +638,9 @@ public:
 
 	/** Any loading before NavDataGenerator->RebuildAll() */
 	virtual void LoadBeforeGeneratorRebuild() {}
+
+	/** Runs after LoadBeforeGeneratorRebuild but before the rebuild. */
+	virtual void PostLoadPreRebuild() {}
 	
 	/** Triggers rebuild in case navigation supports it */
 	NAVIGATIONSYSTEM_API virtual void RebuildAll();

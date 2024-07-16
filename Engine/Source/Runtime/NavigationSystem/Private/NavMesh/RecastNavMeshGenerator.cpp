@@ -3860,6 +3860,11 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 
 		FNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
 		NewLink.bIsGenerated = true;
+		if (link.action == DT_LINK_ACTION_JUMP_DOWN)
+		{
+			NewLink.NavLinkId = FNavLinkId(linkBuilderConfig.jumpDownConfig.linkUserId);	
+		}
+		// @todo: Set NavLinkId for jump over links if we keep them.
 		NewLink.Left = Recast2UnrealPoint(midA);
 		NewLink.Right = Recast2UnrealPoint(midB);
 	}

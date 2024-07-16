@@ -2841,6 +2841,7 @@ void UNavigationSystemV1::RequestCustomLinkRegistering(INavLinkCustomInterface& 
 	{
 		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Owner->GetWorld()))
 		{
+			UE_LOG(LogNavLink, Log, TEXT("%hs 0x%p"), __FUNCTION__, &CustomLink);
 			Repository->RegisterCustomNavLinkObject(CustomLink);
 		}
 	}
@@ -2852,6 +2853,7 @@ void UNavigationSystemV1::RequestCustomLinkUnregistering(INavLinkCustomInterface
 	{
 		if (UNavigationObjectRepository* Repository = UWorld::GetSubsystem<UNavigationObjectRepository>(Owner->GetWorld()))
 		{
+			UE_LOG(LogNavLink, Log, TEXT("%hs 0x%p"), __FUNCTION__, &CustomLink);
 			Repository->UnregisterCustomNavLinkObject(CustomLink);
 		}
 	}
