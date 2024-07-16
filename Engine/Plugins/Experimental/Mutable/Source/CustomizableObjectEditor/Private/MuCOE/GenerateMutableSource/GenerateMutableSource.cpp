@@ -815,6 +815,8 @@ mu::NodeMeshApplyPosePtr CreateNodeMeshApplyPose(FMutableGraphGenerationContext&
 // Convert a CustomizableObject Source Graph into a mutable source graph  
 mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext, bool bPartialCompilation)
 {
+	MUTABLE_CPUPROFILER_SCOPE(GenerateMutableSource);
+
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
 
@@ -1924,6 +1926,8 @@ mu::FImageDesc GenerateImageDescriptor(UTexture* Texture)
 
 mu::Ptr<mu::Image> GenerateImageConstant(UTexture* Texture, FMutableGraphGenerationContext& GenerationContext, bool bIsReference)
 {
+	MUTABLE_CPUPROFILER_SCOPE(GenerateImageConstant);
+
 	if (!Texture)
 	{
 		return nullptr;

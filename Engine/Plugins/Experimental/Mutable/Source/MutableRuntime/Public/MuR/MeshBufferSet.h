@@ -221,6 +221,16 @@ namespace mu
 			return (m_channels == Other.m_channels && m_elementSize == Other.m_elementSize);
 		}
 
+		inline bool HasPadding() const
+		{
+			uint32 ActualElementSize = 0;
+			for (const FMeshBufferChannel& Channel : m_channels)
+			{
+				ActualElementSize += Channel.m_componentCount * GetMeshFormatData(Channel.m_format).SizeInBytes;
+			}
+			check(ActualElementSize<=m_elementSize);
+			return ActualElementSize < m_elementSize;
+		}
 	};
 
 

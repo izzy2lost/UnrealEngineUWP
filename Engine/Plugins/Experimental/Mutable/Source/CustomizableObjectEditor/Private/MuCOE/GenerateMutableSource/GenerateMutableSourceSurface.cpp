@@ -231,6 +231,8 @@ void AddModifierToSharedSurface(FMutableGraphGenerationContext& GenerationContex
 
 mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutableGraphGenerationContext & GenerationContext)
 {
+	MUTABLE_CPUPROFILER_SCOPE(GenerateMutableSourceSurface);
+
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
 

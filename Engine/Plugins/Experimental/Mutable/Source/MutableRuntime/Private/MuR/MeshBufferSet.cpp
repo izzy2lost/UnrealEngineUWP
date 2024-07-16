@@ -502,29 +502,42 @@ namespace mu
 				return false;
 			}
 
-			for (uint32 Elem = 0; Elem < m_elementCount; ++Elem)
+			bool bBufferHasTexCoords = ThisBuffer.HasSemantic(MBS_TEXCOORDS);
+			bool bCanBeFullCompared = !ThisBuffer.HasPadding() && (!bBufferHasTexCoords || bCompareUVs);
+			if (bCanBeFullCompared)
 			{
-				for (int32 C = 0; C < ThisNumChannels; ++C)
+				MUTABLE_CPUPROFILER_SCOPE(FastCompare);
+
+				// This buffer can be directly compared
+				if (FMemory::Memcmp(ThisBuffer.m_data.GetData(), OtherBuffer.m_data.GetData(), ThisBuffer.m_data.Num()) != 0)
 				{
-					if (!bCompareUVs && ThisBuffer.m_channels[C].m_semantic==MBS_TEXCOORDS)
-					{						
-						continue;
-					}
+					return false;
+				}
+			}
+			else
+			{
+				MUTABLE_CPUPROFILER_SCOPE(SlowCompare);
 
-					const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.m_channels[C].m_format).SizeInBytes * ThisBuffer.m_channels[C].m_componentCount;
-					const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.m_channels[C].m_format).SizeInBytes * OtherBuffer.m_channels[C].m_componentCount;
-
-					if (SizeA != SizeB)
+				for (uint32 Elem = 0; Elem < m_elementCount; ++Elem)
+				{
+					for (int32 C = 0; C < ThisNumChannels; ++C)
 					{
-						return false;
-					}
+						if (!bCompareUVs && ThisBuffer.m_channels[C].m_semantic == MBS_TEXCOORDS)
+						{
+							continue;
+						}
 
-					const uint8* BuffA = ThisBuffer.m_data.GetData() + Elem * ThisBuffer.m_elementSize + ThisBuffer.m_channels[C].m_offset;
-					const uint8* BuffB = OtherBuffer.m_data.GetData() + Elem * OtherBuffer.m_elementSize + OtherBuffer.m_channels[C].m_offset;
+						const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.m_channels[C].m_format).SizeInBytes * ThisBuffer.m_channels[C].m_componentCount;
+						const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.m_channels[C].m_format).SizeInBytes * OtherBuffer.m_channels[C].m_componentCount;
+						check(SizeA == SizeB);
 
-					if (FMemory::Memcmp(BuffA, BuffB, SizeA) != 0)
-					{
-						return false;
+						const uint8* BuffA = ThisBuffer.m_data.GetData() + Elem * ThisBuffer.m_elementSize + ThisBuffer.m_channels[C].m_offset;
+						const uint8* BuffB = OtherBuffer.m_data.GetData() + Elem * OtherBuffer.m_elementSize + OtherBuffer.m_channels[C].m_offset;
+
+						if (FMemory::Memcmp(BuffA, BuffB, SizeA) != 0)
+						{
+							return false;
+						}
 					}
 				}
 			}
@@ -695,4 +708,3 @@ namespace mu
 	}
 	
 }
-
