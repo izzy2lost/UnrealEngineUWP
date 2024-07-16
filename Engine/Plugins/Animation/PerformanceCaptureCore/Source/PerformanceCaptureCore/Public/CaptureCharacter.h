@@ -23,54 +23,54 @@ public:
 	/**
 	* CapturePerformer Actor that will be the source for retargeting.
 	*/
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture|Character")
 	TObjectPtr<ACapturePerformer> SourcePerformer;
 
 	/**
 	* The IKRetarget Asset to use for retargeting between the SourcePerformer and this Character.
 	*/
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture|Character")
 	TObjectPtr<UIKRetargeter> RetargetAsset;
 
 	/**
 	* Force all skeletal meshes to use the root SkeletalMesh as their Leader. Default = True.
 	*/
-	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Performance Capture|Character")
 	bool bForceAllSkeletalMeshesToFollowLeader = true;
 	
 	/**
 	* Set a Custom Retarget Profile.
 	* @param InProfile New Retarget Profile.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Character")
 	void SetCustomRetargetProfile(FRetargetProfile InProfile);
 
 	/**
 	* Get a Custom Retarget Profile.
 	* @return Current Custom Retarget Profile.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Character")
 	FRetargetProfile GetCustomRetargetProfile();
 
 	/**
 	* Set the Source CapturePerformer Actor.
 	* @param InPerformer New Performer.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Character")
 	void SetSourcePerformer(ACapturePerformer* InPerformer);
 
 	/**
 	* Set the Retarget Asset.
 	* @param InRetargetAsset New IKRetarget Asset.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Character")
 	void SetRetargetAsset(UIKRetargeter* InRetargetAsset);
 
 	/**
 	* Force all Skeletal Meshes to follow the Controlled Skeletal mesh. 
 	* @param InFollowLeader New Bool.
 	*/
-	UFUNCTION(BlueprintCallable, Category = "Performance Capture")
+	UFUNCTION(BlueprintCallable, Category = "Performance Capture|Character")
 	void SetForceAllSkeletalMeshesToFollowLeader (bool InFollowLeader);
 
 protected:
