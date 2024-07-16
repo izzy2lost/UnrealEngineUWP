@@ -93,6 +93,7 @@ public:
 		, _OnRowReleased()
 		, _MaxPinnedItems(6)
 		, _OnContextMenuOpening()
+		, _OnItemsRebuilt()
 		, _OnMouseButtonClick()
 		, _OnMouseButtonDoubleClick()
 		, _OnSelectionChanged()
@@ -143,6 +144,8 @@ public:
 		SLATE_ATTRIBUTE(int32, MaxPinnedItems)
 
 		SLATE_EVENT( FOnContextMenuOpening, OnContextMenuOpening )
+
+		SLATE_EVENT( FSimpleDelegate, OnItemsRebuilt )
 
 		SLATE_EVENT(FOnMouseButtonClick, OnMouseButtonClick)
 
@@ -222,6 +225,7 @@ public:
 
 		this->SetItemsSource(InArgs.MakeListItemsSource(this->SharedThis(this)));
 		this->OnContextMenuOpening = InArgs._OnContextMenuOpening;
+		this->OnItemsRebuilt = InArgs._OnItemsRebuilt;
 		this->OnClick = InArgs._OnMouseButtonClick;
 		this->OnDoubleClick = InArgs._OnMouseButtonDoubleClick;
 		this->OnSelectionChanged = InArgs._OnSelectionChanged;

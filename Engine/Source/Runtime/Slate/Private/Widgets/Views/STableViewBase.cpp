@@ -389,6 +389,8 @@ void STableViewBase::Tick( const FGeometry& AllottedGeometry, const double InCur
 			{
 				NotifyFinishedScrolling();
 			}
+
+			OnItemsRebuilt.ExecuteIfBound();
 		}
 	}
 }
@@ -705,6 +707,11 @@ int32 STableViewBase::GetNumGeneratedChildren() const
 	return (ItemsPanel.IsValid())
 		? ItemsPanel->GetChildren()->Num()
 		: 0;
+}
+
+TSharedPtr<SWidget> STableViewBase::GetGeneratedChildAt(const int32 Index) const
+{
+	return GetNumGeneratedChildren() > Index ? ItemsPanel->GetChildren()->GetChildAt(Index).ToSharedPtr() : nullptr;
 }
 
 TSharedPtr<SHeaderRow> STableViewBase::GetHeaderRow() const

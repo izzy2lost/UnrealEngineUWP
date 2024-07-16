@@ -121,6 +121,7 @@ public:
 		, _OnSetExpansionRecursive()
 		, _MaxPinnedItems(6) // Having more than the max amount of items leads to the extra items in the middle being collapsed into ellipses, and the last item is fully shown
 		, _OnContextMenuOpening()
+		, _OnItemsRebuilt()
 		, _OnMouseButtonClick()
 		, _OnMouseButtonDoubleClick()
 		, _OnSelectionChanged()
@@ -171,6 +172,8 @@ public:
 		SLATE_ATTRIBUTE( int32, MaxPinnedItems );
 
 		SLATE_EVENT( FOnContextMenuOpening, OnContextMenuOpening )
+
+		SLATE_EVENT( FSimpleDelegate, OnItemsRebuilt )
 
 		SLATE_EVENT( FOnMouseButtonClick, OnMouseButtonClick)
 
@@ -250,6 +253,7 @@ public:
 
 		this->OnKeyDownHandler = InArgs._OnKeyDownHandler;
 		this->OnContextMenuOpening = InArgs._OnContextMenuOpening;
+		this->OnItemsRebuilt = InArgs._OnItemsRebuilt;
 		this->OnClick = InArgs._OnMouseButtonClick;
 		this->OnDoubleClick = InArgs._OnMouseButtonDoubleClick;
 		this->OnSelectionChanged = InArgs._OnSelectionChanged;

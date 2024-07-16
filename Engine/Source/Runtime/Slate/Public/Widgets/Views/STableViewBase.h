@@ -128,6 +128,9 @@ public:
 	/** @return The number of Widgets we currently have generated. */
 	SLATE_API int32 GetNumGeneratedChildren() const;
 
+	/** @return The generated row widget at the specified index if it exists (NULL otherwise). */
+	SLATE_API TSharedPtr<SWidget> GetGeneratedChildAt(int32 Index) const;
+
 	SLATE_API TSharedPtr<SHeaderRow> GetHeaderRow() const;
 
 	/** @return Returns true if the user is currently interactively scrolling the view by holding
@@ -486,6 +489,9 @@ protected:
 
 	/** Delegate to invoke when the context menu should be opening. If it is nullptr, a context menu will not be summoned. */
 	FOnContextMenuOpening OnContextMenuOpening;
+
+	/** Delegate to invoke after the children have been regenerated. */
+	FSimpleDelegate OnItemsRebuilt;
 
 	/** The selection mode that this tree/list is in. Note that it is up to the generated ITableRows to respect this setting. */
 	TAttribute<ESelectionMode::Type> SelectionMode;
