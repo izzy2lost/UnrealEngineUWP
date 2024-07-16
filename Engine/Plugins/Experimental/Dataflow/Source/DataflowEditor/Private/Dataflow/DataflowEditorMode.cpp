@@ -50,6 +50,13 @@
 
 const FEditorModeID UDataflowEditorMode::EM_DataflowEditorModeId = TEXT("EM_DataflowAssetEditorMode");
 
+namespace Dataflow::Private
+{
+	bool bDataflowEditorEnableToolsInPIE = true;
+	FAutoConsoleVariableRef CVARDataflowEditorEnableToolsInPIE(TEXT("p.Dataflow.EnableToolsInPIE"), bDataflowEditorEnableToolsInPIE,
+		TEXT("Enable Dataflow Editor tools while Play In Editor is running [def:true]"));
+}
+
 UDataflowEditorMode::UDataflowEditorMode()
 {
 	Info = FEditorModeInfo(
@@ -201,7 +208,16 @@ bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier
 		}
 	}
 
-	return Super::ShouldToolStartBeAllowed(ToolIdentifier);
+
+	if (Dataflow::Private::bDataflowEditorEnableToolsInPIE)
+	{
+		// UEdMode::ShouldToolStartBeAllowed returns (!GEditor->PlayWorld && !GIsPlayInEditorWorld) but we want to allow tools to start while in PIE
+		return true;
+	}
+	else
+	{
+		return UBaseCharacterFXEditorMode::ShouldToolStartBeAllowed(ToolIdentifier);
+	}
 }
 
 void UDataflowEditorMode::CreateToolkit()

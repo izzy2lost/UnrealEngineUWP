@@ -74,6 +74,10 @@ const FEditorModeID UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId =
 
 namespace UE::Chaos::ClothAsset::Private
 {
+	bool bClothEditorEnableToolsInPIE = true;
+	FAutoConsoleVariableRef CVARClothEditorEnableToolsInPIE(TEXT("p.ChaosCloth.EnableToolsInPIE"), bClothEditorEnableToolsInPIE,
+		TEXT("Enable Cloth Editor tools while Play In Editor is running [def:true]"));
+
 	void RemoveClothWeightMaps(UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade, const TArray<FName>& WeightMapNames)
 	{
 		for (const FName& WeightMapName : WeightMapNames)
@@ -367,7 +371,15 @@ bool UChaosClothAssetEditorMode::ShouldToolStartBeAllowed(const FString& ToolIde
 		}
 	}
 
-	return Super::ShouldToolStartBeAllowed(ToolIdentifier);
+	if (UE::Chaos::ClothAsset::Private::bClothEditorEnableToolsInPIE)
+	{
+		// UEdMode::ShouldToolStartBeAllowed returns (!GEditor->PlayWorld && !GIsPlayInEditorWorld) but we want to allow tools to start while in PIE
+		return true;
+	}
+	else
+	{
+		return UBaseCharacterFXEditorMode::ShouldToolStartBeAllowed(ToolIdentifier);
+	}
 }
 
 void UChaosClothAssetEditorMode::CreateToolkit()
