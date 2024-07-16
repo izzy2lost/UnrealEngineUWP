@@ -23,6 +23,10 @@
 		{
 			"Name": "InstancedActorsTestSuite",
 			"Type": "UncookedOnly"
+		},
+		{
+			"Name": "InstancedActorsEditor",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [

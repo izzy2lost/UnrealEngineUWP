@@ -697,6 +697,12 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 	FInstancedActorsVisualizationDesc DefaultVisualiation = EditorInstancedActorSubsystem->CreateVisualDescriptionFromActor(ExemplarActor);
 	CreateISMComponents(DefaultVisualiation, NewInstanceData->SharedSettings, NewInstanceData->EditorPreviewISMComponents, /*bEditorPreviewISMCs*/ true);
 
+	// Add EditorPreviewISMComponents to the known ISMComponent-to-InstanceData map (ISMComponentToInstanceDataMap)
+	// so that we can identify Instanced Actors instances by ISM instance id coming from one of the EditorPreviewISMComponents
+	// (like when the instance is clicked in the editor). 
+	// @see ActorInstanceHandleFromFSMInstanceId 
+	RegisterInstanceDatasComponents(*NewInstanceData, NewInstanceData->EditorPreviewISMComponents);
+
 	// Cache asset bounds for use during instance population
 	NewInstanceData->AssetBounds = CalculateBounds(ActorClass);
 	ensure(NewInstanceData->AssetBounds.IsValid);
@@ -706,8 +712,6 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 
 void AInstancedActorsManager::PreRegisterAllComponents()
 {
-	// This whole loop is pointless without editor only data, EditorPreviewISMComponents is editor only.
-#if WITH_EDITORONLY_DATA
 	for (UInstancedActorsData* InstanceData : PerActorClassInstanceData)
 	{
 		// Modify the ISMCs here since the components might have been serialized before this change.
@@ -719,11 +723,12 @@ void AInstancedActorsManager::PreRegisterAllComponents()
 			ISMComponent->bHasPerInstanceHitProxies = true;
 		}
 
-		// Add EditorPreviewISMComponents to ISMComponentToInstanceDataMap for ISMC and instance index to instance handle
-		// resolution in ActorInstanceHandleFromFSMInstanceId.
+		// Add EditorPreviewISMComponents to the known ISMComponent-to-InstanceData map (ISMComponentToInstanceDataMap)
+		// so that we can identify Instanced Actors instances by ISM instance id coming from one of the EditorPreviewISMComponents
+		// (like when the instance is clicked in the editor). 
+		// @see ActorInstanceHandleFromFSMInstanceId 
 		RegisterInstanceDatasComponents(*InstanceData, InstanceData->EditorPreviewISMComponents);
 	}
-#endif
 }
 
 FInstancedActorsInstanceHandle AInstancedActorsManager::AddActorInstance(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, bool bWorldSpace, const FInstancedActorsTagSet& InstanceTags)
