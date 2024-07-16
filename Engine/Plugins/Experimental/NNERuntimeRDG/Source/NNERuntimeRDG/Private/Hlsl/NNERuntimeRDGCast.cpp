@@ -3,12 +3,17 @@
 #include "NNERuntimeRDGCast.h"
 
 #include "Helper/NNERuntimeRDGLogHelper.h"
+#include "Helper/NNERuntimeRDGOperatorHelper.h"
+#include "NNEHlslShadersCastCS.h"
+#include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHelperCast.h"
+#include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
 
 namespace UE::NNERuntimeRDG::Private::Hlsl
 {
+	DECLARE_GPU_STAT_NAMED(FNNEOperatorCast, TEXT("NNE.Operator.Hlsl.Cast"));
 	/**
 	 * Cast operator implementation
 	 */
@@ -25,13 +30,16 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(OutputTensors.Num() == 1);
 			OutputTensors[0]->SetShape(InputTensors[0]->GetShape());
 
-			const NNE::Internal::FTensor& X = *InputTensors[0];
+			const NNE::Internal::FTensor& Input = *InputTensors[0];
+			NNE::Internal::FTensor& Output = *OutputTensors[0];
 
-			Internal::CPUHelper::Cast::Apply(X, *OutputTensors[0]);
+			Internal::CPUHelper::Cast::Apply(Input, Output);
 
-			if (!OutputTensors[0]->HasPreparedData())
+			bool Has64BitDataType = Input.GetDataType() == ENNETensorDataType::Int64 || Output.GetDataType() == ENNETensorDataType::UInt64;
+
+			if (!Output.HasPreparedData() && Has64BitDataType)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Cast: Output could not be computed as a constant tensor, however Cast is not implemented on GPU at the moment."));
+				UE_LOG(LogNNE, Warning, TEXT("Cast: Output could not be computed as a constant tensor, however Cast doesn't support dynamic 64 bit tensor types."));
 				return -1;
 			}
 
@@ -57,7 +65,44 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		virtual void Dispatch(FRDGBuilder& GraphBuilder, TConstArrayView<FTensorRDGRef> InputTensors, TConstArrayView<FTensorRDGRef> OutputTensors) override
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Cast: Output should be constant and already uploaded to GPU memory. Dispatch should not need to be called."));
+			using namespace UE::NNEHlslShaders::Internal;
+			
+			check(InputTensors.Num() == 1);
+			check(OutputTensors.Num() == 1);
+			check(InputTensors[0] != nullptr);
+			
+			check(OutputTensors[0] != nullptr);
+			const FTensorRDG& Input = *InputTensors[0];
+			const FTensorRDG& Output = *OutputTensors[0];
+
+			FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), TensorDataTypeToPixelFormat(Input.GetDataType())));
+			FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), TensorDataTypeToPixelFormat(Output.GetDataType())));
+
+			FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(Output.GetVolume(), FCastConstants::NUM_GROUP_THREADS);
+
+			// Set parameters
+			TCastCS::FParameters* Params = GraphBuilder.AllocParameters<TCastCS::FParameters>();
+			Params->Input = InputSRV;
+			Params->Output = OutputUAV;
+			Params->Num = Output.GetVolume();
+			Params->ThreadCountX = ThreadGroupCount.X * FCastConstants::NUM_GROUP_THREADS;
+
+			TCastCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<TCastCS::FInputType>(TensorToShaderDataType(Input.GetDataType()));
+			PermutationVector.Set<TCastCS::FOutputType>(TensorToShaderDataType(Output.GetDataType()));
+
+			TShaderMapRef<TCastCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel), PermutationVector);
+
+			RDG_EVENT_SCOPE(GraphBuilder, "NNE.Operator.Hlsl.Cast");
+			RDG_GPU_STAT_SCOPE(GraphBuilder, FNNEOperatorCast);
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("NNE.Operator.Hlsl.Cast.Dispatch"),
+				ERDGPassFlags::Compute | ERDGPassFlags::NeverCull,
+				ComputeShader,
+				Params,
+				ThreadGroupCount);
 		}
 	};
 
@@ -74,10 +119,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			ENNETensorDataType To = (ENNETensorDataType)AttributeMap.GetValue<int32>(TEXT("to"));
 			switch (To)
 			{
+				case ENNETensorDataType::Half:
 				case ENNETensorDataType::Float:
-					break;
 				case ENNETensorDataType::Int32:
-					break;
 				case ENNETensorDataType::Int64:
 					break;
 				default:
@@ -88,6 +132,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		}
 		
 		FInputValidator InputValidator;
+		InputValidator.AddSupportedType(ENNETensorDataType::Half);
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);
 		InputValidator.AddSupportedType(ENNETensorDataType::Int32);
 		InputValidator.AddSupportedType(ENNETensorDataType::Int64);
