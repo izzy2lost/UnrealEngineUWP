@@ -248,6 +248,11 @@ namespace uba
 	{
 		UBA_ASSERT(m_tables.empty()); // TODO
 
+		StringBuffer<> dir;
+		dir.AppendDir(configFile);
+		if (!DirectoryCache().CreateDirectory(logger, dir.data))
+			return false;
+
 		FileAccessor fa(logger, configFile);
 		if (!fa.CreateWrite())
 			return false;
