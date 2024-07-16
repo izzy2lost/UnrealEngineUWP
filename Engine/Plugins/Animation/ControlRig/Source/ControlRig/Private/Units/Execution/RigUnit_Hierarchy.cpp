@@ -11,29 +11,39 @@ FRigUnit_HierarchyGetParent_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 
-	if(CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+	if (bDefaultParent)
 	{
-		Parent = CachedParent.GetKey();
+		if(CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+		{
+			Parent = CachedParent.GetKey();
+		}
+		else
+		{
+			Parent.Reset();
+			CachedParent.Reset();
+
+			if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
+			{
+				Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedChild.GetResolvedKey());
+				if(Parent.IsValid())
+				{
+					CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy);
+				}
+			}
+		}
 	}
 	else
 	{
-		Parent.Reset();
-		CachedParent.Reset();
+		CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy);
+		const FRigElementKey& ChildKey = CachedChild.GetResolvedKey();
 
-		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
-		{
-			Parent = ExecuteContext.Hierarchy->GetFirstParent(CachedChild.GetResolvedKey());
-			if(Parent.IsValid())
-			{
-				CachedParent.UpdateCache(Parent, ExecuteContext.Hierarchy);
-			}
-		}
+		Parent = ExecuteContext.Hierarchy->GetActiveParent(ChildKey, false);
 	}
 }
 
 FRigUnit_HierarchyGetParents_Execute()
 {
-	FRigUnit_HierarchyGetParentsItemArray::StaticExecute(ExecuteContext, Child, bIncludeChild, bReverse, Parents.Keys, CachedChild, CachedParents);
+	FRigUnit_HierarchyGetParentsItemArray::StaticExecute(ExecuteContext, Child, bIncludeChild, bReverse, true, Parents.Keys, CachedChild, CachedParents);
 }
 
 FRigVMStructUpgradeInfo FRigUnit_HierarchyGetParents::GetUpgradeInfo() const
@@ -50,33 +60,61 @@ FRigUnit_HierarchyGetParentsItemArray_Execute()
 {
     DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
 
-	if(!CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
+	if (bDefaultParent)
 	{
-		CachedParents.Reset();
-
-		if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
+		if(!CachedChild.IsIdentical(Child, ExecuteContext.Hierarchy))
 		{
-			TArray<FRigElementKey> Keys;
-			FRigElementKey Parent = CachedChild.GetResolvedKey();
-			do
-			{
-				if(bIncludeChild || Parent != Child)
-				{
-					Keys.Add(Parent);
-				}
-				Parent = ExecuteContext.Hierarchy->GetFirstParent(Parent);
-			}
-			while(Parent.IsValid());
+			CachedParents.Reset();
 
-			CachedParents = FRigElementKeyCollection(Keys);
-			if(bReverse)
+			if(CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy))
 			{
-				CachedParents = FRigElementKeyCollection::MakeReversed(CachedParents);
+				TArray<FRigElementKey> Keys;
+				FRigElementKey Parent = CachedChild.GetResolvedKey();
+				do
+				{
+					if(bIncludeChild || Parent != Child)
+					{
+						Keys.Add(Parent);
+					}
+					Parent = ExecuteContext.Hierarchy->GetFirstParent(Parent);
+				}
+				while(Parent.IsValid());
+
+				CachedParents = FRigElementKeyCollection(Keys);
+				if(bReverse)
+				{
+					CachedParents = FRigElementKeyCollection::MakeReversed(CachedParents);
+				}
 			}
 		}
-	}
 
-	Parents = CachedParents.Keys;
+		Parents = CachedParents.Keys;
+	}
+	else
+	{
+		CachedChild.UpdateCache(Child, ExecuteContext.Hierarchy);
+
+		TArray<FRigElementKey> Keys;
+		FRigElementKey Parent = CachedChild.GetResolvedKey();
+		do
+		{
+			if(bIncludeChild || Parent != Child)
+			{
+				Keys.Add(Parent);
+			}
+			const FRigElementKey PreviousParent = Parent;
+
+			Parent = ExecuteContext.Hierarchy->GetActiveParent(Parent, false);
+		}
+		while(Parent.IsValid());
+
+		if(bReverse)
+		{
+			Algo::Reverse(Keys);
+		}
+
+		Parents = Keys;
+	}
 }
 
 FRigUnit_HierarchyGetChildren_Execute()

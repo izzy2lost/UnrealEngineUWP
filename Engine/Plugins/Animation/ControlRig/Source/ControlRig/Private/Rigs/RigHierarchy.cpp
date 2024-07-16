@@ -2159,12 +2159,40 @@ TArray<FRigElementWeight> URigHierarchy::GetParentWeightArray(const FRigBaseElem
 	return Weights;
 }
 
-FRigElementKey URigHierarchy::GetActiveParent(const FRigElementKey& InKey) const
+FRigElementKey URigHierarchy::GetActiveParent(const FRigElementKey& InKey, bool bReferenceKey) const
 {
-	const TArray<FRigElementWeight> ParentWeights = GetParentWeightArray(InKey);
+	if(FRigBaseElement* Parent = GetActiveParent(Find(InKey)))
+	{
+		if (bReferenceKey && Parent->GetKey() == GetDefaultParent(InKey))
+		{
+			return URigHierarchy::GetDefaultParentKey();
+		}
+		return Parent->Key;
+	}
+
+	if (bReferenceKey)
+	{
+		return URigHierarchy::GetWorldSpaceReferenceKey();
+	}
+
+	return FRigElementKey();
+}
+
+int32 URigHierarchy::GetActiveParent(int32 InIndex) const
+{
+	if(FRigBaseElement* Parent = GetActiveParent(Get(InIndex)))
+	{
+		return Parent->Index;
+	}
+	return INDEX_NONE;
+}
+
+FRigBaseElement* URigHierarchy::GetActiveParent(const FRigBaseElement* InElement) const
+{
+	const TArray<FRigElementWeight> ParentWeights = GetParentWeightArray(InElement);
 	if (ParentWeights.Num() > 0)
 	{
-		const TArray<FRigElementKey> ParentKeys = GetParents(InKey);
+		const FRigBaseElementParentArray ParentKeys = GetParents(InElement);
 		check(ParentKeys.Num() == ParentWeights.Num());
 		for (int32 ParentIndex = 0; ParentIndex < ParentKeys.Num(); ParentIndex++)
 		{
@@ -2172,20 +2200,14 @@ FRigElementKey URigHierarchy::GetActiveParent(const FRigElementKey& InKey) const
 			{
 				continue;
 			}
-			if (ParentIndex == 0)
+			if (Elements.IsValidIndex(ParentKeys[ParentIndex]->GetIndex()))
 			{
-				if (!(ParentKeys[ParentIndex] == URigHierarchy::GetDefaultParentKey() || ParentKeys[ParentIndex] == URigHierarchy::GetWorldSpaceReferenceKey()))
-				{
-					if(ParentKeys[ParentIndex] == GetDefaultParent(InKey))
-					{
-						return URigHierarchy::GetDefaultParentKey();
-					}
-				}
+				return Elements[ParentKeys[ParentIndex]->GetIndex()];
 			}
-			return ParentKeys[ParentIndex];
 		}
 	}
-	return URigHierarchy::GetDefaultParentKey();
+
+	return nullptr;
 }
 
 

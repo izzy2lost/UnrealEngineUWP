@@ -669,7 +669,7 @@ bool SRigHierarchyTreeView::AddElement(const FRigBaseElement* InElement)
 				AddConnectorResolveWarningTag(ElementMap.FindChecked(InElement->GetKey()), InElement, Hierarchy);
 			}
 			
-			FRigElementKey ParentKey = Hierarchy->GetFirstParent(InElement->GetKey());
+			FRigElementKey ParentKey = Hierarchy->GetActiveParent(InElement->GetKey());
 			if(InElement->GetType() == ERigElementType::Connector)
 			{
 				ParentKey = Delegates.GetResolvedKey(InElement->GetKey());
@@ -834,7 +834,7 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 			Hierarchy->Traverse([&](FRigBaseElement* Element, bool& bContinue)
 			{
 				int32& Depth = ElementDepth.Add(Element, 0);
-				if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(Element))
+				if(const FRigBaseElement* ParentElement = Hierarchy->GetActiveParent(Element))
 				{
 					if (int32* ParentDepth = ElementDepth.Find(ParentElement))
 					{

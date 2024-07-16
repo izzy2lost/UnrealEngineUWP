@@ -3156,11 +3156,26 @@ public:
 	TArray<FRigElementWeight> GetParentWeightArray(const FRigBaseElement* InChild, bool bInitial = false) const;
 
 	/**
-	 * Get the current active for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * Get the current active parent for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
 	 * @param InKey The multi parented element
+	 * @param bReferenceKey Whether or not to return a reference key
 	 * @return Returns the first parent with a non-zero weight
 	 */
-	FRigElementKey GetActiveParent(const FRigElementKey& InKey) const;
+	FRigElementKey GetActiveParent(const FRigElementKey& InKey, bool bReferenceKey = true) const;
+
+	/**
+	 * Get the current active parent for a given element index. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * @param InIndex The index of the element to retrieve the parent for
+	 * @return Returns the first parent index (or INDEX_NONE) with a non-zero weight
+	 */
+	int32 GetActiveParent(int32 InIndex) const;
+
+	/**
+	 * Get the current active parent for the passed in key. This is only valid when only one parent has a weight value and the other parents have zero weights
+	 * @param InElement The element to retrieve the parents for
+	 * @return Returns the first parent with a non-zero weight
+	 */
+	FRigBaseElement* GetActiveParent(const FRigBaseElement* InElement) const;
 
 	/**
 	 * Sets the weight of a parent below a multi parent element

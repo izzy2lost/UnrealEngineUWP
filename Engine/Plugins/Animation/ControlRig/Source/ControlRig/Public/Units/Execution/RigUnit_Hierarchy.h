@@ -29,6 +29,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParent : public FRigUnit_HierarchyBas
 	FRigUnit_HierarchyGetParent()
 	{
 		Child = Parent = FRigElementKey(NAME_None, ERigElementType::Bone);
+		bDefaultParent = true;
 		CachedChild = CachedParent = FCachedRigElement();
 	}
 
@@ -37,6 +38,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParent : public FRigUnit_HierarchyBas
 
 	UPROPERTY(meta = (Input, ExpandByDefault))
 	FRigElementKey Child;
+
+	UPROPERTY(meta = (Input))
+	bool bDefaultParent;
 
 	UPROPERTY(meta = (Output))
 	FRigElementKey Parent;
@@ -109,6 +113,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParentsItemArray : public FRigUnit_Hi
 		CachedParents = FRigElementKeyCollection();
 		bIncludeChild = false;
 		bReverse = false;
+		bDefaultParent = true;
 	}
 
 	RIGVM_METHOD()
@@ -122,6 +127,9 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParentsItemArray : public FRigUnit_Hi
 
 	UPROPERTY(meta = (Input))
 	bool bReverse;
+
+	UPROPERTY(meta = (Input))
+	bool bDefaultParent;
 
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Parents;
