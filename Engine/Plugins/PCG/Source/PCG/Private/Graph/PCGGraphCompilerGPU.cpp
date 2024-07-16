@@ -10,7 +10,6 @@
 #include "Compute/DataInterfaces/PCGComputeDataInterface.h"
 #include "Compute/DataInterfaces/PCGCustomKernelDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
-#include "Compute/DataInterfaces/PCGDataCollectionReadbackDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionUploadDataInterface.h"
 #include "Compute/DataInterfaces/PCGDebugDataInterface.h"
 #include "Compute/DataInterfaces/PCGLandscapeDataInterface.h"
@@ -500,25 +499,18 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 			if (bUpstreamIsGPUTask)
 			{
-				if (bRequiresReadback)
-				{
-					// GPU -> CPU
-					DataInterfacePCGData = NewObject<UPCGDataCollectionReadbackDataInterface>(ComputeGraph);
-				}
-				else
-				{
-					// GPU -> GPU
-					DataInterfacePCGData = NewObject<UPCGDataCollectionDataInterface>(ComputeGraph);
-				}
+				// Provides data for GPU -> GPU and GPU -> CPU edges.
+				DataInterfacePCGData = NewObject<UPCGDataCollectionDataInterface>(ComputeGraph);
 			}
 			else
 			{
-				// CPU -> GPU
+				// Provides data for CPU -> GPU edge.
 				DataInterfacePCGData = NewObject<UPCGDataCollectionUploadDataInterface>(ComputeGraph);
 			}
 
 			check(DataInterfacePCGData);
-			DataInterfacePCGData->ProducerSettings = InOutCompiledTasks[InTaskId].Node ? InOutCompiledTasks[InTaskId].Node->GetSettings() : nullptr;
+			DataInterfacePCGData->SetProducerSettings(InOutCompiledTasks[InTaskId].Node ? InOutCompiledTasks[InTaskId].Node->GetSettings() : nullptr);
+			DataInterfacePCGData->SetRequiresReadback(bRequiresReadback);
 
 			DataInterface = DataInterfacePCGData;
 			break;

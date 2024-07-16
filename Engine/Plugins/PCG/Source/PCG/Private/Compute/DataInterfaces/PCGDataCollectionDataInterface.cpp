@@ -2,9 +2,11 @@
 
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 
+#include "PCGComponent.h"
 #include "PCGModule.h"
 #include "PCGSettings.h"
 #include "Compute/PCGDataBinding.h"
+#include "Compute/Elements/PCGComputeGraphElement.h"
 
 #include "ComputeFramework/ShaderParamTypeDefinition.h"
 #include "RenderGraphBuilder.h"
@@ -463,16 +465,143 @@ UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjec
 
 	UPCGDataCollectionDataProvider* Provider = NewObject<UPCGDataCollectionDataProvider>();
 	Provider->Binding = Binding;
+	Provider->ProducerSettings = ProducerSettings;
 	Provider->PinDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
+
+	Provider->ReadbackMode = bRequiresReadback ? EPCGReadbackMode::GraphOutput : EPCGReadbackMode::None;
+#if WITH_EDITOR
+	if (Binding->SourceComponent->IsInspecting())
+	{
+		Provider->ReadbackMode |= EPCGReadbackMode::Inspection;
+	}
+#endif
+
+	// Use the aliased label for normal data output as this is the output from the compute graph.
+	Provider->OutputPinLabelAlias = OutputPinLabelAlias;
+
+	// The original label is needed to store inspection data.
+	Provider->OutputPinLabel = OutputPinLabel;
 
 	return Provider;
 }
 
+bool UPCGDataCollectionDataInterface::GetRequiresReadback() const
+{
+#if WITH_EDITOR
+	// In editor DIs are always flagged as requiring readback, and decision whether to actually readback data or not
+	// is made at execution time (in GetReadbackData) based on inspection state.
+	return true;
+#else
+	return bRequiresReadback;
+#endif
+}
+
 FComputeDataProviderRenderProxy* UPCGDataCollectionDataProvider::GetRenderProxy()
 {
-	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(Binding, PinDesc);
+	FPCGDataCollectionDataProviderProxy* Proxy = new FPCGDataCollectionDataProviderProxy(Binding, PinDesc, ReadbackMode);
+
+	if (ReadbackMode != EPCGReadbackMode::None)
+	{
+		TWeakObjectPtr<UPCGDataCollectionDataProvider> ThisWeakPtr(this);
+
+		Proxy->AsyncReadbackCallback_RenderThread = [ThisWeakPtr](const void* InData, int InNumBytes)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(UPCGDataCollectionDataProvider::ProcessReadbackData_RenderThread);
+
+			if (!ThisWeakPtr.IsValid() || !ThisWeakPtr.Get())
+			{
+				return;
+			}
+
+			UPCGDataCollectionDataProvider* ThisDataProvider = ThisWeakPtr.Get();
+			check(ThisDataProvider);
+
+			// We should never find ourselves stomping existing data.
+			check(ThisDataProvider->RawReadbackData.IsEmpty());
+
+			if (InData && InNumBytes > 0)
+			{
+				// Copy the data to temp storage for the game thread to pick up.
+				ThisDataProvider->RawReadbackData.SetNumUninitialized(InNumBytes);
+				FMemory::Memcpy(ThisDataProvider->RawReadbackData.GetData(), InData, InNumBytes);
+			}
+			else
+			{
+				// Can happen currently if no threads dispatched.
+				ThisDataProvider->RawReadbackData.Reset();
+			}
+
+			ThisDataProvider->bReadbackComplete = true;
+
+			ThisDataProvider->OnReadbackComplete.Broadcast();
+		};
+	}
 
 	return Proxy;
+}
+
+bool UPCGDataCollectionDataProvider::ProcessReadBackData(FPCGComputeGraphContext* InContext)
+{
+	check(InContext);
+	check(ProducerSettings);
+
+	if (!ensure(bReadbackComplete))
+	{
+		// This should not be called until readback has been done.
+		return false;
+	}
+
+	if (RawReadbackData.IsEmpty())
+	{
+		// If there's no data, we leave an empty data collection and we're done.
+		return true;
+	}
+
+	FPCGDataCollection DataFromGPU;
+	PinDesc.UnpackDataCollection(RawReadbackData, OutputPinLabelAlias, DataFromGPU);
+	RawReadbackData.Reset();
+
+	// Store data in output collection.
+	if (!!(ReadbackMode & EPCGReadbackMode::GraphOutput) && ensure(Binding.IsValid()))
+	{
+		Binding->OutputDataCollection.TaggedData.Append(DataFromGPU.TaggedData);
+	}
+
+	// Store data for Inspection.
+#if WITH_EDITOR
+	if (!!(ReadbackMode & EPCGReadbackMode::Inspection))
+	{
+		const UPCGNode* Node = Cast<UPCGNode>(ProducerSettings->GetOuter());
+		UPCGComponent* Component = InContext->SourceComponent.Get();
+		if (Component && InContext->Stack && Node)
+		{
+			// Virtual pin labels confuse inspection. Apply the original output label before storing.
+			for (FPCGTaggedData& Data : DataFromGPU.TaggedData)
+			{
+				Data.Pin = OutputPinLabel;
+			}
+
+			// Required by inspection code.
+			DataFromGPU.ComputeCrcs(/*bFullDataCrc=*/false);
+
+			// Input data not yet supported.
+			Component->StoreInspectionData(InContext->Stack, Node, /*InTimer=*/nullptr, /*InInputData=*/{}, DataFromGPU, /*bUsedCache*/false);
+		}
+	}
+#endif // WITH_EDITOR
+
+	return true;
+}
+
+FPCGDataCollectionDataProviderProxy::FPCGDataCollectionDataProviderProxy(
+	TWeakObjectPtr<UPCGDataBinding> InBinding,
+	const FPCGDataCollectionDesc& InPinDesc,
+	EPCGReadbackMode InReadbackMode)
+	: ReadbackMode(InReadbackMode)
+	, Binding(InBinding)
+	, PinDesc(InPinDesc)
+{
+	SizeBytes = PinDesc.ComputePackedSize();
 }
 
 bool FPCGDataCollectionDataProviderProxy::IsValid(FValidationData const& InValidationData) const
@@ -485,6 +614,12 @@ bool FPCGDataCollectionDataProviderProxy::IsValid(FValidationData const& InValid
 	if (!Binding.IsValid())
 	{
 		UE_LOG(LogPCG, Error, TEXT("Proxy invalid due to missing data binding."));
+		return false;
+	}
+
+	if (SizeBytes <= 0)
+	{
+		UE_LOG(LogPCG, Error, TEXT("Proxy invalid due to invalid buffer size."));
 		return false;
 	}
 
@@ -505,6 +640,8 @@ void FPCGDataCollectionDataProviderProxy::GatherDispatchData(FDispatchData const
 
 void FPCGDataCollectionDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder, FAllocationData const& InAllocationData)
 {
+	check(SizeBytes > 0);
+
 	// Initialize with an empty data collection. The kernel may not run, for example if indirect dispatch args end up being 0. Ensure
 	// there is something meaningful to readback.
 	// TODO could have a statically-allocated resource rather than allocating & uploading here.
@@ -516,4 +653,17 @@ void FPCGDataCollectionDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	BufferUAV = GraphBuilder.CreateUAV(Buffer);
 
 	GraphBuilder.QueueBufferUpload(Buffer, PackedDataCollection.GetData(), PackedDataCollection.Num() * PackedDataCollection.GetTypeSize(), ERDGInitialDataFlags::None);
+}
+
+void FPCGDataCollectionDataProviderProxy::GetReadbackData(TArray<FReadbackData>& OutReadbackData) const
+{
+	if (ReadbackMode != EPCGReadbackMode::None)
+	{
+		FReadbackData Data;
+		Data.Buffer = Buffer;
+		Data.NumBytes = SizeBytes;
+		Data.ReadbackCallback_RenderThread = &AsyncReadbackCallback_RenderThread;
+
+		OutReadbackData.Add(MoveTemp(Data));
+	}
 }

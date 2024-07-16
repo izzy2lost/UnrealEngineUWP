@@ -41,7 +41,7 @@ FPCGDataProviderDataCollectionUploadProxy::FPCGDataProviderDataCollectionUploadP
 	TWeakObjectPtr<UPCGDataBinding> InBinding,
 	const FPCGDataCollectionDesc& InPinDesc,
 	const TArray<FName>& InDownstreamInputPinLabels)
-	: FPCGDataCollectionDataProviderProxy(InBinding, InPinDesc)
+	: FPCGDataCollectionDataProviderProxy(InBinding, InPinDesc, EPCGReadbackMode::None)
 {
 	DownstreamInputPinLabels = InDownstreamInputPinLabels;
 }

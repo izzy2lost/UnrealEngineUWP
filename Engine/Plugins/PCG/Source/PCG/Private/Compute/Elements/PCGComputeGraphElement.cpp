@@ -5,7 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGModule.h"
 #include "PCGSubsystem.h"
-#include "Compute/DataInterfaces/PCGDataCollectionReadbackDataInterface.h"
+#include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 
 #include "ComputeWorkerInterface.h"
 #include "ComputeFramework/ComputeFramework.h"
@@ -46,17 +46,18 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 	// The sequence appears out of order as calls so that paths that are executed multiple times (like checking for completion) are as
 	// short as possible.
 
-	// 7. Execution is is complete when any async readbacks are complete.
+	// 7. Execution is complete when any async readbacks are complete.
 	if (Context->bAllAsyncOperationsDone)
 	{
 		Context->bExecutionSuccess = true;
 
 		for (UComputeDataProvider* DataProvider : Context->ComputeGraphInstance.GetDataProviders())
 		{
-			if (UPCGDataProviderDataCollectionReadback* Readback = Cast<UPCGDataProviderDataCollectionReadback>(DataProvider))
+			UPCGDataCollectionDataProvider* PCGDataProvider = Cast<UPCGDataCollectionDataProvider>(DataProvider);
+			if (PCGDataProvider && PCGDataProvider->RequiresReadback())
 			{
 				// Process data for all readbacks, and track whether all succeeded.
-				const bool bProcessResult = Readback->ProcessReadBackData();
+				const bool bProcessResult = PCGDataProvider->ProcessReadBackData(Context);
 				Context->bExecutionSuccess &= bProcessResult;
 			}
 		}
@@ -125,18 +126,19 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		// Register all providers running async operations. TODO review if we should have a general API like "RunsAsyncOperations()"?
 		for (UComputeDataProvider* DataProvider : Context->ComputeGraphInstance.GetDataProviders())
 		{
-			if (UPCGDataProviderDataCollectionReadback* Readback = Cast<UPCGDataProviderDataCollectionReadback>(DataProvider))
+			UPCGDataCollectionDataProvider* PCGDataProvider = Cast<UPCGDataCollectionDataProvider>(DataProvider);
+			if (PCGDataProvider && PCGDataProvider->RequiresReadback())
 			{
-				Context->ProvidersRunningAsyncOperations.Add(Readback);
+				Context->ProvidersRunningAsyncOperations.Add(PCGDataProvider);
 
-				Readback->OnReadbackComplete_RenderThread().AddLambda([Context, Readback]()
+				PCGDataProvider->OnReadbackComplete_RenderThread().AddLambda([Context, PCGDataProvider]()
 				{
 					FWriteScopeLock Lock(Context->ProvidersRunningAsyncOperationsLock);
 
 					const bool bEmptyBefore = Context->ProvidersRunningAsyncOperations.IsEmpty();
 
-					ensure(Context->ProvidersRunningAsyncOperations.Contains(Readback));
-					Context->ProvidersRunningAsyncOperations.Remove(Readback);
+					ensure(Context->ProvidersRunningAsyncOperations.Contains(PCGDataProvider));
+					Context->ProvidersRunningAsyncOperations.Remove(PCGDataProvider);
 
 					if (!bEmptyBefore && Context->ProvidersRunningAsyncOperations.IsEmpty())
 					{
@@ -232,9 +234,7 @@ void FPCGComputeGraphElement::PostExecuteInternal(FPCGContext* InContext) const
 			UPCGComponent* Component = Context->SourceComponent.Get();
 			if (Component && Context->Stack && Node)
 			{
-				// TODO calling this to register that node executed. Regarding inspection data, we need to create
-				// a readback and pipe the data to here.
-				Component->StoreInspectionData(Context->Stack, Node, /*InTimer=*/nullptr, {}, {}, /*bUsedCache*/false);
+				Component->NotifyNodeExecuted(Node, Context->Stack, /*InTimer=*/nullptr, /*bUsedCache*/false);
 			}
 		}
 	}
@@ -254,9 +254,10 @@ void FPCGComputeGraphElement::ResetAsyncOperations(FPCGContext* InContext) const
 
 		for (UComputeDataProvider* DataProvider : Context->ComputeGraphInstance.GetDataProviders())
 		{
-			if (UPCGDataProviderDataCollectionReadback* Readback = Cast<UPCGDataProviderDataCollectionReadback>(DataProvider))
+			UPCGDataCollectionDataProvider* PCGDataProvider = Cast<UPCGDataCollectionDataProvider>(DataProvider);
+			if (PCGDataProvider && PCGDataProvider->RequiresReadback())
 			{
-				Readback->OnReadbackComplete_RenderThread().Clear();
+				PCGDataProvider->OnReadbackComplete_RenderThread().Clear();
 			}
 		}
 
