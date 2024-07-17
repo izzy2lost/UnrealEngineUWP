@@ -15,6 +15,7 @@
 	"IsBetaVersion": false,
 	"Installed": false,
 	"SupportedTargetPlatforms": [
+		"IOS",
 		"Android"
 	],
 	"Modules": [
