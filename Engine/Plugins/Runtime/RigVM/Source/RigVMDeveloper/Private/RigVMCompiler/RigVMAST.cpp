@@ -1263,8 +1263,7 @@ FRigVMExprAST* FRigVMParserAST::CreateExpressionForNode(const FRigVMASTProxy& In
 			InNodeProxy.IsA<URigVMVariableNode>() ||
 			InNodeProxy.IsA<URigVMEnumNode>() ||
 			InNodeProxy.IsA<URigVMLibraryNode>() ||
-			InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-			InNodeProxy.IsA<URigVMFunctionReturnNode>())
+			InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 		{
 			NodeExpr = MakeExpr<FRigVMNoOpExprAST>(InNodeProxy);
 		}
@@ -2866,8 +2865,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			// If its an interface node of the library we are compiling, don't recurse
 			if (OutTraversalInfo.LibraryNodeBeingCompiled != nullptr)
 			{
-				if (Node->IsA<URigVMFunctionEntryNode>() ||
-					Node->IsA<URigVMFunctionReturnNode>())
+				if (Node->IsA<URigVMFunctionInterfaceNode>())
 				{
 					if (Node->GetTypedOuter<URigVMLibraryNode>() == OutTraversalInfo.LibraryNodeBeingCompiled)
 					{
@@ -2888,8 +2886,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			}
 			
 			return Node->IsA<URigVMLibraryNode>() ||
-				Node->IsA<URigVMFunctionEntryNode>() ||
-				Node->IsA<URigVMFunctionReturnNode>();
+				Node->IsA<URigVMFunctionInterfaceNode>();
 		}
 
 		static bool IsValidPinForAST(const FRigVMASTProxy& InPinProxy, LocalPinTraversalInfo& OutTraversalInfo)
@@ -3287,8 +3284,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			const bool bIsCompilingFunction = OutTraversalInfo.LibraryNodeBeingCompiled != nullptr;
 			if (bIsCompilingFunction)
 			{
-				if (InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-				   InNodeProxy.IsA<URigVMFunctionReturnNode>())
+				if (InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 				{
 					URigVMNode* Node = InNodeProxy.GetSubjectChecked<URigVMNode>();
 					if (Node->GetTypedOuter<URigVMLibraryNode>() != OutTraversalInfo.LibraryNodeBeingCompiled)
@@ -3299,8 +3295,7 @@ void FRigVMParserAST::Inline(const TArray<URigVMGraph*>& InGraphs, const TArray<
 			}
 			else
 			{
-				if (InNodeProxy.IsA<URigVMFunctionEntryNode>() ||
-				   InNodeProxy.IsA<URigVMFunctionReturnNode>())
+				if (InNodeProxy.IsA<URigVMFunctionInterfaceNode>())
 				{
 					return;
 				}

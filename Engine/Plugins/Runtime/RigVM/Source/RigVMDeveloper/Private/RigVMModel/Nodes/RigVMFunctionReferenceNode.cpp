@@ -22,6 +22,58 @@ FText URigVMFunctionReferenceNode::GetToolTipText() const
 	return ReferencedFunctionHeader.GetTooltip();
 }
 
+FName URigVMFunctionReferenceNode::GetDisplayNameForPin(const FString& InPinPath) const
+{
+	if(const FString* DisplayName = ReferencedFunctionHeader.Layout.FindDisplayName(InPinPath))
+	{
+		if(!DisplayName->IsEmpty())
+		{
+			return *(*DisplayName);
+		}
+	}
+
+	if(const URigVMPin* Pin = FindPin(InPinPath))
+	{
+		if(Pin->IsRootPin())
+		{
+			const FRigVMGraphFunctionArgument* Argument = ReferencedFunctionHeader.Arguments.FindByPredicate([Pin](const FRigVMGraphFunctionArgument& Argument)
+			{
+				return Argument.Name == Pin->GetFName();
+			});
+
+			if (Argument && !Argument->DisplayName.IsNone())
+			{
+				return Argument->DisplayName;
+			}
+		}
+	}
+
+	if(const URigVMPin* ReferencedPin = FindReferencedPin(InPinPath))
+	{
+		return ReferencedPin->GetDisplayName();
+	}
+
+	return Super::GetDisplayNameForPin(InPinPath);
+}
+
+FString URigVMFunctionReferenceNode::GetCategoryForPin(const FString& InPinPath) const
+{
+	if(const FString* Category = ReferencedFunctionHeader.Layout.FindCategory(InPinPath))
+	{
+		if(!Category->IsEmpty())
+		{
+			return *Category;
+		}
+	}
+
+	if(const URigVMPin* ReferencedPin = FindReferencedPin(InPinPath))
+	{
+		return ReferencedPin->GetCategory();
+	}
+
+	return Super::GetCategoryForPin(InPinPath);
+}
+
 FString URigVMFunctionReferenceNode::GetNodeCategory() const
 {
 	return ReferencedFunctionHeader.Category;
@@ -233,8 +285,23 @@ FText URigVMFunctionReferenceNode::GetToolTipTextForPin(const URigVMPin* InPin) 
 			return *Tooltip;
 		}
 	}
-	
+
+	if(const URigVMPin* ReferencedPin = FindReferencedPin(InPin))
+	{
+		return ReferencedPin->GetToolTipText();
+	}
+
 	return Super::GetToolTipTextForPin(InPin);
+}
+
+TArray<FString> URigVMFunctionReferenceNode::GetPinCategories() const
+{
+	TArray<FString> TransientPinCategories;
+	for(const FRigVMGraphFunctionCategory& Category : ReferencedFunctionHeader.Layout.Categories)
+	{
+		TransientPinCategories.Add(Category.Path);
+	}
+	return TransientPinCategories;
 }
 
 FRigVMGraphFunctionIdentifier URigVMFunctionReferenceNode::GetFunctionIdentifier() const
@@ -275,4 +342,18 @@ TArray<int32> URigVMFunctionReferenceNode::GetInstructionsForVMImpl(const FRigVM
 	}
 	
 	return Instructions;
+}
+
+const URigVMPin* URigVMFunctionReferenceNode::FindReferencedPin(const URigVMPin* InPin) const
+{
+	return FindReferencedPin(InPin->GetSegmentPath(true));
+}
+
+const URigVMPin* URigVMFunctionReferenceNode::FindReferencedPin(const FString& InPinPath) const
+{
+	if(const URigVMLibraryNode* LibraryNode = LoadReferencedNode())
+	{
+		return LibraryNode->FindPin(InPinPath);
+	}
+	return nullptr;
 }

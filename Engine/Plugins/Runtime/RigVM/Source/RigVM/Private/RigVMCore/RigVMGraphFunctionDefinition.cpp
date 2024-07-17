@@ -94,6 +94,23 @@ bool FRigVMGraphFunctionIdentifier::IsVariantOf(const FRigVMGraphFunctionIdentif
 	return ThisHeader.Variant.Guid == OtherHeader.Variant.Guid;
 }
 
+const FString* FRigVMGraphFunctionLayout::FindCategory(const FString& InElement) const
+{
+	for(const FRigVMGraphFunctionCategory& Category : Categories)
+	{
+		if(Category.Elements.Contains(InElement))
+		{
+			return &Category.Path;
+		}
+	}
+	return nullptr;
+}
+
+const FString* FRigVMGraphFunctionLayout::FindDisplayName(const FString& InElement) const
+{
+	return DisplayNames.Find(InElement);
+}
+
 TFunction<FRigVMGraphFunctionHeader(const FSoftObjectPath&, const FName&, bool*)> FRigVMGraphFunctionHeader::FindFunctionHeaderFromPathFunc;
 
 bool FRigVMGraphFunctionHeader::IsMutable() const

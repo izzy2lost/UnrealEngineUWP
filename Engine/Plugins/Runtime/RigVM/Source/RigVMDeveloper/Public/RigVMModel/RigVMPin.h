@@ -606,6 +606,7 @@ private:
 	friend class FRigVMParserAST;
 	friend struct FRigVMSetPinDisplayNameAction;
 	friend struct FRigVMSetPinCategoryAction;
+	friend class URigVMLibraryNode;
 };
 
 class RIGVMDEVELOPER_API FRigVMPinDefaultValueImportErrorContext : public FOutputDevice

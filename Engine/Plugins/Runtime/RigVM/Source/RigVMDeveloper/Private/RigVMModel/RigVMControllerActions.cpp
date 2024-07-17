@@ -1128,6 +1128,49 @@ bool FRigVMSetPinCategoryAction::Redo()
 	return FRigVMBaseAction::Redo();
 }
 
+FRigVMChangeNodePinCategoriesAction::FRigVMChangeNodePinCategoriesAction()
+: FRigVMBaseAction(nullptr)
+, NodeName()
+, OldCategories()
+, NewCategories()
+{
+}
+
+FRigVMChangeNodePinCategoriesAction::FRigVMChangeNodePinCategoriesAction(URigVMController* InController, const URigVMNode* InNode)
+: FRigVMBaseAction(InController)
+, NodeName(InNode->GetName())
+, OldCategories(InNode->GetPinCategories())
+, NewCategories()
+{
+}
+
+bool FRigVMChangeNodePinCategoriesAction::Undo()
+{
+	if(!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->SetPinCategories(*NodeName, OldCategories, false);
+}
+
+bool FRigVMChangeNodePinCategoriesAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+	if(!GetController()->SetPinCategories(*NodeName, NewCategories, false))
+	{
+		return false;
+	}
+	return FRigVMBaseAction::Redo();
+}
+
+void FRigVMChangeNodePinCategoriesAction::UpdateAfterModification(const URigVMNode* InNode)
+{
+	NewCategories = InNode->GetPinCategories();
+}
+
 FRigVMSetPinWatchAction::FRigVMSetPinWatchAction()
 : FRigVMBaseAction(nullptr)
 , OldIsWatched(false)

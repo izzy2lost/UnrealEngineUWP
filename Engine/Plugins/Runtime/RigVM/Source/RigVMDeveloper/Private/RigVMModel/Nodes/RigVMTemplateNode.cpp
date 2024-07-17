@@ -390,7 +390,7 @@ bool URigVMTemplateNode::SupportsType(const URigVMPin* InPin, TRigVMTypeIndex In
 				}
 				return true;
 			}
-			else if (IsA<URigVMFunctionEntryNode>() || IsA<URigVMFunctionReturnNode>())
+			else if (IsA<URigVMFunctionInterfaceNode>())
 			{
 				if(OutTypeIndex)
 				{
@@ -416,7 +416,7 @@ bool URigVMTemplateNode::SupportsType(const URigVMPin* InPin, TRigVMTypeIndex In
 		}
 
 		// an entry/return node that does not contain an argument for the pin will always support the connections
-		if (IsA<URigVMFunctionEntryNode>() || IsA<URigVMFunctionReturnNode>())
+		if (IsA<URigVMFunctionInterfaceNode>())
 		{
 			if (Template->FindArgument(RootPin->GetFName()) == nullptr)
 			{

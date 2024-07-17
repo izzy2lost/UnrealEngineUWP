@@ -299,8 +299,7 @@ bool URigVMSchema::CanAddNode(URigVMController* InController, const URigVMNode* 
 			}
 		}
 	}
-	else if(InNode->IsA<URigVMFunctionEntryNode>() ||
-		InNode->IsA<URigVMFunctionReturnNode>())
+	else if(InNode->IsA<URigVMFunctionInterfaceNode>())
 	{
 		// only allow entry / return nodes on sub graphs
 		if(Graph->IsRootGraph())
@@ -412,8 +411,7 @@ bool URigVMSchema::CanRemoveNode(URigVMController* InController, const URigVMNod
 {
 	RIGVMSCHEMA_DEFAULT_FUNCTION_BODY
 
-	if(InNode->IsA<URigVMFunctionEntryNode>() ||
-		InNode->IsA<URigVMFunctionReturnNode>())
+	if(InNode->IsA<URigVMFunctionInterfaceNode>())
 	{
 		return false;
 	}

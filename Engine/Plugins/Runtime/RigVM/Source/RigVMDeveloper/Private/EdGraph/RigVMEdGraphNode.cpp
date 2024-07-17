@@ -1338,8 +1338,7 @@ bool URigVMEdGraphNode::ShowPaletteIconOnNode() const
 	{
 		return ModelNode->IsEvent() ||
 			ModelNode->IsA<URigVMInvokeEntryNode>() ||
-			ModelNode->IsA<URigVMFunctionEntryNode>() ||
-			ModelNode->IsA<URigVMFunctionReturnNode>() ||
+			ModelNode->IsA<URigVMFunctionInterfaceNode>() ||
 			ModelNode->IsA<URigVMFunctionReferenceNode>() ||
 			ModelNode->IsA<URigVMCollapseNode>() ||
 			ModelNode->IsA<URigVMUnitNode>() ||
@@ -1394,8 +1393,7 @@ FSlateIcon URigVMEdGraphNode::GetIconAndTint(FLinearColor& OutColor) const
 			return CollapsedNodeIcon;
 		}
 
-		if (ModelNode->IsA<URigVMFunctionEntryNode>() || 
-            ModelNode->IsA<URigVMFunctionReturnNode>())
+		if (ModelNode->IsA<URigVMFunctionInterfaceNode>())
 		{
 			return EntryReturnIcon;
 		}

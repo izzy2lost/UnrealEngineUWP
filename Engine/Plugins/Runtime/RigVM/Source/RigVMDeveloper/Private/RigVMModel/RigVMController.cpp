@@ -1260,7 +1260,7 @@ TArray<FString> URigVMController::GetAddNodePythonCommands(URigVMNode* Node) con
 						*RigVMPythonUtils::Vector2DToPythonString(InvokeEntryNode->GetPosition()),
 						*NodeName));
 	}
-	else if (Node->IsA<URigVMFunctionEntryNode>() || Node->IsA<URigVMFunctionReturnNode>())
+	else if (Node->IsA<URigVMFunctionInterfaceNode>())
 	{
 		
 		
@@ -4857,8 +4857,7 @@ URigVMCollapseNode* URigVMController::CollapseNodes(const TArray<URigVMNode*>& I
 			continue;
 		}
 
-		if (Node->IsA<URigVMFunctionEntryNode>() ||
-			Node->IsA<URigVMFunctionReturnNode>())
+		if (Node->IsA<URigVMFunctionInterfaceNode>())
 		{
 			continue;
 		}
@@ -7925,6 +7924,22 @@ bool URigVMController::SetPinDisplayName(URigVMPin* InPin, const FString& InDisp
 		return false;
 	}
 
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InPin->GetNode()))
+	{
+		if(const URigVMPin* OuterPin = InterfaceNode->FindReferencedPin(InPin))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterPin->GetGraph()))
+			{
+				return OuterController->SetPinDisplayName(OuterPin->GetPinPath(), InDisplayName, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InPin->GetNode()->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
 	const FName OldDisplayFName = InPin->GetDisplayName();
 	const FString OldDisplayName = OldDisplayFName.IsNone() ? FString() : OldDisplayFName.ToString();
 
@@ -8009,6 +8024,22 @@ bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategor
 		return false;
 	}
 
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InPin->GetNode()))
+	{
+		if(const URigVMPin* OuterPin = InterfaceNode->FindReferencedPin(InPin))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterPin->GetGraph()))
+			{
+				return OuterController->SetPinCategory(OuterPin->GetPinPath(), InCategory, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InPin->GetNode()->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
 	TArray<FString> Categories;
 	RigVMStringUtils::SplitNodePath(InCategory, Categories);
 
@@ -8072,6 +8103,18 @@ bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategor
 
 	InPin->UserDefinedCategory = NewCategory;
 	Notify(ERigVMGraphNotifType::PinCategoryChanged, InPin);
+	if(!NewCategory.IsEmpty())
+	{
+		if(bSetupUndoRedo)
+		{
+			if(!InPin->GetNode()->PinCategories.Contains(NewCategory))
+			{
+				TArray<FString> NewCategories = InPin->GetNode()->PinCategories;
+				NewCategories.Add(NewCategory);
+				(void)SetPinCategories(InPin->GetNode(), NewCategories, bSetupUndoRedo);
+			}
+		}
+	}
 
 	if (!bSuspendNotifications)
 	{
@@ -8082,6 +8125,424 @@ bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategor
 
 	if (bSetupUndoRedo)
 	{
+		GetActionStack()->EndAction(Action);
+	}
+
+	return true;
+}
+
+bool URigVMController::RemovePinCategory(const FName& InNodeName, const FString& InPinCategory, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	const bool bSuccess = RemovePinCategory(Node, InPinCategory, bSetupUndoRedo);
+	if (bSuccess && bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').remove_pin_category('%s', '%s')"),
+			*GraphName,
+			*GetSchema()->GetSanitizedNodeName(InNodeName.ToString()),
+			*InPinCategory));
+	}
+
+	return bSuccess;
+}
+
+bool URigVMController::RemovePinCategory(const URigVMNode* InNode, const FString& InPinCategory, bool bSetupUndoRedo)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InNode))
+	{
+		if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(InNode->GetGraph()->GetOuter()))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterNode->GetGraph()))
+			{
+				return OuterController->RemovePinCategory(OuterNode, InPinCategory, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InNode->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
+	const TArray<URigVMPin*> PinsForCategory = InNode->GetPinsForCategory(InPinCategory);
+	if(!InNode->GetPinCategories().Contains(InPinCategory) && PinsForCategory.IsEmpty())
+	{
+		return false;
+	}
+
+	FRigVMControllerCompileBracketScope CompileScope(this);
+	FRigVMChangeNodePinCategoriesAction Action;
+	if (bSetupUndoRedo)
+	{
+		Action = FRigVMChangeNodePinCategoriesAction(this, InNode);
+		Action.SetTitle(TEXT("Remove Pin Category"));
+		GetActionStack()->BeginAction(Action);
+	}
+
+	for(URigVMPin* PinInCategory : PinsForCategory)
+	{
+		(void)SetPinCategory(PinInCategory, FString(), bSetupUndoRedo);
+	}
+
+	const_cast<URigVMNode*>(InNode)->PinCategories.Remove(InPinCategory);
+	Notify(ERigVMGraphNotifType::PinCategoriesChanged, const_cast<URigVMNode*>(InNode));
+
+	if (!bSuspendNotifications)
+	{
+		const URigVMGraph* Graph = GetGraph();
+		check(Graph);
+		(void)Graph->MarkPackageDirty();
+	}
+
+	if (bSetupUndoRedo)
+	{
+		Action.UpdateAfterModification(InNode);
+		GetActionStack()->EndAction(Action);
+	}
+
+	return true;
+}
+
+bool URigVMController::RenamePinCategory(const FName& InNodeName, const FString& InOldPinCategory, const FString& InNewPinCategory, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	const bool bSuccess = RenamePinCategory(Node, InOldPinCategory, InNewPinCategory, bSetupUndoRedo);
+	if (bSuccess && bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').rename_pin_category('%s', '%s', '%s')"),
+			*GraphName,
+			*GetSchema()->GetSanitizedNodeName(InNodeName.ToString()),
+			*InOldPinCategory,
+			*InNewPinCategory));
+	}
+
+	return bSuccess;
+}
+
+bool URigVMController::RenamePinCategory(const URigVMNode* InNode, const FString& InOldPinCategory, const FString& InNewPinCategory, bool bSetupUndoRedo)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InNode))
+	{
+		if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(InNode->GetGraph()->GetOuter()))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterNode->GetGraph()))
+			{
+				return OuterController->RenamePinCategory(OuterNode, InOldPinCategory, InNewPinCategory, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InNode->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
+	const FString OldPrefix = InOldPinCategory + TEXT("|");
+	const FString NewPrefix = InNewPinCategory + TEXT("|");
+
+	TArray<FString> CategoriesToRename;
+	for(const FString& ExistingCategory : InNode->GetPinCategories())
+	{
+		if(ExistingCategory.Equals(InOldPinCategory, ESearchCase::CaseSensitive) ||
+			ExistingCategory.StartsWith(OldPrefix, ESearchCase::CaseSensitive))
+		{
+			CategoriesToRename.Add(ExistingCategory);
+		}
+	}
+
+	if(CategoriesToRename.IsEmpty())
+	{
+		return false;
+	}
+
+	FRigVMControllerCompileBracketScope CompileScope(this);
+	FRigVMChangeNodePinCategoriesAction Action;
+	if (bSetupUndoRedo)
+	{
+		Action = FRigVMChangeNodePinCategoriesAction(this, InNode);
+		Action.SetTitle(TEXT("Rename Pin Category"));
+		GetActionStack()->BeginAction(Action);
+	}
+
+	TArray<URigVMPin*> PinsToUpdate;
+	
+	// first update the category list on the node
+	for(const FString& CategoryToRename : CategoriesToRename)
+	{
+		const int32 Index = InNode->PinCategories.Find(CategoryToRename);
+		if(CategoryToRename.Equals(InOldPinCategory, ESearchCase::CaseSensitive))
+        {
+			const_cast<URigVMNode*>(InNode)->PinCategories[Index] = InNewPinCategory;
+        }
+        else if(CategoryToRename.StartsWith(OldPrefix, ESearchCase::CaseSensitive))
+        {
+        	const FString NewCategory = NewPrefix + CategoryToRename.RightChop(OldPrefix.Len());
+			const_cast<URigVMNode*>(InNode)->PinCategories[Index] = NewCategory;
+        }
+		PinsToUpdate.Append(InNode->GetPinsForCategory(CategoryToRename));
+	}
+
+	// then update the pins and their categories
+	for(URigVMPin* PinToUpdate : PinsToUpdate)
+	{
+		const FString CategoryToRename = PinToUpdate->GetCategory();
+		if(CategoryToRename.Equals(InOldPinCategory, ESearchCase::CaseSensitive))
+		{
+			(void)SetPinCategory(PinToUpdate, InNewPinCategory, bSetupUndoRedo);
+		}
+		else if(CategoryToRename.StartsWith(OldPrefix, ESearchCase::CaseSensitive))
+		{
+			const FString NewCategory = NewPrefix + CategoryToRename.RightChop(OldPrefix.Len());
+			(void)SetPinCategory(PinToUpdate, NewCategory, bSetupUndoRedo);
+		}
+	}
+	
+	Notify(ERigVMGraphNotifType::PinCategoriesChanged, const_cast<URigVMNode*>(InNode));
+
+	if (!bSuspendNotifications)
+	{
+		const URigVMGraph* Graph = GetGraph();
+		check(Graph);
+		(void)Graph->MarkPackageDirty();
+	}
+
+	if (bSetupUndoRedo)
+	{
+		Action.UpdateAfterModification(InNode);
+		GetActionStack()->EndAction(Action);
+	}
+
+	return true;
+}
+
+bool URigVMController::SetPinCategoryIndex(const FName& InNodeName, const FString& InPinCategory, int32 InNewIndex, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	const bool bSuccess = SetPinCategoryIndex(Node, InPinCategory, InNewIndex, bSetupUndoRedo);
+	if (bSuccess && bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()),
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').set_pin_category_index('%s', '%s', %d)"),
+			*GraphName,
+			*GetSchema()->GetSanitizedNodeName(InNodeName.ToString()),
+			*InPinCategory,
+			InNewIndex));
+	}
+
+	return bSuccess;
+}
+
+bool URigVMController::SetPinCategoryIndex(const URigVMNode* InNode, const FString& InPinCategory, int32 InNewIndex, bool bSetupUndoRedo)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InNode))
+	{
+		if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(InNode->GetGraph()->GetOuter()))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterNode->GetGraph()))
+			{
+				return OuterController->SetPinCategoryIndex(OuterNode, InPinCategory, InNewIndex, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InNode->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
+	TArray<FString> Categories = InNode->GetPinCategories();
+	if(!Categories.Contains(InPinCategory))
+	{
+		return false;
+	}
+
+	InNewIndex = FMath::Clamp(InNewIndex, 0, Categories.Num() - 1);
+	if(Categories.Find(InPinCategory) == InNewIndex)
+	{
+		return false;
+	}
+
+	Categories.Remove(InPinCategory);
+	if(InNewIndex >= Categories.Num())
+	{
+		Categories.Add(InPinCategory);
+	}
+	else
+	{
+		Categories.Insert(InPinCategory, InNewIndex);
+	}
+
+	return SetPinCategories(InNode, Categories, bSetupUndoRedo);
+}
+
+bool URigVMController::SetPinCategories(const FName& InNodeName, const TArray<FString>& InCategories, bool bSetupUndoRedo)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	return SetPinCategories(Node, InCategories, bSetupUndoRedo);
+}
+
+bool URigVMController::SetPinCategories(const URigVMNode* InNode, const TArray<FString>& InCategories, bool bSetupUndoRedo)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	// for entry or return nodes we relay to the outer pins
+	if(const URigVMFunctionInterfaceNode* InterfaceNode = Cast<URigVMFunctionInterfaceNode>(InNode))
+	{
+		if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(InNode->GetGraph()->GetOuter()))
+		{
+			if(URigVMController* OuterController = GetControllerForGraph(OuterNode->GetGraph()))
+			{
+				return OuterController->SetPinCategories(OuterNode, InCategories, bSetupUndoRedo);
+			}
+		}
+	}
+	else if(InNode->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
+	const TArray<FString> PreviousCategories = InNode->GetPinCategories();
+	if(PreviousCategories.Num() == InCategories.Num())
+	{
+		bool bFoundDifference = false;
+		for(int32 Index = 0; Index < PreviousCategories.Num(); Index++)
+		{
+			if(!PreviousCategories[Index].Equals(InCategories[Index], ESearchCase::CaseSensitive))
+			{
+				bFoundDifference = true;
+				break;
+			}
+		}
+		if(!bFoundDifference)
+		{
+			return false;
+		}
+	}
+
+	FRigVMControllerCompileBracketScope CompileScope(this);
+	FRigVMChangeNodePinCategoriesAction Action;
+	if (bSetupUndoRedo)
+	{
+		Action = FRigVMChangeNodePinCategoriesAction(this, InNode);
+		Action.SetTitle(TEXT("Set Pin Categories"));
+		GetActionStack()->BeginAction(Action);
+	}
+
+	const_cast<URigVMNode*>(InNode)->PinCategories = InCategories;
+	Notify(ERigVMGraphNotifType::PinCategoriesChanged, const_cast<URigVMNode*>(InNode));
+
+	if (!bSuspendNotifications)
+	{
+		const URigVMGraph* Graph = GetGraph();
+		check(Graph);
+		(void)Graph->MarkPackageDirty();
+	}
+
+	if (bSetupUndoRedo)
+	{
+		Action.UpdateAfterModification(InNode);
 		GetActionStack()->EndAction(Action);
 	}
 
@@ -11393,7 +11854,7 @@ bool URigVMController::ChangeExposedPinType(const FName& InPinName, const FStrin
 		TArray<URigVMPin*> ExtendedInterfacePins;
 		for (URigVMNode* Node : Graph->GetNodes())
 		{
-			if (Node->IsA<URigVMFunctionEntryNode>() || Node->IsA<URigVMFunctionReturnNode>())
+			if (Node->IsA<URigVMFunctionInterfaceNode>())
 			{
 				if (URigVMPin* InterfacePin = Node->FindPin(Pin->GetName()))
 				{
@@ -18006,7 +18467,7 @@ bool URigVMController::UpdateTemplateNodePinTypes(URigVMTemplateNode* InNode, bo
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 
-	if (InNode->IsA<URigVMFunctionEntryNode>() || InNode->IsA<URigVMFunctionReturnNode>())
+	if (InNode->IsA<URigVMFunctionInterfaceNode>())
 	{
 		return false;
 	}

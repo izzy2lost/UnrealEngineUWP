@@ -48,6 +48,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Adding variant to every RigVM asset
 		AddVariantToRigVMAssets,
 
+		// Storing user interface layout within function header
+		FunctionHeaderStoresLayout,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -487,6 +487,93 @@ protected:
 };
 
 USTRUCT(BlueprintType)
+struct RIGVM_API FRigVMGraphFunctionCategory
+{
+	GENERATED_BODY()
+	
+	FRigVMGraphFunctionCategory()
+	: Path()
+	, Elements()
+	{}
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	FString Path;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	TArray<FString> Elements;
+
+	friend uint32 GetTypeHash(const FRigVMGraphFunctionCategory& Category)
+	{
+		uint32 Hash = GetTypeHash(Category.Path);
+		for (const FString& Element : Category.Elements)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Element));
+		}
+		return Hash;
+	}
+
+	bool operator < (const FRigVMGraphFunctionCategory& Other) const
+	{
+		return FCString::Strcmp(*Path, *Other.Path) < 0;
+	}
+
+	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionCategory& Category)
+	{
+		Ar << Category.Path;
+		Ar << Category.Elements;
+		return Ar;
+	}
+};
+
+USTRUCT(BlueprintType)
+struct RIGVM_API FRigVMGraphFunctionLayout
+{
+	GENERATED_BODY()
+	
+	FRigVMGraphFunctionLayout()
+	: Categories()
+	, DisplayNames()
+	{}
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	TArray<FRigVMGraphFunctionCategory> Categories;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	TMap<FString, FString> DisplayNames;
+
+	void Reset()
+	{
+		Categories.Reset();
+		DisplayNames.Reset();
+	}
+
+	friend uint32 GetTypeHash(const FRigVMGraphFunctionLayout& Layout)
+	{
+		uint32 Hash = 0;;
+		for (const FRigVMGraphFunctionCategory& Category : Layout.Categories)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Category));
+		}
+		for(const TPair<FString, FString>& Pair : Layout.DisplayNames)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Pair));
+		}
+		return Hash;
+	}
+
+	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionLayout& Layout)
+	{
+		Ar << Layout.Categories;
+		Ar << Layout.DisplayNames;
+		return Ar;
+	}
+
+	const FString* FindCategory(const FString& InElement) const;
+	const FString* FindDisplayName(const FString& InElement) const;
+};
+
+
+USTRUCT(BlueprintType)
 struct RIGVM_API FRigVMGraphFunctionHeader
 {
 	GENERATED_BODY()
@@ -531,6 +618,9 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 
 	UPROPERTY()
 	TArray<FRigVMExternalVariable> ExternalVariables;
+
+	UPROPERTY()
+	FRigVMGraphFunctionLayout Layout;
 
 	bool IsMutable() const;
 
@@ -600,6 +690,23 @@ struct RIGVM_API FRigVMGraphFunctionHeader
 		Ar << Data.Arguments;
 		Ar << Data.Dependencies;
 		Ar << Data.ExternalVariables;
+
+		if (Ar.IsLoading())
+		{
+			if (Ar.CustomVer(FRigVMObjectVersion::GUID) >= FRigVMObjectVersion::FunctionHeaderStoresLayout)
+			{
+				Ar << Data.Layout;
+			}
+			else
+			{
+				Data.Layout.Reset();
+			}
+		}
+		else
+		{
+			Ar << Data.Layout;
+		}
+		
 		return Ar;
 	}
 

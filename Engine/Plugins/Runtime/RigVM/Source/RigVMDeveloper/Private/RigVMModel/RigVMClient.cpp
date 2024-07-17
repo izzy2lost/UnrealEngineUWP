@@ -1188,6 +1188,8 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		case ERigVMGraphNotifType::PinTypeChanged: // A pin's data type has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinIndexChanged: // A pin's index has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinWatchedChanged: // A pin's watch state has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinDisplayNameChanged: // A pin's display name / UI label has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinCategoryChanged: // A pin's category has changed (Subject == URigVMPin)
 		{
 			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 			{
@@ -1199,7 +1201,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 					}
 					if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
 					{
-						if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+						if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
 						{
 							UpdateGraphFunctionData(CollapseNode);
 						}
@@ -1208,7 +1210,20 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 			}
 			break;
 		}
-
+		case ERigVMGraphNotifType::PinCategoriesChanged: // A node's category list has changed (Subject == URigVMNode)
+		{
+			if (URigVMNode* Node = Cast<URigVMNode>(InSubject))
+			{
+				if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
+				{
+					if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
+					{
+						UpdateGraphFunctionData(CollapseNode);
+					}
+				}
+			}
+			break;
+		}
 		case ERigVMGraphNotifType::LinkAdded: // A link has been added (Subject == URigVMLink)
 		case ERigVMGraphNotifType::LinkRemoved: // A link has been removed (Subject == URigVMLink)
 		{

@@ -116,16 +116,6 @@ TArray<URigVMPin*> URigVMNode::GetAllPinsRecursively() const
 
 TArray<FString> URigVMNode::GetPinCategories() const
 {
-	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
-
-	TArray<FString> PinCategories;
-	for(const URigVMPin* Pin : AllPins)
-	{
-		if(!Pin->UserDefinedCategory.IsEmpty())
-		{
-			PinCategories.Add(Pin->UserDefinedCategory);
-		}
-	}
 	return PinCategories;
 }
 

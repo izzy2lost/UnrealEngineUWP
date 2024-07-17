@@ -1729,8 +1729,7 @@ UEdGraphPin* URigVMEdGraphSchema::DropPinOnNode(UEdGraphNode* InTargetNode, cons
 					Model = CollapseNode->GetContainedGraph();
 					PinDirection = PinDirection == ERigVMPinDirection::Output ? ERigVMPinDirection::Input : ERigVMPinDirection::Output;
 				}
-				else if (ModelNode->IsA<URigVMFunctionEntryNode>() ||
-					ModelNode->IsA<URigVMFunctionReturnNode>())
+				else if (ModelNode->IsA<URigVMFunctionInterfaceNode>())
 				{
 					Model = ModelNode->GetGraph();
 				}

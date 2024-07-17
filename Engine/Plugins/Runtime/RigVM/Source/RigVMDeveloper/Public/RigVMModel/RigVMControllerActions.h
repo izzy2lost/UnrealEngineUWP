@@ -907,6 +907,35 @@ public:
 };
 
 /**
+ * An action setting a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMChangeNodePinCategoriesAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMChangeNodePinCategoriesAction();
+	FRigVMChangeNodePinCategoriesAction(URigVMController* InController, const URigVMNode* InNode);
+	virtual ~FRigVMChangeNodePinCategoriesAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+	
+	void UpdateAfterModification(const URigVMNode* InNode);
+
+	UPROPERTY()
+	FString NodeName;
+
+	UPROPERTY()
+	TArray<FString> OldCategories;
+
+	UPROPERTY()
+	TArray<FString> NewCategories;
+};
+
+/**
  * An action setting a pin's default value in the graph.
  */
 USTRUCT()

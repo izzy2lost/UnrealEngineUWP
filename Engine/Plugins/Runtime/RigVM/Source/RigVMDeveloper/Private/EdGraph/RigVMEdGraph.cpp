@@ -602,6 +602,17 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 			}
 			break;
 		}
+		case ERigVMGraphNotifType::PinCategoriesChanged:
+		{
+			if (URigVMNode* ModelNode = Cast<URigVMNode>(InSubject))
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelNode->GetFName())))
+				{
+					RigNode->ModelPinsChanged();
+				}
+			}
+			break;
+		}
 		case ERigVMGraphNotifType::LibraryTemplateChanged:
 		case ERigVMGraphNotifType::PinDisplayNameChanged:
 		{

@@ -70,7 +70,7 @@ public:
 
 	// Returns all user defined categories on this node
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
-	TArray<FString> GetPinCategories() const;
+	virtual TArray<FString> GetPinCategories() const;
 
 	// Returns all pins for a given category
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
@@ -399,6 +399,12 @@ private:
 
 	UPROPERTY()
 	TArray<TObjectPtr<URigVMPin>> OrphanedPins;
+
+protected:
+	UPROPERTY()
+	TArray<FString> PinCategories;
+
+private:
 
 #if WITH_EDITOR
 	struct FProfilingCache

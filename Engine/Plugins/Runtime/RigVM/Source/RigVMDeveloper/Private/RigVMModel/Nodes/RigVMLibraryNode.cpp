@@ -312,7 +312,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
     	Header.Arguments.Add(Arg);
     }
 
-	// If the header already exists, try to find it and get its external variables and dependencies
+	// If the header already exists, try to find it and get its external variables, dependencies and layout
 	TArray<FString> Dependencies;
 	TArray<FRigVMExternalVariable> ExternalVariables;
 	if (IRigVMGraphFunctionHost* Host = Cast<IRigVMGraphFunctionHost>(HostPtr))
@@ -325,6 +325,37 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 		else
 		{
 			Header.ExternalVariables = GetExternalVariables();
+		}
+	}
+
+	// fill in the pin categories based on the data stored on the pins themselves
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+	TMap<FString, FRigVMGraphFunctionCategory> CategoryMap;
+	for(const URigVMPin* Pin : AllPins)
+	{
+		if(!Pin->UserDefinedCategory.IsEmpty())
+		{
+			FRigVMGraphFunctionCategory& Category = CategoryMap.FindOrAdd(Pin->UserDefinedCategory);
+			Category.Path = Pin->UserDefinedCategory;
+			Category.Elements.Add(Pin->GetSegmentPath(true));
+		}
+	}
+
+	// add the categories in the order they have been added
+	for(const FString& PinCategory : PinCategories)
+	{
+		if(FRigVMGraphFunctionCategory* Category = CategoryMap.Find(PinCategory))
+		{
+			Header.Layout.Categories.Add(*Category);
+		}
+	}
+
+	// fill in all user provided display names
+	for(const URigVMPin* Pin : AllPins)
+	{
+		if(!Pin->DisplayName.IsNone())
+		{
+			Header.Layout.DisplayNames.Add(Pin->GetSegmentPath(true), Pin->DisplayName.ToString());
 		}
 	}
 	

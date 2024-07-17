@@ -3762,6 +3762,7 @@ void URigVMBlueprint::PatchFunctionsOnLoad()
 			{				
 				Header.ExternalVariables = OldHeader->ExternalVariables;
 				Header.Dependencies = OldHeader->Dependencies;
+				Header.Layout = OldHeader->Layout;
 			}
 
 			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());

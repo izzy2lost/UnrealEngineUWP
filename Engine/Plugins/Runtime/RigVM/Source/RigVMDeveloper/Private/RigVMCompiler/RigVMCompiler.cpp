@@ -743,7 +743,7 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 				}
 			}
 
-			if(ModelNode->IsA<URigVMFunctionEntryNode>() || ModelNode->IsA<URigVMFunctionReturnNode>())
+			if(ModelNode->IsA<URigVMFunctionInterfaceNode>())
 			{
 				for(URigVMPin* ExecutePin : ModelNode->Pins)
 				{
@@ -3543,7 +3543,7 @@ FString URigVMCompiler::GetPinHashImpl(const URigVMPin* InPin, const FRigVMVarEx
 					bUseFullNodePath = false;
 				}
 			}
-			else if(Node->IsA<URigVMFunctionEntryNode>() || Node->IsA<URigVMFunctionReturnNode>())
+			else if(Node->IsA<URigVMFunctionInterfaceNode>())
 			{
 				const FString FullPath = InPinProxy.GetCallstack().GetCallPath(true);
 				return FString::Printf(TEXT("%s%s%s"), *Prefix, *FullPath, *Suffix);
