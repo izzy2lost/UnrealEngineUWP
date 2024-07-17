@@ -178,6 +178,7 @@ namespace Metasound::Engine
 		virtual void RemoveAsset(const UObject& InObject) override;
 		virtual void RemoveAsset(const FAssetData& InAssetData) override;
 		virtual void RenameAsset(const FAssetData& InAssetData, const FString& InOldObjectPath) override;
+		virtual void SetLogActiveAssetsOnShutdown(bool bInLogActiveAssetsOnShutdown) override;
 		virtual FMetasoundAssetBase* TryLoadAssetFromKey(const FAssetKey& InKey) const override;
 		virtual bool TryGetAssetIDFromClassName(const FMetasoundFrontendClassName& InClassName, FGuid& OutGuid) const override;
 		virtual bool TryLoadReferencedAssets(const FMetasoundAssetBase& InAssetBase, TArray<FMetasoundAssetBase*>& OutReferencedAssets) const override;
@@ -202,6 +203,8 @@ namespace Metasound::Engine
 		TSet<FName> AutoUpdateDenyListCache;
 		std::atomic<bool> bIsInitialAssetScanComplete = false;
 		TMap<FAssetKey, TArray<FTopLevelAssetPath>> PathMap;
+
+		bool bLogActiveAssetsOnShutdown = true;
 	};
 
 	FMetaSoundAssetManager::~FMetaSoundAssetManager()
@@ -209,15 +212,18 @@ namespace Metasound::Engine
 #if !NO_LOGGING
 		if (!PathMap.IsEmpty())
 		{
-			TSet<FAssetKey> Keys;
-			if (int32 NumKeys = PathMap.GetKeys(Keys); NumKeys > 0)
+			if (bLogActiveAssetsOnShutdown)
 			{
-				UE_LOG(LogMetaSound, Display, TEXT("AssetManager is shutting down with the following %i assets active:"), NumKeys);
-				for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
+				TSet<FAssetKey> Keys;
+				if (int32 NumKeys = PathMap.GetKeys(Keys); NumKeys > 0)
 				{
-					for (const FTopLevelAssetPath& Path : Pair.Value)
+					UE_LOG(LogMetaSound, Display, TEXT("AssetManager is shutting down with the following %i assets active:"), NumKeys);
+					for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
 					{
-						UE_LOG(LogMetaSound, Display, TEXT("- %s"), *Path.ToString());
+						for (const FTopLevelAssetPath& Path : Pair.Value)
+						{
+							UE_LOG(LogMetaSound, Display, TEXT("- %s"), *Path.ToString());
+						}
 					}
 				}
 			}
@@ -777,6 +783,11 @@ namespace Metasound::Engine
 				InFunction(AssetData);
 			}
 		});
+	}
+	
+	void FMetaSoundAssetManager::SetLogActiveAssetsOnShutdown(bool bInLogActiveAssetsOnShutdown)
+	{
+		bLogActiveAssetsOnShutdown = bInLogActiveAssetsOnShutdown;
 	}
 
 	FMetasoundAssetBase* FMetaSoundAssetManager::TryLoadAssetFromKey(const Metasound::Frontend::FAssetKey& InAssetKey) const

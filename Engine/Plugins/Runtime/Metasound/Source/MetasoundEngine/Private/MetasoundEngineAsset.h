@@ -128,8 +128,13 @@ namespace Metasound::Engine
 				}
 			}
 
+			IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
+			// Validation has added assets to the asset manager
+			// and we don't remove them immediately after validation to optimize possible subsequent validation
+			// Set this flag to prevent log spam of active assets on shutdown
+			AssetManager.SetLogActiveAssetsOnShutdown(false);
+
 			// Add error for multiple assets with the same class name
-			const IMetaSoundAssetManager& AssetManager = IMetaSoundAssetManager::GetChecked();
 			const FAssetKey Key(InMetaSound.GetConstDocument().RootGraph.Metadata);
 			const TArray<FTopLevelAssetPath>* AssetPaths = AssetManager.FindAssetPaths(Key);
 			if (AssetPaths && AssetPaths->Num() > 1)
