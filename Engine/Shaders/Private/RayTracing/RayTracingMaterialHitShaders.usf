@@ -417,7 +417,7 @@ void GetMaterialPayload(
 		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters).x), -1.0f, 1.0f);
 
 		const float3 WaterExtinction = ScatteringCoeff + AbsorptionCoeff;
-		const float3 WaterAlbedo = ScatteringCoeff / WaterExtinction;
+		const float3 WaterAlbedo = ScatteringCoeff / max(WaterExtinction, 0.000001);
 
 		Payload.BaseColor.xyz = WaterAlbedo;
 		Payload.CustomData.xyz = WaterExtinction;

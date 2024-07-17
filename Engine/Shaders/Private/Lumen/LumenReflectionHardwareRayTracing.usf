@@ -288,7 +288,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			TraceResult.Lighting *= MaxRayIntensity / MaxLighting;
 		}
 
-		RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = TraceResult.Lighting;
+		RWTraceRadiance[ReflectionTracingCoord.CoordFlatten] = MakeFinite(TraceResult.Lighting);
 		RWTraceHit[ReflectionTracingCoord.CoordFlatten] = EncodeRayDistance(TraceResult.OpaqueHitDistance, Result.bIsHit);
 
 		#if WRITE_DATA_FOR_HIT_LIGHTING_PASS
