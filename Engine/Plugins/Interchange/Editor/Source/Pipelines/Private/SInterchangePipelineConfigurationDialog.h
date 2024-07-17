@@ -119,7 +119,6 @@ private:
 
 	void SetEditPipeline(FInterchangePipelineItemType* PipelineItemToEdit);
 	FReply OnEditTranslatorSettings();
-	void OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent);
 
 private:
 	TWeakPtr< SWindow > OwnerWindow;

@@ -234,7 +234,12 @@ FReply SInterchangePipelineConfigurationDialog::OnEditTranslatorSettings()
 	DetailsViewArgs.bAllowMultipleTopLevelObjects = true;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	TSharedRef<IDetailsView> TranslatorSettingsDetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	TranslatorSettingsDetailsView->OnFinishedChangingProperties().AddRaw(this, &SInterchangePipelineConfigurationDialog::OnFinishedChangingProperties);
+
+	bool bIsSettingsModified = false;
+	TranslatorSettingsDetailsView->OnFinishedChangingProperties().AddLambda([&bIsSettingsModified](const FPropertyChangedEvent& PropertyChangedEvent)
+		{
+			bIsSettingsModified = true;
+		});
 	TranslatorSettingsDetailsView->SetObject(TranslatorSettings);
 
 	TSharedRef<SCustomDialog> OptionsDialog =
@@ -273,34 +278,30 @@ FReply SInterchangePipelineConfigurationDialog::OnEditTranslatorSettings()
 		});
 	OptionsDialog->ShowModal();
 
+	if (bIsSettingsModified && Translator.IsValid() && TranslatorSettings)
+	{
+		if (UClass* TranslatorSettingsClass = TranslatorSettings->GetClass())
+		{
+			//Save the config locally before the translation.
+			TranslatorSettings->SaveSettings();
+
+			//Need to Translate the source data
+			FScopedSlowTask Progress(2.f, NSLOCTEXT("SInterchangePipelineConfigurationDialog", "TranslatingSourceFile...", "Translating source file..."));
+			Progress.MakeDialog();
+			Progress.EnterProgressFrame(1.f);
+			//Reset the container
+			BaseNodeContainer->Reset();
+
+			Translator->Translate(*BaseNodeContainer.Get());
+
+			//Refresh the dialog
+			RefreshStack(false);
+
+			Progress.EnterProgressFrame(1.f);
+		}
+	}
+
 	return FReply::Handled();
-}
-
-void SInterchangePipelineConfigurationDialog::OnFinishedChangingProperties(const FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (!Translator.IsValid() || !TranslatorSettings)
-	{
-		return;
-	}
-	if (UClass* TranslatorSettingsClass = TranslatorSettings->GetClass())
-	{
-		//Save the config locally before the translation.
-		TranslatorSettings->SaveSettings();
-
-		//Need to Translate the source data
-		FScopedSlowTask Progress(2.f, NSLOCTEXT("SInterchangePipelineConfigurationDialog", "TranslatingSourceFile...", "Translating source file..."));
-		Progress.MakeDialog();
-		Progress.EnterProgressFrame(1.f);
-		//Reset the container
-		BaseNodeContainer->Reset();
-
-		Translator->Translate(*BaseNodeContainer.Get());
-
-		//Refresh the dialog
-		RefreshStack(false);
-
-		Progress.EnterProgressFrame(1.f);
-	}
 }
 
 TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfiguration()
