@@ -3,6 +3,7 @@
 #include "BaseGizmos/GizmoLineHandleComponent.h"
 #include "BaseGizmos/GizmoRenderingUtil.h"
 #include "BaseGizmos/GizmoMath.h"
+#include "BaseGizmos/GizmoViewContext.h"
 #include "PrimitiveSceneProxy.h"
 #include "SceneManagement.h" // FMeshElementCollector, FPrimitiveDrawInterface
 
