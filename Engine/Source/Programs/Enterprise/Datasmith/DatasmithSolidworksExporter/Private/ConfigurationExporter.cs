@@ -41,7 +41,7 @@ namespace DatasmithSolidworks
 
 	public class FMeshes
 	{
-		private readonly string MainConfigurationName;
+		public readonly string MainConfigurationName;
 		private Dictionary<string, FConfiguration> Configurations = new Dictionary<string, FConfiguration>();
 
 		// Store unique meshes(identical mesh from different component will use the same FMesh object)
@@ -131,7 +131,7 @@ namespace DatasmithSolidworks
 		{
 			MainConfigurationName = InMainConfigurationName;
 		}
-
+		
 		public FConfiguration GetMeshesConfiguration(string ConfigurationName)
 		{
 			if (Configurations.TryGetValue(ConfigurationName, out var Configuration))

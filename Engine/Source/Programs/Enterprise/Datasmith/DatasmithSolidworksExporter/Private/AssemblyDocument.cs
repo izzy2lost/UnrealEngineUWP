@@ -169,7 +169,13 @@ namespace DatasmithSolidworks
 
 		public override FMeshes GetMeshes(string ActiveConfigName)
 		{
-			return SyncState.Meshes ?? (SyncState.Meshes = new FMeshes(ActiveConfigName));
+			FMeshes MeshesCurrent = SyncState.Meshes;
+			if (MeshesCurrent != null && (MeshesCurrent.MainConfigurationName == ActiveConfigName))
+			{
+				return MeshesCurrent;
+			}
+
+			return SyncState.Meshes = new FMeshes(ActiveConfigName);
 		}
 
 		// Export to datasmith scene extracted configurations data
