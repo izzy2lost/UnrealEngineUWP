@@ -314,7 +314,7 @@ int RTFM_vsnprintf(char* Str, size_t Size, const char* Format, va_list ArgList)
         int Count = vsnprintf(nullptr, 0, Format, ArgList2);
         if (Count >= 0)
         {
-            size_t NumBytes = std::min<size_t>(Size, (1 + Count)) * sizeof(char);
+            size_t NumBytes = FMath::Min<size_t>(Size, (1 + Count)) * sizeof(char);
             Context->RecordWrite(Str, NumBytes);
         }
     }
@@ -337,7 +337,7 @@ int RTFM_vswprintf(wchar_t* Str, size_t Size, const wchar_t* Format, va_list Arg
         int Count = vswprintf(nullptr, 0, Format, ArgList2);
         if (Count >= 0)
         {
-            size_t NumBytes = std::min<size_t>(Size, (1 + Count)) * sizeof(wchar_t);
+            size_t NumBytes = FMath::Min<size_t>(Size, (1 + Count)) * sizeof(wchar_t);
             Context->RecordWrite(Str, NumBytes);
         }
     }
@@ -453,7 +453,7 @@ int RTFM___stdio_common_vsprintf(
         int Count = __stdio_common_vsprintf(Options, nullptr, 0, Format, Locale, ArgList2);
         if (Count >= 0)
         {
-            size_t NumBytes = std::min<size_t>(BufferCount, (1 + Count)) * sizeof(char);
+            size_t NumBytes = FMath::Min<size_t>(BufferCount, (1 + Count)) * sizeof(char);
             Context->RecordWrite(Buffer, NumBytes);
         }
     }
@@ -482,7 +482,7 @@ int RTFM___stdio_common_vswprintf(
         int Count = __stdio_common_vswprintf(Options, nullptr, 0, Format, Locale, ArgList2);
         if (Count >= 0)
         {
-            size_t NumBytes = std::min<size_t>(BufferCount, (1 + Count)) * sizeof(wchar_t);
+            size_t NumBytes = FMath::Min<size_t>(BufferCount, (1 + Count)) * sizeof(wchar_t);
             Context->RecordWrite(Buffer, NumBytes);
         }
     }
