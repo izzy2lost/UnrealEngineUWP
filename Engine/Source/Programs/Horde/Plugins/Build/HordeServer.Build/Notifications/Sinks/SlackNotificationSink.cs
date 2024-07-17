@@ -1012,7 +1012,7 @@ namespace HordeServer.Notifications.Sinks
 			if (isNew)
 			{
 				// Create the summary text
-				List<ILogEvent> events = new List<ILogEvent>();
+				List<ILogAnchor> anchors = new List<ILogAnchor>();
 				List<ILogEventData> eventDataItems = new List<ILogEventData>();
 
 				if (span.FirstFailure.LogId != null)
@@ -1021,16 +1021,16 @@ namespace HordeServer.Notifications.Sinks
 					ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 					if (log != null)
 					{
-						events = await log.GetEventsAsync(span.Id, 0, 50, cancellationToken);
-						if (events.Any(x => x.Severity == LogEventSeverity.Error))
+						anchors = await log.GetAnchorsAsync(span.Id, 0, 50, cancellationToken);
+						if (anchors.Any(x => x.Severity == LogEventSeverity.Error))
 						{
-							events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
+							anchors.RemoveAll(x => x.Severity == LogEventSeverity.Warning);
 						}
 
 						List<string> eventStrings = new List<string>();
-						for (int idx = 0; idx < Math.Min(events.Count, 3); idx++)
+						for (int idx = 0; idx < Math.Min(anchors.Count, 3); idx++)
 						{
-							ILogEventData data = await events[idx].GetDataAsync(cancellationToken);
+							ILogEventData data = await anchors[idx].GetDataAsync(cancellationToken);
 							eventDataItems.Add(data);
 						}
 					}
@@ -1043,7 +1043,7 @@ namespace HordeServer.Notifications.Sinks
 				{
 					message.Blocks.Add(new SectionBlock(new TextObject(QuoteText(eventDataItem.Message, MaxLineLength))));
 				}
-				if (events.Count > eventDataItems.Count)
+				if (anchors.Count > eventDataItems.Count)
 				{
 					message.Blocks.Add(new SectionBlock(new TextObject("```...```")));
 				}
@@ -1457,7 +1457,7 @@ namespace HordeServer.Notifications.Sinks
 				ILog? log = await _logCollection.GetAsync(logId, cancellationToken);
 				if (log != null)
 				{
-					List<ILogEvent> events = await log.GetEventsAsync(lastSpan.Id, 0, 20, cancellationToken);
+					List<ILogAnchor> events = await log.GetAnchorsAsync(lastSpan.Id, 0, 20, cancellationToken);
 					if (events.Any(x => x.Severity == LogEventSeverity.Error))
 					{
 						events.RemoveAll(x => x.Severity == LogEventSeverity.Warning);

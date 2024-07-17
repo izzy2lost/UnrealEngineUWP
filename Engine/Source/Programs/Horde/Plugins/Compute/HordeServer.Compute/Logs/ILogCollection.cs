@@ -49,7 +49,7 @@ namespace HordeServer.Logs
 		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>List of events for this issue</returns>
-		Task<IReadOnlyList<ILogEvent>> FindEventsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<ILogAnchor>> FindAnchorsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Update the span for an event
@@ -58,7 +58,7 @@ namespace HordeServer.Logs
 		/// <param name="spanId">New span id</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>Async task</returns>
-		Task AddSpanToEventsAsync(IEnumerable<ILogEvent> events, ObjectId spanId, CancellationToken cancellationToken = default);
+		Task AddSpanToEventsAsync(IEnumerable<ILogAnchor> events, ObjectId spanId, CancellationToken cancellationToken = default);
 
 		#endregion
 	}

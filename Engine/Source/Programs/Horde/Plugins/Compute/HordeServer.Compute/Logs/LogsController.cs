@@ -324,26 +324,26 @@ namespace HordeServer.Logs
 				return Forbid();
 			}
 
-			List<ILogEvent> logEvents = await log.GetEventsAsync(null, index, count, cancellationToken);
+			List<ILogAnchor> anchors = await log.GetAnchorsAsync(null, index, count, cancellationToken);
 
 			Dictionary<ObjectId, int?> spanIdToIssueId = new Dictionary<ObjectId, int?>();
 
 			List<GetLogEventResponse> responses = new List<GetLogEventResponse>();
-			foreach (ILogEvent logEvent in logEvents)
+			foreach (ILogAnchor anchor in anchors)
 			{
-				ILogEventData logEventData = await logEvent.GetDataAsync(cancellationToken);
+				ILogEventData logEventData = await anchor.GetDataAsync(cancellationToken);
 
 				int? issueId = null;
-				if (logEvent.SpanId != null && !spanIdToIssueId.TryGetValue(logEvent.SpanId.Value, out issueId))
+				if (anchor.SpanId != null && !spanIdToIssueId.TryGetValue(anchor.SpanId.Value, out issueId))
 				{
 					foreach (ILogExtIssueProvider issueProvider in _issueProviders)
 					{
-						issueId ??= await issueProvider.GetIssueIdAsync(logEvent.SpanId.Value, cancellationToken);
+						issueId ??= await issueProvider.GetIssueIdAsync(anchor.SpanId.Value, cancellationToken);
 					}
-					spanIdToIssueId[logEvent.SpanId.Value] = issueId;
+					spanIdToIssueId[anchor.SpanId.Value] = issueId;
 				}
 
-				responses.Add(CreateGetLogEventResponse(logEvent, logEventData, issueId));
+				responses.Add(CreateGetLogEventResponse(anchor, logEventData, issueId));
 			}
 			return responses;
 		}
@@ -351,16 +351,16 @@ namespace HordeServer.Logs
 		/// <summary>
 		/// Create a log event response message
 		/// </summary>
-		/// <param name="logEvent">The event to construct from</param>
+		/// <param name="anchor">The event to construct from</param>
 		/// <param name="eventData">The event data</param>
 		/// <param name="issueId">The issue for this event</param>
-		public static GetLogEventResponse CreateGetLogEventResponse(ILogEvent logEvent, ILogEventData eventData, int? issueId)
+		public static GetLogEventResponse CreateGetLogEventResponse(ILogAnchor anchor, ILogEventData eventData, int? issueId)
 		{
 			GetLogEventResponse response = new GetLogEventResponse();
-			response.Severity = logEvent.Severity;
-			response.LogId = logEvent.LogId;
-			response.LineIndex = logEvent.LineIndex;
-			response.LineCount = logEvent.LineCount;
+			response.Severity = anchor.Severity;
+			response.LogId = anchor.LogId;
+			response.LineIndex = anchor.LineIndex;
+			response.LineCount = anchor.LineCount;
 			response.IssueId = issueId;
 			response.Lines.AddRange(eventData.Lines.Select(x => JsonDocument.Parse(x.Data).RootElement));
 			return response;

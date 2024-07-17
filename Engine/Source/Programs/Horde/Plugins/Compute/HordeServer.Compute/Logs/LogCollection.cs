@@ -84,8 +84,8 @@ namespace HordeServer.Logs
 			public Task AddEventsAsync(List<NewLogEventData> newEvents, CancellationToken cancellationToken = default)
 				=> _collection.AddEventsAsync(_document.Id, newEvents, cancellationToken);
 
-			public Task<List<ILogEvent>> GetEventsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
-				=> _collection.GetEventsAsync(this, spanId, index, count, cancellationToken);
+			public Task<List<ILogAnchor>> GetAnchorsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+				=> _collection.GetAnchorsAsync(this, spanId, index, count, cancellationToken);
 		}
 
 		class LogDocument
@@ -173,21 +173,21 @@ namespace HordeServer.Logs
 			}
 		}
 
-		class LogEvent : ILogEvent
+		class LogAnchor : ILogAnchor
 		{
 			readonly ILog _log;
 			readonly LogCollection _collection;
-			readonly LogEventDocument _document;
+			readonly LogAnchorDocument _document;
 
-			public LogEventDocument Document => _document;
+			public LogAnchorDocument Document => _document;
 
-			LogId ILogEvent.LogId => _document.Id.LogId;
-			LogEventSeverity ILogEvent.Severity => _document.IsWarning ? LogEventSeverity.Warning : LogEventSeverity.Error;
-			int ILogEvent.LineIndex => _document.Id.LineIndex;
-			int ILogEvent.LineCount => _document.LineCount ?? 1;
-			ObjectId? ILogEvent.SpanId => _document.SpanId;
+			LogId ILogAnchor.LogId => _document.Id.LogId;
+			LogEventSeverity ILogAnchor.Severity => _document.IsWarning ? LogEventSeverity.Warning : LogEventSeverity.Error;
+			int ILogAnchor.LineIndex => _document.Id.LineIndex;
+			int ILogAnchor.LineCount => _document.LineCount ?? 1;
+			ObjectId? ILogAnchor.SpanId => _document.SpanId;
 
-			public LogEvent(ILog log, LogCollection collection, LogEventDocument document)
+			public LogAnchor(ILog log, LogCollection collection, LogAnchorDocument document)
 			{
 				_log = log;
 				_collection = collection;
@@ -198,7 +198,7 @@ namespace HordeServer.Logs
 				=> await _collection.GetEventDataAsync(_log, _document.Id.LineIndex, _document.LineCount ?? 1, cancellationToken);
 		}
 
-		class LogEventId
+		class LogAnchorId
 		{
 			[BsonElement("l")]
 			public LogId LogId { get; set; }
@@ -207,10 +207,10 @@ namespace HordeServer.Logs
 			public int LineIndex { get; set; }
 		}
 
-		class LogEventDocument
+		class LogAnchorDocument
 		{
 			[BsonId]
-			public LogEventId Id { get; set; }
+			public LogAnchorId Id { get; set; }
 
 			[BsonElement("w"), BsonIgnoreIfDefault, BsonDefaultValue(false)]
 			public bool IsWarning { get; set; }
@@ -222,20 +222,20 @@ namespace HordeServer.Logs
 			public ObjectId? SpanId { get; set; }
 
 			[BsonConstructor]
-			public LogEventDocument()
+			public LogAnchorDocument()
 			{
-				Id = new LogEventId();
+				Id = new LogAnchorId();
 			}
 
-			public LogEventDocument(LogId logId, LogEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
+			public LogAnchorDocument(LogId logId, LogEventSeverity severity, int lineIndex, int lineCount, ObjectId? spanId)
 			{
-				Id = new LogEventId { LogId = logId, LineIndex = lineIndex };
+				Id = new LogAnchorId { LogId = logId, LineIndex = lineIndex };
 				IsWarning = severity == LogEventSeverity.Warning;
 				LineCount = (lineCount > 1) ? (int?)lineCount : null;
 				SpanId = spanId;
 			}
 
-			public LogEventDocument(LogId logId, NewLogEventData data)
+			public LogAnchorDocument(LogId logId, NewLogEventData data)
 				: this(logId, data.Severity, data.LineIndex, data.LineCount, data.SpanId)
 			{
 			}
@@ -261,7 +261,7 @@ namespace HordeServer.Logs
 		}
 
 		readonly IMongoCollection<LogDocument> _logCollection;
-		readonly IMongoCollection<LogEventDocument> _logEvents;
+		readonly IMongoCollection<LogAnchorDocument> _logEvents;
 		readonly IMongoCollection<LegacyLogEventDocument> _legacyEvents;
 		readonly LogTailService _logTailService;
 		readonly StorageService _storageService;
@@ -281,10 +281,10 @@ namespace HordeServer.Logs
 			_logger = logger;
 			_logCache = new MemoryCache(new MemoryCacheOptions());
 
-			List<MongoIndex<LogEventDocument>> logEventIndexes = new List<MongoIndex<LogEventDocument>>();
+			List<MongoIndex<LogAnchorDocument>> logEventIndexes = new List<MongoIndex<LogAnchorDocument>>();
 			logEventIndexes.Add(keys => keys.Ascending(x => x.Id.LogId));
 			logEventIndexes.Add(keys => keys.Ascending(x => x.SpanId).Ascending(x => x.Id));
-			_logEvents = mongoService.GetCollection<LogEventDocument>("LogEvents", logEventIndexes);
+			_logEvents = mongoService.GetCollection<LogAnchorDocument>("LogEvents", logEventIndexes);
 
 			_legacyEvents = mongoService.GetCollection<LegacyLogEventDocument>("Events", keys => keys.Ascending(x => x.LogId));
 		}
@@ -778,23 +778,23 @@ namespace HordeServer.Logs
 		/// <inheritdoc/>
 		Task AddEventsAsync(LogId logId, List<NewLogEventData> newEvents, CancellationToken cancellationToken)
 		{
-			return _logEvents.InsertManyAsync(newEvents.ConvertAll(x => new LogEventDocument(logId, x)), cancellationToken: cancellationToken);
+			return _logEvents.InsertManyAsync(newEvents.ConvertAll(x => new LogAnchorDocument(logId, x)), cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		async Task<List<ILogEvent>> GetEventsAsync(ILog log, ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+		async Task<List<ILogAnchor>> GetAnchorsAsync(ILog log, ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			_logger.LogInformation("Querying for log events for log {LogId}", log.Id);
 
-			FilterDefinitionBuilder<LogEventDocument> builder = Builders<LogEventDocument>.Filter;
+			FilterDefinitionBuilder<LogAnchorDocument> builder = Builders<LogAnchorDocument>.Filter;
 
-			FilterDefinition<LogEventDocument> filter = builder.Eq(x => x.Id.LogId, log.Id);
+			FilterDefinition<LogAnchorDocument> filter = builder.Eq(x => x.Id.LogId, log.Id);
 			if (spanId != null)
 			{
 				filter &= builder.Eq(x => x.SpanId, spanId.Value);
 			}
 
-			IFindFluent<LogEventDocument, LogEventDocument> results = _logEvents.Find(filter).SortBy(x => x.Id);
+			IFindFluent<LogAnchorDocument, LogAnchorDocument> results = _logEvents.Find(filter).SortBy(x => x.Id);
 			if (index != null)
 			{
 				results = results.Skip(index.Value);
@@ -804,28 +804,28 @@ namespace HordeServer.Logs
 				results = results.Limit(count.Value);
 			}
 
-			List<LogEventDocument> logEventDocuments = await results.ToListAsync(cancellationToken);
-			return logEventDocuments.ConvertAll<ILogEvent>(x => new LogEvent(log, this, x));
+			List<LogAnchorDocument> logEventDocuments = await results.ToListAsync(cancellationToken);
+			return logEventDocuments.ConvertAll<ILogAnchor>(x => new LogAnchor(log, this, x));
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<ILogEvent>> FindEventsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds, int index, int count, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<ILogAnchor>> FindAnchorsForSpansAsync(IEnumerable<ObjectId> spanIds, LogId[]? logIds, int index, int count, CancellationToken cancellationToken)
 		{
-			FilterDefinition<LogEventDocument> filter = Builders<LogEventDocument>.Filter.In(x => x.SpanId, spanIds.Select<ObjectId, ObjectId?>(x => x));
+			FilterDefinition<LogAnchorDocument> filter = Builders<LogAnchorDocument>.Filter.In(x => x.SpanId, spanIds.Select<ObjectId, ObjectId?>(x => x));
 			if (logIds != null && logIds.Length > 0)
 			{
-				filter &= Builders<LogEventDocument>.Filter.In(x => x.Id.LogId, logIds);
+				filter &= Builders<LogAnchorDocument>.Filter.In(x => x.Id.LogId, logIds);
 			}
 
-			List<LogEvent> logEvents = new List<LogEvent>();
+			List<LogAnchor> logEvents = new List<LogAnchor>();
 
-			List<LogEventDocument> logEventDocuments = await _logEvents.Find(filter).Skip(index).Limit(count).ToListAsync(cancellationToken);
-			foreach (IGrouping<LogId, LogEventDocument> logEventGroup in logEventDocuments.GroupBy(x => x.Id.LogId))
+			List<LogAnchorDocument> logEventDocuments = await _logEvents.Find(filter).Skip(index).Limit(count).ToListAsync(cancellationToken);
+			foreach (IGrouping<LogId, LogAnchorDocument> logEventGroup in logEventDocuments.GroupBy(x => x.Id.LogId))
 			{
 				ILog? log = await GetAsync(logEventGroup.Key, cancellationToken);
 				if (log != null)
 				{
-					logEvents.AddRange(logEventGroup.Select(x => new LogEvent(log, this, x)));
+					logEvents.AddRange(logEventGroup.Select(x => new LogAnchor(log, this, x)));
 				}
 			}
 
@@ -833,10 +833,10 @@ namespace HordeServer.Logs
 		}
 
 		/// <inheritdoc/>
-		public async Task AddSpanToEventsAsync(IEnumerable<ILogEvent> events, ObjectId spanId, CancellationToken cancellationToken)
+		public async Task AddSpanToEventsAsync(IEnumerable<ILogAnchor> events, ObjectId spanId, CancellationToken cancellationToken)
 		{
-			FilterDefinition<LogEventDocument> eventFilter = Builders<LogEventDocument>.Filter.In(x => x.Id, events.Select(x => ((LogEvent)x).Document.Id));
-			UpdateDefinition<LogEventDocument> eventUpdate = Builders<LogEventDocument>.Update.Set(x => x.SpanId, spanId);
+			FilterDefinition<LogAnchorDocument> eventFilter = Builders<LogAnchorDocument>.Filter.In(x => x.Id, events.Select(x => ((LogAnchor)x).Document.Id));
+			UpdateDefinition<LogAnchorDocument> eventUpdate = Builders<LogAnchorDocument>.Update.Set(x => x.SpanId, spanId);
 			await _logEvents.UpdateManyAsync(eventFilter, eventUpdate, cancellationToken: cancellationToken);
 		}
 

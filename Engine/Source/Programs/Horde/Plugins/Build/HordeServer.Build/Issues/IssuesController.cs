@@ -737,24 +737,24 @@ namespace HordeServer.Issues
 			}
 
 			IReadOnlyList<IIssueSpan> spans = await _issueCollection.FindSpansAsync(issueId, cancellationToken);
-			IReadOnlyList<ILogEvent> events = await _logCollection.FindEventsForSpansAsync(spans.Select(x => x.Id), logIdValues.ToArray(), index, count, cancellationToken);
+			IReadOnlyList<ILogAnchor> anchors = await _logCollection.FindAnchorsForSpansAsync(spans.Select(x => x.Id), logIdValues.ToArray(), index, count, cancellationToken);
 
 			JobPermissionsCache permissionsCache = new JobPermissionsCache();
 			Dictionary<LogId, ILog?> logs = new Dictionary<LogId, ILog?>();
 
 			List<object> responses = new List<object>();
-			foreach (ILogEvent logEvent in events)
+			foreach (ILogAnchor anchor in anchors)
 			{
 				ILog? log;
-				if (!logs.TryGetValue(logEvent.LogId, out log))
+				if (!logs.TryGetValue(anchor.LogId, out log))
 				{
-					log = await _logCollection.GetAsync(logEvent.LogId, cancellationToken);
-					logs[logEvent.LogId] = log;
+					log = await _logCollection.GetAsync(anchor.LogId, cancellationToken);
+					logs[anchor.LogId] = log;
 				}
 				if (log != null && await _jobService.AuthorizeAsync(log.JobId, LogAclAction.ViewLog, User, _buildConfig.Value, cancellationToken))
 				{
-					ILogEventData data = await logEvent.GetDataAsync(cancellationToken);
-					GetLogEventResponse response = LogsController.CreateGetLogEventResponse(logEvent, data, issueId);
+					ILogEventData data = await anchor.GetDataAsync(cancellationToken);
+					GetLogEventResponse response = LogsController.CreateGetLogEventResponse(anchor, data, issueId);
 					responses.Add(PropertyFilter.Apply(response, filter));
 				}
 			}

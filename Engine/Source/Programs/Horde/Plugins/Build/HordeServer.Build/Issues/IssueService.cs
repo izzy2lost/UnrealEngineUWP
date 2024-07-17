@@ -148,13 +148,13 @@ namespace HordeServer.Issues
 	{
 		class IssueEventInternal : IssueEvent
 		{
-			public ILogEvent Event { get; }
+			public ILogAnchor Anchor { get; }
 			public ILogEventData EventData { get; }
 
-			public IssueEventInternal(ILogEvent logEvent, ILogEventData logEventData)
-				: base(logEvent.LineIndex, GetLogLevelFromSeverity(logEventData.Severity), logEventData.EventId, logEventData.Lines)
+			public IssueEventInternal(ILogAnchor anchor, ILogEventData logEventData)
+				: base(anchor.LineIndex, GetLogLevelFromSeverity(logEventData.Severity), logEventData.EventId, logEventData.Lines)
 			{
-				Event = logEvent;
+				Anchor = anchor;
 				EventData = logEventData;
 			}
 
@@ -702,12 +702,12 @@ namespace HordeServer.Issues
 			handlers.SortBy(x => -x.Priority);
 
 			// Create all the issue definitions by passing each log event to the handlers in order until one attaches it to an issue
-			List <ILogEvent> stepEvents = await log.GetEventsAsync(cancellationToken: cancellationToken);
-			foreach (ILogEvent stepEvent in stepEvents)
+			List <ILogAnchor> stepAnchors = await log.GetAnchorsAsync(cancellationToken: cancellationToken);
+			foreach (ILogAnchor stepAnchor in stepAnchors)
 			{
-				ILogEventData stepEventData = await stepEvent.GetDataAsync(cancellationToken);
+				ILogEventData stepEventData = await stepAnchor.GetDataAsync(cancellationToken);
 
-				IssueEventInternal issueEvent = new IssueEventInternal(stepEvent, stepEventData);
+				IssueEventInternal issueEvent = new IssueEventInternal(stepAnchor, stepEventData);
 				foreach (IssueHandler handler in handlers)
 				{
 					if (handler.HandleEvent(issueEvent))
@@ -749,7 +749,7 @@ namespace HordeServer.Issues
 			}
 
 			// Print the list of new events
-			_logger.LogInformation("UpdateCompleteStep({JobId}, {BatchId}, {StepId}): {NumEvents} events, {NumFingerprints} unique fingerprints", job.Id, batch.Id, step.Id, stepEvents.Count, eventGroups.Count);
+			_logger.LogInformation("UpdateCompleteStep({JobId}, {BatchId}, {StepId}): {NumEvents} events, {NumFingerprints} unique fingerprints", job.Id, batch.Id, step.Id, stepAnchors.Count, eventGroups.Count);
 			foreach (IssueEventGroupInternal eventGroup in eventGroups)
 			{
 				_logger.LogInformation("Group {Digest}: Type '{FingerprintType}', keys '{FingerprintKeys}', {NumEvents} events", eventGroup.Id.ToString(), eventGroup.Fingerprint.Type, String.Join(", ", eventGroup.Fingerprint.Keys), eventGroup.Events.Count);
@@ -809,7 +809,7 @@ namespace HordeServer.Issues
 						}
 
 						// Assign all the events to the span
-						await _logCollection.AddSpanToEventsAsync(matchEventGroups.SelectMany(x => x.Events.Select(x => x.Event)), newSpan.Id, cancellationToken);
+						await _logCollection.AddSpanToEventsAsync(matchEventGroups.SelectMany(x => x.Events.Select(x => x.Anchor)), newSpan.Id, cancellationToken);
 
 						// Remove the matches from the set of events
 						newEventGroups.ExceptWith(matchEventGroups);
@@ -907,7 +907,7 @@ namespace HordeServer.Issues
 
 				// Update the log events
 				_logger.LogDebug("Created new span {SpanId} from event group {Group}", newSpan.Id, eventGroup.Id.ToString());
-				await _logCollection.AddSpanToEventsAsync(eventGroup.Events.Select(x => x.Event), newSpan.Id, cancellationToken);
+				await _logCollection.AddSpanToEventsAsync(eventGroup.Events.Select(x => x.Anchor), newSpan.Id, cancellationToken);
 
 				// Remove the events from the remaining list of events to match
 				newEventGroups.ExceptWith(sourceEventGroups);

@@ -148,15 +148,15 @@ namespace HordeServer.Logs
 		/// <param name="count">Maximum number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of events matching the query</returns>
-		Task<List<ILogEvent>> GetEventsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		Task<List<ILogAnchor>> GetAnchorsAsync(ObjectId? spanId = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		#endregion
 	}
 
 	/// <summary>
-	/// Represents a node in the graph
+	/// Anchor within a log files
 	/// </summary>
-	public interface ILogEvent
+	public interface ILogAnchor
 	{
 		/// <summary>
 		/// Unique id of the log containing this event

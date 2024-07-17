@@ -685,9 +685,9 @@ namespace HordeServer.Notifications
 				return;
 			}
 
-			List<ILogEvent> jobStepEvents = await log.GetEventsAsync(cancellationToken: cancellationToken);
+			List<ILogAnchor> jobStepEvents = await log.GetAnchorsAsync(cancellationToken: cancellationToken);
 			List<ILogEventData> jobStepEventData = new List<ILogEventData>();
-			foreach (ILogEvent logEvent in jobStepEvents)
+			foreach (ILogAnchor logEvent in jobStepEvents)
 			{
 				ILogEventData eventData = await logEvent.GetDataAsync(cancellationToken);
 				jobStepEventData.Add(eventData);

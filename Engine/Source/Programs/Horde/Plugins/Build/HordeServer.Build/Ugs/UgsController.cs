@@ -250,9 +250,9 @@ namespace HordeServer.Ugs
 			List<GetUgsIssueDiagnosticResponse> diagnostics = new List<GetUgsIssueDiagnosticResponse>();
 
 			IReadOnlyList<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId, cancellationToken);
-			IReadOnlyList<ILogEvent> events = await _logCollection.FindEventsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
+			IReadOnlyList<ILogAnchor> events = await _logCollection.FindAnchorsForSpansAsync(spans.Select(x => x.Id), null, 0, count: 10, cancellationToken);
 
-			foreach (ILogEvent logEvent in events)
+			foreach (ILogAnchor logEvent in events)
 			{
 				ILogEventData eventData = await logEvent.GetDataAsync(cancellationToken);
 				long buildId = logEvent.LogId.GetHashCode();

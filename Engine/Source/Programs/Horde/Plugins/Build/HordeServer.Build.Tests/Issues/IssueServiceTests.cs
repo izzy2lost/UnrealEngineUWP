@@ -906,9 +906,9 @@ namespace HordeServer.Tests.Issues
 
 				ILog? log = await LogCollection.GetAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
 				Assert.IsNotNull(log);
-				List<ILogEvent> events = await log.GetEventsAsync();
-				Assert.AreEqual(1, events.Count);
-				Assert.AreEqual(2, events[0].LineCount);
+				List<ILogAnchor> anchors = await log.GetAnchorsAsync();
+				Assert.AreEqual(1, anchors.Count);
+				Assert.AreEqual(2, anchors[0].LineCount);
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
@@ -950,9 +950,9 @@ namespace HordeServer.Tests.Issues
 				ILog? log = await LogCollection.GetAsync(job.Batches[0].Steps[0].LogId!.Value, CancellationToken.None);
 				Assert.IsNotNull(log);
 
-				List<ILogEvent> events = await log.GetEventsAsync();
-				Assert.AreEqual(1, events.Count);
-				Assert.AreEqual(1, events[0].LineCount);
+				List<ILogAnchor> anchors = await log.GetAnchorsAsync();
+				Assert.AreEqual(1, anchors.Count);
+				Assert.AreEqual(1, anchors[0].LineCount);
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
