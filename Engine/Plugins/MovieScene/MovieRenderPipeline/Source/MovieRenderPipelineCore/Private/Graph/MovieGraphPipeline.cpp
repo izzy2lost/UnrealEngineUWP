@@ -553,7 +553,7 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 
 		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
 
-		Shot->ShotInfo.NumTemporalSamples = SamplingMethodNode->TemporalSampleCount;
+		Shot->ShotInfo.NumTemporalSamples = FMath::Max(SamplingMethodNode->TemporalSampleCount, 1);
 		Shot->ShotInfo.NumSpatialSamples = 1;
 		Shot->ShotInfo.NumTiles = FIntPoint(1,1);
 		Shot->ShotInfo.CachedFrameRate = FinalFrameRate;
