@@ -3183,7 +3183,7 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 		// First time through, need to make a new texture
 		FRDGTextureDesc RadianceDesc = FRDGTextureDesc::Create2D(
 			View.ViewRect.Size(),
-			PF_FloatRGBA,
+			PF_A32B32G32R32F, // radiance accumulation must take place in floats to avoid quantization artifacts on smooth gradients
 			FClearValueBinding::None,
 			TexCreate_ShaderResource | TexCreate_UAV | GetExtraTextureCreateFlagsForDenoiser());
 		FRDGTextureDesc AlbedoNormalDesc = FRDGTextureDesc::Create2D(
