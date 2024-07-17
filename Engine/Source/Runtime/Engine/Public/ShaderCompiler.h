@@ -209,6 +209,9 @@ private:
 	/** Whether to read/write files for SCW in parallel (can help situations when this takes too long for a number of reasons) */
 	bool bParallelizeIO = false;
 
+	/** List of jobs that have been backlogged when workers had to be closed due to reaching memory limits. These jobs will be picked up first before new jobs are pulled from the manager job queue. */
+	TArray<FShaderCommonCompileJobPtr> BackloggedJobs;
+
 public:
 	/** Initialization constructor. */
 	FShaderCompileThreadRunnable(class FShaderCompilingManager* InManager);
@@ -248,6 +251,30 @@ private:
 	virtual void OnMachineResourcesChanged() override;
 
 	void PrintWorkerMemoryUsageWithLockTaken();
+
+	/** Returns the number of available workers. Only call inside the critical section WorkerInfosLock. */
+	int32 GetNumberOfAvailableWorkersUnsafe() const;
+
+	/** Returns the number of suspended workers. Only call inside the critical section WorkerInfosLock. */
+	int32 GetNumberOfSuspendedWorkersUnsafe() const;
+
+	/**
+	 * Suspends the specified number of workers and moves all their compile jobs to the backlog queue.
+	 * Returns the number of workers that have been suspended. The last worker cannot be suspended.
+	 */
+	int32 SuspendWorkersAndBacklogJobs(int32 NumWorkers);
+
+	/**
+	 * Makes the specified number of workers available again after they have been suspended.
+	 * Returns the number of workers that have been resumed. If all workers were already available, the return value is 0.
+	 */
+	int32 ResumeSuspendedWorkers(int32 NumWorkers);
+
+	/** Deletes the output file of the specified worker if it exists and discards its content. This is called when a worker output is considered stale because it was previously suspended. */
+	void DiscardWorkerOutputFile(int32 WorkerIndex);
+
+	/** Returns the working directory for the specified shader compile worker. */
+	FString GetWorkingDirectoryForWorker(int32 WorkerIndex, bool bRelativePath = false) const;
 };
 
 class FShaderCompileUtilities
