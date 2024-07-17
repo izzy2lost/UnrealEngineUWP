@@ -51,7 +51,7 @@ FSubstrateGBuffer SubstratePublic_GetSubstrateGBufferFromFirstBSDF(uint2 PixelCo
 	{
 		const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstratePublicStruct.MaterialTextureArray, SubstratePublicStruct.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
 
-		const bool bSkipSSSMaterialOverride = true; // We double not want the material data to be affected by any override.
+		const bool bSkipSSSMaterialOverride = true; // We do not want the material data to be affected by any override.
 		FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstratePublicStruct.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader, bSkipSSSMaterialOverride);
 	
 		SGBuffer.bIsValid			= true;

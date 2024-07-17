@@ -402,10 +402,19 @@ void ReflectionEnvironmentSkyLighting(
 	#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_LUMEN_STANDALONE
 		const float TopLayerSpecularContributionFactor = 1.0f;
 	#else
-		const float4 SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
-		// SSR is computed for the top level by averaging BSDF components.
-		// This is the top level specular contribution factor according to areas.
-		const float TopLayerSpecularContributionFactor = 1.0f - SSRReflection.a;
+		float4 SSRReflection = 0.0f.xxxx;
+		float TopLayerSpecularContributionFactor = 1.0f;
+
+		#if REFLECTION_SOURCE_TYPE == REFLECTION_SOURCE_TILED_SSR
+		if (IsSSRTileUsed(PixelPos, SSRTiledViewRes, SSRTileMaskBuffer))
+		#endif
+		{
+			SSRReflection = Texture2DSample(ReflectionTexture, ReflectionTextureSampler, BufferUV);
+
+			// SSR is computed for the top level by averaging BSDF components.
+			// This is the top level specular contribution factor according to areas.
+			TopLayerSpecularContributionFactor = 1.0f - SSRReflection.a;
+		}
 
 		// A reduction of SSR contribution is needed when there is haziness because we only consider SSR for the sharpest lobe.
 		FSSRContribution SSRContribution = InitSSRContribution();
