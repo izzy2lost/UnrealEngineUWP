@@ -22,6 +22,24 @@
 #include "CoreMinimal.h"
 #endif
 
+/**
+ * UE_ASSETREGISTRY_CACHEDASSETSBYTAG: If non-zero, the CachedAssetsByTag field is defined and used. If zero,
+ * CachedClassesByTag is defined and used. Both of these are used only in queries for assets by tag.
+ * 
+ * If CachedAssetsByTag is defined, the queries are as fast as possible, but a large amount of memory is used.
+ * If not, then the queries are instead executed using a three step process: CachedClassesByTag to find all classes
+ * with the tag, CachedAssetsByClass to find all assets in those classes, and then a filtering step
+ * on the resulting list of assets.
+ * 
+ * The amount of memory used for each:
+ * CachedAssetsByTag:  (number of assets) *(average number of tags per asset)*sizeof(Pointer)
+ * CachedClassesByTag: (number of classes)*(average number of tags per class)*sizeof(FTopLevelAssetPath)
+ * CachedClassesByTag is much smaller because number of classes is smaller than number of assets.
+ */
+#ifndef UE_ASSETREGISTRY_CACHEDASSETSBYTAG
+#define UE_ASSETREGISTRY_CACHEDASSETSBYTAG WITH_EDITORONLY_DATA
+#endif 
+
 class FArchive;
 class FAssetDataTagMap;
 class FAssetDataTagMapSharedView;
@@ -446,7 +464,8 @@ public:
 	 * @param TagName the tag name to search for
 	 * @param Callback the function called for each asset data
 	 */
-	void EnumerateAssetsByTagName(const FName TagName, TFunctionRef<bool(const FAssetData* AssetData)> Callback) const;
+	ASSETREGISTRY_API void EnumerateAssetsByTagName(const FName TagName,
+		TFunctionRef<bool(const FAssetData* AssetData)> Callback) const;
 
 	/**
 	 * Enumerates all tags of any asset in the AssetRegistry including function that can be called to enumerate
@@ -454,7 +473,7 @@ public:
 	 *
 	 * @param Callback the function for each tag pair
 	 */
-	void EnumerateTagToAssetDatas(
+	ASSETREGISTRY_API void EnumerateTagToAssetDatas(
 		TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const;
 
 	/** Returns const version of internal ObjectPath->AssetData map for fast iteration */
@@ -706,8 +725,13 @@ private:
 	/** The map of class name to asset data for assets saved to disk */
 	TMap<FTopLevelAssetPath, TArray<FAssetData*> > CachedAssetsByClass;
 
+#if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
 	/** The map of asset tag to asset data for assets saved to disk */
 	TMap<FName, TSet<FAssetData*> > CachedAssetsByTag;
+#else
+	/** The map of asset tag to asset data for assets saved to disk */
+	TMap<FName, TSet<FTopLevelAssetPath> > CachedClassesByTag;
+#endif
 
 	/** A map of object names to dependency data */
 	TMap<FAssetIdentifier, FDependsNode*> CachedDependsNodes;
@@ -933,7 +957,11 @@ inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByClassPat
 
 inline void FAssetRegistryState::EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const
 {
+#if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
 	for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
+#else
+	for (const TPair<FName, TSet<FTopLevelAssetPath>>& Pair : CachedClassesByTag)
+#endif
 	{
 		if (!Callback(Pair.Key))
 		{
@@ -944,7 +972,11 @@ inline void FAssetRegistryState::EnumerateTags(TFunctionRef<bool(FName TagName)>
 
 inline bool FAssetRegistryState::ContainsTag(FName TagName) const
 {
+#if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
 	return CachedAssetsByTag.Contains(TagName);
+#else
+	return CachedClassesByTag.Contains(TagName);
+#endif
 }
 
 inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByTagName(const FName TagName) const
@@ -952,47 +984,6 @@ inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByTagName(
 	ensureMsgf(false, TEXT("GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName"));
 	static TArray<const FAssetData*> InvalidArray;
 	return InvalidArray;
-}
-
-inline void FAssetRegistryState::EnumerateAssetsByTagName(const FName TagName,
-	TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
-{
-	const TSet<FAssetData*>* FoundAssets = CachedAssetsByTag.Find(TagName);
-	if (FoundAssets)
-	{
-		for (const FAssetData* AssetData : *FoundAssets)
-		{
-			if (!Callback(AssetData))
-			{
-				break;
-			}
-		}
-	}
-}
-
-inline void FAssetRegistryState::EnumerateTagToAssetDatas(
-	TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
-{
-	for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
-	{
-		const bool bKeepEnumerating = Callback(Pair.Key, [&Pair](IAssetRegistry::FAssetDataFunc AssetCallback)
-			{
-				for (const FAssetData* AssetData : Pair.Value)
-				{
-					if (!AssetCallback(AssetData))
-					{
-						return false;
-					}
-				}
-
-				return true;
-			});
-
-		if (!bKeepEnumerating)
-		{
-			break;
-		}
-	}
 }
 
 inline const FAssetRegistryState::FConstAssetDataMap& FAssetRegistryState::GetAssetDataMap() const
