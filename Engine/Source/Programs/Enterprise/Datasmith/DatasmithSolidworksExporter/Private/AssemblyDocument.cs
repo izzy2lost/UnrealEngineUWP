@@ -409,6 +409,8 @@ namespace DatasmithSolidworks
 
 					Exporter.ExportOrUpdateActor(ActorExportInfo);
 				}
+				
+				Dictionary<FActorName, FDatasmithActorExportInfo> ConfigurationsActorExportInfo = new Dictionary<FActorName, FDatasmithActorExportInfo>();
 
 				foreach (FConfigurationTree.FComponentConfig ComponentConfig in InNode.Configurations)
 				{
@@ -422,21 +424,31 @@ namespace DatasmithSolidworks
 
 					ActorExportInfo.ParentName = ParentName;
 
-					ActorExportInfo.bVisible = true;
-					ActorExportInfo.Type = Exporter.GetExportedActorType(ActorName) ?? EActorType.SimpleActor;
 					ActorExportInfo.Transform = Transform;
 
 					SyncState.ComponentsTransformsMap[InNode.ComponentName] = ActorExportInfo.Transform;
-
+					
 					ActorExportInfo.bVisible = ComponentConfig.bVisible && (ComponentConfig.ConfigName == ActiveConfigName);
-
 					ActorExportInfo.Type = EActorType.MeshActor;
 
 					ConfigurationExporter.AddActorForMesh(ActorExportInfo.Name, ComponentConfig.ConfigName, InNode.ComponentName);
-
-					Exporter.ExportOrUpdateActor(ActorExportInfo);
+					
+					if (ConfigurationsActorExportInfo.TryGetValue(ActorName, out FDatasmithActorExportInfo ExistingInfo))
+					{
+						Debug.Assert(ActorExportInfo.ParentName == ExistingInfo.ParentName);
+						Debug.Assert(ActorExportInfo.Type == ExistingInfo.Type);
+						Debug.Assert(ActorExportInfo.Type == ExistingInfo.Type);
+					}
+					else
+					{
+						// Only update actor once - for the first configuration in the list
+						// To keep actor's exported state in the default active configuration
+						Exporter.ExportOrUpdateActor(ActorExportInfo);
+						ConfigurationsActorExportInfo.Add(ActorName, ActorExportInfo);
+					}
 				}
 			}
+
 
 			SyncState.CleanComponents.Add(InNode.ComponentName);
 

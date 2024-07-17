@@ -227,7 +227,7 @@ namespace DatasmithSolidworks
 
 		public override string ToString()
 		{
-			return $"FDatasmithActorExportInfo(Name={Name}, Type={Type}, MeshName={MeshName}, ParentName={ParentName})";
+			return $"FDatasmithActorExportInfo(Name={Name}, Label={Label}, Type={Type}, MeshName={MeshName}, ParentName={ParentName}, bVisible={bVisible})";
 		}
 	};
 
@@ -349,7 +349,6 @@ namespace DatasmithSolidworks
 			LogDebug($"FDatasmithExporter.AddMesh('{Info.MeshName}')");
 			Debug.Assert(Info.MeshName.IsValid());
 			Debug.Assert(Info.MeshElement != null);
-
 
 			LogIndent();
 			RemoveMesh(Info.MeshName);
