@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+#include "GizmoRenderingUtil.h"
 #include "SceneView.h"
 
 #include "GizmoViewContext.generated.h"
@@ -15,7 +16,7 @@
  * or UGizmoViewContext, though UGizmoViewContext only keeps the needed data.
  */
 UCLASS(MinimalAPI)
-class UGizmoViewContext : public UObject
+class UGizmoViewContext : public UObject, public UE::GizmoRenderingUtil::ISceneViewInterface
 {
 	GENERATED_BODY()
 public:
@@ -51,15 +52,16 @@ public:
 		ViewLocation = SceneView.ViewLocation;
 	}
 
-	// FSceneView-like functions/properties:
-	FVector GetViewRight() const { return ViewMatrices.GetViewMatrix().GetColumn(0); }
-	FVector GetViewUp() const { return ViewMatrices.GetViewMatrix().GetColumn(1); }
-	FVector GetViewDirection() const { return ViewMatrices.GetViewMatrix().GetColumn(2); }
+	// ISceneViewInterface
+	const FIntRect& GetUnscaledViewRect() const override { return UnscaledViewRect; }
+	FVector GetViewLocation() const override { return ViewLocation; }
+	FVector GetViewRight() const override { return ViewMatrices.GetViewMatrix().GetColumn(0); }
+	FVector GetViewUp() const override { return ViewMatrices.GetViewMatrix().GetColumn(1); }
+	FVector GetViewDirection() const override { return ViewMatrices.GetViewMatrix().GetColumn(2); }
+	const FMatrix& GetViewMatrix() const override { return ViewMatrices.GetViewMatrix(); }
+	bool IsPerspectiveProjection() const override { return bIsPerspectiveProjection; }
 
-	// As a function just for similarity with FSceneView
-	bool IsPerspectiveProjection() const { return bIsPerspectiveProjection; }
-
-	FVector4 WorldToScreen(const FVector& WorldPoint) const
+	FVector4 WorldToScreen(const FVector& WorldPoint) const override
 	{
 		return ViewMatrices.GetViewProjectionMatrix().TransformFVector4(FVector4(WorldPoint, 1));
 	}
