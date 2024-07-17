@@ -48,7 +48,7 @@ static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingDirectL
 
 static TAutoConsoleVariable<int32> CVarLumenHardwareRayTracingHitLightingShadowMode(
 	TEXT("r.Lumen.HardwareRayTracing.HitLighting.ShadowMode"),
-	1,
+	2,
 	TEXT("Which shadow mode to use for calculating direct lighting in ray hits:\n")
 	TEXT("0 - Disabled shadows\n")
 	TEXT("1 - Hard shadows, but less noise\n")
