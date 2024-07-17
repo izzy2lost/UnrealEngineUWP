@@ -9,6 +9,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/SMoviePipelineFormatTokenAutoCompleteBox.h"
 
 #define LOCTEXT_NAMESPACE "FMovieGraphMetadataAttributeCustomization"
 
@@ -37,7 +38,9 @@ protected:
 			GET_MEMBER_NAME_CHECKED(FMovieGraphMetadataAttribute, bIsEnabled)).ToSharedRef();
 
 		HeaderRow
-		.WholeRowContent()
+		.NameContent()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
@@ -52,50 +55,30 @@ protected:
 
 			+ SHorizontalBox::Slot()
 			.Padding(5, 2)
-			.FillWidth(0.5f)
+			.FillWidth(1.f)
 			[
-				SNew(SEditableTextBox)
+				SNew(SMoviePipelineFormatTokenAutoCompleteBox)
+				.TextHandle(NamePropertyHandle)
+				.Suggestions(SMoviePipelineFormatTokenAutoCompleteBox::GetFileNameFormatSuggestions())
 				.IsEnabled(this, &FMovieGraphMetadataAttributeCustomization::IsEnabled, IsEnabledPropertyHandle)
-				.Text(this, &FMovieGraphMetadataAttributeCustomization::GetPropertyHandleValue, NamePropertyHandle)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
-				{
-					SetPropertyValueWithText(GET_MEMBER_NAME_CHECKED(FMovieGraphMetadataAttribute, Name), InText);
-				})
 				.HintText(LOCTEXT("MetadataAttributeNameInputHintText", "Attribute Name"))
 			]
+		]
 
+		.ValueContent()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.Padding(0, 2)
-			.FillWidth(0.5f)
+			.FillWidth(1.f)
 			[
-				SNew(SEditableTextBox)
+				SNew(SMoviePipelineFormatTokenAutoCompleteBox)
+				.TextHandle(ValuePropertyHandle)
+				.Suggestions(SMoviePipelineFormatTokenAutoCompleteBox::GetFileNameFormatSuggestions())
 				.IsEnabled(this, &FMovieGraphMetadataAttributeCustomization::IsEnabled, IsEnabledPropertyHandle)
-				.Text(this, &FMovieGraphMetadataAttributeCustomization::GetPropertyHandleValue, ValuePropertyHandle)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
-				{
-					SetPropertyValueWithText(GET_MEMBER_NAME_CHECKED(FMovieGraphMetadataAttribute, Value), InText);
-				})
 				.HintText(LOCTEXT("MetadataAttributeValueInputHintText", "Attribute Value"))
-			]
-
-			+ SHorizontalBox::Slot()
-			.Padding(5, 2)
-			.AutoWidth()
-			[
-				PropertyCustomizationHelpers::MakeInsertDeleteDuplicateButton(
-					{},
-					FExecuteAction::CreateLambda([InStructPropertyHandle]()
-					{
-						const TSharedPtr<IPropertyHandleArray> ParentPropertyHandleArray = InStructPropertyHandle->GetParentHandle()->AsArray();
-						const int32 ArrayIndex = InStructPropertyHandle->IsValidHandle() ? InStructPropertyHandle->GetIndexInArray() : INDEX_NONE;
-						if (ParentPropertyHandleArray.IsValid() && ArrayIndex >= 0)
-						{
-							ParentPropertyHandleArray->DeleteItem(ArrayIndex);
-						}
-					}),
-					{})
 			]
 		];
 	}
@@ -133,25 +116,6 @@ protected:
 		}
 
 		return false;
-	}
-
-	FText GetPropertyHandleValue(TSharedRef<IPropertyHandle> PropertyHandle) const
-	{
-		FString Value;
-		if (PropertyHandle->IsValidHandle() && (PropertyHandle->GetValue(Value) != FPropertyAccess::Fail))
-		{
-			return FText::FromString(Value);
-		}
-
-		return FText();
-	}
-
-	void SetPropertyValueWithText(const FName& Member, const FText& InText) const
-	{
-		const TSharedPtr<IPropertyHandle> PropertyHandle = StructPropertyHandle->GetChildHandle(Member);
-		check(PropertyHandle);
-
-		PropertyHandle->SetValue(InText.ToString());
 	}
 };
 

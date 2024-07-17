@@ -549,6 +549,32 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 	TMap<FString, TArray<FMovieGraphRenderDataIdentifier>>& OutFilenameToRenderIDs,
 	TMap<FString, FMovieGraphResolveArgs>& OutFilenameToResolveArgs) const
 {
+	// Merge one layer's resolve args (InNewResolveArgs) into an existing set of resolve args (InExistingResolveArgs).
+	auto MergeResolveArgs = [](FMovieGraphResolveArgs& InNewResolveArgs, FMovieGraphResolveArgs& InExistingResolveArgs)
+	{
+		// Covert the filename arguments to FormatNamedArguments once; this is needed by FString::Format() in the loop
+		FStringFormatNamedArguments NamedArguments;
+		for (const TPair<FString, FString>& FilenameArgument : InNewResolveArgs.FilenameArguments)
+		{
+			NamedArguments.Add(FilenameArgument.Key, FilenameArgument.Value);
+		}
+
+		for (TPair<FString, FString>& MetadataPair : InNewResolveArgs.FileMetadata)
+		{
+			// The metadata key and/or value may contain filename format {tokens}; resolve any of them BEFORE merging in with existing metadata. This
+			// is important because the metadata may contain a {token} that, once resolved, prevents a collision with an existing key.
+			MetadataPair.Key = FString::Format(*MetadataPair.Key, NamedArguments);
+			MetadataPair.Value = FString::Format(*MetadataPair.Value, NamedArguments);
+
+			// Merge in the resolved metadata into the existing metadata
+			InExistingResolveArgs.FileMetadata.Add(MetadataPair.Key, MetadataPair.Value);
+		}
+
+		// The filename arguments are not needed after merging + resolving; however, the last set of arguments is passed along anyway if they are needed.
+		// They aren't merged though, because they differ too much between layers to make merging of any practical usefulness (eg, {layer_name}).
+		InExistingResolveArgs.FilenameArguments = InNewResolveArgs.FilenameArguments;
+	};
+	
 	TMap<FString, TArray<FIntPoint>> FilenameToResolutions;
 
 	// First, generate filename -> renderID mapping, and filename -> resolution mapping.
@@ -567,7 +593,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 	{
 		constexpr int32 ResolutionIndex = 0;
 		FMovieGraphResolveArgs ResolveArgs;
-		const FString PreliminaryFileName = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderPassData.Key.RootBranchName, ResolveArgs);
+		const FString PreliminaryFileName = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderPassData.Key, ResolveArgs);
 		
 		TArray<FMovieGraphRenderDataIdentifier>& RenderIDs = OutFilenameToRenderIDs.FindOrAdd(PreliminaryFileName);
 		RenderIDs.Add(RenderPassData.Key);
@@ -575,7 +601,7 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 		TArray<FIntPoint>& Resolutions = FilenameToResolutions.FindOrAdd(PreliminaryFileName);
 		Resolutions.AddUnique(RenderPassData.Value->GetSize());
 
-		OutFilenameToResolveArgs.Add(PreliminaryFileName, ResolveArgs);
+		MergeResolveArgs(ResolveArgs, OutFilenameToResolveArgs.FindOrAdd(PreliminaryFileName));
 	}
 
 	// Second, re-generate filenames if any render passes of differing resolutions map to the same file.
@@ -601,12 +627,12 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::GetFilenameToRenderIDMapp
 			// Re-resolve the filename, this time using the resolution index to generate a filename that will only contain
 			// passes with this particular resolution
 			FMovieGraphResolveArgs ResolveArgs;
-			const FString FinalFilename = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderID.RootBranchName, ResolveArgs);
+			const FString FinalFilename = ResolveOutputFilename(InParentNode, InPipeline, ResolutionIndex, InRawFrameData, RenderID, ResolveArgs);
 
 			TArray<FMovieGraphRenderDataIdentifier>& RenderIDs = OutFilenameToRenderIDs.FindOrAdd(FinalFilename);
 			RenderIDs.Add(RenderID);
 
-			OutFilenameToResolveArgs.Add(FinalFilename, ResolveArgs);
+			MergeResolveArgs(ResolveArgs, OutFilenameToResolveArgs.FindOrAdd(FinalFilename));
 		}
 	}
 }
@@ -615,12 +641,12 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 	const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* InParentNode,
 	const UMovieGraphPipeline* InPipeline,
 	const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
-	const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const
+	const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier, FMovieGraphResolveArgs& OutResolveArgs) const
 {
 	const TCHAR* Extension = TEXT("exr");
 
 	constexpr bool bIncludeCDOs = true;
-	const UMovieGraphGlobalOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InBranchName, bIncludeCDOs);
+	const UMovieGraphGlobalOutputSettingNode* OutputSettings = InRawFrameData->EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(InRenderDataIdentifier.RootBranchName, bIncludeCDOs);
 	if (!ensure(OutputSettings))
 	{
 		return FString();
@@ -657,13 +683,13 @@ FString UMovieGraphImageSequenceOutputNode_MultiLayerEXR::ResolveOutputFilename(
 		FormatOverrides.Add(TEXT("ExtraTag"), FString::Printf(TEXT("_Add(%d)"), ResolutionIndex));
 	}
 
-	// Since a multi-layer EXR can store renders from multiple cameras, renderers, etc, the render data identifier isn't
-	// very useful. However, we still need to provide the branch name -- this is important for resolving the correct output path.
-	FMovieGraphRenderDataIdentifier TempRenderDataIdentifier;
-	TempRenderDataIdentifier.RootBranchName = InBranchName;
-
-	FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
-		TempRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
+	// The layer's render data identifier is used here in the resolve. Usually this is not a problem. However, the user may include some tokens, like
+	// {layer_name}, that come from the identifier, which will prevent all layers from being placed in the same multi-layer EXR (because now the path
+	// isn't resolving to the path that other layers are resolving to). We have to assume that the user is doing this intentionally, even though it's
+	// a bit strange. Including the full identifier here is important so all custom metadata is resolved correctly (see
+	// UMovieGraphSetMetadataAttributesNode) when ResolveFilenameFormatArguments() is called.
+	const FMovieGraphFilenameResolveParams Params = FMovieGraphFilenameResolveParams::MakeResolveParams(
+		InRenderDataIdentifier, InPipeline, InRawFrameData->EvaluatedConfig.Get(), InRawFrameData->TraversalContext, FormatOverrides);
 	
 	const FString FilePathFormatString = OutputSettings->OutputDirectory.Path / FileNameFormatString;
 

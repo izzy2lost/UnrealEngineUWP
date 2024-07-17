@@ -3,22 +3,35 @@
 #include "SMoviePipelineFormatTokenAutoCompleteBox.h"
 
 #include "DetailLayoutBuilder.h"
+#include "Graph/MovieGraphBlueprintLibrary.h"
+#include "Graph/MovieGraphFilenameResolveParams.h"
 #include "Layout/WidgetPath.h"
 
 void SMoviePipelineFormatTokenAutoCompleteBox::Construct(const FArguments& InArgs)
 {
+	TextHandle = InArgs._TextHandle;
+	
 	ChildSlot
 	[
 		SAssignNew(MenuAnchor, SMenuAnchor)
 		.Placement(MenuPlacement_ComboBox)
 		[
 			SAssignNew(TextBox, SMultiLineEditableTextBox)
-			.Text(InArgs._InitialText)
+			.Text_Lambda([this]()
+			{
+				FString TextValue;
+				TextHandle->GetValue(TextValue);
+				
+				return FText::FromString(TextValue);
+			})
+			.HintText(InArgs._HintText)
 			.Font(IDetailLayoutBuilder::GetDetailFont())
 			.OnKeyDownHandler(this, &SMoviePipelineFormatTokenAutoCompleteBox::OnKeyDown)
 			.OnTextChanged(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextChanged)
+			.OnTextCommitted(this, &SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextCommitted)
 			.SelectWordOnMouseDoubleClick(true)
 			.AllowMultiLine(false)
+			.IsEnabled(InArgs._IsEnabled)
 		]
 		.MenuContent
 		(
@@ -42,7 +55,6 @@ void SMoviePipelineFormatTokenAutoCompleteBox::Construct(const FArguments& InArg
 	// We just call it once and cache it for now as the selection code isn't tested against
 	// the amount of suggestions changing.
 	AllSuggestions.Append(InArgs._Suggestions.Get());
-	OnTextChanged = InArgs._OnTextChanged;
 }
 
 void SMoviePipelineFormatTokenAutoCompleteBox::OnFocusChanging(const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent)
@@ -195,7 +207,7 @@ void SMoviePipelineFormatTokenAutoCompleteBox::ReplaceRelevantTextWithSuggestion
 
 void SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextChanged(const FText& InText)
 {
-	OnTextChanged.ExecuteIfBound(InText);
+	TextHandle->SetValue(InText.ToString(), EPropertyValueSetFlags::InteractiveChange);
 
 	const FString TextAsStr = InText.ToString();
 	if (TextAsStr.Len() > 0)
@@ -218,6 +230,11 @@ void SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextChanged(const FT
 		// If they have no text, suggest all possible solutions
 		FilterVisibleSuggestions(FString(), false);
 	}
+}
+
+void SMoviePipelineFormatTokenAutoCompleteBox::HandleTextBoxTextCommitted(const FText& InText, ETextCommit::Type CommitInfo)
+{
+	TextHandle->SetValue(InText.ToString(), EPropertyValueSetFlags::DefaultFlags);
 }
 
 void SMoviePipelineFormatTokenAutoCompleteBox::FilterVisibleSuggestions(const FString& StrToMatch, const bool bForceShowAll)
@@ -284,4 +301,22 @@ TSharedRef<ITableRow> SMoviePipelineFormatTokenAutoCompleteBox::HandleSuggestion
 				.Text(FText::FromString(SuggestionText))
 			]
 		];
+}
+
+TArray<FString> SMoviePipelineFormatTokenAutoCompleteBox::GetFileNameFormatSuggestions()
+{
+	TArray<FString> FileNameFormatSuggestions;
+	
+	// Just fetch the format arguments (by keeping the format string empty). The tokens themselves will not be resolved correctly here (no context is
+	// provided in the resolve params), but all we care about here is the token list, not the resolved token values.
+	const FString FormatString;
+	const FMovieGraphFilenameResolveParams ResolveParams;
+	FMovieGraphResolveArgs FormatArgs;
+	UMovieGraphBlueprintLibrary::ResolveFilenameFormatArguments(FormatString, ResolveParams, FormatArgs);
+
+	// Display the token names alphabetically
+	FormatArgs.FilenameArguments.GetKeys(FileNameFormatSuggestions);
+	FileNameFormatSuggestions.Sort();
+
+	return FileNameFormatSuggestions;
 }

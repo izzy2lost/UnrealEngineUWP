@@ -20,16 +20,7 @@ protected:
 	//~ Begin IDetailCustomization interface
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 	//~ End IDetailCustomization interface
-
-	void OnPropertyChange();
-
-	TArray<FString> GetSuggestions() const;
-
-	void OnTextChanged(const FText& InValue);
-
-	static void GetFormatArguments(FMovieGraphResolveArgs& InOutFormatArgs);
 	
-	TWeakObjectPtr<UObject> CustomizedObject;
 	TSharedPtr<IPropertyHandle> OutputFormatPropertyHandle;
 	TSharedPtr<class SMoviePipelineFormatTokenAutoCompleteBox> AutoCompleteBox;
 };

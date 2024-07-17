@@ -71,10 +71,6 @@ protected:
 		FText InitialText;
 		OutputFormatPropertyHandle->GetValueAsDisplayText(InitialText);
 
-		// Update the text box when the handle value changes
-		OutputFormatPropertyHandle->SetOnPropertyValueChanged(
-			FSimpleDelegate::CreateSP(this, &FOutputFormatDetailsCustomization::OnPropertyChange));
-
 		DetailBuilder.EditDefaultProperty(OutputFormatPropertyHandle)->CustomWidget(bShowChildren)
 			.NameContent()
 			[
@@ -85,23 +81,11 @@ protected:
 			[
 				SAssignNew(AutoCompleteBox, SMoviePipelineFormatTokenAutoCompleteBox)
 				.InitialText(InitialText)
+				.TextHandle(OutputFormatPropertyHandle)
 				.Suggestions(this, &FOutputFormatDetailsCustomization::GetSuggestions)
-				.OnTextChanged(this, &FOutputFormatDetailsCustomization::OnTextChanged)
 			];
-
-
 	}
 	//~ End IDetailCustomization interface
-
-	void OnPropertyChange()
-	{
-		// Sync the text box back to the handle value
-		FText DisplayText;
-		OutputFormatPropertyHandle->GetValueAsDisplayText(DisplayText);
-
-		AutoCompleteBox->SetText(DisplayText);
-		AutoCompleteBox->CloseMenuAndReset();
-	}
 
 	TArray<FString> GetSuggestions() const
 	{
@@ -132,11 +116,6 @@ protected:
 		}
 
 		return TArray<FString>();
-	}
-
-	void OnTextChanged(const FText& InValue)
-	{
-		OutputFormatPropertyHandle->SetValue(InValue.ToString());
 	}
 
 	TSharedPtr<IPropertyHandle> OutputFormatPropertyHandle;

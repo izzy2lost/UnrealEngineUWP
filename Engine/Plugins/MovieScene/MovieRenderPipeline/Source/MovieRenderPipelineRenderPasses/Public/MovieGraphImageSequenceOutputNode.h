@@ -239,7 +239,7 @@ private:
 	FString ResolveOutputFilename(
 		const UMovieGraphImageSequenceOutputNode_MultiLayerEXR* InParentNode,
 		const UMovieGraphPipeline* InPipeline, const int32 ResolutionIndex, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData,
-		const FName& InBranchName, FMovieGraphResolveArgs& OutResolveArgs) const;
+		const FMovieGraphRenderDataIdentifier& InRenderDataIdentifier, FMovieGraphResolveArgs& OutResolveArgs) const;
 };
 
 /**

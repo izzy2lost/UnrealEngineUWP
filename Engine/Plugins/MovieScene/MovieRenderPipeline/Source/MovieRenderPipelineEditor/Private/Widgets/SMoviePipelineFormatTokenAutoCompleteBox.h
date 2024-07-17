@@ -18,9 +18,9 @@ public:
 	SLATE_BEGIN_ARGS(SMoviePipelineFormatTokenAutoCompleteBox){}
 
 	SLATE_ARGUMENT(FText, InitialText)
+	SLATE_ARGUMENT(FText, HintText)
+	SLATE_ARGUMENT(TSharedPtr<IPropertyHandle>, TextHandle)
 	SLATE_ATTRIBUTE(TArray<FString>, Suggestions)
-	/** Called whenever the text is changed programmatically or interactively by the user. */
-	SLATE_EVENT(FOnTextChanged, OnTextChanged)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -40,6 +40,8 @@ public:
 
 	void HandleTextBoxTextChanged(const FText& InText);
 
+	void HandleTextBoxTextCommitted(const FText& InText, ETextCommit::Type CommitInfo);
+
 	void FilterVisibleSuggestions(const FString& StrToMatch, const bool bForceShowAll);
 
 	void CloseMenuAndReset();
@@ -48,13 +50,17 @@ public:
 
 	TSharedRef<ITableRow> HandleSuggestionListViewGenerateRow(TSharedPtr<FString> Text, const TSharedRef<STableViewBase>& OwnerTable) const;
 
+	/**
+	 * A helper to get file name format suggestions. Can be passed to the "Suggestions" argument.
+	 */
+	static TArray<FString> GetFileNameFormatSuggestions();
+
 private:
 	TSharedPtr<SListView<TSharedPtr<FString>>> SuggestionListView;
 	TSharedPtr<SMultiLineEditableTextBox> TextBox;
 	TSharedPtr<SMenuAnchor> MenuAnchor;
 	TSharedPtr<SVerticalBox> VerticalBox;
-	// Holds a delegate that is executed when the text has changed.
-	FOnTextChanged OnTextChanged;
+	TSharedPtr<IPropertyHandle> TextHandle;
 
 	// The pool of suggestions to show
 	TArray<FString> AllSuggestions;
