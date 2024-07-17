@@ -498,7 +498,7 @@ namespace uba
 
 	static OwnerInfo InternalGetOwnerInfo()
 	{
-		static tchar buffer[MAX_PATH];
+		static tchar buffer[260];
 		*buffer = 0;
 
 		OwnerInfo info { buffer, 0 };

@@ -211,6 +211,7 @@ namespace uba
 		connection->backend = &backend;
 
 		SCOPED_WRITE_LOCK(m_connectionsItLock, l); // Take this lock to make sure callbacks are set before connection is used
+		m_connectionsIt = --m_connections.end();
 
 		m_logger.Detail(TC("Connected to server... (0x%p)"), backendConnection);
 		lock.Leave();

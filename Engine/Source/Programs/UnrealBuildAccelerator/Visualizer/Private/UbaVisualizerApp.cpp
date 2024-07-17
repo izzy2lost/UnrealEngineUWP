@@ -65,40 +65,6 @@ struct MessageBoxLogWriter : public LogWriter
 
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PWSTR pCmdLine, _In_ int nShowCmd)
 {
-	{
-		HANDLE h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-		PROCESSENTRY32 pe = { 0 };
-		pe.dwSize = sizeof(PROCESSENTRY32);
-
-		UnorderedMap<u32, u32> pidToParent;
-		if (Process32First(h, &pe))
-		{
-			do
-			{
-				pidToParent[pe.th32ProcessID] = pe.th32ParentProcessID;
-			} while( Process32Next(h, &pe));
-		}
-
-		CloseHandle(h);
-
-		u32 pid = ::GetCurrentProcessId();
-		while (true)
-		{
-			auto findIt = pidToParent.find(pid);
-			if (findIt == pidToParent.end())
-				break;
-			pid = findIt->second;
-
-			HANDLE Handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
-			TCHAR Buffer[MAX_PATH];
-			GetModuleFileNameExW(Handle, 0, Buffer, MAX_PATH);
-
-			CloseHandle(Handle);
-		}
-
-	}
-
-
 	StringBuffer<> host; // 192.168.86.49
 	StringBuffer<> named;
 	StringBuffer<> file;
