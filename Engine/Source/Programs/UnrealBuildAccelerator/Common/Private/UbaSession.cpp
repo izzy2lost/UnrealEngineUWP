@@ -1126,7 +1126,7 @@ namespace uba
 
 			OwnerInfo ownerInfo = GetOwnerInfo();
 			if (ownerInfo.pid)
-				traceName.Appendf(L"_%s%u", ownerInfo.id, ownerInfo.pid);
+				traceName.Appendf(TC("_%s%u"), ownerInfo.id, ownerInfo.pid);
 		}
 
 		if (!traceName.IsEmpty())
