@@ -43,6 +43,10 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 		});
 #endif
 
+#if !IS_PROGRAM
+	FPaths::SetProjectFilePath(TEXT("../../Source/Programs/LiveLinkHubEditor/LiveLinkHubEditor.uproject"));
+#endif
+
 	// Must match the path in LiveLinkHubStaging.cs / StageLiveLinkHub.automation.cs
 	const FString RemappedFolder = FPaths::EngineDir() / TEXT("Programs/LiveLinkHub/Staged");
 

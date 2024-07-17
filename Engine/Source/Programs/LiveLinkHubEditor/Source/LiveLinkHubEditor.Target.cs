@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using UnrealBuildBase;
 using UnrealBuildTool;
 
 
@@ -66,6 +67,28 @@ public class LiveLinkHubEditorTarget : TargetRules
 		if (Platform == UnrealTargetPlatform.Win64)
 		{
 			OutputFile += ".exe";
+		}
+
+		// Copy the target receipt into the project binaries directory.
+		// Prevents "Would you like to build the editor?" prompt on startup
+		// when running with project context.
+		DirectoryReference ReceiptSrcDir = Unreal.EngineDirectory;
+		DirectoryReference ReceiptDestDir = DirectoryReference.Combine(
+			Unreal.EngineDirectory, "Source", "Programs", "LiveLinkHubEditor");
+
+		FileReference ReceiptSrcPath = TargetReceipt.GetDefaultPath(ReceiptSrcDir, BaseExeName, Platform, Configuration, Architectures);
+		FileReference ReceiptDestPath = TargetReceipt.GetDefaultPath(ReceiptDestDir, BaseExeName, Platform, Configuration, Architectures);
+
+		PostBuildSteps.Add($"echo Copying \"{ReceiptSrcPath}\" to \"{ReceiptDestPath}\"");
+		DirectoryReference.CreateDirectory(ReceiptDestPath.Directory);
+
+		if (Platform == UnrealTargetPlatform.Win64)
+		{
+			PostBuildSteps.Add($"copy /Y \"{ReceiptSrcPath}\" \"{ReceiptDestPath}\"");
+		}
+		else
+		{
+			PostBuildSteps.Add($"cp -a \"{ReceiptSrcPath}\" \"{ReceiptDestPath}\"");
 		}
 	}
 }

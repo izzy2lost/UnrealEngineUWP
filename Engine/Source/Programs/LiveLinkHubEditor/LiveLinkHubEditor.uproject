@@ -7,5 +7,6 @@
 		"Linux",
 		"Mac",
 		"Windows"
-	]
+	],
+	"DisableEnginePluginsByDefault": true
 }
