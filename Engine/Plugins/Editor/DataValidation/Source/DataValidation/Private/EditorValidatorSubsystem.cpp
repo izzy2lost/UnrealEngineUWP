@@ -893,6 +893,7 @@ EDataValidationResult UEditorValidatorSubsystem::ValidateChangelistsInternal(
 			FDataValidationContext ValidationContext(false, Settings.ValidationUsecase, {}); // No associated objects for changelist
 			Details.Result = IsObjectValidWithContext(Changelist, ValidationContext);
 			UE::DataValidation::AddAssetValidationMessages(DataValidationLog, ValidationContext);
+			ValidationContext.SplitIssues(Details.ValidationWarnings, Details.ValidationErrors);
 		}
 		Result = CombineDataValidationResults(Result, Details.Result);
 		DataValidationLog.Flush();

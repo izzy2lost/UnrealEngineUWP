@@ -86,11 +86,11 @@ void FDataValidationContext::SplitIssues(TArray<FText>& Warnings, TArray<FText>&
 
 		if (Issue.Severity == EMessageSeverity::Error)
 		{
-			Errors.Add(Issue.Message);
+			Errors.Add(MoveTemp(Message));
 		}
 		else if (Issue.Severity == EMessageSeverity::Warning)
 		{	
-			Warnings.Add(Issue.Message);
+			Warnings.Add(MoveTemp(Message));
 		}
 	}
 }

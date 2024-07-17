@@ -282,7 +282,7 @@ void SSourceControlSubmitWidget::Construct(const FArguments& InArgs)
 		const FName ChangelistWarningsIconName = TEXT("Icons.WarningWithColor.Large");
 		const FName ChangelistErrorsIconName = TEXT("Icons.ErrorWithColor.Large");
 
-		if (bAllowSubmit)
+		if (ChangelistResultWarningsText.IsEmpty() && ChangelistResultErrorsText.IsEmpty())
 		{
 			Contents->AddSlot()
 			.AutoHeight()
