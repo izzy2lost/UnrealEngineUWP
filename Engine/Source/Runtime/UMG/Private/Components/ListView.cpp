@@ -125,6 +125,14 @@ void UListView::SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIn
 	}
 }
 
+void UListView::SetScrollBarPadding(const FMargin& InScrollBarPadding)
+{
+	ScrollBarPadding = InScrollBarPadding;
+	if (MyListView.IsValid())
+	{
+		MyListView->SetScrollbarPadding(ScrollBarPadding);
+	}
+}
 
 int32 UListView::BP_GetNumItemsSelected() const
 {

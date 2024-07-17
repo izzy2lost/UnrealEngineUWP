@@ -14,6 +14,7 @@
 #include "Framework/Layout/InertialScrollManager.h"
 #include "Framework/Layout/Overscroll.h"
 #include "Styling/SlateTypes.h"
+#include "Widgets/SBoxPanel.h"
 
 #include "STableViewBase.generated.h"
 
@@ -180,6 +181,8 @@ public:
 	SLATE_API EVisibility GetScrollbarVisibility() const;
 
 	SLATE_API void SetScrollbarVisibility(const EVisibility InVisibility);
+
+	SLATE_API void SetScrollbarPadding(const FMargin& InScrollbarPadding);
 
 	/** Returns true if scrolling is possible; false if the view is big enough to fit all the content. */
 	SLATE_API bool IsScrollbarNeeded() const;
@@ -431,6 +434,9 @@ protected:
 	/** The scroll bar widget */
 	TSharedPtr< SScrollBar > ScrollBar;
 
+	/** Padding to the scrollbox */
+	FMargin ScrollBarSlotPadding;
+
 	/** Delegate to call when the table view is scrolled */
 	FOnTableViewScrolled OnTableViewScrolled;
 
@@ -553,6 +559,13 @@ protected:
 private:
 	/** When true, a refresh should occur the next tick */
 	bool bItemsNeedRefresh = false;
+
+	union
+	{
+		// vertical scroll bar is stored in horizontal box and vice versa
+		SHorizontalBox::FSlot* VerticalScrollBarSlot; // valid when Orientation == Orient_Vertical
+		SVerticalBox::FSlot* HorizontalScrollBarSlot; // valid when Orientation == Orient_Horizontal
+	};
 };
 
 

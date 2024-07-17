@@ -110,6 +110,7 @@ public:
 		, _ConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible)
 		, _WheelScrollMultiplier(GetGlobalScrollAmount())
 		, _NavigationScrollOffset(0.5f)
+		, _ScrollBarPadding(0.0f)
 		, _HandleGamepadEvents( true )
 		, _HandleDirectionalNavigation( true )
 		, _HandleSpacebarSelection(false)
@@ -187,6 +188,8 @@ public:
 
 		SLATE_ARGUMENT( float, NavigationScrollOffset );
 
+		SLATE_ARGUMENT( FMargin, ScrollBarPadding );
+
 		SLATE_ARGUMENT( bool, HandleGamepadEvents );
 
 		SLATE_ARGUMENT( bool, HandleDirectionalNavigation );
@@ -261,6 +264,7 @@ public:
 
 		this->MaxPinnedItems = InArgs._MaxPinnedItems;
 		this->DefaultMaxPinnedItems = InArgs._MaxPinnedItems;
+		this->ScrollBarSlotPadding = InArgs._ScrollBarPadding;
 
 		// Check for any parameters that the coder forgot to specify.
 		FString ErrorString;

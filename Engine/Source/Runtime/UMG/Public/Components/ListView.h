@@ -111,6 +111,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API void SetScrollIntoViewAlignment (EScrollIntoViewAlignment NewScrollIntoViewAlignment);
 
+	/** Sets padding around the scrollbar. */
+	UFUNCTION(Category = ListView)
+	UMG_API void SetScrollBarPadding(const FMargin& InScrollBarPadding);
+
 	/** Returns true if a refresh is pending and the list will be rebuilt on the next tick */
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	UMG_API bool IsRefreshPending() const;
@@ -170,6 +174,7 @@ protected:
 		Args.Orientation = Orientation;
 		Args.ListViewStyle = &WidgetStyle;
 		Args.ScrollBarStyle = &ScrollBarStyle;
+		Args.ScrollBarPadding = ScrollBarPadding;
 		Args.ScrollIntoViewAlignment = ScrollIntoViewAlignment;
 		MyListView = ITypedUMGListView<UObject*>::ConstructListView<ListViewT>(this, ListItems, Args);
 		
@@ -232,6 +237,9 @@ private:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Getter, Category = ListView, meta = (ClampMin = 0, AllowPrivateAccess = "true"))
 	float VerticalEntrySpacing = 0.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = ListView, meta = (AllowPrivateAccess = "true", DisplayAfter="ScrollBarStyle"))
+	FMargin ScrollBarPadding;
 
 public:
 	/** Get the horizontal spacing between entries. */
@@ -241,6 +249,10 @@ public:
 	/** Get the vertical spacing between entries. */
 	UFUNCTION(BlueprintCallable, Category = ListView)
 	float GetVerticalEntrySpacing() const { return VerticalEntrySpacing; }
+
+	/** Gets padding around the scrollbar. */
+	UFUNCTION(Category = ListView)
+	FMargin GetScrollBarPadding() const { return ScrollBarPadding; }
 
 protected:
 	UMG_API void InitHorizontalEntrySpacing(float InHorizontalEntrySpacing);

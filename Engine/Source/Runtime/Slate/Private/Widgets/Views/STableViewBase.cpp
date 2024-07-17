@@ -101,6 +101,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 
 		if (Orientation == Orient_Vertical)
 		{
+			VerticalScrollBarSlot = nullptr;
 			ListAndScrollbar = SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
 				.FillWidth(1)
@@ -119,6 +120,8 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 				]
 				+SHorizontalBox::Slot()
 				.AutoWidth()
+				.Padding(ScrollBarSlotPadding)
+				.Expose(VerticalScrollBarSlot)
 				[
 					SNew(SBox)
 					.WidthOverride(ScrollBarSize)
@@ -129,6 +132,7 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 		}
 		else
 		{
+			HorizontalScrollBarSlot = nullptr;
 			ListAndScrollbar = SNew(SVerticalBox)
 				+SVerticalBox::Slot()
 				.FillHeight(1)
@@ -147,6 +151,8 @@ void STableViewBase::ConstructChildren( const TAttribute<float>& InItemWidth, co
 				]
 				+SVerticalBox::Slot()
 				.AutoHeight()
+				.Padding(ScrollBarSlotPadding)
+				.Expose(HorizontalScrollBarSlot)
 				[
 					SNew(SBox)
 					.HeightOverride(ScrollBarSize)
@@ -582,6 +588,11 @@ void STableViewBase::OnMouseLeave( const FPointerEvent& MouseEvent )
 
 FReply STableViewBase::OnMouseWheel( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
 {
+	if (WheelScrollMultiplier == 0.0f)
+    {
+        return FReply::Unhandled();
+    }
+
 	if( bIsPointerScrollingEnabled && !MouseEvent.IsControlDown() )
 	{
 		// Make sure scroll velocity is cleared so it doesn't fight with the mouse wheel input
@@ -887,6 +898,26 @@ void STableViewBase::SetScrollbarVisibility(const EVisibility InVisibility)
 	if (ScrollBar)
 	{
 		ScrollBar->SetVisibility(InVisibility);
+	}
+}
+
+void STableViewBase::SetScrollbarPadding(const FMargin& InScrollbarPadding)
+{
+	ScrollBarSlotPadding = InScrollbarPadding;
+
+	if (Orientation == Orient_Vertical)
+	{
+		if (VerticalScrollBarSlot)
+		{
+			VerticalScrollBarSlot->SetPadding(ScrollBarSlotPadding);
+		}
+	}
+	else
+	{
+		if (HorizontalScrollBarSlot)
+		{
+			HorizontalScrollBarSlot->SetPadding(ScrollBarSlotPadding);
+		}
 	}
 }
 
