@@ -3025,6 +3025,14 @@ public:
 	TArray<FRigElementKey> GetChildren(FRigElementKey InKey, bool bRecursive = false) const;
 
 	/**
+	 * Returns the child elements of a given element key
+	 * @param InKey The key of the element to retrieve the children for
+	 * @param bRecursive If set to true grand-children will also be returned etc
+	 * @return Returns the child elements
+	 */
+	FRigBaseElementChildrenArray GetActiveChildren(const FRigBaseElement* InElement, bool bRecursive = false) const;
+
+	/**
 	 * Returns the child elements of a given element index
 	 * @param InIndex The index of the element to retrieve the children for
 	 * @param bRecursive If set to true grand-children will also be returned etc

@@ -88,7 +88,7 @@ FRigUnit_CollectionNameSearchArray_Execute()
 
 FRigUnit_CollectionChildren_Execute()
 {
-	FRigUnit_CollectionChildrenArray::StaticExecute(ExecuteContext, Parent, bIncludeParent, bRecursive, TypeToSearch, Collection.Keys);
+	FRigUnit_CollectionChildrenArray::StaticExecute(ExecuteContext, Parent, bIncludeParent, bRecursive, true, TypeToSearch, Collection.Keys);
 }
 
 FRigVMStructUpgradeInfo FRigUnit_CollectionChildren::GetUpgradeInfo() const
@@ -113,32 +113,58 @@ FRigUnit_CollectionChildrenArray_Execute()
 		Items.Reset();
 		return;
 	}
-	
-	uint32 Hash = GetTypeHash(StaticStruct()) + ExecuteContext.Hierarchy->GetTopologyVersion() * 17;
-	Hash = HashCombine(Hash, GetTypeHash(ExecuteContext.Hierarchy->GetResolvedTarget(Parent)));
-	Hash = HashCombine(Hash, bRecursive ? 2 : 0);
-	Hash = HashCombine(Hash, bIncludeParent ? 1 : 0);
-	Hash = HashCombine(Hash, (int32)TypeToSearch * 8);
 
-	FRigElementKeyCollection Collection;
-	if(const FRigElementKeyCollection* Cache = ExecuteContext.Hierarchy->FindCachedCollection(Hash))
+	if (bDefaultChildren)
 	{
-		Collection = *Cache;
+		uint32 Hash = GetTypeHash(StaticStruct()) + ExecuteContext.Hierarchy->GetTopologyVersion() * 17;
+		Hash = HashCombine(Hash, GetTypeHash(ExecuteContext.Hierarchy->GetResolvedTarget(Parent)));
+		Hash = HashCombine(Hash, bRecursive ? 2 : 0);
+		Hash = HashCombine(Hash, bIncludeParent ? 1 : 0);
+		Hash = HashCombine(Hash, (int32)TypeToSearch * 8);
+
+		FRigElementKeyCollection Collection;
+		if(const FRigElementKeyCollection* Cache = ExecuteContext.Hierarchy->FindCachedCollection(Hash))
+		{
+			Collection = *Cache;
+		}
+		else
+		{
+			Collection = FRigElementKeyCollection::MakeFromChildren(ExecuteContext.Hierarchy, Parent, bRecursive, bIncludeParent, (uint8)TypeToSearch);
+			if (Collection.IsEmpty())
+			{
+				if (ExecuteContext.Hierarchy->GetIndex(Parent) == INDEX_NONE)
+				{
+					UE_CONTROLRIG_RIGUNIT_REPORT_WARNING(TEXT("Parent '%s' is not valid."), *Parent.ToString());
+				}
+			}
+			ExecuteContext.Hierarchy->AddCachedCollection(Hash, Collection);
+		}
+
+		Items = Collection.Keys;
 	}
 	else
 	{
-		Collection = FRigElementKeyCollection::MakeFromChildren(ExecuteContext.Hierarchy, Parent, bRecursive, bIncludeParent, (uint8)TypeToSearch);
-		if (Collection.IsEmpty())
-		{
-			if (ExecuteContext.Hierarchy->GetIndex(Parent) == INDEX_NONE)
-			{
-				UE_CONTROLRIG_RIGUNIT_REPORT_WARNING(TEXT("Parent '%s' is not valid."), *Parent.ToString());
-			}
-		}
-		ExecuteContext.Hierarchy->AddCachedCollection(Hash, Collection);
-	}
+		const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
+		Items.Reset();
 
-	Items = Collection.Keys;
+		if (bIncludeParent)
+		{
+			Items.Add(Parent);
+		}
+
+		FRigBaseElementChildrenArray Children = Hierarchy->GetActiveChildren(Hierarchy->Find(Parent), bRecursive);
+
+		Children = Children.FilterByPredicate([TypeToSearch](const FRigBaseElement* Child)
+		{
+			return ((uint8)Child->GetType() & (uint8)TypeToSearch) != 0;
+		});
+
+		Items.Reserve(Items.Num() + Children.Num());
+		for (FRigBaseElement* Child : Children)
+		{
+			Items.Add(Child->GetKey());
+		}
+	}
 }
 
 FRigUnit_CollectionGetAll_Execute()

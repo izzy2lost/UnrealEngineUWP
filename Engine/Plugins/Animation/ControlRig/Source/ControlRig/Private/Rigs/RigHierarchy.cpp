@@ -1877,6 +1877,54 @@ TArray<FRigElementKey> URigHierarchy::GetChildren(FRigElementKey InKey, bool bRe
 	}
 }
 
+FRigBaseElementChildrenArray URigHierarchy::GetActiveChildren(const FRigBaseElement* InElement, bool bRecursive) const
+{
+	TArray<FRigBaseElement*> Children;
+
+	TArray<const FRigBaseElement*> ToProcess;
+	ToProcess.Push(InElement);
+
+	while (!ToProcess.IsEmpty())
+	{
+		const FRigBaseElement* CurrentParent = ToProcess.Pop();
+		TArray<FRigBaseElement*> CurrentChildren;
+		if (CurrentParent)
+		{
+			CurrentChildren = GetChildren(CurrentParent);
+			if (CurrentParent->GetKey() == URigHierarchy::GetWorldSpaceReferenceKey())
+			{
+				CurrentChildren.Append(GetFilteredElements<FRigBaseElement>([this](const FRigBaseElement* Element)
+				{
+					return !Element->GetKey().IsTypeOf(ERigElementType::Reference) && GetActiveParent(Element) == nullptr;
+				}));
+			}
+		}
+		else
+		{
+			CurrentChildren = GetFilteredElements<FRigBaseElement>([this](const FRigBaseElement* Element)
+			{
+				return !Element->GetKey().IsTypeOf(ERigElementType::Reference) && GetActiveParent(Element) == nullptr;
+			});
+		}
+		const FRigElementKey ParentKey = CurrentParent ? CurrentParent->GetKey() : URigHierarchy::GetWorldSpaceReferenceKey();
+		for (const FRigBaseElement* Child : CurrentChildren)
+		{
+			const FRigBaseElement* ThisParent = GetActiveParent(Child);
+			const FRigElementKey ThisParentKey = ThisParent ? ThisParent->GetKey() : URigHierarchy::GetWorldSpaceReferenceKey();
+			if (ThisParentKey == ParentKey)
+			{
+				Children.Add(const_cast<FRigBaseElement*>(Child));
+				if (bRecursive)
+				{
+					ToProcess.Push(Child);
+				}
+			}
+		}
+	}
+	
+	return FRigBaseElementChildrenArray(Children);
+}
+
 TArray<int32> URigHierarchy::GetChildren(int32 InIndex, bool bRecursive) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));

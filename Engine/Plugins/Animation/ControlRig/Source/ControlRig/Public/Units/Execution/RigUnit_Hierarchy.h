@@ -39,6 +39,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetParent : public FRigUnit_HierarchyBas
 	UPROPERTY(meta = (Input, ExpandByDefault))
 	FRigElementKey Child;
 
+	/** When true, it will return the default parent, regardless of whether the parent incluences the element or not  */
 	UPROPERTY(meta = (Input))
 	bool bDefaultParent;
 
@@ -242,6 +243,7 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetSiblingsItemArray : public FRigUnit_H
 		CachedItem = FCachedRigElement();
 		CachedSiblings = FRigElementKeyCollection();
 		bIncludeItem = false;
+		bDefaultSiblings = true;
 	}
 
 	RIGVM_METHOD()
@@ -252,6 +254,11 @@ struct CONTROLRIG_API FRigUnit_HierarchyGetSiblingsItemArray : public FRigUnit_H
 
 	UPROPERTY(meta = (Input))
 	bool bIncludeItem;
+
+	/** When true, it will return all siblings, regardless of whether the parent is active or not.
+	 * When false, will return only the siblings which are influenced by the same parent */
+	UPROPERTY(meta = (Input))
+	bool bDefaultSiblings;
 
 	UPROPERTY(meta = (Output))
 	TArray<FRigElementKey> Siblings;
