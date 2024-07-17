@@ -278,10 +278,8 @@ namespace uba
 			u32 traceSize = traceReader.ReadU32(); (void)traceSize;
 			u32 version = traceReader.ReadU32();
 			if (version < TraceReadCompatibilityVersion || version > TraceVersion)
-			{
-				m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
-				return false;
-			}
+				return m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
+
 			bool replay = maxTime != ~u64(0);
 
 			out.version = version;

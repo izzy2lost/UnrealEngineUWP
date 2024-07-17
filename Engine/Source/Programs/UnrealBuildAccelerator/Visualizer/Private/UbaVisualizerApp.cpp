@@ -51,13 +51,21 @@ struct MessageBoxLogWriter : public LogWriter
 		if (type > LogEntryType_Warning)
 			return;
 
-		HWND hwnd = m_visualizer ? m_visualizer->GetHwnd() : NULL;
-		UINT flags = MB_ICONERROR;
+		HWND hwnd = NULL;
+		if (m_visualizer)
+		{
+			hwnd = m_visualizer->GetHwnd();
+			m_visualizer->Lock(true);
+		}
+
+		UINT flags = type == LogEntryType_Error ? MB_ICONERROR : MB_ICONWARNING;
 		if (!hwnd)
 			flags |= MB_TOPMOST;
 		MessageBox(hwnd, str, TC("UbaVisualizer"), flags);
 		if (type == LogEntryType_Error)
 			ExitProcess(~0u);
+		if (m_visualizer)
+			m_visualizer->Lock(false);
 	}
 	
 	Visualizer* m_visualizer = nullptr;

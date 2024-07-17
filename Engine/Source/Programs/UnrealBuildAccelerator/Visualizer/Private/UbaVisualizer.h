@@ -30,6 +30,7 @@ namespace uba
 		UBA_VISUALIZER_FLAG(DarkMode, false, L"Use dark mode to draw visualizer") \
 		UBA_VISUALIZER_FLAG(AutoSaveSettings, true, L"Auto save Position/Settings on close") \
 		UBA_VISUALIZER_FLAG(ShowAllTraces, true, L"Show all traces started on channel") \
+		UBA_VISUALIZER_FLAG(SortActiveRemoteSessions, true, L"Sort active sessions on top") \
 
 	struct VisualizerConfig
 	{
@@ -70,6 +71,7 @@ namespace uba
 
 		bool HasWindow();
 		HWND GetHwnd();
+		void Lock(bool lock);
 
 	private:
 		bool StartHwndThread();
@@ -122,8 +124,9 @@ namespace uba
 		void StartDragToScroll(const POINT& anchor);
 		void StopDragToScroll();
 		void SaveSettings();
-		void DirtyBitmaps();
+		void DirtyBitmaps(bool full);
 		void UpdateFont();
+		void UpdateProcessFont();
 		void ChangeFontSize(int offset);
 		void Redraw();
 
@@ -168,8 +171,11 @@ namespace uba
 		HPEN m_checkboxPen = 0;
 		HFONT m_font = 0;
 		HFONT m_fontUnderlined = 0;
+		HFONT m_processFont = 0;
+		int m_progressRectLeft = 30;
+		int m_processFontHeight = 0;
 		int m_fontHeight = 0;
-		int m_rawBoxHeight = 0;
+		int m_boxHeight = 0;
 		int m_sessionStepY = 0;
 		HFONT m_popupFont = 0;
 		int m_popupFontHeight = 0;
@@ -191,7 +197,7 @@ namespace uba
 
 		float m_scrollPosX = 0;
 		float m_scrollPosY = 0;
-		float m_zoomValue = 0.75f;
+		float m_zoomValue = 0.5f;
 		float m_horizontalScaleValue = 0.5f;
 		bool m_autoScroll = true;
 		bool m_paused = false;
@@ -217,6 +223,7 @@ namespace uba
 		
 		bool m_mouseOverWindow = false;
 		bool m_showPopup = false;
+		bool m_locked = false;
 
 		HBITMAP m_cachedBitmap = 0;
 		RECT m_cachedBitmapRect = { INT_MIN, INT_MIN, INT_MIN, INT_MIN };
