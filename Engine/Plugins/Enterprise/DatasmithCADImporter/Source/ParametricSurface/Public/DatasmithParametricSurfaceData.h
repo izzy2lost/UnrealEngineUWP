@@ -11,8 +11,13 @@
 #include "DatasmithImportOptions.h"
 #include "DatasmithUtils.h"
 
-#include "ParametricSurfaceData.generated.h"
+#include "DatasmithParametricSurfaceData.generated.h"
 
+namespace CADLibrary
+{
+	class FImportParameters;
+	struct FMeshParameters;
+}
 
 USTRUCT(BlueprintType)
 struct PARAMETRICSURFACE_API FParametricSceneParameters
@@ -60,8 +65,8 @@ struct PARAMETRICSURFACE_API FParametricMeshParameters
 	}
 };
 
-UCLASS(meta = (DisplayName = "Parametric Surface Data"))
-class PARAMETRICSURFACE_API UParametricSurfaceData : public UDatasmithAdditionalData
+UCLASS(meta = (DisplayName = "Datasmith Parametric Surface Data"))
+class PARAMETRICSURFACE_API UDatasmithParametricSurfaceData : public UDatasmithAdditionalData
 {
 	GENERATED_BODY()
 

@@ -3,7 +3,7 @@
 #include "ParametricSurfaceBlueprintLibrary.h"
 
 #include "ParametricRetessellateAction.h"
-#include "DatasmithAdditionalData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "DatasmithStaticMeshImporter.h" // Call to BuildStaticMesh
 #include "DatasmithUtils.h"
 
@@ -33,7 +33,7 @@ bool UParametricSurfaceBlueprintLibrary::RetessellateStaticMeshWithNotification(
 	int32 LODIndex = 0;
 
 	FAssetData AssetData( StaticMesh );
-	if (UParametricSurfaceData* ParametricSurfaceData = Datasmith::GetAdditionalData<UParametricSurfaceData>(AssetData))
+	if (UDatasmithParametricSurfaceData* DatasmithParametricSurfaceData = Datasmith::GetAdditionalData<UDatasmithParametricSurfaceData>(AssetData))
 	{
 		// Make sure MeshDescription exists
 		FMeshDescription* DestinationMeshDescription = StaticMesh->GetMeshDescription( LODIndex );
@@ -51,7 +51,7 @@ bool UParametricSurfaceBlueprintLibrary::RetessellateStaticMeshWithNotification(
 			}
 
 			const int32 OldNumberOfUVChannels = FStaticMeshAttributes(*DestinationMeshDescription).GetVertexInstanceUVs().GetNumChannels();
-			if (ParametricSurfaceData->Tessellate(*StaticMesh, TessellationSettings))
+			if (DatasmithParametricSurfaceData->Tessellate(*StaticMesh, TessellationSettings))
 			{
 				const int32 NumberOfUVChannels = FStaticMeshAttributes(*DestinationMeshDescription).GetVertexInstanceUVs().GetNumChannels();
 				if (NumberOfUVChannels < OldNumberOfUVChannels)
@@ -105,7 +105,7 @@ bool UParametricSurfaceBlueprintLibrary::RetessellateStaticMeshWithNotification(
 				}
 
 				// Save last tessellation settings
-				ParametricSurfaceData->SetLastTessellationOptions(TessellationSettings);
+				DatasmithParametricSurfaceData->SetLastTessellationOptions(TessellationSettings);
 
 				bTessellationOutcome = true;
 			}

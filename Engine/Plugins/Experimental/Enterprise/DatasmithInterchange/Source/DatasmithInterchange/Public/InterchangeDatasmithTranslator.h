@@ -14,6 +14,8 @@
 #include "Texture/InterchangeTextureLightProfilePayloadInterface.h"
 #include "Scene/InterchangeVariantSetPayloadInterface.h"
 
+#include "DatasmithImportOptions.h"
+
 #include "Async/Async.h"
 #include "ExternalSource.h"
 #include "UObject/GCObjectScopeGuard.h"
@@ -27,9 +29,11 @@ class IDatasmithBaseAnimationElement;
 class IDatasmithCameraActorElement;
 class IDatasmithLightActorElement;
 class IDatasmithDecalActorElement;
+class IDatasmithMeshElement;
 class IDatasmithScene;
 class IDatasmithTransformAnimationElement;
 class UDatasmithOptionsBase;
+class UDatasmithInterchangeStaticMeshDataNode;
 class UInterchangePhysicalCameraNode;
 class UInterchangeBaseLightNode;
 class UInterchangeDecalNode;
@@ -55,14 +59,22 @@ namespace UE::DatasmithInterchange::AnimUtils
 	extern bool GetAnimationPayloadData(const IDatasmithBaseAnimationElement& AnimationElement, float FrameRate, EInterchangeAnimationPayLoadType PayLoadType, UE::Interchange::FAnimationPayloadData& PayLoadData);
 }
 
+UENUM()
+enum class EInterchangeMesherType : uint8
+{
+	UseCADKernel UMETA(DisplayName = "Use CADKernel"),
+	UseTechSoft,
+	UseNativeTessellator,
+};
+
 UCLASS(BlueprintType, editinlinenew, MinimalAPI)
 class UInterchangeDatasmithTranslatorSettings : public UInterchangeTranslatorSettings
 {
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadWrite, Category = "Datasmith Interchange", meta = (ShowOnlyInnerProperties))
-	TObjectPtr<UDatasmithOptionsBase> ImportOptions;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Datasmith Options")
+	TObjectPtr<UDatasmithOptionsBase> DatasmithOption;
 };
 
 UCLASS(BlueprintType, Experimental)
@@ -136,6 +148,8 @@ private:
 
 	void ProcessIesProfile(UInterchangeBaseNodeContainer& BaseNodeContainer, const IDatasmithLightActorElement& LightElement, UInterchangeLightNode* LightNode) const;
 
+	bool GetMeshDescription(const TSharedPtr<IDatasmithMeshElement>& MeshElement, const FTransform& MeshGlobalTransform, UE::Interchange::FMeshPayloadData& PayloadData) const;
+
 	mutable TSharedPtr<UE::DatasmithImporter::FExternalSource> LoadedExternalSource;
 
 	mutable uint64 StartTime = 0;
@@ -143,5 +157,7 @@ private:
 	mutable TObjectPtr<UInterchangeDatasmithTranslatorSettings> CachedSettings = nullptr;
 
 	mutable TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc> AnimationPayLoadMapping;
+
+	mutable TObjectPtr<UDatasmithInterchangeStaticMeshDataNode> StaticMeshDataNode;
 	mutable EAsyncExecution AsyncMode = EAsyncExecution::TaskGraph;
 };

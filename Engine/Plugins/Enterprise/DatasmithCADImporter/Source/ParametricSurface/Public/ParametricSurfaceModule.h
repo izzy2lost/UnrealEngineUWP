@@ -17,5 +17,5 @@ public:
 	static FParametricSurfaceModule& Get();
 	static bool IsAvailable();
 
-	static PARAMETRICSURFACE_API class UParametricSurfaceData* CreateParametricSurface();
+	static PARAMETRICSURFACE_API class UDatasmithParametricSurfaceData* CreateParametricSurface();
 };

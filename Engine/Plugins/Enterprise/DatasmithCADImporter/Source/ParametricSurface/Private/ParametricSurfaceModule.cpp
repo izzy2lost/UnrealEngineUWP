@@ -15,7 +15,7 @@ void FParametricSurfaceModule::StartupModule()
 	{
 		TArray<FCoreRedirect> Redirects;
 		Redirects.Emplace(ECoreRedirectFlags::Type_Package, TEXT("/Script/DatasmithCoreTechParametricSurfaceData"), TEXT("/Script/ParametricSurface"));
-		Redirects.Emplace(ECoreRedirectFlags::Type_Property, TEXT("UParametricSurfaceData.RawData"), TEXT("RawData_DEPRECATED"));
+		Redirects.Emplace(ECoreRedirectFlags::Type_Property, TEXT("UDatasmithParametricSurfaceData.RawData"), TEXT("RawData_DEPRECATED"));
 		Redirects.Emplace(ECoreRedirectFlags::Type_Property, TEXT("UCoreTechParametricSurfaceData.RawData"), TEXT("RawData_DEPRECATED"));
 		Redirects.Emplace(ECoreRedirectFlags::Type_Struct, TEXT("CoreTechSceneParameters"), TEXT("/Script/ParametricSurface.ParametricSceneParameters"));
 		Redirects.Emplace(ECoreRedirectFlags::Type_Struct, TEXT("CoreTechMeshParameters"), TEXT("/Script/ParametricSurface.ParametricMeshParameters"));
@@ -33,7 +33,7 @@ bool FParametricSurfaceModule::IsAvailable()
 	return FModuleManager::Get().IsModuleLoaded(PARAMETRICSURFACE_MODULE_NAME);
 }
 
-UParametricSurfaceData* FParametricSurfaceModule::CreateParametricSurface()
+UDatasmithParametricSurfaceData* FParametricSurfaceModule::CreateParametricSurface()
 {
 	return Datasmith::MakeAdditionalData<UTechSoftParametricSurfaceData>();
 }

@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ParametricSurfaceData.h"
+#include "DatasmithParametricSurfaceData.h"
+
+#include "CADOptions.h"
 
 #include "Misc/FileHelper.h"
 #include "UObject/EnterpriseObjectVersion.h"
 
 #define LOCTEXT_NAMESPACE "ParametricSurfaceData"
 
-bool UParametricSurfaceData::SetFile(const TCHAR* FilePath)
+bool UDatasmithParametricSurfaceData::SetFile(const TCHAR* FilePath)
 {
 	if (FPaths::FileExists(FilePath))
 	{
@@ -23,12 +25,12 @@ bool UParametricSurfaceData::SetFile(const TCHAR* FilePath)
 	return false;
 }
 
-void UParametricSurfaceData::SetImportParameters(const CADLibrary::FImportParameters& InSceneParameters)
+void UDatasmithParametricSurfaceData::SetImportParameters(const CADLibrary::FImportParameters& InSceneParameters)
 {
 	SceneParameters.ModelCoordSys = uint8(InSceneParameters.GetModelCoordSys());
 }
 
-void UParametricSurfaceData::SetMeshParameters(const CADLibrary::FMeshParameters& InMeshParameters)
+void UDatasmithParametricSurfaceData::SetMeshParameters(const CADLibrary::FMeshParameters& InMeshParameters)
 {
 	MeshParameters.bNeedSwapOrientation = InMeshParameters.bNeedSwapOrientation;
 	MeshParameters.bIsSymmetric = InMeshParameters.bIsSymmetric;
@@ -36,7 +38,7 @@ void UParametricSurfaceData::SetMeshParameters(const CADLibrary::FMeshParameters
 	MeshParameters.SymmetricOrigin = (FVector) InMeshParameters.SymmetricOrigin;
 }
 
-void UParametricSurfaceData::Serialize(FArchive& Ar)
+void UDatasmithParametricSurfaceData::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FEnterpriseObjectVersion::GUID);
 

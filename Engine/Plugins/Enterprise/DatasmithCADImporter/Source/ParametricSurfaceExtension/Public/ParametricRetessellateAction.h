@@ -4,9 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "ParametricSurfaceData.h"
 #include "DatasmithCustomAction.h"
-#include "DatasmithAdditionalData.h"
 #include "DatasmithImportOptions.h"
 
 #include "ParametricRetessellateAction.generated.h"

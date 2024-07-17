@@ -2,7 +2,7 @@
 
 #include "ParametricSurfaceTranslator.h"
 
-#include "ParametricSurfaceData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "ParametricSurfaceModule.h"
 
 #include "CADOptions.h"
@@ -48,7 +48,7 @@ bool ParametricSurfaceUtils::AddSurfaceData(const TCHAR* MeshFilePath, const CAD
 {
 	if (MeshFilePath && IFileManager::Get().FileExists(MeshFilePath))
 	{
-		UParametricSurfaceData* ParametricSurfaceData = FParametricSurfaceModule::CreateParametricSurface();
+		UDatasmithParametricSurfaceData* ParametricSurfaceData = FParametricSurfaceModule::CreateParametricSurface();
 
 		if (!ParametricSurfaceData || !ParametricSurfaceData->SetFile(MeshFilePath))
 		{
@@ -60,12 +60,6 @@ bool ParametricSurfaceUtils::AddSurfaceData(const TCHAR* MeshFilePath, const CAD
 		ParametricSurfaceData->SetLastTessellationOptions(InCommonTessellationOptions);
 
 		OutMeshPayload.AdditionalData.Add(ParametricSurfaceData);
-
-		// Remove the file because it is temporary since caching is disabled.
-		if (!CADLibrary::FImportParameters::bGEnableCADCache)
-		{
-			IFileManager::Get().Delete(MeshFilePath);
-		}
 
 		return true;
 	}

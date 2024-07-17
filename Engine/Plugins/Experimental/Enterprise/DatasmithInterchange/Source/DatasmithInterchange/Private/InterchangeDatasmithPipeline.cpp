@@ -33,14 +33,6 @@
 #include "Engine/StaticMeshActor.h"
 #include "Components/StaticMeshComponent.h"
 
-#if WITH_EDITOR
-#include "DatasmithImporter.h"
-#include "DatasmithImportContext.h"
-#include "DatasmithStaticMeshImporter.h"
-#include "Misc/ScopedSlowTask.h"
-#include "Utility/DatasmithImporterUtils.h"
-#endif //WITH_EDITOR
-
 #define LOCTEXT_NAMESPACE "InterchangeDatasmithPipeline"
 
 namespace UE::Interchange::StaticMeshUtils

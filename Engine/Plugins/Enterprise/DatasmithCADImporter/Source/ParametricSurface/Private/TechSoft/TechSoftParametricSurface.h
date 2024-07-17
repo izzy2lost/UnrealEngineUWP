@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 
-#include "ParametricSurfaceData.h"
+#include "DatasmithParametricSurfaceData.h"
 #include "DatasmithAdditionalData.h"
 #include "DatasmithCustomAction.h"
 #include "DatasmithImportOptions.h"
@@ -13,7 +13,7 @@
 #include "TechSoftParametricSurface.generated.h"
 
 UCLASS(meta = (DisplayName = "TechSoft Parametric Surface Data"))
-class PARAMETRICSURFACE_API UTechSoftParametricSurfaceData : public UParametricSurfaceData
+class PARAMETRICSURFACE_API UTechSoftParametricSurfaceData : public UDatasmithParametricSurfaceData
 {
 	GENERATED_BODY()
 
