@@ -91,8 +91,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta=(Class = "/Script/LearningAgents.LearningAgentsPolicy", DeterminesOutputType = "Class", AutoCreateRefTerm = "PolicySettings"))
 	static ULearningAgentsPolicy* MakePolicy(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		TSubclassOf<ULearningAgentsPolicy> Class,
 		const FName Name = TEXT("Policy"),
 		ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset = nullptr,
@@ -126,8 +126,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "PolicySettings"))
 	void SetupPolicy(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset = nullptr,
 		ULearningAgentsNeuralNetwork* PolicyNeuralNetworkAsset = nullptr,
 		ULearningAgentsNeuralNetwork* DecoderNeuralNetworkAsset = nullptr,

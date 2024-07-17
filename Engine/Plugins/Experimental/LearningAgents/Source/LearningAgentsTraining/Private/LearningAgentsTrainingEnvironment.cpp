@@ -11,7 +11,7 @@ ULearningAgentsTrainingEnvironment::ULearningAgentsTrainingEnvironment(FVTableHe
 ULearningAgentsTrainingEnvironment::~ULearningAgentsTrainingEnvironment() = default;
 
 ULearningAgentsTrainingEnvironment* ULearningAgentsTrainingEnvironment::MakeTrainingEnvironment(
-	ULearningAgentsManager* InManager,
+	ULearningAgentsManager*& InManager,
 	TSubclassOf<ULearningAgentsTrainingEnvironment> Class,
 	const FName Name)
 {
@@ -37,7 +37,7 @@ ULearningAgentsTrainingEnvironment* ULearningAgentsTrainingEnvironment::MakeTrai
 	return TrainingEnvironment->IsSetup() ? TrainingEnvironment : nullptr;
 }
 
-void ULearningAgentsTrainingEnvironment::SetupTrainingEnvironment(ULearningAgentsManager* InManager)
+void ULearningAgentsTrainingEnvironment::SetupTrainingEnvironment(ULearningAgentsManager*& InManager)
 {
 	if (IsSetup())
 	{

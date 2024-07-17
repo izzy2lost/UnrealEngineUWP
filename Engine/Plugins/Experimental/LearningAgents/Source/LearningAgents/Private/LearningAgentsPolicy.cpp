@@ -37,8 +37,8 @@ ULearningAgentsPolicy::ULearningAgentsPolicy(FVTableHelper& Helper) : Super(Help
 ULearningAgentsPolicy::~ULearningAgentsPolicy() = default;
 
 ULearningAgentsPolicy* ULearningAgentsPolicy::MakePolicy(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	TSubclassOf<ULearningAgentsPolicy> Class,
 	const FName Name,
 	ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset,
@@ -83,8 +83,8 @@ ULearningAgentsPolicy* ULearningAgentsPolicy::MakePolicy(
 }
 
 void ULearningAgentsPolicy::SetupPolicy(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	ULearningAgentsNeuralNetwork* EncoderNeuralNetworkAsset,
 	ULearningAgentsNeuralNetwork* PolicyNeuralNetworkAsset,
 	ULearningAgentsNeuralNetwork* DecoderNeuralNetworkAsset,

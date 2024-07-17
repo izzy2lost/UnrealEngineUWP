@@ -29,9 +29,9 @@ void ULearningAgentsImitationTrainer::BeginDestroy()
 }
 
 ULearningAgentsImitationTrainer* ULearningAgentsImitationTrainer::MakeImitationTrainer(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsPolicy*& InPolicy,
 	TSubclassOf<ULearningAgentsImitationTrainer> Class)
 {
 	if (!InManager)

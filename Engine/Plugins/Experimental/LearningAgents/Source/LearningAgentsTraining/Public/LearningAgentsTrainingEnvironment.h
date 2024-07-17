@@ -30,7 +30,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DeterminesOutputType = "Class", AutoCreateRefTerm = "TrainerSettings"))
 	static ULearningAgentsTrainingEnvironment* MakeTrainingEnvironment(
-		ULearningAgentsManager* InManager,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
 		TSubclassOf<ULearningAgentsTrainingEnvironment> Class,
 		const FName Name = TEXT("TrainingEnvironment"));
 
@@ -38,7 +38,7 @@ public:
 	 * Initializes the training environment and runs the setup functions for rewards and completions.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "TrainerSettings"))
-	void SetupTrainingEnvironment(ULearningAgentsManager* InManager);
+	void SetupTrainingEnvironment(UPARAM(ref) ULearningAgentsManager*& InManager);
 
 public:
 

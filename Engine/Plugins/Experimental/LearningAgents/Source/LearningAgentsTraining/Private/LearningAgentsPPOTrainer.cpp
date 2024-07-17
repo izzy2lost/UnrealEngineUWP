@@ -43,11 +43,11 @@ void ULearningAgentsPPOTrainer::BeginDestroy()
 }
 
 ULearningAgentsPPOTrainer* ULearningAgentsPPOTrainer::MakePPOTrainer(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsTrainingEnvironment* InTrainingEnvironment,
-	ULearningAgentsPolicy* InPolicy,
-	ULearningAgentsCritic* InCritic,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsTrainingEnvironment*& InTrainingEnvironment,
+	ULearningAgentsPolicy*& InPolicy,
+	ULearningAgentsCritic*& InCritic,
 	const FLearningAgentsCommunicator& Communicator,
 	TSubclassOf<ULearningAgentsPPOTrainer> Class,
 	const FName Name,
@@ -76,11 +76,11 @@ ULearningAgentsPPOTrainer* ULearningAgentsPPOTrainer::MakePPOTrainer(
 }
 
 void ULearningAgentsPPOTrainer::SetupPPOTrainer(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsTrainingEnvironment* InTrainingEnvironment,
-	ULearningAgentsPolicy* InPolicy,
-	ULearningAgentsCritic* InCritic,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsTrainingEnvironment*& InTrainingEnvironment,
+	ULearningAgentsPolicy*& InPolicy,
+	ULearningAgentsCritic*& InCritic,
 	const FLearningAgentsCommunicator& Communicator,
 	const FLearningAgentsPPOTrainerSettings& TrainerSettings)
 {

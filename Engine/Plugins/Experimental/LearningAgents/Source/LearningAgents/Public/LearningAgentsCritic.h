@@ -70,9 +70,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgents.LearningAgentsCritic", DeterminesOutputType = "Class", AutoCreateRefTerm = "CriticSettings"))
 	static ULearningAgentsCritic* MakeCritic(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsPolicy* InPolicy,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
+		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
 		TSubclassOf<ULearningAgentsCritic> Class,
 		const FName Name = TEXT("Critic"),
 		ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset = nullptr,
@@ -95,9 +95,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "CriticSettings"))
 	void SetupCritic(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsPolicy* InPolicy,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
+		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
 		ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset = nullptr,
 		const bool bReinitializeCriticNetwork = true,
 		const FLearningAgentsCriticSettings& CriticSettings = FLearningAgentsCriticSettings(),

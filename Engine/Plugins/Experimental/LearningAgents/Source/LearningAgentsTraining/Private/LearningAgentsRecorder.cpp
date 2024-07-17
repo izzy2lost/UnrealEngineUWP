@@ -107,8 +107,8 @@ void ULearningAgentsRecorder::BeginDestroy()
 }
 
 ULearningAgentsRecorder* ULearningAgentsRecorder::MakeRecorder(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	TSubclassOf<ULearningAgentsRecorder> Class,
 	const FName Name,
 	const FLearningAgentsRecorderPathSettings& RecorderPathSettings,
@@ -143,8 +143,8 @@ ULearningAgentsRecorder* ULearningAgentsRecorder::MakeRecorder(
 }
 
 void ULearningAgentsRecorder::SetupRecorder(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
 	const FLearningAgentsRecorderPathSettings& RecorderPathSettings,
 	ULearningAgentsRecording* RecordingAsset,
 	bool bReinitializeRecording)

@@ -52,7 +52,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DeterminesOutputType = "Class"))
 	static ULearningAgentsInteractor* MakeInteractor(
-		ULearningAgentsManager* InManager, 
+		UPARAM(ref) ULearningAgentsManager*& InManager,
 		TSubclassOf<ULearningAgentsInteractor> Class,
 		const FName Name = TEXT("Interactor"));
 
@@ -62,7 +62,7 @@ public:
 	 * @param InManager						The input Manager
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
-	void SetupInteractor(ULearningAgentsManager* InManager);
+	void SetupInteractor(UPARAM(ref) ULearningAgentsManager*& InManager);
 
 public:
 

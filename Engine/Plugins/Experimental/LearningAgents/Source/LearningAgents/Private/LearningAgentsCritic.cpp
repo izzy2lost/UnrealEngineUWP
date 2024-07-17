@@ -38,9 +38,9 @@ ULearningAgentsCritic::ULearningAgentsCritic(FVTableHelper& Helper) : Super(Help
 ULearningAgentsCritic::~ULearningAgentsCritic() = default;
 
 ULearningAgentsCritic* ULearningAgentsCritic::MakeCritic(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor,
-	ULearningAgentsPolicy* InPolicy,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor,
+	ULearningAgentsPolicy*& InPolicy,
 	TSubclassOf<ULearningAgentsCritic> Class,
 	const FName Name,
 	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
@@ -78,9 +78,9 @@ ULearningAgentsCritic* ULearningAgentsCritic::MakeCritic(
 }
 
 void ULearningAgentsCritic::SetupCritic(
-	ULearningAgentsManager* InManager,
-	ULearningAgentsInteractor* InInteractor, 
-	ULearningAgentsPolicy* InPolicy,
+	ULearningAgentsManager*& InManager,
+	ULearningAgentsInteractor*& InInteractor, 
+	ULearningAgentsPolicy*& InPolicy,
 	ULearningAgentsNeuralNetwork* CriticNeuralNetworkAsset,
 	const bool bReinitializeCriticNetwork,
 	const FLearningAgentsCriticSettings& CriticSettings,

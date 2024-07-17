@@ -47,8 +47,8 @@ void ULearningAgentsController::EvaluateAgentControllers_Implementation(
 }
 
 ULearningAgentsController* ULearningAgentsController::MakeController(
-	ULearningAgentsManager* InManager, 
-	ULearningAgentsInteractor* InInteractor, 
+	ULearningAgentsManager*& InManager, 
+	ULearningAgentsInteractor*& InInteractor, 
 	TSubclassOf<ULearningAgentsController> Class,
 	const FName Name)
 {
@@ -74,7 +74,7 @@ ULearningAgentsController* ULearningAgentsController::MakeController(
 	return Controller->IsSetup() ? Controller : nullptr;
 }
 
-void ULearningAgentsController::SetupController(ULearningAgentsManager* InManager, ULearningAgentsInteractor* InInteractor)
+void ULearningAgentsController::SetupController(ULearningAgentsManager*& InManager, ULearningAgentsInteractor*& InInteractor)
 {
 	if (IsSetup())
 	{

@@ -63,8 +63,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgentsTraining.LearningAgentsRecorder", DeterminesOutputType = "Class", AutoCreateRefTerm = "RecorderPathSettings"))
 	static ULearningAgentsRecorder* MakeRecorder(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		TSubclassOf<ULearningAgentsRecorder> Class,
 		const FName Name = TEXT("Recorder"),
 		const FLearningAgentsRecorderPathSettings& RecorderPathSettings = FLearningAgentsRecorderPathSettings(),
@@ -83,8 +83,8 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "RecorderPathSettings"))
 	void SetupRecorder(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
 		const FLearningAgentsRecorderPathSettings& RecorderPathSettings = FLearningAgentsRecorderPathSettings(),
 		ULearningAgentsRecording* RecordingAsset = nullptr,
 		bool bReinitializeRecording = true);

@@ -141,9 +141,9 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgentsTraining.LearningAgentsImitationTrainer", DeterminesOutputType = "Class"))
 	static ULearningAgentsImitationTrainer* MakeImitationTrainer(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsPolicy* InPolicy,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
+		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
 		TSubclassOf<ULearningAgentsImitationTrainer> Class);
 
 	/**

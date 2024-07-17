@@ -37,14 +37,14 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (DeterminesOutputType = "Class"))
 	static ULearningAgentsController* MakeController(
-		ULearningAgentsManager* InManager, 
-		ULearningAgentsInteractor* InInteractor, 
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor, 
 		TSubclassOf<ULearningAgentsController> Class,
 		const FName Name = TEXT("Controller"));
 
 	/** Initializes this object to be used with the given agent interactor. */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents")
-	void SetupController(ULearningAgentsManager* InManager, ULearningAgentsInteractor* InInteractor);
+	void SetupController(UPARAM(ref) ULearningAgentsManager*& InManager, UPARAM(ref) ULearningAgentsInteractor*& InInteractor);
 
 	/**
 	 * This callback should be overridden by the Controller and produces an Action Object Element from an Observation Object Element.

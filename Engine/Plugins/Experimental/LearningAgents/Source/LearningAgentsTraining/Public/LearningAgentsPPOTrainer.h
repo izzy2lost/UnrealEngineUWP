@@ -322,11 +322,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (Class = "/Script/LearningAgents.LearningAgentsPPOTrainer", DeterminesOutputType = "Class", AutoCreateRefTerm = "TrainerSettings"))
 	static ULearningAgentsPPOTrainer* MakePPOTrainer(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsTrainingEnvironment* InTrainingEnvironment,
-		ULearningAgentsPolicy* InPolicy,
-		ULearningAgentsCritic* InCritic,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
+		UPARAM(ref) ULearningAgentsTrainingEnvironment*& InTrainingEnvironment,
+		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
+		UPARAM(ref) ULearningAgentsCritic*& InCritic,
 		const FLearningAgentsCommunicator& Communicator,
 		TSubclassOf<ULearningAgentsPPOTrainer> Class,
 		const FName Name = TEXT("PPOTrainer"),
@@ -345,11 +345,11 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "LearningAgents", meta = (AutoCreateRefTerm = "TrainerSettings"))
 	void SetupPPOTrainer(
-		ULearningAgentsManager* InManager,
-		ULearningAgentsInteractor* InInteractor,
-		ULearningAgentsTrainingEnvironment* InTrainingEnvironment,
-		ULearningAgentsPolicy* InPolicy,
-		ULearningAgentsCritic* InCritic,
+		UPARAM(ref) ULearningAgentsManager*& InManager,
+		UPARAM(ref) ULearningAgentsInteractor*& InInteractor,
+		UPARAM(ref) ULearningAgentsTrainingEnvironment*& InTrainingEnvironment,
+		UPARAM(ref) ULearningAgentsPolicy*& InPolicy,
+		UPARAM(ref) ULearningAgentsCritic*& InCritic,
 		const FLearningAgentsCommunicator& Communicator,
 		const FLearningAgentsPPOTrainerSettings& TrainerSettings = FLearningAgentsPPOTrainerSettings());
 

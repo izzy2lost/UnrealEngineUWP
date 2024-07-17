@@ -18,7 +18,7 @@ ULearningAgentsInteractor::ULearningAgentsInteractor(FVTableHelper& Helper) : Su
 ULearningAgentsInteractor::~ULearningAgentsInteractor() = default;
 
 ULearningAgentsInteractor* ULearningAgentsInteractor::MakeInteractor(
-	ULearningAgentsManager* InManager,
+	ULearningAgentsManager*& InManager,
 	TSubclassOf<ULearningAgentsInteractor> Class,
 	const FName Name)
 {
@@ -44,7 +44,7 @@ ULearningAgentsInteractor* ULearningAgentsInteractor::MakeInteractor(
 	return Interactor->IsSetup() ? Interactor : nullptr;
 }
 
-void ULearningAgentsInteractor::SetupInteractor(ULearningAgentsManager* InManager)
+void ULearningAgentsInteractor::SetupInteractor(ULearningAgentsManager*& InManager)
 {
 	if (IsSetup())
 	{
