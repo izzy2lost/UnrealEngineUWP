@@ -9,7 +9,6 @@
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes_PostRender.h"
 #include "DisplayClusterProjectionStrings.h"
-#include "DisplayClusterPropertySkipperArchive.h"
 
 #include "Engine/StaticMesh.h"
 #include "UObject/Package.h"
@@ -338,12 +337,17 @@ void UDisplayClusterConfigurationClusterNode::PostLoad()
 
 void UDisplayClusterConfigurationClusterNode::Serialize(FArchive& Ar)
 {
-	// Use our custom archive to skip serializing Media except for archetypes.
-
-	FDisplayClusterPropertySkipperArchive PropertySkipperAr = FDisplayClusterPropertySkipperArchive(Ar);
-	check(PropertySkipperAr.AddPropertyToSkip(StaticClass(), GET_MEMBER_NAME_CHECKED(UDisplayClusterConfigurationClusterNode, MediaSettings)));
-
-	return Super::Serialize(PropertySkipperAr);
+	// When loading, overwrite Media settings with defaults unless this is the archetype
+	if (Ar.IsLoading() && !IsTemplate())
+	{
+		const FDisplayClusterConfigurationMediaNodeBackbuffer MediaSettingsOriginal = MediaSettings;
+		Super::Serialize(Ar);
+		MediaSettings = MediaSettingsOriginal;
+	}
+	else
+	{
+		Super::Serialize(Ar);
+	}
 }
 
 UDisplayClusterConfigurationClusterNode::UDisplayClusterConfigurationClusterNode()

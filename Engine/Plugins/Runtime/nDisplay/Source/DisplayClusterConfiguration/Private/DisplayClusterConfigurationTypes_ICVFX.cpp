@@ -2,7 +2,7 @@
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterConfigurationTypes.h"
-#include "DisplayClusterPropertySkipperArchive.h"
+#include "DisplayClusterConfigurationUtils.h"
 #include "IDisplayCluster.h"
 #include "Camera/CameraTypes.h"
 #include "CineCameraComponent.h"
@@ -64,14 +64,25 @@ void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const
 
 bool FDisplayClusterConfigurationICVFX_CameraRenderSettings::Serialize(FArchive& Ar)
 {	
-	// Use our custom archive to skip serializing Media except for archetypes.
+	// When loading, overwrite Media settings with defaults unless this is the archetype
+
+	if (!Ar.IsLoading() && !Ar.IsSaving())
+	{
+		return true;
+	}
 
 	UScriptStruct& Struct = *StaticStruct();
 
-	FDisplayClusterPropertySkipperArchive PropertySkipperAr = FDisplayClusterPropertySkipperArchive(Ar);
-	check(PropertySkipperAr.AddPropertyToSkip(&Struct, GET_MEMBER_NAME_CHECKED(FDisplayClusterConfigurationICVFX_CameraRenderSettings, Media)));
-
-	Struct.SerializeTaggedProperties(PropertySkipperAr, (uint8*)this, &Struct, nullptr);
+	if (Ar.IsLoading() && !FDisplayClusterConfigurationUtils::IsSerializingTemplate(Ar))
+	{
+		const FDisplayClusterConfigurationMediaICVFX MediaOriginal = Media;
+		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
+		Media = MediaOriginal;
+	}
+	else
+	{
+		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
+	}
 
 	return true;
 }
