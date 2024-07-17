@@ -12,9 +12,6 @@
 #include "VulkanThirdParty.h"
 #include "VulkanBackend.h"
 #include "VulkanShaderResources.h"
-#include "Serialization/MemoryWriter.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Paths.h"
 
 #include "SpirVShaderCompiler.inl"
 

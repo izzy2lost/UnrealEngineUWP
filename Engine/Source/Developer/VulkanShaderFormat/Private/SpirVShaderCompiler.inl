@@ -2,6 +2,9 @@
 // .
 
 #include "SpirvCommon.h"
+#include "Serialization/MemoryWriter.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 // A collection of states and data that is locked in at the top level call and doesn't change throughout the compilation process
 class FSpirvShaderCompilerInternalState
