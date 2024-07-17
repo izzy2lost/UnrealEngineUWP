@@ -174,7 +174,8 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			for (const FComputeKernelCompileMessage& Message : NodeAndCompileMessages.Get<1>())
 			{
-				if (Message.Type == FComputeKernelCompileMessage::EMessageType::Error)
+				// Currently failure messages can come through with Log severity, pattern match for now.
+				if (Message.Type == FComputeKernelCompileMessage::EMessageType::Error || Message.Text.Contains(TEXT("failed"), ESearchCase::IgnoreCase))
 				{
 					return true;
 				}
@@ -284,6 +285,11 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 				}
 				else if (Message.Type == FComputeKernelCompileMessage::EMessageType::Error)
 				{
+					Verbosity = ELogVerbosity::Error;
+				}
+				else if (Message.Text.Contains(TEXT("failed"), ESearchCase::IgnoreCase))
+				{
+					// Currently failure messages can come through with Log verbosity.
 					Verbosity = ELogVerbosity::Error;
 				}
 
