@@ -692,8 +692,19 @@ namespace PropertyPathHelpersInternal
 			// We only support calling functions that return a single value and take no parameters.
 			if ( InFunction->NumParms == 1 )
 			{
+				// Find the pointer to the only param
+				FProperty* ReturnProperty = nullptr;
+				for (TFieldIterator<FProperty> It(InFunction); It; ++It)
+				{
+					if (It->PropertyFlags & CPF_Parm)
+					{
+						ReturnProperty = *It;
+						break;
+					}
+				}
+
 				// Verify there's a return property.
-				if ( FProperty* ReturnProperty = InFunction->GetReturnProperty() )
+				if ( ReturnProperty && ReturnProperty->PropertyFlags & (CPF_ReturnParm | CPF_OutParm) )
 				{
 					// Verify that the cpp type matches a known property type.
 					if ( IsConcreteTypeCompatibleWithReflectedType<T>(ReturnProperty) )

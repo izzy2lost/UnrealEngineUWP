@@ -300,6 +300,15 @@ private:
 	ECheckBoxState OnGetDeprecatedCheckboxState() const;
 	void OnDeprecatedChanged(ECheckBoxState InNewState);
 
+	EVisibility GetDropDownOptionsVisibility() const;
+	void OnDropDownOptionSelectionChanged(TSharedPtr<FString> InString, ESelectInfo::Type);
+	void OnDropDownOptionTextChanged(const FText& Text, ETextCommit::Type);
+	TSharedRef<SWidget> GenerateDropDownOptionWidget(TSharedPtr<FString> InItem) const;
+	void CollectDropDownOptions();
+	FText GetDropDownOptionDisplayText() const;
+	FString GetDropDownOptionsFunctionName() const;
+	void SetDropDownOptionsFunctionName(const FString& InFunctionName);
+
 	FText GetDeprecationMessageText() const;
 	void OnDeprecationMessageTextCommitted(const FText& NewText, ETextCommit::Type InTextCommit, FName VarName);
 
@@ -332,6 +341,9 @@ private:
 
 	/** Array of replication options for our combo text box */
 	TArray<TSharedPtr<FString>> ReplicationOptions;
+
+	/** Array of function names that can be used for GetOptions */
+	TArray<TSharedPtr<FString>> DropDownFunctionOptions;
 
 	/** Array of units options for our combo text box */
 	TArray<TSharedPtr<FString>> UnitsOptions;
