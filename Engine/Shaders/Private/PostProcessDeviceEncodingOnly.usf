@@ -27,8 +27,6 @@ SamplerState ColorSampler;
 
 float EditorNITLevel;
 
-uint bOutputInHDR;
-
 uint OutputDevice;
 uint OutputGamut;
 float OutputMaxLuminance;

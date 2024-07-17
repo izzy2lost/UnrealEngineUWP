@@ -87,7 +87,6 @@ float4 ScreenPosToFilmGrainTextureUV;
 float BackbufferQuantizationDithering;
 float EditorNITLevel;
 
-uint bOutputInHDR;
 float OutputMaxLuminance;
 
 float4 BloomDirtMaskTint;
@@ -544,17 +543,6 @@ float4 TonemapCommonPS(
 	#if POST_PROCESS_ALPHA == 2 || (POST_PROCESS_ALPHA == 1 && DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_NoToneCurve)  || (POST_PROCESS_ALPHA == 1 && DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_WithToneCurve)
 		OutColor.a = SceneColor.a;
 	#endif
-
-#if PC_D3D && !USE_GAMMA_ONLY
-	// If HDR in the editor need to convert from PQ space to linear sRGB
-	BRANCH
-	if(bOutputInHDR)
-	{
-		OutColor.rgb = ST2084ToLinear(OutColor.rgb);
-		OutColor.rgb = OutColor.rgb / EditorNITLevel;
-        OutColor.rgb = LinearToPostTonemapSpace(OutColor.rgb);
-	}
-#endif
 
 	#if !USE_GAMMA_ONLY
 	{
