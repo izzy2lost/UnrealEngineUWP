@@ -2767,7 +2767,7 @@ public:
 			{
 				if (bAddNewNamedLibrary)
 				{
-					UE_LOG(LogShaderLibrary, Display, TEXT("Tried to open shader library '%s', but could not find it%s"), *Name, 
+					UE_LOG(LogShaderLibrary, Verbose, TEXT("Tried to open shader library '%s', but could not find it%s"), *Name,
 						bMonolithicOnly ? TEXT(" (only tried to open it as a monolithic library).") : TEXT(" neither as a monolithic library nor as a chunked one."));
 
 					check(Library->GetNumComponents() == 0);
