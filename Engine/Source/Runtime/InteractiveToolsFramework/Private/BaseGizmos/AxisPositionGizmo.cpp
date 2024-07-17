@@ -1,10 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BaseGizmos/AxisPositionGizmo.h"
+
 #include "InteractiveGizmoManager.h"
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseBehaviors/MouseHoverBehavior.h"
 #include "BaseGizmos/GizmoMath.h"
+#include "BaseGizmos/GizmoPrivateUtil.h" // SetCommonSubGizmoProperties
+#include "BaseGizmos/TransformSubGizmoUtil.h" // FTransformSubGizmoCommonParams
+#include "Components/PrimitiveComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AxisPositionGizmo)
 
@@ -39,6 +43,88 @@ void UAxisPositionGizmo::Setup()
 	StateTarget = NewObject<UGizmoNilStateTarget>(this);
 
 	bInInteraction = false;
+}
+
+bool UAxisPositionGizmo::InitializeAsTranslateGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params,
+	UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	if (!Params.Component
+		|| !Params.TransformProxy
+		|| Params.Axis == EAxis::None)
+	{
+		return false;
+	}
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+	if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+
+	// Parameter source maps axis-parameter-change to translation of TransformSource's transform
+	ParameterSource = UGizmoAxisTranslationParameterSource::Construct(
+		AxisSource.GetInterface(), TransformSource, Owner);
+
+	return true;
+}
+
+bool UAxisPositionGizmo::InitializeAsScaleGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params,
+	bool bDisallowNegativeScaling, UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	if (!Params.Component
+		|| !Params.TransformProxy
+		|| Params.Axis == EAxis::None)
+	{
+		return false;
+	}
+
+	int AxisIndex = Params.GetClampedAxisIndex();
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+	if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+	bEnableSignedAxis = true;
+
+	// Although the normal axis source gets used for detecting interactions, the parameter application has
+	// to happen along unrotated axes because the scaling gets applied before rotation. In other words if we
+	// tried to apply scaling measured along a rotated vector, we would end up incorrectly scaling along
+	// multiple axes.
+	UGizmoComponentAxisSource* UnitCardinalAxisSource = nullptr;
+	// See if we already have it in our shared state
+	if (SharedState && SharedState->UnitCardinalAxisSources[AxisIndex])
+	{
+		UnitCardinalAxisSource = SharedState->UnitCardinalAxisSources[AxisIndex];
+	}
+	else
+	{
+		// Create new and add to shared state.
+		USceneComponent* RootComponent = Params.Component->GetOwner()->GetRootComponent();
+		UGizmoComponentAxisSource* CastAxisSource = UGizmoComponentAxisSource::Construct(RootComponent, AxisIndex,
+			// bUseLocalAxes, not important because we're going to be updating this value every tick
+			true,
+			Owner);
+		UnitCardinalAxisSource = CastAxisSource;
+		if (SharedState)
+		{
+			SharedState->UnitCardinalAxisSources[AxisIndex] = UnitCardinalAxisSource;
+		}
+	}
+
+	// Parameter source maps axis-parameter-change to scale of TransformSource's transform
+	UGizmoAxisScaleParameterSource* CastParameterSource = UGizmoAxisScaleParameterSource::Construct(
+		UnitCardinalAxisSource, TransformSource, Owner);
+	ParameterSource = CastParameterSource;
+	CastParameterSource->bClampToZero = bDisallowNegativeScaling;
+
+	return true;
 }
 
 FInputRayHit UAxisPositionGizmo::CanBeginClickDragSequence(const FInputDeviceRay& PressPos)
@@ -88,14 +174,13 @@ void UAxisPositionGizmo::OnClickPress(const FInputDeviceRay& PressPos)
 
 	bInInteraction = true;
 
-	if (HitTarget)
-	{
-		HitTarget->UpdateInteractingState(bInInteraction);
-	}
-
 	if (StateTarget)
 	{
 		StateTarget->BeginUpdate();
+	}
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
 	}
 }
 
@@ -141,7 +226,7 @@ void UAxisPositionGizmo::OnClickRelease(const FInputDeviceRay& ReleasePos)
 	}
 	bInInteraction = false;
 
-	if (HitTarget)
+	if (ensure(HitTarget))
 	{
 		HitTarget->UpdateInteractingState(bInInteraction);
 	}
@@ -158,8 +243,7 @@ void UAxisPositionGizmo::OnTerminateDragSequence()
 		StateTarget->EndUpdate();
 	}
 	bInInteraction = false;
-
-	if (HitTarget)
+	if (ensure(HitTarget))
 	{
 		HitTarget->UpdateInteractingState(bInInteraction);
 	}

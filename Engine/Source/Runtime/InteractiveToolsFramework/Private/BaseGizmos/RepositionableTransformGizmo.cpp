@@ -10,6 +10,7 @@
 #include "BaseGizmos/PlanePositionGizmo.h"
 #include "BaseGizmos/TransformProxy.h"
 #include "BaseGizmos/TransformSources.h"
+#include "BaseGizmos/TransformSubGizmoUtil.h"
 #include "ContextObjectStore.h"
 
 #include "InteractiveGizmo.h"
@@ -71,67 +72,65 @@ void URepositionableTransformGizmo::SetActiveTarget(UTransformProxy* Target, ITo
 	ProxyChangeSource->bOverrideSetPivotMode = true;
 	RepositionStateTarget->DependentChangeSources.Add(MoveTemp(ProxyChangeSource));
 
+	// Pack the above up for use in the initialization functions
+	FTransformSubGizmoSharedState SharedStateToUse;
+	SharedStateToUse.TransformSource = TransformSource;
+	SharedStateToUse.StateTarget = RepositionStateTarget;
+	// The shared data struct should have been created in the base class SetActiveTarget
+	if (ensure(SubGizmoSharedState.IsValid()))
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			SharedStateToUse.CardinalAxisSources[i] = SubGizmoSharedState->CardinalAxisSources[i];
+		}
+	}
+
 	// Add on the extra gizmos to existing components. We use the base class addition functions and
 	// then go back to tweak the parts that need changing using our own "Modify..." functions.
 	// We also store the repositioning gizmos in an additional separate list so that we can
 	// modify their alignment functions separately if we need to.
-	if (GizmoActor->TranslateX != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateX, GizmoComponent, AxisXSource, TransformSource, RepositionStateTarget, 0);
-		ModifyPivotAxisGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
-	if (GizmoActor->TranslateY != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateY, GizmoComponent, AxisYSource, TransformSource, RepositionStateTarget, 1);
-		ModifyPivotAxisGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
-	if (GizmoActor->TranslateZ != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateZ, GizmoComponent, AxisZSource, TransformSource, RepositionStateTarget, 2);
-		ModifyPivotAxisGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
 
+	UE::GizmoUtil::FTransformSubGizmoCommonParams Params;
+	Params.TransformProxy = ActiveTarget;
+	Params.TransactionProvider = TransactionProvider;
+	Params.bManipulatesRootComponent = true;
 
-	if (GizmoActor->TranslateYZ != nullptr)
+	EAxis::Type Axes[3] = { EAxis::X, EAxis::Y, EAxis::Z };
+	UPrimitiveComponent* TranslateAxisComponents[3]{ GizmoActor->TranslateX, GizmoActor->TranslateY, GizmoActor->TranslateZ };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* SubGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateYZ, GizmoComponent, AxisXSource, TransformSource, RepositionStateTarget, 1, 2);
-		ModifyPivotPlaneGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
+		if (TranslateAxisComponents[AxisIndex])
+		{
+			Params.Component = TranslateAxisComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			UInteractiveGizmo* SubGizmo = AddAxisTranslationGizmo(Params, SharedStateToUse);
+			ModifyPivotAxisGizmo(SubGizmo);
+			PivotAlignmentGizmos.Add(SubGizmo);
+		}
 	}
-	if (GizmoActor->TranslateXZ != nullptr)
+	UPrimitiveComponent* TranslatePlaneComponents[3]{ GizmoActor->TranslateYZ, GizmoActor->TranslateXZ, GizmoActor->TranslateXY };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* SubGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateXZ, GizmoComponent, AxisYSource, TransformSource, RepositionStateTarget, 2, 0);
-		ModifyPivotPlaneGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
+		if (TranslatePlaneComponents[AxisIndex])
+		{
+			Params.Component = TranslatePlaneComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			UInteractiveGizmo* SubGizmo = AddPlaneTranslationGizmo(Params, SharedStateToUse);
+			ModifyPivotPlaneGizmo(SubGizmo);
+			PivotAlignmentGizmos.Add(SubGizmo);
+		}
 	}
-	if (GizmoActor->TranslateXY != nullptr)
+	UPrimitiveComponent* RotationAxisComponents[3]{ GizmoActor->RotateX, GizmoActor->RotateY, GizmoActor->RotateZ };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* SubGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateXY, GizmoComponent, AxisZSource, TransformSource, RepositionStateTarget, 0, 1);
-		ModifyPivotPlaneGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
-
-
-	if (GizmoActor->RotateX != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisRotationGizmo(GizmoActor->RotateX, GizmoComponent, AxisXSource, TransformSource, RepositionStateTarget);
-		ModifyPivotRotateGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
-	if (GizmoActor->RotateY != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisRotationGizmo(GizmoActor->RotateY, GizmoComponent, AxisYSource, TransformSource, RepositionStateTarget);
-		ModifyPivotRotateGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
-	}
-	if (GizmoActor->RotateZ != nullptr)
-	{
-		UInteractiveGizmo* SubGizmo = AddAxisRotationGizmo(GizmoActor->RotateZ, GizmoComponent, AxisZSource, TransformSource, RepositionStateTarget);
-		ModifyPivotRotateGizmo(SubGizmo);
-		PivotAlignmentGizmos.Add(SubGizmo);
+		if (RotationAxisComponents[AxisIndex])
+		{
+			Params.Component = RotationAxisComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			UInteractiveGizmo* SubGizmo = AddAxisRotationGizmo(Params, SharedStateToUse);
+			ModifyPivotRotateGizmo(SubGizmo);
+			PivotAlignmentGizmos.Add(SubGizmo);
+		}
 	}
 }
 

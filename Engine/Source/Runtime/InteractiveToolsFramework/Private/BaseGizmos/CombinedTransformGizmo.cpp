@@ -13,9 +13,13 @@
 #include "BaseGizmos/GizmoCircleComponent.h"
 #include "BaseGizmos/GizmoBoxComponent.h"
 #include "BaseGizmos/GizmoLineHandleComponent.h"
+#include "BaseGizmos/GizmoPrivateUtil.h" // ToAxis
 #include "BaseGizmos/GizmoViewContext.h"
+#include "BaseGizmos/TransformSubGizmoUtil.h" // FTransformSubGizmoCommonParams, FTransformSubGizmoSharedState
 
+#include "Quaternion.h"
 #include "MathUtil.h"
+#include "MatrixTypes.h"
 #include "VectorUtil.h"
 
 // need this to implement hover
@@ -78,6 +82,105 @@ ACombinedTransformGizmoActor::ACombinedTransformGizmoActor()
 }
 
 
+
+
+bool ACombinedTransformGizmoActor::ReplaceSubGizmoComponent(ETransformGizmoSubElements Element,
+	UPrimitiveComponent* NewComponent, const FTransform& SubGizmoToGizmo, UPrimitiveComponent** ReplacedComponentOut)
+{
+	// We allow a null NewComponent (which equates to element removal), but if we do have a component,
+	//  it should have this actor in its outer chain. It might be possible to loosen that restriction,
+	//  but it's likely that something is wrong in this case.
+	if (NewComponent && !ensure(NewComponent->GetOwner() == this))
+	{
+		return false;
+	}
+
+	auto ReplaceComponent = [this, &SubGizmoToGizmo, NewComponent, ReplacedComponentOut](TObjectPtr<UPrimitiveComponent>& ComponentToReplace)
+	{
+		if (ComponentToReplace)
+		{
+			ComponentToReplace->DestroyComponent();
+		}
+		if (ReplacedComponentOut)
+		{
+			*ReplacedComponentOut = ComponentToReplace;
+		}
+
+		ComponentToReplace = NewComponent;
+
+		if (NewComponent)
+		{
+			AddInstanceComponent(NewComponent);
+			NewComponent->AttachToComponent(GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+			NewComponent->SetRelativeTransform(SubGizmoToGizmo);
+			if (!NewComponent->IsRegistered())
+			{
+				NewComponent->RegisterComponent();
+			}
+		}
+	};
+
+	switch (Element)
+	{
+	case ETransformGizmoSubElements::TranslateAxisX:
+		ReplaceComponent(TranslateX);
+		break;
+	case ETransformGizmoSubElements::TranslateAxisY:
+		ReplaceComponent(TranslateY);
+		break;
+	case ETransformGizmoSubElements::TranslateAxisZ:
+		ReplaceComponent(TranslateZ);
+		break;
+	case ETransformGizmoSubElements::TranslatePlaneXY:
+		ReplaceComponent(TranslateXY);
+		break;
+	case ETransformGizmoSubElements::TranslatePlaneXZ:
+		ReplaceComponent(TranslateXZ);
+		break;
+	case ETransformGizmoSubElements::TranslatePlaneYZ:
+		ReplaceComponent(TranslateYZ);
+		break;
+	case ETransformGizmoSubElements::RotateAxisX:
+		ReplaceComponent(RotateX);
+		break;
+	case ETransformGizmoSubElements::RotateAxisY:
+		ReplaceComponent(RotateY);
+		break;
+	case ETransformGizmoSubElements::RotateAxisZ:
+		ReplaceComponent(RotateZ);
+		break;
+	case ETransformGizmoSubElements::ScaleAxisX:
+		ReplaceComponent(AxisScaleX);
+		break;
+	case ETransformGizmoSubElements::ScaleAxisY:
+		ReplaceComponent(AxisScaleY);
+		break;
+	case ETransformGizmoSubElements::ScaleAxisZ:
+		ReplaceComponent(AxisScaleZ);
+		break;
+	case ETransformGizmoSubElements::ScalePlaneXY:
+		ReplaceComponent(PlaneScaleXY);
+		break;
+	case ETransformGizmoSubElements::ScalePlaneXZ:
+		ReplaceComponent(PlaneScaleXZ);
+		break;
+	case ETransformGizmoSubElements::ScalePlaneYZ:
+		ReplaceComponent(PlaneScaleYZ);
+		break;
+	case ETransformGizmoSubElements::ScaleUniform:
+		ReplaceComponent(UniformScale);
+		break;
+	// We use the RotateAllAxes identifier for replacing the rotation sphere
+	case ETransformGizmoSubElements::RotateAllAxes:
+		ReplaceComponent(RotationSphere);
+		break;
+	default:
+		UE_LOG(LogGeometry, Warning, TEXT("UCombinedTransformGizmo::SetSubGizmoComponent currently only supports a "
+			"single sub gizmo element at a time."));
+		return false;
+	}
+	return true;
+}
 
 ACombinedTransformGizmoActor* ACombinedTransformGizmoActor::ConstructDefault3AxisGizmo(UWorld* World, UGizmoViewContext* GizmoViewContext)
 {
@@ -359,6 +462,164 @@ void UCombinedTransformGizmo::SetUpdateCoordSystemFunction(TFunction<void(UPrimi
 	UpdateCoordSystemFunction = CoordSysFunction;
 }
 
+bool UCombinedTransformGizmo::SetSubGizmoComponent(ETransformGizmoSubElements Element, 
+	UPrimitiveComponent* NewComponent, const FTransform& SubGizmoToGizmo)
+{
+	using namespace UE::Geometry;
+	using namespace CombinedTransformGizmoLocals;
+
+	if (!GizmoActor)
+	{
+		return false;
+	}
+
+	EAxis::Type Axis = UE::GizmoUtil::ToAxis(Element);
+
+	UPrimitiveComponent* ReplacedComponent = nullptr;
+	if (!GizmoActor->ReplaceSubGizmoComponent(Element, NewComponent, SubGizmoToGizmo, &ReplacedComponent))
+	{
+		return false;
+	}
+
+	if (!ActiveTarget)
+	{
+		// If the target is not set yet, then we're done for now. The rest of the setup
+		// should end up being done correctly once SetActiveTarget is called.
+		return true;
+	}
+
+	// If we got here, we'll need to do some more work to initialize or reinitialize our gizmo
+
+	// Look for the existing gizmo through our gizmo info arrays
+	if (ReplacedComponent)
+	{
+		ActiveComponents.RemoveSwap(ReplacedComponent);
+
+		TArray<FSubGizmoInfo>* ArrayToSearch = nullptr;
+		if ((Element & (ETransformGizmoSubElements::TranslateAllAxes | ETransformGizmoSubElements::TranslateAllPlanes))
+			!= ETransformGizmoSubElements::None)
+		{
+			ArrayToSearch = &TranslationSubGizmos;
+		}
+		else if ((Element & ETransformGizmoSubElements::RotateAllAxes) != ETransformGizmoSubElements::None)
+		{
+			ArrayToSearch = &RotationSubGizmos;
+		}
+		else if ((Element & (ETransformGizmoSubElements::ScaleAllAxes | ETransformGizmoSubElements::ScaleAllPlanes))
+			!= ETransformGizmoSubElements::None)
+		{
+			ArrayToSearch = &NonUniformScaleSubGizmos;
+		}
+		else if ((Element & ETransformGizmoSubElements::ScaleUniform) != ETransformGizmoSubElements::None)
+		{
+			ArrayToSearch = &UniformScaleSubGizmos;
+		}
+
+		int32 GizmoInfoIndex = -1;
+		FSubGizmoInfo* ExistingGizmoInfo = nullptr;
+		if (ensure(ArrayToSearch))
+		{
+			GizmoInfoIndex = ArrayToSearch->IndexOfByPredicate(
+				[ReplacedComponent](const FSubGizmoInfo& GizmoInfo) { return GizmoInfo.Component == ReplacedComponent; });
+			if (GizmoInfoIndex >= 0)
+			{
+				ExistingGizmoInfo = &(*ArrayToSearch)[GizmoInfoIndex];
+			}
+		}
+
+		if (ensure(ExistingGizmoInfo))
+		{
+			// We could call InitializeAs... on an existing gizmo to swap the component, but then we also need to set
+			// our constraint functions, etc. It seems cleaner code-wise to just destroy this gizmo and create a new one
+			// to make sure everything is updated. We just have to make sure we do the removal thoroughly.
+			if (UInteractiveGizmo* ExistingGizmo = ExistingGizmoInfo->Gizmo.Get())
+			{
+				GetGizmoManager()->DestroyGizmo(ExistingGizmo);
+				ActiveGizmos.Remove(ExistingGizmo);
+			}
+			ArrayToSearch->RemoveAtSwap(GizmoInfoIndex);
+		}
+	}
+
+	if (!NewComponent)
+	{
+		// If we're replacing with a nullptr, then we just wanted to remove that component.
+		// No need to add a gizmo back.
+		return true;
+	}
+
+	UE::GizmoUtil::FTransformSubGizmoCommonParams Params;
+	Params.TransformProxy = ActiveTarget;
+	Params.Axis = Axis;
+	Params.Component = NewComponent;
+	Params.TransactionProvider = TransactionProviderAtLastSetActiveTarget;
+	Params.bManipulatesRootComponent = true;
+
+	// The shared data struct should have been created during SetActiveTarget
+	if (!ensure(SubGizmoSharedState.IsValid()))
+	{
+		SubGizmoSharedState = MakeUnique<FTransformSubGizmoSharedState>();
+	}
+
+	switch (Element)
+	{
+	case ETransformGizmoSubElements::TranslateAxisX:
+	case ETransformGizmoSubElements::TranslateAxisY:
+	case ETransformGizmoSubElements::TranslateAxisZ:
+	{
+		AddAxisTranslationGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::TranslatePlaneXY:
+	case ETransformGizmoSubElements::TranslatePlaneXZ:
+	case ETransformGizmoSubElements::TranslatePlaneYZ:
+	{
+		AddPlaneTranslationGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::RotateAxisX:
+	case ETransformGizmoSubElements::RotateAxisY:
+	case ETransformGizmoSubElements::RotateAxisZ:
+	{
+		AddAxisRotationGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::ScaleAxisX:
+	case ETransformGizmoSubElements::ScaleAxisY:
+	case ETransformGizmoSubElements::ScaleAxisZ:
+	{
+		AddAxisScaleGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::ScalePlaneXY:
+	case ETransformGizmoSubElements::ScalePlaneXZ:
+	case ETransformGizmoSubElements::ScalePlaneYZ:
+	{
+		AddPlaneScaleGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::ScaleUniform:
+	{
+		AddUniformScaleGizmo(Params, *SubGizmoSharedState);
+		break;
+	}
+	case ETransformGizmoSubElements::RotateAllAxes:
+	{
+		// no gizmo for the sphere currently
+		if (ensure(GizmoActor->RotationSphere == NewComponent))
+		{
+			ActiveComponents.Add(GizmoActor->RotationSphere);
+			RotationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->RotationSphere, nullptr });
+		}
+		break;
+	}
+	default:
+		return ensure(false);
+	}
+
+	return true;
+}
+
 void UCombinedTransformGizmo::SetWorldAlignmentFunctions(
 	TUniqueFunction<bool()>&& ShouldAlignTranslationIn,
 	TUniqueFunction<bool(const FRay&, FVector&)>&& TranslationAlignmentRayCasterIn)
@@ -451,21 +712,27 @@ void UCombinedTransformGizmo::Setup()
 {
 	UInteractiveGizmo::Setup();
 
-	UpdateHoverFunction = [](UPrimitiveComponent* Component, bool bHovering)
+	if (!UpdateHoverFunction)
 	{
-		if (Cast<UGizmoBaseComponent>(Component) != nullptr)
+		UpdateHoverFunction = [](UPrimitiveComponent* Component, bool bHovering)
 		{
-			Cast<UGizmoBaseComponent>(Component)->UpdateHoverState(bHovering);
-		}
-	};
+			if (IGizmoBaseComponentInterface* CastComponent = Cast<IGizmoBaseComponentInterface>(Component))
+			{
+				CastComponent->UpdateHoverState(bHovering);
+			}
+		};
+	}
 
-	UpdateCoordSystemFunction = [](UPrimitiveComponent* Component, EToolContextCoordinateSystem CoordSystem)
+	if (!UpdateCoordSystemFunction)
 	{
-		if (Cast<UGizmoBaseComponent>(Component) != nullptr)
+		UpdateCoordSystemFunction = [](UPrimitiveComponent* Component, EToolContextCoordinateSystem CoordSystem)
 		{
-			Cast<UGizmoBaseComponent>(Component)->UpdateWorldLocalState(CoordSystem == EToolContextCoordinateSystem::World);
-		}
-	};
+			if (IGizmoBaseComponentInterface* CastComponent = Cast<IGizmoBaseComponentInterface>(Component))
+			{
+				CastComponent->UpdateWorldLocalState(CoordSystem == EToolContextCoordinateSystem::World);
+			}
+		};
+	}
 
 	GizmoActor = GizmoActorBuilder->CreateNewGizmoActor(World);
 }
@@ -572,6 +839,7 @@ void UCombinedTransformGizmo::SetActiveTarget(UTransformProxy* Target, IToolCont
 	}
 
 	ActiveTarget = Target;
+	TransactionProviderAtLastSetActiveTarget = TransactionProvider;
 
 	// move gizmo to target location
 	USceneComponent* GizmoComponent = GizmoActor->GetRootComponent();
@@ -581,84 +849,43 @@ void UCombinedTransformGizmo::SetActiveTarget(UTransformProxy* Target, IToolCont
 	GizmoTransform.SetScale3D(FVector(1, 1, 1));
 	GizmoComponent->SetWorldTransform(GizmoTransform);
 
-	UGizmoScaledAndUnscaledTransformSources* TransformSource = UGizmoScaledAndUnscaledTransformSources::Construct(
-		UGizmoTransformProxyTransformSource::Construct(ActiveTarget, this), 
-		GizmoComponent, this);
+	UE::GizmoUtil::FTransformSubGizmoCommonParams Params;
+	Params.TransformProxy = ActiveTarget;
+	Params.TransactionProvider = TransactionProvider;
+	Params.bManipulatesRootComponent = true;
 
-	// This state target emits an explicit FChange that moves the GizmoActor root component during undo/redo.
-	// It also opens/closes the Transaction that saves/restores the target object locations.
-	if (TransactionProvider == nullptr)
-	{
-		TransactionProvider = GetGizmoManager();
-	}
-	StateTarget = UGizmoTransformChangeStateTarget::Construct(GizmoComponent,
-		LOCTEXT("UCombinedTransformGizmoTransaction", "Transform"), TransactionProvider, this);
-	StateTarget->DependentChangeSources.Add(MakeUnique<FTransformProxyChangeSource>(Target));
+	SubGizmoSharedState = MakeUnique<UE::GizmoUtil::FTransformSubGizmoSharedState>();
 
-	CameraAxisSource = NewObject<UGizmoConstantFrameAxisSource>(this);
-
-	// root component provides local X/Y/Z axis, identified by AxisIndex
-	AxisXSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 0, true, this);
-	AxisYSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 1, true, this);
-	AxisZSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 2, true, this);
-
-	// todo should we hold onto these?
-	if (GizmoActor->TranslateX != nullptr)
+	EAxis::Type Axes[3] = { EAxis::X, EAxis::Y, EAxis::Z };
+	UPrimitiveComponent* TranslateAxisComponents[3]{ GizmoActor->TranslateX, GizmoActor->TranslateY, GizmoActor->TranslateZ };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* NewGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateX, GizmoComponent, AxisXSource, TransformSource, StateTarget, 0);
-		ActiveComponents.Add(GizmoActor->TranslateX);
-		TranslationSubGizmos.Add( FSubGizmoInfo{ GizmoActor->TranslateX, NewGizmo } );
+		if (TranslateAxisComponents[AxisIndex])
+		{
+			Params.Component = TranslateAxisComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			AddAxisTranslationGizmo(Params, *SubGizmoSharedState);
+		}
 	}
-	if (GizmoActor->TranslateY != nullptr)
+	UPrimitiveComponent* TranslatePlaneComponents[3]{ GizmoActor->TranslateYZ, GizmoActor->TranslateXZ, GizmoActor->TranslateXY };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* NewGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateY, GizmoComponent, AxisYSource, TransformSource, StateTarget, 1);
-		ActiveComponents.Add(GizmoActor->TranslateY);
-		TranslationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->TranslateY, NewGizmo });
+		if (TranslatePlaneComponents[AxisIndex])
+		{
+			Params.Component = TranslatePlaneComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			AddPlaneTranslationGizmo(Params, *SubGizmoSharedState);
+		}
 	}
-	if (GizmoActor->TranslateZ != nullptr)
+	UPrimitiveComponent* RotationAxisComponents[3]{ GizmoActor->RotateX, GizmoActor->RotateY, GizmoActor->RotateZ };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
 	{
-		UInteractiveGizmo* NewGizmo = AddAxisTranslationGizmo(GizmoActor->TranslateZ, GizmoComponent, AxisZSource, TransformSource, StateTarget, 2);
-		ActiveComponents.Add(GizmoActor->TranslateZ);
-		TranslationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->TranslateZ, NewGizmo });
-	}
-
-
-	if (GizmoActor->TranslateYZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateYZ, GizmoComponent, AxisXSource, TransformSource, StateTarget, 1, 2);
-		ActiveComponents.Add(GizmoActor->TranslateYZ);
-		TranslationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->TranslateYZ, NewGizmo });
-	}
-	if (GizmoActor->TranslateXZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateXZ, GizmoComponent, AxisYSource, TransformSource, StateTarget, 2, 0);	// flip here corresponds to UGizmoComponentAxisSource::GetTangentVectors()
-		ActiveComponents.Add(GizmoActor->TranslateXZ);
-		TranslationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->TranslateXZ, NewGizmo });
-	}
-	if (GizmoActor->TranslateXY != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneTranslationGizmo(GizmoActor->TranslateXY, GizmoComponent, AxisZSource, TransformSource, StateTarget, 0, 1);
-		ActiveComponents.Add(GizmoActor->TranslateXY);
-		TranslationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->TranslateXY, NewGizmo });
-	}
-
-	if (GizmoActor->RotateX != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisRotationGizmo(GizmoActor->RotateX, GizmoComponent, AxisXSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->RotateX);
-		RotationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->RotateX, NewGizmo });
-	}
-	if (GizmoActor->RotateY != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisRotationGizmo(GizmoActor->RotateY, GizmoComponent, AxisYSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->RotateY);
-		RotationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->RotateY, NewGizmo });
-	}
-	if (GizmoActor->RotateZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisRotationGizmo(GizmoActor->RotateZ, GizmoComponent, AxisZSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->RotateZ);
-		RotationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->RotateZ, NewGizmo });
+		if (RotationAxisComponents[AxisIndex])
+		{
+			Params.Component = RotationAxisComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			AddAxisRotationGizmo(Params, *SubGizmoSharedState);
+		}
 	}
 	if (GizmoActor->RotationSphere != nullptr)
 	{
@@ -666,59 +893,43 @@ void UCombinedTransformGizmo::SetActiveTarget(UTransformProxy* Target, IToolCont
 		ActiveComponents.Add(GizmoActor->RotationSphere);
 		RotationSubGizmos.Add(FSubGizmoInfo{ GizmoActor->RotationSphere, nullptr });
 	}
-
-
-	// only need these if scaling enabled. Essentially these are just the unit axes, regardless
-	// of what 3D axis is in use, we will tell the ParameterSource-to-3D-Scale mapper to
-	// use the coordinate axes
-	UnitAxisXSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 0, false, this);
-	UnitAxisYSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 1, false, this);
-	UnitAxisZSource = UGizmoComponentAxisSource::Construct(GizmoComponent, 2, false, this);
-
 	if (GizmoActor->UniformScale != nullptr)
 	{
-		UInteractiveGizmo* NewGizmo = AddUniformScaleGizmo(GizmoActor->UniformScale, GizmoComponent, CameraAxisSource, CameraAxisSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->UniformScale);
-		UniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->UniformScale, NewGizmo });
+		Params.Component = GizmoActor->UniformScale;
+		Params.Axis = EAxis::None;
+		AddUniformScaleGizmo(Params, *SubGizmoSharedState);
+	}
+	UPrimitiveComponent* ScaleAxisComponents[3]{ GizmoActor->AxisScaleX, GizmoActor->AxisScaleY, GizmoActor->AxisScaleZ };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+	{
+		if (ScaleAxisComponents[AxisIndex])
+		{
+			Params.Component = ScaleAxisComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			AddAxisScaleGizmo(Params, *SubGizmoSharedState);
+		}
+	}
+	UPrimitiveComponent* ScalePlaneComponents[3]{ GizmoActor->PlaneScaleYZ, GizmoActor->PlaneScaleXZ, GizmoActor->PlaneScaleXY };
+	for (int AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+	{
+		if (ScalePlaneComponents[AxisIndex])
+		{
+			Params.Component = ScalePlaneComponents[AxisIndex];
+			Params.Axis = Axes[AxisIndex];
+			AddPlaneScaleGizmo(Params, *SubGizmoSharedState);
+		}
 	}
 
-	if (GizmoActor->AxisScaleX != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisScaleGizmo(GizmoActor->AxisScaleX, GizmoComponent, AxisXSource, UnitAxisXSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->AxisScaleX);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->AxisScaleX, NewGizmo });
-	}
-	if (GizmoActor->AxisScaleY != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisScaleGizmo(GizmoActor->AxisScaleY, GizmoComponent, AxisYSource, UnitAxisYSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->AxisScaleY);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->AxisScaleY, NewGizmo });
-	}
-	if (GizmoActor->AxisScaleZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddAxisScaleGizmo(GizmoActor->AxisScaleZ, GizmoComponent, AxisZSource, UnitAxisZSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->AxisScaleZ);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->AxisScaleZ, NewGizmo });
-	}
-
-	if (GizmoActor->PlaneScaleYZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneScaleGizmo(GizmoActor->PlaneScaleYZ, GizmoComponent, AxisXSource, UnitAxisXSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->PlaneScaleYZ);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->PlaneScaleYZ, NewGizmo });
-	}
-	if (GizmoActor->PlaneScaleXZ != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneScaleGizmo(GizmoActor->PlaneScaleXZ, GizmoComponent, AxisYSource, UnitAxisYSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->PlaneScaleXZ);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->PlaneScaleXZ, NewGizmo });
-	}
-	if (GizmoActor->PlaneScaleXY != nullptr)
-	{
-		UInteractiveGizmo* NewGizmo = AddPlaneScaleGizmo(GizmoActor->PlaneScaleXY, GizmoComponent, AxisZSource, UnitAxisZSource, TransformSource, StateTarget);
-		ActiveComponents.Add(GizmoActor->PlaneScaleXY);
-		NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ GizmoActor->PlaneScaleXY, NewGizmo });
-	}
+	// Unpack the shared state into our properties. It might be nicer to just hold on to the shared state
+	//  object (in case it is needed later), but we do this for compatibility with existing child classes.
+	StateTarget = SubGizmoSharedState->StateTarget;
+	AxisXSource = SubGizmoSharedState->CardinalAxisSources[0];
+	AxisYSource = SubGizmoSharedState->CardinalAxisSources[1];
+	AxisZSource = SubGizmoSharedState->CardinalAxisSources[2];
+	CameraAxisSource = SubGizmoSharedState->CameraAxisSource;
+	UnitAxisXSource = SubGizmoSharedState->UnitCardinalAxisSources[0];
+	UnitAxisYSource = SubGizmoSharedState->UnitCardinalAxisSources[1];
+	UnitAxisZSource = SubGizmoSharedState->UnitCardinalAxisSources[2];
 
 	OnSetActiveTarget.Broadcast(this, ActiveTarget);
 }
@@ -836,6 +1047,147 @@ ETransformGizmoSubElements UCombinedTransformGizmo::GetGizmoElements()
 }
 
 UInteractiveGizmo* UCombinedTransformGizmo::AddAxisTranslationGizmo(
+	FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState)
+{
+	UAxisPositionGizmo* Gizmo = Cast<UAxisPositionGizmo>(GetGizmoManager()->CreateGizmo(AxisPositionBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+
+	ensure(Gizmo->InitializeAsTranslateGizmo(Params, &SharedState));
+
+	if (UGizmoAxisTranslationParameterSource* ParamSource = Cast<UGizmoAxisTranslationParameterSource>(Gizmo->ParameterSource.GetObject()))
+	{
+		int AxisIndex = Params.GetClampedAxisIndex();
+		ParamSource->PositionConstraintFunction = [this](const FVector& Pos, FVector& Snapped) { return PositionSnapFunction(Pos, Snapped); };
+		ParamSource->AxisDeltaConstraintFunction = [this, AxisIndex](double AxisDelta, double& SnappedAxisDelta) { return PositionAxisDeltaSnapFunction(AxisDelta, SnappedAxisDelta, AxisIndex); };
+	}
+	else
+	{
+		ensure(false);
+	}
+
+	TranslationSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneTranslationGizmo(
+	FTransformSubGizmoCommonParams& Params, FTransformSubGizmoSharedState& SharedState)
+{
+	UPlanePositionGizmo* Gizmo = Cast<UPlanePositionGizmo>(GetGizmoManager()->CreateGizmo(PlanePositionBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+	ensure(Gizmo->InitializeAsTranslateGizmo(Params, &SharedState));
+	
+	if (UGizmoPlaneTranslationParameterSource* ParamSource = Cast<UGizmoPlaneTranslationParameterSource>(Gizmo->ParameterSource.GetObject()))
+	{
+		int AxisIndex = Params.GetClampedAxisIndex();
+		int XAxes[3] = {1, 2, 0};
+		int YAxes[3] = {2, 0, 1};
+		ParamSource->PositionConstraintFunction = [this](const FVector& Pos, FVector& Snapped) { return PositionSnapFunction(Pos, Snapped); };
+		ParamSource->AxisXDeltaConstraintFunction = [this, XAxisIndex = XAxes[AxisIndex]](double AxisDelta, double& SnappedAxisDelta) { return PositionAxisDeltaSnapFunction(AxisDelta, SnappedAxisDelta, XAxisIndex); };
+		ParamSource->AxisYDeltaConstraintFunction = [this, YAxisIndex = YAxes[AxisIndex]](double AxisDelta, double& SnappedAxisDelta) { return PositionAxisDeltaSnapFunction(AxisDelta, SnappedAxisDelta, YAxisIndex); };
+	}
+	else
+	{
+		ensure(false);
+	}
+
+	TranslationSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+UInteractiveGizmo* UCombinedTransformGizmo::AddAxisRotationGizmo(
+	FTransformSubGizmoCommonParams& Params,	FTransformSubGizmoSharedState& SharedState)
+{
+	UAxisAngleGizmo* Gizmo = Cast<UAxisAngleGizmo>(GetGizmoManager()->CreateGizmo(AxisAngleBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+	ensure(Gizmo->InitializeAsRotateGizmo(Params, &SharedState));
+
+	if (UGizmoAxisRotationParameterSource* AngleSource = Cast<UGizmoAxisRotationParameterSource>(Gizmo->AngleSource.GetObject()))
+	{
+		AngleSource->AngleDeltaConstraintFunction = [this](double AngleDelta, double& SnappedDelta) { return RotationAxisAngleSnapFunction(AngleDelta, SnappedDelta, 0); };
+	}
+	else
+	{
+		ensure(false);
+	}
+
+	RotationSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+UInteractiveGizmo* UCombinedTransformGizmo::AddAxisScaleGizmo(
+	FTransformSubGizmoCommonParams& Params,	FTransformSubGizmoSharedState& SharedState)
+{
+	UAxisPositionGizmo* Gizmo = Cast<UAxisPositionGizmo>(GetGizmoManager()->CreateGizmo(AxisPositionBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+	ensure(Gizmo->InitializeAsScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
+
+	NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneScaleGizmo(
+	FTransformSubGizmoCommonParams& Params,	FTransformSubGizmoSharedState& SharedState)
+{
+	UPlanePositionGizmo* Gizmo = Cast<UPlanePositionGizmo>(GetGizmoManager()->CreateGizmo(PlanePositionBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+	ensure(Gizmo->InitializeAsScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
+
+	NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+UInteractiveGizmo* UCombinedTransformGizmo::AddUniformScaleGizmo(
+	FTransformSubGizmoCommonParams& Params,	FTransformSubGizmoSharedState& SharedState)
+{
+	UPlanePositionGizmo* Gizmo = Cast<UPlanePositionGizmo>(GetGizmoManager()->CreateGizmo(PlanePositionBuilderIdentifier));
+	if (!ensure(Gizmo))
+	{
+		return nullptr;
+	}
+	ensure(Gizmo->InitializeAsUniformScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
+
+	UniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
+	ActiveComponents.Add(Params.Component);
+	ActiveGizmos.Add(Gizmo);
+
+	return Gizmo;
+}
+
+
+// These are deprecated initialization functions that do sub gizmo initialization by hand instead of using the
+//  "InitializeAs..." functions that were added to subgizmos to make them simpler to instantiate outside of
+//  this class.
+UInteractiveGizmo* UCombinedTransformGizmo::AddAxisTranslationGizmo(
 	UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* AxisSource,
 	IGizmoTransformSource* TransformSource,
@@ -874,9 +1226,6 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddAxisTranslationGizmo(
 	ActiveGizmos.Add(TranslateGizmo);
 	return TranslateGizmo;
 }
-
-
-
 UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneTranslationGizmo(
 	UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* AxisSource,
@@ -917,11 +1266,6 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneTranslationGizmo(
 	ActiveGizmos.Add(TranslateGizmo);
 	return TranslateGizmo;
 }
-
-
-
-
-
 UInteractiveGizmo* UCombinedTransformGizmo::AddAxisRotationGizmo(
 	UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* AxisSource,
@@ -962,9 +1306,6 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddAxisRotationGizmo(
 
 	return RotateGizmo;
 }
-
-
-
 UInteractiveGizmo* UCombinedTransformGizmo::AddAxisScaleGizmo(
 	UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* GizmoAxisSource, IGizmoAxisSource* ParameterAxisSource,
@@ -997,9 +1338,6 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddAxisScaleGizmo(
 	ActiveGizmos.Add(ScaleGizmo);
 	return ScaleGizmo;
 }
-
-
-
 UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneScaleGizmo(
 	UPrimitiveComponent* AxisComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* GizmoAxisSource, IGizmoAxisSource* ParameterAxisSource,
@@ -1033,11 +1371,6 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneScaleGizmo(
 	ActiveGizmos.Add(ScaleGizmo);
 	return ScaleGizmo;
 }
-
-
-
-
-
 UInteractiveGizmo* UCombinedTransformGizmo::AddUniformScaleGizmo(
 	UPrimitiveComponent* ScaleComponent, USceneComponent* RootComponent,
 	IGizmoAxisSource* GizmoAxisSource, IGizmoAxisSource* ParameterAxisSource,
@@ -1097,6 +1430,7 @@ void UCombinedTransformGizmo::ClearActiveTarget()
 	StateTarget = nullptr;
 
 	ActiveTarget = nullptr;
+	TransactionProviderAtLastSetActiveTarget = nullptr;
 }
 
 

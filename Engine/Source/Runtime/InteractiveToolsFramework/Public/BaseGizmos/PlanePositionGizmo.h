@@ -27,7 +27,11 @@ class IGizmoVec2ParameterSource;
 class UClickDragInputBehavior;
 class UObject;
 struct FToolBuilderState;
-
+namespace UE::GizmoUtil
+{
+	struct FTransformSubGizmoCommonParams;
+	struct FTransformSubGizmoSharedState;
+}
 
 UCLASS(MinimalAPI)
 class UPlanePositionGizmoBuilder : public UInteractiveGizmoBuilder
@@ -62,9 +66,40 @@ class UPlanePositionGizmo : public UInteractiveGizmo, public IClickDragBehaviorT
 	GENERATED_BODY()
 
 public:
+	/**
+	 * Helper that initializes AxisSource, ParameterSource, HitTarget, and StateTarget for the common case
+	 *  of being used to control the translation of a transform. Safe to use for reinitialization.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool InitializeAsTranslateGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& InitializationParams,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+	
+	/**
+	 * Helper that initializes AxisSource, ParameterSource, HitTarget, and StateTarget for the common case
+	 *  of being used to control the scale of a transform. Safe to use for reinitialization.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API bool InitializeAsScaleGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& InitializationParams,
+		bool bDisallowNegativeScaling,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+
+	/**
+	 * Helper that initializes AxisSource, ParameterSource, HitTarget, and StateTarget for the common case
+	 *  of being used to control the uniform scale of a transform, where the interaction plane remains aligned
+	 *  to the camera. Safe to use for reinitialization.
+	 * Note: if SharedState contains a CameraAxisSource, this subgizmo will use it and will assume that something
+	 *  else is responsible for updating it. Otherwise this subgizmo will set the CameraAxisSource and update it
+	 *  in its own Tick function.
+	 */
+	bool InitializeAsUniformScaleGizmo(
+		const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params,
+		bool bDisallowNegativeScaling,
+		UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState);
+	
 	// UInteractiveGizmo overrides
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual void Setup() override;
+	INTERACTIVETOOLSFRAMEWORK_API virtual void Tick(float DeltaTime) override;
 
 	// IClickDragBehaviorTarget implementation
 
@@ -81,6 +116,9 @@ public:
 	INTERACTIVETOOLSFRAMEWORK_API virtual void OnEndHover() override;
 
 public:
+	// The below properties can be manipulated for more fine-grained control, but typically it is sufficient
+	// to use one of the initialization methods above.
+
 	/** AxisSource provides the 3D plane on which the interaction happens */
 	UPROPERTY()
 	TScriptInterface<IGizmoAxisSource> AxisSource;
@@ -183,5 +221,8 @@ protected:
 
 	FVector2D InteractionStartOriginParameterOffset;
 	FInputDeviceRay LastInputRay = FInputDeviceRay(FRay());
+
+private:
+	TUniqueFunction<void(float DeltaTime)> CustomTickFunction;
 };
 

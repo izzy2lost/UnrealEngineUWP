@@ -5,6 +5,8 @@
 #include "BaseBehaviors/ClickDragBehavior.h"
 #include "BaseBehaviors/MouseHoverBehavior.h"
 #include "BaseGizmos/GizmoMath.h"
+#include "BaseGizmos/GizmoPrivateUtil.h" // SetCommonSubGizmoProperties
+#include "BaseGizmos/TransformSubGizmoUtil.h" // FTransformSubGizmoCommonParams
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AxisAngleGizmo)
 
@@ -41,6 +43,32 @@ void UAxisAngleGizmo::Setup()
 	bInInteraction = false;
 }
 
+bool UAxisAngleGizmo::InitializeAsRotateGizmo(
+	const UE::GizmoUtil::FTransformSubGizmoCommonParams& Params, 
+	UE::GizmoUtil::FTransformSubGizmoSharedState* SharedState)
+{
+	if (!Params.Component
+		|| !Params.TransformProxy
+		|| Params.Axis == EAxis::None)
+	{
+		return false;
+	}
+
+	UGizmoScaledAndUnscaledTransformSources* TransformSource;
+	if (!UE::GizmoUtil::SetCommonSubGizmoProperties(this, Params, SharedState, TransformSource))
+	{
+		return false;
+	}
+
+	UObject* Owner = Params.OuterForSubobjects ? Params.OuterForSubobjects : GetTransientPackage();
+
+	// Parameter source maps axis-parameter-change to translation of TransformSource's transform
+	UGizmoAxisRotationParameterSource* CastAngleSource = UGizmoAxisRotationParameterSource::Construct(
+		AxisSource.GetInterface(), TransformSource, Owner);
+	AngleSource = CastAngleSource;
+
+	return true;
+}
 
 void UAxisAngleGizmo::OnUpdateModifierState(int ModifierID, bool bIsOn)
 {
@@ -106,6 +134,10 @@ void UAxisAngleGizmo::OnClickPress(const FInputDeviceRay& PressPos)
 	{
 		StateTarget->BeginUpdate();
 	}
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 
@@ -165,6 +197,11 @@ void UAxisAngleGizmo::OnClickRelease(const FInputDeviceRay& ReleasePos)
 		StateTarget->EndUpdate();
 	}
 	bInInteraction = false;
+
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 
@@ -178,6 +215,11 @@ void UAxisAngleGizmo::OnTerminateDragSequence()
 		StateTarget->EndUpdate();
 	}
 	bInInteraction = false;
+
+	if (ensure(HitTarget))
+	{
+		HitTarget->UpdateInteractingState(bInInteraction);
+	}
 }
 
 
