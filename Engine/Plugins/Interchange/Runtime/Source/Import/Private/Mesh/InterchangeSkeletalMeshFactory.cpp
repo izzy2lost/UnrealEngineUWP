@@ -518,6 +518,8 @@ namespace UE
 				MorphTargetMeshDescriptionsPerMorphTargetName.Reserve(MorphTargetCount);
 
 				//Fill the lod mesh description using all combined mesh part
+				TArray<SkeletalMeshImportData::FMeshInfo> MeshInfos;
+				int32 MeshInfoVertexOffset = 0;
 				for(TPair<const FMeshNodeContext*, TFuture<TOptional<UE::Interchange::FMeshPayloadData>>>& MeshNodeContextAndFuture: LodMeshPayloadPerTranslatorPayloadKey)
 				{
 					if (!MeshNodeContextAndFuture.Key)
@@ -532,6 +534,14 @@ namespace UE
 						UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid skeletal mesh payload key [%s] for SkeletalMesh asset %s."), *MeshNodeContext.TranslatorPayloadKey.UniqueId, *Arguments.AssetName);
 						continue;
 					}
+
+					// Generate the mesh info.
+					SkeletalMeshImportData::FMeshInfo MeshInfo;
+					MeshInfo.Name = FName(MeshNodeContext.SceneNode->GetDisplayLabel());
+					MeshNodeContext.MeshNode->GetCustomVertexCount(MeshInfo.NumVertices);
+					MeshInfo.StartImportedVertex = MeshInfoVertexOffset;
+					MeshInfoVertexOffset += MeshInfo.NumVertices;
+					MeshInfos.Add(MeshInfo);
 					
 					const int32 VertexOffset = LodMeshDescription.Vertices().Num();
 
@@ -653,6 +663,7 @@ namespace UE
 
 				DestinationImportData = FSkeletalMeshImportData::CreateFromMeshDescription(LodMeshDescription);
 				DestinationImportData.RefBonesBinary = RefBonesBinary;
+				DestinationImportData.MeshInfos = MoveTemp(MeshInfos);
 
 				bool bMergeMorphTargetWithSameName = false;
 				SkeletalMeshFactoryNode->GetCustomMergeMorphTargetShapeWithSameName(bMergeMorphTargetWithSameName);
