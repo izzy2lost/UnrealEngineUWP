@@ -709,7 +709,7 @@ public:
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http request won't trigger response body receive delegate after canceling", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-	HttpRequest->SetURL(UrlStreamDownload(30, 1024*1024));
+	HttpRequest->SetURL(UrlStreamDownload(60, 1024*1024));
 
 	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
 
@@ -738,7 +738,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "In streaming downloading http r
 	DisableWarningsInThisTest(); // Failed writing received data to disk/application
 
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
-	HttpRequest->SetURL(UrlStreamDownload(30, 1024*1024));
+	HttpRequest->SetURL(UrlStreamDownload(60, 1024*1024));
 
 	TSharedPtr<FUserStreamingClass> UserInstance = MakeShared<FUserStreamingClass>();
 
@@ -1780,6 +1780,11 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Cancel http request with ProcessRequ
 
 	std::atomic<bool> bFirstRequestCompleted = false;
 
+	FHttpManager& HttpManager = HttpModule->GetHttpManager();
+	const FHttpStats HttpStats = HttpManager.GetHttpStats();
+	CHECK(HttpStats.RequestsInQueue == 0);
+	CHECK(HttpStats.MaxRequestsInQueue == 0);
+
 	ThreadedHttpRunnable.OnRunFromThread().BindLambda([this, &bFirstRequestCompleted]() {
 		TSharedRef<IHttpRequest> HttpRequestRunning = CreateRequest();
 		HttpRequestRunning->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 1/*ChunkLatency*/));
@@ -1812,6 +1817,12 @@ TEST_CASE_METHOD(FWaitThreadedHttpFixture, "Cancel http request with ProcessRequ
 		});
 		HttpRequestQueuing->ProcessRequest();
 		FPlatformProcess::Sleep(1); // Make sure the first request started
+
+		FHttpManager& HttpManager = HttpModule->GetHttpManager();
+		const FHttpStats HttpStats = HttpManager.GetHttpStats();
+		CHECK(HttpStats.RequestsInQueue == 1);
+		CHECK(HttpStats.MaxRequestsInQueue == 1);
+
 		HttpRequestQueuing->CancelRequest();
 	});
 

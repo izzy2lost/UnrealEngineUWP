@@ -87,7 +87,9 @@ FHttpThreadBase::FHttpThreadBase()
 	, bIsSingleThread(false)
 	, bIsStopped(true)
 	, CurrentThreadPriority(EThreadPriority::TPri_Num)
+	, MaxConcurrentRequests(CVarHttpMaxConcurrentRequests.GetValueOnAnyThread())
 {
+	UE_LOG(LogInit, Log, TEXT("Creating http thread with maximum %d concurrent requests"), MaxConcurrentRequests);
 }
 
 FHttpThreadBase::~FHttpThreadBase()
@@ -272,7 +274,15 @@ void FHttpThreadBase::StartRequestsWaitingInQueue(TArray<FHttpRequestCommon*>& R
 	// Tick new requests separately from existing RunningThreadedRequests so they get a chance 
 	// to send unaffected by possibly large ElapsedTime above
 	int32 RunningThreadedRequestsCounter = RunningThreadedRequests.Num();
-	const int32 MaxConcurrentRequests = CVarHttpMaxConcurrentRequests.GetValueOnAnyThread();
+
+#if !UE_HTTP_SUPPORT_TO_INCREASE_MAX_REQUESTS_AT_RUNTIME
+	// This will enable shrinking but not growing the max concurrent requests at runtime, on platform where http memory pool was pre-allocated when boot
+	if (CVarHttpMaxConcurrentRequests.GetValueOnAnyThread() < MaxConcurrentRequests)
+#endif
+	{
+		MaxConcurrentRequests = CVarHttpMaxConcurrentRequests.GetValueOnAnyThread();
+	}
+
 	if (RunningThreadedRequestsCounter < MaxConcurrentRequests)
 	{
 		while(RunningThreadedRequestsCounter < MaxConcurrentRequests && !RateLimitedThreadedRequests.IsEmpty())

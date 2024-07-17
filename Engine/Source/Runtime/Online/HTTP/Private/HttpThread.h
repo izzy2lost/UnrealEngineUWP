@@ -166,6 +166,9 @@ private:
 	/** Current thread priority of the thread. Used to detect when a priority change is requested */
 	EThreadPriority CurrentThreadPriority;
 
+	/** Max concurrent requests the thread can run, the rest of the requests will wait in the queue */
+	int32 MaxConcurrentRequests;
+
 protected:
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** 
