@@ -14,7 +14,16 @@ UCLASS()
 class TEXTUREGRAPH_API UTG_Expression_TexturePath : public UTG_Expression_InputParam
 {
 	GENERATED_BODY()
+	TG_DECLARE_INPUT_PARAM_EXPRESSION(TG_Category::Input);
 
+protected:
+	// Special case for TexturePath Constant signature, we want to keep the Path Input connectable in that case
+	// so do this in the override version of BuildInputConstantSignature()
+	virtual FTG_SignaturePtr BuildInputConstantSignature() const override;
+
+	// Validate the input path, returning the actual path to use
+	// empty if the input path is NOT valid
+	bool ValidateInputPath(FString& ValidatedPath) const;
 public:
 
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
@@ -25,12 +34,8 @@ public:
 	FTG_Texture Output;
 
 	// Input file path of the texture
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Input", TGPinNotConnectable, NoResetToDefault) )
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_InputParam", NoResetToDefault) )
 	FString Path;
-
-	// The input texture that was loaded from the path
-	UPROPERTY(meta = (TGType = "TG_InputParam"))
-	FTG_Texture Texture;
 
 	class ULayerChannel* Channel;
 	virtual FTG_Name GetDefaultName() const override { return TEXT("TexturePath"); }

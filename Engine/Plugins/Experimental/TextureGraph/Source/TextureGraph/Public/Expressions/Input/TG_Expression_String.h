@@ -10,6 +10,7 @@ UCLASS()
 class TEXTUREGRAPH_API UTG_Expression_String : public UTG_Expression_InputParam
 {
 	GENERATED_BODY()
+	TG_DECLARE_INPUT_PARAM_EXPRESSION(TG_Category::Input);
 
 public:
 

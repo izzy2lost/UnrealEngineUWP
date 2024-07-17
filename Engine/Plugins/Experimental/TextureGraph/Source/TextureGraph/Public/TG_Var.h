@@ -260,6 +260,7 @@ template <> FString TG_Var_LogValue(FLinearColor& Value);
 template <> FString TG_Var_LogValue(FVector4f& Value);
 template <> FString TG_Var_LogValue(FVector2f& Value);
 template <> FString TG_Var_LogValue(FName& Value);
+template <> FString TG_Var_LogValue(FString& Value);
 template <> FString TG_Var_LogValue(TObjectPtr<UObject>& Value);
 template <> FString TG_Var_LogValue(struct FTG_Texture& Value);
 template <> FString TG_Var_LogValue(struct FTG_Scalar& Value);
@@ -277,6 +278,7 @@ template <> void TG_Var_SetValueFromString(FLinearColor& Value, const FString& S
 template <> void TG_Var_SetValueFromString(FVector4f& Value, const FString& StrVal);
 template <> void TG_Var_SetValueFromString(FVector2f& Value, const FString& StrVal);
 template <> void TG_Var_SetValueFromString(FName& Value, const FString& StrVal);
+template <> void TG_Var_SetValueFromString(FString& Value, const FString& StrVal);
 
 //template <> void TG_Var_SetValueFromString(struct FTG_Texture& Value, const FString& StrVal);
 template <> void TG_Var_SetValueFromString(struct FTG_Scalar& Value, const FString& StrVal);

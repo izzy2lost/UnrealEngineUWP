@@ -6,32 +6,64 @@
 #include "2D/TextureHelper.h"
 #include "Model/StaticImageResource.h"
 
+// Special case for TexturePath Constant signature, we want to keep the Path Input connectable in that case
+// so do this in the override version of BuildInputConstantSignature()
+FTG_SignaturePtr  UTG_Expression_TexturePath::BuildInputConstantSignature() const
+{
+	FTG_Signature::FInit SignatureInit = GetSignatureInitArgsFromClass();
+	for (auto& Arg : SignatureInit.Arguments)
+	{
+		if (Arg.IsInput() && Arg.IsParam())
+		{
+			Arg.ArgumentType = Arg.ArgumentType.Unparamed();
+		}
+	}
+	return MakeShared<FTG_Signature>(SignatureInit);
+}
+
+bool UTG_Expression_TexturePath::ValidateInputPath(FString& ValidatedPath) const
+{
+	// empty but that's ok
+	if (Path.IsEmpty())
+	{
+		return true;
+	}
+
+	// Check that the local path exists
+	FString LocalPath = Path.TrimQuotes();
+	FPackagePath PackagePath;
+	FString PathExt = FPaths::GetExtension(Path);
+
+	// Try to find a file in a mounted package
+	if (FPackagePath::TryFromMountedName(LocalPath, PackagePath))
+	{
+		LocalPath = PackagePath.GetLocalFullPath();
+		FString LocalPathExt = FPaths::GetExtension(LocalPath);
+
+		if (LocalPathExt != PathExt)
+		{
+			LocalPath = FPaths::ChangeExtension(LocalPath, PathExt);
+		}
+		ValidatedPath = LocalPath;
+		return true;
+	}
+	else if(FPaths::FileExists(LocalPath))
+	{
+		ValidatedPath = LocalPath;
+		return true;
+	}
+
+	return false;
+}
+
 void UTG_Expression_TexturePath::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
-	if (Texture)
-	{
-		Output = Texture;
-	}
-	else if (!Path.IsEmpty())
+
+	FString LocalPath;
+	if (!Path.IsEmpty() && ValidateInputPath(LocalPath))
 	{
 		UStaticImageResource* StaticImageResource = UStaticImageResource::CreateNew<UStaticImageResource>();
-
-		FString LocalPath = Path;
-		FPackagePath PackagePath;
-		FString PathExt = FPaths::GetExtension(Path);
-
-		if (FPackagePath::TryFromMountedName(Path, PackagePath))
-		{
-			LocalPath = PackagePath.GetLocalFullPath();
-			FString LocalPathExt = FPaths::GetExtension(LocalPath);
-
-			if (LocalPathExt != PathExt)
-			{
-				LocalPath = FPaths::ChangeExtension(LocalPath, PathExt);
-			}
-		}
-
 		StaticImageResource->SetAssetUUID(LocalPath);
 		StaticImageResource->SetIsFileSystem(true);
 
@@ -51,8 +83,17 @@ void UTG_Expression_TexturePath::Evaluate(FTG_EvaluationContext* InContext)
 
 bool UTG_Expression_TexturePath::Validate(MixUpdateCyclePtr Cycle)
 {
+	FString LocalPath;
+	if (!ValidateInputPath(LocalPath)) 
+	{
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
+		TextureGraphEngine::GetErrorReporter(Cycle->GetMix())->ReportWarning(ErrorType, FString::Printf(TEXT("Input Path <%s> is not a valid local path"), *Path), GetParentNode());
+		return true;
+	}
+
 	return true;
 }
+
 void UTG_Expression_TexturePath::SetTitleName(FName NewName)
 {
 	GetParentNode()->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_TexturePath, Path))->SetAliasName(NewName);
