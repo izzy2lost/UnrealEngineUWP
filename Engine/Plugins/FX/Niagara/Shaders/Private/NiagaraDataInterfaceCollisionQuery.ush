@@ -3,6 +3,8 @@
 #pragma once
 
 #include "/Engine/Private/Common.ush"
+
+#define SubstratePublicStruct SubstratePublic
 #include "/Engine/Public/SubstratePublic.ush"
 
 #define NDICOLLISIONQUERY_USE_GBUFFER_NORMAL    (FEATURE_LEVEL >= FEATURE_LEVEL_SM5)
@@ -49,7 +51,7 @@ void NDICollisionQuery_QuerySceneDepthGPU(in float3 In_SamplePos, in float3 In_L
 		FLWCVector3 WorldPosition = WorldPositionFromSceneDepth(ScreenPosition.xy, SceneDepth);
 
 #if NDICOLLISIONQUERY_USE_GBUFFER_NORMAL
-#if Substrate_ENABLED
+#if SUBSTRATE_ENABLED
 		uint2 ScreenPos = uint2(ScreenUV * View.BufferSizeAndInvSize.xy);
 		float3 WorldNormal = SubstratePublic_GetWorldNormal(ScreenPos);
 #else

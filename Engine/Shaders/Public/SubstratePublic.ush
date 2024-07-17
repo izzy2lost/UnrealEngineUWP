@@ -8,14 +8,82 @@
 
 #include "/Engine/Private/Substrate/Substrate.ush"
 
-#if Substrate_ENABLED
+#if SUBSTRATE_ENABLED
 
 /** Public facing functions allowing external users access to some Substrate data. */
-float3 SubstratePublic_GetWorldNormal(uint2 PixelCoord)
+
+#ifndef SubstratePublicStruct
+#error One must specify the SubstratePublicStruct uniform buffer to fetch data from when using SubstratePuclic.ush
+#endif
+
+struct FSubstrateGBuffer
 {
-  return SubstrateUnpackTopLayerData(SubstratePublic.TopLayerTexture.Load(uint3(PixelCoord, 0))).WorldNormal;
+	bool bIsValid;
+
+	float3 DiffuseColor;
+	float3 SpecularColor;
+	float3 SubsurfaceColor;
+	float3 BaseColor;
+	float  Specular;
+	float  Metallic;
+	float3 WorldNormal;
+	float  Opacity;
+	float  Roughness;
+	float  MaterialAO;
+	float3 ShadingModelColor;
+	float  ShadingModelID;
+	float3 StoredBaseColor;
+	float3 StoredSpecular;
+	float3 WorldTangent;
+	float  Anisotropy;
+};
+
+FSubstrateGBuffer SubstratePublic_GetSubstrateGBufferFromFirstBSDF(uint2 PixelCoord)
+{
+	FSubstrateGBuffer SGBuffer = (FSubstrateGBuffer)0; 
+	SGBuffer.bIsValid = false;
+
+	FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), SubstratePublicStruct.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstratePublicStruct.MaterialTextureArray, SubstrateAddressing, SubstratePublicStruct.TopLayerTexture);
+	
+	BRANCH
+	if (SubstratePixelHeader.ClosureCount > 0)
+	{
+		const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstratePublicStruct.MaterialTextureArray, SubstratePublicStruct.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
+
+		const bool bSkipSSSMaterialOverride = true; // We double not want the material data to be affected by any override.
+		FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstratePublicStruct.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader, bSkipSSSMaterialOverride);
+	
+		SGBuffer.bIsValid			= true;
+		SGBuffer.DiffuseColor		= SubstrateGetBSDFDiffuseColor(BSDF);
+		SGBuffer.SpecularColor		= SubstrateGetBSDFSpecularColor(BSDF);
+		SGBuffer.SubsurfaceColor	= SubstrateGetBSDFSubSurfaceColor(BSDF);
+		SGBuffer.BaseColor			= SubstrateGetBSDFBaseColor(BSDF);
+		SGBuffer.Specular			= SubstrateGetBSDFSpecular(BSDF);
+		SGBuffer.Metallic			= SubstrateGetBSDFMetallic(BSDF);
+		SGBuffer.WorldNormal		= SubstrateGetWorldNormal(SubstratePixelHeader, BSDF, SubstrateAddressing);
+		SGBuffer.Opacity			= BSDF.HasScatteringData() ? SubstrateSubSurfaceHeaderGetOpacity(SSSHeader) : 1.f;
+		SGBuffer.Roughness			= SubstrateGetBSDFRoughness(BSDF);
+		SGBuffer.MaterialAO			= SubstrateGetAO(SubstratePixelHeader);
+		SGBuffer.ShadingModelColor	= GetShadingModelColor(SubstrateGetLegacyShadingModels(BSDF));
+		SGBuffer.ShadingModelID		= SubstrateGetLegacyShadingModels(BSDF);
+		SGBuffer.StoredBaseColor	= SubstrateGetBSDFBaseColor(BSDF);
+		SGBuffer.StoredSpecular		= SubstrateGetBSDFSpecular(BSDF).rrr;
+		SGBuffer.WorldTangent		= SubstrateGetWorldTangent(SubstratePixelHeader, BSDF, SubstrateAddressing);
+		SGBuffer.Anisotropy			= SubstrateGetBSDFAnisotropy(BSDF);
+	}
+
+	return SGBuffer;
 }
 
-//TODO: Implement other accessors that were previously available via SceneTextures.
+// Optimised data fetch from the TopLayer texture
+float3 SubstratePublic_GetWorldNormal(uint2 PixelCoord)
+{
+  return SubstrateUnpackTopLayerData(SubstratePublicStruct.TopLayerTexture.Load(uint3(PixelCoord, 0))).WorldNormal;
+}
+float SubstratePublic_GetRoughness(uint2 PixelCoord)
+{
+  return SubstrateUnpackTopLayerData(SubstratePublicStruct.TopLayerTexture.Load(uint3(PixelCoord, 0))).Roughness;
+}
 
 #endif

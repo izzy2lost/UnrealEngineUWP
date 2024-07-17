@@ -173,7 +173,17 @@
 #endif
 
 #if SUBSTRATE_ENABLED
+
 #include "/Engine/Private/Substrate/Substrate.ush"
+
+#ifdef SubstrateStruct
+	#define SubstratePublicStruct SubstrateStruct
+#else
+	#define SubstratePublicStruct Substrate
+#endif
+#include "/Engine/Public/SubstratePublic.ush"
+#undef SubstratePublicStruct
+
 #else
 struct FSubstrateData
 {
@@ -3087,43 +3097,31 @@ float4 SceneTextureLookup(float2 UV, int SceneTextureIndex, bool bFiltered)
 	}
 	#elif SUBSTRATE_ENABLED
 	{
-		#ifdef SubstrateStruct
-			#define SubstrateSceneTexture SubstrateStruct
-		#else
-			#define SubstrateSceneTexture Substrate
-		#endif
-		FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(PixelPos, uint2(View.BufferSizeAndInvSize.xy), SubstrateSceneTexture.MaxBytesPerPixel);
-		FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstrateSceneTexture.TopLayerTexture);
+		FSubstrateGBuffer SubstrateGBuffer = SubstratePublic_GetSubstrateGBufferFromFirstBSDF(PixelPos);
 		BRANCH
-		if (SubstratePixelHeader.ClosureCount > 0)
+		if (SubstrateGBuffer.bIsValid > 0)
 		{
-			const FSubstrateSubsurfaceHeader SSSHeader = SubstrateLoadSubsurfaceHeader(SubstrateSceneTexture.MaterialTextureArray, SubstrateSceneTexture.FirstSliceStoringSubstrateSSSData, SubstrateAddressing.PixelCoords);
-			const uint SSSType = SubstrateSubSurfaceHeaderGetSSSType(SSSHeader);
-
-			const bool bSkipSSSMaterialOverride = true; // We double not want the material data to be affected by any override.
-			FSubstrateBSDF BSDF = UnpackSubstrateBSDFIn(SubstrateSceneTexture.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader, bSkipSSSMaterialOverride);
 			switch (SceneTextureIndex)
 			{
 				// order needs to match to ESceneTextureId
-				case PPI_DiffuseColor:			return float4(SubstrateGetBSDFDiffuseColor(BSDF), 0);
-				case PPI_SpecularColor:			return float4(SubstrateGetBSDFSpecularColor(BSDF), 0);
-				case PPI_SubsurfaceColor:		return float4(SubstrateGetBSDFSubSurfaceColor(BSDF), 0);
-				case PPI_BaseColor:				return float4(SubstrateGetBSDFBaseColor(BSDF), 0);
-				case PPI_Specular:				return SubstrateGetBSDFSpecular(BSDF);
-				case PPI_Metallic:				return SubstrateGetBSDFMetallic(BSDF);
-				case PPI_WorldNormal:			return float4(SubstrateGetWorldNormal(SubstratePixelHeader, BSDF, SubstrateAddressing), 0);
-				case PPI_Opacity:				return BSDF.HasScatteringData() ? SubstrateSubSurfaceHeaderGetOpacity(SSSHeader) : 1.f;
-				case PPI_Roughness:				return SubstrateGetBSDFRoughness(BSDF);
-				case PPI_MaterialAO:			return SubstrateGetAO(SubstratePixelHeader);
-				case PPI_ShadingModelColor:		return float4(GetShadingModelColor(SubstrateGetLegacyShadingModels(BSDF)), 1);
-				case PPI_ShadingModelID:		return float4(SubstrateGetLegacyShadingModels(BSDF), 0, 0, 0);
-				case PPI_StoredBaseColor:		return float4(SubstrateGetBSDFBaseColor(BSDF), 0);
-				case PPI_StoredSpecular:		return float4(SubstrateGetBSDFSpecular(BSDF).rrr, 0);
-				case PPI_WorldTangent:			return float4(SubstrateGetWorldTangent(SubstratePixelHeader, BSDF, SubstrateAddressing), 0);
-				case PPI_Anisotropy:			return SubstrateGetBSDFAnisotropy(BSDF);
+				case PPI_DiffuseColor:			return float4(SubstrateGBuffer.DiffuseColor, 0);
+				case PPI_SpecularColor:			return float4(SubstrateGBuffer.SpecularColor, 0);
+				case PPI_SubsurfaceColor:		return float4(SubstrateGBuffer.SubsurfaceColor, 0);
+				case PPI_BaseColor:				return float4(SubstrateGBuffer.BaseColor, 0);
+				case PPI_Specular:				return SubstrateGBuffer.Specular;
+				case PPI_Metallic:				return SubstrateGBuffer.Metallic;
+				case PPI_WorldNormal:			return float4(SubstrateGBuffer.WorldNormal, 0);
+				case PPI_Opacity:				return SubstrateGBuffer.Opacity;
+				case PPI_Roughness:				return SubstrateGBuffer.Roughness;
+				case PPI_MaterialAO:			return SubstrateGBuffer.MaterialAO;
+				case PPI_ShadingModelColor:		return float4(SubstrateGBuffer.ShadingModelColor, 1);
+				case PPI_ShadingModelID:		return float4(SubstrateGBuffer.ShadingModelID, 0, 0, 0);
+				case PPI_StoredBaseColor:		return float4(SubstrateGBuffer.StoredBaseColor, 0);
+				case PPI_StoredSpecular:		return float4(SubstrateGBuffer.StoredSpecular.rrr, 0);
+				case PPI_WorldTangent:			return float4(SubstrateGBuffer.WorldTangent, 0);
+				case PPI_Anisotropy:			return SubstrateGBuffer.Anisotropy;
 			}
 		}
-		#undef SubstrateSceneTexture
 	}
 	#else // SUBSTRATE_ENABLED
 	{

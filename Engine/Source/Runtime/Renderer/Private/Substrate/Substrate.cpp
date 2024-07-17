@@ -588,6 +588,12 @@ void BindSubstrateBasePassUniformParameters(FRDGBuilder& GraphBuilder, const FVi
 	}
 }
 
+static FRDGTextureRef GetDefaultSubstrateMaterialTextureArray(FRDGBuilder& GraphBuilder)
+{
+	FRDGTextureRef DefaultSubstrateMaterialTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_R32_UINT, FClearValueBinding::Transparent);
+	return DefaultSubstrateMaterialTextureArray;
+}
+
 static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, const FSubstrateViewData* SubstrateViewData, bool bNeedsMaterialBuffer, FSubstrateGlobalUniformParameters& OutSubstrateUniformParameters)
 {
 	FSubstrateSceneData* SubstrateSceneData = SubstrateViewData->SceneData;
@@ -621,7 +627,7 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, cons
 			check(SubstrateSceneData->TopLayerTexture == nullptr);
 			check(SubstrateSceneData->OpaqueRoughRefractionTexture == nullptr);
 			const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
-			FRDGTextureRef DefaultTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_R32_UINT, FClearValueBinding::Transparent);
+			FRDGTextureRef DefaultTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
 			OutSubstrateUniformParameters.MaterialTextureArray = DefaultTextureArray;
 			OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.DefaultNormal8Bit;
 			OutSubstrateUniformParameters.OpaqueRoughRefractionTexture = SystemTextures.Black;
@@ -630,7 +636,7 @@ static void BindSubstrateGlobalUniformParameters(FRDGBuilder& GraphBuilder, cons
 	else
 	{
 		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
-		FRDGTextureRef DefaultTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_R32_UINT, FClearValueBinding::Transparent);
+		FRDGTextureRef DefaultTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
 		FRDGBufferSRVRef DefaultBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4, 0u), PF_R32_UINT);
 		OutSubstrateUniformParameters.Common = GetSubstrateCommonParameter();
 		OutSubstrateUniformParameters.SliceStoringDebugSubstrateTreeData = -1;
@@ -674,9 +680,8 @@ void BindSubstrateForwardPasslUniformParameters(FRDGBuilder& GraphBuilder, const
 	if (bCreateDummyResources)
 	{
 		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
-		FRDGTextureRef DefaultTextureArray = GSystemTextures.GetDefaultTexture(GraphBuilder, ETextureDimension::Texture2DArray, EPixelFormat::PF_R32_UINT, FClearValueBinding::Transparent);
 		OutSubstrateUniformParameters.FirstSliceStoringSubstrateSSSData = -1;
-		OutSubstrateUniformParameters.MaterialTextureArray = DefaultTextureArray;
+		OutSubstrateUniformParameters.MaterialTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
 		OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.DefaultNormal8Bit;
 	}
 }
@@ -702,17 +707,22 @@ TRDGUniformBufferRef<FSubstrateGlobalUniformParameters> BindSubstrateGlobalUnifo
 
 static void BindSubstratePublicGlobalUniformParameters(FRDGBuilder& GraphBuilder, FSubstrateSceneData* SubstrateSceneData, FSubstratePublicGlobalUniformParameters& OutSubstrateUniformParameters)
 {
-	const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
 	if (SubstrateSceneData && SubstrateSceneData->TopLayerTexture)
 	{
+		OutSubstrateUniformParameters.Common = GetSubstrateCommonParameter(*SubstrateSceneData);
+		OutSubstrateUniformParameters.FirstSliceStoringSubstrateSSSData = SubstrateSceneData->FirstSliceStoringSubstrateSSSData;
+		OutSubstrateUniformParameters.MaterialTextureArray = SubstrateSceneData->MaterialTextureArray;
 		OutSubstrateUniformParameters.TopLayerTexture = SubstrateSceneData->TopLayerTexture;
 	}
 	else
 	{
+		const FRDGSystemTextures& SystemTextures = FRDGSystemTextures::Get(GraphBuilder);
+		OutSubstrateUniformParameters.Common = GetSubstrateCommonParameter();
+		OutSubstrateUniformParameters.FirstSliceStoringSubstrateSSSData = -1;
+		OutSubstrateUniformParameters.MaterialTextureArray = GetDefaultSubstrateMaterialTextureArray(GraphBuilder);
 		OutSubstrateUniformParameters.TopLayerTexture = SystemTextures.Black;
 	}
 
-	//TODO: Other Substrate scene textures or other globals.
 }
 
 static ERHIFeatureSupport SubstrateSupportsWaveOps(EShaderPlatform Platform)
