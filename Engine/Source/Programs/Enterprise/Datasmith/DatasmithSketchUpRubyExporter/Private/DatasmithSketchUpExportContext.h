@@ -373,6 +373,6 @@ namespace DatasmithSketchUp
 		bool bColorByLayer = false;
 		bool bColorByLayerInvaliated = true;
 
-		TArray<TFuture<bool>> MeshExportTasks;
+		TArray<TSharedFuture<bool>> MeshExportTasks;
 	};
 }

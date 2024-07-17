@@ -27,11 +27,13 @@
 #include "SketchUpAPI/model/layer_folder.h"
 #endif
 
+#include "DatasmithSceneExporter.h"
 #include "DatasmithSketchUpSDKCeases.h"
 
 #include "IDatasmithSceneElements.h"
 #include "DatasmithSceneFactory.h"
 #include "DatasmithUtils.h"
+#include "Algo/Compare.h"
 
 #include "Misc/Paths.h"
 
@@ -89,11 +91,14 @@ void FEntityWithEntities::UpdateOccurrenceMeshActors(FExportContext& Context, FN
 		return;
 	}
 
-	Node.MeshActors.Reset(EntitiesGeometry->GetMeshCount());
+	FEntitiesGeometry::FExportedGeometry& ExportedGeometry = EntitiesGeometry->GetOccurrenceExportedGeometry(Node);
+
+	Node.MeshActors.Reset(ExportedGeometry.GetMeshCount());
 
 	FString ComponentActorName = Node.GetActorName();
+
 	
-	for (int32 MeshIndex = 0; MeshIndex < EntitiesGeometry->GetMeshCount(); ++MeshIndex)
+	for (int32 MeshIndex = 0; MeshIndex < ExportedGeometry.GetMeshCount(); ++MeshIndex)
 	{
 		FString MeshActorName = FString::Printf(TEXT("%ls_%d"), *ComponentActorName, MeshIndex + 1); // Count meshes/mesh actors from 1
 
@@ -118,28 +123,34 @@ void FEntityWithEntities::UpdateOccurrenceMeshActors(FExportContext& Context, FN
 		// ADD_TRACE_LINE(TEXT("Actor %ls: %ls %ls %ls"), *MeshActorLabel, *ComponentDepthTag, *DefinitionGUIDTag, *InstancePathTag);
 
 		// Set the Datasmith mesh element used by the mesh actor.
-		DMeshActorPtr->SetStaticMeshPathName(EntitiesGeometry->GetMeshElementName(MeshIndex));
+		DMeshActorPtr->SetStaticMeshPathName(ExportedGeometry.GetMeshElementName(MeshIndex));
 	}
 }
 
 void FNodeOccurence::UpdateVisibility(FExportContext& Context)
 {
-	if (bHierarchyInvalidated)
-	{
-		// todo: move hierarchy creation here?
-		bHierarchyInvalidated = false;
-	}
-
 	if (bVisibilityInvalidated)
 	{
 		Entity.UpdateOccurrenceVisibility(Context, *this);
-
 		bVisibilityInvalidated = false;
 	}
 
 	for (FNodeOccurence* ChildNode : Children)
 	{
 		ChildNode->UpdateVisibility(Context);
+	}
+}
+
+void FNodeOccurence::UpdateTransformations(FExportContext& Context)
+{
+	if (bPropertiesInvalidated)
+	{
+		Entity.UpdateOccurrenceTransformation(Context, *this);
+	}
+
+	for (FNodeOccurence* ChildNode : Children)
+	{
+		ChildNode->UpdateTransformations(Context);
 	}
 }
 
@@ -260,9 +271,11 @@ void FNodeOccurence::ResetMetadataElement(FExportContext& Context)
 	DatasmithMetadataElement->ResetProperties();
 }
 
-void FNodeOccurence::SetVisibility(bool bValue)
+bool FNodeOccurence::SetVisibility(bool bValue)
 {
+	bool  bChanged = bVisible != bValue;
 	bVisible = bValue;
+	return bChanged;
 }
 
 void FNodeOccurence::RemoveDatasmithActorHierarchy(FExportContext& Context)
@@ -341,7 +354,7 @@ void FModelDefinition::Parse(FExportContext& Context)
 
 void FModelDefinition::UpdateGeometry(FExportContext& Context)
 {
-	Entities->UpdateGeometry(Context);
+	Entities->UpdateGeometry(Context, {Context.RootNode.Get()}, {});
 }
 
 void FModelDefinition::UpdateMetadata(FExportContext& Context)
@@ -375,13 +388,6 @@ FString FModelDefinition::GetSketchupSourceName()
 FString FModelDefinition::GetSketchupSourceId()
 {
 	return GetSketchupSourceGUID();
-}
-
-SUTransformation FModelDefinition::GetMeshBakedTransform()
-{
-	SUTransformation Transform;
-	SUTransformationScale(&Transform, 1.0);
-	return Transform;
 }
 
 bool FModelDefinition::UpdateModel(FExportContext& Context)
@@ -493,8 +499,30 @@ void FComponentInstance::SetupActor(FExportContext& Context, FNodeOccurence& Nod
 
 void FComponentDefinition::UpdateGeometry(FExportContext& Context)
 {
-	Entities->UpdateGeometry(Context);
-	bBakeTransformIntoMesh  = ShouldBakeTransformIntoMesh();
+	// Some occurrences geometry should have its transformation baked into exported mesh, when that transformation can't be converted to UE(i.e. shear transform)
+	TArray<FNodeOccurence*> NodesToInstance;
+	TArray<FNodeOccurence*> NodesToBake;
+
+	for (FComponentInstance* Instance: Instances)
+	{
+		// todo: might add check to ComponentInstance visibility
+		for (FNodeOccurence* NodeOccurence: Instance->Occurrences)
+		{
+			if (NodeOccurence->bVisible)
+			{
+				if (NodeOccurence->bTransformSupportedByUE)
+				{
+					NodesToInstance.Add(NodeOccurence);
+				}
+				else
+				{
+					NodesToBake.Add(NodeOccurence);
+				}
+			}
+		}
+	}
+
+	Entities->UpdateGeometry(Context, NodesToInstance, NodesToBake);
 }
 
 void FComponentDefinition::UpdateMetadata(FExportContext& Context)
@@ -508,13 +536,13 @@ void FComponentInstance::BuildNodeNames(FNodeOccurence& Node)
 	int64 SketchupPersistentID = Node.Entity.GetPersistentId();
 	Node.DatasmithActorName = FString::Printf(TEXT("%ls_%lld"), *Node.ParentNode->GetActorName(), SketchupPersistentID);
 
-	FString EntityName = Node.Entity.GetName();
+	FString EntityName = Node.Entity.GetEntityName();
 	Node.DatasmithActorLabel = FDatasmithUtils::SanitizeObjectName(EntityName.IsEmpty() ? GetDefinition()->GetSketchupSourceName() : EntityName);
 }
 
 void FComponentDefinition::InvalidateInstancesGeometry(FExportContext& Context)
 {
-	// todo: keep all instances or incapsulate enumeration(duplicated) of FComponentInstance
+	// todo: keep all instances or encapsulate enumeration(duplicated) of FComponentInstance
 	size_t InstanceCount = 0;
 	SUComponentDefinitionGetNumInstances(ComponentDefinitionRef, &InstanceCount);
 
@@ -579,118 +607,6 @@ FString FComponentDefinition::GetSketchupSourceId()
 
 	return FMD5::HashAnsiString(*GetSketchupSourceGUID());
 }
-
-// Bake transform into the mesh only when
-// - component has no child components, 
-// - only SINGLE instance
-// - local transform has non-trivial rotation component
-// Baking transform into mesh might be useful to convert transformation which is not representable in Unreal
-// for example rotated geometry with scaled parent. In Unreal scaling would only be applied in local static mesh space
-// So that scaled(on parent node) rotated cube that should be a rhombus in SU in unreal would become just a box because scaling would apply along local axes(i.e. before rotation)
-// But baking rotation into mesh itself makes scaling apply properly
-bool FComponentDefinition::ShouldBakeTransformIntoMesh()
-{
-	size_t ComponentInstanceCount = 0;
-	SUEntitiesGetNumInstances(GetEntities().EntitiesRef, &ComponentInstanceCount);
-
-	size_t GroupCount = 0;
-	SUEntitiesGetNumGroups(GetEntities().EntitiesRef, &GroupCount);
-
-	if ((Instances.Num() != 1) || ((ComponentInstanceCount + GroupCount) != 0))
-	{
-		return false;
-	}
-
-	// Check the (only) instance's transform
-	FComponentInstance* ComponentInstance = Instances.Array()[0];
-
-	SUTransformation Transform;
-	SUComponentInstanceGetTransform(ComponentInstance->GetComponentInstanceRef(), &Transform);
-
-	// Grab 3x3 rotation submatrix and check if it is not an identity transform
-	const double R[] = {
-		Transform.values[0], Transform.values[1], Transform.values[2],
-		Transform.values[4], Transform.values[5], Transform.values[6],
-		Transform.values[8], Transform.values[9], Transform.values[10]
-	};
-
-	static const double Identity[] = {
-		1, 0, 0,
-		0, 1, 0,
-		0, 0, 1,
-	};
-
-	static_assert(sizeof(Identity)/sizeof(Identity[0]) == sizeof(R)/sizeof(R[0]));
-
-	for (int32 I = 0; I < sizeof(Identity)/sizeof(Identity[0]); ++I)
-	{
-		if (!FMath::IsNearlyEqual(Identity[I], R[I]))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-SUTransformation FComponentDefinition::GetMeshBakedTransform()
-{
-	if (!ShouldBakeTransformIntoMesh())
-	{
-		SUTransformation Transform;
-		SUTransformationScale(&Transform, 1.0);
-		return Transform;
-	}
-
-	FComponentInstance* ComponentInstance = Instances.Array()[0];
-	SUTransformation Transform;
-	SUComponentInstanceGetTransform(ComponentInstance->GetComponentInstanceRef(), &Transform);
-
-	// Don't bake translation 
-	Transform.values[12] = 0;
-	Transform.values[13] = 0;
-	Transform.values[14] = 0;
-	// and uniform scale
-	Transform.values[15] = 1;
-	// There's no need to bake translation and uniform scale into mesh and keeping those (at least translation) at actor transform is more convenient
-
-	return Transform;
-}
-
-void FComponentDefinition::GetLocalTransform(FComponentInstance& ComponentInstance, SUTransformation& SComponentInstanceLocalTransform)
-{
-	if (ShouldBakeTransformIntoMesh())
-	{
-		SUTransformation SComponentInstanceTransform;
-		SUComponentInstanceGetTransform(ComponentInstance.GetComponentInstanceRef(), &SComponentInstanceTransform);
-
-		// Local instance transform rotation part is baked into mesh, scale and translation aren't
-		double UniformScale = SComponentInstanceTransform.values[15];
-		const SUVector3D Translation{SComponentInstanceTransform.values[12], SComponentInstanceTransform.values[13], SComponentInstanceTransform.values[14]};
-
-		SUTransformation Transform;
-		SUTransformationTranslation(&Transform, &Translation);
-		Transform.values[15] = UniformScale;
-
-		SComponentInstanceLocalTransform = Transform;
-	}
-	else
-	{
-		SUComponentInstanceGetTransform(ComponentInstance.GetComponentInstanceRef(), &SComponentInstanceLocalTransform);
-	}
-}
-
-void FComponentDefinition::ComponentInstancePropertiesInvalidated()
-{
-	// If mesh transform baking is affecting geometry then invalidate geometry
-	// i.e. if transform should be baked or need to bake it has changed
-	bool bShouldBakeTransformIntoMesh = ShouldBakeTransformIntoMesh();
-	if (bShouldBakeTransformIntoMesh || (bShouldBakeTransformIntoMesh != bBakeTransformIntoMesh))
-	{
-		InvalidateDefinitionGeometry();
-	}
-}
-
 
 FString FComponentDefinition::GetSketchupSourceGUID()
 {
@@ -775,6 +691,8 @@ void FEntityWithEntities::UpdateOccurrence(FExportContext& Context, FNodeOccuren
 		Node.InheritedMaterialID = Node.ParentNode->InheritedMaterialID;
 	}
 
+	FEntitiesGeometry::FExportedGeometry& ExportedGeometry = EntitiesGeometry.GetOccurrenceExportedGeometry(Node);
+
 	FString MeshActorLabel = Node.GetActorLabel();
 	// Update Datasmith Mesh Actors
 	for (int32 MeshIndex = 0; MeshIndex < Node.MeshActors.Num(); ++MeshIndex)
@@ -785,7 +703,7 @@ void FEntityWithEntities::UpdateOccurrence(FExportContext& Context, FNodeOccuren
 
 		// Update Override(Inherited)  Material
 		// todo: set inherited material only on mesh actors that have faces with default material, right now setting on every mesh, hot harmful but excessive
-		if (EntitiesGeometry.IsMeshUsingInheritedMaterial(MeshIndex))
+		if (ExportedGeometry.IsMeshUsingInheritedMaterial(MeshIndex))
 		{
 			Context.Materials.SetMeshActorOverrideMaterial(Node, EntitiesGeometry, MeshActor);
 		}
@@ -877,6 +795,11 @@ void FEntityWithEntities::EntityOccurrenceVisible(FNodeOccurence* Node, bool bVi
 	GetDefinition()->EntityVisible(this, VisibleNodes.Num() > 0);
 }
 
+FComponentInstance::FComponentInstance(SUEntityRef InEntityRef, FComponentDefinition& InDefinition)
+	: Super(InEntityRef)
+	, Definition(InDefinition)
+{}
+
 FComponentInstance::~FComponentInstance()
 {
 }
@@ -901,6 +824,108 @@ bool FComponentInstance::GetAssignedMaterial(FMaterialIDType& MaterialId)
 	return false;
 }
 
+void FComponentInstance::UpdateOccurrenceTransformation(FExportContext& Context, FNodeOccurence& Node)
+{
+	// Compute the world transform of the SketchUp component instance.
+	SUTransformation LocalTransform;
+	SUComponentInstanceGetTransform(GetComponentInstanceRef(), &LocalTransform);
+
+	SUTransformation WorldTransform;
+	SUTransformationMultiply(&Node.ParentNode->WorldTransformSource, &LocalTransform, &WorldTransform);
+
+	bool bTransformChanged = !DatasmithSketchUpUtils::CompareSUTransformations(WorldTransform, Node.WorldTransformSource);
+
+	Node.WorldTransformSource = WorldTransform;
+	Node.WorldTransform = WorldTransform;
+
+
+	auto GetNodePath = [&Node]()
+	{
+		TArray<FString> NamePath;
+
+		for (const FNodeOccurence* N = &Node; N; N = N->ParentNode)
+		{
+			NamePath.Insert(N->Entity.GetEntityLabel(), 0);
+		}
+
+		return FString::Join(NamePath, TEXT("_"));
+	};
+
+	FVector Translation{};
+	FQuat Rotation{};
+	FVector Scale{};
+	FVector Shear{};
+
+	bool bTransformSupportedByUE = true;
+	if (DatasmithSketchUpUtils::DecomposeTransform(LocalTransform, Translation, Rotation, Scale, Shear))
+	{
+		if (!Shear.IsNearlyZero())
+		{
+			bTransformSupportedByUE = false;
+			DatasmithSketchUpUtils::ToRuby::LogWarn(
+				FString::Printf(TEXT("Entity '%s' has shear in local transform"), *GetNodePath()));
+		}
+	}
+	else
+	{
+		DatasmithSketchUpUtils::ToRuby::LogWarn(
+			FString::Printf(TEXT("Entity %s has zero scaling"), *GetNodePath()));
+	}
+
+	if (DatasmithSketchUpUtils::DecomposeTransform(Node.WorldTransform, Translation, Rotation, Scale, Shear))
+	{
+		
+		if (!Shear.IsNearlyZero())
+		{
+			bTransformSupportedByUE = false;
+			DatasmithSketchUpUtils::ToRuby::LogWarn(
+				FString::Printf(TEXT("Entity %s has shear in world transform"), *GetNodePath()));
+		}
+		//  Non-uniform with children not supported as children might be rotated and this would skew them
+		// todo: worth checking down the subtree for actual rotation present to support these edge cases without extra mesh export!
+		else if (!Scale.IsUniform() && !Node.Children.IsEmpty())
+		{
+			bTransformSupportedByUE = false;
+			DatasmithSketchUpUtils::ToRuby::LogWarn(
+				FString::Printf(TEXT("Entity %s has non-uniform scaling in world transform"), *GetNodePath()));
+		}
+	}
+	else
+	{
+		DatasmithSketchUpUtils::ToRuby::LogWarn(
+			FString::Printf(TEXT("Entity %s has zero scaling"), *GetNodePath()));
+	}
+
+	bTransformSupportedByUE = bTransformSupportedByUE && Node.ParentNode->bTransformSupportedByUE;
+
+	if (!bTransformSupportedByUE)
+	{
+
+		SUTransformation ActorTransform;
+		SUTransformation MeshActorWorldTransform;
+		SUTransformation BakeTransform;
+
+		DatasmithSketchUpUtils::SplitTransform(Node.WorldTransformSource, ActorTransform, MeshActorWorldTransform, BakeTransform);
+
+		Node.WorldTransform = ActorTransform;
+		Node.MeshActorWorldTransform = MeshActorWorldTransform;
+		Node.BakeTransform = BakeTransform;
+	}
+
+	// If node's transform is not supported by UE(therefore it was baked/needs baking into mesh)
+	// and transform itself was changed this means that geometry should be re-exported(as exported geometry was baked with old transform)
+	bool bNeedInvalidateBakedGeometry = 
+		(static_cast<bool>(Node.bTransformSupportedByUE) != bTransformSupportedByUE)
+		|| (!Node.bTransformSupportedByUE && bTransformChanged);
+
+	Node.bTransformSupportedByUE = bTransformSupportedByUE;
+
+	if (bNeedInvalidateBakedGeometry)
+	{
+		GetDefinition()->InvalidateDefinitionGeometry();
+	}
+}
+
 void FComponentInstance::UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node)
 {
 	Node.EffectiveLayerRef = DatasmithSketchUpUtils::GetEffectiveLayer(GetComponentInstanceRef(), Node.ParentNode->EffectiveLayerRef);
@@ -920,13 +945,6 @@ void FComponentInstance::UpdateOccurrence(FExportContext& Context, FNodeOccurenc
 	// Set the Datasmith actor layer name.
 	Node.DatasmithActorElement->SetLayer(*FDatasmithUtils::SanitizeObjectName(SEffectiveLayerName));
 
-	// Compute the world transform of the SketchUp component instance.
-	SUTransformation LocalTransform;
-	Definition.GetLocalTransform(*this, LocalTransform);
-	SUTransformation WorldTransform;
-	SUTransformationMultiply(&Node.ParentNode->WorldTransform, &LocalTransform, &WorldTransform);
-	Node.WorldTransform = WorldTransform; // Store world transform to be used by children to compute its
-
 	// Set the Datasmith actor world transform.
 	DatasmithSketchUpUtils::SetActorTransform(Node.DatasmithActorElement, Node.WorldTransform);
 
@@ -938,10 +956,17 @@ void FComponentInstance::UpdateOccurrence(FExportContext& Context, FNodeOccurenc
 	{
 		const TSharedPtr<IDatasmithMeshActorElement>& MeshActor = Node.MeshActors[MeshIndex];
 
-		// Set mesh actor transform after node transform
-		MeshActor->SetScale(Node.DatasmithActorElement->GetScale());
-		MeshActor->SetRotation(Node.DatasmithActorElement->GetRotation());
-		MeshActor->SetTranslation(Node.DatasmithActorElement->GetTranslation());
+		if (Node.bTransformSupportedByUE)
+		{
+			// Set mesh actor transform after node transform
+			MeshActor->SetScale(Node.DatasmithActorElement->GetScale());
+			MeshActor->SetRotation(Node.DatasmithActorElement->GetRotation());
+			MeshActor->SetTranslation(Node.DatasmithActorElement->GetTranslation());
+		}
+		else
+		{
+			DatasmithSketchUpUtils::SetActorTransform(MeshActor, Node.MeshActorWorldTransform);
+		}
 	}
 
 	Super::UpdateOccurrence(Context, Node);
@@ -953,11 +978,17 @@ int64 FComponentInstance::GetPersistentId()
 	return DatasmithSketchUpUtils::GetComponentPID(ComponentInstanceRef);
 }
 
-FString FComponentInstance::GetName()
+FString FComponentInstance::GetEntityName()
 {
 	SUComponentInstanceRef InSComponentInstanceRef = GetComponentInstanceRef();
 	FString SComponentInstanceName;
 	return SuGetString(SUComponentInstanceGetName, InSComponentInstanceRef);
+}
+
+FString FComponentInstance::GetEntityLabel()
+{
+	FString EntityName = GetEntityName();
+	return EntityName.IsEmpty() ? GetDefinition()->GetSketchupSourceName() : EntityName;
 }
 
 void FComponentInstance::UpdateMetadata(FExportContext& Context)
@@ -969,7 +1000,7 @@ void FComponentInstance::UpdateEntityProperties(FExportContext& Context)
 {
 	if (bPropertiesInvalidated)
 	{
-		Definition.ComponentInstancePropertiesInvalidated();
+		// todo: update metadata here
 	}
 	
 	FEntity::UpdateEntityProperties(Context);
@@ -1094,7 +1125,7 @@ void FComponentInstance::FillOccurrenceActorMetadata(FNodeOccurence& Node)
 
 	// Add original instance/component names to metadata
 	TSharedPtr<IDatasmithKeyValueProperty> EntityName = FDatasmithSceneFactory::CreateKeyValueProperty(TEXT("Instance"));
-	EntityName->SetValue(*GetName());
+	EntityName->SetValue(*GetEntityName());
 	Node.DatasmithMetadataElement->AddProperty(EntityName);
 
 	TSharedPtr<IDatasmithKeyValueProperty> DefinitionName = FDatasmithSceneFactory::CreateKeyValueProperty(TEXT("Definition"));
@@ -1131,7 +1162,7 @@ void FImageCollection::LayerModified(FEntityIDType LayerId)
 void FComponentInstance::UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence& Node)
 {
 	// Parent node, component instance and layer - all should be visible to have node visible
-	Node.SetVisibility(Node.ParentNode->bVisible && !bHidden && bLayerVisible);
+	bool bVisibilityChanged = Node.SetVisibility(Node.ParentNode->bVisible && !bHidden && bLayerVisible);
 
 	EntityOccurrenceVisible(&Node, Node.bVisible);
 
@@ -1142,12 +1173,18 @@ void FComponentInstance::UpdateOccurrenceVisibility(FExportContext& Context, FNo
 	}
 	else
 	{
+		// Making component instance occurrence invisible  needs to invalidate geometry export
+		// for different reasons: this occurrence could have its own baked mesh, it could be a single used of an instanced mesh
+		GetDefinition()->InvalidateDefinitionGeometry();
 		Node.RemoveDatasmithActorHierarchy(Context);
 	}
 
 	for (FNodeOccurence* ChildNode : Node.Children)
 	{
-		ChildNode->bVisibilityInvalidated = true;
+		// Invalidate Visibility for child nodes when parent's was changed
+		// as visibility is hierarchical so children should update even
+		// if they weren't invalidated directly
+		ChildNode->bVisibilityInvalidated |= bVisibilityChanged;
 	}
 }
 
@@ -1189,7 +1226,12 @@ int64 FModel::GetPersistentId()
 	return 0;
 }
 
-FString FModel::GetName()
+FString FModel::GetEntityName()
+{
+	return "";
+}
+   
+FString FModel::GetEntityLabel()
 {
 	return "";
 }

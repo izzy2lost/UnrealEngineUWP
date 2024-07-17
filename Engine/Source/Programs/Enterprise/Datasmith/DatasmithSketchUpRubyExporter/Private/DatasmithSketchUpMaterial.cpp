@@ -255,11 +255,13 @@ namespace DatasmithSketchUp
 	{
 		FEntitiesGeometry& EntitiesGeometry = *GetEntities().EntitiesGeometry;
 
+		FEntitiesGeometry::FExportedGeometry& ExportedGeometry = EntitiesGeometry.GetOccurrenceExportedGeometry(Node);
+
 		for (int32 MeshIndex = 0; MeshIndex < Node.MeshActors.Num(); ++MeshIndex)
 		{
 			// Update Override(Inherited)  Material
 			// todo: set inherited material only on mesh actors that have faces with default material, right now setting on every mesh, hot harmful but excessive
-			if (EntitiesGeometry.IsMeshUsingInheritedMaterial(MeshIndex))
+			if (ExportedGeometry.IsMeshUsingInheritedMaterial(MeshIndex))
 			{
 				const TSharedPtr<IDatasmithMeshActorElement>& MeshActor = Node.MeshActors[MeshIndex];
 
@@ -475,6 +477,35 @@ const TCHAR* FMaterialOccurrence::GetName()
 	return DatasmithElement->GetName();
 }
 
+void FEntitiesGeometry::SetMaterial(const TCHAR* MaterialName, TFunctionRef<bool(const FDatasmithInstantiatedMesh& Mesh, int32& OutSlotId)> SlotMapping)
+{
+	ForEachExportedMesh([MaterialName, SlotMapping](const FDatasmithInstantiatedMesh& Mesh)
+	{
+		int32 SlotId;
+		if (SlotMapping(Mesh, SlotId))
+		{
+			Mesh.DatasmithMesh->SetMaterial(MaterialName, SlotId);
+		}
+	});
+}
+
+void FEntitiesGeometry::ForEachExportedMesh(TFunctionRef<void(FDatasmithInstantiatedMesh&)> Callback)
+{
+	for (const TSharedPtr<FDatasmithInstantiatedMesh>& Mesh : ExportedGeometryForInstances.Meshes)
+	{
+		Callback(*Mesh);
+	}
+
+	for (const TPair<SUTransformation, FExportedGeometry>& NodeExportedGeometry : ExportedGeometryForTransform)
+	{
+		for (TSharedPtr<FDatasmithInstantiatedMesh> Mesh : NodeExportedGeometry.Value.Meshes)
+		{
+			Callback(*Mesh);
+		}
+	}
+}
+
+
 // todo: make virtual FMaterialOccurrence - for layer/regular materials different?
 // they differ by the way they are applied to geometry/nodes -
 // VERY tied to meshes composition - they either map slots from SU Material or from SU Layer
@@ -483,14 +514,15 @@ void FMaterialOccurrence::ApplyRegularMaterial(FMaterialIDType MaterialId)
 	// Apply material to meshes
 	for (FEntitiesGeometry* Geometry : MeshesMaterialDirectlyAppliedTo)
 	{
-		//Geometry->SetMaterialElementName(DatasmithSketchUpUtils::GetMaterialID(MaterialRef), MaterialDirectlyAppliedToMeshes->GetName());
-		for (const TSharedPtr<FDatasmithInstantiatedMesh>& Mesh : Geometry->Meshes)
+		Geometry->SetMaterial(GetName(), [MaterialId](const FDatasmithInstantiatedMesh& Mesh, int32& OutSlotId)
 		{
-			if (int32* SlotIdPtr = Mesh->SlotIdForMaterialId.Find(MaterialId))
+			if (const int32* SlotIdPtr = Mesh.SlotIdForMaterialId.Find(MaterialId))
 			{
-				Mesh->DatasmithMesh->SetMaterial(GetName(), *SlotIdPtr);
+				OutSlotId = *SlotIdPtr;
+				return true;
 			}
-		}
+			return false;
+		});
 	}
 
 	// Apply material to mesh actors
@@ -505,16 +537,15 @@ void FMaterialOccurrence::ApplyLayerMaterial(FLayerIDType LayerId)
 	// Apply material to meshes
 	for (FEntitiesGeometry* Geometry : MeshesMaterialDirectlyAppliedTo)
 	{
-		//Geometry->SetMaterialElementName(DatasmithSketchUpUtils::GetMaterialID(MaterialRef), MaterialDirectlyAppliedToMeshes->GetName());
-		for (const TSharedPtr<FDatasmithInstantiatedMesh>& Mesh : Geometry->Meshes)
+		Geometry->SetMaterial(GetName(), [LayerId](const FDatasmithInstantiatedMesh& Mesh, int32& OutSlotId)
 		{
-			// todo: maybe can refactor this and unify FMaterialOccurrence for regular/layer materials?
-			// By moving this into the Mesh? It has this occurrence anyway so it can keep the association of material<->slot there?
-			if (int32* SlotIdPtr = Mesh->SlotIdForLayerId.Find(LayerId))
+			if (const int32* SlotIdPtr = Mesh.SlotIdForLayerId.Find(LayerId))
 			{
-				Mesh->DatasmithMesh->SetMaterial(GetName(), *SlotIdPtr);
+				OutSlotId = *SlotIdPtr;
+				return true;
 			}
-		}
+			return false;
+		});
 	}
 
 	// Apply material to mesh actors
@@ -770,7 +801,7 @@ public:
 
 	FImageMaterial(FExportContext& Context, FImage& Image, FImageFile& ImageFile)
 	{
-		FString NameBase = Image.GetName();
+		FString NameBase = Image.GetEntityName();
 
 		FString MaterialName = FString::Printf(TEXT("image_material_%s"), *NameBase);  
 		FString MaterialLabel = NameBase;
