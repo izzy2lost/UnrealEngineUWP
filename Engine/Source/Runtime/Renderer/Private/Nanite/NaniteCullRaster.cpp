@@ -6012,6 +6012,7 @@ void FRenderer::DrawGeometry(
 	FRDGBufferRef VisiblePatchesPostArgs = nullptr;
 
 	// Tessellation
+	if (bTessellationEnabled)
 	{
 		FRDGBufferDesc CandidateDesc = FRDGBufferDesc::CreateByteAddressDesc( 16 * FGlobalResources::GetMaxCandidatePatches() );
 		FRDGBufferDesc VisibleDesc   = FRDGBufferDesc::CreateByteAddressDesc( 16 * FGlobalResources::GetMaxVisiblePatches() );
@@ -6031,12 +6032,9 @@ void FRenderer::DrawGeometry(
 		AddClearUAVPass( GraphBuilder, SplitWorkQueue.StateBuffer, 0 );
 		AddClearUAVPass( GraphBuilder, OccludedPatches.StateBuffer, 0 );
 
-		if( bTessellationEnabled )
-		{
-			VisiblePatches			= GraphBuilder.CreateBuffer( VisibleDesc,							TEXT("Nanite.VisiblePatches") );
-			VisiblePatchesMainArgs	= GraphBuilder.CreateBuffer( FRDGBufferDesc::CreateIndirectDesc(4),	TEXT("Nanite.VisiblePatchesMainArgs") );
-			VisiblePatchesPostArgs	= GraphBuilder.CreateBuffer( FRDGBufferDesc::CreateIndirectDesc(4),	TEXT("Nanite.VisiblePatchesPostArgs") );
-		}
+		VisiblePatches			= GraphBuilder.CreateBuffer( VisibleDesc,							TEXT("Nanite.VisiblePatches") );
+		VisiblePatchesMainArgs	= GraphBuilder.CreateBuffer( FRDGBufferDesc::CreateIndirectDesc(4),	TEXT("Nanite.VisiblePatchesMainArgs") );
+		VisiblePatchesPostArgs	= GraphBuilder.CreateBuffer( FRDGBufferDesc::CreateIndirectDesc(4),	TEXT("Nanite.VisiblePatchesPostArgs") );
 	}
 
 	// Per-view primitive filtering
