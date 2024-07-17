@@ -3,6 +3,7 @@
 #include "Core/BlendStackCameraNode.h"
 
 #include "Core/BlendCameraNode.h"
+#include "Core/BlendStackCameraNodeObserver.h"
 #include "Core/BlendStackRootCameraNode.h"
 #include "Core/CameraAsset.h"
 #include "Core/CameraEvaluationContext.h"
@@ -71,6 +72,7 @@ void FBlendStackCameraNodeEvaluator::Push(const FBlendStackCameraPushParams& Par
 	// blend node for this transition.
 	// We need to const-cast here to be able to use our own blend stack node as the outer
 	// of the new node.
+	const UCameraRigTransition* UsedTransition = nullptr;
 	UObject* Outer = const_cast<UObject*>((UObject*)GetCameraNode());
 	UBlendStackRootCameraNode* EntryRootNode = NewObject<UBlendStackRootCameraNode>(Outer, NAME_None);
 	{
@@ -82,6 +84,7 @@ void FBlendStackCameraNodeEvaluator::Push(const FBlendStackCameraPushParams& Par
 		if (const UCameraRigTransition* Transition = FindTransition(Params))
 		{
 			ModeBlend = Transition->Blend;
+			UsedTransition = Transition;
 		}
 		if (!ModeBlend)
 		{
@@ -121,6 +124,12 @@ void FBlendStackCameraNodeEvaluator::Push(const FBlendStackCameraPushParams& Par
 	// Important: we need to move the new entry here because copying evaluator storage
 	// is disabled.
 	Entries.Add(MoveTemp(NewEntry));
+
+	// Notify observers.
+	if (!Observers.IsEmpty())
+	{
+		NotifyObservers(EBlendStackCameraRigEventType::Pushed, Entries.Last(), UsedTransition);
+	}
 }
 
 bool FBlendStackCameraNodeEvaluator::InitializeEntry(
@@ -190,7 +199,7 @@ void FBlendStackCameraNodeEvaluator::GatherEntryParameterEvaluators(FCameraNodeE
 	}
 }
 
-TOptional<FCameraRigEvaluationInfo> FBlendStackCameraNodeEvaluator::GetActiveCameraRigEvaluationInfo() const
+FCameraRigEvaluationInfo FBlendStackCameraNodeEvaluator::GetActiveCameraRigEvaluationInfo() const
 {
 	if (Entries.Num() > 0)
 	{
@@ -203,7 +212,7 @@ TOptional<FCameraRigEvaluationInfo> FBlendStackCameraNodeEvaluator::GetActiveCam
 		Info.bIsFrozen = ActiveEntry.bIsFrozen;
 		return Info;
 	}
-	return TOptional<FCameraRigEvaluationInfo>();
+	return FCameraRigEvaluationInfo();
 }
 
 FCameraNodeEvaluatorChildrenView FBlendStackCameraNodeEvaluator::OnGetChildren()
@@ -466,8 +475,9 @@ void FBlendStackCameraNodeEvaluator::PopEntries(int32 FirstIndexToKeep)
 
 	for (int32 Index = 0; Index < FirstIndexToKeep; ++Index)
 	{
-#if WITH_EDITOR
 		const FCameraRigEntry& FirstEntry = Entries[0];
+
+#if WITH_EDITOR
 		for (const UPackage* ListenPackage : FirstEntry.ListenedPackages)
 		{
 			int32* NumListens = AllListenedPackages.Find(ListenPackage);
@@ -482,6 +492,11 @@ void FBlendStackCameraNodeEvaluator::PopEntries(int32 FirstIndexToKeep)
 			}
 		}
 #endif  // WITH_EDITOR
+
+		if (!Observers.IsEmpty())
+		{
+			NotifyObservers(EBlendStackCameraRigEventType::Popped, FirstEntry);
+		}
 
 		Entries.RemoveAt(0);
 	}
@@ -601,6 +616,35 @@ const UCameraRigTransition* FBlendStackCameraNodeEvaluator::FindTransition(
 	}
 
 	return nullptr;
+}
+
+void FBlendStackCameraNodeEvaluator::RegisterObserver(IBlendStackCameraNodeObserver* Observer)
+{
+	Observers.Add(Observer);
+}
+
+void FBlendStackCameraNodeEvaluator::UnregisterObserver(IBlendStackCameraNodeObserver* Observer)
+{
+	Observers.Remove(Observer);
+}
+
+void FBlendStackCameraNodeEvaluator::NotifyObservers(EBlendStackCameraRigEventType EventType, const FCameraRigEntry& Entry, const UCameraRigTransition* Transition) const
+{
+	FBlendStackCameraRigEvent Event;
+	Event.EventType = EventType;
+	Event.BlendStackEvaluator = this;
+	Event.CameraRigInfo = FCameraRigEvaluationInfo(
+			Entry.CameraRig,
+			Entry.EvaluationContext.Pin(),
+			Entry.Result,
+			Entry.RootEvaluator);
+	Event.CameraRigInfo.bIsFrozen = Entry.bIsFrozen;
+	Event.Transition = Transition;
+
+	for (IBlendStackCameraNodeObserver* Observer : Observers)
+	{
+		Observer->OnBlendStackEvent(Event);
+	}
 }
 
 void FBlendStackCameraNodeEvaluator::OnAddReferencedObjects(FReferenceCollector& Collector)
