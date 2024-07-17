@@ -42,6 +42,22 @@ enum class EToolChangeTrackingMode
 	FullUndoRedo = 3
 };
 
+/**
+ * Determines how a currently active tool is shutdown when switching to another tool.
+ */
+UENUM()
+enum class EToolManagerToolSwitchMode
+{
+	/* Accept if able, cancel if not (and complete if neither is possible) */
+	AcceptIfAble,
+	/* Cancel if able, complete if not */
+	CancelIfAble,
+	/* Like AcceptIfAble, except a tool can change the shutdown type by implementing IInteractiveToolShutdownQueryAPI */
+	CustomizableAcceptIfAble,
+	/* Like CancelIfAble, except a tool can change the shutdown type by implementing IInteractiveToolShutdownQueryAPI */
+	CustomizableCancelIfAble,
+};
+
 
 /**
  * UInteractiveToolManager allows users of the tools framework to create and operate Tool instances.
@@ -123,7 +139,8 @@ public:
 	INTERACTIVETOOLSFRAMEWORK_API virtual bool CanActivateTool(EToolSide eSide, FString Identifier);
 
 	/**
-	 * Try to activate a new Tool instance on the given Side
+	 * Try to activate a new Tool instance on the given Side. If another tool is already active, it
+	 *  will be shut down according to ToolSwitchMode.
 	 * @param Side which "side" you would like to active the tool on
 	 * @return true if a new Tool instance was created and initialized
 	 */	
@@ -136,6 +153,21 @@ public:
 	 */
 	INTERACTIVETOOLSFRAMEWORK_API virtual bool HasActiveTool(EToolSide Side) const;
 
+	/**
+	 * Get the current setting for how to deactivate an already-active tool if switching directly to
+	 * another tool.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API virtual EToolManagerToolSwitchMode GetToolSwitchMode() const { return ToolSwitchMode; }
+
+	/**
+	 * Set the behavior for how to deactivate an already-active tool if ActivateTool is called while
+	 * HasActiveTool is true.
+	 * 
+	 * Note: a higher level system could choose to enforce its preferences for this behavior by querying 
+	 * HasActiveTool and making sure to shut down the previous tool before calling ActivateTool.
+	 * However it is convenient to be able to set the behavior at the tool manager level.
+	 */
+	INTERACTIVETOOLSFRAMEWORK_API virtual void SetToolSwitchMode(EToolManagerToolSwitchMode ToolSwitchModeIn) { ToolSwitchMode = ToolSwitchModeIn; }
 
 	/**
 	 * @return true if there are any active tools
@@ -351,18 +383,13 @@ protected:
 	UInteractiveToolBuilder* ActiveRightBuilder;
 
 	EToolChangeTrackingMode ActiveToolChangeTrackingMode;
+	EToolManagerToolSwitchMode ToolSwitchMode = EToolManagerToolSwitchMode::CustomizableAcceptIfAble;
 
 	FString ActiveLeftToolName;
 	FString ActiveRightToolName;
 	bool bInToolShutdown = false;
 
-	/** 
-	 * Tracks whether the last activated tool has made a request to store a tool selection.
-	 * If it hasn't, we'll clear the currently stored tool selection. The reason for this is
-	 * that we generally don't want to keep the old stored tool selection after a new tool 
-	 * invocation, and we don't want to rely on tools to be kind enough to clear it for us
-	 * (though it is better when they do, since they can bundle it into their own undo transaction).
-	 */
+	UE_DEPRECATED(5.5, "bActiveToolMadeSelectionStoreRequest is no longer used.")
 	bool bActiveToolMadeSelectionStoreRequest = false;
 
 	INTERACTIVETOOLSFRAMEWORK_API virtual bool ActivateToolInternal(EToolSide Side);
