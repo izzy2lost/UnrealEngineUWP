@@ -26401,6 +26401,10 @@ FName UMaterialExpressionSubstrateShadingModels::GetInputName(int32 InputIndex) 
 			{
 				return TEXT("Iris Distance");
 			}
+			else if (ShadingModelOverride == MSM_ClearCoat)
+			{
+				return TEXT("Clear Coat Roughness");
+			}
 			return TEXT("Unused");
 		}
 		return TEXT("Custom1");
