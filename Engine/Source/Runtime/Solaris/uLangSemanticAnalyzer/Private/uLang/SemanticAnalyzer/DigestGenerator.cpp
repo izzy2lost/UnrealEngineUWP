@@ -1237,18 +1237,26 @@ private:
         else if (Qualifier._Definition && Qualifier._Definition->GetKind() == ETypeKind::Module)
         {
             const CModule& Module = Qualifier._Definition->AsChecked<CModule>();
-            return GenerateQualifier(Module);
+            const CUTF8String UsingVersePath = Module.GetScopePath('/', CScope::EPathMode::PrefixSeparator);
+            return TSRef<Verse::Vst::PathLiteral>::New(UsingVersePath, NullWhence());
         }
         else
         {
             ULANG_ASSERTF(Qualifier._Definition, "Invalid qualifier state encountered.");
-            return GenerateForType(Qualifier._Definition);
+            // TODO: (yiliang.siew) For now we are always using the full path for the qualifier in this case until we implement
+            // logic to use the minimum qualification path possible.
+            const CDefinition* Definition = Qualifier._Definition->Definition();
+            if (ULANG_ENSUREF(Definition, "Invalid qualifier; no valid definition exists for it."))
+            {
+                const CLogicalScope* LogicalScope = Definition->DefinitionAsLogicalScopeNullable();
+                if (ULANG_ENSUREF(LogicalScope, "Invalid qualifier; definition for it is not a logical scope."))
+                {
+                    const CUTF8String QualifierPath = LogicalScope->GetScopePath('/', CScope::EPathMode::PrefixSeparator);
+                    return TSRef<Verse::Vst::PathLiteral>::New(QualifierPath, NullWhence());
+                }
+            }
+            ULANG_UNREACHABLE();
         }
-    }
-
-    TSRef<Verse::Vst::Node> GenerateQualifier(const CModule& Module) const
-    {
-        return TSRef<Verse::Vst::Identifier>::New(GetDependencyName(Module), NullWhence());
     }
 
     void GenerateForEffectAttributes(const SEffectSet Effects, const SEffectSet DefaultEffects, Verse::Vst::Node& CallAttributable) const
