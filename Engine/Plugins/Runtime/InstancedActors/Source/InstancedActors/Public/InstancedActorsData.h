@@ -347,6 +347,8 @@ public:
 
 	int32 GetInstanceDataID() const { return (int32)ID; }
 
+	const FBox& GetCachedLocalBounds() const { return CachedLocalBounds; }
+
 	FMassEntityHandle GetEntityHandleForIndex(const FInstancedActorsInstanceIndex Index) const
 	{
 		return Entities.IsValidIndex(Index.GetIndex()) ? Entities[Index.GetIndex()] : FMassEntityHandle();
@@ -430,12 +432,10 @@ protected:
 	// ISMCs created in GetOrCreateActorInstanceData to match default visualizations ISMComponents for editor only preview of instances
 	UPROPERTY()
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> EditorPreviewISMComponents;
-
-	// Editor time cached bounds for AssetClass, used during editor-only instance creation and deletion to
-	// expand / contract Bounds
-	UPROPERTY()
-	FBox AssetBounds = FBox(ForceInit);
 #endif
+
+	UPROPERTY()
+	FBox CachedLocalBounds = FBox(ForceInit);
 
 private:
 	// Represents the shared fragment registered with MassEntityManager, that points back to this UInstancedActorsData instance

@@ -182,6 +182,8 @@ void UInstancedActorsData::Initialize()
 	if (Settings && Settings->bOverride_ActorClass && Settings->ActorClass)
 	{
 		ActorClass = Settings->ActorClass;
+		CachedLocalBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
+		ensure(CachedLocalBounds.IsValid);
 	}
 
 	// Allow settings to scale NumValidInstances, effectively scaling the number of spawned entities
@@ -558,8 +560,8 @@ FInstancedActorsInstanceHandle UInstancedActorsData::AddInstance(const FTransfor
 		InstanceTransforms[NewInstanceIndex].SetToRelativeTransform(ManagerTransform);
 	}
 
-	ensure(AssetBounds.IsValid);
-	Bounds += AssetBounds.TransformBy(InstanceTransforms[NewInstanceIndex]);
+	ensure(CachedLocalBounds.IsValid);
+	Bounds += CachedLocalBounds.TransformBy(InstanceTransforms[NewInstanceIndex]);
 
 	return FInstancedActorsInstanceHandle(*this, FInstancedActorsInstanceIndex(NewInstanceIndex));
 }
@@ -581,13 +583,13 @@ bool UInstancedActorsData::RemoveInstance(const FInstancedActorsInstanceHandle& 
 		}
 
 		// Update bounds
-		ensure(AssetBounds.IsValid);
+		ensure(CachedLocalBounds.IsValid);
 		Bounds.Init();
 		for (const FTransform& InstanceTransform : InstanceTransforms)
 		{
 			if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 			{
-				Bounds += AssetBounds.TransformBy(InstanceTransform);
+				Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 			}
 		}
 
@@ -620,13 +622,13 @@ bool UInstancedActorsData::SetInstanceTransform(const FInstancedActorsInstanceHa
 	}
 
 	// Update bounds
-	ensure(AssetBounds.IsValid);
+	ensure(CachedLocalBounds.IsValid);
 	Bounds.Init();
 	for (const FTransform& InstanceTransform : InstanceTransforms)
 	{
 		if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 		{
-			Bounds += AssetBounds.TransformBy(InstanceTransform);
+			Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 		}
 	}
 
@@ -706,27 +708,31 @@ void UInstancedActorsData::PostLoad()
 
 	NumInstances = InstanceTransforms.Num();
 
+	// Cache asset bounds
+	if (!CachedLocalBounds.IsValid)
+	{
+		CachedLocalBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
+	}
+	ensure(CachedLocalBounds.IsValid);
+	
 	if (!Bounds.IsValid)
 	{
 		// Update bounds for InstanceData saved prior to addition of Bounds property
 		if (NumValidInstances > 0)
 		{
-			FBox MeshBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
-			ensure(MeshBounds.IsValid);
-
 			Bounds.Init();
 			for (const FTransform& InstanceTransform : InstanceTransforms)
 			{
 				if (UE::InstancedActors::Helpers::IsValidInstanceTransform(InstanceTransform))
 				{
-					Bounds += MeshBounds.TransformBy(InstanceTransform);
+					Bounds += CachedLocalBounds.TransformBy(InstanceTransform);
 				}
 			}
 		}
 		else
 		{
 			// Note: UInstancedActorsData::Bounds mustn't be 0 sized by default, otherwise the first AddInstance
-			//       woulf stretch the bounds from origin - instead we want the first AddInstance to init the bounds.
+			//       would stretch the bounds from origin - instead we want the first AddInstance to init the bounds.
 			Bounds = FBox(FVector::ZeroVector, FVector::ZeroVector);
 		}
 	}
@@ -746,14 +752,6 @@ void UInstancedActorsData::PostLoad()
 		}
 		EditorPreviewISMComponents.Empty();
 	}
-
-	// Cache asset bounds for use during instance population for IAD's saved before
-	// AssetBounds was marked non-transient.
-	if (!AssetBounds.IsValid)
-	{
-		AssetBounds = AInstancedActorsManager::CalculateBounds(ActorClass);
-	}
-	ensure(AssetBounds.IsValid);
 #endif
 
 	//check(CompressedInstanceTransforms.IsEmpty());

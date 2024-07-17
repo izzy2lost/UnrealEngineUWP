@@ -704,8 +704,8 @@ UInstancedActorsData& AInstancedActorsManager::GetOrCreateActorInstanceData(TSub
 	RegisterInstanceDatasComponents(*NewInstanceData, NewInstanceData->EditorPreviewISMComponents);
 
 	// Cache asset bounds for use during instance population
-	NewInstanceData->AssetBounds = CalculateBounds(ActorClass);
-	ensure(NewInstanceData->AssetBounds.IsValid);
+	NewInstanceData->CachedLocalBounds = CalculateBounds(ActorClass);
+	ensure(NewInstanceData->CachedLocalBounds.IsValid);
 
 	return *NewInstanceData;
 }
@@ -948,7 +948,7 @@ bool AInstancedActorsManager::ForEachInstance<FSphere>(const FSphere& QueryBound
 			}
 
 			// More expensive bounds test.
-			const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass);
+			const FBox& InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds;
 			const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
 			if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
 			{
@@ -971,7 +971,7 @@ bool AInstancedActorsManager::ForEachInstance<FBox>(const FBox& QueryBounds, FIn
 			}
 
 			// More expensive bounds test.
-			const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+			const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
 			if (QueryBounds.Intersect(InstancedActorBounds))
 			{
 				return Operation(InstanceHandle, InstanceTransform, IterationContext);
@@ -995,7 +995,7 @@ UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstance
 	}
 
 	// More expensive bounds test.
-	const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+	const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
 	if (QueryBounds.Intersect(InstancedActorBounds))
 	{
 		return UE::InstancedActors::EInsideBoundsTestResult::OverlapBounds;
@@ -1013,7 +1013,7 @@ UE::InstancedActors::EInsideBoundsTestResult AInstancedActorsManager::IsInstance
 	}
 
 	// More expensive bounds test.
-	const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass);
+	const FBox& InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds;
 	const FSphere TransformedSphere = QueryBounds.TransformBy(InstanceTransform.Inverse());
 	if (FMath::SphereAABBIntersection(TransformedSphere, InstancedActorBounds))
 	{
@@ -1096,7 +1096,7 @@ bool AInstancedActorsManager::HasInstancesOfClass(const FBox& InQueryBounds, TSu
 			(
 				if (bHasInstance || OverlapResult == EInsideBoundsTestResult::OverlapBounds)
 				{
-					const FBox InstancedActorBounds = CalculateBounds(InstanceHandle.InstancedActorData->ActorClass).TransformBy(InstanceTransform);
+					const FBox InstancedActorBounds = InstanceHandle.InstancedActorData->CachedLocalBounds.TransformBy(InstanceTransform);
 					UE_VLOG_BOX(Manager, LogInstancedActors, Log, InstancedActorBounds, bHasInstance ? FColor::Red : FColor::Green
 						, TEXT("Instance of class %s"), *GetNameSafe(InstanceHandle.InstancedActorData->ActorClass));
 				}
