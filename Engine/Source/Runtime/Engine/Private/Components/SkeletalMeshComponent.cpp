@@ -2508,6 +2508,11 @@ void USkeletalMeshComponent::RefreshBoneTransforms(FActorComponentTickFunction* 
 
 	if (bShouldDoEvaluation)
 	{
+		// If we're going to evaluate animation, call PreEvaluateAnimation()
+		{
+			DoInstancePreEvaluation();
+		}
+
 		// If we need to eval the graph, and we're not going to update it.
 		// make sure it's been ticked at least once!
 		{
@@ -2524,11 +2529,6 @@ void USkeletalMeshComponent::RefreshBoneTransforms(FActorComponentTickFunction* 
 				// We bypass TickPose() and call TickAnimation directly, so URO doesn't intercept us.
 				TickAnimation(0.f, false);
 			}
-		}
-
-		// If we're going to evaluate animation, call PreEvaluateAnimation()
-		{
-			DoInstancePreEvaluation();
 		}
 	}
 
