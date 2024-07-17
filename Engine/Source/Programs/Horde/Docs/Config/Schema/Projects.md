@@ -18,6 +18,7 @@ Name | Description
 `workspaceTypes` | `string` `->` [`WorkspaceConfig`](#workspaceconfig)<br>
 `telemetryStoreId` | `string`<br>
 `streams` | [`StreamConfig`](Streams.md)`[]`<br>
+`artifactTypes` | [`ArtifactTypeAclConfig`](#artifacttypeaclconfig)`[]`<br>
 `acl` | [`AclConfig`](#aclconfig)<br>
 
 ## ConfigInclude
@@ -184,6 +185,13 @@ Name | Description
 `method` | `string`<br>
 `minScratchSpace` | `integer`<br>
 `conformDiskFreeSpace` | `integer`<br>
+
+## ArtifactTypeAclConfig
+
+Name | Description
+---- | -----------
+`type` | `string`<br>
+`acl` | [`AclConfig`](#aclconfig)<br>
 
 ## AclConfig
 

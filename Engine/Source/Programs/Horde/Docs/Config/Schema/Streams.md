@@ -32,6 +32,7 @@ Name | Description
 `replicators` | [`ReplicatorConfig`](#replicatorconfig)`[]`<br>
 `workflows` | [`WorkflowConfig`](#workflowconfig)`[]`<br>
 `tokens` | [`TokenConfig`](#tokenconfig)`[]`<br>
+`artifactTypes` | [`ArtifactTypeAclConfig`](#artifacttypeaclconfig)`[]`<br>
 
 ## ConfigInclude
 
@@ -426,3 +427,10 @@ Name | Description
 `projectKey` | `string`<br>
 `defaultComponentId` | `string`<br>
 `defaultIssueTypeId` | `string`<br>
+
+## ArtifactTypeAclConfig
+
+Name | Description
+---- | -----------
+`type` | `string`<br>
+`acl` | [`AclConfig`](#aclconfig)<br>

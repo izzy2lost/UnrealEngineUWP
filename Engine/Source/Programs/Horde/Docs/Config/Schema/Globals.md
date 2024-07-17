@@ -64,6 +64,7 @@ Name | Description
 `agentShutdownIfDisabledGracePeriod` | `string`<br>
 `artifactTypes` | [`ArtifactTypeConfig`](#artifacttypeconfig)`[]`<br>
 `projects` | [`ProjectConfig`](Projects.md)`[]`<br>
+`enableConformTasks` | `boolean`<br>
 `issueFixedTag` | `string`<br>
 
 ## PerforceCluster
@@ -145,22 +146,11 @@ Name | Description
 
 Name | Description
 ---- | -----------
-`type` | `string`<br>
 `name` | `string`<br>
 `keepCount` | `integer`<br>
 `keepDays` | `integer`<br>
-
-## ComputeConfig
-
-Name | Description
----- | -----------
+`type` | `string`<br>
 `acl` | [`AclConfig`](#aclconfig)<br>
-`versionEnum` | [`ConfigVersion`](#configversion-enum)<br>
-`rates` | [`AgentRateConfig`](#agentrateconfig)`[]`<br>
-`clusters` | [`ComputeClusterConfig`](#computeclusterconfig)`[]`<br>
-`pools` | [`PoolConfig`](#poolconfig)`[]`<br>
-`software` | [`AgentSoftwareConfig`](#agentsoftwareconfig)`[]`<br>
-`networks` | [`NetworkConfig`](#networkconfig)`[]`<br>
 
 ## AclConfig
 
@@ -194,6 +184,18 @@ Name | Description
 `actions` | `string[]`<br>
 `excludeActions` | `string[]`<br>
 `extends` | `string[]`<br>
+
+## ComputeConfig
+
+Name | Description
+---- | -----------
+`acl` | [`AclConfig`](#aclconfig)<br>
+`versionEnum` | [`ConfigVersion`](#configversion-enum)<br>
+`rates` | [`AgentRateConfig`](#agentrateconfig)`[]`<br>
+`clusters` | [`ComputeClusterConfig`](#computeclusterconfig)`[]`<br>
+`pools` | [`PoolConfig`](#poolconfig)`[]`<br>
+`software` | [`AgentSoftwareConfig`](#agentsoftwareconfig)`[]`<br>
+`networks` | [`NetworkConfig`](#networkconfig)`[]`<br>
 
 ## ConfigVersion (Enum)
 
