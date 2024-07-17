@@ -38,7 +38,7 @@ public:
 	bool bSolidAtBoundaries = true;
 
 	/** If true, uses the ThickenShells setting */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category = Options)
 	bool bApplyThickenShells = false;
 
 	/** Thicken open-boundary surfaces (extrude them inwards) to ensure they are captured in the VoxWrap output. Units are in world space. */
