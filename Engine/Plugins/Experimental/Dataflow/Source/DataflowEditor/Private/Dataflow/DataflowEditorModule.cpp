@@ -2,18 +2,17 @@
 
 #include "Dataflow/DataflowEditorModule.h"
 
-#include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEngineRendering.h"
+#include "Dataflow/DataflowFunctionsProperty.h"
+#include "Dataflow/DataflowFunctionsPropertyCustomization.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/ScalarVertexPropertyGroupCustomization.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 
-#include "CoreMinimal.h"
-#include "EdGraphUtilities.h"
 #include "PropertyEditorModule.h"
 #include "EditorModeRegistry.h"
 
@@ -25,12 +24,11 @@ void FDataflowEditorModule::StartupModule()
 {
 	FDataflowEditorStyle::Get();
 	
-	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
-
 	// Register type customizations
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyModule->RegisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FScalarVertexPropertyGroupCustomization::MakeInstance));
+		PropertyModule->RegisterCustomPropertyTypeLayout(FDataflowFunctionsProperty::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FFunctionsPropertyCustomization::MakeInstance));
 	}
 
 	Dataflow::RenderingCallbacks();
@@ -44,6 +42,7 @@ void FDataflowEditorModule::ShutdownModule()
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyModule->UnregisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName());
+		PropertyModule->UnregisterCustomPropertyTypeLayout(FDataflowFunctionsProperty::StaticStruct()->GetFName());
 	}
 }
 
