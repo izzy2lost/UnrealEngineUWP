@@ -91,7 +91,7 @@ namespace Metasound
 				return nullptr;
 			}
 
-			FName GenerateUniqueName(const TArray<FName>& InExistingNames, const FString& InBaseName)
+			FName GenerateUniqueName(const TSet<FName>& InExistingNames, const FString& InBaseName)
 			{
 				int32 PostFixInt = 0;
 				FString NewName = InBaseName;
@@ -555,51 +555,73 @@ namespace Metasound
 			return nullptr;
 		}
 
-		UMetasoundEditorGraphInputNode* FGraphBuilder::AddInputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode)
+		UMetasoundEditorGraphInputNode* FGraphBuilder::AddInputNode(UObject& InMetaSound, const FGuid& InTemplateNodeID, bool bInSelectNewNode)
 		{
 			using namespace Frontend;
 
-			const FMetasoundFrontendClassMetadata& InputMetadata = InNodeHandle->GetClassMetadata();
-			if (ensureMsgf(InputMetadata.GetType() == EMetasoundFrontendClassType::Template, TEXT("Cannot call 'AddInputNode' with node of class type '%s': Must be input template."), LexToString(InputMetadata.GetType())))
-			{
-				if (ensureMsgf(InputMetadata.GetClassName() == FInputNodeTemplate::ClassName, TEXT("Cannot call 'AddInputNode with node handle that is not of class '%s'"), *InputMetadata.GetClassName().ToString()))
-				{
-					auto InitNodeFunc = [&InNodeHandle](UMetasoundEditorGraph& MetasoundGraph, UMetasoundEditorGraphInputNode& NewGraphNode)
-					{
-						FConstInputHandle TemplateInput = InNodeHandle->GetConstInputs().Last();
-						FConstOutputHandle InputNodeOutput = TemplateInput->GetConnectedOutput();
-						UMetasoundEditorGraphInput* Input = MetasoundGraph.FindOrAddInput(InputNodeOutput->GetOwningNode());
-						if (ensure(Input))
-						{
-							NewGraphNode.Input = Input;
-							NewGraphNode.NodeID = InNodeHandle->GetID();
-						}
-					};
+			using namespace Engine;
+			using namespace Frontend;
 
-					return GraphBuilderPrivate::AddNode<UMetasoundEditorGraphInputNode>(InMetaSound, InitNodeFunc, bInSelectNewNode);
+			FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound);
+			if (const FMetasoundFrontendNode* TemplateNode = Builder.FindNode(InTemplateNodeID))
+			{
+				if (const FMetasoundFrontendClass* Class = Builder.FindDependency(TemplateNode->ClassID))
+				{
+					const EMetasoundFrontendClassType& ClassType = Class->Metadata.GetType();
+					if (ensureMsgf(ClassType == EMetasoundFrontendClassType::Template, TEXT("Cannot call 'AddInputNode' with node of class type '%s': Must be input template."), LexToString(ClassType)))
+					{
+						if (ensureMsgf(Class->Metadata.GetClassName() == FInputNodeTemplate::ClassName, TEXT("Cannot call 'AddInputNode with node handle that is not of class '%s'"), *FInputNodeTemplate::ClassName.ToString()))
+						{
+							const FGuid& TemplateNodeInputVertexID = TemplateNode->Interface.Inputs.Last().VertexID;
+							auto InitNodeFunc = [&Builder, &TemplateNodeInputVertexID, &InTemplateNodeID](UMetasoundEditorGraph& MetasoundGraph, UMetasoundEditorGraphInputNode& NewGraphNode)
+							{
+								const FMetasoundFrontendNode* ConnectedInputNode = nullptr;
+								Builder.FindNodeOutputConnectedToNodeInput(InTemplateNodeID, TemplateNodeInputVertexID, &ConnectedInputNode);
+								if (ensureMsgf(ConnectedInputNode, TEXT("Failed to find required input connected to template node")))
+								{
+									UMetasoundEditorGraphInput* Input = MetasoundGraph.FindOrAddInput(ConnectedInputNode->GetID());
+									if (ensure(Input))
+									{
+										NewGraphNode.Input = Input;
+										NewGraphNode.NodeID = InTemplateNodeID;
+									}
+								}
+							};
+
+							return GraphBuilderPrivate::AddNode<UMetasoundEditorGraphInputNode>(InMetaSound, InitNodeFunc, bInSelectNewNode);
+						}
+					}
 				}
 			}
 
 			return nullptr;
 		}
 
-		UMetasoundEditorGraphOutputNode* FGraphBuilder::AddOutputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode)
+		UMetasoundEditorGraphOutputNode* FGraphBuilder::AddOutputNode(UObject& InMetaSound, const FGuid& InNodeID, bool bInSelectNewNode)
 		{
+			using namespace Engine;
 			using namespace Frontend;
 
-			const EMetasoundFrontendClassType ClassType = InNodeHandle->GetClassMetadata().GetType();
-			if (ensureMsgf(ClassType == EMetasoundFrontendClassType::Output, TEXT("Cannot call 'AddOutputNode' with node of class type '%s'"), LexToString(ClassType)))
+			FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound);
+			if (const FMetasoundFrontendNode* Node = Builder.FindNode(InNodeID))
 			{
-				auto InitNodeFunc = [&InNodeHandle](UMetasoundEditorGraph& MetasoundGraph, UMetasoundEditorGraphOutputNode& NewGraphNode)
+				if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
 				{
-					UMetasoundEditorGraphOutput* Output = MetasoundGraph.FindOrAddOutput(InNodeHandle);
-					if (ensure(Output))
+					const EMetasoundFrontendClassType& ClassType = Class->Metadata.GetType();
+					if (ensureMsgf(ClassType == EMetasoundFrontendClassType::Output, TEXT("Cannot call 'AddOutputNode' with node of class type '%s'"), LexToString(ClassType)))
 					{
-						NewGraphNode.Output = Output;
-					}
-				};
+						auto InitNodeFunc = [&InNodeID](UMetasoundEditorGraph& MetasoundGraph, UMetasoundEditorGraphOutputNode& NewGraphNode)
+						{
+							UMetasoundEditorGraphOutput* Output = MetasoundGraph.FindOrAddOutput(InNodeID);
+							if (ensure(Output))
+							{
+								NewGraphNode.Output = Output;
+							}
+						};
 
-				return GraphBuilderPrivate::AddNode<UMetasoundEditorGraphOutputNode>(InMetaSound, InitNodeFunc, bInSelectNewNode);
+						return GraphBuilderPrivate::AddNode<UMetasoundEditorGraphOutputNode>(InMetaSound, InitNodeFunc, bInSelectNewNode);
+					}
+				}
 			}
 
 			return nullptr;
@@ -647,17 +669,14 @@ namespace Metasound
 			return Categories;
 		}
 
-		FName FGraphBuilder::GenerateUniqueNameByClassType(const UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName)
+		FName FGraphBuilder::GenerateUniqueNameByClassType(UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName)
 		{
-			const FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
+			using namespace Engine;
 
-			// Get existing names.
-			TArray<FName> ExistingNames;
-			MetaSoundAsset->GetRootGraphHandle()->IterateConstNodes([&](const Frontend::FConstNodeHandle& Node)
-			{
-				ExistingNames.Add(Node->GetNodeName());
-			}, InClassType);
+			TSet<FName> ExistingNames;
+			FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound);
+			auto GetName = [&](const FMetasoundFrontendClass&, const FMetasoundFrontendNode& Node) { ExistingNames.Add(Node.Name); };
+			Builder.IterateNodesByClassType(GetName, InClassType);
 
 			return GraphBuilderPrivate::GenerateUniqueName(ExistingNames, InBaseName);
 		}
@@ -1177,45 +1196,6 @@ namespace Metasound
 			}
 		}
 
-		Frontend::FNodeHandle FGraphBuilder::AddInputTemplateNodeHandle(UObject& InMetaSound, Frontend::FNodeHandle& InputNodeHandle)
-		{
-			using namespace Frontend;
-
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
-
-			UMetasoundEditorGraph* Graph = Cast<UMetasoundEditorGraph>(MetaSoundAsset->GetGraph());
-			if (!ensure(Graph))
-			{
-				return INodeController::GetInvalidHandle();
-			}
-
-			TArray<FConstOutputHandle> NodeOutputs = InputNodeHandle->GetConstOutputs();
-			if (!ensure(!NodeOutputs.IsEmpty()))
-			{
-				return INodeController::GetInvalidHandle();
-			}
-
-			if (!ensure(InputNodeHandle->GetClassMetadata().GetType() == EMetasoundFrontendClassType::Input))
-			{
-				return INodeController::GetInvalidHandle();
-			}
-
-			const INodeTemplate* InputTemplate = INodeTemplateRegistry::Get().FindTemplate(FInputNodeTemplate::ClassName);
-			check(InputTemplate);
-
-			const FName DataType = NodeOutputs.Last()->GetDataType();
-			FNodeTemplateGenerateInterfaceParams Params { { DataType }, { } };
-
-			FGraphHandle GraphHandle = Graph->GetGraphHandle();
-			FNodeHandle TemplateNodeHandle = GraphHandle->AddTemplateNode(*InputTemplate, MoveTemp(Params));
-
-			TemplateNodeHandle->GetInputs().Last()->Connect(*InputNodeHandle->GetOutputs().Last());
-			FMetasoundFrontendDocumentModifyContext& ModifyContext = GetOutermostMetaSoundChecked(*Graph).GetModifyContext();
-			ModifyContext.AddNodeIDsModified({ TemplateNodeHandle->GetID() });
-			return TemplateNodeHandle;
-		}
-
 		bool FGraphBuilder::GetPinLiteral(UEdGraphPin& InInputPin, FMetasoundFrontendLiteral& OutDefaultLiteral)
 		{
 			using namespace Frontend;
@@ -1375,16 +1355,13 @@ namespace Metasound
 			return true;
 		}
 
-		Frontend::FNodeHandle FGraphBuilder::AddInputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FMetasoundFrontendLiteral* InDefaultValue, const FName* InNameBase)
+		FMetasoundFrontendClassInput FGraphBuilder::CreateUniqueClassInput(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FMetasoundFrontendLiteral* InDefaultValue, const FName* InNameBase)
 		{
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
-			const FGuid VertexID = FGuid::NewGuid();
-
 			FMetasoundFrontendClassInput ClassInput;
 			ClassInput.Name = GenerateUniqueNameByClassType(InMetaSound, EMetasoundFrontendClassType::Input, InNameBase ? InNameBase->ToString() : TEXT("Input"));
 			ClassInput.TypeName = InParams.DataType;
-			ClassInput.VertexID = VertexID;
+			ClassInput.VertexID = FGuid::NewGuid();
+			ClassInput.NodeID = FGuid::NewGuid();
 
 			// Can be unset if attempting to mirror parameters from a reroute, so default to reference
 			ClassInput.AccessType = InParams.AccessType == EMetasoundFrontendVertexAccessType::Unset ? EMetasoundFrontendVertexAccessType::Reference : InParams.AccessType;
@@ -1399,33 +1376,28 @@ namespace Metasound
 				ClassInput.DefaultLiteral.SetFromLiteral(Literal);
 			}
 
-			return MetaSoundAsset->GetRootGraphHandle()->AddInputVertex(ClassInput);
+			return ClassInput;
 		}
 
-		Frontend::FNodeHandle FGraphBuilder::AddOutputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FName* InNameBase)
+		FMetasoundFrontendClassOutput FGraphBuilder::CreateUniqueClassOutput(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FName* InNameBase)
 		{
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&InMetaSound);
-			check(MetaSoundAsset);
-			const FGuid VertexID = FGuid::NewGuid();
-
-			const FName NewName = GenerateUniqueNameByClassType(InMetaSound, EMetasoundFrontendClassType::Output, InNameBase ? InNameBase->ToString() : TEXT("Output"));
-
 			FMetasoundFrontendClassOutput ClassOutput;
-			ClassOutput.Name = NewName;
+			ClassOutput.Name = GenerateUniqueNameByClassType(InMetaSound, EMetasoundFrontendClassType::Output, InNameBase ? InNameBase->ToString() : TEXT("Output"));
 			ClassOutput.TypeName = InParams.DataType;
-			ClassOutput.VertexID = VertexID;
+			ClassOutput.VertexID = FGuid::NewGuid();
+			ClassOutput.NodeID = FGuid::NewGuid();
 
 			// Can be unset if attempting to mirror parameters from a reroute, so default to reference
 			ClassOutput.AccessType = InParams.AccessType == EMetasoundFrontendVertexAccessType::Unset ? EMetasoundFrontendVertexAccessType::Reference : InParams.AccessType;
 
-			return MetaSoundAsset->GetRootGraphHandle()->AddOutputVertex(ClassOutput);
+			return ClassOutput;
 		}
 
 		FName FGraphBuilder::GenerateUniqueVariableName(const Frontend::FConstGraphHandle& InFrontendGraph, const FString& InBaseName)
 		{
 			using namespace Frontend;
 
-			TArray<FName> ExistingVariableNames;
+			TSet<FName> ExistingVariableNames;
 
 			// Get all the names from the existing variables on the graph
 			// and place into the ExistingVariableNames array.
@@ -2369,7 +2341,7 @@ namespace Metasound
 						{
 							if (Node->GetClassMetadata().GetClassName() == FInputNodeTemplate::ClassName)
 							{
-								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddInputNode(MetaSoundObject, Node, false));
+								NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddInputNode(MetaSoundObject, Node->GetID(), false));
 							}
 							else
 							{
@@ -2380,7 +2352,7 @@ namespace Metasound
 
 						case EMetasoundFrontendClassType::Output:
 						{
-							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddOutputNode(MetaSoundObject, Node, false));
+							NewGraphNode = CastChecked<UMetasoundEditorGraphNode>(AddOutputNode(MetaSoundObject, Node->GetID(), false));
 						}
 						break;
 

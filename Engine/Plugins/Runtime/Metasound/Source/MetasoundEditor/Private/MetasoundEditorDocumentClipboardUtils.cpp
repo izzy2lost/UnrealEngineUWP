@@ -7,6 +7,7 @@
 #include "Logging/TokenizedMessage.h"
 #include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendSearchEngine.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "ScopedTransaction.h"
 
 
@@ -14,7 +15,10 @@ namespace Metasound::Editor
 {
 	void FDocumentClipboardUtils::ProcessPastedInputNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes)
 	{
+		using namespace Engine;
 		using namespace Frontend;
+
+		FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(OutAsset.GetOwningAsset());
 
 		TMap<FName, TObjectPtr<UMetasoundEditorGraphInput>> MappedGeneratedInputNames;
 		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(&OutAsset.GetGraphChecked());
@@ -62,25 +66,31 @@ namespace Metasound::Editor
 						{
 							FCreateNodeVertexParams VertexParams;
 							VertexParams.DataType = Breadcrumb.DataType;
-							FNodeHandle NewNodeHandle = FGraphBuilder::AddInputNodeHandle(*OutAsset.GetOwningAsset(), VertexParams, &Breadcrumb.DefaultLiteral, &Breadcrumb.MemberName);
-							MappedGeneratedInputNames.Add(Breadcrumb.MemberName, Input);
-							Input = Graph.FindOrAddInput(NewNodeHandle);
+
+							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams);
+							if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphInput(ClassInput))
+							{
+								Input = Graph.FindOrAddInput(NewNode->GetID());
+								MappedGeneratedInputNames.Add(Breadcrumb.MemberName, Input);
+							}
 						}
 					}
 				}
 			}
 
-			if (!Input)
+			if (Input)
+			{
+				const FMetasoundFrontendNode* InputTemplateNode = FInputNodeTemplate::CreateNode(Builder, Input->GetMemberName());
+				if (ensure(InputTemplateNode))
+				{
+					InputNode->NodeID = InputTemplateNode->GetID();
+				}
+			}
+			else
 			{
 				constexpr bool bAllowShrinking = false;
 				Graph.RemoveNode(InputNode);
 				OutPastedNodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
-			}
-			else
-			{
-				FNodeHandle InputNodeHandle = Input->GetNodeHandle();
-				FConstNodeHandle InputTemplateNode = FGraphBuilder::AddInputTemplateNodeHandle(*OutAsset.GetOwningAsset(), InputNodeHandle);
-				InputNode->NodeID = InputTemplateNode->GetID();
 			}
 		}
 	}

@@ -2526,6 +2526,27 @@ void FMetaSoundFrontendDocumentBuilder::IterateNodesConnectedWithVertex(const FM
 	}
 }
 
+void FMetaSoundFrontendDocumentBuilder::IterateNodesByClassType(Metasound::Frontend::FConstClassAndNodeFunctionRef Func, EMetasoundFrontendClassType ClassType, const FGuid* InPageID) const
+{
+	using namespace Metasound::Frontend;
+
+	check(ClassType != EMetasoundFrontendClassType::Invalid);
+
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	const FMetasoundFrontendDocument& Doc = GetConstDocumentChecked();
+	const FMetasoundFrontendGraph& Graph = Doc.RootGraph.FindConstGraphChecked(PageID);
+	for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+	{
+		if (const FMetasoundFrontendClass* Class = FindDependency(Node.ClassID))
+		{
+			if (Class->Metadata.GetType() == ClassType)
+			{
+				Func(*Class, Node);
+			}
+		}
+	}
+}
+
 bool FMetaSoundFrontendDocumentBuilder::ModifyInterfaces(Metasound::Frontend::FModifyInterfaceOptions&& InOptions)
 {
 	using namespace Metasound::Frontend;

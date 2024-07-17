@@ -31,6 +31,12 @@ namespace Metasound::Frontend
 
 		virtual ~FInputNodeTemplate() = default;
 
+#if WITH_EDITOR
+		// Adds template node and connects with the input of the provided name on the page with
+		// the provided id (defaults to builder's build page ID if not provided)
+		static const FMetasoundFrontendNode* CreateNode(FMetaSoundFrontendDocumentBuilder& InOutBuilder, FName InputName, const FGuid* InPageID = nullptr);
+#endif // WITH_EDITOR
+
 		virtual const FMetasoundFrontendClassName& GetClassName() const override;
 
 #if WITH_EDITOR

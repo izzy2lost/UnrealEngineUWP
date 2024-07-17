@@ -69,6 +69,7 @@
 #include "MetasoundUObjectRegistry.h"
 #include "Misc/Attribute.h"
 #include "Modules/ModuleManager.h"
+#include "NodeTemplates/MetasoundFrontendNodeTemplateInput.h"
 #include "NodeTemplates/MetasoundFrontendNodeTemplateReroute.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
@@ -266,6 +267,7 @@ namespace Metasound
 			virtual FReply DroppedOnNode(FVector2D ScreenPosition, FVector2D GraphPosition) override { return FReply::Unhandled(); }
 			virtual FReply DroppedOnPin(FVector2D InScreenPosition, FVector2D InGraphPosition) override
 			{
+				using namespace Engine;
 				using namespace Frontend;
 
 				if (!GraphMember.IsValid())
@@ -284,9 +286,9 @@ namespace Metasound
 					MetasoundGraph->Modify();
 					Input->Modify();
 
-					FNodeHandle InputHandle = Input->GetNodeHandle();
-					FConstNodeHandle TemplateNodeHandle = FGraphBuilder::AddInputTemplateNodeHandle(ParentMetasound, InputHandle);
-					if (UMetasoundEditorGraphNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, TemplateNodeHandle))
+					FMetaSoundFrontendDocumentBuilder& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&ParentMetasound);
+					const FMetasoundFrontendNode* TemplateNode = FInputNodeTemplate::CreateNode(Builder, Input->GetMemberName());
+					if (UMetasoundEditorGraphNode* NewGraphNode = FGraphBuilder::AddInputNode(ParentMetasound, TemplateNode->GetID()))
 					{
 						NewGraphNode->Modify();
 						NewGraphNode->UpdateFrontendNodeLocation(InGraphPosition);
@@ -314,8 +316,7 @@ namespace Metasound
 						MetasoundGraph->Modify();
 						Output->Modify();
 
-						FConstNodeHandle OutputHandle = Output->GetConstNodeHandle();
-						if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, OutputHandle))
+						if (UMetasoundEditorGraphOutputNode* NewGraphNode = FGraphBuilder::AddOutputNode(ParentMetasound, Output->NodeID))
 						{
 							NewGraphNode->Modify();
 							NewGraphNode->UpdateFrontendNodeLocation(InGraphPosition);
@@ -4351,6 +4352,8 @@ namespace Metasound
 				return FReply::Unhandled();
 			}
 
+			const FName DataTypeName = GetMetasoundDataTypeName<float>();
+
 			UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
 
 			TArray<TObjectPtr<UObject>> SelectedObjects;
@@ -4363,16 +4366,15 @@ namespace Metasound
 					const FScopedTransaction Transaction(LOCTEXT("AddInputNode", "Add MetaSound Input"));
 					MetaSound->Modify();
 
-					const FName DataTypeName = GetMetasoundDataTypeName<float>();
 					FCreateNodeVertexParams VertexParams;
 					VertexParams.DataType = DataTypeName;
 
-					Frontend::FNodeHandle NodeHandle = FGraphBuilder::AddInputNodeHandle(*MetaSound, VertexParams);
-					if (ensure(NodeHandle->IsValid()))
+					FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*MetaSound, VertexParams);
+					if (const FMetasoundFrontendNode* NewNode = Builder->GetBuilder().AddGraphInput(ClassInput))
 					{
-						NameToSelect = NodeHandle->GetNodeName();
+						NameToSelect = NewNode->Name;
 
-						TObjectPtr<UMetasoundEditorGraphInput> Input = Graph.FindOrAddInput(NodeHandle);
+						TObjectPtr<UMetasoundEditorGraphInput> Input = Graph.FindOrAddInput(NewNode->GetID());
 						if (ensure(Input))
 						{
 							SelectedObjects.Add(Input);
@@ -4383,19 +4385,18 @@ namespace Metasound
 
 				case ENodeSection::Outputs:
 				{
-					const FScopedTransaction Transaction(TEXT(""), LOCTEXT("AddOutputNode", "Add MetaSound Output"), MetaSound);
+					const FScopedTransaction Transaction(LOCTEXT("AddOutputNode", "Add MetaSound Output"));
 					MetaSound->Modify();
 
-					const FName DataTypeName = GetMetasoundDataTypeName<float>();
 					FCreateNodeVertexParams VertexParams;
 					VertexParams.DataType = DataTypeName;
 
-					Frontend::FNodeHandle NodeHandle = FGraphBuilder::AddOutputNodeHandle(*MetaSound, VertexParams);
-					if (ensure(NodeHandle->IsValid()))
+					FMetasoundFrontendClassOutput ClassOutput = FGraphBuilder::CreateUniqueClassOutput(*MetaSound, VertexParams);
+					if (const FMetasoundFrontendNode* NewNode = Builder->GetBuilder().AddGraphOutput(ClassOutput))
 					{
-						NameToSelect = NodeHandle->GetNodeName();
+						NameToSelect = NewNode->Name;
 
-						TObjectPtr<UMetasoundEditorGraphOutput> Output = Graph.FindOrAddOutput(NodeHandle);
+						TObjectPtr<UMetasoundEditorGraphOutput> Output = Graph.FindOrAddOutput(NewNode->GetID());
 						if (ensure(Output))
 						{
 							SelectedObjects.Add(Output);
@@ -4409,8 +4410,6 @@ namespace Metasound
 					const FScopedTransaction Transaction(TEXT(""), LOCTEXT("AddVariableNode", "Add MetaSound Variable"), MetaSound);
 					MetaSound->Modify();
 
-					const FName DataTypeName = GetMetasoundDataTypeName<float>();
-					
 					Frontend::FVariableHandle FrontendVariable = FGraphBuilder::AddVariableHandle(*MetaSound, DataTypeName);
 					if (ensure(FrontendVariable->IsValid()))
 					{

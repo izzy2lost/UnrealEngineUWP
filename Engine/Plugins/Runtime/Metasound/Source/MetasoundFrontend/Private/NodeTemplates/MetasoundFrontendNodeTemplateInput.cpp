@@ -22,7 +22,7 @@ namespace Metasound::Frontend
 	namespace InputNodeTemplatePrivate
 	{
 		// Creates an input template node, sets node position (should only ever be one in style location) from and connects it to the associated input with the given name.
-		const FMetasoundFrontendNode* InitTemplateNode(const INodeTemplate& InTemplate, FName InputName, FMetaSoundFrontendDocumentBuilder& InOutBuilder)
+		const FMetasoundFrontendNode* InitTemplateNode(const INodeTemplate& InTemplate, FName InputName, FMetaSoundFrontendDocumentBuilder& InOutBuilder, const FGuid* InPageID = nullptr)
 		{
 			FMetasoundFrontendEdge NewEdge;
 			FName TypeName;
@@ -32,7 +32,7 @@ namespace Metasound::Frontend
 
 			// Cache data from Input node pointer as needed as subsequent call to create new template node may invalidate the input node's pointer
 			{
-				const FMetasoundFrontendNode* InputNode = InOutBuilder.FindGraphInputNode(InputName);
+				const FMetasoundFrontendNode* InputNode = InOutBuilder.FindGraphInputNode(InputName, InPageID);
 				check(InputNode);
 				TypeName = InputNode->Interface.Outputs.Last().TypeName;
 				NewEdge.FromNodeID = InputNode->GetID(),
@@ -45,7 +45,7 @@ namespace Metasound::Frontend
 			}
 
 			FNodeTemplateGenerateInterfaceParams Params { { }, { TypeName } };
-			const FMetasoundFrontendNode* NewNode = InOutBuilder.AddNodeByTemplate(InTemplate, MoveTemp(Params));
+			const FMetasoundFrontendNode* NewNode = InOutBuilder.AddNodeByTemplate(InTemplate, MoveTemp(Params), FGuid::NewGuid(), InPageID);
 			check(NewNode);
 			NewEdge.ToNodeID = NewNode->GetID();
 			NewEdge.ToVertexID = NewNode->Interface.Inputs.Last().VertexID;
@@ -53,12 +53,12 @@ namespace Metasound::Frontend
 #if WITH_EDITORONLY_DATA
 			for (const TPair<FGuid, FVector2D>& Pair : Locations)
 			{
-				InOutBuilder.SetNodeLocation(NewEdge.ToNodeID, Pair.Value);
+				InOutBuilder.SetNodeLocation(NewEdge.ToNodeID, Pair.Value, nullptr, InPageID);
 			}
 #endif // WITH_EDITORONLY_DATA
 
 			// Add edge between input node and new template node
-			InOutBuilder.AddEdge(MoveTemp(NewEdge));
+			InOutBuilder.AddEdge(MoveTemp(NewEdge), InPageID);
 
 			return NewNode;
 		};
@@ -67,6 +67,20 @@ namespace Metasound::Frontend
 	const FMetasoundFrontendClassName FInputNodeTemplate::ClassName { "UE", "Input", "Template" };
 
 	const FMetasoundFrontendVersionNumber FInputNodeTemplate::VersionNumber = { 1, 0 } ;
+
+#if WITH_EDITOR
+	const FMetasoundFrontendNode* FInputNodeTemplate::CreateNode(FMetaSoundFrontendDocumentBuilder& InOutBuilder, FName InputName, const FGuid* InPageID)
+	{
+		if (const FMetasoundFrontendClassInput* Input = InOutBuilder.FindGraphInput(InputName))
+		{
+			const INodeTemplate* ThisTemplate = INodeTemplateRegistry::Get().FindTemplate(ClassName);
+			check(ThisTemplate);
+			return InputNodeTemplatePrivate::InitTemplateNode(*ThisTemplate, InputName, InOutBuilder, InPageID);
+		}
+
+		return nullptr;
+	}
+#endif // WITH_EDITOR
 
 	const FMetasoundFrontendClassName& FInputNodeTemplate::GetClassName() const
 	{
@@ -273,5 +287,6 @@ namespace Metasound::Frontend
 
 		return bInjectedNodes;
 	}
+
 #endif // WITH_EDITOR
 } // namespace Metasound::Frontend

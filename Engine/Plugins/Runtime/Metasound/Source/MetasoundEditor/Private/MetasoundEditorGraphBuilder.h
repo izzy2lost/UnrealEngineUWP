@@ -121,16 +121,6 @@ namespace Metasound
 			// Adds a new EdGraph comment node associated with the given MetaSoundFrontendGraph comment ID
 			static UMetasoundEditorGraphCommentNode* CreateCommentNode(UObject& InMetaSound, bool bInSelectNewNode = true, FGuid InCommentID = FGuid::NewGuid());
 
-			// Adds an input template node to the given MetaSound object's document model and returns an associated node handle
-			static Frontend::FNodeHandle AddInputTemplateNodeHandle(UObject& InMetaSound, Frontend::FNodeHandle& InputNodeHandle);
-
-			// Generates FNodeHandle for the given external node data. Does not bind or create EdGraph representation of given node.
-			static Frontend::FNodeHandle AddInputNodeHandle(
-				UObject& InMetaSound,
-				const FCreateNodeVertexParams& InVertexParams,
-				const FMetasoundFrontendLiteral* InDefaultValue = nullptr,
-				const FName* InNameBase = nullptr);
-
 			// Adds a corresponding UMetasoundEditorGraphExternalNode for the provided node handle.
 			static UMetasoundEditorGraphExternalNode* AddExternalNode(UObject& InMetaSound, const FGuid& InNodeID, const FMetasoundFrontendClassMetadata& InMetadata, bool bInSelectNewNode = true);
 
@@ -146,14 +136,11 @@ namespace Metasound
 			// Adds an variable node with the given node handle to the editor graph.
 			static UMetasoundEditorGraphVariableNode* AddVariableNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode = true);
 
-			// Adds an input node to the editor graph that corresponds to the provided input template node handle.
-			static UMetasoundEditorGraphInputNode* AddInputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InInputTemplateNode, bool bInSelectNewNode = true);
+			// Adds an input node to the editor graph that corresponds to the provided input template node in the document with the given ID.
+			static UMetasoundEditorGraphInputNode* AddInputNode(UObject& InMetaSound, const FGuid& InInputTemplateNodeID, bool bInSelectNewNode = true);
 
-			// Adds an output node to the editor graph that corresponds to the provided node handle.
-			static UMetasoundEditorGraphOutputNode* AddOutputNode(UObject& InMetaSound, const Frontend::FConstNodeHandle& InNodeHandle, bool bInSelectNewNode = true);
-
-			// Generates analogous FNodeHandle for the given internal node data. Does not bind nor create EdGraph representation of given node.
-			static Frontend::FNodeHandle AddOutputNodeHandle(UObject& InMetaSound, const FCreateNodeVertexParams& InParams, const FName* InNameBase = nullptr);
+			// Adds an output node to the editor graph that corresponds to the provided output node ID.
+			static UMetasoundEditorGraphOutputNode* AddOutputNode(UObject& InMetaSound, const FGuid& InNodeID, bool bInSelectNewNode = true);
 
 			// Create a unique name for the variable.
 			static FName GenerateUniqueVariableName(const Frontend::FConstGraphHandle& InFrontendGraph, const FString& InBaseName);
@@ -189,13 +176,26 @@ namespace Metasound
 			// the Editor Graph representation of the pins.
 			static bool ConnectNodes(UEdGraphPin& InInputPin, UEdGraphPin& InOutputPin, bool bInConnectEdPins);
 
+			// Creates a unique class input with the given default data.
+			static FMetasoundFrontendClassInput CreateUniqueClassInput(
+				UObject& InMetaSound,
+				const FCreateNodeVertexParams& InVertexParams,
+				const FMetasoundFrontendLiteral* InDefaultValue = nullptr,
+				const FName* InNameBase = nullptr);
+
+			// Creates a unique class output with the given default data. Output is not assigned a NodeID.
+			static FMetasoundFrontendClassOutput CreateUniqueClassOutput(
+				UObject& InMetaSound,
+				const FCreateNodeVertexParams& InVertexParams,
+				const FName* InNameBase = nullptr);
+
 			// Disconnects pin's associated frontend vertex from any linked input
 			// or output nodes, and reflects change in the Frontend graph. Does *not*
 			// disconnect the EdGraph pins.
 			static void DisconnectPinVertex(UEdGraphPin& InPin, bool bAddLiteralInputs = true);
 
 			// Generates a unique output name for the given MetaSound object
-			static FName GenerateUniqueNameByClassType(const UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName);
+			static FName GenerateUniqueNameByClassType(UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName);
 
 			static TArray<FString> GetDataTypeNameCategories(const FName& InDataTypeName);
 
