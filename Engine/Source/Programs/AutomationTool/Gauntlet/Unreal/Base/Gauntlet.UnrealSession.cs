@@ -808,7 +808,6 @@ namespace Gauntlet
 					}
 
 					// If device reservation fails, the device pool cannot support this launch.
-					DevicePool.Instance.ReportDeviceReservationState();
 					throw new AutomationException("Failed to acquire all devices for launch. See above for details.");
 				}
 
@@ -1291,7 +1290,6 @@ namespace Gauntlet
 					{
 						if (ReservationRetries == 0)
 						{
-							DevicePool.Instance.ReportDeviceReservationState();
 							throw new AutomationException("Unable to acquire all devices for test.");
 						}
 						Log.Info("\nUnable to find enough device(s). Waiting {0} secs (retries left={1})\n", ReservationRetryWait, --ReservationRetries);
@@ -1534,7 +1532,7 @@ namespace Gauntlet
 		/// </summary>
 		private bool DeviceMatchesRoleConstraint(UnrealSessionRole Role, ITargetDevice Device)
 		{
-			bool bRoleMatchesConstraint = DevicePool.Instance.GetConstraint(Device) == Role.Constraint;
+			bool bRoleMatchesConstraint = Role.Constraint.Equals(DevicePool.Instance.GetConstraint(Device));
 
 			return Device.IsConnected
 				&& Device.Platform == Role.Platform
