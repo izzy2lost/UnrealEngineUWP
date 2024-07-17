@@ -235,7 +235,21 @@ void FPCGGraphCompilerGPU::CollectGPUNodeSubsets(
 
 		if (!GPUSubsetTaskIds.IsEmpty())
 		{
-			OutNodeSubsetsToConvertToCFGraph.Add(MoveTemp(GPUSubsetTaskIds));
+			bool bAllNodesValid = true;
+			for (FPCGTaskId& TaskId : GPUSubsetTaskIds)
+			{
+				const UPCGCustomHLSLSettings* Settings = Cast<UPCGCustomHLSLSettings>(InCompiledTasks[TaskId].Node ? InCompiledTasks[TaskId].Node->GetSettings() : nullptr);
+				if (Settings && !Settings->IsKernelValid())
+				{
+					bAllNodesValid = false;
+					break;
+				}
+			}
+
+			if (bAllNodesValid)
+			{
+				OutNodeSubsetsToConvertToCFGraph.Add(MoveTemp(GPUSubsetTaskIds));
+			}
 		}
 	}
 }
@@ -995,6 +1009,8 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCompilerGPU::CreateGPUNodes);
+
 	TSet<FPCGTaskId> GPUCompatibleTaskIds;
 	GPUCompatibleTaskIds.Reserve(InOutCompiledTasks.Num());
 	for (FPCGTaskId TaskId = 0; TaskId < InOutCompiledTasks.Num(); ++TaskId)
@@ -1082,8 +1098,16 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 	}
 
 	// Now cull all the GPU compatible nodes. The compute graph task are already wired in so we're fine to just delete.
-	FPCGGraphCompiler::CullTasks(InOutCompiledTasks, /*bAddPassthroughWires=*/false, [&GPUCompatibleTaskIds](const FPCGGraphTask& InTask)
+	FPCGGraphCompiler::CullTasks(InOutCompiledTasks, /*bAddPassthroughWires=*/false, [&NodeSubsetsToConvertToCFGraph](const FPCGGraphTask& InTask)
 	{
-		return GPUCompatibleTaskIds.Contains(InTask.NodeId);
+		for (TSet<FPCGTaskId>& NodeSubsetToConvertToCFGraph : NodeSubsetsToConvertToCFGraph)
+		{
+			if (NodeSubsetToConvertToCFGraph.Contains(InTask.NodeId))
+			{
+				return true;
+			}
+		}
+
+		return false;
 	});
 }

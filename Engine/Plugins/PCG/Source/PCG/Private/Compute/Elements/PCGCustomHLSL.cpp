@@ -53,6 +53,7 @@ namespace PCGHLSLElement
 
 UPCGCustomHLSLSettings::UPCGCustomHLSLSettings()
 {
+	bExecuteOnGPU = true;
 	bUseSeed = true;
 }
 
@@ -73,11 +74,6 @@ void UPCGCustomHLSLSettings::PostInitProperties()
 	UpdateDeclarations();
 }
 #endif
-
-bool UPCGCustomHLSLSettings::ShouldExecuteOnGPU() const
-{
-	return IsKernelValid();
-}
 
 #if WITH_EDITOR
 void UPCGCustomHLSLSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -1188,9 +1184,7 @@ bool FPCGCustomHLSLElement::ExecuteInternal(FPCGContext* Context) const
 	check(Settings);
 
 	// Calling IsKernelValid with the Context will emit warnings/errors on the node.
-	const bool bIsValid = Settings->IsKernelValid(Context);
-
-	ensureMsgf(!bIsValid, TEXT("Custom HLSL element should only execute on CPU if the kernel is invalid."));
+	Settings->IsKernelValid(Context);
 
 	return true;
 }

@@ -30,7 +30,7 @@ enum class EPCGDispatchThreadCount : uint8
 	// TODO: Could support inlined expression evaluation for dispatch thread count.
 };
 
-/** Prouduces a HLSL compute shader which will be executed on the GPU. */
+/** Produces a HLSL compute shader which will be executed on the GPU. */
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = (Procedural))
 class UPCGCustomHLSLSettings : public UPCGSettings
 {
@@ -49,13 +49,12 @@ public:
 	//~Begin UPCGSettings interface
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return InputPins; }
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return OutputPins; }
-	virtual bool ShouldExecuteOnGPU() const override;
 	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return true; }
 #if WITH_EDITOR
 	virtual bool DisplayExecuteOnGPUSetting() const override { return false; }
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CustomHLSL")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTitle", "Custom HLSL"); }
-	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTooltip", "Prouduces a HLSL compute shader which will be executed on the GPU."); }
+	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTooltip", "Produces a HLSL compute shader which will be executed on the GPU."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::GPU; }
 #endif
 

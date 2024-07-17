@@ -769,7 +769,10 @@ void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedD
 	const uint32 NumPackedFloats = InPackedData.Num() / 4;
 	const uint32 NumData = DataAsUint[0];
 
-	check(NumData == DataDescs.Num());
+	if (!ensureAlwaysMsgf(NumData == DataDescs.Num(), TEXT("Mismatch in expected data from static analysis and actual received data.")))
+	{
+		return;
+	}
 
 	TArray<FPCGTaggedData>& OutData = OutDataCollection.TaggedData;
 
