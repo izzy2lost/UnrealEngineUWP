@@ -230,13 +230,15 @@ namespace mu
 
     private:
 
-        /** List of meshes generated to be able to reuse them. */
+        /** Container of meshes generated to be able to reuse them. 
+		* They are sorted by a cheap hash to speed up searches.
+		*/
 		struct FGeneratedConstantMesh
 		{
 			Ptr<Mesh> Mesh;
 			Ptr<ASTOp> LastMeshOp;
 		};
-		TArray<FGeneratedConstantMesh> GeneratedConstantMeshes;
+		TMap<uint64,TArray<FGeneratedConstantMesh>> GeneratedConstantMeshes;
 
         /** List of image resources for every image formats that have been generated so far as palceholders for missing images. */
         Ptr<Image> MissingImage[size_t(EImageFormat::IF_COUNT)];
