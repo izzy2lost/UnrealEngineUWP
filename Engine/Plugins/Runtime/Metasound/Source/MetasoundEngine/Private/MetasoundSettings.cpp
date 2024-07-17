@@ -282,7 +282,8 @@ FName UMetaSoundSettings::GetQualitySettingPropertyName()
 }
 #endif // WITH_EDITORONLY_DATA
 
-TArray<FName> UMetaSoundQualityHelper::GetQualityList()
+#if WITH_EDITOR
+TArray<FName> UMetaSoundSettings::GetQualityList()
 {
 	TArray<FName> Names;
 
@@ -298,4 +299,6 @@ TArray<FName> UMetaSoundQualityHelper::GetQualityList()
 
 	return Names;
 }
+#endif // WITH_EDITOR
+
 #undef LOCTEXT_NAMESPACE // MetaSound

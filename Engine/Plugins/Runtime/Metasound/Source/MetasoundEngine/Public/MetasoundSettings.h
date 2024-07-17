@@ -51,8 +51,8 @@ public:
 	/**
 	* Returns a list of quality settings to present to a combobox
 	* */
-	UFUNCTION()
-	static TArray<FName> GetQualityList();
+	UFUNCTION(meta = (DeprecatedFunction, DeprecationMessage = "Use UMetaSoundSettings::GetQualityList instead"))
+	static TArray<FName> GetQualityList() { return { }; };
 };
 
 USTRUCT()
@@ -193,6 +193,14 @@ public:
 	bool SetTargetPage(FName PageName);
 
 #if WITH_EDITOR
+public:
+	/* Returns a list of quality settings to present to a combobox. Ex:
+	 * UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(GetOptions="MetasoundEngine.MetaSoundSettings.GetQualityList"))
+	 * FName QualitySetting;
+	*/
+	UFUNCTION()
+	static TArray<FName> GetQualityList();
+
 private:
 	void ConformPageSettingsDefault(bool bNotifyDefaultConformed);
 
