@@ -4,6 +4,7 @@
 
 #include "Dialog/SMessageDialog.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SDeleteReferencedActorDialog.generated.h"
 
 UENUM()
 enum class EDeletedActorReferenceTypes : uint8

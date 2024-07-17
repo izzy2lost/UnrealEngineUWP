@@ -8,6 +8,7 @@
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SAudioSpectrumPlot.generated.h"
 
 UENUM(BlueprintType)
 enum class EAudioSpectrumPlotTilt : uint8

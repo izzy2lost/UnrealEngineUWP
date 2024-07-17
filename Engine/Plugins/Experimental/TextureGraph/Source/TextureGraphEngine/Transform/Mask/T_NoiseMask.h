@@ -6,6 +6,7 @@
 #include "FxMat/FxMaterial.h"
 #include "Model/Mix/MixUpdateCycle.h"
 #include <DataDrivenShaderPlatformInfo.h>
+#include "T_NoiseMask.generated.h"
 
 UENUM()
 enum class NoiseType

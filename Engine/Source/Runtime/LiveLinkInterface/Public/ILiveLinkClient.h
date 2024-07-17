@@ -10,6 +10,7 @@
 #include "LiveLinkPresetTypes.h"
 #include "Misc/Guid.h"
 #include "Templates/SubclassOf.h"
+#include "ILiveLinkClient.generated.h"
 
 
 class ILiveLinkSource;

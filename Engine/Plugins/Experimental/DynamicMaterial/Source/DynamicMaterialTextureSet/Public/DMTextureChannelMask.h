@@ -4,6 +4,7 @@
 
 #include "HAL/Platform.h"
 #include "UObject/ObjectMacros.h"
+#include "DMTextureChannelMask.generated.h"
 
 UENUM(BlueprintType)
 enum class EDMTextureChannelMask : uint8

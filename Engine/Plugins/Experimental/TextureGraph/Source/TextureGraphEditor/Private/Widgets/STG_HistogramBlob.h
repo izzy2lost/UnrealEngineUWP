@@ -11,6 +11,7 @@
 #include "Data/Blob.h"
 #include "STG_Blob.h"
 #include "Transform/Utility/T_TextureHistogram.h"
+#include "STG_HistogramBlob.generated.h"
 
 UENUM(BlueprintType)
 enum class ETG_HistogramCurves : uint8

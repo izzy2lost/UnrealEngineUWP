@@ -9,6 +9,7 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Delegates/Delegate.h"
 #include "Widgets/SChaosVDTimelineWidget.h"
+#include "ChaosVDPlaybackController.generated.h"
 
 class IChaosVDPlaybackControllerInstigator;
 class UChaosVDCoreSettings;

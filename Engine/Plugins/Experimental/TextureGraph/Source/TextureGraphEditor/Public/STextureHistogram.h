@@ -9,6 +9,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/SCanvas.h"
 #include "Fonts/FontMeasure.h"
+#include "STextureHistogram.generated.h"
 
 UENUM(BlueprintType)
 enum class ETextureHistogramStyle : uint8

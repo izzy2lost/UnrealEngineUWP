@@ -15,6 +15,7 @@
 #include "TriggerThresholdLineStyle.h"
 #include "Widgets/Input/SComboBox.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SAudioOscilloscopePanelWidget.generated.h"
 
 class FFixedSampledSequenceGridData;
 class SAudioRadialSlider;

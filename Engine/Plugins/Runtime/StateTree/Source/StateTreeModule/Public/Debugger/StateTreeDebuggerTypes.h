@@ -12,6 +12,8 @@
 
 #endif // WITH_STATETREE_TRACE_DEBUGGER
 
+#include "StateTreeDebuggerTypes.generated.h"
+
 UENUM()
 enum class EStateTreeBreakpointType : uint8
 {

@@ -12,6 +12,7 @@
 #include "UObject/GCObject.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
+#include "ChaosVDScene.generated.h"
 
 class AChaosVDDataContainerBaseActor;
 class AChaosVDGeometryContainer;

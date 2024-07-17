@@ -4,6 +4,7 @@
 
 #include "Templates/SharedPointer.h"
 #include "Widgets/SCompoundWidget.h"
+#include "SChaosVDTimelineWidget.generated.h"
 
 class SSlider;
 class FReply;

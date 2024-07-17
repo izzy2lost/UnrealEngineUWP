@@ -6,6 +6,7 @@
 #include "Sound/AudioBus.h"
 #include "SynesthesiaSpectrumAnalysis.h"
 #include "UObject/StrongObjectPtr.h"
+#include "AudioSpectrumAnalyzer.generated.h"
 
 class UWorld;
 

@@ -4,6 +4,7 @@
 
 #include "NiagaraCommon.h"
 #include "NiagaraStatelessDefinitions.h"
+#include "NiagaraStatelessCommon.generated.h"
 
 UENUM(meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
 enum class ENiagaraStatelessFeatureMask : uint8

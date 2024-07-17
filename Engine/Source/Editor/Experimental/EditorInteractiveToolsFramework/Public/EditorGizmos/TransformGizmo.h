@@ -96,7 +96,7 @@ enum class ETransformGizmoPartIdentifier
 UENUM()
 namespace EAxisRotateMode
 {
-	enum Type
+	enum Type : uint8
 	{
 		Pull,
 		Arc

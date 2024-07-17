@@ -5,6 +5,7 @@
 #include "HAL/Platform.h"
 #include "SceneTypes.h"
 #include "UObject/ObjectMacros.h"
+#include "DMTextureSetMaterialProperty.generated.h"
 
 /**
  * Copying the values from EMaterialProperty to change required meta data,

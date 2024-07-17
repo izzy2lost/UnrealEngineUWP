@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/ObjectMacros.h"
+#include "MetaHumanBodyType.generated.h"
 
 UENUM()
 enum class EMetaHumanBodyType : uint8

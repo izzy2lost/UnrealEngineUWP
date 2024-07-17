@@ -8,6 +8,7 @@
 #include "Rendering/RenderingCommon.h"
 #include "Sound/SoundSubmix.h"
 #include "Textures/SlateUpdatableTexture.h"
+#include "AudioSpectrogramViewport.generated.h"
 
 UENUM(BlueprintType)
 enum class EAudioSpectrogramFrequencyAxisScale : uint8

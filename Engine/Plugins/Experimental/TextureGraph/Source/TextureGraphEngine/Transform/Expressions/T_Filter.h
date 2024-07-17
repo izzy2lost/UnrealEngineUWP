@@ -8,6 +8,7 @@
 #include "FxMat/FxMaterial.h"
 #include "Model/Mix/MixUpdateCycle.h"
 #include <DataDrivenShaderPlatformInfo.h>
+#include "T_Filter.generated.h"
 
 //////////////////////////////////////////////////////////////////////////
 /// Edge detection

@@ -19,6 +19,8 @@
 #include "Textures/SlateIcon.h"
 #endif
 
+#include "ActorModifierCoreDefs.generated.h"
+
 class FActorModifierCoreProfiler;
 class AActor;
 class FText;

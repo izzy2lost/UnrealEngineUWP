@@ -14,7 +14,7 @@
 #include "RigVMEditorBlueprintLibrary.generated.h"
 
 UENUM(BlueprintType)
-enum ERigVMBlueprintLoadLogSeverity
+enum ERigVMBlueprintLoadLogSeverity : uint8
 {
 	Display,
 	Warning,
