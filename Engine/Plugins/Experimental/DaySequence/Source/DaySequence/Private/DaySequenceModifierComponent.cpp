@@ -404,7 +404,7 @@ void UDaySequenceModifierComponent::OnUnregister()
 	RemoveSubSequenceTrack();
 }
 
-void UDaySequenceModifierComponent::SequencePlayerUpdated()
+void UDaySequenceModifierComponent::DaySequenceUpdate()
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_SequencePlayerUpdated);
 	
@@ -479,7 +479,7 @@ void UDaySequenceModifierComponent::BindToDaySequenceActor(ADaySequenceActor* Da
 	if (ensureMsgf(DaySequenceActor, TEXT("BindToDaySequenceActor called with a null Day Sequence Actor.")))
 	{
 		DaySequenceActor->GetOnPostInitializeDaySequences().AddUObject(this, &UDaySequenceModifierComponent::ReinitializeSubSequence);
-		DaySequenceActor->GetOnSequencePlayerUpdated().AddUObject(this, &UDaySequenceModifierComponent::SequencePlayerUpdated);
+		DaySequenceActor->GetOnDaySequenceUpdate().AddUObject(this, &UDaySequenceModifierComponent::DaySequenceUpdate);
 #if ENABLE_DRAW_DEBUG
 		if (!DaySequenceActor->IsDebugCategoryRegistered(ShowDebug_ModifierCategory))
 		{
@@ -500,7 +500,7 @@ void UDaySequenceModifierComponent::UnbindFromDaySequenceActor()
 	if (TargetActor)
 	{
 		TargetActor->GetOnPostInitializeDaySequences().RemoveAll(this);
-		TargetActor->GetOnSequencePlayerUpdated().RemoveAll(this);
+		TargetActor->GetOnDaySequenceUpdate().RemoveAll(this);
 #if ENABLE_DRAW_DEBUG
 		TargetActor->GetOnDebugLevelChanged().RemoveAll(this);
 		TargetActor->UnregisterDebugEntry(DebugEntry, ShowDebug_ModifierCategory);
@@ -826,7 +826,9 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 		SubSection->ClearFlags(RF_Transactional);
 		// SubSections of DaySequenceTrack will inherit flags from its parent track - RF_Transient in this case.
 		SubSection->Parameters.HierarchicalBias = Bias + BiasOffset;
-		SubSection->Parameters.Flags            = EMovieSceneSubSectionFlags::OverrideRestoreState | (bIgnoreBias ? EMovieSceneSubSectionFlags::IgnoreHierarchicalBias : EMovieSceneSubSectionFlags::None);
+		SubSection->Parameters.Flags            = EMovieSceneSubSectionFlags::OverrideRestoreState
+												| (bIgnoreBias ? EMovieSceneSubSectionFlags::IgnoreHierarchicalBias : EMovieSceneSubSectionFlags::None)
+												| (bBlendHierarchicalBias ? EMovieSceneSubSectionFlags::BlendHierarchicalBias : EMovieSceneSubSectionFlags::None);
 
 		SubSection->SetSequence(Sequence);
 		SubSection->SetRange(MovieScene->GetPlaybackRange());
@@ -847,7 +849,6 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 
 			EasingFunction->Initialize(UDaySequenceModifierEasingFunction::EEasingFunctionType::EaseOut);
 			SubSection->Easing.EaseOut = EasingFunction;
-			SubSection->Parameters.Flags |= EMovieSceneSubSectionFlags::BlendHierarchicalBias;
 		}
 
 #if WITH_EDITOR
@@ -1433,9 +1434,18 @@ float UDaySequenceModifierComponent::GetCurrentBlendWeight() const
 
 float UDaySequenceModifierComponent::UpdateBlendWeight() const
 {
-	FVector Position;
-	const float DistanceBlendFactor = GetBlendPosition(Position) ? GetDistanceBlendFactor(Position) : 1.f;
-	return FMath::Min(DistanceBlendFactor, CustomVolumeBlendWeight);
+	FVector BlendPosition;
+	const bool bHasBlendPosition = GetBlendPosition(BlendPosition);
+
+	const float OldBlendWeight = CachedDistanceBlendFactor;
+	const float NewBlendWeight = FMath::Min(bHasBlendPosition ? GetDistanceBlendFactor(BlendPosition) : 1.f, CustomVolumeBlendWeight);
+
+	if (bHasBlendPosition && TargetActor && !TargetActor->IsPlaying() && !FMath::IsNearlyEqual(OldBlendWeight, NewBlendWeight))
+	{
+		TargetActor->SetTimeOfDay(TargetActor->GetTimeOfDay());
+	}
+	
+	return NewBlendWeight;
 }
 
 void UDaySequenceModifierComponent::SetVolumeCollisionEnabled(const ECollisionEnabled::Type InCollisionType) const
