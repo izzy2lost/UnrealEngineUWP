@@ -87,6 +87,9 @@ private:
 	/** Sets the block reduction ReduceByTwo option. */
 	void OnSetBlockReductionByTwo(bool bInValue);
 
+	/** Callback for block mask change. */
+	void OnSetBlockMask(class UTexture2D* InValue);
+
 	TSharedPtr<IToolTip> GenerateInfoToolTip() const;
 
 };

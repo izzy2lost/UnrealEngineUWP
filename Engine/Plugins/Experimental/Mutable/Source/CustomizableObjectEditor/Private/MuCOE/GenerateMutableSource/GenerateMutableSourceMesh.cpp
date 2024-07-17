@@ -3269,16 +3269,16 @@ mu::Ptr<mu::NodeLayout> CreateDefaultLayout()
 	constexpr int32 GridSize = 4;
 	
 	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout();
-	LayoutNode->Layout->SetGridSize(GridSize, GridSize);
-	LayoutNode->Layout->SetMaxGridSize(GridSize, GridSize);
-	LayoutNode->Layout->SetLayoutPackingStrategy(mu::EPackStrategy::RESIZABLE_LAYOUT);
-	LayoutNode->Layout->ReductionMethod = mu::EReductionMethod::HALVE_REDUCTION;
-	LayoutNode->Layout->SetBlockCount(1);
-	LayoutNode->Layout->Blocks[0].Min = { 0, 0 };
-	LayoutNode->Layout->Blocks[0].Size = { GridSize, GridSize };
-	LayoutNode->Layout->Blocks[0].Priority = 0;
-	LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
-	LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
+	LayoutNode->Size = { GridSize, GridSize };
+	LayoutNode->MaxSize = { GridSize, GridSize };
+	LayoutNode->Strategy = mu::EPackStrategy::RESIZABLE_LAYOUT;
+	LayoutNode->ReductionMethod = mu::EReductionMethod::HALVE_REDUCTION;
+	LayoutNode->Blocks.SetNum(1);
+	LayoutNode->Blocks[0].Min = { 0, 0 };
+	LayoutNode->Blocks[0].Size = { GridSize, GridSize };
+	LayoutNode->Blocks[0].Priority = 0;
+	LayoutNode->Blocks[0].bReduceBothAxes = false;
+	LayoutNode->Blocks[0].bReduceByTwo = false;
 
 	return LayoutNode;
 }
@@ -4107,11 +4107,11 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				}
 				else
 				{
-					if (!TypedNode->PoseAsset) // Check if the slot has a selected pose. Could be left empty by the user
-					{
-						FString msg = FString::Printf(TEXT("Found pose mesh node without a pose asset assigned."));
-						GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNode);
-					}
+						if (!TypedNode->PoseAsset) // Check if the slot has a selected pose. Could be left empty by the user
+						{
+							FString msg = FString::Printf(TEXT("Found pose mesh node without a pose asset assigned."));
+							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), TypedNode);
+						}
 
 					Result = InputMeshNode;
 				}
@@ -4189,7 +4189,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 							MutableColumnName = TypedNodeTable->GenerateStaticMeshMutableColumName(DataTableColumnName, SectionIndexConnected);
 						}
 					}
-
+					
 					// Generating a new Mesh column if not exists
 					if (Table->FindColumn(MutableColumnName) == INDEX_NONE)
 					{
@@ -4248,40 +4248,14 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 								// Generating node Layouts
 								for (int32 i = 0; i < Layouts.Num(); ++i)
 								{
-									mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
-
-									LayoutNode->Layout->SetGridSize(Layouts[i]->GetGridSize().X, Layouts[i]->GetGridSize().Y);
-									LayoutNode->Layout->SetMaxGridSize(Layouts[i]->GetMaxGridSize().X, Layouts[i]->GetMaxGridSize().Y);
-									LayoutNode->Layout->SetBlockCount(Layouts[i]->Blocks.Num() ? Layouts[i]->Blocks.Num() : 1);
-
-									mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(Layouts[i]->GetPackingStrategy());
-									LayoutNode->Layout->SetLayoutPackingStrategy(PackStrategy);
-
-									LayoutNode->Layout->ReductionMethod = (Layouts[i]->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::HALVE_REDUCTION : mu::EReductionMethod::UNITARY_REDUCTION);
-
-									if (bLinkedToExtendMaterial)
-									{
-										// Layout warnings can be safely ignored in this case. Vertices that do not belong to any layout block will be removed (Extend Materials only)
-										LayoutNode->FirstLODToIgnoreWarnings = 0;
-									}
-
-									if (Layouts[i]->Blocks.Num())
-									{
-										for (int BlockIndex = 0; BlockIndex < Layouts[i]->Blocks.Num(); ++BlockIndex)
-										{
-											LayoutNode->Layout->Blocks[BlockIndex] = ToMutable(Layouts[i]->Blocks[BlockIndex]);
-										}
-									}
-									else
+									bool bWasEmpty = false;
+									// In tables, mimic the legacy behaviour and ignore all layout warnings beyond LOD 0.
+									bool bIgnoreLayoutWarnings = true;
+									mu::Ptr<mu::NodeLayout> LayoutNode = CreateMutableLayoutNode(GenerationContext, Layouts[i], bIgnoreLayoutWarnings, bWasEmpty);
+									if (bWasEmpty)
 									{
 										FString msg = "Mesh Column [" + MutableColumnName + "] Layout doesn't has any block. A grid sized block will be used instead.";
 										GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node, EMessageSeverity::Warning);
-
-										LayoutNode->Layout->Blocks[0].Min = { 0,0 };
-										LayoutNode->Layout->Blocks[0].Size = { uint16(Layouts[i]->GetGridSize().X), uint16(Layouts[i]->GetGridSize().Y) };
-										LayoutNode->Layout->Blocks[0].Priority = 0;
-										LayoutNode->Layout->Blocks[0].bReduceBothAxes = false;
-										LayoutNode->Layout->Blocks[0].bReduceByTwo = false;
 									}
 
 									MeshTableNode->SetLayout(i, LayoutNode);

@@ -387,7 +387,7 @@ namespace mu
 			UE::Math::TIntVector2<int32> RectSize = {0, 0};
 
 			/** Layout block that we are trying to generate if any. */
-			uint64 LayoutBlockId = Layout::InvalidBlockId;
+			uint64 LayoutBlockId = FLayoutBlock::InvalidBlockId;
 			Ptr<const Layout> LayoutToApply;
 
 			friend FORCEINLINE uint32 GetTypeHash(const FImageGenerationOptions& InKey)
@@ -504,12 +504,12 @@ namespace mu
 		struct FGeneratedLayout
 		{
 			Ptr<const Layout> Layout;
-			int32 FirstLODToIgnoreWarnings=0;
+			Ptr<const NodeLayout> Source;
 
 			FORCEINLINE bool operator==(const FGeneratedLayout& Other) const
 			{
 				return Layout == Other.Layout
-					&& FirstLODToIgnoreWarnings == Other.FirstLODToIgnoreWarnings;
+					&& Source == Other.Source;
 			}
 		};
 
@@ -611,9 +611,8 @@ namespace mu
 		TMap<int32, FMeshGenerationResult> SharedMeshOptionsMap;
 
 		//! Map of layouts found in the code already generated. The map is from the source layout
-		//! pointer of the layouts in the node meshes to the cloned and modified layout. 
-		//! The cloned layout will have absolute block ids assigned.
-		TMap<Ptr<const Layout>, Ptr<const Layout>> GeneratedLayouts;
+		//! node to the generated layout.
+		TMap<Ptr<const NodeLayout>, Ptr<const Layout>> GeneratedLayouts;
 
         void GenerateMesh(const FMeshGenerationOptions&, FMeshGenerationResult& result, const NodeMeshPtrConst&);
         void GenerateMesh_Constant(const FMeshGenerationOptions&, FMeshGenerationResult&, const NodeMeshConstant* );
@@ -634,16 +633,14 @@ namespace mu
 		void GenerateMesh_ClipDeform(const FMeshGenerationOptions&, FMeshGenerationResult&, const NodeMeshClipDeform*);
 
 		//-----------------------------------------------------------------------------------------
-		void PrepareForLayout( Ptr<const Layout> GeneratedLayout,
-			Ptr<Mesh> currentLayoutMesh,
+		void PrepareMeshForLayout(const FGeneratedLayout&, Ptr<Mesh>,
 			int32 currentLayoutChannel,
 			const void* errorContext,
-			const FMeshGenerationOptions& MeshOptions,
-			bool bUseAbsoluteBlockIds, 
-			int32 FirstLODToIgnoreWarnings);
+			const FMeshGenerationOptions&,
+			bool bUseAbsoluteBlockIds);
 
 		//!
-		Ptr<const Layout> AddLayout(Ptr<const Layout> SourceLayout, uint32 MeshIDPrefix);
+		Ptr<const Layout> AddLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix);
 
 		struct FExtensionDataGenerationResult
 		{

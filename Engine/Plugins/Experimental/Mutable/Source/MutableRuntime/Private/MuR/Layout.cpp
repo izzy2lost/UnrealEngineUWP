@@ -11,8 +11,8 @@
 
 namespace mu {
 
-	MUTABLE_IMPLEMENT_POD_SERIALISABLE(Layout::FBlock);
-	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(Layout::FBlock);
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FLayoutBlock);
+	MUTABLE_IMPLEMENT_POD_VECTOR_SERIALISABLE(FLayoutBlock);
 
 	//---------------------------------------------------------------------------------------------
 	Layout::Layout()

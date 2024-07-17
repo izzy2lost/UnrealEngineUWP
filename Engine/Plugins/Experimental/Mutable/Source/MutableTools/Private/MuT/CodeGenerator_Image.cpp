@@ -1386,9 +1386,9 @@ namespace mu
 		int32 LayoutBlockIndex = -1;
 		if (Options.LayoutToApply)
 		{
-			LayoutBlockIndex = Options.LayoutToApply->Blocks.IndexOfByPredicate([&](const Layout::FBlock& Block) { return Block.Id == Options.LayoutBlockId; });
+			LayoutBlockIndex = Options.LayoutToApply->Blocks.IndexOfByPredicate([&](const FLayoutBlock& Block) { return Block.Id == Options.LayoutBlockId; });
 		}
-		uint64 GeneratedLayoutBlockId = Layout::InvalidBlockId;
+		uint64 GeneratedLayoutBlockId = FLayoutBlock::InvalidBlockId;
 
         // Mesh
         if ( node.m_pMesh )
@@ -1445,7 +1445,7 @@ namespace mu
             else
             {
                 // Extract the mesh layout block
-                if ( GeneratedLayoutBlockId!= Layout::InvalidBlockId)
+                if ( GeneratedLayoutBlockId!= FLayoutBlock::InvalidBlockId)
                 {
                     Ptr<ASTOpMeshExtractLayoutBlocks> eop = new ASTOpMeshExtractLayoutBlocks();
                     eop->Source = CurrentMeshToProjectOp;
@@ -1538,7 +1538,7 @@ namespace mu
 			FImageGenerationOptions NewOptions = Options;
 			NewOptions.ImageLayoutStrategy = CompilerOptions::TextureLayoutStrategy::None;
 			NewOptions.LayoutToApply = nullptr;
-			NewOptions.LayoutBlockId = Layout::InvalidBlockId;
+			NewOptions.LayoutBlockId = FLayoutBlock::InvalidBlockId;
 			NewOptions.RectSize = { 0,0 };
 
 			FImageGenerationResult ImageResult;
