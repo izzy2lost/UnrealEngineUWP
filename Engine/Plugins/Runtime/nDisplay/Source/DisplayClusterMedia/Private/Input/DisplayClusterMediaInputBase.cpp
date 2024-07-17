@@ -160,11 +160,14 @@ void FDisplayClusterMediaInputBase::ReleaseInternals()
 	OCIOAppliedTexture.SafeRelease();
 }
 
-void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaInputTextureInfo& TextureInfo)
+void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRHICommandListImmediate& RHICmdList, const FMediaInputTextureInfo& TextureInfo)
 {
 	UE_LOG(LogDisplayClusterMedia, Verbose, TEXT("MediaInput '%s': importing texture on RT frame '%llu'..."), *GetMediaId(), GFrameCounterRenderThread);
 
 	MediaTexture->JustInTimeRender();
+
+	// Media texture relies on RDGBuilder so calling this before MediaTexture causes a crash.
+	FRDGBuilder GraphBuilder(RHICmdList);
 
 	FRHITexture* SrcTexture = MediaTexture->GetResource() ? MediaTexture->GetResource()->GetTextureRHI() : nullptr;
 	FRHITexture* const DstTexture = TextureInfo.Texture;
@@ -211,6 +214,9 @@ void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRDGBuilder& Gr
 			DisplayClusterMediaHelpers::ResampleTexture_RenderThread(GraphBuilder.RHICmdList, SrcTexture, DstTexture, SrcRect, DstRect);
 		}
 	}
+
+	GraphBuilder.Execute();
+
 }
 
 bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRDGBuilder& GraphBuilder, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources)

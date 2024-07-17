@@ -86,7 +86,7 @@ protected:
 protected:
 
 	/** Imports texture from a media source */
-	void ImportMediaData_RenderThread(FRDGBuilder& GraphBuilder, const FMediaInputTextureInfo& TextureInfo);
+	void ImportMediaData_RenderThread(FRHICommandListImmediate& RHICmdList, const FMediaInputTextureInfo& TextureInfo);
 
 private:
 

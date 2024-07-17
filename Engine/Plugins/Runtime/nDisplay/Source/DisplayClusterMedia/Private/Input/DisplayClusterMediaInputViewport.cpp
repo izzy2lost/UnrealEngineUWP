@@ -123,15 +123,11 @@ void FDisplayClusterMediaInputViewport::OnPostCrossGpuTransfer_RenderThread(FRHI
 			{
 				if (Textures.Num() > 0 && Regions.Num() > 0 && Textures[0])
 				{
-					FRDGBuilder GraphBuilder(RHICmdList);
-
 					// Prepare request data
 					FMediaInputTextureInfo TextureInfo{ Textures[0], Regions[0], MoveTemp(OCIOPassResources_RT) };
 
 					// Import texture from media input
-					ImportMediaData_RenderThread(GraphBuilder, TextureInfo);
-
-					GraphBuilder.Execute();
+					ImportMediaData_RenderThread(RHICmdList, TextureInfo);
 				}
 			}
 		}
