@@ -1334,10 +1334,10 @@ void UWidgetComponent::AddWidgetToScreen(ULocalPlayer* TargetPlayer)
 bool UWidgetComponent::ShouldDrawWidget() const
 {
 	const float RenderTimeThreshold = .5f;
-	if ( IsVisible() )
+	if (IsVisible())
 	{
 		// If we don't tick when off-screen, don't bother ticking if it hasn't been rendered recently
-		if ( TickWhenOffscreen || GetWorld()->TimeSince(GetLastRenderTime()) <= RenderTimeThreshold )
+		if (TickWhenOffscreen || WasRecentlyRendered(RenderTimeThreshold) || LastWidgetRenderTime == 0.0)
 		{
 			if ( ( GetCurrentTime() - LastWidgetRenderTime) >= RedrawTime )
 			{
