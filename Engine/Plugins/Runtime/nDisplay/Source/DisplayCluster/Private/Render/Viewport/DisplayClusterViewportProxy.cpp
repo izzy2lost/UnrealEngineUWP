@@ -415,9 +415,6 @@ FScreenPassTexture FDisplayClusterViewportProxy::OnPostProcessPassAfterFXAA_Rend
 
 FScreenPassTexture FDisplayClusterViewportProxy::OnPostProcessPassAfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum)
 {
-	// Broadcast PassTonemap event
-	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostTonemapPass_RenderThread().Broadcast(GraphBuilder, this, View, Inputs, ContextNum);
-
 	// Perform OCIO rendering after the tonemapper
 	if (GetOpenColorIOMode() == EDisplayClusterViewportOpenColorIOMode::PostProcess)
 	{

@@ -171,6 +171,9 @@ FScreenPassTexture FDisplayClusterViewportManagerViewExtension::PostProcessPassA
 		uint32 ContextNum = 0;
 		if (FDisplayClusterViewportProxy* ViewportProxyPtr = ViewportManagerProxy->ImplFindViewportProxy_RenderThread(View.StereoViewIndex, &ContextNum))
 		{
+			// Broadcast PassTonemap event
+			IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostTonemapPass_RenderThread().Broadcast(GraphBuilder, ViewportProxyPtr, View, Inputs, ContextNum);
+
 			if (ViewportProxyPtr->ShouldUsePostProcessPassTonemap())
 			{
 				return ViewportProxyPtr->OnPostProcessPassAfterTonemap_RenderThread(GraphBuilder, View, Inputs, ContextNum);
