@@ -26,6 +26,12 @@ public:
 	/** Creates a Controller for the given array of Fader Groups */
 	UDMXControlConsoleFaderGroupController* CreateFaderGroupController(const TArray<UDMXControlConsoleFaderGroup*> InFaderGroups, const FString& ControllerName = "", const int32 Index = INDEX_NONE);
 
+	/** Adds a Controller to the given index, if valid */
+	void AddFaderGroupController(UDMXControlConsoleFaderGroupController* InFaderGroupController, const int32 Index = INDEX_NONE);
+
+	/** Adds an array of Controllers to the given index, if valid */
+	void AddFaderGroupController(const TArray<UDMXControlConsoleFaderGroupController*> InFaderGroupControllers, const int32 Index = INDEX_NONE);
+
 	/** Deletes the given Fader Group Controller */
 	void DeleteFaderGroupController(UDMXControlConsoleFaderGroupController* FaderGroupController);
 

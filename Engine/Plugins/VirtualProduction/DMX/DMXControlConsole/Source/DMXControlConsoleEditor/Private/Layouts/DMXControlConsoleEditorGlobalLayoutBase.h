@@ -92,6 +92,9 @@ public:
 	/** Generates Layout Rows by the given Control Console Data */
 	void GenerateLayoutByControlConsoleData(const UDMXControlConsoleData* ControlConsoleData);
 
+	/** Sorts the the Controllers in the layout by their universe id */
+	void SortLayoutByUniverseID();
+
 	/** Clears all Layout Rows */
 	void ClearAll(const bool bOnlyPatchedFaderGroups = false);
 

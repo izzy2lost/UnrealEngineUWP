@@ -5,6 +5,7 @@
 #include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
+#include "Algo/StableSort.h"
 #include "Algo/Transform.h"
 #include "Controllers/DMXControlConsoleCellAttributeController.h"
 #include "Controllers/DMXControlConsoleElementController.h"
@@ -289,6 +290,75 @@ void UDMXControlConsoleEditorGlobalLayoutBase::GenerateLayoutByControlConsoleDat
 	if (&OwnerEditorLayouts.GetDefaultLayoutChecked() == this)
 	{
 		CleanLayoutFromUnpatchedFaderGroupControllers();
+	}
+}
+
+void UDMXControlConsoleEditorGlobalLayoutBase::SortLayoutByUniverseID()
+{
+	TMap<int32, TArray<UDMXControlConsoleFaderGroupController*>> UniverseIDToControllersMap;
+	const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = GetAllFaderGroupControllers();
+	for (UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
+	{
+		if (!FaderGroupController)
+		{
+			continue;
+		}
+
+		TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = FaderGroupController->GetFaderGroups();
+		if (FaderGroups.IsEmpty())
+		{
+			continue;
+		}
+
+		int32 UniverseID = 0;
+		if (FaderGroupController->HasFixturePatch())
+		{
+			// Sort fader groups by universe id
+			Algo::StableSortBy(FaderGroups,
+				[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& Item) -> int64
+				{
+					if (!Item.IsValid())
+					{
+						return TNumericLimits<int64>::Max();
+					}
+
+					const UDMXEntityFixturePatch* FixturePatch = Item.IsValid() ? Item->GetFixturePatch() : nullptr;
+					if (FixturePatch)
+					{
+						return (int64)FixturePatch->GetUniverseID() * DMX_UNIVERSE_SIZE + FixturePatch->GetStartingChannel();
+					}
+					else
+					{
+						return TNumericLimits<int64>::Max();
+					}
+				});
+			
+			if (const UDMXEntityFixturePatch* FixturePatch = FaderGroups[0]->GetFixturePatch())
+			{
+				UniverseID = FixturePatch->GetUniverseID();
+			}
+		}
+
+		TArray<UDMXControlConsoleFaderGroupController*>& Controllers = UniverseIDToControllersMap.FindOrAdd(UniverseID);
+		Controllers.Add(FaderGroupController);
+	}
+
+	ClearAll();
+
+	// Sort map keys by universe id
+	UniverseIDToControllersMap.KeySort([](const int32 KeyA, const int32 KeyB) 
+		{	
+			return KeyA < KeyB; 
+		});
+
+	for (const TPair<int32, TArray<UDMXControlConsoleFaderGroupController*>>& UniverseIDToControllers : UniverseIDToControllersMap)
+	{
+	  UDMXControlConsoleEditorGlobalLayoutRow* NewLayoutRow = AddNewRowToLayout();
+	  if (NewLayoutRow)
+	  {
+		  const TArray<UDMXControlConsoleFaderGroupController*>& Controllers = UniverseIDToControllers.Value;
+		  NewLayoutRow->AddFaderGroupController(Controllers);
+	  }
 	}
 }
 

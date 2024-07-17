@@ -437,6 +437,18 @@ namespace UE::DMX::Private
 		const TArray<TSharedPtr<FDMXReadOnlyFixturePatchListItem>> SelectedFixturePatches = GetSelectedItems();
 		const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewSelection = !SelectedFixturePatches.IsEmpty() ? SelectedFixturePatches[0] : nullptr;
 		OnSelectionChanged(NewSelection, ESelectInfo::OnMouseClick);
+
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (ActiveLayout && ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
+		{
+			ActiveLayout->SortLayoutByUniverseID();
+		}
+
+		if (EditorModel.IsValid())
+		{
+			EditorModel->RequestUpdateEditorModel();
+		}
 	}
 
 	void SDMXControlConsoleFixturePatchList::OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)

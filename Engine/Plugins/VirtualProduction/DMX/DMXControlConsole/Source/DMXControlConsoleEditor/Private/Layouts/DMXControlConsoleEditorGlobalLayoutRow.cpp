@@ -33,10 +33,27 @@ UDMXControlConsoleFaderGroupController* UDMXControlConsoleEditorGlobalLayoutRow:
 	const FString NewName = ControllerName.IsEmpty() ? FString::FromInt(FaderGroupControllers.Num() + 1) : ControllerName;
 	FaderGroupController->SetUserName(NewName);
 
-	const int32 ValidIndex = Index < 0 ? FaderGroupControllers.Num() : Index;
-	FaderGroupControllers.Insert(FaderGroupController, ValidIndex);
+	AddFaderGroupController(FaderGroupController, Index);
 
 	return FaderGroupController;
+}
+
+void UDMXControlConsoleEditorGlobalLayoutRow::AddFaderGroupController(UDMXControlConsoleFaderGroupController* InFaderGroupController, const int32 Index)
+{
+	if (InFaderGroupController)
+	{
+		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllerAsArray = { InFaderGroupController };
+		AddFaderGroupController(FaderGroupControllerAsArray, Index);
+	}
+}
+
+void UDMXControlConsoleEditorGlobalLayoutRow::AddFaderGroupController(const TArray<UDMXControlConsoleFaderGroupController*> InFaderGroupControllers, const int32 Index)
+{
+	if (!InFaderGroupControllers.IsEmpty())
+	{
+		const int32 ValidIndex = Index < 0 ? FaderGroupControllers.Num() : Index;
+		FaderGroupControllers.Insert(InFaderGroupControllers, ValidIndex);
+	}
 }
 
 void UDMXControlConsoleEditorGlobalLayoutRow::DeleteFaderGroupController(UDMXControlConsoleFaderGroupController* FaderGroupController)
