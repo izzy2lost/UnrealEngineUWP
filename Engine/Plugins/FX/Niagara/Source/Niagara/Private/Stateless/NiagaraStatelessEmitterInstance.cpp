@@ -674,19 +674,15 @@ void FNiagaraStatelessEmitterInstance::SetExecutionStateInternal(ENiagaraExecuti
 			break;
 
 		case ENiagaraExecutionState::Inactive:
-			if (EmitterData->EmitterState.InactiveResponse != ENiagaraEmitterInactiveResponse::Kill)
-			{
-				CropSpawnInfos();
-			}
-
-			if (SpawnInfos.Num() > 0)
-			{
-				ExecutionState = ENiagaraExecutionState::Inactive;
-			}
-			else
+			if (EmitterData->EmitterState.InactiveResponse == ENiagaraEmitterInactiveResponse::Kill)
 			{
 				KillSpawnInfos();
 				ExecutionState = ENiagaraExecutionState::Complete;
+			}
+			else
+			{
+				CropSpawnInfos();
+				ExecutionState = SpawnInfos.Num() > 0 ? ENiagaraExecutionState::Inactive : ENiagaraExecutionState::Complete;
 			}
 			break;
 
