@@ -1022,6 +1022,10 @@ namespace EpicGames.Perforce
 			{
 				arguments.Add("-l");
 			}
+			if ((options & ChangesOptions.Reverse) != 0)
+			{
+				arguments.Add("-r");
+			}
 			if ((options & ChangesOptions.TruncatedLongOutput) != 0)
 			{
 				arguments.Add("-L");
