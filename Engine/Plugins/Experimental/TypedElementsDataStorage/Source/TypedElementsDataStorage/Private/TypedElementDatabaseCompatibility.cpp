@@ -23,21 +23,14 @@
 
 namespace TypedElementDataStorage
 {
-	bool bActorsClearedByGC = false;
-	FAutoConsoleVariableRef CVarActorsClearedByGC(
-		TEXT("TEDS.Feature.ActorsClearedByGC"),
-		bActorsClearedByGC,
-		TEXT("Enables actors being removed through the garbage collection instead of requiring explicit removal. Enables `TEDS.Feature.IntegrateWithGC`."));
-
-	bool bEntitiesClearedByGC = false;
-	FAutoConsoleVariableRef CVarEntitiesClearedByGC(
-		TEXT("TEDS.Feature.EntitiesClearedByGC"),
-		bEntitiesClearedByGC,
-		TEXT("Enables entities being removed through the garbage collection instead of requiring explicit removal. Enables `TEDS.Feature.IntegrateWithGC`."));
+	bool bIntegrateWithGC = true;
+	FAutoConsoleVariableRef CVarIntegrateWithGC(
+		TEXT("TEDS.Feature.IntegrateWithGC"),
+		bIntegrateWithGC,
+		TEXT("Enabled monitoring GC events from TEDS Compat so objects are cleared up at the last minute, before they're destroyed."));
 }
 
-static const FName ActorsClearedByGCExtensionName(TEXT("ActorsClearedByGCExtension"));
-static const FName EntitiesClearedByGCExtensionName(TEXT("EntitiesClearedByGCExtension"));
+static const FName IntegrateWithGCName(TEXT("IntegrateWithGC"));
 
 void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
 {
@@ -204,13 +197,9 @@ bool UTypedElementDatabaseCompatibility::SupportsExtension(FName Extension) cons
 {
 	using namespace TypedElementDataStorage;
 
-	if (Extension == ActorsClearedByGCExtensionName)
+	if (Extension == IntegrateWithGCName)
 	{
-		return bActorsClearedByGC;
-	}
-	else if (Extension == EntitiesClearedByGCExtensionName)
-	{
-		return bEntitiesClearedByGC;
+		return bIntegrateWithGC;
 	}
 	else
 	{
@@ -222,13 +211,9 @@ void UTypedElementDatabaseCompatibility::ListExtensions(TFunctionRef<void(FName)
 {
 	using namespace TypedElementDataStorage;
 
-	if (bActorsClearedByGC)
+	if (bIntegrateWithGC)
 	{
-		Callback(ActorsClearedByGCExtensionName);
-	}
-	if (bEntitiesClearedByGC)
-	{
-		Callback(EntitiesClearedByGCExtensionName);
+		Callback(IntegrateWithGCName);
 	}
 }
 
@@ -817,7 +802,7 @@ void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 
-	if (bActorsClearedByGC || bEntitiesClearedByGC)
+	if (bIntegrateWithGC)
 	{
 		TArray<TPair<FUObjectItem*, RowHandle>> DeletedObjects;
 
@@ -847,30 +832,22 @@ void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
 
 void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)
 {
-	if (!TypedElementDataStorage::bActorsClearedByGC)
-	{
-		FDelegateHandle Handle = World->AddOnActorDestroyedHandler(
-			FOnActorDestroyed::FDelegate::CreateUObject(this, &UTypedElementDatabaseCompatibility::OnActorDestroyed));
-		ActorDestroyedDelegateHandles.Add(World, Handle);
-	}
+	FDelegateHandle Handle = World->AddOnActorDestroyedHandler(
+		FOnActorDestroyed::FDelegate::CreateUObject(this, &UTypedElementDatabaseCompatibility::OnActorDestroyed));
+	ActorDestroyedDelegateHandles.Add(World, Handle);
 }
 
 void UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy(UWorld* World)
 {
-	if (!TypedElementDataStorage::bActorsClearedByGC)
+	FDelegateHandle Handle;
+	if (ActorDestroyedDelegateHandles.RemoveAndCopyValue(World, Handle))
 	{
-		FDelegateHandle Handle;
-		if (ActorDestroyedDelegateHandles.RemoveAndCopyValue(World, Handle))
-		{
-			World->RemoveOnActorDestroyededHandler(Handle);
-		}
+		World->RemoveOnActorDestroyededHandler(Handle);
 	}
 }
 
 void UTypedElementDatabaseCompatibility::OnActorDestroyed(AActor* Actor)
 {
-	checkf(!TypedElementDataStorage::bActorsClearedByGC, 
-		TEXT("If actors are cleared from TEDS Compatibility through garbage collection, there shouldn't be any explicitly actor destruction handlers."));
 	RemoveCompatibleObjectExplicit(Actor);
 }
 

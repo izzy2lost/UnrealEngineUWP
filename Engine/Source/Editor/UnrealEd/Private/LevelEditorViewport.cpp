@@ -1670,10 +1670,8 @@ void FLevelEditorViewportClient::DestroyDropPreviewElements()
 	// deleting preview actors in UUnrealEdEngine::DeleteActors skips explicit handle deregistration,
 	// and although it does still happen in the immediately triggered garbage cleanup, that feels
 	// potentially brittle.
-	static FName ActorsClearedByGCExtensionName(TEXT("ActorsClearedByGCExtension"));
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
-	if (ITypedElementDataStorageCompatibilityInterface* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility();
-		TedsCompat && !TedsCompat->SupportsExtension(ActorsClearedByGCExtensionName))
+	if (ITypedElementDataStorageCompatibilityInterface* TedsCompat = TypedElementRegistry->GetMutableDataStorageCompatibility())
 	{
 		DropPreviewElements->ForEachElement<ITypedElementObjectInterface>(
 			[this, TedsCompat](const TTypedElement<ITypedElementObjectInterface>& InElement)
