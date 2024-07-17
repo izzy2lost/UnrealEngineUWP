@@ -941,7 +941,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			// See if the cache has an operator with matching OperatorID
 			OperatorPoolID = FOperatorPoolEntryID{InInitParams.Graph->GetInstanceID(), InInitParams.OperatorSettings};
-			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(*OperatorPoolID);
+			FOperatorAndInputs GraphOperatorAndInputs = OperatorPool->ClaimOperator(*OperatorPoolID, FOperatorContext::FromInitParams(InInitParams));
 			if (GraphOperatorAndInputs.Operator.IsValid())
 			{
 				UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Using cached operator %s for MetaSound %s"), *OperatorPoolID->ToString(), *InInitParams.MetaSoundName);

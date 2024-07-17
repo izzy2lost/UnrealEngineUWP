@@ -18,6 +18,11 @@
 namespace Metasound
 {
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
+	namespace Engine
+	{
+		class FOperatorCacheStatTracker;
+	}
+
 	namespace OperatorPoolPrivate
 	{
 		class FWindowedHitRate
@@ -86,6 +91,15 @@ namespace Metasound
 
 	}; // struct FOperatorPrecacheData
 
+	// Provides additional debug context for the operator the pool is interacting with.
+	struct METASOUNDGENERATOR_API FOperatorContext
+	{
+		FName GraphInstanceName;
+		FStringView MetaSoundName;
+
+		static FOperatorContext FromInitParams(const FMetasoundGeneratorInitParams& InParams);
+	};
+
 	// Pool of re-useable metasound operators to be used / put back by the metasound generator
 	// operators can also be pre-constructed via the UMetasoundCacheSubsystem BP api.
 	class METASOUNDGENERATOR_API FOperatorPool : public TSharedFromThis<FOperatorPool>
@@ -96,9 +110,9 @@ namespace Metasound
 		~FOperatorPool();
 
 
-		UE_DEPRECATED(5.5, "Use ClaimOperator(const FOperatorPoolEntryID&) instead")
+		UE_DEPRECATED(5.5, "Use ClaimOperator(const FOperatorPoolEntryID&, ...) instead")
 		FOperatorAndInputs ClaimOperator(const FGuid& InOperatorID);
-		FOperatorAndInputs ClaimOperator(const FOperatorPoolEntryID& InOperatorID);
+		FOperatorAndInputs ClaimOperator(const FOperatorPoolEntryID& InOperatorID, const FOperatorContext& InContext);
 
 		UE_DEPRECATED(5.5, "Use AddOperator(const FOperatorPoolEntryID&, ...) instead")
 		void AddOperator(const FGuid& InOperatorID, TUniquePtr<IOperator>&& InOperator, FInputVertexInterfaceData&& InputData);
@@ -156,6 +170,7 @@ namespace Metasound
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		OperatorPoolPrivate::FWindowedHitRate HitRateTracker;
+		TUniquePtr<Engine::FOperatorCacheStatTracker> CacheStatTracker;
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
 		// Notifies active build tasks to abort as soon as possible

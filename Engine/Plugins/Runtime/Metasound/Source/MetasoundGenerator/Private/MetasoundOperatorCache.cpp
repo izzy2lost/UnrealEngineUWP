@@ -10,12 +10,14 @@
 #include "HAL/IConsoleManager.h"
 #include "MetasoundGeneratorModuleImpl.h"
 #include "MetasoundGeneratorBuilder.h"
+#include "MetasoundOperatorCacheStatTracker.h"
 #include "MetasoundTrace.h"
 #include "Misc/Guid.h"
 #include "Misc/ScopeLock.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/CountersTrace.h"
 #include "Templates/UniquePtr.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 namespace Metasound
 {
@@ -23,6 +25,8 @@ namespace Metasound
 	TRACE_DECLARE_INT_COUNTER(MetaSound_OperatorPool_NumOperators, TEXT("MetaSound/OperatorPool/NumOperatorsInPool"));
 	TRACE_DECLARE_FLOAT_COUNTER(MetaSound_OperatorPool_HitRatio, TEXT("MetaSound/OperatorPool/HitRatio"));
 	TRACE_DECLARE_FLOAT_COUNTER(MetaSound_OperatorPool_WindowedHitRatio, TEXT("MetaSound/OperatorPool/WindowedHitRatio"));
+
+	CSV_DEFINE_CATEGORY(MetaSound_OperatorPool, true);
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 
 	namespace OperatorPoolPrivate
@@ -37,6 +41,7 @@ namespace Metasound
 			TEXT("Retrieves graph on the requesting thread prior to asynchronous task to create instance.\n"),
 			ECVF_Default);
 
+		// TODO: Move this into the OperatorCacheStatTracker.
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		static std::atomic<uint32> CacheHitCount = 0;
 		static std::atomic<uint32> CacheAttemptCount = 0;
@@ -104,6 +109,8 @@ namespace Metasound
 			{
 				const float HitRatio = RunningHitCount / static_cast<float>(RunningTotal);
 				TRACE_COUNTER_SET(MetaSound_OperatorPool_WindowedHitRatio, HitRatio);
+
+				CSV_CUSTOM_STAT(MetaSound_OperatorPool, WindowedCacheHitRatio, HitRatio, ECsvCustomStatOp::Set);
 			}
 		}
 
@@ -178,6 +185,15 @@ namespace Metasound
 	{
 	}
 
+	FOperatorContext FOperatorContext::FromInitParams(const FMetasoundGeneratorInitParams& InParams)
+	{
+		return FOperatorContext
+		{
+			.GraphInstanceName = InParams.Graph ? InParams.Graph->GetInstanceName() : NAME_None,
+			.MetaSoundName = InParams.MetaSoundName
+		};
+	}
+
 	FOperatorPoolEntryID::FOperatorPoolEntryID(FGuid InOperatorID, FOperatorSettings InSettings)
 	: OperatorID(MoveTemp(InOperatorID))
 	, OperatorSettings(MoveTemp(InSettings))
@@ -215,6 +231,9 @@ namespace Metasound
 	: Settings(InSettings)
 	, AsyncBuildPipe(UE_SOURCE_LOCATION)
 	{
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+		CacheStatTracker = MakeUnique<Engine::FOperatorCacheStatTracker>();
+#endif
 	}
 
 	FOperatorPool::~FOperatorPool()
@@ -224,10 +243,12 @@ namespace Metasound
 
 	FOperatorAndInputs FOperatorPool::ClaimOperator(const FGuid& InOperatorID)
 	{
-		return ClaimOperator(FOperatorPoolEntryID{InOperatorID, FOperatorSettings{OperatorPoolPrivate::DefaultSampleRateForDeprecatedAPI, OperatorPoolPrivate::BlockRate}});
+		return ClaimOperator(
+			FOperatorPoolEntryID{InOperatorID, FOperatorSettings{OperatorPoolPrivate::DefaultSampleRateForDeprecatedAPI, OperatorPoolPrivate::BlockRate}},
+			FOperatorContext{});
 	}
 
-	FOperatorAndInputs FOperatorPool::ClaimOperator(const FOperatorPoolEntryID& InOperatorID)
+	FOperatorAndInputs FOperatorPool::ClaimOperator(const FOperatorPoolEntryID& InOperatorID, const FOperatorContext& InContext)
 	{
 		FOperatorAndInputs OpAndInputs;
 
@@ -254,6 +275,7 @@ namespace Metasound
 			bCacheHit ? HitRateTracker.AddHit() : HitRateTracker.AddMiss();
 			OperatorPoolPrivate::CacheAttemptCount++;
 			TRACE_COUNTER_SET(MetaSound_OperatorPool_HitRatio, OperatorPoolPrivate::GetHitRatio());
+			CacheStatTracker->RecordCacheEvent(InOperatorID, bCacheHit, InContext);
 #endif
 			UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Attempt to claim operator with ID %s from operator pool resulted in %s"), *InOperatorID.ToString(), *::LexToString(bCacheHit));
 		}
@@ -334,6 +356,7 @@ namespace Metasound
 		Stack.Add(InOperatorID);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		TRACE_COUNTER_INCREMENT(MetaSound_OperatorPool_NumOperators);
+		CacheStatTracker->OnOperatorAdded(InOperatorID);
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 	   
 		UE_LOG(LogMetasoundGenerator, VeryVerbose, TEXT("Adding operator with ID %s to operator pool"), *InOperatorID.ToString());
@@ -469,6 +492,14 @@ namespace Metasound
 				}
 			}
 
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+			if (TSharedPtr<FOperatorPool> OperatorPool = WeakPoolPtr.Pin();
+				OperatorPool.IsValid())
+			{
+				OperatorPool->CacheStatTracker->RecordPreCacheRequest(*PreCacheData, NumToBuild);
+			}
+#endif // METASOUND_OPERATORCACHEPROFILER_ENABLED
+
 			for (int32 i = 0; i < NumToBuild; ++i)
 			{
 				// These build operations can take a fair bit of time, so
@@ -565,6 +596,8 @@ namespace Metasound
 
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 				TRACE_COUNTER_SUBTRACT(MetaSound_OperatorPool_NumOperators, int64(NumRemoved));
+
+				Pool->CacheStatTracker->OnOperatorRemoved(OperatorID);
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 			}
 		});
@@ -662,12 +695,16 @@ namespace Metasound
 								GraphIdToAssetIdLookUp.Remove(Stack[i], AssetID);
 							}
 						}
+
+#if METASOUND_OPERATORCACHEPROFILER_ENABLED
+						CacheStatTracker->OnOperatorTrimmed(Stack[i]);
+#endif // METASOUND_OPERATORCACHEPROFILER_ENABLED
 					}
 				}
 			}
 			Stack.RemoveAt(0, NumToTrim);
 #if METASOUND_OPERATORCACHEPROFILER_ENABLED
-			TRACE_COUNTER_DECREMENT(MetaSound_OperatorPool_NumOperators);
+			TRACE_COUNTER_SUBTRACT(MetaSound_OperatorPool_NumOperators, NumToTrim);
 #endif // #if METASOUND_OPERATORCACHEPROFILER_ENABLED
 		}
 	}

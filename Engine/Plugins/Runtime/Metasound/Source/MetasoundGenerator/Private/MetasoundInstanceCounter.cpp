@@ -43,6 +43,16 @@ namespace Metasound
 		return 0;
 	}
 
+	void FConcurrentInstanceCounterManager::VisitStats(TFunctionRef<void(const FName&, int64)> Visitor)
+	{
+		FScopeLock Lock(&MapCritSec);
+
+		for (const TPair<FName, FStats>& Pair : StatsMap)
+		{
+			Visitor(Pair.Key, Pair.Value.GetCount());
+		}
+	}
+
 #if COUNTERSTRACE_ENABLED
 	FConcurrentInstanceCounterManager::FStats::FStats(const FString& InName)
 	: TraceCounter(MakeUnique<FCountersTrace::FCounterInt>(TraceCounterNameType_Dynamic, *InName, TraceCounterDisplayHint_None))
@@ -64,7 +74,7 @@ namespace Metasound
 		TraceCounter->Decrement();
 	}
 
-	int64 FConcurrentInstanceCounterManager::FStats::GetCount()
+	int64 FConcurrentInstanceCounterManager::FStats::GetCount() const
 	{
 		ensure(TraceCounter);
 #if COUNTERSTRACE_ENABLED
@@ -74,7 +84,7 @@ namespace Metasound
 #endif
 	}
 
-	int64 FConcurrentInstanceCounterManager::FStats::GetPeakCount()
+	int64 FConcurrentInstanceCounterManager::FStats::GetPeakCount() const
 	{
 		return PeakCount;
 	}

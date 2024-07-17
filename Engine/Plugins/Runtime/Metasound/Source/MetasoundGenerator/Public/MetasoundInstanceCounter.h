@@ -33,6 +33,8 @@ namespace Metasound
 		int64 GetCountForName(const FName& InName);
 		int64 GetPeakCountForName(const FName& InName);
 
+		void VisitStats(TFunctionRef<void(const FName&, int64)> Visitor);
+
 	private:
 		struct FStats
 		{
@@ -47,8 +49,8 @@ namespace Metasound
 			void Increment();
 			void Decrement();
 	
-			int64 GetCount();
-			int64 GetPeakCount();
+			int64 GetCount() const;
+			int64 GetPeakCount() const;
 	
 		private:
 			TUniquePtr<CounterType> TraceCounter;
