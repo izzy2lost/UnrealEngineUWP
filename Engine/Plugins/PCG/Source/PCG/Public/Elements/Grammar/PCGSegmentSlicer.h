@@ -57,12 +57,17 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputModuleIndexAttribute"))
 	FName ModuleIndexAttributeName = TEXT("ModuleIndex");
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
-	bool bOutputExtremityAttribute = false;
+	/** Output attributes labeling the first and final points after slicing. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable))
+	bool bOutputExtremityAttributes = false;
 
-	/** Name of the Extremity output attribute name. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputExtremityAttribute"))
-	FName ExtremityAttributeName = TEXT("Extremity");
+	/** Name of the attribute labeling the first output point from the first module. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputExtremityAttributes", EditConditionHides))
+	FName IsFirstAttributeName = TEXT("IsFirst");
+
+	/** Name of the attribute labeling the final output point from the final module. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, EditCondition = "bOutputExtremityAttributes", EditConditionHides))
+	FName IsFinalAttributeName = TEXT("IsFinal");
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra Output Attributes", meta = (PCG_Overridable, InlineEditConditionToggle))
 	bool bOutputExtremityNeighborIndexAttribute = false;
