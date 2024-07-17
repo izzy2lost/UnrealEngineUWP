@@ -286,6 +286,10 @@ public:
 		bool bCleanupUnusedElements = true
 	);
 
+	/** Save Datasmith LevelSequences into files and specify those files in each corresponding LevelSequenceElement
+	 */
+	void SerializeLevelSequences();
+
 	/**
 	 * Set the Datasmith scene's label.
 	 * This is mainly used in conjunction with DirectLink. The scene's label is used

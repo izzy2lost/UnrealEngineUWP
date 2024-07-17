@@ -221,7 +221,7 @@ namespace DatasmithSolidworks
 			List<FConfigurationData> Configs = ConfigurationExporter.ExportConfigurations(this);
 			bHasConfigurations = (Configs != null) && (Configs.Count != 0);
 			ExportToDatasmithScene(ConfigurationExporter, new FVariantName(ConfigManager.ActiveConfiguration));
-
+			DatasmithScene.SerializeLevelSequences();
 
 			ExportLights();
 
