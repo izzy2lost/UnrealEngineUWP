@@ -371,12 +371,12 @@ void PackSubstrateOut(
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_CLOTH;
 				}				
-				else if ((OptimisedModeMask & SingleIsWrapThin) == SingleIsWrapThin)
+				else if ((OptimisedModeMask & SingleIsWrapThin) == SingleIsWrapThin && !BSDF_GETHASFUZZ(BSDF))
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_SSSWRAP_THIN;
 					SSSData.Header.Bytes = 0; // Force to skip SSSData writing
 				}
-				else if ((OptimisedModeMask & SingleIsWrap) == SingleIsWrap)
+				else if ((OptimisedModeMask & SingleIsWrap) == SingleIsWrap && !BSDF_GETHASFUZZ(BSDF))
 				{
 					OptimisedLegacyMode = SINGLE_OPTLEGACYMODE_SSSWRAP;
 					SSSData.Header.Bytes = 0; // Force to skip SSSData writing
