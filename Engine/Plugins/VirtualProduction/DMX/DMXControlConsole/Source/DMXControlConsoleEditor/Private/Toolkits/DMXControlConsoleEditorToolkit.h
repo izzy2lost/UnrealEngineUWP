@@ -78,6 +78,9 @@ namespace UE::DMX::Private
 		/** Resets all the elements in the Control Console to zero */
 		void ResetToZero();
 
+		/** Reloads the Control Console asset from the disk */
+		void Reload();
+
 		/** Closes this editor and presents the compact editor instead */
 		void ShowCompactEditor();
 

@@ -14,8 +14,10 @@
 #include "DMXEditorSettings.h"
 #include "DMXEditorUtils.h"
 #include "Editor.h"
+#include "FileHelpers.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/Controllers/DMXControlConsoleMatrixCellController.h"
@@ -33,6 +35,7 @@
 #include "Views/SDMXControlConsoleEditorFiltersView.h"
 #include "Views/SDMXControlConsoleEditorLayoutView.h"
 #include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Notifications/SNotificationList.h"
 #include "ToolMenus.h"
 
 
@@ -354,6 +357,24 @@ namespace UE::DMX::Private
 		}
 	}
 
+	void FDMXControlConsoleEditorToolkit::Reload()
+	{
+		// Don't allow asset reload during PIE
+		if (GIsPlayInEditorWorld)
+		{
+			FNotificationInfo Notification(LOCTEXT("CannotReloadAssetInPIE", "Assets cannot be reloaded while in PIE."));
+			Notification.ExpireDuration = 3.0f;
+			FSlateNotificationManager::Get().AddNotification(Notification);
+			return;
+		}
+
+		if (ControlConsole)
+		{
+			const TArray<UPackage*> PackagesToReload({ ControlConsole->GetOutermost() });
+			UPackageTools::ReloadPackages(PackagesToReload);
+		}
+	}
+
 	void FDMXControlConsoleEditorToolkit::ShowCompactEditor()
 	{
 		const FDMXControlConsoleEditorModule& EditorModule = FModuleManager::GetModuleChecked<FDMXControlConsoleEditorModule>(TEXT("DMXControlConsoleEditor"));
@@ -661,6 +682,12 @@ namespace UE::DMX::Private
 		(
 			FDMXControlConsoleEditorCommands::Get().ResetToZero,
 			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::ResetToZero)
+		);
+
+		GetToolkitCommands()->MapAction
+		(
+			FDMXControlConsoleEditorCommands::Get().Reload,
+			FExecuteAction::CreateSP(this, &FDMXControlConsoleEditorToolkit::Reload)
 		);
 
 		if (EditorModel)

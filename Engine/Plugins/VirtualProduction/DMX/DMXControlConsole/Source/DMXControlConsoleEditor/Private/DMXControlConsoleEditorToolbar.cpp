@@ -322,6 +322,17 @@ namespace UE::DMX::Private
 				TAttribute<FText>(),
 				FSlateIcon(FDMXControlConsoleEditorStyle::Get().GetStyleSetName(), "DMXControlConsole.ResetToZero")
 			);
+
+			MenuBuilder.AddSeparator();
+
+			MenuBuilder.AddMenuEntry
+			(
+				FDMXControlConsoleEditorCommands::Get().Reload,
+				NAME_None,
+				TAttribute<FText>(),
+				TAttribute<FText>(),
+				FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Refresh")
+			);
 		}
 		MenuBuilder.EndSection();
 
