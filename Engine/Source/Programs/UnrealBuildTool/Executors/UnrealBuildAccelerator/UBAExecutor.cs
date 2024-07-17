@@ -25,6 +25,7 @@ namespace UnrealBuildTool
 		public string Crypto { get; private set; } = String.Empty;
 		public IServer? Server { get; private set; }
 		ISessionServer? _session;
+		object _sessionLock = new();
 		ICacheClient? _cacheClient;
 		EpicGames.UBA.ILogger? _ubaLogger;
 		readonly List<IUBAAgentCoordinator> _agentCoordinators = new();
@@ -33,6 +34,7 @@ namespace UnrealBuildTool
 		bool _bIsRemoteActionsAllowed = true;
 		readonly object _actionsChangedLock = new();
 		bool _bActionsChanged = true;
+		uint _errorCount = 0;
 		uint _actionsQueuedThatCanRunRemotely = UInt32.MaxValue;
 		readonly ThreadedLogger _threadedLogger;
 
@@ -123,6 +125,14 @@ namespace UnrealBuildTool
 			_agentCoordinators.AddRange(hordeAgentCoordinators.DistinctBy(x => x.Server));
 
 			_threadedLogger = new ThreadedLogger(logger);
+		}
+
+		public void UpdateStatus(uint statusRow, uint statusColumn, string statusText, LogEntryType statusType, string? statusLink)
+		{
+			lock (_sessionLock)
+			{
+				_session?.UpdateStatus(statusRow, statusColumn, statusText, statusType, statusLink);
+			}
 		}
 
 		private void PrintConfiguration()
@@ -244,15 +254,20 @@ namespace UnrealBuildTool
 			public Task FlushChangesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 		}
 
-		private async void ActionQueueCanceled(IStorageServer? ubaStorage)
+		private void ActionQueueCanceled(IStorageServer? ubaStorage)
 		{
 			Server?.StopServer(); // Make sure all remove processes are returned. We can't have any callbacks after this
 			_bIsCancelled = true;
 			_session?.CancelAll(); // Cancel all processes native side
 			ubaStorage?.SaveCasTable();
-			foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+
+			// We need the lock here since things are happening in parallel.
+			lock (_sessionLock)
 			{
-				await coordinator.CloseAsync();
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+				{
+					_agentCoordinators.ForEach(ac => ac.CloseAsync().Wait(2000)); // Give coordinators some time to close (this makes coordinators like horde return resources faster)
+				}
 			}
 		}
 
@@ -266,7 +281,6 @@ namespace UnrealBuildTool
 			if (inputActions.Count() < NumParallelProcesses && !UBAConfig.bForceBuildAllRemote)
 			{
 				UBAConfig.bDisableRemote = true;
-				UBAConfig.bForceBuildAllRemote = false;
 				UBAConfig.Zone = "local";
 			}
 
@@ -358,51 +372,75 @@ namespace UnrealBuildTool
 					_ubaLogger = ubaLogger;
 					using IStorageServer ubaStorageServer = IStorageServer.CreateStorageServer(Server, ubaLogger, new StorageServerCreateInfo(_rootDirRef.FullName, ((ulong)UBAConfig.StoreCapacityGb) * 1000 * 1000 * 1000, !UBAConfig.bStoreRaw, UBAConfig.Zone));
 					using ISessionServerCreateInfo serverCreateInfo = ISessionServerCreateInfo.CreateSessionServerCreateInfo(ubaStorageServer, Server, ubaLogger, new SessionServerCreateInfo(_rootDirRef.FullName, ubaTraceFile.FullName.Replace('\\', '/'), UBAConfig.bDisableCustomAlloc, false, UBAConfig.bResetCas, UBAConfig.bWriteToDisk, UBAConfig.bDetailedTrace, !UBAConfig.bDisableWaitOnMem, UBAConfig.bAllowKillOnMem, UBAConfig.bStoreObjFilesCompressed));
-					using (_session = ISessionServer.CreateSessionServer(serverCreateInfo))
-					using (_cacheClient = ICacheClient.CreateCacheClient(_session, UBAConfig.bReportCacheMissReason))
 					{
-						if (!String.IsNullOrEmpty(UBAConfig.CacheServer))
+						try
 						{
-							string[] nameAndPort = UBAConfig.CacheServer.Split(':');
-							int port = 1347;
-							if (nameAndPort.Length > 1)
+							_session = ISessionServer.CreateSessionServer(serverCreateInfo);
+							_cacheClient = ICacheClient.CreateCacheClient(_session, UBAConfig.bReportCacheMissReason);
+							if (!String.IsNullOrEmpty(UBAConfig.CacheServer))
 							{
-								port = Int32.Parse(nameAndPort[1]);
+								string[] nameAndPort = UBAConfig.CacheServer.Split(':');
+								int port = 1347;
+								if (nameAndPort.Length > 1)
+								{
+									port = Int32.Parse(nameAndPort[1]);
+								}
+
+								_session.UpdateStatus(1, 1, "Cache", LogEntryType.Info, null);
+								_session.UpdateStatus(1, 6, "Connecting...", LogEntryType.Info);
+
+								System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
+								bool cacheSuccess = _cacheClient.Connect(nameAndPort[0], port);
+								long totalMs = stopwatch.ElapsedMilliseconds;
+								string successText = cacheSuccess ? "Connected to" : "Failed to connect to";
+								logger.LogInformation("UbaCache - {SuccessText} {Name}:{Port} ({Seconds}.{Milliseconds}s)", successText, nameAndPort[0], port, totalMs / 1000, totalMs % 1000);
+								if (cacheSuccess)
+								{
+									_session.UpdateStatus(1, 6, "Connected", LogEntryType.Info);
+									actionArtifactCache = new UBAActionArtifactCache(this);
+								}
+								else
+								{
+									_session.UpdateStatus(1, 6, "Not connected", LogEntryType.Info);
+								}
 							}
 
-							System.Diagnostics.Stopwatch stopwatch = System.Diagnostics.Stopwatch.StartNew();
-							bool cacheSuccess = _cacheClient.Connect(nameAndPort[0], port);
-							long totalMs = stopwatch.ElapsedMilliseconds;
-							string successText = cacheSuccess ? "Connected to" : "Failed to connect to";
-							logger.LogInformation("UbaCache - {SuccessText} {Name}:{Port} ({Seconds}.{Milliseconds}s)", successText, nameAndPort[0], port, totalMs / 1000, totalMs % 1000);
-							if (cacheSuccess)
+							ubaStorage = ubaStorageServer;
+
+							if (!UBAConfig.bDisableRemote)
 							{
-								actionArtifactCache = new UBAActionArtifactCache(this);
+								Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
+							}
+							else
+							{
+								_session.DisableRemoteExecution();
+							}
+
+							bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache, () => ActionQueueCanceled(ubaStorage));
+
+							if (!UBAConfig.bDisableRemote)
+							{
+								Server.StopServer();
+							}
+
+							if (UBAConfig.bPrintSummary)
+							{
+								_session.PrintSummary();
+							}
+
+							return success && !_bIsCancelled;
+						}
+						finally
+						{
+							_cacheClient?.Dispose();
+							_cacheClient = null;
+							lock (_sessionLock)
+							{
+								_agentCoordinators.ForEach(ac => ac.Done());
+								_session?.Dispose();
+								_session = null;
 							}
 						}
-
-						ubaStorage = ubaStorageServer;
-
-						if (!UBAConfig.bDisableRemote)
-						{
-							Server.StartServer(UBAConfig.Host, UBAConfig.Port, Crypto);
-						}
-
-						bool success = ExecuteActionsInternal(inputActions, _session, logger, actionArtifactCache, () => ActionQueueCanceled(ubaStorage));
-
-						//_cacheClient.RequestServerShutdown("");
-
-						if (!UBAConfig.bDisableRemote)
-						{
-							Server.StopServer();
-						}
-
-						if (UBAConfig.bPrintSummary)
-						{
-							_session.PrintSummary();
-						}
-
-						return success && !_bIsCancelled;
 					}
 				}
 			}
@@ -475,6 +513,11 @@ namespace UnrealBuildTool
 			ImmediateActionQueueRunner remoteRunner = queue.CreateManualRunner(action => RunActionRemote(queue, action));
 			queue.CancellationToken.Register(onCancel);
 
+			queue.OnArtifactsRead += (action) => { UpdateCacheProgress(queue); UpdateProgress(queue); };
+			queue.OnArtifactsMiss += (action) => UpdateCacheProgress(queue);
+
+			UpdateProgress(queue);
+
 			// Start the queue
 			queue.Start();
 
@@ -489,10 +532,7 @@ namespace UnrealBuildTool
 					if (count <= NumParallelProcesses)
 					{
 						_bIsRemoteActionsAllowed = false;
-						foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
-						{
-							coordinator.Stop();
-						}
+						_agentCoordinators.ForEach(ac => ac.Stop());
 						session!.DisableRemoteExecution();
 					}
 					else
@@ -516,9 +556,12 @@ namespace UnrealBuildTool
 
 			try
 			{
+				uint statusUpdateCounter = 10;
 				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
-					coordinator.Start(queue, CanRunRemotely);
+					uint statusUpdateIndex = statusUpdateCounter;
+					coordinator.Start(queue, CanRunRemotely, (sr, sc, st, t, sl) => UpdateStatus(statusUpdateIndex + sr, sc, st, t, sl));
+					statusUpdateCounter += 10;
 				}
 
 				bool res = queue.RunTillDone().Result; // Using inline wait to avoid possible thread switch
@@ -535,9 +578,9 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
+				if (_bIsRemoteActionsAllowed)
 				{
-					coordinator.Stop();
+					_agentCoordinators.ForEach(ac => ac.Stop());
 				}
 			}
 		}
@@ -592,7 +635,7 @@ namespace UnrealBuildTool
 				UserData = action,
 				Description = description,
 				Configuration = action.bIsGCCCompiler ? EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileClang : EpicGames.UBA.ProcessStartInfo.CommonProcessConfigs.CompileMsvc,
-				LogFile = UBAConfig.bLogEnabled ? action.Inner.ProducedItems.First().Location.GetFileName() : null,
+				LogFile = UBAConfig.bLogEnabled ? (action.Inner.ProducedItems.First().Location.GetFileName() + ".log") : null,
 			};
 
 			pchItem = null;
@@ -935,12 +978,28 @@ namespace UnrealBuildTool
 
 			queue.OnActionCompleted(action, success, results);
 
+			if (!success)
+			{
+				++_errorCount;
+			}
+			UpdateProgress(queue);
+
 			lock (_actionsChangedLock)
 			{
 				_bActionsChanged = true;
 			}
 		}
-
+		void UpdateProgress(ImmediateActionQueue queue)
+		{
+			int completedActions = queue.CompletedActions;
+			int totalActions = queue.TotalActions;
+			int percent = completedActions * 100 / totalActions;
+			_session!.UpdateProgress((uint)totalActions, (uint)completedActions, _errorCount);
+		}
+		void UpdateCacheProgress(ImmediateActionQueue queue)
+		{
+			_session!.UpdateStatus(1, 6, $"Hits {queue.CacheHitActions} Misses {queue.CacheMissActions}", LogEntryType.Info);
+		}
 		void RemoteActionFailedNoOutput(ImmediateActionQueue queue, LinkedAction action, int exitCode, string executingHost)
 		{
 			if (_bIsCancelled)

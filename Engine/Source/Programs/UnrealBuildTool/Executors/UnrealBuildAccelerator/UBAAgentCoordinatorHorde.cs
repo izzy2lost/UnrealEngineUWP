@@ -26,6 +26,9 @@ using UnrealBuildBase;
 
 namespace UnrealBuildTool
 {
+	// statusRow, statusColumn, statusText, statusType, statusLink
+	using StatusUpdateAction = Action<uint, uint, string, EpicGames.UBA.LogEntryType, string?>;
+
 	class UBAHordeSession : IAsyncDisposable
 	{
 		/// <summary>
@@ -46,6 +49,7 @@ namespace UnrealBuildTool
 		readonly ILogger _logger;
 
 		readonly UBAExecutor _owner;
+		internal StatusUpdateAction? _updateStatus;
 
 		readonly BundleStorageClient _storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 		BlobLocator _ubaAgentLocator;
@@ -54,15 +58,16 @@ namespace UnrealBuildTool
 		readonly string _crypto;
 		IComputeClient? _client;
 
-		public struct Worker
+		public class Worker
 		{
-			public Task BackgroundTask { get; set; }
+			public Stopwatch? StartTime { get; init; }
+			public string? Ip { get; init; }
+			public ConnectionMetadataPort? Port { get; init; }
+			public ConnectionMetadataPort? ProxyPort { get; init; }
+
 			public int NumLogicalCores { get; set; }
-			public Stopwatch StartTime { get; set; }
-			public bool Started { get; set; }
-			public string Ip { get; set; }
-			public ConnectionMetadataPort Port { get; set; }
-			public ConnectionMetadataPort ProxyPort { get; set; }
+			public bool Active { get; set; }
+			public Task? BackgroundTask { get; set; }
 		}
 
 		readonly List<Worker> _workers = new();
@@ -103,7 +108,7 @@ namespace UnrealBuildTool
 
 				for (int idx = _workers.Count - 1; idx >= 0; idx--)
 				{
-					await _workers[idx].BackgroundTask;
+					await _workers[idx].BackgroundTask!;
 					_workers.RemoveAt(idx);
 				}
 			}
@@ -181,33 +186,46 @@ namespace UnrealBuildTool
 			return handle.GetLocator();
 		}
 
-		public int NumLogicalCores { get; private set; } = 0;
-
 		public async void RemoveCompleteWorkersAsync()
 		{
 			for (int idx = 0; idx < _workers.Count; idx++)
 			{
 				Worker worker = _workers[idx];
-				if (worker.BackgroundTask.IsCompleted)
+				if (worker.BackgroundTask!.IsCompleted)
 				{
 					await worker.BackgroundTask;
-					NumLogicalCores -= worker.NumLogicalCores;
-					_workers.RemoveAt(idx--);
+					lock (_workers)
+						_workers.RemoveAt(idx--);
 				}
 			}
 		}
 
-		public int QueuedUpCores()
+		public void GetCoreCount(out int active, out int queued, out int activeAgents, out int queuedAgents)
 		{
-			int count = 0;
-			foreach (Worker worker in _workers)
+			active = 0;
+			queued = 0;
+			activeAgents = 0;
+			queuedAgents = 0;
+			lock (_workers)
 			{
-				if (!worker.Started)
+				foreach (Worker worker in _workers)
 				{
-					count += worker.NumLogicalCores;
+					if (worker.NumLogicalCores == 0)
+					{
+						continue;
+					}
+					if (worker.Active)
+					{
+						++activeAgents;
+						active += worker.NumLogicalCores;
+					}
+					else
+					{
+						++queuedAgents;
+						queued += worker.NumLogicalCores;
+					}
 				}
 			}
-			return count;
 		}
 
 		int _workerId = 0;
@@ -222,7 +240,7 @@ namespace UnrealBuildTool
 				"LogicalCores"
 			};
 
-		public async Task<bool> AddWorkerAsync(Requirements requirements, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken)
+		public async Task<bool> AddWorkerAsync(Requirements requirements, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken, int activeCores)
 		{
 			if (_client == null)
 			{
@@ -256,7 +274,7 @@ namespace UnrealBuildTool
 				{
 					_logger.LogDebug("Unable to assign a remote worker");
 
-					int missingNumCores = Math.Max(0, _maxCores - NumLogicalCores);
+					int missingNumCores = Math.Max(0, _maxCores - activeCores);
 					await UpdateCpuCoreNeedAsync(missingNumCores, cancellationToken);
 					return false;
 				}
@@ -310,10 +328,11 @@ namespace UnrealBuildTool
 					ProxyPort = ubaProxyPort,
 				};
 				worker.BackgroundTask = RunWorkerAsync(worker, lease, locator, exeName, workerLogger, hordeConfig, _cancellationTokenSource.Token);
-				_workers.Add(worker);
+				lock (_workers)
+					_workers.Add(worker);
+				UpdateHordeStatus(null);
 				lease = null; // Will be disposed by RunWorkerAsync
 
-				NumLogicalCores += numLogicalCores;
 				return true;
 			}
 			finally
@@ -325,10 +344,14 @@ namespace UnrealBuildTool
 			}
 		}
 
+		int _targetCoreCount;
+
 		async Task UpdateCpuCoreNeedAsync(int targetCoreCount, CancellationToken cancellationToken = default)
 		{
-			if (_client != null && _pool != null && _clusterId != null)
+			if (_client != null && _pool != null && _clusterId != null && targetCoreCount != _targetCoreCount)
 			{
+				_targetCoreCount = targetCoreCount;
+
 				_logger.LogDebug("Setting CPU core need to {TargetCoreCount}", targetCoreCount);
 				Dictionary<string, int> resourceNeeds = new() { { ResourceLogicalCores, targetCoreCount } };
 				try
@@ -484,7 +507,8 @@ namespace UnrealBuildTool
 						}
 						else
 						{
-							arguments.Add($"-Listen={self.Port.AgentPort}");
+							arguments.Add($"-Listen={self.Port!.AgentPort}");
+							arguments.Add("-ListenTimeout=10");
 						}
 
 						if (!String.IsNullOrEmpty(_crypto))
@@ -498,7 +522,7 @@ namespace UnrealBuildTool
 						{
 							arguments.Add($"-Sentry=\"{hordeConfig.UBASentryUrl}\"");
 						}
-						arguments.Add("-ProxyPort=" + self.ProxyPort.AgentPort);
+						arguments.Add("-ProxyPort=" + self.ProxyPort!.AgentPort);
 						if (_owner.UBAConfig.bUseQuic)
 						{
 							arguments.Add("-quic");
@@ -516,6 +540,7 @@ namespace UnrealBuildTool
 						arguments.Add("-Dir=%UE_HORDE_SHARED_DIR%\\Uba");
 						arguments.Add("-Eventfile=%UE_HORDE_TERMINATION_SIGNAL_FILE%");
 						arguments.Add("-MaxIdle=15");
+
 						if (_owner.UBAConfig.bLogEnabled)
 						{
 							arguments.Add("-Log");
@@ -528,7 +553,7 @@ namespace UnrealBuildTool
 						ExecuteProcessFlags execFlags = _allowWine ? ExecuteProcessFlags.UseWine : ExecuteProcessFlags.None;
 						await using AgentManagedProcess process = await channel.ExecuteAsync(executable, arguments, null, null, execFlags, cancellationToken);
 						bool shouldConnect = !useListen;
-						self.Started = true;
+						bool isFirstRead = true;
 						string? line;
 
 						while ((line = await process.ReadLineAsync(cancellationToken)) != null)
@@ -537,14 +562,26 @@ namespace UnrealBuildTool
 
 							if (shouldConnect && line.Contains("Listening on", StringComparison.OrdinalIgnoreCase)) // This log entry means that the agent is ready for connections.
 							{
-								long totalMs = self.StartTime.ElapsedMilliseconds;
+								long totalMs = self.StartTime!.ElapsedMilliseconds;
 								logger.LogInformation("Connecting to UbaAgent on {Ip}:{Port} (local agent port {AgentPort}) {Seconds}.{Milliseconds} seconds after assigned",
-									self.Ip, self.Port.Port, self.Port.AgentPort, totalMs / 1000, totalMs % 1000);
+									self.Ip, self.Port!.Port, self.Port.AgentPort, totalMs / 1000, totalMs % 1000);
 
-								_owner.Server!.AddClient(self.Ip, self.Port.Port, _crypto);
+								if (!_owner.Server!.AddClient(self.Ip!, self.Port.Port, _crypto))
+								{
+									break;
+								}
 								shouldConnect = false;
 							}
+
+							if (isFirstRead)
+							{
+								isFirstRead = false;
+								self.Active = true;
+								UpdateHordeStatus(null);
+							}
 						}
+						self.NumLogicalCores = 0;
+						UpdateHordeStatus(null);
 						logger.LogDebug("Shutting down process");
 						int ExitCode = await process.WaitForExitAsync(cancellationToken);
 						if (ExitCode != 0)
@@ -559,9 +596,14 @@ namespace UnrealBuildTool
 			}
 			catch (TimeoutException)
 			{
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
 			}
 			catch (Exception ex)
 			{
+				self.NumLogicalCores = 0;
+				UpdateHordeStatus(null);
+
 				if (!cancellationToken.IsCancellationRequested)
 				{
 					logger.Log(_strict ? LogLevel.Error : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "Exception in worker task: {Ex}", ex.ToString());
@@ -569,6 +611,34 @@ namespace UnrealBuildTool
 					// Add additional properties to aid debugging
 					logger.Log(_strict ? LogLevel.Information : LogLevel.Debug, KnownLogEvents.Systemic_Horde_Compute, ex, "UBA agent locator {UBAAgentLocator}", _ubaAgentLocator.ToString());
 				}
+			}
+		}
+
+		string _additionalStatus = "";
+		string _lastStatus = "";
+
+		internal void UpdateHordeStatus(string? additionalStatus)
+		{
+			if (additionalStatus != null)
+			{
+				_additionalStatus = additionalStatus;
+			}
+
+			if (_updateStatus == null)
+			{
+				return;
+			}
+
+			int activeCores;
+			int queuedCores;
+			int activeAgents;
+			int queuedAgents;
+			GetCoreCount(out activeCores, out queuedCores, out activeAgents, out queuedAgents);
+			string status = $"Running. {activeAgents} agent{(activeAgents != 1 ? "s" : "")} ({activeCores} cores){_additionalStatus} {(queuedAgents != 0 ? $"(Preparing {queuedAgents} agent{(queuedAgents != 1 ? "s" : "")})" : "")}";
+			if (_lastStatus != status)
+			{
+				_lastStatus = status;
+				_updateStatus(0, 6, status, EpicGames.UBA.LogEntryType.Info, null);
 			}
 		}
 	}
@@ -628,26 +698,49 @@ namespace UnrealBuildTool
 				return;
 			}
 
+			_executor = executor;
 			_cancellationSource = new CancellationTokenSource();
 			_hordeSessionTask = UBAHordeSession.TryCreateHordeSessionAsync(HordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
 			await _hordeSessionTask;
 			executor.AgentCoordinatorInitialized(this, _hordeSessionTask.IsCompletedSuccessfully && _hordeSessionTask.Result != null);
 		}
 
-		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely)
+		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely, StatusUpdateAction updateStatus)
 		{
+			_updateStatus = updateStatus;
+
 			int timerPeriod = 5000;
 			bool shownNoAgentsFoundMessage = false;
 
-			if (_hordeSessionTask == null)
+			UBAHordeSession? hordeSession = _hordeSessionTask?.Result;
+
+			string? link = null;
+			if (HordeConfig.HordeServer != null)
 			{
+				link = $"{HordeConfig.HordeServer!.TrimEnd('/')}/agents";
+				if (HordeConfig.HordePool != string.Empty)
+				{
+					link += $"?agent={HordeConfig.HordePool}";
+				}
+			}
+			updateStatus(0, 1, "Horde", EpicGames.UBA.LogEntryType.Info, link);
+
+			if (hordeSession == null)
+			{
+				updateStatus(0, 6, "Not created (check log)", EpicGames.UBA.LogEntryType.Info, null);
 				return;
 			}
+
+			hordeSession._updateStatus = _updateStatus;
+			hordeSession.UpdateHordeStatus(null);
+
+			int requestCounter = 0;
+
 			_timer = new(async (_) =>
 			{
 				_timer?.Change(Timeout.Infinite, Timeout.Infinite);
 
-				if (_cancellationSource!.IsCancellationRequested || _hordeSessionTask == null)
+				if (_hordeSessionTask == null)
 				{
 					return;
 				}
@@ -659,10 +752,11 @@ namespace UnrealBuildTool
 					return;
 				}
 
-				hordeSession.RemoveCompleteWorkersAsync();
+				//hordeSession.RemoveCompleteWorkersAsync();
 
-				if (queue.IsDone)
+				if (queue.IsDone || _cancellationSource!.IsCancellationRequested)
 				{
+					hordeSession.UpdateHordeStatus(" - Requests stopped");
 					return;
 				}
 
@@ -671,26 +765,44 @@ namespace UnrealBuildTool
 
 				try
 				{
-					double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => canRunRemotely(x)).Sum(x => x.Weight);
-
-					queueWeight -= hordeSession.QueuedUpCores();
 					while (true)
 					{
-						int currentLogicalCores = hordeSession.NumLogicalCores;
+						if (_cancellationSource!.IsCancellationRequested)
+						{
+							hordeSession.UpdateHordeStatus(" - Requests stopped");
+							return;
+						}
 
-						if (queueWeight <= queueThreshold || currentLogicalCores >= HordeConfig.HordeMaxCores || _cancellationSource!.IsCancellationRequested)
+						hordeSession.RemoveCompleteWorkersAsync();
+
+						double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => canRunRemotely(x)).Sum(x => x.Weight);
+
+						int activeCores;
+						int queuedCores;
+						int activeAgents;
+						int queuedAgents;
+						hordeSession.GetCoreCount(out activeCores, out queuedCores, out activeAgents, out queuedAgents);
+
+						queueWeight -= queuedCores;
+
+						bool isSatisfied = queueWeight <= queueThreshold || (activeCores + queuedCores) >= HordeConfig.HordeMaxCores || _cancellationSource!.IsCancellationRequested;
+
+						hordeSession.UpdateHordeStatus(isSatisfied ? " - Requests paused" : $" - Requesting agent{("....".Substring(0, (requestCounter++ % 4)))}");
+
+						if (isSatisfied)
 						{
 							break;
 						}
 
 						Requirements requirements = GetRequirements(HordeConfig);
-						if (!await hordeSession.AddWorkerAsync(requirements, HordeConfig, _cancellationSource.Token))
+						if (!await hordeSession.AddWorkerAsync(requirements, HordeConfig, _cancellationSource.Token, activeCores))
 						{
-							_logger.LogDebug("No additional workers available");
+							await Task.Delay(500); // Sleep a little bit to make sure previous horde status is visible
+							string status = (queuedAgents + activeAgents) == 0 ? " - No agents available" : " - No additional agents available";
+							hordeSession.UpdateHordeStatus(status);
+							_logger.LogDebug(status);
 							break;
 						}
-						int coresAdded = hordeSession.NumLogicalCores - currentLogicalCores;
-						queueWeight -= coresAdded;
 					}
 				}
 				catch (NoComputeAgentsFoundException ex)
@@ -732,6 +844,14 @@ namespace UnrealBuildTool
 			if (hordeSession != null)
 			{
 				await hordeSession.DisposeAsync();
+			}
+		}
+
+		public void Done()
+		{
+			if (_updateStatus != null)
+			{
+				_updateStatus(0, 6, "Done", EpicGames.UBA.LogEntryType.Info, null);
 			}
 		}
 
@@ -800,8 +920,10 @@ namespace UnrealBuildTool
 		readonly UnrealBuildAcceleratorConfig _ubaConfig;
 		UnrealBuildAcceleratorHordeConfig HordeConfig { get; init; } = new();
 
+		UBAExecutor? _executor;
 		CancellationTokenSource? _cancellationSource;
 		Task<UBAHordeSession?>? _hordeSessionTask;
+		StatusUpdateAction? _updateStatus;
 		Timer? _timer;
 	}
 }

@@ -261,6 +261,8 @@ namespace UnrealBuildTool
 		public bool StopCompilationAfterErrors = false;
 
 		public int CompletedActions { get => _completedActions; }
+		public int CacheHitActions { get => _cacheHitActions; }
+		public int CacheMissActions { get => _cacheMissActions; }
 
 		/// <summary>
 		/// Return true if the queue is done
@@ -271,6 +273,11 @@ namespace UnrealBuildTool
 		///  Action that can be to notify when artifacts have been read for an action
 		/// </summary>
 		public Action<LinkedAction>? OnArtifactsRead = null;
+
+		/// <summary>
+		///  Action that can be to notify when artifacts have been missed
+		/// </summary>
+		public Action<LinkedAction>? OnArtifactsMiss = null;
 
 		/// <summary>
 		/// Collection of available runners
@@ -429,12 +436,13 @@ namespace UnrealBuildTool
 						if (success)
 						{
 							Interlocked.Increment(ref _cacheHitActions);
-							OnArtifactsRead?.Invoke(action);
 							OnActionCompleted(action, success, s_copiedFromCacheResults);
+							OnArtifactsRead?.Invoke(action);
 						}
 						else
 						{
 							Interlocked.Increment(ref _cacheMissActions);
+							OnArtifactsMiss?.Invoke(action);
 							RequeueAction(action);
 						}
 					});
