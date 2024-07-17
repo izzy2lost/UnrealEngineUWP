@@ -2152,7 +2152,7 @@ UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
 			{
 				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
 
-				UnnamedSection.AddMenuEntry(FEditorViewportCommands::Get().ToggleRealTime);
+				UnnamedSection.AddEntry(CreateToggleRealtimeEntry());
 
 				UnnamedSection.AddSubMenu(
 					"ScreenPercentage",
@@ -2179,25 +2179,33 @@ FToolMenuEntry CreateToggleRealtimeEntry()
 					return;
 				}
 
+				TWeakPtr<SEditorViewport> EditorViewportWeak;
 				FToolUIAction RealtimeToggleAction;
 				if (EditorViewportContext)
 				{
-					if (TSharedPtr<SEditorViewport> EditorViewport = EditorViewportContext->Viewport.Pin())
-					{
-						RealtimeToggleAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
-							[EditorViewport](const FToolMenuContext& Context) -> void
-							{
-								EditorViewport->OnToggleRealtime();
-							}
-						);
+					EditorViewportWeak = EditorViewportContext->Viewport;
 
-						RealtimeToggleAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
-							[EditorViewport](const FToolMenuContext& Context) -> ECheckBoxState
+					RealtimeToggleAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+					[EditorViewportWeak](const FToolMenuContext& Context) -> void
+						{
+						if (TSharedPtr<SEditorViewport> EditorViewport = EditorViewportWeak.Pin())
+						{
+							EditorViewport->OnToggleRealtime();
+						}
+						}
+					);
+
+					RealtimeToggleAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
+						[EditorViewportWeak](const FToolMenuContext& Context) -> ECheckBoxState
+						{
+							if (TSharedPtr<SEditorViewport> EditorViewport = EditorViewportWeak.Pin())
 							{
-								return EditorViewport->IsRealtime() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+								return EditorViewport->IsRealtime() ? ECheckBoxState::Checked
+																	: ECheckBoxState::Unchecked;
 							}
-						);
-					}
+							return ECheckBoxState::Undetermined;
+						}
+					);
 				}
 
 				TAttribute<FText> Tooltip;
@@ -2214,10 +2222,10 @@ FToolMenuEntry CreateToggleRealtimeEntry()
 					if (EditorViewportContext)
 					{
 						Tooltip = TAttribute<FText>::CreateLambda(
-							[WeakViewport = EditorViewportContext->Viewport, NonRealtimeTooltip, RealtimeTooltip]() -> FText
+							[EditorViewportWeak, NonRealtimeTooltip, RealtimeTooltip]() -> FText
 							{
 								bool bDisplayTopLevel = false;
-								if (const TSharedPtr<SEditorViewport> EditorViewport = WeakViewport.Pin())
+								if (const TSharedPtr<SEditorViewport> EditorViewport = EditorViewportWeak.Pin())
 								{
 									bDisplayTopLevel = !EditorViewport->IsRealtime();
 								}

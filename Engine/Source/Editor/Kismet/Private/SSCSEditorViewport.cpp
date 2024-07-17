@@ -54,6 +54,8 @@ class SDockTab;
 class SWidget;
 struct FGeometry;
 
+#define LOCTEXT_NAMESPACE "SSCSEditorViewportToolBar"
+
 /*-----------------------------------------------------------------------------
    SSCSEditorViewportToolBar
 -----------------------------------------------------------------------------*/
@@ -387,13 +389,24 @@ TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 			// 	RightSection.AddEntry(ShowSubmenu);
 			// }
 
-			// TODO: Add this.
-			// // Add the "Performance & Scalability" submenu.
-			// {
-			// 	FToolMenuEntry PerfSubmenu = UE::LevelEditor::CreateViewportToolbarPerformanceAndScalabilitySubmenu();
-			// 	PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
-			// 	RightSection.AddEntry(PerfSubmenu);
-			// }
+			// Add the "Performance & Scalability" submenu.
+			{
+				FToolMenuEntry PerfSubmenu = FToolMenuEntry::InitSubMenu(
+					"PerformanceAndScalability",
+					LOCTEXT("PerformanceAndScalabilityLabel", "Performance and Scalability"),
+					LOCTEXT("PerformanceAndScalabilityTooltip", "Performance and Scalability tooltip"),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* Submenu) -> void
+						{
+							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+							UnnamedSection.AddEntry(UE::UnrealEd::CreateToggleRealtimeEntry());
+						}
+					)
+				);
+
+				PerfSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PerfSubmenu);
+			}
 		}
 	}
 
@@ -633,3 +646,5 @@ EActiveTimerReturnType SSCSEditorViewport::DeferredUpdatePreview(double InCurren
 	bIsActiveTimerRegistered = false;
 	return EActiveTimerReturnType::Stop;
 }
+
+#undef LOCTEXT_NAMESPACE
