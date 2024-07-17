@@ -163,6 +163,11 @@ public:
 	 */
 	void OnPostUndo();
 
+	/**
+	 * Refreshes the morph target list after a mesh changed
+	 */
+	void OnMeshChanged();
+
 private:
 
 	/** Handler for context menus */

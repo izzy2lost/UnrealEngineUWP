@@ -4045,9 +4045,27 @@ bool FLODUtilities::RestoreCustomImportedMorphTargetData(USkeletalMesh* Skeletal
 			FName MorphTargetName(*MorphTargetNameStr);
 			if(UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(MorphTargetName))
 			{
-				MorphTarget->RemoveFromRoot();
-				MorphTarget->ClearFlags(RF_Standalone);
-				SkeletalMesh->UnregisterMorphTarget(MorphTarget, false);
+				if (MorphTarget)
+				{
+					MorphTarget->RemoveFromRoot();
+					MorphTarget->ClearFlags(RF_Standalone);
+
+					if (SkeletalMesh->HasMeshDescription(LodIndex))
+					{
+						//Remove the morph target from the raw import data
+						FMeshDescription* MeshDescription = SkeletalMesh->GetMeshDescription(LodIndex);
+						FSkeletalMeshAttributes MeshAttributes(*MeshDescription);
+
+						if (MeshAttributes.GetMorphTargetNames().Contains(MorphTargetName))
+						{
+							SkeletalMesh->ModifyMeshDescription(LodIndex);
+							MeshAttributes.UnregisterMorphTargetAttribute(MorphTargetName);
+							SkeletalMesh->CommitMeshDescription(LodIndex);
+						}
+					}
+
+					SkeletalMesh->UnregisterMorphTarget(MorphTarget, false);
+				}
 			}
 			if (FSkeletalMeshLODInfo* LodInfo = SkeletalMesh->GetLODInfo(LodIndex))
 			{
@@ -4073,9 +4091,7 @@ bool FLODUtilities::RestoreCustomImportedMorphTargetData(USkeletalMesh* Skeletal
 		const FMorphTargetLodBackupData& MorphTargetLodData = MorphTargetLodDatas[LodIndex];
 		if (MorphTargetLodData.bIsEmpty)
 		{
-			RemoveInvalidMorphTargetLOD(MorphTargetNameStr);
-			//Error out that the morph target is not valid anymore for this LOD
-			UE_ASSET_LOG(LogLODUtilities, Error, SkeletalMesh, TEXT("Cannot keep the generated morph target %s for LOD %d, because this LOD is now imported and the topology have change."), *MorphTargetNameStr, LodIndex);
+			//In case the Source Skeletal didn't have MorphTarget for a given LodIndex, it would show up as an Empty.
 			continue;
 		}
 

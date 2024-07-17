@@ -369,6 +369,8 @@ void SMorphTargetViewer::Construct(const FArguments& InArgs, const TSharedRef<IP
 
 	const FText SkeletalMeshName = SkeletalMesh ? FText::FromString( SkeletalMesh->GetName() ) : LOCTEXT( "MorphTargetMeshNameLabel", "No Skeletal Mesh Present" );
 
+	SkeletalMesh->GetOnMeshChanged().Add(FSimpleDelegate::CreateSP(this, &SMorphTargetViewer::OnMeshChanged));
+
 	ChildSlot
 	[
 		SNew( SVerticalBox )
@@ -817,6 +819,12 @@ SMorphTargetViewer::~SMorphTargetViewer()
 }
 
 void SMorphTargetViewer::OnPostUndo()
+{
+	CreateMorphTargetList();
+	NotifySelectionChange();
+}
+
+void SMorphTargetViewer::OnMeshChanged()
 {
 	CreateMorphTargetList();
 	NotifySelectionChange();

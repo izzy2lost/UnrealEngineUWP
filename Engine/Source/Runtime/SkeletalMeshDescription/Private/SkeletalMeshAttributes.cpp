@@ -214,6 +214,13 @@ bool FSkeletalMeshAttributes::UnregisterMorphTargetAttribute(const FName InMorph
 	}
 
 	MeshDescription.VertexAttributes().UnregisterAttribute(AttributeName);
+
+	// VertexInstancesAttributes
+	if (MeshDescription.VertexInstanceAttributes().HasAttribute(AttributeName))
+	{
+		MeshDescription.VertexInstanceAttributes().UnregisterAttribute(AttributeName);
+	}
+
 	return true;
 }
 
