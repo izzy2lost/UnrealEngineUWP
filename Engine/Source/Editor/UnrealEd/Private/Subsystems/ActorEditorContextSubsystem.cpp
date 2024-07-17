@@ -73,6 +73,11 @@ void UActorEditorContextSubsystem::UnregisterClient(IActorEditorContextClient* C
 		if (Clients.Remove(Client))
 		{
 			Client->GetOnActorEditorContextClientChanged().RemoveAll(this);
+
+			for (TArray<IActorEditorContextClient*>& PushedClients : PushedContextsStack)
+			{
+				PushedClients.Remove(Client);
+			}
 		}
 	}
 }
@@ -145,6 +150,9 @@ void UActorEditorContextSubsystem::PushContext(bool bDuplicateContext)
 	{
 		Client->OnExecuteActorEditorContextAction(World, bDuplicateContext ? EActorEditorContextAction::PushDuplicateContext : EActorEditorContextAction::PushContext);
 	}
+
+	PushedContextsStack.Push(Clients);
+
 	ActorEditorContextSubsystemChanged.Broadcast();
 }
 
@@ -156,7 +164,7 @@ void UActorEditorContextSubsystem::PopContext()
 		return;
 	}
 
-	for (IActorEditorContextClient* Client : Clients)
+	for (IActorEditorContextClient* Client : PushedContextsStack.Pop(EAllowShrinking::No))
 	{
 		Client->OnExecuteActorEditorContextAction(World, EActorEditorContextAction::PopContext);
 	}

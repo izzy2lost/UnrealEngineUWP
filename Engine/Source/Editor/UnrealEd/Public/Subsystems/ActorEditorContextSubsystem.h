@@ -48,5 +48,6 @@ private:
 
 	FOnActorEditorContextSubsystemChanged ActorEditorContextSubsystemChanged;
 	TArray<IActorEditorContextClient*> Clients;
+	TArray<TArray<IActorEditorContextClient*>> PushedContextsStack;
 	bool bIsApplyEnabled = true;
 };
