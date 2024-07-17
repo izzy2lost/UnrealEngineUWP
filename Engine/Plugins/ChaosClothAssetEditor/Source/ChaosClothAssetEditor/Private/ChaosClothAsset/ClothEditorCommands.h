@@ -30,6 +30,8 @@ public:
 
 	TSharedPtr<FUICommandInfo> OpenClothEditor;
 
+	TSharedPtr<FUICommandInfo> OpenClothAssetInDataflowEditor;
+
 	const static FString BeginRemeshToolIdentifier;
 	TSharedPtr<FUICommandInfo> BeginRemeshTool;
 
