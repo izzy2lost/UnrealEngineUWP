@@ -394,7 +394,13 @@ TArray<FGenericShaderStat> FShaderMapBase::GetShaderStatistics(FShader& Shader) 
 		const int32 ShaderIndex = Code->FindShaderIndex(Shader.GetOutputHash());
 		if (Code->ShaderEditorOnlyDataEntries.IsValidIndex(ShaderIndex))
 		{
-			ShaderStatistics = Code->ShaderEditorOnlyDataEntries[ShaderIndex].ShaderStatistics;
+			for (const FGenericShaderStat& Stat : Code->ShaderEditorOnlyDataEntries[ShaderIndex].ShaderStatistics)
+			{
+				if (!EnumHasAnyFlags(Stat.Flags, FGenericShaderStat::EFlags::Hidden))
+				{
+					ShaderStatistics.Add(Stat);
+				}
+			}
 		}
 	}
 

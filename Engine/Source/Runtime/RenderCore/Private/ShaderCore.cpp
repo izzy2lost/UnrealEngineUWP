@@ -69,6 +69,10 @@ bool operator==(const FShaderStatVariant LHS, const FShaderStatVariant RHS)
 	{
 		return LHS.Get<uint32>() == RHS.Get<uint32>();
 	}
+	else if (LHS.IsType<FString>() && RHS.IsType<FString>())
+	{
+		return LHS.Get<FString>() == RHS.Get<FString>();
+	}
 
 	return false;
 }
@@ -92,12 +96,13 @@ FArchive& operator<<(FArchive& Ar, FGenericShaderStat& Stat)
 	}
 
 	Ar << Stat.Value;
+	Ar << Stat.Flags;
 	return Ar;
 }
 
 bool FGenericShaderStat::operator==(const FGenericShaderStat& RHS) const
 {
-	return (StatName == RHS.StatName) && (Value == RHS.Value);
+	return (StatName == RHS.StatName) && (Value == RHS.Value) && (Flags == RHS.Flags);
 }
 
 static TAutoConsoleVariable<bool> CVarDumpDebugInfoForCacheHits(

@@ -1893,6 +1893,19 @@ namespace UE::ShaderCompilerCommon
 		// if modifications were made, this is output as an additional artifact, appending "_DirectCompile" to the path to indicate that it can be used as such.
 		DumpDebugShaderData(Input, PreprocessOutput.GetUnstrippedSourceView(), Options, bHasModifiedSource ? TEXT("_DirectCompile") : nullptr);
 
+		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::ShaderCodePlatformHashes))
+		{
+			// if the platform has registered a CodeHash stat, output a file containing this as well
+			const FGenericShaderStat* Hash = Output.ShaderStatistics.FindByPredicate([](const FGenericShaderStat& Stat)
+				{
+					return Stat.StatName == kPlatformHashStatName;
+				});
+			if (Hash)
+			{
+				FFileHelper::SaveStringToFile(Hash->Value.Get<FString>(), *GetDebugFileName(Input, Options, TEXT("PlatformHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
+			}
+		}
+
 		FFileHelper::SaveStringToFile(Output.OutputHash.ToString(), *GetDebugFileName(Input, Options, TEXT("OutputHash.txt")), FFileHelper::EEncodingOptions::ForceAnsi);
 
 		if (EnumHasAnyFlags(Input.DebugInfoFlags, EShaderDebugInfoFlags::Diagnostics))

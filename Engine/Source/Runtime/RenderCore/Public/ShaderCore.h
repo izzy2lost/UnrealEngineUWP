@@ -56,15 +56,21 @@ class FShaderPreprocessorUtilities;
 class FSHA1;
 class ITargetPlatform;
 
-using FShaderStatVariant = TVariant<bool, float, int32, uint32>;
+using FShaderStatVariant = TVariant<bool, float, int32, uint32, FString>;
 
 bool operator==(const FShaderStatVariant LHS, const FShaderStatVariant RHS);
 
 struct FGenericShaderStat
 {
 public:
+	enum class EFlags : uint8
+	{
+		None = 0,
+		Hidden = 1 << 0, // If set this stat will not be shown to the user in the shader stats UI (i.e. stat is for internal use only)
+	};
 	FName StatName;
 	FShaderStatVariant Value;
+	EFlags Flags = EFlags::None;
 
 	FGenericShaderStat() = default;
 

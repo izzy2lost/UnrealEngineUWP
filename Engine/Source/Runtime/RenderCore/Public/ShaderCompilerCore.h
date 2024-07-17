@@ -229,6 +229,7 @@ enum class EShaderDebugInfoFlags : uint8
 	ShaderCodeBinary = 1 << 3,
 	DetailedSource = 1 << 4,
 	CompileFromDebugUSF = 1 << 5,
+	ShaderCodePlatformHashes = 1 << 6,
 };
 ENUM_CLASS_FLAGS(EShaderDebugInfoFlags)
 
@@ -612,11 +613,12 @@ struct FShaderCompilerOutput
 	RENDERCORE_API void SerializeShaderDiagnosticData();
 
 	template<typename TValue>
-	void AddStatistic(const TCHAR* Name, TValue Value)
+	void AddStatistic(const TCHAR* Name, TValue Value, FGenericShaderStat::EFlags Flags = FGenericShaderStat::EFlags::None)
 	{
 		FGenericShaderStat& Stat = ShaderStatistics.AddZeroed_GetRef();
 		Stat.StatName = FName(Name);
 		Stat.Value = FShaderStatVariant(TInPlaceType<TValue>(), Value);
+		Stat.Flags = Flags;
 	}
 
 	// Bump ShaderCompileWorkerOutputVersion if FShaderCompilerOutput changes

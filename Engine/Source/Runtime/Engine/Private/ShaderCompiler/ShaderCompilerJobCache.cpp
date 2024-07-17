@@ -1528,6 +1528,10 @@ void FShaderJobCache::SubmitJobs(const TArray<FShaderCommonCompileJobPtr>& InJob
 double FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob, bool bCompilationSkipped)
 {
 	double StallTime;
+	if (!bCompilationSkipped && ShaderCompiler::IsJobCacheEnabled())
+	{
+		AddToCacheAndProcessPending(FinishedJob);
+	}
 
 	FinishedJob->OnComplete();
 
@@ -1548,10 +1552,6 @@ double FShaderJobCache::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob,
 	}
 
 	InternalSubtractNumOutstandingJobs(1);
-	if (!bCompilationSkipped && ShaderCompiler::IsJobCacheEnabled())
-	{
-		AddToCacheAndProcessPending(FinishedJob);
-	}
 
 	return StallTime;
 }

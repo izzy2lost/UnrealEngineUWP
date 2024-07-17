@@ -7,6 +7,8 @@
 	#define DXCUTILS_HAS_DXCCREATEINSTANCE 1
 #endif
 
+#include <String/BytesToHex.h>
+
 #if DXCUTILS_HAS_DXCCREATEINSTANCE
 static void DumpDebugBlobDetail(IDxcBlob* Blob, const TCHAR* BlobName)
 #else
@@ -77,8 +79,19 @@ static void DumpDebugBlobDetail(IDxcBlob* Blob, const TCHAR* BlobName, TRefCount
 	FPlatformMisc::LowLevelOutputDebugString(TEXT("\n\n"));
 }
 
-HRESULT RetrieveDebugNameAndBlob(TRefCountPtr<IDxcResult>& CompileResult, FString& OutDebugBlobName, IDxcBlob** OutDebugBlob)
+HRESULT RetrieveDebugNameAndBlob(TRefCountPtr<IDxcResult>& CompileResult, FString& OutDebugBlobName, IDxcBlob** OutDebugBlob, DxcShaderHash& ShaderHash)
 {
+	check(CompileResult->HasOutput(DXC_OUT_SHADER_HASH));
+	{
+		TRefCountPtr<IDxcBlob> HashBlob;
+		TRefCountPtr<IDxcBlobUtf16> OutputNameUnused;
+
+		HRESULT HashResult = CompileResult->GetOutput(DXC_OUT_SHADER_HASH, __uuidof(IDxcBlob), (void**)HashBlob.GetInitReference(), OutputNameUnused.GetInitReference());
+		check(SUCCEEDED(HashResult));
+		check(HashBlob->GetBufferSize() == sizeof(DxcShaderHash));
+		ShaderHash = *reinterpret_cast<DxcShaderHash*>(HashBlob->GetBufferPointer());
+	}
+
 	HRESULT Result = S_OK;
 	if (OutDebugBlob && CompileResult->HasOutput(DXC_OUT_PDB))
 	{
@@ -90,19 +103,14 @@ HRESULT RetrieveDebugNameAndBlob(TRefCountPtr<IDxcResult>& CompileResult, FStrin
 			OutDebugBlobName = DebugBlobName->GetStringPointer();
 		}
 	}
-	else if (CompileResult->HasOutput(DXC_OUT_SHADER_HASH))
+	else
 	{
 		// If the PDB blob is not available, or if we don't need to return it, we can reconstruct the name 
-		// the PDB would have used from the Shader Hash, using only 16 bytes if there is more.
-		TRefCountPtr<IDxcBlob> HashBlob;
-		TRefCountPtr<IDxcBlobUtf16> OutputNameUnused;
-		Result = CompileResult->GetOutput(DXC_OUT_SHADER_HASH, __uuidof(IDxcBlob), (void**)HashBlob.GetInitReference(), OutputNameUnused.GetInitReference());
-		if (SUCCEEDED(Result))
-		{
-			size_t BlobSize = HashBlob->GetBufferSize();
-			uint32 Offset = BlobSize <= 16 ? 0 : BlobSize - 16;
-			OutDebugBlobName = FString(BytesToHex(reinterpret_cast<uint8*>(HashBlob->GetBufferPointer()) + Offset, HashBlob->GetBufferSize() - Offset)) + TEXT(".pdb");
-		}
+		// the PDB would have used from the Shader Hash
+		TStringBuilder<128> PdbNameBuilder;
+		UE::String::BytesToHex(TConstArrayView<uint8>(ShaderHash.HashDigest, sizeof(ShaderHash.HashDigest)), PdbNameBuilder);
+		PdbNameBuilder << TEXT(".pdb");
+		OutDebugBlobName = PdbNameBuilder.ToString();
 	}
 	return Result;
 }

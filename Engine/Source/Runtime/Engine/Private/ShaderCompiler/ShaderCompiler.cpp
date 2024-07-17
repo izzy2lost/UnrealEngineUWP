@@ -101,6 +101,13 @@ static TAutoConsoleVariable<bool> CVarDebugDumpShaderCode(
 	TEXT("If true, each shader job will dump a ShaderCode.bin containing the contents of the output shader code object (the contents of this can differ for each shader format; note that this is the data that is hashed to produce the OutputHash.txt file)"),
 	ECVF_ReadOnly);
 
+static TAutoConsoleVariable<bool> CVarDebugDumpShaderCodePlatformHashes(
+	TEXT("r.ShaderCompiler.DebugDumpShaderCodePlatformHashes"),
+	false,
+	TEXT("If true, each shader job will dump a PlatformHash.txt file containing the shader code hash as reported by the platform compiler (if the associated shader format registers this hash with the shader stats).\n")
+	TEXT("Note the distinction between this and OutputHash.txt - these files can be used to find shaders which have identical code and only result in different output hashes due to diffs in other metadata."),
+	ECVF_ReadOnly);
+
 static TAutoConsoleVariable<bool> CVarDebugDumpDetailedShaderSource(
 	TEXT("r.ShaderCompiler.DebugDumpDetailedShaderSource"),
 	false,
@@ -1175,6 +1182,11 @@ EShaderDebugInfoFlags FShaderCompilingManager::GetDumpShaderDebugInfoFlags() con
 	if (CVarDebugDumpShaderCode.GetValueOnAnyThread())
 	{
 		Flags |= EShaderDebugInfoFlags::ShaderCodeBinary;
+	}
+
+	if (CVarDebugDumpShaderCodePlatformHashes.GetValueOnAnyThread())
+	{
+		Flags |= EShaderDebugInfoFlags::ShaderCodePlatformHashes;
 	}
 
 	if (CVarDebugDumpDetailedShaderSource.GetValueOnAnyThread())

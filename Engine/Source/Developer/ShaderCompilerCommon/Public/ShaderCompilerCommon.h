@@ -16,6 +16,7 @@ class FShaderSource;
 namespace UE::ShaderCompilerCommon
 {
 	static constexpr const TCHAR* kUniformBufferConstantBufferPrefix = TEXT("UniformBufferConstants_");
+	static constexpr const TCHAR* kPlatformHashStatName = TEXT("PlatformHash");
 }
 
 /**
