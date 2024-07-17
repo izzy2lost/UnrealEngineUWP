@@ -140,6 +140,12 @@ void UGameFeatureData::InitializeBasePluginIniFile(const FString& PluginInstalle
 		Context.ConfigFileTag = *Plugin->GetName();
 		Context.Load(*PluginName, PluginConfigFilename);
 
+		FConfigFile* PluginConfig = GConfig->Find(PluginConfigFilename);
+		if (PluginConfig)
+		{
+			ReloadConfigs(*PluginConfig);
+		}
+
 		// @todo move this into ReloadObjectsFromModifiedConfigSections?
 		FCoreRedirects::ReadRedirectsFromIni(PluginConfigFilename);
 
