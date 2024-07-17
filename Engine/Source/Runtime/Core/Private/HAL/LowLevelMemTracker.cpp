@@ -1709,6 +1709,29 @@ extern const TCHAR* LLMGetTagName(ELLMTag Tag)
 	}
 }
 
+extern const FName LLMGetUntaggedTagName(ELLMTagSet TagSet)
+{
+	switch (TagSet)
+	{
+		case ELLMTagSet::None:
+		{
+			return TagName_Untagged;
+		}
+		case ELLMTagSet::Assets:
+		{
+			return TagName_UntaggedAsset;
+		}
+		case ELLMTagSet::AssetClasses:
+		{
+			return TagName_UntaggedAssetClass;
+		}
+		default:
+		{
+			return NAME_None;
+		}
+	}
+}
+
 extern const ANSICHAR* LLMGetTagNameANSI(ELLMTag Tag)
 {
 #define LLM_TAG_NAME_ARRAY(Enum,Str,Stat,Group,ParentTag) Str,
@@ -5612,27 +5635,23 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		FName Name;
 		uint64 Size = 0;
 	};
-#if LLM_ENABLED_FULL_TAGS
-	TMap<int32, FLocalTagData> CompressedTagToTagData;
-#else
-	TMap<ELLMTag, FLocalTagData> CompressedTagToTagData;
-#endif
-	int32 NumTags;
+	TArray<FLocalTagData> TagDataCached;
 	{
 		FReadScopeLock TagDataScopeLock(LLMRef.TagDataLock);
-		NumTags = LLMRef.TagDatas->Num();
-	}
-	CompressedTagToTagData.Reserve(NumTags);
-	{
-		FReadScopeLock TagDataScopeLock(LLMRef.TagDataLock);
+		const int32 NumTags = LLMRef.TagDatas->Num();
+		TagDataCached.Init(FLocalTagData{}, NumTags);
 		for (FTagData* TagData : (*LLMRef.TagDatas))
 		{
 			FLLMTracker::FLowLevelAllocInfo AllocInfo;
 			AllocInfo.SetTag(TagData, LLMRef);
-			FLocalTagData& Data = CompressedTagToTagData.FindOrAdd(AllocInfo.GetCompressedTag());
-			if (Data.Name == NAME_None)
+			int32 CompressedTagIndex = static_cast<int32>(AllocInfo.GetCompressedTag());
+			if(ensure(TagDataCached.IsValidIndex(CompressedTagIndex)))
 			{
-				Data.Name = TagData->GetName();
+				FLocalTagData& Data = TagDataCached[CompressedTagIndex];
+				if (Data.Name == NAME_None)
+				{
+					Data.Name = TagData->GetName();
+				}
 			}
 		}
 	}
@@ -5645,13 +5664,21 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		{
 			FLocalTagData* Data = nullptr;
 #if LLM_ALLOW_ASSETS_TAGS
-			Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag(Filter.TagSet));
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag(Filter.TagSet));
 #else
-			if (Filter.TagSet == ELLMTagSet::None)
-			{
-				Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag());
-			}
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag());
 #endif
+			if(TagDataCached.IsValidIndex(CompressedTagIndex))
+			{
+#if LLM_ALLOW_ASSETS_TAGS
+				Data = &TagDataCached[CompressedTagIndex];
+#else
+				if (Filter.TagSet == ELLMTagSet::None)
+				{
+					Data = &TagDataCached[CompressedTagIndex];
+				}
+#endif
+			}
 			if (!Data || Data->Name != Filter.Name)
 			{
 				bIncludeAllocation = false;
@@ -5662,10 +5689,11 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 		if (bIncludeAllocation)
 		{
 #if LLM_ALLOW_ASSETS_TAGS
-			FLocalTagData* Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag(TagSet));
+			int32 CompressedTagIndex = Tuple.Value2.GetCompressedTag(TagSet);
 #else
-			FLocalTagData* Data = CompressedTagToTagData.Find(Tuple.Value2.GetCompressedTag());
+			int32 CompressedTagIndex = static_cast<int32>(Tuple.Value2.GetCompressedTag());
 #endif
+			FLocalTagData* Data = TagDataCached.IsValidIndex(CompressedTagIndex) ? &TagDataCached[CompressedTagIndex] : nullptr;
 			if (Data)
 			{
 				Data->Size += Tuple.Value1;
@@ -5674,16 +5702,12 @@ void FLLMTracker::GetTagsNamesWithAmountFiltered(TMap<FName, uint64>& OutTagsNam
 	}
 	AllocationMap.UnlockAll();
 #endif // !UE_ONLY_USE_PLATFORM_TRACKER
-
-#if LLM_ENABLED_FULL_TAGS
-	for (TPair<int32, FLocalTagData>& Pair : CompressedTagToTagData)
-#else
-	for (TPair<ELLMTag, FLocalTagData>& Pair : CompressedTagToTagData)
-#endif
+	
+	for (const FLocalTagData& LocalTagData : TagDataCached)
 	{
-		if (Pair.Value.Size != 0)
+		if (LocalTagData.Size != 0)
 		{
-			OutTagsNamesWithAmount.FindOrAdd(Pair.Value.Name, 0) += Pair.Value.Size;
+			OutTagsNamesWithAmount.FindOrAdd(LocalTagData.Name, 0) += LocalTagData.Size;
 		}
 	}
 }

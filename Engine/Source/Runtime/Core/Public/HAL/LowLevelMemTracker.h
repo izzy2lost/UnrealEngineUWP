@@ -315,6 +315,7 @@ enum class ELLMAllocType
 
 extern const ANSICHAR* LLMGetTagNameANSI(ELLMTag Tag);
 extern const TCHAR* LLMGetTagName(ELLMTag Tag);
+extern CORE_API const FName LLMGetUntaggedTagName(ELLMTagSet TagSet);
 UE_DEPRECATED(4.27, "This function was an unused implementation detail; contact Epic if you need to keep its functionality.")
 extern FName LLMGetTagStatGroup(ELLMTag Tag);
 UE_DEPRECATED(4.27, "This function was an unused implementation detail; contact Epic if you need to keep its functionality.")

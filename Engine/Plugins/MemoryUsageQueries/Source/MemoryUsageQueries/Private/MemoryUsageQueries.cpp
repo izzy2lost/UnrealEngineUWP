@@ -142,6 +142,7 @@ struct FCommonParameters
 	
 	FName Group = NAME_None;
 	FName Class = NAME_None;
+	FName Category = NAME_None;
 
 	FString Name;
 	FString Names;
@@ -169,6 +170,12 @@ struct FCommonParameters
 		if (FParse::Value(Args, TEXT("Class="), ClassName))
 		{
 			Class = FName(*ClassName);
+		}
+
+		FString CategoryName;
+		if (FParse::Value(Args, TEXT("Category="), CategoryName))
+		{
+			Category = FName(*CategoryName);
 		}
 	}
 
@@ -504,7 +511,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GMemQuerySavings(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GMemQueryListAssets(
 	TEXT("MemQuery.ListAssets"),
-	TEXT("Name=<AssetNameSubstring> Group=<GroupName> Class=<ClassName> Limit=<n> Lists n largest assets."),
+	TEXT("Asset=<AssetNameSubstring> Group=<GroupName> Class=<ClassName> Limit=<n> Lists n largest assets."),
 	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(
 		[](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
 {
@@ -527,6 +534,29 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GMemQueryListAssets(
 		// TODO - Implement using faster path if there are no group / class filters
 		bSuccess = MemoryUsageQueries::GetFilteredPackagesWithSize(AssetsWithSize, CommonArgs.Group, CommonArgs.AssetName, CommonArgs.Class, &ScopedOutputDevice.GetOutputDevice());
 	}
+
+	if (bSuccess)
+	{
+		MemoryUsageQueries::Internal::PrintTagsWithSize(ScopedOutputDevice.GetOutputDevice(), AssetsWithSize, TEXT("largest assets"), CommonArgs.bTruncate, CommonArgs.Limit, CommonArgs.bCSV);
+	}
+}));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GMemQueryListAssetsCategorized(
+	TEXT("MemQuery.ListAssetsCategorized"),
+	TEXT("Asset=<AssetNameSubstring> Group=<GroupName> Class=<ClassName> Category=<CategoryName(None,Assets,AssetClasses)> Limit=<n> Lists n largest assets categorized by Category."),
+	FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateStatic(
+		[](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+{
+	const FString Cmd = FString::Join(Args, TEXT(" "));
+
+	FScopedOutputDevice ScopedOutputDevice(&Ar);
+	FCommonParameters CommonArgs(*Cmd);
+
+	ScopedOutputDevice.OpenLogFile(CommonArgs.LogFileName, CommonArgs.bCSV);
+
+	bool bSuccess;
+	TMap<FName, uint64> AssetsWithSize;						
+	bSuccess = MemoryUsageQueries::GetFilteredPackagesCategorizedWithSize(AssetsWithSize, CommonArgs.Group, CommonArgs.AssetName, CommonArgs.Class, CommonArgs.Category, &ScopedOutputDevice.GetOutputDevice());
 
 	if (bSuccess)
 	{
@@ -1012,6 +1042,60 @@ bool GetFilteredPackagesWithSize(TMap<FName, uint64>& OutPackagesWithSize, FName
 	{
 		Internal::RemoveFilteredPackages(OutPackagesWithSize, AssetSubstring);
 	}
+
+	OutPackagesWithSize.ValueSort(TGreater<uint64>());
+
+	return true;
+}
+
+bool GetFilteredPackagesCategorizedWithSize(TMap<FName, uint64>& OutPackagesWithSize, FName GroupName /*= NAME_None*/, FString AssetSubstring /*= FString()*/, FName ClassName /*= NAME_None*/, FName CategoryName /*= NAME_None*/, FOutputDevice* ErrorOutput /*= GLog*/)
+{
+	TArray<FLLMTagSetAllocationFilter> Filters;
+
+	FName LongName = NAME_None;
+	if (!AssetSubstring.IsEmpty())
+	{
+		// Special handling for "Untagged" assets as llm uses this tag to bucket allocations without asset scopes.
+		FName UntaggedAssetTagName = LLMGetUntaggedTagName(ELLMTagSet::Assets);
+		if (FName(AssetSubstring) == UntaggedAssetTagName)
+		{
+			LongName = UntaggedAssetTagName;
+		}
+		else
+		{
+			if (!Internal::GetLongName(AssetSubstring, LongName, ErrorOutput))
+			{
+				return false;
+			}
+		}
+	}
+
+	if (LongName != NAME_None)
+	{
+		Filters.Add({ LongName, ELLMTagSet::Assets });
+	}
+
+	if (GroupName != NAME_None)
+	{
+		Filters.Add({ GroupName, ELLMTagSet::None });
+	}
+
+	if (ClassName != NAME_None)
+	{
+		Filters.Add({ ClassName, ELLMTagSet::AssetClasses });
+	}
+
+	ELLMTagSet TagSetCategory = ELLMTagSet::None;
+	if (CategoryName == FName("Assets"))
+	{
+		TagSetCategory = ELLMTagSet::Assets;
+	}
+	else  if (CategoryName == FName("AssetClasses"))
+	{
+		TagSetCategory = ELLMTagSet::AssetClasses;
+	}
+
+	MemoryUsageInfoProviderLLM.GetFilteredTagsWithSize(OutPackagesWithSize, ELLMTracker::Default, TagSetCategory, Filters, ErrorOutput);
 
 	OutPackagesWithSize.ValueSort(TGreater<uint64>());
 
