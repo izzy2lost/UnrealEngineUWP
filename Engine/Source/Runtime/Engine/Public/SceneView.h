@@ -1848,7 +1848,7 @@ public:
 		const FViewMatrices& InViewMatrices,
 		const FViewMatrices& InPrevViewMatrice) const;
 
-	ENGINE_API FVector4f GetScreenPositionScaleBias(const FIntPoint& BufferSize, const FIntRect& ViewRect) const;
+	static ENGINE_API FVector4f GetScreenPositionScaleBias(const FIntPoint& BufferSize, const FIntRect& ViewRect);
 
 	/** 
 	 * Populates the uniform buffer prameters common to all scene view use cases
@@ -2497,3 +2497,69 @@ public:
 	/** Destructor. */
 	ENGINE_API virtual ~FSceneViewFamilyContext();
 };
+
+struct FSetupViewUniformParametersInputs
+{
+	static FSetupViewUniformParametersInputs Create(const FSceneView& View)
+	{
+		return FSetupViewUniformParametersInputs
+		{
+			  .EngineShowFlags = &View.Family->EngineShowFlags
+			, .UnscaledViewRect = View.UnscaledViewRect
+			, .Time = View.Family->Time
+			, .CursorPosition = View.CursorPos
+			, .GlobalClippingPlane = View.GlobalClippingPlane
+			, .InvDeviceZToWorldZTransform = View.InvDeviceZToWorldZTransform
+			, .DiffuseOverrideParameter = View.DiffuseOverrideParameter
+			, .NormalOverrideParameter = View.NormalOverrideParameter
+			, .SpecularOverrideParameter = View.SpecularOverrideParameter
+			, .RoughnessOverrideParameter = View.RoughnessOverrideParameter
+			, .DebugViewShaderMode = View.Family->GetDebugViewShaderMode()
+			, .FrameCounter = View.Family->FrameCounter
+			, .FrameNumber = View.Family->FrameNumber
+			, .FOV = View.FOV
+			, .MotionBlurMax = View.FinalPostProcessSettings.MotionBlurMax
+#if WITH_EDITOR
+			, .bNullifyWorldSpacePosition = View.Family->bNullifyWorldSpacePosition
+#endif
+			, .bReverseCulling = View.bReverseCulling
+			, .bCameraCut = View.bCameraCut
+			, .bWorldIsPaused = View.Family->bWorldIsPaused
+		};
+	}
+
+	const FEngineShowFlags* EngineShowFlags  = nullptr;
+	FIntRect UnscaledViewRect;
+	FGameTime Time;
+	FIntPoint CursorPosition                 = FIntPoint::ZeroValue;
+	FPlane GlobalClippingPlane               = FPlane(0, 0, 0, 0);
+	FVector4f InvDeviceZToWorldZTransform    = FVector4f(0, 0, 0, 0);
+	FVector4f DiffuseOverrideParameter       = FVector4f(0, 0, 0, 1);
+	FVector4f NormalOverrideParameter        = FVector4f(0, 0, 0, 1);
+	FVector4f SpecularOverrideParameter      = FVector4f(0, 0, 0, 1);
+	FVector2D RoughnessOverrideParameter     = FVector2D(0, 1);
+	EDebugViewShaderMode DebugViewShaderMode = EDebugViewShaderMode::DVSM_None;
+	uint64 FrameCounter                      = 0;
+	uint32 FrameNumber                       = 0;
+	float FOV                                = 0.0f;
+	float MotionBlurMax                      = 0.0f;
+	bool bNullifyWorldSpacePosition          = false;
+	bool bReverseCulling                     = false;
+	bool bCameraCut                          = false;
+	bool bWorldIsPaused                      = false;
+};
+
+ENGINE_API void SetupCommonViewUniformBufferParameters(FViewUniformShaderParameters& ViewUniformShaderParameters,
+	const FIntPoint& InBufferSize,
+	int32 NumMSAASamples,
+	const FIntRect& InEffectiveViewRect,
+	const FViewMatrices& InViewMatrices,
+	const FViewMatrices& InPrevViewMatrices,
+	const FSetupViewUniformParametersInputs& Inputs);
+
+ENGINE_API void SetupViewRectUniformBufferParameters(FViewUniformShaderParameters& ViewUniformShaderParameters,
+	const FIntPoint& InBufferSize,
+	const FIntRect& InEffectiveViewRect,
+	const FViewMatrices& InViewMatrices,
+	const FViewMatrices& InPrevViewMatrice,
+	const FSetupViewUniformParametersInputs& Inputs);

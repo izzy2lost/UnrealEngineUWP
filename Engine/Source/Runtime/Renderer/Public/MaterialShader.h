@@ -88,11 +88,21 @@ public:
 	}
 
 	/** Sets pixel parameters that are material specific but not FMeshBatch specific. */
+	void SetParameters(
+		FRHIBatchedShaderParameters& BatchedParameters,
+		const FMaterialRenderProxy* MaterialRenderProxy,
+		const FMaterial& Material,
+		const FSceneView& View)
+	{
+		SetParameters(BatchedParameters, MaterialRenderProxy, Material, View.Family->Scene);
+	}
+	
+	/** Sets pixel parameters that are material specific but not FMeshBatch specific. */
 	RENDERER_API void SetParameters(
 		FRHIBatchedShaderParameters& BatchedParameters,
 		const FMaterialRenderProxy* MaterialRenderProxy, 
 		const FMaterial& Material,
-		const FSceneView& View);
+		const FSceneInterface* Scene);
 
 	/** Sets pixel parameters that are material specific but not FMeshBatch specific. */
 	template<typename TRHIShader, typename TRHICommandList>

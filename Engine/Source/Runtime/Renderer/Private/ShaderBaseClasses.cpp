@@ -254,16 +254,15 @@ void FMaterialShader::SetParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const FMaterialRenderProxy* MaterialRenderProxy,
 	const FMaterial& Material,
-	const FSceneView& View)
+	const FSceneInterface* Scene)
 {
-	const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
+	const ERHIFeatureLevel::Type FeatureLevel = Scene ? Scene->GetFeatureLevel() : GMaxRHIFeatureLevel;
 	FMaterialShaderMap* ShaderMap = Material.GetRenderingThreadShaderMap();
 	checkf(ShaderMap, TEXT("RenderingThreadShaderMap: %i"), ShaderMap ? 1 : 0);
 	checkf(ShaderMap->IsValidForRendering(true) && Material.GetFeatureLevel() == FeatureLevel, TEXT("IsValid:%i, MaterialFeatureLevel:%i, FeatureLevel:%i"), ShaderMap->IsValidForRendering() ? 1 : 0, (ERHIFeatureLevel::Type)Material.GetFeatureLevel(), FeatureLevel);
 
 	FUniformExpressionCache* UniformExpressionCache = &MaterialRenderProxy->UniformExpressionCache[FeatureLevel];
 	bool bUniformExpressionCacheNeedsDelete = false;
-	//bool bForceExpressionEvaluation = false;
 
 #if DO_CHECK
 	if (UniformExpressionCache->CachedUniformExpressionShaderMap != ShaderMap)
@@ -307,15 +306,12 @@ void FMaterialShader::SetParameters(
 		}
 
 		check(ParameterCollectionUniformBuffers.Num() >= ParameterCollectionsNum);
-
-		
-
 		int32 NumToSet = FMath::Min(ParameterCollectionUniformBuffers.Num(), ParameterCollections.Num());
 
 		// Find each referenced parameter collection's uniform buffer in the scene and set the parameter
 		for (int32 CollectionIndex = 0; CollectionIndex < NumToSet; CollectionIndex++)
-		{			
-			FRHIUniformBuffer* UniformBuffer = GetParameterCollectionBuffer(ParameterCollections[CollectionIndex], View.Family->Scene);
+		{
+			FRHIUniformBuffer* UniformBuffer = GetParameterCollectionBuffer(ParameterCollections[CollectionIndex], Scene);
 
 			if (!UniformBuffer)
 			{
