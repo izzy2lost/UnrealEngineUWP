@@ -340,7 +340,7 @@ A3DTopoFace* FAliasModelToTechSoftConverter::AddTrimRegion(const AlTrimRegion& I
 			LinkEdgesLoop(*TrimBoundary);
 		}
 
-		TrimBoundary->nextBoundaryD();
+		Status = TrimBoundary->nextBoundaryD();
 	}
 
 	if (Loops.Num() == 0)
