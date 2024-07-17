@@ -4143,6 +4143,8 @@ public:
 			FName(TEXT("FVLMVoxelizationPS")),
 			FName(TEXT("FLightmapGBufferVS")),
 			FName(TEXT("FLightmapGBufferPS")),
+			FName(TEXT("FGPULightmassCHS")),
+			FName(TEXT("FGPULightmassCHS_AHS")),
 		};
 		return ShaderTypes;
 	}
