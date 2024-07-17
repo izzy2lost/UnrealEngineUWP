@@ -11469,7 +11469,7 @@ int32 FHLSLMaterialTranslator::Noise(int32 Position, EPositionOrigin PositionOri
 
 	return AddCodeChunk(MCT_Float, 
 		TEXT("MaterialExpressionNoise(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"), 
-		*GetParameterCode(Position),
+		*CoerceParameter(Position, MCT_Float3),
 		*GetParameterCode(ScaleConst),
 		*GetParameterCode(QualityConst),
 		*GetParameterCode(NoiseFunctionConst),

@@ -60,7 +60,7 @@ class UMaterialExpressionNoise : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
 
-	/** 2 to 3 dimensional vector */
+	/** 3 dimensional vector */
 	UPROPERTY()
 	FExpressionInput Position;
 
