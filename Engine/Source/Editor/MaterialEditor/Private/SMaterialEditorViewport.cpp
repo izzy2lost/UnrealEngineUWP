@@ -127,7 +127,7 @@ void FMaterialEditorViewportClient::Draw(FViewport* InViewport,FCanvas* Canvas)
 {
 	FEditorViewportClient::Draw(InViewport, Canvas);
 
-	if (!MaterialEditorPtr.IsValid())
+	if (MaterialEditorPtr.IsValid())
 	{
 		MaterialEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
 	}
