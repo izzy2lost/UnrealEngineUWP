@@ -452,64 +452,36 @@ namespace UE::VersePath::Private
 
 bool UE::Core::FVersePath::IsValidFullPath(const TCHAR* String, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidVersePath(String, UE::VersePath::Private::FNullTerminal{}, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidFullPath(const TCHAR* String, int32 Len, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidVersePath(String, String + Len, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidDomain(const TCHAR* String, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidDomain(String, UE::VersePath::Private::FNullTerminal{}, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidDomain(const TCHAR* String, int32 Len, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidDomain(String, String + Len, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidSubpath(const TCHAR* String, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidSubpath(String, UE::VersePath::Private::FNullTerminal{}, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidSubpath(const TCHAR* String, int32 Len, FText* OutErrorMessage)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidSubpath(String, String + Len, OutErrorMessage);
 }
 
 bool UE::Core::FVersePath::IsValidIdent(const TCHAR* String, FText* OutErrorMessage, const FText* IdentTermReplacement)
 {
-	if (OutErrorMessage)
-	{
-		*OutErrorMessage = FText::GetEmpty();
-	}
 	return UE::VersePath::Private::IsValidIdent(String, UE::VersePath::Private::FNullTerminal{}, OutErrorMessage, IdentTermReplacement);
 }
 
