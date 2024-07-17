@@ -226,7 +226,7 @@ void UK2Node_AddComponentByClass::ExpandNode(class FKismetCompilerContext& Compi
 	//////////////////////////////////////////////////////////////////////////
 	// create 'set var' nodes
 
-	UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallAddComponentByClassNode, this, CallAddComponentByClassResult, ClassToSpawn);
+	UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallAddComponentByClassNode, this, CallAddComponentByClassResult, ClassToSpawn, CallAddComponentByClassTypePin);
 
 	if (LastThen != CallAddComponentByClassNode->GetThenPin())
 	{
