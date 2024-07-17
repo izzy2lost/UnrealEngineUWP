@@ -136,6 +136,7 @@ struct GAMEPLAYABILITIES_API FActiveGameplayCueContainer : public FFastArraySeri
 	TArray< FActiveGameplayCue >	GameplayCues;
 
 	void SetOwner(UAbilitySystemComponent* InOwner);
+	UAbilitySystemComponent* GetOwner() const;
 
 	/** Should this container only replicate in minimal replication mode */
 	bool bMinimalReplication;
