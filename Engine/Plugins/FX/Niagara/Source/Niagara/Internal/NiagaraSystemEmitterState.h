@@ -41,7 +41,22 @@ struct FNiagaraSystemStateData
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, Category = "System State")
-	bool bIgnoreSystemState = true;
+	uint32 bRunSpawnScript : 1 = true;
+
+	UPROPERTY(EditAnywhere, Category = "System State")
+	uint32 bRunUpdateScript : 1 = true;
+
+	UPROPERTY(EditAnywhere, Category = "System State")
+	uint32 bIgnoreSystemState : 1 = true;
+
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopCount", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
+	uint32 bRecalculateDurationEachLoop : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "LoopDelay", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
+	uint32 bDelayFirstLoopOnly : 1 = false;
+
+	UPROPERTY(EditAnywhere, Category = "System State", meta = (DisplayAfter = "bDelayFirstLoopOnly", EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
+	uint32 bRecalculateDelayEachLoop : 1 = false;
 
 	UPROPERTY(EditAnywhere, Category = "System State")
 	ENiagaraSystemInactiveResponse InactiveResponse = ENiagaraSystemInactiveResponse::Complete;
@@ -55,17 +70,8 @@ struct FNiagaraSystemStateData
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "1", EditCondition = "LoopBehavior == ENiagaraLoopBehavior::Multiple", EditConditionHides))
 	int LoopCount = 1;
 
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
-	bool bRecalculateDurationEachLoop = false;
-
 	UPROPERTY(EditAnywhere, Category = "System State", meta = (ClampMin = "0.0"))
 	FNiagaraDistributionRangeFloat LoopDelay = FNiagaraDistributionRangeFloat(0.0f);
-
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once", EditConditionHides))
-	bool bDelayFirstLoopOnly = false;
-
-	UPROPERTY(EditAnywhere, Category = "System State", meta = (EditCondition = "LoopBehavior != ENiagaraLoopBehavior::Once && !bDelayFirstLoopOnly", EditConditionHides))
-	bool bRecalculateDelayEachLoop = false;
 };
 
 USTRUCT()
