@@ -5683,6 +5683,7 @@ void UEdGraphSchema_K2::GetGraphDisplayInformation(const UEdGraph& Graph, /*out*
 		if (GraphType == GT_Function && Function)
 		{
 			DisplayInfo.DisplayName = GetFriendlySignatureName(Function);
+			DisplayInfo.Tooltip = FText::FormatOrdered(LOCTEXT("Tooltip_With_RealFunctionName", "{0}\nFunction Name is {1}"), DisplayInfo.Tooltip, DisplayInfo.PlainName);
 		}
 		else
 		{

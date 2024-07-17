@@ -5043,10 +5043,9 @@ namespace ObjectTools
 			}
 			else
 			{
-				static const FString Namespace = TEXT("UObjectDisplayNames");
-				const FString Key = Function->GetFullGroupName(false);
-
-				ReturnDisplayName = Function->GetMetaDataText(TEXT("DisplayName"), Namespace, Key);
+				// Previous (and similar) code paths would go through FField::GetMetaDataText(DisplayName) which attempts localization
+				// However, we do not localize function names (and we've explicitly requested non-friendly names), so just show us the real name
+				ReturnDisplayName = FText::FromString(Function->GetName());
 			}
 		}
 
