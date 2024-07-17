@@ -718,9 +718,6 @@ public:
 		RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen);
 	}
 
-	// Return what colour space the viewport is in. Used for HDR displays
-	RHI_API virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport);
-
 	// Return preferred pixel format if given format is unsupported.
 	virtual EPixelFormat RHIPreferredPixelFormatHint(EPixelFormat PreferredPixelFormat)
 	{
@@ -1351,9 +1348,10 @@ FORCEINLINE void RHIResizeViewport(FRHIViewport* Viewport, uint32 SizeX, uint32 
 	GDynamicRHI->RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 }
 
+// UE_DEPRECATED(5.5, "This method is no longer used.")
 FORCEINLINE EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport)
 {
-	return GDynamicRHI->RHIGetColorSpace(Viewport);
+	return EColorSpaceAndEOTF::ERec709_sRGB;
 }
 
 FORCEINLINE void RHICheckViewportHDRStatus(FRHIViewport* Viewport)

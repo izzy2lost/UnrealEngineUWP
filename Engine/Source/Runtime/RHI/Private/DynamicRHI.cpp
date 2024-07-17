@@ -798,11 +798,6 @@ FRenderQueryPoolRHIRef RHICreateRenderQueryPool(ERenderQueryType QueryType, uint
 	return new FDefaultRHIRenderQueryPool(QueryType);
 }
 
-EColorSpaceAndEOTF FDynamicRHI::RHIGetColorSpace(FRHIViewport* Viewport)
-{
-	return EColorSpaceAndEOTF::ERec709_sRGB;
-}
-
 void FDynamicRHI::RHICheckViewportHDRStatus(FRHIViewport* Viewport)
 {
 }

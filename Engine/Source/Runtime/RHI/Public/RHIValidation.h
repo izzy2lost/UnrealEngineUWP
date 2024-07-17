@@ -922,11 +922,6 @@ public:
 		RHI->RHIResizeViewport(Viewport, SizeX, SizeY, bIsFullscreen, PreferredPixelFormat);
 	}
 
-	virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport) override final
-	{
-		return RHI->RHIGetColorSpace(Viewport);
-	}
-
 	virtual EPixelFormat RHIPreferredPixelFormatHint(EPixelFormat PreferredPixelFormat) override final
 	{
 		return RHI->RHIPreferredPixelFormatHint(PreferredPixelFormat);

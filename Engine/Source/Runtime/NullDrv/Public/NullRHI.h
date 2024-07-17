@@ -379,11 +379,6 @@ public:
 
 	}
 
-	virtual EColorSpaceAndEOTF RHIGetColorSpace(FRHIViewport* Viewport ) final override
-	{
-		return EColorSpaceAndEOTF::EColorSpace_Rec709;
-	}
-
 	virtual void RHICheckViewportHDRStatus(FRHIViewport* Viewport) final override
 	{
 	}

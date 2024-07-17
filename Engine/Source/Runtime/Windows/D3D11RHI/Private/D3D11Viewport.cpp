@@ -664,12 +664,6 @@ void* FD3D11Viewport::GetNativeBackBufferRT() const
 	return GetBackBuffer()->GetRenderTargetView(0, 0);
 }
 
-EColorSpaceAndEOTF FD3D11DynamicRHI::RHIGetColorSpace(FRHIViewport* ViewportRHI)
-{
-	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);
-	return Viewport->GetPixelColorSpace();
-}
-
 void  FD3D11DynamicRHI::RHICheckViewportHDRStatus(FRHIViewport* ViewportRHI)
 {
 	FD3D11Viewport* Viewport = ResourceCast(ViewportRHI);

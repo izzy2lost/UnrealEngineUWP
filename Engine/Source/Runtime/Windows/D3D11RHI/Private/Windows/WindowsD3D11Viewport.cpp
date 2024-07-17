@@ -44,7 +44,6 @@ FD3D11Viewport::FD3D11Viewport(FD3D11DynamicRHI* InD3DRHI,HWND InWindowHandle,ui
 	PresentFailCount(0),
 	ValidState(0),
 	PixelFormat(InPreferredPixelFormat),
-	PixelColorSpace(EColorSpaceAndEOTF::ERec709_sRGB),
 	DisplayColorGamut(EDisplayColorGamut::sRGB_D65),
 	DisplayOutputFormat(EDisplayOutputFormat::SDR_sRGB),
 	bIsFullscreen(bInIsFullscreen),
@@ -385,7 +384,6 @@ inline void EnsureColorSpace(IDXGISwapChain* SwapChain, EDisplayColorGamut Displ
 void FD3D11Viewport::CheckHDRMonitorStatus()
 {
 #if WITH_EDITOR
-
 	static auto CVarHDREnable = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.HDRSupport"));
 	if (CVarHDREnable->GetInt() != 0)
 	{
@@ -393,12 +391,6 @@ void FD3D11Viewport::CheckHDRMonitorStatus()
 
 		EnsureColorSpace(SwapChain, DisplayColorGamut, DisplayOutputFormat, PixelFormat);
 	}
-	
-	{
-		PixelColorSpace =  EColorSpaceAndEOTF::ERec709_sRGB;
-	}
-#else
-	PixelColorSpace =  EColorSpaceAndEOTF::ERec709_sRGB;
 #endif
 }
 

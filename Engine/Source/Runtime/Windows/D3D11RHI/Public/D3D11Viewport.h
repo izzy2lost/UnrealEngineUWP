@@ -69,7 +69,6 @@ public:
 	// Accessors.
 	FIntPoint GetSizeXY() const { return FIntPoint(SizeX, SizeY); }
 	FD3D11Texture* GetBackBuffer() const { return BackBuffer; }
-	EColorSpaceAndEOTF GetPixelColorSpace() const { return PixelColorSpace; }
 
 	virtual void WaitForFrameEventCompletion() override
 	{
@@ -131,7 +130,6 @@ protected:
 	uint32 PresentFailCount;
 	TAtomic<uint32> ValidState;
 	EPixelFormat PixelFormat;
-	EColorSpaceAndEOTF PixelColorSpace;
 	EDisplayColorGamut DisplayColorGamut;
 	EDisplayOutputFormat DisplayOutputFormat;
 	bool bIsFullscreen;
