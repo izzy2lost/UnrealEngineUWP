@@ -22,8 +22,9 @@ namespace UE::ConcertSyncServer::Replication
 		, Getters(Getters)
 	{
 		AuthorityManager.OnGenerateSyncControl().BindRaw(this, &FSyncControlManager::OnGenerateSyncControlForAuthorityResponse);
-		MuteManager.OnUpdateSyncControlForIndirectMuteChange().BindRaw(this, &FSyncControlManager::OnUpdateSyncControlForIndirectMuteChange);
-		MuteManager.OnGenerateSyncControlForMuteChange().BindRaw(this, &FSyncControlManager::OnGenerateSyncControlForClientMuteChange);
+		MuteManager.OnRefreshSyncControlForIndirectMuteChange().BindRaw(this, &FSyncControlManager::OnRefreshSyncControlForIndirectMuteChange);
+		MuteManager.OnRefreshSyncControlAndSendToAllClientsExcept().BindRaw(this, &FSyncControlManager::OnRefreshSyncControlForClientMuteChange);
+		MuteManager.OnRefreshSyncControlButSkipSendingToClients().BindRaw(this, &FSyncControlManager::OnRefreshSyncControlAndEnumerateWithoutSending);
 	}
 
 	FSyncControlManager::~FSyncControlManager()
@@ -34,13 +35,17 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			AuthorityManager.OnGenerateSyncControl().Unbind();
 		}
-		if (ensure(MuteManager.OnUpdateSyncControlForIndirectMuteChange().IsBoundToObject(this)))
+		if (ensure(MuteManager.OnRefreshSyncControlForIndirectMuteChange().IsBoundToObject(this)))
 		{
-			MuteManager.OnUpdateSyncControlForIndirectMuteChange().Unbind();
+			MuteManager.OnRefreshSyncControlForIndirectMuteChange().Unbind();
 		}
-		if (ensure(MuteManager.OnGenerateSyncControlForMuteChange().IsBoundToObject(this)))
+		if (ensure(MuteManager.OnRefreshSyncControlAndSendToAllClientsExcept().IsBoundToObject(this)))
 		{
-			MuteManager.OnGenerateSyncControlForMuteChange().Unbind();
+			MuteManager.OnRefreshSyncControlAndSendToAllClientsExcept().Unbind();
+		}
+		if (ensure(MuteManager.OnRefreshSyncControlButSkipSendingToClients().IsBoundToObject(this)))
+		{
+			MuteManager.OnRefreshSyncControlButSkipSendingToClients().Unbind();
 		}
 	}
 
@@ -69,7 +74,7 @@ namespace UE::ConcertSyncServer::Replication
 		return RefreshClientSyncControl(ClientId, ShouldSkipInControlMessage);
 	}
 
-	FConcertReplication_ChangeSyncControl FSyncControlManager::OnGenerateSyncControlForClientMuteChange(const FGuid& ClientId)
+	FConcertReplication_ChangeSyncControl FSyncControlManager::OnRefreshSyncControlForClientMuteChange(const FGuid& ClientId)
 	{
 		RefreshAndSendToAllClientsExcept(ClientId);
 		const auto ShouldSkipInControlMessage = [](const FConcertObjectInStreamID&, bool bNewState)
@@ -80,6 +85,15 @@ namespace UE::ConcertSyncServer::Replication
 			return !bNewState;
 		};
 		return RefreshClientSyncControl(ClientId, ShouldSkipInControlMessage);
+	}
+
+	void FSyncControlManager::OnRefreshSyncControlAndEnumerateWithoutSending(const FMuteManager::FOnSyncControlChange& OnSyncControlChange)
+	{
+		Getters.ForEachReplicationClient([this, &OnSyncControlChange](const FGuid& ClientId)
+		{
+			OnSyncControlChange(ClientId, RefreshClientSyncControl(ClientId));
+			return EBreakBehavior::Continue;
+		});
 	}
 
 	void FSyncControlManager::HandleClientLeave(const FGuid& LeftClientId)

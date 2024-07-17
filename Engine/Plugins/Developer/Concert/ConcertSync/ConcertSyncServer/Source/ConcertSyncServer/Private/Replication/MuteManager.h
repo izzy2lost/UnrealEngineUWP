@@ -8,6 +8,7 @@
 #include "Replication/Messages/Muting.h"
 
 #include "Misc/Optional.h"
+#include "Templates/Function.h"
 #include "Templates/UnrealTemplate.h"
 
 #include <type_traits>
@@ -41,10 +42,11 @@ namespace UE::ConcertSyncServer::Replication
 	{
 	public:
 
-		/** Updates sync control if needed in response to a client changing their mute state indirectly (e.g. because client removed object from their stream). */
+		using FOnSyncControlChange = TFunctionRef<void(const FGuid& ClientId, const FConcertReplication_ChangeSyncControl& SyncControlChange)>;
+
 		DECLARE_DELEGATE_OneParam(FOnMuteStateChangedByClient, const FGuid& ClientId);
-		/** Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response. */
-		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FGenerateSyncControlForMuteChange, const FGuid& ClientId);
+		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FRefreshSyncControlForMuteChange, const FGuid& ClientId);
+		DECLARE_DELEGATE_OneParam(FRefreshSyncControlForClients, const FOnSyncControlChange& OnSyncControlChange);
 		
 		/** Notifies manager about applied event. Generates mute activity. */
 		DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMuteRequestApplied, const FGuid& ClientId, const FConcertReplication_ChangeMuteState_Request& Request);
@@ -76,7 +78,30 @@ namespace UE::ConcertSyncServer::Replication
 		TOptional<EMuteState> GetMuteState(const FSoftObjectPath& Object) const;
 		/** @return The mute setting of Object, if it is explicitly set (i.e. not affected by a parent object). */
 		TOptional<FConcertReplication_ObjectMuteSetting> GetExplicitMuteSetting(const FSoftObjectPath& Object) const;
-
+		
+		/**
+		 * Checks whether Request would be valid to apply, optionally providing a future server state.
+		 * @param Request The request to validate
+		 * @param OverrideServerObjectCache The server cache to use. Defaults to the internal one if left nullptr. Useful for passing in a future server state.
+		 * @param OnRejection Called for every rejected object.
+		 */
+		bool ValidateRequest(
+			const FConcertReplication_ChangeMuteState_Request& Request,
+			const ConcertSyncCore::FReplicatedObjectHierarchyCache* OverrideServerObjectCache = nullptr,
+			TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection = [](const FSoftObjectPath&){}
+			) const;
+		/**
+		 * This validates and then applies Request.
+		 * This version does not send any sync control updates to other clients. You must update them yourself.
+		 * 
+		 * @param Request The request to apply
+		 * @param OnSyncControlChange Called for every sync control change that is made.
+		 * @return Whether the request was applied.
+		 */
+		bool ApplyRequestAndEnumerateSyncControl(
+			const FConcertReplication_ChangeMuteState_Request& Request,
+			const FOnSyncControlChange& OnSyncControlChange
+			);
 		/**
 		 * Applies Request as if it was sent by EndpointId.
 		 * @return The sync control that the client identified by EndpointId has gained. Does NOT include the sync control they lost.
@@ -88,8 +113,12 @@ namespace UE::ConcertSyncServer::Replication
 		/** Called by FConcertServerReplicationManager when client leaves replication. */
 		void OnPostClientLeft(const TArray<FConcertReplicationStream>& ClientStreams);
 
-		FOnMuteStateChangedByClient& OnUpdateSyncControlForIndirectMuteChange() { return OnMuteStateChangedDelegate; }
-		FGenerateSyncControlForMuteChange& OnGenerateSyncControlForMuteChange() { return OnGenerateSyncControlForMuteChangeDelegate; }
+		/** Updates sync control if needed in response to a client changing their mute state indirectly (e.g. because client removed object from their stream). */
+		FOnMuteStateChangedByClient& OnRefreshSyncControlForIndirectMuteChange() { return OnMuteStateChangedDelegate; }
+		/** Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response. */
+		FRefreshSyncControlForMuteChange& OnRefreshSyncControlAndSendToAllClientsExcept() { return OnRefreshSyncControlAndSendToAllClientsExceptDelegate; }
+		/** Updates sync control for all clients but does not send any update to any clients. The passed in callback receives all sync control changes for the clients. */
+		FRefreshSyncControlForClients& OnRefreshSyncControlButSkipSendingToClients() { return OnRefreshSyncControlButSkipSendingToClientsDelegate; }
 		
 		FOnMuteRequestApplied& OnMuteRequestApplied() { return OnMuteRequestAppliedDelegate; }
 		
@@ -111,7 +140,9 @@ namespace UE::ConcertSyncServer::Replication
 		 * Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response.
 		 * The sync control will only contain RestrictToObjects.
 		 */
-		FGenerateSyncControlForMuteChange OnGenerateSyncControlForMuteChangeDelegate;
+		FRefreshSyncControlForMuteChange OnRefreshSyncControlAndSendToAllClientsExceptDelegate;
+		/** Delegate into FSyncControlManager.  */
+		FRefreshSyncControlForClients OnRefreshSyncControlButSkipSendingToClientsDelegate;
 		
 		/** Broadcasts after a mute request has been applied. */
 		FOnMuteRequestApplied OnMuteRequestAppliedDelegate;
@@ -151,9 +182,9 @@ namespace UE::ConcertSyncServer::Replication
 		/** Handles requests to change the mute states */
 		EConcertSessionResponseCode HandleChangeMuteStateRequest(const FConcertSessionContext& Context, const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response);
 		/** Checks whether Request is valid to apply. */
-		bool ValidateRequest(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const;
+		bool InternalValidateRequest(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const;
 		/** Updates the internal state (assuming it is a valid request - call ValidateRequest before). */
-		void ApplyRequest(const FConcertReplication_ChangeMuteState_Request& Request);
+		void InternalApplyRequest(const FConcertReplication_ChangeMuteState_Request& Request);
 
 		/** Removes all mute state for Object and transitively updates subobjects if applicable. */
 		template<CObjectProcessable TCallback>

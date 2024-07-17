@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuteManager.h"
 #include "Replication/Data/ObjectIds.h"
 
 #include "HAL/Platform.h"
@@ -77,7 +78,7 @@ namespace UE::ConcertSyncServer::Replication
 		 * Called when a client has caused mute state to change (e.g. due to removing object from stream, or explicitly muting it).
 		 * Called via delegate by FMuteManager.
 		 */
-		void OnUpdateSyncControlForIndirectMuteChange(const FGuid& ClientId)
+		void OnRefreshSyncControlForIndirectMuteChange(const FGuid& ClientId)
 		{
 			// Do not send any update to this client (because they can infer the change themselves) but do update the sync control state.
 			RefreshClientSyncControl(ClientId);
@@ -88,7 +89,9 @@ namespace UE::ConcertSyncServer::Replication
 		 * Updates sync control for all clients, sends an update to all clients but ClientId, and returns the sync control to embed into the mute response.
 		 * Called via delegate by FMuteManager.
 		 */
-		FConcertReplication_ChangeSyncControl OnGenerateSyncControlForClientMuteChange(const FGuid& ClientId);
+		FConcertReplication_ChangeSyncControl OnRefreshSyncControlForClientMuteChange(const FGuid& ClientId);
+		/** Updates sync control for all clients and enumerates the sync control instead of sending it. The callback handles updating the remote client machines. */
+		void OnRefreshSyncControlAndEnumerateWithoutSending(const FMuteManager::FOnSyncControlChange& OnSyncControlChange);
 		
 		/** Cleans up the associated client data and updates sync control for all other clients. */
 		void HandleClientLeave(const FGuid& LeftClientId);
