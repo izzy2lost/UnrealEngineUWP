@@ -13,9 +13,12 @@
 UUIComponent* FUIComponentUtils::CreateUIComponent(TSubclassOf<UUIComponent> ComponentClass, UUserWidget* Outer)
 {
 	ensure(Outer);
-	UObject* NewComponent = NewObject<UObject>(Outer, ComponentClass);
-	NewComponent->SetFlags(RF_Transactional);
-	return NewComponent ? CastChecked<UUIComponent>(NewComponent) : nullptr;
+	if (UUIComponent* NewComponent = NewObject<UUIComponent>(Outer, ComponentClass))
+	{
+		NewComponent->SetFlags(RF_Transactional);
+		return NewComponent;
+	}
+	return nullptr;
 }
 
 UUIComponentContainer* FUIComponentUtils::GetOrCreateComponentsContainerForUserWidget(UUserWidget* UserWidget)
