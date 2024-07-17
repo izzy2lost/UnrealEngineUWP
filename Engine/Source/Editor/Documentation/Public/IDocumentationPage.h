@@ -29,7 +29,7 @@ struct FExcerpt
 		, SourcePath(InSourcePath)
 	{}
 
-	/** The name of the excerpt, as specified in the [EXCERPT:NAME] line at the top of the excerpt. */
+	/** The name of the excerpt, as specified in the line at the top of the excerpt. */
 	FString Name;
 	/** The Slate content generated for the excerpt. */
 	TSharedPtr<SWidget> Content;
