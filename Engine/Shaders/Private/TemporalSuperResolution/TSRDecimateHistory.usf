@@ -61,6 +61,7 @@ FScreenTransform ScreenPosToResurrectionGuideBufferUV;
 float2 ResurrectionGuideUVViewportBilinearMin;
 float2 ResurrectionGuideUVViewportBilinearMax;
 float3 HistoryGuideQuantizationError;
+float ParallaxRejectionMaskThreshold;
 float PerceptionAdd;
 float ResurrectionFrameIndex;
 float PrevFrameIndex;
@@ -265,7 +266,8 @@ void ProcessPrevAtomicTexturesSamples(
 	float2 ScreenVelocity,
 	float PrevDeviceZ,
 	float DeviceZError,
-	out tsr_half ParallaxRejectionMask,
+	bool bIsOffScreen,
+	out bool bIsParallaxDisocclusion,
 	out float2 HoleFillingPixelVelocity,
 	out bool bCanHoleFill)
 {
@@ -277,7 +279,7 @@ void ProcessPrevAtomicTexturesSamples(
 	PrevInputBufferUV = INVARIANT(PrevInputBufferUV);
 	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
 	
-	ParallaxRejectionMask = tsr_half(0.0);
+	tsr_half ParallaxRejectionMask = tsr_half(0.0);
 	bool bIsValidHoleFillingPixelVelocity = false;
 	uint EncodedHoleFillingVelocity = 0;
 	#if CONFIG_SUPPORT_ORTHO_VIEW
@@ -358,19 +360,47 @@ void ProcessPrevAtomicTexturesSamples(
 		}
 	}
 	
-	float HoleFillingOutOfRange;
-	DecodeHoleFillingVelocity(EncodedHoleFillingVelocity, /* out */ HoleFillingPixelVelocity, /* out */ HoleFillingOutOfRange);
+	float HoleFillingPixelAngle;
+	float HoleFillingPixelLength;
+	DecodeHoleFillingVelocity(EncodedHoleFillingVelocity, /* out */ HoleFillingPixelAngle, /* out */ HoleFillingPixelLength);
 
-	bCanHoleFill = bIsValidHoleFillingPixelVelocity && HoleFillingOutOfRange > 0.5;
+	bool bIsEncodablePixelLength = HoleFillingPixelLength < GetMaxEncodableHoleFillingPixelLength();
 
-	// Dim down the parallax rejection mask if the velocity matches
+	HoleFillingPixelVelocity = CartesianHoleFillingVelocity(HoleFillingPixelAngle, HoleFillingPixelLength);
+	bCanHoleFill = bIsValidHoleFillingPixelVelocity && bIsEncodablePixelLength;
+	//bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
+
+	// Dim down the parallax rejection mask if the hole fill velocity matches
+	FLATTEN
+	if (bIsEncodablePixelLength)
 	{
+		const float AnglePrecision = 2.0 * PI * pow(0.5, VELOCITY_HOLE_FILLING_ANGLE_BITS);
+		const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
+
 		float2 PixelVelocity = ScreenVelocity * ScreenVelocityToInputPixelVelocity;
+
+		float PixelVelocityAngle, PixelVelocityLength;
+		PolarCoordinateHoleFillingVelocity(PixelVelocity, /* out */ PixelVelocityAngle, /* out */ PixelVelocityLength);
 		
-		tsr_half VelocityDiff = tsr_half(length(HoleFillingPixelVelocity - PixelVelocity));
+		float CartesianCoordinatePrecision = AnglePrecision * PixelVelocityLength;
+
+		float PixelLengthDiff = abs(HoleFillingPixelLength - PixelVelocityLength) - 2.0;
+		float PixelAngleDiff = abs(PixelVelocityAngle - HoleFillingPixelAngle);
+		PixelAngleDiff = min(PixelAngleDiff, 2.0 * PI - PixelAngleDiff);
 		
-		ParallaxRejectionMask = lerp(tsr_half(1.0), ParallaxRejectionMask, select(bCanHoleFill, saturate(VelocityDiff), tsr_half(1.0)));
+		float VelocityDiff = length(HoleFillingPixelVelocity - PixelVelocity);
+		float PixelAngleCompare = saturate(2.0 - PixelAngleDiff / AnglePrecision);
+		float PixelLengthCompare = saturate(1.0 + rcp(LengthPixelPrecision) - PixelLengthDiff);
+
+		float MinParallaxRejectionMaskPolar = min(PixelLengthCompare, PixelAngleCompare);
+		float MinParallaxRejectionMaskCartesian = saturate(1.0 + CartesianCoordinatePrecision - VelocityDiff);
+		
+		float MinParallaxRejectionMask = lerp(MinParallaxRejectionMaskCartesian, MinParallaxRejectionMaskPolar, saturate(min(HoleFillingPixelLength, PixelVelocityLength) - 2.0));
+
+		ParallaxRejectionMask = max(ParallaxRejectionMask, tsr_half(MinParallaxRejectionMask));
 	}
+
+	bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
 } // ProcessPrevAtomicTexturesSamples()
 
 template<typename Type>
@@ -714,7 +744,6 @@ void MainCS(
 		
 		// Compute the parralax rejection mask
 		float2 HoleFillingPixelVelocity;
-		tsr_half ParallaxRejectionMask;
 		bool bCanHoleFill;
 		ProcessPrevAtomicTexturesSamples(
 			HistoryClosestDeviceZSamples0,
@@ -723,12 +752,10 @@ void MainCS(
 			ScreenVelocity,
 			PrevDeviceZ,
 			DeviceZError,
-			/* out */ ParallaxRejectionMask,
+			bIsOffScreen,
+			/* out */ bIsParallaxDisocclusion,
 			/* out */ HoleFillingPixelVelocity,
 			/* out */ bCanHoleFill);
-
-		bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(PARALLAX_REJECTION_MASK_THRESHOLD);
-		bool bIsDisoccluded = bIsOffScreen || bIsParallaxDisocclusion;
 
 		// LDS despill
 		#if CONFIG_MANUAL_LDS_SPILL

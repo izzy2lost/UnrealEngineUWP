@@ -71,9 +71,7 @@
 #define SPATIAL_ANTI_ALIASING_OFFSET_RANGE 0.5
 #define SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL 4
 
-#define MAX_DEVICE_Z_ERROR 16.0
-
-#define PARALLAX_REJECTION_MASK_THRESHOLD 0.5
+#define MAX_DEVICE_Z_ERROR 64.0
 
 // Minimum number of sample of each texel when reprojecting the high frequency history.
 // Value too low causes area of low sample count to have pixel dominating too much in reprojection causing input res aliasing on texture details
@@ -920,16 +918,45 @@ tsr_half2 DecodeSpatialAntiAliasingOffset(tsr_ushort EncodedInputTexelOffset)
 #define VELOCITY_HOLE_FILLING_LENGTH_PRECISION (pow(2.0, 5))
 
 CALL_SITE_DEBUGLOC
+void PolarCoordinateHoleFillingVelocity(float2 PixelVelocity, out float PixelVelocityAngle, out float PixelVelocityLength)
+{
+	PixelVelocityAngle = atan2Fast(PixelVelocity.y, PixelVelocity.x);
+	PixelVelocityLength = length(PixelVelocity);
+}
+
+CALL_SITE_DEBUGLOC
+float2 CartesianHoleFillingVelocity(float PixelVelocityAngle, float PixelVelocityLength)
+{
+	float2 PixelDirection;
+	sincos(PixelVelocityAngle, /* out */ PixelDirection.y, /* out */ PixelDirection.x);
+	return PixelDirection * PixelVelocityLength;
+}
+
+CALL_SITE_DEBUGLOC
+void QuantizeHoleFillingVelocity(float2 PixelVelocity, out float EncodedAngle, out float EncodedLength)
+{
+	const uint AngleBitDepth = 1 << VELOCITY_HOLE_FILLING_ANGLE_BITS;
+	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
+
+	float PixelVelocityAngle;
+	float PixelVelocityLength;
+	PolarCoordinateHoleFillingVelocity(PixelVelocity, /* out */ PixelVelocityAngle, /* out */ PixelVelocityLength);
+
+	EncodedAngle = PixelVelocityAngle * (0.5 * AngleBitDepth / PI) + (0.5 * AngleBitDepth);
+	EncodedLength = PixelVelocityLength * LengthPixelPrecision;
+}
+
+CALL_SITE_DEBUGLOC
 uint EncodeHoleFillingVelocity(float2 PixelVelocity)
 {
 	const uint AngleBitDepth = 1 << VELOCITY_HOLE_FILLING_ANGLE_BITS;
 	const uint LengthBitDepth = 1 << VELOCITY_HOLE_FILLING_LENGTH_BITS;
-	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
 
-	float EncodedAngle = atan2Fast(PixelVelocity.y, PixelVelocity.x) * (0.5 * AngleBitDepth / PI) + (0.5 * AngleBitDepth);
+	float EncodedAngle;
+	float EncodedLength;
+	QuantizeHoleFillingVelocity(PixelVelocity, /* out */ EncodedAngle, /* out */ EncodedLength);
+
 	uint iEncodedAngle = uint(round(EncodedAngle)) & (AngleBitDepth - 1);
-
-	float EncodedLength = length(PixelVelocity) * LengthPixelPrecision;
 	uint iEncodedLength = fastClamp(uint(ceil(EncodedLength)), 0u, LengthBitDepth - 1u);
 
 	uint EncodedHoleFillingVelocity = iEncodedAngle * LengthBitDepth + iEncodedLength;
@@ -937,26 +964,29 @@ uint EncodeHoleFillingVelocity(float2 PixelVelocity)
 }
 
 CALL_SITE_DEBUGLOC
-void DecodeHoleFillingVelocity(uint EncodedHoleFillingVelocity, out float2 PixelVelocity, out float OutOfRangeFactor)
+void DecodeHoleFillingVelocity(uint EncodedHoleFillingVelocity, out float PixelAngle, out float PixelLength)
 {
 	const uint AngleBitDepth = 1 << VELOCITY_HOLE_FILLING_ANGLE_BITS;
 	const uint LengthBitDepth = 1 << VELOCITY_HOLE_FILLING_LENGTH_BITS;
 	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
-	const float LengthRange = float(LengthBitDepth) / LengthPixelPrecision;
 
 	uint iEncodedLength = EncodedHoleFillingVelocity % LengthBitDepth;
 	uint iEncodedAngle = (EncodedHoleFillingVelocity >> VELOCITY_HOLE_FILLING_LENGTH_BITS) % AngleBitDepth;
 
 	float EncodedLength = float(iEncodedLength);
-	float Length = EncodedLength * rcp(LengthPixelPrecision);
+	PixelLength = EncodedLength * rcp(LengthPixelPrecision);
 
 	float EncodedAngle = float(iEncodedAngle);
-	float Angle = EncodedAngle * (PI * 2.0 / float(AngleBitDepth)) - PI;
+	PixelAngle = EncodedAngle * (PI * 2.0 / float(AngleBitDepth)) - PI;
+}
 
-	sincos(Angle, /* out */ PixelVelocity.y, /* out */ PixelVelocity.x);
-	PixelVelocity *= Length;
-
-	OutOfRangeFactor = saturate(LengthRange - Length);
+CALL_SITE_DEBUGLOC
+float GetMaxEncodableHoleFillingPixelLength()
+{
+	const uint LengthBitDepth = 1 << VELOCITY_HOLE_FILLING_LENGTH_BITS;
+	const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
+	const float LengthRange = (float(LengthBitDepth) - 1.5) / LengthPixelPrecision;
+	return LengthRange;
 }
 
 CALL_SITE_DEBUGLOC

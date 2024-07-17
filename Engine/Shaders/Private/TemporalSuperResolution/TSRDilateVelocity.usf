@@ -272,9 +272,11 @@ bool ComputeDepthBilaterals(
 	BRANCH
 	if (bCompute)
 	{
+		const float WeightOffset = 1.5;
+		const float PixelDistance = length(float2(DirectionE));
+
 		float VariationEW = abs(DevizeZC - (DevizeZE + DevizeZW) * 0.5);
 		float VariationSN = abs(DevizeZC - (DevizeZS + DevizeZN) * 0.5);
-		float VariationDiff = VariationEW - VariationSN;
 
 		float DepthDiffE = abs(DevizeZE - DevizeZC);
 		float DepthDiffW = abs(DevizeZW - DevizeZC);
@@ -283,18 +285,19 @@ bool ComputeDepthBilaterals(
 	
 		float DepthDiffEW = abs(DevizeZE - DevizeZW);
 		float DepthDiffSN = abs(DevizeZS - DevizeZN);
-	
+
 		float MinDepthDerivativeE = min3(DepthDiffEW, DepthDiffE, DepthDiffW);
 		float MinDepthDerivativeS = min3(DepthDiffSN, DepthDiffS, DepthDiffN);
 		
-		float DepthDerivativeE = MinDepthDerivativeE;
-		float DepthDerivativeS = MinDepthDerivativeS;
+		float PixelDeviceZError = ComputePixelDeviceZError(DevizeZC) * PixelDistance;
 
-		WeightE = tsr_half(saturate(1.1 - min(DepthDiffE, VariationEW) / DepthDerivativeE));
-		WeightW = tsr_half(saturate(1.1 - min(DepthDiffW, VariationEW) / DepthDerivativeE));
-	
-		WeightS = tsr_half(saturate(1.1 - min(DepthDiffS, VariationSN) / DepthDerivativeS));
-		WeightN = tsr_half(saturate(1.1 - min(DepthDiffN, VariationSN) / DepthDerivativeS));
+		float FinalDepthDerivativeE = min(max(MinDepthDerivativeE, PixelDeviceZError), max(MinDepthDerivativeS, 8.0 * PixelDeviceZError));
+		float FinalDepthDerivativeS = min(max(MinDepthDerivativeS, PixelDeviceZError), max(MinDepthDerivativeE, 8.0 * PixelDeviceZError));
+
+		WeightE = tsr_half(saturate(WeightOffset - min(DepthDiffE, VariationEW) / FinalDepthDerivativeE));
+		WeightW = tsr_half(saturate(WeightOffset - min(DepthDiffW, VariationEW) / FinalDepthDerivativeE));
+		WeightS = tsr_half(saturate(WeightOffset - min(DepthDiffS, VariationSN) / FinalDepthDerivativeS));
+		WeightN = tsr_half(saturate(WeightOffset - min(DepthDiffN, VariationSN) / FinalDepthDerivativeS));
 
 	
 		tsr_half TotalWeightEW = WeightE + WeightW;
@@ -513,18 +516,8 @@ tsr_half2 ComputeReprojectionBoundary(
 
 	float2 PixelVelocityDifferential = InputInfo_ViewportSize * (ScreenVelocity.xy - DilatedScreenVelocity.xy);
 
-	/* when disoccluding, increase the size. */
-	bool bIsDilatedDisoccluding = (
-		float(ReprojectionOffset.x) * PixelVelocityDifferential.x < 0.0 ||
-		float(ReprojectionOffset.y) * PixelVelocityDifferential.y > 0.0);
-
-	/** If Dilated velocity is coming towards this pixel, where an extrusion could possibly happen. */
-	bool bIsDilatedComing = (
-		float(ReprojectionOffset.x) * DilatedScreenVelocity.x < 0.0 || 
-		float(ReprojectionOffset.y) * DilatedScreenVelocity.y > 0.0);
-
 	float PixelVelocity = length2(PixelVelocityDifferential);
-	bool bDilationHasEnoughVelocityDiff = PixelVelocity > select(bIsDilatedDisoccluding, pow(0.5, 2.0), ReprojectionFieldAntiAliasVelocityThreshold);
+	bool bDilationHasEnoughVelocityDiff = PixelVelocity > ReprojectionFieldAntiAliasVelocityThreshold;
 
 	bool bAntiAliasReprojectionField = bReprojectionField && bDilationHasEnoughVelocityDiff && !bOffscreen;
 
