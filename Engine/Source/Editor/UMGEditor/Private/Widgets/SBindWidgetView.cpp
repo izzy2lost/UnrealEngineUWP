@@ -354,7 +354,14 @@ TArray<UWidget*> GetAllSourceWidgets(UWidgetBlueprint* WidgetBlueprint)
 
 TArray<UWidgetAnimation*> GetAllSourceWidgetAnimations(UWidgetBlueprint* WidgetBlueprint)
 {
-	return WidgetBlueprint->Animations;
+	TArray<UWidgetAnimation*> WidgetAnimations;
+	UWidgetBlueprint* WidgetBPToScan = WidgetBlueprint;
+	while (WidgetBPToScan != nullptr)
+	{
+		WidgetAnimations.Append(WidgetBPToScan->Animations);
+		WidgetBPToScan = WidgetBPToScan->ParentClass && WidgetBPToScan->ParentClass->ClassGeneratedBy ? Cast<UWidgetBlueprint>(WidgetBPToScan->ParentClass->ClassGeneratedBy) : nullptr;
+	}
+	return WidgetAnimations;
 }
 
 
