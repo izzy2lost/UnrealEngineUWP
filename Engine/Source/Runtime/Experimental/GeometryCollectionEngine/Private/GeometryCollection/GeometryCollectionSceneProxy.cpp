@@ -1482,3 +1482,21 @@ void FGeometryCollectionTransformBuffer::UpdateDynamicData(FRHICommandListBase& 
 	FMemory::Memcpy(VertexBufferData, Transforms.GetData(), Transforms.Num() * sizeof(FMatrix44f));
 	RHICmdList.UnlockBuffer(VertexBufferRHI);
 }
+
+FNaniteGeometryCollectionSceneProxy::FEmptyLightCacheInfo FNaniteGeometryCollectionSceneProxy::EmptyLightCacheInfo;
+
+FLightInteraction FNaniteGeometryCollectionSceneProxy::FEmptyLightCacheInfo::GetInteraction(const FLightSceneProxy* LightSceneProxy) const
+{
+	// Ask base class
+	TArray<FGuid> Empty_IrrelevantLights;
+	ELightInteractionType LightInteraction = GetStaticInteraction(LightSceneProxy, Empty_IrrelevantLights);
+
+	if (LightInteraction != LIT_MAX)
+	{
+		return FLightInteraction(LightInteraction);
+	}
+
+	// Use dynamic lighting if the light doesn't have static lighting.
+	return FLightInteraction::Dynamic();
+}
+

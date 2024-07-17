@@ -377,6 +377,12 @@ public:
 	void OnMotionBegin();
 	void OnMotionEnd();
 
+	inline virtual void GetLCIs(FLCIArray& LCIs) override
+	{
+		FLightCacheInterface* LCI = &EmptyLightCacheInfo;
+		LCIs.Add(LCI);
+	}
+
 protected:
 	// TODO : Copy required data from UObject instead of using unsafe object pointer.
 	const UGeometryCollection* GeometryCollection = nullptr;
@@ -402,4 +408,16 @@ protected:
 	uint32 bRequiresGPUSceneUpdate : 1;
 
 	FInstanceSceneDataBuffers InstanceSceneDataBuffersImpl;
+
+	// Geometry collection doesn't currently support baked light maps, so we use this simple empty light cache info for all nanite geometry collection proxies
+	class FEmptyLightCacheInfo : public FLightCacheInterface
+	{
+	public:
+
+		// FLightCacheInterface.
+		GEOMETRYCOLLECTIONENGINE_API virtual FLightInteraction GetInteraction(const FLightSceneProxy* LightSceneProxy) const override;
+	};
+
+private:
+	static FEmptyLightCacheInfo EmptyLightCacheInfo;
 };
