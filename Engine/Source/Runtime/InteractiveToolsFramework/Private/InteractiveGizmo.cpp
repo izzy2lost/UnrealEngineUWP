@@ -52,7 +52,7 @@ void UInteractiveGizmo::Tick(float DeltaTime)
 UInteractiveGizmoManager* UInteractiveGizmo::GetGizmoManager() const
 {
 	UInteractiveGizmoManager* GizmoManager = Cast<UInteractiveGizmoManager>(GetOuter());
-	check(GizmoManager != nullptr);
+	ensure(GizmoManager != nullptr);
 	return GizmoManager;
 }
 

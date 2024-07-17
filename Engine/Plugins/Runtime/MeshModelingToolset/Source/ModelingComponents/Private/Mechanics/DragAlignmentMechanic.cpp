@@ -21,6 +21,12 @@ using namespace UE::Geometry;
 void FDragAlignmentBase::AddToGizmo(UCombinedTransformGizmo* TransformGizmo, const TArray<const UPrimitiveComponent*>* ComponentsToIgnoreInAlignment, 
 	const TArray<const UPrimitiveComponent*>* InvisibleComponentsToIncludeInAlignment)
 {
+	if (!ensureMsgf(TransformGizmo && TransformGizmo->ActiveTarget, TEXT("Drag Alignment AddToGizmo method must "
+		"be called on a gizmo that is already initialized.")))
+	{
+		return;
+	}
+
 	// If we have components to ignore/include, we need a copy of the array so that the alignment
 	// functions can use them later.
 	TSharedPtr<TArray<const UPrimitiveComponent*>> ComponentsToIgnorePersistent;
