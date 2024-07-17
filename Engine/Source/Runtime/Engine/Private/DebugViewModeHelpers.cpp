@@ -131,11 +131,6 @@ bool ShouldCompileDebugViewModeShader(const FMeshMaterialShaderPermutationParame
 		return false;
 	}
 
-	if (Parameters.MaterialParameters.FeatureLevel < ERHIFeatureLevel::SM5)
-	{
-		return false;
-	}
-
 	if (!EnumHasAllFlags(Parameters.Flags, EShaderPermutationFlags::HasEditorOnlyData))
 	{
 		// Debug view shaders only in editor
