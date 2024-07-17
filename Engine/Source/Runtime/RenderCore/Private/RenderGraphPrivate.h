@@ -7,6 +7,7 @@
 #include "ProfilingDebugging/CountersTrace.h"
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "RHI.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogRDG, Log, All);
 
@@ -245,7 +246,7 @@ FORCEINLINE bool IsImmediateMode()
 
 FORCEINLINE bool IsRenderPassMergeEnabled()
 {
-	return GRDGMergeRenderPasses != 0 && !IsImmediateMode();
+	return GRDGMergeRenderPasses != 0 && !IsImmediateMode() && RHIHasTiledGPU(GMaxRHIShaderPlatform);
 }
 
 FORCEINLINE bool IsAsyncComputeSupported()

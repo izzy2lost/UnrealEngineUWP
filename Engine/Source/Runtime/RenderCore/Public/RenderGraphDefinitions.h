@@ -67,8 +67,18 @@ enum class ERDGBuilderFlags
 {
 	None = 0,
 
+	/** Allows the builder to parallelize AddSetupPass calls. Without this flag, setup passes run serially. */
+	ParallelSetup = 1 << 0,
+	
+	/** Allows the builder to parallelize compilation of the graph. Without this flag, all passes execute on the render thread. */
+	ParallelCompile = 1 << 1,
+
 	/** Allows the builder to parallelize execution of passes. Without this flag, all passes execute on the render thread. */
-	AllowParallelExecute = 1 << 0
+	ParallelExecute = 1 << 2,
+
+	Parallel = ParallelSetup | ParallelCompile | ParallelExecute,
+
+	AllowParallelExecute UE_DEPRECATED(5.5, "Use ERDDGBuilderFlags::Parallel instead.") = Parallel,
 };
 ENUM_CLASS_FLAGS(ERDGBuilderFlags);
 
@@ -153,6 +163,17 @@ enum class ERDGTextureFlags : uint8
 	MaintainCompression = 1 << 3,
 };
 ENUM_CLASS_FLAGS(ERDGTextureFlags);
+
+enum class ERDGSetupTaskWaitPoint : uint8
+{
+	/** (Default) Setup task is synced prior to compilation. Use this mode if task mutates RDG resources (e.g. RDG buffer upload contents, buffer size callbacks, etc) */
+	Compile = 0,
+
+	/** Setup task is synced prior to execution. Use this mode if your task is stalling in RDG and doesn't affect RDG compilation in any way. */
+	Execute = 1,
+
+	MAX
+};
 
 /** Flags to annotate a view with when calling CreateUAV. */
 enum class ERDGUnorderedAccessViewFlags : uint8

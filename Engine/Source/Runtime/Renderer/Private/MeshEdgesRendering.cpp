@@ -281,7 +281,7 @@ void RenderMeshEdges_RenderThread(
 	// update any resources that needed a deferred update
 	FDeferredUpdateResource::UpdateResources(RHICmdList);
 
-	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("MeshEdges"), ERDGBuilderFlags::AllowParallelExecute);
+	FRDGBuilder GraphBuilder(RHICmdList, RDG_EVENT_NAME("MeshEdges"), ERDGBuilderFlags::Parallel);
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "RenderMeshEdges_RenderThread");
 

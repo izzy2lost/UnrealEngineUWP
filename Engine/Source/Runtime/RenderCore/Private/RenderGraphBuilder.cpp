@@ -542,7 +542,7 @@ bool FRDGBuilder::IsTransientInternal(FRDGViewableResource* Resource, bool bFast
 }
 
 FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName InName, ERDGBuilderFlags InFlags)
-	: FRDGScopeState(InRHICmdList, IsImmediateMode(), ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::AllowParallelExecute))
+	: FRDGScopeState(InRHICmdList, IsImmediateMode(), ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelExecute))
 	, RootAllocatorScope(Allocators.Root)
 	, Blackboard(Allocators.Root)
 	, BuilderName(InName)
@@ -561,8 +561,9 @@ FRDGBuilder::FRDGBuilder(FRHICommandListImmediate& InRHICmdList, FRDGEventName I
 
 	ProloguePass = SetupEmptyPass(Passes.Allocate<FRDGSentinelPass>(Allocators.Root, RDG_EVENT_NAME("Graph Prologue (Graphics)")));
 
-	ParallelExecute.bEnabled = ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::AllowParallelExecute);
-	ParallelSetup.bEnabled   = ::IsParallelSetupEnabled()   && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::AllowParallelExecute);
+	ParallelExecute.bEnabled = ::IsParallelExecuteEnabled() && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelExecute);
+	ParallelSetup.bEnabled   = ::IsParallelSetupEnabled()   && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelSetup);
+	bParallelCompileEnabled  = ::IsParallelSetupEnabled()   && EnumHasAnyFlags(InFlags, ERDGBuilderFlags::ParallelCompile);
 
 	if (TransientResourceAllocator)
 	{
@@ -1621,12 +1622,24 @@ void FRDGBuilder::FlushSetupQueue()
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FRDGBuilder::WaitForParallelSetupTasks()
+void FRDGBuilder::WaitForParallelSetupTasks(ERDGSetupTaskWaitPoint WaitPoint)
 {
-	if (!ParallelSetup.Tasks.IsEmpty())
+	const auto WaitForTasksLambda = [this] (ERDGSetupTaskWaitPoint WaitPoint)
 	{
-		UE::Tasks::Wait(ParallelSetup.Tasks);
-		ParallelSetup.Tasks.Reset();
+		if (auto& Tasks = ParallelSetup.Tasks[(int32)WaitPoint]; !Tasks.IsEmpty())
+		{
+			UE::Tasks::Wait(Tasks);
+			Tasks.Reset();
+		}
+	};
+
+	switch (WaitPoint)
+	{
+	case ERDGSetupTaskWaitPoint::Execute:
+		WaitForTasksLambda(ERDGSetupTaskWaitPoint::Execute);
+		[[fallthrough]]; // Also flush any compile tasks that might have been added after the compile wait point.
+	case ERDGSetupTaskWaitPoint::Compile:
+		WaitForTasksLambda(ERDGSetupTaskWaitPoint::Compile);
 	}
 }
 
@@ -1663,7 +1676,7 @@ void FRDGBuilder::Execute()
 	if (!IsImmediateMode())
 	{
 		BeginFlushResourcesRHI();
-		WaitForParallelSetupTasks();
+		WaitForParallelSetupTasks(ERDGSetupTaskWaitPoint::Compile);
 
 		if (ParallelSetup.bEnabled)
 		{
@@ -1711,7 +1724,7 @@ void FRDGBuilder::Execute()
 			}
 			NumElementsCallbackBuffers.Empty();
 
-		}, TaskPriority);
+		}, TaskPriority, bParallelCompileEnabled);
 
 		UE::Tasks::FTask PrepareCollectResourcesTask = AddSetupTask([this]
 		{
@@ -1747,7 +1760,7 @@ void FRDGBuilder::Execute()
 				}
 			});
 
-		}, TaskPriority);
+		}, TaskPriority, bParallelCompileEnabled);
 
 		UE::Tasks::FTaskEvent AllocateUploadBuffersTask{ UE_SOURCE_LOCATION };
 
@@ -1755,7 +1768,7 @@ void FRDGBuilder::Execute()
 		{
 			SubmitBufferUploads(RHICmdListTask, &AllocateUploadBuffersTask);
 
-		}, BufferNumElementsCallbacksTask, TaskPriority);
+		}, BufferNumElementsCallbacksTask, TaskPriority, bParallelCompileEnabled);
 
 		Compile();
 
@@ -1764,7 +1777,7 @@ void FRDGBuilder::Execute()
 			CompilePassBarriers();
 			CollectPassBarriers();
 
-		}, TaskPriority);
+		}, TaskPriority, bParallelCompileEnabled);
 
 		if (ParallelExecute.bEnabled)
 		{
@@ -1781,7 +1794,7 @@ void FRDGBuilder::Execute()
 			SCOPE_CYCLE_COUNTER(STAT_RDG_CollectResourcesTime);
 			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(RDG_CollectResources);
 			SCOPED_NAMED_EVENT_TEXT("FRDGBuilder::CollectResources", FColor::Magenta);
-			
+
 			PrepareCollectResourcesTask.Wait();
 
 			EnumerateExtendedLifetimeResources(Textures, [](FRDGTexture* Texture)
@@ -1843,13 +1856,13 @@ void FRDGBuilder::Execute()
 			{
 				AllocatePooledBuffers(RHICmdListTask, PooledBuffers);
 
-			}, AllocateUploadBuffersTask, TaskPriority);
+			}, AllocateUploadBuffersTask, TaskPriority, bParallelCompileEnabled);
 
 			AllocatePooledTexturesTask = AddCommandListSetupTask([this, PooledTextures = MoveTemp(CollectResourceContext.PooledTextures)] (FRHICommandListBase& RHICmdListTask)
 			{
 				AllocatePooledTextures(RHICmdListTask, PooledTextures);
 
-			}, TaskPriority);
+			}, TaskPriority, bParallelCompileEnabled);
 
 			AllocateTransientResources(MoveTemp(CollectResourceContext.TransientResources));
 
@@ -1857,13 +1870,13 @@ void FRDGBuilder::Execute()
 			{
 				FinalizeResources();
 
-			}, MakeArrayView<UE::Tasks::FTask>({ CollectPassBarriersTask, AllocatePooledBuffersTask, AllocatePooledTexturesTask }), TaskPriority);
+			}, MakeArrayView<UE::Tasks::FTask>({ CollectPassBarriersTask, AllocatePooledBuffersTask, AllocatePooledTexturesTask }), TaskPriority, bParallelCompileEnabled);
 
 			CreateViewsTask = AddCommandListSetupTask([this, InViews = MoveTemp(CollectResourceContext.Views)] (FRHICommandListBase& RHICmdListTask)
 			{
 				CreateViews(RHICmdListTask, InViews);
 
-			}, MakeArrayView<UE::Tasks::FTask>({ AllocatePooledBuffersTask, AllocatePooledTexturesTask, SubmitBufferUploadsTask}), TaskPriority);
+			}, MakeArrayView<UE::Tasks::FTask>({ AllocatePooledBuffersTask, AllocatePooledTexturesTask, SubmitBufferUploadsTask}), TaskPriority, bParallelCompileEnabled);
 
 			if (TransientResourceAllocator)
 			{
@@ -1879,7 +1892,7 @@ void FRDGBuilder::Execute()
 		{
 			CreateUniformBuffers(InUniformBuffers);
 
-		}, CreateViewsTask, TaskPriority); // Uniform buffer creation require views to be valid.
+		}, CreateViewsTask, TaskPriority, bParallelCompileEnabled); // Uniform buffer creation require views to be valid.
 
 		AllocatePooledBuffersTask.Wait();
 		AllocatePooledTexturesTask.Wait();
@@ -1891,7 +1904,7 @@ void FRDGBuilder::Execute()
 	}
 
 	EndFlushResourcesRHI();
-	WaitForParallelSetupTasks();
+	WaitForParallelSetupTasks(ERDGSetupTaskWaitPoint::Execute);
 
 	if (ParallelExecute.DispatchTaskEvent)
 	{
@@ -2416,7 +2429,6 @@ void FRDGBuilder::SetupAuxiliaryPasses(FRDGPass* Pass)
 		}
 
 		check(!EnumHasAnyFlags(Pass->Pipeline, ERHIPipeline::AsyncCompute));
-		check(ParallelSetup.Tasks.IsEmpty());
 
 		FCollectResourceContext Context;
 		SubmitBufferUploads(RHICmdList);

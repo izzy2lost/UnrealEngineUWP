@@ -144,6 +144,12 @@ FORCEINLINE PODType* FRDGBuilder::AllocPODArray(uint32 Count)
 	return Allocators.Root.AllocUninitialized<PODType>(Count);
 }
 
+template <typename PODType>
+TArrayView<PODType> FRDGBuilder::AllocPODArrayView(uint32 Count)
+{
+	return TArrayView<PODType>(AllocPODArray<PODType>(Count), Count);
+}
+
 template <typename ObjectType, typename... TArgs>
 FORCEINLINE ObjectType* FRDGBuilder::AllocObject(TArgs&&... Args)
 {
@@ -455,15 +461,15 @@ inline void FRDGBuilder::AddDispatchHint()
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition);
+	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority Priority, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority Priority, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
+	return AddSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
@@ -471,7 +477,8 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	TaskLambdaType&& TaskLambda,
 	UE::Tasks::FPipe* Pipe,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	return AddSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
 }
@@ -481,7 +488,8 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	TaskLambdaType&& TaskLambda,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	return AddSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition);
 }
@@ -529,7 +537,8 @@ UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 	UE::Tasks::FPipe* Pipe,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	UE::Tasks::FTask Task;
 
@@ -561,22 +570,22 @@ UE::Tasks::FTask FRDGBuilder::AddSetupTask(
 
 	if (Task.IsValid())
 	{
-		ParallelSetup.Tasks.Emplace(Task);
+		ParallelSetup.Tasks[(int32)WaitPoint].Emplace(Task);
 	}
 
 	return Task;
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, UE::Tasks::ETaskPriority::Normal, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
-FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority TaskPriority, bool bCondition)
+FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(TaskLambdaType&& TaskLambda, UE::Tasks::ETaskPriority TaskPriority, bool bCondition, ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, TaskPriority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, TArray<UE::Tasks::FTask>{}, TaskPriority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType>
@@ -584,9 +593,10 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	TaskLambdaType&& TaskLambda,
 	UE::Tasks::FPipe* Pipe,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), Pipe, TArray<UE::Tasks::FTask>{}, Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType, typename PrerequisitesCollectionType>
@@ -594,9 +604,10 @@ FORCEINLINE UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	TaskLambdaType&& TaskLambda,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
-	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition);
+	return AddCommandListSetupTask(MoveTemp(TaskLambda), nullptr, Forward<PrerequisitesCollectionType&&>(Prerequisites), Priority, bCondition, WaitPoint);
 }
 
 template <typename TaskLambdaType, typename PrerequisitesCollectionType>
@@ -605,7 +616,8 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	UE::Tasks::FPipe* Pipe,
 	PrerequisitesCollectionType&& Prerequisites,
 	UE::Tasks::ETaskPriority Priority,
-	bool bCondition)
+	bool bCondition,
+	ERDGSetupTaskWaitPoint WaitPoint)
 {
 	UE::Tasks::FTask Task;
 
@@ -660,7 +672,7 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 
 	if (Task.IsValid())
 	{
-		ParallelSetup.Tasks.Emplace(Task);
+		ParallelSetup.Tasks[(int32)WaitPoint].Emplace(Task);
 	}
 
 	return Task;

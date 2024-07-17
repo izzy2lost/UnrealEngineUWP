@@ -5161,7 +5161,7 @@ static void RenderViewFamilies_RenderThread(FRHICommandListImmediate& RHICmdList
 				ViewFamily.EngineShowFlags.HitProxies ? TEXT("RenderHitProxies") : TEXT("Render"),
 				ViewFamily.bResolveScene ? TEXT("Primary") : TEXT("Auxiliary")
 			),
-			ERDGBuilderFlags::AllowParallelExecute
+			ERDGBuilderFlags::Parallel
 		);
 
 #if WITH_GPUDEBUGCRASH
