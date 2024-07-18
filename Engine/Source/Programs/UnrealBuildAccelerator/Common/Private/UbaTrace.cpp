@@ -519,7 +519,8 @@ namespace uba
 		CloseHandle(h);
 
 		u32 pid = ::GetCurrentProcessId();
-		while (true)
+		u32 maxDepth = 5; // It seems there could be cirular child->parent dependencies.. so having max depth will solve that
+		while (maxDepth--)
 		{
 			auto findIt = pidToParent.find(pid);
 			if (findIt == pidToParent.end())
