@@ -573,11 +573,10 @@ void FNiagaraSystemViewportClient::DrawStatelessInfo(UNiagaraComponent* Componen
 		const FVector2D ScaledViewportSize = FVector2D(InViewport->GetSizeXY()) / Canvas->GetDPIScale();
 		FCanvasTextItem TextItem(FVector2D::ZeroVector, FText::GetEmpty(), Font, FLinearColor::White);
 
-		FString StatelessInfo = FString::Printf(TEXT("Stateless: %d / %d Emitters "), NumStatelessEmitters, NumEmitters);
-
-		if (const TCHAR* SystemStateModeString = NiagaraSystem->GetSystemStateModeString())
+		FString StatelessInfo = FString::Printf(TEXT("Stateless: %d / %d Emitters"), NumStatelessEmitters, NumEmitters);
+		if (NiagaraSystem->SystemStateFastPathEnabled())
 		{
-			StatelessInfo.Append(SystemStateModeString);
+			StatelessInfo.Append(TEXT(" [FastPath]"));
 		}
 
 		int32 Width = 0;

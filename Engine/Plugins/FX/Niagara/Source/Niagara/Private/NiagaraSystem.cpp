@@ -2731,6 +2731,7 @@ void UNiagaraSystem::RemoveEmitterHandlesById(const TSet<FGuid>& HandlesToRemove
 }
 #endif
 
+
 UNiagaraScript* UNiagaraSystem::GetSystemSpawnScript()
 {
 	return SystemSpawnScript;
@@ -2749,15 +2750,6 @@ const UNiagaraScript* UNiagaraSystem::GetSystemSpawnScript() const
 const UNiagaraScript* UNiagaraSystem::GetSystemUpdateScript() const
 {
 	return SystemUpdateScript;
-}
-
-const TCHAR* UNiagaraSystem::GetSystemStateModeString() const
-{
-	if ( SystemStateData.bRunUpdateScript == false )
-	{
-		return SystemStateData.bRunSpawnScript ? TEXT("[Fast-U]") : TEXT("[Fast-SU]");
-	}
-	return nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
@@ -3879,16 +3871,17 @@ void UNiagaraSystem::GatherStaticVariables(TArray<FNiagaraVariable>& OutVars, TA
 void UNiagaraSystem::ResolveRequiresScripts()
 {
 #if WITH_EDITORONLY_DATA
+	TOptional<FNiagaraSystemStateData> NewSystemStateData;
+
 	if (bAllowSystemStateFastPath)
 	{
 		INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
 		const INiagaraEditorOnlyDataUtilities& EditorOnlyDataUtilities = NiagaraModule.GetEditorOnlyDataUtilities();
-		SystemStateData = EditorOnlyDataUtilities.GetSystemStateData(*this);
+		NewSystemStateData = EditorOnlyDataUtilities.TryGetSystemStateData(*this);
 	}
-	else
-	{
-		SystemStateData = FNiagaraSystemStateData();
-	}
+
+	bSystemStateFastPathEnabled = NewSystemStateData.IsSet();
+	SystemStateData = NewSystemStateData.Get(FNiagaraSystemStateData());
 #endif //WITH_EDITORONLY_DATA
 }
 

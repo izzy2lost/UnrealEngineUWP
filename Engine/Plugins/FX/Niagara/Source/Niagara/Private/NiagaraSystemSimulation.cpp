@@ -588,11 +588,7 @@ bool FNiagaraSystemSimulation::Init(UNiagaraSystem* InSystem, UWorld* InWorld, b
 
 	bCanExecute = System->GetSystemSpawnScript()->GetVMExecutableData().IsValid() && System->GetSystemUpdateScript()->GetVMExecutableData().IsValid();
 
-	{
-		const FNiagaraSystemStateData& SystemState = System->GetSystemStateData();
-		bRunSpawnScript		= SystemState.bRunSpawnScript;
-		bRunUpdateScript	= SystemState.bRunUpdateScript;
-	}
+	bSystemStateFastPathEnabled = System->SystemStateFastPathEnabled();
 
 	MaxDeltaTime = System->GetMaxDeltaTime();
 
@@ -1014,7 +1010,7 @@ void FNiagaraSystemSimulation::FlushTickBatch(FNiagaraSystemSimulationTickContex
 	if ( Context.IsRunningAsync() )
 	{
 		FGraphEventArray FinalizePrereqArray;
-		if (bRunUpdateScript == false)
+		if (bSystemStateFastPathEnabled)
 		{
 			for (FNiagaraSystemInstance* Inst : Context.TickBatch)
 			{
@@ -1697,61 +1693,21 @@ void FNiagaraSystemSimulation::Tick_Concurrent(FNiagaraSystemSimulationTickConte
 	FScopeCycleCounter SystemStatCounter(Context.System->GetStatID(true, true));
 #endif
 
-	if (bRunUpdateScript == false)
+	if (bSystemStateFastPathEnabled)
 	{
-		const int32 NumInstances = Context.Instances.Num();
-		const int32 FirstSpawnedInstance = NumInstances - Context.SpawnNum;
-		if (bRunSpawnScript)// && Context.SpawnNum > 0)
+		//-OPT: We should be able to avoid this but will require a lot of changes to the system simulation
+		//      We might want to consider having different system simulation types
 		{
-			for (int32 iSystemInstance = FirstSpawnedInstance; iSystemInstance < NumInstances; ++iSystemInstance)
-			{
-				FNiagaraSystemInstance* SystemInstance = Context.Instances[iSystemInstance];
-				SystemInstance->TickInstanceParameters_Concurrent();
-			}
-			if (Context.SpawnNum > 0)
-			{
-				PrepareForSystemSimulate(Context);
-				SpawnSystemInstances(Context);
-
-				// Transfer results to parameter stores
-				for (int32 iSystemInstance = FirstSpawnedInstance; iSystemInstance < NumInstances; ++iSystemInstance)
-				{
-					FNiagaraSystemInstance* SystemInstance = Context.Instances[iSystemInstance];
-
-					TArrayView<FNiagaraEmitterInstanceRef> Emitters = SystemInstance->GetEmitters();
-					for (int32 iEmitter = 0; iEmitter < Emitters.Num(); ++iEmitter)
-					{
-						FNiagaraEmitterInstance& EmitterInstance = Emitters[iEmitter].Get();
-						if ( EmitterInstance.IsComplete() )
-						{
-							continue;
-						}
-						DataSetToEmitterRendererParameters[iEmitter].DataSetToParameterStore(EmitterInstance.GetRendererBoundVariables(), Context.DataSet, iSystemInstance);
-					}
-				}
-			}
-		}
-		else
-		{
-			//-OPT: We should be able to avoid this but will require a lot of changes to the system simulation
-			//      We might want to consider having different system simulation types
-			{
-				Context.DataSet.BeginSimulate();
-				Context.DataSet.Allocate(Context.Instances.Num());
-				Context.DataSet.GetDestinationDataChecked().SetNumInstances(Context.Instances.Num());
-				Context.DataSet.EndSimulate();
-			}
+			Context.DataSet.BeginSimulate();
+			Context.DataSet.Allocate(Context.Instances.Num());
+			Context.DataSet.GetDestinationDataChecked().SetNumInstances(Context.Instances.Num());
+			Context.DataSet.EndSimulate();
 		}
 
-		for ( int32 i=0; i < Context.Instances.Num(); ++i )
+		for (FNiagaraSystemInstance* SystemInstance : Context.Instances)
 		{
-			FNiagaraSystemInstance* SystemInstance = Context.Instances[i];
-
 			//-TODO: Stateless doesn't require a lot of this data
-			if (i < FirstSpawnedInstance)
-			{
-				SystemInstance->TickInstanceParameters_Concurrent();
-			}
+			SystemInstance->TickInstanceParameters_Concurrent();
 
 			SystemInstance->TickSystemState();
 

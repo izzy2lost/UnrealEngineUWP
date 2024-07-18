@@ -58,7 +58,20 @@ namespace NiagaraDebugLocal
 
 	struct FCachedVariables
 	{
+		~FCachedVariables()
+		{
+#if WITH_EDITORONLY_DATA
+			if ( UNiagaraSystem* NiagaraSystem = WeakNiagaraSystem.Get() )
+			{
+				NiagaraSystem->OnSystemCompiled().Remove(CompiledDelegate);
+			}
+#endif
+		}
+
 		TWeakObjectPtr<UNiagaraSystem> WeakNiagaraSystem;
+#if WITH_EDITORONLY_DATA
+		FDelegateHandle CompiledDelegate;
+#endif
 
 		TArray<int32>										EngineVariables;			// Engine varibles that are visible on the HUD, these are special because they are not in the buffers
 		TArray<FNiagaraDataSetDebugAccessor>				SystemVariables;			// System & Emitter variables since both are inside the same DataBuffer
@@ -84,8 +97,6 @@ namespace NiagaraDebugLocal
 
 	static FDelegateHandle	GDebugDrawHandle;
 	static int32			GDebugDrawHandleUsers = 0;
-
-	static const TCHAR*		GCompileForEditString = TEXT(" [EditMode]");
 
 	static FVector StringToVector(const FString& Arg, const FVector& DefaultValue)
 	{
@@ -474,6 +485,9 @@ namespace NiagaraDebugLocal
 		{
 			CachedVariables = &GCachedSystemVariables.Emplace(NiagaraSystem);
 			CachedVariables->WeakNiagaraSystem = MakeWeakObjectPtr(NiagaraSystem);
+#if WITH_EDITORONLY_DATA
+			CachedVariables->CompiledDelegate = NiagaraSystem->OnSystemCompiled().AddLambda([](UNiagaraSystem* NiagaraSystem) { GCachedSystemVariables.Remove(NiagaraSystem); });
+#endif
 
 			if (Settings.SystemVariables.Num() > 0)
 			{
@@ -817,7 +831,7 @@ FNiagaraDebugHud::FNiagaraDebugHud(UWorld* World)
 
 	WeakWorld = World;
 
-	LongestSystemPrettyName = TEXT("NS_SomeBigLongNiagaraSystemName");
+	LongestSystemName = TEXT("NS_SomeBigLongNiagaraSystemName");
 
 	if ( !GDebugDrawHandle.IsValid() )
 	{
@@ -923,17 +937,6 @@ FNiagaraDebugHud::~FNiagaraDebugHud()
 		UDebugDrawService::Unregister(GDebugDrawHandle);
 		GDebugDrawHandle.Reset();
 	}
-
-#if WITH_EDITORONLY_DATA
-	for (auto It = SystemCompiledDelegates.CreateIterator(); It; ++It)
-	{
-		if ( UNiagaraSystem* NiagaraSystem = It.Key().Get() )
-		{
-			NiagaraSystem->OnSystemCompiled().Remove(It.Value());
-		}
-	}
-	SystemCompiledDelegates.Empty();
-#endif
 }
 
 void FNiagaraDebugHud::UpdateSettings(const FNiagaraDebugHUDSettingsData& NewSettings)
@@ -1070,41 +1073,18 @@ void FNiagaraDebugHud::GatherSystemInfo()
 		if (SystemDebugInfo.SystemName.IsEmpty())
 		{
 			SystemDebugInfo.SystemName = GetNameSafe(FXComponent->GetFXSystemAsset());
-		}
 
-		if (SystemDebugInfo.SystemPrettyName.IsEmpty())
-		{
-			SystemDebugInfo.SystemPrettyName = SystemDebugInfo.SystemName;
-			if (UNiagaraSystem* NiagaraSystem = Cast<UNiagaraSystem>(FXComponent->GetFXSystemAsset()))
+			static const FString SystemNamePostFix = TEXT(" (Fast Path) ");
+			if (SystemDebugInfo.SystemName.Len() + SystemNamePostFix.Len() > LongestSystemName.Len())
 			{
-			#if WITH_EDITORONLY_DATA
-				if (NiagaraSystem->GetCompileForEdit())
-				{
-					SystemDebugInfo.SystemPrettyName.Append(GCompileForEditString);
-				}
-			#endif
-				if (const TCHAR* SystemStateModeString = NiagaraSystem->GetSystemStateModeString())
-				{
-					SystemDebugInfo.SystemPrettyName.AppendChar(' ');
-					SystemDebugInfo.SystemPrettyName.Append(SystemStateModeString);
-				}
-
-			#if WITH_EDITORONLY_DATA
-				if (!SystemCompiledDelegates.Contains(NiagaraSystem))
-				{
-					SystemCompiledDelegates.Emplace(
-						NiagaraSystem,
-						NiagaraSystem->OnSystemCompiled().AddRaw(this, &FNiagaraDebugHud::OnSystemCompiled)
-					);
-				}
-			#endif
-			}
-
-			if (SystemDebugInfo.SystemPrettyName.Len() > LongestSystemPrettyName.Len())
-			{
-				LongestSystemPrettyName = SystemDebugInfo.SystemPrettyName;
+				LongestSystemName = SystemDebugInfo.SystemName;
+				LongestSystemName.Append(SystemNamePostFix);
 			}
 		}
+	#if WITH_EDITORONLY_DATA
+		SystemDebugInfo.bCompileForEdit = NiagaraComponent ? NiagaraComponent->GetAsset()->GetCompileForEdit() : false;
+	#endif
+		SystemDebugInfo.bSystemStateFastPath = NiagaraComponent ? NiagaraComponent->GetAsset()->SystemStateFastPathEnabled() : false;
 		SystemDebugInfo.bShowInWorld = (Settings.SystemDebugVerbosity != ENiagaraDebugHudVerbosity::None) && (!Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter));
 		SystemDebugInfo.bPassesSystemFilter = SystemDebugInfo.bShowInWorld;
 
@@ -1508,18 +1488,6 @@ void FNiagaraDebugHud::DrawDebugGeomerty(class FNiagaraWorldManager* WorldManage
 	}
 }
 
-#if WITH_EDITORONLY_DATA
-void FNiagaraDebugHud::OnSystemCompiled(UNiagaraSystem * NiagaraSystem)
-{
-	if (FSystemDebugInfo* DebugInfo = PerSystemDebugInfo.Find(NiagaraSystem->GetFName()))
-	{
-		DebugInfo->SystemPrettyName.Empty();
-	}
-
-	NiagaraDebugLocal::GCachedSystemVariables.Remove(NiagaraSystem);
-}
-#endif
-
 template<typename T>
 struct FGraph
 {
@@ -1701,7 +1669,7 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 
 	if (Settings.bOverviewEnabled)
 	{
-		OverviewColumns.Emplace(TEXT(""), TEXT(""), TEXT("System Name"), ColumnOffset, Font, *LongestSystemPrettyName,
+		OverviewColumns.Emplace(TEXT(""), TEXT(""), TEXT("System Name"), ColumnOffset, Font, *LongestSystemName,
 			[&DetailColor, &DetailHighlightColor, &fAdvanceHeight](FCanvas* Canvas, UFont* Font, float X, float Y, FOverviewColumn& Col, const FSystemDebugInfo& SystemInfo)
 			{
 				FLinearColor RowBGColor = SystemInfo.UniqueColor;
@@ -1710,7 +1678,17 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 				const FLinearColor RowColor = SystemInfo.bShowInWorld ? DetailHighlightColor : DetailColor;
 
 				FNameBuilder SystemNameString;
-				SystemNameString.Append(*SystemInfo.SystemPrettyName);
+				SystemNameString.Append(*SystemInfo.SystemName);
+			#if WITH_EDITORONLY_DATA
+				if (SystemInfo.bCompileForEdit)
+				{
+					SystemNameString.Append(TEXT(" (Edit Mode)"));
+				}
+			#endif
+				if (SystemInfo.bSystemStateFastPath)
+				{
+					SystemNameString.Append(TEXT(" (Fast Path)"));
+				}
 				Canvas->DrawShadowedString(X, Y, SystemNameString.ToString(), Font, RowColor);
 		});
 
@@ -2371,6 +2349,9 @@ void FNiagaraDebugHud::DrawGpuComputeOverriew(class FNiagaraWorldManager* WorldM
 
 		const bool bShowDetailed = !Settings.bSystemFilterEnabled || Settings.SystemFilter.IsEmpty() || OwnerSystem->GetName().MatchesWildcard(Settings.SystemFilter);
 		SystemIt.Value().bShowDetailed = bShowDetailed;
+#if WITH_EDITORONLY_DATA
+		SystemIt.Value().bCompileForEdit = OwnerSystem->GetCompileForEdit();
+#endif
 		bHasDetailedView |= bShowDetailed;
 		bHasSimpleView |= !bShowDetailed;
 	}
@@ -2417,9 +2398,9 @@ void FNiagaraDebugHud::DrawGpuComputeOverriew(class FNiagaraWorldManager* WorldM
 					const FGpuUsagePerStage& StageUsage = StageIt.Value();
 					OwnerSystem->GetFName().AppendString(SimpleTable.GetColumnText(0));
 #if WITH_EDITORONLY_DATA
-					if (OwnerSystem->GetCompileForEdit())
+					if (SystemIt.Value().bCompileForEdit)
 					{
-						SimpleTable.GetColumnText(0).Append(GCompileForEditString);
+						SimpleTable.GetColumnText(0).Append(TEXT(" (Edit Mode)"));
 					}
 #endif
 					OwnerEmitter->GetFName().AppendString(SimpleTable.GetColumnText(1));
@@ -2467,9 +2448,9 @@ void FNiagaraDebugHud::DrawGpuComputeOverriew(class FNiagaraWorldManager* WorldM
 
 			OwnerSystem->GetFName().AppendString(SimpleTable.GetColumnText(0));
 #if WITH_EDITORONLY_DATA
-			if (OwnerSystem->GetCompileForEdit())
+			if (SystemIt.Value().bCompileForEdit)
 			{
-				SimpleTable.GetColumnText(0).Append(GCompileForEditString);
+				SimpleTable.GetColumnText(0).Append(TEXT(" (Edit Mode)"));
 			}
 #endif
 			SimpleTable.GetColumnText(1).Appendf(TEXT("%4.1f"), SystemUsage.InstanceCount.GetAverage<float>());

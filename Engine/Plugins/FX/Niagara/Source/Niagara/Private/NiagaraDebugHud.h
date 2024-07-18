@@ -94,7 +94,10 @@ class FNiagaraDebugHud
 	struct FSystemDebugInfo
 	{
 		FString		SystemName;
-		FString		SystemPrettyName;
+	#if WITH_EDITORONLY_DATA
+		bool		bCompileForEdit = false;
+	#endif
+		bool		bSystemStateFastPath = false;
 
 		#if WITH_PARTICLE_PERF_STATS
 		TSharedPtr<FNiagaraDebugHUDPerfStats> PerfStats = nullptr;
@@ -248,16 +251,8 @@ private:
 	void DrawMessages(class FNiagaraWorldManager* WorldManager, class FCanvas* DrawCanvas, FVector2f& TextLocation);
 	void DrawDebugGeomerty(class FNiagaraWorldManager* WorldManager, class UCanvas* DrawCanvas);
 
-#if WITH_EDITORONLY_DATA
-	void OnSystemCompiled(UNiagaraSystem* NiagaraSystem);
-#endif
-
 private:
 	TWeakObjectPtr<class UWorld>	WeakWorld;
-
-#if WITH_EDITORONLY_DATA
-	TMap<TWeakObjectPtr<UNiagaraSystem>, FDelegateHandle> SystemCompiledDelegates;
-#endif
 
 	int32 GlobalTotalRegistered = 0;
 	int32 GlobalTotalActive = 0;
@@ -274,7 +269,7 @@ private:
 
 	int32 GlobalTotalPlayerSystems = 0;
 
-	FString LongestSystemPrettyName;
+	FString LongestSystemName;
 	TMap<FName, FSystemDebugInfo>	PerSystemDebugInfo;
 
 	TArray<TWeakObjectPtr<class UFXSystemComponent>>	InWorldComponents;
@@ -310,6 +305,9 @@ private:
 
 	struct FGpuUsagePerSystem
 	{
+#if WITH_EDITORONLY_DATA
+		bool bCompileForEdit = false;
+#endif
 		bool bShowDetailed = false;
 		FSmoothedCounter<uint32> InstanceCount;
 		FSmoothedCounter<uint64> Microseconds;
