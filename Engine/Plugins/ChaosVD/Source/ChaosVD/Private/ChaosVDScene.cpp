@@ -213,9 +213,9 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 
 	UpdateJointConstraintsData(InRecordedStepData, SolverID);
 	
-	const TMap<int32, AChaosVDParticleActor*>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
+	const TMap<int32, TObjectPtr<AChaosVDParticleActor>>& AllSolverParticlesByID = SolverSceneData->GetAllParticleActorsByIDMap();
 
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleActorWithID : AllSolverParticlesByID)
+	for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleActorWithID : AllSolverParticlesByID)
 	{
 		// If we are playing back a keyframe, the scene should only contain what it is in the recorded data
 		const bool bShouldDestroyParticleAnyway = InFrameData.bIsKeyFrame && !ParticlesIDsInRecordedStepData.Contains(ParticleActorWithID.Key);
@@ -227,7 +227,7 @@ void FChaosVDScene::UpdateFromRecordedStepData(const int32 SolverID, const FChao
 			// So, we deactivate them instead.
 
 			// TODO: We need an actor pool system, so we can keep memory under control as well.
-			if (AChaosVDParticleActor* ActorToDeactivate = ParticleActorWithID.Value)
+			if (AChaosVDParticleActor* ActorToDeactivate = ToRawPtr(ParticleActorWithID.Value))
 			{
 				if (IsObjectSelected(ActorToDeactivate))
 				{

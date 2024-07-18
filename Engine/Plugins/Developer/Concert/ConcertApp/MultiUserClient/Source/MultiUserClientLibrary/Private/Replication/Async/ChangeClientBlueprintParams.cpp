@@ -117,7 +117,7 @@ namespace UE::MultiUserClientLibrary
 		if (!Data.PropertyChanges.IsEmpty())
 		{
 			Result.PropertyChanges.Reserve(Data.PropertyChanges.Num());
-			for (TPair<UObject*, FMultiUserPropertyChange>& Change : Data.PropertyChanges)
+			for (TPair<TObjectPtr<UObject>, FMultiUserPropertyChange>& Change : Data.PropertyChanges)
 			{
 				Result.PropertyChanges.Emplace(Change.Key, Transform(MoveTemp(Change.Value)));
 			}

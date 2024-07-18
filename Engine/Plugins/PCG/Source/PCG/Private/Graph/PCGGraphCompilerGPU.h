@@ -44,7 +44,7 @@ public:
 		const TMap<FPCGTaskId,
 		TArray<FPCGTaskId>>&InTaskSuccessors,
 		FOriginalToVirtualPin& OutOriginalToVirtualPin,
-		TMap<const UPCGPin*, FName>& OutOutputCPUPinToVirtualPin);
+		TMap<TObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin);
 	
 	/** Compiles a compute graph. */
 	static void BuildGPUGraphTask(
@@ -54,7 +54,7 @@ public:
 		const FTaskToSuccessors& InTaskSuccessors,
 		TArray<FPCGGraphTask>& InOutCompiledTasks,
 		const FOriginalToVirtualPin& InOriginalToVirtualPin,
-		const TMap<const UPCGPin*, FName>& InOutputCPUPinToVirtualPin);
+		const TMap<TObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin);
 	
 	/** Finds connected subgraphs of GPU - enabled nodes that can be dispatched together and replaces each one with a compute graph. */
 	static void CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTask>& InOutCompiledTasks);

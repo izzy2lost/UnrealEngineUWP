@@ -39,11 +39,11 @@ protected:
 private:
 	/** The packages dirtied while generating all components. */
 	UPROPERTY(Transient)
-	TMap<FGuid, UPackage*> PendingDirtyPackages;
+	TMap<FGuid, TObjectPtr<UPackage>> PendingDirtyPackages;
 
 	/** Packages that were logged as deleted through the OnActorDeleted event. UPROP to prevent GC. */
 	UPROPERTY(Transient)
-	TArray<UPackage*> DeletedActorPackages;
+	TArray<TObjectPtr<UPackage>> DeletedActorPackages;
 
 	/** Include components which have editing mode set to Normal. */
 	bool bGenerateEditingModeNormalComponents = false;

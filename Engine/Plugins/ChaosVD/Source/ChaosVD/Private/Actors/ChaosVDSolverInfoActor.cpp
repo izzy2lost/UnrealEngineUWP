@@ -109,9 +109,9 @@ void AChaosVDSolverInfoActor::RegisterParticleActor(int32 ParticleID, AChaosVDPa
 
 AChaosVDParticleActor* AChaosVDSolverInfoActor::GetParticleActor(int32 ParticleID)
 {
-	AChaosVDParticleActor** FoundParticleActor = SolverParticlesByID.Find(ParticleID);
+	TObjectPtr<AChaosVDParticleActor>* FoundParticleActor = SolverParticlesByID.Find(ParticleID);
 
-	return FoundParticleActor ? *FoundParticleActor : nullptr;
+	return FoundParticleActor ? ToRawPtr(*FoundParticleActor) : nullptr;
 }
 
 bool AChaosVDSolverInfoActor::IsParticleSelectedByID(int32 ParticleID)

@@ -404,7 +404,7 @@ public:
 	* A list of nodes that have been visited, where the key is the graph where the node was found. Used for cycle detection right now.
 	*/
 	UPROPERTY()
-	TMap<const UMovieGraphConfig*, FMovieGraphEvaluationContext_VisitedNodeInfo> VisitedNodesByOwningGraph;
+	TMap<TObjectPtr<const UMovieGraphConfig>, FMovieGraphEvaluationContext_VisitedNodeInfo> VisitedNodesByOwningGraph;
 
 	/**
 	* The pin that is currently being followed in the traversal process.

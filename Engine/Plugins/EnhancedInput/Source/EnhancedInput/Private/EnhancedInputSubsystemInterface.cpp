@@ -43,6 +43,19 @@ void DeepCopyPtrArray(const TArray<T*>& From, TArray<T*>& To)
 	}
 }
 
+template<typename T>
+void DeepCopyPtrArray(const TArray<T*>& From, TArray<TObjectPtr<T>>& To)
+{
+	To.Empty(From.Num());
+	for (T* ToDuplicate : From)
+	{
+		if (ToDuplicate)
+		{
+			To.Add(DuplicateObject<T>(ToDuplicate, nullptr));
+		}
+	}
+}
+
 void IEnhancedInputSubsystemInterface::InitalizeUserSettings()
 {
 	// Not every implementer of the EI subsystem wants user settings, so leave it up to them to determine if they want it or not

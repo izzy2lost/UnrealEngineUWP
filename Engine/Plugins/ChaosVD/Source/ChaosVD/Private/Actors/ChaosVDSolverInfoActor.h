@@ -56,7 +56,7 @@ public:
 	void RegisterParticleActor(int32 ParticleID, AChaosVDParticleActor* ParticleActor);
 
 	AChaosVDParticleActor* GetParticleActor(int32 ParticleID);
-	const TMap<int32, AChaosVDParticleActor*>& GetAllParticleActorsByIDMap() { return  SolverParticlesByID; }
+	const TMap<int32, TObjectPtr<AChaosVDParticleActor>>& GetAllParticleActorsByIDMap() { return  SolverParticlesByID; }
 
 	const TArray<int32>& GetSelectedParticlesIDs() const { return SelectedParticlesID; }
 
@@ -103,7 +103,7 @@ protected:
 	TObjectPtr<UChaosVDSolverCollisionDataComponent> CollisionDataComponent;
 
 	UPROPERTY()
-	TMap<int32, AChaosVDParticleActor*> SolverParticlesByID;
+	TMap<int32, TObjectPtr<AChaosVDParticleActor>> SolverParticlesByID;
 
 	TArray<int32> SelectedParticlesID;
 

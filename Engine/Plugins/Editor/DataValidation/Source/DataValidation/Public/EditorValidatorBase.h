@@ -152,7 +152,7 @@ private:
 
 	
 	UPROPERTY()
-	UObject* CurrentObjectBeingValidated;
+	TObjectPtr<UObject> CurrentObjectBeingValidated;
 
 	const FAssetData* CurrentAssetBeingValidated;
 };

@@ -365,7 +365,7 @@ void FPCGGraphCompilerGPU::WireGPUGraphNode(
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
 	const FTaskToSuccessors& InTaskSuccessors,
 	FOriginalToVirtualPin& OutOriginalToVirtualPin,
-	TMap<const UPCGPin*, FName>& OutOutputCPUPinToVirtualPin)
+	TMap<TObjectPtr<const UPCGPin>, FName>& OutOutputCPUPinToVirtualPin)
 {
 	FPCGGraphTask& GPUGraphTask = InOutCompiledTasks[InGPUGraphTaskId];
 
@@ -471,7 +471,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 	const FTaskToSuccessors& InTaskSuccessors,
 	TArray<FPCGGraphTask>& InOutCompiledTasks,
 	const FOriginalToVirtualPin& InOriginalToVirtualPin,
-	const TMap<const UPCGPin*, FName>& InOutputCPUPinToVirtualPin)
+	const TMap<TObjectPtr<const UPCGPin>, FName>& InOutputCPUPinToVirtualPin)
 {
 	TSharedPtr<FPCGComputeGraphElement> Element = MakeShared<FPCGComputeGraphElement>();
 	InOutCompiledTasks[InGPUGraphTaskId].Element = Element;
@@ -1074,7 +1074,7 @@ void FPCGGraphCompilerGPU::CreateGPUNodes(UPCGGraph* InGraph, TArray<FPCGGraphTa
 		// PCG provides through the input data collection correctly, and route the output data to the downstream pins correctly.
 		FOriginalToVirtualPin OriginalToVirtualPin;
 
-		TMap<const UPCGPin*, FName> OutputCPUPinToVirtualPin;
+		TMap<TObjectPtr<const UPCGPin>, FName> OutputCPUPinToVirtualPin;
 
 		// Wire in the compute graph task, side by side with the individual GPU tasks, which will be culled below.
 		WireGPUGraphNode(

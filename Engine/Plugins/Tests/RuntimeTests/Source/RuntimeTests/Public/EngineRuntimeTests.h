@@ -63,7 +63,7 @@ public:
 
 private:
 	UPROPERTY()
-	UBillboardComponent* SpriteComponent;
+	TObjectPtr<UBillboardComponent> SpriteComponent;
 };
 
 #if WITH_AUTOMATION_WORKER

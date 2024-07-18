@@ -43,7 +43,7 @@ protected:
 	int32								Priority;			/// The priority of this mix in terms of update cycle
 
 	UPROPERTY()
-	UMixSettings*						Settings = nullptr;/// The settings for this mix interface
+	TObjectPtr<UMixSettings>						Settings = nullptr;/// The settings for this mix interface
 
 	UPROPERTY()
 	bool								bInvalidateTextures;/// Invalidate the scene textures or not

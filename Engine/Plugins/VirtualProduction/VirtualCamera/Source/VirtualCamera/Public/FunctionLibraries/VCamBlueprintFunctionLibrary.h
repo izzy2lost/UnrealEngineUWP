@@ -35,7 +35,7 @@ struct VIRTUALCAMERA_API FVCamTraceHitProxyQueryParams
 
 	/** Components on these actors should not be considered. */
 	UPROPERTY(EditAnywhere, BlueprintreadWrite, Category = "VirtualCamera")
-	TArray<AActor*> IgnoredActors;
+	TArray<TObjectPtr<AActor>> IgnoredActors;
 };
 
 USTRUCT(BlueprintType)

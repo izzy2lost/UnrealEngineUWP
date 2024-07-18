@@ -48,7 +48,7 @@ struct WATERADVANCED_API FShallowWaterCollisionContext
 	}
 	EShallowWaterCollisionContextType Type = EShallowWaterCollisionContextType::Pawn;
 	UPROPERTY()
-	USkeletalMeshComponent* Component = nullptr;
+	TObjectPtr<USkeletalMeshComponent> Component = nullptr;
 
 	// #todo Theoretically not enough as unique identification since Component->GetUniqueID() is "reused so it is only unique while the object is alive"
 	uint32 UniqueID = 0;
@@ -290,7 +290,7 @@ private:
 	UPROPERTY()
 	TArray<FShallowWaterCollisionContext> PendingContexts;
 	UPROPERTY()
-	TMap<FShallowWaterCollisionContext, USkeletalMeshComponent*> VehicleCollisionProxies;
+	TMap<FShallowWaterCollisionContext, TObjectPtr<USkeletalMeshComponent>> VehicleCollisionProxies;
 
 	FTimerHandle WaitForPlayerControllerHandle;
 	UFUNCTION()

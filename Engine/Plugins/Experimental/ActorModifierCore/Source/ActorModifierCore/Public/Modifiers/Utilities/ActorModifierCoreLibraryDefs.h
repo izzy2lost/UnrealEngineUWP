@@ -28,7 +28,7 @@ struct FActorModifierCoreInsertOperation
 	EActorModifierCoreStackPosition InsertPosition = EActorModifierCoreStackPosition::Before;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* InsertPositionContext = nullptr;
+	TObjectPtr<UActorModifierCoreBase> InsertPositionContext = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -37,13 +37,13 @@ struct FActorModifierCoreCloneOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* CloneModifier = nullptr;
+	TObjectPtr<UActorModifierCoreBase> CloneModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	EActorModifierCoreStackPosition ClonePosition = EActorModifierCoreStackPosition::Before;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* ClonePositionContext = nullptr;
+	TObjectPtr<UActorModifierCoreBase> ClonePositionContext = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -52,13 +52,13 @@ struct FActorModifierCoreMoveOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* MoveModifier = nullptr;
+	TObjectPtr<UActorModifierCoreBase> MoveModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	EActorModifierCoreStackPosition MovePosition = EActorModifierCoreStackPosition::Before;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* MovePositionContext = nullptr;
+	TObjectPtr<UActorModifierCoreBase> MovePositionContext = nullptr;
 };
 
 USTRUCT(BlueprintType)
@@ -67,7 +67,7 @@ struct FActorModifierCoreRemoveOperation
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	UActorModifierCoreBase* RemoveModifier = nullptr;
+	TObjectPtr<UActorModifierCoreBase> RemoveModifier = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
 	bool bRemoveDependencies = false;
@@ -88,5 +88,5 @@ struct FActorModifierCoreSearchOperation
 	TSet<FName> ModifierNames;
 
 	UPROPERTY(BlueprintReadWrite, Category="Motion Design|Modifiers|Utility")
-	TSet<UActorModifierCoreBase*> Modifiers;
+	TSet<TObjectPtr<UActorModifierCoreBase>> Modifiers;
 };

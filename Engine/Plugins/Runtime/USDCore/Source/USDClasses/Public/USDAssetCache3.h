@@ -407,7 +407,7 @@ private:
 	// anything holding a strong reference to them. This member is used for that. This is useful during direct import for example,
 	// where a rogue GC call could otherwise cause our transient assets to be collected, if it happened at a bad time
 	UPROPERTY(Transient)
-	TMap<FString, UObject*> TransientObjectStorage;
+	TMap<FString, TObjectPtr<UObject>> TransientObjectStorage;
 
 	TMap<FString, TArray<FObjectKey>> HashToReferencer;
 	TMap<FObjectKey, TArray<FString>> ReferencerToHash;

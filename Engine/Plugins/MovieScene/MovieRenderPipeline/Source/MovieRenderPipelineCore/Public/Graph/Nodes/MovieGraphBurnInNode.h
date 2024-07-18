@@ -65,7 +65,7 @@ protected:
 private:
 	/** Burn-in widget instances shared with all FMovieGraphBurnInPass instances, keyed by burn-in class. */
 	UPROPERTY(Transient)
-	TMap<const UClass*, TObjectPtr<UMovieGraphBurnInWidget>> BurnInWidgetInstances;
+	TMap<TObjectPtr<const UClass>, TObjectPtr<UMovieGraphBurnInWidget>> BurnInWidgetInstances;
 
 protected:
 	// UMovieGraphWidgetRendererBaseNode Interface

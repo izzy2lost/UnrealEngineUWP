@@ -19,7 +19,7 @@ struct ANIMNEXT_API FRigDecorator_AnimNextCppDecorator : public FRigVMTrait
 
 	// The struct the trait exposes with its shared data. Each one of its properties will be added as a pin.
 	UPROPERTY(meta = (Hidden))
-	UScriptStruct* DecoratorSharedDataStruct = nullptr;
+	TObjectPtr<UScriptStruct> DecoratorSharedDataStruct = nullptr;
 
 #if WITH_EDITOR
 	virtual void GetProgrammaticPins(URigVMController* InController, int32 InParentPinIndex, const FString& InDefaultValue, struct FRigVMPinInfoArray& OutPinArray) const override;

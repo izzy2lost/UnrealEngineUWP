@@ -32,9 +32,9 @@ struct FInjectedInput
 	FInputActionValue RawValue;
 
 	UPROPERTY(Transient)
-	TArray<UInputTrigger*> Triggers;
+	TArray<TObjectPtr<UInputTrigger>> Triggers;
 	UPROPERTY(Transient)
-	TArray<UInputModifier*> Modifiers;
+	TArray<TObjectPtr<UInputModifier>> Modifiers;
 };
 
 USTRUCT()

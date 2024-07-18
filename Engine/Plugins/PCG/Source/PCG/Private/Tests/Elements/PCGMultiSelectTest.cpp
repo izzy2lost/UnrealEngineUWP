@@ -210,7 +210,7 @@ bool FPCGMultiSelectTest_Enum::RunTest(const FString& Parameters)
 	UPCGMultiSelectSettings* TestSettings = NewObject<UPCGMultiSelectSettings>();
 	TestSettings->SelectionMode = EPCGControlFlowSelectionMode::Enum;
 
-	UEnum*& EnumClass = TestSettings->EnumSelection.Class;
+	TObjectPtr<UEnum>& EnumClass = TestSettings->EnumSelection.Class;
 	EnumClass = StaticEnum<EPCGMetadataTypes>();
 
 	const int32 NumEnums = EnumClass->NumEnums();

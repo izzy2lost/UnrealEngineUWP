@@ -1140,7 +1140,7 @@ protected:
 
 	/** The authoritative set of "what actors are in the graph" */
 	UPROPERTY()
-	TSet<AActor*> ActiveNetworkActors;
+	TSet<TObjectPtr<AActor>> ActiveNetworkActors;
 
 	/** Special case handling of specific RPCs. Currently supports immediate send/flush for multicasts */
 	TMap<FObjectKey /** UFunction* */, FRPCSendPolicyInfo> RPCSendPolicyMap;

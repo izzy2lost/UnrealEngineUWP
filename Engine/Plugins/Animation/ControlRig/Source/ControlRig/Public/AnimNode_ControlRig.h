@@ -62,7 +62,7 @@ private:
 
 	/** Cached ControlRigs per class */
 	UPROPERTY(transient)
-	TMap<UClass*, TObjectPtr<UControlRig>> ControlRigPerClass;
+	TMap<TObjectPtr<UClass>, TObjectPtr<UControlRig>> ControlRigPerClass;
 
 	// alpha value handler
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinShownByDefault))

@@ -490,7 +490,7 @@ void UOptimusNode_LoopTerminal::MovePinPair()
 		}
 
 		MovePin(PinPairs[PinIndex][0], NextPinIndex != INDEX_NONE ? PinPairs[NextPinIndex][0]: nullptr);
-		MovePin(PinPairs[PinIndex][1], NextPinIndex != INDEX_NONE ? PinPairs[NextPinIndex][1]: IndexPin);
+		MovePin(PinPairs[PinIndex][1], NextPinIndex != INDEX_NONE ? PinPairs[NextPinIndex][1]: ToRawPtr(IndexPin));
 
 		FOptimusPinPairInfo Pair = PinPairInfos[PinIndex];
 

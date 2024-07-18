@@ -1101,14 +1101,14 @@ void UShallowWaterSubsystem::DisableCollisionForVehicle(const FShallowWaterColli
 		return;
 	}
 
-	USkeletalMeshComponent** ProxyPointer = VehicleCollisionProxies.Find(Context);
+	TObjectPtr<USkeletalMeshComponent>* ProxyPointer = VehicleCollisionProxies.Find(Context);
 	if (ProxyPointer == nullptr)
 	{
 		ensure(false);
 		return;
 	}
 	
-	USkeletalMeshComponent* Proxy = *ProxyPointer;
+	USkeletalMeshComponent* Proxy = ToRawPtr(*ProxyPointer);
 	if (Proxy && !Proxy->IsBeingDestroyed())
 	{
 		Proxy->DestroyComponent();

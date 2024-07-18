@@ -41,7 +41,7 @@ public:
 private:
 
 	UPROPERTY(Transient)
-	UVCamComponent* VCamComponent;
+	TObjectPtr<UVCamComponent> VCamComponent;
 
 	UPROPERTY(Transient)
 	FVCamStringPromptRequest PromptRequest;

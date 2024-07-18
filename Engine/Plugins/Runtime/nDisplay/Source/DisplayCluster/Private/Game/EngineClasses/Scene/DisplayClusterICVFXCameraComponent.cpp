@@ -265,7 +265,7 @@ FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::
 	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
 	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
 	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
-	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? CameraSettings.CameraDepthOfField.DynamicCompensationLUT : CameraSettings.CameraDepthOfField.CompensationLUT.Get();
+	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? ToRawPtr(CameraSettings.CameraDepthOfField.DynamicCompensationLUT) : CameraSettings.CameraDepthOfField.CompensationLUT.Get();
 
 	return OutParameters;
 }

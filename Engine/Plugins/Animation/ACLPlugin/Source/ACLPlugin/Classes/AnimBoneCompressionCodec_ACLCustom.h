@@ -29,7 +29,7 @@ class UAnimBoneCompressionCodec_ACLCustom : public UAnimBoneCompressionCodec_ACL
 
 	/** The skeletal meshes used to estimate the skinning deformation during compression. */
 	UPROPERTY(EditAnywhere, Category = "ACL Options")
-	TArray<class USkeletalMesh*> OptimizationTargets;
+	TArray<TObjectPtr<class USkeletalMesh>> OptimizationTargets;
 
 	/** The minimum proportion of keyframes that should be stripped. */
 	UPROPERTY(EditAnywhere, Category = "ACL Destructive Options", meta = (ClampMin = "0", ClampMax = "1"))

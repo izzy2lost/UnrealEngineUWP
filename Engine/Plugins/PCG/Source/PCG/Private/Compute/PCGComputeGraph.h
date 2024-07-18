@@ -36,11 +36,11 @@ public:
 
 	/** Pin label aliases, used for selecting data items corresponding to an input pin from the input data collection. */
 	UPROPERTY()
-	TMap<const UPCGPin*, FName> InputPinLabelAliases;
+	TMap<TObjectPtr<const UPCGPin>, FName> InputPinLabelAliases;
 
 	/** Mapping from upstream output pin to downstream pin alias, used to select data items originating from upstream pin from the input data collection. */
 	UPROPERTY()
-	TMap<const UPCGPin*, FName> OutputCPUPinToInputGPUPinAlias;
+	TMap<TObjectPtr<const UPCGPin>, FName> OutputCPUPinToInputGPUPinAlias;
 
 	// Node corresponding to each kernel, useful for compilation feedback.
 	UPROPERTY()

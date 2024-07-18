@@ -218,7 +218,7 @@ class UTestReportCardV6 : public UObject
     	
 public:
 	UPROPERTY(EditAnywhere, Instanced, Category = "Student Info")
-	UStudentInfoV1* StudentInfo;
+	TObjectPtr<UStudentInfoV1> StudentInfo;
 	
 	UPROPERTY(EditAnywhere, Category = "Report Card")
 	float Grade = 100.f;
@@ -249,7 +249,7 @@ class UTestReportCardV7 : public UObject
     	
 public:
 	UPROPERTY(EditAnywhere, Instanced, Category = "Student Info")
-	UStudentInfoV2* StudentInfo;
+	TObjectPtr<UStudentInfoV2> StudentInfo;
 	
 	UPROPERTY(EditAnywhere, Category = "Report Card")
 	float GPA = 100.f;

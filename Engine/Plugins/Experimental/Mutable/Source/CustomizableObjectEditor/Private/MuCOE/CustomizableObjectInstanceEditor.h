@@ -124,7 +124,7 @@ private:
 	TObjectPtr<ULightComponent> SelectedLight = nullptr;
 
 	UPROPERTY()
-	UCustomizableObjectEditorViewportLights* LightsPreset;
+	TObjectPtr<UCustomizableObjectEditorViewportLights> LightsPreset;
 
 	TWeakPtr<ICustomizableObjectInstanceEditor> Editor;
 };

@@ -111,10 +111,10 @@ protected:
 	FOptimusLoopTerminalInfo LoopInfo;
 
 	UPROPERTY()
-	UOptimusNodePin* IndexPin;
+	TObjectPtr<UOptimusNodePin> IndexPin;
 	
 	UPROPERTY()
-	UOptimusNodePin* CountPin;
+	TObjectPtr<UOptimusNodePin> CountPin;
 
 	UPROPERTY()
 	TArray<FOptimusPinPairInfo> PinPairInfos;

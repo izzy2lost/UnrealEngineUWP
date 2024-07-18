@@ -377,7 +377,7 @@ public:
 	 * useful to only set constraint positions to the default.
 	 */
 	UPROPERTY(EditAnywhere, Category = PhysicsAssetConditioning, meta = (DisplayName = "Authored Skeletal Mesh"))
-	USkeletalMesh* PhysicsAssetAuthoredSkeletalMesh;
+	TObjectPtr<USkeletalMesh> PhysicsAssetAuthoredSkeletalMesh;
 
 	/**
 	 * The constraint profile to use on all the joints in the physics asset. Will be applied when 

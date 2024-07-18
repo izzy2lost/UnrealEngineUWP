@@ -268,7 +268,7 @@ protected:
 
 
 	UPROPERTY(Transient)
-	TArray<UMovieGraphScriptBase*> CurrentScriptInstances;
+	TArray<TObjectPtr<UMovieGraphScriptBase>> CurrentScriptInstances;
 
 	/**
 	* An array of Node CDOs that we sent data through to write data to disk.

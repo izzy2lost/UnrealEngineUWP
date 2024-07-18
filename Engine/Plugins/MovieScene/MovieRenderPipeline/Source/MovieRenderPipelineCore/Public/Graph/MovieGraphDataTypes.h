@@ -45,7 +45,7 @@ struct FMovieGraphImagePreviewData
 
 	/** The texture this preview image was rendered to. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
-	class UTexture* Texture;
+	TObjectPtr<class UTexture> Texture;
 	
 	/** The identifier for the image, containing the branch name, renderer, etc. */
 	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")

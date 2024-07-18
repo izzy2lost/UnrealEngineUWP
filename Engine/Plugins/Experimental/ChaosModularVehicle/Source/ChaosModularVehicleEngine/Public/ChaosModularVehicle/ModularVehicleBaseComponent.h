@@ -52,7 +52,7 @@ struct CHAOSMODULARVEHICLEENGINE_API FConstructionData
 	GENERATED_USTRUCT_BODY()
 
 	UPROPERTY()
-	UPrimitiveComponent* Component = nullptr;
+	TObjectPtr<UPrimitiveComponent> Component = nullptr;
 
 	UPROPERTY()
 	int32 ConstructionIndex = INDEX_NONE;

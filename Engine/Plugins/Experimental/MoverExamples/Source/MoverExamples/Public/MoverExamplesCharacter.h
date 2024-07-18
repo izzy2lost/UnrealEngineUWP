@@ -60,19 +60,19 @@ protected:
 
 	/** Move Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* MoveInputAction;
+	TObjectPtr<UInputAction> MoveInputAction;
    
 	/** Look Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* LookInputAction;
+	TObjectPtr<UInputAction> LookInputAction;
 
 	/** Jump Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* JumpInputAction;
+	TObjectPtr<UInputAction> JumpInputAction;
 
 	/** Fly Input Action */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Input)
-	UInputAction* FlyInputAction;
+	TObjectPtr<UInputAction> FlyInputAction;
 
 public:
 	// Whether or not we author our movement inputs relative to whatever base we're standing on, or leave them in world space

@@ -48,7 +48,7 @@ protected:
 	FMVVMBlueprintPropertyPath PropertyPath;
 
 	UPROPERTY(BlueprintReadWrite, Category = "MVVM")
-	const UFunction* ConversionFunction = nullptr;
+	TObjectPtr<const UFunction> ConversionFunction = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, Category = "MVVM")
 	TSubclassOf<UK2Node> ConversionNode;

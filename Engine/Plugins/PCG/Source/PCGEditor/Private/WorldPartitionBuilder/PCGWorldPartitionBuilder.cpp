@@ -22,13 +22,13 @@ namespace PCGWorldPartitionBuilder
 	void CollectComponentsToGenerate(UWorld* InWorld, TFunctionRef<bool(const UPCGComponent*)> ComponentFilter, TArray<TWeakObjectPtr<UPCGComponent>>& OutComponents);
 	
 	/** Generate the given components. Optionally generate only one component at a time with a wait on async processes after each. Optionally apply given filter to select components. */
-	bool GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<UPackage*>& InOutDeletedActorPackages, bool& bOutGenerationErrors);
+	bool GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<TObjectPtr<UPackage>>& InOutDeletedActorPackages, bool& bOutGenerationErrors);
 	bool GenerateComponents(
 		TArray<TWeakObjectPtr<UPCGComponent>>& Components,
 		UWorld* InWorld,
 		bool bOneComponentAtATime,
 		TFunctionRef<bool(const UPCGComponent*)> ComponentFilter,
-		TArray<UPackage*>& InOutDeletedActorPackages,
+		TArray<TObjectPtr<UPackage>>& InOutDeletedActorPackages,
 		bool& bOutGenerationErrors);
 
 	/** Generate a component. Applies correct editing mode if necessary. */
@@ -264,14 +264,14 @@ bool UPCGWorldPartitionBuilder::SaveDirtyPackages(UWorld* World, FPackageSourceC
 
 	// Save/delete pending packages.
 
-	TArray<UPackage*> DirtyPackages;
+	TArray<TObjectPtr<UPackage>> DirtyPackages;
 	PendingDirtyPackages.GenerateValueArray(DirtyPackages);
 
 	// Empty packages should be deleted - mirrors logic in InternalPromptForCheckoutAndSave()
 	TArray<UPackage*> PackagesToDelete;
 	for (int i = DirtyPackages.Num() - 1; i >= 0; --i)
 	{
-		if (UPackage::IsEmptyPackage(DirtyPackages[i]))
+		if (UPackage::IsEmptyPackage(ToRawPtr(DirtyPackages[i])))
 		{
 			PackagesToDelete.Add(DirtyPackages[i]);
 			DirtyPackages.RemoveAtSwap(i);
@@ -356,7 +356,7 @@ void PCGWorldPartitionBuilder::CollectComponentsToGenerate(
 	}
 }
 
-bool PCGWorldPartitionBuilder::GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<UPackage*>& InOutDeletedActorPackages, bool& bOutGenerationErrors)
+bool PCGWorldPartitionBuilder::GenerateComponents(TArray<TWeakObjectPtr<UPCGComponent>>& Components, UWorld* InWorld, bool bOneComponentAtATime, TArray<TObjectPtr<UPackage>>& InOutDeletedActorPackages, bool& bOutGenerationErrors)
 {
 	return PCGWorldPartitionBuilder::GenerateComponents(Components, InWorld, bOneComponentAtATime, [](const UPCGComponent*) { return true; }, InOutDeletedActorPackages, bOutGenerationErrors);
 }
@@ -366,7 +366,7 @@ bool PCGWorldPartitionBuilder::GenerateComponents(
 	UWorld* InWorld,
 	bool bOneComponentAtATime,
 	TFunctionRef<bool(const UPCGComponent*)> ComponentFilter,
-	TArray<UPackage*>& InOutDeletedActorPackages,
+	TArray<TObjectPtr<UPackage>>& InOutDeletedActorPackages,
 	bool& bOutGenerationErrors)
 {
 	if (!bOneComponentAtATime)

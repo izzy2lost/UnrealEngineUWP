@@ -10,7 +10,7 @@ struct PCG_API FEnumSelector
 	GENERATED_BODY()
 
 	UPROPERTY(DisplayName="Enum Class", meta=(PCG_NotOverridable))
-	UEnum* Class = nullptr;
+	TObjectPtr<UEnum> Class = nullptr;
 
 	UPROPERTY(DisplayName="Enum Value")
 	int64 Value = 0;

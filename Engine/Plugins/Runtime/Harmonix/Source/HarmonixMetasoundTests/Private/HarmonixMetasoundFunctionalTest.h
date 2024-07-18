@@ -88,10 +88,10 @@ protected:
 	void OnTestFinishedEvent();
 
 	UPROPERTY()
-	UAudioComponent* AudioComponent;
+	TObjectPtr<UAudioComponent> AudioComponent;
 
 	UPROPERTY(Transient)
-	UMetasoundGeneratorHandle* GeneratorHandle;
+	TObjectPtr<UMetasoundGeneratorHandle> GeneratorHandle;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UHarmonixFunctionalTestActionSequence> ActionSequence;

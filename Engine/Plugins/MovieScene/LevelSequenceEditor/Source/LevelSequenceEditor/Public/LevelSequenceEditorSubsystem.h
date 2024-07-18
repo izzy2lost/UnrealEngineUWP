@@ -64,7 +64,7 @@ struct FMovieSceneBindingPropertyInfo
 	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
 
 	UPROPERTY(Instanced, VisibleAnywhere, Category = "Default", meta=(EditInline, AllowEditInlineCustomization, DisplayName="Custom Binding Type"))
-	UMovieSceneCustomBinding* CustomBinding = nullptr;
+	TObjectPtr<UMovieSceneCustomBinding> CustomBinding = nullptr;
 };
 
 // Helper UObject for editing arrays of locators for object bindings. A UObject instead of a UStruct because we need to support instanced sub objects

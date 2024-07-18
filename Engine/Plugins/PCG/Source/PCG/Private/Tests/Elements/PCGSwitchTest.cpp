@@ -146,7 +146,7 @@ bool FPCGSwitchTest_Enum::RunTest(const FString& Parameters)
 	UPCGSwitchSettings* TestSettings = NewObject<UPCGSwitchSettings>();
 	TestSettings->SelectionMode = EPCGControlFlowSelectionMode::Enum;
 
-	UEnum*& EnumClass = TestSettings->EnumSelection.Class;
+	TObjectPtr<UEnum>& EnumClass = TestSettings->EnumSelection.Class;
 	EnumClass = StaticEnum<EPCGMetadataTypes>();
 
 	const int32 NumEnums = EnumClass->NumEnums();

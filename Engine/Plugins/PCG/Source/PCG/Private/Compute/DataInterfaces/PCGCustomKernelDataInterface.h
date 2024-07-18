@@ -33,7 +33,7 @@ public:
 	//~ End UComputeDataInterface Interface
 
 	UPROPERTY()
-	const UPCGSettings* Settings;
+	TObjectPtr<const UPCGSettings> Settings;
 };
 
 /** Compute Framework Data Provider for each custom compute kernel. */

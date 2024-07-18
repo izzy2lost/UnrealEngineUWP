@@ -610,7 +610,7 @@ public:
 
 	/** Actual LUT to use with the depth of field pipeline, copied and modified from CompensationLUT */
 	UPROPERTY(Transient)
-	UTexture2D* DynamicCompensationLUT = nullptr;
+	TObjectPtr<UTexture2D> DynamicCompensationLUT = nullptr;
 
 public:
 	/** Processes the compensation LUT by adding any needed DoF gain and writes the result to the dynamic compensation LUT texture */
