@@ -156,8 +156,8 @@ enum class ESecondaryScreenPercentageMethod
 
 struct FFirstPersonParameters
 {
-	/** The horizontal field of view (in degrees) used for primitives tagged as "IsFirstPerson". */
-	float FOV = 90.0f;
+	/** FOV correction factor applied to the first person transform used on primitives tagged as "IsFirstPerson". This should be computed as tan(SceneFOVRadians * 0.5) / tan(FirstPersonFOVRadians * 0.5). */
+	float FOVCorrectionFactor = 1.0f;
 
 	/** The scale to apply to primitives tagged as "IsFirstPerson". This is used to scale down primitives towards the camera such that they are small enough not to intersect with the scene. */
 	float Scale = 1.0f;
@@ -166,7 +166,7 @@ struct FFirstPersonParameters
 	bool bUseParameters = false;
 
 	FFirstPersonParameters() = default;
-	FFirstPersonParameters(float InFOV, float InScale, bool bInUseParameters) : FOV(InFOV), Scale(InScale), bUseParameters(bInUseParameters) {}
+	FFirstPersonParameters(float InFOVCorrectionFactor, float InScale, bool bInUseParameters) : FOVCorrectionFactor(InFOVCorrectionFactor), Scale(InScale), bUseParameters(bInUseParameters) {}
 };
 
 // Construction parameters for a FSceneView

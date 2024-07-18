@@ -208,4 +208,10 @@ public:
 	 * but its on-screen size will look correct.
 	 */
 	ENGINE_API FVector TransformWorldToFirstPerson(const FVector& WorldPosition, bool bIgnoreFirstPersonScale) const;
+
+	/**
+	 * Correction factor to apply to the first person transform used on primitives tagged as "IsFirstPerson" to achieve a first person specific field of view.
+	 * It is computed as tan(SceneFOVRadians * 0.5) / tan(FirstPersonFOVRadians * 0.5).
+	 */
+	ENGINE_API float CalculateFirstPersonFOVCorrectionFactor() const;
 };

@@ -743,8 +743,8 @@ void FViewMatrices::Init(const FMinimalInitializer& Initializer)
 		//		tan(HalfFOV) / tan(HalfFirstPersonFOV)
 		// This correction factor should be independent of the actual aspect ratio used on the original projection matrix. As the FOV correction needs to be done in view space, we can conveniently
 		// also use this opportunity to scale down the first person geometry towards the camera. The geometry takes up the same solid angle from the perspective of the camera and therefore appears the
-		// same size while taking up a smaller range in the depth buffer, reducing the likelyhood of intersections with the scene.
-		const float FOVCorrectionFactor = GetTanHalfFov().X / FMath::Tan(FMath::DegreesToRadians(Initializer.FirstPersonParams.FOV) * 0.5f);
+		// same size while taking up a smaller range in the depth buffer, reducing the likelihood of intersections with the scene.
+		const float FOVCorrectionFactor = Initializer.FirstPersonParams.FOVCorrectionFactor;
 		FirstPersonTransform = TranslatedViewMatrix * FScaleMatrix(FVector(FOVCorrectionFactor, FOVCorrectionFactor, 1.0f) * Initializer.FirstPersonParams.Scale) * InvTranslatedViewMatrix;
 	}
 }

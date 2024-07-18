@@ -453,11 +453,19 @@ FVector FMinimalViewInfo::TransformWorldToFirstPerson(const FVector& WorldPositi
 		const FVector CameraRelativePosition = WorldPosition - Location;
 		const FVector ProjectedPosition = FVector::DotProduct(Forward, CameraRelativePosition) * Forward;
 		const FVector Rejection = CameraRelativePosition - ProjectedPosition;
-		const float FOVCorrectionFactor = FMath::Tan(FMath::DegreesToRadians(FOV * 0.5f)) / FMath::Tan(FMath::DegreesToRadians(FirstPersonFOV * 0.5f)) - 1.0f;
+		const float FOVCorrectionFactor = CalculateFirstPersonFOVCorrectionFactor() - 1.0f;
 		const FVector FOVCorrectedPosition = CameraRelativePosition + Rejection * FOVCorrectionFactor;
 		const FVector ScaledPosition = FOVCorrectedPosition * FirstPersonScale;
 		const FVector Result = (bIgnoreFirstPersonScale ? FOVCorrectedPosition : ScaledPosition) + Location;
 		return Result;
 	}
 	return WorldPosition;
+}
+
+float FMinimalViewInfo::CalculateFirstPersonFOVCorrectionFactor() const
+{
+	const float HalfTanSceneFOV = FMath::Tan(FMath::DegreesToRadians(FOV) * 0.5f);
+	const float HalfTanFirstPersonFOV = FMath::Tan(FMath::DegreesToRadians(FirstPersonFOV * 0.5f));
+	const float FOVCorrectionFactor = HalfTanSceneFOV / HalfTanFirstPersonFOV;
+	return FOVCorrectionFactor;
 }

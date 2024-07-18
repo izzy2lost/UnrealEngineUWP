@@ -1693,7 +1693,9 @@ void FPrimitiveSceneInfo::AddToScene(FScene* Scene, TArrayView<FPrimitiveSceneIn
 
 			// Store occlusion flags.
 			uint8 OcclusionFlags = EOcclusionFlags::None;
-			if (Proxy->CanBeOccluded())
+			// First person primitives potentially deform the geometry outside of its bounds in a view dependent way. They are very unlikely to be occluded anyways,
+			// so to avoid falsely culling them, it is better to simply don't occlusion cull them at all.
+			if (Proxy->CanBeOccluded() && !Proxy->IsFirstPerson())
 			{
 				OcclusionFlags |= EOcclusionFlags::CanBeOccluded;
 			}
