@@ -8,6 +8,7 @@
 
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
+#include "Misc/ScopeLock.h"
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/UObjectBase.h"
 
@@ -51,7 +52,7 @@ private:
 	int32 Flags;
 public:
 	// UObject Owner Cluster Index
-	int32 ClusterRootIndex;	
+	int32 ClusterRootIndex;
 	// Weak Object Pointer Serial number associated with the object
 	int32 SerialNumber;
 	// RefCount associated with the object preventing its destruction.

@@ -10,6 +10,7 @@
 #include "Containers/Map.h"
 #include "ColorManagement/ColorSpace.h"
 #include "Engine/TextureDefines.h"
+#include "Misc/ScopeLock.h"
 #include "ImageCore.h"
 #include "ImageParallelFor.h"
 

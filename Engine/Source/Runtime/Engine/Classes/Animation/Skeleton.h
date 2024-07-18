@@ -12,11 +12,11 @@
 #include "UObject/Object.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/Guid.h"
+#include "Misc/TransactionallySafeRWLock.h"
 #include "ReferenceSkeleton.h"
 #include "Animation/PreviewAssetAttachComponent.h"
 #include "Animation/SmartName.h"
 #include "Engine/AssetUserData.h"
-#include "HAL/CriticalSection.h"
 #include "Interfaces/Interface_AssetUserData.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
 #include "Delegates/DelegateCombinations.h"
@@ -658,7 +658,7 @@ private:
 	TMap<TWeakObjectPtr<USkinnedAsset>, int32> SkinnedAsset2LinkupCache;
 	
 	//Use this Lock everytime you change or access SkinnedAssetLinkupCache member.
-	FRWLock SkinnedAssetLinkupCacheLock;
+	FTransactionallySafeRWLock SkinnedAssetLinkupCacheLock;
 
 	/** Runtime built mapping table between SkinnedAssets and Mesh Linkup Data*/
 	TMap<TObjectKey<USkinnedAsset>, TUniquePtr<FSkeletonToMeshLinkup>> SkinnedAssetLinkupCache;

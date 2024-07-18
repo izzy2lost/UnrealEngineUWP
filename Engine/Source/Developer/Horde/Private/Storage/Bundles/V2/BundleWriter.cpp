@@ -7,6 +7,7 @@
 #include "Storage/Bundles/V2/ExportHandle.h"
 #include "../../../HordePlatform.h"
 #include "Storage/ChunkedBufferWriter.h"
+#include "Misc/ScopeLock.h"
 
 //
 // Data for an export that has been written to storage, but may not have been flushed yet
