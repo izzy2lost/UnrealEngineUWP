@@ -170,7 +170,7 @@ void SPropertyTreeViewImpl::Construct(const FArguments& InArgs)
 	FPropertyEditorPermissionList::Get().PermissionListEnabledDelegate.AddSP(this, &SPropertyTreeViewImpl::RequestRefresh);
 }
 
-void SPropertyTreeViewImpl::OnPermissionListUpdated(TSoftObjectPtr<UStruct>, FName)
+void SPropertyTreeViewImpl::OnPermissionListUpdated(TSoftObjectPtr<const UStruct>, FName)
 {
 	RequestRefresh();
 }
