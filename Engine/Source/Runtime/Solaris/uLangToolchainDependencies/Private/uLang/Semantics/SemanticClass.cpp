@@ -7,6 +7,7 @@
 #include "uLang/Semantics/SemanticInterface.h"
 #include "uLang/Semantics/SemanticProgram.h"
 #include "uLang/Semantics/SmallDefinitionArray.h"
+#include "uLang/Semantics/TypeVariable.h"
 #include "uLang/Semantics/VisitStamp.h"
 #include "uLang/SourceProject/VerseVersion.h"
 
@@ -31,7 +32,7 @@ CClass::CClass(
     TArray<CInterface*>&& SuperInterfaces,
     SEffectSet ConstructorEffects,
     CClass* GeneralizedClass,
-    TArray<SInstantiatedTypeVariable> InstantiatedTypeVariables)
+    TArray<STypeVariableSubstitution> TypeVariableSubstitutions)
     : CNominalType(StaticTypeKind, ParentScope->GetProgram())
     , CLogicalScope(CScope::EKind::Class, ParentScope, ParentScope->GetProgram())
     , _Definition(Definition)
@@ -40,7 +41,7 @@ CClass::CClass(
     , _SuperInterfaces(Move(SuperInterfaces))
     , _ConstructorEffects(ConstructorEffects)
     , _GeneralizedClass(GeneralizedClass)
-    , _InstantiatedTypeVariables(Move(InstantiatedTypeVariables))
+    , _TypeVariableSubstitutions(Move(TypeVariableSubstitutions))
     , _OwnedNegativeClass(TUPtr<CClass>::New(this))
     , _NegativeClass(_OwnedNegativeClass.Get())
 {
@@ -162,18 +163,22 @@ CUTF8String CClass::AsCodeRecursive(ETypeSyntaxPrecedence OuterPrecedence, TArra
 
     Builder.Append('(');
 
-    const TArray<SInstantiatedTypeVariable>* InstTypeVariables;
+    const TArray<STypeVariableSubstitution>* InstTypeVariables;
     if (_OwnedNegativeClass)
     {
-        InstTypeVariables = &_InstantiatedTypeVariables;
+        InstTypeVariables = &_TypeVariableSubstitutions;
     }
     else
     {
-        InstTypeVariables = &_NegativeClass->_InstantiatedTypeVariables;
+        InstTypeVariables = &_NegativeClass->_TypeVariableSubstitutions;
     }
     const char* Separator = "";
-    for (const SInstantiatedTypeVariable& InstTypeVariable : *InstTypeVariables)
+    for (const STypeVariableSubstitution& InstTypeVariable : *InstTypeVariables)
     {
+        if (!InstTypeVariable._TypeVariable->_ExplicitParam || !InstTypeVariable._TypeVariable->_NegativeTypeVariable)
+        {
+            continue;
+        }
         Builder.Append(Separator);
         Separator = ",";
         const CTypeBase* Type;
@@ -340,12 +345,12 @@ const CNormalType& CInstantiatedClass::CreateNormalType() const
     return *_Class;
 }
 
-static CClass* FindInstantiatedClass(const TURefArray<CClass>& InstClasses, const TArray<SInstantiatedTypeVariable>& InstTypeVariables)
+static CClass* FindInstantiatedClass(const TURefArray<CClass>& InstClasses, const TArray<STypeVariableSubstitution>& InstTypeVariables)
 {
     auto Last = InstClasses.end();
     auto I = uLang::FindIf(InstClasses.begin(), Last, [&](CClass* InstClass)
     {
-        return InstClass->_InstantiatedTypeVariables == InstTypeVariables;
+        return InstClass->_TypeVariableSubstitutions == InstTypeVariables;
     });
     if (I == Last)
     {
@@ -395,8 +400,8 @@ CClass* InstantiatePositiveClass(const CClass& Class, const TArray<STypeVariable
         return nullptr;
     }
 
-    TArray<SInstantiatedTypeVariable> InstTypeVariables = InstantiateInstantiatedTypeVariables(
-        Class._InstantiatedTypeVariables,
+    TArray<STypeVariableSubstitution> InstTypeVariables = InstantiateTypeVariableSubstitutions(
+        Class._TypeVariableSubstitutions,
         Substitutions);
 
     CClass* GeneralizedClass = Class._GeneralizedClass;

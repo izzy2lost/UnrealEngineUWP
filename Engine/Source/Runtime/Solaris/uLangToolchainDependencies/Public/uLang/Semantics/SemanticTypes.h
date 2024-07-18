@@ -923,8 +923,23 @@ private:
 struct ULANGTOOLCHAINDEPENDENCIES_API STypeVariableSubstitution
 {
     const CTypeVariable* _TypeVariable;
-    const CFlowType* _NegativeFlowType;
-    const CFlowType* _PositiveFlowType;
+    const CTypeBase* _NegativeType;
+    const CTypeBase* _PositiveType;
+
+    STypeVariableSubstitution(const CTypeVariable* TypeVariable, const CTypeBase* NegativeType, const CTypeBase* PositiveType)
+        : _TypeVariable(TypeVariable)
+        , _NegativeType(NegativeType)
+        , _PositiveType(PositiveType)
+    {
+    }
+
+    friend bool operator==(const STypeVariableSubstitution& Left, const STypeVariableSubstitution& Right)
+    {
+        return
+            Left._TypeVariable == Right._TypeVariable &&
+            Left._NegativeType == Right._NegativeType &&
+            Left._PositiveType == Right._PositiveType;
+    }
 };
 
 struct ULANGTOOLCHAINDEPENDENCIES_API SInstantiatedTypeVariable
@@ -932,10 +947,16 @@ struct ULANGTOOLCHAINDEPENDENCIES_API SInstantiatedTypeVariable
     const CTypeBase* _NegativeType;
     const CTypeBase* _PositiveType;
 
+    SInstantiatedTypeVariable(const CTypeBase* NegativeType, const CTypeBase* PositiveType)
+        : _NegativeType(NegativeType)
+        , _PositiveType(PositiveType)
+    {
+    }
+
     friend bool operator==(const SInstantiatedTypeVariable& Left, const SInstantiatedTypeVariable& Right)
     {
         return
-            Left._NegativeType == Right._NegativeType ||
+            Left._NegativeType == Right._NegativeType &&
             Left._PositiveType == Right._PositiveType;
     }
 };

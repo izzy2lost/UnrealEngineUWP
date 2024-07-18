@@ -33,7 +33,7 @@ public:
 
     CInterface* _GeneralizedInterface{this};
 
-    TArray<SInstantiatedTypeVariable> _InstantiatedTypeVariables;
+    TArray<STypeVariableSubstitution> _TypeVariableSubstitutions;
 
     TURefArray<CInterface> _InstantiatedInterfaces;
 
@@ -55,14 +55,14 @@ public:
         const CSymbol& Name,
         const TArray<CInterface*>& SuperInterfaces,
         CInterface* GeneralizedInterface,
-        TArray<SInstantiatedTypeVariable> InstantiatedTypeVariables,
+        TArray<STypeVariableSubstitution> TypeVariableSubstitutions,
         bool bHasCyclesBroken)
         : CDefinition(StaticDefinitionKind, EnclosingScope, Name)
         , CNominalType(StaticTypeKind, EnclosingScope.GetProgram())
         , CLogicalScope(CScope::EKind::Interface, &EnclosingScope, EnclosingScope.GetProgram())
         , _SuperInterfaces(SuperInterfaces)
         , _GeneralizedInterface(GeneralizedInterface)
-        , _InstantiatedTypeVariables(Move(InstantiatedTypeVariables))
+        , _TypeVariableSubstitutions(Move(TypeVariableSubstitutions))
         , _OwnedNegativeInterface(TUPtr<CInterface>::New(this))
         , _NegativeInterface(_OwnedNegativeInterface.Get())
         , _bHasCyclesBroken(bHasCyclesBroken)
@@ -115,7 +115,7 @@ public:
 
     bool IsParametric() const
     {
-        return !!(_OwnedNegativeInterface ? _InstantiatedTypeVariables : _NegativeInterface->_InstantiatedTypeVariables).Num();
+        return !!(_OwnedNegativeInterface ? _TypeVariableSubstitutions : _NegativeInterface->_TypeVariableSubstitutions).Num();
     }
 
     virtual bool IsPersistenceCompatConstraint() const override { return false; }
@@ -151,8 +151,8 @@ ULANGTOOLCHAINDEPENDENCIES_API CInterface* InstantiatePositiveInterface(
     const CInterface&,
     const TArray<STypeVariableSubstitution>&);
 
-ULANGTOOLCHAINDEPENDENCIES_API TArray<SInstantiatedTypeVariable> InstantiateInstantiatedTypeVariables(
-    const TArray<SInstantiatedTypeVariable>&,
+ULANGTOOLCHAINDEPENDENCIES_API TArray<STypeVariableSubstitution> InstantiateTypeVariableSubstitutions(
+    const TArray<STypeVariableSubstitution>&,
     const TArray<STypeVariableSubstitution>&);
 
 ULANGTOOLCHAINDEPENDENCIES_API TArray<CInterface*> InstantiatePositiveInterfaces(

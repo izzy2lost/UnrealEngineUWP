@@ -1502,11 +1502,17 @@ private:
         CScope& EnclosingScope = AstNode._Function._EnclosingScope;
         if (EnclosingScope.GetKind() == CScope::EKind::Class)
         {
-            InstTypeVariables.Append(static_cast<const CClass&>(EnclosingScope)._InstantiatedTypeVariables);
+            for (const STypeVariableSubstitution Substitution : static_cast<const CClass&>(EnclosingScope)._TypeVariableSubstitutions)
+            {
+                InstTypeVariables.Emplace(Substitution._NegativeType, Substitution._PositiveType);
+            }
         }
         else if (EnclosingScope.GetKind() == CScope::EKind::Interface)
         {
-            InstTypeVariables.Append(static_cast<const CInterface&>(EnclosingScope)._InstantiatedTypeVariables);
+            for (const STypeVariableSubstitution Substitution : static_cast<const CInterface&>(EnclosingScope)._TypeVariableSubstitutions)
+            {
+                InstTypeVariables.Emplace(Substitution._NegativeType, Substitution._PositiveType);
+            }
         }
         return InstTypeVariables;
     }

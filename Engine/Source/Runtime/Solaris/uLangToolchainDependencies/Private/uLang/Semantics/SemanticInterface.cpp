@@ -6,6 +6,7 @@
 #include "uLang/Semantics/MemberOrigin.h"
 #include "uLang/Semantics/SemanticProgram.h"
 #include "uLang/Semantics/SmallDefinitionArray.h"
+#include "uLang/Semantics/TypeVariable.h"
 #include "uLang/Semantics/VisitStamp.h"
 
 namespace uLang
@@ -32,18 +33,22 @@ CUTF8String CInterface::AsCodeRecursive(ETypeSyntaxPrecedence OuterPrecedence, T
 
     Builder.Append('(');
 
-    const TArray<SInstantiatedTypeVariable>* InstTypeVariables;
+    const TArray<STypeVariableSubstitution>* InstTypeVariables;
     if (_OwnedNegativeInterface)
     {
-        InstTypeVariables = &_InstantiatedTypeVariables;
+        InstTypeVariables = &_TypeVariableSubstitutions;
     }
     else
     {
-        InstTypeVariables = &_NegativeInterface->_InstantiatedTypeVariables;
+        InstTypeVariables = &_NegativeInterface->_TypeVariableSubstitutions;
     }
     const char* Separator = "";
-    for (const SInstantiatedTypeVariable& InstTypeVariable : *InstTypeVariables)
+    for (const STypeVariableSubstitution& InstTypeVariable : *InstTypeVariables)
     {
+        if (!InstTypeVariable._TypeVariable->_ExplicitParam || !InstTypeVariable._TypeVariable->_NegativeTypeVariable)
+        {
+            continue;
+        }
         Builder.Append(Separator);
         Separator = ",";
         const CTypeBase* Type;
@@ -162,12 +167,12 @@ const CNormalType& CInstantiatedInterface::CreateNormalType() const
     return *_Interface;
 }
 
-static CInterface* FindInstantiatedInterface(const TURefArray<CInterface>& InstInterfaces, const TArray<SInstantiatedTypeVariable>& InstTypeVariables)
+static CInterface* FindInstantiatedInterface(const TURefArray<CInterface>& InstInterfaces, const TArray<STypeVariableSubstitution>& InstTypeVariables)
 {
     auto Last = InstInterfaces.end();
     auto I = uLang::FindIf(InstInterfaces.begin(), Last, [&](CInterface* InstInterface)
     {
-        return InstInterface->_InstantiatedTypeVariables == InstTypeVariables;
+        return InstInterface->_TypeVariableSubstitutions == InstTypeVariables;
     });
     if (I == Last)
     {
@@ -191,8 +196,8 @@ CInterface* InstantiatePositiveInterface(const CInterface& Interface, const TArr
         return nullptr;
     }
 
-    TArray<SInstantiatedTypeVariable> InstTypeVariables = InstantiateInstantiatedTypeVariables(
-        Interface._InstantiatedTypeVariables,
+    TArray<STypeVariableSubstitution> InstTypeVariables = InstantiateTypeVariableSubstitutions(
+        Interface._TypeVariableSubstitutions,
         Substitutions);
 
     CInterface* GeneralizedInterface = Interface._GeneralizedInterface;
@@ -223,19 +228,19 @@ CInterface* InstantiatePositiveInterface(const CInterface& Interface, const TArr
     return InstInterface;
 }
 
-TArray<SInstantiatedTypeVariable> InstantiateInstantiatedTypeVariables(
-    const TArray<SInstantiatedTypeVariable>& TypeVariables,
+TArray<STypeVariableSubstitution> InstantiateTypeVariableSubstitutions(
+    const TArray<STypeVariableSubstitution>& TypeVariables,
     const TArray<STypeVariableSubstitution>& Substitutions)
 {
-    TArray<SInstantiatedTypeVariable> InstTypeVariables;
+    TArray<STypeVariableSubstitution> InstTypeVariables;
     InstTypeVariables.Reserve(TypeVariables.Num());
-    for (const SInstantiatedTypeVariable& TypeVariable : TypeVariables)
+    for (const STypeVariableSubstitution& TypeVariable : TypeVariables)
     {
         const CTypeBase* NegativeType = TypeVariable._NegativeType;
         const CTypeBase* PositiveType = TypeVariable._PositiveType;
         NegativeType = SemanticTypeUtils::Substitute(*NegativeType, ETypePolarity::Negative, Substitutions);
         PositiveType = SemanticTypeUtils::Substitute(*PositiveType, ETypePolarity::Positive, Substitutions);
-        InstTypeVariables.Add({NegativeType, PositiveType});
+        InstTypeVariables.Add({TypeVariable._TypeVariable, NegativeType, PositiveType});
     }
     return InstTypeVariables;
 }

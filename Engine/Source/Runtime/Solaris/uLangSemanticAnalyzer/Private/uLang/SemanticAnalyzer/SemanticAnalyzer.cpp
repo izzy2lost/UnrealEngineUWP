@@ -4282,10 +4282,7 @@ private:
             for (const CTypeVariable* TypeVariable : static_cast<const CFunction*>(_Context._Scope)->GetDefinitionsOfKind<CTypeVariable>())
             {
                 // @see AnalyzeParam(TSRef<CExprDefinition>, SParamsInfo&)
-                if (!TypeVariable->_ExplicitParam || TypeVariable->_NegativeTypeVariable)
-                {
-                    Class->_InstantiatedTypeVariables.Add({TypeVariable, TypeVariable});
-                }
+                Class->_TypeVariableSubstitutions.Emplace(TypeVariable, TypeVariable, TypeVariable);
             }
         }
 
@@ -5814,10 +5811,7 @@ private:
             for (const CTypeVariable* TypeVariable : static_cast<const CFunction*>(_Context._Scope)->GetDefinitionsOfKind<CTypeVariable>())
             {
                 // @see AnalyzeParam(TSRef<CExprDefinition>, SParamsInfo&)
-                if (!TypeVariable->_ExplicitParam || TypeVariable->_NegativeTypeVariable)
-                {
-                    Interface->_InstantiatedTypeVariables.Add({TypeVariable, TypeVariable});
-                }
+                Interface->_TypeVariableSubstitutions.Emplace(TypeVariable, TypeVariable, TypeVariable);
             }
         }
 

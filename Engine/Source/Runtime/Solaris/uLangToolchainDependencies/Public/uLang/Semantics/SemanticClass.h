@@ -52,7 +52,7 @@ public:
 
     CClass* _GeneralizedClass{this};
 
-    TArray<SInstantiatedTypeVariable> _InstantiatedTypeVariables;
+    TArray<STypeVariableSubstitution> _TypeVariableSubstitutions;
 
     TURefArray<CClass> _InstantiatedClasses;
 
@@ -60,7 +60,7 @@ public:
 
     CClass* _NegativeClass;
 
-    bool _bHasCyclesBroken { false };
+    bool _bHasCyclesBroken{false};
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     // Methods
@@ -83,7 +83,7 @@ public:
         TArray<CInterface*>&& SuperInterfaces,
         SEffectSet ConstructorEffects,
         CClass* GeneralizedClass,
-        TArray<SInstantiatedTypeVariable>);
+        TArray<STypeVariableSubstitution>);
 
     // Construct a negative class from a positive class
     explicit CClass(CClass* PositiveClass);
@@ -172,7 +172,7 @@ public:
     bool HasCyclesBroken() const;
     bool IsParametric() const
     {
-        return !!(_OwnedNegativeClass ? _InstantiatedTypeVariables : _NegativeClass->_InstantiatedTypeVariables).Num();
+        return !!(_OwnedNegativeClass ? _TypeVariableSubstitutions : _NegativeClass->_TypeVariableSubstitutions).Num();
     }
 };  // CClass
 

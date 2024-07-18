@@ -1081,9 +1081,12 @@ private:
                 NullWhence());
             Name->SetTag(PrePostCall::Expression);
             TSRef<Clause> ArgumentsClause = TSRef<Clause>::New(NullWhence(), Clause::EForm::NoSemicolonOrNewline);
-            for (const SInstantiatedTypeVariable& InstTypeVariable : Class._InstantiatedTypeVariables)
+            for (const STypeVariableSubstitution& InstTypeVariable : Class._TypeVariableSubstitutions)
             {
-                ArgumentsClause->AppendChild(GenerateForType(InstTypeVariable._PositiveType));
+                if (InstTypeVariable._TypeVariable->_ExplicitParam && InstTypeVariable._TypeVariable->_NegativeTypeVariable)
+                {
+                    ArgumentsClause->AppendChild(GenerateForType(InstTypeVariable._PositiveType));
+                }
             }
             ArgumentsClause->SetTag(PrePostCall::SureCall);
             TSRef<PrePostCall> Invocation = TSRef<PrePostCall>::New(NullWhence());
@@ -1103,9 +1106,12 @@ private:
                 NullWhence());
             Name->SetTag(PrePostCall::Expression);
             TSRef<Clause> ArgumentsClause = TSRef<Clause>::New(NullWhence(), Clause::EForm::NoSemicolonOrNewline);
-            for (const SInstantiatedTypeVariable& InstTypeVariable : Interface._InstantiatedTypeVariables)
+            for (const STypeVariableSubstitution& InstTypeVariable : Interface._TypeVariableSubstitutions)
             {
-                ArgumentsClause->AppendChild(GenerateForType(InstTypeVariable._PositiveType));
+                if (InstTypeVariable._TypeVariable->_ExplicitParam && InstTypeVariable._TypeVariable->_NegativeTypeVariable)
+                {
+                    ArgumentsClause->AppendChild(GenerateForType(InstTypeVariable._PositiveType));
+                }
             }
             ArgumentsClause->SetTag(PrePostCall::SureCall);
             TSRef<PrePostCall> Invocation = TSRef<PrePostCall>::New(NullWhence());

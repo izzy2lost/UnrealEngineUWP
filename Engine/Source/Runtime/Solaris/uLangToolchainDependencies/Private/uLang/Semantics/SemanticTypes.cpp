@@ -799,8 +799,8 @@ const CTypeBase* SemanticTypeUtils::Substitute(const CTypeBase& Type, ETypePolar
         {
             switch (Polarity)
             {
-            case ETypePolarity::Negative: return I->_NegativeFlowType;
-            case ETypePolarity::Positive: return I->_PositiveFlowType;
+            case ETypePolarity::Negative: return I->_NegativeType;
+            case ETypePolarity::Positive: return I->_PositiveType;
             default: ULANG_UNREACHABLE();
             }
         }
@@ -852,8 +852,12 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
         PositiveFlowType.AddFlowEdge(&NegativeFlowType);
         InstTypeVariables.Add({TypeVariable, &NegativeFlowType, &PositiveFlowType});
     }
-    for (auto [TypeVariable, NegativeFlowType, PositiveFlowType] : InstTypeVariables)
+    for (auto [TypeVariable, NegativeType, PositiveType] : InstTypeVariables)
     {
+        auto NegativeFlowType = NegativeType->AsFlowType();
+        ULANG_ASSERT(NegativeFlowType);
+        auto PositiveFlowType = PositiveType->AsFlowType();
+        ULANG_ASSERT(PositiveFlowType);
         const CTypeType* TypeType = TypeVariable->GetType()->GetNormalType().AsNullable<CTypeType>();
         if (!TypeType)
         {
@@ -866,8 +870,10 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
             continue;
         }
 
-        const CTypeBase* NegativeType = NegativeTypeType->PositiveType();
-        const CTypeBase* InstNegativeType = Substitute(*NegativeType, ETypePolarity::Negative, InstTypeVariables);
+        const CTypeBase* InstNegativeType = Substitute(
+            *NegativeTypeType->PositiveType(),
+            ETypePolarity::Negative,
+            InstTypeVariables);
         if (const CFlowType* InstNegativeFlowType = InstNegativeType->AsFlowType())
         {
             // Maintain invariant that a `CFlowType`'s child is not a `CFlowType`.
@@ -878,8 +884,10 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
             NegativeFlowType->SetChild(InstNegativeType);
         }
 
-        const CTypeBase* PositiveType = NegativeTypeType->NegativeType();
-        const CTypeBase* InstPositiveType = Substitute(*PositiveType, ETypePolarity::Positive, InstTypeVariables);
+        const CTypeBase* InstPositiveType = Substitute(
+            *NegativeTypeType->NegativeType(),
+            ETypePolarity::Positive,
+            InstTypeVariables);
         if (const CFlowType* InstPositiveFlowType = InstPositiveType->AsFlowType())
         {
             // Maintain invariant that a `CFlowType`'s child is not a `CFlowType`.
@@ -1366,63 +1374,6 @@ const CTypeBase& SemanticTypeUtils::AsNegative(const CTypeBase& Type, const TArr
 }
 
 namespace {
-    // Utility functions for calculating if ExpectedInterface is implemented by ProvidedInterface/ProvidedClass
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CInterface* ProvidedInterface);
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CInterface* ProvidedInterface, VisitStampType VisitStamp);
-
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const TArray<CInterface*>& ProvidedInterfaces, VisitStampType VisitStamp)
-    {
-        for (const CInterface* ProvidedInterface : ProvidedInterfaces)
-        {
-            if (RhsImplementsLhs(ExpectedInterface, ProvidedInterface, VisitStamp))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CInterface* ProvidedInterface, VisitStampType VisitStamp)
-    {
-        if (ProvidedInterface == ExpectedInterface)
-        {
-            return true;
-        }
-        if (!ProvidedInterface->TryMarkVisited(VisitStamp))
-        {
-            return false;
-        }
-        return RhsImplementsLhs(ExpectedInterface, ProvidedInterface->_SuperInterfaces, VisitStamp);
-    }
-
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CInterface* ProvidedInterface)
-    {
-        return RhsImplementsLhs(ExpectedInterface, ProvidedInterface, CScope::GenerateNewVisitStamp());
-    }
-
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CClass* ProvidedClass, VisitStampType VisitStamp)
-    {
-        for (const CClass* ProvidedSuperClass = ProvidedClass;
-            ProvidedSuperClass;
-            ProvidedSuperClass = ProvidedSuperClass->_Superclass)
-        {
-            if (!ProvidedSuperClass->TryMarkVisited(VisitStamp))
-            {
-                return false;
-            }
-            if (RhsImplementsLhs(ExpectedInterface, ProvidedSuperClass->_SuperInterfaces, VisitStamp))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool RhsImplementsLhs(const CInterface* ExpectedInterface, const CClass* ProvidedClass)
-    {
-        return RhsImplementsLhs(ExpectedInterface, ProvidedClass, CScope::GenerateNewVisitStamp());
-    }
-
     using TInterfaceSet = TArrayG<const CInterface*, TInlineElementAllocator<8>>;
 
     // Utility functions for collecting all interfaces implemented by a class or interface (including the interface itself).
@@ -1463,39 +1414,75 @@ namespace {
         CollectAllInterfaces(FoundInterfaces, Class, CScope::GenerateNewVisitStamp());
     }
 
+    TArray<STypeVariableSubstitution> JoinTypeVariableSubstitutions(
+        const TArray<STypeVariableSubstitution>& TypeVariables,
+        const TArray<STypeVariableSubstitution>& InstantiatedTypeVariables1,
+        const TArray<STypeVariableSubstitution>& InstantiatedTypeVariables2)
+    {
+        TArray<STypeVariableSubstitution> TypeVariableSubstitutions;
+        using NumType = decltype(TypeVariables.Num());
+        NumType NumInstantiatedTypeVariables = TypeVariables.Num();
+        ULANG_ASSERT(NumInstantiatedTypeVariables == InstantiatedTypeVariables1.Num());
+        ULANG_ASSERT(NumInstantiatedTypeVariables == InstantiatedTypeVariables2.Num());
+        for (NumType J = 0; J != NumInstantiatedTypeVariables; ++J)
+        {
+            TypeVariableSubstitutions.Emplace(
+                TypeVariables[J]._TypeVariable,
+                SemanticTypeUtils::Meet(
+                    InstantiatedTypeVariables1[J]._NegativeType,
+                    InstantiatedTypeVariables2[J]._NegativeType),
+                SemanticTypeUtils::Join(
+                    InstantiatedTypeVariables1[J]._PositiveType,
+                    InstantiatedTypeVariables2[J]._PositiveType));
+        }
+        return TypeVariableSubstitutions;
+    }
+
     // Utility function that takes two containers with interfaces and returns container with the interfaces that are common to both.
     // If a interface is included in the result, then none of its super_interfaces are.
     TInterfaceSet FindCommonInterfaces(const TInterfaceSet& LhsInterfaces, const TInterfaceSet& RhsInterfaces)
     {
-        TInterfaceSet Common;
-        for (const CInterface* Interface : LhsInterfaces)
+        TInterfaceSet CommonInterfaces;
+        for (const CInterface* LhsInterface : LhsInterfaces)
         {
-            if (RhsInterfaces.Contains(Interface))
+            const CInterface* GeneralizedInterface = LhsInterface->_GeneralizedInterface;
+            for (const CInterface* RhsInterface : RhsInterfaces)
             {
-                bool Found = false;
-                for (const CInterface* CommonInterface : Common)
+                if (GeneralizedInterface != RhsInterface->_GeneralizedInterface)
                 {
-                    if (RhsImplementsLhs(Interface, CommonInterface))
+                    continue;
+                }
+                TArray<STypeVariableSubstitution> TypeVariableSubstitutions = JoinTypeVariableSubstitutions(
+                    GeneralizedInterface->_TypeVariableSubstitutions,
+                    LhsInterface->_TypeVariableSubstitutions,
+                    RhsInterface->_TypeVariableSubstitutions);
+                const CInterface* Interface;
+                if (auto InstantiatedInterface = InstantiateInterface(*GeneralizedInterface, ETypePolarity::Positive, TypeVariableSubstitutions))
+                {
+                    Interface = InstantiatedInterface;
+                }
+                else
+                {
+                    Interface = GeneralizedInterface;
+                }
+                if (CommonInterfaces.ContainsByPredicate([Interface](const CInterface* CommonInterface) { return SemanticTypeUtils::IsSubtype(CommonInterface, Interface); }))
+                {
+                    continue;
+                }
+                // Need to add, but first remove things implemented by the new interface
+                using NumType = decltype(CommonInterfaces.Num());
+                for (NumType I = 0, Last = CommonInterfaces.Num(); I != Last; ++I)
+                {
+                    if (SemanticTypeUtils::IsSubtype(Interface, CommonInterfaces[I]))
                     {
-                        Found = true;
-                        break;
+                        CommonInterfaces.RemoveAtSwap(I);
+                        --I;
                     }
                 }
-                if (!Found) // Need to add, but first remove things implemented by the new interface
-                {
-                    for (int32_t Ix = 0; Ix < Common.Num(); ++Ix)
-                    {
-                        if (RhsImplementsLhs(Common[Ix], Interface))
-                        {
-                            Common.RemoveAtSwap(Ix);
-                            --Ix;
-                        }
-                    }
-                    Common.Add(Interface);
-                }
+                CommonInterfaces.Add(Interface);
             }
         }
-        return Common;
+        return CommonInterfaces;
     }
 
     // A simple, O(n^2) check that two arrays contain the same elements in any order, assuming that each array contains a distinct element at most once.
@@ -2695,12 +2682,24 @@ const CClass* JoinClasses(const CClass& Class1, const CClass& Class2)
         uLang::Swap(Hierarchy1, Hierarchy2);
     }
 
-    int32_t Offset = Hierarchy2.Num() - Hierarchy1.Num(); 
-    for (int32_t I = 0; I < Hierarchy1.Num(); ++I)
+    using NumType = decltype(Hierarchy1.Num());
+    NumType Offset = Hierarchy2.Num() - Hierarchy1.Num();
+    for (NumType I = 0, NumHierarchy1 = Hierarchy1.Num(); I != NumHierarchy1; ++I)
     {
-        if (Hierarchy1[I] == Hierarchy2[I + Offset])
+        const CClass* HierarchyClass1 = Hierarchy1[I];
+        const CClass* HierarchyClass2 = Hierarchy2[I + Offset];
+        const CClass* GeneralizedClass = HierarchyClass1->_GeneralizedClass;
+        if (GeneralizedClass == HierarchyClass2->_GeneralizedClass)
         {
-            return Hierarchy1[I];
+            TArray<STypeVariableSubstitution> TypeVariableSubstitutions = JoinTypeVariableSubstitutions(
+                GeneralizedClass->_TypeVariableSubstitutions,
+                HierarchyClass1->_TypeVariableSubstitutions,
+                HierarchyClass2->_TypeVariableSubstitutions);
+            if (auto InstantiatedClass = InstantiateClass(*GeneralizedClass, ETypePolarity::Positive, TypeVariableSubstitutions))
+            {
+                return InstantiatedClass;
+            }
+            return GeneralizedClass;
         }
     }
 
@@ -3246,7 +3245,7 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
     {
         const CInterface& Interface = (NormalType1.IsA<CInterface>() ? NormalType1 : NormalType2).AsChecked<CInterface>();
         const CClass&     Class     = (NormalType1.IsA<CClass>()     ? NormalType1 : NormalType2).AsChecked<CClass>();
-        if (RhsImplementsLhs(&Interface, &Class))
+        if (SemanticTypeUtils::IsSubtype(&Class, &Interface))
         {
             return &Class;
         }
@@ -3371,8 +3370,8 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
             // For interfaces, if one is a subinterface of the other, that is the meet of the two interfaces.
             const CInterface* Interface1 = &NormalType1.AsChecked<CInterface>();
             const CInterface* Interface2 = &NormalType2.AsChecked<CInterface>();
-            if (RhsImplementsLhs(Interface1, Interface2)) { return Type2; }
-            if (RhsImplementsLhs(Interface2, Interface1)) { return Type1; }
+            if (SemanticTypeUtils::IsSubtype(Interface2, Interface1)) { return Type2; }
+            if (SemanticTypeUtils::IsSubtype(Interface1, Interface2)) { return Type1; }
             return &Program._falseType;
         }
         case ETypeKind::Type:
