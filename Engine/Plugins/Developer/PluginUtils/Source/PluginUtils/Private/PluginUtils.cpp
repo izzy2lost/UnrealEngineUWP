@@ -871,6 +871,29 @@ TSharedPtr<IPlugin> FPluginUtils::FindLoadedPlugin(const FString& PluginDescript
 	return TSharedPtr<IPlugin>();
 }
 
+TSharedPtr<IPlugin> FPluginUtils::FindPluginFromPackagePath(FName PackagePath)
+{
+	FNameBuilder PackagePathNameBuilder(PackagePath);
+	return FindPluginFromPackagePath(PackagePathNameBuilder);
+}
+
+TSharedPtr<IPlugin> FPluginUtils::FindPluginFromPackagePath(FStringView PackagePath)
+{
+	TSharedPtr<IPlugin> Plugin;
+	static const FStringView ScriptPath = TEXTVIEW("/Script/");
+	if (PackagePath.StartsWith(ScriptPath))
+	{
+		const FName ModuleName(PackagePath.RightChop(ScriptPath.Len()));
+		Plugin = IPluginManager::Get().GetModuleOwnerPlugin(ModuleName);
+	}
+	else
+	{
+		const FStringView MountPoint = FPathViews::GetMountPointNameFromPath(PackagePath);
+		Plugin = IPluginManager::Get().FindPlugin(MountPoint);
+	}
+	return Plugin;
+}
+
 bool FPluginUtils::UnloadPlugin(const TSharedRef<IPlugin>& Plugin, FText* OutFailReason /*= nullptr*/)
 {
 	return UnloadPlugins({ Plugin }, OutFailReason);

@@ -301,6 +301,15 @@ public:
 	static TSharedPtr<IPlugin> FindLoadedPlugin(const FString& PluginDescriptorFileName);
 
 	/**
+	 * Finds the plugin that contains the specified package, if any
+	 * @note This method supports C++ module packages (with the "/Script/" root)
+	 * @param PackagePath Unreal path of the package
+	 * @return Plugin or null if the package is not in a plugin
+	 */
+	static TSharedPtr<IPlugin> FindPluginFromPackagePath(FName PackagePath);
+	static TSharedPtr<IPlugin> FindPluginFromPackagePath(FStringView PackagePath);
+
+	/**
 	 * Unload assets from the specified plugin and unmount it
 	 * @note Only works on content-only plugins; plugins with code modules cannot be safely unloaded
 	 * @warning Dirty assets that need to be saved will be unloaded anyway
