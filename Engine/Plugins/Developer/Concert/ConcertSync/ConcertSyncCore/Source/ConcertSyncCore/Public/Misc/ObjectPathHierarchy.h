@@ -50,11 +50,15 @@ namespace UE::ConcertSyncCore
 	
 	/** Keeps track of the outer tree hierarchy of FSoftObjectPath. */
 	class CONCERTSYNCCORE_API FObjectPathHierarchy
-		// This class cannot be shallowly copied because the nodes referenced dynamic allocations - we don't expect instances to be copied, so we won't bother implementing a deep copy.
+		// This class cannot be shallowly copied because the nodes' referenced dynamic allocations - we don't expect instances to be copied, so we won't bother implementing a deep copy.
 		: public FNoncopyable
 	{
 	public:
-		
+
+		FObjectPathHierarchy() = default;
+		FObjectPathHierarchy(FObjectPathHierarchy&& Other);
+		FObjectPathHierarchy& operator=(FObjectPathHierarchy&& Other);
+
 		/**
 		 * Traverses the hierarchy in pre-order (root first, then its children), starting at an optional parent object.
 		 *

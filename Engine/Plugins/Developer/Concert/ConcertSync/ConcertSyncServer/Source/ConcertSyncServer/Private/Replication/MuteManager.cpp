@@ -12,6 +12,7 @@
 
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeExit.h"
+#include "Muting/ObjectHierarchyAdapter.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -65,7 +66,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	bool FMuteManager::ValidateRequest(
 		const FConcertReplication_ChangeMuteState_Request& Request,
-		const ConcertSyncCore::FReplicatedObjectHierarchyCache* OverrideServerObjectCache,
+		const IMuteValidationObjectHierarchy* OverrideServerObjectCache,
 		TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection
 		) const
 	{
@@ -74,48 +75,10 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			return false;
 		}
-		
-		bool bIsValidRequest = true;
-		const auto Reject = [&OnRejection, &bIsValidRequest](const FSoftObjectPath& ObjectPath){ OnRejection(ObjectPath); bIsValidRequest = false; };
-		const ConcertSyncCore::FReplicatedObjectHierarchyCache& UsedObjectCache = OverrideServerObjectCache? *OverrideServerObjectCache : ServerObjectCache;
-		
-		const auto SharedValidateSetting = [this, &Reject, &UsedObjectCache](const FSoftObjectPath& Object, const FConcertReplication_ObjectMuteSetting& Setting)
-		{
-			const bool bIsObjectReferenced = UsedObjectCache.IsObjectReferencedDirectly(Object);
-			const bool bAppliesToSubobjects = ConcertSyncCore::AffectSubobjects(Setting.Flags);
-			if (!bIsObjectReferenced && !bAppliesToSubobjects)
-			{
-				Reject(Object);
-				return;
-			}
 
-			const bool bHasSubobjects = UsedObjectCache.HasChildren(Object);
-			if (!bIsObjectReferenced && bAppliesToSubobjects && !bHasSubobjects)
-			{
-				Reject(Object);
-			}
-		};
-		
-		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ToMute : Request.ObjectsToMute)
-		{
-			SharedValidateSetting(ToMute.Key, ToMute.Value);
-
-			// Cannot mute & unmute at the same time
-			if (Request.ObjectsToUnmute.Contains(ToMute.Key))
-			{
-				Reject(ToMute.Key);
-			}
-		}
-		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ToUnmute : Request.ObjectsToUnmute)
-		{
-			// If something is muted, the user can always unmute it. If it is already unmuted, it's still valid (but a no-op).
-			if (!MuteState.Contains(ToUnmute.Key))
-			{
-				SharedValidateSetting(ToUnmute.Key, ToUnmute.Value);
-			}
-		}
-		
-		return bIsValidRequest;
+		return OverrideServerObjectCache
+			? ValidateRequestInternal(Request, *OverrideServerObjectCache, OnRejection)
+			: ValidateRequestInternal(Request, FObjectHierarchyAdapter(ServerObjectCache), OnRejection);
 	}
 
 	bool FMuteManager::ApplyRequestAndEnumerateSyncControl(
@@ -126,7 +89,7 @@ namespace UE::ConcertSyncServer::Replication
 		const bool bIsValid = ValidateRequest(Request);
 		if (ensureMsgf(bIsValid, TEXT("This is a double-check and it failed. The caller should have validate the request beforehand.")))
 		{
-			InternalApplyRequest(Request);
+			ApplyRequestInternal(Request);
 
 			check(OnRefreshSyncControlButSkipSendingToClientsDelegate.IsBound());
 			OnRefreshSyncControlButSkipSendingToClientsDelegate.Execute(OnSyncControlChange);
@@ -137,7 +100,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	FConcertReplication_ChangeSyncControl FMuteManager::ApplyManualRequest(const FGuid& EndpointId, const FConcertReplication_ChangeMuteState_Request& Request)
 	{
-		InternalApplyRequest(Request);
+		ApplyRequestInternal(Request);
 		return OnRefreshSyncControlAndSendToAllClientsExceptDelegate.Execute(EndpointId);
 	}
 
@@ -298,14 +261,14 @@ namespace UE::ConcertSyncServer::Replication
 			return EConcertSessionResponseCode::Failed;
 		}
 
-		if (!InternalValidateRequest(Request, Response))
+		if (!ValidateRequestInternal(Request, Response))
 		{
 			Response.ErrorCode = EConcertReplicationMuteErrorCode::Rejected;
 			return EConcertSessionResponseCode::Success;
 		}
 
 		Response.ErrorCode = EConcertReplicationMuteErrorCode::Accepted;
-		InternalApplyRequest(Request);
+		ApplyRequestInternal(Request);
 		
 		// Sync control will now 1. generate a sync control we can embed in the response, and 2. send a network event to all other clients.
 		// The embedded sync control will contain only those objects which changed sync control
@@ -320,13 +283,61 @@ namespace UE::ConcertSyncServer::Replication
 		return EConcertSessionResponseCode::Success;
 	}
 
-	bool FMuteManager::InternalValidateRequest(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const
+	bool FMuteManager::ValidateRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const
 	{
 		const auto Reject = [&Response](const FSoftObjectPath& ObjectPath){ Response.RejectionReasons.Add(ObjectPath); };
-		return ValidateRequest(Request, &ServerObjectCache, Reject);
+		return ValidateRequestInternal(Request, FObjectHierarchyAdapter(ServerObjectCache), Reject);
 	}
 
-	void FMuteManager::InternalApplyRequest(const FConcertReplication_ChangeMuteState_Request& Request)
+	bool FMuteManager::ValidateRequestInternal(
+		const FConcertReplication_ChangeMuteState_Request& Request, 
+		const IMuteValidationObjectHierarchy& ObjectCache,
+		TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection
+		) const
+	{
+		bool bIsValidRequest = true;
+		const auto Reject = [&OnRejection, &bIsValidRequest](const FSoftObjectPath& ObjectPath){ OnRejection(ObjectPath); bIsValidRequest = false; };
+		
+		const auto SharedValidateSetting = [this, &Reject, &ObjectCache](const FSoftObjectPath& Object, const FConcertReplication_ObjectMuteSetting& Setting)
+		{
+			const bool bIsObjectReferenced = ObjectCache.IsObjectReferencedDirectly(Object);
+			const bool bAppliesToSubobjects = ConcertSyncCore::AffectSubobjects(Setting.Flags);
+			if (!bIsObjectReferenced && !bAppliesToSubobjects)
+			{
+				Reject(Object);
+				return;
+			}
+
+			const bool bHasSubobjects = ObjectCache.HasChildren(Object);
+			if (!bIsObjectReferenced && bAppliesToSubobjects && !bHasSubobjects)
+			{
+				Reject(Object);
+			}
+		};
+		
+		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ToMute : Request.ObjectsToMute)
+		{
+			SharedValidateSetting(ToMute.Key, ToMute.Value);
+
+			// Cannot mute & unmute at the same time
+			if (Request.ObjectsToUnmute.Contains(ToMute.Key))
+			{
+				Reject(ToMute.Key);
+			}
+		}
+		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ToUnmute : Request.ObjectsToUnmute)
+		{
+			// If something is muted, the user can always unmute it. If it is already unmuted, it's still valid (but a no-op).
+			if (!MuteState.Contains(ToUnmute.Key))
+			{
+				SharedValidateSetting(ToUnmute.Key, ToUnmute.Value);
+			}
+		}
+		
+		return bIsValidRequest;
+	}
+
+	void FMuteManager::ApplyRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request)
 	{
 		UE_LOG(LogConcert, Log, TEXT("Explicitly muting %d and unmuting %d objects."), Request.ObjectsToMute.Num(), Request.ObjectsToUnmute.Num());
 		

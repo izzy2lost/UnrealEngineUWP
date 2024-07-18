@@ -19,7 +19,9 @@ struct FConcertReplicationStream;
 struct FConcertObjectInStreamID;
 
 namespace UE::ConcertSyncCore { class FReplicatedObjectHierarchyCache; }
-namespace UE::ConcertSyncServer::Replication { class IRegistrationEnumerator; }
+namespace UE::ConcertSyncServer::Replication {
+	class IMuteValidationObjectHierarchy;
+	class IRegistrationEnumerator; }
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -87,9 +89,10 @@ namespace UE::ConcertSyncServer::Replication
 		 */
 		bool ValidateRequest(
 			const FConcertReplication_ChangeMuteState_Request& Request,
-			const ConcertSyncCore::FReplicatedObjectHierarchyCache* OverrideServerObjectCache = nullptr,
+			const IMuteValidationObjectHierarchy* OverrideServerObjectCache = nullptr,
 			TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection = [](const FSoftObjectPath&){}
 			) const;
+		
 		/**
 		 * This validates and then applies Request.
 		 * This version does not send any sync control updates to other clients. You must update them yourself.
@@ -181,10 +184,13 @@ namespace UE::ConcertSyncServer::Replication
 		EConcertSessionResponseCode HandleQueryMuteStateRequest(const FConcertSessionContext& Context, const FConcertReplication_QueryMuteState_Request& Request, FConcertReplication_QueryMuteState_Response& Response);
 		/** Handles requests to change the mute states */
 		EConcertSessionResponseCode HandleChangeMuteStateRequest(const FConcertSessionContext& Context, const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response);
+
 		/** Checks whether Request is valid to apply. */
-		bool InternalValidateRequest(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const;
+		bool ValidateRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request, FConcertReplication_ChangeMuteState_Response& Response) const;
+		/** Checks whether Request is valid to apply. */
+		bool ValidateRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request, const IMuteValidationObjectHierarchy& ObjectCache, TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection) const;
 		/** Updates the internal state (assuming it is a valid request - call ValidateRequest before). */
-		void InternalApplyRequest(const FConcertReplication_ChangeMuteState_Request& Request);
+		void ApplyRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request);
 
 		/** Removes all mute state for Object and transitively updates subobjects if applicable. */
 		template<CObjectProcessable TCallback>

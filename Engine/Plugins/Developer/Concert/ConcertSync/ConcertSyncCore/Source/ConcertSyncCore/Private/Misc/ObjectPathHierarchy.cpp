@@ -18,6 +18,23 @@ namespace UE::ConcertSyncCore
 		}
 	}
 
+	FObjectPathHierarchy::FObjectPathHierarchy(FObjectPathHierarchy&& Other)
+		: AssetNodes(MoveTemp(Other.AssetNodes))
+		, CachedNodes(MoveTemp(Other.CachedNodes))
+	{}
+
+	FObjectPathHierarchy& FObjectPathHierarchy::operator=(FObjectPathHierarchy&& Other)
+	{
+		if (this == &Other)
+		{
+			return *this;
+		}
+		
+		AssetNodes = MoveTemp(Other.AssetNodes);
+		CachedNodes = MoveTemp(Other.CachedNodes);
+		return *this;
+	}
+
 	void FObjectPathHierarchy::TraverseTopToBottom(TFunctionRef<ETreeTraversalBehavior(const FChildRelation& Relation)> Callback, const FSoftObjectPath& Start) const
 	{
 		const bool bHasStart = !Start.IsNull();
