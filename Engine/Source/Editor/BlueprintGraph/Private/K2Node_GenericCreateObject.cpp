@@ -107,10 +107,11 @@ void UK2Node_GenericCreateObject::ExpandNode(class FKismetCompilerContext& Compi
 		bSucceeded &= SpawnExecPin && CallExecPin && CompilerContext.MovePinLinksToIntermediate(*SpawnExecPin, *CallExecPin).CanSafeConnect();
 	}
 
+	UEdGraphPin* CallClassPin = nullptr;
 	//connect class
 	{
 		UEdGraphPin* SpawnClassPin = GetClassPin();
-		UEdGraphPin* CallClassPin = CallCreateNode->FindPin(TEXT("ObjectClass"));
+		CallClassPin = CallCreateNode->FindPin(TEXT("ObjectClass"));
 		bSucceeded &= SpawnClassPin && CallClassPin && CompilerContext.MovePinLinksToIntermediate(*SpawnClassPin, *CallClassPin).CanSafeConnect();
 	}
 		
@@ -137,7 +138,7 @@ void UK2Node_GenericCreateObject::ExpandNode(class FKismetCompilerContext& Compi
 
 	//assign exposed values and connect then
 	{
-		UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallCreateNode, this, CallResultPin, ClassToSpawn);
+		UEdGraphPin* LastThen = FKismetCompilerUtilities::GenerateAssignmentNodes(CompilerContext, SourceGraph, CallCreateNode, this, CallResultPin, ClassToSpawn, CallClassPin);
 		UEdGraphPin* SpawnNodeThen = GetThenPin();
 		bSucceeded &= SpawnNodeThen && LastThen && CompilerContext.MovePinLinksToIntermediate(*SpawnNodeThen, *LastThen).CanSafeConnect();
 	}
