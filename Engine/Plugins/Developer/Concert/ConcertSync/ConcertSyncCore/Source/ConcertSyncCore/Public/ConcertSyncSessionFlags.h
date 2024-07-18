@@ -54,13 +54,15 @@ enum class EConcertSyncSessionFlags : uint32
 	ShouldAllowGlobalMuting = 1<<14,
 	/** Whether EConcertSyncActivityEventType::Replication activities should be generated. */
 	ShouldEnableReplicationActivities = 1<<15,
+	/** Whether clients are allowed to edit each other's streams & authority (via FConcertReplication_PutState_Request). */
+	ShouldEnableRemoteEditing = 1 << 16,
 
 	/**
 	 * Defaults for different scenarios
 	 */
 	
 	/** Default settings for a multi-user session */
-	Default_MultiUserSession = EnableLiveSync | EnableConnectionHistory | EnableLocking | EnableTransactions | EnablePackages | EnableSequencer | EnablePresence | ShouldSendTransactionSnapshots | ShouldUsePackageSandbox | EnableReplication | ShouldAllowGlobalMuting | ShouldEnableReplicationActivities,
+	Default_MultiUserSession = EnableLiveSync | EnableConnectionHistory | EnableLocking | EnableTransactions | EnablePackages | EnableSequencer | EnablePresence | ShouldSendTransactionSnapshots | ShouldUsePackageSandbox | EnableReplication | ShouldAllowGlobalMuting | ShouldEnableReplicationActivities | ShouldEnableRemoteEditing,
 	/** Default settings for a disaster recovery session */
 	Default_DisasterRecoverySession = EnableTransactions | EnablePackages | EnableFileSharing | ShouldDiscardTransactionsOnPackageUnload | ShouldSendPackagePristineState | ShouldSendPackageAutoSaves,
 };

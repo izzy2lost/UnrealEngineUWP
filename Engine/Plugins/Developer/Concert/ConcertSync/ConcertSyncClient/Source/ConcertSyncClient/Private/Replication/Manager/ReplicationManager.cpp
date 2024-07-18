@@ -4,7 +4,7 @@
 
 #include "IConcertSession.h"
 #include "ReplicationManagerState_Disconnected.h"
-#include "ReplicationManagerUtils.h"
+#include "Replication/Manager/Utils/ReplicationManagerUtils.h"
 
 #include "Replication/Messages/Handshake.h"
 
@@ -145,6 +145,13 @@ namespace UE::ConcertSyncClient::Replication
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
 			? CurrentState->RestoreContent(MoveTemp(Request))
 			: MakeFulfilledPromise<FConcertReplication_RestoreContent_Response>().GetFuture(); 
+	}
+
+	TFuture<FConcertReplication_PutState_Response> FReplicationManager::PutClientState(FConcertReplication_PutState_Request Request)
+	{
+		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))
+			? CurrentState->PutClientState(MoveTemp(Request))
+			: MakeFulfilledPromise<FConcertReplication_PutState_Response>().GetFuture(); 
 	}
 
 	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()

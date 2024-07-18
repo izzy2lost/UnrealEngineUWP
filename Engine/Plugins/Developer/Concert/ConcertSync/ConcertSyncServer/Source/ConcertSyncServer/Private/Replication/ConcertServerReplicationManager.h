@@ -6,7 +6,7 @@
 #include "ConcertMessages.h"
 #include "ConcertReplicationClient.h"
 #include "Enumeration/IRegistrationEnumerator.h"
-#include "MuteManager.h"
+#include "Muting/MuteManager.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/Handshake.h"
@@ -16,11 +16,13 @@
 #include "SyncControlManager.h"
 
 #include "HAL/Platform.h"
+#include "Replication/Messages/PutState.h"
 #include "Replication/Messages/RestoreContent.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/Tuple.h"
 #include "Templates/UnrealTemplate.h"
 
+struct FConcertReplication_ChangeClientEvent;
 class FConcertServerWorkspace;
 class IConcertClientReplicationBridge;
 class IConcertServerSession;
@@ -140,6 +142,27 @@ namespace UE::ConcertSyncServer::Replication
 		/** Restores the mute state of Client. */
 		void RestoreMuteState(const FConcertReplicationClient& Client, FConcertReplication_ChangeSyncControl& OutChangedSyncControl);
 		void ApplyRestoringMuteRequest(const FConcertReplicationClient& Client, const FConcertReplication_ChangeMuteState_Request& AggregatedRequest, FConcertReplication_ChangeSyncControl& OutChangedSyncControl);
+
+		// Changing multiple clients in one go
+		EConcertSessionResponseCode HandlePutStateRequest(const FConcertSessionContext& Context, const FConcertReplication_PutState_Request& Request, FConcertReplication_PutState_Response& Response);
+		void ApplyPutStateRequest(
+			const FGuid& RequestingEndpointId,
+			const FConcertReplication_PutState_Request& Request,
+			const TMap<FGuid, FConcertReplication_ChangeStream_Request> StreamRequests,
+			FConcertReplication_PutState_Response& Response
+			);
+		void ApplyPutState_Streams(
+			const FGuid& RequestingEndpointId,
+			const TMap<FGuid, FConcertReplication_ChangeStream_Request> StreamRequests,
+			TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
+			);
+		void ApplyPutState_Authority(
+			const FGuid& RequestingEndpointId,
+			const TSet<FConcertObjectInStreamID> RequestingClientSyncControlBefore,
+			const FConcertReplication_PutState_Request& Request,
+			FConcertReplication_PutState_Response& Response,
+			TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
+			);
 		
 		// Leaving
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);
@@ -147,7 +170,7 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** Cleans up the client's replication state after leaving. */
 		void OnClientLeftReplication(const FGuid& EndpointId);
-		/** Calls FConcertServerWorkspace::AddReplicationActivity with the current client state so it can be restored upon re-joining. */
+		/** Calls FConcertServerWorkspace::AddReplicationActivity with the current client state, so it can be restored upon re-joining. */
 		void ProduceClientLeftActivity(const FConcertReplicationClient& Client) const;
 
 		/** Generates an activity for a mute request */

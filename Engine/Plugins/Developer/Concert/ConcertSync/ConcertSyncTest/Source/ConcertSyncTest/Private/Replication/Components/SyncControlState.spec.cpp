@@ -44,7 +44,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 				TArray<FConcertObjectInStreamID> RemovedObjects;
 				SyncControl.AppendAuthorityChange(
 					Request,
-					Response,
+					Response.SyncControl,
 					[this](const FConcertObjectInStreamID&){ AddError(TEXT("No object should be added")); },
 					[&RemovedObjects](const FConcertObjectInStreamID& Object){ RemovedObjects.Add(Object); }
 					);
@@ -63,7 +63,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 				TArray<FConcertObjectInStreamID> AddedObjects;
 				SyncControl.AppendAuthorityChange(
 					Request,
-					Response,
+					Response.SyncControl,
 					[&AddedObjects](const FConcertObjectInStreamID& Object){ AddedObjects.Add(Object); },
 					[this](const FConcertObjectInStreamID&){ AddError(TEXT("No object should be removed")); }
 					);

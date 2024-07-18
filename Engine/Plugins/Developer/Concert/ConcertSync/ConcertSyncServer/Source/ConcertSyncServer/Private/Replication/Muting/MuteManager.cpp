@@ -8,11 +8,11 @@
 #include "Replication/ChangeStreamSharedUtils.h"
 #include "Replication/Messages/Muting.h"
 #include "Replication/Misc/ReplicatedObjectHierarchyCache.h"
-#include "Util/LogUtils.h"
+#include "Replication/Muting/ObjectHierarchyAdapter.h"
+#include "Replication/Util/LogUtils.h"
 
 #include "HAL/IConsoleManager.h"
 #include "Misc/ScopeExit.h"
-#include "Muting/ObjectHierarchyAdapter.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -87,7 +87,7 @@ namespace UE::ConcertSyncServer::Replication
 		)
 	{
 		const bool bIsValid = ValidateRequest(Request);
-		if (ensureMsgf(bIsValid, TEXT("This is a double-check and it failed. The caller should have validate the request beforehand.")))
+		if (ensureAlwaysMsgf(bIsValid, TEXT("This is a double-check and it failed. The caller should have validate the request beforehand.")))
 		{
 			ApplyRequestInternal(Request);
 

@@ -8,6 +8,7 @@
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
+#include "Util/GroundTruthOverride.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -55,6 +56,40 @@ namespace UE::ConcertSyncServer::Replication
 					Callback(StreamId, ObjectInfo.Key);
 				}
 			}
+		}
+
+		const FConcertReplicationStream* FindClientStreamById(const IStreamEnumerator& Getters, const FGuid& ClientId, const FGuid& StreamId)
+		{
+			const FConcertReplicationStream* StreamDescription = nullptr;
+			Getters.ForEachStream(ClientId, [&StreamId, &StreamDescription](const FConcertReplicationStream& Stream) mutable
+			{
+				if (Stream.BaseDescription.Identifier == StreamId)
+				{
+					StreamDescription = &Stream;
+					return EBreakBehavior::Break;
+				}
+				return EBreakBehavior::Continue;
+			});
+			return StreamDescription;
+		}
+
+		const FConcertObjectReplicationMap* FindClientReplicationMapById(
+			const ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth& Getters,
+			const FGuid& ClientId,
+			const FGuid& StreamId
+			)
+		{
+			const FConcertObjectReplicationMap* ReplicationMap = nullptr;
+			Getters.ForEachStream(ClientId, [&StreamId, &ReplicationMap](const FGuid& InStreamId, const FConcertObjectReplicationMap& InReplicationMap) mutable
+			{
+				if (InStreamId == InStreamId)
+				{
+					ReplicationMap = &InReplicationMap;
+					return EBreakBehavior::Break;
+				}
+				return EBreakBehavior::Continue;
+			});
+			return ReplicationMap;
 		}
 	}
 	
@@ -128,7 +163,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertPropertySelection* PropertiesToCheck = OverwriteProperties;
 		if (!PropertiesToCheck)
 		{
-			const FConcertReplicationStream* Description = FindClientStreamById(ClientId, Object.StreamId);
+			const FConcertReplicationStream* Description = Private::FindClientStreamById(Getters, ClientId, Object.StreamId);
 			const FConcertReplicatedObjectInfo* PropertyInfo = Description ? Description->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object.Object) : nullptr;
 			PropertiesToCheck = PropertyInfo ? &PropertyInfo->PropertySelection : nullptr;
 		}
@@ -156,6 +191,38 @@ namespace UE::ConcertSyncServer::Replication
 	bool FAuthorityManager::CanTakeAuthority(const FConcertReplicatedObjectId& Object) const
 	{
 		return EnumerateAuthorityConflicts(Object) == EAuthorityResult::Allowed;
+	}
+
+	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflictsWithOverrides(
+		const FConcertReplicatedObjectId& Object,
+		const TMap<FGuid, FConcertReplicationStreamArray>& StreamOverrides,
+		const TMap<FGuid, FConcertObjectInStreamArray>& AuthorityOverrides,
+		FProcessAuthorityConflict ProcessConflict
+		) const
+	{
+		const FClientId& ClientId = Object.SenderEndpointId;
+		const FGroundTruthOverride GroundTruth(StreamOverrides, AuthorityOverrides, Getters, *this);
+		
+		const FConcertObjectReplicationMap* ReplicationMap = Private::FindClientReplicationMapById(GroundTruth, ClientId, Object.StreamId);
+		const FConcertReplicatedObjectInfo* PropertyInfo = ReplicationMap ? ReplicationMap->ReplicatedObjects.Find(Object.Object) : nullptr;
+		const FConcertPropertySelection* PropertiesToCheck = PropertyInfo ? &PropertyInfo->PropertySelection : nullptr;
+		if (!PropertiesToCheck)
+		{
+			return EAuthorityResult::NoRegisteredProperties;
+		}
+
+		using namespace ConcertSyncCore::Replication;
+		using namespace ConcertSyncCore::Replication::AuthorityConflictUtils;
+		const EAuthorityConflict Conflict = AuthorityConflictUtils::EnumerateAuthorityConflicts(
+			Object.SenderEndpointId,
+			Object.Object,
+			PropertiesToCheck->ReplicatedProperties,
+			GroundTruth,
+			[&ProcessConflict](const FClientId& ClientId, const FStreamId& StreamId, const FConcertPropertyChain& Property)
+			{
+				return ProcessConflict(ClientId, StreamId, Property);
+			});
+		return Conflict == EAuthorityConflict::Allowed ? EAuthorityResult::Allowed : EAuthorityResult::Conflict;
 	}
 
 	void FAuthorityManager::OnPostClientLeft(const FClientId& ClientEndpointId)
@@ -258,20 +325,5 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			OutChangedSyncControl = GenerateSyncControlDelegate.Execute(ClientId);
 		}
-	}
-	
-	const FConcertReplicationStream* FAuthorityManager::FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const
-	{
-		const FConcertReplicationStream* StreamDescription = nullptr;
-		Getters.ForEachStream(ClientId, [&StreamId, &StreamDescription](const FConcertReplicationStream& Stream) mutable
-		{
-			if (Stream.BaseDescription.Identifier == StreamId)
-			{
-				StreamDescription = &Stream;
-				return EBreakBehavior::Break;
-			}
-			return EBreakBehavior::Continue;
-		});
-		return StreamDescription;
 	}
 }

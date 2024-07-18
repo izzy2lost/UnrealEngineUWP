@@ -67,8 +67,8 @@ namespace UE::ConcertSyncCore::Replication
 
 		/** Combines implicit and explicit sync control changes caused by authority changes. */
 		template<CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
-		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed);
-		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response);
+		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeSyncControl& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed);
+		void AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeSyncControl& Response);
 
 		/** Combines implicit sync control changes caused by stream change. */
 		template<CObjectInStreamInvocable TOnDisallowed>
@@ -163,7 +163,7 @@ namespace UE::ConcertSyncCore::Replication
 	}
 	
 	template <CObjectInStreamInvocable TOnAllowed, CObjectInStreamInvocable TOnDisallowed>
-	void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed)
+	void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeSyncControl& Response, TOnAllowed&& OnAllowed, TOnDisallowed&& OnDisallowed)
 	{
 		for (const TPair<FSoftObjectPath, FConcertStreamArray>& ImplicitChange : Request.ReleaseAuthority)
 		{
@@ -179,10 +179,10 @@ namespace UE::ConcertSyncCore::Replication
 			}
 		}
 
-		AppendChanges(Response.SyncControl, MoveTemp(OnAllowed), MoveTemp(OnDisallowed));
+		AppendChanges(Response, MoveTemp(OnAllowed), MoveTemp(OnDisallowed));
 	}
 
-	inline void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response)
+	inline void FSyncControlState::AppendAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeSyncControl& Response)
 	{
 		AppendAuthorityChange(Request, Response, [](const FConcertObjectInStreamID&){}, [](const FConcertObjectInStreamID&){});
 	}
@@ -283,7 +283,7 @@ namespace UE::ConcertSyncCore::Replication
 				OnAllowed,
 				[](const FConcertObjectInStreamID&)
 				{
-					ensureAlwaysMsgf(false, TEXT("By contract, objects losing sync control are not supposed to be listed here. FConcertReplication_ChangeMuteState_Response::SyncControl docoumentation."));
+					ensureAlwaysMsgf(false, TEXT("By contract, objects losing sync control are not supposed to be listed here. FConcertReplication_ChangeMuteState_Response::SyncControl documentation."));
 				});
 		}
 		else

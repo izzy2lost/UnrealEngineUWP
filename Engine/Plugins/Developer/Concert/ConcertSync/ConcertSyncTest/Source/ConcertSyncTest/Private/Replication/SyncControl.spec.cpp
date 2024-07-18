@@ -289,7 +289,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					.Next([this, &Manager, &ReleaseAuthority, &SyncControlBeforeRelease](FConcertReplication_ChangeAuthority_Response&& Response)
 					{
 						// Aggregate is validated in SyncControlState.spec.cpp
-						SyncControlBeforeRelease.AppendAuthorityChange(ReleaseAuthority, Response);
+						SyncControlBeforeRelease.AppendAuthorityChange(ReleaseAuthority, Response.SyncControl);
 						TestTrue(TEXT("Client predicted correctly"), SyncControlBeforeRelease == Manager.GetSyncControlledObjects());
 					});
 
@@ -300,7 +300,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 					.Next([this, &Manager, &SyncControlBeforeTake, &TakeAuthority](FConcertReplication_ChangeAuthority_Response&& Response)
 					{
 						// Aggregate is validated in SyncControlState.spec.cpp
-						SyncControlBeforeTake.AppendAuthorityChange(TakeAuthority, Response);
+						SyncControlBeforeTake.AppendAuthorityChange(TakeAuthority, Response.SyncControl);
 						TestTrue(TEXT("Client predicted correctly"), SyncControlBeforeTake == Manager.GetSyncControlledObjects());
 					});
 			});

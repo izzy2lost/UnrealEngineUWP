@@ -44,7 +44,7 @@ namespace UE::ConcertSyncServer::Replication
 	{
 	public:
 
-		using FOnSyncControlChange = TFunctionRef<void(const FGuid& ClientId, const FConcertReplication_ChangeSyncControl& SyncControlChange)>;
+		using FOnSyncControlChange = TFunctionRef<void(const FGuid& ClientId, FConcertReplication_ChangeSyncControl&& SyncControlChange)>;
 
 		DECLARE_DELEGATE_OneParam(FOnMuteStateChangedByClient, const FGuid& ClientId);
 		DECLARE_DELEGATE_RetVal_OneParam(FConcertReplication_ChangeSyncControl, FRefreshSyncControlForMuteChange, const FGuid& ClientId);

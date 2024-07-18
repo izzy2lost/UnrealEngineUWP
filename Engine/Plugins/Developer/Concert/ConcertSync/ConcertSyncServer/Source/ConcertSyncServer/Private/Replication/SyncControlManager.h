@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include "MuteManager.h"
+#include "Muting/MuteManager.h"
 #include "Replication/Data/ObjectIds.h"
+#include "Replication/Messages/SyncControl.h"
 
 #include "HAL/Platform.h"
-#include "Replication/Messages/SyncControl.h"
 #include "Templates/UnrealTemplate.h"
 
 namespace UE::ConcertSyncServer::Replication
@@ -44,6 +44,8 @@ namespace UE::ConcertSyncServer::Replication
 
 		/** @return Whether this Object is allowed to processed. */
 		bool HasSyncControl(const FConcertReplicatedObjectId& Object) const;
+		/** @return If the client has any controlled objects, returns a valid pointer to the set of objects they own. */
+		const TSet<FConcertObjectInStreamID>* GetClientControlledObjects(const FGuid& ClientId) const;
 
 		/** Called by FConcertServerReplicationManager when client completes replication handshake. */
 		FConcertReplication_ChangeSyncControl OnGenerateSyncControlForClientJoin(const FGuid& ClientId);

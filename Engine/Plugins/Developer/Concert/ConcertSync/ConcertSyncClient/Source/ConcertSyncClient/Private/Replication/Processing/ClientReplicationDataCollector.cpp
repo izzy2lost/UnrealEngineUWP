@@ -3,14 +3,14 @@
 #include "ClientReplicationDataCollector.h"
 
 #include "Replication/Data/ReplicationStream.h"
+#include "Replication/Data/ObjectIds.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertClientReplicationBridge.h"
+#include "Replication/Manager/Utils/LocalSyncControl.h"
 #include "Replication/ReplicationPropertyFilter.h"
-#include "Replication/Data/ObjectIds.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/EBreakBehavior.h"
-#include "Replication/Misc/LocalSyncControl.h"
 
 namespace UE::ConcertSyncClient::Replication
 {

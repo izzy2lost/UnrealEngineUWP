@@ -5,8 +5,10 @@
 #include "IMuteValidationObjectHierarchy.h"
 #include "Misc/ObjectPathHierarchy.h"
 #include "Replication/ConcertReplicationClient.h"
+#include "Replication/Data/ReplicationStreamArray.h"
 
 #include <type_traits>
+
 
 struct FConcertReplicationStream;
 
@@ -23,7 +25,7 @@ namespace UE::ConcertSyncServer::Replication
 	public:
 
 		/** Adds clients from a map binding client id to stream content. */
-		void AddClients(const TMap<FGuid, TArray<FConcertReplicationStream>>& Clients);
+		void AddClients(const TMap<FGuid, FConcertReplicationStreamArray>& Clients);
 		/** Adds only those entries that pass ShouldIncludeFilter returns true on. */
 		template<typename TFilterLambda> requires std::is_invocable_r_v<bool, TFilterLambda, const FGuid&>
 		void AddClients(const TMap<FGuid, TUniquePtr<FConcertReplicationClient>>& Clients, TFilterLambda&& ShouldIncludeFilter);

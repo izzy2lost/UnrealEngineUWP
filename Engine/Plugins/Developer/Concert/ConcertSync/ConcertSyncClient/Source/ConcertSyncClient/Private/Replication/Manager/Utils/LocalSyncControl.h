@@ -51,7 +51,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 
 		/** Applies implicit and explicit changes to the client's sync control resulting from a completed authority change request and response. */
-		void ProcessAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeAuthority_Response& Response)
+		void ProcessAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const FConcertReplication_ChangeSyncControl& Response)
 		{
 			OnPreSyncControlChangedDelegate.Broadcast();
 			AppendAuthorityChange(Request, Response);
@@ -153,6 +153,8 @@ namespace UE::ConcertSyncClient::Replication
 				OnPostSyncControlChangedDelegate.Broadcast();
 			}
 		}
+
+		void PredictAndApplyPutStateChanges(const FConcertReplication_RestoreContent_Request& Request);
 		
 		
 		DECLARE_MULTICAST_DELEGATE(FSyncControlChanged);

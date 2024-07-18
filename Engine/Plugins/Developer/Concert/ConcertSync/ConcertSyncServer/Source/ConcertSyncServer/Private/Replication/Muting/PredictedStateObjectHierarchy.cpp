@@ -7,11 +7,11 @@
 
 namespace UE::ConcertSyncServer::Replication
 {
-	void FPredictedStateObjectHierarchy::AddClients(const TMap<FGuid, TArray<FConcertReplicationStream>>& Clients)
+	void FPredictedStateObjectHierarchy::AddClients(const TMap<FGuid, FConcertReplicationStreamArray>& Clients)
 	{
-		for (const TPair<FGuid, TArray<FConcertReplicationStream>>& Pair : Clients)
+		for (const TPair<FGuid, FConcertReplicationStreamArray>& Pair : Clients)
 		{
-			AddClientData(Pair.Key, Pair.Value);
+			AddClientData(Pair.Key, Pair.Value.Streams);
 		}
 	}
 

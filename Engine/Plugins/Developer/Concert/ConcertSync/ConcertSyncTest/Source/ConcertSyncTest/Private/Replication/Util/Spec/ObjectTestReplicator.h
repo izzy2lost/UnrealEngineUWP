@@ -32,6 +32,17 @@ namespace UE::ConcertSyncTests::Replication
 	};
 	ENUM_CLASS_FLAGS(EPropertyReplicationFlags);
 
+	/** Defines the properties you want to add to the stream */
+	enum class EPropertyTypeFlags : uint8
+	{
+		None,
+		Float = 1 << 0,
+		Vector = 1 << 1,
+		Others = 1 << 2,
+		All = Float | Vector | Others
+	};
+	ENUM_CLASS_FLAGS(EPropertyTypeFlags);
+
 	struct FObjectReplicationContext
 	{
 		FReplicationClient& Sender;
@@ -74,15 +85,31 @@ namespace UE::ConcertSyncTests::Replication
 			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
 			uint8 ReplicationRate = 30
 			) const;
+		
 		/** Util for creating a stream that replicates TestObject. */
 		FConcertReplicationStream CreateStream(
 			FGuid SenderStreamId = FGuid::NewGuid(),
 			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
 			uint8 ReplicationRate = 30
 		) const;
+		/** Util for creating a stream that replicates TestObject and specifies the properties. */
+		FConcertReplicationStream CreateStreamWithProperties(
+			FGuid SenderStreamId = FGuid::NewGuid(),
+			EPropertyTypeFlags PropertyTypeFlags = EPropertyTypeFlags::All,
+			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
+			uint8 ReplicationRate = 30
+		) const;
+		
 		/** Util adding replication settings for TestObject to a stream */
 		void AddToStream(
 			FConcertReplicationStream& Stream,
+			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
+			uint8 ReplicationRate = 30
+			) const;
+		/** Util adding replication settings for TestObject to a stream and specifies the properties. */
+		void AddToStreamWithProperties(
+			FConcertReplicationStream& Stream,
+			EPropertyTypeFlags PropertyTypeFlags = EPropertyTypeFlags::All,
 			EConcertObjectReplicationMode ReplicationMode = EConcertObjectReplicationMode::Realtime,
 			uint8 ReplicationRate = 30
 			) const;

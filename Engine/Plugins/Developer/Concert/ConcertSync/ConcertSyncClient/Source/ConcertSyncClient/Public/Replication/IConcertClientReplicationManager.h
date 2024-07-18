@@ -4,6 +4,7 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Messages/ChangeAuthority.h"
+#include "Replication/Messages/PutState.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
 #include "Replication/Messages/Handshake.h"
@@ -134,8 +135,14 @@ public:
 	virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request = {}) = 0;
 	TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(TSet<FSoftObjectPath> Objects);
 
-	/** Restore this client's stream content and authority to what a client had when they left. */
+	/** Restore this client's stream content and authority to what a client had when they left. Only works if session has EConcertSyncSessionFlags::ShouldEnableReplicationActivities set. */
 	virtual TFuture<FConcertReplication_RestoreContent_Response> RestoreContent(FConcertReplication_RestoreContent_Request Request = {}) = 0;
+
+	/**
+	 * Changes multiple clients' stream, authority, and optionally the global mute state. Useful for applying a preset.
+	 * Only works if session has EConcertSyncSessionFlags::ShouldEnableRemoteEditing set.
+	 */
+	virtual TFuture<FConcertReplication_PutState_Response> PutClientState(FConcertReplication_PutState_Request Request) = 0;
 
 	DECLARE_MULTICAST_DELEGATE(FOnPreStreamsChanged);
 	/** Called right before the result of GetRegisteredStreams changes. */

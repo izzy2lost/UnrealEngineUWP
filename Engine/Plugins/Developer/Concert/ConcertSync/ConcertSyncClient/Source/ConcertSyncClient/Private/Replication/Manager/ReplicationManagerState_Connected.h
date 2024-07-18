@@ -5,13 +5,14 @@
 #include "ConcertSyncSessionFlags.h"
 #include "ReplicationManagerState.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
-#include "Replication/Misc/LocalSyncControl.h"
+#include "Replication/Messages/ChangeClientEvent.h"
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ClientReplicationDataQueuer.h"
 #include "Replication/Processing/ObjectReplicationApplierProcessor.h"
 #include "Replication/Processing/ObjectReplicationReceiver.h"
 #include "Replication/Processing/ObjectReplicationSender.h"
 #include "Replication/Processing/Proxy/ObjectProcessorProxy_Frequency.h"
+#include "Utils/LocalSyncControl.h"
 
 class IConcertClientSession;
 
@@ -29,7 +30,7 @@ namespace UE::ConcertSyncClient::Replication
 	class FReplicationManagerState_Connected : public FReplicationManagerState
 	{
 	public:
-
+		
 		FReplicationManagerState_Connected(
 			TSharedRef<IConcertClientSession> InLiveSession,
 			IConcertClientReplicationBridge& ReplicationBridge UE_LIFETIMEBOUND,
@@ -57,6 +58,7 @@ namespace UE::ConcertSyncClient::Replication
 		virtual TFuture<FConcertReplication_ChangeMuteState_Response> ChangeMuteState(FConcertReplication_ChangeMuteState_Request) override;
 		virtual TFuture<FConcertReplication_QueryMuteState_Response> QueryMuteState(FConcertReplication_QueryMuteState_Request Request) override;
 		virtual TFuture<FConcertReplication_RestoreContent_Response> RestoreContent(FConcertReplication_RestoreContent_Request Request) override;
+		virtual TFuture<FConcertReplication_PutState_Response> PutClientState(FConcertReplication_PutState_Request Request) override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:
@@ -109,21 +111,28 @@ namespace UE::ConcertSyncClient::Replication
 		 * It is configured in the project settings TODO: Add config
 		 */
 		void Tick(IConcertClientSession& Session, float DeltaTime);
-		
+
+		/** Handle the server telling us that our state has changed. */
+		void HandleChangeClientEvent(const FConcertSessionContext& Context, const FConcertReplication_ChangeClientEvent& Event);
+
+		/** Changes the local state assuming that Request will succeed. */
+		TMap<FSoftObjectPath, TArray<FGuid>> PredictAndApplyStreamChangeRemovedObjects(const FConcertReplication_ChangeStream_Request& Request);
+		void ApplyStreamChangeRemovedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredicatedRemovedObjects);
+		/** Reverts changes previously made by PredictStreamChangeRemovedObjects. */
+		void RevertPredictedStreamChangeRemovedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredictedChange);
+		/** Applies stream changes that we previously predicted using PredictStreamChangeRemovedObjects. */
+		void FinalizePredictedStreamChange(const FConcertReplication_ChangeStream_Request& StreamChange);
 		/** Updates replicated objects affected by the change request. */
 		void UpdateReplicatedObjectsAfterStreamChange(const FConcertReplication_ChangeStream_Request& Request);
-		TMap<FSoftObjectPath, TArray<FGuid>> HandleRemovingReplicatedObjects(const FConcertReplication_ChangeStream_Request& Request);
-		void RevertRemovingReplicatedObjects(const TMap<FSoftObjectPath, TArray<FGuid>>& PredictedChange);
-
-		/**
-		 * Updates the objects which should be replicated after changing authority.
-		 * 
-		 * @note Request is accepted as && because this function rewrites its memory when looking at rejections.
-		 * Since the request was already sent to the server it can just contain trash after.
-		 */
-		void UpdateReplicatedObjectsAfterAuthorityChange(FConcertReplication_ChangeAuthority_Request&& Request, const FConcertReplication_ChangeAuthority_Response& Response);
-		void HandleReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
-		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
+		
+		/** Changes the local state assuming that Request will succeed. */
+		void ApplyAuthorityChangeRemovedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
+		/** Reverts changes previously made by PredictAuthorityChangeReleasedObjects. */
+		void RevertAuthorityChangeReleasedObjects(const FConcertReplication_ChangeAuthority_Request& Request);
+		/** Applies authority changes that we previously predicted using PredictAuthorityChangeReleasedObjects. */
+		void FinalizePredictedAuthorityChange(const FConcertReplication_ChangeAuthority_Request& AuthorityChange, const TMap<FSoftObjectPath, FConcertStreamArray>& RejectedObjects, const FConcertReplication_ChangeSyncControl& SyncControlChange);
+		/** Updates the objects which should be replicated after changing authority. */
+		void UpdateReplicatedObjectsAfterAuthorityChange(const FConcertReplication_ChangeAuthority_Request& Request, const TMap<FSoftObjectPath, FConcertStreamArray>& RejectedObjects);
 
 		/** Updates the objects which should be replicated after they have been reset to a completely new state (e.g. when restoring session content manually). */
 		void UpdateReplicatedObjectAfterServerSideChange(const FConcertQueriedClientInfo& NewState);

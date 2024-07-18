@@ -10,6 +10,7 @@
 #include "Misc/EBreakBehavior.h"
 #include "Templates/Function.h"
 
+struct FConcertReplicationStreamArray;
 struct FConcertStreamArray;
 struct FConcertReplication_ChangeSyncControl;
 class IConcertSession;
@@ -20,6 +21,7 @@ struct FConcertPropertyChain;
 struct FConcertPropertySelection;
 struct FConcertSessionContext;
 struct FConcertObjectInStreamID;
+struct FConcertObjectInStreamArray;
 struct FConcertReplicatedObjectId;
 struct FConcertReplicationStream;
 
@@ -75,6 +77,21 @@ namespace UE::ConcertSyncServer::Replication
 		/** Whether it is legal for this the client identified by ClientId to take control over the object given the stream the client has registered. */
 		bool CanTakeAuthority(const FConcertReplicatedObjectId& Object) const;
 
+		/**
+		 * Enumerates all authority conflicts, if any, that would occur if ObjectChange.SenderEndpointId were to take authority over the identified object.
+		 *
+		 * While EnumerateAuthorityConflicts allows you to specify OverwriteProperties, this version allows you to override the
+		 * 
+		 * @return Whether there were any conflicts
+		 */
+
+		EAuthorityResult EnumerateAuthorityConflictsWithOverrides(
+			const FConcertReplicatedObjectId& Object,
+			const TMap<FGuid, FConcertReplicationStreamArray>& StreamOverrides,
+			const TMap<FGuid, FConcertObjectInStreamArray>& AuthorityOverrides,
+			FProcessAuthorityConflict ProcessConflict = [](auto&, auto&, auto&){ return EBreakBehavior::Break; }
+			) const;
+
 		/** Notifies this manager that the client has left, which means all their authority is now gone. */
 		void OnPostClientLeft(const FClientId& ClientEndpointId);
 		/** Takes away authority from the given client from the given object. */
@@ -119,9 +136,6 @@ namespace UE::ConcertSyncServer::Replication
 			FConcertReplication_ChangeSyncControl& OutChangedSyncControl,
 			bool bShouldLog = true
 			);
-
-		/** Finds a stream registered with the client by its ID. */
-		const FConcertReplicationStream* FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const;
 	};
 }
 

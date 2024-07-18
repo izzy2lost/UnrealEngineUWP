@@ -3,8 +3,8 @@
 #include "SyncControlManager.h"
 
 #include "AuthorityManager.h"
-#include "MuteManager.h"
 #include "ConcertServer/Private/ConcertServerSession.h"
+#include "Muting/MuteManager.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/SyncControl.h"
 
@@ -53,6 +53,12 @@ namespace UE::ConcertSyncServer::Replication
 	{
 		const FClientData* ClientData = PerClientData.Find(Object.SenderEndpointId);
 		return ClientData && ClientData->ObjectsWithSyncControl.Contains(Object);
+	}
+
+	const TSet<FConcertObjectInStreamID>* FSyncControlManager::GetClientControlledObjects(const FGuid& ClientId) const
+	{
+		const FClientData* ClientData = PerClientData.Find(ClientId);
+		return ClientData ? &ClientData->ObjectsWithSyncControl : nullptr;
 	}
 
 	FConcertReplication_ChangeSyncControl FSyncControlManager::OnGenerateSyncControlForClientJoin(const FGuid& ClientId)
