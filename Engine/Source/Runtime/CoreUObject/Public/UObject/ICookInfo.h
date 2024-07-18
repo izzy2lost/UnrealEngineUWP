@@ -133,6 +133,12 @@ public:
 	 * delete the Collector if he caller does not have their own TRefCountPtr to it.
 	 */
 	virtual void UnregisterCollector(IMPCollector* Collector) = 0;
+
+
+	/**
+	 * Gets the current cultures that are being cooked.
+	 */
+	virtual void GetCulturesToCook(TArray<FString>& OutCulturesToCook) const = 0;
 };
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FCookInfoEvent, ICookInfo&);

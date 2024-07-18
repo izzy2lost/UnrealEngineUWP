@@ -7667,6 +7667,14 @@ void UCookOnTheFlyServer::UnregisterCollector(UE::Cook::IMPCollector* Collector)
 }
 
 
+void UCookOnTheFlyServer::GetCulturesToCook(TArray<FString>& OutCulturesToCook) const
+{
+	if (CookByTheBookOptions)
+	{
+		OutCulturesToCook.Append(CookByTheBookOptions->AllCulturesToCook);
+	}
+}
+
 void UCookOnTheFlyServer::DumpStats()
 {
 	UE_LOG(LogCook, Display, TEXT("IntStats:"));
@@ -10394,6 +10402,14 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 				RegisterShaderChunkDataGenerator();
 			}
 
+			for (auto ChunkGeneratorFactory : IChunkDataGenerator::GetChunkDataGeneratorFactories())
+			{
+				for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms())
+				{
+					FAssetRegistryGenerator& RegistryGenerator = *(PlatformManager->GetPlatformData(TargetPlatform)->RegistryGenerator);
+					RegistryGenerator.RegisterChunkDataGenerator(ChunkGeneratorFactory(*this));
+				}
+			}
 			// if we are cooking DLC, the DevelopmentAR isn't needed - it's used when making DLC against shipping, so there's no need to make it
 			// again, as we don't make DLC against DLC (but allow an override just in case)
 			bool bSaveDevelopmentAssetRegistry = !FParse::Param(FCommandLine::Get(), TEXT("NoSaveDevAR"));

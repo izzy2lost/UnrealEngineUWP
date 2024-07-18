@@ -642,6 +642,7 @@ public:
 	UNREALED_API virtual void RegisterCollector(UE::Cook::IMPCollector* Collector,
 		UE::Cook::EProcessType ProcessType = UE::Cook::EProcessType::AllMPCook) override;
 	UNREALED_API virtual void UnregisterCollector(UE::Cook::IMPCollector* Collector) override;
+	UNREALED_API virtual void GetCulturesToCook(TArray<FString>& OutCulturesToCook) const override;
 
 
 	/** Dumps cooking stats to the log. Run from the exec command "Cook stats". */
