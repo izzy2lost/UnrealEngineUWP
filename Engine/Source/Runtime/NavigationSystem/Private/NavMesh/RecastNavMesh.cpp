@@ -824,8 +824,9 @@ void ARecastNavMesh::PostRegisterAllComponents()
 	// Create and register link proxy if enabled.
 	if (NavLinkJumpDownConfig.bEnabled && NavLinkJumpDownConfig.LinkProxyClass.Get() != nullptr)
 	{
-		// Use existing proxy id.
-		CreateAndRegisterJumpDownLinksProxy(NavLinkJumpDownConfig.LinkProxyId);
+		// If it's the first time, LinkProxyId will have the default invalid value so we need to generate an Id.
+		const FNavLinkId Id = NavLinkJumpDownConfig.LinkProxyId.IsValid() ? NavLinkJumpDownConfig.LinkProxyId :  FNavLinkId::GenerateUniqueId(); 
+		CreateAndRegisterJumpDownLinksProxy(Id);
 	}
 }
 

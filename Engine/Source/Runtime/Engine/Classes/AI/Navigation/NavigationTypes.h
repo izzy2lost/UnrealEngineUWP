@@ -156,6 +156,11 @@ struct FNavLinkId
 		: Id(InId)
 	{}
 
+	bool IsValid() const
+	{
+		return Id != InvalidLinkId;
+	}
+
 	bool operator==(const FNavLinkId& Other) const
 	{
 		return Id == Other.Id;
