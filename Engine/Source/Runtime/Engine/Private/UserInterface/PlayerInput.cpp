@@ -134,6 +134,8 @@ void UPlayerInput::PostInitProperties()
 void UPlayerInput::FlushPressedKeys()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPlayerInput::FlushPressedKeys);
+
+	UE_LOG(LogPlayerInput, Verbose, TEXT("[%hs] Flush pressed keys on player input object %s"), __func__, *GetNameSafe(this));
 	
 	APlayerController* PlayerController = GetOuterAPlayerController();
 	ULocalPlayer* LocalPlayer = PlayerController ? Cast<ULocalPlayer>(PlayerController->Player) : nullptr;
