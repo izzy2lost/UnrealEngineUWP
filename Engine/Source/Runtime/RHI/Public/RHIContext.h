@@ -96,16 +96,7 @@ public:
 		return ShaderBindingLayout;
 	}
 
-	void Bind(TArray<FRHIUniformBuffer*>& Bindings) const
-	{
-		Bindings.Reset();
-		Bindings.SetNumZeroed(SlotCount);
-
-		for (int32 Index = 0; Index < UniformBuffers.Num(); ++Index)
-		{
-			Bindings[Slots[Index]] = UniformBuffers[Index];
-		}
-	}
+	RHI_API void Bind(TArray<FRHIUniformBuffer*>& Bindings) const;
 
 private:
 	static const uint32 InlineUniformBufferCount = 8;
@@ -806,7 +797,7 @@ public:
 			ArgumentBuffer, ArgumentOffset);
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
-
+	
 	virtual void RHISetBindingsOnShaderBindingTable(FRHIShaderBindingTable* SBT, FRHIRayTracingPipelineState* Pipeline, uint32 NumBindings, const FRayTracingLocalShaderBindings* Bindings, ERayTracingBindingType BindingType)
 	{
 		checkNoEntry();

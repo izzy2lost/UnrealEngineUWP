@@ -908,11 +908,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		}
 	}
 
-	if (Lumen::UseHardwareRayTracing(ViewFamily)
-		|| ManyLights::UseHardwareRayTracing(ViewFamily))
-	{
-		SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
-	}
+	SetupLumenHardwareRayTracingUniformBuffer(GraphBuilder, ReferenceView);
 
 	SetupRayTracingPipelineStates(GraphBuilder);
 

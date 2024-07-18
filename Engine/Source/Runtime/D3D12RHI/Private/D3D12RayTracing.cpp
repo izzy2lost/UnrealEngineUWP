@@ -4792,17 +4792,17 @@ static void DispatchRays(FD3D12CommandContext& CommandContext,
 	if (StaticShaderBindingSlot >= 0)
 	{
 		for (uint32 Index = 0; Index < ShaderBindingLayout.GetNumUniformBufferEntries(); ++Index)
-			{
+		{
 			const FRHIUniformBufferShaderBindingLayout& LayoutEntry = ShaderBindingLayout.GetUniformBufferEntry(Index);
 			const uint32 RootParameterSlotIndex = uint32(StaticShaderBindingSlot) + LayoutEntry.CBVResourceIndex;
 
 			FRHIUniformBuffer* UniformBuffer = StaticUniformBuffers[Index];
 			checkf(UniformBuffer, TEXT("Static uniform buffer at index %d is referenced in the shader binding layout but not provided in the last RHISetStaticUniformBuffers() command"), Index);
 
-				FD3D12UniformBuffer* D3D12UniformBuffer = FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(UniformBuffer, 0);//GpuIndex);
-				if (D3D12UniformBuffer->ResourceLocation.GetGPUVirtualAddress())
-				{
-					const FD3D12ResourceLocation& ResourceLocation = D3D12UniformBuffer->ResourceLocation;
+			FD3D12UniformBuffer* D3D12UniformBuffer = FD3D12CommandContext::RetrieveObject<FD3D12UniformBuffer>(UniformBuffer, Device->GetGPUIndex());
+			if (D3D12UniformBuffer->ResourceLocation.GetGPUVirtualAddress())
+			{
+				const FD3D12ResourceLocation& ResourceLocation = D3D12UniformBuffer->ResourceLocation;
 				CommandContext.GraphicsCommandList()->SetComputeRootConstantBufferView(RootParameterSlotIndex, ResourceLocation.GetGPUVirtualAddress());
 			}
 		}

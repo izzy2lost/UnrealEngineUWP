@@ -83,6 +83,30 @@ void FUniformBufferStaticBindings::AddUniformBuffer(FRHIUniformBuffer* UniformBu
 	}
 }
 
+void FUniformBufferStaticBindings::Bind(TArray<FRHIUniformBuffer*>& Bindings) const
+{
+	Bindings.Reset();
+
+	if (ShaderBindingLayout)
+	{
+		Bindings.SetNumZeroed(UniformBuffers.Num());
+
+		for (int32 Index = 0; Index < UniformBuffers.Num(); ++Index)
+		{
+			Bindings[Index] = UniformBuffers[Index];
+		}
+	}
+	else
+	{
+		Bindings.SetNumZeroed(SlotCount);
+
+		for (int32 Index = 0; Index < UniformBuffers.Num(); ++Index)
+		{
+			Bindings[Slots[Index]] = UniformBuffers[Index];
+		}
+	}
+}
+
 void IRHICommandContextPSOFallback::SetGraphicsPipelineStateFromInitializer(const FGraphicsPipelineStateInitializer& PsoInit, uint32 StencilRef, bool bApplyAdditionalState)
 {
 	RHISetBoundShaderState(
