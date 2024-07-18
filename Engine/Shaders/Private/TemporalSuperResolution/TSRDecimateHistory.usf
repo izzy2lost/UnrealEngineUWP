@@ -500,6 +500,7 @@ void ReprojectAllPrevTextures(
 	#if CONFIG_RESURRECTION_REPROJECTION
 		out tsr_halfC ResurrectedHistoryGuideColor,
 		out tsr_half  ResurrectedHistoryGuideUncertainty,
+		out bool      bIsResurrectionOffScreen,
 	#endif
 	out bool bIsOffScreen)
 {
@@ -570,6 +571,12 @@ void ReprojectAllPrevTextures(
 		float4 ThisClip = float4(OutputScreenPos, DeviceZ, 1);
 		float4 ResurrectionClip = mul(ThisClip, ClipToResurrectionClip); 
 		float2 ResurrectionScreen = ResurrectionClip.xy / ResurrectionClip.w;
+
+		bIsResurrectionOffScreen = (
+			(ResurrectionScreen.x < -1.0) ||
+			(ResurrectionScreen.y < -1.0) ||
+			(ResurrectionScreen.x > 1.0) ||
+			(ResurrectionScreen.y > 1.0));
 
 		float2 KernelHistoryBufferUV = ApplyScreenTransform(ResurrectionScreen, ScreenPosToResurrectionGuideBufferUV);
 		KernelHistoryBufferUV = fastClamp(KernelHistoryBufferUV, ResurrectionGuideUVViewportBilinearMin, ResurrectionGuideUVViewportBilinearMax);
@@ -669,6 +676,9 @@ void MainCS(
 	#if CONFIG_RESURRECTION_REPROJECTION
 		tsr_halfC ResurrectedHistoryGuideColor;
 		tsr_half  ResurrectedHistoryGuideUncertainty;
+		bool bIsResurrectionOffScreen;
+	#else
+		const bool bIsResurrectionOffScreen = false;
 	#endif
 	bool bIsOffScreen;
 
@@ -689,6 +699,7 @@ void MainCS(
 			#if CONFIG_RESURRECTION_REPROJECTION
 				/* out */ ResurrectedHistoryGuideColor,
 				/* out */ ResurrectedHistoryGuideUncertainty,
+				/* out */ bIsResurrectionOffScreen,
 			#endif
 			/* out */ bIsOffScreen);
 	}
@@ -777,10 +788,11 @@ void MainCS(
 	
 	// Builds the decimate bitmask
 	tsr_ushort DecimateBitMask = 
-		select(bIsOffScreen,            tsr_ushort(0x1), tsr_ushort(0x0)) |
-		select(bIsParallaxDisocclusion, tsr_ushort(0x2), tsr_ushort(0x0)) |
-		select(bHasPixelAnimation,      tsr_ushort(0x4), tsr_ushort(0x0)) |
-		select(bReprojectionHollFill,   tsr_ushort(0x8), tsr_ushort(0x0));
+		select(bIsOffScreen,             tsr_ushort(0x01), tsr_ushort(0x0)) |
+		select(bIsParallaxDisocclusion,  tsr_ushort(0x02), tsr_ushort(0x0)) |
+		select(bHasPixelAnimation,       tsr_ushort(0x04), tsr_ushort(0x0)) |
+		select(bReprojectionHollFill,    tsr_ushort(0x08), tsr_ushort(0x0)) |
+		select(bIsResurrectionOffScreen, tsr_ushort(0x10), tsr_ushort(0x0));
 
 	// Output full res
 	ISOLATE
