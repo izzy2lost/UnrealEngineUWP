@@ -112,6 +112,7 @@
 #include "SceneView.h"
 #include "StaticBoundShaderState.h"
 #include "PropertyColorSettings.h"
+#include "WorldPartition/ContentBundle/ContentBundleActivationScope.h"
 
 // needed for the RemotePropagator
 #include "AudioDevice.h"
@@ -5468,6 +5469,9 @@ void UEditorEngine::ReplaceSelectedActors(UActorFactory* Factory, const FAssetDa
 
 void UEditorEngine::ReplaceActors(UActorFactory* Factory, const FAssetData& AssetData, const TArray<AActor*>& ActorsToReplace, TArray<AActor*>* OutNewActors, bool bCopySourceProperties)
 {
+	FGuid InvalidGuid;
+	FContentBundleActivationScope Activationscope(InvalidGuid);
+
 	// Cache for attachment info of all actors being converted.
 	TArray<ReattachActorsHelper::FActorAttachmentCache> AttachmentInfo;
 
