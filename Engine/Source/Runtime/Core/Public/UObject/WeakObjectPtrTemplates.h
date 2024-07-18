@@ -232,6 +232,19 @@ public:
 	}
 
 	/**
+	 * Returns true if two weak pointers were originally set to the same object, even if they are now stale
+	 * @param Other weak pointer to compare to
+	 */
+	template <
+		typename OtherT
+		UE_REQUIRES(UE_REQUIRES_EXPR((T*)nullptr == (OtherT*)nullptr))
+	>
+	FORCEINLINE bool HasSameIndexAndSerialNumber(const TWeakObjectPtr<OtherT, TWeakObjectPtrBase>& Other) const
+	{
+		return ((const TWeakObjectPtrBase&)*this).HasSameIndexAndSerialNumber((const TWeakObjectPtrBase&)Other);
+	}
+
+	/**
 	 * Weak object pointer serialization, this forwards to FArchive::operator<<(struct FWeakObjectPtr&) or an override
 	 */
 	FORCEINLINE	void Serialize(FArchive& Ar)
