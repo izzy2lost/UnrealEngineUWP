@@ -8,11 +8,9 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Engine/World.h"
 #include "GlobalLock.h"
-#include "MassCommonTypes.h"
 #include "MassEntityEditorSubsystem.h"
 #include "MassEntityTypes.h"
 #include "MassProcessor.h"
-#include "MassSimulationSubsystem.h"
 #include "MassSubsystemAccess.h"
 #include "Processors/TypedElementProcessorAdaptors.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
@@ -26,6 +24,8 @@ const FName UTypedElementDatabase::TickGroupName_PreUpdate(TEXT("PreUpdate"));
 const FName UTypedElementDatabase::TickGroupName_Update(TEXT("Update"));
 const FName UTypedElementDatabase::TickGroupName_PostUpdate(TEXT("PostUpdate"));
 const FName UTypedElementDatabase::TickGroupName_SyncWidget(TEXT("SyncWidgets"));
+const FName UTypedElementDatabase::TickGroupName_SyncExternalToDataStorage(TEXT("SyncExternalToDataStorage"));
+const FName UTypedElementDatabase::TickGroupName_SyncDataStorageToExternal(TEXT("SyncDataStorageToExternal"));
 
 FAutoConsoleCommandWithOutputDevice PrintQueryCallbacksConsoleCommand(
 	TEXT("TEDS.PrintQueryCallbacks"),
@@ -915,9 +915,9 @@ FName UTypedElementDatabase::GetQueryTickGroupName(EQueryTickGroups Group) const
 		case EQueryTickGroups::PostUpdate:
 			return TickGroupName_PostUpdate;
 		case EQueryTickGroups::SyncExternalToDataStorage:
-			return UE::Mass::ProcessorGroupNames::SyncWorldToMass;
+			return TickGroupName_SyncExternalToDataStorage;
 		case EQueryTickGroups::SyncDataStorageToExternal:
-			return UE::Mass::ProcessorGroupNames::UpdateWorldFromMass;
+			return TickGroupName_SyncDataStorageToExternal;
 		case EQueryTickGroups::SyncWidgets:
 			return TickGroupName_SyncWidget;
 		default:

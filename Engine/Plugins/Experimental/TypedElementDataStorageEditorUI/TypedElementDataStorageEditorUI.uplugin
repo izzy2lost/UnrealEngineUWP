@@ -29,9 +29,5 @@
 		}
 	],
 	"Plugins": [
-		{
-			"Name": "MassGameplay",
-			"Enabled": true
-		}
 	]
 }

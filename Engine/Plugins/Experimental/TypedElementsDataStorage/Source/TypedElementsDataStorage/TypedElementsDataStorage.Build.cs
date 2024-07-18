@@ -22,7 +22,6 @@ public class TypedElementsDataStorage : ModuleRules
 					"EditorSubsystem",
 					"MassEntity",
 					"MassEntityEditor",
-					"MassSimulation",
 					"TypedElementFramework",
 					"SlateCore",
 					"UnrealEd"

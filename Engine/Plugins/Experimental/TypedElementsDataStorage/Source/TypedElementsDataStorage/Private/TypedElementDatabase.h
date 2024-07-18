@@ -178,6 +178,8 @@ private:
 	static const FName TickGroupName_Update;
 	static const FName TickGroupName_PostUpdate;
 	static const FName TickGroupName_SyncWidget;
+	static const FName TickGroupName_SyncExternalToDataStorage;
+	static const FName TickGroupName_SyncDataStorageToExternal;
 	
 	TArray<FMassArchetypeHandle> Tables;
 	TMap<FName, TypedElementDataStorage::TableHandle> TableNameLookup;

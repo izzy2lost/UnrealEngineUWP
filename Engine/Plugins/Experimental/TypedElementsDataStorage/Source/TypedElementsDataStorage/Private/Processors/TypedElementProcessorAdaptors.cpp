@@ -4,7 +4,6 @@
 
 #include <utility>
 #include "Elements/Common/TypedElementQueryTypes.h"
-#include "MassCommonTypes.h"
 #include "MassEntityView.h"
 #include "MassExecutionContext.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
