@@ -82,7 +82,7 @@ namespace UE::ConcertSyncServer::Replication
 			const FConcertObjectReplicationMap* ReplicationMap = nullptr;
 			Getters.ForEachStream(ClientId, [&StreamId, &ReplicationMap](const FGuid& InStreamId, const FConcertObjectReplicationMap& InReplicationMap) mutable
 			{
-				if (InStreamId == InStreamId)
+				if (InStreamId == StreamId)
 				{
 					ReplicationMap = &InReplicationMap;
 					return EBreakBehavior::Break;
