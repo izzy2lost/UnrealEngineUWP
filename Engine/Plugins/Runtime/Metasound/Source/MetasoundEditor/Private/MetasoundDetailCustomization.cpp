@@ -577,8 +577,13 @@ namespace Metasound::Editor
 			}
 			else
 			{
-				BuildPageName = Frontend::DefaultGraphPageName;
-				DocBuilder.SetBuildPageID(Frontend::DefaultGraphPageID);
+				constexpr bool bFocusEditor = false; // Already focused by user action
+				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
+				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), Frontend::DefaultGraphPageName, bFocusEditor, Result);
+				if (Result == EMetaSoundBuilderResult::Succeeded)
+				{
+					BuildPageName = Frontend::DefaultGraphPageName;
+				}
 			}
 		}
 		else

@@ -239,7 +239,7 @@ void UMetaSoundEditorSubsystem::InitEdGraph(UObject& InMetaSound)
 	Metasound::Editor::FGraphBuilder::BindEditorGraph(IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(&InMetaSound));
 }
 
-void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization)
+void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization) const
 {
 	Metasound::Editor::FGraphBuilder::RegisterGraphWithFrontend(InMetaSound, bInForceViewSynchronization);
 }
@@ -249,10 +249,10 @@ void UMetaSoundEditorSubsystem::RegisterToolbarExtender(TSharedRef<FExtender> In
 	EditorToolbarExtenders.AddUnique(InExtender);
 }
 
-void UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase* InBuilder, FName InPageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const
+void UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase* Builder, FName PageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const
 {
 	using namespace Metasound::Frontend;
-	if (!InBuilder)
+	if (!Builder)
 	{
 		OutResult = EMetaSoundBuilderResult::Failed;
 		return;
@@ -260,31 +260,64 @@ void UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase* InBuilder,
 
 	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 	check(Settings);
-	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InPageName))
+	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageName))
 	{
-		const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedBuildPageTransactionFormat", "Set Focused Builder Page '{0}'"), FText::FromName(InPageName)));
-		InBuilder->Modify();
-		if (InBuilder->GetBuilder().SetBuildPageID(PageSettings->UniqueId))
+		const bool bFocusedPage = SetFocusedPageInternal(*PageSettings, *Builder, bFocusPageEditor);
+		if (bFocusedPage)
 		{
-			if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
-			{
-				EditorSettings->AuditionTargetPage = InPageName;
-			}
-
-			if (GEditor && bFocusPageEditor)
-			{
-				if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
-				{
-					AssetEditorSubsystem->OpenEditorForAsset(&InBuilder->GetConstBuilder().CastDocumentObjectChecked<UObject>());
-				}
-			}
-
 			OutResult = EMetaSoundBuilderResult::Succeeded;
 			return;
 		}
-	};
+	}
 
 	OutResult = EMetaSoundBuilderResult::Failed;
+}
+
+bool UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase& Builder, const FGuid& InPageID, bool bFocusPageEditor) const
+{
+	using namespace Metasound::Frontend;
+
+	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+	check(Settings);
+	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InPageID))
+	{
+		return SetFocusedPageInternal(*PageSettings, Builder, bFocusPageEditor);
+	}
+
+	return false;
+}
+
+bool UMetaSoundEditorSubsystem::SetFocusedPageInternal(const FMetaSoundPageSettings& InPageSettings, UMetaSoundBuilderBase& Builder, bool bFocusPageEditor) const
+{
+	using namespace Metasound::Frontend;
+
+	const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedPageTransactionFormat", "Set Focused Page '{0}'"), FText::FromName(InPageSettings.Name)));
+	Builder.Modify();
+	if (Builder.GetBuilder().SetBuildPageID(InPageSettings.UniqueId))
+	{
+		if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
+		{
+			if (EditorSettings->AuditionPageMode == EAuditionPageMode::Focused)
+			{
+				EditorSettings->AuditionTargetPage = InPageSettings.Name;
+
+				// Reregister to ensure all future audible instances are using the new page implementation.
+				RegisterGraphWithFrontend(Builder.GetBuilder().CastDocumentObjectChecked<UObject>());
+			}
+		}
+
+		if (GEditor && bFocusPageEditor)
+		{
+			if (UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>())
+			{
+				AssetEditorSubsystem->OpenEditorForAsset(&Builder.GetConstBuilder().CastDocumentObjectChecked<UObject>());
+			}
+		}
+
+		return true;
+	}
+
+	return false;
 }
 
 bool UMetaSoundEditorSubsystem::UnregisterToolbarExtender(TSharedRef<FExtender> InExtender)

@@ -15,6 +15,9 @@ class UMetaSoundBuilderBase;
 class UMetasoundEditorGraphMember;
 class UMetasoundEditorGraphMemberDefaultLiteral;
 
+struct FMetaSoundPageSettings;
+
+
 /** The subsystem in charge of editor MetaSound functionality */
 UCLASS()
 class METASOUNDEDITOR_API UMetaSoundEditorSubsystem : public UEditorSubsystem
@@ -70,7 +73,7 @@ public:
 	// @param InMetaSound - MetaSound to register
 	// @param bInForceSynchronize - Forces the synchronize flag for all open graphs being registered by this call (all referenced graphs and
 	// referencing graphs open in editors)
-	void RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization = false);
+	void RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization = false) const;
 
 	// Register toolbar extender that will be displayed in the MetaSound Asset Editor.
 	void RegisterToolbarExtender(TSharedRef<FExtender> InExtender);
@@ -79,7 +82,14 @@ public:
 	// the provided builder to the given page name if and sets the audition target page to
 	// the provided name. If the given builder has an asset editor open, optionally opens or brings
 	// that editor's associated page into user focus.
-	void SetFocusedPage(UMetaSoundBuilderBase* InBuilder, FName InPageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const;
+	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (ExpandEnumAsExecs = "OutResult"))
+	void SetFocusedPage(UMetaSoundBuilderBase* Builder, FName PageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const;
+
+	// If the given PageID is implemented on the provided builder, sets the focused page of
+	// the provided builder to the given PageID if and sets the audition target page to
+	// the provided ID. If the given builder has an asset editor open, optionally opens or brings
+	// that editor's associated PageID into user focus.
+	bool SetFocusedPage(UMetaSoundBuilderBase& Builder, const FGuid& InPageID, bool bFocusPageEditor) const;
 
 	// Unregisters toolbar extender that is displayed in the MetaSound Asset Editor.
 	bool UnregisterToolbarExtender(TSharedRef<FExtender> InExtender);
@@ -94,6 +104,8 @@ public:
 	static const UMetaSoundEditorSubsystem& GetConstChecked();
 
 private:
+	bool SetFocusedPageInternal(const FMetaSoundPageSettings& InPageSettings, UMetaSoundBuilderBase& Builder, bool bFocusPageEditor) const;
+
 	// Copy over sound wave settings such as attenuation, modulation, and sound class from the template sound wave to the MetaSound
 	void SetSoundWaveSettingsFromTemplate(USoundWave& NewMetasound, const USoundWave& TemplateSoundWave) const;
 
