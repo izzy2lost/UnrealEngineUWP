@@ -72,7 +72,14 @@ void UScriptableToolSet::ReinitializeScriptableTools(FPreToolsLoadedDelegate Pre
 
 	AsyncLoadHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(ObjectPathsToLoad, [this, PostDelegate, ObjectPathsToLoad, TagsToFilterCopy]() { PostToolLoad(PostDelegate, ObjectPathsToLoad, TagsToFilterCopy);  });
 
-	AsyncLoadHandle->BindUpdateDelegate(UpdateDelegate);
+	if (AsyncLoadHandle)
+	{
+		AsyncLoadHandle->BindUpdateDelegate(UpdateDelegate);
+	}
+	else
+	{
+		PostToolLoad(PostDelegate, ObjectPathsToLoad, TagsToFilterCopy);
+	}
 }
 
 
