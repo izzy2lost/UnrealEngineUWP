@@ -62,6 +62,13 @@ static FAutoConsoleVariableRef CVarEnableActorLevelChanges(
 	TEXT("When true the ActorReplicationBridge will process actors that change levels by updating the actor's level groups.")
 );
 
+static bool bEnableDynamicNetUpdateFrequency = true;
+static FAutoConsoleVariableRef CVarEnableDynamicNetUpdateFrequency(
+	TEXT("net.Iris.EnableDynamicNetUpdateFrequency"),
+	bEnableDynamicNetUpdateFrequency,
+	TEXT("When true changes to AActor::NetUpdateFrequency will be updated in Iris after being registered for replication.")
+);
+
 bool IsActorValidForIrisReplication(const AActor* Actor)
 {
 	return IsValid(Actor) && !Actor->IsActorBeingDestroyed() && !Actor->IsUnreachable();
@@ -167,6 +174,7 @@ void UActorReplicationBridge::Deinitialize()
 	if (NetDriver)
 	{
 		NetDriver->OnNetServerMaxTickRateChanged.RemoveAll(this);
+		NetDriver->GetOnNetUpdateFrequencyChanged().RemoveAll(this);
 		NetDriver = nullptr;
 	}
 	Super::Deinitialize();
@@ -992,6 +1000,7 @@ void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 	if (NetDriver)
 	{
 		NetDriver->OnNetServerMaxTickRateChanged.RemoveAll(this);
+		NetDriver->GetOnNetUpdateFrequencyChanged().RemoveAll(this);
 	}
 
 	NetDriver = InNetDriver;
@@ -1000,6 +1009,7 @@ void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 		SetMaxTickRate(static_cast<float>(FPlatformMath::Max(InNetDriver->GetNetServerMaxTickRate(), 0)));
 
 		InNetDriver->OnNetServerMaxTickRateChanged.AddUObject(this, &UActorReplicationBridge::OnMaxTickRateChanged);
+		InNetDriver->GetOnNetUpdateFrequencyChanged().AddUObject(this, &UActorReplicationBridge::OnNetUpdateFrequencyChanged);
 
 		const FName RequiredChannelName = UObjectReplicationBridgeConfig::GetConfig()->GetRequiredNetDriverChannelClassName();
 		
@@ -1344,6 +1354,19 @@ void UActorReplicationBridge::ActorChangedLevel(const AActor* Actor, const ULeve
 	}
 
 	AddActorToLevelGroup(Actor);
+}
+
+void UActorReplicationBridge::OnNetUpdateFrequencyChanged(const AActor* Actor)
+{
+	if (UE::Net::Private::bEnableDynamicNetUpdateFrequency)
+	{
+		const UE::Net::FNetRefHandle ActorHandle = GetReplicatedRefHandle(Actor);
+
+		if (ActorHandle != UE::Net::FNetRefHandle::GetInvalid())
+		{
+			SetPollFrequency(ActorHandle, Actor->GetNetUpdateFrequency());
+		}
+	}
 }
 
 void UActorReplicationBridge::AddActorToLevelGroup(const AActor* Actor)

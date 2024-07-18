@@ -1044,6 +1044,14 @@ private:
 	void ResetNetworkMetrics();
 
 public:
+	/** Delegate that will notify when an actors NetUpdateFrequency UPROPERTY has changed. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNetUpdateFrequencyChanged, const AActor* Actor);
+	FOnNetUpdateFrequencyChanged& GetOnNetUpdateFrequencyChanged() { return OnNetUpdateFrequencyChanged; };
+
+private:
+	FOnNetUpdateFrequencyChanged OnNetUpdateFrequencyChanged;
+
+public:
 	/** Get the value of MaxChannelsOverride cached from the net driver definition */
 	int32 GetMaxChannelsOverride() const { return MaxChannelsOverride; }
 

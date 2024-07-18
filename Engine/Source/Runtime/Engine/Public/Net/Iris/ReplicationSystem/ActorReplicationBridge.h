@@ -91,6 +91,9 @@ public:
 	/** Updates the level group for an actor that changed levels */
 	void ActorChangedLevel(const AActor* Actor, const ULevel* PreviousLevel);
 
+	/** Called when NetUpdateFrequency has changed on the Actor. */
+	void OnNetUpdateFrequencyChanged(const AActor* Actor);
+
 	/**
 	 * Add relevant network metrics gathered since the last call to ConsumeNetMetrics.
 	 * Any periodic stat will be reset here too.

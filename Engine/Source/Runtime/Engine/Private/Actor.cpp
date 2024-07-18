@@ -147,6 +147,27 @@ namespace ActorUtils
 
 uint32 AActor::BeginPlayCallDepth = 0;
 
+namespace ActorUtils
+{
+	template<class Function>
+	static void ForEachNetDriver(UEngine* Engine, const UWorld* const World, const Function InFunction)
+	{
+		if (Engine == nullptr || World == nullptr)
+		{
+			return;
+		}
+
+		FWorldContext* const Context = Engine->GetWorldContextFromWorld(World);
+		if (Context != nullptr)
+		{
+			for (FNamedNetDriver& Driver : Context->ActiveNetDrivers)
+			{
+				InFunction(Driver.NetDriver);
+			}
+		}
+	}
+}
+
 AActor::AActor()
 {
 	InitializeDefaults();
@@ -6235,7 +6256,17 @@ void AActor::SetNetUpdateFrequency(float Frequency)
 {
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	NetUpdateFrequency = Frequency;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS 
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	UE_LOG(LogNet, Verbose, TEXT("AActor::SetNetUpdateFrequency(): %s Frequency=%f HasActorBegunPlay()=%d"), *this->GetFullName(), Frequency, HasActorBegunPlay());
+
+	ActorUtils::ForEachNetDriver(GEngine, GetWorld(), [this](UNetDriver* NetDriver)
+	{
+		if (NetDriver)
+		{
+			NetDriver->GetOnNetUpdateFrequencyChanged().Broadcast(this);
+		}
+	});
 }
 
 float AActor::GetNetUpdateFrequency() const
