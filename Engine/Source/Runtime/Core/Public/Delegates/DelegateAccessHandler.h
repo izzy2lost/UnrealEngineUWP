@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "HAL/CriticalSection.h"
 #include "Misc/MTAccessDetector.h"
-#include "Misc/TransactionallySafeCriticalSection.h"
-#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/ScopeLock.h"
 #include "AutoRTFM/AutoRTFM.h"
 
 //#define UE_DETECT_DELEGATES_RACE_CONDITIONS 0
@@ -65,8 +65,8 @@ template<>
 class TDelegateAccessHandlerBase<FThreadSafeDelegateMode>
 {
 protected:
-	struct FReadAccessScope { FTransactionallySafeScopeLock Lock; };
-	struct FWriteAccessScope { FTransactionallySafeScopeLock Lock; };
+	struct FReadAccessScope { FScopeLock Lock; };
+	struct FWriteAccessScope { FScopeLock Lock; };
 
 	[[nodiscard]] FReadAccessScope GetReadAccessScope() const
 	{
@@ -79,7 +79,7 @@ protected:
 	}
 
 private:
-	mutable FTransactionallySafeCriticalSection Mutex;
+	mutable FCriticalSection Mutex;
 };
 
 template<>

@@ -3,7 +3,6 @@
 #include "Storage/Clients/MemoryStorageClient.h"
 #include "Storage/Clients/KeyValueStorageClient.h"
 #include "Storage/Blob.h"
-#include "Misc/ScopeLock.h"
 
 FMemoryStorageClient::FMemoryStorageClient()
 {

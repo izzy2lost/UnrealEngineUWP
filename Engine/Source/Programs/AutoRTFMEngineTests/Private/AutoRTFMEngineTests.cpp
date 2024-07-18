@@ -213,11 +213,6 @@ static void PreInit()
 
 	FDelayedAutoRegisterHelper::RunAndClearDelayedAutoRegisterDelegates(EDelayedRegisterRunPhase::StatSystemReady);
 
-
-	// Ensure GCachedScalabilityCVars.bInitialized is set (required by some mesh components)
-	FTaskTagScope::SwapTag(ETaskTag::EGameThread);
-	extern void ScalabilityCVarsSinkCallback();
-	ScalabilityCVarsSinkCallback();
 }
 
 static void LoadModules()

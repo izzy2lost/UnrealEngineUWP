@@ -1,25 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Misc/AutomationTest.h"
-#include "Animation/AnimInstance.h"
-#include "Animation/Skeleton.h"
+#include "Misc/App.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "AutoRTFMTestActor.h"
 #include "AutoRTFMTestAnotherActor.h"
 #include "AutoRTFMTestBodySetup.h"
-#include "AutoRTFMTestChildActorComponent.h"
 #include "AutoRTFMTestLevel.h"
 #include "AutoRTFMTestObject.h"
+#include "AutoRTFMTestChildActorComponent.h"
 #include "AutoRTFMTestPrimitiveComponent.h"
-#include "Chaos/Core.h"
-#include "Components/SkeletalMeshComponent.h"
-#include "Engine/SkeletalMesh.h"
-#include "Engine/World.h"
-#include "PBDRigidsSolver.h"
-#include "Physics/Experimental/PhysScene_Chaos.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
-#include "Rendering/SkeletalMeshRenderData.h"
-#include "UObject/UObjectGlobals.h"
+#include "Physics/Experimental/PhysScene_Chaos.h"
+#include "PBDRigidsSolver.h"
+#include "Chaos/Core.h"
+#include "Engine/World.h"
+
+#include <utility>
 
 #if WITH_DEV_AUTOMATION_TESTS
 
@@ -397,32 +394,6 @@ AUTORTFM_ACTOR_COMPONENT_TEST(ChildActor)
 
 	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
 	TEST_CHECK_TRUE(nullptr == ChildActorComponent->GetChildActor());
-}
-
-// Test aborting a call to USkeletalMeshComponent::RegisterComponent() with an assigned skeletal
-// mesh and empty PostProcessAnimInstance.
-// See: SOL-6779
-AUTORTFM_ACTOR_COMPONENT_TEST(USkeletalMeshComponent)
-{
-	USkeleton* Skeleton = NewObject<USkeleton>();
-	USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>();
-	SkeletalMesh->SetSkeleton(Skeleton);
-	SkeletalMesh->AllocateResourceForRendering();
-	FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
-	TRefCountPtr<FSkeletalMeshLODRenderData> LODRenderData = MakeRefCount<FSkeletalMeshLODRenderData>();
-	RenderData->LODRenderData.Add(LODRenderData);
-	USkeletalMeshComponent* SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(Actor);
-	SkeletalMeshComponent->SetSkeletalMeshAsset(SkeletalMesh);
-	SkeletalMeshComponent->PostProcessAnimInstance = NewObject<UAnimInstance>(SkeletalMeshComponent);
-
-	AutoRTFM::ETransactionResult Result;
-	Result = AutoRTFM::Transact([&]
-		{
-			SkeletalMeshComponent->RegisterComponent();
-			AutoRTFM::AbortTransaction();
-		});
-
-	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 }
 
 }  // anonymous namespace

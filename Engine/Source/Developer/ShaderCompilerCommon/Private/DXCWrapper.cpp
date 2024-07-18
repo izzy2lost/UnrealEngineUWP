@@ -5,7 +5,6 @@
 #include "HAL/FileManager.h"
 #include "Templates/RefCounting.h"
 #include "Misc/Paths.h"
-#include "Misc/ScopeLock.h"
 #include "Hash/xxhash.h"
 
 #if PLATFORM_WINDOWS

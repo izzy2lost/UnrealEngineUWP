@@ -4,7 +4,6 @@
 #include "Misc/Paths.h"
 #include "Misc/UProjectInfo.h"
 #include "Misc/App.h"
-#include "Misc/ScopeLock.h"
 
 #if PLATFORM_WINDOWS
 #include "Internationalization/Regex.h"

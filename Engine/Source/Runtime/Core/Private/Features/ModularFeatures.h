@@ -6,7 +6,7 @@
 #include "Delegates/Delegate.h"
 #include "Features/IModularFeature.h"
 #include "Features/IModularFeatures.h"
-#include "Misc/TransactionallySafeCriticalSection.h"
+#include "HAL/CriticalSection.h"
 #include "UObject/NameTypes.h"
 
 /**
@@ -37,7 +37,7 @@ private:
 	TMultiMap< FName, class IModularFeature* > ModularFeaturesMap;
 
 	/** Lock modular features map so it can be used across threads, this could be a RW lock instead of a crit sec */
-	FTransactionallySafeCriticalSection ModularFeaturesMapCriticalSection;
+	FCriticalSection ModularFeaturesMapCriticalSection;
 
 	/** Event used to inform clients that a modular feature has been registered */
 	FOnModularFeatureRegistered ModularFeatureRegisteredEvent;
