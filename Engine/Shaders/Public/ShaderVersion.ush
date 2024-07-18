@@ -3,4 +3,4 @@
 // Each time the console command is executed it generates a new GUID. As this file is included
 // in Platform.ush (which should be included in any shader) it allows to invalidate the shader DDC.
 // 
-#pragma message("UESHADERMETADATA_VERSION 6A88E9C0-AFE1-48D7-9FBA-FDF04FB6C286")
+#pragma message("UESHADERMETADATA_VERSION 033f833d-eb12-485d-a2fc-d8ed752a806d")
