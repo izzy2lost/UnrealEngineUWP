@@ -1008,13 +1008,8 @@ FTextFormatPatternDefinition::FTextFormatPatternDefinition()
 
 FTextFormatPatternDefinitionConstRef FTextFormatPatternDefinition::GetDefault()
 {
-	FTextFormatPatternDefinitionConstRef* Result;
-	AutoRTFM::Open([&Result]()
-	{
-		static FTextFormatPatternDefinitionConstRef DefaultFormatPatternDefinition = MakeShared<FTextFormatPatternDefinition, ESPMode::ThreadSafe>();
-		Result = &DefaultFormatPatternDefinition;
-	});
-	return *Result;
+	static FTextFormatPatternDefinitionConstRef DefaultFormatPatternDefinition = MakeShared<FTextFormatPatternDefinition, ESPMode::ThreadSafe>();
+	return DefaultFormatPatternDefinition;
 }
 
 const FTokenDefinitions& FTextFormatPatternDefinition::GetTextFormatDefinitions() const

@@ -4,8 +4,9 @@
 #include "AutoRTFM/AutoRTFM.h"
 #include "Delegates/IDelegateInstance.h"
 #include "HAL/ThreadSingleton.h"
-#include "Internationalization/TextHistory.h"
 #include "Internationalization/TextCache.h"
+#include "Internationalization/TextFormatter.h"
+#include "Internationalization/TextHistory.h"
 #include "Serialization/CustomVersion.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectArray.h"
@@ -1470,4 +1471,28 @@ TEST_CASE("UECore.TransactionallySafeWriteScopeLock")
 		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
 		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
 	}
+}
+
+TEST_CASE("UECore.FTextFormatPatternDefinition")
+{
+	FTextFormatPatternDefinitionConstPtr Ptr;
+
+	REQUIRE(!Ptr.IsValid());
+
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			Ptr = FTextFormatPatternDefinition::GetDefault().ToSharedPtr();
+			AutoRTFM::AbortTransaction();
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(!Ptr.IsValid());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Ptr = FTextFormatPatternDefinition::GetDefault().ToSharedPtr();
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	REQUIRE(Ptr.IsValid());
 }
