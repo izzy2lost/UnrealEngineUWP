@@ -139,6 +139,7 @@ namespace PCGMetadataHelpers
 			}
 
 			// We need accessors if we have a multi entry source attribute or we have extractors
+			const bool bIsMultiEntries = SourceData->IsA<UPCGParamData>() && SourceMetadata->GetLocalItemCount() > 1;
 			const bool bInputHasAnyExtra = !InputSource.GetExtraNames().IsEmpty();
 			const bool bOutputHasAnyExtra = !OutputTarget.GetExtraNames().IsEmpty();
 			const bool bSourceIsAttribute = InputSource.GetSelection() == EPCGAttributePropertySelection::Attribute;
@@ -146,7 +147,7 @@ namespace PCGMetadataHelpers
 			// Cast is only required if it is on an output attribute that has no extra (that we will create)
 			const bool bOutputTypeCast = bTargetIsAttribute && !bOutputHasAnyExtra && (RequestedOutputType != EPCGMetadataTypes::Unknown);
 
-			const bool bNeedAccessors = bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute || bOutputTypeCast;
+			const bool bNeedAccessors = bIsMultiEntries || bInputHasAnyExtra || bOutputHasAnyExtra || !bSourceIsAttribute || !bTargetIsAttribute || bOutputTypeCast;
 
 			// If no accessor, copy over the attribute
 			if (!bNeedAccessors)

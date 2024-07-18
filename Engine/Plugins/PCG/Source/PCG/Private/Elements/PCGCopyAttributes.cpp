@@ -98,6 +98,8 @@ void UPCGCopyAttributesSettings::ApplyDeprecation(UPCGNode* InOutNode)
 
 void UPCGCopyAttributesSettings::ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins)
 {
+	Super::ApplyDeprecationBeforeUpdatePins(InOutNode, InputPins, OutputPins);
+
 	if (!InOutNode)
 	{
 		return;
