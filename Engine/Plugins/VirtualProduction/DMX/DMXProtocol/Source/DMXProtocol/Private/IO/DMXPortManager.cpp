@@ -333,7 +333,5 @@ void FDMXPortManager::ShutdownManager()
 {
 	UE_LOG(LogDMXProtocol, Verbose, TEXT("Shutting down DMXPortManager"));
 
-	check(CurrentManager.IsValid());
-	
 	CurrentManager.Reset();
 }
