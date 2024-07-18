@@ -164,7 +164,7 @@ bool FMovieSceneNumericVariant::Serialize(FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		SerializeCustom(Ar, [this](FArchive& Ar, void* InOutData){
+		SerializeCustom(Ar, [this](FArchive& Ar, uint8& TypeBits, void* InOutData){
 
 			uint8 Type = 0;
 			Ar << Type;
@@ -181,13 +181,13 @@ bool FMovieSceneNumericVariant::Serialize(FArchive& Ar)
 				uint8 Payload[6];
 				Ar.Serialize(Payload, sizeof(Payload));
 				FMemory::Memcpy(InOutData, Payload, sizeof(Payload));
-				SetTypeBits(Type);
+				TypeBits = Type;
 			}
 		});
 	}
 	else
 	{
-		SerializeCustom(Ar, [this](FArchive& Ar, void* InOutData){
+		SerializeCustom(Ar, [this](FArchive& Ar, uint8& TypeBits, void* InOutData){
 			uint8 Type = GetTypeBits();
 
 			if (Ar.GetArchiveState().IsSaving())
@@ -212,7 +212,7 @@ bool FMovieSceneNumericVariant::Serialize(FArchive& Ar)
 	return true;
 }
 
-bool FMovieSceneNumericVariant::SerializeCustom(FArchive& Ar, TFunctionRef<void(FArchive&, void*)> InCustomSerializer)
+bool FMovieSceneNumericVariant::SerializeCustom(FArchive& Ar, TFunctionRef<void(FArchive&, uint8&, void*)> InCustomSerializer)
 {
 	if (Ar.IsLoading())
 	{
@@ -225,7 +225,16 @@ bool FMovieSceneNumericVariant::SerializeCustom(FArchive& Ar, TFunctionRef<void(
 		}
 		else
 		{
-			InCustomSerializer(Ar, Data);
+			// First off, initialize this type to be a custom type specified by the tagged bits
+			uint64* Value = reinterpret_cast<uint64*>(Data);
+			*Value = TAGGED_Bits;
+
+			// Pass the type bits through to the serializer
+			uint8 TypeBits = 0;
+			InCustomSerializer(Ar, TypeBits, Data);
+
+			// Assign type bits
+			SetTypeBits(TypeBits);
 		}
 	}
 	else
@@ -243,7 +252,8 @@ bool FMovieSceneNumericVariant::SerializeCustom(FArchive& Ar, TFunctionRef<void(
 		}
 		else
 		{
-			InCustomSerializer(Ar, Data);
+			uint8 TypeBits = GetTypeBits();
+			InCustomSerializer(Ar, TypeBits, Data);
 		}
 	}
 	return true;

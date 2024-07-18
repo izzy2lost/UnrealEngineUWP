@@ -163,7 +163,7 @@ public:
 	bool ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText, FArchive* InSerializingArchive = nullptr);
 	void GetPreloadDependencies(TArray<UObject*>& OutDeps);
 
-	bool SerializeCustom(FArchive& Ar, TFunctionRef<void(FArchive&, void*)>);
+	bool SerializeCustom(FArchive& Ar, TFunctionRef<void(FArchive&, uint8&, void*)>);
 
 
 public:

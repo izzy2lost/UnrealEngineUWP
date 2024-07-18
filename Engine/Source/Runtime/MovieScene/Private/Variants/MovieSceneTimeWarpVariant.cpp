@@ -165,12 +165,17 @@ bool FMovieSceneTimeWarpVariant::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FFortniteMainBranchObjectVersion::GUID);
 
-	return Variant.SerializeCustom(Ar, [this](FArchive& InAr, void* DataPtr){
+	return Variant.SerializeCustom(Ar, [this](FArchive& InAr, uint8& TypeBits, void* DataPtr){
 
 		const bool bIsLoading = InAr.GetArchiveState().IsLoading();
 
 		EMovieSceneTimeWarpType Type = this->GetType();
 		InAr << Type;
+
+		if (bIsLoading)
+		{
+			TypeBits = (uint8)Type - 1;
+		}
 
 		switch(Type)
 		{
@@ -226,11 +231,6 @@ bool FMovieSceneTimeWarpVariant::Serialize(FArchive& Ar)
 		case EMovieSceneTimeWarpType::ClampFloat:
 			FMovieSceneTimeWarpClampFloat::StaticStruct()->SerializeItem(InAr, DataPtr, nullptr);
 			break;
-		}
-
-		if (bIsLoading)
-		{
-			this->Variant.SetTypeBits((uint8)Type - 1);
 		}
 	});
 }
