@@ -28,7 +28,7 @@ namespace ViewBasedTransformAdjustersLocals
 		//  to it. However the approach here tends to be the least broken overall.
 		double DistanceToGizmo = FVector3d::Distance(GizmoToWorld.GetLocation(), View.GetViewLocation());
 		FVector3d PointAtWhichToCheckScale = View.GetViewLocation() + DistanceToGizmo * View.GetViewDirection();
-		return GizmoRenderingUtil::CalculateLocalPixelToWorldScale(&View, PointAtWhichToCheckScale);
+		return UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(&View, PointAtWhichToCheckScale);
 	}
 
 	// Apply the settings to get a transform modified by view
@@ -90,7 +90,7 @@ namespace ViewBasedTransformAdjustersLocals
 FTransform UE::GizmoRenderingUtil::FSimpleConstantViewScaleAdjuster::GetAdjustedComponentToWorld(
 	const ISceneViewInterface& View, const FTransform& CurrentComponentToWorld)
 {
-	double ExtraScaling = ::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(&View, CurrentComponentToWorld.GetLocation());
+	double ExtraScaling = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(&View, CurrentComponentToWorld.GetLocation());
 	FTransform AdjustedTransform = CurrentComponentToWorld;
 	AdjustedTransform.MultiplyScale3D(FVector(ExtraScaling));
 

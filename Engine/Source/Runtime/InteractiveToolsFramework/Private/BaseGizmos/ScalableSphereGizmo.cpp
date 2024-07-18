@@ -58,7 +58,7 @@ void UScalableSphereGizmo::Render(IToolsContextRenderAPI* RenderAPI)
 
 			// Get the Pixel to World scale of the line
 			const FSceneView* View = RenderAPI->GetSceneView();
-			float PixelToWorld = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, LineEnd);
+			float PixelToWorld = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, LineEnd);
 
 			// Draw the lines in both directions
 			RenderAPI->GetPrimitiveDrawInterface()->DrawLine(LineStart, LineStart + ActiveAxis * PixelToWorld * LineLength, FLinearColor::Red, SDPG_Foreground);

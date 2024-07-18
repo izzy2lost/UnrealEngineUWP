@@ -43,7 +43,7 @@ namespace GizmoArrowComponentLocals
 				return false;
 			}
 
-			LengthScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
+			LengthScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
 		}
 
 		PixelToWorldScaleOut = LengthScale;

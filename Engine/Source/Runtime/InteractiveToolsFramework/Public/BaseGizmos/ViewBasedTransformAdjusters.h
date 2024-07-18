@@ -119,7 +119,7 @@ namespace UE::GizmoRenderingUtil
 
 		// IGizmoViewTransformAdjuster
 		INTERACTIVETOOLSFRAMEWORK_API virtual FTransform GetAdjustedComponentToWorld(
-			const GizmoRenderingUtil::ISceneViewInterface& View,
+			const UE::GizmoRenderingUtil::ISceneViewInterface& View,
 			const FTransform& CurrentComponentToWorld) override;
 
 		INTERACTIVETOOLSFRAMEWORK_API virtual FTransform GetAdjustedComponentToWorld_RenderThread(
@@ -158,7 +158,7 @@ namespace UE::GizmoRenderingUtil
 
 		// IGizmoViewTransformAdjuster
 		INTERACTIVETOOLSFRAMEWORK_API virtual FTransform GetAdjustedComponentToWorld(
-			const GizmoRenderingUtil::ISceneViewInterface& View,
+			const UE::GizmoRenderingUtil::ISceneViewInterface& View,
 			const FTransform& CurrentComponentToWorld) override;
 	private:
 		FTransform ViewRelativeTransform = FTransform::Identity;

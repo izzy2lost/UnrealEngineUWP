@@ -2450,7 +2450,7 @@ void UTransformGizmo::OnClickReleaseArcBallRotate(const FInputDeviceRay& Release
 
 float UTransformGizmo::GetWorldRadius(const float InRadius) const
 {
-	const float PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, CurrentTransform.GetLocation());
+	const float PixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, CurrentTransform.GetLocation());
 	const float GizmoScale = TransformGizmoSource ? TransformGizmoSource->GetGizmoScale() : 1.0f;
 	return InRadius * GetSizeCoefficient() * PixelToWorldScale * GizmoScale;
 }

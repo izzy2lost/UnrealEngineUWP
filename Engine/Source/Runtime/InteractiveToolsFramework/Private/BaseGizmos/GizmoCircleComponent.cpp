@@ -71,7 +71,7 @@ public:
 				bool bIsViewDependent = (bExternalIsViewDependent) ? (*bExternalIsViewDependent) : false;
 				if (bIsViewDependent)
 				{
-					LengthScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, Origin);
+					LengthScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, Origin);
 				}
 
 				double UseRadius = LengthScale * Radius;
@@ -268,7 +268,7 @@ bool UGizmoCircleComponent::LineTraceComponent(FHitResult& OutHit, const FVector
 			return false;
 		}
 
-		PixelToWorldScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, WorldOrigin);
+		PixelToWorldScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(GizmoViewContext, WorldOrigin);
 	}
 
 	float LengthScale = PixelToWorldScale;

@@ -76,13 +76,13 @@ UViewAdjustedStaticMeshGizmoComponent* UE::GizmoRenderingUtil::CreateDefaultMate
 	Component->SetStaticMesh(Mesh);
 
 	Component->SetGizmoViewContext(GizmoViewContext);
-	Component->TranslucencySortPriority = GizmoRenderingUtil::GIZMO_TRANSLUCENCY_SORT_PRIORITY;
+	Component->TranslucencySortPriority = UE::GizmoRenderingUtil::GIZMO_TRANSLUCENCY_SORT_PRIORITY;
 	// Used by the default material to be able to be occluded by other gizmo elements
 	Component->bRenderCustomDepth = true;
 	// Not sure that this actually gets respected in any way for non-PDI calls, but just in case
 	Component->DepthPriorityGroup = SDPG_Foreground;
 
-	Component->SetAllMaterials(GizmoRenderingUtil::GetDefaultGizmoComponentMaterial(Color, Component));
+	Component->SetAllMaterials(UE::GizmoRenderingUtil::GetDefaultGizmoComponentMaterial(Color, Component));
 	if (bAddHoverMaterial)
 	{
 		Component->SetHoverOverrideMaterial(UE::GizmoRenderingUtil::GetDefaultGizmoComponentMaterial(HoverColor, Component));
@@ -100,7 +100,7 @@ UViewAdjustedStaticMeshGizmoComponent* UE::GizmoRenderingUtil::CreateDefaultMate
 }
 
 
-float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
+float UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
 	const FSceneView* View,
 	const FVector& Location)
 {
@@ -115,7 +115,7 @@ float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
 	return CalculateLocalPixelToWorldScale(&Wrapper, Location);
 }
 
-float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
+float UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
 	const UE::GizmoRenderingUtil::ISceneViewInterface* View, 
 	const FVector& Location)
 {
@@ -139,7 +139,7 @@ float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
 	return (float)(sqrt(WorldDeltaSqr / PixelDeltaSqr));
 }
 
-float GizmoRenderingUtil::CalculateViewDependentScaleAndFlatten(
+float UE::GizmoRenderingUtil::CalculateViewDependentScaleAndFlatten(
 	const FSceneView* View,
 	const FVector& Location,
 	const float InScale,
@@ -212,4 +212,26 @@ FLinearColor UE::GizmoRenderingUtil::GetDefaultAxisColor(EAxis::Type Axis)
 	default:
 		return FLinearColor::White;
 	}
+}
+
+// Forward the deprecated methods (that are in the wrong namespace) to the proper namespace methods
+float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
+	const FSceneView* View,
+	const FVector& Location)
+{
+	return UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, Location);
+}
+float GizmoRenderingUtil::CalculateLocalPixelToWorldScale(
+	const UGizmoViewContext* ViewContext,
+	const FVector& Location)
+{
+	return UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(ViewContext, Location);
+}
+float GizmoRenderingUtil::CalculateViewDependentScaleAndFlatten(
+	const FSceneView* View,
+	const FVector& Location,
+	const float InScale,
+	FVector& OutFlattenScale)
+{
+	return UE::GizmoRenderingUtil::CalculateViewDependentScaleAndFlatten(View, Location, InScale, OutFlattenScale);
 }

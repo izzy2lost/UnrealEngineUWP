@@ -91,11 +91,7 @@ namespace UE::GizmoRenderingUtil
 	 * Gets a red/green/blue color based on the axis (X, Y, or Z).
 	 */
 	INTERACTIVETOOLSFRAMEWORK_API FLinearColor GetDefaultAxisColor(EAxis::Type Axis);
-}
 
-//~ TODO: These should someday be moved to nest under the UE namespace above
-namespace GizmoRenderingUtil
-{
 	/**
 	 * @return Conversion factor between pixel and world-space coordinates at 3D point Location in View.
 	 * @warning This is a local estimate and is increasingly incorrect as the 3D point gets further from Location
@@ -112,6 +108,27 @@ namespace GizmoRenderingUtil
 	 * @return OutWorldFlattenScale vector to be applied in world space, can be used to flatten excluded 
 	 *         dimension in orthographic views as it reverses the scale in that dimension.
 	 */
+	INTERACTIVETOOLSFRAMEWORK_API float CalculateViewDependentScaleAndFlatten(
+		const FSceneView* View,
+		const FVector& Location,
+		const float Scale,
+		FVector& OutWorldFlattenScale);
+}
+
+// This namespace is deprecated- use UE::GizmoRenderingUtil instead.
+namespace GizmoRenderingUtil
+{
+	UE_DEPRECATED(5.5, "This function was moved to the UE::GizmoRenderingUtil namespace.")
+	INTERACTIVETOOLSFRAMEWORK_API float CalculateLocalPixelToWorldScale(
+		const FSceneView* View,
+		const FVector& Location);
+	
+	UE_DEPRECATED(5.5, "This function was moved to the UE::GizmoRenderingUtil namespace.")
+	INTERACTIVETOOLSFRAMEWORK_API float CalculateLocalPixelToWorldScale(
+		const UGizmoViewContext* ViewContext,
+		const FVector& Location);
+
+	UE_DEPRECATED(5.5, "This function was moved to the UE::GizmoRenderingUtil namespace.")
 	INTERACTIVETOOLSFRAMEWORK_API float CalculateViewDependentScaleAndFlatten(
 		const FSceneView* View,
 		const FVector& Location,

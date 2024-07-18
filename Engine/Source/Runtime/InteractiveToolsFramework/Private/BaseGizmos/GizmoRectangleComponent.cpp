@@ -59,7 +59,7 @@ namespace GizmoRectangleComponentLocals
 				return false;
 			}
 
-			LengthScale = GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
+			LengthScale = UE::GizmoRenderingUtil::CalculateLocalPixelToWorldScale(View, WorldOrigin);
 		}
 
 		double UseOffsetX = LengthScale * OffsetX;
