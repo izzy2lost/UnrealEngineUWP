@@ -984,6 +984,15 @@ TWeakObjectPtr<UWorld> SLevelViewportToolBar::GetWorld() const
 
 void SLevelViewportToolBar::FillViewMenu(UToolMenu* Menu)
 {
+	if (!Menu)
+	{
+		return;
+	}
+
+	ULevelViewportContext* const ContextObject = NewObject<ULevelViewportContext>();
+	ContextObject->LevelViewport = Viewport;
+	Menu->Context.AddObject(ContextObject);
+
 	UE::LevelEditor::PopulateViewModesMenu(Menu);
 }
 
