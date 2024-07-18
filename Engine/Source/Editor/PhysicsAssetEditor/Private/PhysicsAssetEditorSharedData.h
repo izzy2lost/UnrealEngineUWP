@@ -215,6 +215,7 @@ public:
 	void CopyBodyProperties();
 	void CopyConstraintProperties();
 	void PasteBodyProperties();
+	void CopyBodyName();
 	bool WeldSelectedBodies(bool bWeld = true);
 	void Mirror();
 

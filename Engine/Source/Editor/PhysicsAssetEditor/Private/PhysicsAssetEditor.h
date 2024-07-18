@@ -228,6 +228,8 @@ private:
 	bool CanCopyProperties() const;
 	void OnPasteProperties();
 	bool CanPasteProperties() const;
+	void OnCopyBodyName();
+    bool CanCopyBodyName() const;
 	bool IsSelectedEditMode() const;
 	void OnRepeatLastSimulation();
 	void OnToggleSimulation(bool bInSelected);

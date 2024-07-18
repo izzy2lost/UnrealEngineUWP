@@ -36,6 +36,7 @@ public:
 	TSharedPtr<FUICommandInfo> PasteShapes;
 	TSharedPtr<FUICommandInfo> CopyProperties;
 	TSharedPtr<FUICommandInfo> PasteProperties;
+	TSharedPtr<FUICommandInfo> CopyBodyName;
 	TSharedPtr<FUICommandInfo> RepeatLastSimulation;
 	TSharedPtr<FUICommandInfo> SimulationNoGravity;
 	TSharedPtr<FUICommandInfo> SimulationFloorCollision;

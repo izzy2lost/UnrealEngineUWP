@@ -2094,6 +2094,12 @@ void FPhysicsAssetEditorSharedData::PasteBodyProperties()
 	}
 }
 
+void FPhysicsAssetEditorSharedData::CopyBodyName()
+{
+	check(SelectedBodies.Num() == 1);
+	FPlatformApplicationMisc::ClipboardCopy(*PhysicsAsset->SkeletalBodySetups[GetSelectedBody()->Index]->BoneName.ToString());
+}
+
 bool FPhysicsAssetEditorSharedData::WeldSelectedBodies(bool bWeld /* = true */)
 {
 	bool bCanWeld = false;

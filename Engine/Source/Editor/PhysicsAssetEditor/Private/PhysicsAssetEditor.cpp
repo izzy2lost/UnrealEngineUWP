@@ -951,6 +951,11 @@ void FPhysicsAssetEditor::BindCommands()
 		FCanExecuteAction::CreateSP(this, &FPhysicsAssetEditor::CanPasteShapes));
 
 	ToolkitCommands->MapAction(
+		Commands.CopyBodyName,
+		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnCopyBodyName),
+		FCanExecuteAction::CreateSP(this, &FPhysicsAssetEditor::CanCopyBodyName));
+		
+	ToolkitCommands->MapAction(
 		Commands.RepeatLastSimulation,
 		FExecuteAction::CreateSP(this, &FPhysicsAssetEditor::OnRepeatLastSimulation),
 		FCanExecuteAction(),
@@ -1729,6 +1734,7 @@ void FPhysicsAssetEditor::BuildMenuWidgetBody(FMenuBuilder& InMenuBuilder)
 		InMenuBuilder.AddMenuEntry(Commands.PasteShapes);
 		InMenuBuilder.AddMenuEntry(Commands.CopyProperties);
 		InMenuBuilder.AddMenuEntry(Commands.PasteProperties);
+		InMenuBuilder.AddMenuEntry(Commands.CopyBodyName);
 		InMenuBuilder.AddMenuEntry( Commands.DeleteBody );
 		InMenuBuilder.AddMenuEntry( Commands.DeleteAllBodiesBelow );
 		InMenuBuilder.AddMenuEntry( Commands.Mirror );
@@ -2334,6 +2340,21 @@ bool FPhysicsAssetEditor::CanEditConstraintProperties() const
 bool FPhysicsAssetEditor::HasSelectedConstraintAndIsNotSimulation() const
 {
 	return IsNotSimulation() && (SharedData->GetSelectedConstraint());
+}
+
+void FPhysicsAssetEditor::OnCopyBodyName()
+{
+	if(SharedData->SelectedBodies.Num() == 1)
+	{
+		SharedData->CopyBodyName();
+	}
+	
+	RefreshPreviewViewport();
+}
+
+bool FPhysicsAssetEditor::CanCopyBodyName() const
+{
+	return IsSelectedEditMode() && SharedData->SelectedBodies.Num() == 1 && SharedData->SelectedConstraints.Num() == 0;
 }
 
 bool FPhysicsAssetEditor::IsSelectedEditMode() const
