@@ -537,6 +537,10 @@ namespace UnrealBuildTool
 							string Key = Prefix + FileName.Substring(0, FileName.Length - ".gen.cpp".Length);
 							GeneratedFiles.Add(Key, File);
 						}
+						else if (GeneratedCPPCompileEnvironment.FileMatchesExtraGeneratedCPPTypes(FileName))
+						{
+							GeneratedFiles.Add(FileName, File);
+						}
 					}
 				}
 
@@ -761,7 +765,7 @@ namespace UnrealBuildTool
 			{
 				Unity.GetAdaptiveFiles(Target, CPPFiles, InputFiles.HeaderFiles, CompileEnvironment, WorkingSet, Rules.ShortName ?? Name, IntermediateDirectory, Graph,
 					out List<FileItem> NormalFiles, out List<FileItem> AdaptiveFiles);
-				if (!NormalFiles.Where(file => !file.HasExtension(".gen.cpp")).Any())
+				if (!NormalFiles.Where(file => !file.HasExtension(".gen.cpp") && !GeneratedCPPCompileEnvironment.FileMatchesExtraGeneratedCPPTypes(file.FullName)).Any())
 				{
 					NormalFiles = CPPFiles;
 					AdaptiveFiles.RemoveAll(new HashSet<FileItem>(NormalFiles).Contains);

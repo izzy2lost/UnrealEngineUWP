@@ -14,6 +14,8 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.UHT.Tables;
+using EpicGames.UHT.Types;
 using EpicGames.UHT.Utils;
 using Microsoft.Extensions.Logging;
 using OpenTracing.Util;
@@ -2588,6 +2590,8 @@ namespace UnrealBuildTool
 			{
 				await ExternalExecution.ExecuteHeaderToolIfNecessaryAsync(BuildConfiguration, ProjectFile, Makefile, TargetName, WorkingSet, Logger);
 			}
+			
+			GatherExtraGeneratedCPPFileTypes(Makefile, TargetName, ref GlobalCompileEnvironment);
 
 			// Prefetch directory items for UHT folders since they are going to be used later
 			foreach (UEBuildModuleCPP Module in ModulesToGenerateHeadersFor)
@@ -6005,6 +6009,30 @@ namespace UnrealBuildTool
 				}
 			}
 			return NewPathList;
+		}
+		
+		private static void GatherExtraGeneratedCPPFileTypes(TargetMakefile Makefile, string TargetName, ref CppCompileEnvironment InCompileEnvironment)
+		{
+			UhtStdFileManager fileManager = new UhtStdFileManager();
+			FileReference moduleInfoFileName = ExternalExecution.GetUHTModuleInfoFileName(Makefile, TargetName);
+			if (fileManager.ReadSource(moduleInfoFileName.FullName, out UhtSourceFragment fragment))
+			{
+				UHTManifest? manifest = System.Text.Json.JsonSerializer.Deserialize<UHTManifest>(fragment.Data.ToString());
+
+				if (manifest != null && manifest.UhtPlugins.Count > 0)
+				{
+					UhtTables tables = new();
+					tables.AddPlugins(manifest.UhtPlugins);
+
+					foreach (UhtExporter exporter in tables.ExporterTable)
+					{
+						if (exporter.Options.HasAnyFlags(UhtExporterOptions.CompileOutput))
+						{
+							InCompileEnvironment.ExtraGeneratedCPPFileTypes.AddRange(exporter.CppFilters);
+						}
+					}
+				}
+			}
 		}
 	}
 }

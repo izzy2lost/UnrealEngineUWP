@@ -2,6 +2,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using System.IO.Enumeration;
 using EpicGames.Core;
 using UnrealBuildBase;
 
@@ -570,6 +571,11 @@ namespace UnrealBuildTool
 		/// A dictionary of the source file items and the inlined gen.cpp files contained in it
 		/// </summary>
 		public Dictionary<FileItem, List<FileItem>> FileInlineGenCPPMap = new();
+		
+		/// <summary>
+		/// Non-default naming conventions that generated CPP files can have (this uses a filter to check the file name for matches) 
+		/// </summary>
+		public List<string> ExtraGeneratedCPPFileTypes = new List<string>();
 
 		/// <summary>
 		/// FileItems with colliding names. (Which means they would overwrite each other in intermediate folder
@@ -802,6 +808,7 @@ namespace UnrealBuildTool
 			bCheckSystemHeadersForModification = Other.bCheckSystemHeadersForModification;
 			ForceIncludeFiles.AddRange(Other.ForceIncludeFiles);
 			AdditionalPrerequisites.AddRange(Other.AdditionalPrerequisites);
+			ExtraGeneratedCPPFileTypes = Other.ExtraGeneratedCPPFileTypes;
 			CollidingNames = Other.CollidingNames;
 			FileInlineGenCPPMap = new Dictionary<FileItem, List<FileItem>>(Other.FileInlineGenCPPMap);
 			Definitions.AddRange(Other.Definitions);
@@ -835,6 +842,19 @@ namespace UnrealBuildTool
 		private FileItem? GetPrecompiledHeaderFile(PrecompiledHeaderInstance? Instance)
 		{
 			return Instance?.Output.GetPrecompiledHeaderFile(Architectures.SingleArchitecture);
+		}
+		
+		public bool FileMatchesExtraGeneratedCPPTypes(string FileName)
+		{
+			foreach (string fileFilter in ExtraGeneratedCPPFileTypes)
+			{
+				if (FileSystemName.MatchesSimpleExpression(fileFilter, FileName, true))
+				{
+					return true;
+				}
+			}
+
+			return false;
 		}
 	}
 }

@@ -778,7 +778,7 @@ namespace UnrealBuildTool
 			}
 
 			// Ignore generated files
-			if (InputFiles.All(x => x.Location.GetFileName().EndsWith(".gen.cpp")))
+			if (InputFiles.All(x => x.Location.GetFileName().EndsWith(".gen.cpp") || CompileEnvironment.FileMatchesExtraGeneratedCPPTypes(x.Location.GetFileName())))
 			{
 				return new CPPOutput();
 			}

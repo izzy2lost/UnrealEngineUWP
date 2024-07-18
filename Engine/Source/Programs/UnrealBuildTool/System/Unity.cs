@@ -200,8 +200,8 @@ namespace UnrealBuildTool
 					// declared in the header but are required to link. If they are placed later in the list, you will see
 					// compile errors because the templated function is instantiated but is defined later in the same translation unit
 					// which results in 'error C2908: explicit specialization; '*****' has already been instantiated'
-					bool bAIsGenerated = A.AbsolutePath.EndsWith(".gen.cpp");
-					bool bBIsGenerated = B.AbsolutePath.EndsWith(".gen.cpp");
+					bool bAIsGenerated = A.AbsolutePath.EndsWith(".gen.cpp") || CompileEnvironment.FileMatchesExtraGeneratedCPPTypes(A.AbsolutePath);
+					bool bBIsGenerated = B.AbsolutePath.EndsWith(".gen.cpp") || CompileEnvironment.FileMatchesExtraGeneratedCPPTypes(B.AbsolutePath);
 					if (bAIsGenerated && !bBIsGenerated)
 					{
 						return -1;
@@ -371,7 +371,7 @@ namespace UnrealBuildTool
 					UnhandledHeaderFilesInWorkingSet.Remove(HeaderFile);
 				}
 
-				bool bAdaptive = bHeaderInWorkingSet || WorkingSet.Contains(CPPFile);
+				bool bAdaptive = (bHeaderInWorkingSet || WorkingSet.Contains(CPPFile)) && !CompileEnvironment.FileMatchesExtraGeneratedCPPTypes(CPPFile.FullName);
 				List<FileItem> Files = bAdaptive ? AdaptiveFiles : NormalFiles;
 				Files.Add(CPPFile);
 			}
