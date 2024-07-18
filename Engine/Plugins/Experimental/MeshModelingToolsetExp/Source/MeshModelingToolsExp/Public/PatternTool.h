@@ -13,7 +13,6 @@
 #include "TransformTypes.h"
 #include "PatternTool.generated.h"
 
-class FCombinedTransformGizmoActorFactory;
 class UBaseAxisTranslationGizmo;
 class UAxisAngleGizmo;
 class UDragAlignmentMechanic;
@@ -22,10 +21,12 @@ class UTransformProxy;
 class UPreviewGeometry;
 class UDynamicMesh;
 class UDynamicMeshComponent;
+class UInteractiveGizmo;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UConstructionPlaneMechanic;
+class UComponentBoundTransformProxy;
 
 
 /**
@@ -490,17 +491,15 @@ protected:
 	/**
 	 * Pattern Gizmo:
 	 */
-	FString PatternToolThreeAxisTransformBuilderIdentifier = TEXT("PatternToolThreeAxisTransformBuilderIdentifier");
-	FString PatternToolAxisPositionBuilderIdentifier = TEXT("PatternToolAxisPositionBuilderIdentifier");
-	FString PatternToolPlanePositionBuilderIdentifier = TEXT("PatternToolPlanePositionBuilderIdentifier");
-	TSharedPtr<FCombinedTransformGizmoActorFactory> GizmoActorBuilder;
-	bool bPatternToolThreeAxisTransformGizmoRegistered = false;
-	
-	UPROPERTY()
-	TObjectPtr<UTransformProxy> PatternGizmoProxy = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UCombinedTransformGizmo> PatternGizmo = nullptr;
+	TObjectPtr<UComponentBoundTransformProxy> PatternGizmoProxy = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UInteractiveGizmo> PatternGizmo = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<UPrimitiveComponent> PatternGizmoComponent = nullptr;
 
 	// If true, Settings->SingleAxis is being used. If false, Settings->SinglePlane is being used
 	bool bUsingSingleAxis;
@@ -513,8 +512,6 @@ protected:
 	void OnTransformGizmoUpdated(UTransformProxy* Proxy, FTransform Transform);
 	void ResetTransformGizmoPosition();
 	void ReconstructTransformGizmos();
-	
-
 	
 	UPROPERTY()
 	TObjectPtr<UDragAlignmentMechanic> DragAlignmentMechanic = nullptr;
