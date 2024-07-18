@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Issues
 		/// </summary>
 		[JsonPropertyName("meta")]
 		[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-		internal HashSet<IssueMetadata>? SerializedMetadata
+		public HashSet<IssueMetadata>? SerializedMetadata
 		{
 			get => (Metadata.Count == 0) ? null : Metadata;
 			set => Metadata = value ?? new HashSet<IssueMetadata>();
