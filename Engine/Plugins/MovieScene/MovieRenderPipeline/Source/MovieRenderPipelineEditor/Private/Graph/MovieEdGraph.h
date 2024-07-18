@@ -20,7 +20,14 @@ class UMoviePipelineEdGraph : public UEdGraph
 	GENERATED_BODY()
 
 public:
-	/** Initialize this Editor Graph from a Runtime Graph */
+	/**
+	 * Initialize this Editor Graph from a Runtime Graph.
+	 *
+	 * This is typically called when the editor representation of the runtime graph is initially created (in order to ensure there are editor
+	 * equivalents of all runtime nodes, connections, etc). However, it can also be called to ensure that all runtime objects have editor
+	 * equivalents even after initial editor graph creation. This can be useful when, for example, nodes are created via the Python API (which
+	 * creates runtime nodes), and editor nodes need to be created afterwards.
+	 **/
 	void InitFromRuntimeGraph(UMovieGraphConfig* InGraph);
 
 	/** Register delegates that relate to the runtime graph. */

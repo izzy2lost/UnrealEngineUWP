@@ -108,6 +108,10 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 
 	// Create the EdGraph if it has not yet been created. It is saved as part of the runtime graph to prevent it from being re-created every time the
 	// graph is opened (and therefore dirtying the package).
+	//
+	// Note: Now that the editor graph is saved with the runtime graph, the !EdGraph condition will rarely be true (because when the "template"
+	// runtime graph is duplicated into a new runtime graph, the editor graph comes along as well). There may be other scenarios where a new runtime
+	// graph is created without a duplication though, so this code path remains.
 	if (!EdGraph)
 	{
 		EdGraph = Cast<UMoviePipelineEdGraph>(FBlueprintEditorUtils::CreateNewGraph(CurrentGraph, TEXT("MoviePipelineEdGraph"), UMoviePipelineEdGraph::StaticClass(), UMovieGraphSchema::StaticClass()));
@@ -122,7 +126,7 @@ void SMoviePipelineGraphPanel::Construct(const FArguments& InArgs)
 	}
 	else
 	{
-		EdGraph->RegisterDelegates(CurrentGraph);
+		EdGraph->InitFromRuntimeGraph(CurrentGraph);
 	}
 	
 	MakeEditorCommands();
