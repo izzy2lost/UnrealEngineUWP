@@ -156,6 +156,12 @@ TSharedRef<SWidget> SLibraryView::ConstructViewOptions()
 		{
 			for (int32 EnumValue = (int32)EThumbnailSize::Tiny; EnumValue < (int32)EThumbnailSize::MAX; ++EnumValue)
 			{
+#if !UE_CONTENTBROWSER_NEW_STYLE
+				if ((EThumbnailSize)EnumValue == EThumbnailSize::XLarge)
+				{
+					continue;
+				}
+#endif
 				SubMenu.AddMenuEntry(
 					SAssetView::ThumbnailSizeToDisplayName((EThumbnailSize)EnumValue),
 					FText::GetEmpty(),

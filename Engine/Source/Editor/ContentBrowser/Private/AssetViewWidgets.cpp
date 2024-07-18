@@ -84,7 +84,11 @@ class FDragDropEvent;
 
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
-static int32 GenericThumbnailSizes[(int32)EThumbnailSize::MAX] = { 24, 32, 64, 128, 200 };
+#if UE_CONTENTBROWSER_NEW_STYLE
+static int32 GenericThumbnailSizes[(int32)EThumbnailSize::MAX] = { 80, 96, 112, 128, 136, 160 };
+#else
+static int32 GenericThumbnailSizes[(int32)EThumbnailSize::MAX] = { 24, 32, 64, 128, 160, 200 };
+#endif
 
 ///////////////////////////////
 // FAssetViewModeUtils
@@ -1804,6 +1808,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 	AssetThumbnail = InArgs._AssetThumbnail;
 	ItemWidth = InArgs._ItemWidth;
 	ThumbnailPadding = InArgs._ThumbnailPadding;
+	ThumbnailDimension = InArgs._ThumbnailDimension;
 
 	CurrentThumbnailSize = InArgs._CurrentThumbnailSize;
 
@@ -1883,12 +1888,113 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 			.ColorAndOpacity(this, &SAssetTileItem::GetNameAreaTextColor);
 	}
 
+	constexpr float AssetViewWidgetsBorderPadding = 4.f;
+	constexpr float AssetViewWidgetsShadowPadding = 5.f;
+	constexpr float AssetViewWidgetsRenameWidgetPadding = 2.f;
+	constexpr float AssetViewWidgetsClassTextPadding = 2.f;
+	constexpr float AssetViewWidgetSourceControlSize = 16.f;
+
+#if UE_CONTENTBROWSER_NEW_STYLE
 	ChildSlot
-	.Padding(FMargin(0.0f, 0.0f, 4.0f, 4.0f))
+	.Padding(FMargin(0.0f, 0.0f, AssetViewWidgetsBorderPadding, AssetViewWidgetsBorderPadding))
 	[				
 		// Drop shadow border
 		SNew(SBorder)
-		.Padding(FMargin(0.0f, 0.0f, 5.0f, 5.0f))
+		.Padding(FMargin(0.0f, 0.0f, AssetViewWidgetsShadowPadding, AssetViewWidgetsShadowPadding))
+		.BorderImage(IsFolder() ? TAttribute<const FSlateBrush*>(this, &SAssetTileItem::GetFolderBackgroundShadowImage) : FAppStyle::Get().GetBrush(ItemShadowBorderName))
+		[
+			SNew(SOverlay)
+			.AddMetaData<FTagMetaData>(FTagMetaData(AssetItem->GetItem().GetVirtualPath()))
+			+SOverlay::Slot()
+			[
+				SNew(SBorder)
+				.Padding(0)
+				.BorderImage(IsFolder() ? TAttribute<const FSlateBrush*>(this, &SAssetTileItem::GetFolderBackgroundImage) : UE::ContentBrowser::Private::FContentBrowserStyle::Get().Get().GetBrush("ContentBrowser.AssetTileItem.ThumbnailAreaBackground"))
+				[
+					SNew(SVerticalBox)
+					// Thumbnail
+					+SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						// The remainder of the space is reserved for the name.
+						SNew(SBox)
+						.Padding(0)
+						.WidthOverride(this, &SAssetTileItem::GetThumbnailBoxSize)
+						.HeightOverride(this, &SAssetTileItem::GetThumbnailBoxSize)
+						[
+							ItemContents
+						]
+					]
+
+					+SVerticalBox::Slot()
+					[
+						SNew(SBorder)
+						.Visibility(this, &SAssetTileItem::GetNameAreaVisibility)
+						.Padding(FMargin(2.0f, 3.0f))
+						.BorderImage(this, &SAssetTileItem::GetNameAreaBackgroundImage)
+						[
+							SNew(SVerticalBox)
+							+ SVerticalBox::Slot()
+							.Padding(AssetViewWidgetsRenameWidgetPadding,AssetViewWidgetsRenameWidgetPadding,0.0f,0.0f)
+							.VAlign(VAlign_Top)
+							.HAlign(IsFolder() ? HAlign_Center : HAlign_Left)
+							[
+								SNew(SBox)
+								.MaxDesiredHeight(this, &SAssetTileItem::GetNameAreaMaxDesiredHeight)
+								[
+									InlineRenameWidget.ToSharedRef()
+								]
+							]
+							+ SVerticalBox::Slot()
+							.VAlign(VAlign_Bottom)
+							.AutoHeight()
+							.Padding(AssetViewWidgetsClassTextPadding,0.0f, 0.0f, AssetViewWidgetsClassTextPadding)
+							[
+								SNew(SHorizontalBox)
+								+SHorizontalBox::Slot()
+								[
+									SAssignNew(ClassTextWidget, STextBlock)
+									.Visibility(this, &SAssetTileItem::GetAssetClassLabelVisibility)
+									.TextStyle(UE::ContentBrowser::Private::FContentBrowserStyle::Get().Get(), "ContentBrowser.ClassFont")
+									.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+									.Text(this, &SAssetTileItem::GetAssetClassText)
+									.ColorAndOpacity(this, &SAssetTileItem::GetAssetClassLabelTextColor)
+								]
+
+								+SHorizontalBox::Slot()
+								.Padding(FMargin(3.0f, 0.0f, 0.0f, 1.0f))
+								.AutoWidth()
+								.HAlign(HAlign_Right)
+								[
+									SNew(SBox)
+									.WidthOverride(AssetViewWidgetSourceControlSize)
+									.HeightOverride(AssetViewWidgetSourceControlSize)
+									.Visibility(this, &SAssetTileItem::GetSCCIconVisibility)
+									[
+										GenerateSourceControlIconWidget()
+									]
+								]
+							]
+							
+						]
+					]
+				]
+			]
+			+SOverlay::Slot()
+			[
+				SNew(SImage)
+				.Image(this, &SAssetViewItem::GetBorderImage)
+				.Visibility(EVisibility::HitTestInvisible)	
+			]
+		]
+	];
+#else
+	ChildSlot
+	.Padding(FMargin(0.0f, 0.0f, AssetViewWidgetsBorderPadding, AssetViewWidgetsBorderPadding))
+	[				
+		// Drop shadow border
+		SNew(SBorder)
+		.Padding(FMargin(0.0f, 0.0f, AssetViewWidgetsShadowPadding, AssetViewWidgetsShadowPadding))
 		.BorderImage(IsFolder() ? TAttribute<const FSlateBrush*>(this, &SAssetTileItem::GetFolderBackgroundShadowImage) : FAppStyle::Get().GetBrush(ItemShadowBorderName))
 		[
 			SNew(SOverlay)
@@ -1922,7 +2028,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 						[
 							SNew(SVerticalBox)
 							+ SVerticalBox::Slot()
-							.Padding(2.0f,2.0f,0.0f,0.0f)
+							.Padding(AssetViewWidgetsRenameWidgetPadding, AssetViewWidgetsRenameWidgetPadding, 0.0f, 0.0f)
 							.VAlign(VAlign_Top)
 							.HAlign(IsFolder() ? HAlign_Center : HAlign_Left)
 							[
@@ -1935,7 +2041,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 							+ SVerticalBox::Slot()
 							.VAlign(VAlign_Bottom)
 							.AutoHeight()
-							.Padding(2.0f,0.0f, 0.0f, 2.0f)
+							.Padding(AssetViewWidgetsClassTextPadding, 0.0f, 0.0f, AssetViewWidgetsClassTextPadding)
 							[
 								SNew(SHorizontalBox)
 								+SHorizontalBox::Slot()
@@ -1954,8 +2060,8 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 								.HAlign(HAlign_Right)
 								[
 									SNew(SBox)
-									.WidthOverride(16.0f)
-									.HeightOverride(16.0f)
+									.WidthOverride(AssetViewWidgetSourceControlSize)
+									.HeightOverride(AssetViewWidgetSourceControlSize)
 									.Visibility(this, &SAssetTileItem::GetSCCIconVisibility)
 									[
 										GenerateSourceControlIconWidget()
@@ -1975,6 +2081,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 			]
 		]
 	];
+#endif
 
 	HandleSourceControlStateChanged();
 
@@ -2058,13 +2165,18 @@ FOptionalSize SAssetTileItem::GetExtraStateIconMaxWidth() const
 
 FOptionalSize SAssetTileItem::GetStateIconImageSize() const
 {
+	constexpr int32 SourceControlImageMinSize = 12;
 	float IconSize = FMath::TruncToFloat(GetThumbnailBoxSize().Get() * 0.2f);
-	return IconSize > 12 ? IconSize : 12;
+	return IconSize > SourceControlImageMinSize ? IconSize : SourceControlImageMinSize;
 }
 
 FOptionalSize SAssetTileItem::GetThumbnailBoxSize() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return FOptionalSize(ThumbnailDimension.Get());
+#else
 	return FOptionalSize(ItemWidth.Get()- ThumbnailPadding);
+#endif
 }
 
 EVisibility SAssetTileItem::GetAssetClassLabelVisibility() const
@@ -2202,6 +2314,11 @@ EVisibility SAssetTileItem::GetSCCIconVisibility() const
 	return bHasCCStateBrush &&  CurrentThumbnailSize.Get() != EThumbnailSize::Tiny && ISourceControlModule::Get().IsEnabled() && ISourceControlModule::Get().GetProvider().IsAvailable() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
+EVisibility SAssetTileItem::GetNameAreaVisibility() const
+{
+	return CurrentThumbnailSize.Get() == EThumbnailSize::Tiny ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
 
 void SAssetTileItem::InitializeAssetNameHeights()
 {
@@ -2217,7 +2334,9 @@ void SAssetTileItem::InitializeAssetNameHeights()
 			FSlateFontInfo Font = FAppStyle::GetFontStyle(SmallFontName);
 			TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 			SmallFontHeight = FontMeasureService->GetMaxCharacterHeight(Font);
-			AssetNameHeights[(int32)EThumbnailSize::Small] = SmallFontHeight * 2 ;
+
+			constexpr float SmallSizeMultiplier = 2;
+			AssetNameHeights[(int32)EThumbnailSize::Small] = SmallFontHeight * SmallSizeMultiplier;
 		}
 
 
@@ -2226,9 +2345,20 @@ void SAssetTileItem::InitializeAssetNameHeights()
 			FSlateFontInfo Font = FAppStyle::GetFontStyle(SmallFontName);
 			TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 			RegularFontHeight = FontMeasureService->GetMaxCharacterHeight(Font);
-			AssetNameHeights[(int32)EThumbnailSize::Medium] = RegularFontHeight * 3;
-			AssetNameHeights[(int32)EThumbnailSize::Large] = RegularFontHeight * 4;
-			AssetNameHeights[(int32)EThumbnailSize::Huge] = RegularFontHeight * 5;
+
+			constexpr float MediumSizeMultiplier = 3;
+			constexpr float LargeSizeMultiplier = 4;
+			constexpr float XLargeSizeMultiplier = 5;
+			constexpr float HugeSizeMultiplier = 6;
+
+			AssetNameHeights[(int32)EThumbnailSize::Medium] = RegularFontHeight * MediumSizeMultiplier;
+			AssetNameHeights[(int32)EThumbnailSize::Large] = RegularFontHeight * LargeSizeMultiplier;
+#if UE_CONTENTBROWSER_NEW_STYLE
+			AssetNameHeights[(int32)EThumbnailSize::XLarge] = RegularFontHeight * XLargeSizeMultiplier;
+			AssetNameHeights[(int32)EThumbnailSize::Huge] = RegularFontHeight * HugeSizeMultiplier;
+#else
+			AssetNameHeights[(int32)EThumbnailSize::Huge] = RegularFontHeight * XLargeSizeMultiplier;
+#endif
 		}
 
 		bInitializedHeights = true;

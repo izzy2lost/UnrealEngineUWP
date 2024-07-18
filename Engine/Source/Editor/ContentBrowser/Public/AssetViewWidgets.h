@@ -588,6 +588,8 @@ class SAssetTileItem : public SAssetViewItem
 public:
 	SLATE_BEGIN_ARGS( SAssetTileItem )
 		: _ThumbnailPadding(0)
+		/** Default Size of the Small Thumbnail Size */
+		, _ThumbnailDimension(64)
 		, _ThumbnailLabel( EThumbnailLabel::ClassName )
 		, _ThumbnailHintColorAndOpacity( FLinearColor( 0.0f, 0.0f, 0.0f, 0.0f ) )
 		, _AllowThumbnailHintLabel(true)
@@ -607,10 +609,13 @@ public:
 		/** How much padding to allow around the thumbnail */
 		SLATE_ARGUMENT( float, ThumbnailPadding )
 
-		/** The contents of the label displayed on the thumbnail */
+		/** The Actual Thumbnail dimension based on the  */
+		SLATE_ATTRIBUTE(float, ThumbnailDimension)
+
+		/** The contents of the label displayed on the thumbnail EThumbnailSize */
 		SLATE_ARGUMENT( EThumbnailLabel::Type, ThumbnailLabel )
 
-		/**  */
+		/** Thumbnail Color for Hint */
 		SLATE_ATTRIBUTE( FLinearColor, ThumbnailHintColorAndOpacity )
 
 		/** Whether the thumbnail should ever show it's hint label */
@@ -732,6 +737,8 @@ protected:
 	/** Gets the visibility of the SCC icons */
 	EVisibility GetSCCIconVisibility() const;
 
+	/** Get the visibility for the name area, collapsed if Tiny */
+	EVisibility GetNameAreaVisibility() const;
 
 private:
 	/** If false, the tooltip will not be displayed */
@@ -742,6 +749,9 @@ private:
 
 	/** The width of the item. Used to enforce a square thumbnail. */
 	TAttribute<float> ItemWidth;
+
+	/** Actual size that the thumbnail should have */
+	TAttribute<float> ThumbnailDimension;
 
 	/** Max name height for each thumbnail size */
 	static float AssetNameHeights[(int32)EThumbnailSize::MAX];

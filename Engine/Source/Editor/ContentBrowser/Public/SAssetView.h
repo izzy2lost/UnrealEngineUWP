@@ -805,6 +805,12 @@ private:
 	/** Gets the current thumbnail scale */
 	float GetThumbnailScale() const;
 
+	/** Gets the current thumbnail size */
+	float GetThumbnailSizeValue() const;
+
+	/** Set the Min/Max Thumbnail size based on the EThumbnailSize chosen */
+	void UpdateThumbnailSizeValue();
+
 	/** Gets the current thumbnail size enum */
 	EThumbnailSize GetThumbnailSize() const { return ThumbnailSize; }
 
@@ -819,6 +825,9 @@ private:
 	
 	/** Gets the final scaled item height for the tile view */
 	float GetTileViewItemHeight() const;
+
+	/** Get the TileView Thumbnail dimension height and width are the same for the thumbnail itself */
+	float GetTileViewThumbnailDimension() const;
 
 	/** Gets the scaled item height for the tile view before the filler scale is applied */
 	float GetTileViewItemBaseHeight() const;
@@ -967,6 +976,14 @@ private:
 	TSharedPtr<FAssetFilterCollectionType> FrontendFilters;
 	TSharedPtr<FAssetTextFilter> TextFilter;
 
+	/** Scale when using CTRL+Wheel, will go from 0.f to 1.f and reset accordingly when ThumbnailSize chosen changes\n
+	 * When going over/under the limit will also change the ThumbnailSize
+	 */
+	float ZoomScale = 0.0f;
+
+	/** Vertical and Horizontal padding for the TileViewItem */
+	const int32 TileViewWidthHeightPadding = 9;
+
 	TAttribute<bool> bShowRedirectors;
 	bool bLastShowRedirectors;
 
@@ -1081,6 +1098,10 @@ private:
 	/** The max and min thumbnail scales as a fraction of the rendered size */
 	float MinThumbnailScale;
 	float MaxThumbnailScale;
+
+	/** The max and min thumbnail sizes */
+	float MinThumbnailSize;
+	float MaxThumbnailSize;
 
 	/** Scalar applied to thumbnail sizes so that users thumbnails are scaled based on users display area size*/
 	float ThumbnailScaleRangeScalar;

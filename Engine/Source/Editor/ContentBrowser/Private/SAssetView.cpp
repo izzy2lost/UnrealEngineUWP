@@ -210,6 +210,8 @@ FText SAssetView::ThumbnailSizeToDisplayName(EThumbnailSize InSize)
 		return LOCTEXT("MediumThumbnailSize", "Medium");
 	case EThumbnailSize::Large:
 		return LOCTEXT("LargeThumbnailSize", "Large");
+	case EThumbnailSize::XLarge:
+		return LOCTEXT("XLargeThumbnailSize", "X Large");
 	case EThumbnailSize::Huge:
 		return LOCTEXT("HugeThumbnailSize", "Huge");
 	default:
@@ -1103,11 +1105,21 @@ void SAssetView::Construct( const FArguments& InArgs )
 	ListViewThumbnailSize = 64;
 	ListViewThumbnailPadding = 4;
 	TileViewThumbnailResolution = 256;
-	TileViewThumbnailSize = 150;
+
+	// Max Size for the thumbnail
+#if UE_CONTENTBROWSER_NEW_STYLE
+	constexpr int32 MaxTileViewThumbnailSize = 160;
+#else
+	constexpr int32 MaxTileViewThumbnailSize = 150;
+#endif
+
+	TileViewThumbnailSize = MaxTileViewThumbnailSize;
+
 	TileViewThumbnailPadding = 9;
 
 	TileViewNameHeight = 50;
 
+	UpdateThumbnailSizeValue();
 	MinThumbnailScale = 0.2f * ThumbnailScaleRangeScalar;
 	MaxThumbnailScale = 1.9f * ThumbnailScaleRangeScalar;
 
@@ -1798,7 +1810,8 @@ void SAssetView::SaveSettings(const FString& IniFilename, const FString& IniSect
 {
 	GConfig->SetInt(*IniSection, *GetThumbnailScaleSettingPath(SettingsString), (int32)ThumbnailSize, IniFilename);
 	GConfig->SetInt(*IniSection, *GetCurrentViewTypeSettingPath(SettingsString), CurrentViewType, IniFilename);
-	
+	GConfig->SetFloat(*IniSection, *(SettingsString + TEXT(".ZoomScale")), ZoomScale, IniFilename);
+
 	GConfig->SetArray(*IniSection, *(SettingsString + TEXT(".HiddenColumns")), HiddenColumnNames, IniFilename);
 }
 
@@ -1810,7 +1823,16 @@ void SAssetView::LoadSettings(const FString& IniFilename, const FString& IniSect
 		// Clamp value to normal range and update state
 		ThumbnailSizeConfig = FMath::Clamp<int32>(ThumbnailSizeConfig, 0, (int32)EThumbnailSize::MAX-1);
 
+		// TODO: Remove this afterwards, current CB should hide new size
+#if !UE_CONTENTBROWSER_NEW_STYLE
+		if ((EThumbnailSize)ThumbnailSizeConfig == EThumbnailSize::XLarge)
+		{
+			ThumbnailSizeConfig -= 1;
+		}
+#endif
 		ThumbnailSize = (EThumbnailSize) ThumbnailSizeConfig;
+		// Set the thumbnail value here after the Size enum is retrieved from the config
+		UpdateThumbnailSizeValue();
 	}
 
 	int32 ViewType = EAssetViewType::Tile;
@@ -1823,7 +1845,14 @@ void SAssetView::LoadSettings(const FString& IniFilename, const FString& IniSect
 		}
 		SetCurrentViewType( (EAssetViewType::Type)ViewType );
 	}
-	
+
+	float Zoom = 0;
+	if ( GConfig->GetFloat(*IniSection, *(SettingsString + TEXT(".ZoomScale")), Zoom, IniFilename) )
+	{
+		// Clamp value to normal range and update state
+		ZoomScale = FMath::Clamp<float>(Zoom, 0.f, 1.f);
+	}
+
 	TArray<FString> LoadedHiddenColumnNames;
 	GConfig->GetArray(*IniSection, *(SettingsString + TEXT(".HiddenColumns")), LoadedHiddenColumnNames, IniFilename);
 	if (LoadedHiddenColumnNames.Num() > 0)
@@ -2408,14 +2437,47 @@ FReply SAssetView::OnMouseWheel( const FGeometry& MyGeometry, const FPointerEven
 	// Make sure to not change the thumbnail scaling when we're in Columns view since thumbnail scaling isn't applicable there.
 	if( MouseEvent.IsControlDown() && IsThumbnailScalingAllowed() )
 	{
+#if UE_CONTENTBROWSER_NEW_STYLE
+		const float NewDelta = MouseEvent.GetWheelDelta() * 0.4f;
+		if (ZoomScale == 1.f && NewDelta > 0 || ZoomScale == 0.f && NewDelta < 0)
+		{
+			int32 Step = (int32)FMath::Sign(NewDelta);
+			EThumbnailSize OldSize = ThumbnailSize;
+			ThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>(((int32)ThumbnailSize + Step), 0, (int32)EThumbnailSize::MAX - 1);
+			if (OldSize != ThumbnailSize)
+			{
+				OnThumbnailSizeChanged(ThumbnailSize);
+				ZoomScale = NewDelta > 0.f ? 0.f : 1.f;
+			}
+		}
+		else
+		{
+			ZoomScale = FMath::Clamp(ZoomScale + NewDelta, 0.f, 1.f);
+		}
+#else
 		// Step up/down a level depending on the scroll wheel direction.
 		// Clamp value to enum min/max before updating.
 		const int32 Delta = MouseEvent.GetWheelDelta() > 0 ? 1 : -1;
-		const EThumbnailSize DesiredThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>((int32)ThumbnailSize + Delta, 0, (int32)EThumbnailSize::MAX - 1);
+		EThumbnailSize DesiredThumbnailSize = (EThumbnailSize)FMath::Clamp<int32>((int32)ThumbnailSize + Delta, 0, (int32)EThumbnailSize::MAX - 1);
+
+		// TODO: Remove this afterwards, current CB should hide new size
+		if (DesiredThumbnailSize == EThumbnailSize::XLarge)
+		{
+			if (Delta > 0)
+			{
+				DesiredThumbnailSize = EThumbnailSize::Huge;
+			}
+			else
+			{
+				DesiredThumbnailSize = EThumbnailSize::Large;
+			}
+		}
+
 		if ( DesiredThumbnailSize != ThumbnailSize )
 		{
 			OnThumbnailSizeChanged(DesiredThumbnailSize);
-		}		
+		}
+#endif
 		return FReply::Handled();
 	}
 	return FReply::Unhandled();
@@ -3946,6 +4008,13 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 			
 			for (int32 EnumValue = (int32)EThumbnailSize::Tiny; EnumValue < (int32)EThumbnailSize::MAX; ++EnumValue)
 			{
+#if !UE_CONTENTBROWSER_NEW_STYLE
+				if ((EThumbnailSize)EnumValue == EThumbnailSize::XLarge)
+				{
+					continue;
+				}
+#endif
+
 				SizeSection.AddMenuEntry(
 					NAME_None,
 					SAssetView::ThumbnailSizeToDisplayName((EThumbnailSize)EnumValue),
@@ -4772,6 +4841,8 @@ TSharedRef<ITableRow> SAssetView::MakeTileViewWidget(TSharedPtr<FAssetViewItem> 
 		TSharedRef<SAssetTileItem> Item =
 			SNew(SAssetTileItem)
 			.AssetItem(AssetItem)
+			.CurrentThumbnailSize(this, &SAssetView::GetThumbnailSize)
+			.ThumbnailDimension(this, &SAssetView::GetTileViewThumbnailDimension)
 			.ThumbnailPadding((float)TileViewThumbnailPadding)
 			.ItemWidth(this, &SAssetView::GetTileViewItemWidth)
 			.OnRenameBegin(this, &SAssetView::AssetRenameBegin)
@@ -4810,6 +4881,7 @@ TSharedRef<ITableRow> SAssetView::MakeTileViewWidget(TSharedPtr<FAssetViewItem> 
 			.AssetItem(AssetItem)
 			.ThumbnailPadding((float)TileViewThumbnailPadding)
 			.CurrentThumbnailSize(this, &SAssetView::GetThumbnailSize)
+			.ThumbnailDimension(this, &SAssetView::GetTileViewThumbnailDimension)
 			.ItemWidth(this, &SAssetView::GetTileViewItemWidth)
 			.OnRenameBegin(this, &SAssetView::AssetRenameBegin)
 			.OnRenameCommit(this, &SAssetView::AssetRenameCommit)
@@ -4999,7 +5071,14 @@ TSharedPtr<FAssetThumbnail> SAssetView::AddItemToNewThumbnailRelevancyMap(const 
 		}
 
 		// The thumbnail newly relevant, create a new thumbnail
-		const int32 ThumbnailResolution = FMath::TruncToInt((float)CurrentThumbnailSize * MaxThumbnailScale);
+		int32 ThumbnailResolution = 0;
+
+#if UE_CONTENTBROWSER_NEW_STYLE
+		ThumbnailResolution = CurrentThumbnailSize;
+#else
+		ThumbnailResolution = FMath::TruncToInt((float)CurrentThumbnailSize * MaxThumbnailScale);
+#endif
+
 		Thumbnail = MakeShared<FAssetThumbnail>(FAssetData(), ThumbnailResolution, ThumbnailResolution, AssetThumbnailPool);
 		Item->GetItem().UpdateThumbnail(*Thumbnail);
 		Thumbnail->GetViewportRenderTargetTexture(); // Access the texture once to trigger it to render
@@ -5397,6 +5476,7 @@ void SAssetView::ToggleThumbnailEditMode()
 void SAssetView::OnThumbnailSizeChanged(EThumbnailSize NewThumbnailSize)
 {
 	ThumbnailSize = NewThumbnailSize;
+	UpdateThumbnailSizeValue();
 
 	if (FAssetViewInstanceConfig* Config = GetAssetViewConfig())
 	{
@@ -5429,6 +5509,9 @@ float SAssetView::GetThumbnailScale() const
 	case EThumbnailSize::Large:
 		BaseScale = 0.75f;
 		break;
+	case EThumbnailSize::XLarge:
+		BaseScale = 0.9f;
+		break;
 	case EThumbnailSize::Huge:
 		BaseScale = 1.0f;
 		break;
@@ -5440,6 +5523,46 @@ float SAssetView::GetThumbnailScale() const
 	return BaseScale * GetTickSpaceGeometry().Scale;
 }
 
+float SAssetView::GetThumbnailSizeValue() const
+{
+	return FMath::Lerp(MinThumbnailSize, MaxThumbnailSize, ZoomScale);
+}
+
+void SAssetView::UpdateThumbnailSizeValue()
+{
+	switch (ThumbnailSize)
+	{
+	case EThumbnailSize::Tiny:
+		MinThumbnailSize = 64.f;
+		MaxThumbnailSize = 80.f;
+		break;
+	case EThumbnailSize::Small:
+		MinThumbnailSize = 80.f;
+		MaxThumbnailSize = 96.f;
+		break;
+	case EThumbnailSize::Medium:
+		MinThumbnailSize = 96.f;
+		MaxThumbnailSize = 112.f;
+		break;
+	case EThumbnailSize::Large:
+		MinThumbnailSize = 112.f;
+		MaxThumbnailSize = 128.f;
+		break;
+	case EThumbnailSize::XLarge:
+		MinThumbnailSize = 128.f;
+		MaxThumbnailSize = 136.f;
+		break;
+	case EThumbnailSize::Huge:
+		MinThumbnailSize = 136.f;
+		MaxThumbnailSize = 160.f;
+		break;
+	default:
+		MinThumbnailSize = 64.f;
+		MaxThumbnailSize = 80.f;
+		break;
+	}
+}
+
 bool SAssetView::IsThumbnailScalingAllowed() const
 {
 	return GetCurrentViewType() != EAssetViewType::Column;
@@ -5447,6 +5570,13 @@ bool SAssetView::IsThumbnailScalingAllowed() const
 
 float SAssetView::GetTileViewTypeNameHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+		if (ThumbnailSize == EThumbnailSize::Tiny)
+		{
+			return 0;
+		}
+		return 67.f;
+#else
 	float TypeNameHeight = 0;
 
 	if (bShowTypeInTileView)
@@ -5473,6 +5603,7 @@ float SAssetView::GetTileViewTypeNameHeight() const
 		}
 	}
 	return TypeNameHeight;
+#endif
 }
 
 float SAssetView::GetSourceControlIconHeight() const
@@ -5487,22 +5618,43 @@ float SAssetView::GetListViewItemHeight() const
 
 float SAssetView::GetTileViewItemHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth() + GetTileViewTypeNameHeight() + TileViewWidthHeightPadding;
+#else
 	return (((float)TileViewNameHeight + GetTileViewTypeNameHeight()) * FMath::Lerp(MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale())) + GetTileViewItemBaseHeight() * FillScale + GetSourceControlIconHeight();
+#endif
 }
 
 float SAssetView::GetTileViewItemBaseHeight() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth();
+#else
 	return (float)(TileViewThumbnailSize + TileViewThumbnailPadding * 2) * FMath::Lerp(MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale());
+#endif
 }
 
 float SAssetView::GetTileViewItemWidth() const
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewItemBaseWidth() + TileViewWidthHeightPadding;
+#else
 	return GetTileViewItemBaseWidth() * FillScale;
+#endif
+}
+
+float SAssetView::GetTileViewThumbnailDimension() const
+{
+	return GetThumbnailSizeValue();
 }
 
 float SAssetView::GetTileViewItemBaseWidth() const //-V524
 {
+#if UE_CONTENTBROWSER_NEW_STYLE
+	return GetTileViewThumbnailDimension();
+#else
 	return (float)( TileViewThumbnailSize + TileViewThumbnailPadding * 2 ) * FMath::Lerp( MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale() );
+#endif
 }
 
 EColumnSortMode::Type SAssetView::GetColumnSortMode(const FName ColumnId) const

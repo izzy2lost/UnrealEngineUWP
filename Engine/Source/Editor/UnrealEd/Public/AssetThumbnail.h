@@ -33,6 +33,7 @@ enum class EThumbnailSize : uint8
 	Small,
 	Medium,
 	Large,
+	XLarge,
 	Huge,
 
 	// Not a size
