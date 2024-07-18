@@ -1993,7 +1993,6 @@ void FScene::UpdatePrimitiveTransform_RenderThread(FPrimitiveSceneProxy* Primiti
 template <typename UpdatePayloadType>
 void FScene::UpdatePrimitiveInternal(FPrimitiveSceneProxy* SceneProxy, UpdatePayloadType&& InUpdatePayload)
 {
-	check(IsInGameThread());
 	if (SceneProxy != nullptr)
 	{
 		ENQUEUE_RENDER_COMMAND(UpdatePrimitiveCmd)(
@@ -2310,6 +2309,7 @@ void FScene::UpdateCustomPrimitiveData(FPrimitiveSceneProxy* SceneProxy, const F
 
 void FScene::UpdatePrimitiveDistanceFieldSceneData_GameThread(UPrimitiveComponent* Primitive)
 {
+	check(IsInGameThread());
 	if (Primitive->SceneProxy)
 	{
 		UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateDistanceFieldSceneData{});
