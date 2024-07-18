@@ -154,7 +154,7 @@ void AChaosVDSolverInfoActor::VisitSelectedParticleData(TCallback VisitCallback)
 template <typename TCallback>
 void AChaosVDSolverInfoActor::VisitAllParticleData(TCallback VisitCallback)
 {
-	for (const TPair<int32, AChaosVDParticleActor*>& ParticleWithIDPair : SolverParticlesByID)
+	for (const TPair<int32, TObjectPtr<AChaosVDParticleActor>>& ParticleWithIDPair : SolverParticlesByID)
 	{
 		AChaosVDParticleActor* ParticleActor = ParticleWithIDPair.Value;
 		TSharedPtr<const FChaosVDParticleDataWrapper> ParticleDataViewer = ParticleActor ? ParticleActor->GetParticleData() : nullptr;
