@@ -156,12 +156,13 @@ FVTRequestPageResult FRuntimeVirtualTextureProducer::RequestPageData(
 	uint64 vAddress,
 	EVTRequestPagePriority Priority)
 {
-	//todo[vt]: 
-	// Possibly throttle rendering according to performance and return Saturated here.
-
+	// Note that when the finalizer is not ready (outside of the Begin/End Scene Render) we return the Saturated status here.
+	// This is to indicate that the RVT can't render at this time (because we require the GPU Scene to be up to date).
+	// This will happen for DrawTileMesh() style rendering used by material/HLOD baking.
+	// It's best to avoid sampling RVT in material baking, but if it is necessary then an option is to have streaming mips built and enabled.
 	FVTRequestPageResult result;
 	result.Handle = 0;
-	result.Status = Finalizer.IsReady() ? EVTRequestPageStatus::Available : EVTRequestPageStatus::Pending;
+	result.Status = Finalizer.IsReady() ? EVTRequestPageStatus::Available : EVTRequestPageStatus::Saturated;
 	return result;
 }
 

@@ -1707,7 +1707,7 @@ namespace RuntimeVirtualTexture
 	void RenderPages(FRDGBuilder& GraphBuilder, FRenderPageBatchDesc const& InDesc)
 	{
 		check(InDesc.Scene != nullptr);
-		if (InDesc.Scene->GPUScene.IsRendering())
+		if (ensure(InDesc.Scene->GPUScene.IsRendering()))
 		{
 			// TODO: this should be replaced by piping through a reference to the scene renderer rather than just the scene, such that we can get at the already populated scene UB.
 			class FSimpleRVTRenderer : public FSceneRendererBase
@@ -1725,12 +1725,6 @@ namespace RuntimeVirtualTexture
 			FSimpleRVTRenderer SimpleRenderer(GraphBuilder, InDesc);
 			const bool bAllowCachedMeshDrawCommands = true;
 			RenderPagesInternal(GraphBuilder, InDesc, &SimpleRenderer, bAllowCachedMeshDrawCommands);
-		}
-		else
-		{
-			// We allow locked root pages to be rendered outside of their scene update.
-			// We expect to hit this path very rarely. (One case is during material baking.)
-			RenderPagesStandAlone(GraphBuilder, InDesc);
 		}
 	}
 
