@@ -341,7 +341,8 @@ static FOnDemandIoBackendStats* GStatistics = nullptr;
 static FDelegateHandle GStatisticsEndFrameDelegateHandle;
 static FDelegateHandle GStatisticsOnScreenDelegateHandle;
 
-FOnDemandIoBackendStats::FOnDemandIoBackendStats()
+FOnDemandIoBackendStats::FOnDemandIoBackendStats(EStatsFlags InFlags)
+	: Flags(InFlags)
 {
 	check(GStatistics == nullptr);
 	GStatistics = this;
@@ -391,8 +392,16 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 			static double LastLogTime = 0.0;
 			if (double Time = FPlatformTime::Seconds(); Time - LastLogTime > (double)GIasStatisticsLogInterval)
 			{
-				UE_LOG(LogIas, Log, TEXT("CacheStats: CachedKiB=%d, WrittenKiB=%d, ReadKiB=%d, RejectedKiB=%d, Get=%d, Error=%d, Put=%d, PutReject=%d, PutExisting=%d"),
-					CCachedKiB, CWrittenKiB, CReadKiB, CRejectedKiB, CGetCount, CErrorCount, CPutCount, CPutRejectCount, CPutExistingCount);
+				if (!EnumHasAllFlags(Flags,EStatsFlags::CachingDisabled))
+				{
+					UE_LOG(LogIas, Log, TEXT("CacheStats: CachedKiB=%d, WrittenKiB=%d, ReadKiB=%d, RejectedKiB=%d, Get=%d, Error=%d, Put=%d, PutReject=%d, PutExisting=%d"),
+						CCachedKiB, CWrittenKiB, CReadKiB, CRejectedKiB, CGetCount, CErrorCount, CPutCount, CPutRejectCount, CPutExistingCount);
+				}
+				else
+				{
+					UE_LOG(LogIas, Log, TEXT("CacheStats: Disabled"));
+				}
+
 				UE_LOG(LogIas, Log, TEXT("HttpStats: DownloadedKiB=%d, Get=%d, Retry=%d, Cancel=%d, Error=%d, CurPending=%d, CurDurationMsAvg=%d, CurDurationMsMax=%d"),
 					HDownloadedKiB, HGetCount, HRetryCount, HCancelCount, HErrorCount, HPendingCount, HDurationMsAvg, HDurationMsMax);
 				LastLogTime = Time;
@@ -407,18 +416,33 @@ FOnDemandIoBackendStats::FOnDemandIoBackendStats()
 			if (GIasDisplayOnScreenStatistics)
 			{
 				const bool bIsConnected = GHttpConnectCount.Get() > GHttpDisconnectCount.Get();
+
+				FText CachingText;
+				if (!EnumHasAllFlags(Flags, EStatsFlags::CachingDisabled))
+				{
+					CachingText = FText::Format(
+						LOCTEXT("IASCacheEnabled", "Cached:{0} KiB | Read:{1} KiB ({2})"),
+						GCacheCachedBytes.Get() >> 10,
+						GCacheReadBytes.Get() >> 10,
+						GCacheGetCount.Get()
+					);
+				}
+				else
+				{
+					CachingText = LOCTEXT("IASCacheDisabled", "Caching Disabled");
+				}
+
 				FText Message = FText::Format(
-					LOCTEXT("IAS", "IAS - {0}: Cached:{1} KiB | Read:{2} KiB ({3}) | Downloaded:{4} KiB ({5}) {6} ms | Retries:{7} | Pending:{8}"),
+					LOCTEXT("IAS", "IAS - {0}: {1} | Downloaded:{2} KiB ({3}) {4} ms | Retries:{5} | Pending:{6}"),
 					bIsConnected ? LOCTEXT("IASConnect", "Connected") : LOCTEXT("IASDisconnect", "Disconnected"),
-					GCacheCachedBytes.Get() >> 10,
-					GCacheReadBytes.Get() >> 10,
-					GCacheGetCount.Get(),
+					CachingText,
 					GHttpDownloadedBytes.Get() >> 10,
 					GHttpGetCount.Get(),
 					GHttpDurationMsAvg.Get(),
 					GHttpRetryCount.Get(),
 					GHttpPendingCount.Get()
 				);
+
 				Out.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, MoveTemp(Message));
 
 				if (GIoDecodeErrorCount.Get() > 0 || GHttpErrorCount.Get() > 0)

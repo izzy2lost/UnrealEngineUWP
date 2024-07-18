@@ -25,12 +25,20 @@ namespace UE::IoStore
 #	define IAS_STATISTICS_IMPL(...) { return __VA_ARGS__; }
 #endif
 
+enum class EStatsFlags
+{
+	None				= 0,
+	CachingDisabled		= 1 << 0
+};
+
+ENUM_CLASS_FLAGS(EStatsFlags);
+
 class FOnDemandIoBackendStats
 {
 public:
 	static FOnDemandIoBackendStats* Get() IAS_STATISTICS_IMPL(nullptr)
 
-	FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
+	FOnDemandIoBackendStats(EStatsFlags Flags) IAS_STATISTICS_IMPL()
 	~FOnDemandIoBackendStats() IAS_STATISTICS_IMPL()
 
 	/** Report analytics not directly associated with a specific endpoint */
@@ -64,6 +72,12 @@ public:
 	void OnHttpGet(uint64 SizeBytes, uint64 DurationMs) IAS_STATISTICS_IMPL()
 	void OnHttpRetry() IAS_STATISTICS_IMPL()
 	void OnHttpError() IAS_STATISTICS_IMPL()
+
+private:
+
+#if IAS_WITH_STATISTICS
+	EStatsFlags Flags;
+#endif //IAS_WITH_STATISTICS
 };
 
 #undef IAS_STATISTICS_IMPL
