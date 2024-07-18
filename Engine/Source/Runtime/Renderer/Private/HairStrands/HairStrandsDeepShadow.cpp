@@ -183,10 +183,6 @@ class FDeepShadowCreateViewInfoCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 
-		SHADER_PARAMETER_ARRAY(FVector4f,	LightDirections,			[FHairStrandsDeepShadowData::MaxMacroGroupCount])
-		SHADER_PARAMETER_ARRAY(FVector4f,	TranslatedLightPositions,	[FHairStrandsDeepShadowData::MaxMacroGroupCount])
-		SHADER_PARAMETER_ARRAY(FIntVector4,	MacroGroupIndices,			[FHairStrandsDeepShadowData::MaxMacroGroupCount])
-
 		SHADER_PARAMETER(float, RasterizationScale)
 
 		SHADER_PARAMETER(FIntPoint, SlotResolution)
@@ -201,6 +197,7 @@ class FDeepShadowCreateViewInfoCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, MinAtlasTileResolution)
 		SHADER_PARAMETER(uint32, MinAtlasTileResolutionLog2)
 
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, LightDataBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<int>, MacroGroupAABBBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FDeepShadowViewInfo>, OutShadowViewInfoBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
@@ -368,23 +365,36 @@ void RenderHairStrandsDeepShadows(
 
 		DeepShadowResources.bIsGPUDriven = bDeepShadowGPUDriven;
 		{
-			check(TotalAtlasSlotIndex < FHairStrandsDeepShadowResources::MaxAtlasSlotCount);
-
 			// Allocate and create projection matrix and Min radius
 			// Stored FDeepShadowViewInfo structs
 			// See HairStrandsDeepShadowCommonStruct.ush for more details
 			FDeepShadowCreateViewInfoCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDeepShadowCreateViewInfoCS::FParameters>();
 
+			struct FLightData
+			{
+				FVector3f LightDirection;
+				uint32 MacroGroupId;
+				FVector3f TranslatedLightPosition;
+				uint32 bIsLightDirectional;
+			};
+			static_assert(sizeof(FLightData) == 32u);
+			TArray<FLightData> LightData;
+			LightData.Reserve(DOMSlotCount);
 			for (FHairStrandsMacroGroupData& MacroGroup : MacroGroupDatas)
 			{
 				for (FHairStrandsDeepShadowData& DomData : MacroGroup.DeepShadowDatas)
-				{				
-					Parameters->LightDirections[DomData.AtlasSlotIndex]				= FVector4f(DomData.LightDirection.X, DomData.LightDirection.Y, DomData.LightDirection.Z, 0);
-					Parameters->TranslatedLightPositions[DomData.AtlasSlotIndex]	= FVector4f(DomData.TranslatedLightPosition.X, DomData.TranslatedLightPosition.Y, DomData.TranslatedLightPosition.Z, DomData.bIsLightDirectional ? 0 : 1);
-					Parameters->MacroGroupIndices[DomData.AtlasSlotIndex]			= FIntVector4(DomData.MacroGroupId, 0,0,0);
+				{
+					FLightData& Data = LightData.AddDefaulted_GetRef();
+					Data.LightDirection				= DomData.LightDirection;
+					Data.TranslatedLightPosition	= DomData.TranslatedLightPosition;
+					Data.MacroGroupId				= DomData.MacroGroupId;
+					Data.bIsLightDirectional		= DomData.bIsLightDirectional ? 1 : 0;
 				}
 			}
 
+			FRDGBufferRef LightDataBuffer= CreateStructuredBuffer(GraphBuilder, TEXT("Hair.DeepShadow.LightData"), sizeof(FLightData), LightData.Num(), LightData.GetData(), sizeof(FLightData) * LightData.Num());
+
+			Parameters->LightDataBuffer = GraphBuilder.CreateSRV(LightDataBuffer);
 			Parameters->SlotResolution = DeepShadowResources.AtlasSlotResolution;
 			Parameters->SlotIndexCount = DeepShadowResources.TotalAtlasSlotCount;
 			Parameters->MacroGroupCount = MacroGroupDatas.Num();
