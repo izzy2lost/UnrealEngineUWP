@@ -41,7 +41,7 @@ public:
 	virtual bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override;
 	virtual UClass* GetBoundObjectClass() const override;
 #if WITH_EDITOR
-	virtual	void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) override;
+	virtual	void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene) override;
 	virtual const FSlateBrush* GetBindingTrackCustomIconOverlay() const override;
 	virtual FText GetBindingTrackIconTooltip() const override;
 

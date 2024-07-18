@@ -155,9 +155,9 @@ void UMovieSceneSpawnableBindingBase::DestroySpawnedObject(UObject* Object)
 }
 
 #if WITH_EDITOR
-void UMovieSceneSpawnableBindingBase::SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+void UMovieSceneSpawnableBindingBase::SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene)
 {
-	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene, SharedPlaybackState);
+	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene);
 
 	// TODO: For now we are not using binding lifetime track for this, though it will support it. We continue to use spawn track until we improve UX of splitting sections
 	// // 

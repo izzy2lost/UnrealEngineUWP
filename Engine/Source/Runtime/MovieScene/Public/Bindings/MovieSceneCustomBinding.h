@@ -100,7 +100,7 @@ public:
 	/*
 	* Called by Sequencer upon creating a new custom binding or converting a binding to use this type. Can be used by custom binding types to add required track types, etc.
 	*/
-	virtual void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) {}
+	virtual void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene) {}
 	
 	/*
 	* Allows the custom binding to optionally provide a custom icon overlay for the object binding track.

@@ -1448,14 +1448,15 @@ FMovieScenePossessable* FSequencerUtilities::ConvertToCustomBinding(TSharedRef<I
 	// If this is a new spawnable or replaceable binding, we need to set up some defaults
 	if (NewCustomBinding->WillSpawnObject(Sequencer->GetSharedPlaybackState()))
 	{
-		// Spawn the object so we can position it correctly, it's going to get spawned anyway since things default to spawned.
-		UObject* SpawnedObject = Sequencer->GetSpawnRegister().SpawnObject(NewPossessableGuid, *MovieScene, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState(), BindingIndex);
+		// We purposefully pass in nullptr to SetupDefaultsForSpawnable below. 
+		// This will prevent a section of code in it from calling OnActorAddedToSequencer, which should not be called in the case of binding conversion,
+		// as it may cause some default tracks to get added for a second time.
 
 		// Allow the binding to set up any necessary defaults
-		NewCustomBinding->SetupDefaults(SpawnedObject, NewPossessableGuid, *MovieScene, Sequencer->GetSharedPlaybackState());
+		NewCustomBinding->SetupDefaults(nullptr, NewPossessableGuid, *MovieScene);
 
 		FTransformData TransformData;
-		Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(SpawnedObject, NewPossessableGuid, TransformData, Sequencer, Sequencer->GetSequencerSettings());
+		Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(nullptr, NewPossessableGuid, TransformData, Sequencer, Sequencer->GetSequencerSettings());
 	}
 
 	//Sequencer->State.Invalidate(NewPossessableGuid, Sequencer->GetFocusedTemplateID());
@@ -2534,6 +2535,7 @@ FGuid TryCreateCustomBinding(TSharedPtr<ISequencer> Sequencer, UObject* CustomBi
 		BindingReferences->AddOrReplaceBinding(NewID, NewCustomBinding, InParams.BindingIndex);
 
 		UObject* SpawnedObject = nullptr;
+
 		// If this is a spawnable or replaceable binding, we need to set up some defaults
 		if (Sequencer)
 		{
@@ -2541,17 +2543,19 @@ FGuid TryCreateCustomBinding(TSharedPtr<ISequencer> Sequencer, UObject* CustomBi
 			{
 				// Spawn the object so we can position it correctly, it's going to get spawned anyway since things default to spawned.
 				SpawnedObject = Sequencer->GetSpawnRegister().SpawnObject(NewID, *OwnerMovieScene, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState(), 0);
-
-				if (InParams.bSetupDefaults)
-				{
-					// Allow the binding to set up any necessary defaults
-					NewCustomBinding->SetupDefaults(SpawnedObject, NewID, *OwnerMovieScene, Sequencer->GetSharedPlaybackState());
-
-					FTransformData TransformData;
-					Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(SpawnedObject, NewID, TransformData, Sequencer.ToSharedRef(), Sequencer->GetSequencerSettings());
-				}
 			}
+		}
 
+		// Allow the binding to set up any necessary defaults
+		NewCustomBinding->SetupDefaults(SpawnedObject, NewID, *OwnerMovieScene);
+
+		if (Sequencer)
+		{
+			if (InParams.bSetupDefaults)
+			{
+				FTransformData TransformData;
+				Sequencer->GetSpawnRegister().SetupDefaultsForSpawnable(SpawnedObject, NewID, TransformData, Sequencer.ToSharedRef(), Sequencer->GetSequencerSettings());
+			}
 			Sequencer->State.Invalidate(NewID, Sequencer->GetFocusedTemplateID());
 			Sequencer->ForceEvaluate();
 

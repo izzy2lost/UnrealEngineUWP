@@ -22,9 +22,9 @@ namespace UE::MovieScene::ReplaceableBinding
 } // namespace UE::MovieScene::ReplaceableBinding
 
 #if WITH_EDITOR
-void UMovieSceneReplaceableBindingBase::SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+void UMovieSceneReplaceableBindingBase::SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene)
 {
-	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene, SharedPlaybackState);
+	Super::SetupDefaults(SpawnedObject, ObjectBindingId, OwnerMovieScene);
 	// Ensure it has a binding lifetime track which it will need in editor
 	UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(OwnerMovieScene.FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBindingId, NAME_None));
 	if (!BindingLifetimeTrack)
