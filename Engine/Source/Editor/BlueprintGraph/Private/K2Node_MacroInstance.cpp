@@ -7,6 +7,7 @@
 #include "Delegates/Delegate.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "EdGraphSchema_K2.h"
+#include "EdGraphUtilities.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
 #include "EditorCategoryUtils.h"
@@ -16,6 +17,8 @@
 #include "Internationalization/Internationalization.h"
 #include "K2Node_EditablePinBase.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/WildcardNodeUtils.h"
+#include "KismetCompiler.h"
 #include "Misc/AssertionMacros.h"
 #include "Serialization/Archive.h"
 #include "Settings/EditorStyleSettings.h"
@@ -291,16 +294,20 @@ void UK2Node_MacroInstance::NotifyPinConnectionListChanged(UEdGraphPin* ChangedP
 		{
 			// get type of pin we just got linked to
 			FEdGraphPinType const LinkedPinType = ChangedPin->LinkedTo[0]->PinType;
-
-			// change all other wildcard pins to the new type
-			// note we're assuming only one wildcard type per Macro node, for now
-
-			for(int32 PinIdx=0; PinIdx<Pins.Num(); PinIdx++)
+			if(ShouldDoSmartWildcardInference())
 			{
-				UEdGraphPin* const TmpPin = Pins[PinIdx];
-				if (TmpPin)
+				// only copy the category stuff to preserve array and ref status
+				FWildcardNodeUtils::InferType(ChangedPin, LinkedPinType);
+				InferWildcards();
+			}
+			else
+			{
+				// change all other wildcard pins to the new type
+				// note we're assuming only one wildcard type per Macro node, for now
+				for(int32 PinIdx=0; PinIdx<Pins.Num(); PinIdx++)
 				{
-					if (TmpPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+					UEdGraphPin* const TmpPin = Pins[PinIdx];
+					if (FWildcardNodeUtils::IsWildcardPin(TmpPin))
 					{
 						// only copy the category stuff to preserve array and ref status
 						TmpPin->PinType.PinCategory = LinkedPinType.PinCategory;
@@ -320,8 +327,6 @@ void UK2Node_MacroInstance::NotifyPinConnectionListChanged(UEdGraphPin* ChangedP
 		bReconstructNode = true;
 	}
 }
-
-
 
 void UK2Node_MacroInstance::NodeConnectionListChanged()
 {
@@ -479,6 +484,35 @@ void UK2Node_MacroInstance::PostFixupAllWildcardPins(bool bInAllWildcardPinsUnli
 	}
 }
 
+void UK2Node_MacroInstance::InferWildcards(const TArray<UEdGraphNode*>& InNodes) const
+{
+	if(ShouldDoSmartWildcardInference())
+	{
+		SmartInferWildcardsImpl(InNodes);
+		return;
+	}
+
+	if (!ResolvedWildcardType.PinCategory.IsNone())
+	{
+		for (UEdGraphNode* const ClonedNode : InNodes)
+		{
+			if (ClonedNode)
+			{
+				for (UEdGraphPin* const ClonedPin : ClonedNode->Pins)
+				{
+					if (ClonedPin && (ClonedPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard))
+					{
+						// copy only type info, so array or ref status is preserved
+						ClonedPin->PinType.PinCategory = ResolvedWildcardType.PinCategory;
+						ClonedPin->PinType.PinSubCategory = ResolvedWildcardType.PinSubCategory;
+						ClonedPin->PinType.PinSubCategoryObject = ResolvedWildcardType.PinSubCategoryObject;
+					}
+				}
+			}
+		}
+	}
+}
+
 bool UK2Node_MacroInstance::HasExternalDependencies(TArray<class UStruct*>* OptionalOutput) const
 {
 	UBlueprint* OtherBlueprint = MacroGraphReference.GetBlueprint();
@@ -544,6 +578,238 @@ FBlueprintNodeSignature UK2Node_MacroInstance::GetSignature() const
 	NodeSignature.AddSubObject(GetMacroGraph());
 
 	return NodeSignature;
+}
+
+void UK2Node_MacroInstance::InferWildcards()
+{
+	// we've got a new user provided pin, expand the macro 
+	UEdGraph* MacroGraph = GetMacroGraph();
+	if (MacroGraph)
+	{
+		// perform macro expansion in a dummy graph, inferring whatever types we can from the provided wildcards:
+		FCompilerResultsLog MessageLog;
+		UBlueprint* BP = GetBlueprint();
+		UEdGraph* ClonedGraph = FEdGraphUtilities::CloneGraph(MacroGraph, GetBlueprint(), &MessageLog, true);
+		if (ClonedGraph)
+		{
+			InferWildcards(ClonedGraph->Nodes);
+
+			// Uncomment to record this graph as an intermediate product - useful for debugging
+			//ClonedGraph->Schema = UEdGraphSchema_K2::StaticClass();
+			//GetBlueprint()->IntermediateGeneratedGraphs.Add(ClonedGraph);
+			//ClonedGraph->SetFlags(RF_Transient);
+		}
+	}
+}
+
+TArray<UEdGraphPin*> UK2Node_MacroInstance::GetAllWildcardPins() const
+{
+	UEdGraph* MacroGraph = GetMacroGraph();
+	if (MacroGraph == nullptr)
+	{
+		return TArray<UEdGraphPin*>();
+	}
+
+	TArray<UEdGraphPin*> Result;
+	for(UEdGraphNode* Node : MacroGraph->Nodes)
+	{
+		if (UK2Node_Tunnel* Tunnel = ExactCast<UK2Node_Tunnel>(Node))
+		{
+			for(UEdGraphPin* TunnelPin : Tunnel->Pins)
+			{
+				if(FWildcardNodeUtils::IsWildcardPin(TunnelPin))
+				{
+					Result.Add(FindPin(TunnelPin->GetName(), UEdGraphPin::GetComplementaryDirection(TunnelPin->Direction)));
+				}
+			}
+		}
+	}
+
+	return Result;
+}
+
+bool UK2Node_MacroInstance::ShouldDoSmartWildcardInference()
+{
+	static const FBoolConfigValueHelper bUseSimpleWildcardInference(TEXT("Blueprints"), TEXT("bUseSimpleWildcardInference"), GEngineIni);
+	return !bUseSimpleWildcardInference;
+}
+
+namespace UE::Private
+{
+
+// Recursively infers a type for a network of wildcard pins - i.e. infers type for your linkedto's linkedto's linketo's....
+static void InferLinkedPinsImpl(UEdGraphPin* Pin, const FEdGraphPinType& Type, TArray<TPair<UEdGraphNode*, UEdGraphPin*>>& OutDirtyNodePins, TSet<UEdGraphPin*>& ProcessedPins)
+{
+	FWildcardNodeUtils::InferType(Pin, Type);
+	OutDirtyNodePins.AddUnique({Pin->GetOwningNode(), Pin});
+	ProcessedPins.Add(Pin);
+
+	for(UEdGraphPin* LinkedPin : Pin->LinkedTo)
+	{
+		if(!ProcessedPins.Contains(LinkedPin) && FWildcardNodeUtils::IsWildcardPin(LinkedPin))
+		{
+			InferLinkedPinsImpl(LinkedPin, Type, OutDirtyNodePins, ProcessedPins);
+		}
+	}
+}
+
+}
+
+void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>& InNodes) const
+{
+	// Gather wild card pins on the tunnel pins:
+	TArray<UEdGraphPin*> TunnelWildcards;
+	for (UEdGraphNode* Node : InNodes)
+	{
+		if (UK2Node_Tunnel* Tunnel = ExactCast<UK2Node_Tunnel>(Node))
+		{
+			for (UEdGraphPin* TunnelPin : Tunnel->Pins)
+			{
+				if (FWildcardNodeUtils::IsWildcardPin(TunnelPin))
+				{
+					// the tunnel node with input pins is the output on the macro:
+					TunnelWildcards.Add(TunnelPin);
+				}
+			}
+		}
+	}
+
+	// no wildcards to infer, bail:
+	if(TunnelWildcards.Num() == 0)
+	{
+		return;
+	}
+			
+	// Seed any tunnel wildcard pins that have known values on the macro instance:
+	TArray<TPair<UEdGraphNode*, UEdGraphPin*>> DirtyNodePins; // when a pin is inferred we want to give the node a chance to propagate
+	for (UEdGraphPin* TunnelPin : TunnelWildcards)
+	{
+		UEdGraphPin* MacroPin = FindPin(TunnelPin->GetName(), UEdGraphPin::GetComplementaryDirection(TunnelPin->Direction));
+		if (ensure(MacroPin))
+		{
+			if (!FWildcardNodeUtils::IsWildcardPin(MacroPin))
+			{
+				// tunnel is wildcard, but we are not .. we want to set type on the tunnel and allow inference to run
+				FEdGraphPinType const& LinkedPinType = MacroPin->PinType;
+				FWildcardNodeUtils::InferType(TunnelPin, LinkedPinType);
+
+				for(UEdGraphPin* LinkedPin : TunnelPin->LinkedTo)
+				{
+					if (FWildcardNodeUtils::IsWildcardPin(LinkedPin))
+					{
+						DirtyNodePins.AddUnique({LinkedPin->GetOwningNode(), LinkedPin});
+					}
+				}
+			}
+		}
+	}
+
+	// Helper to count the number of wildcard pins on a node
+	// we monitor these counts to detect when notifications need
+	// to be sent to owning nodes:
+	const auto CountWildcardPins = [](const UEdGraphNode* Node)
+	{
+		int32 WildcardCount = 0;
+		for(UEdGraphPin* Pin : Node->Pins)
+		{
+			if(FWildcardNodeUtils::IsWildcardPin(Pin))
+			{
+				++WildcardCount;
+			}
+		}
+		return WildcardCount;
+	};
+
+	// helper for counting the number of connections a node has,
+	// used to validate that we aren't modifying graph topology
+	const auto CountConnections = [](const UEdGraphNode* Node)
+	{
+		int32 ConnectionCount = 0;
+		for(UEdGraphPin* Pin : Node->Pins)
+		{
+			ConnectionCount += Pin->LinkedTo.Num();
+		}
+		return ConnectionCount;
+	};
+	
+	TMap<UEdGraphNode*, int32> WildcardCounts;
+	TMap<UEdGraphNode*, int32> ConnectionCounts;
+	for(UEdGraphNode* Node : InNodes)
+	{
+		const int32 WildcardCount = CountWildcardPins(Node);
+		if(WildcardCount > 0)
+		{
+			WildcardCounts.Add(Node, WildcardCount);
+		}
+		ConnectionCounts.Add(Node, CountConnections(Node));
+	}
+
+	// We've seeded, now iteratively refresh nodes until pins stabilize:
+	while(DirtyNodePins.Num())
+	{
+		TArray<TPair<UEdGraphNode*, UEdGraphPin*>> CurrentDirtyNodePins = MoveTemp(DirtyNodePins);
+		for(const TPair<UEdGraphNode*, UEdGraphPin*>& DirtyNodePin : CurrentDirtyNodePins)
+		{
+			// Any wildcard pins that are connected to this pin need to be
+			// inferred and marked dirty:
+			CastChecked<UK2Node>(DirtyNodePin.Key)->NotifyPinConnectionListChanged(DirtyNodePin.Value);
+		}
+
+		const auto InferLinkedPins = [](UEdGraphPin * Pin, const UEdGraphPin * SourcePin, TArray<TPair<UEdGraphNode*, UEdGraphPin*>>&OutDirtyNodePins)
+		{
+			TSet<UEdGraphPin*> ProcessedPins;
+			UE::Private::InferLinkedPinsImpl(Pin, SourcePin->PinType, OutDirtyNodePins, ProcessedPins);
+		};
+
+		// look for pins that are now inferable:
+		for(const TPair<UEdGraphNode*, int32>& NodeWithCount : WildcardCounts)
+		{
+			// if count has changed the node is dirty:
+			UEdGraphNode* WildcardNode = NodeWithCount.Key;
+			const int32 WildcardCount = CountWildcardPins(WildcardNode);
+			if(NodeWithCount.Value != WildcardCount)
+			{
+				for(UEdGraphPin* Pin : WildcardNode->Pins)
+				{
+					for(UEdGraphPin* LinkedPin : Pin->LinkedTo)
+					{
+						if(FWildcardNodeUtils::IsWildcardPin(LinkedPin))
+						{
+							// infer and mark dirty:
+							InferLinkedPins(LinkedPin, Pin, DirtyNodePins);
+						}
+					}
+				}
+			}
+
+			// we must also update the count:
+			WildcardCounts[NodeWithCount.Key] = WildcardCount;
+		}
+	}
+
+	for(const TPair<UEdGraphNode*, int32>& NodeWithCount : ConnectionCounts)
+	{
+		// This ensure indicates that we have a node that is destroying the graph in its 
+		// NotifyPinConnectionListChanged override - note that this is an imperfect test
+		// but it seems to be cheap and will catch the most egregious errors
+		UEdGraph* MacroGraph = GetMacroGraph();
+		ensureMsgf(NodeWithCount.Value == CountConnections(NodeWithCount.Key), 
+			TEXT("Node connection count changed while inferring %s - consider setting [Blueprints] bUseSimpleWildcardInference as a workaround"),
+			MacroGraph ? *MacroGraph->GetPathName() : TEXT("Unknown Graph")
+		);
+	}
+
+	// copy back inferred values to any pins on our macro instance:
+	for (const UEdGraphPin* TunnelWildcard : TunnelWildcards)
+	{
+		UEdGraphPin* SourcePin = FindPin(
+			*TunnelWildcard->PinName.ToString(), 
+			UEdGraphPin::GetComplementaryDirection(TunnelWildcard->Direction));
+		if(FWildcardNodeUtils::IsWildcardPin(SourcePin))
+		{
+			FWildcardNodeUtils::InferType(SourcePin, TunnelWildcard->PinType);
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

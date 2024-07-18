@@ -53,4 +53,16 @@ public:
 	* @return	True if the given node has any wildcard pins on it
 	*/
 	static UNREALED_API bool NodeHasAnyWildcards(const UEdGraphNode* const Node);
+	
+	/** 
+	 * Utility functions for overwriting a wildcard type with an inferred type. 
+	 * These will leave the pin's container information unchanged - e.g. so that
+	 * a macro node can take in an 'array of wildcards'. 
+	 */
+	static UNREALED_API void InferType(UEdGraphPin* ToPin, const FEdGraphPinType& Type);
+	static UNREALED_API void InferType(FEdGraphPinType& ToType, const FEdGraphPinType& Type);
+
+	/** Utility functions for resetting a pin to wildcard, again, leaving container information unchanged */
+	static UNREALED_API void ResetToWildcard(UEdGraphPin* Pin);
+	static UNREALED_API void ResetToWildcard(FEdGraphPinType& PinType);
 };

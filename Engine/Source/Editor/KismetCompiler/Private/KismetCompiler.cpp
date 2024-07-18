@@ -4233,27 +4233,6 @@ void FKismetCompilerContext::ExpandTunnelsAndMacros(UEdGraph* SourceGraph)
 
 			TArray<UEdGraphNode*> MacroNodes(ClonedGraph->Nodes);
 
-			// resolve any wildcard pins in the nodes cloned from the macro
-			if (!MacroInstanceNode->ResolvedWildcardType.PinCategory.IsNone())
-			{
-				for (UEdGraphNode* const ClonedNode : ClonedGraph->Nodes)
-				{
-					if (ClonedNode)
-					{
-						for (UEdGraphPin* const ClonedPin : ClonedNode->Pins)
-						{
-							if ( ClonedPin && (ClonedPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard) )
-							{
-								// copy only type info, so array or ref status is preserved
-								ClonedPin->PinType.PinCategory = MacroInstanceNode->ResolvedWildcardType.PinCategory;
-								ClonedPin->PinType.PinSubCategory = MacroInstanceNode->ResolvedWildcardType.PinSubCategory;
-								ClonedPin->PinType.PinSubCategoryObject = MacroInstanceNode->ResolvedWildcardType.PinSubCategoryObject;
-							}
-						}
-					}
-				}
-			}
-
 			// Handle any nodes that need to inherit their macro instance's NodeGUID
 			for( UEdGraphNode* ClonedNode : MacroNodes)
 			{
@@ -4311,6 +4290,9 @@ void FKismetCompilerContext::ExpandTunnelsAndMacros(UEdGraph* SourceGraph)
 
 			ClonedGraph->MoveNodesToAnotherGraph(SourceGraph, IsAsyncLoading() || bIsLoading, Blueprint && Blueprint->bBeingCompiled);
 			FEdGraphUtilities::MergeChildrenGraphsIn(SourceGraph, ClonedGraph, /*bRequireSchemaMatch=*/ true);
+
+			// run type inference on MacroNodes:
+			MacroInstanceNode->InferWildcards(MacroNodes);
 
 			// When emitting intermediate products; make an effort to make them readable by preventing overlaps and adding informative comments
 			int32 NodeOffsetX = 0;

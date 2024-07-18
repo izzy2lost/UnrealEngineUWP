@@ -103,12 +103,25 @@ public:
 	void SetMacroGraph(UEdGraph* Graph) { MacroGraphReference.SetGraph(Graph); }
 	UEdGraph* GetMacroGraph() const { return MacroGraphReference.GetGraph(); }
 	UBlueprint* GetSourceBlueprint() const { return MacroGraphReference.GetBlueprint(); }
+	// Public function for inferring wildcards after macro expansion. Intended
+	// for use only by the blueprint compiler. Inference is typically performed
+	// automatically when a pin connection is made.
+	BLUEPRINTGRAPH_API void InferWildcards(const TArray<UEdGraphNode*>& InNodes) const;
 
 	// Finds the associated metadata for the macro instance if there is any; this function is not particularly fast.
 	BLUEPRINTGRAPH_API static FKismetUserDeclaredFunctionMetadata* GetAssociatedGraphMetadata(const UEdGraph* AssociatedMacroGraph);
 	static void FindInContentBrowser(TWeakObjectPtr<UK2Node_MacroInstance> MacroInstance);
 
 private:
+	// Helpers and implementation of 'smart' wildcard inference - which doesn't
+	// just grab the first user type and overwrite every wildcard pin with it.
+	// Instead it intelligently propagates types from the macro inputs throughout
+	// the graph, and then back to any input pins:
+	void InferWildcards();
+	TArray<UEdGraphPin*> GetAllWildcardPins() const;
+	static bool ShouldDoSmartWildcardInference();
+	void SmartInferWildcardsImpl(const TArray<UEdGraphNode*>& InNodes) const;
+
 	/** Constructing FText strings can be costly, so we cache the node's tooltip */
 	FNodeTextCache CachedTooltip;
 };

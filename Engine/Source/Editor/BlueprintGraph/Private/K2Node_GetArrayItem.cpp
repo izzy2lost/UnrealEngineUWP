@@ -450,7 +450,9 @@ void UK2Node_GetArrayItem::PropagatePinType(FEdGraphPinType& InType)
 	ArrayPin->PinType.bIsReference = false;
 
 	// IsSetToReturnRef() has to be called after the ArrayPin's type is set, since it uses that to determine the result
-	const bool bMakeOutputRef = IsSetToReturnRef();
+	const bool bMakeOutputRef = IsSetToReturnRef() ||
+		// Honor bReturnByRefDesired for transient (intermediate) nodes during compilation:
+		(Blueprint && Blueprint->bBeingCompiled && bReturnByRefDesired && HasAnyFlags(RF_Transient));
 	if (!bMakeOutputRef && bReturnByRefDesired && ResultPin->PinType.bIsReference && Blueprint && !Blueprint->bIsRegeneratingOnLoad)
 	{
 		FNotificationInfo Warning(LOCTEXT("ConnectionAlteredOutput", "Array Get node altered. Now returning a copy."));
