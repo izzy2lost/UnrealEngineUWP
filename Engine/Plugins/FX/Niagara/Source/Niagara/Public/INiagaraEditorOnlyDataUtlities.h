@@ -32,5 +32,5 @@ public:
 
 	virtual UNiagaraDataInterface* GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(const UNiagaraSystem& OwningSystem, UNiagaraDataInterface& EditorDataInterfaceInstance) const = 0;
 
-	virtual TOptional<FNiagaraSystemStateData> TryGetSystemStateData(const UNiagaraSystem& System) const = 0;
+	virtual FNiagaraSystemStateData GetSystemStateData(const UNiagaraSystem& System) const = 0;
 };

@@ -298,42 +298,56 @@ class FNiagaraEditorOnlyDataUtilities : public INiagaraEditorOnlyDataUtilities
 		return FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(OwningSystem, EditorDataInterfaceInstance);
 	}
 
-	virtual TOptional<FNiagaraSystemStateData> TryGetSystemStateData(const UNiagaraSystem& System) const override
+	virtual FNiagaraSystemStateData GetSystemStateData(const UNiagaraSystem& System) const override
 	{
-		TOptional<FNiagaraSystemStateData> SystemStateData;
-
 		// All emitters must be stateless currently
 		// We can perhaps look at this again, but we always write Emitter.RandomSeed currently even with an empty script
 		for (const FNiagaraEmitterHandle& EmitterHandle : System.GetEmitterHandles())
 		{
 			if ( EmitterHandle.GetIsEnabled() && EmitterHandle.GetEmitterMode() != ENiagaraEmitterMode::Stateless )
 			{
-				return SystemStateData;
+				return FNiagaraSystemStateData();
 			}
 		}
 
 		// Try to resolve system state from the system scripts
 		const UNiagaraScript* Script = System.GetSystemSpawnScript();
 		const UNiagaraScriptSource* ScriptSource = Script ? Cast<UNiagaraScriptSource>(Script->GetLatestSource()) : nullptr;
-		if (ScriptSource)
+		if (!ScriptSource || !ScriptSource->NodeGraph)
 		{
-			const TCHAR* SystemStateName = TEXT("/Niagara/Modules/System/SystemState.SystemState");
-			TArray<UNiagaraNodeFunctionCall*> Nodes;
-			if (ScriptSource->NodeGraph)
-			{
-				ScriptSource->NodeGraph->GetNodesOfClass<UNiagaraNodeFunctionCall>(Nodes);
-			}
-			Nodes.RemoveAll([](UNiagaraNodeFunctionCall* Node) { return !Node || !Node->IsNodeEnabled(); });
+			return FNiagaraSystemStateData();
+		}
 
-			// No function calls, we can enable fast path with the empty system state
-			if (Nodes.Num() == 0)
+		// Look for update script nodes to see if it's possible to avoid running the update script
+		FNiagaraSystemStateData SystemStateData;
+		if (UNiagaraNodeOutput* UpdateScriptOutput = ScriptSource->NodeGraph->FindEquivalentOutputNode(ENiagaraScriptUsage::SystemUpdateScript, FGuid()))
+		{
+			TArray<UNiagaraNodeFunctionCall*> ModuleNodes;
+			FNiagaraStackGraphUtilities::GetOrderedModuleNodes(*UpdateScriptOutput, ModuleNodes);
+			ModuleNodes.RemoveAll([](UNiagaraNodeFunctionCall* Node) { return !Node || !Node->IsNodeEnabled(); });
+
+			const TCHAR* SystemStateName = TEXT("/Niagara/Modules/System/SystemState.SystemState");
+			if (ModuleNodes.Num() == 0)
 			{
-				SystemStateData.Emplace(FNiagaraSystemStateData());
+				SystemStateData.bRunUpdateScript = false;
 			}
 			//-TODO:Stateless: Single function call which is system state, attempt to extract the data
 			//else if (Nodes.Num() == 1 && Nodes[0]->FunctionScript->GetPathName() == SystemStateName)
 			//{
 			//}
+		}
+		
+		// If we don't need to execute the update script, do we need to execute the spawn script?
+		if (SystemStateData.bRunUpdateScript == false)
+		{
+			if (UNiagaraNodeOutput* SpawnScriptOutput = ScriptSource->NodeGraph->FindEquivalentOutputNode(ENiagaraScriptUsage::SystemSpawnScript, FGuid()))
+			{
+				TArray<UNiagaraNodeFunctionCall*> ModuleNodes;
+				FNiagaraStackGraphUtilities::GetOrderedModuleNodes(*SpawnScriptOutput, ModuleNodes);
+				ModuleNodes.RemoveAll([](UNiagaraNodeFunctionCall* Node) { return !Node || !Node->IsNodeEnabled(); });
+
+				SystemStateData.bRunSpawnScript = ModuleNodes.Num() != 0;
+			}
 		}
 
 		return SystemStateData;

@@ -810,11 +810,11 @@ public:
 	bool AllowValidation() const { return bAllowValidation; }
 #endif
 
-	/** Can we run the code only system state path, i.e. we don't need to invoke the VVM / store per instance data set? */
-	bool SystemStateFastPathEnabled() const { return bSystemStateFastPathEnabled && bAllowSystemStateFastPath; }
-
 	/** Access the code system state data. */
 	const FNiagaraSystemStateData& GetSystemStateData() const { return SystemStateData; }
+
+	/** Used for debug HUD / viewport to convey what mode we are running in */
+	NIAGARA_API const TCHAR* GetSystemStateModeString() const;
 
 private:
 #if WITH_EDITORONLY_DATA
