@@ -1680,12 +1680,7 @@ void FWidgetBlueprintEditor::DestroyPreview()
 		// otherwise the leak detection can't be trusted.
 		OnWidgetPreviewUpdated.Broadcast();
 
-		TWeakPtr<SWidget> PreviewSlateWidgetWeak = PreviewUserWidget->GetCachedWidget();
-
-		PreviewUserWidget->MarkAsGarbage();
-		PreviewUserWidget->ReleaseSlateResources(true);
-
-		ensure(!PreviewSlateWidgetWeak.IsValid());
+		FWidgetBlueprintEditorUtils::DestroyUserWidget(PreviewUserWidget);
 	}
 }
 
@@ -1708,55 +1703,13 @@ void FWidgetBlueprintEditor::UpdatePreview(UBlueprint* InBlueprint, bool bInForc
 		// Save the Blueprint we're creating a preview for
 		PreviewBlueprint = Cast<UWidgetBlueprint>(InBlueprint);
 
-		// Create the Widget, we have to do special swapping out of the widget tree.
-		{
-			// Assign the outer to the game instance if it exists, otherwise use the world
-			{
-				FMakeClassSpawnableOnScope TemporarilySpawnable(PreviewBlueprint->GeneratedClass);
-				PreviewUserWidget = NewObject<UUserWidget>(PreviewScene.GetWorld(), PreviewBlueprint->GeneratedClass);
-			}
-
-			// The preview widget should not be transactional.
-			PreviewUserWidget->ClearFlags(RF_Transactional);
-
-			// Establish the widget as being in design time before initializing and before duplication 
-            // (so that IsDesignTime is reliable within both calls to Initialize)
-            // The preview widget is also the outer widget that will update all child flags
-			PreviewUserWidget->SetDesignerFlags(GetCurrentDesignerFlags());
-
-			if ( ULocalPlayer* Player = PreviewScene.GetWorld()->GetFirstLocalPlayerFromController() )
-			{
-				PreviewUserWidget->SetPlayerContext(FLocalPlayerContext(Player));
-			}
-
-			UWidgetTree* LatestWidgetTree = FWidgetBlueprintEditorUtils::FindLatestWidgetTree(PreviewBlueprint, PreviewUserWidget);
-
-			TMap<FName, UWidget*> NamedSlotContentToMerge;
-			UWidgetBlueprint* WidgetBPIt = PreviewBlueprint;
-			while (WidgetBPIt)
-			{
-				TArray<FName> SlotNames;
-				WidgetBPIt->WidgetTree->GetSlotNames(SlotNames);
-
-				for(const FName SlotName : SlotNames)
-				{
-					if(UWidget* Content = WidgetBPIt->WidgetTree->GetContentForSlot(SlotName))
-					{
-						NamedSlotContentToMerge.Add(SlotName, Content);
-					}
-				}
-
-				WidgetBPIt = Cast<UWidgetBlueprint>(WidgetBPIt->GeneratedClass->GetSuperClass()->ClassGeneratedBy);
-			}
-
-			// Update the widget tree directly to match the blueprint tree.  That way the preview can update
-			// without needing to do a full recompile.
-			PreviewUserWidget->DuplicateAndInitializeFromWidgetTree(LatestWidgetTree, NamedSlotContentToMerge);
-
-			// Establish the widget as being in design time before initializing (so that IsDesignTime is reliable within Initialize)
-            // We have to call it to make sure that all the WidgetTree had the DesignerFlags set correctly
-			PreviewUserWidget->SetDesignerFlags(GetCurrentDesignerFlags());
-		}
+		PreviewUserWidget = FWidgetBlueprintEditorUtils::CreateUserWidgetFromBlueprint(
+			PreviewScene.GetWorld(),
+			PreviewBlueprint,
+			FWidgetBlueprintEditorUtils::FCreateWidgetFromBlueprintParams{
+				GetCurrentDesignerFlags(),
+				PreviewScene.GetWorld()->GetFirstLocalPlayerFromController()
+			});
 
 		// Store a reference to the preview actor.
 		PreviewWidgetPtr = PreviewUserWidget;

@@ -1517,6 +1517,78 @@ TArray<UWidget*> FWidgetBlueprintEditorUtils::DuplicateWidgets(TSharedRef<FWidge
 	return DuplicatedWidgets;
 }
 
+UUserWidget* FWidgetBlueprintEditorUtils::CreateUserWidgetFromBlueprint(UObject* Outer, UWidgetBlueprint* BP, const FCreateWidgetFromBlueprintParams& Params)
+{
+	check(Outer);
+	check(BP);
+
+	UUserWidget* CreatedUserWidget = nullptr;
+
+	// Create the Widget, we have to do special swapping out of the widget tree.
+	{
+		// Assign the outer to the game instance if it exists, otherwise use the world
+		{
+			FMakeClassSpawnableOnScope TemporarilySpawnable(BP->GeneratedClass);
+			CreatedUserWidget = NewObject<UUserWidget>(Outer, BP->GeneratedClass);
+		}
+
+		// The preview widget should not be transactional.
+		CreatedUserWidget->ClearFlags(RF_Transactional);
+
+		// Establish the widget as being in design time before initializing and before duplication
+        // (so that IsDesignTime is reliable within both calls to Initialize)
+        // The preview widget is also the outer widget that will update all child flags
+		CreatedUserWidget->SetDesignerFlags(Params.FlagsToApply);
+
+		if (ULocalPlayer* Player = Params.LocalPlayer)
+		{
+			CreatedUserWidget->SetPlayerContext(FLocalPlayerContext(Player));
+		}
+
+		UWidgetTree* LatestWidgetTree = FWidgetBlueprintEditorUtils::FindLatestWidgetTree(BP, CreatedUserWidget);
+
+		TMap<FName, UWidget*> NamedSlotContentToMerge;
+		UWidgetBlueprint* WidgetBlueprintIterator = BP;
+		while (WidgetBlueprintIterator)
+		{
+			TArray<FName> SlotNames;
+			WidgetBlueprintIterator->WidgetTree->GetSlotNames(SlotNames);
+
+			for (const FName SlotName : SlotNames)
+			{
+				if (UWidget* Content = WidgetBlueprintIterator->WidgetTree->GetContentForSlot(SlotName))
+				{
+					NamedSlotContentToMerge.Add(SlotName, Content);
+				}
+			}
+
+			WidgetBlueprintIterator = Cast<UWidgetBlueprint>(WidgetBlueprintIterator->GeneratedClass->GetSuperClass()->ClassGeneratedBy);
+		}
+
+		// Update the widget tree directly to match the blueprint tree.  That way the preview can update
+		// without needing to do a full recompile.
+		CreatedUserWidget->DuplicateAndInitializeFromWidgetTree(LatestWidgetTree, NamedSlotContentToMerge);
+
+		// Establish the widget as being in design time before initializing (so that IsDesignTime is reliable within Initialize)
+        // We have to call it to make sure that all the WidgetTree had the DesignerFlags set correctly
+		CreatedUserWidget->SetDesignerFlags(Params.FlagsToApply);
+	}
+
+	return CreatedUserWidget;
+}
+
+void FWidgetBlueprintEditorUtils::DestroyUserWidget(UUserWidget* UserWidget)
+{
+	check(UserWidget);
+
+	TWeakPtr<SWidget> SlateWidgetWeak = UserWidget->GetCachedWidget();
+
+	UserWidget->MarkAsGarbage();
+	UserWidget->ReleaseSlateResources(true);
+
+	ensure(!SlateWidgetWeak.IsValid());
+}
+
 bool FWidgetBlueprintEditorUtils::IsAnySelectedWidgetLocked(TSet<FWidgetReference> SelectedWidgets)
 {
 	for (const FWidgetReference& Widget : SelectedWidgets)
