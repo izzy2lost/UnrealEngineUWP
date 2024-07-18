@@ -2,6 +2,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -95,6 +96,33 @@ namespace EpicGames.Core
 		/// </summary>
 		public LogException? Exception { get; }
 
+		class MergedPropertyList : IEnumerable<KeyValuePair<string, object>>
+		{
+			readonly HashSet<string> _names = new HashSet<string>();
+			readonly List<KeyValuePair<string, object>> _properties = new List<KeyValuePair<string, object>>();
+
+			public void AddRange(IEnumerable<KeyValuePair<string, object>> properties)
+			{
+				foreach (KeyValuePair<string, object> property in properties)
+				{
+					if (_names.Add(property.Key))
+					{
+						_properties.Add(property);
+					}
+				}
+			}
+
+			/// <inheritdoc/>
+			public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
+				=> _properties.GetEnumerator();
+
+			/// <inheritdoc/>
+			IEnumerator IEnumerable.GetEnumerator()
+				=> _properties.GetEnumerator();
+		}
+
+		static readonly JsonSerializerOptions s_jsonSerializerOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -117,6 +145,37 @@ namespace EpicGames.Core
 			Format = format;
 			Properties = properties;
 			Exception = exception;
+		}
+
+		/// <summary>
+		/// Add a new property to this event
+		/// </summary>
+		/// <param name="name">Name of the property to add</param>
+		/// <param name="value">Value for the property</param>
+		public void AddProperty(string name, object value)
+			=> AddProperties(new[] { KeyValuePair.Create(name, value) });
+
+		/// <summary>
+		/// Add new properties to this event
+		/// </summary>
+		/// <param name="properties">Properties to add</param>
+		public void AddProperties(IEnumerable<KeyValuePair<string, object>> properties)
+		{
+			if (Properties == null)
+			{
+				Properties = properties;
+			}
+			else
+			{
+				MergedPropertyList? list = Properties as MergedPropertyList;
+				if (list == null)
+				{
+					list = new MergedPropertyList();
+					list.AddRange(Properties);
+					Properties = list;
+				}
+				list.AddRange(properties);
+			}
 		}
 
 		/// <summary>
@@ -371,8 +430,16 @@ namespace EpicGames.Core
 				{
 					if (!name.Equals(MessageTemplate.FormatPropertyName, StringComparison.Ordinal))
 					{
-						writer.WritePropertyName(name);
-						LogValueFormatter.Format(value, writer);
+						if (name.StartsWith("@", StringComparison.Ordinal))
+						{
+							writer.WritePropertyName(name[1..]);
+							JsonSerializer.Serialize(writer, value, value.GetType(), s_jsonSerializerOptions);
+						}
+						else
+						{
+							writer.WritePropertyName(name);
+							LogValueFormatter.Format(value, writer);
+						}
 					}
 				}
 				writer.WriteEndObject();

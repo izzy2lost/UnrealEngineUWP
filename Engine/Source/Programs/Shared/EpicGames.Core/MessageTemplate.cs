@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 
 namespace EpicGames.Core
 {
@@ -47,14 +48,25 @@ namespace EpicGames.Core
 					object? value;
 					if (properties != null && TryGetPropertyValue(format.AsSpan(offset, length), properties, out value))
 					{
+						// Append the text up to this argument
 						int startOffset = offset - 1;
 						if (format[startOffset] == '@' || format[startOffset] == '$')
 						{
 							startOffset--;
 						}
-
 						Unescape(format.AsSpan(nextOffset, startOffset - nextOffset), result);
-						result.Append(value?.ToString() ?? "null");
+
+						// Append the argument
+						if (format[offset] == '@')
+						{
+							result.Append(JsonSerializer.Serialize(value, value?.GetType() ?? typeof(object), new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
+						}
+						else
+						{
+							result.Append(value?.ToString() ?? "null");
+						}
+
+						// Start the next plain-text run after the closing brace
 						nextOffset = offset + length + 1;
 					}
 				}

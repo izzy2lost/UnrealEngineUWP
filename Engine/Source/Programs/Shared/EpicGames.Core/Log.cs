@@ -784,12 +784,59 @@ namespace EpicGames.Core
 	}
 
 	/// <summary>
-	/// NullScope which does nothing
+	/// Base implementation for loggers which handles creation of LogEvents from log commands
 	/// </summary>
-	internal sealed class NullScope : IDisposable
+	public sealed class LoggerScopeCollection
 	{
-		/// <inheritdoc/>
-		public void Dispose() { }
+		class Scope : IDisposable
+		{
+			readonly LoggerScopeCollection _outer;
+			readonly IEnumerable<KeyValuePair<string, object>>? _properties;
+
+			public IEnumerable<KeyValuePair<string, object>>? Properties => _properties;
+
+			public Scope(LoggerScopeCollection outer, object? value)
+			{
+				_outer = outer;
+				_properties = value as IEnumerable<KeyValuePair<string, object>>;
+
+				_outer._scopes.Add(this);
+			}
+
+			public void Dispose()
+				=> _outer._scopes.Remove(this);
+		}
+
+		readonly List<Scope> _scopes = new List<Scope>();
+
+		/// <summary>
+		/// Tests whether the collection is empty
+		/// </summary>
+		public bool IsEmpty()
+			=> _scopes.Count == 0;
+
+		/// <summary>
+		/// Creates a scope with the given state
+		/// </summary>
+		public IDisposable BeginScope<TState>(TState state)
+			=> new Scope(this, state);
+
+		/// <summary>
+		/// Enumerates all current properties
+		/// </summary>
+		public IEnumerable<KeyValuePair<string, object>> GetProperties()
+		{
+			foreach (Scope scope in _scopes)
+			{
+				if (scope.Properties != null)
+				{
+					foreach (KeyValuePair<string, object> property in scope.Properties)
+					{
+						yield return property;
+					}
+				}
+			}
+		}
 	}
 
 	/// <summary>
@@ -797,6 +844,8 @@ namespace EpicGames.Core
 	/// </summary>
 	public class CaptureLogger : ILogger
 	{
+		readonly LoggerScopeCollection _scopeCollection = new LoggerScopeCollection();
+
 		/// <summary>
 		/// List of captured events
 		/// </summary>
@@ -821,7 +870,7 @@ namespace EpicGames.Core
 		public List<string> RenderLines() => Events.ConvertAll(x => x.ToString());
 
 		/// <inheritdoc/>
-		public IDisposable BeginScope<TState>(TState state) => new NullScope();
+		public IDisposable BeginScope<TState>(TState state) => _scopeCollection.BeginScope(state);
 
 		/// <inheritdoc/>
 		public bool IsEnabled(LogLevel logLevel) => true;
@@ -829,7 +878,9 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 		{
-			Events.Add(LogEvent.FromState(logLevel, eventId, state, exception, formatter));
+			LogEvent logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
+			logEvent.AddProperties(_scopeCollection.GetProperties());
+			Events.Add(logEvent);
 		}
 	}
 
@@ -915,9 +966,7 @@ namespace EpicGames.Core
 			}
 		}
 
-		/// <summary>
-		/// Object used for synchronization
-		/// </summary>
+		private readonly LoggerScopeCollection _scopeCollection = new LoggerScopeCollection();
 		private readonly object _syncObject = new object();
 
 		/// <summary>
@@ -1175,7 +1224,8 @@ namespace EpicGames.Core
 		}
 
 		/// <inheritdoc/>
-		public IDisposable BeginScope<TState>(TState state) => new NullScope();
+		public IDisposable BeginScope<TState>(TState state)
+			=> _scopeCollection.BeginScope(state);
 
 		/// <inheritdoc/>
 		public bool IsEnabled(LogLevel logLevel)
@@ -1223,14 +1273,18 @@ namespace EpicGames.Core
 				Activity? activity = Activity.Current;
 
 				JsonLogEvent jsonLogEvent;
-				if (activity == null)
+				if (activity == null && _scopeCollection.IsEmpty())
 				{
 					jsonLogEvent = JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter);
 				}
 				else
 				{
 					LogEvent logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
-					logEvent.Properties = Enumerable.Append(logEvent.Properties ?? Array.Empty<KeyValuePair<string, object>>(), new KeyValuePair<string, object>("Activity", activity));
+					logEvent.AddProperties(_scopeCollection.GetProperties());
+					if (activity != null)
+					{
+						logEvent.AddProperty("Activity", activity);
+					}
 					jsonLogEvent = new JsonLogEvent(logEvent);
 				}
 				_eventChannel.Writer.TryWrite(jsonLogEvent);
