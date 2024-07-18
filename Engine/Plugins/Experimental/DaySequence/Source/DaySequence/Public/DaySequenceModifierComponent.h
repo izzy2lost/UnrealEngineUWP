@@ -329,8 +329,7 @@ public:
 	void OnUnregister() override;
 	/*~ End UActorComponent interface */
 
-	/** Bound to delegate on the DaySequenceActor that allows all modifiers to do work at appropriate times at the specific actors tick interval. */
-	void DaySequenceUpdate();
+	void SequencePlayerUpdated();
 	
 #if WITH_EDITOR
 	/*~ Begin FTickableGameObject interface */
