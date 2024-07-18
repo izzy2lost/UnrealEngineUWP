@@ -250,6 +250,10 @@
 #define FORCE_MATERIAL_FLOAT_FULL_PRECISION             0
 #endif
 
+#ifndef SUPPORT_FIRST_PERSON_RENDERING
+#define SUPPORT_FIRST_PERSON_RENDERING					1
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 // Global Substrate material export related defines
 

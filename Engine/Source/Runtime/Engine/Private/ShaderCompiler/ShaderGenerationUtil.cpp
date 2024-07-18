@@ -72,7 +72,6 @@ void ApplyFetchEnvironmentInternal(FShaderGlobalDefines& SrcDefines, const Conta
 	FETCH_COMPILE_BOOL(PROJECT_EXPFOG_MATCHES_VFOG);
 	FETCH_COMPILE_BOOL(SUPPORT_CLOUD_SHADOW_ON_FORWARD_LIT_TRANSLUCENT);
 	FETCH_COMPILE_BOOL(SUPPORT_CLOUD_SHADOW_ON_SINGLE_LAYER_WATER);
-	FETCH_COMPILE_BOOL(SUPPORT_FIRST_PERSON_RENDERING);
 	FETCH_COMPILE_BOOL(POST_PROCESS_ALPHA);
 	FETCH_COMPILE_BOOL(PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS);
 	FETCH_COMPILE_BOOL(PLATFORM_SUPPORTS_SHADER_BUNDLE_DISPATCH);
@@ -432,12 +431,6 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 		static IConsoleVariable *CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Water.SingleLayerWater.SupportCloudShadow"));
 		const bool bSupportCloudShadowOnSingleLayerWater = CVar && CVar->GetInt() > 0;
 		Ret.SUPPORT_CLOUD_SHADOW_ON_SINGLE_LAYER_WATER = bSupportCloudShadowOnSingleLayerWater ? 1 : 0;
-	}
-
-	{
-		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.FirstPersonRendering.Enabled"));
-		const bool bSupportFirstPersonRendering = CVar && CVar->GetInt() > 0;
-		Ret.SUPPORT_FIRST_PERSON_RENDERING = bSupportFirstPersonRendering ? 1 : 0;
 	}
 
 	{

@@ -388,12 +388,6 @@ static TAutoConsoleVariable<float> CVarOverrideTimeMaterialExpressions(
 
 #endif
 
-static TAutoConsoleVariable<int32> CVarFirstPersonRenderingSupported(
-	TEXT("r.FirstPersonRendering.Enabled"),
-	0,
-	TEXT("Compiles shaders with support for rendering first person primitives with a different depth scale and field of view."),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe | ECVF_GeneralShaderChange);
-
 /** Global vertex color view mode setting when SHOW_VertexColors show flag is set */
 EVertexColorViewMode::Type GVertexColorViewMode = EVertexColorViewMode::Color;
 TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture = nullptr;
