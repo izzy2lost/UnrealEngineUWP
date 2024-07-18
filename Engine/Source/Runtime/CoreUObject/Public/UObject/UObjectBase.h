@@ -238,7 +238,23 @@ public:
 			return;
 		}
 
-		FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
+		UE_AUTORTFM_OPEN(
+			{
+				FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
+			});
+
+		// If we abort we undo setting the flags we just set.
+		AutoRTFM::OnAbort([this, OldFlags, FlagsToAdd]
+			{
+				int32 MaskFlags = OldFlags;
+
+				// Now just extract out the old flags that mattered (the ones we were setting).
+				MaskFlags &= FlagsToAdd;
+				// And unmask the flags we didn't mention.
+				MaskFlags |= ~FlagsToAdd;
+
+				FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, MaskFlags);
+			});
 	}
 
 	/**
@@ -255,7 +271,21 @@ public:
 			return;
 		}
 
-		FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
+		UE_AUTORTFM_OPEN(
+			{
+				FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
+			});
+
+		// If we abort we undo clearing the flags we just unset.
+		AutoRTFM::OnAbort([this, OldFlags, FlagsToClear]
+			{
+				int32 MaskFlags = OldFlags;
+
+				// Now just extract out the old flags that mattered (the ones we were setting).
+				MaskFlags &= FlagsToClear;
+
+				FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, MaskFlags);
+			});
 	}
 
 	static void PrefetchClass(UObject* Object) { FPlatformMisc::Prefetch(Object, offsetof(UObjectBase, ClassPrivate)); }

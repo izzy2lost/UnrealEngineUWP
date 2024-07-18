@@ -236,3 +236,67 @@ TEST_CASE("UObject.AnnotationMap")
 
 	REQUIRE(!AnnotationMap.GetAnnotation(Key).IsDefault());
 }
+
+TEST_CASE("UObject.AtomicallySetFlags")
+{
+	UObject* const Object = NewObject<UMyAutoRTFMTestObject>();
+
+	constexpr EObjectFlags OldFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Transient;
+	constexpr EObjectFlags FlagsToAdd = EObjectFlags::RF_Transient | EObjectFlags::RF_AllocatedInSharedPage;
+
+	// We need to ensure we cover the case where we are adding a flag that is already there
+	// and thus cannot just wipe that out if we abort!
+	Object->AtomicallyClearFlags(FlagsToAdd);
+	Object->AtomicallySetFlags(OldFlags);
+
+	REQUIRE(Object->HasAllFlags(OldFlags) & !Object->HasAllFlags(FlagsToAdd));
+
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			Object->AtomicallySetFlags(FlagsToAdd);
+			AutoRTFM::AbortTransaction();
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Object->HasAllFlags(OldFlags) & !Object->HasAllFlags(FlagsToAdd));
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Object->AtomicallySetFlags(FlagsToAdd);
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	REQUIRE(Object->HasAllFlags(OldFlags) & Object->HasAllFlags(FlagsToAdd));
+}
+
+TEST_CASE("UObject.AtomicallyClearFlags")
+{
+	UObject* const Object = NewObject<UMyAutoRTFMTestObject>();
+
+	constexpr EObjectFlags OldFlags = EObjectFlags::RF_Public | EObjectFlags::RF_Transient;
+	constexpr EObjectFlags FlagsToClear = EObjectFlags::RF_Transient | EObjectFlags::RF_AllocatedInSharedPage;
+
+	// We need to ensure we cover the case where we are adding a flag that is already there
+	// and thus cannot just wipe that out if we abort!
+	Object->AtomicallyClearFlags(FlagsToClear);
+	Object->AtomicallySetFlags(OldFlags);
+
+	REQUIRE(Object->HasAllFlags(OldFlags) & !Object->HasAllFlags(FlagsToClear));
+
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			Object->AtomicallyClearFlags(FlagsToClear);
+			AutoRTFM::AbortTransaction();
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	REQUIRE(Object->HasAllFlags(OldFlags) & !Object->HasAllFlags(FlagsToClear));
+
+	Result = AutoRTFM::Transact([&]
+		{
+			Object->AtomicallyClearFlags(FlagsToClear);
+		});
+
+	REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	REQUIRE(Object->HasAnyFlags(OldFlags) & !Object->HasAllFlags(FlagsToClear));
+}
