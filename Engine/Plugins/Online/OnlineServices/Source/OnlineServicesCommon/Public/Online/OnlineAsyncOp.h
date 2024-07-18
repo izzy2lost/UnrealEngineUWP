@@ -4,6 +4,7 @@
 
 #include "Online/OnlineAsyncOpHandle.h"
 #include "Online/OnlineResult.h"
+#include "Online/OnlineServicesDelegates.h"
 #include "Online/OnlineTypeInfo.h"
 #include "Async/Async.h"
 #include "Traits/ElementType.h"
@@ -943,6 +944,7 @@ public:
 	TOnlineAsyncOp(FOnlineServicesCommon& InServices, ParamsType&& Params)
 		: Services(InServices)
 		, SharedState(MakeShared<FAsyncOpSharedState>(MoveTemp(Params)))
+		, OpStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
 	{
 	}
 
@@ -1102,6 +1104,8 @@ protected:
 		}
 
 		OnCompleteEvent.Broadcast(*this, Result);
+		double DurationInSeconds = FPlatformTime::Seconds() - OpStartTimeAbsoluteSeconds;
+		OnOnlineAsyncOpCompleted.Broadcast(OpType::Name, Services, Result.IsOk() ? FOnlineError(Errors::ErrorCode::Common::Success) : Result.GetErrorValue(), DurationInSeconds);
 	}
 
 	class FAsyncOpSharedState
@@ -1229,6 +1233,7 @@ protected:
 	TOnlineEventCallable<void(const TOnlineAsyncOp<OpType>&)> OnStartEvent;
 	TOnlineEventCallable<void(const TOnlineAsyncOp<OpType>&, const TOnlineResult<OpType>&)> OnCompleteEvent;
 	int NextStep = 0;
+	double OpStartTimeAbsoluteSeconds;
 
 	friend class FOnlineAsyncOpCache;
 	FOnlineEventDelegateHandle OpCacheHandle; // Delegate handle for FOnlineAsyncOpCache internal usage

@@ -158,6 +158,7 @@ namespace UE::Online {
 
 struct FTestOp
 {
+	static constexpr TCHAR Name[] = TEXT("TestOp");
 	struct Params {};
 	struct Result {};
 };

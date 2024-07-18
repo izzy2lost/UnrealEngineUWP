@@ -5,5 +5,6 @@
 namespace UE::Online {
 
 FOnOnlineServicesCreated OnOnlineServicesCreated;
+FOnOnlineAsyncOpCompleted OnOnlineAsyncOpCompleted;
 
 /* UE::Online */ }
