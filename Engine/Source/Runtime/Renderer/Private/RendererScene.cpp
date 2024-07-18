@@ -175,92 +175,6 @@ TGlobalResource< FGlobalDitherUniformBuffer > GDitherFadedInUniformBuffer;
 
 static FThreadSafeCounter FSceneViewState_UniqueID;
 
-struct FUpdateLightTransformParameters
-{
-	FMatrix LightToWorld;
-	FVector4 Position;
-};
-
-struct FUpdateLightCommand
-{
-	enum class EAddOrRemove
-	{
-		Add,
-		Remove,
-		None,
-	};
-
-	struct FColorParameters
-	{
-		FLinearColor NewColor;
-		float NewIndirectLightingScale;
-		float NewVolumetricScatteringIntensity;
-	};
-
-	using FTransformParameters = FUpdateLightTransformParameters;
-
-	inline bool IsAdd() const { return AddOrRemove == EAddOrRemove::Add; }
-	inline bool IsRemove() const { return AddOrRemove == EAddOrRemove::Remove; }
-
-	void Set(const FColorParameters& InColorParameters)
-	{
-		bHasColor = true;
-		ColorParameters = InColorParameters;
-	}
-	void Set(const FTransformParameters& InTransformParameters)
-	{
-		bHasTransform = true;
-		TransformParameters = InTransformParameters;
-	}
-	void Set(const EAddOrRemove& InAddOrRemove)
-	{
-		AddOrRemove = InAddOrRemove;
-	}
-
-	FUpdateLightCommand(const FColorParameters& InColorParameters, FLightSceneInfo* InLightSceneInfo) : LightSceneInfo(InLightSceneInfo), AddOrRemove(EAddOrRemove::None), bHasTransform(false) { Set(InColorParameters); }
-	FUpdateLightCommand(const FTransformParameters& InTransformParameters, FLightSceneInfo* InLightSceneInfo) : LightSceneInfo(InLightSceneInfo), AddOrRemove(EAddOrRemove::None), bHasColor(false) { Set(InTransformParameters); }
-	// Crtor for add/re,pve
-	FUpdateLightCommand(EAddOrRemove InAddOrRemove, FLightSceneInfo* InLightSceneInfo) : LightSceneInfo(InLightSceneInfo), AddOrRemove(InAddOrRemove), bHasTransform(false), bHasColor(false) {}
-
-	FTransformParameters TransformParameters;
-	FColorParameters ColorParameters;
-	FLightSceneInfo* LightSceneInfo;
-	EAddOrRemove AddOrRemove;
-	uint32 bHasTransform : 1;
-	uint32 bHasColor : 1;
-};
-
-class FSceneLightInfoUpdates
-{
-public:
-	Experimental::TRobinHoodHashMap<FLightSceneInfo*, FUpdateLightCommand> Commands;
-
-	int32 NumAdds = 0;
-	int32 NumRemoves = 0;
-	int32 NumUpdates = 0;
-
-	template <typename PayloadT>
-	void Enqueue(const PayloadT& Payload, FLightSceneInfo* LightSceneInfo)
-	{
-		// Allocate a new slot for update data
-		bool bWasAlreadyInMap = false;
-		FUpdateLightCommand* Command = Commands.FindOrAdd(LightSceneInfo, FUpdateLightCommand(Payload, LightSceneInfo), bWasAlreadyInMap);
-		if (bWasAlreadyInMap)
-		{
-			check(LightSceneInfo == Command->LightSceneInfo);
-			Command->Set(Payload);
-		}
-	}
-
-	void Reset()
-	{
-		Commands.Empty();
-		NumAdds = 0;
-		NumRemoves = 0;
-		NumUpdates = 0;
-	}
-};
-
 /**
  * Holds the info to update SpeedTree wind per unique tree object in the scene, instead of per instance
  */
@@ -1591,12 +1505,13 @@ static void TBitArraySwapElements(TBitArray<>& Array, int32 i1, int32 i2)
 
 void FScene::AddPrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo, const TOptional<FTransform>& PreviousTransform)
 {
+	// Must always be a novel primitive that is added
 	check(PrimitiveSceneInfo->PackedIndex == INDEX_NONE);
-	check(AddedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) == nullptr);
-	AddedPrimitiveSceneInfos.FindOrAdd(PrimitiveSceneInfo);
+	PrimitiveUpdates.EnqueueAdd(PrimitiveSceneInfo);
+
 	if (PreviousTransform.IsSet())
 	{
-		OverridenPreviousTransforms.Update(PrimitiveSceneInfo, PreviousTransform.GetValue().ToMatrixWithScale());
+		PrimitiveUpdates.Enqueue<FUpdateOverridePreviousTransformData>(PrimitiveSceneInfo, FUpdateOverridePreviousTransformData(PreviousTransform.GetValue().ToMatrixWithScale()));
 	}
 }
 
@@ -1792,8 +1707,7 @@ FScene::~FScene()
 	}
 #endif
 
-	checkf(RemovedPrimitiveSceneInfos.Num() == 0, TEXT("All pending primitive removal operations are expected to be flushed when the scene is destroyed. Remaining operations are likely to cause a memory leak."));
-	checkf(AddedPrimitiveSceneInfos.Num() == 0, TEXT("All pending primitive addition operations are expected to be flushed when the scene is destroyed. Remaining operations are likely to cause a memory leak."));
+	checkf(PrimitiveUpdates.IsEmpty(), TEXT("All pending primitive addition operations are expected to be flushed when the scene is destroyed. Remaining operations are likely to cause a memory leak."));
 	checkf(Primitives.Num() == 0, TEXT("All primitives are expected to be removed before the scene is destroyed. Remaining primitives are likely to cause a memory leak."));
 
 	delete InstanceCullingOcclusionQueryRenderer;
@@ -1845,8 +1759,6 @@ FScene::~FScene()
 	delete RayTracingSkinnedGeometryUpdateQueue;
 	RayTracingSkinnedGeometryUpdateQueue = nullptr;
 #endif // RHI_RAYTRACING
-
-	checkf(RemovedPrimitiveSceneInfos.Num() == 0, TEXT("Leaking %d FPrimitiveSceneInfo instances."), RemovedPrimitiveSceneInfos.Num()); // Ensure UpdateAllPrimitiveSceneInfos() is called before destruction.
 
 	delete SceneLightInfoUpdates;
 }
@@ -1999,6 +1911,7 @@ void FScene::BatchAddPrimitivesInternal(TArrayView<T*> InPrimitives)
 
 	if (!CreateCommands.IsEmpty())
 	{
+		// Must enqueue RT commands to ensure SetTransform & CreateRenderThreadResources are executed in-order.
 		ENQUEUE_RENDER_COMMAND(AddPrimitiveCommand)(
 			[this, CreateCommands = MoveTemp(CreateCommands)](FRHICommandListBase& RHICmdList)
 		{
@@ -2040,45 +1953,58 @@ static FAutoConsoleVariableRef CVarSkipRedundantTransformUpdate(
 	ECVF_Default
 );
 
-void FScene::UpdatePrimitiveTransform_RenderThread(FPrimitiveSceneProxy* PrimitiveSceneProxy, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FMatrix& LocalToWorld, const FVector& AttachmentRootPosition, const TOptional<FTransform>& PreviousTransform)
-{
 #if VALIDATE_PRIMITIVE_PACKED_INDEX
-	if (AddedPrimitiveSceneInfos.Find(PrimitiveSceneProxy->GetPrimitiveSceneInfo()) != nullptr)
+inline void ValidatePackedPrimitiveIndexForUpdate(FPrimitiveSceneInfo* PrimitiveSceneInfo, const FScenePrimitiveUpdate& PrimitiveUpdates)
+{
+	if (const FPrimitiveUpdateCommand* Cmd = PrimitiveUpdates.FindCommand(PrimitiveSceneInfo))
 	{
-		check(PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex == INDEX_NONE);
+		if (Cmd->bAdded)
+		{
+			check(PrimitiveSceneInfo->GetIndex() == INDEX_NONE);
+		}
+		else
+		{
+			check(PrimitiveSceneInfo->GetIndex() != INDEX_NONE);
+		}				
 	}
 	else
 	{
-		check(PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
+		// sending update, and no queued command - must have a valid index
+		check(PrimitiveSceneInfo->GetIndex() != INDEX_NONE);
 	}
-
-	check(RemovedPrimitiveSceneInfos.Find(PrimitiveSceneProxy->GetPrimitiveSceneInfo()) == nullptr);
+}
 #endif
 
-	UpdatedTransforms.Update(PrimitiveSceneProxy, { WorldBounds, LocalBounds, LocalToWorld, AttachmentRootPosition });
+void FScene::UpdatePrimitiveTransform_RenderThread(FPrimitiveSceneProxy* PrimitiveSceneProxy, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FMatrix& LocalToWorld, const FVector& AttachmentRootPosition, const TOptional<FTransform>& PreviousTransform)
+{
+	FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
+#if VALIDATE_PRIMITIVE_PACKED_INDEX
+	ValidatePackedPrimitiveIndexForUpdate(PrimitiveSceneInfo, PrimitiveUpdates);
+#endif
+
+	PrimitiveUpdates.Enqueue(PrimitiveSceneInfo, FUpdateTransformCommand { .WorldBounds = WorldBounds, .LocalBounds = LocalBounds, .LocalToWorld = LocalToWorld, .AttachmentRootPosition = AttachmentRootPosition });
 
 	if (PreviousTransform.IsSet())
 	{
-		OverridenPreviousTransforms.Update(PrimitiveSceneProxy->GetPrimitiveSceneInfo(), PreviousTransform.GetValue().ToMatrixWithScale());
+		PrimitiveUpdates.Enqueue(PrimitiveSceneInfo, FUpdateOverridePreviousTransformData(PreviousTransform.GetValue().ToMatrixWithScale()));
 	}
 }
 
-void FScene::UpdatePrimitiveOcclusionBoundsSlack_RenderThread(const FPrimitiveSceneProxy* PrimitiveSceneProxy, float NewSlack)
+template <typename UpdatePayloadType>
+void FScene::UpdatePrimitiveInternal(FPrimitiveSceneProxy* SceneProxy, UpdatePayloadType&& InUpdatePayload)
 {
+	check(IsInGameThread());
+	if (SceneProxy != nullptr)
+	{
+		ENQUEUE_RENDER_COMMAND(UpdatePrimitiveCmd)(
+		[this, PrimitiveSceneInfo = SceneProxy->PrimitiveSceneInfo, UpdatePayload = MoveTemp(InUpdatePayload)] (FRHICommandListBase&) mutable
+		{
 #if VALIDATE_PRIMITIVE_PACKED_INDEX
-	if (AddedPrimitiveSceneInfos.Find(PrimitiveSceneProxy->GetPrimitiveSceneInfo()) != nullptr)
-	{
-		check(PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex == INDEX_NONE);
-	}
-	else
-	{
-		check(PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
-	}
-
-	check(RemovedPrimitiveSceneInfos.Find(PrimitiveSceneProxy->GetPrimitiveSceneInfo()) == nullptr);
+			ValidatePackedPrimitiveIndexForUpdate(PrimitiveSceneInfo, PrimitiveUpdates);
 #endif
-
-	UpdatedOcclusionBoundsSlacks.Update(PrimitiveSceneProxy, NewSlack);
+			PrimitiveUpdates.Enqueue<UpdatePayloadType>(PrimitiveSceneInfo, MoveTemp(UpdatePayload));
+		});
+	}
 }
 
 void FScene::UpdatePrimitiveTransform(UPrimitiveComponent* Primitive)
@@ -2091,7 +2017,7 @@ void FScene::UpdatePrimitiveTransform(FPrimitiveSceneDesc* Primitive)
 	UpdatePrimitiveTransformInternal(Primitive);	
 }
 
-template<class T>
+template<class T> 	
 void FScene::UpdatePrimitiveTransformInternal(T* Primitive)
 {
 	SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveTransformGT);
@@ -2249,38 +2175,17 @@ void FScene::FinishUpdatePrimitiveTransform()
 
 void FScene::UpdatePrimitiveOcclusionBoundsSlack(UPrimitiveComponent* Primitive, float NewSlack)
 {
-	if (const FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
-	{
-		ENQUEUE_RENDER_COMMAND(UpdateOcclusionBoundsSlackCmd)(
-			[this, SceneProxy, NewSlack] (FRHICommandListBase&)
-			{
-				UpdatePrimitiveOcclusionBoundsSlack_RenderThread(SceneProxy, NewSlack);
-			});
-	}
+	UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateOcclusionBoundsSlacksData(NewSlack));
 }
 
 void FScene::UpdatePrimitiveDrawDistance(UPrimitiveComponent* Primitive, float MinDrawDistance, float MaxDrawDistance, float VirtualTextureMaxDrawDistance)
 {
-	if (FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
-	{
-		ENQUEUE_RENDER_COMMAND(UpdatePrimitiveDrawDistanceCmd)(
-			[this, SceneProxy, MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance] (FRHICommandListBase&)
-			{
-				UpdatedDrawDistance.Update(SceneProxy, FVector3f(MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance));
-			});
-	}
+	UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateDrawDistanceData(FVector3f(MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance)));
 }
 
 void FScene::UpdateInstanceCullDistance(UPrimitiveComponent* Primitive, float StartCullDistance, float EndCullDistance)
 {
-	if (FPrimitiveSceneProxy* SceneProxy = Primitive->GetSceneProxy())
-	{
-		ENQUEUE_RENDER_COMMAND(UpdateInstanceCullDistanceCmd)(
-			[this, SceneProxy, StartCullDistance, EndCullDistance] (FRHICommandListBase&)
-			{
-				UpdatedInstanceCullDistance.Update(SceneProxy, FVector2f(StartCullDistance, EndCullDistance));
-			});
-	}
+	UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateInstanceCullDistanceData(FVector2f(StartCullDistance, EndCullDistance)));
 }
 
 void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
@@ -2298,12 +2203,12 @@ void FScene::UpdatePrimitiveInstances(UInstancedStaticMeshComponent* Primitive)
 	FUpdateInstanceCommand UpdateParams;
 	UpdateParams.PrimitiveSceneProxy = Primitive->GetSceneProxy();
 	UpdateParams.WorldBounds = Primitive->Bounds;
-	UpdateParams.LocalBounds = ((UPrimitiveComponent*)Primitive)->GetLocalBounds();
+	UpdateParams.LocalBounds = static_cast<UPrimitiveComponent*>(Primitive)->GetLocalBounds();
 
 	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
 	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
 
-	return UpdatePrimitiveInstances(UpdateParams);
+	UpdatePrimitiveInstances(UpdateParams);
 }
 
 void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
@@ -2326,30 +2231,12 @@ void FScene::UpdatePrimitiveInstances(FInstancedStaticMeshSceneDesc* Primitive)
 	// #todo (jnadro) This code should not be dependent on static mesh bounds.		
 	UpdateParams.StaticMeshBounds = Primitive->GetStaticMesh()->GetBounds();
 
-	return UpdatePrimitiveInstances(UpdateParams);
+	UpdatePrimitiveInstances(UpdateParams);
 }
 
 void FScene::UpdatePrimitiveInstances(FUpdateInstanceCommand& UpdateParams)
 {	
-		ENQUEUE_RENDER_COMMAND(UpdateInstanceCommand)(
-			[this, UpdateParams = MoveTemp(UpdateParams)] (FRHICommandListBase&)
-		{
-#if VALIDATE_PRIMITIVE_PACKED_INDEX
-			if (AddedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) != nullptr)
-			{
-				check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex == INDEX_NONE);
-			}
-			else
-			{
-				check(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
-			}
-
-			check(RemovedPrimitiveSceneInfos.Find(UpdateParams.PrimitiveSceneProxy->GetPrimitiveSceneInfo()) == nullptr);
-#endif
-			FScopeCycleCounter Context(UpdateParams.PrimitiveSceneProxy->GetStatId());
-			UpdatedInstances.Update(UpdateParams.PrimitiveSceneProxy, UpdateParams);
-		}
-	);
+	UpdatePrimitiveInternal(UpdateParams.PrimitiveSceneProxy, MoveTemp(UpdateParams));
 }
 
 void FScene::UpdatePrimitiveSelectedState_RenderThread(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bIsSelected)
@@ -2373,22 +2260,11 @@ void FScene::UpdatePrimitiveLightingAttachmentRoot(UPrimitiveComponent* Primitiv
 
 	if (NewLightingAttachmentRoot == Primitive)
 	{
-		NewLightingAttachmentRoot = NULL;
+		NewLightingAttachmentRoot = nullptr;
 	}
 
 	FPrimitiveComponentId NewComponentId = NewLightingAttachmentRoot ? NewLightingAttachmentRoot->GetPrimitiveSceneId() : FPrimitiveComponentId();
-
-	if (Primitive->SceneProxy)
-	{
-		FPrimitiveSceneProxy* Proxy = Primitive->SceneProxy;
-		FScene* Scene = this;
-		ENQUEUE_RENDER_COMMAND(UpdatePrimitiveAttachment)(
-			[Scene, Proxy, NewComponentId] (FRHICommandListBase&)
-			{
-				FPrimitiveSceneInfo* PrimitiveInfo = Proxy->GetPrimitiveSceneInfo();
-				Scene->UpdatedAttachmentRoots.Update(PrimitiveInfo, NewComponentId);
-			});
-	}
+	UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateAttachmentRootData(NewComponentId));
 }
 
 void FScene::UpdatePrimitiveAttachment(UPrimitiveComponent* Primitive)
@@ -2429,44 +2305,14 @@ void FScene::UpdateCustomPrimitiveData(FPrimitiveSceneDesc* Primitive, const FCu
 
 void FScene::UpdateCustomPrimitiveData(FPrimitiveSceneProxy* SceneProxy, const FCustomPrimitiveData& CustomPrimitiveData)
 {
-	// This path updates the primitive data directly in the GPUScene. 
-	if (SceneProxy) 
-	{
-		struct FUpdateParams
-		{
-			FScene* Scene;
-			FPrimitiveSceneProxy* PrimitiveSceneProxy;
-			FCustomPrimitiveData CustomPrimitiveData;
-		};
-
-		FUpdateParams UpdateParams;
-		UpdateParams.Scene = this;
-		UpdateParams.PrimitiveSceneProxy = SceneProxy;
-		UpdateParams.CustomPrimitiveData = CustomPrimitiveData; 
-
-		ENQUEUE_RENDER_COMMAND(UpdateCustomPrimitiveDataCommand)(
-			[UpdateParams] (FRHICommandListBase&)
-			{
-				UpdateParams.Scene->UpdatedCustomPrimitiveParams.Update(UpdateParams.PrimitiveSceneProxy, UpdateParams.CustomPrimitiveData);
-			});
-	}
+	UpdatePrimitiveInternal(SceneProxy, FUpdateCustomPrimitiveData(CustomPrimitiveData));
 }
 
 void FScene::UpdatePrimitiveDistanceFieldSceneData_GameThread(UPrimitiveComponent* Primitive)
 {
-	check(IsInGameThread());
-
 	if (Primitive->SceneProxy)
 	{
-		ENQUEUE_RENDER_COMMAND(UpdatePrimDFSceneDataCmd)(
-			[this, PrimitiveSceneProxy = Primitive->SceneProxy] (FRHICommandListBase&)
-			{
-				if (PrimitiveSceneProxy && PrimitiveSceneProxy->GetPrimitiveSceneInfo())
-				{
-					FPrimitiveSceneInfo* Info = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-					this->DistanceFieldSceneDataUpdates.FindOrAdd(Info);
-				}
-			});
+		UpdatePrimitiveInternal(Primitive->GetSceneProxy(), FUpdateDistanceFieldSceneData{});
 	}
 }
 
@@ -2490,31 +2336,9 @@ FPrimitiveSceneInfo* FScene::GetPrimitiveSceneInfo(const FPersistentPrimitiveInd
 	return GetPrimitiveSceneInfo(PrimitiveIndex);
 }
 
-bool FScene::RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo)
+void FScene::RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo)
 {
-	const bool bRemovePendingAdd = AddedPrimitiveSceneInfos.Remove(PrimitiveSceneInfo);
-
-	if (bRemovePendingAdd)
-	{
-		check(PrimitiveSceneInfo->PackedIndex == INDEX_NONE);
-		UpdatedTransforms.Remove(PrimitiveSceneInfo->Proxy);
-		UpdatedCustomPrimitiveParams.Remove(PrimitiveSceneInfo->Proxy);
-		OverridenPreviousTransforms.Remove(PrimitiveSceneInfo);
-		UpdatedOcclusionBoundsSlacks.Remove(PrimitiveSceneInfo->Proxy);
-		UpdatedInstanceCullDistance.Remove(PrimitiveSceneInfo->Proxy);
-		UpdatedDrawDistance.Remove(PrimitiveSceneInfo->Proxy);
-		DistanceFieldSceneDataUpdates.Remove(PrimitiveSceneInfo);
-		UpdatedAttachmentRoots.Remove(PrimitiveSceneInfo);
-		DeletedPrimitiveSceneInfos.Emplace(PrimitiveSceneInfo);
-	}
-	else
-	{
-		check(PrimitiveSceneInfo->PackedIndex != INDEX_NONE);
-		check(RemovedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) == nullptr);
-		RemovedPrimitiveSceneInfos.FindOrAdd(PrimitiveSceneInfo);
-	}
-	
-	return !bRemovePendingAdd;
+	PrimitiveUpdates.EnqueueDelete(PrimitiveSceneInfo);
 }
 
 void FScene::RemovePrimitive(UPrimitiveComponent* Primitive)
@@ -2569,6 +2393,7 @@ void FScene::BatchRemovePrimitivesInternal(TArrayView<T*> InPrimitives)
 
 	if (!DestroyCommands.IsEmpty())
 	{
+		// must run RT cmds in order here too
 		ENQUEUE_RENDER_COMMAND(FRemovePrimitiveCommand)(
 			[this, DestroyCommands = MoveTemp(DestroyCommands)](FRHICommandListBase&)
 		{
@@ -2815,10 +2640,10 @@ void FScene::AddLight(ULightComponent* Light)
 			{
 				CSV_SCOPED_TIMING_STAT_EXCLUSIVE(Scene_AddLight);
 				FScopeCycleCounter Context(LightSceneInfo->Proxy->GetStatId());
-				bool bWasAlreadyInMap = false;
-				SceneLightInfoUpdates->Commands.FindOrAdd(LightSceneInfo, FUpdateLightCommand(FUpdateLightCommand::EAddOrRemove::Add, LightSceneInfo), bWasAlreadyInMap);
-				check(!bWasAlreadyInMap);
-				++SceneLightInfoUpdates->NumAdds;
+
+				// It should not have been added to the scene already
+				check(LightSceneInfo->Id == INDEX_NONE);
+				SceneLightInfoUpdates->EnqueueAdd(LightSceneInfo);
 			});
 	}
 }
@@ -3270,7 +3095,7 @@ void FScene::UpdateReflectionCaptureTransform(UReflectionCaptureComponent* Compo
 		FReflectionCaptureProxy* Proxy = Component->SceneProxy;
 		FMatrix Transform = Component->GetComponentTransform().ToMatrixWithScale();
 
-		ENQUEUE_RENDER_COMMAND(FUpdateTransformCommand)(
+		ENQUEUE_RENDER_COMMAND(UpdateReflectionCaptureTransformCommand)(
 			[Scene, Proxy, Transform, bUsingPreviewCaptureData](FRHICommandListBase& RHICmdList)
 		{
 			if (Proxy->bUsingPreviewCaptureData)
@@ -3848,7 +3673,7 @@ bool DoesPlatformNeedLocalLightPrimitiveInteraction(EShaderPlatform ShaderPlatfo
 	return !IsMobilePlatform(ShaderPlatform) || !MobileLocalLightsUseSinglePermutation(ShaderPlatform) || IsMobileMovableSpotlightShadowsEnabled(ShaderPlatform);
 }
 
-void FScene::UpdateLightTransform_RenderThread(int32 LightId, FLightSceneInfo* LightSceneInfo, const FUpdateLightCommand::FTransformParameters& Parameters)
+void FScene::UpdateLightTransform_RenderThread(int32 LightId, FLightSceneInfo* LightSceneInfo, const FUpdateLightTransformParameters& Parameters)
 {
 	SCOPED_NAMED_EVENT(FScene_UpdateLightTransform_RenderThread, FColor::Yellow);
 
@@ -3929,54 +3754,35 @@ void FScene::UpdateLightTransform_RenderThread(int32 LightId, FLightSceneInfo* L
 	}
 }
 
-void FScene::UpdateLightTransform(ULightComponent* Light)
+template <typename UpdatePayloadType>
+void FScene::UpdateLightInternal(FLightSceneProxy* LightSceneProxy, UpdatePayloadType&& InUpdatePayload)
 {
-	if(Light->SceneProxy)
+	if (LightSceneProxy)
 	{
-		FUpdateLightCommand::FTransformParameters Parameters;
-		Parameters.LightToWorld = Light->GetComponentTransform().ToMatrixNoScale();
-		Parameters.Position = Light->GetLightPosition();
-		
-		FLightSceneInfo* LightSceneInfo = Light->SceneProxy->GetLightSceneInfo();
+		FLightSceneInfo* LightSceneInfo = LightSceneProxy->GetLightSceneInfo();
 		if (LightSceneInfo->bVisible)
 		{
 			ENQUEUE_RENDER_COMMAND(UpdateLightTransform)(
-				[this, LightSceneInfo, Parameters] (FRHICommandListBase&)
+				[this, LightSceneInfo, UpdatePayload = MoveTemp(InUpdatePayload)] (FRHICommandListBase&) mutable
 				{
 					FScopeCycleCounter Context(LightSceneInfo->Proxy->GetStatId());
-					SceneLightInfoUpdates->Enqueue(Parameters, LightSceneInfo);
-					++SceneLightInfoUpdates->NumUpdates;
+					SceneLightInfoUpdates->Enqueue(LightSceneInfo, MoveTemp(UpdatePayload));
 				});
 		}
 	}
 }
 
-/** 
- * Updates the color and brightness of a light which has already been added to the scene. 
- *
- * @param Light - light component to update
- */
+void FScene::UpdateLightTransform(ULightComponent* Light)
+{
+	UpdateLightInternal(Light->SceneProxy, FUpdateLightTransformParameters{.LightToWorld = Light->GetComponentTransform().ToMatrixNoScale(), .Position = Light->GetLightPosition()});
+}
+
 void FScene::UpdateLightColorAndBrightness(ULightComponent* Light)
 {
-	if(Light->SceneProxy)
-	{
-		FUpdateLightCommand::FColorParameters NewParameters;
-		NewParameters.NewColor = Light->GetColoredLightBrightness();
-		NewParameters.NewIndirectLightingScale = Light->IndirectLightingIntensity;
-		NewParameters.NewVolumetricScatteringIntensity = Light->VolumetricScatteringIntensity;
-
-		FScene* Scene = this;
-		FLightSceneInfo* LightSceneInfo = Light->SceneProxy->GetLightSceneInfo();
-		if (LightSceneInfo->bVisible)
-		{
-			ENQUEUE_RENDER_COMMAND(UpdateLightColorAndBrightness)(
-				[this, LightSceneInfo, NewParameters] (FRHICommandListBase&)
-				{
-					SceneLightInfoUpdates->Enqueue(NewParameters, LightSceneInfo);
-					++SceneLightInfoUpdates->NumUpdates;
-				});
-		}
-	}
+	UpdateLightInternal(Light->SceneProxy, FUpdateLightColorParameters{
+		.NewColor = Light->GetColoredLightBrightness(),
+		.NewIndirectLightingScale = Light->IndirectLightingIntensity,
+		.NewVolumetricScatteringIntensity = Light->VolumetricScatteringIntensity});
 }
 
 void FScene::RemoveLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
@@ -4111,25 +3917,14 @@ void FScene::RemoveLight(ULightComponent* Light)
 
 				if (LightSceneInfo->bVisible)
 				{
-					auto HashElementId = SceneLightInfoUpdates->Commands.FindId(LightSceneInfo);
-					// If an Add is pending, just remove the update and fall through to delete the data.
-					if (HashElementId.IsValid() && SceneLightInfoUpdates->Commands.GetByElementId(HashElementId).Value.IsAdd())
-					{
-						SceneLightInfoUpdates->Commands.RemoveByElementId(HashElementId);
-						--SceneLightInfoUpdates->NumAdds;
-					}
-					else
-					{
-						SceneLightInfoUpdates->Enqueue(FUpdateLightCommand::EAddOrRemove::Remove, LightSceneInfo);
-						++SceneLightInfoUpdates->NumRemoves;
-						// early out to defer the deletion
-						return;
-					}
+					SceneLightInfoUpdates->EnqueueDelete(LightSceneInfo);
+					// Note: all the deletes are deferred now (except the invisible ones) as this simpifies the update buffer.
+					return;
 				}
 				else
 				{
 					// There should never be updates queued for lights that are not visible
-					check(SceneLightInfoUpdates->Commands.Find(LightSceneInfo) == nullptr);
+					check(!SceneLightInfoUpdates->HasCommand(LightSceneInfo));
 					// The "invisible lights" are removed at once.
 					InvisibleLights.RemoveAt(LightSceneInfo->Id);
 				}
@@ -4863,7 +4658,6 @@ void FScene::ApplyWorldOffset_RenderThread(FRHICommandListBase& RHICmdList, cons
 	GPUScene.bUpdateAllPrimitives = true;
 
 	// Primitives
-	checkf(AddedPrimitiveSceneInfos.Num() == 0, TEXT("All primitives found in AddedPrimitiveSceneInfos must have been added to the scene before the world offset is applied"));
 	for (int32 Idx = 0; Idx < Primitives.Num(); ++Idx)
 	{
 		Primitives[Idx]->ApplyWorldOffset(RHICmdList, InOffset);
@@ -5124,7 +4918,8 @@ void FScene::UpdatePrimitiveVelocityState_RenderThread(FPrimitiveSceneInfo* Prim
 }
 
 #if RHI_RAYTRACING
-void FScene::UpdateRayTracingGroupBounds_AddPrimitives(const Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*>& PrimitiveSceneInfos)
+
+void FScene::UpdateRayTracingGroupBounds_AddPrimitives(const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator>& PrimitiveSceneInfos)
 {
 	for (FPrimitiveSceneInfo* const PrimitiveSceneInfo : PrimitiveSceneInfos)
 	{
@@ -5169,7 +4964,7 @@ static void UpdateRayTracingGroupBounds(Experimental::TRobinHoodHashSet<FScene::
 	}
 }
 
-void FScene::UpdateRayTracingGroupBounds_RemovePrimitives(const Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*>& PrimitiveSceneInfos)
+void FScene::UpdateRayTracingGroupBounds_RemovePrimitives(const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator>& PrimitiveSceneInfos)
 {
 	Experimental::TRobinHoodHashSet<FRayTracingCullingGroup*> GroupsToUpdate;
 	for (FPrimitiveSceneInfo* const PrimitiveSceneInfo : PrimitiveSceneInfos)
@@ -5194,13 +4989,13 @@ void FScene::UpdateRayTracingGroupBounds_RemovePrimitives(const Experimental::TR
 	UpdateRayTracingGroupBounds(GroupsToUpdate);
 }
 
-template<typename ValueType>
-inline void FScene::UpdateRayTracingGroupBounds_UpdatePrimitives(const Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, ValueType>& InUpdatedTransforms)
+template<typename RangeType>
+inline void FScene::UpdateRayTracingGroupBounds_UpdatePrimitives(const RangeType& InUpdatedTransforms)
 {
 	Experimental::TRobinHoodHashSet<FRayTracingCullingGroup*> GroupsToUpdate;
 	for (const auto& Transform : InUpdatedTransforms)
 	{
-		FPrimitiveSceneProxy* const PrimitiveSceneProxy = Transform.Key;
+		FPrimitiveSceneProxy* const PrimitiveSceneProxy = Transform.SceneInfo->Proxy;
 		const int32 RayTracingGroupId = PrimitiveSceneProxy->GetRayTracingGroupId();
 		const Experimental::FHashElementId GroupId = (RayTracingGroupId != -1) ? PrimitiveRayTracingGroups.FindId(RayTracingGroupId) : Experimental::FHashElementId();
 		if (GroupId.IsValid())
@@ -5238,50 +5033,42 @@ static inline bool IsPrimitiveRelevantToPathTracing(FPrimitiveSceneInfo* Primiti
 }
 
 
-FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
+void FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 {
 	SCOPED_NAMED_EVENT(FScene_UpdateAllLightSceneInfos, FColor::Orange);
 	struct FFLightSceneChangeSetAllocation
 	{
 		TArray<int32, SceneRenderingAllocator> RemovedLightIds;
-		TArray<int32, SceneRenderingAllocator> TransformUpdatedLightIds;
-		TArray<int32, SceneRenderingAllocator> ColorUpdatedLightIds;
 		TArray<int32, SceneRenderingAllocator> AddedLightIds;
+		FFLightSceneChangeSetAllocation(FSceneLightInfoUpdates&& InSceneLightInfoUpdates) : SceneLightInfoUpdates(MoveTemp(InSceneLightInfoUpdates)) {}
+		FSceneLightInfoUpdates SceneLightInfoUpdates;
 	};
 	// Allocate change set storage with graph builder lifetime such that we can safely pass it to async tasks.
-	FFLightSceneChangeSetAllocation& ChangeSet = *GraphBuilder.AllocObject<FFLightSceneChangeSetAllocation>();
+	FFLightSceneChangeSetAllocation& ChangeSet = *GraphBuilder.AllocObject<FFLightSceneChangeSetAllocation>(MoveTemp(*SceneLightInfoUpdates));
 
-	// Conservative pre-size the arrays (some updates are covered by Adds).
-	ChangeSet.RemovedLightIds.Reserve(SceneLightInfoUpdates->NumRemoves);
-	ChangeSet.TransformUpdatedLightIds.Reserve(SceneLightInfoUpdates->NumUpdates);
-	ChangeSet.ColorUpdatedLightIds.Reserve(SceneLightInfoUpdates->NumUpdates);
-	ChangeSet.AddedLightIds.Reserve(SceneLightInfoUpdates->NumAdds);
+#if DO_CHECK
+	FSceneLightInfoUpdates::FReadAccessScope ReadAccessScope(ChangeSet.SceneLightInfoUpdates);
+#endif
 
-	// Filter out removes & updates:
-	for (const auto& Element : SceneLightInfoUpdates->Commands)
+	// Filter out removes & never-adds
+	ChangeSet.SceneLightInfoUpdates.ForEachCommand([&](const FUpdateLightCommand& UpdateLightCommand)
 	{
-		const FUpdateLightCommand& UpdateLightCommand = Element.Value;
-		int32 Id = UpdateLightCommand.LightSceneInfo->Id;
-		if (UpdateLightCommand.IsRemove())
+		int32 Id = UpdateLightCommand.GetSceneInfo()->Id;
+		if (UpdateLightCommand.IsDelete())
 		{
-			ChangeSet.RemovedLightIds.Add(Id);
-		}
-		else if (!UpdateLightCommand.IsAdd())
-		{
-			check(Id != INDEX_NONE);
-			if (UpdateLightCommand.bHasTransform)
+			if (Id != INDEX_NONE)
 			{
-				ChangeSet.TransformUpdatedLightIds.Add(Id);
+				ChangeSet.RemovedLightIds.Add(Id);
 			}
-			if (UpdateLightCommand.bHasColor)
+			else
 			{
-				ChangeSet.ColorUpdatedLightIds.Add(Id);
+				delete UpdateLightCommand.GetSceneInfo()->Proxy;
+				delete UpdateLightCommand.GetSceneInfo();
 			}
 		}
-	}
+	});
 	// This can't access the scene light data if done async since it happens before the actual removals.
-	OnPreLightSceneInfoUpdate.Broadcast(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, TConstArrayView<int32>(), ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds });
-
+	OnPreLightSceneInfoUpdate.Broadcast(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, TConstArrayView<int32>(), &ChangeSet.SceneLightInfoUpdates });
 	// Batch process all light removes
 	for (int32 LightId : ChangeSet.RemovedLightIds)
 	{
@@ -5291,32 +5078,26 @@ FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 	}
 
 	// Process all light adds & updates
-	for (const auto &Element : SceneLightInfoUpdates->Commands)
+	ChangeSet.SceneLightInfoUpdates.ForEachCommand(ESceneUpdateCommandFilter::AddedUpdated, [&](const FUpdateLightCommand& UpdateLightCommand)
 	{
-		const FUpdateLightCommand& UpdateLightCommand = Element.Value;
-		if (UpdateLightCommand.IsRemove())
-		{
-			continue;
-		}
-
-		FLightSceneInfo* LightSceneInfo = UpdateLightCommand.LightSceneInfo;
+		FLightSceneInfo* LightSceneInfo = UpdateLightCommand.GetSceneInfo();
 		FScopeCycleCounter Context(LightSceneInfo->Proxy->GetStatId());
 
 		const int32 Id = LightSceneInfo->Id;
 		const bool bHasId = Id != INDEX_NONE;
 		check(bHasId == !UpdateLightCommand.IsAdd());
 		// Directly process updates.
-		if (UpdateLightCommand.bHasTransform)
+		if (FUpdateLightTransformParameters* TransformParameters = ChangeSet.SceneLightInfoUpdates.GetPayloadPtr<FUpdateLightTransformParameters>(UpdateLightCommand))
 		{
 			SCOPE_CYCLE_COUNTER(STAT_UpdateSceneLightTime);
 
-			UpdateLightTransform_RenderThread(Id, LightSceneInfo, UpdateLightCommand.TransformParameters);
+			UpdateLightTransform_RenderThread(Id, LightSceneInfo, *TransformParameters);
 		}
-		if (UpdateLightCommand.bHasColor)
-		{
-			SCOPE_CYCLE_COUNTER(STAT_UpdateSceneLightTime);
 
-			const FUpdateLightCommand::FColorParameters& NewParameters = UpdateLightCommand.ColorParameters;
+		if (FUpdateLightColorParameters* ColorParameters = ChangeSet.SceneLightInfoUpdates.GetPayloadPtr<FUpdateLightColorParameters>(UpdateLightCommand))
+		{
+			const FUpdateLightColorParameters& NewParameters = *ColorParameters;
+			SCOPE_CYCLE_COUNTER(STAT_UpdateSceneLightTime);
 
 			// Mobile renderer:
 			// a light with no color/intensity can cause the light to be ignored when rendering.
@@ -5350,14 +5131,10 @@ FLightSceneChangeSet FScene::UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder)
 			// Note: Id is set in AddLightSceneInfo_RenderThread so we must fetch it again
 			ChangeSet.AddedLightIds.Add(LightSceneInfo->Id);
 		}
-	}
+	});
 
-	OnPostLightSceneInfoUpdate.Broadcast(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds });
-	GPUScene.OnPostLightSceneInfoUpdate(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds });
-
-	SceneLightInfoUpdates->Reset();
-
-	return FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, ChangeSet.TransformUpdatedLightIds, ChangeSet.ColorUpdatedLightIds };
+	OnPostLightSceneInfoUpdate.Broadcast(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, &ChangeSet.SceneLightInfoUpdates });
+	GPUScene.OnPostLightSceneInfoUpdate(GraphBuilder, FLightSceneChangeSet{ ChangeSet.RemovedLightIds, ChangeSet.AddedLightIds, &ChangeSet.SceneLightInfoUpdates });
 }
 
 template<class T>
@@ -5524,33 +5301,58 @@ void UpdateReflectionSceneData(FScene* Scene)
  */
 struct FSceneUpdateChangeSetStorage
 {
+
+	FSceneUpdateChangeSetStorage()
+		: PreUpdateChangeSet(FScenePreUpdateChangeSet {
+			TConstArrayView<FPersistentPrimitiveIndex>(RemovedPrimitiveIds),
+			TConstArrayView<FPrimitiveSceneInfo*>(RemovedPrimitiveSceneInfos),
+			PrimitiveUpdates
+			})
+		, PostUpdateChangeSet(FScenePostUpdateChangeSet {
+			TConstArrayView<FPersistentPrimitiveIndex>(AddedPrimitiveIds),
+			TConstArrayView<FPrimitiveSceneInfo*>(AddedPrimitiveSceneInfos),
+			PrimitiveUpdates
+		})
+	{
+	}
+	FSceneUpdateChangeSetStorage(FScenePrimitiveUpdates&& InPrimitiveUpdates)
+		: PrimitiveUpdates(MoveTemp(InPrimitiveUpdates))
+		, PreUpdateChangeSet(FScenePreUpdateChangeSet {
+			TConstArrayView<FPersistentPrimitiveIndex>(RemovedPrimitiveIds),
+			TConstArrayView<FPrimitiveSceneInfo*>(RemovedPrimitiveSceneInfos),
+			PrimitiveUpdates
+			})
+		, PostUpdateChangeSet(FScenePostUpdateChangeSet {
+			TConstArrayView<FPersistentPrimitiveIndex>(AddedPrimitiveIds),
+			TConstArrayView<FPrimitiveSceneInfo*>(AddedPrimitiveSceneInfos),
+			PrimitiveUpdates
+		})
+	{
+	}
+
+
 	TArray<FPersistentPrimitiveIndex, SceneRenderingAllocator> RemovedPrimitiveIds;
 	TArray<FPrimitiveSceneInfo*,SceneRenderingAllocator> RemovedPrimitiveSceneInfos;
 
-	TArray<FPersistentPrimitiveIndex, SceneRenderingAllocator> UpdatedPrimitiveIds;
-	TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> UpdatedPrimitiveSceneInfos;
-
 	TArray<FPersistentPrimitiveIndex, SceneRenderingAllocator> AddedPrimitiveIds;
 	TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> AddedPrimitiveSceneInfos;
+	FScenePrimitiveUpdates PrimitiveUpdates;
 
-	FScenePreUpdateChangeSet GetPreUpdateSet() const 
+	FScenePreUpdateChangeSet PreUpdateChangeSet;
+	FScenePostUpdateChangeSet PostUpdateChangeSet;
+
+	const FScenePreUpdateChangeSet& GetPreUpdateSet() 
 	{
-		return FScenePreUpdateChangeSet {
-			TConstArrayView<FPersistentPrimitiveIndex>(RemovedPrimitiveIds),
-			TConstArrayView<FPrimitiveSceneInfo*>(RemovedPrimitiveSceneInfos),
-			TConstArrayView<FPersistentPrimitiveIndex>(UpdatedPrimitiveIds),
-			TConstArrayView<FPrimitiveSceneInfo*>(UpdatedPrimitiveSceneInfos)
-		};
+		PreUpdateChangeSet.RemovedPrimitiveIds = TConstArrayView<FPersistentPrimitiveIndex>(RemovedPrimitiveIds);
+		PreUpdateChangeSet.RemovedPrimitiveSceneInfos =	TConstArrayView<FPrimitiveSceneInfo*>(RemovedPrimitiveSceneInfos);
+		return PreUpdateChangeSet;
 	}
 
-	FScenePostUpdateChangeSet GetPostUpdateSet() const 
+	const FScenePostUpdateChangeSet& GetPostUpdateSet() 
 	{
-		return FScenePostUpdateChangeSet {
-			TConstArrayView<FPersistentPrimitiveIndex>(AddedPrimitiveIds),
-			TConstArrayView<FPrimitiveSceneInfo*>(AddedPrimitiveSceneInfos),
-			TConstArrayView<FPersistentPrimitiveIndex>(UpdatedPrimitiveIds),
-			TConstArrayView<FPrimitiveSceneInfo*>(UpdatedPrimitiveSceneInfos)
-		};
+		PostUpdateChangeSet.AddedPrimitiveIds = TConstArrayView<FPersistentPrimitiveIndex>(AddedPrimitiveIds);
+		PostUpdateChangeSet.AddedPrimitiveSceneInfos = TConstArrayView<FPrimitiveSceneInfo*>(AddedPrimitiveSceneInfos);
+		return PostUpdateChangeSet;
 	}
 };
 
@@ -5595,18 +5397,44 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	RDG_EVENT_SCOPE(GraphBuilder, "UpdateAllPrimitiveSceneInfos");
 
 	// Allocated with render graph lifetime, safe to reference from RDG tasks.
-	FSceneUpdateChangeSetStorage &SceneUpdateChangeSetStorage = *GraphBuilder.AllocObject<FSceneUpdateChangeSetStorage>();
-	SceneUpdateChangeSetStorage.RemovedPrimitiveIds.Reserve(RemovedPrimitiveSceneInfos.Num());
-	SceneUpdateChangeSetStorage.RemovedPrimitiveSceneInfos.Reserve(RemovedPrimitiveSceneInfos.Num());
+	FSceneUpdateChangeSetStorage& SceneUpdateChangeSetStorage = *GraphBuilder.AllocObject<FSceneUpdateChangeSetStorage>(MoveTemp(PrimitiveUpdates));
+	TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> DeletedPrimitiveSceneInfos;
+	DeletedPrimitiveSceneInfos.Reserve(SceneUpdateChangeSetStorage.PrimitiveUpdates.NumCommands());
+	SceneUpdateChangeSetStorage.AddedPrimitiveSceneInfos.Reserve(SceneUpdateChangeSetStorage.PrimitiveUpdates.NumCommands());
+	SceneUpdateChangeSetStorage.RemovedPrimitiveSceneInfos.Reserve(SceneUpdateChangeSetStorage.PrimitiveUpdates.NumCommands());
+	SceneUpdateChangeSetStorage.RemovedPrimitiveIds.Reserve(SceneUpdateChangeSetStorage.PrimitiveUpdates.NumCommands());
+
+	// Retrieve the commonly used categories used in scene updates.
+	// 1. RemovedPrimitiveSceneInfos: Primitives that exist in the scene before the update and will be removed.
+	// 2. AddedPrimitiveSceneInfos: Primitives not in the scene before the update that will be added.
+	// 3. DeletedPrimitiveSceneInfos: Primitives that needs to be deleted.
+	SceneUpdateChangeSetStorage.PrimitiveUpdates.ForEachCommand([&](const FPrimitiveUpdateCommand& Cmd)
+	{
+		// Skip those that were added & removed in the same frame
+		if (Cmd.IsAdd() && !Cmd.IsDelete())
+		{
+			SceneUpdateChangeSetStorage.AddedPrimitiveSceneInfos.Add(Cmd.GetSceneInfo());
+		}
+		if (Cmd.IsDelete())
+		{
+			DeletedPrimitiveSceneInfos.Add(Cmd.GetSceneInfo());
+			// Skip those that were added & removed in the same frame
+			if (!Cmd.IsAdd())
+			{
+				SceneUpdateChangeSetStorage.RemovedPrimitiveSceneInfos.Add(Cmd.GetSceneInfo());
+				SceneUpdateChangeSetStorage.RemovedPrimitiveIds.Add(Cmd.GetPersistentId());
+			}
+		}
+	});
+
+	const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> &AddedPrimitiveSceneInfos = SceneUpdateChangeSetStorage.AddedPrimitiveSceneInfos;
+	const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> &RemovedPrimitiveSceneInfos = SceneUpdateChangeSetStorage.RemovedPrimitiveSceneInfos;
 
 	TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> RemovedLocalPrimitiveSceneInfos;
 	RemovedLocalPrimitiveSceneInfos.Reserve(RemovedPrimitiveSceneInfos.Num());
 	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : RemovedPrimitiveSceneInfos)
 	{
 		RemovedLocalPrimitiveSceneInfos.Add(PrimitiveSceneInfo);
-
-		SceneUpdateChangeSetStorage.RemovedPrimitiveIds.Add(PrimitiveSceneInfo->GetPersistentIndex());
-		SceneUpdateChangeSetStorage.RemovedPrimitiveSceneInfos.Add(PrimitiveSceneInfo);
 	}
 
 	TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator> AddedLocalPrimitiveSceneInfos;
@@ -5623,61 +5451,10 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	UpdateRayTracingGroupBounds_AddPrimitives(AddedPrimitiveSceneInfos);
 #endif
 
-	{
-		SceneUpdateChangeSetStorage.UpdatedPrimitiveIds.Reserve(UpdatedInstances.Num() + UpdatedTransforms.Num());
-		SceneUpdateChangeSetStorage.UpdatedPrimitiveSceneInfos.Reserve(UpdatedInstances.Num() + UpdatedTransforms.Num());
-		// All updated instances must also before moving or re-allocating (TODO: filter out only those actually updated)
-		for (const auto& Instance : UpdatedInstances)
-		{
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = Instance.Key->GetPrimitiveSceneInfo();
-
-			if (RemovedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) != nullptr)
-			{
-				continue;
-			}
-
-			FPersistentPrimitiveIndex Id = Instance.Key->GetPrimitiveSceneInfo()->GetPersistentIndex();
-			// Note: may not be valid if it is also being added this in this update, in which case it will get processed in the post-update anyway.
-			if (Id.IsValid())
-			{
-				SceneUpdateChangeSetStorage.UpdatedPrimitiveIds.Add(Id);
-				SceneUpdateChangeSetStorage.UpdatedPrimitiveSceneInfos.Add(PrimitiveSceneInfo);
-			}
-		}
-		// As must all primitive updates, 
-		for (const auto& Transform : UpdatedTransforms)
-		{
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = Transform.Key->GetPrimitiveSceneInfo();
-
-			if (UpdatedInstances.Find(Transform.Key) != nullptr)
-			{
-				continue;
-			}
-
-			if (RemovedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) != nullptr)
-			{
-				continue;
-			}
-
-			FPersistentPrimitiveIndex Id = Transform.Key->GetPrimitiveSceneInfo()->GetPersistentIndex();
-			// Note: may not be valid if it is also being added this in this update, in which case it will get processed in the post-update anyway.
-			if (Id.IsValid())
-			{
-				SceneUpdateChangeSetStorage.UpdatedPrimitiveIds.Add(Id);
-				SceneUpdateChangeSetStorage.UpdatedPrimitiveSceneInfos.Add(PrimitiveSceneInfo);
-			}
-		}
-	}
-
-	TRACE_COUNTER_SET(ScenePrimitivesAdds, AddedPrimitiveSceneInfos.Num());
-	TRACE_COUNTER_SET(ScenePrimitivesRemoves, RemovedPrimitiveSceneInfos.Num());
-	TRACE_COUNTER_SET(ScenePrimitivesUpdatesTransforms, UpdatedInstances.Num());
-	TRACE_COUNTER_SET(ScenePrimitivesUpdatesInstances, UpdatedTransforms.Num());
-
-	// NOTE: We clear this early because IsPrimitiveBeingRemoved gets called from the CreateLightPrimitiveInteraction (to make sure that old primitives are not accessed) 
-	// we cannot safely kick off the AsyncCreateLightPrimitiveInteractionsTask before the RemovedPrimitiveSceneInfos has been cleared.
-	// TODO: this is probably not true anymore!
-	RemovedPrimitiveSceneInfos.Empty();
+	auto UpdatedInstances = SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateInstanceCommand>();
+	auto UpdatedTransforms = SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateTransformCommand>();
+	auto UpdatedInstanceCullDistance =  SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateInstanceCullDistanceData>();
+	auto OverridenPreviousTransforms =  SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateOverridePreviousTransformData>();	
 	bool bAnySceneUpdatesQueued = RemovedLocalPrimitiveSceneInfos.Num() + AddedPrimitiveSceneInfos.Num() + UpdatedTransforms.Num() + UpdatedInstances.Num() > 0;
 	RemovedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
 
@@ -5715,17 +5492,17 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		// All updated instances must also before moving or re-allocating (TODO: filter out only those actually updated)
 		for (const auto& Instance : UpdatedInstances)
 		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(Instance.Key->GetPrimitiveSceneInfo());
+			InvalidatingPrimitiveCollector.UpdatedTransform(Instance.SceneInfo);
 		}
 		// As must all primitive updates, 
 		for (const auto& Transform : UpdatedTransforms)
 		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.Key->GetPrimitiveSceneInfo());
+			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.SceneInfo);
 		}
 
 		for (const auto& CullDistance : UpdatedInstanceCullDistance)
 		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
+			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.SceneInfo);
 		}
 
 		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PreInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
@@ -5733,9 +5510,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	}
 
 	AddedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
-
-	DeletedPrimitiveSceneInfos.Reserve(RemovedLocalPrimitiveSceneInfos.Num());
-
 	TArray<int32> RemovedPrimitiveIndices;
 	RemovedPrimitiveIndices.SetNumUninitialized(RemovedLocalPrimitiveSceneInfos.Num());
 
@@ -5941,8 +5715,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 				bNeedPathTracedInvalidation = bNeedPathTracedInvalidation || IsPrimitiveRelevantToPathTracing(PrimitiveSceneInfo);
 
-				DeletedPrimitiveSceneInfos.Emplace(PrimitiveSceneInfo);
-
 				const int32 PersistentIndex = PrimitiveSceneInfo->PersistentIndex.Index;
 				PersistentPrimitiveIdAllocator.Free(PersistentIndex);
 				PersistentPrimitiveIdToIndexMap[PersistentIndex] = INDEX_NONE;
@@ -6010,15 +5782,9 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 		for (const auto& UpdateInstance : UpdatedInstances)
 		{
-			FPrimitiveSceneProxy* PrimitiveSceneProxy = UpdateInstance.Key;
+			FPrimitiveSceneProxy* PrimitiveSceneProxy = UpdateInstance.SceneInfo->Proxy;
 			FScopeCycleCounter Context(PrimitiveSceneProxy->GetStatId());
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-			
-			// being added or deleted, skip update logic
-			if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneInfo))
-			{
-				continue;
-			}
+			FPrimitiveSceneInfo* PrimitiveSceneInfo = UpdateInstance.SceneInfo;
 
 			const FInstanceDataBufferHeader &InstanceDataBufferHeader = PrimitiveSceneInfo->GetInstanceDataHeader();
 			const bool bInstanceCountChanged = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() != InstanceDataBufferHeader.NumInstances;
@@ -6040,6 +5806,21 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		SCOPE_CYCLE_COUNTER(STAT_AddScenePrimitiveRenderThreadTime);
 
 		PersistentPrimitiveIdAllocator.Consolidate();
+
+		SceneUpdateChangeSetStorage.PrimitiveUpdates.ForEachCommand(ESceneUpdateCommandFilter::Added, [&](FPrimitiveUpdateCommand& Cmd)
+		{
+			// Skip those that were added & removed in the same frame
+			if (Cmd.IsAdd() && !Cmd.IsDelete())
+			{
+				check(!Cmd.GetPersistentId().IsValid());
+				check(!Cmd.GetSceneInfo()->PersistentIndex.IsValid());
+				FPersistentPrimitiveIndex PersistentPrimitiveIndex{ PersistentPrimitiveIdAllocator.Allocate() };
+				// Note: propagate to the command such that is it valid for subsequent passes without having to hit the primitive scene info.
+				Cmd.SetPersistentId(PersistentPrimitiveIndex);
+				Cmd.GetSceneInfo()->PersistentIndex = PersistentPrimitiveIndex;
+			}
+		});
+		PersistentPrimitiveIdToIndexMap.SetNumUninitialized(GetMaxPersistentPrimitiveIndex());
 
 		if (AddedLocalPrimitiveSceneInfos.Num())
 		{
@@ -6107,15 +5888,8 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 					const int32 SourceIndex = PrimitiveSceneProxies.Num() - 1;
 					PrimitiveSceneInfo->PackedIndex = SourceIndex;
-					checkSlow(PrimitiveSceneInfo->PersistentIndex.Index == INDEX_NONE);
-					FPersistentPrimitiveIndex PersistentPrimitiveIndex{ PersistentPrimitiveIdAllocator.Allocate() };
-					PrimitiveSceneInfo->PersistentIndex = PersistentPrimitiveIndex;
-					// Ensure map is large enough
-					if (PersistentPrimitiveIndex.Index >= PersistentPrimitiveIdToIndexMap.Num())
-					{
-						PersistentPrimitiveIdToIndexMap.SetNumUninitialized(PersistentPrimitiveIndex.Index + 1);
-					}
-					PersistentPrimitiveIdToIndexMap[PersistentPrimitiveIndex.Index] = SourceIndex;
+					check(PrimitiveSceneInfo->PersistentIndex.IsValid());
+					PersistentPrimitiveIdToIndexMap[PrimitiveSceneInfo->PersistentIndex.Index] = SourceIndex;
 				}
 			}
 
@@ -6279,19 +6053,18 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		SCOPED_NAMED_EVENT(FScene_AddPrimitiveSceneInfos, FColor::Yellow);
 		SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveTransformRenderThreadTime);
 
-		for (const auto& Transform : UpdatedTransforms)
+
+		for (const auto& Item : UpdatedTransforms)
 		{
-			FPrimitiveSceneProxy* PrimitiveSceneProxy = Transform.Key;
-			if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneProxy->GetPrimitiveSceneInfo()))
-			{
-				continue;
-			}
+			FPrimitiveSceneProxy* PrimitiveSceneProxy = Item.SceneInfo->Proxy;
+
+			const FBoxSphereBounds& WorldBounds = Item.Payload.WorldBounds;
+			const FBoxSphereBounds& LocalBounds = Item.Payload.LocalBounds;
+			const FMatrix& LocalToWorld = Item.Payload.LocalToWorld;
+			const FVector& AttachmentRootPosition = Item.Payload.AttachmentRootPosition;
+
 			check(PrimitiveSceneProxy->GetPrimitiveSceneInfo()->PackedIndex != INDEX_NONE);
 
-			const FBoxSphereBounds& WorldBounds = Transform.Value.WorldBounds;
-			const FBoxSphereBounds& LocalBounds = Transform.Value.LocalBounds;
-			const FMatrix& LocalToWorld = Transform.Value.LocalToWorld;
-			const FVector& AttachmentRootPosition = Transform.Value.AttachmentRootPosition;
 			FScopeCycleCounter Context(PrimitiveSceneProxy->GetStatId());
 
 			FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
@@ -6344,8 +6117,8 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 		for (const auto& Transform : OverridenPreviousTransforms)
 		{
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = Transform.Key;
-			VelocityData.OverridePreviousTransform(PrimitiveSceneInfo->PrimitiveComponentId, Transform.Value);
+			FPrimitiveSceneInfo* PrimitiveSceneInfo = Transform.SceneInfo;
+			VelocityData.OverridePreviousTransform(PrimitiveSceneInfo->PrimitiveComponentId, Transform.Payload.Value);
 		}
 	}
 
@@ -6362,18 +6135,12 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		SCOPED_NAMED_EVENT(FScene_UpdatePrimitiveInstances, FColor::Emerald);
 		SCOPE_CYCLE_COUNTER(STAT_UpdatePrimitiveInstanceRenderThreadTime);
 
-		for (const auto& UpdateInstance : UpdatedInstances)
+		for (const auto& Item : UpdatedInstances)
 		{
-			FPrimitiveSceneProxy* PrimitiveSceneProxy = UpdateInstance.Key;
+			FPrimitiveSceneProxy* PrimitiveSceneProxy = Item.SceneInfo->Proxy;
+			FPrimitiveSceneInfo* PrimitiveSceneInfo = Item.SceneInfo;
+			const FUpdateInstanceCommand &UpdateInstance = Item.Payload;
 			FScopeCycleCounter Context(PrimitiveSceneProxy->GetStatId());
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = PrimitiveSceneProxy->GetPrimitiveSceneInfo();
-			
-			// being added or deleted, skip update logic
-			if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneInfo))
-			{
-				continue;
-			}
-
 			
 			QueueFlushVirtualTexture(PrimitiveSceneInfo);
 
@@ -6407,7 +6174,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 #endif
 
 			// Update the Proxy's data.
-			PrimitiveSceneProxy->UpdateInstances_RenderThread(GraphBuilder.RHICmdList, UpdateInstance.Value.WorldBounds, UpdateInstance.Value.LocalBounds, UpdateInstance.Value.StaticMeshBounds);
+			PrimitiveSceneProxy->UpdateInstances_RenderThread(GraphBuilder.RHICmdList, UpdateInstance.WorldBounds, UpdateInstance.LocalBounds, UpdateInstance.StaticMeshBounds);
 
 			if (!RHISupportsVolumeTextures(GetFeatureLevel())
 				&& (PrimitiveSceneProxy->IsMovable() || PrimitiveSceneProxy->NeedsUnbuiltPreviewLighting() || PrimitiveSceneProxy->GetLightmapType() == ELightmapType::ForceVolumetric))
@@ -6570,11 +6337,9 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	}
 	
 	SceneUpdateChangeSetStorage.AddedPrimitiveIds.Reserve(AddedPrimitiveSceneInfos.Num());
-	SceneUpdateChangeSetStorage.AddedPrimitiveSceneInfos.Reserve(AddedPrimitiveSceneInfos.Num());
 	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : AddedPrimitiveSceneInfos)
 	{
 		SceneUpdateChangeSetStorage.AddedPrimitiveIds.Add(PrimitiveSceneInfo->GetPersistentIndex());
-		SceneUpdateChangeSetStorage.AddedPrimitiveSceneInfos.Add(PrimitiveSceneInfo);
 	}
 
 	SceneCullingUpdater.OnPostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
@@ -6752,19 +6517,11 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 #endif
 	}
 
-	for (const auto& CustomParams : UpdatedCustomPrimitiveParams)
+	for (const auto& Item : SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateCustomPrimitiveData>())
 	{
-		FPrimitiveSceneProxy* PrimitiveSceneProxy = CustomParams.Key;
-		if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneProxy->GetPrimitiveSceneInfo()))
-		{
-			continue;
-		}
-
+		FPrimitiveSceneProxy* PrimitiveSceneProxy = Item.SceneInfo->Proxy;
 		FScopeCycleCounter Context(PrimitiveSceneProxy->GetStatId());
-		PrimitiveSceneProxy->CustomPrimitiveData = CustomParams.Value;
-
-		// Ensure an update of primitive data before rendering
-		PrimitiveSceneProxy->GetPrimitiveSceneInfo()->MarkGPUStateDirty(EPrimitiveDirtyState::ChangedOther);
+		PrimitiveSceneProxy->CustomPrimitiveData = Item.Payload.Value;
 	}
 
 	if (auto NaniteMaterialsUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FMaterialsSceneExtension::FUpdater>())
@@ -6781,38 +6538,29 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		SceneLODHierarchy.UpdateNodeSceneInfo(PrimitiveSceneInfo->PrimitiveComponentId, PrimitiveSceneInfo);
 	}
 
-	for (const auto& Attachments : UpdatedAttachmentRoots)
-	{
-		FPrimitiveSceneInfo* PrimitiveSceneInfo = Attachments.Key;
-		if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneInfo))
-		{
-			continue;
-		}
+	auto UpdatedAttachmentRoots = SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateAttachmentRootData>();
+	auto DistanceFieldSceneDataUpdates = SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateDistanceFieldSceneData>();
+	auto UpdatedOcclusionBoundsSlacks = SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateOcclusionBoundsSlacksData>();
+	auto UpdatedDrawDistance =  SceneUpdateChangeSetStorage.PrimitiveUpdates.GetRangeView<FUpdateDrawDistanceData>();
 
+	for (const auto& Item : UpdatedAttachmentRoots)
+	{
+		FPrimitiveSceneInfo* PrimitiveSceneInfo = Item.SceneInfo;
 		PrimitiveSceneInfo->UnlinkAttachmentGroup();
-		PrimitiveSceneInfo->LightingAttachmentRoot = Attachments.Value;
+		PrimitiveSceneInfo->LightingAttachmentRoot = Item.Payload.Value;
 		PrimitiveSceneInfo->LinkAttachmentGroup();
 	}
 
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : DistanceFieldSceneDataUpdates)
+	for (const auto& Item : DistanceFieldSceneDataUpdates)
 	{
-		if (DeletedPrimitiveSceneInfos.Contains(PrimitiveSceneInfo))
-		{
-			continue;
-		}
-
-		DistanceFieldSceneData.UpdatePrimitive(PrimitiveSceneInfo);
+		DistanceFieldSceneData.UpdatePrimitive(Item.SceneInfo);
 	}
 
 	for (const auto& OccSlackDelta : UpdatedOcclusionBoundsSlacks)
 	{
-		const FPrimitiveSceneProxy* SceneProxy = OccSlackDelta.Key;
-		const FPrimitiveSceneInfo* SceneInfo = SceneProxy->GetPrimitiveSceneInfo();
-
-		if (DeletedPrimitiveSceneInfos.Contains(SceneInfo))
-		{
-			continue;
-		}
+		const FPrimitiveSceneProxy* SceneProxy = OccSlackDelta.SceneInfo->Proxy;
+		const FPrimitiveSceneInfo* SceneInfo = OccSlackDelta.SceneInfo;
+		float Delta = OccSlackDelta.Payload.Value;
 
 		FBoxSphereBounds NewOccBounds;
 		if (SceneProxy->HasCustomOcclusionBounds())
@@ -6824,39 +6572,25 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 			NewOccBounds = SceneProxy->GetBounds();
 		}
 
-		PrimitiveOcclusionBounds[SceneInfo->PackedIndex] = NewOccBounds.ExpandBy(OCCLUSION_SLOP + OccSlackDelta.Value);
+		PrimitiveOcclusionBounds[SceneInfo->PackedIndex] = NewOccBounds.ExpandBy(OCCLUSION_SLOP + Delta);
 	}
 
-	for (auto& CullDistance : UpdatedInstanceCullDistance)
+	for (const auto& CullDistance : UpdatedInstanceCullDistance)
 	{
-		FPrimitiveSceneProxy* SceneProxy = CullDistance.Key;
-		FPrimitiveSceneInfo* SceneInfo = SceneProxy->GetPrimitiveSceneInfo();
-
-		if (DeletedPrimitiveSceneInfos.Contains(SceneInfo))
-		{
-			continue;
-		}
-
-		float StartCullDistance = CullDistance.Value.X;
-		float EndCullDistance = CullDistance.Value.Y;
+		FPrimitiveSceneProxy* SceneProxy = CullDistance.SceneInfo->Proxy;
+		float StartCullDistance = CullDistance.Payload.Value.X;
+		float EndCullDistance = CullDistance.Payload.Value.Y;
 		
 		SceneProxy->SetInstanceCullDistance_RenderThread(StartCullDistance, EndCullDistance);
-		SceneInfo->MarkGPUStateDirty(EPrimitiveDirtyState::ChangedOther);
 	}
 
-	for (auto& DrawDistance : UpdatedDrawDistance)
+	for (const auto& DrawDistance : UpdatedDrawDistance)
 	{
-		FPrimitiveSceneProxy* SceneProxy = DrawDistance.Key;
-		FPrimitiveSceneInfo* SceneInfo = SceneProxy->GetPrimitiveSceneInfo();
-
-		if (DeletedPrimitiveSceneInfos.Contains(SceneInfo))
-		{
-			continue;
-		}
-
-		float MinDrawDistance = DrawDistance.Value.X;
-		float MaxDrawDistance = DrawDistance.Value.Y;
-		float VirtualTextureMaxDrawDistance = DrawDistance.Value.Z;
+		FPrimitiveSceneProxy* SceneProxy = DrawDistance.SceneInfo->Proxy;
+		FPrimitiveSceneInfo* SceneInfo = DrawDistance.SceneInfo;
+		float MinDrawDistance = DrawDistance.Payload.Value.X;
+		float MaxDrawDistance = DrawDistance.Payload.Value.Y;
+		float VirtualTextureMaxDrawDistance = DrawDistance.Payload.Value.Z;
 
 		SceneProxy->SetDrawDistance_RenderThread(MinDrawDistance, MaxDrawDistance, VirtualTextureMaxDrawDistance);
 
@@ -6947,16 +6681,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 	{
 		InvalidatePathTracedOutput();
 	}
-	UpdatedAttachmentRoots.Empty();
-	UpdatedTransforms.Empty();
-	UpdatedInstances.Empty();
-	UpdatedCustomPrimitiveParams.Empty();
-	OverridenPreviousTransforms.Empty();
-	UpdatedOcclusionBoundsSlacks.Empty();
-	UpdatedInstanceCullDistance.Empty();
-	UpdatedDrawDistance.Empty();
-	DistanceFieldSceneDataUpdates.Empty();
-	AddedPrimitiveSceneInfos.Empty();
 	LevelCommands.Empty();
 
 	LastUpdateFrameCounter = GFrameCounterRenderThread;
@@ -6974,12 +6698,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		checkSlow(PersistentPrimitiveIdToIndexMap[PrimitiveSceneInfo->PersistentIndex.Index] == PrimitiveSceneInfo->PackedIndex);
 	}
 #endif
-}
-
-bool FScene::IsPrimitiveBeingRemoved(FPrimitiveSceneInfo* PrimitiveSceneInfo) const
-{
-	check(IsInParallelRenderingThread() || IsInRenderingThread());
-	return RemovedPrimitiveSceneInfos.Find(PrimitiveSceneInfo) != nullptr;
 }
 
 bool FScene::ShouldRenderSkylightInBasePass(bool bIsTranslucent) const
@@ -7308,20 +7026,20 @@ void UpdateStaticMeshesForMaterials(const TArray<const FMaterial*>& MaterialReso
 	UE::RenderCommandPipe::FSyncScope SyncScope;
 
 	ENQUEUE_RENDER_COMMAND(FUpdateStaticMeshesForMaterials)(
-		[UsedPrimitives = MoveTemp(UsedPrimitives)](FRHICommandListImmediate& RHICmdList) mutable
+	[UsedPrimitives = MoveTemp(UsedPrimitives)](FRHICommandListImmediate& RHICmdList) mutable
+	{
+		// Defer the caching until the next render tick, to make sure that all render components queued
+		// for re-creation are processed. Otherwise, we may end up caching mesh commands from stale data.
+		for (auto& SceneInfos: UsedPrimitives)
 		{
-			// Defer the caching until the next render tick, to make sure that all render components queued
-			// for re-creation are processed. Otherwise, we may end up caching mesh commands from stale data.
-			for (auto& SceneInfos: UsedPrimitives)
-			{
-				SceneInfos.Key->UpdateAllPrimitiveSceneInfos(RHICmdList);
-			}
-			for (auto& SceneInfos : UsedPrimitives)
-			{
-				TArray<FPrimitiveSceneInfo*>& SceneInfoArray = SceneInfos.Value;
-				FPrimitiveSceneInfo::UpdateStaticMeshes(SceneInfos.Key, SceneInfoArray, EUpdateStaticMeshFlags::AllCommands, false);
-			}
-		});
+			SceneInfos.Key->UpdateAllPrimitiveSceneInfos(RHICmdList);
+		}
+		for (auto& SceneInfos : UsedPrimitives)
+		{
+			TArray<FPrimitiveSceneInfo*>& SceneInfoArray = SceneInfos.Value;
+			FPrimitiveSceneInfo::UpdateStaticMeshes(SceneInfos.Key, SceneInfoArray, EUpdateStaticMeshFlags::AllCommands, false);
+		}
+	});
 }
 
 void FRendererModule::UpdateStaticDrawListsForMaterials(const TArray<const FMaterial*>& Materials)

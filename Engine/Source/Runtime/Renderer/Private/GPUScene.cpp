@@ -2086,14 +2086,11 @@ bool FGPUScene::HasPendingGPUWrite(uint32 PrimitiveId) const
 
 void FGPUScene::OnPreSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePreUpdateChangeSet& ScenePreUpdateData)
 {
-	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.RemovedPrimitiveIds)
+	ScenePreUpdateData.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::Updated | ESceneUpdateCommandFilter::Deleted, EPrimitiveUpdateDirtyFlags::GPUState, 
+	[&](const FPrimitiveUpdateCommand& Cmd)
 	{
-		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::Removed);
-	}
-	for (FPersistentPrimitiveIndex PersistentPrimitiveIndex  : ScenePreUpdateData.UpdatedPrimitiveIds)
-	{
-		AddPrimitiveToUpdate(PersistentPrimitiveIndex, EPrimitiveDirtyState::ChangedTransform);
-	}
+		AddPrimitiveToUpdate(Cmd.GetPersistentId(), Cmd.IsDelete() ? EPrimitiveDirtyState::Removed : EPrimitiveDirtyState::ChangedAll );
+	});
 }
 
 void FGPUScene::OnPostSceneUpdate(FRDGBuilder& GraphBuilder, const FScenePostUpdateChangeSet& ScenePostUpdateData)

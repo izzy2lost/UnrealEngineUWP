@@ -284,6 +284,7 @@ class FPrimitiveSceneInfo : public FDeferredCleanupInterface
 	friend class FSceneRenderer;
 	friend struct FViewDebugInfo;
 public:
+	using FPersistentId = FPersistentPrimitiveIndex;
 
 	/** The render proxy for the primitive. */
 	FPrimitiveSceneProxy* Proxy;
