@@ -1626,7 +1626,6 @@ void FMaterialInstanceEditor::SaveAssetAs_Execute()
 
 void FMaterialInstanceEditor::SaveSettings()
 {
-	GConfig->SetBool(TEXT("MaterialInstanceEditor"), TEXT("bShowGrid"), PreviewVC->IsTogglePreviewGridChecked(), GEditorPerProjectIni);
 	GConfig->SetBool(TEXT("MaterialInstanceEditor"), TEXT("bDrawGrid"), PreviewVC->IsRealtime(), GEditorPerProjectIni);
 	GConfig->SetInt(TEXT("MaterialInstanceEditor"), TEXT("PrimType"), PreviewVC->PreviewPrimType, GEditorPerProjectIni);
 }
@@ -1634,18 +1633,12 @@ void FMaterialInstanceEditor::SaveSettings()
 void FMaterialInstanceEditor::LoadSettings()
 {
 	bool bRealtime=false;
-	bool bShowGrid=false;
 	int32 PrimType=static_cast<EThumbnailPrimType>( TPT_Sphere );
-	GConfig->GetBool(TEXT("MaterialInstanceEditor"), TEXT("bShowGrid"), bShowGrid, GEditorPerProjectIni);
 	GConfig->GetBool(TEXT("MaterialInstanceEditor"), TEXT("bDrawGrid"), bRealtime, GEditorPerProjectIni);
 	GConfig->GetInt(TEXT("MaterialInstanceEditor"), TEXT("PrimType"), PrimType, GEditorPerProjectIni);
 
 	if(PreviewVC.IsValid())
 	{
-		if ( bShowGrid )
-		{
-			PreviewVC->TogglePreviewGrid();
-		}
 		if ( bRealtime )
 		{
 			PreviewVC->OnToggleRealtime();

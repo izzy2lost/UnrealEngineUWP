@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialEditorViewportToolbarSections.h"
 #include "EditorViewportCommands.h"
@@ -32,7 +32,6 @@ TSharedRef<SWidget> UE::MaterialEditor::CreateShowMenuWidget(const TSharedRef<SM
 
 		ShowMenuBuilder.AddMenuSeparator();
 
-		ShowMenuBuilder.AddMenuEntry(Commands.TogglePreviewGrid);
 		ShowMenuBuilder.AddMenuEntry(Commands.TogglePreviewBackground);
 	}
 

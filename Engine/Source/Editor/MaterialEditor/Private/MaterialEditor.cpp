@@ -2659,11 +2659,6 @@ void FMaterialEditor::LoadEditorSettings()
 
 	if ( PreviewViewport.IsValid() )
 	{
-		if (EditorOptions->bShowGrid)
-		{
-			PreviewViewport->TogglePreviewGrid();
-		}
-
 		if (EditorOptions->bRealtimeMaterialViewport && PreviewViewport->GetViewportClient())
 		{
 			PreviewViewport->GetViewportClient()->SetRealtime(true);
@@ -2690,7 +2685,6 @@ void FMaterialEditor::SaveEditorSettings()
 
 	if ( EditorOptions )
 	{
-		EditorOptions->bShowGrid					= PreviewViewport->IsTogglePreviewGridChecked();
 		EditorOptions->bRealtimeMaterialViewport	= PreviewViewport->IsRealtime();
 		EditorOptions->bHideUnusedConnectorsSetting	= IsOnHideConnectorsChecked();
 		EditorOptions->bAlwaysRefreshAllPreviews	= IsOnAlwaysRefreshAllPreviews();

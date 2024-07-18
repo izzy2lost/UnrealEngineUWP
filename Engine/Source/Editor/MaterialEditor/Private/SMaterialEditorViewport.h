@@ -81,8 +81,6 @@ public:
 	bool IsPreviewPrimitiveChecked(EThumbnailPrimType PrimType) const;
 	void OnSetPreviewMeshFromSelection();
 	bool IsPreviewMeshFromSelectionChecked() const;
-	void TogglePreviewGrid();
-	bool IsTogglePreviewGridChecked() const;
 	void TogglePreviewBackground();
 	bool IsTogglePreviewBackgroundChecked() const;
 	/** Call back for when the user changes preview scene settings in the UI */

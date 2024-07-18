@@ -757,12 +757,6 @@ void SMaterialEditor3DPreviewViewport::BindCommands()
 		FIsActionChecked::CreateSP( this, &SMaterialEditor3DPreviewViewport::IsPreviewMeshFromSelectionChecked ) );
 
 	CommandList->MapAction(
-		Commands.TogglePreviewGrid,
-		FExecuteAction::CreateSP( this, &SMaterialEditor3DPreviewViewport::TogglePreviewGrid ),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP( this, &SMaterialEditor3DPreviewViewport::IsTogglePreviewGridChecked ) );
-
-	CommandList->MapAction(
 		Commands.TogglePreviewBackground,
 		FExecuteAction::CreateSP( this, &SMaterialEditor3DPreviewViewport::TogglePreviewBackground ),
 		FCanExecuteAction(),
@@ -871,17 +865,6 @@ void SMaterialEditor3DPreviewViewport::OnSetPreviewMeshFromSelection()
 bool SMaterialEditor3DPreviewViewport::IsPreviewMeshFromSelectionChecked() const
 {
 	return (PreviewPrimType == TPT_None && PreviewMeshComponent != nullptr);
-}
-
-void SMaterialEditor3DPreviewViewport::TogglePreviewGrid()
-{
-	EditorViewportClient->SetShowGrid();
-	RefreshViewport();
-}
-
-bool SMaterialEditor3DPreviewViewport::IsTogglePreviewGridChecked() const
-{
-	return EditorViewportClient->IsSetShowGridChecked();
 }
 
 void SMaterialEditor3DPreviewViewport::TogglePreviewBackground()
