@@ -428,6 +428,7 @@ namespace PerfReportTool
 			}
 
 			// Load the graphs
+			List<ReportGraph> invalidGraphs = new List<ReportGraph>();
 			foreach (ReportGraph graph in reportTypeInfo.graphs)
 			{
 				if (graph.isInline)
@@ -437,7 +438,17 @@ namespace PerfReportTool
 						GraphSettings parentSettings = null;
 						if (!graphs.TryGetValue(graph.parent.ToLower(), out parentSettings))
 						{
-							throw new Exception("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML");
+							if (bBulkMode)
+							{
+								Console.Error.WriteLine("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML. Skipping.");
+								invalidGraphs.Add(graph);
+								continue;
+							}
+							else
+							{
+								// Fatal in non-bulk mode
+								throw new Exception("Parent graph with title \"" + graph.parent + "\" was not found in graphs XML");
+							}
 						}
 						graph.settings.InheritFrom(parentSettings);
 					}
@@ -446,10 +457,22 @@ namespace PerfReportTool
 				{
 					if (!graphs.TryGetValue(graph.title.ToLower(), out graph.settings))
 					{
-						throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+						if (bBulkMode)
+						{
+							Console.Error.WriteLine("Graph with title \"" + graph.title + "\" was not found in graphs XML. Skipping");
+							invalidGraphs.Add(graph);
+						}
+						else
+						{
+							// Fatal in non-bulk mode
+							throw new Exception("Graph with title \"" + graph.title + "\" was not found in graphs XML");
+						}
 					}
 				}
 			}
+
+			// Strip any invalid graphs
+			reportTypeInfo.graphs.RemoveAll((graph) => invalidGraphs.Contains(graph));
 
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
