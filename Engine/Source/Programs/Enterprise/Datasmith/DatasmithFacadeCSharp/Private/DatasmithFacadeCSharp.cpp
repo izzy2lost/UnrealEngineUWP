@@ -6161,6 +6161,14 @@ SWIGEXPORT unsigned int SWIGSTDCALL CSharp_FDatasmithFacadeScene_ExportScene__SW
 }
 
 
+SWIGEXPORT void SWIGSTDCALL CSharp_FDatasmithFacadeScene_SerializeLevelSequences(void * jarg1) {
+  FDatasmithFacadeScene *arg1 = (FDatasmithFacadeScene *) 0 ;
+  
+  arg1 = (FDatasmithFacadeScene *)jarg1; 
+  (arg1)->SerializeLevelSequences();
+}
+
+
 SWIGEXPORT void SWIGSTDCALL CSharp_FDatasmithFacadeScene_SetLabel(void * jarg1, wchar_t * jarg2) {
   FDatasmithFacadeScene *arg1 = (FDatasmithFacadeScene *) 0 ;
   TCHAR *arg2 = (TCHAR *) 0 ;

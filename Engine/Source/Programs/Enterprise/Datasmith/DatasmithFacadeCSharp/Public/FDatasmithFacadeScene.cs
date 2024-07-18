@@ -396,6 +396,10 @@ public class FDatasmithFacadeScene : global::System.IDisposable {
     return ret;
   }
 
+  public void SerializeLevelSequences() {
+    DatasmithFacadeCSharpPINVOKE.FDatasmithFacadeScene_SerializeLevelSequences(swigCPtr);
+  }
+
   public void SetLabel(string InSceneLabel) {
     DatasmithFacadeCSharpPINVOKE.FDatasmithFacadeScene_SetLabel(swigCPtr, InSceneLabel);
   }
