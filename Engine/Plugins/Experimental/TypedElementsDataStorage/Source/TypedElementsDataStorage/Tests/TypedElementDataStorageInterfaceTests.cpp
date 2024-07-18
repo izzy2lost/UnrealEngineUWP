@@ -1,8 +1,8 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 
 #if WITH_TESTS
-#include "TypedElementTestColumns.h"
+#include "Elements/Framework/TypedElementTestColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Misc/AutomationTest.h"
 

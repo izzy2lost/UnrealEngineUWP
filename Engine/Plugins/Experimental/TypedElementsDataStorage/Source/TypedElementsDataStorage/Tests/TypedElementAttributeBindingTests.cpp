@@ -3,7 +3,7 @@
 
 #include "Elements/Framework/TypedElementAttributeBinding.h"
 #if WITH_TESTS
-#include "TypedElementTestColumns.h"
+#include "Elements/Framework/TypedElementTestColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Misc/AutomationTest.h"
 
