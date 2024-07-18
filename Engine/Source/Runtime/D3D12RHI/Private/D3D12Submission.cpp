@@ -323,9 +323,19 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 	SCOPE_CYCLE_COUNTER(STAT_D3D12Submit);
 	LLM_SCOPE_BYNAME(TEXT("RHIMisc/ProcessSubmissionQueue"));
 
-	TArray<FD3D12Payload*, TInlineAllocator<64>> PayloadsToHandDown;
+	FD3D12Queue::FPayloadArray PayloadsToHandDown;
 
 	FProcessResult Result;
+
+	auto FlushPayloads = [&PayloadsToHandDown, &Result, DynamicRHI = this](int32 MinPayloadsToFlush = 1)
+	{
+		if (PayloadsToHandDown.Num() >= MinPayloadsToFlush)
+		{
+			Result.Status |= EQueueStatus::Processed;
+			DynamicRHI->FlushBatchedPayloads(PayloadsToHandDown);
+		}
+	};
+
 	bool bProgress;
 
 	do
@@ -486,19 +496,17 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 						uint64 ValueSignaled = OtherQueue->FinalizePayload(true, PayloadsToHandDown);
 						CurrentQueue.PayloadToSubmit->AddQueueFenceWait(OtherQueue->Fence, ValueSignaled);
 					}
+					FlushPayloads(FD3D12Queue::MaxBatchedPayloads);
 				}
 
 				// Now submit the original payload
 				CurrentQueue.FinalizePayload(false, PayloadsToHandDown);
+				FlushPayloads(FD3D12Queue::MaxBatchedPayloads);
 			}
 		});
 	} while (bProgress);
 
-	if (PayloadsToHandDown.Num())
-	{
-		Result.Status |= EQueueStatus::Processed;
-		FlushBatchedPayloads(PayloadsToHandDown);
-	}
+	FlushPayloads();
 
 	if (InterruptThread && EnumHasAnyFlags(Result.Status, EQueueStatus::Processed))
 	{
@@ -666,7 +674,7 @@ void FD3D12DynamicRHI::GenerateBarrierCommandListAndUpdateState(FD3D12CommandLis
 	}
 }
 
-uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown)
+uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, FPayloadArray& PayloadsToHandDown)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ExecuteCommandList);
 	LLM_SCOPE_BYNAME(TEXT("RHIMisc/ExecuteCommandLists"));
@@ -816,7 +824,7 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*,
 	return Fence.NextCompletionValue;
 }
 
-void FD3D12DynamicRHI::FlushBatchedPayloads(TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToSubmit)
+void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& PayloadsToSubmit)
 {
 	uint32 FirstPayload = 0, LastPayload = 0;
 

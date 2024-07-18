@@ -151,8 +151,11 @@ public:
 	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
 	bool bSupportsTileMapping = true;
 
+	static constexpr uint32 MaxBatchedPayloads = 128;
+	using FPayloadArray = TArray<FD3D12Payload*, TInlineAllocator<MaxBatchedPayloads>>;
+
 	// Batches the current payload's command lists, returning the latest fence value signaled for this queue.
-	uint64 FinalizePayload(bool bRequiresSignal, TArray<FD3D12Payload*, TInlineAllocator<64>>& PayloadsToHandDown);
+	uint64 FinalizePayload(bool bRequiresSignal, FPayloadArray& PayloadsToHandDown);
 
 	// Call the underlying ID3D12Queue::ExecuteCommandLists function
 	void ExecuteCommandLists(TArrayView<ID3D12CommandList*> D3DCommandLists
