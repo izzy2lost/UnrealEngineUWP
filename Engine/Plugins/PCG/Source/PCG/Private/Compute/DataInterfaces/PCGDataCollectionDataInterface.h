@@ -86,7 +86,7 @@ public:
 public:
 	/** Settings of node that produces this data, normally the upstream node. */
 	UPROPERTY()
-	const UPCGSettings* ProducerSettings;
+	TObjectPtr<const UPCGSettings> ProducerSettings;
 
 	TWeakObjectPtr<UPCGDataBinding> Binding;
 	FPCGDataCollectionDesc PinDesc;
