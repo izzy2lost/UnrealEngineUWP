@@ -4,9 +4,11 @@
 #include "Misc/App.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "AutoRTFMTestActor.h"
+#include "AutoRTFMTestAnotherActor.h"
 #include "AutoRTFMTestBodySetup.h"
 #include "AutoRTFMTestLevel.h"
 #include "AutoRTFMTestObject.h"
+#include "AutoRTFMTestChildActorComponent.h"
 #include "AutoRTFMTestPrimitiveComponent.h"
 #include "PhysicsProxy/SingleParticlePhysicsProxy.h"
 #include "Physics/Experimental/PhysScene_Chaos.h"
@@ -327,6 +329,71 @@ AUTORTFM_ACTOR_COMPONENT_TEST(FSparseDelegate)
 		});
 
 	TEST_CHECK_TRUE(Object->bHitOnComponentPhysicsStateChanged);
+}
+
+AUTORTFM_ACTOR_COMPONENT_TEST(ChildActor)
+{
+	UAutoRTFMTestChildActorComponent* const ChildActorComponent = NewObject<UAutoRTFMTestChildActorComponent>(Actor);
+
+	AAutoRTFMTestAnotherActor* const AnotherActor = NewObject<AAutoRTFMTestAnotherActor>();
+
+	ChildActorComponent->RegisterComponentWithWorld(World);
+
+	ChildActorComponent->ForceActorClass(AnotherActor->GetClass());
+
+	if (nullptr != ChildActorComponent->GetChildActor())
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				ChildActorComponent->DestroyChildActor();
+				AutoRTFM::AbortTransaction();
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+		TEST_CHECK_TRUE(nullptr != ChildActorComponent->GetChildActor());
+
+		Result = AutoRTFM::Transact([&]
+			{
+				ChildActorComponent->DestroyChildActor();
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+		TEST_CHECK_TRUE(nullptr == ChildActorComponent->GetChildActor());
+	}
+
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			ChildActorComponent->CreateChildActor();
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(nullptr == ChildActorComponent->GetChildActor());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			ChildActorComponent->CreateChildActor();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(nullptr != ChildActorComponent->GetChildActor());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			ChildActorComponent->DestroyChildActor();
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+	TEST_CHECK_TRUE(nullptr != ChildActorComponent->GetChildActor());
+
+	Result = AutoRTFM::Transact([&]
+		{
+			ChildActorComponent->DestroyChildActor();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	TEST_CHECK_TRUE(nullptr == ChildActorComponent->GetChildActor());
 }
 
 }  // anonymous namespace

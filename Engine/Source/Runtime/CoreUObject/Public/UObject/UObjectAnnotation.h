@@ -7,8 +7,8 @@
 #pragma once
 
 #include "UObject/UObjectArray.h"
-#include "Misc/ScopeLock.h"
-#include "Misc/ScopeRWLock.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 /**
 * FUObjectAnnotationSparse is a helper class that is used to store sparse, slow, temporary, editor only, external 
@@ -39,7 +39,7 @@ public:
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (!bAutoRemove)
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			// in this case we are only verifying that the external assurances of removal are met
 			check(!AnnotationMap.Find(Object));
 		}
@@ -86,35 +86,22 @@ private:
 		}
 		else
 		{
-			bool bWasEmpty = false;
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			const bool bWasEmpty = (AnnotationMap.Num() == 0);
+
+			// If we are not in a trasncation update our cache values with the correct information
+			// While in a transaction avoid updating these as it pulls from closed code memory and can cause memory stomps if we abort here
+			if (!AutoRTFM::IsTransactional())
 			{
-				// We hit this from many locations, for now lets open around adding this, and if we happen to be in a transcation
-				// and abort after we have added let us use the UObject to remove it from the annotation map
-				UE_AUTORTFM_OPEN2
-				{
-					FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-					bWasEmpty = (AnnotationMap.Num() == 0);
-
-					// If we are not in a trasncation update our cache values with the correct information
-					// While in a transaction avoid updating these as it pulls from closed code memory and can cause memory stomps if we abort here
-					if (!AutoRTFM::IsTransactional())
-					{
-						AnnotationCacheKey = Object;
-						AnnotationCacheValue = MoveTemp(LocalAnnotation);
-						AnnotationMap.Add(AnnotationCacheKey, AnnotationCacheValue);
-					}
-					else
-					{
-						AnnotationMap.Add(Object, LocalAnnotation);
-						AnnotationCacheKey = nullptr;
-						AnnotationCacheValue = TAnnotation();
-					}
-				};
-
-				UE_AUTORTFM_ONABORT2(this, Object)
-				{
-					RemoveAnnotation(Object);
-				};
+				AnnotationCacheKey = Object;
+				AnnotationCacheValue = MoveTemp(LocalAnnotation);
+				AnnotationMap.Add(AnnotationCacheKey, AnnotationCacheValue);
+			}
+			else
+			{
+				AnnotationMap.Add(Object, LocalAnnotation);
+				AnnotationCacheKey = nullptr;
+				AnnotationCacheValue = TAnnotation();
 			}
 
 			if (bWasEmpty)
@@ -169,13 +156,14 @@ public:
 		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 		TAnnotation Result;
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			AnnotationCacheKey = Object;
 			AnnotationCacheValue = TAnnotation();
 			bHadElements = (AnnotationMap.Num() > 0);
 			AnnotationMap.RemoveAndCopyValue(AnnotationCacheKey, Result);
 			bIsNowEmpty = (AnnotationMap.Num() == 0);
 		}
+
 		if (bHadElements && bIsNowEmpty)
 		{
 			// we are removing the last one, so if we are auto removing or verifying removal, unregister now
@@ -202,7 +190,7 @@ public:
 			bool bIsNowEmpty = false;
 			// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 			{
-				FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+				FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 				AnnotationCacheKey = Object;
 				AnnotationCacheValue = TAnnotation();
 				bHadElements = (AnnotationMap.Num() > 0);
@@ -231,7 +219,7 @@ public:
 
 		// Avoid holding the lock while we call GUObjectArray.RemoveUObjectDeleteListener as it could deadlock
 		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+			FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 			AnnotationCacheKey = nullptr;
 			AnnotationCacheValue = TAnnotation();
 			bHadElements = (AnnotationMap.Num() > 0);
@@ -257,26 +245,23 @@ public:
 	FORCEINLINE TAnnotation GetAnnotation(const UObjectBase *Object)
 	{
 		check(Object);
-		TAnnotation Result;
-		UE_AUTORTFM_OPEN2
-		{
-			FScopeLock AnnotationMapLock(&AnnotationMapCritical);
-			if (Object != AnnotationCacheKey)
-			{			
-				AnnotationCacheKey = Object;
-				TAnnotation* Entry = AnnotationMap.Find(AnnotationCacheKey);
-				if (Entry)
-				{
-					AnnotationCacheValue = *Entry;
-				}
-				else
-				{
-					AnnotationCacheValue = TAnnotation();
-				}
+
+		FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
+		if (Object != AnnotationCacheKey)
+		{			
+			AnnotationCacheKey = Object;
+			TAnnotation* Entry = AnnotationMap.Find(AnnotationCacheKey);
+			if (Entry)
+			{
+				AnnotationCacheValue = *Entry;
 			}
-			Result = AnnotationCacheValue;
-		};
-		return Result;
+			else
+			{
+				AnnotationCacheValue = TAnnotation();
+			}
+		}
+
+		return AnnotationCacheValue;
 	}
 
 	/**
@@ -293,7 +278,7 @@ public:
 	 */
 	void Reserve(int32 ExpectedNumElements)
 	{
-		FScopeLock AnnotationMapLock(&AnnotationMapCritical);
+		FTransactionallySafeScopeLock AnnotationMapLock(&AnnotationMapCritical);
 		AnnotationMap.Empty(ExpectedNumElements);
 	}
 
@@ -308,7 +293,7 @@ private:
 	 * Map from live objects to an annotation
 	 */
 	TMap<const UObjectBase *,TAnnotation> AnnotationMap;
-	FCriticalSection AnnotationMapCritical;
+	FTransactionallySafeCriticalSection AnnotationMapCritical;
 
 	/**
 	 * Key for a one-item cache of the last lookup into AnnotationMap.
@@ -371,7 +356,7 @@ public:
 	 */
 	UObject* Find(const TAnnotation& Annotation)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		checkSlow(!Annotation.IsDefault()); // it is not legal to search for the default annotation
 		return (UObject*)InverseAnnotationMap.FindRef(Annotation);
 	}
@@ -380,7 +365,7 @@ private:
 	template<typename T> 
 	void AddAnnotationInternal(const UObjectBase* Object, T&& Annotation)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		if (Annotation.IsDefault())
 		{
 			RemoveAnnotation(Object); // adding the default annotation is the same as removing an annotation
@@ -425,7 +410,7 @@ public:
 	 */
 	void RemoveAnnotation(const UObjectBase *Object)
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		TAnnotation Annotation = this->GetAndRemoveAnnotation(Object);
 		if (Annotation.IsDefault())
 		{
@@ -444,7 +429,7 @@ public:
 	 */
 	void RemoveAllAnnotations()
 	{
-		FScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
+		FTransactionallySafeScopeLock InverseAnnotationMapLock(&InverseAnnotationMapCritical);
 		Super::RemoveAllAnnotations();
 		InverseAnnotationMap.Empty();
 	}
@@ -459,7 +444,7 @@ private:
 	 * Inverse Map annotation to live object
 	 */
 	TMap<TAnnotation, const UObjectBase *> InverseAnnotationMap;
-	FCriticalSection InverseAnnotationMapCritical;
+	FTransactionallySafeCriticalSection InverseAnnotationMapCritical;
 };
 
 

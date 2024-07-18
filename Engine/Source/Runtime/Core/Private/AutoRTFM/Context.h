@@ -50,8 +50,8 @@ public:
 
 	inline FTransaction* GetCurrentTransaction() const { return CurrentTransaction; }
 	inline FCallNest* GetCurrentNest() const { return CurrentNest; }
-    inline bool IsTransactionStack(void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < OuterTransactStackAddress; }
-	inline bool IsInnerTransactionStack(void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < CurrentTransactStackAddress; }
+    inline bool IsTransactionStack(const void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < OuterTransactStackAddress; }
+	inline bool IsInnerTransactionStack(const void* LogicalAddress) const { return LogicalAddress >= StackBegin && LogicalAddress < CurrentTransactStackAddress; }
 	inline EContextStatus GetStatus() const { return Status; }
 	void Throw();
 	

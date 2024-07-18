@@ -26,7 +26,6 @@
 #include "HAL/LowLevelMemStats.h"
 #include "Logging/MessageLog.h"
 #include "Misc/MapErrors.h"
-#include "Misc/ScopeRWLock.h"
 #include "Misc/UObjectToken.h"
 #include "Net/Core/PushModel/PushModel.h"
 #include "Net/UnrealNetwork.h"
@@ -431,7 +430,7 @@ UActorComponent::FOnMarkRenderStateDirty UActorComponent::MarkRenderStateDirtyEv
 
 const FString UActorComponent::ComponentTemplateNameSuffix(TEXT("_GEN_VARIABLE"));
 TMap<UActorComponent*, TArray<FSimpleMemberReference>> UActorComponent::AllUCSModifiedProperties;
-FRWLock UActorComponent::AllUCSModifiedPropertiesLock;
+FTransactionallySafeRWLock UActorComponent::AllUCSModifiedPropertiesLock;
 
 UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*= FObjectInitializer::Get()*/)
 	: Super(ObjectInitializer)
@@ -534,7 +533,7 @@ void UActorComponent::PostLoad()
 		{
 			if (UCSModifiedProperties_DEPRECATED.Num())
 			{
-				FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+				FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 				AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties_DEPRECATED));
 			}
 		}
@@ -2483,7 +2482,7 @@ void UActorComponent::DetermineUCSModifiedProperties()
 			}
 		}
 
-		FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+		FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 		if (UCSModifiedProperties.Num() > 0)
 		{
 			AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties));
@@ -2497,7 +2496,7 @@ void UActorComponent::DetermineUCSModifiedProperties()
 
 void UActorComponent::GetUCSModifiedProperties(TSet<const FProperty*>& ModifiedProperties) const
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 	{
 		for (const FSimpleMemberReference& MemberReference : *UCSModifiedProperties)
@@ -2509,7 +2508,7 @@ void UActorComponent::GetUCSModifiedProperties(TSet<const FProperty*>& ModifiedP
 
 void UActorComponent::RemoveUCSModifiedProperties(const TArray<FProperty*>& Properties)
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 	{
 		for (FProperty* Property : Properties)
@@ -2523,13 +2522,13 @@ void UActorComponent::RemoveUCSModifiedProperties(const TArray<FProperty*>& Prop
 
 void UActorComponent::ClearUCSModifiedProperties()
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 	AllUCSModifiedProperties.Remove(this);
 }
 
 void UActorComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
-	FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(CastChecked<UActorComponent>(InThis)))
 	{
 		for (FSimpleMemberReference& MemberReference : *UCSModifiedProperties)
@@ -2585,7 +2584,7 @@ void UActorComponent::Serialize(FArchive& Ar)
 			TArray<FSimpleMemberReference> UCSModifiedProperties;
 			Ar << UCSModifiedProperties;
 
-			FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
+			FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_Write);
 			if (UCSModifiedProperties.Num() > 0)
 			{
 				AllUCSModifiedProperties.Add(this, MoveTemp(UCSModifiedProperties));
@@ -2597,7 +2596,7 @@ void UActorComponent::Serialize(FArchive& Ar)
 		}
 		else
 		{
-			FRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
+			FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 			if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(this))
 			{
 				Ar << *UCSModifiedProperties;

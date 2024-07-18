@@ -15,6 +15,7 @@
 #include "PropertyPairsMap.h"
 #include "ComponentInstanceDataCache.h"
 #include "Experimental/ConcurrentLinearAllocator.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 #include "ActorComponent.generated.h"
 
 struct FTypedElementHandle;
@@ -444,7 +445,7 @@ private:
 	TArray<FSimpleMemberReference> UCSModifiedProperties_DEPRECATED;
 #endif
 
-	static ENGINE_API FRWLock AllUCSModifiedPropertiesLock;
+	static ENGINE_API FTransactionallySafeRWLock AllUCSModifiedPropertiesLock;
 	static ENGINE_API TMap<UActorComponent*, TArray<FSimpleMemberReference>> AllUCSModifiedProperties;
 
 public:

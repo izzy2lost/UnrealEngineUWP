@@ -10,6 +10,8 @@
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectArray.h"
 #include "MyAutoRTFMTestObject.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/TransactionallySafeRWScopeLock.h"
 
 TEST_CASE("UECore.FDelegateHandle")
 {
@@ -960,5 +962,512 @@ TEST_CASE("UECore.FUObjectItem")
 			REQUIRE(nullptr != Item.StatIDStringStorage);
 			REQUIRE(Item.StatID.IsValidStat());
 		}
+	}
+}
+
+TEST_CASE("UECore.TransactionallySafeScopeLock")
+{
+	SECTION("Outside Transaction")
+	{
+		FTransactionallySafeCriticalSection CriticalSection;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeScopeLock Lock(&CriticalSection);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeScopeLock Lock(&CriticalSection);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+				FTransactionallySafeScopeLock Lock(&CriticalSection);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+				FTransactionallySafeScopeLock Lock(&CriticalSection);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction Used In Nested Transaction")
+	{
+		AutoRTFM::ETransactionResult InnerResult = AutoRTFM::ETransactionResult::Committed;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeScopeLock Lock(&CriticalSection);
+						AutoRTFM::CascadingAbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeScopeLock Lock(&CriticalSection);
+						AutoRTFM::AbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeScopeLock Lock(&CriticalSection);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeCriticalSection CriticalSection;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeScopeLock Lock(&CriticalSection);
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+}
+
+TEST_CASE("UECore.TransactionallySafeRWScopeLock")
+{
+	SECTION("Outside Transaction With Read Lock")
+	{
+		FTransactionallySafeRWLock RWLock;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction With Read Lock")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction Used In Nested Transaction With Read Lock")
+	{
+		AutoRTFM::ETransactionResult InnerResult = AutoRTFM::ETransactionResult::Committed;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+						AutoRTFM::CascadingAbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+						AutoRTFM::AbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_ReadOnly);
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Outside Transaction With Write Lock")
+	{
+		FTransactionallySafeRWLock RWLock;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction With Write Lock")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction Used In Nested Transaction With Write Lock")
+	{
+		AutoRTFM::ETransactionResult InnerResult = AutoRTFM::ETransactionResult::Committed;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+						AutoRTFM::CascadingAbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+						AutoRTFM::AbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeRWScopeLock Lock(RWLock, FRWScopeLockType::SLT_Write);
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+}
+
+TEST_CASE("UECore.TransactionallySafeReadScopeLock")
+{
+	SECTION("Outside Transaction")
+	{
+		FTransactionallySafeRWLock RWLock;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeReadScopeLock Lock(RWLock);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeReadScopeLock Lock(RWLock);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeReadScopeLock Lock(RWLock);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeReadScopeLock Lock(RWLock);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction Used In Nested Transaction")
+	{
+		AutoRTFM::ETransactionResult InnerResult = AutoRTFM::ETransactionResult::Committed;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeReadScopeLock Lock(RWLock);
+						AutoRTFM::CascadingAbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeReadScopeLock Lock(RWLock);
+						AutoRTFM::AbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeReadScopeLock Lock(RWLock);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeReadScopeLock Lock(RWLock);
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+}
+
+TEST_CASE("UECore.TransactionallySafeWriteScopeLock")
+{
+	SECTION("Outside Transaction")
+	{
+		FTransactionallySafeRWLock RWLock;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeWriteScopeLock Lock(RWLock);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeWriteScopeLock Lock(RWLock);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction")
+	{
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeWriteScopeLock Lock(RWLock);
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+				FTransactionallySafeWriteScopeLock Lock(RWLock);
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
+	SECTION("Inside Transaction Used In Nested Transaction")
+	{
+		AutoRTFM::ETransactionResult InnerResult = AutoRTFM::ETransactionResult::Committed;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeWriteScopeLock Lock(RWLock);
+						AutoRTFM::CascadingAbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByCascade == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeWriteScopeLock Lock(RWLock);
+						AutoRTFM::AbortTransaction();
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeWriteScopeLock Lock(RWLock);
+					});
+
+				AutoRTFM::AbortTransaction();
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+
+		Result = AutoRTFM::Transact([&]
+			{
+				FTransactionallySafeRWLock RWLock;
+
+				InnerResult = AutoRTFM::Transact([&]
+					{
+						FTransactionallySafeWriteScopeLock Lock(RWLock);
+					});
+			});
+
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == InnerResult);
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
 	}
 }

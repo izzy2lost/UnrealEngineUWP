@@ -4,6 +4,7 @@
 
 #include "HAL/CriticalSection.h"
 #include "AutoRTFM/AutoRTFM.h"
+#include "Templates/SharedPointer.h"
 
 // A transactionally safe critical section that works in the following novel ways:
 // - In the open (non-transactional):
@@ -24,37 +25,78 @@
 // modifications we should make.
 struct FTransactionallySafeCriticalSectionDefinition final
 {
+	// Always open because the constructor arguments will create the underlying critical section.
+	UE_AUTORTFM_ALWAYS_OPEN
+	FTransactionallySafeCriticalSectionDefinition() : State(new FState())
+	{
+		if (AutoRTFM::IsTransactional())
+		{
+			const AutoRTFM::EContextStatus Status = AutoRTFM::Close([this]
+				{
+					// We explicitly copy the state here for the case that `this` was stack
+					// allocated and has already died before the on-abort is hit.
+					AutoRTFM::OnAbort([State = this->State]
+						{
+							ensure(0 == State->TransactionalLockCount); 
+						});
+				});
+
+			ensure(AutoRTFM::EContextStatus::OnTrack == Status);
+		}
+	}
+
+	~FTransactionallySafeCriticalSectionDefinition()
+	{
+		if (AutoRTFM::IsTransactional())
+		{
+			const AutoRTFM::EContextStatus Status = AutoRTFM::Close([this]
+				{
+					// We explicitly copy the state here for the case that `this` was stack
+					// allocated and has already died before the on-commit is hit.
+					AutoRTFM::OnCommit([State = this->State]
+						{
+							ensure(0 == State->TransactionalLockCount);
+						});
+				});
+
+			ensure(AutoRTFM::EContextStatus::OnTrack == Status);
+		}
+	}
+
 	void Lock()
 	{
 		if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 		{
-			AutoRTFM::Open([&]
+			AutoRTFM::Open([this]
 				{
 					// The transactional system which can increment TransactionalLockCount
 					// is always single-threaded, thus this is safe to check without atomicity.
-					if (0 == TransactionalLockCount)
+					if (0 == State->TransactionalLockCount)
 					{
-						CriticalSection.Lock();
+						State->CriticalSection.Lock();
 					}
 
-					TransactionalLockCount += 1;
+					State->TransactionalLockCount += 1;
 				});
 
-			AutoRTFM::OnAbort([this]
+			// We explicitly copy the state here for the case that `this` was stack
+			// allocated and has already died before the on-abort is hit.
+			AutoRTFM::OnAbort([State = this->State]
 				{
-					ensure(0 != TransactionalLockCount);
-					TransactionalLockCount -= 1;
+					ensure(0 != State->TransactionalLockCount);
 
-					if (0 == TransactionalLockCount)
+					State->TransactionalLockCount -= 1;
+
+					if (0 == State->TransactionalLockCount)
 					{
-						CriticalSection.Unlock();
+						State->CriticalSection.Unlock();
 					}
 				});
 		}
 		else
 		{
-			CriticalSection.Lock();
-			ensure(0 == TransactionalLockCount);
+			State->CriticalSection.Lock();
+			ensure(0 == State->TransactionalLockCount);
 		}
 	}
 
@@ -62,27 +104,37 @@ struct FTransactionallySafeCriticalSectionDefinition final
 	{
 		if (AutoRTFM::IsTransactional() || AutoRTFM::IsCommittingOrAborting())
 		{
-			AutoRTFM::OnCommit([this]
+			// We explicitly copy the state here for the case that `this` was stack
+			// allocated and has already died before the on-commit is hit.
+			AutoRTFM::OnCommit([State = this->State]
 				{
-					ensure(0 != TransactionalLockCount);
-					TransactionalLockCount -= 1;
+					ensure(0 != State->TransactionalLockCount);
 
-					if (0 == TransactionalLockCount)
+					State->TransactionalLockCount -= 1;
+
+					if (0 == State->TransactionalLockCount)
 					{
-						CriticalSection.Unlock();
+						State->CriticalSection.Unlock();
 					}
 				});
 		}
 		else
 		{
-			ensure(0 == TransactionalLockCount);
-			CriticalSection.Unlock();
+			ensure(0 == State->TransactionalLockCount);
+			State->CriticalSection.Unlock();
 		}
 	}
 
 private:
-	FCriticalSection CriticalSection;
-	uint32 TransactionalLockCount = 0;
+	UE_NONCOPYABLE(FTransactionallySafeCriticalSectionDefinition)
+
+	struct FState final
+	{
+		FCriticalSection CriticalSection;
+		uint32 TransactionalLockCount = 0;
+	};
+
+	const TSharedPtr<FState> State;
 };
 
 #if UE_AUTORTFM

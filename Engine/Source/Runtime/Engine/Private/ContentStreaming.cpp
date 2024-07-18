@@ -19,6 +19,7 @@
 #include "AudioCompressionSettingsUtils.h"
 #include "VT/VirtualTextureChunkManager.h"
 #include "Rendering/NaniteCoarseMeshStreamingManager.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #if WITH_EDITOR
 #include "AudioDevice.h"
@@ -370,7 +371,12 @@ FStreamingManagerCollection& IStreamingManager::Get()
 {
 	if (StreamingManagerCollection == nullptr)
 	{
-		StreamingManagerCollection = new FStreamingManagerCollection();
+		// Since this is a lazily created static global variable we create it
+		// in the open.
+		UE_AUTORTFM_OPEN(
+			{
+				StreamingManagerCollection = new FStreamingManagerCollection();
+			});
 	}
 	return *StreamingManagerCollection;
 }
