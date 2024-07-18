@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Cloner/CEClonerMeshBuilder.h"
+#include "CEMeshBuilder.h"
 
 #include "Components/BrushComponent.h"
 #include "Components/DynamicMeshComponent.h"
@@ -28,9 +28,9 @@
 #include "StaticMeshOperations.h"
 #include "UDynamicMesh.h"
 
-const FCEClonerMeshBuilder::FCEClonerMeshBuilderParams FCEClonerMeshBuilder::DefaultParams;
+const FCEMeshBuilder::FCEMeshBuilderParams FCEMeshBuilder::DefaultParams;
 
-bool FCEClonerMeshBuilder::HasAnyGeometry(UActorComponent* InComponent)
+bool FCEMeshBuilder::HasAnyGeometry(UActorComponent* InComponent)
 {
 	if (!IsComponentSupported(InComponent))
 	{
@@ -132,36 +132,36 @@ bool FCEClonerMeshBuilder::HasAnyGeometry(UActorComponent* InComponent)
 	return false;
 }
 
-FCEClonerMeshBuilder::FCEClonerMeshBuilder()
+FCEMeshBuilder::FCEMeshBuilder()
 {
 	OutputDynamicMesh = NewObject<UDynamicMesh>();
 }
 
-TArray<uint32> FCEClonerMeshBuilder::GetMeshIndexes() const
+TArray<uint32> FCEMeshBuilder::GetMeshIndexes() const
 {
 	TArray<uint32> MeshIndexes;
 	Meshes.GenerateKeyArray(MeshIndexes);
 	return MeshIndexes;
 }
 
-bool FCEClonerMeshBuilder::IsActorSupported(const AActor* InActor)
+bool FCEMeshBuilder::IsActorSupported(const AActor* InActor)
 {
 	return InActor && InActor->FindComponentByClass<UPrimitiveComponent>();
 }
 
-bool FCEClonerMeshBuilder::IsComponentSupported(const UActorComponent* InComponent)
+bool FCEMeshBuilder::IsComponentSupported(const UActorComponent* InComponent)
 {
 	return InComponent && InComponent->IsA<UPrimitiveComponent>();
 }
 
-void FCEClonerMeshBuilder::Reset()
+void FCEMeshBuilder::Reset()
 {
 	ClearOutputMesh();
 	Meshes.Empty();
 	MeshInstances.Empty();
 }
 
-int32 FCEClonerMeshBuilder::AppendActor(const AActor* InActor)
+int32 FCEMeshBuilder::AppendActor(const AActor* InActor)
 {
 	int32 ComponentConverted = 0;
 
@@ -243,7 +243,7 @@ int32 FCEClonerMeshBuilder::AppendActor(const AActor* InActor)
 	return ComponentConverted;
 }
 
-bool FCEClonerMeshBuilder::AppendMesh(const UDynamicMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InTransform)
+bool FCEMeshBuilder::AppendMesh(const UDynamicMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InTransform)
 {
 	if (!IsValid(InMesh) || InMesh->GetTriangleCount() == 0)
 	{
@@ -262,7 +262,7 @@ bool FCEClonerMeshBuilder::AppendMesh(const UDynamicMesh* InMesh, const TArray<T
 	});
 }
 
-bool FCEClonerMeshBuilder::AppendMesh(UStaticMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendMesh(UStaticMesh* InMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InMesh) || InMesh->GetNumTriangles(/** LOD*/ 0) == 0)
 	{
@@ -301,7 +301,7 @@ bool FCEClonerMeshBuilder::AppendMesh(UStaticMesh* InMesh, const TArray<TWeakObj
 	});
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(const UStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(const UStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -326,7 +326,7 @@ bool FCEClonerMeshBuilder::AppendComponent(const UStaticMeshComponent* InCompone
 	return AppendMesh(StaticMesh, Materials, RelativeTransform);
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(UProceduralMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(UProceduralMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -440,12 +440,12 @@ bool FCEClonerMeshBuilder::AppendComponent(UProceduralMeshComponent* InComponent
 	});
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(UBrushComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(UBrushComponent* InComponent, const FTransform& InSourceTransform)
 {
 	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(const USkeletalMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(const USkeletalMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -500,7 +500,7 @@ bool FCEClonerMeshBuilder::AppendComponent(const USkeletalMeshComponent* InCompo
 	});
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -527,7 +527,7 @@ bool FCEClonerMeshBuilder::AppendComponent(UDynamicMeshComponent* InComponent, c
 	return AppendMesh(DynamicMesh, Materials, RelativeTransform);
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(UInstancedStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(UInstancedStaticMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent) || !IsValid(InComponent->GetStaticMesh()))
 	{
@@ -537,7 +537,7 @@ bool FCEClonerMeshBuilder::AppendComponent(UInstancedStaticMeshComponent* InComp
 	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(USplineMeshComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(USplineMeshComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent) || !IsValid(InComponent->GetStaticMesh()))
 	{
@@ -547,7 +547,7 @@ bool FCEClonerMeshBuilder::AppendComponent(USplineMeshComponent* InComponent, co
 	return AppendPrimitiveComponent(nullptr, InComponent, InSourceTransform);
 }
 
-bool FCEClonerMeshBuilder::AppendComponent(UNiagaraComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendComponent(UNiagaraComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -697,7 +697,7 @@ bool FCEClonerMeshBuilder::AppendComponent(UNiagaraComponent* InComponent, const
 	return bResult;
 }
 
-bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams)
+bool FCEMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEMeshBuilderParams& InParams)
 {
 	if (!IsValid(OutMesh))
 	{
@@ -724,15 +724,17 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakO
 		TMap<uint32, TMap<int32, int32>> MeshToMaterialMap;
 
 		// Convert meshes
-		for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
+		for (const FCEMeshInstance& MeshInstance : MeshInstances)
 		{
-			if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+			FDynamicMesh3& Mesh = Meshes[MeshInstance.MeshIndex];
+
+			if (Mesh.TriangleCount() == 0)
 			{
 				continue;
 			}
 
 			// Apply transform
-			FDynamicMesh3 ConvertedMesh = *MeshInstance.Mesh;
+			FDynamicMesh3 ConvertedMesh = Mesh;
 			MeshTransforms::ApplyTransform(ConvertedMesh, MeshInstance.MeshData.Transform);
 
 			// Get materials
@@ -788,7 +790,7 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(UDynamicMesh* OutMesh, TArray<TWeakO
 	return true;
 }
 
-bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEClonerMeshBuilderParams& InParams)
+bool FCEMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObjectPtr<UMaterialInterface>>& OutMaterials, const FCEMeshBuilderParams& InParams)
 {
 	if (!IsValid(OutMesh))
 	{
@@ -805,16 +807,17 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(UStaticMesh* OutMesh, TArray<TWeakObj
 	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMaterials);
 }
 
-bool FCEClonerMeshBuilder::BuildStaticMesh(int32 InInstanceIndex, UStaticMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance)
+bool FCEMeshBuilder::BuildStaticMesh(int32 InInstanceIndex, UStaticMesh* OutMesh, FCEMeshInstanceData& OutMeshInstance)
 {
 	if (!IsValid(OutMesh) || !MeshInstances.IsValidIndex(InInstanceIndex))
 	{
 		return false;
 	}
 
-	FCEClonerMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+	FCEMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+	FDynamicMesh3& Mesh = Meshes[MeshInstance.MeshIndex];
 
-	if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+	if (Mesh.TriangleCount() == 0)
 	{
 		return false;
 	}
@@ -824,21 +827,22 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(int32 InInstanceIndex, UStaticMesh* O
 
 	OutMeshInstance.Transform = MeshInstance.MeshData.Transform;
 
-	OutputDynamicMesh->SetMesh(*MeshInstance.Mesh);
+	OutputDynamicMesh->SetMesh(Mesh);
 
 	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMeshInstance.MeshMaterials);
 }
 
-bool FCEClonerMeshBuilder::BuildDynamicMesh(int32 InInstanceIndex, UDynamicMesh* OutMesh, FCEClonerMeshInstanceData& OutMeshInstance)
+bool FCEMeshBuilder::BuildDynamicMesh(int32 InInstanceIndex, UDynamicMesh* OutMesh, FCEMeshInstanceData& OutMeshInstance)
 {
 	if (!IsValid(OutMesh) || !MeshInstances.IsValidIndex(InInstanceIndex))
 	{
 		return false;
 	}
 
-	FCEClonerMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+	FCEMeshInstance& MeshInstance = MeshInstances[InInstanceIndex];
+	FDynamicMesh3& Mesh = Meshes[MeshInstance.MeshIndex];
 
-	if (!MeshInstance.Mesh || MeshInstance.Mesh->TriangleCount() == 0)
+	if (Mesh.TriangleCount() == 0)
 	{
 		return false;
 	}
@@ -848,12 +852,12 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(int32 InInstanceIndex, UDynamicMesh*
 
 	OutMeshInstance.Transform = MeshInstance.MeshData.Transform;
 
-	OutMesh->SetMesh(*MeshInstance.Mesh);
+	OutMesh->SetMesh(Mesh);
 
 	return true;
 }
 
-bool FCEClonerMeshBuilder::BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances)
+bool FCEMeshBuilder::BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutMesh, TArray<FCEMeshInstanceData>& OutMeshInstances)
 {
 	const FDynamicMesh3* Mesh = Meshes.Find(InMeshIndex);
 
@@ -863,7 +867,7 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutM
 	}
 
 	OutMeshInstances.Empty(MeshInstances.Num());
-	for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
+	for (const FCEMeshInstance& MeshInstance : MeshInstances)
 	{
 		if (MeshInstance.MeshIndex == InMeshIndex)
 		{
@@ -881,7 +885,7 @@ bool FCEClonerMeshBuilder::BuildStaticMesh(uint32 InMeshIndex, UStaticMesh* OutM
 	return DynamicMeshToStaticMesh(OutputDynamicMesh, OutMesh, OutMeshInstances[0].MeshMaterials);
 }
 
-bool FCEClonerMeshBuilder::BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* OutMesh, TArray<FCEClonerMeshInstanceData>& OutMeshInstances)
+bool FCEMeshBuilder::BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* OutMesh, TArray<FCEMeshInstanceData>& OutMeshInstances)
 {
 	const FDynamicMesh3* Mesh = Meshes.Find(InMeshIndex);
 
@@ -891,7 +895,7 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* Ou
 	}
 
 	OutMeshInstances.Empty(MeshInstances.Num());
-	for (const FCEClonerMeshInstance& MeshInstance : MeshInstances)
+	for (const FCEMeshInstance& MeshInstance : MeshInstances)
 	{
 		if (MeshInstance.MeshIndex == InMeshIndex)
 		{
@@ -909,7 +913,7 @@ bool FCEClonerMeshBuilder::BuildDynamicMesh(uint32 InMeshIndex, UDynamicMesh* Ou
 	return true;
 }
 
-bool FCEClonerMeshBuilder::AppendPrimitiveComponent(const UObject* InMeshObject, UPrimitiveComponent* InComponent, const FTransform& InSourceTransform)
+bool FCEMeshBuilder::AppendPrimitiveComponent(const UObject* InMeshObject, UPrimitiveComponent* InComponent, const FTransform& InSourceTransform)
 {
 	if (!IsValid(InComponent))
 	{
@@ -957,7 +961,7 @@ bool FCEClonerMeshBuilder::AppendPrimitiveComponent(const UObject* InMeshObject,
 	});
 }
 
-bool FCEClonerMeshBuilder::DynamicMeshToStaticMesh(UDynamicMesh* InMesh, UStaticMesh* OutMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials)
+bool FCEMeshBuilder::DynamicMeshToStaticMesh(UDynamicMesh* InMesh, UStaticMesh* OutMesh, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials)
 {
 	TArray<TObjectPtr<UMaterialInterface>> NewMaterials;
 	Algo::Transform(InMaterials, NewMaterials, [](const TWeakObjectPtr<UMaterialInterface>& InMaterialWeak)
@@ -995,7 +999,7 @@ bool FCEClonerMeshBuilder::DynamicMeshToStaticMesh(UDynamicMesh* InMesh, UStatic
 	return OutResult == EGeometryScriptOutcomePins::Success;
 }
 
-void FCEClonerMeshBuilder::ClearOutputMesh() const
+void FCEMeshBuilder::ClearOutputMesh() const
 {
 	if (OutputDynamicMesh)
 	{
@@ -1003,15 +1007,16 @@ void FCEClonerMeshBuilder::ClearOutputMesh() const
 	}
 }
 
-FCEClonerMeshBuilder::FCEClonerMeshInstance* FCEClonerMeshBuilder::AddMeshInstance(uint32 InMeshIndex, const FTransform& InTransform, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, TFunctionRef<bool(UE::Geometry::FDynamicMesh3&)> InCreateMeshFunction)
+FCEMeshBuilder::FCEMeshInstance* FCEMeshBuilder::AddMeshInstance(uint32 InMeshIndex, const FTransform& InTransform, const TArray<TWeakObjectPtr<UMaterialInterface>>& InMaterials, TFunctionRef<bool(UE::Geometry::FDynamicMesh3&)> InCreateMeshFunction)
 {
-	FCEClonerMeshInstance MeshInstance;
+	FCEMeshInstance MeshInstance;
 	MeshInstance.MeshIndex = InMeshIndex;
-	MeshInstance.Mesh = Meshes.Find(InMeshIndex);
 	MeshInstance.MeshData.Transform = InTransform;
 	MeshInstance.MeshData.MeshMaterials = InMaterials;
 
-	if (!MeshInstance.Mesh)
+	FDynamicMesh3* CachedMesh = Meshes.Find(InMeshIndex);
+
+	if (!CachedMesh)
 	{
 		FDynamicMesh3 Mesh;
 
@@ -1019,13 +1024,13 @@ FCEClonerMeshBuilder::FCEClonerMeshInstance* FCEClonerMeshBuilder::AddMeshInstan
 
 		if (InCreateMeshFunction(Mesh) && Mesh.TriangleCount() > 0)
 		{
-			MeshInstance.Mesh = &Meshes.Add(InMeshIndex, MoveTemp(Mesh));
+			CachedMesh = &Meshes.Add(InMeshIndex, MoveTemp(Mesh));
 		}
 
 		ClearOutputMesh();
 	}
 
-	if (MeshInstance.Mesh)
+	if (CachedMesh)
 	{
 		return &MeshInstances.Add_GetRef(MeshInstance);
 	}

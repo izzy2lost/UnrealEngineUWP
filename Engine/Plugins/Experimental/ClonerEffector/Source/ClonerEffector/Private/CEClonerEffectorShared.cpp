@@ -151,7 +151,7 @@ AStaticMeshActor* UE::ClonerEffector::Conversion::ConvertClonerToStaticMesh(UCEC
 		return NewActor;
 	}
 
-	FCEClonerMeshBuilder ClonerMeshBuilder;
+	FCEMeshBuilder ClonerMeshBuilder;
 	const FTransform ClonerTransform = InCloner->GetComponentTransform();
 	if (!ClonerMeshBuilder.AppendComponent(InCloner, ClonerTransform))
 	{
@@ -212,7 +212,7 @@ AStaticMeshActor* UE::ClonerEffector::Conversion::ConvertClonerToStaticMesh(UCEC
 	}
 
 	TArray<TWeakObjectPtr<UMaterialInterface>> MeshMaterials;
-	FCEClonerMeshBuilder::FCEClonerMeshBuilderParams Params;
+	FCEMeshBuilder::FCEMeshBuilderParams Params;
 	Params.bMergeMaterials = true;
 	ClonerMeshBuilder.BuildStaticMesh(StaticMesh, MeshMaterials, Params);
 
@@ -267,7 +267,7 @@ ADynamicMeshActor* UE::ClonerEffector::Conversion::ConvertClonerToDynamicMesh(UC
 		return NewActor;
 	}
 
-	FCEClonerMeshBuilder ClonerMeshBuilder;
+	FCEMeshBuilder ClonerMeshBuilder;
 	const FTransform ClonerTransform = InCloner->GetComponentTransform();
 	if (!ClonerMeshBuilder.AppendComponent(InCloner, ClonerTransform))
 	{
@@ -297,7 +297,7 @@ ADynamicMeshActor* UE::ClonerEffector::Conversion::ConvertClonerToDynamicMesh(UC
 	UDynamicMeshComponent* DynamicMeshComponent = NewActor->GetDynamicMeshComponent();
 
 	TArray<TWeakObjectPtr<UMaterialInterface>> MeshMaterials;
-	FCEClonerMeshBuilder::FCEClonerMeshBuilderParams Params;
+	FCEMeshBuilder::FCEMeshBuilderParams Params;
 	Params.bMergeMaterials = true;
 	ClonerMeshBuilder.BuildDynamicMesh(DynamicMeshComponent->GetDynamicMesh(), MeshMaterials, Params);
 
@@ -335,7 +335,7 @@ TArray<AStaticMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToStaticM
 		return NewActors;
 	}
 
-	FCEClonerMeshBuilder ClonerMeshBuilder;
+	FCEMeshBuilder ClonerMeshBuilder;
 	const FTransform ClonerTransform = InCloner->GetComponentTransform();
 	if (!ClonerMeshBuilder.AppendComponent(InCloner, ClonerTransform))
 	{
@@ -399,7 +399,7 @@ TArray<AStaticMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToStaticM
 			continue;
 		}
 
-		TArray<FCEClonerMeshBuilder::FCEClonerMeshInstanceData> Instances;
+		TArray<FCEMeshBuilder::FCEMeshInstanceData> Instances;
 		ClonerMeshBuilder.BuildStaticMesh(MeshIndex, StaticMesh, Instances);
 
 		// Replace material references that are no assets to avoid save issue in new packages
@@ -415,7 +415,7 @@ TArray<AStaticMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToStaticM
 			StaticMesh->SetMaterial(Index, Material);
 		}
 
-		for (const FCEClonerMeshBuilder::FCEClonerMeshInstanceData& Instance : Instances)
+		for (const FCEMeshBuilder::FCEMeshInstanceData& Instance : Instances)
 		{
 			if (AStaticMeshActor* StaticMeshActor = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), ClonerTransform, SpawnParameters))
 			{
@@ -452,7 +452,7 @@ TArray<AStaticMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToStaticM
 
 			UStaticMesh* StaticMesh = NewObject<UStaticMesh>(StaticMeshComponent);
 
-			FCEClonerMeshBuilder::FCEClonerMeshInstanceData MeshData;
+			FCEMeshBuilder::FCEMeshInstanceData MeshData;
 			ClonerMeshBuilder.BuildStaticMesh(Index, StaticMesh, MeshData);
 
 			StaticMeshComponent->SetStaticMesh(StaticMesh);
@@ -495,7 +495,7 @@ TArray<ADynamicMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToDynami
 		return NewActors;
 	}
 
-	FCEClonerMeshBuilder ClonerMeshBuilder;
+	FCEMeshBuilder ClonerMeshBuilder;
 	const FTransform ClonerTransform = InCloner->GetComponentTransform();
 	if (!ClonerMeshBuilder.AppendComponent(InCloner, ClonerTransform))
 	{
@@ -535,7 +535,7 @@ TArray<ADynamicMeshActor*> UE::ClonerEffector::Conversion::ConvertClonerToDynami
 		{
 			UDynamicMeshComponent* DynamicMeshComponent = DynamicMeshActor->GetDynamicMeshComponent();
 
-			FCEClonerMeshBuilder::FCEClonerMeshInstanceData MeshData;
+			FCEMeshBuilder::FCEMeshInstanceData MeshData;
 			ClonerMeshBuilder.BuildDynamicMesh(Index, DynamicMeshComponent->GetDynamicMesh(), MeshData);
 
 			DynamicMeshActor->SetActorTransform(MeshData.Transform);
@@ -580,7 +580,7 @@ TArray<AActor*> UE::ClonerEffector::Conversion::ConvertClonerToInstancedStaticMe
 		return NewActors;
 	}
 
-	FCEClonerMeshBuilder ClonerMeshBuilder;
+	FCEMeshBuilder ClonerMeshBuilder;
 	const FTransform ClonerTransform = InCloner->GetComponentTransform();
 	if (!ClonerMeshBuilder.AppendComponent(InCloner, ClonerTransform))
 	{
@@ -649,7 +649,7 @@ TArray<AActor*> UE::ClonerEffector::Conversion::ConvertClonerToInstancedStaticMe
 				continue;
 			}
 
-			TArray<FCEClonerMeshBuilder::FCEClonerMeshInstanceData> Instances;
+			TArray<FCEMeshBuilder::FCEMeshInstanceData> Instances;
 			ClonerMeshBuilder.BuildStaticMesh(MeshIndex, StaticMesh, Instances);
 
 #if WITH_EDITOR
@@ -669,7 +669,7 @@ TArray<AActor*> UE::ClonerEffector::Conversion::ConvertClonerToInstancedStaticMe
 
 			ISMComponent->SetStaticMesh(StaticMesh);
 
-			for (const FCEClonerMeshBuilder::FCEClonerMeshInstanceData& Instance : Instances)
+			for (const FCEMeshBuilder::FCEMeshInstanceData& Instance : Instances)
 			{
 				ISMComponent->AddInstance(Instance.Transform, /** WorldSpace */true);
 			}

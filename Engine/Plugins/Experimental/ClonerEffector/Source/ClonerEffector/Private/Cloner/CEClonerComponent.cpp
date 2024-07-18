@@ -270,7 +270,7 @@ void UCEClonerComponent::UpdateAttachmentTree()
 		{
 			if (ClonedItem->MeshStatus == ECEClonerAttachmentStatus::Outdated)
 			{
-				ClonerTree.DirtyItemAttachments.Add(ClonedItem);
+				ClonerTree.DirtyItemAttachments.Add(ClonedItem->ItemActor);
 				InvalidateBakedStaticMesh(ClonedActor);
 			}
 			bClonerMeshesDirty = true;
@@ -521,7 +521,7 @@ void UCEClonerComponent::OnMaterialChanged(UObject* InObject)
 
 	for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
 	{
-		if (!PrimitiveComponent || !FCEClonerMeshBuilder::HasAnyGeometry(PrimitiveComponent))
+		if (!PrimitiveComponent || !FCEMeshBuilder::HasAnyGeometry(PrimitiveComponent))
 		{
 			continue;
 		}
@@ -577,7 +577,7 @@ void UCEClonerComponent::OnMeshChanged(UStaticMeshComponent*, AActor* InActor)
 
 		Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
         InvalidateBakedStaticMesh(InActor);
-		ClonerTree.DirtyItemAttachments.Add(Item);
+		ClonerTree.DirtyItemAttachments.Add(Item->ItemActor);
 	}
 }
 
@@ -658,12 +658,13 @@ void UCEClonerComponent::UpdateDirtyMeshesAsync()
 	}
 
 	bClonerMeshesUpdating = true;
-	TSet<FCEClonerAttachmentItem*> UpdateItems = ClonerTree.DirtyItemAttachments;
-	ClonerTree.DirtyItemAttachments.Empty();
+
+	TSet<TWeakObjectPtr<AActor>> DirtyAttachments = ClonerTree.DirtyItemAttachments;
+	ClonerTree.DirtyItemAttachments.Empty(DirtyAttachments.Num());
 
 	// Update baked dynamic meshes on other thread
 	TWeakObjectPtr<UCEClonerComponent> ThisWeak(this);
-	Async(EAsyncExecution::TaskGraph, [ThisWeak, UpdateItems]()
+	Async(EAsyncExecution::TaskGraph, [ThisWeak, DirtyAttachments]()
 	{
 		UCEClonerComponent* This = ThisWeak.Get();
 
@@ -674,9 +675,11 @@ void UCEClonerComponent::UpdateDirtyMeshesAsync()
 
 		// update actor baked dynamic meshes
 		bool bSuccess = true;
-		for (FCEClonerAttachmentItem* Item : UpdateItems)
+		for (const TWeakObjectPtr<AActor>& Attachment : DirtyAttachments)
 		{
-			if (!Item || !Item->ItemActor.IsValid())
+			AActor* DirtyActor = Attachment.Get();
+
+			if (!DirtyActor)
 			{
 				continue;
 			}
@@ -684,11 +687,11 @@ void UCEClonerComponent::UpdateDirtyMeshesAsync()
 			if (IsGarbageCollectingAndLockingUObjectHashTables())
 			{
 				bSuccess = false;
-				This->ClonerTree.DirtyItemAttachments.Add(Item);
+				This->ClonerTree.DirtyItemAttachments.Add(Attachment);
 				continue;
 			}
 
-			This->UpdateActorBakedDynamicMesh(Item->ItemActor.Get());
+			This->UpdateActorBakedDynamicMesh(DirtyActor);
 		}
 
 		// Create baked static mesh on main thread (required)
@@ -1496,7 +1499,7 @@ void UCEClonerComponent::OnRenderStateDirty(UActorComponent& InActorComponent)
 	}
 
 	// Does it contain geometry that we can convert
-	if (!FCEClonerMeshBuilder::IsComponentSupported(&InActorComponent))
+	if (!FCEMeshBuilder::IsComponentSupported(&InActorComponent))
 	{
 		return;
 	}
@@ -1515,7 +1518,7 @@ void UCEClonerComponent::OnRenderStateDirty(UActorComponent& InActorComponent)
 
 	Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
 	InvalidateBakedStaticMesh(Owner);
-	ClonerTree.DirtyItemAttachments.Add(Item);
+	ClonerTree.DirtyItemAttachments.Add(Item->ItemActor);
 }
 
 void UCEClonerComponent::OnComponentTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InTeleport)
@@ -1534,13 +1537,13 @@ void UCEClonerComponent::OnComponentTransformed(USceneComponent* InComponent, EU
 		return;
 	}
 
-	bool bComponentSupported = FCEClonerMeshBuilder::IsComponentSupported(InComponent);
+	bool bComponentSupported = FCEMeshBuilder::IsComponentSupported(InComponent);
 
 	if (!bComponentSupported)
 	{
 		for (const TObjectPtr<USceneComponent>& ChildComponent : InComponent->GetAttachChildren())
 		{
-			if (FCEClonerMeshBuilder::IsComponentSupported(ChildComponent))
+			if (FCEMeshBuilder::IsComponentSupported(ChildComponent))
 			{
 				bComponentSupported = true;
 				break;
@@ -1564,7 +1567,7 @@ void UCEClonerComponent::OnComponentTransformed(USceneComponent* InComponent, EU
 
 	Item->MeshStatus = ECEClonerAttachmentStatus::Outdated;
 	InvalidateBakedStaticMesh(Owner);
-	ClonerTree.DirtyItemAttachments.Add(Item);
+	ClonerTree.DirtyItemAttachments.Add(Item->ItemActor);
 }
 
 UCEClonerLayoutBase* UCEClonerComponent::FindOrAddLayout(TSubclassOf<UCEClonerLayoutBase> InClass)

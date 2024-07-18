@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CEClonerEffectorShared.h"
-#include "CEClonerMeshBuilder.h"
+#include "CEMeshBuilder.h"
 #include "CEPropertyChangeDispatcher.h"
 #include "Containers/Ticker.h"
 #include "Layouts/CEClonerLayoutBase.h"
@@ -422,7 +422,7 @@ private:
 	FCEClonerAttachmentTree ClonerTree;
 
 	UPROPERTY(Transient, DuplicateTransient, NonTransactional)
-	FCEClonerMeshBuilder MeshBuilder;
+	FCEMeshBuilder MeshBuilder;
 
 	/** Asset meshes needs update */
 	bool bClonerMeshesDirty = true;

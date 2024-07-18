@@ -23,6 +23,11 @@
 			"Name": "ClonerEffectorEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "ClonerEffectorMeshBuilder",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [

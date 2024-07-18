@@ -351,7 +351,8 @@ struct FCEClonerAttachmentTree
 	ECEClonerAttachmentStatus Status = ECEClonerAttachmentStatus::Updated;
 
 	/** Attachment items that are dirty and need an update */
-	TSet<FCEClonerAttachmentItem*> DirtyItemAttachments;
+	UPROPERTY()
+	TSet<TWeakObjectPtr<AActor>> DirtyItemAttachments;
 
 	void Reset()
 	{
