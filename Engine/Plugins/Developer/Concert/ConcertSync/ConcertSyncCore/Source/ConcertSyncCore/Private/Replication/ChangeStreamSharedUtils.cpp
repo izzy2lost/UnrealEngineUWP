@@ -134,6 +134,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 		for (const FConcertReplicationStream& StreamDescription : Request.StreamsToAdd)
 		{
+			ensureAlwaysMsgf(!StreamDescription.BaseDescription.ReplicationMap.IsEmpty(), TEXT("This should have been validated"));
 			StreamsToModify.Add(StreamDescription);
 		}
 	}

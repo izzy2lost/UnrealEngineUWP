@@ -265,5 +265,22 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 				});
 			TestTrue(TEXT("Received response"), bReceivedResponse);
 		});
+
+		It("When request puts an empty stream, the request fails", [this]
+		{
+			IConcertClientReplicationManager& ReplicationManager = Client1->GetClientReplicationManager();
+
+			FConcertReplication_PutState_Request Request;
+			Request.NewStreams.Add(Client1->GetEndpointId(), { .Streams= { FConcertReplicationStream{} } });
+			bool bReceivedResponse = false;
+			ReplicationManager
+				.PutClientState(Request)
+				.Next([this, &bReceivedResponse](FConcertReplication_PutState_Response&& Response)
+				{
+					bReceivedResponse = true;
+					TestEqual(TEXT("Response code"), Response.ResponseCode, EConcertReplicationPutStateResponseCode::StreamError);
+				});
+			TestTrue(TEXT("bReceivedResponse"), bReceivedResponse);
+		});
 	}
 }

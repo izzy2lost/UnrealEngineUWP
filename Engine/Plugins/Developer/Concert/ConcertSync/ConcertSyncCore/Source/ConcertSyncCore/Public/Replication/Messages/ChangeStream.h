@@ -294,7 +294,7 @@ struct FConcertReplication_ChangeStream_Response
 	UPROPERTY()
 	TMap<FConcertObjectInStreamID, EConcertPutObjectErrorCode> ObjectsToPutSemanticErrors;
 	
-	/** Streams that were in StreamsToAdd but that were not created (stream was already registered). */
+	/** Streams that were in StreamsToAdd but that were not created (stream was already registered, or was empty). */
 	UPROPERTY()
 	TSet<FGuid> FailedStreamCreation;
 

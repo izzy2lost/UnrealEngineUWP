@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Replication/Util/Mocks/ReplicationWorkspaceCallInterceptorMock.h"
 #include "Replication/Util/Spec/ReplicationClient.h"
@@ -78,6 +78,24 @@ namespace UE::ConcertSyncTests::Replication::RestoreContent
 					
 				});
 			TestTrue(TEXT("bReceivedQueryResponse"), bReceivedStreamResponse);
+		});
+
+		It("When a request tries to create an empty stream, the request fails", [this]
+		{
+			AddExpectedError(TEXT("Rejecting ChangeStream request from"));
+			
+			bool bReceivedResponse = false;
+			IConcertClientReplicationManager& ReplicationManager = Client->GetClientReplicationManager();
+			ReplicationManager
+				.ChangeStream({ .StreamsToAdd = { FConcertReplicationStream{ .BaseDescription = { .Identifier = StreamId } } } })
+				.Next([this, &bReceivedResponse](FConcertReplication_ChangeStream_Response&& Response)
+				{
+					bReceivedResponse = true;
+					TestFalse(TEXT("Failure"), Response.IsSuccess());
+					TestEqual(TEXT("FailedStreamCreation.Num()"), Response.FailedStreamCreation.Num(), 1);
+					TestTrue(TEXT("FailedStreamCreation.Contains(StreamId)"), Response.FailedStreamCreation.Contains(StreamId));
+				});
+			TestTrue(TEXT("bReceivedResponse"), bReceivedResponse);
 		});
 	}
 }

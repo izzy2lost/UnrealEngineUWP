@@ -63,7 +63,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		/** Checks that StreamsToAdd do not conflict with pre-existing ones and that all IDs in the request are also unique. */
-		static void ValidateAddedStreamsAreUnique(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
+		static void ValidateAddedStreamsAreValid(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			TSet<FGuid> DuplicateEntryDetection;
 			for (const FConcertReplicationStream& NewStream : Request.StreamsToAdd)
@@ -78,9 +78,10 @@ namespace UE::ConcertSyncServer::Replication
 				DuplicateEntryDetection.FindOrAdd(NewStreamId, &bIsDuplicateEntry);
 				
 				if ((bIdAlreadyExists && !bIsStreamRemoved)
-					|| bIsDuplicateEntry)
+					|| bIsDuplicateEntry
+					|| NewStream.BaseDescription.ReplicationMap.IsEmpty())
 				{
-					UE_LOG(LogConcert, Log, TEXT("Duplicate stream entry %s"), *NewStreamId.ToString(EGuidFormats::Short));
+					UE_LOG(LogConcert, Log, TEXT("Failed to create stream %s"), *NewStreamId.ToString(EGuidFormats::Short));
 					OutResponse.FailedStreamCreation.Add(NewStreamId);
 				}
 			}
@@ -131,7 +132,7 @@ namespace UE::ConcertSyncServer::Replication
 		OutResponse.ErrorCode = EReplicationResponseErrorCode::Handled;
 
 		Private::ValidatePutObjectsRequestSemantics(Request, Client, OutResponse);
-		Private::ValidateAddedStreamsAreUnique(Request, Client, OutResponse);
+		Private::ValidateAddedStreamsAreValid(Request, Client, OutResponse);
 		Private::LookForAuthorityConflicts(Request, Client, AuthorityManager, OutResponse);
 		ConcertSyncCore::Replication::ChangeStreamUtils::ValidateFrequencyChanges(Request, Client.GetStreamDescriptions(), &OutResponse.FrequencyErrors);
 			
