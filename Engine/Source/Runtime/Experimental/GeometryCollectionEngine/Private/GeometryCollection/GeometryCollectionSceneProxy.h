@@ -343,7 +343,7 @@ public:
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual SIZE_T GetTypeHash() const override;
 	virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
-#if WITH_EDITOR
+#if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
 	virtual void DrawStaticElements(FStaticPrimitiveDrawInterface* PDI) override;
@@ -406,6 +406,11 @@ protected:
 	uint32 bHasMaterialErrors : 1;
 	uint32 bCurrentlyInMotion : 1;
 	uint32 bRequiresGPUSceneUpdate : 1;
+	uint32 bEnableBoneSelection : 1;
+	
+#if GEOMETRYCOLLECTION_EDITOR_SELECTION
+	TArray<TRefCountPtr<HHitProxy>> HitProxies;
+#endif
 
 	FInstanceSceneDataBuffers InstanceSceneDataBuffersImpl;
 
