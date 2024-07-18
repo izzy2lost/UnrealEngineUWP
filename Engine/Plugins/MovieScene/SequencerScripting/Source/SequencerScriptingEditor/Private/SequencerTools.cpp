@@ -356,7 +356,7 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 	{
 		FSpawnableRestoreState SpawnableRestoreState(MovieScene, Player->GetSharedPlaybackState().ToSharedPtr());
  
-		if (SpawnableRestoreState.bWasChanged)
+		if (1 || SpawnableRestoreState.bWasChanged)
 		{
 			// Evaluate at the beginning of the subscene time to ensure that spawnables are created before export
 			FFrameTime StartTime = FFrameRate::TransformTime(UE::MovieScene::DiscreteInclusiveLower(MovieScene->GetPlaybackRange()).Value, MovieScene->GetTickResolution(), MovieScene->GetDisplayRate());
@@ -376,6 +376,10 @@ bool USequencerToolsFunctionLibrary::ExportAnimSequence(UWorld* World, ULevelSeq
 			AESQ.MovieSceneSequence = Sequence;
 			AESQ.RootMovieSceneSequence = Sequence;
 			bResult = MovieSceneToolHelpers::ExportToAnimSequence(AnimSequence, ExportOptions, AESQ, SkeletalMeshComp);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("USequencerToolsFunctionLibrary::ExportAnimSequence: No skel mesh found in Sequencer"));
 		}
 	}
 	
