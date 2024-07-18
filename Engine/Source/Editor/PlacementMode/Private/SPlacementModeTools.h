@@ -187,20 +187,8 @@ private:
 	typedef TTextFilter<const FPlaceableItem&> FPlacementAssetEntryTextFilter;
 	TSharedPtr<FPlacementAssetEntryTextFilter> SearchTextFilter;
 
-	/** Custom content slot, where a category has a custom generator */
-	TSharedPtr<SBox> CustomContent;
-	
-	/** Content container for any data driven content */
-	TSharedPtr<SBox> DataDrivenContent;
-
 	/* The search box used to update the filter text */
 	TSharedPtr<SSearchBox> SearchBoxPtr;
-
-	/* Category Filter */
-	TSharedPtr<SUniformWrapPanel> CategoryFilterPtr;
-
-	/* Active Category Filter Label */
-	TSharedPtr<STextBlock> FilterLabelPtr;
 
 	/** Array of filtered items to show in the list view */
 	TArray<TSharedPtr<FPlaceableItem>> FilteredItems;
