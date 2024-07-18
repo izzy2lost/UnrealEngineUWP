@@ -256,7 +256,7 @@ void FMaterialInstanceEditor::RegisterTabSpawners(const TSharedRef<class FTabMan
 	{
 		InTabManager->RegisterTabSpawner(LayerPropertiesTabId, FOnSpawnTab::CreateSP(this, &FMaterialInstanceEditor::SpawnTab_LayerProperties))
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE		
-			.SetDisplayName(LOCTEXT("LayerPropertiesTab", "Material Layers"))
+			.SetDisplayName(LOCTEXT("MaterialLayersTab", "Material Layers"))
 #else
 			.SetDisplayName(LOCTEXT("LayerPropertiesTab", "Layer Parameters"))
 #endif

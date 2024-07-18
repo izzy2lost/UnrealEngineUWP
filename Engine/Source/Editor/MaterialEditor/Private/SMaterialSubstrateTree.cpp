@@ -809,13 +809,13 @@ TSharedPtr<SWidget> SMaterialSubstrateTree::CreateContextMenu()
 		if (bCanAppendSubLayer)
 		{
 			const FSlateIcon PlusIcon(FAppStyle::GetAppStyleSetName(), "Plus");
-			MenuBuilder.AddMenuEntry(LOCTEXT("MaterialSubstrateTree", "Add New Layer"), FText(), PlusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::AddNodeLayer, StackParameterData->ParameterInfo.Index)));
+			MenuBuilder.AddMenuEntry(LOCTEXT("AddNewLayer", "Add New Layer"), FText(), PlusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::AddNodeLayer, StackParameterData->ParameterInfo.Index)));
 		}
 
 		if (bCanRemoveLayer)
 		{
 			const FSlateIcon MinusIcon(FAppStyle::GetAppStyleSetName(), "Icons.Minus");
-			MenuBuilder.AddMenuEntry(LOCTEXT("MaterialSubstrateTree", "Remove Layer"), FText(), MinusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::RemoveNodeLayer, StackParameterData->ParameterInfo.Index)));
+			MenuBuilder.AddMenuEntry(LOCTEXT("RemoveLayer", "Remove Layer"), FText(), MinusIcon, FUIAction(FExecuteAction::CreateSP(this, &SMaterialSubstrateTree::RemoveNodeLayer, StackParameterData->ParameterInfo.Index)));
 		}
 	}
 	return MenuBuilder.MakeWidget();
