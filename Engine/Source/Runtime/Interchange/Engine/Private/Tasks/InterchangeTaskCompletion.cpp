@@ -20,6 +20,22 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+
+namespace UE::Interchange::Private::ObjectDeletionUtils
+{
+	static void PurgeObject(UObject* Object)
+	{
+		if (Object)
+		{
+			Object->ClearFlags(RF_Standalone | RF_Public | RF_Transactional);
+			Object->ClearInternalFlags(EInternalObjectFlags::Async);
+			Object->SetFlags(RF_Transient);
+			Object->MarkAsGarbage();
+			Object->UObject::Rename(nullptr, GetTransientPackage(), REN_NonTransactional | REN_DontCreateRedirectors);
+		}
+	}
+}
+
 void UE::Interchange::FTaskPreCompletion_GameThread::Execute()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UE::Interchange::FTaskPreCompletion_GameThread::DoTask)
@@ -227,15 +243,10 @@ void UE::Interchange::FTaskCompletion_GameThread::Execute()
 			{
 				for (const FImportAsyncHelper::FImportedObjectInfo& AssetInfo : AssetInfos)
 				{
-					UObject* Asset = AssetInfo.ImportedObject;
-					if (Asset)
-					{
-						//Make any created asset go away
-						Asset->ClearFlags(RF_Standalone | RF_Public | RF_Transactional);
-						Asset->ClearInternalFlags(EInternalObjectFlags::Async);
-						Asset->SetFlags(RF_Transient);
-						Asset->MarkAsGarbage();
-					}
+					using namespace UE::Interchange::Private::ObjectDeletionUtils;
+
+					//Make any created asset go away
+					PurgeObject(AssetInfo.ImportedObject);
 				}
 			});
 
