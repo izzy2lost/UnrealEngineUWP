@@ -3,6 +3,7 @@
 #include "NNERuntimeRDGPool.h"
 #include "NNEHlslShadersConvCS.h"
 #include "NNEHlslShadersPoolCS.h"
+#include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHlslHelper.h"
 #include "NNETensor.h"
 #include "NNETypes.h"
@@ -37,6 +38,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		TArray<int32> KernelShape;
 		int32 CeilMode = 0; // 0 is floor, 1 is ceil
 		int32 KernelVolume = 0;
+		EPixelFormat BufferPixelFormat;
 
 	public:
 
@@ -169,6 +171,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					}
 				}
 			}
+			BufferPixelFormat = UE::NNEHlslShaders::Internal::TensorDataTypeToPixelFormat(Input.GetDataType());
 
 			return true;
 		}
@@ -184,8 +187,8 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			const FTensorRDG& Input = *InputTensors[0];
 			const FTensorRDG& Output = *OutputTensors[0];
-			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
-			const FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			const FRDGBufferSRVRef InputSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), BufferPixelFormat));
+			const FRDGBufferUAVRef OutputUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), BufferPixelFormat));
 			const FIntVector ThreadGroupCount = ComputeElementWiseThreadGroups(Output.GetVolume(), FPoolConstants::NUM_GROUP_THREADS);
 
 			// Set parameters
@@ -287,6 +290,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		FInputValidator InputValidator;
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);
+		InputValidator.AddSupportedType(ENNETensorDataType::Half);
 		InputValidator.AddRequired();
 		bIsValid &= InputValidator.Validate(InputTypes);
 

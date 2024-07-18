@@ -7,6 +7,7 @@
 #include "NNETypes.h"
 #include "NNEHlslShadersConvCS.h"
 #include "NNEHlslShadersConvMatmulCS.h"
+#include "NNEHlslShadersTypeHelper.h"
 #include "NNERuntimeRDGHelperTranspose.h"
 #include "NNERuntimeRDGHlslHelper.h"
 
@@ -43,6 +44,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		TArray<int32> Pads;
 		TArray<int32> Strides;
 		bool bAreWeightsTransposed = false;
+		EPixelFormat BufferPixelFormat;
 
 	public:
 
@@ -109,6 +111,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				Pads = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("pads"), PadsDefault);
 			}
 			Strides = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("strides"), DilationsOrStridesDefault);
+			BufferPixelFormat = TensorDataTypeToPixelFormat(Input.GetDataType());
 
 			return true;
 		}
@@ -125,12 +128,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			// Set parameters
 			FConvCS::FParameters* Params = GraphBuilder.AllocParameters<FConvCS::FParameters>();
 			FConvCS::FillInParameters(GroupSize, Input.GetShape().GetData(), Weights.GetShape().GetData(), HasBias, AutoPad, Group, Dilations,Strides, Pads, *Params);
-			Params->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
-			Params->W = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Weights.GetBuffer(), PF_R32_FLOAT));
+			Params->X = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), BufferPixelFormat));
+			Params->W = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Weights.GetBuffer(), BufferPixelFormat));
 			if (HasBias) {
-				Params->B = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Bias->GetBuffer(), PF_R32_FLOAT));
+				Params->B = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Bias->GetBuffer(), BufferPixelFormat));
 			}
-			Params->Y = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			Params->Y = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), BufferPixelFormat));
 
 			FConvCS::FPermutationDomain PermutationVector;
 
@@ -199,12 +202,12 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			// Set parameters
 			FConvMatmulCS::FParameters* Params = GraphBuilder.AllocParameters<FConvMatmulCS::FParameters>();
-			Params->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), PF_R32_FLOAT));
-			Params->Weight= GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Weights.GetBuffer(), PF_R32_FLOAT));
+			Params->Input = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Input.GetBuffer(), BufferPixelFormat));
+			Params->Weight= GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Weights.GetBuffer(), BufferPixelFormat));
 			if (bHasBias) {
-				Params->Bias = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Bias->GetBuffer(), PF_R32_FLOAT));
+				Params->Bias = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Bias->GetBuffer(), BufferPixelFormat));
 			}
-			Params->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), PF_R32_FLOAT));
+			Params->Output = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(Output.GetBuffer(), BufferPixelFormat));
 			Params->Ci = Ci;
 			Params->Hi = Hi;
 			Params->Wi = Wi;
@@ -314,11 +317,20 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		FInputValidator InputValidator;
 		InputValidator.AddSupportedType(ENNETensorDataType::Float);
+		InputValidator.AddSupportedType(ENNETensorDataType::Half);
 		InputValidator.AddRequired();
 		InputValidator.AddRequired();
 		InputValidator.AddOptional();
 		bIsValid &= InputValidator.Validate(InputTypes);
 
+		for (ENNETensorDataType InputType : InputTypes)
+		{
+			if (InputType != ENNETensorDataType::None && InputType != InputTypes[0])
+			{
+				UE_LOG(LogNNE, Warning, TEXT("All input tensor data types have to match each other"));
+				return false;
+			}
+		}
 		return bIsValid;
 	}
 

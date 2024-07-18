@@ -109,9 +109,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			return true;
 		}
 
-		
-
-
 		virtual void Dispatch(FRDGBuilder& GraphBuilder, TConstArrayView<FTensorRDGRef> InputTensors, TConstArrayView<FTensorRDGRef> OutputTensors) override
 		{
 			check(InputTensors.Num() >= 1);
@@ -162,9 +159,14 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		}
 		for (int32 i = 0; i < InputTypes.Num(); ++i)
 		{
-			if (InputTypes[i] != ENNETensorDataType::Float)
+			if (InputTypes[i] != ENNETensorDataType::Float && InputTypes[i] != ENNETensorDataType::Half)
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Concat operator input '%d' of type '%d' is not supported, should be float at the moment."), i, int(InputTypes[i]));
+				UE_LOG(LogNNE, Warning, TEXT("Concat operator input '%d' of type '%d' is not supported, should be float or half at the moment."), i, int(InputTypes[i]));
+				bIsValid = false;
+			}
+			if (InputTypes[i] != InputTypes[0])
+			{
+				UE_LOG(LogNNE, Warning, TEXT("Concat operator input '%d' of type '%d' does not match type '%d' of the first input."), i, int(InputTypes[i]), int(InputTypes[0]));
 				bIsValid = false;
 			}
 		}
