@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NNEHlslShadersElementWiseUnaryCS.h"
+
 #include "NNE.h"
 
 namespace UE::NNEHlslShaders::Internal
@@ -86,7 +87,7 @@ namespace UE::NNEHlslShaders::Internal
 
 		FString OpFunc = OpTable[(int32) OpType];
 
-		if (OpFunc == "")
+		if (OpFunc == FString(""))
 		{
 			UE_LOG(LogNNE, Warning, TEXT("Undefined ElementWise Unary operator name for operator:%d"), int(OpType));
 		}
