@@ -30,7 +30,7 @@ FMovieSceneSequenceTransform FMovieSceneSectionTimingParametersSeconds::MakeTran
 	const double StartTime   = InnerStartOffset;
 	const double EndTime     = SourceDuration - InnerEndOffset;
 	const double Duration    = EndTime - StartTime;
-	const double StartOffset = InnerStartOffset + (bLoop ? FirstLoopStartOffset : 0.f);
+	const double StartOffset = InnerStartOffset + FirstLoopStartOffset;
 
 	// Start offset
 	if (!FMath::IsNearlyZero(StartOffset))
