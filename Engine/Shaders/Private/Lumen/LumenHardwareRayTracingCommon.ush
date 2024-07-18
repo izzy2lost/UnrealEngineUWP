@@ -505,7 +505,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 		MinimalRayResult.bTwoSided = Payload.IsTwoSided();
 		MinimalRayResult.bFrontFace = Payload.IsFrontFace();
 		MinimalRayResult.bAlphaMasked = Payload.IsAlphaMasked();
-		MinimalRayResult.HitNormal = Payload.GetWorldNormal();
+		MinimalRayResult.HitNormal = Payload.IsFrontFace() ? Payload.GetWorldNormal() : -Payload.GetWorldNormal();
 		MinimalRayResult.HitT = Payload.HitT;
 		MinimalRayResult.SceneInstanceIndex = Payload.GetGPUSceneInstanceIndex();
 		MinimalRayResult.MaterialShaderIndex = Payload.GetMaterialShaderIndex();
