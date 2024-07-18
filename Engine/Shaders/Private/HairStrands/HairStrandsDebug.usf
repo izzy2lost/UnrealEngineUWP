@@ -838,11 +838,11 @@ void VisualizeDomPS(
 	float2 PixelPosAtTileCenter = PixelPos - (frac(PixelPos / TileSize) - 0.5f) * TileSize;
 	float2 UVAtTileCenter = PixelPosAtTileCenter * InvOutputResolution;
 
-	const float OffsetX = 50;
-	const float OffsetY = 220;
+	const float OffsetX = 450;
+	const float OffsetY = 50;
 	const float RectSize = 300;
 	const float4 DepthRect = float4(OffsetX, OffsetY, RectSize, RectSize);
-	const float4 DomRect = float4(OffsetX * 2 + RectSize, OffsetY, RectSize, RectSize);
+	const float4 DomRect = float4(OffsetX + RectSize, OffsetY, RectSize, RectSize);
 
 	float3 Color = 0;
 
@@ -919,7 +919,6 @@ uint MacroGroupCount;
 uint bViewRectOptimizeEnabled;
 uint bVoxelizationEnabled;
 int2 AtlasResolution;
-uint bIsGPUDriven;
 
 Buffer<int>	MacroGroupAABBBuffer;
 StructuredBuffer<FDeepShadowViewInfo> ShadowViewInfoBuffer;
@@ -930,55 +929,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	if (DispatchThreadId.x > 0)
 	{
 		return;
-	}
-
-	for (uint MacroGroupIt = 0; MacroGroupIt < MacroGroupCount; ++MacroGroupIt)
-	{
-		const FHairAABB Bound = ReadHairAABB(MacroGroupIt, MacroGroupAABBBuffer);
-		AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundVoxelAlignedColor());
-	}
-
-	const float4 FrustumColor = float4(0.5f, 1, 0, 1);
-	LOOP
-	for (uint SlotIt = 0; SlotIt < AllocatedSlotCount; ++SlotIt)
-	{
-		const float4x4 TranslatedWorldToClip = ShadowViewInfoBuffer[SlotIt].TranslatedWorldToClip;
-		const float4x4 ClipToTranslatedWorld = Inverse(TranslatedWorldToClip);
-
-		float4 P01 = float4(-1, -1, 0, 1);
-		float4 P11 = float4(-1,  1, 0, 1);
-		float4 P21 = float4( 1,  1, 0, 1);
-		float4 P31 = float4( 1, -1, 0, 1);
-
-		float4 P00 = float4(-1, -1, 1, 1);
-		float4 P10 = float4(-1,  1, 1, 1);
-		float4 P20 = float4( 1,  1, 1, 1);
-		float4 P30 = float4( 1, -1, 1, 1);
-
-		P00 = mul(P00, ClipToTranslatedWorld); P00 /= P00.w;
-		P10 = mul(P10, ClipToTranslatedWorld); P10 /= P10.w;
-		P20 = mul(P20, ClipToTranslatedWorld); P20 /= P20.w;
-		P30 = mul(P30, ClipToTranslatedWorld); P30 /= P30.w;
-
-		P01 = mul(P01, ClipToTranslatedWorld); P01 /= P01.w;
-		P11 = mul(P11, ClipToTranslatedWorld); P11 /= P11.w;
-		P21 = mul(P21, ClipToTranslatedWorld); P21 /= P21.w;
-		P31 = mul(P31, ClipToTranslatedWorld); P31 /= P31.w;
-
-		AddLineTWS(P00.xyz, P10.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P10.xyz, P20.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P20.xyz, P30.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P30.xyz, P00.xyz, FrustumColor, FrustumColor);
-
-		AddLineTWS(P00.xyz, P01.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P10.xyz, P11.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P20.xyz, P21.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P30.xyz, P31.xyz, FrustumColor, FrustumColor);
-
-		AddLineTWS(P01.xyz, P11.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P11.xyz, P21.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P21.xyz, P31.xyz, FrustumColor, FrustumColor);
-		AddLineTWS(P31.xyz, P01.xyz, FrustumColor, FrustumColor);
 	}
 
 
@@ -1001,7 +951,67 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	Print(Context, TEXT("DOM "), FontYellow); Newline(Context);
 	Print(Context, TEXT("Atlas resolution      : "), FontColor); Print(Context, AtlasResolution.x, FontColor, 4, 0); Print(Context, TEXT(" x "), FontColor); Print(Context, AtlasResolution.y, FontColor, 4, 0); Newline(Context);
 	Print(Context, TEXT("Atlas slots           : "), FontColor); Print(Context, AllocatedSlotCount, FontColor); Newline(Context);
-	Print(Context, TEXT("GPU driven            : "), FontColor); PrintBool(Context, bIsGPUDriven); Newline(Context);
+	Print(Context, TEXT("GPU driven            : "), FontColor); PrintBool(Context, true); Newline(Context);
+	Newline(Context);
+
+	Print(Context, TEXT("Bounds "), FontYellow); Newline(Context);
+	const bool bMacroAABB  = AddCheckbox(Context, TEXT("Macro  AABB "), false, FontColor); Newline(Context);
+	const bool bShadowAABB = AddCheckbox(Context, TEXT("Shadow AABB "), false, FontColor); Newline(Context);
+
+	if (bMacroAABB)
+	{
+		for (uint MacroGroupIt = 0; MacroGroupIt < MacroGroupCount; ++MacroGroupIt)
+		{
+			const FHairAABB Bound = ReadHairAABB(MacroGroupIt, MacroGroupAABBBuffer);
+			AddAABBTWS(Bound.Min, Bound.Max, GetGPUAABBMacroGroupBoundVoxelAlignedColor());
+		}
+	}
+
+	if (bShadowAABB)
+	{
+		const float4 FrustumColor = float4(0.5f, 1, 0, 1);
+		LOOP
+		for (uint SlotIt = 0; SlotIt < AllocatedSlotCount; ++SlotIt)
+		{
+			const float4x4 TranslatedWorldToClip = ShadowViewInfoBuffer[SlotIt].TranslatedWorldToClip;
+			const float4x4 ClipToTranslatedWorld = Inverse(TranslatedWorldToClip);
+
+			float4 P01 = float4(-1, -1, 0, 1);
+			float4 P11 = float4(-1,  1, 0, 1);
+			float4 P21 = float4( 1,  1, 0, 1);
+			float4 P31 = float4( 1, -1, 0, 1);
+
+			float4 P00 = float4(-1, -1, 1, 1);
+			float4 P10 = float4(-1,  1, 1, 1);
+			float4 P20 = float4( 1,  1, 1, 1);
+			float4 P30 = float4( 1, -1, 1, 1);
+
+			P00 = mul(P00, ClipToTranslatedWorld); P00 /= P00.w;
+			P10 = mul(P10, ClipToTranslatedWorld); P10 /= P10.w;
+			P20 = mul(P20, ClipToTranslatedWorld); P20 /= P20.w;
+			P30 = mul(P30, ClipToTranslatedWorld); P30 /= P30.w;
+
+			P01 = mul(P01, ClipToTranslatedWorld); P01 /= P01.w;
+			P11 = mul(P11, ClipToTranslatedWorld); P11 /= P11.w;
+			P21 = mul(P21, ClipToTranslatedWorld); P21 /= P21.w;
+			P31 = mul(P31, ClipToTranslatedWorld); P31 /= P31.w;
+
+			AddLineTWS(P00.xyz, P10.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P10.xyz, P20.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P20.xyz, P30.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P30.xyz, P00.xyz, FrustumColor, FrustumColor);
+
+			AddLineTWS(P00.xyz, P01.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P10.xyz, P11.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P20.xyz, P21.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P30.xyz, P31.xyz, FrustumColor, FrustumColor);
+
+			AddLineTWS(P01.xyz, P11.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P11.xyz, P21.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P21.xyz, P31.xyz, FrustumColor, FrustumColor);
+			AddLineTWS(P31.xyz, P01.xyz, FrustumColor, FrustumColor);
+		}
+	}
 }
 #endif // SHADER_DOMINFO
 

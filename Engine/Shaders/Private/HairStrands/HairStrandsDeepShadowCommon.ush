@@ -154,7 +154,7 @@ float2 ComputeJitteredSample(float2 Sample, float2 Jitter)
 
 float SampleDOM_PCSS(
 	float3 LightSpacePosition,
-	uint2 DeepShadowResolution,
+	uint2 DeepShadowAtlasResolution,
 	float DepthBias,
 	float4 InLayerDepths,
 	Texture2D<float> FrontDepthTexture,
@@ -188,7 +188,7 @@ float SampleDOM_PCSS(
 	float OccluderDistance = 0; // Occluder distance in clip space
 	for (uint OccluderIt = 0; OccluderIt < OccluderCount; ++OccluderIt)
 	{
-		const float2 Offset = ComputeJitteredSample(PoissonDisk[OccluderIt], Jitter) * DeepShadowResolution;
+		const float2 Offset = ComputeJitteredSample(PoissonDisk[OccluderIt], Jitter) * DeepShadowAtlasResolution;
 		const float2 SamplePosition = LightSpacePosition.xy + Offset;
 		const float2 P = floor(SamplePosition - float(0.5f).xx);
 		const uint2 C0 = P;
@@ -218,7 +218,7 @@ float SampleDOM_PCSS(
 	const float SampleRadius = OccluderDistance * tan(ApexHalfAngleInRad); // Sample radius in clip space
 	for (uint SampleIt = 0; SampleIt < SampleCount; ++SampleIt)
 	{
-		const float2 Offset = ComputeJitteredSample(PoissonDisk[SampleIt], Jitter) * SampleRadius * DeepShadowResolution;
+		const float2 Offset = ComputeJitteredSample(PoissonDisk[SampleIt], Jitter) * SampleRadius * DeepShadowAtlasResolution;
 		HairCount += SampleDOM_PCF2x2(LightSpacePosition + float3(Offset,0), DepthBias, InLayerDepths, FrontDepthTexture, DomTexture);
 	}
 	

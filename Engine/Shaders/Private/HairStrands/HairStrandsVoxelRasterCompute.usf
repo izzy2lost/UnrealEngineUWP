@@ -913,8 +913,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 ///////////////////////////////////////////////////////////////////////////
 
 #if SHADER_DEPTH_INJECTION
-float4x4 CPU_TranslatedWorldToClip;
-
 float2 OutputResolution;
 uint MacroGroupId;
 uint AtlasSlotIndex;
@@ -922,7 +920,6 @@ uint AtlasSlotIndex;
 float3 LightDirection;
 uint bIsDirectional;
 float3 TranslatedLightPosition;
-uint bIsGPUDriven;
 
 StructuredBuffer<FDeepShadowViewInfo> DeepShadowViewInfoBuffer;
 
@@ -996,12 +993,8 @@ void MainVS(
 	case 35: TranslatedWorldPosition = Position7; break;
 	}
 
-	float4x4 TranslatedWorldToClipMatrix = CPU_TranslatedWorldToClip;
-	if (bIsGPUDriven)
-	{
-		FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
-		TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
-	}
+	const FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
+	const float4x4 TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
 
 	OutTranslatedWorldPosition = TranslatedWorldPosition;
 	OutPosition = mul(float4(TranslatedWorldPosition, 1), TranslatedWorldToClipMatrix);
@@ -1062,12 +1055,8 @@ void MainPS(
 
 	if (bIsValid)
 	{
-		float4x4 TranslatedWorldToClipMatrix = CPU_TranslatedWorldToClip;
-		if (bIsGPUDriven)
-		{
-			FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
-			TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
-		}
+		const FDeepShadowViewInfo DeepShadowViewInfo = DeepShadowViewInfoBuffer[AtlasSlotIndex];
+		const float4x4 TranslatedWorldToClipMatrix = DeepShadowViewInfo.TranslatedWorldToClipScaledBiased;
 		const float3 HitP = TranslatedWP0 + normalize(TranslatedWP1 - TranslatedWP0) * TraversalResult.HitT;
 		float4 ClipP = mul(float4(HitP, 1), TranslatedWorldToClipMatrix);
 		OutDepth = ClipP.z /= ClipP.w;

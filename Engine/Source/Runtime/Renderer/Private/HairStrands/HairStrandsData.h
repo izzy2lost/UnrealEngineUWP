@@ -238,15 +238,12 @@ struct FMinHairRadiusAtDepth1
 /// Hold deep shadow information for a given light.
 struct FHairStrandsDeepShadowData
 {
-	static const uint32 MaxMacroGroupCount = 16u;
-
-	FMatrix CPU_TranslatedWorldToLightTransform;
 	FMinHairRadiusAtDepth1 CPU_MinStrandRadiusAtDepth1;
 	FIntRect AtlasRect;
 	uint32 MacroGroupId = ~0;
 	uint32 AtlasSlotIndex = 0;
 
-	FIntPoint ShadowResolution = FIntPoint::ZeroValue;
+	FIntPoint AtlasResolution = FIntPoint::ZeroValue;
 	uint32 LightId = ~0;
 	bool bIsLightDirectional = false;
 	FVector3f LightDirection;
@@ -267,7 +264,6 @@ struct FHairStrandsDeepShadowResources
 
 	uint32 TotalAtlasSlotCount = 0;
 	FIntPoint AtlasSlotResolution;
-	bool bIsGPUDriven = false;
 
 	FRDGTextureRef DepthAtlasTexture = nullptr;
 	FRDGTextureRef LayersAtlasTexture = nullptr;

@@ -42,9 +42,7 @@ float3 GetTranslatedWorldPosition(float2 UV, float SceneDepth)
 #if SHADER_SHADOWMASK_DEEPSHADOW
 
 StructuredBuffer<FDeepShadowViewInfo> DeepShadow_ViewInfoBuffer;
-uint				DeepShadow_bIsGPUDriven;
 
-float4x4			DeepShadow_CPUTranslatedWorldToLightTransform;
 int2				DeepShadow_SlotResolution;
 int2				DeepShadow_SlotOffset;
 uint				DeepShadow_SlotIndex;
@@ -67,18 +65,9 @@ SamplerState 		ShadowSampler;
 //  W: Positive if the position is valid, negative otherwise
 float4 ToLightPosition(float3 InTranslatedWorldPosition, out float4 AtlasScaleBias)
 {
-	float4x4 TranslatedWorldToLightTransform = 0;
-	if (DeepShadow_bIsGPUDriven > 0)
-	{
-		FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[DeepShadow_SlotIndex];
-		TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
-		AtlasScaleBias = ShadowViewInfo.AtlasScaleBias;
-	}
-	else
-	{
-		TranslatedWorldToLightTransform = DeepShadow_CPUTranslatedWorldToLightTransform;
-		AtlasScaleBias = float4(1.0f, 1.0f, 0.0f, 0.0f);
-	}
+	FDeepShadowViewInfo ShadowViewInfo = DeepShadow_ViewInfoBuffer[DeepShadow_SlotIndex];
+	float4x4 TranslatedWorldToLightTransform = ShadowViewInfo.TranslatedWorldToClip;
+	AtlasScaleBias = ShadowViewInfo.AtlasScaleBias;
 
 	float4 LightPos = mul(float4(InTranslatedWorldPosition,1), TranslatedWorldToLightTransform);
 	LightPos.xyz/= LightPos.w;
