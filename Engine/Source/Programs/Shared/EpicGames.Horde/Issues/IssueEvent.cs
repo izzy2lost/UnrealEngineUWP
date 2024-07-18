@@ -3,8 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -84,8 +82,7 @@ namespace EpicGames.Horde.Issues
 		/// <summary>
 		/// Filter for changes that should be included in this issue
 		/// </summary>
-		[JsonConverter(typeof(ChangeFilterJsonConverter))]
-		public IReadOnlyList<string> ChangeFilter { get; set; }
+		public string ChangeFilter { get; set; }
 
 		/// <summary>
 		/// Individual log events
@@ -98,22 +95,22 @@ namespace EpicGames.Horde.Issues
 		/// <param name="type">The type of issue</param>
 		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
 		/// <param name="changeFilter">Filter for changes covered by this issue</param>
-		public IssueEventGroup(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+		public IssueEventGroup(string type, string summaryTemplate, string changeFilter)
 		{
 			Type = type;
 			SummaryTemplate = summaryTemplate;
 			ChangeFilter = changeFilter;
 		}
-	}
 
-	class ChangeFilterJsonConverter : JsonConverter<IReadOnlyList<string>>
-	{
-		/// <inheritdoc/>
-		public override IReadOnlyList<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-			=> (reader.GetString() ?? String.Empty).Split(';');
-
-		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, IReadOnlyList<string> value, JsonSerializerOptions options)
-			=> writer.WriteStringValue(String.Join(";", value));
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="type">The type of issue</param>
+		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
+		/// <param name="changeFilter">Filter for changes covered by this issue</param>
+		public IssueEventGroup(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+			: this(type, summaryTemplate, String.Join(";", changeFilter))
+		{
+		}
 	}
 }

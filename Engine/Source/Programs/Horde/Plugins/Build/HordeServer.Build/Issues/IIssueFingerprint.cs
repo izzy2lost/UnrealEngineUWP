@@ -40,7 +40,7 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Filter for changes that should be included in this issue
 		/// </summary>
-		public IReadOnlyList<string> ChangeFilter { get; }
+		public string ChangeFilter { get; }
 	}
 
 	/// <summary>

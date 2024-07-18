@@ -51,7 +51,7 @@ namespace HordeServer.Issues
 		IReadOnlySet<IssueMetadata>? IIssueFingerprint.Metadata => (Metadata.Count > 0) ? Metadata : null;
 
 		/// <inheritdoc/>
-		public IReadOnlyList<string> ChangeFilter { get; set; }
+		public string ChangeFilter { get; set; }
 
 		/// <summary>
 		/// Constructor
@@ -59,7 +59,7 @@ namespace HordeServer.Issues
 		/// <param name="type">The type of issue</param>
 		/// <param name="summaryTemplate">Template for the summary string to display for the issue</param>
 		/// <param name="changeFilter">Filter for changes covered by this issue</param>
-		public NewIssueFingerprint(string type, string summaryTemplate, IReadOnlyList<string> changeFilter)
+		public NewIssueFingerprint(string type, string summaryTemplate, string changeFilter)
 		{
 			Type = type;
 			SummaryTemplate = summaryTemplate;
@@ -75,7 +75,7 @@ namespace HordeServer.Issues
 		/// <param name="rejectKeys">Keys which should not match with this issue</param>
 		/// <param name="metadata">Additional metadata added by the issue handler</param>
 		/// <param name="changeFilter">Filter for changes covered by this issue</param>
-		public NewIssueFingerprint(string type, string summaryTemplate, IEnumerable<IssueKey> keys, IEnumerable<IssueKey>? rejectKeys, IEnumerable<IssueMetadata>? metadata, IEnumerable<string> changeFilter)
+		public NewIssueFingerprint(string type, string summaryTemplate, IEnumerable<IssueKey> keys, IEnumerable<IssueKey>? rejectKeys, IEnumerable<IssueMetadata>? metadata, string changeFilter)
 		{
 			Type = type;
 			SummaryTemplate = summaryTemplate;
@@ -90,7 +90,7 @@ namespace HordeServer.Issues
 				Metadata = new HashSet<IssueMetadata>(metadata);
 			}
 
-			ChangeFilter = new List<string>(changeFilter);
+			ChangeFilter = changeFilter;
 		}
 
 		/// <summary>

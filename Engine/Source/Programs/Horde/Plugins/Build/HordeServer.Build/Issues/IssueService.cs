@@ -1219,7 +1219,7 @@ namespace HordeServer.Issues
 		async Task<List<NewIssueSpanSuspectData>> FindSuspectsForSpanAsync(StreamConfig streamConfig, IIssueFingerprint fingerprint, int minChange, int maxChange, CancellationToken cancellationToken)
 		{
 			List<NewIssueSpanSuspectData> suspects = new List<NewIssueSpanSuspectData>();
-			if (fingerprint.ChangeFilter.Count > 0)
+			if (!String.IsNullOrEmpty(fingerprint.ChangeFilter))
 			{
 				_logger.LogDebug("Querying for changes in {StreamName} between {MinChange} and {MaxChange}", streamConfig.Name, minChange, maxChange);
 
@@ -1228,7 +1228,7 @@ namespace HordeServer.Issues
 				_logger.LogDebug("Found {NumResults} changes", changes.Count);
 
 				// Get all the parameters used to rank suspects
-				FileFilter filter = new FileFilter(fingerprint.ChangeFilter);
+				FileFilter filter = new FileFilter(fingerprint.ChangeFilter.Split(";", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
 				// Build a set of all the files to include as suspects
 				HashSet<string> suspectFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -266,10 +266,18 @@ namespace HordeServer.Issues
 
 			IReadOnlySet<IssueMetadata>? IIssueFingerprint.Metadata => Metadata;
 
-			[BsonElement("flt"), BsonIgnoreIfNull]
-			public List<string>? ChangeFilter { get; set; }
+			[BsonElement("fl2")]
+			public string? ChangeFilter { get; set; }
 
-			IReadOnlyList<string> IIssueFingerprint.ChangeFilter => ChangeFilter ?? GetLegacyHandlerInfo(Type).ChangeFilter;
+			[Obsolete("Use ChangeFilter instead")]
+			[BsonElement("flt"), BsonIgnoreIfNull]
+			public List<string>? LegacyChangeFilter
+			{
+				get => null;
+				set => ChangeFilter = (value == null)? null : String.Join(";", value);
+			}
+
+			string IIssueFingerprint.ChangeFilter => ChangeFilter ?? String.Join(";", GetLegacyHandlerInfo(Type).ChangeFilter);
 
 			[BsonConstructor]
 			private IssueFingerprint()
@@ -292,7 +300,7 @@ namespace HordeServer.Issues
 					Metadata = new HashSet<IssueMetadata>(fingerprint.Metadata);
 				}
 
-				ChangeFilter = new List<string>(fingerprint.ChangeFilter);
+				ChangeFilter = fingerprint.ChangeFilter;
 			}
 
 			#region Legacy
