@@ -520,7 +520,35 @@ private:
 	void ApplyAxisPropertyModifiers(UEnhancedPlayerInput* PlayerInput, struct FEnhancedActionKeyMapping& Mapping) const;
 
 	TMap<TWeakObjectPtr<const UInputAction>, FInputActionValue> ForcedActions;
-	TMap<FKey, FInputActionValue> ForcedKeys;
+
+	/** 
+	* Data storing the state of input values we inject for specific FKeys
+	*/
+	struct FInjectedKeyData
+	{
+		FInjectedKeyData() = default;
+		
+		FInjectedKeyData(const FInputActionValue& Value)
+			: InputValue(Value)
+			, LastInjectedValue(FInputActionValue(FVector::ZeroVector))
+		{}
+		
+		/** 
+		* The desired input action value to inject when we tick.
+		*/
+		FInputActionValue InputValue = FInputActionValue(FVector::ZeroVector);
+
+		/**
+		 * The last input value which was injected for this key. This is
+		 * set on tick after we have injected the input for this key at least once.
+		 */
+		FInputActionValue LastInjectedValue = FInputActionValue(FVector::ZeroVector);
+	};
+
+	/**
+	 * Map of FKey's to any input data that we are injecting to the player right now.
+	 */
+	TMap<FKey, FInjectedKeyData> ForcedKeys;
 
 	/**
 	 * A map of input actions with a Chorded trigger, mapped to the action they are dependent on.
