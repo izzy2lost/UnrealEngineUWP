@@ -82,6 +82,7 @@ namespace NiagaraSystemPrivate
 {
 	static const FName NAME_ActiveEmitters("ActiveEmitters");
 	static const FName NAME_ActiveRenderers("ActiveRenderers");
+	static const FName NAME_ActiveStatelessEmitters("ActiveStatelessEmitters");
 	static const FName NAME_GPUSimsMissingFixedBounds("GPUSimsMissingFixedBounds");
 	static const FName NAME_EffectType("EffectType");
 	static const FName NAME_WarmupTime("WarmupTime");
@@ -1564,35 +1565,68 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 	// Gather up generic NumActive values
 	uint32 NumActiveEmitters = 0;
 	uint32 NumActiveRenderers = 0;
+	uint32 NumActiveStatelessEmitters = 0;
 	TArray<const UNiagaraRendererProperties*> ActiveRenderers;
 	for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
 	{
-		if (Handle.GetIsEnabled())
+		if (!Handle.GetIsEnabled())
 		{
+			continue;
+		}
 
-			NumActiveEmitters++;
-			if (FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData())
+		++NumActiveEmitters;
+
+		switch ( Handle.GetEmitterMode() )
+		{
+			case ENiagaraEmitterMode::Standard:
 			{
-				// Only register fixed bounds requirement for GPU if the system itself isn't fixed bounds.
-				if (bFixedBounds == false && EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Dynamic && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
+				if (FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData())
 				{
-					GPUSimsMissingFixedBounds++;
-				}
-
-				for (const UNiagaraRendererProperties* Props : EmitterData->GetRenderers())
-				{
-					if (Props)
+					// Only register fixed bounds requirement for GPU if the system itself isn't fixed bounds.
+					if (bFixedBounds == false && EmitterData->CalculateBoundsMode == ENiagaraEmitterCalculateBoundMode::Dynamic && EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim)
 					{
-						NumActiveRenderers++;
-						ActiveRenderers.Add(Props);
+						GPUSimsMissingFixedBounds++;
+					}
+
+					for (const UNiagaraRendererProperties* Props : EmitterData->GetRenderers())
+					{
+						if (Props)
+						{
+							NumActiveRenderers++;
+							ActiveRenderers.Add(Props);
+						}
 					}
 				}
+				break;
 			}
+
+			case ENiagaraEmitterMode::Stateless:
+				{
+					if (UNiagaraStatelessEmitter* StatelessEmitter = Handle.GetStatelessEmitter())
+					{
+						++NumActiveStatelessEmitters;
+
+						for (const UNiagaraRendererProperties* Props : StatelessEmitter->GetRenderers())
+						{
+							if (Props)
+							{
+								NumActiveRenderers++;
+								ActiveRenderers.Add(Props);
+							}
+						}
+					}
+					break;
+				}
+
+			default:
+				checkNoEntry();
+				break;
 		}
 	}
 
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveEmitters, LexToString(NumActiveEmitters), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveRenderers, LexToString(NumActiveRenderers), FAssetRegistryTag::TT_Numerical));
+	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_ActiveStatelessEmitters, LexToString(NumActiveStatelessEmitters), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_GPUSimsMissingFixedBounds, LexToString(GPUSimsMissingFixedBounds), FAssetRegistryTag::TT_Numerical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_EffectType, EffectType != nullptr ? EffectType->GetName() : FString(TEXT("None")), FAssetRegistryTag::TT_Alphabetical));
 	Context.AddTag(FAssetRegistryTag(NiagaraSystemPrivate::NAME_WarmupTime, LexToString(WarmupTime), FAssetRegistryTag::TT_Numerical));
@@ -1610,19 +1644,16 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 
 		for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
 		{
-			if (Handle.GetIsEnabled())
+			if (!Handle.GetIsEnabled())
 			{
-				FVersionedNiagaraEmitter Emitter = Handle.GetInstance();
-				FVersionedNiagaraEmitterData* EmitterData = Emitter.GetEmitterData();
-				if (EmitterData)
+				continue;
+			}
+
+			for (int32 i = 0; i < NumQualityLevels; i++)
+			{
+				if ( Handle.IsEnabledOnEffectQualityLevel(i) )
 				{
-					for (int32 i = 0; i < NumQualityLevels; i++)
-					{
-						if (EmitterData->Platforms.IsEffectQualityEnabled(i))
-						{
-							QualityLevelsNumActive[i]++;
-						}
-					}
+					QualityLevelsNumActive[i]++;
 				}
 			}
 		}
@@ -1758,6 +1789,11 @@ void UNiagaraSystem::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMe
 		NiagaraSystemPrivate::NAME_ActiveRenderers,
 		FAssetRegistryTagMetadata()
 		.SetDisplayName(LOCTEXT("ActiveRenderers", "Active Renderers"))
+	);
+	OutMetadata.Add(
+		NiagaraSystemPrivate::NAME_ActiveStatelessEmitters,
+		FAssetRegistryTagMetadata()
+		.SetDisplayName(LOCTEXT("ActiveStatelessEmitters", "Active Lightweight Emitters"))
 	);
 	OutMetadata.Add(
 		NiagaraSystemPrivate::NAME_GPUSimsMissingFixedBounds,

@@ -71,6 +71,9 @@ public:
 	/** Test to see if the emitter is allowed by scalability or not */
 	NIAGARA_API bool IsAllowedByScalability() const;
 
+	/** Test to see if the emitter is enabled on the provided quality level or not. */
+	NIAGARA_API bool IsEnabledOnEffectQualityLevel(int32 QualityLevel) const;
+
 #if WITH_EDITORONLY_DATA
 	bool IsIsolated() const {	return bIsolated; }
 	void SetIsolated(bool bInIsolated) { bIsolated = bInIsolated; }

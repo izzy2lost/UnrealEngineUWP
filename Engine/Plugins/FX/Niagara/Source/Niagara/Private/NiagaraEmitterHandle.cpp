@@ -182,6 +182,19 @@ bool FNiagaraEmitterHandle::IsAllowedByScalability() const
 }
 
 #if WITH_EDITORONLY_DATA
+bool FNiagaraEmitterHandle::IsEnabledOnEffectQualityLevel(int32 QualityLevel) const
+{
+	if (EmitterMode == ENiagaraEmitterMode::Standard)
+	{
+		FVersionedNiagaraEmitterData* EmitterData = VersionedInstance.GetEmitterData();
+		return EmitterData ? EmitterData->Platforms.IsEffectQualityEnabled(QualityLevel) : false;
+	}
+	else
+	{
+		return StatelessEmitter ? StatelessEmitter->GetPlatformSet().IsEffectQualityEnabled(QualityLevel) : false;
+	}
+}
+
 void FNiagaraEmitterHandle::SetEmitterMode(UNiagaraSystem& InOwningSystem, ENiagaraEmitterMode InEmitterMode)
 {
 	if (EmitterMode != InEmitterMode)
