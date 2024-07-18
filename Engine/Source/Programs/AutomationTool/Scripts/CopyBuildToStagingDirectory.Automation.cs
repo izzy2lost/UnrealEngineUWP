@@ -5106,8 +5106,11 @@ namespace AutomationScripts
 
 			CopyUsingStagingManifest(Params, SC);
 
-			var ThisPlatform = SC.StageTargetPlatform;
-			ThisPlatform.PostStagingFileCopy(Params, SC);
+			if (SC.CustomDeployment == null || !SC.CustomDeployment.PostStagingFileCopy(Params, SC))
+			{
+				var ThisPlatform = SC.StageTargetPlatform;
+				ThisPlatform.PostStagingFileCopy(Params, SC);
+			}
 		}
 
 		private static DirectoryReference GetIntermediateCommandlineDir(DeploymentContext SC)

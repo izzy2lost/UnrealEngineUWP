@@ -26,6 +26,7 @@ public abstract class CustomDeploymentHandler
 	public virtual bool PreGetFilesToDeployOrStage(ProjectParams Params, DeploymentContext SC) => false;
 	public virtual bool GetFilesToStageForDLC(ProjectParams Params, DeploymentContext SC) => false;
 	public virtual bool GetFilesToArchive(ProjectParams Params, DeploymentContext SC) => false;
+	public virtual bool PostStagingFileCopy(ProjectParams Params, DeploymentContext SC) => false;
 
 	// always called
 	public virtual void PostPackage(ProjectParams Params, DeploymentContext SC, int WorkingCL) { }
