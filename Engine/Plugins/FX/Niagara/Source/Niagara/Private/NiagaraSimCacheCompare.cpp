@@ -409,13 +409,12 @@ bool FNiagaraSimCacheCompare::CompareEmitter(const UNiagaraSimCache& LhsCache, c
 				return false;
 			}
 		}
-	}
-
-	if (InstanceMapping.Num() == 0)
-	{
-		for (int32 i=0; i < LhsNumInstances; ++i)
+		else
 		{
-			InstanceMapping[i] = i;
+			for (int32 i = 0; i < LhsNumInstances; ++i)
+			{
+				InstanceMapping[i] = i;
+			}
 		}
 	}
 
