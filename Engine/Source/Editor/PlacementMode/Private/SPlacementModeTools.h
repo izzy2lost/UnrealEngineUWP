@@ -180,6 +180,9 @@ private:
 	/** Flag to indicate that we need to update the list of shown items */
 	bool bUpdateShownItems;
 
+	/** Flag to indicate that we're programmatically changing the search text and that we should skip updating the placement entries */
+	bool bIsRawSearchChange;
+
 	// The text filter used to filter the classes
 	typedef TTextFilter<const FPlaceableItem&> FPlacementAssetEntryTextFilter;
 	TSharedPtr<FPlacementAssetEntryTextFilter> SearchTextFilter;
