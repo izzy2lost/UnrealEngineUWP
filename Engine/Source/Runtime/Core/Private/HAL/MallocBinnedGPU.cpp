@@ -573,7 +573,7 @@ void FMallocBinnedGPU::InitMallocBinned()
 
 	if (ArenaParams.bUseStandardSmallPoolSizes)
 	{
-		SizeTable.AddZeroed(BINNEDCOMMON_NUM_LISTED_SMALL_POOLS + ArenaParams.MaxStandardPoolSize / ArenaParams.BasePageSize); // overestimate
+		SizeTable.AddZeroed(UE_MBC_NUM_LISTED_SMALL_POOLS + ArenaParams.MaxStandardPoolSize / ArenaParams.BasePageSize); // overestimate
 		ArenaParams.PoolCount = FSizeTableEntry::FillSizeTable(ArenaParams.AllocationGranularity, &SizeTable[0], ArenaParams.BasePageSize, ArenaParams.MinimumAlignment, ArenaParams.MaxStandardPoolSize, ArenaParams.BasePageSize);
 		SizeTable.RemoveAt(ArenaParams.PoolCount, SizeTable.Num() - ArenaParams.PoolCount);
 	}
@@ -602,7 +602,7 @@ void FMallocBinnedGPU::InitMallocBinned()
 	}
 	check(ArenaParams.PoolCount == SizeTable.Num());
 	check(SizeTable.Num() < 256);
-	ArenaParams.MaxPoolSize = SizeTable[ArenaParams.PoolCount - 1].BlockSize;
+	ArenaParams.MaxPoolSize = SizeTable[ArenaParams.PoolCount - 1].BinSize;
 
 	check(ArenaParams.BasePageSize % sizeof(FPoolInfoSmall) == 0);
 	SmallPoolInfosPerPlatformPage = ArenaParams.BasePageSize / sizeof(FPoolInfoSmall);
@@ -619,23 +619,22 @@ void FMallocBinnedGPU::InitMallocBinned()
 
 	for (uint32 Index = 0; Index < ArenaParams.PoolCount; ++Index)
 	{
-		checkf(Index == 0 || SizeTable[Index - 1].BlockSize < SizeTable[Index].BlockSize, TEXT("Small block sizes must be strictly increasing"));
-		checkf(SizeTable[Index].BlockSize % ArenaParams.MinimumAlignment == 0, TEXT("Small block size must be a multiple of ArenaParams.MinimumAlignment"));
+		checkf(Index == 0 || SizeTable[Index - 1].BinSize < SizeTable[Index].BinSize, TEXT("Small block sizes must be strictly increasing"));
+		checkf(SizeTable[Index].BinSize % ArenaParams.MinimumAlignment == 0, TEXT("Small block size must be a multiple of ArenaParams.MinimumAlignment"));
 
 		// determine the largest alignment that we can cover with a small block
-		while (ArenaParams.MaximumAlignmentForSmallBlock < ArenaParams.AllocationGranularity && IsAligned(SizeTable[Index].BlockSize, ArenaParams.MaximumAlignmentForSmallBlock * 2))
+		while (ArenaParams.MaximumAlignmentForSmallBlock < ArenaParams.AllocationGranularity && IsAligned(SizeTable[Index].BinSize, ArenaParams.MaximumAlignmentForSmallBlock * 2))
 		{
 			ArenaParams.MaximumAlignmentForSmallBlock *= 2;
 		}
 
-		SmallPoolTables[Index].BlockSize = SizeTable[Index].BlockSize;
-		SmallPoolTables[Index].BlocksPerBlockOfBlocks = SizeTable[Index].BlocksPerBlockOfBlocks;
-		SmallPoolTables[Index].PagesPlatformForBlockOfBlocks = SizeTable[Index].PagesPlatformForBlockOfBlocks;
+		SmallPoolTables[Index].BlockSize = SizeTable[Index].BinSize;
+		SmallPoolTables[Index].PagesPlatformForBlockOfBlocks = SizeTable[Index].NumMemoryPagesPerBlock;
 
 		SmallPoolTables[Index].UnusedAreaOffsetLow = 0;
 		SmallPoolTables[Index].NumEverUsedBlockOfBlocks = 0;
 
-		int64 TotalNumberOfBlocksOfBlocks = ArenaParams.MaxMemoryPerBlockSize / (SizeTable[Index].PagesPlatformForBlockOfBlocks * ArenaParams.AllocationGranularity);
+		int64 TotalNumberOfBlocksOfBlocks = ArenaParams.MaxMemoryPerBlockSize / (SizeTable[Index].NumMemoryPagesPerBlock * ArenaParams.AllocationGranularity);
 
 		int64 MaxPoolInfoMemory = sizeof(FPoolInfoSmall**) * (TotalNumberOfBlocksOfBlocks + SmallPoolInfosPerPlatformPage - 1) / SmallPoolInfosPerPlatformPage;
 		SmallPoolTables[Index].PoolInfos = (FPoolInfoSmall**)FMemory::Malloc(MaxPoolInfoMemory);
@@ -672,7 +671,7 @@ void FMallocBinnedGPU::InitMallocBinned()
 	{
 
 		uint32 BlockSize = Index << ArenaParams.MinimumAlignmentShift; // inverse of int32 Index = int32((Size >> ArenaParams.MinimumAlignmentShift));
-		while (SizeTable[PoolIndex].BlockSize < BlockSize)
+		while (SizeTable[PoolIndex].BinSize < BlockSize)
 		{
 			++PoolIndex;
 			check(PoolIndex != ArenaParams.PoolCount);
@@ -685,7 +684,7 @@ void FMallocBinnedGPU::InitMallocBinned()
 	for (uint32 Index = 0; Index != ArenaParams.PoolCount; ++Index)
 	{
 		uint32 Partner = ArenaParams.PoolCount - Index - 1;
-		SmallBlockSizesReversedShifted[Index] = (SizeTable[Partner].BlockSize >> ArenaParams.MinimumAlignmentShift);
+		SmallBlockSizesReversedShifted[Index] = (SizeTable[Partner].BinSize >> ArenaParams.MinimumAlignmentShift);
 	}
 	uint64 MaxHashBuckets = PtrToPoolMapping.GetMaxHashBuckets();
 

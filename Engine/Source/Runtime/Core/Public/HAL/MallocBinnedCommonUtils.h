@@ -39,7 +39,7 @@ public:
 				TRACE_CPUPROFILER_EVENT_SCOPE(FMallocBinnedCommonUtils::FlushCurrentThreadCache);
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinnedCommonUtils_FlushCurrentThreadCache);
 
-				double StartTimeInner = FPlatformTime::Seconds();
+				const double StartTimeInner = FPlatformTime::Seconds();
 
 				double WaitForMutexTime = 0.0f;
 				double WaitForMutexAndTrimTime = 0.0f;

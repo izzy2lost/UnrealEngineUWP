@@ -17,31 +17,31 @@
 #include "HAL/PlatformMemory.h"
 #include "Templates/Function.h"
 
-// A project can define it's own BINNEDCOMMON_MAX_LISTED_SMALL_POOL_SIZE and BINNEDCOMMON_NUM_LISTED_SMALL_POOLS to reduce runtime memory usage
+// A project can define it's own UE_MBC_MAX_LISTED_SMALL_POOL_SIZE and UE_MBC_NUM_LISTED_SMALL_POOLS to reduce runtime memory usage
 // MallocBinnedCommon.cpp has a list of predefined bins that go up to 28672
 // By default allocators (i.e. MB3) that use these bins will rely on this number as a baseline for a small bins count
 // These allocators can increase the amount of small bins they want to manage by going over the default MBC bins list
 // In MB3 case that means defining BINNED3_MAX_SMALL_POOL_SIZE to something like 65536
-// Every bin over the BINNEDCOMMON_MAX_LISTED_SMALL_POOL_SIZE would come with a 4kb increment
+// Every bin over the UE_MBC_MAX_LISTED_SMALL_POOL_SIZE would come with a 4kb increment
 // These small bins would be kept in user mode, increasing application's memory footprint and reducing the time it takes to allocate memory from the said bins
 // If application needs to aggressively reduce it's memory footprint, potentially trading some perf due to an increased amount of kernel calls to allocate memory
-// it can redefine BINNEDCOMMON_MAX_LISTED_SMALL_POOL_SIZE and BINNED3_MAX_SMALL_POOL_SIZE to smaller numbers, the good value is 16384 for both
-// This, however, would require the app to redefine BINNEDCOMMON_NUM_LISTED_SMALL_POOLS too to match the number of bins that fall under the new define's threshold
-// In case of 16384, we'll skip 3 larger bins and so BINNEDCOMMON_NUM_LISTED_SMALL_POOLS should be set to 48 at the time of writing
-#if !defined(BINNEDCOMMON_MAX_LISTED_SMALL_POOL_SIZE)
-	#define BINNEDCOMMON_MAX_LISTED_SMALL_POOL_SIZE	28672
+// it can redefine UE_MBC_MAX_LISTED_SMALL_POOL_SIZE and BINNED3_MAX_SMALL_POOL_SIZE to smaller numbers, the good value is 16384 for both
+// This, however, would require the app to redefine UE_MBC_NUM_LISTED_SMALL_POOLS too to match the number of bins that fall under the new define's threshold
+// In case of 16384, we'll skip 3 larger bins and so UE_MBC_NUM_LISTED_SMALL_POOLS should be set to 48 at the time of writing
+#if !defined(UE_MBC_MAX_LISTED_SMALL_POOL_SIZE)
+#	define UE_MBC_MAX_LISTED_SMALL_POOL_SIZE	28672
 #endif
 
-#if !defined(BINNEDCOMMON_NUM_LISTED_SMALL_POOLS)
-	#define BINNEDCOMMON_NUM_LISTED_SMALL_POOLS	51
+#if !defined(UE_MBC_NUM_LISTED_SMALL_POOLS)
+#	define UE_MBC_NUM_LISTED_SMALL_POOLS	51
 #endif
 
 #if !defined(BINNEDCOMMON_USE_SEPARATE_VM_PER_POOL)
-	#if PLATFORM_WINDOWS
-		#define BINNEDCOMMON_USE_SEPARATE_VM_PER_POOL (1)
-	#else
-		#define BINNEDCOMMON_USE_SEPARATE_VM_PER_POOL (0)
-	#endif
+#	if PLATFORM_WINDOWS
+#		define BINNEDCOMMON_USE_SEPARATE_VM_PER_POOL (1)
+#	else
+#		define BINNEDCOMMON_USE_SEPARATE_VM_PER_POOL (0)
+#	endif
 #endif
 
 
@@ -95,19 +95,15 @@ public:
 
 struct FSizeTableEntry
 {
-	uint32 BlockSize;
-	uint16 BlocksPerBlockOfBlocks;
-	uint8 PagesPlatformForBlockOfBlocks;
+	uint32 BinSize;
+	uint32 NumMemoryPagesPerBlock;
 
-	FSizeTableEntry()
-	{
-	}
-
-	FSizeTableEntry(uint32 InBlockSize, uint64 PlatformPageSize, uint8 Pages4k, uint32 BasePageSize, uint32 MinimumAlignment);
+	FSizeTableEntry() = default;
+	FSizeTableEntry(uint32 InBinSize, uint64 PlatformPageSize, uint8 Num4kbPages, uint32 BasePageSize, uint32 MinimumAlignment);
 
 	bool operator<(const FSizeTableEntry& Other) const
 	{
-		return BlockSize < Other.BlockSize;
+		return BinSize < Other.BinSize;
 	}
 	static uint8 FillSizeTable(uint64 PlatformPageSize, FSizeTableEntry* SizeTable, uint32 BasePageSize, uint32 MinimumAlignment, uint32 MaxSize, uint32 SizeIncrement);
 };
@@ -157,27 +153,27 @@ struct FArenaParams
 #endif
 
 #if AGGRESSIVE_MEMORY_SAVING
-#	define DEFAULT_GMallocBinnedBundleSize 8192
+#	define UE_DEFAULT_GMallocBinnedBundleSize 8192
 #else
-#	define DEFAULT_GMallocBinnedBundleSize 65536
+#	define UE_DEFAULT_GMallocBinnedBundleSize 65536
 #endif
 
-#define DEFAULT_GMallocBinnedBundleCount 64
+#define UE_DEFAULT_GMallocBinnedBundleCount 64
 
-#ifndef UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
-	#define UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING 0
+#ifndef UE_MBC_ALLOW_RUNTIME_TWEAKING
+#	define UE_MBC_ALLOW_RUNTIME_TWEAKING 0
 #endif
 
-#if UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
-extern CORE_API int32 GMallocBinnedBundleSize;
-extern CORE_API int32 GMallocBinnedBundleCount;
+#if UE_MBC_ALLOW_RUNTIME_TWEAKING
+	extern CORE_API int32 GMallocBinnedBundleSize;
+	extern CORE_API int32 GMallocBinnedBundleCount;
 #else
-#	define GMallocBinnedBundleSize	DEFAULT_GMallocBinnedBundleSize
-#	define GMallocBinnedBundleCount	DEFAULT_GMallocBinnedBundleCount
+#	define GMallocBinnedBundleSize	UE_DEFAULT_GMallocBinnedBundleSize
+#	define GMallocBinnedBundleCount	UE_DEFAULT_GMallocBinnedBundleSize
 #endif
 
-#ifndef UE_BINNEDCOMMON_ALLOCATOR_STATS
-#	define UE_BINNEDCOMMON_ALLOCATOR_STATS (!UE_BUILD_SHIPPING || WITH_EDITOR)
+#ifndef UE_MBC_ALLOCATOR_STATS
+#	define UE_MBC_ALLOCATOR_STATS (!UE_BUILD_SHIPPING || WITH_EDITOR)
 #endif
 
 extern CORE_API float GMallocBinnedFlushThreadCacheMaxWaitTime;
@@ -196,6 +192,7 @@ protected:
 			, AddressSpaceBase(0)
 		{
 		}
+
 		explicit FPtrToPoolMapping(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressBase, uint64 AddressLimit)
 		{
 			Init(InPageSize, InNumPoolsPerPage, AddressBase, AddressLimit);
@@ -203,7 +200,7 @@ protected:
 
 		void Init(uint32 InPageSize, uint64 InNumPoolsPerPage, uint64 AddressBase, uint64 AddressLimit)
 		{
-			uint64 PoolPageToPoolBitShift = FPlatformMath::CeilLogTwo64(InNumPoolsPerPage);
+			const uint64 PoolPageToPoolBitShift = FPlatformMath::CeilLogTwo64(InNumPoolsPerPage);
 
 			PtrToPoolPageBitShift = FPlatformMath::CeilLogTwo(InPageSize);
 			HashKeyShift = PtrToPoolPageBitShift + PoolPageToPoolBitShift;
@@ -295,8 +292,8 @@ protected:
 	template <class T>
 	struct TPoolHashBucket
 	{
-		UPTRINT         BucketIndex;
-		T* FirstPool;
+		UPTRINT			 BucketIndex;
+		T*				 FirstPool;
 		TPoolHashBucket* Prev;
 		TPoolHashBucket* Next;
 
@@ -328,7 +325,7 @@ protected:
 	FPtrToPoolMapping PtrToPoolMapping;
 	static CORE_API uint32 BinnedTlsSlot;
 
-#if UE_BINNEDCOMMON_ALLOCATOR_STATS
+#if UE_MBC_ALLOCATOR_STATS
 	static std::atomic<int64> TLSMemory;
 	static std::atomic<int64> ConsolidatedMemory;
 #endif
@@ -351,11 +348,11 @@ protected:
 	struct FFreeBlockList
 	{
 		// return true if we actually pushed it
-		FORCEINLINE bool PushToFront(void* InPtr, uint32 InPoolIndex, uint32 InBlockSize)
+		FORCEINLINE bool PushToFront(void* InPtr, uint32 InPoolIndex, uint32 InBinSize)
 		{
 			checkSlow(InPtr);
 
-			if ((PartialBundle.Count >= (uint32)GMallocBinnedBundleCount) | (PartialBundle.Count * InBlockSize >= (uint32)GMallocBinnedBundleSize))
+			if ((PartialBundle.Count >= (uint32)GMallocBinnedBundleCount) | (PartialBundle.Count * InBinSize >= (uint32)GMallocBinnedBundleSize))
 			{
 				if (FullBundle.Head)
 				{
@@ -368,9 +365,9 @@ protected:
 			return true;
 		}
 
-		FORCEINLINE bool CanPushToFront(uint32 InPoolIndex, uint32 InBlockSize) const
+		FORCEINLINE bool CanPushToFront(uint32 InPoolIndex, uint32 InBinSize) const
 		{
-			return !((!!FullBundle.Head) & ((PartialBundle.Count >= (uint32)GMallocBinnedBundleCount) | (PartialBundle.Count * InBlockSize >= (uint32)GMallocBinnedBundleSize)));
+			return !((!!FullBundle.Head) & ((PartialBundle.Count >= (uint32)GMallocBinnedBundleCount) | (PartialBundle.Count * InBinSize >= (uint32)GMallocBinnedBundleSize)));
 		}
 
 		FORCEINLINE void* PopFromFront(uint32 InPoolIndex)
@@ -479,7 +476,7 @@ protected:
 			{
 				const int64 TLSSize = Align(sizeof(FPerThreadFreeBlockLists), AllocType::OsAllocationGranularity);
 				ThreadSingleton = new (AllocType::AllocateMetaDataMemory(TLSSize)) FPerThreadFreeBlockLists();
-#if UE_BINNEDCOMMON_ALLOCATOR_STATS
+#if UE_MBC_ALLOCATOR_STATS
 				TLSMemory.fetch_add(TLSSize, std::memory_order_relaxed);
 #endif
 				verify(ThreadSingleton);
@@ -517,7 +514,7 @@ protected:
 			if (ThreadSingleton)
 			{
 				const int64 TLSSize = Align(sizeof(FPerThreadFreeBlockLists), AllocType::OsAllocationGranularity);
-#if UE_BINNEDCOMMON_ALLOCATOR_STATS
+#if UE_MBC_ALLOCATOR_STATS
 				TLSMemory.fetch_sub(TLSSize, std::memory_order_relaxed);
 #endif
 				AllocType::UnregisterThreadFreeBlockLists(ThreadSingleton);
@@ -536,15 +533,15 @@ protected:
 		}
 
 		// return true if the pointer was pushed
-		FORCEINLINE bool Free(void* InPtr, uint32 InPoolIndex, uint32 InBlockSize)
+		FORCEINLINE bool Free(void* InPtr, uint32 InPoolIndex, uint32 InBinSize)
 		{
-			return FreeLists[InPoolIndex].PushToFront(InPtr, InPoolIndex, InBlockSize);
+			return FreeLists[InPoolIndex].PushToFront(InPtr, InPoolIndex, InBinSize);
 		}
 
 		// return true if a pointer can be pushed
-		FORCEINLINE bool CanFree(uint32 InPoolIndex, uint32 InBlockSize) const
+		FORCEINLINE bool CanFree(uint32 InPoolIndex, uint32 InBinSize) const
 		{
-			return FreeLists[InPoolIndex].CanPushToFront(InPoolIndex, InBlockSize);
+			return FreeLists[InPoolIndex].CanPushToFront(InPoolIndex, InBinSize);
 		}
 
 		// returns a bundle that needs to be freed if it can't be recycled
@@ -593,7 +590,7 @@ protected:
 			return true;
 		}
 
-#if UE_BINNEDCOMMON_ALLOCATOR_STATS
+#if UE_MBC_ALLOCATOR_STATS
 	public:
 		int64 AllocatedMemory = 0;
 #endif
@@ -607,11 +604,11 @@ protected:
 	FORCEINLINE SIZE_T QuantizeSizeCommon(SIZE_T Count, uint32 Alignment, const AllocType& Alloc) const
 	{
 		static_assert(DEFAULT_ALIGNMENT <= MinAlign, "DEFAULT_ALIGNMENT is assumed to be zero"); // used below
-		checkSlow((Alignment & (Alignment - 1)) == 0); // Check the alignment is a power of two
+		checkSlow(FMath::IsPowerOfTwo(Alignment));
 		SIZE_T SizeOut;
 		if ((Count <= MaxSmallPoolSize) & (Alignment <= MinAlign)) // one branch, not two
 		{
-			SizeOut = Alloc.PoolIndexToBlockSize(BoundSizeToPoolIndex(Count, Alloc.MemSizeToIndex));
+			SizeOut = Alloc.PoolIndexToBinSize(BoundSizeToPoolIndex(Count, Alloc.MemSizeToPoolIndex));
 			check(SizeOut >= Count);
 			return SizeOut;
 		}
@@ -619,13 +616,13 @@ protected:
 		Count = Align(Count, Alignment);
 		if ((Count <= MaxSmallPoolSize) & (Alignment <= MaxAlign))
 		{
-			uint32 PoolIndex = BoundSizeToPoolIndex(Count, Alloc.MemSizeToIndex);
+			uint32 PoolIndex = BoundSizeToPoolIndex(Count, Alloc.MemSizeToPoolIndex);
 			do
 			{
-				uint32 BlockSize = Alloc.PoolIndexToBlockSize(PoolIndex);
-				if (IsAligned(BlockSize, Alignment))
+				const uint32 BinSize = Alloc.PoolIndexToBinSize(PoolIndex);
+				if (IsAligned(BinSize, Alignment))
 				{
-					SizeOut = SIZE_T(BlockSize);
+					SizeOut = SIZE_T(BinSize);
 					check(SizeOut >= Count);
 					return SizeOut;
 				}
@@ -640,11 +637,11 @@ protected:
 		return SizeOut;
 	}
 
-	FORCEINLINE uint32 BoundSizeToPoolIndex(SIZE_T Size, const uint8(&MemSizeToIndex)[1 + (MaxSmallPoolSize >> MinAlignShift)]) const
+	FORCEINLINE uint32 BoundSizeToPoolIndex(SIZE_T Size, const uint8(&MemSizeToPoolIndex)[1 + (MaxSmallPoolSize >> MinAlignShift)]) const
 	{
-		auto Index = ((Size + MinAlign - 1) >> MinAlignShift);
+		const auto Index = ((Size + MinAlign - 1) >> MinAlignShift);
 		checkSlow(Index >= 0 && Index <= (MaxSmallPoolSize >> MinAlignShift)); // and it should be in the table
-		uint32 PoolIndex = uint32(MemSizeToIndex[Index]);
+		const uint32 PoolIndex = uint32(MemSizeToPoolIndex[Index]);
 		checkSlow(PoolIndex >= 0 && PoolIndex < NumSmallPools);
 		return PoolIndex;
 	}
@@ -658,10 +655,10 @@ protected:
 		const SIZE_T AlignedSize = Align(Size, Alignment);
 		if (UNLIKELY((AlignedSize <= MaxSmallPoolSize) && (Alignment <= MaxAlign)))
 		{
-			uint32 PoolIndex = BoundSizeToPoolIndex(AlignedSize, Alloc.MemSizeToIndex);
+			uint32 PoolIndex = BoundSizeToPoolIndex(AlignedSize, Alloc.MemSizeToPoolIndex);
 			do
 			{
-				uint32 BlockSize = Alloc.PoolIndexToBlockSize(PoolIndex);
+				const uint32 BlockSize = Alloc.PoolIndexToBinSize(PoolIndex);
 				if (IsAligned(BlockSize, Alignment))
 				{
 					// we found a matching pool for our alignment and size requirements, so modify the size request to match

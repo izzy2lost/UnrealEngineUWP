@@ -17,72 +17,71 @@
 
 struct FGenericMemoryStats;
 
-#define BINNED2_MAX_CACHED_OS_FREES (64)
+#define UE_MB2_MAX_CACHED_OS_FREES (64)
 #if PLATFORM_64BITS
-	#define BINNED2_MAX_CACHED_OS_FREES_BYTE_LIMIT (64*1024*1024)
+#	define UE_MB2_MAX_CACHED_OS_FREES_BYTE_LIMIT (64*1024*1024)
 #else
-	#define BINNED2_MAX_CACHED_OS_FREES_BYTE_LIMIT (16*1024*1024)
+#	define UE_MB2_MAX_CACHED_OS_FREES_BYTE_LIMIT (16*1024*1024)
 #endif
 
-#define BINNED2_LARGE_ALLOC					65536		// Alignment of OS-allocated pointer - pool-allocated pointers will have a non-aligned pointer
-#define BINNED2_MINIMUM_ALIGNMENT_SHIFT		4			// Alignment of blocks, expressed as a shift
-#define BINNED2_MINIMUM_ALIGNMENT			16			// Alignment of blocks
-#define BINNED2_MAXIMUM_ALIGNMENT			128
-#define BINNED2_MAX_SMALL_POOL_SIZE			(32768-16)	// Maximum block size in GMallocBinned2SmallBlockSizes
-#define BINNED2_SMALL_POOL_COUNT			45
+#define UE_MB2_LARGE_ALLOC					65536		// Alignment of OS-allocated pointer - pool-allocated pointers will have a non-aligned pointer
+#define UE_MB2_MINIMUM_ALIGNMENT_SHIFT		4			// Alignment of bins, expressed as a shift
+#define UE_MB2_MINIMUM_ALIGNMENT			16			// Alignment of bins
+#define UE_MB2_MAXIMUM_ALIGNMENT			128
+#define UE_MB2_MAX_SMALL_POOL_SIZE			(32768-16)	// Maximum bin size in SmallBinSizes in cpp file
+#define UE_MB2_SMALL_POOL_COUNT				45
 
 
-#define DEFAULT_GMallocBinned2PerThreadCaches 1
-#define DEFAULT_GMallocBinned2LockFreeCaches 0
-#define DEFAULT_GMallocBinned2AllocExtra 32
-#define BINNED2_MAX_GMallocBinned2MaxBundlesBeforeRecycle 8
-#define DEFAULT_GMallocBinned2MoveOSFreesOffTimeCriticalThreads 1
+#define UE_DEFAULT_GBinned2PerThreadCaches						1
+#define UE_DEFAULT_GBinned2AllocExtra							32
+#define UE_DEFAULT_GBinned2MaxBundlesBeforeRecycle				8
+#define UE_DEFAULT_GBinned2MoveOSFreesOffTimeCriticalThreads	1
 
 // When book keeping is at the end of FFreeBlock, MallocBinned2 cannot tell if the allocation comes from a large allocation (higher than 64KB, also named as "OSAllocation") 
 // or from VeryLargePageAllocator that fell back to FCachedOSPageAllocator. In both cases the allocation (large or small) might be aligned to 64KB.
 // bookKeeping at the end needs to be disabled if we want VeryLargePageAllocator to properly fallback to regular TCachedOSPageAllocator if needed
-#ifndef BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
-#define BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK 0
+#ifndef UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
+#	define UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK 0
 #endif
 
 // If we are emulating forking on a windows server or are a linux server, enable support for avoiding dirtying pages owned by the parent. 
 #ifndef BINNED2_FORK_SUPPORT
-	#define BINNED2_FORK_SUPPORT (UE_SERVER && (PLATFORM_UNIX || DEFAULT_SERVER_FAKE_FORKS))
+#	define BINNED2_FORK_SUPPORT (UE_SERVER && (PLATFORM_UNIX || DEFAULT_SERVER_FAKE_FORKS))
 #endif
 
 
-#define BINNED2_ALLOW_RUNTIME_TWEAKING UE_BINNEDCOMMON_ALLOW_RUNTIME_TWEAKING
-#if BINNED2_ALLOW_RUNTIME_TWEAKING
-	extern CORE_API int32 GMallocBinned2PerThreadCaches;
-	extern CORE_API int32 GMallocBinned2MaxBundlesBeforeRecycle;
-	extern CORE_API int32 GMallocBinned2AllocExtra;
-	extern CORE_API int32 GMallocBinned2MoveOSFreesOffTimeCriticalThreads;
-
+#define UE_MB2_ALLOW_RUNTIME_TWEAKING UE_MBC_ALLOW_RUNTIME_TWEAKING
+#if UE_MB2_ALLOW_RUNTIME_TWEAKING
+	extern CORE_API int32 GBinned2PerThreadCaches;
+	extern CORE_API int32 GBinned2MaxBundlesBeforeRecycle;
+	extern CORE_API int32 GBinned2AllocExtra;
+	extern CORE_API int32 GBinned2MoveOSFreesOffTimeCriticalThreads;
 #else
-	#define GMallocBinned2PerThreadCaches DEFAULT_GMallocBinned2PerThreadCaches
-	#define GMallocBinned2MaxBundlesBeforeRecycle BINNED2_MAX_GMallocBinned2MaxBundlesBeforeRecycle
-	#define GMallocBinned2AllocExtra DEFAULT_GMallocBinned2AllocExtra
-	#define GMallocBinned2MoveOSFreesOffTimeCriticalThreads DEFAULT_GMallocBinned2MoveOSFreesOffTimeCriticalThreads
+#	define GBinned2PerThreadCaches						UE_DEFAULT_GBinned2PerThreadCaches
+#	define GBinned2MaxBundlesBeforeRecycle				UE_DEFAULT_GBinned2MaxBundlesBeforeRecycle
+#	define GBinned2AllocExtra							UE_DEFAULT_GBinned2AllocExtra
+#	define GBinned2MoveOSFreesOffTimeCriticalThreads	UE_DEFAULT_GBinned2MoveOSFreesOffTimeCriticalThreads
 #endif
 
-#define BINNED2_ALLOCATOR_STATS UE_BINNEDCOMMON_ALLOCATOR_STATS
-#define BINNED2_ALLOCATOR_STATS_VALIDATION (BINNED2_ALLOCATOR_STATS && 0)
+#define UE_MB2_ALLOCATOR_STATS				UE_MBC_ALLOCATOR_STATS
+#define UE_MB2_ALLOCATOR_STATS_VALIDATION	(UE_MB2_ALLOCATOR_STATS && 0)
 
 
-#if BINNED2_ALLOCATOR_STATS
-//////////////////////////////////////////////////////////////////////////
-// the following don't need a critical section because they are covered by the critical section called Mutex
-extern TAtomic<int64> AllocatedSmallPoolMemory; // memory that's requested to be allocated by the game
-extern TAtomic<int64> AllocatedOSSmallPoolMemory;
-extern TAtomic<int64> AllocatedLargePoolMemory; // memory requests to the OS which don't fit in the small pool
-extern TAtomic<int64> AllocatedLargePoolMemoryWAlignment; // when we allocate at OS level we need to align to a size
+#if UE_MB2_ALLOCATOR_STATS
+	//////////////////////////////////////////////////////////////////////////
+	// the following don't need a critical section because they are covered by the critical section called Mutex
+	extern TAtomic<int64> AllocatedSmallPoolMemory; // memory that's requested to be allocated by the game
+	extern TAtomic<int64> AllocatedOSSmallPoolMemory;
+	extern TAtomic<int64> AllocatedLargePoolMemory; // memory requests to the OS which don't fit in the small pool
+	extern TAtomic<int64> AllocatedLargePoolMemoryWAlignment; // when we allocate at OS level we need to align to a size
 #endif
-#if BINNED2_ALLOCATOR_STATS_VALIDATION
-#include "Misc/ScopeLock.h"
 
-extern int64 AllocatedSmallPoolMemoryValidation;
-extern FCriticalSection ValidationCriticalSection;
-extern int32 RecursionCounter;
+#if UE_MB2_ALLOCATOR_STATS_VALIDATION
+#	include "Misc/ScopeLock.h"
+
+	extern int64 AllocatedSmallPoolMemoryValidation;
+	extern FCriticalSection ValidationCriticalSection;
+	extern int32 RecursionCounter;
 #endif
 
 // Canary value used in FFreeBlock
@@ -103,7 +102,7 @@ enum class EBlockCanary : uint8
 //
 // Optimized virtual memory allocator.
 //
-class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMUM_ALIGNMENT, BINNED2_MAXIMUM_ALIGNMENT, BINNED2_MINIMUM_ALIGNMENT_SHIFT, BINNED2_SMALL_POOL_COUNT, BINNED2_MAX_SMALL_POOL_SIZE>
+class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, UE_MB2_MINIMUM_ALIGNMENT, UE_MB2_MAXIMUM_ALIGNMENT, UE_MB2_MINIMUM_ALIGNMENT_SHIFT, UE_MB2_SMALL_POOL_COUNT, UE_MB2_MAX_SMALL_POOL_SIZE>
 {
 	// Forward declares.
 	struct FPoolInfo;
@@ -113,62 +112,61 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMU
 	/** Information about a piece of free memory. */
 	struct FFreeBlock
 	{
-		FORCEINLINE FFreeBlock(uint32 InPageSize, uint16 InBlockSize, uint8 InPoolIndex, EBlockCanary InCanary)
-			: BlockSize(InBlockSize)
+		FORCEINLINE FFreeBlock(uint32 InPageSize, uint16 InBinSize, uint8 InPoolIndex, EBlockCanary InCanary)
+			: BinSize(InBinSize)
 			, PoolIndex(InPoolIndex)
 			, CanaryAndForkState(InCanary)
 			, NextFreeBlock(nullptr)
 		{
-			check(InPoolIndex < MAX_uint8 && InBlockSize <= MAX_uint16);
-			NumFreeBlocks = InPageSize / InBlockSize;
-			if (NumFreeBlocks * InBlockSize + sizeof(FFreeBlock) > InPageSize)
+			check(InPoolIndex < MAX_uint8 && InBinSize <= MAX_uint16);
+			NumFreeBins = InPageSize / InBinSize;
+			if (NumFreeBins * InBinSize + sizeof(FFreeBlock) > InPageSize)
 			{
-				NumFreeBlocks--;
+				NumFreeBins--;
 			}
-			check(NumFreeBlocks * InBlockSize + sizeof(FFreeBlock) <= InPageSize);
+			check(NumFreeBins * InBinSize + sizeof(FFreeBlock) <= InPageSize);
 		}
 
-		FORCEINLINE uint32 GetNumFreeRegularBlocks() const
+		FORCEINLINE uint32 GetNumFreeBins() const
 		{
-			return NumFreeBlocks;
+			return NumFreeBins;
 		}
 
-
-		FORCEINLINE void* AllocateRegularBlock()
+		FORCEINLINE void* AllocateBin()
 		{
-			--NumFreeBlocks;
-#if !UE_USE_VERYLARGEPAGEALLOCATOR || !BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
-			if (IsAligned(this, BINNED2_LARGE_ALLOC))
+			--NumFreeBins;
+#if !UE_USE_VERYLARGEPAGEALLOCATOR || !UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
+			if (IsAligned(this, UE_MB2_LARGE_ALLOC))
 			{
-				return (uint8*)this + BINNED2_LARGE_ALLOC - (NumFreeBlocks + 1) * BlockSize;
+				return (uint8*)this + UE_MB2_LARGE_ALLOC - (NumFreeBins + 1) * BinSize;
 			}
 #else
-			if (IsAligned(((uintptr_t)this)+sizeof(FFreeBlock), BINNED2_LARGE_ALLOC))
+			if (IsAligned((uintptr_t)this + sizeof(FFreeBlock), UE_MB2_LARGE_ALLOC))
 			{
 				// The book keeping FreeBlock is at the end of the "page" so we align down to get to the beginning of the page
-				uintptr_t ptr = AlignDown((uintptr_t)this, BINNED2_LARGE_ALLOC);
+				const uintptr_t Ptr = AlignDown((uintptr_t)this, UE_MB2_LARGE_ALLOC);
 				// And we offset the returned pointer based on how many free blocks are left.
-				return (uint8*) ptr + (NumFreeBlocks * BlockSize);
+				return (uint8*)Ptr + (NumFreeBins * BinSize);
 			}
 #endif
-			return (uint8*)this + (NumFreeBlocks)* BlockSize;
+			return (uint8*)this + (NumFreeBins * BinSize);
 		}
 
-		uint16 BlockSize;				// Size of the blocks that this list points to
-		uint8 PoolIndex;				// Index of this pool
+		uint16 BinSize;				// Size of the bins that this list points to
+		uint8 PoolIndex;			// Index of this pool
 
 		// Normally this value just functions as a canary to detect invalid memory state.
 		// When process forking is supported, it's still a canary but it has two valid values.
 		// One value is used pre-fork and one post-fork and the value is used to avoid freeing memory in pages shared with the parent process.
 		EBlockCanary CanaryAndForkState; 
 
-		uint32 NumFreeBlocks;          // Number of consecutive free blocks here, at least 1.
-		void*  NextFreeBlock;          // Next free block in another pool
+		uint32 NumFreeBins;          // Number of consecutive free bins here, at least 1.
+		FFreeBlock*  NextFreeBlock;  // Next free block in another pool
 	};
 
 	struct FPoolList
 	{
-		FPoolList();
+		FPoolList() = default;
 
 		void Clear();
 		bool IsEmpty() const;
@@ -180,11 +178,11 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMU
 
 		FPoolInfo& PushNewPoolToFront(FMallocBinned2& Allocator, uint32 InBytes, uint32 InPoolIndex);
 
-		void ValidateActivePools();
-		void ValidateExhaustedPools();
+		void ValidateActivePools() const;
+		void ValidateExhaustedPools() const;
 
 	private:
-		FPoolInfo* Front;
+		FPoolInfo* Front = nullptr;
 	};
 
 	/** Pool table. */
@@ -192,13 +190,13 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMU
 	{
 		FPoolList ActivePools;
 		FPoolList ExhaustedPools;
-		uint32    BlockSize;
+		uint32    BinSize = 0;
 
-		FPoolTable();
+		FPoolTable() = default;
 	};
 
 	// Pool tables for different pool sizes
-	FPoolTable SmallPoolTables[BINNED2_SMALL_POOL_COUNT];
+	FPoolTable SmallPoolTables[UE_MB2_SMALL_POOL_COUNT];
 
 	PoolHashBucket* HashBuckets;
 	PoolHashBucket* HashBucketFreeList;
@@ -211,56 +209,54 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, BINNED2_MINIMU
 #endif
 
 #if !PLATFORM_UNIX && !PLATFORM_ANDROID
-#if UE_USE_VERYLARGEPAGEALLOCATOR
-	FCachedOSVeryLargePageAllocator CachedOSPageAllocator;
-#else
-	TCachedOSPageAllocator<BINNED2_MAX_CACHED_OS_FREES, BINNED2_MAX_CACHED_OS_FREES_BYTE_LIMIT> CachedOSPageAllocator;
-#endif
+#	if UE_USE_VERYLARGEPAGEALLOCATOR
+		FCachedOSVeryLargePageAllocator CachedOSPageAllocator;
+#	else
+		TCachedOSPageAllocator<UE_MB2_MAX_CACHED_OS_FREES, UE_MB2_MAX_CACHED_OS_FREES_BYTE_LIMIT> CachedOSPageAllocator;
+#	endif
 #else
 	FPooledVirtualMemoryAllocator CachedOSPageAllocator;
 #endif
 
 	FCriticalSection Mutex;
 
-	FORCEINLINE bool IsOSAllocation(const void* Ptr)
+	FORCEINLINE bool IsOSAllocation(const void* Ptr) const
 	{
 #if UE_USE_VERYLARGEPAGEALLOCATOR && !PLATFORM_UNIX && !PLATFORM_ANDROID
-		return !CachedOSPageAllocator.IsSmallBlockAllocation(Ptr) && IsAligned(Ptr, BINNED2_LARGE_ALLOC);
+		return !CachedOSPageAllocator.IsSmallBlockAllocation(Ptr) && IsAligned(Ptr, UE_MB2_LARGE_ALLOC);
 #else
-		return IsAligned(Ptr, BINNED2_LARGE_ALLOC);
+		return IsAligned(Ptr, UE_MB2_LARGE_ALLOC);
 #endif
 	}
 
 	static FORCEINLINE FFreeBlock* GetPoolHeaderFromPointer(void* Ptr)
 	{
-#if !UE_USE_VERYLARGEPAGEALLOCATOR || !BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
-		return (FFreeBlock*)AlignDown(Ptr, BINNED2_LARGE_ALLOC);
+#if !UE_USE_VERYLARGEPAGEALLOCATOR || !UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
+		return (FFreeBlock*)AlignDown(Ptr, UE_MB2_LARGE_ALLOC);
 #else
-		return (FFreeBlock*) (AlignDown((uintptr_t) Ptr, BINNED2_LARGE_ALLOC) + BINNED2_LARGE_ALLOC - sizeof(FFreeBlock));
+		return (FFreeBlock*)(AlignDown((uintptr_t) Ptr, UE_MB2_LARGE_ALLOC) + UE_MB2_LARGE_ALLOC - sizeof(FFreeBlock));
 #endif
 	}
 
 public:
-
-
 	CORE_API FMallocBinned2();
-
 	CORE_API virtual ~FMallocBinned2();
 
 	// FMalloc interface.
 	CORE_API virtual bool IsInternallyThreadSafe() const override;
+
 	FORCEINLINE virtual void* Malloc(SIZE_T Size, uint32 Alignment) override
 	{
-#if BINNED2_ALLOCATOR_STATS_VALIDATION
+#if UE_MB2_ALLOCATOR_STATS_VALIDATION
 		FScopeLock Lock(&ValidationCriticalSection);
 		++RecursionCounter;
 		void *Result = MallocInline(Size, Alignment);
-		if ( !IsOSAllocation(Result))
+		if (!IsOSAllocation(Result))
 		{
 			SIZE_T OutSize;
-			ensure( GetAllocationSize(Result, OutSize) );
+			ensure(GetAllocationSize(Result, OutSize));
 			AllocatedSmallPoolMemoryValidation += OutSize;
-			if (RecursionCounter==1)
+			if (RecursionCounter == 1)
 			{
 				check(GetTotalAllocatedSmallPoolMemory() == AllocatedSmallPoolMemoryValidation);
 				if (GetTotalAllocatedSmallPoolMemory() != AllocatedSmallPoolMemoryValidation)
@@ -275,6 +271,7 @@ public:
 		return MallocInline(Size, Alignment);
 #endif
 	}
+
 	FORCEINLINE void* MallocInline(SIZE_T Size, uint32 Alignment)
 	{
 		// Only allocate from the small pools if the size is small enough and the alignment isn't crazy large.
@@ -282,15 +279,15 @@ public:
 		const bool bUseSmallPool = UseSmallAlloc(Size, Alignment);
 		if (bUseSmallPool)
 		{
-			FPerThreadFreeBlockLists* Lists = GMallocBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 			if (Lists)
 			{
-				const uint32 PoolIndex = BoundSizeToPoolIndex(Size, MemSizeToIndex);
+				const uint32 PoolIndex = BoundSizeToPoolIndex(Size, MemSizeToPoolIndex);
 				if (void* Result = Lists->Malloc(PoolIndex))
 				{
-#if BINNED2_ALLOCATOR_STATS
-					const uint32 BlockSize = PoolIndexToBlockSize(PoolIndex);
-					Lists->AllocatedMemory += BlockSize;
+#if UE_MB2_ALLOCATOR_STATS
+					const uint32 BinSize = PoolIndexToBinSize(PoolIndex);
+					Lists->AllocatedMemory += BinSize;
 #endif
 					return Result;
 				}
@@ -299,37 +296,41 @@ public:
 
 		return MallocSelect(Size, Alignment, bUseSmallPool);
 	}
+
 	FORCEINLINE static bool UseSmallAlloc(SIZE_T Size, uint32 Alignment)
 	{
-#if UE_USE_VERYLARGEPAGEALLOCATOR && BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
-		if (Alignment > BINNED2_MINIMUM_ALIGNMENT)
+#if UE_USE_VERYLARGEPAGEALLOCATOR && UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
+		if (Alignment > UE_MB2_MINIMUM_ALIGNMENT)
 		{
 			Size = Align(Size, Alignment);
 		}
-		bool bResult = (Size <= BINNED2_MAX_SMALL_POOL_SIZE);
+		const bool bResult = (Size <= UE_MB2_MAX_SMALL_POOL_SIZE);
 #else
-		bool bResult = ((Size <= BINNED2_MAX_SMALL_POOL_SIZE) & (Alignment <= BINNED2_MINIMUM_ALIGNMENT)); // one branch, not two
+		const bool bResult = ((Size <= UE_MB2_MAX_SMALL_POOL_SIZE) & (Alignment <= UE_MB2_MINIMUM_ALIGNMENT)); // one branch, not two
 #endif
 		return bResult;
 	}
+
 	CORE_API void* MallocSelect(SIZE_T Size, uint32 Alignment, bool bUseSmallPool);
 	FORCEINLINE void* MallocSelect(SIZE_T Size, uint32 Alignment)
 	{
 		return MallocSelect(Size, Alignment, UseSmallAlloc(Size, Alignment));
 	}
+
 	FORCEINLINE virtual void* Realloc(void* Ptr, SIZE_T NewSize, uint32 Alignment) override
 	{
-#if BINNED2_ALLOCATOR_STATS_VALIDATION
-		bool bOldIsOsAllocation = IsOSAllocation(Ptr);
+#if UE_MB2_ALLOCATOR_STATS_VALIDATION
+		const bool bOldIsOsAllocation = IsOSAllocation(Ptr);
 		SIZE_T OldSize;
 		if (!bOldIsOsAllocation)
 		{
 			ensure(GetAllocationSize(Ptr, OldSize));
 		}
+
 		FScopeLock Lock(&ValidationCriticalSection);
 		++RecursionCounter;
 		void *Result = ReallocInline(Ptr, NewSize, Alignment);
-		if ( !bOldIsOsAllocation )
+		if (!bOldIsOsAllocation)
 		{
 			AllocatedSmallPoolMemoryValidation -= OldSize;
 		}
@@ -353,22 +354,23 @@ public:
 		return ReallocInline(Ptr, NewSize, Alignment);
 #endif
 	}
+
 	FORCEINLINE void* ReallocInline(void* Ptr, SIZE_T NewSize, uint32 Alignment) 
 	{
-#if UE_USE_VERYLARGEPAGEALLOCATOR && BINNED2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
-		if (Alignment > BINNED2_MINIMUM_ALIGNMENT && (NewSize <= BINNED2_MAX_SMALL_POOL_SIZE))
+#if UE_USE_VERYLARGEPAGEALLOCATOR && UE_MB2_BOOKKEEPING_AT_THE_END_OF_LARGEBLOCK
+		if (Alignment > UE_MB2_MINIMUM_ALIGNMENT && (NewSize <= UE_MB2_MAX_SMALL_POOL_SIZE))
 		{
 			NewSize = Align(NewSize, Alignment);
 		}
-		if (NewSize <= BINNED2_MAX_SMALL_POOL_SIZE)
+		if (NewSize <= UE_MB2_MAX_SMALL_POOL_SIZE)
 #else
-		if (NewSize <= BINNED2_MAX_SMALL_POOL_SIZE && Alignment <= BINNED2_MINIMUM_ALIGNMENT) // one branch, not two
+		if (NewSize <= UE_MB2_MAX_SMALL_POOL_SIZE && Alignment <= UE_MB2_MINIMUM_ALIGNMENT) // one branch, not two
 #endif
 		{
-			FPerThreadFreeBlockLists* Lists = GMallocBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 			if (Lists && (!Ptr || !IsOSAllocation(Ptr)))
 			{
-				uint32 BlockSize = 0;
+				uint32 BinSize = 0;
 				uint32 PoolIndex = 0;
 
 				bool bCanFree = true; // the nullptr is always "freeable"
@@ -376,39 +378,39 @@ public:
 				{
 					// Reallocate to a smaller/bigger pool if necessary
 					FFreeBlock* Free = GetPoolHeaderFromPointer(Ptr);
-					BlockSize = Free->BlockSize;
+					BinSize = Free->BinSize;
 					PoolIndex = Free->PoolIndex;
 					// If canary is invalid we will assert in ReallocExternal. Otherwise it's the pre-fork canary and we will allocate new memory without touching this allocation.
 					bCanFree = Free->CanaryAndForkState == CurrentCanary;
-					if (NewSize && bCanFree && NewSize <= BlockSize && (PoolIndex == 0 || NewSize > PoolIndexToBlockSize(PoolIndex - 1)))
+					if (NewSize && bCanFree && NewSize <= BinSize && (PoolIndex == 0 || NewSize > PoolIndexToBinSize(PoolIndex - 1)))
 					{
 						return Ptr;
 					}
-					bCanFree = bCanFree && Lists->CanFree(PoolIndex, BlockSize);
+					bCanFree = bCanFree && Lists->CanFree(PoolIndex, BinSize);
 				}
 				if (bCanFree)
 				{
-					uint32 NewPoolIndex = BoundSizeToPoolIndex(NewSize, MemSizeToIndex);
-					uint32 NewBlockSize = PoolIndexToBlockSize(NewPoolIndex);
+					const uint32 NewPoolIndex = BoundSizeToPoolIndex(NewSize, MemSizeToPoolIndex);
+					const uint32 NewBinSize = PoolIndexToBinSize(NewPoolIndex);
 					void* Result = NewSize ? Lists->Malloc(NewPoolIndex) : nullptr;
-#if BINNED2_ALLOCATOR_STATS
+#if UE_MB2_ALLOCATOR_STATS
 					if (Result)
 					{
-						Lists->AllocatedMemory += NewBlockSize;
+						Lists->AllocatedMemory += NewBinSize;
 					}
 #endif
 					if (Result || !NewSize)
 					{
 						if (Result && Ptr)
 						{
-							FMemory::Memcpy(Result, Ptr, FPlatformMath::Min<SIZE_T>(NewSize, BlockSize));
+							FMemory::Memcpy(Result, Ptr, FPlatformMath::Min<SIZE_T>(NewSize, BinSize));
 						}
 						if (Ptr)
 						{
-							bool bDidPush = Lists->Free(Ptr, PoolIndex, BlockSize);
+							const bool bDidPush = Lists->Free(Ptr, PoolIndex, BinSize);
 							checkSlow(bDidPush);
-#if BINNED2_ALLOCATOR_STATS
-							Lists->AllocatedMemory -= BlockSize;
+#if UE_MB2_ALLOCATOR_STATS
+							Lists->AllocatedMemory -= BinSize;
 #endif
 						}
 
@@ -423,7 +425,7 @@ public:
 
 	FORCEINLINE virtual void Free(void* Ptr) override
 	{
-#if BINNED2_ALLOCATOR_STATS_VALIDATION
+#if UE_MB2_ALLOCATOR_STATS_VALIDATION
 		FScopeLock Lock(&ValidationCriticalSection);
 		++RecursionCounter;
 		if (!IsOSAllocation(Ptr))
@@ -451,16 +453,16 @@ public:
 	{
 		if (!IsOSAllocation(Ptr))
 		{
-			FPerThreadFreeBlockLists* Lists = GMallocBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
+			FPerThreadFreeBlockLists* Lists = GBinned2PerThreadCaches ? FPerThreadFreeBlockLists::Get() : nullptr;
 			if (Lists)
 			{
 				FFreeBlock* BasePtr = GetPoolHeaderFromPointer(Ptr);
-				int32 BlockSize = BasePtr->BlockSize;
+				const int32 BinSize = BasePtr->BinSize;
 				// If canary is invalid we will assert in FreeExternal. Otherwise it's the pre-fork canary and we will turn this free into a no-op.
-				if (BasePtr->CanaryAndForkState == CurrentCanary && Lists->Free(Ptr, BasePtr->PoolIndex, BasePtr->BlockSize))
+				if (BasePtr->CanaryAndForkState == CurrentCanary && Lists->Free(Ptr, BasePtr->PoolIndex, BinSize))
 				{
-#if BINNED2_ALLOCATOR_STATS
-					Lists->AllocatedMemory -= BasePtr->BlockSize;
+#if UE_MB2_ALLOCATOR_STATS
+					Lists->AllocatedMemory -= BinSize;
 #endif
 					return;
 				}
@@ -468,6 +470,7 @@ public:
 		}
 		FreeExternal(Ptr);
 	}
+
 	FORCEINLINE virtual bool GetAllocationSize(void *Ptr, SIZE_T &SizeOut) override
 	{
 		if (!IsOSAllocation(Ptr))
@@ -479,7 +482,7 @@ public:
 			if (Free->CanaryAndForkState == CurrentCanary)
 #endif
 			{
-				SizeOut = Free->BlockSize;
+				SizeOut = Free->BinSize;
 				return true;
 			}
 		}
@@ -513,19 +516,19 @@ public:
 	CORE_API void CanaryTest(const FFreeBlock* Block) const;
 	CORE_API void CanaryFail(const FFreeBlock* Block) const;
 
-#if BINNED2_ALLOCATOR_STATS
+#if UE_MB2_ALLOCATOR_STATS
 	CORE_API int64 GetTotalAllocatedSmallPoolMemory() const;
 #endif
 	CORE_API virtual void GetAllocatorStats( FGenericMemoryStats& out_Stats ) override;
 	/** Dumps current allocator stats to the log. */
 	CORE_API virtual void DumpAllocatorStats(class FOutputDevice& Ar) override;
 	
-	static CORE_API uint16 SmallBlockSizesReversed[BINNED2_SMALL_POOL_COUNT]; // this is reversed to get the smallest elements on our main cache line
+	static CORE_API uint16 SmallBinSizesReversed[UE_MB2_SMALL_POOL_COUNT]; // this is reversed to get the smallest elements on our main cache line
 	static CORE_API FMallocBinned2* MallocBinned2;
 	static CORE_API uint32 PageSize;
 	static CORE_API uint32 OsAllocationGranularity;
 	// Mapping of sizes to small table indices
-	static CORE_API uint8 MemSizeToIndex[1 + (BINNED2_MAX_SMALL_POOL_SIZE >> BINNED2_MINIMUM_ALIGNMENT_SHIFT)];
+	static CORE_API uint8 MemSizeToPoolIndex[1 + (UE_MB2_MAX_SMALL_POOL_SIZE >> UE_MB2_MINIMUM_ALIGNMENT_SHIFT)];
 
 	static void RegisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
 	static void UnregisterThreadFreeBlockLists(FPerThreadFreeBlockLists* FreeBlockLists);
@@ -535,17 +538,17 @@ public:
 	static void* AllocateMetaDataMemory(SIZE_T Size);
 	static void FreeMetaDataMemory(void* Ptr, SIZE_T Size);
 
-	FORCEINLINE uint32 PoolIndexToBlockSize(uint32 PoolIndex) const
+	FORCEINLINE uint32 PoolIndexToBinSize(uint32 PoolIndex) const
 	{
-		return SmallBlockSizesReversed[BINNED2_SMALL_POOL_COUNT - PoolIndex - 1];
+		return SmallBinSizesReversed[UE_MB2_SMALL_POOL_COUNT - PoolIndex - 1];
 	}
 
 	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
 	FCriticalSection& GetMutex() { return Mutex; }
 };
 
-#define BINNED2_INLINE (1)
-#if BINNED2_INLINE // during development, it helps with iteration time to not include these here, but rather in the .cpp
+#define UE_MB2_INLINE (1)
+#if UE_MB2_INLINE // during development, it helps with iteration time to not include these here, but rather in the .cpp
 	#if PLATFORM_USES_FIXED_GMalloc_CLASS && !FORCE_ANSI_ALLOCATOR && USE_MALLOC_BINNED2
 		#define FMEMORY_INLINE_FUNCTION_DECORATOR  FORCEINLINE
 		#define FMEMORY_INLINE_GMalloc (FMallocBinned2::MallocBinned2)

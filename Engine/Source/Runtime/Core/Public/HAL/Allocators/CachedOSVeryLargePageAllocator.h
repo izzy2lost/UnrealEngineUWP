@@ -66,7 +66,7 @@ public:
 		return CachedFree + CachedOSPageAllocator.GetCachedFreeTotal();
 	}
 
-	FORCEINLINE bool IsSmallBlockAllocation(const void* Ptr)
+	FORCEINLINE bool IsSmallBlockAllocation(const void* Ptr) const
 	{
 		if (((uintptr_t)Ptr - AddressSpaceReserved) < AddressSpaceToReserveForSmallPool)
 		{
