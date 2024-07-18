@@ -175,7 +175,7 @@ namespace EpicGames.Core
 		/// <param name="args">Argument list to parse</param>
 		/// <param name="properties"></param>
 		/// <returns></returns>
-		public static void ParsePropertyValues(string format, object[] args, Dictionary<string, object> properties)
+		public static void ParsePropertyValues(string format, object[] args, Dictionary<string, object?> properties)
 		{
 			List<(int, int)>? offsets = ParsePropertyNames(format);
 			if (offsets != null)

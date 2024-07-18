@@ -41,7 +41,7 @@ namespace UnrealBuildToolTests
 				LogEvent logEvent = LogEvent.Read(JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter).Data.Span);
 				if (logEvent.Level != LogLevel.Information || logEvent.Id != default || logEvent.Properties != null)
 				{
-					KeyValuePair<string, object>[] items = new[] { new KeyValuePair<string, object>(LogLine, _logLineIndex) };
+					KeyValuePair<string, object?>[] items = new[] { new KeyValuePair<string, object?>(LogLine, _logLineIndex) };
 					logEvent.Properties = (logEvent.Properties == null) ? items : Enumerable.Concat(logEvent.Properties, items);
 					_events.Add(logEvent);
 				}

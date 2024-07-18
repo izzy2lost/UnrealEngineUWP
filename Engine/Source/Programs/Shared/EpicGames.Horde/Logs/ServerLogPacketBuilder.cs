@@ -127,7 +127,7 @@ namespace EpicGames.Horde.Logs
 				}
 
 				string escapedLine = escapedLineBuilder.ToString();
-				KeyValuePair<string, object>[] properties = new[] { new KeyValuePair<string, object>("Text", escapedLine) };
+				KeyValuePair<string, object?>[] properties = new[] { new KeyValuePair<string, object?>("Text", escapedLine) };
 				LogEvent newLogEvent = new LogEvent(DateTime.UtcNow, LogLevel.Error, default, $"Invalid json log event: {escapedLineBuilder}", "Invalid json log event: {Text}", properties, LogException.FromException(ex));
 				JsonLogEvent newJsonLogEvent = new JsonLogEvent(newLogEvent);
 

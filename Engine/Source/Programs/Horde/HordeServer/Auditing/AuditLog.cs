@@ -92,7 +92,7 @@ namespace HordeServer.Auditing
 				{
 					StringBuilder message = new StringBuilder();
 					StringBuilder format = new StringBuilder();
-					Dictionary<string, object> properties = new Dictionary<string, object>(StringComparer.Ordinal);
+					Dictionary<string, object?> properties = new Dictionary<string, object?>(StringComparer.Ordinal);
 
 					for (int idx = 0; idx < _scopes.Count; idx++)
 					{
@@ -115,7 +115,7 @@ namespace HordeServer.Auditing
 				return logEvent;
 			}
 
-			static void AppendMessage(LogEvent logEvent, int id, StringBuilder message, StringBuilder format, Dictionary<string, object> properties)
+			static void AppendMessage(LogEvent logEvent, int id, StringBuilder message, StringBuilder format, Dictionary<string, object?> properties)
 			{
 				message.Append(logEvent.Message);
 				if (logEvent.Format == null)
@@ -128,7 +128,7 @@ namespace HordeServer.Auditing
 					format.Append(logEvent.Format);
 					if (logEvent.Properties != null)
 					{
-						foreach (KeyValuePair<string, object> item in logEvent.Properties)
+						foreach (KeyValuePair<string, object?> item in logEvent.Properties)
 						{
 							properties[item.Key] = item.Value;
 						}

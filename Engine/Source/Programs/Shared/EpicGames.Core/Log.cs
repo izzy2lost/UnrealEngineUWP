@@ -791,14 +791,14 @@ namespace EpicGames.Core
 		class Scope : IDisposable
 		{
 			readonly LoggerScopeCollection _outer;
-			readonly IEnumerable<KeyValuePair<string, object>>? _properties;
+			readonly IEnumerable<KeyValuePair<string, object?>>? _properties;
 
-			public IEnumerable<KeyValuePair<string, object>>? Properties => _properties;
+			public IEnumerable<KeyValuePair<string, object?>>? Properties => _properties;
 
 			public Scope(LoggerScopeCollection outer, object? value)
 			{
 				_outer = outer;
-				_properties = value as IEnumerable<KeyValuePair<string, object>>;
+				_properties = value as IEnumerable<KeyValuePair<string, object?>>;
 
 				_outer._scopes.Add(this);
 			}
@@ -824,13 +824,13 @@ namespace EpicGames.Core
 		/// <summary>
 		/// Enumerates all current properties
 		/// </summary>
-		public IEnumerable<KeyValuePair<string, object>> GetProperties()
+		public IEnumerable<KeyValuePair<string, object?>> GetProperties()
 		{
 			foreach (Scope scope in _scopes)
 			{
 				if (scope.Properties != null)
 				{
-					foreach (KeyValuePair<string, object> property in scope.Properties)
+					foreach (KeyValuePair<string, object?> property in scope.Properties)
 					{
 						yield return property;
 					}

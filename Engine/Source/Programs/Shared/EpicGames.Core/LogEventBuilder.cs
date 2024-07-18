@@ -438,10 +438,10 @@ namespace EpicGames.Core
 
 		static LogEvent CreateEvent(DateTime time, LogLevel level, EventId eventId, int lineIndex, int lineCount, LogLine line)
 		{
-			Dictionary<string, object>? properties = null;
+			Dictionary<string, object?>? properties = null;
 			if (line._properties != null)
 			{
-				properties = new Dictionary<string, object>();
+				properties = new Dictionary<string, object?>();
 				foreach ((string name, object value) in line._properties)
 				{
 					object newValue;

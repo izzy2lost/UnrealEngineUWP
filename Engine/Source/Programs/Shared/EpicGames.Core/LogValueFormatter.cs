@@ -149,7 +149,7 @@ namespace EpicGames.Core
 				writer.WriteString(LogEventPropertyName.Text, logValue.Text);
 				if (logValue.Properties != null)
 				{
-					foreach (KeyValuePair<Utf8String, object> pair in logValue.Properties)
+					foreach (KeyValuePair<Utf8String, object?> pair in logValue.Properties)
 					{
 						writer.WritePropertyName(pair.Key);
 						WritePropertyValue(pair.Value, writer);
@@ -231,6 +231,36 @@ namespace EpicGames.Core
 			}
 		}
 
+		class DictionaryFormatter : ILogValueFormatter
+		{
+			public void Format(object value, Utf8JsonWriter writer)
+			{
+				Dictionary<string, object> dictionary = (Dictionary<string, object>)value;
+				writer.WriteStartObject();
+				foreach (KeyValuePair<string, object> kvp in dictionary)
+				{
+					writer.WritePropertyName(kvp.Key);
+					Format(kvp.Value, writer);
+				}
+				writer.WriteEndObject();
+			}
+		}
+
+		class Utf8DictionaryFormatter : ILogValueFormatter
+		{
+			public void Format(object value, Utf8JsonWriter writer)
+			{
+				Dictionary<Utf8String, object> dictionary = (Dictionary<Utf8String, object>)value;
+				writer.WriteStartObject();
+				foreach (KeyValuePair<Utf8String, object> kvp in dictionary)
+				{
+					writer.WritePropertyName(kvp.Key);
+					LogValueFormatter.Format(kvp.Value, writer);
+				}
+				writer.WriteEndObject();
+			}
+		}
+
 		class FileReferenceFormatter : ILogValueFormatter
 		{
 			public void Format(object value, Utf8JsonWriter writer)
@@ -258,6 +288,8 @@ namespace EpicGames.Core
 			formatters.TryAdd(typeof(float), new FloatFormatter());
 			formatters.TryAdd(typeof(double), new DoubleFormatter());
 			formatters.TryAdd(typeof(string), s_stringFormatter);
+			formatters.TryAdd(typeof(Dictionary<string, object>), new DictionaryFormatter());
+			formatters.TryAdd(typeof(Dictionary<Utf8String, object>), new Utf8DictionaryFormatter());
 			formatters.TryAdd(typeof(LogValue), new StructuredLogValueFormatter());
 			formatters.TryAdd(typeof(FileReference), new FileReferenceFormatter());
 			formatters.TryAdd(typeof(Activity), new ActivityFormatter());

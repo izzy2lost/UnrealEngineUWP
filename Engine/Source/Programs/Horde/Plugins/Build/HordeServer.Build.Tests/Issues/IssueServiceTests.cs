@@ -1956,7 +1956,7 @@ namespace HordeServer.Tests.Issues
 			Assert.AreEqual("Errors in Update Version Files", issue.Summary);
 		}
 
-		static private IEnumerable<JsonLogEvent> MultilineLogEvent(LogLevel level, EventId eventId, string format, Dictionary<string, object> properties)
+		static private IEnumerable<JsonLogEvent> MultilineLogEvent(LogLevel level, EventId eventId, string format, Dictionary<string, object?> properties)
 		{
 			DateTime time = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc);
 			string message = MessageTemplate.Render(format, properties!);
@@ -2035,7 +2035,7 @@ namespace HordeServer.Tests.Issues
 				await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
 				await using (TestJsonLogger logger = await CreateLoggerAsync(job, 0, 1))
 				{
-					Dictionary<string, object> properties = new Dictionary<string, object>
+					Dictionary<string, object?> properties = new Dictionary<string, object?>
 					{
 						["Summary"] = logMessage,
 						["Callstack"] = logAlternateCallstack
