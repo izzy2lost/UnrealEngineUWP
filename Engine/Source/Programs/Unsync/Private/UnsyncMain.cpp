@@ -345,7 +345,7 @@ InnerMain(int Argc, char** Argv)
 		->group(ExperimentalGroupId);
 	SubSync->add_flag("--login", bShouldLogin, "Use user authentication when accessing unsync server");
 	SubSync->add_option("--token", AuthTokenPathUtf8, "Explicit path to the authentication token file to use");
-	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 60 second timeout on network socket operations");
+	SubSync->add_flag("--no-timeout", bNoSocketTimeout, "Disable the default 15 minute timeout on network socket operations");
 
 	CLI::Option* BackgroundMemoryBudgetOption = SubSync->add_option("--background-task-memory",
 															BackgroundTaskMemoryBudgetGB,
@@ -1034,7 +1034,7 @@ InnerMain(int Argc, char** Argv)
 		}
 		else
 		{
-			RemoteDesc.RecvTimeoutSeconds = 60;
+			RemoteDesc.RecvTimeoutSeconds = 15 * 60;
 		}
 
 		// Try to derive default memory budget
