@@ -3,10 +3,10 @@
   <Option Name="RunWebTests" DefaultValue="" Description="Run Web Tests" />
   <Property Name="TestNames" Value="$(TestNames);Web" />
   <Extend Name="RunAllTests">
-    <Expand Name="DeployAndTest" Platform="Win64" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" HasAfterSteps="True" ExtraCompilationArgs="-allmodules" />
-    <Expand Name="DeployAndTest" Platform="Linux" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" HasAfterSteps="True" ExtraCompilationArgs="-allmodules" />
-    <Expand Name="DeployAndTest" Platform="Mac" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" HasAfterSteps="True" ExtraCompilationArgs="-allmodules" />
-    <Expand Name="DeployAndTest" Platform="Android" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" HasAfterSteps="True" ExtraCompilationArgs="-allmodules  -architectures=arm64" RunUnsupported="True" />
-    <Expand Name="DeployAndTest" Platform="IOS" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" HasAfterSteps="True" ExtraCompilationArgs="-allmodules" RunUnsupported="True" />
+    <Expand Name="DeployAndTest" Platform="Win64" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" />
+    <Expand Name="DeployAndTest" Platform="Linux" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" />
+    <Expand Name="DeployAndTest" Platform="Mac" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" />
+    <Expand Name="DeployAndTest" Platform="Android" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules  -architectures=arm64" RunUnsupported="True" />
+    <Expand Name="DeployAndTest" Platform="IOS" TestName="Web" ShortName="Web" TargetName="WebTests" BinaryRelativePath="Engine\Binaries" ReportType="xml" ExtraCompilationArgs="-allmodules" RunUnsupported="True" />
   </Extend>
 </BuildGraph>

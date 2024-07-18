@@ -17,7 +17,7 @@ public class WebTests : TestModuleRules
 			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.Android);
 			TestMetadata.SupportedPlatforms.Add(UnrealTargetPlatform.IOS);
 
-			TestMetadata.HasAfterSteps = true;
+			TestMetadata.HasAfterSteps = false;
 			TestMetadata.PlatformCompilationExtraArgs.Add(UnrealTargetPlatform.Win64, "-allmodules");
 			TestMetadata.PlatformCompilationExtraArgs.Add(UnrealTargetPlatform.Linux, "-allmodules");
 			TestMetadata.PlatformCompilationExtraArgs.Add(UnrealTargetPlatform.LinuxArm64, "-allmodules");
