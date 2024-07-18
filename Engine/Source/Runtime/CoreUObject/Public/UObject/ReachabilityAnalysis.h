@@ -9,6 +9,7 @@
 
 #include "CoreMinimal.h"
 
+struct FUObjectItem;
 
 /**
  * Enables or disables incremental reachability analysis.
@@ -35,6 +36,21 @@ COREUOBJECT_API void SetReachabilityAnalysisTimeLimit(float TimeLimitSeconds);
  * @return	time limit (in seconds) for incremental rachability analysis.
  */
 COREUOBJECT_API float GetReachabilityAnalysisTimeLimit();
+
+
+namespace UE::GC
+{
+
+/**
+ * Entry in GUnreachableObjects array that can either be an FUObjectItem (initially) or an UObject after unreachable objects had their InternalIndex freed.
+ */
+union FUnreachableObject
+{
+	FUObjectItem* ObjectItem;
+	UObject* Object;
+};
+
+}
 
 namespace UE::GC::Private
 {

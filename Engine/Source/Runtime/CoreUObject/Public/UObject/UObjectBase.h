@@ -124,6 +124,12 @@ private:
 	 */
 	COREUOBJECT_API void AddObject(FName Name, EInternalObjectFlags InSetInternalFlags, int32 InInternalIndex = -1, int32 InSerialNumber = 0);
 
+	/**
+	 * Checks to see if the object appears to be valid when being destroyed
+	 * @return true if this appears to be a valid object
+	 */
+	COREUOBJECT_API bool IsValidLowLevelForDestruction() const;
+
 public:
 	/**
 	 * Checks to see if the object appears to be valid

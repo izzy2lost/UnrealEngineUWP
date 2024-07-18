@@ -3604,10 +3604,11 @@ UObject* StaticAllocateObject
 				// Finish destroying the object.
 				Obj->ConditionalFinishDestroy();
 			}
-			GUObjectArray.LockInternalArray();
 			TGuardValue<bool> _(GUObjectArray.bShouldRecycleObjectIndices, false);
-			Obj->~UObject();
+			GUObjectArray.LockInternalArray();
+			GUObjectArray.FreeUObjectIndex(Obj);
 			GUObjectArray.UnlockInternalArray();
+			Obj->~UObject();
 			bWasConstructedOnOldObject	= true;
 		}
 		else

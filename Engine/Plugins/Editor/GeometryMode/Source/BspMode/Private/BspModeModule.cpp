@@ -97,13 +97,17 @@ void FBspModeModule::UnregisterBspBuilderType( class UClass* InBuilderClass )
 			}
 		}
 	}
-	
-	BspBuilderTypes.RemoveAll( 
-		[InBuilderClass] ( const TSharedPtr<FBspBuilderType>& RemovalCandidate ) -> bool
-		{
-			return (RemovalCandidate->BuilderClass == InBuilderClass);
-		}
-	);
+	// If UObject system is not intialized the blow code can not run because it creates weak object pointers which crashes
+	// the internal UObject array.
+	if (UObjectInitialized())
+	{
+		BspBuilderTypes.RemoveAll(
+			[InBuilderClass](const TSharedPtr<FBspBuilderType>& RemovalCandidate) -> bool
+			{
+				return (RemovalCandidate->BuilderClass == InBuilderClass);
+			}
+		);
+	}
 }
 
 

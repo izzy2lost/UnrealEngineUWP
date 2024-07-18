@@ -338,6 +338,10 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 
 	// No need to call LockInternalArray(); here as it should already be locked by GC
 
+#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
+	UE::CoreUObject::Private::FreeObjectHandle(Object);
+#endif 	
+
 	int32 Index = Object->InternalIndex;
 	FUObjectItem* ObjectItem = IndexToObject(Index);
 	UE_CLOG(ObjectItem->Object != Object, LogUObjectArray, Fatal, TEXT("Removing object (0x%016llx) at index %d but the index points to a different object (0x%016llx)!"), (int64)(PTRINT)Object, Index, (int64)(PTRINT)ObjectItem->Object);
@@ -356,6 +360,7 @@ void FUObjectArray::FreeUObjectIndex(UObjectBase* Object)
 	ObjectItem->RefCount = 0;
 	ObjectItem->ClusterRootIndex = 0;
 	ObjectItem->SerialNumber = 0;
+	Object->InternalIndex = INDEX_NONE;
 
 	// You cannot safely recycle indicies in the non-GC range
 	// No point in filling this list when doing exit purge. Nothing should be allocated afterwards anyway.

@@ -100,7 +100,7 @@ static int32 GObjCurrentPurgeObjectIndex = 0;
 static bool GObjCurrentPurgeObjectIndexNeedsReset = true;
 
 /** Contains a list of objects that stayed marked as unreachable after the last reachability analysis */
-static TArray<FUObjectItem*> GUnreachableObjects;
+static TArray<UE::GC::FUnreachableObject> GUnreachableObjects;
 static FCriticalSection GUnreachableObjectsCritical;
 static int32 GUnrechableObjectIndex = 0;
 
@@ -580,7 +580,7 @@ namespace UE::GC::Private
 	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
 	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
 
-	using FGatherUnreachableObjectsState = TThreadedGather<TArray<FUObjectItem*>>;
+	using FGatherUnreachableObjectsState = TThreadedGather<TArray<UE::GC::FUnreachableObject>>;
 	static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
 
 	static TSet<int32> GRoots;
@@ -734,6 +734,8 @@ void OnDisregardForGCSetDisabled(int32 NumObjects)
  */
 class FObjectPurge
 {
+	/** Current index into the global unreachable objects array (GUnreachableObjects) of the object whose index is being released */
+	int32 ObjCurrentFreeIndexObjectIndex = 0;
 	/** Current index into the global unreachable objects array (GUnreachableObjects) of the object being destroyed */
 	int32 ObjCurrentPurgeObjectIndex = 0;
 	/** Stats for the number of objects destroyed */
@@ -753,6 +755,7 @@ public:
 	void Begin()
 	{
 		check(IsFinished()); // In single-threaded mode we need to be finished or the condition below will hang
+		ObjCurrentFreeIndexObjectIndex = 0;
 		ObjCurrentPurgeObjectIndex = 0;
 		ObjectsDestroyedSinceLastMarkPhase = 0;
 	}
@@ -769,40 +772,76 @@ public:
 		TRACE_CPUPROFILER_EVENT_SCOPE(FObjectPurge::DestroyObjects);
 		constexpr int32 TimeLimitEnforcementGranularityForDeletion = 100;
 		int32 ProcessedObjectsCount = 0;
-		bFinishedDestroyingObjects = true;
 
+		// Global UObject Array needs to be locked only when freeing UObject indices
 		GUObjectArray.LockInternalArray();
-
-		while (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
 		{
-			FUObjectItem* ObjectItem = GUnreachableObjects[ObjCurrentPurgeObjectIndex];
-			check(ObjectItem->IsUnreachable());
-
-			UObject* Object = (UObject*)ObjectItem->Object;
-			check(Object->HasAllFlags(RF_FinishDestroyed | RF_BeginDestroyed));
-
-			Object->~UObject();
-			GUObjectAllocator.FreeUObject(Object);
-			GUnreachableObjects[ObjCurrentPurgeObjectIndex] = nullptr;
-
-			++ProcessedObjectsCount;
-			++ObjectsDestroyedSinceLastMarkPhase;
-			++ObjCurrentPurgeObjectIndex;
-
-			// Time slicing when running on the game thread
-			if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num()))
+			// This loops replaces every entry in GUnreachableObjects which up untill this point has been an FUObjectItem 
+			// with the actual UObject that the FUObjectItem represented.
+			// This is because in this loop we free UObject indices meaning that they are removed from GUObjectArray and 
+			// the associated FUObjectItem is reset and no longer pointing at UObject.
+			// This approach has the benefit that we don't need to lock GUObjectArray when calling UObject destructors and 
+			// we can reclaim GUObjectArray entires faster.
+			while (ObjCurrentFreeIndexObjectIndex < GUnreachableObjects.Num())
 			{
-				ProcessedObjectsCount = 0;
-				if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
+				UE::GC::FUnreachableObject& UnreachableObject = GUnreachableObjects[ObjCurrentFreeIndexObjectIndex];
+				FUObjectItem* ObjectItem = UnreachableObject.ObjectItem;
+				check(ObjectItem->IsUnreachable());
+
+				UObject* Object = (UObject*)ObjectItem->Object;
+				check(Object->HasAllFlags(RF_FinishDestroyed | RF_BeginDestroyed));
+
+				GUObjectArray.FreeUObjectIndex(Object);
+
+				// Replace the entry in GUnreachableObjects with the actual UObject so that we can iterate over the same array when 
+				// we call UObject destructors and free their memory in the loop below
+				UnreachableObject.Object = Object;
+
+				++ProcessedObjectsCount;
+				++ObjCurrentFreeIndexObjectIndex;
+
+				// Time slicing when running on the game thread
+				if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentFreeIndexObjectIndex < GUnreachableObjects.Num()))
 				{
-					bFinishedDestroyingObjects = false;
-					break;
+					ProcessedObjectsCount = 0;
+					if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
+					{
+						break;
+					}
+				}
+			}
+		}
+		GUObjectArray.UnlockInternalArray();
+
+		if (ObjCurrentFreeIndexObjectIndex == GUnreachableObjects.Num())
+		{
+			// At this point all entires in GUnreachableObjects point at UObject memory instead of FUObjectItems
+			while (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
+			{
+				UE::GC::FUnreachableObject& UnreachableObject = GUnreachableObjects[ObjCurrentPurgeObjectIndex];
+				UObject* Object = UnreachableObject.Object;
+
+				Object->~UObject();
+				GUObjectAllocator.FreeUObject(Object);
+				UnreachableObject.Object = nullptr;
+
+				++ProcessedObjectsCount;
+				++ObjectsDestroyedSinceLastMarkPhase;
+				++ObjCurrentPurgeObjectIndex;
+
+				// Time slicing when running on the game thread
+				if (bUseTimeLimit && (ProcessedObjectsCount == TimeLimitEnforcementGranularityForDeletion) && (ObjCurrentPurgeObjectIndex < GUnreachableObjects.Num()))
+				{
+					ProcessedObjectsCount = 0;
+					if ((FPlatformTime::Seconds() - StartTime) > TimeLimit)
+					{
+						break;
+					}
 				}
 			}
 		}
 
-		GUObjectArray.UnlockInternalArray();
-
+		bFinishedDestroyingObjects = (ObjCurrentPurgeObjectIndex == GUnreachableObjects.Num());
 		return bFinishedDestroyingObjects;
 	}
 
@@ -820,9 +859,9 @@ public:
 
 	FORCENOINLINE void VerifyAllObjectsDestroyed() const
 	{
-		for (FUObjectItem* ObjectItem : GUnreachableObjects)
+		for (UE::GC::FUnreachableObject UnreachableObject : GUnreachableObjects)
 		{
-			UE_CLOG(ObjectItem, LogGarbage, Fatal, TEXT("Object 0x%016llx has not been destroyed during async purge"), (int64)(PTRINT)ObjectItem->Object);
+			UE_CLOG(UnreachableObject.Object, LogGarbage, Fatal, TEXT("Object 0x%016llx has not been destroyed during purge"), (int64)(PTRINT)UnreachableObject.Object);
 		}
 	}
 } GUObjectPurge;
@@ -4573,7 +4612,7 @@ bool IncrementalDestroyGarbage(bool bUseTimeLimit, double TimeLimit)
 			TRACE_CPUPROFILER_EVENT_SCOPE(ConditionalFinishDestroy);
 			while (GObjCurrentPurgeObjectIndex < GUnreachableObjects.Num())
 			{
-				FUObjectItem* ObjectItem = GUnreachableObjects[GObjCurrentPurgeObjectIndex];
+				FUObjectItem* ObjectItem = GUnreachableObjects[GObjCurrentPurgeObjectIndex].ObjectItem;
 				checkSlow(ObjectItem);
 
 				//@todo UE - A prefetch was removed here. Re-add it. It wasn't right anyway, since it was ten items ahead and the consoles on have 8 prefetch slots
@@ -4994,7 +5033,7 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 			{
 				checkf(!ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot), TEXT("Unreachable cluster root found. Unreachable clusters should have been dissolved in DissolveUnreachableClusters!"));
 				FGCFlags::SetUnreachable(ObjectItem);
-				Iterator.Payload.Add(ObjectItem);
+				Iterator.Payload.Add({ ObjectItem });
 			}
 
 			if (Timer.IsTimeLimitExceeded())
@@ -5034,7 +5073,12 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		{
 			AcquireGCLock();
 		}
-		NotifyUnreachableObjects(GUnreachableObjects);
+		{			
+			TArrayView<UE::GC::FUnreachableObject> UnrachableObjectsView(GUnreachableObjects);
+			// Although the below cast is not pretty, we don't want to expose UE::GC::FUnreachableObject to async loading API 
+			// as it may be confusing what UE::GC::FUnreachableObject currently represents
+			NotifyUnreachableObjects(*reinterpret_cast<TArrayView<FUObjectItem*>*>(&UnrachableObjectsView));
+		}
 		if (bNeedsGCLock)
 		{
 			ReleaseGCLock();
@@ -5860,7 +5904,7 @@ bool UnhashUnreachableObjects(bool bUseTimeLimit, double TimeLimit)
 		{
 			//@todo UE - A prefetch was removed here. Re-add it. It wasn't right anyway, since it was ten items ahead and the consoles on have 8 prefetch slots
 
-			FUObjectItem* ObjectItem = GUnreachableObjects[GUnrechableObjectIndex++];
+			FUObjectItem* ObjectItem = GUnreachableObjects[GUnrechableObjectIndex++].ObjectItem;
 			{
 				UObject* Object = static_cast<UObject*>(ObjectItem->Object);
 				FScopedCBDProfile Profile(Object);
@@ -5975,6 +6019,8 @@ bool TryCollectGarbage(EObjectFlags KeepFlags, bool bPerformFullPurge)
  */
 void PurgeAllUObjectsOnExit()
 {
+	using namespace UE::GC::Private;
+
 	// This can happen when we run into an error early in the init process
 	if (GUObjectArray.IsOpenForDisregardForGC())
 	{
@@ -6054,6 +6100,12 @@ void PurgeAllUObjectsOnExit()
 
 		GatherUnreachableObjects(false);
 		IncrementalPurgeGarbage(false);
+	}
+
+	{
+		// Since we just destroyed all objects regardless of their flags, make sure the roots list is empty
+		FScopeLock RootsLock(&GRootsCritical);
+		GRoots.Empty();
 	}
 
 	ReleaseGCLock();

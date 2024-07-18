@@ -137,7 +137,7 @@ UObjectBase::UObjectBase(UClass* InClass,
 #if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
 	UObjectStats::IncrementUObjectCount();
 #endif
-		}	
+}	
 
 
 /**
@@ -149,12 +149,9 @@ UObjectBase::~UObjectBase()
 	if( UObjectInitialized() && ClassPrivate && !GIsCriticalError )
 	{
 		// Validate it.
-		check(IsValidLowLevel());
+		check(IsValidLowLevelForDestruction());
 		check(GetFName() == NAME_None);
-#if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE
-		UE::CoreUObject::Private::FreeObjectHandle(this);
-#endif 
-		GUObjectArray.FreeUObjectIndex(this);
+		checkf(InternalIndex == INDEX_NONE, TEXT("Object destroyed outside of GC (InternalIndex=%d, expected %d)"), InternalIndex, INDEX_NONE);	
 	}
 
 #if CSV_PROFILER_STATS && CSV_TRACK_UOBJECT_COUNT
@@ -306,23 +303,28 @@ void UObjectBase::SetClass(UClass* NewClass)
 }
 #endif
 
+bool UObjectBase::IsValidLowLevelForDestruction() const
+{
+	if (this == nullptr)
+	{
+		UE_LOG(LogUObjectBase, Warning, TEXT("NULL object"));
+		return false;
+	}
+	if (!ClassPrivate)
+	{
+		UE_LOG(LogUObjectBase, Warning, TEXT("Object is not registered"));
+		return false;
+	}
+	return true;
+}
+
 /**
  * Checks to see if the object appears to be valid
  * @return true if this appears to be a valid object
  */
 bool UObjectBase::IsValidLowLevel() const
 {
-	if( this == nullptr )
-	{
-		UE_LOG(LogUObjectBase, Warning, TEXT("NULL object") );
-		return false;
-	}
-	if( !ClassPrivate )
-	{
-		UE_LOG(LogUObjectBase, Warning, TEXT("Object is not registered") );
-		return false;
-	}
-	return GUObjectArray.IsValid(this);
+	return IsValidLowLevelForDestruction() && GUObjectArray.IsValid(this);
 }
 
 bool UObjectBase::IsValidLowLevelFast(bool bRecursive /*= true*/) const
