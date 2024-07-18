@@ -23,9 +23,8 @@ ACCOUNTSERVICE_TEST_CASE("Verify if we can properly create a OnlineAccountCreden
 
 ACCOUNTSERVICE_TEST_CASE("Verify if we can properly instantiate the OSS")
 {
-	FTestPipeline& Pipeline = GetPipeline();
-
-	Pipeline.EmplaceLambda([](IOnlineSubsystem* Services)
+	GetPipeline()
+		.EmplaceLambda([](IOnlineSubsystem* Services)
 		{
 			int32 LocalUserNum = 0;
 			FString LocalType = "test_account";
