@@ -772,6 +772,7 @@ public:
 				RUN_TEST(Test_UpdateTexture_Impl<FDataSource16x2>(RHICmdList, Format, UpdateType));
 				break;
 			case PF_R16G16_UINT:
+			case PF_R16G16_SINT:
 				RUN_TEST(Test_UpdateTexture_Impl<FDataSource16x2UInt>(RHICmdList, Format, UpdateType));
 				break;
 			case PF_G16R16F:
