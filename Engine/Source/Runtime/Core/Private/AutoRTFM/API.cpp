@@ -220,6 +220,12 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_transactional") bool autortfm_
 	return false;
 }
 
+extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_closed") bool autortfm_is_closed()
+{
+	volatile bool ReallyDoNotInlineMe = true; // #jira SOL-6799
+	return !ReallyDoNotInlineMe;
+}
+
 extern "C" bool autortfm_is_committing_or_aborting()
 {
 	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
@@ -477,6 +483,11 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_abi(void* const Ptr, const
 extern "C" UE_AUTORTFM_NOAUTORTFM bool RTFM_autortfm_is_transactional()
 {
     return true;
+}
+
+extern "C" UE_AUTORTFM_NOAUTORTFM bool RTFM_autortfm_is_closed()
+{
+	return true;
 }
 
 extern "C" UE_AUTORTFM_NOAUTORTFM autortfm_result RTFM_autortfm_transact(void (*UninstrumentedWork)(void*), void (*InstrumentedWork)(void*), void* Arg)
