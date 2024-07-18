@@ -39,7 +39,7 @@ void UGameplayCameraSystemComponent::GetCameraView(float DeltaTime, FMinimalView
 
 	if (Evaluator.IsValid())
 	{
-		FCameraSystemEvaluationUpdateParams UpdateParams;
+		FCameraSystemEvaluationParams UpdateParams;
 		UpdateParams.DeltaTime = DeltaTime;
 		Evaluator->Update(UpdateParams);
 
