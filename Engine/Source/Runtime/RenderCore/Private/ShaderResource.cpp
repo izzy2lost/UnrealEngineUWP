@@ -240,7 +240,7 @@ int32 FShaderMapResourceCode::FindShaderIndex(const FSHAHash& InHash) const
 	return Algo::BinarySearch(ShaderHashes, InHash);
 }
 
-void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName)
+void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName, FString DebugInfo)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShaderMapResourceCode::AddShaderCode);
 
@@ -253,7 +253,7 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 
 #if WITH_EDITORONLY_DATA
 		// Output.Errors contains warnings in the case any exist (no errors since if there were the job would have failed)
-		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors, Output.ShaderStatistics);
+		AddEditorOnlyData(Index, DebugName, Output.PlatformDebugData, Output.Errors, Output.ShaderStatistics, DebugInfo);
 #endif
 
 		FShaderEntry& Entry = ShaderEntries.InsertDefaulted_GetRef(Index);
@@ -321,16 +321,16 @@ void FShaderMapResourceCode::AddShaderCompilerOutput(const FShaderCompilerOutput
 	else
 	{
 		// Output.Errors contains warnings in the case any exist (no errors since if there were the job would have failed)
-		// We append the warnings for any additional jobs which resulted in the same bytecode for the sake of determinism in the
-		// results saved to DDC. 
-		AppendWarningsToEditorOnlyData(Index, DebugName, Output.Errors);
+		// We append the warnings and deduplicate other data like DebugInfo for any additional jobs which resulted in the
+		// same bytecode for the sake of determinism in the results saved to DDC. 
+		UpdateEditorOnlyData(Index, DebugName, Output.Errors, DebugInfo);
 		ValidateShaderStatisticsEditorOnlyData(Index, Output.ShaderStatistics);
 	}
 #endif
 }
 
 #if WITH_EDITORONLY_DATA
-void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics)
+void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics, const FString& DebugInfo)
 {
 	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries.InsertDefaulted_GetRef(Index);
 	Entry.PlatformDebugData = InPlatformDebugData;
@@ -339,12 +339,19 @@ void FShaderMapResourceCode::AddEditorOnlyData(int32 Index, const FString& Debug
 	check(Entry.ShaderStatistics.Num() == 0);
 	Entry.ShaderStatistics = ShaderStatistics;
 
-	AppendWarningsToEditorOnlyData(Index, DebugName, InCompilerWarnings);
+	UpdateEditorOnlyData(Index, DebugName, InCompilerWarnings, DebugInfo);
 }
 
-void FShaderMapResourceCode::AppendWarningsToEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings)
+void FShaderMapResourceCode::UpdateEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const FString& DebugInfo)
 {
 	FShaderEditorOnlyDataEntry& Entry = ShaderEditorOnlyDataEntries[Index];
+
+	// Keep a single DebugInfo as it doesn't matter which one we use, but make sure it is the same one for determinism
+	if (!DebugInfo.IsEmpty() && (Entry.DebugInfo.IsEmpty() || (DebugInfo < Entry.DebugInfo)))
+	{
+		Entry.DebugInfo = DebugInfo;
+	}
+
 	for (const FShaderCompilerError& Warning : InCompilerWarnings)
 	{
 		FString ModifiedWarning = !DebugName.IsEmpty() ? FString::Printf(TEXT("%s [%s]"), *Warning.GetErrorString(), *DebugName) : Warning.GetErrorString();
@@ -444,7 +451,7 @@ void FShaderMapResourceCode::NotifyShadersCompiled(FName FormatName)
 		{
 			for (const FShaderEditorOnlyDataEntry& Entry : ShaderEditorOnlyDataEntries)
 			{
-				ShaderFormat->NotifyShaderCompiled(Entry.PlatformDebugData, FormatName);
+				ShaderFormat->NotifyShaderCompiled(Entry.PlatformDebugData, FormatName, Entry.DebugInfo);
 			}
 		}
 	}

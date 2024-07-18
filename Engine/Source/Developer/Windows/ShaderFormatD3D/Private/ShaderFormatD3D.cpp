@@ -168,11 +168,11 @@ public:
 	}
 
 #if WITH_ENGINE
-	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format) const override
+	virtual void NotifyShaderCompiled(const TConstArrayView<uint8>& PlatformDebugData, FName Format, const FString& DebugInfo) const override
 	{
 		if (Format == NAME_PCD3D_SM6)
 		{
-			ShaderSymbolExportSM6.NotifyShaderCompiled<FD3DSM6ShaderDebugData>(PlatformDebugData);
+			ShaderSymbolExportSM6.NotifyShaderCompiled<FD3DSM6ShaderDebugData>(PlatformDebugData, DebugInfo);
 		}
 	}
 	virtual void NotifyShaderCompilersShutdown(FName Format) const override

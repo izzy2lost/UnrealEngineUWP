@@ -498,6 +498,12 @@ public:
 	struct FShaderEditorOnlyDataEntry
 	{
 		TArray<uint8> PlatformDebugData;
+
+		/** This field contains a debug string stored in a ShaderSymbols.info file when using r.Shaders.SymbolInfo=1
+		*   Used to facilitate reverse lookup of a shader from a platform shader hash when no full shader symbol 
+		*   information is available */
+		FString DebugInfo;
+
 		/** A (deduplicated/sorted) array of all the compiler warnings that were emitted when all shaders resulting 
 		 *  in the associated bytecode were compiled (i.e. if multiple shader sources have warnings but compile to
 		 *  the same code, all warnings for each unique source will be reported).
@@ -509,7 +515,7 @@ public:
 
 		friend FArchive& operator<<(FArchive& Ar, FShaderEditorOnlyDataEntry& Entry)
 		{
-			return Ar << Entry.PlatformDebugData << Entry.CompilerWarnings << Entry.ShaderStatistics;
+			return Ar << Entry.PlatformDebugData << Entry.DebugInfo << Entry.CompilerWarnings << Entry.ShaderStatistics;
 		}
 	};
 #endif // WITH_EDITORONLY_DATA
@@ -527,13 +533,14 @@ public:
 
 	RENDERCORE_API uint32 GetSizeBytes() const;
 
-	RENDERCORE_API void AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName = FString());
+	RENDERCORE_API void AddShaderCompilerOutput(const FShaderCompilerOutput& Output, const FString& DebugName = FString(), FString DebugInfo = FString());
 
 	int32 FindShaderIndex(const FSHAHash& InHash) const;
 
 #if WITH_EDITORONLY_DATA
-	void AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics);
-	void AppendWarningsToEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings);
+	void AddEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<uint8> InPlatformDebugData, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const TArray<FGenericShaderStat>& ShaderStatistics, const FString& DebugInfo = FString());
+	void UpdateEditorOnlyData(int32 Index, const FString& DebugName, TConstArrayView<FShaderCompilerError> InCompilerWarnings, const FString& DebugInfo);
+
 	RENDERCORE_API void LogShaderCompilerWarnings();
 #endif
 

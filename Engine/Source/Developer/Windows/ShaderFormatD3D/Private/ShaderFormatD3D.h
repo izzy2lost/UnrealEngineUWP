@@ -69,7 +69,6 @@ struct FD3DSM6ShaderDebugData
 	inline friend FArchive& operator<<(FArchive& Ar, FD3DSM6ShaderDebugData& DebugData)
 	{
 		Ar << DebugData.Name;
-		Ar << DebugData.DebugInfo;
 		Ar << DebugData.Contents;
 		return Ar;
 	}
@@ -82,11 +81,6 @@ struct FD3DSM6ShaderDebugData
 	inline FString GetFilename() const
 	{
 		return Name;
-	}
-
-	inline FString GetDebugInfo() const
-	{
-		return DebugInfo;
 	}
 
 	TConstArrayView<FD3DSM6ShaderDebugData> GetAllSymbolData() const

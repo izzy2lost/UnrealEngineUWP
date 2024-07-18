@@ -926,7 +926,6 @@ bool CompileAndProcessD3DShaderDXC(
 	{
 		FD3DSM6ShaderDebugData DebugData;
 		DebugData.Name = PdbName;
-		DebugData.DebugInfo = Input.GenerateDebugInfo();
 
 		// We don't export the PDB contents here because it would result in duplicate data,
 		// as we use embedded PDBs. Once we are able to use external PDBs, the PDB contents
