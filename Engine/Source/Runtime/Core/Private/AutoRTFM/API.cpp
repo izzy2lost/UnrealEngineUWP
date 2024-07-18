@@ -220,11 +220,6 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_transactional") bool autortfm_
 	return false;
 }
 
-extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_closed") bool autortfm_is_closed()
-{
-    return false;
-}
-
 extern "C" bool autortfm_is_committing_or_aborting()
 {
 	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
@@ -480,11 +475,6 @@ extern "C" UE_AUTORTFM_NOAUTORTFM void autortfm_check_abi(void* const Ptr, const
 // to transactions! That's intentional. However, things like autortfm_defer_until_commit can be called
 // from an open nest in a transaction.
 extern "C" UE_AUTORTFM_NOAUTORTFM bool RTFM_autortfm_is_transactional()
-{
-    return true;
-}
-
-extern "C" UE_AUTORTFM_NOAUTORTFM bool RTFM_autortfm_is_closed()
 {
     return true;
 }

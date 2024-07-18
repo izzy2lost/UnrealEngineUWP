@@ -29,7 +29,8 @@
 #endif
 
 #if UE_AUTORTFM
-#define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline]]
+// #jira SOL-6799: clang::optnone is used to prevent inlining, despite clang::noinline
+#define UE_AUTORTFM_AUTORTFM(F) [[clang::autortfm(F), clang::noinline, clang::optnone]]
 #define UE_AUTORTFM_NOAUTORTFM [[clang::noautortfm, clang::noinline]]
 // #jira SOL-6589: remove clang::noinline once this JIRA is fixed.
 #define UE_AUTORTFM_ALWAYS_OPEN [[clang::autortfm_always_open, clang::noinline]]
