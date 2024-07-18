@@ -297,7 +297,7 @@ export const ToolManagementModal: React.FC<{ toolId: string; toolName?: string, 
             <Stack>
                <Text variant="mediumPlus">{headerText}</Text>
             </Stack>
-            <Stack grow />;
+            <Stack grow />
             <Stack>
                <IconButton
                   iconProps={{ iconName: 'Cancel' }}
