@@ -49,6 +49,7 @@ namespace HordeServer.Tests.Issues
 			readonly LogBuilder _builder;
 			readonly List<(LogLevel, ReadOnlyMemory<byte>)> _events = new List<(LogLevel, ReadOnlyMemory<byte>)>();
 			readonly IStorageClient _storageClient;
+			readonly LoggerScopeCollection _scopeCollection = new LoggerScopeCollection();
 
 			int _lineIndex;
 
@@ -78,14 +79,15 @@ namespace HordeServer.Tests.Issues
 				_storageClient.Dispose();
 			}
 
-			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null!;
+			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _scopeCollection.BeginScope(state);
 
 			public bool IsEnabled(LogLevel logLevel) => true;
 
 			public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
 			{
-				JsonLogEvent logEvent = JsonLogEvent.FromLoggerState(logLevel, eventId, state, exception, formatter);
-				_events.Add((logLevel, logEvent.Data));
+				LogEvent logEvent = LogEvent.FromState(logLevel, eventId, state, exception, formatter);
+				logEvent.AddProperties(_scopeCollection.GetProperties());
+				_events.Add((logLevel, logEvent.ToJsonBytes()));
 			}
 
 			private async Task WriteAsync(LogLevel level, byte[] line)
@@ -378,23 +380,33 @@ namespace HordeServer.Tests.Issues
 
 		private async Task ParseEventsAsync(IJob job, int batchIdx, int stepIdx, string[] lines)
 		{
-			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
-			ILog log = (await LogCollection.GetAsync(logId))!;
-
-			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
-			await using (TestJsonLogger logger = new TestJsonLogger(log, storageClient))
+			void WriteLinesToLogger(ILogger logger)
 			{
-				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
-				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);
-				perforceLogger.AddClientView(_workspaceDir, "//UE4/Main/...", 12345);
-
-				using (LogParser parser = new LogParser(perforceLogger, new List<string>()))
+				using (LogParser parser = new LogParser(logger, new List<string>()))
 				{
 					for (int idx = 0; idx < lines.Length; idx++)
 					{
 						parser.WriteLine(lines[idx]);
 					}
 				}
+			}
+
+			await WriteEventsAsync(job, batchIdx, stepIdx, WriteLinesToLogger);
+		}
+
+		private async Task WriteEventsAsync(IJob job, int batchIdx, int stepIdx, Action<ILogger> writeEvents)
+		{
+			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
+			ILog log = (await LogCollection.GetAsync(logId))!;
+
+			using IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			await using (TestJsonLogger logger = new TestJsonLogger(log, storageClient))
+			{
+				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);
+				perforceLogger.AddClientView(_autoSdkDir, "//depot/CarefullyRedist/...", 12345);
+				perforceLogger.AddClientView(_workspaceDir, "//UE4/Main/...", 12345);
+
+				writeEvents(perforceLogger);
 			}
 		}
 
@@ -1552,6 +1564,37 @@ namespace HordeServer.Tests.Issues
 			Assert.AreEqual(2, issues2.Count);
 			Assert.AreEqual("Warnings in Phsyarum_BP.uasset", issues2[0].Summary);
 			Assert.AreEqual("Warnings in Phsyarum_BP2.uasset", issues2[1].Summary);
+		}
+
+		[TestMethod]
+		public async Task ExternalIssueTestAsync()
+		{
+			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
+
+			await WriteEventsAsync(job, 0, 0, logger => {
+				logger.LogInformation("Foo");
+
+				IssueFingerprint fingerprint = new IssueFingerprint("NewIssueType", "This is an issue with severity: {Severity}");
+				fingerprint.Keys.Add(IssueKey.FromFile("foo.cpp"));
+
+				using (IDisposable? scope = logger.BeginIssueScope(fingerprint))
+				{
+					logger.LogWarning("This is a warning!");
+					logger.LogError("This is an error!");
+				}
+
+				logger.LogInformation("Bar");
+			});
+			await UpdateCompleteStepAsync(job, 0, 0, JobStepOutcome.Failure);
+
+			IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
+			Assert.AreEqual(1, issues.Count);
+
+			IIssue issue = issues[0];
+			Assert.AreEqual("This is an issue with severity: errors", issue.Summary);
+			Assert.AreEqual(1, issue.Fingerprints.Count);
+			Assert.AreEqual(1, issue.Fingerprints[0].Keys.Count);
+			Assert.AreEqual(IssueKey.FromFile("foo.cpp"), issue.Fingerprints[0].Keys.First());
 		}
 
 		[TestMethod]

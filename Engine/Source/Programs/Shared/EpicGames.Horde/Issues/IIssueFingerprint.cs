@@ -3,9 +3,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using EpicGames.Horde.Issues;
 
-namespace HordeServer.Issues
+namespace EpicGames.Horde.Issues
 {
 	/// <summary>
 	/// Fingerprint for an issue
