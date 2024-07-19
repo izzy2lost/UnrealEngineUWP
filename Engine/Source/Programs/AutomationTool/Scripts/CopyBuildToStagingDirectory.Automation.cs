@@ -4482,7 +4482,7 @@ namespace AutomationScripts
 			List<ChunkDefinition> ChunkDefinitions = new List<ChunkDefinition>();
 			List<PakFileRules> PakRulesList = GetPakFileRules(Params, SC);
 
-			var TmpPackagingPath = GetTmpPackagingPath(Params, SC);
+			var ChunkManifestPath = GetChunkManifestPath(Params, SC);
 
 			// Parse and cache crypto settings from INI file
 			EncryptionAndSigning.CryptoSettings PakCryptoSettings = EncryptionAndSigning.ParseCryptoSettings(DirectoryReference.FromFile(Params.RawProjectPath), SC.StageTargetPlatform.IniPlatformType, Log.Logger);
@@ -4506,7 +4506,7 @@ namespace AutomationScripts
 					string[] ChunkOptions = ChunkList[Index].Split(' ');
 
 					// Set chunk name to string like "pakchunk0"
-					var ChunkManifestFilename = CombinePaths(TmpPackagingPath, ChunkOptions[0]);
+					var ChunkManifestFilename = CombinePaths(ChunkManifestPath, ChunkOptions[0]);
 					ChunkDefinition CD = new ChunkDefinition(Path.GetFileNameWithoutExtension(ChunkOptions[0]));
 					for (int IOption = 1; IOption < ChunkOptions.Length; ++IOption)
 					{
@@ -4838,7 +4838,7 @@ namespace AutomationScripts
 
 			CreatePaks(Params, SC, PakInputs, PakCryptoSettings, CryptoKeysCacheFilename);
 
-			String ChunkLayerFilename = CombinePaths(GetTmpPackagingPath(Params, SC), GetChunkPakLayerListName());
+			String ChunkLayerFilename = CombinePaths(GetChunkManifestPath(Params, SC), GetChunkPakLayerListName());
 			String OutputChunkLayerFilename = Path.Combine(SC.ProjectRoot.FullName, "Build", SC.FinalCookPlatform, "ChunkLayerInfo", GetChunkPakLayerListName());
 			Directory.CreateDirectory(Path.GetDirectoryName(OutputChunkLayerFilename));
 			File.Copy(ChunkLayerFilename, OutputChunkLayerFilename, true);
@@ -4888,7 +4888,7 @@ namespace AutomationScripts
 
 		private static string GetChunkPakManifestListFilename(ProjectParams Params, DeploymentContext SC)
 		{
-			return CombinePaths(GetTmpPackagingPath(Params, SC), "pakchunklist.txt");
+			return CombinePaths(GetChunkManifestPath(Params, SC), "pakchunklist.txt");
 		}
 
 		private static string GetChunkPakLayerListName()
@@ -4896,15 +4896,15 @@ namespace AutomationScripts
 			return "pakchunklayers.txt";
 		}
 
-		private static string GetTmpPackagingPath(ProjectParams Params, DeploymentContext SC)
+		private static string GetChunkManifestPath(ProjectParams Params, DeploymentContext SC)
 		{
-			string TmpPackagingPath = CombinePaths(Path.GetDirectoryName(Params.RawProjectPath.FullName), "Saved", "TmpPackaging", SC.CookPlatform);
+			string ChunkManifestPath = CombinePaths(SC.MetadataDir.FullName, "ChunkManifest");
 			if (Params.bUseExtraFlavor)
 			{
-				TmpPackagingPath = CombinePaths(TmpPackagingPath, "ExtraFlavor");
+				ChunkManifestPath = CombinePaths(ChunkManifestPath, "ExtraFlavor");
 			}
 
-			return TmpPackagingPath;
+			return ChunkManifestPath;
 		}
 
 		private static bool ShouldCreateIoStoreContainerFiles(ProjectParams Params, DeploymentContext SC)

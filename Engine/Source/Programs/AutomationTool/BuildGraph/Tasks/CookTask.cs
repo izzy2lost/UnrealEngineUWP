@@ -131,13 +131,6 @@ namespace AutomationTool.Tasks
 						throw new AutomationException("Cooking did not produce any files in {0}", platformCookedDirectory.FullName);
 					}
 					cookedFiles.AddRange(platformCookedFiles);
-
-					DirectoryReference packagingFilesDirectory = DirectoryReference.Combine(projectFile.Directory, "Saved", "TmpPackaging", platform);
-					if (DirectoryReference.Exists(packagingFilesDirectory))
-					{
-						List<FileReference> packagingFiles = DirectoryReference.EnumerateFiles(packagingFilesDirectory, "*", System.IO.SearchOption.AllDirectories).ToList();
-						cookedFiles.AddRange(packagingFiles);
-					}
 				}
 			}
 

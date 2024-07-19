@@ -11321,9 +11321,10 @@ void UCookOnTheFlyServer::BeginCookSandbox(FBeginCookContext& BeginContext)
 			if (!PlatformContext.bWorkerOnSharedSandbox)
 			{
 				check(!IsCookWorkerMode());
+				checkf(SandboxFile, TEXT("Cannot begin cooking to a sandbox until after CreateSandboxFile has been called from a StartCook function."));
 				// Clean the Manifest directory even on iterative builds; it is written from scratch each time
 				// But only do this if we own the output directory
-				PlatformData->RegistryGenerator->CleanManifestDirectories();
+				PlatformData->RegistryGenerator->CleanManifestDirectories(*SandboxFile);
 			}
 
 			if (PlatformContext.bPopulateMemoryResultsFromDiskResults)

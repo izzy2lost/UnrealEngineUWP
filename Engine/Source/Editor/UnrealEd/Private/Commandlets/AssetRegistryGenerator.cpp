@@ -201,30 +201,6 @@ FAssetRegistryGenerator::~FAssetRegistryGenerator()
 {
 }
 
-bool FAssetRegistryGenerator::CleanTempPackagingDirectory(const FString& Platform) const
-{
-	FString TmpPackagingDir = GetTempPackagingDirectoryForPlatform(Platform);
-	if (IFileManager::Get().DirectoryExists(*TmpPackagingDir))
-	{
-		if (!IFileManager::Get().DeleteDirectory(*TmpPackagingDir, false, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *TmpPackagingDir);
-			return false;
-		}
-	}
-
-	FString ChunkListDir = FPaths::Combine(*FPaths::ProjectLogDir(), TEXT("ChunkLists"));
-	if (IFileManager::Get().DirectoryExists(*ChunkListDir))
-	{
-		if (!IFileManager::Get().DeleteDirectory(*ChunkListDir, false, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkListDir);
-			return false;
-		}
-	}
-	return true;
-}
-
 bool FAssetRegistryGenerator::ShouldPlatformGenerateStreamingInstallManifest(const ITargetPlatform* Platform) const
 {
 	if (Platform)
@@ -341,21 +317,21 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 	UE::Cook::FCookSandbox& InSandboxFile)
 {
 	const FString Platform = TargetPlatform->PlatformName();
-	FString TmpPackagingDir = GetTempPackagingDirectoryForPlatform(Platform);
+	FString ChunkManifestDir = GetChunkManifestDirectoryForPlatform(Platform, InSandboxFile);
 	if (InManifestSubDir)
 	{
-		TmpPackagingDir /= InManifestSubDir;
+		ChunkManifestDir /= InManifestSubDir;
 	}
 	int64 MaxChunkSize = InOverrideChunkSize > 0 ? InOverrideChunkSize : GetMaxChunkSizePerPlatform(TargetPlatform);
 
-	if (!IFileManager::Get().MakeDirectory(*TmpPackagingDir, true /* Tree */))
+	if (!IFileManager::Get().MakeDirectory(*ChunkManifestDir, true /* Tree */))
 	{
-		UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to create directory: %s"), *TmpPackagingDir);
+		UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to create directory: %s"), *ChunkManifestDir);
 		return false;
 	}
 	
-	FString PakChunkListFilename = TmpPackagingDir / TEXT("pakchunklist.txt");
-	FString PakChunkLayerInfoFilename = TmpPackagingDir / TEXT("pakchunklayers.txt");
+	FString PakChunkListFilename = ChunkManifestDir / TEXT("pakchunklist.txt");
+	FString PakChunkLayerInfoFilename = ChunkManifestDir / TEXT("pakchunklayers.txt");
 	// List of pak file lists
 	TUniquePtr<FArchive> PakChunkListFile(IFileManager::Get().CreateFileWriter(*PakChunkListFilename));
 	// List of disc layer for each chunk
@@ -614,7 +590,7 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 				? FString::Printf(TEXT("pakchunk%d_s%d.txt"), PakchunkIndex, SubChunkIndex)
 				: FString::Printf(TEXT("pakchunk%d.txt"), PakchunkIndex);
 
-			const FString PakListFilename = FString::Printf(TEXT("%s/%s"), *TmpPackagingDir, *PakChunkFilename);
+			const FString PakListFilename = FString::Printf(TEXT("%s/%s"), *ChunkManifestDir, *PakChunkFilename);
 			TUniquePtr<FArchive> PakListFile(IFileManager::Get().CreateFileWriter(*PakListFilename));
 
 			if (!PakListFile)
@@ -816,20 +792,6 @@ bool FAssetRegistryGenerator::GenerateStreamingInstallManifest(int64 InOverrideC
 
 	ChunkLayerFile->Close();
 	PakChunkListFile->Close();
-	
-	if (bSucceeded)
-	{
-		FString ChunkManifestDirectory = FPaths::ProjectDir() / TEXT("Metadata") / TEXT("ChunkManifest");
-		ChunkManifestDirectory =
-			InSandboxFile.ConvertToAbsolutePathForExternalAppForWrite(*ChunkManifestDirectory, Platform);
-
-		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-		if (!PlatformFile.CopyDirectoryTree(*ChunkManifestDirectory, *TmpPackagingDir, true))
-		{
-			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to copy chunk manifest from '%s' to '%s'"), *TmpPackagingDir, *ChunkManifestDirectory)
-			return false;
-		}
-	}
 
 	return bSucceeded;
 }
@@ -877,10 +839,29 @@ void FAssetRegistryGenerator::CalculateChunkIdsAndAssignToManifest(const FName& 
 	}
 }
 
-void FAssetRegistryGenerator::CleanManifestDirectories()
+bool FAssetRegistryGenerator::CleanManifestDirectories(UE::Cook::FCookSandbox& InSandboxFile)
 {
 	LLM_SCOPE_BYTAG(Cooker_GeneratedAssetRegistry);
-	CleanTempPackagingDirectory(TargetPlatform->PlatformName());
+	FString ChunkManifestDir = GetChunkManifestDirectoryForPlatform(TargetPlatform->PlatformName(), InSandboxFile);
+	if (IFileManager::Get().DirectoryExists(*ChunkManifestDir))
+	{
+		if (!IFileManager::Get().DeleteDirectory(*ChunkManifestDir, false, true))
+		{
+			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkManifestDir);
+			return false;
+		}
+	}
+
+	FString ChunkListDir = FPaths::Combine(*FPaths::ProjectLogDir(), TEXT("ChunkLists"));
+	if (IFileManager::Get().DirectoryExists(*ChunkListDir))
+	{
+		if (!IFileManager::Get().DeleteDirectory(*ChunkListDir, false, true))
+		{
+			UE_LOG(LogAssetRegistryGenerator, Error, TEXT("Failed to delete directory: %s"), *ChunkListDir);
+			return false;
+		}
+	}
+	return true;
 }
 
 void FAssetRegistryGenerator::SetPreviousAssetRegistry(TUniquePtr<FAssetRegistryState>&& InPreviousState)
@@ -2369,9 +2350,9 @@ void FAssetRegistryGenerator::AddPackageToChunk(FChunkPackageSet& ThisPackageSet
 	ThisPackageSet.Add(InPkgName, InSandboxFile);
 }
 
-FString FAssetRegistryGenerator::GetTempPackagingDirectoryForPlatform(const FString& Platform) const
+FString FAssetRegistryGenerator::GetChunkManifestDirectoryForPlatform(const FString& Platform, UE::Cook::FCookSandbox& InSandboxFile) const
 {
-	return FPaths::ProjectSavedDir() / TEXT("TmpPackaging") / Platform;
+	return InSandboxFile.GetSandboxDirectory(Platform) / FApp::GetProjectName() / TEXT("Metadata") / TEXT("ChunkManifest");
 }
 
 void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookSandbox& InSandboxFile)

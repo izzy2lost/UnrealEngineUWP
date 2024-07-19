@@ -194,7 +194,7 @@ public:
 	/**
 	 * Deletes temporary manifest directories.
 	 */
-	void CleanManifestDirectories();
+	bool CleanManifestDirectories(UE::Cook::FCookSandbox& InSandboxFile);
 
 	/**
 	 * Saves all generated manifests for each target platform.
@@ -388,9 +388,9 @@ private:
 		const FString& InSandboxFile, int32 PakchunkIndex, UE::Cook::FCookSandbox& SandboxPlatformFile);
 
 	/**
-	 * Returns the path of the temporary packaging directory for the specified platform.
+	 * Returns the path of the chunk manifest directory for the specified platform.
 	 */
-	FString GetTempPackagingDirectoryForPlatform(const FString& Platform) const;
+	FString GetChunkManifestDirectoryForPlatform(const FString& Platform, UE::Cook::FCookSandbox& InSandboxFile) const;
 
 	/** Returns the config-driven max size of a chunk for the given platform, or -1 for no limit. */
 	int64 GetMaxChunkSizePerPlatform( const ITargetPlatform* Platform ) const;
@@ -407,9 +407,6 @@ private:
 	/** Calculate the final ChunkIds used by the package and store the package in the manifest for each of those chunks. */
 	void CalculateChunkIdsAndAssignToManifest(const FName& PackageFName, const FString& PackagePathName,
 		const FString& SandboxFilename, const FString& LastLoadedMapName, UE::Cook::FCookSandbox& InSandboxFile);
-
-	/** Deletes the temporary packaging directory for the specified platform */
-	bool CleanTempPackagingDirectory(const FString& Platform) const;
 
 	/** Returns true if the specific platform desires multiple chunks suitable for streaming install */
 	bool ShouldPlatformGenerateStreamingInstallManifest(const ITargetPlatform* Platform) const;

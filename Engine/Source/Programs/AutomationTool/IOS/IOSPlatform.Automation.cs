@@ -2101,12 +2101,12 @@ public class IOSPlatform : ApplePlatform
 
 	private static string GetChunkPakManifestListFilename(ProjectParams Params, DeploymentContext SC)
 	{
-		return CombinePaths(GetTmpPackagingPath(Params, SC), "pakchunklist.txt");
+		return CombinePaths(GetChunkManifestPath(Params, SC), "pakchunklist.txt");
 	}
 
-	private static string GetTmpPackagingPath(ProjectParams Params, DeploymentContext SC)
+	private static string GetChunkManifestPath(ProjectParams Params, DeploymentContext SC)
 	{
-		return CombinePaths(Path.GetDirectoryName(Params.RawProjectPath.FullName), "Saved", "TmpPackaging", SC.StageTargetPlatform.GetCookPlatform(SC.DedicatedServer, false));
+		return CombinePaths(SC.MetadataDir.FullName, "ChunkManifest");
 	}
 
 	private static StringBuilder AppendKeyValue(StringBuilder Text, string Key, object Value, int Level)
