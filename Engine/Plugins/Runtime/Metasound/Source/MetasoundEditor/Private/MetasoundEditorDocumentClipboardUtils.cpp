@@ -67,7 +67,7 @@ namespace Metasound::Editor
 							FCreateNodeVertexParams VertexParams;
 							VertexParams.DataType = Breadcrumb.DataType;
 
-							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams);
+							FMetasoundFrontendClassInput ClassInput = FGraphBuilder::CreateUniqueClassInput(*OutAsset.GetOwningAsset(), VertexParams, &Breadcrumb.DefaultLiteral, &Breadcrumb.MemberName);
 							if (const FMetasoundFrontendNode* NewNode = Builder.AddGraphInput(ClassInput))
 							{
 								Input = Graph.FindOrAddInput(NewNode->GetID());

@@ -139,8 +139,8 @@ private:
 	Metasound::Engine::FOnPageSettingsUpdated OnPageSettingsUpdated;
 #endif //WITH_EDITORONLY_DATA
 
-	/** PageID to target when attempting to execute MetaSound. If target page is not implemented for the set
-	  *  platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
+	/** Page Name to target when attempting to execute MetaSound. If target page is not implemented (or cooked in a runtime build)
+	  * for the active platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
 	  * implemented in MetaSound asset. */
 	UPROPERTY(EditAnywhere, config, Category = Pages)
 	FName TargetPageName = Metasound::Frontend::DefaultGraphPageName;
