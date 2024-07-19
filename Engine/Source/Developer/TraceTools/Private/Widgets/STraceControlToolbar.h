@@ -12,6 +12,8 @@ class ITraceController;
 namespace UE::TraceTools
 {
 
+class SToggleTraceButton;
+
 enum ETraceTarget : uint8
 {
 	Server = 0,
@@ -50,11 +52,8 @@ private:
 	bool SetTraceTarget_CanExecute() const;
 	void SetTraceTarget_Execute(ETraceTarget InTraceTarget);
 
-	bool StartTrace_CanExecute() const;
-	void StartTrace_Execute();
-
-	bool StopTrace_CanExecute() const;
-	void StopTrace_Execute();
+	bool ToggleTrace_CanExecute() const;
+	void ToggleTrace_Execute();
 
 	bool TraceSnapshot_CanExecute() const;
 	void TraceSnapshot_Execute();

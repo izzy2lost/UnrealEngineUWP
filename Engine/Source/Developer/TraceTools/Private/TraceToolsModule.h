@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Interfaces/ITraceToolsModule.h"
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
 
 #include "Modules/ModuleInterface.h"
 

@@ -31,6 +31,7 @@ public class EditorTraceUtilities : ModuleRules
 				"ToolMenus",
 				"TraceAnalysis",
 				"TraceInsights",
+				"TraceTools",
 				"TraceLog",
 				"UATHelper",
 			}

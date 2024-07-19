@@ -64,10 +64,6 @@ public:
 private:
 	FText	GetTitleToolTipText() const;
 	
-	FSlateColor GetRecordingButtonColor() const;
-	FSlateColor GetRecordingButtonOutlineColor() const;
-	FText GetRecordingButtonTooltipText() const;
-
 	void LaunchUnrealInsights_OnClicked();
 	
 	void OpenLiveSession_OnClicked();
@@ -91,14 +87,13 @@ private:
 
 	FText GetTraceMenuItemText() const;
 	FText GetTraceMenuItemTooltipText() const;
+
 	void ToggleTrace_OnClicked();
+	bool ToggleTrace_CanExecute() const;
 
 	bool PauseTrace_CanExecute();
 	FText GetPauseTraceMenuItemTooltipText() const;
 	void TogglePauseTrace_OnClicked();
-
-	EVisibility GetStartTraceIconVisibility() const;
-	EVisibility GetStopTraceIconVisibility() const;
 
 	bool StartTracing();
 

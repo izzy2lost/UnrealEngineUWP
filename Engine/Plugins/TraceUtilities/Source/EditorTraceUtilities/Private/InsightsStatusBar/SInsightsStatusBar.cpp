@@ -26,13 +26,14 @@
 #include "SRecentTracesList.h"
 #include "Styling/StyleColors.h"
 #include "ToolMenus.h"
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
+#include "TraceTools/Widgets/SToggleTraceButton.h"
 #include "Trace/Detail/Channel.h"
 #include "Trace/StoreClient.h"
 #include "Trace/Trace.h"
 #include "UnrealInsightsLauncher.h"
 #include "Insights/Widgets/STraceServerControl.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/SOverlay.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
@@ -128,6 +129,8 @@ void SInsightsStatusBarWidget::Tick(const FGeometry& AllottedGeometry, const dou
 
 void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 {
+	FModuleManager::LoadModuleChecked<UE::TraceTools::ITraceToolsModule>("TraceTools");
+
 	this->ChildSlot
 	[
 		SNew(SHorizontalBox)
@@ -168,42 +171,11 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
-			SNew(SButton)
-			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-			.ContentPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f))
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Bottom)
-			.ToolTipText(this, &SInsightsStatusBarWidget::GetRecordingButtonTooltipText)
-			.OnClicked_Lambda([this]() { this->ToggleTrace_OnClicked(); return FReply::Handled(); })
-			.OnHovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = true; })
-			.OnUnhovered_Lambda([this]() { this->bIsTraceRecordButtonHovered = false; })
-			.Content()
-			[
-				SNew(SOverlay)
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(this, &SInsightsStatusBarWidget::GetRecordingButtonColor)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceCenter.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStartTraceIconVisibility)
-				]
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(this, &SInsightsStatusBarWidget::GetRecordingButtonOutlineColor)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceOutline.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStartTraceIconVisibility)
-				]
-
-				+ SOverlay::Slot()
-				[
-					SNew(SImage)
-					.Image(FEditorTraceUtilitiesStyle::Get().GetBrush("Icons.RecordTraceStop.StatusBar"))
-					.Visibility(this, &SInsightsStatusBarWidget::GetStopTraceIconVisibility)
-				]
-			]
+			SNew(UE::TraceTools::SToggleTraceButton)
+			.OnToggleTraceRequested(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked)
+			.IsTraceRunning_Lambda([]() {return UE::Trace::IsTracing(); })
+			.ButtonSize(UE::TraceTools::SToggleTraceButton::EButtonSize::StatusBar)
+			.IsEnabled(this, &SInsightsStatusBarWidget::ToggleTrace_CanExecute)
 		]
 
 		+ SHorizontalBox::Slot()
@@ -558,38 +530,6 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 	return DescBuilder.ToText();
 }
 
-FSlateColor SInsightsStatusBarWidget::GetRecordingButtonColor() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		return FStyleColors::White;
-	}
-
-	return FStyleColors::Error;
-}
-
-FSlateColor SInsightsStatusBarWidget::GetRecordingButtonOutlineColor() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		ConnectionStartTime = FSlateApplication::Get().GetCurrentTime();
-		return FLinearColor::White.CopyWithNewOpacity(0.5f);
-	}
-
-	double ElapsedTime = FSlateApplication::Get().GetCurrentTime() - ConnectionStartTime;
-	return FStyleColors::Error.GetColor(FWidgetStyle()).CopyWithNewOpacity(0.5f + 0.5f * FMath::MakePulsatingValue(ElapsedTime, 0.5f));
-}
-
-FText SInsightsStatusBarWidget::GetRecordingButtonTooltipText() const
-{
-	if (!UE::Trace::IsTracing())
-	{
-		return LOCTEXT("StartTracing", "Start tracing. The trace destination is set from the menu.");
-	}
-
-	return LOCTEXT("StopTracing", "Stop Tracing.");
-}
-
 void SInsightsStatusBarWidget::LogMessage(const FText& Text)
 {
 	FMessageLog ReportMessageLog(LogListingName);
@@ -773,6 +713,15 @@ FText SInsightsStatusBarWidget::GetTraceMenuItemTooltipText() const
 	return LOCTEXT("StartTraceButtonTooltip", "Start tracing to the selected trace destination.");
 }
 
+bool SInsightsStatusBarWidget::ToggleTrace_CanExecute() const
+{
+#if UE_TRACE_ENABLED
+	return true;
+#else
+	return false;
+#endif
+}
+
 void SInsightsStatusBarWidget::ToggleTrace_OnClicked()
 {
 	if (UE::Trace::IsTracing())
@@ -847,26 +796,6 @@ bool SInsightsStatusBarWidget::StartTracing()
 	}
 
 	return false;
-}
-
-EVisibility SInsightsStatusBarWidget::GetStartTraceIconVisibility() const
-{
-	if (GetStopTraceIconVisibility() == EVisibility::Hidden)
-	{
-		return EVisibility::Visible;
-	}
-
-	return EVisibility::Hidden;
-}
-
-EVisibility SInsightsStatusBarWidget::GetStopTraceIconVisibility() const
-{
-	if (bIsTraceRecordButtonHovered && UE::Trace::IsTracing())
-	{
-		return EVisibility::Visible;
-	}
-
-	return EVisibility::Hidden;
 }
 
 bool SInsightsStatusBarWidget::GetBooleanSettingValue(const TCHAR* InSettingName)

@@ -31,12 +31,6 @@ public:
 		Set("Icons.Trace.Menu", new IMAGE_BRUSH_SVG("Trace_16", Icon16x16));
 		Set("Icons.Trace.StatusBar", new IMAGE_BRUSH_SVG("Trace_20", Icon16x16));
 
-		Set("Icons.RecordTraceCenter.StatusBar", new IMAGE_BRUSH_SVG("RecordTraceCenter_20", Icon16x16));
-		Set("Icons.RecordTraceOutline.StatusBar", new IMAGE_BRUSH_SVG("RecordTraceOutline_20", Icon16x16));
-		Set("Icons.RecordTraceRecording.StatusBar", new IMAGE_BRUSH_SVG("RecordTraceRecording_20", Icon16x16));
-		
-		Set("Icons.RecordTraceStop.StatusBar", new IMAGE_BRUSH_SVG("RecordTraceStop_20", Icon16x16, FStyleColors::Error));
-
 		Set("Icons.StartTrace.Menu", new IMAGE_BRUSH_SVG("StartTrace_16", Icon16x16));
 		Set("Icons.StartTrace.StatusBar", new IMAGE_BRUSH_SVG("StartTrace_20", Icon16x16));
 

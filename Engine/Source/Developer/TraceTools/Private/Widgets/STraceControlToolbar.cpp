@@ -9,9 +9,11 @@
 #include "SocketSubsystem.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/SBoxPanel.h"
 
 //TraceTools
 #include "Models/TraceControlCommands.h"
+#include "TraceTools/Widgets/SToggleTraceButton.h"
 
 #define LOCTEXT_NAMESPACE "STraceControlToolbar"
 
@@ -55,8 +57,22 @@ void STraceControlToolbar::Construct(const FArguments& InArgs, const TSharedRef<
 
 		Toolbar.SetLabelVisibility(EVisibility::Collapsed);
 
-		Toolbar.AddToolBarButton(FTraceControlCommands::Get().StartTrace);
-		Toolbar.AddToolBarButton(FTraceControlCommands::Get().StopTrace);
+		TSharedRef<SWidget> ToggleTraceWidget = 
+			SNew(SHorizontalBox)
+			
+			+ SHorizontalBox::Slot()
+			.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+			[
+				SNew(SToggleTraceButton)
+				.OnToggleTraceRequested(this, &STraceControlToolbar::ToggleTrace_Execute)
+				.IsTraceRunning_Lambda([this]() {return bIsTracing; })
+				.IsEnabled(this, &STraceControlToolbar::ToggleTrace_CanExecute)
+				.ButtonSize(SToggleTraceButton::EButtonSize::SlimToolbar)
+			];
+
+
+		Toolbar.AddToolBarWidget(ToggleTraceWidget);
+
 		Toolbar.AddToolBarButton(FTraceControlCommands::Get().TraceSnapshot);
 
 		Toolbar.AddSeparator();
@@ -107,14 +123,6 @@ void STraceControlToolbar::BindCommands(const TSharedRef<FUICommandList>& Comman
 	CommandList->MapAction(FTraceControlCommands::Get().SetTraceTargetFile, 
 						   FExecuteAction::CreateSP(this, &STraceControlToolbar::SetTraceTarget_Execute, ETraceTarget::File),
 						   FCanExecuteAction::CreateSP(this, &STraceControlToolbar::SetTraceTarget_CanExecute));
-
-	CommandList->MapAction(FTraceControlCommands::Get().StartTrace, 
-					       FExecuteAction::CreateSP(this, &STraceControlToolbar::StartTrace_Execute),
-					       FCanExecuteAction::CreateSP(this, &STraceControlToolbar::StartTrace_CanExecute));
-
-	CommandList->MapAction(FTraceControlCommands::Get().StopTrace, 
-						   FExecuteAction::CreateSP(this, &STraceControlToolbar::StopTrace_Execute),
-						   FCanExecuteAction::CreateSP(this, &STraceControlToolbar::StopTrace_CanExecute));
 
 	CommandList->MapAction(FTraceControlCommands::Get().TraceSnapshot, 
 						   FExecuteAction::CreateSP(this, &STraceControlToolbar::TraceSnapshot_Execute),
@@ -171,39 +179,36 @@ void STraceControlToolbar::SetTraceTarget_Execute(ETraceTarget InTraceTarget)
 	TraceTarget = InTraceTarget;
 }
 
-bool STraceControlToolbar::StartTrace_CanExecute() const
+bool STraceControlToolbar::ToggleTrace_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing == false;
+	return TraceController->HasAvailableSelectedInstance();
 }
 
-void STraceControlToolbar::StartTrace_Execute()
+void STraceControlToolbar::ToggleTrace_Execute()
 {
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+	if (!bIsTracing)
 	{
-		if (TraceTarget == ETraceTarget::Server)
-		{
-			Commands.Send(TraceHostAddr, TEXT(""));
-		}
-		else if (TraceTarget == ETraceTarget::File)
-		{
-			Commands.File(TEXT(""), TEXT(""));
-		}
-	});
-	bIsTracing = true;
-}
-
-bool STraceControlToolbar::StopTrace_CanExecute() const
-{
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing == true;
-}
-
-void STraceControlToolbar::StopTrace_Execute()
-{
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+			{
+				if (TraceTarget == ETraceTarget::Server)
+				{
+					Commands.Send(TraceHostAddr, TEXT(""));
+				}
+				else if (TraceTarget == ETraceTarget::File)
+				{
+					Commands.File(TEXT(""), TEXT(""));
+				}
+			});
+		bIsTracing = true;
+	}
+	else
 	{
-		Commands.Stop();
-	});
-	bIsTracing = false;
+		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+			{
+				Commands.Stop();
+			});
+		bIsTracing = false;
+	}
 }
 
 bool STraceControlToolbar::TraceSnapshot_CanExecute() const

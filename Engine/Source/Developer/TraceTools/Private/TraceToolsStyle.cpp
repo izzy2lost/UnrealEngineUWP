@@ -168,9 +168,6 @@ void FTraceToolsStyle::Initialize()
 	StyleSet->Set("TraceControl.StartTrace", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStart", Icon40x40));
 	StyleSet->Set("TraceControl.StartTrace.Small", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStart", Icon20x20));
 
-	StyleSet->Set("TraceControl.StopTrace", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStop", Icon40x40));
-	StyleSet->Set("TraceControl.StopTrace.Small", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStop", Icon20x20));
-
 	StyleSet->Set("TraceControl.PauseTrace", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TracePause", Icon40x40));
 	StyleSet->Set("TraceControl.PauseTrace.Small", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TracePause", Icon20x20));
 
@@ -194,6 +191,16 @@ void FTraceToolsStyle::Initialize()
 
 	StyleSet->Set("TraceControl.ToggleStatNamedEvents", new CORE_IMAGE_BRUSH_SVG("../Editor/Slate/Starship/Common/Statistics", Icon40x40));
 	StyleSet->Set("TraceControl.ToggleStatNamedEvents.Small", new CORE_IMAGE_BRUSH_SVG("../Editor/Slate/Starship/Common/Statistics", Icon20x20));
+
+	StyleSet->Set("ToggleTraceButton.RecordTraceCenter.StatusBar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceCenter", Icon16x16));
+	StyleSet->Set("ToggleTraceButton.RecordTraceOutline.StatusBar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceOutline", Icon16x16));
+	StyleSet->Set("ToggleTraceButton.RecordTraceRecording.StatusBar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceRecording", Icon16x16));
+	StyleSet->Set("ToggleTraceButton.TraceStop.StatusBar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStop", Icon16x16, FStyleColors::Error));
+
+	StyleSet->Set("ToggleTraceButton.RecordTraceCenter.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceCenter", Icon20x20));
+	StyleSet->Set("ToggleTraceButton.RecordTraceOutline.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceOutline", Icon20x20));
+	StyleSet->Set("ToggleTraceButton.RecordTraceRecording.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceRecording", Icon20x20));
+	StyleSet->Set("ToggleTraceButton.TraceStop.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStop", Icon20x20, FStyleColors::Error));
 	
 	FSlateStyleRegistry::RegisterSlateStyle( *StyleSet.Get() );
 }
