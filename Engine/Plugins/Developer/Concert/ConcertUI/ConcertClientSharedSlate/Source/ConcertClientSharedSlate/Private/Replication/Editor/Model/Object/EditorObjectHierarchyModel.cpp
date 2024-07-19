@@ -95,7 +95,7 @@ namespace UE::ConcertClientSharedSlate
 		}
 	}
 
-	TOptional<ConcertSharedSlate::IObjectHierarchyModel::FParentInfo> FEditorObjectHierarchyModel::GetParentInfo(const TSoftObjectPtr<>& ChildObject) const
+	TOptional<ConcertSharedSlate::IObjectHierarchyModel::FParentInfo> FEditorObjectHierarchyModel::GetParentInfo(const TSoftObjectPtr<const UObject>& ChildObject) const
 	{
 		using namespace ConcertSharedSlate;
 

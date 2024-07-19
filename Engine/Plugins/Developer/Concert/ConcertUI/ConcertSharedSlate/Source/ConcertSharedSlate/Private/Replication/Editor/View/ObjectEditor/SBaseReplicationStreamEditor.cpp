@@ -155,13 +155,13 @@ namespace UE::ConcertSharedSlate
 			// Solution: Select the highest object in the hierarchy, which is usually an actor. Users usually select an actor to add in the "Add" combo button so this also makes intuitive sense.
 			// Caveat: There may be multiple hierarchies (e.g. if multiple actors were added). This is a very seldom case though: too bad.
 			Algo::TransformIf(AddedObjects, TopLevelObjects,
-				[this, &AddedObjects](const UObject* Object)
+				[this, &AddedObjects](UObject* Object)
 				{
 					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy ? ObjectHierarchy->GetParentInfo(Object) : TOptional<IObjectHierarchyModel::FParentInfo>{};
 					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return AddedObject == ParentInfo->Parent; });
 					return bIsTopOfHierarchy;
 				},
-				[](const UObject* Object){ return Object; });
+				[](UObject* Object){ return Object; });
 			ReplicationViewer->SelectObjects(TopLevelObjects);
 
 			// Expand the hierarchy for all added objects for easier editing

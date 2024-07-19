@@ -77,12 +77,12 @@ namespace UE::ConcertSharedSlate
 		struct FParentInfo
 		{
 			/** The parent of the child object in the hierarchy. */
-			TSoftObjectPtr<> Parent;
+			TSoftObjectPtr<const UObject> Parent;
 			/** Relationship that the child has to Parent, e.g. the child could be a component of Parent. */
 			EChildRelationship Relationship;
 		};
 		/** Gets parent info for ChildObject, if it has a child. */
-		virtual TOptional<FParentInfo> GetParentInfo(const TSoftObjectPtr<>& ChildObject) const = 0;
+		virtual TOptional<FParentInfo> GetParentInfo(const TSoftObjectPtr<const UObject>& ChildObject) const = 0;
 
 		/** Util for iterating all subobjects. */
 		void ForEachChildRecursive(
