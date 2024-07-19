@@ -479,7 +479,7 @@ private:
 	uint8 bUseBinkAudio : 1;
 
 	/** The compression type to use for the sound wave asset. */
-	UPROPERTY(EditAnywhere, Category = "Format")
+	UPROPERTY(EditAnywhere, Category = "Format", AssetRegistrySearchable)
 	ESoundAssetCompressionType SoundAssetCompressionType = ESoundAssetCompressionType::PlatformSpecific;
 
 public:
