@@ -2427,7 +2427,7 @@ mu::MeshPtr ConvertStaticMeshToMutable(const UStaticMesh* StaticMesh, int32 LODI
 
 // Convert a Mesh constant to a mutable format. UniqueTags are the tags that make this Mesh unique that cannot be merged in the cache 
 // with the exact same Mesh with other tags
-mu::Ptr<mu::Mesh> GenerateMutableMesh(const UObject * Mesh, const TSoftClassPtr<UAnimInstance>& AnimInstance, int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const FString& UniqueTags, FMutableGraphGenerationContext & GenerationContext, const UCustomizableObjectNode* CurrentNode, bool bIsReference)
+mu::Ptr<mu::Mesh> GenerateMutableMesh(UObject * Mesh, const TSoftClassPtr<UAnimInstance>& AnimInstance, int32 LODIndexConnected, int32 SectionIndexConnected, int32 LODIndex, int32 SectionIndex, const FString& UniqueTags, FMutableGraphGenerationContext & GenerationContext, const UCustomizableObjectNode* CurrentNode, bool bIsReference)
 {
 	// Get the mesh generation flags to use
 	EMutableMeshConversionFlags CurrentFlags = GenerationContext.MeshGenerationFlags.Last();
@@ -2437,12 +2437,12 @@ mu::Ptr<mu::Mesh> GenerateMutableMesh(const UObject * Mesh, const TSoftClassPtr<
 	
 	if (!MutableMesh)
 	{
-		if (const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
+		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
 		{
 			// At some point we will want all meshes to be references at compile-time. For now, just create the actual pass-through meshes.
 			if (bIsReference)
 			{
-				MutableMesh = GenerateMeshConstant(SkeletalMesh,GenerationContext, bIsReference);
+				MutableMesh = GenerateMeshConstant(SkeletalMesh, GenerationContext, bIsReference);
 			}
 			else
 			{
