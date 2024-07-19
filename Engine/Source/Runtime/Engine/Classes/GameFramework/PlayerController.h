@@ -301,6 +301,9 @@ public:
 	UPROPERTY(replicated)
 	FRotator TargetViewRotation; 
 
+	/** Setter for TargetViewRotation. Marks it dirty if APlayerController is configured to use push-based dirtiness. */
+	ENGINE_API void SetTargetViewRotation(const FRotator& InRotation);
+
 	/** Smoothed version of TargetViewRotation to remove jerkiness from intermittent replication updates. */
 	FRotator BlendedTargetViewRotation;
 
