@@ -358,7 +358,16 @@ void FModularVehicleSimulationCU::PerformAdditionalSimWork(UWorld* InWorld, cons
 									HitDistance = HitResult.Distance - WheelRadius;
 								}
 
-								Suspension->SetTargetPoint(HitPoint, HitResult.ImpactNormal, HitDistance, HitResult.bBlockingHit);
+								const TEnumAsByte<EPhysicalSurface> DefaultSurfaceType = EPhysicalSurface::SurfaceType_Default;
+								FSuspensionTargetPoint TargetPoint(
+									HitPoint
+									, HitResult.ImpactNormal
+									, HitDistance
+									, HitResult.bBlockingHit
+									, HitResult.PhysMaterial.IsValid() ? HitResult.PhysMaterial->SurfaceType : DefaultSurfaceType
+								);
+
+								Suspension->SetTargetPoint(TargetPoint);
 							}
 
 						}

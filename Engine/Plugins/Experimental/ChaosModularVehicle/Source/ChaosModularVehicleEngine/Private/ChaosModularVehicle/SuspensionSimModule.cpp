@@ -179,7 +179,10 @@ using namespace Chaos;
 				if (FSuspensionConstraintPhysicsProxy* Proxy = Constraint->GetProxy<FSuspensionConstraintPhysicsProxy>())
 				{
 					Chaos::FPhysicsSolver* Solver = Proxy->GetSolver<Chaos::FPhysicsSolver>();
-					Solver->SetSuspensionTarget(Constraint, TargetPos, ImpactNormal, WheelInContact);
+					const FVector& CurrentTargetPosition = GetTargetPosition();
+					const FVector& CurrentImpactNormal = GetImpactNormal();
+					const bool bCurrentWheelInContact = IsWheelInContact();
+					Solver->SetSuspensionTarget(Constraint, CurrentTargetPosition, CurrentImpactNormal, bCurrentWheelInContact);
 				}
 			}
 		}
@@ -229,7 +232,7 @@ using namespace Chaos;
 			SpringDisplacement = Sim->SpringDisplacement;
 			SpringDisplacementVector = -Sim->Setup().SuspensionAxis * Sim->SpringDisplacement + Sim->GetAnimationOffset();
 			SpringSpeed = Sim->SpringSpeed;
-			ImpactNormal = Sim->ImpactNormal;
+			ImpactNormal = Sim->GetImpactNormal();
 
 			AnimFlags = EAnimationFlags::AnimatePosition;
 			AnimationLocOffset = SpringDisplacementVector;

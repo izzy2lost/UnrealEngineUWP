@@ -5,27 +5,14 @@
 namespace Chaos
 {
 
-FSuspensionBaseInterface::FSuspensionBaseInterface()
-	: WheelSimTreeIndex(INVALID_IDX)
-	, TargetPos(FVector::ZeroVector)
-	, ImpactNormal(FVector::ZeroVector)
-	, HitDistance(0.f)
-	, WheelInContact(false)
-{
-}
-
 bool FSuspensionBaseInterface::IsBehaviourType(eSimModuleTypeFlags InType) const
 { 
 	return (InType & Raycast); 
 }
 
-void FSuspensionBaseInterface::SetTargetPoint(const FVector& InTargetPoint, const FVector& InImpactNormal, float InHitDistance, bool InWheelInContact)
+void FSuspensionBaseInterface::SetTargetPoint(const FSuspensionTargetPoint& InTargetPoint)
 {
-	TargetPos = InTargetPoint;
-	ImpactNormal = InImpactNormal;
-	HitDistance = InHitDistance;
-	WheelInContact = InWheelInContact;
+	TargetPoint = InTargetPoint;
 }
-
 
 } // namespace Chaos
