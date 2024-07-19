@@ -157,7 +157,7 @@ public:
 	FIoStatus				Initialize();
 	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
 	FIoStatus				Unmount(FStringView MountId);
-	TIoStatusOr<uint64>		GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const;
+	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
 	TArray<FSharedOnDemandContainer> GetMountedContainers();

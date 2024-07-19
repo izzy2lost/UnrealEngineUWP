@@ -276,7 +276,7 @@ struct FOnDemandMountResult
 
 using FOnDemandMountCompleted = TUniqueFunction<void(FOnDemandMountResult)>;
 
-struct FOnDemandSizeForPackagesArgs
+struct FOnDemandGetInstallSizeArgs
 {
 	/* Includes all packages from matching containers */
 	struct FPackagesWhere
@@ -319,7 +319,7 @@ public:
 	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
 	UE_API FIoStatus Unmount(FStringView MountId);
 
-	UE_API TIoStatusOr<uint64> GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const;
+	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

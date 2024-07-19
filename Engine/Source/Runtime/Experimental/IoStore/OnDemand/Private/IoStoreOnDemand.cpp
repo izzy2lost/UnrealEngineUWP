@@ -1075,11 +1075,11 @@ FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
 	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
 }
 
-TIoStatusOr<uint64> FIoStoreOnDemandModule::GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const
+TIoStatusOr<uint64> FIoStoreOnDemandModule::GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const
 {
 	if (IoStore)
 	{
-		return IoStore->GetSizeForPackages(Args);
+		return IoStore->GetInstallSize(Args);
 	}
 
 	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);

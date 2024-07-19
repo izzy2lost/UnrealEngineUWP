@@ -558,8 +558,10 @@ FIoStatus FOnDemandIoStore::Unmount(FStringView MountId)
 	return EIoErrorCode::Ok;
 }
 
-TIoStatusOr<uint64> FOnDemandIoStore::GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const
+TIoStatusOr<uint64> FOnDemandIoStore::GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoStore::GetInstallSize);
+
 	TSet<FSharedOnDemandContainer> AllContainers(
 		const_cast<FOnDemandIoStore*>(this)->GetMountedContainers([](const FSharedOnDemandContainer& Container)
 			{
