@@ -595,7 +595,7 @@ TArray<TSharedRef<FNiagaraSimCacheOverviewItem>>* FNiagaraSimCacheViewModel::Get
 
 bool FNiagaraSimCacheViewModel::CanCopyActiveToClipboard() const
 {
-	return IsCacheValid() && SelectionMode == ESelectionMode::DataInterface;
+	return IsCacheValid() && (SelectionMode == ESelectionMode::SystemInstance || SelectionMode == ESelectionMode::Emitter);
 }
 
 void FNiagaraSimCacheViewModel::CopyActiveToClipboard() const
