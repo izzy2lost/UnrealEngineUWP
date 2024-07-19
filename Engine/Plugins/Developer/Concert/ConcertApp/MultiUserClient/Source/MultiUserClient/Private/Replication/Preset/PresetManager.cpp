@@ -110,6 +110,34 @@ namespace UE::MultiUserClient
 			});
 			EditModel.RemoveObjects(EmptyObjects);
 		}
+
+		static TArray<TPair<const FReplicationClient*, FConcertClientInfo>> DetermineSavedClients(
+			const FReplicationClientManager& ClientManager,
+			const IConcertClientSession& Session,
+			const FSavePresetOptions& Options
+			)
+		{
+			TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients;
+			ClientManager.ForEachClient([&Session, &IncludedClients, &Options](const FReplicationClient& Client)
+			{
+				FConcertClientInfo ClientInfo;
+				const bool bGotClientInfo = ClientUtils::GetClientDisplayInfo(Session, Client.GetEndpointId(), ClientInfo);
+				if (!ensure(bGotClientInfo))
+				{
+					return EBreakBehavior::Continue;
+				}
+
+				const bool bIsFilteredOut = Options.ClientFilterDelegate.IsBound() && Options.ClientFilterDelegate.Execute(ClientInfo) == EFilterResult::Exclude; 
+				if (bIsFilteredOut)
+				{
+					return EBreakBehavior::Continue;
+				}
+			
+				IncludedClients.Emplace(&Client, ClientInfo);
+				return EBreakBehavior::Continue;
+			});
+			return IncludedClients;
+		}
 	}
 	
 	FPresetManager::FPresetManager(const IConcertSyncClient& SyncClient, const FReplicationClientManager& ClientManager)
@@ -171,18 +199,38 @@ namespace UE::MultiUserClient
 		return InProgressSessionReplacementOp->GetFuture();
 	}
 
-	void FPresetManager::ExportToPresetAndSaveAs()
-	{
-		UMultiUserReplicationSessionPreset* Preset = ExportToPreset();
-		
-		TArray<UObject*> SavedAssets;
-		FEditorFileUtils::SaveAssetsAs({ Preset }, SavedAssets);
-	}
-
-	UMultiUserReplicationSessionPreset* FPresetManager::ExportToPreset() const
+	ECanSaveResult FPresetManager::CanSavePreset(const FSavePresetOptions& Options) const
 	{
 		const TSharedPtr<IConcertClientSession> Session = SyncClient.GetConcertClient()->GetCurrentSession();
 		checkf(Session, TEXT("FPresetManager is only supposed to exist while in a session"));
+		
+		const TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
+		return IncludedClients.IsEmpty()
+			? ECanSaveResult::NoClients
+			: ECanSaveResult::Yes;
+	}
+
+	UMultiUserReplicationSessionPreset* FPresetManager::ExportToPresetAndSaveAs(const FSavePresetOptions& Options)
+	{
+		UMultiUserReplicationSessionPreset* Preset = ExportToPreset(Options);
+		if (Preset)
+		{
+			TArray<UObject*> SavedAssets;
+			FEditorFileUtils::SaveAssetsAs({ Preset }, SavedAssets);
+		}
+		return Preset;
+	}
+
+	UMultiUserReplicationSessionPreset* FPresetManager::ExportToPreset(const FSavePresetOptions& Options) const
+	{
+		const TSharedPtr<IConcertClientSession> Session = SyncClient.GetConcertClient()->GetCurrentSession();
+		checkf(Session, TEXT("FPresetManager is only supposed to exist while in a session"));
+
+		const TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
+		if (IncludedClients.IsEmpty())
+		{
+			return nullptr;
+		}
 		
 		UMultiUserReplicationSessionPreset* Preset = NewObject<UMultiUserReplicationSessionPreset>(
 			GetTransientPackage(),
@@ -190,16 +238,10 @@ namespace UE::MultiUserClient
 			// Mark as transient so FEditorFileUtils::SaveAssetsAs creates a new package for the object.
 			RF_Transient
 			);
-		ClientManager.ForEachClient([this, &Session, &Preset](const FReplicationClient& Client)
+		for (const TPair<const FReplicationClient*, FConcertClientInfo>& ClientData : IncludedClients)
 		{
-			FConcertClientInfo ClientInfo;
-			const bool bGotClientInfo = ClientUtils::GetClientDisplayInfo(*Session, Client.GetEndpointId(), ClientInfo);
-			if (!ensure(bGotClientInfo))
-			{
-				return EBreakBehavior::Continue;
-			}
-			
-			UMultiUserReplicationClientContent* ClientContent_ToCopy = Client.GetClientContent();
+			const auto[Client, ClientInfo] = ClientData;
+			UMultiUserReplicationClientContent* ClientContent_ToCopy = Client->GetClientContent();
 			UMultiUserReplicationClientContent* ClientContent_InPreset = Preset->AddClientIfUnique(ClientInfo);
 			if (!ClientContent_InPreset)
 			{
@@ -208,12 +250,11 @@ namespace UE::MultiUserClient
 					*ClientInfo.DisplayName,
 					*ClientInfo.DeviceName
 					);
-				return EBreakBehavior::Continue;
+				continue;
 			}
 
 			ClientContent_InPreset->Stream->Copy(*ClientContent_ToCopy->Stream);
-			return EBreakBehavior::Continue;
-		});
+		}
 		
 		return Preset;
 	}

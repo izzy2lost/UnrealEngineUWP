@@ -12,6 +12,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "SSimpleComboButton.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/Client/SClientName.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
@@ -42,10 +43,13 @@ namespace UE::MultiUserClient
 			default: checkNoEntry(); return FText::GetEmpty();
 			}
 		}
+
+		static FText GetSavedClientsText() { return LOCTEXT("Save.IncludedClients.Label", "Saved clients"); }
 	}
 	
-	void SPresetComboButton::Construct(const FArguments& InArgs, FPresetManager& InPresetManager)
+	void SPresetComboButton::Construct(const FArguments& InArgs, const IConcertClient& InClient, FPresetManager& InPresetManager)
 	{
+		Client = &InClient;
 		PresetManager = &InPresetManager;
 		ChildSlot
 		[
@@ -59,40 +63,146 @@ namespace UE::MultiUserClient
 
 	TSharedRef<SWidget> SPresetComboButton::CreateMenuContent()
 	{
-		FMenuBuilder MenuBuilder(true, nullptr);
+		FMenuBuilder MenuBuilder(false, nullptr);
 
-		CreateSaveMenuContent(MenuBuilder);
+		MenuBuilder.BeginSection(NAME_None, LOCTEXT("Section.Save", "Save preset"));
+		BuildSaveMenuContent(MenuBuilder);
+		MenuBuilder.EndSection();
 
 		MenuBuilder.BeginSection(NAME_None, LOCTEXT("Section.Import", "Import preset"));
-		CreateLoadMenuContent(MenuBuilder);
+		BuildLoadMenuContent(MenuBuilder);
 		MenuBuilder.EndSection();
 
 		return MenuBuilder.MakeWidget();
 	}
 
-	void SPresetComboButton::CreateSaveMenuContent(FMenuBuilder& MenuBuilder)
+	void SPresetComboButton::BuildSaveMenuContent(FMenuBuilder& MenuBuilder)
 	{
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("SavePresetAs.Label", "Save Preset as..."),
-			LOCTEXT("SavePresetAs.ToolTip", "Saves what each client was replicating as a preset."),
+			LOCTEXT("Save.SavePresetAs.Label", "Save Preset as..."),
+			TAttribute<FText>::CreateLambda([this]()
+			{
+				const ECanSaveResult CanSaveResult = PresetManager->CanSavePreset(BuildSaveOptions());
+				switch (CanSaveResult)
+				{
+				case ECanSaveResult::Yes: return LOCTEXT("Save.SavePresetAs.ToolTip.Yes", "Saves what each client is replicating as a preset.");
+				case ECanSaveResult::NoClients: return FText::Format(LOCTEXT("Save.SavePresetAs.ToolTip.NoClients", "Selec the clients you want to save first in '{0}'"), Private::GetSavedClientsText());
+				default: return FText::GetEmpty();
+				}
+				
+			}),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.SaveAssetAs"),
-			FUIAction(FExecuteAction::CreateSP(this, &SPresetComboButton::SavePresetAs))	
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SPresetComboButton::SavePresetAs),
+				FCanExecuteAction::CreateLambda([this]{ return PresetManager->CanSavePreset(BuildSaveOptions()) == ECanSaveResult::Yes; })
+				)	
 		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Save.IncludeAllClients.Label", "Save all clients"),
+			LOCTEXT("Save.IncludeAllClients.ToolTip", "Whether you want to include all clients in the session into the preset."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this](){ Options.bIncludeAllClients = !Options.bIncludeAllClients; }),
+				FCanExecuteAction::CreateLambda([](){ return true; }),
+				FIsActionChecked::CreateLambda([this]{ return Options.bIncludeAllClients; })
+				),
+			NAME_None,
+			EUserInterfaceActionType::ToggleButton
+			);
+		
+		MenuBuilder.AddSubMenu(
+			Private::GetSavedClientsText(),
+			LOCTEXT("Save.IncludedClients.ToolTip", "Select the clients you want to save into the preset"),
+			FNewMenuDelegate::CreateRaw(this, &SPresetComboButton::BuildExcludedClientSubmenu),
+			FUIAction(
+				FExecuteAction::CreateLambda([]{}),
+				FCanExecuteAction::CreateLambda([this]{ return !Options.bIncludeAllClients; }),
+				FIsActionChecked(),
+				FIsActionButtonVisible::CreateLambda([this]{ return !Options.bIncludeAllClients; })
+				),
+			NAME_None,
+			EUserInterfaceActionType::None
+			);
 	}
 
-	void SPresetComboButton::CreateLoadMenuContent(FMenuBuilder& MenuBuilder)
+	void SPresetComboButton::BuildExcludedClientSubmenu(FMenuBuilder& MenuBuilder)
+	{
+		const TSharedPtr<IConcertClientSession> Session = Client->GetCurrentSession();
+		if (!ensure(Session))
+		{
+			return;
+		}
+
+		const auto GetDisplayText = [](const FConcertClientInfo& ClientInfo, bool bDisplayAsLocalClient = false)
+		{
+			return ConcertClientSharedSlate::SClientName::GetDisplayText(ClientInfo, bDisplayAsLocalClient);
+		};
+		
+		TArray<FConcertSessionClientInfo> RemoteClients = Session->GetSessionClients();
+		RemoteClients.Sort([&GetDisplayText](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
+		{
+			return GetDisplayText(Left.ClientInfo).ToString() < GetDisplayText(Right.ClientInfo).ToString();
+		});
+
+		const auto AddClient = [this, &MenuBuilder, &GetDisplayText](const FConcertClientInfo& ClientInfo, bool bDisplayHasLocalClient = false)
+		{
+			const FText DisplayText = GetDisplayText(ClientInfo, bDisplayHasLocalClient);
+			MenuBuilder.AddMenuEntry(
+				FText::Format(LOCTEXT("Save.Client.LabelFmt", "{0}"), DisplayText),
+				FText::Format(LOCTEXT("Save.Client.ToolTipFmt", "Check if you want the {0} saved in the preset."), DisplayText),
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateLambda([this, ClientInfo]()
+					{
+						if (Options.IncludedClients.Contains(ClientInfo))
+						{
+							Options.IncludedClients.RemoveSingle(ClientInfo);
+						}
+						else
+						{
+							Options.IncludedClients.Add(ClientInfo);
+						}
+					}),
+					FCanExecuteAction::CreateLambda([](){ return true; }),
+					FIsActionChecked::CreateLambda([this, ClientInfo]{ return Options.IncludedClients.Contains(ClientInfo); })
+					),
+				NAME_None,
+				EUserInterfaceActionType::ToggleButton
+				);
+		};
+		AddClient(Session->GetLocalClientInfo(), true);
+		for (const FConcertSessionClientInfo& RemoteClient : RemoteClients)
+		{
+			AddClient(RemoteClient.ClientInfo);
+		}
+	}
+
+	void SPresetComboButton::BuildLoadMenuContent(FMenuBuilder& MenuBuilder)
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("ImportPreset.ClearOtherClients.Label", "Clear clients not in preset"),
-			LOCTEXT("ImportPreset.ClearOtherClients.ToolTip", "If checked, clients that were not in the session when the preset was created will get their content reset, too."),
+			LOCTEXT("ImportPreset.ClearOtherClients.ToolTip", "Clients that were not in the session when the preset was created will get their content reset, too."),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateLambda([this](){ Options.bResetAllOtherClients = !Options.bResetAllOtherClients; }),
+				FExecuteAction::CreateLambda([this](){ Options.bResetAllOtherClients = true; }),
 				FCanExecuteAction::CreateLambda([](){ return true; }),
 				FIsActionChecked::CreateLambda([this]{ return Options.bResetAllOtherClients; })
 				),
 			NAME_None,
-			EUserInterfaceActionType::ToggleButton
+			EUserInterfaceActionType::RadioButton
+			);
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ImportPreset.AdditivelyAdd.Label", "Only change clients in preset"),
+			LOCTEXT("ImportPreset.AdditivelyAdd.ToolTip", "Clients that were not in the session when the preset was created will not be modified by this preset."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this](){ Options.bResetAllOtherClients = false; }),
+				FCanExecuteAction::CreateLambda([](){ return true; }),
+				FIsActionChecked::CreateLambda([this]{ return !Options.bResetAllOtherClients; })
+				),
+			NAME_None,
+			EUserInterfaceActionType::RadioButton
 			);
 			
 		FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
@@ -106,8 +216,8 @@ namespace UE::MultiUserClient
 		AssetPickerConfig.bAllowDragging = false;
 		
 		TSharedRef<SWidget> PresetPicker = SNew(SBox)
-			.HeightOverride(400)
-			.WidthOverride(300)
+			.HeightOverride(450)
+			.WidthOverride(320)
 			[
 				SNew(SBorder)
 				.BorderImage(FAppStyle::GetBrush("Menu.Background"))
@@ -118,12 +228,14 @@ namespace UE::MultiUserClient
 		MenuBuilder.AddWidget(PresetPicker, FText(), true, false);
 	}
 
-	void SPresetComboButton::SavePresetAs()
+	void SPresetComboButton::SavePresetAs() const
 	{
-		PresetManager->ExportToPresetAndSaveAs();
+		PresetManager->ExportToPresetAndSaveAs(
+			BuildSaveOptions()
+			);
 	}
 
-	void SPresetComboButton::LoadPreset(const FAssetData& AssetData)
+	void SPresetComboButton::LoadPreset(const FAssetData& AssetData) const
 	{
 		FSlateNotificationManager& NotificationManager = FSlateNotificationManager::Get();
 		if (UMultiUserReplicationSessionPreset* Preset = Cast<UMultiUserReplicationSessionPreset>(AssetData.GetAsset()))
@@ -164,6 +276,22 @@ namespace UE::MultiUserClient
 		}
 
 		return Flags;
+	}
+
+	FSavePresetOptions SPresetComboButton::BuildSaveOptions() const
+	{
+		FSavePresetOptions SavePresetOptions;
+		
+		if (!Options.bIncludeAllClients)
+		{
+			const auto Filter = [this](const FConcertClientInfo& Info)
+			{
+				return Options.IncludedClients.Contains(Info) ? EFilterResult::Include : EFilterResult::Exclude;
+			};
+			SavePresetOptions.ClientFilterDelegate.BindLambda(Filter);
+		}
+
+		return SavePresetOptions;
 	}
 }
 

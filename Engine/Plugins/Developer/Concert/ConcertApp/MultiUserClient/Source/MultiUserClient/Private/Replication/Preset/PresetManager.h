@@ -3,9 +3,12 @@
 #pragma once
 
 #include "Async/Future.h"
+#include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
+#include "Misc/Optional.h"
 #include "Templates/UnrealTemplate.h"
 
+struct FConcertClientInfo;
 class IConcertSyncClient;
 class UMultiUserReplicationSessionPreset;
 enum class EMultiUserClientPresetLoadMode : uint8;
@@ -53,6 +56,23 @@ namespace UE::MultiUserClient
 		ClearUnreferencedClients = 1 << 0
 	};
 	ENUM_CLASS_FLAGS(EApplyPresetFlags);
+
+	enum class EFilterResult : uint8 { Include, Exclude };
+	DECLARE_DELEGATE_RetVal_OneParam(EFilterResult, FFilterClientForPreset, const FConcertClientInfo&)
+	/** Optionsl for saving a preset */
+	struct FSavePresetOptions
+	{
+		/** Filter that decides whether a client should be included in the preset. */
+		FFilterClientForPreset ClientFilterDelegate; 
+	};
+
+	enum class ECanSaveResult : uint8
+	{
+		/** Yes, a preset can be saved. */
+		Yes,
+		/** There are no clients to save for */
+		NoClients
+	};
 	
 	/**
 	 * Implements all logic for managing presets in the MU session: saving and loading presets.
@@ -71,11 +91,13 @@ namespace UE::MultiUserClient
 		/** Applies Preset to all clients in the session. */
 		TFuture<FReplaceSessionContentResult> ReplaceSessionContentWithPreset(const UMultiUserReplicationSessionPreset& Preset, EApplyPresetFlags Flags = EApplyPresetFlags::None);
 
+		/** @return Whether a preset can be saved (i.e. at least one client is included). */
+		ECanSaveResult CanSavePreset(const FSavePresetOptions& Options = {}) const;
 		/**
 		 * Exports the current session content to a preset, asks the user where to save it, then saves it.
 		 * @return A future that finishes when saving has completed.
 		 */
-		void ExportToPresetAndSaveAs();
+		UMultiUserReplicationSessionPreset* ExportToPresetAndSaveAs(const FSavePresetOptions& Options = {});
 
 	private:
 
@@ -88,7 +110,7 @@ namespace UE::MultiUserClient
 		TSharedPtr<TPromise<FReplaceSessionContentResult>> InProgressSessionReplacementOp;
 
 		/** Exports the current session content to a preset. */
-		UMultiUserReplicationSessionPreset* ExportToPreset() const;
+		UMultiUserReplicationSessionPreset* ExportToPreset(const FSavePresetOptions& Options) const;
 
 		/** Called when the local client receives a remote edit. */
 		void OnPostRemoteEditApplied(const ConcertSyncClient::Replication::FRemoteEditEvent&) const;
