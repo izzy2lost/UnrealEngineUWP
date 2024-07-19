@@ -14,11 +14,12 @@ namespace uba
 		UBA_VISUALIZER_FLAG(Progress, true, L"progress") \
 		UBA_VISUALIZER_FLAG(Status, true, L"status") \
 		UBA_VISUALIZER_FLAG(ActiveProcesses, false, L"active processes") \
-		UBA_VISUALIZER_FLAG(TitleBars, true, L"title bars") \
+		UBA_VISUALIZER_FLAG(TitleBars, true, L"instance title bars") \
 		UBA_VISUALIZER_FLAG(DetailedData, false, L"detailed data (use -UbaDetailedTrace for even more)") \
 		UBA_VISUALIZER_FLAG(NetworkStats, true, L"network stats") \
 		UBA_VISUALIZER_FLAG(CpuMemStats, true, L"cpu/mem stats") \
 		UBA_VISUALIZER_FLAG(ProcessBars, true, L"process bars") \
+		UBA_VISUALIZER_FLAG(FinishedProcesses, true, L"finished process bars") \
 		UBA_VISUALIZER_FLAG(Timeline, true, L"timeline") \
 		UBA_VISUALIZER_FLAG(Workers, false, L"workers (threads on host taking care of requests from helpers)") \
 		UBA_VISUALIZER_FLAG(CursorLine, false, L"cursor (vertical line)") \
@@ -31,6 +32,8 @@ namespace uba
 		UBA_VISUALIZER_FLAG(AutoSaveSettings, true, L"Auto save Position/Settings on close") \
 		UBA_VISUALIZER_FLAG(ShowAllTraces, true, L"Show all traces started on channel") \
 		UBA_VISUALIZER_FLAG(SortActiveRemoteSessions, true, L"Sort active sessions on top") \
+		UBA_VISUALIZER_FLAG(AutoScaleHorizontal, true, L"Automatically scale horizontal to fit processes") \
+		UBA_VISUALIZER_FLAG(LockTimelineToBottom, true, L"Lock timeline to always paint at bottom") \
 
 	struct VisualizerConfig
 	{
@@ -111,6 +114,7 @@ namespace uba
 			TString hyperLink;
 		};
 		u64 GetPlayTime();
+		int GetTimelineTop(const RECT& clientRect);
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
 		void WriteProcessStats(Logger& out, TraceView::Process& process);
