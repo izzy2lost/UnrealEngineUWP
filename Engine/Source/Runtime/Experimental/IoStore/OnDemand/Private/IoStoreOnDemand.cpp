@@ -41,6 +41,8 @@ namespace UE::IoStore
 ////////////////////////////////////////////////////////////////////////////////
 FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
 
+static const TCHAR* NotInitializedError = TEXT("I/O store on-demand not initialized");
+
 bool GIasSuspendSystem = false;
 static FAutoConsoleVariableRef CVar_SuspendSystemEnabled(
 	TEXT("ias.SuspendSystem"),
@@ -1070,7 +1072,17 @@ FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
 	{
 		return IoStore->Unmount(MountId);
 	}
-	return FIoStatus(EIoErrorCode::InvalidCode, TEXT("I/O store on-demand not initialized"));
+	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
+}
+
+TIoStatusOr<uint64> FIoStoreOnDemandModule::GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const
+{
+	if (IoStore)
+	{
+		return IoStore->GetSizeForPackages(Args);
+	}
+
+	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
 }
 
 void FIoStoreOnDemandModule::InitializeInternal()

@@ -558,6 +558,34 @@ FIoStatus FOnDemandIoStore::Unmount(FStringView MountId)
 	return EIoErrorCode::Ok;
 }
 
+TIoStatusOr<uint64> FOnDemandIoStore::GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const
+{
+	TSet<FSharedOnDemandContainer> AllContainers(
+		const_cast<FOnDemandIoStore*>(this)->GetMountedContainers([](const FSharedOnDemandContainer& Container)
+			{
+				return EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Installed);
+			})
+	);
+
+	TSet<FPackageId> PackageIdsToInstall;
+	PackageIdsToInstall.Append(Args.Packages);
+
+	Private::FInstallData InstallData;
+	TSet<FPackageId> Missing;
+
+	FIoStatus Status = BuildInstallData(AllContainers, PackageIdsToInstall, InstallData, Missing);
+	if (Status.IsOk() == false)
+	{
+		return Status;
+	}
+
+	const uint64 RetSize = Algo::TransformAccumulate(InstallData,
+		[](const Private::FInstallData::ElementType& Pair) { return Pair.Value.TotalSize; },
+		uint64(0));
+
+	return RetSize;
+}
+
 FOnDemandChunkInfo FOnDemandIoStore::GetStreamingChunkInfo(const FIoChunkId& ChunkId)
 {
 	return GetChunkInfo(ChunkId, EOnDemandContainerFlags::Mounted | EOnDemandContainerFlags::Streaming);
@@ -862,10 +890,10 @@ bool FOnDemandIoStore::Tick()
 					EnumAddFlags(Container->Flags, EOnDemandContainerFlags::Mounted);
 				}
 			}
-
-			FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
-			OnCompleted(FOnDemandMountResult{ Request->MountArgs.MountId });
 		}
+
+		FOnDemandMountCompleted OnCompleted = MoveTemp(Request->OnCompleted);
+		OnCompleted(FOnDemandMountResult{ Request->MountArgs.MountId });
 	}
 
 	return true;
@@ -1059,11 +1087,12 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FMountRequest& MountRequest)
 		return EIoErrorCode::Ok;
 	};
 
-	TArray<FSharedOnDemandContainer> MountedContainers = GetMountedContainers();
-	TSet<FSharedOnDemandContainer> AllContainers;
-
-	Algo::CopyIf(MountedContainers, AllContainers, 
-		[](const FSharedOnDemandContainer& Container){ return EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Installed); });
+	TSet<FSharedOnDemandContainer> AllContainers(
+		GetMountedContainers([](const FSharedOnDemandContainer& Container) 
+		{ 
+			return EnumHasAnyFlags(Container->Flags, EOnDemandContainerFlags::Installed); 
+		})
+	);
 	Algo::Copy(MountRequest.Containers, AllContainers);
 
 	// Fetch all container headers
@@ -1419,6 +1448,16 @@ TArray<FSharedOnDemandContainer> FOnDemandIoStore::GetMountedContainers()
 {
 	UE::TUniqueLock Lock(ContainerMutex);
 	return Containers;
+}
+
+TArray<FSharedOnDemandContainer> FOnDemandIoStore::GetMountedContainers(TFunctionRef<bool(const FSharedOnDemandContainer& Container)> Predicate)
+{
+	TArray<FSharedOnDemandContainer> Ret;
+
+	UE::TUniqueLock Lock(ContainerMutex);
+	Algo::CopyIf(Containers, Ret, Predicate);
+
+	return Ret;
 }
 
 } // namespace UE::IoStore

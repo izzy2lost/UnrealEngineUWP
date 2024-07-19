@@ -276,6 +276,25 @@ struct FOnDemandMountResult
 
 using FOnDemandMountCompleted = TUniqueFunction<void(FOnDemandMountResult)>;
 
+struct FOnDemandSizeForPackagesArgs
+{
+	/* Includes all packages from matching containers */
+	struct FPackagesWhere
+	{
+		/* The MountId to collect packages from*/
+		FString MountId;
+		/* Includes only packages from the specificed tag sets if not empty */
+		TArray<FString> TagSets;
+	};
+
+	/* Includes all packages from matching containers */
+	// TODO: implement this
+	// TArray<FPackagesWhere> PackagesWhere;
+
+	/* Explicit packages to include */
+	TArray<FPackageId> Packages;
+};
+
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
@@ -299,6 +318,8 @@ public:
 
 	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
 	UE_API FIoStatus Unmount(FStringView MountId);
+
+	UE_API TIoStatusOr<uint64> GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const;
 
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

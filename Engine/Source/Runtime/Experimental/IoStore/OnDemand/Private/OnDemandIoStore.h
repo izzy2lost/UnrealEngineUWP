@@ -145,8 +145,6 @@ class FOnDemandIoStore
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
 	using FMountRequestMap		= TMap<FString, FSharedMountRequest>;
-	// List of (unique container name, package index list) pairs
-	using FPackageFilter		= TArray<TPair<FString, TConstArrayView<uint32>>>;
 
 public:
 	FOnDemandIoStore();
@@ -159,9 +157,12 @@ public:
 	FIoStatus				Initialize();
 	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
 	FIoStatus				Unmount(FStringView MountId);
+	TIoStatusOr<uint64>		GetSizeForPackages(const FOnDemandSizeForPackagesArgs& Args) const;
 	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
 	TArray<FSharedOnDemandContainer> GetMountedContainers();
+	TArray<FSharedOnDemandContainer> GetMountedContainers(
+		TFunctionRef<bool(const FSharedOnDemandContainer& Container)> Predicate);
 
 private:
 	void					OnPostFork(EForkProcessRole ProcessRole);
