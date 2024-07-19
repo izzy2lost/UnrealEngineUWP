@@ -746,6 +746,11 @@ TRDGUniformBufferRef<FSubstratePublicGlobalUniformParameters> CreatePublicGlobal
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+static bool DoesRuntimeSupportWave64()
+{
+	return GRHISupportsWaveOperations && (GRHIMinimumWaveSize <= 64 && GRHIMaximumWaveSize >= 64);
+}
+
 class FSubstrateClosureTilePassCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FSubstrateClosureTilePassCS);
@@ -783,6 +788,20 @@ class FSubstrateClosureTilePassCS : public FGlobalShader
 			return false;
 		}
 		return GetMaxSupportedFeatureLevel(Parameters.Platform) >= ERHIFeatureLevel::SM5 && Substrate::IsSubstrateEnabled();
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{ 
+		bool bUsed = ShouldCompilePermutation(Parameters);
+		if (bUsed)
+		{
+			FPermutationDomain PermutationVector(Parameters.PermutationId);
+			if (PermutationVector.Get<FWaveOps>() && !DoesRuntimeSupportWave64())
+			{
+				bUsed = false;
+			}
+		}
+		return bUsed ? EShaderPermutationPrecacheRequest::Precached : EShaderPermutationPrecacheRequest::NotUsed;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -842,6 +861,20 @@ class FSubstrateMaterialTileClassificationPassCS : public FGlobalShader
 			return false;
 		}		
 		return GetMaxSupportedFeatureLevel(Parameters.Platform) >= ERHIFeatureLevel::SM5 && Substrate::IsSubstrateEnabled();
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters) 
+	{ 
+		bool bUsed = ShouldCompilePermutation(Parameters);
+		if (bUsed)
+		{
+			FPermutationDomain PermutationVector(Parameters.PermutationId);
+			if (PermutationVector.Get<FWaveOps>() && !DoesRuntimeSupportWave64())
+			{
+				bUsed = false;
+			}
+		}
+		return bUsed ? EShaderPermutationPrecacheRequest::Precached : EShaderPermutationPrecacheRequest::NotUsed;
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -1345,7 +1378,8 @@ void AddSubstrateMaterialClassificationPass(FRDGBuilder& GraphBuilder, const FMi
 			continue;
 		}
 
-		const bool bWaveOps = GRHISupportsWaveOperations&& GRHIMaximumWaveSize >= 64 && SubstrateSupportsWaveOps(Platform) != ERHIFeatureSupport::Unsupported;
+		// Our current classification require 64 waves
+		const bool bWaveOps = DoesRuntimeSupportWave64() && SubstrateSupportsWaveOps(Platform) != ERHIFeatureSupport::Unsupported;
 		
 		const FSubstrateViewData* SubstrateViewData = &View.SubstrateViewData;
 		const FSubstrateSceneData* SubstrateSceneData = View.SubstrateViewData.SceneData;
