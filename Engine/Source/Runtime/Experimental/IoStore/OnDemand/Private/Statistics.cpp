@@ -520,6 +520,8 @@ void FOnDemandIoBackendStats::ReportEndPointAnalytics(TArray<FAnalyticsEventAttr
 
 		AppendAnalyticsEventAttributeArray(OutAnalyticsArray
 
+			,TEXT("IasCacheEnabled"), !EnumHasAllFlags(Flags, EStatsFlags::CachingDisabled)
+
 			,TRACK_DELTA("IasCacheTotalCount", CacheTotalCount)
 			,TRACK_DELTA("IasCacheErrorCount", GCacheErrorCount.Get())
 			,TRACK_DELTA("IasCacheGetCount", GCacheGetCount.Get())
