@@ -410,7 +410,27 @@ bool UGeometrySelectionManager::HasActiveTargets() const
 	return (ActiveTargetReferences.Num() > 0);
 }
 
-
+bool UGeometrySelectionManager::ValidateSelectionState() const
+{
+	for (const TSharedPtr<FGeometrySelectionTarget>& Target : ActiveTargetReferences)
+	{
+		if (!Target.IsValid())
+		{
+			return false;
+		}
+		// if we have a stale target/selection object, selection state is not valid
+		// Note: it is ok for the object to be explicitly null, just not stale
+		if (Target->SelectionIdentifer.TargetObject.IsStale())
+		{
+			return false;
+		}
+		if (Target->TargetIdentifier.TargetObject.IsStale())
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 void UGeometrySelectionManager::ClearActiveTargets()
 {

@@ -145,6 +145,12 @@ public:
 	 * @return true if there are any active selection targets
 	 */
 	bool HasActiveTargets() const;
+
+	/**
+	 * Attempt to validate the current selection state; can be called to detect if e.g. selected objects have been deleted from under the selection manager.
+	 * @return true if current active selection state appears to be valid (i.e., does not include stale / deleted objects)
+	 */
+	bool ValidateSelectionState() const;
 	
 	/**
 	 * Empty the active selection target set

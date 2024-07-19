@@ -795,7 +795,11 @@ TUniquePtr<IGeometrySelector> FDynamicMeshComponentSelectorFactory::BuildForTarg
 
 	TUniquePtr<FDynamicMeshSelector> Selector = MakeUnique<FDynamicMeshSelector>();
 	Selector->Initialize(TargetIdentifier, Component->GetDynamicMesh(),
-		[Component]() { return IsValid(Component) ? (UE::Geometry::FTransformSRT3d)Component->GetComponentTransform() : FTransformSRT3d::Identity(); }
+		[TargetIdentifier]() -> FTransformSRT3d
+		{ 
+			UDynamicMeshComponent* Component = TargetIdentifier.GetAsComponentType<UDynamicMeshComponent>();
+			return IsValid(Component) ? (FTransformSRT3d)Component->GetComponentTransform() : FTransformSRT3d::Identity(); 
+		}
 	);
 	return Selector;
 }

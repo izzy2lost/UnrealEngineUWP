@@ -278,6 +278,13 @@ void UModelingToolsEditorMode::Tick(FEditorViewportClient* ViewportClient, float
 		FModelingToolsEditorModeToolkit* ModelingToolkit = (FModelingToolsEditorModeToolkit*)Toolkit.Get();
 		ModelingToolkit->ShowRealtimeAndModeWarnings(ViewportClient->IsRealtime() == false);
 	}
+
+	// Recover from invalid selection state, in case objects have been deleted from under the selection manager
+	if (SelectionManager && !SelectionManager->ValidateSelectionState())
+	{
+		SelectionManager->ClearSelection();
+		SelectionManager->ClearActiveTargets();
+	}
 }
 
 // Note: Stylus support is currently non-functioning; the code to enable it is left here as reference in case it is brought back
