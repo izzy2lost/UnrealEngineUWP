@@ -10,6 +10,7 @@
 #include "Model/ModelObject.h"
 
 #include "Expressions/TG_Expression.h"
+#include "Expressions/Procedural/TG_Expression_Pattern.h"
 
 template <> FString TG_Var_LogValue(uint8& Value)
 {
@@ -78,6 +79,36 @@ template <> FString TG_Var_LogValue(FTG_OutputSettings& Value)
 	return LogMessage;
 }
 
+template <> FString TG_Var_LogValue(FPatternMaskPlacement_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskJitter_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskBevel_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FPatternMaskCutout_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
+template <> FString TG_Var_LogValue(FGradientDir_TS& Value)
+{
+	FString LogMessage = Value.ToString();
+	return LogMessage;
+}
+
 template <> void TG_Var_SetValueFromString(int& Value, const FString& StrVal)
 {
 	Value = FCString::Atoi(*StrVal);
@@ -132,6 +163,26 @@ template <> void TG_Var_SetValueFromString(TObjectPtr<UObject>& Value, const FSt
 
 
 template <> void TG_Var_SetValueFromString(FTG_OutputSettings& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskPlacement_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskJitter_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskBevel_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FPatternMaskCutout_TS& Value, const FString& StrVal)
+{
+	Value.InitFromString(StrVal);
+}
+template <> void TG_Var_SetValueFromString(FGradientDir_TS& Value, const FString& StrVal)
 {
 	Value.InitFromString(StrVal);
 }
@@ -372,6 +423,26 @@ void VarPropertySerializer_FTG_OutputSettings(FTG_Var::VarPropertySerialInfo& In
 	Generic_Struct_Serializer<FTG_OutputSettings>(Info);
 }
 
+void VarPropertySerializer_FGradientDir_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FGradientDir_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskCutout_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskCutout_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskBevel_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskBevel_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskJitter_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskJitter_TS>(Info);
+}
+void VarPropertySerializer_FPatternMaskPlacement_TS(FTG_Var::VarPropertySerialInfo& Info)
+{
+	Generic_Struct_Serializer<FPatternMaskPlacement_TS>(Info);
+}
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 FTG_Var::VarPropertySerializerMap FTG_Var::DefaultPropertySerializers
 (
@@ -392,6 +463,11 @@ FTG_Var::VarPropertySerializerMap FTG_Var::DefaultPropertySerializers
 		VAR_PROPERTY_SERIALIZER_DEF(FLinearColor),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_OutputSettings),
 		VAR_PROPERTY_SERIALIZER_DEF(FTG_Variant),
+		VAR_PROPERTY_SERIALIZER_DEF(FGradientDir_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskCutout_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskBevel_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskJitter_TS),
+		VAR_PROPERTY_SERIALIZER_DEF(FPatternMaskPlacement_TS),
 	}
 );
 

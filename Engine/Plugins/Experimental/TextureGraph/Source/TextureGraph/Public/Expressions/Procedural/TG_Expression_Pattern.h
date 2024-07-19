@@ -7,6 +7,7 @@
 
 #include "Expressions/TG_Expression.h"
 #include "TG_Texture.h"
+#include "Misc/OutputDeviceNull.h"
 
 #include "TG_Expression_Pattern.generated.h"
 
@@ -51,6 +52,19 @@ struct TEXTUREGRAPH_API FPatternMaskPlacement_TS
 	Vector2								Repeat() const { return Vector2(RepeatX, RepeatY); }
 	Vector2								Spacing() const { return Vector2(SpacingX, SpacingY); }
 	Vector2								OffsetValue() const { return (OffsetHorizontal ? Vector2( Offset, 0.0f ) : Vector2( 0.0f, Offset )); }
+
+	void InitFromString(const FString& StrVal)
+	{
+		FOutputDeviceNull NullOut;
+		FPatternMaskPlacement_TS::StaticStruct()->ImportText(*StrVal, this, /*OwnerObject*/nullptr, 0, &NullOut, FPatternMaskPlacement_TS::StaticStruct()->GetName(), /*bAllowNativeOverride*/true);
+	}
+
+	FString ToString() const
+	{
+		FString ExportString;
+		FPatternMaskPlacement_TS::StaticStruct()->ExportText(ExportString, this, this, /*OwnerObject*/nullptr, /*PortFlags*/0, /*ExportRootScope*/nullptr);
+		return ExportString;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -112,6 +126,19 @@ struct TEXTUREGRAPH_API FPatternMaskJitter_TS
 
 	Vector2								Angle() const { return Vector2(AngleXAmount, AngleYAmount); }
 	Vector2								Tilt() const { return Vector2(TiltXAmount, TiltYAmount); }
+
+	void InitFromString(const FString& StrVal)
+	{
+		FOutputDeviceNull NullOut;
+		FPatternMaskJitter_TS::StaticStruct()->ImportText(*StrVal, this, /*OwnerObject*/nullptr, 0, &NullOut, FPatternMaskJitter_TS::StaticStruct()->GetName(), /*bAllowNativeOverride*/true);
+	}
+
+	FString ToString() const
+	{
+		FString ExportString;
+		FPatternMaskJitter_TS::StaticStruct()->ExportText(ExportString, this, this, /*OwnerObject*/nullptr, /*PortFlags*/0, /*ExportRootScope*/nullptr);
+		return ExportString;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -126,6 +153,19 @@ struct TEXTUREGRAPH_API FPatternMaskBevel_TS
 	// The bevel curve
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "-1", ClampMin = "-1", UIMax = "1.0", ClampMax = "1.0" ))
 	float								BevelCurve = 0;
+	
+	void InitFromString(const FString& StrVal)
+	{
+		FOutputDeviceNull NullOut;
+		FPatternMaskBevel_TS::StaticStruct()->ImportText(*StrVal, this, /*OwnerObject*/nullptr, 0, &NullOut, FPatternMaskBevel_TS::StaticStruct()->GetName(), /*bAllowNativeOverride*/true);
+	}
+
+	FString ToString() const
+	{
+		FString ExportString;
+		FPatternMaskBevel_TS::StaticStruct()->ExportText(ExportString, this, this, /*OwnerObject*/nullptr, /*PortFlags*/0, /*ExportRootScope*/nullptr);
+		return ExportString;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -140,6 +180,19 @@ struct TEXTUREGRAPH_API FPatternMaskCutout_TS
 	// The seed to control the cutoff randomness. 0 means no randomness
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", UIMin = "0", ClampMin = "0", UIMax = "100", ClampMax = "100" ))
 	float								CutoffSeed = 0;
+	
+	void InitFromString(const FString& StrVal)
+	{
+		FOutputDeviceNull NullOut;
+		FPatternMaskCutout_TS::StaticStruct()->ImportText(*StrVal, this, /*OwnerObject*/nullptr, 0, &NullOut, FPatternMaskCutout_TS::StaticStruct()->GetName(), /*bAllowNativeOverride*/true);
+	}
+
+	FString ToString() const
+	{
+		FString ExportString;
+		FPatternMaskCutout_TS::StaticStruct()->ExportText(ExportString, this, this, /*OwnerObject*/nullptr, /*PortFlags*/0, /*ExportRootScope*/nullptr);
+		return ExportString;
+	}
 };
 
 USTRUCT(BlueprintType)
@@ -156,6 +209,19 @@ struct TEXTUREGRAPH_API FGradientDir_TS
 	float								Y = 0;
 
 	Vector2								Value() const { return Vector2(X, Y); }
+
+	void InitFromString(const FString& StrVal)
+	{
+		FOutputDeviceNull NullOut;
+		FGradientDir_TS::StaticStruct()->ImportText(*StrVal, this, /*OwnerObject*/nullptr, 0, &NullOut, FGradientDir_TS::StaticStruct()->GetName(), /*bAllowNativeOverride*/true);
+	}
+
+	FString ToString() const
+	{
+		FString ExportString;
+		FGradientDir_TS::StaticStruct()->ExportText(ExportString, this, this, /*OwnerObject*/nullptr, /*PortFlags*/0, /*ExportRootScope*/nullptr);
+		return ExportString;
+	}
 };
 
 UCLASS()
