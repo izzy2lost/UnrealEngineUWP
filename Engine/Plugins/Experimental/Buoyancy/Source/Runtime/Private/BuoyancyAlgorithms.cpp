@@ -20,6 +20,9 @@
 
 extern bool bBuoyancyDebugDraw;
 
+bool bBuoyancyAlgorithmsAllowVolRatioOverOne = false;
+FAutoConsoleVariableRef CVarBuoyancyAlgorithmsAllowVolRatioOverOne(TEXT("p.Buoyancy.Algorithms.AllowVolRatioOverOne"), bBuoyancyAlgorithmsAllowVolRatioOverOne, TEXT(""));
+
 
 //
 // Internal Functions
@@ -246,10 +249,15 @@ namespace BuoyancyAlgorithms
 		}
 
 		// Adjust the output volume based on the ratio of the material volume and the shape volume.
-		// We expect the shape volume to have overestimated the submerged volume for most shapes,
-		// especially those which are hollow.
+		//
+		// In most cases, we expect the shape volume to have overestimated the submerged volume for
+		// most shapes, especially those which are hollow.
+		//
+		// In some cases, if the mass of the submerged object has been changed independently of the
+		// density, which increases		
 		if (ParticleVol > UE_SMALL_NUMBER &&
-			ParticleVol < ShapeVol)
+			ShapeVol > UE_SMALL_NUMBER &&
+			(bBuoyancyAlgorithmsAllowVolRatioOverOne || ParticleVol < ShapeVol))
 		{
 			const float VolRatio = ParticleVol / ShapeVol;
 			SubmergedVol *= VolRatio;
