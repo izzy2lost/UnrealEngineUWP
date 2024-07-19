@@ -355,7 +355,7 @@ public:
 	 * Custom color for when geometry is not a part of current selection when using Mesh Element Selection
 	 */
 	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
-	FLinearColor UnselectedColor = FLinearColor(.906f, 0.038f, 0.038f); // default red
+	FLinearColor UnselectedColor = FLinearColor(.906f, 0.038f, 0.038f,.4f); // default red
 
 	/**
 	 * Custom color hovering over selected geometry in Mesh Element Selection
@@ -367,13 +367,13 @@ public:
 	* Custom color hovering over unselected geometry in Mesh Element Selection
 	*/
 	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
-	FLinearColor HoverOverUnselectedColor = FLinearColor(0.027f, 0.656f, 0.027f); // default green
+	FLinearColor HoverOverUnselectedColor = FLinearColor(0.027f, 0.656f, 0.027f, .6f); // default green
 
 	/**
 	* Custom color for when geometry is a part of the current selection when using Mesh Element Selection
 	*/
 	UPROPERTY(Config, EditAnywhere, Category = "Modeling Mode|Mesh Element Selection Mode")
-	FLinearColor GeometrySelectedColor = FLinearColor(0.859f, 0.799f, 0.076f); // default yellow
+	FLinearColor GeometrySelectedColor = FLinearColor(0.859f, 0.799f, 0.076f, .4f); // default yellow
 
 public:
 

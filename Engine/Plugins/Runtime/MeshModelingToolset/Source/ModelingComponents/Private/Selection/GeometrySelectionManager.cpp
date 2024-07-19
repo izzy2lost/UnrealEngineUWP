@@ -1710,19 +1710,17 @@ void UGeometrySelectionManager::SetSelectionColors(const FLinearColor Unselected
 	HoverOverUnselectedParams.Color = HoverOverUnselectedCol.ToFColor(true);
 	SelectedParams.Color = GeometrySelectedCol.ToFColor(true);
 
-	const float Opacity = .6f;
-
 	UnselectedParams.SelectionFillColor =
-		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, UnselectedCol, UnselectedParams.DepthBias, Opacity);
+		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, UnselectedCol, UnselectedParams.DepthBias, UnselectedCol.A);
 
 	HoverOverSelectedParams.SelectionFillColor =
 		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, HoverOverSelectedCol, HoverOverSelectedParams.DepthBias);
 
 	HoverOverUnselectedParams.SelectionFillColor =
-		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, HoverOverUnselectedCol, HoverOverUnselectedParams.DepthBias, Opacity +.2);
+		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, HoverOverUnselectedCol, HoverOverUnselectedParams.DepthBias, HoverOverUnselectedCol.A);
 
 	SelectedParams.SelectionFillColor =
-		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, GeometrySelectedCol, SelectedParams.DepthBias, Opacity);
+		ToolSetupUtil::GetCustomTwoSidedDepthOffsetMaterial(this->ToolsContext->ToolManager, GeometrySelectedCol, SelectedParams.DepthBias, GeometrySelectedCol.A);
 
 	// ensures that when color is changed in Editor Preferences, colors are immediately updated in the UI
 	MarkRenderCachesDirty();
