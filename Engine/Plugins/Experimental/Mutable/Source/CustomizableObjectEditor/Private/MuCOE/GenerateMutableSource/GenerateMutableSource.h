@@ -620,24 +620,24 @@ struct FMutableGraphGenerationContext
 		uint32 ID;
 	};
 
-	// Cache of runtime pass-through meshes and their IDs used in the core to indentify them.
+	// Cache of runtime pass-through meshes and their IDs used in the core to identify them.
 	// These meshes will remain as external references even in optimized models.
 	TMap<TSoftObjectPtr<USkeletalMesh>, FGeneratedReferencedMesh> PassthroughMeshMap;
 
-	// Cache of runtime pass-through images and their IDs used in the core to indentify them.
+	// Cache of runtime pass-through images and their IDs used in the core to identify them.
 	// These textures will remain as external references even in optimized models.
 	TMap<TSoftObjectPtr<UTexture>, FGeneratedReferencedTexture> PassthroughTextureMap;
 
-	// Cache of runtime images and their IDs used in the core to indentify them.
+	// Cache of runtime images and their IDs used in the core to identify them.
 	// These textures will remain as external references even in optimized models.
 	TMap<TSoftObjectPtr<const UTexture>, FGeneratedReferencedTexture> RuntimeReferencedTextureMap;
 	
-	// Cache of runtime pass-through images and their IDs used in the core to indentify them
+	// Cache of runtime pass-through images and their IDs used in the core to identify them
 	// These textures will become mutable images in the compiled model.
 	TMap<TSoftObjectPtr<const UTexture>, FGeneratedReferencedTexture> CompileTimeTextureMap;
 
-    // Global morph selection overrides.
-    TArray<FRealTimeMorphSelectionOverride> RealTimeMorphTargetsOverrides;
+	// Global morph selection overrides.
+	TArray<FRealTimeMorphSelectionOverride> RealTimeMorphTargetsOverrides;
 
 	// Mutable meshes already build for source UStaticMesh or USkeletalMesh.
 	struct FGeneratedMeshData
