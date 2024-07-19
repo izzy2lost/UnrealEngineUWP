@@ -48,6 +48,7 @@ public:
 	/** PlayerState containing replicated information about the player using this controller (only exists for players, not NPCs). */
 	UPROPERTY(replicatedUsing = OnRep_PlayerState, BlueprintReadOnly, Category=Controller)
 	TObjectPtr<APlayerState> PlayerState;
+	ENGINE_API void SetPlayerState(APlayerState* InPlayerState);
 
 	/** Actor marking where this controller spawned in. */
 	TWeakObjectPtr<class AActor> StartSpot;
@@ -68,6 +69,7 @@ private:
 	/** Pawn currently being controlled by this controller.  Use Pawn.Possess() to take control of a pawn */
 	UPROPERTY(replicatedUsing=OnRep_Pawn)
 	TObjectPtr<APawn> Pawn;
+	void SetPawn_Direct(APawn* InPawn);
 
 	/**
 	 * Used to track when pawn changes during OnRep_Pawn. 

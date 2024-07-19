@@ -1355,7 +1355,7 @@ void APlayerController::CleanupPlayerState()
 		// By default this destroys it, but games can override
 		PlayerState->OnDeactivated();
 	}
-	PlayerState = NULL;
+	SetPlayerState(NULL);
 }
 
 void APlayerController::OnActorChannelOpen(FInBunch& InBunch, UNetConnection* Connection)
@@ -3635,7 +3635,7 @@ void APlayerController::SeamlessTravelFrom(APlayerController* OldPC)
 
 		//@fixme: need a way to replace PlayerStates that doesn't cause incorrect "player left the game"/"player entered the game" messages
 		OldPC->PlayerState->Destroy();
-		OldPC->PlayerState = NULL;
+		OldPC->SetPlayerState(NULL);
 	}
 
 	// Copy seamless travel state

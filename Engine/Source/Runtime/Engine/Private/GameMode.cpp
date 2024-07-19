@@ -700,7 +700,7 @@ bool AGameMode::FindInactivePlayer(APlayerController* PC)
 		{
 			// found it!
 			APlayerState* OldPlayerState = PC->PlayerState;
-			PC->PlayerState = CurrentPlayerState;
+			PC->SetPlayerState(CurrentPlayerState);
 			PC->PlayerState->SetOwner(PC);
 			PC->PlayerState->SetReplicates(true);
 			PC->PlayerState->SetLifeSpan(0.0f);
