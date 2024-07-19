@@ -710,7 +710,7 @@ void FWinHttpConnectionWebSocket::HandleWebSocketCloseComplete()
 	}
 
 	FUTF8ToTCHAR Converter(CloseReasonBuffer, CloseReasonActualLength);
-	FString CloseReason(Converter.Length(), Converter.Get());
+	FString CloseReason = FString::ConstructFromPtrSize(Converter.Get(), Converter.Length());
 
 	UE_LOG(LogWinHttp, Verbose, TEXT("WinHttp WebSocket[%p]: Received Close message from the server. Code=[%d] Reason=[%s]"), this, static_cast<int32>(CloseCode), *CloseReason);
 
