@@ -49,18 +49,6 @@ bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform)
 	return IsMobilePlatform(Platform) && (FPlatformMisc::GetMobilePropagateAlphaSetting() > 0);
 }
 
-ENGINE_API EMobileHDRMode GetMobileHDRMode()
-{
-	EMobileHDRMode HDRMode = EMobileHDRMode::EnabledFloat16;
-
-	if (!IsMobileHDR())
-	{
-		HDRMode = EMobileHDRMode::Disabled;
-	}
-	
-	return HDRMode;
-}
-
 ENGINE_API bool IsMobileColorsRGB()
 {
 	static auto* MobileUseHWsRGBEncodingCVAR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.UseHWsRGBEncoding"));
