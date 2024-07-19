@@ -2489,7 +2489,7 @@ TArray<FAssetData> URigVMBlueprint::GetDependentAssets() const
 					{
 						if (const URigVMBlueprint* ControlRigBlueprint = ReferencePtr->GetTypedOuter<URigVMBlueprint>())
 						{
-							const TSoftObjectPtr<UPackage> Blueprint = ControlRigBlueprint;
+							const TSoftObjectPtr<const URigVMBlueprint> Blueprint = ControlRigBlueprint;
 							const FSoftObjectPath AssetPath = Blueprint.ToSoftObjectPath();
 							if(AssetPath.GetLongPackageName().StartsWith(TEXT("/Engine/Transient")))
 							{
