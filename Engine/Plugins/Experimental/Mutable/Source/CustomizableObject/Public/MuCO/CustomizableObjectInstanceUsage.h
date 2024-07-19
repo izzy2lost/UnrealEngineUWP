@@ -115,8 +115,7 @@ private:
 	virtual bool IsTickable() const override;
 	// End FTickableGameObject
 
-	void SetSkeletalMeshAndOverrideMaterials(USkeletalMeshComponent& Parent, USkeletalMesh* SkeletalMesh, const UCustomizableObjectInstance& CustomizableObjectInstance, 
-											 const bool bInstanceGenerated, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated);
+	void SetSkeletalMeshAndOverrideMaterials(USkeletalMeshComponent& Parent, USkeletalMesh* SkeletalMesh, const UCustomizableObjectInstance& CustomizableObjectInstance, bool* bOutSkeletalMeshUpdated, bool* bOutMaterialsUpdated);
 
 	friend UCustomizableSkeletalComponent;
 };
