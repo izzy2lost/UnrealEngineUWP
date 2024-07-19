@@ -33,6 +33,10 @@ protected:
 	virtual void K2_DestroyActor() override;
 	virtual void Destroyed() override;
 
+#if WITH_EDITOR
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+#endif
+
 public:
 	virtual void SetOwner( AActor* NewOwner ) override;
 
@@ -86,15 +90,15 @@ public:
 	bool OnExecute(AActor* MyTarget, const FGameplayCueParameters& Parameters);
 
 	/** Called when a GameplayCue with duration is first activated, this will only be called if the client witnessed the activation */
-	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify")
+	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify", DisplayName="On Burst", meta=(ScriptName="OnBurst;OnActive"))
 	bool OnActive(AActor* MyTarget, const FGameplayCueParameters& Parameters);
 
 	/** Called when a GameplayCue with duration is first seen as active, even if it wasn't actually just applied (Join in progress, etc) */
-	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify")
+	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify", DisplayName="On Become Relevant", meta=(ScriptName="OnBecomeRelevant;WhileActive"))
 	bool WhileActive(AActor* MyTarget, const FGameplayCueParameters& Parameters);
 
 	/** Called when a GameplayCue with duration is removed */
-	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify")
+	UFUNCTION(BlueprintNativeEvent, Category = "GameplayCueNotify", DisplayName="On Cease Relevant", meta=(ScriptName="OnCeaseRelevant;OnRemove"))
 	bool OnRemove(AActor* MyTarget, const FGameplayCueParameters& Parameters);
 
 	/** Tag this notify is activated by */
@@ -128,17 +132,17 @@ public:
 	bool bUniqueInstancePerSourceObject;
 
 	/**
-	 *	Does this cue trigger its OnActive event if it's already been triggered?
+	 *	Does this cue trigger its On Burst event if it's already been triggered?
 	 *  This can occur when the associated tag is triggered by multiple sources and there is no unique instancing.
 	 */ 	 
-	UPROPERTY(EditDefaultsOnly, Category = GameplayCue)
+	UPROPERTY(EditDefaultsOnly, Category = GameplayCue, DisplayName="Allow Multiple On Burst Events")
 	bool bAllowMultipleOnActiveEvents;
 
 	/**
-	 *	Does this cue trigger its WhileActive event if it's already been triggered?
+	 *	Does this cue trigger its On Become Relevant event if it's already been triggered?
 	 *  This can occur when the associated tag is triggered by multiple sources and there is no unique instancing.
-	 */ 	 
-	UPROPERTY(EditDefaultsOnly, Category = GameplayCue)
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = GameplayCue, DisplayName="Allow Multiple On Become Relevant Events")
 	bool bAllowMultipleWhileActiveEvents;
 
 	/** How many instances of the gameplay cue to preallocate */

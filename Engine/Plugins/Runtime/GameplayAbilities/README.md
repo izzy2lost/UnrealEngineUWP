@@ -184,7 +184,7 @@ The Gameplay Ability System uses Gameplay Tags extensively throughout.  See the 
 
 ---
 
-# Gameplay Cues (#gameplay-cues)
+# Gameplay Cues {#gameplay-cues}
 
 Gameplay Cues are a system for decoupling visual and audio fx from gameplay code.  On start-up, special Gameplay Cue asset folders are scanned for [Gameplay Cue Sets](./Source/GameplayAbilities/Public/GameplayCueSet.h), and *Gameplay Cue Notify* classes.
 
@@ -197,6 +197,36 @@ The details of Gameplay Cue replication are complex and worth noting.  Because t
 Due to these Gameplay Cues needing to obey network relevancy (i.e. far away players should not replicate their Cues, but newly relevant ones should) and the fact that the PlayerState is *always relevant*, there is a *replication proxy* system.  The Player's Pawn (who has its [ASC](#asc) on the PlayerState) should implement the [IAbilitySystemReplicationProxyInterface](./Source/GameplayAbilities/Public/AbilitySystemReplicationProxyInterface.h).  When turning on the ASC's ReplicationProxyEnabled variable, all unreliable Gameplay Cue RPC's will go through the proxy interface (the Pawn, which properly represents relevancy).
 
 An advanced form of replication proxies also exists for the property replication so it may follow the same relevancy rules.  See `FMinimalGameplayCueReplicationProxy` in the [GameplayCueInterface](./Source/GameplayAbilities/Public/GameplayCueInterface.h).
+
+Due to the Burst Cues being replicated by RPC and the Looping Cues being replicated by replicated variables, one can run into an issue where the unreliable burst RPC gets dropped but the looping events (OnBecomeRelevant/OnCeaseRelevant) arrive.  Less obvious, the unreliable OnBurst RPC can arrive but the OnBecomeRelevant/OnCeaseRelevant can be dropped if the Cue is removed on the server quick enough to result in no state changes for network serialization.
+
+See the section on [Gameplay Cue Events](#gc-events) below for guidelines on how to implement your Gameplay Cue while taking into consideration network replication.
+
+## Gameplay Cue Events {#gc-events}
+
+When implementing a Gameplay Cue Notify Actor, the (legacy) naming of the functions may be confusing.  In UE5.5 the Blueprint (user-facing) names have changed in order to better represent what each function does.  They are laid out below.
+
+### OnExecute
+
+The execute function is the easiest to reason about:  It happens when you *Execute* a one-shot Gameplay Cue (aka a Static Notify / non-Looping Gameplay Cue).  The code path to Execute a Gameplay Cue (for Static Notifies) is different than the code path to Add a Gameplay Cue (for Looping Gameplay Cues aka Actor Notifies).
+
+Due to the code path for execution being different, the caller of the Gameplay Cue must know that the receiver of the Gameplay Cue is a Static Notify in order for this to execute properly.  The call should route through ExecuteGameplayCue see [GameplayCueFunctionLibrary](./Source/GameplayAbilities/Public/GameplayCueFunctionLibrary.h).
+
+### OnBurst (native: OnActive)
+
+This event executes only once when a *Looping Gameplay Cue* first fires.  Due to it being delivered by unreliable RPC, it can be dropped silently by a client.  You can use this to implement cosmetic effects that are only relevant if a client witnessed the Gameplay Cue triggering.
+
+### OnBecomeRelevant (native: WhileActive)
+
+This event executes when the *Looping Gameplay Cue* first comes into network relevancy (usually when it's first added).  For instance, PawnA can have a Gameplay Cue activated, PawnB can join the game and still receive PawnA's OnBecomeRelevant -- but not receive OnBurst.
+
+This is important to understand as OnBecomeRelevant and OnCeaseRelevant are both guaranteed to fire on the same Cue, whereas OnBurst is not guaranteed.
+
+### OnCeaseRelevant (native: OnRemove)
+
+This event executes when the *Looping Gameplay Cue* gets removed from network relevancy.  Usually that's when the server executes the removal of the Cue, but could also be when the client loses relevancy (e.g. by distance) of the viewed Cue.
+
+In UE5.5, a warning is introduced if a Gameplay Cue implements OnBurst and OnCeaseRelevant and not OnBecomeRelevant.  The reasoning is that the opposite of OnCeaseRelevant is OnBecomeRelevant, not OnBurst and it's likely that the old naming scheme (OnActive/OnRemove) was a source of confusion.
 
 ---
 

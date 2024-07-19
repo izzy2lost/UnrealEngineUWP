@@ -10,8 +10,14 @@
 #include "GameplayCueManager.h"
 #include "GameplayCueNotifyTypes.h"
 
+#if WITH_EDITOR
+#include "Engine/BlueprintGeneratedClass.h"
+#include "Misc/DataValidation.h"
+#endif
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayCueNotify_Actor)
 
+#define LOCTEXT_NAMESPACE "GameplayCueNotify_Actor"
 
 namespace FAbilitySystemTweaks
 {
@@ -91,6 +97,29 @@ void AGameplayCueNotify_Actor::Destroyed()
 }
 
 #if WITH_EDITOR
+EDataValidationResult AGameplayCueNotify_Actor::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult ReturnValue = Super::IsDataValid(Context);
+
+	auto IsBlueprintOverride = [&](const FName& FuncName) -> bool
+	{
+		const UFunction* Func = GetClass()->FindFunctionByName(FuncName);
+		return Func && ensure(Func->GetOuter())
+			&& Func->GetOuter()->IsA(UBlueprintGeneratedClass::StaticClass());
+	};
+
+	bool bHasOnActiveInBP = IsBlueprintOverride(GET_FUNCTION_NAME_CHECKED(AGameplayCueNotify_Actor, OnActive));
+	bool bHasWhileActiveInBP = IsBlueprintOverride(GET_FUNCTION_NAME_CHECKED(AGameplayCueNotify_Actor, WhileActive));
+	bool bHasOnRemoveInBP = IsBlueprintOverride(GET_FUNCTION_NAME_CHECKED(AGameplayCueNotify_Actor, OnRemove));
+
+	if (bHasOnActiveInBP && bHasOnRemoveInBP && !bHasWhileActiveInBP)
+	{
+		Context.AddWarning(LOCTEXT("OnActiveAndOnRemove", "OnCeaseRelevant implemented without OnBecomeRelevant. OnBurst is likely a mistake (if not, implement a blank OnBecomeRelevant)."));
+	}
+
+	return ReturnValue;
+}
+
 void AGameplayCueNotify_Actor::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	const FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
@@ -411,3 +440,4 @@ void AGameplayCueNotify_Actor::ReuseAfterRecycle()
 	SetActorHiddenInGame(false);
 }
 
+#undef LOCTEXT_NAMESPACE
