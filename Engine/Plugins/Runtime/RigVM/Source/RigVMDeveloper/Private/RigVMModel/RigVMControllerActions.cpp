@@ -1171,6 +1171,82 @@ void FRigVMChangeNodePinCategoriesAction::UpdateAfterModification(const URigVMNo
 	NewCategories = InNode->GetPinCategories();
 }
 
+FRigVMSetPinCategoryExpansionAction::FRigVMSetPinCategoryExpansionAction()
+: FRigVMBaseAction(nullptr)
+, NodeName()
+, PinCategory()
+, bOldExpansionState(false)
+{
+}
+
+FRigVMSetPinCategoryExpansionAction::FRigVMSetPinCategoryExpansionAction(URigVMController* InController, const URigVMNode* InNode, const FString& InPinCategory)
+: FRigVMBaseAction(InController)
+, NodeName(InNode->GetName())
+, PinCategory(InPinCategory)
+, bOldExpansionState(InNode->IsPinCategoryExpanded(InPinCategory))
+{
+}
+
+bool FRigVMSetPinCategoryExpansionAction::Undo()
+{
+	if(!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->SetPinCategoryExpansion(*NodeName, PinCategory, bOldExpansionState, false);
+}
+
+bool FRigVMSetPinCategoryExpansionAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+	if(!GetController()->SetPinCategoryExpansion(*NodeName, PinCategory, !bOldExpansionState, false))
+	{
+		return false;
+	}
+	return FRigVMBaseAction::Redo();
+}
+
+FRigVMSetPinIndexInCategoryAction::FRigVMSetPinIndexInCategoryAction()
+: FRigVMBaseAction(nullptr)
+, PinPath()
+, OldIndexInCategory(INDEX_NONE)
+, NewIndexInCategory(INDEX_NONE)
+{
+}
+
+FRigVMSetPinIndexInCategoryAction::FRigVMSetPinIndexInCategoryAction(URigVMController* InController, URigVMPin* InPin, int32 InNewIndexInCategory)
+: FRigVMBaseAction(InController)
+, PinPath(InPin->GetPinPath())
+, OldIndexInCategory(InPin->GetIndexInCategory())
+, NewIndexInCategory(InNewIndexInCategory)
+{
+}
+
+bool FRigVMSetPinIndexInCategoryAction::Undo()
+{
+	if(!FRigVMBaseAction::Undo())
+	{
+		return false;
+	}
+	return GetController()->SetPinIndexInCategory(PinPath, OldIndexInCategory, false);
+}
+
+bool FRigVMSetPinIndexInCategoryAction::Redo()
+{
+	if(!CanUndoRedo())
+	{
+		return false;
+	}
+	if(!GetController()->SetPinIndexInCategory(PinPath, NewIndexInCategory, false))
+	{
+		return false;
+	}
+	return FRigVMBaseAction::Redo();
+}
+
 FRigVMSetPinWatchAction::FRigVMSetPinWatchAction()
 : FRigVMBaseAction(nullptr)
 , OldIsWatched(false)

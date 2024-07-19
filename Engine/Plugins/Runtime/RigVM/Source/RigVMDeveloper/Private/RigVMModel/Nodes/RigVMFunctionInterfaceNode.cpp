@@ -61,6 +61,15 @@ FString URigVMFunctionInterfaceNode::GetCategoryForPin(const FString& InPinPath)
 	return Super::GetCategoryForPin(InPinPath);
 }
 
+int32 URigVMFunctionInterfaceNode::GetIndexInCategoryForPin(const FString& InPinPath) const
+{
+	if(const URigVMPin* OuterPin = FindReferencedPin(InPinPath))
+	{
+		return OuterPin->GetIndexInCategory();
+	}
+	return Super::GetIndexInCategoryForPin(InPinPath);
+}
+
 TArray<FString> URigVMFunctionInterfaceNode::GetPinCategories() const
 {
 	if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(GetGraph()->GetOuter()))

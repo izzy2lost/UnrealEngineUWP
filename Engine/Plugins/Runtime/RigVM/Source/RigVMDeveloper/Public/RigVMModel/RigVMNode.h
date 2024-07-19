@@ -72,9 +72,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	virtual TArray<FString> GetPinCategories() const;
 
+	// Returns the name of pin category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	FString GetPinCategoryName(const FString InCategory) const;
+
+	// Returns all sub user defined categories of a given parent category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<FString> GetSubPinCategories(const FString InCategory, bool bOnlyExisting = false, bool bRecursive = false) const;
+
+	// Returns the parent pin category of the given category (or an empty string in case there's no parent)
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	FString GetParentPinCategory(const FString InCategory, bool bOnlyExisting = false) const;
+
+	// Returns all parent categories of a given 
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	TArray<FString> GetParentPinCategories(const FString InCategory, bool bOnlyExisting = false, bool bIncludeSelf = false) const;
+
+	// Returns the depth of the category (starting with 0 for "Foo" and 2 for "Foo|Bar|Waldo")
+	static int32 GetPinCategoryDepth(const FString& InCategory);
+
 	// Returns all pins for a given category
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
 	TArray<URigVMPin*> GetPinsForCategory(FString InCategory) const;
+
+	// Returns all pins for a given category
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	bool IsPinCategoryExpanded(FString InCategory) const;
+
+	const FString& GetLastAffectedPinCategory() const { return LastAffectedPinCategory; }
 
 	// Returns the default value for a given pin
 	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;
@@ -350,6 +375,9 @@ public:
 	// returns the category for a pin
 	virtual FString GetCategoryForPin(const FString& InPinPath) const;
 
+	// returns the index of a pin within a category
+	virtual int32 GetIndexInCategoryForPin(const FString& InPinPath) const;
+
 private:
 
 	static const inline TCHAR* NodeColorName = TEXT("NodeColor");
@@ -401,9 +429,15 @@ private:
 	TArray<TObjectPtr<URigVMPin>> OrphanedPins;
 
 protected:
+	
 	UPROPERTY()
 	TArray<FString> PinCategories;
 
+	UPROPERTY()
+	TMap<FString, bool> PinCategoryExpansion;
+
+	FString LastAffectedPinCategory;
+	
 private:
 
 #if WITH_EDITOR

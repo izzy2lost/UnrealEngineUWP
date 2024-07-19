@@ -353,6 +353,10 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	// fill in all user provided display names
 	for(const URigVMPin* Pin : AllPins)
 	{
+		if(!Pin->GetCategory().IsEmpty() && Pin->GetIndexInCategory() != INDEX_NONE)
+		{
+			Header.Layout.PinIndexInCategory.Add(Pin->GetSegmentPath(true), Pin->GetIndexInCategory());
+		}
 		if(!Pin->DisplayName.IsNone())
 		{
 			Header.Layout.DisplayNames.Add(Pin->GetSegmentPath(true), Pin->DisplayName.ToString());

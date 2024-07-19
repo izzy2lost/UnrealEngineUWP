@@ -163,6 +163,9 @@ void FRigVMMinimalEnvironment::HandleModified(ERigVMGraphNotifType InNotificatio
 		case ERigVMGraphNotifType::InteractionBracketOpened:
 		case ERigVMGraphNotifType::InteractionBracketClosed:
 		case ERigVMGraphNotifType::InteractionBracketCanceled:
+		case ERigVMGraphNotifType::PinCategoryChanged:
+		case ERigVMGraphNotifType::PinCategoriesChanged:
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged:
 		{
 			break;
 		}

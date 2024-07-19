@@ -539,11 +539,15 @@ struct RIGVM_API FRigVMGraphFunctionLayout
 	TArray<FRigVMGraphFunctionCategory> Categories;
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	TMap<FString, int32> PinIndexInCategory;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	TMap<FString, FString> DisplayNames;
 
 	void Reset()
 	{
 		Categories.Reset();
+		PinIndexInCategory.Reset();
 		DisplayNames.Reset();
 	}
 
@@ -554,6 +558,10 @@ struct RIGVM_API FRigVMGraphFunctionLayout
 		{
 			Hash = HashCombine(Hash, GetTypeHash(Category));
 		}
+		for(const TPair<FString, int32>& Pair : Layout.PinIndexInCategory)
+		{
+			Hash = HashCombine(Hash, GetTypeHash(Pair));
+		}
 		for(const TPair<FString, FString>& Pair : Layout.DisplayNames)
 		{
 			Hash = HashCombine(Hash, GetTypeHash(Pair));
@@ -561,12 +569,7 @@ struct RIGVM_API FRigVMGraphFunctionLayout
 		return Hash;
 	}
 
-	friend FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionLayout& Layout)
-	{
-		Ar << Layout.Categories;
-		Ar << Layout.DisplayNames;
-		return Ar;
-	}
+	friend RIGVM_API FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionLayout& Layout);
 
 	const FString* FindCategory(const FString& InElement) const;
 	const FString* FindDisplayName(const FString& InElement) const;

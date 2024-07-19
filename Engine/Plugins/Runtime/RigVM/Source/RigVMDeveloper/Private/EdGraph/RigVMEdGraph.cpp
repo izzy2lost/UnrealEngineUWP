@@ -591,36 +591,55 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 		case ERigVMGraphNotifType::PinDirectionChanged:
 		case ERigVMGraphNotifType::PinIndexChanged:
 		case ERigVMGraphNotifType::PinBoundVariableChanged:
-		case ERigVMGraphNotifType::PinCategoryChanged:
 		{
-			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
-			{
-				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
-				{
-					RigNode->ModelPinsChanged();
-				}
-			}
-			break;
-		}
+        	if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
+        	{
+        		if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+        		{
+        			RigNode->ModelPinsChanged();
+        		}
+        	}
+        	break;
+        }
+		case ERigVMGraphNotifType::PinCategoryChanged:
 		case ERigVMGraphNotifType::PinCategoriesChanged:
 		{
-			if (URigVMNode* ModelNode = Cast<URigVMNode>(InSubject))
+			URigVMNode* ModelNode = nullptr;
+			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
+			{
+				ModelNode = ModelPin->GetNode();
+			}
+			else
+			{
+				ModelNode = Cast<URigVMNode>(InSubject);
+			}
+			if(ModelNode)
 			{
 				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelNode->GetFName())))
 				{
-					RigNode->ModelPinsChanged();
+					RigNode->ModelPinsChanged(true);
 				}
 			}
 			break;
 		}
 		case ERigVMGraphNotifType::LibraryTemplateChanged:
-		case ERigVMGraphNotifType::PinDisplayNameChanged:
 		{
 			if (URigVMNode* LibraryNode = Cast<URigVMNode>(InSubject))
 			{
 				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(LibraryNode->GetFName())))
 				{
 					RigNode->ModelPinsChanged(true);
+				}
+			}
+			break;
+		}
+		case ERigVMGraphNotifType::PinDisplayNameChanged:
+		{
+			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+				{
+					RigNode->SynchronizeGraphPinNameWithModelPin(ModelPin);
 				}
 			}
 			break;
@@ -705,6 +724,17 @@ bool URigVMEdGraph::HandleModifiedEvent_Internal(ERigVMGraphNotifType InNotifTyp
 			if (URigVMPin* ModelPin = Cast<URigVMPin>(InSubject))
 			{
 				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelPin->GetNode()->GetFName())))
+				{
+					RigNode->OnNodePinExpansionChanged().Broadcast();
+				}
+			}
+			break;
+		}
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged:
+		{
+			if (URigVMNode* ModelNode = Cast<URigVMNode>(InSubject))
+			{
+				if (URigVMEdGraphNode* RigNode = Cast<URigVMEdGraphNode>(FindNodeForModelNodeName(ModelNode->GetFName())))
 				{
 					RigNode->OnNodePinExpansionChanged().Broadcast();
 				}

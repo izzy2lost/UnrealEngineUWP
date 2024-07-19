@@ -51,6 +51,9 @@ struct RIGVM_API FRigVMObjectVersion
 		// Storing user interface layout within function header
 		FunctionHeaderStoresLayout,
 
+		// Storing user interface relevant pin index in category
+		FunctionHeaderLayoutStoresPinIndexInCategory,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

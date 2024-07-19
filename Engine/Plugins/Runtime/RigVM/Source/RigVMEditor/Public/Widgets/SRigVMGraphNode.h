@@ -96,6 +96,7 @@ protected:
 	void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject);
 	virtual void UpdatePinTreeView();
 	bool HasUserProvidedValue(const SGraphPin* InGraphPin) const;
+	bool IsCategoryPin(const SGraphPin* InGraphPin) const;
 
 	/** Cached widget title area */
 	TSharedPtr<SOverlay> TitleAreaWidget;
@@ -120,11 +121,12 @@ protected:
 	{
 		int32 Index;
 		int32 ParentIndex;
+		bool bIsCategoryPin;
 		bool bHasChildren;
 		bool bHideInputWidget;
 		bool bIsContainer;
 		int32 Depth;
-		FString ModelPinPath;
+		FString Identifier;
 		TSharedPtr<SGraphPin> InputPinWidget;
 		TSharedPtr<SGraphPin> OutputPinWidget;
 		bool bExpanded;

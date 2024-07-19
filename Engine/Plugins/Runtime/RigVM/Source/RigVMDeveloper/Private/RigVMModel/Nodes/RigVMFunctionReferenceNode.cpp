@@ -74,6 +74,21 @@ FString URigVMFunctionReferenceNode::GetCategoryForPin(const FString& InPinPath)
 	return Super::GetCategoryForPin(InPinPath);
 }
 
+int32 URigVMFunctionReferenceNode::GetIndexInCategoryForPin(const FString& InPinPath) const
+{
+	if(const int32* Index = ReferencedFunctionHeader.Layout.PinIndexInCategory.Find(InPinPath))
+	{
+		return *Index;
+	}
+
+	if(const URigVMPin* ReferencedPin = FindReferencedPin(InPinPath))
+	{
+		return ReferencedPin->GetIndexInCategory();
+	}
+
+	return INDEX_NONE;
+}
+
 FString URigVMFunctionReferenceNode::GetNodeCategory() const
 {
 	return ReferencedFunctionHeader.Category;

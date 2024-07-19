@@ -173,6 +173,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMPin)
 	FString GetCategory() const;
 
+	// Returns index within a category on a pin. The category is UI relevant only and used
+	// to order pins in the user interface of the node as well as on the details panel.
+	UFUNCTION(BlueprintCallable, Category = RigVMPin)
+	int32 GetIndexInCategory() const;
+
 	// Returns a . separated path containing all names of the pin within its main
 	// memory owner / storage. This is typically used to create an offset pointer
 	// within memory (FRigVMRegisterOffset).
@@ -588,6 +593,9 @@ private:
 
 	UPROPERTY()
 	FString UserDefinedCategory;
+
+	UPROPERTY()
+	int32 IndexInCategory;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()

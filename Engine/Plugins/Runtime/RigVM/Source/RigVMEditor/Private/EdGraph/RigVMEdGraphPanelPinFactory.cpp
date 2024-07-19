@@ -11,6 +11,7 @@
 #include "Widgets/SRigVMGraphPinUserDataNameSpace.h"
 #include "Widgets/SRigVMGraphPinUserDataPath.h"
 #include "Widgets/SRigVMGraphPinQuat.h"
+#include "Widgets/SRigVMGraphPinCategory.h"
 #include "KismetPins/SGraphPinExec.h"
 #include "SGraphPinComboBox.h"
 #include "RigVMHost.h"
@@ -122,6 +123,13 @@ TSharedPtr<SGraphPin> FRigVMEdGraphPanelPinFactory::CreatePin_Internal(UEdGraphP
 				{
 					return SNew(SRigVMGraphPinEnumPicker, InPin)
 						.ModelPin(ModelPin);
+				}
+			}
+			else if(const URigVMNode* ModelNode = RigNode->GetModelNode())
+			{
+				if(ModelNode->GetPinCategories().Contains(InPin->GetName()))
+				{
+					return SNew(SRigVMGraphPinCategory, InPin);
 				}
 			}
 

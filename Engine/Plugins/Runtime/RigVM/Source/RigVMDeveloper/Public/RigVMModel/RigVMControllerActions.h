@@ -919,7 +919,7 @@ public:
 	FRigVMChangeNodePinCategoriesAction();
 	FRigVMChangeNodePinCategoriesAction(URigVMController* InController, const URigVMNode* InNode);
 	virtual ~FRigVMChangeNodePinCategoriesAction() {};
-	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMChangeNodePinCategoriesAction::StaticStruct(); }
 	virtual bool Undo() override;
 	virtual bool Redo() override;
 	
@@ -933,6 +933,60 @@ public:
 
 	UPROPERTY()
 	TArray<FString> NewCategories;
+};
+
+/**
+ * An action to change the expansion on a pin's category in the graph.
+ */
+USTRUCT()
+struct FRigVMSetPinCategoryExpansionAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinCategoryExpansionAction();
+	FRigVMSetPinCategoryExpansionAction(URigVMController* InController, const URigVMNode* InNode, const FString& InPinCategory);
+	virtual ~FRigVMSetPinCategoryExpansionAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString NodeName;
+
+	UPROPERTY()
+	FString PinCategory;
+
+	UPROPERTY()
+	bool bOldExpansionState;
+};
+
+/**
+ * An action setting a pin's index within a category.
+ */
+USTRUCT()
+struct FRigVMSetPinIndexInCategoryAction : public FRigVMBaseAction
+{
+	GENERATED_BODY()
+
+public:
+
+	FRigVMSetPinIndexInCategoryAction();
+	FRigVMSetPinIndexInCategoryAction(URigVMController* InController, URigVMPin* InPin, int32 InNewIndexInCategory);
+	virtual ~FRigVMSetPinIndexInCategoryAction() {};
+	virtual UScriptStruct* GetScriptStruct() const override { return FRigVMSetPinIndexInCategoryAction::StaticStruct(); }
+	virtual bool Undo() override;
+	virtual bool Redo() override;
+
+	UPROPERTY()
+	FString PinPath;
+
+	UPROPERTY()
+	int32 OldIndexInCategory;
+
+	UPROPERTY()
+	int32 NewIndexInCategory;
 };
 
 /**

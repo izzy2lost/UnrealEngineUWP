@@ -563,3 +563,27 @@ bool FRigVMGraphFunctionData::PatchSharedArgumentOperandsIfRequired()
 	
 	return true;
 }
+
+FArchive& operator<<(FArchive& Ar, FRigVMGraphFunctionLayout& Layout)
+{
+	Ar.UsingCustomVersion(FRigVMObjectVersion::GUID);
+
+	Ar << Layout.Categories;
+	if(Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::FunctionHeaderLayoutStoresPinIndexInCategory)
+		{
+			Layout.PinIndexInCategory.Reset();
+		}
+		else
+		{
+			Ar << Layout.PinIndexInCategory;
+		}
+	}
+	else
+	{
+		Ar << Layout.PinIndexInCategory;
+	}
+	Ar << Layout.DisplayNames;
+	return Ar;
+}

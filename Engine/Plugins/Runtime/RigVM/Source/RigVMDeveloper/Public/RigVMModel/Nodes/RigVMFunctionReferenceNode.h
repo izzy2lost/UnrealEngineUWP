@@ -26,6 +26,7 @@ public:
 	virtual FText GetToolTipText() const override;
 	virtual FName GetDisplayNameForPin(const FString& InPinPath) const override;
 	virtual FString GetCategoryForPin(const FString& InPinPath) const override;
+	virtual int32 GetIndexInCategoryForPin(const FString& InPinPath) const override;
 	virtual FText GetToolTipTextForPin(const URigVMPin* InPin) const override;
 	virtual TArray<FString> GetPinCategories() const override;
 	// end URigVMNode interface

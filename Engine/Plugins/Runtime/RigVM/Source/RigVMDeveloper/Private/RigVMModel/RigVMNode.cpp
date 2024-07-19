@@ -119,6 +119,138 @@ TArray<FString> URigVMNode::GetPinCategories() const
 	return PinCategories;
 }
 
+TArray<FString> URigVMNode::GetSubPinCategories(const FString InCategory, bool bOnlyExisting, bool bRecursive) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<FString> ExistingCategories = GetPinCategories();
+	const FString Prefix = InCategory + TEXT("|");
+
+	const TArray<FString> IncompleteSubCategories = ExistingCategories.FilterByPredicate([Prefix](const FString& ExistingCategory)
+	{
+		return ExistingCategory.StartsWith(Prefix, ESearchCase::CaseSensitive);
+	});
+
+	TArray<FString> SubCategories;
+	for(const FString& SubCategory : IncompleteSubCategories)
+	{
+		TArray<FString> Parts;
+		verify(RigVMStringUtils::SplitNodePath(SubCategory, Parts));
+
+		TArray<FString> ParentsOfSubCategory;
+		while(!Parts.IsEmpty())
+		{
+			const FString ParentCategory = RigVMStringUtils::JoinNodePath(Parts);
+			if(!ParentCategory.StartsWith(Prefix))
+			{
+				break;
+			}
+			ParentsOfSubCategory.Add(ParentCategory);
+			Parts.Pop();
+		}
+
+		for(int32 Index = ParentsOfSubCategory.Num() - 1; Index >= 0; Index--)
+		{
+			SubCategories.AddUnique(ParentsOfSubCategory[Index]);
+		}
+	}
+
+	if(!bRecursive)
+	{
+		// remove any category that is not a direct child of the input category
+		SubCategories.RemoveAll([Prefix](const FString& InCategory) -> bool
+		{
+			return InCategory.Mid(Prefix.Len()).Contains(TEXT("|"));
+		});
+	}
+
+	if(bOnlyExisting)
+	{
+		SubCategories.RemoveAll([&ExistingCategories](const FString& InCategory) -> bool
+		{
+			return !ExistingCategories.Contains(InCategory);
+		});
+	}
+
+	return SubCategories;
+}
+
+FString URigVMNode::GetPinCategoryName(const FString InCategory) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return FString();
+	}
+	FString ParentCategory, CategoryName;
+	if(RigVMStringUtils::SplitNodePathAtEnd(InCategory, ParentCategory, CategoryName))
+	{
+		return CategoryName;
+	}
+	return FString();
+}
+
+FString URigVMNode::GetParentPinCategory(const FString InCategory, bool bOnlyExisting) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return FString();
+	}
+	FString ParentCategory, CategoryName;
+	if(RigVMStringUtils::SplitNodePathAtEnd(InCategory, ParentCategory, CategoryName))
+	{
+		return ParentCategory;
+	}
+	return FString();
+}
+
+TArray<FString> URigVMNode::GetParentPinCategories(const FString InCategory, bool bOnlyExisting, bool bIncludeSelf) const
+{
+	if(InCategory.IsEmpty())
+	{
+		return {};
+	}
+	
+	const TArray<FString> ExistingCategories = GetPinCategories();
+
+	TArray<FString> Parts;
+	verify(RigVMStringUtils::SplitNodePath(InCategory, Parts));
+
+	TArray<FString> ParentCategories;
+	while(!Parts.IsEmpty())
+	{
+		ParentCategories.Add(RigVMStringUtils::JoinNodePath(Parts));
+		Parts.Pop();
+	}
+
+	if(!bIncludeSelf)
+	{
+		ParentCategories.Remove(InCategory);
+	}
+
+	if(bOnlyExisting)
+	{
+		ParentCategories.RemoveAll([&ExistingCategories](const FString& InCategory) -> bool
+		{
+			return !ExistingCategories.Contains(InCategory);
+		});
+	}
+
+	return ParentCategories;
+}
+
+int32 URigVMNode::GetPinCategoryDepth(const FString& InCategory)
+{
+	TArray<FString> Parts;
+	if(RigVMStringUtils::SplitNodePath(InCategory, Parts))
+	{
+		return Parts.Num() - 1;
+	}
+	return 0;
+}
+
 TArray<URigVMPin*> URigVMNode::GetPinsForCategory(FString InCategory) const
 {
 	InCategory.TrimStartAndEndInline();
@@ -138,6 +270,15 @@ TArray<URigVMPin*> URigVMNode::GetPinsForCategory(FString InCategory) const
 		}
 	}
 	return PinsInCategory;
+}
+
+bool URigVMNode::IsPinCategoryExpanded(FString InCategory) const
+{
+	if(const bool* ExpansionState = PinCategoryExpansion.Find(InCategory))
+	{
+		return *ExpansionState;
+	}
+	return false;
 }
 
 FString URigVMNode::GetOriginalPinDefaultValue(const URigVMPin* InPin) const
@@ -682,6 +823,11 @@ FName URigVMNode::GetDisplayNameForPin(const FString& InPinPath) const
 FString URigVMNode::GetCategoryForPin(const FString& InPinPath) const
 {
 	return FString();
+}
+
+int32 URigVMNode::GetIndexInCategoryForPin(const FString& InPinPath) const
+{
+	return INDEX_NONE;
 }
 
 URigVMLibraryNode* URigVMNode::FindFunctionForNode() const  

@@ -115,6 +115,8 @@ URigVMPin::URigVMPin()
 	, CPPTypeObjectPath(NAME_None)
 	, DefaultValue(FString())
 	, DefaultValueType(ERigVMPinDefaultValueType::AutoDetect)
+	, CustomWidgetName(NAME_None)
+	, IndexInCategory(INDEX_NONE)
 	, BoundVariablePath_DEPRECATED()
 	, LastKnownTypeIndex(INDEX_NONE)
 {
@@ -238,6 +240,22 @@ FString URigVMPin::GetCategory() const
 		}
 	}
 	return UserDefinedCategory;
+}
+
+int32 URigVMPin::GetIndexInCategory() const
+{
+	if(IndexInCategory == INDEX_NONE)
+	{
+		if(const URigVMNode* Node = GetNode())
+		{
+			int32 IndexFromNode = Node->GetIndexInCategoryForPin(this->GetSegmentPath(true));
+			if(IndexFromNode != INDEX_NONE)
+			{
+				return IndexFromNode;
+			}
+		}
+	}
+	return IndexInCategory;
 }
 
 FString URigVMPin::GetSegmentPath(bool bIncludeRootPin) const

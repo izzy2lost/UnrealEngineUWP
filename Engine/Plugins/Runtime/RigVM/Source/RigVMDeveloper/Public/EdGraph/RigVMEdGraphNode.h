@@ -191,6 +191,7 @@ public:
 
 	URigVMPin* FindModelPinFromGraphPin(const UEdGraphPin* InGraphPin) const;
 	UEdGraphPin* FindGraphPinFromModelPin(const URigVMPin* InModelPin, bool bAsInput) const;
+	UEdGraphPin* FindGraphPinFromCategory(const FString& InCategory, bool bAsInput) const;
 
 	/// Synchronize the stored name/value/type on the graph pin with the value stored on the node. 
 	/// If the pin has sub-pins, the value update is done recursively.
@@ -229,10 +230,13 @@ protected:
 
 	/** Helper function for AllocateDefaultPins */
 	void UpdatePinLists();
+	bool CreateGraphPinFromCategory(const FString& InCategory, EEdGraphPinDirection InDirection);
 	bool CreateGraphPinFromModelPin(const URigVMPin* InModelPin, EEdGraphPinDirection InDirection,  UEdGraphPin* InParentPin = nullptr);
 	void RemoveGraphSubPins(UEdGraphPin *InParentPin, const TArray<UEdGraphPin*>& InPinsToKeep = TArray<UEdGraphPin*>());
 	bool ModelPinAdded_Internal(const URigVMPin* InModelPin);
 	bool ModelPinRemoved_Internal(const URigVMPin* InModelPin);
+	bool CategoryPinAdded_Internal(const FString& InCategory, EEdGraphPinDirection InDirection);
+	bool CategoryPinRemoved_Internal(const FString& InCategory);
 
 	/** Copies default values from underlying properties into pin defaults, for editing */
 	void SetupPinDefaultsFromModel(UEdGraphPin* Pin, const URigVMPin* InModelPin = nullptr);
@@ -259,6 +263,7 @@ protected:
 	UClass* GetRigVMSkeletonGeneratedClass() const;
 
 	static FEdGraphPinType GetPinTypeForModelPin(const URigVMPin* InModelPin);
+	static FEdGraphPinType GetPinTypeForCategoryPin();
 
 	virtual void ConfigurePin(UEdGraphPin* EdGraphPin, const URigVMPin* ModelPin) const;
 private:
@@ -287,6 +292,7 @@ private:
 	TArray<UEdGraphPin*> LastEdGraphPins;
 	
 	TMap<URigVMPin*, FPinPair> CachedPins;
+	TMap<FString, FPinPair> CachedCategoryPins;
 
 	FNodeTitleDirtied NodeTitleDirtied;
 	FNodePinsChanged NodePinsChanged;
