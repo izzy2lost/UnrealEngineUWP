@@ -337,10 +337,12 @@ void InitHMDs()
 
 	// Get a list of plugins that implement this feature
 	GHMDImplementations = IModularFeatures::Get().GetModularFeatureImplementations<IHeadMountedDisplayModule>(IHeadMountedDisplayModule::GetModularFeatureName());
+	if (GHMDImplementations.IsEmpty())
+	{
+		return;
+	}
 
 	AndroidThunkCpp_InitHMDs();
-
-	GHMDsInitialized = GHMDImplementations.IsEmpty();
 
 	while (!GHMDsInitialized)
 	{
