@@ -10106,7 +10106,7 @@ private:
                 {
                     TSRef<CExpressionBase> PointerToReference = Result;
 
-                    RequireEffects(*IdentifierData, EffectSets::Transacts, ExprCtx.AllowedEffects, "mutable data read");
+                    RequireEffects(*IdentifierData, EffectSets::Reads, ExprCtx.AllowedEffects, "mutable data read");
 
                     Result = ReplaceMapping(*PointerToReference, TSRef<CExprReferenceToValue>::New(Move(Result)));
                     EnqueueDeferredTask(Deferred_Type, [this, DataDefinition, Result, PointerToReference]
@@ -11376,7 +11376,7 @@ private:
         if (ExprCtx.ReferenceableContext != InReferenceableContext)
         {
             // convert from ref to value
-            RequireEffects(*PointerToReference, EffectSets::Transacts, ExprCtx.AllowedEffects, "pointer read");
+            RequireEffects(*PointerToReference, EffectSets::Reads, ExprCtx.AllowedEffects, "pointer read");
 
             TSRef<CExprReferenceToValue> ReferenceToValue = TSRef<CExprReferenceToValue>::New(PointerToReference);
             ReferenceToValue->SetResultType(ReferenceType.PositiveValueType());
