@@ -96,10 +96,9 @@ public:
 	void CookMetaSound();
 
 #if WITH_EDITORONLY_DATA
-	// Executes on this and referenced MetaSound document objects. Presave includes autoupdating and
-	// optimizing the document for runtime use, which is then registered with the MetaSound Frontend.
-	// Unlike 'RegisterGraphWithFrontend', this call does not generate required runtime data for graph
-	// execution.
+	// Updates and registers this and referenced MetaSound document objects with the NodeClass Registry. AutoUpdates and
+	// optimizes aforementioned documents for serialization. Unlike 'UpdateAndRegisterForRuntime', does not generate required
+	// runtime data for graph execution.
 	void UpdateAndRegisterForSerialization();
 #endif // WITH_EDITORONLY_DATA
 
@@ -270,7 +269,7 @@ protected:
 
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
 
-	UE_DEPRECATED(5.5, "Moved to private, PreSaveReferencedDocuments implementation")
+	UE_DEPRECATED(5.5, "Moved to private, non-cook specific implementation")
 	void CookReferencedMetaSounds();
 
 	// Ensures all referenced graph classes are registered (or re-registers depending on options).
@@ -282,11 +281,8 @@ protected:
 private:
 #if WITH_EDITORONLY_DATA
 	void UpdateAssetRegistry();
-
-	bool bVersionedOnLoad = false;
-
-	void PreSaveReferencedDocuments();
-#endif
+	void UpdateAndRegisterReferencesForSerialization();
+#endif // WITH_EDITORONLY_DATA
 
 	// Checks if version is up-to-date. If so, returns true. If false, updates the interfaces within the given asset's document to the most recent version.
 	bool TryUpdateInterfaceFromVersion(const FMetasoundFrontendVersion& Version);
@@ -294,6 +290,10 @@ private:
 	// Returns new interface to be versioned to from the given version. If no interface versioning is
 	// required, returns invalid interface (interface with no name and invalid version number).
 	FMetasoundFrontendInterface GetInterfaceToVersion(const FMetasoundFrontendVersion& InterfaceVersion) const;
+
+#if WITH_EDITORONLY_DATA
+	bool bVersionedOnLoad = false;
+#endif // WITH_EDITORONLY_DATA
 
 	Metasound::Frontend::FGraphRegistryKey GraphRegistryKey;
 };

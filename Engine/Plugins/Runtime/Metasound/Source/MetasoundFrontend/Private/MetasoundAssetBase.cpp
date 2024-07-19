@@ -73,11 +73,12 @@ namespace Metasound
 
 			// Registers node by copying document. Updates to document require re-registration.
 			// This registry entry does not support node creation as it is only intended to be
-			// used when cooking MetaSounds. 
-			class FDocumentNodeRegistryEntryForCook : public INodeRegistryEntry
+			// used when serializing MetaSounds in contexts not requiring any runtime model to
+			// be generated (ex. cooking commandlets that don't play or are validating MetaSounds, etc.).
+			class FDocumentNodeRegistryEntryForSerialization : public INodeRegistryEntry
 			{
 			public:
-				FDocumentNodeRegistryEntryForCook(const FMetasoundFrontendDocument& InDocument, const FTopLevelAssetPath& InAssetPath)
+				FDocumentNodeRegistryEntryForSerialization(const FMetasoundFrontendDocument& InDocument, const FTopLevelAssetPath& InAssetPath)
 					: Interfaces(InDocument.Interfaces)
 					, FrontendClass(InDocument.RootGraph)
 					, ClassInfo(InDocument.RootGraph, InAssetPath)
@@ -86,9 +87,9 @@ namespace Metasound
 					FrontendClass.Metadata.SetType(EMetasoundFrontendClassType::External);
 				}
 
-				FDocumentNodeRegistryEntryForCook(const FDocumentNodeRegistryEntryForCook& InOther) = default;
+				FDocumentNodeRegistryEntryForSerialization(const FDocumentNodeRegistryEntryForSerialization& InOther) = default;
 
-				virtual ~FDocumentNodeRegistryEntryForCook() = default;
+				virtual ~FDocumentNodeRegistryEntryForSerialization() = default;
 
 				virtual const FNodeClassInfo& GetClassInfo() const override
 				{
@@ -107,7 +108,7 @@ namespace Metasound
 
 				virtual TUniquePtr<INodeRegistryEntry> Clone() const override
 				{
-					return MakeUnique<FDocumentNodeRegistryEntryForCook>(*this);
+					return MakeUnique<FDocumentNodeRegistryEntryForSerialization>(*this);
 				}
 
 				virtual const TSet<FMetasoundFrontendVersion>* GetImplementedInterfaces() const override
@@ -388,7 +389,7 @@ void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
 		return;
 	}
 
-	PreSaveReferencedDocuments();
+	UpdateAndRegisterReferencesForSerialization();
 	IMetaSoundAssetManager::GetChecked().AddOrUpdateAsset(*GetOwningAsset());
 
 	// Auto update must be done after all referenced asset classes are registered
@@ -430,7 +431,7 @@ void FMetasoundAssetBase::UpdateAndRegisterForSerialization()
 		TScriptInterface<IMetaSoundDocumentInterface> DocInterface(Owner);
 		const FMetasoundFrontendDocument& Document = DocInterface->GetConstDocument();
 		const FTopLevelAssetPath AssetPath = DocInterface->GetAssetPathChecked();
-		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FDocumentNodeRegistryEntryForCook>(Document, AssetPath);
+		TUniquePtr<INodeRegistryEntry> RegistryEntry = MakeUnique<AssetBasePrivate::FDocumentNodeRegistryEntryForSerialization>(Document, AssetPath);
 
 		const FNodeRegistryKey NodeKey = FRegistryContainerImpl::Get().RegisterNode(MoveTemp(RegistryEntry));
 		GraphRegistryKey = FGraphRegistryKey { NodeKey, AssetPath };
@@ -938,12 +939,12 @@ void FMetasoundAssetBase::RegisterAssetDependencies(const Metasound::Frontend::F
 void FMetasoundAssetBase::CookReferencedMetaSounds()
 {
 #if WITH_EDITORONLY_DATA
-	PreSaveReferencedDocuments();
+	UpdateAndRegisterReferencesForSerialization();
 #endif // WITH_EDITORONLY_DATA
 }
 
 #if WITH_EDITORONLY_DATA
-void FMetasoundAssetBase::PreSaveReferencedDocuments()
+void FMetasoundAssetBase::UpdateAndRegisterReferencesForSerialization()
 {
 	using namespace Metasound::Frontend;
 
