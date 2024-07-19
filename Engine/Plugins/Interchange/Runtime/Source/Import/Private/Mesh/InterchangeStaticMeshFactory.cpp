@@ -4,6 +4,7 @@
 
 #if WITH_EDITOR
 #include "BSPOps.h"
+#include "Editor/UnrealEd/Private/GeomFitUtils.h"
 #endif
 #include "Components.h"
 #include "Engine/Polys.h"
@@ -301,7 +302,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	TArray<FMeshDescription>& LodMeshDescriptions = ImportAssetObjectData.LodMeshDescriptions;
 	LodMeshDescriptions.SetNum(LodCount);
 
-	bool bImportCollision = false;
+	EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
 	bool bImportedCustomCollision = false;
 	int32 CurrentLodIndex = 0;
 	for (int32 LodIndex = 0; LodIndex < LodCount; ++LodIndex)
@@ -426,8 +427,8 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 		// Import collision geometry
 		if (CurrentLodIndex == 0)
 		{
-			LodDataNode->GetImportCollision(bImportCollision);
-			if(bImportCollision)
+			LodDataNode->GetImportCollision(Collision);
+			if(Collision != EInterchangeMeshCollision::None)
 			{
 				if (bReimport)
 				{
@@ -459,7 +460,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	}
 #endif // WITH_EDITOR
 
-	ImportAssetObjectData.bImportCollision = bImportCollision;
+	ImportAssetObjectData.Collision = Collision;
 	ImportAssetObjectData.bImportedCustomCollision = bImportedCustomCollision;
 
 	// Getting the file Hash will cache it into the source data
@@ -661,19 +662,47 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 	}
 #endif // WITH_EDITOR
 
-	if(ImportAssetObjectData.bImportCollision)
+#if WITH_EDITOR
+	if(!ImportAssetObjectData.bImportedCustomCollision)
 	{
-		if (!ImportAssetObjectData.bImportedCustomCollision)
+		constexpr bool bUpdateRendering = false;
+		switch(ImportAssetObjectData.Collision)
 		{
-			GenerateKDopCollision(StaticMesh);
+		case EInterchangeMeshCollision::Box:
+			GenerateBoxAsSimpleCollision(StaticMesh, bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Sphere:
+			GenerateSphereAsSimpleCollision(StaticMesh, bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Capsule:
+			GenerateSphylAsSimpleCollision(StaticMesh, bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Convex10DOP_X:
+			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10X, sizeof(KDopDir10X) / sizeof(FVector)), bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Convex10DOP_Y:
+			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Y, sizeof(KDopDir10Y) / sizeof(FVector)), bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Convex10DOP_Z:
+			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Z, sizeof(KDopDir10Z) / sizeof(FVector)), bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Convex18DOP:
+			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir18, sizeof(KDopDir18) / sizeof(FVector)), bUpdateRendering);
+			break;
+		case EInterchangeMeshCollision::Convex26DOP:
+			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir26, sizeof(KDopDir26) / sizeof(FVector)), bUpdateRendering);
+			break;
+		default:
+			break;
 		}
-#if WITH_EDITORONLY_DATA
-		else
-		{
-			StaticMesh->bCustomizedCollision = true;
-		}
-#endif // WITH_EDITORONLY_DATA
 	}
+#endif
+#if WITH_EDITORONLY_DATA
+	else
+	{
+		StaticMesh->bCustomizedCollision = true;
+	}
+#endif // WITH_EDITORONLY_DATA
 #if WITH_EDITOR
 	//Lod group need to use the static mesh API and cannot use the apply delegate
 	if (!Arguments.ReimportObject)
@@ -750,7 +779,7 @@ void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& Stati
 	BuildMeshDescriptionsParams.bFastBuild = true;
 	// For the time being at runtime collision is set to complex one
 	// TODO: Revisit pipeline options for collision. bImportCollision is not enough.
-	BuildMeshDescriptionsParams.bAllowCpuAccess = ImportAssetObjectData.bImportCollision;
+	BuildMeshDescriptionsParams.bAllowCpuAccess = ImportAssetObjectData.Collision != EInterchangeMeshCollision::None;
 	StaticMesh.bAllowCPUAccess = BuildMeshDescriptionsParams.bAllowCpuAccess;
 
 	StaticMesh.BuildFromMeshDescriptions(MeshDescriptionPointers, BuildMeshDescriptionsParams);
@@ -758,7 +787,7 @@ void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& Stati
 	// TODO: Expand support for different collision types
 	if (ensure(StaticMesh.GetRenderData()))
 	{
-		if (ImportAssetObjectData.bImportCollision && !ImportAssetObjectData.bImportedCustomCollision)
+		if (ImportAssetObjectData.Collision != EInterchangeMeshCollision::None && !ImportAssetObjectData.bImportedCustomCollision)
 		{
 			if (StaticMesh.GetBodySetup() == nullptr)
 			{
@@ -1607,161 +1636,6 @@ bool UInterchangeStaticMeshFactory::ImportConvexCollision(const FImportAssetObje
 
 	return bResult;
 }
-
-
-bool UInterchangeStaticMeshFactory::GenerateKDopCollision(UStaticMesh* StaticMesh)
-{
-#if WITH_EDITOR
-
-	constexpr float RecipSqrt2 = UE_INV_SQRT_2;
-	constexpr int32 KCount = 18;
-	static const FVector3f KDopDir18[KCount] =
-	{
-		FVector3f( 1.0f,  0.0f,  0.0f),
-		FVector3f(-1.0f,  0.0f,  0.0f),
-		FVector3f( 0.0f,  1.0f,  0.0f),
-		FVector3f( 0.0f, -1.0f,  0.0f),
-		FVector3f( 0.0f,  0.0f,  1.0f),
-		FVector3f( 0.0f,  0.0f, -1.0f),
-		FVector3f( 0.0f,  RecipSqrt2,  RecipSqrt2),
-		FVector3f( 0.0f, -RecipSqrt2, -RecipSqrt2),
-		FVector3f( 0.0f,  RecipSqrt2, -RecipSqrt2),
-		FVector3f( 0.0f, -RecipSqrt2,  RecipSqrt2),
-		FVector3f( RecipSqrt2,  0.0f,  RecipSqrt2),
-		FVector3f(-RecipSqrt2,  0.0f, -RecipSqrt2),
-		FVector3f( RecipSqrt2,  0.0f, -RecipSqrt2),
-		FVector3f(-RecipSqrt2,  0.0f,  RecipSqrt2),
-		FVector3f( RecipSqrt2,  RecipSqrt2,  0.0f),
-		FVector3f(-RecipSqrt2, -RecipSqrt2,  0.0f),
-		FVector3f( RecipSqrt2, -RecipSqrt2,  0.0f),
-		FVector3f(-RecipSqrt2,  RecipSqrt2,  0.0f)
-	};
-
-	UBodySetup* BodySetup = StaticMesh->GetBodySetup();
-
-	// Initialize maximum distances from each kdop plane to the minimum value possible
-	TArray<float> MaxDist;
-	MaxDist.Reserve(KCount);
-	for (int32 Count = 0; Count < KCount; Count++)
-	{
-		MaxDist.Add(-MAX_FLT);
-	}
-
-	// Construct temporary UModel for kdop creation.
-	UModel* TempModel = nullptr;
-	{
-		FGCScopeGuard GCScopeGuard;
-		TempModel = NewObject<UModel>();
-	}
-	TempModel->RootOutside = true;
-	TempModel->EmptyModel(true, true);
-	TempModel->Polys->ClearFlags(RF_Transactional);
-
-	// Get the vertex positions for the final LOD0 mesh
-	FMeshDescription* MeshDescription = StaticMesh->GetMeshDescription(0);
-	check(MeshDescription);
-
-	FStaticMeshConstAttributes Attributes(*MeshDescription);
-	TVertexAttributesRef<const FVector3f> VertexPositions = Attributes.GetVertexPositions();
-
-	// For each vertex, project along each kdop direction, to find the max in that direction.
-	for (FVector3f VertexPosition : VertexPositions.GetRawArray())
-	{
-		for (int32 Index = 0; Index < KCount; Index++)
-		{
-			float Dist = FVector3f::DotProduct(VertexPosition, KDopDir18[Index]);
-			MaxDist[Index] = FMath::Max(Dist, MaxDist[Index]);
-		}
-	}
-
-	// Inflate kdop to ensure it is not degenerate
-	constexpr float MinSize = 0.1f;
-	for (int32 Index = 0; Index < KCount; Index++)
-	{
-		MaxDist[Index] += MinSize;
-	}
-
-	// Now we have the planes of the kdop, we work out the face polygons.
-	TArray<FPlane4f> Planes;
-	Planes.Reserve(KCount);
-	for (int32 Index = 0; Index < KCount; Index++)
-	{
-		Planes.Add(FPlane4f(KDopDir18[Index], MaxDist[Index]));
-	}
-
-	for (int32 PlaneIndex = 0; PlaneIndex < Planes.Num(); PlaneIndex++)
-	{
-		FPoly& Polygon = TempModel->Polys->Element.Emplace_GetRef();
-
-		Polygon.Init();
-		Polygon.Normal = Planes[PlaneIndex];
-
-		FVector3f AxisX, AxisY;
-		Polygon.Normal.FindBestAxisVectors(AxisX, AxisY);
-
-		FVector3f Base = Planes[PlaneIndex] * Planes[PlaneIndex].W;
-
-		Polygon.Vertices.Emplace(Base + AxisX * UE_OLD_HALF_WORLD_MAX + AxisY * UE_OLD_HALF_WORLD_MAX);
-		Polygon.Vertices.Emplace(Base + AxisX * UE_OLD_HALF_WORLD_MAX - AxisY * UE_OLD_HALF_WORLD_MAX);
-		Polygon.Vertices.Emplace(Base - AxisX * UE_OLD_HALF_WORLD_MAX - AxisY * UE_OLD_HALF_WORLD_MAX);
-		Polygon.Vertices.Emplace(Base - AxisX * UE_OLD_HALF_WORLD_MAX + AxisY * UE_OLD_HALF_WORLD_MAX);
-
-		for (int32 OtherPlaneIndex = 0; OtherPlaneIndex < Planes.Num(); OtherPlaneIndex++)
-		{
-			if (PlaneIndex != OtherPlaneIndex)
-			{
-				if (!Polygon.Split(-FVector3f(Planes[OtherPlaneIndex]), Planes[OtherPlaneIndex] * Planes[OtherPlaneIndex].W))
-				{
-					Polygon.Vertices.Empty();
-					break;
-				}
-			}
-		}
-
-		if (Polygon.Vertices.Num() < 3)
-		{
-			// If poly resulted in no verts, remove from array
-			TempModel->Polys->Element.RemoveAt(TempModel->Polys->Element.Num() - 1);
-		}
-		else
-		{
-			Polygon.iLink = PlaneIndex;
-
-			constexpr bool bSilent = true;
-			Polygon.CalcNormal(bSilent);
-		}
-	}
-
-	if (TempModel->Polys->Element.Num() < 4)
-	{
-		return false;
-	}
-
-	// Build bounding box.
-	TempModel->BuildBound();
-
-	// Build BSP for the brush.
-	FBSPOps::bspBuild(TempModel, FBSPOps::BSP_Good, 15, 70, 1, 0);
-
-	constexpr bool bNoRemapSurfs = true;
-	FBSPOps::bspRefresh(TempModel, bNoRemapSurfs);
-	FBSPOps::bspBuildBounds(TempModel);
-
-	bool bRemoveExisting = true;
-	BodySetup->CreateFromModel(TempModel, bRemoveExisting);
-
-	TempModel->ClearInternalFlags(EInternalObjectFlags::Async);
-	TempModel->Polys->ClearInternalFlags(EInternalObjectFlags::Async);
-
-	return true;
-
-#else // #if WITH_EDITOR
-
-	return false;
-
-#endif
-}
-
 
 bool UInterchangeStaticMeshFactory::ImportSockets(const FImportAssetObjectParams& Arguments, UStaticMesh* StaticMesh, const UInterchangeStaticMeshFactoryNode* FactoryNode)
 {

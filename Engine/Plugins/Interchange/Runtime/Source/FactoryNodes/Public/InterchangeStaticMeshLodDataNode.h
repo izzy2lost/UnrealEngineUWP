@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InterchangeMeshDefinitions.h"
 #include "UObject/ObjectMacros.h"
 #include "Nodes/InterchangeFactoryBaseNode.h"
 
@@ -128,9 +129,15 @@ public:
 	bool SetOneConvexHullPerUCX(bool AttributeValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
-	bool GetImportCollision(bool& AttributeValue) const;
+	bool GetImportCollision(EInterchangeMeshCollision& AttributeValue) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
+	bool SetImportCollision(EInterchangeMeshCollision AttributeValue);
+
+	UE_DEPRECATED(5.5, "GetImportCollision using a bool has been deprecated, please use the function with the enum instead.")
+	bool GetImportCollision(bool& AttributeValue) const;
+
+	UE_DEPRECATED(5.5, "SetImportCollision using a bool has been deprecated, please use the function with the enum instead.")
 	bool SetImportCollision(bool AttributeValue);
 
 

@@ -56,10 +56,13 @@ static bool PromptToRemoveExistingCollision(UStaticMesh* StaticMesh)
 // This function takes the current collision model, and fits a k-DOP around it.
 // It uses the array of k unit-length direction vectors to define the k bounding planes.
 
-int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVector> &Dirs)
+int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVector> &Dirs, bool bUpdate)
 {
 	// Make sure rendering is done - so we are not changing data being used by collision drawing.
-	FlushRenderingCommands();
+	if(bUpdate)
+	{
+		FlushRenderingCommands();
+	}
 
 	if (!PromptToRemoveExistingCollision(StaticMesh))
 	{
@@ -68,12 +71,39 @@ int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVecto
 
 	UBodySetup* bs = StaticMesh->GetBodySetup();
 
-	const FStaticMeshLODResources& RenderData = StaticMesh->GetRenderData()->LODResources[0];
-	TArray<FVector> HullVertices;
-	UE::Geometry::FitKDOPVertices3<double>(Dirs, RenderData.GetNumVertices(),
-		[&](int32 VertIdx) { return (FVector)RenderData.VertexBuffers.PositionVertexBuffer.VertexPosition(VertIdx); }, HullVertices);
+	int32 NumVertices = 0;
+	TFunction<UE::Math::TVector<double>(int32)> GetPointFunc;
+	if(FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData())
+	{
+		const FStaticMeshLODResources& LODResource = RenderData->LODResources[0];
+		NumVertices = LODResource.GetNumVertices();
+		GetPointFunc = [&](int32 VertIdx)
+		{
+			return FVector{ LODResource.VertexBuffers.PositionVertexBuffer.VertexPosition(VertIdx) };
+		};
+	}
+	else if(const FMeshDescription* MeshDescription = StaticMesh->GetMeshDescription(0))
+	{		
+		NumVertices = MeshDescription->Vertices().Num();
+		GetPointFunc = [&](int32 VertIdx)
+		{
+			return FVector(MeshDescription->GetVertexPosition(VertIdx));
+		};
+	}
 
-	bs->Modify();
+	if(!GetPointFunc)
+	{
+		UE_LOG(LogStaticMesh, Error, TEXT("Couldn't find a valid RenderData or MeshDescription for the StaticMesh"));
+		return INDEX_NONE;
+	}
+
+	TArray<FVector> HullVertices;
+	UE::Geometry::FitKDOPVertices3<double>(Dirs, NumVertices, GetPointFunc, HullVertices);
+
+	if(bUpdate)
+	{
+		bs->Modify();
+	}
 
 	// Create new GUID
 	bs->InvalidatePhysicsData();
@@ -89,7 +119,10 @@ int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVecto
 	RefreshCollisionChange(*StaticMesh);
 
 	// Mark staticmesh as dirty, to help make sure it gets saved.
-	StaticMesh->MarkPackageDirty();
+	if(bUpdate)
+	{
+		StaticMesh->MarkPackageDirty();
+	}
 
 	StaticMesh->bCustomizedCollision = true;	//mark the static mesh for collision customization
 
@@ -105,7 +138,7 @@ void ComputeBoundingBox(UStaticMesh* StaticMesh, FVector& Center, FVector& Exten
 	BoundingBox.GetCenterAndExtents(Center, Extents);
 }
 
-int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh)
+int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 {
 	if (!PromptToRemoveExistingCollision(StaticMesh))
 	{
@@ -119,7 +152,10 @@ int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh)
 	StaticMesh->GetMeshDescription(0)->ComputeBoundingBox().GetCenterAndExtents(Center, Extents);
 	Extents *= (FVector)bs->BuildScale3D;
 
-	bs->Modify();
+	if(bUpdate)
+	{
+		bs->Modify();
+	}
 
 	// Create new GUID
 	bs->InvalidatePhysicsData();
@@ -135,7 +171,10 @@ int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh)
 	RefreshCollisionChange(*StaticMesh);
 
 	// Mark staticmesh as dirty, to help make sure it gets saved.
-	StaticMesh->MarkPackageDirty();
+	if(bUpdate)
+	{
+		StaticMesh->MarkPackageDirty();
+	}
 
 	StaticMesh->bCustomizedCollision = true;	//mark the static mesh for collision customization
 
@@ -288,7 +327,7 @@ static void CalcBoundingSphere2(const FMeshDescription* MeshDescription, FSphere
 
 // // //
 
-int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh)
+int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 {
 	if (!PromptToRemoveExistingCollision(StaticMesh))
 	{
@@ -317,7 +356,10 @@ int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh)
 		return INDEX_NONE;
 	}
 
-	bs->Modify();
+	if(bUpdate)
+	{
+		bs->Modify();
+	}
 
 	// Create new GUID
 	bs->InvalidatePhysicsData();
@@ -331,7 +373,10 @@ int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh)
 	RefreshCollisionChange(*StaticMesh);
 
 	// Mark staticmesh as dirty, to help make sure it gets saved.
-	StaticMesh->MarkPackageDirty();
+	if(bUpdate)
+	{
+		StaticMesh->MarkPackageDirty();
+	}
 
 	StaticMesh->bCustomizedCollision = true;	//mark the static mesh for collision customization
 	return bs->AggGeom.SphereElems.Num() - 1;
@@ -429,7 +474,7 @@ static void CalcBoundingSphyl(const FMeshDescription* MeshDescription, FSphere& 
 
 // // //
 
-int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh)
+int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 {
 	if (!PromptToRemoveExistingCollision(StaticMesh))
 	{
@@ -461,7 +506,10 @@ int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh)
 		length = SMALL_NUMBER;
 	}
 
-	bs->Modify();
+	if(bUpdate)
+	{
+		bs->Modify();
+	}
 
 	// Create new GUID
 	bs->InvalidatePhysicsData();
@@ -477,7 +525,10 @@ int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh)
 	RefreshCollisionChange(*StaticMesh);
 
 	// Mark staticmesh as dirty, to help make sure it gets saved.
-	StaticMesh->MarkPackageDirty();
+	if(bUpdate)
+	{
+		StaticMesh->MarkPackageDirty();
+	}
 
 	StaticMesh->bCustomizedCollision = true;	//mark the static mesh for collision customization
 

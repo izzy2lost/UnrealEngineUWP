@@ -3,6 +3,7 @@
 #pragma once
 
 #include "InterchangeGenericAssetsPipelineSharedSettings.h"
+#include "InterchangeMeshDefinitions.h"
 #include "InterchangePipelineBase.h"
 #include "InterchangeSourceData.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
@@ -55,11 +56,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(DisplayName="LOD Group"))
 	FName LodGroup = NAME_None;
 
+	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Collision instead."))
+	bool bImportCollision_DEPRECATED = true;
+
 	/** If enabled, custom collision will be imported. If enabled and there is no custom collision, a generic collision will be automatically generated.
 	 * If disabled, no collision will be created or imported.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision"))
-	bool bImportCollision = true;
+	EInterchangeMeshCollision Collision = EInterchangeMeshCollision::Convex18DOP;
 
 	/**
 	 * If enabled, meshes with certain prefixes will be imported as collision primitives for the mesh with the corresponding unprefixed name.
@@ -70,11 +74,11 @@ public:
 	 * USP_ Sphere collision
 	 * UCX_ Convex collision
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "bImportCollision"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "Collision != EInterchangeMeshCollision::None"))
 	bool bImportCollisionAccordingToMeshName = true;
 
 	/** If enabled, each UCX collision mesh will be imported as a single convex hull. If disabled, a UCX mesh will be decomposed into its separate pieces and a convex hull generated for each. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "bImportCollision && bImportCollisionAccordingToMeshName"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta = (SubCategory = "Collision", editcondition = "Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName"))
 	bool bOneConvexHullPerUCX = true;
 
 	//////	Static Meshes Build settings Properties //////
@@ -364,6 +368,10 @@ private:
 		, bool& bContainSkeletalMesh
 		, bool& bContainStaticMeshAnimationNode
 		, bool& bIgnoreStaticMeshes) const;
+
+public:
+
+	virtual void PostLoad() override;
 
 protected:
 	UInterchangeBaseNodeContainer* BaseNodeContainer = nullptr;

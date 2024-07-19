@@ -21,15 +21,6 @@
 #include "UObject/ObjectMacros.h"
 
 
-enum class EMeshCollisionType
-{
-	None,
-	Box,
-	Sphere,
-	Capsule,
-	Convex
-};
-
 namespace UE::Interchange::Private
 {
 	FString GetNodeName(const UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeUid)
@@ -59,32 +50,32 @@ namespace UE::Interchange::Private
 	}
 }
 
-static TTuple<EMeshCollisionType, FString> GetCollisionMeshType(const UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeUid, const TArray<FString>& AllNodeUids)
+static TTuple<EInterchangeMeshCollision, FString> GetCollisionMeshType(const UInterchangeBaseNodeContainer& NodeContainer, const FString& NodeUid, const TArray<FString>& AllNodeUids)
 {
 	FString MeshName = UE::Interchange::Private::GetNodeName(NodeContainer, NodeUid);
-	EMeshCollisionType CollisionType = EMeshCollisionType::None;
+	EInterchangeMeshCollision CollisionType = EInterchangeMeshCollision::None;
 
 	// Determine if the mesh name is a potential collision mesh
 
 	if (MeshName.StartsWith(TEXT("UBX_")))
 	{
-		CollisionType = EMeshCollisionType::Box;
+		CollisionType = EInterchangeMeshCollision::Box;
 	}
 	else if (MeshName.StartsWith(TEXT("UCX_")) || MeshName.StartsWith(TEXT("MCDCX_")))
 	{
-		CollisionType = EMeshCollisionType::Convex;
+		CollisionType = EInterchangeMeshCollision::Convex18DOP;
 	}
 	else if (MeshName.StartsWith(TEXT("USP_")))
 	{
-		CollisionType = EMeshCollisionType::Sphere;
+		CollisionType = EInterchangeMeshCollision::Sphere;
 	}
 	else if (MeshName.StartsWith(TEXT("UCP_")))
 	{
-		CollisionType = EMeshCollisionType::Capsule;
+		CollisionType = EInterchangeMeshCollision::Capsule;
 	}
 	else
 	{
-		return { EMeshCollisionType::None, FString() };
+		return { EInterchangeMeshCollision::None, FString() };
 	}
 
 	// We have a mesh name with a collision type suffix.
@@ -126,13 +117,13 @@ static TTuple<EMeshCollisionType, FString> GetCollisionMeshType(const UInterchan
 
 	// Mesh had a collision type prefix, but no corresponding mesh, so don't treat it as a collision mesh
 
-	return { EMeshCollisionType::None, FString() };
+	return { EInterchangeMeshCollision::None, FString() };
 }
 
 
 static bool IsCollisionMeshUid(const UInterchangeBaseNodeContainer& NodeContainer, const FString& MeshUid, const TArray<FString>& MeshUids)
 {
-	return GetCollisionMeshType(NodeContainer, MeshUid, MeshUids).Get<0>() != EMeshCollisionType::None;
+	return GetCollisionMeshType(NodeContainer, MeshUid, MeshUids).Get<0>() != EInterchangeMeshCollision::None;
 }
 
 
@@ -140,8 +131,8 @@ static void BuildMeshToCollisionMeshMap(const UInterchangeBaseNodeContainer& Nod
 {
 	for (const FString& MeshUid : MeshUids)
 	{
-		TTuple<EMeshCollisionType, FString> CollisionType = GetCollisionMeshType(NodeContainer, MeshUid, MeshUids);
-		if (CollisionType.Get<0>() != EMeshCollisionType::None)
+		TTuple<EInterchangeMeshCollision, FString> CollisionType = GetCollisionMeshType(NodeContainer, MeshUid, MeshUids);
+		if (CollisionType.Get<0>() != EInterchangeMeshCollision::None)
 		{
 			MeshToCollisionMeshMap.FindOrAdd(FString(CollisionType.Get<1>())).Emplace(MeshUid);
 		}
@@ -279,7 +270,7 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 
 					if (MeshUidsPerLodIndex.Num() > 0)
 					{
-						if (bImportCollision && bImportCollisionAccordingToMeshName)
+						if (Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
 						{
 							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
 							{
@@ -323,7 +314,7 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 
 					if (MeshUidsPerLodIndex.Num() > 0)
 					{
-						if (bImportCollision && bImportCollisionAccordingToMeshName)
+						if (Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
 						{
 							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
 							{
@@ -505,7 +496,7 @@ UInterchangeStaticMeshLodDataNode* UInterchangeGenericMeshPipeline::CreateStatic
 
 	StaticMeshLodDataNode->InitializeNode(NodeUID, DisplayLabel, EInterchangeNodeContainerType::FactoryData);
 	StaticMeshLodDataNode->SetOneConvexHullPerUCX(bOneConvexHullPerUCX);
-	StaticMeshLodDataNode->SetImportCollision(bImportCollision);
+	StaticMeshLodDataNode->SetImportCollision(Collision);
 	BaseNodeContainer->AddNode(StaticMeshLodDataNode);
 	return StaticMeshLodDataNode;
 }
@@ -587,26 +578,30 @@ void UInterchangeGenericMeshPipeline::AddLodDataToStaticMesh(UInterchangeStaticM
 
 			if (bImportCollisionAccordingToMeshName)
 			{
-				TTuple<EMeshCollisionType, FStringView> MeshType = GetCollisionMeshType(*BaseNodeContainer, NodeUid, NodeUids);
+				TTuple<EInterchangeMeshCollision, FStringView> MeshType = GetCollisionMeshType(*BaseNodeContainer, NodeUid, NodeUids);
 				switch (MeshType.Get<0>())
 				{
-				case EMeshCollisionType::None:
+				case EInterchangeMeshCollision::None:
 					LodDataNode->AddMeshUid(NodeUid);
 					break;
 
-				case EMeshCollisionType::Box:
+				case EInterchangeMeshCollision::Box:
 					LodDataNode->AddBoxCollisionMeshUid(NodeUid);
 					break;
 
-				case EMeshCollisionType::Sphere:
+				case EInterchangeMeshCollision::Sphere:
 					LodDataNode->AddSphereCollisionMeshUid(NodeUid);
 					break;
 
-				case EMeshCollisionType::Capsule:
+				case EInterchangeMeshCollision::Capsule:
 					LodDataNode->AddCapsuleCollisionMeshUid(NodeUid);
 					break;
 
-				case EMeshCollisionType::Convex:
+				case EInterchangeMeshCollision::Convex10DOP_X:
+				case EInterchangeMeshCollision::Convex10DOP_Y:
+				case EInterchangeMeshCollision::Convex10DOP_Z:
+				case EInterchangeMeshCollision::Convex18DOP:
+				case EInterchangeMeshCollision::Convex26DOP:
 					LodDataNode->AddConvexCollisionMeshUid(NodeUid);
 					break;
 				}

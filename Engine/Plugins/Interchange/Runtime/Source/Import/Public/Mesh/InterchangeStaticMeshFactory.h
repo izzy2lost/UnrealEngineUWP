@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "InterchangeFactoryBase.h"
+#include "InterchangeMeshDefinitions.h"
 #include "MeshDescription.h"
 #include "UObject/Object.h"
 #include "UObject/ObjectMacros.h"
@@ -78,7 +79,7 @@ private:
 	{
 		bool bIsAppGame = false;
 		bool bImportedCustomCollision = false;
-		bool bImportCollision = false;
+		EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
 		TArray<FMeshDescription> LodMeshDescriptions;
 	};
 	FImportAssetObjectData ImportAssetObjectData;

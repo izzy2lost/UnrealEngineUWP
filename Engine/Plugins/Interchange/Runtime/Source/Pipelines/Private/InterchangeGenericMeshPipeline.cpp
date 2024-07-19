@@ -18,6 +18,7 @@
 #include "Nodes/InterchangeBaseNode.h"
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "PhysicsEngine/PhysicsAsset.h"
+#include "InterchangeCustomVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGenericMeshPipeline)
 
@@ -105,7 +106,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 			bCombineStaticMeshes = true;
 			bBuildNanite = false;
 			LodGroup = NAME_None;
-			bImportCollision = false;
+			Collision = EInterchangeMeshCollision::None;
 			bImportCollisionAccordingToMeshName = false;
 			bGenerateLightmapUVs = false;
 			bGenerateDistanceFieldAsIfTwoSided = false;
@@ -127,7 +128,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 					bCombineStaticMeshes = true;
 					LodGroup = NAME_None;
 					bSupportFaceRemap = false;
-					bImportCollision = false;
+					Collision = EInterchangeMeshCollision::None;
 					bImportCollisionAccordingToMeshName = false;
 					bGenerateLightmapUVs = false;
 					bGenerateDistanceFieldAsIfTwoSided = false;
@@ -346,6 +347,16 @@ void UInterchangeGenericMeshPipeline::GetMeshesInformationFromTranslatedData(con
 		{
 			bIgnoreStaticMeshes = true;
 		}
+	}
+}
+
+void UInterchangeGenericMeshPipeline::PostLoad()
+{
+	Super::PostLoad();
+
+	if(!bImportCollision_DEPRECATED)
+	{
+		Collision = EInterchangeMeshCollision::None;
 	}
 }
 
