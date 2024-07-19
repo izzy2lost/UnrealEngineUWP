@@ -612,7 +612,7 @@ export class BotNotifications implements BotEventHandler {
 						if (!exclusiveLockSlackUser) {
 							exclusiveLockSlackUser = `@${exclusiveLockUser.user} `
 						}
-						file.initial_comment = `${exclusiveLockSlackUser} please unlock the files blocking robomerge or work with ${blockage.owner} to resolve the conflict`
+						file.initial_comment = `${exclusiveLockSlackUser} please unlock the files blocking robomerge or work with ${blockage.owner} to resolve the conflict. Hit retry on the blocked stream once the files are unlocked.`
 					} else {
 						file.initial_comment = "The following locked files did not have their owner determined and as such those owners may not have been notified"
 					}
