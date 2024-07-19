@@ -13,7 +13,12 @@ FHairSolverSettings::FHairSolverSettings()
 	IterationCount = 5;
 	GravityPreloading = 0.0f;
 	bForceVisible = false;
-	CustomSystem =  LoadObject<UNiagaraSystem>(nullptr, TEXT("/HairStrands/Emitters/StableSpringsSystem.StableSpringsSystem"));
+
+	// Object loading is only allowed on the GameThread
+	if (IsInGameThread())
+	{
+		CustomSystem =  LoadObject<UNiagaraSystem>(nullptr, TEXT("/HairStrands/Emitters/StableSpringsSystem.StableSpringsSystem"));
+	}
 }
 
 FHairExternalForces::FHairExternalForces()
