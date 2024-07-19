@@ -1990,7 +1990,7 @@ int32 FGenericPlatformMisc::GetPakchunkIndexFromPakFile(FStringView InFilename)
 			DigitCount++;
 		}
 
-		if (DigitCount > 0 && (StartOfNumber + DigitCount) < BaseFilename.Len())
+		if (DigitCount > 0 && (StartOfNumber + DigitCount) <= BaseFilename.Len())
 		{
 			// FromString can't take a view
 			TStringBuilder<16> ChunkNumberString = WriteToString<16>(BaseFilename.Mid(StartOfNumber, DigitCount));
