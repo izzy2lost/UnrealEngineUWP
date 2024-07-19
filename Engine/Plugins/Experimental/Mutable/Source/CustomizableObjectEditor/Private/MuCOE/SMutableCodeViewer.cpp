@@ -291,7 +291,7 @@ void SMutableCodeViewer::ClearSelectedTreeRow() const
 	TreeView->ClearSelection();
 }
 
-void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel, const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures)
+void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel, const TArray<TSoftObjectPtr<const UTexture>>& InReferencedTextures)
 {
 	MutableModel = InMutableModel;
 	ReferencedTextures = InReferencedTextures;
@@ -340,7 +340,7 @@ void SMutableCodeViewer::SetCurrentModel(const TSharedPtr<mu::Model, ESPMode::Th
 
 
 void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& InMutableModel,
-	const TArray<TSoftObjectPtr<UTexture>>& InReferencedTextures )
+	const TArray<TSoftObjectPtr<const UTexture>>& InReferencedTextures )
 {
 	// Min width allowed for the column. Needed to avoid having issues with the constants space being to small
 	// and then getting too tall on the y axis crashing the UI drawer.
@@ -2437,7 +2437,7 @@ namespace
 	public:
 
 		/** */
-		TArray<TSoftObjectPtr<UTexture>> ReferencedTextures;
+		TArray<TSoftObjectPtr<const UTexture>> ReferencedTextures;
 
 	public:
 

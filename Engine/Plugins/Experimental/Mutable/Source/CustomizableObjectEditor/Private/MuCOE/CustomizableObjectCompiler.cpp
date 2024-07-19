@@ -953,7 +953,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ModelResources.PassThroughTextures.Add(Pair.Key);
 		}
 
-		for (const TPair<TSoftObjectPtr<UTexture2D>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+		for (const TPair<TSoftObjectPtr<const UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
 		{
 			check(Pair.Value.ID == ModelResources.RuntimeReferencedTextures.Num());
 			ModelResources.RuntimeReferencedTextures.Add(Pair.Key);
@@ -1158,7 +1158,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 		// Pass-through textures
 		TArray<FMutableSourceTextureData> NewCompileTimeReferencedTextures;
-		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
+		for (const TPair<TSoftObjectPtr<const UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
 		{
 			check(Pair.Value.ID == NewCompileTimeReferencedTextures.Num());
 
@@ -1328,7 +1328,7 @@ bool FCustomizableObjectCompiler::TryPopCompileRequest()
 
 
 mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, const FCompilationOptions& InCompilerOptions, 
-	TArray<TSoftObjectPtr<UTexture>>& OutRuntimeReferencedTextures,
+	TArray<TSoftObjectPtr<const UTexture>>& OutRuntimeReferencedTextures,
 	TArray<FMutableSourceTextureData>& OutCompilerReferencedTextures )
 {
 	UE_LOG(LogMutable, Log, TEXT("Started Customizable Object Export %s."), *Object->GetName());
@@ -1374,14 +1374,14 @@ mu::NodePtr FCustomizableObjectCompiler::Export(UCustomizableObject* Object, con
 
 	// Pass out the references textures
 	OutRuntimeReferencedTextures.Empty();
-	for (const TPair<TSoftObjectPtr<UTexture2D>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+	for (const TPair<TSoftObjectPtr<const UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
 	{
 		check(Pair.Value.ID == OutRuntimeReferencedTextures.Num());
 		OutRuntimeReferencedTextures.Add(Pair.Key);
 	}
 
 	OutCompilerReferencedTextures.Empty();
-	for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
+	for (const TPair<TSoftObjectPtr<const UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.CompileTimeTextureMap)
 	{
 		check(Pair.Value.ID == OutCompilerReferencedTextures.Num());
 

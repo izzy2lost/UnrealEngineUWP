@@ -350,18 +350,18 @@ public:
 	TMap<TSubclassOf<UAnimInstance>, FAnimBpGeneratedPhysicsAssets> AnimBpPhysicsAssets;
 
 	// The pass-through assets that will be loaded during an update
-	TArray<TSoftObjectPtr<UTexture>> PassThroughTexturesToLoad;
-	TArray<TSoftObjectPtr<UStreamableRenderAsset>> PassThroughMeshesToLoad;
+	TArray<TSoftObjectPtr<const UTexture>> PassThroughTexturesToLoad;
+	TArray<TSoftObjectPtr<const UStreamableRenderAsset>> PassThroughMeshesToLoad;
 
 	// Used during an update to prevent the pass-through textures loaded by LoadAdditionalAssetsAsync() from being unloaded by GC
 	// between AdditionalAssetsAsyncLoaded() and their setting into the generated materials in BuildMaterials()
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UTexture>> LoadedPassThroughTexturesPendingSetMaterial;
+	TArray<TObjectPtr<const UTexture>> LoadedPassThroughTexturesPendingSetMaterial;
 
 	// Used during an update to prevent the pass-through meshes loaded by LoadAdditionalAssetsAsync() from being unloaded by GC
 	// between AdditionalAssetsAsyncLoaded() and their setting into the generated materials in BuildMaterials()
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStreamableRenderAsset>> LoadedPassThroughMeshesPendingSetMaterial;
+	TArray<TObjectPtr<const UStreamableRenderAsset>> LoadedPassThroughMeshesPendingSetMaterial;
 
 private:
 	ECOInstanceFlags InstanceFlagsPrivate = ECOInstanceFlags::ECONone;

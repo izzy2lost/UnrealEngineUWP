@@ -727,7 +727,7 @@ struct FModelResources
 #if WITH_EDITORONLY_DATA
 	/** Runtime referenced textures used by the mu::Model. */
 	UPROPERTY()
-	TArray<TSoftObjectPtr<UTexture2D>> RuntimeReferencedTextures;
+	TArray<TSoftObjectPtr<const UTexture>> RuntimeReferencedTextures;
 #endif
 	
 	/** Physics assets gathered from the SkeletalMeshes, to be used in mesh generation in-game */

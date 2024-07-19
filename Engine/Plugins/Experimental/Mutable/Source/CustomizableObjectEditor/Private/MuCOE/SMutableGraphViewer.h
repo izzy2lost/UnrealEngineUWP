@@ -35,7 +35,7 @@ public:
 	/** User-visible tag to indentify the source of the data shown. */
 	SLATE_ARGUMENT(FString, DataTag)
 
-	SLATE_ARGUMENT(TArray<TSoftObjectPtr<UTexture>>, ReferencedRuntimeTextures)
+	SLATE_ARGUMENT(TArray<TSoftObjectPtr<const UTexture>>, ReferencedRuntimeTextures)
 	SLATE_ARGUMENT(TArray<FMutableSourceTextureData>, ReferencedCompileTextures)
 
 	SLATE_END_ARGS()
@@ -55,7 +55,7 @@ private:
 	mu::NodePtr RootNode;
 
 	/** Array of external referenced textures in MutableModel, indexed by id. */
-	TArray<TSoftObjectPtr<UTexture>> ReferencedRuntimeTextures;
+	TArray<TSoftObjectPtr<const UTexture>> ReferencedRuntimeTextures;
 	TArray<FMutableSourceTextureData> ReferencedCompileTextures;
 
 	/** Object compiler. */

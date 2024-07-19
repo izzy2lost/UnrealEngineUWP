@@ -246,7 +246,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 
 							if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
 							{
-								TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+								TSoftObjectPtr<const USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
 								CustomizableObjectInstancePrivateData->PassThroughMeshesToLoad.Add(Ref);
 							}
 							else
@@ -337,7 +337,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 
 									if (ModelResources.PassThroughTextures.IsValidIndex(ReferenceID))
 									{
-										TSoftObjectPtr<UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
+										TSoftObjectPtr<const UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
 										CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Add(Ref);
 									}
 									else

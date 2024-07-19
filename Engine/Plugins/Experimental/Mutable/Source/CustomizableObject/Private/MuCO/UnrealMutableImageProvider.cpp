@@ -729,7 +729,7 @@ void FUnrealMutableResourceProvider::UnCacheImages(const mu::Parameters& Paramet
 
 
 #if WITH_EDITOR
-void FUnrealMutableResourceProvider::CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<UTexture2D>>& RuntimeReferencedTextures)
+void FUnrealMutableResourceProvider::CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<const UTexture>>& RuntimeReferencedTextures)
 {
 	check(IsInGameThread());
 	
@@ -741,9 +741,9 @@ void FUnrealMutableResourceProvider::CacheRuntimeReferencedImages(const TSharedR
 	ModelImages.Model = Model.ToWeakPtr();
 
 	ModelImages.SourceTextures.Reset();
-	for (const TSoftObjectPtr<UTexture2D>& RuntimeReferencedTexture : RuntimeReferencedTextures)
+	for (const TSoftObjectPtr<const UTexture>& RuntimeReferencedTexture : RuntimeReferencedTextures)
 	{
-		UTexture2D* Texture = RuntimeReferencedTexture.LoadSynchronous();
+		const UTexture* Texture = RuntimeReferencedTexture.LoadSynchronous();
 		if (!Texture)
 		{
 			UE_LOG(LogMutable, Warning, TEXT("Failed to load texture [%s]."), *RuntimeReferencedTexture->GetPathName());

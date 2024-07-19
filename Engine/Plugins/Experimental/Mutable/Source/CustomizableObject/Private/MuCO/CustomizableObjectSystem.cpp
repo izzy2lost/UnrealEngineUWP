@@ -2136,7 +2136,7 @@ namespace impl
 
 		if (ModelResources.PassThroughTextures.IsValidIndex(ReferenceID))
 		{
-			const TSoftObjectPtr<UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
+			const TSoftObjectPtr<const UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
 			Instance->GetPrivate()->PassThroughTexturesToLoad.Add(Ref);
 		}
 		else
@@ -2394,7 +2394,7 @@ namespace impl
 
 			if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
 			{
-				TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+				TSoftObjectPtr<const USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
 				Instance->GetPrivate()->PassThroughMeshesToLoad.Add(Ref);
 			}
 			else

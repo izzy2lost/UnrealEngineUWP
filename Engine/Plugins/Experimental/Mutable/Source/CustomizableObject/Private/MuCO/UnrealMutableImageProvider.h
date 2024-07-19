@@ -49,7 +49,7 @@ public:
 	void UnCacheImages(const mu::Parameters& Parameters);
 
 #if WITH_EDITOR
-	void CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<UTexture2D>>& RuntimeReferencedTextures);
+	void CacheRuntimeReferencedImages(const TSharedRef<const mu::Model>& Model, const TArray<TSoftObjectPtr<const UTexture>>& RuntimeReferencedTextures);
 #endif
 	
 	/** List of actual image providers that have been registered to the CustomizableObjectSystem. */

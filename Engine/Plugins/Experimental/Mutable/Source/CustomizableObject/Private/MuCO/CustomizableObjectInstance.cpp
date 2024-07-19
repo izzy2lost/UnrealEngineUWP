@@ -5385,12 +5385,12 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		}
 	}
 
-	for (TSoftObjectPtr<UTexture>& TextureRef : PassThroughTexturesToLoad)
+	for (TSoftObjectPtr<const UTexture>& TextureRef : PassThroughTexturesToLoad)
 	{
 		AssetsToStream.Add(TextureRef.ToSoftObjectPath());
 	}
 
-	for (TSoftObjectPtr<UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
+	for (TSoftObjectPtr<const UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
 	{
 		AssetsToStream.Add(MeshRef.ToSoftObjectPath());
 	}
@@ -5843,7 +5843,7 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 
 	LoadedPassThroughTexturesPendingSetMaterial.Empty(PassThroughTexturesToLoad.Num());
 
-	for (TSoftObjectPtr<UTexture>& TextureRef : PassThroughTexturesToLoad)
+	for (TSoftObjectPtr<const UTexture>& TextureRef : PassThroughTexturesToLoad)
 	{
 		ensure(TextureRef.IsValid());
 		LoadedPassThroughTexturesPendingSetMaterial.Add(TextureRef.Get());
@@ -5853,7 +5853,7 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 
 	LoadedPassThroughMeshesPendingSetMaterial.Empty(PassThroughMeshesToLoad.Num());
 
-	for (TSoftObjectPtr<UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
+	for (TSoftObjectPtr<const UStreamableRenderAsset>& MeshRef : PassThroughMeshesToLoad)
 	{
 		ensure(MeshRef.IsValid());
 		LoadedPassThroughMeshesPendingSetMaterial.Add(MeshRef.Get());
