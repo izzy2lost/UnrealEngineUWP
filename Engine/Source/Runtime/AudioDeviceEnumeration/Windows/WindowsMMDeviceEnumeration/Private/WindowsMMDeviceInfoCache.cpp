@@ -14,8 +14,10 @@ THIRD_PARTY_INCLUDES_END
 #include "Windows/HideWindowsPlatformAtomics.h"
 #include "Windows/HideWindowsPlatformTypes.h"
 
-#include "ToStringHelpers.h"
+#include "WindowsMMStringUtils.h"
 #include "ConversionHelpers.h"
+#include "WindowsMMCvarUtils.h"
+#include "WindowsMMDeviceEnumerationLog.h"
 
 namespace Audio
 {
@@ -125,7 +127,7 @@ bool FWindowsMMDeviceCache::EnumerateChannelMask(uint32 InMask, FCacheEntry& Out
 	// We didn't match channel masks for all channels, revert to a default ordering
 	if (ChanCount < (uint32)OutInfo.NumChannels)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Warning, TEXT("FWindowsMMDeviceCache: Did not find the channel type flags for audio device '%s'. Reverting to a default channel ordering."), *OutInfo.FriendlyName);
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Warning, TEXT("FWindowsMMDeviceCache: Did not find the channel type flags for audio device '%s'. Reverting to a default channel ordering."), *OutInfo.FriendlyName);
 
 		OutInfo.OutputChannels.Reset();
 
@@ -274,7 +276,7 @@ bool FWindowsMMDeviceCache::EnumerateDeviceProps(const TComPtr<IMMDevice>& InDev
 		else
 		{
 			// Log a warning if this device is active as we failed to ask for a format
-			UE_CLOG(DeviceState == DEVICE_STATE_ACTIVE, LogAudioMixer, Warning, TEXT("FWindowsMMDeviceCache: Failed to get Format for active device '%s'"), *OutInfo.FriendlyName);
+			UE_CLOG(DeviceState == DEVICE_STATE_ACTIVE, LogAudioEnumeration, Warning, TEXT("FWindowsMMDeviceCache: Failed to get Format for active device '%s'"), *OutInfo.FriendlyName);
 		}
 	}
 
@@ -310,7 +312,7 @@ void FWindowsMMDeviceCache::EnumerateEndpoints()
 						// Enumerate props into our info object.
 						EnumerateDeviceProps(Device, Info);
 
-						UE_LOG(LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: %s Device '%s' ID='%s'"),
+						UE_LOG(LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: %s Device '%s' ID='%s'"),
 							Info.Type == FCacheEntry::EEndpointType::Capture ? TEXT("Capture") :
 							Info.Type == FCacheEntry::EEndpointType::Render ? TEXT("Render") :
 							TEXT("UNKNOWN!"),
@@ -360,12 +362,12 @@ void FWindowsMMDeviceCache::EnumerateDefaults()
 		FName DeviceIdName;
 		if (GetDefaultDeviceID(eRender, static_cast<ERole>(i), DeviceIdName))
 		{
-			UE_CLOG(!DeviceIdName.IsNone(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: Default Render Role='%s', Device='%s'"), ToString((EAudioDeviceRole)i), *GetFriendlyName(DeviceIdName));
+			UE_CLOG(!DeviceIdName.IsNone(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: Default Render Role='%s', Device='%s'"), ToString((EAudioDeviceRole)i), *GetFriendlyName(DeviceIdName));
 			DefaultRenderId[i] = DeviceIdName;
 		}
 		if (GetDefaultDeviceID(eCapture, static_cast<ERole>(i), DeviceIdName))
 		{
-			UE_CLOG(!DeviceIdName.IsNone(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: Default Capture Role='%s', Device='%s'"), ToString((EAudioDeviceRole)i), *GetFriendlyName(DeviceIdName));
+			UE_CLOG(!DeviceIdName.IsNone(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: Default Capture Role='%s', Device='%s'"), ToString((EAudioDeviceRole)i), *GetFriendlyName(DeviceIdName));
 			DefaultCaptureId[i] = DeviceIdName;
 		}
 	}
@@ -395,7 +397,7 @@ void FWindowsMMDeviceCache::OnDeviceAdded(const FString& DeviceId, bool bIsRende
 	}
 	else
 	{
-		UE_LOG(LogAudioMixer, Warning, TEXT("FWindowsMMDeviceCache::OnDeviceAdded: Failed to add DeviceID='%s' to cache. "), *DeviceId);
+		UE_LOG(LogAudioEnumeration, Warning, TEXT("FWindowsMMDeviceCache::OnDeviceAdded: Failed to add DeviceID='%s' to cache. "), *DeviceId);
 	}
 }
 
@@ -403,7 +405,7 @@ void FWindowsMMDeviceCache::OnDeviceRemoved(const FString& DeviceId, bool)
 {
 	FWriteScopeLock WriteLock(CacheMutationLock);
 	FName DeviceIdName = *DeviceId;
-	UE_CLOG(!Cache.Contains(DeviceIdName), LogAudioMixer, Warning, TEXT("FWindowsMMDeviceCache::OnDeviceRemoved: DeviceId='%s' was not in the cache. "), *DeviceId);
+	UE_CLOG(!Cache.Contains(DeviceIdName), LogAudioEnumeration, Warning, TEXT("FWindowsMMDeviceCache::OnDeviceRemoved: DeviceId='%s' was not in the cache. "), *DeviceId);
 	Cache.Remove(DeviceIdName);
 }
 
@@ -446,7 +448,7 @@ void FWindowsMMDeviceCache::OnDeviceStateChanged(const FString& DeviceId, const 
 		// Inner Write-Lock on Entry.
 		FWriteScopeLock WriteLock(Entry->MutationLock);
 
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: DeviceName='%s' - DeviceID='%s' state changed from '%s' to '%s'."),
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: DeviceName='%s' - DeviceID='%s' state changed from '%s' to '%s'."),
 			*Entry->FriendlyName, *DeviceId, ToString(Entry->State), ToString(InState));
 
 		Entry->State = InState;
@@ -471,20 +473,20 @@ void FWindowsMMDeviceCache::OnFormatChanged(const FString& InDeviceId, const FFo
 
 		if (EntryCopy.NumChannels != InFormat.NumChannels)
 		{
-			UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from %d channels to %d."), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.NumChannels, InFormat.NumChannels);
+			UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from %d channels to %d."), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.NumChannels, InFormat.NumChannels);
 			EntryCopy.NumChannels = InFormat.NumChannels;
 			bNeedToEnumerateChannels = true;
 			bDirty = true;
 		}
 		if (EntryCopy.SampleRate != InFormat.SampleRate)
 		{
-			UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from %dhz to %dhz."), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.SampleRate, InFormat.SampleRate);
+			UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from %dhz to %dhz."), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.SampleRate, InFormat.SampleRate);
 			EntryCopy.SampleRate = InFormat.SampleRate;
 			bDirty = true;
 		}
 		if (EntryCopy.ChannelBitmask != InFormat.ChannelBitmask)
 		{
-			UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from 0x%x to 0x%x bitmask"), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.ChannelBitmask, InFormat.ChannelBitmask);
+			UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: DeviceID='%s', Name='%s' changed default format from 0x%x to 0x%x bitmask"), *InDeviceId, *EntryCopy.FriendlyName, EntryCopy.ChannelBitmask, InFormat.ChannelBitmask);
 			EntryCopy.ChannelBitmask = InFormat.ChannelBitmask;
 			bNeedToEnumerateChannels = true;
 			bDirty = true;
@@ -492,9 +494,9 @@ void FWindowsMMDeviceCache::OnFormatChanged(const FString& InDeviceId, const FFo
 
 		if (bNeedToEnumerateChannels)
 		{
-			UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: Channel Change, DeviceID='%s', Name='%s' OLD=[%s]"), *InDeviceId, *EntryCopy.FriendlyName, *ToFString(EntryCopy.OutputChannels));
+			UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: Channel Change, DeviceID='%s', Name='%s' OLD=[%s]"), *InDeviceId, *EntryCopy.FriendlyName, *ToFString(EntryCopy.OutputChannels));
 			EnumerateChannelMask(InFormat.ChannelBitmask, EntryCopy);
-			UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("FWindowsMMDeviceCache: Channel Change, DeviceID='%s', Name='%s' NEW=[%s]"), *InDeviceId, *EntryCopy.FriendlyName, *ToFString(EntryCopy.OutputChannels));
+			UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("FWindowsMMDeviceCache: Channel Change, DeviceID='%s', Name='%s' NEW=[%s]"), *InDeviceId, *EntryCopy.FriendlyName, *ToFString(EntryCopy.OutputChannels));
 		}
 
 		// Update the entire entry with one write.

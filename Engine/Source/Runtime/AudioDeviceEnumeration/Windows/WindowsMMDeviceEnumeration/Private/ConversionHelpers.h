@@ -16,11 +16,8 @@ THIRD_PARTY_INCLUDES_END
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
-#endif //PLATFORM_WINDOWS
-
 namespace Audio
 {
-#if PLATFORM_WINDOWS
 	static inline EAudioDeviceState ConvertWordToDeviceState(DWORD InWord)
 	{
 		switch (InWord)
@@ -54,5 +51,6 @@ namespace Audio
 		return IAudioMixerDeviceChangedListener::EDisconnectReason::DeviceRemoval;
 	}
 
-#endif //PLATFORM_WINDOWS
 }
+
+#endif //PLATFORM_WINDOWS

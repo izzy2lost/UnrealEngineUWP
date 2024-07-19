@@ -30,45 +30,40 @@ namespace Audio
 	class FWindowsMMNotificationClient final : public IMMNotificationClient, public IAudioSessionEvents
 	{
 	public:
-		FWindowsMMNotificationClient();
-
-		bool RegisterForSessionNotifications(const TComPtr<IMMDevice>& InDevice);
-
-		bool RegisterForSessionNotifications(const FString& InDeviceId);
-
-		void UnregisterForSessionNotifications();
-
+		WINDOWSMMDEVICEENUMERATION_API FWindowsMMNotificationClient();
 		~FWindowsMMNotificationClient();
 
-		HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow InFlow, ERole InRole, LPCWSTR pwstrDeviceId) override;
+		WINDOWSMMDEVICEENUMERATION_API bool RegisterForSessionNotifications(const TComPtr<IMMDevice>& InDevice);
+		WINDOWSMMDEVICEENUMERATION_API bool RegisterForSessionNotifications(const FString& InDeviceId);
+		WINDOWSMMDEVICEENUMERATION_API void UnregisterForSessionNotifications();
 
 		// TODO: Ideally we'd use the cache instead of ask for this.
-		bool IsRenderDevice(const FString& InDeviceId) const;
+		WINDOWSMMDEVICEENUMERATION_API bool IsRenderDevice(const FString& InDeviceId) const;
 
-		HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) override;;
+		WINDOWSMMDEVICEENUMERATION_API FString GetFriendlyName(const FString InDeviceID);
+		WINDOWSMMDEVICEENUMERATION_API FString GetFriendlyName(const TComPtr<IMMDevice>& InDevice);
 
-		HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) override;
+		WINDOWSMMDEVICEENUMERATION_API TComPtr<IMMDevice> GetDevice(const FString InDeviceID) const;
+		WINDOWSMMDEVICEENUMERATION_API uint32 ReleaseClient() { return Release(); }
 
-		HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState) override;
+		WINDOWSMMDEVICEENUMERATION_API void RegisterDeviceChangedListener(Audio::IAudioMixerDeviceChangedListener* DeviceChangedListener);
+		WINDOWSMMDEVICEENUMERATION_API void UnRegisterDeviceDeviceChangedListener(Audio::IAudioMixerDeviceChangedListener* DeviceChangedListener);
 
-		FString GetFriendlyName(const FString InDeviceID);
-		FString GetFriendlyName(const TComPtr<IMMDevice>& InDevice);
-
-		TComPtr<IMMDevice> GetDevice(const FString InDeviceID) const;
-
-		HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
-
+		// Begin IUnknown overrides
 		HRESULT STDMETHODCALLTYPE QueryInterface(const IID& IId, void** UnknownPtrPtr) override;
-
 		ULONG STDMETHODCALLTYPE AddRef() override;
-
 		ULONG STDMETHODCALLTYPE Release() override;
+		// End IUnknown overrides
+		
+		// Begin IMMNotificationClient overrides
+		HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow InFlow, ERole InRole, LPCWSTR pwstrDeviceId) override;
+		HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) override;;
+		HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) override;
+		HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState) override;
+		HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key);
+		// End IMMNotificationClient overrides
 
-		void RegisterDeviceChangedListener(Audio::IAudioMixerDeviceChangedListener* DeviceChangedListener);
-
-		void UnRegisterDeviceDeviceChangedListener(Audio::IAudioMixerDeviceChangedListener* DeviceChangedListener);
-
-		// Begin IAudioSessionEvents
+		// Begin IAudioSessionEvents overrides
 		HRESULT STDMETHODCALLTYPE OnDisplayNameChanged(
 			LPCWSTR NewDisplayName,
 			LPCGUID EventContext) override;
@@ -97,7 +92,7 @@ namespace Audio
 
 		HRESULT STDMETHODCALLTYPE OnSessionDisconnected(
 			AudioSessionDisconnectReason InDisconnectReason);
-		// End IAudioSessionEvents
+		// End IAudioSessionEvents overrides
 
 	private:
 		LONG Ref;

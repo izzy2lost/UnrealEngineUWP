@@ -12,8 +12,10 @@ THIRD_PARTY_INCLUDES_END
 
 #include "Windows/HideWindowsPlatformTypes.h"
 
-#include "ToStringHelpers.h"
+#include "WindowsMMCvarUtils.h"
+#include "WindowsMMStringUtils.h"
 #include "ConversionHelpers.h"
+#include "WindowsMMDeviceEnumerationLog.h"
 
 namespace Audio
 {
@@ -39,7 +41,7 @@ namespace Audio
 				{
 					if (SUCCEEDED(SessionControls->RegisterAudioSessionNotification(this)))
 					{
-						UE_LOG(LogAudioMixer, Verbose, TEXT("FWindowsMMNotificationClient: Registering for sessions events for '%s'"), *GetFriendlyName(DeviceListeningToSessionEvents.Get()));
+						UE_LOG(LogAudioEnumeration, Verbose, TEXT("FWindowsMMNotificationClient: Registering for sessions events for '%s'"), *GetFriendlyName(DeviceListeningToSessionEvents.Get()));
 						return true;
 					}
 				}
@@ -60,7 +62,7 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnSessionDisconnected(AudioSessionDisconnectReason InDisconnectReason)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("Session Disconnect: Reason=%s, DeviceBound=%s, HasDisconnectSessionHappened=%d"),
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("Session Disconnect: Reason=%s, DeviceBound=%s, HasDisconnectSessionHappened=%d"),
 			ToString(InDisconnectReason), *GetFriendlyName(DeviceListeningToSessionEvents), (int32)bHasDisconnectSessionHappened);
 
 		if (!bHasDisconnectSessionHappened)
@@ -127,12 +129,12 @@ namespace Audio
 
 	#include "Windows/AllowWindowsPlatformAtomics.h"
 
-	ULONG FWindowsMMNotificationClient::AddRef()
+	ULONG STDMETHODCALLTYPE FWindowsMMNotificationClient::AddRef()
 	{
 		return InterlockedIncrement(&Ref);
 	}
 
-	ULONG FWindowsMMNotificationClient::Release() 
+	ULONG STDMETHODCALLTYPE FWindowsMMNotificationClient::Release()
 	{
 		ULONG ulRef = InterlockedDecrement(&Ref);
 		if (0 == ulRef)
@@ -184,7 +186,7 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnPropertyValueChanged(LPCWSTR pwstrDeviceId, const PROPERTYKEY key)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Verbose, TEXT("OnPropertyValueChanged: %s : %s"), *GetFriendlyName(pwstrDeviceId), *ToFString(key));
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Verbose, TEXT("OnPropertyValueChanged: %s : %s"), *GetFriendlyName(pwstrDeviceId), *ToFString(key));
 
 		if (key.fmtid == PKEY_AudioEngine_DeviceFormat.fmtid)
 		{
@@ -298,9 +300,9 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnDeviceStateChanged(LPCWSTR pwstrDeviceId, DWORD dwNewState)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Display, TEXT("FWindowsMMNotificationClient: OnDeviceStateChanged: %s, %d"), *GetFriendlyName(pwstrDeviceId), dwNewState);
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceStateChanged: %s, %d"), *GetFriendlyName(pwstrDeviceId), dwNewState);
 
-		if (Audio::IAudioMixer::ShouldIgnoreDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -322,9 +324,9 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnDeviceRemoved(LPCWSTR pwstrDeviceId)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Display, TEXT("FWindowsMMNotificationClient: OnDeviceRemoved: %s"), *GetFriendlyName(pwstrDeviceId));
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceRemoved: %s"), *GetFriendlyName(pwstrDeviceId));
 
-		if (Audio::IAudioMixer::ShouldIgnoreDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -341,9 +343,9 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnDeviceAdded(LPCWSTR pwstrDeviceId)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Display, TEXT("FWindowsMMNotificationClient: OnDeviceAdded: %s"), *GetFriendlyName(pwstrDeviceId));
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceAdded: %s"), *GetFriendlyName(pwstrDeviceId));
 
-		if (Audio::IAudioMixer::ShouldIgnoreDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -378,12 +380,12 @@ namespace Audio
 
 	HRESULT STDMETHODCALLTYPE FWindowsMMNotificationClient::OnDefaultDeviceChanged(EDataFlow InFlow, ERole InRole, LPCWSTR pwstrDeviceId)
 	{
-		UE_CLOG(Audio::IAudioMixer::ShouldLogDeviceSwaps(), LogAudioMixer, Warning,
+		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Warning,
 			TEXT("FWindowsMMNotificationClient: OnDefaultDeviceChanged: %s, %s, %s - %s"), ToString(InFlow), ToString(InRole), pwstrDeviceId, *GetFriendlyName(pwstrDeviceId));
 
 		Audio::EAudioDeviceRole AudioDeviceRole;
 
-		if (Audio::IAudioMixer::ShouldIgnoreDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -452,7 +454,7 @@ namespace Audio
 		// Unregister for any device we're already listening to.
 		if (SessionControls)
 		{
-			UE_LOG(LogAudioMixer, Verbose, TEXT("FWindowsMMNotificationClient: Unregistering for sessions events for device '%s'"), DeviceListeningToSessionEvents ? *GetFriendlyName(DeviceListeningToSessionEvents.Get()) : TEXT("None"));
+			UE_LOG(LogAudioEnumeration, Verbose, TEXT("FWindowsMMNotificationClient: Unregistering for sessions events for device '%s'"), DeviceListeningToSessionEvents ? *GetFriendlyName(DeviceListeningToSessionEvents.Get()) : TEXT("None"));
 			SessionControls->UnregisterAudioSessionNotification(this);
 			SessionControls.Reset();
 		}

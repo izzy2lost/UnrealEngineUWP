@@ -26,7 +26,7 @@ THIRD_PARTY_INCLUDES_END
 
 namespace Audio
 {		
-struct FWindowsMMDeviceCache : IAudioMixerDeviceChangedListener, IAudioPlatformDeviceInfoCache
+struct WINDOWSMMDEVICEENUMERATION_API FWindowsMMDeviceCache : IAudioMixerDeviceChangedListener, IAudioPlatformDeviceInfoCache
 {
 	struct FCacheEntry
 	{

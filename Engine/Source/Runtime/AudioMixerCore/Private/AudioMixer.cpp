@@ -63,15 +63,6 @@ FAutoConsoleVariableRef CVarRenderThreadAffinity(
 	TEXT("0: Disabled (Default), otherwise overriden thread affinity."),
 	ECVF_Default);
 
-
-static int32 EnableDetailedWindowsDeviceLoggingCVar = 0;
-FAutoConsoleVariableRef CVarEnableDetailedWindowsDeviceLogging(
-	TEXT("au.EnableDetailedWindowsDeviceLogging"),
-	EnableDetailedWindowsDeviceLoggingCVar,
-	TEXT("Enables detailed windows device logging.\n")
-	TEXT("0: Not Enabled, 1: Enabled"),
-	ECVF_Default);
-
 static int32 DisableDeviceSwapCVar = 0;
 FAutoConsoleVariableRef CVarDisableDeviceSwap(
 	TEXT("au.DisableDeviceSwap"),
@@ -894,11 +885,6 @@ namespace Audio
 	bool IAudioMixer::ShouldIgnoreDeviceSwaps()
 	{
 		return DisableDeviceSwapCVar != 0;
-	}
-
-	bool IAudioMixer::ShouldLogDeviceSwaps()
-	{
-		return EnableDetailedWindowsDeviceLoggingCVar != 0;
 	}
 
 	bool IAudioMixer::ShouldUseThreadedDeviceSwap()

@@ -14,6 +14,7 @@ public class AudioMixerXAudio2 : ModuleRules
 				new string[]
 				{
 					"Engine",
+					"WindowsMMDeviceEnumeration"
 				}
 			);
 

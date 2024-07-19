@@ -2,6 +2,8 @@
 
 #pragma once
 
+#if PLATFORM_WINDOWS
+
 #include "Windows/AllowWindowsPlatformTypes.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -41,3 +43,5 @@ namespace Audio
 }
 
 #include "Windows/HideWindowsPlatformTypes.h"
+
+#endif // PLATFORM_WINDOWS
