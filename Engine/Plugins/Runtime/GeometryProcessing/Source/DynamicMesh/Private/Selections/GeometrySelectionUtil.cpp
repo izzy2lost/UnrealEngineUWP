@@ -1355,8 +1355,10 @@ if ( ensure( MeshSelection.TopologyType == EGeometryTopologyType::Polygroup ) ==
 			if (Mesh.IsEdge(SeedEdgeID))
 			{
 				const int32 GroupEdgeID = GroupTopology->FindGroupEdgeID(SeedEdgeID);
-
-				ProcessGroupEdgeID(GroupEdgeID);
+				if (GroupEdgeID != INDEX_NONE)
+				{
+					ProcessGroupEdgeID(GroupEdgeID);
+				}
 			}
 		}
 	}
