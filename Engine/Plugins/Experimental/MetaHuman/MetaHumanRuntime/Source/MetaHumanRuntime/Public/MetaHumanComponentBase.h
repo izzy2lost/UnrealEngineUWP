@@ -78,7 +78,7 @@ protected:
 	// End UActorComponent interface
 
 	/** Create a map to fastly access the components by name. */
-	TMap<FName, int32, TInlineSetAllocator<16>> CreateComponentNameToIndexMap(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkelMeshComponents);
+	TMap<FName, int32, TInlineSetAllocator<16>> CreateComponentNameToIndexMap(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkelMeshComponents) const;
 
 	/** Helper to find the standard MetaHuman skeletal mesh components and cache them. */
 	void AssignSkelMeshComponentByName(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkeletalMeshComponents,
@@ -90,8 +90,11 @@ protected:
 	void AssignBodySkelMeshComponentByName(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkeletalMeshComponents,
 		const TMap<FName, int32, TInlineSetAllocator<16>>& ComponentNameToIndexMap);
 
+	/** Run the given AnimBP either on the skeletal mesh asset or on the instance, the component and initialize it afterwards. */
+	void RunAndInitPostAnimBP(USkeletalMeshComponent* SkelMeshComponent, TSubclassOf<UAnimInstance> AnimInstance, bool bRunAsOverridePostAnimBP, bool bReinitAnimInstances = true) const;
+
 	/** Load and run AnimBP on the given skeletal mesh component. */
-	void LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> AnimBlueprint, TWeakObjectPtr<USkeletalMeshComponent> SkelMeshComponent, bool bIsPostProcessingAnimBP);
+	void LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> AnimBlueprint, TWeakObjectPtr<USkeletalMeshComponent> SkelMeshComponent, bool bIsPostProcessingAnimBP, bool bRunAsOverridePostAnimBP = false);
 
 	/** Post-loading callback to be used to connect AnimBP variables. */
 	virtual void PostInitAnimBP(USkeletalMeshComponent* SkeletalMeshComponent, UAnimInstance* AnimInstance) const;
@@ -101,7 +104,7 @@ protected:
 	//////////////////////////////////////////////////////////////////////////////
 	// Body
 	//////////////////////////////////////////////////////////////////////////////
-	void SetFollowBody(TObjectPtr<USkeletalMeshComponent> SkelMeshComponent);
+	void SetFollowBody(USkeletalMeshComponent* SkelMeshComponent) const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USkeletalMeshComponent> Body;

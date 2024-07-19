@@ -32,7 +32,7 @@ void UMetaHumanComponentBase::OnRegister()
 	AssignBodySkelMeshComponentByName(SkelMeshComponents, ComponentNameToIndexMap);
 }
 
-TMap<FName, int32, TInlineSetAllocator<16>> UMetaHumanComponentBase::CreateComponentNameToIndexMap(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkelMeshComponents)
+TMap<FName, int32, TInlineSetAllocator<16>> UMetaHumanComponentBase::CreateComponentNameToIndexMap(const TInlineComponentArray<USkeletalMeshComponent*, 5>& SkelMeshComponents) const
 {
 	TMap<FName, int32, TInlineSetAllocator<16>> Result;
 
@@ -78,7 +78,7 @@ void UMetaHumanComponentBase::AssignBodySkelMeshComponentByName(const TInlineCom
 	}
 }
 
-void UMetaHumanComponentBase::SetFollowBody(TObjectPtr<USkeletalMeshComponent> SkelMeshComponent)
+void UMetaHumanComponentBase::SetFollowBody(USkeletalMeshComponent* SkelMeshComponent) const
 {
 	if (SkelMeshComponent)
 	{
@@ -86,7 +86,26 @@ void UMetaHumanComponentBase::SetFollowBody(TObjectPtr<USkeletalMeshComponent> S
 	}
 }
 
-void UMetaHumanComponentBase::LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> AnimBlueprint, TWeakObjectPtr<USkeletalMeshComponent> SkelMeshComponent, bool bIsPostProcessingAnimBP)
+void UMetaHumanComponentBase::RunAndInitPostAnimBP(USkeletalMeshComponent* SkelMeshComponent, TSubclassOf<UAnimInstance> AnimInstance, bool bRunAsOverridePostAnimBP, bool bReinitAnimInstances) const
+{
+	if (bRunAsOverridePostAnimBP)
+	{
+		SkelMeshComponent->SetOverridePostProcessAnimBP(AnimInstance, bReinitAnimInstances);
+	}
+	else
+	{
+		if (USkeletalMesh* SkeletalMesh = SkelMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
+		{
+			SkeletalMesh->SetPostProcessAnimBlueprint(AnimInstance);
+
+			// In case the skeletal mesh component was pre-existing, we need to re-initialize the AnimBPs,
+			// as the post-processing AnimBP on the skeletal mesh changed without informing the component.
+			SkelMeshComponent->InitializeAnimScriptInstance();
+		}
+	}
+}
+
+void UMetaHumanComponentBase::LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> AnimBlueprint, TWeakObjectPtr<USkeletalMeshComponent> SkelMeshComponent, bool bIsPostProcessingAnimBP, bool bRunAsOverridePostAnimBP)
 {
 	if (!SkelMeshComponent.IsValid())
 	{
@@ -98,14 +117,7 @@ void UMetaHumanComponentBase::LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> Anim
 	{
 		if (bIsPostProcessingAnimBP)
 		{
-			if (USkeletalMesh* SkeletalMesh = SkelMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
-			{
-				SkeletalMesh->SetPostProcessAnimBlueprint(nullptr);
-
-				// In case the skeletal mesh component was pre-existing, we need to re-initialize the AnimBPs,
-				// as the post-processing AnimBP on the skeletal mesh changed without informing the component.
-				SkelMeshComponent->InitializeAnimScriptInstance();
-			}
+			RunAndInitPostAnimBP(SkelMeshComponent.Get(), nullptr, bRunAsOverridePostAnimBP);
 		}
 		else
 		{
@@ -119,7 +131,7 @@ void UMetaHumanComponentBase::LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> Anim
 	TWeakObjectPtr<UMetaHumanComponentBase> WeakThis(this);
 	UAssetManager::GetStreamableManager().RequestAsyncLoad(
 		AssetPath,
-		[WeakThis, AnimBlueprint, SkelMeshComponent, bIsPostProcessingAnimBP]()
+		[WeakThis, AnimBlueprint, SkelMeshComponent, bIsPostProcessingAnimBP, bRunAsOverridePostAnimBP]()
 		{
 			UMetaHumanComponentBase* MetaHumanComponent = WeakThis.Get();
 			if (MetaHumanComponent && SkelMeshComponent.IsValid())
@@ -130,12 +142,7 @@ void UMetaHumanComponentBase::LoadAndRunAnimBP(TSoftClassPtr<UAnimInstance> Anim
 					{
 						if (bIsPostProcessingAnimBP)
 						{
-							SkeletalMesh->SetPostProcessAnimBlueprint(AnimBlueprint.Get());
-
-							// In case the skeletal mesh component was pre-existing, we need to re-initialize the AnimBPs,
-							// as the post-processing AnimBP on the skeletal mesh changed without informing the component.
-							SkelMeshComponent->InitializeAnimScriptInstance();
-
+							MetaHumanComponent->RunAndInitPostAnimBP(SkelMeshComponent.Get(), AnimBlueprint.Get(), bRunAsOverridePostAnimBP);
 							MetaHumanComponent->PostInitAnimBP(SkelMeshComponent.Get(), SkelMeshComponent->GetPostProcessInstance());
 						}
 						else

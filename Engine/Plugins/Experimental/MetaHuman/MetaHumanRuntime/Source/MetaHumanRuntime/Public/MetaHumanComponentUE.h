@@ -16,9 +16,12 @@ public:
 	// UActorComponent interface
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;
-	virtual void BeginPlay() override;
 	// End UActorComponent interface
 
 private:
-	void ConnectBodyPartAnimBPVariables(const FMetaHumanCustomizableBodyPart& BodyPart) const;
+	void SetupCustomizableBodyPart(FMetaHumanCustomizableBodyPart& BodyPart);
+	virtual void PostInitAnimBP(USkeletalMeshComponent* SkeletalMeshComponent, UAnimInstance* AnimInstance) const override final;
+
+	UPROPERTY(EditAnywhere, Category = BodyParts)
+	TSoftClassPtr<UAnimInstance> PostProcessAnimBP;
 };
