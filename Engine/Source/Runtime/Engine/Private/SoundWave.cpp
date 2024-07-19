@@ -2244,7 +2244,7 @@ void USoundWave::BeginDestroy()
 	Super::BeginDestroy();
 
 	{
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 		int32 CurrNumSourcesPlaying = SourcesPlaying.Num();
 
 		for (int32 i = CurrNumSourcesPlaying - 1; i >= 0; --i)
@@ -3192,7 +3192,7 @@ FWaveInstance& USoundWave::HandleStart(FActiveSound& ActiveSound, const UPTRINT 
 bool USoundWave::IsReadyForFinishDestroy()
 {
 	{
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 
 		for (ISoundWaveClient* SoundWaveClientPtr : SourcesPlaying)
 		{
@@ -3203,7 +3203,7 @@ bool USoundWave::IsReadyForFinishDestroy()
 	}
 
 	{
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 
 		for (ISoundWaveClient* SoundWaveClientPtr : SourcesPlaying)
 		{
@@ -3248,17 +3248,19 @@ void USoundWave::FinishDestroy()
 {
 	Super::FinishDestroy();
 
-	FScopeLock Lock(&SourcesPlayingCs);
-	int32 CurrNumSourcesPlaying = SourcesPlaying.Num();
-
-	for (int32 i = CurrNumSourcesPlaying - 1; i >= 0; --i)
 	{
-		ISoundWaveClient* SoundWaveClientPtr = SourcesPlaying[i];
+		UE::TUniqueLock Lock(SourcesPlayingCs);
+		int32 CurrNumSourcesPlaying = SourcesPlaying.Num();
 
-		if (SoundWaveClientPtr)
+		for (int32 i = CurrNumSourcesPlaying - 1; i >= 0; --i)
 		{
-			SoundWaveClientPtr->OnFinishDestroy(this);
-			SourcesPlaying.RemoveAtSwap(i, EAllowShrinking::No);
+			ISoundWaveClient* SoundWaveClientPtr = SourcesPlaying[i];
+
+			if (SoundWaveClientPtr)
+			{
+				SoundWaveClientPtr->OnFinishDestroy(this);
+				SourcesPlaying.RemoveAtSwap(i, EAllowShrinking::No);
+			}
 		}
 	}
 
@@ -3849,7 +3851,7 @@ void USoundWave::AddPlayingSource(const FSoundWaveClientPtr& Source)
 	check(IsInAudioThread() || IsInGameThread());   // Don't allow incrementing on other threads as it's not safe (for GCing of this wave).
 	if (Source)
 	{
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 		check(!SourcesPlaying.Contains(Source));
 		SourcesPlaying.Add(Source);
 	}
@@ -3859,7 +3861,7 @@ void USoundWave::RemovePlayingSource(const FSoundWaveClientPtr& Source)
 {
 	if (Source)
 	{
-		FScopeLock Lock(&SourcesPlayingCs);
+		UE::TUniqueLock Lock(SourcesPlayingCs);
 		check(SourcesPlaying.Contains(Source));
 		SourcesPlaying.RemoveSwap(Source);
 	}
