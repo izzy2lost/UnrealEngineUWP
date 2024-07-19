@@ -10,6 +10,7 @@
 
 #if !TIM
 #include <utility>
+#include <stdint.h>
 #endif
 
 namespace Verse {
