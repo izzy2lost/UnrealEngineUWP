@@ -459,6 +459,7 @@ enum EPropertyFlags : uint64
 	CPF_ExperimentalOverridableLogic	= 0x0200000000000000,	///< ****Experimental*** Property will use different logic to serialize knowing what changes are done against its default use the overridable information provided by the overridable manager on the object
 	CPF_ExperimentalAlwaysOverriden		= 0x0400000000000000,	///< ****Experimental*** Property should never inherit from the parent when using overridable serialization
 	CPF_ExperimentalNeverOverriden		= 0x0800000000000000,	///< ****Experimental*** Property should never be overridden when using overridable serialization
+	CPF_AllowSelfReference				= 0x1000000000000000,	///< Enables the intancing graph self referencing logic, delgates and verse function are already using this
 };
 
 /** All Native Access Specifier flags */
