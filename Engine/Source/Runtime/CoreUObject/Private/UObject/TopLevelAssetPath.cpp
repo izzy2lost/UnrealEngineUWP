@@ -8,6 +8,7 @@
 #include "Misc/Optional.h"
 #include "Misc/PackageName.h"
 #include "Misc/RedirectCollector.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/ObjectRedirector.h"
 #include "UObject/Package.h"
@@ -26,7 +27,7 @@ struct TStructOpsTypeTraits<FTopLevelAssetPath> : public TStructOpsTypeTraitsBas
 };
 UE_IMPLEMENT_STRUCT("/Script/CoreUObject", TopLevelAssetPath)
 
-void FTopLevelAssetPath::AppendString(FStringBuilderBase& Builder) const
+void FTopLevelAssetPath::AppendString(FWideStringBuilderBase& Builder) const
 {
 	if (!IsNull())
 	{
@@ -34,7 +35,19 @@ void FTopLevelAssetPath::AppendString(FStringBuilderBase& Builder) const
 		if (!AssetName.IsNone())
 		{
 			Builder << '.' << AssetName;
-		}		
+		}
+	}
+}
+
+void FTopLevelAssetPath::AppendString(FUtf8StringBuilderBase& Builder) const
+{
+	if (!IsNull())
+	{
+		Builder << PackageName;
+		if (!AssetName.IsNone())
+		{
+			Builder << '.' << AssetName;
+		}
 	}
 }
 
@@ -513,11 +526,21 @@ bool FTopLevelAssetPath::SerializeFromMismatchedTag(const FPropertyTag& Tag, FSt
 	return false;
 }
 
+void FTopLevelAssetPath::WriteCompactBinary(FCbWriter& Writer) const
+{
+	Writer << WriteToUtf8String<FName::StringBufferSize>(*this).ToView();
+}
 
+bool LoadFromCompactBinary(FCbFieldView Field, FTopLevelAssetPath& OutPath)
+{
+	OutPath = FTopLevelAssetPath(Field.AsString());
+	return !Field.HasError();
+}
 
 #if WITH_DEV_AUTOMATION_TESTS 
 
 #include "Misc/AutomationTest.h"
+#include "Serialization/CompactBinaryValidation.h"
 
 // Combine import/export tests
 
@@ -547,12 +570,12 @@ bool FTopLevelAssetPathTest::RunTest(const FString& Parameters)
 	TestEqual(TEXT("Empty path to string is empty string"), EmptyPathFromString.ToString(), FString());
 
 	FTopLevelAssetPath PackagePathFromString;
-	TestTrue(TEXT("TrySetPath(PackageName.ToString()) succeeds"), PackagePath.TrySetPath(PackageName.ToString()));
-	TestEqual(TEXT("PackagePath to string is PackageName"), PackagePath.ToString(), PackageName.ToString());
+	TestTrue(TEXT("TrySetPath(PackageName.ToString()) succeeds"), PackagePathFromString.TrySetPath(PackageName.ToString()));
+	TestEqual(TEXT("PackagePathFromString to string is PackageName"), PackagePathFromString.ToString(), PackageName.ToString());
 
 	FTopLevelAssetPath AssetPathFromString;
-	TestTrue(TEXT("TrySetPath(AssetPath) succeeds"), PackagePath.TrySetPath(AssetPathString));
-	TestEqual(TEXT("AssetPathFromString to string is PackageName.AssetName"), PackagePath.ToString(), AssetPathString);
+	TestTrue(TEXT("TrySetPath(AssetPath) succeeds"), AssetPathFromString.TrySetPath(AssetPathString));
+	TestEqual(TEXT("AssetPathFromString to string is PackageName.AssetName"), AssetPathFromString.ToString(), AssetPathString);
 
 	FTopLevelAssetPath FailedPath;
 	//TestFalse(TEXT("TrySetPath with unrooted path string fails"), FailedPath.TrySetPath("UnrootedPackage/Subfolder")); // after ANY_PACKAGE removal this will assert
@@ -583,6 +606,42 @@ bool FTopLevelAssetPathTest::RunTest(const FString& Parameters)
 	TestTrue(TEXT("FromShortExportTextPath ImportTextItem succeeds"), FromShortExportTextPath.ImportTextItem(ShortExportTextBuffer, PPF_None, nullptr, GLog->Get()));
 	TestEqual(TEXT("FromShortExportTextPath ImportTextItem advances buffer"), *ShortExportTextBuffer , '\0');
 	TestEqual(TEXT("FromShortExportTextPath  imports correct path"), FromShortExportTextPath.ToString(), TEXT("/Path/To/Package.Asset"));
+
+	{
+		FCbWriter EmptyPathWriter;
+		EmptyPathWriter << FTopLevelAssetPath();
+		FCbFieldIterator EmptyPathField = EmptyPathWriter.Save();
+		if (TestEqual(TEXT("FCbWriter(TopLevelAssetPath) Validate"), ValidateCompactBinaryRange(EmptyPathField.GetOuterBuffer(), ECbValidateMode::All), ECbValidateError::None))
+		{
+			FTopLevelAssetPath EmptyPathFromCompactBinary;
+			TestTrue(TEXT("EmptyPathFromCompactBinary LoadFromCompactBinary succeeds"), LoadFromCompactBinary(FCbFieldView(*EmptyPathField), EmptyPathFromCompactBinary));
+			TestEqual(TEXT("EmptyPathFromCompactBinary LoadFromCompactBinary correct path"), EmptyPathFromCompactBinary.ToString(), FString());
+		}
+	}
+
+	{
+		FCbWriter PackagePathWriter;
+		PackagePathWriter << FTopLevelAssetPath(PackagePath);
+		FCbFieldIterator PackagePathField = PackagePathWriter.Save();
+		if (TestEqual(TEXT("FCbWriter(TopLevelAssetPath) Validate"), ValidateCompactBinaryRange(PackagePathField.GetOuterBuffer(), ECbValidateMode::All), ECbValidateError::None))
+		{
+			FTopLevelAssetPath PackagePathFromCompactBinary;
+			TestTrue(TEXT("PackagePathFromCompactBinary LoadFromCompactBinary succeeds"), LoadFromCompactBinary(FCbFieldView(*PackagePathField), PackagePathFromCompactBinary));
+			TestEqual(TEXT("PackagePathFromCompactBinary LoadFromCompactBinary correct path"), PackagePathFromCompactBinary.ToString(), PackageName.ToString());
+		}
+	}
+
+	{
+		FCbWriter AssetPathWriter;
+		AssetPathWriter << FTopLevelAssetPath(AssetPathString);
+		FCbFieldIterator AssetPathField = AssetPathWriter.Save();
+		if (TestEqual(TEXT("FCbWriter(TopLevelAssetPath) Validate"), ValidateCompactBinaryRange(AssetPathField.GetOuterBuffer(), ECbValidateMode::All), ECbValidateError::None))
+		{
+			FTopLevelAssetPath AssetPathFromCompactBinary;
+			TestTrue(TEXT("AssetPathFromCompactBinary LoadFromCompactBinary succeeds"), LoadFromCompactBinary(FCbFieldView(*AssetPathField), AssetPathFromCompactBinary));
+			TestEqual(TEXT("AssetPathFromCompactBinary LoadFromCompactBinary correct path"), AssetPathFromCompactBinary.ToString(), AssetPathString);
+		}
+	}
 
 	// Test ExportText path with and without root 
 	// Test starting with . 

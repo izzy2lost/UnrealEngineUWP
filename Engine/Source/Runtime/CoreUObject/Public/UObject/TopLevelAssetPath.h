@@ -17,6 +17,7 @@
 #include <type_traits>
 
 struct FPropertyTag;
+class FCbWriter;
 class FString;
 class UObject;
 
@@ -85,7 +86,8 @@ struct FTopLevelAssetPath
 	FName GetAssetName() const { return AssetName; }
 
 	/** Append the full asset path (e.g. '/Path/To/Package.AssetName') to the string builder. */
-	COREUOBJECT_API void AppendString(FStringBuilderBase& Builder) const;
+	COREUOBJECT_API void AppendString(FWideStringBuilderBase& Builder) const;
+	COREUOBJECT_API void AppendString(FUtf8StringBuilderBase& Builder) const;
 	/** Append the full asset path (e.g. '/Path/To/Package.AssetName') to the string. */
 	COREUOBJECT_API void AppendString(FString& OutString) const;
 
@@ -171,15 +173,28 @@ struct FTopLevelAssetPath
 	COREUOBJECT_API bool ImportTextItem( const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText, FArchive* InSerializingArchive = nullptr );
 	COREUOBJECT_API bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 
+	COREUOBJECT_API void WriteCompactBinary(FCbWriter& Writer) const;
 private:
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FTopLevelAssetPath& Path)
+	{
+		Path.WriteCompactBinary(Writer);
+		return Writer;
+	}
+	COREUOBJECT_API friend bool LoadFromCompactBinary(FCbFieldView Field, FTopLevelAssetPath& OutPath);
+
 	/** Name of the package containing the asset e.g. /Path/To/Package */
 	FName PackageName;
 	/** Name of the asset within the package e.g. 'AssetName' */
 	FName AssetName;
 };
 
+inline FWideStringBuilderBase& operator<<(FWideStringBuilderBase& Builder, const FTopLevelAssetPath& Path)
+{
+	Path.AppendString(Builder);
+	return Builder;
+}
 
-inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FTopLevelAssetPath& Path)
+inline FUtf8StringBuilderBase& operator<<(FUtf8StringBuilderBase& Builder, const FTopLevelAssetPath& Path)
 {
 	Path.AppendString(Builder);
 	return Builder;
