@@ -248,8 +248,14 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 
 	// Skeleton Editing
 	RegisterTool(ToolManagerCommands.BeginSkeletonEditingTool, TEXT("BeginSkeletonEditingTool"), NewObject<USkeletonEditingToolBuilder>());
-	
+
+	// highlights skin weights tool by default
 	GetInteractiveToolsContext()->ToolManager->SelectActiveToolType(EToolSide::Left, TEXT("BeginSkinWeightsPaintTool"));
+
+	// record switching behavior to restore on exit
+	ToolSwitchModeToRestoreOnExit = GetInteractiveToolsContext()->ToolManager->GetToolSwitchMode();
+	// default to NOT applying changes to skeletal meshes when switching between tools without accepting
+	GetInteractiveToolsContext()->ToolManager->SetToolSwitchMode(EToolManagerToolSwitchMode::CancelIfAble);
 }
 
 UDebugSkelMeshComponent* USkeletalMeshModelingToolsEditorMode::GetSkelMeshComponent() const
@@ -269,6 +275,9 @@ void USkeletalMeshModelingToolsEditorMode::Exit()
 	UE::TransformGizmoUtil::DeregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshGizmoUtils::UnregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshEditorUtils::UnregisterEditorContextObject(InteractiveToolsContext);
+
+	// restore previous tool switching behavior
+	GetInteractiveToolsContext()->ToolManager->SetToolSwitchMode(ToolSwitchModeToRestoreOnExit);
 	
 #if ENABLE_STYLUS_SUPPORT
 	StylusStateTracker = nullptr;

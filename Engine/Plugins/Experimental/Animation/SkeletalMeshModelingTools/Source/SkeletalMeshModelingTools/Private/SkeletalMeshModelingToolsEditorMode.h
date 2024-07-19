@@ -16,6 +16,7 @@ class ISkeletalMeshEditingInterface;
 class HHitProxy;
 class UDebugSkelMeshComponent;
 class ISkeletalMeshEditor;
+enum class EToolManagerToolSwitchMode;
 
 UCLASS()
 class USkeletalMeshModelingToolsEditorMode : 
@@ -52,6 +53,9 @@ protected:
 private:
 	// Stylus support is currently disabled; this is left in for reference if/when it is brought back
 	//TUniquePtr<FStylusStateTracker> StylusStateTracker;
+
+	// we restore previous switch tool behavior when exiting this mode
+	EToolManagerToolSwitchMode ToolSwitchModeToRestoreOnExit;
 
 	static ISkeletalMeshEditingInterface* GetSkeletonInterface(UInteractiveTool* InTool);
 
