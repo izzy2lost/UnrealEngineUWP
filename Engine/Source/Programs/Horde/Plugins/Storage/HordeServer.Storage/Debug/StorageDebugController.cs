@@ -20,7 +20,7 @@ namespace HordeServer.Debug
 	[Authorize]
 	[DebugEndpoint]
 	[Tags("Debug")]
-	class StorageDebugController : HordeControllerBase
+	public class StorageDebugController : HordeControllerBase
 	{
 		readonly IServiceProvider _serviceProvider;
 		readonly IOptionsSnapshot<StorageConfig> _storageConfig;
