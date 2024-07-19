@@ -177,7 +177,10 @@ bool FMobileDistanceFieldShadowsAndLQLightMapPolicy::ShouldCompilePermutation(co
 {
 	static auto* CVarMobileAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
 	const bool bMobileAllowDistanceFieldShadows = CVarMobileAllowDistanceFieldShadows->GetValueOnAnyThread() == 1;
-	return bMobileAllowDistanceFieldShadows && Super::ShouldCompilePermutation(Parameters);
+	
+	return bMobileAllowDistanceFieldShadows && 
+		!IsTranslucentBlendMode(Parameters.MaterialParameters) &&
+		Super::ShouldCompilePermutation(Parameters);
 }
 
 void FMobileDistanceFieldShadowsAndLQLightMapPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -192,10 +195,7 @@ bool FMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy::ShouldCompilePermu
 		return false;
 	}
 
-	return FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() &&
-		Parameters.MaterialParameters.ShadingModels.IsLit() &&
-		!IsTranslucentBlendMode(Parameters.MaterialParameters) &&
-		Super::ShouldCompilePermutation(Parameters);
+	return FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() &&	Super::ShouldCompilePermutation(Parameters);
 }
 
 void FMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)

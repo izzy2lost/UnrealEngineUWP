@@ -288,6 +288,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	MinimalPipelineStateInitializer.BlendState = DrawRenderState.GetBlendState();
 	MinimalPipelineStateInitializer.DepthStencilState = DrawRenderState.GetDepthStencilState();
 	MinimalPipelineStateInitializer.DrawShadingRate = GetShadingRateFromMaterial(MaterialResource.GetShadingRate());
+	MinimalPipelineStateInitializer.bAllowVariableRateShading = MaterialResource.IsVariableRateShadingAllowed() && HardwareVariableRateShadingSupportedByPlatform(GMaxRHIShaderPlatform);
 
 	// NOTE: AsGraphicsPipelineStateInitializer will create the RHIShaders internally if they are not cached yet
 	FGraphicsPipelineStateInitializer PipelineStateInitializer = MinimalPipelineStateInitializer.AsGraphicsPipelineStateInitializer(); 

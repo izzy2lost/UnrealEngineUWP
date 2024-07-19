@@ -408,7 +408,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 
 			if (LightMapInteraction.GetType() == LMIT_Texture && FReadOnlyCVARCache::EnableLowQualityLightmaps())
 			{
-				const FShadowMapInteraction ShadowMapInteraction = (Mesh.LCI != nullptr)
+				const FShadowMapInteraction ShadowMapInteraction = (Mesh.LCI != nullptr && !bIsTranslucent)
 					? Mesh.LCI->GetShadowMapInteraction(FeatureLevel)
 					: FShadowMapInteraction();
 
@@ -486,14 +486,16 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 	
 	if (bLitMaterial)
 	{
-		if (!IsStaticLightingAllowed())
+		const bool bAllowStaticLighting = IsStaticLightingAllowed();
+		
+		if (!bAllowStaticLighting)
 		{
-			if (bUsesDeferredShading || bTranslucent || !MobileUseCSMShaderBranch())
+			if (bUsesDeferredShading || !MobileUseCSMShaderBranch())
 			{
 				Result.Add(LMP_NO_LIGHTMAP);
 			}
 						
-			if (!bTranslucent && !bUsesDeferredShading)
+			if (!bUsesDeferredShading)
 			{
 				// permutation that can receive CSM
 				Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM);
@@ -501,11 +503,11 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 		}
 		else
 		{
-			if (FReadOnlyCVARCache::EnableLowQualityLightmaps())
+			if (!bMovable && FReadOnlyCVARCache::EnableLowQualityLightmaps())
 			{
-				if (FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && !bUsesDeferredShading)
+				if (FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && !bUsesDeferredShading && bCanReceiveCSM)
 				{
-					if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
+					if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows() && !bTranslucent)
 					{
 						Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM);
 					}
@@ -518,7 +520,7 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP);
 				}
 
-				if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
+				if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows() && !bCanReceiveCSM && !bTranslucent)
 				{
 					Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP);
 				}
@@ -534,16 +536,16 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 						Result.Add(LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP);
 					}
 				}
-				else
-				{
-					Result.Add(LMP_LQ_LIGHTMAP);
-				}
+				
+				Result.Add(LMP_LQ_LIGHTMAP);
 			}
 						
 			// ILC/LVM
 			if (bMovable)
 			{
-				if (!bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers())
+				Result.Add(LMP_NO_LIGHTMAP); // in case there is no valid ILC/VLM
+				
+				if (!bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && bCanReceiveCSM)
 				{
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT);
 				}
@@ -1105,7 +1107,11 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 	const FMaterialShadingModelField ShadingModels = Material.GetShadingModels();
 	const bool bLitMaterial = ShadingModels.IsLit();
 
-	bool bMovable = PreCacheParams.Mobility == EComponentMobility::Movable || PreCacheParams.Mobility == EComponentMobility::Stationary;
+	bool bMovable = 
+		PreCacheParams.Mobility == EComponentMobility::Movable || 
+		PreCacheParams.Mobility == EComponentMobility::Stationary || 
+		PreCacheParams.bUsesIndirectLightingCache; // ILC uses movable path
+
 	bool bDitheredLODTransition = !bMovable && Material.IsDitheredLODTransition() && !PreCacheParams.bForceLODModel;
 
 	// Setup the draw state

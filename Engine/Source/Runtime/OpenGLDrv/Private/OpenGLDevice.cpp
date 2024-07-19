@@ -1273,12 +1273,7 @@ static void InitRHICapabilitiesForGL()
 	// @TODO revisit this with newer drivers
 	GRHINeedsUnatlasedCSMDepthsWorkaround = true;
 
-	static const auto CVarPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecaching"));
-	if (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0 && CVarAllowPSOPrecaching.GetValueOnAnyThread())
-	{
-		GRHISupportsPSOPrecaching = true;
-	}
-	
+	GRHISupportsPSOPrecaching = CVarAllowPSOPrecaching.GetValueOnAnyThread();
 	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnablePSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 
 	GRHIGlobals.NeedsShaderUnbinds = true;

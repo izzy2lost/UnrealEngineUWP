@@ -91,9 +91,9 @@ static FAutoConsoleVariableRef GCVarEnableTransientResourceAllocator(
 
 static TAutoConsoleVariable<bool> CVarAllowVulkanPSOPrecache(
 	TEXT("r.Vulkan.AllowPSOPrecaching"),
-	false,
-	TEXT("true: if r.PSOPrecaching=1 Vulkan RHI will use precaching.\n")
-	TEXT("false: Vulkan RHI will disable precaching (even if r.PSOPrecaching=1). (default)"),
+	true,
+	TEXT("true: if r.PSOPrecaching=1 Vulkan RHI will use precaching. (default)\n")
+	TEXT("false: Vulkan RHI will disable precaching (even if r.PSOPrecaching=1)."),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 // If precaching is active we should not need the file cache.
@@ -516,9 +516,7 @@ FVulkanDynamicRHI::FVulkanDynamicRHI()
 
 	GRHIGlobals.SupportsBarycentricsSemantic = true;
 
-	static const auto CVarPSOPrecaching = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PSOPrecaching"));
-
-	GRHISupportsPSOPrecaching = FVulkanChunkedPipelineCacheManager::IsEnabled() && (CVarPSOPrecaching && CVarPSOPrecaching->GetInt() != 0) && CVarAllowVulkanPSOPrecache.GetValueOnAnyThread();
+	GRHISupportsPSOPrecaching = CVarAllowVulkanPSOPrecache.GetValueOnAnyThread();
 	GRHISupportsPipelineFileCache = !GRHISupportsPSOPrecaching || CVarEnableVulkanPSOFileCacheWhenPrecachingActive.GetValueOnAnyThread();
 	UE_LOG(LogVulkanRHI, Log, TEXT("Vulkan PSO Precaching = %d, PipelineFileCache = %d"), GRHISupportsPSOPrecaching, GRHISupportsPipelineFileCache);
 

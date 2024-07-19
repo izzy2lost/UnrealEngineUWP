@@ -1534,11 +1534,33 @@ void UTextRenderComponent::PostLoad()
 	Super::PostLoad();
 }
 
+FVertexDeclarationElementList InitDummyVertexDeclarationElementsForText()
+{
+	FStaticMeshVertexBuffers VertexBuffers;
+	VertexBuffers.PositionVertexBuffer.Init(1);
+	VertexBuffers.StaticMeshVertexBuffer.Init(1, 1);
+	VertexBuffers.ColorVertexBuffer.Init(1);
+	
+	VertexBuffers.PositionVertexBuffer.VertexPosition(0) = FVector3f(0, 0, 0);
+	VertexBuffers.StaticMeshVertexBuffer.SetVertexTangents(0, FVector3f(1, 0, 0), FVector3f(0, 1, 0), FVector3f(0, 0, 1));
+	VertexBuffers.StaticMeshVertexBuffer.SetVertexUV(0, 0, FVector2f(0, 0));
+	VertexBuffers.ColorVertexBuffer.VertexColor(0) = FColor(1,1,1,1);
+
+	FLocalVertexFactory::FDataType Data;
+	VertexBuffers.PositionVertexBuffer.BindPositionVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindTangentVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindPackedTexCoordVertexBuffer(nullptr, Data);
+	VertexBuffers.StaticMeshVertexBuffer.BindLightMapVertexBuffer(nullptr, Data, 0);
+	VertexBuffers.ColorVertexBuffer.BindColorVertexBuffer(nullptr, Data);
+	
+	FVertexDeclarationElementList Elements;
+	FLocalVertexFactory::GetVertexElements(GMaxRHIFeatureLevel, EVertexInputStreamType::Default, false, Data, Elements);
+	return Elements;
+}
+
 void UTextRenderComponent::PrecachePSOs()
 {
-	if (IsComponentPSOPrecachingEnabled() && TextMaterial
-		// FIXME: need to collect an actual vertex declaration for non-MVF path
-		&& RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+	if (IsComponentPSOPrecachingEnabled() && TextMaterial)
 	{
 		FPSOPrecacheParams PrecachePSOParams;
 		SetupPrecachePSOParams(PrecachePSOParams);
@@ -1547,7 +1569,20 @@ void UTextRenderComponent::PrecachePSOs()
 		// and leaves the default CastShadow value which is true
 		PrecachePSOParams.bCastShadow = true;
 
-		TextMaterial->PrecachePSOs(&FLocalVertexFactory::StaticType, PrecachePSOParams);
+		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
+
+		if (RHISupportsManualVertexFetch(GMaxRHIShaderPlatform))
+		{
+			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
+		}
+		else
+		{
+			const static FVertexDeclarationElementList Elements = InitDummyVertexDeclarationElementsForText();
+			VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType, Elements));
+		}
+
+		TArray<FMaterialPSOPrecacheRequestID> MaterialPrecacheRequestIDs;
+		TextMaterial->PrecachePSOs(VertexFactoryDataList, PrecachePSOParams, EPSOPrecachePriority::Medium, MaterialPrecacheRequestIDs);
 	}
 }
 

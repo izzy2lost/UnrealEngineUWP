@@ -107,6 +107,7 @@ struct FPSOPrecacheParams
 			uint64 bCastShadow : 1;
 			uint64 bRenderCustomDepth : 1;
 			
+			uint64 bUsesIndirectLightingCache : 1;
 			uint64 bAffectDynamicIndirectLighting : 1;
 			uint64 bReverseCulling : 1;
 			uint64 bDisableBackFaceCulling : 1;
@@ -119,7 +120,7 @@ struct FPSOPrecacheParams
 
 			uint64 BasePassPixelFormat : 16;
 
-			uint64 Unused : 21;
+			uint64 Unused : 20;
 		};
 		uint64 Data;
 	};

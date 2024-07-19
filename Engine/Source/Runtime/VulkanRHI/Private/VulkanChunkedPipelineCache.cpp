@@ -64,7 +64,7 @@ namespace UE
 {
 	namespace Vulkan
 	{
-		static int32 GUseChunkedPSOCache = 0;
+		static int32 GUseChunkedPSOCache = PLATFORM_ANDROID;
 		static FAutoConsoleVariableRef GVulkanGUseNewCacheCodeCVar(
 			TEXT("r.Vulkan.UseChunkedPSOCache"),
 			GUseChunkedPSOCache,

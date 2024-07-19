@@ -4741,6 +4741,7 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 	Params.bRenderInMainPass = bRenderInMainPass;
 	Params.bRenderInDepthPass = bRenderInDepthPass;
 	Params.bStaticLighting = HasStaticLighting();
+	Params.bUsesIndirectLightingCache = Params.bStaticLighting && IndirectLightingCacheQuality != ILCQ_Off && (!IsPrecomputedLightingValid() || GetLightmapType() == ELightmapType::ForceVolumetric);
 	Params.bAffectDynamicIndirectLighting = bAffectDynamicIndirectLighting;
 	Params.bCastShadow = CastShadow;
 	// Custom depth can be toggled at runtime with PSO precache call so assume it might be needed when depth pass is needed
