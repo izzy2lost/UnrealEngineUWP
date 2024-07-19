@@ -349,7 +349,9 @@ void FSceneComponentDetails::MakeTransformDetails( IDetailLayoutBuilder& DetailB
 			}
 		}
 
-		const FSelectedActorInfo& SelectedActorInfo = SelectedActorInfoPtr ? *SelectedActorInfoPtr : FSelectedActorInfo();
+		static const FSelectedActorInfo EmptyActorInfo;
+
+		const FSelectedActorInfo& SelectedActorInfo = SelectedActorInfoPtr ? *SelectedActorInfoPtr : EmptyActorInfo;
 		TSharedRef<FComponentTransformDetails> TransformDetails = MakeShareable( new FComponentTransformDetails( bIsEditingBlueprintDefaults ? SceneComponentObjects : DetailBuilder.GetSelectedObjects(), SelectedActorInfo, DetailBuilder ) );
 
 		if(!bShouldShowTransform)
