@@ -112,6 +112,10 @@ public:
 
 	const FString& GetRecentPlayerNamespaceToQuery() const { return RecentPlayerNamespaceToQuery; }
 	
+	/** Event triggered when the owning local player's login status changes */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnLoginChanged, bool /*bLoggedIn*/);
+	FOnLoginChanged& OnLoginChanged() const { return OnLoginChangedEvent; }
+
 	DECLARE_EVENT_OneParam(USocialToolkit, FPartyInviteEvent, USocialUser&);
 	FPartyInviteEvent& OnPartyInviteReceived() const { return OnPartyInviteReceivedEvent; }
 	FPartyInviteEvent& OnPartyInviteRemoved() const { return OnPartyInviteRemovedEvent; }
@@ -320,6 +324,8 @@ private:
 
 	TSet<IOnlinePartyJoinInfoConstRef> PartyInvitations;
 	mutable TArray<TWeakPtr<FSocialUserList>> CachedSocialUserLists;
+
+	mutable FOnLoginChanged OnLoginChangedEvent;
 
 	mutable FPartyInviteEvent OnPartyInviteReceivedEvent;
 	mutable FPartyInviteEvent OnPartyInviteAcceptedEvent;

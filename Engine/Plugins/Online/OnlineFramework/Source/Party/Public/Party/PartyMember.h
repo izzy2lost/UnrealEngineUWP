@@ -257,6 +257,7 @@ private:
 	void HandleMemberAttributeChanged(const FUniqueNetId& ChangedUserId, const FString& Attribute, const FString& NewValue, const FString& OldValue);
 	void OnSocialToolkitCreated(USocialToolkit& Toolkit);
 	void OnSocialToolkitDestroyed(USocialToolkit& Toolkit);
+	void OnSocialToolkitLoggedIn(USocialToolkit& Toolkit);
 
 	FOnlinePartyMemberConstPtr OssPartyMember;
 

@@ -472,6 +472,25 @@ void UPartyMember::HandleMemberAttributeChanged(const FUniqueNetId& ChangedUserI
 
 void UPartyMember::OnSocialToolkitCreated(USocialToolkit& Toolkit)
 {
+	if (Toolkit.IsOwnerLoggedIn())
+	{
+		OnSocialToolkitLoggedIn(Toolkit);
+	}
+	else
+	{
+		Toolkit.OnLoginChanged().AddWeakLambda(this, [this, Toolkit = TObjectPtr<USocialToolkit>(&Toolkit)](bool bLoggedIn)
+		{
+			if (bLoggedIn)
+			{
+				OnSocialToolkitLoggedIn(*Toolkit);
+				Toolkit->OnLoginChanged().RemoveAll(this);
+			}
+		});
+	}
+}
+
+void UPartyMember::OnSocialToolkitLoggedIn(USocialToolkit& Toolkit)
+{
 	InitializeSocialUserForToolkit(Toolkit);
 }
 

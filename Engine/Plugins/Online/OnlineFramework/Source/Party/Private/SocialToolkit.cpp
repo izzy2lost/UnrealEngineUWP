@@ -661,6 +661,7 @@ void USocialToolkit::OnOwnerLoggedIn()
 	{
 		QueryRecentPlayers();
 	}
+	OnLoginChanged().Broadcast(true);
 }
 
 void USocialToolkit::OnOwnerLoggedOut()
@@ -716,6 +717,7 @@ void USocialToolkit::OnOwnerLoggedOut()
 	LocalUser = NewObject<USocialUser>(this, SocialUserClass);
 
 	OnToolkitReset().Broadcast();
+	OnLoginChanged().Broadcast(false);
 }
 
 void USocialToolkit::QueryFriendsLists()
