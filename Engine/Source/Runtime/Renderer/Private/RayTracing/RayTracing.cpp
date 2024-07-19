@@ -340,7 +340,7 @@ namespace RayTracing
 			StaticUniformBuffers.AddUniformBuffer(View.ViewUniformBuffer.GetReference());
 			StaticUniformBuffers.AddUniformBuffer(SceneUniformBuffer);
 			StaticUniformBuffers.AddUniformBuffer(Nanite::GRayTracingManager.GetUniformBuffer().GetReference());
-			StaticUniformBuffers.AddUniformBuffer(View.LumenHardwareRayTracingUniformBuffer->GetRHI());
+			StaticUniformBuffers.AddUniformBuffer(View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer->GetRHI());
 
 			StaticUniformBufferScope.Emplace(RHICmdList, StaticUniformBuffers);
 		}
