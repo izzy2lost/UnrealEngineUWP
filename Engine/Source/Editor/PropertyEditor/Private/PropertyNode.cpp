@@ -34,7 +34,7 @@
 
 namespace UE::PropertyEditor::Private
 {
-	static bool bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable = false;
+	static bool bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable = true;
 	static FAutoConsoleVariableRef CVarShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable(
 		TEXT("PropertyEditor.ShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable"),
 		bShowInlineEditConditionToggleWhenNotSpecifiedAndNotEditable,
