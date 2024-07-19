@@ -15,6 +15,14 @@ public:
 	
 	virtual void BeginPlay() override;
 	
+	/** Returns true if currently crouching */ 
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	virtual bool IsCrouching() const;
+
+	/** Returns true if currently flying (moving through a non-fluid volume without resting on the ground) */
+	UFUNCTION(BlueprintPure, Category = Mover)
+	virtual bool IsFlying() const;
+	
 	// Is this actor in a falling state? Note that this includes upwards motion induced by jumping.
 	UFUNCTION(BlueprintPure, Category = Mover)
 	virtual bool IsFalling() const;

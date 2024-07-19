@@ -27,6 +27,21 @@ void UCharacterMoverComponent::BeginPlay()
 	OnPreSimulationTick.AddDynamic(this, &UCharacterMoverComponent::OnMoverPreSimulationTick);
 }
 
+bool UCharacterMoverComponent::IsCrouching() const
+{
+	return false; // Crouching not yet supported by Mover
+}
+
+bool UCharacterMoverComponent::IsFlying() const
+{
+	if (const UBaseMovementMode* Mode = GetMovementMode())
+	{
+		return Mode->GameplayTags.HasTag(Mover_IsFlying);
+	}
+
+	return false;
+}
+
 bool UCharacterMoverComponent::IsFalling() const
 {
 	if (const UBaseMovementMode* Mode = GetMovementMode())
