@@ -71,7 +71,8 @@ public class LiveLinkHubTarget : TargetRules
 		{
 			OptionalPlugins.AddRange(new string[]
 			{
-				"CaptureManager"
+				"CaptureManagerApp",
+				"CaptureManagerCore"
 			});
 		}
 
