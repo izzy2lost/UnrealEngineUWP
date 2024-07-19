@@ -1,8 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using Amazon.EC2;
 using Amazon.EC2.Model;
 using HordeServer.Agents;
@@ -11,7 +8,6 @@ using HordeServer.Agents.Fleet.Providers;
 using HordeServer.Agents.Pools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Fleet
 {

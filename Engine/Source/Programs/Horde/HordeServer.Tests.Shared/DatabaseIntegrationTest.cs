@@ -1,11 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using HordeServer.Server;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
@@ -227,7 +223,7 @@ namespace HordeServer.Tests
 					ss.MongoDatabaseName = _mongoInstance.DatabaseName;
 					ss.MongoConnectionString = _mongoInstance.ConnectionString;
 
-					MongoCommandTracer mongoTracer = new (OpenTelemetryTracers.MongoDb, _loggerFactory.CreateLogger<MongoCommandTracer>());
+					MongoCommandTracer mongoTracer = new(OpenTelemetryTracers.MongoDb, _loggerFactory.CreateLogger<MongoCommandTracer>());
 					_mongoService = new MongoService(Options.Create(ss), redisService, mongoTracer, OpenTelemetryTracers.Horde, _loggerFactory.CreateLogger<MongoService>(), _loggerFactory);
 				}
 			}

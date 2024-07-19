@@ -1,14 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -20,7 +15,6 @@ using HordeServer.Commits;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
-using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -702,7 +696,7 @@ namespace HordeServer.Issues
 			handlers.SortBy(x => -x.Priority);
 
 			// Create all the issue definitions by passing each log event to the handlers in order until one attaches it to an issue
-			List <ILogAnchor> stepAnchors = await log.GetAnchorsAsync(cancellationToken: cancellationToken);
+			List<ILogAnchor> stepAnchors = await log.GetAnchorsAsync(cancellationToken: cancellationToken);
 			foreach (ILogAnchor stepAnchor in stepAnchors)
 			{
 				ILogEventData stepEventData = await stepAnchor.GetDataAsync(cancellationToken);

@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using HordeServer.Acls;
 
@@ -15,9 +10,9 @@ namespace HordeServer.Utilities
 	/// </summary>
 	public class DefaultAclBuilder
 	{
-		List<AclEntryConfig> _roles = new List<AclEntryConfig>();
-		HashSet<AclAction> _readActions = new HashSet<AclAction>();
-		HashSet<AclAction> _writeActions = new HashSet<AclAction>();
+		readonly List<AclEntryConfig> _roles = new List<AclEntryConfig>();
+		readonly HashSet<AclAction> _readActions = new HashSet<AclAction>();
+		readonly HashSet<AclAction> _writeActions = new HashSet<AclAction>();
 
 		/// <summary>
 		/// Adds a custom role with a certain set of entitlements
@@ -26,11 +21,6 @@ namespace HordeServer.Utilities
 		/// <param name="actions">Actions to allow the user to perform</param>
 		public void AddCustomRole(AclClaimConfig claim, AclAction[] actions)
 			=> _roles.Add(new AclEntryConfig(claim, actions));
-
-		public void AddCustomRole(AclClaimConfig uploadToolsClaim, object[] values)
-		{
-			throw new NotImplementedException();
-		}
 
 		/// <summary>
 		/// Adds a default read operation that users can perform

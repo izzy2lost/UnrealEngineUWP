@@ -1,13 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -274,7 +269,7 @@ namespace HordeServer.Issues
 			public List<string>? LegacyChangeFilter
 			{
 				get => null;
-				set => ChangeFilter = (value == null)? null : String.Join(";", value);
+				set => ChangeFilter = (value == null) ? null : String.Join(";", value);
 			}
 
 			string IIssueFingerprint.ChangeFilter => ChangeFilter ?? String.Join(";", GetLegacyHandlerInfo(Type).ChangeFilter);

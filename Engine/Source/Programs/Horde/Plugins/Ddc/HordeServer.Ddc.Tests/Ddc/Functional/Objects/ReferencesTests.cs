@@ -1,19 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.AspNet;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -27,7 +20,6 @@ using HordeServer.Storage;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Ddc.FunctionalTests.References
 {
@@ -1044,7 +1036,7 @@ namespace HordeServer.Tests.Ddc.FunctionalTests.References
 		public async Task GetMissingContentIdRecordAsync()
 		{
 			CancellationToken cancellationToken = CancellationToken.None;
-			
+
 			string blobContents = $"This is a blob in {nameof(GetMissingContentIdRecordAsync)}";
 			byte[] blobData = Encoding.ASCII.GetBytes(blobContents);
 			BlobId uncompressedHash = BlobId.FromBlob(blobData);

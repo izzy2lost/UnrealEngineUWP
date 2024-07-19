@@ -1,15 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 extern alias JobDriver;
-using System;
 using System.Buffers;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -33,7 +28,6 @@ using HordeServer.Users;
 using JobDriver.JobDriver.Parser;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Moq;
@@ -1571,7 +1565,8 @@ namespace HordeServer.Tests.Issues
 		{
 			IJob job = CreateJob(_mainStreamId, 120, "Compile Test", _graph);
 
-			await WriteEventsAsync(job, 0, 0, logger => {
+			await WriteEventsAsync(job, 0, 0, logger =>
+			{
 				logger.LogInformation("Foo");
 
 				IssueFingerprint fingerprint = new IssueFingerprint("NewIssueType", "This is an issue with severity: {Severity}");

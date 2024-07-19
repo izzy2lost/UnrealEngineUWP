@@ -1,11 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using EpicGames.Core;
 using EpicGames.Serialization;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Ddc.UnitTests
 {

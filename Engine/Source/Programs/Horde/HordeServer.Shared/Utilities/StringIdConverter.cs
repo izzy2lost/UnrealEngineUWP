@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Reflection;
 using EpicGames.Core;
 using EpicGames.Horde;
@@ -41,6 +40,7 @@ namespace HordeServer.Utilities
 		}
 	}
 
+#pragma warning disable CS1591
 	/// <summary>
 	/// Surrogate type for serializing StringId types to ProtoBuf
 	/// </summary>
@@ -55,4 +55,5 @@ namespace HordeServer.Utilities
 		public static implicit operator TValue(StringIdProto<TValue, TConverter> source) => s_converter.FromStringId(new StringId(source.Id!));
 		public static implicit operator StringIdProto<TValue, TConverter>(TValue source) => new StringIdProto<TValue, TConverter> { Id = s_converter.ToStringId(source).ToString() };
 	}
+#pragma warning restore CS1591
 }

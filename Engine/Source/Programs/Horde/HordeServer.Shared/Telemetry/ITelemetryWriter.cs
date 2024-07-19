@@ -25,6 +25,7 @@ namespace HordeServer.Telemetry
 		/// Writes a telemetry event
 		/// </summary>
 		/// <param name="telemetryStoreId">The telemetry store to write to</param>
+		/// <param name="metadata">Metadata for the event</param>
 		/// <param name="payload">Event data to write</param>
 		void WriteEvent(TelemetryStoreId telemetryStoreId, TelemetryRecordMeta metadata, object payload);
 	}

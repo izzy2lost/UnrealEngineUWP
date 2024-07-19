@@ -1,35 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
-using EpicGames.Horde.Users;
-using EpicGames.Perforce;
-using EpicGames.Redis;
-using HordeServer.Commits;
-using HordeServer.Server;
-using HordeServer.Streams;
-using HordeServer.Users;
-using HordeServer.Utilities;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using MongoDB.Bson;
-using MongoDB.Bson.Serialization.Attributes;
-using MongoDB.Bson.Serialization.Options;
-using MongoDB.Driver;
 using OpenTelemetry.Trace;
-using StackExchange.Redis;
 
 namespace HordeServer.Utilities
 {

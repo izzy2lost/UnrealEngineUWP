@@ -1,25 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Perforce;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Messages;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Agents.Leases;
 using HordeServer.Server;
 using HordeServer.Utilities;
-using HordeCommon;
-using HordeCommon.Rpc.Messages;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -495,7 +488,7 @@ namespace HordeServer.Perforce
 			{
 				HealthStatus.Unhealthy => "One or more Perforce servers are unhealthy. Check Perforce servers page for details.",
 				HealthStatus.Degraded => "One or more Perforce servers are degraded. Check Perforce servers page for details.",
-				HealthStatus.Healthy => null, 
+				HealthStatus.Healthy => null,
 				_ => throw new ArgumentOutOfRangeException($"Unknown health status: {result}")
 			};
 

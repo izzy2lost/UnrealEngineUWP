@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 
 namespace HordeServer.Logs

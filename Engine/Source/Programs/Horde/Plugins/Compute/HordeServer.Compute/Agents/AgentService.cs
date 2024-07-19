@@ -1,13 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -16,6 +11,8 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
 using EpicGames.Serialization;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc;
+using HordeCommon.Rpc.Messages;
 using HordeServer.Acls;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
@@ -24,8 +21,6 @@ using HordeServer.Auditing;
 using HordeServer.Server;
 using HordeServer.Tasks;
 using HordeServer.Utilities;
-using HordeCommon.Rpc;
-using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
@@ -86,19 +81,19 @@ namespace HordeServer.Agents
 		readonly ITicker _ticker;
 		readonly ITicker _sharedTicker;
 
-		readonly RedisStringKey<AgentRateTable> _agentRateTableData = new ("agent-rates");
+		readonly RedisStringKey<AgentRateTable> _agentRateTableData = new("agent-rates");
 
 		/// <summary>Lazily updated costs for different agent types</summary>
 		readonly AsyncCachedValue<AgentRateTable?> _cachedRates;
 
 		/// <summary>Lazily updated list of current pools</summary>
 		readonly AsyncCachedValue<IReadOnlyList<IPoolConfig>> _cachedPools;
-		
+
 		/// <summary>Manually updated cached list of current agents</summary>
 		IReadOnlyDictionary<AgentId, IAgent>? _cachedAgents;
 
 		/// <summary>All the agents currently performing a long poll for work on this server</summary>
-		readonly Dictionary<AgentId, CancellationTokenSource> _waitingAgents = new ();
+		readonly Dictionary<AgentId, CancellationTokenSource> _waitingAgents = new();
 
 		/// <summary>OpenTelemetry measurements (gauges)</summary>
 		IEnumerable<Measurement<int>> _measurements = new List<Measurement<int>>();
@@ -278,7 +273,7 @@ namespace HordeServer.Agents
 		{
 			return Agents.FindAsync(poolId, modifiedAfter, property, null, null, includeDeleted, index, count, true, cancellationToken);
 		}
-		
+
 		/// <summary>
 		/// Get all agents from local in-memory cache
 		/// </summary>
@@ -1177,7 +1172,7 @@ namespace HordeServer.Agents
 			{
 				agents[agent.Id] = agent;
 			}
-			
+
 			Interlocked.Exchange(ref _cachedAgents, agents);
 		}
 

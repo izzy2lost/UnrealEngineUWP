@@ -1,11 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
-using HordeServer.Server;
 using HordeServer.Tools;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

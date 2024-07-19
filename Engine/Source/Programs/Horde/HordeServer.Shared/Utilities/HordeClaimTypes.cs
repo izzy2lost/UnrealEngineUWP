@@ -130,9 +130,6 @@ namespace HordeServer.Utilities
 		/// <summary>
 		/// Determines whether the given user can masquerade as a given user
 		/// </summary>
-		/// <param name="user"></param>
-		/// <param name="userId"></param>
-		/// <returns></returns>
 		public static bool AuthorizeAsUser(this AclConfig aclConfig, ClaimsPrincipal user, UserId userId)
 		{
 			UserId? currentUserId = user.GetUserId();

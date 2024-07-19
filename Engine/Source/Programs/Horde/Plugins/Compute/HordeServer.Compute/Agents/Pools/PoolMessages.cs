@@ -1,9 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
@@ -513,7 +510,7 @@ namespace HordeServer.Agents.Pools
 		/// The minimum number of idle agents in this pool, if autoscaling is enabled
 		/// </summary>
 		public int? NumReserveAgents { get; set; }
-		
+
 		/// <summary>
 		/// Time to wait before shutting down an agent that has been disabled
 		/// </summary>

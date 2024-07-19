@@ -1,11 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 using HordeServer.Server;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

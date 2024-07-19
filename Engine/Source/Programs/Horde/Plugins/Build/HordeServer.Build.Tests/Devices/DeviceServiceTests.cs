@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
@@ -19,7 +15,6 @@ using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
 namespace HordeServer.Tests.Devices

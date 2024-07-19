@@ -1,15 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Security.Claims;
-using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Artifacts;
@@ -32,6 +27,9 @@ using HordeServer.Utilities;
 
 namespace HordeServer
 {
+	/// <summary>
+	/// Configuration for the build plugin
+	/// </summary>
 	public class BuildConfig : IPluginConfig
 	{
 		/// <summary>

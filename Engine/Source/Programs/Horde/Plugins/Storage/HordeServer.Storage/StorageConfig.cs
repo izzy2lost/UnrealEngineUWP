@@ -1,11 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json;
@@ -15,7 +12,6 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using HordeServer.Acls;
 using HordeServer.Plugins;
-using HordeServer.Server;
 using HordeServer.Storage.ObjectStores;
 using HordeServer.Utilities;
 
@@ -365,7 +361,6 @@ namespace HordeServer.Storage
 		/// <summary>
 		/// Callback once the configuration has been read from disk
 		/// </summary>
-		/// <param name="backendConfig"></param>
 		public void PostLoad(AclConfig parentAcl)
 		{
 			Acl.PostLoad(parentAcl, $"namespace:{Id}");

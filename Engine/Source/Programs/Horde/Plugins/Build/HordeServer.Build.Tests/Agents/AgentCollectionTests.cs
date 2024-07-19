@@ -1,14 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using HordeServer.Agents;
 using HordeServer.Agents.Sessions;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Agents;
 
@@ -107,7 +103,7 @@ public class AgentCollectionTests : BuildTestSetup
 		await _agent.TryAddLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions{ Leases = new List<AgentLease> { _lease1 } });
+		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { _lease1 } });
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 

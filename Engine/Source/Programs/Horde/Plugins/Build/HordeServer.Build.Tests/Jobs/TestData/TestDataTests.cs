@@ -1,11 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -15,16 +10,15 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
+using HordeServer.Jobs.TestData;
 using HordeServer.Logs;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
-using HordeServer.Jobs.TestData;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using MongoDB.Bson;
 using Moq;
 

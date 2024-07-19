@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -17,7 +12,6 @@ using HordeServer.Issues.External;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
-using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
 using HordeServer.Utilities;
@@ -535,7 +529,7 @@ namespace HordeServer.Issues
 			response.QuarantineTimeUtc = details.QuarantineTimeUtc;
 			response.ForceClosedByUserInfo = details.ForceClosedBy?.ToThinApiResponse();
 			response.WorkflowThreadUrl = issue.WorkflowThreadUrl;
-			
+
 			if (issue.Fingerprints != null && issue.Fingerprints.Count > 0)
 			{
 				response.FingerprintDescription = String.Join(", ", issue.Fingerprints.Select(x =>

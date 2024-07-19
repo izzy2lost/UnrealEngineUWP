@@ -1,12 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Security.Claims;
-using System.Text;
-using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 
 namespace HordeServer.Acls
@@ -41,6 +36,7 @@ namespace HordeServer.Acls
 		/// <summary>
 		/// Authorizes a user to perform a given action
 		/// </summary>
+		/// <param name="aclService">Instance of the ACL service</param>
 		/// <param name="scopeName">Name of the scope to auth against</param>
 		/// <param name="action">The action being performed</param>
 		/// <param name="user">The principal to validate</param>
@@ -50,6 +46,7 @@ namespace HordeServer.Acls
 		/// <summary>
 		/// Issues a bearer token with the given roles
 		/// </summary>
+		/// <param name="aclService">Instance of the ACL service</param>
 		/// <param name="claims">List of claims to include</param>
 		/// <param name="expiry">Time that the token expires</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>

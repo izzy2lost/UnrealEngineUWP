@@ -1,10 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
 using EpicGames.Horde.Jobs;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
 namespace HordeServer.Tests.Jobs

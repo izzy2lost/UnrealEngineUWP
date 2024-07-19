@@ -109,8 +109,6 @@ namespace HordeServer
 			services.AddSingleton<IAgentTelemetryCollection>(sp => sp.GetRequiredService<AgentTelemetryCollection>());
 			services.AddHostedService(provider => provider.GetRequiredService<AgentTelemetryCollection>());
 
-
-
 			if (!_serverInfo.ReadOnlyMode)
 			{
 				services.AddSingleton<ComputeTaskSource>();

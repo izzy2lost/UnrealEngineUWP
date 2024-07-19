@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-
 namespace HordeServer.Utilities
 {
 	/// <summary>

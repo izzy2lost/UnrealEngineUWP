@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using HordeServer.Agents.Pools;
 
 namespace HordeServer.Agents.Fleet
@@ -22,7 +18,6 @@ namespace HordeServer.Agents.Fleet
 
 		/// <summary>
 		/// Strategy based on size of job build queue
-		/// <see cref="JobQueueStrategy"/> 
 		/// </summary>
 		JobQueue,
 

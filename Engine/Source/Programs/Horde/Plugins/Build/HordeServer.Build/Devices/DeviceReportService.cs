@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Devices;
 using HordeServer.Jobs;
@@ -139,7 +134,6 @@ namespace HordeServer.Devices
 		readonly IClock _clock;
 		readonly ITicker _ticker;
 		readonly IServerInfo _serverInfo;
-		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 		readonly IOptions<StaticBuildConfig> _staticBuildConfig;
 		readonly ILogger<DeviceReportService> _logger;
 
@@ -148,7 +142,7 @@ namespace HordeServer.Devices
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DeviceReportService(IMongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildConfig> buildConfig, IOptions<StaticBuildConfig> staticBuildConfig, ILogger<DeviceReportService> logger)
+		public DeviceReportService(IMongoService mongoService, DeviceService deviceService, INotificationService notificationService, IClock clock, IServerInfo serverInfo, IOptions<StaticBuildConfig> staticBuildConfig, ILogger<DeviceReportService> logger)
 		{
 			_state = new SingletonDocument<DeviceReportState>(mongoService);
 			_deviceService = deviceService;
@@ -156,7 +150,6 @@ namespace HordeServer.Devices
 			_clock = clock;
 			_serverInfo = serverInfo;
 			_ticker = clock.AddSharedTicker<DeviceReportService>(TimeSpan.FromMinutes(5.0), TickAsync, logger);
-			_buildConfig = buildConfig;
 			_staticBuildConfig = staticBuildConfig;
 			_logger = logger;
 		}

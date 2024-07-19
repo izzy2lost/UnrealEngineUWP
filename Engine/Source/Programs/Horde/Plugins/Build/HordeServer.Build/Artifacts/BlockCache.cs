@@ -1,17 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
 using System.IO.Hashing;
 using System.IO.MemoryMappedFiles;
 using System.Numerics;
 using System.Text;
-using System.Threading;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -463,7 +459,7 @@ namespace HordeServer.Artifacts
 			blockState.Touch();
 
 			ReadOnlySequenceBuilder<byte> builder = new ReadOnlySequenceBuilder<byte>();
-			for(int idx = 0; idx < blockState.BlockIdxs.Length; idx++)
+			for (int idx = 0; idx < blockState.BlockIdxs.Length; idx++)
 			{
 				int blockIdx = blockState.BlockIdxs[idx];
 

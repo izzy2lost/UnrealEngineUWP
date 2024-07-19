@@ -1,13 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents;
@@ -29,7 +24,6 @@ using HordeServer.Jobs.Timing;
 using HordeServer.Logs;
 using HordeServer.Notifications;
 using HordeServer.Perforce;
-using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
 using HordeServer.Utilities;

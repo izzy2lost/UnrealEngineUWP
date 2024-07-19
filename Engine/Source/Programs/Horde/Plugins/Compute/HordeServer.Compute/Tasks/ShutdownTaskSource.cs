@@ -1,16 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Logs;
 using HordeServer.Utilities;
-using HordeCommon.Rpc.Tasks;
 
 namespace HordeServer.Tasks
 {

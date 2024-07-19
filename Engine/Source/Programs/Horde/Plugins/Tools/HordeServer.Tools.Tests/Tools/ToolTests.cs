@@ -1,20 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Tools;
+using HordeCommon;
 using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Tools;
-using HordeCommon;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using HordeServer.Plugins;
 
 namespace HordeServer.Tests.Tools
 {
@@ -148,8 +141,8 @@ namespace HordeServer.Tests.Tools
 
 		public static async Task<byte[]> CreateZipFileDataAsync(string fileName, string fileData)
 		{
-			using MemoryStream stream = new ();
-			using (ZipArchive archive = new (stream, ZipArchiveMode.Create))
+			using MemoryStream stream = new();
+			using (ZipArchive archive = new(stream, ZipArchiveMode.Create))
 			{
 				ZipArchiveEntry entry = archive.CreateEntry(fileName);
 				await using (Stream entryStream = entry.Open())

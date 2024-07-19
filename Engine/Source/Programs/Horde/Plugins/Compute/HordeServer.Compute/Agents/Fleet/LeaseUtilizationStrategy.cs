@@ -1,19 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
 using HordeServer.Utilities;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Trace;
 

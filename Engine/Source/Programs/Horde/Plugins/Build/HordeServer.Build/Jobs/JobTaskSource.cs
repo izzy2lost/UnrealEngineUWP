@@ -1,14 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -20,6 +15,9 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon;
+using HordeCommon.Rpc.Messages;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
@@ -27,15 +25,11 @@ using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
 using HordeServer.Perforce;
-using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Streams;
 using HordeServer.Tasks;
 using HordeServer.Ugs;
 using HordeServer.Utilities;
-using HordeCommon;
-using HordeCommon.Rpc.Messages;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -187,12 +181,12 @@ namespace HordeServer.Jobs
 				Agent = agent;
 			}
 		}
-		
+
 		/// <summary>
 		/// Use lazy initialization of agent service to prevent circular dependency as AgentService depend on this class
 		/// </summary>
 		readonly Lazy<AgentService> _agentService;
-		
+
 		readonly IAclService _aclService;
 		readonly IStreamCollection _streamCollection;
 		readonly ILogCollection _logCollection;
@@ -369,7 +363,7 @@ namespace HordeServer.Jobs
 		internal async ValueTask TickAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobTaskSource)}.{nameof(TickAsync)}");
-			
+
 			// Set the NewBatchIdToQueueItem member, so we capture any updated jobs during the DB query.
 			lock (_lockObject)
 			{
@@ -377,7 +371,7 @@ namespace HordeServer.Jobs
 			}
 
 			using TelemetrySpan setupSpan = _tracer.StartActiveSpan($"{nameof(JobTaskSource)}.{nameof(TickAsync)}.Setup");
-			
+
 			// Query all the current streams
 			BuildConfig buildConfig = _buildConfig.CurrentValue;
 			IReadOnlyList<IStream> streamsList = await _streamCollection.GetAsync(buildConfig.Streams, cancellationToken);
@@ -400,7 +394,7 @@ namespace HordeServer.Jobs
 			span.SetAttribute("numAgents", agents.Count);
 			span.SetAttribute("numPools", pools.Count);
 			span.SetAttribute("numStreams", streamsList.Count);
-			
+
 			for (int idx = 0; idx < newJobs.Count; idx++)
 			{
 				IJob? newJob = newJobs[idx];
@@ -776,15 +770,15 @@ namespace HordeServer.Jobs
 			IJob job = item._job;
 			IJobStepBatch batch = item.Batch;
 			IAgent agent = waiter.Agent;
-			LeaseId leaseId = new (BinaryIdUtils.CreateNew()); // Generate a new unique id for the lease
-			
+			LeaseId leaseId = new(BinaryIdUtils.CreateNew()); // Generate a new unique id for the lease
+
 			using IDisposable logScope = _logger
 				.WithProperty("JobId", job.Id.ToString())
 				.WithProperty("BatchId", batch.Id.ToString())
 				.WithProperty("AgentId", agent.Id.ToString())
 				.WithProperty("LeaseId", leaseId.ToString())
 				.BeginScope();
-			
+
 			_logger.LogInformation("Assigning job to waiter");
 
 			// Allocate a log ID but hold off creating the actual log file until the lease has been accepted
@@ -912,7 +906,7 @@ namespace HordeServer.Jobs
 			task.BatchId = batch.Id.ToString();
 			task.LogId = logId.ToString();
 			task.JobName = leaseName.ToString();
-			task.JobOptions = (job.JobOptions != null)? GetRpcJobOptions(job.JobOptions) : null;
+			task.JobOptions = (job.JobOptions != null) ? GetRpcJobOptions(job.JobOptions) : null;
 			task.NamespaceId = namespaceId.ToString();
 			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);

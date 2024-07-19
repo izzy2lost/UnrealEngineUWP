@@ -1,15 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.Metrics;
-using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -23,13 +18,13 @@ using EpicGames.Horde.Users;
 using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using Horde.Common.Rpc;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Relay;
 using HordeServer.Logs;
 using HordeServer.Server;
 using HordeServer.Utilities;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -80,7 +75,7 @@ namespace HordeServer.Compute
 		/// Cluster ID
 		/// </summary>
 		public ClusterId ClusterId { get; }
-		
+
 		/// <summary>
 		/// User allocating the resource
 		/// </summary>
@@ -376,7 +371,7 @@ namespace HordeServer.Compute
 				span.SetAttribute($"req.res.{name}.min", resReq.Min);
 				span.SetAttribute($"req.res.{name}.max", resReq.Max);
 			}
-			
+
 			if (!_computeConfig.CurrentValue.TryGetComputeCluster(arp.ClusterId, out ComputeClusterConfig? clusterConfig))
 			{
 				throw new ArgumentException($"Cluster '{arp.ClusterId}' not found");
@@ -776,7 +771,7 @@ namespace HordeServer.Compute
 
 			throw new Exception("Unable to resolve a suitable connection mode for compute task");
 		}
-		
+
 		/// <summary>
 		/// Resolve IP of the requester
 		/// </summary>
@@ -794,15 +789,15 @@ namespace HordeServer.Compute
 					requesterIp = publicIp;
 				}
 			}
-			
+
 			if (requesterIp == null)
 			{
 				throw new ComputeServiceException("Unable to determine IP of requester");
 			}
-			
+
 			return requesterIp;
 		}
-		
+
 		/// <summary>
 		/// Find best compute cluster for given parameters
 		/// </summary>
@@ -816,12 +811,12 @@ namespace HordeServer.Compute
 			{
 				throw new ComputeServiceException("Unable to find a matching network config");
 			}
-			
+
 			if (networkConfig.ComputeId == null)
 			{
 				throw new ComputeServiceException($"Network config '{networkConfig.Id}' has no compute ID set");
 			}
-			
+
 			return new ClusterId(networkConfig.ComputeId);
 		}
 

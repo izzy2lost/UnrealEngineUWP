@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
@@ -27,6 +22,9 @@ namespace HordeServer.Storage
 		readonly IServerInfo _serverInfo;
 		readonly StaticStorageConfig _staticConfig;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public StoragePlugin(IServerInfo serverInfo, StaticStorageConfig staticConfig)
 		{
 			_serverInfo = serverInfo;

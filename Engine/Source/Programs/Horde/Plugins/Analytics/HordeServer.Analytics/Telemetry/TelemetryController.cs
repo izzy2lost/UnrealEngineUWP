@@ -1,15 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Telemetry.Metrics;
-using HordeServer.Server;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;

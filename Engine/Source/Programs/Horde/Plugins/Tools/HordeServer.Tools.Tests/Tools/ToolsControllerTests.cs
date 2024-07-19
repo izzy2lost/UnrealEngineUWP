@@ -1,11 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Tools;
 using HordeServer.Acls;
@@ -18,7 +14,6 @@ using HordeServer.Tools;
 using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Tools;
 
@@ -49,13 +44,13 @@ public class ToolsControllerTests
 		GlobalConfig globalConfig = new();
 		globalConfig.Plugins.AddStorageConfig(storageConfig);
 		globalConfig.Plugins.AddToolsConfig(toolsConfig);
-		
+
 		ServerSettings serverSettings = new() { AuthMethod = AuthMethod.Horde };
 		globalConfig.PostLoad(serverSettings, pluginCollection.LoadedPlugins, Array.Empty<IDefaultAclModifier>());
 
 		Dictionary<string, string> settings = new() { { "Horde:AuthMethod", AuthMethod.Horde.ToString() } };
 		await using FakeHordeWebApp app = new(settings: settings);
-		
+
 		ConfigService configService = app.ServiceProvider.GetRequiredService<ConfigService>();
 		IToolCollection tools = app.ServiceProvider.GetRequiredService<IToolCollection>();
 		IServiceAccountCollection serviceAccounts = app.ServiceProvider.GetRequiredService<IServiceAccountCollection>();
@@ -64,7 +59,7 @@ public class ToolsControllerTests
 
 		List<IUserClaim> claims = [new UserClaim("http://epicgames.com/ue/horde/role", "agent")];
 		(IServiceAccount _, string token) = await serviceAccounts.CreateAsync(new CreateServiceAccountOptions("myDesc", claims));
-		
+
 		// Create tool and deployment
 		using MemoryStream ms = new(await ToolTests.CreateZipFileDataAsync("foo.txt", "foo content"));
 		ITool? tool = await tools.GetAsync(toolId);

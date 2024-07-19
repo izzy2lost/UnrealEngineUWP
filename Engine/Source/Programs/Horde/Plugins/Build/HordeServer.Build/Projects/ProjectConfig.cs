@@ -1,11 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Security.Claims;
-using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Jobs;
@@ -14,7 +11,6 @@ using EpicGames.Horde.Telemetry;
 using HordeServer.Acls;
 using HordeServer.Agents.Pools;
 using HordeServer.Configuration;
-using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Utilities;
 

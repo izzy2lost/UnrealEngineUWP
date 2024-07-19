@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Threading.Tasks;
 using EpicGames.Redis;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using StackExchange.Redis;

@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
 using System.Security.Claims;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Projects;
@@ -11,7 +10,6 @@ using HordeServer.Logs;
 using HordeServer.Projects;
 using HordeServer.Server;
 using HordeServer.Streams;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Acls
 {

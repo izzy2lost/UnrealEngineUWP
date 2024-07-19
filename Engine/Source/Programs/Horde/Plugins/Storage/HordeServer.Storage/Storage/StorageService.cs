@@ -1,16 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Buffers;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.ObjectStores;
@@ -665,12 +658,13 @@ namespace HordeServer.Storage
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickBlobsAsync)}");
 
 			GcState gcState = await _gcState.GetAsync(cancellationToken);
-			if(gcState.Reset)
+			if (gcState.Reset)
 			{
 				_logger.LogInformation("Resetting scan for new blobs...");
-				gcState = await _gcState.UpdateAsync(x => { 
-					x.Reset = false; 
-					x.LastImportBlobInfoId = ObjectId.Empty; 
+				gcState = await _gcState.UpdateAsync(x =>
+				{
+					x.Reset = false;
+					x.LastImportBlobInfoId = ObjectId.Empty;
 				}, cancellationToken);
 			}
 

@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Users;
 using HordeServer.Issues;
@@ -13,7 +8,6 @@ using HordeServer.Users;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 
 namespace HordeServer.Ugs
@@ -30,20 +24,18 @@ namespace HordeServer.Ugs
 		readonly IUserCollection _userCollection;
 		readonly ILogCollection _logCollection;
 		readonly IServerInfo _serverInfo;
-		readonly StaticBuildConfig _settings;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogCollection logCollection, IServerInfo serverInfo, IOptionsMonitor<StaticBuildConfig> optionsMonitor, ILogger<UgsController> logger)
+		public UgsController(IssueService issueService, IUgsMetadataCollection ugsMetadataCollection, IUserCollection userCollection, ILogCollection logCollection, IServerInfo serverInfo, ILogger<UgsController> logger)
 		{
 			_issueService = issueService;
 			_ugsMetadataCollection = ugsMetadataCollection;
 			_userCollection = userCollection;
 			_logCollection = logCollection;
 			_serverInfo = serverInfo;
-			_settings = optionsMonitor.CurrentValue;
 			_logger = logger;
 		}
 

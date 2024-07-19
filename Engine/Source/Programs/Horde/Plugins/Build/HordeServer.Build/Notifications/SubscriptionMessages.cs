@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs;

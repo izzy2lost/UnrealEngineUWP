@@ -1,17 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Compute;
 using HordeServer.Agents;
-using HordeServer.Server;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -41,7 +35,7 @@ namespace HordeServer.Compute
 			_computeConfig = computeConfig;
 			_tracer = tracer;
 		}
-		
+
 		/// <summary>
 		/// Find the most suitable cluster given a compute assignment request
 		/// </summary>
@@ -60,13 +54,13 @@ namespace HordeServer.Compute
 				IPAddress? clientIp = String.IsNullOrEmpty(forwardedForHeader)
 					? HttpContext.Connection.RemoteIpAddress
 					: IPAddress.Parse(forwardedForHeader);
-				
+
 				span.SetAttribute("clientIp", clientIp?.ToString());
 				requesterIp = ComputeService.ResolveRequesterIp(clientIp, request.Connection?.PreferPublicIp, request.Connection?.ClientPublicIp);
 				span.SetAttribute("requesterIp", requesterIp.ToString());
 				ClusterId clusterId = ComputeService.FindBestComputeClusterId(_computeConfig.Value, requesterIp);
 				span.SetAttribute("clusterId", clusterId.ToString());
-				
+
 				GetClusterResponse response = new() { ClusterId = clusterId };
 				return response;
 			}

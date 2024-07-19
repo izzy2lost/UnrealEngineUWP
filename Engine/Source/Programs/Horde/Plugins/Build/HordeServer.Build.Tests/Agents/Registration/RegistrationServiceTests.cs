@@ -1,14 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Security.Cryptography;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Agents;
 using HordeServer.Agents.Enrollment;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Agents.Registration
 {

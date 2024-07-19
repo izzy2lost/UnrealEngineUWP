@@ -1,11 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 
 namespace HordeServer.Utilities
@@ -17,13 +14,22 @@ namespace HordeServer.Utilities
 	/// </summary>
 	public class JsonConfigFile
 	{
+		/// <summary>
+		/// The root of the config file
+		/// </summary>
 		public JsonObject Root { get; }
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public JsonConfigFile(JsonObject root)
 		{
 			Root = root;
 		}
 
+		/// <summary>
+		/// Reads a json config file from a file on disk
+		/// </summary>
 		public static async Task<JsonConfigFile> ReadAsync(FileReference file, CancellationToken cancellationToken = default)
 		{
 			byte[] data = await FileReference.ReadAllBytesAsync(file, cancellationToken);
@@ -31,6 +37,9 @@ namespace HordeServer.Utilities
 			return new JsonConfigFile(obj ?? new JsonObject());
 		}
 
+		/// <summary>
+		/// Writes the config file back out to a file
+		/// </summary>
 		public async Task WriteAsync(FileReference file, CancellationToken cancellationToken = default)
 		{
 			ArrayBufferWriter<byte> buffer = new ArrayBufferWriter<byte>();
@@ -41,6 +50,9 @@ namespace HordeServer.Utilities
 			await FileReference.WriteAllBytesAsync(file, buffer.WrittenMemory.ToArray(), cancellationToken);
 		}
 
+		/// <summary>
+		/// Adds a node with the given name to an object
+		/// </summary>
 		public static T FindOrAddNode<T>(JsonObject obj, string name, Func<T> factory) where T : JsonNode
 		{
 			JsonNode? node = obj[name];
@@ -61,6 +73,9 @@ namespace HordeServer.Utilities
 			return newTypedNode;
 		}
 
+		/// <summary>
+		/// Finds an existing element, or adds a new element to an array, with the given name.
+		/// </summary>
 		public static JsonObject FindOrAddElementByKey(JsonArray array, string key, string name)
 		{
 			foreach (JsonNode? element in array)

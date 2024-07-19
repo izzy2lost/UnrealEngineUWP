@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Threading.Tasks;
 using StackExchange.Redis;
 
 namespace HordeServer.Utilities;

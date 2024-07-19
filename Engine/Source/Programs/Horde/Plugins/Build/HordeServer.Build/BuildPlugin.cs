@@ -44,6 +44,9 @@ namespace HordeServer
 		readonly IServerInfo _serverInfo;
 		readonly StaticBuildConfig _staticConfig;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public BuildPlugin(IServerInfo serverInfo, StaticBuildConfig staticConfig)
 		{
 			_serverInfo = serverInfo;
@@ -88,7 +91,7 @@ namespace HordeServer
 			services.AddSingleton<ICommitService, CommitService>();
 
 			services.AddSingleton<DeviceService>();
-			services.AddSingleton<IBlockCache>(sp => CreateBlockCache(sp));
+			services.AddSingleton<IBlockCache>(sp => CreateBlockCache());
 			services.AddSingleton<TestDataService>();
 
 			services.AddSingleton<IssueService>();
@@ -209,7 +212,7 @@ namespace HordeServer
 			}
 		}
 
-		BlockCache CreateBlockCache(IServiceProvider serviceProvider)
+		BlockCache CreateBlockCache()
 		{
 			DirectoryReference cacheDir = DirectoryReference.Combine(_serverInfo.DataDir, String.IsNullOrEmpty(_staticConfig.BlockCacheDir) ? "BlockCache" : _staticConfig.BlockCacheDir);
 			return BlockCache.Create(cacheDir, (int)(_staticConfig.BlockCacheSizeBytes / (1024 * 1024 * 1024)));

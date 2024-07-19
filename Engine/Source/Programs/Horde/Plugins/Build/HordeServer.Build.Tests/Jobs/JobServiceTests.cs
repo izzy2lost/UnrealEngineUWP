@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
@@ -23,7 +19,6 @@ using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
 using Microsoft.CodeAnalysis;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace HordeServer.Tests.Jobs
 {
@@ -254,7 +249,7 @@ namespace HordeServer.Tests.Jobs
 			IAgent? agent = await AgentService.CreateAgentAsync("TestAgent", false, "");
 			Assert.IsNotNull(agent);
 
-			agent = await agent.TryUpdateAsync(new UpdateAgentOptions{ Enabled = true, ExplicitPools = new List<PoolId> { new PoolId("win") } });
+			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = true, ExplicitPools = new List<PoolId> { new PoolId("win") } });
 			Assert.IsNotNull(agent);
 
 			await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), null);

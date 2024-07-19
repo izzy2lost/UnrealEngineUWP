@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using HordeServer.Agents;
@@ -19,7 +15,6 @@ using HordeServer.Streams;
 using HordeServer.Users;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Moq;
 
 namespace HordeServer.Tests.Notifications

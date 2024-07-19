@@ -1,11 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using EpicGames.Horde.Projects;
 using HordeServer.Configuration;
-using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authorization;

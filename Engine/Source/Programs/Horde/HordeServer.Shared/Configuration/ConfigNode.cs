@@ -1,14 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace HordeServer.Configuration
 {
@@ -52,7 +48,7 @@ namespace HordeServer.Configuration
 		/// <summary>
 		/// Default options for new json node objects
 		/// </summary>
-		internal static JsonNodeOptions s_defaultJsonNodeOptions { get; } = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
+		protected static JsonNodeOptions DefaultJsonNodeOptions { get; } = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
 
 		/// <summary>
 		/// Parses macro definitions from this object
@@ -126,7 +122,7 @@ namespace HordeServer.Configuration
 			}
 			else if (node is JsonObject obj)
 			{
-				JsonObject result = new JsonObject(s_defaultJsonNodeOptions);
+				JsonObject result = new JsonObject(DefaultJsonNodeOptions);
 				foreach ((string propertyName, JsonNode? propertyNode) in obj)
 				{
 					result[propertyName] = ExpandMacros(propertyNode, context);
@@ -327,7 +323,7 @@ namespace HordeServer.Configuration
 		/// <inheritdoc/>
 		public override async Task<JsonNode?> PreprocessAsync(JsonNode? node, JsonNode? existingNode, ConfigContext context, CancellationToken cancellationToken)
 		{
-			JsonObject? targetObject = ((JsonObject?)existingNode) ?? new JsonObject(s_defaultJsonNodeOptions);
+			JsonObject? targetObject = ((JsonObject?)existingNode) ?? new JsonObject(DefaultJsonNodeOptions);
 			foreach ((string key, JsonNode? element) in (JsonObject)node!)
 			{
 				context.EnterScope($"[{key}]");
@@ -559,7 +555,7 @@ namespace HordeServer.Configuration
 			}
 
 			// Ensure that the target object is valid so we can write properties into it
-			target ??= new JsonObject(s_defaultJsonNodeOptions);
+			target ??= new JsonObject(DefaultJsonNodeOptions);
 
 			// Parse all the macros for this scope
 			if (MacroScope)

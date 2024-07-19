@@ -6,7 +6,7 @@ namespace HordeServer
 #pragma warning disable CA1069 // Enum member 'Latest' has same value as ...
 	/// <summary>
 	/// Global version number for running the server. As new features are introduced that require data migrations, this version number indicates the backwards compatibility functionality that must be enabled.
-	/// When adding a new version here, also add a message to <see cref="ConfigService.CreateSnapshotAsync"/> describing the steps that need to be taken to upgrade the deployment.
+	/// When adding a new version here, also add a message to ConfigService.CreateSnapshotAsync describing the steps that need to be taken to upgrade the deployment.
 	/// </summary>
 	public enum ConfigVersion
 	{

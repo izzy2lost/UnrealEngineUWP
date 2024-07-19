@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Reflection;
@@ -118,11 +117,11 @@ namespace HordeServer.Utilities
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) 
+		public override TValue Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
 			=> _converter.FromObjectId(ObjectId.Parse(reader.GetString()));
 
 		/// <inheritdoc/>
-		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options) 
+		public override void Write(Utf8JsonWriter writer, TValue value, JsonSerializerOptions options)
 			=> writer.WriteStringValue(_converter.ToObjectId(value).ToString());
 	}
 
@@ -154,7 +153,7 @@ namespace HordeServer.Utilities
 		readonly TConverter _converter = new TConverter();
 
 		/// <inheritdoc/>
-		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args) 
+		public override TValue Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
 			=> _converter.FromObjectId(context.Reader.ReadObjectId());
 
 		/// <inheritdoc/>

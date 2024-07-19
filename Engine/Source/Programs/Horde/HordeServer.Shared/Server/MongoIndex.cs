@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using MongoDB.Bson;
@@ -151,11 +149,17 @@ namespace HordeServer.Server
 	/// </summary>
 	public static class MongoIndexExtensions
 	{
+		/// <summary>
+		/// Adds a new index to the collection
+		/// </summary>
 		public static void Add<T>(this List<MongoIndex<T>> list, Func<IndexKeysDefinitionBuilder<T>, IndexKeysDefinition<T>> keyFunc, bool unique = false, bool sparse = false)
 		{
 			list.Add(MongoIndex.Create(keyFunc, unique, sparse));
 		}
 
+		/// <summary>
+		/// Adds a new index to the collection
+		/// </summary>
 		public static void Add<T>(this List<MongoIndex<T>> list, string name, Func<IndexKeysDefinitionBuilder<T>, IndexKeysDefinition<T>> keyFunc, bool unique = false, bool sparse = false)
 		{
 			list.Add(MongoIndex.Create(name, keyFunc, unique, sparse));

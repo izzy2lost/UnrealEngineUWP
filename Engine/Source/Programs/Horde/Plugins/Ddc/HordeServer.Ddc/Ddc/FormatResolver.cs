@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Linq;
 using System.Net.Mime;
 using EpicGames.AspNet;
 using Microsoft.AspNetCore.Http;

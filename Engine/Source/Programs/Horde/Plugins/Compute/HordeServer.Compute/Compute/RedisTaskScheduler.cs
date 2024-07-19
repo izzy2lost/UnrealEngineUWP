@@ -1,12 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using EpicGames.Redis;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -375,6 +370,12 @@ namespace HordeServer.Compute
 			return keys.ToList();
 		}
 
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="predicate"></param>
+		/// <param name="token"></param>
+		/// <returns></returns>
 		public async Task<int> GetNumQueuedTasksAsync(Func<TQueueId, ValueTask<bool>> predicate, CancellationToken token = default)
 		{
 			HashSet<TQueueId> queueIds = new(await _redisConnectionPool.GetDatabase().SetMembersAsync(_queueIndex));

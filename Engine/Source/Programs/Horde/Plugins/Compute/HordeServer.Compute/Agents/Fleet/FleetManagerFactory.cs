@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Diagnostics.Metrics;
-using System.IO;
 using System.Text.Json;
 using Amazon.AutoScaling;
 using Amazon.EC2;

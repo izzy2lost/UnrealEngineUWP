@@ -1,13 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
-using MongoDB.Driver;
 using Microsoft.Extensions.Logging;
+using MongoDB.Driver;
 
 namespace HordeServer.Utilities
 {
@@ -26,6 +22,9 @@ namespace HordeServer.Utilities
 		readonly AsyncEvent _flushEvent = new AsyncEvent();
 		readonly ILogger _logger;
 
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		public MongoBufferedWriter(IMongoCollection<TDocument> collection, ILogger logger)
 			: this(collection, 50, TimeSpan.FromSeconds(5.0), logger)
 		{

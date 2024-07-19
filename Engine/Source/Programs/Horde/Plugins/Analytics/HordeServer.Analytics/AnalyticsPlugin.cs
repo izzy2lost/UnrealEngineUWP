@@ -1,16 +1,10 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using HordeServer.Plugins;
 using HordeServer.Telemetry;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Telemetry.Sinks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer

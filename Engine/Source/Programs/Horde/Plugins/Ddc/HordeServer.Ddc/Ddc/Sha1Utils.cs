@@ -1,8 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
 using System.Security.Cryptography;
-using System.Threading.Tasks;
 
 #pragma warning disable CS1591
 #pragma warning disable CA5350 // Do not use weak crypto algorithms

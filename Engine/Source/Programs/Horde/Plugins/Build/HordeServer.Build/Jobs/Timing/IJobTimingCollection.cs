@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using EpicGames.Horde.Jobs;
 using MongoDB.Bson.Serialization.Attributes;
 

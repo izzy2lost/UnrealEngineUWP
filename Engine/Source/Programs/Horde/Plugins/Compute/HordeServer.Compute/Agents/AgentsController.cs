@@ -1,10 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -71,12 +66,12 @@ namespace HordeServer.Agents
 		public async Task<ActionResult<List<object>>> FindAgentsAsync([FromQuery] PoolId? poolId = null, [FromQuery] Condition? condition = null, [FromQuery] bool includeDeleted = false, [FromQuery] int? index = null, [FromQuery] int? count = null, [FromQuery] DateTimeOffset? modifiedAfter = null, [FromQuery] PropertyFilter? filter = null)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentsController)}.{nameof(FindAgentsAsync)}");
-			
+
 			if (!_computeConfig.Value.Authorize(AgentAclAction.ListAgents, User))
 			{
 				return Forbid(AgentAclAction.ListAgents);
 			}
-			
+
 			IEnumerable<IAgent> agentsEnumerable = (await _agentService.GetCachedAgentsAsync(HttpContext.RequestAborted))
 				.Where(x => poolId == null || x.Pools.Contains(poolId.Value))
 				.Where(x => modifiedAfter == null || modifiedAfter.Value.UtcDateTime >= x.UpdateTime);
@@ -85,10 +80,10 @@ namespace HordeServer.Agents
 			{
 				agentsEnumerable = agentsEnumerable.Where(x => !x.Deleted);
 			}
-			
+
 			agentsEnumerable = index != null ? agentsEnumerable.Skip(index.Value) : agentsEnumerable;
 			agentsEnumerable = count != null ? agentsEnumerable.Take(count.Value) : agentsEnumerable;
-			
+
 			List<IAgent> agents = agentsEnumerable.ToList();
 			List<object> responses = [];
 			using TelemetrySpan filterSpan = _tracer.StartActiveSpan($"FilterAgentResponses");
@@ -101,7 +96,7 @@ namespace HordeServer.Agents
 					}
 				}
 			}
-			
+
 			span.SetAttribute("NumAgents", agents.Count);
 			span.SetAttribute("NumResponses", responses.Count);
 			return responses;

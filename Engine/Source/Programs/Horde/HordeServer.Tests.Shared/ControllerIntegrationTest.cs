@@ -1,24 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Net.Http;
-using System.Threading.Tasks;
 using Amazon.CloudWatch;
-using HordeServer.Agents;
-using HordeServer.Configuration;
-using HordeServer.Jobs;
-using HordeServer.Jobs.Graphs;
-using HordeServer.Jobs.Templates;
-using HordeServer.Perforce;
-using HordeServer.Plugins;
 using HordeServer.Server;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Moq;
 using Serilog;
 
@@ -84,12 +72,12 @@ public class TestWebApplicationFactory<TStartup> : WebApplicationFactory<TStartu
 		{
 			builder.ConfigureTestServices(_configureServices);
 		}
-/*		
-		=>
-		{
-			collection.AddSingleton<IPerforceService, PerforceServiceStub>();
-			collection.AddSingleton<IAmazonCloudWatch>(x => cloudWatchMock.Object);
-		});*/
+		/*		
+				=>
+				{
+					collection.AddSingleton<IPerforceService, PerforceServiceStub>();
+					collection.AddSingleton<IAmazonCloudWatch>(x => cloudWatchMock.Object);
+				});*/
 	}
 }
 

@@ -2,8 +2,6 @@
 
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Horde.Telemetry;
 using HordeServer.Telemetry.Metrics;
 using HordeServer.Utilities;

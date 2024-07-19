@@ -1,12 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Security.Claims;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Secrets;
 using HordeServer.Acls;
-using HordeServer.Server;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 

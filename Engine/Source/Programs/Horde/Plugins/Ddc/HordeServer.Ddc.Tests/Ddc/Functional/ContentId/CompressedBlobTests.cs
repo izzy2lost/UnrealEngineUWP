@@ -1,16 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using Blake3;
 using EpicGames.AspNet;
 using EpicGames.Core;
@@ -23,7 +17,6 @@ using HordeServer.Server;
 using HordeServer.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Serilog;
 
 namespace HordeServer.Tests.Ddc.FunctionalTests.CompressedBlobs

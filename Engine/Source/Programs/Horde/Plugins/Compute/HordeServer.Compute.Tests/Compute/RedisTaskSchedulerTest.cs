@@ -1,12 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using HordeServer.Compute;
 using HordeServer.Server;
 using Microsoft.Extensions.Logging;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using StackExchange.Redis;
 
 namespace HordeServer.Tests.Compute

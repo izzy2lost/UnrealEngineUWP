@@ -1,13 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Diagnostics;
-using System.Globalization;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Jobs;
-using MongoDB.Bson;
 
 namespace HordeServer.Utilities
 {

@@ -1,11 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage.Bundles;
@@ -14,6 +9,9 @@ using EpicGames.Perforce;
 
 namespace HordeServer
 {
+	/// <summary>
+	/// Static configuration for the build plugin
+	/// </summary>
 	public class StaticBuildConfig
 	{
 		/// <summary>

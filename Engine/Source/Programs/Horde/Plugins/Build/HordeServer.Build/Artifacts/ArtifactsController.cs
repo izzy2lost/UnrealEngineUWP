@@ -1,18 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.Mime;
 using System.Text.RegularExpressions;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
@@ -21,14 +16,14 @@ using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Tasks;
 using HordeServer.Acls;
+using HordeServer.Agents;
 using HordeServer.Agents.Leases;
 using HordeServer.Jobs;
-using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Streams;
 using HordeServer.Utilities;
-using HordeCommon.Rpc.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -36,10 +31,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EpicGames.Horde.Acls;
-using HordeServer.Agents;
-using System.Security.Claims;
-using HordeServer.Projects;
 
 namespace HordeServer.Artifacts
 {
@@ -59,13 +50,12 @@ namespace HordeServer.Artifacts
 		readonly IBlockCache _blockCache;
 		readonly IServerInfo _serverInfo;
 		readonly BuildConfig _buildConfig;
-		readonly StaticBuildConfig _staticBuildConfig;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, IAclService aclService, UnsyncCache unsyncCache, IBlockCache blockCache, IServerInfo serverInfo, IOptionsSnapshot<BuildConfig> buildConfig, IOptions<StaticBuildConfig> staticBuildConfig, ILogger<ArtifactsController> logger)
+		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, IAclService aclService, UnsyncCache unsyncCache, IBlockCache blockCache, IServerInfo serverInfo, IOptionsSnapshot<BuildConfig> buildConfig, ILogger<ArtifactsController> logger)
 		{
 			_artifactCollection = artifactCollection;
 			_storageService = storageService;
@@ -76,7 +66,6 @@ namespace HordeServer.Artifacts
 			_blockCache = blockCache;
 			_serverInfo = serverInfo;
 			_buildConfig = buildConfig.Value;
-			_staticBuildConfig = staticBuildConfig.Value;
 			_logger = logger;
 		}
 

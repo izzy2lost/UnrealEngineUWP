@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using MongoDB.Driver;

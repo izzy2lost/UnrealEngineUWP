@@ -1,15 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
-using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
@@ -1044,7 +1038,7 @@ namespace HordeServer.Jobs
 			if (!String.IsNullOrEmpty(cancellationReason))
 			{
 				jobDocument.CancellationReason = cancellationReason;
-				updates.Add(updateBuilder.Set(x => x.CancellationReason, jobDocument.CancellationReason));				
+				updates.Add(updateBuilder.Set(x => x.CancellationReason, jobDocument.CancellationReason));
 			}
 
 			if (notificationTriggerId != null)
@@ -1269,7 +1263,7 @@ namespace HordeServer.Jobs
 							// Update the request abort status
 							if (newAbortRequested != null && step.AbortRequested == false)
 							{
-								step.AbortRequested = newAbortRequested.Value;								
+								step.AbortRequested = newAbortRequested.Value;
 								updates.Add(updateBuilder.Set(x => x.Batches[batchIdx].Steps[stepIdx].AbortRequested, step.AbortRequested));
 
 								// If the step is pending, and not running on an agent, set to aborted

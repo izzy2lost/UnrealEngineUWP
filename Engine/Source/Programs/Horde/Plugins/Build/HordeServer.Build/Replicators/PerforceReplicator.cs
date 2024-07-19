@@ -1,14 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Storage;
@@ -18,7 +13,6 @@ using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
 using HordeServer.Commits;
 using HordeServer.Perforce;
-using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Streams;
 using Microsoft.Extensions.Logging;
@@ -30,9 +24,24 @@ namespace HordeServer.Replicators
 	/// </summary>
 	public class PerforceReplicationOptions
 	{
+		/// <summary>
+		/// Whether to replicate content, or just metadata
+		/// </summary>
 		public bool IncludeContent { get; set; }
+
+		/// <summary>
+		/// 
+		/// </summary>
 		public BundleOptions TreeOptions { get; set; } = new BundleOptions();
+
+		/// <summary>
+		/// 
+		/// </summary>
 		public ChunkingOptions ChunkingOptions { get; set; } = new ChunkingOptions();
+
+		/// <summary>
+		/// 
+		/// </summary>
 		public RefOptions RefOptions { get; set; } = new RefOptions();
 	}
 

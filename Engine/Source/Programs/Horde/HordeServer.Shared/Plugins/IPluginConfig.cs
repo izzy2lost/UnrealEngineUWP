@@ -1,12 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Serialization;
-using System.Threading.Tasks;
 using HordeServer.Acls;
 
 namespace HordeServer.Plugins
@@ -19,12 +12,12 @@ namespace HordeServer.Plugins
 		/// <summary>
 		/// Called to fixup a plugin's configuration after deserialization
 		/// </summary>
-		/// <param name="options">Options for configuring the plugin</param>
+		/// <param name="configOptions">Options for configuring the plugin</param>
 		void PostLoad(PluginConfigOptions configOptions);
 	}
 
 	/// <summary>
-	/// Options passed to <see cref="IPluginConfig.PostLoad(AclConfig)"/>
+	/// Options passed to <see cref="IPluginConfig.PostLoad(PluginConfigOptions)"/>
 	/// </summary>
 	public record class PluginConfigOptions(ConfigVersion Version, IEnumerable<IPluginConfig> Plugins, AclConfig ParentAcl);
 

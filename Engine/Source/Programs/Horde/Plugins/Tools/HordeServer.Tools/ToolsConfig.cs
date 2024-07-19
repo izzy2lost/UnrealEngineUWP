@@ -2,7 +2,6 @@
 
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Horde.Tools;
-using HordeServer.Acls;
 using HordeServer.Plugins;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
