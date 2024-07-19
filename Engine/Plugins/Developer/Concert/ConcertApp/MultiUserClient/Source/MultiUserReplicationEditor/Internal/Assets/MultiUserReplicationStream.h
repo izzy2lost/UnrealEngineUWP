@@ -35,4 +35,7 @@ public:
 			return WeakThis.IsValid() ? &WeakThis->ReplicationMap : nullptr;
 		});
 	}
+	
+	/** Copies the stream content of OtherStream. */
+	void Copy(UMultiUserReplicationStream& OtherStream);
 };

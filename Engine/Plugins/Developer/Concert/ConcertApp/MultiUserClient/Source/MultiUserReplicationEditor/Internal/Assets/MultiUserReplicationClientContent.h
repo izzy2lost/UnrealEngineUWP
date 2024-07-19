@@ -21,6 +21,13 @@ public:
 	UPROPERTY(Instanced)
 	TObjectPtr<UMultiUserReplicationStream> Stream;
 
+	/** The FConcertClientInfo::DisplayName of the client. */
+	UPROPERTY()
+	FString DisplayName;
+	/** The FConcertClientInfo::DeviceName of the client. */
+	UPROPERTY()
+	FString DeviceName;
+
 	UMultiUserReplicationClientContent();
 
 	/** Generates a description that can be sent to the MU server. */

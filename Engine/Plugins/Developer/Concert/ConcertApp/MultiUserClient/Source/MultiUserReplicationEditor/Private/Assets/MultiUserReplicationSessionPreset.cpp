@@ -2,14 +2,58 @@
 
 #include "Assets/MultiUserReplicationSessionPreset.h"
 
-UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClient()
+#include "ConcertLogGlobal.h"
+#include "ConcertMessageData.h"
+
+UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::GetClientContent(const FConcertClientInfo& ClientInfo) const
 {
-	UMultiUserReplicationClientContent* Result = NewObject<UMultiUserReplicationClientContent>(this);
-	ClientPresets.Add(Result);
-	return Result;
+	const auto IsMatch = [&ClientInfo](UMultiUserReplicationClientContent* Content)
+	{
+		return Content && Content->DisplayName == ClientInfo.DisplayName;
+	};
+	const auto IsPerfectMatch = [&ClientInfo, &IsMatch](UMultiUserReplicationClientContent* Content)
+	{
+		return IsMatch(Content) && Content->DeviceName == ClientInfo.DeviceName;
+	};
+	
+	UMultiUserReplicationClientContent* BestMatch = nullptr;
+	bool bIsBestMatchPerfect = false;
+	for (UMultiUserReplicationClientContent* Content : ClientPresets)
+	{
+		if (IsPerfectMatch(Content))
+		{
+			UE_CLOG(bIsBestMatchPerfect, LogConcert, Warning, TEXT("Preset %s contained client (name: %s, device: %s) multiple times"), *GetPathName(), *ClientInfo.DisplayName, *ClientInfo.DeviceName);
+			bIsBestMatchPerfect = true;
+			BestMatch = Content;
+		}
+		else if (!bIsBestMatchPerfect && IsMatch(Content))
+		{
+			BestMatch = Content;
+		}
+	}
+	
+	return BestMatch;
 }
 
-void UMultiUserReplicationSessionPreset::RemoveClient(UMultiUserReplicationClientContent& Client)
+UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::GetExactClientContent(const FConcertClientInfo& ClientInfo) const
 {
-	ClientPresets.RemoveSingle(&Client);
+	const TObjectPtr<UMultiUserReplicationClientContent>* Result = ClientPresets.FindByPredicate([&ClientInfo](const TObjectPtr<UMultiUserReplicationClientContent>& Content)
+	{
+		return Content && Content->DisplayName == ClientInfo.DisplayName && Content->DeviceName == ClientInfo.DeviceName;
+	});
+	return Result ? *Result : nullptr;
+}
+
+UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClientIfUnique(const FConcertClientInfo& ClientInfo)
+{
+	if (ContainsExactClient(ClientInfo))
+	{
+		return nullptr;
+	}
+	
+	UMultiUserReplicationClientContent* Result = NewObject<UMultiUserReplicationClientContent>(this);
+	Result->DisplayName = ClientInfo.DisplayName;
+	Result->DeviceName = ClientInfo.DeviceName;
+	ClientPresets.Add(Result);
+	return Result;
 }

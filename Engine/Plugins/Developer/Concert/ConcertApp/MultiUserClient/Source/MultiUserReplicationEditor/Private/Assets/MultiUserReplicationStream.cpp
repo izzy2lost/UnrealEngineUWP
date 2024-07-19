@@ -16,3 +16,9 @@ FConcertReplicationStream UMultiUserReplicationStream::GenerateDescription() con
 {
 	return { StreamId, ReplicationMap };
 }
+
+void UMultiUserReplicationStream::Copy(UMultiUserReplicationStream& OtherStream)
+{
+	StreamId = OtherStream.StreamId;
+	ReplicationMap = OtherStream.ReplicationMap;
+}

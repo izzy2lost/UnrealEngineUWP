@@ -19,6 +19,7 @@
 #include "Widgets/ActiveSession/Replication/Client/Context/ContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/PropertySelection/SPropertySelectionComboButton.h"
+#include "Widgets/ActiveSession/Replication/Client/SPresetComboButton.h"
 #include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
 #include "Widgets/Layout/SBox.h"
@@ -149,6 +150,7 @@ namespace UE::MultiUserClient
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject),
 		};
+		ViewerParams.RightOfObjectSearchBar.Widget = SNew(SPresetComboButton, *InMultiUserReplicationManager.GetPresetManager());
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
 		check(StreamEditor);
 		

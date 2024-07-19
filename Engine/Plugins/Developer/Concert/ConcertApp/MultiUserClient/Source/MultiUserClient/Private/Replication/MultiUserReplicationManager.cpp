@@ -237,6 +237,7 @@ namespace UE::MultiUserClient
 		, QueryService(*InClient)
 		, ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
 		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), ClientManager.GetAuthorityCache())
+		, PresetManager(*InClient, ClientManager)
 		, PropertySelector(ClientManager)
 		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
 		, PreventReplicatedPropertyTransaction(*InClient, ClientManager, MuteManager)

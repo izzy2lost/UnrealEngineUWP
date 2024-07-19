@@ -6,14 +6,15 @@
 #include "IConcertSession.h"
 #include "Misc/ChangeLevelHandler.h"
 #include "Misc/Notification/ReplicationUserNotifier.h"
+#include "Misc/PreventReplicatedPropertyTransaction.h"
+#include "Misc/PropertySelection/UserPropertySelector.h"
 #include "Misc/Query/RegularQueryService.h"
 #include "Muting/MuteStateManager.h"
+#include "Preset/PresetManager.h"
 #include "Replication/IMultiUserReplication.h"
 #include "Replication/Stream/Discovery/ReplicationDiscoveryContainer.h"
 
 #include "Misc/Optional.h"
-#include "Misc/PreventReplicatedPropertyTransaction.h"
-#include "Misc/PropertySelection/UserPropertySelector.h"
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
@@ -68,6 +69,10 @@ namespace UE::MultiUserClient
 		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 		const FMuteStateManager* GetMuteManager() const { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 
+		/** @note You're not supposed to keep any reference to the PresetManager since it can become invalid depending on connection state. */
+		FPresetManager* GetPresetManager() { return ConnectedState ? &ConnectedState->PresetManager : nullptr; }
+		const FPresetManager* GetPresetManager() const { return ConnectedState ? &ConnectedState->PresetManager : nullptr; }
+
 		/** @note You're not supposed to keep any reference to the PropertySelector since it can become invalid depending on connection state. */
 		FUserPropertySelector* GetUserPropertySelector() { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
 		const FUserPropertySelector* GetUserPropertySelector() const { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
@@ -119,6 +124,8 @@ namespace UE::MultiUserClient
 			FReplicationClientManager ClientManager;
 			/** Interacts with the mute global server mute system. */
 			FMuteStateManager MuteManager;
+			/** Saves and loads presets for the session. Accessed by UI. */
+			FPresetManager PresetManager;
 
 			/**
 			 * Manages the properties the user is iterating on in the replication session.
