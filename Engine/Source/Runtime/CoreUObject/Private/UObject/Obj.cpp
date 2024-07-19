@@ -31,6 +31,7 @@
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
 #include "UObject/MetaData.h"
+#include "UObject/TextProperty.h"
 #include "Templates/Casts.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/LazyObjectPtr.h"
@@ -2205,8 +2206,16 @@ static void GetAssetRegistryTagFromProperty(const void* BaseMemoryLocation, cons
 		}
 
 		FString PropertyStr;
-		const uint8* PropertyAddr = Prop->ContainerPtrToValuePtr<uint8>(BaseMemoryLocation);
-		Prop->ExportTextItem_Direct(PropertyStr, PropertyAddr, PropertyAddr, nullptr, PPF_None);
+		if (const FTextProperty* TextProp = CastField<FTextProperty>(Prop))
+		{
+			const FText& TextValue = TextProp->GetPropertyValue_InContainer(BaseMemoryLocation);
+			FTextStringHelper::WriteToBuffer(PropertyStr, TextValue, /*bRequireQuotes*/false, /*bStripPackageNamespace*/true);
+		}
+		else
+		{
+			const uint8* PropertyAddr = Prop->ContainerPtrToValuePtr<uint8>(BaseMemoryLocation);
+			Prop->ExportTextItem_Direct(PropertyStr, PropertyAddr, PropertyAddr, nullptr, PPF_None);
+		}
 
 		Context.AddTag(UObject::FAssetRegistryTag(Prop->GetFName(), MoveTemp(PropertyStr), TagType));
 	}

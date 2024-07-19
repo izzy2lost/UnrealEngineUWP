@@ -138,7 +138,7 @@ uint32 GetTypeHash(const FAssetRegistryExportPath& Path)
 static FString ToComplexString(const FText& In)
 {
 	FString Out;
-	FTextStringHelper::WriteToBuffer(Out, In);
+	FTextStringHelper::WriteToBuffer(Out, In, /*bRequireQuotes*/false, /*bStripPackageNamespace*/true);
 	return Out;
 }
 
