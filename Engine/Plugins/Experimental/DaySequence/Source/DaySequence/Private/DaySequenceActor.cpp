@@ -348,7 +348,6 @@ void ADaySequenceActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 		Player->OnPlay.RemoveAll(this);
 		Player->OnPlayReverse.RemoveAll(this);
-		Player->OnPause.RemoveAll(this);
 		Player->OnStop.RemoveAll(this);
 
 		Player->TearDown();
@@ -518,18 +517,12 @@ void ADaySequenceActor::InitializePlayer()
 		}
 
 		UDaySequencePlayer* Player = GetSequencePlayer();
-		if (Player)
+		if (OldTimeControllerOverride && Player && OldTimeControllerOverride != Player->GetTimeController())
 		{
-			if (OldTimeControllerOverride && OldTimeControllerOverride != Player->GetTimeController())
-			{
-				ensure(OldTimeControllerOverride->PreviousTimeController == nullptr);
+			ensure(OldTimeControllerOverride->PreviousTimeController == nullptr);
 
-				OldTimeControllerOverride->PreviousTimeController = Player->GetTimeController();
-				Player->SetTimeControllerDirectly(OldTimeControllerOverride);
-			}
-
-			Player->OnPlay.AddUniqueDynamic(this, &ADaySequenceActor::StopDaySequenceUpdateTimer);
-			Player->OnPause.AddUniqueDynamic(this, &ADaySequenceActor::StartDaySequenceUpdateTimer);
+			OldTimeControllerOverride->PreviousTimeController = Player->GetTimeController();
+			Player->SetTimeControllerDirectly(OldTimeControllerOverride);
 		}
 	}
 }
@@ -861,44 +854,11 @@ void ADaySequenceActor::OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& 
 	const float PreviousHours = FrameTimeToDayHours(PreviousTime);
 	SequencePlayerUpdated(CurrentHours, PreviousHours);
 	
-	OnDaySequenceUpdate.Broadcast();
+	OnSequencePlayerUpdated.Broadcast();
 }
 
 void ADaySequenceActor::SequencePlayerUpdated(float CurrentTime, float PreviousTime)
 {
-}
-
-void ADaySequenceActor::StartDaySequenceUpdateTimer()
-{
-	if (HasAuthority())
-	{
-		return;
-	}
-
-	if (const UWorld* World = GetWorld())
-	{
-		FTimerManagerTimerParameters TimerParameters;
-		TimerParameters.bLoop = true;
-		TimerParameters.bMaxOncePerFrame = true;
-
-		World->GetTimerManager().SetTimer(DaySequenceUpdateTimerHandle, [this]()
-		{
-			OnDaySequenceUpdate.Broadcast();
-		}, PrimaryActorTick.TickInterval, TimerParameters);
-	}
-}
-
-void ADaySequenceActor::StopDaySequenceUpdateTimer()
-{
-	if (HasAuthority())
-	{
-		return;
-	}
-
-	if (const UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().ClearTimer(DaySequenceUpdateTimerHandle);
-	}
 }
 
 #if WITH_EDITORONLY_DATA

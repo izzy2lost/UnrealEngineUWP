@@ -9,8 +9,6 @@
 #include "MovieSceneBindingOwnerInterface.h"
 
 #include "Misc/Timecode.h"
-#include "TimerManager.h"
-
 #include "DaySequenceActor.generated.h"
 
 class FDebugDisplayInfo;
@@ -283,13 +281,8 @@ public:
 	DECLARE_EVENT_OneParam(ADaySequenceActor, FOnPostInitializeDaySequences, FSubSectionPreserveMap*)
 	FOnPostInitializeDaySequences& GetOnPostInitializeDaySequences() { return OnPostInitializeDaySequences; }
 
-	/**
-	 * This delegate is broadcast at a rate matching this actor's tick interval.
-	 * It is either broadcast after each sequence player update or by a timer that is configured to run only when the sequence player is paused.
-	 * Used to synchronize polling logic that is not owned by this actor when it should occur at an interval specified by this actor.
-	 */
-	DECLARE_EVENT(ADaySequenceActor, FOnDaySequenceUpdate)
-	FOnDaySequenceUpdate& GetOnDaySequenceUpdate() { return OnDaySequenceUpdate; }
+	DECLARE_EVENT(ADaySequenceActor, FOnSequencePlayerUpdated)
+	FOnSequencePlayerUpdated& GetOnSequencePlayerUpdated() { return OnSequencePlayerUpdated; }
 	
 	void InvalidateMuteStates() const;
 	
@@ -529,18 +522,8 @@ protected:
 	FOnRootSequenceChanged OnPreRootSequenceChanged;
 	FOnRootSequenceChanged OnPostRootSequenceChanged;
 	FOnPostInitializeDaySequences OnPostInitializeDaySequences;
+	FOnSequencePlayerUpdated OnSequencePlayerUpdated;
 	UE::DaySequence::FOnInvalidateMuteStates OnInvalidateMuteStates;
-
-	FOnDaySequenceUpdate OnDaySequenceUpdate;
-	FTimerHandle DaySequenceUpdateTimerHandle;
-
-	/** Starts a timer that will broadcast OnDaySequenceUpdate when the sequence player is paused. */
-	UFUNCTION()
-	void StartDaySequenceUpdateTimer();
-
-	/** Stops the timer that was started by DaySequenceUpdateTimerHandle. */
-	UFUNCTION()
-	void StopDaySequenceUpdateTimer();
 	
 #if ENABLE_DRAW_DEBUG
 	void OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const FDebugDisplayInfo& DisplayInfo, float& YL, float& YPos);
