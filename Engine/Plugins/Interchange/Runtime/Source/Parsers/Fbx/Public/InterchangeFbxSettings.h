@@ -12,7 +12,7 @@
 
 #include "InterchangeFbxSettings.generated.h"
 
-UCLASS(config = Interchange, meta = (DisplayName = "Interchange FBX"))
+UCLASS(config = Interchange, meta = (DisplayName = "FBX Settings"))
 class INTERCHANGEFBXPARSER_API UInterchangeFbxSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
