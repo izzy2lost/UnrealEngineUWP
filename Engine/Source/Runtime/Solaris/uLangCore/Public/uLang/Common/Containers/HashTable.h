@@ -182,7 +182,7 @@ public:
         _Entries[Pos]._KeyValue.~KeyValueType();
 
         // Linear probe to find stop entry
-        uint32_t StopPos = Pos + 1;
+        uint32_t StopPos = (Pos + 1) & (_NumEntries - 1);
         for (;;)
         {
             SEntry& Entry = _Entries[StopPos];
