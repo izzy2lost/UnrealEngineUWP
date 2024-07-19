@@ -138,8 +138,7 @@ bool UWorldPartitionBuilder::RunBuilder(UWorld* World)
 		}
 		else
 		{
-			UE_LOG(LogWorldPartitionBuilder, Error, TEXT("WorldPartition builders only works on partitioned maps."));
-			bResult = false;
+			UE_LOG(LogWorldPartitionBuilder, Warning, TEXT("WorldPartition builder '%s' only works on partitioned worlds - skipping processing of '%s'."), *GetClass()->GetName(), *World->GetPathName());
 		}
 	}
 
