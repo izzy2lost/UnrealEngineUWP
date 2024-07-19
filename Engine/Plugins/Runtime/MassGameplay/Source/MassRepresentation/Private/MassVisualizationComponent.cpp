@@ -70,24 +70,21 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::FindOrAd
 	FStaticMeshInstanceVisualizationDescHandle VisualDescHandle(InstancedStaticMeshInfos.IndexOfByPredicate([&Desc](const FMassInstancedStaticMeshInfo& Info) { return Info.GetDesc() == Desc; }));
 	if (!VisualDescHandle.IsValid())
 	{
-		bool bValidDescription = false;
-
-		for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Desc.Meshes)
+		if (Desc.IsValid())
 		{
-			if (MeshDesc.Mesh && MeshDesc.ISMComponentClass)
+			for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Desc.Meshes)
 			{
-				// if we've already encountered MeshDesc in the past MeshDescToISMCMap already contains information
-				// about actual ISMC used to represent it, and at the same time indicates the ISMCSharedData data
-				// tied to it. Regardless we need to process all MeshDesc instances here so that we have all the 
-				// data ready when InstancedSMComponentsRequiringConstructing gets processed next time
-				// UMassVisualizationComponent::ConstructStaticMeshComponents gets called.
-				MeshDescToISMCMap.FindOrAdd(GetTypeHash(MeshDesc), FISMCSharedDataKey());
-				bValidDescription = true;
+				if (MeshDesc.Mesh && MeshDesc.ISMComponentClass)
+				{
+					// if we've already encountered MeshDesc in the past MeshDescToISMCMap already contains information
+					// about actual ISMC used to represent it, and at the same time indicates the ISMCSharedData data
+					// tied to it. Regardless we need to process all MeshDesc instances here so that we have all the 
+					// data ready when InstancedSMComponentsRequiringConstructing gets processed next time
+					// UMassVisualizationComponent::ConstructStaticMeshComponents gets called.
+					MeshDescToISMCMap.FindOrAdd(GetTypeHash(MeshDesc), FISMCSharedDataKey());
+				}
 			}
-		}
 
-		if (bValidDescription)
-		{
 			VisualDescHandle = AddInstancedStaticMeshInfo(Desc);
 			check(VisualDescHandle.IsValid());
 

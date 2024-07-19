@@ -143,6 +143,9 @@ struct FStaticMeshInstanceVisualizationDesc : public FTableRowBase
 	{
 		new(this)FStaticMeshInstanceVisualizationDesc();
 	}
+
+	/** @return whether any of descriptions in Meshes is valid. This implies that empty Meshes will be treated as not valid.*/
+	bool IsValid() const;
 };
 
 /** Handle for FStaticMeshInstanceVisualizationDesc's registered with UMassRepresentationSubsystem */

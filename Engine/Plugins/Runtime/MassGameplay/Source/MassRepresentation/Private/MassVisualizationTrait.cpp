@@ -12,6 +12,13 @@
 #include "MassEntityUtils.h"
 #include "MassVisualizationLODProcessor.h"
 #include "MassRepresentationProcessor.h"
+#if WITH_EDITOR
+#include "Logging/MessageLog.h"
+#include "Editor.h"
+#include "UObject/UnrealType.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "Mass"
 
 
 UMassVisualizationTrait::UMassVisualizationTrait()
@@ -78,17 +85,38 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	{
 		UE_LOG(LogMassRepresentation, Error, TEXT("Expecting a valid class for the representation actor management"));
 	}
-	FConstSharedStruct ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);
-	ParamsFragment.Get<const FMassRepresentationParameters>().ComputeCachedValues();
-	BuildContext.AddConstSharedFragment(ParamsFragment);
 
 	FMassRepresentationFragment& RepresentationFragment = BuildContext.AddFragment_GetRef<FMassRepresentationFragment>();
-	if (bRegisterStaticMeshDesc)
-	{
-		RepresentationFragment.StaticMeshDescHandle = RepresentationSubsystem->FindOrAddStaticMeshDesc(StaticMeshInstanceDesc);
-	}
 	RepresentationFragment.HighResTemplateActorIndex = HighResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(HighResTemplateActor.Get()) : INDEX_NONE;
 	RepresentationFragment.LowResTemplateActorIndex = LowResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(LowResTemplateActor.Get()) : INDEX_NONE;
+
+	bool bStaticMeshDescriptionValid = StaticMeshInstanceDesc.IsValid();
+	if (bStaticMeshDescriptionValid)
+	{
+		if (bRegisterStaticMeshDesc)
+		{
+			RepresentationFragment.StaticMeshDescHandle = RepresentationSubsystem->FindOrAddStaticMeshDesc(StaticMeshInstanceDesc);
+			ensureMsgf(RepresentationFragment.StaticMeshDescHandle.IsValid()
+				, TEXT("Expected to get a valid StaticMeshDescHandle since we already checked that StaticMeshInstanceDesc is valid"));
+			// if the unexpected happens and StaticMeshDescHandle is not valid we're going to treat it as if StaticMeshInstanceDesc
+			// was not valid in the first place and handle it accordingly in a moment
+			bStaticMeshDescriptionValid = RepresentationFragment.StaticMeshDescHandle.IsValid();
+		}
+	}
+
+	FConstSharedStruct ParamsFragment;
+	if (bStaticMeshDescriptionValid)
+	{
+		ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(Params);
+	}
+	else
+	{
+		FMassRepresentationParameters ParamsCopy = Params;
+		SanitizeParams(ParamsCopy, bStaticMeshDescriptionValid);
+		ParamsFragment = EntityManager.GetOrCreateConstSharedFragment(ParamsCopy);
+	}
+	ParamsFragment.Get<const FMassRepresentationParameters>().ComputeCachedValues();
+	BuildContext.AddConstSharedFragment(ParamsFragment);
 
 	FConstSharedStruct LODParamsFragment = EntityManager.GetOrCreateConstSharedFragment(LODParams);
 	BuildContext.AddConstSharedFragment(LODParamsFragment);
@@ -105,4 +133,82 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	BuildContext.AddTag<FMassVisualizationProcessorTag>();
 }
 
+void UMassVisualizationTrait::SanitizeParams(FMassRepresentationParameters& InOutParams, const bool bStaticMeshDeterminedInvalid) const
+{
+	if (bStaticMeshDeterminedInvalid || (StaticMeshInstanceDesc.IsValid() == false))
+	{
+		for (int32 LODIndex = 0; LODIndex < EMassLOD::Max; ++LODIndex)
+		{
+			if (InOutParams.LODRepresentation[LODIndex] == EMassRepresentationType::StaticMeshInstance)
+			{
+				InOutParams.LODRepresentation[LODIndex] = EMassRepresentationType::None;
+			}
+		}
+	}
+}
 
+void UMassVisualizationTrait::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+
+#if WITH_EDITOR
+	if (GEditor && (Ar.IsLoading() || Ar.IsSaving()))
+	{
+		ValidateParams();
+	}
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+void UMassVisualizationTrait::ValidateParams() const
+{
+	// the SM config provided is not valid. We need to check if EMassRepresentationType::StaticMeshInstance
+	// is being used as any of the LODRepresentations. If so then we need to clear those out and report an error
+	if (StaticMeshInstanceDesc.IsValid() == false)
+	{
+		for (int32 LODIndex = 0; LODIndex < EMassLOD::Max; ++LODIndex)
+		{
+			if (Params.LODRepresentation[LODIndex] == EMassRepresentationType::StaticMeshInstance)
+			{
+#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
+				if (GEditor)
+				{
+					static const FText ErrorMessage(LOCTEXT("VisualizationTraitMissingSM", "Trait using StaticMeshInstance representation type but no meshes are configured."));
+					static const FText InfoMessage(LOCTEXT("SeeLogForDetails", "See the log for details."));
+
+					FMessageLog EditorErrors("MassEntity");
+					EditorErrors.Error(ErrorMessage);
+					EditorErrors.Notify(ErrorMessage);
+					EditorErrors.Info(InfoMessage);
+				}
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
+
+				UE_LOG(LogMassRepresentation, Error, TEXT("Trait %s is using StaticMeshInstance representation type for "
+					"LODRepresentation[%s] while the trait's StaticMeshInstanceDesc is not valid (has no Meshes). Entities "
+					"won't be visible at this LOD level.")
+					, *GetPathName(), *UEnum::GetValueAsString(EMassLOD::Type(LODIndex)));
+			}
+		}
+	}
+}
+
+void UMassVisualizationTrait::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	static const FName ParamsName = GET_MEMBER_NAME_CHECKED(UMassVisualizationTrait, Params);
+	static const FName StaticMeshDescriptionName = GET_MEMBER_NAME_CHECKED(UMassVisualizationTrait, StaticMeshInstanceDesc);
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (PropertyChangedEvent.MemberProperty)
+	{
+		const FName PropName = PropertyChangedEvent.MemberProperty->GetFName();
+		if (PropName == ParamsName || PropName == StaticMeshDescriptionName)
+		{
+			ValidateParams();
+		}
+	}
+}
+
+#endif // WITH_EDITOR
+
+#undef LOCTEXT_NAMESPACE 

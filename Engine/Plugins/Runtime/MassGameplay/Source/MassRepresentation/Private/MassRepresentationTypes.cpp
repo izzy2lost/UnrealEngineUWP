@@ -108,6 +108,21 @@ FMassStaticMeshInstanceVisualizationMeshDesc::FMassStaticMeshInstanceVisualizati
 }
 
 //-----------------------------------------------------------------------------
+// FStaticMeshInstanceVisualizationDesc
+//-----------------------------------------------------------------------------
+bool FStaticMeshInstanceVisualizationDesc::IsValid() const
+{
+	for (const FMassStaticMeshInstanceVisualizationMeshDesc& MeshDesc : Meshes)
+	{
+		if (MeshDesc.Mesh && MeshDesc.ISMComponentClass)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+//-----------------------------------------------------------------------------
 // FMassISMCSharedDataMap - DEPRECATED
 //-----------------------------------------------------------------------------
 FMassISMCSharedData& FMassISMCSharedDataMap::GetAndMarkDirtyChecked(const uint32 Hash)
