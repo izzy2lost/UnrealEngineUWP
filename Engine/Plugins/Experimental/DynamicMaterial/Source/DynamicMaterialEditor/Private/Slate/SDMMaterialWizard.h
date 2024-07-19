@@ -9,10 +9,9 @@ class SBox;
 class SDMEditor;
 class SWidget;
 class UDynamicMaterialModel;
+class UDynamicMaterialModelBase;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialShadingModel : uint8;
-enum EBlendMode : int;
-enum EMaterialDomain : int;
 
 class SDMMaterialWizard : public SCompoundWidget
 {
@@ -40,4 +39,8 @@ protected:
 	void Preset_OnChange(ECheckBoxState InState, FName InPresetName);
 
 	FReply Accept_OnClick();
+
+	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel);
+
+	void OpenMaterialInEditor(UDynamicMaterialModelBase* InMaterialModel);
 };

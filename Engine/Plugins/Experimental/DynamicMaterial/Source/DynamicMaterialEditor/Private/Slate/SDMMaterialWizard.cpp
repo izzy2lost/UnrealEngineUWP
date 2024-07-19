@@ -40,12 +40,21 @@ void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDM
 		{
 			CurrentPreset = Settings->MaterialChannelPresets[0].Name;
 		}
-	}	
+	}
+
+	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(InEditor->GetMaterialModelBase()))
+	{
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+		{
+			// Subscribe to this in case the wizard completes externally and this widget is no longer needed.
+			EditorOnlyData->GetOnMaterialBuiltDelegate().AddSP(this, &SDMMaterialWizard::OnMaterialBuilt);
+		}
+	}
 
 	ChildSlot
-		[
-			CreateLayout()
-		];
+	[
+		CreateLayout()
+	];
 }
 
 TSharedPtr<SDMEditor> SDMMaterialWizard::GetEditor() const
@@ -253,12 +262,43 @@ FReply SDMMaterialWizard::Accept_OnClick()
 		{
 			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 			{
-				AActor* MaterialActor = Editor->GetMaterialActor();
-				FDMObjectMaterialProperty MaterialProperty = Editor->GetMaterialObjectProperty();
-				Editor->ClearEditor();
+				EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
 
 				EditorOnlyData->SetChannelListPreset(CurrentPreset);
 				EditorOnlyData->OnWizardComplete();
+
+				OpenMaterialInEditor(MaterialModel);
+			}
+		}
+	}
+
+	return FReply::Handled();
+}
+
+void SDMMaterialWizard::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModel)
+{
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(InMaterialModel))
+	{
+		if (!EditorOnlyData->NeedsWizard())
+		{
+			OpenMaterialInEditor(InMaterialModel);
+		}
+	}
+}
+
+void SDMMaterialWizard::OpenMaterialInEditor(UDynamicMaterialModelBase* InMaterialModel)
+{
+	if (TSharedPtr<SDMEditor> Editor = GetEditor())
+	{
+		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
+		{
+			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+			{
+				EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
+
+				AActor* MaterialActor = Editor->GetMaterialActor();
+				FDMObjectMaterialProperty MaterialProperty = Editor->GetMaterialObjectProperty();
+				Editor->ClearEditor();
 
 				// Refresh display
 				if (MaterialProperty.IsValid())
@@ -274,8 +314,6 @@ FReply SDMMaterialWizard::Accept_OnClick()
 			}
 		}
 	}
-
-	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE

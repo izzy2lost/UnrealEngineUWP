@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialDesigner/AvaMaterialDesignerTextureAssetFactory.h"
+
 #include "AvaShapeActor.h"
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
@@ -56,6 +57,8 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 	{
 		return InNewActor;
 	}
+
+	InNewActor->Rename(*Texture->GetName(), nullptr, REN_DontCreateRedirectors);
 
 	AAvaShapeActor* ShapeActor = Cast<AAvaShapeActor>(InNewActor);
 
@@ -121,7 +124,10 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 		return InNewActor;
 	}
 
-	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor);
+	EditorOnlyData->SetChannelListPreset(TEXT("Emissive"));
+	EditorOnlyData->OnWizardComplete();
+
+	const UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor);
 
 	if (!Slot)
 	{

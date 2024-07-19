@@ -210,7 +210,7 @@ public:
 
 	bool NeedsWizard() const;
 
-	void OnWizardComplete();
+	DYNAMICMATERIALEDITOR_API void OnWizardComplete();
 
 	DYNAMICMATERIALEDITOR_API void ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
 		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
