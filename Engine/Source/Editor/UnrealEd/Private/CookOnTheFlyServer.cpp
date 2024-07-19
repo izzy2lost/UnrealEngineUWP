@@ -723,6 +723,11 @@ bool UCookOnTheFlyServer::StartCookOnTheFly(FCookOnTheFlyStartupOptions InCookOn
 		CookOnTheFlyRequestManager = MakeNetworkFileCookOnTheFlyRequestManager(*CookOnTheFlyServerInterface, CookOnTheFlyNetworkServer.ToSharedRef());
 	}
 
+	if (bRunningAsShaderServer)
+	{
+		BlockOnAssetRegistry(TConstArrayView<FString>());
+	}
+
 	if (CookOnTheFlyNetworkServer->Start())
 	{
 		TArray<TSharedPtr<FInternetAddr>> ListenAddresses;
@@ -759,7 +764,7 @@ void UCookOnTheFlyServer::AddCookOnTheFlyPlatformFromGameThread(ITargetPlatform*
 {
 	UE::Cook::FPlatformData* PlatformData = PlatformManager->GetPlatformData(TargetPlatform);
 	check(PlatformData != nullptr); // should have been checked by the caller
-	if (PlatformData->bIsSandboxInitialized)
+	if (PlatformData->bIsSandboxInitialized || bRunningAsShaderServer)
 	{
 		return;
 	}
