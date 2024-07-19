@@ -295,9 +295,13 @@ namespace UE::ConcertSyncServer::Replication
 		TFunctionRef<void(const FSoftObjectPath& ObjectPath)> OnRejection
 		) const
 	{
+		if (EnumHasAnyFlags(Request.Flags, EConcertReplicationMuteRequestFlags::ClearMuteState) && !Request.ObjectsToUnmute.IsEmpty())
+		{
+			return false;
+		}
+		
 		bool bIsValidRequest = true;
 		const auto Reject = [&OnRejection, &bIsValidRequest](const FSoftObjectPath& ObjectPath){ OnRejection(ObjectPath); bIsValidRequest = false; };
-		
 		const auto SharedValidateSetting = [this, &Reject, &ObjectCache](const FSoftObjectPath& Object, const FConcertReplication_ObjectMuteSetting& Setting)
 		{
 			const bool bIsObjectReferenced = ObjectCache.IsObjectReferencedDirectly(Object);
@@ -339,7 +343,14 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FMuteManager::ApplyRequestInternal(const FConcertReplication_ChangeMuteState_Request& Request)
 	{
-		UE_LOG(LogConcert, Log, TEXT("Explicitly muting %d and unmuting %d objects."), Request.ObjectsToMute.Num(), Request.ObjectsToUnmute.Num());
+		const bool bResetState = EnumHasAnyFlags(Request.Flags, EConcertReplicationMuteRequestFlags::ClearMuteState);
+		UE_CLOG(bResetState, LogConcert, Log, TEXT("Explicitly muting %d and unmuting %d objects."), Request.ObjectsToMute.Num(), Request.ObjectsToUnmute.Num());
+		UE_CLOG(!bResetState, LogConcert, Log, TEXT("Explicitly muting %d and unmuting %d objects. Resetting mute state before."), Request.ObjectsToMute.Num(), Request.ObjectsToUnmute.Num());
+		
+		if (bResetState)
+		{
+			MuteState.Empty(Request.ObjectsToMute.Num());
+		}
 		
 		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& ToMute : Request.ObjectsToMute)
 		{

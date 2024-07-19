@@ -37,6 +37,16 @@ struct FConcertReplication_ObjectMuteSetting
 	friend bool operator==(const FConcertReplication_ObjectMuteSetting& Left, const FConcertReplication_ObjectMuteSetting& Right) = default;
 };
 
+UENUM(Flags)
+enum class EConcertReplicationMuteRequestFlags : uint8
+{
+	None,
+
+	/** Before the request is applied, all mute state is reset. This means that ObjectsToUnmute is effectively ignored and the mute state is replaced with what is saved in ObjectsToMute. */
+	ClearMuteState = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EConcertReplicationMuteRequestFlags);
+
 /**
  * A request to globally pause / resume replication of objects.
  * Muted objects will not be replicated to any clients.
@@ -66,6 +76,10 @@ struct FConcertReplication_ChangeMuteState_Request
 {
 	GENERATED_BODY()
 
+	/** Flags that modify the request's behavior. */
+	UPROPERTY()
+	EConcertReplicationMuteRequestFlags Flags = EConcertReplicationMuteRequestFlags::None;
+	
 	/** The objects to explicitly mute. */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ObjectsToMute;
@@ -79,6 +93,8 @@ struct FConcertReplication_ChangeMuteState_Request
 	 *
 	 * If a specified object is explicitly muted, then it and all the subobjects that were implicitly muted because of it are unmuted;
 	 * in this case, it does not matter whether EConcertReplicationMuteFlags::ObjectAndSubobjects flag is set.
+	 *
+	 * If Flags specifies ClearMuteState and ObjectsToUnmute is non-empty, the request is rejected.
 	 */
 	UPROPERTY()
 	TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ObjectsToUnmute;
