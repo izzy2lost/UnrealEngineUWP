@@ -233,6 +233,20 @@ public:
 	GEOMETRYFRAMEWORK_API bool IsEditable() const { return bIsEditable; }
 	GEOMETRYFRAMEWORK_API void SetIsEditable(bool bInIsEditable) { bIsEditable = bInIsEditable; }
 
+
+	/**
+	 * @return Whether elements of the dynamic mesh can be interactively selected.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API bool IsElementSelectable() const { return bIsElementSelectable; }
+	/**
+	 * Enable/Disable interactive element selection for the mesh. Useful to disable element selection on procedural meshes where the selection will be frequently invalidated.
+	 * 
+	 * @param bInIsElementSelectable Whether elements of the dynamic mesh will be interactively selectable.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Dynamic Mesh Component")
+	GEOMETRYFRAMEWORK_API void SetIsElementSelectable(bool bInIsElementSelectable) { bIsElementSelectable = bInIsElementSelectable; }
+
 protected:
 	/**
 	 * Internal FDynamicMesh is stored inside a UDynamicMesh container, which allows it to be
@@ -414,6 +428,11 @@ protected:
 	 * However, this cannot prevent code from modifying the underlying UDynamicMesh through direct references (ex. via GetDynamicMesh()->SetMesh).
 	 */
 	bool bIsEditable = true;
+
+	/**
+	 * If set to false, the element selection UI will not be used for this mesh component. This is useful for procedural meshes where selection would be frequently invalidated.
+	 */
+	bool bIsElementSelectable = true;
 
 
 

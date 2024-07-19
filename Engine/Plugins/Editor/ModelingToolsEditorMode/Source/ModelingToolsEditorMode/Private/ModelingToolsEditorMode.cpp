@@ -24,6 +24,7 @@
 #include "Snapping/ModelingSceneSnappingManager.h"
 #include "Scene/LevelObjectsObserver.h"
 #include "UnrealEdGlobals.h" // GUnrealEd
+#include "Algo/RemoveIf.h"
 
 #include "Features/IModularFeatures.h"
 #include "ModelingModeToolExtensions.h"
@@ -1507,6 +1508,9 @@ void UModelingToolsEditorMode::UpdateSelectionManagerOnEditorSelectionChange(boo
 			});
 		}
 	}
+
+	// filter out any dynamic mesh components that aren't editable or aren't element-selectable
+	SelectedDynamicMeshComponents.SetNum(Algo::RemoveIf(SelectedDynamicMeshComponents, [](UDynamicMeshComponent* DMC)->bool {return !DMC->IsEditable() || !DMC->IsElementSelectable();}));
 
 	// convert selected Component types into selection Identifiers
 	TArray<FGeometryIdentifier> ValidIdentifiers;
