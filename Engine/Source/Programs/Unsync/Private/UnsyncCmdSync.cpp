@@ -22,6 +22,27 @@ CmdSync(const FCmdSyncOptions& Options)
 		return Options.Filter ? Options.Filter->Resolve(Path) : Path;
 	};
 
+	if (Options.Source.empty())
+	{
+		UNSYNC_ERROR(L"Sync source location is invalid");
+		return 1;
+	}
+
+	if (Options.Target.empty())
+	{
+		UNSYNC_ERROR(L"Sync target location is invalid");
+		return 1;
+	}
+
+	for (const FPath& Path : Options.Overlays)
+	{
+		if (Path.empty())
+		{
+			UNSYNC_ERROR(L"Sync overlay location is invalid");
+			return 1;
+		}
+	}
+
 	FProxyPool ProxyPool(Options.Remote, Options.AuthDesc);
 
 	std::error_code ErrorCode	   = {};

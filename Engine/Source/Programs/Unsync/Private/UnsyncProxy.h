@@ -66,30 +66,38 @@ struct FMacroBlockRequest
 class FBlockRequestMap
 {
 public:
-	void Init(EStrongHashAlgorithmID InStrongHasher)
+	void Init(EStrongHashAlgorithmID InStrongHasher, const std::vector<FPath>& InSourceRoots)
 	{
 		UNSYNC_ASSERTF(StrongHasher == EStrongHashAlgorithmID::Invalid, L"Request map is already initialized");
 		StrongHasher = InStrongHasher;
+		SourceRoots	 = InSourceRoots;
 	}
 
-	void AddFileBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& Manifest);
+	void AddFileBlocks(uint32 SourceId, const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& Manifest);
 	void AddPackBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const TArrayView<FPackIndexEntry> PackManifest);
 
-	const std::vector<std::string>& GetFileList() const { return FileListUtf8; }
-	const FBlockRequest*			FindRequest(const FGenericHash& BlockHash) const;
-	const std::string*				FindFile(const FHash128& Hash) const;
+	struct FBlockRequestEx : FBlockRequest
+	{
+		uint32 SourceId = ~0u;
+	};
+
+	const std::vector<std::string>& GetSourceFileList() const { return SourceFileListUtf8; }
+	const FBlockRequestEx*			FindRequest(const FGenericHash& BlockHash) const;
+	const std::string*				FindSourceFile(const FHash128& NameHashMd5) const;
 	EStrongHashAlgorithmID			GetStrongHasher() const { return StrongHasher; }
 	FMacroBlockRequest				GetMacroBlockRequest(const FGenericHash& BlockHash) const;
+	const std::vector<FPath>&		GetSourceRoots() const { return SourceRoots; }
 
 private:
 
 	FHash128 AddFile(const FPath& OriginalFilePath, const FPath& ResolvedFilePath);
 
 	EStrongHashAlgorithmID							 StrongHasher = EStrongHashAlgorithmID::Invalid;
-	std::vector<std::string>						 FileListUtf8;
+	std::vector<std::string>						 SourceFileListUtf8;
 	std::unordered_map<FHash128, uint32>			 HashToFile;
-	std::unordered_map<FHash128, FBlockRequest>		 BlockRequests;
+	std::unordered_map<FHash128, FBlockRequestEx>	 BlockRequests;
 	std::unordered_map<FHash128, FMacroBlockRequest> MacroBlockRequests;
+	std::vector<FPath>								 SourceRoots;
 };
 
 struct FRemoteProtocolFeatures
@@ -185,9 +193,7 @@ public:
 	const FRemoteDesc RemoteDesc;
 	const FAuthDesc* AuthDesc = nullptr; // optional reference to externally-owned auth parameters
 
-	void InitRequestMap(EStrongHashAlgorithmID InStrongHasher);
 	void SetRequestMap(FBlockRequestMap&& InRequestMap);
-	void BuildFileBlockRequests(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest);
 
 	const FRemoteProtocolFeatures& GetFeatures() const { return Features; }
 	const std::string& GetSessionId() const { return SessionId; }

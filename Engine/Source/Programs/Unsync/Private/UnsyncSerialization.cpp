@@ -824,7 +824,7 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stre
 }
 
 bool
-SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
+SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename, bool bAllowInDryRun)
 {
 	FBuffer			 OutputBuffer;
 	FVectorStreamOut OutputStream(OutputBuffer);
@@ -834,7 +834,13 @@ SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename)
 	bool bSerialized = SaveDirectoryManifest(Manifest, OutputStream);
 	UNSYNC_ASSERT(bSerialized);
 
-	FNativeFile OutputFile(Filename, EFileMode::CreateWriteOnly, OutputBuffer.Size());
+	EFileMode FileMode = EFileMode ::CreateWriteOnly;
+	if (bAllowInDryRun)
+	{
+		FileMode = FileMode | EFileMode::IgnoreDryRun;
+	}
+
+	FNativeFile OutputFile(Filename, FileMode, OutputBuffer.Size());
 	if (OutputFile.IsValid())
 	{
 		uint64 WroteBytes = OutputFile.Write(OutputBuffer.Data(), 0, OutputBuffer.Size());

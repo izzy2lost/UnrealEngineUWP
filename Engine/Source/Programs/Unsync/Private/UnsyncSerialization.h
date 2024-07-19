@@ -16,6 +16,6 @@ bool LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, F
 bool LoadDirectoryManifest(FDirectoryManifest& OutManifest, const FPath& Root, const FPath& Filename);
 
 bool SaveDirectoryManifest(const FDirectoryManifest& Manifest, FVectorStreamOut& Stream);
-bool SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename);
+bool SaveDirectoryManifest(const FDirectoryManifest& Manifest, const FPath& Filename, bool bAllowInDryRun = false);
 
 }  // namespace unsync

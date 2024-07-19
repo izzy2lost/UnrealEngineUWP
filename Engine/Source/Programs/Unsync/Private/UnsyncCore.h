@@ -189,6 +189,8 @@ struct FFileSyncTask
 	uint64 NeedBytesFromBase   = 0;
 	uint64 TotalSizeBytes	   = 0;
 
+	uint32 SourceId = 0;
+
 	bool IsBaseValid() const { return !BaseFilePath.empty(); }
 };
 

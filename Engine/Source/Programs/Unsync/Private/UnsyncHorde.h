@@ -28,6 +28,8 @@ struct FHordeProtocolImpl : FRemoteProtocolBase
 
 	FProxyPool& ProxyPool;
 	bool bValid = true;
+
+	FDownloadResult DownloadArtifactBlobs(std::string_view ArtifactPath, const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback);
 };
 
 

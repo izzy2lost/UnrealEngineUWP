@@ -667,6 +667,25 @@ InnerMain(int Argc, char** Argv)
 	if (RemoteDesc.Protocol == EProtocolFlavor::Horde && Cli.got_subcommand(SubSync))
 	{
 		bFilesystemSource = false;
+
+		auto ResolveHordeArtifactPath = [](const std::string& PathUtf8)
+		{
+			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(PathUtf8);
+			if (Query.IsError())
+			{
+				LogError(Query.GetError(), L"Could not parse sync source path");
+				return std::string();
+			}
+
+			if (Query->Id.empty())
+			{
+				UNSYNC_ERROR(L"Could not parse sync source path. Artifact ID is expected, i.e. '#123456abcdef'.");
+				return std::string();
+			}
+
+			return std::string("api/v2/artifacts/") + Query->Id;
+		};
+
 		if (RemoteDesc.RequestPath.empty())
 		{
 			TResult<FHordeArtifactQuery> Query = FHordeArtifactQuery::FromString(SourceFilenameUtf8);
@@ -682,8 +701,13 @@ InnerMain(int Argc, char** Argv)
 				return 1;
 			}
 
-			SourceFilenameUtf8 = "api/v2/artifacts/" + Query->Id;
+			SourceFilenameUtf8	   = ResolveHordeArtifactPath(SourceFilenameUtf8);
 			RemoteDesc.RequestPath = SourceFilenameUtf8;
+		}
+
+		for (std::string& OverlayPath : OverlayArrayUtf8)
+		{
+			OverlayPath = ResolveHordeArtifactPath(OverlayPath);
 		}
 	}
 
@@ -1080,7 +1104,14 @@ InnerMain(int Argc, char** Argv)
 
 		for (const std::string& Entry : OverlayArrayUtf8)
 		{
-			SyncOptions.Overlays.push_back(NormalizeFilenameUtf8(Entry));
+			if (bFilesystemSource)
+			{
+				SyncOptions.Overlays.push_back(NormalizeFilenameUtf8(Entry));
+			}
+			else
+			{
+				SyncOptions.Overlays.push_back(FPath(Entry));
+			}
 		}
 
 		return CmdSync(SyncOptions);

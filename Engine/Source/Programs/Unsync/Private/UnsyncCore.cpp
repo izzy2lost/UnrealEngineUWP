@@ -1335,8 +1335,6 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		}
 	};
 
-	auto ResolvePath = [SyncFilter](const FPath& Filename) -> FPath { return SyncFilter ? SyncFilter->Resolve(Filename) : Filename; };
-
 	FDirectoryManifest SourceDirectoryManifest;
 	FPath			   SourceManifestTempPath;
 
@@ -1346,6 +1344,18 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 
 	std::vector<FPackIndexDatabase> PackIndexFiles;
 
+	std::vector<FPath> AllSources;
+	AllSources.push_back(SourcePath);
+	for (const FPath& OverlayPath : SyncOptions.Overlays)
+	{
+		AllSources.push_back(OverlayPath);
+	}
+	
+	auto ResolvePath = [SyncFilter](const FPath& Filename) -> FPath { return SyncFilter ? SyncFilter->Resolve(Filename) : Filename; };
+
+	// Used to build block request map when syncing from multiple sources.
+	THashMap<FHash256, uint32> FileSourceIdMap;
+
 	if (SyncOptions.SourceType == ESourceType::ServerWithManifestId)
 	{
 		if (!ProxyPool.IsValid())
@@ -1354,22 +1364,59 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			return false;
 		}
 
-		UNSYNC_LOG(L"Downloading manifest ...");
-
 		std::unique_ptr<FProxy> Proxy = ProxyPool.Alloc();
 
-		std::string					SourceManifestName = ConvertWideToUtf8(SyncOptions.Source.wstring());
-		TResult<FDirectoryManifest> DownloadResult	   = Proxy->DownloadManifest(SourceManifestName);
-		if (FDirectoryManifest* Manifest = DownloadResult.TryData())
+		uint32 SourceIndex = 0;
+		for (const FPath& ThisSourcePath : AllSources)
 		{
-			bSourceManifestOk = true;
-			std::swap(SourceDirectoryManifest, *Manifest);
-		}
-		else
-		{
-			LogError(DownloadResult.GetError(), L"Failed to download file");
-			UNSYNC_BREAK_ON_ERROR;
-			return false;
+			std::string SourceManifestName = ConvertWideToUtf8(ThisSourcePath.wstring());
+			FHash128	SourcePathHash	   = HashBlake3String<FHash128>(SourceManifestName);
+			std::string SourcePathHashStr  = BytesToHexString(SourcePathHash.Data, sizeof(SourcePathHash.Data));
+			FPath		CachedManifestPath = TargetTempPath / SourcePathHashStr;
+
+			FPath EmptyPath; // no physical path for downloaded manifests
+
+			FDirectoryManifest LoadedManifest;
+			if (!PathExists(CachedManifestPath) || !LoadDirectoryManifest(LoadedManifest, EmptyPath, CachedManifestPath))
+			{
+				LogGlobalStatus(L"Caching source manifest");
+				UNSYNC_VERBOSE(L"Caching source manifest");
+
+				UNSYNC_LOG_INDENT;
+				UNSYNC_VERBOSE(L"Source '%hs'", SourceManifestName.c_str());
+				UNSYNC_VERBOSE(L"Target '%ls'", CachedManifestPath.wstring().c_str());
+
+				TResult<FDirectoryManifest> DownloadResult = Proxy->DownloadManifest(SourceManifestName);
+
+				if (FDirectoryManifest* Manifest = DownloadResult.TryData())
+				{
+					std::swap(LoadedManifest, *Manifest);
+				}
+				else
+				{
+					LogError(DownloadResult.GetError(), L"Failed to download manifest");
+					UNSYNC_BREAK_ON_ERROR;
+					return false;
+				}
+
+				const bool bAllowInDryRun = true;
+				SaveDirectoryManifest(LoadedManifest, CachedManifestPath, bAllowInDryRun);
+			}
+
+			for (const auto& It : LoadedManifest.Files)
+			{
+				FHash256 NameHash = HashBlake3String<FHash256>(It.first);
+				FileSourceIdMap[NameHash] = SourceIndex;
+			}
+
+			bSourceManifestOk = MergeManifests(SourceDirectoryManifest, LoadedManifest, bCaseSensitiveTargetFileSystem);
+
+			if (!bSourceManifestOk)
+			{
+				break;
+			}
+
+			++SourceIndex;
 		}
 
 		ProxyPool.Dealloc(std::move(Proxy)); // TODO: RAII helper for pooled proxy connections
@@ -1386,13 +1433,6 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	}
 	else
 	{
-		std::vector<FPath> AllSources;
-		AllSources.push_back(SourcePath);
-		for (const FPath& OverlayPath : SyncOptions.Overlays)
-		{
-			AllSources.push_back(OverlayPath);
-		}
-
 		for (const FPath& ThisSourcePath : AllSources)
 		{
 			std::unique_ptr<FProxyFileSystem> ProxyFileSystem;
@@ -1528,6 +1568,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 	for (const auto& SourceManifestIt : SourceDirectoryManifest.Files)
 	{
 		const std::wstring& SourceFilename = SourceManifestIt.first;
+		const FHash256		SourceFilenameHash = HashBlake3String<FHash256>(SourceFilename);
 
 		if (!ShouldSync(SourceFilename))
 		{
@@ -1564,6 +1605,16 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 		FPath TargetFilePath = TargetPath / ToPath(SourceManifestIt.first);
 
 		FPath ResolvedSourceFilePath = ResolvePath(SourceFilePath);
+		uint32 SourceId = 0;
+
+		{
+			FHash256 NameHash	   = HashBlake3String<FHash256>(SourceFilename);
+			auto	 FoundSourceId = FileSourceIdMap.find(NameHash);
+			if (FoundSourceId != FileSourceIdMap.end())
+			{
+				SourceId = FoundSourceId->second;
+			}
+		}
 
 		if (bFileSystemSource && SyncOptions.bValidateSourceFiles)
 		{
@@ -1633,6 +1684,7 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			Task.BaseFilePath			= std::move(BaseFilePath);
 			Task.TargetFilePath			= std::move(TargetFilePath);
 			Task.SourceManifest			= &SourceFileManifest;
+			Task.SourceId				= SourceId;
 
 			if (bQuickDifferencePossible)
 			{
@@ -1815,11 +1867,11 @@ SyncDirectory(const FSyncDirectoryOptions& SyncOptions)
 			if (bProxyHasData)
 			{
 				FBlockRequestMap BlockRequestMap;
-				BlockRequestMap.Init(SourceDirectoryManifest.Algorithm.StrongHashAlgorithmId);
+				BlockRequestMap.Init(SourceDirectoryManifest.Algorithm.StrongHashAlgorithmId, AllSources);
 
 				for (const FFileSyncTask& Task : AllFileTasks)
 				{
-					BlockRequestMap.AddFileBlocks(Task.OriginalSourceFilePath, Task.ResolvedSourceFilePath, *Task.SourceManifest);
+					BlockRequestMap.AddFileBlocks(Task.SourceId, Task.OriginalSourceFilePath, Task.ResolvedSourceFilePath, *Task.SourceManifest);
 				}
 
 				// Override loose file blocks with pack files

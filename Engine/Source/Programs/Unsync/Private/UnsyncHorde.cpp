@@ -22,6 +22,58 @@ FHordeProtocolImpl::FHordeProtocolImpl(const FRemoteDesc& InRemoteDesc, const FB
 FDownloadResult
 FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
 {
+	// Requested blocks may come from different sources, in which case we have to split up the request by artifact root.
+
+	struct FBatch
+	{
+		std::vector<FNeedBlock> NeedBlocks;
+	};
+
+	std::vector<FBatch> Batches;
+	Batches.resize(RequestMap->GetSourceRoots().size());
+
+	for (const FNeedBlock Block : NeedBlocks)
+	{
+		const FBlockRequestMap::FBlockRequestEx* FoundRequest = RequestMap->FindRequest(Block.Hash);
+		if (!FoundRequest)
+		{
+			UNSYNC_ERROR(L"Could not find block request metadata");
+			return FDownloadError(EDownloadRetryMode::Abort);
+		}
+
+		if (FoundRequest->SourceId == ~0u)
+		{
+			UNSYNC_ERROR(L"Block request metadata does not contain a valid artifact source ID");
+			return FDownloadError(EDownloadRetryMode::Abort);
+		}
+
+		Batches[FoundRequest->SourceId].NeedBlocks.push_back(Block);
+	}
+
+	for (size_t BatchIndex = 0; BatchIndex < Batches.size(); ++BatchIndex)
+	{
+		const FBatch& Batch = Batches[BatchIndex];
+		if (Batch.NeedBlocks.empty())
+		{
+			continue;
+		}
+
+		const FPath& ArtifactPath	  = RequestMap->GetSourceRoots()[BatchIndex];
+		std::string	 ArtifactPathUtf8 = ConvertWideToUtf8(ArtifactPath.wstring());
+
+		FDownloadResult BatchDownloadResult = DownloadArtifactBlobs(ArtifactPathUtf8, MakeView(Batch.NeedBlocks), CompletionCallback);
+
+		if (BatchDownloadResult.IsError())
+		{
+			return BatchDownloadResult;
+		}
+	}
+
+	return ResultOk<FDownloadError>();
+}
+
+FDownloadResult FHordeProtocolImpl::DownloadArtifactBlobs(std::string_view ArtifactPath, const TArrayView<FNeedBlock> NeedBlocks, const FBlockDownloadCallback& CompletionCallback)
+{
 	if (NeedBlocks.Size() == 0)
 	{
 		return ResultOk<FDownloadError>();
@@ -29,8 +81,7 @@ FHordeProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBlo
 
 	std::string RequestJson = FormatBlockRequestJson(*RequestMap, NeedBlocks);
 
-	std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress={}",
-										 ProxyPool.RemoteDesc.RequestPath,
+	std::string RequestUrl = fmt::format("/{}/unsync-blobs?compress={}", ArtifactPath,
 										 ProxyPool.RemoteDesc.bPreferCompression ? "true" : "false");
 
 	const EStrongHashAlgorithmID StrongHasher = RequestMap->GetStrongHasher();

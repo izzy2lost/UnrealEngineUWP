@@ -2,6 +2,8 @@
 
 #include "UnsyncVersion.h"
 
+#define UNSYNC_VERSION_STR "1.0.85"
+
 namespace unsync {
 
 const std::string&

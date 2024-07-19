@@ -321,7 +321,7 @@ FUnsyncProtocolImpl::Download(const TArrayView<FNeedBlock> NeedBlocks, const FBl
 	std::vector<const std::string*> FileListUtf8;
 	for (const FHash128& It : UniqueFileNamesMd5)
 	{
-		const std::string* Name = RequestMap->FindFile(It);
+		const std::string* Name = RequestMap->FindSourceFile(It);
 		if (Name)
 		{
 			FileListUtf8.push_back(Name);
@@ -519,7 +519,7 @@ FormatBlockRequestJson(const FBlockRequestMap& RequestMap, const TArrayView<FNee
 				Output += "]},\n";	// close blocks arary and file object
 			}
 
-			const std::string* FilenameUtf8 = RequestMap.FindFile(Request.FilenameMd5);
+			const std::string* FilenameUtf8 = RequestMap.FindSourceFile(Request.FilenameMd5);
 			UNSYNC_ASSERTF(FilenameUtf8, L"Could not find file in the block request map");
 
 			// Start file object and blocks array
@@ -1145,9 +1145,9 @@ FBlockRequestMap::AddFile(const FPath& OriginalFilePath, const FPath& ResolvedFi
 	auto FindResult = HashToFile.find(OriginalNameHash);
 	if (FindResult == HashToFile.end())
 	{
-		HashToFile[OriginalNameHash] = uint32(FileListUtf8.size());
-		HashToFile[ResolvedNameHash] = uint32(FileListUtf8.size());
-		FileListUtf8.push_back(OriginalFilePathUtf8);
+		HashToFile[OriginalNameHash] = uint32(SourceFileListUtf8.size());
+		HashToFile[ResolvedNameHash] = uint32(SourceFileListUtf8.size());
+		SourceFileListUtf8.push_back(OriginalFilePathUtf8);
 	}
 
 	return OriginalNameHash;
@@ -1164,7 +1164,7 @@ FBlockRequestMap::AddPackBlocks(const FPath&					  OriginalFilePath,
 
 	for (const FPackIndexEntry& Block : PackManifest)
 	{
-		FBlockRequest Request;
+		FBlockRequestEx Request;
 		Request.FilenameMd5				 = FileId;
 		Request.BlockHash				 = Block.BlockHash;
 		Request.Offset					 = Block.PackBlockOffset;
@@ -1174,7 +1174,7 @@ FBlockRequestMap::AddPackBlocks(const FPath&					  OriginalFilePath,
 }
 
 void
-FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest)
+FBlockRequestMap::AddFileBlocks(uint32 SourceId, const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest)
 {
 	UNSYNC_ASSERTF(StrongHasher != EStrongHashAlgorithmID::Invalid, L"Request map is not initialized");
 
@@ -1182,11 +1182,12 @@ FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& Reso
 
 	for (const FGenericBlock& Block : FileManifest.Blocks)
 	{
-		FBlockRequest Request;
+		FBlockRequestEx Request;
 		Request.FilenameMd5				 = FileId;
 		Request.BlockHash				 = Block.HashStrong.ToHash128();  // #wip-widehash
 		Request.Offset					 = Block.Offset;
 		Request.Size					 = Block.Size;
+		Request.SourceId				 = SourceId;
 		BlockRequests[Request.BlockHash] = Request;
 
 		if (!FileManifest.MacroBlocks.empty())
@@ -1225,7 +1226,7 @@ FBlockRequestMap::AddFileBlocks(const FPath& OriginalFilePath, const FPath& Reso
 	}
 }
 
-const FBlockRequest*
+const FBlockRequestMap::FBlockRequestEx*
 FBlockRequestMap::FindRequest(const FGenericHash& BlockHash) const
 {
 	FHash128 BlockHash128 = BlockHash.ToHash128();
@@ -1242,16 +1243,16 @@ FBlockRequestMap::FindRequest(const FGenericHash& BlockHash) const
 }
 
 const std::string*
-FBlockRequestMap::FindFile(const FHash128& Hash) const
+FBlockRequestMap::FindSourceFile(const FHash128& NameHashMd5) const
 {
-	auto It = HashToFile.find(Hash);
+	auto It = HashToFile.find(NameHashMd5);
 	if (It == HashToFile.end())
 	{
 		return nullptr;
 	}
 	else
 	{
-		return &FileListUtf8[It->second];
+		return &SourceFileListUtf8[It->second];
 	}
 }
 
@@ -1423,26 +1424,12 @@ FProxyPool::IsValid() const
 }
 
 void
-FProxyPool::BuildFileBlockRequests(const FPath& OriginalFilePath, const FPath& ResolvedFilePath, const FFileManifest& FileManifest)
-{
-	std::lock_guard<std::mutex> LockGuard(Mutex);
-	RequestMap.AddFileBlocks(OriginalFilePath, ResolvedFilePath, FileManifest);
-}
-
-void
 FProxyPool::SendTelemetryEvent(const FTelemetryEventSyncComplete& Event)
 {
 	if (RemoteDesc.Protocol == EProtocolFlavor::Unsync && Features.bTelemetry)
 	{
 		FUnsyncProtocolImpl::SendTelemetryEvent(RemoteDesc, Event);
 	}
-}
-
-void
-FProxyPool::InitRequestMap(EStrongHashAlgorithmID InStrongHasher)
-{
-	std::lock_guard<std::mutex> LockGuard(Mutex);
-	RequestMap.Init(InStrongHasher);
 }
 
 void
