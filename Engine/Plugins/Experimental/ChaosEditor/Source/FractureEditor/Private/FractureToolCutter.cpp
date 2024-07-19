@@ -458,6 +458,7 @@ void UFractureToolVoronoiCutterBase::AddNoiseVisualizations(TArray<FCellNoisePre
 		VoronoiNoisePreviews.Add(DynamicMeshComponent);
 		DynamicMeshComponent->GetMesh()->Copy(Res.NoiseMesh);
 		DynamicMeshComponent->NotifyMeshUpdated();
+		DynamicMeshComponent->SetIsEditable(false);
 
 		// TODO: this material-access logic can go to the base class and be used by FractureToolPlaneCut as well
 		// Note the ToolSetupUtil functions optionally take a UInteractiveToolManager to provide fallback materials,
