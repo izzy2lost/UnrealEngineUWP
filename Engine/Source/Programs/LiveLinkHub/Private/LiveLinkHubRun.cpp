@@ -4,6 +4,7 @@
 
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
+#include "Misc/Paths.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformFileManager.h"
@@ -44,7 +45,17 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 #endif
 
 #if !IS_PROGRAM
-	FPaths::SetProjectFilePath(TEXT("../../Source/Programs/LiveLinkHubEditor/LiveLinkHubEditor.uproject"));
+	const TCHAR* const DevelopmentProjectPath = TEXT("../../Source/Programs/LiveLinkHubEditor/LiveLinkHubEditor.uproject");
+	const TCHAR* const StagedProjectPath = TEXT("../../../LiveLinkHubEditor/LiveLinkHubEditor.uproject");
+
+	if (FPaths::FileExists(DevelopmentProjectPath))
+	{
+		FPaths::SetProjectFilePath(DevelopmentProjectPath);
+	}
+	else if (FPaths::FileExists(StagedProjectPath))
+	{
+		FPaths::SetProjectFilePath(StagedProjectPath);
+	}
 #endif
 
 	// Must match the path in LiveLinkHubStaging.cs / StageLiveLinkHub.automation.cs

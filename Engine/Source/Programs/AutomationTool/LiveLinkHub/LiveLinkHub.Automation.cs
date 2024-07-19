@@ -22,6 +22,7 @@ namespace AutomationTool
 				, OptionalContent: true
 				, ClientCookedTargets: new ParamList<string>() // Prevent AutodetectSettings from looking for a game target
 				, EditorTargets: new ParamList<string>("LiveLinkHubEditor")
+				, UbtArgs: "-SingleModulePlatform"
 			);
 		}
 
@@ -41,15 +42,25 @@ namespace AutomationTool
 
 			Context.Apply(SC);
 
-			// Copy .target receipt from project bin to engine bin
 			string PlatName = SC.StageTargetPlatform.PlatformType.ToString();
+
+			// Copy .target receipt to project and engine bin
+			SC.FilesToStage.NonUFSFiles.Add(
+				new StagedFileReference($"{Context.ProjectName}/Binaries/{PlatName}/{Context.ProjectName}.target"),
+				new FileReference($"Engine/Binaries/{PlatName}/{Context.ProjectName}.target"));
+
 			SC.FilesToStage.NonUFSFiles.Add(
 				new StagedFileReference($"Engine/Binaries/{PlatName}/{Context.ProjectName}.target"),
 				new FileReference($"Engine/Binaries/{PlatName}/{Context.ProjectName}.target"));
 
-			// Copy program DefaultEngine.ini to Engine/Config
-			StagedFileReference DefaultEngineDest = new StagedFileReference("Engine/Config/DefaultEngine.ini");
-			SC.FilesToStage.UFSFiles[DefaultEngineDest] = new FileReference($"Engine/Source/Programs/{Context.ProjectName}/Config/DefaultEngine.ini");
+			// Stage TargetInfo and target script. Necessary to avoid "Running incorrect executable for target (...)"
+			SC.FilesToStage.NonUFSFiles.Add(
+				new StagedFileReference($"{Context.ProjectName}/Source/{Context.ProjectName}.Target.cs"),
+				new FileReference($"Engine/Source/Programs/{Context.ProjectName}/Source/{Context.ProjectName}.Target.cs"));
+
+			SC.FilesToStage.NonUFSFiles.Add(
+				new StagedFileReference($"{Context.ProjectName}/Intermediate/TargetInfo.json"),
+				new FileReference($"Engine/Source/Programs/{Context.ProjectName}/Intermediate/TargetInfo.json"));
 
 			// Remove asset registry entry
 			SC.FilesToStage.UFSFiles.Remove(new StagedFileReference($"{Context.ProjectName}/EditorClientAssetRegistry.bin"));
