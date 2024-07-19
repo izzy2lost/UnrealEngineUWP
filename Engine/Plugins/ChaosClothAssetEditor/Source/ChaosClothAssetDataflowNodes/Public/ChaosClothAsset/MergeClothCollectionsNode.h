@@ -27,12 +27,15 @@ private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
-	virtual bool CanRemovePin() const override { return Collections.Num() > 2; }
+	virtual bool CanRemovePin() const override { return Collections.Num() > NumInitialOptionalInputs; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
+
+	static constexpr int32 NumRequiredInputs = 0;
+	static constexpr int32 NumInitialOptionalInputs = 2;
 	Dataflow::TConnectionReference<FManagedArrayCollection> GetConnectionReference(int32 Index) const;
 };
 
@@ -68,7 +71,7 @@ public:
 	FManagedArrayCollection Collection5;
 	/** The number of inputs currently exposed to the node UI. */
 	UPROPERTY()
-	int32 NumInputs = 1;
+	int32 NumInputs = NumInitialOptionalInputs;
 
 	FChaosClothAssetMergeClothCollectionsNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
@@ -77,11 +80,15 @@ private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return NumInputs < MaxInputs; }
-	virtual bool CanRemovePin() const override { return NumInputs > 1; }
+	virtual bool CanRemovePin() const override { return NumInputs > NumInitialOptionalInputs; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 	//~ End FDataflowNode interface
 
 	TArray<const FManagedArrayCollection*> GetCollections() const;
+	const FManagedArrayCollection* GetCollection(int32 Index) const;
+
+	static constexpr int32 NumRequiredInputs = 0;
+	static constexpr int32 NumInitialOptionalInputs = 1;
 };

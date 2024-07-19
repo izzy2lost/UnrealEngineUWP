@@ -90,12 +90,15 @@ private:
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Input) override;
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
-	virtual bool CanRemovePin() const override { return Inputs.Num() > 2; }
+	virtual bool CanRemovePin() const override { return Inputs.Num() > NumInitialInputs; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
 
 	Dataflow::TConnectionReference<FDataflowAnyType> GetConnectionReference(int32 Index) const;
+
+	static constexpr int32 NumRequiredDataflowInputs = 1;
+	static constexpr int32 NumInitialInputs = 2;
 };
 
 /** 

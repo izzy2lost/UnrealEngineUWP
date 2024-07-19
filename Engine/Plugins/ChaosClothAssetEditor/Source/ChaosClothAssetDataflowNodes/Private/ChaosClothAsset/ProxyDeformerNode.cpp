@@ -406,7 +406,12 @@ FChaosClothAssetProxyDeformerNode_v2::FChaosClothAssetProxyDeformerNode_v2(const
 	RegisterOutputConnection(&SkinningBlendName);
 
 	// Start with one set of option pins.
-	AddPins();
+	for (int32 Index = 0; Index < NumInitialSelectionFilterSets; ++Index)
+	{
+		AddPins();
+	}
+
+	check(GetNumInputs() == NumRequiredInputs + NumInitialSelectionFilterSets); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -530,14 +535,42 @@ void FChaosClothAssetProxyDeformerNode_v2::Serialize(FArchive& Ar)
 	// Restore the pins when re-loading so they can get properly reconnected
 	if (Ar.IsLoading())
 	{
-		check(SelectionFilterSets.Num() > 0);
-		check(FindInput(GetRenderConnectionReference(0)));
-		check(FindInput(GetSimConnectionReference(0)));
-
-		for (int32 Index = 1; Index < SelectionFilterSets.Num(); ++Index)
+		check(SelectionFilterSets.Num() >= NumInitialSelectionFilterSets);
+		for (int32 Index = 0; Index < NumInitialSelectionFilterSets; ++Index)
 		{
-			RegisterInputArrayConnection(GetRenderConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
-			RegisterInputArrayConnection(GetSimConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+			check(FindInput(GetRenderConnectionReference(Index)));
+			check(FindInput(GetSimConnectionReference(Index)));
+		}
+
+		for (int32 Index = NumInitialSelectionFilterSets; Index < SelectionFilterSets.Num(); ++Index)
+		{
+			FindOrRegisterInputArrayConnection(GetRenderConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+			FindOrRegisterInputArrayConnection(GetSimConnectionReference(Index), GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
+		}
+
+		if (Ar.IsTransacting())
+		{
+			const int32 OrigNumRegisteredInputs = GetNumInputs();
+			check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialSelectionFilterSets * 2);
+			const int32 OrigNumSelectionFilterSets = SelectionFilterSets.Num();
+			const int32 OrigNumRegisteredSelectionFilterSets = (OrigNumRegisteredInputs - NumRequiredInputs) / 2;
+
+			if (OrigNumRegisteredSelectionFilterSets > OrigNumSelectionFilterSets)
+			{
+				ensure(Ar.IsTransacting());
+				// Temporarily expand SelectionFilterSets so we can get connection references.
+				SelectionFilterSets.SetNum(OrigNumRegisteredSelectionFilterSets);
+				for (int32 Index = OrigNumSelectionFilterSets; Index < SelectionFilterSets.Num(); ++Index)
+				{
+					UnregisterInputConnection(GetSimConnectionReference(Index));
+					UnregisterInputConnection(GetRenderConnectionReference(Index));
+				}
+				SelectionFilterSets.SetNum(OrigNumSelectionFilterSets);
+			}
+		}
+		else
+		{
+			ensureAlways(SelectionFilterSets.Num() * 2 + NumRequiredInputs == GetNumInputs());
 		}
 	}
 }
@@ -574,12 +607,15 @@ FChaosClothAssetProxyDeformerNode::FChaosClothAssetProxyDeformerNode(const Dataf
 	SimVertexSelection.StringValue = FString();  // An empty selection is an accepted input, but a non existing one isn't
 	SkinningBlendName = ClothCollectionAttribute::RenderDeformerSkinningBlend.ToString();
 
+	// If you change the number of InputConnections registered here, you must change the NumRequiredInputs in Serialize()
 	RegisterInputConnection(&Collection);
 	RegisterInputConnection(&SimVertexSelection.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterInputConnection(&SelectionFilterSet0.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterOutputConnection(&Collection)
 		.SetPassthroughInput(&Collection);
 	RegisterOutputConnection(&SkinningBlendName);
+
+	check(GetNumInputs() == NumRequiredInputs + NumInitialOptionalInputs); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -655,7 +691,7 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 
 TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::AddPins()
 {
-	check(NumFilterSets > 0);
+	check(NumFilterSets >= NumInitialOptionalInputs);
 	const FChaosClothAssetConnectableStringValue* const SelectionFilterSet = Get1To9SelectionFilterSets()[NumFilterSets - 1];
 
 	RegisterInputConnection(&SelectionFilterSet->StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
@@ -667,7 +703,7 @@ TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::AddPins()
 
 TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::GetPinsToRemove() const
 {
-	check(NumFilterSets > 1);
+	check(NumFilterSets > NumInitialOptionalInputs);
 	const FChaosClothAssetConnectableStringValue* const SelectionFilterSet = Get1To9SelectionFilterSets()[NumFilterSets - 2];
 	const FDataflowInput* const Input = FindInput(SelectionFilterSet);
 	check(Input);
@@ -676,7 +712,7 @@ TArray<Dataflow::FPin> FChaosClothAssetProxyDeformerNode::GetPinsToRemove() cons
 
 void FChaosClothAssetProxyDeformerNode::OnPinRemoved(const Dataflow::FPin& Pin)
 {
-	check(NumFilterSets > 1);
+	check(NumFilterSets > NumInitialOptionalInputs);
 	const FChaosClothAssetConnectableStringValue* const SelectionFilterSet = Get1To9SelectionFilterSets()[NumFilterSets - 2];
 	check(Pin.Direction == Dataflow::FPin::EDirection::INPUT);
 #if DO_CHECK
@@ -694,13 +730,30 @@ void FChaosClothAssetProxyDeformerNode::Serialize(FArchive& Ar)
 	// Restore the pins when re-loading so they can get properly reconnected
 	if (Ar.IsLoading())
 	{
-		const int32 NumFilterSetsToAdd = (NumFilterSets - 1);
-		NumFilterSets = 1;  // Reset to default, add pin will increment it again 
-		for (int32 Index = 0; Index < NumFilterSetsToAdd; ++Index)
+		const int32 OrigNumRegisteredInputs = GetNumInputs();
+		check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialOptionalInputs);
+		const int32 OrigNumSelectionFilterSets = NumFilterSets;
+		const int32 OrigNumRegisteredSelectionFilterSets = OrigNumRegisteredInputs - NumRequiredInputs;
+		const int32 NumFilterSetsToAdd = (OrigNumSelectionFilterSets - OrigNumRegisteredSelectionFilterSets);
+		check(Ar.IsTransacting() || OrigNumRegisteredSelectionFilterSets == NumInitialOptionalInputs);
+		if (NumFilterSetsToAdd > 0)
 		{
-			AddPins();
+			NumFilterSets = OrigNumRegisteredSelectionFilterSets;  // Reset to default, add pin will increment it again 
+			for (int32 Index = 0; Index < NumFilterSetsToAdd; ++Index)
+			{
+				AddPins();
+			}
 		}
-		ensure(NumFilterSetsToAdd == (NumFilterSets - 1));
+		else if (NumFilterSetsToAdd < 0)
+		{
+			check(Ar.IsTransacting());
+			TArray<const FChaosClothAssetConnectableStringValue*> Non0SelectionFilterSets = Get1To9SelectionFilterSets();
+			for (int32 Index = NumFilterSets; Index < OrigNumRegisteredSelectionFilterSets; ++Index)
+			{
+				UnregisterInputConnection(Non0SelectionFilterSets[Index-1]);
+			}
+		}
+		check(NumFilterSets + NumRequiredInputs == GetNumInputs());
 	}
 }
 

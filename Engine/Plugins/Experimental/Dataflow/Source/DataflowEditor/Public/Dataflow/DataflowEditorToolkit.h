@@ -125,6 +125,9 @@ private:
 	virtual TSharedPtr<FEditorViewportClient> CreateEditorViewportClient() const override;
 	virtual void CreateEditorModeManager() override;
 
+	// FNotifyHook
+	virtual void NotifyPreChange(class FEditPropertyChain* PropertyAboutToChange) override;
+
 	// List of all the tab names ids that will be used to identify the editor widgets
 	static const FName GraphCanvasTabId;
 	static const FName NodeDetailsTabId;

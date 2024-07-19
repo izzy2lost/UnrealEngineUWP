@@ -332,9 +332,13 @@ namespace UE::Chaos::ClothAsset::Private
 FChaosClothAssetMergeClothCollectionsNode_v2::FChaosClothAssetMergeClothCollectionsNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
+	check(GetNumInputs() == NumRequiredInputs);
+
 	// Add two sets of pins to start.
-	AddPins();
-	AddPins();
+	for (int32 Index = 0; Index < NumInitialOptionalInputs; ++Index)
+	{
+		AddPins();
+	}
 	RegisterOutputConnection(&Collection)
 		.SetPassthroughInput(GetConnectionReference(0));
 }
@@ -474,13 +478,38 @@ void FChaosClothAssetMergeClothCollectionsNode_v2::Serialize(FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		check(Collections.Num() > 1);
-		check(FindInput(GetConnectionReference(0)));
-		check(FindInput(GetConnectionReference(1)));
+		check(Collections.Num() >= NumInitialOptionalInputs);
 
-		for (int32 Index = 2; Index < Collections.Num(); ++Index)
+		for (int32 Index = 0; Index < NumInitialOptionalInputs; ++Index)
 		{
-			RegisterInputArrayConnection(GetConnectionReference(Index));
+			check(FindInput(GetConnectionReference(Index)));
+		}
+
+		for (int32 Index = NumInitialOptionalInputs; Index < Collections.Num(); ++Index)
+		{
+			FindOrRegisterInputArrayConnection(GetConnectionReference(Index));
+		}
+		if (Ar.IsTransacting())
+		{
+			const int32 OrigNumRegisteredInputs = GetNumInputs();
+			check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialOptionalInputs);
+			const int32 OrigNumCollections = Collections.Num();
+			const int32 OrigNumRegisteredCollections = OrigNumRegisteredInputs - NumRequiredInputs;
+			if (OrigNumRegisteredCollections > OrigNumCollections)
+			{
+				// Inputs have been removed.
+				// Temporarily expand Collections so we can get connection references.
+				Collections.SetNum(GetNumInputs() - 1);
+				for (int32 Index = OrigNumCollections; Index < Collections.Num(); ++Index)
+				{
+					UnregisterInputConnection(GetConnectionReference(Index));
+				}
+				Collections.SetNum(OrigNumCollections);
+			}
+		}
+		else
+		{
+			ensureAlways(Collections.Num() == GetNumInputs());
 		}
 	}
 }
@@ -499,6 +528,8 @@ FChaosClothAssetMergeClothCollectionsNode::FChaosClothAssetMergeClothCollections
 	RegisterInputConnection(&Collection);
 	RegisterOutputConnection(&Collection)
 		.SetPassthroughInput(&Collection);
+
+	check(GetNumInputs() == NumRequiredInputs + NumInitialOptionalInputs); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetMergeClothCollectionsNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -708,17 +739,46 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetMergeClothCollectionsNode
 	return Collections;
 }
 
+
+const FManagedArrayCollection* FChaosClothAssetMergeClothCollectionsNode::GetCollection(int32 Index) const
+{
+	switch (Index)
+	{
+	case 0: return &Collection;
+	case 1: return &Collection1;
+	case 2: return &Collection2;
+	case 3: return &Collection3;
+	case 4: return &Collection4;
+	case 5: return &Collection5;
+	default: check(false) return nullptr;
+	}
+}
+
 void FChaosClothAssetMergeClothCollectionsNode::Serialize(FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		const int32 NumInputsToAdd = NumInputs - 1;
-		NumInputs = 1;  // AddPin will increment it again
-		for (int32 InputIndex = 0; InputIndex < NumInputsToAdd; ++InputIndex)
+		const int32 OrigNumRegisteredInputs = GetNumInputs() - NumRequiredInputs;
+		const int32 OrigNumInputs = NumInputs;
+		const int32 NumInputsToAdd = OrigNumInputs - OrigNumRegisteredInputs;
+		check(Ar.IsTransacting() || OrigNumRegisteredInputs == NumInitialOptionalInputs)
+		if (NumInputsToAdd > 0)
 		{
-			AddPins();
+			NumInputs = OrigNumRegisteredInputs;  // AddPin will increment it again
+			for (int32 InputIndex = 0; InputIndex < NumInputsToAdd; ++InputIndex)
+			{
+				AddPins();
+			}
 		}
-		check(NumInputsToAdd == NumInputs - 1);
+		else if (NumInputsToAdd < 0)
+		{
+			check(Ar.IsTransacting());
+			for (int32 Index = NumInputs; Index < OrigNumRegisteredInputs; ++Index)
+			{
+				UnregisterInputConnection(GetCollection(Index));
+			}
+		}
+		check(NumInputs + NumRequiredInputs == GetNumInputs());
 	}
 }
 

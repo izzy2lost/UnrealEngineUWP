@@ -315,6 +315,18 @@ void FDataflowEditorToolkit::CreateEditorModeManager()
 		= StaticCastSharedPtr<FAssetEditorModeManager>(SimulationModeManager);
 }
 
+void FDataflowEditorToolkit::NotifyPreChange(FEditPropertyChain* PropertyAboutToChange)
+{
+	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
+	{
+		ensure(EditorContent);
+		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
+		{
+			FDataflowEditorCommands::OnNotifyPropertyPreChange(NodeDetailsEditor, DataflowAsset, PropertyAboutToChange);
+		}
+	}
+}
+
 bool FDataflowEditorToolkit::CanOpenDataflowEditor(UObject* ObjectToEdit)
 {
 	if (const UClass* Class = ObjectToEdit->GetClass())
@@ -1118,7 +1130,7 @@ TSharedPtr<IStructureDetailsView> FDataflowEditorToolkit::CreateNodeDetailsEdito
 		DetailsViewArgs.bLockable = false;
 		DetailsViewArgs.bSearchInitialKeyFocus = true;
 		DetailsViewArgs.bUpdatesFromSelection = false;
-		DetailsViewArgs.NotifyHook = nullptr;
+		DetailsViewArgs.NotifyHook = this;
 		DetailsViewArgs.bShowOptions = true;
 		DetailsViewArgs.bShowModifiedPropertiesOption = false;
 		DetailsViewArgs.bShowScrollBar = false;

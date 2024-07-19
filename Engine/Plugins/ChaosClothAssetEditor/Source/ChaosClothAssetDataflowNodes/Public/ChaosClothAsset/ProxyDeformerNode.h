@@ -78,7 +78,7 @@ private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
-	virtual bool CanRemovePin() const override { return SelectionFilterSets.Num() > 1; }
+	virtual bool CanRemovePin() const override { return SelectionFilterSets.Num() > NumInitialSelectionFilterSets; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
@@ -87,6 +87,9 @@ private:
 	TArray<TPair<FName, FName>> GetSelectionFilterNames(Dataflow::FContext& Context) const;
 	Dataflow::TConnectionReference<FString> GetRenderConnectionReference(int32 Index) const;
 	Dataflow::TConnectionReference<FString> GetSimConnectionReference(int32 Index) const;
+
+	static constexpr int32 NumRequiredInputs = 2; // non-filter set inputs
+	static constexpr int32 NumInitialSelectionFilterSets = 1;
 };
 
 /** Add the proxy deformer information to this cloth collection's render data. */
@@ -182,13 +185,13 @@ private:
 
 	/** The number of filter sets currently exposed to the node UI. */
 	UPROPERTY()
-	int32 NumFilterSets = 1;
+	int32 NumFilterSets = NumInitialOptionalInputs;
 
 	//~ Begin FDataflowNode interface
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return NumFilterSets < MaxNumFilterSets; }
-	virtual bool CanRemovePin() const override { return NumFilterSets > 1; }
+	virtual bool CanRemovePin() const override { return NumFilterSets > NumInitialOptionalInputs; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
@@ -196,4 +199,7 @@ private:
 
 	TArray<FName> GetSelectionFilterNames(Dataflow::FContext& Context) const;
 	TArray<const FChaosClothAssetConnectableStringValue*> Get1To9SelectionFilterSets() const;
+
+	static constexpr int32 NumRequiredInputs = 2; // non-filter set inputs
+	static constexpr int32 NumInitialOptionalInputs = 1; // filter set inputs that are created in the constructor.
 };

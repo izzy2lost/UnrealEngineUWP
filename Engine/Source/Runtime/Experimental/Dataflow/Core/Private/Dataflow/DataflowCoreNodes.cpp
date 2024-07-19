@@ -90,11 +90,14 @@ FDataflowSelectNode::FDataflowSelectNode(const Dataflow::FNodeParameters& Param,
 	: Super(Param, InGuid)
 {
 	// Add two sets of pins to start.
-	AddPins();
-	AddPins();
 	RegisterInputConnection(&SelectedIndex);
+	for (int32 Index = 0; Index < NumInitialInputs; ++Index)
+	{
+		AddPins();
+	}
 	RegisterOutputConnection(&Result)
 		.SetPassthroughInput(GetConnectionReference(0));
+	check(NumRequiredDataflowInputs + NumInitialInputs == GetNumInputs()); // Update NumRequiredDataflowInputs when adding more inputs. This is used by Serialize
 }
 
 void FDataflowSelectNode::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -182,13 +185,37 @@ void FDataflowSelectNode::Serialize(FArchive& Ar)
 {
 	if (Ar.IsLoading())
 	{
-		check(Inputs.Num() > 1);
-		check(FindInput(GetConnectionReference(0)));
-		check(FindInput(GetConnectionReference(1)));
-
-		for (int32 Index = 2; Index < Inputs.Num(); ++Index)
+		check(Inputs.Num() >= NumInitialInputs);
+		for (int32 Index = 0; Index < NumInitialInputs; ++Index)
 		{
-			RegisterInputArrayConnection(GetConnectionReference(Index));
+			check(FindInput(GetConnectionReference(Index)));
+		}
+
+		for (int32 Index = NumInitialInputs; Index < Inputs.Num(); ++Index)
+		{
+			FindOrRegisterInputArrayConnection(GetConnectionReference(Index));
+		}
+
+		if (Ar.IsTransacting())
+		{
+			const int32 OrigNumRegisteredInputs = GetNumInputs() - NumRequiredDataflowInputs;
+			const int32 OrigNumInputs = Inputs.Num();
+			if (OrigNumRegisteredInputs > OrigNumInputs)
+			{
+				// Inputs have been removed.
+				// Temporarily expand Inputs so we can get connection references.
+				Inputs.SetNum(OrigNumRegisteredInputs);
+				for (int32 Index = OrigNumInputs; Index < Inputs.Num(); ++Index)
+				{
+					UnregisterInputConnection(GetConnectionReference(Index));
+				}
+				Inputs.SetNum(OrigNumInputs);
+			}
+		}
+		else
+		{
+			// Index + all Inputs
+			ensureAlways(Inputs.Num() + NumRequiredDataflowInputs == GetNumInputs());
 		}
 	}
 }

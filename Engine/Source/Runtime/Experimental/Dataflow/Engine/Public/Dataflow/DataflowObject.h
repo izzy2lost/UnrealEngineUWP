@@ -128,6 +128,9 @@ public:
 		return FDataflowAssetEdit(ThisNC, [ThisNC]() {ThisNC->PostEditCallback(); });
 	}
 
+	DATAFLOWENGINE_API TObjectPtr<const UDataflowEdNode> FindEdNodeByDataflowNodeGuid(const FGuid& Guid) const;
+	DATAFLOWENGINE_API TObjectPtr<UDataflowEdNode> FindEdNodeByDataflowNodeGuid(const FGuid& Guid);
+
 	//
 	// Render Targets
 	//
@@ -165,7 +168,13 @@ public:
 
 #endif
 
+#if WITH_EDITOR
+	/** Used to disable per-node serialization when serializing a transaction */
+	bool IsPerNodeTransactionSerializationEnabled() const { return bEnablePerNodeTransactionSerialization; }
+private:
 
-
+	/** Used to disable per-node serialization when serializing a transaction */
+	bool bEnablePerNodeTransactionSerialization = true;
+#endif
 };
 

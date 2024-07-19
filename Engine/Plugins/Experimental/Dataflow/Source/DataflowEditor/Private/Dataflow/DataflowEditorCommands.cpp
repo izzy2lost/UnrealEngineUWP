@@ -315,6 +315,36 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 	}
 }
 
+void FDataflowEditorCommands::OnNotifyPropertyPreChange(TSharedPtr<IStructureDetailsView> PropertiesEditor, UDataflow* Graph, class FEditPropertyChain* PropertyAboutToChange)
+{
+	// Find the associated UDataflowEdNode(s) and call Modify on them for Undo/Redo.
+	if (PropertiesEditor && Graph)
+	{
+		if (TSharedPtr<const IStructureDataProvider> StructProvider = PropertiesEditor->GetStructureProvider())
+		{
+			const UStruct* const BaseStruct = StructProvider->GetBaseStructure();
+			if (BaseStruct && BaseStruct->IsChildOf(FDataflowNode::StaticStruct()))
+			{
+				TArray<TSharedPtr<FStructOnScope>> StructData;
+				StructProvider->GetInstances(StructData, FDataflowNode::StaticStruct());
+				for (const TSharedPtr<FStructOnScope>& StructOnScope : StructData)
+				{
+					if (StructOnScope.IsValid() && StructOnScope->IsValid())
+					{
+						const FDataflowNode* const Node = reinterpret_cast<FDataflowNode*>(StructOnScope->GetStructMemory());
+						check(Node);
+						if (const TObjectPtr<UDataflowEdNode> EdNode = Graph->FindEdNodeByDataflowNodeGuid(Node->GetGuid()))
+						{
+							EdNode->Modify();
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
 void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBaseContent> Content, const FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	if (Content)

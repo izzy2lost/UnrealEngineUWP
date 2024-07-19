@@ -408,6 +408,20 @@ void UDataflowEdNode::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
 	Ar << DataflowNodeGuid;
+#if WITH_EDITOR
+	if (Ar.IsTransacting())
+	{
+		const UDataflow* const DataflowObject = Cast<UDataflow>(GetGraph());
+		bool bCanSerializeNode = !DataflowObject || DataflowObject->IsPerNodeTransactionSerializationEnabled();
+		if (bCanSerializeNode)
+		{
+			if (TSharedPtr<FDataflowNode> DataflowNode = GetDataflowNode())
+			{
+				DataflowNode->SerializeInternal(Ar);
+			}
+		}
+	}
+#endif
 }
 
 #if WITH_EDITOR

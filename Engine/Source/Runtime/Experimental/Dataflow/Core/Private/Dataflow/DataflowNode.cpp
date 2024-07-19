@@ -147,6 +147,11 @@ void FDataflowNode::AddInput(FDataflowInput* InPtr)
 	}
 }
 
+int32 FDataflowNode::GetNumInputs() const
+{
+	return ExpandedInputs.Num();
+}
+
 FDataflowInput* FDataflowNode::FindInput(FName InName)
 {
 	for (TPair<Dataflow::FConnectionKey, FDataflowInput*>& Elem : ExpandedInputs)

@@ -44,7 +44,7 @@ private:
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override {}
 	virtual TArray<Dataflow::FPin> AddPins() override;
 	virtual bool CanAddPin() const override { return true; }
-	virtual bool CanRemovePin() const override { return CollectionLods.Num() > 1; }
+	virtual bool CanRemovePin() const override { return CollectionLods.Num() > NumInitialCollectionLods; }
 	virtual TArray<Dataflow::FPin> GetPinsToRemove() const override;
 	virtual void OnPinRemoved(const Dataflow::FPin& Pin) override;
 	virtual void Serialize(FArchive& Ar) override;
@@ -59,6 +59,8 @@ private:
 	// This is for runtime only--used to determine if only properties need to be updated.
 	mutable bool bClothCollectionChecksumValid = false;
 	mutable uint32 ClothColllectionChecksum = 0;
+	static constexpr int32 NumRequiredInputs = 0;
+	static constexpr int32 NumInitialCollectionLods = 1;
 };
 
 
@@ -93,7 +95,7 @@ public:
 	FManagedArrayCollection CollectionLod5;
 	/** The number of LODs currently exposed to the node UI. */
 	UPROPERTY()
-	int32 NumLods = 1;
+	int32 NumLods = NumInitialCollectionLods;
 	/**
 	 * Refresh the asset even if the ClothCollection hasn't changed.
 	 * Note that it is not required to manually refresh the cloth asset, this is done automatically when there is a change in the Dataflow.
@@ -118,6 +120,7 @@ private:
 
 	TArray<const FManagedArrayCollection*> GetCollectionLods() const;
 	TArray<TSharedRef<FManagedArrayCollection>> GetCleanedCollectionLodValues(Dataflow::FContext& Context) const;
+	const FManagedArrayCollection* GetCollectionLod(int32 LodIndex) const;
 
 	UPROPERTY()
 	mutable TArray<FChaosClothAssetLodTransitionDataCache> LODTransitionDataCache;
@@ -125,4 +128,7 @@ private:
 	// This is for runtime only--used to determine if only properties need to be updated.
 	mutable bool bClothCollectionChecksumValid = false;
 	mutable uint32 ClothColllectionChecksum = 0;
+
+	static constexpr int32 NumRequiredInputs = 0;
+	static constexpr int32 NumInitialCollectionLods = 1;
 };

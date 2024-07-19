@@ -73,6 +73,8 @@ public:
 		return OnFinishedChangingProperties();
 	}
 
+	TSharedPtr<const IStructureDataProvider> GetStructureProvider() const override { return StructProvider; }
+
 public:
 	/** Causes the details view to be refreshed (new widgets generated) with the current set of objects */
 	virtual void ForceRefresh() override;

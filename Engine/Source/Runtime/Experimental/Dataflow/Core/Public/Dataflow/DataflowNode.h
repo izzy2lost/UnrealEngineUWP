@@ -156,6 +156,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DATAFLOWCORE_API bool OutputSupportsType(FName Name, FName Type) const;
 
 	DATAFLOWCORE_API virtual void AddInput(FDataflowInput* InPtr);
+	DATAFLOWCORE_API int32 GetNumInputs() const;
 	DATAFLOWCORE_API TArray< FDataflowInput* > GetInputs() const;
 	DATAFLOWCORE_API void ClearInputs();
 	DATAFLOWCORE_API bool HasHideableInputs() const;
@@ -266,6 +267,23 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FDataflowInput& RegisterInputArrayConnection(const Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
 		const FName& ArrayPropertyName = NAME_None)
 	{
+		FDataflowInput& Input = RegisterInputArrayConnectionInternal(Reference, ElementPropertyName, ArrayPropertyName);
+		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
+		{
+			Input.SetTypePolicy(T::FPolicyType::GetInterface());
+		}
+		return Input;
+	}
+
+	template<typename T>
+	FDataflowInput& FindOrRegisterInputArrayConnection(const Dataflow::TConnectionReference<T>& Reference, const FName& ElementPropertyName = NAME_None,
+		const FName& ArrayPropertyName = NAME_None)
+	{
+		if (FDataflowInput* const FoundInput = FindInput(Reference))
+		{
+			return *FoundInput;
+		}
+
 		FDataflowInput& Input = RegisterInputArrayConnectionInternal(Reference, ElementPropertyName, ArrayPropertyName);
 		if constexpr (std::is_base_of_v<FDataflowAnyType, T>)
 		{
@@ -552,7 +570,7 @@ private:
 	static FString StripContainerIndexFromPropertyFullName(const FString& PropertyFullName);
 	static uint32 GetPropertyOffset(const TArray<const FProperty*>& PropertyChain);
 	uint32 GetConnectionOffsetFromReference(const void* Reference) const;
-	Dataflow::FConnectionKey GetKeyFromReference(const Dataflow::FConnectionReference& Reference) const;
+	DATAFLOWCORE_API Dataflow::FConnectionKey GetKeyFromReference(const Dataflow::FConnectionReference& Reference) const;
 
 	/**
 	* Find a property using the property address and name (not including its parent struct property names).

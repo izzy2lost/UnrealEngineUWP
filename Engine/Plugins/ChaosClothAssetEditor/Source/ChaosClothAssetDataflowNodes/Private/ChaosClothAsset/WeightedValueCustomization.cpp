@@ -211,7 +211,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					if (bIsUsingSlider)
 					{
-						WeakHandlePtr.Pin()->SetValue(Value, EPropertyValueSetFlags::InteractiveChange);
+						WeakHandlePtr.Pin()->SetValue(Value, EPropertyValueSetFlags::InteractiveChange | EPropertyValueSetFlags::NotTransactable);
 					}
 				})
 			.OnBeginSliderMovement_Lambda([this]()

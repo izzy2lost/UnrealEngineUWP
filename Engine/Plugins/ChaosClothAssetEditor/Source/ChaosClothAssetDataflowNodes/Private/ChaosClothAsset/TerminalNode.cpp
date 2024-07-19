@@ -91,7 +91,11 @@ FChaosClothAssetTerminalNode_v2::FChaosClothAssetTerminalNode_v2(const Dataflow:
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	// Start with Lod0
-	AddPins();
+	for (int32 Index = 0; Index < NumInitialCollectionLods; ++Index)
+	{
+		AddPins();
+	}
+	check(GetNumInputs() == NumRequiredInputs + NumInitialCollectionLods);  // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetTerminalNode_v2::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
@@ -331,12 +335,37 @@ void FChaosClothAssetTerminalNode_v2::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		check(CollectionLods.Num() > 0);
-		check(FindInput(GetConnectionReference(0)));
-
-		for (int32 Index = 1; Index < CollectionLods.Num(); ++Index)
+		check(CollectionLods.Num() >= NumInitialCollectionLods);
+		for (int32 Index = 0; Index < NumInitialCollectionLods; ++Index)
 		{
-			RegisterInputArrayConnection(GetConnectionReference(Index));
+			check(FindInput(GetConnectionReference(Index)));
+		}
+
+		for (int32 Index = NumInitialCollectionLods; Index < CollectionLods.Num(); ++Index)
+		{
+			FindOrRegisterInputArrayConnection(GetConnectionReference(Index));
+		}
+		if (Ar.IsTransacting())
+		{
+			const int32 OrigNumRegisteredInputs = GetNumInputs();
+			check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialCollectionLods);
+			const int32 OrigNumCollections = CollectionLods.Num();
+			const int32 OrigNumRegisteredCollections = (OrigNumRegisteredInputs - NumRequiredInputs);
+			if (OrigNumRegisteredCollections > OrigNumCollections)
+			{
+				// Inputs have been removed.
+				// Temporarily expand Collections so we can get connection references.
+				CollectionLods.SetNum(OrigNumRegisteredCollections);
+				for (int32 Index = OrigNumCollections; Index < CollectionLods.Num(); ++Index)
+				{
+					UnregisterInputConnection(GetConnectionReference(Index));
+				}
+				CollectionLods.SetNum(OrigNumCollections);
+			}
+		}
+		else
+		{
+			ensureAlways(CollectionLods.Num() + NumRequiredInputs == GetNumInputs());
 		}
 	}
 }
@@ -348,6 +377,7 @@ FChaosClothAssetTerminalNode::FChaosClothAssetTerminalNode(const Dataflow::FNode
 	: FDataflowTerminalNode(InParam, InGuid)
 {
 	RegisterInputConnection(&CollectionLod0);
+	check(NumInitialCollectionLods + NumRequiredInputs == GetNumInputs()); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetTerminalNode::SetAssetValue(TObjectPtr<UObject> Asset, Dataflow::FContext& Context) const
@@ -602,6 +632,20 @@ TArray<const FManagedArrayCollection*> FChaosClothAssetTerminalNode::GetCollecti
 	return CollectionLods;
 }
 
+const FManagedArrayCollection* FChaosClothAssetTerminalNode::GetCollectionLod(int32 LodIndex) const
+{
+	switch (LodIndex)
+	{
+	case 0: return &CollectionLod0;
+	case 1: return &CollectionLod1; 
+	case 2: return &CollectionLod2; 
+	case 3: return &CollectionLod3; 
+	case 4: return &CollectionLod4; 
+	case 5: return &CollectionLod5; 
+	default: check(false); return nullptr;
+	}
+}
+
 TArray<TSharedRef<FManagedArrayCollection>> FChaosClothAssetTerminalNode::GetCleanedCollectionLodValues(Dataflow::FContext& Context) const
 {
 	using namespace UE::Chaos::ClothAsset;
@@ -657,13 +701,30 @@ void FChaosClothAssetTerminalNode::Serialize(FArchive& Ar)
 
 	if (Ar.IsLoading())
 	{
-		const int32 NumLodToAdd = (NumLods - 1);
-		NumLods = 1; // need to reset back to default because add pin will increment it again 
-		for (int32 LodIndex = 0; LodIndex < NumLodToAdd; ++LodIndex)
+		const int32 OrigNumRegisteredInputs = GetNumInputs();
+		check(OrigNumRegisteredInputs >= NumRequiredInputs + NumInitialCollectionLods);
+		const int32 OrigNumLods = NumLods;
+		const int32 OrigNumRegisteredLods = OrigNumRegisteredInputs - NumRequiredInputs;
+		const int32 NumLodToAdd = (OrigNumLods - OrigNumRegisteredLods);
+		check(Ar.IsTransacting() || OrigNumRegisteredLods == NumInitialCollectionLods);
+		if (NumLodToAdd > 0)
 		{
-			AddPins();
+			NumLods = OrigNumRegisteredLods;  // AddPin will increment it again
+			for (int32 LodIndex = 0; LodIndex < NumLodToAdd; ++LodIndex)
+			{
+				AddPins();
+			}
 		}
-		ensure(NumLodToAdd == (NumLods - 1));
+		else if (NumLodToAdd < 0)
+		{
+			check(Ar.IsTransacting());
+			for (int32 Index = NumLods; Index < OrigNumRegisteredLods; ++Index)
+			{
+				UnregisterInputConnection(GetCollectionLod(Index));
+			}
+
+		}
+		check(NumLods + NumRequiredInputs == GetNumInputs());
 	}
 }
 #undef LOCTEXT_NAMESPACE

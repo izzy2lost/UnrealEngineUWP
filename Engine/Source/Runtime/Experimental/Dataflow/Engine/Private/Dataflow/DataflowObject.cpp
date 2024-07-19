@@ -136,8 +136,47 @@ void UDataflow::RemoveWireframeRenderTarget(TObjectPtr<const UDataflowEdNode> In
 
 void UDataflow::Serialize(FArchive& Ar)
 {
+#if WITH_EDITOR
+	// Disable per-node serialization (used for transactions, i.e., undo/redo) when serializing the whole graph.
+	bEnablePerNodeTransactionSerialization = false;
+#endif
+
 	Super::Serialize(Ar);
 	Dataflow->Serialize(Ar, this);
+
+#if WITH_EDITOR
+	bEnablePerNodeTransactionSerialization = true;
+#endif
+}
+
+TObjectPtr<const UDataflowEdNode> UDataflow::FindEdNodeByDataflowNodeGuid(const FGuid& Guid) const
+{
+	for (const UEdGraphNode* const EdNode : Nodes)
+	{
+		if (const UDataflowEdNode* const DataflowEdNode = Cast<UDataflowEdNode>(EdNode))
+		{
+			if (DataflowEdNode->GetDataflowNodeGuid() == Guid)
+			{
+				return TObjectPtr<const UDataflowEdNode>(DataflowEdNode);
+			}
+		}
+	}
+	return TObjectPtr<const UDataflowEdNode>(nullptr);
+}
+
+TObjectPtr<UDataflowEdNode> UDataflow::FindEdNodeByDataflowNodeGuid(const FGuid& Guid)
+{
+	for (UEdGraphNode* const EdNode : Nodes)
+	{
+		if (UDataflowEdNode* const DataflowEdNode = Cast<UDataflowEdNode>(EdNode))
+		{
+			if (DataflowEdNode->GetDataflowNodeGuid() == Guid)
+			{
+				return TObjectPtr<UDataflowEdNode>(DataflowEdNode);
+			}
+		}
+	}
+	return TObjectPtr<UDataflowEdNode>(nullptr);
 }
 
 #if WITH_EDITOR

@@ -209,12 +209,13 @@ FChaosClothAssetEditorToolkit::FChaosClothAssetEditorToolkit(UAssetEditor* InOwn
 FChaosClothAssetEditorToolkit::~FChaosClothAssetEditorToolkit()
 {
 	// This code is also called in OnRequestClose. Leaving this here as well in case the toolkit gets destroyed without having OnRequestClose called
+	TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode();
 	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 		SelectedDataflowNode->OnDeselected();
 	}
-	SelectedDataflowNode.Reset();
+	SelectedDataflowNodeGuid.Invalidate();
 
 	if (ClothPreviewViewportClient)
 	{
@@ -392,12 +393,13 @@ bool FChaosClothAssetEditorToolkit::OnRequestClose(EAssetEditorCloseReason InClo
 		return true;
 	}
 
+	TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode();
 	if (SelectedDataflowNode && OnNodeInvalidatedDelegateHandle.IsValid())
 	{
 		SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 		SelectedDataflowNode->OnDeselected();
 	}
-	SelectedDataflowNode.Reset();
+	SelectedDataflowNodeGuid.Invalidate();
 
 	FCoreUObjectDelegates::OnPackageReloaded.Remove(OnPackageReloadedDelegateHandle);
 
@@ -708,6 +710,13 @@ void FChaosClothAssetEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabM
 
 //~ End IToolkit overrides
 
+void FChaosClothAssetEditorToolkit::NotifyPreChange(FEditPropertyChain* PropertyAboutToChange)
+{
+	if (UDataflow* const DataflowAsset = GetDataflow())
+	{
+		FDataflowEditorCommands::OnNotifyPropertyPreChange(NodeDetailsEditor, DataflowAsset, PropertyAboutToChange);
+	}
+}
 
 UChaosClothAsset* FChaosClothAssetEditorToolkit::GetAsset() const
 {
@@ -969,7 +978,7 @@ void FChaosClothAssetEditorToolkit::EvaluateNode(FDataflowNode* Node, bool bForc
 			OnClothAssetChanged();
 
 			// Refresh the construction viewport
-			if (SelectedDataflowNode)
+			if (TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode())
 			{
 				TSharedPtr<FManagedArrayCollection> InputCollection = GetInputClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
 				TSharedPtr<FManagedArrayCollection> Collection = GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
@@ -1068,7 +1077,7 @@ TSharedPtr<IStructureDetailsView> FChaosClothAssetEditorToolkit::CreateNodeDetai
 		DetailsViewArgs.bLockable = false;
 		DetailsViewArgs.bSearchInitialKeyFocus = true;
 		DetailsViewArgs.bUpdatesFromSelection = false;
-		DetailsViewArgs.NotifyHook = nullptr;
+		DetailsViewArgs.NotifyHook = this;
 		DetailsViewArgs.bShowOptions = true;
 		DetailsViewArgs.bShowModifiedPropertiesOption = false;
 		DetailsViewArgs.bShowScrollBar = false;
@@ -1176,6 +1185,35 @@ TSharedPtr<FManagedArrayCollection> FChaosClothAssetEditorToolkit::GetInputCloth
 	return TSharedPtr<FManagedArrayCollection>();
 }
 
+TSharedPtr<FDataflowNode> FChaosClothAssetEditorToolkit::GetSelectedDataflowNode()
+{
+	if (SelectedDataflowNodeGuid.IsValid())
+	{
+		if (UDataflow* const Dataflow = GetDataflow())
+		{
+			if (TSharedPtr<Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+			{
+				return Graph->FindBaseNode(SelectedDataflowNodeGuid);
+			}
+		}
+	}
+	return TSharedPtr<FDataflowNode>(nullptr);
+}
+
+TSharedPtr<const FDataflowNode> FChaosClothAssetEditorToolkit::GetSelectedDataflowNode() const
+{
+	if (SelectedDataflowNodeGuid.IsValid())
+	{
+		if (const UDataflow* const Dataflow = GetDataflow())
+		{
+			if (TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+			{
+				return Graph->FindBaseNode(SelectedDataflowNodeGuid);
+			}
+		}
+	}
+	return TSharedPtr<const FDataflowNode>(nullptr);
+}
 
 void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSelection)
 {
@@ -1199,7 +1237,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 		{
 			// No new node selected
 
-			if (SelectedDataflowNode)
+			if (TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode())
 			{
 				bNodeSelectionChanged = true;		// current node was deselected
 
@@ -1208,7 +1246,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 					SelectedDataflowNode->GetOnNodeInvalidatedDelegate().Remove(OnNodeInvalidatedDelegateHandle);
 				}
 				SelectedDataflowNode->OnDeselected();
-				SelectedDataflowNode.Reset();
+				SelectedDataflowNodeGuid.Invalidate();
 			}
 		}
 		else
@@ -1219,6 +1257,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 				{
 					Dataflow->RenderTargets.Add(Node);
 
+					TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode();
 					if (SelectedDataflowNode != Node->GetDataflowNode())
 					{
 						bNodeSelectionChanged = true;	// changing from one selected node to a different one, or from unselected to selected
@@ -1232,6 +1271,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 							SelectedDataflowNode->OnDeselected();
 						}
 						SelectedDataflowNode = Node->GetDataflowNode();
+						SelectedDataflowNodeGuid = SelectedDataflowNode->GetGuid();
 
 						if (SelectedDataflowNode)
 						{
@@ -1248,6 +1288,7 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 								{
 									// Warning: Do not execute code that rebuilds the UI in this lambda as it is called by the UI!
 
+									TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode();
 									if (SelectedDataflowNode.Get() == InDataflowNode)
 									{
 										GetClothCollectionIfPossible(SelectedDataflowNode, DataflowContext);
@@ -1431,7 +1472,7 @@ void FChaosClothAssetEditorToolkit::HandlePackageReloaded(const EPackageReloadPh
 				}
 
 				// Eliminate anything could be holding a reference to the Dataflow object that will be reloaded (including references to nodes)
-				SelectedDataflowNode.Reset();
+				SelectedDataflowNodeGuid.Invalidate();
 				GraphEditor.Reset();
 				GraphEditorTab.Get()->SetContent(SNew(SSpacer));
 			}
