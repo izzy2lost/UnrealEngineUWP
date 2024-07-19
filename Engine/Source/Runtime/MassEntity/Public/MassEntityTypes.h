@@ -360,7 +360,7 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 
 	FORCEINLINE bool HasExactSharedFragmentTypesMatch(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
 	{
-		return SharedFragmentBitSet == InSharedFragmentBitSet;
+		return SharedFragmentBitSet.IsEquivalent(InSharedFragmentBitSet);
 	}
 
 	FORCEINLINE bool HasAllRequiredSharedFragmentTypes(const FMassSharedFragmentBitSet& InSharedFragmentBitSet) const
@@ -370,7 +370,7 @@ struct MASSENTITY_API FMassArchetypeSharedFragmentValues
 
 	FORCEINLINE bool HasExactConstSharedFragmentTypesMatch(const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet) const
 	{
-		return ConstSharedFragmentBitSet == InConstSharedFragmentBitSet;
+		return ConstSharedFragmentBitSet.IsEquivalent(InConstSharedFragmentBitSet);
 	}
 
 	FORCEINLINE bool HasAllRequiredConstSharedFragmentTypes(const FMassConstSharedFragmentBitSet& InConstSharedFragmentBitSet) const
