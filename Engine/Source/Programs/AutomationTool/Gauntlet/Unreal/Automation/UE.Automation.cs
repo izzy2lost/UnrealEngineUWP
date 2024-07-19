@@ -828,6 +828,7 @@ namespace UE
 							TempReport.SetOutputArtifactPath(HordeArtifactPath);
 							foreach (UnrealRoleArtifacts Artifact in SessionArtifacts)
 							{
+								if (string.IsNullOrEmpty(Artifact.LogPath)) continue;
 								string LogName = Path.GetRelativePath(Path.GetFullPath(Context.Options.LogDir), Path.GetFullPath(Artifact.LogPath));
 								if (TempReport.AttachArtifact(Artifact.LogPath, LogName) && Artifact.SessionRole.RoleType == MainRole.Type)
 								{

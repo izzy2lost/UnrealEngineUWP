@@ -1514,7 +1514,7 @@ namespace Gauntlet
 				{
 					foreach (UnrealRoleArtifacts Artifact in SessionArtifacts)
 					{
-						if (Artifact.SessionRole.RoleType == MainRole.Type)
+						if (Artifact.SessionRole.RoleType == MainRole.Type && !string.IsNullOrEmpty(Artifact.LogPath))
 						{
 							string LogName = FileUtils.ConvertPathToUri(Path.GetRelativePath(Path.GetFullPath(ArtifactPath), Path.GetFullPath(Artifact.LogPath)));
 							if (HordeTestPassResults is BaseHordeReport Report)
