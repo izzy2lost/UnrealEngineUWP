@@ -873,13 +873,15 @@ void FVulkanCommandBufferPool::FreeUnusedCmdBuffers(FVulkanQueue* InQueue, bool 
 		FVulkanCmdBuffer* CmdBuffer = CmdBuffers[Index];
 		if (CmdBuffer != LastSubmittedCmdBuffer &&
 			(CmdBuffer->State == FVulkanCmdBuffer::EState::ReadyForBegin || CmdBuffer->State == FVulkanCmdBuffer::EState::NeedReset) &&
-			(CurrentTime - CmdBuffer->SubmittedTime) > CMD_BUFFER_TIME_TO_WAIT_BEFORE_DELETING)
+			((CurrentTime - CmdBuffer->SubmittedTime) > CMD_BUFFER_TIME_TO_WAIT_BEFORE_DELETING))
 		{
-			DeferredDeletionQueue.OnCmdBufferDeleted(CmdBuffer);
-			if (Device->GetRayTracingCompactionRequestHandler())
+			// Skip command buffer that contain unresolved compaction queries
+			if (Device->GetRayTracingCompactionRequestHandler() && Device->GetRayTracingCompactionRequestHandler()->IsUsingCmdBuffer(CmdBuffer))
 			{
-				Device->GetRayTracingCompactionRequestHandler()->OnCmdBufferDeleted(CmdBuffer);
+				continue;
 			}
+
+			DeferredDeletionQueue.OnCmdBufferDeleted(CmdBuffer);
 
 			CmdBuffer->FreeMemory();
 			CmdBuffers.RemoveAtSwap(Index, EAllowShrinking::No);

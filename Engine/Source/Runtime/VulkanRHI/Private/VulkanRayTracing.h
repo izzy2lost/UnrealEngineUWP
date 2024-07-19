@@ -348,7 +348,7 @@ public:
 
 	void Update(FVulkanCommandListContext& InCommandContext);
 
-	void OnCmdBufferDeleted(FVulkanCmdBuffer* DeletedCmdBuffer);
+	bool IsUsingCmdBuffer(FVulkanCmdBuffer* CmdBuffer);
 
 private:
 
