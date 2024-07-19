@@ -2,6 +2,10 @@
 
 # EditorConfig is awesome:http://EditorConfig.org
 
+[*.md]
+indent_style = space
+indent_size = 2
+
 # Dotnet code style settings:
 [*.cs]
 

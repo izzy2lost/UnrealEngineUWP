@@ -50,6 +50,7 @@ can be run as follows:
 
 ## Topics
 
+* [Build Health](Internals/BuildHealth.md)
 * [Storage](Internals/Storage.md)
 * [Leases](Internals/Leases.md)
 * [Logs](Internals/Logs.md)
