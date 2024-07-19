@@ -55,7 +55,11 @@ namespace UE::Chaos::ClothAsset
 							AssetsToEdit.Append(Context->LoadSelectedObjects<UObject>());
 
 							UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(DataflowEditorSubsystem, NAME_None, RF_Transient);
-							AssetEditor->Initialize({AssetsToEdit[0]});
+
+							const TSubclassOf<AActor> PreviewActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
+								TEXT("/ChaosClothAssetEditor/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);
+
+							AssetEditor->Initialize({AssetsToEdit[0]}, PreviewActorClass);
 						}),
 						FCanExecuteAction::CreateWeakLambda(Context, [Context]() { return Context->bCanBeModified; }));
 

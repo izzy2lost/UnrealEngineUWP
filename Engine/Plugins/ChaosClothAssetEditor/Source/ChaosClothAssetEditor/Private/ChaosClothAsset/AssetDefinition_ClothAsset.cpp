@@ -201,7 +201,7 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 		{
 			UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(AssetEditorSubsystem, NAME_None, RF_Transient);
             const TSubclassOf<AActor> ActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
-            	TEXT("/ChaosClothAsset/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);
+            	TEXT("/ChaosClothAssetEditor/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);
 			AssetEditor->Initialize({ ClothObjects[0] }, ActorClass);
 		}
 
