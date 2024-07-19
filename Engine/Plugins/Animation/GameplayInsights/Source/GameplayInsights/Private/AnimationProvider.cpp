@@ -28,13 +28,10 @@ void FAnimationProvider::EnumerateSkeletalMeshPoseTimelines(TFunctionRef<void(ui
 	
 	for(auto& IndexMapping : ObjectIdToSkeletalMeshPoseTimelines)
 	{
-		for (const TSharedRef<TraceServices::TIntervalTimeline<FAnimGraphMessage>>& Timeline : AnimGraphTimelines)
+		const TSharedPtr<FSkeletalMeshTimelineStorage>& TimelineStorage = SkeletalMeshPoseTimelineStorage[IndexMapping.Value];
+		if (TimelineStorage->Timeline.IsValid())
 		{
-			const TSharedPtr<FSkeletalMeshTimelineStorage>& TimelineStorage = SkeletalMeshPoseTimelineStorage[IndexMapping.Value];
-			if (TimelineStorage->Timeline.IsValid())
-			{
-				Callback(IndexMapping.Key, *TimelineStorage->Timeline);
-			}
+			Callback(IndexMapping.Key, *TimelineStorage->Timeline);
 		}
 	}
 }

@@ -178,6 +178,7 @@ void FRewindDebuggerAnimation::ApplyPoseToMesh(const IAnimationProvider* Animati
 			MeshComponent->UpdateLODStatus();
 			MeshComponent->UpdateChildTransforms(EUpdateTransformFlags::None, ETeleportType::TeleportPhysics);
 			MeshComponent->SetVisibility(PoseMessage->bIsVisible);
+			MeshComponent->MarkRenderStateDirty();
 		}
 	}
 }
