@@ -228,6 +228,7 @@ namespace uba
 	inline u8 HexToByte(tchar c) { return (c >= '0' && c <= '9') ? u8(c - '0') : u8(c - 'a' + 10); }
 	constexpr tchar g_hexChars[] = TC("0123456789abcdef");
 
+	// TODO: These are backwards but changing would break cas storage
 	inline u32 ValueToString(tchar* out, int capacity, u64 value)
 	{
 		(void)capacity;
@@ -244,6 +245,7 @@ namespace uba
 		return u32(it - out);
 	}
 
+	// TODO: These are backwards but changing would break cas storage
 	inline u64 StringToValue(const tchar* str, u64 len)
 	{
 		u64 v = 0;
@@ -252,6 +254,20 @@ namespace uba
 		{
 			u8 b = HexToByte(*--pos);
 			u8 a = HexToByte(*--pos);
+			v = u64(v << 8) | u64(a << 4 | b);
+		}
+
+		return v;
+	}
+
+	inline u64 StringToValue2(const tchar* str, u64 len)
+	{
+		u64 v = 0;
+		const tchar* pos = str;
+		while (*pos)
+		{
+			u8 a = HexToByte(*pos++);
+			u8 b = HexToByte(*pos++);
 			v = u64(v << 8) | u64(a << 4 | b);
 		}
 

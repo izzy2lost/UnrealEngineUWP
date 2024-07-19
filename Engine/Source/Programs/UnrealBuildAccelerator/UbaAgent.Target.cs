@@ -6,7 +6,7 @@ using System.IO;
 [SupportedPlatforms(UnrealPlatformClass.Desktop)]
 public class UbaAgentTarget : TargetRules
 {
-	const string UbaVersion = "Uba_v0.1.3";
+	const string UbaVersion = "Uba_v1.0.0";
 
 	public static void CommonUbaSettings(TargetRules Rules, TargetInfo Target, bool ShouldExport = false)
 	{

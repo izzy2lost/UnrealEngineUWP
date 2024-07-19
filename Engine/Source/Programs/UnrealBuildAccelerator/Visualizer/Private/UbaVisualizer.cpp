@@ -548,29 +548,45 @@ namespace uba
 		DWORD windowStyle = WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CLIPCHILDREN | WS_VSCROLL | WS_HSCROLL;
 		const TCHAR* windowClassName = MAKEINTATOM(wndClassAtom);
 
+		DWORD exStyle = 0;
+		if (m_config.parent)
+			windowStyle = WS_POPUP | WS_VSCROLL | WS_HSCROLL;// | WS_VISIBLE;
+
 		StringBuffer<> title;
 		GetTitlePrefix(title);
 		title.Append(L"Initializing...");
 
-		m_hwnd = CreateWindowEx(0, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
-		SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)this);
+		HWND hwnd = CreateWindowEx(exStyle, windowClassName, title.data, windowStyle, winPosX, winPosY, winWidth, winHeight, NULL, NULL, hInstance, this);
+		SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)this);
 
 		BOOL cloak = TRUE;
-		DwmSetWindowAttribute(m_hwnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
+		DwmSetWindowAttribute(hwnd, DWMWA_CLOAK, &cloak, sizeof(cloak));
 
 		//if (m_config.DarkMode)
 		{
-			SetWindowTheme(m_hwnd, L"DarkMode_Explorer", NULL);
-			SendMessageW(m_hwnd, WM_THEMECHANGED, 0, 0);
+			SetWindowTheme(hwnd, L"DarkMode_Explorer", NULL);
+			SendMessageW(hwnd, WM_THEMECHANGED, 0, 0);
 			BOOL useDarkMode = true;
 			u32 attribute = 20; // DWMWA_USE_IMMERSIVE_DARK_MODE
-			DwmSetWindowAttribute(m_hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
+			DwmSetWindowAttribute(hwnd, attribute, &useDarkMode, sizeof(useDarkMode));
 		}
 
 		HitTestResult res;
 		HitTest(res, { -1, -1 });
 
-		ShowWindow(m_hwnd, SW_SHOW);
+		if (m_config.parent)
+		{
+			m_parentHwnd = (HWND)(uintptr_t)m_config.parent;
+			if (!SetParent(hwnd, m_parentHwnd))
+ 				m_logger.Error(L"SetParent failed using parentHwnd 0x%llx", m_parentHwnd);
+
+			PostMessage(m_parentHwnd, 0x0444, 0, (LPARAM)hwnd);
+		}
+
+		m_hwnd = hwnd;
+
+		if (!m_parentHwnd)
+			ShowWindow(m_hwnd, SW_SHOW);
 		UpdateWindow(m_hwnd);
 		UpdateScrollbars(true);
 
@@ -2626,6 +2642,12 @@ namespace uba
 		PostMessage(m_hwnd, WM_NEWTRACE, replay, paused);
 	}
 
+	void Visualizer::PostQuit()
+	{
+		m_looping = false;
+		PostMessage(m_hwnd, WM_USER+666, 0, 0);
+	}
+
 	LRESULT Visualizer::WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 	{
 		switch (Msg)
@@ -2681,14 +2703,13 @@ namespace uba
 			// and GetMessage will stay stuck indefinitely.
 			if (wParam == SC_CLOSE)
 			{
-				m_looping = false;
+				PostQuit();
 				return 0;
 			}
 		break;
 
 		case WM_DESTROY:
-			m_looping = false;
-			//PostQuitMessage(0);
+			PostQuit();
 			return 0;
 
 		case WM_ERASEBKGND:
@@ -3171,7 +3192,7 @@ namespace uba
 				break;
 
 			case Popup_Quit: // Quit
-				m_looping = false;
+				PostQuit();
 				break;
 
 			case Popup_IncreaseFontSize:

@@ -30,6 +30,8 @@ static int PrintHelp(const tchar* message = nullptr)
 	s.Appendf(TC("  -listen[=<channel>]  Listen for announcements of new sessions. Defaults to channel '%s'\r\n"), TC("Default"));
 	s.Appendf(TC("  -replay              Visualize the data as if it was running right now\r\n"));
 	s.Appendf(TC("  -config=<file>       Specify config file to use\r\n"));
+	s.Appendf(TC("  -parent=<hwnd>       Specify hwnd this window should be a child of\r\n"));
+	s.Appendf(TC("  -nocopy              Will prevent UbaVisualizer.exe from being copied to temp and executed from there\r\n"));
 	s.Appendf(TC("\r\n"));
 	MessageBox(NULL, s.data, TC("UbaVisualizer"), 0);
 	//wprintf(s.data);
@@ -80,6 +82,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	StringBuffer<> configPath;
 	u32 port = DefaultPort;
 	u32 replay = 0;
+	u64 parent = 0;
+	bool copyAndLaunch = true;
 
 	int argc;
 	auto argv = CommandLineToArgvW(GetCommandLine(), &argc);
@@ -151,6 +155,26 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 				return PrintHelp(TC("-config needs a value"));
 			configPath.Append(value);
 		}
+		else if (name.Equals(TC("-parent")))
+		{
+			if (value.IsEmpty())
+				return PrintHelp(TC("-parent needs a value"));
+			if (value.count > 8)
+				return PrintHelp(TC("-parent has invalid value"));
+			value.MakeLower();
+			if (value.count & 1) // uneven char, add 0 in the front
+			{
+				memmove(value.data + 1, value.data, (value.count+1)*sizeof(tchar));
+				value.data[0] = '0';
+				++value.count;
+			}
+			parent = StringToValue2(value.data, value.count);
+			//value.ParseHex(parent);
+		}
+		else if (name.Equals(TC("-nocopy")))
+		{
+			copyAndLaunch = false;
+		}
 		else
 		{
 			StringBuffer<> msg;
@@ -159,13 +183,82 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		}
 	}
 
+	MessageBoxLogWriter logWriter;
+	LoggerWithWriter logger(logWriter);
+
+	if (copyAndLaunch)
+	{
+		StringBuffer<> tempPath;
+		tempPath.count = GetTempPathW(tempPath.capacity, tempPath.data);
+		if (!tempPath.count)
+		{
+			logger.Error(TC("GetTempPathW failed"));
+			return -1;
+		}
+
+		StringBuffer<> thisExe;
+		thisExe.count = GetModuleFileNameW(NULL, thisExe.data, thisExe.capacity);
+		if (!thisExe.count)
+		{
+			logger.Error(TC("GetModuleFileNameW failed"));
+			return -1;
+		}
+
+		WIN32_FILE_ATTRIBUTE_DATA data;
+		if (!GetFileAttributesExW(thisExe.data, GetFileExInfoStandard, &data))
+		{
+			logger.Error(TC("GetFileAttributesExW failed"));
+			return -1;
+		}
+
+		u64 thisLastWriteTime = *(u64*)&data.ftLastWriteTime;
+
+		StringBuffer<> ubaFileName;
+		for (u32 i=0; i!=10; ++i)
+		{
+			ubaFileName.Append(tempPath).EnsureEndsWithSlash().Appendf(TC("UbaVisualizer%u.exe"), i);
+			if (GetFileAttributesExW(ubaFileName.data, GetFileExInfoStandard, &data))
+			{
+				u64 lastWriteTime = *(u64*)&data.ftLastWriteTime;
+				if (thisLastWriteTime == lastWriteTime)
+					break;
+			}
+			if (CopyFileW(thisExe.data, ubaFileName.data, false))
+				break;
+			ubaFileName.Clear();
+		}
+
+		if (!ubaFileName.count)
+		{
+			logger.Error(TC("Failed to create temporary UbaVisualizer.exe to launch."));
+			return -1;
+		}
+
+		StringBuffer<> args;
+		args.Append(ubaFileName);
+		for (int i = 1; i != argc; ++i)
+			args.Append(' ').Append(argv[i]);
+		args.Append(" -nocopy");
+
+		STARTUPINFOW si;
+		ZeroMemory(&si, sizeof(si));
+		si.cb = sizeof(si);
+		PROCESS_INFORMATION pi;
+		ZeroMemory(&pi, sizeof(pi));
+		if (!CreateProcessW(NULL, args.data, NULL, NULL, false, 0, NULL, NULL, &si, &pi))
+		{
+			logger.Error(TC("Failed to launch process %s"), ubaFileName.data);
+			return -1;
+		}
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+		return 0;
+	}
+
 	LocalFree(argv);
 
 	if (host.IsEmpty() && named.IsEmpty() && file.IsEmpty() && !channel.count)
 		channel.Append(TC("Default")); // return PrintHelp(TC("No host/named/file provided. Add -host=<host> or -file=<file> or -named=<name>"));
-
-	MessageBoxLogWriter logWriter;
-	LoggerWithWriter logger(logWriter);
 
 	bool showAllTraces = true;
 	if (!configPath.count)
@@ -183,6 +276,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 	}
 
 	VisualizerConfig visualizerConfig(configPath.data);
+	visualizerConfig.parent = parent;
 	visualizerConfig.ShowAllTraces = showAllTraces;
 	visualizerConfig.Load(logger);
 

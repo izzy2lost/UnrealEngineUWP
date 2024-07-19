@@ -56,6 +56,8 @@ namespace uba
 		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) bool name = defaultValue;
 		UBA_VISUALIZER_FLAGS2
 		#undef UBA_VISUALIZER_FLAG
+
+		u64 parent = 0;
 	};
 
 	class Visualizer
@@ -151,6 +153,7 @@ namespace uba
 
 		Atomic<bool> m_looping;
 		HWND m_hwnd = 0;
+		HWND m_parentHwnd = 0;
 		COLORREF m_textColor = {};
 		COLORREF m_textWarningColor = {};
 		COLORREF m_textErrorColor = {};
@@ -238,6 +241,7 @@ namespace uba
 		Thread m_thread;
 
 		void PostNewTrace(u32 replay, bool paused);
+		void PostQuit();
 		LRESULT WinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 		static LRESULT CALLBACK StaticWinProc(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 	};
