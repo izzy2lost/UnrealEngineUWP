@@ -542,7 +542,7 @@ FText FRigVMDispatch_ArrayInit::GetArgumentTooltip(const FName& InArgumentName, 
 	}
 	if(InArgumentName == NumName)
 	{
-		return LOCTEXT("ArraySetNum_NumArgumentToolTip", "The new size of the array.");
+		return LOCTEXT("ArrayInit_NumArgumentToolTip", "The new size of the array.");
 	}
 	if(InArgumentName == ElementName)
 	{
