@@ -4,10 +4,12 @@
 
 #include "Modules/ModuleInterface.h"
 #include "Toolkits/AssetEditorToolkit.h"
+#include "Delegates/IDelegateInstance.h"
 
 class IMassEntityEditor;
 struct FGraphPanelNodeFactory;
 struct FGraphNodeClassHelper;
+class UWorld;
 
 /**
 * The public interface to this module
@@ -26,6 +28,11 @@ public:
 	TSharedPtr<FGraphNodeClassHelper> GetProcessorClassCache() { return ProcessorClassCache; }
 
 protected:
+#if WITH_UNREAL_DEVELOPER_TOOLS
+	static void OnWorldCleanup(UWorld* /*World*/, bool /*bSessionEnded*/, bool /*bCleanupResources*/);
+	FDelegateHandle OnWorldCleanupHandle;
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
+
 	TSharedPtr<FGraphNodeClassHelper> ProcessorClassCache;
 
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;

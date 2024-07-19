@@ -3,7 +3,11 @@
 #include "MassEntityEditorModule.h"
 #include "MassEditorStyle.h"
 #include "Modules/ModuleManager.h"
-
+#if WITH_UNREAL_DEVELOPER_TOOLS
+#include "MessageLogModule.h"
+#include "Engine/World.h"
+#include "Logging/MessageLog.h"
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
 
 #define LOCTEXT_NAMESPACE "MassEntityEditor"
 
@@ -15,6 +19,16 @@ void FMassEntityEditorModule::StartupModule()
 	ToolBarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 
 	FMassEntityEditorStyle::Initialize();
+
+#if WITH_UNREAL_DEVELOPER_TOOLS
+	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
+	FMessageLogInitializationOptions InitOptions;
+	InitOptions.bShowPages = true;
+	InitOptions.bShowFilters = true;
+	MessageLogModule.RegisterLogListing("MassEntity", LOCTEXT("MassEntity", "MassEntity"), InitOptions);
+
+	OnWorldCleanupHandle = FWorldDelegates::OnWorldCleanup.AddStatic(&FMassEntityEditorModule::OnWorldCleanup);
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
 }
 
 void FMassEntityEditorModule::ShutdownModule()
@@ -24,5 +38,18 @@ void FMassEntityEditorModule::ShutdownModule()
 	ToolBarExtensibilityManager.Reset();
 
 	FMassEntityEditorStyle::Shutdown();
+
+#if WITH_UNREAL_DEVELOPER_TOOLS
+	FWorldDelegates::OnWorldCleanup.Remove(OnWorldCleanupHandle);
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
 }
+
+#if WITH_UNREAL_DEVELOPER_TOOLS
+void FMassEntityEditorModule::OnWorldCleanup(UWorld* /*World*/, bool /*bSessionEnded*/, bool /*bCleanupResources*/)
+{
+	// clearing out messages from the world being cleaned up
+	FMessageLog("MassEntity").NewPage(FText::FromString(TEXT("MassEntity")));
+}
+#endif // WITH_UNREAL_DEVELOPER_TOOLS
+
 #undef LOCTEXT_NAMESPACE

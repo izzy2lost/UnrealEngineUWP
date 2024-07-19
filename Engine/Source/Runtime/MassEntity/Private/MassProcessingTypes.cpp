@@ -6,10 +6,28 @@
 #include "MassEntityUtils.h"
 #include "VisualLogger/VisualLogger.h"
 #include "MassDebugger.h"
+#include "Misc/CoreDelegates.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MassProcessingTypes)
 
 DEFINE_LOG_CATEGORY(LogMass);
+
+
+namespace UE::Mass::Private
+{
+	struct FMassBootReporter
+	{
+		FMassBootReporter()
+		{
+#if MASS_DO_PARALLEL
+			UE_LOG(LogMass, Log, TEXT("MassEntity running with MULTITHREADING support."));
+#else
+			UE_LOG(LogMass, Log, TEXT("MassEntity running in game thread."));
+#endif // MASS_DO_PARALLEL
+		}
+	};
+	static const FMassBootReporter MassBootReporter;
+}
 
 //----------------------------------------------------------------------//
 //  FMassProcessingContext

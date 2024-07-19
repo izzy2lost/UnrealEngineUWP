@@ -25,11 +25,6 @@ namespace UnrealBuildTool.Rules
 				PrivateDependencyModuleNames.Add("EditorSubsystem");
 			}
 
-			if (Target.bBuildDeveloperTools == true)
-			{
-				PrivateDependencyModuleNames.Add("MessageLog");
-			}
-
 			if (Target.Configuration != UnrealTargetConfiguration.Shipping
 				&& Target.Configuration != UnrealTargetConfiguration.Test)
 			{

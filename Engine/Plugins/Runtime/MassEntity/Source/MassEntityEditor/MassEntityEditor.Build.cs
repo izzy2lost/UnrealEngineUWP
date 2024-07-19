@@ -24,7 +24,7 @@ namespace UnrealBuildTool.Rules
 				"AssetTools",
 				"UnrealEd",
 				"Slate",
-				"SlateCore",				
+				"SlateCore",
 				"PropertyEditor",
 				"MassEntity",
 				"DetailCustomizations",
@@ -43,7 +43,11 @@ namespace UnrealBuildTool.Rules
 				"ToolMenus",
 			}
 			);
-		}
 
+			if (Target.bBuildDeveloperTools == true)
+			{
+				PrivateDependencyModuleNames.Add("MessageLog");
+			}
+		}
 	}
 }
