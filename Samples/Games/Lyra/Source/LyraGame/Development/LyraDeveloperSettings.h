@@ -53,7 +53,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, config, Category=Lyra, meta=(AllowedTypes="LyraExperienceDefinition"))
 	FPrimaryAssetId ExperienceOverride;
 
-	UPROPERTY(BlueprintReadOnly, config, Category=LyraBots)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, config, Category=LyraBots, meta=(InlineEditConditionToggle))
 	bool bOverrideBotCount = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, config, Category=LyraBots, meta=(EditCondition=bOverrideBotCount))
