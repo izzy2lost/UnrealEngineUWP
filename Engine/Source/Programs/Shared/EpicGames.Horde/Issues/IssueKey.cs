@@ -8,6 +8,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Issues
 {
@@ -108,6 +109,11 @@ namespace EpicGames.Horde.Issues
 		/// Creates an issue key for a particular step
 		/// </summary>
 		public static IssueKey FromStep(StreamId streamId, TemplateId templateId, string nodeName) => new IssueKey($"{streamId}:{templateId}:{nodeName}", IssueKeyType.Step);
+
+		/// <summary>
+		/// Creates an issue key for a particular step and severity
+		/// </summary>
+		public static IssueKey FromStepAndSeverity(StreamId streamId, TemplateId templateId, string nodeName, LogLevel severity) => new IssueKey($"{streamId}:{templateId}:{nodeName}:{severity}", IssueKeyType.Step);
 
 		/// <inheritdoc/>
 		public bool Equals(IssueKey? other) => other is not null && other.Name.Equals(Name, StringComparison.OrdinalIgnoreCase) && other.Type == Type && String.Equals(Scope, other.Scope, StringComparison.Ordinal);

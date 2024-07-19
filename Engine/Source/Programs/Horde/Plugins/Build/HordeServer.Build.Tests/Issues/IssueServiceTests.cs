@@ -2746,8 +2746,8 @@ namespace HordeServer.Tests.Issues
 			}
 
 			// #5
-			// Scenario: Job is run which updates issue, with a failure 
-			// Expected: Existing issue is updated and becomes an error
+			// Scenario: Job is run with a new failure, when an existing issue is already open with only a warning
+			// Expected: A new issue is created rather than the existing issue being updated since the previous issue only contained a warning
 			{
 				IJob job = CreateJob(_mainStreamId, 225, "Test Build", _graph, TimeSpan.FromHours(hour++));
 				await AddEventAsync(job, 0, 0, LogLevel.Error);
@@ -2755,7 +2755,7 @@ namespace HordeServer.Tests.Issues
 
 				IReadOnlyList<IIssue> issues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(1, issues.Count);
-				Assert.AreEqual(1, issues[0].Id);
+				Assert.AreEqual(2, issues[0].Id);
 				Assert.AreEqual(IssueSeverity.Error, issues[0].Severity);
 			}
 		}

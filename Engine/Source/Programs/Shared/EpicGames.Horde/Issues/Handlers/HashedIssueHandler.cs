@@ -54,6 +54,7 @@ namespace EpicGames.Horde.Issues.Handlers
 			List<IssueEventGroup> issues = new List<IssueEventGroup>();
 
 			IssueEventGroup? genericFingerprint = null;
+			IssueEventGroup? genericErrorsFingerprint = null;
 			HashSet<Md5Hash> hashes = new HashSet<Md5Hash>();
 
 			// keep hash consistent when only have general, non-unique events
@@ -85,14 +86,28 @@ namespace EpicGames.Horde.Issues.Handlers
 				}
 				else
 				{
-					if (genericFingerprint == null)
+					if (stepEvent.Severity == LogLevel.Error || stepEvent.Severity == LogLevel.Critical)
 					{
-						genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
-						genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
-						genericFingerprint.Metadata.Add("Node", _context.NodeName);
-						issues.Add(genericFingerprint);
+						if (genericErrorsFingerprint == null)
+						{
+							genericErrorsFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+							genericErrorsFingerprint.Keys.Add(IssueKey.FromStepAndSeverity(_context.StreamId, _context.TemplateId, _context.NodeName, LogLevel.Error));
+							genericErrorsFingerprint.Metadata.Add("Node", _context.NodeName);
+							issues.Add(genericErrorsFingerprint);
+						}
+						genericErrorsFingerprint.Events.Add(stepEvent);
 					}
-					genericFingerprint.Events.Add(stepEvent);
+					else
+					{
+						if (genericFingerprint == null)
+						{
+							genericFingerprint = new IssueEventGroup("Hashed", "{Severity} in {Meta:Node}", IssueChangeFilter.All);
+							genericFingerprint.Keys.Add(IssueKey.FromStep(_context.StreamId, _context.TemplateId, _context.NodeName));
+							genericFingerprint.Metadata.Add("Node", _context.NodeName);
+							issues.Add(genericFingerprint);
+						}
+						genericFingerprint.Events.Add(stepEvent);
+					}
 				}
 			}
 
