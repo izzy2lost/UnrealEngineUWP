@@ -58,8 +58,6 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 		return InNewActor;
 	}
 
-	InNewActor->Rename(*Texture->GetName(), nullptr, REN_DontCreateRedirectors);
-
 	AAvaShapeActor* ShapeActor = Cast<AAvaShapeActor>(InNewActor);
 
 	if (!ShapeActor)
@@ -200,6 +198,11 @@ AActor* UAvaMaterialDesignerTextureAssetFactory::SpawnActor(UObject* InAsset, UL
 
 FString UAvaMaterialDesignerTextureAssetFactory::GetDefaultActorLabel(UObject* InAsset) const
 {
+	if (InAsset)
+	{
+		return InAsset->GetName();
+	}
+
 	static const FString DefaultName = TEXT("Rectangle");
 	return DefaultName;
 }
