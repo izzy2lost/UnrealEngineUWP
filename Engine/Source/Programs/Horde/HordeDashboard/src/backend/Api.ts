@@ -4476,6 +4476,13 @@ export type UpdateGlobalConfigRequest = {
 
 }
 
+export type ServerPluginInfoResponse = {
+	name: string;
+	description?: string;
+	loaded: boolean,
+	version?: string;
+};
+
 export type GetServerInfoResponse = {
 
 	/// Server version info
@@ -4484,11 +4491,8 @@ export type GetServerInfoResponse = {
 	/// The current agent version
 	agentVersion?: string;
 
-	/// The operating system server is hosted on
-	osDescription: string;
-
-	/// whether the server is running in single instance mode
-	singleInstance: boolean;
+	/// The plugins on the server
+	plugins: ServerPluginInfoResponse[];
 }
 
 /// Information about a span within an issue
