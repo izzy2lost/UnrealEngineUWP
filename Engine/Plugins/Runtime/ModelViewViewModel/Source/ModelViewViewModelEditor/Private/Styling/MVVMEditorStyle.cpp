@@ -30,7 +30,7 @@ FMVVMEditorStyle::FMVVMEditorStyle()
 	if (ensure(MVVMPlugin))
 	{
 		SetContentRoot(MVVMPlugin->GetContentDir() / TEXT("Editor"));
-		SetCoreContentRoot(FPaths::EngineContentDir() / TEXT("Editor") / TEXT("Slate"));
+		SetCoreContentRoot(FPaths::EngineContentDir());
 	}
 
 	// Class Icons
@@ -66,9 +66,9 @@ FMVVMEditorStyle::FMVVMEditorStyle()
 	);
 
 	FButtonStyle NoStyleComboButtonButtonStyle = FButtonStyle()
-		.SetNormal(FSlateBoxBrush(RootToCoreContentDir("Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.15f)))
-		.SetHovered(FSlateBoxBrush(RootToCoreContentDir("Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.25f)))
-		.SetPressed(FSlateBoxBrush(RootToCoreContentDir("Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.30f)))
+		.SetNormal(FSlateBoxBrush(RootToCoreContentDir("Editor/Slate/Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.15f)))
+		.SetHovered(FSlateBoxBrush(RootToCoreContentDir("Editor/Slate/Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.25f)))
+		.SetPressed(FSlateBoxBrush(RootToCoreContentDir("Editor/Slate/Common/ButtonHoverHint.png"), FMargin(4.0f / 16.0f), FLinearColor(1.0f, 1.0f, 1.0f, 0.30f)))
 		.SetNormalPadding(FMargin(0.0f, 0.0f, 0.0f, 1.0f))
 		.SetPressedPadding(FMargin(0.0f, 1.0f, 0.0f, 0.0f));
 	Set("NoStyleComboButton", FComboButtonStyle()
@@ -103,7 +103,7 @@ FMVVMEditorStyle::FMVVMEditorStyle()
 	Set("ConversionFunction.DestToSource", new IMAGE_BRUSH_SVG("Slate/ConversionFunction_DestToSource", Icon16x16));
 	Set("ConversionFunction.SourceToDest", new IMAGE_BRUSH_SVG("Slate/ConversionFunction_SourceToDest", Icon16x16));
 
-	Set("Icon.Ellipsis", new CORE_IMAGE_BRUSH_SVG("Starship/Common/ellipsis-vertical-narrow", FVector2D(6.0, 24.0)));
+	Set("Icon.Ellipsis", new CORE_IMAGE_BRUSH_SVG("Slate/Starship/Common/ellipsis-vertical-narrow", FVector2D(6.0, 24.0)));
 
 	Set("FieldSelector.ComboButton", 
 		FComboButtonStyle(FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
@@ -119,7 +119,6 @@ FMVVMEditorStyle::~FMVVMEditorStyle()
 {
 	FSlateStyleRegistry::UnRegisterSlateStyle(*this);
 }
-
 
 void FMVVMEditorStyle::CreateInstance()
 {
