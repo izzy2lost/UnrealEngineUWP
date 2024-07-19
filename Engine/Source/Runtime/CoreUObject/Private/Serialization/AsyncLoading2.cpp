@@ -5653,48 +5653,33 @@ bool FAsyncPackage2::PreloadLinkerLoadExports(FAsyncLoadingThreadState2& ThreadS
 	// Serialize exports
 	const int32 ExportCount = LinkerLoadState->Linker->ExportMap.Num();
 	check(LinkerLoadState->Linker->ExportMap.Num() == Data.Exports.Num());
-
-	while (LinkerLoadState->SerializeExportIndex < ExportCount + ConstructedObjects.Num())
+	while (LinkerLoadState->SerializeExportIndex < ExportCount)
 	{
 		ThreadState.MarkAsActive();
 
 		const int32 ExportIndex = LinkerLoadState->SerializeExportIndex++;
+		FExportObject& ExportObject = Data.Exports[ExportIndex];
+		FObjectExport& LinkerExport = LinkerLoadState->Linker->ExportMap[ExportIndex];
 
-		if (ExportIndex < ExportCount)
+		// The linker export table can be patched during reinstantiation. We need to adjust our own export table if needed.
+		if (!LinkerExport.bExportLoadFailed)
 		{
-			FExportObject& ExportObject = Data.Exports[ExportIndex];
-			FObjectExport& LinkerExport = LinkerLoadState->Linker->ExportMap[ExportIndex];
-
-			// The linker export table can be patched during reinstantiation. We need to adjust our own export table if needed.
-			if (!LinkerExport.bExportLoadFailed)
+			if (ExportObject.Object != LinkerExport.Object)
 			{
-				if (ExportObject.Object != LinkerExport.Object)
-				{
-					UE_ASYNC_PACKAGE_LOG(Verbose, Desc, TEXT("PreloadLinkerLoadExports"), TEXT("Patching export %d: %s -> %s"), ExportIndex, *GetPathNameSafe(ExportObject.Object), *GetPathNameSafe(LinkerExport.Object));
-					ExportObject.Object = LinkerExport.Object;
-				}
-			}
-
-			if (UObject* Object = ExportObject.Object)
-			{
-				if (Object->HasAnyFlags(RF_NeedLoad))
-				{
-					UE_ASYNC_PACKAGE_LOG(VeryVerbose, Desc, TEXT("PreloadLinkerLoadExports"), TEXT("Preloading export %d: %s"), ExportIndex, *Object->GetPathName());
-					UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
-					LinkerLoadState->Linker->Preload(Object);
-				}
+				UE_ASYNC_PACKAGE_LOG(Verbose, Desc, TEXT("PreloadLinkerLoadExports"), TEXT("Patching export %d: %s -> %s"), ExportIndex, *GetPathNameSafe(ExportObject.Object), *GetPathNameSafe(LinkerExport.Object));
+				ExportObject.Object = LinkerExport.Object;
 			}
 		}
-		else if (UObject* Object = ConstructedObjects[ExportIndex - ExportCount])
+
+		if (UObject* Object = ExportObject.Object)
 		{
 			if (Object->HasAnyFlags(RF_NeedLoad))
 			{
-				UE_ASYNC_PACKAGE_LOG(Display, Desc, TEXT("PreloadLinkerLoadExports"), TEXT("Preloading additional constructed object: %s"), *Object->GetPathName());
+				UE_ASYNC_PACKAGE_LOG(VeryVerbose, Desc, TEXT("PreloadLinkerLoadExports"), TEXT("Preloading export %d: %s"), ExportIndex, *Object->GetPathName());
 				UE_TRACK_REFERENCING_PACKAGE_SCOPED(Object, PackageAccessTrackingOps::NAME_PreLoad);
-				Object->GetLinker()->Preload(Object);
+				LinkerLoadState->Linker->Preload(Object);
 			}
 		}
-
 		if (ThreadState.IsTimeLimitExceeded(TEXT("SerializeLinkerLoadExports")))
 		{
 			return false;
