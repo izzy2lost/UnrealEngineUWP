@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "ITranslationEditor.h"
+#include "TranslationPickerWidget.h"
+#if WITH_EDITOR
 #include "Modules/ModuleManager.h"
 #include "TranslationEditorModule.h"
-#include "TranslationPickerWidget.h"
 #include "LocalizationConfigurationScript.h"
 
 /** To keep track of what translation editors are open editing which archive files */
@@ -68,14 +68,6 @@ void ITranslationEditor::OpenTranslationEditor(ULocalizationTarget* const Locali
 	}
 }
 
-void ITranslationEditor::OpenTranslationPicker()
-{
-	if (!TranslationPickerManager::IsPickerWindowOpen())
-	{
-		TranslationPickerManager::OpenPickerWindow();
-	}
-}
-
 void ITranslationEditor::RegisterTranslationEditor()
 {
 	ITranslationEditor::OpenTranslationEditors.Add(ArchiveFilePath, this);
@@ -91,6 +83,12 @@ void ITranslationEditor::OnClose()
 	ITranslationEditor::UnregisterTranslationEditor();
 }
 
+#endif // WITH_EDITOR
 
-
-
+void ITranslationEditor::OpenTranslationPicker()
+{
+	if (!TranslationPickerManager::IsPickerWindowOpen())
+	{
+		TranslationPickerManager::OpenPickerWindow();
+	}
+}

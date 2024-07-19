@@ -15,6 +15,7 @@
 
 #if !UE_BUILD_SHIPPING && PLATFORM_DESKTOP 
 #include "ISlateReflectorModule.h"
+#include "TranslationEditorModule.h"
 #endif
 
 class IRendererModule;
@@ -191,7 +192,6 @@ static void ShowFontAtlasVisualizer()
 {
 	static const FName SlateReflectorModuleName("SlateReflector");
 	FModuleManager::LoadModuleChecked<ISlateReflectorModule>(SlateReflectorModuleName).DisplayFontAtlasVisualizer();
-
 }
 
 static FAutoConsoleCommand GShowWidgetReflector
@@ -213,6 +213,17 @@ static FAutoConsoleCommand GShowFontAtlasReflector
 	TEXT("FontAtlasVisualizer"),
 	TEXT("Displays the Slate font atlas visualizer"),
 	FConsoleCommandDelegate::CreateStatic(ShowFontAtlasVisualizer)
+);
+
+static FAutoConsoleCommand GTranslationPicker
+(
+	TEXT("TranslationPicker"),
+	TEXT("Displays the translation picker"),
+	FConsoleCommandDelegate::CreateStatic([]()
+	{
+		static const FName TranslationEditorModuleName("TranslationEditor");
+		FModuleManager::LoadModuleChecked<FTranslationEditorModule>(TranslationEditorModuleName).OpenTranslationPicker();
+	})
 );
 
 #endif

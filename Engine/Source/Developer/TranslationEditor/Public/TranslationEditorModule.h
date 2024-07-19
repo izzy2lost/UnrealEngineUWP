@@ -3,19 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Toolkits/AssetEditorToolkit.h"
 #include "Modules/ModuleInterface.h"
+#if WITH_EDITOR
+#include "Toolkits/AssetEditorToolkit.h"
+#endif // WITH_EDITOR
 
 class FTranslationEditor;
 class ULocalizationTarget;
 
-//#include "ITranslationEditor.h"
-
-class FTranslationEditor;
-class ULocalizationTarget;
-
-class FTranslationEditorModule : public IModuleInterface,
-	public IHasMenuExtensibility
+class FTranslationEditorModule
+	: public IModuleInterface
+#if WITH_EDITOR
+	, public IHasMenuExtensibility
+#endif // WITH_EDITOR
 {
 
 public:
@@ -23,6 +23,13 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	/**
+	 * Open the translation picker.
+	 * @note Alias for ITranslationEditor::OpenTranslationPicker.
+	 */
+	virtual void OpenTranslationPicker();
+
+#if WITH_EDITOR
 	/**
 	 * Creates an instance of translation editor object.  Only virtual so that it can be called across the DLL boundary.
 	 *
@@ -57,4 +64,5 @@ public:
 private:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolbarExtensibilityManager;
+#endif // WITH_EDITOR
 };

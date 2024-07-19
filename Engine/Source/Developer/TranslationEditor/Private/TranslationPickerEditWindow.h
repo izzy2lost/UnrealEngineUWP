@@ -21,6 +21,7 @@ struct FKeyEvent;
 
 #define LOCTEXT_NAMESPACE "TranslationPicker"
 
+class FTranslationPickerEditInputProcessor;
 class SBox;
 class SMultiLineEditableTextBox;
 class SWindow;
@@ -121,6 +122,8 @@ private:
 
 	FReply SaveAndPreview();
 
+	FReply CopyNamespaceAndKey();
+
 	/** The FText that we are using this widget to translate */
 	FText PickedText;
 
@@ -134,7 +137,7 @@ private:
 	bool bAllowEditing;
 
 	/** Whether or not we were able to find the necessary info for saving */
-	bool bHasRequiredLocalizationInfoForSaving;
+	bool bHasRequiredLocalizationInfoForSaving = true;
 };
 
 /** Translation picker edit window to allow you to translate selected FTexts in place */
@@ -148,6 +151,8 @@ class STranslationPickerEditWindow : public SCompoundWidget
 
 	SLATE_END_ARGS()
 
+	virtual ~STranslationPickerEditWindow();
+
 	void Construct(const FArguments& InArgs);
 
 	// Default dimensions of the Translation Picker edit window (floating window also uses these sizes, so it matches roughly)
@@ -155,8 +160,7 @@ class STranslationPickerEditWindow : public SCompoundWidget
 	static const int32 DefaultEditWindowHeight;
 
 private:
-
-	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+	friend class FTranslationPickerEditInputProcessor;
 
 	FReply Close();
 
@@ -165,6 +169,9 @@ private:
 	{
 		return true;
 	}
+
+	/** Input processor used to capture the 'Esc' key */
+	TSharedPtr<FTranslationPickerEditInputProcessor> InputProcessor;
 
 	/** Handle to the window that contains this widget */
 	TWeakPtr<SWindow> ParentWindow;
@@ -178,10 +185,11 @@ private:
 	/** All of our current edit widgets */
 	TArray<TSharedRef<STranslationPickerEditWidget>> EditWidgets;
 
+	/** Return to picker floating window */
+	FReply RestorePicker();
+
 	/** Save all translations and close */
 	FReply SaveAllAndClose();
-
-
 };
 
 #undef LOCTEXT_NAMESPACE

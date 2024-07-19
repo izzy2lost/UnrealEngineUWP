@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
+#if WITH_EDITOR
 
 #include "CoreMinimal.h"
 #include "Input/Reply.h"
@@ -89,15 +89,15 @@ private:
 
 	FTranslationEditor(TSharedRef< FTranslationDataManager > InDataManager, const FString& InManifestFile, const FString& InArchiveFile, ULocalizationTarget* const LocalizationTarget)
 		: ITranslationEditor(InManifestFile, InArchiveFile, LocalizationTarget)
-	, DataManager(InDataManager)
-	, SourceFont(FAppStyle::GetFontStyle( PropertyTableConstants::NormalFontStyle ))
-	, TranslationTargetFont(FAppStyle::GetFontStyle( PropertyTableConstants::NormalFontStyle ))
-	, SourceColumn(MakeShareable(new FCustomFontColumn(SourceFont)))
-	, TranslationColumn(MakeShareable(new FCustomFontColumn(TranslationTargetFont)))
-	, PreviewTextBlock(SNew(STextBlock)
+		, DataManager(InDataManager)
+		, SourceFont(FAppStyle::GetFontStyle( PropertyTableConstants::NormalFontStyle ))
+		, TranslationTargetFont(FAppStyle::GetFontStyle( PropertyTableConstants::NormalFontStyle ))
+		, SourceColumn(MakeShareable(new FCustomFontColumn(SourceFont)))
+		, TranslationColumn(MakeShareable(new FCustomFontColumn(TranslationTargetFont)))
+		, PreviewTextBlock(SNew(STextBlock)
 				.Text(FText::FromString(""))
 				.Font(TranslationTargetFont))
-	, NamespaceTextBlock(SNew(STextBlock)
+		, NamespaceTextBlock(SNew(STextBlock)
 				.Text(FText::FromString("")))
 	{}
 
@@ -308,3 +308,5 @@ private:
 	/** Used to remember the location of the file the user last imported */
 	FString LastImportFilePath;
 };
+
+#endif // WITH_EDITOR

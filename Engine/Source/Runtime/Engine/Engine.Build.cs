@@ -55,12 +55,14 @@ public class Engine : ModuleRules
 			PrivateIncludePathModuleNames.AddRange(
 				new string[] {
 					"SlateReflector",
+					"TranslationEditor",
 				}
 			);
 
 			DynamicallyLoadedModuleNames.AddRange(
 				new string[] {
 					"SlateReflector",
+					"TranslationEditor",
 				}
 			);
 

@@ -1,5 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
+#if WITH_EDITOR
 
 #include "TranslationEditorMenu.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -116,3 +116,5 @@ void FTranslationEditorCommands::RegisterCommands()
 
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // WITH_EDITOR

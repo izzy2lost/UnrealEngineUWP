@@ -10,10 +10,12 @@
 #include "Framework/Text/TextLayout.h"
 #include "HAL/Platform.h"
 #include "HAL/PlatformCrt.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "Input/Events.h"
 #include "InputCoreTypes.h"
 #include "Internationalization/Internationalization.h"
 #include "Internationalization/Text.h"
+#include "Internationalization/TextNamespaceUtil.h"
 #include "Layout/ArrangedChildren.h"
 #include "Layout/ArrangedWidget.h"
 #include "Layout/BasicLayoutWidgetSlot.h"
@@ -23,7 +25,9 @@
 #include "Layout/SlateRect.h"
 #include "Math/Vector2D.h"
 #include "Misc/Attribute.h"
+#if WITH_EDITOR
 #include "SDocumentationToolTip.h"
+#endif // WITH_EDITOR
 #include "SlotBase.h"
 #include "TranslationPickerEditWindow.h"
 #include "TranslationPickerWidget.h"
@@ -66,9 +70,57 @@ public:
 
 	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override
 	{
-		if (Owner && InKeyEvent.GetKey() == EKeys::Escape)
+		if (!Owner)
 		{
-			Owner->OnEscapePressed();
+			return false;
+		}
+
+		FKey Key = InKeyEvent.GetKey();
+
+		if (Key == EKeys::Escape)
+		{
+			TranslationPickerManager::ClosePickerWindow();
+			return true;
+		}
+		else if (Key == EKeys::Enter)
+		{
+			Owner->SwitchToEditWindow();
+			return true;
+		}
+		else if (InKeyEvent.IsControlDown())
+		{
+			const uint32* KeyCode = nullptr;
+			const uint32* CharCode = nullptr;
+			FInputKeyManager::Get().GetCodesFromKey(Key, KeyCode, CharCode);
+			if (CharCode == nullptr)
+			{
+				return false;
+			}
+
+			const uint32* KeyCodeOne = nullptr;
+			const uint32* CharCodeOne = nullptr;
+			FInputKeyManager::Get().GetCodesFromKey(EKeys::One, KeyCodeOne, CharCodeOne);
+
+			int32 EntryIndex = *CharCode - *CharCodeOne;
+			if (EntryIndex < 0 || EntryIndex > 4 || EntryIndex >= Owner->PickedTexts.Num())
+			{
+				return false;	// Handle only first five entries, the max number of entries that fit in the floating picker
+			}
+
+			const FText& PickedText = Owner->PickedTexts[EntryIndex];
+			
+			FTextId TextId = FTextInspector::GetTextId(PickedText);
+
+			// Clean the package localization ID from the namespace (to mirror what the text gatherer does when scraping for translation data)
+			FString EntryNamespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
+			FString EntryKey = TextId.GetKey().GetChars();
+
+			const FString CopyString = FString::Printf(TEXT("%s,%s"), *EntryNamespace, *EntryKey);
+	
+			FPlatformApplicationMisc::ClipboardCopy(*CopyString);
+
+			UE_LOG(LogConsoleResponse, Display, TEXT("Copied Namespace,Key to clipboard: %s"), *CopyString);
+
 			return true;
 		}
 
@@ -191,7 +243,7 @@ void STranslationPickerFloatingWindow::Tick( const FGeometry& AllottedGeometry, 
 				.Padding(FMargin(5))
 				[
 					SNew(STextBlock)
-					.Text(PickedTexts.Num() > 0 ? LOCTEXT("TranslationPickerEscToEdit", "Press Esc to edit translations") : LOCTEXT("TranslationPickerHoverToViewEditEscToQuit", "Hover over text to view/edit translations, or press Esc to quit"))
+					.Text(PickedTexts.Num() > 0 ? LOCTEXT("TranslationPickerEnterToEdit", "Press Enter to edit translations") : LOCTEXT("TranslationPickerHoverToViewEditEscToQuit", "Hover over text to view/edit translations, or press Esc to quit"))
 					.Justification(ETextJustify::Center)
 				]
 			);
@@ -282,11 +334,13 @@ void STranslationPickerFloatingWindow::PickTextFromWidget(TSharedRef<SWidget> Wi
 		SToolTip& ToolTipWidget = (SToolTip&)Widget.Get();
 		AppendPickedText(ToolTipWidget.GetTextTooltip());
 	}
+#if WITH_EDITOR
 	else if (Widget->GetTypeAsString() == "SDocumentationToolTip")
 	{
 		SDocumentationToolTip& DocumentationToolTip = (SDocumentationToolTip&)Widget.Get();
 		AppendPickedText(DocumentationToolTip.GetTextTooltip());
 	}
+#endif // WITH_EDITOR
 	else if (Widget->GetTypeAsString() == "SEditableText")
 	{
 		SEditableText& EditableText = (SEditableText&)Widget.Get();
@@ -317,7 +371,7 @@ void STranslationPickerFloatingWindow::PickTextFromChildWidgets(TSharedRef<SWidg
 	}
 }
 
-void STranslationPickerFloatingWindow::OnEscapePressed()
+void STranslationPickerFloatingWindow::SwitchToEditWindow()
 {
 	if (PickedTexts.Num() > 0)
 	{

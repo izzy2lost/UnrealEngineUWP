@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
+#if WITH_EDITOR
 
 #include "CoreMinimal.h"
 #include "Styling/AppStyle.h"
@@ -63,3 +63,4 @@ public:
 	virtual void RegisterCommands() override;
 };
 
+#endif // WITH_EDITOR

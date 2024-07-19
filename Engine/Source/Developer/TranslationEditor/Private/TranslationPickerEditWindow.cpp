@@ -2,8 +2,10 @@
 
 #include "TranslationPickerEditWindow.h"
 
+#include "Framework/Application/IInputProcessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformCrt.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "ILocalizationServiceModule.h"
 #include "ILocalizationServiceProvider.h"
 #include "Input/Events.h"
@@ -24,6 +26,7 @@
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
 #include "TranslationDataManager.h"
+#include "TranslationPickerWidget.h"
 #include "TranslationUnit.h"
 #include "Types/SlateEnums.h"
 #include "Widgets/Input/SButton.h"
@@ -49,10 +52,57 @@ TSharedPtr<FTranslationPickerSettingsManager> FTranslationPickerSettingsManager:
 const int32 STranslationPickerEditWindow::DefaultEditWindowWidth = 500;
 const int32 STranslationPickerEditWindow::DefaultEditWindowHeight = 500;
 
+class FTranslationPickerEditInputProcessor : public IInputProcessor
+{
+public:
+	FTranslationPickerEditInputProcessor(STranslationPickerEditWindow* InOwner)
+		: Owner(InOwner)
+	{
+	}
+
+	void SetOwner(STranslationPickerEditWindow* InOwner)
+	{
+		Owner = InOwner;
+	}
+
+	virtual ~FTranslationPickerEditInputProcessor() = default;
+
+	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override
+	{
+	}
+
+	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override
+	{
+		if (!Owner)
+		{
+			return false;
+		}
+
+		FKey Key = InKeyEvent.GetKey();
+
+		if (Key == EKeys::Escape)
+		{
+			Owner->Close();
+			return true;
+		}
+		else if (Key == EKeys::Enter)
+		{
+			Owner->RestorePicker();
+			return true;
+		}
+
+		return false;
+	}
+
+	virtual const TCHAR* GetDebugName() const override { return TEXT("TranslationPicker"); }
+
+private:
+	STranslationPickerEditWindow* Owner;
+};
+
 UTranslationPickerSettings::UTranslationPickerSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-
 }
 
 void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
@@ -74,8 +124,6 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 	// Add a new Translation Picker Edit Widget for each picked text
 	for (FText PickedText : PickedTexts)
 	{
-		TSharedPtr<SEditableTextBox> TextBox;
-
 		TSharedRef<STranslationPickerEditWidget> NewEditWidget = 
 			SNew(STranslationPickerEditWidget)
 			.PickedText(PickedText)
@@ -176,6 +224,11 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 						.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
 						.OnClicked(this, &STranslationPickerEditWindow::SaveAllAndClose)
 						.Text(LOCTEXT("SaveAllAndClose", "Save All and Close"))
+#if WITH_EDITOR
+						.Visibility(EVisibility::Visible)
+#else
+						.Visibility(EVisibility::Hidden)
+#endif // WITH_EDITOR
 					]
 					
 					+SUniformGridPanel::Slot(1, 0)
@@ -196,18 +249,22 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 	[
 		WindowContents.ToSharedRef()
 	];
+
+	InputProcessor = MakeShared<FTranslationPickerEditInputProcessor>(this);
+	FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor, 0);
 }
 
-FReply STranslationPickerEditWindow::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+STranslationPickerEditWindow::~STranslationPickerEditWindow()
 {
-	if (InKeyEvent.GetKey() == EKeys::Escape)
+	if (InputProcessor.IsValid())
 	{
-		Close();
-		
-		return FReply::Handled();
+		InputProcessor->SetOwner(nullptr);
+		if (FSlateApplication::IsInitialized())
+		{
+			FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+		}
+		InputProcessor.Reset();
 	}
-
-	return FReply::Unhandled();
 }
 
 FReply STranslationPickerEditWindow::Close()
@@ -217,6 +274,15 @@ FReply STranslationPickerEditWindow::Close()
 		FSlateApplication::Get().RequestDestroyWindow(ParentWindow.Pin().ToSharedRef());
 		ParentWindow.Reset();
 	}
+
+	return FReply::Handled();
+}
+
+FReply STranslationPickerEditWindow::RestorePicker()
+{
+	Close();
+
+	TranslationPickerManager::OpenPickerWindow();
 
 	return FReply::Handled();
 }
@@ -269,6 +335,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 	FString LocResPath;
 	FString LocTargetName;
 	FString LocResCultureName;
+#if WITH_EDITORONLY_DATA
 	if (!TextId.IsEmpty() && FTextLocalizationManager::Get().GetLocResID(TextId.GetNamespace(), TextId.GetKey(), LocResPath))
 	{
 		LocTargetName = FPaths::GetBaseFilename(LocResPath);
@@ -276,6 +343,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 		const FString CultureFilePath = FPaths::GetPath(LocResPath);
 		LocResCultureName = FPaths::GetBaseFilename(CultureFilePath);
 	}
+#endif // WITH_EDITORONLY_DATA
 
 	// Clean the package localization ID from the namespace (to mirror what the text gatherer does when scraping for translation data)
 	FString CleanNamespace = TextNamespaceUtil::StripPackageNamespace(TextId.GetNamespace().GetChars());
@@ -288,8 +356,16 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 	TranslationUnit->Translation = TranslationString;
 	TranslationUnit->LocresPath = LocResPath;
 
+#if WITH_EDITOR
 	// Can only save if we have have an identity and are in a known localization target file
 	bHasRequiredLocalizationInfoForSaving = !TextId.IsEmpty() && !LocTargetName.IsEmpty();
+
+	const FTextBlockStyle& BoldText = FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("RichTextBlock.Bold");
+#else
+	// Bold text not available in game, suppress errors on 'RichTextBlock.Bold'
+	FTextBlockStyle BoldText = FTextBlockStyle::GetDefault();
+	BoldText.SetColorAndOpacity(FLinearColor(FColorList::White));
+#endif // WITH_EDITOR
 
 	TSharedPtr<SGridPanel> GridPanel;
 
@@ -313,7 +389,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Right)
 				[
 					SNew(STextBlock)
-					.TextStyle(FAppStyle::Get(), "RichTextBlock.Bold")
+					.TextStyle(&BoldText)
 					.Text(LOCTEXT("SourceLabel", "Source:"))
 				]
 
@@ -322,12 +398,16 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 				.HAlign(HAlign_Right)
 				[
 					SNew(SBox)
-					// Hide translation if we don't have necessary information to modify, and is same as source
-					.Visibility(!bHasRequiredLocalizationInfoForSaving && SourceString.Equals(TranslationString) ? EVisibility::Collapsed : EVisibility::Visible)
+					// Hide translation if we don't have necessary information to modify
+					.Visibility(!bHasRequiredLocalizationInfoForSaving ? EVisibility::Collapsed : EVisibility::Visible)
 					[
 						SNew(STextBlock)
-						.TextStyle(FAppStyle::Get(), "RichTextBlock.Bold")
-						.Text(FText::Format(LOCTEXT("TranslationLabel", "Translation ({0}):"), FText::AsCultureInvariant(LocResCultureName)))
+						.TextStyle(&BoldText)
+#if WITH_EDITORONLY_DATA
+						.Text(FText::Format(LOCTEXT("TranslationLabelWithCulture", "Translation ({0}):"), FText::AsCultureInvariant(LocResCultureName)))
+#else
+						.Text(LOCTEXT("TranslationLabel", "Translation:"))
+#endif
 					]
 				]
 				
@@ -343,8 +423,8 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 				.Padding(FMargin(2.5))
 				[
 					SNew(SBox)
-					// Hide translation if we don't have necessary information to modify, and is same as source
-					.Visibility(!bHasRequiredLocalizationInfoForSaving && SourceString.Equals(TranslationString) ? EVisibility::Collapsed : EVisibility::Visible)
+					// Hide translation if we don't have necessary information to modify
+					.Visibility(!bHasRequiredLocalizationInfoForSaving ? EVisibility::Collapsed : EVisibility::Visible)
 					[
 						SAssignNew(TextBox, SMultiLineEditableTextBox)
 						.IsReadOnly(!bAllowEditing || !bHasRequiredLocalizationInfoForSaving)
@@ -363,7 +443,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Right)
 			[
 				SNew(STextBlock)
-				.TextStyle(FAppStyle::Get(), "RichTextBlock.Bold")
+				.TextStyle(&BoldText)
 				.Text(LOCTEXT("NamespaceLabel", "Namespace:"))
 			];
 		GridPanel->AddSlot(1, 2)
@@ -378,7 +458,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Right)
 			[
 				SNew(STextBlock)
-				.TextStyle(FAppStyle::Get(), "RichTextBlock.Bold")
+				.TextStyle(&BoldText)
 				.Text(LOCTEXT("KeyLabel", "Key:"))
 			];
 		GridPanel->AddSlot(1, 3)
@@ -389,26 +469,42 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 				.Text(FText::AsCultureInvariant(TextId.GetKey().GetChars()))
 			];
 		
+		int32 Row = 4;
 		if (bHasRequiredLocalizationInfoForSaving)
 		{
-			GridPanel->AddSlot(0, 4)
+
+#if WITH_EDITOR
+			GridPanel->AddSlot(0, Row)
 				.Padding(FMargin(2.5))
 				.HAlign(HAlign_Right)
 				[
 					SNew(STextBlock)
-					.TextStyle(FAppStyle::Get(), "RichTextBlock.Bold")
+					.TextStyle(&BoldText)
 					.Text(LOCTEXT("LocresFileLabel", "Target:"))
 				];
-			GridPanel->AddSlot(1, 4)
+			GridPanel->AddSlot(1, Row)
 				.Padding(FMargin(2.5))
 				[
 					SNew(SEditableTextBox)
 					.IsReadOnly(true)
 					.Text(FText::AsCultureInvariant(LocTargetName))
 				];
-			GridPanel->AddSlot(0, 5)
+			++Row;
+#endif // WITH_EDITOR
+
+			GridPanel->AddSlot(0, Row)
 				.Padding(FMargin(2.5))
-				.ColumnSpan(2)
+				[
+					SNew(SButton)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+					.OnClicked(this, &STranslationPickerEditWidget::CopyNamespaceAndKey)
+					.Visibility(bAllowEditing ? EVisibility::Visible : EVisibility::Collapsed)
+					.Text(LOCTEXT("CopyNamespaceAndKey", "Copy Namespace,Key"))
+				];
+			GridPanel->AddSlot(1, Row)
+				.Padding(FMargin(2.5))
 				.HAlign(HAlign_Right)
 				[
 					SNew(SButton)
@@ -423,7 +519,7 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs)
 		}
 		else
 		{
-			GridPanel->AddSlot(0, 4)
+			GridPanel->AddSlot(0, Row)
 				.Padding(FMargin(2.5))
 				.ColumnSpan(2)
 				.HAlign(HAlign_Center)
@@ -469,12 +565,35 @@ FReply STranslationPickerEditWidget::SaveAndPreview()
 {
 	// Update translation string from entered text
 	TranslationUnit->Translation = TextBox->GetText().ToString();
+
+#if WITH_EDITOR
 	UTranslationPickerSettings* TranslationPickerSettings = FTranslationPickerSettingsManager::Get()->GetSettings();
 
 	// Save the data via translation data manager
 	TArray<UTranslationUnit*> TempArray;
 	TempArray.Add(TranslationUnit);
 	FTranslationDataManager::SaveSelectedTranslations(TempArray, ILocalizationServiceModule::Get().GetProvider().IsEnabled() && TranslationPickerSettings->bSubmitTranslationPickerChangesToLocalizationService);
+
+#else
+
+	FTextLocalizationManager::Get().ReplaceStringInLiveTable(TranslationUnit->Namespace, TranslationUnit->Key, TranslationUnit->Translation);
+
+	if (IConsoleObject* CObj = IConsoleManager::Get().FindConsoleObject(TEXT("Slate.TriggerInvalidate")))
+	{
+		CObj->AsCommand()->Execute(/*Args=*/TArray<FString>(), /*InWorld=*/nullptr, *GLog);
+	}
+#endif // WITH_EDITOR
+
+	return FReply::Handled();
+}
+
+FReply STranslationPickerEditWidget::CopyNamespaceAndKey()
+{
+	const FString CopyString = FString::Printf(TEXT("%s,%s"), *TranslationUnit->Namespace, *TranslationUnit->Key);
+	
+	FPlatformApplicationMisc::ClipboardCopy(*CopyString);
+
+	UE_LOG(LogConsoleResponse, Display, TEXT("Copied Namespace,Key to clipboard: %s"), *CopyString);
 
 	return FReply::Handled();
 }

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
-
 #pragma once
+#if WITH_EDITOR
 
 #include "CoreMinimal.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -8,12 +8,16 @@
 
 /** Translation Editor public interface */
 class ITranslationEditor : public FAssetEditorToolkit
+#else
+class ITranslationEditor
+#endif // WITH_EDITOR
 {
 public:
+	TRANSLATIONEDITOR_API static void OpenTranslationPicker();
+
+#if WITH_EDITOR
 	TRANSLATIONEDITOR_API static void OpenTranslationEditor(const FString& InManifestFile, const FString& InNativeArchiveFile, const FString& InArchiveFileToEdit);
 	TRANSLATIONEDITOR_API static void OpenTranslationEditor(ULocalizationTarget* const LocalizationTarget, const FString& CultureToEdit);
-
-	TRANSLATIONEDITOR_API static void OpenTranslationPicker();
 
 	ITranslationEditor(const FString& InManifestFile, const FString& InArchiveFile, ULocalizationTarget* const InAssociatedLocalizationTarget)
 		: ManifestFilePath(InManifestFile)
@@ -42,6 +46,7 @@ private:
 	
 	/** Called on close to remove this from our list of open translation editors */
 	void UnregisterTranslationEditor();
-};
 
+#endif // WITH_EDITOR
+};
 

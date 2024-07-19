@@ -6,8 +6,8 @@
 #include "TranslationDataManager.h"
 #include "TranslationPickerWidget.h"
 #include "TranslationEditor.h"
-//#include "Toolkits/ToolkitManager.h"
 #include "MessageLogModule.h"
+#include "ITranslationEditor.h"
 
 class FTranslationEditor;
 
@@ -15,7 +15,9 @@ IMPLEMENT_MODULE( FTranslationEditorModule, TranslationEditor );
 
 #define LOCTEXT_NAMESPACE "TranslationEditorModule"
 
+#if WITH_EDITOR
 const FName FTranslationEditorModule::TranslationEditorAppIdentifier( TEXT( "TranslationEditorApp" ) );
+#endif // WITH_EDITOR
 
 void FTranslationEditorModule::StartupModule()
 {
@@ -25,13 +27,17 @@ void FTranslationEditorModule::StartupModule()
 	MessageLogModule.RegisterLogListing("TranslationEditor", LOCTEXT("TranslationEditorLogLabel", "Translation Editor"));
 #endif
 
+#if WITH_EDITOR
 	MenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
 	ToolbarExtensibilityManager = MakeShareable(new FExtensibilityManager);
+#endif // WITH_EDITOR
 }
 
 void FTranslationEditorModule::ShutdownModule()
 {
+#if WITH_EDITOR
 	MenuExtensibilityManager.Reset();
+#endif // WITH_EDITOR
 	TranslationPickerManager::ClosePickerWindow();
 
 #if WITH_UNREAL_DEVELOPER_TOOLS
@@ -44,6 +50,7 @@ void FTranslationEditorModule::ShutdownModule()
 #endif
 }
 
+#if WITH_EDITOR
 TSharedRef<FTranslationEditor> FTranslationEditorModule::CreateTranslationEditor(const FString& ManifestFile, const FString& NativeArchiveFile, const FString& ArchiveFileToEdit, bool& OutLoadedSuccessfully)
 {
 	TSharedRef< FTranslationDataManager > DataManager = MakeShareable( new FTranslationDataManager(ManifestFile, NativeArchiveFile, ArchiveFileToEdit) );
@@ -82,6 +89,11 @@ TSharedRef<FTranslationEditor> FTranslationEditorModule::CreateTranslationEditor
 
 	return NewTranslationEditor;
 }
+#endif // WITH_EDITOR
 
+void FTranslationEditorModule::OpenTranslationPicker()
+{
+	ITranslationEditor::OpenTranslationPicker();
+}
 
 #undef LOCTEXT_NAMESPACE

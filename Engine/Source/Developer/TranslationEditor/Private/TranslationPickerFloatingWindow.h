@@ -42,8 +42,8 @@ private:
 	/** Pull the FText reference out of the child widgets of an SWidget */
 	void PickTextFromChildWidgets(TSharedRef<SWidget> Widget);
 
-	/** Handle escape being pressed */
-	void OnEscapePressed();
+	/** Switch from floating window to edit window */
+	void SwitchToEditWindow();
 
 	/** Input processor used to capture the 'Esc' key */
 	TSharedPtr<FTranslationPickerInputProcessor> InputProcessor;

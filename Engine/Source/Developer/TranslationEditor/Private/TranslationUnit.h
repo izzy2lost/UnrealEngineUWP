@@ -107,6 +107,7 @@ public:
 
 	TSharedPtr<FLocMetadataObject> KeyMetaDataObject;
 
+#if WITH_EDITOR
 protected:
 	/**
 	* Called when a property on this object has been modified externally
@@ -114,6 +115,7 @@ protected:
 	* @param PropertyThatChanged the property that was modified
 	*/
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR
 
 private:
 

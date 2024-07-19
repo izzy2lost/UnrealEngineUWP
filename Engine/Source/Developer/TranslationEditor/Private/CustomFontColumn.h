@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
+#if WITH_EDITOR
 
 #include "Containers/Array.h"
 #include "UserInterface/PropertyTable/PropertyTableConstants.h"
@@ -72,3 +73,4 @@ public:
 	}
 };
 
+#endif // WITH_EDITOR

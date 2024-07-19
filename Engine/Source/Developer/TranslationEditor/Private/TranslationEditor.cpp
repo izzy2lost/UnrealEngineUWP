@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+#if WITH_EDITOR
 
 #include "TranslationEditor.h"
 #include "Misc/FeedbackContext.h"
@@ -22,8 +23,6 @@
 #include "LocalizationCommandletTasks.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LocalizationExport, Log, All);
 
 #define LOCTEXT_NAMESPACE "TranslationEditor"
 
@@ -1070,7 +1069,7 @@ void FTranslationEditor::UpdateContextSelection()
 	{
 		TSet<TSharedRef<IPropertyTableRow>> SelectedRows = ContextPropertyTable->GetSelectedRows();
 		TSharedRef<FPropertyPath> InitialPath = ContextPropertyTable->GetRootPath();
-		const FProperty* PropertyToFind = InitialPath->GetRootProperty().Property.Get();
+		FProperty* PropertyToFind = InitialPath->GetRootProperty().Property.Get();
 
 		// Can only really handle single selection
 		if (SelectedRows.Num() == 1)
@@ -1481,3 +1480,5 @@ FReply FTranslationEditor::OnGetHistoryButtonClicked()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+#endif // WITH_EDITOR

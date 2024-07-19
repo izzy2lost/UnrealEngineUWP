@@ -12,6 +12,7 @@ UTranslationUnit::UTranslationUnit( const FObjectInitializer& ObjectInitializer 
 
 }
 
+#if WITH_EDITOR
 void UTranslationUnit::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -26,3 +27,4 @@ void UTranslationUnit::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 
 	TranslationUnitPropertyChangedEvent.Broadcast(Name);
 }
+#endif // WITH_EDITOR
