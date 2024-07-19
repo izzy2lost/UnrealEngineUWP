@@ -156,44 +156,58 @@ namespace UE::ConcertSyncClient::Replication
 
 	IConcertClientReplicationManager::FOnPreStreamsChanged& FReplicationManager::OnPreStreamsChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPreStreamsChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPostStreamsChanged& FReplicationManager::OnPostStreamsChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPostStreamsChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPreAuthorityChanged& FReplicationManager::OnPreAuthorityChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPreAuthorityChanged();
 	}
 
 	IConcertClientReplicationManager::FOnPostAuthorityChanged& FReplicationManager::OnPostAuthorityChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPostAuthorityChanged();
 	}
 	
 	IConcertClientReplicationManager::FSyncControlChanged& FReplicationManager::OnPreSyncControlChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPreSyncControlChanged();
 	}
 
 	IConcertClientReplicationManager::FSyncControlChanged& FReplicationManager::OnPostSyncControlChanged()
 	{
-		// Check() to avoid returning some dummy static variable
-		ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
 		return CurrentState->OnPostSyncControlChanged();
+	}
+
+	IConcertClientReplicationManager::FOnRemoteEditApplied& FReplicationManager::OnPreRemoteEditApplied()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPreRemoteEditApplied();
+	}
+
+	IConcertClientReplicationManager::FOnRemoteEditApplied& FReplicationManager::OnPostRemoteEditApplied()
+	{
+		// checkf() to avoid returning some dummy static variable
+		checkf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."));
+		return CurrentState->OnPostRemoteEditApplied();
 	}
 
 	void FReplicationManager::OnChangeState(TSharedRef<FReplicationManagerState> NewState)

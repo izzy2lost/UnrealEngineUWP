@@ -238,7 +238,7 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 				ensureMsgf(ReplicationManager.GetSyncControlledObjects().Contains({ StreamId, ObjectReplicator->TestObject }), TEXT("Test not set up correctly."));
 			});
 			
-			It("When client is loses sync control due to a mute change.", [this]
+			It("When client loses sync control due to a mute change.", [this]
 			{
 				int32 EventCount = 0;
 				Sender->GetClientSessionMock()->RegisterCustomEventHandler<FConcertReplication_ChangeClientEvent>(
@@ -246,8 +246,9 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 					{
 						++EventCount;
 						
-						TestEqual(TEXT("NewControlStates.Num()"), Event.SyncControlChange.NewControlStates.Num(), 1);
-						const bool* NewSyncControl = Event.SyncControlChange.NewControlStates.Find({ StreamId, ObjectReplicator->TestObject });
+						TestEqual(TEXT("Reason"), Event.Reason, EConcertReplicationChangeClientReason::PutRequest);
+						TestEqual(TEXT("NewControlStates.Num()"), Event.ChangeData.SyncControlChange.NewControlStates.Num(), 1);
+						const bool* NewSyncControl = Event.ChangeData.SyncControlChange.NewControlStates.Find({ StreamId, ObjectReplicator->TestObject });
 						TestTrue(TEXT("Has No Sync Control"), NewSyncControl && !*NewSyncControl);
 					});
 				
@@ -258,7 +259,7 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 
 				TestEqual(TEXT("EventCount"), EventCount, 1);
 			});
-			It("When client is gains sync control due to a mute change.", [this]
+			It("When client gains sync control due to a mute change.", [this]
 			{
 				int32 EventCount = 0;
 				Sender->GetClientSessionMock()->RegisterCustomEventHandler<FConcertReplication_ChangeClientEvent>(
@@ -266,8 +267,9 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 					{
 						++EventCount;
 						
-						TestEqual(TEXT("NewControlStates.Num()"), Event.SyncControlChange.NewControlStates.Num(), 1);
-						const bool* NewSyncControl = Event.SyncControlChange.NewControlStates.Find({ StreamId, ObjectReplicator->TestObject });
+						TestEqual(TEXT("Reason"), Event.Reason, EConcertReplicationChangeClientReason::PutRequest);
+						TestEqual(TEXT("NewControlStates.Num()"), Event.ChangeData.SyncControlChange.NewControlStates.Num(), 1);
+						const bool* NewSyncControl = Event.ChangeData.SyncControlChange.NewControlStates.Find({ StreamId, ObjectReplicator->TestObject });
 						TestTrue(TEXT("Has No Sync Control"), NewSyncControl && *NewSyncControl);
 					});
 				
@@ -283,15 +285,10 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 		
 		It("When client is not affected by a mute change, it does not receive FConcertReplication_ChangeClientEvent.", [this]
 		{
-			int32 EventCount = 0;
 			Receiver->GetClientSessionMock()->RegisterCustomEventHandler<FConcertReplication_ChangeClientEvent>(
-				[this, &EventCount](const FConcertSessionContext&, const FConcertReplication_ChangeClientEvent& Event)
+				[this](const FConcertSessionContext&, const FConcertReplication_ChangeClientEvent& Event)
 				{
-					++EventCount;
-					
-					TestEqual(TEXT("NewControlStates.Num()"), Event.SyncControlChange.NewControlStates.Num(), 1);
-					const bool* NewSyncControl = Event.SyncControlChange.NewControlStates.Find({ StreamId, ObjectReplicator->TestObject });
-					TestTrue(TEXT("Has No Sync Control"), NewSyncControl && *NewSyncControl);
+					AddError(TEXT("Event was not expected"));
 				});
 			
 			FObjectTestReplicator BarReplicator;
@@ -304,8 +301,6 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 			Request.NewStreams.Add(Sender->GetEndpointId(), {{ ObjectReplicator->CreateStream(StreamId) }});
 			Request.MuteChange.ObjectsToMute.Add(ObjectReplicator->TestObject);
 			SenderManager.PutClientState(Request);
-
-			TestEqual(TEXT("EventCount"), EventCount, 0);
 		});
 	}
 }

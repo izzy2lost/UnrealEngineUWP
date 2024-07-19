@@ -45,9 +45,9 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 				// This simulates the server sending to client - but it does not actually set any server state.
 				// This would not actually happen in a real world use case.
 				FConcertReplication_ChangeClientEvent Event;
-				Event.StreamChange.StreamsToAdd.Add(StreamData);
-				Event.AuthorityChange.TakeAuthority.Add({ ObjectReplicator->TestObject }, { { StreamId } });
-				Event.SyncControlChange.NewControlStates.Add({ StreamId, ObjectReplicator->TestObject }, true);
+				Event.ChangeData.StreamChange.StreamsToAdd.Add(StreamData);
+				Event.ChangeData.AuthorityChange.TakeAuthority.Add({ ObjectReplicator->TestObject }, { { StreamId } });
+				Event.ChangeData.SyncControlChange.NewControlStates.Add({ StreamId, ObjectReplicator->TestObject }, true);
 				Server->GetServerSessionMock()->SendCustomEvent(Event, Client->GetEndpointId(), EConcertMessageFlags::ReliableOrdered);
 			});
 

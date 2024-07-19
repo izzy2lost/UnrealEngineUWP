@@ -53,6 +53,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override;
 		virtual FSyncControlChanged& OnPreSyncControlChanged() override;
 		virtual FSyncControlChanged& OnPostSyncControlChanged() override;
+		virtual FOnRemoteEditApplied& OnPreRemoteEditApplied() override;
+		virtual FOnRemoteEditApplied& OnPostRemoteEditApplied() override;
 		//~ End IConcertClientReplicationManager Interface
 
 	private:

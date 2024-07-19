@@ -220,7 +220,7 @@ namespace UE::ConcertSyncServer::Replication
 			const FGuid& RequestingEndpointId,
 			const FConcertReplication_ChangeMuteState_Request& Request,
 			FConcertReplication_PutState_Response& Response,
-			TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
+			TMap<FGuid, FConcertReplication_ClientChangeData>& ClientChanges
 			)
 		{
 			const bool bSuccess = MuteManager.ApplyRequestAndEnumerateSyncControl(
@@ -275,7 +275,7 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertReplication_PutState_Response& Response
 		)
 	{
-		TMap<FGuid, FConcertReplication_ChangeClientEvent> ChangedSyncControl;
+		TMap<FGuid, FConcertReplication_ClientChangeData> ChangedSyncControl;
 		const TSet<FConcertObjectInStreamID> RequestingClientSyncControlBefore = [this, &RequestingEndpointId]()
 		{
 			const TSet<FConcertObjectInStreamID>* SyncControl = SyncControlManager.GetClientControlledObjects(RequestingEndpointId);
@@ -289,13 +289,14 @@ namespace UE::ConcertSyncServer::Replication
 			Private::ApplyPutState_Mute(MuteManager, RequestingEndpointId, Request.MuteChange, Response, ChangedSyncControl);
 		}
 
-		for (TPair<FGuid, FConcertReplication_ChangeClientEvent>& SyncControlPair : ChangedSyncControl)
+		for (TPair<FGuid, FConcertReplication_ClientChangeData>& SyncControlPair : ChangedSyncControl)
 		{
 			const FGuid& EndpointId = SyncControlPair.Key;
 			// The requesting client receives the sync control via Response (which was written by ApplyChangeClients_StreamPart, etc.)
 			if (EndpointId != RequestingEndpointId)
 			{
-				Session->SendCustomEvent(SyncControlPair.Value, EndpointId, EConcertMessageFlags::ReliableOrdered);
+				const FConcertReplication_ChangeClientEvent Event { EConcertReplicationChangeClientReason::PutRequest, MoveTemp(SyncControlPair.Value) };
+				Session->SendCustomEvent(Event, EndpointId, EConcertMessageFlags::ReliableOrdered);
 			}
 		}
 	}
@@ -303,8 +304,8 @@ namespace UE::ConcertSyncServer::Replication
 	void FConcertServerReplicationManager::ApplyPutState_Streams(
 		const FGuid& RequestingEndpointId,
 		const TMap<FGuid, FConcertReplication_ChangeStream_Request> StreamRequests,
-		TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
-		)
+		TMap<FGuid, FConcertReplication_ClientChangeData>& ClientChanges
+	)
 	{
 		for (const TPair<FGuid, FConcertReplication_ChangeStream_Request>& StreamPair : StreamRequests)
 		{
@@ -327,8 +328,8 @@ namespace UE::ConcertSyncServer::Replication
 		const TSet<FConcertObjectInStreamID> RequestingClientSyncControlBefore,
 		const FConcertReplication_PutState_Request& Request,
 		FConcertReplication_PutState_Response& Response,
-		TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
-		)
+		TMap<FGuid, FConcertReplication_ClientChangeData>& ClientChanges
+	)
 	{
 		for (const TPair<FGuid, FConcertObjectInStreamArray>& AuthorityPair : Request.NewAuthorityState)
 		{

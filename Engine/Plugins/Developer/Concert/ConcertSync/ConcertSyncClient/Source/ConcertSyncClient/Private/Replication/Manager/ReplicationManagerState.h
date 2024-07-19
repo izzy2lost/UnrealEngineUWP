@@ -42,6 +42,8 @@ namespace UE::ConcertSyncClient::Replication
 		virtual FOnPostAuthorityChanged& OnPostAuthorityChanged() override { return OnPostAuthorityChangedDelegate; }
 		virtual FSyncControlChanged& OnPreSyncControlChanged() override { return OnPreSyncControlChangedDelegate; }
 		virtual FSyncControlChanged& OnPostSyncControlChanged() override { return OnPostSyncControlChangedDelegate; }
+		virtual FOnRemoteEditApplied& OnPreRemoteEditApplied() override { return OnPreRemoteEditAppliedDelegate; }
+		virtual FOnRemoteEditApplied& OnPostRemoteEditApplied() override { return OnPostRemoteEditAppliedDelegate; }
 		//~ End IConcertClientReplicationManager Interface
 
 	protected:
@@ -52,6 +54,8 @@ namespace UE::ConcertSyncClient::Replication
 		FOnPostAuthorityChanged OnPostAuthorityChangedDelegate;
 		FSyncControlChanged OnPreSyncControlChangedDelegate;
 		FSyncControlChanged OnPostSyncControlChangedDelegate;
+		FOnRemoteEditApplied OnPreRemoteEditAppliedDelegate;
+		FOnRemoteEditApplied OnPostRemoteEditAppliedDelegate;
 
 		/**
 		 * Subclasses can change the state with this function.

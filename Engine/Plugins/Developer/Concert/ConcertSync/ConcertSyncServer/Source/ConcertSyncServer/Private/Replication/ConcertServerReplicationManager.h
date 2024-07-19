@@ -16,6 +16,7 @@
 #include "SyncControlManager.h"
 
 #include "HAL/Platform.h"
+#include "Replication/Messages/ChangeClientEvent.h"
 #include "Replication/Messages/PutState.h"
 #include "Replication/Messages/RestoreContent.h"
 #include "Templates/SharedPointer.h"
@@ -154,15 +155,15 @@ namespace UE::ConcertSyncServer::Replication
 		void ApplyPutState_Streams(
 			const FGuid& RequestingEndpointId,
 			const TMap<FGuid, FConcertReplication_ChangeStream_Request> StreamRequests,
-			TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
-			);
+			TMap<FGuid, FConcertReplication_ClientChangeData>& ClientChanges
+		);
 		void ApplyPutState_Authority(
 			const FGuid& RequestingEndpointId,
 			const TSet<FConcertObjectInStreamID> RequestingClientSyncControlBefore,
 			const FConcertReplication_PutState_Request& Request,
 			FConcertReplication_PutState_Response& Response,
-			TMap<FGuid, FConcertReplication_ChangeClientEvent>& ClientChanges
-			);
+			TMap<FGuid, FConcertReplication_ClientChangeData>& ClientChanges
+		);
 		
 		// Leaving
 		void HandleLeaveReplicationSessionRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_LeaveEvent& EventData);

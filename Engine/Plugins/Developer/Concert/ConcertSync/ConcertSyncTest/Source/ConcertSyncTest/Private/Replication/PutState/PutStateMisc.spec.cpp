@@ -1,11 +1,13 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Algo/Count.h"
 #include "Replication/Util/Spec/ReplicationClient.h"
 #include "Replication/Util/Spec/ReplicationServer.h"
 #include "Replication/Util/Spec/ObjectTestReplicator.h"
 
 #include "Misc/AutomationTest.h"
 #include "Replication/Messages/PutState.h"
+#include "Replication/Util/ClientEventRecorder.h"
 
 namespace UE::ConcertSyncTests::Replication::ChangeClients
 {
@@ -13,7 +15,8 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 		TUniquePtr<FObjectTestReplicator> ObjectReplicator;
 
 		TUniquePtr<FReplicationServer> Server;
-		FReplicationClient* Sender = nullptr;
+		FReplicationClient* Client1 = nullptr;
+		FReplicationClient* Client2 = nullptr;
 	
 		const FGuid StreamId = FGuid::NewGuid();
 	END_DEFINE_SPEC(FPutStateMiscSpec);
@@ -25,9 +28,11 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 		{
 			ObjectReplicator = MakeUnique<FObjectTestReplicator>();
 			Server = MakeUnique<FReplicationServer>(*this);
-			Sender = &Server->ConnectClient();
+			Client1 = &Server->ConnectClient();
+			Client2 = &Server->ConnectClient();
 
-			Sender->JoinReplication();
+			Client1->JoinReplication();
+			Client2->JoinReplication();
 		});
 		AfterEach([this]
 		{
@@ -40,15 +45,15 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 		{
 			BeforeEach([this]
 			{
-				IConcertClientReplicationManager& ReplicationManager = Sender->GetClientReplicationManager();
+				IConcertClientReplicationManager& ReplicationManager = Client1->GetClientReplicationManager();
 				ReplicationManager.ChangeStream({ .StreamsToAdd = { ObjectReplicator->CreateStream(StreamId) } });
-				ReplicationManager.PutClientState({ .NewStreams = { { Sender->GetEndpointId(), {} } } });
+				ReplicationManager.PutClientState({ .NewStreams = { { Client1->GetEndpointId(), {} } } });
 			});
 			
 			It("The client state can create a new stream", [this]
 			{
 				bool bReceivedResponse = false;
-				Sender->GetClientReplicationManager()
+				Client1->GetClientReplicationManager()
 					.ChangeStream({ .StreamsToAdd = { ObjectReplicator->CreateStream(StreamId) } })
 					.Next([this, &bReceivedResponse](FConcertReplication_ChangeStream_Response&& Response)
 					{
@@ -61,17 +66,60 @@ namespace UE::ConcertSyncTests::Replication::ChangeClients
 			It("The stream has been fully deleted from the session", [this]
 			{
 				bool bReceivedResponse = false;
-				Sender->GetClientReplicationManager()
-					.QueryClientInfo({ .ClientEndpointIds = { Sender->GetEndpointId() } })
+				Client1->GetClientReplicationManager()
+					.QueryClientInfo({ .ClientEndpointIds = { Client1->GetEndpointId() } })
 					.Next([this, &bReceivedResponse](FConcertReplication_QueryReplicationInfo_Response&& Response)
 					{
 						bReceivedResponse = true;
 
-						const FConcertQueriedClientInfo* ClientInfo = Response.ClientInfo.Find(Sender->GetEndpointId());
+						const FConcertQueriedClientInfo* ClientInfo = Response.ClientInfo.Find(Client1->GetEndpointId());
 						TestTrue(TEXT("No streams"), ClientInfo && ClientInfo->Streams.IsEmpty());
 					});
 				TestTrue(TEXT("bReceivedResponse"), bReceivedResponse);
 			});
+		});
+
+		It("OnPreRemoteEditApplied and OnPostRemoteEditApplied are triggered in right order", [this]
+		{
+			const FClientEventRecorder EventRecorder(Client1->GetClientReplicationManager());
+			FConcertReplication_PutState_Request Request;
+			Request.NewStreams.Add(Client1->GetEndpointId(), {{ ObjectReplicator->CreateStream(StreamId) }});
+			Request.NewAuthorityState.Add(Client1->GetEndpointId()).Objects.Add({ StreamId, ObjectReplicator->TestObject });
+			Client2->GetClientReplicationManager().PutClientState(Request);
+
+			const TArray<EEventType>& ActualOrder = EventRecorder.GetEventOrder();
+			if (ActualOrder.Num() < 8) // There is Pre & Post for the 4 events: Stream, Authority, SyncControl, RemoteEdit
+			{
+				AddError(TEXT("No all events included"));
+				return;
+			}
+			
+			TestEqual(TEXT("PreRemoteEditApplied comes first"), ActualOrder[0], EEventType::PreRemoteEditApplied);
+			TestEqual(TEXT("PreRemoteEditApplied comes last"), ActualOrder[ActualOrder.Num() - 1], EEventType::PostRemoteEditApplied);
+
+			const int32 NumPreRemoteEditAppliedBroadcasts = Algo::Count(ActualOrder, EEventType::PreRemoteEditApplied);
+			const int32 NumPostRemoteEditAppliedBroadcasts = Algo::Count(ActualOrder, EEventType::PostRemoteEditApplied);
+			TestEqual(TEXT("PreRemoteEditApplied appears once"), NumPreRemoteEditAppliedBroadcasts, 1);
+			TestEqual(TEXT("PostRemoteEditApplied appears once"), NumPostRemoteEditAppliedBroadcasts, 1);
+		});
+		It("OnPreRemoteEditApplied and OnPostRemoteEditApplied have right reason", [this]
+		{
+			int32 EventCount = 0;
+			IConcertClientReplicationManager& ReplicationManager = Client1->GetClientReplicationManager();
+			const auto HandleEvent = [this, &EventCount](const ConcertSyncClient::Replication::FRemoteEditEvent& Event)
+			{
+				++EventCount;
+				TestEqual(TEXT("Reason"), Event.Reason, EConcertReplicationChangeClientReason::PutRequest);
+			};
+			ReplicationManager.OnPreRemoteEditApplied().AddLambda(HandleEvent);
+			ReplicationManager.OnPostRemoteEditApplied().AddLambda(HandleEvent);
+			
+			FConcertReplication_PutState_Request Request;
+			Request.NewStreams.Add(Client1->GetEndpointId(), {{ ObjectReplicator->CreateStream(StreamId) }});
+			Request.NewAuthorityState.Add(Client1->GetEndpointId()).Objects.Add({ StreamId, ObjectReplicator->TestObject });
+			Client2->GetClientReplicationManager().PutClientState(Request);
+
+			TestEqual(TEXT("EventCount"), EventCount, 2);
 		});
 	}
 }

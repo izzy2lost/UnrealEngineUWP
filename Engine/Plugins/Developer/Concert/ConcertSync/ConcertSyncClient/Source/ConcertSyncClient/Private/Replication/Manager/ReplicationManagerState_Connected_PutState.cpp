@@ -223,13 +223,18 @@ namespace UE::ConcertSyncClient::Replication
 			return;
 		}
 
-		const FConcertReplication_ChangeStream_Request& StreamChange = Event.StreamChange;
-		PredictAndApplyStreamChangeRemovedObjects(StreamChange);
-		FinalizePredictedStreamChange(StreamChange);
+		const FRemoteEditEvent EditEvent { Event.Reason, Event.ChangeData };
+		OnPreRemoteEditAppliedDelegate.Broadcast(EditEvent);
+		{
+			const FConcertReplication_ChangeStream_Request& StreamChange = Event.ChangeData.StreamChange;
+			PredictAndApplyStreamChangeRemovedObjects(StreamChange);
+			FinalizePredictedStreamChange(StreamChange);
 
-		const FConcertReplication_ChangeAuthority_Request& AuthorityChange = Event.AuthorityChange;
-		ApplyAuthorityChangeRemovedObjects(AuthorityChange);
-		FinalizePredictedAuthorityChange(AuthorityChange, {}, Event.SyncControlChange);
+			const FConcertReplication_ChangeAuthority_Request& AuthorityChange = Event.ChangeData.AuthorityChange;
+			ApplyAuthorityChangeRemovedObjects(AuthorityChange);
+			FinalizePredictedAuthorityChange(AuthorityChange, {}, Event.ChangeData.SyncControlChange);
+		}
+		OnPostRemoteEditAppliedDelegate.Broadcast(EditEvent);
 	}
 }
 

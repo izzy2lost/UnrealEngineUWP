@@ -4,6 +4,7 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Messages/ChangeAuthority.h"
+#include "Replication/Messages/ChangeClientEvent.h"
 #include "Replication/Messages/PutState.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
@@ -36,6 +37,12 @@ namespace UE::ConcertSyncClient::Replication
 			: ErrorCode(ErrorCode)
 			, DetailedErrorMessage(MoveTemp(DetailedErrorMessage))
 		{}
+	};
+
+	struct FRemoteEditEvent
+	{
+		const EConcertReplicationChangeClientReason Reason;
+		const FConcertReplication_ClientChangeData& ChangeData;
 	};
 }
 
@@ -165,6 +172,18 @@ public:
 	virtual FSyncControlChanged& OnPreSyncControlChanged() = 0;
 	/** Called just after sync control change is applied. */
 	virtual FSyncControlChanged& OnPostSyncControlChanged() = 0;
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnRemoteEditApplied, const UE::ConcertSyncClient::Replication::FRemoteEditEvent&);
+	/**
+	 * Called before updating any local state in response to the server notifying us that the local client's content was remotely edited.
+	 * This executes before OnPreStreamsChanged, OnPreAuthorityChanged, and OnPreSyncControlChanged, which may also get triggered depending on the change.
+	 */
+	virtual FOnRemoteEditApplied& OnPreRemoteEditApplied() = 0;
+	/**
+	 * Called after updating any local state in response to the server notifying us that the local client's content was remotely edited.
+	 * This executes after OnPreStreamsChanged, OnPreAuthorityChanged, and OnPreSyncControlChanged, which may also get triggered depending on the change.
+	 */
+	virtual FOnRemoteEditApplied& OnPostRemoteEditApplied() = 0;
 	
 	virtual ~IConcertClientReplicationManager() = default;
 };
