@@ -108,7 +108,7 @@ protected:
 		{
 			if (Offset == 0)
 			{
-				Offset = Ar.Tell();
+				Offset = static_cast<uint32>(Ar.Tell());
 			}
 			else
 			{

@@ -185,7 +185,7 @@ public:
 	 */
 	FORCEINLINE void CheckForUpdate()
 	{
-		float DeltaTime = FPlatformTime::Seconds() - LastStatsUpdate;
+		float DeltaTime = static_cast<float>(FPlatformTime::Seconds() - LastStatsUpdate);
 
 		if (DeltaTime > 1.f)
 		{

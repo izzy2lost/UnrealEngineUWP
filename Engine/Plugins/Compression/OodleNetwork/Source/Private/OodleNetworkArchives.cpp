@@ -38,7 +38,7 @@ bool FOodleNetworkArchiveBase::SerializeOodleCompressData(FOodleCompressedData& 
 		// no compression
 		OutDataInfo.CompressedLength.Set(*this, DataBytes);
 
-		uint32 OffsetPos = InnerArchive.Tell();
+		uint32 OffsetPos = static_cast<uint32>(InnerArchive.Tell());
 		OutDataInfo.Offset.Set(*this, OffsetPos);
 
 		InnerArchive.Serialize((void*)Data, DataBytes);
@@ -155,7 +155,7 @@ void FPacketCaptureArchive::FCaptureHeader::SerializeHeader(FPacketCaptureArchiv
 		Ar << PacketDataLength;
 	}
 
-	PacketDataOffset.Set(Ar, Ar.Tell());
+	PacketDataOffset.Set(Ar, static_cast<uint32>(Ar.Tell()));
 }
 
 
@@ -216,7 +216,7 @@ void FPacketCaptureArchive::SerializePacket(void* PacketData, uint32& PacketSize
 	if (IsSaving())
 	{
 		uint32 NewPacketCount = Header.PacketCount.Get() + 1;
-		uint32 NewPacketDataLength = Header.PacketDataLength.Get() + (Tell() - StartPos);
+		uint32 NewPacketDataLength = Header.PacketDataLength.Get() + static_cast<uint32>(Tell() - StartPos);
 
 		Header.PacketCount.Set(*this, NewPacketCount);
 		Header.PacketDataLength.Set(*this, NewPacketDataLength);

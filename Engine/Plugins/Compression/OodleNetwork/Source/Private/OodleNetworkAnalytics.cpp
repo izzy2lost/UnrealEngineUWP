@@ -128,10 +128,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * Also factors in skipped/failed compression (which has increased a lot since analytics was added) - reducing the usefulness for determining algorithm compression.
 		 */
 			/** The percentage of compression savings, of all incoming packets. */
-			int8 InSavingsPercentTotal = (1.0 - ((double)InPreLengthTotal / (double)InPostLengthTotal)) * 100.0;
+			int8 InSavingsPercentTotal = (int8)((1.0 - ((double)InPreLengthTotal / (double)InPostLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets. */
-			int8 OutSavingsPercentTotal = (1.0 - ((double)OutPostLengthTotal / (double)OutPreLengthTotal)) * 100.0;
+			int8 OutSavingsPercentTotal = (int8)((1.0 - ((double)OutPostLengthTotal / (double)OutPreLengthTotal)) * 100.0);
 
 			/** The number of bytes saved due to compression, of all incoming packets. */
 			int64 InSavingsBytesTotal = InPostLengthTotal - InPreLengthTotal;
@@ -144,10 +144,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * This is the most accurate measure of compression savings (in terms of overall bandwidth).
 		 */
 			/** The percentage of compression savings, of all incoming packets. */
-			int8 InSavingsWithOverheadPercentTotal = (1.0 - ((double)InPreWithOverheadLengthTotal / (double)InPostLengthTotal)) * 100.0;
+			int8 InSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)InPreWithOverheadLengthTotal / (double)InPostLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets. */
-			int8 OutSavingsWithOverheadPercentTotal = (1.0 - ((double)OutPostWithOverheadLengthTotal / (double)OutPreLengthTotal)) * 100.0;
+			int8 OutSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)OutPostWithOverheadLengthTotal / (double)OutPreLengthTotal)) * 100.0);
 
 			/** The number of bytes saved due to compression, of all incoming packets. */
 			int64 InSavingsWithOverheadBytesTotal = InPostLengthTotal - InPreWithOverheadLengthTotal;
@@ -160,10 +160,10 @@ void FOodleNetAnalyticsData::SendAnalytics()
 		 * This is the best measure for determining algorithm compression performance, especially when measured against the Oodle encode/decode CPU cost.
 		 */
 			/** The percentage of compression savings, of all incoming packets that were compressed (attempted but failed compress, can't be counted here) */
-			int8 InAttemptedSavingsWithOverheadPercentTotal = (1.0 - ((double)InCompressedWithOverheadLengthTotal / (double)InDecompressedLengthTotal)) * 100.0;
+			int8 InAttemptedSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)InCompressedWithOverheadLengthTotal / (double)InDecompressedLengthTotal)) * 100.0);
 
 			/** The percentage of compression savings, of all outgoing packets that attempted compression. */
-			int8 OutAttemptedSavingsWithOverheadPercentTotal = (1.0 - ((double)OutPostAttemptedWithOverheadLengthTotal / (double)OutPreAttemptedLengthTotal)) * 100.0;
+			int8 OutAttemptedSavingsWithOverheadPercentTotal = (int8)((1.0 - ((double)OutPostAttemptedWithOverheadLengthTotal / (double)OutPreAttemptedLengthTotal)) * 100.0);
 
 
 		uint32 NumOodleNetworkHandlersCompressionDisabled = NumOodleNetworkHandlers - NumOodleNetworkHandlersCompressionEnabled;
