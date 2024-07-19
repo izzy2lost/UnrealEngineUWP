@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AudioMixer.h"
+#include "HAL/Platform.h"
 
 #if PLATFORM_WINDOWS
 
