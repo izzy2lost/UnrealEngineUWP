@@ -205,11 +205,12 @@ public:
 	/** 
 	 * Adjacency of Per-Triangle integers are what define the triangle groups.
 	 * Override this function to provide an alternate group definition.
+	 * Note: By convention, group IDs should not be negative
 	 * @return group id integer for given TriangleID 
 	 */
 	virtual int GetGroupID(int TriangleID) const
 	{
-		return (GroupLayer != nullptr) ? GroupLayer->GetValue(TriangleID) : Mesh->GetTriangleGroup(TriangleID);
+		return FMath::Max(0, (GroupLayer != nullptr) ? GroupLayer->GetValue(TriangleID) : Mesh->GetTriangleGroup(TriangleID));
 	}
 
 

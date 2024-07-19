@@ -67,7 +67,7 @@ bool FGroupTopology::RebuildTopology()
 	GroupFaceCounts.Init(0, MaxGroupID);
 	for (int tid : Mesh->TriangleIndicesItr())
 	{
-		int GroupID = FMath::Max(0, GetGroupID(tid));
+		int GroupID = GetGroupID(tid);
 		if (GroupIDToGroupIndexMap[GroupID] == -1)
 		{
 			FGroup NewGroup;
@@ -85,7 +85,7 @@ bool FGroupTopology::RebuildTopology()
 	// sort faces into groups
 	for (int tid : Mesh->TriangleIndicesItr())
 	{
-		int GroupID = FMath::Max(0, GetGroupID(tid));
+		int GroupID = GetGroupID(tid);
 		Groups[GroupIDToGroupIndexMap[GroupID]].Triangles.Add(tid);
 	}
 
