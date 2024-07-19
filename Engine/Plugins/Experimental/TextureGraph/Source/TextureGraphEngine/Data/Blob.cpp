@@ -231,7 +231,6 @@ AsyncBufferResultPtr Blob::Bind(const BlobTransform* Transform, const ResourceBi
 
 AsyncBufferResultPtr Blob::Unbind(const BlobTransform* Transform, const ResourceBindInfo& BindInfo)
 {
-	//check(_buffer);
 	return Buffer->Unbind(Transform, BindInfo);
 }
 
