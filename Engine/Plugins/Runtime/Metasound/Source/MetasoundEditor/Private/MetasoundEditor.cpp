@@ -1622,7 +1622,97 @@ namespace Metasound
 
 				if (!OutputSpectrumAnalyzer.IsValid())
 				{
-					OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(MetaSoundSource.NumChannels, AudioDeviceId);
+					AudioWidgets::FAudioSpectrumAnalyzerParams Params;
+					Params.NumChannels = MetaSoundSource.NumChannels;
+					Params.AudioDeviceId = AudioDeviceId;
+
+					Params.Ballistics.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.Ballistics;
+						});
+					Params.AnalyzerType.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.AnalyzerType;
+						});
+					Params.FFTAnalyzerFFTSize.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.FFTAnalyzerFFTSize;
+						});
+					Params.CQTAnalyzerFFTSize.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.CQTAnalyzerFFTSize;
+						});
+					Params.TiltExponent.BindLambda([]()
+						{
+							const EAudioSpectrumPlotTilt TiltSpectrum = GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.TiltSpectrum;
+							return SAudioSpectrumPlot::GetTiltExponentValue(TiltSpectrum);
+						});
+					Params.FrequencyAxisPixelBucketMode.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.PixelPlotMode;
+						});
+					Params.FrequencyAxisScale.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.FrequencyScale;
+						});
+					Params.bDisplayFrequencyAxisLabels.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.bDisplayFrequencyAxisLabels;
+						});
+					Params.bDisplaySoundLevelAxisLabels.BindLambda([]()
+						{
+							return GetDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.bDisplaySoundLevelAxisLabels;
+						});
+
+					Params.OnBallisticsMenuEntryClicked.BindLambda([](EAudioSpectrumAnalyzerBallistics SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.Ballistics = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnAnalyzerTypeMenuEntryClicked.BindLambda([](EAudioSpectrumAnalyzerType SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.AnalyzerType = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnFFTAnalyzerFFTSizeMenuEntryClicked.BindLambda([](EFFTSize SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.FFTAnalyzerFFTSize = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnCQTAnalyzerFFTSizeMenuEntryClicked.BindLambda([](EConstantQFFTSizeEnum SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.CQTAnalyzerFFTSize = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnTiltSpectrumMenuEntryClicked.BindLambda([](EAudioSpectrumPlotTilt SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.TiltSpectrum = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnFrequencyAxisPixelBucketModeMenuEntryClicked.BindLambda([](EAudioSpectrumPlotFrequencyAxisPixelBucketMode SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.PixelPlotMode = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnFrequencyAxisScaleMenuEntryClicked.BindLambda([](EAudioSpectrumPlotFrequencyAxisScale SelectedValue)
+						{
+							GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings.FrequencyScale = SelectedValue;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnDisplayFrequencyAxisLabelsButtonToggled.BindLambda([]()
+						{
+							FMetasoundEditorSpectrumAnalyzerSettings& SpectrumAnalyzerSettings = GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings;
+							SpectrumAnalyzerSettings.bDisplayFrequencyAxisLabels = !SpectrumAnalyzerSettings.bDisplayFrequencyAxisLabels;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+					Params.OnDisplaySoundLevelAxisLabelsButtonToggled.BindLambda([]()
+						{
+							FMetasoundEditorSpectrumAnalyzerSettings& SpectrumAnalyzerSettings = GetMutableDefault<UMetasoundEditorSettings>()->SpectrumAnalyzerSettings;
+							SpectrumAnalyzerSettings.bDisplaySoundLevelAxisLabels = !SpectrumAnalyzerSettings.bDisplaySoundLevelAxisLabels;
+							GetMutableDefault<UMetasoundEditorSettings>()->SaveConfig();
+						});
+
+					OutputSpectrumAnalyzer = MakeShared<AudioWidgets::FAudioSpectrumAnalyzer>(Params);
 				}
 				else if (OutputSpectrumAnalyzer->GetAudioBus()->GetNumChannels() != MetaSoundSource.NumChannels)
 				{

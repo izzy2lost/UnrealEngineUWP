@@ -435,6 +435,11 @@ void SAudioSpectrumPlot::Construct(const FArguments& InArgs)
 	SpectrumColor = InArgs._SpectrumColor;
 	bAllowContextMenu = InArgs._AllowContextMenu;
 	OnContextMenuOpening = InArgs._OnContextMenuOpening;
+	OnTiltSpectrumMenuEntryClicked = InArgs._OnTiltSpectrumMenuEntryClicked;
+	OnFrequencyAxisPixelBucketModeMenuEntryClicked = InArgs._OnFrequencyAxisPixelBucketModeMenuEntryClicked;
+	OnFrequencyAxisScaleMenuEntryClicked = InArgs._OnFrequencyAxisScaleMenuEntryClicked;
+	OnDisplayFrequencyAxisLabelsButtonToggled = InArgs._OnDisplayFrequencyAxisLabelsButtonToggled;
+	OnDisplaySoundLevelAxisLabelsButtonToggled = InArgs._OnDisplaySoundLevelAxisLabelsButtonToggled;
 	OnGetAudioSpectrumData = InArgs._OnGetAudioSpectrumData;
 }
 
@@ -925,7 +930,7 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 
 	MenuBuilder.BeginSection(ContextMenuExtensionHook, LOCTEXT("DisplayOptions", "Display Options"));
 
-	if (!TiltExponent.IsBound())
+	if (OnTiltSpectrumMenuEntryClicked.IsBound() || !TiltExponent.IsBound())
 	{
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("TiltSpectrum", "Tilt Spectrum"),
@@ -933,7 +938,7 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildTiltSpectrumSubMenu));
 	}
 
-	if (!FrequencyAxisPixelBucketMode.IsBound())
+	if (OnFrequencyAxisPixelBucketModeMenuEntryClicked.IsBound() || !FrequencyAxisPixelBucketMode.IsBound())
 	{
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("FrequencyAxisPixelBucketMode", "Pixel Plot Mode"),
@@ -941,7 +946,7 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildFrequencyAxisPixelBucketModeSubMenu));
 	}
 
-	if (!FrequencyAxisScale.IsBound())
+	if (OnFrequencyAxisScaleMenuEntryClicked.IsBound() || !FrequencyAxisScale.IsBound())
 	{
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("FrequencyAxisScale", "Frequency Scale"),
@@ -949,14 +954,22 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 			FNewMenuDelegate::CreateSP(this, &SAudioSpectrumPlot::BuildFrequencyAxisScaleSubMenu));
 	}
 
-	if (!bDisplayFrequencyAxisLabels.IsBound())
+	if (OnDisplayFrequencyAxisLabelsButtonToggled.IsBound() || !bDisplayFrequencyAxisLabels.IsBound())
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("DisplayFrequencyAxisLabels", "Display Frequency Axis Labels"),
 			FText(),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSPLambda(this, [this]() { bDisplayFrequencyAxisLabels = !bDisplayFrequencyAxisLabels.Get(); }),
+				FExecuteAction::CreateSPLambda(this, [this]()
+					{
+						if (!bDisplayFrequencyAxisLabels.IsBound())
+						{
+							bDisplayFrequencyAxisLabels = !bDisplayFrequencyAxisLabels.Get();
+						}
+
+						OnDisplayFrequencyAxisLabelsButtonToggled.ExecuteIfBound();
+					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSPLambda(this, [this]() { return bDisplayFrequencyAxisLabels.Get(); })
 			),
@@ -964,14 +977,22 @@ TSharedRef<SWidget> SAudioSpectrumPlot::BuildDefaultContextMenu()
 			EUserInterfaceActionType::ToggleButton);
 	}
 
-	if (!bDisplaySoundLevelAxisLabels.IsBound())
+	if (OnDisplaySoundLevelAxisLabelsButtonToggled.IsBound() || !bDisplaySoundLevelAxisLabels.IsBound())
 	{
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("DisplaySoundLevelAxisLabels", "Display Sound Level Axis Labels"),
 			FText(),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSPLambda(this, [this]() { bDisplaySoundLevelAxisLabels = !bDisplaySoundLevelAxisLabels.Get(); }),
+				FExecuteAction::CreateSPLambda(this, [this]()
+					{
+						if (!bDisplaySoundLevelAxisLabels.IsBound())
+						{
+							bDisplaySoundLevelAxisLabels = !bDisplaySoundLevelAxisLabels.Get();
+						}
+
+						OnDisplaySoundLevelAxisLabelsButtonToggled.ExecuteIfBound();
+					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSPLambda(this, [this]() { return bDisplaySoundLevelAxisLabels.Get(); })
 			),
@@ -1002,7 +1023,15 @@ void SAudioSpectrumPlot::BuildTiltSpectrumSubMenu(FMenuBuilder& SubMenu)
 #endif
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSPLambda(this, [this, TiltExponentValue]() { TiltExponent = TiltExponentValue; }),
+				FExecuteAction::CreateSPLambda(this, [this, EnumValue, TiltExponentValue]()
+					{
+						if (!TiltExponent.IsBound())
+						{
+							TiltExponent = TiltExponentValue;
+						}
+
+						OnTiltSpectrumMenuEntryClicked.ExecuteIfBound(EnumValue);
+					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSPLambda(this, [this, TiltExponentValue]() { return (TiltExponent.Get() == TiltExponentValue); })
 			),
@@ -1028,7 +1057,15 @@ void SAudioSpectrumPlot::BuildFrequencyAxisScaleSubMenu(FMenuBuilder& SubMenu)
 #endif
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &SAudioSpectrumPlot::SetFrequencyAxisScale, EnumValue),
+				FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+					{
+						if (!FrequencyAxisScale.IsBound())
+						{
+							FrequencyAxisScale = EnumValue;
+						}
+
+						OnFrequencyAxisScaleMenuEntryClicked.ExecuteIfBound(EnumValue);
+					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (FrequencyAxisScale.Get() == EnumValue); })
 			),
@@ -1054,7 +1091,15 @@ void SAudioSpectrumPlot::BuildFrequencyAxisPixelBucketModeSubMenu(FMenuBuilder& 
 #endif
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateSP(this, &SAudioSpectrumPlot::SetFrequencyAxisPixelBucketMode, EnumValue),
+				FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+					{
+						if (!FrequencyAxisPixelBucketMode.IsBound())
+						{
+							FrequencyAxisPixelBucketMode = EnumValue;
+						}
+
+						OnFrequencyAxisPixelBucketModeMenuEntryClicked.ExecuteIfBound(EnumValue);
+					}),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (FrequencyAxisPixelBucketMode.Get() == EnumValue); })
 			),

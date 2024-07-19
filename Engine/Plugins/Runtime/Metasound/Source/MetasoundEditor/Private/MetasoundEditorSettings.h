@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "AudioSpectrumAnalyzer.h"
 #include "Misc/CoreDefines.h"
 #include "UObject/NoExportTypes.h"
 #include "UObject/Object.h"
@@ -93,6 +94,39 @@ struct FMetasoundAnalyzerAnimationSettings
 	/** Maximum height scalar of wire signal analyzers (ex. audio, triggers). */
 	UPROPERTY(EditAnywhere, config, Category = GraphAnimation, meta = (EditCondition = "bAnimateConnections", UIMin = 1, UIMax = 5, ClampMin = 1))
 	float WireScalarMax = 4.5f;
+};
+
+USTRUCT()
+struct FMetasoundEditorSpectrumAnalyzerSettings
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumAnalyzerBallistics Ballistics = EAudioSpectrumAnalyzerBallistics::Digital;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumAnalyzerType AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (DisplayName = "FFT Size (FFT Analyzer)"))
+	EFFTSize FFTAnalyzerFFTSize = EFFTSize::Max;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (DisplayName = "FFT Size (CQT Analyzer)"))
+	EConstantQFFTSizeEnum CQTAnalyzerFFTSize = EConstantQFFTSizeEnum::XXLarge;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotTilt TiltSpectrum = EAudioSpectrumPlotTilt::NoTilt;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotFrequencyAxisPixelBucketMode PixelPlotMode = EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Average;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	EAudioSpectrumPlotFrequencyAxisScale FrequencyScale = EAudioSpectrumPlotFrequencyAxisScale::Logarithmic;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	bool bDisplayFrequencyAxisLabels = false;
+
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer)
+	bool bDisplaySoundLevelAxisLabels = false;
 };
 
 UCLASS(config=EditorPerProjectUserSettings)
@@ -196,6 +230,10 @@ public:
 	/** Variable node title color */
 	UPROPERTY(EditAnywhere, config, Category = NodeTitleColors)
 	FLinearColor VariableNodeTitleColor;
+
+	/** Settings for metasound output spectrum analyzer widget */
+	UPROPERTY(EditAnywhere, config, Category = SpectrumAnalyzer, meta = (ShowOnlyInnerProperties))
+	FMetasoundEditorSpectrumAnalyzerSettings SpectrumAnalyzerSettings;
 
 	/** Widget type to show on input nodes by default */
 	UPROPERTY(EditAnywhere, config, Category = General)

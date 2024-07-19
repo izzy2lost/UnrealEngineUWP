@@ -107,6 +107,11 @@ private:
 	const float PixelsPerDecibel;
 };
 
+DECLARE_DELEGATE_OneParam(FOnTiltSpectrumMenuEntryClicked, EAudioSpectrumPlotTilt);
+DECLARE_DELEGATE_OneParam(FOnFrequencyAxisPixelBucketModeMenuEntryClicked, EAudioSpectrumPlotFrequencyAxisPixelBucketMode);
+DECLARE_DELEGATE_OneParam(FOnFrequencyAxisScaleMenuEntryClicked, EAudioSpectrumPlotFrequencyAxisScale);
+DECLARE_DELEGATE(FOnDisplayAxisLabelsButtonToggled);
+
 /**
  * The audio spectrum data to plot.
  */
@@ -168,6 +173,11 @@ public:
 		SLATE_ATTRIBUTE(FSlateColor, SpectrumColor)
 		SLATE_ATTRIBUTE(bool, AllowContextMenu)
 		SLATE_EVENT(FOnContextMenuOpening, OnContextMenuOpening)
+		SLATE_EVENT(FOnTiltSpectrumMenuEntryClicked, OnTiltSpectrumMenuEntryClicked)
+		SLATE_EVENT(FOnFrequencyAxisPixelBucketModeMenuEntryClicked, OnFrequencyAxisPixelBucketModeMenuEntryClicked)
+		SLATE_EVENT(FOnFrequencyAxisScaleMenuEntryClicked, OnFrequencyAxisScaleMenuEntryClicked)
+		SLATE_EVENT(FOnDisplayAxisLabelsButtonToggled, OnDisplayFrequencyAxisLabelsButtonToggled)
+		SLATE_EVENT(FOnDisplayAxisLabelsButtonToggled, OnDisplaySoundLevelAxisLabelsButtonToggled)
 		SLATE_EVENT(FGetAudioSpectrumData, OnGetAudioSpectrumData)
 	SLATE_END_ARGS()
 
@@ -204,6 +214,8 @@ public:
 
 	FAudioSpectrumPlotScaleInfo GetScaleInfo() const;
 
+	static float GetTiltExponentValue(const EAudioSpectrumPlotTilt InTilt);
+
 private:
 	// Begin SWidget overrides.
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
@@ -229,8 +241,6 @@ private:
 	FLinearColor GetAxisLabelColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetCrosshairColor(const FWidgetStyle& InWidgetStyle) const;
 	FLinearColor GetSpectrumColor(const FWidgetStyle& InWidgetStyle) const;	
-
-	static float GetTiltExponentValue(const EAudioSpectrumPlotTilt InTilt);
 
 	TSharedRef<SWidget> BuildDefaultContextMenu();
 	void BuildTiltSpectrumSubMenu(FMenuBuilder& SubMenu);
@@ -264,5 +274,10 @@ private:
 	TAttribute<FSlateColor> SpectrumColor;
 	TAttribute<bool> bAllowContextMenu;
 	FOnContextMenuOpening OnContextMenuOpening;
+	FOnTiltSpectrumMenuEntryClicked OnTiltSpectrumMenuEntryClicked;
+	FOnFrequencyAxisPixelBucketModeMenuEntryClicked OnFrequencyAxisPixelBucketModeMenuEntryClicked;
+	FOnFrequencyAxisScaleMenuEntryClicked OnFrequencyAxisScaleMenuEntryClicked;
+	FOnDisplayAxisLabelsButtonToggled OnDisplayFrequencyAxisLabelsButtonToggled;
+	FOnDisplayAxisLabelsButtonToggled OnDisplaySoundLevelAxisLabelsButtonToggled;
 	FGetAudioSpectrumData OnGetAudioSpectrumData;
 };

@@ -11,14 +11,56 @@
 class UWorld;
 
 UENUM(BlueprintType)
+enum class EAudioSpectrumAnalyzerBallistics : uint8
+{
+	Analog,
+	Digital,
+};
+
+UENUM(BlueprintType)
 enum class EAudioSpectrumAnalyzerType : uint8
 {
 	FFT UMETA(ToolTip = "Fast Fourier Transform"),
 	CQT UMETA(ToolTip = "Constant-Q Transform"),
 };
 
+DECLARE_DELEGATE_OneParam(FOnBallisticsMenuEntryClicked, EAudioSpectrumAnalyzerBallistics);
+DECLARE_DELEGATE_OneParam(FOnAnalyzerTypeMenuEntryClicked, EAudioSpectrumAnalyzerType);
+DECLARE_DELEGATE_OneParam(FOnFFTAnalyzerFFTSizeMenuEntryClicked, EFFTSize);
+DECLARE_DELEGATE_OneParam(FOnCQTAnalyzerFFTSizeMenuEntryClicked, EConstantQFFTSizeEnum);
+
 namespace AudioWidgets
 {
+	/**
+	 * Constructor parameters for the analyzer.
+	 */
+	struct FAudioSpectrumAnalyzerParams
+	{
+		int32 NumChannels = 1;
+		Audio::FDeviceId AudioDeviceId = INDEX_NONE;
+		TObjectPtr<UAudioBus> ExternalAudioBus = nullptr;
+
+		TAttribute<EAudioSpectrumAnalyzerBallistics> Ballistics = EAudioSpectrumAnalyzerBallistics::Digital;
+		TAttribute<EAudioSpectrumAnalyzerType> AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
+		TAttribute<EFFTSize> FFTAnalyzerFFTSize = EFFTSize::Max;
+		TAttribute<EConstantQFFTSizeEnum> CQTAnalyzerFFTSize = EConstantQFFTSizeEnum::XXLarge;
+		TAttribute<float> TiltExponent = 0.0f;
+		TAttribute<EAudioSpectrumPlotFrequencyAxisPixelBucketMode> FrequencyAxisPixelBucketMode = EAudioSpectrumPlotFrequencyAxisPixelBucketMode::Average;
+		TAttribute<EAudioSpectrumPlotFrequencyAxisScale> FrequencyAxisScale = EAudioSpectrumPlotFrequencyAxisScale::Logarithmic;
+		TAttribute<bool> bDisplayFrequencyAxisLabels = false;
+		TAttribute<bool> bDisplaySoundLevelAxisLabels = false;
+		
+		FOnBallisticsMenuEntryClicked OnBallisticsMenuEntryClicked;
+		FOnAnalyzerTypeMenuEntryClicked OnAnalyzerTypeMenuEntryClicked;
+		FOnFFTAnalyzerFFTSizeMenuEntryClicked OnFFTAnalyzerFFTSizeMenuEntryClicked;
+		FOnCQTAnalyzerFFTSizeMenuEntryClicked OnCQTAnalyzerFFTSizeMenuEntryClicked;
+		FOnTiltSpectrumMenuEntryClicked OnTiltSpectrumMenuEntryClicked;
+		FOnFrequencyAxisPixelBucketModeMenuEntryClicked OnFrequencyAxisPixelBucketModeMenuEntryClicked;
+		FOnFrequencyAxisScaleMenuEntryClicked OnFrequencyAxisScaleMenuEntryClicked;
+		FOnDisplayAxisLabelsButtonToggled OnDisplayFrequencyAxisLabelsButtonToggled;
+		FOnDisplayAxisLabelsButtonToggled OnDisplaySoundLevelAxisLabelsButtonToggled;
+	};
+
 	/**
 	 * Owns an analyzer and a corresponding Slate widget for displaying the resulting spectrum.
 	 * Exponential time-smoothing is applied to the spectrum.
@@ -27,6 +69,7 @@ namespace AudioWidgets
 	class AUDIOWIDGETS_API FAudioSpectrumAnalyzer : public TSharedFromThis<FAudioSpectrumAnalyzer>
 	{
 	public:
+		FAudioSpectrumAnalyzer(const FAudioSpectrumAnalyzerParams& Params);
 		FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 		~FAudioSpectrumAnalyzer();
 
@@ -37,23 +80,21 @@ namespace AudioWidgets
 		void Init(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus = nullptr);
 
 	protected:
-		void StartAnalyzing();
+		void StartAnalyzing(const EAudioSpectrumAnalyzerType InAnalyzerType);
 		void StopAnalyzing();
 
 		void OnSpectrumResults(USynesthesiaSpectrumAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FSynesthesiaSpectrumResults>& InSpectrumResultsArray);
 		void OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray);
 		void UpdateARSmoothing(const float TimeStamp, TConstArrayView<float> SquaredMagnitudes);
 
-		FAudioPowerSpectrumData GetAudioSpectrumData() const;
+		FAudioPowerSpectrumData GetAudioSpectrumData();
 
 		void ExtendSpectrumPlotContextMenu(FMenuBuilder& MenuBuilder);
 		void BuildBallisticsSubMenu(FMenuBuilder& SubMenu);
 		void BuildAnalyzerTypeSubMenu(FMenuBuilder& SubMenu);
 		void BuildFFTSizeSubMenu(FMenuBuilder& SubMenu);
 
-		void SetAnalyzerType(const EAudioSpectrumAnalyzerType InAnalyzerType);
-		void SetSynesthesiaSpectrumAnalyzerFFTSize(const EFFTSize FFTSize);
-		void SetConstantQAnalyzerFFTSize(const EConstantQFFTSizeEnum FFTSize);
+		void UpdateAnalyzerSettings();
 
 	private:
 		void CreateSynesthesiaSpectrumAnalyzer();
@@ -92,12 +133,19 @@ namespace AudioWidgets
 		Audio::FDeviceId AudioDeviceId = INDEX_NONE;
 		bool bUseExternalAudioBus = false;
 
-		EAudioSpectrumAnalyzerType AnalyzerType = EAudioSpectrumAnalyzerType::CQT;
-
+		TOptional<EAudioSpectrumAnalyzerType> ActiveAnalyzerType;
 		TOptional<float> PrevTimeStamp;
 		float WindowCompensationPowerGain = 1.0f;
 		float AttackTimeMsec = 300.0f;
 		float ReleaseTimeMsec = 300.0f;
-		bool bIsAnalogAttackRelease = false;
+		TAttribute<EAudioSpectrumAnalyzerBallistics> Ballistics;
+		TAttribute<EAudioSpectrumAnalyzerType> AnalyzerType;
+		TAttribute<EFFTSize> FFTAnalyzerFFTSize;
+		TAttribute<EConstantQFFTSizeEnum> CQTAnalyzerFFTSize;
+
+		FOnBallisticsMenuEntryClicked OnBallisticsMenuEntryClicked;
+		FOnAnalyzerTypeMenuEntryClicked OnAnalyzerTypeMenuEntryClicked;
+		FOnFFTAnalyzerFFTSizeMenuEntryClicked OnFFTAnalyzerFFTSizeMenuEntryClicked;
+		FOnCQTAnalyzerFFTSizeMenuEntryClicked OnCQTAnalyzerFFTSizeMenuEntryClicked;
 	};
 } // namespace AudioWidgets

@@ -43,18 +43,34 @@ namespace AudioWidgets
 		}
 	}
 
-	FAudioSpectrumAnalyzer::FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus)
+	FAudioSpectrumAnalyzer::FAudioSpectrumAnalyzer(const FAudioSpectrumAnalyzerParams& Params)
 		: SpectrumAnalysisSettings(NewObject<USynesthesiaSpectrumAnalysisSettings>())
 		, ConstantQSettings(NewObject<UConstantQSettings>())
 		, Widget(SNew(SAudioSpectrumPlot)
 			.Clipping(EWidgetClipping::ClipToBounds)
+			.TiltExponent(Params.TiltExponent)
 			.DisplayCrosshair(true)
-			.DisplayFrequencyAxisLabels(false)
-			.DisplaySoundLevelAxisLabels(false)
+			.DisplayFrequencyAxisLabels(Params.bDisplayFrequencyAxisLabels)
+			.DisplaySoundLevelAxisLabels(Params.bDisplaySoundLevelAxisLabels)
+			.FrequencyAxisScale(Params.FrequencyAxisScale)
+			.FrequencyAxisPixelBucketMode(Params.FrequencyAxisPixelBucketMode)
+			.OnTiltSpectrumMenuEntryClicked(Params.OnTiltSpectrumMenuEntryClicked)
+			.OnFrequencyAxisPixelBucketModeMenuEntryClicked(Params.OnFrequencyAxisPixelBucketModeMenuEntryClicked)
+			.OnFrequencyAxisScaleMenuEntryClicked(Params.OnFrequencyAxisScaleMenuEntryClicked)
+			.OnDisplayFrequencyAxisLabelsButtonToggled(Params.OnDisplayFrequencyAxisLabelsButtonToggled)
+			.OnDisplaySoundLevelAxisLabelsButtonToggled(Params.OnDisplaySoundLevelAxisLabelsButtonToggled)
 			.OnGetAudioSpectrumData_Raw(this, &FAudioSpectrumAnalyzer::GetAudioSpectrumData))
+		, Ballistics(Params.Ballistics)
+		, AnalyzerType(Params.AnalyzerType)
+		, FFTAnalyzerFFTSize(Params.FFTAnalyzerFFTSize)
+		, CQTAnalyzerFFTSize(Params.CQTAnalyzerFFTSize)
+		, OnBallisticsMenuEntryClicked(Params.OnBallisticsMenuEntryClicked)
+		, OnAnalyzerTypeMenuEntryClicked(Params.OnAnalyzerTypeMenuEntryClicked)
+		, OnFFTAnalyzerFFTSizeMenuEntryClicked(Params.OnFFTAnalyzerFFTSizeMenuEntryClicked)
+		, OnCQTAnalyzerFFTSizeMenuEntryClicked(Params.OnCQTAnalyzerFFTSizeMenuEntryClicked)
 	{
 		SpectrumAnalysisSettings->SpectrumType = EAudioSpectrumType::PowerSpectrum;
-		SpectrumAnalysisSettings->FFTSize = EFFTSize::Max;
+		SpectrumAnalysisSettings->FFTSize = FFTAnalyzerFFTSize.Get();
 		SpectrumAnalysisSettings->WindowType = EFFTWindowType::Blackman;
 		SpectrumAnalysisSettings->bDownmixToMono = true;
 
@@ -62,14 +78,20 @@ namespace AudioWidgets
 		ConstantQSettings->NumBandsPerOctave = 6.0f;
 		ConstantQSettings->NumBands = 61;
 		ConstantQSettings->StartingFrequencyHz = 20000.0f * FMath::Pow(0.5f, (ConstantQSettings->NumBands - 1) / ConstantQSettings->NumBandsPerOctave);
-		ConstantQSettings->FFTSize = EConstantQFFTSizeEnum::XXLarge;
+		ConstantQSettings->FFTSize = CQTAnalyzerFFTSize.Get();
 		ConstantQSettings->WindowType = EFFTWindowType::Blackman;
 		ConstantQSettings->bDownmixToMono = true;
 		ConstantQSettings->BandWidthStretch = 2.0f;
 
 		ContextMenuExtension = Widget->AddContextMenuExtension(EExtensionHook::Before, nullptr, FMenuExtensionDelegate::CreateRaw(this, &FAudioSpectrumAnalyzer::ExtendSpectrumPlotContextMenu));
 
-		Init(InNumChannels, InAudioDeviceId, InExternalAudioBus);
+		Init(Params.NumChannels, Params.AudioDeviceId, Params.ExternalAudioBus);
+	}
+
+	FAudioSpectrumAnalyzer::FAudioSpectrumAnalyzer(int32 InNumChannels, Audio::FDeviceId InAudioDeviceId, TObjectPtr<UAudioBus> InExternalAudioBus)
+		: FAudioSpectrumAnalyzer({ .NumChannels = InNumChannels, .AudioDeviceId = InAudioDeviceId, .ExternalAudioBus = InExternalAudioBus })
+	{
+		// Delegating constructor
 	}
 
 	FAudioSpectrumAnalyzer::~FAudioSpectrumAnalyzer()
@@ -108,12 +130,14 @@ namespace AudioWidgets
 		CreateSynesthesiaSpectrumAnalyzer();
 		CreateConstantQAnalyzer();
 
-		StartAnalyzing();
+		StartAnalyzing(AnalyzerType.Get());
 	}
 
-	void FAudioSpectrumAnalyzer::StartAnalyzing()
+	void FAudioSpectrumAnalyzer::StartAnalyzing(const EAudioSpectrumAnalyzerType InAnalyzerType)
 	{
-		switch (AnalyzerType)
+		ensure(!ActiveAnalyzerType.IsSet());
+
+		switch (InAnalyzerType)
 		{
 		case EAudioSpectrumAnalyzerType::FFT:
 			SpectrumAnalyzer->StartAnalyzing(AudioDeviceId, AudioBus.Get());
@@ -124,11 +148,15 @@ namespace AudioWidgets
 		default:
 			break;
 		}
+
+		ActiveAnalyzerType = InAnalyzerType;
 	}
 
 	void FAudioSpectrumAnalyzer::StopAnalyzing()
 	{
-		switch (AnalyzerType)
+		ensure(ActiveAnalyzerType.IsSet());
+
+		switch (ActiveAnalyzerType.GetValue())
 		{
 		case EAudioSpectrumAnalyzerType::FFT:
 			SpectrumAnalyzer->StopAnalyzing();
@@ -139,11 +167,13 @@ namespace AudioWidgets
 		default:
 			break;
 		}
+
+		ActiveAnalyzerType.Reset();
 	}
 
 	void FAudioSpectrumAnalyzer::OnSpectrumResults(USynesthesiaSpectrumAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FSynesthesiaSpectrumResults>& InSpectrumResultsArray)
 	{
-		if (AnalyzerType == EAudioSpectrumAnalyzerType::FFT && InSpectrumAnalyzer == SpectrumAnalyzer.Get())
+		if (ActiveAnalyzerType == EAudioSpectrumAnalyzerType::FFT && InSpectrumAnalyzer == SpectrumAnalyzer.Get())
 		{
 			for (const FSynesthesiaSpectrumResults& SpectrumResults : InSpectrumResultsArray)
 			{
@@ -186,7 +216,7 @@ namespace AudioWidgets
 
 	void FAudioSpectrumAnalyzer::OnConstantQResults(UConstantQAnalyzer* InSpectrumAnalyzer, int32 ChannelIndex, const TArray<FConstantQResults>& InSpectrumResultsArray)
 	{
-		if (AnalyzerType == EAudioSpectrumAnalyzerType::CQT && InSpectrumAnalyzer == ConstantQAnalyzer.Get())
+		if (ActiveAnalyzerType == EAudioSpectrumAnalyzerType::CQT && InSpectrumAnalyzer == ConstantQAnalyzer.Get())
 		{
 			for (const FConstantQResults& SpectrumResults : InSpectrumResultsArray)
 			{
@@ -221,6 +251,7 @@ namespace AudioWidgets
 	{
 		// Calculate AR smoother coefficients:
 		const float DeltaT = (TimeStamp - PrevTimeStamp.GetValue());
+		const bool bIsAnalogAttackRelease = (Ballistics.Get() == EAudioSpectrumAnalyzerBallistics::Analog);
 		Audio::FAttackRelease AttackRelease(1.0f / DeltaT, AttackTimeMsec, ReleaseTimeMsec, bIsAnalogAttackRelease);
 
 		// Apply AR smoothing for each frequency:
@@ -238,7 +269,7 @@ namespace AudioWidgets
 	{
 		if (SpectrumAnalyzer.IsValid() && SpectrumAnalyzer->IsValidLowLevel())
 		{
-			if (AnalyzerType == EAudioSpectrumAnalyzerType::FFT)
+			if (ActiveAnalyzerType == EAudioSpectrumAnalyzerType::FFT)
 			{
 				SpectrumAnalyzer->StopAnalyzing();
 			}
@@ -248,7 +279,7 @@ namespace AudioWidgets
 
 		if (ConstantQAnalyzer.IsValid() && ConstantQAnalyzer->IsValidLowLevel())
 		{
-			if (AnalyzerType == EAudioSpectrumAnalyzerType::CQT)
+			if (ActiveAnalyzerType == EAudioSpectrumAnalyzerType::CQT)
 			{
 				ConstantQAnalyzer->StopAnalyzing();
 			}
@@ -256,6 +287,7 @@ namespace AudioWidgets
 			ReleaseConstantQAnalyzer();
 		}
 
+		ActiveAnalyzerType.Reset();
 		PrevTimeStamp.Reset();
 		CenterFrequencies.Empty();
 		ARSmoothedSquaredMagnitudes.Empty();
@@ -264,8 +296,12 @@ namespace AudioWidgets
 		bUseExternalAudioBus = false;
 	}
 
-	FAudioPowerSpectrumData FAudioSpectrumAnalyzer::GetAudioSpectrumData() const
+	FAudioPowerSpectrumData FAudioSpectrumAnalyzer::GetAudioSpectrumData()
 	{
+		// The SAudioSpectrumPlot regularly polls us for audio spectrum data.
+		// We can update the analyzer settings here:
+		UpdateAnalyzerSettings();
+
 		check(CenterFrequencies.Num() == ARSmoothedSquaredMagnitudes.Num());
 		return FAudioPowerSpectrumData{ CenterFrequencies, ARSmoothedSquaredMagnitudes };
 	}
@@ -290,28 +326,36 @@ namespace AudioWidgets
 
 	void FAudioSpectrumAnalyzer::BuildBallisticsSubMenu(FMenuBuilder& SubMenu)
 	{
-		SubMenu.AddMenuEntry(
-			LOCTEXT("Analog", "Analog"),
-			FText(),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSPLambda(this, [this]() { bIsAnalogAttackRelease = true; }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateSPLambda(this, [this]() { return bIsAnalogAttackRelease; })
-			),
-			NAME_None,
-			EUserInterfaceActionType::ToggleButton);
-		SubMenu.AddMenuEntry(
-			LOCTEXT("Digital", "Digital"),
-			FText(),
-			FSlateIcon(),
-			FUIAction(
-				FExecuteAction::CreateSPLambda(this, [this]() { bIsAnalogAttackRelease = false; }),
-				FCanExecuteAction(),
-				FIsActionChecked::CreateSPLambda(this, [this]() { return !bIsAnalogAttackRelease; })
-			),
-			NAME_None,
-			EUserInterfaceActionType::ToggleButton);
+		const UEnum* EnumClass = StaticEnum<EAudioSpectrumAnalyzerBallistics>();
+		const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
+		for (int32 Index = 0; Index < NumEnumValues; Index++)
+		{
+			const auto EnumValue = static_cast<EAudioSpectrumAnalyzerBallistics>(EnumClass->GetValueByIndex(Index));
+
+			SubMenu.AddMenuEntry(
+				EnumClass->GetDisplayNameTextByIndex(Index),
+#if WITH_EDITOR
+				EnumClass->GetToolTipTextByIndex(Index),
+#else
+				FText(),
+#endif
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+						{
+							if (!Ballistics.IsBound())
+							{
+								Ballistics = EnumValue;
+							}
+
+							OnBallisticsMenuEntryClicked.ExecuteIfBound(EnumValue);
+						}),
+					FCanExecuteAction(),
+					FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (Ballistics.Get() == EnumValue); })
+				),
+				NAME_None,
+				EUserInterfaceActionType::ToggleButton);
+		}
 	}
 
 	void FAudioSpectrumAnalyzer::BuildAnalyzerTypeSubMenu(FMenuBuilder& SubMenu)
@@ -331,9 +375,17 @@ namespace AudioWidgets
 #endif
 				FSlateIcon(),
 				FUIAction(
-					FExecuteAction::CreateSP(this, &FAudioSpectrumAnalyzer::SetAnalyzerType, EnumValue),
+					FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+						{
+							if (!AnalyzerType.IsBound())
+							{
+								AnalyzerType = EnumValue;
+							}
+
+							OnAnalyzerTypeMenuEntryClicked.ExecuteIfBound(EnumValue);
+						}),
 					FCanExecuteAction(),
-					FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (AnalyzerType == EnumValue); })
+					FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (AnalyzerType.Get() == EnumValue); })
 				),
 				NAME_None,
 				EUserInterfaceActionType::ToggleButton);
@@ -344,7 +396,7 @@ namespace AudioWidgets
 	{
 		// There is a different FFTSize enum depending on the analyzer type.
 
-		if (AnalyzerType == EAudioSpectrumAnalyzerType::FFT)
+		if (AnalyzerType.Get() == EAudioSpectrumAnalyzerType::FFT)
 		{
 			const UEnum* EnumClass = StaticEnum<EFFTSize>();
 			const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
@@ -366,15 +418,23 @@ namespace AudioWidgets
 #endif
 					FSlateIcon(),
 					FUIAction(
-						FExecuteAction::CreateSP(this, &FAudioSpectrumAnalyzer::SetSynesthesiaSpectrumAnalyzerFFTSize, EnumValue),
+						FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+							{
+								if (!FFTAnalyzerFFTSize.IsBound())
+								{
+									FFTAnalyzerFFTSize = EnumValue;
+								}
+
+								OnFFTAnalyzerFFTSizeMenuEntryClicked.ExecuteIfBound(EnumValue);
+							}),
 						FCanExecuteAction(),
-						FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (SpectrumAnalysisSettings->FFTSize == EnumValue); })
+						FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (FFTAnalyzerFFTSize.Get() == EnumValue); })
 					),
 					NAME_None,
 					EUserInterfaceActionType::ToggleButton);
 			}
 		}
-		else if (AnalyzerType == EAudioSpectrumAnalyzerType::CQT)
+		else if (AnalyzerType.Get() == EAudioSpectrumAnalyzerType::CQT)
 		{
 			const UEnum* EnumClass = StaticEnum<EConstantQFFTSizeEnum>();
 			const int32 NumEnumValues = EnumClass->NumEnums() - 1; // Exclude 'MAX' enum value.
@@ -391,9 +451,17 @@ namespace AudioWidgets
 #endif
 					FSlateIcon(),
 					FUIAction(
-						FExecuteAction::CreateSP(this, &FAudioSpectrumAnalyzer::SetConstantQAnalyzerFFTSize, EnumValue),
+						FExecuteAction::CreateSPLambda(this, [this, EnumValue]()
+							{
+								if (!CQTAnalyzerFFTSize.IsBound())
+								{
+									CQTAnalyzerFFTSize = EnumValue;
+								}
+
+								OnCQTAnalyzerFFTSizeMenuEntryClicked.ExecuteIfBound(EnumValue);
+							}),
 						FCanExecuteAction(),
-						FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (ConstantQSettings->FFTSize == EnumValue); })
+						FIsActionChecked::CreateSPLambda(this, [this, EnumValue]() { return (CQTAnalyzerFFTSize.Get() == EnumValue); })
 					),
 					NAME_None,
 					EUserInterfaceActionType::ToggleButton);
@@ -401,47 +469,42 @@ namespace AudioWidgets
 		}
 	}
 
-	void FAudioSpectrumAnalyzer::SetAnalyzerType(const EAudioSpectrumAnalyzerType InAnalyzerType)
+	void FAudioSpectrumAnalyzer::UpdateAnalyzerSettings()
 	{
-		if (AnalyzerType != InAnalyzerType)
+		const EAudioSpectrumAnalyzerType RequiredAnalyzerType = AnalyzerType.Get();
+		const EFFTSize FFTAnalyzerRequiredFFTSize = FFTAnalyzerFFTSize.Get();
+		const EConstantQFFTSizeEnum CQTAnalyzerRequiredFFTSize = CQTAnalyzerFFTSize.Get();
+
+		const bool bRequiredAnalyzerTypeChanged = (ActiveAnalyzerType != RequiredAnalyzerType);
+		const bool bFFTAnalyzerRequiredFFTSizeChanged = (SpectrumAnalysisSettings->FFTSize != FFTAnalyzerRequiredFFTSize);
+		const bool bCQTAnalyzerRequiredFFTSizeChanged = (ConstantQSettings->FFTSize != CQTAnalyzerRequiredFFTSize);
+		if (bRequiredAnalyzerTypeChanged || bFFTAnalyzerRequiredFFTSizeChanged || bCQTAnalyzerRequiredFFTSizeChanged)
 		{
 			StopAnalyzing();
 
-			AnalyzerType = InAnalyzerType;
+			if (bRequiredAnalyzerTypeChanged)
+			{
+				// There will be different center frequencies when the analyzer type changes:
+				PrevTimeStamp.Reset();
+				CenterFrequencies.Reset();
+				ARSmoothedSquaredMagnitudes.Reset();
+			}
 
-			PrevTimeStamp.Reset();
-			CenterFrequencies.Reset();
-			ARSmoothedSquaredMagnitudes.Reset();
+			if (bFFTAnalyzerRequiredFFTSizeChanged)
+			{
+				ReleaseSynesthesiaSpectrumAnalyzer();
+				SpectrumAnalysisSettings->FFTSize = FFTAnalyzerRequiredFFTSize;
+				CreateSynesthesiaSpectrumAnalyzer();
+			}
 
-			StartAnalyzing();
-		}
-	}
+			if (bCQTAnalyzerRequiredFFTSizeChanged)
+			{
+				ReleaseConstantQAnalyzer();
+				ConstantQSettings->FFTSize = CQTAnalyzerRequiredFFTSize;
+				CreateConstantQAnalyzer();
+			}
 
-	void FAudioSpectrumAnalyzer::SetSynesthesiaSpectrumAnalyzerFFTSize(const EFFTSize FFTSize)
-	{
-		if (SpectrumAnalysisSettings->FFTSize != FFTSize)
-		{
-			StopAnalyzing();
-			ReleaseSynesthesiaSpectrumAnalyzer();
-
-			SpectrumAnalysisSettings->FFTSize = FFTSize;
-
-			CreateSynesthesiaSpectrumAnalyzer();
-			StartAnalyzing();
-		}
-	}
-
-	void FAudioSpectrumAnalyzer::SetConstantQAnalyzerFFTSize(const EConstantQFFTSizeEnum FFTSize)
-	{
-		if (ConstantQSettings->FFTSize != FFTSize)
-		{
-			StopAnalyzing();
-			ReleaseConstantQAnalyzer();
-
-			ConstantQSettings->FFTSize = FFTSize;
-
-			CreateConstantQAnalyzer();
-			StartAnalyzing();
+			StartAnalyzing(RequiredAnalyzerType);
 		}
 	}
 
