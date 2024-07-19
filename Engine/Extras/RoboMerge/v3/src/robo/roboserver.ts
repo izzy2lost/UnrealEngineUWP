@@ -71,7 +71,7 @@ let ENVIRONMENT: {[param: string]: any}
 if (ENVIRONMENT.devMode) {
 	roboserverStartupLogger.warn('Running in DEV_MODE')
 }
-if (ENVIRONMENT.previewMode) {
+if (ENVIRONMENT.previewOnly) {
 	roboserverStartupLogger.warn('Running in PREVIEW_MODE')
 }
 
