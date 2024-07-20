@@ -1034,7 +1034,7 @@ void UGeometryCollection::Serialize(FArchive& Ar)
 			EnsureSimulationDataIsCooked(bIsTransacting, bAllowCopyFromDDC);
 		}
 #endif
-		if (Ar.IsLoading() || Ar.IsCountingMemory())
+		if (Ar.IsLoading() || (Ar.IsCountingMemory() && !Ar.IsFilterEditorOnly()))
 		{
 			GeometryCollection->Serialize(ChaosAr);
 		}
