@@ -174,14 +174,34 @@ FScreenPassTexture FDisplayClusterViewportManagerViewExtension::PostProcessPassA
 			// Broadcast PassTonemap event
 			IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostTonemapPass_RenderThread().Broadcast(GraphBuilder, ViewportProxyPtr, View, Inputs, ContextNum);
 
-			if (ViewportProxyPtr->ShouldUsePostProcessPassTonemap())
+			if (ViewportProxyPtr->GetOpenColorIOMode() == EDisplayClusterViewportOpenColorIOMode::PostProcess)
 			{
 				return ViewportProxyPtr->OnPostProcessPassAfterTonemap_RenderThread(GraphBuilder, View, Inputs, ContextNum);
 			}
 		}
 	}
 
+// UE-219768
+// This is a temporary workaround that prevents crash in ReturnUntouchedSceneColorForPostProcessing.
+// Once the jira is fixed, we can remove this and leave original code from the #else-block
+#if true
+	const FScreenPassTexture& SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
+	check(SceneColor.IsValid());
+
+	FScreenPassRenderTarget Output = Inputs.OverrideOutput;
+
+	// If the override output is provided, it means that this is the last pass in post processing.
+	if (!Output.IsValid())
+	{
+		Output = FScreenPassRenderTarget::CreateFromInput(GraphBuilder, SceneColor, View.GetOverwriteLoadAction(), TEXT("FinalSceneColor"));
+	}
+
+	AddDrawTexturePass(GraphBuilder, View, SceneColor, Output);
+
+	return Output;
+#else
 	return Inputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder);
+#endif
 }
 
 bool FDisplayClusterViewportManagerViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const

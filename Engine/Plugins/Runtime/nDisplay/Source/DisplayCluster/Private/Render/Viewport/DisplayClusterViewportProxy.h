@@ -298,6 +298,9 @@ public:
 	*/
 	uint8 GetPriority_RenderThread() const;
 
+	/** Returns the OCIO rendering type for the given viewport. */
+	EDisplayClusterViewportOpenColorIOMode GetOpenColorIOMode() const;
+
 private:
 	bool ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const;
 	bool ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture*>& OutResources, const int32 InRecursionDepth) const;
@@ -366,9 +369,6 @@ private:
 
 	/** Check if there is an RTT source (internal or external) in this viewport proxy. */
 	bool IsInputRenderTargetResourceExists() const;
-
-	/** Returns the OCIO rendering type for the given viewport. */
-	EDisplayClusterViewportOpenColorIOMode GetOpenColorIOMode() const;
 
 public:
 	// Configuration for proxy

@@ -153,6 +153,11 @@ void FDisplayClusterMediaCaptureViewport::OnPostTonemapPass_RenderThread(FRDGBui
 {
 	checkSlow(ViewportProxy);
 
+	if (!IsLateOCIO())
+	{
+		return;
+	}
+
 	// Media subsystem does not support stereo, therefore we process context 0 only
 	if (ContextNum != 0)
 	{
