@@ -3395,12 +3395,14 @@ LPWCH Detoured_GetEnvironmentStringsW()
 	DEBUG_LOG_TRUE(L"GetEnvironmentStringsW", L"");
 	auto res = True_GetEnvironmentStringsW();
 
-	//auto it = res;
-	//while (*it)
-	//{
-	//	DEBUG_LOG(L"		VAR: %ls", it);
-	//	it += wcslen(it) + 1;
-	//}
+	#if 0 // Enable to print out environment variables in the log
+	auto it = res;
+	while (*it)
+	{
+		DEBUG_LOG(L"		VAR: %ls", it);
+		it += wcslen(it) + 1;
+	}
+	#endif
 
 	return res;
 }

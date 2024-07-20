@@ -503,6 +503,15 @@ namespace uba
 
 		OwnerInfo info { buffer, 0 };
 
+		StringBuffer<32> ownerPidStr;
+		ownerPidStr.count = GetEnvironmentVariableW(TC("UBA_OWNER_PID"), ownerPidStr.data, ownerPidStr.capacity);
+		if (ownerPidStr.count)
+		{
+			GetEnvironmentVariableW(TC("UBA_OWNER_ID"), buffer, sizeof_array(buffer));
+			ownerPidStr.Parse(info.pid);
+			return info;
+		}
+
 		#if PLATFORM_WINDOWS
 		HANDLE snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 		if (snapshotHandle == INVALID_HANDLE_VALUE)
@@ -535,6 +544,7 @@ namespace uba
 				break;
 			tchar moduleName[260];
 			DWORD len = GetModuleFileNameExW(parentHandle, 0, moduleName, MAX_PATH);
+			g_debugLogger.Info(TC("MODULE: %s\n"), moduleName);
 			CloseHandle(parentHandle);
 			if (!len)
 				break;

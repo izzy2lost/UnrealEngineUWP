@@ -175,6 +175,16 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		{
 			copyAndLaunch = false;
 		}
+		else if (name.Equals(TC("-ownerPid")))
+		{
+			u32 ownerPid;
+			if (value.Parse(ownerPid))
+				const_cast<OwnerInfo&>(GetOwnerInfo()).pid = ownerPid;
+		}
+		else if (name.Equals(TC("-ownerId")))
+		{
+			TStrcpy_s(const_cast<tchar*>(GetOwnerInfo().id), 260, value.data);
+		}
 		else
 		{
 			StringBuffer<> msg;
@@ -239,6 +249,10 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 		for (int i = 1; i != argc; ++i)
 			args.Append(' ').Append(argv[i]);
 		args.Append(" -nocopy");
+
+		OwnerInfo ownerInfo = GetOwnerInfo();
+		if (ownerInfo.pid)
+			args.Appendf(TC(" -ownerPid=%u -ownerId=%s"), ownerInfo.pid, ownerInfo.id);
 
 		STARTUPINFOW si;
 		ZeroMemory(&si, sizeof(si));
