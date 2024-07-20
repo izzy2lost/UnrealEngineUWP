@@ -176,7 +176,7 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="System.Text.Json">
-      <Version>7.0.3</Version>
+      <Version>9.0.0-preview.6.24327.7</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>

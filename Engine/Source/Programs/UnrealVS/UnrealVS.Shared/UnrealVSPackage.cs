@@ -55,10 +55,17 @@ namespace UnrealVS
 	// This attribute registers a tool window exposed by this package.
 	[ProvideToolWindow(typeof(BatchBuilderToolWindow))]
 
+	// File browser
+	[ProvideToolWindow(typeof(FileBrowserWindow))]
+
+	// UbaVisualizer
+	[ProvideToolWindow(typeof(UbaVisualizerWindow))]
+	[ProvideToolWindowVisibility(typeof(UbaVisualizerWindow), VSConstants.UICONTEXT.SolutionExists_string)]
+
 	// This attribute registers an options page for the package.
 	[ProvideOptionPage(typeof(UnrealVsOptions), ExtensionName, "General", 101, 102, true)]
 	[ProvideSolutionProperties(GuidList.UnrealVSPackageString)]
-	[ProvideToolWindow(typeof(FileBrowserWindow))]
+
 	/// <summary>
 	/// UnrealVSPackage implements Package abstract class.  This is the main class that is registered
 	/// with Visual Studio shell and serves as the entry point into our extension
@@ -282,6 +289,9 @@ namespace UnrealVS
 
 			// Create 'FileBrowser' instance
 			FileBrowser = new FileBrowser();
+
+			// Create 'UbaVisualizer' instance
+			UbaVisualizer = new UbaVisualizer();
 
 			// Call parent implementation
 			base.Initialize();
@@ -1093,6 +1103,9 @@ namespace UnrealVS
 		/// FileBrowser feature
 		private FileBrowser FileBrowser;
 
+		/// UbaVisualizer feature
+		private UbaVisualizer UbaVisualizer;
+
 		/// CompileSingleFile feature
 		private CompileSingleFile CompileSingleFile;
 
@@ -1178,5 +1191,61 @@ namespace UnrealVS
 
 		[DllImport("user32.dll")]
 		public static extern uint MapVirtualKey(uint uCode, MapType uMapType);
+
+		[DllImport("user32.dll", EntryPoint = "CreateWindowEx", CharSet = CharSet.Unicode)]
+		internal static extern IntPtr CreateWindowEx(int dwExStyle,
+													  string lpszClassName,
+													  string lpszWindowName,
+													  int style,
+													  int x, int y,
+													  int width, int height,
+													  IntPtr hwndParent,
+													  IntPtr hMenu,
+													  IntPtr hInst,
+													  [MarshalAs(UnmanagedType.AsAny)] object pvParam);
+
+		[DllImport("user32.dll", EntryPoint = "DestroyWindow", CharSet = CharSet.Unicode)]
+		internal static extern bool DestroyWindow(IntPtr hwnd);
+
+		[DllImport("user32.dll", EntryPoint = "SetWindowTextW", CharSet = CharSet.Unicode)]
+		internal static extern bool SetWindowTextW(IntPtr hWnd, string lpString);
+
+		[DllImport("user32.dll", EntryPoint = "SetWindowPos", CharSet = CharSet.Unicode)]
+		internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+		[DllImport("user32.dll", EntryPoint = "IsWindow", CharSet = CharSet.Unicode)]
+		internal static extern bool IsWindow(IntPtr hWnd);
+
+		[DllImport("user32.dll", EntryPoint = "PostMessageW", CharSet = CharSet.Unicode)]
+		internal static extern bool PostMessageW(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+		[DllImport("user32.dll")]
+		internal static extern IntPtr LoadCursorW(IntPtr hInstance, IntPtr lpCursorName);
+		
+
+				[DllImport("user32.dll", EntryPoint = "RegisterClassExW", SetLastError = true)]
+		internal static extern UInt16 RegisterClassExW(ref WNDCLASSEX lpWndClass);
+
+		[DllImport("user32.dll")]
+		internal static extern IntPtr DefWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+
+		[StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+		internal struct WNDCLASSEX
+		{
+			[MarshalAs(UnmanagedType.U4)]
+			public int cbSize;
+			[MarshalAs(UnmanagedType.U4)]
+			public int style;
+			public IntPtr lpfnWndProc; // not WndProc
+			public int cbClsExtra;
+			public int cbWndExtra;
+			public IntPtr hInstance;
+			public IntPtr hIcon;
+			public IntPtr hCursor;
+			public IntPtr hbrBackground;
+			public string lpszMenuName;
+			public string lpszClassName;
+			public IntPtr hIconSm;
+		}
 	}
 }
