@@ -85,8 +85,20 @@ protected:
 		/** Presented frame boundaries as comma separated string */
 		FString PresentedFrameBoundaryNumbersAsString() const;
 
-		/** Returns true if the frame presentation history indicates a desynced state */
-		bool HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData) const;
+		/** 
+		 * Returns true if the frame presentation history indicates a desynced state. 
+		 * 
+		 * @param OtherBarrierData
+		 *     Barrier data of the node we're comparing with.
+		 * 
+		 * @param OutVsyncDelta
+		 *     When the same frame is presented at different Vsync frame boundaries, this parameter
+		 *     contains the delta between them. Useful in detecting large PTP differences between nodes.
+		 * 
+		 * @return
+		 *     True if different frames were presented at the same Vsync frame boundaries.
+		 */
+		bool HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData, uint64& OutVsyncDelta) const;
 
 		/** How many frames to include in the history */
 		static constexpr int32 FRAMEHISTORYLEN = 2;
