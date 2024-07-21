@@ -328,12 +328,6 @@ void UPoseSearchSchema::Finalize()
 	}
 }
 
-void UPoseSearchSchema::PreSave(FObjectPreSaveContext ObjectSaveContext)
-{
-	Finalize();
-	Super::PreSave(ObjectSaveContext);
-}
-
 void UPoseSearchSchema::PostLoad()
 {
 	Super::PostLoad();
