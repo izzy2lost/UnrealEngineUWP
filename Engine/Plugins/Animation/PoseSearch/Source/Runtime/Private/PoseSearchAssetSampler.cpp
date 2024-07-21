@@ -195,6 +195,9 @@ static void ProcessRootTransform(const UBlendSpace* BlendSpace, const FVector& B
 			}
 
 			AccumulatedRootTransform[SampleIdx] = RootMotionMovementParams.GetRootMotionTransform() * AccumulatedRootTransform[SampleIdx - 1];
+			
+			// keep numerical errors in check
+			AccumulatedRootTransform[SampleIdx].NormalizeRotation();
 		}
 	}
 }
