@@ -783,6 +783,11 @@ bool UnrealToUsd::ConvertSpotLightComponent(const USpotLightComponent& LightComp
 {
 	FScopedUsdAllocs Allocs;
 
+	if (!Prim)
+	{
+		return false;
+	}
+
 	pxr::UsdLuxShapingAPI ShapingAPI = pxr::UsdLuxShapingAPI::Apply(Prim);
 	if (!ShapingAPI)
 	{
