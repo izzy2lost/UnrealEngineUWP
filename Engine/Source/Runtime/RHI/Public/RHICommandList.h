@@ -1361,17 +1361,23 @@ public:
 	RHI_API void AttachBreadcrumbSubTree(FRHIBreadcrumbAllocator& Allocator, FRHIBreadcrumbList& Nodes);
 #endif
 
-#if HAS_GPU_STATS
 	void Stats_AddDraw()
 	{
+#if HAS_GPU_STATS
 		DrawStats.AddDraw(PersistentState.CurrentGPUMask, PersistentState.CurrentDrawStatsCategory.GetValue());
+#else
+		DrawStats.AddDraw(PersistentState.CurrentGPUMask, nullptr);
+#endif
 	}
 
 	void Stats_AddDrawAndPrimitives(EPrimitiveType PrimitiveType, uint32 NumPrimitives)
 	{
+#if HAS_GPU_STATS
 		DrawStats.AddDrawAndPrimitives(PersistentState.CurrentGPUMask, PersistentState.CurrentDrawStatsCategory.GetValue(), PrimitiveType, NumPrimitives);
-	}
+#else
+		DrawStats.AddDrawAndPrimitives(PersistentState.CurrentGPUMask, nullptr, PrimitiveType, NumPrimitives);
 #endif
+	}
 
 	TStaticArray<void*, MAX_NUM_GPUS>& GetQueryBatchData(ERenderQueryType QueryType)
 	{
