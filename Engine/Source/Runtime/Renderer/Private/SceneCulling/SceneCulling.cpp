@@ -2420,21 +2420,17 @@ public:
 		{
 			SCOPED_NAMED_EVENT(SceneCulling_Post_UpdateInstances, FColor::Emerald);
 
-			// [transform-] updated primitives instances & primitives with updated instances 
-			for (int32 Index = 0; Index < ScenePostUpdateData.UpdatedPrimitiveIds.Num(); ++Index)
+			ScenePostUpdateData.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::AddedUpdated, EPrimitiveUpdateDirtyFlags::AllCulling, [&](const FPrimitiveUpdateCommand& Cmd)
 			{
-				UpdateInstances(ScenePostUpdateData.UpdatedPrimitiveIds[Index], ScenePostUpdateData.UpdatedPrimitiveSceneInfos[Index]);
-			}	
-		}
-
-		{
-			SCOPED_NAMED_EVENT(SceneCulling_Post_AddInstances, FColor::Emerald);
-
-			// Next process all added and added ones.
-			for (int32 Index = 0; Index < ScenePostUpdateData.AddedPrimitiveIds.Num(); ++Index)
-			{
-				AddInstances(ScenePostUpdateData.AddedPrimitiveIds[Index], ScenePostUpdateData.AddedPrimitiveSceneInfos[Index]);
-			}
+				if (Cmd.IsAdd())
+				{
+					AddInstances(Cmd.GetPersistentId(), Cmd.GetSceneInfo());
+				}
+				else
+				{
+					UpdateInstances(Cmd.GetPersistentId(), Cmd.GetSceneInfo());
+				}
+			});
 		}
 		FinalizeTempCellsAndUncullable();
 

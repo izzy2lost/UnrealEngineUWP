@@ -490,5 +490,5 @@ public:
 private:
 	FVirtualShadowMapArrayCacheManager& CacheManager;
 
-	FScenePostUpdateChangeSet PostUpdateChangeSet;
+	const FScenePostUpdateChangeSet* PostUpdateChangeSet = nullptr;
 };
