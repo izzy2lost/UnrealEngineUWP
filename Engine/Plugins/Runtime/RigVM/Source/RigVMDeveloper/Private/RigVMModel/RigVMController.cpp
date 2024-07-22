@@ -6390,9 +6390,10 @@ URigVMCollapseNode* URigVMController::PromoteFunctionReferenceNodeToCollapseNode
 		}
 
 		ApplyPinStates(CollapseNode, PinStates);
-		RestoreLinkedPaths(LinkedPaths, RestoreSettings);
 
 		Notify(ERigVMGraphNotifType::NodeAdded, CollapseNode);
+		
+		RestoreLinkedPaths(LinkedPaths, RestoreSettings);
 	}
 
 	if(bRemoveFunctionDefinition)
