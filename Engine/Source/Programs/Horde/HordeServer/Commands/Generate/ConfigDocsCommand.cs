@@ -255,7 +255,7 @@ namespace HordeServer.Commands.Generate
 					}
 					else
 					{
-						return $"[`{type.Name}`]({GetLink(type, typeNameToLink)})";
+						return $"[{type.Name}]({GetLink(type, typeNameToLink)})";
 					}
 				case JsonSchemaObject obj:
 					if (obj.AdditionalProperties != null)
@@ -268,7 +268,7 @@ namespace HordeServer.Commands.Generate
 					}
 					else
 					{
-						return $"[`{type.Name}`]({GetLink(type, typeNameToLink)})";
+						return $"[{type.Name}]({GetLink(type, typeNameToLink)})";
 					}
 				default:
 					return type.GetType().Name;
