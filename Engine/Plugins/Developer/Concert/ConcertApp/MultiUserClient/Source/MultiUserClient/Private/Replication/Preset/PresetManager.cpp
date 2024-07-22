@@ -7,7 +7,10 @@
 
 #include "FileHelpers.h"
 #include "IConcertSyncClient.h"
+#include "Misc/ObjectPathOuterIterator.h"
 #include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Misc/ReplicationStreamUtils.h"
+#include "Replication/Muting/MuteStateManager.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient
@@ -26,21 +29,20 @@ namespace UE::MultiUserClient
 				}
 			}
 		}
-		
-		static FConcertReplication_PutState_Request BuildRequest(
+
+		static void FillStreamAndAuthorityRequest(
+			FConcertReplication_PutState_Request& Request,
 			const UMultiUserReplicationSessionPreset& Preset,
 			const IConcertClientSession& Session,
-			EApplyPresetFlags Flags
+			bool bClearUnreferencedClients
 			)
 		{
-			FConcertReplication_PutState_Request Request;
-			
-			const auto AddClient = [&Preset, &Request, Flags](const FConcertSessionClientInfo& ClientSessionInfo)
+			const auto AddClient = [&Preset, &Request, bClearUnreferencedClients](const FConcertSessionClientInfo& ClientSessionInfo)
 			{
 				const UMultiUserReplicationClientContent* ClientSessionContent = Preset.GetClientContent(ClientSessionInfo.ClientInfo);
 				if (!ClientSessionContent)
 				{
-					if (EnumHasAnyFlags(Flags, EApplyPresetFlags::ClearUnreferencedClients))
+					if (bClearUnreferencedClients)
 					{
 						Request.NewStreams.Add(ClientSessionInfo.ClientEndpointId, {});
 					}
@@ -76,8 +78,64 @@ namespace UE::MultiUserClient
 			{
 				AddClient(ClientSessionInfo);
 			}
+		}
+
+		static void FillMuteStateRequest(
+			FConcertReplication_PutState_Request& Request,
+			const UMultiUserReplicationSessionPreset& Preset,
+			const IConcertClientSession& Session
+			)
+		{
+			FConcertReplication_ChangeMuteState_Request& MuteRequest = Request.MuteChange;
+			MuteRequest.Flags = EConcertReplicationMuteRequestFlags::ClearMuteState;
 			
-			// TODO UE-219427: When implementing mute state, you must skip muting objects that may no be referenced due to some client not being present.
+			const auto IsReferencedByConnectedClient = [&Request, &Session](const FSoftObjectPath& ObjectPath)
+			{
+				return Algo::AnyOf(Request.NewStreams, [&Session, &ObjectPath](const TPair<FGuid, FConcertReplicationStreamArray>& ClientContent)
+				{
+					const FGuid& EndpointId = ClientContent.Key;
+					FConcertSessionClientInfo Dummy;
+					
+					const bool bIsConnected = Session.GetSessionClientEndpointId() == EndpointId || Session.FindSessionClient(EndpointId, Dummy);
+					// Case: User muted Floor but only Floor.StaticMeshComponent0 is replicated. Hence, also look for child objects being referenced.
+					const bool bIsReferenced = ConcertSyncCore::IsObjectOrChildReferenced(ClientContent.Value.Streams, ObjectPath);
+					
+					return bIsConnected && bIsReferenced;
+				});
+			};
+
+			const FMultiUserMuteSessionContent& MuteContent = Preset.GetMuteContent();
+			for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& MutedObject : MuteContent.MutedObjects)
+			{
+				if (IsReferencedByConnectedClient(MutedObject.Key))
+				{
+					MuteRequest.ObjectsToMute.Add(MutedObject.Key, MutedObject.Value);
+				}
+			}
+			for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& UnmutedObject : MuteContent.UnmutedObjects)
+			{
+				if (IsReferencedByConnectedClient(UnmutedObject.Key))
+				{
+					MuteRequest.ObjectsToUnmute.Add(UnmutedObject.Key, UnmutedObject.Value);
+				}
+			}
+		}
+		
+		static FConcertReplication_PutState_Request BuildRequest(
+			const UMultiUserReplicationSessionPreset& Preset,
+			const IConcertClientSession& Session,
+			EApplyPresetFlags Flags
+			)
+		{
+			FConcertReplication_PutState_Request Request;
+
+			const bool bClearUnreferencedClients = EnumHasAnyFlags(Flags, EApplyPresetFlags::ClearUnreferencedClients);
+			FillStreamAndAuthorityRequest(Request, Preset, Session, bClearUnreferencedClients);
+
+			// TODO UE-219829: Once the server allows sending the mute state disconnected clients should have when they rejoin,
+			// simply send over all mute state instead of doing filtering here.
+			FillMuteStateRequest(Request, Preset, Session);
+			
 			return Request;
 		}
 
@@ -140,9 +198,14 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	FPresetManager::FPresetManager(const IConcertSyncClient& SyncClient, const FReplicationClientManager& ClientManager)
+	FPresetManager::FPresetManager(
+		const IConcertSyncClient& SyncClient,
+		const FReplicationClientManager& ClientManager,
+		const FMuteStateSynchronizer& MuteStateSynchronizer
+		)
 		: SyncClient(SyncClient)
 		, ClientManager(ClientManager)
+		, MuteStateSynchronizer(MuteStateSynchronizer)
 	{
 		IConcertClientReplicationManager& ReplicationManager = *SyncClient.GetReplicationManager();
 		ReplicationManager.OnPostRemoteEditApplied().AddRaw(this, &FPresetManager::OnPostRemoteEditApplied);
@@ -255,6 +318,10 @@ namespace UE::MultiUserClient
 
 			ClientContent_InPreset->Stream->Copy(*ClientContent_ToCopy->Stream);
 		}
+
+		Preset->SetMuteContent(
+			FMultiUserMuteSessionContent(MuteStateSynchronizer.GetExplicitlyMutedObjects(), MuteStateSynchronizer.GetExplicitlyUnmutedObjects())
+			);
 		
 		return Preset;
 	}

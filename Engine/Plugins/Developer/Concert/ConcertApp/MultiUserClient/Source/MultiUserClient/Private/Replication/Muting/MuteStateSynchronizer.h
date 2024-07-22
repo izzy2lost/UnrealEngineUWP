@@ -2,7 +2,10 @@
 
 #pragma once
 
+#include "Replication/Messages/Muting.h"
+
 #include "Containers/Set.h"
+#include "Containers/Map.h"
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
 #include "Templates/UnrealTemplate.h"
@@ -31,6 +34,9 @@ namespace UE::MultiUserClient
 		/** @return Whether ObjectPath is muted. */
 		bool IsMuted(const FSoftObjectPath& ObjectPath) const { return MutedObjects.Contains(ObjectPath); }
 
+		const TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& GetExplicitlyMutedObjects() const { return ExplicitlyMutedObjects; }
+		const TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& GetExplicitlyUnmutedObjects() const { return ExplicitlyUnmutedObjects; }
+
 		/**
 		 * Update the mute state after the local application has successfully changed mute state.
 		 * FMuteStateQueryService will eventually notify us of the change but this applies it instantaneously.
@@ -44,8 +50,12 @@ namespace UE::MultiUserClient
 
 		/** Updates us with the new mute state from the server regularily. */
 		FMuteStateQueryService& MuteQueryService;
-
-		/** All the objects that are muted. */
+		
+		/** All explicitly muted objects on the server. */
+		TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ExplicitlyMutedObjects;
+		/** All explicitly unmuted objects on the server.*/
+		TMap<FSoftObjectPath, FConcertReplication_ObjectMuteSetting> ExplicitlyUnmutedObjects;
+		/** A cached, final view of muted objects that combines ExplicitlyMutedObjects and ExplicitlyUnmutedObjects. */
 		TSet<FSoftObjectPath> MutedObjects;
 
 		/** Broadcasts whent the mute state changes (either because FMuteStateQueryService received updated state or because the local application has successfully made a change request). */

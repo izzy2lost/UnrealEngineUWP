@@ -29,10 +29,12 @@ namespace UE::MultiUserClient
 		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& MutedObject : Request.ObjectsToMute)
 		{
 			MutedObjects.Add(MutedObject.Key);
+			ExplicitlyMutedObjects.Add(MutedObject.Key, MutedObject.Value);
 		}
 		for (const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& UnmutedObject : Request.ObjectsToUnmute)
 		{
 			MutedObjects.Remove(UnmutedObject.Key);
+			ExplicitlyUnmutedObjects.Add(UnmutedObject.Key, UnmutedObject.Value);
 		}
 		
 		OnMuteStateChangedDelegate.Broadcast();
@@ -45,6 +47,8 @@ namespace UE::MultiUserClient
 
 		Algo::Transform(NewMuteState.ExplicitlyMutedObjects, MutedObjects, [](const TPair<FSoftObjectPath, FConcertReplication_ObjectMuteSetting>& Pair){ return Pair.Key; });
 		MutedObjects.Append(NewMuteState.ImplicitlyMutedObjects);
+		ExplicitlyMutedObjects = NewMuteState.ExplicitlyMutedObjects;
+		ExplicitlyUnmutedObjects = NewMuteState.ExplicitlyUnmutedObjects;
 
 		OnMuteStateChangedDelegate.Broadcast();
 	}

@@ -20,6 +20,7 @@ namespace UE::ConcertSyncClient::Replication { struct FRemoteEditEvent; }
 
 namespace UE::MultiUserClient
 {
+	class FMuteStateSynchronizer;
 	class FReplicationClientManager;
 	
 	/**
@@ -30,7 +31,11 @@ namespace UE::MultiUserClient
 	{
 	public:
 		
-		FPresetManager(const IConcertSyncClient& SyncClient UE_LIFETIMEBOUND, const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND);
+		FPresetManager(
+			const IConcertSyncClient& SyncClient UE_LIFETIMEBOUND,
+			const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
+			const FMuteStateSynchronizer& MuteStateSynchronizer UE_LIFETIMEBOUND
+			);
 		~FPresetManager();
 
 		/** @return Whether any preset is currently being applied. */
@@ -53,6 +58,8 @@ namespace UE::MultiUserClient
 		const IConcertSyncClient& SyncClient;
 		/** Used to get the clients' replication content. */
 		const FReplicationClientManager& ClientManager;
+		/** Used to get the mute state when saving. */
+		const FMuteStateSynchronizer& MuteStateSynchronizer;
 
 		/** Non-null for as long as the ReplaceSessionContentWithPreset network request takes. */
 		TSharedPtr<TPromise<FReplaceSessionContentResult>> InProgressSessionReplacementOp;
