@@ -243,12 +243,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 
-			void SelecteNodeInEditor(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
+			void SelectNodeInEditor(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
 			{
 				TSharedPtr<FEditor> MetasoundEditor = FGraphBuilder::GetEditorForGraph(InMetaSoundGraph);
 				if (MetasoundEditor.IsValid())
 				{
 					MetasoundEditor->ClearSelectionAndSelectNode(&InNode);
+				}
+			}
+
+			void SelectNodeInEditorForRename(UMetasoundEditorGraph& InMetaSoundGraph, UMetasoundEditorGraphNode& InNode)
+			{
+				TSharedPtr<FEditor> MetasoundEditor = FGraphBuilder::GetEditorForGraph(InMetaSoundGraph);
+				if (MetasoundEditor.IsValid())
+				{
+					MetasoundEditor->ClearSelectionAndSelectNode(&InNode);
+					MetasoundEditor->SetDelayedRename();
 				}
 			}
 
@@ -317,7 +327,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 							if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, &FromPin)))
 							{
 								FGraphBuilder::RegisterGraphWithFrontend(ParentMetaSound);
-								SelecteNodeInEditor(*MetaSoundGraph, *NewGraphNode);
+								SelectNodeInEditorForRename(*MetaSoundGraph, *NewGraphNode);
 								return EdGraphNode;
 							}
 						}
@@ -467,7 +477,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_NewNode::PerformAction(UEdGraph* Paren
 		NewGraphNode->UpdateFrontendNodeLocation(Location);
 		NewGraphNode->SyncLocationFromFrontendNode();
 		SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*NewGraphNode, FromPin);
-		SchemaPrivate::SelecteNodeInEditor(*MetaSoundGraph, *NewGraphNode);
+		SchemaPrivate::SelectNodeInEditorForRename(*MetaSoundGraph, *NewGraphNode);
 		return NewGraphNode;
 	}
 
@@ -593,7 +603,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToInput::PerformAction(UEdGraph
 					if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
 					{
 						FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
-						SchemaPrivate::SelecteNodeInEditor(*MetasoundGraph, *NewGraphNode);
+						SchemaPrivate::SelectNodeInEditorForRename(*MetasoundGraph, *NewGraphNode);
 						return EdGraphNode;
 					}
 				}
@@ -807,7 +817,7 @@ UEdGraphNode* FMetasoundGraphSchemaAction_PromoteToOutput::PerformAction(UEdGrap
 				if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, FromPin)))
 				{
 					FGraphBuilder::RegisterGraphWithFrontend(ParentMetasound);
-					SchemaPrivate::SelecteNodeInEditor(*MetasoundGraph, *NewGraphNode);
+					SchemaPrivate::SelectNodeInEditorForRename(*MetasoundGraph, *NewGraphNode);
 					return EdGraphNode;
 				}
 			}
