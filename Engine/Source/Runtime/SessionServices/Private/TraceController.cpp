@@ -273,7 +273,7 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 
 void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceStatus& Status)
 {
-	Status.bIsTracing = !Message.Endpoint.IsEmpty();
+	Status.bIsTracing = Message.bIsTracing;
 	Status.Endpoint = Message.Endpoint;
 	Status.SessionGuid = Message.SessionGuid;
 	Status.TraceGuid = Message.TraceGuid;

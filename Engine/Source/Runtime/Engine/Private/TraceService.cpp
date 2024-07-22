@@ -97,7 +97,7 @@ void FTraceServiceImpl::FillTraceStatusMessage(FTraceControlStatus* Message)
 {
 	// Get the current endpoint and ids
 	Message->Endpoint = FTraceAuxiliary::GetTraceDestinationString();
-	FTraceAuxiliary::IsConnected(Message->SessionGuid, Message->TraceGuid);
+	Message->bIsTracing = FTraceAuxiliary::IsConnected(Message->SessionGuid, Message->TraceGuid);
 	
 	// For stats we can query TraceLog directly.
 	UE::Trace::FStatistics Stats;

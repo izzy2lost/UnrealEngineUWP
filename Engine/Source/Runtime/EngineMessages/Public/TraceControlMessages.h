@@ -61,6 +61,9 @@ struct FTraceControlStatus
 
 	UPROPERTY(EditAnywhere, Category = "Message")
 	bool bIsPaused = false;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	bool bIsTracing = false;
 };
 
 /**
