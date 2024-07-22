@@ -567,19 +567,19 @@ FPCGTaskId UPCGSubsystem::ScheduleComponent(UPCGComponent* PCGComponent, EPCGHiG
 	PCGHiGenGrid::FSizeArray GridSizes;
 	ensure(PCGHelpers::GetGenerationGridSizes(PCGComponent->GetGraph(), GetPCGWorldActor(), GridSizes, bHasUnbounded));
 
-#if WITH_EDITOR
 	// Create the PartitionActors if necessary. Skip if this is a runtime managed component, PAs are handled manually by the RuntimeGenScheduler.
 	// Editor only because we expect at runtime for PAs to already exist so they can properly be streamed in and out (creating them at runtime would leave them unmanaged and always loaded)
 	if (PCGComponent->IsPartitioned() && !PCGComponent->IsManagedByRuntimeGenSystem())
 	{
+#if WITH_EDITOR
 		if (!GridSizes.IsEmpty())
 		{
 			CreatePartitionActorsWithinBounds(PCGComponent, PCGComponent->GetGridBounds(), GridSizes);
 		}
+#endif // WITH_EDITOR
 
 		ActorAndComponentMapping.UpdateMappingPCGComponentPartitionActor(PCGComponent);
 	}
-#endif // WITH_EDITOR
 
 	// Execution dependencies require a task to finish executing before the dependent task.
 	TArray<FPCGTaskId> ExecutionDependencyTasks;
