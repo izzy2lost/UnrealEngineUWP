@@ -16,6 +16,8 @@ RWByteAddressBuffer {DataInterfaceName}_DataCollectionBuffer;
 #define POINT_STEEPNESS_ID 8
 #define POINT_METADATA_ENTRY_ID 9
 
+#define INVALID_DENSITY 1.#INF
+
 // #################### HEADER READERS ##########################
 
 uint GetNumData_{DataInterfaceName}()
@@ -384,6 +386,11 @@ float4x4 GetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementI
 		(float3)0.0, 1.0);
 }
 
+bool IsValid_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
+{
+	return GetDensity_{DataInterfaceName}(InDataIndex, InElementIndex) != INVALID_DENSITY;
+}
+
 // #################### POINT ATTRIBUTE SETTERS ##########################
 
 void SetPosition_{DataInterfaceName}(uint DataIndex, uint ElementIndex, float3 Position)
@@ -447,6 +454,11 @@ void SetPointTransform_{DataInterfaceName}(uint InDataIndex, uint InElementIndex
 
 	const float3 Position = Transform._m03_m13_m23;
 	SetPosition_{DataInterfaceName}(InDataIndex, InElementIndex, Position);
+}
+
+void RemovePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
+{
+	SetDensity_{DataInterfaceName}(InDataIndex, InElementIndex, INVALID_DENSITY);
 }
 
 // Write single point data collection header

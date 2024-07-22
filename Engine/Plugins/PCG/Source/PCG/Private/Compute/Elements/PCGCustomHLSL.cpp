@@ -659,6 +659,7 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			InputDeclarations += TEXT("int <pin>_GetSeed(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("float <pin>_GetSteepness(uint DataIndex, uint ElementIndex);\n");
 			InputDeclarations += TEXT("float4x4 <pin>_GetPointTransform(uint DataIndex, uint ElementIndex);\n");
+			InputDeclarations += TEXT("bool <pin>_IsValid(uint DataIndex, uint ElementIndex);\n");
 		}
 
 		if (!LandscapeDataPins.IsEmpty())
@@ -736,6 +737,7 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			OutputDeclarations += TEXT("void <pin>_SetSeedFromPosition(uint DataIndex, uint ElementIndex, float3 Position);\n");
 			OutputDeclarations += TEXT("void <pin>_SetSteepness(uint DataIndex, uint ElementIndex, float Steepness);\n");
 			OutputDeclarations += TEXT("void <pin>_SetPointTransform(uint DataIndex, uint ElementIndex, float4x4 Transform);\n");
+			OutputDeclarations += TEXT("bool <pin>_RemovePoint(uint DataIndex, uint ElementIndex);\n");
 		}
 
 		if (!RawBufferDataPins.IsEmpty())
@@ -1080,10 +1082,19 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 
 		if (InputPin && OutputPin)
 		{
-			KernelSpecificPreamble += TEXT("uint ElementIndex; // Assumption - element index identical in input and output data.\n");
+			KernelSpecificPreamble += TEXT("    uint ElementIndex; // Assumption - element index identical in input and output data.\n");
 
 			AddThreadInfoForPin(InputPin->Properties.Label);
 			AddThreadInfoForPin(OutputPin->Properties.Label);
+
+			// If input point is invalid, mark output point as invalid and abort.
+			KernelSpecificPreamble += FString::Format(TEXT(
+				"    if (!{0}_IsValid({0}_DataIndex, ElementIndex))\n"
+				"    {\n"
+				"        {1}_RemovePoint({1}_DataIndex, ElementIndex);\n"
+				"        return;\n"
+				"    }\n"),
+				{ InputPin->Properties.Label.ToString(), OutputPin->Properties.Label.ToString() });
 
 			// Automatically copy value of all attributes for this element.
 			KernelSpecificPreamble += FString::Format(TEXT(

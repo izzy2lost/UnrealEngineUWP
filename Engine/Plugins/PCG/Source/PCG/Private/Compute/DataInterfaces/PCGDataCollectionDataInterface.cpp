@@ -348,6 +348,12 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("IsValid"))
+			.AddReturnType(EShaderFundamentalType::Bool)
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint); // ElementIndex
+
+		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("GetPointTransform"))
 			.AddReturnType(EShaderFundamentalType::Float, 4, 4)
 			.AddParam(EShaderFundamentalType::Uint)
@@ -415,6 +421,11 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Float, 4, 4);
+
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("RemovePoint"))
+			.AddParam(EShaderFundamentalType::Uint) // DataIndex
+			.AddParam(EShaderFundamentalType::Uint); // ElementIndex
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("WriteSinglePointDataCollectionHeader"))

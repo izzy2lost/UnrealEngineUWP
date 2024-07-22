@@ -6,6 +6,7 @@
 #include "PCGPoint.h"
 #include "Compute/PCGComputeCommon.h"
 #include "Data/PCGPointData.h"
+#include "Helpers/PCGAsync.h"
 #include "Metadata/PCGMetadata.h"
 
 #include "Async/ParallelFor.h"
@@ -949,6 +950,21 @@ void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedD
 					}
 				});
 			}
+
+			// TODO: It may be more efficient to create a mapping from input point index to final output point index and do everything in one pass.
+			auto DiscardInvalidPoints = [&OutPoints](int32 Index, FPCGPoint& OutPoint) -> bool
+			{
+				if (!FMath::IsFinite(OutPoints[Index].Density))
+				{
+					return false;
+				}
+
+				OutPoint = OutPoints[Index];
+				return true;
+			};
+
+			FPCGAsync::AsyncPointProcessing(/*Context=*/nullptr, OutPoints.Num(), OutPoints, DiscardInvalidPoints);
+
 		}
 		else { /* TODO: Support non-point data. */ }
 	}
