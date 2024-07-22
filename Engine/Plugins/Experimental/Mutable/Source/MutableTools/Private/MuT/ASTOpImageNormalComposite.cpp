@@ -154,4 +154,41 @@ namespace mu
 		return nullptr;
 	}
 
+
+	FSourceDataDescriptor ASTOpImageNormalComposite::GetSourceDataDescriptor(FGetSourceDataDescriptorContext* Context) const
+	{
+		// Cache management
+		TUniquePtr<FGetSourceDataDescriptorContext> LocalContext;
+		if (!Context)
+		{
+			LocalContext.Reset(new FGetSourceDataDescriptorContext);
+			Context = LocalContext.Get();
+		}
+
+		FSourceDataDescriptor* Found = Context->Cache.Find(this);
+		if (Found)
+		{
+			return *Found;
+		}
+
+		// Not cached: calculate
+		FSourceDataDescriptor Result;
+
+		if (Base)
+		{
+			FSourceDataDescriptor SourceDesc = Base->GetSourceDataDescriptor(Context);
+			Result.CombineWith(SourceDesc);
+		}
+
+		if (Normal)
+		{
+			FSourceDataDescriptor SourceDesc = Normal->GetSourceDataDescriptor(Context);
+			Result.CombineWith(SourceDesc);
+		}
+
+		Context->Cache.Add(this, Result);
+
+		return Result;
+	}
+
 }
