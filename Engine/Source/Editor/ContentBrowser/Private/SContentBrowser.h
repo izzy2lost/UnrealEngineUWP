@@ -508,9 +508,6 @@ private:
 	/** Handler for when the asset context menu requests to duplicate an item */
 	void OnDuplicateRequested(TArrayView<const FContentBrowserItem> OriginalItems);
 
-	/** Handler for when the asset context menu requests to edit an item */
-	void OnEditRequested(TArrayView<const FContentBrowserItem> Items);
-
 	/** Handler for when the asset context menu requests to refresh the asset view */
 	void OnAssetViewRefreshRequested();
 

@@ -971,7 +971,6 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 	AssetContextMenu->SetOnShowInPathsViewRequested( FAssetContextMenu::FOnShowInPathsViewRequested::CreateSP(this, &SContentBrowser::OnShowInPathsViewRequested) );
 	AssetContextMenu->SetOnRenameRequested( FAssetContextMenu::FOnRenameRequested::CreateSP(this, &SContentBrowser::OnRenameRequested) );
 	AssetContextMenu->SetOnDuplicateRequested( FAssetContextMenu::FOnDuplicateRequested::CreateSP(this, &SContentBrowser::OnDuplicateRequested) );
-	AssetContextMenu->SetOnEditRequested( FAssetContextMenu::FOnEditRequested::CreateSP(this, &SContentBrowser::OnEditRequested) );
 	AssetContextMenu->SetOnAssetViewRefreshRequested( FAssetContextMenu::FOnAssetViewRefreshRequested::CreateSP( this, &SContentBrowser::OnAssetViewRefreshRequested) );
 	FavoritePathViewPtr->SetTreeTitle(LOCTEXT("Favorites", "Favorites"));
 	if( Config != nullptr && Config->SelectedCollectionName.Name != NAME_None )
@@ -4304,11 +4303,6 @@ void SContentBrowser::OnDuplicateRequested(TArrayView<const FContentBrowserItem>
 			SyncToItems(ItemsToSync);
 		}
 	}
-}
-
-void SContentBrowser::OnEditRequested(TArrayView<const FContentBrowserItem> Items)
-{
-	OnItemsActivated(Items, EAssetTypeActivationMethod::Opened);
 }
 
 void SContentBrowser::OnAssetViewRefreshRequested()

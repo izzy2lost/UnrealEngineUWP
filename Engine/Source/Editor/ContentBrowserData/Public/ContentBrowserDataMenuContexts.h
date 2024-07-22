@@ -78,6 +78,9 @@ public:
 	bool bCanBeModified = true;
 
 	UPROPERTY(BlueprintReadOnly, Category = ContentBrowser)
+	bool bCanView = true;
+
+	UPROPERTY(BlueprintReadOnly, Category = ContentBrowser)
 	bool bHasCookedPackages = false;
 
 	UPROPERTY(BlueprintReadOnly, Category = ContentBrowser)

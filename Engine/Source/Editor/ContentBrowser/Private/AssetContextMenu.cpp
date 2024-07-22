@@ -327,6 +327,19 @@ TSharedRef<SWidget> FAssetContextMenu::MakeContextMenu(TArrayView<const FContent
 		}
 	}
 
+	ContextObject->bCanView = false;
+	if (!SelectedItems.IsEmpty())
+	{
+		for (const FContentBrowserItem& SelectedItem : SelectedItems)
+		{
+			if (SelectedItem.CanView())
+			{
+				ContextObject->bCanView = true;
+				break;
+			}
+		}
+	}
+
 	FToolMenuContext MenuContext(InCommandList, MenuExtender, ContextObject);
 
 	{
@@ -334,6 +347,7 @@ TSharedRef<SWidget> FAssetContextMenu::MakeContextMenu(TArrayView<const FContent
 		DataContextObject->SelectedItems = SelectedItems;
 		DataContextObject->SelectedCollections = SourcesData.Collections;
 		DataContextObject->bCanBeModified = ContextObject->bCanBeModified;
+		DataContextObject->bCanView = ContextObject->bCanView;
 		DataContextObject->bHasCookedPackages = ContextObject->bHasCookedPackages;
 		DataContextObject->bContainsUnsupportedAssets = ContextObject->bContainsUnsupportedAssets;
 		DataContextObject->ParentWidget = AssetView;
@@ -497,11 +511,6 @@ void FAssetContextMenu::SetOnDuplicateRequested(const FOnDuplicateRequested& InO
 	OnDuplicateRequested = InOnDuplicateRequested;
 }
 
-void FAssetContextMenu::SetOnEditRequested(const FOnEditRequested& InOnEditRequested)
-{
-	OnEditRequested = InOnEditRequested;
-}
-
 void FAssetContextMenu::SetOnAssetViewRefreshRequested(const FOnAssetViewRefreshRequested& InOnAssetViewRefreshRequested)
 {
 	OnAssetViewRefreshRequested = InOnAssetViewRefreshRequested;
@@ -511,25 +520,23 @@ bool FAssetContextMenu::AddCommonMenuOptions(UToolMenu* Menu)
 {
 	UContentBrowserDataMenuContext_FileMenu* Context = Menu->FindContext<UContentBrowserDataMenuContext_FileMenu>();
 	const bool bCanBeModified = !Context || Context->bCanBeModified;
+	const bool bCanBeViewed = !Context || Context->bCanView;
 
 	{
 		FToolMenuSection& Section = Menu->AddSection("CommonAssetActions", LOCTEXT("CommonAssetActionsMenuHeading", "Common"));
 
-		
+		if (bCanBeModified || bCanBeViewed)
+		{
+			// Open/Edit Asset
+			Section.AddMenuEntry(FContentBrowserCommands::Get().OpenAssetsOrFolders,
+				GetEditAssetEditorLabel(bCanBeModified, bCanBeViewed),
+				GetEditAssetEditorTooltip(bCanBeModified, bCanBeViewed),
+				GetEditAssetEditorIcon(bCanBeModified, bCanBeViewed)
+			);
+		}
+
 		if (bCanBeModified)
 		{
-			// Edit
-			Section.AddMenuEntry(
-				"EditAsset",
-				LOCTEXT("EditAsset", "Edit..."),
-				LOCTEXT("EditAssetTooltip", "Opens the selected item(s) for edit."),
-				FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Edit"),
-				FUIAction(
-					FExecuteAction::CreateSP(this, &FAssetContextMenu::ExecuteEditItems),
-					FCanExecuteAction::CreateSP(this, &FAssetContextMenu::CanExecuteEditItems)
-				)
-			);
-
 			// Rename
 			Section.AddMenuEntry(FGenericCommands::Get().Rename,
 				LOCTEXT("Rename", "Rename"),
@@ -696,6 +703,39 @@ bool FAssetContextMenu::AddReferenceMenuOptions(UToolMenu* Menu)
 	}
 
 	return true;
+}
+
+FText FAssetContextMenu::GetEditAssetEditorLabel(bool bInCanEdit, bool bInCanView) const
+{
+	static const FText EditLabel = LOCTEXT("EditAsset", "Edit...");
+	static const FText OpenLabel = LOCTEXT("OpenReadOnlyAsset", "Open as Read-Only...");
+
+	if (bInCanEdit || bInCanView)
+	{
+		return bInCanEdit ? EditLabel : OpenLabel;
+	}
+	return FText::GetEmpty();
+}
+
+FText FAssetContextMenu::GetEditAssetEditorTooltip(bool bInCanEdit, bool bInCanView) const
+{
+	static const FText EditTooltip = LOCTEXT("EditAssetTooltip", "Opens the selected item(s) for edit");
+	static const FText OpenTooltip = LOCTEXT("OpenAssetTooltip", "Opens the selected item(s)");
+
+	if (bInCanEdit || bInCanView)
+	{
+		return bInCanEdit ? EditTooltip : OpenTooltip;
+	}
+	return FText::GetEmpty();
+}
+
+FSlateIcon FAssetContextMenu::GetEditAssetEditorIcon(bool bInCanEdit, bool bInCanView) const
+{
+	if (bInCanEdit || bInCanView)
+	{
+		return bInCanEdit ? FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("Icons.Edit")) : FSlateIcon(FAppStyle::GetAppStyleSetName(), TEXT("ContentBrowser.AssetActions.OpenReadOnly"));
+	}
+	return FSlateIcon();
 }
 
 FText FAssetContextMenu::GetCopyTooltip(EAssetViewCopyType InCopyType) const
@@ -996,24 +1036,6 @@ void FAssetContextMenu::ExecuteSyncToAssetTree()
 void FAssetContextMenu::ExecuteFindInExplorer()
 {
 	ContentBrowserUtils::ExploreFolders(SelectedFiles, AssetView.Pin().ToSharedRef());
-}
-
-bool FAssetContextMenu::CanExecuteEditItems() const
-{
-	bool bCanEdit = false;
-	for (const FContentBrowserItem& SelectedItem : SelectedFiles)
-	{
-		bCanEdit |= SelectedItem.CanEdit();
-	}
-	return bCanEdit;
-}
-
-void FAssetContextMenu::ExecuteEditItems()
-{
-	if (SelectedFiles.Num() > 0)
-	{
-		OnEditRequested.ExecuteIfBound(SelectedFiles);
-	}
 }
 
 void FAssetContextMenu::ExecuteSaveAsset()
