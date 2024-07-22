@@ -7517,14 +7517,10 @@ void FSlateApplication::InputPreProcessorsHelper::Remove(TSharedPtr<IInputProces
 		InputPreProcessorsIteratorList.Remove(InputProcessor);
 	}
 
-	for (const FInputPreprocessorRegistration& Registration : ProcessorsPendingAddition)
-	{
-		if (Registration.InputProcessor == InputProcessor)
+	ProcessorsPendingAddition.RemoveAllSwap([InputProcessor](const FInputPreprocessorRegistration& Registration)
 		{
-			ProcessorsPendingAddition.Remove(Registration);
-			break;
-		}
-	}
+			return Registration.InputProcessor == InputProcessor;
+		});
 }
 
 void FSlateApplication::InputPreProcessorsHelper::RemoveAll()
