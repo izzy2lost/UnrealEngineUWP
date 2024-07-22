@@ -26,5 +26,12 @@ void UTG_Expression_Blend::Evaluate(FTG_EvaluationContext* InContext)
 		return;
 	}
 
-	Output = T_Blend::Create(InContext->Cycle, Output.GetBufferDescriptor(), Background, Foreground, Mask, Opacity, InContext->TargetId, BlendMode);
+	T_Blend::FBlendSettings BlendSettings;
+	BlendSettings.ForegroundTexture = Foreground;
+	BlendSettings.BackgroundTexture = Background;
+	BlendSettings.Mask = Mask;
+	BlendSettings.Opacity = Opacity;
+	BlendSettings.bIgnoreAlpha = bIgnoreAlpha;
+	
+	Output = T_Blend::Create(InContext->Cycle, Output.GetBufferDescriptor(), InContext->TargetId, BlendMode, &BlendSettings);
 }
