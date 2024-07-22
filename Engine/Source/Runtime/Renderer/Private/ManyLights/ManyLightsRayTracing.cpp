@@ -78,6 +78,13 @@ static TAutoConsoleVariable<float> CVarManyLightsHardwareRayTracingBias(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarManyLightsHardwareRayTracingEndBias(
+	TEXT("r.ManyLights.HardwareRayTracing.EndBias"),
+	1.0f,
+	TEXT("Constant bias for hardware ray traced shadow rays to prevent proxy geo self-occlusion near the lights."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<float> CVarManyLightsHardwareRayTracingNormalBias(
 	TEXT("r.ManyLights.HardwareRayTracing.NormalBias"),
 	0.1f,
@@ -285,6 +292,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
 		SHADER_PARAMETER(float, RayTracingBias)
+		SHADER_PARAMETER(float, RayTracingEndBias)
 		SHADER_PARAMETER(float, RayTracingNormalBias)
 		// Ray Tracing
 		SHADER_PARAMETER(uint32, MaxTraversalIterations)
@@ -521,6 +529,7 @@ void ManyLights::SetHardwareRayTracingPassParameters(
 	PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
 	PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 	PassParameters->RayTracingBias = CVarManyLightsHardwareRayTracingBias.GetValueOnRenderThread();
+	PassParameters->RayTracingEndBias = CVarManyLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
 	PassParameters->RayTracingNormalBias = CVarManyLightsHardwareRayTracingNormalBias.GetValueOnRenderThread();
 
 	checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));

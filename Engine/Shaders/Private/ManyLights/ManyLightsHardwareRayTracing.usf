@@ -14,6 +14,7 @@
 #endif
 
 float RayTracingBias;
+float RayTracingEndBias;
 float RayTracingNormalBias;
 uint DebugMode;
 uint MaxTraversalIterations;
@@ -64,7 +65,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		Ray.Origin = TranslatedWorldPosition;
 		Ray.Direction = LightSampleTrace.Direction;
 		Ray.TMin = max(LightSampleRayMinT, RayTracingBias);
-		Ray.TMax = LightSampleTrace.Distance;
+		Ray.TMax = max(Ray.TMin, LightSampleTrace.Distance - RayTracingEndBias);
 
 		ApplyPositionBias(Ray.Origin, Ray.Direction, SceneWorldNormal, RayTracingNormalBias);
 
