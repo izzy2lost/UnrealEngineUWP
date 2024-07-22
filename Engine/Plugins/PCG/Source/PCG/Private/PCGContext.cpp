@@ -96,7 +96,7 @@ const UPCGSettingsInterface* FPCGContext::GetInputSettingsInterface() const
 	}
 }
 
-void FPCGContext::InitializeSettings()
+void FPCGContext::InitializeSettings(bool bSkipPostLoad)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGContext::InitializeSettings);
 
@@ -129,7 +129,7 @@ void FPCGContext::InitializeSettings()
 			{				
 				FObjectDuplicationParameters DuplicateParams(const_cast<UPCGSettings*>(NodeSettings), GetTransientPackage());
 				const bool bIsInGameThread = IsInGameThread();
-				DuplicateParams.bSkipPostLoad = !bIsInGameThread;
+				DuplicateParams.bSkipPostLoad = bSkipPostLoad;
 				DuplicateParams.ApplyFlags = RF_Transient;
 			
 				TMap<UObject*, UObject*> CreatedObjects;
@@ -140,18 +140,21 @@ void FPCGContext::InitializeSettings()
 					SettingsWithOverride = Cast<UPCGSettings>(StaticDuplicateObjectEx(DuplicateParams));
 				}
 			
-				// StaticDuplicateObjectEx will not allow PostLoad to be called outside of GameThread (except AsyncLoadingThread) so we take care of the PostLoad and clear Async flags
 				for (auto& KeyValuePair : CreatedObjects)
 				{
 					if (KeyValuePair.Value)
 					{
 						if (!bIsInGameThread)
 						{
-							ensure(KeyValuePair.Value->IsPostLoadThreadSafe());
-							KeyValuePair.Value->ConditionalPostLoad();
+							// Outside of GameThread we need to clear the Async flags on newly duplicated objects
 							KeyValuePair.Value->ClearInternalFlags(EInternalObjectFlags::Async);
 						}
 
+						if (bSkipPostLoad)
+						{
+							// We are not calling PostLoad so remove the NeedPostLoad flags here
+							KeyValuePair.Value->ClearFlags(EObjectFlags::RF_NeedPostLoad | EObjectFlags::RF_NeedPostLoadSubobjects);
+						}
 #if WITH_EDITOR
 						// @todo_pcg: find a way to avoid the call to SetupCallbacks() all together but for now unregister the callbacks after duplication
 						if (UPCGGraphInstance* GraphInstance = Cast<UPCGGraphInstance>(KeyValuePair.Value))
@@ -165,6 +168,9 @@ void FPCGContext::InitializeSettings()
 				// Force seed copy to prevent issue due to delta serialization vs. Seed being initialized in the constructor only for new nodes
 				SettingsWithOverride->Seed = NodeSettings->Seed;
 				SettingsWithOverride->OriginalSettings = NodeSettings;
+
+				// If anything needs to be done by the Settings object after its been duplicated for override it should be done in here, outside of the gamethread that might include code that would be normally done in PostLoad
+				SettingsWithOverride->OnOverrideSettingsDuplicated(bSkipPostLoad);
 			}
 		}
 	}

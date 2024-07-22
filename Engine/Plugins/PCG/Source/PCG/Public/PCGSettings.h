@@ -234,6 +234,8 @@ public:
 #endif // WITH_EDITOR
 	//~End UObject interface
 
+	void OnOverrideSettingsDuplicated(bool bSkippedPostLoad);
+
 	// TODO: check if we need this to be virtual, we don't really need if we're always caching
 	/*virtual*/ FPCGElementPtr GetElement() const;
 	virtual UPCGNode* CreateNode() const;
@@ -433,6 +435,9 @@ protected:
 
 	/** Can be overriden by child class if they ever got renamed to avoid changing the default seed for this one. Otherwise default is hash of the class name. */
 	virtual uint32 GetTypeNameHash() const;
+
+	/** Can be overriden by child class if some fixup code needs to run after duplication in the context of FPCGContext::InitializeSettings */
+	virtual void OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad) {};
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

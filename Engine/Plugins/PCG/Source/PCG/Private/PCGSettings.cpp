@@ -576,6 +576,11 @@ TArray<FPCGPinProperties> UPCGSettings::DefaultOutputPinProperties() const
 	return OutputPinProperties();
 }
 
+void UPCGSettings::OnOverrideSettingsDuplicated(bool bSkippedPostLoad)
+{
+	OnOverrideSettingsDuplicatedInternal(bSkippedPostLoad);
+}
+
 FPCGElementPtr UPCGSettings::GetElement() const
 {
 	if (!CachedElement)

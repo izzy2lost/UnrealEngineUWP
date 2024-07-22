@@ -80,7 +80,7 @@ struct PCG_API FPCGContext
 	
 	// After initializing the context, we can call this method to prepare for parameter override
 	// It will create a copy of the original settings if there is indeed a possible override.
-	void InitializeSettings();
+	void InitializeSettings(bool bSkipPostLoad = false);
 
 	// If we any any parameter override, it will read from the params and override matching values
 	// in the settings copy.

@@ -1288,7 +1288,14 @@ void FPCGGraphExecutor::PrepareForExecute(FPCGGraphTask& Task, FCachedResult*& O
 	
 	{
 		Task.Context = Task.Element->Initialize(Task.TaskInput, Task.SourceComponent, Task.Node);
-		Task.Context->InitializeSettings();
+		
+		// Skip PostLoad only when in GeV2 and not on GameThread
+		// The reason is that some nodes like SpawnActor / CreateTargetActor have TemplateActor subobjects that need PostLoad calls to function properly
+		// If a node supports being prepared outside of the GameThread it needs to make sure that it and its sub-object do not depend on PostLoad being called.
+		// This is true for most nodes as they only run some deprecation code in their PostLoad which isn't needed after duplication
+		const bool bSkipPostLoad = GetExecuteVersion() == EExecuteVersion::V2 && !IsInGameThread();
+		Task.Context->InitializeSettings(bSkipPostLoad);
+		
 		Task.Context->TaskId = Task.NodeId;
 		Task.Context->CompiledTaskId = Task.CompiledTaskId;
 		Task.Context->DependenciesCrc = DependenciesCrc;
@@ -1532,8 +1539,12 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 						{
 							TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::ExecuteAsyncTask);
 
-							const bool bIsDone = ActiveTask->bWasCancelled || ActiveTask->Element->Execute(ActiveTask->Context.Get());
+							bool bIsDone = ActiveTask->bWasCancelled || ActiveTask->Element->Execute(ActiveTask->Context.Get());
 							const bool bIsPaused = ActiveTask->Context->bIsPaused;
+
+							// It is currently possible for a call to Execute to endup cancelling the task through a Windows message pump caused by a ShowDialog (when calling UTexture::GetPlatformData() from a task)
+							// If this happens mark the task as done
+							bIsDone |= ActiveTask->bWasCancelled;
 
 							PostTaskExecute(ActiveTask, bIsDone);
 
@@ -1614,7 +1625,7 @@ void FPCGGraphExecutor::ExecuteV2()
 	bool bContinueExecute = GetNonScheduledRemainingTaskCount() > 0;
 	bool bFirstLoop = true;
 
-	const double StartTime = FPlatformTime::Seconds();
+	const double StartTime = FPlatformTime::Seconds(); 
 	const double EndTime = StartTime + GetTickBudgetInSeconds();
 
 	while ((bFirstLoop || (FPlatformTime::Seconds() < EndTime)) && bContinueExecute)
@@ -1627,10 +1638,14 @@ void FPCGGraphExecutor::ExecuteV2()
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::Execute::ExecuteMainThreadTask);
 #if WITH_EDITOR
-			const bool bIsDone = (MainThreadTask->bIsBypassed || MainThreadTask->bWasCancelled || MainThreadTask->Element->Execute(MainThreadTask->Context.Get()));
+			bool bIsDone = (MainThreadTask->bIsBypassed || MainThreadTask->bWasCancelled || MainThreadTask->Element->Execute(MainThreadTask->Context.Get()));
 #else
-			const bool bIsDone = (MainThreadTask->bWasCancelled || MainThreadTask->Element->Execute(MainThreadTask->Context.Get()));
+			bool bIsDone = (MainThreadTask->bWasCancelled || MainThreadTask->Element->Execute(MainThreadTask->Context.Get()));
 #endif
+			// It is currently possible for a call to Execute to endup cancelling the task through a Windows message pump caused by a ShowDialog (when calling UTexture::GetPlatformData() from a task)
+			// If this happens mark the task as done
+			bIsDone |= MainThreadTask->bWasCancelled;
+
 			PostTaskExecute(MainThreadTask, bIsDone);
 		}
 	}
