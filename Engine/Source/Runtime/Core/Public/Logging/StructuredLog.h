@@ -211,6 +211,16 @@ private:
 };
 
 /**
+ * Advanced function to dispatch a log record to active output devices.
+ *
+ * Always use UE_LOGFMT or its variants when possible.
+ * Dynamic dispatch bypasses many optimizations provided by the macros.
+ * Anything pointed to by the record MUST remain valid until threaded logs have been flushed.
+ * Filtering by category or verbosity is the responsibility of the caller.
+ */
+UE_API void DispatchDynamicLogRecord(const FLogRecord& Record);
+
+/**
  * Serializes the value to be used in a log message.
  *
  * Overload this when the log behavior needs to differ from general serialization to compact binary.

@@ -829,18 +829,10 @@ inline static FLogRecord CreateLogRecord(const FLogCategoryBase& Category, const
 	return Record;
 }
 
-template <typename StaticLogRecordType>
-inline static void DispatchLogRecord(const StaticLogRecordType& Log, const FLogRecord& Record)
+inline static void DispatchLogRecord(const FLogRecord& Record)
 {
-#if LOGTRACE_ENABLED
-	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(LogChannel))
-	{
-		LogToTrace(&Log, Record);
-	}
-#endif
-
 	FOutputDevice* OutputDevice = nullptr;
-	switch (Log.Verbosity)
+	switch (Record.GetVerbosity())
 	{
 	case ELogVerbosity::Error:
 	case ELogVerbosity::Warning:
@@ -854,10 +846,23 @@ inline static void DispatchLogRecord(const StaticLogRecordType& Log, const FLogR
 	(OutputDevice ? OutputDevice : GLog)->SerializeRecord(Record);
 }
 
+template <typename StaticLogRecordType>
+inline static void DispatchStaticLogRecord(const StaticLogRecordType& Log, const FLogRecord& Record)
+{
+#if LOGTRACE_ENABLED
+	if (UE_TRACE_CHANNELEXPR_IS_ENABLED(LogChannel))
+	{
+		LogToTrace(&Log, Record);
+	}
+#endif
+
+	DispatchLogRecord(Record);
+}
+
 void LogWithFieldArray(const FLogCategoryBase& Category, const FStaticLogRecord& Log, const FLogField* Fields, const int32 FieldCount)
 {
 #if !NO_LOGGING
-	DispatchLogRecord(Log, CreateLogRecord(Category, Log, Fields, FieldCount));
+	DispatchStaticLogRecord(Log, CreateLogRecord(Category, Log, Fields, FieldCount));
 #endif
 }
 
@@ -876,7 +881,7 @@ void LogWithFieldArray(const FLogCategoryBase& Category, const FStaticLocalizedL
 	FLogRecord Record = CreateLogRecord(Category, Log, Fields, FieldCount);
 	Record.SetTextNamespace(Log.TextNamespace);
 	Record.SetTextKey(Log.TextKey);
-	DispatchLogRecord(Log, Record);
+	DispatchStaticLogRecord(Log, Record);
 #endif
 }
 
@@ -1101,5 +1106,17 @@ void BasicFatalLog(const FLogCategoryBase& Category, const FStaticBasicLogRecord
 }
 
 } // UE::Logging::Private
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+namespace UE
+{
+
+void DispatchDynamicLogRecord(const FLogRecord& Record)
+{
+	Logging::Private::DispatchLogRecord(Record);
+}
+
+} // UE
 
 #endif // !NO_LOGGING
