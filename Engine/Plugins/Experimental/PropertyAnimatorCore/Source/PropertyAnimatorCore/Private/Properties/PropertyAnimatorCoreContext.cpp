@@ -90,11 +90,6 @@ void UPropertyAnimatorCoreContext::SetMagnitude(float InMagnitude)
 	Magnitude = FMath::Clamp(InMagnitude, 0.f, 1.f);
 }
 
-void UPropertyAnimatorCoreContext::SetTimeOffset(double InTimeOffset)
-{
-	TimeOffset = InTimeOffset;
-}
-
 void UPropertyAnimatorCoreContext::SetMode(EPropertyAnimatorCoreMode InMode)
 {
 	if (InMode == Mode)

@@ -206,7 +206,9 @@ protected:
 		TFunctionRef<bool(
 			InContextClass* /** InPropertyContext */
 			, const FPropertyAnimatorCoreData& /** InResolvedProperty */
-			, FInstancedPropertyBag& /** OutEvaluation */)> InFunction
+			, FInstancedPropertyBag& /** OutEvaluation */
+			, int32 InRangeIndex
+			, int32 InRangeMax)> InFunction
 		)
 	{
 		checkf(bEvaluatingProperties, TEXT("EvaluateEachLinkedProperty can only be called in EvaluateProperties"))
@@ -220,14 +222,18 @@ protected:
 					continue;
 				}
 
-				for (const FPropertyAnimatorCoreData& ResolvedPropertyData : PropertyContext->ResolveProperty(true))
+				const TArray<FPropertyAnimatorCoreData> ResolvedProperties = PropertyContext->ResolveProperty(true);
+
+				for (int32 Index = 0; Index < ResolvedProperties.Num(); Index++)
 				{
+					const FPropertyAnimatorCoreData& ResolvedPropertyData = ResolvedProperties[Index];
+
 					if (!ResolvedPropertyData.IsResolved())
 					{
 						continue;
 					}
 
-					if (InFunction(PropertyContext, ResolvedPropertyData, EvaluatedPropertyValues))
+					if (InFunction(PropertyContext, ResolvedPropertyData, EvaluatedPropertyValues, Index, ResolvedProperties.Num() - 1))
 					{
 						PropertyContext->CommitEvaluationResult(ResolvedPropertyData, EvaluatedPropertyValues);
 					}

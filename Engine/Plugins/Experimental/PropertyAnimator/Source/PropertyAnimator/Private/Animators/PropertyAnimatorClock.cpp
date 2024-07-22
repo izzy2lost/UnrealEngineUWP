@@ -48,9 +48,11 @@ void UPropertyAnimatorClock::EvaluateProperties(FInstancedPropertyBag& InParamet
 	const FString FormattedDateTime = DateTime.ToFormattedString(*DisplayFormat);
 
 	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, FormattedDateTime](
-		UPropertyAnimatorCoreContext* InContext,
-		const FPropertyAnimatorCoreData& InResolvedProperty,
-		FInstancedPropertyBag& InEvaluatedValues)->bool
+		UPropertyAnimatorCoreContext* InContext
+		, const FPropertyAnimatorCoreData& InResolvedProperty
+		, FInstancedPropertyBag& InEvaluatedValues
+		, int32 InRangeIndex
+		, int32 InRangeMax)->bool
 	{
 		const FName DisplayName(InResolvedProperty.GetPathHash());
 

@@ -20,12 +20,10 @@ FPropertyAnimatorEditorStyle::FPropertyAnimatorEditorStyle()
 
 	ContentRootDir = FPaths::Combine(Plugin->GetBaseDir(), TEXT("Resources"));
 
-	Set("ClassIcon.PropertyAnimatorBounce",     new IMAGE_BRUSH_SVG("Animators/Bounce",    Icon16x16));
-	Set("ClassIcon.PropertyAnimatorOscillate",  new IMAGE_BRUSH_SVG("Animators/Oscillate", Icon16x16));
+	Set("ClassIcon.PropertyAnimatorCurveWave",  new IMAGE_BRUSH_SVG("Animators/Bounce",    Icon16x16));
+	Set("ClassIcon.PropertyAnimatorSoundWave",  new IMAGE_BRUSH("Animators/SoundWave",     Icon16x16));
 	Set("ClassIcon.PropertyAnimatorTime",       new IMAGE_BRUSH_SVG("Animators/Time",      Icon16x16));
 	Set("ClassIcon.PropertyAnimatorWiggle",     new IMAGE_BRUSH_SVG("Animators/Wiggle",    Icon16x16));
-	Set("ClassIcon.PropertyAnimatorBlink",      new IMAGE_BRUSH_SVG("Animators/Blink",     Icon16x16));
-	Set("ClassIcon.PropertyAnimatorSoundWave",  new IMAGE_BRUSH("Animators/SoundWave",     Icon16x16));
 
 	FSlateStyleRegistry::RegisterSlateStyle(*this);
 }

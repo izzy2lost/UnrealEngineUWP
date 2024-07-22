@@ -156,49 +156,63 @@ void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InPar
 	double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 	RandomStream = FRandomStream(Seed);
 
-	if (CycleMode == EPropertyAnimatorCycleMode::DoOnce)
-	{
-		if (FMath::Abs(TimeElapsed) > CycleDuration)
-		{
-			return;
-		}
-	}
-	else if (CycleMode == EPropertyAnimatorCycleMode::Loop)
-	{
-		TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration + CycleGapDuration);
-
-		if (TimeElapsed > CycleDuration)
-		{
-			TimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
-		}
-	}
-	else if (CycleMode == EPropertyAnimatorCycleMode::PingPong)
-	{
-		const bool bReverse = FMath::Modulo(FMath::TruncToInt32(TimeElapsed / (CycleDuration + CycleGapDuration)), 2) != 0;
-		TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration + CycleGapDuration);
-
-		if (TimeElapsed > CycleDuration)
-		{
-			TimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
-		}
-
-		if (bReverse)
-		{
-			TimeElapsed = CycleDuration - FMath::Fmod(TimeElapsed, CycleDuration);
-		}
-		else
-		{
-			TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration);
-		}
-	}
-
 	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, &TimeElapsed, &AnimatorMagnitude, &InParameters](
 		UPropertyAnimatorCoreContext* InOptions
 		, const FPropertyAnimatorCoreData& InResolvedProperty
-		, FInstancedPropertyBag& InEvaluatedValues)->bool
+		, FInstancedPropertyBag& InEvaluatedValues
+		, int32 InRangeIndex
+		, int32 InRangeMax)->bool
 	{
 		const double RandomTimeOffset = bRandomTimeOffset ? RandomStream.GetFraction() : 0;
-		TimeElapsed += TimeOffset + RandomTimeOffset;
+
+		const double AbsTimeOffset = FMath::Abs(TimeOffset);
+		const double MaxTimeOffset = InRangeMax * AbsTimeOffset;
+		double PropertyTimeElapsed = TimeElapsed + RandomTimeOffset;
+
+		if (TimeOffset >= 0)
+		{
+			PropertyTimeElapsed += InRangeIndex * AbsTimeOffset;
+		}
+		else
+		{
+			PropertyTimeElapsed += MaxTimeOffset - InRangeIndex * AbsTimeOffset;
+		}
+
+		if (CycleMode == EPropertyAnimatorCycleMode::DoOnce)
+		{
+			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
+			{
+				return false;
+			}
+		}
+		else if (CycleMode == EPropertyAnimatorCycleMode::Loop)
+		{
+			PropertyTimeElapsed = FMath::Fmod(PropertyTimeElapsed, CycleDuration + MaxTimeOffset + CycleGapDuration);
+
+			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
+			{
+				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+			}
+		}
+		else if (CycleMode == EPropertyAnimatorCycleMode::PingPong)
+		{
+			const bool bReverse = FMath::Modulo(FMath::TruncToInt32(PropertyTimeElapsed / (CycleDuration + MaxTimeOffset + CycleGapDuration)), 2) != 0;
+			PropertyTimeElapsed = FMath::Fmod(PropertyTimeElapsed, CycleDuration + MaxTimeOffset + CycleGapDuration);
+
+			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
+			{
+				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+			}
+
+			if (bReverse)
+			{
+				PropertyTimeElapsed = CycleDuration - FMath::Fmod(PropertyTimeElapsed, CycleDuration);
+			}
+			else
+			{
+				PropertyTimeElapsed = FMath::Fmod(PropertyTimeElapsed, CycleDuration);
+			}
+		}
 
 		if (Magnitude != 0
 			&& CycleDuration > 0
@@ -209,7 +223,7 @@ void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InPar
 			InParameters.SetValueFloat(FrequencyParameterName, 1.f / CycleDuration);
 
 			// Time Elapsed
-			InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed + InOptions->GetTimeOffset());
+			InParameters.SetValueDouble(TimeElapsedParameterName, PropertyTimeElapsed);
 
 			// Magnitude
 			InParameters.SetValueFloat(MagnitudeParameterName, AnimatorMagnitude * InOptions->GetMagnitude());

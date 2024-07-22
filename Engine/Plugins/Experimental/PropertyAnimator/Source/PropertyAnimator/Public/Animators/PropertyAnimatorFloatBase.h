@@ -117,7 +117,7 @@ protected:
 
 	/** Time offset accumulated for each property for every round */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Seconds))
-	double TimeOffset = 0.f;
+	double TimeOffset = 0;
 
 private:
 	/** Random stream for time offset */

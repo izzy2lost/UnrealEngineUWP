@@ -59,12 +59,6 @@ public:
 		return Magnitude;
 	}
 
-	PROPERTYANIMATORCORE_API void SetTimeOffset(double InTimeOffset);
-	double GetTimeOffset() const
-	{
-		return TimeOffset;
-	}
-
 	PROPERTYANIMATORCORE_API void SetMode(EPropertyAnimatorCoreMode InMode);
 	EPropertyAnimatorCoreMode GetMode() const
 	{
@@ -156,10 +150,6 @@ private:
 	/** Magnitude of the effect on this property */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0"))
 	float Magnitude = 1.f;
-
-	/** Time offset variation for evaluation */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	double TimeOffset = 0.f;
 
 	/** Edit condition for modes */
 	UPROPERTY(Transient)
