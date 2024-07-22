@@ -673,11 +673,10 @@ void CreateNaniteData(FGeometryCollectionBuiltMeshData&& InMeshData, FGeometryCo
 		InputMeshData.MaterialIndices.Empty();
 	});
 
-	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
 	if (!NaniteBuilderModule.Build(
 		*OutRenderData.NaniteResourcesPtr.Get(),
 		InputMeshData,
-		OutputLODMeshData,
+		nullptr, // OutFallbackMeshData
 		NaniteSettings,
 		OnFreeInputMeshData))
 	{

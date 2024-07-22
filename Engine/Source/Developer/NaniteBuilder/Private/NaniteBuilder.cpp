@@ -63,7 +63,7 @@ public:
 	virtual bool Build(
 		FResources& Resources,
 		FInputMeshData& InputMeshData,
-		TArrayView<FOutputMeshData> OutputLODMeshData,
+		FOutputMeshData* OutFallbackMeshData,
 		const FMeshNaniteSettings& Settings,
 		FOnFreeInputMeshData OnFreeInputMeshData) override;
 
@@ -201,8 +201,7 @@ static float BuildCoarseRepresentation(
 	TArray<FStaticMeshSection, TInlineAllocator<1>>& Sections,
 	uint32& NumTexCoords,
 	uint32 TargetNumTris,
-	float TargetError,
-	int32 FallbackLODIndex)
+	float TargetError)
 {
 	TargetNumTris = FMath::Max( TargetNumTris, 64u );
 
@@ -226,11 +225,7 @@ static float BuildCoarseRepresentation(
 	FCluster CoarseRepresentation( MergeList );
 	// FindDAGCut also produces error when TargetError is non-zero but this only happens for LOD0 whose MaxDeviation is always zero.
 	// Don't use the old weights for LOD0 since they change the error calculation and hence, change the meaning of TargetError.
-	float OutError;
-	if( FallbackLODIndex > 0 )
-		OutError = CoarseRepresentation.SimplifyFallback( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
-	else
-		OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
+	const float OutError = CoarseRepresentation.Simplify( TargetNumTris, TargetError, FMath::Min( TargetNumTris, 256u ) );
 
 	TArray< FStaticMeshSection, TInlineAllocator<1> > OldSections = Sections;
 
@@ -519,7 +514,7 @@ void TessellateAndDisplace(
 bool FBuilderModule::Build(
 	FResources& Resources,
 	IBuilderModule::FInputMeshData& InputMeshData,
-	TArrayView<IBuilderModule::FOutputMeshData> OutputLODMeshData,
+	IBuilderModule::FOutputMeshData* OutFallbackMeshData,
 	const FMeshNaniteSettings& Settings,
 	IBuilderModule::FOnFreeInputMeshData OnFreeInputMeshData
 )
@@ -617,7 +612,9 @@ bool FBuilderModule::Build(
 	int32 FallbackTargetNumTris = int32((float)Resources.NumInputTriangles * Settings.FallbackPercentTriangles);
 	float FallbackTargetError = Settings.FallbackRelativeError * 0.01f * FMath::Sqrt( FMath::Min( 2.0f * SurfaceArea, InputMeshData.VertexBounds.GetSurfaceArea() ) );
 
-	bool bFallbackIsReduced = Settings.FallbackPercentTriangles < 1.0f || FallbackTargetError > 0.0f;
+	// NOTE: The fallback is reduced if the base Nanite mesh will also reduce the input
+	bool bFallbackIsReduced = Settings.FallbackPercentTriangles < 1.0f || Settings.KeepPercentTriangles < 1.0f ||
+		FallbackTargetError > 0.0f || Settings.TrimRelativeError > 0.0f;
 	
 	// If we're going to replace the original vertex buffer with a coarse representation, get rid of the old copies
 	// now that we copied it into the cluster representation. We do it before the longer DAG reduce phase to shorten peak memory duration.
@@ -674,28 +671,17 @@ bool FBuilderModule::Build(
 	uint32 ReduceTime1 = FPlatformTime::Cycles();
 	UE_LOG( LogStaticMesh, Log, TEXT("Reduce [%.2fs]"), FPlatformTime::ToMilliseconds( ReduceTime1 - ReduceTime0 ) / 1000.0f );
 
-	for (int32 FallbackLODIndex = 0; FallbackLODIndex < OutputLODMeshData.Num(); ++FallbackLODIndex)
+	if (OutFallbackMeshData != nullptr)
 	{
 		const uint32 FallbackStartTime = FPlatformTime::Cycles();
 
-		auto& FallbackLODMeshData = OutputLODMeshData[FallbackLODIndex];
-		
 		// Copy the section data which will then be patched up after the simplification
-		FallbackLODMeshData.Sections = InputMeshData.Sections;
-		
-		// % of first proxy not % of original
-		if( FallbackLODIndex > 0 )
-		{
-			FallbackTargetNumTris = OutputLODMeshData[0].TriangleIndices.Num() / 3;
-			FallbackTargetNumTris = int32((float)FallbackTargetNumTris * FallbackLODMeshData.PercentTriangles);
-			FallbackTargetError = 0.0f;
-		}
+		OutFallbackMeshData->Sections = InputMeshData.Sections;
 
-		if( !bFallbackIsReduced && FallbackLODIndex == 0 )
+		if( !bFallbackIsReduced )
 		{
-			Swap(FallbackLODMeshData.Vertices, InputMeshData.Vertices);
-			Swap(FallbackLODMeshData.TriangleIndices, InputMeshData.TriangleIndices);
-			FallbackLODMeshData.MaxDeviation = 0.f;
+			Swap(OutFallbackMeshData->Vertices, InputMeshData.Vertices);
+			Swap(OutFallbackMeshData->TriangleIndices, InputMeshData.TriangleIndices);
 		}
 		else
 		{
@@ -703,21 +689,18 @@ bool FBuilderModule::Build(
 			const float ReductionError = BuildCoarseRepresentation(
 				Groups,
 				Clusters,
-				FallbackLODMeshData.Vertices,
-				FallbackLODMeshData.TriangleIndices,
+				OutFallbackMeshData->Vertices,
+				OutFallbackMeshData->TriangleIndices,
 				FallbackSections,
 				InputMeshData.NumTexCoords,
 				FallbackTargetNumTris,
-				FallbackTargetError,
-				FallbackLODIndex
+				FallbackTargetError
 			);
-
-			FallbackLODMeshData.MaxDeviation = FallbackLODIndex == 0 ? 0.f : ReductionError / 8.f;
 
 			// Fixup mesh section info with new coarse mesh ranges, while respecting original ordering and keeping materials
 			// that do not end up with any assigned triangles (due to decimation process).
 
-			for (FStaticMeshSection& Section : FallbackLODMeshData.Sections)
+			for (FStaticMeshSection& Section : OutFallbackMeshData->Sections)
 			{
 				// For each section info, try to find a matching entry in the coarse version.
 				const FStaticMeshSection* FallbackSection = FallbackSections.FindByPredicate(
@@ -746,7 +729,7 @@ bool FBuilderModule::Build(
 		}
 
 		const uint32 FallbackEndTime = FPlatformTime::Cycles();
-		UE_LOG(LogStaticMesh, Log, TEXT("Fallback %d/%d [%.2fs], num tris: %d"), FallbackLODIndex, OutputLODMeshData.Num(), FPlatformTime::ToMilliseconds(FallbackEndTime - FallbackStartTime) / 1000.0f, FallbackLODMeshData.TriangleIndices.Num() / 3);
+		UE_LOG(LogStaticMesh, Log, TEXT("Fallback [%.2fs], num tris: %d"), FPlatformTime::ToMilliseconds(FallbackEndTime - FallbackStartTime) / 1000.0f, OutFallbackMeshData->TriangleIndices.Num() / 3);
 	}
 
 	uint32 EncodeTime0 = FPlatformTime::Cycles();

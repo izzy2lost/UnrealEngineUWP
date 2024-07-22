@@ -3153,8 +3153,7 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 	}
 #endif
 
-	//if (Mesh->IsNaniteEnabled()) // TODO: Re-introduce on next SM key bump
-	if (DoesTargetPlatformSupportNanite(TargetPlatform))
+	if (Mesh->IsNaniteEnabled())
 	{
 		TempBytes.Reset();
 		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);

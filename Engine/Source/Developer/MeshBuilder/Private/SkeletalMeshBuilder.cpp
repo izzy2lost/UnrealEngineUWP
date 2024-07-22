@@ -178,11 +178,10 @@ static bool BuildNanite(
 	NaniteSettings.FallbackPercentTriangles = 1.0f; // 100% - no reduction
 	NaniteSettings.FallbackRelativeError = 0.0f;
 
-	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
 	if (!NaniteBuilderModule.Build(
 		NaniteResources,
 		InputMeshData,
-		OutputLODMeshData,
+		nullptr, // OutFallbackMeshData
 		NaniteSettings,
 		OnFreeInputMeshData))
 	{

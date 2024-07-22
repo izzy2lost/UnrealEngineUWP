@@ -88,7 +88,6 @@ public:
 	FCluster( TArrayView< const FCluster* > Children );
 
 	float		Simplify( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
-	float		SimplifyFallback( uint32 TargetNumTris, float TargetError = 0.0f, uint32 LimitNumTris = 0 );
 	FAdjacency	BuildAdjacency() const;
 	void		Split( FGraphPartitioner& Partitioner, const FAdjacency& Adjacency ) const;
 	void		Bound();

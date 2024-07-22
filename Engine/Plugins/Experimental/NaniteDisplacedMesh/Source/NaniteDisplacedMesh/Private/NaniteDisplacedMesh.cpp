@@ -520,13 +520,11 @@ bool FNaniteBuildAsyncCacheTask::BuildData(const UE::FSharedString& Name, const 
 		InputMeshData.MaterialIndices.Empty();
 	});
 
-	TArrayView<Nanite::IBuilderModule::FOutputMeshData> OutputLODMeshData;
-
 	// Pass displaced mesh over to Nanite to build the bulk data
 	if (!NaniteBuilderModule.Build(
 			*Data->ResourcesPtr.Get(),
 			InputMeshData,
-			OutputLODMeshData,
+			nullptr, // OutFallbackMeshData
 			NaniteSettings,
 			OnFreeInputMeshData)
 		)

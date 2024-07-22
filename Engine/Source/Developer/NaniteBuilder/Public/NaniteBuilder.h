@@ -65,14 +65,12 @@ public:
 		FMeshBuildVertexData Vertices;
 		TArray<uint32> TriangleIndices;
 		FStaticMeshSectionArray Sections;
-		float PercentTriangles = 1.0f;
-		float MaxDeviation = 0.0f;
 	};
 
 	virtual bool Build(
 		FResources& Resources,
 		FInputMeshData& InputMeshData,
-		TArrayView<FOutputMeshData> OutputLODMeshData,
+		FOutputMeshData* OutFallbackMeshData,
 		const FMeshNaniteSettings& Settings,
 		FOnFreeInputMeshData OnFreeInputMeshData)
 	{

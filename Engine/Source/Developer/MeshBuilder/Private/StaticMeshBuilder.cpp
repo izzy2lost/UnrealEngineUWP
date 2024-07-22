@@ -20,6 +20,7 @@
 #include "NaniteBuilder.h"
 #include "Rendering/NaniteResources.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "RenderMath.h"
 
 DEFINE_LOG_CATEGORY(LogStaticMeshBuilder);
 
@@ -120,134 +121,319 @@ static void CorrectFallbackSettings( FMeshNaniteSettings& NaniteSettings, int32 
 	}
 }
 
-static bool BuildNanite(
-	UStaticMesh* StaticMesh,
-	FStaticMeshSourceModel& SourceModel,
-	FStaticMeshLODResourcesArray& LODResources,
-	FStaticMeshVertexFactoriesArray& LODVertexFactories,
-	Nanite::FResources& NaniteResources,
-	FMeshNaniteSettings& NaniteSettings, 
-	TArrayView<float> PercentTriangles,
-	FBoxSphereBounds& BoundsOut
-)
+struct FStaticMeshNaniteBuildContext
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE( FStaticMeshBuilder::BuildNanite );
+	FMeshNaniteSettings Settings;
+	UStaticMesh* StaticMesh						= nullptr;
+	const ITargetPlatform* TargetPlatform		= nullptr;
+	const FStaticMeshSourceModel* SourceModel	= nullptr;
+	Nanite::IBuilderModule* Builder 			= nullptr;
 
-	if (!SourceModel.IsMeshDescriptionValid())
+	bool bStripNaniteResources	: 1	= false;
+	bool bHiResSourceModel 		: 1	= false;
+
+	bool IsValid() const { return StaticMesh != nullptr; }
+};
+
+static bool PrepareNaniteStaticMeshBuild(
+	FStaticMeshNaniteBuildContext& OutContext,
+	UStaticMesh* StaticMesh,
+	const ITargetPlatform* TargetPlatform)
+{
+	if (!StaticMesh->IsNaniteEnabled())
+	{
+		// We don't need to build Nanite for this static mesh
+		return false;
+	}
+
+	const bool bTargetSupportsNanite = DoesTargetPlatformSupportNanite(TargetPlatform);
+	FStaticMeshSourceModel& LOD0SourceModel = StaticMesh->GetSourceModel(0);
+	FStaticMeshSourceModel& HiResSourceModel = StaticMesh->GetHiResSourceModel();
+
+	const FMeshDescription* LOD0MeshDescription = LOD0SourceModel.GetOrCacheMeshDescription();
+	if (LOD0MeshDescription == nullptr)
 	{
 		UE_LOG(LogStaticMeshBuilder, Error, TEXT("Invalid mesh description during Nanite build [%s]."), *StaticMesh->GetFullName());
 		return false;
 	}
-
-	FMeshDescription MeshDescription; 
-	if (!SourceModel.CloneMeshDescription(MeshDescription))
+	if (LOD0MeshDescription->IsEmpty())
 	{
-		UE_LOG(LogStaticMeshBuilder, Error, TEXT("Failed to clone mesh description during Nanite build [%s]."), *StaticMesh->GetFullName());
+		UE_LOG(LogStaticMeshBuilder, Error, TEXT("Empty mesh description during Nanite build [%s]."), *StaticMesh->GetFullName());
+		return false;
+	}
+
+	// Only do Nanite build for the hi-res source model if we have one, the target platform supports Nanite, AND the mesh description
+	// is well-formed. In all other cases, we will build Nanite from LOD0. This will replace the output VertexBuffers/etc with
+	// the fractional Nanite cut to be stored as LOD0 RenderData.
+	// NOTE: We also want to use LOD0 for targets that do not support Nanite (even if a hi-res source model was provided)
+	// so that it generates the fallback, in which case the Nanite bulk will be stripped
+	bool bUseHiResSourceModel = false;
+	if (bTargetSupportsNanite && HiResSourceModel.IsMeshDescriptionValid())
+	{
+		if (const FMeshDescription* HiResMeshDescription = HiResSourceModel.GetOrCacheMeshDescription())
+		{
+			if (HiResMeshDescription->IsEmpty())
+			{
+				UE_LOG(LogStaticMeshBuilder, Display,
+					TEXT("Invalid hi-res mesh description during Nanite build [%s]. The hi-res mesh is empty. ")
+					TEXT("This is not supported and LOD 0 will be used as a fallback to build nanite data."),
+					*StaticMesh->GetFullName());
+			}
+			else
+			{
+				// Make sure hi-res mesh data has the same amount of sections. If not, rendering bugs and issues will show
+				// up because the nanite render must use the LOD 0 sections.
+				if (HiResMeshDescription->PolygonGroups().Num() > LOD0MeshDescription->PolygonGroups().Num())
+				{
+					UE_LOG(LogStaticMeshBuilder, Display,
+						TEXT("Invalid hi-res mesh description during Nanite build [%s]. ")
+						TEXT("The number of sections from the hires mesh is higher than LOD 0 section count. ")
+						TEXT("This is not supported and LOD 0 will be used as a fallback to build nanite data."),
+						*StaticMesh->GetFullName());
+				}
+				else
+				{
+					if (HiResMeshDescription->PolygonGroups().Num() < LOD0MeshDescription->PolygonGroups().Num())
+					{
+						UE_LOG(LogStaticMeshBuilder, Display,
+							TEXT("Nanite hi-res mesh description for [%s] has fewer sections than lod 0. ")
+							TEXT("Verify you have the proper material id result when nanite is turned on."),
+							*StaticMesh->GetFullName());
+					}
+					bUseHiResSourceModel = true;
+				}
+			}
+		}
+	}
+	
+	OutContext.Settings = StaticMesh->NaniteSettings;
+	CorrectFallbackSettings(OutContext.Settings, LOD0MeshDescription->Triangles().Num());
+
+	OutContext.StaticMesh 				= StaticMesh;
+	OutContext.SourceModel				= bUseHiResSourceModel ? &HiResSourceModel : &LOD0SourceModel;
+	OutContext.TargetPlatform			= TargetPlatform;
+	OutContext.Builder					= &Nanite::IBuilderModule::Get();
+	OutContext.bStripNaniteResources	= !bTargetSupportsNanite;
+	OutContext.bHiResSourceModel		= bUseHiResSourceModel;
+
+	return true;
+}
+
+static bool InitNaniteBuildInput(
+	FStaticMeshNaniteBuildContext& Context,
+	Nanite::IBuilderModule::FInputMeshData& OutData,
+	FBoxSphereBounds& OutBounds,
+	bool& bOutNeeds32BitIndices)
+{
+	FMeshDescription MeshDescription; 
+	if (!Context.SourceModel->CloneMeshDescription(MeshDescription))
+	{
+		UE_LOG(LogStaticMeshBuilder, Error,
+			TEXT("Failed to clone mesh description during Nanite build [%s]."),
+			*Context.StaticMesh->GetFullName());
 		return false;
 	}
 
 	if (MeshDescription.IsEmpty())
 	{
-		UE_LOG(LogStaticMeshBuilder, Error, TEXT("Cannot build an empty mesh description during Nanite build [%s]."), *StaticMesh->GetFullName());
+		UE_LOG(LogStaticMeshBuilder, Error,
+			TEXT("Cannot build an empty mesh description during Nanite build [%s]."),
+			*Context.StaticMesh->GetFullName());
 		return false;
 	}
 
-	FMeshBuildSettings& BuildSettings = StaticMesh->GetSourceModel(0).BuildSettings;
-	FStaticMeshLODResources& StaticMeshLOD = LODResources[0];
+	FMeshBuildSettings& BuildSettings = Context.StaticMesh->GetSourceModel(0).BuildSettings;
 
-	CorrectFallbackSettings(NaniteSettings, MeshDescription.Triangles().Num());
+	// Only build tangents if they are explicitly enabled or we're going to be injecting this vertex data directly into
+	// LOD0 of a generated fallback
+	const bool bFallbackUsesInputMeshData =
+		!Context.bHiResSourceModel &&
+		Context.Settings.FallbackPercentTriangles == 1.0f &&
+		Context.Settings.FallbackRelativeError == 0.0f;
+	const bool bNeedTangents = Context.Settings.bExplicitTangents || bFallbackUsesInputMeshData;
 
 	// compute tangents, lightmap UVs, etc
-
-	const bool bNeedTangents = NaniteSettings.bExplicitTangents || (PercentTriangles.Num() > 0 && NaniteSettings.FallbackPercentTriangles == 1.0f && NaniteSettings.FallbackRelativeError == 0.0f);
-	
-	// Nanite does not need the wedge map returned (mainly used by non-Nanite mesh painting).
-	const bool bNeedWedgeMap = false;
-
 	FMeshDescriptionHelper MeshDescriptionHelper(&BuildSettings);
-	MeshDescriptionHelper.SetupRenderMeshDescription(StaticMesh, MeshDescription, true, bNeedTangents);
+	MeshDescriptionHelper.SetupRenderMeshDescription(Context.StaticMesh, MeshDescription, true, bNeedTangents);
 
-	// Build new vertex buffers
-	Nanite::IBuilderModule::FInputMeshData InputMeshData;
-
-	TArray<int32>& WedgeMap = StaticMeshLOD.WedgeMap;
-	WedgeMap.Reset();
-
-	//Prepare the PerSectionIndices array so we can optimize the index buffer for the GPU
-	TArray<TArray<uint32> > PerSectionIndices;
+	// Prepare the PerSectionIndices array so we can optimize the index buffer for the GPU
+	TArray<TArray<uint32>> PerSectionIndices;
 	PerSectionIndices.AddDefaulted(MeshDescription.PolygonGroups().Num());
-	StaticMeshLOD.Sections.Empty(MeshDescription.PolygonGroups().Num());
+	OutData.Sections.Empty(MeshDescription.PolygonGroups().Num());
 
 	// We only need this to de-duplicate vertices inside of BuildVertexBuffer
 	// (And only if there are overlapping corners in the mesh description).
 	TArray<int32> RemapVerts;
 
+	// Nanite does not need the wedge map returned (mainly used by non-Nanite mesh painting).
+	const bool bNeedWedgeMap = false;
+	TArray<int32> WedgeMap;
+
 	// Build the vertex and index buffer
 	UE::Private::StaticMeshBuilder::BuildVertexBuffer(
-		StaticMesh,
+		Context.StaticMesh,
 		MeshDescription,
 		BuildSettings,
 		WedgeMap,
-		StaticMeshLOD.Sections,
+		OutData.Sections,
 		PerSectionIndices,
-		InputMeshData.Vertices,
+		OutData.Vertices,
 		MeshDescriptionHelper.GetOverlappingCorners(),
-		RemapVerts, 
-		BoundsOut,
+		RemapVerts,
+		OutBounds,
 		bNeedTangents,
-		bNeedWedgeMap
-	);
-
-	TVertexInstanceAttributesRef<FVector2f const> VertexInstanceUVs = MeshDescription.VertexInstanceAttributes().GetAttributesRef<FVector2f>(MeshAttribute::VertexInstance::TextureCoordinate);
-	const uint32 NumTextureCoord = VertexInstanceUVs.IsValid() ? VertexInstanceUVs.GetNumChannels() : 0;
-
-	// Only the render data and vertex buffers will be used from now on unless we have more than one source models
-	// This will help with memory usage for Nanite Mesh by releasing memory before doing the build
-	MeshDescription.Empty();
+		bNeedWedgeMap);
 
 	// Concatenate the per-section index buffers.
-	bool bNeeds32BitIndices = false;
-	UE::Private::StaticMeshBuilder::BuildCombinedSectionIndices(PerSectionIndices, StaticMeshLOD.Sections, InputMeshData.TriangleIndices, bNeeds32BitIndices);
+	bOutNeeds32BitIndices = false;
+	UE::Private::StaticMeshBuilder::BuildCombinedSectionIndices(
+		PerSectionIndices,
+		OutData.Sections,
+		OutData.TriangleIndices,
+		bOutNeeds32BitIndices);
 
 	// Nanite build requires the section material indices to have already been resolved from the SectionInfoMap
 	// as the indices are baked into the FMaterialTriangles.
-	for (int32 SectionIndex = 0; SectionIndex < StaticMeshLOD.Sections.Num(); SectionIndex++)
+	for (int32 SectionIndex = 0; SectionIndex < OutData.Sections.Num(); SectionIndex++)
 	{
-		StaticMeshLOD.Sections[SectionIndex].MaterialIndex = StaticMesh->GetSectionInfoMap().Get(0, SectionIndex).MaterialIndex;
+		OutData.Sections[SectionIndex].MaterialIndex = Context.StaticMesh->GetSectionInfoMap().Get(0, SectionIndex).MaterialIndex;
 	}
 
-	Nanite::IBuilderModule& NaniteBuilderModule = Nanite::IBuilderModule::Get();
+	OutData.VertexBounds = FBounds3f(FVector3f(OutBounds.Origin - OutBounds.BoxExtent), FVector3f(OutBounds.Origin + OutBounds.BoxExtent));
 
-	FBounds3f VertexBounds
-	{
-		FVector3f(BoundsOut.Origin - BoundsOut.BoxExtent),
-		FVector3f(BoundsOut.Origin + BoundsOut.BoxExtent)
-	};
+	TVertexInstanceAttributesRef<FVector2f const> VertexInstanceUVs = MeshDescription.VertexInstanceAttributes().GetAttributesRef<FVector2f>(MeshAttribute::VertexInstance::TextureCoordinate);
+	OutData.NumTexCoords = VertexInstanceUVs.IsValid() ? VertexInstanceUVs.GetNumChannels() : 0;
 
-	// Setup the input data
-	InputMeshData.Sections = StaticMeshLOD.Sections;
-	InputMeshData.NumTexCoords = NumTextureCoord;
-	InputMeshData.VertexBounds = VertexBounds;
-									
-	// Request output LODs for each LOD resource
-	TArray< Nanite::IBuilderModule::FOutputMeshData, TInlineAllocator<4> > OutputLODMeshData;
-	OutputLODMeshData.SetNum( PercentTriangles.Num() );
+	const uint32 TriangleCount = OutData.TriangleIndices.Num() / 3;
+	OutData.TriangleCounts.Add(TriangleCount);
 
-	for (int32 LodIndex = 0; LodIndex < OutputLODMeshData.Num(); LodIndex++)
-	{
-		OutputLODMeshData[LodIndex].PercentTriangles = PercentTriangles[LodIndex];
-	}
-
-	const uint32 TriangleCount = InputMeshData.TriangleIndices.Num() / 3;
-
-	if (!NaniteBuilderModule.BuildMaterialIndices(InputMeshData.Sections, TriangleCount, InputMeshData.MaterialIndices))
+	if (!Context.Builder->BuildMaterialIndices(OutData.Sections, TriangleCount, OutData.MaterialIndices))
 	{
 		UE_LOGFMT_NSLOC(LogStaticMesh, Warning, "StaticMesh", "NaniteBuildError", "Failed to build Nanite from static mesh. See previous line(s) for details.");
 		return false;
 	}
 
-	InputMeshData.TriangleCounts.Add(TriangleCount);
+	return true;
+}
 
+static void BuildNaniteFallbackMeshDescription(
+	FStaticMeshNaniteBuildContext& Context,
+	const Nanite::IBuilderModule::FOutputMeshData& InMeshData,
+	FMeshDescription& OutMesh
+)
+{
+	OutMesh.Empty();
+
+	FStaticMeshAttributes Attributes(OutMesh);
+	Attributes.Register();
+
+	const int32 NumVertices = InMeshData.Vertices.Position.Num();
+	const int32 NumUVChannels = InMeshData.Vertices.UVs.Num();
+	const int32 NumTriangles = InMeshData.TriangleIndices.Num() / 3;
+	const int32 NumPolyGroups = InMeshData.Sections.Num();
+
+	OutMesh.ReserveNewVertices(NumVertices);
+	OutMesh.ReserveNewVertexInstances(NumVertices);
+	OutMesh.ReserveNewTriangles(NumTriangles);
+	OutMesh.ReserveNewPolygonGroups(NumPolyGroups);
+
+	OutMesh.SetNumUVChannels(NumUVChannels);
+	OutMesh.VertexInstanceAttributes().SetAttributeChannelCount(MeshAttribute::VertexInstance::TextureCoordinate, NumUVChannels);
+	for (int32 UVChannelIndex = 0; UVChannelIndex < NumUVChannels; ++UVChannelIndex)
+	{
+		OutMesh.ReserveNewUVs(NumVertices, UVChannelIndex);
+	}
+
+	TVertexAttributesRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
+	TVertexInstanceAttributesRef<FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals();
+	TVertexInstanceAttributesRef<FVector3f> VertexInstanceTangents = Attributes.GetVertexInstanceTangents();
+	TVertexInstanceAttributesRef<float> VertexInstanceBinormalSigns = Attributes.GetVertexInstanceBinormalSigns();
+	TVertexInstanceAttributesRef<FVector4f> VertexInstanceColors = Attributes.GetVertexInstanceColors();
+	TVertexInstanceAttributesRef<FVector2f> VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
+	TPolygonGroupAttributesRef<FName> PolygonGroupMaterialSlotNames = Attributes.GetPolygonGroupMaterialSlotNames();
+
+	for (int32 InVertIndex = 0; InVertIndex < NumVertices; ++InVertIndex)
+	{
+		const FVertexID VertexID(InVertIndex);
+		const FVertexInstanceID VertexInstanceID(InVertIndex);
+
+		// TODO: Deduplicate vertex positions?
+		OutMesh.CreateVertexWithID(VertexID);
+		OutMesh.CreateVertexInstanceWithID(VertexInstanceID, VertexID);
+
+		const FVector3f Position = InMeshData.Vertices.Position[InVertIndex];
+		const FVector3f TangentX = InMeshData.Vertices.TangentX[InVertIndex];
+		const FVector3f TangentY = InMeshData.Vertices.TangentY[InVertIndex];
+		const FVector3f TangentZ = InMeshData.Vertices.TangentZ[InVertIndex];
+		const float BinormalSign = GetBasisDeterminantSign(FVector(TangentX), FVector(TangentY), FVector(TangentZ));
+		const FColor Color = InMeshData.Vertices.Color.IsValidIndex(InVertIndex) ?
+			InMeshData.Vertices.Color[InVertIndex] : FColor::White;
+
+		VertexPositions.Set(VertexID, InMeshData.Vertices.Position[InVertIndex]);
+		VertexInstanceNormals.Set(VertexInstanceID, TangentZ);
+		VertexInstanceTangents.Set(VertexInstanceID, TangentX);
+		VertexInstanceBinormalSigns.Set(VertexInstanceID, BinormalSign);
+		VertexInstanceColors.Set(VertexInstanceID, FVector4f(FLinearColor(Color)));
+
+		for (int32 UVChannelIndex = 0; UVChannelIndex < NumUVChannels; ++UVChannelIndex)
+		{
+			const FVector2f UV = InMeshData.Vertices.UVs[UVChannelIndex][InVertIndex];
+			VertexInstanceUVs.Set(VertexInstanceID, UVChannelIndex, UV);
+		}
+	}
+
+	const TArray<FStaticMaterial>& StaticMaterials = Context.StaticMesh->GetStaticMaterials();
+	for (const FStaticMeshSection& Section : InMeshData.Sections)
+	{
+		const FPolygonGroupID PolygonGroupID = OutMesh.CreatePolygonGroup();
+		PolygonGroupMaterialSlotNames.Set(PolygonGroupID, StaticMaterials[Section.MaterialIndex].ImportedMaterialSlotName);
+
+		for (uint32 TriIndex = 0; TriIndex < Section.NumTriangles; ++TriIndex)
+		{
+			TConstArrayView<FVertexInstanceID> TriVertInstanceIDs = {
+				FVertexInstanceID(InMeshData.TriangleIndices[Section.FirstIndex + TriIndex * 3 + 0]),
+				FVertexInstanceID(InMeshData.TriangleIndices[Section.FirstIndex + TriIndex * 3 + 1]),
+				FVertexInstanceID(InMeshData.TriangleIndices[Section.FirstIndex + TriIndex * 3 + 2])
+			};
+
+			OutMesh.CreateTriangle(PolygonGroupID, TriVertInstanceIDs);
+		}
+	}
+}
+
+static bool BuildNanite(
+	FStaticMeshNaniteBuildContext& Context,
+	FStaticMeshLODResources& LOD0Resources,
+	FMeshDescription& LOD0MeshDescription,
+	Nanite::FResources& NaniteResources,
+	FBoxSphereBounds& BoundsOut
+)
+{
+	if (!ensure(Context.IsValid()))
+	{
+		return false;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE( FStaticMeshBuilder::BuildNanite );
+
+	ON_SCOPE_EXIT
+	{
+		if (Context.bStripNaniteResources)
+		{
+			// Strip the Nanite bulk from this target platform
+			NaniteResources = Nanite::FResources();
+		}
+	};
+	
+	// Build new vertex buffers
+	bool bNeeds32BitIndices;
+	Nanite::IBuilderModule::FInputMeshData InputMeshData;
+	if (!InitNaniteBuildInput(Context, InputMeshData, BoundsOut, bNeeds32BitIndices))
+	{
+		return false;
+	}
+
+	// Free up what we can from the input data as soon as the builder tells us it's done with it
 	auto OnFreeInputMeshData = Nanite::IBuilderModule::FOnFreeInputMeshData::CreateLambda([&InputMeshData](bool bFallbackIsReduced)
 	{
 		if (bFallbackIsReduced)
@@ -259,11 +445,15 @@ static bool BuildNanite(
 		InputMeshData.MaterialIndices.Empty();
 	});
 
-	if (!NaniteBuilderModule.Build(
+	// We don't need to generate a fallback when using a high res source model. Regular static mesh build will handle it
+	const bool bGenerateFallback = !Context.bHiResSourceModel;
+	Nanite::IBuilderModule::FOutputMeshData FallbackMeshData;
+	
+	if (!Context.Builder->Build(
 			NaniteResources,
 			InputMeshData,
-			OutputLODMeshData,
-			NaniteSettings,
+			bGenerateFallback ? &FallbackMeshData : nullptr,
+			Context.Settings,
 			OnFreeInputMeshData
 	))
 	{
@@ -271,15 +461,15 @@ static bool BuildNanite(
 		return false;
 	}
 
+	const FMeshBuildSettings& BuildSettings = Context.StaticMesh->GetSourceModel(0).BuildSettings;
+
 	// Copy over the output data to the static mesh LOD data
 	// Certain output LODs might be empty if the builder decided it wasn't needed (then remove these LODs again)
-	int32 ValidLODCount = 0;
-	for (int32 LodIndex = 0; LodIndex < OutputLODMeshData.Num(); ++LodIndex)
+	// TODO: Is this ever the case with LOD 0 though?
+	if (bGenerateFallback)
 	{
-		Nanite::IBuilderModule::FOutputMeshData& OutputMeshData = OutputLODMeshData[LodIndex];
-
 		bool bHasValidSections = false;
-		for (FStaticMeshSection& Section : OutputMeshData.Sections)
+		for (FStaticMeshSection& Section : FallbackMeshData.Sections)
 		{
 			if (Section.NumTriangles > 0)
 			{
@@ -291,18 +481,10 @@ static bool BuildNanite(
 		// If there are valid sections then copy over data to the LODResource
 		if (bHasValidSections)
 		{
-			// Add new LOD resource if not created yet
-			if (ValidLODCount >= LODResources.Num())
+			LOD0Resources.Sections.Empty(FallbackMeshData.Sections.Num());
+			for (FStaticMeshSection& Section : FallbackMeshData.Sections)
 			{
-				LODResources.Add(new FStaticMeshLODResources);
-				new (LODVertexFactories) FStaticMeshVertexFactories(GMaxRHIFeatureLevel);
-			}
-
-			FStaticMeshLODResources& OutputLOD = LODResources[ValidLODCount];
-			OutputLOD.Sections.Empty(OutputMeshData.Sections.Num());
-			for (FStaticMeshSection& Section : OutputMeshData.Sections)
-			{
-				OutputLOD.Sections.Add(Section);
+				LOD0Resources.Sections.Add(Section);
 			}
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(FStaticMeshBuilder::Build::BufferInit);
@@ -311,22 +493,26 @@ static bool BuildNanite(
 			StaticMeshVertexBufferFlags.bNeedsCPUAccess = true;
 			StaticMeshVertexBufferFlags.bUseBackwardsCompatibleF16TruncUVs = BuildSettings.bUseBackwardsCompatibleF16TruncUVs;
 
-			const FConstMeshBuildVertexView OutputMeshVertices = MakeConstMeshBuildVertexView(OutputMeshData.Vertices);
-			OutputLOD.VertexBuffers.StaticMeshVertexBuffer.SetUseHighPrecisionTangentBasis(BuildSettings.bUseHighPrecisionTangentBasis);
-			OutputLOD.VertexBuffers.StaticMeshVertexBuffer.SetUseFullPrecisionUVs(BuildSettings.bUseFullPrecisionUVs);
-			OutputLOD.VertexBuffers.StaticMeshVertexBuffer.Init(OutputMeshVertices, StaticMeshVertexBufferFlags);
-			OutputLOD.VertexBuffers.PositionVertexBuffer.Init(OutputMeshVertices);
-			OutputLOD.VertexBuffers.ColorVertexBuffer.Init(OutputMeshVertices);
+			const FConstMeshBuildVertexView OutputMeshVertices = MakeConstMeshBuildVertexView(FallbackMeshData.Vertices);
+			LOD0Resources.VertexBuffers.StaticMeshVertexBuffer.SetUseHighPrecisionTangentBasis(BuildSettings.bUseHighPrecisionTangentBasis);
+			LOD0Resources.VertexBuffers.StaticMeshVertexBuffer.SetUseFullPrecisionUVs(BuildSettings.bUseFullPrecisionUVs);
+			LOD0Resources.VertexBuffers.StaticMeshVertexBuffer.Init(OutputMeshVertices, StaticMeshVertexBufferFlags);
+			LOD0Resources.VertexBuffers.PositionVertexBuffer.Init(OutputMeshVertices);
+			LOD0Resources.VertexBuffers.ColorVertexBuffer.Init(OutputMeshVertices);
 
 			// Why is the 'bNeeds32BitIndices' used from the original index buffer? Is that needed?
 			const EIndexBufferStride::Type IndexBufferStride = bNeeds32BitIndices ? EIndexBufferStride::Force32Bit : EIndexBufferStride::Force16Bit;
-			OutputLOD.IndexBuffer.SetIndices(OutputMeshData.TriangleIndices, IndexBufferStride);
+			LOD0Resources.IndexBuffer.SetIndices(FallbackMeshData.TriangleIndices, IndexBufferStride);
 
-			BuildAllBufferOptimizations(OutputLOD, BuildSettings, OutputMeshData.TriangleIndices, bNeeds32BitIndices, OutputMeshVertices);
+			BuildAllBufferOptimizations(LOD0Resources, BuildSettings, FallbackMeshData.TriangleIndices, bNeeds32BitIndices, OutputMeshVertices);
 
-			OutputLOD.MaxDeviation = OutputMeshData.MaxDeviation;
-
-			ValidLODCount++;
+			// Fill out the mesh description for non-Nanite build/reduction
+			BuildNaniteFallbackMeshDescription(Context, FallbackMeshData, LOD0MeshDescription);
+		}
+		else
+		{
+			// Initialize the mesh description as empty
+			FStaticMeshAttributes(LOD0MeshDescription).Register();
 		}
 	}
 
@@ -344,17 +530,6 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 
 	UStaticMesh* StaticMesh = BuildParameters.StaticMesh;
 	const FStaticMeshLODGroup& LODGroup = BuildParameters.LODGroup;
-
-	const bool bTargetSupportsNanite = DoesTargetPlatformSupportNanite(BuildParameters.TargetPlatform);
-
-	const bool bNaniteBuildEnabled = StaticMesh->IsNaniteEnabled();
-	const bool bHaveHiResSourceModel = StaticMesh->IsHiResMeshDescriptionValid();
-	int32 NumTasks = (bNaniteBuildEnabled && bHaveHiResSourceModel) ? (StaticMesh->GetNumSourceModels() + 1) : (StaticMesh->GetNumSourceModels());
-	FScopedSlowTask SlowTask(NumTasks, NSLOCTEXT("StaticMeshEditor", "StaticMeshBuilderBuild", "Building static mesh render data."));
-	SlowTask.MakeDialog();
-
-	// The tool can only been switch by restarting the editor
-	static bool bIsThirdPartyReductiontool = !UseNativeQuadraticReduction();
 
 	if (!StaticMesh->IsMeshDescriptionValid(0))
 	{
@@ -374,136 +549,53 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 		return false;
 	}
 
-	Nanite::FResources& NaniteResources = *StaticMeshRenderData.NaniteResourcesPtr.Get();
-
 	TRACE_CPUPROFILER_EVENT_SCOPE(FStaticMeshBuilder::Build);
 
 	const int32 NumSourceModels = StaticMesh->GetNumSourceModels();
 	StaticMeshRenderData.AllocateLODResources(NumSourceModels);
 
-	TArray<FMeshDescription> MeshDescriptions;
-	MeshDescriptions.SetNum(NumSourceModels);
+	FStaticMeshNaniteBuildContext NaniteBuildContext;
+	const bool bBuildNanite = PrepareNaniteStaticMeshBuild(NaniteBuildContext, StaticMesh, BuildParameters.TargetPlatform);
+
+	const int32 NumTasks = NaniteBuildContext.bHiResSourceModel ? (NumSourceModels + 1) : NumSourceModels;
+	FScopedSlowTask SlowTask(NumTasks, NSLOCTEXT("StaticMeshEditor", "StaticMeshBuilderBuild", "Building static mesh render data."));
+	SlowTask.MakeDialog();
 
 	FBoxSphereBounds::Builder MeshBoundsBuilder;
 
 	const FMeshSectionInfoMap BeforeBuildSectionInfoMap = StaticMesh->GetSectionInfoMap();
 	const FMeshSectionInfoMap BeforeBuildOriginalSectionInfoMap = StaticMesh->GetOriginalSectionInfoMap();
-	FMeshNaniteSettings NaniteSettings = StaticMesh->NaniteSettings;
 
-	bool bNaniteDataBuilt = false;		// true once we have finished building Nanite, which can happen in multiple places
+	TArray<FMeshDescription> MeshDescriptions;
+	MeshDescriptions.SetNum(NumSourceModels);
+
 	int32 NaniteBuiltLevels = 0;
 
-	// Do Nanite build for HiRes SourceModel if we have one. In that case we skip the inline Nanite build
-	// below that would happen with LOD0 build
-	if (bHaveHiResSourceModel && bNaniteBuildEnabled && bTargetSupportsNanite)
+	if (bBuildNanite)
 	{
-		SlowTask.EnterProgressFrame(1);
+		SlowTask.EnterProgressFrame( 1 );
 
-		auto IsHiresMeshDescriptionValid = [&StaticMesh]()
-			{
-				bool bIsValid = false;
-				if (const FMeshDescription* BaseLodMeshDescription = StaticMesh->GetSourceModel(0).GetOrCacheMeshDescription())
-				{
-					if (const FMeshDescription* HiResMeshDescription = StaticMesh->GetHiResSourceModel().GetOrCacheMeshDescription())
-					{
-						if (HiResMeshDescription->IsEmpty())
-						{
-							UE_LOG(LogStaticMeshBuilder, Display, TEXT("Invalid hi-res mesh description during Nanite build [%s]. The hires mesh is empty. This is not supported and LOD 0 will be used as a fallback to build nanite data."), *StaticMesh->GetFullName());
-							bIsValid = false;
-						}
-						else
-						{
-							//Validate the number of sections
-							if (HiResMeshDescription->PolygonGroups().Num() > BaseLodMeshDescription->PolygonGroups().Num())
-							{
-								UE_LOG(LogStaticMeshBuilder, Display, TEXT("Invalid hi-res mesh description during Nanite build [%s]. The number of sections from the hires mesh is higher than LOD 0 section count. This is not supported and LOD 0 will be used as a fallback to build nanite data."), *StaticMesh->GetFullName());
-								bIsValid = false;
-							}
-							else
-							{
-								if (HiResMeshDescription->PolygonGroups().Num() < BaseLodMeshDescription->PolygonGroups().Num())
-								{
-									UE_LOG(LogStaticMeshBuilder, Display, TEXT("Nanite hi-res mesh description for [%s] has fewer sections than lod 0. Verify you have the proper material id result when nanite is turned on."), *StaticMesh->GetFullName());
-								}
-								bIsValid = true;
-							}
-						}
-					}
-				}
-				//No need to log if we miss a mesh description, this was handle before
-				return bIsValid;
-			};
-
-		//Make sure hires mesh data has the same amount of sections. If not rendering bugs and issues will show up because the nanite render must use the LOD 0 sections.
-		if (IsHiresMeshDescriptionValid())
-		{
-			FBoxSphereBounds NaniteBounds;
-			bool bBuildSuccess = BuildNanite(
-				StaticMesh,
-				StaticMesh->GetHiResSourceModel(),
-				StaticMeshRenderData.LODResources,
-				StaticMeshRenderData.LODVertexFactories,
-				NaniteResources,
-				NaniteSettings,
-				TArrayView< float >(),
-				NaniteBounds);
-
-			if (bBuildSuccess)
-			{
-				MeshBoundsBuilder += NaniteBounds;
-				bNaniteDataBuilt = true;
-			}
-		}
-	}
-
-	// If we want Nanite built, and have not already done it, do it based on LOD0 built render data.
-	// This will replace the output VertexBuffers/etc with the fractional Nanite cut to be stored as LOD0 RenderData.
-	// NOTE: We still want to do this for targets that do not support Nanite (if no hi-res source model was provided)
-	// so that it generates the fallback, in which case the Nanite bulk will be stripped
-	if (bNaniteBuildEnabled && ((bTargetSupportsNanite && !bNaniteDataBuilt) || (!bTargetSupportsNanite && !bHaveHiResSourceModel)))
-	{
-		TArray< float, TInlineAllocator<4> > PercentTriangles;
-		for (int32 LodIndex = 0; LodIndex < NumSourceModels; ++LodIndex)
-		{
-			FStaticMeshSourceModel& SrcModel = StaticMesh->GetSourceModel( LodIndex );
-			
-			// As soon as we hit an artist provided LOD stop
-			if( LodIndex > 0 && SrcModel.IsMeshDescriptionValid() )
-				break;
-			
-			FMeshReductionSettings ReductionSettings = LODGroup.GetSettings( SrcModel.ReductionSettings, LodIndex );
-			PercentTriangles.Add( ReductionSettings.PercentTriangles );
-		}
-		
-		SlowTask.EnterProgressFrame( PercentTriangles.Num() );
-
+		Nanite::FResources& NaniteResources = *StaticMeshRenderData.NaniteResourcesPtr.Get();
 		FBoxSphereBounds NaniteBounds;
-
 		bool bBuildSuccess = BuildNanite(
-			StaticMesh,
-			StaticMesh->GetSourceModel(0),
-			StaticMeshRenderData.LODResources,
-			StaticMeshRenderData.LODVertexFactories,
+			NaniteBuildContext,
+			StaticMeshRenderData.LODResources[0],
+			MeshDescriptions[0],
 			NaniteResources,
-			NaniteSettings,
-			PercentTriangles,
 			NaniteBounds);
 
 		if (bBuildSuccess)
 		{
 			MeshBoundsBuilder += NaniteBounds;
-			bNaniteDataBuilt = true;
-			NaniteBuiltLevels = PercentTriangles.Num();
+			if (!NaniteBuildContext.bHiResSourceModel)
+			{
+				// We don't need to build LOD 0 below if the Nanite build generated it
+				++NaniteBuiltLevels;
+			}
 		}
 	}
 
-	if (!bTargetSupportsNanite)
-	{
-		// Strip the Nanite bulk from this target platform
-		NaniteResources = Nanite::FResources();
-	}
-
-	// Build render data for each LOD, starting from where Nanite left off.
+	// Build non-Nanite render data for each LOD
 	for (int32 LodIndex = NaniteBuiltLevels; LodIndex < NumSourceModels; ++LodIndex)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_STR("FStaticMeshBuilder::Build LOD");
@@ -522,7 +614,7 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 		FMeshReductionSettings ReductionSettings = LODGroup.GetSettings(SrcModel.ReductionSettings, LodIndex);
 
 		// Make sure we do not reduce a non custom LOD by itself
-		const int32 BaseReduceLodIndex = FMath::Clamp<int32>(ReductionSettings.BaseLODModel, NaniteBuiltLevels, bIsMeshDescriptionValid ? LodIndex : LodIndex - 1);
+		const int32 BaseReduceLodIndex = FMath::Clamp<int32>(ReductionSettings.BaseLODModel, 0, bIsMeshDescriptionValid ? LodIndex : LodIndex - 1);
 		// Use simplifier if a reduction in triangles or verts has been requested.
 		bool bUseReduction = StaticMesh->IsReductionActive(LodIndex);
 
@@ -622,7 +714,6 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 				MeshDescriptionHelper.ReduceLOD(MeshDescriptions[BaseReduceLodIndex], MeshDescriptions[LodIndex], ReductionSettings, OverlappingCorners, MaxDeviation);
 				CheckReduction(MeshDescriptions[BaseReduceLodIndex], MeshDescriptions[LodIndex]);
 			}
-			
 
 			const TPolygonGroupAttributesRef<FName> PolygonGroupImportedMaterialSlotNames = MeshDescriptions[LodIndex].PolygonGroupAttributes().GetAttributesRef<FName>(MeshAttribute::PolygonGroup::ImportedMaterialSlotName);
 			const TPolygonGroupAttributesRef<FName> BasePolygonGroupImportedMaterialSlotNames = MeshDescriptions[BaseReduceLodIndex].PolygonGroupAttributes().GetAttributesRef<FName>(MeshAttribute::PolygonGroup::ImportedMaterialSlotName);
