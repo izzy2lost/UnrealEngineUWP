@@ -102,6 +102,12 @@ void Main(
 				// Lumen card stores only diffuse albedo, so merge specular & diffuse color, 
 				// which are propertly weighted respectively to each other
 				DiffuseColor = SpecularColor + DiffuseColor;
+
+				// Note : The legacy path uses a different formulation for composition diffuse and specular color. This result in lighter albedo.
+				//        If the above formulation causes issues for legacy projects, one could re-enable the code below:
+				//  DiffuseColor  = Weight * SubstrateEnvLight.DiffuseColor;
+				//  SpecularColor = Weight * SubstrateEnvLight.SpecularColor;
+				//  EnvBRDFApproxFullyRough(DiffuseColor, SpecularColor);
 			}
 			#undef CurrentBSDF
 		}
