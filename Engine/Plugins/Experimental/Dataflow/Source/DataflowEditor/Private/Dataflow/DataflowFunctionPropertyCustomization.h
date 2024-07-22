@@ -9,7 +9,7 @@ namespace Dataflow
 	/**
 	 * Customization for buttons in the UStruct UI of dataflow nodes.
 	 */
-	class FFunctionsPropertyCustomization : public IPropertyTypeCustomization
+	class FFunctionPropertyCustomization : public IPropertyTypeCustomization
 	{
 	public:
 		static TSharedRef<IPropertyTypeCustomization> MakeInstance();

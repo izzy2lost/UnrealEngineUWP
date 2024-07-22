@@ -7,8 +7,8 @@
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEngineRendering.h"
-#include "Dataflow/DataflowFunctionsProperty.h"
-#include "Dataflow/DataflowFunctionsPropertyCustomization.h"
+#include "Dataflow/DataflowFunctionProperty.h"
+#include "Dataflow/DataflowFunctionPropertyCustomization.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/ScalarVertexPropertyGroupCustomization.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
@@ -28,7 +28,7 @@ void FDataflowEditorModule::StartupModule()
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyModule->RegisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FScalarVertexPropertyGroupCustomization::MakeInstance));
-		PropertyModule->RegisterCustomPropertyTypeLayout(FDataflowFunctionsProperty::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FFunctionsPropertyCustomization::MakeInstance));
+		PropertyModule->RegisterCustomPropertyTypeLayout(FDataflowFunctionProperty::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FFunctionPropertyCustomization::MakeInstance));
 	}
 
 	Dataflow::RenderingCallbacks();
@@ -42,7 +42,7 @@ void FDataflowEditorModule::ShutdownModule()
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyModule->UnregisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName());
-		PropertyModule->UnregisterCustomPropertyTypeLayout(FDataflowFunctionsProperty::StaticStruct()->GetFName());
+		PropertyModule->UnregisterCustomPropertyTypeLayout(FDataflowFunctionProperty::StaticStruct()->GetFName());
 	}
 }
 
