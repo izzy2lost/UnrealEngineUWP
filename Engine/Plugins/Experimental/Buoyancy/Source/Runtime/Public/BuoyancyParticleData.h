@@ -33,6 +33,7 @@ using FBuoyancyInteractionArray = TArray<FBuoyancyInteraction, TInlineAllocator<
 struct FBuoyancySubmersion
 {
 	Chaos::FPBDRigidParticleHandle* Particle = nullptr;
+	TWeakPtr<FProxyTimestampBase, ESPMode::ThreadSafe> SyncTimestamp = nullptr;
 	float Vol = 0.f;
 	FVector CoM = FVector::ZeroVector;
 	FVector Vel = FVector::ZeroVector;
@@ -45,6 +46,7 @@ struct FBuoyancySubmersionMetaData
 	struct FWaterContact
 	{
 		Chaos::FGeometryParticleHandle* Water = nullptr;
+		TWeakPtr<FProxyTimestampBase, ESPMode::ThreadSafe> SyncTimestamp = nullptr;
 		float Vol = 0.f;
 		FVector CoM = FVector::ZeroVector;
 		FVector Vel = FVector::ZeroVector;
