@@ -2,25 +2,26 @@
 
 #pragma once
 
-#include "TimeSources/PropertyAnimatorCoreRangeTimeSource.h"
+#include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 #include "AvaPropertyAnimatorSequenceTimeSource.generated.h"
 
 class ISequencer;
 class UAvaSequence;
 class UAvaSequencePlayer;
-class UMovieSceneSequence;
 
 /**
- * Time source that follows specific sequence time
+ * Time source that follows specific avalanche sequence time
  */
 UCLASS()
-class UAvaPropertyAnimatorSequenceTimeSource : public UPropertyAnimatorCoreRangeTimeSource
+class UAvaPropertyAnimatorSequenceTimeSource : public UPropertyAnimatorCoreTimeSourceBase
 {
 	GENERATED_BODY()
 
 public:
+	static FName GetSequenceName(const UAvaSequence* InSequence);
+
 	UAvaPropertyAnimatorSequenceTimeSource()
-		: UPropertyAnimatorCoreRangeTimeSource(TEXT("Sequence"))
+		: UPropertyAnimatorCoreTimeSourceBase(TEXT("MD_Sequence"))
 	{}
 
 	//~ Begin UObject
@@ -29,8 +30,8 @@ public:
 #endif // WITH_EDITOR
 	//~ End UObject
 
-	void SetSequenceName(const FString& InSequenceName);
-	FString GetSequenceName() const
+	void SetSequenceName(FName InSequenceName);
+	FName GetSequenceName() const
 	{
 		return SequenceName;
 	}
@@ -49,7 +50,9 @@ protected:
 	//~ End UPropertyAnimatorCoreTimeSourceBase
 
 	UFUNCTION()
-	TArray<FString> GetSequenceNames() const;
+	TArray<FName> GetSequenceNames() const;
+
+	TArray<UAvaSequence*> GetSequences() const;
 
 	void OnSequenceChanged();
 
@@ -57,10 +60,10 @@ protected:
 	void OnSequenceFinished(UAvaSequencePlayer* InPlayer, UAvaSequence* InSequence);
 
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetSequenceName", Getter="GetSequenceName", Category="Animator", meta=(GetOptions="GetSequenceNames"))
-	FString SequenceName;
+	FName SequenceName;
 
 	UPROPERTY()
-	TWeakObjectPtr<UMovieSceneSequence> SequenceWeak;
+	TWeakObjectPtr<UAvaSequence> SequenceWeak;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UAvaSequencePlayer> SequencePlayerWeak;
