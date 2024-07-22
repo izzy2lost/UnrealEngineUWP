@@ -31,6 +31,29 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousLightingLiveShadingScreenTil
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesSupportOverlappingVolumes(
+	TEXT("r.HeterogeneousVolumes.SupportOverlappingVolumes"),
+	1,
+	TEXT("Enables support for overlapping volumes (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+#if 0
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesBilinearInterpolation(
+	TEXT("r.HeterogeneousVolumes.BilinearInterpolation"),
+	1,
+	TEXT("Enables bilinear interpolation when querying AVSM (Default = 1)"),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesAdaptiveMarching(
+	TEXT("r.HeterogeneousVolumes.AdaptiveMarching"),
+	0,
+	TEXT("Enables adaptive marching (Default = 0)"),
+	ECVF_RenderThreadSafe
+);
+#endif
+
 namespace HeterogeneousVolumes
 {
 	bool ShouldBoundsCull()
@@ -42,6 +65,22 @@ namespace HeterogeneousVolumes
 	{
 		return CVarHeterogeneousLightingLiveShadingScreenTileClassification.GetValueOnRenderThread() != 0;
 	}
+
+	bool SupportsOverlappingVolumes()
+	{
+		return ShouldCompositeHeterogeneousVolumesWithTranslucency() &&
+			(CVarHeterogeneousVolumesSupportOverlappingVolumes.GetValueOnRenderThread() != 0);
+	}
+#if 0
+	bool UseBilinearInterpolation()
+	{
+		return CVarHeterogeneousVolumesBilinearInterpolation.GetValueOnRenderThread() != 0;
+	}
+	bool ShouldAdaptiveMarch()
+	{
+		return CVarHeterogeneousVolumesAdaptiveMarching.GetValueOnRenderThread() != 0;
+	}
+#endif
 }
 
 //-OPT: Remove duplicate bindings
@@ -266,8 +305,22 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 	class FWriteVelocity : SHADER_PERMUTATION_BOOL("DIM_WRITE_VELOCITY");
 	class FUseAdaptiveVolumetricShadowMap : SHADER_PERMUTATION_BOOL("DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP");
 	class FAVSMSampleMode : SHADER_PERMUTATION_INT("AVSM_SAMPLE_MODE", 2);
+	class FSupportOverlappingVolumes : SHADER_PERMUTATION_BOOL("SUPPORT_OVERLAPPING_VOLUMES");
+	//class FAdaptiveMarch : SHADER_PERMUTATION_INT("ADAPTIVE_MARCH", 2);
+	//class FBilinearInterpolation : SHADER_PERMUTATION_INT("AVSM_BILINEAR_INTERPOLATION", 2);
 	class FApplyFogInscattering : SHADER_PERMUTATION_INT("APPLY_FOG_INSCATTERING", 3);
-	using FPermutationDomain = TShaderPermutationDomain<FUseTransmittanceVolume, FUseInscatteringVolume, FUseLumenGI, FWriteVelocity, FUseAdaptiveVolumetricShadowMap, FApplyFogInscattering, FAVSMSampleMode>;
+	using FPermutationDomain = TShaderPermutationDomain<
+		FUseTransmittanceVolume, 
+		FUseInscatteringVolume, 
+		FUseLumenGI, 
+		FWriteVelocity, 
+		FUseAdaptiveVolumetricShadowMap, 
+		FApplyFogInscattering, 
+		FAVSMSampleMode, 
+		FSupportOverlappingVolumes
+		//FBilinearInterpolation,
+		//FAdaptiveMarch
+	>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene data
@@ -291,6 +344,8 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumeShadowingShaderParameters, VolumeShadowingShaderParameters)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
 		SHADER_PARAMETER(int32, VirtualShadowMapId)
+
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMaps, AVSMs)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FAdaptiveVolumetricShadowMapUniformBufferParameters, AVSM)
 
 		// Atmosphere
@@ -720,6 +775,54 @@ static void RenderLightingCacheWithLiveShading(
 	}
 }
 
+IMPLEMENT_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMaps, "AVSMs");
+
+FAdaptiveVolumetricShadowMapParameters GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(
+	const TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters>& UniformBuffer
+)
+{
+	FAdaptiveVolumetricShadowMapParameters Parameters;
+	{
+		Parameters.NumShadowMatrices = UniformBuffer->GetParameters()->NumShadowMatrices;
+		for (int32 i = 0; i < Parameters.NumShadowMatrices; ++i)
+		{
+			Parameters.TranslatedWorldToShadow[i] = UniformBuffer->GetParameters()->TranslatedWorldToShadow[i];
+		}
+		Parameters.TranslatedWorldOrigin = UniformBuffer->GetParameters()->TranslatedWorldOrigin;
+		Parameters.TranslatedWorldPlane = UniformBuffer->GetParameters()->TranslatedWorldPlane;
+		Parameters.Resolution = UniformBuffer->GetParameters()->Resolution;
+		Parameters.MaxSampleCount = UniformBuffer->GetParameters()->MaxSampleCount;
+		Parameters.bIsEmpty = UniformBuffer->GetParameters()->bIsEmpty;
+		Parameters.bIsDirectionalLight = UniformBuffer->GetParameters()->bIsDirectionalLight;
+		Parameters.LinkedListBuffer = UniformBuffer->GetParameters()->LinkedListBuffer;
+		Parameters.IndirectionBuffer = UniformBuffer->GetParameters()->IndirectionBuffer;
+		Parameters.SampleBuffer = UniformBuffer->GetParameters()->SampleBuffer;
+	}
+
+	return Parameters;
+}
+
+TRDGUniformBufferRef<FAdaptiveVolumetricShadowMaps> CreateAdaptiveVolumetricShadowMapUniformBuffers(
+	FRDGBuilder& GraphBuilder,
+	FSceneViewState* ViewState,
+	const FLightSceneInfo* LightSceneInfo
+)
+{
+	FAdaptiveVolumetricShadowMaps* UniformBufferParameters = GraphBuilder.AllocParameters<FAdaptiveVolumetricShadowMaps>();
+	{
+		UniformBufferParameters->AVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, ViewState, LightSceneInfo));
+
+		TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> CameraAVSM = ViewState->AdaptiveVolumetricCameraMapUniformBuffer;
+		if (!HeterogeneousVolumes::SupportsOverlappingVolumes())
+		{
+			CameraAVSM = HeterogeneousVolumes::CreateEmptyAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder);
+		}
+		UniformBufferParameters->CameraAVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(CameraAVSM);
+	}
+
+	return GraphBuilder.CreateUniformBuffer(UniformBufferParameters);
+}
+
 class FScreenTileClassificationCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FScreenTileClassificationCS);
@@ -784,14 +887,14 @@ static void ScreenTileClassification(
 	// Object data
 	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
 	// Output
-	FRDGBufferRef& NumScreenTilesBuffer,
+	FRDGBufferRef& ScreenTileIndirectArgsBuffer,
 	FRDGBufferRef& ScreenTileBuffer
 )
 {
 	FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(HeterogeneousVolumes::GetScaledViewRect(View.ViewRect), FRenderSingleScatteringWithLiveShadingIndirectCS::GetThreadGroupSize2D());
 	int32 NumTiles = GroupCount.X * GroupCount.Y;
 
-	NumScreenTilesBuffer = GraphBuilder.CreateBuffer(
+	FRDGBufferRef NumScreenTilesBuffer = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1),
 		TEXT("HeterogeneousVolume.NumScreenTilesBuffer")
 	);
@@ -837,11 +940,13 @@ static void ScreenTileClassification(
 	TShaderRef<FScreenTileClassificationCS> ComputeShader = View.ShaderMap->GetShader<FScreenTileClassificationCS>(PermutationVector);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
-		RDG_EVENT_NAME("FScreenTileClassificationCS"),
+		RDG_EVENT_NAME("ScreenTileClassificationCS"),
 		ComputeShader,
 		PassParameters,
 		GroupCount
 	);
+
+	ScreenTileIndirectArgsBuffer = NumScreenTilesBuffer;
 }
 
 template <HeterogeneousVolumes::EDispatchMode DispatchMode>
@@ -978,7 +1083,14 @@ void RenderSingleScatteringWithLiveShading(
 			SetVolumeShadowingDefaultShaderParametersGlobal(GraphBuilder, PassParameters->VolumeShadowingShaderParameters);
 		}
 		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
-		PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
+		if (HeterogeneousVolumes::SupportsOverlappingVolumes())
+		{
+			PassParameters->AVSMs = CreateAdaptiveVolumetricShadowMapUniformBuffers(GraphBuilder, View.ViewState, LightSceneInfo);
+		}
+		else
+		{
+			PassParameters->AVSM = HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, View.ViewState, LightSceneInfo);
+		}
 
 		TRDGUniformBufferRef<FFogUniformParameters> FogBuffer = CreateFogUniformBuffer(GraphBuilder, View);
 		PassParameters->FogStruct = FogBuffer;
@@ -1058,6 +1170,9 @@ void RenderSingleScatteringWithLiveShading(
 	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FWriteVelocity>(bWriteVelocity);
 	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FUseAdaptiveVolumetricShadowMap>(bUseAVSM);
 	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FAVSMSampleMode>(AVSMSampleMode);
+	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FSupportOverlappingVolumes>(HeterogeneousVolumes::SupportsOverlappingVolumes());
+	//PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FBilinearInterpolation>(static_cast<int32>(HeterogeneousVolumes::UseBilinearInterpolation()));
+	//PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FAdaptiveMarch>(static_cast<int32>(HeterogeneousVolumes::ShouldAdaptiveMarch()));
 	PermutationVector.template Set<typename FRenderSingleScatteringWithLiveShadingDispatchTypeCS::FApplyFogInscattering>(static_cast<int32>(HeterogeneousVolumes::GetApplyFogInscattering()));
 	PermutationVector = FRenderSingleScatteringWithLiveShadingDispatchTypeCS::RemapPermutation(PermutationVector);
 	TShaderRef<FRenderSingleScatteringWithLiveShadingDispatchTypeCS> ComputeShader = Material.GetShader<FRenderSingleScatteringWithLiveShadingDispatchTypeCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
@@ -1618,6 +1733,7 @@ void CollectHeterogeneousVolumeMeshBatchesForLight(
 				for (int32 MeshBatchIndex = 0; MeshBatchIndex < MeshBatches.Num(); ++MeshBatchIndex)
 				{
 					const FMeshBatchAndRelevance& MeshBatch = MeshBatches[MeshBatchIndex];
+					check(MeshBatch.PrimitiveSceneProxy);
 					bool bIsShadowCast = MeshBatch.PrimitiveSceneProxy->IsShadowCast(ProjectedShadowInfo->ShadowDepthView);
 
 					// TODO: Is material determiniation too expensive?
@@ -2234,8 +2350,10 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 		ShadowMapResolution.Y = FMath::Max(ShadowMapResolution.Y / DownsampleFactor, 1);
 
 		// Transform
+		const FMatrix ProjectionMatrix = View.ViewMatrices.GetProjectionMatrix();
+		float FOV = FMath::Atan(1.0f / ProjectionMatrix.M[0][0]);
 		FMatrix ViewToClip = FPerspectiveMatrix(
-			FMath::DegreesToRadians(View.FOV * 0.5),
+			FOV,
 			ShadowMapResolution.X,
 			ShadowMapResolution.Y,
 			1.0,

@@ -107,6 +107,7 @@ namespace HeterogeneousVolumes
 	bool UseAdaptiveVolumetricShadowMapForSelfShadowing(const FPrimitiveSceneProxy* PrimitiveSceneProxy);
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
+	bool SupportsOverlappingVolumes();
 
 	enum class EFogMode
 	{
@@ -396,6 +397,27 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMapUniformBufferParameters,
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SampleBuffer)
 END_UNIFORM_BUFFER_STRUCT()
 
+BEGIN_SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, RENDERER_API)
+	SHADER_PARAMETER_ARRAY(FMatrix44f, TranslatedWorldToShadow, [6])
+	SHADER_PARAMETER(FVector3f, TranslatedWorldOrigin)
+	SHADER_PARAMETER(FVector4f, TranslatedWorldPlane)
+
+	SHADER_PARAMETER(FIntPoint, Resolution)
+	SHADER_PARAMETER(int32, NumShadowMatrices)
+	SHADER_PARAMETER(int32, MaxSampleCount)
+	SHADER_PARAMETER(int32, bIsEmpty)
+	SHADER_PARAMETER(int32, bIsDirectionalLight)
+
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LinkedListBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, IndirectionBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, SampleBuffer)
+END_SHADER_PARAMETER_STRUCT()
+
+BEGIN_UNIFORM_BUFFER_STRUCT(FAdaptiveVolumetricShadowMaps, )
+	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, AVSM)
+	SHADER_PARAMETER_STRUCT(FAdaptiveVolumetricShadowMapParameters, CameraAVSM)
+END_UNIFORM_BUFFER_STRUCT()
+
 namespace HeterogeneousVolumes {
 	struct FAdaptiveVolumetricShadowMapParameterCache
 	{
@@ -464,6 +486,12 @@ namespace HeterogeneousVolumes {
 	void PostRender(FScene& Scene, TArray<FViewInfo>& Views);
 
 } // namespace HeterogeneousVolumes
+
+TRDGUniformBufferRef<FAdaptiveVolumetricShadowMaps> CreateAdaptiveVolumetricShadowMapUniformBuffers(
+	FRDGBuilder& GraphBuilder,
+	FSceneViewState* ViewState,
+	const FLightSceneInfo* LightSceneInfo
+);
 
 void RenderWithLiveShading(
 	FRDGBuilder& GraphBuilder,

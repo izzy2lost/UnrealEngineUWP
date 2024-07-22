@@ -113,7 +113,7 @@ uint2 AVSM_PackIndirectionData(FAVSMIndirectionData IndirectionData)
 	return PackedData;
 }
 
-FAVSMIndirectionData ASVM_UnpackIndirectionData(uint2 PackedData)
+FAVSMIndirectionData AVSM_UnpackIndirectionData(uint2 PackedData)
 {
 	FAVSMIndirectionData IndirectionData;
 	IndirectionData.PixelOffset = (PackedData.x >> 6) & AVSM_INVALID_PIXEL_OFFSET;

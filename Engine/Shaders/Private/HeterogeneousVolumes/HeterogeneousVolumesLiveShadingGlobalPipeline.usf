@@ -29,9 +29,9 @@ RWStructuredBuffer<FScreenTile> RWScreenTileBuffer;
 
 groupshared uint GSNumRayHits;
 
-float2 GetDispatchSize()
+int2 GetDispatchSize()
 {
-	return View.ViewSizeAndInvSize.xy / DownsampleFactor;
+	return ceil(View.ViewSizeAndInvSize.xy / float(DownsampleFactor));
 }
 
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
