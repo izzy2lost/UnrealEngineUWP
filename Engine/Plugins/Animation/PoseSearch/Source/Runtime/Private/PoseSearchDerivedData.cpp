@@ -279,11 +279,39 @@ public:
 	}
 };
 
+static void FindValidBlendSpaceIntervals(const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace, const TArray<FBlendSampleData>& BlendSamples, const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
+{
+	check(DatabaseBlendSpace);
+
+	const float PlayLength = DatabaseBlendSpace->BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
+
+	const bool bIsLooping = DatabaseBlendSpace->IsLooping();
+
+	// scaling blend space SamplingRange from the space [0, 1] to [0, PlayLength] with PlayLength calculated from the BlendSamples
+	FFloatInterval ScaledSamplingRange = DatabaseBlendSpace->GetSamplingRange();
+	ScaledSamplingRange.Min *= PlayLength;
+	ScaledSamplingRange.Max *= PlayLength;
+
+	const FFloatInterval EffectiveSamplingInterval = FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(PlayLength, ScaledSamplingRange);
+	FFloatRange EffectiveSamplingRange = FFloatRange::Inclusive(EffectiveSamplingInterval.Min, EffectiveSamplingInterval.Max);
+	if (!bIsLooping)
+	{
+		const FFloatRange ExcludeFromDatabaseRange(ExcludeFromDatabaseParameters.Min, PlayLength + ExcludeFromDatabaseParameters.Max);
+		EffectiveSamplingRange = FFloatRange::Intersection(EffectiveSamplingRange, ExcludeFromDatabaseRange);
+	}
+
+	// start from a single interval defined by the database sequence sampling range
+	ValidRanges.Reset();
+	ValidRanges.Add(EffectiveSamplingRange);
+
+	// @todo: evaluate eventual UAnimNotifyState_PoseSearchExcludeFromDatabase(s) like in FindValidSequenceIntervals if necessary
+}
+
 static void FindValidSequenceIntervals(const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset, const FFloatInterval& ExcludeFromDatabaseParameters, TArray<FFloatRange>& ValidRanges)
 {
 	check(DatabaseAsset);
 
-	bool bIsLooping = DatabaseAsset->IsLooping();
+	const bool bIsLooping = DatabaseAsset->IsLooping();
 	const float PlayLength = DatabaseAsset->GetPlayLength();
 
 	const FFloatInterval EffectiveSamplingInterval = DatabaseAsset->GetEffectiveSamplingRange();
@@ -295,7 +323,7 @@ static void FindValidSequenceIntervals(const FPoseSearchDatabaseAnimationAssetBa
 	}
 
 	// start from a single interval defined by the database sequence sampling range
-	ValidRanges.Empty();
+	ValidRanges.Reset();
 	ValidRanges.Add(EffectiveSamplingRange);
 
 	for (int32 RoleIndex = 0; RoleIndex < DatabaseAsset->GetNumRoles(); ++RoleIndex)
@@ -338,7 +366,7 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 
 	check(Schema);
 
-	SearchIndex.Assets.Empty();
+	SearchIndex.Assets.Reset();
 	TArray<FFloatRange> ValidRanges;
 	TArray<FBlendSampleData> BlendSamples;
 
@@ -399,29 +427,34 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 						int32 TriangulationIndex = 0;
 						DatabaseBlendSpace->BlendSpace->GetSamplesFromBlendInput(BlendParameters, BlendSamples, TriangulationIndex, true);
 
-						const float PlayLength = DatabaseBlendSpace->BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
+						FindValidBlendSpaceIntervals(DatabaseBlendSpace, BlendSamples, ExcludeFromDatabaseParameters, ValidRanges);
 
-						for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
+						for (const FFloatRange& Range : ValidRanges)
 						{
-							if (bAddUnmirrored)
+							for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
 							{
-								const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping, 
-									bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx, BlendParameters);
-								if (PoseSearchIndexAsset.GetNumPoses() > 0)
-								{
-									SearchIndex.Assets.Add(PoseSearchIndexAsset);
-									TotalPoses += PoseSearchIndexAsset.GetNumPoses();
-								}
-							}
+								const FFloatInterval RangeInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue());
 
-							if (bAddMirrored)
-							{
-								const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-									bDisableReselection, FFloatInterval(0.f, PlayLength), Schema->SampleRate, PermutationIdx, BlendParameters);
-								if (PoseSearchIndexAsset.GetNumPoses() > 0)
+								if (bAddUnmirrored)
 								{
-									SearchIndex.Assets.Add(PoseSearchIndexAsset);
-									TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping,
+										bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx, BlendParameters);
+									if (PoseSearchIndexAsset.GetNumPoses() > 0)
+									{
+										SearchIndex.Assets.Add(PoseSearchIndexAsset);
+										TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									}
+								}
+
+								if (bAddMirrored)
+								{
+									const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
+										bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx, BlendParameters);
+									if (PoseSearchIndexAsset.GetNumPoses() > 0)
+									{
+										SearchIndex.Assets.Add(PoseSearchIndexAsset);
+										TotalPoses += PoseSearchIndexAsset.GetNumPoses();
+									}
 								}
 							}
 						}
@@ -431,17 +464,18 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 			// support for FPoseSearchDatabaseSequence, FPoseSearchDatabaseAnimComposite, FPoseSearchDatabaseAnimMontage, FPoseSearchDatabaseMultiAnimAsset
 			else
 			{
-				ValidRanges.Reset();
-
 				FindValidSequenceIntervals(DatabaseAsset, ExcludeFromDatabaseParameters, ValidRanges);
+
 				for (const FFloatRange& Range : ValidRanges)
 				{
 					for (int32 PermutationIdx = 0; PermutationIdx < Schema->NumberOfPermutations; ++PermutationIdx)
 					{
+						const FFloatInterval RangeInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue());
+
 						if (bAddUnmirrored)
 						{
 							const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, false, bIsLooping,
-								bDisableReselection, FFloatInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue()), Schema->SampleRate, PermutationIdx);
+								bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx);
 							if (PoseSearchIndexAsset.GetNumPoses() > 0)
 							{
 								SearchIndex.Assets.Add(PoseSearchIndexAsset);
@@ -452,7 +486,7 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 						if (bAddMirrored)
 						{
 							const FSearchIndexAsset PoseSearchIndexAsset(AnimationAssetIndex, TotalPoses, true, bIsLooping,
-								bDisableReselection, FFloatInterval(Range.GetLowerBoundValue(), Range.GetUpperBoundValue()), Schema->SampleRate, PermutationIdx);
+								bDisableReselection, RangeInterval, Schema->SampleRate, PermutationIdx);
 							if (PoseSearchIndexAsset.GetNumPoses() > 0)
 							{
 								SearchIndex.Assets.Add(PoseSearchIndexAsset);

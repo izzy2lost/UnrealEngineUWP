@@ -616,7 +616,7 @@ void SDebuggerDatabaseView::PopulateViewRows()
 {
 	ActiveView.Rows.Reset();
 	ContinuingPoseView.Rows.Reset();
-	FilteredDatabaseView.Rows.Empty();
+	FilteredDatabaseView.Rows.Reset();
 
 	const int32 UnfilteredDatabaseRowsNum = UnfilteredDatabaseRows.Num();
 	if (UnfilteredDatabaseRowsNum > 0)

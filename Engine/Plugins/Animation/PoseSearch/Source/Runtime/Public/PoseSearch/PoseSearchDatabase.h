@@ -78,6 +78,7 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimationAssetBase
 	// [0, 0] represents the entire frame range of the original animation.
 	virtual FFloatInterval GetSamplingRange() const { return FFloatInterval(0.f, 0.f); }
 	FFloatInterval GetEffectiveSamplingRange() const;
+	static FFloatInterval GetEffectiveSamplingRange(float PlayLength, const FFloatInterval& SamplingRange);
 
 	virtual int64 GetEditorMemSize() const;
 	virtual int64 GetApproxCookedSize() const { return GetEditorMemSize(); }
@@ -204,9 +205,16 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (EditCondition = "bUseSingleSample", EditConditionHides, DisplayPriority = 9))
 	float BlendParamY = 0.f;
 
+	// It allows users to set a time range to an individual blend space in the database.
+	// This is effectively trimming the beginning and end of the animation in the database (not in the original blend space).
+	// If set to [0, 0] it will be the entire frame range of the original blend space.
+	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
+	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
+
 	virtual UClass* GetAnimationAssetStaticClass() const override;
 	virtual bool IsLooping() const override;
 	virtual bool IsRootMotionEnabled() const override;
+	virtual FFloatInterval GetSamplingRange() const override { return SamplingRange; }
 
 	void GetBlendSpaceParameterSampleRanges(int32& HorizontalBlendNum, int32& VerticalBlendNum) const;
 	FVector BlendParameterForSampleRanges(int32 HorizontalBlendIndex, int32 VerticalBlendIndex) const;
@@ -229,6 +237,7 @@ struct POSESEARCH_API FPoseSearchDatabaseBlendSpace : public FPoseSearchDatabase
 			&& A.NumberOfVerticalSamples == B.NumberOfVerticalSamples
 			&& A.BlendParamX == B.BlendParamX
 			&& A.BlendParamY == B.BlendParamY
+			&& A.SamplingRange == B.SamplingRange
 #endif // WITH_EDITORONLY_DATA
 			;
 	}
@@ -250,9 +259,9 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimComposite : public FPoseSearchDatab
 	TObjectPtr<UAnimComposite> AnimComposite;
 
 #if WITH_EDITORONLY_DATA
-	// It allows users to set a time range to an individual animation sequence in the database. 
-	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
-	// If set to [0, 0] it will be the entire frame range of the original sequence.
+	// It allows users to set a time range to an individual animation composite in the database. 
+	// This is effectively trimming the beginning and end of the animation in the database (not in the original composite).
+	// If set to [0, 0] it will be the entire frame range of the original composite.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 3))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
@@ -291,9 +300,9 @@ struct POSESEARCH_API FPoseSearchDatabaseAnimMontage : public FPoseSearchDatabas
 	TObjectPtr<UAnimMontage> AnimMontage;
 
 #if WITH_EDITORONLY_DATA
-	// It allows users to set a time range to an individual animation sequence in the database. 
-	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
-	// If set to [0, 0] it will be the entire frame range of the original sequence.
+	// It allows users to set a time range to an individual animation montage in the database. 
+	// This is effectively trimming the beginning and end of the animation in the database (not in the original montage).
+	// If set to [0, 0] it will be the entire frame range of the original montage.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 
@@ -331,9 +340,9 @@ struct POSESEARCH_API FPoseSearchDatabaseMultiAnimAsset : public FPoseSearchData
 	TObjectPtr<UMultiAnimAsset> MultiAnimAsset;
 
 #if WITH_EDITORONLY_DATA
-	// It allows users to set a time range to an individual animation sequence in the database. 
-	// This is effectively trimming the beginning and end of the animation in the database (not in the original sequence).
-	// If set to [0, 0] it will be the entire frame range of the original sequence.
+	// It allows users to set a time range to an individual UMultiAnimAsset in the database. 
+	// This is effectively trimming the beginning and end of the animation in the database (not in the original UMultiAnimAsset).
+	// If set to [0, 0] it will be the entire frame range of the original UMultiAnimAsset.
 	UPROPERTY(EditAnywhere, Category = "Settings", meta = (ClampToMinMaxLimits, DisplayPriority = 2))
 	FFloatInterval SamplingRange = FFloatInterval(0.f, 0.f);
 

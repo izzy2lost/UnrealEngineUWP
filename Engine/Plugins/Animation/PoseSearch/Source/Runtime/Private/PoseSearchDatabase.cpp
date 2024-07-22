@@ -391,10 +391,12 @@ int64 FPoseSearchDatabaseAnimationAssetBase::GetEditorMemSize() const
 
 FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange() const
 {
-	const FFloatInterval SamplingRange = GetSamplingRange();
+	return GetEffectiveSamplingRange(GetPlayLength(), GetSamplingRange());
+}
 
+FFloatInterval FPoseSearchDatabaseAnimationAssetBase::GetEffectiveSamplingRange(float PlayLength, const FFloatInterval& SamplingRange)
+{
 	const bool bSampleAll = (SamplingRange.Min == 0.0f) && (SamplingRange.Max == 0.0f);
-	const float PlayLength = GetPlayLength();
 	FFloatInterval Range;
 	Range.Min = bSampleAll ? 0.0f : SamplingRange.Min;
 	Range.Max = bSampleAll ? PlayLength : FMath::Min(PlayLength, SamplingRange.Max);

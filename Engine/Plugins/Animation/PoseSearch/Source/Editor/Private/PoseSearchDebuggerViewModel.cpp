@@ -58,7 +58,7 @@ int32 FDebuggerViewModel::GetNodesNum() const
 
 void FDebuggerViewModel::OnUpdate()
 {
-	MotionMatchingStates.Empty();
+	MotionMatchingStates.Reset();
 
 	// Get provider and validate
 	const TraceServices::IAnalysisSession* Session = RewindDebugger.Get()->GetAnalysisSession();
