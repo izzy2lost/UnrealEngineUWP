@@ -232,9 +232,19 @@ namespace uba
 		if (dirPath2[dirPathLen - 1] != '/')
 			dirPath2[dirPathLen++] = '/';
 
-		struct dirent* pDirent;
-		while ((pDirent = readdir(dir)) != NULL)
+		while (true)
 		{
+			errno = 0;
+			struct dirent* pDirent = readdir(dir);
+			if (!pDirent)
+			{
+				if (errno == 0)
+					break;
+
+				// This is actually an error.. should return false?
+				break;
+			}
+
 			char* fileName = pDirent->d_name;
 			if (fileName[0] == '.' && (fileName[1] == 0 || (fileName[1] == '.' && fileName[2] == 0))) 
 				continue;
