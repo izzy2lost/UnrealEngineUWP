@@ -600,8 +600,7 @@ class FHairStrandsDeepShadowMaskPS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 		
-		SHADER_PARAMETER(FIntPoint, DeepShadow_SlotOffset)
-		SHADER_PARAMETER(FIntPoint, DeepShadow_SlotResolution)
+		SHADER_PARAMETER(FIntPoint, DeepShadow_AtlasResolution)
 		SHADER_PARAMETER(float, DeepShadow_DepthBiasScale)
 		SHADER_PARAMETER(float, DeepShadow_DensityScale)
 		SHADER_PARAMETER(FVector4f, DeepShadow_LayerDepths)
@@ -642,7 +641,7 @@ struct FHairStrandsDeepShadowParams
 	uint32			OutputChannel = ~0;
 	FRDGBufferSRVRef DeepShadow_ViewInfoBuffer = nullptr;
 	FRDGBufferSRVRef DeepShadow_AtlasSlotIndexBuffer = nullptr;
-	FIntRect		DeepShadow_AtlasRect;
+	FIntPoint		DeepShadow_AtlasResolution;
 	FRDGTextureRef	DeepShadow_FrontDepthTexture = nullptr;
 	FRDGTextureRef	DeepShadow_LayerTexture = nullptr;
 	float			DeepShadow_DepthBiasScale = 1;
@@ -676,10 +675,7 @@ static void AddHairStrandsDeepShadowMaskPass(
 	Parameters->DeepShadow_DensityScale = Params.DeepShadow_DensityScale;
 	Parameters->DeepShadow_LayerDepths = Params.DeepShadow_LayerDepths;
 	Parameters->RenderTargets[0] = FRenderTargetBinding(OutShadowMask, ERenderTargetLoadAction::ELoad);
-
-	Parameters->DeepShadow_SlotOffset = FIntPoint(Params.DeepShadow_AtlasRect.Min.X, Params.DeepShadow_AtlasRect.Min.Y);
-	Parameters->DeepShadow_SlotResolution = FIntPoint(Params.DeepShadow_AtlasRect.Max.X - Params.DeepShadow_AtlasRect.Min.X, Params.DeepShadow_AtlasRect.Max.Y - Params.DeepShadow_AtlasRect.Min.Y);
-
+	Parameters->DeepShadow_AtlasResolution = Params.DeepShadow_AtlasResolution;
 	Parameters->EffectiveAtlasSlotCount = EffectiveAtlasSlotCount;
 	Parameters->DeepShadow_AtlasSlotIndexBuffer = Params.DeepShadow_AtlasSlotIndexBuffer;
 	Parameters->DeepShadow_ViewInfoBuffer = Params.DeepShadow_ViewInfoBuffer;
@@ -967,7 +963,7 @@ static void InternalRenderHairStrandsShadowMask(
 	TArray<uint32> AtlasSlotIndexData;
 	AtlasSlotIndexData.Reserve(InMacroGroupDatas.Num());
 	float LayerDistribution = 0;
-	FIntRect AtlasRect = FIntRect();
+	FIntPoint AtlasResolution = FIntPoint::ZeroValue;
 	if (!IsHairStrandsForVoxelTransmittanceAndShadowEnable())
 	{
 		for (const FHairStrandsMacroGroupData& MacroGroupData : InMacroGroupDatas)
@@ -978,9 +974,9 @@ static void InternalRenderHairStrandsShadowMask(
 				if (DomData.LightId == LightSceneInfo->Id)
 				{
 					bHasDeepShadow = true;
-					AtlasRect = DomData.AtlasRect;
 					LayerDistribution = DomData.LayerDistribution;
 					AtlasSlotIndexData.Add(DomData.AtlasSlotIndex);
+					AtlasResolution = DomData.AtlasResolution;
 				}
 			}
 		}
@@ -994,7 +990,7 @@ static void InternalRenderHairStrandsShadowMask(
 		FHairStrandsDeepShadowParams Params;
 		Params.DeepShadow_AtlasSlotIndexBuffer = GraphBuilder.CreateSRV(AtlasSlotIndexBuffer);
 		Params.DeepShadow_ViewInfoBuffer = GraphBuilder.CreateSRV(DeepShadowResources.DeepShadowViewInfoBuffer);
-		Params.DeepShadow_AtlasRect = AtlasRect;
+		Params.DeepShadow_AtlasResolution = AtlasResolution;
 		Params.DeepShadow_FrontDepthTexture = DeepShadowResources.DepthAtlasTexture;
 		Params.DeepShadow_LayerTexture = DeepShadowResources.LayersAtlasTexture;
 		Params.DeepShadow_DepthBiasScale = GetDeepShadowDepthBiasScale();

@@ -789,8 +789,6 @@ void VisibilityDebugPPLLCS(uint GroupIndex : SV_GroupIndex, uint3 DispatchThread
 #include "../PostProcessCommon.ush"
 
 float DomScale;
-float2 DomAtlasOffset;
-float2 DomAtlasScale;
 float2 OutputResolution;
 float2 InvOutputResolution;
 
@@ -849,13 +847,13 @@ void VisualizeDomPS(
 	float2 LocalUV = 0;
 	if (IsInsideRect(DepthRect, PixelPos, LocalUV))
 	{
-		const float2 AtlasUV = LocalUV * DomAtlasScale + DomAtlasOffset;
+		const float2 AtlasUV = LocalUV;
 		Color = DeepShadowDepthTexture.SampleLevel(LinearSampler, AtlasUV, 0).xxx;
 		Color += AddBorder(LocalUV, DepthRect);
 	}
 	else if (IsInsideRect(DomRect, PixelPos, LocalUV))
 	{
-		const float2 AtlasUV = LocalUV * DomAtlasScale + DomAtlasOffset;
+		const float2 AtlasUV = LocalUV;
 		Color = DeepShadowLayerTexture.SampleLevel(LinearSampler, AtlasUV, 0).xyz / DomScale;
 		Color += AddBorder(LocalUV, DomRect);
 #if 0 

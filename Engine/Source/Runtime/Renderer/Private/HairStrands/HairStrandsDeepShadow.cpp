@@ -82,15 +82,14 @@ void AddInjectHairVoxelShadowCaster(
 	const FViewInfo& View,
 	const bool bClear,
 	const FHairStrandsDeepShadowData& DomData,
-	FIntRect AtlasRect,
-	uint32 AtlasSlotIndex,
-	FIntPoint AtlasSlotResolution,
 	FHairStrandsVoxelResources& VoxelResources,
 	FRDGBufferSRVRef DeepShadowViewInfoBufferSRV,
 	FRDGTextureRef OutDepthTexture)
 {
+	const FIntPoint AtlasResolution = DomData.AtlasResolution;
+
 	FHairStransShadowDepthInjectionParameters* Parameters = GraphBuilder.AllocParameters<FHairStransShadowDepthInjectionParameters>();
-	Parameters->OutputResolution = AtlasSlotResolution;
+	Parameters->OutputResolution = AtlasResolution;
 	Parameters->ViewUniformBuffer = View.ViewUniformBuffer;
 	Parameters->RenderTargets.DepthStencil = FDepthStencilBinding(OutDepthTexture, bClear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad, ERenderTargetLoadAction::ENoAction, FExclusiveDepthStencil::DepthWrite_StencilNop);
 	Parameters->VirtualVoxel = VoxelResources.UniformBuffer;
@@ -99,7 +98,7 @@ void AddInjectHairVoxelShadowCaster(
 	Parameters->bIsDirectional = DomData.bIsLightDirectional ? 1 : 0;
 	Parameters->MacroGroupId = DomData.MacroGroupId;
 	Parameters->DeepShadowViewInfoBuffer = DeepShadowViewInfoBufferSRV;
-	Parameters->AtlasSlotIndex = AtlasSlotIndex;
+	Parameters->AtlasSlotIndex = DomData.AtlasSlotIndex;
 
 	TShaderMapRef<FHairStrandsShadowDepthInjectionVS> VertexShader(View.ShaderMap);
 	TShaderMapRef<FHairStrandsShadowDepthInjectionPS> PixelShader(View.ShaderMap);
@@ -112,7 +111,7 @@ void AddInjectHairVoxelShadowCaster(
 		RDG_EVENT_NAME("HairStrandsShadowDepthInjection"),
 		Parameters,
 		ERDGPassFlags::Raster,
-		[ParametersVS, ParametersPS, VertexShader, PixelShader, AtlasRect](FRHICommandList& RHICmdList)
+		[ParametersVS, ParametersPS, VertexShader, PixelShader, AtlasResolution](FRHICommandList& RHICmdList)
 		{
 
 			// Apply additive blending pipeline state.
@@ -131,7 +130,7 @@ void AddInjectHairVoxelShadowCaster(
 			SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), ParametersPS);
 
 			// Emit an instanced quad draw call on the order of the number of pixels on the screen.	
-			RHICmdList.SetViewport(AtlasRect.Min.X, AtlasRect.Min.Y, 0.0f, AtlasRect.Max.X, AtlasRect.Max.Y, 1.0f);
+			RHICmdList.SetViewport(0, 0, 0.0f, AtlasResolution.X, AtlasResolution.Y, 1.0f);
 			RHICmdList.DrawPrimitive(0, 12, 1);
 		});
 }
@@ -328,7 +327,6 @@ void RenderHairStrandsDeepShadows(
 				DomData.LightId = LightInfo->Id;
 				DomData.AtlasResolution = AtlasResolution;
 				DomData.Bounds = MacroGroupBounds;
-				DomData.AtlasRect = FIntRect(0, 0, AtlasResolution.X, AtlasResolution.Y);
 				DomData.MacroGroupId = MacroGroup.MacroGroupId;
 				DomData.CPU_MinStrandRadiusAtDepth1 = MinStrandRadiusAtDepth1;
 				DomData.AtlasSlotIndex = TotalAtlasSlotIndex;
@@ -424,9 +422,6 @@ void RenderHairStrandsDeepShadows(
 						View,
 						bClear,
 						DomData,
-						DomData.AtlasRect,
-						DomData.AtlasSlotIndex,
-						AtlasSlotResolution,
 						VirtualVoxelResources,
 						DeepShadowViewInfoBufferSRV,
 						FrontDepthAtlasTexture);
@@ -467,7 +462,7 @@ void RenderHairStrandsDeepShadows(
 						&View,
 						MacroGroup.PrimitivesInfos,
 						EHairStrandsRasterPassType::FrontDepth,
-						DomData.AtlasRect,
+						DomData.AtlasResolution,
 						HairRenderInfo,
 						HairRenderInfoBits,
 						DomData.LightDirection,
@@ -502,7 +497,7 @@ void RenderHairStrandsDeepShadows(
 						&View,
 						MacroGroup.PrimitivesInfos,
 						EHairStrandsRasterPassType::DeepOpacityMap,
-						DomData.AtlasRect,
+						DomData.AtlasResolution,
 						HairRenderInfo,
 						HairRenderInfoBits,
 						DomData.LightDirection,

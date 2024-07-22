@@ -23,9 +23,9 @@
 // Utils function & structs
 struct FTransmittanceSettings
 {
-	int2	 DeepShadowAtlasResolution;
+	int2	 AtlasResolution;
 	float4x4 TranslatedWorldToLightTransform;
-	float4 AtlasScaleBias;
+	float4   AtlasScaleBias;
 	float3   LightDirection; // Direction from world position to the light
 	float3   TranslatedLightPosition;
 	bool	 bIsDirectional;
@@ -127,7 +127,7 @@ FHairTransmittanceMask ComputeTransmittance(
 			float HairCount = 0;
 			if (Settings.TransmittanceKernelType == 3)
 			{
-				HairCount = SampleDOM_PCSS(LightSpacePosition.xyz, Settings.DeepShadowAtlasResolution, DepthBias, InLayerDepths, FrontDepthTexture, DomTexture, Settings.TransmittanceKernelApertureInDegree, Settings.Random.xy);
+				HairCount = SampleDOM_PCSS(LightSpacePosition.xyz, Settings.AtlasResolution, DepthBias, InLayerDepths, FrontDepthTexture, DomTexture, Settings.TransmittanceKernelApertureInDegree, Settings.Random.xy);
 			}
 			else if (Settings.TransmittanceKernelType == 2)
 			{
@@ -190,7 +190,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		const float3 TranslatedWorldPosition = GetTranslatedWorldPosition(UV, SceneDepth);
 
 		FTransmittanceSettings Settings;
-		Settings.DeepShadowAtlasResolution = DeepShadow_AtlasResolution;
+		Settings.AtlasResolution = DeepShadow_AtlasResolution;
 		Settings.TranslatedWorldToLightTransform = TranslatedWorldToLightTransform;
 		Settings.AtlasScaleBias = AtlasScaleBias;
 		Settings.bIsDirectional = IsLightDirectional(TranslatedLightPosition_LightDirection);

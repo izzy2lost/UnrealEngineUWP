@@ -581,8 +581,6 @@ class FDeepShadowVisualizePS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(float, DomScale)
-		SHADER_PARAMETER(FVector2f, DomAtlasOffset)
-		SHADER_PARAMETER(FVector2f, DomAtlasScale)
 		SHADER_PARAMETER(FVector2f, OutputResolution)
 		SHADER_PARAMETER(FVector2f, InvOutputResolution)
 		SHADER_PARAMETER(FIntVector4, HairViewRect)
@@ -618,23 +616,11 @@ static void AddDebugDeepShadowTexturePass(
 {
 	check(OutTarget);
 
-	FIntPoint AtlasResolution(0, 0);
-	FVector2f AltasOffset(0, 0);
-	FVector2f AltasScale(0, 0);
-	if (ShadowData && Resources)
-	{
-		AtlasResolution = FIntPoint(Resources->DepthAtlasTexture->Desc.Extent.X, Resources->DepthAtlasTexture->Desc.Extent.Y);
-		AltasOffset = FVector2f(ShadowData->AtlasRect.Min.X / float(AtlasResolution.X), ShadowData->AtlasRect.Min.Y / float(AtlasResolution.Y));
-		AltasScale = FVector2f((ShadowData->AtlasRect.Max.X - ShadowData->AtlasRect.Min.X) / float(AtlasResolution.X), (ShadowData->AtlasRect.Max.Y - ShadowData->AtlasRect.Min.Y) / float(AtlasResolution.Y));
-	}
-
 	const FIntRect Viewport = View->ViewRect;
 	const FIntPoint Resolution(Viewport.Width(), Viewport.Height());
 
 	FDeepShadowVisualizePS::FParameters* Parameters = GraphBuilder.AllocParameters<FDeepShadowVisualizePS::FParameters>();
 	Parameters->DomScale = GDeepShadowDebugScale;
-	Parameters->DomAtlasOffset = AltasOffset;
-	Parameters->DomAtlasScale = AltasScale;
 	Parameters->OutputResolution = Resolution;
 	Parameters->InvOutputResolution = FVector2f(1.f / Resolution.X, 1.f / Resolution.Y);
 	Parameters->DeepShadowDepthTexture = Resources ? Resources->DepthAtlasTexture : nullptr;

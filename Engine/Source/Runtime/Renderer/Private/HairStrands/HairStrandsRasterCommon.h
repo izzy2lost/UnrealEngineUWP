@@ -43,7 +43,7 @@ void AddHairDeepShadowRasterPass(
 	const FViewInfo* ViewInfo,
 	const FHairStrandsMacroGroupData::TPrimitiveInfos& PrimitiveSceneInfos,
 	const EHairStrandsRasterPassType ShadowPassType,
-	const FIntRect& ViewportRect,
+	const FIntPoint& ViewportRect,
 	const FVector4f& HairRenderInfo,
 	const uint32 HairRenderInfoBits,
 	const FVector3f& LightDirection,
