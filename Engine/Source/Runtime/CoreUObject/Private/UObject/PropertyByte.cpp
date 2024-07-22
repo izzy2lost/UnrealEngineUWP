@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "Hash/Blake3.h"
+#include "UObject/PropertyHelper.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
 
@@ -86,6 +87,18 @@ void FByteProperty::SerializeItem( FStructuredArchive::FSlot Slot, void* Value, 
 		if ( Enum->IsValidEnumValue(ByteValue) )
 		{
 			EnumValueName = Enum->GetNameByValue(ByteValue);
+
+		#if WITH_EDITORONLY_DATA
+			// Fix up the type name when this property is impersonating another enum type.
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			if (SerializeContext->bImpersonateProperties)
+			{
+				if (UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+				{
+					EnumValueName = FName(EnumValueName.ToString().Replace(*Enum->GetName(), *OriginalType.GetName().ToString()));
+				}
+			}
+		#endif
 		}
 		else
 		{
@@ -470,7 +483,16 @@ void FByteProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 	if (const UEnum* LocalEnum = Enum)
 	{
 		Type.BeginParameters();
-		Type.AddPath(LocalEnum);
+	#if WITH_EDITORONLY_DATA
+		if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+		{
+			Type.AddType(OriginalType);
+		}
+		else
+	#endif // WITH_EDITORONLY_DATA
+		{
+			Type.AddPath(LocalEnum);
+		}
 		Type.EndParameters();
 	}
 }
@@ -485,7 +507,19 @@ bool FByteProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	const FName EnumName = Type.GetParameterName(0);
 	if (const UEnum* LocalEnum = Enum)
 	{
-		return EnumName == LocalEnum->GetFName();
+		if (EnumName == LocalEnum->GetFName())
+		{
+			return true;
+		}
+
+	#if WITH_EDITORONLY_DATA
+		if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+		{
+			return EnumName == OriginalType.GetName();
+		}
+	#endif // WITH_EDITORONLY_DATA
+
+		return false;
 	}
 	return EnumName.IsNone();
 }

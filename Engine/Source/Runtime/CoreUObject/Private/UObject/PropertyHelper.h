@@ -10,7 +10,8 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
-class FStructProperty;
+class FProperty;
+class UField;
 class UFunction;
 class UObject;
 
@@ -83,7 +84,10 @@ namespace UE
 
 #if WITH_EDITORONLY_DATA
 inline static const FName NAME_OriginalType(ANSITEXTVIEW("OriginalType"));
-FPropertyTypeName FindOriginalType(const FStructProperty* Struct);
+const FString* FindOriginalTypeName(const UField* Field);
+const FString* FindOriginalTypeName(const FProperty* Property);
+FPropertyTypeName FindOriginalType(const UField* Field);
+FPropertyTypeName FindOriginalType(const FProperty* Property);
 #endif // WITH_EDITORONLY_DATA
 
 /**

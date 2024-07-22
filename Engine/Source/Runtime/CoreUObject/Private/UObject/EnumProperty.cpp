@@ -302,6 +302,18 @@ void FEnumProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, v
 				if (Enum->IsValidEnumValue(IntValue))
 				{
 					EnumValueName = Enum->GetNameByValue(IntValue);
+
+				#if WITH_EDITORONLY_DATA
+					// Fix up the type name when this property is impersonating another enum type.
+					FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+					if (SerializeContext->bImpersonateProperties)
+					{
+						if (UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+						{
+							EnumValueName = FName(EnumValueName.ToString().Replace(*Enum->GetName(), *OriginalType.GetName().ToString()));
+						}
+					}
+				#endif
 				}
 			}
 		}
@@ -618,7 +630,16 @@ void FEnumProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const
 	{
 		check(UnderlyingProp);
 		Type.BeginParameters();
-		Type.AddPath(LocalEnum);
+	#if WITH_EDITORONLY_DATA
+		if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+		{
+			Type.AddType(OriginalType);
+		}
+		else
+	#endif // WITH_EDITORONLY_DATA
+		{
+			Type.AddPath(LocalEnum);
+		}
 		UnderlyingProp->SaveTypeName(Type);
 		Type.EndParameters();
 	}
@@ -638,5 +659,17 @@ bool FEnumProperty::CanSerializeFromTypeName(UE::FPropertyTypeName Type) const
 	}
 
 	const FName EnumName = Type.GetParameterName(0);
-	return EnumName == LocalEnum->GetFName();
+	if (EnumName == LocalEnum->GetFName())
+	{
+		return true;
+	}
+
+#if WITH_EDITORONLY_DATA
+	if (const UE::FPropertyTypeName OriginalType = UE::FindOriginalType(this); !OriginalType.IsEmpty())
+	{
+		return EnumName == OriginalType.GetName();
+	}
+#endif // WITH_EDITORONLY_DATA
+
+	return false;
 }

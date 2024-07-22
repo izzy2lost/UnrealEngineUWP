@@ -236,19 +236,11 @@ namespace UE
 		{
 			if (!AsStructProperty->Struct->UseNativeSerialization())
 			{
-				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
+				//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owners, if any, this is useful for testing purposes
 				FString OriginalName;
-				if (const FString* OriginalType = AsStructProperty->FindMetaData(NAME_OriginalType))
+				if (const FString* OriginalType = FindOriginalTypeName(AsStructProperty))
 				{
 					OriginalName = *OriginalType;
-				}
-				//@note: To support metadata defined on array of struct in UPROPERTY for testing purposes
-				else if (FField* OwnerField = AsStructProperty->Owner.ToField())
-				{
-					if (const FString* OwnerOriginalType = OwnerField->FindMetaData(NAME_OriginalType))
-					{
-						OriginalName = *OwnerOriginalType;
-					}
 				}
 
 				if (OriginalName.IsEmpty())

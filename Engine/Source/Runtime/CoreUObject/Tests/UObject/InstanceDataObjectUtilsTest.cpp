@@ -224,6 +224,13 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	AltStructData.C = 3;
 	AltStructData.D = 4;
 	AltStructData.E = 5;
+	AltStructData.Bird = TIDOB_Raven;
+	AltStructData.Grain = ETestInstanceDataObjectGrainAlternate::Corn;
+	AltStructData.Fruit = ETestInstanceDataObjectFruitAlternate::Orange;
+	AltStructData.Direction = ETestInstanceDataObjectDirectionAlternate::North | ETestInstanceDataObjectDirectionAlternate::West;
+	AltStructData.Point.U = 1;
+	AltStructData.Point.V = 2;
+	AltStructData.Point.W = 3;
 
 	TArray<uint8> BinaryData;
 	{
@@ -258,6 +265,16 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.B == 2);
 	CHECK(StructData.C == 3);
 	CHECK(StructData.D == 4);
+	CHECK(StructData.Bird == TIDOB_Raven);
+	CHECK(StructData.Grain == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.Fruit == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
+	CHECK(StructData.Point.X == 0);
+	CHECK(StructData.Point.Y == 0);
+	CHECK(StructData.Point.Z == 0);
+#if WITH_METADATA
+	CHECK(StructData.Point.W == 3);
+#endif
 
 	FPropertyPathNameTree* Tree = FPropertyBagRepository::Get().FindOrCreateUnknownPropertyTree(Owner);
 	{
@@ -271,6 +288,30 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	{
 		FSerializedPropertyPathScope Path(SerializeContext, {"E", MakePropertyTypeName(NAME_IntProperty)});
 		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	}
+	{
+		FProperty* PointProperty = FTestInstanceDataObjectStructAlternate::StaticStruct()->FindPropertyByName("Point");
+		CHECKED_IF(PointProperty)
+		{
+			FPropertyTypeNameBuilder Builder;
+			PointProperty->SaveTypeName(Builder);
+			FSerializedPropertyPathScope Path(SerializeContext, {"Point", Builder.Build()});
+			CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+		#if WITH_METADATA
+			{
+				FSerializedPropertyPathScope SubPath(SerializeContext, {"U", MakePropertyTypeName(NAME_IntProperty)});
+				CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+			}
+			{
+				FSerializedPropertyPathScope SubPath(SerializeContext, {"V", MakePropertyTypeName(NAME_IntProperty)});
+				CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+			}
+			{
+				FSerializedPropertyPathScope SubPath(SerializeContext, {"W", MakePropertyTypeName(NAME_IntProperty)});
+				CHECK_FALSE(Tree->Find(SerializeContext->SerializedPropertyPath));
+			}
+		#endif
+		}
 	}
 	FPropertyBagRepository::Get().DestroyOuterBag(Owner);
 
@@ -288,6 +329,16 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.B == 2);
 	CHECK(StructData.C == 3);
 	CHECK(StructData.D == 4);
+	CHECK(StructData.Bird == TIDOB_Raven);
+	CHECK(StructData.Grain == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.Fruit == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
+	CHECK(StructData.Point.X == 0);
+	CHECK(StructData.Point.Y == 0);
+	CHECK(StructData.Point.Z == 0);
+#if WITH_METADATA
+	CHECK(StructData.Point.W == 3);
+#endif
 
 	// Testing of the unknown property tree is skipped because it is not supported by the text format.
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
@@ -336,7 +387,7 @@ TEST_CASE_NAMED(FUnknownEnumNamesTest, "CoreUObject::Serialization::UnknownEnumN
 	FPropertyTypeName FlagsTypeName = []
 	{
 		FPropertyTypeNameBuilder Builder;
-		Builder.AddPath(StaticEnum<ETestInstanceDataObjectFlags>());
+		Builder.AddPath(StaticEnum<ETestInstanceDataObjectDirection>());
 		return Builder.Build();
 	}();
 
@@ -369,13 +420,13 @@ TEST_CASE_NAMED(FUnknownEnumNamesTest, "CoreUObject::Serialization::UnknownEnumN
 
 	// Test a flags enum by enum...
 
-	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFlags>(), {}, NAME_Up);
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectDirection>(), {}, NAME_Up);
 
 	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
 	CHECK(Names.Num() == 1);
 	CHECK(bHasFlags);
 
-	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectFlags>(), FlagsTypeName, *FlagsString);
+	Repo.AddUnknownEnumName(Owner, StaticEnum<ETestInstanceDataObjectDirection>(), FlagsTypeName, *FlagsString);
 
 	Repo.FindUnknownEnumNames(Owner, FlagsTypeName, Names, bHasFlags);
 	CHECKED_IF(Names.Num() == 2)
