@@ -1187,7 +1187,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 						// Just handle spawnable tracks as if they're visibility tracks, and hide the prim when not "spawned"
 						// Remember that our spawn register just hides the spawnables when they're not spawned anyway, so this
 						// is essentially the same
-						const FString PropertyPath = TEXT("bHidden");
+						const static FString PropertyPath = UnrealIdentifiers::HiddenPropertyName.ToString();
 						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
 					}
 					// Check for the control rig tracks too, because if the user did "Bake to Control Rig" the controlrig code will silently
@@ -1200,7 +1200,8 @@ namespace UE::LevelSequenceExporterUSD::Private
 					// change, as we can't export "hierarchy changes" otherwise
 					else if (Track->IsA<UMovieScene3DAttachTrack>())
 					{
-						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, TEXT("Transform"), Baker);
+						const static FString PropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
+						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
 					}
 					else if (const UMovieSceneAudioTrack* AudioTrack = Cast<UMovieSceneAudioTrack>(Track))
 					{
@@ -1273,7 +1274,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 				{
 					UnrealToUsd::FComponentBaker Baker;
 
-					const FString PropertyPath = TEXT("Transform");
+					const static FString PropertyPath = UnrealIdentifiers::TransformPropertyName.ToString();
 					UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, PropertyPath, Baker);
 
 					AddBaker(Baker);

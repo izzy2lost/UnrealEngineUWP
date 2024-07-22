@@ -3377,10 +3377,12 @@ void AUsdStageActor::Refresh() const
 	OnTimeChanged.Broadcast();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void AUsdStageActor::ReloadAnimations()
 {
 	RegenerateLevelSequence();
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void AUsdStageActor::RegenerateLevelSequence()
 {
@@ -4261,7 +4263,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 		// To accomplish that while blocking notices we must always propagate component visibility changes manually.
 		// This part is effectively the same as calling pxr::UsdGeomImageable::MakeVisible/Invisible.
 		// TODO: Allow writing out visibility without needing a prim twin
-		if (UsdPrimTwin && PropertyChangedEvent.GetPropertyName() == TEXT("bHiddenInGame"))
+		if (UsdPrimTwin && PropertyChangedEvent.GetPropertyName() == UnrealIdentifiers::HiddenInGamePropertyName)
 		{
 			PrimSceneComponent->Modify();
 

@@ -3979,7 +3979,11 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 
 	// SceneComponent
 	{
-		if (PropertyPath == TEXT("Transform"))
+		const static FString TransformPropertyString = UnrealIdentifiers::TransformPropertyName.ToString();
+		const static FString HiddenPropertyString = UnrealIdentifiers::HiddenPropertyName.ToString();
+		const static FString HiddenInGamePropertyString = UnrealIdentifiers::HiddenInGamePropertyName.ToString();
+
+		if (PropertyPath == TransformPropertyString)
 		{
 			pxr::UsdGeomXformable Xformable(UsdPrim);
 			if (!Xformable)
@@ -4077,7 +4081,7 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 		// A component is only visible when it's not hidden and its actor is not hidden
 		// A bHidden is just handled like a bHiddenInGame for the actor's root component
 		// Whenever we handle a bHiddenInGame, we always combine it with the actor's bHidden
-		else if (PropertyPath == TEXT("bHidden") || PropertyPath == TEXT("bHiddenInGame"))
+		else if (PropertyPath == HiddenPropertyString || PropertyPath == HiddenInGamePropertyString)
 		{
 			pxr::UsdGeomImageable Imageable(UsdPrim);
 			if (!Imageable)
