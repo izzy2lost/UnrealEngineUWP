@@ -177,6 +177,7 @@ private:
 	void OnActorDescUpdated(FWorldPartitionActorDesc* InActorDesc);
 
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewObjectMap);
+	void OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor);
 
 	void OnRegisterChildContainerInstance(const FGuid& InActorGuid, UActorDescContainerInstance* InChildContainerInstance);
 	void OnUnregisterChildContainerInstance(const FGuid& InActorGuid);

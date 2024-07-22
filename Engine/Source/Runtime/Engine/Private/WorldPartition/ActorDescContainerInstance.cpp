@@ -245,6 +245,7 @@ void UActorDescContainerInstance::RegisterDelegates()
 	if (GetOuterWorldPartition())
 	{
 		FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorDescContainerInstance::OnObjectsReplaced);
+		FEditorDelegates::OnEditorActorReplaced.AddUObject(this, &UActorDescContainerInstance::OnEditorActorReplaced);
 	}
 
 	// Only listen to this event if we have registered Child Container Instances
@@ -270,6 +271,7 @@ void UActorDescContainerInstance::RegisterDelegates()
 void UActorDescContainerInstance::UnregisterDelegates()
 {
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FEditorDelegates::OnEditorActorReplaced.RemoveAll(this);
 
 	check(Container);
 	Container->OnActorDescAddedEvent.RemoveAll(this);
@@ -513,17 +515,22 @@ void UActorDescContainerInstance::OnObjectsReplaced(const TMap<UObject*, UObject
 	{
 		if (AActor* OldActor = Cast<AActor>(OldObject))
 		{
-			if (Container->ShouldHandleActorEvent(OldActor, InstancingContext.GetPtrOrNull() != nullptr))
-			{
-				// Only replace if OldActor matches ActorDescInstance ActorPtr.
-				// No need to replace the ActorDescInstance ActorPtr if it isn't set, it will get refreshed on its next GetActor call. This avoids replacing pointers on the wrong ActorDescInstance for Instanced worlds
-				if (FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(OldActor->GetActorGuid()); ActorDescInstance && ActorDescInstance->ActorPtr == OldActor)
-				{
-					AActor* NewActor = Cast<AActor>(NewObject);
-					FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(OldActor, NewActor, ActorDescInstance);
-					OnActorReplacedEvent.Broadcast(ActorDescInstance);
-				}
-			}
+			OnEditorActorReplaced(OldActor, Cast<AActor>(NewObject));
+		}
+	}
+}
+
+void UActorDescContainerInstance::OnEditorActorReplaced(AActor* InOldActor, AActor* InNewActor)
+{
+	// Patch up Actor pointers in ActorDescInstances
+	if (Container->ShouldHandleActorEvent(InOldActor, InstancingContext.GetPtrOrNull() != nullptr))
+	{
+		// Only replace if OldActor matches ActorDescInstance ActorPtr.
+		// No need to replace the ActorDescInstance ActorPtr if it isn't set, it will get refreshed on its next GetActor call. This avoids replacing pointers on the wrong ActorDescInstance for Instanced worlds
+		if (FWorldPartitionActorDescInstance* ActorDescInstance = GetActorDescInstance(InOldActor->GetActorGuid()); ActorDescInstance && ActorDescInstance->ActorPtr == InOldActor)
+		{
+			FWorldPartitionActorDescUtils::ReplaceActorDescriptorPointerFromActor(InOldActor, InNewActor, ActorDescInstance);
+			OnActorReplacedEvent.Broadcast(ActorDescInstance);
 		}
 	}
 }
