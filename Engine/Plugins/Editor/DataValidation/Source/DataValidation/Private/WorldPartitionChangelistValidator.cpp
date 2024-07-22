@@ -547,11 +547,11 @@ void UWorldPartitionChangelistValidator::OnInvalidHLODLayer(const IWorldPartitio
 {
 	if (Filter(ActorDescView))
 	{
-		FText CurrentError = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidHLODLayer", "Actor {0} has an invalid HLOD Layer {1}"),
+		FText CurrentWarning = FText::Format(LOCTEXT("DataValidation.Changelist.WorldPartition.InvalidHLODLayer", "Actor {0} has an invalid HLOD Layer {1}"),
 											FText::FromString(GetFullActorName(ActorDescView)), 
 											FText::FromString(ActorDescView.GetHLODLayer().ToString()));
 
-		AssetFails(CurrentAsset, CurrentError);
+		AssetWarning(CurrentAsset, CurrentWarning);
 	}
 }
 
