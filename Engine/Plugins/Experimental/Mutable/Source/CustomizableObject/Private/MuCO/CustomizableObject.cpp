@@ -739,7 +739,7 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			LocalModelResource.RuntimeReferencedTextures.Add(TSoftObjectPtr<UTexture2D>(FSoftObjectPath(StringRef)));
+			LocalModelResource.RuntimeReferencedTextures.Add(TSoftObjectPtr<const UTexture>(FSoftObjectPath(StringRef)));
 		}
 #endif
 		

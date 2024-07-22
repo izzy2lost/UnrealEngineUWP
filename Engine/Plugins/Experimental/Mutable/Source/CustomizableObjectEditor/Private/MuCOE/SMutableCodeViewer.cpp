@@ -2502,8 +2502,8 @@ namespace
 		{
 			check(ReferencedTextures.IsValidIndex(Id));
 
-			TSoftObjectPtr<UTexture> TexturePtr = ReferencedTextures[Id].Get();
-			UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.Get() );
+			TSoftObjectPtr<const UTexture> TexturePtr = ReferencedTextures[Id].Get();
+			const UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.Get() );
 			check(Texture);
 			
 			// In the editor the src data can be directly accessed
