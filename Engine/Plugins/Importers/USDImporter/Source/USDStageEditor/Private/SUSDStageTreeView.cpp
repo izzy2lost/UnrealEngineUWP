@@ -18,6 +18,7 @@
 #include "UsdWrappers/UsdPrim.h"
 #include "UsdWrappers/UsdStage.h"
 
+#include "Editor.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "ScopedTransaction.h"
@@ -361,11 +362,40 @@ void SUsdStageTreeView::Construct(const FArguments& InArgs)
 				return;
 			}
 
-			TreeItemExpansionStates.Add(Prim.GetPrimPath().GetString(), bIsExpanded);
+			UsdPrimViewModel->SetIsExpanded(bIsExpanded);
+
+			// We have a special handling for the root because we'll want to manually expand it by
+			// default at first but also remember if the user collapsed it or not. For all
+			// other prims we truly just leave the nodes at default collapsed unless we have
+			// recorded that the node should be expanded
+			if (Prim.IsPseudoRoot())
+			{
+				RootWasExpanded = bIsExpanded;
+			}
+			else
+			{
+				const FString& PrimPath = Prim.GetPrimPath().GetString();
+				if (bIsExpanded)
+				{
+					ExpandedPrimPaths.Add(PrimPath);
+				}
+				else
+				{
+					ExpandedPrimPaths.Remove(PrimPath);
+				}
+			}
 		}
 	);
 
 	OnPrimSelectionChanged = InArgs._OnPrimSelectionChanged;
+
+	PostUndoRedoHandle = FEditorDelegates::PostUndoRedo.AddLambda(
+		[this]()
+		{
+			// This is in charge of restoring our expansion states after we undo/redo a prim rename
+			RequestExpansionStateRestore();
+		}
+	);
 
 	UICommandList = MakeShared<FUICommandList>();
 	UICommandList->MapAction(
@@ -405,6 +435,11 @@ void SUsdStageTreeView::Construct(const FArguments& InArgs)
 	);
 }
 
+SUsdStageTreeView::~SUsdStageTreeView()
+{
+	FEditorDelegates::PostUndoRedo.Remove(PostUndoRedoHandle);
+}
+
 TSharedRef<ITableRow> SUsdStageTreeView::OnGenerateRow(FUsdPrimViewModelRef InDisplayNode, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	return SNew(SUsdTreeRow<FUsdPrimViewModelRef>, InDisplayNode, OwnerTable, SharedData);
@@ -420,6 +455,8 @@ void SUsdStageTreeView::OnGetChildren(FUsdPrimViewModelRef InParent, TArray<FUsd
 
 void SUsdStageTreeView::Refresh(const UE::FUsdStageWeak& NewStage)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStageTreeView::Refresh);
+
 	UE::FUsdStageWeak OldStage = RootItems.Num() > 0 ? RootItems[0]->UsdStage : UE::FUsdStageWeak();
 
 	RootItems.Empty();
@@ -428,7 +465,8 @@ void SUsdStageTreeView::Refresh(const UE::FUsdStageWeak& NewStage)
 
 	if (OldStage != NewStage)
 	{
-		TreeItemExpansionStates.Reset();
+		RootWasExpanded.Reset();
+		ExpandedPrimPaths.Reset();
 	}
 
 	if (NewStage)
@@ -438,12 +476,14 @@ void SUsdStageTreeView::Refresh(const UE::FUsdStageWeak& NewStage)
 			RootItems.Add(MakeShared<FUsdPrimViewModel>(nullptr, UsdStage, RootPrim));
 		}
 
-		RestoreExpansionStates();
+		RequestExpansionStateRestore();
 	}
 }
 
 void SUsdStageTreeView::RefreshPrim(const FString& PrimPath, bool bResync)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStageTreeView::RefreshPrim);
+
 	FScopedUnrealAllocs UnrealAllocs;	 // RefreshPrim can be called by a delegate for which we don't know the active allocator
 
 	FUsdPrimViewModelPtr FoundItem = GetItemFromPrimPath(PrimPath);
@@ -561,6 +601,8 @@ void SUsdStageTreeView::SelectItemsInternal(const TArray<FUsdPrimViewModelRef>& 
 
 void SUsdStageTreeView::SetSelectedPrimPaths(const TArray<FString>& PrimPaths)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SetSelectedPrimPaths);
+
 	TArray<FUsdPrimViewModelRef> ItemsToSelect;
 	ItemsToSelect.Reserve(PrimPaths.Num());
 
@@ -993,8 +1035,7 @@ void SUsdStageTreeView::OnPastePrim()
 	for (const UE::FUsdPrim& ParentPrim : ParentPrims)
 	{
 		// Preemptively mark the parent prims as expanded so that we can always see what we pasted
-		const bool bIsExpanded = true;
-		TreeItemExpansionStates.Add(ParentPrim.GetPrimPath().GetString(), bIsExpanded);
+		ExpandedPrimPaths.Add(ParentPrim.GetPrimPath().GetString());
 
 		UsdUtils::PastePrims(ParentPrim);
 	}
@@ -1412,40 +1453,68 @@ bool SUsdStageTreeView::DoesPrimHaveSpecOnLocalLayerStack() const
 	return false;
 }
 
-void SUsdStageTreeView::RequestListRefresh()
+void SUsdStageTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	SUsdTreeView<FUsdPrimViewModelRef>::RequestListRefresh();
-	RestoreExpansionStates();
-}
-
-void SUsdStageTreeView::RestoreExpansionStates()
-{
-	TFunction<void(const FUsdPrimViewModelRef&)> SetExpansionRecursive = [&](const FUsdPrimViewModelRef& Item)
+	// Restore expansion states.
+	//
+	// We do this on tick so that we only do at most one of these per frame, and also so that we do it as delayed
+	// as possible, as during some busy transitions like undo/redo we may end up creating new FUsdPrimViewModels,
+	// and we only want to try restoring these expansion states after all FUsdPrimViewModels have been created
+	if (bNeedExpansionStateRefresh)
 	{
-		if (const UE::FUsdPrim& Prim = Item->UsdPrim)
+		TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStageTreeView::RestoreExpansionStates);
+
+		// We should have only one root item, and it should be the expanded by default unless it was manually collapsed
+		if (RootItems.Num() > 0)
 		{
-			if (bool* bFoundExpansionState = TreeItemExpansionStates.Find(Prim.GetPrimPath().GetString()))
-			{
-				SetItemExpansion(Item, *bFoundExpansionState);
-			}
-			// Default to showing the root level expanded
-			else if (Prim.GetStage().GetPseudoRoot() == Prim)
+			const UE::FUsdPrim& RootPrim = RootItems[0]->UsdPrim;
+			if (RootPrim.IsPseudoRoot())
 			{
 				const bool bShouldExpand = true;
-				SetItemExpansion(Item, bShouldExpand);
+
+				const bool bDefaultValue = true;
+				if (RootWasExpanded.Get(bDefaultValue))
+				{
+					SetItemExpansion(RootItems[0], bShouldExpand);
+				}
+				else
+				{
+					SetItemExpansion(RootItems[0], !bShouldExpand);
+				}
 			}
 		}
 
-		for (const FUsdPrimViewModelRef& Child : Item->Children)
+		TFunction<void(const FUsdPrimViewModelRef&)> SetExpansionRecursive = [&](const FUsdPrimViewModelRef& Item)
 		{
-			SetExpansionRecursive(Child);
-		}
-	};
+			if (const UE::FUsdPrim& Prim = Item->UsdPrim)
+			{
+				if (ExpandedPrimPaths.Contains(Prim.GetPrimPath().GetString()))
+				{
+					const bool bShouldExpand = true;
+					SetItemExpansion(Item, bShouldExpand);
+				}
+			}
 
-	for (const FUsdPrimViewModelRef& RootItem : RootItems)
-	{
-		SetExpansionRecursive(RootItem);
+			for (const FUsdPrimViewModelRef& Child : Item->Children)
+			{
+				SetExpansionRecursive(Child);
+			}
+		};
+
+		for (const FUsdPrimViewModelRef& RootItem : RootItems)
+		{
+			SetExpansionRecursive(RootItem);
+		}
+
+		bNeedExpansionStateRefresh = false;
 	}
+
+	SUsdTreeView<FUsdPrimViewModelRef>::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+}
+
+void SUsdStageTreeView::RequestExpansionStateRestore()
+{
+	bNeedExpansionStateRefresh = true;
 }
 
 void SUsdStageTreeView::OnToggleAllPayloads(EPayloadsTrigger PayloadsTrigger)
@@ -1795,30 +1864,35 @@ void SUsdStageTreeView::OnPrimNameCommitted(const FUsdPrimViewModelRef& ViewMode
 
 		FScopedTransaction Transaction(LOCTEXT("RenamePrimTransaction", "Rename a prim"));
 
-		// e.g. "/Root/OldPrim/"
+		// e.g. "/Root/OldPrim"
 		FString OldPath = ViewModel->UsdPrim.GetPrimPath().GetString();
 
 		// e.g. "NewPrim"
 		FString NewNameStr = InPrimName.ToString();
 
 		// Preemptively preserve the prim's expansion state because RenamePrim will trigger notices from within itself
-		// that will trigger refreshes of the tree view
+		// that will trigger refreshes of the tree view.
+		//
+		// Note: We don't remove the old paths in here, as that lets us undo the rename and
+		// preserve our expansion states
 		{
 			// e.g. "/Root/NewPrim"
 			FString NewPath = FString::Printf(TEXT("%s/%s"), *FPaths::GetPath(OldPath), *NewNameStr);
-			TMap<FString, bool> PairsToAdd;
-			for (TMap<FString, bool>::TIterator It(TreeItemExpansionStates); It; ++It)
+			TSet<FString> EntriesToAdd;
+			for (TSet<FString>::TIterator It(ExpandedPrimPaths); It; ++It)
 			{
 				// e.g. "/Root/OldPrim/SomeChild"
-				FString SomePrimPath = It->Key;
-				if (SomePrimPath.RemoveFromStart(OldPath))	  // e.g. "/SomeChild"
+				TStringView SomePrimPath = *It;
+				if (SomePrimPath.StartsWith(OldPath))
 				{
+					// e.g. "/SomeChild"
+					SomePrimPath.RemovePrefix(OldPath.Len());
+
 					// e.g. "/Root/NewPrim/SomeChild"
-					SomePrimPath = NewPath + SomePrimPath;
-					PairsToAdd.Add(SomePrimPath, It->Value);
+					EntriesToAdd.Add(NewPath + FString{SomePrimPath});
 				}
 			}
-			TreeItemExpansionStates.Append(PairsToAdd);
+			ExpandedPrimPaths.Append(EntriesToAdd);
 		}
 
 		UsdUtils::RenamePrim(ViewModel->UsdPrim, *NewNameStr);

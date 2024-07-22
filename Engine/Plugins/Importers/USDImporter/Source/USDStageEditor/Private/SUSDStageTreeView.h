@@ -30,6 +30,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
+	virtual ~SUsdStageTreeView() override;
 
 	void Refresh(const UE::FUsdStageWeak& NewStage);
 	void RefreshPrim(const FString& PrimPath, bool bResync);
@@ -92,9 +93,8 @@ private:
 	bool DoesPrimExistOnEditTarget() const;
 	bool DoesPrimHaveSpecOnLocalLayerStack() const;
 
-	/** Uses TreeItemExpansionStates to travel the tree and call SetItemExpansion */
-	void RestoreExpansionStates();
-	virtual void RequestListRefresh() override;
+	void RequestExpansionStateRestore();
+	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
 
 	void SelectItemsInternal(const TArray<FUsdPrimViewModelRef>& ItemsToSelect);
 
@@ -122,9 +122,13 @@ private:
 	TWeakPtr<FUsdPrimViewModel> PendingRenameItem;
 
 	// So that we can store these across refreshes
-	TMap<FString, bool> TreeItemExpansionStates;
+	TSet<FString> ExpandedPrimPaths;
+	TOptional<bool> RootWasExpanded;
+	bool bNeedExpansionStateRefresh = false;
 
 	FOnPrimSelectionChanged OnPrimSelectionChanged;
+
+	FDelegateHandle PostUndoRedoHandle;
 
 	TSharedPtr<FUICommandList> UICommandList;
 };

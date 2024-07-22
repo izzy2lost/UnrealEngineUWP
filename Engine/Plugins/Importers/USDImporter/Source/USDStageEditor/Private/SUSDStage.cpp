@@ -2618,6 +2618,8 @@ void SUsdStage::RequestFullRefresh()
 
 void SUsdStage::OnSlateTick(float Time)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStage::OnSlateTick);
+
 	if (bEditorIsShuttingDown)
 	{
 		return;

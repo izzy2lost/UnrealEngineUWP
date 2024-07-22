@@ -57,6 +57,8 @@ public:
 
 	TArray<FUsdPrimViewModelRef>& UpdateChildren();
 
+	void SetIsExpanded(bool bNewIsExpanded);
+	bool ShouldGenerateChildren() const;
 	void FillChildren();
 
 	void RefreshData(bool bRefreshChildren);
@@ -95,4 +97,7 @@ public:
 	TSharedRef<FUsdPrimModel> RowData;	  // Data model
 
 	bool bIsRenamingExistingPrim = false;
+
+private:
+	bool bIsExpanded = false;	 // Set by our parent tree, controls whether we generate grandchildren or not
 };

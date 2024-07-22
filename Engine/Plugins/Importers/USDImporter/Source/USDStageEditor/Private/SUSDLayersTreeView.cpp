@@ -428,6 +428,8 @@ void SUsdLayersTreeView::Construct(const FArguments& InArgs)
 
 void SUsdLayersTreeView::Refresh(const UE::FUsdStageWeak& NewStage, const UE::FUsdStageWeak& InIsolatedStage, bool bResync)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdLayersTreeView::Refresh);
+
 	if (bResync)
 	{
 		bool bShouldResetExpansionStates = false;
