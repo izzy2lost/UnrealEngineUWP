@@ -2454,7 +2454,7 @@ bool UnrealToUsd::ConvertAudioSection(
 }
 
 bool UnrealToUsd::ConvertBoolTrack(
-	const UMovieSceneBoolTrack& MovieSceneTrack,
+	const UMovieScenePropertyTrack& MovieSceneTrack,
 	const FMovieSceneSequenceTransform& SequenceTransform,
 	const TFunction<void(bool, double)>& WriterFunc,
 	UE::FUsdPrim& Prim

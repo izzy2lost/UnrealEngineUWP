@@ -4543,6 +4543,10 @@ void FUsdLevelSequenceHelperImpl::HandleTrackChange(const UMovieSceneTrack& Trac
 				{
 					UnrealToUsd::ConvertBoolTrack(*BoolTrack, SequenceTransform, Writer.BoolWriter, UsdPrim);
 				}
+				else if (const UMovieSceneVisibilityTrack* VisTrack = Cast<const UMovieSceneVisibilityTrack>(&Track))
+				{
+					UnrealToUsd::ConvertBoolTrack(*VisTrack, SequenceTransform, Writer.BoolWriter, UsdPrim);
+				}
 				else if (const UMovieSceneColorTrack* ColorTrack = Cast<const UMovieSceneColorTrack>(&Track))
 				{
 					UnrealToUsd::ConvertColorTrack(*ColorTrack, SequenceTransform, Writer.ColorWriter, UsdPrim);

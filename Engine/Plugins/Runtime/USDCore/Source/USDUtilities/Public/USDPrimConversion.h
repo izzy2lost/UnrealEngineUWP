@@ -279,7 +279,7 @@ namespace UnrealToUsd
 		UE::FUsdPrim& Prim
 	);
 	USDUTILITIES_API bool ConvertBoolTrack(
-		const UMovieSceneBoolTrack& MovieSceneTrack,
+		const UMovieScenePropertyTrack& MovieSceneTrack,	// PropertyTrack here so it handles BoolTracks and VisibilityTracks
 		const FMovieSceneSequenceTransform& SequenceTransform,
 		const TFunction<void(bool, double)>& WriterFunc,
 		UE::FUsdPrim& Prim
