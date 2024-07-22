@@ -6,12 +6,13 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
 
+class SActionButton;
 class SHorizontalBox;
 
-class TOOLWIDGETS_API SPrimaryButton : public SButton
+class TOOLWIDGETS_API SPrimaryButton
+	: public SCompoundWidget
 {
 public:
-
 	SLATE_BEGIN_ARGS(SPrimaryButton)
 	{}
 		/** The text to display in the button. */
@@ -24,15 +25,10 @@ public:
 		 * Called when the button is clicked  
 		 */
 		SLATE_EVENT(FOnClicked, OnClicked)
-
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
 
 private:
-	const FSlateBrush* OnGetBrush();
-
-private:
-	TAttribute<const FSlateBrush*>::FGetter OwnerDelegate;
-	TSharedPtr<SHorizontalBox> HorizontalBox;
+	TSharedPtr<SActionButton> ActionButton;
 };

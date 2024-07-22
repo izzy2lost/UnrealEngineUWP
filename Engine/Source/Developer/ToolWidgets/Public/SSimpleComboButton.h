@@ -3,13 +3,16 @@
 #pragma once
 
 #include "Framework/SlateDelegates.h"
+#include "SActionButton.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SComboButton.h"
 
-class TOOLWIDGETS_API SSimpleComboButton : public SComboButton
+class TOOLWIDGETS_API SSimpleComboButton
+	: public SCompoundWidget
+	, public IActionButton
 {
 public:
-
 	SLATE_BEGIN_ARGS(SSimpleComboButton)
 		: _HasDownArrow(false)
 		, _UsesSmallText(false)
@@ -27,10 +30,17 @@ public:
 		SLATE_EVENT(FOnIsOpenChanged, OnMenuOpenChanged)
 		SLATE_ARGUMENT(bool, HasDownArrow)
 		SLATE_ARGUMENT(bool, UsesSmallText)
-
 	SLATE_END_ARGS()
 
-	SSimpleComboButton() {}
+	SSimpleComboButton() = default;
 
 	void Construct(const FArguments& InArgs);
+
+	//~ Begin IActionButton
+	virtual void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> InWidget) override;
+	virtual void SetIsMenuOpen(bool bInIsOpen, bool bInIsFocused) override;
+	//~ End IActionButton
+
+private:
+	TSharedPtr<SActionButton> ActionButton;
 };
