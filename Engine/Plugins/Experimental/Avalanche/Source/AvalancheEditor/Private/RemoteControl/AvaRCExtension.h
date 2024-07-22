@@ -22,6 +22,7 @@ public:
 	virtual void Deactivate() override;
 	virtual void ExtendLevelEditorLayout(FLayoutExtender& InExtender) const override;
 	virtual void ExtendToolbarMenu(UToolMenu& InMenu) override;
+	virtual void OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject) override;
 	//~ End IAvaEditorExtension
 
 protected:

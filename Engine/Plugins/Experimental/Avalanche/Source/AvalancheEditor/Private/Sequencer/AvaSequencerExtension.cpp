@@ -115,6 +115,23 @@ void FAvaSequencerExtension::Cleanup()
 	}
 }
 
+void FAvaSequencerExtension::OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject)
+{
+	if (IAvaSequenceProvider* SequenceProvider = Cast<IAvaSequenceProvider>(InNewSceneObject))
+	{
+		SequenceProvider->RebuildSequenceTree();
+
+		const TArray<TObjectPtr<UAvaSequence>>& Sequences = SequenceProvider->GetSequences();
+
+		// Select First Sequence from the new List
+		if (!Sequences.IsEmpty() && AvaSequencer.IsValid())
+		{
+			AvaSequencer->SetViewedSequence(Sequences[0]);
+			AvaSequencer->NotifyOnSequenceTreeChanged();
+		}
+	}
+}
+
 void FAvaSequencerExtension::RegisterTabSpawners(const TSharedRef<IAvaEditor>& InEditor) const
 {
 	InEditor->AddTabSpawner<FAvaSequencerTabSpawner>(InEditor, GetSequencerTabId());

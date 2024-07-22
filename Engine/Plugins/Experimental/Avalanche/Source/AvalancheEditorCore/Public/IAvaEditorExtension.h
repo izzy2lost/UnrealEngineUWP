@@ -51,6 +51,8 @@ public:
 
 	virtual void BindCommands(const TSharedRef<FUICommandList>& InCommandList) {}
 
+	virtual void OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject) {}
+
 	virtual void RegisterTabSpawners(const TSharedRef<IAvaEditor>& InEditor) const {}
 
 	/** Opportunity for an Extension to extend the Editor Toolbar */
@@ -111,7 +113,7 @@ public:
 	{
 		const TSharedPtr<IAvaEditor> Editor = GetEditor();
 		return Editor.IsValid()
-			? Cast<InSceneObjectType>(Editor->GetSceneObject(EAvaEditorObjectQueryType::SkipSearch))
+			? Cast<InSceneObjectType>(Editor->GetSceneObject(EAvaEditorObjectQueryType::SearchOnly))
 			: nullptr;
 	}
 

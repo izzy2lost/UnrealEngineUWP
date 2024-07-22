@@ -415,6 +415,21 @@ UWorld* FAvaEditor::GetWorld() const
 	return nullptr;
 }
 
+void FAvaEditor::OnSceneObjectChanged()
+{
+	UObject* OldSceneObject = GetSceneObject(EAvaEditorObjectQueryType::SkipSearch);
+
+	// Clear cached scene object as scene object changed
+	SceneObjectWeak.Reset();
+
+	UObject* NewSceneObject = GetSceneObject(EAvaEditorObjectQueryType::SearchOnly);
+
+	ForEachExtension([OldSceneObject, NewSceneObject](const TSharedRef<IAvaEditorExtension>& InExtension)
+	{
+		InExtension->OnSceneObjectChanged(OldSceneObject, NewSceneObject);
+	});
+}
+
 UObject* FAvaEditor::GetSceneObject(EAvaEditorObjectQueryType InQueryType) const
 {
 	// Return cached version if we are skipping search or if already valid
@@ -423,8 +438,12 @@ UObject* FAvaEditor::GetSceneObject(EAvaEditorObjectQueryType InQueryType) const
 		return SceneObjectWeak.Get();
 	}
 
-	UWorld* const SceneWorld   = GetWorld();
-	UObject* const SceneObject = Provider->GetSceneObject(SceneWorld, InQueryType);
+	UObject* SceneObject = nullptr;
+
+	if (UWorld* SceneWorld = GetWorld())
+	{
+		SceneObject = Provider->GetSceneObject(SceneWorld, InQueryType);
+	}
 
 	const_cast<FAvaEditor*>(this)->SceneObjectWeak = SceneObject;
 	return SceneObject;

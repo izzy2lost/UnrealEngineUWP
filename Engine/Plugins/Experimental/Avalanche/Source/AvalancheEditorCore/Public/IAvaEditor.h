@@ -72,6 +72,8 @@ public:
 
 	virtual UWorld* GetWorld() const = 0;
 
+	virtual void OnSceneObjectChanged() = 0;
+
 	virtual UObject* GetSceneObject(EAvaEditorObjectQueryType InQueryType = EAvaEditorObjectQueryType::SearchOnly) const = 0;
 
 	virtual void RegisterTabSpawners() = 0;

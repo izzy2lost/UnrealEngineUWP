@@ -27,6 +27,10 @@ public:
 
 	static UAvaEditorSettings* Get();
 
+	/** Whether to allow the Motion Design Interface to show the current selected level rather than fixed at the persistent level */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
+	bool bEnableLevelContextSwitching = true;
+
 	/** Whether to Automatically Include the Attached Actors when performing Edit Actions such as Cut, Copy, Duplicate. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Behavior")
 	bool bAutoIncludeAttachedActorsInEditActions = true;

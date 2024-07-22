@@ -6,6 +6,7 @@
 
 class FAvaLevelEditorToolbar;
 class ILevelEditor;
+class ULevel;
 enum class EMapChangeType : uint8;
 
 class FAvaLevelEditor : public FAvaEditor
@@ -32,6 +33,8 @@ protected:
 	//~ End IAvaEditor
 
 private:
+	void OnCurrentLevelChanged(ULevel* InNewLevel, ULevel* InOldLevel, UWorld* InWorld);
+
 	void TryOpenScene(EAvaEditorObjectQueryType InQueryType = EAvaEditorObjectQueryType::SearchOnly);
 
 	void OnMapChanged(UWorld* InWorld, EMapChangeType InChangeType);
@@ -39,6 +42,8 @@ private:
 	void OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor);
 
 	TSharedRef<FAvaLevelEditorToolbar> Toolbar;
+
+	FDelegateHandle OnCurrentLevelChangedHandle;
 
 	FDelegateHandle OnRegisterLayoutHandle;
 

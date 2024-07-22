@@ -27,6 +27,9 @@ FAvaLevelEditor::~FAvaLevelEditor()
 		OnMapChangedHandle.Reset();
 		OnRegisterLayoutHandle.Reset();
 	}
+
+	FWorldDelegates::OnCurrentLevelChanged.Remove(OnCurrentLevelChangedHandle);
+	OnCurrentLevelChangedHandle.Reset();
 }
 
 void FAvaLevelEditor::Construct()
@@ -44,6 +47,8 @@ void FAvaLevelEditor::Construct()
 	AvaLevelEditor = This;
 
 	FAvaEditor::Construct();
+
+	OnCurrentLevelChangedHandle = FWorldDelegates::OnCurrentLevelChanged.AddSP(This, &FAvaLevelEditor::OnCurrentLevelChanged);
 
 	Toolbar->Construct(This);
 
@@ -70,6 +75,11 @@ void FAvaLevelEditor::BindCommands(const TSharedRef<FUICommandList>& InCommandLi
 		LevelEditorModule->GetGlobalLevelEditorActions()->Append(InCommandList);
 	}
 	FAvaEditor::BindCommands(InCommandList);
+}
+
+void FAvaLevelEditor::OnCurrentLevelChanged(ULevel* InNewLevel, ULevel* InOldLevel, UWorld* InWorld)
+{
+	OnSceneObjectChanged();
 }
 
 void FAvaLevelEditor::TryOpenScene(EAvaEditorObjectQueryType InQueryType)

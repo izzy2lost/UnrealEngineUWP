@@ -38,6 +38,7 @@ public:
 	virtual void Activate() override;
 	virtual void Deactivate() override;
 	virtual void Cleanup() override;
+	virtual void OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject) override;
 	virtual void RegisterTabSpawners(const TSharedRef<IAvaEditor>& InEditor) const override;
 	virtual void ExtendLevelEditorLayout(FLayoutExtender& InExtender) const override;
 	virtual void NotifyOnSelectionChanged(const FAvaEditorSelection& InSelection) override;

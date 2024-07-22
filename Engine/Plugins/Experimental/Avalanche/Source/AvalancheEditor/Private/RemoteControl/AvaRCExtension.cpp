@@ -55,6 +55,46 @@ void FAvaRCExtension::ExtendToolbarMenu(UToolMenu& InMenu)
 	Entry.StyleNameOverride = "CalloutToolbar";
 }
 
+void FAvaRCExtension::OnSceneObjectChanged(UObject* InOldSceneObject, UObject* InNewSceneObject)
+{
+	TSharedPtr<IAvaEditor> Editor = GetEditor();
+	if (!Editor.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<IToolkitHost> ToolkitHost = Editor->GetToolkitHost();
+	if (!ToolkitHost.IsValid())
+	{
+		return;
+	}
+
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
+	check(AssetEditorSubsystem);
+
+	if (const IAvaSceneInterface* OldScene = Cast<IAvaSceneInterface>(InOldSceneObject))
+	{
+		if (URemoteControlPreset* OldPreset = OldScene->GetRemoteControlPreset())
+		{
+			AssetEditorSubsystem->CloseAllEditorsForAsset(OldPreset);
+		}
+	}
+
+	if (const IAvaSceneInterface* NewScene = Cast<IAvaSceneInterface>(InNewSceneObject))
+	{
+		if (URemoteControlPreset* NewPreset = NewScene->GetRemoteControlPreset())
+		{
+			// Level-dependent bindings are resolved via the Selected World in the Preset. By default, this should be the current edited world.
+			// However, the Current Edited World does not hold ownership of the other sublevels, and so doing a "FindObject" or similar with this world
+			// will fail for any actor/subobject within these sublevels.
+			// So set the Selected World to be the true outer world of the new scene object level.
+			NewPreset->SelectedWorld = InNewSceneObject->GetTypedOuter<UWorld>();
+
+			AssetEditorSubsystem->OpenEditorForAsset(NewPreset, EToolkitMode::WorldCentric, ToolkitHost);
+		}
+	}
+}
+
 void FAvaRCExtension::OpenRemoteControlTab() const
 {
 	TSharedPtr<IAvaEditor> Editor = GetEditor();
