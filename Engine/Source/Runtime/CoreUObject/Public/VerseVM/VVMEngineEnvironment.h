@@ -29,7 +29,7 @@ class IEngineEnvironment
 {
 public:
 	// Collect property information during code generation.
-	virtual void CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type, VPropertyType** OutPropertyType) = 0;
+	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type) = 0;
 
 	// Build the key used to look up native binding info for a module, class, or struct.
 	virtual FTopLevelAssetPath GetAssetPathForScope(const uLang::CScope& Scope) = 0;

@@ -41,8 +41,9 @@ void VConstructor::SerializeImpl(VConstructor*& This, FAllocationContext Context
 		{
 			Visitor.BeginObject();
 			Visitor.Visit(This->Entries[Index].Name, TEXT("Name"));
+			Visitor.Visit(This->Entries[Index].bNative, TEXT("Native"));
+			Visitor.Visit(This->Entries[Index].Type, TEXT("Type"));
 			Visitor.Visit(This->Entries[Index].Value, TEXT("Value"));
-			Visitor.Visit(This->Entries[Index].PropertyType, TEXT("PropertyType"));
 			Visitor.Visit(This->Entries[Index].bDynamic, TEXT("Dynamic"));
 			Visitor.EndObject();
 		}
@@ -65,8 +66,9 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		{
 			Visitor.BeginObject();
 			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
+			Visitor.Visit(Entries[Index].bNative, TEXT("Native"));
+			Visitor.Visit(Entries[Index].Type, TEXT("Type"));
 			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
-			Visitor.Visit(Entries[Index].PropertyType, TEXT("PropertyType"));
 			Visitor.Visit(Entries[Index].bDynamic, TEXT("Dynamic"));
 			Visitor.EndObject();
 		}
@@ -77,8 +79,8 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		for (uint32 Index = 0; Index < NumEntries; ++Index)
 		{
 			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
+			Visitor.Visit(Entries[Index].Type, TEXT("Type"));
 			Visitor.Visit(Entries[Index].Value, TEXT("Value"));
-			Visitor.Visit(Entries[Index].PropertyType, TEXT("PropertyType"));
 		}
 	}
 }
