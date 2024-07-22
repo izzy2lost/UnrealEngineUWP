@@ -15,7 +15,6 @@
 #include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 #include "ToolMenus.h"
 #include "ToolMenu.h"
-#include "Widgets/PropertyAnimatorCoreEditorEditPanelOptions.h"
 
 #define LOCTEXT_NAMESPACE "PropertyAnimatorEditorStackCustomization"
 

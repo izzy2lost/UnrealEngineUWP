@@ -14,37 +14,8 @@
 #include "PropertyHandle.h"
 #include "Styles/PropertyAnimatorCoreEditorStyle.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
-#include "Widgets/SPropertyAnimatorCoreEditorEditPanel.h"
 
 #define LOCTEXT_NAMESPACE "PropertyAnimatorCoreEditorSubsystem"
-
-FPropertyAnimatorCoreEditorEditPanelOptions& UPropertyAnimatorCoreEditorSubsystem::OpenPropertyControlWindow()
-{
-	TSharedPtr<SPropertyAnimatorCoreEditorEditPanel> PropertyControlPanel = PropertyControllerPanelWeak.Pin();
-
-	if (!PropertyControllerPanelWeak.IsValid())
-	{
-		PropertyControlPanel = SPropertyAnimatorCoreEditorEditPanel::OpenWindow();
-		PropertyControllerPanelWeak = PropertyControlPanel;
-	}
-
-	PropertyControlPanel->FocusWindow();
-
-	return PropertyControlPanel->GetOptions();
-}
-
-void UPropertyAnimatorCoreEditorSubsystem::ClosePropertyControlWindow() const
-{
-	if (const TSharedPtr<SPropertyAnimatorCoreEditorEditPanel> PropertyControllerPanel = PropertyControllerPanelWeak.Pin())
-	{
-		PropertyControllerPanel->CloseWindow();
-	}
-}
-
-bool UPropertyAnimatorCoreEditorSubsystem::IsPropertyControlWindowOpened() const
-{
-	return PropertyControllerPanelWeak.IsValid();
-}
 
 bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, const FPropertyAnimatorCoreEditorMenuContext& InContext, const FPropertyAnimatorCoreEditorMenuOptions& InOptions)
 {
@@ -66,22 +37,6 @@ bool UPropertyAnimatorCoreEditorSubsystem::FillAnimatorMenu(UToolMenu* InMenu, c
 			AnimatorSection = &InMenu->AddSection(AnimatorSectionName
 				, LOCTEXT("ContextAnimatorActions", "Animators Actions")
 				, FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
-		}
-	}
-
-	if (InOptions.IsMenuType(EPropertyAnimatorCoreEditorMenuType::Edit))
-	{
-		if (InOptions.ShouldCreateSubMenu())
-		{
-			AnimatorSection->AddSubMenu(
-				TEXT("EditAnimatorMenu"),
-				LOCTEXT("EditAnimatorMenu.Label", "Edit Animators"),
-				LOCTEXT("EditAnimatorMenu.Tooltip", "Edit Animators"),
-				FNewToolMenuDelegate::CreateLambda(&UE::PropertyAnimatorCoreEditor::Menu::FillEditAnimatorSection, LastMenuData.ToSharedRef()));
-		}
-		else
-		{
-			UE::PropertyAnimatorCoreEditor::Menu::FillEditAnimatorSection(InMenu, LastMenuData.ToSharedRef());
 		}
 	}
 
@@ -410,7 +365,12 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorExtensionSection(UToolMen
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {Context->GetPropertyData()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::NewAdvanced, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions(
+		{
+			EPropertyAnimatorCoreEditorMenuType::NewAdvanced
+			, EPropertyAnimatorCoreEditorMenuType::Existing
+		}
+	);
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 
@@ -437,7 +397,12 @@ void UPropertyAnimatorCoreEditorSubsystem::FillAnimatorRowContextSection(UToolMe
 	}
 
 	const FPropertyAnimatorCoreEditorMenuContext MenuContext({}, {PropertyData.GetValue()});
-	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions({EPropertyAnimatorCoreEditorMenuType::Edit, EPropertyAnimatorCoreEditorMenuType::NewAdvanced, EPropertyAnimatorCoreEditorMenuType::Existing});
+	const FPropertyAnimatorCoreEditorMenuOptions MenuOptions(
+		{
+			EPropertyAnimatorCoreEditorMenuType::NewAdvanced
+			, EPropertyAnimatorCoreEditorMenuType::Existing
+		}
+	);
 	FillAnimatorMenu(InToolMenu, MenuContext, MenuOptions);
 }
 

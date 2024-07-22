@@ -11,48 +11,8 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
-#include "Widgets/PropertyAnimatorCoreEditorEditPanelOptions.h"
 
 #define LOCTEXT_NAMESPACE "PropertyAnimatorCoreEditorMenu"
-
-void UE::PropertyAnimatorCoreEditor::Menu::FillEditAnimatorSection(UToolMenu* InMenu, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
-{
-	if (!InMenu || InMenuData->GetContext().IsEmpty())
-	{
-		return;
-	}
-
-	const UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
-	if (!Subsystem)
-	{
-		return;
-	}
-
-	const TSet<AActor*> Actors = InMenuData->GetContext().GetActors();
-	if (Actors.Num() != 1)
-	{
-		return;
-	}
-
-	AActor* AnimatorActor = Actors.Array()[0];
-	if (!IsValid(AnimatorActor))
-	{
-		return;
-	}
-
-	FToolMenuSection& ManageAnimatorsSection = InMenu->FindOrAddSection(TEXT("ManageAnimators"), LOCTEXT("ManageAnimators.Label", "Manage Animators"));
-	const FSlateIcon AnimatorIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreBase::StaticClass());
-
-	ManageAnimatorsSection.AddMenuEntry(
-		TEXT("OpenEditAnimatorsWindow")
-	   , LOCTEXT("OpenEditAnimatorsWindow.Label", "Edit Animators")
-	   , LOCTEXT("OpenEditAnimatorsWindow.Tooltip", "Open edit animators window")
-	   , AnimatorIcon
-	   , FUIAction(
-		   FExecuteAction::CreateStatic(&ExecuteEditAnimatorAction, AnimatorActor)
-	   )
-	);
-}
 
 void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSection(UToolMenu* InMenu, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)
 {
@@ -368,19 +328,6 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillDisableAnimatorSection(UToolMenu*
 			)
 		);
 	}
-}
-
-void UE::PropertyAnimatorCoreEditor::Menu::ExecuteEditAnimatorAction(AActor* InActor)
-{
-	UPropertyAnimatorCoreEditorSubsystem* EditorSubsystem = UPropertyAnimatorCoreEditorSubsystem::Get();
-
-	if (!EditorSubsystem || !IsValid(InActor))
-	{
-		return;
-	}
-
-	FPropertyAnimatorCoreEditorEditPanelOptions& Options = EditorSubsystem->OpenPropertyControlWindow();
-	Options.SetContextActor(InActor);
 }
 
 void UE::PropertyAnimatorCoreEditor::Menu::ExecuteNewAnimatorPresetAction(const UPropertyAnimatorCoreBase* InAnimator, const TSet<AActor*>& InActors, UPropertyAnimatorCorePresetBase* InPreset, TSharedRef<FPropertyAnimatorCoreEditorMenuData> InMenuData)

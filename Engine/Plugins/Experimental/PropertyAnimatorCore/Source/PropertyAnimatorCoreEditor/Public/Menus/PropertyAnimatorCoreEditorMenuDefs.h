@@ -15,22 +15,20 @@ class UObject;
 /** Menu type available */
 enum class EPropertyAnimatorCoreEditorMenuType : uint8
 {
-	/** Menu to open edit animators window */
-	Edit = 1 << 0,
 	/** Menu to add new animator on selected actors */
-	NewSimple = 1 << 1,
+	NewSimple = 1 << 0,
 	/** Menu to add new animator on selected actors, with submenus for presets and properties */
-	NewAdvanced = 1 << 2,
+	NewAdvanced = 1 << 1,
 	/** Menu to link or unlink properties/preset to/from existing animators */
-	Existing = 1 << 3,
+	Existing = 1 << 2,
 	/** Menu to link properties/preset to existing animator */
-	Link = 1 << 4,
+	Link = 1 << 3,
 	/** Menu to delete animators */
-	Delete = 1 << 5,
+	Delete = 1 << 4,
 	/** Menu to enable animators */
-	Enable = 1 << 6,
+	Enable = 1 << 5,
 	/** Menu to disable animators */
-	Disable = 1 << 7
+	Disable = 1 << 6
 };
 
 /** Context for the menu builder, you can reuse it for multiple menus types */
