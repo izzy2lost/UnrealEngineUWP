@@ -131,13 +131,13 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 			if (any(ShadowMaskRay.ShadowFactor > 0.01f) && DeferredLightUniforms.LightFunctionAtlasLightIndex > 0)
 			{
 				ShadowMaskRay.ShadowFactor *= GetLocalLightFunctionCommon(TranslatedWorldPosition, DeferredLightUniforms.LightFunctionAtlasLightIndex);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || all(ShadowMaskRay.ShadowFactor < 0.01f);
 			}
 			#elif LIGHT_FUNCTION
 			if (any(ShadowMaskRay.ShadowFactor > 0.01f))
 			{
 				ShadowMaskRay.ShadowFactor *= GetLumenLightFunction(TranslatedWorldPosition);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || all(ShadowMaskRay.ShadowFactor < 0.01f);
 			}
 			#endif
 
@@ -146,14 +146,14 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 			{
 				float OutOpticalDepth = 0.0f;
 				ShadowMaskRay.ShadowFactor *= lerp(1.0f, GetCloudVolumetricShadow(TranslatedWorldPosition, CloudShadowmapTranslatedWorldToLightClipMatrix, CloudShadowmapFarDepthKm, CloudShadowmapTexture, CloudShadowmapSampler, OutOpticalDepth), CloudShadowmapStrength);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || all(ShadowMaskRay.ShadowFactor < 0.01f);
 			}
 			#endif
 
 			if (any(ShadowMaskRay.ShadowFactor > 0.01f) && DeferredLightUniforms.IESAtlasIndex >= 0)
 			{
 				ShadowMaskRay.ShadowFactor *= ComputeLightProfileMultiplier(TranslatedWorldPosition, DeferredLightUniforms.TranslatedWorldPosition, -DeferredLightUniforms.Direction, DeferredLightUniforms.Tangent, DeferredLightUniforms.IESAtlasIndex);
-				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || any(ShadowMaskRay.ShadowFactor > 0.01f);
+				ShadowMaskRay.bShadowFactorComplete = ShadowMaskRay.bShadowFactorComplete || all(ShadowMaskRay.ShadowFactor < 0.01f);
 			}
 
 			const bool bCastShadows = LightData.ShadowedBits >= 3;
