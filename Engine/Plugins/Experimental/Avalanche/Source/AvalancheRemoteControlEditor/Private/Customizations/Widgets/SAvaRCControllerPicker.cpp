@@ -134,13 +134,18 @@ void SAvaRCControllerPicker::RefreshOptions()
 	TSet<FName> ProcessedNames;
 	ProcessedNames.Reserve(Controllers.Num());
 
+	Controllers.RemoveAll([](URCVirtualPropertyBase* InController)
+		{
+			return InController == nullptr;
+		});
+
+	Controllers.StableSort([](const URCVirtualPropertyBase& A, const URCVirtualPropertyBase& B)
+		{
+			return A.DisplayIndex < B.DisplayIndex;
+		});
+
 	for (URCVirtualPropertyBase* Controller : Controllers)
 	{
-		if (!Controller)
-		{
-			continue;
-		}
-
 		// Since FAvaRCControllerPickerOption only handles names directly, avoid adding the same name entry twice
 		bool bAlreadyInSet;
 		ProcessedNames.Add(Controller->DisplayName, &bAlreadyInSet);
