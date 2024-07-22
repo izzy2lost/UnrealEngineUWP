@@ -1096,7 +1096,9 @@ UBA_EXPORT dirent* UBA_WRAPPER(readdir)(DIR* dirp)
 				continue;
 
 			dirInfo.ent.d_ino = info.fileIndex;
+			#if PLATFORM_LINUX
 			dirInfo.ent.d_off = 0;
+			#endif
 			dirInfo.ent.d_reclen = sizeof(dirent);
 			dirInfo.ent.d_type = S_ISDIR(info.attributes) ? DT_DIR : DT_REG;
 			return &dirInfo.ent;
