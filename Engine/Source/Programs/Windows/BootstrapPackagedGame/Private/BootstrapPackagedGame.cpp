@@ -15,7 +15,7 @@ struct VersionInfo
 
 // This minimum should match the version installed by
 // Engine/Source/Programs/PrereqInstaller/Resources/VCRedist/VC_redist.x64.exe
-static const VersionInfo MinRedistVersion = { 14, 38, 33130, 0 };
+static const VersionInfo MinRedistVersion = { 14, 40, 33810, 0 };
 
 bool IsVersionValid(const VersionInfo& Version, const VersionInfo& MinVersion)
 {
