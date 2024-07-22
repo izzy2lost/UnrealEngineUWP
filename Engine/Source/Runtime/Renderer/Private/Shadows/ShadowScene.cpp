@@ -38,7 +38,7 @@ void FShadowScene::PostLightsUpdate(FRDGBuilder& GraphBuilder, const FLightScene
 	// don't spawn async work for no good reason.
 	constexpr int32 kMinWorkSizeForAsync = 64;
 
-	int32 WorkSize = LightSceneChangeSet.SceneLightInfoUpdates->NumCommands();
+	int32 WorkSize = LightSceneChangeSet.AddedLightIds.Num() + LightSceneChangeSet.RemovedLightIds.Num() + LightSceneChangeSet.TransformUpdatedLightIds.Num();
 
 	// Don't sync, or kick off a new job if there is no work to do.
 	if (WorkSize > 0)
@@ -78,10 +78,7 @@ void FShadowScene::PostLightsUpdate(FRDGBuilder& GraphBuilder, const FLightScene
 			};
 
 			Algo::ForEach(LightSceneChangeSet.AddedLightIds, UpdateLight);
-			for (const auto& Item : LightSceneChangeSet.SceneLightInfoUpdates->GetRangeView<FUpdateLightTransformParameters>())
-			{ 
-				UpdateLight(Item.SceneInfo->Id);
-			}
+			Algo::ForEach(LightSceneChangeSet.TransformUpdatedLightIds, UpdateLight);
 
 		}, WorkSize > kMinWorkSizeForAsync);
 	}

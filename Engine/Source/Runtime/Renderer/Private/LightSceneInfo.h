@@ -205,16 +205,13 @@ class FLightSceneInfo
 	FLightPrimitiveInteraction* DynamicInteractionStaticPrimitiveList;
 
 public:
-	using FPersistentId = int32;
-
 	/** The light's scene proxy. */
 	FLightSceneProxy* Proxy;
 
 	ELightComponentType Type;
 
 	/** If bVisible == true, this is the index of the primitive in Scene->Lights. */
-	FPersistentId Id;
-	FORCEINLINE FPersistentId GetPersistentIndex() const { return Id; }
+	int32 Id;
 
 	/** The identifier for the primitive in Scene->PrimitiveOctree. */
 	FOctreeElementId2 OctreeId;

@@ -1688,19 +1688,24 @@ void FVirtualShadowMapInvalidationSceneUpdater::PreSceneUpdate(FRDGBuilder& Grap
 			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
 		}
 
-		// Note: skips added as they are not fully defined at this point (not primitive ID allocated, 
-		ChangeSet.PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::Updated | ESceneUpdateCommandFilter::Deleted, EPrimitiveUpdateDirtyFlags::AllCulling, [&](const FPrimitiveUpdateCommand& Cmd)
+		// All removed primitives must invalidate their footprints in the VSM before leaving
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.RemovedPrimitiveSceneInfos)
 		{
-			if (Cmd.IsDelete())
-			{
-				// All removed primitives must invalidate their footprints in the VSM before leaving.
-				InvalidatingPrimitiveCollector.Removed(Cmd.GetSceneInfo());
-			}
-			else
-			{
-				InvalidatingPrimitiveCollector.UpdatedTransform(Cmd.GetSceneInfo());
-			}
-		});
+			InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
+		}
+		// As must all primitive updates, 
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ChangeSet.UpdatedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
+		}
+
+		// TODO! Where do we get this data from...
+		/*
+		for (const auto& CullDistance : UpdatedInstanceCullDistance)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
+		}
+		*/
 
 		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PreInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
 		CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
@@ -1712,7 +1717,7 @@ void FVirtualShadowMapInvalidationSceneUpdater::PostSceneUpdate(FRDGBuilder& Gra
 	CacheManager.ReallocatePersistentPrimitiveIndices();
 
 	// Grab a reference, but we currently do all the work in PostGPUSceneUpdate
-	PostUpdateChangeSet = &ChangeSet;
+	PostUpdateChangeSet = ChangeSet;
 }
 
 void FVirtualShadowMapInvalidationSceneUpdater::PostGPUSceneUpdate(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUniforms)
@@ -1723,21 +1728,17 @@ void FVirtualShadowMapInvalidationSceneUpdater::PostGPUSceneUpdate(FRDGBuilder& 
 	{
 		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(&CacheManager);
 
-		// Filter out all updates that are either "add" or has dirty flags to say they affect the bounds.
-		PostUpdateChangeSet->PrimitiveUpdates.ForEachUpdateCommand(ESceneUpdateCommandFilter::AddedUpdated, EPrimitiveUpdateDirtyFlags::AllCulling, [&](const FPrimitiveUpdateCommand& Cmd)
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.AddedPrimitiveSceneInfos)
 		{
-			if (Cmd.IsAdd())
-			{
-				InvalidatingPrimitiveCollector.Added(Cmd.GetSceneInfo());
-			}
-			else
-			{
-				InvalidatingPrimitiveCollector.UpdatedTransform(Cmd.GetSceneInfo());
-			}
-		});
+			InvalidatingPrimitiveCollector.Added(PrimitiveSceneInfo);
+		}
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : PostUpdateChangeSet.UpdatedPrimitiveSceneInfos)
+		{
+			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
+		}
 
 		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PostInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
 		CacheManager.ProcessInvalidations(GraphBuilder, SceneUniforms, InvalidatingPrimitiveCollector);
 	}
-	PostUpdateChangeSet = nullptr;
+	PostUpdateChangeSet = FScenePostUpdateChangeSet();
 }

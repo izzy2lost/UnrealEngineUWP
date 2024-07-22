@@ -59,7 +59,6 @@
 #include "LightFunctionAtlas.h"
 #include "SceneExtensions.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
-#include "SceneUpdateCommandQueue.h"
 
 /** Factor by which to grow occlusion tests **/
 #define OCCLUSION_SLOP (1.0f)
@@ -95,7 +94,53 @@ class FSparseVolumeTextureViewerSceneProxy;
 class FExponentialHeightFogSceneInfo;
 class FStaticMeshBatch;
 class FShadowScene;
+class FSceneLightInfoUpdates;
 class FSceneCulling;
+
+/**
+ * Describes all light modifications to the scene by recording the light scene IDs.
+ * TODO: If needed, we could add a reference to the FLightUpdates (which contains the commands) since this would enable systems to consume out the delta updates as they come in.
+ *       If this is useful we must ensure FLightUpdates are kept alive as long as any async tasks might require.
+ */
+struct FLightSceneChangeSet
+{
+	// IDs of all lights before they were removed, IDs in this array may not be valid at all times when the change-set is used (depends on whether the callback site is before or after the given lights are removed from the scene).
+	TConstArrayView<int32> RemovedLightIds;
+	// IDs of all lights added to the scene, only available after all lights are added to the scene, may contain the same ID's as removed, as they may be reused.
+	TConstArrayView<int32> AddedLightIds;
+	// IDs of updated lights, does not contain any from the above, since 'add' implies the update of all aspects and 'remove' implies cancellation of all updates. 
+	// The updated arrays are not disjoint as a light may have both types of update applied.
+	TConstArrayView<int32> TransformUpdatedLightIds;
+	TConstArrayView<int32> ColorUpdatedLightIds;
+};
+
+/**
+ * Change set that is valid before removes are processed and the scene data modified.
+ * The referenced arrays have RDG life-time and can be safely used in RDG tasks.
+ * However, the referenced data (primitive/proxy) and meaning of the persistent ID is not generally valid past the call in which this is passed. 
+ * Thus, care need to be excercised.
+ */
+class FScenePreUpdateChangeSet
+{
+public:
+	TConstArrayView<FPersistentPrimitiveIndex> RemovedPrimitiveIds;
+	TConstArrayView<FPrimitiveSceneInfo*> RemovedPrimitiveSceneInfos;
+	TConstArrayView<FPersistentPrimitiveIndex> UpdatedPrimitiveIds;
+	TConstArrayView<FPrimitiveSceneInfo*> UpdatedPrimitiveSceneInfos;
+};
+
+/**
+ * Change set that is valid before after adds are processed and the scene data is modified.
+ * The referenced arrays have RDG life-time and can be safely used in RDG tasks.
+ */
+class FScenePostUpdateChangeSet
+{
+public:
+	TConstArrayView<FPersistentPrimitiveIndex> AddedPrimitiveIds;
+	TConstArrayView<FPrimitiveSceneInfo*> AddedPrimitiveSceneInfos;
+	TConstArrayView<FPersistentPrimitiveIndex> UpdatedPrimitiveIds;
+	TConstArrayView<FPrimitiveSceneInfo*> UpdatedPrimitiveSceneInfos;
+};
 
 /** Holds information about a single primitive's occlusion. */
 class FPrimitiveOcclusionHistory
@@ -2840,173 +2885,6 @@ private:
 	FLumenSceneDataMap::TConstIterator NextSceneData;
 };
 
-/**
- * Definitions of primitive scene update commands.
- */
-
-enum class EPrimitiveUpdateDirtyFlags : uint32 
-{
-	None			=	0u,
-	/** The Transform is modified by this command. */
-	Transform		=	1u << 0,
-	/** The (any) instance data is modified by this command. */
-	InstanceData	=	1u << 1,
-	/** 
-	 * The culling bounds are modified by this command. 
-	 * This means the bounds (instance, primitive or both) as used in the culling and should not be updated for any other case. 
-	 * Thus, needs to be set for transform updates of all kinds.
-	 */
-	CullingBounds	=	1u << 2,
-	/** 
-	 * Culling distances or similar, affecting culling logic, but NOT the bounds.
-	 */
-	CullingLogic	=	1u << 3,
-	/** Any state that either makes its way into GPU-Scene or the per primitive UB */
-	GPUState		=	1u << 4,
-	/** All culling-affecting changes */
-	AllCulling		= CullingBounds | CullingLogic,
-	All				=	GPUState |  Transform | InstanceData | CullingBounds | CullingLogic,
-};
-ENUM_CLASS_FLAGS(EPrimitiveUpdateDirtyFlags);
-
-enum class EPrimitiveUpdateId : uint32 
-{
-	UpdateTransform,
-	UpdateInstance,
-	UpdateAttachmentRoot,
-	CustomPrimitiveData,
-	OcclusionBoundsSlacks,  
-	InstanceCullDistance,  
-	DrawDistance,
-	DistanceFieldScene,
-	OverridePreviousTransform,
-	MAX
-};
-
-using FScenePrimitiveUpdates = TSceneUpdateCommandQueue<FPrimitiveSceneInfo, EPrimitiveUpdateDirtyFlags, EPrimitiveUpdateId>;
-
-using FPrimitiveUpdateCommand = FScenePrimitiveUpdates::FUpdateCommand;
-
-template <EPrimitiveUpdateId InId, EPrimitiveUpdateDirtyFlags InDirtyFlags>
-using TPrimitiveUpdatePayloadBase = FScenePrimitiveUpdates::TPayloadBase<InId, InDirtyFlags>;
-
-struct FUpdateTransformCommand : public TPrimitiveUpdatePayloadBase<EPrimitiveUpdateId::UpdateTransform, 
-	EPrimitiveUpdateDirtyFlags::GPUState | EPrimitiveUpdateDirtyFlags::Transform | EPrimitiveUpdateDirtyFlags::CullingBounds>
-{
-	FBoxSphereBounds WorldBounds;
-	FBoxSphereBounds LocalBounds; 
-	FMatrix LocalToWorld; 
-	FVector AttachmentRootPosition;
-};
-
-struct FUpdateInstanceCommand : public TPrimitiveUpdatePayloadBase<EPrimitiveUpdateId::UpdateInstance, 
-	EPrimitiveUpdateDirtyFlags::GPUState | EPrimitiveUpdateDirtyFlags::Transform | EPrimitiveUpdateDirtyFlags::CullingBounds | EPrimitiveUpdateDirtyFlags::InstanceData>
-{
-	FPrimitiveSceneProxy* PrimitiveSceneProxy{ nullptr };
-	FBoxSphereBounds WorldBounds;
-	FBoxSphereBounds LocalBounds;
-	FBoxSphereBounds StaticMeshBounds;
-};
-
-
-/**
- * Helper for the update payloads that contain a single payload value.
- */
-template <typename InPayloadDataType, EPrimitiveUpdateId InId, EPrimitiveUpdateDirtyFlags InPrimitiveDirtyFlags>
-struct TSingleValuePrimitiveUpdatePayload : public TPrimitiveUpdatePayloadBase<InId, InPrimitiveDirtyFlags>
-{
-	TSingleValuePrimitiveUpdatePayload(const InPayloadDataType &InValue) : Value(InValue) {}
-	InPayloadDataType Value;
-};
-
-using FUpdateAttachmentRootData = TSingleValuePrimitiveUpdatePayload<FPrimitiveComponentId, EPrimitiveUpdateId::UpdateAttachmentRoot,
-	EPrimitiveUpdateDirtyFlags::None>; // No GPU side effect (?).
-using FUpdateCustomPrimitiveData = TSingleValuePrimitiveUpdatePayload<FCustomPrimitiveData, EPrimitiveUpdateId::CustomPrimitiveData,
-	EPrimitiveUpdateDirtyFlags::GPUState>; // Needs upload
-using FUpdateOcclusionBoundsSlacksData = TSingleValuePrimitiveUpdatePayload<float, EPrimitiveUpdateId::OcclusionBoundsSlacks,  
-	EPrimitiveUpdateDirtyFlags::None>; // Only affects primitive occlusion.
-using FUpdateInstanceCullDistanceData = TSingleValuePrimitiveUpdatePayload<FVector2f, EPrimitiveUpdateId::InstanceCullDistance,  
-	EPrimitiveUpdateDirtyFlags::GPUState | EPrimitiveUpdateDirtyFlags::CullingLogic>; // Affects GPU culling?
-using FUpdateDrawDistanceData = TSingleValuePrimitiveUpdatePayload<FVector3f, EPrimitiveUpdateId::DrawDistance,  
-	EPrimitiveUpdateDirtyFlags::CullingLogic>; // Only affects CPU culling.
-using FUpdateDistanceFieldSceneData = TPrimitiveUpdatePayloadBase<EPrimitiveUpdateId::DistanceFieldScene,  
-	EPrimitiveUpdateDirtyFlags::None>; // Only affects DF scene rep - candidate for using abstract type.
-using FUpdateOverridePreviousTransformData = TSingleValuePrimitiveUpdatePayload<FMatrix, EPrimitiveUpdateId::OverridePreviousTransform,  
-	EPrimitiveUpdateDirtyFlags::GPUState>;// Overrides the previous transform, which needs to be propagated to the GPU, but otherwise does not change anything on its own.
-
-/**
- * Change set that is valid before removes are processed and the scene data modified.
- * The referenced arrays have RDG life-time and can be safely used in RDG tasks.
- * However, the referenced data (primitive/proxy) and meaning of the persistent ID is not generally valid past the call in which this is passed. 
- * Thus, care need to be excercised.
- */
-class FScenePreUpdateChangeSet
-{
-public:
-	TConstArrayView<FPersistentPrimitiveIndex> RemovedPrimitiveIds;
-	TConstArrayView<FPrimitiveSceneInfo*> RemovedPrimitiveSceneInfos;
-	const FScenePrimitiveUpdates &PrimitiveUpdates;
-};
-
-/**
- * Change set that is valid before after adds are processed and the scene data is modified.
- * The referenced arrays have RDG life-time and can be safely used in RDG tasks.
- */
-class FScenePostUpdateChangeSet
-{
-public:
-	TConstArrayView<FPersistentPrimitiveIndex> AddedPrimitiveIds;
-	TConstArrayView<FPrimitiveSceneInfo*> AddedPrimitiveSceneInfos;
-	const FScenePrimitiveUpdates &PrimitiveUpdates;
-};
-
-/**
- * Definitions for light scene updates.
- */
-
-enum class ELightDirtyFlags : uint32 
-{
-	None			=	0u
-};
-ENUM_CLASS_FLAGS(ELightDirtyFlags);
-
-enum class ELightUpdateId : uint32 
-{
-	Transform,
-	Color,
-	MAX
-};
-
-using FSceneLightInfoUpdates = TSceneUpdateCommandQueue<FLightSceneInfo, ELightDirtyFlags, ELightUpdateId>;
-using FUpdateLightCommand = FSceneLightInfoUpdates::FUpdateCommand;
-
-struct FUpdateLightTransformParameters : public FSceneLightInfoUpdates::TPayloadBase<ELightUpdateId::Transform, ELightDirtyFlags::None>
-{
-	FMatrix LightToWorld;
-	FVector4 Position;
-};
-
-struct FUpdateLightColorParameters: public FSceneLightInfoUpdates::TPayloadBase<ELightUpdateId::Color, ELightDirtyFlags::None>
-{
-	FLinearColor NewColor;
-	float NewIndirectLightingScale;
-	float NewVolumetricScatteringIntensity;
-};
-
-/**
- * Describes all light modifications to the scene by recording the light scene IDs.
- * TODO: If needed, we could add a reference to the FLightUpdates (which contains the commands) since this would enable systems to consume out the delta updates as they come in.
- *       If this is useful we must ensure FLightUpdates are kept alive as long as any async tasks might require.
- */
-struct FLightSceneChangeSet
-{
-	// IDs of all lights before they were removed, IDs in this array may not be valid at all times when the change-set is used (depends on whether the callback site is before or after the given lights are removed from the scene).
-	TConstArrayView<int32> RemovedLightIds;
-	// IDs of all lights added to the scene, only available after all lights are added to the scene, may contain the same ID's as removed, as they may be reused.
-	TConstArrayView<int32> AddedLightIds;
-	FSceneLightInfoUpdates *SceneLightInfoUpdates = nullptr;
-};
-
 /** 
  * Renderer scene which is private to the renderer module.
  * Ordinarily this is the renderer version of a UWorld, but an FScene can be created for previewing in editors which don't have a UWorld as well.
@@ -3846,6 +3724,8 @@ public:
 		return &CachedShadowMapDatas[ShadowMapIndex];
 	}
 
+	bool IsPrimitiveBeingRemoved(FPrimitiveSceneInfo* PrimitiveSceneInfo) const;
+
 	/**
 	 * Maximum used persistent Primitive Index, use to size arrays that store primitive data indexed by FPrimitiveSceneInfo::PersistentIndex.
 	 * Only changes during UpdateAllPrimitiveSceneInfos.
@@ -4015,7 +3895,7 @@ private:
 	 * Removes a primitive from the scene.  Called in the rendering thread by RemovePrimitive.
 	 * @param PrimitiveSceneInfo - The primitive being removed.
 	 */
-	void RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo);
+	bool RemovePrimitiveSceneInfo_RenderThread(FPrimitiveSceneInfo* PrimitiveSceneInfo);
 
 	/** Updates a primitive's transform, called on the rendering thread. */
 	void UpdatePrimitiveTransform_RenderThread(FPrimitiveSceneProxy* PrimitiveSceneProxy, const FBoxSphereBounds& WorldBounds, const FBoxSphereBounds& LocalBounds, const FMatrix& LocalToWorld, const FVector& OwnerPosition, const TOptional<FTransform>& PreviousTransform);
@@ -4083,16 +3963,11 @@ private:
 	void ProcessAtmosphereLightAddition_RenderThread(FLightSceneInfo* LightSceneInfo);
 
 	/**
-	 * Process all scene updates for lights.
+	 * Process all scene updates for lights, returns the change-set, which references arrays allocated with a RDG builder life-time.
 	 */
-	void UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder);
+	FLightSceneChangeSet UpdateAllLightSceneInfos(FRDGBuilder& GraphBuilder);
 
 private:
-	template <typename UpdatePayloadType>
-	void UpdatePrimitiveInternal(FPrimitiveSceneProxy* SceneProxy, UpdatePayloadType &&InUpdatePayload);
-
-	template <typename UpdatePayloadType>
-	void UpdateLightInternal(FLightSceneProxy* LightSceneProxy, UpdatePayloadType &&InUpdatePayload);
 
 	/**
 	 * Update tracked scene state for cached CSM shadows
@@ -4101,11 +3976,27 @@ private:
 
 	FString FullWorldName;
 #if RHI_RAYTRACING
-	void UpdateRayTracingGroupBounds_AddPrimitives(const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator>& PrimitiveSceneInfos);
-	void UpdateRayTracingGroupBounds_RemovePrimitives(const TArray<FPrimitiveSceneInfo*, SceneRenderingAllocator>& PrimitiveSceneInfos);
-	template<typename RangeType>
-	inline void UpdateRayTracingGroupBounds_UpdatePrimitives(const RangeType& UpdatedTransforms);
+	void UpdateRayTracingGroupBounds_AddPrimitives(const Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*>& PrimitiveSceneInfos);
+	void UpdateRayTracingGroupBounds_RemovePrimitives(const Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*>& PrimitiveSceneInfos);
+	template<typename ValueType>
+	inline void UpdateRayTracingGroupBounds_UpdatePrimitives(const Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, ValueType>& UpdatedTransforms);
 #endif
+
+	struct FUpdateTransformCommand
+	{
+		FBoxSphereBounds WorldBounds;
+		FBoxSphereBounds LocalBounds; 
+		FMatrix LocalToWorld; 
+		FVector AttachmentRootPosition;
+	};
+
+	struct FUpdateInstanceCommand
+	{
+		FPrimitiveSceneProxy* PrimitiveSceneProxy{ nullptr };
+		FBoxSphereBounds WorldBounds;
+		FBoxSphereBounds LocalBounds;
+		FBoxSphereBounds StaticMeshBounds;
+	};
 
 	void UpdatePrimitiveInstances(FUpdateInstanceCommand& UpdateParams);
 
@@ -4121,8 +4012,19 @@ private:
 		EOp Op;
 	};
 
-	FScenePrimitiveUpdates PrimitiveUpdates;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneInfo*, FPrimitiveComponentId> UpdatedAttachmentRoots;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, FCustomPrimitiveData> UpdatedCustomPrimitiveParams;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, FUpdateTransformCommand> UpdatedTransforms;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, FUpdateInstanceCommand> UpdatedInstances;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneInfo*, FMatrix> OverridenPreviousTransforms;
+	Experimental::TRobinHoodHashMap<const FPrimitiveSceneProxy*, float> UpdatedOcclusionBoundsSlacks;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, FVector2f> UpdatedInstanceCullDistance;
+	Experimental::TRobinHoodHashMap<FPrimitiveSceneProxy*, FVector3f> UpdatedDrawDistance;
+	Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*> AddedPrimitiveSceneInfos;
+	Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*> RemovedPrimitiveSceneInfos;
+	Experimental::TRobinHoodHashSet<FPrimitiveSceneInfo*> DistanceFieldSceneDataUpdates;
 	TArray<FLevelCommand> LevelCommands;
+	TSet<FPrimitiveSceneInfo*> DeletedPrimitiveSceneInfos;
 
 	UE::Tasks::FTask CreateLightPrimitiveInteractionsTask;
 	UE::Tasks::FTask GPUSkinCacheTask;
