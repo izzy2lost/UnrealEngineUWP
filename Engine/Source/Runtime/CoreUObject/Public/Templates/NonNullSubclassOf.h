@@ -27,7 +27,9 @@ public:
 	}
 
 	/** Constructor that takes a UClass* or FFieldClass* if T is a UObject or a FField type respectively. */
-	template <typename PtrType>
+	template <
+		typename PtrType
+		UE_REQUIRES(std::is_same_v<PtrType, UClass> || std::is_same_v<PtrType, FFieldClass>)>
 	FORCEINLINE TNonNullSubclassOf(PtrType* From)
 		: Super(From)
 	{
