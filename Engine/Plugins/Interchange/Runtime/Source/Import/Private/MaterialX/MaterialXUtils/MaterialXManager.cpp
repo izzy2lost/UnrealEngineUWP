@@ -385,7 +385,7 @@ namespace UE::Interchange::MaterialX
 															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Artistic_IOR.MX_Artistic_IOR'"),
 															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Roughness_Anisotropy.MX_Roughness_Anisotropy'"), 
 															    TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Roughness_Dual.MX_Roughness_Dual'"),
-																TEXT("MaterialFunction'/Interchange/Functions/MX_Place2D.MX_Place2D'"),
+																TEXT("MaterialFunction'/InterchangeAssets/Functions/MX_Place2D.MX_Place2D'"),
 															  });
 
 		return bPackagesLoaded;
