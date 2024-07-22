@@ -18,7 +18,7 @@ enum class EPCGPinBufferSizeMode : uint8
 };
 
 /** An extension of the pin properties that adds hints for GPU thread count / buffer size calculations. */
-USTRUCT(BlueprintType, meta = (HasNativeBreak = "/Script/PCG.PCGBlueprintPinHelpers.BreakPinProperty", HasNativeMake = "/Script/PCG.PCGBlueprintPinHelpers.MakePinProperty"))
+USTRUCT(BlueprintType)
 struct PCG_API FPCGPinPropertiesGPU : public FPCGPinProperties
 {
 	GENERATED_BODY()
