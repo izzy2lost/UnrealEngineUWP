@@ -39,6 +39,7 @@ protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
+	virtual void OnOverrideSettingsDuplicatedInternal(bool bSkippedPostLoad) override;
 	//~End UPCGSettings interface
 
 public:
