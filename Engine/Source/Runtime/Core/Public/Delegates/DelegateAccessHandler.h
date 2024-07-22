@@ -3,9 +3,11 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "HAL/CriticalSection.h"
+#include "HAL/CriticalSection.h"  // jira SOL-6812: Remove this.
 #include "Misc/MTAccessDetector.h"
-#include "Misc/ScopeLock.h"
+#include "Misc/TransactionallySafeCriticalSection.h"
+#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/ScopeLock.h"  // jira SOL-6812: Remove this.
 #include "AutoRTFM/AutoRTFM.h"
 
 //#define UE_DETECT_DELEGATES_RACE_CONDITIONS 0
@@ -65,8 +67,8 @@ template<>
 class TDelegateAccessHandlerBase<FThreadSafeDelegateMode>
 {
 protected:
-	struct FReadAccessScope { FScopeLock Lock; };
-	struct FWriteAccessScope { FScopeLock Lock; };
+	struct FReadAccessScope { FTransactionallySafeScopeLock Lock; };
+	struct FWriteAccessScope { FTransactionallySafeScopeLock Lock; };
 
 	[[nodiscard]] FReadAccessScope GetReadAccessScope() const
 	{
@@ -79,7 +81,7 @@ protected:
 	}
 
 private:
-	mutable FCriticalSection Mutex;
+	mutable FTransactionallySafeCriticalSection Mutex;
 };
 
 template<>

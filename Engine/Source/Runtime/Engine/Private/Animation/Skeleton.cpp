@@ -750,7 +750,7 @@ bool USkeleton::IsCompatibleMesh(const USkinnedAsset* InSkinnedAsset, bool bDoPa
 void USkeleton::ClearCacheData()
 {
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkinnedAssetLinkupCache.Empty();
 	}
 
@@ -767,7 +767,7 @@ const FSkeletonToMeshLinkup& USkeleton::FindOrAddMeshLinkupData(const USkinnedAs
 	const TUniquePtr<FSkeletonToMeshLinkup>* SkeletonToMeshLinkupPtr = nullptr;
 
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_ReadOnly);
+		FTransactionallySafeReadScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkeletonToMeshLinkupPtr = SkinnedAssetLinkupCache.Find(InSkinnedAsset);
 	}
 
@@ -782,7 +782,7 @@ const FSkeletonToMeshLinkup& USkeleton::AddMeshLinkupData(const USkinnedAsset* I
 	BuildLinkupData(InSkinnedAsset, *TmpLinkup.Get());
 
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		return *SkinnedAssetLinkupCache.Add(TObjectKey<USkinnedAsset>(InSkinnedAsset), MoveTemp(TmpLinkup)).Get();
 	}
 }
@@ -823,7 +823,7 @@ int32 USkeleton::GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset)
 void USkeleton::RemoveLinkup(const USkinnedAsset* InSkinnedAsset)
 {
 	{
-		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		FTransactionallySafeWriteScopeLock Lock(SkinnedAssetLinkupCacheLock);
 		SkinnedAssetLinkupCache.Remove(InSkinnedAsset);
 	}
 

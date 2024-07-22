@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
-#include "Misc/ScopeLock.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 
 IModularFeatures& IModularFeatures::Get()
 {
@@ -54,7 +54,7 @@ IModularFeature* FModularFeatures::GetModularFeatureImplementation( const FName 
 
 void FModularFeatures::RegisterModularFeature( const FName Type, IModularFeature* ModularFeature )
 {
-	FScopeLock ScopeLock(&ModularFeaturesMapCriticalSection);
+	FTransactionallySafeScopeLock ScopeLock(&ModularFeaturesMapCriticalSection);
 
 	ModularFeaturesMap.AddUnique( Type, ModularFeature );
 	ModularFeatureRegisteredEvent.Broadcast( Type, ModularFeature );
@@ -63,7 +63,7 @@ void FModularFeatures::RegisterModularFeature( const FName Type, IModularFeature
 
 void FModularFeatures::UnregisterModularFeature( const FName Type, IModularFeature* ModularFeature )
 {
-	FScopeLock ScopeLock(&ModularFeaturesMapCriticalSection);
+	FTransactionallySafeScopeLock ScopeLock(&ModularFeaturesMapCriticalSection);
 
 	ModularFeaturesMap.RemoveSingle( Type, ModularFeature );
 	ModularFeatureUnregisteredEvent.Broadcast( Type, ModularFeature );
