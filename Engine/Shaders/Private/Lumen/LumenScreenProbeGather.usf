@@ -1682,9 +1682,7 @@ float3 GetFilteredNeighborhoodLighting(
 	for (uint NeighborId = 0; NeighborId < 8; NeighborId++)
 	{
 		const int2 SampleOffset = kOffsets3x3[NeighborId];
-
-		uint3 NeighborScreenCoord = uint3(ScreenCoord + SampleOffset, InClosureIndex);
-		NeighborScreenCoord.xy = clamp(NeighborScreenCoord.xy, MinScreenCoord, MaxScreenCoord);
+		const uint3 NeighborScreenCoord = uint3(clamp(int2(ScreenCoord) + SampleOffset, int2(MinScreenCoord), int2(MaxScreenCoord)), InClosureIndex);
 
 		const float4 Lighting = LightingTexture[NeighborScreenCoord];
 		const bool bSampleLightingIsValid = Lighting.w > 0.0f;
@@ -1715,9 +1713,7 @@ float3 ClampHistory(
 	for (uint NeighborId = 0; NeighborId < 8; NeighborId++)
 	{
 		const int2 SampleOffset = kOffsets3x3[NeighborId];
-
-		uint3 NeighborScreenCoord = uint3(ScreenCoord + SampleOffset, InClosureIndex);
-		NeighborScreenCoord.xy = clamp(NeighborScreenCoord.xy, MinScreenCoord, MaxScreenCoord);
+		const uint3 NeighborScreenCoord = uint3(clamp(int2(ScreenCoord) + SampleOffset, int2(MinScreenCoord), int2(MaxScreenCoord)), InClosureIndex);
 
 		const float3 Lighting = LightingTexture[NeighborScreenCoord].xyz;
 		NeighborMin = min(NeighborMin, Lighting.xyz);
