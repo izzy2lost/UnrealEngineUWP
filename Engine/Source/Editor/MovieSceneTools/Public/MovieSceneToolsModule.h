@@ -112,6 +112,7 @@ private:
 	FDelegateHandle DoubleVectorPropertyTrackCreateEditorHandle;
 	FDelegateHandle TransformPropertyTrackCreateEditorHandle;
 	FDelegateHandle EulerTransformPropertyTrackCreateEditorHandle;
+	FDelegateHandle RotatorPropertyTrackCreateEditorHandle;
 	FDelegateHandle VisibilityPropertyTrackCreateEditorHandle;
 	FDelegateHandle ActorReferencePropertyTrackCreateEditorHandle;
 	FDelegateHandle StringPropertyTrackCreateEditorHandle;

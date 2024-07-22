@@ -655,8 +655,8 @@ using FDoublePropertyTraits             = TDirectPropertyTraits<double, false>;
 using FTransformPropertyTraits          = TIndirectPropertyTraits<FTransform, FIntermediate3DTransform>;
 using FEulerTransformPropertyTraits     = TIndirectPropertyTraits<FEulerTransform, FIntermediate3DTransform>;
 using FComponentTransformPropertyTraits = TDirectPropertyTraits<FIntermediate3DTransform>;
-using FStringPropertyTraits			    = TDirectPropertyTraits<FString>;
-
+using FRotatorPropertyTraits            = TDirectPropertyTraits<FRotator>;
+using FStringPropertyTraits             = TDirectPropertyTraits<FString>;
 using FFloatParameterTraits             = TIndirectPropertyTraits<float, double, false>;
 using FColorParameterTraits             = TIndirectPropertyTraits<FLinearColor, FIntermediateColor>;
 
@@ -676,6 +676,7 @@ struct FMovieSceneTracksComponentTypes
 	TPropertyComponents<FTransformPropertyTraits> Transform;
 	TPropertyComponents<FEulerTransformPropertyTraits> EulerTransform;
 	TPropertyComponents<FComponentTransformPropertyTraits> ComponentTransform;
+	TPropertyComponents<FRotatorPropertyTraits> Rotator;
 	TPropertyComponents<FStringPropertyTraits> String;
 	TPropertyComponents<FObjectPropertyTraits> Object;
 
@@ -683,6 +684,7 @@ struct FMovieSceneTracksComponentTypes
 	TPropertyComponents<FColorParameterTraits> ColorParameter;
 
 	TComponentTypeID<FSourceDoubleChannel> QuaternionRotationChannel[3];
+	TComponentTypeID<FSourceDoubleChannel> RotatorChannel[3];
 
 	TComponentTypeID<FConstraintComponentData> ConstraintChannel;
 
