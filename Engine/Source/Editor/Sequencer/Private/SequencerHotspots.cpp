@@ -141,6 +141,21 @@ void FHotspotSelectionManager::SelectKeysExclusive(TArrayView<const FSequencerSe
 		}
 	}
 }
+void FHotspotSelectionManager::DefaultModelSelection(TSharedPtr<FViewModel> InModel)
+{
+	if (bForceSelect)
+	{
+		SelectModelExclusive(InModel);
+	}
+	else if (MouseEvent->IsControlDown())
+	{
+		ToggleModel(InModel);
+	}
+	else if (MouseEvent->IsShiftDown())
+	{
+		Selection->TrackArea.Select(InModel);
+	}
+}
 
 void FHotspotSelectionManager::SelectModelExclusive(TSharedPtr<FViewModel> InModel)
 {

@@ -41,6 +41,7 @@ struct FHotspotSelectionManager
 
 	void ToggleKeys(TArrayView<const FSequencerSelectedKey> InKeys);
 	void ToggleModel(TSharedPtr<FViewModel> InModel);
+	void DefaultModelSelection(TSharedPtr<FViewModel> InModel);
 
 	void SelectKeysExclusive(TArrayView<const FSequencerSelectedKey> InKeys);
 	void SelectModelExclusive(TSharedPtr<FViewModel> InModel);
