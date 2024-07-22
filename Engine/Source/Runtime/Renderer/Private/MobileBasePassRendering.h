@@ -323,8 +323,6 @@ public:
 
 namespace MobileBasePass
 {
-	bool IsUsingDirectionalLightForLighmapPolicySelection(const FScene* Scene);
-
 	ELightMapPolicyType SelectMeshLightmapPolicy(
 		const FScene* Scene, 
 		const FMeshBatch& MeshBatch, 

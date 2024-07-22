@@ -2749,7 +2749,8 @@ void FScene::AddLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 			    MobileDirectionalLights[FirstLightingChannel] = LightSceneInfo;
     
 			    // if this light is a dynamic shadowcast then we need to update the static draw lists to pick a new lighting policy:
-			    if (MobileBasePass::IsUsingDirectionalLightForLighmapPolicySelection(this) && (!LightSceneInfo->Proxy->HasStaticShadowing() || bUseCSMForDynamicObjects))
+				const bool bUsesDirectionalLightForLighmapPolicySelection = IsStaticLightingAllowed() && !IsMobileDeferredShadingEnabled(GetShaderPlatform());
+			    if (bUsesDirectionalLightForLighmapPolicySelection && (!LightSceneInfo->Proxy->HasStaticShadowing() || bUseCSMForDynamicObjects))
 				{
 		    		bScenesPrimitivesNeedStaticMeshElementUpdate = true;
 					UE_CLOG(!GIsEditor, LogRenderer, Log, TEXT("Forcing update for all mesh draw commands: Add directional light"));
@@ -4040,7 +4041,8 @@ void FScene::RemoveLightSceneInfo_RenderThread(FLightSceneInfo* LightSceneInfo)
 				}
 
 				// if this light is a dynamic shadowcast then we need to update the static draw lists to pick a new lightingpolicy
-				if (MobileBasePass::IsUsingDirectionalLightForLighmapPolicySelection(this) && (!LightSceneInfo->Proxy->HasStaticShadowing() || bUseCSMForDynamicObjects))
+				const bool bUsesDirectionalLightForLighmapPolicySelection = IsStaticLightingAllowed() && !IsMobileDeferredShadingEnabled(GetShaderPlatform());
+				if (bUsesDirectionalLightForLighmapPolicySelection && (!LightSceneInfo->Proxy->HasStaticShadowing() || bUseCSMForDynamicObjects))
 				{
 					bScenesPrimitivesNeedStaticMeshElementUpdate = true;
 					UE_CLOG(!GIsEditor, LogRenderer, Log, TEXT("Forcing update for all mesh draw commands: Remove directional light"));

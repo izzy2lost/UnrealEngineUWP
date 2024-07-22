@@ -3692,13 +3692,6 @@ static TAutoConsoleVariable<int32> CVarMobileEnableMovableLightCSMShaderCulling(
 		 "1: Primitives lit by movable directional light render with the CSM shader when determined to be within CSM range. (default)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static TAutoConsoleVariable<int32> CVarMobileEnableNoPrecomputedLightingCSMShader(
-	TEXT("r.Mobile.EnableNoPrecomputedLightingCSMShader"),
-	0,
-	TEXT("0: CSM shaders for scenes without any precomputed lighting are not generated unless r.AllowStaticLighting is 0. (default)\n")
-	TEXT("1: CSM shaders for scenes without any precomputed lighting are always generated."),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarMobileUseCSMShaderBranch(
 	TEXT("r.Mobile.UseCSMShaderBranch"),
 	0,
@@ -3711,13 +3704,6 @@ static TAutoConsoleVariable<int32> CVarMobileAllowDistanceFieldShadows(
 	1,
 	TEXT("0: Do not generate shader permutations to render distance field shadows from stationary directional lights.\n"
 		 "1: Generate shader permutations to render distance field shadows from stationary directional lights. (default)"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
-static TAutoConsoleVariable<int32> CVarMobileAllowMovableDirectionalLights(
-	TEXT("r.Mobile.AllowMovableDirectionalLights"),
-	1,
-	TEXT("0: Do not generate shader permutations to render movable directional lights.\n"
-		 "1: Generate shader permutations to render movable directional lights. (default)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
 static TAutoConsoleVariable<int32> CVarMobileSkyLightPermutation(

@@ -310,9 +310,6 @@ half4 GetPrimaryPrecomputedShadowMask(VTPageTableResult LightmapVTPageTableResul
 		// Compute shadow factors by scaling and biasing the distance
 		half4 ShadowFactor = saturate( DistanceField * InvUniformPenumbraSizes + DistanceFieldBias );
 		return GetLightmapData(LightmapDataIndex).StaticShadowMapMasks * ShadowFactor * ShadowFactor;
-	#elif MOVABLE_DIRECTIONAL_LIGHT
-		// Do this before checking for lightmaps as we might have a lightmap + movable directional light
-		return 1.0f;
 	#elif HQ_TEXTURE_LIGHTMAP || LQ_TEXTURE_LIGHTMAP
 		// Mark as shadowed for lightmapped objects with no shadowmap
 		// This is necessary because objects inside a light's influence that were determined to be completely shadowed won't be rendered with STATICLIGHTING_TEXTUREMASK==1

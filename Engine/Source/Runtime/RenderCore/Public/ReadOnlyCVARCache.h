@@ -62,11 +62,6 @@ struct FReadOnlyCVARCache
 		#endif
 	}
 
-	static inline bool MobileAllowMovableDirectionalLights()
-	{
-		return bMobileAllowMovableDirectionalLights;
-	}
-
 	static inline bool MobileAllowDistanceFieldShadows()
 	{
 		return bMobileAllowDistanceFieldShadows;
@@ -85,11 +80,6 @@ struct FReadOnlyCVARCache
 	static inline int32 MobileSkyLightPermutation()
 	{
 		return MobileSkyLightPermutationValue;
-	}
-
-	static inline bool MobileEnableNoPrecomputedLightingCSMShader()
-	{
-		return bMobileEnableNoPrecomputedLightingCSMShader;
 	}
 
 	static inline int32 MobileForwardDecalLighting()
@@ -159,7 +149,6 @@ private:
 
 	// Mobile specific
 	RENDERCORE_API static bool bMobileHDR;
-	RENDERCORE_API static bool bMobileAllowMovableDirectionalLights;
 	RENDERCORE_API static bool bMobileAllowDistanceFieldShadows;
 	RENDERCORE_API static bool bMobileEnableStaticAndCSMShadowReceivers;
 	RENDERCORE_API static bool bMobileEnableMovableLightCSMShaderCulling;
@@ -169,7 +158,6 @@ private:
 	RENDERCORE_API static int32 MobileForwardLocalLightsValue;
 	RENDERCORE_API static bool bMobileForwardParticleLights;
 	RENDERCORE_API static int32 MobileForwardDecalLightingValue;
-	RENDERCORE_API static bool bMobileEnableNoPrecomputedLightingCSMShader;
 	RENDERCORE_API static bool bMobileDeferredShadingValue;
 	RENDERCORE_API static bool bMobileEnableMovableSpotlightsShadowValue;
 

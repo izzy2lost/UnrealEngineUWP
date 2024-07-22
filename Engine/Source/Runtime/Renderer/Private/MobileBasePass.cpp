@@ -227,10 +227,6 @@ bool GetMobileBasePassShaders(
 		return GetUniformMobileBasePassShaders<LMP_MOBILE_DIRECTIONAL_LIGHT_AND_SH_INDIRECT, LocalLightSetting>(Material, VertexFactoryType, bEnableSkyLight, ColoredTransmittanceFallback, VertexShader, PixelShader);
 	case LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT:
 		return GetUniformMobileBasePassShaders<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT, LocalLightSetting>(Material, VertexFactoryType, bEnableSkyLight, ColoredTransmittanceFallback, VertexShader, PixelShader);
-	case LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP:
-		return GetUniformMobileBasePassShaders<LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP, LocalLightSetting>(Material, VertexFactoryType, bEnableSkyLight, ColoredTransmittanceFallback, VertexShader, PixelShader);
-	case LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP:
-		return GetUniformMobileBasePassShaders<LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP, LocalLightSetting>(Material, VertexFactoryType, bEnableSkyLight, ColoredTransmittanceFallback, VertexShader, PixelShader);
 	case LMP_MOBILE_DIRECTIONAL_LIGHT_CSM:
 		return GetUniformMobileBasePassShaders<LMP_MOBILE_DIRECTIONAL_LIGHT_CSM, LocalLightSetting>(Material, VertexFactoryType, bEnableSkyLight, ColoredTransmittanceFallback, VertexShader, PixelShader);
 	default:										
@@ -341,11 +337,6 @@ bool MobileBasePass::StaticCanReceiveCSM(const FLightSceneInfo* LightSceneInfo, 
 	return false; 
 }
 
-bool MobileBasePass::IsUsingDirectionalLightForLighmapPolicySelection(const FScene* Scene)
-{
-	return !(!IsStaticLightingAllowed() || (FReadOnlyCVARCache::MobileEnableNoPrecomputedLightingCSMShader() && Scene && Scene->GetForceNoPrecomputedLighting()));
-}
-
 ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 	const FScene* Scene, 
 	const FMeshBatch& Mesh, 
@@ -362,7 +353,7 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 	{
 		constexpr ERHIFeatureLevel::Type FeatureLevel = ERHIFeatureLevel::ES3_1;
 		
-		if (!IsUsingDirectionalLightForLighmapPolicySelection(Scene))
+		if (!IsStaticLightingAllowed())
 		{
  			if (!bIsTranslucent)
 			{
@@ -389,22 +380,21 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 
 			const FLightSceneInfo* MobileDirectionalLight = MobileBasePass::GetDirectionalLightInfo(Scene, PrimitiveSceneProxy);
 		
-			const bool bUseMovableLight = MobileDirectionalLight && !MobileDirectionalLight->Proxy->HasStaticShadowing() && FReadOnlyCVARCache::MobileAllowMovableDirectionalLights();
-			const bool bUseStaticAndCSM = MobileDirectionalLight && MobileDirectionalLight->Proxy->UseCSMForDynamicObjects()
-											&& bPrimReceivesCSM
-											&& FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers();
+			// Primitive can receive both pre-computed and CSM shadows
+			const bool bPrimReceivesStaticAndCSM = 
+				MobileDirectionalLight 
+				&& bPrimReceivesCSM
+				&& FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers()
+				&& MobileDirectionalLight->ShouldRenderViewIndependentWholeSceneShadows();
 
-			const bool bMovableWithCSM = bUseMovableLight && MobileDirectionalLight->ShouldRenderViewIndependentWholeSceneShadows() && bPrimReceivesCSM;
-
-			const bool bPrimitiveUsesILC = PrimitiveSceneProxy
-										&& (PrimitiveSceneProxy->IsMovable() || PrimitiveSceneProxy->NeedsUnbuiltPreviewLighting() || PrimitiveSceneProxy->GetLightmapType() == ELightmapType::ForceVolumetric)
-										&& PrimitiveSceneProxy->WillEverBeLit()
-										&& PrimitiveSceneProxy->GetIndirectLightingCacheQuality() != ILCQ_Off;
+			const bool bPrimitiveUsesILC = 
+				PrimitiveSceneProxy
+				&& (PrimitiveSceneProxy->IsMovable() || PrimitiveSceneProxy->NeedsUnbuiltPreviewLighting() || PrimitiveSceneProxy->GetLightmapType() == ELightmapType::ForceVolumetric)
+				&& PrimitiveSceneProxy->WillEverBeLit()
+				&& PrimitiveSceneProxy->GetIndirectLightingCacheQuality() != ILCQ_Off;
 
 			const bool bHasValidVLM = Scene && Scene->VolumetricLightmapSceneData.HasData();
-
-			const bool bHasValidILC = Scene && Scene->PrecomputedLightVolumes.Num() > 0
-									&& IsIndirectLightingCacheAllowed(FeatureLevel);
+			const bool bHasValidILC = Scene && Scene->PrecomputedLightVolumes.Num() > 0	&& IsIndirectLightingCacheAllowed(FeatureLevel);
 
 			if (LightMapInteraction.GetType() == LMIT_Texture && FReadOnlyCVARCache::EnableLowQualityLightmaps())
 			{
@@ -412,58 +402,22 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 					? Mesh.LCI->GetShadowMapInteraction(FeatureLevel)
 					: FShadowMapInteraction();
 
-				if ((bUseStaticAndCSM || bMovableWithCSM) && !bUsesDeferredShading)
+				if (ShadowMapInteraction.GetType() == SMIT_Texture && FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
 				{
-					if (ShadowMapInteraction.GetType() == SMIT_Texture &&
-						MobileDirectionalLight->ShouldRenderViewIndependentWholeSceneShadows() &&
-						FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
-					{
-						SelectedLightmapPolicy = LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM;
-					}
-					else
-					{
-						// Lightmap path
-						if (bMovableWithCSM)
-						{
-							SelectedLightmapPolicy = LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP;
-						}
-						else
-						{
-							SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP;
-						}
-					}
+					SelectedLightmapPolicy = (bPrimReceivesStaticAndCSM && !bUsesDeferredShading) ?  
+						LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM : 
+						LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP;
 				}
 				else
 				{
-					if (ShadowMapInteraction.GetType() == SMIT_Texture &&
-						FReadOnlyCVARCache::MobileAllowDistanceFieldShadows())
-					{
-						SelectedLightmapPolicy = LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP;
-					}
-					else
-					{
-						// Lightmap path
-						if (bUseMovableLight)
-						{
-							if (bUsesDeferredShading)
-							{
-								SelectedLightmapPolicy = LMP_LQ_LIGHTMAP;
-							}
-							else
-							{
-								SelectedLightmapPolicy = LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP;
-							}
-						}
-						else
-						{
-							SelectedLightmapPolicy = LMP_LQ_LIGHTMAP;
-						}
-					}
+					SelectedLightmapPolicy = (bPrimReceivesStaticAndCSM && !bUsesDeferredShading) ? 
+						LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP : 
+						LMP_LQ_LIGHTMAP;
 				}
 			}
 			else if ((bHasValidVLM || bHasValidILC) && bPrimitiveUsesILC)
 			{
-				if ((bUseStaticAndCSM || bMovableWithCSM) && !bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers())
+				if (bPrimReceivesStaticAndCSM && !bUsesDeferredShading)
 				{
 					SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT;
 				}
@@ -471,6 +425,10 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 				{
 					SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_AND_SH_INDIRECT;
 				}
+			}
+			else if (bPrimReceivesStaticAndCSM && !bUsesDeferredShading)
+			{
+				SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM;
 			}
 		}
 	}
@@ -486,9 +444,7 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 	
 	if (bLitMaterial)
 	{
-		const bool bAllowStaticLighting = IsStaticLightingAllowed();
-		
-		if (!bAllowStaticLighting)
+		if (!IsStaticLightingAllowed())
 		{
 			if (bUsesDeferredShading || !MobileUseCSMShaderBranch())
 			{
@@ -512,29 +468,12 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 						Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_LIGHTMAP_AND_CSM);
 					}
 
-					if (FReadOnlyCVARCache::MobileAllowMovableDirectionalLights())
-					{
-						Result.Add(LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_CSM_WITH_LIGHTMAP);
-					}
-
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_LIGHTMAP);
 				}
 
 				if (FReadOnlyCVARCache::MobileAllowDistanceFieldShadows() && !bCanReceiveCSM && !bTranslucent)
 				{
 					Result.Add(LMP_MOBILE_DISTANCE_FIELD_SHADOWS_AND_LQ_LIGHTMAP);
-				}
-
-				if (FReadOnlyCVARCache::MobileAllowMovableDirectionalLights())
-				{
-					if (bUsesDeferredShading)
-					{
-						Result.Add(LMP_LQ_LIGHTMAP);
-					}
-					else
-					{
-						Result.Add(LMP_MOBILE_MOVABLE_DIRECTIONAL_LIGHT_WITH_LIGHTMAP);
-					}
 				}
 				
 				Result.Add(LMP_LQ_LIGHTMAP);
@@ -543,8 +482,6 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 			// ILC/LVM
 			if (bMovable)
 			{
-				Result.Add(LMP_NO_LIGHTMAP); // in case there is no valid ILC/VLM
-				
 				if (!bUsesDeferredShading && FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && bCanReceiveCSM)
 				{
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM_AND_SH_INDIRECT);
@@ -552,6 +489,16 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 				else
 				{
 					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_AND_SH_INDIRECT);
+				}
+
+				// in case there is no valid ILC/VLM
+				if (bCanReceiveCSM) 
+				{
+					Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM);
+				}
+				else
+				{
+					Result.Add(LMP_NO_LIGHTMAP); 
 				}
 			}
 		}

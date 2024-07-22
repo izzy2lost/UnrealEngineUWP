@@ -6057,7 +6057,6 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 	const bool bHairStrands = HairStrands::HasHairInstanceInScene(*Scene);
 
 	const bool bProjectEnablePointLightShadows = FReadOnlyCVARCache::EnablePointLightShadows() && !bMobile; // Point light shadow is unsupported on mobile for now.
-	const bool bProjectEnableMovableDirectionLightShadows = !bMobile || FReadOnlyCVARCache::MobileAllowMovableDirectionalLights();
 	const bool bProjectEnableMovableSpotLightShadows = !bMobile || IsMobileMovableSpotlightShadowsEnabled(ShaderPlatform);
 
 	uint32 NumPointShadowCachesUpdatedThisFrame = 0;
@@ -6133,7 +6132,6 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 						const bool bCreateShadowForMovableLight =
 							bShouldCreateShadowForMovableLight
 							&& (!bPointLightShadow || bProjectEnablePointLightShadows)
-							&& (!bDirectionalLightShadow || bProjectEnableMovableDirectionLightShadows)
 							&& (!bSpotLightShadow || bProjectEnableMovableSpotLightShadows);
 
 						// Also create a whole scene shadow for lights with precomputed shadows that are unbuilt
