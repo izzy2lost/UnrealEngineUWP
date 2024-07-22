@@ -45,5 +45,7 @@ public class NNERuntimeRDG : ModuleRules
 			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
 			PrivateDependencyModuleNames.Add("NNERuntimeRDGUtils");
 		}
+
+		PublicDefinitions.Add("NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT=4");
 	}
 }

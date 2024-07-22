@@ -304,11 +304,12 @@ int FModelInstance::PrepareTensorShapesAndData()
 	return 0;
 }
 
-namespace UploadHelper
+void FModelInstance::PrepareWeights()
 {
+	check(WeightsExternalRDGResources.IsEmpty());
 
-void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGResources,
-	FTensorRDGArray& TensorToUploadRDGs, ERDGInitialDataFlags CopyDataFlag)
+	auto EnqueueTensorUpload = [](TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGResources,
+								  FTensorRDGArray& TensorToUploadRDGs, ERDGInitialDataFlags CopyDataFlag)
 	{
 		OutExternalRDGResources.Reset();
 		OutExternalRDGResources.SetNum(TensorToUploadRDGs.Num());
@@ -372,17 +373,10 @@ void EnqueueTensorUpload(TArray<TRefCountPtr<FRDGPooledBuffer>>& OutExternalRDGR
 		Signal->Wait();	// Wait for render thread to finish
 
 		FGenericPlatformProcess::ReturnSynchEventToPool(Signal);
-	}
-}
-
-bool FModelInstance::PrepareWeights()
-{
-	check(WeightsExternalRDGResources.IsEmpty());
+	};
 
 	// Data is not copied. A GPU sync will happens see EnqueueTensorUpload().
-	UploadHelper::EnqueueTensorUpload(WeightsExternalRDGResources, WeightTensorRDGs, ERDGInitialDataFlags::NoCopy);
-
-	return true;
+	EnqueueTensorUpload(WeightsExternalRDGResources, WeightTensorRDGs, ERDGInitialDataFlags::NoCopy);
 }
 
 TSharedPtr<NNE::IModelInstanceRDG> FModel::CreateModelInstanceRDG()

@@ -27,7 +27,7 @@ protected:
 	virtual bool PrepareModelRDG(FRDGBuilder& RDGBuilder) override;
 	virtual void AddDispatchOps_RenderThread(FRDGBuilder& GraphBuilder) override;
 
-	bool PrepareWeights();
+	void PrepareWeights();
 
 private:
 

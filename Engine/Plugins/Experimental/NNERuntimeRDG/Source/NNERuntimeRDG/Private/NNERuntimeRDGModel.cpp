@@ -205,10 +205,15 @@ FModelInstanceRDG::ESetInputTensorShapesStatus FModelInstanceRDG::SetInputTensor
 	return ESetInputTensorShapesStatus::Ok;
 }
 
-FRDGBufferDesc CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
+FRDGBufferDesc FModelInstanceRDG::CreateRDGBufferDescForTensorRDG(const FTensorRDG& Tensor)
 {
-	FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(Tensor.GetElementByteSize(), Tensor.GetVolume());
+	const uint32 ElementByteSize = Tensor.GetElementByteSize();
+	const uint32 TotalByteCount = ElementByteSize * Tensor.GetVolume();
 
+	//Round up to next multiple of BUFFER_LENGTH_ALIGNMENT
+	const uint32 TargetByteCount = FMath::DivideAndRoundUp(TotalByteCount, (uint32)NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT) * NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT;
+	
+	const FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(ElementByteSize, TargetByteCount / ElementByteSize);
 	return Desc;
 }
 
@@ -231,14 +236,14 @@ FModelInstanceRDG::EEnqueueRDGStatus FModelInstanceRDG::EnqueueRDG(FRDGBuilder& 
 	Res = SetTensors(RDGBuilder, InputTensorRDGs, InInputBindings);
 	if (Res != -1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer (was nullptr) for input tensor binding at index %d"), Res);
+		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer for input tensor binding at index %d"), Res);
 		return EEnqueueRDGStatus::Fail;
 	}
 
 	Res = SetTensors(RDGBuilder, OutputTensorRDGs, InOutputBindings);
 	if (Res != -1)
 	{
-		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer (was nullptr) for output tensor binding at index %d"), Res);
+		UE_LOG(LogNNE, Warning, TEXT("Invalid buffer for output tensor binding at index %d"), Res);
 		return EEnqueueRDGStatus::Fail;
 	}
 
@@ -286,6 +291,12 @@ int32 FModelInstanceRDG::SetTensors(FRDGBuilder& GraphBuilder, FTensorRDGArray& 
 		const NNE::FTensorBindingRDG& Binding = InBindings[Idx];
 		if (Binding.Buffer == nullptr)
 		{
+			UE_LOG(LogNNE, Warning, TEXT("nullptr buffer encountered."));
+			return Idx;
+		}
+		if (Binding.Buffer->GetSize() % NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT != 0)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("Buffer has size %i which is not a multiple of %i"), Binding.Buffer->GetSize(), NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT);
 			return Idx;
 		}
 		TensorRDG.SetBuffer(Binding.Buffer);
