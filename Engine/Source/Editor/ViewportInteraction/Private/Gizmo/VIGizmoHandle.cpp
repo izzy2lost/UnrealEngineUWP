@@ -268,6 +268,7 @@ class UGizmoHandleMeshComponent* UGizmoHandleGroup::CreateMeshHandle( class USta
 	UGizmoHandleMeshComponent* HandleComponent = CreateDefaultSubobject<UGizmoHandleMeshComponent>( *ComponentName );
 	check( HandleComponent != nullptr );
 
+	HandleComponent->SetCanEverAffectNavigation( false );
 	HandleComponent->SetStaticMesh( HandleMesh );
 	HandleComponent->SetMobility( EComponentMobility::Movable );
 	HandleComponent->SetupAttachment( this );
@@ -278,7 +279,6 @@ class UGizmoHandleMeshComponent* UGizmoHandleGroup::CreateMeshHandle( class USta
 	HandleComponent->SetCollisionObjectType( COLLISION_GIZMO );
 
 	HandleComponent->SetGenerateOverlapEvents(false);
-	HandleComponent->SetCanEverAffectNavigation( false );
 	HandleComponent->bCastDynamicShadow = bAllowGizmoLighting;
 	HandleComponent->bCastStaticShadow = false;
 	HandleComponent->bAffectDistanceFieldLighting = bAllowGizmoLighting;

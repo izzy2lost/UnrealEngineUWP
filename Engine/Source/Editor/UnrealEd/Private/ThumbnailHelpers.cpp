@@ -280,6 +280,7 @@ FMaterialThumbnailScene::FMaterialThumbnailScene()
 	SpawnInfo.ObjectFlags = RF_Transient;
 	PreviewActor = GetWorld()->SpawnActor<AStaticMeshActor>( SpawnInfo );
 
+	PreviewActor->GetStaticMeshComponent()->SetCanEverAffectNavigation(false);
 	PreviewActor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
 	PreviewActor->GetStaticMeshComponent()->bSelectable = false;	// avoid generating hit proxies
 	PreviewActor->SetActorEnableCollision(false);
@@ -527,6 +528,7 @@ FStaticMeshThumbnailScene::FStaticMeshThumbnailScene()
 	SpawnInfo.ObjectFlags = RF_Transient;
 	PreviewActor = GetWorld()->SpawnActor<AStaticMeshActor>( SpawnInfo );
 
+	PreviewActor->GetStaticMeshComponent()->SetCanEverAffectNavigation(false);
 	PreviewActor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
 	PreviewActor->SetActorEnableCollision(false);
 }
