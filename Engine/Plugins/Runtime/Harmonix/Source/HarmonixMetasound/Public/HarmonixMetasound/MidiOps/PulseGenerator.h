@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "Containers/SpscQueue.h"
-
 #include "HarmonixDsp/Parameters/Parameter.h"
 
 #include "HarmonixMetasound/DataTypes/MidiClock.h"
@@ -17,10 +15,38 @@ namespace Harmonix::Midi::Ops
 	class HARMONIXMETASOUND_API FPulseGenerator
 	{
 	public:
-		void Enable(bool bEnable);
+		virtual ~FPulseGenerator() = default;
 		
-		void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& Clock);
+		void Enable(bool bEnable);
 
+		void SetClock(const TSharedPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe>& NewClock);
+		
+		void SetInterval(const FMusicTimeInterval& NewInterval);
+		FMusicTimeInterval GetInterval() const { return Interval; }
+
+		virtual void Reset();
+		
+		struct FPulseInfo
+		{
+			int32 BlockFrameIndex;
+			int32 Tick;
+		};
+		
+		void Process(const TFunctionRef<void(const FPulseInfo&)>& OnPulse);
+
+	protected:
+		bool Enabled{ true };
+		TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
+		FMusicTimeInterval Interval{};
+		FTimeSignature CurrentTimeSignature{};
+		FMusicTimestamp NextPulseTimestamp{ -1, -1 };
+	};
+	
+	class HARMONIXMETASOUND_API FMidiPulseGenerator : public FPulseGenerator
+	{
+	public:
+		virtual ~FMidiPulseGenerator() override = default;
+		
 		Dsp::Parameters::TParameter<uint8> Channel{ 1, 16, 1 };
 
 		Dsp::Parameters::TParameter<uint16> Track{ 1, UINT16_MAX, 1 };
@@ -28,24 +54,15 @@ namespace Harmonix::Midi::Ops
 		Dsp::Parameters::TParameter<uint8> NoteNumber{ 0, 127, 60 };
 		
 		Dsp::Parameters::TParameter<uint8> Velocity{ 0, 127, 127 };
-		
-		void SetInterval(const FMusicTimeInterval& NewInterval);
 
-		FMusicTimeInterval GetInterval() const { return Interval; }
+		virtual void Reset() override;
 
 		void Process(HarmonixMetasound::FMidiStream& OutStream);
 
 	private:
-		void HandleAdvance(const int32 BlockFrameIndex, const HarmonixMetasound::MidiClockMessageTypes::FAdvance* Advance, HarmonixMetasound::FMidiStream& OutStream);
-		void HandleTimeSignatureChange(const HarmonixMetasound::MidiClockMessageTypes::FTimeSignatureChange* TimeSigChange);
-		void DoPulse(const int32 BlockFrameIndex, const int32 PulseTick, HarmonixMetasound::FMidiStream& OutStream);
+		void AddPulseNote(const int32 BlockFrameIndex, const int32 PulseTick, HarmonixMetasound::FMidiStream& OutStream);
 
 		FMidiVoiceGeneratorBase VoiceGenerator{};
 		TOptional<HarmonixMetasound::FMidiStreamEvent> LastNoteOn;
-		bool Enabled{ true };
-		TWeakPtr<const HarmonixMetasound::FMidiClock, ESPMode::NotThreadSafe> Clock;
-		FMusicTimeInterval Interval{};
-		FTimeSignature CurrentTimeSignature{};
-		FMusicTimestamp NextPulseTimestamp{ -1, -1 };
 	};
 }

@@ -13,7 +13,7 @@ namespace Harmonix::Midi::Ops::Tests
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FMidiPulseGeneratorBasicTest::RunTest(const FString&)
 	{
-		FPulseGenerator PulseGenerator;
+		FMidiPulseGenerator PulseGenerator;
 		
 		Metasound::FOperatorSettings OperatorSettings{ 48000, 100 };
 

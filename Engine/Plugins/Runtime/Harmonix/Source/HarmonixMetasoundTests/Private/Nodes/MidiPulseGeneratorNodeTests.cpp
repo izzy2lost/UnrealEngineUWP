@@ -24,7 +24,7 @@ namespace HarmonixMetasound::Nodes::MidiPulseGeneratorNode::Tests
 		UTEST_TRUE("Got clock", Clock.IsSet());
 		(*Clock)->SetTransportState(0, EMusicPlayerTransportState::Playing);
 
-		Harmonix::Midi::Ops::FPulseGenerator PulseGenerator;
+		Harmonix::Midi::Ops::FMidiPulseGenerator PulseGenerator;
 		FMidiStream PulseGeneratorMidiOutput;
 		PulseGenerator.SetClock((*Clock)->AsShared());
 
