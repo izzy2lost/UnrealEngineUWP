@@ -71,6 +71,7 @@ public:
 	void FileClose();
 	void ActionsImportWithDialog();
 	void ActionsImport(const FString& OutputContentFolder, UUsdStageImportOptions* Options);
+	void ActionsRegenerate();
 	void ExportSelectedLayers(const FString& OutputLayerOrDirectory = {});
 
 protected:

@@ -1803,6 +1803,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 			// Collect all the time samples we'll need to sample our visibility at (USD has inherited visibilities, so every time
 			// a parent has a key, we need to recompute the child visibility at that moment too)
 			TArray<double> TotalVisibilityTimeSamples;
+			VisibilityAttribute.GetTimeSamples(TotalVisibilityTimeSamples);
 
 			// If we're adding a visibility track because a parent has visibility animations, we want to write our baked visibility
 			// tracks on the same layer as the first one of our parents that actually has animated visibility.
@@ -1810,7 +1811,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 			// many parents and specs on multiple layers, but this is hopefully at least *a* reasonable answer.
 			UE::FUsdAttribute FirstAnimatedVisibilityParentAttr;
 
-			if ((VisibilityAttribute.GetTimeSamples(TotalVisibilityTimeSamples) && TotalVisibilityTimeSamples.Num() > 0) || bForceVisibilityTracks)
+			if (bForceVisibilityTracks)
 			{
 				// TODO: Improve this, as this is extremely inefficient since we'll be parsing this tree for the root down and repeatedly
 				// redoing this one child at a time...

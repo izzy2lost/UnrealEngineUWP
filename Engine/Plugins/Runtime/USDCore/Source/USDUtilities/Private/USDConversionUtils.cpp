@@ -1060,8 +1060,7 @@ bool UsdUtils::HasAnimatedVisibility(const pxr::UsdPrim& Prim)
 	{
 		if (pxr::UsdAttribute Attr = Imageable.GetVisibilityAttr())
 		{
-			std::vector<double> TimeSamples;
-			if (Attr.GetTimeSamples(&TimeSamples) && TimeSamples.size() > 0)
+			if (Attr.GetNumTimeSamples() > 0)
 			{
 				return true;
 			}

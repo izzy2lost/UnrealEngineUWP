@@ -187,6 +187,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** True if we're a context created by the USDStageImporter to fully import to persistent assets and actors */
 	bool bIsImporting = false;
 
+	/** True if we're just re-adding animations onto the LevelSequence, and not creating/updating components */
+	bool bIsJustRepopulatingLevelSequence = false;
+
 	/**
 	 * True if we're building the InfoCache assigned to this context. This usually means we shouldn't query it for information, and should instead
 	 * compute it manually so that it can be cached

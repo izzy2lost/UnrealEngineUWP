@@ -899,8 +899,8 @@ void SUsdStage::FillFileMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.BeginSection("Reload", LOCTEXT("Reload", "Reload"));
 	{
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Reload", "Reload"),
-			LOCTEXT("Reload_ToolTip", "Reloads the stage from disk, keeping aspects of the session intact"),
+			LOCTEXT("Reload", "Reload stage"),
+			LOCTEXT("Reload_ToolTip", "Reloads the stage and animations from disk, keeping aspects of the session intact"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SUsdStage::FileReload),
@@ -993,6 +993,31 @@ void SUsdStage::FillActionsMenu(FMenuBuilder& MenuBuilder)
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SUsdStage::ActionsImportWithDialog),
+				FCanExecuteAction::CreateLambda(
+					[this]()
+					{
+						if (const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+						{
+							if (UE::FUsdStage Stage = StageActor->GetUsdStage())
+							{
+								return true;
+							}
+						}
+
+						return false;
+					}
+				)
+			),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Regenerate", "Regenerate USD level sequence"),
+			LOCTEXT("Regenerate_ToolTip", "Regenerates the transient LevelSequences based on the opened stage"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SUsdStage::ActionsRegenerate),
 				FCanExecuteAction::CreateLambda(
 					[this]()
 					{
@@ -2469,6 +2494,16 @@ void SUsdStage::ActionsImportWithDialog()
 void SUsdStage::ActionsImport(const FString& OutputContentFolder, UUsdStageImportOptions* Options)
 {
 	ViewModel.ImportStage(*OutputContentFolder, Options);
+}
+
+void SUsdStage::ActionsRegenerate()
+{
+	FScopedTransaction Transaction(LOCTEXT("RegenerateTransaction", "Regenerate USD level sequence"));
+
+	if (AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+	{
+		StageActor->RepopulateLevelSequence();
+	}
 }
 
 void SUsdStage::ExportSelectedLayers(const FString& OutputLayerOrDirectory)

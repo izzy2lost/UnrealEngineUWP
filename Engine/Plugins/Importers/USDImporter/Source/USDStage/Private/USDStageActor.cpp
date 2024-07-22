@@ -1063,13 +1063,8 @@ AUsdStageActor::AUsdStageActor()
 								TEXT("Reloading animations because layer '%s' was reloaded"),
 								*LayerToChangeList.Key.GetIdentifier()
 							);
-							ReloadAnimations();
-
-							// Make sure our PrimsToAnimate and the LevelSequenceHelper are kept in sync, because we'll use PrimsToAnimate to
-							// check whether we need to call LevelSequenceHelper::AddPrim within AUsdStageActor::ExpandPrim. Without this reset
-							// our prims would already be in here by the time we're checking if we need to add tracks or not, and we wouldn't re-add
-							// the tracks
-							PrimsToAnimate.Reset();
+							RegenerateLevelSequence();
+							RepopulateLevelSequence();
 							return;
 						}
 
@@ -1084,8 +1079,8 @@ AUsdStageActor::AUsdStageActor()
 									TEXT("Reloading animations because layer '%s' was added or removed"),
 									*LayerToChangeList.Key.GetIdentifier()
 								);
-								ReloadAnimations();
-								PrimsToAnimate.Reset();
+								RegenerateLevelSequence();
+								RepopulateLevelSequence();
 								return;
 							}
 						}
@@ -1798,6 +1793,13 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 		}
 	}
 
+	// Recreate our LevelSequences before we regenerate components and want to add bindings/tracks
+	// back onto it
+	if (bNeedsAnimationReload)
+	{
+		RegenerateLevelSequence();
+	}
+
 	RefreshStageTask.EnterProgressFrame();
 	FScopedSlowTask RegenerateComponentsTask(PrimsToUpdate.Num(), LOCTEXT("RegeneratingComponents", "Regenerating components"));
 	for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
@@ -1828,12 +1830,6 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
 	{
 		OnPrimChanged.Broadcast(PrimChangedInfo.Key.GetString(), PrimChangedInfo.Value);
-	}
-
-	if (bNeedsAnimationReload)
-	{
-		ReloadAnimations();
-		PrimsToAnimate.Reset();
 	}
 
 	if (bHasResync)
@@ -1930,7 +1926,12 @@ UUsdPrimTwin* AUsdStageActor::GetOrCreatePrimTwin(const UE::FSdfPath& UsdPrimPat
 	return UsdPrimTwin;
 }
 
-UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync, FUsdSchemaTranslationContext& TranslationContext)
+UUsdPrimTwin* AUsdStageActor::ExpandPrim(
+	const UE::FUsdPrim& Prim,
+	bool bResync,
+	FUsdSchemaTranslationContext& TranslationContext,
+	TOptional<bool> bParentHasAnimatedVisibility
+)
 {
 	UUsdPrimTwin* UsdPrimTwin = nullptr;
 #if USE_USD_SDK
@@ -1952,45 +1953,82 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 
 	bool bExpandChildren = true;
 
-	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
-
-	if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
-																.CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(Prim)))
+	if (!TranslationContext.bIsJustRepopulatingLevelSequence)
 	{
-		if (bResync && !UsdPrimTwin->SceneComponent.IsValid())
+		IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
+		if (TSharedPtr<FUsdSchemaTranslator> SchemaTranslator = UsdSchemasModule.GetTranslatorRegistry()
+																	.CreateTranslatorForSchema(TranslationContext.AsShared(), UE::FUsdTyped(Prim)))
 		{
-			UsdPrimTwin->SceneComponent = SchemaTranslator->CreateComponents();
+			if (bResync && !UsdPrimTwin->SceneComponent.IsValid())
+			{
+				UsdPrimTwin->SceneComponent = SchemaTranslator->CreateComponents();
+			}
+			else
+			{
+				USceneComponent* TwinSceneComponent = UsdPrimTwin->SceneComponent.Get();
+
+				ObjectsToWatch.Remove(TwinSceneComponent);
+				if (Prim.IsA(TEXT("Camera")))
+				{
+					if (ACineCameraActor* CameraActor = Cast<ACineCameraActor>(SceneComponent->GetOwner()))
+					{
+						ObjectsToWatch.Remove(CameraActor->GetCineCameraComponent());
+					}
+				}
+				else if (Prim.IsA(TEXT("PointInstancer")))
+				{
+					TSet<FString> PrototypePaths = FUsdStageActorImpl::GetPointInstancerPrototypes(Prim);
+
+					for (const TObjectPtr<USceneComponent>& Child : TwinSceneComponent->GetAttachChildren())
+					{
+						UHierarchicalInstancedStaticMeshComponent* HISMComponent = Cast<UHierarchicalInstancedStaticMeshComponent>(Child.Get());
+						ObjectsToWatch.Remove(HISMComponent);
+					}
+				}
+				SchemaTranslator->UpdateComponents(TwinSceneComponent);
+			}
+
+			bExpandChildren = !SchemaTranslator->CollapsesChildren(ECollapsingType::Components);
 		}
-		else
+	}
+
+	// Check for parents with animated visibility.
+	//
+	// When opening the stage we'll propagate this down already, but we may be just updating a random prim in the middle
+	// of the hierarchy from an update notice, so we may need to check our parents right here.
+	// After we do this here we can propagate this value to our children though
+	if (!bParentHasAnimatedVisibility.IsSet())
+	{
+		bool bHasVisibilityAnimationParent = false;
+		UE::FUsdPrim ParentPrim = Prim.GetParent();
+		while (ParentPrim && !ParentPrim.IsPseudoRoot())
 		{
-			USceneComponent* TwinSceneComponent = UsdPrimTwin->SceneComponent.Get();
-
-			ObjectsToWatch.Remove(TwinSceneComponent);
-			if (Prim.IsA(TEXT("Camera")))
+			if (UsdUtils::HasAnimatedVisibility(ParentPrim))
 			{
-				if (ACineCameraActor* CameraActor = Cast<ACineCameraActor>(SceneComponent->GetOwner()))
-				{
-					ObjectsToWatch.Remove(CameraActor->GetCineCameraComponent());
-				}
+				bHasVisibilityAnimationParent = true;
+				break;
 			}
-			else if (Prim.IsA(TEXT("PointInstancer")))
-			{
-				TSet<FString> PrototypePaths = FUsdStageActorImpl::GetPointInstancerPrototypes(Prim);
 
-				for (const TObjectPtr<USceneComponent>& Child : TwinSceneComponent->GetAttachChildren())
-				{
-					UHierarchicalInstancedStaticMeshComponent* HISMComponent = Cast<UHierarchicalInstancedStaticMeshComponent>(Child.Get());
-					ObjectsToWatch.Remove(HISMComponent);
-				}
-			}
-			SchemaTranslator->UpdateComponents(TwinSceneComponent);
+			ParentPrim = ParentPrim.GetParent();
 		}
 
-		bExpandChildren = !SchemaTranslator->CollapsesChildren(ECollapsingType::Components);
+		bParentHasAnimatedVisibility = bHasVisibilityAnimationParent;
 	}
 
 	if (bExpandChildren)
 	{
+		// Unfortunately if we have animated visibility we need to be ready to update the visibility
+		// of all components that we spawned for child prims whenever this prim's visibility updates.
+		// We can't just have this prim's FUsdGeomXformableTranslator::UpdateComponents ->
+		// -> UsdToUnreal::ConvertXformable call use SetHiddenInGame recursively, because we may have
+		// child prims that are themselves also invisible, and so their own subtrees should be invisible
+		// even if this prim goes visible. Also keep in mind that technically we'll always update each
+		// prim in the order that they are within PrimsToAnimate, but that order is not strictly enforced
+		// to be e.g. a breadth first traversal on the prim tree or anything like this, so these updates
+		// need to be order-independent, which means we really should add the entire subtree to the list
+		// and have UpdateComponents called on all components.
+		bParentHasAnimatedVisibility = bParentHasAnimatedVisibility.GetValue() || UsdUtils::HasAnimatedVisibility(Prim);
+
 		USceneComponent* ContextParentComponent = TranslationContext.ParentComponent;
 
 		if (UsdPrimTwin->SceneComponent.IsValid())
@@ -2005,12 +2043,12 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 
 		for (const UE::FUsdPrim& ChildPrim : PrimChildren)
 		{
-			ExpandPrim(ChildPrim, bResync, TranslationContext);
+			ExpandPrim(ChildPrim, bResync, TranslationContext, bParentHasAnimatedVisibility);
 		}
 	}
 
 	USceneComponent* TwinSceneComponent = UsdPrimTwin->SceneComponent.Get();
-	if (TwinSceneComponent)
+	if (TwinSceneComponent && !TranslationContext.bIsJustRepopulatingLevelSequence)
 	{
 #if WITH_EDITOR
 		TwinSceneComponent->PostEditChange();
@@ -2069,73 +2107,39 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 	}
 
 	// Check if the prim should have Sequencer tracks or not
-	bool bIsAnimated = false;
-	if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(TwinSceneComponent))
-	{
-		if (SkeletalMeshComponent->AnimationData.AnimToPlay)
-		{
-			// We know we're animated if we have an animation of course
-			bIsAnimated = true;
-		}
-	}
+	bool bIsAnimated = bParentHasAnimatedVisibility.GetValue();
+
+	// We know we're animated if we have skeletal animation of course
 	if (!bIsAnimated)
 	{
-		// Always consider SpatialAudio prims as animated so that we can create LevelSequence tracks for the audio itself.
-		// We exclusively handle the audio stuff via the Sequencer and LevelSequence tracks because there's no way to play audio via Time animation,
-		// and the audio component is not meant to be a fully featured audio player with start/end play times and animated volume controls. In
-		// other words, if we placed our SoundWave asset on the component, the audio component would instantly play it when going into PIE, which is
-		// not what we want. The audio component and actor are only really used for their transforms on the level whenever we'ret trying to play
-		// spatial audio
-		bIsAnimated = UsdUtils::IsAnimated(Prim) || Prim.IsA(TEXT("SpatialAudio"));
-	}
-
-	// Create Sequencer tracks for the prim
-	bool bHasAnimatedBounds = false;
-	if (bIsAnimated)
-	{
-		if (!PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
+		if (USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(TwinSceneComponent))
 		{
-			// Unfortunately if we have animated visibility we need to be ready to update the visibility
-			// of all components that we spawned for child prims whenever this prim's visibility updates.
-			// We can't just have this prim's FUsdGeomXformableTranslator::UpdateComponents ->
-			// -> UsdToUnreal::ConvertXformable call use SetHiddenInGame recursively, because we may have
-			// child prims that are themselves also invisible, and so their own subtrees should be invisible
-			// even if this prim goes visible. Also keep in mind that technically we'll always update each
-			// prim in the order that they are within PrimsToAnimate, but that order is not strictly enforced
-			// to be e.g. a breadth first traversal on the prim tree or anything like this, so these updates
-			// need to be order-independent, which means we really should add the entire subtree to the list
-			// and have UpdateComponents called on all components.
-			if (UsdUtils::HasAnimatedVisibility(Prim))
+			if (SkeletalMeshComponent->AnimationData.AnimToPlay)
 			{
-				const bool bRecursive = true;
-				UsdPrimTwin->Iterate(
-					[this](UUsdPrimTwin& Twin)
-					{
-						if (!PrimsToAnimate.Contains(Twin.PrimPath))
-						{
-							PrimsToAnimate.Add(Twin.PrimPath);
-							LevelSequenceHelper.AddPrim(Twin);
-						}
-					},
-					bRecursive
-				);
+				bIsAnimated = true;
 			}
-
-			PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
-			LevelSequenceHelper.AddPrim(*UsdPrimTwin);
 		}
 	}
-	else if (EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim); DrawMode != EUsdDrawMode::Default)
+
+	// Always consider SpatialAudio prims as animated so that we can create LevelSequence tracks for the audio itself.
+	// We exclusively handle the audio stuff via the Sequencer and LevelSequence tracks because there's no way to play audio via Time animation,
+	// and the audio component is not meant to be a fully featured audio player with start/end play times and animated volume controls. In
+	// other words, if we placed our SoundWave asset on the component, the audio component would instantly play it when going into PIE, which is
+	// not what we want. The audio component and actor are only really used for their transforms on the level whenever we'ret trying to play
+	// spatial audio
+	bIsAnimated = bIsAnimated || Prim.IsA(TEXT("SpatialAudio")) || UsdUtils::IsAnimated(Prim);
+
+	TOptional<bool> bHasAnimatedBounds;
+	if (EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim); DrawMode != EUsdDrawMode::Default)
 	{
 		const bool bUseExtentsHint = true;
 		const bool bIgnoreVisibility = false;
 		bHasAnimatedBounds = UsdUtils::HasAnimatedBounds(Prim, static_cast<EUsdPurpose>(PurposesToLoad), bUseExtentsHint, bIgnoreVisibility);
 
-		if (bHasAnimatedBounds)
+		const bool bDefault = false;
+		if (bHasAnimatedBounds.Get(bDefault))
 		{
-			const bool bForceVisibilityTrack = false;
-			LevelSequenceHelper.AddPrim(*UsdPrimTwin, bForceVisibilityTrack, bHasAnimatedBounds);
-			PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
+			bIsAnimated = true;
 
 			// Mark the component as animated right away because HasAnimatedBounds is expensive to call and
 			// we don't want to have to re-do it when creating the component
@@ -2146,7 +2150,13 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 		}
 	}
 
-	if (!bIsAnimated && !bHasAnimatedBounds && PrimsToAnimate.Contains(UsdPrimTwin->PrimPath))
+	if (bIsAnimated)
+	{
+		const bool bForceVisibilityTracks = bParentHasAnimatedVisibility.GetValue();
+		LevelSequenceHelper.AddPrim(*UsdPrimTwin, bForceVisibilityTracks, bHasAnimatedBounds);
+		PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
+	}
+	else
 	{
 		PrimsToAnimate.Remove(UsdPrimTwin->PrimPath);
 		LevelSequenceHelper.RemovePrim(*UsdPrimTwin);
@@ -2187,15 +2197,12 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(const UE::FUsdPrim& Prim, bool bResync,
 			// considered animated too, so lets add it to the proper locations. This will also ensure that
 			// we can close the sequencer after creating a new animation in this way and see it animate on
 			// the level
-			if (!bIsAnimated)
-			{
-				PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
-				LevelSequenceHelper.AddPrim(*UsdPrimTwin);
+			PrimsToAnimate.Add(UsdPrimTwin->PrimPath);
+			LevelSequenceHelper.AddPrim(*UsdPrimTwin);
 
-				// Prevent register/unregister spam when calling FUsdGeomXformableTranslator::UpdateComponents later
-				// during sequencer animation (which can cause the Sequencer UI to glitch out a bit)
-				UsdPrimTwin->SceneComponent->SetMobility(EComponentMobility::Movable);
-			}
+			// Prevent register/unregister spam when calling FUsdGeomXformableTranslator::UpdateComponents later
+			// during sequencer animation (which can cause the Sequencer UI to glitch out a bit)
+			UsdPrimTwin->SceneComponent->SetMobility(EComponentMobility::Movable);
 		}
 	}
 
@@ -3154,13 +3161,7 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 		InfoCache = MakeShared<FUsdInfoCache>();
 	}
 
-	ReloadAnimations();
-
-	// Make sure our PrimsToAnimate and the LevelSequenceHelper are kept in sync, because we'll use PrimsToAnimate to
-	// check whether we need to call LevelSequenceHelper::AddPrim within AUsdStageActor::ExpandPrim. Without this reset
-	// our prims would already be in here by the time we're checking if we need to add tracks or not, and we wouldn't re-add
-	// the tracks
-	PrimsToAnimate.Reset();
+	RegenerateLevelSequence();
 
 	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
 
@@ -3378,12 +3379,17 @@ void AUsdStageActor::Refresh() const
 
 void AUsdStageActor::ReloadAnimations()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::ReloadAnimations);
+	RegenerateLevelSequence();
+}
+
+void AUsdStageActor::RegenerateLevelSequence()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::RegenerateLevelSequence);
 
 	// If we're using some property editor that can trigger a stage reload (like the Nanite threshold spinbox),
-	// applying a value may trigger ReloadAnimations -> Can trigger asset editors to open/close/change focus ->
+	// applying a value may trigger RegenerateLevelSequence -> Can trigger asset editors to open/close/change focus ->
 	// -> Can trigger focus to drop from the property editors -> Can cause the values to be applied from the
-	// property editors when releasing focus -> Can trigger another call to ReloadAnimations.
+	// property editors when releasing focus -> Can trigger another call to RegenerateLevelSequence.
 	// CloseAllEditorsForAsset in particular is problematic for this because it will destroy the asset editor
 	// (which is TSharedFromThis) and the reentrant call will try use AsShared() internally and assert, as it
 	// hasn't finished being destroyed.
@@ -3426,6 +3432,18 @@ void AUsdStageActor::ReloadAnimations()
 		}
 #endif	  // WITH_EDITOR
 	}
+}
+
+void AUsdStageActor::RepopulateLevelSequence()
+{
+	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(
+		this,
+		UE::FSdfPath::AbsoluteRootPath().GetString()
+	);
+	TranslationContext->bIsJustRepopulatingLevelSequence = true;
+
+	const bool bIsResync = false;
+	UpdatePrim(UE::FSdfPath::AbsoluteRootPath(), bIsResync, *TranslationContext);
 }
 
 TSharedPtr<FUsdInfoCache> AUsdStageActor::GetInfoCache()
@@ -3532,7 +3550,8 @@ void AUsdStageActor::PostTransacted(const FTransactionObjectEvent& TransactionEv
 			const bool bUnloadIfNeeded = false;
 			CloseUsdStage(bUnloadIfNeeded);
 			OpenUsdStage();
-			ReloadAnimations();
+			RegenerateLevelSequence();
+			RepopulateLevelSequence();
 		}
 		else if (ChangedProperties.Contains(GET_MEMBER_NAME_CHECKED(AUsdStageActor, StageState)))
 		{

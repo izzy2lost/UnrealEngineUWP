@@ -303,8 +303,19 @@ public:
 	// Enters isolated mode by creating a new USD Stage using the provided layer as its root
 	USDSTAGE_API void IsolateLayer(const UE::FSdfLayer& Layer);
 
-	// Regenerates our LevelSequence from the USD Stage
+	UE_DEPRECATED(5.5, "This function has been renamed into 'RegenerateLevelSequence', which better describes what it does")
 	USDSTAGE_API void ReloadAnimations();
+
+	// Creates new ULevelSequence assets for the root layer and sublayers
+	USDSTAGE_API void RegenerateLevelSequence();
+
+	/**
+	 * Fills in the current LevelSequences with animations for the prims of the opened stage.
+	 *
+	 * Can be called even if our current LevelSequence has already been populated: It will simply refresh the
+	 * current LevelSequence, adding/removing tracks and bindings as needed.
+	 */
+	USDSTAGE_API void RepopulateLevelSequence();
 
 	USDSTAGE_API TSharedPtr<FUsdInfoCache> GetInfoCache();
 	USDSTAGE_API TSharedPtr<UE::FUsdGeomBBoxCache> GetBBoxCache();
@@ -363,7 +374,12 @@ protected:
 	UUsdPrimTwin* GetRootPrimTwin() const;
 	UUsdPrimTwin* GetOrCreatePrimTwin(const UE::FSdfPath& UsdPrimPath);
 
-	UUsdPrimTwin* ExpandPrim(const UE::FUsdPrim& Prim, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
+	UUsdPrimTwin* ExpandPrim(
+		const UE::FUsdPrim& Prim,
+		bool bResync,
+		FUsdSchemaTranslationContext& TranslationContext,
+		TOptional<bool> bParentHasAnimatedVisibility = {}
+	);
 	void UpdatePrim(const UE::FSdfPath& UsdPrimPath, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
 
 	void OpenUsdStage();
