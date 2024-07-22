@@ -322,4 +322,5 @@ private:
 	FName OuterClientPropertyName;
 
 	friend class UEngineTestClientHost;
+	friend class URigVMBlueprint;
 };

@@ -20,6 +20,7 @@
 #include "RigVMPythonUtils.h"
 #include "RigVMTypeUtils.h"
 #include "Algo/Count.h"
+#include "RigVMModel/RigVMControllerActions.h"
 #include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "RigVMModel/Nodes/RigVMDispatchNode.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
@@ -2580,6 +2581,14 @@ void URigVMBlueprint::SetObjectBeingDebugged(UObject* NewObject)
 void URigVMBlueprint::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_FUNC()
+
+	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
+	{
+		// The action stack undo/redo transaction should always execute first
+		// It already knows whether or not it has already executed or not
+		RigVMClient.GetOrCreateActionStack()->PostTransacted(TransactionEvent);
+	}
+	
 	Super::PostTransacted(TransactionEvent);
 
 	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
