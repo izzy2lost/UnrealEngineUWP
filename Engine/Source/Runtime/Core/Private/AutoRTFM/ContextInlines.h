@@ -8,6 +8,11 @@
 namespace AutoRTFM
 {
 
+UE_AUTORTFM_FORCEINLINE FContext* FContext::Get()
+{
+	return &FContext::ContextSingleton;
+}
+
 UE_AUTORTFM_FORCEINLINE void FContext::CheckOpenRecordWrite(void* LogicalAddress)
 {
     // We don't record any writes to unscoped transactions when the write-address

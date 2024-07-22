@@ -15,7 +15,6 @@ class FCallNest;
 class FContext
 {
 public:
-    static FContext* TryGet();
     static FContext* Get();
     static bool IsTransactional();
 	static bool IsCommittingOrAborting();
@@ -60,7 +59,9 @@ public:
     static void InitializeGlobalData();
 
 private:
-    FContext();
+	static FContext ContextSingleton;
+
+	FContext() { Reset(); }
     FContext(const FContext&) = delete;
 
 	void PushCallNest(FCallNest* NewCallNest);
@@ -71,8 +72,6 @@ private:
 
 	ETransactionResult ResolveNestedTransaction(FTransaction* NewTransaction);
 	bool AttemptToCommitTransaction(FTransaction* const Transaction);
-
-    void Set();
     
     // All of this other stuff ought to be private?
     void Reset();
@@ -85,6 +84,7 @@ private:
     void* OuterTransactStackAddress{nullptr};
     void* CurrentTransactStackAddress{nullptr};
     EContextStatus Status{EContextStatus::Idle};
+	uint32 CurrentThreadId{ ~0u };
 };
 
 } // namespace AutoRTFM
