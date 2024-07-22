@@ -137,7 +137,23 @@ protected:
 	TObjectPtr<UClass> EmitterTemplateClass;
 
 	UPROPERTY(EditAnywhere, Category = "General")
-	bool bDeterministic = false;
+	uint32 bDeterministic : 1 = false;
+
+#if WITH_EDITORONLY_DATA
+	/**
+	When enabled the emitter will output all available attributes.
+	You should not need to modify this with the exception of debugging / testing and as it will impact cooked performance and memory
+	*/
+	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay)
+	uint32 bForceOutputAllAttributes : 1 = false;
+
+	/**
+	When enabled the emitter will always include UniqueID in the output attributes.
+	You should not need to modify this with the exception of debugging / testing and as it will impact cooked performance and memory
+	*/
+	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay, meta = (EditCondition = "!bForceOutputAllAttributes"))
+	uint32 bForceOutputUniqueID : 1 = false;
+#endif
 
 	UPROPERTY(EditAnywhere, Category = "General", AdvancedDisplay, meta = (Bitmask, BitMaskEnum = "/Script/Niagara.ENiagaraStatelessFeatureMask"))
 	uint32 AllowedFeatureMask = uint32(ENiagaraStatelessFeatureMask::All);

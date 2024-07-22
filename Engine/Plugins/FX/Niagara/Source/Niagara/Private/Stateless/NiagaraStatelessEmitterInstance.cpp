@@ -714,3 +714,30 @@ void FNiagaraStatelessEmitterInstance::InitEmitterData()
 		EmitterData->bCanEverExecute &&
 		EmitterHandle.GetIsEnabled();
 }
+
+void FNiagaraStatelessEmitterInstance::CaptureForDebugging(FNiagaraDataBuffer* DataBuffer) const
+{
+	check(DataBuffer);
+
+	// Set instances to zero to handle any early outs
+	DataBuffer->SetNumInstances(0);
+	if (!bCanEverExecute || IsComplete())
+	{
+		return;
+	}
+
+	ENQUEUE_RENDER_COMMAND(CaptureStatelessForDebugging)(
+		[RenderThreadData=RenderThreadDataPtr.Get(), DataBuffer](FRHICommandListImmediate& RHICmdList)
+		{
+			// No compute manager then we can not do anything
+			if ( !RenderThreadData->ComputeManager )
+			{
+				return;
+			}
+
+			RenderThreadData->ComputeManager->GenerateDataBufferForDebugging(RHICmdList, DataBuffer, RenderThreadData);
+		}
+	);
+
+	FlushRenderingCommands();
+}

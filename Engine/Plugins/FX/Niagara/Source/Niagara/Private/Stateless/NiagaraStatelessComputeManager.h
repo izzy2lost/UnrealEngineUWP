@@ -18,6 +18,7 @@ namespace NiagaraStateless
 
 class FNiagaraStatelessComputeManager final : public FNiagaraGpuComputeDataManager
 {
+public:
 	struct FStatelessDataCache
 	{
 		uint32										DataSetLayoutHash = 0;
@@ -39,6 +40,9 @@ public:
 	}
 
 	FNiagaraDataBuffer* GetDataBuffer(uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance);
+
+	// Used to execute the simulation immediately into a CPU side data buffer
+	void GenerateDataBufferForDebugging(FRHICommandListImmediate& RHICmdList, FNiagaraDataBuffer* DataBuffer, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance) const;
 
 private:
 	void OnPostPreRender(FRDGBuilder& GraphBuilder);

@@ -11,6 +11,8 @@
 #include "NiagaraGpuComputeDispatchInterface.h"
 #include "NiagaraSimCache.h"
 #include "NiagaraSystemInstanceController.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
+#include "Stateless/NiagaraStatelessEmitterData.h"
 
 struct FNiagaraSimCacheHelper
 {
@@ -318,15 +320,35 @@ struct FNiagaraSimCacheHelper
 	void BuildCacheLayoutForEmitter(const FNiagaraSimCacheCreateParameters& CreateParameters, FNiagaraSimCacheDataBuffersLayout& CacheLayout, int EmitterIndex)
 	{
 		const FNiagaraEmitterHandle& EmitterHandle = NiagaraSystem->GetEmitterHandle(EmitterIndex);
-		const FNiagaraEmitterCompiledData& EmitterCompiledData = NiagaraSystem->GetEmitterCompiledData()[EmitterIndex].Get();
-		const FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetInstance().GetEmitterData();
-		if (EmitterHandle.GetIsEnabled() == false || EmitterData == nullptr)
+		if (!EmitterHandle.GetIsEnabled())
+		{
+			return;
+		}
+
+		const FNiagaraDataSetCompiledData* ParticleDataSet = nullptr;
+		const FVersionedNiagaraEmitterData* StatefulEmitterData = nullptr;
+
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
+		{
+			const FNiagaraEmitterCompiledData& EmitterCompiledData = NiagaraSystem->GetEmitterCompiledData()[EmitterIndex].Get();
+			StatefulEmitterData = EmitterHandle.GetInstance().GetEmitterData();
+			ParticleDataSet = StatefulEmitterData ? &EmitterCompiledData.DataSetCompiledData : nullptr;
+		}
+		// Include stateless emitters for debugging only.  For none debugging there is no value in storing this data as they are stateless.
+		else if ( CreateParameters.bIncludeDebugData )
+		{
+			const UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter();
+			const FNiagaraStatelessEmitterDataPtr StatelessEmitterData = StatelessEmitter ? StatelessEmitter->GetEmitterData() : nullptr;
+			ParticleDataSet = StatelessEmitterData ? &StatelessEmitterData->ParticleDataSetCompiledData : nullptr;
+		}
+
+		if (ParticleDataSet == nullptr)
 		{
 			return;
 		}
 
 		// Find potential candidates for re-basing
-		CacheLayout.bLocalSpace = EmitterData->bLocalSpace;
+		CacheLayout.bLocalSpace = StatefulEmitterData ? StatefulEmitterData->bLocalSpace : true;
 
 		TArray<FName> RebaseVariableNames;
 		if ( CreateParameters.bAllowRebasing && CacheLayout.bLocalSpace == false )
@@ -357,31 +379,34 @@ struct FNiagaraSimCacheHelper
 			}
 
 		#if WITH_EDITORONLY_DATA
-			// Look for renderer attributes bound to Quat / Matrix types are we will want to rebase those
-			// We will add all Position types after this so no need to add them here
-			EmitterData->ForEachEnabledRenderer(
-				[&](UNiagaraRendererProperties* RenderProperties)
-				{
-					for (FNiagaraVariable BoundAttribute : RenderProperties->GetBoundAttributes())
+			if (StatefulEmitterData)
+			{
+				// Look for renderer attributes bound to Quat / Matrix types are we will want to rebase those
+				// We will add all Position types after this so no need to add them here
+				StatefulEmitterData->ForEachEnabledRenderer(
+					[&](UNiagaraRendererProperties* RenderProperties)
 					{
-						if ( (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetQuatDef()) ||
-							 (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetMatrix4Def()) )
+						for (FNiagaraVariable BoundAttribute : RenderProperties->GetBoundAttributes())
 						{
-							if (BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString))
+							if ( (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetQuatDef()) ||
+								 (BoundAttribute.GetType() == FNiagaraTypeDefinition::GetMatrix4Def()) )
 							{
-								if (EmitterCompiledData.DataSetCompiledData.Variables.Contains(BoundAttribute) && ForceExcludeNames.Contains(BoundAttribute.GetName()) == false )
+								if (BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString))
 								{
-									RebaseVariableNames.AddUnique(BoundAttribute.GetName());
+									if (ParticleDataSet->Variables.Contains(BoundAttribute) && ForceExcludeNames.Contains(BoundAttribute.GetName()) == false )
+									{
+										RebaseVariableNames.AddUnique(BoundAttribute.GetName());
+									}
 								}
 							}
 						}
 					}
-				}
-			);
+				);
+			}
 		#endif
 
 			// Look for regular attributes that we are forcing to rebase or can rebase like positions
-			for (const FNiagaraVariableBase& Variable : EmitterCompiledData.DataSetCompiledData.Variables)
+			for (const FNiagaraVariableBase& Variable : ParticleDataSet->Variables)
 			{
 				if ( Variable.GetType() == FNiagaraTypeDefinition::GetPositionDef() )
 				{
@@ -400,7 +425,7 @@ struct FNiagaraSimCacheHelper
 		TArray<FName> InterpVariableNames;
 		if (CreateParameters.bAllowInterpolation)
 		{
-			for (const FNiagaraVariableBase& Variable : EmitterCompiledData.DataSetCompiledData.Variables)
+			for (const FNiagaraVariableBase& Variable : ParticleDataSet->Variables)
 			{
 				if (!CanInterpolateVariable(Variable) || CreateParameters.RebaseExcludeAttributes.Contains(Variable.GetName()))
 				{
@@ -431,7 +456,7 @@ struct FNiagaraSimCacheHelper
 			}
 		}
 
-		BuildCacheLayout(CreateParameters, CacheLayout, EmitterCompiledData.DataSetCompiledData, EmitterHandle.GetName(), MoveTemp(RebaseVariableNames), MoveTemp(InterpVariableNames), ExplicitCaptureAttributes);
+		BuildCacheLayout(CreateParameters, CacheLayout, *ParticleDataSet, EmitterHandle.GetName(), MoveTemp(RebaseVariableNames), MoveTemp(InterpVariableNames), ExplicitCaptureAttributes);
 	}
 
 	static bool BuildCacheReadMappings(FNiagaraSimCacheDataBuffersLayout& CacheLayout, const FNiagaraDataSetCompiledData& CompiledData)

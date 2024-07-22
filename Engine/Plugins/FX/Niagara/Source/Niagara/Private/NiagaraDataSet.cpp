@@ -1450,6 +1450,59 @@ void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>
 	}
 }
 
+void FNiagaraDataBuffer::TransferGPUToCPUImmediate(FRHICommandList& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, FNiagaraDataBuffer* CPUBuffer) const
+{
+	check(GetOwner()->GetCompiledData().GetLayoutHash() == CPUBuffer->GetOwner()->GetCompiledData().GetLayoutHash());
+
+	uint32 GPUNumInstances = 0;
+	if (GPUInstanceCountBufferOffset != INDEX_NONE)
+	{
+		FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
+		FRHIBuffer* CountBuffer = CountManager.GetInstanceCountBuffer().Buffer;
+		GPUNumInstances = *reinterpret_cast<const int32*>(RHICmdList.LockBuffer(CountBuffer, GPUInstanceCountBufferOffset * sizeof(int32), sizeof(int32), RLM_ReadOnly));
+		RHICmdList.UnlockBuffer(CountBuffer);
+	}
+
+	CPUBuffer->Allocate(GPUNumInstances);
+	CPUBuffer->SetNumInstances(GPUNumInstances);
+	if (GPUNumInstances == 0)
+	{
+		return;
+	}
+
+	if (GPUBufferFloat.NumBytes > 0)
+	{
+		const uint32 GPUStride	= FloatStride;
+		const uint8* GPUData	= reinterpret_cast<uint8*>(RHICmdList.LockBuffer(GPUBufferFloat.Buffer, 0, GPUBufferFloat.NumBytes, RLM_ReadOnly));
+
+		const uint32 CPUStride	= CPUBuffer->GetFloatStride();
+		uint8* CPUData			= CPUBuffer->GetComponentPtrFloat(0);
+
+		const int32 NumComponents = CPUBuffer->GetOwner()->GetNumFloatComponents();
+		for (int32 i = 0; i < NumComponents; ++i)
+		{
+			FMemory::Memcpy(CPUData + (CPUStride * i), GPUData + (GPUStride * i), GPUNumInstances * sizeof(float));
+		}
+		RHICmdList.UnlockBuffer(GPUBufferFloat.Buffer);
+	}
+
+	if (GPUBufferInt.NumBytes > 0)
+	{
+		const uint32 GPUStride	= Int32Stride;
+		const uint8* GPUData	= reinterpret_cast<uint8*>(RHICmdList.LockBuffer(GPUBufferInt.Buffer, 0, GPUBufferInt.NumBytes, RLM_ReadOnly));
+
+		const uint32 CPUStride	= CPUBuffer->GetInt32Stride();
+		uint8* CPUData			= CPUBuffer->GetComponentPtrInt32(0);
+
+		const int32 NumComponents = CPUBuffer->GetOwner()->GetNumInt32Components();
+		for (int32 i = 0; i < NumComponents; ++i)
+		{
+			FMemory::Memcpy(CPUData + (CPUStride * i), GPUData + (GPUStride * i), GPUNumInstances * sizeof(int32));
+		}
+		RHICmdList.UnlockBuffer(GPUBufferInt.Buffer);
+	}
+}
+
 void FNiagaraDataBuffer::Dump(int32 StartIndex, int32 InNumInstances, const FString& Label, const FName& SortParameterKey)const
 {
 	FNiagaraDataVariableIterator Itr(this, StartIndex);

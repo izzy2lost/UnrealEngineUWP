@@ -427,33 +427,52 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 			}
 		}
 
-		// Build data set from variables that are used
-		ForEachEnabledRenderer(
-			[this, &AvailableVariables](UNiagaraRendererProperties* RendererProps)
+		// Force all the attributes in?
+		if (bForceOutputAllAttributes)
+		{
+			for (const FNiagaraVariableBase& Variable : AvailableVariables)
 			{
-				if (AvailableVariables.Num() == 0)
+				ParticleDataSetCompiledData.Variables.Emplace(Variable);
+			}
+		}
+		// Build data set from variables that are used by renderers
+		else
+		{
+			ForEachEnabledRenderer(
+				[this, &AvailableVariables](UNiagaraRendererProperties* RendererProps)
 				{
-					return;
-				}
-
-				for (FNiagaraVariableBase BoundAttribute : RendererProps->GetBoundAttributes())
-				{
-					// Edge condition with UniqueID which does not contain the Particle namespace from Ribbon Renderer
-					BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString);
-
-					const int32 Index = AvailableVariables.IndexOfByKey(BoundAttribute);
-					if (Index != INDEX_NONE)
+					if (AvailableVariables.Num() == 0)
 					{
-						AvailableVariables.RemoveAtSwap(Index, EAllowShrinking::No);
-						ParticleDataSetCompiledData.Variables.Emplace(BoundAttribute);
-						if (AvailableVariables.Num() == 0)
+						return;
+					}
+
+					for (FNiagaraVariableBase BoundAttribute : RendererProps->GetBoundAttributes())
+					{
+						// Edge condition with UniqueID which does not contain the Particle namespace from Ribbon Renderer
+						BoundAttribute.RemoveRootNamespace(FNiagaraConstants::ParticleAttributeNamespaceString);
+
+						const int32 Index = AvailableVariables.IndexOfByKey(BoundAttribute);
+						if (Index != INDEX_NONE)
 						{
-							return;
+							AvailableVariables.RemoveAtSwap(Index, EAllowShrinking::No);
+							ParticleDataSetCompiledData.Variables.Emplace(BoundAttribute);
+							if (AvailableVariables.Num() == 0)
+							{
+								return;
+							}
 						}
 					}
 				}
+			);
+
+			if (bForceOutputUniqueID)
+			{
+				if (AvailableVariables.Contains(FNiagaraStatelessGlobals::Get().UniqueIDVariable))
+				{
+					ParticleDataSetCompiledData.Variables.Emplace(FNiagaraStatelessGlobals::Get().UniqueIDVariable);
+				}
 			}
-		);
+		}
 
 		//-TODO: We can alias variables in the data set, for example PreviousSpriteFacing could be SpriteFacing in some cases
 		ParticleDataSetCompiledData.BuildLayout();

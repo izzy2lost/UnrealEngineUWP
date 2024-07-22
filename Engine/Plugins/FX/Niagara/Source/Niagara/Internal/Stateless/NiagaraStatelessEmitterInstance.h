@@ -93,6 +93,9 @@ private:
 	//-TODO: This can be shared perhaps?
 	void SetExecutionStateInternal(ENiagaraExecutionState InExecutionState);
 
+public:
+	void CaptureForDebugging(FNiagaraDataBuffer* DataBuffer) const;
+
 private:
 	uint32										bCanEverExecute : 1 = false;
 	uint32										bEmitterEnabled_GT : 1 = true;

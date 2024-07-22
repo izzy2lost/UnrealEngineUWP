@@ -19,6 +19,7 @@
 #include "NiagaraSimCacheHelper.h"
 #include "NiagaraSystemImpl.h"
 #include "NiagaraSystemInstance.h"
+#include "Stateless/NiagaraStatelessEmitterInstance.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraSimCache)
 
@@ -674,6 +675,14 @@ bool UNiagaraSimCache::WriteFrame(UNiagaraComponent* NiagaraComponent, FNiagaraS
 		CacheEmitterFrame.TotalSpawnedParticles = EmitterInstance.GetTotalSpawnedParticles();
 		if (CacheLayout.EmitterLayouts[i].SimTarget == ENiagaraSimTarget::GPUComputeSim)
 		{
+			if (FNiagaraStatelessEmitterInstance* StatelessEmitterInstance = EmitterInstance.AsStateless())
+			{
+				FNiagaraDataBufferRef DataBuffer = new FNiagaraDataBuffer(EmitterCurrentData->GetOwner());
+				StatelessEmitterInstance->CaptureForDebugging(DataBuffer);
+				Helper.WriteDataBuffer(*DataBuffer, CacheLayout.EmitterLayouts[i], CacheEmitterFrame.ParticleDataBuffers, 0, DataBuffer->GetNumInstances());
+				continue;
+			}
+
 			// First time we encounter a GPU emitter we need to process we also need to flush EOF updates / the compute process to ensure we get latest data
 			if (bNeedsGpuTickFlush)
 			{
