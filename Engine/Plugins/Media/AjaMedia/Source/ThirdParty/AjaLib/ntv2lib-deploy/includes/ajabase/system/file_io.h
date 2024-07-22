@@ -2,12 +2,11 @@
 /**
 	@file		file_io.h
 	@brief		Declares the AJAFileIO class.
-	@copyright	(C) 2011-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2011-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_FILE_IO_H
 #define AJA_FILE_IO_H
-
 
 #include "ajabase/common/types.h"
 #include "ajabase/common/public.h"
@@ -49,6 +48,13 @@ typedef enum
 	eAJASeekCurrent,
 	eAJASeekEnd
 } AJAFileSetFlag;
+	
+	
+typedef enum
+{
+	eAJAIoDefault,
+	eAJAIoAlternate
+} AJAIOModel;
 
 
 /**
@@ -191,7 +197,7 @@ public:
 	static bool FileExists(const std::string& fileName);
 
 	/**
-	 *	Remove the file for the system
+	 *	Remove the file from the system
 	 *
 	 *	@param[in]	fileName			The fully qualified file name
 	 *
@@ -250,6 +256,17 @@ public:
 	static AJAStatus DoesDirectoryExist(const std::wstring& directory);
 
 	/**
+	 *	Tests if a directory exists.
+	 *	Does not change the current directory.
+	 *
+	 *	@param[in]	directory	The path to the directory
+	 *
+	 *	@return		true		If and only if the directory exists
+	 */
+	static bool DirectoryExists(const std::string& directory);
+	static bool DirectoryExists(const std::wstring& directory);
+
+	/**
 	 *	Tests if a directory is empty.
 	 *	Does not change the current directory.
 	 *
@@ -304,19 +321,37 @@ public:
 	static AJAStatus GetFileName(const std::string& path, std::string& filename);	//	New in SDK 16.0
 	static AJAStatus GetFileName(const std::wstring& path, std::wstring& filename); //	New in SDK 16.0
 
+	/**
+	 * Retrieves the full path of the currently running exectuable.
+	 * 
+	 * @param[out]	path	Path of the running executable
+	 * 
+	 * @return		AJA_STATUS_SUCCESS If and only if the executable path is retrieved
+	 */
+	static AJAStatus GetExecutablePath(std::string& path); // New in SDK 16.2
+	static AJAStatus GetExecutablePath(std::wstring& path); // New in SDK 16.2
+
+	/**
+	 *	Set private file handle from FILE pointer.
+	 *
+	 *	@param[in]	fp					The FILE pointer
+	 */
+	void	SetHandle(FILE *fp);
+
 #if defined(AJA_WINDOWS)
 	void	 *GetHandle(void) {return mFileDescriptor;}
 #else
-	void	 *GetHandle(void) {return NULL;}
+	void	 *GetHandle(void) {return mpFile;}
 #endif
 
 private:
 
 #if defined(AJA_WINDOWS)
-	HANDLE		 mFileDescriptor;
+	HANDLE		mFileDescriptor;
 #else
-	FILE*		 mpFile;
+	FILE*		mpFile;
 #endif
+	AJAIOModel	mIoModel;
 };
 
 #endif // AJA_FILE_IO_H

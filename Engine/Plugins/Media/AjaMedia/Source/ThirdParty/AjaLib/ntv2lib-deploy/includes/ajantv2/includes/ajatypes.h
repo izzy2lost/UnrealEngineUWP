@@ -3,7 +3,7 @@
 	@file		ajatypes.h
 	@brief		Declares the most fundamental data types used by NTV2. Since Windows NT was the first principal
 				development platform, many typedefs are Windows-centric.
-	@copyright	(C) 2004-2021 AJA Video Systems, Inc.  
+	@copyright	(C) 2004-2022 AJA Video Systems, Inc.  
 **/
 #ifndef AJATYPES_H
 #define AJATYPES_H
@@ -12,47 +12,147 @@
 	#define NTV2_USE_STDINT
 #endif	//	if not MSWindows
 
-/**
-	SYMBOL & API DEPRECATION MACROS
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////	DEPRECATION CONTROL MACROS
+////////
+////////	These macros control which deprecated symbols and APIs are included or excluded from compilation.
+////////
+////////	-	To activate/include the symbols/APIs that were deprecated in a particular SDK, comment out
+////////		(undefine) the SDK's corresponding macro.
+////////
+////////	-	To deactivate/exclude the symbols/APIs that were deprecated in a particular SDK, leave the
+////////		SDK's corresponding macro defined.
+////////
+////////	-	NTV2_DEPRECATE was the first deprecation control macro, first introduced just before SDK 12.4.
+////////
+////////	-	Starting in SDK 12.5, additional version-specific macros were added to delineate newly-deprecated
+////////		symbols and APIs for each SDK release. Then in SDK 17.0, all prior deprecated symbols and APIs from
+////////		SDKs 14.3 and earlier were removed from the source files, making these macros obsolete:
+////////			NTV2_DEPRECATE			NTV2_DEPRECATE_12_5		NTV2_DEPRECATE_12_6		NTV2_DEPRECATE_12_7
+////////			NTV2_DEPRECATE_13_0		NTV2_DEPRECATE_13_1
+////////			NTV2_DEPRECATE_14_0		NTV2_DEPRECATE_14_1		NTV2_DEPRECATE_14_2		NTV2_DEPRECATE_14_3
+////////			NTV2_DEPRECATE_15_0		NTV2_DEPRECATE_15_1		NTV2_DEPRECATE_15_2		NTV2_DEPRECATE_15_3
+////////			NTV2_DEPRECATE_15_4		NTV2_DEPRECATE_15_5		NTV2_DEPRECATE_15_6
+////////
+////////	WARNING:	Do not sparsely mix-and-match across SDK versions.
+////////				It's best to activate/include symbols/APIs contiguously from the latest SDK
+////////				(starting at the bottom), and continue activating/including to the SDK at which
+////////				symbols/APIs should start to be deactivated/excluded.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 
-	These macros control which deprecated symbols and APIs are included or excluded from compilation.
-
-	-	To activate/include the symbols/APIs that were deprecated in a particular SDK, comment out
-		(undefine) the SDK's corresponding macro.
-
-	-	To deactivate/exclude the symbols/APIs that were deprecated in a particular SDK, leave the
-		SDK's corresponding macro defined.
-
-	WARNING:	Do not sparsely mix-and-match across SDK versions.
-				It's best to activate/include symbols/APIs contiguously from the latest SDK
-				(starting at the bottom), and continue activating/including to the SDK at which
-				symbols/APIs should start to be deactivated/excluded.
-**/
-#define NTV2_DEPRECATE			//	If defined, excludes all symbols/APIs first deprecated in SDK 12.4 or earlier
-#define NTV2_DEPRECATE_12_5		//	If defined, excludes all symbols/APIs first deprecated in SDK 12.5
-#define NTV2_DEPRECATE_12_6		//	If defined, excludes all symbols/APIs first deprecated in SDK 12.6
-#define NTV2_DEPRECATE_12_7		//	If defined, excludes all symbols/APIs first deprecated in SDK 12.7
-#define NTV2_DEPRECATE_13_0		//	If defined, excludes all symbols/APIs first deprecated in SDK 13.0
-#define NTV2_DEPRECATE_13_1		//	If defined, excludes all symbols/APIs first deprecated in SDK 13.1
-#define NTV2_DEPRECATE_14_0		//	If defined, excludes all symbols/APIs first deprecated in SDK 14.0
-#define NTV2_DEPRECATE_14_1		//	If defined, excludes all symbols/APIs first deprecated in SDK 14.1 (never released)
-#define NTV2_DEPRECATE_14_2		//	If defined, excludes all symbols/APIs first deprecated in SDK 14.2
-#define NTV2_DEPRECATE_14_3		//	If defined, excludes all symbols/APIs first deprecated in SDK 14.3
-#define NTV2_DEPRECATE_15_0		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.0
-#define NTV2_DEPRECATE_15_1		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.1
-#define NTV2_DEPRECATE_15_2		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.2
-//#define NTV2_DEPRECATE_15_3		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.3 (never released)
-//#define NTV2_DEPRECATE_15_5		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.5
-//#define NTV2_DEPRECATE_15_6		//	If defined, excludes all symbols/APIs first deprecated in SDK 15.6 (never released)
+#define NTV2_DEPRECATE			//	Do not undefine -- all symbols/APIs first deprecated in SDK 12.4 or earlier have been removed
+#define NTV2_DEPRECATE_12_5		//	Do not undefine -- all symbols/APIs first deprecated in SDK 12.5 have been removed
+#define NTV2_DEPRECATE_12_6		//	Do not undefine -- all symbols/APIs first deprecated in SDK 12.6 have been removed
+#define NTV2_DEPRECATE_12_7		//	Do not undefine -- all symbols/APIs first deprecated in SDK 12.7 have been removed
+#define NTV2_DEPRECATE_13_0		//	Do not undefine -- all symbols/APIs first deprecated in SDK 13.0 have been removed
+#define NTV2_DEPRECATE_13_1		//	Do not undefine -- all symbols/APIs first deprecated in SDK 13.1 have been removed
+#define NTV2_DEPRECATE_14_0		//	Do not undefine -- all symbols/APIs first deprecated in SDK 14.0 have been removed
+#define NTV2_DEPRECATE_14_1		//	Do not undefine -- all symbols/APIs first deprecated in SDK 14.1 (never released) have been removed
+#define NTV2_DEPRECATE_14_2		//	Do not undefine -- all symbols/APIs first deprecated in SDK 14.2 have been removed
+#define NTV2_DEPRECATE_14_3		//	Do not undefine -- all symbols/APIs first deprecated in SDK 14.3 have been removed
+#define NTV2_DEPRECATE_15_0		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.0 have been removed
+#define NTV2_DEPRECATE_15_1		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.1 have been removed
+#define NTV2_DEPRECATE_15_2		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.2 have been removed
+#define NTV2_DEPRECATE_15_3		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.3 (never released) have been removed
+#define NTV2_DEPRECATE_15_5		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.5 have been removed
+#define NTV2_DEPRECATE_15_6		//	Do not undefine -- all symbols/APIs first deprecated in SDK 15.6 (never released) have been removed
 //#define NTV2_DEPRECATE_16_0		//	If defined, excludes all symbols/APIs first deprecated in SDK 16.0
 //#define NTV2_DEPRECATE_16_1		//	If defined, excludes all symbols/APIs first deprecated in SDK 16.1
 //#define NTV2_DEPRECATE_16_2		//	If defined, excludes all symbols/APIs first deprecated in SDK 16.2
-#define NTV2_NUB_CLIENT_SUPPORT		//	If defined, includes nub client support;  otherwise, excludes it
+//#define NTV2_DEPRECATE_16_3		//	If defined, excludes all symbols/APIs first deprecated in SDK 16.3 (never released)
+//#define NTV2_DEPRECATE_17_0		//	If defined, excludes all symbols/APIs first deprecated in SDK 17.0
+
+
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////	COMPILE-TIME FEATURES
+////////	These macros control important aspects of SDK behavior.
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
+/**************************************************************************************************************
+	NTV2_NULL_DEVICE			Controls whether or not the SDK will be able to connect to the NTV2 kernel
+								driver via the normal connection method provided by the host operating system.
+								Introduced in SDK 12.4.
+
+	Undefined:	(Default) Locally-connected/installed NTV2 devices will be enumerable via
+				CNTV2DeviceScanner and accessible via CNTV2Card::Open.
+
+	Defined:	"OpenLocalPhysical" calls will fail, and CNTV2DeviceScanner won't find any locally
+				connected/installed devices.
+**************************************************************************************************************/
+//#define NTV2_NULL_DEVICE	
+
+/**************************************************************************************************************
+	NTV2_NUB_CLIENT_SUPPORT		Controls whether or not the SDK will use plugin DLLs/dylibs/so's to connect
+								to remote or software NTV2 devices.
+								Introduced in SDK 12.4.
+
+	Undefined:	SDK clients cannot access or connect to remote or software devices. This may be useful for
+				SDK clients that require greater security by preventing the loading of plugins.
+
+	Defined:	(Default) SDK clients will be able to access and connect to remote or software devices (via
+				dynamically-loaded plugins).
+**************************************************************************************************************/
+#define NTV2_NUB_CLIENT_SUPPORT	
+
+/**************************************************************************************************************
+	NTV2_WRITEREG_PROFILING		Controls profiling of WriteRegister calls.
+								Introduced in SDK 15.1.
+
+	Undefined:	WriteRegister calls cannot be profiled, and the *RecordRegisterWrites API functions are
+				unavailable.
+
+	Defined:	(Default) WriteRegister calls can be profiled, and the API that controls profiling and
+				retrieve results is available (e.g. the *RecordRegisterWrites API functions).
+**************************************************************************************************************/
+#define NTV2_WRITEREG_PROFILING		//	If defined, enables register write profiling
+
+
+/**************************************************************************************************************
+	NTV2_USE_CPLUSPLUS11		Controls use of C++11 language features.
+								Introduced in SDK 16.0.
+
+	Undefined:	The 'libajantv2' portion of the SDK will not use C++11 features.
+
+	Defined:	(Default) The 'libajantv2' portion of the SDK will use C++11 features that require
+				a C++11 compiler.
+
+	See also:	AJA_USE_CPLUSPLUS11 in 'libajabase/include/types.h'
+**************************************************************************************************************/
+#if !defined(NTV2_USE_CPLUSPLUS11)
+	#define NTV2_USE_CPLUSPLUS11 	
+#endif	//	!defined(NTV2_USE_CPLUSPLUS11)
+
+
+/**************************************************************************************************************
+	NTV2_INCLUDE_DEVICE_CAPABILITIES_API	Controls the availability of the new DeviceCapabilities class/API.
+											Introduced in SDK 17.0.
+
+	Undefined:	No DeviceCapabilities class/API is declared. SDK clients will have to use the lower-level
+				CNTV2DriverInterface::IsSupported and CNTV2DriverInterface::GetNumSupported member functions.
+
+	Defined:	(Default) The DeviceCapabilities class/API is defined. SDK clients will be able to access
+				and use this API via the CNTV2Card::features() accessor function.
+**************************************************************************************************************/
+#define	NTV2_INCLUDE_DEVICE_CAPABILITIES_API
+
+
+/**************************************************************************************************************
+	NTV2_ALLOW_OPEN_UNSUPPORTED				Controls whether unsupported devices can be opened.
+											Introduced in SDK 17.0.
+
+	Undefined:	(Default) Unsupported devices attached to the host cannot be opened.
+
+	Defined:	Unsupported devices attached to the host can be opened.
+**************************************************************************************************************/
+//#define	NTV2_ALLOW_OPEN_UNSUPPORTED
+
+
+
+/*/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////	HELPER MACROS
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 #define AJA_VIRTUAL		virtual		//	Force use of virtual functions in CNTV2Card, etc.
 #define AJA_STATIC		static		//	Do not change this.
-#define NTV2_WRITEREG_PROFILING		//	If defined, enables register write profiling
 #define NTV2_UNUSED(__p__)			(void)__p__
-#define NTV2_USE_CPLUSPLUS11		//	New in SDK 16.0. If defined (now default), 'ajalibraries/ajantv2' will use C++11 features (requires C++11 compiler)
 
 #if defined(__CPLUSPLUS__) || defined(__cplusplus)
 	#if defined(AJAMac)
@@ -195,6 +295,7 @@
 	#define AJAFUNC		__FUNCTION__
 	#define NTV2_CPP_MIN(__x__,__y__)		min((__x__),(__y__))
 	#define NTV2_CPP_MAX(__x__,__y__)		max((__x__),(__y__))
+	#pragma warning(disable:4996)   //  Sadly MSVC bitches about DECLARING a deprecated function but not about USING one.
 
 									//////////////////////////////////////////////////////////////////
 #elif defined (AJAMac)				////////////////////////	MAC		//////////////////////////////
@@ -241,10 +342,6 @@
 			typedef unsigned char		bool;
 		#endif /* LINUX_VERSION_CODE */
 	#endif /* __KERNEL__ */
-
-	#if defined(NTV2_USE_CPLUSPLUS11)
-		#undef NTV2_USE_CPLUSPLUS11 //	Linux c++11-in-SDK TBD
-	#endif
 
 	#if defined (MODULE)
 		#define NTV2_BUILDING_DRIVER
@@ -372,6 +469,36 @@
 	#define POINTER_32
 	#define MAX_PATH	4096
 										//////////////////////////////////////////////////////////////////
+#elif defined (AJA_BAREMETAL)				////////////////////////	Bare Metal		//////////////////////////////
+									//////////////////////////////////////////////////////////////////
+	#include <stdint.h>
+	typedef short					HANDLE;
+	typedef void*					PVOID;
+	typedef unsigned int			BOOL_;
+	typedef ULWord					UWord_;
+	typedef int						Fixed_;
+	typedef int						AJASocket;
+
+	#define AJATargetBigEndian	0
+	#define AJAFUNC		__func__
+	#define NTV2_CPP_MIN(__x__,__y__)		std::min((__x__),(__y__))
+	#define NTV2_CPP_MAX(__x__,__y__)		std::max((__x__),(__y__))
+
+	#define MAX_PATH 4096
+
+  #undef NTV2_WRITEREG_PROFILING		//	disable register write profiling
+
+	#define INVALID_HANDLE_VALUE (0)
+
+	#if !defined (NTV2_DEPRECATE)
+		typedef struct {
+		  int cx;
+		  int cy;
+		} SIZE;		///< @deprecated	Use NTV2FrameDimensions instead.
+	#endif	//	!defined (NTV2_DEPRECATE)
+
+	#define POINTER_32
+
 #else									////////////////////////	(OTHER)		//////////////////////////
 										//////////////////////////////////////////////////////////////////
 	#error "IMPLEMENT OTHER PLATFORM"
@@ -436,6 +563,9 @@
 	#endif
 	#if !defined(NTV2_DEPRECATE_16_2)
 		#define NTV2_DEPRECATE_16_2
+	#endif
+	#if !defined(NTV2_DEPRECATE_16_3)
+		#define NTV2_DEPRECATE_16_3
 	#endif
 #endif
 
@@ -517,62 +647,6 @@
 	#define NTV2_DEPRECATED_v(__v__)				__v__
 	#define NTV2_DEPRECATED_vi(__v__, __i__)		__v__  = (__i__)
 #endif
-
-
-/**
-	@brief	Describes the horizontal and vertical size dimensions of a raster, bitmap, frame or image.
-**/
-typedef struct NTV2FrameDimensions
-{
-	#if !defined (NTV2_BUILDING_DRIVER)
-		//	Member Functions
-
-		/**
-			@brief		My constructor.
-			@param[in]	inWidth		Optionally specifies my initial width dimension, in pixels. Defaults to zero.
-			@param[in]	inHeight	Optionally specifies my initial height dimension, in lines. Defaults to zero.
-		**/
-		inline NTV2FrameDimensions (const ULWord inWidth = 0, const ULWord inHeight = 0)	{Set (inWidth, inHeight);}
-		inline ULWord					GetWidth (void) const		{return mWidth;}	///< @return	My width, in pixels.
-		inline ULWord					GetHeight (void) const		{return mHeight;}	///< @return	My height, in lines/rows.
-		inline ULWord					Width (void) const			{return mWidth;}	///< @return	My width, in pixels.
-		inline ULWord					Height (void) const			{return mHeight;}	///< @return	My height, in lines/rows.
-		inline bool						IsValid (void) const		{return Width() && Height();}	///< @return	True if both my width and height are non-zero.
-
-		/**
-			@brief		Sets my width dimension.
-			@param[in]	inValue		Specifies the new width dimension, in pixels.
-			@return		A non-constant reference to me.
-		**/
-		inline NTV2FrameDimensions &	SetWidth (const ULWord inValue)						{mWidth = inValue; return *this;}
-
-		/**
-			@brief		Sets my height dimension.
-			@param[in]	inValue		Specifies the new height dimension, in lines.
-			@return		A non-constant reference to me.
-		**/
-		inline NTV2FrameDimensions &	SetHeight (const ULWord inValue)					{mHeight = inValue; return *this;}
-
-		/**
-			@brief		Sets my dimension values.
-			@param[in]	inWidth		Specifies the new width dimension, in pixels.
-			@param[in]	inHeight	Specifies the new height dimension, in lines.
-			@return		A non-constant reference to me.
-		**/
-		inline NTV2FrameDimensions &	Set (const ULWord inWidth, const ULWord inHeight)	{return SetWidth (inWidth).SetHeight (inHeight);}
-
-		/**
-			@brief		Sets both my width and height to zero (an invalid state).
-			@return		A non-constant reference to me.
-		**/
-		inline NTV2FrameDimensions &	Reset (void)										{return Set (0, 0);}
-
-		private:	//	Private member data only if not building driver
-	#endif	//	!defined (NTV2_BUILDING_DRIVER)
-	//	Member Variables
-	ULWord	mWidth;		///< @brief The horizontal dimension, in pixels.
-	ULWord	mHeight;	///< @brief The vertical dimension, in lines.
-} NTV2FrameDimensions;
 
 
 #if !defined(BIT)

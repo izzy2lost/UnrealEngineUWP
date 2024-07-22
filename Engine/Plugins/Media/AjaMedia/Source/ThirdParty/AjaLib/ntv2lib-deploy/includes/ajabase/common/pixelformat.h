@@ -2,7 +2,7 @@
 /**
 	@file		pixelformat.h
 	@brief		Contains the declaration of the AJAPixelFormat class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef _PixelFormat_Defined_
@@ -21,6 +21,17 @@ enum AJAScaleType
 	AJAScaleTypeQRez	   = 1 << 3,
 	AJAScaleTypeHDV		   = AJAScaleType960To1280 | AJAScaleType1440To1920,
 	AJAScaleTypeDVCPro	   = AJAScaleType960To1280 | AJAScaleType1280To1920
+};
+
+
+enum AJASubSampleType
+{
+	AJASubSampleNone,
+	AJASubSample422,
+	AJASubSample420,
+	AJASubSample444,
+	AJASubSample4444,
+	AJASubSampleBayer
 };
 
 
@@ -78,6 +89,33 @@ public:
 	 *	@return		bit depth per component for specified format
 	 */
 	uint32_t		QueryBitDepth();
+	static uint32_t QueryBitDepth(AJA_PixelFormat format);
+	
+	/**
+	 *	Query chroma sub-sample type
+	 *
+	 *	@return		chroma sub-sample type
+	 */
+	AJASubSampleType QuerySubSampleType();
+	static AJASubSampleType	QuerySubSampleType(AJA_PixelFormat format);
+	
+	/**
+	 *	Query plane count
+	 *
+	 *	@return		plane count
+	 */
+	uint32_t 		QueryPlaneCount();
+	static uint32_t	QueryPlaneCount(AJA_PixelFormat format);
+	
+	
+	/**
+	 *	Query is valid
+	 *
+	 *	@return		true if AJA pixel format is valid
+	 */
+	bool 			QueryIsValid();
+	static bool		QueryIsValid(AJA_PixelFormat format);
+
 
 	/**
 	 *	Query Scale Type.
@@ -170,6 +208,7 @@ public:
 	 *	@return		returns associated pixel format
 	 */
 	static AJA_PixelFormat	QueryScaledPixelFormat(int scaledWidth, int height);
+	
 
 protected:
 	AJA_PixelFormat m_format;

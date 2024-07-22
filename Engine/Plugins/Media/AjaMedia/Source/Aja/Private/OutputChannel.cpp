@@ -1007,17 +1007,16 @@ namespace AJA
 
 			//	Write the requested test pattern into host buffer...
 			{
-				AJATestPatternGen		testPatternGen;
-				AJATestPatternBuffer	testPatternBuffer;
-				testPatternGen.DrawTestPattern(AJATestPatternSelect::AJA_TestPatt_ColorBars100,
-					FormatDescriptor.numPixels,
-					FormatDescriptor.numLines,
-					Helpers::ConvertToPixelFormat(GetOptions().PixelFormat),
+				NTV2TestPatternGen testPatternGen;
+				NTV2Buffer testPatternBuffer;
+
+				testPatternGen.DrawTestPattern(NTV2TestPatternSelect::NTV2_TestPatt_ColorBars100,
+					FormatDescriptor,
 					testPatternBuffer);
 
 				for (UByte FrameIndex = BaseFrameIndex; FrameIndex < BaseFrameIndex + DeviceConnection::NumberOfFrameForAutoCirculate; ++FrameIndex)
 				{
-					GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+					GetDevice().DMAWriteFrame(FrameIndex, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 				}
 			}
 
@@ -1286,18 +1285,17 @@ namespace AJA
 
 			//	Write the requested test pattern into host buffer...
 			{
-				AJATestPatternGen		testPatternGen;
-				AJATestPatternBuffer	testPatternBuffer;
-				testPatternGen.DrawTestPattern(AJATestPatternSelect::AJA_TestPatt_ColorBars100,
-					FormatDescriptor.numPixels,
-					FormatDescriptor.numLines,
-					Helpers::ConvertToPixelFormat(GetOptions().PixelFormat),
+				NTV2TestPatternGen testPatternGen;
+				NTV2Buffer testPatternBuffer;
+
+				testPatternGen.DrawTestPattern(NTV2TestPatternSelect::NTV2_TestPatt_ColorBars100,
+					FormatDescriptor,
 					testPatternBuffer);
 
 				CurrentOutFrame ^= 1;
-				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 				CurrentOutFrame ^= 1;
-				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (&testPatternBuffer[0]), uint32_t(testPatternBuffer.size()));
+				GetDevice().DMAWriteFrame(BaseFrameIndex + CurrentOutFrame, reinterpret_cast <uint32_t *> (testPatternBuffer.GetHostPointer()), uint32_t(testPatternBuffer.GetByteCount()));
 			}
 
 			if (!bStopRequested)

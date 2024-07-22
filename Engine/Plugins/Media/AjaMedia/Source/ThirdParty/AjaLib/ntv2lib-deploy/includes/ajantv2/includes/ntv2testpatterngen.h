@@ -2,25 +2,21 @@
 /**
 	@file		ajantv2/includes/ntv2testpatterngen.h
 	@brief		Declares the NTV2TestPatternGen class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2_TESTPATTERN_GEN_
 #define NTV2_TESTPATTERN_GEN_
 
 #include "ajaexport.h"
-#include "ntv2videodefines.h"
 #include "ntv2enums.h"
 #include "ntv2utils.h"
 #include <vector>
 #include <set>
 #include <string>
 
-typedef std::vector <uint8_t>		NTV2TestPatternBuffer, NTV2TestPatBuffer;	///< @brief	A byte vector that stores a complete video frame.
-#if !defined(NTV2_DEPRECATE_15_0)
-	typedef std::vector <const char *>	NTV2TestPatternList;	///< @deprecated	Use NTV2TestPatternNames instead.
-#endif//!defined(NTV2_DEPRECATE_15_0)
-typedef NTV2StringList					NTV2TestPatternNames;	///< @brief	A list (std::vector) of pattern names.
+typedef std::vector <uint8_t>	NTV2TestPatternBuffer, NTV2TestPatBuffer;	///< @brief	A byte vector that stores a complete video frame.
+typedef NTV2StringList			NTV2TestPatternNames;	///< @brief	A list (std::vector) of pattern names.
 
 /**
 	@brief	Identifies a predefined NTV2 test pattern.
@@ -110,12 +106,10 @@ class AJAExport NTV2TestPatternGen
 			@param[in]	inName	Specifies the "web color" name. The search is done case-insensitively.
 			@note		"Black" and "White" are not returned, as these are available as ordinary
 						test patterns NTV2_TestPatt_Black and NTV2_TestPatt_White, respectively.
+			@bug		As currently implemented and documented, this function only returns
+						8-bit deep color values.
 		**/
 		static ULWord					findRGBColorByName (const std::string & inName);	//	New in SDK 16.0
-
-		#if !defined(NTV2_DEPRECATE_15_0)
-		static NTV2_SHOULD_BE_DEPRECATED (NTV2TestPatternList &		getTestPatternList (void));
-		#endif	//	!defined(NTV2_DEPRECATE_15_0)
 		///@}
 
 	//	INSTANCE METHODS
@@ -146,7 +140,7 @@ class AJAExport NTV2TestPatternGen
 		**/
 		virtual bool			DrawTestPattern (const std::string & inTPName,
 												const NTV2FormatDescriptor & inFormatDesc,
-												NTV2_POINTER & inBuffer);	//	New in SDK 16.0
+												NTV2Buffer & inBuffer);	//	New in SDK 16.0
 		/**
 			@brief		Renders the given test pattern into a host raster buffer.
 			@param[in]	inPattern		Specifies the test pattern to be drawn.
@@ -161,16 +155,15 @@ class AJAExport NTV2TestPatternGen
 		**/
 		virtual bool			DrawTestPattern (const NTV2TestPatternSelect inPattern,
 												const NTV2FormatDescriptor & inFormatDesc,
-												NTV2_POINTER & inBuffer);	//	New in SDK 16.0
+												NTV2Buffer & inBuffer);	//	New in SDK 16.0
 
 #if !defined(NTV2_DEPRECATE_16_0)
 		/**
-			@deprecated	Use the DrawTestPattern method that requires an NTV2_POINTER to specify the buffer to fill.
+			@deprecated	Use the DrawTestPattern method that requires an NTV2Buffer to specify the buffer to fill.
 		**/
-		virtual inline NTV2_DEPRECATED_f(bool DrawTestPattern (const NTV2TestPatternSelect inPattern, const NTV2FormatDescriptor & inDesc, NTV2TestPatBuffer & outBuffer))
-										{return DrawTestPattern(inPattern, inDesc.GetRasterWidth(), inDesc.GetVisibleRasterHeight(), inDesc.GetPixelFormat(), outBuffer);}
+		virtual NTV2_DEPRECATED_f(bool DrawTestPattern (const NTV2TestPatternSelect inPattern, const NTV2FormatDescriptor & inDesc, NTV2TestPatBuffer & outBuffer));
 		/**
-			@deprecated	Use the DrawTestPattern method that requires an NTV2_POINTER to specify the buffer to fill.
+			@deprecated	Use the DrawTestPattern method that requires an NTV2Buffer to specify the buffer to fill.
 		**/
 		virtual NTV2_DEPRECATED_f(bool DrawTestPattern (const NTV2TestPatternSelect inPat, const uint32_t inWdth, const uint32_t inHght, const NTV2FrameBufferFormat inPF, NTV2TestPatBuffer & outBuf));
 #endif	//	!defined(NTV2_DEPRECATE_16_0)
@@ -259,31 +252,5 @@ class AJAExport NTV2TestPatternGen
 		std::vector<uint16_t>	mRGBBuffer;
 
 };	//	NTV2TestPatternGen
-
-#if !defined(NTV2_DEPRECATE_14_3)
-	typedef	NTV2TestPatternGen					AJATestPatternGenEx;				///< @deprecated	Use NTV2TestPatternGen instead.
-	typedef NTV2TestPatternBuffer				AJATestPatternBufferEx;				///< @deprecated	Use NTV2TestPatternBuffer instead.
-	typedef NTV2TestPatternSelect				AJATestPatternSelectEx;				///< @deprecated	Use NTV2TestPatternSelect instead.
-	#define	AJA_TestPattEx_ColorBars100			NTV2_TestPatt_ColorBars100			///< @deprecated	Use NTV2_TestPatt_ColorBars100 instead.
-	#define	AJA_TestPattEx_ColorBars75			NTV2_TestPatt_ColorBars75			///< @deprecated	Use NTV2_TestPatt_ColorBars75 instead.
-	#define	AJA_TestPattEx_Ramp					NTV2_TestPatt_Ramp					///< @deprecated	Use NTV2_TestPatt_Ramp instead.
-	#define	AJA_TestPattEx_MultiBurst			NTV2_TestPatt_MultiBurst			///< @deprecated	Use NTV2_TestPatt_MultiBurst instead.
-	#define	AJA_TestPattEx_LineSweep			NTV2_TestPatt_LineSweep				///< @deprecated	Use NTV2_TestPatt_LineSweep instead.
-	#define	AJA_TestPattEx_CheckField			NTV2_TestPatt_CheckField			///< @deprecated	Use NTV2_TestPatt_CheckField instead.
-	#define	AJA_TestPattEx_FlatField			NTV2_TestPatt_FlatField				///< @deprecated	Use NTV2_TestPatt_FlatField instead.
-	#define	AJA_TestPattEx_MultiPattern			NTV2_TestPatt_MultiPattern			///< @deprecated	Use NTV2_TestPatt_MultiPattern instead.
-	#define	AJA_TestPattEx_Black				NTV2_TestPatt_Black					///< @deprecated	Use NTV2_TestPatt_Black instead.
-	#define	AJA_TestPattEx_White				NTV2_TestPatt_White					///< @deprecated	Use NTV2_TestPatt_White instead.
-	#define	AJA_TestPattEx_Border				NTV2_TestPatt_Border				///< @deprecated	Use NTV2_TestPatt_Border instead.
-	#define	AJA_TestPattEx_LinearRamp			NTV2_TestPatt_LinearRamp			///< @deprecated	Use NTV2_TestPatt_LinearRamp instead.
-	#define	AJA_TestPattEx_SlantRamp			NTV2_TestPatt_SlantRamp				///< @deprecated	Use NTV2_TestPatt_SlantRamp instead.
-	#define	AJA_TestPattEx_ZonePlate			NTV2_TestPatt_ZonePlate				///< @deprecated	Use NTV2_TestPatt_ZonePlate instead.
-	#define	AJA_TestPattEx_ColorQuadrant		NTV2_TestPatt_ColorQuadrant			///< @deprecated	Use NTV2_TestPatt_ColorQuadrant instead.
-	#define	AJA_TestPattEx_ColorQuadrantBorder	NTV2_TestPatt_ColorQuadrantBorder	///< @deprecated	Use NTV2_TestPatt_ColorQuadrantBorder instead.
-	#define	AJA_TestPattEx_ColorQuadrantTsi		NTV2_TestPatt_ColorQuadrantTsi		///< @deprecated	Use NTV2_TestPatt_ColorQuadrantTsi instead.
-	#define	AJA_TestPattEx_All					NTV2_TestPatt_All					///< @deprecated	Use NTV2_TestPatt_All instead.
-#elif !defined(NTV2_DEPRECATE_15_0)
-	typedef	NTV2TestPatternList					AJATestPatternListEx;				///< @deprecated	Use NTV2TestPatternNames instead.
-#endif	//	NTV2_DEPRECATE_15_0
 
 #endif	//	NTV2_TESTPATTERN_GEN_

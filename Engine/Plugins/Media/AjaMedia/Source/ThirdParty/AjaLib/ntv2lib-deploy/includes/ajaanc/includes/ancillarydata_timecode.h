@@ -2,7 +2,7 @@
 /**
 	@file		ancillarydata_timecode.h
 	@brief		Declares the AJAAncillaryData_Timecode class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef AJA_ANCILLARYDATA_TIMECODE_H
@@ -237,9 +237,9 @@ public:
 
 	/**
 		@param[in]	pInAncData	A valid pointer to an AJAAncillaryData instance.
-		@return		The AJAAncillaryDataType if I recognize this ancillary data (or unknown if unrecognized).
+		@return		The AJAAncDataType if I recognize this ancillary data (or unknown if unrecognized).
 	**/
-	static AJAAncillaryDataType			RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
+	static AJAAncDataType				RecognizeThisAncillaryData (const AJAAncillaryData * pInAncData);
 
 	/**
 		@brief		Streams a human-readable representation of me to the given output stream.

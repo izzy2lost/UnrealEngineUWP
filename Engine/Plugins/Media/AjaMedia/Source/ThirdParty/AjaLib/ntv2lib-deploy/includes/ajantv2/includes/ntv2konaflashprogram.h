@@ -2,7 +2,7 @@
 /**
 	@file		ntv2konaflashprogram.h
 	@brief		Declares the CNTV2KonaFlashProgram class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef NTV2KONAFLASHPROGRAM_H
@@ -25,26 +25,6 @@
 #define MAXMCSINFOSIZE 256
 #define MAXMCSLICENSESIZE 256
 #define MCS_STEPS	   6
-
-typedef enum 
-{
-	MAIN_FLASHBLOCK,
-	FAILSAFE_FLASHBLOCK,
-	AUTO_FLASHBLOCK,
-	SOC1_FLASHBLOCK,
-	SOC2_FLASHBLOCK,
-	MAC_FLASHBLOCK,
-	MCS_INFO_BLOCK,
-	LICENSE_BLOCK
-} FlashBlockID;
-
-typedef enum
-{
-	BANK_0,
-	BANK_1,
-	BANK_2,
-	BANK_3
-} BankSelect;
 
 struct MacAddr
 {
@@ -82,19 +62,21 @@ public:
 	bool			ProgramFromMCS(bool verify);
 	bool			ProgramSOC(bool verify = true);
 	bool			ProgramCustom (const std::string & sCustomFileName, const uint32_t addr, std::ostream & outMsgs);
+    bool			ProgramKonaxMB (const std::string & sCustomFileName, const uint32_t addr, std::ostream & outMsgs);
 	bool			EraseBlock (FlashBlockID blockNumber);
 	bool			EraseChip (UWord chip = 0);
 	bool			CreateSRecord (bool bChangeEndian);
 	bool			CreateEDIDIntelRecord ();
 	void			SetQuietMode ();
 	bool			VerifyFlash (FlashBlockID flashBlockNumber, bool fullVerify = false);
-	bool			ReadFlash (NTV2_POINTER & outBuffer, const FlashBlockID flashID, CNTV2FlashProgress & inFlashProgress = CNTV2FlashProgress::nullUpdater);	//	New in SDK 16.0
+	bool			ReadFlash (NTV2Buffer & outBuffer, const FlashBlockID flashID, CNTV2FlashProgress & inFlashProgress = CNTV2FlashProgress::nullUpdater);	//	New in SDK 16.0
 	bool			SetBankSelect (BankSelect bankNumber);
 	bool			SetFlashBlockIDBank(FlashBlockID blockID);
 	bool			ROMHasBankSelect();
 	uint32_t		ReadBankSelect ();
 	bool			SetMBReset();
 	bool			IsInstalledFWRunning (bool & outIsRunning, std::ostream & outErrorMsgs);
+	bool			WriteCommand(_FLASH_COMMAND inCommand);
 
 	std::string		GetDesignName (void) const	{return _parser.DesignName();}
 	std::string		GetPartName (void) const	{return _parser.PartName();}
@@ -167,7 +149,7 @@ public:
 	bool MakeMACsFromSerial( const char *sSerialNumber, MacAddr *pMac1, MacAddr *pMac2 );
 
 protected:
-	NTV2_POINTER	_bitFileBuffer;
+	NTV2Buffer		_bitFileBuffer;
 	uint8_t *		_customFileBuffer;
 	uint32_t		_bitFileSize;
 	NTV2BitfileHeaderParser	_parser;
@@ -197,21 +179,7 @@ protected:
 	std::vector<uint8_t> _partitionBuffer;
 	uint32_t		_failSafePadding;
 	CNTV2SpiFlash * _spiFlash;
-
-	typedef enum {
-		READID_COMMAND			= 0x9F,
-		WRITEENABLE_COMMAND		= 0x06,
-		WRITEDISABLE_COMMAND	= 0x04,
-		READSTATUS_COMMAND		= 0x05,
-		WRITESTATUS_COMMAND		= 0x01,
-		READFAST_COMMAND		= 0x0B,
-		PAGEPROGRAM_COMMAND		= 0x02,
-		SECTORERASE_COMMAND		= 0xD8,
-		CHIPERASE_COMMAND		= 0xC7,
-		BANKSELECT_COMMMAND		= 0x17,
-		READBANKSELECT_COMMAND	= 0x16
-	} _FLASH_STUFF;
-
+	bool			_hasExtendedCommandSupport;
 };	//	CNTV2KonaFlashProgram
 
 #endif	//	NTV2KONAFLASHPROGRAM_H

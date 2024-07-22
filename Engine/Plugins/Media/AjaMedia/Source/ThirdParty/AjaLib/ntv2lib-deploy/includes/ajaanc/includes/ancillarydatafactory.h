@@ -2,7 +2,7 @@
 /**
 	@file		ancillarydatafactory.h
 	@brief		Declaration of the AJAAncillaryDataFactory class.
-	@copyright	(C) 2010-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2010-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef AJA_ANCILLARYDATAFACTORY_H
@@ -26,7 +26,7 @@
 				@param[in]	inAncData	Supplies an existing ::AJAAncillaryData object to clone from.
 				@return		A pointer to the new instance;  or NULL upon failure.
 			**/
-			static AJAAncillaryData *		Create (const AJAAncillaryDataType inAncType, const AJAAncillaryData & inAncData);
+			static AJAAncillaryData *		Create (const AJAAncDataType inAncType, const AJAAncillaryData & inAncData);
 
 			/**
 				@brief		Creates a new ::AJAAncillaryData object having a particular subtype.
@@ -34,25 +34,25 @@
 				@param[in]	pInAncData	Optionally supplies an existing ::AJAAncillaryData object to clone from.
 				@return		A pointer to the new instance;  or NULL upon failure.
 			**/
-			static AJAAncillaryData *		Create (const AJAAncillaryDataType inAncType, const AJAAncillaryData * pInAncData = NULL);
+			static AJAAncillaryData *		Create (const AJAAncDataType inAncType, const AJAAncillaryData * pInAncData = NULL);
 
 
 			/**
 				@brief		Given a generic ::AJAAncillaryData object, attempts to guess what kind of specific
 							::AJAAncillaryData object it might be from its raw packet data.
 				@param[in]	inAncData	An ::AJAAncillaryData object that contains "raw" packet data.
-				@return		The guessed ::AJAAncillaryDataType (or ::AJAAncillaryDataType_Unknown if no idea...).
+				@return		The guessed ::AJAAncDataType (or ::AJAAncDataType_Unknown if no idea...).
 			**/
-			static AJAAncillaryDataType		GuessAncillaryDataType (const AJAAncillaryData & inAncData);
+			static AJAAncDataType			GuessAncillaryDataType (const AJAAncillaryData & inAncData);
 
 			/**
 				@brief		Given a generic ::AJAAncillaryData object, attempts to guess what kind of specific
 							::AJAAncillaryData object from its raw packet data.
 				@param[in]	pInAncData	A valid, non-NULL pointer to an ::AJAAncillaryData object that contains
 										"raw" packet data.
-				@return		The guessed ::AJAAncillaryDataType (or ::AJAAncillaryDataType_Unknown if no idea...).
+				@return		The guessed ::AJAAncDataType (or ::AJAAncDataType_Unknown if no idea...).
 			**/
-			static AJAAncillaryDataType		GuessAncillaryDataType (const AJAAncillaryData * pInAncData);
+			static AJAAncDataType			GuessAncillaryDataType (const AJAAncillaryData * pInAncData);
 
 	};	//	AJAAncillaryDataFactory
 

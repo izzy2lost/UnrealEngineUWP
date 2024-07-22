@@ -2,7 +2,7 @@
 /**
 	@file		debug.h
 	@brief		Declares the AJADebug class.
-	@copyright	(C) 2009-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2009-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_DEBUG_H
@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <sstream>
+#include <set>
 #include "ajabase/common/public.h"
 #include "ajabase/system/debugshare.h"
 
@@ -113,7 +114,7 @@
 		#define AJA_PRINT(_format_,...)
 	#endif
 
-	#define AJA_REPORT(_index_, _severity_, _format_) \
+	#define AJA_REPORT(_index_, _severity_, _format_, ...) \
 		AJADebug::Report(_index_, _severity_, NULL, 0, _format_);
 
 #endif
@@ -226,10 +227,13 @@
 class AJAMemory;
 
 /** 
- *	@param[in]	inStatus   The AJAStatus value of interest.
- *	@return		A string containing the given AJAStatus value as human-readable text.
+ *	@param[in]	inStatus	The AJAStatus value of interest.
+ *	@param[in]	inDetailed	Optionally specifies the type of string content to return.
+ *							If false, the default, returns the literal enum (e.g. "AJA_STATUS_FAIL").
+ *							If true, returns a description (e.g. "Failed").
+ *	@return		A string that contains the given AJAStatus value as human-readable text.
  */
-AJA_EXPORT std::string AJAStatusToString (const AJAStatus inStatus);
+AJA_EXPORT std::string AJAStatusToString (const AJAStatus inStatus, const bool inDetailed = false);
 
 
 /** 
@@ -581,24 +585,24 @@ public:
 	static const std::string & GroupName (const int32_t group);
 
 	/**
-	 *	Write group state to a file.
+	 *	Write group state to a text file.
 	 *
-	 *	@param[in]	pFileName					The group state file name.
+	 *	@param[in]	inFilePath					The group state file path.
 	 *	@return		AJA_STATUS_SUCCESS			State saved
 	 *				AJA_STATUS_OPEN				Debug system not open
 	 *				AJA_STATUS_NULL				Null output pointer
 	 */
-	static AJAStatus SaveState (const char * pFileName);
+	static AJAStatus SaveState (const std::string & inFilePath);
 
 	/**
-	 *	Read group state from a file.
+	 *	Read group state from a text file.
 	 *
-	 *	@param[in]	pFileName					The group state file name.
+	 *	@param[in]	inFilePath					The group state file path.
 	 *	@return		AJA_STATUS_SUCCESS			State restored
 	 *				AJA_STATUS_OPEN				Debug system not open
 	 *				AJA_STATUS_NULL				Null output pointer
 	 */
-	static AJAStatus RestoreState (const char * pFileName);
+	static AJAStatus RestoreState (const std::string & inFilePath);
 
 	/**
 	 *	@return		The capacity of the debug facility's stats buffer.
@@ -687,13 +691,30 @@ public:
 	static AJAStatus StatGetInfo (const uint32_t inKey, AJADebugStat & outInfo);	//	New in SDK 16.0
 
 	/**
-	 *	Answers with the given stat's info.
+	 *	Queries which stats are currently allocated.
 	 *
 	 *	@param[out] outKeys						Receives the list of allocated stats.
 	 *	@param[out] outSeqNum					Receives the list change sequence number (to detect if the list changed).
 	 *	@return		AJA_STATUS_SUCCESS if successful.
 	 */
 	static AJAStatus StatGetKeys (std::vector<uint32_t> & outKeys, uint32_t & outSeqNum);	//	New in SDK 16.0
+
+	/**
+	 *	Queries which stats are currently allocated.
+	 *
+	 *	@param[out] outKeys						Receives the set of allocated stats.
+	 *	@param[out] outSeqNum					Receives the set change sequence number (to detect if the set changed).
+	 *	@return		AJA_STATUS_SUCCESS if successful.
+	 */
+	static AJAStatus StatGetKeys (std::set<uint32_t> & outKeys, uint32_t & outSeqNum);	//	New in SDK 16.3
+
+	/**
+	 *	Queries the stats change sequence number, for detecting if the stats set changed).
+	 *
+	 *	@param[out] outSeqNum					Receives the current change sequence number.
+	 *	@return		AJA_STATUS_SUCCESS if successful.
+	 */
+	static AJAStatus StatGetSequenceNum (uint32_t & outSeqNum);	//	New in SDK 16.3
 
 	/**
 	 *	Get the current time at the debug rate.

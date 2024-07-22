@@ -2,7 +2,7 @@
 /**
 	@file		ntv2utils.h
 	@brief		Declares numerous NTV2 utility functions.
-	@copyright	(C) 2004-2021 AJA Video Systems, Inc.
+	@copyright	(C) 2004-2022 AJA Video Systems, Inc.
 **/
 
 #ifndef NTV2UTILS_H
@@ -14,8 +14,7 @@
 #include "ntv2videodefines.h"
 #include "ntv2publicinterface.h"
 #include "ntv2formatdescriptor.h"
-#include "ntv2m31publicinterface.h"
-#include "ntv2signalrouter.h"
+#include "ntv2m31enums.h"
 #include <string>
 #include <iostream>
 #include <vector>
@@ -32,13 +31,13 @@
 #define HD_NUMCOMPONENTPIXELS_1080_2K	2048
 #define HD_NUMCOMPONENTPIXELS_1080		1920
 
-#define CCIR601_10BIT_BLACK				64
-#define CCIR601_10BIT_WHITE				940
-#define CCIR601_10BIT_CHROMAOFFSET		512
+#define CCIR601_10BIT_BLACK				64		//	0x040
+#define CCIR601_10BIT_WHITE				940		//	0x3AC
+#define CCIR601_10BIT_CHROMAOFFSET		512		//	0x200
 
-#define CCIR601_8BIT_BLACK				16
-#define CCIR601_8BIT_WHITE				235
-#define CCIR601_8BIT_CHROMAOFFSET		128
+#define CCIR601_8BIT_BLACK				16		//	0x10
+#define CCIR601_8BIT_WHITE				235		//	0xEB
+#define CCIR601_8BIT_CHROMAOFFSET		128		//	0x80
 
 // line pitch is in bytes.
 #define FRAME_0_BASE							(0x0)
@@ -94,7 +93,7 @@ AJAExport bool		PackLine_UWordSequenceTo10BitYUV (const UWordSequence & in16BitY
 	@note		Neighboring components in the packed output will be corrupted if input component values exceed 0x3FF.
 	@note		This is a safer version of the ::PackLine_UWordSequenceTo10BitYUV function.
 **/
-AJAExport bool YUVComponentsTo10BitYUVPackedBuffer (const std::vector<uint16_t> & inYCbCrLine, NTV2_POINTER & inFrameBuffer,
+AJAExport bool YUVComponentsTo10BitYUVPackedBuffer (const std::vector<uint16_t> & inYCbCrLine, NTV2Buffer & inFrameBuffer,
 													const NTV2FormatDescriptor & inDescriptor, const UWord inLineOffset);
 
 /**
@@ -108,14 +107,8 @@ AJAExport bool YUVComponentsTo10BitYUVPackedBuffer (const std::vector<uint16_t> 
 	@return		True if successful;	 otherwise false.
 	@note		This is a safer version of the ::UnpackLine_10BitYUVtoUWordSequence function.
 **/
-AJAExport bool UnpackLine_10BitYUVtoU16s (std::vector<uint16_t> & outYCbCrLine, const NTV2_POINTER & inFrameBuffer,
+AJAExport bool UnpackLine_10BitYUVtoU16s (std::vector<uint16_t> & outYCbCrLine, const NTV2Buffer & inFrameBuffer,
 											const NTV2FormatDescriptor & inDescriptor, const UWord inLineOffset);
-
-
-#if !defined (NTV2_DEPRECATE)
-	AJAExport NTV2_DEPRECATED_f(void UnPackLineData (const ULWord * pIn10BitYUVLine, UWord * pOut16BitYUVLine, const ULWord inNumPixels));	///< @deprecated	Replaced by UnpackLine_10BitYUVto16BitYUV.
-	AJAExport NTV2_DEPRECATED_f(void PackLineData (const UWord * pIn16BitYUVLine, ULWord * pOut10BitYUVLine, const ULWord inNumPixels));		///< @deprecated	Replaced by PackLine_16BitYUVto10BitYUV.
-#endif	//	NTV2_DEPRECATE
 
 /**
 	@brief	Unpacks a line of 10-bit-per-component YCbCr video into 16-bit-per-component YCbCr (NTV2_FBF_10BIT_YCBCR) data.
@@ -142,24 +135,29 @@ AJAExport void UnPack10BitDPXtoForRP215(UWord* rawrp215Buffer,ULWord* DPXLinebuf
 AJAExport void MaskYCbCrLine(UWord* ycbcrLine, UWord signalMask , ULWord numPixels);
 
 /**
-	@brief		Writes a line of unpacked 10-bit Y/C legal SMPTE black values into the given UWord buffer.
+	@brief		Writes a line of unpacked, legal SMPTE 10-bit Y/C black values into the given buffer.
 	@param[in]	pOutLineData	A valid, non-NULL pointer to the destination UWord buffer.
 	@param[in]	inNumPixels		Specifies the width of the line, in pixels. Defaults to 1920.
-	@warning	This function performs no error checking. Memory corruption will occur if the destination buffer
-				is smaller than 4 x inNumPixels bytes (i.e. smaller than 2 x inNumPixels UWords).
+	@warning	This function performs no error checking. Memory corruption will occur if the
+				destination buffer is smaller than 4 x 'inNumPixels' bytes.
+	@note		This function writes UNPACKED Y/C values. When I return, the destination buffer
+				will NOT contain NTV2_FBF_10BIT_YCBCR-formatted pixel values.
+				Use PackLine_16BitYUVto10BitYUV to convert to NTV2_FBF_10BIT_YCBCR.
 **/
 AJAExport void Make10BitBlackLine (UWord * pOutLineData, const ULWord inNumPixels = 1920);
 
-AJAExport void Make10BitWhiteLine(UWord* pOutLineData, const ULWord numPixels=1920);
-#if !defined(NTV2_DEPRECATE_13_0)
-	AJAExport NTV2_DEPRECATED_f(void Fill10BitYCbCrVideoFrame (PULWord _baseVideoAddress,
-																const NTV2Standard inStandard,
-																const NTV2FrameBufferFormat inPixelFormat,
-																const YCbCr10BitPixel inPixelColor,
-																const bool inVancEnabled = false,
-																const bool in2Kx1080 = false,
-																const bool inWideVANC = false));	///< @deprecated	Use the identical function that accepts an ::NTV2VANCMode parameter instead of two booleans.
-#endif	//	!defined(NTV2_DEPRECATE_13_0)
+/**
+	@brief		Writes a line of unpacked, legal SMPTE 10-bit Y/C white values into the given buffer.
+	@param[in]	pOutLineData	A valid, non-NULL pointer to the destination UWord buffer.
+	@param[in]	inNumPixels		Specifies the width of the line, in pixels. Defaults to 1920.
+	@warning	This function performs no error checking. Memory corruption will occur if the
+				destination buffer is smaller than 4 x 'inNumPixels' bytes.
+	@note		This function writes UNPACKED Y/C values. When I return, the destination buffer
+				will NOT contain NTV2_FBF_10BIT_YCBCR-formatted pixel values.
+				Use PackLine_16BitYUVto10BitYUV to convert to NTV2_FBF_10BIT_YCBCR.
+**/
+AJAExport void Make10BitWhiteLine (UWord * pOutLineData, const ULWord inNumPixels = 1920);
+
 /**
 	@return		True if successful;	 otherwise false.
 **/
@@ -173,15 +171,6 @@ AJAExport void Make8BitBlackLine(UByte* lineData,ULWord numPixels=1920,NTV2Frame
 AJAExport void Make8BitWhiteLine(UByte* lineData,ULWord numPixels=1920,NTV2FrameBufferFormat=NTV2_FBF_8BIT_YCBCR);
 AJAExport void Make10BitLine(UWord* lineData, const UWord Y, const UWord Cb, const UWord Cr, const ULWord numPixels = 1920);
 AJAExport void Make8BitLine(UByte* lineData, UByte Y , UByte Cb , UByte Cr,ULWord numPixels=1920,NTV2FrameBufferFormat=NTV2_FBF_8BIT_YCBCR);
-#if !defined(NTV2_DEPRECATE_13_0)
-	AJAExport NTV2_DEPRECATED_f(void Fill8BitYCbCrVideoFrame (PULWord _baseVideoAddress,
-																const NTV2Standard inStandard,
-																const NTV2FrameBufferFormat inFBF,
-																const YCbCrPixel inPixelColor,
-																const bool inVancEnabled = false,
-																const bool in2Kx1080 = false,
-																const bool inWideVanc = false));	///< @deprecated	Use the identical function that accepts an ::NTV2VANCMode parameter instead of two booleans.
-#endif	//	!defined(NTV2_DEPRECATE_13_0)
 AJAExport bool Fill8BitYCbCrVideoFrame (void * pBaseVideoAddress,  const NTV2Standard inStandard,  const NTV2FrameBufferFormat inFBF,
 										const YCbCrPixel inPixelColor,	const NTV2VANCMode inVancMode = NTV2_VANCMODE_OFF);
 AJAExport void Fill4k8BitYCbCrVideoFrame(PULWord _baseVideoAddress,
@@ -195,7 +184,7 @@ AJAExport void CopyRGBAImageToFrame(ULWord* pSrcBuffer, ULWord srcHeight, ULWord
 
 /**
 	@brief	Sets all or part of a destination raster image to legal black.
-	@param[in]	inPixelFormat			Specifies the NTV2FrameBufferFormat of the destination buffer.
+	@param[in]	inPixelFormat			Specifies the NTV2PixelFormat of the destination buffer.
 										(Note that many pixel formats are not currently supported.)
 	@param		pDstBuffer				Specifies the address of the destination buffer to be modified. Must be non-NULL.
 	@param[in]	inDstBytesPerLine		The number of bytes per raster line of the destination buffer. Note that this value
@@ -204,22 +193,36 @@ AJAExport void CopyRGBAImageToFrame(ULWord* pSrcBuffer, ULWord srcHeight, ULWord
 										this be a multiple of 16, while NTV2_FBF_8BIT_YCBCR requires an even number).
 										Must exceed zero.
 	@param[in]	inDstTotalLines			The total number of raster lines to set to legal black. Must exceed zero.
-	@bug		Need implementations for NTV2_FBF_8BIT_YCBCR_YUY2, NTV2_FBF_10BIT_DPX, NTV2_FBF_10BIT_YCBCR_DPX, NTV2_FBF_24BIT_RGB,
-				NTV2_FBF_24BIT_BGR, NTV2_FBF_10BIT_YCBCRA, NTV2_FBF_10BIT_DPX_LE, NTV2_FBF_48BIT_RGB, NTV2_FBF_10BIT_RGB_PACKED,
-				NTV2_FBF_10BIT_ARGB, NTV2_FBF_16BIT_ARGB, the 3-plane planar formats NTV2_FBF_8BIT_YCBCR_420PL3,
-				NTV2_FBF_8BIT_YCBCR_422PL3, NTV2_FBF_10BIT_YCBCR_420PL3_LE, and NTV2_FBF_10BIT_YCBCR_422PL3_LE, plus the 2-plane
-				planar formats NTV2_FBF_10BIT_YCBCR_420PL2, NTV2_FBF_10BIT_YCBCR_422PL2, NTV2_FBF_8BIT_YCBCR_420PL2, and
-				NTV2_FBF_8BIT_YCBCR_422PL2.
+	@bug		Need implementations for numerous pixel formats.
 	@return		True if successful;	 otherwise false.
 **/
-AJAExport bool	SetRasterLinesBlack (const NTV2FrameBufferFormat	inPixelFormat,
-										UByte *						pDstBuffer,
-										const ULWord				inDstBytesPerLine,
-										const UWord					inDstTotalLines);
+AJAExport bool	SetRasterLinesBlack (const NTV2PixelFormat	inPixelFormat,
+										UByte *				pDstBuffer,
+										const ULWord		inDstBytesPerLine,
+										const UWord			inDstTotalLines);
 
 /**
-	@brief	Copies all or part of a source raster image into another raster at a given position.
-	@param[in]	inPixelFormat			Specifies the NTV2FrameBufferFormat of both the destination and source buffers.
+	@brief	Sets all or part of a destination raster image to legal white.
+	@param[in]	inPixelFormat			Specifies the NTV2PixelFormat of the destination buffer.
+										(Note that many pixel formats are not currently supported.)
+	@param		pDstBuffer				Specifies the address of the destination buffer to be modified. Must be non-NULL.
+	@param[in]	inDstBytesPerLine		The number of bytes per raster line of the destination buffer. Note that this value
+										is used to compute the maximum pixel width of the destination raster. Also note that
+										some pixel formats set constraints on this value (e.g., NTV2_FBF_10BIT_YCBCR requires
+										this be a multiple of 16, while NTV2_FBF_8BIT_YCBCR requires an even number).
+										Must exceed zero.
+	@param[in]	inDstTotalLines			The total number of raster lines to set to legal white. Must exceed zero.
+	@bug		Need implementations for numerous pixel formats.
+	@return		True if successful;	 otherwise false.
+**/
+AJAExport bool	SetRasterLinesWhite (const NTV2PixelFormat	inPixelFormat,
+										UByte *				pDstBuffer,
+										const ULWord		inDstBytesPerLine,
+										const UWord			inDstTotalLines);
+
+/**
+	@brief	Copies all or part of a source raster image into a destination raster at a given position.
+	@param[in]	inPixelFormat			Specifies the NTV2PixelFormat of both the destination and source buffers.
 										(Note that many pixel formats are not currently supported.)
 	@param		pDstBuffer				Specifies the starting address of the destination buffer to be modified. Must be non-NULL.
 	@param[in]	inDstBytesPerLine		The number of bytes per raster line of the destination buffer. Note that this value
@@ -266,23 +269,23 @@ AJAExport bool	SetRasterLinesBlack (const NTV2FrameBufferFormat	inPixelFormat,
 	@note		The use of unsigned values precludes positioning the source raster above the top line of the destination raster,
 				or to the left of the destination raster's left edge. This function will, however, clip the source raster if it
 				overhangs the bottom and/or right edge of the destination raster.
-	@note		This function probably can't be made to work with planar formats.
+	@bug		This function doesn't work with planar formats.
 	@bug		Needs implementations for NTV2_FBF_10BIT_YCBCRA, NTV2_FBF_10BIT_RGB_PACKED, NTV2_FBF_10BIT_ARGB,
 				NTV2_FBF_16BIT_ARGB.
 **/
-AJAExport bool	CopyRaster (const NTV2FrameBufferFormat inPixelFormat,
-							UByte *						pDstBuffer,
-							const ULWord				inDstBytesPerLine,
-							const UWord					inDstTotalLines,
-							const UWord					inDstVertLineOffset,
-							const UWord					inDstHorzPixelOffset,
-							const UByte *				pSrcBuffer,
-							const ULWord				inSrcBytesPerLine,
-							const UWord					inSrcTotalLines,
-							const UWord					inSrcVertLineOffset,
-							const UWord					inSrcVertLinesToCopy,
-							const UWord					inSrcHorzPixelOffset,
-							const UWord					inSrcHorzPixelsToCopy);
+AJAExport bool	CopyRaster (const NTV2PixelFormat	inPixelFormat,
+							UByte *					pDstBuffer,
+							const ULWord			inDstBytesPerLine,
+							const UWord				inDstTotalLines,
+							const UWord				inDstVertLineOffset,
+							const UWord				inDstHorzPixelOffset,
+							const UByte *			pSrcBuffer,
+							const ULWord			inSrcBytesPerLine,
+							const UWord				inSrcTotalLines,
+							const UWord				inSrcVertLineOffset,
+							const UWord				inSrcVertLinesToCopy,
+							const UWord				inSrcHorzPixelOffset,
+							const UWord				inSrcHorzPixelsToCopy);
 
 AJAExport NTV2Standard GetNTV2StandardFromScanGeometry (const UByte inScanGeometry, const bool inIsProgressiveTransport);
 
@@ -306,22 +309,7 @@ AJAExport NTV2Standard GetNTV2StandardFromVideoFormat (const NTV2VideoFormat inV
 **/
 AJAExport NTV2FrameGeometry GetNTV2FrameGeometryFromVideoFormat (const NTV2VideoFormat inVideoFormat);
 
-#if defined (NTV2_DEPRECATE)
-	#define GetHdmiV2StandardFromVideoFormat(__vf__)	::GetNTV2StandardFromVideoFormat (__vf__)
-#else
-	AJAExport NTV2V2Standard	GetHdmiV2StandardFromVideoFormat (NTV2VideoFormat videoFormat);
-#endif
-
-#if !defined(NTV2_DEPRECATE_13_0)
-	AJAExport NTV2_DEPRECATED_f(ULWord GetVideoActiveSize (const NTV2VideoFormat inVideoFormat,
-															const NTV2FrameBufferFormat inFBFormat,
-															const bool inVANCenabled,
-															const bool inWideVANC = false));	///< @deprecated	Use the same function that accepts an ::NTV2VANCMode instead of two booleans.
-	AJAExport NTV2_DEPRECATED_f(ULWord GetVideoWriteSize (const NTV2VideoFormat inVideoFormat,
-															const NTV2FrameBufferFormat inFBFormat,
-															const bool inVANCenabled,
-															const bool inWideVANC));	///< @deprecated	Use the same function that accepts an ::NTV2VANCMode instead of two booleans.
-#endif	//	!defined(NTV2_DEPRECATE_13_0)
+#define GetHdmiV2StandardFromVideoFormat(__vf__)	::GetNTV2StandardFromVideoFormat (__vf__)
 
 /**
 	@return		The minimum number of bytes required to store a single frame of video in the given frame buffer format
@@ -549,7 +537,7 @@ AJAExport bool					IsTransportCompatibleFormat (const NTV2VideoFormat inFormat1,
 	@param[in]	inKinds		Optionally specifies the input source type (SDI, HDMI, Analog, etc.) of interest.
 							Defaults to ::NTV2_INPUTSOURCES_SDI.
 **/
-AJAExport NTV2InputSource		GetNTV2InputSourceForIndex (const ULWord inIndex0, const NTV2InputSourceKinds inKinds = NTV2_INPUTSOURCES_SDI);
+AJAExport NTV2InputSource		GetNTV2InputSourceForIndex (const ULWord inIndex0, const NTV2IOKinds inKinds = NTV2_IOKINDS_SDI);
 AJAExport ULWord				GetIndexForNTV2InputSource (const NTV2InputSource inValue);		//	0-based index
 
 /**
@@ -687,7 +675,7 @@ AJAExport NTV2AudioSystem NTV2ChannelToAudioSystem (const NTV2Channel inChannel)
 								Defaults to SDI.
 	@return		The NTV2InputSource value that corresponds to the given NTV2Channel value.
 **/
-AJAExport NTV2InputSource NTV2ChannelToInputSource (const NTV2Channel inChannel, const NTV2InputSourceKinds inKinds = NTV2_INPUTSOURCES_SDI);
+AJAExport NTV2InputSource NTV2ChannelToInputSource (const NTV2Channel inChannel, const NTV2IOKinds inKinds = NTV2_IOKINDS_SDI);
 
 /**
 	@brief		Converts a given NTV2OutputDestination to its equivalent NTV2Channel value.
@@ -743,6 +731,34 @@ AJAExport bool IsVideoFormatJ2KSupported (const NTV2VideoFormat format);
 
 AJAExport int  RecordCopyAudio (PULWord pAja, PULWord pSR, int iStartSample, int iNumBytes, int iChan0,
 							   int iNumChans, bool bKeepAudio24Bits);
+
+/**
+	@brief	Fills the given buffer with 32-bit (ULWord) audio tone samples.
+	@param[out]	outNumBytesWritten	Receives the number of bytes written into the buffer.
+	@param[in]	inAudioBuffer		Specifies the buffer to be filled with audio samples.
+									Must be at least  4 x numSamples x numChannels	bytes in size.
+	@param		inOutCurrentSample	On entry, specifies the sample where waveform generation is to resume.
+									On exit, receives the sample number where waveform generation left off.
+									Zero should be specified for the first invocation of this function.
+	@param[in]	inNumSamples		Specifies the number of samples to generate.
+	@param[in]	inSampleRate		Specifies the sample rate, in samples per second.
+	@param[in]	inAmplitude			Specifies the amplitude of the generated tone.
+	@param[in]	inFrequency			Specifies the frequency of the generated tone, in cycles per second (Hertz).
+	@param[in]	inNumBits			Specifies the number of bits per sample. Should be between 8 and 32 (inclusive).
+	@param[in]	inByteSwap			If true, byte-swaps each 32-bit sample before copying it into the destination buffer.
+	@param[in]	inNumChannels		Specifies the number of audio channels to produce.
+	@return		True if successful;  otherwise false.
+**/
+AJAExport bool AddAudioTone (	ULWord &		outNumBytesWritten,
+								NTV2Buffer &	inAudioBuffer,
+								ULWord &		inOutCurrentSample,
+								const ULWord	inNumSamples,
+								const double	inSampleRate,
+								const double	inAmplitude,
+								const double	inFrequency,
+								const ULWord	inNumBits,
+								const bool		inByteSwap,
+								const ULWord	inNumChannels);
 
 /**
 	@brief	Fills the given buffer with 32-bit (ULWord) audio tone samples.
@@ -836,48 +852,6 @@ AJAExport ULWord	AddAudioTestPattern (ULWord *		pAudioBuffer,
 										 const ULWord	inModulus,
 										 const bool		inEndianConvert,
 										 const ULWord	inNumChannels);
-
-#if !defined (NTV2_DEPRECATE)
-	AJAExport bool BuildRoutingTableForOutput (CNTV2SignalRouter &		outRouter,
-												NTV2Channel				channel,
-												NTV2FrameBufferFormat	fbf,
-												bool					convert		= false,	// ignored
-												bool					lut			= false,
-												bool					dualLink	= false,
-												bool					keyOut		= false);
-
-	AJAExport bool BuildRoutingTableForInput (CNTV2SignalRouter &		outRouter,
-											   NTV2Channel				channel,
-											   NTV2FrameBufferFormat	fbf,
-											   bool						withKey		= false,
-											   bool						lut			= false,
-											   bool						dualLink	= false,
-											   bool						EtoE		= true);
-
-	AJAExport bool BuildRoutingTableForInput (CNTV2SignalRouter &		outRouter,
-											   NTV2Channel				channel,
-											   NTV2FrameBufferFormat	fbf,
-											   bool						convert,  // Turn on the conversion module
-											   bool						withKey,  // only supported for ::NTV2_CHANNEL1 for rgb formats with alpha
-											   bool						lut,	  // not supported
-											   bool						dualLink, // assume coming in RGB(only checked for ::NTV2_CHANNEL1
-											   bool						EtoE);
-
-	AJAExport bool BuildRoutingTableForInput (CNTV2SignalRouter &		outRouter,
-											   NTV2InputSource			inputSource,
-											   NTV2Channel				channel,
-											   NTV2FrameBufferFormat	fbf,
-											   bool						convert,  // Turn on the conversion module
-											   bool						withKey,  // only supported for ::NTV2_CHANNEL1 for rgb formats with alpha
-											   bool						lut,	  // not supported
-											   bool						dualLink, // assume coming in RGB(only checked for ::NTV2_CHANNEL1
-											   bool						EtoE);
-
-	AJAExport ULWord ConvertFusionAnalogToTempCentigrade (ULWord adc10BitValue);
-
-	AJAExport ULWord ConvertFusionAnalogToMilliVolts (ULWord adc10BitValue, ULWord millivoltsResolution);
-#endif	//	!defined (NTV2_DEPRECATE)
-
 
 /**
 	@brief		Writes the given NTV2FrameDimensions to the specified output stream.
@@ -979,6 +953,72 @@ AJAExport std::ostream & operator << (std::ostream & inOutStream, const NTV2Smpt
 	@return		The NTV2SmpteLineNumber structure that corresponds to the given video standard.
 **/
 inline NTV2SmpteLineNumber GetSmpteLineNumber (const NTV2Standard inStandard)	{return NTV2SmpteLineNumber (inStandard);}
+
+
+/**
+	@brief	AutoCirculate Frame Range
+**/
+class AJAExport NTV2ACFrameRange
+{
+	public:
+		explicit inline	NTV2ACFrameRange (const UWord inFrameCount = 0)
+						{
+							setCountOnly(inFrameCount);
+						}
+		explicit inline	NTV2ACFrameRange (const UWord inFirstFrame, const UWord inLastFrame)
+						{
+							setExactRange (inFirstFrame, inLastFrame);
+						}
+		inline bool		isCountOnly (void) const	{return mIsCountOnly;}		//	@return	True if simply a frame count
+		inline bool		isFrameRange (void) const	{return !isCountOnly();}	//	@return	True if a specific frame range
+		inline UWord	count (void) const			{return isCountOnly() ? mFrameCount : 0;}	//	@return	Frame count (if isCountOnly); otherwise zero
+		inline UWord	firstFrame (void) const		{return mFirstFrame;}		//	@return	
+		inline UWord	lastFrame (void) const		{return mLastFrame;}
+		inline bool		valid (void) const
+						{
+							if (isCountOnly())
+								return count() > 0;
+							return lastFrame() >= firstFrame();
+						}
+		inline NTV2ACFrameRange &	makeInvalid (void)
+						{
+							mIsCountOnly = true;
+							mFrameCount = mFirstFrame = mLastFrame = 0;
+							return *this;
+						}
+		inline bool		setExactRange (const UWord inFirstFrame, const UWord inLastFrame)
+						{
+							mIsCountOnly = false;
+							mFrameCount = 0;
+							mFirstFrame = inFirstFrame;
+							mLastFrame = inLastFrame;
+							return valid();
+						}
+		inline bool		setRangeWithCount (const UWord inCount, const UWord inFirstFrame)
+						{
+							mIsCountOnly = false;
+							mFrameCount = 0;
+							mFirstFrame = inFirstFrame;
+							mLastFrame = mFirstFrame + inCount - 1;
+							return valid();
+						}
+		inline bool		setCountOnly (const UWord inCount)
+						{
+							mIsCountOnly	= true;
+							mFrameCount		= inCount;
+							mFirstFrame = mLastFrame = 0;
+							return valid();
+						}
+		std::string		setFromString (const std::string & inStr);
+		std::string		toString (const bool inNormalized = false) const;
+
+	private:
+		bool	mIsCountOnly;	///< @brief	Frame count only? If false, specifies absolute frame range.
+		UWord	mFrameCount;	///< @brief	Frame count (mIsCountOnly == true).
+		UWord	mFirstFrame;	///< @brief	First frame (mIsCountOnly == false).
+		UWord	mLastFrame;		///< @brief	Last frame (mIsCountOnly == false).
+
+};	//	NTV2ACFrameRange
 
 
 typedef std::vector <NTV2DeviceID>			NTV2DeviceIDList;			///< @brief An ordered list of NTV2DeviceIDs.
@@ -1111,25 +1151,12 @@ AJAExport bool				GetChangedRegisters (const NTV2RegisterReads & inBefore, const
 
 AJAExport std::string		PercentEncode (const std::string & inStr);	///< @return	The URL-encoded input string.
 AJAExport std::string		PercentDecode (const std::string & inStr);	///< @return	The URL-decoded input string.
+AJAExport bool				StringToSerialNum64 (const std::string & inSerNumStr, uint64_t & outSerNum);	//	New in SDK 16.3
+AJAExport std::string		SerialNum64ToString (const uint64_t & inSerNum);	//	New in SDK 16.3
 
 
 //	FUTURE	** THESE WILL BE DISAPPEARING **		Deprecate in favor of the new "NTV2xxxxxxToString" functions...
 #define NTV2CrosspointIDToString	NTV2OutputCrosspointIDToString	///< @deprecated	Use NTV2OutputCrosspointIDToString
-#if !defined (NTV2_DEPRECATE)
-	AJAExport NTV2_DEPRECATED_f(std::string NTV2V2StandardToString	(const NTV2V2Standard inValue,	const bool inForRetailDisplay = false));
-	extern AJAExport NTV2_DEPRECATED_v(const char * NTV2VideoFormatStrings[]);		///< @deprecated	Use NTV2VideoFormatToString instead.
-	extern AJAExport NTV2_DEPRECATED_v(const char * NTV2VideoStandardStrings[]);	///< @deprecated	Use NTV2StandardToString instead.
-	extern AJAExport NTV2_DEPRECATED_v(const char * NTV2PixelFormatStrings[]);		///< @deprecated	Use NTV2FrameBufferFormatToString instead.
-	extern AJAExport NTV2_DEPRECATED_v(const char * NTV2FrameRateStrings[]);		///< @deprecated	Use NTV2FrameRateToString instead.
-	extern AJAExport NTV2_DEPRECATED_v(const char * frameBufferFormats[]);			///< @deprecated	Use NTV2FrameBufferFormatToString instead.
-
-	AJAExport NTV2_DEPRECATED_f(std::string		frameBufferFormatString		(NTV2FrameBufferFormat inFrameBufferFormat));		///< @deprecated	Use NTV2FrameBufferFormatToString and pass 'true' for 'inForRetailDisplay'
-	AJAExport NTV2_DEPRECATED_f(void			GetNTV2BoardString			(NTV2BoardID inBoardID, std::string & outString));	///< @deprecated	Use NTV2DeviceIDToString and concatenate a space instead
-
-	AJAExport NTV2_DEPRECATED_f(std::string		NTV2BoardIDToString			(const NTV2BoardID inValue, const bool inForRetailDisplay = false));	///< @deprecated	Use NTV2DeviceIDToString(NTV2DeviceID,bool) instead.
-	AJAExport NTV2_DEPRECATED_f(void			GetNTV2RetailBoardString	(NTV2BoardID inBoardID, std::string & outString));	///< @deprecated	Use NTV2DeviceIDToString(NTV2DeviceID,bool) instead.
-	AJAExport NTV2_DEPRECATED_f(NTV2BoardType	GetNTV2BoardTypeForBoardID	(NTV2BoardID inBoardID));							///< @deprecated	This function is obsolete because NTV2BoardType is obsolete.
-#endif	//	!defined (NTV2_DEPRECATE)
 #if defined (AJAMac)
 	AJAExport bool GetInstalledMacDriverVersion (UWord & outMaj, UWord & outMin, UWord & outPt, UWord & outBld, UWord & outType);
 #endif	//	AJAMac

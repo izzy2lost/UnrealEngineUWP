@@ -47,6 +47,7 @@ public class AjaCore : ModuleRules
 			string LibPath = Path.Combine(AjaThirdPartyPath, "ntv2lib-deploy", "lib", LibName);
 			PublicAdditionalLibraries.Add(LibPath);
 			PublicSystemLibraries.Add("shlwapi.lib");
+			PublicSystemLibraries.Add("wbemuuid.lib");
 			PublicDefinitions.Add("AJAMEDIA_DLL_PLATFORM=1");
 		}
 		else
@@ -56,6 +57,3 @@ public class AjaCore : ModuleRules
 		}
 	}
 }
-
-
-

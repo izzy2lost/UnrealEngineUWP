@@ -2,7 +2,7 @@
 /**
 	@file		ntv2mbcontroller.h
 	@brief		Declares the CNTV2MBController class.
-	@copyright	(C) 2015-2021 AJA Video Systems, Inc.	 All rights reserved.
+	@copyright	(C) 2015-2022 AJA Video Systems, Inc.	 All rights reserved.
 **/
 
 #ifndef NTV2MBCONTROLLER_H
@@ -91,6 +91,7 @@ struct PTPStatus
 {
 	uint8_t PTP_gmId[8];		// GrandMasterID
 	uint8_t PTP_masterId[8];	// MasterID
+  uint8_t PTP_domain; // domain
 	PTPLockStatus PTP_LockedState;	// locked state
 };
 

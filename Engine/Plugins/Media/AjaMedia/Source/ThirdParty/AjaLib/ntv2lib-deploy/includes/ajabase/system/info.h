@@ -2,7 +2,7 @@
 /**
 	@file		info.h
 	@brief		Declares the AJASystemInfo class.
-	@copyright	(C) 2009-2021 AJA Video Systems, Inc.  All rights reserved.
+	@copyright	(C) 2009-2022 AJA Video Systems, Inc.  All rights reserved.
 **/
 
 #ifndef AJA_INFO_H
@@ -117,6 +117,14 @@ public: //	Instance Methods
 	 *	@return		 AJA_SUCCESS if successful
 	 */
 	virtual AJAStatus GetLabel(const AJASystemInfoTag inTag, std::string & outLabel) const;
+
+	/**
+	 *	@brief		 Generates a "table" of label/value pairs that contains the complete host system info table.
+	 *	@param[out]	 outTable	  The AJALabelValuePairs table.
+	 *	@param[in]	 clearTable	  Clear the passed in table before adding new items? Defaults to false.
+	 *	@return		 AJA_SUCCESS if successful
+	 */
+	virtual AJAStatus GetLabelValuePairs(AJALabelValuePairs &outTable, bool clearTable = false) const;
 
 	/**
 	 *	@brief		 Answers with a multi-line string that contains the complete host system info table.
