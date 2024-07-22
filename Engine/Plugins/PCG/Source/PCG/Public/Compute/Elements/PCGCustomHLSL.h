@@ -8,6 +8,46 @@
 
 class UPCGPin;
 
+/** Method for computing the size of a pin on a GPU node. */
+UENUM()
+enum class EPCGPinBufferSizeMode : uint8
+{
+	FromFirstPin UMETA(DisplayName = "Match First Input Pin"),
+	FromProductOfInputPins UMETA(Tooltip = "Dispatches a thread per element in the product of one or more pins. So if there are 4 data elements in pin A and 6 data elements in pin B, 24 threads will be dispatched."),
+	FixedElementCount,
+};
+
+/** An extension of the pin properties that adds hints for GPU thread count / buffer size calculations. */
+USTRUCT(BlueprintType, meta = (HasNativeBreak = "/Script/PCG.PCGBlueprintPinHelpers.BreakPinProperty", HasNativeMake = "/Script/PCG.PCGBlueprintPinHelpers.MakePinProperty"))
+struct PCG_API FPCGPinPropertiesGPU : public FPCGPinProperties
+{
+	GENERATED_BODY()
+
+public:
+	FPCGPinPropertiesGPU() = default;
+
+	explicit FPCGPinPropertiesGPU(const FName& InLabel, EPCGDataType InAllowedTypes)
+		: FPCGPinProperties(InLabel, InAllowedTypes)
+	{
+	}
+
+public:
+	/** Compute graphs use this to calculate the buffer size of output pins. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings", EditConditionHides))
+	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount", EditConditionHides))
+	int FixedBufferElementCount = 4;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins", EditConditionHides))
+	TArray<FName> BufferSizeInputPinLabels;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(Transient)
+	bool bDisplayBufferSizeSettings = true;
+#endif // WITH_EDITORONLY_DATA
+};
+
 /** Type of kernel allows us to make decisions about execution automatically, streamlining authoring. */
 UENUM()
 enum class EPCGKernelType : uint8
@@ -21,13 +61,9 @@ enum class EPCGKernelType : uint8
 UENUM()
 enum class EPCGDispatchThreadCount : uint8
 {
-	FromOutput UMETA(DisplayName = "Match First Output Pin", Tooltip = "One thread per pin data element."),
-	FromFirstInput UMETA(DisplayName = "Match First Input Pin", Tooltip = "One thread per pin data element."),
-	FromSecondInput UMETA(DisplayName = "Match Second Input Pin", Tooltip = "One thread per pin data element."),
-	FirstInputXSecondInput UMETA(DisplayName = "First Input X Second Input"),
+	FromFirstOutputPin UMETA(Tooltip = "One thread per pin data element."),
 	Fixed UMETA(DisplayName = "Fixed Thread Count"),
-
-	// TODO: Could support inlined expression evaluation for dispatch thread count.
+	FromProductOfInputPins UMETA(Tooltip = "Dispatches a thread per element in the product of one or more pins. So if there are 4 data elements in pin A and 6 data elements in pin B, 24 threads will be dispatched."),
 };
 
 /** Produces a HLSL compute shader which will be executed on the GPU. */
@@ -48,7 +84,7 @@ public:
 
 	//~Begin UPCGSettings interface
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override { return InputPins; }
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override { return OutputPins; }
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return true; }
 #if WITH_EDITOR
 	virtual bool DisplayExecuteOnGPUSetting() const override { return false; }
@@ -70,6 +106,10 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
+protected:
+	/** Gets the GPU pin properties for the output pin with the given label. */
+	const FPCGPinPropertiesGPU* GetOutputPinPropertiesGPU(const FName& InPinLabel) const;
+
 #if WITH_EDITOR
 	void UpdateDeclarations();
 	void UpdatePinSettings();
@@ -85,8 +125,9 @@ public:
 	int GetPointCount() const { return PointCount; }
 	int GetFixedThreadCount() const { return FixedThreadCount; }
 
+	const UPCGPin* GetInputPin(FName Label) const;
+	const UPCGPin* GetOutputPin(FName Label) const;
 	const UPCGPin* GetFirstInputPin() const;
-	const UPCGPin* GetSecondInputPin() const;
 	const UPCGPin* GetPointProcessingInputPin() const;
 	const UPCGPin* GetSecondPointProcessingInputPin() const;
 	const UPCGPin* GetFirstOutputPin() const;
@@ -102,14 +143,17 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "KernelType == EPCGKernelType::PointGenerator", EditConditionHides))
 	int PointCount = 256;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "KernelType == EPCGKernelType::Custom", EditConditionHides))
-	EPCGDispatchThreadCount DispatchThreadCount = EPCGDispatchThreadCount::FromOutput;
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom", EditConditionHides))
+	EPCGDispatchThreadCount DispatchThreadCount = EPCGDispatchThreadCount::FromFirstOutputPin;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed", EditConditionHides))
 	int ThreadCountMultiplier = 1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::Fixed", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::Fixed", EditConditionHides))
 	int FixedThreadCount = 1;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins", EditConditionHides))
+	TArray<FName> ThreadCountInputPinLabels;
 
 public:
 	/** Dump the cooked HLSL into the log after it is generated. */
@@ -129,7 +173,7 @@ public:
 	TArray<FPCGPinProperties> InputPins = Super::DefaultPointInputPinProperties();
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
-	TArray<FPCGPinProperties> OutputPins = Super::DefaultPointOutputPinProperties();
+	TArray<FPCGPinPropertiesGPU> OutputPins = { FPCGPinPropertiesGPU(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point) };
 
 protected:
 	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings|Declarations", meta = (MultiLine = true))

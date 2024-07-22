@@ -34,16 +34,6 @@ enum class EPCGPinStatus : uint8
 	Advanced
 };
 
-/** Method for computing the size of a pin on a GPU node. */
-UENUM()
-enum class EPCGPinBufferSizeMode : uint8
-{
-	FromFirstPin UMETA(DisplayName = "Match First Input Pin"),
-	FromSecondPin UMETA(DisplayName = "Match Second Input Pin"),
-	FirstPinXSecondPin UMETA(DisplayName = "First Input Pin X Second Input Pin"),
-	FixedElementCount,
-};
-
 USTRUCT(BlueprintType, meta=(HasNativeBreak="/Script/PCG.PCGBlueprintPinHelpers.BreakPinProperty", HasNativeMake="/Script/PCG.PCGBlueprintPinHelpers.MakePinProperty"))
 struct PCG_API FPCGPinProperties
 {
@@ -78,13 +68,6 @@ struct PCG_API FPCGPinProperties
 	FText Tooltip;
 #endif
 
-	/** Compute graphs use this to calculate the buffer size of output pins. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bDisplayBufferSizeSettings", EditConditionHides))
-	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount", EditConditionHides))
-	int FixedBufferElementCount = 4;
-
 	// Multiple connections are only possible if we support multi data.
 	bool AllowsMultipleConnections() const { return bAllowMultipleData && bAllowMultipleConnections; }
 
@@ -108,9 +91,6 @@ struct PCG_API FPCGPinProperties
 #endif
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(Transient)
-	bool bDisplayBufferSizeSettings = true;
-
 	UPROPERTY(Transient)
 	bool bAllowEditMultipleData = true;
 	

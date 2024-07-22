@@ -91,9 +91,7 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bAllowMultipleData == Other.bAllowMultipleData &&
 		Usage == Other.Usage &&
 		PinStatus == Other.PinStatus &&
-		bInvisiblePin == Other.bInvisiblePin &&
-		BufferSizeMode == Other.BufferSizeMode &&
-		FixedBufferElementCount == Other.FixedBufferElementCount;
+		bInvisiblePin == Other.bInvisiblePin;
 }
 
 void FPCGPinProperties::PostSerialize(const FArchive& Ar)
