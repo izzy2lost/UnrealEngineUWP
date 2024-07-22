@@ -350,7 +350,11 @@ struct FInstanceUpdateData
 		uint16 FirstScalar = 0;
 		uint16 ScalarCount = 0;
 
-		uint32 MaterialIndex = 0;
+		/** Index of the material in the referenced materials array of the CO.
+		* A negative value means that the material of this surface slot of the mesh doesn't need to be changed.
+		* This is valid for pass-through meshes.
+		*/
+		int32 MaterialIndex = -1;
 
 		/** Id of the surface in the mutable core instance. */
 		uint32 SurfaceId = 0;
@@ -416,7 +420,7 @@ struct FInstanceUpdateData
 
 	struct FRealTimeMorphsComponentData
 	{
-		int32 ComponentIndex = INDEX_NONE;
+		int32 ObjectComponentIndex = INDEX_NONE;
 
 		TArray<FName> RealTimeMorphTargetNames;
 		TArray<TArray<FMorphTargetLODModel>> RealTimeMorphsLODData; 
@@ -443,7 +447,8 @@ struct FInstanceUpdateData
 		TMap<mu::FBoneName, TPair<FName, uint16>> BoneInfoMap;
 	};
 
-	// Access by component index
+	// Access by object component index
+	// \TODO: somewhat wasteful, since instances may have less components
 	TArray<FSkeletonData> Skeletons;
 
 	struct FNamedExtensionData
@@ -484,6 +489,7 @@ public:
 
 	void SetMinLOD(int32 MinLOD);
 
+	/** Return an array of LODs per object component. */
 	const TArray<uint16>& GetRequestedLODs() const;
 
 	void SetRequestedLODs(TArray<uint16>& RequestedLODs);
@@ -543,10 +549,16 @@ public:
 
 	TSharedPtr<mu::Model> Model;
 
-	// TODO: This is also available in InstanceUpdateData in MutableInstance and in NumLODsAvailablePerComponent
-	uint8 NumComponents = 0;
+	// Number of possible components in the entire CO
+	// TODO: Redundant because it is in the CO
+	uint8 NumObjectComponents = 0;
 
-	// TODO: Why is this cached?
+	// Number of components in the instance being generated
+	// TODO: Redundant to store it here because it is implicit in the size of some arrays or in the MutableInstance while it is valid.
+	uint8 NumInstanceComponents = 0;
+
+	// Index with ObjectComponent index
+	// \TODO: Wasteful: it only needs to be as big as NumInstanceComponents
 	TArray<uint8> NumLODsAvailablePerComponent;
 
 	uint8 FirstLODAvailable = 0;
@@ -558,7 +570,7 @@ public:
 
 	mu::FImageOperator::FImagePixelFormatFunc PixelFormatOverride;
 
-	/** Mutable Meshes required for each component. Outermost index is the component index, inner index is the LOD. */
+	/** Mutable Meshes required for each component. Outermost index is the object component index, inner index is the LOD. */
 	TArray<TArray<mu::FResourceID>> MeshDescriptors;
 
 	/** Used to know if the updated instances' meshes are different from the previous ones. 

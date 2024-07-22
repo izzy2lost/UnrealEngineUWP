@@ -80,16 +80,16 @@ namespace mu
                                          const set<size_t>& negTag );
 
         /** Generate Surface, Edit or Modifier condition.
-    	 * @param Index Surface, Edit or Modifier index.
+    	 * @param Index Surface, Edit, Component or Modifier index.
     	 * @param PositiveTags function that given the Surface, Edit or Modifier index, returns its positive tags.
     	 * @param NegativeTags function that given the Surface, Edit or Modifier, returns its negative tags.
     	 * @param posSurf already visited Surfaces, Edits, or Modifiers that participate positively in the condition.
     	 * @param negSurf already visited Surfaces, Edits, or Modifiers that participate negatively in the condition.
       	 * @param posSurf Tags that already belong to the condition (positively).
 		 * @param negSurf Tags that already belong to the condition (negatively). */
-        Ptr<ASTOp> GenerateSurfaceOrModifierCodition(size_t Index,
-									        TFunction<const TArray<FString>&(size_t)> PositiveTags,
-											TFunction<const TArray<FString>&(size_t)> NegativeTags,
+        Ptr<ASTOp> GenerateDataCodition(size_t Index,
+									        const TArray<FString>& PositiveTags,
+											const TArray<FString>& NegativeTags,
                                             const set<size_t>& posSurf,
                                             const set<size_t>& negSurf,
                                             const set<size_t>& posTag,

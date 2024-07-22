@@ -105,6 +105,13 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 
 						GenerationContext.ComponentMeshOverride = nullptr;
 					}
+					else
+					{
+						// Add an empty surface node anyway.
+						mu::Ptr<mu::NodeSurfaceNew> SurfaceNode = new mu::NodeSurfaceNew;
+						SurfaceNode->Mesh = MeshNode;
+						LODNode->Surfaces.Add(SurfaceNode);
+					}
 				}
 			}
 		}

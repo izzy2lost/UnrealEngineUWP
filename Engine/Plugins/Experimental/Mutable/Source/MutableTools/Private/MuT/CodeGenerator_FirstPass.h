@@ -53,6 +53,8 @@ namespace mu
 		void Generate_SurfaceVariation(const NodeSurfaceVariation*);
 		void Generate_ComponentNew(const NodeComponentNew*);
 		void Generate_ComponentEdit(const NodeComponentEdit*);
+		void Generate_ComponentSwitch(const NodeComponentSwitch*);
+		void Generate_ComponentVariation(const NodeComponentVariation*);
 		void Generate_LOD(const NodeLOD*);
 		void Generate_ObjectNew(const NodeObjectNew*);
 		void Generate_ObjectGroup(const NodeObjectGroup*);
@@ -76,19 +78,43 @@ namespace mu
         //! for the states whose index is true.
         using StateCondition = TArray<uint8>;
 
-		//! Store information about every surface including
-		//! - the component it may be added to
-		//! - the conditions that will enable or disable it
-		//! - all edit operators
-        //! A surface may have different versions depending on the different parents and conditions
-        //! it is reached with.
+		/** Store information about every component found. */
+		struct FComponent
+		{
+			/** Main component node. */
+			const NodeComponentNew* Component = nullptr;
+
+			// List of tags that are required for the presence of this component
+			TArray<FString> PositiveTags;
+
+			// List of tags that block the presence of this component
+			TArray<FString> NegativeTags;
+
+			// This conditions is the condition of the object defining this surface which may not
+			// be the parent object where this surface will be added.
+			Ptr<ASTOp> ObjectCondition;
+
+			// Condition for this component to be added.
+			// This is filled in CodeGenerator_SecondPass.
+			Ptr<ASTOp> ComponentCondition;
+		};
+		TArray<FComponent> Components;
+
+		/** Store information about every surface including
+		* - the component it may be added to
+		* - the conditions that will enable or disable it
+		* - all edit operators
+        * A surface may have different versions depending on the different parents and conditions it is reached with.
+		*/
 		struct FSurface
 		{
             Ptr<const NodeSurfaceNew> Node;
 
-			// Parent Component where this surface will be added. It may be different from the 
-			// Component that defined it (if it was an edit component).
+			/** Parent Component where this surface will be added.It may be different from the
+			* Component that defined it (if it was an edit component).
+			*/
             const NodeComponentNew* Component = nullptr;
+
 			int32 LOD = 0;
 
             // List of tags that are required for the presence of this surface

@@ -535,7 +535,7 @@ TSharedRef<SWidget> SMutableMeshViewer::GenerateBuffersListView(
 				.FillWidth(0.1f)
 		
 			+ SHeaderRow::Column(MutableMeshBuffersListColumns::BufferChannelsColumnID)
-				.DefaultLabel(BufferChannelsTooltip)
+				.DefaultTooltip(BufferChannelsTooltip)
 				.DefaultLabel(BufferChannelsTitle)
 			  	.FillWidth(0.9f)
 		);

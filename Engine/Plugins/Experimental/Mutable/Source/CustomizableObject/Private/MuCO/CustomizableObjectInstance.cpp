@@ -184,9 +184,9 @@ UTexture2D* UCustomizableInstancePrivate::CreateTexture()
 }
 
 
-void UCustomizableInstancePrivate::SetLastMeshId(int32 ComponentIndex, int32 LODIndex, mu::FResourceID MeshId)
+void UCustomizableInstancePrivate::SetLastMeshId(int32 ObjectComponentIndex, int32 LODIndex, mu::FResourceID MeshId)
 {
-	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 	if (ComponentData && ComponentData->LastMeshIdPerLOD.IsValidIndex(LODIndex))
 	{
 		ComponentData->LastMeshIdPerLOD[LODIndex] = MeshId;
@@ -1933,6 +1933,16 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 
 		// Components with mesh must have valid geometry at CurrentMaxLOD
 		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+
+		const bool bHasSkeletalMesh = SkeletalMeshes.IsValidIndex(ComponentIndex) && SkeletalMeshes[ComponentIndex];
+
+		if (Component.LODCount == 0)
+		{
+			// We don't have a mesh in the component, so it has changed if we had one before.
+			OperationData->MeshChanged[ComponentIndex] = bHasSkeletalMesh;
+			continue;
+		}
+
 		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD];
 		bool bIsReferenced = LOD.Mesh && LOD.Mesh->IsReference();
 		if (!bIsReferenced)
@@ -1948,7 +1958,6 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		}
 
 		// Update the component if there is a mesh and it shouldn't, or the other way around.
-		const bool bHasSkeletalMesh = SkeletalMeshes.IsValidIndex(ComponentIndex) && SkeletalMeshes[ComponentIndex];
 		OperationData->MeshChanged[ComponentIndex] = (ComponentWithMesh[ComponentIndex] != bHasSkeletalMesh);
 
 		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
@@ -2284,26 +2293,27 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletalMeshData);
 
-		const int32 NumComponents = SkeletalMeshes.Num();
-		for (int32 ComponentIndex = 0; bSuccess && ComponentIndex < NumComponents; ++ComponentIndex)
+		for (int32 InstanceComponentIndex = 0; bSuccess && InstanceComponentIndex < OperationData->NumInstanceComponents; ++InstanceComponentIndex)
 		{
-			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+
+			int32 ObjectComponentIndex = Component.Id;
 
 			if (OperationData->bUseMeshCache)
 			{
-				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ComponentIndex];
+				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ObjectComponentIndex];
 				if (CustomizableObject->GetPrivate()->MeshCache.Get(MeshId))
 				{
 					continue;
 				}
 			}
 			
-			if (!OperationData->MeshChanged[ComponentIndex])
+			if (!OperationData->MeshChanged[ObjectComponentIndex])
 			{
 				continue;
 			}
 
-			USkeletalMesh* SkeletalMesh = SkeletalMeshes[ComponentIndex];
+			USkeletalMesh* SkeletalMesh = SkeletalMeshes[ObjectComponentIndex];
 
 			if (!SkeletalMesh)
 			{
@@ -2324,17 +2334,17 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			}
 
 			// Mesh to copy data from if possible. 
-			USkeletalMesh* OldSkeletalMesh = OldSkeletalMeshes.IsValidIndex(ComponentIndex) ? OldSkeletalMeshes[ComponentIndex] : nullptr;
+			USkeletalMesh* OldSkeletalMesh = OldSkeletalMeshes.IsValidIndex(ObjectComponentIndex) ? OldSkeletalMeshes[ObjectComponentIndex] : nullptr;
 
 			{
-				BuildOrCopyElementData(OperationData, SkeletalMesh, Public, ComponentIndex);
-				bSuccess = BuildOrCopyRenderData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, ComponentIndex);
+				BuildOrCopyElementData(OperationData, SkeletalMesh, Public, InstanceComponentIndex);
+				bSuccess = BuildOrCopyRenderData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, InstanceComponentIndex);
 			}
 
 			if (bSuccess)
 			{
-				BuildOrCopyMorphTargetsData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, ComponentIndex);
-				BuildOrCopyClothingData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, ComponentIndex);
+				BuildOrCopyMorphTargetsData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, InstanceComponentIndex);
+				BuildOrCopyClothingData(OperationData, SkeletalMesh, OldSkeletalMesh, Public, InstanceComponentIndex);
 
 				FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
 				ensure(RenderData && RenderData->LODRenderData.Num() > 0);
@@ -2348,7 +2358,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 			if (OperationData->bUseMeshCache)
 			{
-				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ComponentIndex];
+				const TArray<mu::FResourceID>& MeshId = OperationData->MeshDescriptors[ObjectComponentIndex];
 				CustomizableObject->GetPrivate()->MeshCache.Add(MeshId, SkeletalMesh);
 			}
 		}
@@ -3814,11 +3824,11 @@ void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateCont
 }
 
 
-void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
+void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 InstanceComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyElementData);
 
-	const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+	const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
 
 	for (int32 LODIndex = FirstLODAvailable; LODIndex < Component.LODCount; ++LODIndex)
 	{
@@ -3841,7 +3851,7 @@ void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpda
 	}
 }
 
-void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
+void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 InstanceComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData);
 
@@ -3852,11 +3862,14 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 	
 	FInstanceUpdateData& UpdateData = OperationData->InstanceUpdateData;
 
+	FInstanceUpdateData::FComponent& Component = UpdateData.Components[InstanceComponentIndex];
+	int32 ObjectComponentIndex = Component.Id;
+
 	FInstanceUpdateData::FRealTimeMorphsComponentData* ComponentMorphTargets = 
 		UpdateData.RealTimeMorphTargets.FindByPredicate(
-				[ComponentIndex](const FInstanceUpdateData::FRealTimeMorphsComponentData& Elem) 
+				[ObjectComponentIndex](const FInstanceUpdateData::FRealTimeMorphsComponentData& Elem)
 				{ 
-					return Elem.ComponentIndex == ComponentIndex; 
+					return Elem.ObjectComponentIndex == ObjectComponentIndex;
 				});
 
 	if (!ComponentMorphTargets)
@@ -3883,7 +3896,7 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 	}
 
 	// Copy MorphTargets from the FirstGeneratedLOD to the LODs below
-	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ObjectComponentIndex], OperationData->GetMinLOD());
 	for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < FirstGeneratedLOD; ++LODIndex)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(CopyMorphTargetsData);
@@ -3913,7 +3926,7 @@ namespace
 
 }
 
-void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
+void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 InstanceComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyClothingData);
 
@@ -3954,10 +3967,11 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 
 	const int32 LODCount = OperationData->InstanceUpdateData.LODs.Num();
 
+	FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+	int32 ObjectComponentIndex = Component.Id;
+
 	{
 		MUTABLE_CPUPROFILER_SCOPE(DiscoverSectionsWithCloth);
-
-		FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 
 		for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < Component.LODCount; ++LODIndex)
 		{
@@ -4096,7 +4110,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 			// Only initilialize once, multiple sections with cloth could point to the same cloth asset.
 			if (!DstAssetData.LodMap.Num())
 			{
-				DstAssetData.LodMap.Init(INDEX_NONE, OperationData->NumLODsAvailablePerComponent[ComponentIndex]);
+				DstAssetData.LodMap.Init(INDEX_NONE, OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex]);
 
 				DstAssetData.UsedBoneNames = SrcAssetData.UsedBoneNames;
 				DstAssetData.UsedBoneIndices = SrcAssetData.UsedBoneIndices;
@@ -4684,7 +4698,6 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	{
 		int32 NumSectionsWithClothProcessed = 0;
 
-		FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex < Component.LODCount; ++LODIndex)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD+LODIndex];
@@ -4734,7 +4747,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	{
 		MUTABLE_CPUPROFILER_SCOPE(InitClothRenderData)
 		// Based on FSkeletalMeshLODModel::GetClothMappingData().
-		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex < OperationData->NumLODsAvailablePerComponent[ComponentIndex]; ++LODIndex)
+		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex < OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex]; ++LODIndex)
 		{
 			FSkeletalMeshLODRenderData& LODModel = RenderResource->LODRenderData[LODIndex];
 	
@@ -4870,7 +4883,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 	SkeletalMesh->SetHasActiveClothingAssets( static_cast<bool>( SectionsWithCloth.Num() ) );
 }
 
-bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* Public, int32 ComponentIndex)
+bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* Public, int32 InstanceComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyRenderData);
 
@@ -4882,11 +4895,13 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 	// It must be not null as it's checked in the calling function
 	check(CustomizableObject);
 
+	FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+	int32 ObjectComponentIndex = Component.Id;
+
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
+	const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ObjectComponentIndex], OperationData->GetMinLOD());
 
-	FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 
 	for (int32 LODIndex = FirstGeneratedLOD; LODIndex < Component.LODCount; ++LODIndex)
 	{
@@ -4897,22 +4912,22 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		// There could be components without a mesh in LODs
 		if (!LOD.bGenerated || !LOD.Mesh || LOD.SurfaceCount == 0)
 		{
-			UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] of component index [%d] with no mesh.")
+			UE_LOG(LogMutable, Warning, TEXT("Building instance: generated mesh [%s] has LOD [%d] of object component index [%d] with no mesh.")
 				, *SkeletalMesh->GetName()
 				, LODIndex
-				, ComponentIndex);
+				, ObjectComponentIndex);
 
 			// End with failure
 			return false;
 		}
 
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BuildRenderData: Component index %d, LOD %d"), ComponentIndex, LODIndex));
+		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("BuildRenderData: Component index %d, LOD %d"), ObjectComponentIndex, LODIndex));
 
-		SetLastMeshId(ComponentIndex, LODIndex, LOD.MeshID);
+		SetLastMeshId(ObjectComponentIndex, LODIndex, LOD.MeshID);
 
 		FSkeletalMeshLODRenderData& LODResource = RenderData->LODRenderData[LODIndex];
 
-		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex].BoneInfoMap;
 		
 		// Set active and required bones
 		{
@@ -4938,14 +4953,14 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		for (int32 MeshSectionIndex = 0; MeshSectionIndex < MeshNumSurfaces; ++MeshSectionIndex)
 		{
 			uint32 MeshSurfaceId = LOD.Mesh->GetSurfaceId(MeshSectionIndex);
-			int32 InstanceSurfaceIndex = OperationData->MutableInstance->FindSurfaceById(ComponentIndex, LODIndex, MeshSurfaceId);
+			int32 InstanceSurfaceIndex = OperationData->MutableInstance->FindSurfaceById(InstanceComponentIndex, LODIndex, MeshSurfaceId);
 			
 			if (InstanceSurfaceIndex < 0)
 			{
 				continue;
 			}
 			
-			uint32 SurfaceMetadataId = OperationData->MutableInstance->GetSurfaceCustomId(ComponentIndex, LODIndex, InstanceSurfaceIndex);
+			uint32 SurfaceMetadataId = OperationData->MutableInstance->GetSurfaceCustomId(InstanceComponentIndex, LODIndex, InstanceSurfaceIndex);
 			MeshSurfacesMetadata[MeshSectionIndex] = ModelResources.SurfaceMetadata.Find(SurfaceMetadataId);
 		}
 
@@ -5119,8 +5134,8 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	
 	for (const FInstanceUpdateData::FSurface& Surface : OperationData->InstanceUpdateData.Surfaces)
 	{
-		const uint32 MaterialIndex = Surface.MaterialIndex;
-		if (ObjectToInstanceIndexMap.Contains(MaterialIndex))
+		const int32 MaterialIndex = Surface.MaterialIndex;
+		if (MaterialIndex<0 || ObjectToInstanceIndexMap.Contains(MaterialIndex))
 		{
 			continue;
 		}
@@ -5139,11 +5154,13 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 
 	// Load Skeletons required by the SubMeshes of the newly generated Mesh, will be merged later
-	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ ComponentIndex)
+	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < OperationData->NumInstanceComponents; ++InstanceComponentIndex)
 	{
-		const FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[ComponentIndex];
+		int32 ObjectComponentIndex = OperationData->InstanceUpdateData.Components[InstanceComponentIndex].Id;
+
+		const FInstanceUpdateData::FSkeletonData& SkeletonData = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex];
 		
-		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 		if (!ComponentData)
 		{
 			check(false);
@@ -6000,25 +6017,29 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 	
 	const bool bReuseTextures = OperationData->bReuseInstanceTextures;
 
-	TArray<bool> RecreateRenderStateOnComponent;
-	RecreateRenderStateOnComponent.Init(false, OperationData->NumComponents);
+	TArray<bool> RecreateRenderStateOnInstanceComponent;
+	RecreateRenderStateOnInstanceComponent.Init(false, OperationData->NumInstanceComponents);
 
-	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ComponentIndex)
+	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < OperationData->NumInstanceComponents; ++InstanceComponentIndex)
 	{
-		if (!SkeletalMeshes.IsValidIndex(ComponentIndex))
+		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+
+		int32 ObjectComponentIndex = Component.Id;
+
+		if (!SkeletalMeshes.IsValidIndex(ObjectComponentIndex))
 		{
 			// This could happen if there are no meshes at all.
 			continue;
 		}
 
-		USkeletalMesh* SkeletalMesh = SkeletalMeshes[ComponentIndex];
+		USkeletalMesh* SkeletalMesh = SkeletalMeshes[ObjectComponentIndex];
 
 		if (!SkeletalMesh)
 		{
 			continue;
 		}
 
-		const bool bReuseMaterials = !OperationData->MeshChanged[ComponentIndex];
+		const bool bReuseMaterials = !OperationData->MeshChanged[InstanceComponentIndex];
 
 		// If the mesh is not transient, it means it's pass-through so it should use material overrides and not be modified in any way
 		const bool bIsTransientMesh = static_cast<bool>(SkeletalMesh->HasAllFlags(EObjectFlags::RF_Transient));
@@ -6026,7 +6047,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		// It is not safe to replace the materials of a SkeletalMesh whose resources are initialized. Use overrides instead.
 		const bool bUseOverrideMaterialsOnly = !bIsTransientMesh || (OperationData->bUseMeshCache && SkeletalMesh->GetResourceForRendering()->IsInitialized());
 
-		ComponentsData[ComponentIndex].OverrideMaterials.Reset();
+		ComponentsData[ObjectComponentIndex].OverrideMaterials.Reset();
 
 		TArray<FSkeletalMaterial> Materials;
 
@@ -6038,9 +6059,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_LODLoop);
 
-		const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ComponentIndex], OperationData->GetMinLOD());
-
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+		const int32 FirstGeneratedLOD = FMath::Max((int32)OperationData->GetRequestedLODs()[ObjectComponentIndex], OperationData->GetMinLOD());
 
 		for (int32 LODIndex = FirstGeneratedLOD; LODIndex < Component.LODCount; LODIndex++)
 		{
@@ -6058,14 +6077,25 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 			// Pass-through components will not have a reference mesh.
 			const FMutableRefSkeletalMeshData* RefSkeletalMeshData = nullptr;
-			if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+			if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ObjectComponentIndex))
 			{
-				RefSkeletalMeshData = &ModelResources.ReferenceSkeletalMeshesData[ComponentIndex];
+				RefSkeletalMeshData = &ModelResources.ReferenceSkeletalMeshesData[ObjectComponentIndex];
 			}
 
 			for (int32 SurfaceIndex = 0; SurfaceIndex < LOD.SurfaceCount; ++SurfaceIndex)
 			{
 				const FInstanceUpdateData::FSurface& Surface = OperationData->InstanceUpdateData.Surfaces[LOD.FirstSurface + SurfaceIndex];
+
+				// Is this a material in a passthrough mesh that we don't modify?
+				if (Surface.MaterialIndex<0)
+				{
+					Materials.Emplace();
+#if WITH_EDITOR
+					// Without this, a change of a referenced material and recompilation doesn't show up in the preview.
+					RecreateRenderStateOnInstanceComponent[InstanceComponentIndex] = true;
+#endif
+					continue;
+				}
 
 				// Reuse MaterialSlot from the previous LOD.
 				if (const int32 MaterialIndex = SurfaceIdToMaterialIndex.Find(Surface.SurfaceId); MaterialIndex != INDEX_NONE)
@@ -6207,7 +6237,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 						UTexture* PassThroughTexture = nullptr; // Texture not generated by mutable
 
 						// \TODO: Change this key to a struct.
-						FString TextureReuseCacheRef = bReuseTextures ? FString::Printf(TEXT("%d-%d-%d-%d"), Image.BaseLOD, ComponentIndex, Surface.SurfaceId, ImageIndex) : FString();
+						FString TextureReuseCacheRef = bReuseTextures ? FString::Printf(TEXT("%d-%d-%d-%d"), Image.BaseLOD, ObjectComponentIndex, Surface.SurfaceId, ImageIndex) : FString();
 
 						// If the mutable image is null, it must be in the cache
 						FMutableImageCacheKey ImageCacheKey = { Image.ImageID, OperationData->MipsToSkip };
@@ -6326,10 +6356,10 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 									}
 									else
 									{
-										UE_LOG(LogMutable, Error, TEXT("Required image [%s] with ID [%lld] was not generated in the mutable thread, and it is not cached. LOD [%d]. Component [%d]"),
+										UE_LOG(LogMutable, Error, TEXT("Required image [%s] with ID [%lld] was not generated in the mutable thread, and it is not cached. LOD [%d]. Object Component [%d]"),
 											*Props.TextureParameterName,
 											Image.ImageID,
-											LODIndex, ComponentIndex);
+											LODIndex, ObjectComponentIndex);
 										continue;
 									}
 
@@ -6385,11 +6415,11 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 													if (MutableMipDataProviderFactory)
 													{
 														MutableMipDataProviderFactory->CustomizableObjectInstance = Public;
-														check(LODIndex < 256 && ComponentIndex < 256 && ImageIndex < 256);
+														check(LODIndex < 256 && ObjectComponentIndex < 256 && ImageIndex < 256);
 														MutableMipDataProviderFactory->ImageRef.ImageID = Image.ImageID;
 														MutableMipDataProviderFactory->ImageRef.SurfaceId = Surface.SurfaceId;
 														MutableMipDataProviderFactory->ImageRef.LOD = uint8(Image.BaseLOD);
-														MutableMipDataProviderFactory->ImageRef.Component = uint8(ComponentIndex);
+														MutableMipDataProviderFactory->ImageRef.Component = uint8(ObjectComponentIndex);
 														MutableMipDataProviderFactory->ImageRef.Image = uint8(ImageIndex);
 														MutableMipDataProviderFactory->ImageRef.BaseMip = uint8(Image.BaseMip);
 														MutableMipDataProviderFactory->UpdateContext = UpdateContext;
@@ -6560,7 +6590,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 				// Assign the material to the slot, and add it to the  OverrideMaterials
 				MaterialSlot.MaterialInterface = MaterialInterface;
-				ComponentsData[ComponentIndex].OverrideMaterials.Add(MaterialInterface);
+				ComponentsData[ObjectComponentIndex].OverrideMaterials.Add(MaterialInterface);
 			}
 		}
 
@@ -6587,12 +6617,12 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 
 			// Force recreate render state after replacing the materials to avoid a crash in the render pipeline if the old materials are GCed while in use.
-			RecreateRenderStateOnComponent[ComponentIndex] = SkeletalMesh->GetResourceForRendering()->IsInitialized() && SkeletalMesh->GetMaterials() != Materials;
+			RecreateRenderStateOnInstanceComponent[InstanceComponentIndex] = SkeletalMesh->GetResourceForRendering()->IsInitialized() && SkeletalMesh->GetMaterials() != Materials;
 
 			SkeletalMesh->SetMaterials(Materials);
 
 #if WITH_EDITOR
-			if (RecreateRenderStateOnComponent[ComponentIndex])
+			if (RecreateRenderStateOnInstanceComponent[InstanceComponentIndex])
 			{
 				// Close all open editors for this mesh to invalidate viewports.
 				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(SkeletalMesh);
@@ -6606,7 +6636,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 	// Force recreate render state if the mesh is reused and the materials have changed.
 	// TODO: MTBL-1697 Remove after merging ConvertResources and Callbacks.
-	if (RecreateRenderStateOnComponent.Find(true) != INDEX_NONE)
+	if (RecreateRenderStateOnInstanceComponent.Find(true) != INDEX_NONE)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_RecreateRenderState);
 
@@ -6626,14 +6656,18 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 #endif
 
-			const int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
-			if (!RecreateRenderStateOnComponent.IsValidIndex(ComponentIndex) || !RecreateRenderStateOnComponent[ComponentIndex])
+			// TODO: What is the proper way to refer to dynamic components?
+			const int32 InstanceComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+			int32 ObjectComponentIndex = Component.Id;
+
+			if (!RecreateRenderStateOnInstanceComponent.IsValidIndex(InstanceComponentIndex) || !RecreateRenderStateOnInstanceComponent[InstanceComponentIndex])
 			{
 				continue;
 			}
 
 			USkeletalMeshComponent* AttachedParent = CustomizableObjectInstanceUsage->GetAttachParent();
-			if (!AttachedParent || AttachedParent->GetSkeletalMeshAsset() != SkeletalMeshes[ComponentIndex])
+			if (!AttachedParent || AttachedParent->GetSkeletalMeshAsset() != SkeletalMeshes[ObjectComponentIndex])
 			{
 				continue;
 			}

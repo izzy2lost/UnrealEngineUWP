@@ -17,11 +17,6 @@ namespace mu
 		return (uint64(RootAddress) << 32) | uint64(ParameterBlobIndex);
 	}
 
-	inline uint32 GetResourceIDRoot(FResourceID Id)
-	{
-		return uint32(Id >> 32);
-	}
-
 	/** */
     struct FInstanceSurface
 	{

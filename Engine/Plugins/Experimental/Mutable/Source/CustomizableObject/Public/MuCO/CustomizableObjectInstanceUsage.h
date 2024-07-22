@@ -37,6 +37,8 @@ public:
 	void SetCustomizableObjectInstance(UCustomizableObjectInstance* CustomizableObjectInstance);
 	UCustomizableObjectInstance* GetCustomizableObjectInstance() const;
 
+	// TODO: What is the proper way to refer to dynamic components?
+	// For now assume this is an *Instance* component index and not an *Object* component index
 	void SetComponentIndex(int32 ComponentIndex);
 	int32 GetComponentIndex() const;
 

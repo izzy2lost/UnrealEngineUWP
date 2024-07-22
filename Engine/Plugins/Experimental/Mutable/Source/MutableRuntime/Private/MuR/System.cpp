@@ -962,8 +962,7 @@ namespace mu
 	}
 
 	
-	Ptr<const Image> System::Private::BuildImage(const TSharedPtr<const Model>& pModel,
-		const Parameters* Params, OP::ADDRESS at, int32 MipsToSkip, int32 InImageLOD)
+	Ptr<const Image> System::Private::BuildImage(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at, int32 MipsToSkip, int32 InImageLOD)
 	{
 		WorkingMemoryManager.BeginRunnerThread();
 
@@ -985,8 +984,7 @@ namespace mu
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	MeshPtrConst System::Private::BuildMesh(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at)
+	Ptr<const Mesh> System::Private::BuildMesh(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at)
 	{
 		WorkingMemoryManager.BeginRunnerThread();
 
@@ -1000,6 +998,28 @@ namespace mu
 			{
 				Result = WorkingMemoryManager.LoadMesh(FCacheAddress(at, 0, 0), true);
 			}	
+		}
+
+		WorkingMemoryManager.EndRunnerThread();
+
+		return Result;
+	}
+
+
+	Ptr<const Instance> System::Private::BuildInstance(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at)
+	{
+		WorkingMemoryManager.BeginRunnerThread();
+
+		Ptr<const Instance> Result;
+
+		mu::OP_TYPE opType = pModel->GetPrivate()->m_program.GetOpType(at);
+		if (GetOpDataType(opType) == DT_INSTANCE)
+		{
+			RunCode(pModel, Params, at);
+			if (!bUnrecoverableError)
+			{
+				Result = WorkingMemoryManager.CurrentInstanceCache->GetInstance(FCacheAddress(at, 0, 0));
+			}
 		}
 
 		WorkingMemoryManager.EndRunnerThread();

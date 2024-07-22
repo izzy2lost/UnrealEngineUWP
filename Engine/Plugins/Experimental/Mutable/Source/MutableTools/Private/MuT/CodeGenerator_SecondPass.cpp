@@ -33,7 +33,7 @@ namespace mu
 		const set<size_t>& posTag,
 		const set<size_t>& negTag)
 	{
-		auto& t = FirstPass->Tags[tagIndex];
+		FirstPassGenerator::FTag& t = FirstPass->Tags[tagIndex];
 
 		// If this tag is already in the list of positive tags, return true as condition
 		if (posTag.find(tagIndex) != posTag.end())
@@ -66,16 +66,6 @@ namespace mu
 				return it->second;
 			}
 		}
-
-		auto PositiveTagsFunc = [this](size_t SurfaceIndex) -> TArray<FString>&
-		{
-			return FirstPass->Surfaces[SurfaceIndex].PositiveTags;
-		};
-
-		auto NegativeTagsFunc = [this](size_t SurfaceIndex) -> TArray<FString>&
-		{
-			return FirstPass->Surfaces[SurfaceIndex].NegativeTags;
-		};
 		
 		Ptr<ASTOp> c;
 
@@ -96,14 +86,14 @@ namespace mu
 				continue;
 			}
 
-			const auto& surface = FirstPass->Surfaces[surfIndex];
+			const FirstPassGenerator::FSurface& surface = FirstPass->Surfaces[surfIndex];
 
 			auto PositiveTags = posTag;
 			PositiveTags.insert(tagIndex);
 
-			Ptr<ASTOp> surfCondition = GenerateSurfaceOrModifierCodition(surfIndex,
-				PositiveTagsFunc,
-				NegativeTagsFunc,
+			Ptr<ASTOp> surfCondition = GenerateDataCodition(surfIndex,
+				FirstPass->Surfaces[surfIndex].PositiveTags,
+				FirstPass->Surfaces[surfIndex].NegativeTags,
 				posSurf,
 				negSurf,
 				PositiveTags,
@@ -173,9 +163,9 @@ namespace mu
 				auto PositiveTags = posTag;
 				PositiveTags.insert(tagIndex);
 
-				surfCondition = GenerateSurfaceOrModifierCodition(EditKey.Key,
-					PositiveTagsFunc,
-					NegativeTagsFunc,
+				surfCondition = GenerateDataCodition(EditKey.Key,
+					FirstPass->Surfaces[EditKey.Key].PositiveTags,
+					FirstPass->Surfaces[EditKey.Key].NegativeTags,
 					posSurf,
 					negSurf,
 					PositiveTags,
@@ -236,9 +226,9 @@ namespace mu
 	}
 
 	//---------------------------------------------------------------------------------------------
-	mu::Ptr<ASTOp> SecondPassGenerator::GenerateSurfaceOrModifierCodition(size_t Index,
-		TFunction<const TArray<FString>&(size_t)> PositiveTagsFunc,
-		TFunction<const TArray<FString>&(size_t)> NegativeTagsFunc,
+	mu::Ptr<ASTOp> SecondPassGenerator::GenerateDataCodition(size_t Index,
+		const TArray<FString>& PositiveTags,
+		const TArray<FString>& NegativeTags,
 		const set<size_t>& posSurf,
 		const set<size_t>& negSurf,
 		const set<size_t>& posTag,
@@ -258,7 +248,7 @@ namespace mu
 
 		Ptr<ASTOp> c;
 
-		for (const FString& t : PositiveTagsFunc(Index))
+		for (const FString& t : PositiveTags)
 		{
 			const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == t; });
 			if (!it)
@@ -328,7 +318,7 @@ namespace mu
 		}
 
 
-		for (const FString& t : NegativeTagsFunc(Index))
+		for (const FString& t : NegativeTags)
 		{
 			const FirstPassGenerator::FTag* it = FirstPass->Tags.FindByPredicate([&](const FirstPassGenerator::FTag& e) { return e.Tag == t; });
 			if (!it)
@@ -337,7 +327,7 @@ namespace mu
 				continue;
 			}
 
-			size_t tagIndex = it - &FirstPass->Tags[0];
+			size_t tagIndex = it - FirstPass->Tags.GetData();
 
 			set<size_t> positiveSurfacesVisited = negSurf;
 			set<size_t> negativeSurfacesVisited = posSurf;
@@ -488,27 +478,22 @@ namespace mu
 			}
 		}
 
-		// Create the conditions for every surface, modifier and individual tag.
+		// Create the conditions for every surface, modifier, component and individual tag.
 		TagConditionGenerationCache.clear();
+
+		set<size_t> Empty;
 
 		for (int32 SurfaceIndex = 0; SurfaceIndex < FirstPass->Surfaces.Num(); ++SurfaceIndex)
 		{
 			FirstPassGenerator::FSurface& Surface = FirstPass->Surfaces[SurfaceIndex];
 
 			{
-				set<size_t> Empty;
+				Ptr<ASTOp> c = GenerateDataCodition(
+					SurfaceIndex, 
+					FirstPass->Surfaces[SurfaceIndex].PositiveTags,
+					FirstPass->Surfaces[SurfaceIndex].NegativeTags,
+					Empty, Empty, Empty, Empty);
 
-				auto PositiveTags = [this](size_t SurfaceIndex) -> const TArray<FString>&
-				{
-					return FirstPass->Surfaces[SurfaceIndex].PositiveTags;
-				};
-
-				auto NegativeTags = [this](size_t SurfaceIndex) -> const TArray<FString>&
-				{
-					return FirstPass->Surfaces[SurfaceIndex].NegativeTags;
-				};
-				
-				Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(SurfaceIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
 				FirstPass->Surfaces[SurfaceIndex].SurfaceCondition = c;
 			}
 			
@@ -516,19 +501,11 @@ namespace mu
 			{
 				FirstPassGenerator::FSurface::FEdit& Edit = Surface.Edits[EditIndex];
 				
-				set<size_t> Empty;
-
-				auto PositiveTags = [&Surface](size_t SurfaceIndex) -> const TArray<FString>&
-				{
-					return Surface.Edits[SurfaceIndex].PositiveTags;
-				};
-
-				auto NegativeTags = [&Surface](size_t SurfaceIndex) -> const TArray<FString>&
-				{
-					return Surface.Edits[SurfaceIndex].NegativeTags;
-				};
-				
-				Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(EditIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
+				Ptr<ASTOp> c = GenerateDataCodition(
+					EditIndex, 
+					Surface.Edits[EditIndex].PositiveTags,
+					Surface.Edits[EditIndex].NegativeTags,
+					Empty, Empty, Empty, Empty);
 
 				Ptr<ASTOpFixed> OpAnd = new ASTOpFixed;
 				OpAnd->op.type = OP_TYPE::BO_AND;
@@ -542,30 +519,32 @@ namespace mu
 
 		for (int32 ModifierIndex = 0; ModifierIndex < FirstPass->Modifiers.Num(); ++ModifierIndex)
 		{
-			set<size_t> Empty;
-
-			auto PositiveTags = [this](size_t SurfaceIndex) -> TArray<FString>&
-			{
-				return FirstPass->Modifiers[SurfaceIndex].PositiveTags;
-			};
-
-			auto NegativeTags = [this](size_t SurfaceIndex) -> TArray<FString>&
-			{
-				return FirstPass->Modifiers[SurfaceIndex].NegativeTags;
-			};
-				
-			Ptr<ASTOp> c = GenerateSurfaceOrModifierCodition(ModifierIndex, PositiveTags, NegativeTags, Empty, Empty, Empty, Empty);
+			Ptr<ASTOp> c = GenerateDataCodition(
+				ModifierIndex, 
+				FirstPass->Modifiers[ModifierIndex].PositiveTags,
+				FirstPass->Modifiers[ModifierIndex].NegativeTags,
+				Empty, Empty, Empty, Empty);
 			
 			FirstPass->Modifiers[ModifierIndex].SurfaceCondition = c;
 		}
 
-		for (int32 s = 0; s < FirstPass->Tags.Num(); ++s)
+		for (int32 ComponentIndex = 0; ComponentIndex < FirstPass->Components.Num(); ++ComponentIndex)
 		{
-			set<size_t> empty;
-			Ptr<ASTOp> c = GenerateTagCondition(s, empty, empty, empty, empty);
-			FirstPass->Tags[s].GenericCondition = c;
+			Ptr<ASTOp> c = GenerateDataCodition(
+				ComponentIndex, 
+				FirstPass->Components[ComponentIndex].PositiveTags,
+				FirstPass->Components[ComponentIndex].NegativeTags,
+				Empty, Empty, Empty, Empty);
+
+			FirstPass->Components[ComponentIndex].ComponentCondition = c;
 		}
 
+		// TODO: Do we really need the tag conditions from here on?
+		for (int32 s = 0; s < FirstPass->Tags.Num(); ++s)
+		{
+			Ptr<ASTOp> c = GenerateTagCondition(s, Empty, Empty, Empty, Empty);
+			FirstPass->Tags[s].GenericCondition = c;
+		}
 
 		FirstPass = nullptr;
 

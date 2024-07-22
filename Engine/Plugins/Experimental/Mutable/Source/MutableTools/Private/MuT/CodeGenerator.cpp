@@ -137,6 +137,8 @@ namespace mu
 				Ptr<ASTOp> stateRoot = Generate_Generic(pNode, Options);
 				States.Emplace(s.Key, stateRoot);
 
+				AdditionalComponents.Empty();
+
 				++CurrentStateIndex;
 			}
 		}
@@ -214,8 +216,9 @@ namespace mu
 		else if (pNode->GetType()->IsA(NodeComponent::GetStaticType()))
 		{
 			const NodeComponent* ComponentNode = static_cast<const NodeComponent*>(pNode.get());
+			FComponentGenerationOptions ComponentOptions( Options, nullptr );
 			FGenericGenerationResult Result;
-			GenerateComponent(Options, Result, ComponentNode);
+			GenerateComponent(ComponentOptions, Result, ComponentNode);
 			return Result.op;
 		}
 
@@ -508,7 +511,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	void CodeGenerator::GenerateComponent(const FGenericGenerationOptions& InOptions, FGenericGenerationResult& OutResult, const NodeComponent* InUntypedNode)
+	void CodeGenerator::GenerateComponent(const FComponentGenerationOptions& InOptions, FGenericGenerationResult& OutResult, const NodeComponent* InUntypedNode)
 	{
 		if (!InUntypedNode)
 		{
@@ -537,6 +540,7 @@ namespace mu
 		{
 			// Nothing to do because it is all preprocessed in the first code generator stage
 			//GenerateComponent_Edit(InOptions, OutResult, static_cast<const NodeComponentEdit*>(InUntypedNode));
+			OutResult.op = InOptions.BaseInstance;
 		}
 		else
 		{
@@ -548,7 +552,7 @@ namespace mu
 	}
 
 
-	void CodeGenerator::GenerateComponent_New(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentNew* InNode)
+	void CodeGenerator::GenerateComponent_New(const FComponentGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentNew* InNode)
 	{
 		const NodeComponentNew& node = *InNode;
 
@@ -571,11 +575,37 @@ namespace mu
 
 		Ptr<ASTOpInstanceAdd> InstanceOp = new ASTOpInstanceAdd();
 		InstanceOp->type = OP_TYPE::IN_ADDCOMPONENT;
-		InstanceOp->instance = nullptr;
+		InstanceOp->instance = Options.BaseInstance;
 		InstanceOp->value = LODsOp;
 		InstanceOp->id = node.Id;
 
 		Result.op = InstanceOp;
+
+		// Add a conditional if this component has conditions
+		for (const FirstPassGenerator::FComponent& Component: FirstPass.Components)
+		{
+			if (Component.Component != InNode)
+			{
+				continue;
+			}
+
+			if (Component.ComponentCondition || Component.ObjectCondition)
+			{
+				// TODO: This could be done earlier?
+				Ptr<ASTOpFixed> ConditionOp = new ASTOpFixed();
+				ConditionOp->op.type = OP_TYPE::BO_AND;
+				ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.a, Component.ObjectCondition);
+				ConditionOp->SetChild(ConditionOp->op.args.BoolBinary.b, Component.ComponentCondition);
+
+				Ptr<ASTOpConditional> IfOp = new ASTOpConditional();
+				IfOp->type = OP_TYPE::IN_CONDITIONAL;
+				IfOp->no = Options.BaseInstance;
+				IfOp->yes = Result.op;
+				IfOp->condition = ConditionOp;
+
+				Result.op = IfOp;
+			}
+		}
 	}
 
 
@@ -653,7 +683,7 @@ namespace mu
         FMeshGenerationResult meshResults;
 
 		// We don't add the mesh here, since it will be added directly at the top of the
-		// component expression in the NodeComponentNew visitor with the right merges
+		// component expression in the NodeComponentNew generator with the right merges
 		// and conditions.
 		// But we store it to be used then.
 
@@ -1254,7 +1284,7 @@ namespace mu
 								imageAd = BlankImageOp;
 							}
 
-							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, surfaceNode, &t, this]( FImageDesc BlockDesc, UE::Math::TIntVector2<uint16> LayoutCellSize )
+							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, surfaceNode, &t, &Options, this]( FImageDesc BlockDesc, UE::Math::TIntVector2<uint16> LayoutCellSize )
 							{
 								if (BlockPixelsX == 0)
 								{
@@ -1265,7 +1295,8 @@ namespace mu
 										{
 											bImageSizeWarning = true;
 
-											int32 currentLOD = CurrentParents.Last().Lod;
+											check(CurrentParents.Last().Lod== Options.LODIndex);
+											int32 currentLOD = Options.LODIndex;
 											FString Msg = FString::Printf(TEXT("A texture [%s] for material [%s] parameter [%s] in LOD [%d] has been resized because it didn't fit the layout. "),
 												*node.Images[t].Name,
 												*node.Images[t].MaterialName,
@@ -1721,24 +1752,18 @@ namespace mu
                 Ptr<ASTOp> surfaceAt = sop;
 
 				// TODO: This could be done earlier?
-                Ptr<ASTOpFixed> surfCondOp = new ASTOpFixed();
-                surfCondOp->op.type = OP_TYPE::BO_AND;
-                surfCondOp->SetChild(surfCondOp->op.args.BoolBinary.a, its.ObjectCondition );
-                surfCondOp->SetChild(surfCondOp->op.args.BoolBinary.b, its.SurfaceCondition );
-                Ptr<ASTOp> surfaceCondition = surfCondOp;
+                Ptr<ASTOpFixed> SurfaceConditionOp = new ASTOpFixed();
+				SurfaceConditionOp->op.type = OP_TYPE::BO_AND;
+				SurfaceConditionOp->SetChild(SurfaceConditionOp->op.args.BoolBinary.a, its.ObjectCondition );
+				SurfaceConditionOp->SetChild(SurfaceConditionOp->op.args.BoolBinary.b, its.SurfaceCondition );
 
-                if (surfaceCondition)
                 {
                     Ptr<ASTOpConditional> op = new ASTOpConditional();
                     op->type = OP_TYPE::IN_CONDITIONAL;
                     op->no = lastCompOp;
                     op->yes = surfaceAt;
-                    op->condition = surfaceCondition;
+                    op->condition = SurfaceConditionOp;
                     lastCompOp = op;
-                }
-                else
-                {
-                    lastCompOp = surfaceAt;
                 }
 
                 // Add the mesh with its condition
@@ -1756,13 +1781,13 @@ namespace mu
                     mergeAd = mop;
                 }
 
-                if (surfaceCondition)
+                if (SurfaceConditionOp)
                 {
                     Ptr<ASTOpConditional> op = new ASTOpConditional();
                     op->type = OP_TYPE::ME_CONDITIONAL;
                     op->no = lastMeshOp;
                     op->yes = mergeAd;
-                    op->condition = surfaceCondition;
+                    op->condition = SurfaceConditionOp;
                     lastMeshOp = op;
                 }
                 else
@@ -1799,6 +1824,10 @@ namespace mu
 	{
 		MUTABLE_CPUPROFILER_SCOPE(NodeObjectNew);
 
+		// There is always at least a null parent
+		bool bIsChildObject = CurrentParents.Num() > 1;
+
+		// Add this object as current parent
         CurrentParents.Add( FParentKey() );
         CurrentParents.Last().ObjectNode = InNode;
 
@@ -1837,6 +1866,12 @@ namespace mu
 
         // Create the expression adding all the components
 		Ptr<ASTOp> LastCompOp;
+		Ptr<ASTOp> PlaceholderOp;
+		if (bIsChildObject)
+		{
+			PlaceholderOp = new ASTOpInstanceAdd;
+			LastCompOp = PlaceholderOp;
+		}
 
 		// Add the components in this node
         for ( int32 t=0; t< InNode->Components.Num(); ++t )
@@ -1844,62 +1879,51 @@ namespace mu
 			const NodeComponent* ComponentNode = InNode->Components[t].get();
             if (ComponentNode)
             {
+				FComponentGenerationOptions ComponentOptions( Options, LastCompOp );
 				FGenericGenerationResult ComponentResult;
-				GenerateComponent(Options, ComponentResult, ComponentNode);
-
-				if (ComponentResult.op)
-				{
-					check(ComponentResult.op->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-					ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(ComponentResult.op.get());
-
-					check(!typedOp->instance.child());
-					typedOp->instance = LastCompOp;
-					LastCompOp = typedOp;
-				}
+				GenerateComponent(ComponentOptions, ComponentResult, ComponentNode);
+				LastCompOp = ComponentResult.op;
             }
         }
 
-		// Add the components from child objects
-		FAdditionalComponentKey thisKey;
-		thisKey.Lod = CurrentParents.Last().Lod;
-		thisKey.ObjectNode = CurrentParents.Last().ObjectNode;
-		TArray<Ptr<ASTOp>>* addIt = AdditionalComponents.Find(thisKey);
-		if (addIt)
+		// If we didn't generate anything, make sure we don't use the placeholder.
+		if (LastCompOp == PlaceholderOp)
 		{
-			for (const Ptr<ASTOp>& cop : *addIt)
+			LastCompOp = nullptr;
+			PlaceholderOp = nullptr;
+		}
+
+		// Add the components from child objects
+		FAdditionalComponentKey ThisKey;
+		ThisKey.ObjectNode = CurrentParents.Last().ObjectNode;
+		TArray<FAdditionalComponentData>* ThisAdditionalComponents = AdditionalComponents.Find(ThisKey);
+		if (LastCompOp && ThisAdditionalComponents)
+		{
+			for (const FAdditionalComponentData& Additional : *ThisAdditionalComponents)
 			{
-				// Add the additional components after the main ones, this means higher up in the op tree.
-
-				// First find the last op in the chain of IN_ADDCOMPONENT operations
-				check(cop->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-				ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(cop.get());
-				ASTOpInstanceAdd* bottomOp = typedOp;
-				while (bottomOp->instance)
-				{
-					// Step down
-					check(bottomOp->instance->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-					bottomOp = static_cast<ASTOpInstanceAdd*>(bottomOp->instance.child().get());
-				}
-
-				// Chain
-				bottomOp->instance = LastCompOp;
-				LastCompOp = typedOp;
+				check(Additional.PlaceholderOp);
+				ASTOp::Replace(Additional.PlaceholderOp, LastCompOp);
+				LastCompOp = Additional.ComponentOp;
 			}
 		}
 
-		// Store for possible parent objects if necessary
+		// Store this chain of components for use in parent objects if necessary
 		// 2 is because there must be a parent and there is always a null element as well.
-		if (LastCompOp && CurrentParents.Num() > 2)
+		if (LastCompOp && bIsChildObject)
 		{
-			const auto& parentObjectKey = CurrentParents[CurrentParents.Num() - 2];
-			FAdditionalComponentKey parentKey;
-			parentKey.Lod = CurrentParents.Last().Lod;
-			parentKey.ObjectNode = parentObjectKey.ObjectNode;
-			AdditionalComponents.FindOrAdd(parentKey).Add(LastCompOp);
+			// TODO: Directly to the root object?
+			const FParentKey& ParentObjectKey = CurrentParents[CurrentParents.Num() - 2];
+			FAdditionalComponentKey ParentKey;
+			ParentKey.ObjectNode = ParentObjectKey.ObjectNode;
+
+			FAdditionalComponentData Data;
+			Data.ComponentOp = LastCompOp;
+			Data.PlaceholderOp = PlaceholderOp;
+			AdditionalComponents.FindOrAdd(ParentKey).Add(Data);
 		}
 
 
-        Ptr<ASTOp> rootOp = LastCompOp;
+        Ptr<ASTOp> RootOp = LastCompOp;
 
 		// Add an ASTOpAddExtensionData for each connected ExtensionData node
 		for (const NodeObjectNew::FNamedExtensionDataNode& NamedNode : InNode->ExtensionDataNodes)
@@ -1936,7 +1960,7 @@ namespace mu
 			for (const FConditionalExtensionDataOp& SavedOp : ConditionalExtensionDataOps)
 			{
 				Ptr<ASTOpAddExtensionData> ExtensionPinOp = new ASTOpAddExtensionData();
-				ExtensionPinOp->Instance = ASTChild(ExtensionPinOp, rootOp);
+				ExtensionPinOp->Instance = ASTChild(ExtensionPinOp, RootOp);
 				ExtensionPinOp->ExtensionData = ASTChild(ExtensionPinOp, SavedOp.ExtensionDataOp);
 				ExtensionPinOp->ExtensionDataName = SavedOp.ExtensionDataName;
 
@@ -1944,22 +1968,22 @@ namespace mu
 				{
 					Ptr<ASTOpConditional> ConditionOp = new ASTOpConditional();
 					ConditionOp->type = OP_TYPE::IN_CONDITIONAL;
-					ConditionOp->no = rootOp;
+					ConditionOp->no = RootOp;
 					ConditionOp->yes = ExtensionPinOp;
 					ConditionOp->condition = ASTChild(ConditionOp, SavedOp.Condition);
 					
-					rootOp = ConditionOp;
+					RootOp = ConditionOp;
 				}
 				else
 				{
-					rootOp = ExtensionPinOp;
+					RootOp = ExtensionPinOp;
 				}
 			}
 		}
 
         CurrentParents.Pop();
 
-        Result.op = rootOp;
+        Result.op = RootOp;
     }
 
 

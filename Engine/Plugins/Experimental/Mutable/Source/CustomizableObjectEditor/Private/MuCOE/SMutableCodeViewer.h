@@ -31,6 +31,7 @@ class SMutableImageViewer;
 class SMutableIntViewer;
 class SMutableLayoutViewer;
 class SMutableMeshViewer;
+class SMutableInstanceViewer;
 class SMutableParametersWidget;
 class SMutableProjectorViewer;
 class SMutableScalarViewer;
@@ -107,7 +108,10 @@ private:
 	/** Widget used to show the preview of image operation results. Once created it is reused to preserve the settings. */
 	TSharedPtr<SMutableImageViewer> PreviewImageViewer;
 
-	/** Widget used to show a preview of the mesh and the metadata it holds */
+	/** Widget used to show a preview of an instance. */
+	TSharedPtr<SMutableInstanceViewer> PreviewInstanceViewer;
+
+	/** Widget used to show a preview of a mesh and the metadata it holds */
 	TSharedPtr<SMutableMeshViewer> PreviewMeshViewer;
 
 	/** Widget used to show a preview of a mutable bool value */
@@ -767,7 +771,7 @@ private:
 	 * Control of "Skip Mips" for image operations.
 	 */
 
-	/** Operation type we are using to search for tree nodes. Driven by the UI */
+	/** */
 	int32 MipsToSkip = 0;
 
 	/** */
@@ -801,6 +805,7 @@ private:
 	void PrepareStringViewer();
 	void PrepareImageViewer();
 	void PrepareMeshViewer();
+	void PrepareInstanceViewer();
 	void PrepareLayoutViewer();
 	void PrepareProjectorViewer();
 };

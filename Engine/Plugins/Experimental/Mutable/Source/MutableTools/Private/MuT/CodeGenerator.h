@@ -145,6 +145,19 @@ namespace mu
 			TArray<FString> ActiveTags;
 		};
 
+		struct FComponentGenerationOptions : public FGenericGenerationOptions
+		{
+			FComponentGenerationOptions(const FGenericGenerationOptions& BaseOptions, const Ptr<ASTOp>& InBaseInstance )
+			{
+				BaseInstance = InBaseInstance;
+				State = BaseOptions.State;
+				ActiveTags = BaseOptions.ActiveTags;
+			}
+
+			/** Instance to which the possibly generated components should be added. */
+			Ptr<ASTOp> BaseInstance;
+		};
+
 		struct FLODGenerationOptions : public FGenericGenerationOptions
 		{
 			FLODGenerationOptions(const FGenericGenerationOptions& BaseOptions, int32 InLODIndex, const NodeComponentNew* InComponent)
@@ -258,35 +271,38 @@ namespace mu
 
 		TArray< FParentKey > CurrentParents;
 
-        // List of additional components to add to an object that come from child objects.
-        // The index is the object and lod that should receive the components.
+        /** List of additional components to add to an object that come from child objects.
+        * The index is the object and lod that should receive the components.
+		*/
         struct FAdditionalComponentKey
         {
 			FAdditionalComponentKey()
             {
 				ObjectNode = nullptr;
-				Lod = -1;
             }
 
             const NodeObjectNew* ObjectNode;
-            int32 Lod;
 
 			FORCEINLINE bool operator==(const FAdditionalComponentKey& Other) const
 			{
-				return ObjectNode == Other.ObjectNode
-					&&
-					Lod == Other.Lod;
+				return ObjectNode == Other.ObjectNode;
 			}
 
 			friend FORCEINLINE uint32 GetTypeHash(const FAdditionalComponentKey& InKey)
 			{
 				uint32 KeyHash = 0;
 				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.ObjectNode));
-				KeyHash = HashCombineFast(KeyHash, ::GetTypeHash(InKey.Lod));
 				return KeyHash;
 			}
 		};
-        TMap< FAdditionalComponentKey, TArray<Ptr<ASTOp>> > AdditionalComponents;
+
+		struct FAdditionalComponentData
+		{
+			Ptr<ASTOp> ComponentOp;
+			Ptr<ASTOp> PlaceholderOp;
+		};
+
+        TMap< FAdditionalComponentKey, TArray<FAdditionalComponentData> > AdditionalComponents;
 
 
         struct FObjectGenerationData
@@ -349,8 +365,8 @@ namespace mu
 		typedef TMap<FGeneratedComponentCacheKey, FGenericGenerationResult> GeneratedComponentMap;
 		GeneratedComponentMap GeneratedComponents;
 
-		void GenerateComponent(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeComponent*);
-		void GenerateComponent_New(const FGenericGenerationOptions&, FGenericGenerationResult&, const NodeComponentNew*);
+		void GenerateComponent(const FComponentGenerationOptions&, FGenericGenerationResult&, const NodeComponent*);
+		void GenerateComponent_New(const FComponentGenerationOptions&, FGenericGenerationResult&, const NodeComponentNew*);
 
 		//-----------------------------------------------------------------------------------------
 

@@ -8,9 +8,6 @@
 
 template <typename ItemType> class SListView;
 
-class FAssetThumbnail;
-class FAssetThumbnailPool;
-class FReferenceCollector;
 class ITableRow;
 class SBorder;
 class SMutableMeshViewport;
@@ -27,10 +24,10 @@ struct FAssetData;
 /** Container designed to hold the buffer channel data of a mutable mesh buffer to be later used by the UI */
 struct FBufferChannelElement
 {
-	FText SemanticIndex = FText(INVTEXT(""));
-	FText BufferSemantic = FText(INVTEXT(""));
-	FText BufferFormat = FText(INVTEXT(""));
-	FText BufferComponentCount = FText(INVTEXT(""));
+	FText SemanticIndex;
+	FText BufferSemantic;
+	FText BufferFormat;
+	FText BufferComponentCount;
 };
 
 
@@ -38,7 +35,7 @@ struct FBufferChannelElement
 struct FBufferElement
 {
 	/** The index of the buffer on the origin mutable buffer set */
-	FText BufferIndex = FText(INVTEXT(""));
+	FText BufferIndex;
 
 	/** An array of BufferChannels that represent the relative mutable channels on the mutable buffer*/
 	TSharedPtr<TArray<TSharedPtr<FBufferChannelElement>>> BufferChannels;
@@ -75,10 +72,6 @@ private:
 	TArray<TSharedPtr<FString>> MeshTagList;
 	TSharedRef<ITableRow> GenerateTagRow(TSharedPtr<FString> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 
-	/** Thumbnail objects used to render a view of the selected skeletal mesh for the mesh viewport*/
-	TSharedPtr<FAssetThumbnailPool> AssetThumbnailPool;
-	TSharedPtr<FAssetThumbnail> AssetThumbnail;
-
 	/** Data backend for the widget. It represents the mesh that is being "displayed" */
 	mu::MeshPtrConst MutableMesh = nullptr;
 
@@ -106,13 +99,6 @@ private:
 
 	/** Generates the tables showing the buffer data on the mesh alongside with the bone tree found on the mutable mesh */
 	TSharedRef<SWidget> GenerateDataTableSlates();
-	
-	/** Width and height for the skeletal mesh thumbnail */
-	FVector2f ThumbnailSize = FVector2f();
-	FVector2f WidgetSize = FVector2f();
-
-	// Single property that only draws the combo box widget of the skeletal mesh
-	TSharedPtr<class ISinglePropertyView> SkeletalMeshSelector;
 	
 	/** Method called each time the mesh selected changes so the UI gets updated reliably */
 	void OnMeshChanged();

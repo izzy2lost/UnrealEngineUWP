@@ -18,6 +18,7 @@
 #include "MuCOE/SMutableIntViewer.h"
 #include "MuCOE/SMutableLayoutViewer.h"
 #include "MuCOE/SMutableMeshViewer.h"
+#include "MuCOE/SMutableInstanceViewer.h"
 #include "MuCOE/SMutableParametersWidget.h"
 #include "MuCOE/SMutableProjectorViewer.h"
 #include "MuCOE/SMutableScalarViewer.h"
@@ -1778,6 +1779,13 @@ void SMutableCodeViewer::OnSelectionChanged(TSharedPtr<FMutableCodeTreeElement> 
 		break;
 	}
 
+	case mu::DT_INSTANCE:
+	{
+		// Create or reuse the UI
+		PrepareInstanceViewer();
+		break;
+	}
+
 	case mu::DT_SCALAR:
 	{
 		// Create or reuse the UI
@@ -2621,7 +2629,7 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	case mu::DT_IMAGE:
 	{
 		check(PreviewImageViewer);
-		mu::ImagePtrConst MutableImage = System->GetPrivate()->BuildImage(MutableModel, PreviewParameters.get(), SelectedOperationAddress, MipsToSkip, 0);
+		mu::Ptr<const mu::Image> MutableImage = System->GetPrivate()->BuildImage(MutableModel, PreviewParameters.get(), SelectedOperationAddress, MipsToSkip, 0);
 		PreviewImageViewer->SetImage(MutableImage, 0);
 		break;
 	}
@@ -2629,8 +2637,16 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	case mu::DT_MESH:
 	{
 		check(PreviewMeshViewer);
-		mu::MeshPtrConst MutableMesh = System->GetPrivate()->BuildMesh(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
+		mu::Ptr<const mu::Mesh> MutableMesh = System->GetPrivate()->BuildMesh(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
 		PreviewMeshViewer->SetMesh(MutableMesh);
+		break;
+	}
+
+	case mu::DT_INSTANCE:
+	{
+		check(PreviewInstanceViewer);
+		mu::Ptr<const mu::Instance> MutableInstance = System->GetPrivate()->BuildInstance(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
+		PreviewInstanceViewer->SetInstance(MutableInstance, MutableModel, PreviewParameters, System);
 		break;
 	}
 
@@ -2645,7 +2661,7 @@ void SMutableCodeViewer::Tick(const FGeometry& AllottedGeometry, const double In
 	case mu::DT_INT:
 	{
 		check(PreviewIntViewer);
-		const int MutableInt = System->GetPrivate()->BuildInt(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
+		const int32 MutableInt = System->GetPrivate()->BuildInt(MutableModel, PreviewParameters.get(), SelectedOperationAddress);
 		PreviewIntViewer->SetInt(MutableInt);
 		break;
 	}
@@ -2731,6 +2747,16 @@ void SMutableCodeViewer::PrepareMeshViewer()
 	}
 
 	PreviewBorder->SetContent(PreviewMeshViewer.ToSharedRef());
+}
+
+void SMutableCodeViewer::PrepareInstanceViewer()
+{
+	if (!PreviewInstanceViewer)
+	{
+		PreviewInstanceViewer = SNew(SMutableInstanceViewer);
+	}
+
+	PreviewBorder->SetContent(PreviewInstanceViewer.ToSharedRef());
 }
 
 void SMutableCodeViewer::PrepareLayoutViewer()

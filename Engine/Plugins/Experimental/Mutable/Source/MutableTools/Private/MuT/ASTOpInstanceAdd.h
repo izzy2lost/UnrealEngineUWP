@@ -21,7 +21,7 @@ struct FProgram;
 	public:
 
 		//! Type of switch
-		OP_TYPE type;
+		OP_TYPE type = OP_TYPE::NONE;
 
 		ASTChild instance;
 		ASTChild value;

@@ -145,6 +145,11 @@ namespace mu
 
 	void FirstPassGenerator::Generate_Generic(const Node* Root)
 	{
+		if (!Root)
+		{
+			return;
+		}
+
 		if (Root->GetType()==NodeSurfaceNew::GetStaticType())
 		{
 			Generate_SurfaceNew(static_cast<const NodeSurfaceNew*>(Root));
@@ -168,6 +173,14 @@ namespace mu
 		else if (Root->GetType() == NodeComponentEdit::GetStaticType())
 		{
 			Generate_ComponentEdit(static_cast<const NodeComponentEdit*>(Root));
+		}
+		else if (Root->GetType() == NodeComponentSwitch::GetStaticType())
+		{
+			Generate_ComponentSwitch(static_cast<const NodeComponentSwitch*>(Root));
+		}
+		else if (Root->GetType() == NodeComponentVariation::GetStaticType())
+		{
+			Generate_ComponentVariation(static_cast<const NodeComponentVariation*>(Root));
 		}
 		else if (Root->GetType() == NodeObjectNew::GetStaticType())
 		{
@@ -456,6 +469,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void FirstPassGenerator::Generate_ComponentNew(const NodeComponentNew* InNode)
 	{
+		// Add the data about this surface
+		FComponent ThisData;
+		ThisData.Component = InNode;
+		ThisData.ObjectCondition = CurrentCondition.Last().ObjectCondition;
+		ThisData.PositiveTags = CurrentPositiveTags;
+		ThisData.NegativeTags = CurrentNegativeTags;
+		Components.Add(ThisData);
+
         CurrentComponent = InNode;
 
 		CurrentLOD = 0;
@@ -490,6 +511,90 @@ namespace mu
 		CurrentLOD = -1;
 
 		CurrentComponent = nullptr;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void FirstPassGenerator::Generate_ComponentVariation(const NodeComponentVariation* InNode)
+	{
+		// Any of the tags in the variations would prevent the default surface
+		TArray<FString> OldNegativeTags = CurrentNegativeTags;
+		for (int32 v = 0; v < InNode->Variations.Num(); ++v)
+		{
+			CurrentNegativeTags.Add(InNode->Variations[v].Tag);
+		}
+
+		Generate_Generic(InNode->DefaultComponent.get());
+
+		CurrentNegativeTags = OldNegativeTags;
+
+		for (int32 v = 0; v < InNode->Variations.Num(); ++v)
+		{
+			CurrentPositiveTags.Add(InNode->Variations[v].Tag);
+			Generate_Generic(InNode->Variations[v].Component.get());
+
+			CurrentPositiveTags.Pop();
+
+			// Tags have an order in a variation node: the current tag should prevent any following variation
+			CurrentNegativeTags.Add(InNode->Variations[v].Tag);
+		}
+
+		CurrentNegativeTags = OldNegativeTags;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void FirstPassGenerator::Generate_ComponentSwitch(const NodeComponentSwitch* InNode)
+	{
+		if (InNode->Options.Num() == 0)
+		{
+			// No options in the switch!
+			return;
+		}
+
+		// Prepare the enumeration parameter
+		CodeGenerator::FGenericGenerationOptions Options;
+		CodeGenerator::FScalarGenerationResult ScalarResult;
+		if (InNode->Parameter)
+		{
+			Generator->GenerateScalar(ScalarResult, Options, InNode->Parameter);
+		}
+		else
+		{
+			// This argument is required
+			ScalarResult.op = Generator->GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, InNode->GetMessageContext());
+		}
+
+		// Parse the options
+		for (int32 t = 0; t < InNode->Options.Num(); ++t)
+		{
+			// Create a comparison operation as the boolean parameter for the child
+			Ptr<ASTOpFixed> ParamOp = new ASTOpFixed();
+			ParamOp->op.type = OP_TYPE::BO_EQUAL_INT_CONST;
+			ParamOp->SetChild(ParamOp->op.args.BoolEqualScalarConst.value, ScalarResult.op);
+			ParamOp->op.args.BoolEqualScalarConst.constant = (int16)t;
+
+			// Combine the new condition with previous conditions coming from parent objects
+			if (CurrentCondition.Last().ObjectCondition)
+			{
+				Ptr<ASTOpFixed> op = new ASTOpFixed();
+				op->op.type = OP_TYPE::BO_AND;
+				op->SetChild(op->op.args.BoolBinary.a, CurrentCondition.Last().ObjectCondition);
+				op->SetChild(op->op.args.BoolBinary.b, ParamOp);
+				ParamOp = op;
+			}
+
+			FConditionContext data;
+			data.ObjectCondition = ParamOp;
+			CurrentCondition.Push(data);
+
+			if (InNode->Options[t])
+			{
+				Generate_Generic(InNode->Options[t].get());
+			}
+
+			CurrentCondition.Pop();
+		}
 	}
 
 
