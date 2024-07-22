@@ -615,8 +615,11 @@ void UObjectBaseUtility::ReloadObjectsFromModifiedConfigSections(const FConfigMo
 	};
 	
 	// Now that we have a list of classes to update, we can iterate objects and reload
-	ForEachObjectOfClasses(ClassesToReload, ReloadObjectImpl, RF_NoFlags);
-	
+	for (const UClass* ClassToReload : ClassesToReload)
+	{
+		ForEachObjectOfClass(ClassToReload, ReloadObjectImpl, true, RF_NoFlags);
+	}
+
 	// Reload any PerObjectConfig objects that were affected
 	for (auto ReloadObject : ObjectsToReload)
 	{
