@@ -37,6 +37,7 @@ public:
 	virtual TArray<URigVMPin*> GetAggregateInputs() const override;
 	virtual TArray<URigVMPin*> GetAggregateOutputs() const override;
 	virtual FName GetNextAggregateName(const FName& InLastAggregatePinName) const override;
+	virtual FName GetDisplayNameForPin(const FString& InPinPath) const override;
 
 	virtual bool IsOutDated() const override;
 	virtual FString GetDeprecatedMetadata() const override;

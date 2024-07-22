@@ -16,6 +16,7 @@ public:
 
 
 	void Construct(const FArguments& InArgs, UEdGraphPin* InGraphPinObj);
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 protected:
 

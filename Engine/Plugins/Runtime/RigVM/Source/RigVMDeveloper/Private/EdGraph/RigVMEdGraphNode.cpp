@@ -2063,7 +2063,7 @@ FEdGraphPinType URigVMEdGraphNode::GetPinTypeForModelPin(const URigVMPin* InMode
 
 FEdGraphPinType URigVMEdGraphNode::GetPinTypeForCategoryPin()
 {
-	static const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(NAME_None, FRigVMGraphFunctionCategory::StaticStruct());
+	static const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(NAME_None, FRigVMPinCategory::StaticStruct());
 	return PinType;
 }
 

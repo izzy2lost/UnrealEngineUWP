@@ -312,7 +312,7 @@ FText URigVMFunctionReferenceNode::GetToolTipTextForPin(const URigVMPin* InPin) 
 TArray<FString> URigVMFunctionReferenceNode::GetPinCategories() const
 {
 	TArray<FString> TransientPinCategories;
-	for(const FRigVMGraphFunctionCategory& Category : ReferencedFunctionHeader.Layout.Categories)
+	for(const FRigVMPinCategory& Category : ReferencedFunctionHeader.Layout.Categories)
 	{
 		TransientPinCategories.Add(Category.Path);
 	}

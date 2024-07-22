@@ -322,6 +322,15 @@ FName URigVMUnitNode::GetNextAggregateName(const FName& InLastAggregatePinName) 
 #endif
 }
 
+FName URigVMUnitNode::GetDisplayNameForPin(const FString& InPinPath) const
+{
+	if(const UScriptStruct* ScriptStruct = GetScriptStruct())
+	{
+		return GetDisplayNameForStructMember(ScriptStruct, InPinPath);
+	}
+	return Super::GetDisplayNameForPin(InPinPath);
+}
+
 UScriptStruct* URigVMUnitNode::GetScriptStruct() const
 {
 	if(UScriptStruct* ResolvedStruct = Super::GetScriptStruct())

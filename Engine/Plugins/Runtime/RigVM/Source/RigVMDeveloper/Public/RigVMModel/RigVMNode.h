@@ -5,9 +5,8 @@
 #include "RigVMPin.h"
 #include "RigVMCore/RigVM.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "RigVMCore/RigVMTrait.h"
 #include "RigVMCore/RigVMUserWorkflow.h"
-#include "RigVMCore/RigVMExecuteContext.h"
+#include "RigVMCore/RigVMGraphFunctionDefinition.h"
 #include "UObject/StructOnScope.h"
 #include "RigVMNode.generated.h"
 
@@ -100,6 +99,10 @@ public:
 	bool IsPinCategoryExpanded(FString InCategory) const;
 
 	const FString& GetLastAffectedPinCategory() const { return LastAffectedPinCategory; }
+
+	// Returns the pin UI layout for this node
+	UFUNCTION(BlueprintCallable, Category = RigVMNode)
+	FRigVMNodeLayout GetPinLayout() const;
 
 	// Returns the default value for a given pin
 	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;
@@ -371,6 +374,12 @@ public:
 
 	// returns the display name for a pin
 	virtual FName GetDisplayNameForPin(const FString& InPinPath) const;
+
+	// returns the display name for a struct member
+	static FName GetDisplayNameForStructMember(const UStruct* InStruct, const FString& InPath);
+
+	// returns the display name within a property
+	static FName GetDisplayNameForProperty(const FProperty* InProperty, const FString& InRemainingPath);
 
 	// returns the category for a pin
 	virtual FString GetCategoryForPin(const FString& InPinPath) const;

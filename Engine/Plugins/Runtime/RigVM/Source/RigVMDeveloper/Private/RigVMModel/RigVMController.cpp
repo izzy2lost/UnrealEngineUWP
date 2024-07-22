@@ -8263,18 +8263,29 @@ bool URigVMController::RemovePinCategory(const URigVMNode* InNode, const FString
 		GetActionStack()->BeginAction(Action);
 	}
 
+	int32 NumPinsAffected = 0;
 	for(URigVMPin* PinInCategory : PinsForCategory)
 	{
-		(void)SetPinCategory(PinInCategory, FString(), bSetupUndoRedo);
+		if(SetPinCategory(PinInCategory, FString(), bSetupUndoRedo))
+		{
+			NumPinsAffected++;
+		}
 	}
 
+	int32 NumCategoriesRemoved = 0;
 	for(const FString& CategoryToRemove : CategoriesToRemove)
 	{
-		const_cast<URigVMNode*>(InNode)->PinCategories.Remove(CategoryToRemove);
+		NumCategoriesRemoved += const_cast<URigVMNode*>(InNode)->PinCategories.Remove(CategoryToRemove);
 	}
-	Notify(ERigVMGraphNotifType::PinCategoriesChanged, const_cast<URigVMNode*>(InNode));
 
-	if (!bSuspendNotifications)
+	if(NumCategoriesRemoved > 0)
+	{
+		Notify(ERigVMGraphNotifType::PinCategoriesChanged, const_cast<URigVMNode*>(InNode));
+	}
+
+	const bool bHasMadeChange = (NumCategoriesRemoved + NumPinsAffected) > 0;
+	
+	if (!bSuspendNotifications && bHasMadeChange)
 	{
 		const URigVMGraph* Graph = GetGraph();
 		check(Graph);
@@ -8283,8 +8294,15 @@ bool URigVMController::RemovePinCategory(const URigVMNode* InNode, const FString
 
 	if (bSetupUndoRedo)
 	{
-		Action.UpdateAfterModification(InNode);
-		GetActionStack()->EndAction(Action);
+		if(bHasMadeChange)
+		{
+			Action.UpdateAfterModification(InNode);
+			GetActionStack()->EndAction(Action);
+		}
+		else
+		{
+			GetActionStack()->CancelAction(Action);
+		}
 	}
 
 	return true;
@@ -8710,6 +8728,198 @@ bool URigVMController::SetPinIndexInCategory(URigVMPin* InPin, int32 InIndexInCa
 	}
 
 	return true;
+}
+
+bool URigVMController::SetPinLayout(const FName& InNodeName, FRigVMNodeLayout InLayout, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	return SetPinLayout(Node, InLayout, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool URigVMController::SetPinLayout(const URigVMNode* InNode, FRigVMNodeLayout InLayout, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	int32 NumChanges = 0;
+	if(bSetupUndoRedo)
+	{
+		OpenUndoBracket(TEXT("Setting Pin Layout"));
+	}
+
+	// first remove any pin layout from the node
+	if(ClearPinLayout(InNode->GetFName(), bSetupUndoRedo, bPrintPythonCommand))
+	{
+		NumChanges++;
+	}
+
+	for(const TPair<FString,FString>& DisplayNamePair : InLayout.DisplayNames)
+	{
+		if(const URigVMPin* Pin = InNode->FindPin(DisplayNamePair.Key))
+		{
+			if(SetPinDisplayName(Pin->GetPinPath(), DisplayNamePair.Value, bSetupUndoRedo, bPrintPythonCommand))
+			{
+				NumChanges++;
+			}
+		}
+		else
+		{
+			// just a warning - not an error. the layout can still be applied
+			ReportWarningf(TEXT("Cannot find pin '%s' on node '%s' - ignoring display name provided by layout."), *DisplayNamePair.Key, *InNode->GetName());
+		}
+	}
+
+	for(const FRigVMPinCategory& Category : InLayout.Categories)
+	{
+		for(const FString& SegmentPath : Category.Elements)
+		{
+			if(const URigVMPin* Pin = InNode->FindPin(SegmentPath))
+			{
+				if(SetPinCategory(Pin->GetPinPath(), Category.Path, bSetupUndoRedo, bPrintPythonCommand))
+				{
+					NumChanges++;
+				}
+			}
+			else
+			{
+				// just a warning - not an error. the layout can still be applied
+				ReportWarningf(TEXT("Cannot find pin '%s' on node '%s' - ignoring pin category provided by layout."), *SegmentPath, *InNode->GetName());
+			}
+		}
+	}
+
+	for(const TPair<FString,int32>& PinIndexPair : InLayout.PinIndexInCategory)
+	{
+		if(const URigVMPin* Pin = InNode->FindPin(PinIndexPair.Key))
+		{
+			if(SetPinIndexInCategory(Pin->GetPinPath(), PinIndexPair.Value, bSetupUndoRedo, bPrintPythonCommand))
+			{
+				NumChanges++;
+			}
+		}
+		else
+		{
+			// just a warning - not an error. the layout can still be applied
+			ReportWarningf(TEXT("Cannot find pin '%s' on node '%s' - ignoring pin index provided by layout."), *PinIndexPair.Key, *InNode->GetName());
+		}
+	}
+
+	if(bSetupUndoRedo)
+	{
+		if(NumChanges > 0)
+		{
+			CloseUndoBracket();
+		}
+		else
+		{
+			CancelUndoBracket();
+		}
+	}
+
+	return NumChanges > 0;
+}
+
+bool URigVMController::ClearPinLayout(const FName& InNodeName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if (!IsValidGraph())
+	{
+		return false;
+	}
+
+	if (!bIsTransacting && !IsGraphEditable())
+	{
+		return false;
+	}
+
+	const URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
+	if (Node == nullptr)
+	{
+		ReportErrorf(TEXT("Cannot find node '%s'."), *InNodeName.ToString());
+		return false;
+	}
+
+	return ClearPinLayout(Node, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+bool URigVMController::ClearPinLayout(const URigVMNode* InNode, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	if(bSetupUndoRedo)
+	{
+		OpenUndoBracket(TEXT("Clearing Pin Layout"));
+	}
+
+	int32 NumChanges = 0;
+
+	TArray<FString> PinCategories = InNode->GetPinCategories();
+	// sort by length and reverse
+	PinCategories.Sort();
+	Algo::Reverse(PinCategories);
+
+	// remove all pin categories
+	for(const FString& PinCategory : PinCategories)
+	{
+		if(RemovePinCategory(InNode->GetFName(), PinCategory, bSetupUndoRedo, bPrintPythonCommand))
+		{
+			NumChanges++;
+		}
+	}
+
+	// reset all pin display names
+	const TArray<URigVMPin*> AllPins = InNode->GetAllPinsRecursively();
+	for(const URigVMPin* Pin : AllPins)
+	{
+		const FName DefaultDisplayName = InNode->GetDisplayNameForPin(Pin->GetSegmentPath(true));
+		if(!Pin->DisplayName.IsEqual(DefaultDisplayName, ENameCase::CaseSensitive))
+		{
+			if(SetPinDisplayName(Pin->GetPinPath(), FString(), bSetupUndoRedo, bPrintPythonCommand))
+			{
+				NumChanges++;
+			}
+		}
+	}
+
+	if(bSetupUndoRedo)
+	{
+		if(NumChanges > 0)
+		{
+			CloseUndoBracket();
+		}
+		else
+		{
+			CancelUndoBracket();
+		}
+	}
+
+	return NumChanges > 0;
 }
 
 bool URigVMController::SetPinCategories(const FName& InNodeName, const TArray<FString>& InCategories, bool bSetupUndoRedo)
@@ -16129,18 +16339,6 @@ void URigVMController::ConfigurePinFromProperty(FProperty* InProperty, URigVMPin
 
 #if WITH_EDITOR
 
-	if (!InOutPin->IsArrayElement())
-	{
-		FString DisplayNameText = InProperty->GetDisplayNameText().ToString();
-		if (!DisplayNameText.IsEmpty())
-		{
-			InOutPin->DisplayName = *DisplayNameText;
-		}
-		else
-		{
-			InOutPin->DisplayName = NAME_None;
-		}
-	}
 	InOutPin->bIsConstant = InProperty->HasMetaData(TEXT("Constant"));
 	FString CustomWidgetName = InProperty->GetMetaData(TEXT("CustomWidget"));
 	InOutPin->CustomWidgetName = CustomWidgetName.IsEmpty() ? FName(NAME_None) : FName(*CustomWidgetName);

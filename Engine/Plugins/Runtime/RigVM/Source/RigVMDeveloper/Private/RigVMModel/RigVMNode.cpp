@@ -281,6 +281,54 @@ bool URigVMNode::IsPinCategoryExpanded(FString InCategory) const
 	return false;
 }
 
+FRigVMNodeLayout URigVMNode::GetPinLayout() const
+{
+	FRigVMNodeLayout Layout;
+	
+	// fill in the pin categories based on the data stored on the pins themselves
+	const TArray<URigVMPin*> AllPins = GetAllPinsRecursively();
+	TMap<FString, FRigVMPinCategory> CategoryMap;
+	for(const URigVMPin* Pin : AllPins)
+	{
+		if(!Pin->UserDefinedCategory.IsEmpty())
+		{
+			FRigVMPinCategory& Category = CategoryMap.FindOrAdd(Pin->UserDefinedCategory);
+			Category.Path = Pin->UserDefinedCategory;
+			Category.Elements.Add(Pin->GetSegmentPath(true));
+		}
+	}
+
+	// add the categories in the order they have been added
+	for(const FString& PinCategory : PinCategories)
+	{
+		if(const FRigVMPinCategory* Category = CategoryMap.Find(PinCategory))
+		{
+			Layout.Categories.Add(*Category);
+		}
+	}
+
+	// fill in all user provided display names and pin category indices
+	for(const URigVMPin* Pin : AllPins)
+	{
+		const FString SegmentPath = Pin->GetSegmentPath(true);
+		
+		if(!Pin->GetCategory().IsEmpty() && Pin->GetIndexInCategory() != INDEX_NONE)
+		{
+			Layout.PinIndexInCategory.Add(SegmentPath, Pin->GetIndexInCategory());
+		}
+
+		if(!Pin->DisplayName.IsNone())
+		{
+			if(!Pin->DisplayName.IsEqual(GetDisplayNameForPin(SegmentPath), ENameCase::CaseSensitive))
+			{
+				Layout.DisplayNames.Add(SegmentPath, Pin->DisplayName.ToString());
+			}
+		}
+	}
+
+	return Layout;
+}
+
 FString URigVMNode::GetOriginalPinDefaultValue(const URigVMPin* InPin) const
 {
 	const FString CompleteSegmentPath = InPin->GetSegmentPath(true);
@@ -817,7 +865,58 @@ UScriptStruct* URigVMNode::GetTraitScriptStruct(const URigVMPin* InTraitPin) con
 
 FName URigVMNode::GetDisplayNameForPin(const FString& InPinPath) const
 {
+	if(const URigVMPin* Pin = FindPin(InPinPath))
+	{
+		if(Pin->IsArrayElement())
+		{
+			return *FString::FromInt(Pin->GetPinIndex());
+		}
+	}
 	return NAME_None;
+}
+
+FName URigVMNode::GetDisplayNameForStructMember(const UStruct* InStruct, const FString& InPath)
+{
+	check(InStruct);
+	if(!InPath.IsEmpty())
+	{
+		FString Left, Right;
+		if(!RigVMStringUtils::SplitPinPathAtStart(InPath, Left, Right))
+		{
+			Left = InPath;
+		}
+
+		if(const FProperty* Property = InStruct->FindPropertyByName(*Left))
+		{
+			return GetDisplayNameForProperty(Property, Right);
+		}
+	}
+	return NAME_None;
+}
+
+FName URigVMNode::GetDisplayNameForProperty(const FProperty* InProperty, const FString& InRemainingPath)
+{
+	check(InProperty);
+
+	FText DisplayNameText = InProperty->GetDisplayNameText();
+
+	if(!InRemainingPath.IsEmpty())
+	{
+		const FRigVMPropertyPath PropertyPath(InProperty, InRemainingPath);
+		if(PropertyPath.IsValid())
+		{
+			if(const FProperty* TailProperty = PropertyPath.GetTailProperty())
+			{
+				DisplayNameText = TailProperty->GetDisplayNameText();
+			}
+		}
+	}
+
+	if(DisplayNameText.IsEmpty())
+	{
+		return NAME_None;
+	}
+	return *DisplayNameText.ToString();
 }
 
 FString URigVMNode::GetCategoryForPin(const FString& InPinPath) const
