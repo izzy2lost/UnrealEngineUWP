@@ -1499,7 +1499,7 @@ public:
 	FRDGBufferRef LumenHardwareRayTracingHitDataBuffer = nullptr;
 
 	// Global Lumen parameters for CHS, AHS and inline
-	TRDGUniformBufferRef<FLumenHardwareRayTracingUniformBufferParameters> LumenHardwareRayTracingUniformBuffer = nullptr;
+	TUniformBufferRef<FLumenHardwareRayTracingUniformBufferParameters> LumenHardwareRayTracingUniformBuffer;
 
 	TArray<FRayTracingLocalShaderBindingWriter*, SceneRenderingAllocator>	RayTracingMaterialBindings; // One per binding task
 	TArray<FRayTracingLocalShaderBindingWriter*, SceneRenderingAllocator>	RayTracingCallableBindings; // One per binding task

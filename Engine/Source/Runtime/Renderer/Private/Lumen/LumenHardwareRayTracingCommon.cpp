@@ -391,7 +391,7 @@ void SetLumenHardwareRayTracingSharedParameters(
 
 	// Inline
 	SharedParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
-	SharedParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer ? View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer : nullptr;
+	SharedParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
 	checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
 	SharedParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
 

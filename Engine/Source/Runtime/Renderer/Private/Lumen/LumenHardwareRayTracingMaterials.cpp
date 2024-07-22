@@ -50,7 +50,7 @@ class FLumenHardwareRayTracingMaterialHitGroup : public FGlobalShader
 	SHADER_USE_ROOT_PARAMETER_STRUCT(FLumenHardwareRayTracingMaterialHitGroup, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
+		SHADER_PARAMETER_STRUCT_REF(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_REF(FNaniteRayTracingUniformParameters, NaniteRayTracing)
 		SHADER_PARAMETER_STRUCT_REF(FSceneUniformParameters, Scene)
@@ -114,13 +114,13 @@ class FLumenHardwareRayTracingMaterialMS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FLumenHardwareRayTracingMaterialMS, "/Engine/Private/Lumen/LumenHardwareRayTracingMaterials.usf", "LumenHardwareRayTracingMaterialMS", SF_RayMiss);
 
-void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingUniformBuffer(FRDGBuilder& GraphBuilder, FViewInfo& View)
+void FDeferredShadingSceneRenderer::SetupLumenHardwareRayTracingUniformBuffer(FViewInfo& View)
 {
-	FLumenHardwareRayTracingUniformBufferParameters* LumenHardwareRayTracingUniformBufferParameters = GraphBuilder.AllocParameters<FLumenHardwareRayTracingUniformBufferParameters>();
-	LumenHardwareRayTracingUniformBufferParameters->SkipBackFaceHitDistance = CVarLumenHardwareRayTracingSkipBackFaceHitDistance.GetValueOnRenderThread();
-	LumenHardwareRayTracingUniformBufferParameters->SkipTwoSidedHitDistance = CVarLumenHardwareRayTracingSkipTwoSidedHitDistance.GetValueOnRenderThread();
-	LumenHardwareRayTracingUniformBufferParameters->SkipTranslucent         = LumenReflections::UseTranslucentRayTracing(View) ? 0.0f : 1.0f;
-	View.LumenHardwareRayTracingUniformBuffer = GraphBuilder.CreateUniformBuffer(LumenHardwareRayTracingUniformBufferParameters);
+	FLumenHardwareRayTracingUniformBufferParameters LumenHardwareRayTracingUniformBufferParameters;
+	LumenHardwareRayTracingUniformBufferParameters.SkipBackFaceHitDistance = CVarLumenHardwareRayTracingSkipBackFaceHitDistance.GetValueOnRenderThread();
+	LumenHardwareRayTracingUniformBufferParameters.SkipTwoSidedHitDistance = CVarLumenHardwareRayTracingSkipTwoSidedHitDistance.GetValueOnRenderThread();
+	LumenHardwareRayTracingUniformBufferParameters.SkipTranslucent         = LumenReflections::UseTranslucentRayTracing(View) ? 0.0f : 1.0f;	
+	View.LumenHardwareRayTracingUniformBuffer = TUniformBufferRef<FLumenHardwareRayTracingUniformBufferParameters>::CreateUniformBufferImmediate(LumenHardwareRayTracingUniformBufferParameters, UniformBuffer_SingleFrame);
 }
 
 uint32 CalculateLumenHardwareRayTracingUserData(const FRayTracingMeshCommand& MeshCommand)
@@ -244,7 +244,7 @@ void FDeferredShadingSceneRenderer::CreateLumenHardwareRayTracingMaterialPipelin
 	// launch tasks to setup bindings
 	{
 		FRHIUniformBuffer* SceneUniformBuffer = GetSceneUniforms().GetBufferRHI(GraphBuilder);
-		FRHIUniformBuffer* LumenHardwareRayTracingUniformBuffer = GraphBuilder.ConvertToExternalUniformBuffer(View.LumenHardwareRayTracingUniformBuffer);
+		FRHIUniformBuffer* LumenHardwareRayTracingUniformBuffer = View.LumenHardwareRayTracingUniformBuffer;
 
 		struct FBinding
 		{
