@@ -112,13 +112,17 @@ Name | Description
 
 ## ConfigInclude
 
+Directive to merge config data from another source
+
 Name | Description
 ---- | -----------
-`path` | `string`<br>
+`path` | `string`<br>Path to the config data to be included. May be relative to the including file's location.
 
 ## ConfigMacro
 
+Declares a config macro
+
 Name | Description
 ---- | -----------
-`name` | `string`<br>
-`value` | `string`<br>
+`name` | `string`<br>Name of the macro property
+`value` | `string`<br>Value for the macro property

@@ -41,10 +41,12 @@ Name | Description
 
 ## DirectoryReference
 
+Representation of an absolute directory path. Allows fast hashing and comparisons.
+
 Name | Description
 ---- | -----------
-`parentDirectory` | [`DirectoryReference`](#directoryreference)<br>
-`fullName` | `string`<br>
+`parentDirectory` | [`DirectoryReference`](#directoryreference)<br>Gets the directory containing this object
+`fullName` | `string`<br>The path to this object. Stored as an absolute path, with O/S preferred separator characters, and no trailing slash for directories.
 
 ## MountNetworkShare
 
