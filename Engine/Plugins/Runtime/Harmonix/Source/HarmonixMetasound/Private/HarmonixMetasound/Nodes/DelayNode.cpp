@@ -277,6 +277,13 @@ namespace HarmonixMetasound::DelayNode
 			if (Inputs.MidiClock.IsSet())
 			{
 				InVertexData.BindReadVertex(Inputs::MidiClockName, *Inputs.MidiClock);
+
+				// Set the tempo and speed after we bind here
+				const FMidiClockReadRef Clock = *Inputs.MidiClock;
+				LastTempo = Clock->GetTempoAtStartOfBlock();
+				LastSpeed = Clock->GetSpeedAtStartOfBlock();
+				Delay.SetTempo(LastTempo);
+				Delay.SetSpeed(LastSpeed);
 			}
 			InVertexData.BindReadVertex(Inputs::DelayTimeTypeName, Inputs.DelayTimeType);
 			InVertexData.BindReadVertex(Inputs::DelayTimeName, Inputs.DelayTime);
