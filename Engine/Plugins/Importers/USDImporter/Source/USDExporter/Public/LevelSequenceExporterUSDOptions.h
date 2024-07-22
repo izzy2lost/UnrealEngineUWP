@@ -78,6 +78,14 @@ public:
 	bool bUseExportedLevelAsSublayer = true;
 
 	/**
+	 * If you have multiple instances of a same LevelSequence subsection with spawnables, setting this to true means each separate
+	 * subsection instance will get its own individual copy of the prim exported for the spawnable. Setting this to false means that
+	 * only a single prim will be exported for that spawnable, and shared for all subsection instances.
+	 */
+	UPROPERTY(EditAnywhere, config, BlueprintReadWrite, Category = "Level Sequence")
+	bool bExportSeparatePrimsPerSpawnableInstance = true;
+
+	/**
 	 * Whether to export levels and LevelSequences even if the existing files already describe the same versions of compatible assets.
 	 * This is only checked when bReplaceIdentical is set on the asset export task. Otherwise we'll never overwrite files.
 	 */
