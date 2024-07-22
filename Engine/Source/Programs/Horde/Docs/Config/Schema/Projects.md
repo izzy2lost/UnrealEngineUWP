@@ -9,19 +9,19 @@ Name | Description
 `id` | `string`<br>The project id
 `name` | `string`<br>Name for the new project
 `path` | `string`<br>Direct include path for the project config. For backwards compatibility with old config files when including from a GlobalConfig object.
-`include` | [`ConfigInclude`](#configinclude)`[]`<br>Includes for other configuration files
-`macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within the global scope
+`include` | [ConfigInclude](#configinclude)`[]`<br>Includes for other configuration files
+`macros` | [ConfigMacro](#configmacro)`[]`<br>Macros within the global scope
 `order` | `integer`<br>Order of this project on the dashboard
 `logo` | `string`<br>Path to the project logo
 `logoDarkTheme` | `string`<br>Optional path to the project logo for the dark theme
-`pools` | [`PoolConfig`](#poolconfig)`[]`<br>List of pools for this project
-`categories` | [`ProjectCategoryConfig`](#projectcategoryconfig)`[]`<br>Categories to include in this project
-`jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for executing jobs
-`workspaceTypes` | `string` `->` [`WorkspaceConfig`](#workspaceconfig)<br>Default workspace types for streams These are added to the list of each stream's workspace types.
+`pools` | [PoolConfig](#poolconfig)`[]`<br>List of pools for this project
+`categories` | [ProjectCategoryConfig](#projectcategoryconfig)`[]`<br>Categories to include in this project
+`jobOptions` | [JobOptions](#joboptions)<br>Default settings for executing jobs
+`workspaceTypes` | `string` `->` [WorkspaceConfig](#workspaceconfig)<br>Default workspace types for streams These are added to the list of each stream's workspace types.
 `telemetryStoreId` | `string`<br>Telemetry store for Horde data for this project
-`streams` | [`StreamConfig`](Streams.md)`[]`<br>List of streams
-`artifactTypes` | [`ArtifactTypeAclConfig`](#artifacttypeaclconfig)`[]`<br>Permissions for artifact types
-`acl` | [`AclConfig`](#aclconfig)<br>Acl entries
+`streams` | [StreamConfig](Streams.md)`[]`<br>List of streams
+`artifactTypes` | [ArtifactTypeAclConfig](#artifacttypeaclconfig)`[]`<br>Permissions for artifact types
+`acl` | [AclConfig](#aclconfig)<br>Acl entries
 
 ## ConfigInclude
 
@@ -51,7 +51,7 @@ Name | Description
 `name` | `string`<br>Name of the pool
 `condition` | `string`<br>Condition for agents to automatically be included in this pool
 `properties` | `string` `->` `string`<br>Arbitrary properties related to this pool
-`color` | [`PoolColor`](#poolcolor-enum)<br>Color to use for this pool on the dashboard
+`color` | [PoolColor](#poolcolor-enum)<br>Color to use for this pool on the dashboard
 `enableAutoscaling` | `boolean`<br>Whether to enable autoscaling for this pool
 `minAgents` | `integer`<br>The minimum number of agents to keep in the pool
 `numReserveAgents` | `integer`<br>The minimum number of idle agents to hold in reserve
@@ -59,12 +59,12 @@ Name | Description
 `scaleOutCooldown` | `string`<br>Cooldown time between scale-out events
 `scaleInCooldown` | `string`<br>Cooldown time between scale-in events
 `shutdownIfDisabledGracePeriod` | `string`<br>Time to wait before shutting down an agent that has been disabled
-`sizeStrategy` | [`PoolSizeStrategy`](#poolsizestrategy-enum)<br>
-`sizeStrategies` | [`PoolSizeStrategyInfo`](#poolsizestrategyinfo)`[]`<br>List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
-`fleetManagers` | [`FleetManagerInfo`](#fleetmanagerinfo)`[]`<br>List of fleet managers for this pool. The first strategy with a matching condition will be picked. If empty or no conditions match, a default fleet manager will be used.
-`leaseUtilizationSettings` | [`LeaseUtilizationSettings`](#leaseutilizationsettings)<br>Settings for lease utilization pool sizing strategy (if used)
-`jobQueueSettings` | [`JobQueueSettings`](#jobqueuesettings)<br>Settings for job queue pool sizing strategy (if used)
-`computeQueueAwsMetricSettings` | [`ComputeQueueAwsMetricSettings`](#computequeueawsmetricsettings)<br>Settings for job queue pool sizing strategy (if used)
+`sizeStrategy` | [PoolSizeStrategy](#poolsizestrategy-enum)<br>
+`sizeStrategies` | [PoolSizeStrategyInfo](#poolsizestrategyinfo)`[]`<br>List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
+`fleetManagers` | [FleetManagerInfo](#fleetmanagerinfo)`[]`<br>List of fleet managers for this pool. The first strategy with a matching condition will be picked. If empty or no conditions match, a default fleet manager will be used.
+`leaseUtilizationSettings` | [LeaseUtilizationSettings](#leaseutilizationsettings)<br>Settings for lease utilization pool sizing strategy (if used)
+`jobQueueSettings` | [JobQueueSettings](#jobqueuesettings)<br>Settings for job queue pool sizing strategy (if used)
+`computeQueueAwsMetricSettings` | [ComputeQueueAwsMetricSettings](#computequeueawsmetricsettings)<br>Settings for job queue pool sizing strategy (if used)
 
 ## PoolColor (Enum)
 
@@ -96,7 +96,7 @@ Metadata for configuring and picking a pool sizing strategy
 
 Name | Description
 ---- | -----------
-`type` | [`PoolSizeStrategy`](#poolsizestrategy-enum)<br>Strategy implementation to use
+`type` | [PoolSizeStrategy](#poolsizestrategy-enum)<br>Strategy implementation to use
 `condition` | `string`<br>Condition if this strategy should be enabled (right now, using date/time as a distinguishing factor)
 `config` | `string`<br>Configuration for the strategy, serialized as JSON
 `extraAgentCount` | `integer`<br>Integer to add after pool size has been calculated. Can also be negative.
@@ -107,7 +107,7 @@ Metadata for configuring and picking a fleet manager
 
 Name | Description
 ---- | -----------
-`type` | [`FleetManagerType`](#fleetmanagertype-enum)<br>Fleet manager type implementation to use
+`type` | [FleetManagerType](#fleetmanagertype-enum)<br>Fleet manager type implementation to use
 `condition` | `string`<br>Condition if this strategy should be enabled (right now, using date/time as a distinguishing factor)
 `config` | `string`<br>Configuration for the strategy, serialized as JSON
 
@@ -178,7 +178,7 @@ Name | Description
 `useWine` | `boolean`<br>Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean`<br>Executes the job lease in a separate process
 `workspaceMaterializer` | `string`<br>What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
-`container` | [`JobContainerOptions`](#jobcontaineroptions)<br>Options for executing a job inside a container
+`container` | [JobContainerOptions](#jobcontaineroptions)<br>Options for executing a job inside a container
 `expireAfterDays` | `integer`<br>Number of days after which to expire jobs
 `driver` | `string`<br>Name of the driver to use
 
@@ -221,7 +221,7 @@ ACL configuration for an artifact type
 Name | Description
 ---- | -----------
 `type` | `string`<br>Name of the artifact type
-`acl` | [`AclConfig`](#aclconfig)<br>Acl for the artifact type
+`acl` | [AclConfig](#aclconfig)<br>Acl for the artifact type
 
 ## AclConfig
 
@@ -229,8 +229,8 @@ Parameters to update an ACL
 
 Name | Description
 ---- | -----------
-`entries` | [`AclEntryConfig`](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
-`profiles` | [`AclProfileConfig`](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
+`entries` | [AclEntryConfig](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
+`profiles` | [AclProfileConfig](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
 `inherit` | `boolean`<br>Whether to inherit permissions from the parent ACL
 `exceptions` | `string[]`<br>List of exceptions to the inherited setting
 
@@ -240,7 +240,7 @@ Individual entry in an ACL
 
 Name | Description
 ---- | -----------
-`claim` | [`AclClaimConfig`](#aclclaimconfig)<br>Name of the user or group
+`claim` | [AclClaimConfig](#aclclaimconfig)<br>Name of the user or group
 `actions` | `string[]`<br>Array of actions to allow
 `profiles` | `string[]`<br>List of profiles to grant
 

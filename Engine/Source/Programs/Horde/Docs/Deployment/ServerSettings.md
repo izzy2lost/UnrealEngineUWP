@@ -6,7 +6,7 @@ All Horde-specific settings are stored in a root object called `Horde`. Other .N
 
 Name | Description
 ---- | -----------
-`runModes` | [`RunMode`](#runmode-enum)`[]`<br>Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
+`runModes` | [RunMode](#runmode-enum)`[]`<br>Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
 `dataDir` | `string`<br>Override the data directory used by Horde. Defaults to C:\ProgramData\HordeServer on Windows, {AppDir}/Data on other platforms.
 `installed` | `boolean`<br>Whether the server is running in 'installed' mode. In this mode, on Windows, the default data directory will use the common application data folder (C:\ProgramData\Epic\Horde), and configuration data will be read from here and the registry. This setting is overridden to false for local builds from appsettings.Local.json.
 `httpPort` | `integer`<br>Main port for serving HTTP.
@@ -22,7 +22,7 @@ Name | Description
 `databaseReadOnlyMode` | `boolean`<br>
 `shutdownMemoryThreshold` | `integer`<br>Shutdown the current server process if memory usage reaches this threshold (specified in MB)<br>Usually set to 80-90% of available memory to avoid CLR heap using all of it. If a memory leak was to occur, it's usually better to restart the process rather than to let the GC work harder and harder trying to recoup memory.<br>Should only be used when multiple server processes are running behind a load balancer and one can be safely restarted automatically by the underlying process handler (Docker, Kubernetes, AWS ECS, Supervisor etc). The shutdown behaves similar to receiving a SIGTERM and will wait for outstanding requests to finish.
 `serverPrivateCert` | `string`<br>Optional PFX certificate to use for encrypting agent SSL traffic. This can be a self-signed certificate, as long as it's trusted by agents.
-`authMethod` | [`AuthMethod`](#authmethod-enum)<br>Issuer for tokens from the auth provider
+`authMethod` | [AuthMethod](#authmethod-enum)<br>Issuer for tokens from the auth provider
 `oidcProfileName` | `string`<br>Optional profile name to report through the /api/v1/server/auth endpoint. Allows sharing auth tokens between providers configured through the same profile name in OidcToken.exe config files.
 `oidcAuthority` | `string`<br>Issuer for tokens from the auth provider
 `oidcAudience` | `string`<br>Audience for validating externally issued tokens
@@ -63,8 +63,8 @@ Name | Description
 `configPath` | `string`<br>Path to the root config file. Relative to the server.json file by default.
 `forceConfigUpdateOnStartup` | `boolean`<br>Forces configuration data to be read and updated as part of appplication startup, rather than on a schedule. Useful when running locally.
 `openBrowser` | `boolean`<br>Whether to open a browser on startup
-`featureFlags` | [`FeatureFlagSettings`](#featureflagsettings)<br>Experimental features to enable on the server.
-`openTelemetry` | [`OpenTelemetrySettings`](#opentelemetrysettings)<br>Options for OpenTelemetry
+`featureFlags` | [FeatureFlagSettings](#featureflagsettings)<br>Experimental features to enable on the server.
+`openTelemetry` | [OpenTelemetrySettings](#opentelemetrysettings)<br>Options for OpenTelemetry
 
 ## RunMode (Enum)
 
@@ -106,7 +106,7 @@ Name | Description
 `enableDatadogCompatibility` | `boolean`<br>Whether to enrich and format telemetry to fit presentation in Datadog
 `attributes` | `string` `->` `string`<br>Extra attributes to set
 `enableConsoleExporter` | `boolean`<br>Whether to enable the console exporter (for debugging purposes)
-`protocolExporters` | `string` `->` [`OpenTelemetryProtocolExporterSettings`](#opentelemetryprotocolexportersettings)<br>Protocol exporters (key is a unique and arbitrary name)
+`protocolExporters` | `string` `->` [OpenTelemetryProtocolExporterSettings](#opentelemetryprotocolexportersettings)<br>Protocol exporters (key is a unique and arbitrary name)
 
 ## OpenTelemetryProtocolExporterSettings
 

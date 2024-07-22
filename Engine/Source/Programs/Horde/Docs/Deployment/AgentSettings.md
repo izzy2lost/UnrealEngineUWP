@@ -6,15 +6,15 @@ All Horde-specific settings are stored in a root object called `Horde`. Other .N
 
 Name | Description
 ---- | -----------
-`serverProfiles` | `string` `->` [`ServerProfile`](#serverprofile)<br>Known servers to connect to
+`serverProfiles` | `string` `->` [ServerProfile](#serverprofile)<br>Known servers to connect to
 `server` | `string`<br>The default server, unless overridden from the command line
 `name` | `string`<br>Name of agent to report as when connecting to server. By default, the computer's hostname will be used.
 `installed` | `boolean`<br>Whether the server is running in 'installed' mode. In this mode, on Windows, the default data directory will use the common application data folder (C:\ProgramData\Epic\Horde), and configuration data will be read from here and the registry. This setting is overridden to false for local builds from appsettings.Local.json.
 `ephemeral` | `boolean`<br>Whether agent should register as being ephemeral. Doing so will not persist any long-lived data on the server and once disconnected it's assumed to have been deleted permanently. Ideal for short-lived agents, such as spot instances on AWS EC2.
-`workingDir` | [`DirectoryReference`](#directoryreference)<br>Working directory for leases and jobs (i.e where files from Perforce will be checked out)
-`logsDir` | [`DirectoryReference`](#directoryreference)<br>Directory where agent and lease logs are written
+`workingDir` | [DirectoryReference](#directoryreference)<br>Working directory for leases and jobs (i.e where files from Perforce will be checked out)
+`logsDir` | [DirectoryReference](#directoryreference)<br>Directory where agent and lease logs are written
 `shareMountingEnabled` | `boolean`<br>Whether to mount the specified list of network shares
-`shares` | [`MountNetworkShare`](#mountnetworkshare)`[]`<br>List of network shares to mount
+`shares` | [MountNetworkShare](#mountnetworkshare)`[]`<br>List of network shares to mount
 `wineExecutablePath` | `string`<br>Path to Wine executable. If null, execution under Wine is disabled
 `containerEngineExecutablePath` | `string`<br>Path to container engine executable, such as /usr/bin/podman. If null, execution of compute workloads inside a container is disabled
 `writeStepOutputToLogger` | `boolean`<br>Whether to write step output to the logging device
@@ -45,7 +45,7 @@ Representation of an absolute directory path. Allows fast hashing and comparison
 
 Name | Description
 ---- | -----------
-`parentDirectory` | [`DirectoryReference`](#directoryreference)<br>Gets the directory containing this object
+`parentDirectory` | [DirectoryReference](#directoryreference)<br>Gets the directory containing this object
 `fullName` | `string`<br>The path to this object. Stored as an absolute path, with O/S preferred separator characters, and no trailing slash for directories.
 
 ## MountNetworkShare

@@ -7,10 +7,10 @@ Config for metrics
 Name | Description
 ---- | -----------
 `id` | `string`<br>Identifier for this store
-`acl` | [`AclConfig`](#aclconfig)<br>Permissions for this store
-`metrics` | [`MetricConfig`](#metricconfig)`[]`<br>Metrics to aggregate on the Horde server
-`include` | [`ConfigInclude`](#configinclude)`[]`<br>Includes for other configuration files
-`macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within this configuration
+`acl` | [AclConfig](#aclconfig)<br>Permissions for this store
+`metrics` | [MetricConfig](#metricconfig)`[]`<br>Metrics to aggregate on the Horde server
+`include` | [ConfigInclude](#configinclude)`[]`<br>Includes for other configuration files
+`macros` | [ConfigMacro](#configmacro)`[]`<br>Macros within this configuration
 
 ## AclConfig
 
@@ -18,8 +18,8 @@ Parameters to update an ACL
 
 Name | Description
 ---- | -----------
-`entries` | [`AclEntryConfig`](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
-`profiles` | [`AclProfileConfig`](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
+`entries` | [AclEntryConfig](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
+`profiles` | [AclProfileConfig](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
 `inherit` | `boolean`<br>Whether to inherit permissions from the parent ACL
 `exceptions` | `string[]`<br>List of exceptions to the inherited setting
 
@@ -29,7 +29,7 @@ Individual entry in an ACL
 
 Name | Description
 ---- | -----------
-`claim` | [`AclClaimConfig`](#aclclaimconfig)<br>Name of the user or group
+`claim` | [AclClaimConfig](#aclclaimconfig)<br>Name of the user or group
 `actions` | `string[]`<br>Array of actions to allow
 `profiles` | `string[]`<br>List of profiles to grant
 
@@ -63,7 +63,7 @@ Name | Description
 `filter` | `string`<br>Filter expression to evaluate to determine which events to include. This query is evaluated against an array.
 `property` | `string`<br>Property to aggregate
 `groupBy` | `string`<br>Property to group by. Specified as a comma-separated list of JSON path expressions.
-`function` | [`AggregationFunction`](#aggregationfunction-enum)<br>How to aggregate samples for this metric
+`function` | [AggregationFunction](#aggregationfunction-enum)<br>How to aggregate samples for this metric
 `percentile` | `integer`<br>For the percentile function, specifies the percentile to measure
 `interval` | `string`<br>Interval for each metric. Supports times such as "2d", "1h", "1h30m", "20s".
 

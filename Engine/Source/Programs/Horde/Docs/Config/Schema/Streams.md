@@ -8,8 +8,8 @@ Name | Description
 ---- | -----------
 `id` | `string`<br>Identifier for the stream
 `path` | `string`<br>Direct include path for the stream config. For backwards compatibility with old config files when including from a ProjectConfig object.
-`include` | [`ConfigInclude`](#configinclude)`[]`<br>Includes for other configuration files
-`macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within this stream
+`include` | [ConfigInclude](#configinclude)`[]`<br>Includes for other configuration files
+`macros` | [ConfigMacro](#configmacro)`[]`<br>Macros within this stream
 `name` | `string`<br>Name of the stream
 `clusterName` | `string`<br>The perforce cluster containing the stream
 `order` | `integer`<br>Order for this stream
@@ -17,24 +17,24 @@ Name | Description
 `notificationChannel` | `string`<br>Notification channel for all jobs in this stream
 `notificationChannelFilter` | `string`<br>Notification channel filter for this template. Can be Success, Failure, or Warnings.
 `triageChannel` | `string`<br>Channel to post issue triage notifications
-`jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for executing jobs
+`jobOptions` | [JobOptions](#joboptions)<br>Default settings for executing jobs
 `telemetryStoreId` | `string`<br>Telemetry store for Horde data for this stream
 `autoSdkView` | `string[]`<br>View for the AutoSDK paths to sync. If null, the whole thing will be synced.
 `defaultPreflightTemplate` | `string`<br>Legacy name for the default preflight template
-`defaultPreflight` | [`DefaultPreflightConfig`](#defaultpreflightconfig)<br>Default template for running preflights
-`commitTags` | [`CommitTagConfig`](#committagconfig)`[]`<br>List of tags to apply to commits. Allows fast searching and classification of different commit types (eg. code vs content).
-`tabs` | [`TabConfig`](#tabconfig)`[]`<br>List of tabs to show for the new stream
+`defaultPreflight` | [DefaultPreflightConfig](#defaultpreflightconfig)<br>Default template for running preflights
+`commitTags` | [CommitTagConfig](#committagconfig)`[]`<br>List of tags to apply to commits. Allows fast searching and classification of different commit types (eg. code vs content).
+`tabs` | [TabConfig](#tabconfig)`[]`<br>List of tabs to show for the new stream
 `environment` | `string` `->` `string`<br>Global environment variables for all agents in this stream
-`agentTypes` | `string` `->` [`AgentConfig`](#agentconfig)<br>Map of agent name to type
-`workspaceTypes` | `string` `->` [`WorkspaceConfig`](#workspaceconfig)<br>Map of workspace name to type
-`templates` | [`TemplateRefConfig`](#templaterefconfig)`[]`<br>List of templates to create
-`acl` | [`AclConfig`](#aclconfig)<br>Custom permissions for this object
+`agentTypes` | `string` `->` [AgentConfig](#agentconfig)<br>Map of agent name to type
+`workspaceTypes` | `string` `->` [WorkspaceConfig](#workspaceconfig)<br>Map of workspace name to type
+`templates` | [TemplateRefConfig](#templaterefconfig)`[]`<br>List of templates to create
+`acl` | [AclConfig](#aclconfig)<br>Custom permissions for this object
 `pausedUntil` | `string`<br>Pause stream builds until specified date
 `pauseComment` | `string`<br>Reason for pausing builds of the stream
-`replicators` | [`ReplicatorConfig`](#replicatorconfig)`[]`<br>Configuration for workers to replicate commit data into Horde Storage.
-`workflows` | [`WorkflowConfig`](#workflowconfig)`[]`<br>Workflows for dealing with new issues
-`tokens` | [`TokenConfig`](#tokenconfig)`[]`<br>Tokens to create for each job step
-`artifactTypes` | [`ArtifactTypeAclConfig`](#artifacttypeaclconfig)`[]`<br>Permissions for artifact types
+`replicators` | [ReplicatorConfig](#replicatorconfig)`[]`<br>Configuration for workers to replicate commit data into Horde Storage.
+`workflows` | [WorkflowConfig](#workflowconfig)`[]`<br>Workflows for dealing with new issues
+`tokens` | [TokenConfig](#tokenconfig)`[]`<br>Tokens to create for each job step
+`artifactTypes` | [ArtifactTypeAclConfig](#artifacttypeaclconfig)`[]`<br>Permissions for artifact types
 
 ## ConfigInclude
 
@@ -63,7 +63,7 @@ Name | Description
 `useWine` | `boolean`<br>Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean`<br>Executes the job lease in a separate process
 `workspaceMaterializer` | `string`<br>What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
-`container` | [`JobContainerOptions`](#jobcontaineroptions)<br>Options for executing a job inside a container
+`container` | [JobContainerOptions](#jobcontaineroptions)<br>Options for executing a job inside a container
 `expireAfterDays` | `integer`<br>Number of days after which to expire jobs
 `driver` | `string`<br>Name of the driver to use
 
@@ -85,7 +85,7 @@ Specifies defaults for running a preflight
 Name | Description
 ---- | -----------
 `templateId` | `string`<br>The template id to query
-`change` | [`ChangeQueryConfig`](#changequeryconfig)<br>Query for the change to use
+`change` | [ChangeQueryConfig](#changequeryconfig)<br>Query for the change to use
 
 ## ChangeQueryConfig
 
@@ -97,7 +97,7 @@ Name | Description
 `condition` | `string`<br>Condition to evaluate before deciding to use this query. May query tags in a preflight.
 `templateId` | `string`<br>The template id to query
 `target` | `string`<br>The target to query
-`outcomes` | [`JobStepOutcome`](#jobstepoutcome-enum)`[]`<br>Whether to match a job that produced warnings
+`outcomes` | [JobStepOutcome](#jobstepoutcome-enum)`[]`<br>Whether to match a job that produced warnings
 `commitTag` | `string`<br>Finds the last commit with this tag
 
 ## JobStepOutcome (Enum)
@@ -129,12 +129,12 @@ Name | Description
 ---- | -----------
 `title` | `string`<br>Title of this page
 `type` | `string`<br>Type of this tab
-`style` | [`TabStyle`](#tabstyle-enum)<br>Presentation style for this page
+`style` | [TabStyle](#tabstyle-enum)<br>Presentation style for this page
 `showNames` | `boolean`<br>Whether to show job names on this page
 `showPreflights` | `boolean`<br>Whether to show all user preflights
 `jobNames` | `string[]`<br>Names of jobs to include on this page. If there is only one name specified, the name column does not need to be displayed.
 `templates` | `string[]`<br>List of job template names to show on this page.
-`columns` | [`TabColumnConfig`](#tabcolumnconfig)`[]`<br>Columns to display for different types of aggregates
+`columns` | [TabColumnConfig](#tabcolumnconfig)`[]`<br>Columns to display for different types of aggregates
 
 ## TabStyle (Enum)
 
@@ -151,7 +151,7 @@ Describes a column to display on the jobs page
 
 Name | Description
 ---- | -----------
-`type` | [`TabColumnType`](#tabcolumntype-enum)<br>The type of column
+`type` | [TabColumnType](#tabcolumntype-enum)<br>The type of column
 `heading` | `string`<br>Heading for this column
 `category` | `string`<br>Category of aggregates to display in this column. If null, includes any aggregate not matched by another column.
 `parameter` | `string`<br>Parameter to show in this column
@@ -177,7 +177,7 @@ Name | Description
 `workspace` | `string`<br>Name of the workspace to sync
 `tempStorageDir` | `string`<br>Path to the temporary storage dir
 `environment` | `string` `->` `string`<br>Environment variables to be set when executing the job
-`tokens` | [`TokenConfig`](#tokenconfig)`[]`<br>Tokens to allocate for this agent type
+`tokens` | [TokenConfig](#tokenconfig)`[]`<br>Tokens to allocate for this agent type
 
 ## TokenConfig
 
@@ -226,22 +226,22 @@ Name | Description
 `triageChannel` | `string`<br>Triage channel for this template. Overrides the stream channel if set.
 `workflowId` | `string`<br>Workflow to user for this stream
 `annotations` | `string` `->` `string`<br>Default annotations to apply to nodes in this template
-`schedule` | [`ScheduleConfig`](#scheduleconfig)<br>Schedule to execute this template
-`chainedJobs` | [`ChainedJobTemplateConfig`](#chainedjobtemplateconfig)`[]`<br>List of chained job triggers
-`acl` | [`AclConfig`](#aclconfig)<br>The ACL for this template
+`schedule` | [ScheduleConfig](#scheduleconfig)<br>Schedule to execute this template
+`chainedJobs` | [ChainedJobTemplateConfig](#chainedjobtemplateconfig)`[]`<br>List of chained job triggers
+`acl` | [AclConfig](#aclconfig)<br>The ACL for this template
 `name` | `string`<br>Name for the new template
 `description` | `string`<br>Description for the template
-`priority` | [`Priority`](#priority-enum)<br>Default priority for this job
+`priority` | [Priority](#priority-enum)<br>Default priority for this job
 `allowPreflights` | `boolean`<br>Whether to allow preflights of this template
 `updateIssues` | `boolean`<br>Whether issues should be updated for all jobs using this template
 `promoteIssuesByDefault` | `boolean`<br>Whether issues should be promoted by default for this template, promoted issues will generate user notifications
 `initialAgentType` | `string`<br>Initial agent type to parse the buildgraph script on
 `submitNewChange` | `string`<br>Path to a file within the stream to submit to generate a new changelist for jobs
 `submitDescription` | `string`<br>Description for new changelists
-`defaultChange` | [`ChangeQueryConfig`](#changequeryconfig)`[]`<br>Default change to build at. Each object has a condition parameter which can evaluated by the server to determine which change to use.
+`defaultChange` | [ChangeQueryConfig](#changequeryconfig)`[]`<br>Default change to build at. Each object has a condition parameter which can evaluated by the server to determine which change to use.
 `arguments` | `string[]`<br>Fixed arguments for the new job
-`parameters` | [`TextParameterData`](#textparameterdata)/[`ListParameterData`](#listparameterdata)/[`BoolParameterData`](#boolparameterdata)`[]`<br>Parameters for this template
-`jobOptions` | [`JobOptions`](#joboptions)<br>Default settings for jobs
+`parameters` | [TextParameterData](#textparameterdata)/[ListParameterData](#listparameterdata)/[BoolParameterData](#boolparameterdata)`[]`<br>Parameters for this template
+`jobOptions` | [JobOptions](#joboptions)<br>Default settings for jobs
 
 ## ScheduleConfig
 
@@ -249,17 +249,17 @@ Parameters to create a new schedule
 
 Name | Description
 ---- | -----------
-`claims` | [`AclClaimConfig`](#aclclaimconfig)`[]`<br>Roles to impersonate for this schedule
+`claims` | [AclClaimConfig](#aclclaimconfig)`[]`<br>Roles to impersonate for this schedule
 `enabled` | `boolean`<br>Whether the schedule should be enabled
 `maxActive` | `integer`<br>Maximum number of builds that can be active at once
 `maxChanges` | `integer`<br>Maximum number of changes the schedule can fall behind head revision. If greater than zero, builds will be triggered for every submitted changelist until the backlog is this size.
 `requireSubmittedChange` | `boolean`<br>Whether the build requires a change to be submitted
-`gate` | [`ScheduleGateConfig`](#schedulegateconfig)<br>Gate allowing the schedule to trigger
+`gate` | [ScheduleGateConfig](#schedulegateconfig)<br>Gate allowing the schedule to trigger
 `commits` | `string[]`<br>Commit tags for this schedule
-`filter` | [`ChangeContentFlags`](#changecontentflags-enum)`[]`<br>The types of changes to run for
+`filter` | [ChangeContentFlags](#changecontentflags-enum)`[]`<br>The types of changes to run for
 `files` | `string[]`<br>Files that should cause the job to trigger
 `templateParameters` | `string` `->` `string`<br>Parameters for the template
-`patterns` | [`SchedulePatternConfig`](#schedulepatternconfig)`[]`<br>New patterns for the schedule
+`patterns` | [SchedulePatternConfig](#schedulepatternconfig)`[]`<br>New patterns for the schedule
 
 ## AclClaimConfig
 
@@ -294,7 +294,7 @@ Parameters to create a new schedule
 
 Name | Description
 ---- | -----------
-`daysOfWeek` | [`DayOfWeek`](#dayofweek-enum)`[]`<br>Days of the week to run this schedule on. If null, the schedule will run every day.
+`daysOfWeek` | [DayOfWeek](#dayofweek-enum)`[]`<br>Days of the week to run this schedule on. If null, the schedule will run every day.
 `minTime` | `string`<br>Time during the day for the first schedule to trigger. Measured in minutes from midnight.
 `maxTime` | `string`<br>Time during the day for the last schedule to trigger. Measured in minutes from midnight.
 `interval` | `string`<br>Interval between each schedule triggering
@@ -327,8 +327,8 @@ Parameters to update an ACL
 
 Name | Description
 ---- | -----------
-`entries` | [`AclEntryConfig`](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
-`profiles` | [`AclProfileConfig`](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
+`entries` | [AclEntryConfig](#aclentryconfig)`[]`<br>Entries to replace the existing ACL
+`profiles` | [AclProfileConfig](#aclprofileconfig)`[]`<br>Defines profiles which allow grouping sets of actions into named collections
 `inherit` | `boolean`<br>Whether to inherit permissions from the parent ACL
 `exceptions` | `string[]`<br>List of exceptions to the inherited setting
 
@@ -338,7 +338,7 @@ Individual entry in an ACL
 
 Name | Description
 ---- | -----------
-`claim` | [`AclClaimConfig`](#aclclaimconfig)<br>Name of the user or group
+`claim` | [AclClaimConfig](#aclclaimconfig)<br>Name of the user or group
 `actions` | `string[]`<br>Array of actions to allow
 `profiles` | `string[]`<br>List of profiles to grant
 
@@ -392,8 +392,8 @@ Name | Description
 ---- | -----------
 `type` | List<br>Type discriminator
 `label` | `string`<br>Label to display next to this parameter. Defaults to the parameter name.
-`style` | [`ListParameterStyle`](#listparameterstyle-enum)<br>The type of list parameter
-`items` | [`ListParameterItemData`](#listparameteritemdata)`[]`<br>List of values to display in the list
+`style` | [ListParameterStyle](#listparameterstyle-enum)<br>The type of list parameter
+`items` | [ListParameterItemData](#listparameteritemdata)`[]`<br>List of values to display in the list
 `toolTip` | `string`<br>Tool tip text to display
 
 ## ListParameterStyle (Enum)
@@ -475,7 +475,7 @@ Name | Description
 `inviteRestrictedUsers` | `boolean`<br>Uses the admin.conversations.invite API to invite users to the channel
 `skipWhenEmpty` | `boolean`<br>Skips sending reports when there are no active issues.
 `annotations` | `string` `->` `string`<br>Additional node annotations implicit in this workflow
-`externalIssues` | [`ExternalIssueConfig`](#externalissueconfig)<br>External issue tracking configuration for this workflow
+`externalIssues` | [ExternalIssueConfig](#externalissueconfig)<br>External issue tracking configuration for this workflow
 `issueHandlers` | `string[]`<br>Additional issue handlers enabled for this workflow
 
 ## ExternalIssueConfig
@@ -495,4 +495,4 @@ ACL configuration for an artifact type
 Name | Description
 ---- | -----------
 `type` | `string`<br>Name of the artifact type
-`acl` | [`AclConfig`](#aclconfig)<br>Acl for the artifact type
+`acl` | [AclConfig](#aclconfig)<br>Acl for the artifact type

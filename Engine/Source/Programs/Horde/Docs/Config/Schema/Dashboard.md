@@ -13,11 +13,11 @@ Name | Description
 `showPerforceServers` | `boolean`<br>Show the Perforce server option on the server menu
 `showDeviceManager` | `boolean`<br>Show the device manager on the server menu
 `showTests` | `boolean`<br>Show automated tests on the server menu
-`agentCategories` | [`DashboardAgentCategoryConfig`](#dashboardagentcategoryconfig)`[]`<br>Configuration for different agent pages
-`poolCategories` | [`DashboardPoolCategoryConfig`](#dashboardpoolcategoryconfig)`[]`<br>Configuration for different pool pages
-`analytics` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]`<br>Configuration for telemetry views
-`include` | [`ConfigInclude`](#configinclude)`[]`<br>Includes for other configuration files
-`macros` | [`ConfigMacro`](#configmacro)`[]`<br>Macros within this configuration
+`agentCategories` | [DashboardAgentCategoryConfig](#dashboardagentcategoryconfig)`[]`<br>Configuration for different agent pages
+`poolCategories` | [DashboardPoolCategoryConfig](#dashboardpoolcategoryconfig)`[]`<br>Configuration for different pool pages
+`analytics` | [TelemetryViewConfig](#telemetryviewconfig)`[]`<br>Configuration for telemetry views
+`include` | [ConfigInclude](#configinclude)`[]`<br>Includes for other configuration files
+`macros` | [ConfigMacro](#configmacro)`[]`<br>Macros within this configuration
 
 ## DashboardAgentCategoryConfig
 
@@ -46,8 +46,8 @@ Name | Description
 `id` | `string`<br>Identifier for the view
 `name` | `string`<br>The name of the view
 `telemetryStoreId` | `string`<br>The telemetry store this view uses
-`variables` | [`TelemetryVariableConfig`](#telemetryvariableconfig)`[]`<br>The variables used to filter the view data
-`categories` | [`TelemetryCategoryConfig`](#telemetrycategoryconfig)`[]`<br>The categories contained within the view
+`variables` | [TelemetryVariableConfig](#telemetryvariableconfig)`[]`<br>The variables used to filter the view data
+`categories` | [TelemetryCategoryConfig](#telemetrycategoryconfig)`[]`<br>The categories contained within the view
 
 ## TelemetryVariableConfig
 
@@ -66,7 +66,7 @@ A chart categody, will be displayed on the dashbord under an associated pivot
 Name | Description
 ---- | -----------
 `name` | `string`<br>The name of the category
-`charts` | [`TelemetryChartConfig`](#telemetrychartconfig)`[]`<br>The charts contained within the category
+`charts` | [TelemetryChartConfig](#telemetrychartconfig)`[]`<br>The charts contained within the category
 
 ## TelemetryChartConfig
 
@@ -75,9 +75,9 @@ Telemetry chart configuraton
 Name | Description
 ---- | -----------
 `name` | `string`<br>The name of the chart, will be displayed on the dashboard
-`display` | [`TelemetryMetricUnitType`](#telemetrymetricunittype-enum)<br>The unit to display
-`graph` | [`TelemetryMetricGraphType`](#telemetrymetricgraphtype-enum)<br>The graph type
-`metrics` | [`TelemetryChartMetricConfig`](#telemetrychartmetricconfig)`[]`<br>List of configured metrics
+`display` | [TelemetryMetricUnitType](#telemetrymetricunittype-enum)<br>The unit to display
+`graph` | [TelemetryMetricGraphType](#telemetrymetricgraphtype-enum)<br>The graph type
+`metrics` | [TelemetryChartMetricConfig](#telemetrychartmetricconfig)`[]`<br>List of configured metrics
 `min` | `integer`<br>The min unit value for clamping chart
 `max` | `integer`<br>The max unit value for clamping chart
 
