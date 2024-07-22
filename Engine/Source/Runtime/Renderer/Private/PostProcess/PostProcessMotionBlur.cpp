@@ -955,7 +955,7 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 			RDG_EVENT_NAME("MotionBlur FilterTileClassify %dx%d", FilterTileCount.X, FilterTileCount.Y),
 			ComputeShader,
 			PassParameters,
-			FComputeShaderUtils::GetGroupCount(FilterTileCount, 8));
+			FComputeShaderUtils::GetGroupCount(FilterTileCount, kMotionBlurFilterTileSize));
 	}
 
 	// Setup the filter's dispatch parameters.
