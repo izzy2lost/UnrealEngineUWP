@@ -5080,8 +5080,7 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 				}
 			}
 		}
-		// Bounds component properties
-		else
+		else if (const UUsdDrawModeComponent* DrawModeComponent = Cast<const UUsdDrawModeComponent>(&Component))
 		{
 			Attr = {};
 			if (pxr::UsdGeomModelAPI GeomModelAPI{UsdPrim})
