@@ -101,6 +101,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
 	bool bShowTransformTrackOnCameraComponentWarning = true;
 
+	// Whether to show the warning dialog when authoring new visibility tracks from Unreal
+	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
+	bool bShowInheritedVisibilityWarning = true;
+
 	// Whether to display the pop up dialog asking what to do about dirty USD layers when saving the UE level
 	UPROPERTY(config, EditAnywhere, Category = "USD|Dialogs")
 	EUsdSaveDialogBehavior ShowSaveLayersDialogWhenSaving = EUsdSaveDialogBehavior::ShowPrompt;
