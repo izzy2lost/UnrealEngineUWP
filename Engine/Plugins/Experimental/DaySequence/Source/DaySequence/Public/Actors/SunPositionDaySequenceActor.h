@@ -16,6 +16,9 @@ class DAYSEQUENCE_API ASunPositionDaySequenceActor
 {
 	GENERATED_BODY()
 
+public:
+	ASunPositionDaySequenceActor(const FObjectInitializer& Init);
+
 protected:
 	virtual void Tick(float DeltaTime) override;
 
@@ -27,6 +30,10 @@ protected:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
+
+protected:
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category= "Day Sequence", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UDirectionalLightComponent> MoonComponent;
 	
 private:
 	
