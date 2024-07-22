@@ -12,6 +12,7 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
+#include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 #include "ToolMenus.h"
 #include "ToolMenu.h"
 #include "Widgets/PropertyAnimatorCoreEditorEditPanelOptions.h"
@@ -282,32 +283,27 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 
 void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemBody(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorBodyBuilder& InBodyBuilder)
 {
-	// Customize animator body
-	if (InItem->IsA<UPropertyAnimatorCoreBase>())
-	{
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
-
-		InBodyBuilder
-			.SetShowDetailsView(true)
-			.DisallowProperty(EnableProperty);
-	}
-
-	Super::CustomizeItemBody(InItem, InItemTree, InBodyBuilder);
-}
-
-void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemFooter(const FOperatorStackEditorItemPtr& InItem, const FOperatorStackEditorTree& InItemTree, FOperatorStackEditorFooterBuilder& InFooterBuilder)
-{
-	// Customize component footer
 	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
 		FProperty* MagnitudeProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, AnimatorsMagnitude));
 
-		InFooterBuilder
+		InBodyBuilder
 			.AllowProperty(MagnitudeProperty)
 			.SetShowDetailsView(true);
 	}
+	// Customize animator body
+	else if (InItem->IsA<UPropertyAnimatorCoreBase>())
+	{
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
+		FProperty* TimeElapsedProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreTimeSourceBase::StaticClass(), UPropertyAnimatorCoreTimeSourceBase::GetTimeElapsedPropertyName());
 
-	Super::CustomizeItemFooter(InItem, InItemTree, InFooterBuilder);
+		InBodyBuilder
+			.SetShowDetailsView(true)
+			.DisallowProperty(EnableProperty)
+			.DisallowProperty(TimeElapsedProperty);
+	}
+
+	Super::CustomizeItemBody(InItem, InItemTree, InBodyBuilder);
 }
 
 bool UPropertyAnimatorCoreEditorStackCustomization::OnIsItemSelectable(const FOperatorStackEditorItemPtr& InItem)
