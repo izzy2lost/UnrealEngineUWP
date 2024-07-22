@@ -4069,7 +4069,9 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 				}
 				else
 				{
-					RelativeTransform = Component.GetRelativeTransform();
+					// Use the world transform here, because while we may not have an *original* attach parent, this sequence
+					// could have attach tracks, meaning that we may gain a different attach parent at some point
+					RelativeTransform = Component.GetComponentTransform();
 				}
 
 				RelativeTransform = CameraCompensation * RelativeTransform * InverseParentCameraCompensation;
