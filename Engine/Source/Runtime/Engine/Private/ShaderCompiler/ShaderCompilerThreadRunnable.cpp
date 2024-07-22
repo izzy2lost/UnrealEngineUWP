@@ -6,10 +6,12 @@
 =============================================================================*/
 
 #include "ShaderCompilerPrivate.h"
+#include "ShaderCompilerMemoryLimit.h"
 
 #include "Async/ParallelFor.h"
 #include "HAL/PlatformFile.h"
 #include "HAL/PlatformFileManager.h"
+#include "Logging/StructuredLog.h"
 #include "Misc/ScopeTryLock.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "ProfilingDebugging/DiagnosticTable.h"
@@ -31,6 +33,15 @@ static TAutoConsoleVariable<bool> CVarCompileParallelInProcess(
 	TEXT("EXPERIMENTAL- If true, shader compilation will be executed in-process in parallel. Note that this will serialize if the legacy preprocessor is enabled."),
 	ECVF_ReadOnly);
 
+int32 GShaderCompilerMemoryLimit = 0;
+static FAutoConsoleVariableRef CVarShaderCompilerMemoryLimit(
+	TEXT("r.ShaderCompiler.MemoryLimit"),
+	GShaderCompilerMemoryLimit,
+	TEXT("Specifies a memory limit (in MiB) for all ShaderCompileWorker (SCW) processes.") \
+	TEXT("If the total memory consumption of all SCW processes exceeds this limit, the editor will start to suspend workers and reschedule compile jobs.") \
+	TEXT("By default 0, effectively disabling the limitation. If this is non-zero, it must be greater than or equal to 1024 since shader compilation must be granted at least 1024 MiB of memory in total."),
+	ECVF_ReadOnly);
+
 // Configuration to retry shader compile through workers after a worker has been abandoned
 static constexpr int32 GSingleThreadedRunsDisabled = -2;
 static constexpr int32 GSingleThreadedRunsIncreaseFactor = 8;
@@ -38,6 +49,25 @@ static constexpr int32 GSingleThreadedRunsMaxCount = (1 << 24);
 
 static const TCHAR* GWorkerInputFilename = TEXT("WorkerInputOnly.in");
 static const TCHAR* GWorkerOutputFilename = TEXT("WorkerOutputOnly.out");
+
+
+static FResourceRestrictedJobObject GSCWResourceRestrictedJobObject(TEXT("UE.ShaderCompileWorker.JobGroup"));
+
+// Apply memory limits (see CVar r.ShaderCompiler.MemoryLimit) to by assigning input process to resource restricted job object
+// and initialize this job object here, since we can't guarantee execution order of static global object (i.e. global cvar and the job object).
+static void ApplyWorkerProcessMemoryLimits(const FProcHandle& Process)
+{
+	if (GShaderCompilerMemoryLimit > 0)
+	{
+		static bool bIsJobObjectLimitInitialized;
+		if (!bIsJobObjectLimitInitialized)
+		{
+			GSCWResourceRestrictedJobObject.SetMemoryLimit(GShaderCompilerMemoryLimit);
+			bIsJobObjectLimitInitialized = true;
+		}
+		GSCWResourceRestrictedJobObject.AssignProcess(Process);
+	}
+}
 
 
 /** Information tracked for each shader compile worker process instance. */
@@ -246,6 +276,12 @@ int32 FShaderCompileThreadRunnable::PullTasksFromQueue()
 			}
 		};
 
+	// Check if memory limitations has been violated and suspend workers as needed
+	if (GShaderCompilerMemoryLimit > 0)
+	{
+		CheckMemoryLimitViolation();
+	}
+
 	FScopeLock WorkerScopeLock(&WorkerInfosLock); // Must be entered before CompileQueueSection
 
 	int32 NumActiveThreads = 0;
@@ -387,13 +423,13 @@ void FShaderCompileThreadRunnable::PushCompletedJobsToManager()
 				Manager->ProcessFinishedJob(Job.GetReference());
 			}
 
-			const float ElapsedTime = FPlatformTime::Seconds() - CurrentWorkerInfo.StartTime;
+			const double ElapsedTime = FPlatformTime::Seconds() - CurrentWorkerInfo.StartTime;
 
 			Manager->WorkersBusyTime += ElapsedTime;
 			COOK_STAT(ShaderCompilerCookStats::AsyncCompileTimeSec += ElapsedTime);
 
 			// Log if requested or if there was an exceptionally slow batch, to see the offender easily
-			if (Manager->bLogJobCompletionTimes || ElapsedTime > 60.0f)
+			if (Manager->bLogJobCompletionTimes || ElapsedTime > 60.0)
 			{
 				TArray<FShaderCommonCompileJobPtr> SortedJobs = CurrentWorkerInfo.QueuedJobs;
 				SortedJobs.Sort([](const FShaderCommonCompileJobPtr& JobA, const FShaderCommonCompileJobPtr& JobB)
@@ -401,8 +437,8 @@ void FShaderCompileThreadRunnable::PushCompletedJobsToManager()
 						const FShaderCompileJob* SingleJobA = JobA->GetSingleShaderJob();
 						const FShaderCompileJob* SingleJobB = JobB->GetSingleShaderJob();
 
-						const float TimeA = SingleJobA ? SingleJobA->Output.CompileTime : 0.0f;
-						const float TimeB = SingleJobB ? SingleJobB->Output.CompileTime : 0.0f;
+						const double TimeA = SingleJobA ? SingleJobA->Output.CompileTime : 0.0f;
+						const double TimeB = SingleJobB ? SingleJobB->Output.CompileTime : 0.0f;
 
 						return TimeA > TimeB;
 					});
@@ -566,7 +602,7 @@ void FShaderCompileThreadRunnable::WriteNewTasks()
 		double IODuration = FPlatformTime::Seconds() - StartIOWork;
 		if (IODuration > GShaderCompilerTooLongIOThresholdSeconds)
 		{
-			UE_LOG(LogShaderCompilers, Display, TEXT("FShaderCompileThreadRunnable::WriteNewTasks()() took too long (%.3f seconds, threshold is %.3f s), will parallelize next time."), IODuration, GShaderCompilerTooLongIOThresholdSeconds);
+			UE_LOG(LogShaderCompilers, Display, TEXT("FShaderCompileThreadRunnable::WriteNewTasks() took too long (%.3f seconds, threshold is %.3f s), will parallelize next time."), IODuration, GShaderCompilerTooLongIOThresholdSeconds);
 			bParallelizeIO = true;
 		}
 	}
@@ -653,6 +689,9 @@ bool FShaderCompileThreadRunnable::LaunchWorkersIfNeeded()
 				// Store the handle with this thread so that we will know not to launch it again
 				CurrentWorkerInfo.WorkerProcess = Manager->LaunchWorker(WorkingDirectory, Manager->ProcessId, WorkerIndex, GWorkerInputFilename, GWorkerOutputFilename);
 				CurrentWorkerInfo.bLaunchedWorker = true;
+
+				// Assign process to job object to monitor the total memory consumption of all SCW processes
+				ApplyWorkerProcessMemoryLimits(CurrentWorkerInfo.WorkerProcess);
 
 				NumberLaunched++;
 			}
@@ -842,6 +881,12 @@ void FShaderCompileThreadRunnable::PrintWorkerMemoryUsageWithLockTaken()
 	}
 }
 
+int32 FShaderCompileThreadRunnable::GetNumberOfWorkers() const
+{
+	FScopeLock WorkerScopeLock(&WorkerInfosLock);
+	return WorkerInfos.Num();
+}
+
 int32 FShaderCompileThreadRunnable::GetNumberOfAvailableWorkersUnsafe() const
 {
 	// Don't lock WorkerScopeLock critical section here, since this function might be called inside an already locked scope, hence the "Unsafe" name
@@ -858,12 +903,18 @@ int32 FShaderCompileThreadRunnable::GetNumberOfAvailableWorkersUnsafe() const
 	return NumAvailableWorkers;
 }
 
+int32 FShaderCompileThreadRunnable::GetNumberOfAvailableWorkers() const
+{
+	FScopeLock WorkerScopeLock(&WorkerInfosLock);
+	return GetNumberOfAvailableWorkersUnsafe();
+}
+
 int32 FShaderCompileThreadRunnable::GetNumberOfSuspendedWorkersUnsafe() const
 {
 	return WorkerInfos.Num() - GetNumberOfAvailableWorkersUnsafe();
 }
 
-int32 FShaderCompileThreadRunnable::SuspendWorkersAndBacklogJobs(int32 NumWorkersToSuspend)
+int32 FShaderCompileThreadRunnable::SuspendWorkersAndBacklogJobs(int32 NumWorkersToSuspend, int32* OutNumBackloggedJobs)
 {
 	int32 NumSuspendedWorkers = 0;
 	int32 NumBackloggedJobs = 0;
@@ -908,16 +959,9 @@ int32 FShaderCompileThreadRunnable::SuspendWorkersAndBacklogJobs(int32 NumWorker
 		}
 	}
 
-	// Report about backlogged jobs
-	if (NumBackloggedJobs > 0)
+	if (OutNumBackloggedJobs)
 	{
-		UE_LOG(
-			LogShaderCompilers, Display, TEXT("Backlogged %d compile %s from %d suspended %s"),
-			NumBackloggedJobs,
-			NumBackloggedJobs == 1 ? TEXT("job") : TEXT("jobs"),
-			NumSuspendedWorkers,
-			NumSuspendedWorkers == 1 ? TEXT("worker") : TEXT("workers")
-		);
+		*OutNumBackloggedJobs = NumBackloggedJobs;
 	}
 
 	return NumSuspendedWorkers;
@@ -952,18 +996,6 @@ int32 FShaderCompileThreadRunnable::ResumeSuspendedWorkers(int32 NumWorkersToRes
 				}
 			}
 		}
-
-		if (NumResumedWorkers > 0)
-		{
-			const int32 NumRemainingSuspendedWorkers = NumSuspendedWorkers - NumResumedWorkers;
-			UE_LOG(
-				LogShaderCompilers, Display, TEXT("Resumed %d suspended %s (%d %s suspended)"),
-				NumResumedWorkers,
-				NumResumedWorkers == 1 ? TEXT("worker") : TEXT("workers"),
-				NumRemainingSuspendedWorkers,
-				NumRemainingSuspendedWorkers == 1 ? TEXT("remains") : TEXT("remain")
-			);
-		}
 	}
 
 	return NumResumedWorkers;
@@ -983,6 +1015,99 @@ void FShaderCompileThreadRunnable::DiscardWorkerOutputFile(int32 WorkerIndex)
 FString FShaderCompileThreadRunnable::GetWorkingDirectoryForWorker(int32 WorkerIndex, bool bRelativePath) const
 {
 	return FPaths::Combine(bRelativePath ? Manager->ShaderBaseWorkingDirectory : Manager->AbsoluteShaderBaseWorkingDirectory, FString::FromInt(WorkerIndex));
+}
+
+void FShaderCompileThreadRunnable::CheckMemoryLimitViolation()
+{
+	constexpr double kMemoryLimitPollInterval = 0.1; // Check every 0.1s if the memory limit has been exceeded
+	constexpr double kResumingWorkersPollInterval = 1.0; // Check every second since the last time workers have been suspending if we can resume some workers again
+
+	const double CurrentTime = FPlatformTime::Seconds();
+
+	// Check memory limit violations periodically
+	if (CurrentTime - MemoryMonitoringState.LastTimeOfMemoryLimitPoll > kMemoryLimitPollInterval)
+	{
+		MemoryMonitoringState.LastTimeOfMemoryLimitPoll = CurrentTime;
+
+		// Check if memory limit has been exceeded
+		FJobObjectLimitationInfo LimitInfo;
+		if (GSCWResourceRestrictedJobObject.QueryLimitViolationStatus(LimitInfo))
+		{
+			MemoryMonitoringState.LastTimeOfSuspeningOrResumingWorkers = CurrentTime;
+
+			// Try to halve the number of workers
+			const int32 NumWorkersToSuspend = GetNumberOfAvailableWorkers() / 2;
+
+			int32 NumBackloggedJobs = 0;
+			const int32 NumSuspendedWorkers = SuspendWorkersAndBacklogJobs(NumWorkersToSuspend, &NumBackloggedJobs);
+			if (NumSuspendedWorkers > 0)
+			{
+				UE_LOGFMT_NSLOC(
+					LogShaderCompilers, Display, "ShaderCompilers", "SuspendingWorkers",
+					"Shader compiler memory usage of {MemoryUsed} MiB exceeded limit of {MemoryLimit} MiB: " \
+					"Backlogged {BackloggedJobs} compile {BackloggedJobsName} from {SuspendedWorkers} suspended {SuspendedWorkersName} ({ActiveWorkerCount}/{TotalWorkerCount} active)",
+					("MemoryUsed", static_cast<int32>(LimitInfo.MemoryUsed / 1024 / 1024)),
+					("MemoryLimit", static_cast<int32>(LimitInfo.MemoryLimit / 1024 / 1024)),
+					("BackloggedJobs", NumBackloggedJobs),
+					("BackloggedJobsName", NumBackloggedJobs == 1 ? TEXT("job") : TEXT("jobs")),
+					("SuspendedWorkers", NumSuspendedWorkers),
+					("SuspendedWorkersName", NumSuspendedWorkers == 1 ? TEXT("worker") : TEXT("workers")),
+					("ActiveWorkerCount", GetNumberOfAvailableWorkers()),
+					("TotalWorkerCount", GetNumberOfWorkers())
+				);
+				MemoryMonitoringState.bHasSuspendedWorkers = true;
+				MemoryMonitoringState.bHasFailedToSuspendWorkers = false;
+			}
+			else if (!MemoryMonitoringState.bHasFailedToSuspendWorkers)
+			{
+				UE_LOGFMT_NSLOC(
+					LogShaderCompilers, Warning, "ShaderCompilers", "SuspendingWorkersFailed",
+					"Shader compiler memory usage of {MemoryUsed} MiB exceeded limit of {MemoryLimit} MiB, but cannot suspend any more workers",
+					("MemoryUsed", static_cast<int32>(LimitInfo.MemoryUsed / 1024 / 1024)),
+					("MemoryLimit", static_cast<int32>(LimitInfo.MemoryLimit / 1024 / 1024))
+				);
+				MemoryMonitoringState.bHasFailedToSuspendWorkers = true; // Don't show this warning again unless we were able to suspend workers again
+			}
+		}
+	}
+
+	// Check if we can resume previously suspended workers periodically
+	if (MemoryMonitoringState.bHasSuspendedWorkers && CurrentTime - MemoryMonitoringState.LastTimeOfSuspeningOrResumingWorkers > kResumingWorkersPollInterval)
+	{
+		MemoryMonitoringState.LastTimeOfSuspeningOrResumingWorkers = CurrentTime;
+
+		FJobObjectLimitationInfo LimitInfo;
+		if (GSCWResourceRestrictedJobObject.QueryStatus(LimitInfo))
+		{
+			// If we are below half of our memory limit, resume 50% of available workers.
+			// This approach suspends workers from 100% to 50% and then resumes them back up to 75%.
+			if (LimitInfo.MemoryUsed < LimitInfo.MemoryLimit / 2)
+			{
+				// Number of workers to resume should be a lower bound (i.e. division by 2 can result in zero),
+				// in which case we accept that we cannot allow the last suspended worker to be resumed.
+				const int32 NumWorkersToResume = GetNumberOfAvailableWorkers() / 2;
+				const int32 NumResumedWorkers = ResumeSuspendedWorkers(NumWorkersToResume);
+				if (NumResumedWorkers > 0)
+				{
+					UE_LOGFMT_NSLOC(
+						LogShaderCompilers, Display, "ShaderCompilers", "ResumingWorkers",
+						"Resumed {ResumedWorkers} suspended {ResumedWorkersName} since memory usage of {MemoryUsed} MiB is below half the limit of {MemoryLimit} MiB ({ActiveWorkerCount}/{TotalWorkerCount} active)",
+						("ResumedWorkers", NumResumedWorkers),
+						("ResumedWorkersName", NumResumedWorkers == 1 ? TEXT("worker") : TEXT("workers")),
+						("MemoryUsed", static_cast<int32>(LimitInfo.MemoryUsed / 1024 / 1024)),
+						("MemoryLimit", static_cast<int32>(LimitInfo.MemoryLimit / 1024 / 1024)),
+						("ActiveWorkerCount", GetNumberOfAvailableWorkers()),
+						("TotalWorkerCount", GetNumberOfWorkers())
+					);
+				}
+				else
+				{
+					// No more workers that could be resumed
+					MemoryMonitoringState.bHasSuspendedWorkers = false;
+				}
+			}
+		}
+	}
 }
 
 bool FShaderCompileThreadRunnable::PrintWorkerMemoryUsage(bool bAllowToWaitForLock)

@@ -201,7 +201,7 @@ private:
 
 	/** Information about the active workers that this thread is tracking. */
 	TArray<TUniquePtr<struct FShaderCompileWorkerInfo>> WorkerInfos;
-	FCriticalSection WorkerInfosLock;
+	mutable FCriticalSection WorkerInfosLock;
 
 	/** Tracks the last time that this thread checked if the workers were still active. */
 	double LastCheckForWorkersTime;
@@ -211,6 +211,15 @@ private:
 
 	/** List of jobs that have been backlogged when workers had to be closed due to reaching memory limits. These jobs will be picked up first before new jobs are pulled from the manager job queue. */
 	TArray<FShaderCommonCompileJobPtr> BackloggedJobs;
+
+	struct FMemoryMonitoringState
+	{
+		double LastTimeOfMemoryLimitPoll = 0.0;
+		double LastTimeOfSuspeningOrResumingWorkers = 0.0;
+		bool bHasFailedToSuspendWorkers = false;
+		bool bHasSuspendedWorkers = false;
+	}
+	MemoryMonitoringState;
 
 public:
 	/** Initialization constructor. */
@@ -252,8 +261,12 @@ private:
 
 	void PrintWorkerMemoryUsageWithLockTaken();
 
+	/** Returns the total number of workers this thread is handling. */
+	int32 GetNumberOfWorkers() const;
+
 	/** Returns the number of available workers. Only call inside the critical section WorkerInfosLock. */
 	int32 GetNumberOfAvailableWorkersUnsafe() const;
+	int32 GetNumberOfAvailableWorkers() const;
 
 	/** Returns the number of suspended workers. Only call inside the critical section WorkerInfosLock. */
 	int32 GetNumberOfSuspendedWorkersUnsafe() const;
@@ -262,7 +275,7 @@ private:
 	 * Suspends the specified number of workers and moves all their compile jobs to the backlog queue.
 	 * Returns the number of workers that have been suspended. The last worker cannot be suspended.
 	 */
-	int32 SuspendWorkersAndBacklogJobs(int32 NumWorkers);
+	int32 SuspendWorkersAndBacklogJobs(int32 NumWorkers, int32* OutNumBackloggedJobs = nullptr);
 
 	/**
 	 * Makes the specified number of workers available again after they have been suspended.
@@ -275,6 +288,9 @@ private:
 
 	/** Returns the working directory for the specified shader compile worker. */
 	FString GetWorkingDirectoryForWorker(int32 WorkerIndex, bool bRelativePath = false) const;
+
+	/** Checks it the memory limit for shader compile workers has been exceeded and suspend workers as needed. */
+	void CheckMemoryLimitViolation();
 };
 
 class FShaderCompileUtilities
