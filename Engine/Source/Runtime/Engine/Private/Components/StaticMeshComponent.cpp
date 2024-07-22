@@ -49,7 +49,6 @@
 #include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
 #include "WorldPartition/ActorInstanceGuids.h"
-#include "VT/MeshPaintVirtualTexture.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
 
@@ -1995,23 +1994,6 @@ void UStaticMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Propert
 			// If the materials changed, then the component needs a texture streaming rebuild.
 			StreamingTextureData.Empty();
 		}
-
-		if (PropertyThatChanged->GetFName() == GET_MEMBER_NAME_CHECKED(UStaticMeshComponent, MeshPaintTexture))
-		{
-			//todo: Move creation and management of MeshPaintTexture to the mesh paint tools.
-			if (!bMeshPaintTexture)
-			{
-				MeshPaintTexture = nullptr;
-			}
-			else if (!MeshPaintTexture)
-			{
-				UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(GetOutermost());
-				NewTexture->Source.Init(128, 128, 1, 8, TSF_BGRA8);
-				NewTexture->OwningComponent = MakeWeakObjectPtr(this);
-				NewTexture->UpdateResource();
-				MeshPaintTexture = NewTexture;
-			}
-		}
 	}
 
 	FBodyInstanceEditorHelpers::EnsureConsistentMobilitySimulationSettingsOnPostEditChange(this, PropertyChangedEvent);
@@ -3118,6 +3100,15 @@ UTexture* UStaticMeshComponent::GetMeshPaintTexture() const
 	return MeshPaintTexture; 
 }
 
+void UStaticMeshComponent::SetMeshPaintTexture(UTexture* InTexture)
+{
+	if (MeshPaintTexture != InTexture)
+	{
+		MeshPaintTexture = InTexture;
+		MarkRenderStateDirty();
+	}
+}
+
 void UStaticMeshComponent::SetMeshPaintTextureOverride(UTexture* OverrideTexture)
 {
 	if (MeshPaintTextureOverride != OverrideTexture)
@@ -3125,6 +3116,19 @@ void UStaticMeshComponent::SetMeshPaintTextureOverride(UTexture* OverrideTexture
 		MeshPaintTextureOverride = OverrideTexture;
 		MarkRenderStateDirty();
 	}
+}
+
+int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
+{
+	if (bOverrideMeshPaintTextureCoordinateIndex)
+	{
+		return OverridenMeshPaintTextureCoordinateIndex;
+	}
+	if (StaticMesh != nullptr)
+	{
+		return StaticMesh->MeshPaintTextureCoordinateIndex;
+	}
+	return 0;
 }
 
 bool UStaticMeshComponent::IsNavigationRelevant() const

@@ -2,6 +2,7 @@
 
 #include "VT/MeshPaintVirtualTexture.h"
 
+#include "ComponentRecreateRenderStateContext.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineModule.h"
 #include "RendererInterface.h"
@@ -21,6 +22,10 @@ static TAutoConsoleVariable<bool> CVarMeshPaintVirtualTextureEnable(
 	TEXT("r.MeshPaintVirtualTexture.Enable"),
 	true,
 	TEXT("Run time enable mesh painting with virtual textures"),
+	FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		FGlobalComponentRecreateRenderStateContext Context;
+	}),
 	ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureTileSize(
@@ -35,6 +40,11 @@ static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureTileBorderSize(
 	TEXT("Virtual texture tile border size for mesh paint textures"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
+static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureTexelsPerVertex(
+	TEXT("r.MeshPaintVirtualTexture.DefaultTexelsPerVertex"),
+	4,
+	TEXT("Default ratio of texels to vertices when creating a texture for a mesh"),
+	ECVF_Default);
 
 namespace MeshPaintVirtualTexture
 {
@@ -59,6 +69,13 @@ namespace MeshPaintVirtualTexture
 		return FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(CVarMeshPaintVirtualTextureTileBorderSize.GetValueOnAnyThread());
 	}
 
+	uint32 GetDefaultTextureSize(int32 InNumVertices)
+	{
+		const int32 NumTexels = InNumVertices * CVarMeshPaintVirtualTextureTexelsPerVertex.GetValueOnGameThread();
+		const uint32 TextureSize = (uint32)FMath::Sqrt((float)NumTexels);
+		return FMath::DivideAndRoundUp(TextureSize, GetTileSize()) * GetTileSize();
+	}
+
 	/** 
 	 * Fill out the scene uniforms from an allocated VT. 
 	 * We expect the result to be constant for all allocated VTs (so that they can share one uniform buffer).
@@ -78,7 +95,7 @@ namespace MeshPaintVirtualTexture
 		const float RcpPhysicalTextureSize = 1.0f / float(InAllocatedVT->GetPhysicalTextureSize(0));
 		const uint32 pPageSize = vPageSize + PageBorderSize * 2u;
 
-		OutParams.PackedUniform.X = ~0u; // todo fallback color
+		OutParams.PackedUniform.X = GetDefaultFallbackColor();
 		OutParams.PackedUniform.Y = FMath::AsUInt((float)vPageSize * RcpPhysicalTextureSize);
 		OutParams.PackedUniform.Z = FMath::AsUInt((float)PageBorderSize * RcpPhysicalTextureSize);
 		
@@ -203,6 +220,11 @@ UMeshPaintVirtualTexture::UMeshPaintVirtualTexture(const FObjectInitializer& Obj
 	: UTexture2D(ObjectInitializer)
 {
 	VirtualTextureStreaming = true;
+	
+#if WITH_EDITORONLY_DATA
+	// Force alpha channel so that we the platform format is consistent for all content.
+	CompressionForceAlpha = true;
+#endif
 }
 
 void UMeshPaintVirtualTexture::GetVirtualTextureBuildSettings(FVirtualTextureBuildSettings& OutSettings) const

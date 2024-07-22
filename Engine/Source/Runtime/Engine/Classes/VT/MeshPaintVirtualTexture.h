@@ -39,6 +39,12 @@ namespace MeshPaintVirtualTexture
 	/** Returns per platform support of mesh paint virtual textures. */
 	ENGINE_API bool IsSupported(EShaderPlatform InShaderPlatform);
 
+	/** Returns the fallback color to use for unmapped virtual textures. Use white (same as default vertex color). */
+	inline uint32 GetDefaultFallbackColor() { return 0xFFFFFFFF; }
+
+	/** Returns the default texture size to use for a mesh based on the number of vertices. */
+	ENGINE_API uint32 GetDefaultTextureSize(int32 InNumVertices);
+
 	/** 
 	 * Get the 2 dword texture descriptor from texture resource. 
 	 * Will return a null descriptor if the texture resource is not from a UMeshPaintVirtualTexture.
@@ -50,7 +56,7 @@ namespace MeshPaintVirtualTexture
 	{
 		FTextureRHIRef PageTableTexture;
 		FTextureRHIRef PhysicalTexture;
-		FUintVector4 PackedUniform = FUintVector4(0, 0, 0, 0);
+		FUintVector4 PackedUniform = FUintVector4(GetDefaultFallbackColor(), 0, 0, 0);
 	};
 	
 	/** Get the global scene view parameters shared by all UMeshPaintVirtualTexture objects. */

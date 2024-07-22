@@ -990,6 +990,10 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
+	/** The default coordinate index to use when painting the MeshPaintTexture on this mesh. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta=(UIMin = "0", UIMax = "3"))
+	int32 MeshPaintTextureCoordinateIndex;
+
 	/** Useful for reducing self shadowing from distance field methods when using world position offset to animate the mesh's vertices. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh)
 	float DistanceFieldSelfShadowBias;

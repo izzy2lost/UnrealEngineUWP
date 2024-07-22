@@ -157,8 +157,12 @@ public:
 
 	/** Get the mesh paint texture set on this component. This does not take into account any transient override. */
 	ENGINE_API virtual UTexture* GetMeshPaintTexture() const { return nullptr; }
+	/** Set the mesh paint texture on this component. */
+	ENGINE_API virtual void SetMeshPaintTexture(UTexture* Texture) {}
 	/** Set a transient override mesh paint texture on this component. */
 	ENGINE_API virtual void SetMeshPaintTextureOverride(UTexture* OverrideTexture) {}
+	/** Get the default coordinate index for painting to the mesh paint texture on this component. */
+	ENGINE_API virtual int32 GetMeshPaintTextureCoordinateIndex() const { return 0; }
 
 public:
 	/** Material parameter setting and caching */

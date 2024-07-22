@@ -236,13 +236,9 @@ public:
 	UPROPERTY(transient)
 	uint8 bForceNavigationObstacle : 1;
 
-	/** If true, mesh painting is disallowed on this instance. Set if vertex colors are overridden in a construction script. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Mesh Painting")
+	/** If true, vertex mesh painting is disallowed on this instance. Set if vertex colors are overridden in a construction script. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
 	uint8 bDisallowMeshPaintPerInstance : 1;
-
-	/** true if we store a mesh painting texture on this mesh component. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Mesh Painting", meta = (InlineEditConditionToggle))
-	uint8 bMeshPaintTexture : 1;
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	/** Draw mesh collision if used for complex collision */
@@ -308,14 +304,22 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	uint8 bReverseCulling : 1;
+	
+	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
+	uint8 bOverrideMeshPaintTextureCoordinateIndex : 1;
 
 	/** Texture containing mesh painting for this mesh component. */
-	UPROPERTY(VisibleAnywhere, Category = "Mesh Painting", meta = (editcondition = "bMeshPaintTexture"))
+	UPROPERTY(VisibleAnywhere, Category = "Mesh Painting")
 	TObjectPtr<UTexture> MeshPaintTexture;
 
 	/** Set this to override the locally stored mesh paint texture. */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture> MeshPaintTextureOverride;
+
+	/** The overriden coordinate index to use when painting the MeshPaintTexture on this mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
+	int32 OverridenMeshPaintTextureCoordinateIndex;
 
 	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )
@@ -594,7 +598,9 @@ public:
 	ENGINE_API virtual void RegisterLODStreamingCallback(FLODStreamingCallback&& CallbackStreamingStart, FLODStreamingCallback&& CallbackStreamingDone, float TimeoutStartSecs, float TimeoutDoneSecs) override;
 	ENGINE_API virtual bool PrestreamMeshLODs(float Seconds) override;
 	ENGINE_API virtual UTexture* GetMeshPaintTexture() const override;
+	ENGINE_API virtual void SetMeshPaintTexture(UTexture* Texture) override;
 	ENGINE_API virtual void SetMeshPaintTextureOverride(UTexture* OverrideTexture) override;
+	ENGINE_API virtual int32 GetMeshPaintTextureCoordinateIndex() const override;
 	//~ End UMeshComponent Interface
 
 	//~ Begin INavRelevantInterface Interface.
