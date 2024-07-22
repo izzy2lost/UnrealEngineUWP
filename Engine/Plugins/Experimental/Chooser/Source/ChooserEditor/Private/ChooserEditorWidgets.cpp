@@ -182,7 +182,7 @@ TSharedRef<SWidget> CreateNestedChooserWidget(bool bReadOnly, UObject* Transacti
 												TransactionObject->Modify(true);
 											
 												FSlateApplication::Get().DismissAllMenus();
-												NestedChooser->Chooser = NewObject<UChooserTable>(TransactionObject->GetPackage(), UChooserTable::StaticClass(), FName(InText.ToString()));
+												NestedChooser->Chooser = NewObject<UChooserTable>(TransactionObject, UChooserTable::StaticClass(), FName(InText.ToString()));
 												NestedChooser->Chooser->ParentTable = Cast<UChooserTable>(TransactionObject);
 											});
 							
