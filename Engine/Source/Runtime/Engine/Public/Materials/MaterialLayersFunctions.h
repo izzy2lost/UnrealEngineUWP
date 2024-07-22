@@ -179,14 +179,8 @@ public:
 
 	TArray<FNode>		Nodes;
 	TArray<FPayload>	Payloads;
-	FNodeId				Root = -2; // the index of the head of the top level siblings
-							   // and temporarly, capture the information if the LayersFunctionsTree is enabled in this asset
-							   // -2 means is is disabled
-
-	// Custom version system until we can rely on the archive custom version system
-	void			EnableMaterialLayersFunctionsTree() { Root = (Root == -2 ? -1 : Root); }
-	bool			IsMaterialLayersFunctionsTreeEnabled() const { return Root != -2; }
-
+	FNodeId				Root = -1; // the index of the head of the top level siblings
+							   	
 	FMaterialLayersFunctionsTree() = default;
 	FMaterialLayersFunctionsTree(const FMaterialLayersFunctionsTree& Rhs)
 		:	Nodes(Rhs.Nodes),
@@ -414,7 +408,8 @@ struct FMaterialLayersFunctionsRuntimeData
 	}
 
 	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
-	bool Serialize(FArchive& Ar);
+	
+	ENGINE_API void PostSerialize(const FArchive& Ar);
 
 #if WITH_EDITOR
 	const FMaterialLayersFunctionsID GetID(const FMaterialLayersFunctionsEditorOnlyData& EditorOnly) const;
@@ -435,7 +430,7 @@ template<>
 struct TStructOpsTypeTraits<FMaterialLayersFunctionsRuntimeData> : TStructOpsTypeTraitsBase2<FMaterialLayersFunctionsRuntimeData>
 {
 	enum { WithStructuredSerializeFromMismatchedTag = true };
-	enum { WithSerializer = true };
+	enum { WithPostSerialize = true };
 };
 
 USTRUCT()
