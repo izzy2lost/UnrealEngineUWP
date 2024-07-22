@@ -58,5 +58,5 @@ void FShooterTestsPawnTestActions::PerformAxisAction(TFunction<void(const APawn*
 
 		FTimespan Elapsed = FDateTime::UtcNow() - StartTime;
 		return Elapsed >= FTimespan::FromSeconds(5.0);
-		});
+	});
 }

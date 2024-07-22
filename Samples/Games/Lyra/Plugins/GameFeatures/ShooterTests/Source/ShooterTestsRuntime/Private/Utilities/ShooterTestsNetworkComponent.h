@@ -58,10 +58,16 @@ public:
 	 * 
 	 * @see FPIENetworkComponent
 	 */
-	FShooterTestsNetworkComponent(FAutomationTestBase* InTestRunner, FTestCommandBuilder& InCommandBuilder)
+	FShooterTestsNetworkComponent(FAutomationTestBase* InTestRunner, FTestCommandBuilder& InCommandBuilder, bool bIsInitializing)
 		: TestRunner(InTestRunner), CommandBuilder(&InCommandBuilder)
 	{
 		static_assert(std::is_convertible_v<NetworkActorType*, FShooterTestsActorTestHelper*>, "NetworkActorType must derive from FShooterTestsActorTestHelper");
+
+		// Check if the framework is initializing to avoid premature creation of the network states
+		if (bIsInitializing)
+		{
+			return;
+		}
 
 		ServerState = MakeUnique<FShooterTestsNetworkState<NetworkActorType>>();
 		ClientState = MakeUnique<FShooterTestsNetworkState<NetworkActorType>>();

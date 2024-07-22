@@ -39,6 +39,12 @@ struct ShooterTestsActorBaseTest : public TTest<Derived, AsserterType>
 	 */
 	ShooterTestsActorBaseTest(const FString& MapDirectory, const FString& MapName)
 	{
+		// Check if the framework is initializing to avoid premature creation of the MapTestSpawner
+		if (TestRunner->bInitializing)
+		{
+			return;
+		}
+
 		Spawner = MakeUnique<FMapTestSpawner>(MapDirectory, MapName);
 	}
 

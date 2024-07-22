@@ -54,7 +54,7 @@ struct ShooterTestsBaseActorNetworkTest : public TTest<Derived, AsserterType>
 	}
 
 	/** Networking component which handles our client/server latent commands. */
-	FShooterTestsNetworkComponent<NetworkActorType> Network{ TestRunner, TestCommandBuilder };
+	FShooterTestsNetworkComponent<NetworkActorType> Network{ TestRunner, TestCommandBuilder, TestRunner->bInitializing };
 
 	/** Map package name that will be loaded for testing. */
 	FString MapName;
