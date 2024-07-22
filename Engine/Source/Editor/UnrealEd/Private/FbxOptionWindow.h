@@ -107,7 +107,7 @@ private:
 	UFbxImportUI*	ImportUI;
 	TSharedPtr<class IDetailsView> DetailsView;
 	TWeakPtr< SWindow > WidgetWindow;
-	TSharedPtr<SButton> ImportAllButton;
+	TSharedPtr<SWidget> ImportAllButton;
 	bool			bShouldImport;
 	bool			bShouldImportAll;
 	bool			bIsObjFormat;

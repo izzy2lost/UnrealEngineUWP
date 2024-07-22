@@ -107,7 +107,7 @@ private:
 	EColumnSortMode::Type SortMode;
 
 	/** The close button widget. */
-	TSharedPtr<SButton> CloseButton;
+	TSharedPtr<SWidget> CloseButton;
 
 	/** The checkbox widget. */
 	TSharedPtr<SCheckBox> CheckBox;

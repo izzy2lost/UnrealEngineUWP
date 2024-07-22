@@ -162,7 +162,7 @@ private:
 	TSharedPtr<class IDetailsView> DetailsView;
 	// List view for updating per settings-group options
 	TSharedPtr<SListView<TObjectPtr<UHairCardGeneratorGroupSettings>>> GroupSettingsListView;
-	TSharedPtr<SButton> RunButton;
+	TSharedPtr<SWidget> RunButton;
 };
 
 
@@ -213,7 +213,7 @@ private:
 	TWeakPtr<SWindow> WidgetWindow;
 	// Group settings detail view
 	TSharedPtr<IDetailsView> DetailsView;
-	TSharedPtr<SButton> OkButton;
+	TSharedPtr<SWidget> OkButton;
 };
 
 

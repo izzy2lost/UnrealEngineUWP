@@ -180,7 +180,7 @@ private:
 	FFieldSelectionContext SelectionContext;
 
 	TSharedPtr<SSearchBox> SearchBox;
-	TSharedPtr<SPrimaryButton> EventSelectButton;
+	TSharedPtr<SWidget> EventSelectButton;
 
 	//~ viewmodels (binding context panel)
 	TSharedPtr<SListView<FBindingSource>> ViewModelList;
