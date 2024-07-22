@@ -15,11 +15,13 @@
 #include "GameFramework/PhysicsVolume.h"
 #include "EnhancedInputComponent.h"
 #include "InputAction.h"
+#include "DefaultMovementSet/NavMoverComponent.h"
 
 static const FName Name_CharacterMotionComponent(TEXT("MoverComponent"));
 
 AMoverExamplesCharacter::AMoverExamplesCharacter(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, NavMoverComponent(nullptr)
 {
 	CharacterMotionComponent = CreateDefaultSubobject<UCharacterMoverComponent>(Name_CharacterMotionComponent);
 	ensure(CharacterMotionComponent);
@@ -37,6 +39,11 @@ AMoverExamplesCharacter::AMoverExamplesCharacter(const FObjectInitializer& Objec
 	static FName ProduceInputBPFuncName = FName(TEXT("OnProduceInputInBlueprint"));
 	UFunction* ProduceInputFunction = GetClass()->FindFunctionByName(ProduceInputBPFuncName);
 	bHasProduceInputinBpFunc = IsImplementedInBlueprint(ProduceInputFunction);
+
+	if (USceneComponent* UpdatedComponent = CharacterMotionComponent->GetUpdatedComponent())
+	{
+		UpdatedComponent->SetCanEverAffectNavigation(bCanAffectNavigationGeneration);
+	}
 }
 
 
@@ -72,6 +79,8 @@ void AMoverExamplesCharacter::BeginPlay()
 		PC->PlayerCameraManager->ViewPitchMax = 89.0f;
 		PC->PlayerCameraManager->ViewPitchMin = -89.0f;
 	}
+	
+	NavMoverComponent = FindComponentByClass<UNavMoverComponent>();
 }
 
 // Called to bind functionality to input
@@ -92,6 +101,35 @@ void AMoverExamplesCharacter::SetupPlayerInputComponent(UInputComponent* PlayerI
 	}
 }
 
+
+FVector AMoverExamplesCharacter::GetNavAgentLocation() const
+{
+	FVector AgentLocation = FNavigationSystem::InvalidLocation;
+	const USceneComponent* UpdatedComponent = CharacterMotionComponent ? CharacterMotionComponent->GetUpdatedComponent() : nullptr;
+	
+	if (NavMoverComponent)
+	{
+		AgentLocation = NavMoverComponent->GetFeetLocation();
+	}
+	
+	if (FNavigationSystem::IsValidLocation(AgentLocation) == false && UpdatedComponent != nullptr)
+	{
+		AgentLocation = UpdatedComponent->GetComponentLocation() - FVector(0,0,UpdatedComponent->Bounds.BoxExtent.Z);
+	}
+
+	return AgentLocation;
+}
+
+void AMoverExamplesCharacter::UpdateNavigationRelevance()
+{
+	if (CharacterMotionComponent)
+	{
+		if (USceneComponent* UpdatedComponent = CharacterMotionComponent->GetUpdatedComponent())
+		{
+			UpdatedComponent->SetCanEverAffectNavigation(bCanAffectNavigationGeneration);
+		}
+	}
+}
 
 void AMoverExamplesCharacter::ProduceInput_Implementation(int32 SimTimeMs, FMoverInputCmdContext& InputCmdResult)
 {
@@ -148,6 +186,21 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		CharacterInputs.ControlRotation = PC->GetControlRotation();
 	}
 
+	bool bRequestedNavMovement = false;
+	if (NavMoverComponent)
+	{
+		bRequestedNavMovement = NavMoverComponent->bRequestedNavMovement;
+		if (bRequestedNavMovement)
+		{
+			CachedMoveInputIntent = NavMoverComponent->CachedNavMoveInputIntent;
+			CachedMoveInputVelocity = NavMoverComponent->CachedNavMoveInputVelocity;
+			
+			NavMoverComponent->bRequestedNavMovement = false;
+			NavMoverComponent->CachedNavMoveInputIntent = FVector::ZeroVector;
+			NavMoverComponent->CachedNavMoveInputVelocity = FVector::ZeroVector;
+		}
+	}
+	
 	// Favor velocity input 
 	bool bUsingInputIntentForMove = CachedMoveInputVelocity.IsZero();
 
@@ -173,6 +226,13 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		CharacterInputs.SetMoveInput(EMoveInputType::Velocity, CachedMoveInputVelocity);
 	}
 
+	// Normally cached input is cleared by OnMoveCompleted input event but that won't be called if movement came from nav movement
+	if (bRequestedNavMovement)
+	{
+		CachedMoveInputIntent = FVector::ZeroVector;
+		CachedMoveInputVelocity = FVector::ZeroVector;
+	}
+	
 	static float RotationMagMin(1e-3);
 
 	const bool bHasAffirmativeMoveInput = (CharacterInputs.GetMoveInput().Size() >= RotationMagMin);
@@ -181,7 +241,7 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 	CharacterInputs.OrientationIntent = FVector::ZeroVector;
 
 
-	if (bUsingInputIntentForMove && bHasAffirmativeMoveInput)
+	if (bHasAffirmativeMoveInput)
 	{
 		if (bOrientRotationToMovement)
 		{
@@ -195,7 +255,6 @@ void AMoverExamplesCharacter::OnProduceInput(float DeltaMs, FMoverInputCmdContex
 		}
 
 		LastAffirmativeMoveInput = CharacterInputs.GetMoveInput();
-
 	}
 	else if (bMaintainLastInputOrientation)
 	{
