@@ -39,7 +39,7 @@ protected:
 	FVector GetClampedAmplitude(FVector InAmplitude);
 
 	/** The minimum value should be remapped to that values */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector AmplitudeMin = FVector::ZeroVector;
 
 	/** Some properties are clamped and cannot go past a specific min value */
@@ -47,7 +47,7 @@ protected:
 	TOptional<FVector> AmplitudeClampMin;
 
 	/** The maximum value should be remapped to that values */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(MotionDesignVectorWidget, AllowPreserveRatio="XYZ"))
 	FVector AmplitudeMax = FVector::ZeroVector;
 
 	/** Some properties are clamped and cannot go past a specific min value */

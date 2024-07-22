@@ -104,7 +104,7 @@ protected:
 	EPropertyAnimatorCycleMode CycleMode = EPropertyAnimatorCycleMode::Loop;
 
 	/** Time gap between each cycle */
-	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", Units=Seconds))
+	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", Units=Seconds, EditCondition="CycleMode != EPropertyAnimatorCycleMode::DoOnce", EditConditionHides))
 	float CycleGapDuration = 0.f;
 
 	/** Use random time offset to add variation in animation */

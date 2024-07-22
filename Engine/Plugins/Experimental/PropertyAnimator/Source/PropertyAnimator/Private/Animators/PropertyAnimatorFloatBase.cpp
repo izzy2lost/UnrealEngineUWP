@@ -167,7 +167,7 @@ void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InPar
 
 		const double AbsTimeOffset = FMath::Abs(TimeOffset);
 		const double MaxTimeOffset = InRangeMax * AbsTimeOffset;
-		double PropertyTimeElapsed = TimeElapsed + RandomTimeOffset;
+		double PropertyTimeElapsed = TimeElapsed - MaxTimeOffset + RandomTimeOffset;
 
 		if (TimeOffset >= 0)
 		{

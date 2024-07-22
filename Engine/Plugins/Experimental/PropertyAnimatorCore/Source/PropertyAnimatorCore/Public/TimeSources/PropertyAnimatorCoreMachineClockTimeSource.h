@@ -80,7 +80,7 @@ protected:
 	* 1h = 1 hour
 	* 120s = 2 minutes
 	*/
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Mode == EPropertyAnimatorCoreLocalTimeMode::Countdown", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="Mode == EPropertyAnimatorCoreMachineClockMode::Countdown", EditConditionHides))
 	FString CountdownDuration = TEXT("1m");
 
 private:
