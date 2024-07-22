@@ -44,14 +44,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Live Link", meta=(LinearDeltaSensitivity = "1", Delta = "1.0"))
 	FRotator RotationOffset = FRotator::ZeroRotator;
 
-	/** Whether to ignore the parent bone location when attaching the child bone. */
-	UPROPERTY(EditAnywhere, Category = "Live Link")
-    bool bIgnoreParentLocation = false;
-
-	/** Whether to ignore the parent bone rotation when attaching the child bone. */
-    UPROPERTY(EditAnywhere, Category = "Live Link")
-    bool bIgnoreParentRotation = false;
-
 	/** If not empty, hold the last error text set by the IsValid method. Used to bubble up errors to the UI. */
 	mutable FText LastError;
 };

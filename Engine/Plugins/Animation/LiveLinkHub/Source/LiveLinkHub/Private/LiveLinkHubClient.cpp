@@ -4,7 +4,9 @@
 
 #include "Clients/LiveLinkHubProvider.h"
 #include "LiveLinkHub.h"
+#include "LiveLinkHubLog.h"
 #include "LiveLinkHubModule.h"
+#include "LiveLinkLog.h"
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkSourceCollection.h"
 #include "LiveLinkSubject.h"
@@ -128,7 +130,34 @@ void FLiveLinkHubClient::OnStaticDataAdded(FLiveLinkSubjectKey SubjectKey,  TSub
 
 void FLiveLinkHubClient::OnFrameDataAdded(FLiveLinkSubjectKey InSubjectKey, TSubclassOf<ULiveLinkRole> SubjectRole, const FLiveLinkFrameDataStruct& InFrameData)
 {
-	OnFrameDataReceivedDelegate_AnyThread.Broadcast(InSubjectKey, InFrameData);
+	Collection->ForEachSubject([this, InSubjectKey, &InFrameData](const FLiveLinkCollectionSourceItem& SourceItem, const FLiveLinkCollectionSubjectItem& SubjectItem)
+	{
+		if (SourceItem.Setting->ParentSubject.Name == InSubjectKey.SubjectName)
+		{
+			// todo: Time offset evaluation
+			FLiveLinkSubjectFrameData ChildData;
+			if (SubjectItem.GetLiveSubject()->EvaluateFrameAtWorldTime(InFrameData.GetBaseData()->WorldTime.GetSourceTime(), SubjectItem.GetLinkSettings()->Role, ChildData))
+			{
+				const FTimecode FrameTC = FTimecode::FromFrameNumber(InFrameData.GetBaseData()->MetaData.SceneTime.Time.GetFrame(), InFrameData.GetBaseData()->MetaData.SceneTime.Rate);
+				UE_LOG(LogLiveLinkHub, Verbose, TEXT("LiveLinkHub Parent (%s) - Child '%s' adding frame with Timecode:[%s.%0.3f] - SourceTime: %0.4f, Offset: %0.6f, CorrectedTime: %0.4f"), *InSubjectKey.SubjectName.ToString(), *SubjectItem.Key.SubjectName.ToString(), *FrameTC.ToString(), InFrameData.GetBaseData()->MetaData.SceneTime.Time.GetSubFrame(), InFrameData.GetBaseData()->WorldTime.GetSourceTime(), InFrameData.GetBaseData()->WorldTime.GetOffset(), InFrameData.GetBaseData()->WorldTime.GetOffsettedTime());
+
+				ChildData.FrameData.GetBaseData()->MetaData.SceneTime = InFrameData.GetBaseData()->MetaData.SceneTime;
+				ChildData.FrameData.GetBaseData()->MetaData.SceneTime.Rate = InFrameData.GetBaseData()->MetaData.SceneTime.Rate;
+				OnFrameDataReceivedDelegate_AnyThread.Broadcast(SubjectItem.Key, ChildData.FrameData);
+			}
+			else
+			{
+				FLiveLinkLog::Warning(TEXT("Child subjects %s could not be evaluated for data resampling."), *InSubjectKey.SubjectName.Name.ToString());
+			}
+		}
+	});
+
+	const bool bIsParented = Collection->FindSource(InSubjectKey.Source)->Setting->ParentSubject != FLiveLinkSubjectName();
+	if (!bIsParented)
+	{
+		// Don't broadcast frames that have a parent, they'll be broadcast in the loop above.
+		OnFrameDataReceivedDelegate_AnyThread.Broadcast(InSubjectKey, InFrameData);
+	}
 }
 
 

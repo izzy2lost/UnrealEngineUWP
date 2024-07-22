@@ -184,6 +184,15 @@ public:
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Settings")
 	TSubclassOf<ULiveLinkSourceFactory> Factory;
 
+	/** 
+	 * Parent subject used for resampling.
+	 * If this is set, this source's subjects will only be updated when the parent subject receives data.
+	 * Additionally this source's subjects' timecode will match the parent's subject received timecode.
+	 * This can be useful for synchronizing a higher frequency source to a lower frequency one.
+	 */
+	UPROPERTY(EditAnywhere, Category = "Settings")
+	FLiveLinkSubjectName ParentSubject;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<FLiveLinkSourceDebugInfo> SourceDebugInfos_DEPRECATED;
