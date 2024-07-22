@@ -2233,8 +2233,15 @@ bool FSkeletalMeshObjectGPUSkin::GetCachedGeometry(FCachedGeometry& OutCachedGeo
 		if (SkinCacheEntry != nullptr)
 		{
 			// Get the cached geometry SRVs from the skin cache.
-			CachedSection.PositionBuffer = FGPUSkinCache::GetPositionBuffer(SkinCacheEntry, SectionIndex)->SRV;
-			CachedSection.PreviousPositionBuffer = FGPUSkinCache::GetPreviousPositionBuffer(SkinCacheEntry, SectionIndex)->SRV;
+			FRWBuffer* PositionBuffer = FGPUSkinCache::GetPositionBuffer(SkinCacheEntry, SectionIndex);
+			if (!PositionBuffer)
+			{
+				return false;
+			}
+			FRWBuffer* PreviousPositionBuffer = FGPUSkinCache::GetPreviousPositionBuffer(SkinCacheEntry, SectionIndex);
+
+			CachedSection.PositionBuffer = PositionBuffer->SRV;
+			CachedSection.PreviousPositionBuffer = PreviousPositionBuffer ? PreviousPositionBuffer->SRV : PositionBuffer->SRV;
 
 			FRWBuffer* TangentBuffer = FGPUSkinCache::GetTangentBuffer(SkinCacheEntry, SectionIndex);
 			CachedSection.TangentBuffer = TangentBuffer ? TangentBuffer->SRV : nullptr;
