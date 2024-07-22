@@ -2,6 +2,7 @@
 
 #include "Animation/AnimNode_Inertialization.h"
 #include "Animation/AnimInstanceProxy.h"
+#include "Animation/AnimRootMotionProvider.h"
 #include "Animation/AnimNode_SaveCachedPose.h"
 #include "Animation/AnimStats.h"
 #include "Animation/BlendProfile.h"
@@ -632,6 +633,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 			InitFrom(
 				Output.Pose,
 				Output.Curve,
+				Output.CustomAttributes,
 				ComponentTransform,
 				AttachParentName,
 				CurrPoseSnapshot,
@@ -644,6 +646,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 			InitFrom(
 				Output.Pose,
 				Output.Curve,
+				Output.CustomAttributes,
 				ComponentTransform,
 				AttachParentName,
 				CurrPoseSnapshot,
@@ -663,7 +666,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 
 	if (InertializationState == EInertializationState::Active)
 	{
-		ApplyTo(Output.Pose, Output.Curve);
+		ApplyTo(Output.Pose, Output.Curve, Output.CustomAttributes);
 	}
 
 	// Record Pose Snapshot
@@ -675,7 +678,7 @@ void FAnimNode_Inertialization::Evaluate_AnyThread(FPoseContext& Output)
 	}
 	
 	// Initialize the current pose
-	CurrPoseSnapshot.InitFrom(Output.Pose, Output.Curve, ComponentTransform, AttachParentName, DeltaTime);
+	CurrPoseSnapshot.InitFrom(Output.Pose, Output.Curve, Output.CustomAttributes, ComponentTransform, AttachParentName, DeltaTime);
 	
 
 	// Reset the time accumulator and teleport state
@@ -771,7 +774,14 @@ void FAnimNode_Inertialization::ApplyInertialization(FPoseContext& Context, cons
 
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-void FAnimNode_Inertialization::InitFrom(const FCompactPose& InPose, const FBlendedCurve& InCurves, const FTransform& ComponentTransform, const FName AttachParentName, const FInertializationSparsePose& Prev1, const FInertializationSparsePose& Prev2)
+void FAnimNode_Inertialization::InitFrom(
+	const FCompactPose& InPose, 
+	const FBlendedCurve& InCurves, 
+	const UE::Anim::FStackAttributeContainer& InAttributes,
+	const FTransform& ComponentTransform, 
+	const FName AttachParentName, 
+	const FInertializationSparsePose& Prev1, 
+	const FInertializationSparsePose& Prev2)
 {	
 	check(!Prev1.IsEmpty() && !Prev2.IsEmpty());
 
@@ -986,9 +996,54 @@ void FAnimNode_Inertialization::InitFrom(const FCompactPose& InPose, const FBlen
 	{
 		UE::Anim::FCurveUtils::Filter(CurveDiffs, CurveFilter);
 	}
+
+	// Compute Root Motion Delta Difference
+
+	// We don't compute the speed difference since this essentially represents
+	// the acceleration of the root motion, which can be quite noisy and unreliable
+	// and so can cause the computed offsets to be bad when they are blended out
+
+	RootTranslationVelocityDiffDirection = FVector3f::ZeroVector;
+	RootTranslationVelocityDiffMagnitude = 0.0f;
+	RootRotationVelocityDiffDirection = FVector3f::ZeroVector;
+	RootRotationVelocityDiffMagnitude = 0.0f;
+	RootScaleVelocityDiffDirection = FVector3f::ZeroVector;
+	RootScaleVelocityDiffMagnitude = 0.0f;
+
+	if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
+	{
+		FTransform CurrRootMotionDelta = FTransform::Identity;
+
+		if (RootMotionProvider->ExtractRootMotion(InAttributes, CurrRootMotionDelta) && 
+			Prev1.bHasRootMotion &&
+			Prev1.DeltaTime > UE_KINDA_SMALL_NUMBER && 
+			DeltaTime > UE_KINDA_SMALL_NUMBER)
+		{
+			const FVector RootTranslationVelocityDiff = (Prev1.RootMotionDelta.GetTranslation() / Prev1.DeltaTime) - (CurrRootMotionDelta.GetTranslation() / DeltaTime);
+			RootTranslationVelocityDiffMagnitude = RootTranslationVelocityDiff.Size();
+			if (RootTranslationVelocityDiffMagnitude > UE_KINDA_SMALL_NUMBER)
+			{
+				RootTranslationVelocityDiffDirection = (FVector3f)RootTranslationVelocityDiff / RootTranslationVelocityDiffMagnitude;
+			}
+
+			const FVector RootRotationVelocityDiff = (Prev1.RootMotionDelta.GetRotation().ToRotationVector() / Prev1.DeltaTime) - (CurrRootMotionDelta.GetRotation().ToRotationVector() / DeltaTime);
+			RootRotationVelocityDiffMagnitude = RootRotationVelocityDiff.Size();
+			if (RootRotationVelocityDiffMagnitude > UE_KINDA_SMALL_NUMBER)
+			{
+				RootRotationVelocityDiffDirection = (FVector3f)RootRotationVelocityDiff / RootRotationVelocityDiffMagnitude;
+			}
+
+			const FVector RootScaleVelocityDiff = (Prev1.RootMotionDelta.GetScale3D() / Prev1.DeltaTime) - (CurrRootMotionDelta.GetScale3D() / DeltaTime);
+			RootScaleVelocityDiffMagnitude = RootScaleVelocityDiff.Size();
+			if (RootScaleVelocityDiffMagnitude > UE_KINDA_SMALL_NUMBER)
+			{
+				RootScaleVelocityDiffDirection = (FVector3f)RootScaleVelocityDiff / RootScaleVelocityDiffMagnitude;
+			}
+		}
+	}
 }
 
-void FAnimNode_Inertialization::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves)
+void FAnimNode_Inertialization::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves, UE::Anim::FStackAttributeContainer& InOutAttributes)
 {
 	const FBoneContainer& BoneContainer = InOutPose.GetBoneContainer();
 
@@ -1049,6 +1104,35 @@ void FAnimNode_Inertialization::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& 
 			OutResultElement.Value = InElement0.Value + UE::Anim::Inertialization::Private::CalcInertialFloat(InElement1.Delta, InElement1.Derivative, InertializationElapsedTime, InertializationDuration);
 			OutResultElement.Flags = InElement0.Flags | InElement1.Flags;
 		});
+
+	// Apply Root Motion Delta Difference
+
+	if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
+	{
+		FTransform CurrRootMotionDelta = FTransform::Identity;
+		if (RootMotionProvider->ExtractRootMotion(InOutAttributes, CurrRootMotionDelta))
+		{
+			// Use Blend Duration from Root Bone
+			const float Duration = InertializationDurationPerBone[0];
+
+			// Apply the root translation velocity difference
+			const FVector T = DeltaTime * (FVector)RootTranslationVelocityDiffDirection *
+				UE::Anim::Inertialization::Private::CalcInertialFloat(RootTranslationVelocityDiffMagnitude, 0.0f, InertializationElapsedTime, Duration);
+			CurrRootMotionDelta.AddToTranslation(T);
+
+			// Apply the root rotation velocity difference
+			const FQuat Q = FQuat::MakeFromRotationVector(DeltaTime * (FVector)RootRotationVelocityDiffDirection *
+				UE::Anim::Inertialization::Private::CalcInertialFloat(RootRotationVelocityDiffMagnitude, 0.0f, InertializationElapsedTime, Duration));
+			CurrRootMotionDelta.SetRotation(Q * CurrRootMotionDelta.GetRotation());
+
+			// Apply the root scale velocity difference
+			const FVector S = DeltaTime * (FVector)RootScaleVelocityDiffDirection *
+				UE::Anim::Inertialization::Private::CalcInertialFloat(RootScaleVelocityDiffMagnitude, 0.0f, InertializationElapsedTime, Duration);
+			CurrRootMotionDelta.SetScale3D(S + CurrRootMotionDelta.GetScale3D());
+
+			RootMotionProvider->OverrideRootMotion(CurrRootMotionDelta, InOutAttributes);
+		}
+	}
 }
 
 void FAnimNode_Inertialization::Deactivate()
@@ -1112,6 +1196,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 void FInertializationSparsePose::InitFrom(
 	const FCompactPose& Pose,
 	const FBlendedCurve& InCurves,
+	const UE::Anim::FStackAttributeContainer& Attributes,
 	const FTransform& InComponentTransform,
 	const FName InAttachParentName,
 	const float InDeltaTime)
@@ -1167,6 +1252,16 @@ void FInertializationSparsePose::InitFrom(
 		BoneTranslations[InertializationBoneIndex] = BoneTransform.GetTranslation();
 		BoneRotations[InertializationBoneIndex] = BoneTransform.GetRotation();
 		BoneScales[InertializationBoneIndex] = BoneTransform.GetScale3D();
+	}
+
+	// Init the Root Motion Delta
+
+	bHasRootMotion = false;
+	RootMotionDelta = FTransform::Identity;
+
+	if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
+	{
+		bHasRootMotion = RootMotionProvider->ExtractRootMotion(Attributes, RootMotionDelta);
 	}
 
 	// Init the rest of the snapshot data

@@ -158,6 +158,12 @@ private:
 	// Transform of the component at the point of the snapshot
 	FTransform ComponentTransform;
 	
+	// Has Root Motion
+	bool bHasRootMotion = false;
+
+	// Root Motion Delta at the point of the snapshot
+	FTransform RootMotionDelta;
+
 	// For each SkeletonPoseBoneIndex this array stores the index into the BoneTranslations, BoneRotations, and 
 	// BoneScales arrays which contains that bone's data. Or INDEX_NONE if this bone's data is not in the snapshot.
 	TArray<int32> BoneIndices;
@@ -180,7 +186,14 @@ private:
 	// Delta Time since last snapshot
 	float DeltaTime = 0.0f;
 
-	void InitFrom(const FCompactPose& Pose, const FBlendedCurve& InCurves, const FTransform& InComponentTransform, const FName InAttachParentName, const float InDeltaTime);
+	void InitFrom(
+		const FCompactPose& Pose, 
+		const FBlendedCurve& InCurves, 
+		const UE::Anim::FStackAttributeContainer& Attributes, 
+		const FTransform& InComponentTransform, 
+		const FName InAttachParentName, 
+		const float InDeltaTime);
+
 	bool IsEmpty() const;
 	void Empty();
 };
@@ -386,6 +399,7 @@ private:
 	 *
 	 * @param InPose				The current pose for the animation being transitioned to.
 	 * @param InCurves				The current curves for the animation being transitioned to.
+	 * @param InAttributes			The current attributes for the animation being transitioned to.
 	 * @param ComponentTransform	The component transform of the current pose
 	 * @param AttachParentName		The name of the attached parent object
 	 * @param PreviousPose1			The pose recorded as output of the inertializer on the previous frame.
@@ -394,6 +408,7 @@ private:
 	void InitFrom(
 		const FCompactPose& InPose, 
 		const FBlendedCurve& InCurves, 
+		const UE::Anim::FStackAttributeContainer& InAttributes,
 		const FTransform& ComponentTransform, 
 		const FName AttachParentName, 
 		const FInertializationSparsePose& PreviousPose1, 
@@ -402,10 +417,11 @@ private:
 	/**
 	 * Applies the inertialization difference to the given pose (decaying to zero as ElapsedTime approaches Duration)
 	 *
-	 * @param InOutPose		The current pose to blend with the extrapolated pose.
-	 * @param InOutCurves	The current curves to blend with the extrapolated curves.
+	 * @param InOutPose		    The current pose to blend with the extrapolated pose.
+	 * @param InOutCurves	    The current curves to blend with the extrapolated curves.
+	 * @param InOutAttributes	The current attributes to blend with the extrapolated attributes.
 	 */
-	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves);
+	void ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves, UE::Anim::FStackAttributeContainer& InOutAttributes);
 
 	// Snapshots of the actor pose generated as output.
 	FInertializationSparsePose PrevPoseSnapshot;
@@ -450,6 +466,12 @@ private:
 	TArray<FVector3f> BoneScaleDiffAxis;
 	TArray<float> BoneScaleDiffMagnitude;
 	TArray<float> BoneScaleDiffSpeed;
+	FVector3f RootTranslationVelocityDiffDirection;
+	float RootTranslationVelocityDiffMagnitude;
+	FVector3f RootRotationVelocityDiffDirection;
+	float RootRotationVelocityDiffMagnitude;
+	FVector3f RootScaleVelocityDiffDirection;
+	float RootScaleVelocityDiffMagnitude;
 
 	// Curve differences
 	TBaseBlendedCurve<FDefaultAllocator, FInertializationCurveDiffElement> CurveDiffs;

@@ -2,6 +2,7 @@
 
 #include "Animation/AnimNode_DeadBlending.h"
 #include "Animation/AnimInstanceProxy.h"
+#include "Animation/AnimRootMotionProvider.h"
 #include "Animation/AnimNode_SaveCachedPose.h"
 #include "Animation/BlendProfile.h"
 #include "Algo/MaxElement.h"
@@ -277,7 +278,12 @@ void FAnimNode_DeadBlending::Deactivate()
 	InertializationDurationPerBone.Empty();
 }
 
-void FAnimNode_DeadBlending::InitFrom(const FCompactPose& InPose, const FBlendedCurve& InCurves, const FInertializationSparsePose& SrcPosePrev, const FInertializationSparsePose& SrcPoseCurr)
+void FAnimNode_DeadBlending::InitFrom(
+	const FCompactPose& InPose, 
+	const FBlendedCurve& InCurves, 
+	const UE::Anim::FStackAttributeContainer& InAttributes, 
+	const FInertializationSparsePose& SrcPosePrev, 
+	const FInertializationSparsePose& SrcPoseCurr)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FAnimNode_DeadBlending::InitFrom);
 
@@ -473,9 +479,35 @@ void FAnimNode_DeadBlending::InitFrom(const FCompactPose& InPose, const FBlended
 	{
 		UE::Anim::FCurveUtils::Filter(CurveData, ExtrapolatedCurveFilter);
 	}
+
+	// Record Root Motion Delta
+
+	// We don't compute the root acceleration difference which can be quite noisy and unreliable
+	// and so can cause the extrapolated root velocity to be quite bad and not very useful when
+	// being blended out.
+
+	RootTranslationVelocity = FVector3f::ZeroVector;
+	RootRotationVelocity = FVector3f::ZeroVector;
+	RootScaleVelocity = FVector3f::ZeroVector;
+
+	if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
+	{
+		FTransform CurrRootMotionDelta = FTransform::Identity;
+
+		if (RootMotionProvider->ExtractRootMotion(InAttributes, CurrRootMotionDelta) &&
+			SrcPoseCurr.bHasRootMotion &&
+			SrcPoseCurr.DeltaTime > UE_KINDA_SMALL_NUMBER)
+		{
+			RootTranslationVelocity = (FVector3f)SrcPoseCurr.RootMotionDelta.GetTranslation() / SrcPoseCurr.DeltaTime;
+			RootRotationVelocity = (FVector3f)SrcPoseCurr.RootMotionDelta.GetRotation().ToRotationVector() / SrcPoseCurr.DeltaTime;
+			RootScaleVelocity = bLinearlyInterpolateScales ?
+				((FVector3f)SrcPoseCurr.RootMotionDelta.GetScale3D() / SrcPoseCurr.DeltaTime) :
+				((FVector3f)UE::Anim::DeadBlending::Private::VectorLogSafe(SrcPoseCurr.RootMotionDelta.GetScale3D()) / SrcPoseCurr.DeltaTime);
+		}
+	}
 }
 
-void FAnimNode_DeadBlending::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves)
+void FAnimNode_DeadBlending::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InOutCurves, UE::Anim::FStackAttributeContainer& InOutAttributes)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FAnimNode_DeadBlending::ApplyTo);
 
@@ -623,6 +655,38 @@ void FAnimNode_DeadBlending::ApplyTo(FCompactPose& InOutPose, FBlendedCurve& InO
 			OutResultElement.Value = FMath::Lerp(InElement0.Value, ExtrapolatedCurve, CurveAlpha);
 			OutResultElement.Flags = InElement0.Flags | InElement1.Flags;
 		});
+
+	// Blend Root Motion Delta
+
+	if (const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get())
+	{
+		// Compute Blend Alpha
+
+		const float Alpha = 1.0f - FAlphaBlend::AlphaToBlendOption(
+			FMath::Clamp(InertializationTime / FMath::Max(InertializationDurationPerBone[0], UE_SMALL_NUMBER), 0.0f, 1.0f),
+			InertializationBlendMode, InertializationCustomBlendCurve);
+
+		if (Alpha != 0.0f)
+		{
+			FTransform CurrRootMotionDelta = FTransform::Identity;
+			if (RootMotionProvider->ExtractRootMotion(InOutAttributes, CurrRootMotionDelta))
+			{
+				CurrRootMotionDelta.SetTranslation(FMath::Lerp(CurrRootMotionDelta.GetTranslation(), DeltaTime * (FVector)RootTranslationVelocity, Alpha));
+				CurrRootMotionDelta.SetRotation(FQuat::MakeFromRotationVector(DeltaTime * (FVector)RootRotationVelocity * Alpha) * CurrRootMotionDelta.GetRotation());
+
+				if (bLinearlyInterpolateScales)
+				{
+					CurrRootMotionDelta.SetScale3D(FMath::Lerp(CurrRootMotionDelta.GetScale3D(), DeltaTime * (FVector)RootScaleVelocity, Alpha));
+				}
+				else
+				{
+					CurrRootMotionDelta.SetScale3D(UE::Anim::DeadBlending::Private::VectorEerp(CurrRootMotionDelta.GetScale3D(), DeltaTime * (FVector)RootScaleVelocity, Alpha));
+				}
+
+				RootMotionProvider->OverrideRootMotion(CurrRootMotionDelta, InOutAttributes);
+			}
+		}
+	}
 }
 
 class USkeleton* FAnimNode_DeadBlending::GetSkeleton(bool& bInvalidSkeletonIsError, const IPropertyHandle* PropertyHandle)
@@ -899,6 +963,7 @@ void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 			InitFrom(
 				Output.Pose,
 				Output.Curve,
+				Output.CustomAttributes,
 				PrevPoseSnapshot,
 				CurrPoseSnapshot);
 		}
@@ -909,6 +974,7 @@ void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 			InitFrom(
 				Output.Pose,
 				Output.Curve,
+				Output.CustomAttributes,
 				CurrPoseSnapshot,
 				CurrPoseSnapshot);
 		}
@@ -940,7 +1006,7 @@ void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 
 	if (InertializationState == EInertializationState::Active)
 	{
-		ApplyTo(Output.Pose, Output.Curve);
+		ApplyTo(Output.Pose, Output.Curve, Output.CustomAttributes);
 	}
 
 	// Find AttachParentName
@@ -963,7 +1029,7 @@ void FAnimNode_DeadBlending::Evaluate_AnyThread(FPoseContext& Output)
 	}
 	
 	// Initialize the current pose
-	CurrPoseSnapshot.InitFrom(Output.Pose, Output.Curve, ComponentTransform, AttachParentName, DeltaTime);
+	CurrPoseSnapshot.InitFrom(Output.Pose, Output.Curve, Output.CustomAttributes, ComponentTransform, AttachParentName, DeltaTime);
 
 	// Reset Delta Time
 
