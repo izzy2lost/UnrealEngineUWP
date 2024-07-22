@@ -3,7 +3,10 @@
 #include "Tasks/AvaTransitionWaitForLayerTask.h"
 #include "AvaTransitionLayerUtils.h"
 #include "Behavior/AvaTransitionBehaviorInstance.h"
+#include "Engine/Level.h"
+#include "Rendering/AvaTransitionRenderingSubsystem.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreeLinker.h"
 
 #define LOCTEXT_NAMESPACE "AvaTransitionWaitForLayerTask"
 
@@ -18,17 +21,24 @@ FText FAvaTransitionWaitForLayerTask::GetDescription(const FGuid& InId, FStateTr
 }
 #endif
 
+bool FAvaTransitionWaitForLayerTask::Link(FStateTreeLinker& InLinker)
+{
+	Super::Link(InLinker);
+	InLinker.LinkExternalData(RenderingSubsystemHandle);
+	return true;
+}
+
 EStateTreeRunStatus FAvaTransitionWaitForLayerTask::EnterState(FStateTreeExecutionContext& InContext, const FStateTreeTransitionResult& InTransition) const
 {
-	return QueryStatus(InContext);
+	return WaitForLayer(InContext);
 }
 
 EStateTreeRunStatus FAvaTransitionWaitForLayerTask::Tick(FStateTreeExecutionContext& InContext, const float InDeltaTime) const
 {
-	return QueryStatus(InContext);
+	return WaitForLayer(InContext);
 }
 
-EStateTreeRunStatus FAvaTransitionWaitForLayerTask::QueryStatus(FStateTreeExecutionContext& InContext) const
+EStateTreeRunStatus FAvaTransitionWaitForLayerTask::WaitForLayer(FStateTreeExecutionContext& InContext) const
 {
 	TArray<const FAvaTransitionBehaviorInstance*> BehaviorInstances = QueryBehaviorInstances(InContext);
 
@@ -39,11 +49,28 @@ EStateTreeRunStatus FAvaTransitionWaitForLayerTask::QueryStatus(FStateTreeExecut
 			return InInstance->IsRunning();
 		});
 
+	FAvaTransitionWaitForLayerTask::FInstanceDataType& InstanceData = InContext.GetInstanceData(*this);
+
+	UAvaTransitionRenderingSubsystem& RenderingSubsystem = InContext.GetExternalData(RenderingSubsystemHandle);
+
 	if (bIsLayerRunning)
 	{
+		// Hide Level Primitives while Waiting for other Layers
+		if (InstanceData.bHideSceneWhileWaiting && InstanceData.HiddenLevel == nullptr)
+		{
+			const FAvaTransitionContext& TransitionContext = InContext.GetExternalData(TransitionContextHandle);
+			if (const FAvaTransitionScene* TransitionScene = TransitionContext.GetTransitionScene())
+			{
+				InstanceData.HiddenLevel = TransitionScene->GetLevel();
+				RenderingSubsystem.HideLevel(InstanceData.HiddenLevel);
+			}
+		}
+
 		return EStateTreeRunStatus::Running;
 	}
 
+	// Restore Level Visibility
+	RenderingSubsystem.ShowLevel(InstanceData.HiddenLevel);
 	return EStateTreeRunStatus::Succeeded;
 }
 

@@ -1,18 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "IAvaTransitionModule.h"
+#include "AvaTransitionModule.h"
 #include "AvaTransitionLog.h"
+#include "Rendering/AvaTransitionSceneViewExtension.h"
+#include "SceneViewExtension.h"
 
 DEFINE_LOG_CATEGORY(LogAvaTransition);
 
-class FAvaTransitionModule : public IAvaTransitionModule
+void FAvaTransitionModule::StartupModule()
 {
-	virtual FOnValidateTransitionTree& GetOnValidateTransitionTree()
-	{
-		return OnValidateStateTree;
-	}
+	OnPostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAvaTransitionModule::PostEngineInit);
+}
 
-	FOnValidateTransitionTree OnValidateStateTree;
-};
+void FAvaTransitionModule::ShutdownModule()
+{
+	FCoreDelegates::OnPostEngineInit.Remove(OnPostEngineInitHandle);
+	OnPostEngineInitHandle.Reset();
+
+	TransitionSceneViewExtension.Reset();
+}
+
+IAvaTransitionModule::FOnValidateTransitionTree& FAvaTransitionModule::GetOnValidateTransitionTree()
+{
+	return OnValidateStateTree;
+}
+
+void FAvaTransitionModule::PostEngineInit()
+{
+	TransitionSceneViewExtension = FSceneViewExtensions::NewExtension<FAvaTransitionSceneViewExtension>();
+}
 
 IMPLEMENT_MODULE(FAvaTransitionModule, AvalancheTransition)
