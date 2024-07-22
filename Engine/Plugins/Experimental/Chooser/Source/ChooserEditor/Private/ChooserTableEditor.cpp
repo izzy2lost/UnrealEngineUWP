@@ -938,6 +938,13 @@ void FChooserTableEditor::UpdateTableColumns()
 							ChooserTable->Modify(true);
 							UpdateTableColumns();
 							UpdateTableRows();
+							
+							if (SelectedColumn && SelectedColumn->Column == ColumnIndex)
+							{
+								// if this column was selected, reselect to refresh the details widgets
+								SelectColumn(ChooserTable, ColumnIndex);
+							}
+                            							
 						}));
 				
 						Builder.AddWidget(Widget, FText());
