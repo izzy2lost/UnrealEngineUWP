@@ -320,15 +320,15 @@ void FRayTracingSkinnedGeometryUpdateQueue::Commit(FRDGBuilder& GraphBuilder, ER
 
 	if (GeometryBuildRequests.Num())
 	{
+		RDG_EVENT_SCOPE(GraphBuilder, "SkinnedGeometryBuildBLAS");
+		RDG_GPU_STAT_SCOPE(GraphBuilder, SkinnedGeometryBuildBLAS);
+
 		GraphBuilder.AddPass(RDG_EVENT_NAME("CommitRayTracingSkinnedGeometryUpdates"), BLASUpdateParams, ComputePassFlags | ERDGPassFlags::NeverCull,
 			[
 				BuildRequests = MoveTemp(GeometryBuildRequests),
 				SharedScratchBuffer
 			](FRHICommandList& RHICmdList)
 			{
-				SCOPED_GPU_STAT(RHICmdList, SkinnedGeometryBuildBLAS);
-				SCOPED_DRAW_EVENT(RHICmdList, SkinnedGeometryBuildBLAS);
-
 				FRHIBufferRange ScratchBufferRange;
 				ScratchBufferRange.Buffer = SharedScratchBuffer->GetRHI();
 				ScratchBufferRange.Offset = 0;

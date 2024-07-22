@@ -538,7 +538,9 @@ uint32 FRayTracingDynamicGeometryCollection::Update()
 void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FViewInfo& View, FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePassFlags, FRDGBufferRef& OutDynamicGeometryScratchBuffer)
 {
 	RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
-	
+	RDG_EVENT_SCOPE(GraphBuilder, "RayTracingDynamicGeometry");
+	RDG_GPU_STAT_SCOPE(GraphBuilder, RayTracingDynamicGeometry);
+
 	const uint32 ScratchAlignment = GRHIRayTracingScratchBufferAlignment;
 	const uint32 BLASScratchSize = Update();
 
@@ -560,7 +562,6 @@ void FRayTracingDynamicGeometryCollection::AddDynamicGeometryUpdatePass(const FV
 	GraphBuilder.AddPass(RDG_EVENT_NAME("RayTracingDynamicUpdate"), PassParams, ComputePassFlags | ERDGPassFlags::NeverCull,
 		[this, PassParams](FRHICommandList& RHICmdList)
 		{
-			SCOPED_GPU_STAT(RHICmdList, RayTracingDynamicGeometry);
 			FRHIBuffer* DynamicGeometryScratchBuffer = PassParams->DynamicGeometryScratchBuffer ? PassParams->DynamicGeometryScratchBuffer->GetRHI() : nullptr;
 
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
