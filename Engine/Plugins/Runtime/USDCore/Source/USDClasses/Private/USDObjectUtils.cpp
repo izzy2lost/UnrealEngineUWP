@@ -263,10 +263,6 @@ TSubclassOf<UUsdAssetUserData> UsdUnreal::ObjectUtils::GetAssetUserDataClassForO
 	{
 		return UUsdSparseVolumeTextureAssetUserData::StaticClass();
 	}
-	else if (ObjectClass->IsChildOf(ULevelSequence::StaticClass()))
-	{
-		return UUsdLevelSequenceAssetUserData::StaticClass();
-	}
 	else if (ObjectClass->ImplementsInterface(UInterface_AssetUserData::StaticClass()))
 	{
 		// Only return UUsdAssetUserData in case the object can hold asset user data, otherwise we'd get a warning

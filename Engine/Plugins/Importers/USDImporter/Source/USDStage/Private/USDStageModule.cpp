@@ -2,6 +2,7 @@
 
 #include "USDStageModule.h"
 
+#include "USDLocatorFragments.h"
 #include "USDMemory.h"
 #include "USDStageActor.h"
 #include "USDStageActorCustomization.h"
@@ -9,10 +10,14 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Interfaces/IPluginManager.h"
+#include "IUniversalObjectLocatorModule.h"
 #include "Modules/ModuleManager.h"
 
 #if WITH_EDITOR
+#include "USDLocatorEditors.h"
+
 #include "ISequencerModule.h"
+#include "IUniversalObjectLocatorEditorModule.h"
 #include "PropertyEditorModule.h"
 #endif	  // WITH_EDITOR
 
@@ -21,7 +26,19 @@ class FUsdStageModule : public IUsdStageModule
 public:
 	virtual void StartupModule() override
 	{
+		using namespace UE::UniversalObjectLocator;
+
+		IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<IUniversalObjectLocatorModule>("UniversalObjectLocator");
+		FFragmentTypeParameters Parameters{"usdprim", NSLOCTEXT("USDStageModule", "UsdPrimLocatorFragment", "UsdPrim")};
+		Parameters.PrimaryEditorType = "UsdPrim";
+		FUsdPrimLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FUsdPrimLocatorFragment>(Parameters);
+
 #if WITH_EDITOR
+		IUniversalObjectLocatorEditorModule& UolEditorModule = FModuleManager::LoadModuleChecked<IUniversalObjectLocatorEditorModule>(
+			"UniversalObjectLocatorEditor"
+		);
+		UolEditorModule.RegisterLocatorEditor("UsdPrim", MakeShared<FUsdPrimLocatorEditor>());
+
 		LLM_SCOPE_BYTAG(Usd);
 
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
@@ -54,7 +71,21 @@ public:
 
 	virtual void ShutdownModule() override
 	{
+		using namespace UE::UniversalObjectLocator;
+
+		if (IUniversalObjectLocatorModule* UolModule = FModuleManager::Get().GetModulePtr<IUniversalObjectLocatorModule>("UniversalObjectLocator"))
+		{
+			UolModule->UnregisterFragmentType(FUsdPrimLocatorFragment::FragmentType);
+		}
+
 #if WITH_EDITOR
+		if (IUniversalObjectLocatorEditorModule* UolEditorModule = FModuleManager::Get().GetModulePtr<IUniversalObjectLocatorEditorModule>(
+				"UniversalObjectLocatorEditor"
+			))
+		{
+			UolEditorModule->UnregisterLocatorEditor("UsdPrim");
+		}
+
 		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 		PropertyModule.UnregisterCustomClassLayout(TEXT("UsdStageActor"));
 

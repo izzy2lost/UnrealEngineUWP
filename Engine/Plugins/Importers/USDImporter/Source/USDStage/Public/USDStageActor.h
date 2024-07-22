@@ -242,7 +242,7 @@ public:
 	 * invalid.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API USceneComponent* GetGeneratedComponent(const FString& PrimPath);
+	USDSTAGE_API USceneComponent* GetGeneratedComponent(const FString& PrimPath) const;
 
 	/**
 	 * Gets the transient assets that were generated for a prim with a given prim path. Likely one asset (e.g. UStaticMesh), but can be multiple
@@ -251,7 +251,7 @@ public:
 	 * @return The corresponding generated assets. May be empty if path is invalid or if that prim led to no generated assets.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API TArray<UObject*> GetGeneratedAssets(const FString& PrimPath);
+	USDSTAGE_API TArray<UObject*> GetGeneratedAssets(const FString& PrimPath) const;
 
 	/**
 	 * Gets the path to the prim that was parsed to generate the given `Object`.
@@ -260,7 +260,7 @@ public:
 	 * @return The path to the source prim, e.g. "/root_prim/some_prim". May be empty in case we couldn't find the source prim.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
-	USDSTAGE_API FString GetSourcePrimPath(UObject* Object);
+	USDSTAGE_API FString GetSourcePrimPath(const UObject* Object) const;
 
 	// Creates a brand new, memory-only USD stage and opens it
 	UFUNCTION(BlueprintCallable, Category = "USD", meta = (CallInEditor = "true"))
@@ -360,6 +360,7 @@ protected:
 	void AnimatePrims();
 
 	UUsdPrimTwin* GetRootPrimTwin();
+	UUsdPrimTwin* GetRootPrimTwin() const;
 	UUsdPrimTwin* GetOrCreatePrimTwin(const UE::FSdfPath& UsdPrimPath);
 
 	UUsdPrimTwin* ExpandPrim(const UE::FUsdPrim& Prim, bool bResync, FUsdSchemaTranslationContext& TranslationContext);
@@ -377,9 +378,6 @@ protected:
 	bool HasAuthorityOverStage() const;
 
 	void UpdateSpawnedObjectsTransientFlag(bool bTransient);
-
-	void OnActorAddedToSequencer(AActor* NewActor, const FGuid Guid, TWeakPtr<ISequencer> WeakSequencer);
-	void OnMovieSceneDataChanged(EMovieSceneDataChangeType ChangeType, TWeakPtr<ISequencer> WeakSequencer);
 
 #if WITH_EDITOR
 	void OnBeginPIE(bool bIsSimulating);

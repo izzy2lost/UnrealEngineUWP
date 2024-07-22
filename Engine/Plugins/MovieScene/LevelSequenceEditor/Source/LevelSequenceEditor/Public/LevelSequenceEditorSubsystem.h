@@ -56,7 +56,7 @@ struct FMovieSceneBindingPropertyInfo
 	GENERATED_BODY()
 
 	// Locator for the entry
-	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor", DisplayName="Actor"))
+	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor, UsdPrim", DisplayName="Actor"))
 	FUniversalObjectLocator Locator;
 
 	// Flags for how to resolve the locator

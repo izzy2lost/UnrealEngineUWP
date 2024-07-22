@@ -1687,7 +1687,7 @@ TArray<TWeakObjectPtr<UObject>> FUsdInfoCache::GetAllAssetsForPrim(const UE::FSd
 	return {};
 }
 
-TArray<UE::FSdfPath> FUsdInfoCache::GetPrimsForAsset(UObject* Asset) const
+TArray<UE::FSdfPath> FUsdInfoCache::GetPrimsForAsset(const UObject* Asset) const
 {
 	if (!Asset)
 	{

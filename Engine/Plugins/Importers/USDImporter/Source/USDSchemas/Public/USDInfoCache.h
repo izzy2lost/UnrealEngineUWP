@@ -134,7 +134,7 @@ public:
 		return CastAssets;
 	}
 
-	TArray<UE::FSdfPath> GetPrimsForAsset(UObject* Asset) const;
+	TArray<UE::FSdfPath> GetPrimsForAsset(const UObject* Asset) const;
 	TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> GetAllAssetPrimLinks() const;
 
 private:

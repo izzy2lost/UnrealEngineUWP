@@ -40,6 +40,7 @@ namespace UnrealBuildTool.Rules
 					"Slate",
 					"SlateCore",
 					"StaticMeshDescription",
+					"UniversalObjectLocator",
 					"UnrealUSDWrapper",
 					"USDClasses",
 					"USDUtilities",
@@ -53,7 +54,6 @@ namespace UnrealBuildTool.Rules
 					{
 						"BlueprintGraph", // For setting up the Sequencer Dynamic Binding blueprint graphs
 						"ControlRigDeveloper",
-						"RigVMDeveloper",
 						"DeveloperToolSettings",
 						"EditorStyle", // For the font style on the stage actor customization
 						"InputCore", // For keyboard control on the widget in the stage actor customization
@@ -61,7 +61,10 @@ namespace UnrealBuildTool.Rules
 						"LevelSequenceEditor",
 						"MovieSceneTools",
 						"PropertyEditor", // For the stage actor's details customization
+						"RigVMDeveloper",
+						"SceneOutliner", // For drag and drop operations on the Universal Object Locator editor
 						"Sequencer",
+						"UniversalObjectLocatorEditor",
 						"UnrealEd",
 						"USDClassesEditor",
 					}

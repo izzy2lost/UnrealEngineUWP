@@ -122,7 +122,8 @@ public:
  * We need this as part of a mechanism to automatically repair those bindings when they break if we close/reload the stage.
  */
 UCLASS(BlueprintType)
-class USDCLASSES_API UUsdLevelSequenceAssetUserData : public UAssetUserData
+class UE_DEPRECATED(5.5, "This class is no longer used, as AUsdStageActors now use Sequencer Universal Object Locators for persistent bindings")
+	USDCLASSES_API UUsdLevelSequenceAssetUserData : public UAssetUserData
 {
 	GENERATED_BODY()
 
