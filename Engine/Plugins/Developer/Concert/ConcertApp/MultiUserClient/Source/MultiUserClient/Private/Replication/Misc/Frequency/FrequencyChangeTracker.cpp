@@ -23,11 +23,13 @@ namespace UE::MultiUserClient
 
 	void FFrequencyChangeTracker::AddOverride(FSoftObjectPath Object, FConcertObjectReplicationSettings NewSettings)
 	{
+		// TODO UE-219834: The override should be added to UMultiUserReplicationStream so it can be transacted.
 		RecordedChanges.OverridesToAdd.Emplace(MoveTemp(Object), MoveTemp(NewSettings));
 	}
 	
 	FFrequencyChangelist FFrequencyChangeTracker::BuildForSubmission(const FStreamChangelist& ObjectChanges)
 	{
+		// TODO UE-219834: A diff between UMultiUserReplicationStream and the server state should be generated instead
 		FFrequencyChangelist Result = RecordedChanges;
 
 		// For now we only support adding overrides.

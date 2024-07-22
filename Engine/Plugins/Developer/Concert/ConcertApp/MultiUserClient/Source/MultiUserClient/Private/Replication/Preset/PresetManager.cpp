@@ -60,18 +60,17 @@ namespace UE::MultiUserClient
 				const FGuid& StreamId = SavedStream->StreamId;
 				FConcertReplicationStream Stream { { .Identifier = StreamId, .ReplicationMap = SavedStream->ReplicationMap } };
 				// Empty objects will be rejected by the server
-				RemoveEmptyObjectsFromRequest(Stream); 
+				RemoveEmptyObjectsFromRequest(Stream);
+				Stream.BaseDescription.FrequencySettings = ClientSessionContent->Stream->FrequencySettings;
 				Request.NewStreams.Add(ClientSessionInfo.ClientEndpointId, { TArray{ Stream } });
 				
 				// MU automatically requests authority when it adds an object.
-				// We'll assume that that authority was granted - if it actually was not, our request may fail due to overlapping authority.
+				// We'll assume that that authority was granted when the preset was created - if it actually was not, our request may fail due to overlapping authority.
 				TArray<FConcertObjectInStreamID>& OwnedObjects = Request.NewAuthorityState.Add(ClientSessionInfo.ClientEndpointId).Objects;
 				Algo::Transform(Stream.BaseDescription.ReplicationMap.ReplicatedObjects, OwnedObjects, [&StreamId](const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair)
 				{
 					return FConcertObjectInStreamID{ StreamId, Pair.Key };
 				});
-				
-				// TODO UE-219639: Load frequency settings
 			};
 			AddClient({ Session.GetSessionClientEndpointId(), Session.GetLocalClientInfo() });
 			for (const FConcertSessionClientInfo& ClientSessionInfo : Session.GetSessionClients())
@@ -317,6 +316,8 @@ namespace UE::MultiUserClient
 			}
 
 			ClientContent_InPreset->Stream->Copy(*ClientContent_ToCopy->Stream);
+			// TODO UE-219834: Once UMultiUserReplicationStream::FrequencySettings reflect the server state, this can be removed.
+			ClientContent_InPreset->Stream->FrequencySettings = Client->GetStreamSynchronizer().GetFrequencySettings();
 		}
 
 		Preset->SetMuteContent(
