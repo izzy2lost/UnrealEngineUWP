@@ -1159,6 +1159,15 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Enable Substrate opaque material rough refractions effect from top layers over layers below.",
 		ConfigRestartRequired = true))
 		uint32 SubstrateOpaqueMaterialRoughRefraction : 1;
+		
+	/**
+	"Enable Substrate translucent material rough refractions effect over background. Editor restart is not required."
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Substrate, meta = (
+		ConsoleVariable = "r.Refraction.Blur", DisplayName = "Substrate translucent material rough refraction",
+		ToolTip = "Enable Substrate translucent material rough refractions effect over background.",
+		ConfigRestartRequired = false))
+		uint32 SubstrateTranslucentMaterialRoughRefraction : 1;
 
 	/**
 	"Enable advanced Substrate material debug visualization shaders. Base pas shaders can output such advanced data."
