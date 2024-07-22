@@ -3,23 +3,23 @@
 #pragma once
 
 #include "Properties/PropertyAnimatorCoreContext.h"
-#include "PropertyAnimatorFloatContext.generated.h"
+#include "PropertyAnimatorVectorContext.generated.h"
 
-/** Property context used by animator for float/double properties */
+/** Property context used by animator for vector properties */
 UCLASS(MinimalAPI, BlueprintType)
-class UPropertyAnimatorFloatContext : public UPropertyAnimatorCoreContext
+class UPropertyAnimatorVectorContext : public UPropertyAnimatorCoreContext
 {
 	GENERATED_BODY()
 
 public:
-	PROPERTYANIMATOR_API void SetAmplitudeMin(double InAmplitude);
-	double GetAmplitudeMin() const
+	PROPERTYANIMATOR_API void SetAmplitudeMin(const FVector& InAmplitude);
+	const FVector& GetAmplitudeMin() const
 	{
 		return AmplitudeMin;
 	}
 
-	PROPERTYANIMATOR_API void SetAmplitudeMax(double InAmplitude);
-	double GetAmplitudeMax() const
+	PROPERTYANIMATOR_API void SetAmplitudeMax(const FVector& InAmplitude);
+	const FVector& GetAmplitudeMax() const
 	{
 		return AmplitudeMax;
 	}
@@ -36,21 +36,21 @@ protected:
 	virtual void OnAnimatedPropertyLinked() override;
 	//~ End UPropertyAnimatorCoreContext
 
-	double GetClampedAmplitude(double InAmplitude);
+	FVector GetClampedAmplitude(FVector InAmplitude);
 
 	/** The minimum value should be remapped to that values */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	double AmplitudeMin = -1.f;
+	FVector AmplitudeMin = FVector::ZeroVector;
 
 	/** Some properties are clamped and cannot go past a specific min value */
 	UPROPERTY()
-	TOptional<double> AmplitudeClampMin;
+	TOptional<FVector> AmplitudeClampMin;
 
 	/** The maximum value should be remapped to that values */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	double AmplitudeMax = 1.f;
+	FVector AmplitudeMax = FVector::ZeroVector;
 
 	/** Some properties are clamped and cannot go past a specific min value */
 	UPROPERTY()
-	TOptional<double> AmplitudeClampMax;
+	TOptional<FVector> AmplitudeClampMax;
 };

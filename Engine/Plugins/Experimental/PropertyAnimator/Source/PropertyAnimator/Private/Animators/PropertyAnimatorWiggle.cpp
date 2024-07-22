@@ -16,13 +16,19 @@ UPropertyAnimatorWiggle::UPropertyAnimatorWiggle()
 	Seed = SeedIncrement++;
 }
 
-float UPropertyAnimatorWiggle::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+bool UPropertyAnimatorWiggle::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
-	const float Frequency = InOptions->GetFrequency() * GlobalFrequency;
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
+	const double Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
 
 	// Apply random wave based on time and frequency
-	const double WaveResult = UE::PropertyAnimator::Wave::Perlin(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
+	const double WaveResult = UE::PropertyAnimator::Wave::Perlin(TimeElapsed, 1.f, Frequency, 0.f);
 
 	// Remap from [-1, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(-1, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), WaveResult);
+	const float NormalizedValue = FMath::GetMappedRangeValueClamped(FVector2D(-1, 1), FVector2D(0, 1), WaveResult);
+
+	InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+	InParameters.SetValueFloat(AlphaParameterName, NormalizedValue);
+
+	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 }

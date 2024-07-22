@@ -85,6 +85,16 @@ void UPropertyAnimatorCoreContext::SetAnimated(bool bInAnimated)
 	OnAnimatedChanged();
 }
 
+void UPropertyAnimatorCoreContext::SetMagnitude(float InMagnitude)
+{
+	Magnitude = FMath::Clamp(InMagnitude, 0.f, 1.f);
+}
+
+void UPropertyAnimatorCoreContext::SetTimeOffset(double InTimeOffset)
+{
+	TimeOffset = InTimeOffset;
+}
+
 void UPropertyAnimatorCoreContext::SetMode(EPropertyAnimatorCoreMode InMode)
 {
 	if (InMode == Mode)
@@ -433,7 +443,7 @@ void UPropertyAnimatorCoreContext::OnAnimatedChanged()
 	}
 }
 
-void UPropertyAnimatorCoreContext::SetEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues)
+void UPropertyAnimatorCoreContext::CommitEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues)
 {
 	if (!IsAnimated())
 	{

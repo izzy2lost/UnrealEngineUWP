@@ -208,6 +208,8 @@ void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick
 		return;
 	}
 
+	FInstancedPropertyBag Parameters;
+
 	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
 	{
 		if (!IsValid(Animator))
@@ -215,7 +217,11 @@ void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick
 			continue;
 		}
 
-		Animator->EvaluateAnimator();
+		Parameters.Reset();
+		Parameters.AddProperty(UPropertyAnimatorCoreBase::MagnitudeParameterName, EPropertyBagPropertyType::Float);
+		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude);
+
+		Animator->EvaluateAnimator(Parameters);
 	}
 }
 

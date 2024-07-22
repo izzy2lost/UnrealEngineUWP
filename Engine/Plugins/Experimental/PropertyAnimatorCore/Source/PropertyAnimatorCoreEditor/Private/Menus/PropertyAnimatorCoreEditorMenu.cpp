@@ -506,7 +506,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::ExecuteLinkAnimatorPropertyAction(UPr
 		|| !IsValid(InAnimator)
 		|| InAnimator->IsTemplate()
 		|| !InProperty.IsResolved()
-		|| !InAnimator->IsPropertySupported(InProperty)
+		|| !InAnimator->HasPropertySupport(InProperty)
 		|| InMenuData->GetContext().IsEmpty())
 	{
 		return;
@@ -733,13 +733,13 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewAnimatorSubmenu(UToolMenu* InM
 		TSet<FPropertyAnimatorCoreData> SupportedProperties;
 		for (const FPropertyAnimatorCoreData& Property : InMenuData->GetContext().GetProperties())
 		{
-			InAnimator->GetPropertiesSupported(Property, SupportedProperties, true);
+			InAnimator->GetPropertiesSupported(Property, SupportedProperties, /** SearchDepth */3);
 		}
 
-		for (FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
+		for (const FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
 		{
 			const FString MenuName = SupportedProperty.GetPropertyDisplayName().ToString();
-			const FText MenuLabel = FText::FromString(MenuName);
+			const FText MenuLabel = FText::FromString(MenuName + TEXT(" (") + SupportedProperty.GetLeafPropertyTypeName().ToString() + TEXT(")"));
 
 			// Create action (creates an animator and links the property)
 			PropertySection.AddMenuEntry(
@@ -828,13 +828,13 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillLinkAnimatorSubmenu(UToolMenu* In
 	TSet<FPropertyAnimatorCoreData> SupportedProperties;
 	for (const FPropertyAnimatorCoreData& Property : InMenuData->GetContext().GetProperties())
 	{
-		InAnimator->GetPropertiesSupported(Property, SupportedProperties, true);
+		InAnimator->GetPropertiesSupported(Property, SupportedProperties, /** SearchDepth */3);
 	}
 
 	for (const FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
 	{
 		const FName MenuName = SupportedProperty.GetPropertyDisplayName();
-		const FText MenuLabel = FText::FromName(MenuName);
+		const FText MenuLabel = FText::FromString(MenuName.ToString() + TEXT(" (") + SupportedProperty.GetLeafPropertyTypeName().ToString() + TEXT(")"));
 
 		PropertySection.AddMenuEntry(
 			MenuName
@@ -886,7 +886,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillPresetAnimatorSubmenu(UToolMenu* 
 	for (const FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
 	{
 		const FName MenuName = SupportedProperty.GetPropertyDisplayName();
-		const FText MenuLabel = FText::FromName(MenuName);
+		const FText MenuLabel = FText::FromString(MenuName.ToString() + TEXT(" (") + SupportedProperty.GetLeafPropertyTypeName().ToString() + TEXT(")"));
 		const FText MenuTooltip = LOCTEXT("LinkPresetProperty.Tooltip", "Link this preset property");
 
 		const FToolMenuEntry SupportedPropertyEntry = FToolMenuEntry::InitMenuEntry(
@@ -976,7 +976,7 @@ void UE::PropertyAnimatorCoreEditor::Menu::FillNewPresetAnimatorSubmenu(UToolMen
 
 	for (const FPropertyAnimatorCoreData& PresetProperty : PresetProperties)
 	{
-		const FText MenuLabel = FText::FromName(PresetProperty.GetPropertyDisplayName());
+		const FText MenuLabel = FText::FromString(PresetProperty.GetPropertyDisplayName().ToString() + TEXT(" (") + PresetProperty.GetLeafPropertyTypeName().ToString() + TEXT(")"));
 
 		const FToolMenuEntry CreatePropertyEntry = FToolMenuEntry::InitMenuEntry(
 			FName(TEXT("CreateProperty") + PresetProperty.GetPropertyDisplayName().ToString())

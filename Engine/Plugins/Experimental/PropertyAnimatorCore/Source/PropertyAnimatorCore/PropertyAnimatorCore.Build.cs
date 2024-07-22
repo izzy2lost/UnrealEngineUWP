@@ -12,7 +12,7 @@ public class PropertyAnimatorCore : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject",
+				"CoreUObject"
 			});
 
 		PrivateDependencyModuleNames.AddRange(

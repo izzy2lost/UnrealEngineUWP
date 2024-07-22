@@ -23,8 +23,8 @@ UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
 	{
 		// Apply default time source
-		const TArray<FName> TimeSources = AnimatorSubsystem->GetTimeSourceNames();
-		SetTimeSourceName(!TimeSources.IsEmpty() ? TimeSources[0] : NAME_None);
+		const TArray<FName> TimeSourceNames = AnimatorSubsystem->GetTimeSourceNames();
+		SetTimeSourceName(!TimeSourceNames.IsEmpty() ? TimeSourceNames[0] : NAME_None);
 	}
 
 #if WITH_EDITOR
@@ -119,11 +119,19 @@ void UPropertyAnimatorCoreBase::BeginDestroy()
 
 void UPropertyAnimatorCoreBase::PostLoad()
 {
-	CleanTimeSources();
+	Super::PostLoad();
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+	// Migrate deprecated property
+	if (TimeSources.IsEmpty())
+	{
+		TimeSourcesInstances.GenerateValueArray(TimeSources);
+	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	OnTimeSourceNameChanged();
-
-	Super::PostLoad();
 
 	CleanLinkedProperties();
 
@@ -213,8 +221,8 @@ void UPropertyAnimatorCoreBase::SetTimeSourceName(FName InTimeSourceName)
 		return;
 	}
 
-	const TArray<FString> TimeSources = GetTimeSourceNames();
-	if (!TimeSources.Contains(InTimeSourceName))
+	const TArray<FName> TimeSourceNames = GetTimeSourceNames();
+	if (!TimeSourceNames.Contains(InTimeSourceName))
 	{
 		return;
 	}
@@ -229,7 +237,7 @@ FName UPropertyAnimatorCoreBase::GetAnimatorOriginalName() const
 	return CDO ? CDO->AnimatorDisplayName : NAME_None;
 }
 
-bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCoreData& InPropertyData, TSet<FPropertyAnimatorCoreData>& OutProperties, bool bInRecursiveSearch) const
+bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCoreData& InPropertyData, TSet<FPropertyAnimatorCoreData>& OutProperties, uint8 InSearchDepth, EPropertyAnimatorPropertySupport InSupportExpected) const
 {
 	const FProperty* LeafProperty = InPropertyData.GetLeafProperty();
 	UObject* Owner = InPropertyData.GetOwner();
@@ -241,47 +249,46 @@ bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCo
 	}
 
 	// We can directly control the member property
-	if (IsPropertySupported(InPropertyData))
+	if (HasPropertySupport(InPropertyData, InSupportExpected))
 	{
 		OutProperties.Add(InPropertyData);
+	}
 
-		if (bInRecursiveSearch)
-		{
-			return true;
-		}
+	if (--InSearchDepth == 0)
+	{
+		return !OutProperties.IsEmpty();
 	}
 
 	// Look for inner properties that can be controlled too
-	TFunction<bool(TArray<FProperty*>&, UObject*, TSet<FPropertyAnimatorCoreData>&)> FindSupportedPropertiesRecursively = [this, &FindSupportedPropertiesRecursively, bInRecursiveSearch, InPropertyData](TArray<FProperty*>& InChainProperties, UObject* InOwner, TSet<FPropertyAnimatorCoreData>& OutSupportedProperties)
+	TFunction<bool(TArray<FProperty*>&, UObject*, TSet<FPropertyAnimatorCoreData>&)> FindSupportedPropertiesRecursively = [this, &FindSupportedPropertiesRecursively, &InSearchDepth, &InPropertyData, InSupportExpected](TArray<FProperty*>& InChainProperties, UObject* InOwner, TSet<FPropertyAnimatorCoreData>& OutSupportedProperties)
 	{
-		FProperty* InLeafProperty = InChainProperties.Last();
-		if (const FStructProperty* StructProp = CastField<FStructProperty>(InLeafProperty))
+		if (InSearchDepth-- > 0)
 		{
-			for (FProperty* Property : TFieldRange<FProperty>(StructProp->Struct))
+			FProperty* InLeafProperty = InChainProperties.Last();
+
+			if (const FStructProperty* StructProp = CastField<FStructProperty>(InLeafProperty))
 			{
-				if (!Property->HasAnyPropertyFlags(EPropertyFlags::CPF_Edit))
+				for (FProperty* Property : TFieldRange<FProperty>(StructProp->Struct))
 				{
-					continue;
-				}
-
-				// Copy over resolver if any on that property
-				FPropertyAnimatorCoreData PropertyControlData(InOwner, InChainProperties, Property, InPropertyData.GetPropertyResolverClass());
-
-				// We can directly control this property
-				if (IsPropertySupported(PropertyControlData))
-				{
-					OutSupportedProperties.Add(PropertyControlData);
-
-					if (bInRecursiveSearch)
+					if (!Property->HasAnyPropertyFlags(EPropertyFlags::CPF_Edit))
 					{
 						continue;
 					}
-				}
 
-				// Check nested properties inside this property
-				TArray<FProperty*> NestedChainProperties(InChainProperties);
-				NestedChainProperties.Add(Property);
-				FindSupportedPropertiesRecursively(NestedChainProperties, InOwner, OutSupportedProperties);
+					// Copy over resolver if any on that property
+					FPropertyAnimatorCoreData PropertyControlData(InOwner, InChainProperties, Property, InPropertyData.GetPropertyResolverClass());
+
+					// We can directly control this property
+					if (HasPropertySupport(PropertyControlData, InSupportExpected))
+					{
+						OutSupportedProperties.Add(PropertyControlData);
+					}
+
+					// Check nested properties inside this property
+					TArray<FProperty*> NestedChainProperties(InChainProperties);
+					NestedChainProperties.Add(Property);
+					FindSupportedPropertiesRecursively(NestedChainProperties, InOwner, OutSupportedProperties);
+				}
 			}
 		}
 
@@ -289,20 +296,23 @@ bool UPropertyAnimatorCoreBase::GetPropertiesSupported(const FPropertyAnimatorCo
 	};
 
 	TArray<FProperty*> ChainProperties = InPropertyData.GetChainProperties();
-
 	return FindSupportedPropertiesRecursively(ChainProperties, Owner, OutProperties);
 }
 
-bool UPropertyAnimatorCoreBase::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+EPropertyAnimatorPropertySupport UPropertyAnimatorCoreBase::GetPropertySupport(const FPropertyAnimatorCoreData& InPropertyData) const
 {
 	// Without any handler we can't control the property type
 	if (!InPropertyData.GetPropertyHandler())
 	{
-		return false;
+		return EPropertyAnimatorPropertySupport::None;
 	}
 
-	return IsPropertyDirectlySupported(InPropertyData)
-		|| IsPropertyIndirectlySupported(InPropertyData);
+	return IsPropertySupported(InPropertyData);
+}
+
+bool UPropertyAnimatorCoreBase::HasPropertySupport(const FPropertyAnimatorCoreData& InPropertyData, EPropertyAnimatorPropertySupport InSupportExpected) const
+{
+	return EnumHasAnyFlags(InSupportExpected, GetPropertySupport(InPropertyData));
 }
 
 void UPropertyAnimatorCoreBase::OnAnimatorEnabled()
@@ -357,18 +367,6 @@ void UPropertyAnimatorCoreBase::CleanLinkedProperties()
 	}
 }
 
-void UPropertyAnimatorCoreBase::CleanTimeSources()
-{
-	for (TMap<FName, TObjectPtr<UPropertyAnimatorCoreTimeSourceBase>>::TIterator It(TimeSourcesInstances); It; ++It)
-	{
-		// Remove invalid time sources
-		if (!It->Value.Get())
-		{
-			It.RemoveCurrent();
-		}
-	}
-}
-
 void UPropertyAnimatorCoreBase::OnTimeSourceNameChanged()
 {
 	if (ActiveTimeSource)
@@ -409,7 +407,7 @@ void UPropertyAnimatorCoreBase::ResolvePropertiesOwner(AActor* InNewOwner)
 	}
 }
 
-void UPropertyAnimatorCoreBase::EvaluateAnimator()
+void UPropertyAnimatorCoreBase::EvaluateAnimator(FInstancedPropertyBag& InParameters)
 {
 	UPropertyAnimatorCoreTimeSourceBase* TimeSource = GetActiveTimeSource();
 
@@ -431,13 +429,11 @@ void UPropertyAnimatorCoreBase::EvaluateAnimator()
 	SaveProperties();
 
 	EvaluatedPropertyValues.Reset();
-
-	FPropertyAnimatorCoreEvaluationParameters Parameters;
-	Parameters.AnimatorsMagnitude = GetAnimatorComponentMagnitude();
-	Parameters.TimeElapsed = TimeElapsed.GetValue();
+	InParameters.AddProperty(TimeElapsedParameterName, EPropertyBagPropertyType::Double);
+	InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed.GetValue());
 
 	bEvaluatingProperties = true;
-	EvaluateProperties(Parameters);
+	EvaluateProperties(InParameters);
 	bEvaluatingProperties = false;
 }
 
@@ -530,18 +526,13 @@ void UPropertyAnimatorCoreBase::SaveProperties()
 	}, bResolve);
 }
 
-TArray<FString> UPropertyAnimatorCoreBase::GetTimeSourceNames() const
+TArray<FName> UPropertyAnimatorCoreBase::GetTimeSourceNames() const
 {
-	TArray<FString> TimeSourceNames;
+	TArray<FName> TimeSourceNames;
 
-	if (const UPropertyAnimatorCoreSubsystem* ControllerSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
 	{
-		const TArray<FName> TimeSources = ControllerSubsystem->GetTimeSourceNames();
-
-		Algo::Transform(TimeSources, TimeSourceNames, [](const FName& InTimeSource)
-		{
-			return InTimeSource.ToString();
-		});
+		TimeSourceNames = AnimatorSubsystem->GetTimeSourceNames();
 	}
 
 	return TimeSourceNames;
@@ -563,11 +554,12 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::FindOrAddTimeSou
 
 	// Check cached time source instances
 	UPropertyAnimatorCoreTimeSourceBase* NewTimeSource = nullptr;
-	if (TObjectPtr<UPropertyAnimatorCoreTimeSourceBase> const* TimeSourceInstance = TimeSourcesInstances.Find(InTimeSourceName))
+
+	for (const TObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& TimeSource : TimeSources)
 	{
-		if (const TObjectPtr<UPropertyAnimatorCoreTimeSourceBase> CachedTimeSource = *TimeSourceInstance)
+		if (TimeSource && TimeSource->GetTimeSourceName() == InTimeSourceName)
 		{
-			NewTimeSource = CachedTimeSource.Get();
+			NewTimeSource = TimeSource.Get();
 		}
 	}
 
@@ -575,9 +567,10 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::FindOrAddTimeSou
 	if (!NewTimeSource)
 	{
 		NewTimeSource = Subsystem->CreateNewTimeSource(InTimeSourceName, this);
+
 		if (NewTimeSource)
 		{
-			TimeSourcesInstances.Add(InTimeSourceName, NewTimeSource);
+			TimeSources.Add(NewTimeSource);
 		}
 	}
 
@@ -632,7 +625,9 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 		return false;
 	}
 
-	if (!IsPropertySupported(InLinkProperty))
+	const EPropertyAnimatorPropertySupport Support = GetPropertySupport(InLinkProperty);
+
+	if (Support == EPropertyAnimatorPropertySupport::None)
 	{
 		return false;
 	}
@@ -654,7 +649,7 @@ bool UPropertyAnimatorCoreBase::LinkProperty(const FPropertyAnimatorCoreData& In
 	PropertyContext->ConstructInternal(InLinkProperty);
 
 	LinkedProperties.Add(PropertyContext);
-	OnPropertyLinked(PropertyContext);
+	OnPropertyLinked(PropertyContext, Support);
 
 	UPropertyAnimatorCoreBase::OnAnimatorPropertyLinkedDelegate.Broadcast(this, InLinkProperty);
 
@@ -683,14 +678,25 @@ bool UPropertyAnimatorCoreBase::IsPropertyLinked(const FPropertyAnimatorCoreData
 {
 	return LinkedProperties.ContainsByPredicate([&InPropertyData](const UPropertyAnimatorCoreContext* InOptions)
 	{
-		return InOptions && InOptions->GetAnimatedProperty() == InPropertyData;
+		return InOptions
+			&& (
+				InOptions->GetAnimatedProperty() == InPropertyData
+				|| InOptions->GetAnimatedProperty().IsOwning(InPropertyData)
+			);
 	});
 }
 
 bool UPropertyAnimatorCoreBase::IsPropertiesLinked(const TSet<FPropertyAnimatorCoreData>& InProperties) const
 {
-	const TSet<FPropertyAnimatorCoreData> LinkedPropertiesSet = GetLinkedProperties();
-	return LinkedPropertiesSet.Includes(InProperties);
+	for (const FPropertyAnimatorCoreData& Property : InProperties)
+	{
+		if (!IsPropertyLinked(Property))
+		{
+			return false;
+		}
+	}
+
+	return !InProperties.IsEmpty();
 }
 
 TSet<FPropertyAnimatorCoreData> UPropertyAnimatorCoreBase::GetInnerPropertiesLinked(const FPropertyAnimatorCoreData& InPropertyData) const

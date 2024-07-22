@@ -53,6 +53,18 @@ public:
 		return bAnimated;
 	}
 
+	PROPERTYANIMATORCORE_API void SetMagnitude(float InMagnitude);
+	float GetMagnitude() const
+	{
+		return Magnitude;
+	}
+
+	PROPERTYANIMATORCORE_API void SetTimeOffset(double InTimeOffset);
+	double GetTimeOffset() const
+	{
+		return TimeOffset;
+	}
+
 	PROPERTYANIMATORCORE_API void SetMode(EPropertyAnimatorCoreMode InMode);
 	EPropertyAnimatorCoreMode GetMode() const
 	{
@@ -81,6 +93,12 @@ public:
 
 	/** Called when the owner has changed and we want to update the animated property */
 	bool ResolvePropertyOwner(AActor* InNewOwner);
+
+	/** Evaluates a property within this context based on animator result */
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InProperty, const FInstancedPropertyBag& InAnimatorResult, FInstancedPropertyBag& OutEvaluatedValues)
+	{
+		return false;
+	}
 
 protected:
 	//~ Begin UObject
@@ -111,7 +129,7 @@ private:
 	void OnGroupNameChanged();
 
 	/** Sets the evaluation result for the resolved property */
-	PROPERTYANIMATORCORE_API void SetEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues);
+	PROPERTYANIMATORCORE_API void CommitEvaluationResult(const FPropertyAnimatorCoreData& InResolvedProperty, const FInstancedPropertyBag& InEvaluatedValues);
 
 	/** Use this to resolve virtual linked property */
 	PROPERTYANIMATORCORE_API TArray<FPropertyAnimatorCoreData> ResolveProperty(bool bInForEvaluation) const;
@@ -134,6 +152,14 @@ private:
 	/** Animation is enabled for this property */
 	UPROPERTY(EditInstanceOnly, Setter="SetAnimated", Getter="IsAnimated", Category="Animator", meta=(AllowPrivateAccess="true"))
 	bool bAnimated = true;
+
+	/** Magnitude of the effect on this property */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0.0", ClampMax="1.0"))
+	float Magnitude = 1.f;
+
+	/** Time offset variation for evaluation */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	double TimeOffset = 0.f;
 
 	/** Edit condition for modes */
 	UPROPERTY(Transient)

@@ -18,6 +18,10 @@ class UPropertyAnimatorCoreTimeSourceBase : public UObject
 	friend class UPropertyAnimatorCoreSubsystem;
 
 public:
+#if WITH_EDITOR
+	PROPERTYANIMATORCORE_API static FName GetTimeElapsedPropertyName();
+#endif
+
 	UPropertyAnimatorCoreTimeSourceBase()
 		: UPropertyAnimatorCoreTimeSourceBase(NAME_None)
 	{}

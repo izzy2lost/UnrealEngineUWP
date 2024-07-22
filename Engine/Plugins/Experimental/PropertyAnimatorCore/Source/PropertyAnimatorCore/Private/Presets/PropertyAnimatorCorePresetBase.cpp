@@ -22,7 +22,7 @@ void UPropertyAnimatorCorePresetBase::GetSupportedPresetProperties(const AActor*
 
 	for (const FPropertyAnimatorCoreData& PresetProperty : PresetProperties)
 	{
-		InAnimator->GetPropertiesSupported(PresetProperty, OutProperties, false);
+		InAnimator->GetPropertiesSupported(PresetProperty, OutProperties, /** SearchDepth */3);
 	}
 }
 

@@ -115,4 +115,8 @@ private:
 	/** Transient copy of property animators when changes are detected to see the diff only */
 	UPROPERTY(Transient, DuplicateTransient, TextExportTransient)
 	TArray<TObjectPtr<UPropertyAnimatorCoreBase>> PropertyAnimatorsInternal;
+
+	/** Cached time sources used by this animator component */
+	UPROPERTY()
+	TArray<TObjectPtr<UPropertyAnimatorCoreTimeSourceBase>> TimeSourceInstances;
 };

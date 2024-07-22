@@ -15,38 +15,46 @@ void UPropertyAnimatorOscillate::SetOscillateFunction(EPropertyAnimatorOscillate
 	OscillateFunction = InFunction;
 }
 
-float UPropertyAnimatorOscillate::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+bool UPropertyAnimatorOscillate::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
 	double WaveResult = 0.f;
 
 	using namespace UE::PropertyAnimator;
 
-	const float Frequency = InOptions->GetFrequency() * GlobalFrequency;
+	const float Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
+
+	constexpr double Amplitude = 1;
+	constexpr double Offset = 0;
 
 	switch (OscillateFunction)
 	{
 		case EPropertyAnimatorOscillateFunction::Sine:
-			WaveResult = Wave::Sine(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::Sine(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		case EPropertyAnimatorOscillateFunction::Cosine:
-			WaveResult = Wave::Cosine(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::Cosine(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		case EPropertyAnimatorOscillateFunction::Square:
-			WaveResult = Wave::Square(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::Square(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		case EPropertyAnimatorOscillateFunction::InvertedSquare:
-			WaveResult = Wave::InvertedSquare(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::InvertedSquare(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		case EPropertyAnimatorOscillateFunction::Sawtooth:
-			WaveResult = Wave::Sawtooth(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::Sawtooth(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		case EPropertyAnimatorOscillateFunction::Triangle:
-			WaveResult = Wave::Triangle(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
-		break;
+			WaveResult = Wave::Triangle(TimeElapsed, Amplitude, Frequency, Offset);
+			break;
 		default:
 			checkNoEntry();
 	}
 
-	// Remap from [-1, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(-1, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), WaveResult);
+	const double NormalizedResult = FMath::GetMappedRangeValueClamped(FVector2D(-1, 1), FVector2D(0, 1), WaveResult);
+
+	InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+	InParameters.SetValueFloat(AlphaParameterName, NormalizedResult);
+
+	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 }

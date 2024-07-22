@@ -10,13 +10,16 @@ UPropertyAnimatorTime::UPropertyAnimatorTime()
 	SetAnimatorDisplayName(DefaultControllerName);
 }
 
-float UPropertyAnimatorTime::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+bool UPropertyAnimatorTime::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
-	const float Frequency = InOptions->GetFrequency() * GlobalFrequency;
-
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
+	const double Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
 	const double TimePeriod = 1.f / Frequency;
+	const double TimeProgress = FMath::Fmod(TimeElapsed, TimePeriod);
+	const float NormalizedValue = FMath::GetMappedRangeValueClamped(FVector2f(0, TimePeriod), FVector2f(0, 1), TimeProgress);
 
-	const double TimeProgress = FMath::Fmod(InTimeElapsed + InOptions->GetTimeOffset(), TimePeriod);
+	InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+	InParameters.SetValueFloat(AlphaParameterName, NormalizedValue);
 
-	return FMath::GetMappedRangeValueClamped(FVector2f(0, TimePeriod), FVector2f(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), TimeProgress);
+	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 }

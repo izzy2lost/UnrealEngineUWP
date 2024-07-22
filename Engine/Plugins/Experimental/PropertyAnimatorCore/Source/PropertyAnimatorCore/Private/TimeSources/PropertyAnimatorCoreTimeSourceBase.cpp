@@ -4,6 +4,13 @@
 
 #include "Animators/PropertyAnimatorCoreBase.h"
 
+#if WITH_EDITOR
+FName UPropertyAnimatorCoreTimeSourceBase::GetTimeElapsedPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreTimeSourceBase, TimeElapsed);
+}
+#endif
+
 void UPropertyAnimatorCoreTimeSourceBase::ActivateTimeSource()
 {
 	if (IsTimeSourceActive())

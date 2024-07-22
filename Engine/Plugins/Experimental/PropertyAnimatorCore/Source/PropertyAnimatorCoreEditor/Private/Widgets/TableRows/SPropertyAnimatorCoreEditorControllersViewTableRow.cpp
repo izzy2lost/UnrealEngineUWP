@@ -224,18 +224,18 @@ TOptional<EItemDropZone> SPropertyAnimatorCoreEditorControllersViewTableRow::OnP
 	// Get dragged properties and check that the controller we drop them on supports them
 	if (const TSharedPtr<FPropertyAnimatorCoreEditorViewDragDropOp> DragDropOp = InDragDropEvent.GetOperationAs<FPropertyAnimatorCoreEditorViewDragDropOp>())
 	{
-		const UPropertyAnimatorCoreBase* Controller = InItem->ControlledProperty.ControllerWeak.Get();
+		const UPropertyAnimatorCoreBase* Animator = InItem->ControlledProperty.ControllerWeak.Get();
 
 		if (InItem.IsValid()
 			&& !InItem->ControlledProperty.Property.IsValid()
-			&& Controller)
+			&& Animator)
 		{
 			for (const FPropertiesViewControllerItem& DraggedItem : DragDropOp->GetDraggedItems())
 			{
 				if (const FPropertyAnimatorCoreData* Property = DraggedItem.Property.Get())
 				{
-					if (Controller->IsPropertySupported(*Property)
-						&& !Controller->IsPropertyLinked(*Property))
+					if (Animator->HasPropertySupport(*Property)
+						&& !Animator->IsPropertyLinked(*Property))
 					{
 						return EItemDropZone::OntoItem;
 					}

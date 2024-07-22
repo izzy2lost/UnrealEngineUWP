@@ -159,22 +159,26 @@ bool UPropertyAnimatorCoreSubsystem::IsPropertySupported(const FPropertyAnimator
 		return false;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& AnimatorWeak : AnimatorsWeak)
 	{
+		const UPropertyAnimatorCoreBase* Animator = AnimatorWeak.Get();
+
+		if (!Animator)
+		{
+			continue;
+		}
+
 		if (bInCheckNestedProperties)
 		{
 			TSet<FPropertyAnimatorCoreData> OutProperties;
-			if (Controller->GetPropertiesSupported(InPropertyData, OutProperties))
+			if (Animator->GetPropertiesSupported(InPropertyData, OutProperties))
 			{
 				return true;
 			}
 		}
-		else
+		else if (Animator->HasPropertySupport(InPropertyData))
 		{
-			if (Controller->IsPropertySupported(InPropertyData))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 

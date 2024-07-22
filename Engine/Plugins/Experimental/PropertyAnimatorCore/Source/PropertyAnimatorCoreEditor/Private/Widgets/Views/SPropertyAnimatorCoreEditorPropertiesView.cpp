@@ -170,12 +170,10 @@ void SPropertyAnimatorCoreEditorPropertiesView::OnGetChildren(FPropertiesViewIte
 			TSet<UPropertyAnimatorCoreBase*> ExistingControllers = ControllerSubsystem->GetExistingAnimators(InItem->Property);
 			TSet<UPropertyAnimatorCoreBase*> AvailableControllers = ControllerSubsystem->GetAvailableAnimators(&InItem->Property);
 
-			constexpr bool bRecursiveSearch = true;
-
 			for (UPropertyAnimatorCoreBase* Controller : ExistingControllers)
 			{
 				TSet<FPropertyAnimatorCoreData> SupportedProperties;
-				Controller->GetPropertiesSupported(InItem->Property, SupportedProperties, bRecursiveSearch);
+				Controller->GetPropertiesSupported(InItem->Property, SupportedProperties, /** SearchDepth */3);
 
 				// Add available properties to control with this controller
 				for (FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)
@@ -197,7 +195,7 @@ void SPropertyAnimatorCoreEditorPropertiesView::OnGetChildren(FPropertiesViewIte
 			for (UPropertyAnimatorCoreBase* Controller : AvailableControllers)
 			{
 				TSet<FPropertyAnimatorCoreData> SupportedProperties;
-				Controller->GetPropertiesSupported(InItem->Property, SupportedProperties, bRecursiveSearch);
+				Controller->GetPropertiesSupported(InItem->Property, SupportedProperties, /** SearchDepth */3);
 
 				// Add all supported properties from new controller
 				for (FPropertyAnimatorCoreData& SupportedProperty : SupportedProperties)

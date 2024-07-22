@@ -158,10 +158,10 @@ TOptional<EItemDropZone> SPropertyAnimatorCoreEditorPropertiesViewTableRow::OnPr
 		{
 			for (const FPropertiesViewControllerItem& DraggedItem : DragDropOp->GetDraggedItems())
 			{
-				if (const UPropertyAnimatorCoreBase* Controller = DraggedItem.ControllerWeak.Get())
+				if (const UPropertyAnimatorCoreBase* Animator = DraggedItem.ControllerWeak.Get())
 				{
-					if (Controller->IsPropertySupported(InItem->Property)
-						&& !Controller->IsPropertyLinked(InItem->Property))
+					if (Animator->HasPropertySupport(InItem->Property)
+						&& !Animator->IsPropertyLinked(InItem->Property))
 					{
 						return EItemDropZone::OntoItem;
 					}
@@ -202,16 +202,16 @@ FReply SPropertyAnimatorCoreEditorPropertiesViewTableRow::OnPropertyDrop(FDragDr
 
 			for (const FPropertiesViewControllerItem& DraggedItem : DragDropOp->GetDraggedItems())
 			{
-				if (UPropertyAnimatorCoreBase* Controller = DraggedItem.ControllerWeak.Get())
+				if (UPropertyAnimatorCoreBase* Animator = DraggedItem.ControllerWeak.Get())
 				{
-					if (Controller->IsPropertySupported(RowItem->Property))
+					if (Animator->HasPropertySupport(RowItem->Property))
 					{
 						if (!bIsControlPressed && DraggedItem.Property.IsValid())
 						{
-							Controller->UnlinkProperty(*DraggedItem.Property);
+							Animator->UnlinkProperty(*DraggedItem.Property);
 						}
 
-						Controller->LinkProperty(RowItem->Property);
+						Animator->LinkProperty(RowItem->Property);
 					}
 				}
 			}

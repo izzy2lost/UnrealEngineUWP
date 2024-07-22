@@ -59,28 +59,34 @@ void UPropertyAnimatorSoundWave::OnSampledSoundWaveChanged()
 #endif
 }
 
-float UPropertyAnimatorSoundWave::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+bool UPropertyAnimatorSoundWave::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
-	float Loudness = 0.f;
-
-	if (AudioAnalyzer
-		&& AudioAnalyzer->DurationInSeconds > 0)
+	if (AudioAnalyzer && AudioAnalyzer->DurationInSeconds > 0)
 	{
-		float SampleTime = InTimeElapsed + InOptions->GetTimeOffset();
+		double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
+		float Frequency = InParameters.GetValueFloat(FrequencyParameterName).GetValue();
 
-		if ((SampleTime >= 0 && SampleTime <= AudioAnalyzer->DurationInSeconds) || bLoop)
+		const float Period = 1.f / Frequency;
+		float SampleTime = FMath::Fmod(TimeElapsed, Period);
+
+		if (FMath::Abs(TimeElapsed / Period) <= 1.f || bLoop)
 		{
-			SampleTime = FMath::Fmod(SampleTime, AudioAnalyzer->DurationInSeconds);
-
 			if (SampleTime < 0)
 			{
-				SampleTime = AudioAnalyzer->DurationInSeconds + SampleTime;
+				SampleTime = Period - FMath::Abs(SampleTime);
 			}
 
-			AudioAnalyzer->GetNormalizedLoudnessAtTime(SampleTime, Loudness);
+			const float NormalizedSampleTime = FMath::GetMappedRangeValueClamped(FVector2D(0, Period), FVector2D(0, AudioAnalyzer->DurationInSeconds), SampleTime);
+
+			float NormalizedLoudness = 0.f;
+			AudioAnalyzer->GetNormalizedLoudnessAtTime(NormalizedSampleTime, NormalizedLoudness);
+
+			InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+			InParameters.SetValueFloat(AlphaParameterName, NormalizedLoudness);
+
+			return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 		}
 	}
 
-	// Remap from [0, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(0, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), Loudness);
+	return false;
 }

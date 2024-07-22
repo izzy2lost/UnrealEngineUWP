@@ -176,10 +176,20 @@ FName FPropertyAnimatorCoreData::GetMemberPropertyName() const
 	return MemberProperty ? MemberProperty->GetFName() : NAME_None;
 }
 
+FName FPropertyAnimatorCoreData::GetMemberPropertyTypeName() const
+{
+	return GetPropertyTypeName(GetMemberProperty());
+}
+
 FName FPropertyAnimatorCoreData::GetLeafPropertyName() const
 {
 	const FProperty* LeafProperty = GetLeafProperty();
 	return LeafProperty ? LeafProperty->GetFName() : NAME_None;
+}
+
+FName FPropertyAnimatorCoreData::GetLeafPropertyTypeName() const
+{
+	return GetPropertyTypeName(GetLeafProperty());
 }
 
 TArray<FProperty*> FPropertyAnimatorCoreData::GetChainProperties() const
@@ -501,6 +511,21 @@ void FPropertyAnimatorCoreData::CopyPropertyValue(const FProperty* InProperty, c
 	{
 		InProperty->CopyCompleteValue(OutDest, InSrc);
 	}
+}
+
+FName FPropertyAnimatorCoreData::GetPropertyTypeName(const FProperty* InProperty)
+{
+	if (InProperty)
+	{
+		if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
+		{
+			return StructProperty->Struct->GetFName();
+		}
+
+		return FName(InProperty->GetCPPType());
+	}
+
+	return NAME_None;
 }
 
 void FPropertyAnimatorCoreData::GeneratePropertyPath()

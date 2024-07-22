@@ -55,15 +55,15 @@ protected:
 	PROPERTYANIMATORCORE_API virtual bool IsValidTimeElapsed(double InTimeElapsed) const override;
 	//~ End UPropertyAnimatorTimeSourceBase
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseStartTime", Getter="GetUseStartTime", Category="Animator")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseStartTime", Getter="GetUseStartTime", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bUseStartTime = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="bUseStartTime", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="bUseStartTime"))
 	double StartTime = 0;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseStopTime", Getter="GetUseStopTime", Category="Animator")
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter="SetUseStopTime", Getter="GetUseStopTime", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bUseStopTime = false;
 
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="bUseStopTime", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="bUseStopTime"))
 	double StopTime = 0;
 };

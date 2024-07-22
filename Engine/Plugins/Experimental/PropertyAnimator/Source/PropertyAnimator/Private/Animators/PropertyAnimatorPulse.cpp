@@ -20,11 +20,15 @@ void UPropertyAnimatorPulse::SetEasingType(EPropertyAnimatorEasingType InEasingT
 	EasingType = InEasingType;
 }
 
-float UPropertyAnimatorPulse::Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+bool UPropertyAnimatorPulse::EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 {
-	const float Frequency = InOptions->GetFrequency() * GlobalFrequency;
+	const float Frequency = InParameters.GetValueDouble(FrequencyParameterName).GetValue();
+	const double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 
-	const double WaveResult = UE::PropertyAnimator::Wave::Triangle(InTimeElapsed, 1.f, Frequency, InOptions->GetTimeOffset());
+	constexpr double Amplitude = 1;
+	constexpr double Offset = 0;
+
+	const double WaveResult = UE::PropertyAnimator::Wave::Triangle(TimeElapsed, Amplitude, Frequency, Offset);
 
 	// Result of wave functions is [-1, 1] -> remap to [0, 1] range for easing functions
 	const float NormalizedWaveProgress = FMath::GetMappedRangeValueClamped(FVector2D(-1, 1), FVector2D(0, 1), WaveResult);
@@ -32,6 +36,8 @@ float UPropertyAnimatorPulse::Evaluate(double InTimeElapsed, const FPropertyAnim
 	// Apply easing function on normalized progress
 	const float EasingResult = UE::PropertyAnimator::Easing::Ease(NormalizedWaveProgress, EasingFunction, EasingType);
 
-	// Remap from [0, 1] to user amplitude from [Min, Max]
-	return FMath::GetMappedRangeValueClamped(FVector2D(0, 1), FVector2D(InOptions->GetAmplitudeMin(), InOptions->GetAmplitudeMax()), EasingResult);
+	InParameters.AddProperty(AlphaParameterName, EPropertyBagPropertyType::Float);
+	InParameters.SetValueFloat(AlphaParameterName, EasingResult);
+
+	return InContext->EvaluateProperty(InPropertyData, InParameters, OutEvaluationResult);
 }

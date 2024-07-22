@@ -7,6 +7,17 @@
 
 class UPropertyAnimatorFloatContext;
 
+UENUM(BlueprintType)
+enum class EPropertyAnimatorCycleMode : uint8
+{
+	/** Cycle only once then stop */
+	DoOnce,
+	/** Cycle and repeat once we reached the end */
+	Loop,
+	/** Cycle and reverse repeat */
+	PingPong
+};
+
 /**
  * Animate supported float properties with various options
  */
@@ -18,22 +29,28 @@ class UPropertyAnimatorFloatBase : public UPropertyAnimatorCoreBase
 	friend class FPropertyAnimatorCoreEditorDetailCustomization;
 
 public:
-	PROPERTYANIMATOR_API void SetGlobalMagnitude(float InMagnitude);
-	float GetGlobalMagnitude() const
+	PROPERTYANIMATOR_API void SetMagnitude(float InMagnitude);
+	float GetMagnitude() const
 	{
-		return GlobalMagnitude;
+		return Magnitude;
 	}
 
-	PROPERTYANIMATOR_API void SetGlobalFrequency(float InFrequency);
-	float GetGlobalFrequency() const
+	PROPERTYANIMATOR_API void SetCycleDuration(float InCycleDuration);
+	float GetCycleDuration() const
 	{
-		return GlobalFrequency;
+		return CycleDuration;
 	}
 
-	PROPERTYANIMATOR_API void SetAccumulatedTimeOffset(double InOffset);
-	double GetAccumulatedTimeOffset() const
+	PROPERTYANIMATOR_API void SetCycleMode(EPropertyAnimatorCycleMode InMode);
+	EPropertyAnimatorCycleMode GetCycleMode() const
 	{
-		return AccumulatedTimeOffset;
+		return CycleMode;
+	}
+
+	PROPERTYANIMATOR_API void SetTimeOffset(double InOffset);
+	double GetTimeOffset() const
+	{
+		return TimeOffset;
 	}
 
 	PROPERTYANIMATOR_API void SetRandomTimeOffset(bool bInOffset);
@@ -56,43 +73,51 @@ protected:
 	//~ End UObject
 
 	virtual void OnMagnitudeChanged() {}
-	virtual void OnGlobalFrequencyChanged() {}
-	virtual void OnAccumulatedTimeOffsetChanged() {}
+	virtual void OnCycleDurationChanged() {}
+	virtual void OnCycleModeChanged() {}
+	virtual void OnTimeOffsetChanged() {}
 	virtual void OnSeedChanged() {}
 
 	//~ Begin UPropertyAnimatorCoreBase
-	virtual TSubclassOf<UPropertyAnimatorCoreContext> GetPropertyContextClass(const FPropertyAnimatorCoreData& InUnlinkedProperty) override;
-	virtual bool IsPropertyDirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
-	virtual bool IsPropertyIndirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
-	virtual void EvaluateProperties(const FPropertyAnimatorCoreEvaluationParameters& InParameters) override;
-	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty) override;
+	virtual TSubclassOf<UPropertyAnimatorCoreContext> GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty) override;
+	virtual EPropertyAnimatorPropertySupport IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const override;
+	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) override;
+	virtual void OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport) override;
 	//~ End UPropertyAnimatorCoreBase
 
 	/** Evaluate and return float value for a property */
-	virtual float Evaluate(double InTimeElapsed, const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorFloatContext* InOptions) const
+	virtual bool EvaluateProperty(const FPropertyAnimatorCoreData& InPropertyData, UPropertyAnimatorCoreContext* InContext, FInstancedPropertyBag& InParameters, FInstancedPropertyBag& OutEvaluationResult) const
 	{
-		return 0.f;
+		return false;
 	}
 
-	/** Global magnitude for the effect */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(ClampMin="0"))
-	float GlobalMagnitude = 1.f;
+	/** Magnitude for the effect on all properties */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0"))
+	float Magnitude = 1.f;
 
-	/** Global frequency multiplier */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(ClampMin="0"))
-	float GlobalFrequency = 1.f;
+	/** Duration of one cycle for the effect = period of the effect */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", Units=Seconds))
+	float CycleDuration = 1.f;
+
+	/** Cycle mode for the effect */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	EPropertyAnimatorCycleMode CycleMode = EPropertyAnimatorCycleMode::Loop;
+
+	/** Time gap between each cycle */
+	UPROPERTY(EditInstanceOnly, Category="Animator", meta=(ClampMin="0", Units=Seconds))
+	float CycleGapDuration = 0.f;
 
 	/** Use random time offset to add variation in animation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter="SetRandomTimeOffset", Getter="GetRandomTimeOffset", Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter="SetRandomTimeOffset", Getter="GetRandomTimeOffset", Category="Animator", meta=(InlineEditConditionToggle))
 	bool bRandomTimeOffset = false;
 
 	/** Seed to generate per property time offset */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Getter, Category="Animator", meta=(EditCondition="bRandomTimeOffset", EditConditionHides))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bRandomTimeOffset"))
 	int32 Seed = 0;
 
-	/** This time offset will be accumulated for each property for every round */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator")
-	double AccumulatedTimeOffset = 0.f;
+	/** Time offset accumulated for each property for every round */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(Units=Seconds))
+	double TimeOffset = 0.f;
 
 private:
 	/** Random stream for time offset */

@@ -3,6 +3,8 @@
 #include "Animators/PropertyAnimatorFloatBase.h"
 
 #include "Properties/PropertyAnimatorFloatContext.h"
+#include "Properties/PropertyAnimatorRotatorContext.h"
+#include "Properties/PropertyAnimatorVectorContext.h"
 #include "Properties/Converters/PropertyAnimatorCoreConverterBase.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
@@ -25,56 +27,48 @@ void UPropertyAnimatorFloatBase::PostEditChangeProperty(FPropertyChangedEvent& I
 }
 #endif
 
-bool UPropertyAnimatorFloatBase::IsPropertyDirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+void UPropertyAnimatorFloatBase::SetMagnitude(float InMagnitude)
 {
-	return InPropertyData.IsA<FFloatProperty>();
-}
-
-bool UPropertyAnimatorFloatBase::IsPropertyIndirectlySupported(const FPropertyAnimatorCoreData& InPropertyData) const
-{
-	// Check if a converter supports the conversion
-	if (UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-	{
-		static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::Float);
-		const FPropertyBagPropertyDesc PropertyTypeDesc("", InPropertyData.GetLeafProperty());
-
-		return AnimatorSubsystem->IsConversionSupported(AnimatorTypeDesc, PropertyTypeDesc);
-	}
-
-	return false;
-}
-
-void UPropertyAnimatorFloatBase::SetGlobalMagnitude(float InMagnitude)
-{
-	if (FMath::IsNearlyEqual(GlobalMagnitude, InMagnitude))
+	if (FMath::IsNearlyEqual(Magnitude, InMagnitude))
 	{
 		return;
 	}
 
-	GlobalMagnitude = InMagnitude;
+	Magnitude = InMagnitude;
 	OnMagnitudeChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetGlobalFrequency(float InFrequency)
+void UPropertyAnimatorFloatBase::SetCycleDuration(float InCycleDuration)
 {
-	if (FMath::IsNearlyEqual(GlobalFrequency, InFrequency))
+	if (FMath::IsNearlyEqual(CycleDuration, InCycleDuration))
 	{
 		return;
 	}
 
-	GlobalFrequency = InFrequency;
-	OnGlobalFrequencyChanged();
+	CycleDuration = InCycleDuration;
+	OnCycleDurationChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetAccumulatedTimeOffset(double InOffset)
+void UPropertyAnimatorFloatBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
 {
-	if (FMath::IsNearlyEqual(AccumulatedTimeOffset, InOffset))
+	if (CycleMode == InMode)
 	{
 		return;
 	}
 
-	AccumulatedTimeOffset = InOffset;
-	OnAccumulatedTimeOffsetChanged();
+	CycleMode = InMode;
+	OnCycleModeChanged();
+}
+
+void UPropertyAnimatorFloatBase::SetTimeOffset(double InOffset)
+{
+	if (FMath::IsNearlyEqual(TimeOffset, InOffset))
+	{
+		return;
+	}
+
+	TimeOffset = InOffset;
+	OnTimeOffsetChanged();
 }
 
 void UPropertyAnimatorFloatBase::SetRandomTimeOffset(bool bInOffset)
@@ -99,65 +93,150 @@ void UPropertyAnimatorFloatBase::SetSeed(int32 InSeed)
 	OnSeedChanged();
 }
 
-TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorFloatBase::GetPropertyContextClass(const FPropertyAnimatorCoreData& InUnlinkedProperty)
+TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorFloatBase::GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty)
 {
+	if (InProperty.IsA<FStructProperty>())
+	{
+		const FName TypeName = InProperty.GetLeafPropertyTypeName();
+
+		if (TypeName == NAME_Rotator)
+		{
+			return UPropertyAnimatorRotatorContext::StaticClass();
+		}
+
+		if (TypeName == NAME_Vector)
+		{
+			return UPropertyAnimatorVectorContext::StaticClass();
+		}
+	}
+
 	return UPropertyAnimatorFloatContext::StaticClass();
 }
 
-void UPropertyAnimatorFloatBase::EvaluateProperties(const FPropertyAnimatorCoreEvaluationParameters& InParameters)
+EPropertyAnimatorPropertySupport UPropertyAnimatorFloatBase::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
 {
-	double AccumulatedTimeOffsetRound = InParameters.TimeElapsed;
-	const float AnimatorMagnitude = GlobalMagnitude * InParameters.AnimatorsMagnitude;
+	const FName TypeName = InPropertyData.GetLeafPropertyTypeName();
+
+	if (InPropertyData.IsA<FFloatProperty>())
+	{
+		return EPropertyAnimatorPropertySupport::Complete;
+	}
+
+	if (InPropertyData.IsA<FStructProperty>())
+	{
+		if (TypeName == NAME_Rotator)
+		{
+			return EPropertyAnimatorPropertySupport::Complete;
+		}
+
+		if (TypeName == NAME_Vector)
+		{
+			return EPropertyAnimatorPropertySupport::Complete;
+		}
+	}
+
+	// Check if a converter supports the conversion
+	if (UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	{
+		static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::Float);
+		const FPropertyBagPropertyDesc PropertyTypeDesc("", InPropertyData.GetLeafProperty());
+
+		if (AnimatorSubsystem->IsConversionSupported(AnimatorTypeDesc, PropertyTypeDesc))
+		{
+			return EPropertyAnimatorPropertySupport::Incomplete;
+		}
+	}
+
+	return Super::IsPropertySupported(InPropertyData);
+}
+
+void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InParameters)
+{
+	const float AnimatorMagnitude = Magnitude * InParameters.GetValueFloat(MagnitudeParameterName).GetValue();
+	double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
 	RandomStream = FRandomStream(Seed);
 
-	EvaluateEachLinkedProperty<UPropertyAnimatorFloatContext>([this, &AccumulatedTimeOffsetRound, &AnimatorMagnitude](
-		UPropertyAnimatorFloatContext* InOptions
+	if (CycleMode == EPropertyAnimatorCycleMode::DoOnce)
+	{
+		if (FMath::Abs(TimeElapsed) > CycleDuration)
+		{
+			return;
+		}
+	}
+	else if (CycleMode == EPropertyAnimatorCycleMode::Loop)
+	{
+		TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration + CycleGapDuration);
+
+		if (TimeElapsed > CycleDuration)
+		{
+			TimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+		}
+	}
+	else if (CycleMode == EPropertyAnimatorCycleMode::PingPong)
+	{
+		const bool bReverse = FMath::Modulo(FMath::TruncToInt32(TimeElapsed / (CycleDuration + CycleGapDuration)), 2) != 0;
+		TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration + CycleGapDuration);
+
+		if (TimeElapsed > CycleDuration)
+		{
+			TimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
+		}
+
+		if (bReverse)
+		{
+			TimeElapsed = CycleDuration - FMath::Fmod(TimeElapsed, CycleDuration);
+		}
+		else
+		{
+			TimeElapsed = FMath::Fmod(TimeElapsed, CycleDuration);
+		}
+	}
+
+	EvaluateEachLinkedProperty<UPropertyAnimatorCoreContext>([this, &TimeElapsed, &AnimatorMagnitude, &InParameters](
+		UPropertyAnimatorCoreContext* InOptions
 		, const FPropertyAnimatorCoreData& InResolvedProperty
 		, FInstancedPropertyBag& InEvaluatedValues)->bool
 	{
 		const double RandomTimeOffset = bRandomTimeOffset ? RandomStream.GetFraction() : 0;
-		AccumulatedTimeOffsetRound += AccumulatedTimeOffset + RandomTimeOffset;
+		TimeElapsed += TimeOffset + RandomTimeOffset;
 
-		if (GlobalMagnitude != 0
-			&& GlobalFrequency != 0
-			&& InOptions->GetMagnitude() != 0
-			&& InOptions->GetFrequency() != 0)
+		if (Magnitude != 0
+			&& CycleDuration > 0
+			&& InOptions->GetMagnitude() != 0)
 		{
-			const float EvaluationResult = AnimatorMagnitude
-				* InOptions->GetMagnitude()
-				* Evaluate(AccumulatedTimeOffsetRound, InResolvedProperty, InOptions);
+			// Frequency
+			InParameters.AddProperty(FrequencyParameterName, EPropertyBagPropertyType::Float);
+			InParameters.SetValueFloat(FrequencyParameterName, 1.f / CycleDuration);
 
-			const FName DisplayName(InResolvedProperty.GetPathHash());
+			// Time Elapsed
+			InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed + InOptions->GetTimeOffset());
 
-			InEvaluatedValues.AddProperty(DisplayName, EPropertyBagPropertyType::Float);
-			InEvaluatedValues.SetValueFloat(DisplayName, EvaluationResult);
+			// Magnitude
+			InParameters.SetValueFloat(MagnitudeParameterName, AnimatorMagnitude * InOptions->GetMagnitude());
 
-			return true;
+			return EvaluateProperty(InResolvedProperty, InOptions, InParameters, InEvaluatedValues);
 		}
 
 		return false;
 	});
 }
 
-void UPropertyAnimatorFloatBase::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty)
+void UPropertyAnimatorFloatBase::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport)
 {
-	Super::OnPropertyLinked(InLinkedProperty);
+	Super::OnPropertyLinked(InLinkedProperty, InSupport);
 
-	const FPropertyAnimatorCoreData& Property = InLinkedProperty->GetAnimatedProperty();
-	if (Property.IsA<FFloatProperty>())
+	if (EnumHasAnyFlags(InSupport, EPropertyAnimatorPropertySupport::Incomplete))
 	{
-		return;
-	}
+		if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+		{
+			static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::Float);
+			const FPropertyBagPropertyDesc PropertyTypeDesc("", InLinkedProperty->GetAnimatedProperty().GetLeafProperty());
 
-	const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
-	if (!AnimatorSubsystem)
-	{
-		return;
-	}
+			const TSet<UPropertyAnimatorCoreConverterBase*> Converters = AnimatorSubsystem->GetSupportedConverters(AnimatorTypeDesc, PropertyTypeDesc);
 
-	static const FPropertyBagPropertyDesc AnimatorTypeDesc("", EPropertyBagPropertyType::Float);
-	const FPropertyBagPropertyDesc PropertyTypeDesc("", Property.GetLeafProperty());
-	const TSet<UPropertyAnimatorCoreConverterBase*> Converters = AnimatorSubsystem->GetSupportedConverters(AnimatorTypeDesc, PropertyTypeDesc);
-	check(!Converters.IsEmpty())
-	InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
+			check(!Converters.IsEmpty())
+
+			InLinkedProperty->SetConverterClass(Converters.Array()[0]->GetClass());
+		}
+	}
 }

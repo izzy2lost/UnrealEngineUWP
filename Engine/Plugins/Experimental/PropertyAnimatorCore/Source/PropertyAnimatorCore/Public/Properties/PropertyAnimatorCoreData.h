@@ -109,8 +109,12 @@ struct FPropertyAnimatorCoreData
 	/** The member property name */
 	PROPERTYANIMATORCORE_API FName GetMemberPropertyName() const;
 
+	PROPERTYANIMATORCORE_API FName GetMemberPropertyTypeName() const;
+
 	/** The leaf property name */
 	PROPERTYANIMATORCORE_API FName GetLeafPropertyName() const;
+
+	PROPERTYANIMATORCORE_API FName GetLeafPropertyTypeName() const;
 
 	/** The chain properties from member to inner property */
 	PROPERTYANIMATORCORE_API TArray<FProperty*> GetChainProperties() const;
@@ -179,6 +183,8 @@ struct FPropertyAnimatorCoreData
 
 private:
 	static void CopyPropertyValue(const FProperty* InProperty, const void* InSrc, void* OutDest);
+
+	static FName GetPropertyTypeName(const FProperty* InProperty);
 
 	/** Internal use only, used to quickly identify a data within a controller */
 	explicit FPropertyAnimatorCoreData(const FString& InPathHash, FName InDisplayName);

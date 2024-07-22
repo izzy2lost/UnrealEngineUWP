@@ -35,6 +35,7 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 	PropertyContextHandle = InPropertyHandle;
 
 	const FName PropertyName = PropertyContext->GetAnimatedProperty().GetPropertyDisplayName();
+	const FName PropertyTypeName = PropertyContext->GetAnimatedProperty().GetLeafPropertyTypeName();
 
 	InRow
 		.NameContent()
@@ -50,7 +51,7 @@ void FPropertyAnimatorCoreEditorContextTypeCustomization::CustomizeHeader(TShare
 			+ SHorizontalBox::Slot()
 			.FillWidth(1.f)
 			[
-				InPropertyHandle->CreatePropertyNameWidget(FText::FromName(PropertyName))
+				InPropertyHandle->CreatePropertyNameWidget(FText::FromString(PropertyName.ToString() + TEXT(" (") + PropertyTypeName.ToString() + TEXT(")")))
 			]
 		]
 		.ValueContent()

@@ -3,23 +3,23 @@
 #pragma once
 
 #include "Properties/PropertyAnimatorCoreContext.h"
-#include "PropertyAnimatorFloatContext.generated.h"
+#include "PropertyAnimatorRotatorContext.generated.h"
 
-/** Property context used by animator for float/double properties */
+/** Property context used by animator for rotator properties */
 UCLASS(MinimalAPI, BlueprintType)
-class UPropertyAnimatorFloatContext : public UPropertyAnimatorCoreContext
+class UPropertyAnimatorRotatorContext : public UPropertyAnimatorCoreContext
 {
 	GENERATED_BODY()
 
 public:
-	PROPERTYANIMATOR_API void SetAmplitudeMin(double InAmplitude);
-	double GetAmplitudeMin() const
+	PROPERTYANIMATOR_API void SetAmplitudeMin(const FRotator& InAmplitude);
+	const FRotator& GetAmplitudeMin() const
 	{
 		return AmplitudeMin;
 	}
 
-	PROPERTYANIMATOR_API void SetAmplitudeMax(double InAmplitude);
-	double GetAmplitudeMax() const
+	PROPERTYANIMATOR_API void SetAmplitudeMax(const FRotator& InAmplitude);
+	const FRotator& GetAmplitudeMax() const
 	{
 		return AmplitudeMax;
 	}
@@ -36,21 +36,21 @@ protected:
 	virtual void OnAnimatedPropertyLinked() override;
 	//~ End UPropertyAnimatorCoreContext
 
-	double GetClampedAmplitude(double InAmplitude);
+	FRotator GetClampedAmplitude(FRotator InAmplitude);
 
 	/** The minimum value should be remapped to that values */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	double AmplitudeMin = -1.f;
+	FRotator AmplitudeMin = FRotator::ZeroRotator;
 
 	/** Some properties are clamped and cannot go past a specific min value */
 	UPROPERTY()
-	TOptional<double> AmplitudeClampMin;
+	TOptional<FRotator> AmplitudeClampMin;
 
 	/** The maximum value should be remapped to that values */
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	double AmplitudeMax = 1.f;
+	FRotator AmplitudeMax = FRotator::ZeroRotator;
 
 	/** Some properties are clamped and cannot go past a specific min value */
 	UPROPERTY()
-	TOptional<double> AmplitudeClampMax;
+	TOptional<FRotator> AmplitudeClampMax;
 };
