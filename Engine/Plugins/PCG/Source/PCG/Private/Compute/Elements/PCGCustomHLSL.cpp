@@ -547,8 +547,9 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			auto EmitGetThreadElement = [&InInputDeclarations = InputDeclarations](const FPCGPinProperties& Properties)
 			{
 				InInputDeclarations += FString::Format(TEXT(
-					"// (DataIndex, DataAddress, ElementIndex). Returns -1 if invalid!\n"
-					"uint3 {0}_GetThreadData(uint ThreadIndex);\n"),
+					"// Returns false if thread has no data to operate on.\n"
+					"bool {0}_GetThreadData(uint ThreadIndex, out uint OutDataIndex, out uint OutElementIndex);\n"
+					"bool {0}_GetThreadData(uint ThreadIndex, out uint OutDataIndex, out uint OutDataAddress, out uint OutElementIndex);\n"),
 					{ Properties.Label.ToString() });
 			};
 
@@ -1063,6 +1064,15 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	// Per-kernel-type preamble. Set up shader inputs and initialize output data.
 	FString KernelSpecificPreamble = TEXT("    // Kernel preamble\n");
 	
+	auto AddThreadInfoForPin = [&KernelSpecificPreamble](FName PinLabel)
+	{
+		KernelSpecificPreamble += FString::Format(TEXT(
+			"    uint {0}_DataIndex;\n"
+			"    uint {0}_DataAddress;\n"
+			"    if (!{0}_GetThreadData(ThreadIndex, {0}_DataIndex, {0}_DataAddress, ElementIndex)) return;\n"),
+			{ PinLabel.ToString() });
+	};
+
 	if (KernelType == EPCGKernelType::PointProcessor)
 	{
 		const UPCGPin* InputPin = GetPointProcessingInputPin();
@@ -1070,18 +1080,10 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 
 		if (InputPin && OutputPin)
 		{
-			KernelSpecificPreamble += FString::Format(TEXT(
-				"    const uint3 {0}_ThreadInfo = {0}_GetThreadData(ThreadIndex);\n"
-				"    const uint {0}_DataIndex = {0}_ThreadInfo[0];\n"
-				"    const uint {0}_DataAddress = {0}_ThreadInfo[1];\n"
-				"    const uint ElementIndex = {0}_ThreadInfo[2]; // Assumption - element index identical in input and output data.\n"),
-				{ InputPin->Properties.Label.ToString() });
+			KernelSpecificPreamble += TEXT("uint ElementIndex; // Assumption - element index identical in input and output data.\n");
 
-			KernelSpecificPreamble += FString::Format(TEXT(
-				"    const uint3 {0}_ThreadInfo = {0}_GetThreadData(ThreadIndex);\n"
-				"    const uint {0}_DataIndex = {0}_ThreadInfo[0];\n"
-				"    const uint {0}_DataAddress = {0}_ThreadInfo[1];\n"),
-				{ OutputPin->Properties.Label.ToString() });
+			AddThreadInfoForPin(InputPin->Properties.Label);
+			AddThreadInfoForPin(OutputPin->Properties.Label);
 
 			// Automatically copy value of all attributes for this element.
 			KernelSpecificPreamble += FString::Format(TEXT(
@@ -1117,18 +1119,13 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	}
 	else if (KernelType == EPCGKernelType::PointGenerator)
 	{
-		KernelSpecificPreamble += FString::Format(TEXT(
-			"    const uint PointCount = {0};\n"),
-			{ PointCount });
+		KernelSpecificPreamble += FString::Format(TEXT("    const uint PointCount = {0};\n"), { PointCount });
 
 		if (const UPCGPin* OutputPin = GetFirstPointOutputPin())
 		{
-			KernelSpecificPreamble += FString::Format(TEXT(
-				"    const uint3 {0}_ThreadInfo = {0}_GetThreadData(ThreadIndex);\n"
-				"    const uint {0}_DataIndex = {0}_ThreadInfo[0];\n"
-				"    const uint {0}_DataAddress = {0}_ThreadInfo[1];\n"
-				"    const uint ElementIndex = {0}_ThreadInfo[2];\n"),
-				{ OutputPin->Properties.Label.ToString() });
+			KernelSpecificPreamble += TEXT("uint ElementIndex; // Assumption - element index identical in input and output data.\n");
+
+			AddThreadInfoForPin(OutputPin->Properties.Label);
 
 			KernelSpecificPreamble += FString::Format(TEXT(
 				"    \n"

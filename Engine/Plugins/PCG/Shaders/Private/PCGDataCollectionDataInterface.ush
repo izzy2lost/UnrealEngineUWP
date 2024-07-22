@@ -49,10 +49,9 @@ uint ReadDataInfo_{DataInterfaceName}(uint DataAddress)
 	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 12);
 }
 
-// Returns (DataIndex, DataAddress, ElementIndex)
-uint3 GetThreadData_{DataInterfaceName}(uint ThreadIndex)
+bool GetThreadData_{DataInterfaceName}(uint InThreadIndex, out uint OutDataIndex, out uint OutDataAddress, out uint OutElementIndex)
 {
-	int ElementIndex = ThreadIndex;
+	int ElementIndex = InThreadIndex;
 
 	const uint NumData = GetNumData_{DataInterfaceName}();
 	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
@@ -62,13 +61,27 @@ uint3 GetThreadData_{DataInterfaceName}(uint ThreadIndex)
 
 		if (ElementIndex < ElemCount)
 		{
-			return uint3(DataIndex, DataAddress, ElementIndex);
+			OutDataIndex = DataIndex;
+			OutDataAddress = DataAddress;
+			OutElementIndex = ElementIndex;
+
+			return true;
 		}
 
 		ElementIndex -= ElemCount;
 	}
 
-	return uint3(-1, -1, -1);
+	OutDataIndex = -1;
+	OutDataAddress = -1;
+	OutElementIndex = -1;
+
+	return false;
+}
+
+bool GetThreadData_{DataInterfaceName}(uint InThreadIndex, out uint OutDataIndex, out uint OutElementIndex)
+{
+	uint DataAddressDummy = -1;
+	return GetThreadData_{DataInterfaceName}(InThreadIndex, OutDataIndex, DataAddressDummy, OutElementIndex);
 }
 
 uint GetNumElements_{DataInterfaceName}()

@@ -432,6 +432,21 @@ namespace
 		
 		for (int32 ParameterIndex = bHasReturnWrap ? 1 : 0; ParameterIndex < NumWrapParams; ++ParameterIndex)
 		{
+			switch (FnWrap.ParamTypes[ParameterIndex].Modifier)
+			{
+			case EShaderParamModifier::In:
+				StringBuilder.Append(TEXT("in "));
+				break;
+			case EShaderParamModifier::Out:
+				StringBuilder.Append(TEXT("out "));
+				break;
+			case EShaderParamModifier::InOut:
+				StringBuilder.Append(TEXT("inout "));
+				break;
+			default:
+				break;
+			}
+
 			StringBuilder.Append(*FnWrap.ParamTypes[ParameterIndex].TypeDeclaration);
 			StringBuilder.Appendf(TEXT(" P%d"), ParameterIndex);
 			StringBuilder.Append((ParameterIndex < NumWrapParams - 1) ? TEXT(", ") : TEXT(""));

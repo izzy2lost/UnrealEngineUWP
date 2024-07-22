@@ -64,8 +64,18 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("GetThreadData"))
-			.AddReturnType(EShaderFundamentalType::Uint, 3)
-			.AddParam(EShaderFundamentalType::Uint);
+			.AddParam(EShaderFundamentalType::Uint) // InThreadIndex
+			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutDataIndex
+			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutDataAddress
+			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutElementIndex
+			.AddReturnType(EShaderFundamentalType::Bool);
+
+		OutFunctions.AddDefaulted_GetRef()
+			.SetName(TEXT("GetThreadData"))
+			.AddParam(EShaderFundamentalType::Uint) // InThreadIndex
+			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutDataIndex
+			.AddParam(EShaderFundamentalType::Uint, 0, 0, EShaderParamModifier::Out) // OutElementIndex
+			.AddReturnType(EShaderFundamentalType::Bool);
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("GetNumElements"))

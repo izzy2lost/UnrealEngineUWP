@@ -59,6 +59,15 @@ enum class EShaderResourceType : uint8
 	ByteAddressBuffer,
 };
 
+UENUM()
+enum class EShaderParamModifier : uint8
+{
+	None,
+	In,
+	Out,
+	InOut,
+};
+
 /*  */
 USTRUCT()
 struct FShaderValueTypeHandle
@@ -339,6 +348,9 @@ public:
 	UPROPERTY()
 	EShaderResourceType	ResourceType = EShaderResourceType::None;
 
+	UPROPERTY()
+	EShaderParamModifier Modifier;
+	
 	bool IsAnyBufferType() const
 	{
 		return
@@ -417,8 +429,8 @@ public:
 
 public:
 	FShaderFunctionDefinition& SetName(FString InName);
-	FShaderFunctionDefinition& AddParam(FShaderValueTypeHandle InValueType);
-	FShaderFunctionDefinition& AddParam(EShaderFundamentalType InType, int32 InRowCount = 0, int32 InColumnCount = 0);
+	FShaderFunctionDefinition& AddParam(FShaderValueTypeHandle InValueType, EShaderParamModifier InModifier = EShaderParamModifier::None);
+	FShaderFunctionDefinition& AddParam(EShaderFundamentalType InType, int32 InRowCount = 0, int32 InColumnCount = 0, EShaderParamModifier InModifier = EShaderParamModifier::None);
 	FShaderFunctionDefinition& AddReturnType(FShaderValueTypeHandle InValueType);
 	FShaderFunctionDefinition& AddReturnType(EShaderFundamentalType InType, int32 InRowCount = 0, int32 InColumnCount = 0);
 };
