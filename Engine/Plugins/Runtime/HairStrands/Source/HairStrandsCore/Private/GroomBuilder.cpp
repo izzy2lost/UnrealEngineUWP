@@ -51,7 +51,7 @@ bool DoesHairStrandsSupportCompressedPosition();
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v16d");
+	return TEXT("v16e");
 }
 
 namespace GroomBuilder_Voxelization
@@ -2236,7 +2236,19 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 			// is enabled to avoid loosing the last segment of each curve
 			if (bAddEndingControlPoint && (VertexIndex == CurveNumVertices-1))
 			{
-				CurrentHairStrandsDatas->StrandsPoints.PointsPosition.Add(VertexPositions[VertexID]);
+				const int32 CurrentIndex = CurrentHairStrandsDatas->StrandsPoints.PointsPosition.Num();
+				const int32 P0Index = CurrentIndex-1;
+				const int32 P1Index = CurrentIndex-2;
+				check(CurveNumVertices >= 2);
+				check(P0Index > 0);
+				check(P1Index > 0);
+
+				// Add a small position offset to avoid superposed positions of the extra position
+				const FVector3f P0 = CurrentHairStrandsDatas->StrandsPoints.PointsPosition[P0Index];
+				const FVector3f P1 = CurrentHairStrandsDatas->StrandsPoints.PointsPosition[P1Index];
+				const FVector3f PositionOffset = (P0 - P1) * 0.1f; // 10% of the distance
+
+				CurrentHairStrandsDatas->StrandsPoints.PointsPosition.Add(VertexPositions[VertexID] + PositionOffset);
 				if (bHasBaseColorAttribute)
 				{
 					CurrentHairStrandsDatas->StrandsPoints.PointsBaseColor.Add(FLinearColor(VertexBaseColor[VertexID]));

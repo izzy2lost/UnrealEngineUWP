@@ -2137,11 +2137,13 @@ namespace GroomDerivedDataCacheUtils
 	void SerializeHairInterpolationSettingsForDDC(FArchive& Ar, uint32 GroupIndex, FHairGroupsInterpolation& InterpolationSettings, FHairGroupsLOD& LODSettings, bool bRequireInterpolationData)
 	{
 		bool bSupportCompressedPosition = DoesHairStrandsSupportCompressedPosition();
+		bool bSupportTriangleStrip = GetHairStrandsUsesTriangleStrips();
 
 		// Note: this serializer is only used to build the groom DDC key, no versioning is required
 		Ar << GroupIndex;
 		Ar << bRequireInterpolationData;
 		Ar << bSupportCompressedPosition;
+		Ar << bSupportTriangleStrip;
 
 		InterpolationSettings.BuildDDCKey(Ar);
 		LODSettings.BuildDDCKey(Ar);
