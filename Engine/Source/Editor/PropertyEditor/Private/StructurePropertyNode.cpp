@@ -206,7 +206,7 @@ bool FStructurePropertyNode::GetReadAddressUncached(const FPropertyNode& InPrope
 		}
 	}
 
-	if (bAllTheSame && OutAddresses)
+	if (OutAddresses)
 	{
 		for (TSharedPtr<FStructOnScope>& Instance : Instances)
 		{
