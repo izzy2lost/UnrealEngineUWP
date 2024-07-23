@@ -23,7 +23,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 		else
 		{
-			Clients.ForEachStream(ClientEndpointId, [&Callback](const FConcertReplicationStream& Stream)
+			NoOverrideStreamFallback.ForEachStream(ClientEndpointId, [&Callback](const FConcertReplicationStream& Stream)
 			{
 				return Callback(Stream.BaseDescription.Identifier, Stream.BaseDescription.ReplicationMap);
 			});
@@ -32,7 +32,7 @@ namespace UE::ConcertSyncServer::Replication
 
 	void FGroundTruthOverride::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
-		Clients.ForEachReplicationClient(Callback);
+		NoOverrideStreamFallback.ForEachReplicationClient(Callback);
 	}
 
 	bool FGroundTruthOverride::HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const
@@ -41,6 +41,6 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertObjectInStreamArray* AuthorityOverride = AuthorityOverrides.Find(ClientId);
 		return AuthorityOverride
 			? AuthorityOverride->Objects.Contains(ObjectId)
-			: AuthorityManager.HasAuthorityToChange(ObjectId);
+			: NoOverrideAuthorityFallback.HasAuthorityToChange(ObjectId);
 	}
 }

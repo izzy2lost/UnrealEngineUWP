@@ -32,15 +32,14 @@ namespace UE::ConcertSyncServer::Replication
 		FGroundTruthOverride(
 			const TMap<FGuid, FConcertReplicationStreamArray>& StreamOverrides UE_LIFETIMEBOUND,
 			const TMap<FGuid, FConcertObjectInStreamArray>& AuthorityOverrides UE_LIFETIMEBOUND,
-			const IRegistrationEnumerator& Clients UE_LIFETIMEBOUND,
-			const FAuthorityManager& AuthorityManager UE_LIFETIMEBOUND
+			const IRegistrationEnumerator& NoOverrideStreamFallback UE_LIFETIMEBOUND,
+			const FAuthorityManager& NoOverrideAuthorityFallback UE_LIFETIMEBOUND
 			)
 			: StreamOverrides(StreamOverrides)
 			, AuthorityOverrides(AuthorityOverrides)
-			, Clients(Clients)
-			, AuthorityManager(AuthorityManager)
-		{
-		}
+			, NoOverrideStreamFallback(NoOverrideStreamFallback)
+			, NoOverrideAuthorityFallback(NoOverrideAuthorityFallback)
+		{}
 
 		//~ Begin IReplicationGroundTruth Interface
 		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const override;
@@ -53,8 +52,10 @@ namespace UE::ConcertSyncServer::Replication
 		const TMap<FGuid, FConcertReplicationStreamArray>& StreamOverrides;
 		const TMap<FGuid, FConcertObjectInStreamArray>& AuthorityOverrides;
 
-		const IRegistrationEnumerator& Clients;
-		const FAuthorityManager& AuthorityManager;
+		/** Gives us the stream content when no override was specified. */
+		const IRegistrationEnumerator& NoOverrideStreamFallback;
+		/** Gives us the authority when no override was specified. */
+		const FAuthorityManager& NoOverrideAuthorityFallback;
 	};
 }
 
