@@ -4,6 +4,7 @@
 
 #include "Styling/StyleColors.h"
 #include "ToolWidgetsStyle.h"
+#include "ToolWidgetsStylePrivate.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SSpacer.h"
@@ -83,8 +84,8 @@ void SActionButton::Construct(const FArguments& InArgs)
 
 	TAttribute<FText> Text = InArgs._Text;
 
-	static constexpr float DefaultIconHeight = UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultIconHeight;
-	static constexpr float IconTextPadding = UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultIconLabelSpacing;
+	static constexpr float DefaultIconHeight = UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultIconHeight;
+	static constexpr float IconTextPadding = UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultIconLabelSpacing;
 
 	const TSharedRef<SHorizontalBox> ButtonContentContainer = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
@@ -133,8 +134,8 @@ void SActionButton::Construct(const FArguments& InArgs)
 	if (bIsComboButton)
 	{
 		static const FMargin DefaultComboButtonContentPadding = FMargin(
-			UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultHorizontalPadding,
-			UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultVerticalPadding);
+			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
+			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
 
 		const TAttribute<FMargin> ComboButtonContentPadding = InArgs._ButtonContentPadding.IsSet()
 			? InArgs._ButtonContentPadding.Get(DefaultComboButtonContentPadding)
@@ -169,8 +170,8 @@ void SActionButton::Construct(const FArguments& InArgs)
 	else
 	{
 		static const FMargin DefaultButtonContentPadding = FMargin(
-			UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultHorizontalPadding,
-			UE::ToolWidgets::FToolWidgetsStyle::FActionButton::DefaultVerticalPadding);
+			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
+			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
 
 		const TAttribute<FMargin> ButtonContentPadding = InArgs._ButtonContentPadding.IsSet()
 			? InArgs._ButtonContentPadding.Get(DefaultButtonContentPadding)

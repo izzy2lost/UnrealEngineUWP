@@ -6,6 +6,7 @@
 #include "Styling/SlateStyleRegistry.h"
 #include "Styling/StyleColors.h"
 #include "ToolWidgetsSlateTypes.h"
+#include "ToolWidgetsStylePrivate.h"
 
 namespace UE::ToolWidgets
 {
@@ -44,8 +45,10 @@ namespace UE::ToolWidgets
 		// SActionButton
 		{
 			using namespace Private;
-		
-			static const FMargin DefaultButtonContentPadding = FMargin(FActionButton::DefaultHorizontalPadding, FActionButton::DefaultVerticalPadding);
+
+			static const FMargin DefaultButtonContentPadding = FMargin(
+				FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
+				FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
 
 			const FButtonStyle& DefaultButtonStyle = GetWidgetStyle<FButtonStyle>("Button");
 			const FComboButtonStyle& DefaultComboButtonStyle = GetWidgetStyle<FComboButtonStyle>("ComboButton");
