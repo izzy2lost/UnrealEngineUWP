@@ -166,7 +166,7 @@ namespace UE::UniversalObjectLocator
 			}
 		}
 
-		return LOCTEXT("UsdPrimLocatorEditorTooltip", "A path to a prim on a USD stage");
+		return LOCTEXT("UsdPrimLocatorEditorTooltipInvalid", "A path to a prim on a USD stage");
 	}
 
 	FSlateIcon FUsdPrimLocatorEditor::GetDisplayIcon(const FUniversalObjectLocatorFragment* InFragment) const

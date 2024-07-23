@@ -899,8 +899,8 @@ void SUsdStage::FillFileMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.BeginSection("Reload", LOCTEXT("Reload", "Reload"));
 	{
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("Reload", "Reload stage"),
-			LOCTEXT("Reload_ToolTip", "Reloads the stage and animations from disk, keeping aspects of the session intact"),
+			LOCTEXT("ReloadEntry", "Reload stage"),
+			LOCTEXT("ReloadEntry_ToolTip", "Reloads the stage and animations from disk, keeping aspects of the session intact"),
 			FSlateIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &SUsdStage::FileReload),

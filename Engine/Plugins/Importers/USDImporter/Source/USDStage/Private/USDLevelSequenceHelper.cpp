@@ -647,7 +647,7 @@ cleanup:
 		const FText Text = LOCTEXT("VisibilityWarningTitle", "USD: Inherited visibility");
 
 		const FText SubText = LOCTEXT(
-			"VisibilityWarningTitle",
+			"VisibilityWarningTooltip",
 			"Visibility in USD is inherited (if a parent prim is hidden, its children are also implicitly hidden), while it is not inherited in Unreal. This means that authoring visibility animation from Unreal may have unexpected consequences on the USD stage.\n\nYou may want to use 'File -> Regenerate sequence' to resynchronize the LevelSequence with the current state of the stage, whenever is convenient."
 		);
 
