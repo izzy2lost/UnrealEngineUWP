@@ -12,6 +12,7 @@ uint ThreadCountX;
 #define INPUT_STRIDE 0
 #define OUTPUT_STRIDE 1
 #define INPUT_STARTS 2
+#define INPUT_STEPS 3
 
 [numthreads(THREADGROUP_SIZE_X, 1, 1)]
 void Slice(in const uint3 DispatchThreadID : SV_DispatchThreadID)
@@ -27,7 +28,7 @@ void Slice(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		{
 			uint OutDimIdx, R;
 			DivMod(Offset, TensorInfo[dim][OUTPUT_STRIDE], OutDimIdx, R);
-			uint InDimIdx = TensorInfo[dim][INPUT_STARTS] + OutDimIdx;
+			uint InDimIdx = (uint) ((int) TensorInfo[dim][INPUT_STARTS] + (int) OutDimIdx * asint(TensorInfo[dim][INPUT_STEPS]));
 			InputIndex += TensorInfo[dim][INPUT_STRIDE] * InDimIdx;
 			Offset = R;
 		}

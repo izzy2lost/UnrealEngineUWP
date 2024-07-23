@@ -8,5 +8,5 @@ namespace UE::NNE::Internal { class FTensor; }
 
 namespace UE::NNERuntimeRDG::Internal::CPUHelper::Slice
 {
-	void NNERUNTIMERDG_API Apply(const NNE::Internal::FTensor& InputTensor, NNE::Internal::FTensor& OutputTensor, TConstArrayView<int32> Starts);
+	void NNERUNTIMERDG_API Apply(const NNE::Internal::FTensor& InputTensor, NNE::Internal::FTensor& OutputTensor, TConstArrayView<int32> Starts, TConstArrayView<int32> Steps);
 } // UE::NNERuntimeRDG::Internal::CPUHelper::Slice
