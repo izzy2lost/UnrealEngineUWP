@@ -19,7 +19,7 @@ class UWorldPartitionBuilderCommandlet : public UCommandlet
 	//~ End UCommandlet Interface
 
 private:
-	TArray<FString> GatherMapsFromCollection(const FString& CollectionName) const;
+	TSet<FString> GatherMapsFromCollection(const FString& CollectionName) const;
 	bool RunBuilder(TSubclassOf<UWorldPartitionBuilder> InBuilderClass, const FString& InWorldPackageName);
 
 	bool OnFilesModified(const TArray<FString>& InModifiedFiles, const FString& InChangeDescription);
