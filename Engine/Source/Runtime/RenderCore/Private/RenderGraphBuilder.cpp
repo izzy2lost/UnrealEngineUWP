@@ -4219,7 +4219,7 @@ void FRDGBuilder::SetTransientTextureRHI(FRDGTexture* Texture, FRHITransientText
 	SetDiscardPass(Texture, TransientTexture);
 }
 
-void FRDGBuilder::SetExternalPooledBufferRHI(FRDGBuffer* Buffer, FRDGPooledBuffer* PooledBuffer)
+void FRDGBuilder::SetExternalPooledBufferRHI(FRDGBuffer* Buffer, const TRefCountPtr<FRDGPooledBuffer>& PooledBuffer)
 {
 	SetPooledBufferRHI(Buffer, PooledBuffer);
 	Buffer->Allocation = PooledBuffer;
