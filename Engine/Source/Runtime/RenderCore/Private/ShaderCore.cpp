@@ -3633,6 +3633,49 @@ bool FShaderCompilerError::ExtractSourceLocation()
 	return false;
 }
 
+void FShaderCompilerError::ExtractSourceLocations(TArray<FShaderCompilerError>& InOutErrors)
+{
+	FString CurrentLine, CurrentColumn; // Local to loop but hoisted for performance.
+	FString PreviousLine, PreviousColumn;
+
+	for (int ErrorIndex = 0; ErrorIndex < InOutErrors.Num(); ++ErrorIndex)
+	{
+		FShaderCompilerError& CurrentError = InOutErrors[ErrorIndex];
+
+		CurrentError.ExtractSourceLocation();
+
+		if (!CurrentError.ErrorLineString.Split(TEXT(","), &CurrentLine, &CurrentColumn))
+		{
+			PreviousLine.Reset();
+			PreviousColumn.Reset();
+			continue;
+		}
+
+		if (!CurrentLine.IsNumeric() || !CurrentColumn.IsNumeric())
+		{
+			PreviousLine.Reset();
+			PreviousColumn.Reset();
+			continue;
+		}
+
+		// The shader compiler may omit line marker info after the first error for that line/column. Copy this information from the previous error
+		// if the line/column matches.
+		if (!CurrentError.HasLineMarker() && ErrorIndex > 0 && PreviousLine == CurrentLine && PreviousColumn == CurrentColumn)
+		{
+			FShaderCompilerError& PreviousError = InOutErrors[ErrorIndex - 1];
+			if (PreviousError.HasLineMarker())
+			{
+				// Issue pertains to same code. Copy marker.
+				CurrentError.HighlightedLine = PreviousError.HighlightedLine;
+				CurrentError.HighlightedLineMarker = PreviousError.HighlightedLineMarker;
+			}
+		}
+
+		PreviousLine = MoveTemp(CurrentLine);
+		PreviousColumn = MoveTemp(CurrentColumn);
+	}
+}
+
 FString FShaderCompilerError::GetShaderSourceFilePath() const
 {
 	// Always return error file path as-is if it doesn't denote a virtual path.

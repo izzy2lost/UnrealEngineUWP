@@ -1008,7 +1008,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	const FIntVector GroupSize = GetThreadGroupSize();
 
 	// FIXME: Create source range mappings so that we can go from error location to our source.
-	FString Source = (TEXT("    // User kernel\n") + ShaderSource);
+	FString Source = ShaderSource;
 	FString Functions = (TEXT("// User kernel functions\n") + ShaderFunctions);
 
 #if PLATFORM_WINDOWS
@@ -1242,7 +1242,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 		Source.ReplaceInline(TEXT("KERNEL"), TEXT("void __kernel_func(uint ThreadIndex)"), ESearchCase::CaseSensitive);
 
 		Result = FString::Printf(TEXT(
-			"#line 1 \"%s\"\n" // ShaderPathName
+			"#line 0 \"%s\"\n" // ShaderPathName
 			"%s\n" // Includes
 			"%s\n" // Functions
 			"%s\n" // Source
@@ -1259,7 +1259,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 			"    const uint ThreadIndex = %s;\n" // UnWrappedDispatchThreadId
 			"%s\n" // HeaderWriters
 			"%s\n" // KernelSpecificPreamble
-			"#line 1 \"%s\"\n\n" // ShaderPathName
+			"#line 0 \"%s\"\n\n" // ShaderPathName
 			"%s\n" // Source
 			"}\n"),
 			*Includes, *Functions, *KernelFunc, *UnWrappedDispatchThreadId, *HeaderWriters, *KernelSpecificPreamble, *ShaderPathName, *Source);

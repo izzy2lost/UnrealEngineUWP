@@ -108,7 +108,6 @@ void FComputeKernelShaderCompilationManager::ProcessAsyncResults()
 static bool ParseShaderCompilerError(FShaderCompilerError const& InError, FComputeKernelCompileMessage& OutMessage)
 {
 	FShaderCompilerError Error = InError;
-	Error.ExtractSourceLocation();
 
 	// We ignore error messages that don't have a line information.
 	FString Line, Column;
@@ -248,10 +247,13 @@ void FComputeKernelShaderCompilationManager::ProcessCompiledComputeKernelShaderM
 
 				if (GShowComputeKernelShaderWarnings || !CurrentJob.bSucceeded)
 				{
-					for (int32 ErrorIndex = 0; ErrorIndex < CurrentJob.Output.Errors.Num(); ErrorIndex++)
+					TArray<FShaderCompilerError> Errors = CurrentJob.Output.Errors;
+					FShaderCompilerError::ExtractSourceLocations(Errors);
+
+					for (int32 ErrorIndex = 0; ErrorIndex < Errors.Num(); ErrorIndex++)
 					{
 						FComputeKernelCompileMessage Message;
-						if (ParseShaderCompilerError(CurrentJob.Output.Errors[ErrorIndex], Message))
+						if (ParseShaderCompilerError(Errors[ErrorIndex], Message))
 						{
 							ProcessedCompileResults.Messages.AddUnique(Message);
 						}

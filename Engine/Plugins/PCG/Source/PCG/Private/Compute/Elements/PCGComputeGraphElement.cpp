@@ -300,7 +300,18 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 						FPCGStack StackWithNode = *InContext->Stack;
 						StackWithNode.PushFrame(NodeAndCompileMessages.Get<0>().ResolveObjectPtr());
 
-						Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, FText::FromString(Message.Text));
+						if (Message.Line != INDEX_NONE)
+						{
+							Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, FText::Format(
+								LOCTEXT("ErrorWithLineFormat", "[{0},{1}] {2}"),
+								Message.Line,
+								Message.ColumnStart,
+								FText::FromString(Message.Text)));
+						}
+						else
+						{
+							Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, FText::FromString(Message.Text));
+						}
 					}
 				}
 			}

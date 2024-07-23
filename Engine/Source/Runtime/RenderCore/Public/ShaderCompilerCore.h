@@ -523,6 +523,10 @@ struct FShaderCompilerError
 	/** Extracts the file path and source line from StrippedErrorMessage to ErrorVirtualFilePath and ErrorLineString. */
 	bool RENDERCORE_API ExtractSourceLocation();
 
+	/** Extracts the file path and source line for each error from the error message. Propagates highlighted line and marker to
+	 * all errors pertaining to the same source location. */
+	static void RENDERCORE_API ExtractSourceLocations(TArray<FShaderCompilerError>& InOutErrors);
+
 	/** Returns the path of the underlying source file relative to the process base dir. */
 	FString RENDERCORE_API GetShaderSourceFilePath() const;
 
