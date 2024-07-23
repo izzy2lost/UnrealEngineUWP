@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "Framework/Commands/UIAction.h"
+#include "CoreTypes.h"
+
 #include "Framework/Commands/Commands.h"
+#include "Framework/Commands/UIAction.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**

@@ -2,18 +2,17 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 // TraceInsights
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 
-namespace Insights
+namespace UE::Insights::TimingProfiler
 {
 	struct FFrameStatsCachedEvent;
+	class STimingView;
 }
-
-namespace UE::Insights::TimingProfiler { class STimingView; }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +60,7 @@ public:
 	ETraceFrameType FrameType;
 	double CachedSessionDuration;
 	TArray<FSimpleTimingEvent> CachedEvents; // used by Timer series
-	TArray<Insights::FFrameStatsCachedEvent> FrameStatsCachedEvents; // used by Frame Stats Timer series
+	TArray<UE::Insights::TimingProfiler::FFrameStatsCachedEvent> FrameStatsCachedEvents; // used by Frame Stats Timer series
 	uint32 CachedTimelinesNum = 0; // the number of timelines used to gather the data
 
 	bool bIsTime; // the unit for values is [second]

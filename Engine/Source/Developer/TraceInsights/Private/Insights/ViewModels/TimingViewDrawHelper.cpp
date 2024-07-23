@@ -13,8 +13,8 @@
 
 // TraceInsights
 #include "Insights/InsightsStyle.h"
+#include "Insights/TimingProfiler/Tracks/MarkersTimingTrack.h"
 #include "Insights/ViewModels/DrawHelpers.h"
-#include "Insights/ViewModels/MarkersTimingTrack.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingEventsTrack.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"

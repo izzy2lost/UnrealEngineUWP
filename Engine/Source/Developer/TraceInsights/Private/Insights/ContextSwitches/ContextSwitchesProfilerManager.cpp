@@ -12,8 +12,8 @@
 // TraceInsights
 #include "Insights/ContextSwitches/ViewModels/ContextSwitchesSharedState.h"
 #include "Insights/ITimingViewExtender.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -25,9 +25,10 @@
 #include "Insights/TaskGraphProfiler/ViewModels/TaskGraphRelation.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskNode.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -750,13 +751,13 @@ void STaskTableTreeView::ContextMenu_GoToTask_Execute()
 		TaskSharedState->SetTaskId(TaskEntry->GetId());
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadTimingState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadTimingState = TimingView->GetThreadTimingSharedState();
 	if (!ThreadTimingState.IsValid())
 	{
 		return;
 	}
 
-	TSharedPtr<FCpuTimingTrack> Track = ThreadTimingState->GetCpuTrack(TaskEntry->GetStartedThreadId());
+	TSharedPtr<TimingProfiler::FCpuTimingTrack> Track = ThreadTimingState->GetCpuTrack(TaskEntry->GetStartedThreadId());
 	if (!Track.IsValid())
 	{
 		return;

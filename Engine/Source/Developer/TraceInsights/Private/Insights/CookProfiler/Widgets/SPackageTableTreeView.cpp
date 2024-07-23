@@ -18,8 +18,8 @@
 #include "Insights/CookProfiler/CookProfilerManager.h"
 #include "Insights/CookProfiler/ViewModels/PackageEntry.h"
 #include "Insights/CookProfiler/ViewModels/PackageNode.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -30,7 +30,7 @@ namespace UE::Insights::CookProfiler
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// FTaskTableTreeViewCommands
+// FPackageTableTreeViewCommands
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FPackageTableTreeViewCommands : public TCommands<FPackageTableTreeViewCommands>

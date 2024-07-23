@@ -20,7 +20,7 @@
 #include "Insights/MemoryProfiler/ViewModels/MemorySharedState.h"
 #include "Insights/MemoryProfiler/Widgets/SMemAllocTableTreeView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/ViewModels/TimeMarker.h"
 #include "Insights/Widgets/STimingView.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::MemoryProfiler::SMemInvestigationView"

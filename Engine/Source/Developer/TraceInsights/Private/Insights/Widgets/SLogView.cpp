@@ -33,10 +33,10 @@
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/MarkersTimingTrack.h" // for FTimeMarkerTrackBuilder::GetColorBy*
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/MarkersTimingTrack.h" // for FTimeMarkerTrackBuilder::GetColorBy*
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +44,7 @@
 #define LOCTEXT_NAMESPACE "SLogView"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// FTableTreeViewCommands
+// FLogViewCommands
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class FLogViewCommands : public TCommands<FLogViewCommands>
@@ -379,7 +379,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
+			return FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
 		}
 		else
 		{
@@ -412,7 +412,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
+			return FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
 		}
 		else
 		{
@@ -1405,7 +1405,7 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 			[
 				SNew(STextBlock)
 				.Text(Threshold.Label)
-				.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
+				.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
 				.ShadowColorAndOpacity(FLinearColor(0.02f, 0.02f, 0.02f, 1.0f))
 				.ShadowOffset(FVector2D(1.0f, 1.0f))
 			]
@@ -1421,7 +1421,7 @@ void SLogView::CreateVerbosityThresholdMenuSection(FMenuBuilder& MenuBuilder)
 				[
 					SNew(STextBlock)
 					.Text(Threshold.Label)
-					.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
+					.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(Threshold.Verbosity)))
 					.ShadowColorAndOpacity(FLinearColor(0.02f, 0.02f, 0.02f, 1.0f))
 					.ShadowOffset(FVector2D(1.0f, 1.0f))
 				]
@@ -1502,7 +1502,7 @@ void SLogView::CreateCategoriesFilterMenuSection(FMenuBuilder& MenuBuilder)
 			.Text(FText::AsCultureInvariant(CategoryString))
 			.ShadowColorAndOpacity(FLinearColor(0.05f, 0.05f, 0.05f, 1.0f))
 			.ShadowOffset(FVector2D(1.0f, 1.0f))
-			.ColorAndOpacity(FSlateColor(FTimeMarkerTrackBuilder::GetColorByCategory(*CategoryString)));
+			.ColorAndOpacity(FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(*CategoryString)));
 
 		MenuBuilder.AddMenuEntry
 		(

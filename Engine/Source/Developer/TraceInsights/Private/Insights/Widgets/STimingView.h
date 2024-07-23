@@ -19,8 +19,8 @@
 // TraceInsights
 #include "Insights/Config.h"
 #include "Insights/ITimingViewSession.h"
+#include "Insights/TimingProfiler/ViewModels/TimerNode.h"
 #include "Insights/ViewModels/BaseTimingTrack.h"
-#include "Insights/ViewModels/TimerNode.h"
 #include "Insights/ViewModels/TimingEvent.h"
 #include "Insights/ViewModels/TimingEventsTrack.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
@@ -38,17 +38,8 @@ class SOverlay;
 class SScrollBar;
 class FSpawnTabArgs;
 
-class FFileActivitySharedState;
-class FFrameSharedState;
-class FLoadingSharedState;
-class FMarkersTimingTrack;
-class FThreadTimingSharedState;
-class FTimingGraphTrack;
-class FTimingViewDrawHelper;
-
 namespace Insights
 {
-	class FTimingRegionsSharedState;
 	class FQuickFind;
 	class SQuickFind;
 }
@@ -64,11 +55,25 @@ namespace UE::Insights::Timing
 	class ITimingViewExtender;
 }
 
+class FTimingGraphTrack;
+class FTimingViewDrawHelper;
+
+namespace UE::Insights::LoadingProfiler
+{
+	class FLoadingSharedState;
+}
+
 namespace UE::Insights::TimingProfiler
 {
 
-class FTimeMarker;
+class FFrameSharedState;
+class FThreadTimingSharedState;
+class FTimingRegionsSharedState;
+class FFileActivitySharedState;
+
 class FTimeRulerTrack;
+class FTimeMarker;
+class FMarkersTimingTrack;
 
 enum class ESelectEventType : uint32
 {
@@ -119,7 +124,7 @@ public:
 
 	TSharedPtr<FFrameSharedState> GetFrameSharedState() const { return FrameSharedState; }
 	TSharedPtr<FThreadTimingSharedState> GetThreadTimingSharedState() const { return ThreadTimingSharedState; }
-	TSharedPtr<FLoadingSharedState> GetLoadingSharedState() const { return LoadingSharedState; }
+	TSharedPtr<LoadingProfiler::FLoadingSharedState> GetLoadingSharedState() const { return LoadingSharedState; }
 	TSharedPtr<FFileActivitySharedState> GetFileActivitySharedState() const { return FileActivitySharedState; }
 
 	void HideAllDefaultTracks();
@@ -591,13 +596,13 @@ protected:
 	TSharedPtr<FThreadTimingSharedState> ThreadTimingSharedState;
 
 	// Shared state for Asset Loading tracks
-	TSharedPtr<FLoadingSharedState> LoadingSharedState;
+	TSharedPtr<LoadingProfiler::FLoadingSharedState> LoadingSharedState;
 
 	// Shared state for File Activity (I/O) tracks
 	TSharedPtr<FFileActivitySharedState> FileActivitySharedState;
 
 	// Shared state for Regions tracks
-	TSharedPtr<::Insights::FTimingRegionsSharedState> TimingRegionsSharedState;
+	TSharedPtr<FTimingRegionsSharedState> TimingRegionsSharedState;
 	
 	////////////////////////////////////////////////////////////
 

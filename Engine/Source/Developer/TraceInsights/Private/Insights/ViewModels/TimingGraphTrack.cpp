@@ -2,6 +2,8 @@
 
 #include "TimingGraphTrack.h"
 
+#include "Algo/BinarySearch.h"
+
 // TraceServices
 #include "TraceServices/Model/Counters.h"
 #include "TraceServices/Model/Frames.h"
@@ -13,15 +15,16 @@
 
 // TraceInsights
 #include "Insights/InsightsManager.h"
-#include "Insights/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/FrameStatsHelper.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/Widgets/STimersView.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/AxisViewportDouble.h"
-#include "Insights/ViewModels/FrameStatsHelper.h"
 #include "Insights/ViewModels/GraphTrackBuilder.h"
 #include "Insights/ViewModels/ITimingViewDrawHelper.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
-#include "Insights/Widgets/STimersView.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #include <limits>
@@ -181,10 +184,11 @@ FTimingGraphTrack::~FTimingGraphTrack()
 		}
 	}
 
+	using namespace UE::Insights::TimingProfiler;
+
 	TSharedPtr<STimersView> TimersView;
 	if (bNotifyTimersOnDestruction)
 	{
-		using namespace UE::Insights::TimingProfiler;
 		TSharedPtr<STimingProfilerWindow> ProfilerWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
 		if (ProfilerWindow.IsValid())
 		{
@@ -192,7 +196,7 @@ FTimingGraphTrack::~FTimingGraphTrack()
 		}
 	}
 
-	if(TimersView)
+	if (TimersView)
 	{
 		for (const TSharedPtr<FGraphSeries>& Series : AllSeries)
 		{
@@ -223,7 +227,7 @@ void FTimingGraphTrack::Update(const ITimingTrackUpdateContext& Context)
 		{
 			auto OnTrackAddedRemovedLamda = [this](const TSharedPtr<const FBaseTimingTrack> Track)
 			{
-				if (Track->Is<FThreadTimingTrack>())
+				if (Track->Is<UE::Insights::TimingProfiler::FThreadTimingTrack>())
 				{
 					// If there are more series than the default frame series.
 					if (this->AllSeries.Num() > ETraceFrameType::TraceFrameType_Count)
@@ -597,6 +601,8 @@ void FTimingGraphTrack::RemoveFrameStatsTimerSeries(uint32 TimerId, ETraceFrameT
 
 void FTimingGraphTrack::UpdateFrameStatsTimerSeries(FTimingGraphSeries& Series, const FTimingTrackViewport& Viewport)
 {
+	using namespace UE::Insights::TimingProfiler;
+
 	FGraphTrackBuilder Builder(*this, Series, Viewport);
 	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
@@ -622,29 +628,29 @@ void FTimingGraphTrack::UpdateFrameStatsTimerSeries(FTimingGraphSeries& Series, 
 
 			FramesProvider.EnumerateFrames(Series.FrameType, 0ull, FrameCount, [&Series](const TraceServices::FFrame& Frame)
 				{
-					Insights::FFrameStatsCachedEvent Event;
+					FFrameStatsCachedEvent Event;
 					Event.FrameStartTime = Frame.StartTime;
 					Event.FrameEndTime = Frame.EndTime;
 					Event.Duration.store(0.0f);
 					Series.FrameStatsCachedEvents.Add(Event);
 				});
 
-			Insights::FFrameStatsHelper::ComputeFrameStatsForTimer(Series.FrameStatsCachedEvents, Series.TimerId, VisibleTimelines);
+			FFrameStatsHelper::ComputeFrameStatsForTimer(Series.FrameStatsCachedEvents, Series.TimerId, VisibleTimelines);
 		}
 
-		int32 StartIndex = Algo::UpperBoundBy(Series.FrameStatsCachedEvents, Viewport.GetStartTime(), &Insights::FFrameStatsCachedEvent::FrameStartTime);
+		int32 StartIndex = Algo::UpperBoundBy(Series.FrameStatsCachedEvents, Viewport.GetStartTime(), &FFrameStatsCachedEvent::FrameStartTime);
 		if (StartIndex > 0)
 		{
 			StartIndex--;
 		}
-		int32 EndIndex = Algo::UpperBoundBy(Series.FrameStatsCachedEvents, Viewport.GetEndTime(), &Insights::FFrameStatsCachedEvent::FrameStartTime);
+		int32 EndIndex = Algo::UpperBoundBy(Series.FrameStatsCachedEvents, Viewport.GetEndTime(), &FFrameStatsCachedEvent::FrameStartTime);
 		if (EndIndex < Series.FrameStatsCachedEvents.Num())
 		{
 			EndIndex++;
 		}
 		for (int32 Index = StartIndex; Index < EndIndex; ++Index)
 		{
-			const Insights::FFrameStatsCachedEvent& Entry = Series.FrameStatsCachedEvents[Index];
+			const FFrameStatsCachedEvent& Entry = Series.FrameStatsCachedEvents[Index];
 			Builder.AddEvent(Entry.FrameStartTime, Entry.Duration.load(), Entry.Duration.load());
 		}
 	}
@@ -807,7 +813,7 @@ void FTimingGraphTrack::GetVisibleTimelineIndexes(TSet<uint32>& TimelineIndexes)
 		return;
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingViewPtr->GetThreadTimingSharedState();
+	TSharedPtr<UE::Insights::TimingProfiler::FThreadTimingSharedState> ThreadSharedState = TimingViewPtr->GetThreadTimingSharedState();
 	ThreadSharedState->GetVisibleTimelineIndexes(TimelineIndexes);
 }
 

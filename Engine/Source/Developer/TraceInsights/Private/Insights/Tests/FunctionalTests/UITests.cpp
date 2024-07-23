@@ -15,8 +15,8 @@
 // TraceInsights
 #include "Insights/MemoryProfiler/ViewModels/MemAllocFilterValueConverter.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/TimeRulerTrack.h"
 #include "Insights/Widgets/STimingView.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(UITests, Log, All);

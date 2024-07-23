@@ -7,7 +7,7 @@
 
 // TraceInsights
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
-#include "Insights/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
 #include "Insights/ViewModels/TimingTrackViewport.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
 

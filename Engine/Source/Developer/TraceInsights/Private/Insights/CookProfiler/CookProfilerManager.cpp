@@ -15,8 +15,8 @@
 #include "Insights/InsightsStyle.h"
 #include "Insights/CookProfiler/ViewModels/PackageTable.h"
 #include "Insights/CookProfiler/Widgets/SPackageTableTreeView.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::CookProfiler"
 

@@ -2,9 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
+#include "Styling/SlateColor.h"
 #include "Styling/SlateStyle.h"
 #include "Styling/SlateTypes.h"
+#include "Templates/SharedPointer.h"
+#include "Types/SlateEnums.h"
+
+struct FSlateBrush;
 
 /** Style data for Insights tools */
 class FInsightsStyle

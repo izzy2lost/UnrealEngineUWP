@@ -17,7 +17,8 @@
 #include "Insights/MemoryProfiler/Widgets/SMemInvestigationView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerToolbar.h"
 #include "Insights/MemoryProfiler/Widgets/SMemTagTreeView.h"
-#include "Insights/ViewModels/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/Tracks/TimeRulerTrack.h"
+#include "Insights/TimingProfiler/ViewModels/TimeMarker.h"
 #include "Insights/Widgets/SModulesView.h"
 #include "Insights/Widgets/STimingView.h"
 

@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
+
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
-#include "ProfilingDebugging/MiscTrace.h"
 
 /** Contains all settings for the Unreal Insights, accessible through the main manager. */
 class FInsightsSessionBrowserSettings

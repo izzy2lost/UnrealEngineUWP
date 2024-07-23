@@ -13,13 +13,18 @@
 
 class FMenuBuilder;
 
+namespace TraceServices { class IAnalysisSession; }
+
 class FBaseTimingTrack;
-class FThreadTimingTrack;
 class ITimingEvent;
 
-namespace TraceServices { class IAnalysisSession; }
 namespace UE::Insights::Timing { class ITimingViewSession; }
-namespace UE::Insights::TimingProfiler { class STimingView; }
+
+namespace UE::Insights::TimingProfiler
+{
+	class FThreadTimingTrack;
+	class STimingView;
+}
 
 namespace UE::Insights::ContextSwitches
 {
@@ -33,7 +38,7 @@ class FContextSwitchesStateCommands : public TCommands<FContextSwitchesStateComm
 {
 public:
 	FContextSwitchesStateCommands();
-	virtual ~FContextSwitchesStateCommands();
+	virtual ~FContextSwitchesStateCommands() {}
 	virtual void RegisterCommands() override;
 
 	// Commands for the Tracks Filter menu.
@@ -113,7 +118,7 @@ public:
 	void AddCommands();
 
 	void GetThreadInfo(uint32 InSystemThreadId, uint32& OutThreadId, const TCHAR*& OutThreadName) const;
-	TSharedPtr<FThreadTimingTrack> GetThreadTimingTrack(uint32 ThreadId) const;
+	TSharedPtr<TimingProfiler::FThreadTimingTrack> GetThreadTimingTrack(uint32 ThreadId) const;
 	TSharedPtr<FCpuCoreTimingTrack> GetCpuCoreTimingTrack(uint32 CoreNumber) const;
 
 private:

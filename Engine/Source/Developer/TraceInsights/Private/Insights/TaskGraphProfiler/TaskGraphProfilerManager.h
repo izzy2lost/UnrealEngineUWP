@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "CoreTypes.h"
 
 #include "Async/TaskTrace.h"
 #include "Containers/Ticker.h"
 #include "Framework/Commands/UICommandList.h"
+#include "Templates/SharedPointer.h"
 
 // TraceInsights
 #include "Insights/InsightsManager.h"
@@ -18,10 +19,13 @@ namespace TraceServices
 	class ITasksProvider;
 }
 
-class FThreadTimingTrack;
 class FThreadTrackEvent;
 
-namespace UE::Insights::TimingProfiler { class STimingView; }
+namespace UE::Insights::TimingProfiler
+{
+	class FThreadTimingTrack;
+	class STimingView;
+}
 
 namespace UE::Insights::TaskGraphProfiler
 {
@@ -157,7 +161,7 @@ private:
 	double GetRelationsOnCriticalPathDescendingRec(const TraceServices::FTaskInfo* Task, const TraceServices::ITasksProvider* TasksProvider, TArray<FTaskGraphRelation>& Relations);
 
 	void InitializeColorCode();
-	int32 GetRelationDisplayDepth(TSharedPtr<const FThreadTimingTrack> Track, double Time, int32 KnownDepth);
+	int32 GetRelationDisplayDepth(TSharedPtr<const TimingProfiler::FThreadTimingTrack> Track, double Time, int32 KnownDepth);
 
 	void OutputWarnings();
 

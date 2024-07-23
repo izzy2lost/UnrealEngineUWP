@@ -18,10 +18,11 @@
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTable.h"
 #include "Insights/TaskGraphProfiler/ViewModels/TaskTimingTrack.h"
 #include "Insights/TaskGraphProfiler/Widgets/STaskTableTreeView.h"
-#include "Insights/TimingProfilerManager.h"
-#include "Insights/ViewModels/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/TimingProfilerManager.h"
+#include "Insights/TimingProfiler/Tracks/ThreadTimingTrack.h"
+#include "Insights/TimingProfiler/ViewModels/ThreadTimingSharedState.h"
+#include "Insights/TimingProfiler/Widgets/STimingProfilerWindow.h"
 #include "Insights/ViewModels/ThreadTrackEvent.h"
-#include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingView.h"
 
 #define LOCTEXT_NAMESPACE "UE::Insights::TaskGraphProfiler"
@@ -571,14 +572,14 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 		return;
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
 
 	TUniquePtr<ITimingEventRelation> Relation = MakeUnique<FTaskGraphRelation>(SourceTimestamp, SourceThreadId, TargetTimestamp, TargetThreadId, Type);
 	FTaskGraphRelation* TaskRelationPtr = StaticCast<FTaskGraphRelation*>(Relation.Get());
 
 	if (!TaskRelationPtr->GetSourceTrack().IsValid())
 	{
-		TSharedPtr<const FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetSourceThreadId());
+		TSharedPtr<const TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetSourceThreadId());
 		if (Track.IsValid())
 		{
 			TaskRelationPtr->SetSourceTrack(Track);
@@ -589,7 +590,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 	if (!TaskRelationPtr->GetTargetTrack().IsValid())
 
 	{
-		TSharedPtr<const FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetTargetThreadId());
+		TSharedPtr<const TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(TaskRelationPtr->GetTargetThreadId());
 		if (Track.IsValid())
 		{
 			TaskRelationPtr->SetTargetTrack(Track);
@@ -615,7 +616,7 @@ void FTaskGraphProfilerManager::AddRelation(const FThreadTrackEvent* InSelectedE
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const FThreadTimingTrack> Track, double Time, int32 KnownDepth)
+int32 FTaskGraphProfilerManager::GetRelationDisplayDepth(TSharedPtr<const TimingProfiler::FThreadTimingTrack> Track, double Time, int32 KnownDepth)
 {
 	if (KnownDepth >= 0)
 	{
@@ -659,9 +660,9 @@ int32 FTaskGraphProfilerManager::GetDepthOfTaskExecution(double TaskStartedTime,
 		return Depth;
 	}
 
-	TSharedPtr<FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
+	TSharedPtr<TimingProfiler::FThreadTimingSharedState> ThreadSharedState = TimingView->GetThreadTimingSharedState();
 
-	TSharedPtr<FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(ThreadId);
+	TSharedPtr<TimingProfiler::FCpuTimingTrack> Track = ThreadSharedState->GetCpuTrack(ThreadId);
 
 	if (!Track.IsValid())
 	{
