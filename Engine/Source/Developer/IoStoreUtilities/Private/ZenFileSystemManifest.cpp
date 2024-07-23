@@ -244,7 +244,7 @@ int32 FZenFileSystemManifest::Generate()
 	FFileFilter CookedMetadataFilter = FFileFilter()
 		.ExcludeDirectory(TEXT("ShaderLibrarySource"))
 		.ExcludeExtension(TEXT("manifest"));
-	AddFilesFromDirectory(TEXT("/{project}/Metadata"), FPaths::Combine(CookDirectory, FApp::GetProjectName(), "Metadata"), false, &CookedMetadataFilter);
+	AddFilesFromDirectory(TEXT("/{project}/Metadata"), FPaths::Combine(CookDirectory, FApp::GetProjectName(), "Metadata"), true, &CookedMetadataFilter);
 
 	FFileFilter ProjectSourceFilter = FFileFilter()
 		.IncludeExtension(TEXT("uproject"));
