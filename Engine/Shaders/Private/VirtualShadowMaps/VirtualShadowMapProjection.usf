@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#define SUPPORT_CONTACT_SHADOWS 1
 #include "../Common.ush"
 #include "../SceneTexturesCommon.ush"
 #include "../Substrate/Substrate.ush"
 #include "../DeferredShadingCommon.ush"
-#include "../DeferredLightingCommon.ush"
+#include "../DynamicLightingCommon.ush"
+#include "../MortonCode.ush"
 #include "../LightShaderParameters.ush"
 #include "../LightGridCommon.ush"
 #include "../HairStrands/HairStrandsVisibilityCommon.ush"
@@ -187,12 +187,14 @@ uint SMRTAdaptiveRayCount;
 uint SMRTHairRayCount;
 
 // One pass projection
+#if ONE_PASS_PROJECTION
 RWTexture2D< uint4 > OutShadowMaskBits;
-
+#else
 // Single light per pass
 // Light parameters loaded via GetRootLightShaderParameters();
 int LightUniformVirtualShadowMapId;
 RWTexture2D< float2 > OutShadowFactor;
+#endif
 
 // Visualization output
 StructuredBuffer< FPhysicalPageMetaData > PhysicalPageMetaData;
@@ -677,7 +679,7 @@ void VirtualShadowMapProjection(
 	const float3 TranslatedWorldPosition = SvPositionToTranslatedWorld( SvPosition );
 
 	const float ScreenRayLengthWorld = GetScreenRayLengthMultiplierForProjectionType(ScreenRayLength * SceneDepth).y;
-	const float Noise = InterleavedGradientNoise( SvPosition.xy, View.StateFrameIndexMod8 );
+	const float Noise = BlueNoiseScalar(SvPosition.xy, View.StateFrameIndex);
 
 	const FProjectionShadingInfo ShadingInfo = GetProjectionShadingInfo(PixelPos);
 

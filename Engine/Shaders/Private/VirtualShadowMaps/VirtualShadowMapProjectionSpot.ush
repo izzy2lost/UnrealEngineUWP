@@ -211,15 +211,13 @@ FSMRTResult ShadowRayCastPointLight(
 	// To get debug data out
 	inout FSMRTSingleRayState OutRayState)
 {
-	uint RayStartFace = VirtualShadowMapGetCubeFace(RayStartShadowTranslatedWorld);
-	uint RayEndFace   = VirtualShadowMapGetCubeFace(RayEndShadowTranslatedWorld);
+	uint RayStartFaceId = VirtualShadowMapId + VirtualShadowMapGetCubeFace(RayStartShadowTranslatedWorld);
+	uint RayEndFaceId   = VirtualShadowMapId + VirtualShadowMapGetCubeFace(RayEndShadowTranslatedWorld);
 
 	FSMRTResult Result;
-	if (WaveActiveAnyTrue(RayStartFace != RayEndFace))
+	if (WaveActiveAnyTrue(RayStartFaceId != RayEndFaceId))
 	{
-		FSMRTTwoCubeFaceRayState RayState = SMRTTwoCubeFaceRayInitialize(
-			VirtualShadowMapId + RayStartFace,
-			VirtualShadowMapId + RayEndFace,
+		FSMRTTwoCubeFaceRayState RayState = SMRTTwoCubeFaceRayInitialize(RayStartFaceId, RayEndFaceId,
 			RayStartShadowTranslatedWorld, RayEndShadowTranslatedWorld, ExtrapolateSlope, DepthBias);
 		Result = SMRTRayCast(RayState, NumSteps, StepOffset);
 
@@ -235,7 +233,7 @@ FSMRTResult ShadowRayCastPointLight(
 	else
 	{
 		// Fast path: ray stays on a single cube map face (effectively a spot light)
-		OutRayState = SMRTSingleRayInitialize(VirtualShadowMapId + RayEndFace, RayStartShadowTranslatedWorld, RayEndShadowTranslatedWorld, ExtrapolateSlope, DepthBias);
+		OutRayState = SMRTSingleRayInitialize(RayEndFaceId, RayStartShadowTranslatedWorld, RayEndShadowTranslatedWorld, ExtrapolateSlope, DepthBias);
 		Result = SMRTRayCast(OutRayState, NumSteps, StepOffset);
 	}
 
@@ -394,18 +392,8 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		float MaxOccluderDistance = -1.0f;
 		for( ; i < MaxRayCount; i++ )
 		{
-			RandomSequence RandSequence;
-#if 0
-			RandomSequence_Initialize( RandSequence, PixelPos, i, View.StateFrameIndex, MaxRayCount );
-			float4 RandSample = RandomSequence_GenerateSample4D( RandSequence );
-#else
-			// Combine pixel-level and sample-level bits into the sample index (visible structure will be hidden by owen scrambling of the index)
-			RandSequence.SampleIndex = reversebits((65536 * View.StateFrameIndex + TileID) * MaxRayCount + i);
-			RandSequence.SampleSeed = 0; // always use the same sequence
-
-			float4 RandSample = SobolSampler( RandSequence.SampleIndex, RandSequence.SampleSeed, 8 );
-#endif
-
+			float4 RandSample = VirtualShadowMapGetRandomSample(PixelPos, View.StateFrameIndex, i, MaxRayCount);
+			
 			float2 LightUV = UniformSampleDiskConcentricApprox( RandSample.xy ).xy;
 			LightUV *= ConeSin;
 
