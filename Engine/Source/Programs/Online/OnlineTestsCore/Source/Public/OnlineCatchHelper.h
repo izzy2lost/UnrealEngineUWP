@@ -52,6 +52,10 @@ public:
 	/* Attempts to assgin OutAccountId to what LocalUserId is logged in as. */
 	void AssignLoginUsers(int32 LocalUserId, FAccountId& OutAccountId) const;
 
+#if ONLINETESTS_USEEXTERNAUTH
+	TArray<FString> GetExternalAuthAccountIds(int32 TemplateRequestedNum) const;
+#endif
+
 	FTestPipeline& GetPipeline() const;
 protected:
 
