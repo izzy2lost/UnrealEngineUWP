@@ -5,10 +5,16 @@
 #include "AssetDefinitionDefault.h"
 #include "AssetDefinition_ClothAsset.generated.h"
 
+class UChaosClothAsset;
+
 UCLASS()
 class UAssetDefinition_ClothAsset : public UAssetDefinitionDefault
 {
 	GENERATED_BODY()
+
+public:
+
+	static UObject* NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset);
 
 private:
 

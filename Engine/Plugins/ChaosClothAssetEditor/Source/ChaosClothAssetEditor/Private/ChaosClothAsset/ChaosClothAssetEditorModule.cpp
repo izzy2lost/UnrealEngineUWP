@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ChaosClothAssetEditorModule.h"
+#include "ChaosClothAsset/AssetDefinition_ClothAsset.h"
 #include "ChaosClothAsset/ClothAsset.h"
 #include "ChaosClothAsset/ClothEditorCommands.h"
 #include "ChaosClothAsset/ClothEditorMode.h"
@@ -55,6 +56,16 @@ namespace UE::Chaos::ClothAsset
 							AssetsToEdit.Append(Context->LoadSelectedObjects<UObject>());
 
 							UDataflowEditor* const AssetEditor = NewObject<UDataflowEditor>(DataflowEditorSubsystem, NAME_None, RF_Transient);
+
+							// Macke sure the cloth asset has a Dataflow asset
+							UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(AssetsToEdit[0]);
+							if (!ClothAsset->GetDataflow())
+							{
+								if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(UAssetDefinition_ClothAsset::NewOrOpenDataflowAsset(ClothAsset)))
+								{
+									ClothAsset->SetDataflow(NewDataflowAsset);
+								}
+							}
 
 							const TSubclassOf<AActor> PreviewActorClass = StaticLoadClass(AActor::StaticClass(), nullptr,
 								TEXT("/ChaosClothAssetEditor/BP_ClothPreview.BP_ClothPreview_C"), nullptr, LOAD_None, nullptr);

@@ -130,21 +130,21 @@ namespace ClothAssetDefinitionHelpers
 
 		return true;
 	}
-
-	// Create a new UDataflow if one doesn't already exist for the Cloth Asset
-	UObject* NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset)
-	{
-		UObject* DataflowAsset = nullptr;
-		bool bDialogDone = false;
-		while (!bDialogDone)
-		{
-			bDialogDone = CreateNewDataflowAsset(ClothAsset, DataflowAsset);
-		}
-
-		return DataflowAsset;
-	}
 }
 
+
+// Create a new UDataflow if one doesn't already exist for the Cloth Asset
+UObject* UAssetDefinition_ClothAsset::NewOrOpenDataflowAsset(const UChaosClothAsset* ClothAsset)
+{
+	UObject* DataflowAsset = nullptr;
+	bool bDialogDone = false;
+	while (!bDialogDone)
+	{
+		bDialogDone = ClothAssetDefinitionHelpers::CreateNewDataflowAsset(ClothAsset, DataflowAsset);
+	}
+
+	return DataflowAsset;
+}
 
 FText UAssetDefinition_ClothAsset::GetAssetDisplayName() const
 {
@@ -185,7 +185,7 @@ EAssetCommandResult UAssetDefinition_ClothAsset::OpenAssets(const FAssetOpenArgs
 		UChaosClothAsset* const ClothAsset = CastChecked<UChaosClothAsset>(ClothObjects[0]);
 		if (!ClothAsset->GetDataflow())
 		{
-			if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(ClothAssetDefinitionHelpers::NewOrOpenDataflowAsset(ClothAsset)))
+			if (UDataflow* const NewDataflowAsset = Cast<UDataflow>(NewOrOpenDataflowAsset(ClothAsset)))
 			{
 				ClothAsset->SetDataflow(NewDataflowAsset);
 			}
