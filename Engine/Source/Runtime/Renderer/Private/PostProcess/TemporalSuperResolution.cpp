@@ -110,7 +110,7 @@ TAutoConsoleVariable<int32> CVarTSR16BitVALUOnIntel(
 	ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarTSR16BitVALUOnNvidia(
-	TEXT("r.TSR.16BitVALU.Nvidia"), 1,
+	TEXT("r.TSR.16BitVALU.Nvidia"), 0,
 	TEXT("Overrides whether to use 16bit VALU on Nvidia desktop GPUs"),
 	ECVF_RenderThreadSafe);
 
