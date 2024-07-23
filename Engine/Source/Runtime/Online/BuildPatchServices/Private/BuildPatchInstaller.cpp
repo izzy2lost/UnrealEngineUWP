@@ -1366,20 +1366,20 @@ namespace BuildPatchServices
 			ChunkSources.Add(CloudChunkSource.Get());
 			TUniquePtr<IChainedChunkSource> ChainedChunkSource(FChainedChunkSourceFactory::Create(
 				ChunkSources));
-			TUniquePtr<FBuildPatchFileConstructor> FileConstructor(new FBuildPatchFileConstructor(
-				FFileConstructorConfig({
-					ManifestSet.Get(),
-					Configuration.InstallDirectory,
-					InstallStagingDir,
-					MetaStagingDir,
-					FilesToConstruct.Array(),
-					Configuration.InstallMode}),
-				FileSystem.Get(),
-				ChainedChunkSource.Get(),
-				ChunkReferenceTracker.Get(),
-				InstallerError.Get(),
-				InstallerAnalytics.Get(),
-				FileConstructorStatistics.Get()));
+
+			FFileConstructorConfig FCC;
+			FCC.ConstructList = FilesToConstruct.Array();
+			FCC.InstallDirectory = Configuration.InstallDirectory;
+			FCC.InstallMode = Configuration.InstallMode;
+			FCC.ManifestSet = ManifestSet.Get();
+			FCC.MetaDirectory = MetaStagingDir;
+			FCC.SharedContext = Configuration.SharedContext.Get();
+			FCC.StagingDirectory = InstallStagingDir;
+
+
+			TUniquePtr<FBuildPatchFileConstructor> FileConstructor(
+				new FBuildPatchFileConstructor(FCC, FileSystem.Get(), ChainedChunkSource.Get(), ChunkReferenceTracker.Get(), InstallerError.Get(),InstallerAnalytics.Get(),FileConstructorStatistics.Get())
+			);
 			FDelegateHandle OnBeforeDeleteFileHandle = FileConstructor->OnBeforeDeleteFile().AddLambda([this, &InstallChunkSource](const FString& FilePath)
 			{
 				FString BuildRelativeFilename = FilePath;

@@ -15,8 +15,12 @@
 class FBuildPatchAppManifest;
 enum class EConstructionError : uint8;
 
+class IBuildInstallerSharedContext;
+
 namespace BuildPatchServices
 {
+	
+
 	struct FChunkPart;
 	class IFileSystem;
 	class IChunkSource;
@@ -25,6 +29,7 @@ namespace BuildPatchServices
 	class IInstallerAnalytics;
 	class IFileConstructorStat;
 	class IBuildManifestSet;
+	class IBuildInstallerThread;
 
 	/**
 	 * A struct containing the configuration values for a file constructor.
@@ -48,6 +53,8 @@ namespace BuildPatchServices
 
 		// The install mode used for this installation.
 		EInstallMode InstallMode;
+
+		IBuildInstallerSharedContext* SharedContext;
 	};
 
 	/**
@@ -147,14 +154,12 @@ namespace BuildPatchServices
 		bool ConstructFileFromChunks(const FString& BuildFilename, const FFileManifest& FileManifest, bool bResumeExisting);
 
 		/**
-		 * Inserts the data data from a chunk into the destination file according to the chunk part info
+		 * Adds the data from a chunk to the given buffer.
 		 * @param ChunkPart          The chunk part details.
-		 * @param DestinationFile    The Filename for the file being constructed.
-		 * @param HashState          An FSHA1 hash state to update with the data going into the destination file.
 		 * @param ConstructionError  Will be set to the error type that ocurred or EConstructionError::None.
 		 * @return true if no errors were detected
 		 */
-		bool InsertChunkData(const FChunkPart& ChunkPart, FArchive& DestinationFile, FSHA1& HashState, EConstructionError& ConstructionError);
+		bool AppendChunkData(const FChunkPart& ChunkPart, TArray<uint8>& DestinationBuffer, EConstructionError& ConstructionError);
 
 		/**
 		 * Delete all contents of a directory
@@ -216,6 +221,23 @@ namespace BuildPatchServices
 
 		// Event executed before deleting an old installation file.
 		FOnBeforeDeleteFile BeforeDeleteFileEvent;
+
+		//
+		// Async write management.
+		IBuildInstallerThread* WriteJobThread;
+		void WriteJobThreadRun();
+
+		// We ping pong between two buffers, filling/hashing one, and writing the other.
+		TArray<uint8> WriteBuffers[2];
+		int32 CurrentFillBuffer = 0;
+		uint32 WriteBufferSize = (4 << 20); // Default write buffer size 4MB.
+
+		FEvent* WriteJobCompleteEvent = nullptr;
+		FEvent* WriteJobStartEvent = nullptr;
+		TArray<uint8>* WriteJobBufferToWrite = nullptr;
+		FArchive* WriteJobArchive = nullptr;
+		std::atomic_bool bWriteJobCompleted = false; // Only set to true if the Serialize() call was completed.
+		bool bWriteJobRunning = false; // Foreground thread only - have we dispatched a job?
 	};
 
 	/**
