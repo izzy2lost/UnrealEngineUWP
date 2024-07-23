@@ -162,6 +162,11 @@ FPropertyBagRepository& FPropertyBagRepository::Get()
 
 void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects)
 {
+	if (!IsInstanceDataObjectSupportEnabled())
+	{
+		return;
+	}
+
 	FPropertyBagRepositoryLock LockRepo(this);
 	FPropertyBagAssociationData OldBagData;
 	for (const TPair<UObject*, UObject*>& Pair : ReplacedObjects)
@@ -891,7 +896,7 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 	, PreSerializeOffset(InArchive.Tell())
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-	bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
+	bool bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
 	
 	bool bHasReinstancedClass = InObject->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists);
 	bCreateIDO = bHasIDOSupport && !SerializeContext->bImpersonateProperties && Archive->IsLoading() && !bHasReinstancedClass;
@@ -918,15 +923,18 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 	}
 }
 
-FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject)
+FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate)
 	: bCreateIDO(false)
 	, Archive(nullptr)
 	, Object(InObject)
 	, PreSerializeOffset(0)
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-	bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
-	ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, true);
+	bool bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
+	if (bHasIDOSupport)
+	{
+		ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, bImpersonate);
+	}
 }
 
 FScopedIDOSerializationContext::~FScopedIDOSerializationContext()

@@ -209,13 +209,12 @@ struct FScopedIDOSerializationContext
 {
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive);
-	explicit COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject); // assumes save
+	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate); // assumes save
 	COREUOBJECT_API ~FScopedIDOSerializationContext();
 
-	bool bHasIDOSupport;
-	bool bCreateIDO;
-	FArchive* Archive;
-	UObject* const Object;
+	bool bCreateIDO = false;
+	FArchive* Archive = nullptr;
+	UObject* const Object = nullptr;
 	const int64 PreSerializeOffset;
 	TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
 	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
@@ -229,7 +228,7 @@ private:
 	void FinishCreatingInstanceDataObject() const;
 #else
 	inline FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive) {}
-	inline explicit FScopedIDOSerializationContext(UObject* InObject) {}
+	inline explicit FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate) {}
 #endif
 
 	FScopedIDOSerializationContext(const FScopedIDOSerializationContext&) = delete;

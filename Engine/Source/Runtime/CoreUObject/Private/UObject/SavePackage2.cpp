@@ -619,6 +619,35 @@ ESavePackageResult ValidateExports(FSaveContext& SaveContext)
 		}
 	}
 
+	// Validate there's no placeholder object in the export list
+#if WITH_EDITOR
+	if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled())
+	{
+		bool bSuccess = true;
+		for (const FTaggedExport& Export : SaveContext.GetExports())
+		{
+			if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(Export.Obj))
+			{
+				UObject* Outer = Export.Obj->GetOuter();
+				FString ErrorMessage = FString::Printf(TEXT("Saving illegal placeholder object in package '%s'. Object Name '%s', Class '%s', Outer '%s', Outer Class '%s', Full Path '%s'. You might have unresolved classes or compilation failures to fix."), *SaveContext.GetPackage()->GetName(), *Export.Obj->GetName(), *Export.Obj->GetClass()->GetName(), Outer ? *Outer->GetName() : TEXT("None"), Outer ? *Outer->GetClass()->GetName() : TEXT("None"), *Export.Obj->GetFullName());
+				if (SaveContext.IsGenerateSaveError())
+				{
+					SaveContext.GetError()->Logf(ELogVerbosity::Warning, TEXT("%s"), *ErrorMessage);
+				}
+				else
+				{
+					UE_LOG(LogSavePackage, Error, TEXT("%s"), *ErrorMessage);
+				}
+				bSuccess = false;
+			}
+		}
+		if (!bSuccess)
+		{
+			return ESavePackageResult::Error;
+		}
+	}
+#endif
+
 	// Validate External Export Rules
 	if (SaveContext.HasExternalExportValidations())
 	{
@@ -2964,7 +2993,7 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 {
 	SaveContext.SetEDLCookChecker(&FEDLCookCheckerThreadState::Get());
 
-	UE::FScopedIDOSerializationContext IDOSaveContext(nullptr);
+	UE::FScopedIDOSerializationContext IDOSaveContext(nullptr, !SaveContext.IsCooking());
 
 	// Create slow task dialog if needed
 	const int32 TotalSaveSteps = 3;

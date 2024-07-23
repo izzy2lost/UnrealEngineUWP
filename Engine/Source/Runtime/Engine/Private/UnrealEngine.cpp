@@ -17459,7 +17459,7 @@ void UEngine::CopyPropertiesForUnrelatedObjects(UObject* OldObject, UObject* New
 			OldInstanceMap.Add(OldInstance->GetPathName(OldObject), SavedInstances.Num() - 1);
 			const uint32 AdditionalPortFlags = Params.bCopyDeprecatedProperties ? PPF_UseDeprecatedProperties : PPF_None;
 			
-			UE::FScopedIDOSerializationContext IDOSaveContext(OldInstance);
+			UE::FScopedIDOSerializationContext IDOSaveContext(OldInstance, /*bImpersonate*/ true);
 			
 			FObjectWriter SubObjWriter(OldInstance, pRecord->SavedProperties, true, true, Params.bDoDelta, AdditionalPortFlags);
 		}
