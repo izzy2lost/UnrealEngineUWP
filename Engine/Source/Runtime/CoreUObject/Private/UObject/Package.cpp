@@ -289,11 +289,6 @@ const FPackagePath& UPackage::GetLoadedPath() const
 void UPackage::SetLoadedPath(const FPackagePath& InPackagePath)
 {
 	LoadedPath = InPackagePath;
-#if !UE_STRIP_DEPRECATED_PROPERTIES
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	FileName = InPackagePath.GetPackageFName();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif
 }
 
 /** Tags generated objects with flags */
@@ -424,13 +419,18 @@ void UPackage::SetSavedHash(const FIoHash& InSavedHash)
 #endif
 
 #if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+void DeclareIntrinsicUPackageMembers()
+{
+	UE::GC::DeclareIntrinsicMembers(UPackage::StaticClass(), { UE_GC_MEMBER(UPackage, MetaData) });
+}
+
 IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
-		UE::GC::DeclareIntrinsicMembers(Class, { UE_GC_MEMBER(UPackage, MetaData) });
+		DeclareIntrinsicUPackageMembers();
 	}
 );
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 #else
 IMPLEMENT_CORE_INTRINSIC_CLASS(UPackage, UObject,
 	{
