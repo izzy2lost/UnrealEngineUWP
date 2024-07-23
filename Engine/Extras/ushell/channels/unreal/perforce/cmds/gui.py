@@ -60,7 +60,6 @@ class Gui(flow.cmd.Cmd):
             "-p", p4_port,
             "-u", username,
             "-c", client,
-            "-t", "pending",
         )
 
         if self.args.filename.is_file():

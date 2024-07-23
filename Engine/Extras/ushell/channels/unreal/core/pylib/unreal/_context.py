@@ -227,7 +227,8 @@ class _Target(object):
             path += "-" + platform + "-" + variant.ueify()
         path += ".target"
 
-        if receipt := next(self._ufs_mount.glob(path), None):
+        ufs_node = self._ufs_mount.get_node()
+        if receipt := next(ufs_node.glob(path), None):
             return _Build(receipt, variant, platform, self._ufs_mount)
 
 
