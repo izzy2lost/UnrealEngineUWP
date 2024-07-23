@@ -2971,10 +2971,19 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 
 	if (bGloballyRemapUVs)
 	{
-		// We must keep vertex data in order to properly generate unique UVs
+		// Adjust merge settings when merging for the unique UV/material baking pass
+		// The final merged mesh will use the original settings
 		FMeshMergingSettings RemapUVMergeSettings = InSettings;
+		
+		// Keep vertex data in order to properly generate unique UVs
 		RemapUVMergeSettings.bBakeVertexDataToMesh = true;
 
+		// Keep all UVs as some channels might be needed to properly bake the material
+		for (EUVOutput& OutputUV : RemapUVMergeSettings.OutputUVs)
+		{
+			OutputUV = EUVOutput::OutputChannel;
+		}
+		
 		TArray<FMeshDescription> MergedRawMeshes;
 		CreateMergedRawMeshes(InDataTracker, RemapUVMergeSettings, InStaticMeshComponentsToMerge, InUniqueMaterials, InCollapsedMaterialMap, InOutputMaterialsMap, false, false, InMergedAssetPivot, MergedRawMeshes);
 
