@@ -16,6 +16,7 @@ public:
 	// UActorComponent interface
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;
+	virtual void BeginPlay() override;
 	// End UActorComponent interface
 
 private:

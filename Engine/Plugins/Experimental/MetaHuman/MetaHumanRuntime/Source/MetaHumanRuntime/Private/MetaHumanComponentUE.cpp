@@ -13,6 +13,15 @@ void UMetaHumanComponentUE::OnRegister()
 {
 	Super::OnRegister();
 
+	SetupCustomizableBodyPart(Torso);
+	SetupCustomizableBodyPart(Legs);
+	SetupCustomizableBodyPart(Feet);
+}
+
+void UMetaHumanComponentUE::BeginPlay()
+{
+	Super::BeginPlay();
+
 	if (Face)
 	{
 		PostInitAnimBP(Face.Get(), Face->GetPostProcessInstance());
@@ -26,10 +35,6 @@ void UMetaHumanComponentUE::OnRegister()
 			MetaHumanComponentHelpers::ConnectVariable<FBoolProperty, bool>(AnimInstance, TEXT("Enable Body Correctives"), bEnableBodyCorrectives);
 		}
 	}
-
-	SetupCustomizableBodyPart(Torso);
-	SetupCustomizableBodyPart(Legs);
-	SetupCustomizableBodyPart(Feet);
 }
 
 void UMetaHumanComponentUE::OnUnregister()
@@ -59,9 +64,9 @@ void UMetaHumanComponentUE::SetupCustomizableBodyPart(FMetaHumanCustomizableBody
 	{
 		if (USkeletalMesh* SkeletalMesh = BodyPart.SkeletalMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
 		{
-			if (!SkeletalMesh->GetPostProcessAnimBlueprint())
+			if (!SkeletalMesh->GetPostProcessAnimBlueprint() && !BodyPart.SkeletalMeshComponent->GetAnimInstance())
 			{
-				// Didn't have a post-processing AnimBP running, use leader-follower pose.
+				// Didn't have a post-processing AnimBP and AnimBP running, use leader-follower pose.
 				SetFollowBody(BodyPart.SkeletalMeshComponent);
 			}
 		}
