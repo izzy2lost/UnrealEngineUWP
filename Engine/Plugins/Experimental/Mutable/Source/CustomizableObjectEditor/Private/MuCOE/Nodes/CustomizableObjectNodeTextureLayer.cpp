@@ -16,7 +16,7 @@ TArray<UCustomizableObjectNodeTextureLayer::TextureLayerLayersData> UCustomizabl
 UCustomizableObjectNodeTextureLayer::UCustomizableObjectNodeTextureLayer()
 	: Super()
 {
-
+	Layers.Add(FCustomizableObjectTextureLayer());
 }
 
 
