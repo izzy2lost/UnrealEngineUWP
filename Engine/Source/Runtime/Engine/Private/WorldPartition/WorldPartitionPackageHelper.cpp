@@ -20,7 +20,7 @@ void FWorldPartitionPackageHelper::UnloadPackage(UPackage* InPackage)
 		}, false);
 
 		// Rename so it isn't found again
-		FName NewUniqueTrashName = MakeUniqueObjectName(GetTransientPackage(), UPackage::StaticClass(), InPackage->GetFName());
+		FName NewUniqueTrashName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InPackage->GetName())));
 		InPackage->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 	};
 
