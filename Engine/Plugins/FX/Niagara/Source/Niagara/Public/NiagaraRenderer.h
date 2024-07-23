@@ -34,7 +34,7 @@ struct FNiagaraDynamicDataBase
 	UE_NONCOPYABLE(FNiagaraDynamicDataBase);
 
 	NIAGARA_API bool IsGpuLowLatencyTranslucencyEnabled() const;
-	NIAGARA_API FNiagaraDataBuffer* GetParticleDataToRender(bool bIsLowLatencyTranslucent = false) const;
+	NIAGARA_API FNiagaraDataBuffer* GetParticleDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent = false) const;
 	FORCEINLINE FMaterialRelevance GetMaterialRelevance() const { return MaterialRelevance; }
 
 	FORCEINLINE void SetMaterialRelevance(FMaterialRelevance NewRelevance) { MaterialRelevance = NewRelevance; }

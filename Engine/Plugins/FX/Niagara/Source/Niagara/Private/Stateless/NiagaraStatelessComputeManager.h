@@ -39,7 +39,7 @@ public:
 		return ManagerName;
 	}
 
-	FNiagaraDataBuffer* GetDataBuffer(uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance);
+	FNiagaraDataBuffer* GetDataBuffer(FRHICommandListBase& RHICmdList, uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance);
 
 	// Used to execute the simulation immediately into a CPU side data buffer
 	void GenerateDataBufferForDebugging(FRHICommandListImmediate& RHICmdList, FNiagaraDataBuffer* DataBuffer, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance) const;
@@ -56,4 +56,6 @@ private:
 	TArray<uint32>										CountsToRelease;
 
 	TArray<FStatelessDataCache*>						GPUDataToGenerate;
+
+	UE::FMutex											GetDataBufferGuard;
 };

@@ -796,7 +796,7 @@ void FNiagaraDataBuffer::ReleaseCPU()
 	HalfData.Empty();
 }
 
-void FNiagaraDataBuffer::AllocateGPU(FRHICommandList& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
+void FNiagaraDataBuffer::AllocateGPU(FRHICommandListBase& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName)
 {
 	static constexpr EBufferUsageFlags GPUBufferFlags = BUF_Static | BUF_SourceCopy;
 

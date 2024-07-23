@@ -80,7 +80,7 @@ namespace NiagaraStateless
 		DestinationData->SetNumInstances(NumInstances);
 	}
 
-	void FParticleSimulationContext::SimulateGPU(FRHICommandList& RHICmdList, int32 InEmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
+	void FParticleSimulationContext::SimulateGPU(FRHICommandListBase& RHICmdList, int32 InEmitterRandomSeed, float EmitterAge, float InDeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData)
 	{
 		NumInstances = 0;
 

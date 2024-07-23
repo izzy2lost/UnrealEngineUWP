@@ -68,11 +68,16 @@ public:
 		check(UsedInstanceCounts <= AllocatedInstanceCounts); // Can't resize after after the buffer gets bound.
 		return CountBuffer;
 	}
-
+	
 	/** Acquire an entry from the free list, assumes this comes from being presized. */
 	uint32 AcquireEntry();
 	/** Acquire an entry, this will either come from the free list or reallocate the buffer. */
 	uint32 AcquireOrAllocateEntry(FRHICommandListImmediate& RHICmdList);
+
+	/** Allocate an entry in the buffer, this could return an existing count or count yet to be allocated */
+	uint32 AllocateEntryDeferred();
+	/** Commit any deferred count allocations */
+	void AllocateDeferredCounts(FRHICommandListImmediate& RHICmdList);
 
 	/** Free the entry and reset it to INDEX_NONE if valid. */
 	void FreeEntry(uint32& BufferOffset);
@@ -129,6 +134,8 @@ protected:
 
 	void ReleaseCounts();
 
+	UE::FMutex AddDrawIndirectGuard;
+
 	ERHIFeatureLevel::Type FeatureLevel;
 
 	/** The current used instance counts allocated from FNiagaraDataBuffer::AllocateGPU() */
@@ -137,7 +144,7 @@ protected:
 	int32 AllocatedInstanceCounts = 0;
 
 	/** The number of culled instance counts needed from view culling */
-	int32 RequiredCulledCounts = 0;
+	std::atomic<int32> RequiredCulledCounts = 0;
 	/** The allocated instance counts in the culled count buffer*/
 	int32 AllocatedCulledCounts = 0;
 	/** Whether or not the culled counts were acquired this frame */
@@ -173,4 +180,7 @@ protected:
 	/** Buffers holding drawindirect data to render GPU emitter renderers. */
 	TArray<FIndirectArgsPoolEntryPtr> DrawIndirectPool;
 	uint32 DrawIndirectLowWaterFrames = 0;
+
+	UE::FMutex	DeferredCountAllocationGuard;
+	int			DeferredCountAllocations = 0;
 };

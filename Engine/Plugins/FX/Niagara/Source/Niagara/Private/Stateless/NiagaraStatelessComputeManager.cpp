@@ -153,10 +153,13 @@ FNiagaraStatelessComputeManager::~FNiagaraStatelessComputeManager()
 {
 }
 
-FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance)
+FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(FRHICommandListBase& RHICmdList, uintptr_t EmitterKey, const NiagaraStateless::FEmitterInstance_RT* EmitterInstance)
 {
 	using namespace NiagaraStateless;
 	using namespace NiagaraStatelessComputeManagerPrivate;
+	
+	//-OPT: This lock is very conservative, ideally we only have it around the relevant parts
+	UE::TScopeLock ScopeLock(GetDataBufferGuard);
 
 	if (TUniquePtr<FStatelessDataCache>* ExistingData = UsedData.Find(EmitterKey))
 	{
@@ -219,7 +222,6 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t Emi
 	CacheData->EmitterInstance = EmitterInstance;
 	CacheData->ActiveParticles = ActiveParticles;
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
 	CacheData->DataBuffer->AllocateGPU(RHICmdList, CacheData->ActiveParticles, ComputeInterface->GetFeatureLevel(), TEXT("StatelessSimBuffer"));
 
 	const EComputeExecutionPath ComputeExecutionPath = DetermineComputeExecutionPath(EmitterData, ActiveParticles);
@@ -242,7 +244,7 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t Emi
 			CacheData->DataBuffer->SetNumInstances(CacheData->ActiveParticles);
 
 			FNiagaraGPUInstanceCountManager& CountManager = ComputeInterface->GetGPUInstanceCounterManager();
-			const uint32 CountOffset = CountManager.AcquireOrAllocateEntry(RHICmdList);
+			const uint32 CountOffset = CountManager.AllocateEntryDeferred();
 			CacheData->DataBuffer->SetGPUInstanceCountBufferOffset(CountOffset);
 			CountsToRelease.Add(CountOffset);
 

@@ -571,6 +571,8 @@ public:
 	{
 		if (InRenderingResources->ViewResources.Num() > 0)
 		{
+			UE::TScopeLock ScopeLock(AllocateGuard);
+
 			const int32 GenerateIndex = InSourceParticleData->GetGPUDataReadyStage() == ENiagaraGpuComputeTickStage::PostOpaqueRender ? 1 : 0;
 			RenderersToGeneratePerStage[GenerateIndex].Emplace(InRenderer, InSourceParticleData, InRenderingResources);
 		}
@@ -578,6 +580,8 @@ public:
 
 	FNiagaraRibbonRenderingFrameViewResources* FindExistingRendererViewData(const FNiagaraRendererRibbons* InRenderer, const FNiagaraDataBuffer* InSourceParticleData)
 	{
+		UE::TScopeLock ScopeLock(AllocateGuard);
+
 		const int32 GenerateIndex = InSourceParticleData->GetGPUDataReadyStage() == ENiagaraGpuComputeTickStage::PostOpaqueRender ? 1 : 0;
 		for (FNiagaraRibbonGPUInitParameters& ExistingData : RenderersToGeneratePerStage[GenerateIndex])
 		{
@@ -593,6 +597,8 @@ public:
 	//-OPT: These caches should be more central and are as a simple solution to reduce memory thrashing / poor performance for ribbons
 	const TSharedPtr<FRWBuffer>& GetOrAllocateIndirectDrawBuffer(FRHICommandListBase& RHICmdList)
 	{
+		UE::TScopeLock ScopeLock(AllocateGuard);
+
 		FIndirectDrawBufferEntry* BufferEntry = IndirectDrawBufferCache.FindByPredicate(
 			[&](const FIndirectDrawBufferEntry& ExistingBuffer)
 			{
@@ -611,6 +617,8 @@ public:
 
 	const TSharedPtr<FNiagaraRibbonIndexBuffer>& GetOrAllocateIndexBuffer(FRHICommandListBase& RHICmdList, int32 NumIndices, int32 MaxIndicesEstimate)
 	{
+		UE::TScopeLock ScopeLock(AllocateGuard);
+
 		if (GNiagaraRibbonGpuBufferCachePurgeCounter >= 0)
 		{
 			NumIndices = GNiagaraRibbonGpuAllocateMaxCount == 0 ? Align(NumIndices, GNiagaraRibbonGpuBufferAlign) : MaxIndicesEstimate;
@@ -642,6 +650,8 @@ private:
 	TArray<FIndexBufferEntry>				Index32BufferCache;
 
 	uint64									FrameCounter = 0;
+
+	UE::FMutex								AllocateGuard;
 
 	void OnPostPreRender(FRHICommandListImmediate& RHICmdList)
 	{
@@ -813,7 +823,7 @@ void FNiagaraRendererRibbons::GetDynamicMeshElements(const TArray<const FSceneVi
 		return;
 	}
 
-	FNiagaraDataBuffer* SourceParticleData = DynamicData->GetParticleDataToRender();
+	FNiagaraDataBuffer* SourceParticleData = DynamicData->GetParticleDataToRender(Collector.GetRHICommandList());
 
 	if (GbEnableNiagaraRibbonRendering == 0 || SourceParticleData == nullptr)
 	{
@@ -1068,7 +1078,7 @@ void FNiagaraRendererRibbons::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
-	FNiagaraDataBuffer* SourceParticleData = DynamicDataRibbon->GetParticleDataToRender();
+	FNiagaraDataBuffer* SourceParticleData = DynamicDataRibbon->GetParticleDataToRender(Context.RHICmdList);
 
 	if (GbEnableNiagaraRibbonRendering == 0 || SourceParticleData == nullptr)
 	{

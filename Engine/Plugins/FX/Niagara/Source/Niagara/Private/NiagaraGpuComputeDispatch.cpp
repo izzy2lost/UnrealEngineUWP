@@ -1066,7 +1066,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 						ComputeContext->SetMultiViewPreviousDataToRender(nullptr);
 
 						// Mark data as ready for anyone who picks up the buffer on the next frame (see FNiagaraGpuComputeDispatch::ExecuteTicks)
-						ComputeContext->GetDataToRender(false)->SetGPUDataReadyStage(ENiagaraGpuComputeTickStage::First);
+						ComputeContext->GetDataToRender(RHICmdList, false)->SetGPUDataReadyStage(ENiagaraGpuComputeTickStage::First);
 
 						// Clear instance count offsets (see FNiagaraSystemGpuComputeProxy::ReleaseTicks)
 						for (int i = 0; i < UE_ARRAY_COUNT(ComputeContext->DataBuffers_RT); ++i)
@@ -1964,6 +1964,8 @@ void FNiagaraGpuComputeDispatch::PreInitViews(FRDGBuilder& GraphBuilder, bool bA
 void FNiagaraGpuComputeDispatch::PostInitViews(FRDGBuilder& GraphBuilder, TConstStridedView<FSceneView> Views, bool bAllowGPUParticleUpdate)
 {
 	LLM_SCOPE(ELLMTag::Niagara);
+
+	GPUInstanceCounterManager.AllocateDeferredCounts(GraphBuilder.RHICmdList);
 
 	bAllowGPUParticleUpdate = bAllowGPUParticleUpdate && Views.Num() > 0 && Views[0].AllowGPUParticleUpdate();
 

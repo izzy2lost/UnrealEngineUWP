@@ -65,6 +65,9 @@ public:
 	template<typename TManager>
 	TManager& GetOrCreateDataManager()
 	{
+		check(IsInParallelRenderingThread());
+
+		UE::TScopeLock ScopeLock(ComputeManagerGuard);
 		const FName ManagerName = TManager::GetManagerName();
 		for (auto& DataManager : GpuDataManagers)
 		{
@@ -183,9 +186,9 @@ public:
 #endif
 
 	/** Event that broadcast before any rendering work is prepared / executed for Niagara. */
-	FOnPostPreRenderEvent& GetOnPreRenderEvent() { return OnPreRenderEvent; }
+	FOnPostPreRenderEvent& GetOnPreRenderEvent() { check(IsInRenderingThread()); return OnPreRenderEvent; }
 	/** Event that broadcast after all rendering for Niagara is complete. */
-	FOnPostPreRenderEvent& GetOnPostRenderEvent() { return OnPostRenderEvent; }
+	FOnPostPreRenderEvent& GetOnPostRenderEvent() { check(IsInRenderingThread()); return OnPostRenderEvent; }
 
 protected:
 	EShaderPlatform							ShaderPlatform;
@@ -209,4 +212,6 @@ protected:
 
 	FOnPostPreRenderEvent					OnPreRenderEvent;
 	FOnPostPreRenderEvent					OnPostRenderEvent;
+
+	UE::FMutex								ComputeManagerGuard;
 };

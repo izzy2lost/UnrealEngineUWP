@@ -148,7 +148,7 @@ void FNiagaraGPUInstanceCountManager::ReleaseCounts()
 
 uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	if (FreeEntries.Num())
 	{
@@ -170,7 +170,7 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireEntry()
 
 uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListImmediate& RHICmdList)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	// Free entries?
 	if (FreeEntries.Num())
@@ -189,9 +189,37 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListIm
 	return UsedInstanceCounts++;
 }
 
+uint32 FNiagaraGPUInstanceCountManager::AllocateEntryDeferred()
+{
+	check(IsInParallelRenderingThread());
+
+	UE::TScopeLock LockGuard(DeferredCountAllocationGuard);
+
+	if (FreeEntries.Num())
+	{
+		return FreeEntries.Pop();
+	}
+	else if (UsedInstanceCounts < AllocatedInstanceCounts)
+	{
+		return UsedInstanceCounts++;
+	}
+
+	return AllocatedInstanceCounts + DeferredCountAllocations++;
+}
+
+void FNiagaraGPUInstanceCountManager::AllocateDeferredCounts(FRHICommandListImmediate& RHICmdList)
+{
+	if (DeferredCountAllocations == 0 )
+	{
+		return;
+	}
+	ResizeBuffers(RHICmdList, AllocatedInstanceCounts + DeferredCountAllocations);
+	DeferredCountAllocations = 0;
+}
+
 void FNiagaraGPUInstanceCountManager::FreeEntry(uint32& BufferOffset)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	if (BufferOffset != INDEX_NONE)
 	{
@@ -205,7 +233,7 @@ void FNiagaraGPUInstanceCountManager::FreeEntry(uint32& BufferOffset)
 
 void FNiagaraGPUInstanceCountManager::FreeEntryArray(TConstArrayView<uint32> EntryArray)
 {
-	checkSlow(IsInRenderingThread());
+	check(IsInRenderingThread());
 
 	const int32 NumToFree = EntryArray.Num();
 	if (NumToFree > 0)
@@ -223,6 +251,8 @@ void FNiagaraGPUInstanceCountManager::FreeEntryArray(TConstArrayView<uint32> Ent
 
 FRWBuffer* FNiagaraGPUInstanceCountManager::AcquireCulledCountsBuffer(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
+
 	if (RequiredCulledCounts > 0)
 	{
 		if (!bAcquiredCulledCounts)
@@ -317,6 +347,8 @@ void FNiagaraGPUInstanceCountManager::ResizeBuffers(FRHICommandListImmediate& RH
 
 void FNiagaraGPUInstanceCountManager::FlushIndirectArgsPool(FRHICommandListBase& RHICmdList)
 {
+	check(IsInRenderingThread());
+
 	// Cull indirect draw pool entries so that we only keep the last pool
 	while (DrawIndirectPool.Num() > 1)
 	{
@@ -348,7 +380,7 @@ void FNiagaraGPUInstanceCountManager::FlushIndirectArgsPool(FRHICommandListBase&
 
 FNiagaraGPUInstanceCountManager::FIndirectArgSlot FNiagaraGPUInstanceCountManager::AddDrawIndirect(FRHICommandListBase& RHICmdList, uint32 InstanceCountBufferOffset, uint32 NumIndicesPerInstance, uint32 StartIndexLocation, bool bIsInstancedStereoEnabled, bool bCulled, ENiagaraGpuComputeTickStage::Type ReadyTickStage)
 {
-
+	UE::TScopeLock Lock(AddDrawIndirectGuard);
 
 	const ENiagaraDrawIndirectArgGenTaskFlags TaskFlags =
 		(bIsInstancedStereoEnabled ? ENiagaraDrawIndirectArgGenTaskFlags::InstancedStereo : ENiagaraDrawIndirectArgGenTaskFlags::None)
@@ -395,6 +427,8 @@ FNiagaraGPUInstanceCountManager::FIndirectArgSlot FNiagaraGPUInstanceCountManage
 
 void FNiagaraGPUInstanceCountManager::UpdateDrawIndirectBuffers(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface, FRHICommandList& RHICmdList, ENiagaraGPUCountUpdatePhase::Type CountPhase)
 {
+	check(IsInRenderingThread());
+
 	// Anything to process?
 	TArray<FNiagaraDrawIndirectArgGenTaskInfo>& ArgTasks = DrawIndirectArgGenTasks[CountPhase];
 	const bool bClearCounts = (CountPhase == ENiagaraGPUCountUpdatePhase::PreOpaque) && (InstanceCountClearTasks.Num() > 0) && ComputeDispatchInterface->IsFirstViewFamily();
@@ -613,6 +647,8 @@ void FNiagaraGPUInstanceCountManager::UpdateDrawIndirectBuffers(FNiagaraGpuCompu
 
 const uint32* FNiagaraGPUInstanceCountManager::GetGPUReadback()
 {
+	check(IsInRenderingThread());
+
 	if (CountReadback && CountReadbackSize && CountReadback->IsReady())
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NiagaraGPUReadbackLock);
@@ -626,6 +662,7 @@ const uint32* FNiagaraGPUInstanceCountManager::GetGPUReadback()
 
 void FNiagaraGPUInstanceCountManager::ReleaseGPUReadback()
 {
+	check(IsInRenderingThread());
 	check(CountReadback && CountReadbackSize);
 	CountReadback->Unlock();
 	// Readback can only ever be done once, to prevent misusage with index lifetime
@@ -634,6 +671,7 @@ void FNiagaraGPUInstanceCountManager::ReleaseGPUReadback()
 
 void FNiagaraGPUInstanceCountManager::EnqueueGPUReadback(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
 	if (UsedInstanceCounts > 0 && (UsedInstanceCounts != FreeEntries.Num()))
 	{
 		if (!CountReadback)
@@ -649,11 +687,13 @@ void FNiagaraGPUInstanceCountManager::EnqueueGPUReadback(FRHICommandListImmediat
 
 bool FNiagaraGPUInstanceCountManager::HasPendingGPUReadback() const
 {
+	check(IsInRenderingThread());
 	return CountReadback && CountReadbackSize;
 }
 
 void FNiagaraGPUInstanceCountManager::CopyToMultiViewCountBuffer(FRHICommandListImmediate& RHICmdList)
 {
+	check(IsInRenderingThread());
 	if (AllocatedInstanceCounts > 0)
 	{
 		// Need to copy on all GPUs

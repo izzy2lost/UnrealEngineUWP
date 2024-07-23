@@ -59,7 +59,7 @@ struct FNiagaraGpuSpawnInfo
 struct INiagaraComputeDataBufferInterface
 {
 	virtual bool HasTranslucentDataToRender() const = 0;
-	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const = 0;
+	virtual FNiagaraDataBuffer* GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const = 0;
 };
 
 struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterface
@@ -69,7 +69,7 @@ struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterfa
 
 	// Begin: INiagaraComputeDataBufferInterface
 	virtual bool HasTranslucentDataToRender() const override { return TranslucentDataToRender != nullptr; }
-	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const override
+	virtual FNiagaraDataBuffer* GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const override
 	{
 		if (bIsLowLatencyTranslucent)
 		{

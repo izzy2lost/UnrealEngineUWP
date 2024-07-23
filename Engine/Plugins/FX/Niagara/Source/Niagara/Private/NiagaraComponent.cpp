@@ -45,6 +45,14 @@ DEFINE_LOG_CATEGORY(LogNiagara);
 
 DEFINE_RENDER_COMMAND_PIPE(NiagaraDynamicData, ERenderCommandPipeFlags::None);
 
+static bool GNiagaraParallelGDME = false;
+static FAutoConsoleVariableRef CVarNiagaraParallelGDME(
+	TEXT("fx.Niagara.ParallelGDME"),
+	GNiagaraParallelGDME,
+	TEXT("Allow Niagara to run parallel in GDME."),
+	ECVF_Default
+);
+
 static int GNiagaraSoloTickEarly = 1;
 static FAutoConsoleVariableRef CVarNiagaraSoloTickEarly(
 	TEXT("fx.Niagara.Solo.TickEarly"),
@@ -221,7 +229,7 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 	// Prevent continuous VSM invalidation from the bounds of the primitive.
 	bHasDeformableMesh = false;
 	// Niagara renderers reference a lot of common contexts that aren't locked (and would otherwise introduce a lot of contention).
-	bSupportsParallelGDME = false;
+	bSupportsParallelGDME = GNiagaraParallelGDME;
 }
 
 SIZE_T FNiagaraSceneProxy::GetTypeHash() const

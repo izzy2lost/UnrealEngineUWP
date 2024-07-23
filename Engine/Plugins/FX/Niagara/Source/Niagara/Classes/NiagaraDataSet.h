@@ -88,7 +88,7 @@ public:
 	NIAGARA_API void Allocate(uint32 NumInstances, bool bMaintainExisting = false);
 	NIAGARA_API void ReleaseCPU();
 
-	NIAGARA_API void AllocateGPU(FRHICommandList& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName);
+	NIAGARA_API void AllocateGPU(FRHICommandListBase& RHICmdList, uint32 InNumInstances, ERHIFeatureLevel::Type FeatureLevel, const TCHAR* DebugSimName);
 	NIAGARA_API void SwapGPU(FNiagaraDataBuffer* BufferToSwap);
 	NIAGARA_API void ReleaseGPU();
 

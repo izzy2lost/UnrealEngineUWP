@@ -8,7 +8,7 @@
 class FNiagaraDataBuffer;
 struct FNiagaraStatelessEmitterData;
 struct FNiagaraStatelessRuntimeSpawnInfo;
-class FRHICommandList;
+class FRHICommandListBase;
 
 namespace NiagaraStateless
 {
@@ -32,7 +32,7 @@ public:
 	explicit FParticleSimulationContext(const FNiagaraStatelessEmitterData* EmitterData, TConstArrayView<uint8> DynamicBufferData);
 
 	void Simulate(int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData);
-	void SimulateGPU(FRHICommandList& RHICmdList, int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData);
+	void SimulateGPU(FRHICommandListBase& RHICmdList, int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, TConstArrayView<FNiagaraStatelessRuntimeSpawnInfo> SpawnInfos, FNiagaraDataBuffer* DestinationData);
 
 private:
 	void SimulateInternal(int32 EmitterRandomSeed, float EmitterAge, float DeltaTime, FSpawnInfoShaderParameters& SpawnParameters, uint32 ActiveParticles);

@@ -32,7 +32,7 @@ namespace NiagaraStateless
 
 		// Begin: INiagaraComputeDataBufferInterface
 		virtual bool HasTranslucentDataToRender() const override { return false; }
-		virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const override;
+		virtual FNiagaraDataBuffer* GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const override;
 		// End: INiagaraComputeDataBufferInterface
 	};
 }
