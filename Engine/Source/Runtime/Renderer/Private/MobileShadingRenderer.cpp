@@ -839,7 +839,8 @@ void FMobileSceneRenderer::RenderFullDepthPrepass(FRDGBuilder& GraphBuilder, TAr
 			});
 	}
 
-	if (bShouldRenderVelocities && Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity)
+	// Do not check for bShouldRenderVelocities here to avoid dropping velocity primitives from depth pre-pass
+	if (Scene->EarlyZPassMode == DDM_AllOpaqueNoVelocity) 
 	{
 		// Render the velocities and depth of movable objects
 		RenderVelocities(GraphBuilder, InViews, SceneTextures, EVelocityPass::Opaque, false);
