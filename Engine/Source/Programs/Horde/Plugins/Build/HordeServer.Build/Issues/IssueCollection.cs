@@ -99,6 +99,10 @@ namespace HordeServer.Issues
 
 			[BsonIgnoreIfNull]
 			public int? FixChange { get; set; }
+			int? IIssue.FixChange => FixChange ?? (FixedSystemic ? -1 : null);
+
+			[BsonIgnoreIfDefault, BsonDefaultValue(false)]
+			public bool FixedSystemic { get; set; }
 
 			public List<IssueStreamDocument> Streams { get; set; } = new List<IssueStreamDocument>();
 
@@ -754,6 +758,7 @@ namespace HordeServer.Issues
 					CreatedAt = issue.CreatedAt,
 					OwnerId = issue.OwnerId,
 					FixChange = issue.FixChange,
+					FixedSystemic = issue.FixedSystemic,
 					LastSeenAt = issue.LastSeenAt,
 					NominatedAt = issue.NominatedAt,
 					NominatedById = issue.NominatedById,
@@ -838,6 +843,17 @@ namespace HordeServer.Issues
 				}
 			}
 			if (newIssue.FixChange != oldIssue.FixChange)
+			{
+				if (newIssue.FixChange == 0)
+				{
+					issueLogger.LogInformation("Issue was marked as not fixed");
+				}
+				else
+				{
+					issueLogger.LogInformation("Issue was marked as fixed in {Change}", newIssue.FixChange);
+				}
+			}
+			if (newIssue.FixedSystemic != oldIssue.FixedSystemic)
 			{
 				if (newIssue.FixChange == 0)
 				{
@@ -1138,7 +1154,7 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newManuallyPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternaIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default)
+		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newManuallyPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, bool? newFixedSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternaIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default)
 		{
 			IssueDocument issueDocument = (IssueDocument)issue;
 
@@ -1237,13 +1253,28 @@ namespace HordeServer.Issues
 			}
 			if (newFixChange != null)
 			{
-				if (newFixChange == 0)
+				if (newFixChange < 0)
 				{
-					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!));
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Set(x => x.FixedSystemic, true));
+				}
+				else if (newFixChange == 0)
+				{
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Unset(x => x.FixedSystemic));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixChange, newFixChange));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixChange, newFixChange).Unset(x => x.FixedSystemic));
+				}
+			}
+			else if (newFixedSystemic != null)
+			{
+				if (newFixedSystemic.Value)
+				{
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Set(x => x.FixedSystemic, true));
+				}
+				else
+				{
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixedSystemic));
 				}
 			}
 			if (newResolvedById != null)

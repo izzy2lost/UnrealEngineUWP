@@ -1265,6 +1265,12 @@ namespace HordeServer.Notifications.Sinks
 						}
 					}
 				}
+				else if (issue.FixedSystemic)
+				{
+					string fixedEventId = $"issue_{issue.Id}_fixed_systemic";
+					string fixedMessage = $"Marked fixed as a systemic issue";
+					await PostSingleMessageToThreadAsync(triageChannel, fixedEventId, threadId, fixedMessage, cancellationToken);
+				}
 
 				// Assignment notifications
 				if (issue.OwnerId != null && issue.NominatedById != null && issue.NominatedById != issue.OwnerId)
@@ -1473,11 +1479,7 @@ namespace HordeServer.Notifications.Sinks
 				IIssueStep? fixFailedStep = issue.FindFixFailedStep(details.Spans);
 
 				string text;
-				if (issue.FixChange.Value < 0)
-				{
-					text = ":tick: Marked as a systemic issue.";
-				}
-				else if (fixFailedStep != null)
+				if (fixFailedStep != null)
 				{
 					Uri fixFailedUrl = new Uri(_serverInfo.DashboardUrl, $"job/{fixFailedStep.JobId}?step={fixFailedStep.StepId}&issue={issue.Id}");
 					text = $":cross: Marked fixed in *CL {issue.FixChange.Value}*, but seen again at *<{fixFailedUrl}|CL {fixFailedStep.Change}>*";
@@ -1487,6 +1489,10 @@ namespace HordeServer.Notifications.Sinks
 					text = $":tick: Marked fixed in *CL {issue.FixChange.Value}*.";
 				}
 				attachment.AddSection(text);
+			}
+			else if (issue.FixedSystemic)
+			{
+				attachment.AddSection(":tick: Marked as a systemic issue.");
 			}
 			else if (userId != null && issue.OwnerId == userId)
 			{
@@ -2017,6 +2023,10 @@ namespace HordeServer.Notifications.Sinks
 				{
 					status = $"Fixed in CL {issue.FixChange.Value}";
 				}
+			}
+			else if (issue.FixedSystemic)
+			{
+				status = "Closed as systemic issue";
 			}
 			else if (issue.OwnerId != null)
 			{

@@ -325,6 +325,11 @@ namespace EpicGames.Horde.Issues
 		public int? FixChange { get; set; }
 
 		/// <summary>
+		/// Whether the issue is marked fixed as a systemic issue
+		/// </summary>
+		public bool FixedSystemic { get; set; }
+
+		/// <summary>
 		/// Time at which the issue was resolved
 		/// </summary>
 		public DateTime? ResolvedAt { get; set; }
@@ -525,6 +530,11 @@ namespace EpicGames.Horde.Issues
 		/// Changelist that fixed this issue
 		/// </summary>
 		public int? FixChange { get; set; }
+
+		/// <summary>
+		/// Whether the issue is marked fixed as a systemic issue
+		/// </summary>
+		public bool FixedSystemic { get; set; }
 
 		/// <summary>
 		/// Time at which the issue was resolved

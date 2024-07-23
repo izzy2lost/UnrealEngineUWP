@@ -252,6 +252,7 @@ namespace HordeServer.Issues
 			}
 			response.AcknowledgedAt = issue.AcknowledgedAt;
 			response.FixChange = issue.FixChange;
+			response.FixedSystemic = issue.FixedSystemic;
 			response.ResolvedAt = issue.ResolvedAt;
 			if (resolvedBy != null)
 			{
@@ -499,6 +500,7 @@ namespace HordeServer.Issues
 			response.NominatedByInfo = details.NominatedBy?.ToThinApiResponse();
 			response.AcknowledgedAt = issue.AcknowledgedAt;
 			response.FixChange = issue.FixChange;
+			response.FixedSystemic = issue.FixedSystemic;
 			response.ResolvedAt = issue.ResolvedAt;
 			response.ResolvedBy = details.ResolvedBy?.Login;
 			response.ResolvedById = details.ResolvedBy?.Id.ToString();

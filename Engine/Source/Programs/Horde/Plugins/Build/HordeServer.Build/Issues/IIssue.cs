@@ -107,6 +107,11 @@ namespace HordeServer.Issues
 		/// </summary>
 		public int? FixChange { get; }
 
+		/// <summary>
+		/// Whether the issue is marked fixed as systemic
+		/// </summary>
+		public bool FixedSystemic { get; }
+
 		//		/// <summary>
 		//		/// The first stream that encountered the error. The fix will be considered failed if an error after FixChange occurs in this stream. 
 		//		/// </summary>
