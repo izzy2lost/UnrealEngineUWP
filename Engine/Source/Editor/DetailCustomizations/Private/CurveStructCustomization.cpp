@@ -258,14 +258,26 @@ void FCurveStructCustomization::CustomizeChildren( TSharedRef<IPropertyHandle> I
 TArray<FRichCurveEditInfoConst> FCurveStructCustomization::GetCurves() const
 {
 	TArray<FRichCurveEditInfoConst> Curves;
-	Curves.Add(FRichCurveEditInfoConst(&RuntimeCurve->EditorCurveData));
+	FRichCurveEditInfoConst CurveEditInfo = FRichCurveEditInfoConst(&RuntimeCurve->EditorCurveData);
+	if (StructPropertyHandle.IsValid())
+	{
+		// Use the DisplayName of the property in place of the CurveName (which is None after creation above)
+		CurveEditInfo.CurveName = FName(StructPropertyHandle->GetPropertyDisplayName().ToString());
+	}
+	Curves.Add(CurveEditInfo);
 	return Curves;
 }
 
 TArray<FRichCurveEditInfo> FCurveStructCustomization::GetCurves()
 {
 	TArray<FRichCurveEditInfo> Curves;
-	Curves.Add(FRichCurveEditInfo(&RuntimeCurve->EditorCurveData));
+	FRichCurveEditInfo CurveEditInfo = FRichCurveEditInfo(&RuntimeCurve->EditorCurveData);
+	if (StructPropertyHandle.IsValid())
+	{
+		// Use the DisplayName of the property in place of the CurveName (which is None after creation above)
+		CurveEditInfo.CurveName = FName(StructPropertyHandle->GetPropertyDisplayName().ToString());
+	}
+	Curves.Add(CurveEditInfo);
 	return Curves;
 }
 
@@ -459,41 +471,37 @@ FReply FCurveStructCustomization::OnCurvePreviewDoubleClick( const FGeometry& In
 		{
 			DestroyPopOutWindow();
 
-			// Check that the owner exists before spawning a window
-			if (Owner)
-			{
-				// Determine the position of the window so that it will spawn near the mouse, but not go off the screen.
-				const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
-				FSlateRect Anchor(CursorPos.X, CursorPos.Y, CursorPos.X, CursorPos.Y);
+			// Determine the position of the window so that it will spawn near the mouse, but not go off the screen.
+			const FVector2D CursorPos = FSlateApplication::Get().GetCursorPos();
+			FSlateRect Anchor(CursorPos.X, CursorPos.Y, CursorPos.X, CursorPos.Y);
 
-				FVector2D AdjustedSummonLocation = FSlateApplication::Get().CalculatePopupWindowPosition( Anchor, FCurveStructCustomization::DEFAULT_WINDOW_SIZE, true, FVector2D::ZeroVector, Orient_Horizontal );
+			FVector2D AdjustedSummonLocation = FSlateApplication::Get().CalculatePopupWindowPosition( Anchor, FCurveStructCustomization::DEFAULT_WINDOW_SIZE, true, FVector2D::ZeroVector, Orient_Horizontal );
 
-				TSharedPtr<SWindow> Window = SNew(SWindow)
-					.Title( FText::Format( LOCTEXT("WindowHeader", "{0} - Internal Curve Editor"), StructPropertyHandle->GetPropertyDisplayName()) )
-					.ClientSize( FCurveStructCustomization::DEFAULT_WINDOW_SIZE )
-					.ScreenPosition(AdjustedSummonLocation)
-					.AutoCenter(EAutoCenter::None)
-					.SupportsMaximize(false)
-					.SupportsMinimize(false)
-					.SizingRule( ESizingRule::FixedSize );
+			TSharedPtr<SWindow> Window = SNew(SWindow)
+				.Title( FText::Format( LOCTEXT("WindowHeader", "{0} - Internal Curve Editor"), StructPropertyHandle->GetPropertyDisplayName()) )
+				.ClientSize( FCurveStructCustomization::DEFAULT_WINDOW_SIZE )
+				.ScreenPosition(AdjustedSummonLocation)
+				.AutoCenter(EAutoCenter::None)
+				.SupportsMaximize(false)
+				.SupportsMinimize(false)
+				.SizingRule( ESizingRule::FixedSize );
 
-				// init the mini curve editor widget
-				TSharedRef<SMiniCurveEditor> MiniCurveEditor =
-					SNew(SMiniCurveEditor)
-					.CurveOwner(this)
-					.OwnerObject(Owner)
-					.ParentWindow(Window);
+			// init the mini curve editor widget
+			TSharedRef<SMiniCurveEditor> MiniCurveEditor =
+				SNew(SMiniCurveEditor)
+				.CurveOwner(this)
+				.OwnerObject(Owner)
+				.ParentWindow(Window);
 
-				Window->SetContent( MiniCurveEditor );
+			Window->SetContent( MiniCurveEditor );
 
-				// Find the window of the parent widget
-				FWidgetPath WidgetPath;
-				FSlateApplication::Get().GeneratePathToWidgetChecked( CurveWidget.ToSharedRef(), WidgetPath );
-				Window = FSlateApplication::Get().AddWindowAsNativeChild( Window.ToSharedRef(), WidgetPath.GetWindow() );
+			// Find the window of the parent widget
+			FWidgetPath WidgetPath;
+			FSlateApplication::Get().GeneratePathToWidgetChecked( CurveWidget.ToSharedRef(), WidgetPath );
+			Window = FSlateApplication::Get().AddWindowAsNativeChild( Window.ToSharedRef(), WidgetPath.GetWindow() );
 
-				//hold on to the window created for external use...
-				CurveEditorWindow = Window;
-			}
+			//hold on to the window created for external use...
+			CurveEditorWindow = Window;
 		}
 	}
 	return FReply::Handled();

@@ -2,31 +2,30 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Framework/Docking/TabManager.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 
-
 class FCurveOwnerInterface;
 class SCurveEditor;
 
-class SMiniCurveEditor :  public SCompoundWidget,public IAssetEditorInstance
+class SMiniCurveEditor
+	: public SCompoundWidget
+	, public IAssetEditorInstance
 {
 public:
 	SLATE_BEGIN_ARGS( SMiniCurveEditor )
 		: _CurveOwner(nullptr)
 		, _OwnerObject(nullptr)
 		{}
-
-	SLATE_ARGUMENT( FCurveOwnerInterface*, CurveOwner )
-	SLATE_ARGUMENT( UObject*, OwnerObject )
-	SLATE_ARGUMENT( TWeakPtr<SWindow>, ParentWindow )
+		SLATE_ARGUMENT( FCurveOwnerInterface*, CurveOwner )
+		SLATE_ARGUMENT( UObject*, OwnerObject )
+		SLATE_ARGUMENT( TWeakPtr<SWindow>, ParentWindow )
 	SLATE_END_ARGS()
 
 	UNREALED_API void Construct(const FArguments& InArgs);
-	UNREALED_API virtual ~SMiniCurveEditor();
+	UNREALED_API virtual ~SMiniCurveEditor() override;
 
 	// IAssetEditorInstance interface
 	UNREALED_API virtual FName GetEditorName() const override;
@@ -40,19 +39,21 @@ public:
 	UNREALED_API virtual void RemoveEditingAsset(UObject* Asset) override;
 
 private:
+	/** Sometimes false when this is a transient or popout window, indicating it shouldn't be tracked as an asset editor. */
+	bool bHasOwner = true;
 
-	float ViewMinInput;
-	float ViewMaxInput;
+	float ViewMinInput = 0.0f;
+	float ViewMaxInput = 1.0f;
 
 	TSharedPtr<class SCurveEditor> TrackWidget;
 
 	float GetViewMinInput() const { return ViewMinInput; }
 	float GetViewMaxInput() const { return ViewMaxInput; }
+
 	/** Return length of timeline */
 	UNREALED_API float GetTimelineLength() const;
 
 	UNREALED_API void SetInputViewRange(float InViewMinInput, float InViewMaxInput);
-
 
 protected:
 	TWeakPtr<SWindow> WidgetWindow;
