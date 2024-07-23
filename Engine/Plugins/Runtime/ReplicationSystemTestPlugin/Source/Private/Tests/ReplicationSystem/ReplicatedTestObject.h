@@ -493,6 +493,37 @@ public:
 };
 
 /**
+ * Replicated object with PushModel properties
+ */
+UCLASS()
+class UTestReplicatedIrisPushModelObject : public UReplicatedTestObject
+{
+	GENERATED_BODY()
+
+public:
+
+	// Network interface must be part of base.
+	virtual void RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Fragments, UE::Net::EFragmentRegistrationFlags RegistrationFlags) override;
+
+	void SetIntA(int32 InValue);
+	int32 GetIntA() const;
+
+	void SetIntB(int32 InValue);
+	int32 GetIntB() const;
+
+private:
+	UPROPERTY(Transient, Replicated)
+	int32 IntA;
+
+	UPROPERTY(Transient, Replicated)
+	int32 IntB;
+
+public:
+	// Network data only for test
+	TArray<UE::Net::FReplicationFragment*> ReplicationFragments;
+};
+
+/**
 * Example of type specific ReplicationBridge, it currently only works with UTestReplicationSystem_TestClass
 */
 UCLASS()

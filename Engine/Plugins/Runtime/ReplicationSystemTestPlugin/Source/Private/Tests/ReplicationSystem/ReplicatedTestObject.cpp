@@ -603,6 +603,49 @@ void UTestReplicatedObjectWithRepNotifies::OnRep_IntB(int32 OldInt)
 	PrevIntBStoredInOnRep = OldInt;
 }
 
+
+//////////////////////////////////////////////////////////////////////////
+// Implementation for UTestReplicatedIrisPushModelObject
+//////////////////////////////////////////////////////////////////////////
+void UTestReplicatedIrisPushModelObject::GetLifetimeReplicatedProps(TArray< class FLifetimeProperty >& OutLifetimeProps) const
+{
+	FDoRepLifetimeParams Params{ .bIsPushBased = true };
+	DOREPLIFETIME_WITH_PARAMS(UTestReplicatedIrisPushModelObject, IntA, Params);
+	DOREPLIFETIME_WITH_PARAMS(UTestReplicatedIrisPushModelObject, IntB, Params);
+}
+
+void UTestReplicatedIrisPushModelObject::RegisterReplicationFragments(UE::Net::FFragmentRegistrationContext& Context, UE::Net::EFragmentRegistrationFlags RegistrationFlags)
+{
+	// Base object owns the fragment in this case
+	{
+		this->ReplicationFragments.Reset();
+		UE::Net::FReplicationFragmentUtil::CreateAndRegisterFragmentsForObject(this, Context, RegistrationFlags, &this->ReplicationFragments);
+	}
+}
+
+
+void UTestReplicatedIrisPushModelObject::SetIntA(int32 InValue)
+{
+	IntA = InValue;
+	MARK_PROPERTY_DIRTY_FROM_NAME(UTestReplicatedIrisPushModelObject, IntA, this);
+}
+
+int32 UTestReplicatedIrisPushModelObject::GetIntA() const
+{
+	return IntA;
+}
+
+void UTestReplicatedIrisPushModelObject::SetIntB(int32 InValue)
+{
+	IntB = InValue;
+	MARK_PROPERTY_DIRTY_FROM_NAME(UTestReplicatedIrisPushModelObject, IntB, this);
+}
+
+int32 UTestReplicatedIrisPushModelObject::GetIntB() const
+{
+	return IntB;
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Implementation for UTestReplicatedIrisObjectWithDynamicCondition
 //////////////////////////////////////////////////////////////////////////
