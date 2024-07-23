@@ -38,7 +38,7 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectSkeletalMesh : public USkeletalM
 public: // Public Methods
 
 	static UCustomizableObjectSkeletalMesh* CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& InOperationData, 
-		const UCustomizableObjectInstance& InInstance, const UCustomizableObject& CustomizableObject, const int32 ComponentIndex);
+		const UCustomizableObjectInstance& InInstance, const UCustomizableObject& CustomizableObject, const int32 InstanceComponentIndex);
 
 private: // Private Methods
 

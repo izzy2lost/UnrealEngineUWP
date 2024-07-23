@@ -37,29 +37,38 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     bool SemanticOptimiserAST(
-		ASTOpList& roots,
-		const FModelOptimizationOptions& optimisationOptions,
+		ASTOpList& Roots,
+		const FModelOptimizationOptions& OptimisationOptions,
 		int32 Pass
 	)
     {
         MUTABLE_CPUPROFILER_SCOPE(SemanticOptimiserAST);
 
-        bool modified = false;
+        bool bModified = false;
 
         // TODO: isn't top down better suited?
-        ASTOp::Traverse_BottomUp_Unique( roots, [&](Ptr<ASTOp>& n)
+        ASTOp::Traverse_BottomUp_Unique( Roots, [&](Ptr<ASTOp>& CurrentOp)
         {
-            auto o = n->OptimiseSemantic(optimisationOptions, Pass);
+            Ptr<ASTOp> OptimizedOp = CurrentOp->OptimiseSemantic(OptimisationOptions, Pass);
 
             // If the returned value is null it means no change.
-            if (o && o!=n)
+            if (OptimizedOp && OptimizedOp !=CurrentOp)
             {
-                modified = true;
-                ASTOp::Replace(n,o);
+				bModified = true;
+                ASTOp::Replace(CurrentOp, OptimizedOp);
+
+				// Check if we are replacing one of the root operations and update the parameter array.
+				for (int32 RootIndex=0; RootIndex<Roots.Num(); ++RootIndex)
+				{
+					if (Roots[RootIndex]== CurrentOp)
+					{
+						Roots[RootIndex] = OptimizedOp;
+					}
+				}
             }
         });
 
-        return modified;
+        return bModified;
     }
 
 

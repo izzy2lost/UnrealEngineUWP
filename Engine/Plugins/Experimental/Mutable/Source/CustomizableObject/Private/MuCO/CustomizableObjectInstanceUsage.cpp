@@ -385,11 +385,11 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamer
 		}
 
 		USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
-		const int32 ComponentIndex = GetComponentIndex();
+		const int32 ObjectComponentIndex = GetComponentIndex();
 
 		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
-		USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) :
-			CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex);
+		USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetSkeletalMesh(ObjectComponentIndex) :
+			CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ObjectComponentIndex);
 
 		if (AttachedSkeletalMesh != GeneratedSkeletalMesh)
 		{
@@ -435,9 +435,9 @@ void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
 void UCustomizableObjectInstanceUsage::SetVisibilityOfSkeletalMeshSectionWithMaterialName(bool bInVisible, const FString& MaterialName, int32 LOD)
 {
 	UCustomizableObjectInstance* CustomizableObjectInstance = GetCustomizableObjectInstance();
-	int32 ComponentIndex = GetComponentIndex();
+	int32 ObjectComponentIndex = GetComponentIndex();
 
-	USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+	USkeletalMesh* SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ObjectComponentIndex);
 
 	if (!SkeletalMesh)
 	{
@@ -526,11 +526,11 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AAc
 			}
 		}
 
-		int32 ComponentIndex = GetComponentIndex();
+		int32 ObjectComponentIndex = GetComponentIndex();
 
-		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex))
+		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetSkeletalMesh(ObjectComponentIndex))
 		{
-			SetSkeletalMesh(CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex));
+			SetSkeletalMesh(CustomizableObjectInstance->GetSkeletalMesh(ObjectComponentIndex));
 		}
 	}
 }
@@ -558,7 +558,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 
 	if (USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent()))
 	{
-		const int32 ComponentIndex = GetComponentIndex();
+		const int32 ObjectComponentIndex = GetComponentIndex();
 
 		USkeletalMesh* SkeletalMesh = nullptr;
 
@@ -566,7 +566,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 		if (bInstanceGenerated)
 		{
 			// Generated SkeletalMesh to set, can be null if the component is empty
-			SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
+			SkeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ObjectComponentIndex);
 		}
 		else
 		{
@@ -575,7 +575,7 @@ void UCustomizableObjectInstanceUsage::Tick(float DeltaTime)
 				CustomizableObject->bEnableUseRefSkeletalMeshAsPlaceholder)
 			{
 				// Can be nullptr
-				SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ComponentIndex);
+				SkeletalMesh = CustomizableObject->GetRefSkeletalMesh(ObjectComponentIndex);
 			}
 		}
 

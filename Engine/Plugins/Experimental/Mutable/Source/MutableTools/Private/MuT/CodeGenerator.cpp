@@ -48,6 +48,8 @@
 #include "MuT/NodeColour.h"
 #include "MuT/NodeColourConstant.h"
 #include "MuT/NodeComponent.h"
+#include "MuT/NodeComponentSwitch.h"
+#include "MuT/NodeComponentVariation.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeImageFormat.h"
 #include "MuT/NodeImageFormatPrivate.h"
@@ -542,6 +544,14 @@ namespace mu
 			//GenerateComponent_Edit(InOptions, OutResult, static_cast<const NodeComponentEdit*>(InUntypedNode));
 			OutResult.op = InOptions.BaseInstance;
 		}
+		else if (Type == NodeComponentSwitch::GetStaticType())
+		{
+			GenerateComponent_Switch(InOptions, OutResult, static_cast<const NodeComponentSwitch*>(InUntypedNode));
+		}
+		else if (Type == NodeComponentVariation::GetStaticType())
+		{
+			GenerateComponent_Variation(InOptions, OutResult, static_cast<const NodeComponentVariation*>(InUntypedNode));
+		}
 		else
 		{
 			check(false);
@@ -606,6 +616,114 @@ namespace mu
 				Result.op = IfOp;
 			}
 		}
+	}
+
+
+	void CodeGenerator::GenerateComponent_Switch(const FComponentGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentSwitch* Node)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(NodeComponentSwitch);
+
+		if (Node->Options.Num() == 0)
+		{
+			// No options in the switch!
+			Result.op = Options.BaseInstance;
+			return;
+		}
+
+		Ptr<ASTOpSwitch> Op = new ASTOpSwitch();
+		Op->type = OP_TYPE::IN_SWITCH;
+
+		// Variable value
+		if (Node->Parameter)
+		{
+			Op->variable = Generate_Generic(Node->Parameter.get(), Options);
+		}
+		else
+		{
+			// This argument is required
+			Op->variable = GenerateMissingScalarCode(TEXT("Switch variable"), 0.0f, Node->GetMessageContext());
+		}
+
+		// Options
+		for (int32 OptionIndex = 0; OptionIndex < Node->Options.Num(); ++OptionIndex)
+		{
+			Ptr<ASTOp> Branch;
+
+			if (Node->Options[OptionIndex])
+			{
+				FGenericGenerationResult BaseResult;
+				GenerateComponent(Options, BaseResult, Node->Options[OptionIndex].get());
+				Branch = BaseResult.op;
+			}
+			else
+			{
+				// This argument is not required
+				Branch = Options.BaseInstance;
+			}
+
+			Op->cases.Emplace(OptionIndex, Op, Branch);
+		}
+
+		Result.op = Op;
+	}
+
+
+	void CodeGenerator::GenerateComponent_Variation(const FComponentGenerationOptions& Options, FGenericGenerationResult& Result, const NodeComponentVariation* Node)
+	{
+		Ptr<ASTOp> CurrentMeshOp = Options.BaseInstance;
+
+		// Default case
+		if (Node->DefaultComponent)
+		{
+			FGenericGenerationResult BranchResults;
+
+			GenerateComponent(Options, BranchResults, Node->DefaultComponent.get());
+			CurrentMeshOp = BranchResults.op;
+		}
+
+		// Process variations in reverse order, since conditionals are built bottom-up.
+		for (int32 VariationIndex = Node->Variations.Num() - 1; VariationIndex >= 0; --VariationIndex)
+		{
+			int32 TagIndex = -1;
+			const FString& Tag = Node->Variations[VariationIndex].Tag;
+			for (int32 i = 0; i < FirstPass.Tags.Num(); ++i)
+			{
+				if (FirstPass.Tags[i].Tag == Tag)
+				{
+					TagIndex = i;
+				}
+			}
+
+			if (TagIndex < 0)
+			{
+				ErrorLog->GetPrivate()->Add(
+					FString::Printf(TEXT("Unknown tag found in component variation [%s]."), *Tag),
+					ELMT_WARNING,
+					Node->GetMessageContext(),
+					ELMSB_UNKNOWN_TAG
+				);
+				continue;
+			}
+
+			Ptr<ASTOp> VariationMeshOp = Options.BaseInstance;
+			if (Node->Variations[VariationIndex].Component)
+			{
+				FGenericGenerationResult BranchResults;
+				GenerateComponent(Options, BranchResults, Node->Variations[VariationIndex].Component.get());
+
+				VariationMeshOp = BranchResults.op;
+			}
+
+			Ptr<ASTOpConditional> Conditional = new ASTOpConditional;
+			Conditional->type = OP_TYPE::IN_CONDITIONAL;
+			Conditional->no = CurrentMeshOp;
+			Conditional->yes = VariationMeshOp;
+			Conditional->condition = FirstPass.Tags[TagIndex].GenericCondition;
+
+			CurrentMeshOp = Conditional;
+		}
+
+		Result.op = CurrentMeshOp;
 	}
 
 

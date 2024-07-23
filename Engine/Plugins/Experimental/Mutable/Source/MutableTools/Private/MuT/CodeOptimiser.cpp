@@ -322,11 +322,11 @@ namespace mu
 		MUTABLE_CPUPROFILER_SCOPE(DuplicatedCodeRemoverAST);
 
 		// Visited nodes, per type
-		std::unordered_set<Ptr<ASTOp>,op_pointer_hash,op_pointer_equal> visited[int(OP_TYPE::COUNT)];
+		std::unordered_set<Ptr<ASTOp>,op_pointer_hash,op_pointer_equal> visited[int32(OP_TYPE::COUNT)];
 
 		ASTOp::Traverse_BottomUp_Unique_NonReentrant( roots, [&](Ptr<ASTOp>& n)
 		{
-			auto& container = visited[(int)n->GetOpType()];
+			auto& container = visited[(int32)n->GetOpType()];
 
 			// Insert will tell us if it was already there
 			auto it = container.insert(n);
@@ -356,7 +356,7 @@ namespace mu
 		// Don't early out to be able to complete parent op cached flags
 		while ( !m_pending.IsEmpty() )
 		{
-			TPair<bool,int> item = m_pending.Pop();
+			TPair<bool,int32> item = m_pending.Pop();
 			OP::ADDRESS at = item.Value;
 
 			// Not cached?
@@ -1066,7 +1066,7 @@ namespace mu
 	void CodeOptimiser::FullOptimiseAST( ASTOpList& roots, int32 Pass )
 	{
 		bool modified = true;
-		int numIterations = 0;
+		int32 numIterations = 0;
 		while (modified && (!m_optimizeIterationsMax || (m_optimizeIterationsLeft>0) || !numIterations) )
 		{
 			--m_optimizeIterationsLeft;
@@ -1081,7 +1081,7 @@ namespace mu
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - semantic optimiser"));
 			modified |= SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, Pass );
 			//AXE_INT_VALUE("Mutable", Verbose, "ast size", (int64_t)ASTOp::CountNodes(roots));
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			ASTOp::LogHistogram(roots);
 
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - sink optimiser"));
@@ -1109,27 +1109,27 @@ namespace mu
 
 		UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated code remover"));
 		DuplicatedCodeRemoverAST( roots );
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+		//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 		ASTOp::LogHistogram(roots);
 
 		UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated data remover"));
 		DuplicatedDataRemoverAST( roots );
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+		//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 		ASTOp::LogHistogram(roots);
 
 		// Generate constants
 		for ( Ptr<ASTOp>& Root: roots )
 		{
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - constant generator"));
 
 			// Constant subtree generation
 			modified = ConstantGeneratorAST( m_options->GetPrivate(), Root, Pass );
 		}
 
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+		//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 	//    ASTOp::LogHistogram(roots);
 
@@ -1142,7 +1142,7 @@ namespace mu
 
 		UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated data remover"));
 		DuplicatedDataRemoverAST( roots );
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+		//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 		//if (!modified)
 		{
@@ -1404,14 +1404,14 @@ namespace mu
 	{
 		MUTABLE_CPUPROFILER_SCOPE(OptimiseAST);
 
-		// Gather all the roots
+		// Gather all the roots (one for each state)
 		TArray<Ptr<ASTOp>> roots;
-		for(const auto& s:m_states)
+		for(const FStateCompilationData& s:m_states)
 		{
 			roots.Add(s.root);
 		}
 
-		UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+		//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 		if ( m_options->GetPrivate()->OptimisationOptions.bEnabled )
 		{
@@ -1426,13 +1426,13 @@ namespace mu
 			// creation
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated data remover"));
 			DuplicatedDataRemoverAST( roots );
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 			ASTOp::LogHistogram(roots);
 
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated code remover"));
 			DuplicatedCodeRemoverAST( roots );
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 			// Special optimization stages
 			if ( m_options->GetPrivate()->OptimisationOptions.bUniformizeSkeleton )
@@ -1441,7 +1441,7 @@ namespace mu
 				ASTOp::LogHistogram(roots);
 
 				SkeletonCleanerAST( roots, m_options->GetPrivate()->OptimisationOptions );
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 			}
 
@@ -1449,7 +1449,7 @@ namespace mu
 			// because some operations cannot be applied correctly until the image size is known
 			// like the grow-map generation.
 			bool modified = true;
-			int numIterations = 0;
+			int32 numIterations = 0;
 			while (modified)
 			{
 				MUTABLE_CPUPROFILER_SCOPE(FirstStage);
@@ -1465,18 +1465,18 @@ namespace mu
 				modified |= SizeOptimiserAST( roots );
 			}
 
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			ASTOp::LogHistogram(roots);
 
 			// Main optimisation stage
 			{
 				MUTABLE_CPUPROFILER_SCOPE(MainStage);
 				FullOptimiseAST( roots, 0 );
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 
 				FullOptimiseAST( roots, 1 );
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 			}
 
@@ -1502,11 +1502,11 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(FinalStage);
 				FullOptimiseAST(roots, 0);
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 
 				FullOptimiseAST(roots, 1);
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 				ASTOp::LogHistogram(roots);
 			}
 
@@ -1522,13 +1522,13 @@ namespace mu
 				}
 			});
 
-			// Make sure we didn't lose track of pointers
-			for ( int32 s=0;  s<m_states.Num(); ++s )
-			{
-				check( roots.Contains( m_states[s].root ) );
-			}
-
 			ASTOp::LogHistogram(roots);
+
+			// Reset the state root operations in case they have changed due to optimization
+			for (int32 RootIndex = 0; RootIndex < m_states.Num(); ++RootIndex)
+			{
+				m_states[RootIndex].root = roots[RootIndex];
+			}
 
 			{
 				MUTABLE_CPUPROFILER_SCOPE(StatesStage);
@@ -1556,7 +1556,7 @@ namespace mu
 
 			UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated code remover"));
 			DuplicatedCodeRemoverAST( roots );
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
 			// Constant resolution stage: resolve referenced assets.
 			{
@@ -1564,12 +1564,12 @@ namespace mu
 				FullOptimiseAST(roots, 2);
 			}
 
-			for ( int32 s=0;  s<m_states.Num(); ++s )
+			for ( int32 StateIndex=0; StateIndex <m_states.Num(); ++StateIndex)
 			{
 				constexpr int32 Pass = 1;
 
 				UE_LOG(LogMutableCore, Verbose, TEXT(" - constant generator"));
-				ConstantGeneratorAST( m_options->GetPrivate(), m_states[s].root, Pass );
+				ConstantGeneratorAST( m_options->GetPrivate(), roots[StateIndex], Pass);
 				//AXE_INT_VALUE("Mutable", Verbose, "ast size", (int64_t)ASTOp::CountNodes(roots));
 			}
 
@@ -1581,10 +1581,10 @@ namespace mu
 			DuplicatedCodeRemoverAST( roots );
 			//AXE_INT_VALUE("Mutable", Verbose, "ast size", (int64_t)ASTOp::CountNodes(roots));
 
-			// Make sure we didn't lose track of pointers
-			for ( int32 s=0;  s<m_states.Num(); ++s )
+			// Reset the state root operations in case they have changed due to optimization
+			for (int32 RootIndex = 0; RootIndex < m_states.Num(); ++RootIndex)
 			{
-				check( roots.Contains( m_states[s].root ) );
+				m_states[RootIndex].root = roots[RootIndex];
 			}
 		}
 

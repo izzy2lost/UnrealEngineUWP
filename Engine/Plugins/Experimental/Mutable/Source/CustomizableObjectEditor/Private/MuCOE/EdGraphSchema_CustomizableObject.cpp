@@ -52,6 +52,8 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectChild.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeObjectGroup.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentVariation.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentSwitch.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorConstant.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMesh.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMeshBlocks.h"
@@ -402,6 +404,8 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 		UCustomizableObjectNode* ComponentTemplateNodes[]
 		{
 			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeComponentMesh>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeComponentVariation>(),
+			ContextMenuBuilder.CreateTemplateNode<UCustomizableObjectNodeComponentSwitch>(),
 		};
 
 		AddNewNodeCategoryActionsFiltered(ComponentTemplateNodes, ContextMenuBuilder, TEXT("Component"), GeneralGrouping, Filter);
@@ -1322,6 +1326,10 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Object)
 	{
 		return LOCTEXT("Object_Pin_Category", "Object");
+	}
+	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Component)
+	{
+		return LOCTEXT("Component_Pin_Category", "Component");
 	}
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Material)
 	{

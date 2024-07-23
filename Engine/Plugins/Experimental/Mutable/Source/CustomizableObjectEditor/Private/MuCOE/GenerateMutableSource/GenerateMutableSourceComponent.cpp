@@ -5,11 +5,16 @@
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceSurface.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceFloat.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeComponentMesh.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentSwitch.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeComponentVariation.h"
 #include "MuT/NodeComponent.h"
 #include "MuT/NodeComponentNew.h"
+#include "MuT/NodeComponentSwitch.h"
+#include "MuT/NodeComponentVariation.h"
 #include "MuT/NodeLOD.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeMeshConstant.h"
@@ -120,9 +125,128 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 		Result = ComponentNode;
 	}
 
+
+	else if (const UCustomizableObjectNodeComponentSwitch* TypedNodeSwitch = Cast<UCustomizableObjectNodeComponentSwitch>(Node))
+	{
+		// Using a lambda so control flow is easier to manage.
+		Result = [&]()
+			{
+				const UEdGraphPin* SwitchParameter = TypedNodeSwitch->SwitchParameter();
+
+				// Check Switch Parameter arity preconditions.
+				if (const UEdGraphPin* EnumPin = FollowInputPin(*SwitchParameter))
+				{
+					mu::Ptr<mu::NodeScalar> SwitchParam = GenerateMutableSourceFloat(EnumPin, GenerationContext);
+
+					// Switch Param not generated
+					if (!SwitchParam)
+					{
+						// Warn about a failure.
+						if (EnumPin)
+						{
+							const FText Message = LOCTEXT("FailedToGenerateSwitchParam", "Could not generate switch enum parameter. Please refesh the switch node and connect an enum.");
+							GenerationContext.Compiler->CompilerLog(Message, Node);
+						}
+
+						return Result;
+					}
+
+					if (SwitchParam->GetType() != mu::NodeScalarEnumParameter::GetStaticType())
+					{
+						const FText Message = LOCTEXT("WrongSwitchParamType", "Switch parameter of incorrect type.");
+						GenerationContext.Compiler->CompilerLog(Message, Node);
+
+						return Result;
+					}
+
+					const int32 NumSwitchOptions = TypedNodeSwitch->GetNumElements();
+
+					mu::NodeScalarEnumParameter* EnumParameter = static_cast<mu::NodeScalarEnumParameter*>(SwitchParam.get());
+					if (NumSwitchOptions != EnumParameter->GetValueCount())
+					{
+						const FText Message = LOCTEXT("MismatchedSwitch", "Switch enum and switch node have different number of options. Please refresh the switch node to make sure the outcomes are labeled properly.");
+						GenerationContext.Compiler->CompilerLog(Message, Node);
+					}
+
+					mu::Ptr<mu::NodeComponentSwitch> SwitchNode = new mu::NodeComponentSwitch;
+					SwitchNode->Parameter = SwitchParam;
+					SwitchNode->Options.SetNum(NumSwitchOptions);
+
+					for (int32 SelectorIndex = 0; SelectorIndex < NumSwitchOptions; ++SelectorIndex)
+					{
+						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeSwitch->GetElementPin(SelectorIndex)))
+						{
+							mu::Ptr<mu::NodeComponent> ChildNode = GenerateMutableSourceComponent(ConnectedPin, GenerationContext);
+							if (ChildNode)
+							{
+								SwitchNode->Options[SelectorIndex] = ChildNode;
+							}
+							else
+							{
+								// Probably ok
+							}
+						}
+					}
+
+					Result = SwitchNode;
+					return Result;
+				}
+				else
+				{
+					GenerationContext.Compiler->CompilerLog(LOCTEXT("NoEnumParamInSwitch", "Switch nodes must have an enum switch parameter. Please connect an enum and refesh the switch node."), Node);
+					return Result;
+				}
+			}(); // invoke lambda.
+	}
+
+	else if (const UCustomizableObjectNodeComponentVariation* TypedNodeVar = Cast<UCustomizableObjectNodeComponentVariation>(Node))
+	{
+		mu::Ptr<mu::NodeComponentVariation> SurfNode = new mu::NodeComponentVariation();
+		Result = SurfNode;
+
+		for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*TypedNodeVar->DefaultPin()))
+		{
+			mu::Ptr<mu::NodeComponent> ChildNode = GenerateMutableSourceComponent(ConnectedPin, GenerationContext);
+			if (ChildNode)
+			{
+				SurfNode->DefaultComponent = ChildNode;
+			}
+			else
+			{
+				GenerationContext.Compiler->CompilerLog(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
+			}
+		}
+
+		const int32 NumVariations = TypedNodeVar->GetNumVariations();
+		SurfNode->Variations.SetNum(NumVariations);
+		for (int VariationIndex = 0; VariationIndex < NumVariations; ++VariationIndex)
+		{
+			mu::NodeSurfacePtr VariationSurfaceNode;
+
+			if (UEdGraphPin* VariationPin = TypedNodeVar->VariationPin(VariationIndex))
+			{
+				SurfNode->Variations[VariationIndex].Tag = TypedNodeVar->GetVariation(VariationIndex).Tag;
+				for (const UEdGraphPin* ConnectedPin : FollowInputPinArray(*VariationPin))
+				{
+					// Is it a modifier?
+					mu::Ptr<mu::NodeComponent> ChildNode = GenerateMutableSourceComponent(ConnectedPin, GenerationContext);
+					if (ChildNode)
+					{
+						SurfNode->Variations[VariationIndex].Component = ChildNode;
+					}
+					else
+					{
+						GenerationContext.Compiler->CompilerLog(LOCTEXT("ComponentFailed", "Component generation failed."), Node);
+					}
+				}
+			}
+		}
+	}
+
 	else
 	{
 		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
+		ensure(false);
 	}
 
 	GenerationContext.Generated.Add(Key, FGeneratedData(Node, Result));

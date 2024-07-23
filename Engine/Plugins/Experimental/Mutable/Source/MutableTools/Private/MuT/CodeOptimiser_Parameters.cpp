@@ -169,7 +169,7 @@ namespace mu
                         childItem.at = typed->children[typed->op.args.MeshInterpolate.base].child();
                         AddIfNeeded(childItem);
 
-                        for (int t=0;t<MUTABLE_OP_MAX_INTERPOLATE_COUNT-1;++t)
+                        for (int32 t=0;t<MUTABLE_OP_MAX_INTERPOLATE_COUNT-1;++t)
                         {
                             childItem.at = typed->children[typed->op.args.MeshInterpolate.targets[t]].child();
                             AddIfNeeded(childItem);
@@ -1963,7 +1963,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
     //---------------------------------------------------------------------------------------------
-    LODCountReducerAST::LODCountReducerAST( Ptr<ASTOp>& root, int lodCount )
+    LODCountReducerAST::LODCountReducerAST( Ptr<ASTOp>& root, int32 lodCount )
     {
         m_lodCount = lodCount;
         Traverse( root );
@@ -2041,7 +2041,7 @@ namespace mu
                 // Promote the intructions that depend on runtime parameters, and sink new
                 // format instructions.
                 bool modified = true;
-                int numIterations = 0;
+                int32 numIterations = 0;
                 while (modified && (!m_optimizeIterationsMax || m_optimizeIterationsLeft>0 || !numIterations ))
                 {
                     modified = false;
@@ -2060,17 +2060,17 @@ namespace mu
                     roots.Add(m_states[s].root);
 
                     UE_LOG(LogMutableCore, Verbose, TEXT(" - after parameter optimiser"));
-					UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+					//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
                     // All kind of optimisations that depend on the meaning of each operation
                     UE_LOG(LogMutableCore, Verbose, TEXT(" - semantic optimiser"));
                     modified |= SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, 1 );
-					UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+					//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 					//ASTOp::LogHistogram(roots);
 
                     UE_LOG(LogMutableCore, Verbose, TEXT(" - sink optimiser"));
                     modified |= SinkOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions );
-					UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+					//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 					//ASTOp::LogHistogram(roots);
 
                     // Image size operations are treated separately
@@ -2097,17 +2097,24 @@ namespace mu
             }
         }
 
+
+		TArray<Ptr<ASTOp>> roots;
+		for (const FStateCompilationData& s : m_states)
+		{
+			roots.Add(s.root);
+		}
+
         // Mark the instructions that don't depend on runtime parameters to be cached. This is
         // necessary at this stage before GPU optimisation.
         {
-            TArray<Ptr<ASTOp>> roots;
-            for(const FStateCompilationData& s:m_states)
-            {
-                roots.Add(s.root);
-            }
-
             AccumulateAllImageFormatsOpAST opFormats;
             opFormats.Run(roots);
+
+			// Reset the state root operations in case they have changed due to optimization
+			for (int32 RootIndex = 0; RootIndex < m_states.Num(); ++RootIndex)
+			{
+				m_states[RootIndex].root = roots[RootIndex];
+			}
 
             for (FStateCompilationData& s: m_states )
             {
@@ -2133,12 +2140,6 @@ namespace mu
 			int32 Pass = 1;
             while (modified && (!m_optimizeIterationsMax || m_optimizeIterationsLeft>0 || !numIterations ))
             {
-                TArray<Ptr<ASTOp>> roots;
-                for(const FStateCompilationData& s:m_states)
-                {
-                    roots.Add(s.root);
-                }
-
                 ++numIterations;
                 --m_optimizeIterationsLeft;
                 UE_LOG(LogMutableCore, Verbose, TEXT("State reoptimise iteration %d, max %d, left %d"),
@@ -2147,28 +2148,22 @@ namespace mu
                 modified = false;
 
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - semantic optimiser"));
-                modified |=
-                    SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, Pass );
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+                modified |= SemanticOptimiserAST( roots, m_options->GetPrivate()->OptimisationOptions, Pass );
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
                 // Image size operations are treated separately
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - size optimiser"));
                 modified |= SizeOptimiserAST( roots );
-				UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+				//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 			}
 
-            for(FStateCompilationData& s:m_states)
+            for(Ptr<ASTOp>& Root : roots)
             {
                 UE_LOG(LogMutableCore, Verbose, TEXT(" - constant optimiser"));
-				modified = ConstantGeneratorAST( m_options->GetPrivate(), s.root, Pass );
+				modified = ConstantGeneratorAST( m_options->GetPrivate(), Root, Pass );
 			}
 
-            TArray<Ptr<ASTOp>> roots;
-            for(const FStateCompilationData& s:m_states)
-            {
-                roots.Add(s.root);
-            }
-			UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
+			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 
             UE_LOG(LogMutableCore, Verbose, TEXT(" - duplicated data remover"));
             DuplicatedDataRemoverAST( roots );
@@ -2179,12 +2174,11 @@ namespace mu
 			//UE_LOG(LogMutableCore, Verbose, TEXT("(int) %s : %ld"), TEXT("ast size"), int64(ASTOp::CountNodes(roots)));
 		}
 
-        // Gather all the current roots
-        TArray<Ptr<ASTOp>> roots;
-        for(const FStateCompilationData& s:m_states)
-        {
-            roots.Add(s.root);
-        }
+		// Reset the state root operations in case they have changed due to optimization
+		for (int32 RootIndex = 0; RootIndex < m_states.Num(); ++RootIndex)
+		{
+			m_states[RootIndex].root = roots[RootIndex];
+		}
 
         // Optimise the data formats
         {

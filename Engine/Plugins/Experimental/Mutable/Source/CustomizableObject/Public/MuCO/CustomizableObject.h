@@ -519,7 +519,7 @@ public:
 	int32 FindIntParameterValue( int32 ParamIndex, const FString& Value ) const;
 	FString FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const;
 
-	USkeletalMesh* GetRefSkeletalMesh(int32 ComponentIndex = 0) const;
+	USkeletalMesh* GetRefSkeletalMesh(int32 ObjectComponentIndex = 0) const;
 
 	/** Get the default value of a parameter of type Float.
 	  * @param InParameterName The name of the Float parameter to get the default value of.

@@ -20,7 +20,7 @@ FName GenerateUniqueNameFromCOInstance(const UCustomizableObjectInstance& Instan
 
 
 UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& OperationData, 
-	const UCustomizableObjectInstance& Instance, const UCustomizableObject& CustomizableObject, const int32 InComponentIndex)
+	const UCustomizableObjectInstance& Instance, const UCustomizableObject& CustomizableObject, const int32 InstanceComponentIndex)
 {
 	FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(Instance);
 	UCustomizableObjectSkeletalMesh* OutSkeletalMesh = NewObject<UCustomizableObjectSkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
@@ -38,18 +38,12 @@ UCustomizableObjectSkeletalMesh* UCustomizableObjectSkeletalMesh::CreateSkeletal
 	
 	OutSkeletalMesh->MeshIDs.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 	
-	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->InstanceUpdateData.Components.Num(); ++ComponentIndex)
-	{
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+	const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
 
-		if (Component.Id == InComponentIndex)
-		{
-			for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < Component.LODCount; ++LODIndex)
-			{
-				const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD + LODIndex];
-				OutSkeletalMesh->MeshIDs[LODIndex] = LOD.MeshID;
-			}
-		}
+	for (int32 LODIndex = OperationData->FirstLODAvailable; LODIndex < Component.LODCount; ++LODIndex)
+	{
+		const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD + LODIndex];
+		OutSkeletalMesh->MeshIDs[LODIndex] = LOD.MeshID;
 	}
 
 	return OutSkeletalMesh;

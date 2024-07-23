@@ -1130,19 +1130,19 @@ void UCustomizableObjectPrivate::AddUncompiledCOWarning(const FString& Additiona
 }
 
 
-USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ComponentIndex) const
+USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ObjectComponentIndex) const
 {
 #if WITH_EDITORONLY_DATA
-	if (GetPrivate()->MutableMeshComponents.IsValidIndex(ComponentIndex))
+	if (GetPrivate()->MutableMeshComponents.IsValidIndex(ObjectComponentIndex))
 	{
-		return GetPrivate()->MutableMeshComponents[ComponentIndex].ReferenceSkeletalMesh;
+		return GetPrivate()->MutableMeshComponents[ObjectComponentIndex].ReferenceSkeletalMesh;
 	}
 #else
 	const FModelResources& ModelResources = Private->GetModelResources();
-	if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+	if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ObjectComponentIndex))
 	{
 		// Can be nullptr if RefSkeletalMeshes are not loaded yet.
-		return ModelResources.ReferenceSkeletalMeshesData[ComponentIndex].SkeletalMesh;
+		return ModelResources.ReferenceSkeletalMeshesData[ObjectComponentIndex].SkeletalMesh;
 	}
 #endif
 	return nullptr;

@@ -359,12 +359,12 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 				{
 					COI->SetIsBeingUsedByComponentInPlay(true);
 
-					int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+					int32 ObjectComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
 
 #if WITH_EDITOR
 					// If the instance is generated but the component doesn't have a mesh, set it.
 					// Can happen when duplicating instances in the editor.
-					const USkeletalMesh* SkeletalMesh = COI->GetSkeletalMesh(ComponentIndex);
+					const USkeletalMesh* SkeletalMesh = COI->GetSkeletalMesh(ObjectComponentIndex);
 					if (SkeletalMesh && !Parent->GetSkeletalMeshAsset())
 					{
 						// As the instance is already generated, this will be very fast and just set the mesh and call the delegates
@@ -386,9 +386,9 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 					LODTracker.MinLOD = FMath::Min(LODTracker.MinLOD, Parent->bOverrideMinLod ? Parent->MinLodModel : 0);
 
 					// If the parent component have a SkeletalMesh use the RequestedLODLevel of the component as reference to know which LODs mutable should generate.
-					if (UE_MUTABLE_GETSKELETALMESHASSET(Parent) && LODTracker.RequestedLODPerComponent.IsValidIndex(ComponentIndex))
+					if (UE_MUTABLE_GETSKELETALMESHASSET(Parent) && LODTracker.RequestedLODPerComponent.IsValidIndex(ObjectComponentIndex))
 					{
-						uint16& RequestedLOD = LODTracker.RequestedLODPerComponent[ComponentIndex];
+						uint16& RequestedLOD = LODTracker.RequestedLODPerComponent[ObjectComponentIndex];
 						RequestedLOD = FMath::Min((int32)RequestedLOD, Parent->GetPredictedLODLevel());
 					}
 				}

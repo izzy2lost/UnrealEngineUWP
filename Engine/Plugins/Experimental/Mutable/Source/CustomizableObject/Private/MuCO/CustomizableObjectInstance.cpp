@@ -1192,12 +1192,12 @@ bool AreSkeletonsCompatible(const TArray<TObjectPtr<USkeleton>>& InSkeletons)
 #endif
 
 
-USkeleton* UCustomizableInstancePrivate::MergeSkeletons(UCustomizableObject& CustomizableObject, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, int32 ComponentIndex, bool& bOutCreatedNewSkeleton)
+USkeleton* UCustomizableInstancePrivate::MergeSkeletons(UCustomizableObject& CustomizableObject, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, int32 ObjectComponentIndex, bool& bOutCreatedNewSkeleton)
 {
 	MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_MergeSkeletons);
 	bOutCreatedNewSkeleton = false;
 
-	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 	check(ComponentData);
 
 	FReferencedSkeletons& ReferencedSkeletons = ComponentData->Skeletons;
@@ -1420,7 +1420,7 @@ namespace
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		TObjectPtr<UPhysicsAsset> TemplateAsset,
 		const mu::PhysicsBody* MutablePhysics,
-		int32 ComponentIndex)
+		int32 InstanceComponentIndex)
 	{
 		check(TemplateAsset);
 		TObjectPtr<UPhysicsAsset> Result = NewObject<UPhysicsAsset>();
@@ -1435,7 +1435,7 @@ namespace
 
 		Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+		const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex].BoneInfoMap;
 		TMap<FName, int32> BonesInUse;
 
 		const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
@@ -1548,7 +1548,7 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 	TObjectPtr<UPhysicsAsset> TemplateAsset,
 	const mu::PhysicsBody* MutablePhysics,
 	bool bDisableCollisionsBetweenDifferentAssets,
-	int32 ComponentIndex)
+	int32 InstanceComponentIndex)
 {
 
 	MUTABLE_CPUPROFILER_SCOPE(MergePhysicsAssets);
@@ -1557,7 +1557,10 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 
 	UPhysicsAsset* Result = nullptr;
 
-	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+	const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+	int32 ObjectComponentIndex = Component.Id;
+
+	FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 	check(ComponentData);
 
 	TArray<TObjectPtr<UPhysicsAsset>>& PhysicsAssets = ComponentData->PhysicsAssets.PhysicsAssetsToMerge;
@@ -1601,7 +1604,7 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 
 	Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-	const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+	const TMap<mu::FBoneName, TPair<FName, uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex].BoneInfoMap;
 	TMap<FName, int32> BonesInUse;
 
 	const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
@@ -1867,30 +1870,23 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		return false;
 	}
 
-	const int32 NumComponents = OperationData->InstanceUpdateData.Components.Num();
+	const int32 NumInstanceComponents = OperationData->InstanceUpdateData.Components.Num();
 
+	// To be indexed with instance component index
 	TArray<bool> ComponentWithMesh;
-	ComponentWithMesh.Init(false, NumComponents);
+	ComponentWithMesh.Init(false, NumInstanceComponents);
 
 	TArray<mu::FResourceID> MeshIDs;
-	MeshIDs.Init(MAX_uint64, NumComponents * MAX_MESH_LOD_COUNT);
+	MeshIDs.Init(MAX_uint64, NumInstanceComponents * MAX_MESH_LOD_COUNT);
 
 	// Gather the Mesh Ids of all components, and validate the integrity of the meshes to generate. 
-	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < NumInstanceComponents; ++InstanceComponentIndex)
 	{
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
 		
 		for (int32 LODIndex = OperationData->GetMinLOD(); LODIndex < Component.LODCount; ++LODIndex)
 		{
 			const FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD + LODIndex];
-
-
-			if (ComponentIndex >= NumComponents)
-			{
-				ensureMsgf(false, TEXT("Mutable: Failed to generate SkeletalMesh. Invalid ComponentIndex. Index [%d]. Valid range [0 .. %d)."), ComponentIndex, NumComponents);
-				bHasInvalidMesh = true;
-				return false;
-			}
 
 			if (!LOD.bGenerated || !LOD.Mesh )
 			{
@@ -1907,42 +1903,44 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 			{
 				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] has invalid geometry for LOD [%d] Component [%d]."),
 					*Public->GetName(), *CustomizableObject->GetName(),
-					LODIndex, ComponentIndex);
+					LODIndex, NumInstanceComponents);
 				bHasInvalidMesh = true;
 				continue;
 			}
 
-			ComponentWithMesh[ComponentIndex] = true;
-			MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + LODIndex] = LOD.MeshID;
+			ComponentWithMesh[InstanceComponentIndex] = true;
+			MeshIDs[InstanceComponentIndex * MAX_MESH_LOD_COUNT + LODIndex] = LOD.MeshID;
 		}
 	}
 
 	// Find which components need an update
-	OperationData->MeshChanged.AddDefaulted(NumComponents);
+	OperationData->MeshChanged.Init(false,NumInstanceComponents);
 
-	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < NumInstanceComponents; ++InstanceComponentIndex)
 	{
+		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+		int32 ObjectComponentIndex = Component.Id;
+
 		if (OperationData->bUseMeshCache)
 		{
-			USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ComponentIndex]);
+			USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ObjectComponentIndex]);
 			if (CachedMesh)
 			{
-				const bool bMeshNeedsUpdate = !SkeletalMeshes.IsValidIndex(ComponentIndex) || (SkeletalMeshes[ComponentIndex] != CachedMesh);
-				OperationData->MeshChanged[ComponentIndex] = bMeshNeedsUpdate;
-				ComponentWithMesh[ComponentIndex] = true;
+				const bool bMeshNeedsUpdate = !SkeletalMeshes.IsValidIndex(ObjectComponentIndex) || (SkeletalMeshes[ObjectComponentIndex] != CachedMesh);
+				OperationData->MeshChanged[InstanceComponentIndex] = bMeshNeedsUpdate;
+				ComponentWithMesh[InstanceComponentIndex] = true;
 				continue;
 			}
 		}
 
 		// Components with mesh must have valid geometry at CurrentMaxLOD
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
 
-		const bool bHasSkeletalMesh = SkeletalMeshes.IsValidIndex(ComponentIndex) && SkeletalMeshes[ComponentIndex];
+		const bool bHasSkeletalMesh = SkeletalMeshes.IsValidIndex(ObjectComponentIndex) && SkeletalMeshes[ObjectComponentIndex];
 
 		if (Component.LODCount == 0)
 		{
 			// We don't have a mesh in the component, so it has changed if we had one before.
-			OperationData->MeshChanged[ComponentIndex] = bHasSkeletalMesh;
+			OperationData->MeshChanged[InstanceComponentIndex] = bHasSkeletalMesh;
 			continue;
 		}
 
@@ -1950,34 +1948,39 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		bool bIsReferenced = LOD.Mesh && LOD.Mesh->IsReference();
 		if (!bIsReferenced)
 		{
-			if (ComponentWithMesh[ComponentIndex] && MeshIDs[ComponentIndex * MAX_MESH_LOD_COUNT + OperationData->NumLODsAvailablePerComponent[ComponentIndex] - 1] == MAX_uint64)
+			if (ComponentWithMesh[InstanceComponentIndex] && MeshIDs[InstanceComponentIndex * MAX_MESH_LOD_COUNT + OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex] - 1] == MAX_uint64)
 			{
-				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] is missing geometry for LOD [%d] Component [%d]."),
+				UE_LOG(LogMutable, Error, TEXT("Failed to generate SkeletalMesh for CO Instance [%s]. CO [%s] is missing geometry for LOD [%d] Object Component [%d]."),
 					*Public->GetName(), *CustomizableObject->GetName(),
-					OperationData->NumLODsAvailablePerComponent[ComponentIndex] - 1, ComponentIndex);
+					OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex] - 1, ObjectComponentIndex);
 				bHasInvalidMesh = true;
 				continue;
 			}
 		}
 
 		// Update the component if there is a mesh and it shouldn't, or the other way around.
-		OperationData->MeshChanged[ComponentIndex] = (ComponentWithMesh[ComponentIndex] != bHasSkeletalMesh);
+		OperationData->MeshChanged[InstanceComponentIndex] = (ComponentWithMesh[InstanceComponentIndex] != bHasSkeletalMesh);
 
-		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 		if (!ComponentData) // Could be nullptr if the component has not been generated.
 		{
 			continue;
 		}
 
 		// Update if MeshIDs are different
-		const int32 ComponentOffset = ComponentIndex * MAX_MESH_LOD_COUNT;
-		for (int32 MeshIndex = 0; !OperationData->MeshChanged[ComponentIndex] && MeshIndex < MAX_MESH_LOD_COUNT; ++MeshIndex)
+		const int32 ComponentOffset = InstanceComponentIndex * MAX_MESH_LOD_COUNT;
+		for (int32 MeshIndex = 0; !OperationData->MeshChanged[InstanceComponentIndex] && MeshIndex < MAX_MESH_LOD_COUNT; ++MeshIndex)
 		{
-			OperationData->MeshChanged[ComponentIndex] = MeshIDs[ComponentOffset + MeshIndex] != ComponentData->LastMeshIdPerLOD[MeshIndex];
+			OperationData->MeshChanged[InstanceComponentIndex] = MeshIDs[ComponentOffset + MeshIndex] != ComponentData->LastMeshIdPerLOD[MeshIndex];
 		}
 	}
 
-	return !bHasInvalidMesh && OperationData->MeshChanged.Find(true) != INDEX_NONE;
+	bool bChanged =
+		OperationData->MeshChanged.Num() != SkeletalMeshes.Num()
+		||
+		OperationData->MeshChanged.Find(true) != INDEX_NONE;
+
+	return !bHasInvalidMesh && bChanged;
 }
 
 
@@ -2029,23 +2032,24 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	// Initialize the maximum number of SkeletalMeshes we could possibly have. 
 	SkeletalMeshes.Init(nullptr, CustomizableObject->GetComponentCount());
 
-	const int32 NumMutableComponents = OperationData->InstanceUpdateData.Components.Num();
-	for (int32 ComponentIndex = 0; ComponentIndex < NumMutableComponents; ++ComponentIndex)
+	const int32 NumInstanceComponents = OperationData->InstanceUpdateData.Components.Num();
+	for (int32 InstanceComponentIndex = 0; InstanceComponentIndex < NumInstanceComponents; ++InstanceComponentIndex)
 	{
-		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[ComponentIndex];
+		const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
+		int32 ObjectComponentIndex = Component.Id;
 
 		// If the component doesn't need an update copy the previously generated mesh.
-		if (!OperationData->MeshChanged[ComponentIndex])
+		if (!OperationData->MeshChanged[InstanceComponentIndex])
 		{
-			if (OldSkeletalMeshes.IsValidIndex(ComponentIndex))
+			if (OldSkeletalMeshes.IsValidIndex(ObjectComponentIndex))
 			{
-				SkeletalMeshes[ComponentIndex] = OldSkeletalMeshes[ComponentIndex];
+				SkeletalMeshes[ObjectComponentIndex] = OldSkeletalMeshes[ObjectComponentIndex];
 			}
 
 			continue;
 		}
 
-		if (!ComponentsData.IsValidIndex(ComponentIndex))
+		if (!ComponentsData.IsValidIndex(ObjectComponentIndex))
 		{
 			bSuccess = false;
 			ensure(false);
@@ -2054,17 +2058,17 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 		if (OperationData->bUseMeshCache)
 		{
-			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ComponentIndex]))
+			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[ObjectComponentIndex]))
 			{
-				check(OperationData->MeshDescriptors[ComponentIndex].Num() == MAX_MESH_LOD_COUNT);
-				ComponentsData[ComponentIndex].LastMeshIdPerLOD = OperationData->MeshDescriptors[ComponentIndex];
-				SkeletalMeshes[ComponentIndex] = CachedMesh;
+				check(OperationData->MeshDescriptors[ObjectComponentIndex].Num() == MAX_MESH_LOD_COUNT);
+				ComponentsData[ObjectComponentIndex].LastMeshIdPerLOD = OperationData->MeshDescriptors[ObjectComponentIndex];
+				SkeletalMeshes[ObjectComponentIndex] = CachedMesh;
 				continue;
 			}
 		}
 
 		// Reset last mesh IDs.
-		ComponentsData[ComponentIndex].LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
+		ComponentsData[ObjectComponentIndex].LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 
 		// If it is a referenced resource, only the first LOD is relevant.
 		{
@@ -2085,37 +2089,37 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 					UE_LOG(LogMutable, Error, TEXT("Referenced skeletal mesh [%s] was not pre-loaded. It will be sync-loaded probably causing a hitch. CO [%s]"), *Ref.ToString(), *GetNameSafe(CustomizableObject));
 				}
 
-				SkeletalMeshes[ComponentIndex] = Ref.LoadSynchronous();
+				SkeletalMeshes[ObjectComponentIndex] = Ref.LoadSynchronous();
 				continue;
 			}
 		}
 
-		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ObjectComponentIndex))
 		{
 			bSuccess = false;
 			break;
 		}
 
-		const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[ComponentIndex];
+		const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[ObjectComponentIndex];
 
 		// Create and initialize the SkeletalMesh for this component
 		MUTABLE_CPUPROFILER_SCOPE(ConstructMesh);
 
 		if (OperationData->bStreamMeshLODs)
 		{
-			SkeletalMeshes[ComponentIndex] = UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(OperationData, *Public, *CustomizableObject, ComponentIndex);
+			SkeletalMeshes[ObjectComponentIndex] = UCustomizableObjectSkeletalMesh::CreateSkeletalMesh(OperationData, *Public, *CustomizableObject, InstanceComponentIndex);
 		}
 		else
 		{
 			FName SkeletalMeshName = GenerateUniqueNameFromCOInstance(*Public);
-			SkeletalMeshes[ComponentIndex] = NewObject<USkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
+			SkeletalMeshes[ObjectComponentIndex] = NewObject<USkeletalMesh>(GetTransientPackage(), SkeletalMeshName, RF_Transient);
 		}
 
-		USkeletalMesh* SkeletalMesh = SkeletalMeshes[ComponentIndex];
+		USkeletalMesh* SkeletalMesh = SkeletalMeshes[ObjectComponentIndex];
 		check(SkeletalMesh);
 
 		// Set up the default information any mesh from this component will have (LODArrayInfos, RenderData, Mesh settings, etc). 
-		InitSkeletalMeshData(OperationData, SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, ComponentIndex);
+		InitSkeletalMeshData(OperationData, SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, ObjectComponentIndex);
 
 		// We need the first valid mesh. get it from the component, considering that some LOSs may have been skipped.
 		mu::Ptr<const mu::Mesh> ComponentMesh;
@@ -2127,7 +2131,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		if (ComponentMesh)
 		{
 			// Construct a new skeleton, fix up ActiveBones and Bonemap arrays and recompute the RefInvMatrices
-			bSuccess = BuildSkeletonData(OperationData, *SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, ComponentIndex);
+			bSuccess = BuildSkeletonData(OperationData, *SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, InstanceComponentIndex);
 
 			if (!bSuccess)
 			{
@@ -2139,7 +2143,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			{
 				constexpr bool bDisallowCollisionBetweenAssets = true;
 				UPhysicsAsset* PhysicsAssetResult = GetOrBuildMainPhysicsAsset(
-					OperationData, RefSkeletalMeshData.PhysicsAsset, MutablePhysics.get(), bDisallowCollisionBetweenAssets, ComponentIndex);
+					OperationData, RefSkeletalMeshData.PhysicsAsset, MutablePhysics.get(), bDisallowCollisionBetweenAssets, InstanceComponentIndex);
 
 				SkeletalMesh->SetPhysicsAsset(PhysicsAssetResult);
 
@@ -2189,7 +2193,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 				Entry.PropertyIndex = Info.PropertyIndex;
 				Entry.PhysicsAsset = MakePhysicsAssetFromTemplateAndMutableBody(
-					OperationData,PhysicsAssetTemplate, AdditionalPhysiscBody.get(), ComponentIndex);
+					OperationData,PhysicsAssetTemplate, AdditionalPhysiscBody.get(), InstanceComponentIndex);
 			}
 
 			// Add sockets from the SkeletalMesh of reference and from the MutableMesh
@@ -2286,7 +2290,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			// give each one its data.
 			for (const TPair<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>>& Pair : ExtensionToExtensionData)
 			{
-				Pair.Key->OnSkeletalMeshCreated(Pair.Value, ComponentIndex, SkeletalMesh);
+				Pair.Key->OnSkeletalMeshCreated(Pair.Value, ObjectComponentIndex, SkeletalMesh);
 			}
 		}
 	}
@@ -2976,12 +2980,12 @@ void UCustomizableInstancePrivate::DiscardResources()
 
 	if (SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 	{
-		for (int32 Component = 0; Component < SkeletalMeshes.Num(); ++Component)
+		for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < SkeletalMeshes.Num(); ++ObjectComponentIndex)
 		{
-			if (SkeletalMeshes[Component] && SkeletalMeshes[Component]->IsValidLowLevel())
+			if (SkeletalMeshes[ObjectComponentIndex] && SkeletalMeshes[ObjectComponentIndex]->IsValidLowLevel())
 			{
-				SkeletalMeshes[Component]->ReleaseResources();
-				SkeletalMeshes[Component] = nullptr;
+				SkeletalMeshes[ObjectComponentIndex]->ReleaseResources();
+				SkeletalMeshes[ObjectComponentIndex] = nullptr;
 			}
 		}
 
@@ -3020,8 +3024,8 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 			continue;
 		}
 #endif
-		const int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
-		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+		const int32 ObjectComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ObjectComponentIndex))
 		{
 			continue;
 		}
@@ -3031,7 +3035,7 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 		if (!bSetEmptyMesh)
 		{
 			// Force load the reference mesh if necessary. 
-			SkeletalMesh = ModelResources.ReferenceSkeletalMeshesData[ComponentIndex].SoftSkeletalMesh.LoadSynchronous();
+			SkeletalMesh = ModelResources.ReferenceSkeletalMeshesData[ObjectComponentIndex].SoftSkeletalMesh.LoadSynchronous();
 		}
 		
 		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh);
@@ -3483,7 +3487,7 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 }
 
 
-void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex)
+void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ObjectComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::InitSkeletalMesh);
 
@@ -3521,7 +3525,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 			}
 		}
 
-		const FCustomizableInstanceComponentData& ComponentData = ComponentsData[ComponentIndex];
+		const FCustomizableInstanceComponentData& ComponentData = ComponentsData[ObjectComponentIndex];
 		for (TObjectPtr<UAssetUserData> AssetUserData : ComponentData.AssetUserDataArray)
 		{
 			SkeletalMesh->AddAssetUserData(AssetUserData);
@@ -3553,12 +3557,12 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		SkeletalMesh->AllocateResourceForRendering();
 
 		FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
-		RenderData->NumInlinedLODs = OperationData->NumLODsAvailablePerComponent[ComponentIndex] - OperationData->FirstResidentLOD;
-		RenderData->NumNonOptionalLODs = OperationData->NumLODsAvailablePerComponent[ComponentIndex] - OperationData->FirstLODAvailable;
+		RenderData->NumInlinedLODs = OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex] - OperationData->FirstResidentLOD;
+		RenderData->NumNonOptionalLODs = OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex] - OperationData->FirstLODAvailable;
 		RenderData->CurrentFirstLODIdx = OperationData->FirstResidentLOD;
 		RenderData->LODBiasModifier = 0;
 
-		for (int32 LODIndex = 0; LODIndex < OperationData->NumLODsAvailablePerComponent[ComponentIndex]; ++LODIndex)
+		for (int32 LODIndex = 0; LODIndex < OperationData->NumLODsAvailablePerComponent[ObjectComponentIndex]; ++LODIndex)
 		{
 			RenderData->LODRenderData.Add(new FSkeletalMeshLODRenderData());
 			
@@ -3630,13 +3634,14 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 }
 
 
-bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh& SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, UCustomizableObject& CustomizableObject, int32 ComponentIndex)
+bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh& SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, UCustomizableObject& CustomizableObject, int32 InstanceComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildSkeletonData);
 
-	bool bCreatedNewSkeleton = false;
+	int32 ObjectComponentIndex = OperationData->InstanceUpdateData.Components[InstanceComponentIndex].Id;
 
-	const TObjectPtr<USkeleton> Skeleton = MergeSkeletons(CustomizableObject, RefSkeletalMeshData, ComponentIndex, bCreatedNewSkeleton);
+	bool bCreatedNewSkeleton = false;
+	const TObjectPtr<USkeleton> Skeleton = MergeSkeletons(CustomizableObject, RefSkeletalMeshData, ObjectComponentIndex, bCreatedNewSkeleton);
 	if (!Skeleton)
 	{
 		return false;
@@ -3650,8 +3655,8 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 	const TArray<FMeshBoneInfo>& RawRefBoneInfo = ReferenceSkeleton.GetRawRefBoneInfo();
 	const int32 RawRefBoneCount = ReferenceSkeleton.GetRawBoneNum();
 
-	const TArray<FInstanceUpdateData::FBone>& BonePose = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BonePose;
-	TMap<mu::FBoneName, TPair<FName,uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[ComponentIndex].BoneInfoMap;
+	const TArray<FInstanceUpdateData::FBone>& BonePose = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex].BonePose;
+	TMap<mu::FBoneName, TPair<FName,uint16>>& BoneInfoMap = OperationData->InstanceUpdateData.Skeletons[InstanceComponentIndex].BoneInfoMap;
 
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_BuildBoneInfoMap);
@@ -3735,7 +3740,7 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 		// MergeSkeletons function doesn't do it. Only do it for newly generated ones, not for cached or non-transient ones.
 		GeneratedSkeleton->RecreateBoneTree(&SkeletalMesh);
 
-		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
+		FCustomizableInstanceComponentData* ComponentData = GetComponentData(ObjectComponentIndex);
 		check(ComponentData);
 
 		TArray<TObjectPtr<USkeleton>>& SkeletonsToMerge = ComponentData->Skeletons.SkeletonsToMerge;
@@ -6684,7 +6689,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		}
 
 		// Ensure the number of materials is the same on both sides when using overrides. 
-		check(SkeletalMesh->GetMaterials().Num() == Materials.Num());
+		//check(SkeletalMesh->GetMaterials().Num() == Materials.Num());
 	}
 
 	// Force recreate render state if the mesh is reused and the materials have changed.
@@ -6710,9 +6715,16 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 #endif
 
 			// TODO: What is the proper way to refer to dynamic components?
-			const int32 InstanceComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
-			const FInstanceUpdateData::FComponent& Component = OperationData->InstanceUpdateData.Components[InstanceComponentIndex];
-			int32 ObjectComponentIndex = Component.Id;
+			const int32 ObjectComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+			int32 InstanceComponentIndex = -1;
+			for (int32 CurrentInstanceIndex=0; CurrentInstanceIndex<OperationData->InstanceUpdateData.Components.Num(); ++CurrentInstanceIndex)
+			{
+				if (OperationData->InstanceUpdateData.Components[CurrentInstanceIndex].Id == ObjectComponentIndex)
+				{
+					InstanceComponentIndex = CurrentInstanceIndex;
+					break;
+				}
+			}
 
 			if (!RecreateRenderStateOnInstanceComponent.IsValidIndex(InstanceComponentIndex) || !RecreateRenderStateOnInstanceComponent[InstanceComponentIndex])
 			{
@@ -6980,19 +6992,19 @@ void UCustomizableObjectInstance::Bake(const FBakingConfiguration& InBakingConfi
 #endif
 
 
-USkeletalMesh* UCustomizableObjectInstance::GetSkeletalMesh(int32 ComponentIndex) const
+USkeletalMesh* UCustomizableObjectInstance::GetSkeletalMesh(int32 ObjectComponentIndex) const
 {
 	check(PrivateData);
-	return PrivateData->SkeletalMeshes.IsValidIndex(ComponentIndex) ? PrivateData->SkeletalMeshes[ComponentIndex] : nullptr;
+	return PrivateData->SkeletalMeshes.IsValidIndex(ObjectComponentIndex) ? PrivateData->SkeletalMeshes[ObjectComponentIndex] : nullptr;
 }
 
 
 bool UCustomizableObjectInstance::HasAnySkeletalMesh() const
 {
 	check(PrivateData);
-	for (int32 Index = 0; Index < PrivateData->SkeletalMeshes.Num(); ++Index)
+	for (int32 ObjectComponentIndex = 0; ObjectComponentIndex < PrivateData->SkeletalMeshes.Num(); ++ObjectComponentIndex)
 	{
-		if (PrivateData->SkeletalMeshes[Index])
+		if (PrivateData->SkeletalMeshes[ObjectComponentIndex])
 		{
 			return true;
 		}

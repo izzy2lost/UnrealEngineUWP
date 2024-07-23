@@ -20,6 +20,7 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalMesh)
 	TObjectPtr<UCustomizableObjectInstance> CustomizableObjectInstance;
 
+	/** This component index refers to the object list of components */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = CustomizableSkeletalMesh)
 	int32 ComponentIndex;
 

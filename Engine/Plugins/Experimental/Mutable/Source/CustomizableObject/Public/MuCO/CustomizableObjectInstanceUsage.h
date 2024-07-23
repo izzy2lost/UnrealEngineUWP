@@ -38,8 +38,8 @@ public:
 	UCustomizableObjectInstance* GetCustomizableObjectInstance() const;
 
 	// TODO: What is the proper way to refer to dynamic components?
-	// For now assume this is an *Instance* component index and not an *Object* component index
-	void SetComponentIndex(int32 ComponentIndex);
+	// For now assume this is an *Object* component index (to index the array of all possible components in the CO) and not an *Instance* component index.
+	void SetComponentIndex(int32 ObjectComponentIndex);
 	int32 GetComponentIndex() const;
 
 	void AttachTo(USkeletalMeshComponent* SkeletalMeshComponent);

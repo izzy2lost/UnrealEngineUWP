@@ -103,5 +103,5 @@ public:
 	 * 
 	 * @param SkeletalMesh - The Skeletal Mesh that was created.
 	 */
-	virtual void OnSkeletalMeshCreated(const TArray<FInputPinDataContainer>& InputPinData, int32 ComponentIndex, USkeletalMesh* SkeletalMesh) const {}
+	virtual void OnSkeletalMeshCreated(const TArray<FInputPinDataContainer>& InputPinData, int32 ObjectComponentIndex, USkeletalMesh* SkeletalMesh) const {}
 };

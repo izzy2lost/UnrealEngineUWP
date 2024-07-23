@@ -32,6 +32,9 @@ namespace mu
 		virtual const FNodeType* GetType() const override { return &StaticType; }
 		static const FNodeType* GetStaticType() { return &StaticType; }
 
+		// NodeComponent interface
+		virtual const class NodeComponentNew* GetParentComponentNew() const override { check(false); return nullptr; }
+
     protected:
 
         //! Forbidden. Manage with the Ptr<> template.
