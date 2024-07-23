@@ -1267,6 +1267,7 @@ void FDefaultInstallBundleManager::UpdateBundleSourceComplete(TSharedRef<IInstal
 			BundleInfo.ContentPaths.ContentPaths.Append(MoveTemp(ResultInfo.ContentPaths));
 			BundleInfo.ContentPaths.AdditionalRootDirs.Append(MoveTemp(ResultInfo.AdditionalRootDirs));
 			BundleInfo.ContentPaths.NonUFSShaderLibPaths.Append(MoveTemp(ResultInfo.NonUFSShaderLibPaths));
+			BundleInfo.ContentPaths.ProjectName = ResultInfo.ProjectName;
 		}
 
 		if (ResultInfo.bContentWasInstalled)

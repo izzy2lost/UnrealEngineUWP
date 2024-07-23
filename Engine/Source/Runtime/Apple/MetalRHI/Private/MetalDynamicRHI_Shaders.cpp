@@ -9,7 +9,7 @@
 #include "MetalShaderTypes.h"
 #include "Shaders/MetalShaderLibrary.h"
 #include "DataDrivenShaderPlatformInfo.h"
-
+#include "Interfaces/IPluginManager.h"
 
 //------------------------------------------------------------------------------
 
@@ -101,6 +101,21 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
         // the metal libraries are stores non UFS and could be anywhere on the file system.
         // if we don't find the metalmap file straight away try the pak file path
         BinaryShaderFile = FPaths::ProjectContentDir() / LibName + METAL_MAP_EXTENSION;
+
+		if (IFileManager::Get().FileExists(*BinaryShaderFile) == false)
+		{
+			// See if its in a Plugin
+			const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(*Name);
+			if(Plugin !=  nullptr)
+			{
+				BinaryShaderFile = FPaths::Combine(Plugin->GetContentDir(), LibName + METAL_MAP_EXTENSION);
+			}
+			else
+			{
+				// GFP might not be loaded yet
+				BinaryShaderFile = FPaths::ProjectPluginsDir() / TEXT("GameFeatures") / Name / TEXT("Content") / LibName + METAL_MAP_EXTENSION;
+			}
+		}
     }
 
     FScopeLock Lock(&FMetalShaderLibrary::LoadedShaderLibraryMutex);

@@ -10,6 +10,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Internationalization/Regex.h"
+#include "Misc/App.h"
 
 #define LOG_SOURCE_BULK(Verbosity, Format, ...) LOG_INSTALL_BUNDLE_MAN(Verbosity, TEXT("InstallBundleSourceBulk: ") Format, ##__VA_ARGS__)
 
@@ -559,18 +560,21 @@ void FInstallBundleSourceBulk::RequestUpdateContent(FRequestUpdateContentBundleC
 		ResultInfo.ContentPaths = *BundleFileList;
 	}
 
-#if PLATFORM_IOS
+	TArray<FString> NonUFSShaderLibPathsExtensions;
+	GConfig->GetArray(TEXT("InstallBundleManager.Shaderlib"), TEXT("ExtensionList"), NonUFSShaderLibPathsExtensions, GInstallBundleIni);
 	for (const FString& Path : ResultInfo.ContentPaths)
 	{
-		if (Path.EndsWith(TEXT(".metallib")))
+		for (const FString& Ext : NonUFSShaderLibPathsExtensions)
 		{
-			LOG_SOURCE_BULK_OVERRIDE(Context.LogVerbosityOverride, Display, TEXT("Found metallib %s for Bundle %s"), *Path, *Context.BundleName.ToString());
-			
-			ResultInfo.NonUFSShaderLibPaths.Add(FPaths::GetPath(Path));
+			if (Path.EndsWith(*Ext))
+			{
+				LOG_SOURCE_BULK_OVERRIDE(Context.LogVerbosityOverride, Display, TEXT("Found metallib %s for Bundle %s"), *Path, *Context.BundleName.ToString());
+				ResultInfo.NonUFSShaderLibPaths.Add(FPaths::GetPath(Path));
+			}
 		}
 	}
-#endif // PLATFORM_IOS
-
+	
+	ResultInfo.ProjectName = FApp::GetProjectName();
 	Context.CompleteCallback.ExecuteIfBound(AsShared(), MoveTemp(ResultInfo));
 }
 

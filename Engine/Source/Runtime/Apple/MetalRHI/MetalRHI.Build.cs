@@ -14,7 +14,8 @@ public class MetalRHI : ModuleRules
 				"Engine",
 				"RHI",
 				"RHICore",
-				"RenderCore"
+				"RenderCore",
+				"Projects"
 			}
 			);
 

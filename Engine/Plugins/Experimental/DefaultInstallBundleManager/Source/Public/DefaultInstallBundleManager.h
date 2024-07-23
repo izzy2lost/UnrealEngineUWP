@@ -148,6 +148,7 @@ protected:
 		TArray<FString> ContentPaths;
 		TArray<FString> AdditionalRootDirs;
 		TSet<FString> NonUFSShaderLibPaths;
+		FString ProjectName;
 		bool bContainsChunks = false;
 	};
 

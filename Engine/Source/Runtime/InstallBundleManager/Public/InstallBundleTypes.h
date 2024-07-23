@@ -331,6 +331,7 @@ struct FInstallBundleSourceUpdateContentResultInfo
 	TArray<FString> AdditionalRootDirs;
 	// Support platforms that need shaderlibs in the physical FS
 	TSet<FString> NonUFSShaderLibPaths;
+	FString ProjectName;
 
 	uint64 CurrentInstallSize = 0;
 	FDateTime LastAccessTime = FDateTime::MinValue(); // If cached, used to decide eviction order
