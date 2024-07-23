@@ -1,0 +1,23 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#ifndef WITH_IOS_FIREBASE_INTEGRATION
+#define WITH_IOS_FIREBASE_INTEGRATION 0
+#endif
+
+#if PLATFORM_IOS && WITH_IOS_FIREBASE_INTEGRATION
+
+struct FIREBASE_API FFirebaseIOSNotifications
+{
+private:
+    static bool bIsInitialized;
+    static FString IOSFirebaseToken;
+    
+public:
+    static void Initialize(uint64 TokenQueryTimeoutNanoseconds);
+    static void SetFirebaseToken(FString Token);
+    static FString GetFirebaseToken();
+};
+
+#endif // PLATFORM_IOS
