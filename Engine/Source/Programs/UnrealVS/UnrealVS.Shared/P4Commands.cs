@@ -785,6 +785,8 @@ namespace UnrealVS
 			}
 		}
 
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "VSTHRD003:Avoid awaiting foreign Tasks", Justification = "TODO")]
+		[System.Diagnostics.CodeAnalysis.SuppressMessage("Reliability", "VSSDK007:ThreadHelper.JoinableTaskFactory.RunAsync", Justification = "TODO")]
 		private void PulseCheckoutQueue(string QueueFile)
 		{
 			TaskCompletionSource<bool> StartTask = null;

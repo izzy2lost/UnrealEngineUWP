@@ -1,3 +1,7 @@
+1.84.6.0
+* Update NuGet packages
+* Remove VS2019 support
+
 1.84.5.0
 * Added UbaVisualizer panel. If open solution is under UE engine path this panel will launch UbaVisualizer.exe embedded and listen to uba traces spawned by vs instance
 
