@@ -278,7 +278,7 @@ namespace UE::MultiUserClient
 		Callback(StreamSynchronizer.GetStreamId(), StreamSynchronizer.GetServerState());
 	}
 
-	void FGlobalAuthorityCache::ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
+	void FGlobalAuthorityCache::ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
 		auto ProcessClient = [&Callback](const FReplicationClient& Client)
 		{

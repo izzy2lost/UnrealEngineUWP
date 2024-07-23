@@ -22,6 +22,9 @@ namespace UE::ConcertSyncServer::Replication
 	/**
 	 * Pretends that the ground truth is the client overrides it was given.
 	 * If a setting is not overriden, then it defaults back to the server state.
+	 * 
+	 * StreamOverrides can contain clients that are not actually connected ("injection").
+	 * This is useful if you want to validate i.e. that no authority conflicts happen if the injected clients were present. 
 	 */
 	class FGroundTruthOverride
 		: public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
@@ -43,7 +46,7 @@ namespace UE::ConcertSyncServer::Replication
 
 		//~ Begin IReplicationGroundTruth Interface
 		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const override;
-		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
+		virtual void ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
 		virtual bool HasAuthority(const FGuid& ClientId, const FGuid& StreamId, const FSoftObjectPath& ObjectPath) const override;
 		//~ Begin IReplicationGroundTruth Interface
 

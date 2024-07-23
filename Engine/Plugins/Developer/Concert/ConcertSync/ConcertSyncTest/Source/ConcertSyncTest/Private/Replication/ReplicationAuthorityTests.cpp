@@ -400,7 +400,7 @@ namespace UE::ConcertSyncTests::Replication::Authority
 				}
 			}
 			
-			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
+			virtual void ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
 			{
 				if (bRequestingClientHasAuthority && Callback(RequestingClientId) == EBreakBehavior::Break)
 				{

@@ -33,7 +33,7 @@ namespace UE::ConcertSyncServer::Replication
 				});
 			}
 			
-			virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
+			virtual void ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override
 			{
 				Getters.ForEachReplicationClient(Callback);
 			}
@@ -155,12 +155,12 @@ namespace UE::ConcertSyncServer::Replication
 
 	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflicts(
 		const FConcertReplicatedObjectId& Object, 
-		const FConcertPropertySelection* OverwriteProperties,
+		const FConcertPropertySelection* OverrideProperties,
 		FProcessAuthorityConflict ProcessConflict
 		) const
 	{
 		const FClientId& ClientId = Object.SenderEndpointId;
-		const FConcertPropertySelection* PropertiesToCheck = OverwriteProperties;
+		const FConcertPropertySelection* PropertiesToCheck = OverrideProperties;
 		if (!PropertiesToCheck)
 		{
 			const FConcertReplicationStream* Description = Private::FindClientStreamById(Getters, ClientId, Object.StreamId);

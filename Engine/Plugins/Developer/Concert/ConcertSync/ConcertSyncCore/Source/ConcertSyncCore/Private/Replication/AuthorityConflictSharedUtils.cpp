@@ -17,7 +17,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
             const IReplicationGroundTruth& GroundTruth
             )
 		{
-			GroundTruth.ForEachSendingClient([&Object, &Callback, &IgnoredClients, &GroundTruth](const FGuid& ClientEndpointId)
+			GroundTruth.ForEachClient([&Object, &Callback, &IgnoredClients, &GroundTruth](const FGuid& ClientEndpointId)
 			{
 				if (IgnoredClients.Contains(ClientEndpointId))
 				{

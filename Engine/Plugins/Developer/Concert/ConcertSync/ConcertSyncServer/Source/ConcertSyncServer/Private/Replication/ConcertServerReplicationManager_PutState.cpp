@@ -190,6 +190,8 @@ namespace UE::ConcertSyncServer::Replication
 				return bIsAllowed;
 			}
 
+			// TODO UE-219829: If EConcertReplicationPutStateFlags::SetStateForDisconnectedClients is set, remove mute changes for unknown objects
+			// and put them into the PutState activity, so the mute state can be applied in a RestoreContent request.
 			FPredictedStateObjectHierarchy FutureHierarchy;
 			FutureHierarchy.AddClients(Request.NewStreams);
 			FutureHierarchy.AddClients(Clients, [&Request](const FGuid& ClientId){ return !Request.NewStreams.Contains(ClientId); });

@@ -67,29 +67,37 @@ namespace UE::ConcertSyncServer::Replication
 		/**
 		 * Enumerates all authority conflicts, if any, that would occur if ObjectChange.SenderEndpointId were to take authority over the identified object.
 		 * You can optionally supply OverwriteProperties, which is useful if you're about to change the contents of the stream.
+		 * 
+		 * @param Object Identifies the object, its stream and client that will send the object. Conflicts are checked against this.
+		 * @param OverrideProperties Optional properties that Object will have and conflicts should be checked against. If not overriden, falls back to the properties registered thus far.
+		 * @param ProcessConflict Invoked for the potential conflicts
 		 * @return Whether there were any conflicts
 		 */
 		EAuthorityResult EnumerateAuthorityConflicts(
 			const FConcertReplicatedObjectId& Object,
-			const FConcertPropertySelection* OverwriteProperties = nullptr,
-			FProcessAuthorityConflict ProcessConflict = [](auto&, auto&, auto&){ return EBreakBehavior::Break; }
+			const FConcertPropertySelection* OverrideProperties = nullptr,
+			FProcessAuthorityConflict ProcessConflict = [](const FClientId&, const FStreamId&, const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 			) const;
 		/** Whether it is legal for this the client identified by ClientId to take control over the object given the stream the client has registered. */
 		bool CanTakeAuthority(const FConcertReplicatedObjectId& Object) const;
 
 		/**
 		 * Enumerates all authority conflicts, if any, that would occur if ObjectChange.SenderEndpointId were to take authority over the identified object.
-		 *
-		 * While EnumerateAuthorityConflicts allows you to specify OverwriteProperties, this version allows you to override the
+		 * This version allows you to override the entire session content (compared to EnumerateAuthorityConflicts, which only allows you to specify OverwriteProperties). 
+		 * 
+		 * @param Object Identifies the object, its stream and client that will send the object. Conflicts are checked against this.
+		 * @param StreamOverrides Overrides that the stream content of connected clients. If a client is not overriden, falls back to the content registered thus far.
+		 *		The key can be non-existing clients if you want to validate no conflicts were to occur if some other clients were present("injection").
+		 * @param AuthorityOverrides Overrides the authority of connected and "injected" clients. If a client is not overriden, falls back to the authority registered thus far.
+		 * @param ProcessConflict Invoked for the potential conflicts
 		 * 
 		 * @return Whether there were any conflicts
 		 */
-
 		EAuthorityResult EnumerateAuthorityConflictsWithOverrides(
 			const FConcertReplicatedObjectId& Object,
 			const TMap<FGuid, FConcertReplicationStreamArray>& StreamOverrides,
 			const TMap<FGuid, FConcertObjectInStreamArray>& AuthorityOverrides,
-			FProcessAuthorityConflict ProcessConflict = [](auto&, auto&, auto&){ return EBreakBehavior::Break; }
+			FProcessAuthorityConflict ProcessConflict = [](const FClientId&, const FStreamId&, const FConcertPropertyChain&){ return EBreakBehavior::Break; }
 			) const;
 
 		/** Notifies this manager that the client has left, which means all their authority is now gone. */
