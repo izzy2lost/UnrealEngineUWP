@@ -741,6 +741,8 @@ void FD3D12Device::ReleaseQueryHeap(FD3D12QueryHeap* QueryHeap)
 
 uint64 FD3D12Device::GetTimestampFrequency(ED3D12QueueType QueueType)
 {
+	check(QueueType != ED3D12QueueType::Copy || GetParentAdapter()->AreCopyQueueTimestampQueriesSupported());
+
 	uint64 Frequency;
 	VERIFYD3D12RESULT(Queues[(uint32)QueueType].D3DCommandQueue->GetTimestampFrequency(&Frequency));
 	return Frequency;
@@ -749,6 +751,8 @@ uint64 FD3D12Device::GetTimestampFrequency(ED3D12QueueType QueueType)
 #if (RHI_NEW_GPU_PROFILER == 0)
 FGPUTimingCalibrationTimestamp FD3D12Device::GetCalibrationTimestamp(ED3D12QueueType QueueType)
 {
+	check(QueueType != ED3D12QueueType::Copy || GetParentAdapter()->AreCopyQueueTimestampQueriesSupported());
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(D3D12GetCalibrationTimestamp);
 
 	uint64 GPUTimestampFrequency = GetTimestampFrequency(QueueType);

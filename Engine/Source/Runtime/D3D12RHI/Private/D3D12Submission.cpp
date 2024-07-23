@@ -428,25 +428,34 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 						TargetQueue.BatchedObjects.PipelineStatsQueries.Append(MoveTemp(CommandList->State.PipelineStatsQueries));
 
 						// Timestamp Queries
-						// Keep only the first Begin() in the batch
-						if (TargetQueue.NumCommandListsInBatch++ == 0)
+						if (CommandList->State.BeginTimestamp)
 						{
-							TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.BeginTimestamp));
+							// Keep only the first Begin() in the batch
+							if (TargetQueue.NumCommandListsInBatch++ == 0)
+							{
+								TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.BeginTimestamp));
+							}
+							else
+							{
+								// Remove the previous End() timestamp, to join the range together.
+								check(TargetQueue.BatchedObjects.TimestampQueries.Last().Type == ED3D12QueryType::CommandListEnd);
+								TargetQueue.BatchedObjects.TimestampQueries.RemoveAt(TargetQueue.BatchedObjects.TimestampQueries.Num() - 1);
+							}
+
+							TargetQueue.BatchedObjects.TimestampQueries.Append(MoveTemp(CommandList->State.TimestampQueries));
+							TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.EndTimestamp));
+
+							if (TargetQueue.NumCommandListsInBatch >= MaxBatchSize)
+							{
+								// Start a new batch
+								TargetQueue.NumCommandListsInBatch = 0;
+							}
 						}
 						else
 						{
-							// Remove the previous End() timestamp, to join the range together.
-							check(TargetQueue.BatchedObjects.TimestampQueries.Last().Type == ED3D12QueryType::CommandListEnd);
-							TargetQueue.BatchedObjects.TimestampQueries.RemoveAt(TargetQueue.BatchedObjects.TimestampQueries.Num() - 1);
-						}
-
-						TargetQueue.BatchedObjects.TimestampQueries.Append(MoveTemp(CommandList->State.TimestampQueries));
-						TargetQueue.BatchedObjects.TimestampQueries.Emplace(MoveTemp(CommandList->State.EndTimestamp));
-
-						if (TargetQueue.NumCommandListsInBatch >= MaxBatchSize)
-						{
-							// Start a new batch
-							TargetQueue.NumCommandListsInBatch = 0;
+							// No begin timestamp means timestamps aren't supported on this queue
+							check(CommandList->State.TimestampQueries.IsEmpty());
+							check(!CommandList->State.EndTimestamp);
 						}
 					};
 
