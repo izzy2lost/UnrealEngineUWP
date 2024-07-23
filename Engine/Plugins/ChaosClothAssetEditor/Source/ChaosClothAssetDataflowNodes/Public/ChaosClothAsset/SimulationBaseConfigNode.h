@@ -24,6 +24,7 @@ struct FChaosClothAssetSimulationBaseConfigNode : public FDataflowNode
 public:
 	UPROPERTY(Meta = (Dataflowinput, DataflowOutput, DataflowPassthrough = "Collection"))
 	FManagedArrayCollection Collection;
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FName("FClothCollection"), "Collection")
 
 	/** Warn when overriding an existing property in the collection.*/
 	UPROPERTY(EditAnywhere, Category = "Simulation Config")

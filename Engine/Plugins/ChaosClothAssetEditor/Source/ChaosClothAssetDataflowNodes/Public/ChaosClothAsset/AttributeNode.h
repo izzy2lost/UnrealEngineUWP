@@ -34,6 +34,7 @@ struct FChaosClothAssetAttributeNode_V2 : public FDataflowNode
 {
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetAttributeNode_V2, "Attribute", "Cloth", "Cloth Attribute")
+	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FName("FClothCollection"), "Collection")
 
 public:
 
