@@ -2242,10 +2242,7 @@ bool FObjectReplicator::ReadyForDormancy(bool bSuppressLogs)
 	// Can't go dormant until last update produced no new property updates
 	if (!bLastUpdateEmpty)
 	{
-		if (!bSuppressLogs)
-		{
-			UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. bLastUpdateEmpty = false"), OwningChannel->ChIndex);
-		}
+		UE_CLOG(!bSuppressLogs, LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. bLastUpdateEmpty = false"), OwningChannel->ChIndex);
 
 		return false;
 	}
@@ -2278,10 +2275,7 @@ bool FObjectReplicator::ReadyForDormancy(bool bSuppressLogs)
 		{
 			if (Retirement.Next != nullptr)
 			{
-				if (!bSuppressLogs)
-				{
-					UE_LOG(LogRepTraffic, Verbose, TEXT("    [%d] OutAckPacketId: %d First: %d Last: %d "), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement.OutPacketIdRange.First, Retirement.OutPacketIdRange.Last);
-				}
+				UE_CLOG(!bSuppressLogs, LogRepTraffic, Verbose, TEXT("    [%d] Not ready for dormancy. OutAckPacketId: %d First: %d Last: %d "), OwningChannel->ChIndex, OwningChannel->Connection->OutAckPacketId, Retirement.OutPacketIdRange.First, Retirement.OutPacketIdRange.Last);
 				return false;
 			}
 		}

@@ -328,7 +328,7 @@ public:
 	/** Return true if equal including BitCount and padding bits */
 	bool operator==(const FNetBitArrayView& Other) const;
 
-	/** Return if a specified bit is set or not */
+	/** Return if a specific bit is set or not */
 	inline bool IsBitSet(uint32 Index) const { return GetBit(Index); }
 
 	/** Returns true if any bit is set in the bitset Note: Padding bits in storage are expected to be zero. */

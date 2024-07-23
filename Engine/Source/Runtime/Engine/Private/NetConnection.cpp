@@ -2094,7 +2094,7 @@ void UNetConnection::PreTickDispatch()
 
 	if (!IsReplay())
 	{
-		double LastTickDispatchRealtime = Driver->LastTickDispatchRealtime;
+		const double LastTickDispatchRealtime = Driver->LastTickDispatchRealtime;
 
 		if (bIsServer && RPCDoS.IsValid())
 		{

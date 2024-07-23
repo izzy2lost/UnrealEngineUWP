@@ -2365,21 +2365,22 @@ void UNetDriver::TickDispatch( float DeltaTime )
 {
 	SendCycles=0;
 
-	const double CurrentRealtime = FPlatformTime::Seconds();
-
-	const float DeltaRealtime = CurrentRealtime - LastTickDispatchRealtime;
-
-	LastTickDispatchRealtime = CurrentRealtime;
-
-	// Check to see if too much time is passing between ticks
-	// Setting this to somewhat large value for now, but small enough to catch blocking calls that are causing timeouts
-	const float TickLogThreshold = 5.0f;
-
-	bDidHitchLastFrame = (DeltaTime > TickLogThreshold || DeltaRealtime > TickLogThreshold);
-
-	if (bDidHitchLastFrame)
+	// Manage realtime values
 	{
-		UE_LOG( LogNet, Log, TEXT( "UNetDriver::TickDispatch: Very long time between ticks. DeltaTime: %2.2f, Realtime: %2.2f. %s" ), DeltaTime, DeltaRealtime, *GetName() );
+		const double CurrentRealtime = FPlatformTime::Seconds();
+		LastTickDispatchRealtime = CurrentRealtime;
+
+		// Check to see if too much time is passing between ticks
+		// Setting this to somewhat large value for now, but small enough to catch blocking calls that are causing timeouts
+		constexpr float TickLogThreshold = 5.0f;
+
+		const float DeltaRealtime = CurrentRealtime - LastTickDispatchRealtime;
+		bDidHitchLastFrame = (DeltaTime > TickLogThreshold || DeltaRealtime > TickLogThreshold);
+
+		if (bDidHitchLastFrame)
+		{
+			UE_LOG( LogNet, Log, TEXT( "UNetDriver::TickDispatch: Very long time between ticks. DeltaTime: %2.2f, Realtime: %2.2f. %s" ), DeltaTime, DeltaRealtime, *GetName() );
+		}
 	}
 
 	// Get new time.
@@ -2423,7 +2424,7 @@ void UNetDriver::TickDispatch( float DeltaTime )
 
 			for (const FDisconnectedClient& CurElement : RecentlyDisconnectedClients)
 			{
-				if ((CurrentRealtime - CurElement.DisconnectTime) >= RecentlyDisconnectedTrackingTime)
+				if ((LastTickDispatchRealtime - CurElement.DisconnectTime) >= RecentlyDisconnectedTrackingTime)
 				{
 					verify(MappedClientConnections.Remove(CurElement.Address) == 1);
 
@@ -5017,7 +5018,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 {
 	SCOPE_CYCLE_COUNTER( STAT_NetConsiderActorsTime );
 
-	UE_LOG( LogNetTraffic, Log, TEXT( "ServerReplicateActors_BuildConsiderList, Building ConsiderList %4.2f" ), World->GetTimeSeconds() );
+	UE_LOG( LogNetTraffic, Log, TEXT( "ServerReplicateActors_BuildConsiderList, Building ConsiderList at WorldTime: %f ServerTickTime: %f" ), World->GetTimeSeconds(), ServerTickTime );
 
 	int32 NumInitiallyDormant = 0;
 
@@ -5031,6 +5032,7 @@ void UNetDriver::ServerReplicateActors_BuildConsiderList( TArray<FNetworkObjectI
 
 		if ( !ActorInfo->bPendingNetUpdate && World->TimeSeconds <= ActorInfo->NextUpdateTime )
 		{
+			UE_LOG(LogNetTraffic, VeryVerbose, TEXT("Skipping actor: %s. bPendingNetUpdate: %s | NextUpdateTime: %f (currently %f)"), *GetNameSafe(ActorInfo->Actor), ActorInfo->bPendingNetUpdate?TEXT("true"):TEXT("false"),ActorInfo->NextUpdateTime, World->TimeSeconds);
 			continue;		// It's not time for this actor to perform an update, skip it
 		}
 
