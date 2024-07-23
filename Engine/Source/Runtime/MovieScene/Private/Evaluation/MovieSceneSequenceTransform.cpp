@@ -28,6 +28,18 @@ namespace UE::MovieScene
 		return Result;
 	}
 
+	void CorrectInsideOutRange(TRange<FFrameTime>& InOutRange)
+	{
+		if (InOutRange.HasUpperBound() && InOutRange.HasLowerBound())
+		{
+			FFrameTime LowerBoundValue = InOutRange.GetLowerBoundValue();
+			if (LowerBoundValue > InOutRange.GetUpperBoundValue())
+			{
+				InOutRange.SetLowerBoundValue(InOutRange.GetUpperBoundValue());
+				InOutRange.SetUpperBoundValue(LowerBoundValue);
+			}
+		}
+	}
 
 	FTransformTimeParams& FTransformTimeParams::HarvestBreadcrumbs(FMovieSceneTransformBreadcrumbs& OutBreadcrumbs)
 	{
@@ -291,15 +303,8 @@ TRange<FFrameTime> FMovieSceneNestedSequenceTransform::ComputeTraversedHull(cons
 	{
 		FMovieSceneTimeTransform LinearTransform(Offset, TimeScale.AsFixedPlayRate());
 
-		TRange<FFrameTime> Result = InRange;
-		if (Result.HasLowerBound())
-		{
-			Result.SetLowerBoundValue(Result.GetLowerBoundValue() * LinearTransform);
-		}
-		if (Result.HasUpperBound())
-		{
-			Result.SetUpperBoundValue(Result.GetUpperBoundValue() * LinearTransform);
-		}
+		TRange<FFrameTime> Result = InRange * LinearTransform;
+		CorrectInsideOutRange(Result);
 		return Result;
 	}
 	else if (Type == EMovieSceneTimeWarpType::FixedTime)
@@ -365,15 +370,15 @@ TRange<FFrameTime> FMovieSceneNestedSequenceTransform::ComputeTraversedHull(cons
 	return OffsetRange;
 }
 
-bool FMovieSceneNestedSequenceTransform::ExtractBoundariesWithinRange(FFrameTime Start, FFrameTime End, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
+bool FMovieSceneNestedSequenceTransform::ExtractBoundariesWithinRange(const TRange<FFrameTime>& Range, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
 {
 	EMovieSceneTimeWarpType WarpType = TimeScale.GetType();
 	switch (WarpType)
 	{
 	case EMovieSceneTimeWarpType::Loop:
-		return TimeScale.AsLoop().ExtractBoundariesWithinRange(Start, End, InVisitor);
+		return TimeScale.AsLoop().ExtractBoundariesWithinRange(Range, InVisitor);
 	case EMovieSceneTimeWarpType::LoopFloat:
-		return TimeScale.AsLoopFloat().ExtractBoundariesWithinRange(Start, End, InVisitor);
+		return TimeScale.AsLoopFloat().ExtractBoundariesWithinRange(Range, InVisitor);
 	default:
 		return false;
 	}
@@ -437,7 +442,7 @@ bool FMovieSceneInverseNestedSequenceTransform::TransformTimeWithinRange(FFrameT
 		break;
 
 	case EMovieSceneTimeWarpType::FrameRate:
-		TransformedTime = ConvertFrameTime(InTime + Offset, TimeScale.AsFrameRate().GetFrameRate(), FFrameRate(1, 1));
+		TransformedTime = ConvertFrameTime(InTime + Offset, FFrameRate(1, 1), TimeScale.AsFrameRate().GetFrameRate());
 		break;
 
 	case EMovieSceneTimeWarpType::Loop:
@@ -886,7 +891,10 @@ FFrameTime FMovieSceneSequenceTransform::TransformTime(FFrameTime InTime, const 
 
 TRange<FFrameTime> FMovieSceneSequenceTransform::ComputeTraversedHull(const TRange<FFrameTime>& Range) const
 {
+	using namespace UE::MovieScene;
+
 	TRange<FFrameTime> Result = Range * LinearTransform;
+	CorrectInsideOutRange(Result);
 
 	for (const FMovieSceneNestedSequenceTransform& NestedTransform : NestedTransforms)
 	{
@@ -906,21 +914,23 @@ TRange<FFrameTime> FMovieSceneSequenceTransform::ComputeTraversedHull(const TRan
 
 bool FMovieSceneSequenceTransform::ExtractBoundariesWithinRange(FFrameTime Start, FFrameTime End, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
 {
+	using namespace UE::MovieScene;
+
 	FMovieSceneInverseSequenceTransform Inverse;
 
-	FMovieSceneTransformBreadcrumbs Breadcrumbs;
+	FMovieSceneTransformBreadcrumbs StartBreadcrumbs, EndBreadcrumbs;
 
-	const bool bHasStart = Start != MIN_int32;
-	const bool bHasEnd   = End != MAX_int32;
+	TRange<FFrameTime> TraversedHull = TRange<FFrameTime>::All();
 
-	if (bHasStart)
+	if (Start != MIN_int32)
 	{
-		Start = Start * LinearTransform;
+		TraversedHull.SetLowerBound(Start * LinearTransform);
 	}
-	if (bHasEnd)
+	if (End != MAX_int32)
 	{
-		End = End * LinearTransform;
+		TraversedHull.SetUpperBound(End * LinearTransform);
 	}
+	CorrectInsideOutRange(TraversedHull);
 
 	for (int32 NestedIndex = 0; NestedIndex < NestedTransforms.Num(); ++NestedIndex)
 	{
@@ -929,15 +939,12 @@ bool FMovieSceneSequenceTransform::ExtractBoundariesWithinRange(FFrameTime Start
 		// Find the first transform that has any boundaries
 		if (!NestedTransform.SupportsBoundaries())
 		{
-			Breadcrumbs.AddBreadcrumb(Start + (End - Start) / 2);
-			if (bHasStart)
+			if (NestedTransform.NeedsBreadcrumb())
 			{
-				Start = NestedTransform.TransformTime(Start);
+				StartBreadcrumbs.AddBreadcrumb(TraversedHull.HasLowerBound() ? TraversedHull.GetLowerBoundValue() : FFrameTime(MIN_int32));
+				EndBreadcrumbs.AddBreadcrumb(TraversedHull.HasUpperBound() ? TraversedHull.GetUpperBoundValue() : FFrameTime(MAX_int32));
 			}
-			if (bHasEnd)
-			{
-				End = NestedTransform.TransformTime(End);
-			}
+			TraversedHull = NestedTransform.ComputeTraversedHull(TraversedHull);
 			continue;
 		}
 
@@ -947,17 +954,12 @@ bool FMovieSceneSequenceTransform::ExtractBoundariesWithinRange(FFrameTime Start
 
 		FMovieSceneInverseSequenceTransform ParentToRootTransform = RootToParentTransform.Inverse();
 
-
-		auto VisitWrapper = [&InVisitor, &ParentToRootTransform, &Breadcrumbs](FFrameTime InBoundary)
+		auto VisitWrapper = [&InVisitor, &ParentToRootTransform, &StartBreadcrumbs, &EndBreadcrumbs](FFrameTime InBoundary)
 		{
-			if (TOptional<FFrameTime> RootTime = ParentToRootTransform.TryTransformTime(InBoundary, Breadcrumbs))
-			{
-				return InVisitor(RootTime.GetValue());
-			}
-			return true;
+			return ParentToRootTransform.TransformTimeWithinRange(InBoundary, InVisitor, StartBreadcrumbs, EndBreadcrumbs);
 		};
 
-		return NestedTransform.ExtractBoundariesWithinRange(Start, End, VisitWrapper);
+		return NestedTransform.ExtractBoundariesWithinRange(TraversedHull, VisitWrapper);
 	}
 
 	return false;

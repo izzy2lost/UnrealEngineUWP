@@ -529,7 +529,7 @@ void UMovieSceneSkeletalAnimationSection::PostEditChangeProperty(FPropertyChange
 		{
 			float NewPlayRate = Params.PlayRate.AsFixedPlayRateFloat();
 
-			if (!FMath::IsNearlyZero(NewPlayRate))
+			if (NewPlayRate > KINDA_SMALL_NUMBER)
 			{
 				float CurrentDuration = UE::MovieScene::DiscreteSize(GetRange());
 				float NewDuration = CurrentDuration * (PreviousPlayRate / NewPlayRate);

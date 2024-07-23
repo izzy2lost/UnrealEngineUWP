@@ -507,13 +507,12 @@ public:
 	 * invoking Visitor for every boundary that is present within the range. Iteration will continue until
 	 * Visitor returns false, at which point this function itself will return false.
 	 *
-	 * @param UntransformedStart       The inclusive start of the range within which Visitor can be invoked
-	 * @param UntransformedEnd         The inclusive end of the range within which Visitor can be invoked
+	 * @param UntransformedRange       The range within which Visitor can be invoked in untransformed space
 	 * @param Visitor                  A functor to invoke for every boundary that is found within the range. Return value signifies whether iteration continues (true) or not (false)
 	 * 
 	 * @return (true) if there were no boundaries, or Visitor returned true for all encountered boundaries; false otherwise
 	 */
-	MOVIESCENE_API bool ExtractBoundariesWithinRange(FFrameTime UntransformedStart, FFrameTime UntransformedEnd, const TFunctionRef<bool(FFrameTime)>& Visitor) const;
+	MOVIESCENE_API bool ExtractBoundariesWithinRange(const TRange<FFrameTime>& UntransformedRange, const TFunctionRef<bool(FFrameTime)>& Visitor) const;
 
 
 	/**

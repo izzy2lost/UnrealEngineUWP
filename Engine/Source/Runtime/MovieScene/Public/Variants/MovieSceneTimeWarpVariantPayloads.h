@@ -78,7 +78,7 @@ struct FMovieSceneTimeWarpLoop
 	TRange<FFrameTime> ComputeTraversedHull(const TRange<FFrameTime>& Range) const;
 	TOptional<FFrameTime> InverseRemapTimeCycled(FFrameTime InValue, FFrameTime InTimeHint, const UE::MovieScene::FInverseTransformTimeParams& Params) const;
 	bool InverseRemapTimeWithinRange(FFrameTime InTime, FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& VisitorCallback) const;
-	bool ExtractBoundariesWithinRange(FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& InVisitor) const;
+	bool ExtractBoundariesWithinRange(const TRange<FFrameTime>& Range, const TFunctionRef<bool(FFrameTime)>& InVisitor) const;
 };
 
 
@@ -118,7 +118,7 @@ struct FMovieSceneTimeWarpLoopFloat
 	TRange<FFrameTime> ComputeTraversedHull(const TRange<FFrameTime>& Range) const;
 	TOptional<FFrameTime> InverseRemapTimeCycled(FFrameTime InValue, FFrameTime InTimeHint, const UE::MovieScene::FInverseTransformTimeParams& Params) const;
 	bool InverseRemapTimeWithinRange(FFrameTime InTime, FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& VisitorCallback) const;
-	bool ExtractBoundariesWithinRange(FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& InVisitor) const;
+	bool ExtractBoundariesWithinRange(const TRange<FFrameTime>& Range, const TFunctionRef<bool(FFrameTime)>& InVisitor) const;
 };
 
 

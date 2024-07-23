@@ -15,17 +15,25 @@ static_assert(std::is_trivially_copyable_v<FMovieSceneTimeWarpClampFloat>, "FMov
 
 FFrameTime FMovieSceneTimeWarpLoop::LoopTime(FFrameTime InTime) const
 {
-	// Maintain subframe
-	InTime.FrameNumber = (InTime.FrameNumber % Duration);
-	return InTime;
+	int32 Unused;
+	return LoopTime(InTime, Unused);
 }
 
 FFrameTime FMovieSceneTimeWarpLoop::LoopTime(FFrameTime InTime, int32& OutLoop) const
 {
-	OutLoop = InTime.FrameNumber.Value / Duration.Value;
+	const int32 Frame = InTime.FrameNumber.Value;
+	const int32 Dur   = Duration.Value;
+
+	// Make sure to compute negative loops correctly by subtracting 1 for any negative time
+	//    This results in the equivalent of floor( double(time) / double(duration) )
+	const uint32 FrameAsBits = *reinterpret_cast<const uint32*>(&Frame);
+	const uint32 SignAsBits  = (FrameAsBits&0x80000000)>>31;    // Yields 0 for +ve or 1 for -ve times by shifting the sign bit
+	const int32  Sign        = -static_cast<int32>(SignAsBits); // Yields 0 for +ve or -1 for -ve times
+
+	OutLoop = Frame / Dur + Sign;
 
 	// Maintain subframe
-	InTime.FrameNumber = InTime.FrameNumber % Duration;
+	InTime.FrameNumber = Frame - Dur*OutLoop;
 	return InTime;
 }
 
@@ -34,23 +42,35 @@ TRange<FFrameTime> FMovieSceneTimeWarpLoop::ComputeTraversedHull(const TRange<FF
 	int32 StartLoop = 0;
 	int32 EndLoop   = 0;
 
-	FFrameTime LoopStart = 0;
-	FFrameTime LoopEnd = Duration;
+	TRangeBound<FFrameTime> LoopStart = TRangeBound<FFrameTime>::Inclusive(0);
+	TRangeBound<FFrameTime> LoopEnd   = TRangeBound<FFrameTime>::Exclusive(Duration);
 
-	if (Range.GetLowerBound().IsOpen() || Range.GetUpperBound().IsOpen())
+	if (Range.IsEmpty())
+	{
+		// Empty range of 0
+		return TRange<FFrameTime>(0, 0);
+	}
+	else if (Range.GetLowerBound().IsOpen() || Range.GetUpperBound().IsOpen())
 	{
 		return TRange<FFrameTime>(LoopStart, LoopEnd);
 	}
 
-	const FFrameTime WarpedStart = LoopTime(Range.GetLowerBoundValue(), StartLoop);
-	const FFrameTime WarpedEnd   = LoopTime(Range.GetUpperBoundValue(), EndLoop);
+	TRangeBound<FFrameTime> WarpedStart = Range.GetLowerBound();
+	TRangeBound<FFrameTime> WarpedEnd   = Range.GetUpperBound();
+
+	WarpedStart.SetValue(LoopTime(WarpedStart.GetValue(), StartLoop));
+	WarpedEnd.SetValue(LoopTime(WarpedEnd.GetValue(), EndLoop));
+
+	// Do not loop exlusive end frames
+	if (WarpedEnd.GetValue() == 0 && WarpedEnd.IsExclusive())
+	{
+		--EndLoop;
+		WarpedEnd = LoopEnd;
+	}
 
 	if (StartLoop == EndLoop)
 	{
-		TRange<FFrameTime> Result = Range;
-		Result.SetLowerBoundValue(WarpedStart);
-		Result.SetUpperBoundValue(WarpedEnd);
-		return Result;
+		return TRange<FFrameTime>(WarpedStart, WarpedEnd);
 	}
 
 	const int32 NumCompleteLoops = EndLoop - StartLoop - 1;
@@ -60,7 +80,7 @@ TRange<FFrameTime> FMovieSceneTimeWarpLoop::ComputeTraversedHull(const TRange<FF
 	}
 
 	// If the range crosses a loop boundary and the end time is > the start time, we have traversed a full loop
-	if (WarpedEnd > WarpedStart)
+	if (WarpedEnd.GetValue() > WarpedStart.GetValue())
 	{
 		return TRange<FFrameTime>(LoopStart, LoopEnd);
 	}
@@ -76,7 +96,6 @@ TOptional<FFrameTime> FMovieSceneTimeWarpLoop::InverseRemapTimeCycled(FFrameTime
 	{
 		int32 HintCycle = 0;
 		FFrameTime LoopedHint = LoopTime(InTimeHint, HintCycle);
-		//FFrameTime Result = LoopTime(InValue);
 
 		FFrameTime Difference(InValue - LoopedHint);
 		int32 DifferenceCycle = 0;
@@ -91,8 +110,6 @@ TOptional<FFrameTime> FMovieSceneTimeWarpLoop::InverseRemapTimeCycled(FFrameTime
 
 bool FMovieSceneTimeWarpLoop::InverseRemapTimeWithinRange(FFrameTime InTime, FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& VisitorCallback) const
 {
-	ensure(RangeStart < RangeEnd);
-
 	int32 Length = Duration.Value;
 
 	int32 InputLoop = 0;
@@ -102,6 +119,12 @@ bool FMovieSceneTimeWarpLoop::InverseRemapTimeWithinRange(FFrameTime InTime, FFr
 	FFrameTime LoopedInput = LoopTime(InTime,     InputLoop);
 	FFrameTime StartTime   = LoopTime(RangeStart, StartLoop);
 	FFrameTime EndTime     = LoopTime(RangeEnd,   EndLoop);
+
+	if (StartLoop > EndLoop || (StartLoop == EndLoop && EndTime < StartTime) )
+	{
+		Swap(StartLoop, EndLoop);
+		Swap(StartTime, EndTime);
+	}
 
 	int32 LoopIndex = InputLoop;
 	FFrameTime Result  = LoopedInput + FFrameTime(Length*LoopIndex);
@@ -138,51 +161,26 @@ bool FMovieSceneTimeWarpLoop::InverseRemapTimeWithinRange(FFrameTime InTime, FFr
 	return true;
 }
 
-bool FMovieSceneTimeWarpLoop::ExtractBoundariesWithinRange(FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
+bool FMovieSceneTimeWarpLoop::ExtractBoundariesWithinRange(const TRange<FFrameTime>& Range, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
 {
-	ensure(!(RangeStart == MIN_int32 && RangeEnd == MAX_int32));
+	const int32 Start = Range.GetLowerBound().IsClosed() ? Range.GetLowerBoundValue().FrameNumber.Value : MIN_int32;
+	const int32 End   = Range.GetUpperBound().IsClosed() ? Range.GetUpperBoundValue().FrameNumber.Value : MAX_int32;
 
-	const int32 Length = Duration.Value;
+	int32 LoopIndex = 0;
+	int32 EndLoop   = 0;
 
-	if (RangeStart == MIN_int32)
+	LoopTime(Start, LoopIndex);
+	LoopTime(End, EndLoop);
+
+	for ( ; LoopIndex <= EndLoop; ++LoopIndex)
 	{
-		// Start at the end and go back
-		int32 LoopIndex = 0;
-		int32 EndLoop = 0;
+		FFrameTime StartResult = FFrameTime(Duration*LoopIndex);
 
-		LoopTime(RangeStart, EndLoop);
-		LoopTime(RangeEnd, LoopIndex);
-
-		for (; LoopIndex >= EndLoop; --LoopIndex)
+		if (StartResult.FrameNumber.Value >= Start)
 		{
-			FFrameTime Result(Length * LoopIndex);
-
-			if (!InVisitor(Result))
+			if (!InVisitor(StartResult))
 			{
 				return false;
-			}
-		}
-	}
-	else
-	{
-		ensure(RangeStart < RangeEnd);
-
-		int32 LoopIndex = 0;
-		int32 EndLoop   = 0;
-
-		LoopTime(RangeStart, LoopIndex);
-		LoopTime(RangeEnd,   EndLoop);
-
-		for ( ; LoopIndex < EndLoop + 1; ++LoopIndex)
-		{
-			FFrameTime StartResult = FFrameTime(Length*LoopIndex);
-
-			if (StartResult >= RangeStart)
-			{
-				if (!InVisitor(StartResult))
-				{
-					return false;
-				}
 			}
 		}
 	}
@@ -220,16 +218,16 @@ TRange<FFrameTime> FMovieSceneTimeWarpClamp::ComputeTraversedHull(const TRange<F
 
 FFrameTime FMovieSceneTimeWarpLoopFloat::LoopTime(FFrameTime InTime) const
 {
-	// Maintain subframe
-	InTime = FFrameTime::FromDecimal(FMath::Fmod(InTime.AsDecimal(), Duration));
-	return InTime;
+	int32 Unused;
+	return LoopTime(InTime, Unused);
 }
 
 FFrameTime FMovieSceneTimeWarpLoopFloat::LoopTime(FFrameTime InTime, int32& OutLoop) const
 {
-	OutLoop = FMath::FloorToInt(InTime.AsDecimal() / Duration);
-	InTime = FFrameTime::FromDecimal(FMath::Fmod(InTime.AsDecimal(), Duration));
-	return InTime;
+	const double Time = InTime.AsDecimal();
+
+	OutLoop = FMath::FloorToInt(Time / Duration);
+	return FFrameTime::FromDecimal(Time - Duration*OutLoop);
 }
 
 TRange<FFrameTime> FMovieSceneTimeWarpLoopFloat::ComputeTraversedHull(const TRange<FFrameTime>& Range) const
@@ -335,51 +333,22 @@ bool FMovieSceneTimeWarpLoopFloat::InverseRemapTimeWithinRange(FFrameTime InTime
 	return true;
 }
 
-bool FMovieSceneTimeWarpLoopFloat::ExtractBoundariesWithinRange(FFrameTime RangeStart, FFrameTime RangeEnd, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
+bool FMovieSceneTimeWarpLoopFloat::ExtractBoundariesWithinRange(const TRange<FFrameTime>& Range, const TFunctionRef<bool(FFrameTime)>& InVisitor) const
 {
-	ensure(!(RangeStart == MIN_int32 && RangeEnd == MAX_int32));
+	const double Start = Range.GetLowerBound().IsClosed() ? Range.GetLowerBoundValue().AsDecimal() : double(MIN_int32);
+	const double End   = Range.GetUpperBound().IsClosed() ? Range.GetUpperBoundValue().AsDecimal() : double(MAX_int32);
 
-	FFrameTime Length = FFrameTime::FromDecimal(Duration);
+	int32 LoopIndex = FMath::FloorToInt(Start / Duration);
+	int32 EndLoop = FMath::FloorToInt(End / Duration);
 
-	if (RangeStart == MIN_int32)
+	for (; LoopIndex <= EndLoop; ++LoopIndex)
 	{
-		// Start at the end and go back
-		int32 LoopIndex = 0;
-		int32 EndLoop = 0;
-
-		LoopTime(RangeStart, EndLoop);
-		LoopTime(RangeEnd, LoopIndex);
-
-		for (; LoopIndex >= EndLoop; --LoopIndex)
+		const double Result = Duration*LoopIndex;
+		if (Result >= Start)
 		{
-			FFrameTime Result(Length * LoopIndex);
-
-			if (!InVisitor(Result))
+			if (!InVisitor(FFrameTime::FromDecimal(Result)))
 			{
 				return false;
-			}
-		}
-	}
-	else
-	{
-		ensure(RangeStart < RangeEnd);
-
-		int32 LoopIndex = 0;
-		int32 EndLoop   = 0;
-
-		LoopTime(RangeStart, LoopIndex);
-		LoopTime(RangeEnd,   EndLoop);
-
-		for ( ; LoopIndex < EndLoop + 1; ++LoopIndex)
-		{
-			FFrameTime StartResult = FFrameTime(Length*LoopIndex);
-
-			if (StartResult >= RangeStart)
-			{
-				if (!InVisitor(StartResult))
-				{
-					return false;
-				}
 			}
 		}
 	}

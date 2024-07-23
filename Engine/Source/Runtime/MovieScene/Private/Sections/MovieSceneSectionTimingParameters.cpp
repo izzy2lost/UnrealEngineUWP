@@ -30,7 +30,13 @@ FMovieSceneSequenceTransform FMovieSceneSectionTimingParametersSeconds::MakeTran
 	const double StartTime   = InnerStartOffset;
 	const double EndTime     = SourceDuration - InnerEndOffset;
 	const double Duration    = EndTime - StartTime;
-	const double StartOffset = InnerStartOffset + FirstLoopStartOffset;
+	double StartOffset = InnerStartOffset + FirstLoopStartOffset;
+
+	// Accomodate negative play rates by playing from the end of the clip
+	if (PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate && PlayRate.AsFixedPlayRate() < 0.0)
+	{
+		StartOffset += Duration;
+	}
 
 	// Start offset
 	if (!FMath::IsNearlyZero(StartOffset))
@@ -95,8 +101,14 @@ FMovieSceneSequenceTransform FMovieSceneSectionTimingParametersFrames::MakeTrans
 
 	FFrameNumber LoopOffset(bLoop ? FirstLoopStartOffset.Value : 0);
 
+	FFrameNumber NegativeRateOffset = 0;
+	if (PlayRate.GetType() == EMovieSceneTimeWarpType::FixedPlayRate && PlayRate.AsFixedPlayRate() < 0.0)
+	{
+		NegativeRateOffset = Duration;
+	}
+
 	// Start offset
-	Result.Add(FMovieSceneTimeTransform(StartTime + LoopOffset));
+	Result.Add(FMovieSceneTimeTransform(StartTime + LoopOffset + NegativeRateOffset));
 
 	// ----------------------------------------------------------------------------
 	// Looping or clamping
