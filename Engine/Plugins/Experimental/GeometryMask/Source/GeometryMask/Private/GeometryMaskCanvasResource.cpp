@@ -57,7 +57,7 @@ UGeometryMaskCanvasResource::UGeometryMaskCanvasResource()
 
 UGeometryMaskCanvasResource::~UGeometryMaskCanvasResource()
 {
-	if (this && IsValid(this)
+	if (IsValid(this)
 		&& CanvasObject
 		&& IsValid(CanvasObject)
 		&& CanvasObject->Canvas)
