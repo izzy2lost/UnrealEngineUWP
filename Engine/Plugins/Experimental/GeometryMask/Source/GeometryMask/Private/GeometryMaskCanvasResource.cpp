@@ -57,7 +57,10 @@ UGeometryMaskCanvasResource::UGeometryMaskCanvasResource()
 
 UGeometryMaskCanvasResource::~UGeometryMaskCanvasResource()
 {
-	if (!IsUnreachable() && IsValid(CanvasObject) && CanvasObject->Canvas)
+	if (this && IsValid(this)
+		&& CanvasObject
+		&& IsValid(CanvasObject)
+		&& CanvasObject->Canvas)
 	{
 		delete CanvasObject->Canvas;
 		CanvasObject->Canvas = nullptr;
