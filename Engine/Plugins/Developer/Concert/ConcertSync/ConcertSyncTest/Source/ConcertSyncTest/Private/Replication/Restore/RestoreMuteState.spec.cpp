@@ -47,7 +47,6 @@ namespace UE::ConcertSyncTests::Replication::RestoreContent
 			Client = &ConnectClient();
 
 			Client->JoinReplication(ObjectReplicator->CreateSenderArgs());
-			
 		});
 		AfterEach([this]
 		{

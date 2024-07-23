@@ -402,10 +402,11 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		} GroundTruth(MuteManager, ServerObjectCache);
 
-		// We'll effectively replay all mute actions that have occured so far by combining them into Request. 
+		// We'll effectively replay all mute actions that have occured so far by combining them into Request.
 		FConcertReplication_ChangeMuteState_Request AggregatedRequest;
 		ServerWorkspace.EnumerateMuteActivities([&GroundTruth, &AggregatedRequest](const FConcertSyncReplicationActivity& Activity)
 		{
+			// TODO UE-219951: We need to handle correctly replaying after PutState requests, as well! For that, we must first produce PutState activities, however (UE-219824)! 
 			FConcertSyncReplicationPayload_Mute MuteData;
 			if (!ensure(Activity.EventData.ActivityType == EConcertSyncReplicationActivityType::Mute)
 				|| !Activity.EventData.GetPayload(MuteData))
