@@ -1050,11 +1050,11 @@ void FIoStoreOnDemandModule::ReportAnalytics(TArray<FAnalyticsEventAttribute>& O
 	}
 }
 
-void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted)
+void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted)
 {
 	if (IoStore.IsValid() == false)
 	{
-		IoStore = MakeUnique<FOnDemandIoStore>();
+		IoStore = MakeShared<FOnDemandIoStore>();
 		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
 		{
 			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on-demand, reason '%s'"), *Status.ToString());
@@ -1064,6 +1064,22 @@ void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountComp
 	}
 
 	IoStore->Mount(MoveTemp(Args), MoveTemp(OnCompleted));
+}
+
+void FIoStoreOnDemandModule::Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted)
+{
+	if (IoStore.IsValid() == false)
+	{
+		IoStore = MakeShared<FOnDemandIoStore>();
+		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on-demand, reason '%s'"), *Status.ToString());
+			IoStore.Reset();
+			return OnCompleted(FOnDemandInstallResult{ .Status = Status });
+		}
+	}
+
+	IoStore->Install(MoveTemp(Args), MoveTemp(OnCompleted));
 }
 
 FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)
@@ -1110,7 +1126,7 @@ void FIoStoreOnDemandModule::InitializeInternal()
 
 	if (IoStore.IsValid() == false)
 	{
-		IoStore = MakeUnique<FOnDemandIoStore>();
+		IoStore = MakeShared<FOnDemandIoStore>();
 		if (FIoStatus Status = IoStore->Initialize(); !Status.IsOk())
 		{
 			UE_LOG(LogIas, Error, TEXT("Failed to initialize I/O store on demand, reason '%s'"), *Status.ToString());
@@ -1221,16 +1237,21 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	}
 
 #if !UE_BUILD_SHIPPING
+	TOptional<FOnDemandInstallArgs> InstallArgs;
 	if (FParse::Param(FCommandLine::Get(), TEXT("Iad")))
 	{
-		// Temporary switch for testing installation to local storage (IAD)
-		MountArgs.Emplace(FOnDemandMountArgs
+		if (MountArgs)
 		{
-			.MountId = EndpointConfig.TocFilePath,
-			.Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath,
-			.FilePath = EndpointConfig.TocFilePath,
-			.Options = EOnDemandMountOptions::Install
-		});
+			MountArgs.GetValue().Options = EOnDemandMountOptions::InstallOnDemand;
+
+			static FOnDemandContentHandle ContentHandle = FOnDemandContentHandle::Create(TEXT("AllContent"));
+			InstallArgs.Emplace(FOnDemandInstallArgs
+			{
+				.Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath,
+				.MountId = MountArgs.GetValue().MountId,
+				.ContentHandle = ContentHandle
+			});
+		}
 	}
 #endif
 
@@ -1243,6 +1264,18 @@ void FIoStoreOnDemandModule::InitializeInternal()
 				UE_CLOG(!MountResult.Status.IsOk(), LogIas, Error,
 					TEXT("Failed to mount TOC for '%s', reason '%s'"), *MountResult.MountId, *MountResult.Status.ToString());
 			});
+#if !UE_BUILD_SHIPPING
+		if (InstallArgs)
+		{
+			IoStore->Install(
+				MoveTemp(InstallArgs.GetValue()),
+				[](FOnDemandInstallResult InstallResult)
+				{
+					UE_CLOG(!InstallResult.Status.IsOk(), LogIoStoreOnDemand, Error,
+						TEXT("Failed to install content, reason '%s'"), *InstallResult.Status.ToString());
+				});
+		}
+#endif
 	}
 }
 	

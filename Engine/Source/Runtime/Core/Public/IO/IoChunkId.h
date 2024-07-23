@@ -87,6 +87,16 @@ public:
 		return !(*this == Rhs);
 	}
 
+	inline bool operator <(const FIoChunkId& Rhs) const
+	{
+		return FMemory::Memcmp(Id, Rhs.Id, sizeof Id) < 0;
+	}
+
+	inline bool operator >(const FIoChunkId& Rhs) const
+	{
+		return FMemory::Memcmp(Id, Rhs.Id, sizeof Id) > 0;
+	}
+
 	void Set(const void* InIdPtr, SIZE_T InSize)
 	{
 		check(InSize == sizeof Id);

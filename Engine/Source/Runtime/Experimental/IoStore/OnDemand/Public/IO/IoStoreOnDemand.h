@@ -3,9 +3,12 @@
 #pragma once
 
 #include "Containers/UnrealString.h"
+#include "Containers/StringFwd.h"
+#include "Containers/SharedString.h"
 #include "IO/IoChunkId.h"
 #include "IO/IoContainerId.h"
 #include "IO/IoHash.h"
+#include "IO/PackageId.h"
 #include "IO/IoStatus.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/Guid.h"
@@ -28,6 +31,7 @@ struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
 struct FIoStoreWriterSettings;
 namespace UE::IoStore { struct FOnDemandEndpoint; }
+namespace UE::IoStore { class FOnDemandInternalContentHandle; }
 namespace UE::IoStore { class FOnDemandIoStore; }
 namespace UE::IoStore { class IOnDemandIoDispatcherBackend; }
 using FIoBlockHash = uint32;
@@ -238,20 +242,47 @@ enum class EOnDemandInitResult
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION
 
-/** Options for controlling the behavior of mount requests. */
+/**
+ * Keeps referenced data pinned in the cache until released.
+ */
+class FOnDemandContentHandle
+{
+public:
+	/** Creates a new invalid content handle. */ 
+	UE_API FOnDemandContentHandle();
+	/** Destroy the handle and release any referenced content. */ 
+	UE_API ~FOnDemandContentHandle();
+	/** Destroy the handle and release any referenced content. */ 
+	void Reset() { Handle.Reset(); }
+	/** Returns whether the handle is valid. */
+	bool IsValid() const { return Handle.IsValid(); }
+	/** Create a new content handle .*/
+	UE_API static FOnDemandContentHandle Create();
+	/** Create a new content handle with a debug name. */
+	UE_API static FOnDemandContentHandle Create(FSharedString DebugName);
+	/** Create a new content handle with a debug name. */
+	UE_API static FOnDemandContentHandle Create(FStringView DebugName);
+	/** Returns a string representing the content handle. */
+	UE_API friend FString LexToString(const FOnDemandContentHandle& Handle);
+
+private:
+	friend class FOnDemandIoStore;
+	TSharedPtr<FOnDemandInternalContentHandle, ESPMode::ThreadSafe> Handle;
+};
+
+/** Options for controlling the behavior of mounted container(s). */
 enum class EOnDemandMountOptions
 {
-	/** The TOC is loaded but not installed or available for streaming. */
-	None				= 0,
-	/** Make on-demand container(s) within a TOC available for streaming. */
-	StreamOnDemand		= 1 << 0,
-	/** Download and install on-demand contianer(s) to local storage. */
-	Install				= 1 << 1,
-	/** Install only already mounted on-demand contianer(s) to local storage. */
-	InstallSkipMount	= 1 << 2,
+	/** Mount containers with the purpose of streaming the content on-demand. */
+	StreamOnDemand			= 1 << 0,
+	/** Mount containers with the purpose of installing/downloading the content on-demand. */
+	InstallOnDemand			= 1 << 1,
+	/** Trigger callback on game thread. */
+	CallbackOnGameThread	= 1 << 2,
 };
 ENUM_CLASS_FLAGS(EOnDemandMountOptions);
 
+/** Arguments for mounting on-demand container TOC(s). */
 struct FOnDemandMountArgs
 {
 	/** Mount an already serialized TOC. */
@@ -262,19 +293,66 @@ struct FOnDemandMountArgs
 	FString Url;
 	/** Serialize the TOC from the specified file path. */
 	FString FilePath;
-	/** Used with EOnDemandMountOptions::Install to fliter requested content */
-	TArray<FString> TagSets;
 	/** Mount options. */
-	EOnDemandMountOptions Options = EOnDemandMountOptions::None;
+	EOnDemandMountOptions Options = EOnDemandMountOptions::StreamOnDemand;
 };
 
+/** Holds information about a mount request. */
 struct FOnDemandMountResult
 {
+	/** The mount ID used for mounting the container(s). */
 	FString MountId;
+	/** The status of the mount request. */
 	FIoStatus Status;
+	/** Duration in seconds. */
+	double DurationInSeconds = 0.0;
 };
 
+/** Mount completion callback. */
 using FOnDemandMountCompleted = TUniqueFunction<void(FOnDemandMountResult)>;
+
+/** Options for controlling the behavior of the install request. */
+enum class EOnDemandInstallOptions
+{
+	/** No additional options. */
+	None				 = 0,
+	/** Trigger callback on game thread. */
+	CallbackOnGameThread = 1 << 0,
+};
+ENUM_CLASS_FLAGS(EOnDemandInstallOptions);
+
+/** Arguments for installing/downloading on-demand content. */
+struct FOnDemandInstallArgs
+{
+	/** URL from where to download the chunks. */
+	FString Url;
+	/** Install all content from containers matching this mount ID. */
+	FString MountId;
+	/** Install content matching a set of tag(s) and optionally the mount ID. */
+	TArray<FString> TagSets;
+	/** Package ID's to install. */
+	TArray<FPackageId> PackageIds;
+	/** Content handle. */
+	FOnDemandContentHandle ContentHandle;
+	/** Install options. */
+	EOnDemandInstallOptions Options = EOnDemandInstallOptions::None;
+};
+
+/** Holds information about an install request. */
+struct FOnDemandInstallResult
+{
+	/** The status of the install request. */
+	FIoStatus Status;
+	/** Duration in seconds. */
+	double DurationInSeconds = 0.0;
+	/** The total size of the requested content. */
+	uint64 TotalContentSize = 0;
+	/** The total installed/downloaded size. */
+	uint64 TotalInstallSize = 0;
+};
+
+/** Install completion callback. */
+using FOnDemandInstallCompleted = TUniqueFunction<void(FOnDemandInstallResult)>;
 
 struct FOnDemandGetInstallSizeArgs
 {
@@ -306,7 +384,7 @@ private:
 	TOptional<bool> DeferredEnabled;
 	TOptional<bool> DeferredAbandonCache;
 	TOptional<bool> DeferredBulkOptionalEnabled;
-	TUniquePtr<FOnDemandIoStore> IoStore;
+	TSharedPtr<FOnDemandIoStore, ESPMode::ThreadSafe> IoStore;
 
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);
@@ -316,7 +394,8 @@ public:
 
 	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
 
-	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
+	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
+	UE_API void Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted);
 	UE_API FIoStatus Unmount(FStringView MountId);
 
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;

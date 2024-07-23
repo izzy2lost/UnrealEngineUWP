@@ -1207,15 +1207,24 @@ FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall)
 		return FIoStatus::Ok;
 	}
 
-	TSet<FCasBlockId>					ReferencedBlocks;
-	TArray<FSharedOnDemandContainer>	MountedContainers = IoStore.GetMountedContainers();
+	TArray<FSharedOnDemandContainer>	Containers; 
+	TArray<TBitArray<>>					ChunkEntryIndices;
+
+	IoStore.GetReferencedContent(Containers, ChunkEntryIndices);
+	check(Containers.Num() == ChunkEntryIndices.Num());
 
 	//TODO: Compute fragmentation metric and redownload chunks when this number gets too high
-	for (const FSharedOnDemandContainer& Container : MountedContainers)
+	for (int32 Index = 0; FSharedOnDemandContainer Container : Containers)
 	{
-		for (const TPair<FIoChunkId, FOnDemandChunkEntry>& Kv : Container->ChunkEntries)
+		const TBitArray<>& IsReferenced = ChunkEntryIndices[Index++];
+		for (int32 EntryIndex = 0; const FOnDemandChunkEntry& Entry : Container->ChunkEntries)
 		{
-			if (FCasLocation Loc = Cas.FindChunk(Kv.Value.Hash); Loc.IsValid())
+			if (bool bIsReferenced = IsReferenced[EntryIndex++]; bIsReferenced == false)
+			{
+				continue;
+			}
+
+			if (FCasLocation Loc = Cas.FindChunk(Entry.Hash); Loc.IsValid())
 			{
 				if (FCasBlockInfo* Info = BlockInfo.Find(Loc.BlockId))
 				{

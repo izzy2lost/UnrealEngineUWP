@@ -2,9 +2,11 @@
 
 #pragma once
 
+#include "Algo/BinarySearch.h"
 #include "Async/Async.h"
 #include "Async/Mutex.h"
 #include "Containers/AnsiString.h"
+#include "Containers/BitArray.h"
 #include "IO/IoStoreOnDemand.h"
 #include "IO/IoHash.h"
 #include "IO/IoChunkEncoding.h"
@@ -26,6 +28,27 @@ class IOnDemandPackageStoreBackend;
 class IOnDemandInstallCache;
 using FSharedPackageStoreBackend	= TSharedPtr<IOnDemandPackageStoreBackend>;
 using FSharedInstallCache			= TSharedPtr<IOnDemandInstallCache>;
+using FWeakOnDemandIoStore			= TWeakPtr<FOnDemandIoStore, ESPMode::ThreadSafe>;
+
+///////////////////////////////////////////////////////////////////////////////
+class FOnDemandInternalContentHandle
+{
+public:
+	FOnDemandInternalContentHandle()
+		: DebugName(TEXT("NoName"))
+	{ }
+	FOnDemandInternalContentHandle(FSharedString InDebugName)
+		: DebugName(InDebugName)
+	{ }
+	~FOnDemandInternalContentHandle();
+
+	UPTRINT HandleId() const { return UPTRINT(this); }
+
+	FSharedString			DebugName;
+	FWeakOnDemandIoStore	IoStore;
+};
+
+FString LexToString(const FOnDemandInternalContentHandle& Handle);
 
 ///////////////////////////////////////////////////////////////////////////////
 enum class EOnDemandContainerFlags : uint8
@@ -33,8 +56,8 @@ enum class EOnDemandContainerFlags : uint8
 	None					= 0,
 	PendingEncryptionKey	= (1 << 0),
 	Mounted					= (1 << 1),
-	Streaming				= (1 << 2),
-	Installed				= (1 << 3),
+	StreamOnDemand			= (1 << 2),
+	InstallOnDemand			= (1 << 3),
 	Encrypted				= (1 << 4),
 	Count
 };
@@ -55,33 +78,125 @@ struct FOnDemandChunkEntry
 	uint32	BlockCount = 0;
 	uint8	CompressionFormatIndex = 0;
 };
+static_assert(sizeof(FOnDemandChunkEntry) == 40);
+
+///////////////////////////////////////////////////////////////////////////////
+struct FOnDemandTagSet
+{
+	FString			Tag;
+	TArray<uint32>	PackageIndicies;
+};
+
+///////////////////////////////////////////////////////////////////////////////
+struct FOnDemandChunkEntryReferences
+{
+	UPTRINT ContentHandleId = 0;	
+	TBitArray<>	Indices;
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 struct FOnDemandContainer
 {
-	using FChunkEntryMap = TMap<FIoChunkId, FOnDemandChunkEntry>;
+	FString									UniqueName() const;
+	inline int32							FindChunkEntryIndex(const FIoChunkId& ChunkId) const;
+	inline const FOnDemandChunkEntry*		FindChunkEntry(const FIoChunkId& ChunkId) const;
+	inline FOnDemandChunkEntry*				FindChunkEntry(const FIoChunkId& ChunkId);
+	inline FOnDemandChunkEntryReferences&	FindOrAddChunkEntryReferences(const FOnDemandInternalContentHandle& ContentHandle);
+	inline TBitArray<>						GetReferencedChunkEntries() const;
 
-	FAES::FAESKey			EncryptionKey;
-	FIoHash					PakHash;
-	FChunkEntryMap 			ChunkEntries;
-	FSharedContainerHeader	Header;
-	FString					EncryptionKeyGuid;
-	FString					Name;
-	FString					MountId;
-	FAnsiString				ChunksDirectory;
-	TArray<FName>			CompressionFormats;
-	TArray<uint32>			BlockSizes;
-	TArray<FIoBlockHash>	BlockHashes;
-	FIoContainerId			ContainerId;
-	uint32					BlockSize = 0;
-	EOnDemandContainerFlags Flags = EOnDemandContainerFlags ::None;
-
-	FString					UniqueName() const;
+	FAES::FAESKey							EncryptionKey;
+	FSharedContainerHeader					Header;
+	FString									EncryptionKeyGuid;
+	FString									Name;
+	FString									MountId;
+	FAnsiString								ChunksDirectory;
+	TArray<FName>							CompressionFormats;
+	TArray<uint32>							BlockSizes;
+	TArray<FIoBlockHash>					BlockHashes;
+	TArray<FOnDemandTagSet>					TagSets;
+	TUniquePtr<uint8[]>						ChunkEntryData;
+	TArrayView<FIoChunkId>					ChunkIds;
+	TArrayView<FOnDemandChunkEntry> 		ChunkEntries;
+	TArray<FOnDemandChunkEntryReferences>	ChunkEntryReferences;
+	FIoContainerId							ContainerId;
+	uint32									BlockSize = 0;
+	EOnDemandContainerFlags 				Flags = EOnDemandContainerFlags::None;
 };
 
 using FSharedOnDemandContainer = TSharedPtr<FOnDemandContainer, ESPMode::ThreadSafe>;
 
+int32 FOnDemandContainer::FindChunkEntryIndex(const FIoChunkId& ChunkId) const
+{
+	if (const int32 Index = Algo::LowerBound(ChunkIds, ChunkId); Index < ChunkIds.Num())
+	{
+		if (ChunkIds[Index] == ChunkId)
+		{
+			return Index; 
+		}
+	}
+
+	return INDEX_NONE;
+}
+
+const FOnDemandChunkEntry* FOnDemandContainer::FindChunkEntry(const FIoChunkId& ChunkId) const
+{
+	if (int32 Index = FindChunkEntryIndex(ChunkId); Index != INDEX_NONE)
+	{
+		return &ChunkEntries[Index];
+	}
+
+	return nullptr;
+}
+
+FOnDemandChunkEntry* FOnDemandContainer::FindChunkEntry(const FIoChunkId& ChunkId)
+{
+	if (int32 Index = FindChunkEntryIndex(ChunkId); Index != INDEX_NONE)
+	{
+		return &ChunkEntries[Index];
+	}
+
+	return nullptr;
+}
+
+FOnDemandChunkEntryReferences& FOnDemandContainer::FindOrAddChunkEntryReferences(const FOnDemandInternalContentHandle& ContentHandle)
+{
+	const UPTRINT ContentHandleId = ContentHandle.HandleId(); 
+	for (FOnDemandChunkEntryReferences& Refs : ChunkEntryReferences)
+	{
+		if (Refs.ContentHandleId == ContentHandleId)
+		{
+			return Refs;
+		}
+	}
+
+	FOnDemandChunkEntryReferences& NewRef = ChunkEntryReferences.AddDefaulted_GetRef();
+	NewRef.ContentHandleId = ContentHandleId;
+	NewRef.Indices.SetNum(ChunkEntries.Num(), false);
+	return NewRef;
+}
+
+TBitArray<> FOnDemandContainer::GetReferencedChunkEntries() const
+{
+	TBitArray<> Indices;
+	for (const FOnDemandChunkEntryReferences& Refs : ChunkEntryReferences)
+	{
+		check(Refs.Indices.Num() == ChunkEntries.Num());
+		Indices.CombineWithBitwiseOR(Refs.Indices, EBitwiseOperatorFlags::MaxSize);
+	}
+
+	return Indices;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
+namespace Private
+{
+	static FIoStatus FetchContainerHeader(
+		FStringView Host,
+		FAnsiStringBuilderBase& ChunkUrlBuilder,
+		FSharedOnDemandContainer Container,
+		FIoContainerHeader& OutHeader);
+}
+
 struct FOnDemandChunkInfo
 {
 	FOnDemandChunkInfo()
@@ -103,6 +218,11 @@ struct FOnDemandChunkInfo
 
 private:
 	friend class FOnDemandIoStore;
+	friend FIoStatus Private::FetchContainerHeader(
+		FStringView Host,
+		FAnsiStringBuilderBase& ChunkUrlBuilder,
+		FSharedOnDemandContainer Container,
+		FIoContainerHeader& OutHeader);
 
 	FOnDemandChunkInfo(FSharedOnDemandContainer InContainer, const FOnDemandChunkEntry& InEntry)
 		: SharedContainer(InContainer)
@@ -127,24 +247,30 @@ TConstArrayView<FIoBlockHash> FOnDemandChunkInfo::BlockHashes() const
 
 ///////////////////////////////////////////////////////////////////////////////
 class FOnDemandIoStore
+	: public TSharedFromThis<FOnDemandIoStore, ESPMode::ThreadSafe>
 {
-	struct FTagSet
-	{
-		FString Tag;
-		TArray<FPackageId> PackageIds;
-	};
-
 	struct FMountRequest
 	{
-		FOnDemandMountArgs					MountArgs;
+		FOnDemandMountArgs					Args;
 		FOnDemandMountCompleted				OnCompleted;
 		TArray<FSharedOnDemandContainer>	Containers;
-		TArray<FTagSet>						TagSets;
 		std::atomic_bool					bCancelled{false};
+		double								DurationInSeconds = 0.0;
 	};
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
 	using FMountRequestMap		= TMap<FString, FSharedMountRequest>;
+
+	struct FInstallRequest
+	{
+		FOnDemandInstallArgs		Args;
+		FOnDemandInstallCompleted	OnCompleted;
+		double						DurationInSeconds = 0.0;
+		uint64						TotalContentSize = 0;
+		uint64						TotalInstallSize = 0;
+	};
+
+	using FSharedInstallRequest	= TSharedPtr<FInstallRequest>;
 
 public:
 	FOnDemandIoStore();
@@ -155,14 +281,17 @@ public:
 	FOnDemandIoStore& operator=(FOnDemandIoStore&&) = delete;
 
 	FIoStatus				Initialize();
-	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted OnCompleted);
+	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
+	void					Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted);
 	FIoStatus				Unmount(FStringView MountId);
 	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
-	TArray<FSharedOnDemandContainer> GetMountedContainers();
-	TArray<FSharedOnDemandContainer> GetMountedContainers(
+	TArray<FSharedOnDemandContainer> GetContainers();
+	TArray<FSharedOnDemandContainer> GetContainers(
 		TFunctionRef<bool(const FSharedOnDemandContainer& Container)> Predicate);
+	void					ReleaseContent(FOnDemandInternalContentHandle& ContentHandle);
+	void					GetReferencedContent(TArray<FSharedOnDemandContainer>& OutContainers, TArray<TBitArray<>>& OutChunkEntryIndices);
 
 private:
 	void					OnPostFork(EForkProcessRole ProcessRole);
@@ -172,7 +301,7 @@ private:
 	void					TickLoop();
 	bool					Tick();
 	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
-	FIoStatus				TickInstallRequest(FMountRequest& MountRequest);
+	FIoStatus				TickInstallRequest(FInstallRequest& InstallRequest);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,
@@ -187,6 +316,7 @@ private:
 	UE::FMutex							ContainerMutex;
 
 	FMountRequestMap					MountRequests;
+	TArray<FSharedInstallRequest>		InstallRequests;
 	UE::FMutex							MountRequestMutex;
 
 	bool								bTicking = false;
