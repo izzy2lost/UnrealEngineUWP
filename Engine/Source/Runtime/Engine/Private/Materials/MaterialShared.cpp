@@ -3731,8 +3731,10 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 	}
 
 #if WITH_ODSC
-	bool bShouldForceRecompile = FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial();
+	const bool bIsODSCActive = FODSCManager::IsODSCActive();
+	bool bShouldForceRecompile = bIsODSCActive && FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial();
 #else
+	constexpr bool bIsODSCActive = false;
 	constexpr bool bShouldForceRecompile = false;
 #endif
 
@@ -3796,7 +3798,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 		TArray<FShaderId> RequestShaderIds;
 		TArray<FString> ShaderStageNamesToCompile;
         bool bODSCRequestAlreadySent = false;
-		if (bShouldForceRecompile)
+		if (bIsODSCActive && (Pipeline == nullptr || bShouldForceRecompile))
 		{
 			for (auto* ShaderType : InTypes.PipelineType->GetStages())
 			{
@@ -3837,7 +3839,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #if WITH_ODSC
 				if (FPlatformProperties::RequiresCookedData() && !bODSCRequestAlreadySent)
 				{
-					if (GODSCManager->IsHandlingRequests())
+					if (bIsODSCActive)
 					{
 						const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 						const FString PipelineName(InTypes.PipelineType->GetName());
@@ -3915,7 +3917,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 
 				TArray<FShaderId> RequestShaderIds;
                 bool bODSCRequestAlreadySent = false;
-				if (bShouldForceRecompile)
+				if (bIsODSCActive && (Shader == nullptr || bShouldForceRecompile))
 				{
 					RequestShaderIds.Add(FShaderId(ShaderType, ShaderMap->GetShaderMapId().CookedShaderMapIdHash, FHashedName(), InVertexFactoryType, PermutationId, ShaderPlatform));
 
@@ -3941,7 +3943,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 #if WITH_ODSC
 					if (FPlatformProperties::RequiresCookedData() && !bODSCRequestAlreadySent)
 					{
-						if (GODSCManager->IsHandlingRequests())
+						if (bIsODSCActive)
 						{
 							const FString VFTypeName(InVertexFactoryType ? InVertexFactoryType->GetName() : TEXT(""));
 							const FString PipelineName;

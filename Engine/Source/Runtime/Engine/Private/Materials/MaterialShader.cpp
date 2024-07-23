@@ -2076,21 +2076,29 @@ void FMaterialShaderMap::SaveForRemoteRecompile(FArchive& Ar, const TMap<FString
 
 void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform ShaderPlatform, TArray<UMaterialInterface*>& OutLoadedMaterials)
 {
-	FString MaterialName;
-	TArray<TRefCountPtr<FMaterialShaderMap>> LoadedShaderMaps;
+	TMap<FMaterialShaderMapId, TRefCountPtr<FMaterialShaderMap>> LoadedShaderMapsDictionary;
+
+	struct FMaterialShaderMapData
+	{
+		FString MaterialName;
+		TArray<FMaterialShaderMapId> LoadedShaderMapsIds;
+	};
+
+	TArray<FMaterialShaderMapData> MaterialShaderMapDataArray;
 
 	int32 MapSize;
 	Ar << MapSize;
 
+	MaterialShaderMapDataArray.Reserve(MapSize);
 	for (int32 MaterialIndex = 0; MaterialIndex < MapSize; MaterialIndex++)
 	{
-		MaterialName.Reset();
-		Ar << MaterialName;
+		FMaterialShaderMapData& MaterialShaderMapData = MaterialShaderMapDataArray.Emplace_GetRef();
+		Ar << MaterialShaderMapData.MaterialName;
 
 		int32 NumShaderMaps = 0;
 		Ar << NumShaderMaps;
 
-		LoadedShaderMaps.Reset();
+		MaterialShaderMapData.LoadedShaderMapsIds.Reserve(NumShaderMaps);
 		for (int32 ShaderMapIndex = 0; ShaderMapIndex < NumShaderMaps; ShaderMapIndex++)
 		{
 			uint8 bIsValid = 0;
@@ -2103,22 +2111,30 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 				// serialize the id and the material shader map
 				ShaderMap->Serialize(Ar, false);
 
-				// If we already registered a material shadermap with the same ID, just re-use it. The material will do the same in FMaterial::CacheShaders anyway
-				TRefCountPtr<FMaterialShaderMap> ExistingShaderMap = FMaterialShaderMap::FindId(ShaderMap->GetShaderMapId(), ShaderPlatform);
-#if WITH_ODSC
-				if (ExistingShaderMap && ExistingShaderMap->IsFromODSC())
-				{
-					ShaderMap = ExistingShaderMap;
-				}
-				else
-#endif
-				{
-					// Register in the global map
-					ShaderMap->RegisterForODSC(ShaderPlatform);
-				}
-
-				LoadedShaderMaps.Add(ShaderMap);
+				LoadedShaderMapsDictionary.Add(ShaderMap->GetShaderMapId(), ShaderMap);
+				MaterialShaderMapData.LoadedShaderMapsIds.Add(ShaderMap->GetShaderMapId());
 			}
+		}
+	}
+
+	for (auto IterLoadedShaderMaps = LoadedShaderMapsDictionary.CreateIterator(); IterLoadedShaderMaps; ++IterLoadedShaderMaps)
+	{
+		// Register in the global map
+		IterLoadedShaderMaps.Value()->RegisterForODSC(ShaderPlatform);
+	}
+
+	check(MaterialShaderMapDataArray.Num() == MapSize);
+	for (int32 MaterialIndex = 0; MaterialIndex < MapSize; MaterialIndex++)
+	{
+		TArray<TRefCountPtr<FMaterialShaderMap>> LoadedShaderMaps;
+		const FMaterialShaderMapData& MaterialShaderMapData = MaterialShaderMapDataArray[MaterialIndex];
+		const FString MaterialName = MaterialShaderMapData.MaterialName;
+
+
+		LoadedShaderMaps.Reserve(MaterialShaderMapData.LoadedShaderMapsIds.Num());
+		for (const FMaterialShaderMapId& MaterialShaderMapId : MaterialShaderMapData.LoadedShaderMapsIds)
+		{
+			LoadedShaderMaps.Add(LoadedShaderMapsDictionary.FindChecked(MaterialShaderMapId));
 		}
 
 #if WITH_ODSC
