@@ -20,7 +20,7 @@ class SGameplayTagPicker;
  */
 class SGameplayTagCombo : public SCompoundWidget
 {
-	SLATE_DECLARE_WIDGET(SGameplayTagCombo, SCompoundWidget)
+	SLATE_DECLARE_WIDGET_API(SGameplayTagCombo, SCompoundWidget, GAMEPLAYTAGSEDITOR_API)
 
 public:
 
@@ -64,10 +64,10 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
+	GAMEPLAYTAGSEDITOR_API virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+
 private:
 
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	
 	bool ShowClearButton() const;
 	FText GetText() const;
 	bool IsValueEnabled() const;

@@ -16,7 +16,7 @@ class SGameplayTagQueryWidget;
  */
 class SGameplayTagQueryEntryBox : public SCompoundWidget
 {
-	SLATE_DECLARE_WIDGET(SGameplayTagQueryEntryBox, SCompoundWidget)
+	SLATE_DECLARE_WIDGET_API(SGameplayTagQueryEntryBox, SCompoundWidget, GAMEPLAYTAGSEDITOR_API)
 	
 public:
 
@@ -50,7 +50,7 @@ public:
 
 	GAMEPLAYTAGSEDITOR_API void Construct(const FArguments& InArgs);
 
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	GAMEPLAYTAGSEDITOR_API virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	
 private:
 
