@@ -51,8 +51,8 @@ namespace UE::ConcertSyncTests::Replication::RestoreContent
 	
 		void InsertActivityData() const
 		{
-			WorkspaceMock->ReturnResult_GetLastLeaveReplicationActivityByClient = LeaveReplicationData;
-			WorkspaceMock->ReturnResult_GetLeaveReplicationActivityById = LeaveReplicationData;
+			WorkspaceMock->ReturnResult_GetLastReplicationActivityByClient = FConcertSyncReplicationActivity(LeaveReplicationData);
+			WorkspaceMock->ReturnResult_GetReplicationEventById = FConcertSyncReplicationEvent(LeaveReplicationData);
 		}
 		FConcertReplicatedObjectInfo& GetRestoredObjectData()
 		{

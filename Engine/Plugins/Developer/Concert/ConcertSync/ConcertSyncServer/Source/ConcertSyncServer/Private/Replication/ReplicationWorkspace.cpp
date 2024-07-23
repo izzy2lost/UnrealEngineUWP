@@ -19,17 +19,24 @@ namespace UE::ConcertSyncServer
 		check(FindSessionClientDelegate.IsBound() && ShouldIgnoreClientActivityOnRestoreDelegate.IsBound());
 	}
 
-	TOptional<int64> FReplicationWorkspace::ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData)
+	TOptional<int64> FReplicationWorkspace::ProduceReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationEvent& EventData)
 	{
-		return ProduceActivity(EndpointId, EventData);
+		FConcertSyncReplicationActivity Activity;
+		Activity.EndpointId = EndpointId;
+		Activity.EventData = EventData;
+		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
+		Activity.bIgnored = ShouldIgnoreClientActivityOnRestoreDelegate.Execute(EndpointId);
+		
+		int64 ActivityId = 0;
+		int64 EventId = 0;
+		const bool bSuccess = Database.AddReplicationActivity(Activity, ActivityId, EventId);
+		// This allows FConcertServerWorkspace to send the activity to other clients
+		OnAddReplicationActivityDelegate.Broadcast(ActivityId, bSuccess);
+
+		return bSuccess ? ActivityId : TOptional<int64>{};
 	}
 
-	TOptional<int64> FReplicationWorkspace::ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData)
-	{
-		return ProduceActivity(EndpointId, EventData);
-	}
-
-	bool FReplicationWorkspace::GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
+	bool FReplicationWorkspace::GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const
 	{
 		// Goal: Iterate all endpoints with the same display name. Then, get the latest transaction ID from all of them.
 		// This entire approach is suboptimal though: There should be a dedicated SQL prepared statement  to which we give the client and device name.
@@ -61,44 +68,20 @@ namespace UE::ConcertSyncServer
 			NewestEventId = FMath::Max(NewestEventId, EventId);
 		}
 
-		FConcertSyncReplicationEvent Event;
-		const bool bGotData = NewestEventId != INDEX_NONE && Database.GetReplicationEvent(NewestEventId, Event);
-		return bGotData
-			&& Event.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication
-			&& Event.GetPayload(OutLeaveReplication);
+		const bool bGotData = NewestEventId != INDEX_NONE && Database.GetReplicationActivity(NewestEventId, OutActivity);
+		return bGotData;
 	}
 
-	bool FReplicationWorkspace::GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
+	bool FReplicationWorkspace::GetReplicationEventById(const int64 ActivityId, FConcertSyncReplicationEvent& OutEvent) const
 	{
-		FConcertSyncReplicationEvent Event;
-		const bool bGotEventData = Database.GetReplicationEvent(ActivityId, Event);
-		return bGotEventData && Event.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication && Event.GetPayload(OutLeaveReplication);
+		return Database.GetReplicationEvent(ActivityId, OutEvent);
 	}
 
-	void FReplicationWorkspace::EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const
+	void FReplicationWorkspace::EnumerateReplicationActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const
 	{
 		Database.EnumerateReplicationActivities([&Callback](FConcertSyncReplicationActivity&& Activity)
 		{
-			return Activity.EventData.ActivityType != EConcertSyncReplicationActivityType::Mute
-				|| Callback(Activity) == EBreakBehavior::Continue;
+			return Callback(Activity) == EBreakBehavior::Continue;
 		});
-	}
-
-	template <typename TPayload>
-	TOptional<int64> FReplicationWorkspace::ProduceActivity(const FGuid& EndpointId, const TPayload& EventData)
-	{
-		FConcertSyncReplicationActivity Activity;
-		Activity.EndpointId = EndpointId;
-		Activity.EventData.SetPayload(EventData);
-		Activity.EventSummary.SetTypedPayload(FConcertSyncReplicationActivitySummary::CreateSummaryForEvent(Activity.EventData));
-		Activity.bIgnored = ShouldIgnoreClientActivityOnRestoreDelegate.Execute(EndpointId);
-		
-		int64 ActivityId = 0;
-		int64 EventId = 0;
-		const bool bSuccess = Database.AddReplicationActivity(Activity, ActivityId, EventId);
-		// This allows FConcertServerWorkspace to send the activity to other clients
-		OnAddReplicationActivityDelegate.Broadcast(ActivityId, bSuccess);
-
-		return bSuccess ? ActivityId : TOptional<int64>{};
 	}
 }

@@ -155,7 +155,7 @@ namespace UE::ConcertSyncTests::Replication::UI
 			}
 
 			FConcertSyncReplicationPayload_LeaveReplication ActualData;
-			const bool bGotData = ReplicationWorkspace->GetLeaveReplicationActivityById(*ActivityId, ActualData);
+			const bool bGotData = ReplicationWorkspace->GetLeaveReplicationEventById(*ActivityId, ActualData);
 			TestTrue(TEXT("Got Data"), bGotData);
 			TestEqual(TEXT("Payload"), ActualData, ExpectedData);
 		});

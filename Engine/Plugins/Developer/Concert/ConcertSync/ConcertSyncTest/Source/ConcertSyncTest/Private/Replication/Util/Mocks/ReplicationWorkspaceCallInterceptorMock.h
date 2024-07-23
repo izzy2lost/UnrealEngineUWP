@@ -21,7 +21,7 @@ namespace UE::ConcertSyncTests::Replication
 		/** Arguments of last ProduceClientMuteReplicationActivity call. */
 		TOptional<TTuple<FGuid, FConcertSyncReplicationPayload_Mute>> LastCall_ProduceClientMuteReplicationActivity;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
-		mutable TOptional<TTuple<FConcertSessionClientInfo>> LastCall_GetLastLeaveReplicationActivityByClient;
+		mutable TOptional<TTuple<FConcertSessionClientInfo>> LastCall_GetLastReplicationActivityByClient;
 		/** Arguments of last GetLastLeaveReplicationActivityByClient call. */
 		mutable TOptional<TTuple<int64>> LastCall_GetLeaveReplicationActivityById;
 
@@ -29,51 +29,71 @@ namespace UE::ConcertSyncTests::Replication
 		TOptional<int64> ReturnResult_ProduceClientLeaveReplicationActivity = 0;
 		/** The result to return in ProduceClientLeaveReplicationActivity. */
 		TOptional<int64> ReturnResult_ProduceClientMuteReplicationActivity = 0;
-		/** The result to return in GetLastLeaveReplicationActivityByClient. */
-		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLastLeaveReplicationActivityByClient;
-		/** The result to return in GetLastLeaveReplicationActivityByClient. */
-		TOptional<FConcertSyncReplicationPayload_LeaveReplication> ReturnResult_GetLeaveReplicationActivityById;
+		/** The result to return in GetLastReplicationActivityByClient. */
+		TOptional<FConcertSyncReplicationActivity> ReturnResult_GetLastReplicationActivityByClient;
+		/** The result to return in GetReplicationEventById. */
+		TOptional<FConcertSyncReplicationEvent> ReturnResult_GetReplicationEventById;
 		/** The values to enumerate in EnumerateMuteActivities. */
-		TOptional<TArray<FConcertSyncReplicationActivity>> ReturnResult_EnumerateMuteActivities;
+		TOptional<TArray<FConcertSyncReplicationActivity>> ReturnResult_EnumerateActivities;
 		
 		//~ Begin IReplicationWorkspace Interface
-		virtual TOptional<int64> ProduceClientLeaveReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_LeaveReplication& EventData) override
+		virtual TOptional<int64> ProduceReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationEvent& EventData) override
 		{
-			LastCall_ProduceClientLeaveReplicationActivity = MakeTuple(EndpointId, EventData);
-			return ReturnResult_ProduceClientLeaveReplicationActivity;
-		}
-		virtual TOptional<int64> ProduceClientMuteReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationPayload_Mute& EventData) override
-		{
-			LastCall_ProduceClientMuteReplicationActivity = MakeTuple(EndpointId, EventData);
-			return ReturnResult_ProduceClientMuteReplicationActivity;
+			switch (EventData.ActivityType)
+			{
+			case EConcertSyncReplicationActivityType::LeaveReplication:
+				{
+					FConcertSyncReplicationPayload_LeaveReplication Data;
+					const bool bSuccess = EventData.GetPayload(Data);
+					ensure(bSuccess);
+					
+					LastCall_ProduceClientLeaveReplicationActivity = MakeTuple(EndpointId, Data);
+					return ReturnResult_ProduceClientLeaveReplicationActivity;
+				}
+			case EConcertSyncReplicationActivityType::Mute:
+				{
+					FConcertSyncReplicationPayload_Mute Data;
+					const bool bSuccess = EventData.GetPayload(Data);
+					ensure(bSuccess);
+					
+					LastCall_ProduceClientMuteReplicationActivity = MakeTuple(EndpointId, Data);
+					return ReturnResult_ProduceClientMuteReplicationActivity;
+				}
+				
+			case EConcertSyncReplicationActivityType::None: [[fallthrough]];
+			case EConcertSyncReplicationActivityType::Count: [[fallthrough]];
+			default: ensure(false); return {};
+			}
 		}
 
-		virtual bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override
+		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const override
 		{
-			LastCall_GetLastLeaveReplicationActivityByClient = MakeTuple(InClientInfo);
-			if (ReturnResult_GetLastLeaveReplicationActivityByClient)
+			LastCall_GetLastReplicationActivityByClient = MakeTuple(InClientInfo);
+			if (ReturnResult_GetLastReplicationActivityByClient)
 			{
-				OutLeaveReplication = *ReturnResult_GetLastLeaveReplicationActivityByClient;
+				OutActivity = *ReturnResult_GetLastReplicationActivityByClient;
 			}
-			return ReturnResult_GetLastLeaveReplicationActivityByClient.IsSet();
+			return ReturnResult_GetLastReplicationActivityByClient.IsSet();
 		}
-		virtual bool GetLeaveReplicationActivityById(const int64 ActivityId, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const override
+
+		virtual bool GetReplicationEventById(const int64 ActivityId, FConcertSyncReplicationEvent& OutEvent) const override
 		{
 			LastCall_GetLeaveReplicationActivityById = MakeTuple(ActivityId);
-			if (ReturnResult_GetLeaveReplicationActivityById)
+			if (ReturnResult_GetReplicationEventById)
 			{
-				OutLeaveReplication = *ReturnResult_GetLeaveReplicationActivityById;
+				OutEvent = *ReturnResult_GetReplicationEventById;
 			}
-			return ReturnResult_GetLeaveReplicationActivityById.IsSet();
+			return ReturnResult_GetReplicationEventById.IsSet();
 		}
-		virtual void EnumerateMuteActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override
+		
+		virtual void EnumerateReplicationActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override
 		{
-			if (!ReturnResult_EnumerateMuteActivities)
+			if (!ReturnResult_EnumerateActivities)
 			{
 				return;
 			}
 			
-			for (const FConcertSyncReplicationActivity& Activity : *ReturnResult_EnumerateMuteActivities)
+			for (const FConcertSyncReplicationActivity& Activity : *ReturnResult_EnumerateActivities)
 			{
 				if (Callback(Activity) == EBreakBehavior::Break)
 				{

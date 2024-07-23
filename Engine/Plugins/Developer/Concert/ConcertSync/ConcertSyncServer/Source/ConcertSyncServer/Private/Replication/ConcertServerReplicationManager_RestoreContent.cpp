@@ -244,7 +244,7 @@ namespace UE::ConcertSyncServer::Replication
 		FConcertSyncReplicationPayload_LeaveReplication OldClientState;
 		const bool bOverrideActivity = Request.ActivityId.IsSet();
 		const bool bFound = bOverrideActivity
-			? ServerWorkspace.GetLeaveReplicationActivityById(*Request.ActivityId, OldClientState)
+			? ServerWorkspace.GetLeaveReplicationEventById(*Request.ActivityId, OldClientState)
 			: ServerWorkspace.GetLastLeaveReplicationActivityByClient(ClientInfo, OldClientState);
 		if (!bFound)
 		{

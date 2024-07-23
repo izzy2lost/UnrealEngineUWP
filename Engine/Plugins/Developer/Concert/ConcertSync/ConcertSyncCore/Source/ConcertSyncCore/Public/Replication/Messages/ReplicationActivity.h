@@ -120,7 +120,8 @@ struct FConcertSyncReplicationEvent
 	FConcertSessionSerializedPayload Payload{ EConcertPayloadSerializationMethod::Cbor };
 
 	FConcertSyncReplicationEvent() = default;
-	FConcertSyncReplicationEvent(const FConcertSyncReplicationPayload_LeaveReplication& Data)
+	template<typename TPayload>
+	explicit FConcertSyncReplicationEvent(const TPayload& Data)
 	{
 		SetPayload(Data);
 	}
@@ -162,7 +163,8 @@ struct FConcertSyncReplicationActivity : public FConcertSyncActivity
 		EventType = EConcertSyncActivityEventType::Replication;
 	}
 
-	FConcertSyncReplicationActivity(const FConcertSyncReplicationPayload_LeaveReplication& PayloadData)
+	template<typename TPayload>
+	explicit FConcertSyncReplicationActivity(const TPayload& PayloadData)
 		: EventData(PayloadData)
 	{
 		EventType = EConcertSyncActivityEventType::Replication;
