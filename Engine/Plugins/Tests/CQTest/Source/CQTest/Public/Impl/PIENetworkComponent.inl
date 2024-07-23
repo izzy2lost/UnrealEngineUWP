@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+///////////////////////////////////////////////////////////////////////
+// FPIENetworkComponent
+
 template <typename NetworkDataType>
 inline FPIENetworkComponent<NetworkDataType>& FPIENetworkComponent<NetworkDataType>::ThenServer(TFunction<void(NetworkDataType&)> Action)
 {
@@ -153,7 +156,8 @@ inline FPIENetworkComponent<NetworkDataType>& FPIENetworkComponent<NetworkDataTy
 	return *this;
 }
 
-//////////////////////
+///////////////////////////////////////////////////////////////////////
+// FNetworkComponentBuilder
 
 template <typename NetworkDataType>
 inline FNetworkComponentBuilder<NetworkDataType>::FNetworkComponentBuilder()

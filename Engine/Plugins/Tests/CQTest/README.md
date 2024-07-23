@@ -1,8 +1,10 @@
-# Introduction 
+# Introduction
+
 Extension of the Unreal Engine FAutomationTestBase to provide test fixtures and common automation testing commands.
 
 # Why CQTest?
-There are other valid ways of testing in Unreal engine.  One option is to use the provided macros from Unreal Engine: [docs](https://docs.unrealengine.com/5.1/en-US/automation-technical-guide/)
+
+There are other valid ways of testing in Unreal engine.  One option is to use the provided macros from Unreal Engine: [docs](https://dev.epicgames.com/documentation/en-us/unreal-engine/write-cplusplus-tests-in-unreal-engine)
 ```cpp
     IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMinimalTest, "Game.Test", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	bool FMinmalTest::RunTest(const FString& Parameters) 
@@ -12,7 +14,7 @@ There are other valid ways of testing in Unreal engine.  One option is to use th
 	}
 ```
 
-Unreal has also developed their [spec test framework](https://docs.unrealengine.com/4.27/en-US/TestingAndOptimization/Automation/AutomationSpec/), which is inspired by Behavior Driven Design
+Unreal Engine also has a [spec test framework](https://dev.epicgames.com/documentation/en-us/unreal-engine/automation-spec-in-unreal-engine), which is inspired by [Behavior Driven Design](https://en.wikipedia.org/wiki/Behavior-driven_development)
 ```cpp
     DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 	void FMinimalTest::Define() 
@@ -26,8 +28,8 @@ Unreal has also developed their [spec test framework](https://docs.unrealengine.
 		});
 	}
 ```
-With the spec tests, be careful about capturing state
 
+With the spec tests, be careful about capturing state
 ```cpp
     BEGIN_DEFINE_SPEC(FMinimalTest, "Game.Test", EAutomationTestFlags::ProductFilter | EAutomationTestFlags_ApplicationContextMask)
 		uint32 SomeValue = 3;
@@ -51,8 +53,7 @@ With the spec tests, be careful about capturing state
 	}
 ```
 
-The inspiration for CQTest was to add the before/after test abilities, while resetting state between tests automatically.  One of the guiding principles is to make easy things easy.
-
+The inspiration for **CQTest** was to add the before/after test abilities, while resetting state between tests automatically.  One of the guiding principles is to make easy things easy.
 ```cpp
 	TEST(MinimalTest, "Game.Test") 
 	{
@@ -75,9 +76,9 @@ The inspiration for CQTest was to add the before/after test abilities, while res
 ```
 
 # Installation
+
 Inside the project that you want to test, you'll need to change 2 things:
 In the .uproject file of the project you want to test, add the following to the Plugins section
-
 ```json
 		{
 			"Name": "CQTest",
@@ -85,8 +86,7 @@ In the .uproject file of the project you want to test, add the following to the 
 		}
 ```
 
-Then in the project's .Build.cs file, you'll want to add the following to the PrivateDependencyModuleNames.  Something like
-
+Then in the project's .Build.cs file, you'll want to add the following to the `PrivateDependencyModuleNames`.  Something like
 ```csharp
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
@@ -98,22 +98,22 @@ Then in the project's .Build.cs file, you'll want to add the following to the Pr
 			);
 ```
 
-	
 # Build
+
 No special steps are required to build the plugin project, it should build with the rest of the project.
 
 # Test
+
 This plugin has a set of tests to validate and document the behavior.  To run tests in Unreal
 - Launch the editor
 - Find the Tools drop down and select Session Frontend
 - Navigate to the Automation tab
-- By default, the tests should be listed first under " Product.Plugins.CQTest"
+- By default, the tests should be listed first under "Product.Plugins.CQTest"
 - Select the tests you would like to run and press 'Start Tests'
 
 # Examples
 
 Tests can be as simple as
-
 ```cpp
     #include "CQTest.h"
 	
@@ -123,8 +123,7 @@ Tests can be as simple as
 	}
 ```
 
-For setup and teardown, or common state between multiple tests, or to group related tests, use the TEST_CLASS macro.
-
+For setup and teardown, or common state between multiple tests, or to group related tests, use the `TEST_CLASS` macro.
 ```cpp
     #include "CQTest.h"
 	TEST_CLASS(MyNeatTest, "Game.MyGame") 
@@ -133,6 +132,13 @@ For setup and teardown, or common state between multiple tests, or to group rela
 		uint32 SomeNumber = 0;
 		Thing* Thing = nullptr;
 		
+		// Optional static method to be executed before all tests of this TEST_CLASS
+		// Should be removed if empty and unused
+		BEFORE_ALL() 
+		{
+			// Perform some logic that is shared with all tests such as loading a level
+		}
+
 		BEFORE_EACH() 
 		{
 			SetupCalled = true;
@@ -142,7 +148,14 @@ For setup and teardown, or common state between multiple tests, or to group rela
 		
 		AFTER_EACH() 
 		{
-			delete Thing; //Should normally use RAII for things like this
+			delete Thing; // Should normally use RAII for things like this
+		}
+
+		// Optional static method to be executed after all tests of this TEST_CLASS
+		// Should be removed if empty and unused
+		AFTER_ALL()
+		{
+			// Perform cleanup of any resources that was done in the `BEFORE_ALL`.
 		}
 		
 	protected:
@@ -168,8 +181,14 @@ For setup and teardown, or common state between multiple tests, or to group rela
 	};
 ```
 
-Test Directory determines where in the Automation tab the tests appear.  In the example above, we specify "Game.MyGame", but you may also have an auto-generated test directory based on the folder structure.
+In addition to `TEST` and `TEST_CLASS` are 5 additional macros:
+ - `TEST_CLASS_WITH_ASSERTS` - Macro which allows this test object to use a custom asserter.  More information about how to use this macro can be found [in the section below regarding assertions](#assertions)
+ - `TEST_CLASS_WITH_BASE` - Macro which allows this test object to inherit from a different test object.  More information about how to use this macro can be found [in the section below regarding custom test classes](#base-test-class)
+ - `TEST_CLASS_WITH_FLAGS` - Macro which allows the use of different automation test flags to be specified.  Useful for when tests can only run under a certain context or grouped under a specific filter.  The default flags for `TEST` and `TEST_CLASS` are `EAutomationTestFlags_ApplicationContextMask | EAutomationTestFlags::ProductFilter`.  Additional information regarding the available flags can be found [in the online documentation](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/Core/Misc/EAutomationTestFlags/Type)
+ - `TEST_CLASS_WITH_BASE_AND_FLAGS` - Macro which allows for this test object to inherit from a different test object and allows for custom automation test flags to be specified.
+ - `TEST_CLASS_IMPL` - Base macro which is used by the above macros to specify a custom asserter, a test object to inherit from a different test object, and allows for custom automation test flags to be specified.
 
+Test Directory determines where in the Automation tab the tests appear.  In the example above, we specify "Game.MyGame", but you may also have an auto-generated test directory based on the folder structure.
 ```cpp
 	TEST_CLASS(MyNeatTest, GenerateTestDirectory)
 	{
@@ -179,9 +198,9 @@ Test Directory determines where in the Automation tab the tests appear.  In the 
 	{
 	};
 ```
+In the above examples, if `MyNeatTest` is located within a plugin of a project with the path **MyProject/Plugins/GameTests/Source/GameTests/Private/NeatTest.cpp** then the generated test names will be `MyProject.Plugins.GameTests.MyNeatTest` and `Game.Test.MyProject.Plugins.GameTests.MyNeatTest.Validation` respectively.
 
 Constructors (and destructors) are available.  Destructors shouldn't throw, and you shouldn't put assertions in them (as they are called after the testing framework is done with the test).
-
 ```cpp
 	TEST_CLASS(SomeTestClass, "Game.Test")
 	{
@@ -198,8 +217,7 @@ Constructors (and destructors) are available.  Destructors shouldn't throw, and 
 	};
 ```	
 
-Latent actions are supported with the TEST_CLASS macro.  Each step will complete all latent actions before moving to the next.  If an assertion is raised during a latent action, then no further latent actions will be processed.  The AFTER_EACH method will still be invoked though.
-
+Latent actions are supported with the `TEST_CLASS` macro.  Each step will complete all latent actions before moving to the next.  If an assertion is raised during a latent action, then no further latent actions will be processed.  The `AFTER_EACH` method will still be invoked though.
 ```cpp
     TEST_CLASS(LatentActionTest, "Game.Test") 
 	{
@@ -223,8 +241,14 @@ Latent actions are supported with the TEST_CLASS macro.  Each step will complete
 	};
 ```
 
-Also available for commands is a fluent command builder
+**CQTest** provides the following additional latent actions:
+ - `FExecute` - Action that executes only once.
+ - `FWaitUntil` - Action that executes over multiple ticks until either completion or the duration exceeds the timeout.  Action will fail if the condition cannot be satisifed before timing out.
+ - `FWaitDelay` - Action that waits a specified duration.
+   - **CAUTION:** Using a timed-wait can introduce flakiness due to variable runtimes and the above `FWaitUntil` should be used instead.
+ - `FRunSequence` - Action which ensures that a collection of latent actions occur in order, and only after all previous actions have finished.
 
+Also available for commands is a fluent command builder
 ```cpp
 	TEST_METHOD(SomeTest) 
 	{
@@ -236,35 +260,52 @@ Also available for commands is a fluent command builder
 	}
 ```
 
+The command builder provides commands which wrap around the above mentioned latent actions.  The following commands are made available:
+ - `Do`/`Then` - Commands which adds the `FExecute` latent action with the provided lambda to be executed.
+ - `StartWhen`/`Until` - Commands which adds the `FWaitUntil` latent action with the provided lambda to be evaluated.
+ - `WaitDelay` - Command which waits a specified duration before continuing.  
+   - **CAUTION:** Using a timed-wait can introduce flakiness due to variable runtimes and the above `StartWhen`/`Until` commands should be used instead.
+ - `OnTearDown`/`CleanUpWith` - Commands which adds the `FExecute` latent action with the provided lambda to be executed after the test.  Can be called multiple times to add multiple clean up latent actions.
+   - **NOTE:** Latent actions added using the `OnTearDown`/`CleanUpWith` will be run in reverse order (i.e. Last in, first out)
+
 The framework will ensure that all of those commands happen in order using a future pattern.
-Similarly, the framework will ensure that a test can await a ticking object.  See GameObjectsTickTest for an example
-One word of caution, the framework does not currently support adding latent actions from within latent actions.
+Similarly, the framework will ensure that a test can await a ticking object.  See `GameObjectsTickTest` for an example
+
+**CAUTION:** The framework does not currently support adding latent actions from within latent actions.
 Instead, it is better to add the actions as a series of self-contained steps.
- 
 
 # Extending the framework
-The framework has been designed to allow for extensions in a couple areas.  See ExtensionTests.cpp for in-code examples.
+
+The framework has been designed to allow for extensions in a couple areas.  See _CQTestTests/Private/ExtensionTests.cpp_ for in-code examples.
 
 ## Test Components
+
 This testing framework embraces composition over inheritence.  Creating new components should be the default mechanism for extending the framework.  Some of the components available to you are:
-  ActorTestSpawner - Allows a test to spawn actors, and manages their despawning.
-  MapTestSpawner - Creates a map and opens a level.  Allows tests to spawn actors in that world.
-  BlueprintHelper - Eases the ability for a test to spawn Blueprint objects, intended to be used with MapTestSpawner.
-  PIENetworkComponent - Allows tests to create a server and a collection of clients.  Good for testing replication.
+ - `SpawnHelper` - Eases the ability to spawn actors and other objects.  Implemented by `ActorTestSpawner` and `MapTestSpawner`.
+ - `ActorTestSpawner` - Creates a minimal `UWorld` for a test to spawn actors, and manages their despawning.
+ - `MapTestSpawner` - Can create a temporary map or open a specified level.  Allows tests to spawn actors in that world.
+ - `CQTestBlueprintHelper` - Eases the ability for a test to spawn Blueprint objects, intended to be used with `MapTestSpawner`.
+   - **NOTE:** Loading Blueprint assets is only intended to work within the Editor context.  Tests that make use of the `CQTestBlueprintHelper` should specify the `EAutomationTestFlags::EditorContext` flag.
+ - `PIENetworkComponent` - Allows tests to create a server and a collection of clients.  Good for testing replication.
+    - **NOTE:** The `PIENetworkComponent` sets up a Server and Client PIE instance which is only usable within the Editor context.  Tests that make use of the `PIENetworkComponent` should specify the `EAutomationTestFlags::EditorContext` flag.
+ - `InputTestActions` - Allows tests to inject `InputActions` to the `Pawn`.
+ - `CQTestSlateComponent` - Allows tests to get notified when the UI has been updated.
 
 ## Assertions
+
 Not all platforms support exceptions, and so the assertions are unable to rely on them.
 There are a few options here:
-  We could just throw exceptions, and only run tests on platforms which support exceptions
-  We could return a [[nodiscard]] bool to encourage checking each assertion and returning if it fails
-  We could return a normal bool and rely on people to check it when it's important.
+ - We could just throw exceptions, and only run tests on platforms which support exceptions
+ - We could return a `[[nodiscard]]` bool to encourage checking each assertion and returning if it fails
+ - We could return a normal bool and rely on people to check it when it's important.
+
 Exceptions have the advantage of working in helper functions and lambdas, as well as not depending on human diligence.
 A normal bool is less noisy, and allows developers to use intellisense, but is more error prone
-The default implementation used is the [[nodiscard]] bool, with a helper macro ASSERT_THAT which does the early return check for you.
+The default implementation used is the `[[nodiscard]]` bool, with a helper macro `ASSERT_THAT` which does the early return check for you.
 
-You can use your own types within the Assert.AreEqual and Assert.AreNotEqual methods assuming you have the == and != operators defined as needed.
-In addition, the error message will print out the string version of your type, assuming you have a ToString method defined as well.  The framework will complain if it doesn't know how to print your value.
-You can find examples of providing a string to the framework in CQTestConvertTests.cpp, but below is a simple example.
+You can use your own types within the `Assert.AreEqual` and `Assert.AreNotEqual` methods assuming you have the `==` and `!=` operators defined as needed.
+In addition, the error message will print out the string version of your type, assuming you have a `ToString` method defined as well.  The framework will complain if it doesn't know how to print your value.
+You can find examples of providing a string to the framework in _CQTestTests/Private/Assert/CQTestConvertTests.cpp_, but below is a simple example.
 ```cpp
 struct MyCustomType
 {
@@ -297,7 +338,7 @@ FString CQTestConvert::ToString(const MyCustomEnum&)
 ```
 
 You are able to customize the assertions which are available, and how they behave.
-See CQTestTests/Private/ExtensionTests.cpp for an example
+See _CQTestTests/Private/ExtensionTests.cpp_ for an example
 Below is some untested example code to inspire ideas
 
 ```cpp
@@ -340,7 +381,6 @@ Below is some untested example code to inspire ideas
 ```
 
 From here, you could create macros your studio uses to create tests
-
 ```cpp
 	#define MY_STUDIO_TEST_CLASS(_ClassName, _TestDir) TEST_CLASS_WITH_ASSERTS(_ClassName, _TestDir, FluentAsserter)
 	#define MY_STUDIO_TEST(_TestName, _TestDir) \
@@ -352,8 +392,8 @@ From here, you could create macros your studio uses to create tests
 ```
 
 ## Base test class
-Similarly there may be a use case to create many tests which have the same member variables or helper methods.  This can be implemented by extending the test class
 
+Similarly there may be a use case to create many tests which have the same member variables or helper methods.  This can be implemented by extending the test class
 ```cpp
 	template<typename Derived, typename AsserterType>
 	struct ActorTest : public Test<Derived, AsserterType>
@@ -363,10 +403,10 @@ Similarly there may be a use case to create many tests which have the same membe
 ```
 
 And creating a macro which uses it
-
 ```cpp
 	#define ACTOR_TEST(_ClassName, _TestDir) TEST_CLASS_WITH_BASE(_ClassName, _TestDir, ActorTest)
 ```
 
 # Contribute
+
 Improvements like bug fixes and extensions are welcome when accompanied by unit tests.

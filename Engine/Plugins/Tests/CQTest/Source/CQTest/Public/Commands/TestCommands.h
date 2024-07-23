@@ -4,6 +4,7 @@
 
 #include "Misc/AutomationTest.h"
 
+/** Latent Command that waits until the Query evaluates to `true` or the timeout has exceeded. */
 class CQTEST_API FWaitUntil : public IAutomationLatentCommand
 {
 public:
@@ -51,6 +52,7 @@ enum class ECQTestFailureBehavior
 	Run
 };
 
+/** Latent Command which executes the provided function. */
 class CQTEST_API FExecute : public IAutomationLatentCommand
 {
 public:
@@ -69,6 +71,7 @@ public:
 	ECQTestFailureBehavior FailureBehavior;
 };
 
+/** Latent Command which manages and executes an array of latent commands. */
 class CQTEST_API FRunSequence : public IAutomationLatentCommand
 {
 public:
