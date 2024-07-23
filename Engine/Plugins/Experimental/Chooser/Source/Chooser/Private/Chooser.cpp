@@ -37,6 +37,15 @@ void UChooserTable::PostLoad()
 #if WITH_EDITOR
 	CachedPreviousOutputObjectType = OutputObjectType;
 	CachedPreviousResultType = ResultType;
+
+	// fix for broken outer object on nested chooser tables
+	if (ParentTable)
+	{
+		if (GetOuter() != ParentTable)
+		{
+			Rename(nullptr, ParentTable);
+		}
+	}
 #endif
 
 	Compile();
