@@ -366,7 +366,7 @@ namespace UnrealBuildTool
 						return new string[] { ".sym", ".debug" };
 					}
 			}
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		/// <summary>

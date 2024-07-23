@@ -395,7 +395,7 @@ namespace UnrealBuildTool.Artifacts
 		{
 			builder.AppendLine(action.CommandVersion);
 			builder.AppendLine(action.CommandArguments);
-			await AppendFiles(builder, directoryMapping, action, inputs);
+			await AppendFilesAsync(builder, directoryMapping, action, inputs);
 		}
 
 		/// <summary>
@@ -408,7 +408,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <returns>Task object</returns>
 		private async Task AppendActionKeyAsync(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? dependencies)
 		{
-			await AppendFiles(builder, directoryMapping, action, dependencies);
+			await AppendFilesAsync(builder, directoryMapping, action, dependencies);
 		}
 
 		/// <summary>
@@ -419,7 +419,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="action">Source action</param>
 		/// <param name="files">Collection of files</param>
 		/// <returns>Task object</returns>
-		private async Task AppendFiles(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? files)
+		private async Task AppendFilesAsync(StringBuilder builder, ArtifactDirectoryMapping directoryMapping, LinkedAction action, List<FileItem>? files)
 		{
 			if (files != null)
 			{

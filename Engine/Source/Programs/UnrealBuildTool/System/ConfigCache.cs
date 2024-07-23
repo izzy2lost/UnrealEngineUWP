@@ -306,7 +306,6 @@ namespace UnrealBuildTool
 				CombinedArgs = new CommandLineArguments(Environment.GetCommandLineArgs());
 			}
 
-
 			return ReadHierarchy(Type, ProjectDir, Platform, CustomConfig, CombinedArgs, HotfixDir);
 		}
 

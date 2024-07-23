@@ -788,7 +788,6 @@ namespace UnrealBuildTool
 					Logger.LogDebug("Compile module: {ModuleName}", Module.Name);
 					List<FileItem> LinkInputFiles = Module.Compile(Target, ToolChain, BinaryCompileEnvironment, WorkingSet, Graph, Logger);
 
-
 					// If modules are merged we will have multiple PerModuleInline which will cause duplicated symbols. So let's only keep one of those
 					// Also, some modules might have empty PerModuleInline.gen.cpp therefore it is important that we use Core if it exists
 					if (Target.bMergeModules)

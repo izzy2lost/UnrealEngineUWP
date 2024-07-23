@@ -2514,7 +2514,7 @@ namespace UnrealBuildTool
 				return LinkAllFiles(LinkEnvironment, true, Graph);
 			}
 			// by default do nothing
-			return new FileItem[] { };
+			return Array.Empty<FileItem>();
 		}
 
 		public override FileItem LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph)
@@ -2850,7 +2850,7 @@ namespace UnrealBuildTool
 
 				// prefer a PGD file that matches the output file
 				string PGDFile = Path.Combine(LinkEnvironment.PGODirectory!, LinkEnvironment.PGOFilenamePrefix + ".pgd");
-				string[] PGCFiles = { };
+				string[] PGCFiles = Array.Empty<string>();
 
 				bool bUsingMergedPGD = false;
 

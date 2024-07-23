@@ -432,7 +432,7 @@ namespace UnrealBuildTool
 			string NewKey = RemapSectionOrKey(KeyRemap, Key, $"which is a config key in section [{Section.Name}], in '{Filename}'");
 
 			// look for a section:name remap
-			if (!NewKey.Equals(Key) && NewKey.IndexOf(":") != -1)
+			if (!NewKey.Equals(Key) && NewKey.Contains(":", StringComparison.CurrentCulture))
 			{
 				string SectionName = NewKey.Substring(0, NewKey.IndexOf(':'));
 				ConfigFileSection? CurrentSection;

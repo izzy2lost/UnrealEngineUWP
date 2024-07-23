@@ -222,7 +222,7 @@ namespace UnrealBuildTool.XcodeProjectLegacy
 			string CurrentPath = "/";
 			Dictionary<string, XcodeFileGroup> CurrentSubGroups = Groups;
 
-			for (int Index = 1; Index < Parts.Count(); ++Index)
+			for (int Index = 1; Index < Parts.Length; ++Index)
 			{
 				string Part = Parts[Index];
 

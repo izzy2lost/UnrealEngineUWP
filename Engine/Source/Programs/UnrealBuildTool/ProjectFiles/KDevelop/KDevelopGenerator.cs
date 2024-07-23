@@ -46,12 +46,12 @@ namespace UnrealBuildTool
 		/// <param name="Name">Name.</param>
 		private void WriteKDevPrimaryProjectSection(ref StringBuilder FileContent, string Name)
 		{
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 			FileContent.Append("[Project] \n");
 			FileContent.Append("Manager=KDevCustomBuildSystem \n");
 			FileContent.Append("Name=");
 			FileContent.Append(Name);
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 		}
 
 		/// <summary>
@@ -331,7 +331,7 @@ namespace UnrealBuildTool
 				FileContent.Append(CurPath);
 				FileContent.Append(" \n");
 			}
-			FileContent.Append("\n");
+			FileContent.Append('\n');
 		}
 
 		/// <summary>

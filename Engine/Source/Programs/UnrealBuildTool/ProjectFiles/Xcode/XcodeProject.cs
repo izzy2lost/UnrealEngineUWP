@@ -487,7 +487,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				}
 
 				DirectoryReference? ProgramFinder = DirectoryReference.Combine(ProjectFile.BaseDir);
-				while (ProgramFinder != null && String.Compare(ProgramFinder.GetDirectoryName(), "Source", true) != 0)
+				while (ProgramFinder != null && !String.Equals(ProgramFinder.GetDirectoryName(), "Source", StringComparison.CurrentCultureIgnoreCase))
 				{
 					ProgramFinder = ProgramFinder.ParentDirectory;
 				}
@@ -783,7 +783,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			// pull off the front of the "deque" amd add its references to the back, gather
 			List<XcodeProjectNode> Return = new();
-			while (Nodes.Count() > 0)
+			while (Nodes.Count > 0)
 			{
 				XcodeProjectNode Head = Nodes.First();
 				Nodes.RemoveFirst();
@@ -1376,7 +1376,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 			{
 				// Editor just need the above script to copy executable into .app
 
-				XcodeShellScriptBuildPhase EditorCopyScriptPhase = new("Copy Executable into .app", CopyScript, new string[] { }, new string[] { $"/dev/null" });
+				XcodeShellScriptBuildPhase EditorCopyScriptPhase = new("Copy Executable into .app", CopyScript, Array.Empty<string>(), new string[] { $"/dev/null" });
 				BuildPhases.Add(EditorCopyScriptPhase);
 				References.Add(EditorCopyScriptPhase);
 				return;
@@ -1481,7 +1481,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 
 			// run this script every time, but xcode will show a warning if there isn't _some_ output
 			string ScriptOutput = $"/dev/null";
-			XcodeShellScriptBuildPhase CopyScriptPhase = new("Copy Executable and Staged Data into .app", CopyScript, new string[] { }, new string[] { ScriptOutput });
+			XcodeShellScriptBuildPhase CopyScriptPhase = new("Copy Executable and Staged Data into .app", CopyScript, Array.Empty<string>(), new string[] { ScriptOutput });
 			BuildPhases.Add(CopyScriptPhase);
 			References.Add(CopyScriptPhase);
 
@@ -2270,7 +2270,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				if (Platform != null)
 				{
 					// Per platform project, check if we have files to index for that platform
-					if (UnrealData.BatchedFiles.ContainsKey(Platform.Value) && UnrealData.BatchedFiles[Platform.Value].Count() > 0)
+					if (UnrealData.BatchedFiles.ContainsKey(Platform.Value) && UnrealData.BatchedFiles[Platform.Value].Count > 0)
 					{
 						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, Platform.Value);
 						References.Add(IndexTarget);
@@ -2279,7 +2279,7 @@ namespace UnrealBuildTool.XcodeProjectXcconfig
 				else
 				{
 					// Shared platform project, just try to index Mac target
-					if (UnrealData.BatchedFiles[UnrealTargetPlatform.Mac].Count() > 0)
+					if (UnrealData.BatchedFiles[UnrealTargetPlatform.Mac].Count > 0)
 					{
 						XcodeIndexTarget IndexTarget = new XcodeIndexTarget(this, UnrealTargetPlatform.Mac);
 						References.Add(IndexTarget);

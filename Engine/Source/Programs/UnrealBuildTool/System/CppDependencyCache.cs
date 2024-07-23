@@ -522,7 +522,7 @@ namespace UnrealBuildTool
 				{
 					if (Data.TryGetObjectArrayField("ImportedModules", out JsonObject[]? ImportedModulesJson))
 					{
-						if (ImportedModulesJson.Count() > 0)
+						if (ImportedModulesJson.Length > 0)
 						{
 							ImportedModules = new List<(string Name, string BMI)>();
 

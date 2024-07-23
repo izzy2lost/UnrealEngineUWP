@@ -940,7 +940,7 @@ namespace UnrealBuildTool
 				}
 			}
 
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		public override bool CanUseXGE()

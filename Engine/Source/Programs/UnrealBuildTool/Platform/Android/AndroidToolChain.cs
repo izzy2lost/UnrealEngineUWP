@@ -79,12 +79,12 @@ namespace UnrealBuildTool
 		};
 
 		private static Dictionary<UnrealArch, string[]> ModulesToSkip = new() {
-			{ UnrealArch.Arm64, new string[] {  } },
+			{ UnrealArch.Arm64, Array.Empty<string>() },
 			{ UnrealArch.X64,   new string[] { "OnlineSubsystemOculus", "OculusHMD", "OculusMR" } }
 		};
 
 		private static Dictionary<UnrealArch, string[]> GeneratedModulesToSkip = new() {
-			{ UnrealArch.Arm64, new string[] {  } },
+			{ UnrealArch.Arm64, Array.Empty<string>() },
 			{ UnrealArch.X64,   new string[] { "OculusEntitlementCallbackProxy", "OculusCreateSessionCallbackProxy", "OculusFindSessionsCallbackProxy", "OculusIdentityCallbackProxy", "OculusNetConnection", "OculusNetDriver", "OnlineSubsystemOculus_init" } }
 		};
 

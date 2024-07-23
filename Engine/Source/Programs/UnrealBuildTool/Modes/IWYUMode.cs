@@ -397,7 +397,7 @@ namespace UnrealBuildTool
 			{
 				foreach (string OnlyModuleName in TargetDescriptors[0].OnlyModuleNames)
 				{
-					if (String.Compare(OnlyModuleName, ModuleToUpdateName, StringComparison.OrdinalIgnoreCase) != 0)
+					if (!String.Equals(OnlyModuleName, ModuleToUpdateName, StringComparison.OrdinalIgnoreCase))
 					{
 						Logger.LogError($"ModuleToUpdate '{ModuleToUpdateName}' was not in list of specified modules: {String.Join(", ", TargetDescriptors[0].OnlyModuleNames)}");
 						return -1;

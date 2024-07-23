@@ -93,9 +93,9 @@ namespace UnrealBuildTool
 		{
 			DirectoryReference? ProgramFinder = StartingDir;
 			while (ProgramFinder != null &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Source", true) != 0 &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Intermediate", true) != 0 &&
-				String.Compare(ProgramFinder.GetDirectoryName(), "Binaries", true) != 0)
+!String.Equals(ProgramFinder.GetDirectoryName(), "Source", StringComparison.CurrentCultureIgnoreCase) &&
+!String.Equals(ProgramFinder.GetDirectoryName(), "Intermediate", StringComparison.CurrentCultureIgnoreCase) &&
+!String.Equals(ProgramFinder.GetDirectoryName(), "Binaries", StringComparison.CurrentCultureIgnoreCase))
 			{
 				ProgramFinder = ProgramFinder.ParentDirectory;
 			}
@@ -452,7 +452,7 @@ namespace UnrealBuildTool
 				LinkAllFiles(LinkEnvironment, true, Graph);
 			}
 
-			return new FileItem[] { };
+			return Array.Empty<FileItem>();
 		}
 
 		public override FileItem? LinkFiles(LinkEnvironment LinkEnvironment, bool bBuildImportLibraryOnly, IActionGraphBuilder Graph)
@@ -1046,7 +1046,7 @@ namespace UnrealBuildTool
 
 				foreach (KeyValuePair<FileReference, BuildProductType> BuildProductPair in BuildProductsArray)
 				{
-					string[] DebugExtensions = new string[] { };
+					string[] DebugExtensions = Array.Empty<string>();
 					switch (BuildProductPair.Value)
 					{
 						case BuildProductType.Executable:

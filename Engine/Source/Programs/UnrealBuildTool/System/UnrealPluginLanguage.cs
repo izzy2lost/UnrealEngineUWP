@@ -1059,8 +1059,6 @@ namespace UnrealBuildTool
 				return null;
 			}
 		}
-
-
 		private void AddAttribute(XElement Element, string Name, string Value)
 		{
 			XNamespace? XMLNameSpace = TrimNamespaceAliasFromName(ref Name);
@@ -3035,11 +3033,11 @@ namespace UnrealBuildTool
 			if (Result)
 			{
 				// C# Boolean type expects "False" or "True" but since we're not case sensitive, we need to suppor that manually
-				if (String.Compare(TextValue, "true", true) == 0 || String.Compare(TextValue, "1") == 0)
+				if (String.Equals(TextValue, "true", StringComparison.CurrentCultureIgnoreCase) || String.Equals(TextValue, "1"))
 				{
 					Value = true;
 				}
-				else if (String.Compare(TextValue, "false", true) == 0 || String.Compare(TextValue, "0") == 0)
+				else if (String.Equals(TextValue, "false", StringComparison.CurrentCultureIgnoreCase) || String.Equals(TextValue, "0"))
 				{
 					Value = false;
 				}
@@ -3413,7 +3411,7 @@ namespace UnrealBuildTool
 						IniValues? Value;
 						if (CurrentSection.TryGetValue(Key, out Value))
 						{
-							int ExistingIndex = Value.FindIndex(X => (String.Compare(SingleValue, X, true) == 0));
+							int ExistingIndex = Value.FindIndex(X => (String.Equals(SingleValue, X, StringComparison.CurrentCultureIgnoreCase)));
 							if (ExistingIndex >= 0)
 							{
 								Value.RemoveAt(ExistingIndex);

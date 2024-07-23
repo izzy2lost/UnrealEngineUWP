@@ -1523,7 +1523,7 @@ namespace UnrealBuildTool
 				case UEBuildBinaryType.Executable:
 					return new string[] { ".pdb" };
 			}
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		public override bool HasDefaultBuildConfig(UnrealTargetPlatform Platform, DirectoryReference ProjectPath)

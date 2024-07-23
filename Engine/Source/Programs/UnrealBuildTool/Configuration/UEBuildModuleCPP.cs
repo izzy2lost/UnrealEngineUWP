@@ -1968,7 +1968,7 @@ namespace UnrealBuildTool
 							{
 								string IncludeName = Path.GetFileNameWithoutExtension(FirstInclude);
 								string ExpectedName = CppFile.Location.GetFileNameWithoutExtension();
-								if (String.Compare(IncludeName, ExpectedName, StringComparison.OrdinalIgnoreCase) != 0)
+								if (!String.Equals(IncludeName, ExpectedName, StringComparison.OrdinalIgnoreCase))
 								{
 									FileReference? HeaderFile;
 									if (NameToHeaderFile.TryGetValue(ExpectedName, out HeaderFile))
@@ -2304,7 +2304,6 @@ namespace UnrealBuildTool
 					}
 					Result.ForceIncludeFiles.Add(FileItem.GetItemByFileReference(Path));
 				}
-				
 			}
 
 			return Result;

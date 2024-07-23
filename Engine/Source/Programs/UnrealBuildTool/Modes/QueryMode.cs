@@ -165,7 +165,7 @@ namespace UnrealBuildTool
 					return QueryCapabilities(Arguments, Logger, ResponseOptions);
 				case QueryType.AvailableTargets:
 					Logger.LogInformation("QueryAvailableTargets");
-					return QueryAvailableTargets(Arguments, Logger, ResponseOptions);
+					return QueryAvailableTargetsAsync(Arguments, Logger, ResponseOptions);
 				case QueryType.TargetDetails:
 					Logger.LogInformation("QueryTargetDetails");
 					return QueryTargetDetails(Arguments, Logger, ResponseOptions);
@@ -196,7 +196,7 @@ namespace UnrealBuildTool
 			return 0;
 		}
 
-		private async Task<int> QueryAvailableTargets(CommandLineArguments Arguments, ILogger Logger, JsonSerializerOptions JsonOptions)
+		private async Task<int> QueryAvailableTargetsAsync(CommandLineArguments Arguments, ILogger Logger, JsonSerializerOptions JsonOptions)
 		{
 			try
 			{

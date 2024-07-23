@@ -311,7 +311,7 @@ namespace UnrealBuildTool
 						try
 						{
 							Process ExistingProc = Process.GetProcessById(Pid);
-							if (ExistingProc != null && Pid != Process.GetCurrentProcess().Id && ExistingProc.HasExited == false)
+							if (ExistingProc != null && Pid != Environment.ProcessId && ExistingProc.HasExited == false)
 							{
 								ProcessInfo ProcInfo = new ProcessInfo(ExistingProc.Id, Path.GetFileName(Filename), Filename);
 								Result.Add(ProcInfo);

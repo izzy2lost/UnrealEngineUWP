@@ -723,7 +723,7 @@ namespace UnrealBuildTool
 
 				// Get the current build metadata from the platform
 				string CurrentExternalMetadata = UEBuildPlatform.GetBuildPlatform(Platform).GetExternalBuildMetadata(ProjectFile);
-				if (String.Compare(CurrentExternalMetadata, Makefile.ExternalMetadata, StringComparison.Ordinal) != 0)
+				if (!String.Equals(CurrentExternalMetadata, Makefile.ExternalMetadata, StringComparison.Ordinal))
 				{
 					Logger.LogDebug("Old metadata:\n{Metadata}", Makefile.ExternalMetadata);
 					Logger.LogDebug("New metadata:\n{Metadata}", CurrentExternalMetadata);

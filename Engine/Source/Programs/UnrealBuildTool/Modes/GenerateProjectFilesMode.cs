@@ -91,10 +91,10 @@ namespace UnrealBuildTool
 				StringBuilder Configuration = new StringBuilder();
 				Configuration.Append("Project file formats specified via the command line will be ignored when generating\n");
 				Configuration.Append("project files from the editor and other engine tools.\n");
-				Configuration.Append("\n");
+				Configuration.Append('\n');
 				Configuration.Append("Consider setting your desired IDE from the editor preferences window, or modify your\n");
 				Configuration.Append("BuildConfiguration.xml file with:\n");
-				Configuration.Append("\n");
+				Configuration.Append('\n');
 				Configuration.Append("<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n");
 				Configuration.Append("<Configuration xmlns=\"https://www.unrealengine.com/BuildConfiguration\">\n");
 				Configuration.Append("  <ProjectFileGenerator>\n");

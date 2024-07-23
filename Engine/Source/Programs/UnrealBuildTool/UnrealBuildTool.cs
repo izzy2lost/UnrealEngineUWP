@@ -415,9 +415,9 @@ namespace UnrealBuildTool
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private static async void CancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+        private static async void CancelKeyPressAsync(object? sender, ConsoleCancelEventArgs e)
         {
-			Console.CancelKeyPress -= CancelKeyPress;
+			Console.CancelKeyPress -= CancelKeyPressAsync;
 			Console.WriteLine($"UnrealBuildTool: Ctrl-{(e.SpecialKey == ConsoleSpecialKey.ControlC ? "C" : "Break")} pressed. Exiting...");
 
             // Delay a few seconds to allow for the process to exit normally
@@ -449,7 +449,7 @@ namespace UnrealBuildTool
 			// By putting this in, the Ctrl-C may not be handled immediately, but it shouldn't leave a blocking zombie process
 			if (OperatingSystem.IsMacOS())
 			{
-                Console.CancelKeyPress += CancelKeyPress;
+                Console.CancelKeyPress += CancelKeyPressAsync;
             }
 
 			try
@@ -593,7 +593,7 @@ namespace UnrealBuildTool
 					{
 						ModuleFileName = Path.GetFullPath(ModuleFileName);
 					}
-					FileReference RunFileTemp = FileReference.Combine(RunsDir, $"{Process.GetCurrentProcess().Id}_{ContentHash.MD5(Encoding.UTF8.GetBytes(ModuleFileName.ToUpperInvariant()))}");
+					FileReference RunFileTemp = FileReference.Combine(RunsDir, $"{Environment.ProcessId}_{ContentHash.MD5(Encoding.UTF8.GetBytes(ModuleFileName.ToUpperInvariant()))}");
 					File.WriteAllLines(RunFileTemp.FullName, new string[] { ModuleFileName });
 					RunFile = RunFileTemp;
 				}

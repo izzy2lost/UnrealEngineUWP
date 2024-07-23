@@ -260,9 +260,9 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool StopCompilationAfterErrors = false;
 
-		public int CompletedActions { get => _completedActions; }
-		public int CacheHitActions { get => _cacheHitActions; }
-		public int CacheMissActions { get => _cacheMissActions; }
+		public int CompletedActions => _completedActions;
+		public int CacheHitActions => _cacheHitActions;
+		public int CacheMissActions => _cacheMissActions;
 
 		/// <summary>
 		/// Return true if the queue is done

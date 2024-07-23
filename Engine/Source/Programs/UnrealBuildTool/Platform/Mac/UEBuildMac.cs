@@ -336,10 +336,7 @@ namespace UnrealBuildTool
 			bool bCompilingForArm = Target.Architectures.Contains(UnrealArch.Arm64);
 			if (bCompilingForArm && Target.Name != "UnrealHeaderTool")
 			{
-				Target.DisablePlugins.AddRange(new string[]
-				{
-					// Currently none need to be disabled, but add names of plugins here that are incompatible with arm64
-				});
+				Target.DisablePlugins.AddRange(Array.Empty<string>());
 			}
 
 			// Needs OS X 10.11 for Metal. The remote toolchain has not been initialized yet, so just assume it's a recent SDK.
@@ -441,10 +438,10 @@ namespace UnrealBuildTool
 			{
 				case UEBuildBinaryType.DynamicLinkLibrary:
 				case UEBuildBinaryType.Executable:
-					return Target.bUsePDBFiles ? new string[] { ".dSYM" } : new string[] { };
+					return Target.bUsePDBFiles ? new string[] { ".dSYM" } : Array.Empty<string>();
 				case UEBuildBinaryType.StaticLibrary:
 				default:
-					return new string[] { };
+					return Array.Empty<string>();
 			}
 		}
 

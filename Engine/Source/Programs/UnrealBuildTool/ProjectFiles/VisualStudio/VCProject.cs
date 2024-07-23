@@ -1658,7 +1658,7 @@ namespace UnrealBuildTool
 					if (Directory.EnumerateFiles(DirectoryName, "*.cpp").Any())
 					{
 						VCProjectFileContent.Append(DirectoryName);
-						VCProjectFileContent.Append(";");
+						VCProjectFileContent.Append(';');
 					}
 				}
 				VCProjectFileContent.AppendLine("</SourcePath>");
@@ -2201,7 +2201,7 @@ namespace UnrealBuildTool
 				{
 					BuildArguments.Replace("\"", "\\\"");
 					BuildArguments.Insert(0, "-Target=\"");
-					BuildArguments.Append("\"");
+					BuildArguments.Append('"');
 					foreach (string ExtraTarget in ExtraTargets)
 					{
 						BuildArguments.AppendFormat(" -Target=\"{0} -Quiet\"", ExtraTarget);
@@ -2673,7 +2673,6 @@ namespace UnrealBuildTool
 			CsProjectInfo Info = GetProjectInfo(UnrealTargetConfiguration.Debug)!;
 			return Info.IsDotNETCoreProject();
 		}
-
 
 		/// <summary>
 		/// Gets a property from the project

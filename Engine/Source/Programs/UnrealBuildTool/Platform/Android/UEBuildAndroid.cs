@@ -218,10 +218,7 @@ namespace UnrealBuildTool
 			// disable plugins by architecture (if we are compiling for multiple architectures, we still need to disable the plugin for all architectures)
 			if (Target.Architectures.Contains(UnrealArch.Arm64) && Target.Name != "UnrealHeaderTool")
 			{
-				Target.DisablePlugins.AddRange(new string[]
-				{
-
-				});
+				Target.DisablePlugins.AddRange(Array.Empty<string>());
 			}
 		}
 
@@ -272,7 +269,7 @@ namespace UnrealBuildTool
 
 		public override string[] GetDebugInfoExtensions(ReadOnlyTargetRules InTarget, UEBuildBinaryType InBinaryType)
 		{
-			return new string[] { };
+			return Array.Empty<string>();
 		}
 
 		public override void FindAdditionalBuildProductsToClean(ReadOnlyTargetRules Target, List<FileReference> FilesToDelete, List<DirectoryReference> DirectoriesToDelete)

@@ -387,7 +387,7 @@ namespace UnrealBuildTool
 				}
 				else if (LineSpan.StartsWith("#if"))
 				{
-					if (Line.IndexOf("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_") != -1)
+					if (Line.Contains("UE_ENABLE_INCLUDE_ORDER_DEPRECATED_", StringComparison.CurrentCulture))
 					{
 						++InsideDeprecationScope;
 					}

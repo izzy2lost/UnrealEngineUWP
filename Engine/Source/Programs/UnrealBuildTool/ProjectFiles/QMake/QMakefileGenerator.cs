@@ -228,18 +228,18 @@ namespace UnrealBuildTool
 			QMakeIncludesPriFileContent.Append("INCLUDEPATH += \\\n");
 			foreach (string CurPath in IncludeDirectories)
 			{
-				QMakeIncludesPriFileContent.Append("\t");
+				QMakeIncludesPriFileContent.Append('\t');
 				QMakeIncludesPriFileContent.Append(CurPath);
 				QMakeIncludesPriFileContent.Append(" \\\n");
 			}
 
 			foreach (string CurPath in SystemIncludeDirectories)
 			{
-				QMakeIncludesPriFileContent.Append("\t");
+				QMakeIncludesPriFileContent.Append('\t');
 				QMakeIncludesPriFileContent.Append(CurPath);
 				QMakeIncludesPriFileContent.Append(" \\\n");
 			}
-			QMakeIncludesPriFileContent.Append("\n");
+			QMakeIncludesPriFileContent.Append('\n');
 
 			if (!String.IsNullOrEmpty(GameProjectName))
 			{

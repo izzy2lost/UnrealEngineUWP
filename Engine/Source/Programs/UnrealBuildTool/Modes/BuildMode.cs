@@ -277,7 +277,7 @@ namespace UnrealBuildTool
 		{
 			if (TargetDescriptor.ProjectFile == null)
 			{
-				return new FileReference[] { };
+				return Array.Empty<FileReference>();
 			}
 
 			ProjectDescriptor ProjectDescriptor = ProjectDescriptor.FromFile(TargetDescriptor.ProjectFile);
@@ -293,7 +293,7 @@ namespace UnrealBuildTool
 
 			if (InitCommandBatches.Count == 0)
 			{
-				return new FileReference[] { };
+				return Array.Empty<FileReference>();
 			}
 
 			DirectoryReference ProjectDirectory = DirectoryReference.FromFile(TargetDescriptor.ProjectFile);
@@ -551,7 +551,7 @@ namespace UnrealBuildTool
 						_ => "read/write",
 					};
 
-					Logger.LogInformation("Experimental artifact system using '{directory}' in {mode} mode", artifactDirectory.FullName, mode);
+					Logger.LogInformation("Experimental artifact system using '{Directory}' in {Mode} mode", artifactDirectory.FullName, mode);
 
 					actionArtifactCache = ActionArtifactCache.CreateHordeFileCache(artifactDirectory, CppDependencies, Logger);
 					actionArtifactCache.EnableReads = BuildConfiguration.bArtifactRead;

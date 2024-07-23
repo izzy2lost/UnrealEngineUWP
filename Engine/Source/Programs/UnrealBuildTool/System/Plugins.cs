@@ -183,9 +183,9 @@ namespace UnrealBuildTool
 		/// <param name="bPromoteToChoiceVersion">Whether or not to make this the new prioritized "choice" plugin in the set.</param>
 		public void Add(PluginInfo Plugin, bool bPromoteToChoiceVersion = true)
 		{
-			if (bPromoteToChoiceVersion || KnownVersions.Count() == 0)
+			if (bPromoteToChoiceVersion || KnownVersions.Count == 0)
 			{
-				IndexOfChoiceVersion = KnownVersions.Count();
+				IndexOfChoiceVersion = KnownVersions.Count;
 			}
 			KnownVersions.Add(Plugin);
 		}
@@ -197,7 +197,7 @@ namespace UnrealBuildTool
 		{
 			get
 			{
-				if (IndexOfChoiceVersion >= 0 && IndexOfChoiceVersion < KnownVersions.Count())
+				if (IndexOfChoiceVersion >= 0 && IndexOfChoiceVersion < KnownVersions.Count)
 				{
 					return KnownVersions[IndexOfChoiceVersion];
 				}
@@ -638,7 +638,7 @@ namespace UnrealBuildTool
 			{
 				foreach (PluginReferenceDescriptor PluginReference in Project.Plugins)
 				{
-					if (String.Compare(PluginReference.Name, Plugin.Name, true) == 0 && !PluginReference.bOptional)
+					if (String.Equals(PluginReference.Name, Plugin.Name, StringComparison.CurrentCultureIgnoreCase) && !PluginReference.bOptional)
 					{
 						bEnabled = PluginReference.IsEnabledForPlatform(Platform) && PluginReference.IsEnabledForTargetConfiguration(Configuration) && PluginReference.IsEnabledForTarget(TargetType);
 					}

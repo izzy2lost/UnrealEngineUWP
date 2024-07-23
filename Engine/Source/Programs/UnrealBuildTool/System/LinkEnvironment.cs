@@ -471,7 +471,7 @@ namespace UnrealBuildTool
 				ArchConfig.GetFolderNameForArchitectures(Other.Architectures),
 				ArchConfig.GetFolderNameForArchitecture(OverrideArchitecture)));
 
-			if (DependenciesToSkipPerArchitecture.Count() > 0)
+			if (DependenciesToSkipPerArchitecture.Count > 0)
 			{
 				// add more arrays here?
 				Libraries = Libraries.Where(x => !DependenciesToSkipPerArchitecture.ContainsKey(x.FullName) || !DependenciesToSkipPerArchitecture[x.FullName].Contains(Architecture)).ToList();

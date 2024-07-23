@@ -289,7 +289,6 @@ namespace UnrealBuildTool
 
 			UEBuildPlatformSDK.InitializePerProjectSDKVersions(ProjectFiles.OfType<FileReference>());
 
-
 			// clear the cache used for auto-switching to the best manually-installed SDK
 			UEBuildPlatformSDK.ClearManualSDKEnvVarCache();
 		}

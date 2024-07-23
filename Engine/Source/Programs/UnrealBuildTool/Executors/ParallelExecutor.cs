@@ -226,12 +226,12 @@ namespace UnrealBuildTool
 		{
 			return async () =>
 			{
-				ExecuteResults results = await RunAction(action, queue.ProcessGroup, queue.CancellationToken);
+				ExecuteResults results = await RunActionAsync(action, queue.ProcessGroup, queue.CancellationToken);
 				queue.OnActionCompleted(action, results.ExitCode == 0, results);
 			};
 		}
 
-		protected static async Task<ExecuteResults> RunAction(LinkedAction Action, ManagedProcessGroup ProcessGroup, CancellationToken CancellationToken, string? AdditionalDescription = null)
+		protected static async Task<ExecuteResults> RunActionAsync(LinkedAction Action, ManagedProcessGroup ProcessGroup, CancellationToken CancellationToken, string? AdditionalDescription = null)
 		{
 			CancellationToken.ThrowIfCancellationRequested();
 

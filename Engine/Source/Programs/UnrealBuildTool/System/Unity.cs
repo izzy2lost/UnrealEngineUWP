@@ -219,7 +219,7 @@ namespace UnrealBuildTool
 				UnityFileBuilder CPPUnityFileBuilder = new UnityFileBuilder(bForceIntoSingleUnityFile ? -1 : NumIncludedBytesPerUnityCPP);
 				foreach (FileItem CPPFile in SortedCPPFiles)
 				{
-					if (!bForceIntoSingleUnityFile && CPPFile.AbsolutePath.IndexOf(".GeneratedWrapper.", StringComparison.InvariantCultureIgnoreCase) != -1)
+					if (!bForceIntoSingleUnityFile && CPPFile.AbsolutePath.Contains(".GeneratedWrapper.", StringComparison.InvariantCultureIgnoreCase))
 					{
 						NewCPPFiles.Add(CPPFile);
 					}

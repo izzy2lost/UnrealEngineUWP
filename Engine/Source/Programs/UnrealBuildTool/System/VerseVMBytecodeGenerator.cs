@@ -254,7 +254,7 @@ namespace UnrealBuildTool
 			{
 				S.Append($"    v({Inst.Name}) \\\n");
 			}
-			S.Append("\n");
+			S.Append('\n');
 
 			return S.ToString();
 		}
@@ -317,7 +317,7 @@ namespace UnrealBuildTool
 							break;
 					}
 				}
-				S.Append("\n");
+				S.Append('\n');
 
 				S.Append($"    static constexpr EOpcode StaticOpcode = EOpcode::{Inst.Name};\n");
 				S.Append($"    static constexpr bool bHasJumps = {Inst._Jumps.ToCpp()};\n\n");
@@ -392,7 +392,7 @@ namespace UnrealBuildTool
 
 				// Reflection methods 
 				EmitReflectionMethods(S, Inst, false);
-				S.Append("\n");
+				S.Append('\n');
 
 				S.Append("    template <typename FunctionType>\n");
 				S.Append("    void ForEachJump(FunctionType&& Function)\n");
@@ -464,7 +464,7 @@ namespace UnrealBuildTool
 							break;
 					}
 				}
-				S.Append("\n");
+				S.Append('\n');
 
 				// Generate the constructor.
 				{
@@ -556,7 +556,7 @@ namespace UnrealBuildTool
 					}
 					S.Append("    {}\n");
 				}
-				S.Append("\n");
+				S.Append('\n');
 
 				// Generate the copy constructor.
 				{
@@ -593,7 +593,7 @@ namespace UnrealBuildTool
 					}
 					S.Append("    {}\n");
 				}
-				S.Append("\n");
+				S.Append('\n');
 
 				EmitReflectionMethods(S, Inst, true);
 				S.Append("};\n\n");

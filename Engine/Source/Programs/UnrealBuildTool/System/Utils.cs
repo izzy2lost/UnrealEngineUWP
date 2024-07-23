@@ -658,7 +658,7 @@ namespace UnrealBuildTool
 			string LocalString = InPath;
 			bool bHadBackSlashes = false;
 			// look to see what kind of slashes we had
-			if (LocalString.IndexOf("\\") != -1)
+			if (LocalString.Contains("\\", StringComparison.CurrentCulture))
 			{
 				LocalString = LocalString.Replace("\\", "/");
 				bHadBackSlashes = true;

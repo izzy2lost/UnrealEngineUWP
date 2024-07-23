@@ -16,7 +16,7 @@ namespace UnrealBuildTool.Storage.Impl
 		/// <summary>
 		/// Cached copy of the current process id
 		/// </summary>
-		static int ProcessId = Process.GetCurrentProcess().Id;
+		static int ProcessId = Environment.ProcessId;
 
 		/// <summary>
 		/// Implements <see cref="IStorageReader"/> for writes to the backing storage

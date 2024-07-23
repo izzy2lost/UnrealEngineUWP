@@ -1239,7 +1239,7 @@ namespace UnrealBuildTool
 						{
 							if (x.ContainsAnyNames(UnsupportedPlatformNames, Unreal.EngineDirectory))
 							{
-								Logger.LogDebug("Skipping any C# project files in \"{x}\" due to unsupported platform", x);
+								Logger.LogDebug("Skipping any C# project files in \"{Directory}\" due to unsupported platform", x);
 								return false;
 							}
 							return true;
@@ -1770,7 +1770,7 @@ namespace UnrealBuildTool
 		{
 			foreach (string NoRedistFolderName in NoRedistFolders)
 			{
-				if (ModulePath.FullName.IndexOf(NoRedistFolderName, StringComparison.InvariantCultureIgnoreCase) >= 0)
+				if (ModulePath.FullName.Contains(NoRedistFolderName, StringComparison.InvariantCultureIgnoreCase))
 				{
 					return true;
 				}
@@ -1830,7 +1830,7 @@ namespace UnrealBuildTool
 				bool IncludeThisTarget = true;
 				foreach (string CurPlatformName in UnsupportedPlatformNameStrings)
 				{
-					if (Search.IndexOf(Path.DirectorySeparatorChar + CurPlatformName + Path.DirectorySeparatorChar, StringComparison.InvariantCultureIgnoreCase) != -1)
+					if (Search.Contains(Path.DirectorySeparatorChar + CurPlatformName + Path.DirectorySeparatorChar, StringComparison.InvariantCultureIgnoreCase))
 					{
 						IncludeThisTarget = false;
 						break;
@@ -2444,7 +2444,7 @@ namespace UnrealBuildTool
 					List<ProjectFile> ProjectFiles = FindProjectsForModule(CurModuleFile, AllGames, AllGameDescriptors, ProgramProjects, ModProjects, ModuleToAdditionalPlugin, out BaseFolder)!;
 
 					// Update our module map
-					if (ProjectFiles.Count() == 1)
+					if (ProjectFiles.Count == 1)
 					{
 						ModuleToEditorProjectFileMap[CurModuleFile] = ProjectFiles[0];
 					}
@@ -2632,7 +2632,7 @@ namespace UnrealBuildTool
 									}
 								}
 							}
-							if (FoundProjects.Count() > 0)
+							if (FoundProjects.Count > 0)
 							{
 								if (bAllowMultiModuleReference)
 								{
@@ -3397,7 +3397,7 @@ namespace UnrealBuildTool
 				throw new BuildException("Expecting existing project to not have any ProjectTargets defined yet.");
 			}
 
-			Project ProjectTarget = new Project(new UnrealTargetPlatform[0]);
+			Project ProjectTarget = new Project(Array.Empty<UnrealTargetPlatform>());
 
 			if (bForceDevelopmentConfiguration)
 			{
@@ -3555,7 +3555,7 @@ namespace UnrealBuildTool
 		public virtual string[] GetTargetArguments(string[] Arguments)
 		{
 			// by default we do not forward any arguments to the targets
-			return new string[0];
+			return Array.Empty<string>();
 		}
 
 		/// The default project to be built for the solution.
