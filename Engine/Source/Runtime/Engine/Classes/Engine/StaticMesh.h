@@ -2091,6 +2091,7 @@ private:
 	// Notification about missing Nanite required shader models.
 	TWeakPtr<class SNotificationItem> ShaderModelNotificationPtr;
 
+	void CheckForValidMinLODs(FPerQualityLevelInt& QualityLocalMinLOD, FPerPlatformInt& LocalMinLOD, int32& OutMinAvailableLOD, TArray<TPair<int32, FName>>& OutInvalidMinLODs) const;
 	void CheckForMissingShaderModels();
 
 	FOnPreMeshBuild PreMeshBuild;
