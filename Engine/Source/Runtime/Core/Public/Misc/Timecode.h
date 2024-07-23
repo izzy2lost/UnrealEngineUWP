@@ -392,7 +392,7 @@ public:
 		{
 		    return FMath::Abs(Val) >= MinVal && FMath::Abs(Val) <= MaxVal;
 		};
-		return InAbsRange(Hours,0,23) && InAbsRange(Minutes, 0, 59) && InAbsRange(Seconds, 0, 59) && Subframe >= 0;
+		return InAbsRange(Hours,0,24) && InAbsRange(Minutes, 0, 59) && InAbsRange(Seconds, 0, 59) && Subframe >= 0;
 	}
 public:
 
