@@ -51,6 +51,8 @@ bool AreShaderErrorsFatal();
 extern ENGINE_API bool IsShaderJobCacheDDCEnabled();
 extern ENGINE_API bool IsMaterialMapDDCEnabled();
 
+struct FJobObjectLimitationInfo;
+
 struct FShaderJobCacheStoredOutput;
 class FShaderJobCache;
 
@@ -199,12 +201,14 @@ class FShaderCompileThreadRunnable : public FShaderCompileThreadRunnableBase
 	friend class FShaderCompilingManager;
 private:
 
+	const bool bEstimateCommittedMemory = false; // Must be true on POSIX/Wine where only a small subset of the Job Object functionality is implemented
+
 	/** Information about the active workers that this thread is tracking. */
 	TArray<TUniquePtr<struct FShaderCompileWorkerInfo>> WorkerInfos;
 	mutable FCriticalSection WorkerInfosLock;
 
 	/** Tracks the last time that this thread checked if the workers were still active. */
-	double LastCheckForWorkersTime;
+	double LastCheckForWorkersTime = 0.0;
 
 	/** Whether to read/write files for SCW in parallel (can help situations when this takes too long for a number of reasons) */
 	bool bParallelizeIO = false;
@@ -291,6 +295,12 @@ private:
 
 	/** Checks it the memory limit for shader compile workers has been exceeded and suspend workers as needed. */
 	void CheckMemoryLimitViolation();
+
+	/** Queries the memory status of all worker processes. Either uses FResourceRestrictedJobObject or QueryEstimatedCommittedMemory() when running on POSIX/Wine. */
+	bool QueryMemoryStatus(FJobObjectLimitationInfo& OutInfo);
+
+	/** Queries the status if the job object for all worker processes has violated the memory limitation. Either uses FResourceRestrictedJobObject or QueryEstimatedCommittedMemory() when running on POSIX/Wine. */
+	bool QueryMemoryLimitViolationStatus(FJobObjectLimitationInfo& OutInfo);
 };
 
 class FShaderCompileUtilities

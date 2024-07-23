@@ -154,7 +154,11 @@ void FShaderCompileThreadRunnableBase::StartThread()
 
 FShaderCompileThreadRunnable::FShaderCompileThreadRunnable(FShaderCompilingManager* InManager)
 	: FShaderCompileThreadRunnableBase(InManager)
-	, LastCheckForWorkersTime(0)
+#if PLATFORM_WINDOWS
+	, bEstimateCommittedMemory(FPlatformMisc::IsWine()) // Use alternative code path to estimate memory when we're running on POSIX/Wine instead of a real Windows host system
+#else
+	, bEstimateCommittedMemory(true) // Use alternative code path to estimate memory when we're running on POSIX
+#endif
 {
 	for (uint32 WorkerIndex = 0; WorkerIndex < Manager->NumShaderCompilingThreads; WorkerIndex++)
 	{
@@ -1031,7 +1035,7 @@ void FShaderCompileThreadRunnable::CheckMemoryLimitViolation()
 
 		// Check if memory limit has been exceeded
 		FJobObjectLimitationInfo LimitInfo;
-		if (GSCWResourceRestrictedJobObject.QueryLimitViolationStatus(LimitInfo))
+		if (QueryMemoryLimitViolationStatus(LimitInfo))
 		{
 			MemoryMonitoringState.LastTimeOfSuspeningOrResumingWorkers = CurrentTime;
 
@@ -1077,7 +1081,7 @@ void FShaderCompileThreadRunnable::CheckMemoryLimitViolation()
 		MemoryMonitoringState.LastTimeOfSuspeningOrResumingWorkers = CurrentTime;
 
 		FJobObjectLimitationInfo LimitInfo;
-		if (GSCWResourceRestrictedJobObject.QueryStatus(LimitInfo))
+		if (QueryMemoryStatus(LimitInfo))
 		{
 			// If we are below half of our memory limit, resume 50% of available workers.
 			// This approach suspends workers from 100% to 50% and then resumes them back up to 75%.
@@ -1107,6 +1111,45 @@ void FShaderCompileThreadRunnable::CheckMemoryLimitViolation()
 				}
 			}
 		}
+	}
+}
+
+bool FShaderCompileThreadRunnable::QueryMemoryStatus(FJobObjectLimitationInfo& OutInfo)
+{
+	if (bEstimateCommittedMemory)
+	{
+		const FShaderCompileMemoryUsage MemoryUsage = GetExternalWorkerMemoryUsage();
+		if (MemoryUsage.VirtualMemory > 0)
+		{
+			OutInfo.MemoryLimit = static_cast<int64>(GShaderCompilerMemoryLimit) * 1024 * 1024;
+			OutInfo.MemoryUsed = MemoryUsage.VirtualMemory;
+			return true;
+		}
+		return false;
+	}
+	else
+	{
+		return GSCWResourceRestrictedJobObject.QueryStatus(OutInfo);
+	}
+}
+
+bool FShaderCompileThreadRunnable::QueryMemoryLimitViolationStatus(FJobObjectLimitationInfo& OutInfo)
+{
+	if (bEstimateCommittedMemory)
+	{
+		const FShaderCompileMemoryUsage MemoryUsage = GetExternalWorkerMemoryUsage();
+		const int64 MemoryLimitInBytes = static_cast<int64>(GShaderCompilerMemoryLimit) * 1024 * 1024;
+		if (MemoryUsage.VirtualMemory >= static_cast<uint64>(MemoryLimitInBytes))
+		{
+			OutInfo.MemoryLimit = MemoryLimitInBytes;
+			OutInfo.MemoryUsed = MemoryUsage.VirtualMemory;
+			return true;
+		}
+		return false;
+	}
+	else
+	{
+		return GSCWResourceRestrictedJobObject.QueryLimitViolationStatus(OutInfo);
 	}
 }
 
