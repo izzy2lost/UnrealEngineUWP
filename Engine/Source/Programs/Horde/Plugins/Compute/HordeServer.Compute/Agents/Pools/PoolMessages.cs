@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Nodes;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
@@ -26,7 +27,7 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string Config { get; set; } = "";
+		public JsonObject Config { get; set; } = new JsonObject();
 
 		/// <summary>
 		/// Integer to add after pool size has been calculated. Can also be negative.
@@ -48,7 +49,7 @@ namespace HordeServer.Agents.Pools
 		{
 			Type = strategy.Type;
 			Condition = strategy.Condition;
-			Config = strategy.Config;
+			Config = (JsonObject)strategy.Config.DeepClone();
 			ExtraAgentCount = strategy.ExtraAgentCount;
 		}
 
@@ -58,7 +59,7 @@ namespace HordeServer.Agents.Pools
 		/// <returns></returns>
 		public PoolSizeStrategyInfo Convert()
 		{
-			return new PoolSizeStrategyInfo(Type, Condition, Config, ExtraAgentCount);
+			return new PoolSizeStrategyInfo(Type, Condition, ExtraAgentCount) { Config = (JsonObject)Config.DeepClone() };
 		}
 	}
 
@@ -78,7 +79,7 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string? Config { get; set; }
+		public JsonObject? Config { get; set; }
 
 		/// <summary>
 		/// Empty constructor for JSON serialization
@@ -104,7 +105,7 @@ namespace HordeServer.Agents.Pools
 		/// <returns></returns>
 		public FleetManagerInfo Convert()
 		{
-			return new FleetManagerInfo(Type, Condition, Config);
+			return new FleetManagerInfo(Type, Condition) { Config = (JsonObject?)Config?.DeepClone() };
 		}
 	}
 

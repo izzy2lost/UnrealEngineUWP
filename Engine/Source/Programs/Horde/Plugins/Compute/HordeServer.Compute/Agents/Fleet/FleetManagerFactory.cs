@@ -2,6 +2,7 @@
 
 using System.Diagnostics.Metrics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Amazon.AutoScaling;
 using Amazon.EC2;
 using EpicGames.Core;
@@ -12,6 +13,8 @@ using Microsoft.Extensions.Options;
 using OpenTelemetry.Trace;
 
 namespace HordeServer.Agents.Fleet;
+
+using JsonObject = System.Text.Json.Nodes.JsonObject;
 
 /// <summary>
 /// Interface for fleet manager factory
@@ -25,7 +28,7 @@ public interface IFleetManagerFactory
 	/// <param name="config">Config as a serialized JSON string</param>
 	/// <returns>An instantiated fleet manager with parameters loaded from config</returns>
 	/// <exception cref="ArgumentException">If fleet manager could not be instantiated</exception>
-	public IFleetManager CreateFleetManager(FleetManagerType type, string? config = null);
+	public IFleetManager CreateFleetManager(FleetManagerType type, JsonObject? config = null);
 }
 
 /// <summary>
@@ -59,12 +62,12 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 	}
 
 	/// <inheritdoc/>
-	public IFleetManager CreateFleetManager(FleetManagerType type, string? config)
+	public IFleetManager CreateFleetManager(FleetManagerType type, JsonObject? config)
 	{
 		return type switch
 		{
 			FleetManagerType.Default =>
-				CreateFleetManager(_staticComputeConfig.CurrentValue.FleetManagerV2, _staticComputeConfig.CurrentValue.FleetManagerV2Config ?? "{}"),
+				CreateFleetManager(_staticComputeConfig.CurrentValue.FleetManagerV2, _staticComputeConfig.CurrentValue.FleetManagerV2Config ?? new JsonObject()),
 			FleetManagerType.NoOp =>
 				new NoOpFleetManager(_loggerFactory.CreateLogger<NoOpFleetManager>()),
 			FleetManagerType.Aws =>
@@ -79,16 +82,16 @@ public sealed class FleetManagerFactory : IFleetManagerFactory
 		};
 	}
 
-	private static T DeserializeSettings<T>(string? config)
+	private static T DeserializeSettings<T>(JsonObject? config)
 	{
-		if (String.IsNullOrEmpty(config))
+		if (config == null)
 		{
-			config = "{}";
+			config = new JsonObject();
 		}
 
 		try
 		{
-			T? settings = JsonSerializer.Deserialize<T>(config);
+			T? settings = JsonSerializer.Deserialize<T>((JsonNode)config, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip });
 			if (settings == null)
 			{
 				throw new InvalidDataException($"Unable to deserialize");

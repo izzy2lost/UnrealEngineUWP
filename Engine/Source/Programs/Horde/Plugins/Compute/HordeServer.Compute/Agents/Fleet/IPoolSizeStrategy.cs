@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using HordeServer.Agents.Pools;
 
 namespace HordeServer.Agents.Fleet
@@ -127,7 +128,7 @@ namespace HordeServer.Agents.Fleet
 		/// <summary>
 		/// Create a new <see cref="IPoolSizeStrategy"/> instance from the given configuration
 		/// </summary>
-		IPoolSizeStrategy Create(string config);
+		IPoolSizeStrategy Create(JsonObject config);
 	}
 
 	/// <summary>
@@ -145,7 +146,7 @@ namespace HordeServer.Agents.Fleet
 			=> Type = type;
 
 		/// <inheritdoc/>
-		public IPoolSizeStrategy Create(string? config)
+		public IPoolSizeStrategy Create(JsonObject? config)
 			=> Create(DeserializeConfig<TConfig>(config));
 
 		/// <summary>
@@ -153,10 +154,9 @@ namespace HordeServer.Agents.Fleet
 		/// </summary>
 		public abstract IPoolSizeStrategy Create(TConfig config);
 
-		private static T DeserializeConfig<T>(string? json)
+		private static T DeserializeConfig<T>(JsonObject? json)
 		{
-			json = String.IsNullOrEmpty(json) ? "{}" : json;
-			T? config = JsonSerializer.Deserialize<T>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+			T? config = JsonSerializer.Deserialize<T>(json ?? new JsonObject(), new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 			if (config == null)
 			{
 				throw new ArgumentException("Unable to deserialize config: " + json);
@@ -185,7 +185,7 @@ namespace HordeServer.Agents.Fleet
 	{
 		public PoolSizeStrategy Type => PoolSizeStrategy.NoOp;
 
-		public IPoolSizeStrategy Create(string config)
+		public IPoolSizeStrategy Create(JsonObject? config)
 			=> new NoOpPoolSizeStrategy();
 	}
 

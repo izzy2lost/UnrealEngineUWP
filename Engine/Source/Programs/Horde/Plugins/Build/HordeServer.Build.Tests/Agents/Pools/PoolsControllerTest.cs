@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Common;
 using HordeServer.Agents.Fleet;
 using HordeServer.Agents.Pools;
 using Microsoft.AspNetCore.Mvc;
@@ -47,10 +48,10 @@ namespace HordeServer.Tests.Agents.Pools
 				Name = "Pool1",
 				ScaleOutCooldown = TimeSpan.FromSeconds(111),
 				ScaleInCooldown = TimeSpan.FromSeconds(222),
-				SizeStrategies = new List<PoolSizeStrategyInfo> { new() { Type = PoolSizeStrategy.JobQueue, Condition = "dayOfWeek == 'monday'", Config = @"{""ScaleOutFactor"": 22.0, ""ScaleInFactor"": 33.0}", ExtraAgentCount = 567 } },
+				SizeStrategies = new List<PoolSizeStrategyInfo> { new(PoolSizeStrategy.JobQueue, "dayOfWeek == 'monday'", @"{""ScaleOutFactor"": 22.0, ""ScaleInFactor"": 33.0}", extraAgentCount: 567) },
 				SizeStrategy = PoolSizeStrategy.JobQueue,
 				JobQueueSettings = new JobQueueSettings(0.35, 0.85),
-				FleetManagers = new List<FleetManagerInfo> { new() { Type = FleetManagerType.AwsReuse, Condition = "dayOfWeek == 'monday'", Config = "{}" } },
+				FleetManagers = new List<FleetManagerInfo> { new() { Type = FleetManagerType.AwsReuse, Condition = "dayOfWeek == 'monday'" } },
 			};
 #pragma warning restore CS0618
 

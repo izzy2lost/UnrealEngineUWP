@@ -1,6 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using HordeServer.Agents.Fleet;
+using HordeServer.Agents.Pools;
 
 namespace HordeServer
 {
@@ -27,7 +30,8 @@ namespace HordeServer
 		/// <summary>
 		/// Config for the fleet manager (serialized JSON)
 		/// </summary>
-		public string? FleetManagerV2Config { get; set; }
+		[JsonConverter(typeof(JsonObjectOrStringConverter))]
+		public JsonObject? FleetManagerV2Config { get; set; }
 
 		/// <summary>
 		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received

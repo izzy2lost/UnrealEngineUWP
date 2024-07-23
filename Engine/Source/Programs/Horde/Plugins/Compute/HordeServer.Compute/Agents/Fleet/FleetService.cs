@@ -15,6 +15,8 @@ using OpenTelemetry.Trace;
 
 namespace HordeServer.Agents.Fleet
 {
+	using JsonObject = System.Text.Json.Nodes.JsonObject;
+
 	/// <summary>
 	/// Parameters required for calculating pool size
 	/// </summary>
@@ -344,7 +346,7 @@ namespace HordeServer.Agents.Fleet
 				}
 			}
 
-			return _fleetManagerFactory.CreateFleetManager(FleetManagerType.Default, "{}");
+			return _fleetManagerFactory.CreateFleetManager(FleetManagerType.Default, new JsonObject());
 		}
 
 		/// <summary>

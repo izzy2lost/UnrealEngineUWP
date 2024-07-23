@@ -2,6 +2,7 @@
 
 extern alias HordeAgent;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using HordeServer.Agents;
 using HordeServer.Agents.Fleet;
 using HordeServer.Agents.Fleet.Providers;
@@ -83,7 +84,7 @@ namespace HordeServer.Tests.Fleet
 			_fleetManager = fleetManager;
 		}
 
-		public IFleetManager CreateFleetManager(FleetManagerType type, string? config = null)
+		public IFleetManager CreateFleetManager(FleetManagerType type, JsonObject? config = null)
 		{
 			return _fleetManager;
 		}
@@ -307,7 +308,24 @@ namespace HordeServer.Tests.Fleet
 			await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "{}"));
 			await CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "  {} "));
 
-			await Assert.ThrowsExceptionAsync<JsonException>(() => CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "BAD_JSON")));
+			await ThrowsDerivedExceptionAsync<JsonException>(() => CreateStrategyAsync(new PoolSizeStrategyInfo(PoolSizeStrategy.LeaseUtilization, null, "BAD_JSON")));
+		}
+
+		static async Task<bool> ThrowsDerivedExceptionAsync<T>(Func<Task> func) where T : Exception
+		{
+			try
+			{
+				await func();
+				return false;
+			}
+			catch (T)
+			{
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		[TestMethod]

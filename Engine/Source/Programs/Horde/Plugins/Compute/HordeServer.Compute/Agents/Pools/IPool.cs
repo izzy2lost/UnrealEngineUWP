@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using EpicGames.Horde.Common;
 using HordeServer.Agents.Fleet;
@@ -25,7 +26,8 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string Config { get; set; } = "";
+		[JsonConverter(typeof(JsonObjectOrStringConverter))]
+		public JsonObject Config { get; set; } = new JsonObject();
 
 		/// <summary>
 		/// Integer to add after pool size has been calculated. Can also be negative.
@@ -35,6 +37,7 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Empty constructor for JSON serialization
 		/// </summary>
+		[JsonConstructor]
 		public PoolSizeStrategyInfo()
 		{
 		}
@@ -42,17 +45,28 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolSizeStrategyInfo(PoolSizeStrategy type, Condition? condition, string? config, int extraAgentCount = 0)
+		public PoolSizeStrategyInfo(PoolSizeStrategy type, Condition? condition, int extraAgentCount = 0)
 		{
-			config = String.IsNullOrWhiteSpace(config) ? "{}" : config;
-
-			// Try deserializing to ensure the config is valid JSON
-			// Config can be null due to JSON serializer calling the constructor
-			JsonSerializer.Deserialize<dynamic>(config);
-
 			Type = type;
 			Condition = condition;
-			Config = config;
+			ExtraAgentCount = extraAgentCount;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public PoolSizeStrategyInfo(PoolSizeStrategy type, Condition? condition, string config, int extraAgentCount = 0)
+		{
+			Type = type;
+			Condition = condition;
+			if (String.IsNullOrEmpty(config))
+			{
+				Config = new JsonObject();
+			}
+			else
+			{
+				Config = (JsonObject)JsonNode.Parse(config, new JsonNodeOptions { PropertyNameCaseInsensitive = true }, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip })!;
+			}
 			ExtraAgentCount = extraAgentCount;
 		}
 	}
@@ -75,7 +89,8 @@ namespace HordeServer.Agents.Pools
 		/// <summary>
 		/// Configuration for the strategy, serialized as JSON
 		/// </summary>
-		public string? Config { get; set; }
+		[JsonConverter(typeof(JsonObjectOrStringConverter))]
+		public JsonObject? Config { get; set; }
 
 		/// <summary>
 		/// Empty constructor for BSON/JSON serialization
@@ -88,15 +103,56 @@ namespace HordeServer.Agents.Pools
 		/// Constructor
 		/// </summary>
 		[JsonConstructor]
-		public FleetManagerInfo(FleetManagerType type, Condition? condition, string? config)
+		public FleetManagerInfo(FleetManagerType type, Condition? condition)
 		{
-			config = String.IsNullOrWhiteSpace(config) ? "{}" : config;
-			JsonSerializer.Deserialize<dynamic>(config);
-
 			Type = type;
 			Condition = condition;
-			Config = config;
 		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FleetManagerInfo(FleetManagerType type, Condition? condition, string config)
+		{
+			Type = type;
+			Condition = condition;
+			if (String.IsNullOrEmpty(config))
+			{
+				Config = new JsonObject();
+			}
+			else
+			{
+				Config = (JsonObject?)JsonNode.Parse(config, new JsonNodeOptions { PropertyNameCaseInsensitive = true }, new JsonDocumentOptions { AllowTrailingCommas = true });
+			}
+		}
+	}
+
+	/// <summary>
+	/// Allows parsing a string or json object into a native JsonObject instance
+	/// </summary>
+	class JsonObjectOrStringConverter : JsonConverter<JsonObject>
+	{
+		static readonly JsonNodeOptions s_nodeOptions = new JsonNodeOptions { PropertyNameCaseInsensitive = true };
+		static readonly JsonDocumentOptions s_documentOptions = new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip };
+
+		/// <inheritdoc/>
+		public override JsonObject? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+		{
+			JsonObject? result = null;
+			if (reader.TokenType == JsonTokenType.String)
+			{
+				result = JsonNode.Parse(reader.GetString() ?? "{}", s_nodeOptions, s_documentOptions) as JsonObject;
+			}
+			else if (reader.TokenType == JsonTokenType.StartObject)
+			{
+				result = JsonNode.Parse(ref reader, s_nodeOptions) as JsonObject;
+			}
+			return result;
+		}
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, JsonObject value, JsonSerializerOptions options)
+			=> JsonSerializer.Serialize(writer, value, options);
 	}
 
 	/// <summary>
