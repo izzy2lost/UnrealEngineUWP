@@ -2159,13 +2159,8 @@ void URigVMEdGraphSchema::EndGraphNodeInteraction(UEdGraphNode* InNode) const
 	
 	bool bMovedSomething = false;
 
-	URigVMBlueprint* Blueprint = Graph->GetBlueprint();
-	if (Blueprint == nullptr)
-	{
-		return;
-	}
-	TGuardValue<bool> GuardDirtyBlueprintStatus(Blueprint->bSkipDirtyBlueprintStatus, true);
-	
+	FGuardSkipDirtyBlueprintStatus GuardDirtyBlueprintStatus(Graph->GetBlueprint(), true);
+
 	Graph->GetController()->OpenUndoBracket(TEXT("Move Nodes"));
 
 	for (const UEdGraphNode* NodeToMove : NodesToMove)

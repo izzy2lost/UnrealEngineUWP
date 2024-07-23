@@ -1471,7 +1471,7 @@ FReply SRigVMGraphNode::OnExpanderArrowClicked(int32 InPinInfoIndex)
 				Algo::Reverse(PinInfoIndicesToModify);
 			}
 
-			TGuardValue<bool> GuardDirtyBlueprintStatus(Blueprint->bSkipDirtyBlueprintStatus, true);
+			FGuardSkipDirtyBlueprintStatus GuardDirtyBlueprintStatus(Blueprint, true);
 
 			Controller->OpenUndoBracket(PinInfo.bExpanded ? TEXT("Collapsing Pin") : TEXT("Expanding Pin"));
 			for(const int32& PinInfoIndexToModify : PinInfoIndicesToModify)

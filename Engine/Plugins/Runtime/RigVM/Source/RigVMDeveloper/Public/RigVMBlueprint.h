@@ -27,6 +27,7 @@ class IRigVMEditorModule;
 #endif
 struct FEndLoadPackageContext;
 struct FRigVMMemoryStorageStruct;
+struct FGuardSkipDirtyBlueprintStatus;
 
 DECLARE_EVENT_ThreeParams(URigVMBlueprint, FOnRigVMCompiledEvent, UObject*, URigVM*, FRigVMExtendedExecuteContext&);
 DECLARE_EVENT_OneParam(URigVMBlueprint, FOnRigVMRefreshEditorEvent, URigVMBlueprint*);
@@ -836,6 +837,7 @@ private:
 	friend class FRigVMTreeAssetVariantFilter;
 	friend class FRigVMTreePackageNode;
 	friend class SRigVMGraphNode;
+	friend struct FGuardSkipDirtyBlueprintStatus;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope
@@ -857,4 +859,28 @@ public:
 private:
 
 	URigVMBlueprint* Blueprint;
+};
+
+struct FGuardSkipDirtyBlueprintStatus : private FNoncopyable
+{
+	[[nodiscard]] FGuardSkipDirtyBlueprintStatus(TWeakObjectPtr<URigVMBlueprint> InBlueprint, bool bNewValue)
+	{
+		if (InBlueprint.IsValid())
+		{
+			WeakBlueprint = InBlueprint;
+			bOldValue = InBlueprint->bSkipDirtyBlueprintStatus;
+			InBlueprint->bSkipDirtyBlueprintStatus = bNewValue;
+		}
+	}
+	~FGuardSkipDirtyBlueprintStatus()
+	{
+		if (URigVMBlueprint* Blueprint = WeakBlueprint.Get())
+		{
+			Blueprint->bSkipDirtyBlueprintStatus = bOldValue;
+		}
+	}
+
+private:
+	TWeakObjectPtr<URigVMBlueprint> WeakBlueprint;
+	bool bOldValue = false;
 };
