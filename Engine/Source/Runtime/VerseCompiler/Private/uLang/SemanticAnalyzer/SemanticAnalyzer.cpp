@@ -6016,7 +6016,7 @@ private:
         TArray<SEffectInstance> AllAttributeInstances;
         for (const auto& AttributePair : AttributesFound)
         {
-            AllAttributeInstances.Add({ AttributePair._Identifier, AttributePair._Class, _Program->FindEffectDescriptorChecked(AttributePair._Class) });
+            AllAttributeInstances.Add({ AttributePair._Identifier, AttributePair._Class, _Program->FindEffectDescriptorChecked(AttributePair._Class, _Context._Package->_UploadedAtFNVersion) });
         }
 
         // 2. For each attribute we discovered, make sure it is not mutually exclusive with the other attributes we found

@@ -559,10 +559,10 @@ public:
     }
 
     // Construct the effects descriptor table against this instance of the program's notion of the effect classes
-    const SEffectDescriptor& FindEffectDescriptorChecked(const CClass* effectKey) const;
+    const SEffectDescriptor& FindEffectDescriptorChecked(const CClass* effectKey, uint32_t UploadedAtFNVersion = VerseFN::UploadedAtFNVersion::Latest) const;
     inline const TArray<const CClass*>& GetAllEffectClasses() const { return _AllEffectClasses; }
     
-    TOptional<SEffectSet> ConvertEffectClassesToEffectSet(const TArray<const CClass*>& EffectClasses, const SEffectSet& DefaultEffectSet = SEffectSet{}) const;
+    TOptional<SEffectSet> ConvertEffectClassesToEffectSet(const TArray<const CClass*>& EffectClasses, const SEffectSet& DefaultEffectSet, uint32_t UploadedAtFNVersion = VerseFN::UploadedAtFNVersion::Latest) const;
     TOptional<TArray<const CClass*>> ConvertEffectSetToEffectClasses(const SEffectSet& EffectSet, const SEffectSet& DefaultEffectSet) const;
 
 private:
@@ -626,14 +626,19 @@ private:
 
     int32_t _NumFunctions{0};
 
+    // We choose between these effects tables based on the UploadedAtFNVersion. If we end up versioning this
+    //  further, we should consider some more expandable structure to put them all in.
     TMap<const CClass*, SEffectDescriptor> _EffectDescriptorTable;
+    TMap<const CClass*, SEffectDescriptor> _EffectDescriptorTable_Pre3100;
+
     TArray<const CClass*> _AllEffectClasses;
     TArray <SDecompositionMapping> _OrderedDecompositionData;
 
     bool bEffectsTablePopulated{ false };
     void PopulateEffectDescriptorTable();
-    void ValidateEffectDescriptorTable() const;
+    void ValidateEffectDescriptorTable(const TMap<const CClass*, SEffectDescriptor>& DescriptorTable) const;
     CDefinition* FindDefinitionByVersePathInternal(CUTF8StringView VersePath) const;
+    const TMap<const CClass*, SEffectDescriptor>& GetEffectDescriptorTableForVersion(uint32_t UploadedAtFNVersion) const;
 };
 
 }  // namespace uLang

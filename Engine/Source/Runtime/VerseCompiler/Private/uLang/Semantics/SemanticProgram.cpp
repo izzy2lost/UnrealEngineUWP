@@ -1534,6 +1534,17 @@ void CSemanticProgram::PopulateEffectDescriptorTable()
 
     _EffectDescriptorTable.Insert(_variesClassDeprecated, { EffectSets::VariesDeprecated, EEffect::reads | EEffect::writes | EEffect::allocates | EEffect::no_rollback,                           { _transactsClass, _allocatesClass, _computesClass, _convergesClass },                                         false });
 
+    // Create any legacy effects tables that might come up
+    {
+        // Duplicate the latest table and augment the meaning of decides to imply diverges as this aligns with the legacy effects (pre-CL33775275)
+        for (const auto& DescPair : _EffectDescriptorTable)
+        {
+            _EffectDescriptorTable_Pre3100.Insert(DescPair._Key, DescPair._Value);
+        }
+
+        _EffectDescriptorTable_Pre3100[_decidesClass]._EffectSet |= EffectSets::Computes;
+    }
+
     for (const auto& DescPair : _EffectDescriptorTable)
     {
         _AllEffectClasses.Add(DescPair._Key);
@@ -1560,14 +1571,15 @@ void CSemanticProgram::PopulateEffectDescriptorTable()
             return A.Effects.Num() > B.Effects.Num();
         });
 
-    ValidateEffectDescriptorTable();
+    ValidateEffectDescriptorTable(_EffectDescriptorTable);
+    ValidateEffectDescriptorTable(_EffectDescriptorTable_Pre3100);
 }
 
-void CSemanticProgram::ValidateEffectDescriptorTable() const
+void CSemanticProgram::ValidateEffectDescriptorTable(const TMap<const CClass*, SEffectDescriptor>& DescriptorTable) const
 {
     ULANG_ASSERTF(bEffectsTablePopulated, "Effects descriptor table not populated!");
 
-    for (const auto& DescPair : _EffectDescriptorTable)
+    for (const auto& DescPair : DescriptorTable)
     {
         const CClass* SourceClass = DescPair._Key;
         const SEffectDescriptor& SourceDescriptor = DescPair._Value;
@@ -1578,7 +1590,7 @@ void CSemanticProgram::ValidateEffectDescriptorTable() const
             ULANG_ASSERTF(TargetClass != nullptr, "Null references are not allowed inside the effect descriptor table - mutual exclusion list for `%s`", SourceClass->Definition()->AsNameCString());
             ULANG_ASSERTF(SourceClass != TargetClass, "Effect classes cannot be mutually exclusive with themselves - `%s`", SourceClass->Definition()->AsNameCString());
 
-            const SEffectDescriptor* TargetDescriptor = _EffectDescriptorTable.Find(TargetClass);
+            const SEffectDescriptor* TargetDescriptor = DescriptorTable.Find(TargetClass);
             ULANG_ASSERTF(TargetDescriptor != nullptr, "All mutually exclusive effect classes must also have a descriptor in the table - `%s` is missing", TargetClass->Definition()->AsNameCString());
             ULANG_ASSERTF(TargetDescriptor->_MutualExclusions.Contains(SourceClass), "All mutual exlusion relationships must be reciprocated - `%s` lacks `%s`", TargetClass->Definition()->AsNameCString(), SourceClass->Definition()->AsNameCString());
         }
@@ -1588,27 +1600,37 @@ void CSemanticProgram::ValidateEffectDescriptorTable() const
 
     for (const CClass* EffectClass : _AllEffectClasses)
     {
-        ULANG_ASSERTF(_EffectDescriptorTable.Contains(EffectClass), "All effect classes must be in both the descriptor table and the all-effects list", EffectClass->Definition()->AsNameCString());
+        ULANG_ASSERTF(DescriptorTable.Contains(EffectClass), "All effect classes must be in both the descriptor table and the all-effects list", EffectClass->Definition()->AsNameCString());
     }
 }
 
-const SEffectDescriptor& CSemanticProgram::FindEffectDescriptorChecked(const CClass* effectClass) const
+const TMap<const CClass*, SEffectDescriptor>& CSemanticProgram::GetEffectDescriptorTableForVersion(uint32_t UploadedAtFNVersion) const
 {
-    const SEffectDescriptor* ResultDescriptor = _EffectDescriptorTable.Find(effectClass);
+    if (!VerseFN::UploadedAtFNVersion::DecidesEffectNoLongerImpliesComputes(UploadedAtFNVersion))
+    {
+        return _EffectDescriptorTable_Pre3100;
+    }
+
+    return _EffectDescriptorTable;
+}
+
+const SEffectDescriptor& CSemanticProgram::FindEffectDescriptorChecked(const CClass* effectClass, uint32_t UploadedAtFNVersion /*= Latest*/ ) const
+{
+    const SEffectDescriptor* ResultDescriptor = GetEffectDescriptorTableForVersion(UploadedAtFNVersion).Find(effectClass);
 
     ULANG_ASSERTF(ResultDescriptor != nullptr, "Failed to find an effect descriptor for the `%s` effect class", effectClass->Definition()->AsNameCString());
     
     return *ResultDescriptor;
 }
 
-TOptional<SEffectSet> CSemanticProgram::ConvertEffectClassesToEffectSet(const TArray<const CClass*>& EffectClasses, const SEffectSet& DefaultEffectSet) const
+TOptional<SEffectSet> CSemanticProgram::ConvertEffectClassesToEffectSet(const TArray<const CClass*>& EffectClasses, const SEffectSet& DefaultEffectSet, uint32_t UploadedAtFNVersion /*=Latest*/) const
 {
     ULANG_ASSERTF(bEffectsTablePopulated, "Effects descriptor table not populated!");
 
     // Check that all these effect classes can coexist
     for (int i = 0; i < EffectClasses.Num(); ++i)
     {
-        const uLang::SEffectDescriptor& OuterDesc = FindEffectDescriptorChecked(EffectClasses[i]);
+        const uLang::SEffectDescriptor& OuterDesc = FindEffectDescriptorChecked(EffectClasses[i], UploadedAtFNVersion);
         for (int j = i + 1; j < EffectClasses.Num(); ++j)
         {
             if (OuterDesc._MutualExclusions.Contains(EffectClasses[j]))
@@ -1621,9 +1643,11 @@ TOptional<SEffectSet> CSemanticProgram::ConvertEffectClassesToEffectSet(const TA
     SEffectSet Result = DefaultEffectSet;
     SEffectSet AddedEffects = SEffectSet{};
 
+    const TMap<const CClass*, SEffectDescriptor>& EffectDescriptorTable = GetEffectDescriptorTableForVersion(UploadedAtFNVersion);
+
     for (const CClass* EffectClass : EffectClasses)
     {
-        if (const uLang::SEffectDescriptor* EffectDesc = _EffectDescriptorTable.Find(EffectClass))
+        if (const uLang::SEffectDescriptor* EffectDesc = EffectDescriptorTable.Find(EffectClass))
         {
             Result &= ~EffectDesc->_RescindFromDefault;
             AddedEffects |= EffectDesc->_EffectSet;
@@ -1644,13 +1668,17 @@ TOptional<TArray<const CClass*>> CSemanticProgram::ConvertEffectSetToEffectClass
         return TOptional<TArray<const CClass*>>(TArray<const CClass*>());
     }
 
+    // It is currently not necessary to support the Effect-set to Classes conversion with versioned effect tables.
+    // That's only used for digest creation and some current-version-only cases like the LSP.
+    const TMap<const CClass*, SEffectDescriptor>& EffectDescriptorTable = GetEffectDescriptorTableForVersion(VerseFN::UploadedAtFNVersion::Latest);
+
     // This decomposition is an incomplete solution. In reality, this is something akin to a knapsack problem or the coins problem, but 
     //  the standard dp solution doesn't have an obvious mapping. At a minimum, we should cache solutions instead of recalculating them
     //  all the time. It might be practical to just brute-force the solutions into a table, but the table shifts depending on what the
     //  specified default values are.
     for (const SDecompositionMapping& OuterMapping : _OrderedDecompositionData)
     {
-        if (const uLang::SEffectDescriptor* OuterDesc = _EffectDescriptorTable.Find(OuterMapping.Class))
+        if (const uLang::SEffectDescriptor* OuterDesc = EffectDescriptorTable.Find(OuterMapping.Class))
         {
             SEffectSet SubtractiveSet = DefaultEffectSet & ~OuterDesc->_RescindFromDefault;
             SEffectSet AdditiveSet = OuterDesc->_EffectSet;
@@ -1677,7 +1705,7 @@ TOptional<TArray<const CClass*>> CSemanticProgram::ConvertEffectSetToEffectClass
                     continue;
                 }
 
-                if (const uLang::SEffectDescriptor* InnerDesc = _EffectDescriptorTable.Find(InnerMapping.Class))
+                if (const uLang::SEffectDescriptor* InnerDesc = EffectDescriptorTable.Find(InnerMapping.Class))
                 {
                     // Recompute the result if this effect was added
                     SEffectSet TestSet = (SubtractiveSet & ~InnerDesc->_RescindFromDefault) | AdditiveSet | InnerDesc->_EffectSet;
