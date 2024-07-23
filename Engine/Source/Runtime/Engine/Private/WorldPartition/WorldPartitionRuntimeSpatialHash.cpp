@@ -2123,7 +2123,7 @@ bool UWorldPartitionRuntimeSpatialHash::UnregisterWorldAssetStreaming(const FGui
 		{
 			auto TrashObject = [](UObject* InObject)
 			{
-				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InObject->GetName())));
+				FName NewUniqueTrashName = MakeUniqueObjectName(GetTransientPackage(), InObject->GetClass(), InObject->GetFName());
 				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			};
 
