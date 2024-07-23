@@ -190,6 +190,21 @@ struct CORE_API FIOSPlatformMisc : public FApplePlatformMisc
 	static FString GetProjectVersion();
 	static FString GetBuildNumber();
 
+    /**
+     * @return true if the app is able to refresh in the background
+     */
+    static bool IsBackgroundAppRefreshAvailable();
+
+    /**
+     * Open the Settings app at the Notification page for this app.
+     */
+    static void OpenAppNotificationSettings();
+	
+    /**
+     * Open the app's custom settings in the Settings App.
+     */
+    static void OpenAppCustomSettings();
+
 	static void SetGracefulTerminationHandler();
 	static void SetCrashHandler(void(*CrashHandler)(const FGenericCrashContext& Context));
 

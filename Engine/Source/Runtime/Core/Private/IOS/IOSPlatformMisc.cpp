@@ -1615,6 +1615,29 @@ FString FIOSPlatformMisc::GetBuildNumber()
 	return BuildString;
 }
 
+bool FIOSPlatformMisc::IsBackgroundAppRefreshAvailable()
+{
+	return (UIBackgroundRefreshStatusAvailable == [[UIApplication sharedApplication] backgroundRefreshStatus]);
+}
+
+void FIOSPlatformMisc::OpenAppNotificationSettings()
+{
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSURL * SettingsUrl = [[NSURL alloc]initWithString:UIApplicationOpenNotificationSettingsURLString];
+		[[UIApplication sharedApplication]openURL:SettingsUrl options:@{} completionHandler:nil];
+		[SettingsUrl release];
+	});
+}
+
+void FIOSPlatformMisc::OpenAppCustomSettings()
+{
+	dispatch_async(dispatch_get_main_queue(), ^{
+		NSURL * SettingsUrl = [[NSURL alloc]initWithString:UIApplicationOpenSettingsURLString];
+		[[UIApplication sharedApplication]openURL:SettingsUrl options:@{} completionHandler:nil];
+		[SettingsUrl release];
+	});
+}
+
 bool FIOSPlatformMisc::RequestDeviceCheckToken(TFunction<void(const TArray<uint8>&)> QuerySucceededFunc, TFunction<void(const FString&, const FString&)> QueryFailedFunc)
 {
 	DCDevice* DeviceCheckDevice = [DCDevice currentDevice];
