@@ -1022,6 +1022,8 @@ namespace BuildPatchServices
 		GConfig->GetFloat(TEXT("Portal.BuildPatch"), TEXT("ChunkDbSourceChunkDbOpenRetryTime"), ChunkDbSourceConfig.ChunkDbOpenRetryTime, GEngineIni);
 		ChunkDbSourceConfig.ChunkDbOpenRetryTime = FMath::Clamp<float>(ChunkDbSourceConfig.ChunkDbOpenRetryTime, 0.5f, 60.0f);
 
+		ChunkDbSourceConfig.bDeleteChunkDBAfterUse = Configuration.bDeleteChunkDbFilesAfterUse;
+
 		return ChunkDbSourceConfig;
 	}
 
@@ -1302,6 +1304,8 @@ namespace BuildPatchServices
 		{
 			TUniquePtr<IChunkDataSerialization> ChunkDataSerialization(FChunkDataSerializationFactory::Create(
 				FileSystem.Get()));
+
+			// Generate the list of chunks we will need and the order in which we will need them.
 			TUniquePtr<IChunkReferenceTracker> ChunkReferenceTracker(FChunkReferenceTrackerFactory::Create(
 				ManifestSet.Get(),
 				FilesToConstruct));
@@ -1323,6 +1327,8 @@ namespace BuildPatchServices
 				MemoryEvictionPolicy.Get(),
 				DiskOverflowStore.Get(),
 				MemoryChunkStoreStatistics.Get()));
+
+			// Add a source for pulling from chunk "databases", basically tarballs of chunks.
 			TUniquePtr<IChunkDbChunkSource> ChunkDbChunkSource(FChunkDbChunkSourceFactory::Create(
 				BuildChunkDbSourceConfig(),
 				Platform.Get(),
@@ -1333,6 +1339,8 @@ namespace BuildPatchServices
 				MessagePump.Get(),
 				InstallerError.Get(),
 				ChunkDbChunkSourceStatistics.Get()));
+
+			// Add a source for pulling from the existing directory (for patching).
 			TUniquePtr<IInstallChunkSource> InstallChunkSource(FInstallChunkSourceFactory::Create(
 				BuildInstallSourceConfig(ChunkDbChunkSource->GetAvailableChunks()),
 				FileSystem.Get(),
@@ -1342,10 +1350,14 @@ namespace BuildPatchServices
 				InstallChunkSourceStatistics.Get(),
 				InstallationInfo,
 				ManifestSet.Get()));
+
+			// Sub out the chunks we have available on disk - anything we don't we have to download.
 			TSet<FGuid> InitialDownloadChunks = ReferencedChunks.Difference(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks());
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalChunkDbData);
 			FileOperationTracker->OnDataStateUpdate(ReferencedChunks.Intersect(InstallChunkSource->GetAvailableChunks()).Difference(ChunkDbChunkSource->GetAvailableChunks()), EFileOperationState::PendingLocalInstallData);
 			FileOperationTracker->OnDataStateUpdate(InitialDownloadChunks, EFileOperationState::PendingRemoteCloudData);
+
+			// Add the source for downloading chunks we don't have on disk.
 			TUniquePtr<IDownloadConnectionCount> DownloadConnectionCount(FDownloadConnectionCountFactory::Create(BuildConnectionCountConfig(), DownloadServiceStatistics.Get()));
 			TUniquePtr<ICloudChunkSource> CloudChunkSource(FCloudChunkSourceFactory::Create(
 				BuildCloudSourceConfig(),
@@ -1360,6 +1372,8 @@ namespace BuildPatchServices
 				CloudChunkSourceStatistics.Get(),
 				ManifestSet.Get(),
 				MoveTemp(InitialDownloadChunks)));
+
+			// Set up a fallback chain of sources.
 			TArray<IChunkSource*> ChunkSources;
 			ChunkSources.Add(ChunkDbChunkSource.Get());
 			ChunkSources.Add(InstallChunkSource.Get());
@@ -1367,6 +1381,7 @@ namespace BuildPatchServices
 			TUniquePtr<IChainedChunkSource> ChainedChunkSource(FChainedChunkSourceFactory::Create(
 				ChunkSources));
 
+			// Set up the class that actually requests chunks and writes them to disk.
 			FFileConstructorConfig FCC;
 			FCC.ConstructList = FilesToConstruct.Array();
 			FCC.InstallDirectory = Configuration.InstallDirectory;

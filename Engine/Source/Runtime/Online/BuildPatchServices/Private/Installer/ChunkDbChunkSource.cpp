@@ -15,6 +15,7 @@
 #include "Installer/MessagePump.h"
 #include "Installer/InstallerError.h"
 #include "Installer/InstallerSharedContext.h"
+#include "Misc/OutputDeviceRedirector.h"
 
 #if PLATFORM_WINDOWS
 #include "Windows/WindowsHWrapper.h"
@@ -75,6 +76,30 @@ namespace BuildPatchServices
 	{
 		FChunkDatabaseHeader Header;
 		TUniquePtr<FArchive> Archive;
+		FString ChunkDbFileName;
+
+		// When the reference tracker gets below this watermark, then we know we are done with this file and we can
+		// close/retire it.
+		int32 RetireAt = 0;
+
+		// If we're retired then any access is invalid and fatal as the file has been closed and could be deleted.
+		bool bIsRetired = false;
+
+		void Retire(IMessagePump* MessagePump, IFileSystem* FileSystemIfDeleting, bool bDelete)
+		{
+			bIsRetired = true;
+			FString ArchiveName = Archive->GetArchiveName();
+			Archive.Reset();
+			MessagePump->SendMessage(FChunkSourceEvent{ FChunkSourceEvent::EType::Retired, ArchiveName });
+
+			if (bDelete && FileSystemIfDeleting)
+			{
+				if (!FileSystemIfDeleting->DeleteFile(*ChunkDbFileName))
+				{
+					GLog->Logf(TEXT("Failed to delete chunkdb upon retirement: %s"), *ChunkDbFileName);
+				}
+			}
+		}
 	};
 
 	/**
@@ -115,6 +140,22 @@ namespace BuildPatchServices
 		virtual TSet<FGuid> AddRuntimeRequirements(TSet<FGuid> NewRequirements) override;
 		virtual bool AddRepeatRequirement(const FGuid& RepeatRequirement) override;
 		virtual void SetUnavailableChunksCallback(TFunction<void(TSet<FGuid>)> Callback) override;
+		virtual void ReportFileCompletion() override
+		{
+			//
+			// Since we've completed a file we know we won't need to resume/retry it and can delete
+			// the source chunkdb that it used.
+			//
+			int32 RemainingChunkCount = ChunkReferenceTracker->GetRemainingChunkCount();
+			for (FChunkDbDataAccess& ChunkDbDataAccess : ChunkDbDataAccesses)
+			{
+				if (!ChunkDbDataAccess.bIsRetired &&
+					ChunkDbDataAccess.RetireAt > RemainingChunkCount)
+				{
+					ChunkDbDataAccess.Retire(MessagePump, FileSystem, Configuration.bDeleteChunkDBAfterUse);
+				}
+			}
+		}
 		// IChunkSource interface end.
 
 		// IInstallChunkSource interface begin.
@@ -178,6 +219,8 @@ namespace BuildPatchServices
 		, ChunkDbChunkSourceStat(InChunkDbChunkSourceStat)
 		, bStartedLoading(!InConfiguration.bBeginLoadsOnFirstGet)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FChunkDbChunkSource_ctor);
+
 		// Allow OS intervention only once.
 		bool bResetOsIntervention = false;
 		int32 PreviousOsIntervention = 0;
@@ -190,10 +233,22 @@ namespace BuildPatchServices
 				// Load header.
 				FChunkDatabaseHeader Header;
 				*ChunkDbFile << Header;
-				if (!ChunkDbFile->IsError() && Header.Contents.Num() > 0)
+				if (ChunkDbFile->IsError())
+				{
+					GLog->Logf(TEXT("Failed to load chunkdb header for %s"), *ChunkDbFilename);
+				}
+				else if (Header.Contents.Num() == 0)
+				{
+					GLog->Logf(TEXT("Loaded empty chunkdb %s"), *ChunkDbFilename);
+				}
+				else
 				{
 					// Hold on to the handle and header info.
-					ChunkDbDataAccesses.Add({MoveTemp(Header), MoveTemp(ChunkDbFile)});
+					FChunkDbDataAccess DataSource;
+					DataSource.Archive = MoveTemp(ChunkDbFile);
+					DataSource.ChunkDbFileName = ChunkDbFilename;
+					DataSource.Header = MoveTemp(Header);
+					ChunkDbDataAccesses.Add(MoveTemp(DataSource));
 				}
 			}
 			else if(!bResetOsIntervention)
@@ -218,6 +273,40 @@ namespace BuildPatchServices
 					ChunkDbDataAccessLookup.Add(ChunkLocation.ChunkId, {&ChunkLocation, &ChunkDbDataAccess});
 					AvailableChunks.Add(ChunkLocation.ChunkId);
 				}
+			}
+		}
+
+		// Once we have all the guids here we can predict when we'll be done with each
+		// chunkdb file by looking at the reference tracker.
+		TArray<FGuid> OrderedGuidList = InChunkReferenceTracker->GetNextReferences(0x7fffffff, [](const FGuid&) { return true; });
+
+		TMap<FString, int32> FileLastSeenAt;
+
+		int32 GuidIndex = 0;
+		for (; GuidIndex < OrderedGuidList.Num(); GuidIndex++)
+		{
+			const FGuid& Guid = OrderedGuidList[GuidIndex];
+
+			FChunkAccessLookup* SourceForGuid = ChunkDbDataAccessLookup.Find(Guid);
+			if (!SourceForGuid)
+			{
+				continue;
+			}
+
+			FileLastSeenAt.FindOrAdd(SourceForGuid->DbFile->Archive->GetArchiveName()) = GuidIndex;
+		}
+
+		for (FChunkDbDataAccess& ChunkDbDataAccess : ChunkDbDataAccesses)
+		{
+			int32* LastAt = FileLastSeenAt.Find(ChunkDbDataAccess.Archive->GetArchiveName());
+			if (LastAt == nullptr)
+			{
+				// If the file isn't going to be used, it's immediately retired.
+				ChunkDbDataAccess.Retire(MessagePump, FileSystem, Configuration.bDeleteChunkDBAfterUse);
+			}
+			else
+			{
+				ChunkDbDataAccess.RetireAt = OrderedGuidList.Num() - *LastAt - 1;
 			}
 		}
 
@@ -257,17 +346,27 @@ namespace BuildPatchServices
 
 	IChunkDataAccess* FChunkDbChunkSource::Get(const FGuid& DataId)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ChunkDb_Get);
+
 		// Get from our store
 		IChunkDataAccess* ChunkData = ChunkStore->Get(DataId);
 		if (ChunkData == nullptr)
 		{
 			bStartedLoading = true;
-			if (ChunkDbDataAccessLookup.Contains(DataId) && AvailableChunks.Contains(DataId))
+			FChunkAccessLookup* ChunkInfo = ChunkDbDataAccessLookup.Find(DataId);
+			if (ChunkInfo && AvailableChunks.Contains(DataId))
 			{
+				if (ChunkInfo->DbFile->bIsRetired)
+				{
+					GLog->Logf(TEXT("BAD!!!!!!!! Accessed chunk after chunkdb %s retired - invalid chunk reference order."), *ChunkInfo->DbFile->Archive->GetArchiveName());
+				}
+
 				// Wait for the chunk to be available.
 				while (!HasFailed(DataId) && (ChunkData = ChunkStore->Get(DataId)) == nullptr && !bShouldAbort)
 				{
-					Platform->Sleep(0.01f);
+					TRACE_CPUPROFILER_EVENT_SCOPE(ChunkDb_GetChunkData_Sleep);
+					// 10ms was wayyy too long here. (def needs to be an event)
+					Platform->Sleep(0.001f);
 				}
 
 				// Dump out unavailable chunks on the incoming IO thread.
@@ -308,6 +407,10 @@ namespace BuildPatchServices
 
 	void FChunkDbChunkSource::ThreadRun()
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(ChunkDb_Thread);
+
+		int32 LastChunkReferenceWatermark = ChunkReferenceTracker->GetRemainingChunkCount();
+
 		while (!bShouldAbort)
 		{
 			bool bWorkPerformed = false;
@@ -347,7 +450,10 @@ namespace BuildPatchServices
 			// If we had nothing to do, rest a little.
 			if(!bWorkPerformed)
 			{
-				Platform->Sleep(0.1f);
+				// This sleep is hit during startup since we don't do work before we start loading. For fresh installs
+				// this means we usually ask for the first chunk immediately after this sleep starts. So I changed this from 100ms
+				// to 10ms. Ideally this would be waiting on an event...
+				Platform->Sleep(0.01f);
 			}
 		}
 
@@ -359,6 +465,7 @@ namespace BuildPatchServices
 		bool bChunkGood = false;
 		if (ChunkDbDataAccessLookup.Contains(DataId))
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(ChunkDb_LoadChunk);
 			ChunkDbChunkSourceStat->OnLoadStarted(DataId);
 			FChunkAccessLookup& ChunkAccessLookup = ChunkDbDataAccessLookup[DataId];
 			FChunkLocation& ChunkLocation = *ChunkAccessLookup.Location;

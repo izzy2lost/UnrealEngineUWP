@@ -15,6 +15,13 @@ namespace BuildPatchServices
 		virtual TSet<FGuid> AddRuntimeRequirements(TSet<FGuid> NewRequirements) override;
 		virtual void SetUnavailableChunksCallback(TFunction<void(TSet<FGuid>)> Callback) override;
 		virtual bool AddRepeatRequirement(const FGuid& RepeatRequirement) override;
+		virtual void ReportFileCompletion() override
+		{
+			for (IChunkSource* ChunkSource : ChunkSources)
+			{
+				ChunkSource->ReportFileCompletion();
+			}
+		}
 		// IChunkSource interface end.
 
 	private:

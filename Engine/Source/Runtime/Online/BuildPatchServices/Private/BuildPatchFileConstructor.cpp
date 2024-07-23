@@ -925,6 +925,11 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 	}
 #endif
 
+	if (bSuccess)
+	{
+		ChunkSource->ReportFileCompletion();
+	}
+
 	// Delete the staging file if unsuccessful by means of any failure that could leave the file in unknown state.
 	if (!bSuccess)
 	{

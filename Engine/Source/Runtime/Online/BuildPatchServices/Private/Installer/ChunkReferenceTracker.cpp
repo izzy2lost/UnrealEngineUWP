@@ -26,10 +26,16 @@ namespace BuildPatchServices
 		virtual TArray<FGuid> GetNextReferences(int32 Count, const TFunction<bool(const FGuid&)>& SelectPredicate) const override;
 		virtual TArray<FGuid> SelectFromNextReferences(int32 Count, const TFunction<bool(const FGuid&)>& SelectPredicate) const override;
 		virtual bool PopReference(const FGuid& ChunkId) override;
+		virtual int32 GetRemainingChunkCount() const override;
 		// IChunkReferenceTracker interface end.
 
 	private:
 		TMap<FGuid, FThreadSafeCounter> ReferenceCount;
+
+		// This is a list of the chunk guids that we are going to use _in order_ during installation.
+		// it's reversed so that as we finish with chunks we can Pop instead of doing a full memmove.
+		// \todo just make this an array with an index in to current position so we don't have to do the reorder
+		// shenanegans everywhere and can grab the current position without a mutex.
 		TArray<FGuid> UseStack;
 		mutable FCriticalSection UseStackCs;
 	};
@@ -144,6 +150,12 @@ namespace BuildPatchServices
 			}
 		}
 		return NextReferences;
+	}
+
+	int32 FChunkReferenceTracker::GetRemainingChunkCount() const
+	{
+		FScopeLock ThreadLock(&UseStackCs);
+		return UseStack.Num();
 	}
 
 	TArray<FGuid> FChunkReferenceTracker::SelectFromNextReferences(int32 Count, const TFunction<bool(const FGuid&)>& SelectPredicate) const

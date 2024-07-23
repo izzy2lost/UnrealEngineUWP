@@ -55,6 +55,9 @@ namespace BuildPatchServices
 		// The context for allocating shared resources.
 		IBuildInstallerSharedContext* SharedContext = nullptr;
 
+		// If true, once we complete a file we delete all the chunkdbs used to create it.
+		bool bDeleteChunkDBAfterUse = false;
+
 		/**
 		 * Constructor which sets usual defaults, and takes params for values that cannot use a default.
 		 * @param InChunkDbFiles    The chunkdb filename array.

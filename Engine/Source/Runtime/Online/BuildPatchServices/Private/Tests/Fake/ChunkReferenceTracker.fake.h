@@ -68,6 +68,8 @@ namespace BuildPatchServices
 			}
 			return false;
 		}
+		virtual int32 GetRemainingChunkCount() const { return NextReferences.Num(); };
+
 
 	public:
 		TSet<FGuid> ReferencedChunks;

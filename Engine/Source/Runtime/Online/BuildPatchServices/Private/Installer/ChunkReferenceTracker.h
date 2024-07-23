@@ -60,6 +60,9 @@ namespace BuildPatchServices
 		virtual TArray<FGuid> SelectFromNextReferences(int32 Count, const TFunction<bool(const FGuid&)>& SelectPredicate) const = 0;
 
 		/**
+		* Poorly named - Should be named "DoneWithChunk". The expectation is that we finish with chunks in the expected
+		* use order.
+		* 
 		 * Pop the top reference from the tracker, indicating that operation has been performed.
 		 * It is not valid to pop anything but the top guid, so it must be provided for verification of behavior.
 		 * @param ChunkId           The id of the top chunk, this is used to verify behavior.
@@ -67,6 +70,9 @@ namespace BuildPatchServices
 		 *         was provided and thus no change was made.
 		 */
 		virtual bool PopReference(const FGuid& ChunkId) = 0;
+
+		// Return how many chunks are left to process.
+		virtual int32 GetRemainingChunkCount() const = 0;
 	};
 
 	/**
