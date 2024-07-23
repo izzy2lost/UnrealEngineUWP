@@ -1338,7 +1338,7 @@ void UMetasoundEditorGraphSchema::GetContextMenuActions(class UToolMenu* Menu, c
 			LOCTEXT("FindReferencesInGraph_Tooltip", "Find References to the selected Node in the current Graph"),
 			FSlateIcon());
 
-		FToolMenuSection& OrganizationSection = Menu->AddSection("MetasoundGraphSchemaNodeActionsOrganization", LOCTEXT("NodeActionsOrganizationMenuHeader", "Organization"));
+		FToolMenuSection& OrganizationSection = Menu->FindOrAddSection("MetasoundGraphNodeActionsOrganization", LOCTEXT("NodeActionsOrganizationMenuHeader", "Organization"));
 
 		// Only display update ability if node is of type external
 		// and node registry is reporting a major update is available.
