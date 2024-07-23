@@ -1281,6 +1281,11 @@ struct FSearchBoxStyle : public FSlateWidgetStyle
 	FMargin ImagePadding;
 	FSearchBoxStyle& SetImagePadding(const FMargin& InImagePadding){ ImagePadding = InImagePadding; return *this; }
 
+	/** Size of the images (auto size if not set) */
+	UPROPERTY(EditAnywhere, Category = Appearance)
+	TOptional<FVector2D> ImageSizeOverride;
+	FSearchBoxStyle& SetImageSizeOverride(const TOptional<FVector2D>& InImageSizeOverride){ ImageSizeOverride = InImageSizeOverride; return *this; }
+
 	/** If true, buttons appear to the left of the search text */
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage="Use LeftAlignSearchResultButtons and LeftAlignGlassImageAndClearButton instead"))
 	bool bLeftAlignButtons_DEPRECATED;

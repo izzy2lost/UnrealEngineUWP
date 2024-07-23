@@ -1311,7 +1311,8 @@ void FStarshipCoreStyle::SetupTextStyles(TSharedRef<FStyle>& Style)
 			.SetDownArrowImage(IMAGE_BRUSH_SVG("Starship/Common/chevron-down", Icon16x16, FStyleColors::Foreground))
 			.SetGlassImage(IMAGE_BRUSH_SVG("Starship/Common/search", Icon16x16))
 			.SetClearImage(IMAGE_BRUSH_SVG("Starship/Common/close", Icon16x16))
-			.SetImagePadding(FMargin(3.f, 0.f, 0.f, 0.f))
+			.SetImagePadding(FMargin(4.f, 0.f, 0.f, 0.f))
+			.SetImageSizeOverride(FVector2D(14.0f))
 			.SetLeftAlignSearchResultButtons(true)
 			.SetLeftAlignGlassImageAndClearButton(true)
 		);
@@ -1452,6 +1453,13 @@ void FStarshipCoreStyle::SetupButtonStyles(TSharedRef<FStyle>& Style)
 			.SetPressedPadding(FMargin(2.0f, 0.f));
 
 		Style->Set("HoverOnlyButton", SimpleButtonIconOnly);
+
+		SimpleButtonIconOnly
+			.SetNormalPadding(0.0f)
+			.SetPressedPadding(0.0f);
+
+		// A HoverOnlyButton that has no padding at all
+		Style->Set("ThinHoverOnlyButton", SimpleButtonIconOnly);
 	}
 }
 
