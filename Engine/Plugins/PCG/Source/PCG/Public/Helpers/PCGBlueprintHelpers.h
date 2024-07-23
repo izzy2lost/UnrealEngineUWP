@@ -84,6 +84,14 @@ public:
 
 	UFUNCTION(BLueprintCallable, Category = "PCG|Helpers", meta = (ScriptMethod))
 	static int64 GetTaskId(UPARAM(ref) FPCGContext& Context);
+
+	/** Flush the cache, to be used if you have changed something PCG depends on at runtime. Same as `pcg.FlushCache` command. Returns true if it succeeded. */
+	UFUNCTION(BlueprintCallable, Category = "PCG", meta=(DisplayName = "Flush PCG Cache"))
+	static bool FlushPCGCache();
+
+	/** Refresh a component set to Generate At Runtime, if some parameters changed. Can also flush the cache. */
+	UFUNCTION(BlueprintCallable, Category = "PCG|Runtime", meta = (ScriptMethod, DisplayName = "Refresh PCG Runtime Component"))
+	static void RefreshPCGRuntimeComponent(UPCGComponent* InComponent, const bool bFlushCache = false);
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

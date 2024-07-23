@@ -245,3 +245,29 @@ int64 UPCGBlueprintHelpers::GetTaskId(FPCGContext& Context)
 {
 	return static_cast<int64>(Context.TaskId);
 }
+
+bool UPCGBlueprintHelpers::FlushPCGCache()
+{
+	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		PCGSubsystem->FlushCache();
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void UPCGBlueprintHelpers::RefreshPCGRuntimeComponent(UPCGComponent* InComponent, const bool bFlushCache)
+{
+	if (UPCGSubsystem* PCGSubsystem = UPCGSubsystem::GetSubsystemForCurrentWorld())
+	{
+		if (bFlushCache)
+		{
+			PCGSubsystem->FlushCache();
+		}
+
+		PCGSubsystem->RefreshRuntimeGenComponent(InComponent, EPCGChangeType::GenerationGrid);
+	}
+}
