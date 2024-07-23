@@ -2665,6 +2665,17 @@ bool ARecastNavMesh::GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPortalEdg
 	return bFound;
 }
 
+bool ARecastNavMesh::GetPolyWallSegments(NavNodeRef PolyID, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const
+{
+	bool bFound = false;
+	if (RecastNavMeshImpl)
+	{
+		bFound = RecastNavMeshImpl->GetPolyWallSegments(PolyID, GetRightFilterRef(Filter), QueryOwner, OutNeighbors);
+	}
+
+	return bFound;
+}
+
 bool ARecastNavMesh::GetClosestPointOnPoly(NavNodeRef PolyID, const FVector& TestPt, FVector& PointOnPoly) const
 {
 	return RecastNavMeshImpl && RecastNavMeshImpl->GetClosestPointOnPoly(PolyID, TestPt, PointOnPoly);

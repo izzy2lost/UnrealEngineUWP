@@ -1433,6 +1433,9 @@ public:
 	/** Finds edges of specified poly */
 	NAVIGATIONSYSTEM_API bool GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPortalEdge>& Neighbors) const;
 
+	/** Finds all wall segments for the specified polygon (walls or area borders) */
+	NAVIGATIONSYSTEM_API bool GetPolyWallSegments(NavNodeRef PolyID, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const;
+
 	/** Finds closest point constrained to given poly */
 	NAVIGATIONSYSTEM_API bool GetClosestPointOnPoly(NavNodeRef PolyID, const FVector& TestPt, FVector& PointOnPoly) const;
 

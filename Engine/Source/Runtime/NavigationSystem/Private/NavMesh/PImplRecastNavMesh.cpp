@@ -2357,6 +2357,50 @@ bool FPImplRecastNavMesh::GetPolyEdges(NavNodeRef PolyID, TArray<FNavigationPort
 	return false;
 }
 
+bool FPImplRecastNavMesh::GetPolyWallSegments(NavNodeRef PolyID, const FNavigationQueryFilter& InQueryFilter, const UObject* QueryOwner, TArray<FNavigationPortalEdge>& OutNeighbors) const
+{
+	const FRecastQueryFilter* FilterImplementation = (const FRecastQueryFilter*)(InQueryFilter.GetImplementation());
+	if (FilterImplementation == nullptr)
+	{
+		UE_VLOG(NavMeshOwner, LogNavigation, Error, TEXT("%hs failed due to passed filter having NULL implementation!"), __FUNCTION__);
+		return false;
+	}
+
+	const dtQueryFilter* QueryFilter = FilterImplementation->GetAsDetourQueryFilter();
+	if (QueryFilter == nullptr)
+	{
+		UE_VLOG(NavMeshOwner, LogNavigation, Warning, TEXT("%hs failed due to QueryFilter == nullptr"), __FUNCTION__);
+		return false;
+	}
+	
+	FRecastSpeciaLinkFilter LinkFilter(FNavigationSystem::GetCurrent<UNavigationSystemV1>(NavMeshOwner->GetWorld()), QueryOwner);
+	INITIALIZE_NAVQUERY(NavQuery, InQueryFilter.GetMaxSearchNodes(), LinkFilter);
+
+	constexpr int32 MaxSegments = 64;
+	constexpr int32 ComponentsPerSegment = 6;
+	dtReal RcVertices[MaxSegments * ComponentsPerSegment] = { 0 }; // segments * ax,ay,az,bx,by,bz
+
+	int32 NumSegments = 0;
+	dtPolyRef SegmentRefs[MaxSegments] = { 0 };
+	
+	if (dtStatusSucceed(NavQuery.getPolyWallSegments(PolyID, QueryFilter, RcVertices, SegmentRefs, &NumSegments, MaxSegments)))
+	{
+		OutNeighbors.SetNum(NumSegments);
+	
+		for (int32 i = 0; i < NumSegments; ++i)
+		{
+			FNavigationPortalEdge& Edge = OutNeighbors[i];
+			Edge.Left = Recast2UnrealPoint(&RcVertices[i * ComponentsPerSegment]);
+			Edge.Right = Recast2UnrealPoint(&RcVertices[i * ComponentsPerSegment + 3]);
+			Edge.ToRef = SegmentRefs[i];
+		}
+		return true;
+	}
+
+	OutNeighbors.SetNum(0);
+	return false;
+}
+
 bool FPImplRecastNavMesh::GetPolyTileIndex(NavNodeRef PolyID, uint32& PolyIndex, uint32& TileIndex) const
 {
 	if (DetourNavMesh && PolyID)
