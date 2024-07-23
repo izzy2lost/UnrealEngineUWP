@@ -6,7 +6,10 @@
 
 #include "PCGComponent.h"
 #include "PCGContext.h"
+#include "PCGParamData.h"
 #include "Data/PCGPointData.h"
+#include "Metadata/PCGMetadata.h"
+#include "Metadata/PCGMetadataAttributeTpl.h"
 
 #include "Elements/PCGRandomChoice.h"
 
@@ -17,6 +20,8 @@ IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGRandomChoiceTest_SelectAll, FPCGTest
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGRandomChoiceTest_NoDiscard, FPCGTestBaseClass, "Plugins.PCG.RandomChoice.NoDiscard", PCGTestsCommon::TestFlags)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGRandomChoiceTest_MultiData_SameSeed, FPCGTestBaseClass, "Plugins.PCG.RandomChoice.MultiData.SameSeed", PCGTestsCommon::TestFlags)
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGRandomChoiceTest_MultiData_DifferentSeed, FPCGTestBaseClass, "Plugins.PCG.RandomChoice.MultiData.DifferentSeed", PCGTestsCommon::TestFlags)
+
+IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGRandomChoiceTest_Fixed_ParamData, FPCGTestBaseClass, "Plugins.PCG.RandomChoice.FixedParamData", PCGTestsCommon::TestFlags)
 
 namespace PCGRandomChoiceTest
 {
@@ -42,6 +47,30 @@ namespace PCGRandomChoiceTest
 		return NewPointData;
 	}
 
+	const FName DensityAttributeName = TEXT("MyDensity");
+
+	UPCGParamData* CreateInputParamData(FPCGContext* Context, const int NumElements)
+	{
+		check(Context);
+
+		UPCGParamData* NewParamData = NewObject<UPCGParamData>();
+		NewParamData->SetFlags(RF_Transient);
+
+		FPCGMetadataAttribute<double>* DensityAttribute = NewParamData->Metadata->CreateAttribute<double>(DensityAttributeName, 0.0, true, false);
+		check(DensityAttribute);
+
+		for (int i = 0; i < NumElements; ++i)
+		{
+			DensityAttribute->SetValue(NewParamData->Metadata->AddEntry(), static_cast<double>(i));
+		}
+
+		FPCGTaggedData& InputData = Context->InputData.TaggedData.Emplace_GetRef();
+		InputData.Data = NewParamData;
+		InputData.Pin = PCGPinConstants::DefaultInputLabel;
+
+		return NewParamData;
+	}
+
 	bool VerifyAllPointsThere(const int NumPoints, const UPCGPointData* ChosenPointData, const UPCGPointData* DiscardedPointData)
 	{
 		check(ChosenPointData && DiscardedPointData);
@@ -62,7 +91,7 @@ namespace PCGRandomChoiceTest
 				IndexesSeen.Add(Index);
 
 				// It needs to be stable so density should be ascending.
-				if (i > 0 && Points[i].Density < Points[i - 1].Density)
+				if (i > 0 && Points[i].Density <= Points[i - 1].Density)
 				{
 					return false;
 				}
@@ -82,6 +111,55 @@ namespace PCGRandomChoiceTest
 		}
 
 		return IndexesSeen.Num() == NumPoints;
+	}
+
+	bool VerifyAllEntriesAreThere(const int NumElements, const UPCGParamData* ChosenParamData, const UPCGParamData* DiscardedParamData)
+	{
+		check(ChosenParamData && DiscardedParamData);
+		TSet<int> IndexesSeen;
+
+		auto Check = [&IndexesSeen](const UPCGParamData* ParamData)
+		{
+			const FPCGMetadataAttribute<double>* DensityAttribute = ParamData->Metadata->GetConstTypedAttribute<double>(DensityAttributeName);
+			if (!DensityAttribute)
+			{
+				return false;
+			}
+
+			int PreviousIndex = -1;
+			for (int i = 0; i < ParamData->Metadata->GetLocalItemCount(); ++i)
+			{
+				const int Index = static_cast<int>(DensityAttribute->GetValueFromItemKey(PCGMetadataEntryKey(i)));
+				if (IndexesSeen.Contains(Index))
+				{
+					return false;
+				}
+
+				IndexesSeen.Add(Index);
+
+				// It needs to be stable so density should be ascending.
+				if (i > 0 && Index <= PreviousIndex)
+				{
+					return false;
+				}
+
+				PreviousIndex = Index;
+			}
+
+			return true;
+		};
+
+		if (!Check(ChosenParamData))
+		{
+			return false;
+		}
+
+		if (!Check(DiscardedParamData))
+		{
+			return false;
+		}
+
+		return IndexesSeen.Num() == NumElements;
 	}
 }
 
@@ -104,8 +182,8 @@ bool FPCGRandomChoiceTest_Fixed::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -140,8 +218,8 @@ bool FPCGRandomChoiceTest_Ratio::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -174,8 +252,8 @@ bool FPCGRandomChoiceTest_SelectNone::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -206,8 +284,8 @@ bool FPCGRandomChoiceTest_SelectAll::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -232,7 +310,7 @@ bool FPCGRandomChoiceTest_NoDiscard::RunTest(const FString& Parameters)
 
 	Settings->bFixedMode = false;
 	Settings->Ratio = 0.1f;
-	Settings->bOutputDiscardedPoints = false;
+	Settings->bOutputDiscardedEntries = false;
 
 	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
 	const UPCGPointData* InputPointData = PCGRandomChoiceTest::CreateInputPointData(Context.Get(), NumOfPoints);
@@ -240,8 +318,8 @@ bool FPCGRandomChoiceTest_NoDiscard::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -274,8 +352,8 @@ bool FPCGRandomChoiceTest_MultiData_SameSeed::RunTest(const FString& Parameters)
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* FirstChosenOutputData = ChosenOutputTagged.Num() == 2 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* FirstDiscardedOutputData = DiscardedOutputTagged.Num() == 2 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -326,8 +404,8 @@ bool FPCGRandomChoiceTest_MultiData_DifferentSeed::RunTest(const FString& Parame
 	FPCGElementPtr TestElement = TestData.Settings->GetElement();
 	while (!TestElement->Execute(Context.Get())) {}
 
-	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenPointsLabel);
-	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedPointsLabel);
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
 
 	const UPCGPointData* FirstChosenOutputData = ChosenOutputTagged.Num() == 2 ? Cast<const UPCGPointData>(ChosenOutputTagged[0].Data) : nullptr;
 	const UPCGPointData* FirstDiscardedOutputData = DiscardedOutputTagged.Num() == 2 ? Cast<const UPCGPointData>(DiscardedOutputTagged[0].Data) : nullptr;
@@ -360,4 +438,41 @@ bool FPCGRandomChoiceTest_MultiData_DifferentSeed::RunTest(const FString& Parame
 
 	return true;
 }
+
+bool FPCGRandomChoiceTest_Fixed_ParamData::RunTest(const FString& Parameters)
+{
+	PCGTestsCommon::FTestData TestData;
+	UPCGRandomChoiceSettings* Settings = PCGTestsCommon::GenerateSettings<UPCGRandomChoiceSettings>(TestData);
+	check(Settings);
+
+	constexpr int NumOfElements = 20;
+	constexpr int ExpectedNumElementsChosen = 7;
+	constexpr int ExpectedNumElementsDiscarded = 13;
+
+	Settings->bFixedMode = true;
+	Settings->FixedNumber = ExpectedNumElementsChosen;
+
+	TUniquePtr<FPCGContext> Context = TestData.InitializeTestContext();
+	const UPCGParamData* InputParamData = PCGRandomChoiceTest::CreateInputParamData(Context.Get(), NumOfElements);
+
+	FPCGElementPtr TestElement = TestData.Settings->GetElement();
+	while (!TestElement->Execute(Context.Get())) {}
+
+	TArray<FPCGTaggedData> ChosenOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::ChosenEntriesLabel);
+	TArray<FPCGTaggedData> DiscardedOutputTagged = Context->OutputData.GetInputsByPin(PCGRandomChoiceConstants::DiscardedEntriesLabel);
+
+	const UPCGParamData* ChosenOutputData = ChosenOutputTagged.Num() == 1 ? Cast<const UPCGParamData>(ChosenOutputTagged[0].Data) : nullptr;
+	const UPCGParamData* DiscardedOutputData = DiscardedOutputTagged.Num() == 1 ? Cast<const UPCGParamData>(DiscardedOutputTagged[0].Data) : nullptr;
+
+	UTEST_NOT_NULL("There is a param data in chosen entries", ChosenOutputData);
+	UTEST_NOT_NULL("There is a param data in discarded entries", DiscardedOutputData);
+
+	UTEST_EQUAL("There is the right number of entries in chosen", ChosenOutputData->Metadata->GetLocalItemCount(), ExpectedNumElementsChosen);
+	UTEST_EQUAL("There is the right number of entries in discarded", DiscardedOutputData->Metadata->GetLocalItemCount(), ExpectedNumElementsDiscarded);
+
+	UTEST_TRUE("All entries are there and in the right order", PCGRandomChoiceTest::VerifyAllEntriesAreThere(NumOfElements, ChosenOutputData, DiscardedOutputData));
+
+	return true;
+}
+
 #endif // WITH_EDITOR
