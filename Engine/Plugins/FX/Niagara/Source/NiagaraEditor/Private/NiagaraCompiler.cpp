@@ -2430,7 +2430,8 @@ void FNiagaraShaderMapCompiler::CompileScript(
 	const FNiagaraCompileOptions& CompileOptions,
 	const FNiagaraTranslateResults& TranslateResults,
 	const FNiagaraTranslatorOutput& TranslatorOutput,
-	const FString& TranslatedHLSL)
+	const FString& TranslatedHLSL,
+	TConstArrayView<UNiagaraDataInterface*> DataInterfaces)
 {
 	TArray<TRefCountPtr<FShaderCommonCompileJob>> CompileJobs;
 
@@ -2445,6 +2446,11 @@ void FNiagaraShaderMapCompiler::CompileScript(
 		if (IsMetalPlatform(ActiveCompilation.ShaderPlatform))
 		{
 			CompilationEnvironment->CompilerFlags.Add(CFLAG_NoFastMath);
+		}
+
+		for (UNiagaraDataInterface* DataInterface : DataInterfaces)
+		{
+			DataInterface->ModifyCompilationEnvironment(ActiveCompilation.ShaderPlatform, *CompilationEnvironment.GetReference());
 		}
 
 		ActiveCompilation.ShaderMap->CreateCompileJobs(

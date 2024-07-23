@@ -77,7 +77,8 @@ public:
 		const FNiagaraCompileOptions& InOptions,
 		const FNiagaraTranslateResults& InTranslateResults,
 		const FNiagaraTranslatorOutput& TranslatorOutput,
-		const FString& TranslatedHLSL);
+		const FString& TranslatedHLSL,
+		TConstArrayView<UNiagaraDataInterface*> DataInterfaces);
 	void AddShaderPlatform(const FNiagaraShaderMapId& ShaderMapId, EShaderPlatform ShaderPlatform);
 
 	// returns true if there are no more results requiring processing
