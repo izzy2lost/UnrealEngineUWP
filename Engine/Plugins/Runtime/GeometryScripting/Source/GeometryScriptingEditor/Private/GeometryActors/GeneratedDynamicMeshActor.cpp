@@ -51,7 +51,7 @@ void AGeneratedDynamicMeshActor::PostActorCreated()
 	// Default newly-created generated dynamic meshes to not be element-selectable
 	if (UDynamicMeshComponent* Component = GetDynamicMeshComponent())
 	{
-		Component->SetIsElementSelectable(false);
+		Component->SetAllowsGeometrySelection(false);
 	}
 }
 

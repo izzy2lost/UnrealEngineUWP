@@ -1517,7 +1517,7 @@ void UModelingToolsEditorMode::UpdateSelectionManagerOnEditorSelectionChange(boo
 	}
 
 	// filter out any dynamic mesh components that aren't editable or aren't element-selectable
-	SelectedDynamicMeshComponents.SetNum(Algo::RemoveIf(SelectedDynamicMeshComponents, [](UDynamicMeshComponent* DMC)->bool {return !DMC->IsEditable() || !DMC->IsElementSelectable();}));
+	SelectedDynamicMeshComponents.SetNum(Algo::RemoveIf(SelectedDynamicMeshComponents, [](UDynamicMeshComponent* DMC)->bool {return !DMC->IsEditable() || !DMC->AllowsGeometrySelection();}));
 
 	// convert selected Component types into selection Identifiers
 	TArray<FGeometryIdentifier> ValidIdentifiers;
