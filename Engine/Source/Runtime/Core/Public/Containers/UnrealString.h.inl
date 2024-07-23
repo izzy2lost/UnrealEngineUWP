@@ -1569,7 +1569,7 @@ public:
 	UE_STRING_CLASS& Appendf(const FmtType& Fmt, Types... Args)
 	{
 		static_assert(TIsArrayOrRefOfTypeByPredicate<FmtType, TIsCharEncodingCompatibleWithPrintfFmt>::Value, "Formatting string must be a literal " PREPROCESSOR_TO_STRING(UE_STRING_PRINTF_FMT_CHARTYPE) " array.");
-		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to TString::Appendf");
+		static_assert((TIsValidVariadicFunctionArg<Types>::Value && ...), "Invalid argument(s) passed to Appendf");
 
 		AppendfImpl(*this, (const ElementType*)Fmt, Args...);
 		return *this;

@@ -20,6 +20,33 @@ template<> struct TIsContiguousContainer<FString>     { static constexpr bool Va
 template<> struct TIsContiguousContainer<FAnsiString> { static constexpr bool Value = true; };
 template<> struct TIsContiguousContainer<FUtf8String> { static constexpr bool Value = true; };
 
+namespace UE::Core::Private
+{
+	template <typename CharType>
+	struct TCharTypeToStringType;
+
+	template <>
+	struct TCharTypeToStringType<TCHAR>
+	{
+		using Type = FString;
+	};
+
+	template <>
+	struct TCharTypeToStringType<ANSICHAR>
+	{
+		using Type = FAnsiString;
+	};
+
+	template <>
+	struct TCharTypeToStringType<UTF8CHAR>
+	{
+		using Type = FUtf8String;
+	};
+}
+
+template <typename CharType>
+using TString = typename UE::Core::Private::TCharTypeToStringType<CharType>::Type;
+
 template<typename T, typename Allocator = FDefaultAllocator> class TArray;
 template<typename T> using TArray64 = TArray<T, FDefaultAllocator64>;
 template<typename T, typename SizeType = int32> class TArrayView;
