@@ -938,22 +938,8 @@ TSharedRef<FEditorViewportClient> SMaterialEditor3DPreviewViewport::MakeEditorVi
 	return EditorViewportClient.ToSharedRef();
 }
 
-void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
+TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 {
-	const TSharedRef<SMaterialEditorViewportToolBar> OldViewportToolbar =
-		// clang-format off
-		SNew(SMaterialEditorViewportToolBar, SharedThis(this))
-			.Visibility_Lambda([this]() -> EVisibility
-			{
-				if (!UE::UnrealEd::ShowOldViewportToolbars())
-				{
-					return EVisibility::Collapsed;
-				}
-
-				return EVisibility::Visible;
-			});
-	// clang-format on
-
 	const FName MaterialEditorViewportToolbarName = "MaterialEditor.ViewportToolbar";
 
 	// Register the viewport toolbar if another viewport hasn't already (it's shared).
@@ -1054,6 +1040,25 @@ void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class
 		];
 		// clang-format on
 
+	return NewViewportToolbar;
+}
+
+void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
+{
+	const TSharedRef<SMaterialEditorViewportToolBar> OldViewportToolbar =
+		// clang-format off
+		SNew(SMaterialEditorViewportToolBar, SharedThis(this))
+			.Visibility_Lambda([this]() -> EVisibility
+			{
+				if (!UE::UnrealEd::ShowOldViewportToolbars())
+				{
+					return EVisibility::Collapsed;
+				}
+
+				return EVisibility::Visible;
+			});
+	// clang-format on
+
 	Overlay->AddSlot()
 		// clang-format off
 		.VAlign(VAlign_Top)
@@ -1066,13 +1071,6 @@ void SMaterialEditor3DPreviewViewport::PopulateViewportOverlays(TSharedRef<class
 			.VAlign(VAlign_Top)
 			[
 				OldViewportToolbar
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(0.0f, 1.0f, 0.0f, 0.0f)
-			.VAlign(VAlign_Top)
-			[
-				NewViewportToolbar
 			]
 		];
 		// clang-format on

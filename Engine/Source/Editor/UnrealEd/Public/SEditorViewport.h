@@ -151,6 +151,12 @@ protected:
 
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() = 0;
 
+	// Implement this to add a viewport toolbar above the viewport that does not cover the viewport.
+	virtual TSharedPtr<SWidget> BuildViewportToolbar()
+	{
+		return TSharedPtr<SWidget>(nullptr);
+	}
+
 	// Implement this to add a viewport toolbar to the inside top of the viewport
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() { return TSharedPtr<SWidget>(nullptr); }
 

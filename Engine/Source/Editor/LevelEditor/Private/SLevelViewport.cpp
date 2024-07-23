@@ -1910,6 +1910,30 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			)
 			.IsEnabled(FSlateApplication::Get().GetNormalExecutionAttribute());
 
+	return
+		// clang-format off
+		SNew(SVerticalBox)
+		.Visibility( EVisibility::SelfHitTestInvisible )
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0, 1.0f, 0, 0)
+		.VAlign(VAlign_Top)
+		[
+			OldViewportToolbar
+		]
+		+SVerticalBox::Slot()
+		.VAlign(VAlign_Top)
+		.HAlign(HAlign_Left)
+		[
+			SNew(SActorPilotViewportToolbar)
+			.Viewport( SharedThis( this ) )
+			.Visibility(this, &SLevelViewport::GetLockedIconVisibility)
+		];
+	// clang-format on
+}
+
+TSharedPtr<SWidget> SLevelViewport::BuildViewportToolbar()
+{
 	// Register the viewport toolbar if another viewport hasn't already (it's shared).
 	{
 		const FName LevelEditorViewportToolbarName = "LevelEditor.ViewportToolbar";
@@ -2038,7 +2062,7 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 			ViewportToolbarContext.AddExtender(UE::LevelEditor::GetViewModesLegacyExtenders());
 
 			FLevelEditorModule& LevelEditorModule =
-					FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
+				FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));
 
 			TSharedRef<FUICommandList> CommandListRef = GetCommandList().ToSharedRef();
 
@@ -2088,47 +2112,23 @@ TSharedPtr<SWidget> SLevelViewport::MakeViewportToolbar()
 
 	// clang-format off
 	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
-		.Visibility_Lambda(
-			[this]() -> EVisibility
+	.Visibility_Lambda(
+		[this]() -> EVisibility
+		{
+			if (!UE::UnrealEd::ShowNewViewportToolbars())
 			{
-				if (!UE::UnrealEd::ShowNewViewportToolbars())
-				{
-					return EVisibility::Collapsed;
-				}
-
-				return GetToolBarVisibility();
+				return EVisibility::Collapsed;
 			}
-		)
-		[
-			UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", ViewportToolbarContext)
-		];
+
+			return GetToolBarVisibility();
+		}
+	)
+	[
+		UToolMenus::Get()->GenerateWidget("LevelEditor.ViewportToolbar", ViewportToolbarContext)
+	];
 	// clang-format on
 
-	return 
-		SNew(SVerticalBox)
-		.Visibility( EVisibility::SelfHitTestInvisible )
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 1.0f, 0, 0)
-		.VAlign(VAlign_Top)
-		[
-			OldViewportToolbar
-		]
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 1.0f, 0, 0)
-		.VAlign(VAlign_Top)
-		[
-			NewViewportToolbar
-		]
-		+SVerticalBox::Slot()
-		.VAlign(VAlign_Top)
-		.HAlign(HAlign_Left)
-		[
-			SNew(SActorPilotViewportToolbar)
-			.Viewport( SharedThis( this ) )
-			.Visibility(this, &SLevelViewport::GetLockedIconVisibility)
-		];
+	return NewViewportToolbar;
 }
 
 void SLevelViewport::OnUndo()

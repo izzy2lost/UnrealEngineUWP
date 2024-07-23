@@ -26,6 +26,7 @@
 #include "GPUSkinCacheVisualizationMenuCommands.h"
 #include "GPUSkinCache.h"
 #include "Widgets/Colors/SComplexGradient.h"
+#include "Widgets/SBoxPanel.h"
 #include "Modules/ModuleManager.h"
 #include "ISettingsModule.h"
 #include "ShowFlagMenuCommands.h"
@@ -57,20 +58,18 @@ SEditorViewport::~SEditorViewport()
 
 void SEditorViewport::Construct( const FArguments& InArgs )
 {
-	ChildSlot
+	// Create Viewport Widget
+
+	// clang-format off
+	SAssignNew(ViewportWidget, SViewport)
+	.ShowEffectWhenDisabled(false)
+	.EnableGammaCorrection(false) // Scene rendering handles this
+	.AddMetaData(InArgs.MetaData.Num() > 0 ? InArgs.MetaData[0] : MakeShareable(new FTagMetaData(TEXT("LevelEditorViewport"))))
+	.ViewportSize(InArgs._ViewportSize)
 	[
-		SNew(SGlobalPlayWorldActions)
-		[
-			SAssignNew(ViewportWidget, SViewport)
-			.ShowEffectWhenDisabled(false)
-			.EnableGammaCorrection(false) // Scene rendering handles this
-			.AddMetaData(InArgs.MetaData.Num() > 0 ? InArgs.MetaData[0] : MakeShareable(new FTagMetaData(TEXT("LevelEditorViewport"))))
-			.ViewportSize(InArgs._ViewportSize)
-			[
-				SAssignNew(ViewportOverlay, SOverlay)
-			]
-		]
+		SAssignNew(ViewportOverlay, SOverlay)
 	];
+	// clang-format on
 
 	Client = MakeEditorViewportClient();
 
@@ -92,7 +91,8 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 	// Ensure the commands are registered
 	FEditorViewportCommands::Register();
 	BindCommands();
-	
+
+	// clang-format off
 	ViewportOverlay->AddSlot()
 	[
 		SNew(SBorder)
@@ -102,16 +102,17 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 		.Padding(0.0f)
 		.ShowEffectWhenDisabled(false)
 	];
+	// clang-format on
 
-	TSharedPtr<SWidget> ViewportToolbar = MakeViewportToolbar();
-
-	if (ViewportToolbar.IsValid())
+	if (TSharedPtr<SWidget> ViewportToolbar = MakeViewportToolbar())
 	{
 		ViewportOverlay->AddSlot()
+			// clang-format off
 			.VAlign(VAlign_Top)
 			[
 				ViewportToolbar.ToSharedRef()
 			];
+			// clang-format on
 	}
 
 	// This makes a gradient that displays whether or not a viewport is active
@@ -121,6 +122,7 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 
 	static TArray<FLinearColor> GradientStops{ ActiveBorderColorTransparent, ActiveBorderColor, ActiveBorderColorTransparent };
 
+	// clang-format off
 	ViewportOverlay->AddSlot()
 	.VAlign(VAlign_Top)
 	[
@@ -134,7 +136,39 @@ void SEditorViewport::Construct( const FArguments& InArgs )
 			.Orientation(EOrientation::Orient_Vertical)
 		]
 	];
+	// clang-format on
 
+	TSharedPtr<SVerticalBox> VerticalBox;
+	// clang-format off
+	ChildSlot
+	[
+		SAssignNew(VerticalBox, SVerticalBox)
+	];
+	// clang-format on
+
+	// If new toolbar is available, let's add it on top of viewport
+	if (TSharedPtr<SWidget> NewViewportToolbar = BuildViewportToolbar())
+	{
+		// clang-format off
+		VerticalBox->AddSlot()
+		.AutoHeight()
+		[
+			NewViewportToolbar.ToSharedRef()
+		];
+		// clang-format on
+	}
+
+	// clang-format off
+	VerticalBox->AddSlot()
+	[
+		SNew(SGlobalPlayWorldActions)
+		[
+			ViewportWidget.ToSharedRef()
+		]
+	];
+	// clang-format on
+
+	
 	PopulateViewportOverlays(ViewportOverlay.ToSharedRef());
 }
 

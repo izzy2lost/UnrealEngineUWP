@@ -315,6 +315,22 @@ TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 				}
 			);
 
+	// clang-format off
+	return 
+		SNew(SVerticalBox)
+		.Visibility( EVisibility::SelfHitTestInvisible )
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.Padding(0, 1.0f, 0, 0)
+		.VAlign(VAlign_Top)
+		[
+			OldViewportToolbar
+		];
+	// clang-format on
+}
+
+TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
+{
 	// Register the viewport toolbar if another viewport hasn't already (it's shared).
 	const FName ViewportToolbarMenuName = "SCSEditor.ViewportToolbar";
 	if (!UToolMenus::Get()->IsMenuRegistered(ViewportToolbarMenuName))
@@ -431,18 +447,25 @@ TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
 			ContextObject->Viewport = SharedThis(this);
 
-			// Hook up our toolbar's filter for supported view modes.
-			UE::UnrealEd::IsViewModeSupportedDelegate IsViewModeSupported =
-				UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
-					[WeakToolBar = OldViewportToolbar.ToWeakPtr()](EViewModeIndex ViewModeIndex) -> bool
+			// Setup the callback to filter available view modes
+			ContextObject->IsViewModeSupported = UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
+				[](EViewModeIndex ViewModeIndex) -> bool
+				{
+					// This code is taken from SViewportToolBar::IsViewModeSupported
+					// SSCSEditorViewportToolBar does not override it, so we just take it as-is
+					// TODO: maybe create a private function for it, or move IsViewModeSupported to SEditorViewport
+
+					switch (ViewModeIndex)
 					{
-						if (TSharedPtr<SViewportToolBar> ToolBar = WeakToolBar.Pin())
-						{
-							return ToolBar->IsViewModeSupported(ViewModeIndex);
-						}
+					case VMI_PrimitiveDistanceAccuracy:
+					case VMI_MaterialTextureScaleAccuracy:
+					case VMI_RequiredTextureResolution:
+						return false;
+					default:
 						return true;
 					}
-				);
+				}
+			);
 
 			ViewportToolbarContext.AddObject(ContextObject);
 		}
@@ -462,25 +485,7 @@ TSharedPtr<SWidget> SSCSEditorViewport::MakeViewportToolbar()
 		);
 	// clang-format on
 
-	// clang-format off
-	return 
-		SNew(SVerticalBox)
-		.Visibility( EVisibility::SelfHitTestInvisible )
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 1.0f, 0, 0)
-		.VAlign(VAlign_Top)
-		[
-			OldViewportToolbar
-		]
-		+SVerticalBox::Slot()
-		.AutoHeight()
-		.Padding(0, 1.0f, 0, 0)
-		.VAlign(VAlign_Top)
-		[
-			NewViewportToolbar
-		];
-	// clang-format on
+	return NewViewportToolbar;
 }
 
 void SSCSEditorViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)

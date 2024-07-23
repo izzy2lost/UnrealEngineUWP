@@ -451,6 +451,7 @@ protected:
 	/** SEditorViewport interface */
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 
 	virtual void OnIncrementPositionGridSize() override;
 	virtual void OnDecrementPositionGridSize() override;
