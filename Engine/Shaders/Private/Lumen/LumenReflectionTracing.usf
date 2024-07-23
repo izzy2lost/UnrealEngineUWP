@@ -75,7 +75,6 @@ void ReflectionTraceScreenTexturesCS(
 		if (SceneDepth > 0.0f)
 		{
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			FRayData RayData = GetRayData(ReflectionTracingCoord.CoordFlatten);
 
 			float3 TranslatedRayOrigin = TranslatedWorldPosition;

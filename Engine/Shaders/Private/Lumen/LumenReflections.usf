@@ -291,8 +291,8 @@ void ReflectionGenerateRaysCS(
 		if (NeedRayTracedReflections(Material.TopLayerRoughness, Material))
 		{
 			float2 ScreenUV = (Coord.SvPosition + .5f) * View.BufferSizeAndInvSize.zw;
-			float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, Material.SceneDepth);
-			float3 CameraVector = GetCameraVectorFromWorldPosition(WorldPosition);
+			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.SceneDepth);
+			float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 			float3 RayDirection;
 			float ConeAngle = 0.0f;
@@ -365,6 +365,7 @@ void ReflectionGenerateRaysCS(
 
 			if (ConeAngle > RadianceCacheConeHalfAngle)
 			{
+				float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverageWithUncertainCoverage(WorldPosition, RayDirection, InterleavedGradientNoise(ReflectionTracingCoord.xy, ReflectionsStateFrameIndexMod8));
 				bUseRadianceCache = Coverage.bValid;
 				if (bUseRadianceCache)
