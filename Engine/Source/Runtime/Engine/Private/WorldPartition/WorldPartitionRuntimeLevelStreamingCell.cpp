@@ -26,6 +26,17 @@ UWorldPartitionRuntimeLevelStreamingCell::UWorldPartitionRuntimeLevelStreamingCe
 	, LevelStreaming(nullptr)
 {}
 
+void UWorldPartitionRuntimeLevelStreamingCell::BeginDestroy()
+{
+	if (LevelStreaming)
+	{
+		LevelStreaming->OnLevelShown.RemoveAll(this);
+		LevelStreaming->OnLevelHidden.RemoveAll(this);
+	}
+
+	Super::BeginDestroy();
+}
+
 EWorldPartitionRuntimeCellState UWorldPartitionRuntimeLevelStreamingCell::GetCurrentState() const
 {
 	if (LevelStreaming)
