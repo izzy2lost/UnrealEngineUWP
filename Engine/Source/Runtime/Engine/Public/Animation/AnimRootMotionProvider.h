@@ -30,6 +30,9 @@ public:
 	// Given the specified time range, sequence, and looping behavior, sample a root motion delta and store it in the specified attribute container
 	virtual void SampleRootMotion(const FDeltaTimeRecord& SampleRange, const UAnimSequence& Sequence, bool bLoopingSequence, FStackAttributeContainer& OutAttributes) const = 0;
 	
+	// Directly sets the root motion attribute. Does not require root motion to exist already.
+	virtual bool SetRootMotion(const FTransform& RootMotionDelta, FStackAttributeContainer& OutAttributes) const { return false; }
+
 	// Override the currently stored root motion delta in the specified attribute container. Requires root motion to exist prior to overriding.
 	virtual bool OverrideRootMotion(const FTransform& RootMotionDelta, FStackAttributeContainer& OutAttributes) const = 0;
 	

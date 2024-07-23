@@ -25,6 +25,7 @@ public:
 
 public:
 	virtual void SampleRootMotion(const FDeltaTimeRecord& SampleRange, const UAnimSequence& Sequence, bool bLoopingSequence, UE::Anim::FStackAttributeContainer& OutAttributes) const override;
+	virtual bool SetRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const override;
 	virtual bool OverrideRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const override;
 	virtual bool ExtractRootMotion(const UE::Anim::FStackAttributeContainer& Attributes, FTransform& OutRootMotionDelta) const override;
 	virtual bool HasRootMotion(const UE::Anim::FStackAttributeContainer& Attributes) const override;
@@ -53,6 +54,17 @@ void FModule::SampleRootMotion(const FDeltaTimeRecord& SampleRange, const UAnimS
 	const FTransform RootMotionTransform = Sequence.ExtractRootMotion(SampleRange.GetPrevious(), SampleRange.Delta, bLoopingSequence);
 	FTransformAnimationAttribute* RootMotionAttribute = OutAttributes.FindOrAdd<FTransformAnimationAttribute>(RootMotionAttributeId);
 	RootMotionAttribute->Value = RootMotionTransform;
+}
+
+bool FModule::SetRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const
+{
+	if (FTransformAnimationAttribute* RootMotionAttribute = OutAttributes.FindOrAdd<FTransformAnimationAttribute>(RootMotionAttributeId))
+	{
+		RootMotionAttribute->Value = RootMotionDelta;
+		return true;
+	}
+
+	return false;
 }
 
 bool FModule::OverrideRootMotion(const FTransform& RootMotionDelta, UE::Anim::FStackAttributeContainer& OutAttributes) const
