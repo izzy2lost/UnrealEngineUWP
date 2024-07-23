@@ -157,18 +157,29 @@ void UInputModifierDeadZone::PostEditChangeProperty(FPropertyChangedEvent& Prope
 
 FInputActionValue UInputModifierDeadZone::ModifyRaw_Implementation(const UEnhancedPlayerInput* PlayerInput, FInputActionValue CurrentValue, float DeltaTime)
 {
+	// Can't apply a deadzone to a boolean type (0 or 1 are the only options) 
 	EInputActionValueType ValueType = CurrentValue.GetValueType();
 	if (ValueType == EInputActionValueType::Boolean)
 	{
 		return CurrentValue;
 	}
-
-	auto DeadZoneLambda = [this](const float AxisVal)
+	
+	auto DeadZoneLambda = [this](const float AxisVal) -> float
 	{
 		// We need to translate and scale the input to the +/- 1 range after removing the dead zone.
 		return FMath::Min(1.f, (FMath::Max(0.f, FMath::Abs(AxisVal) - LowerThreshold) / (UpperThreshold - LowerThreshold))) * FMath::Sign(AxisVal);
 	};
 
+	auto UnscaledDeadZoneLambda = [this](const float AxisVal)-> float
+	{
+		// If the value is less then our lower threshold, return zero
+		// otherwise, clamp the value to the upper threshold.
+		return
+			AxisVal < LowerThreshold ?
+				0.0f :
+				FMath::Min(AxisVal, UpperThreshold);
+	};
+	
 	FVector NewValue = CurrentValue.Get<FVector>();
 	switch (Type)
 	{
@@ -189,6 +200,20 @@ FInputActionValue UInputModifierDeadZone::ModifyRaw_Implementation(const UEnhanc
 		else
 		{
 			NewValue.X = DeadZoneLambda(NewValue.X);
+		}
+		break;
+	case EDeadZoneType::UnscaledRadial:
+		if (ValueType == EInputActionValueType::Axis3D)
+		{
+			NewValue = NewValue.GetSafeNormal() * UnscaledDeadZoneLambda(NewValue.Size());
+		}
+		else if (ValueType == EInputActionValueType::Axis2D)
+		{
+			NewValue = NewValue.GetSafeNormal2D() * UnscaledDeadZoneLambda(NewValue.Size2D());
+		}
+		else
+		{
+			NewValue.X = UnscaledDeadZoneLambda(NewValue.X);
 		}
 		break;
 	}
