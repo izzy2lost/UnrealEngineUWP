@@ -6,14 +6,16 @@
 #include "Core/CameraEvaluationContext.h"
 #include "EnhancedInputComponent.h"
 #include "GameFramework/Actor.h"
+#include "GameplayCameras.h"
 #include "InputAction.h"
+#include "UObject/Package.h"
 
 namespace UE::Cameras
 {
 
-class FInputAxisBinding2DCameraNodeEvaluator : public FInput2DCameraNodeEvaluator
+class FInputAxisBinding2DCameraNodeEvaluator : public FCameraRigInput2DSlotEvaluator
 {
-	UE_DECLARE_CAMERA_NODE_EVALUATOR_EX(GAMEPLAYCAMERAS_API, FInputAxisBinding2DCameraNodeEvaluator, FInput2DCameraNodeEvaluator)
+	UE_DECLARE_CAMERA_NODE_EVALUATOR_EX(GAMEPLAYCAMERAS_API, FInputAxisBinding2DCameraNodeEvaluator, FCameraRigInput2DSlotEvaluator)
 
 protected:
 
@@ -30,7 +32,8 @@ UE_DEFINE_CAMERA_NODE_EVALUATOR(FInputAxisBinding2DCameraNodeEvaluator)
 
 void FInputAxisBinding2DCameraNodeEvaluator::OnInitialize(const FCameraNodeEvaluatorInitializeParams& Params)
 {
-	if (UObject* ContextOwner = Params.EvaluationContext->GetOwner())
+	UObject* ContextOwner = Params.EvaluationContext->GetOwner();
+	if (ContextOwner)
 	{
 		if (AActor* OuterActor = ContextOwner->GetTypedOuter<AActor>())
 		{
@@ -47,6 +50,15 @@ void FInputAxisBinding2DCameraNodeEvaluator::OnInitialize(const FCameraNodeEvalu
 			AxisValueBindings.Add(AxisValueBinding);
 		}
 	}
+	else
+	{
+		UE_LOG(LogCameraSystem, Error, TEXT("No input component found on context owner '%s' for node '%s' in '%s'."),
+				*GetNameSafe(ContextOwner), 
+				*GetNameSafe(AxisBindingNode),
+				*GetNameSafe(AxisBindingNode ? AxisBindingNode->GetOutermost() : nullptr));
+	}
+
+	Super::OnInitialize(Params);
 }
 
 void FInputAxisBinding2DCameraNodeEvaluator::OnUpdateParameters(const FCameraBlendedParameterUpdateParams& Params, FCameraBlendedParameterUpdateResult& OutResult)
@@ -71,18 +83,20 @@ void FInputAxisBinding2DCameraNodeEvaluator::OnUpdateParameters(const FCameraBle
 		}
 	}
 
-	InputValue = FVector2d(
+	TransientInputValue = FVector2d(
 			HighestValue.X * AxisBindingNode->Multiplier.X, 
 			HighestValue.Y * AxisBindingNode->Multiplier.Y);
 
 	if (AxisBindingNode->RevertAxisX)
 	{
-		InputValue.X = -InputValue.X;
+		TransientInputValue.X = -TransientInputValue.X;
 	}
 	if (AxisBindingNode->RevertAxisY)
 	{
-		InputValue.Y = -InputValue.Y;
+		TransientInputValue.Y = -TransientInputValue.Y;
 	}
+
+	Super::OnUpdateParameters(Params, OutResult);
 }
 
 }  // namespace UE::Cameras
