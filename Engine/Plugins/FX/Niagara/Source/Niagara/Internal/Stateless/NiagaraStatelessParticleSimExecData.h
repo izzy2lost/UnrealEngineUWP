@@ -41,6 +41,7 @@ public:
 	explicit FParticleSimulationExecData(const FNiagaraDataSetCompiledData& ParticleDataSetCompiledData);
 
 	TArray<FVariableOffset>	VariableComponentOffsets;		// Stored offsets per variable
+	int32					UniqueIDIndex = INDEX_NONE;		// Variable index for Unique ID, since we always generate this we need to know if we should output of keep internal
 	TArray<FCallback>		SimulateFunctions;				// Series of functions to simulate particles
 };
 

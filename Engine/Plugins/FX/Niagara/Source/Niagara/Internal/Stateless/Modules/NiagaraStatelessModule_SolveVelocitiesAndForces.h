@@ -130,8 +130,8 @@ public:
 	{
 		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
 
-		const float* NormalizedAgeData			= ParticleSimulationContext.GetParticleNormalizedAge();
-		const float* PreviousNormalizedAgeData	= ParticleSimulationContext.GetParticlePreviousNormalizedAge();
+		const float* AgeData			= ParticleSimulationContext.GetParticleAge();
+		const float* PreviousAgeData	= ParticleSimulationContext.GetParticlePreviousAge();
 
 		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
 		{
@@ -177,8 +177,8 @@ public:
 				//-TODO:
 			}
 
-			Position += IntegratePosition(NormalizedAgeData[i], Mass, Drag, InitialVelocity, Wind, Acceleration);
-			PreviousPosition += IntegratePosition(PreviousNormalizedAgeData[i], Mass, Drag, InitialVelocity, Wind, Acceleration);
+			Position += IntegratePosition(AgeData[i], Mass, Drag, InitialVelocity, Wind, Acceleration);
+			PreviousPosition += IntegratePosition(PreviousAgeData[i], Mass, Drag, InitialVelocity, Wind, Acceleration);
 
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PositionVariableOffset, i, Position);
 			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousPositionVariableOffset, i, PreviousPosition);

@@ -157,6 +157,12 @@ namespace NiagaraStateless
 			}
 		}
 
+		// Redirect Unique ID (if required)
+		if (ExecData->UniqueIDIndex != INDEX_NONE)
+		{
+			RequiredComponents[int(EParticleComponent::UniqueIndex)] = VariableComponents[ExecData->UniqueIDIndex];
+		}
+
 		// Setup particles
 		for (uint32 iParticle = 0; iParticle < ActiveParticles; ++iParticle)
 		{
