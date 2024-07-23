@@ -661,6 +661,29 @@ FText UK2Node_Timeline::GetTooltipText() const
 	return LOCTEXT("TimelineTooltip", "Timeline node allows values to be keyframed over time.\nDouble click to open timeline editor.");
 }
 
+FText UK2Node_Timeline::GetToolTipHeading() const
+{
+	const FText ExistingHeading = Super::GetToolTipHeading();
+	
+	if (bReplicated)
+	{
+		const FText ReplicatedLabel = LOCTEXT("ReplicatedTimelineComponent", "Replicated");
+
+		// If the existing heading is empty then we don't need anything other then "Replicated"
+		if (ExistingHeading.IsEmpty())
+		{
+			return ReplicatedLabel;
+		}
+		// otherwise, we need an extra newline character ( '\n' ) to get everything properly formatted 
+		else
+		{
+			return FText::Format(LOCTEXT("UK2Node_Timeline_GetToolTipHeading", "{0}\n{1}"), {ReplicatedLabel, ExistingHeading });	
+		}
+	}
+
+	return ExistingHeading;
+}
+
 FName UK2Node_Timeline::GetCornerIcon() const
 {
 	if (bReplicated)

@@ -84,6 +84,7 @@ class UK2Node_Timeline : public UK2Node
 	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
 	virtual void GetNodeAttributes( TArray<TKeyValuePair<FString, FString>>& OutNodeAttributes ) const override;
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
+	virtual FText GetToolTipHeading() const override;
 	//~ End UK2Node Interface.
 
 	/** Get the 'play' input pin */
