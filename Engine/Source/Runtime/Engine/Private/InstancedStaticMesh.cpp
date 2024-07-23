@@ -2126,6 +2126,11 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 #if WITH_EDITOR
 	check(InstancedMeshData);
 
+	ON_SCOPE_EXIT
+	{		
+		bIsInstanceDataApplyCompleted = true;	
+	};
+
 	if (GetStaticMesh() != InstancedMeshData->StaticMesh)
 	{
 		return;
@@ -2175,8 +2180,6 @@ void UInstancedStaticMeshComponent::ApplyComponentInstanceData(FInstancedStaticM
 	AdditionalRandomSeeds = InstancedMeshData->AdditionalRandomSeeds;
 
 	bHasPerInstanceHitProxies = InstancedMeshData->bHasPerInstanceHitProxies;
-
-	bIsInstanceDataApplyCompleted = true;
 
 	// TODO: restore ID mapping either from the serialized stuff, or the InstancedMeshData
 	PrimitiveInstanceDataManager.Invalidate(PerInstanceSMData.Num());
