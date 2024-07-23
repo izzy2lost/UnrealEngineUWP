@@ -120,10 +120,10 @@ namespace PCGMetadataElementCommon
 	* Iterate over the full range of the keys (if Count is negative, otherwise, as many times as Count), calling the callback with values ranges get from the multiple accessors.
 	* Keys needs to be the same for all accessors.
 	* ChunkSize influence the max number of values to get in one go with GetRange.
-	* Callback should have a signature: void(const TArrayView<T>&... Args, int32 Index)
-	* Return false if it process nothing.
+	* Callback should have a signature: void(const TArrayView<T>&... Args, int32 Start, int32 Range)
+	* Return false if it processes nothing.
 	*/
-	template <typename... T, typename Func = TFunction<void(const TArrayView<T>&..., int32 Index)>>
+	template <typename... T, typename Func = TFunction<void(const TArrayView<T>&..., int32 Start, int32 Range)>>
 	bool ApplyOnMultiAccessorsRange(const IPCGAttributeAccessorKeys& Keys, const TArray<const IPCGAttributeAccessor*>& Accessors, Func&& InCallback, EPCGAttributeAccessorFlags Flags = EPCGAttributeAccessorFlags::StrictType, const int32 ChunkSize = DefaultChunkSize, const int32 Count = -1)
 	{
 		// We use C++20 functionality here, so make sure we are at this version at least

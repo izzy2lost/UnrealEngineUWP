@@ -24,6 +24,11 @@ public:
 		, Setter(InSetter)
 	{}
 
+	FPCGCustomPointAccessor(const FPCGPoint::PointCustomPropertyGetter& InGetter)
+	: Super(/*bInReadOnly=*/ true)
+	, Getter(InGetter)
+	{}
+
 	bool GetRangeImpl(TArrayView<T> OutValues, int32 Index, const IPCGAttributeAccessorKeys& Keys) const
 	{
 		TArray<const FPCGPoint*> PointKeys;

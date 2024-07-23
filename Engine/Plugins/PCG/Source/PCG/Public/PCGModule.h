@@ -4,23 +4,15 @@
 
 #include "PCGDataVisualizationRegistry.h"
 #include "Data/PCGGetDataFunctionRegistry.h"
+#include "Utils/PCGLogErrors.h"
 
 #include "Modules/ModuleInterface.h"
-#include "Stats/Stats.h"
 
 // Logs
 PCG_API DECLARE_LOG_CATEGORY_EXTERN(LogPCG, Log, All);
 
 struct FPCGContext;
 class IPCGDataVisualization;
-
-namespace PCGLog
-{
-	/** Convenience function that would either log error on the graph if there is a context, or in the console if not. */
-	PCG_API void LogErrorOnGraph(const FText& InMsg, const FPCGContext* InContext = nullptr);
-	/** Convenience function that would either log warning on the graph if there is a context, or in the console if not. */
-	PCG_API void LogWarningOnGraph(const FText& InMsg, const FPCGContext* InContext = nullptr);
-}
 
 namespace PCGEngineShowFlags
 {

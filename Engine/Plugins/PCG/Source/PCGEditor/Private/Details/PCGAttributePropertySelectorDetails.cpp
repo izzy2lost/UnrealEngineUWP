@@ -32,10 +32,11 @@ namespace PCGAttributePropertySelectorDetails
 			{
 				FString EnumName = EnumPtr->GetDisplayNameTextByIndex(i).ToString();
 				EnumType EnumValue = (EnumType)EnumPtr->GetValueByIndex(i);
+				FText Tooltip = EnumPtr->GetToolTipTextByIndex(i);
 
 				InMenuBuilder.AddMenuEntry(
 					FText::FromString(EnumName),
-					FText(),
+					std::move(Tooltip),
 					FSlateIcon(),
 					FExecuteAction::CreateSP(InDetailsObject, InCallback, EnumValue),
 					NAME_None,
