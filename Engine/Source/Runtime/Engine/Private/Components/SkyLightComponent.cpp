@@ -92,7 +92,7 @@ static bool FeatureLevelSupportsRealTimeReflectionCapture(FStaticFeatureLevel Fe
 
 void OnChangeSkylightRealTimeReflectionCapture(IConsoleVariable* Var)
 {
-	if (!FeatureLevelSupportsRealTimeReflectionCapture(GMaxRHIFeatureLevel))
+	if (!GIsRHIInitialized || !FeatureLevelSupportsRealTimeReflectionCapture(GMaxRHIFeatureLevel))
 	{
 		return;
 	}
