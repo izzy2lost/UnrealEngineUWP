@@ -53,6 +53,11 @@ USTRUCT()
 struct FConcertSyncReplicationSummary_LeaveReplication
 {
 	GENERATED_BODY()
+	
+	FConcertSyncReplicationSummary_LeaveReplication() = default;
+	explicit FConcertSyncReplicationSummary_LeaveReplication(const FConcertSyncReplicationPayload_LeaveReplication& Event)
+		: OwnedObjects(Event.OwnedObjects)
+	{}
 
 	/** The objects the client had authority over when they left. */
 	UPROPERTY()
@@ -78,6 +83,11 @@ USTRUCT()
 struct FConcertSyncReplicationSummary_Mute
 {
 	GENERATED_BODY()
+
+	FConcertSyncReplicationSummary_Mute() = default;
+	explicit FConcertSyncReplicationSummary_Mute(const FConcertSyncReplicationPayload_Mute& Event)
+		: Request(Event.Request)
+	{}
 	
 	/** The request that changed mute state */
 	UPROPERTY()
