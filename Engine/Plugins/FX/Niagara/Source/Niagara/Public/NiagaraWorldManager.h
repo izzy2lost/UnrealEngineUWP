@@ -430,6 +430,11 @@ private:
 #if WITH_PER_FXTYPE_PARTICLE_PERF_STATS
 	FParticlePerfStatsListenerPtr FXTypeCSVListener;
 #endif
+
+#if WITH_EDITOR
+	using FSystemDelegateMap = TMap<TWeakObjectPtr<UNiagaraSystem>, FDelegateHandle>;
+	FSystemDelegateMap SystemPostChangeDelegateHandles;
+#endif
 };
 
 
