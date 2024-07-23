@@ -940,7 +940,7 @@ FConfigBranch* UOnlineHotfixManager::GetBranch(const FString& IniName)
 	const FString StrippedIniNameNoExtension = FPaths::GetBaseFilename(StrippedIniName);
 
 	// find the branch by basename or full filename
-	FConfigBranch* Branch = GConfig->FindBranch(*StrippedIniNameNoExtension, IniName);
+	FConfigBranch* Branch = GConfig->FindBranch(*StrippedIniNameNoExtension, StrippedIniNameNoExtension);
 	if (Branch == nullptr)
 	{
 		// does this really happen, seems pretty unexpected
