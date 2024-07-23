@@ -387,7 +387,9 @@ static void BuildNaniteFallbackMeshDescription(
 	for (const FStaticMeshSection& Section : InMeshData.Sections)
 	{
 		const FPolygonGroupID PolygonGroupID = OutMesh.CreatePolygonGroup();
-		PolygonGroupMaterialSlotNames.Set(PolygonGroupID, StaticMaterials[Section.MaterialIndex].ImportedMaterialSlotName);
+		const FName MaterialSlotName = StaticMaterials.IsValidIndex(Section.MaterialIndex) ?
+			StaticMaterials[Section.MaterialIndex].ImportedMaterialSlotName : NAME_None;
+		PolygonGroupMaterialSlotNames.Set(PolygonGroupID, MaterialSlotName);
 
 		for (uint32 TriIndex = 0; TriIndex < Section.NumTriangles; ++TriIndex)
 		{
