@@ -12,7 +12,11 @@ set _pysha=144ee3fa0c4171f98ec554ac01bb44ee1e895d154609f143b1d20b52c3fe383e
 set _pytag=312
 set _pymark=%_pyver%.version
 
-if exist "%~f1\current\%_pymark%" (
+:: temp folder for detritus that's rmdir'd at the end
+set _tempdir=%~f1\$del
+
+if exist "%~f1\current\%_pymark%" 1>nul 2>nul (
+    rd /q /s "%_tempdir%"
     goto:eof
 )
 
@@ -20,16 +24,21 @@ call:check_bin tar.exe _tar_path
 call:check_bin curl.exe _curl_path
 call:check_bin certutil.exe _certutil_path
 
-set _destdir=%~f1\%_pyver%
-
 1>nul 2>nul (
-    rd "%_destdir%\..\current"
+    mkdir "%_tempdir%"
 )
 
+1>nul 2>nul (
+    :: as current/python.exe maybe locked, we move instead of rmdir
+    move "%~f1\current" "%_tempdir%\cur_%random%"
+)
+
+set _destdir=%_tempdir%\%_pyver%
 call:get_python "%_destdir%"
 
 1>nul 2>nul (
-    mklink /j "%_destdir%\..\current" "%_destdir%"
+    move "%_destdir%" "%~f1\current"
+    rd /q /s "%_tempdir%"
 )
 
 goto:eof

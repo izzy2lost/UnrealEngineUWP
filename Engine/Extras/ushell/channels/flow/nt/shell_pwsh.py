@@ -9,6 +9,7 @@ class Pwsh(object):
         registrar.add("pwsh", _Shell)
         return super().register_shells(registrar)
 
+#-------------------------------------------------------------------------------
 class _Shell(object):
     def __init__(self, system):
         self._system = system
@@ -16,7 +17,7 @@ class _Shell(object):
     def get_system(self):
         return self._system
 
-    def boot_shell(self, env, cookie):
+    def boot_shell(self, env, cookie, user_script):
         # no prompt modification here for now
         # could try and modify the Prompt function from the cookie
         # could also publish environment variables users can use from their own prompts

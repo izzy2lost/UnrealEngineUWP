@@ -9,17 +9,19 @@ from pathlib import Path
 
 
 #-------------------------------------------------------------------------------
-def _get_ip():
+def _get_ip(ver=4):
     import socket
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        s.connect(("172.31.255.255", 1))
-        ret = s.getsockname()[0]
-    except:
-        ret = "127.0.0.1"
-    finally:
-        s.close()
-    return ret
+    def impl(family, ip_addr):
+        with socket.socket(family, socket.SOCK_DGRAM) as s:
+            try:
+                ip_addr = "172.31.255.255" if ver == 4 else "fe80::0"
+                s.connect((ip_addr, 1))
+                return s.getsockname()[0]
+            except:
+                return "127.0.0.1" if "." in ip_addr else "::1"
+    assert ver in (4, 6)
+    args = (socket.AF_INET, "172.31.255.255") if ver == 4 else (socket.AF_INET6, "fe80::0")
+    return impl(*args)
 
 
 
@@ -355,7 +357,9 @@ class _Runtime(_RunCmd, _Attachable):
         )
 
         if not self.args.cooked:
-            args = (*args, "-pak")
+            projectstore_marker = stage_dir / "ue.projectstore"
+            if not projectstore_marker.is_file():
+                args = (*args, "-pak")
 
         if self.args.trace is not False:
             args = (*args, "-tracehost=" + _get_ip())

@@ -1,6 +1,5 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
-import os
 import flow.describe
 
 #-------------------------------------------------------------------------------

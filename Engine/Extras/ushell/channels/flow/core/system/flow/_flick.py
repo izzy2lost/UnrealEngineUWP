@@ -1,42 +1,5 @@
 # Copyright Epic Games, Inc. All Rights Reserved.
 
-import sys
-
-#-------------------------------------------------------------------------------
-def trim(docstring):
-    """Function from PEP257 to handle docstring indentation.
-    
-    Strips a uniform amount of indentation from the second and further lines of
-    the docstring, equal to the minimum indentation of all non-blank lines
-    after the first line. Any indentation in the first line of the docstring
-    (i.e., up to the first newline) is insignificant and removed. Relative
-    indentation of later lines in the docstring is retained. Blank lines should
-    be removed from the beginning and end of the docstring.
-    """
-    if not docstring:
-        return ''
-    # Convert tabs to spaces (following the normal Python rules)
-    # and split into a list of lines:
-    lines = docstring.expandtabs().splitlines()
-    # Determine minimum indentation (first line doesn't count):
-    indent = sys.maxsize
-    for line in lines[1:]:
-        stripped = line.lstrip()
-        if stripped:
-            indent = min(indent, len(line) - len(stripped))
-    # Remove indentation (first line is special):
-    trimmed = [lines[0].strip()]
-    if indent < sys.maxsize:
-        for line in lines[1:]:
-            trimmed.append(line[indent:].rstrip())
-    # Strip off trailing and leading blank lines:
-    while trimmed and not trimmed[-1]:
-        trimmed.pop()
-    while trimmed and not trimmed[0]:
-        trimmed.pop(0)
-    # Return a single string:
-    return '\n'.join(trimmed)
-
 #-------------------------------------------------------------------------------
 class _ArgOptBase(object):
     def __init__(self, type_value, description):
@@ -173,9 +136,7 @@ class Cmd(object):
     def _print_help(self, short=False):
         # Description
         if not short:
-            for line in self.get_desc().split("\n"):
-                line = line[:4].strip() + line[4:]
-                print(line)
+            print(self.get_desc(pretty=80))
             print()
 
         # Usage
@@ -325,9 +286,41 @@ class Cmd(object):
         return self.__name__
 
     @classmethod
-    def get_desc(self):
-        it = (trim(x.__doc__) for x in self.__mro__ if x.__doc__ and x != object)
-        return "\n\n".join(it)
+    def get_desc(self, *, pretty=False):
+        it = (x.__doc__ for x in self.__mro__ if x.__doc__ and x != object)
+        if not int(pretty):
+            return "\n\n".join(it)
+
+        desc = []
+        for lines in it:
+            lines = lines.strip().splitlines()
+            it = (len(x) - len(x.lstrip()) for x in lines[1:] if x.lstrip())
+            to_trim = min(it, default=0)
+            desc.append(lines[0])
+            desc += list(x[to_trim:] for x in lines[1:])
+            desc.append("")
+
+        if type(pretty) != int:
+            return "\n".join(desc[:-1])
+
+        import textwrap
+        leadless_n = 0
+        paras = []
+        for line in desc:
+            next_n = (leadless_n + 1) if line and line[0] != " " else 0
+            if next_n > 1:
+                paras[-1] += " " + line
+                leadless_n = next_n
+                continue
+
+            if next_n < leadless_n:
+                para = paras.pop()
+                paras += textwrap.wrap(para, width=pretty)
+
+            paras.append(line)
+            leadless_n = next_n
+
+        return "\n".join(paras[:-1])
 
     def invoke(self, in_args):
         self.validate()

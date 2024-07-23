@@ -6,78 +6,11 @@ import flow.cmd
 from pathlib import Path
 
 #-------------------------------------------------------------------------------
-class _Shell(object):
-    def _add_clink_lua(self):
-        channel = self.get_channel()
-        system = channel.get_system()
-        working_dir = system.get_working_dir()
-
-        lua_path = working_dir + "complete.clink.lua"
-        if not system.is_path_stale(lua_path):
-            return
-
-        cmd_tree = system.get_command_tree()
-        tree_root = cmd_tree.get_root_node()
-
-        lua = open(lua_path, "w")
-        lua.write("local commands = {")
-        for name,_ in tree_root.read_children():
-            lua.write(f"'{name}',")
-        lua.write("}\n")
-
-        run_py_path = os.path.abspath(__file__ + "/../../core/system/run.py")
-        cmd = rf'"{sys.executable}" -Xutf8 -Esu "{run_py_path}" "{working_dir}/manifest" $complete --daemon'
-        cmd = cmd.replace("\\", "/")
-        lua.write(f"local py_server_cmd = '{cmd}'")
-
-        clink_lua = _get_clink_lua()
-        lua.write(clink_lua)
-        lua.close()
-
+class Cmd(object):
     def register_shells(self, registrar):
-        registrar.add("cmd", lambda x: self)
+        registrar.add("cmd", _Shell)
         return super().register_shells(registrar)
 
-    def boot_shell(self, env, cookie):
-        self._add_clink_lua()
-
-        channel = self.get_channel()
-        system = channel.get_system()
-        working_dir = system.get_working_dir()
-        env["CLINK_PATH"] = working_dir
-        env["DIRCMD"] = "/ogen"
-
-        if prompt := env.get("FLOW_PROMPT", None):
-            prompt = prompt.replace("\n", "\r")
-            env["FLOW_PROMPT"] = prompt
-
-        try: os.makedirs(os.path.dirname(cookie))
-        except: pass
-
-        thefuzz_path = Path(__file__).parent / "cmd_thefuzz.bat"
-        thefuzz_path = thefuzz_path.resolve()
-
-        with open(cookie, "wt") as out:
-            print(f"cd /d \"{os.getcwd()}\"", file=out)
-            for key, value in env.read_changes():
-                value = value or ""
-                print(fr'set "{key}={value}"', file=out)
-
-            print(rf'doskey ff=fd $B fzf $B clip', file=out)
-            print(rf'doskey qq="{thefuzz_path}" history', file=out)
-            print(rf'doskey de="{thefuzz_path}" explore $*', file=out)
-            print(rf'doskey dc="{thefuzz_path}" chdir $*', file=out)
-            print(rf'doskey dc.="{thefuzz_path}" chdir .', file=out)
-
-            print("clink_x64.exe inject", file=out)
-            print("$tip.exe", file=out)
-
-            if user_script := getattr(self, "_user_script", None):
-                print(rf'call "{user_script}"', file=out)
-
-
-#-------------------------------------------------------------------------------
-class Cmd(_Shell):
     def run(self, env):
         if os.name != "nt":
             return super().run(env)
@@ -110,6 +43,79 @@ class Cmd(_Shell):
 
         print()
         return super().run(env)
+
+#-------------------------------------------------------------------------------
+class _Shell(object):
+    def __init__(self, system):
+        self._system = system
+
+    def get_system(self):
+        return self._system
+
+    def _add_clink_lua(self):
+        system = self.get_system()
+        working_dir = system.get_working_dir()
+
+        lua_path = working_dir + "complete.clink.lua"
+        if not system.is_path_stale(lua_path):
+            return
+
+        cmd_tree = system.get_command_tree()
+        tree_root = cmd_tree.get_root_node()
+
+        lua = open(lua_path, "w")
+        lua.write("local commands = {")
+        for name,_ in tree_root.read_children():
+            lua.write(f"'{name}',")
+        lua.write("}\n")
+
+        run_py_path = os.path.abspath(__file__ + "/../../core/system/run.py")
+        cmd = rf'"{sys.executable}" -Xutf8 -Esu "{run_py_path}" "{working_dir}/manifest" $complete --daemon'
+        cmd = cmd.replace("\\", "/")
+        lua.write(f"local py_server_cmd = '{cmd}'")
+
+        clink_lua = _get_clink_lua()
+        lua.write(clink_lua)
+        lua.close()
+
+    def boot_shell(self, env, cookie, user_script):
+        self._add_clink_lua()
+
+        system = self.get_system()
+        working_dir = system.get_working_dir()
+        env["CLINK_PATH"] = working_dir
+        env["DIRCMD"] = "/ogen"
+
+        if prompt := env.get("FLOW_PROMPT", None):
+            prompt = prompt.replace("\n", "\r")
+            env["FLOW_PROMPT"] = prompt
+
+        try: os.makedirs(os.path.dirname(cookie))
+        except: pass
+
+        thefuzz_path = Path(__file__).parent / "cmd_thefuzz.bat"
+        thefuzz_path = thefuzz_path.resolve()
+
+        with open(cookie, "wt") as out:
+            print(f"cd /d \"{os.getcwd()}\"", file=out)
+            for key, value in env.read_changes():
+                value = value or ""
+                print(fr'set "{key}={value}"', file=out)
+
+            print(rf'doskey ff=fd $B fzf $B clip', file=out)
+            print(rf'doskey qq="{thefuzz_path}" history', file=out)
+            print(rf'doskey de="{thefuzz_path}" explore $*', file=out)
+            print(rf'doskey dc="{thefuzz_path}" chdir $*', file=out)
+            print(rf'doskey dc.="{thefuzz_path}" chdir .', file=out)
+            print(rf'doskey dp="{thefuzz_path}" pushdir $*', file=out)
+            print(rf'doskey dp.="{thefuzz_path}" pushdir .', file=out)
+
+            print("clink_x64.exe inject", file=out)
+            print("$tip.exe", file=out)
+
+            if user_script:
+                print(rf'call "{user_script}"', file=out)
+
 
 
 #-------------------------------------------------------------------------------

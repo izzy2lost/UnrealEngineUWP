@@ -180,6 +180,10 @@ sln_open = flow.describe.Command()
 sln_open.source("cmds/sln.py", "Open")
 sln_open.invoke("sln", "open")
 
+sln_10x = flow.describe.Command()
+sln_10x.source("cmds/sln.py", "Open10x")
+sln_10x.invoke("sln", "open", "10x")
+
 #-------------------------------------------------------------------------------
 uat = flow.describe.Command()
 uat.source("cmds/uat.py", "Uat")
@@ -219,6 +223,19 @@ notify.invoke("notify")
 project_change = flow.describe.Command()
 project_change.source("cmds/project.py", "Change")
 project_change.invoke("project")
+
+#-------------------------------------------------------------------------------
+odsc_client = flow.describe.Command()
+odsc_client.source("cmds/odsc.py", "Client")
+odsc_client.invoke("cook", "odsc", "client")
+
+odsc_game = flow.describe.Command()
+odsc_game.source("cmds/odsc.py", "Game")
+odsc_game.invoke("cook", "odsc", "game")
+
+odsc_all = flow.describe.Command()
+odsc_all.source("cmds/odsc.py", "All")
+odsc_all.invoke("cook", "odsc", "all")
 
 #-------------------------------------------------------------------------------
 prompt = flow.describe.Command()

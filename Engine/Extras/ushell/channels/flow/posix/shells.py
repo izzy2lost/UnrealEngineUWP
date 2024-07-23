@@ -11,8 +11,6 @@ class Shells(object):
         registrar.add("zsh", _Zsh)
         return super().register_shells(registrar)
 
-
-
 #-------------------------------------------------------------------------------
 class _Base(object):
     def __init__(self, system):
@@ -21,7 +19,7 @@ class _Base(object):
     def get_system(self):
         return self._system
 
-    def boot_shell(self, env, cookie):
+    def boot_shell(self, env, cookie, user_script):
         try: os.makedirs(os.path.dirname(cookie))
         except: pass
 
@@ -54,7 +52,7 @@ class _Base(object):
 
 #-------------------------------------------------------------------------------
 class _Bash(_Base):
-    def boot_shell(self, env, cookie):
+    def boot_shell(self, env, cookie, user_script):
         # Add '\[...\]' around ANSI codes so Bash knows what's displayable
         if prompt := env.get("FLOW_PROMPT", None):
             out_prompt = ""
@@ -66,7 +64,7 @@ class _Bash(_Base):
             out_prompt += prompt[prev:]
             env["FLOW_PROMPT"] = out_prompt
 
-        return super().boot_shell(env, cookie)
+        return super().boot_shell(env, cookie, user_script)
 
     def write_cookie(self, env, out):
         super().write_cookie(env, out)
@@ -110,7 +108,7 @@ complete -F _flow_complete""" # purposely left no trailing CRLF
 
 #-------------------------------------------------------------------------------
 class _Zsh(_Base):
-    def boot_shell(self, env, cookie):
+    def boot_shell(self, env, cookie, user_script):
         if prompt := env.get("FLOW_PROMPT", None):
             # Add '%{...%}' around ANSI codes so Zsh knows what's displayable
             out_prompt = ""
@@ -132,7 +130,7 @@ class _Zsh(_Base):
 
             env["FLOW_PROMPT"] = prompt
 
-        return super().boot_shell(env, cookie)
+        return super().boot_shell(env, cookie, user_script)
 
     def write_cookie(self, env, out):
         super().write_cookie(env, out)

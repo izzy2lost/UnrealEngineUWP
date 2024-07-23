@@ -71,8 +71,8 @@ class _Impl(unrealcmd.Cmd):
         platform = self.args.platform = platform.lower()
 
         # Validate the given target
-        target = unreal.TargetType.parse(self.args.target)
-        target = ue_context.get_target_by_type(target)
+        target_type = unreal.TargetType.parse(self.args.target)
+        target = ue_context.get_target_by_type(target_type)
         if not target:
             self.print_error(f"'{project.get_name()}' does not appear to have a '{self.args.target}' target")
             return 1
@@ -108,6 +108,14 @@ class _Impl(unrealcmd.Cmd):
             raise ValueError(f"Unable to stage target of type '{self.args.target}'")
 
         platform = self.get_platform(platform)
+
+        if self.args.zen:
+            cook_form = platform.get_cook_form(target_type.name.lower())
+            projectstore_file = project.get_dir() / f"Saved/Cooked/{cook_form}/" / "ue.projectstore"
+            if not projectstore_file.is_file():
+                self.print_error(f"'{projectstore_file}' missing, cannot use --zen for '{self.args.target}' target")
+                return 1
+            self.args.nopak = True
 
         cook_flavor = platform.get_cook_flavor()
 
@@ -148,6 +156,7 @@ class Stage(_Impl):
     cook   = unrealcmd.Opt((False, ""), "Run a cook before running the stage step")
     deploy = unrealcmd.Opt(False, "Deploy to devkit/device after staging")
     nopak  = unrealcmd.Opt(False, "Staged result should be loose files")
+    zen    = unrealcmd.Opt(False, "Staged result should use data streaming from zenserver")
 
 
 
@@ -160,4 +169,5 @@ class Deploy(_Impl):
         self.args.cook   = False
         self.args.deploy = True
         self.args.nopak  = True
+        self.args.zen    = False
         return super().main(skipstage=True)

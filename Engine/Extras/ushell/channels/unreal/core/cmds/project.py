@@ -14,6 +14,7 @@ class Change(flow.cmd.Cmd):
      .project branch              - unset the active project on the branch
      .project cwd                 - active project or branch follows CWD
      .project active              - output current active project
+     .project list                - list all projects available but don't switch
      .project                     - pick from a list of all projects under the CWD
     """
     nameorpath   = flow.cmd.Arg("", "Name or path of the project to make active")
@@ -37,6 +38,7 @@ class Change(flow.cmd.Cmd):
         yield "branch"
         yield "cwd"
         yield "active"
+        yield "list"
 
         session = self.get_noticeboard(self.Noticeboard.SESSION)
         context = unreal.Context(session["uproject"] or ".")
@@ -88,6 +90,15 @@ class Change(flow.cmd.Cmd):
             reply = reply.split("\t", 1)
             reply = reply[1].lstrip()
             return os.path.abspath(reply)
+
+    def _print_all(self):
+        context = unreal.Context(".")
+        branch = context.get_branch()
+        if not branch:
+            return
+        cwd = str(branch.get_dir())
+        for uproj_path in branch.read_projects():
+            print(f"{uproj_path.stem:19}\t{uproj_path}")
 
     def _print_active(self):
         session = self.get_noticeboard(self.Noticeboard.SESSION)
@@ -207,7 +218,6 @@ class Change(flow.cmd.Cmd):
 
     def main(self):
         ret = self._main_impl()
-        self._provision(ret)
         return ret
 
     def _main_impl(self):
@@ -220,6 +230,9 @@ class Change(flow.cmd.Cmd):
         if not candidate:
             self.print_error("No project name or path specified")
             return False
+
+        if candidate.lower() == "list":
+            return self._print_all()
 
         if candidate.lower() == "active":
             return self._print_active()
@@ -258,67 +271,3 @@ class Change(flow.cmd.Cmd):
         session["uproject"] = primary_dir
 
         return primary_dir
-
-    def _provision(self, primary_dir):
-        if not primary_dir:
-            return
-
-        from pathlib import Path
-
-        # Find branch root
-        for candidate in Path(__file__).parents:
-            if (candidate / "ushell.bat").is_file():
-                root_dir = candidate
-                break
-        else:
-            return
-
-        # Find the bundle of data to provision
-        input_path = root_dir / Path("channels/bundle")
-        if not input_path.is_file():
-            return
-
-        with input_path.open("rb") as inp:
-            input_data = memoryview(inp.read())
-
-        input_mtime = input_path.stat().st_mtime
-
-        # Check we've something to provision from
-        nyckels = self._get_nyckels(primary_dir)
-        if not nyckels:
-            return
-
-        self.print_info("Provisioning")
-
-        # Let's provision!
-        import cipher
-        blob = cipher.Blob(input_data)
-        for nyckel in nyckels:
-            for name, data in blob.find(nyckel):
-                path = root_dir / name
-                if not path.is_file():
-                    print(name)
-                    dest_path = (root_dir / path)
-                    dest_path.parent.mkdir(parents=True, exist_ok=True)
-                    with dest_path.open("wb") as out:
-                        out.write(data)
-
-    def _get_nyckels(self, primary_dir):
-        pass
-        """
-        context = unreal.Context(primary_dir)
-        ini_paths = [x for x in context.glob("Extras/ushell/Settings.ini")]
-        if not ini_paths:
-            return
-
-        # And we need to know what we can provision
-        import base64
-        nyckels = []
-        for ini_path in ini_paths:
-            ini = unreal.Ini()
-            with ini_path.open("rt") as inp:
-                ini.load(inp)
-            if nyckel := ini.ushell.blob:
-                nyckel = base64.b64decode(str(nyckel))
-                nyckels.append(nyckel)
-        """

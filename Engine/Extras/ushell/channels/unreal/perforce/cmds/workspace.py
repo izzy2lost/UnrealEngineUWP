@@ -51,6 +51,7 @@ def _populate_ue_branch_engine(depot_path, dry_run):
     minimal_sync_specs = (
         depot_path / "Engine/Build/Build.version",
         depot_path / "Engine/Source/*.Target.cs",
+        depot_path / "Engine/Config/BaseEngine.ini",
         depot_path / "*",
     )
     if dry_run:

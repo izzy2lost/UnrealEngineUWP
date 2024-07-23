@@ -272,6 +272,13 @@ class _BuildCmd(unrealcmd.Cmd):
                         file_or_module = str(file.resolve())
                         break
 
+        # Lets not accept anything accept files that make translation units
+        for ext in (".cpp", ".c", ".xpp", ".h"):
+            if file_or_module.endswith(ext):
+                break
+        else:
+            raise ValueError(f"{file_or_module} does not appear to be a source file")
+
         builder.add_args("-SingleFile=" + file_or_module)
         builder.add_args("-SkipDeploy")
 

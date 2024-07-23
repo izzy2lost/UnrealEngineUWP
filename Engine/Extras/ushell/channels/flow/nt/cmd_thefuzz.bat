@@ -8,7 +8,8 @@ set _fzf=fzf --layout=reverse --color=16 --height=20
 
 <nul >%_bat% (
     if "%~1"=="history" call:history
-    if "%~1"=="chdir"   call:chdir %2
+    if "%~1"=="chdir"   call:chdir "cd /d" %2
+    if "%~1"=="pushdir" call:chdir pushd %2
     if "%~1"=="explore" call:explore %2
 )
 
@@ -49,9 +50,9 @@ goto:eof
 
 ::------------------------------------------------------------------------------
 :chdir
-set _base="%~f1"
-if "%~1"=="" set _base=\
-echo cd /d ^^
+set _base="%~f2"
+if "%~2"=="" set _base=\
+echo %~1 ^^
 fd -d8 -td . %_base:\"="% | %_fzf% --scheme=default --history=%temp%/thefuzz_chdir
 goto:eof
 

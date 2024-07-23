@@ -72,6 +72,11 @@ who.source("cmds/who.py", "Who")
 who.invoke("p4", "who")
 
 #-------------------------------------------------------------------------------
+authors = flow.describe.Command()
+authors.source("cmds/authors.py", "Authors")
+authors.invoke("p4", "authors")
+
+#-------------------------------------------------------------------------------
 boot = flow.describe.Command()
 boot.source("boot.py", "Boot")
 boot.invoke("boot")

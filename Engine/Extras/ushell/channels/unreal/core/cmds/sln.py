@@ -131,3 +131,35 @@ class Open(_Base):
     def main(self):
         self.use_all_platforms()
         return self._open_sln()
+
+#-------------------------------------------------------------------------------
+class Open10x(_Base):
+    """ Opens a Visual Studio Solution in 10x Editor """
+
+    def main(self):
+        if os.name != "nt":
+            self.print_error("Opening Visual Studio Solution in 10x Editor is only supported on Windows")
+            return False
+
+        self.print_info("Opening solution in 10x Editor")
+        sln_path = self._get_sln_path()
+        print("Path:", sln_path)
+        if not os.path.isfile(sln_path):
+            self.print_error("Project file not found")
+            return False
+
+        # At the moment there is no env var set for 10x, but Stewart will be adding this for us
+        # Assume default install location for now.
+        editor_path: str = r"C:\Program Files\PureDevSoftware\10x\10x.exe"
+        if not os.path.isfile(sln_path):
+            self.print_error("10x.exe not found at default install location")
+            return False
+
+        args = (
+            sln_path,
+        )
+
+        cmd = self.get_exec_context().create_runnable(editor_path, *args)
+        result = cmd.launch()
+        return True
+

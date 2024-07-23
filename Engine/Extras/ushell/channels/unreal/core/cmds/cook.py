@@ -24,14 +24,15 @@ class _CookPrettyPrinter(uelogprinter.Printer):
 
 #-------------------------------------------------------------------------------
 class _Cook(unrealcmd.MultiPlatformCmd):
-    cookargs = unrealcmd.Arg([str], "Additional arguments passed to the cook commandlet")
-    cultures = unrealcmd.Opt("en", "Cultures to cook (comma separated, defaults to 'en')")
-    onthefly = unrealcmd.Opt(False, "Launch as an on-the-fly server")
-    iterate  = unrealcmd.Opt(False, "Cook iteratively on top of the previous cook")
-    noxge    = unrealcmd.Opt(False, "Disable XGE-based shader compilation")
-    unpretty = unrealcmd.Opt(False, "Turns off colourful pretty-printing")
-    attach   = unrealcmd.Opt(False, "Attach a debugger to the cook")
-    debug    = unrealcmd.Opt(False, "Use debug executables")
+    cookargs     = unrealcmd.Arg([str], "Additional arguments passed to the cook commandlet")
+    cultures     = unrealcmd.Opt("en", "Cultures to cook (comma separated, defaults to 'en')")
+    onthefly     = unrealcmd.Opt(False, "Launch as an on-the-fly server")
+    iterate      = unrealcmd.Opt(False, "Cook iteratively on top of the previous cook")
+    noxge        = unrealcmd.Opt(False, "Disable XGE-based shader compilation")
+    unpretty     = unrealcmd.Opt(False, "Turns off colourful pretty-printing")
+    attach       = unrealcmd.Opt(False, "Attach a debugger to the cook")
+    debug        = unrealcmd.Opt(False, "Use debug executables")
+    nounattended = unrealcmd.Opt(False, "Skip implicitly specified '-unattended'")
 
     @unrealcmd.Cmd.summarise
     def _cook(self, cook_form, exec_context=None):
@@ -49,7 +50,7 @@ class _Cook(unrealcmd.MultiPlatformCmd):
         commandlet_args = (
             ("-targetplatform=" + cook_form) if cook_form else None,
             ("-cookcultures=" + cultures) if cultures else None,
-            "-unattended",
+            "-unattended" if not self.args.nounattended else None,
             "-unversioned",
             "-stdout",
             "-cookonthefly" if self.args.onthefly else None,
