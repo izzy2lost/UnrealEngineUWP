@@ -13,6 +13,7 @@
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 #include <algorithm>
 
+#include "HAL/IConsoleManager.h"
 #include "HAL/PlatformMath.h"
 
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
@@ -22,6 +23,13 @@ DEFINE_LOG_CATEGORY_STATIC(LogMetronomeNode, Log, All);
 namespace HarmonixMetasound
 {
 	using namespace Metasound;
+
+	bool bSkipMetronomeLastProcessedClockTickCheck = true;
+	FAutoConsoleVariableRef CVarSkipMetronomeLastProcessedClockTickCheck(
+		TEXT("au.Metronome.SkipLastProcessedClockTickCheck"),
+		bSkipMetronomeLastProcessedClockTickCheck,
+		TEXT("Skip Last Processed Clock Tick conditions when executing a Metronome Metasound Node."),
+		ECVF_Default);
 
 	class FMetronomeOperator : public TExecutableOperator<FMetronomeOperator>, public FMusicTransportControllable
 	{
@@ -273,7 +281,7 @@ namespace HarmonixMetasound
 		// only update our midi data if the clock is advancing
 		// update the tempo and time sig before we advance our clock 
 		int32 ClockTick = DrivingMidiClock.GetLastProcessedMidiTick();
-		if (ClockTick >= 0 && ClockTick > LastProcessedClockTick)
+		if ((ClockTick >= 0 && ClockTick > LastProcessedClockTick) || bSkipMetronomeLastProcessedClockTickCheck)
 		{
 			UpdateMidi();
 			LastProcessedClockTick = ClockTick;
