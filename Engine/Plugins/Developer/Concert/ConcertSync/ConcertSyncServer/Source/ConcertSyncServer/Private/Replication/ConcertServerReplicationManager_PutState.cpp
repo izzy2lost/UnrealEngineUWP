@@ -129,7 +129,7 @@ namespace UE::ConcertSyncServer::Replication
 			const bool bSuccess = Algo::AllOf(StreamRequests, [&Clients, &AuthorityManager](const TPair<FGuid, FConcertReplication_ChangeStream_Request>& Pair)
 			{
 				const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(Pair.Key);
-				return !Client || ValidateStreamChangeRequest(*Client->Get(), AuthorityManager, Pair.Value);
+				return !Client || ValidateStreamChangeRequest(Client->Get()->GetClientEndpointId(), Client->Get()->GetStreamDescriptions(), AuthorityManager, Pair.Value);
 			});
 
 			Response.ResponseCode = bSuccess ? Response.ResponseCode : EConcertReplicationPutStateResponseCode::StreamError;

@@ -215,7 +215,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 	bool ValidateFrequencyChanges(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FConcertReplicationStream>& Streams,
+		const TConstArrayView<FConcertReplicationStream>& Streams,
 		FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors
 		)
 	{

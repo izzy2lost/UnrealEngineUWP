@@ -29,7 +29,7 @@ namespace UE::ConcertSyncServer::Replication
 		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
 		const TUniquePtr<FConcertReplicationClient>* SendingClient = Clients.Find(SendingClientId);
-		if (SendingClient && ValidateStreamChangeRequest(*SendingClient->Get(), AuthorityManager, Request, Response))
+		if (SendingClient && ValidateStreamChangeRequest(SendingClient->Get()->GetClientEndpointId(), SendingClient->Get()->GetStreamDescriptions(), AuthorityManager, Request, Response))
 		{
 			ApplyChangeStreamRequest(Request, *SendingClient->Get());
 		}

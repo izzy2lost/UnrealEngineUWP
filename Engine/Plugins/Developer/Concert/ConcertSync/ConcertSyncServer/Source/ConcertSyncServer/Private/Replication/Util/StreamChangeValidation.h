@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "Containers/ArrayView.h"
+#include "Containers/ContainersFwd.h"
+
+struct FConcertReplicationStream;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_ChangeStream_Request;
 
@@ -15,7 +19,8 @@ namespace UE::ConcertSyncServer::Replication
 	 * @return Whether the request is valid.
 	 */
 	bool ValidateStreamChangeRequest(
-		const FConcertReplicationClient& Client,
+		const FGuid& ClientEndpointId,
+		const TConstArrayView<FConcertReplicationStream>& Streams,
 		const FAuthorityManager& AuthorityManager,
 		const FConcertReplication_ChangeStream_Request& Request,
 		FConcertReplication_ChangeStream_Response& OutResponse
@@ -23,7 +28,8 @@ namespace UE::ConcertSyncServer::Replication
 	
 	/** @return Whether the request is valid. */
 	bool ValidateStreamChangeRequest(
-		const FConcertReplicationClient& Client,
+		const FGuid& ClientEndpointId,
+		const TConstArrayView<FConcertReplicationStream>& Streams,
 		const FAuthorityManager& AuthorityManager,
 		const FConcertReplication_ChangeStream_Request& Request
 		);

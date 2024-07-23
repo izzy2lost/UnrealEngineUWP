@@ -80,7 +80,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API bool ValidateFrequencyChanges(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FConcertReplicationStream>& Streams,
+		const TConstArrayView<FConcertReplicationStream>& Streams,
 		OUT FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr
 		);
 
