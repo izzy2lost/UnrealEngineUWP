@@ -779,7 +779,7 @@ bool UWorldPartitionRuntimeHashSet::UnregisterWorldAssetStreaming(const FGuid& I
 		{
 			auto TrashObject = [](UObject* InObject)
 			{
-				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InObject->GetName())));
+				FName NewUniqueTrashName = MakeUniqueObjectName(InObject->GetOuter(), InObject->GetClass(), NAME_TrashedPackage);
 				InObject->Rename(*NewUniqueTrashName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 			};
 

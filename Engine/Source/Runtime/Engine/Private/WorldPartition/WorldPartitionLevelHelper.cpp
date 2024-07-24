@@ -1,9 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-/*
- * WorldPartitionLevelHelper implementation
- */
-
 #include "WorldPartition/WorldPartitionLevelHelper.h"
 #include "Misc/PackageName.h"
 #include "WorldPartition/WorldPartitionPackageHelper.h"
@@ -13,8 +9,8 @@
 #include "WorldPartition/IWorldPartitionObjectResolver.h"
 
 #if WITH_EDITOR
-
 #include "Engine/Level.h"
+#include "Engine/LevelStreamingGCHelper.h"
 #include "Misc/Paths.h"
 #include "Model.h"
 #include "UnrealEngine.h"
@@ -29,7 +25,6 @@
 #include "ActorFolder.h"
 
 FUObjectAnnotationSparse<FWorldPartitionLevelHelper::FActorPropertyOverridesAnnotation, true> FWorldPartitionLevelHelper::ActorPropertyOverridesAnnotation;
-
 #endif
 
 bool FWorldPartitionResolveData::ResolveObject(UWorld* InWorld, const FSoftObjectPath& InObjectPath, UObject*& OutObject) const
@@ -307,8 +302,7 @@ void FWorldPartitionLevelHelper::MoveExternalActorsToLevel(const TArray<FWorldPa
 
 				// Trash this package to guarantee that any potential future load of this actor won't find the old empty package
 				// @todo_ow: Decide if we want to support actor reloads during cook. If not, remove this code, detect the reload and report an error.
-				FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *ActorPackage->GetName())));
-				ActorPackage->Rename(*NewPackageName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+				FLevelStreamingGCHelper::TrashPackage(ActorPackage);
 			}
 
 			OutModifiedPackages.Add(ActorPackage);

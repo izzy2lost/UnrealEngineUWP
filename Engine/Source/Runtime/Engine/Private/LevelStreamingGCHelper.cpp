@@ -189,8 +189,7 @@ void FLevelStreamingGCHelper::PrepareStreamedOutLevelForGC(ULevel* InLevel)
 			for (UPackage* Package : Packages)
 			{
 				FCoreUObjectInternalDelegates::GetOnLeakedPackageRenameDelegate().Broadcast(Package);
-				const FName NewName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(FString::Printf(TEXT("%s_PreparedForGC"), *Package->GetFName().GetPlainNameString())));
-				Package->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional);
+				TrashPackage(Package);
 			}
 
 #if !WITH_EDITOR
@@ -259,4 +258,10 @@ void FLevelStreamingGCHelper::VerifyLevelsGotRemovedByGC()
 int32 FLevelStreamingGCHelper::GetNumLevelsPendingPurge()
 {
 	return LevelsPendingUnload.Num() + NumberOfPreparedStreamedOutLevelsForGC;
+}
+
+void FLevelStreamingGCHelper::TrashPackage(UPackage* InPackage)
+{
+	const FName NewName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), NAME_TrashedPackage);
+	InPackage->Rename(*NewName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
 }

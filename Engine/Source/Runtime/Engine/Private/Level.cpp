@@ -5,7 +5,7 @@ Level.cpp: Level-related functions
 =============================================================================*/
 
 #include "Engine/Level.h"
-
+#include "Engine/LevelStreamingGCHelper.h"
 #include "EngineLogs.h"
 #include "Algo/Copy.h"
 #include "Algo/ForEach.h"
@@ -548,8 +548,7 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 			if (bTrashPackage && (InPackage != GetTransientPackage()))
 			{
 				// Rename package to make sure it won't be reused
-				FName NewPackageName = MakeUniqueObjectName(nullptr, UPackage::StaticClass(), FName(*FString::Printf(TEXT("%s_Trashed"), *InPackage->GetName())));
-				InPackage->Rename(*NewPackageName.ToString(), nullptr, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty);
+				FLevelStreamingGCHelper::TrashPackage(InPackage);
 			}
 		}
 	};
