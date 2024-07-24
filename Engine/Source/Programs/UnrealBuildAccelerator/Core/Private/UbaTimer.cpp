@@ -15,10 +15,14 @@ namespace uba
 	#if !PLATFORM_WINDOWS
 	u64 GetMonoticTimeNs()
 	{
+		#if PLATFORM_MAC
+		return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+		#else
 		struct timespec ts;
 		if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1)
 			FatalError(1401, TC("clock_gettime(CLOCK_MONOTONIC) failed"));
 		return u64(ts.tv_sec * 1'000'000'000LL + ts.tv_nsec);
+		#endif
 	}
 	#endif
 

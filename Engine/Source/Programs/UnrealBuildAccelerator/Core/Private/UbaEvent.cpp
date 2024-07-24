@@ -11,28 +11,12 @@
 #endif
 
 #define UBA_TEST_WAIT_QUALITY 0
-#define UBA_USE_TIME_OF_DAY_CONDITION 1//PLATFORM_MAC
 
 namespace uba
 {
 #if !PLATFORM_WINDOWS
 
 	u64 GetMonoticTimeNs();
-
-	#if UBA_USE_TIME_OF_DAY_CONDITION
-	static u64 GetTimeOfDayOffset = []()
-		{
-			timeval tv;
-			gettimeofday(&tv, NULL);
-				
-			u64 tsNs = GetMonoticTimeNs();
-			u64 tvNs = u64(tv.tv_sec)*1'000'000'000 + tv.tv_usec * 1'000;
-
-			return tvNs - tsNs;
-		}();
-	#else
-	static constexpr u64 GetTimeOfDayOffset = 0;
-	#endif
 
 	struct EventImpl
 	{
@@ -85,7 +69,7 @@ namespace uba
 				return false;
 			}
 
-			#if !UBA_USE_TIME_OF_DAY_CONDITION
+			#if PLATFORM_LINUX
 			if (pthread_condattr_setclock(&attrcond, CLOCK_MONOTONIC) != 0)
 			{
 				UBA_ASSERTF(false, "pthread_condattr_setclock failed");
@@ -237,10 +221,15 @@ namespace uba
 					}
 					else  // timed wait.
 					{
-						struct timespec timeout = ToTimeSpec(startTimeNs + timeoutNs + GetTimeOfDayOffset);
-						int rc = pthread_cond_timedwait(&m_condition, &m_mutex, &timeout);    // unlocks Mutex while blocking...
+#if PLATFORM_MAC
+						struct timespec timeout = ToTimeSpec(timeoutNs);
+						int rc = pthread_cond_timedwait_relative_np(&m_condition, &m_mutex, &timeout); // unlocks Mutex while blocking...
+						UBA_ASSERTF((rc == 0) || (rc == ETIMEDOUT), "pthread_cond_timedwait_relative_np failed"); (void)rc;
+#else
+						struct timespec timeout = ToTimeSpec(startTimeNs + timeoutNs);
+						int rc = pthread_cond_timedwait(&m_condition, &m_mutex, &timeout); // unlocks Mutex while blocking...
 						UBA_ASSERTF((rc == 0) || (rc == ETIMEDOUT), "pthread_cond_timedwait failed"); (void)rc;
-
+#endif
 						#if UBA_TEST_WAIT_QUALITY
 						++loop;
 						#endif
