@@ -967,7 +967,6 @@ static void PrecompileShaderInternal(FShaderCompilerOutput& ShaderOutput, const 
 		glGetShaderiv(Shader, GL_COMPILE_STATUS, &CompileStatus);
 		if (CompileStatus == GL_TRUE)
 		{
-			ShaderOutput.Target = ShaderInput.Target;
 			BuildShaderOutputInternal(
 				ShaderOutput,
 				ShaderInput,
@@ -3132,7 +3131,6 @@ void CompileOpenGLShader(const FShaderCompilerInput& Input, const FShaderPreproc
 		PrecompileShaderInternal(Output, Input, GlslShaderSource, Version, HlslFrequency);
 #else // VALIDATE_GLSL_WITH_DRIVER
 		int32 SourceLen = FCStringAnsi::Strlen(GlslShaderSource); //-V595
-		Output.Target = Input.Target;
 		BuildShaderOutputInternal(Output, Input, GlslShaderSource, SourceLen, Version);
 #endif // VALIDATE_GLSL_WITH_DRIVER
 

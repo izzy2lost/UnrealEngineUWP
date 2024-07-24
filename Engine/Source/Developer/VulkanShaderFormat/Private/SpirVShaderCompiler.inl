@@ -812,8 +812,6 @@ static bool BuildShaderOutputFromSpirv(
 		AddReflectionInfos(Bindings.AccelerationStructures, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0);
 	}
 
-	Output.Target = InternalState.Input.Target;
-
 	// Overwrite updated SPIRV code
 	SerializedOutput.Spirv.Data = TArray<uint32>(Reflection.GetCode(), Reflection.GetCodeSize() / 4);
 

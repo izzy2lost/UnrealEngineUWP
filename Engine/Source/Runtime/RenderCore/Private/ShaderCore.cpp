@@ -1648,9 +1648,11 @@ public:
 		__try
 #endif
 		{
+			Job.Output.Target = Job.Input.Target;
 			if (Job.SecondaryOutput.IsValid())
 			{
 				check(Job.SecondaryPreprocessOutput.IsValid());
+				Job.SecondaryOutput->Target = Job.Input.Target;
 				Compiler->CompilePreprocessedShader(Job.Input, Job.PreprocessOutput, *Job.SecondaryPreprocessOutput, Job.Output, *Job.SecondaryOutput, WorkingDirectory);
 			}
 			else
@@ -4011,6 +4013,8 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 	// output hash is now serialized as part of the output, as the shader code is compressed in SCWs
 	checkf(!Output.bSucceeded || Output.OutputHash != FSHAHash(), TEXT("Successful compile job does not have an OutputHash generated."));
 
+	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
+
 	if (Ar.IsLoading())
 	{
 		bFinalized = true;
@@ -4081,6 +4085,8 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 	Output.bSerializeModifiedSource = Input.DumpDebugInfoEnabled() || Input.ExtraSettings.bExtractShaderSource;
 
 	Ar << Output;
+
+	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
 
 	bool bSecondaryOutput = SecondaryOutput.IsValid();
 	Ar << bSecondaryOutput;
