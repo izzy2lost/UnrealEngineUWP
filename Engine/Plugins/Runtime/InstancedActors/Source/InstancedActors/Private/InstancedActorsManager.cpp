@@ -191,6 +191,10 @@ void AInstancedActorsManager::BeginPlay()
 	}
 	MassEntityManager = EntitySubsystem->GetMutableEntityManager().AsShared();
 
+	// the main reason for not supporting pre-BeginPlay registration is that we cache the InstanceBounds here and the
+	// bounds are used during manager's registraiton to place it on the 2d hashmap
+	checkf(ManagerHandle.IsValid() == false, TEXT("We don't expect IAMs to be registered before their BeginPlay."));
+
 	// Cache world instance bounds
 	//
 	// Note: This must be done before InstancedActorSubsystem->AddManager bewlow, as this is used to

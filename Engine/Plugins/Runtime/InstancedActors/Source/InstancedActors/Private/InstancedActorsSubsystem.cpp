@@ -115,19 +115,26 @@ UInstancedActorsSubsystem& UInstancedActorsSubsystem::GetChecked(UObject* WorldC
 
 bool UInstancedActorsSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 {
-	if(!Super::ShouldCreateSubsystem(Outer))
+	if (Super::ShouldCreateSubsystem(Outer) && Outer)
 	{
-		return false;
-	}
+		if (UWorld* World = Outer->GetWorld())
+		{
+#if WITH_EDITOR
+			// we don't want to create subsystems for Editor worlds while PIE is active
+			// This wouldn't happen in normal world lifecycle, but can happen if FSubsystemCollectionBase::ActivateExternalSubsystem
+			// is used (it adds an instance of a given subsystem class to ALL worlds) - for example by GameFeatureActions.
+			if (GEditor && GEditor->IsPlayingSessionInEditor() && World->WorldType == EWorldType::Editor)
+			{
+				return false;
+			}
+#endif // WITH_EDITOR
 
-	// UInstancedActorsSubsystem must always be present for editor worlds to allow for InstanceActor etc editor operations
-	UWorld* World = CastChecked<UWorld>(Outer);
-	if (World->WorldType == EWorldType::Editor)
-	{
-		return true;
+			// we only ever want to have a single instance of this subsystem. Attempting to add multiple
+			// instances can be a result of subsystem adding game feature actions.
+			return World->GetSubsystemBase(GetClass()) == nullptr;
+		}
 	}
-
-	return true;
+	return false;
 }
 
 void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -175,12 +182,15 @@ void UInstancedActorsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 
 	// Collect existing managers, calling AInstancedActorsManager::OnAddedToSubsystem to inform them of latent addition to this subsystem
-	for (TActorIterator<AInstancedActorsManager> MangerIt(World); MangerIt; ++MangerIt)
+	for (TActorIterator<AInstancedActorsManager> ManagerIt(World); ManagerIt; ++ManagerIt)
 	{
-		AInstancedActorsManager* Manager = *MangerIt;
+		AInstancedActorsManager* Manager = *ManagerIt;
 		check(Manager);
-
-		AddManager(*Manager);
+		// we only case about managers that have already begun play and missed their chance to registred in their BeginPlay
+		if (Manager->HasActorBegunPlay())
+		{
+			AddManager(*Manager);
+		}
 	}
 }
 
@@ -216,24 +226,30 @@ TStatId UInstancedActorsSubsystem::GetStatId() const
 
 FInstancedActorsManagerHandle UInstancedActorsSubsystem::AddManager(AInstancedActorsManager& Manager)
 {
+	FInstancedActorsManagerHandle ManagerHandle;
 	const FBox ManagerBounds = Manager.GetInstanceBounds();
 
-	check(Algo::Find(Managers, &Manager) == nullptr);
-	const int32 ManagerID = Managers.Add(&Manager);
-
-	FInstancedActorsManagerHandle ManagerHandle = ManagerID;
-	ManagersHashGrid.Add(ManagerHandle, ManagerBounds);
+	if (ensureMsgf(Algo::Find(Managers, &Manager) == nullptr, TEXT("A given Manager instance is not expected to be added twice")))
+	{
+		ManagerHandle = Managers.Add(&Manager);
+		ManagersHashGrid.Add(ManagerHandle, ManagerBounds);
 
 #if WITH_INSTANCEDACTORS_DEBUG
-	// Record initial bounds so we can compare on removal to make sure it wasn't changed
-	DebugManagerBounds.Add(&Manager, ManagerBounds);
+		// Record initial bounds so we can compare on removal to make sure it wasn't changed
+		DebugManagerBounds.Add(&Manager, ManagerBounds);
 #endif
 
-	// Let Manager know the subsystem is ready. 
-	//
-	// Common callback for both AInstancedActorsManager::BeginPlay -> AddManager and latent 
-	// UInstancedActorsSubsystem::Initialize -> AddManager
-	Manager.OnAddedToSubsystem(*this, ManagerHandle);
+		// Let Manager know the subsystem is ready. 
+		//
+		// Common callback for both AInstancedActorsManager::BeginPlay -> AddManager and latent 
+		// UInstancedActorsSubsystem::Initialize -> AddManager
+		Manager.OnAddedToSubsystem(*this, ManagerHandle);
+	}
+	else
+	{
+		ManagerHandle = Manager.GetManagerHandle();
+		checkf(ManagerHandle.IsValid(), TEXT("If a given Manager has already been registered we expect it to host a valid ManagerHandle"));
+	}
 	
 	return ManagerHandle;
 }
