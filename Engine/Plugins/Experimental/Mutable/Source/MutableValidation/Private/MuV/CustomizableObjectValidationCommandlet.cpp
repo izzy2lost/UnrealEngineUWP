@@ -16,7 +16,6 @@
 #include "MuR/Model.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/ITargetPlatform.h"
-#include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 #include "Serialization/MemoryWriter.h"
 
 
@@ -27,10 +26,6 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	// Execution arguments for commandlet from IDE
 	// -run=CustomizableObjectValidation -CustomizableObject=(PathToCO)
 
-	// Ensure we have the cvars used for our testing set
-	UCustomizableObjectSystem::SetBenchmarkState(true);
-	//CustomizableObjectBenchmarkingUtils::SetMutableCVarsForCIS();
-	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;
 	
@@ -85,10 +80,13 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	bool bWasCoCompilationSuccessful = false;
 	{
 		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/Compile"));
-
-		// Override some configurations that may have been changed by the user
-		FCompilationOptions CompilationOptions = GetCompilationOptionsForBenchmarking(*ToTestCustomizableObject);
 		
+		// Override some configurations that may have been changed by the user
+		FCompilationOptions CompilationOptions = ToTestCustomizableObject->GetPrivate()->GetCompileOptions();
+		CompilationOptions.bSilentCompilation = false;
+		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
+		CompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;
+
 		// Set the target compilation platform based on what the caller wants
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
 
@@ -161,8 +159,48 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	{
 		LLM_SCOPE_BYNAME(TEXT("CustomizableObjectValidationCommandlet/GenerateInstances"));
 		
-		// Create a set of instances so we can later test them out
-		bWasInstancesCreationSuccessful = CustomizableObjectBenchmarkingUtils::GenerateDeterministicSetOfInstances(ToTestCustomizableObject,InstancesToGenerate, InstancesToProcess, GeneratedInstances);
+		// Test this parameter configuration in all the states of the CO
+		const uint32 StateCount = ToTestCustomizableObject->GetStateCount();
+		check(StateCount >= 1);
+
+		UE_LOG(LogMutable, Display, TEXT("Requeted Instances Count : %i"), InstancesToGenerate);
+		UE_LOG(LogMutable, Display, TEXT("State Count = %i"), StateCount);
+	
+		// Compute actual total amount of instances to generate
+		const uint32 TotalInstancesToTestCount = InstancesToGenerate * StateCount;
+		UE_LOG(LogMutable,Display,TEXT("Generating %i instances (states * requested instances)..."), TotalInstancesToTestCount);
+		
+		// Create randomization stream for the parameters of the instance
+		FRandomStream RandomizationStream = FRandomStream(0);
+		
+		// Generate a series of instances to later update
+		for (uint32 CustomizableObjectInstanceIndex = 0; CustomizableObjectInstanceIndex < InstancesToGenerate; CustomizableObjectInstanceIndex++)
+		{
+			UCustomizableObjectInstance* GeneratedInstance = ToTestCustomizableObject->CreateInstance();
+			if (GeneratedInstance)
+			{
+				// Force generation of all LODS
+				TArray<uint16> RequestedLodLevels{};
+				RequestedLodLevels.Init(0, GeneratedInstance->GetNumComponents());
+				GeneratedInstance->GetPrivate()->GetDescriptor().SetRequestedLODLevels(RequestedLodLevels);
+				
+				// Randomize instance values
+				GeneratedInstance->SetRandomValuesFromStream(RandomizationStream);
+				
+				for (uint32 State = 0; State < StateCount; State++)
+				{
+					// Set the state for the instance and store it for later update.
+					GeneratedInstance->GetPrivate()->SetState(State);
+                	InstancesToProcess.Enqueue(GeneratedInstance->Clone());
+					GeneratedInstances++;
+				}
+			}
+			else
+			{
+				UE_LOG(LogMutable,Error,TEXT("Failed to generate COI for the %s CO."),*ToTestCustomizableObject->GetName());
+				bWasInstancesCreationSuccessful = false;
+			}
+		}
 	}
 	// ---------------------------------------------------------------------------------------------------------- //
 
@@ -180,8 +218,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		TStrongObjectPtr<UCustomizableObjectInstance> InstanceToUpdate;
 		while (InstancesToProcess.Dequeue(InstanceToUpdate))
 		{
-			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
-
+			CollectGarbage(RF_NoFlags, true);
+			
 			if (!InstanceUpdatingUtility->UpdateInstance(InstanceToUpdate.Get()))
 			{
 				bInstanceFailedUpdate = true;
