@@ -60,9 +60,13 @@ struct FWorkspaceBreadcrumb : TSharedFromThis<FWorkspaceBreadcrumb>
 {
 	using FOnGetBreadcrumbLabel = TDelegate<TAttribute<FText>()>;
 	using FOnBreadcrumbClicked = TDelegate<void()>;
+	using FCanSaveBreadcrumb = TDelegate<bool()>;
+	using FOnSaveBreadcrumb = TDelegate<void()>;
 	
 	FOnGetBreadcrumbLabel OnGetLabel;
 	FOnBreadcrumbClicked OnClicked;
+	FCanSaveBreadcrumb CanSave;
+	FOnSaveBreadcrumb OnSave;
 };
 
 using FOnMakeDocumentWidget = TDelegate<TSharedRef<SWidget>(const FWorkspaceEditorContext&)>;

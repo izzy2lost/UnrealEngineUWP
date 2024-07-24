@@ -27,6 +27,10 @@ protected:
 	EVisibility IsWorkspaceNameVisible() const;
 	FText GetWorkspaceName() const;
 
+	void ExecuteSave() const;
+	bool CanExecuteSave() const;
+	bool IsSaveButtonVisible() const;
+
 	TSharedPtr<SWidget> Content = nullptr;
 	TWeakPtr<UE::Workspace::FWorkspaceEditor> WeakWorkspaceEditor = nullptr;
 	TWeakObjectPtr<UObject> WeakDocumentObject = nullptr;

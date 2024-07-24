@@ -16,6 +16,7 @@ namespace UE::Workspace
 
 		TSharedPtr<FUICommandInfo> NavigateBackward;		
 		TSharedPtr<FUICommandInfo> NavigateForward;
+		TSharedPtr<FUICommandInfo> SaveAssetEntries;
 	};
 
 }  // namespace UE::Workspace

@@ -34,6 +34,7 @@
 #include "AnimNextRigVMAssetEntry.h"
 #include "Editor/RigVMGraphDetailCustomization.h"
 #include "EditorUtils.h"
+#include "FileHelpers.h"
 #include "IUniversalObjectLocatorEditorModule.h"
 #include "Param/AnimNextComponentLocatorEditor.h"
 #include "Param/AnimNextParam.h"
@@ -339,6 +340,29 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 		{
 			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
 			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([ScheduleName = Schedule->GetFName()]{ return FText::FromName(ScheduleName); });
+
+			TWeakObjectPtr<const UAnimNextSchedule> WeakSchedule = Schedule;
+			GraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+				[WeakSchedule]
+				{
+					if (const UAnimNextSchedule* Schedule = WeakSchedule.Get())
+					{
+						return Schedule->GetPackage()->IsDirty();
+					}
+
+					return false;
+				}
+			);
+
+			GraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+				[WeakSchedule]
+				{
+					if (const UAnimNextSchedule* Schedule = WeakSchedule.Get())
+					{
+						FEditorFileUtils::PromptForCheckoutAndSave({Schedule->GetPackage()}, false, /*bPromptToSave=*/ false);
+					}
+				}
+			);
 		}
 	});
 
@@ -422,8 +446,29 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 	{
 		if (const UAnimNextModule* Module = Cast<UAnimNextModule>(InContext.Object))
 		{
+			TWeakObjectPtr<const UAnimNextModule> WeakModule = Module;
 			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
 			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([ModuleName = Module->GetFName()]{ return FText::FromName(ModuleName); });
+			GraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+				[WeakModule]
+				{
+					if (const UAnimNextModule* Module = WeakModule.Get())
+					{
+						return Module->GetPackage()->IsDirty();						
+					}
+
+					return false;
+				}
+			);
+			GraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+				[WeakModule]
+				{
+					if (const UAnimNextModule* Module = WeakModule.Get())
+					{
+						FEditorFileUtils::PromptForCheckoutAndSave({Module->GetPackage()}, false, /*bPromptToSave=*/ false);
+					}
+				}
+			);
 		}
 	});
 
@@ -788,11 +833,34 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 	{
 		if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))
 		{
-			const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-			GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = RigVMEdGraph->GetFName()]{ return FText::FromName(GraphName); });
-
 			if (const UAnimNextRigVMAssetEntry* OuterAssetEntry = CastChecked<UAnimNextRigVMAssetEntry>(RigVMEdGraph->GetOuter()))
 			{
+				const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(OuterAssetEntry);
+				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+
+				TWeakObjectPtr<const URigVMEdGraph> WeakGraph = RigVMEdGraph;
+				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterAssetEntry->GetEntryName()]{ return FText::FromName(GraphName); });
+				GraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+					[WeakGraph]
+					{
+						if (const URigVMEdGraph* Graph = WeakGraph.Get())
+						{
+							return Graph->GetPackage()->IsDirty();
+						}
+						return false;
+					}
+				);
+
+				GraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+				[WeakGraph]
+					{
+						if (const URigVMEdGraph* Graph = WeakGraph.Get())
+						{
+							FEditorFileUtils::PromptForCheckoutAndSave({Graph->GetPackage()}, false, /*bPromptToSave=*/ false);
+						}
+					}
+				);
+	
 				if (UAnimNextModule_EditorData* OuterEditorData = CastChecked<UAnimNextModule_EditorData>(OuterAssetEntry->GetOuter()))
 				{
 					if(UAnimNextModule* OuterGraph = UncookedOnly::FUtils::GetGraph(OuterEditorData))
@@ -810,6 +878,28 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 								}
 							}
 						);
+						OuterGraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+							[WeakOuterGraph]
+							{
+								if (UAnimNextModule* Module = WeakOuterGraph.Get())
+								{
+									return Module->GetPackage()->IsDirty();
+								}
+
+								return false;
+							}
+						);
+
+						OuterGraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+						[WeakOuterGraph]
+							{
+								if (UAnimNextModule* Module = WeakOuterGraph.Get())
+								{
+									FEditorFileUtils::PromptForCheckoutAndSave({Module->GetPackage()}, false, /*bPromptToSave=*/ false);
+								}
+							}
+						);
+						
 					}
 				}
 			}

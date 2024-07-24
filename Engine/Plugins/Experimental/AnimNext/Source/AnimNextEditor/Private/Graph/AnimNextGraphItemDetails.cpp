@@ -80,40 +80,57 @@ void FAnimNextGraphItemDetails::RegisterToolMenuExtensions()
 				FToolMenuSection& Section = InMenu->AddSection("WorkspaceOutliner.ItemContextMenu.RootAsset", FText::FromString(TEXT("Animation Next")));
 				if(const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(AssetEditorContext->Toolkit.Pin()))
 				{
-					if (WorkspaceItemContext->SelectedExports.Num() == 1)
+
+					TArray<FWorkspaceOutlinerItemExport> GraphExports;
+					Algo::TransformIf(WorkspaceItemContext->SelectedExports, GraphExports, [](const FWorkspaceOutlinerItemExport& Export)
 					{
-						TInstancedStruct<FWorkspaceOutlinerItemData>& Data = WorkspaceItemContext->SelectedExports[0].Data;
-						if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
-						{							
-							Section.AddMenuEntry(
-							TEXT("Open"),
-							LOCTEXT("GoHereActionLabel", "Open Graph"),
-							LOCTEXT("GoHereActionTooltip", "Open selected Animation Graph"),
-							FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"),
-							FUIAction(
-								FExecuteAction::CreateWeakLambda(WorkspaceItemContext, [&Data, WorkspaceEditor]()
-								{										
-									const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();
-									if (GraphData.GraphInterface)
+						return Export.Data.IsValid() && Export.Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct();
+					},
+					[](const FWorkspaceOutlinerItemExport& Export)
+					{
+						return Export;
+					});
+
+					if (GraphExports.Num() == WorkspaceItemContext->SelectedExports.Num() && GraphExports.Num() > 0)
+					{
+						TWeakPtr<UE::Workspace::IWorkspaceEditor> WeakWorkspaceEditor = WorkspaceEditor;
+						Section.AddMenuEntry(
+						TEXT("OpenGraphMenuEntry"),
+						FText::FormatOrdered(LOCTEXT("OpenGraphMenuEntryLabel", "Open Animation {0}|plural(one=Graph,other=Graphs)"), GraphExports.Num()),
+						FText::FormatOrdered(LOCTEXT("OpenGraphMenuEntryTooltip", "Open the selected Animation {0}|plural(one=Graph,other=Graphs)"), GraphExports.Num()),
+						FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.EventGraph_16x"),
+						FUIAction(
+							FExecuteAction::CreateWeakLambda(WorkspaceItemContext, [GraphExports, WeakWorkspaceEditor]()
+							{
+								if (TSharedPtr<UE::Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+								{
+									TArray<UObject*> ObjectsToOpen;
+									for (const FWorkspaceOutlinerItemExport& Export : GraphExports)
 									{
-										if (URigVMGraph* RigVMGraph = GraphData.GraphInterface->GetRigVMGraph())
+										const FAnimNextGraphOutlinerData& GraphData = Export.Data.Get<FAnimNextGraphOutlinerData>();
+										if (GraphData.GraphInterface)
 										{
-											if(const IRigVMClientHost* RigVMClientHost = RigVMGraph->GetImplementingOuter<IRigVMClientHost>())
+											if (URigVMGraph* RigVMGraph = GraphData.GraphInterface->GetRigVMGraph())
 											{
-												if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
+												if(const IRigVMClientHost* RigVMClientHost = RigVMGraph->GetImplementingOuter<IRigVMClientHost>())
 												{
-													WorkspaceEditor->OpenObjects({EditorObject});
+													if(UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(RigVMGraph))
+													{
+														ObjectsToOpen.Add(EditorObject);
+													}
 												}
 											}
 										}
 									}
-								})
-							));
-						}
+
+									SharedWorkspaceEditor->OpenObjects({ObjectsToOpen});
+								}
+							})
+						));
 					}
 				}
 			}
-		}));
+		}), FToolMenuInsert(NAME_None, EToolMenuInsertType::First));
 	}
 }
 

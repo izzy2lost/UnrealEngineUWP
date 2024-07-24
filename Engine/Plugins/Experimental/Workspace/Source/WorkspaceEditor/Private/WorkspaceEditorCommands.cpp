@@ -27,6 +27,7 @@ namespace UE::Workspace
 			EUserInterfaceActionType::Button, FInputChord(EKeys::ThumbMouseButton), FInputChord(EKeys::Left, EModifierKey::Alt));
 		UI_COMMAND(NavigateForward, "Navigate Forward", "Moves forwards to previous location",
 			EUserInterfaceActionType::Button, FInputChord(EKeys::ThumbMouseButton2), FInputChord(EKeys::Right, EModifierKey::Alt));
+		UI_COMMAND(SaveAssetEntries, "Save Assets", "Saves all loaded and modified assets in the workspace", EUserInterfaceActionType::Button, FInputChord());
 	}
 
 }  // namespace UE::Workspace

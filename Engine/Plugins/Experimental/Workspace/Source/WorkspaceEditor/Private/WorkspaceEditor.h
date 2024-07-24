@@ -71,6 +71,9 @@ private:
 
 	// FAssetEditorToolkit interface
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
+	virtual bool CanSaveAsset() const override;
+	virtual FText GetTabSuffix() const override;
+	virtual bool IsFindInContentBrowserButtonVisible() const { return false; }
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override
@@ -113,6 +116,9 @@ private:
 	void NavigateBack();
 	void NavigateForward();
 
+	void SaveAssetEntries();
+	bool AreAssetEntriesModified() const;
+
 	/** The asset being edited */
 	TObjectPtr<UWorkspace> Workspace = nullptr;
 
@@ -124,7 +130,9 @@ private:
 	/** Tabs to be registered into the Workspace */
 	FWorkflowAllowedTabSet TabFactories;
 
-	bool bSavingWorkspaceOnly = false;
+	bool bSavingTransientWorkspace = false;
+	bool bSavingWorkspace = false;
+	bool bSavingAssetEntries = false;
 	bool bClosingDown = false;
 
 	FGlobalSelectionId LastGlobalSelectionId = nullptr;

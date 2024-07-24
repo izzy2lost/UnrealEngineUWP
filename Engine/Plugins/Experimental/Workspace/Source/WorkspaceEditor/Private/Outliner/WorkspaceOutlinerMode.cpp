@@ -2,6 +2,7 @@
 
 #include "WorkspaceOutlinerMode.h"
 
+#include "FileHelpers.h"
 #include "ISourceControlModule.h"
 #include "WorkspaceItemMenuContext.h"
 #include "WorkspaceOutlinerHierarchy.h"
@@ -70,12 +71,12 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 						return Export.ParentIdentifier == NAME_None;
 					});
 
+					FToolMenuSection& AssetsSection = InMenu->AddSection("Assets", LOCTEXT("AssetSectionLabel", "Assets"));
 					if (bSelectionContainsTopLevelAsset)
 					{
-						FToolMenuSection& AssetsSection = InMenu->AddSection("Assets", LOCTEXT("AssetSectionLabel", "Assets"));
 						AssetsSection.AddMenuEntry(TEXT("OpenAsset"),
-							LOCTEXT("OpenAssetLabel", "Open Asset(s)"),
-							LOCTEXT("OpenAssetTooltip", "Opens the selected Asset(s)"),
+							FText::FormatOrdered(LOCTEXT("OpenAssetLabel", "Open {0}|plural(one=Asset,other=Assets)"), MenuContext->SelectedExports.Num()),
+							FText::FormatOrdered(LOCTEXT("OpenAssetTooltip", "Opens the selected {0}|plural(one=Asset,other=Assets)"), MenuContext->SelectedExports.Num()),
 							FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SystemWideCommands.SummonOpenAssetDialog"),
 							FUIAction(FExecuteAction::CreateLambda([WeakEditor=EditorContext->Toolkit, SelectedExports=MenuContext->SelectedExports]()
 							{
@@ -99,8 +100,8 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 						);
 
 						AssetsSection.AddMenuEntry(TEXT("RemoveAsset"),
-							LOCTEXT("RemoveAssetLabel", "Remove Asset(s)"),
-							LOCTEXT("RemoveAssetTooltip", "Removes the selected Asset(s) from the Workspace"),
+							FText::FormatOrdered(LOCTEXT("RemoveAssetLabel", "Remove {0}|plural(one=Asset,other=Assets)"), MenuContext->SelectedExports.Num()),
+							FText::FormatOrdered(LOCTEXT("RemoveAssetTooltip", "Removes the selected {0}|plural(one=Asset,other=Assets) from the Workspace"), MenuContext->SelectedExports.Num()),
 							FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Delete"),
 							FUIAction(FExecuteAction::CreateLambda([WeakEditor=EditorContext->Toolkit, SelectedExports=MenuContext->SelectedExports, EditingObjects=EditorContext->GetEditingObjects()]()
 							{
@@ -129,6 +130,79 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 							}))
 						);
 					}
+
+					auto IsPackageDirty = [](const UPackage* Package)-> bool
+					{										
+						return (Package && (Package->IsDirty() || Package->GetExternalPackages().ContainsByPredicate([](const UPackage* Package) { return Package->IsDirty(); })));
+					};
+
+					AssetsSection.AddMenuEntry("SaveSelectedAssets",
+					FText::FormatOrdered(LOCTEXT("SaveSelectedAssets", "Save {0}|plural(one=Asset,other=Assets)"), MenuContext->SelectedExports.Num()),
+					FText::FormatOrdered(LOCTEXT("SaveSelectedAssets_ToolTip", "Save the selected {0}|plural(one=Asset,other=Assets)"), MenuContext->SelectedExports.Num()),
+					FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.SaveAsset"),
+					FUIAction(
+						FExecuteAction::CreateLambda([IsPackageDirty, WeakEditor=EditorContext->Toolkit, SelectedExports=MenuContext->SelectedExports, EditingObjects=EditorContext->GetEditingObjects()]()
+						{
+							if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> SharedWorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(WeakEditor.Pin()))
+							{
+								TArray<UPackage*> SavablePackages;
+								for (const FWorkspaceOutlinerItemExport& ItemExport : SelectedExports)
+								{
+									if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedFactory = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(ItemExport)))
+									{
+										UPackage* Package = SharedFactory->GetPackage(ItemExport);
+										if (IsPackageDirty(Package))
+										{
+											SavablePackages.AddUnique(Package);								
+										}										
+									}
+									else if (ItemExport.ParentIdentifier == NAME_None)
+									{
+										if (UPackage* Package = FindPackage(nullptr, *ItemExport.AssetPath.GetLongPackageName()))
+										{
+											if (IsPackageDirty(Package))
+											{
+												SavablePackages.AddUnique(Package);
+											}
+										}
+									}
+								}
+								
+								FEditorFileUtils::PromptForCheckoutAndSave(SavablePackages, false, /*bPromptToSave=*/ false);
+							}
+						}),
+						FCanExecuteAction::CreateLambda([IsPackageDirty, WeakEditor=EditorContext->Toolkit, SelectedExports=MenuContext->SelectedExports, EditingObjects=EditorContext->GetEditingObjects()]()
+						{
+							if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> SharedWorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(WeakEditor.Pin()))
+							{
+								TArray<UPackage*> SavablePackages;
+								for (const FWorkspaceOutlinerItemExport& ItemExport : SelectedExports)
+								{
+									if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedFactory = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(ItemExport)))
+									{									
+										const UPackage* Package = SharedFactory->GetPackage(ItemExport);
+										if (IsPackageDirty(Package))
+										{
+											return true;
+										}
+									}
+									else if (ItemExport.ParentIdentifier == NAME_None)
+									{
+										if (const UPackage* Package = FindPackage(nullptr, *ItemExport.AssetPath.GetLongPackageName()))
+										{
+											if (IsPackageDirty(Package))
+											{
+												return true;
+											}
+										}
+									}
+								}
+							}
+
+							return false;
+						})
+					));
+
 				}
 
 				if (TSharedPtr<SSceneOutliner> SharedOutliner = WeakOutliner.Pin())

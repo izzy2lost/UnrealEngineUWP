@@ -16,7 +16,9 @@
 #include "ToolMenuContext.h"
 #include "WorkspaceEditorCommands.h"
 #include "SWorkspaceTabWrapper.h"
+#include "Dialogs/Dialogs.h"
 #include "Framework/Docking/LayoutExtender.h"
+#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditor"
 
@@ -45,6 +47,7 @@ const FName WorkspaceAppIdentifier("WorkspaceEditor");
 FWorkspaceEditor::FWorkspaceEditor(UWorkspaceAssetEditor* InOwningAssetEditor) : IWorkspaceEditor(InOwningAssetEditor)
 {
 	Workspace = Cast<UWorkspaceAssetEditor>(OwningAssetEditor)->GetObjectToEdit();
+	bCheckDirtyOnAssetSave = true;
 }
 
 void FWorkspaceEditor::CreateWidgets()
@@ -248,7 +251,7 @@ void FWorkspaceEditor::OpenObjects(TConstArrayView<UObject*> InObjects)
 {
 	for(const UObject* Object : InObjects)
 	{
-		OpenDocument(Object, FDocumentTracker::EOpenDocumentCause::NavigatingCurrentDocument);
+		OpenDocument(Object, InObjects.Num() == 1 ? FDocumentTracker::EOpenDocumentCause::NavigatingCurrentDocument : FDocumentTracker::EOpenDocumentCause::OpenNewDocument);
 	}
 }
 
@@ -304,13 +307,20 @@ void FWorkspaceEditor::BindCommands()
 	ToolkitCommands->MapAction
 	( 
 		Commands.NavigateBackward,
-		FExecuteAction::CreateRaw( this, &FWorkspaceEditor::NavigateBack )
+		FExecuteAction::CreateRaw(this, &FWorkspaceEditor::NavigateBack)
 	);
 	
 	ToolkitCommands->MapAction
 	( 
 		Commands.NavigateForward,
-		FExecuteAction::CreateRaw( this, &FWorkspaceEditor::NavigateForward )
+		FExecuteAction::CreateRaw(this, &FWorkspaceEditor::NavigateForward)
+	);
+
+	ToolkitCommands->MapAction
+	(
+		Commands.SaveAssetEntries,
+		FExecuteAction::CreateRaw(this, &FWorkspaceEditor::SaveAssetEntries),
+		FCanExecuteAction::CreateRaw(this, &FWorkspaceEditor::AreAssetEntriesModified)
 	);
 }
 
@@ -321,7 +331,11 @@ void FWorkspaceEditor::ExtendMenu()
 
 void FWorkspaceEditor::ExtendToolbar()
 {
-	
+	if (UToolMenu* Menu = UToolMenus::Get()->ExtendMenu(GetToolMenuToolbarName()))
+	{
+		FToolMenuSection& WorkspaceOperationsSection = Menu->AddSection("WorkspaceOperations");
+		WorkspaceOperationsSection.AddEntry(FToolMenuEntry::InitToolBarButton(FWorkspaceAssetEditorCommands::Get().SaveAssetEntries, FText::GetEmpty(), TAttribute<FText>(), FSlateIcon(FAppStyle::GetAppStyleSetName(), "MainFrame.SaveAll")));
+	}
 }
 
 void FWorkspaceEditor::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -392,12 +406,14 @@ void FWorkspaceEditor::SaveAsset_Execute()
 	if(AssetPath.StartsWith(TEXT("/Temp/Untitled")))
 	{
 		// Ensure we do not also 'save as' other externally linked assets at this point
-		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
-
-		SaveAssetAs_Execute();
+		{
+			TGuardValue<bool> SavingTransientWorkspace(bSavingTransientWorkspace, true);
+			SaveAssetAs_Execute();
+		}
 	}
 	else
 	{
+		TGuardValue<bool> SavingWorkspace(bSavingWorkspace, true);
 		FBaseAssetToolkit::SaveAsset_Execute();
 	}
 }
@@ -418,16 +434,12 @@ bool FWorkspaceEditor::InEditingMode() const
 
 void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 {
-	// Base class will pick up edited object
-	FBaseAssetToolkit::GetSaveableObjects(OutObjects);
-
-	for (UObject* Object : GetEditingObjects())
+	if (bSavingWorkspace || bSavingTransientWorkspace)
 	{
-		// Get external objects too
-		FExternalPackageHelper::GetExternalSaveableObjects(Object, OutObjects);	
+		FBaseAssetToolkit::GetSaveableObjects(OutObjects);
 	}
 	
-	if(!bSavingWorkspaceOnly)
+	if(bSavingAssetEntries)
 	{
 		for(const UWorkspaceAssetEntry* Entry : Workspace->AssetEntries)
 		{
@@ -435,12 +447,30 @@ void FWorkspaceEditor::GetSaveableObjects(TArray<UObject*>& OutObjects) const
 			{
 				// Add object referenced by workspace
 				OutObjects.Add(Asset);
-
-				// Get external objects too
-				FExternalPackageHelper::GetExternalSaveableObjects(Asset, OutObjects);
 			}
 		}
 	}
+}
+
+bool FWorkspaceEditor::CanSaveAsset() const
+{
+	bool bDirtyState = false;
+	for (UObject* EditingObject : GetEditingObjects())
+	{
+		const UPackage* Package = EditingObject->GetOutermost();
+		if (Package->IsDirty() || Package->GetExternalPackages().ContainsByPredicate([](const UPackage* ExternalPackage)  { return ExternalPackage && ExternalPackage->IsDirty(); }))
+		{
+			bDirtyState = true;
+			break;
+		}
+	}
+
+	return bDirtyState;
+}
+
+FText FWorkspaceEditor::GetTabSuffix() const
+{
+	return CanSaveAsset() ? LOCTEXT("TabSuffixAsterix", "*") : FText::GetEmpty();
 }
 
 void FWorkspaceEditor::RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState) const
@@ -461,6 +491,29 @@ void FWorkspaceEditor::NavigateForward()
 	TSharedPtr<SDockTab> OpenedTab = DocumentManager->OpenDocument(Payload, FDocumentTracker::NavigateForwards);
 }
 
+void FWorkspaceEditor::SaveAssetEntries()
+{	
+	TGuardValue<bool> SavingAssetEntries(bSavingAssetEntries, true);
+	FBaseAssetToolkit::SaveAsset_Execute();
+}
+
+bool FWorkspaceEditor::AreAssetEntriesModified() const
+{
+	for(const UWorkspaceAssetEntry* Entry : Workspace->AssetEntries)
+	{
+		if(UObject* Asset = Entry->Asset.Get())
+		{
+			const UPackage* Package = Asset->GetOutermost();
+			if (Package->IsDirty() || Package->GetExternalPackages().ContainsByPredicate([](const UPackage* ExternalPackage)  { return ExternalPackage && ExternalPackage->IsDirty(); }))
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
 bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
 	TGuardValue<bool> ClosingDown(bClosingDown, true);
@@ -472,12 +525,26 @@ bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 	};
 
 	// Give the user opportunity to save temp workspaces
-	if(RequiresSave() && !bSavingWorkspaceOnly)
+	if(RequiresSave() && !bSavingTransientWorkspace)
 	{
-		// Ensure we dont also 'save as' other externally linked assets at this point
-		TGuardValue<bool> SaveWorkspaceOnly(bSavingWorkspaceOnly, true);
+		// Prompt whether to save or not, this can be skipped to become a never-ask-nor-save
+		FSuppressableWarningDialog::FSetupInfo Info(
+		LOCTEXT("SavingTransientWorkspaceAssetMessage", "Asset was opened in a temporary Workspace, do you want to save it?"),
+				LOCTEXT("SavingTransientWorkspaceAssetTitle", "Save temporary Workspace"), "SaveTemporaryWorkspacesPrompt");
 
-		SaveAssetAs_Execute();
+		Info.DialogMode = FSuppressableWarningDialog::EMode::PersistUserResponse;
+		Info.ConfirmText =LOCTEXT("SavingTransientWorkspaceAssetYes", "Yes");
+		Info.CancelText = LOCTEXT("SavingTransientWorkspaceAssetNo", "No");
+
+		FSuppressableWarningDialog SaveWorkspace(Info);
+		FSuppressableWarningDialog::EResult Result = SaveWorkspace.ShowModal();
+
+		if(Result == FSuppressableWarningDialog::EResult::Confirm)
+		{
+			// Ensure we dont also 'save as' other externally linked assets at this point
+			TGuardValue<bool> SaveWorkspaceOnly(bSavingTransientWorkspace, true);
+			SaveAssetAs_Execute();
+		}
 	}
 
 	return true;

@@ -25,6 +25,7 @@ namespace UE::Workspace
 		void HandleItemSelection(const FSceneOutlinerItemSelection& Selection);
 		virtual void OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection) override;
 		virtual bool CanCustomizeToolbar() const { return true; }
+		virtual ESelectionMode::Type GetSelectionMode() const { return ESelectionMode::Multi; }
 	protected:
 		virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;		
 		// End ISceneOutlinerMode overrides
