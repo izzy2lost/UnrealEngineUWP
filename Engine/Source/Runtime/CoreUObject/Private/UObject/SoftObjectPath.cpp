@@ -7,6 +7,7 @@
 #include "Misc/AsciiSet.h"
 #include "Misc/PackageName.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/CoreRedirects.h"
@@ -93,6 +94,11 @@ void FSoftObjectPath::ToString(FStringBuilderBase& Builder) const
 	AppendString(Builder);
 }
 
+void FSoftObjectPath::ToString(FUtf8StringBuilderBase& Builder) const
+{
+	AppendString(Builder);
+}
+
 void FSoftObjectPath::AppendString(FStringBuilderBase& Builder) const
 {
 	if (AssetPath.IsNull())
@@ -104,6 +110,20 @@ void FSoftObjectPath::AppendString(FStringBuilderBase& Builder) const
 	if (SubPathString.Len() > 0)
 	{
 		Builder << SUBOBJECT_DELIMITER_CHAR << SubPathString;
+	}
+}
+
+void FSoftObjectPath::AppendString(FUtf8StringBuilderBase& Builder) const
+{
+	if (AssetPath.IsNull())
+	{
+		return;
+	}
+
+	Builder << AssetPath;
+	if (SubPathString.Len() > 0)
+	{
+		Builder << SUBOBJECT_DELIMITER_CHAR_ANSI << SubPathString;
 	}
 }
 
@@ -925,6 +945,17 @@ bool FSoftObjectPathThreadContext::GetSerializationOptions(FName& OutPackageName
 }
 
 TSet<FName> FSoftObjectPath::PIEPackageNames;
+
+void SerializeForLog(FCbWriter& Writer, const FSoftObjectPath& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("SoftObjectPath"));
+	Writer.AddString(ANSITEXTVIEW("$text"), WriteToUtf8String<256>(Value));
+	Writer.AddString(ANSITEXTVIEW("PackageName"), WriteToUtf8String<256>(Value.GetLongPackageFName()));
+	Writer.AddString(ANSITEXTVIEW("AssetName"), WriteToUtf8String<256>(Value.GetAssetFName()));
+	Writer.AddString(ANSITEXTVIEW("SubPath"), Value.GetSubPathString());
+	Writer.EndObject();
+}
 
 #if WITH_LOW_LEVEL_TESTS
 

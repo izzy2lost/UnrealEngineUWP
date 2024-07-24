@@ -79,6 +79,20 @@ bool LoadFromCompactBinary(FCbFieldView Field, FAssetIdentifier& Identifier)
 	return true;
 }
 
+void SerializeForLog(FCbWriter& Writer, const FAssetIdentifier& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("AssetIdentifier"));
+	TStringBuilder<256> Text;
+	Value.AppendString(Text);
+	Writer.AddString(ANSITEXTVIEW("$text"), Text);
+	Writer.AddString(ANSITEXTVIEW("PackageName"), WriteToUtf8String<256>(Value.PackageName));
+	Writer.AddString(ANSITEXTVIEW("PrimaryAssetType"), WriteToUtf8String<256>(Value.PrimaryAssetType.GetName()));
+	Writer.AddString(ANSITEXTVIEW("ObjectName"), WriteToUtf8String<256>(Value.ObjectName));
+	Writer.AddString(ANSITEXTVIEW("ValueName"), WriteToUtf8String<256>(Value.ValueName));
+	Writer.EndObject();
+}
+
 namespace UE::AssetRegistry::Private
 {
 	FAssetPathParts SplitIntoOuterPathAndAssetName(FStringView InObjectPath)

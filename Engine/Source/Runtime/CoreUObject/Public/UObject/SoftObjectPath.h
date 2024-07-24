@@ -28,6 +28,7 @@
 #include "UObject/UObjectHash.h"
 
 class FArchive;
+class FCbWriter;
 class FOutputDevice;
 struct FPropertyTag;
 struct FUObjectSerializeContext;
@@ -141,10 +142,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 
 	/** Append string representation of reference, in form /package/path.assetname[:subpath] */
 	COREUOBJECT_API void ToString(FStringBuilderBase& Builder) const;
+	COREUOBJECT_API void ToString(FUtf8StringBuilderBase& Builder) const;
 
 	/** Append string representation of reference, in form /package/path.assetname[:subpath] */
 	COREUOBJECT_API void AppendString(FString& Builder) const;
 	COREUOBJECT_API void AppendString(FStringBuilderBase& Builder) const;
+	COREUOBJECT_API void AppendString(FUtf8StringBuilderBase& Builder) const;
 
 	/** Returns the top-level asset part of this path, without the subobject path. */
 	FTopLevelAssetPath GetAssetPath() const
@@ -379,6 +382,7 @@ private:
 	COREUOBJECT_API UObject* ResolveObjectInternal() const;
 	COREUOBJECT_API UObject* ResolveObjectInternal(const TCHAR* PathString) const;
 
+	COREUOBJECT_API friend void SerializeForLog(FCbWriter& Writer, const FSoftObjectPath& Value);
 	friend struct Z_Construct_UScriptStruct_FSoftObjectPath_Statics;
 };
 
@@ -401,6 +405,11 @@ struct FSoftObjectPathLexicalLess
 };
 
 inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FSoftObjectPath& Path)
+{
+	Path.ToString(Builder);
+	return Builder;
+}
+inline FUtf8StringBuilderBase& operator<<(FUtf8StringBuilderBase& Builder, const FSoftObjectPath& Path)
 {
 	Path.ToString(Builder);
 	return Builder;

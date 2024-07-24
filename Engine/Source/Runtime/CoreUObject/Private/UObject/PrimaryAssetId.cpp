@@ -2,6 +2,7 @@
 
 #include "UObject/PrimaryAssetId.h"
 #include "Misc/StringBuilder.h"
+#include "Serialization/CompactBinaryWriter.h"
 #include "UObject/ObjectRedirector.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UnrealType.h"
@@ -133,4 +134,14 @@ bool FPrimaryAssetId::SerializeFromMismatchedTag(struct FPropertyTag const& Tag,
 FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FPrimaryAssetId& Id)
 {
 	return Builder << Id.PrimaryAssetType.GetName() << ":" << Id.PrimaryAssetName;
+}
+
+void SerializeForLog(FCbWriter& Writer, const FPrimaryAssetId& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("PrimaryAssetId"));
+	Writer.AddString(ANSITEXTVIEW("$text"), WriteToUtf8String<256>(Value.PrimaryAssetType.GetName(), ':', Value.PrimaryAssetName));
+	Writer.AddString(ANSITEXTVIEW("PrimaryAssetType"), WriteToUtf8String<256>(Value.PrimaryAssetType));
+	Writer.AddString(ANSITEXTVIEW("PrimaryAssetName"), WriteToUtf8String<256>(Value.PrimaryAssetName));
+	Writer.EndObject();
 }

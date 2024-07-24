@@ -21,6 +21,8 @@
 
 #include "AssetManagerTypes.generated.h"
 
+class FCbWriter;
+
 /** Rule about when to cook/ship a primary asset */
 UENUM()
 enum class EPrimaryAssetCookRule : uint8
@@ -381,4 +383,6 @@ private:
 
 	FAssignmentInfo InclusionByLevel[(int32)EPrimaryAssetProductionLevel::Count];
 	FAssignmentInfo ExclusionByLevel[(int32)EPrimaryAssetProductionLevel::Count];
+
+	ENGINE_API friend void SerializeForLog(FCbWriter& Writer, const FPrimaryAssetRules& Value);
 };

@@ -526,6 +526,16 @@ bool FTopLevelAssetPath::SerializeFromMismatchedTag(const FPropertyTag& Tag, FSt
 	return false;
 }
 
+void SerializeForLog(FCbWriter& Writer, const FTopLevelAssetPath& Value)
+{
+	Writer.BeginObject();
+	Writer.AddString(ANSITEXTVIEW("$type"), ANSITEXTVIEW("TopLevelAssetPath"));
+	Writer.AddString(ANSITEXTVIEW("$text"), WriteToUtf8String<256>(Value));
+	Writer.AddString(ANSITEXTVIEW("PackageName"), WriteToUtf8String<256>(Value.GetPackageName()));
+	Writer.AddString(ANSITEXTVIEW("AssetName"), WriteToUtf8String<256>(Value.GetAssetName()));
+	Writer.EndObject();
+}
+
 void FTopLevelAssetPath::WriteCompactBinary(FCbWriter& Writer) const
 {
 	Writer << WriteToUtf8String<FName::StringBufferSize>(*this).ToView();

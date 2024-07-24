@@ -16,6 +16,7 @@
 
 #include <type_traits>
 
+class FCbWriter;
 struct FPropertyTag;
 class FCbWriter;
 class FString;
@@ -186,6 +187,8 @@ private:
 	FName PackageName;
 	/** Name of the asset within the package e.g. 'AssetName' */
 	FName AssetName;
+
+	COREUOBJECT_API friend void SerializeForLog(FCbWriter& Writer, const FTopLevelAssetPath& Value);
 };
 
 inline FWideStringBuilderBase& operator<<(FWideStringBuilderBase& Builder, const FTopLevelAssetPath& Path)
