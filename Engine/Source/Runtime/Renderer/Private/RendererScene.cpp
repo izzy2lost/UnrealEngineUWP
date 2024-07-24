@@ -3506,12 +3506,6 @@ void FScene::AddRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureScenePr
 
 void FScene::UpdateRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureSceneProxy* SceneProxy, FRuntimeVirtualTextureSceneProxy* SceneProxyToReplace)
 {
-	const uint8 HideFlagBit = 1 << SceneProxy->SceneIndex;
-	RuntimeVirtualTexturePrimitiveHideMaskEditor &= ~HideFlagBit;
-	RuntimeVirtualTexturePrimitiveHideMaskEditor |= (SceneProxy->bHidePrimitivesInEditor ? HideFlagBit : 0);
-	RuntimeVirtualTexturePrimitiveHideMaskGame &= ~HideFlagBit;
-	RuntimeVirtualTexturePrimitiveHideMaskGame |= (SceneProxy->bHidePrimitivesInGame ? HideFlagBit : 0);
-
 	for (TSparseArray<FRuntimeVirtualTextureSceneProxy*>::TIterator It(RuntimeVirtualTextures); It; ++It)
 	{
 		if (*It == SceneProxyToReplace)
@@ -3519,6 +3513,13 @@ void FScene::UpdateRuntimeVirtualTexture_RenderThread(FRuntimeVirtualTextureScen
 			SceneProxy->SceneIndex = It.GetIndex();
 			*It = SceneProxy;
 			delete SceneProxyToReplace;
+
+			const uint8 HideFlagBit = 1 << SceneProxy->SceneIndex;
+			RuntimeVirtualTexturePrimitiveHideMaskEditor &= ~HideFlagBit;
+			RuntimeVirtualTexturePrimitiveHideMaskEditor |= (SceneProxy->bHidePrimitivesInEditor ? HideFlagBit : 0);
+			RuntimeVirtualTexturePrimitiveHideMaskGame &= ~HideFlagBit;
+			RuntimeVirtualTexturePrimitiveHideMaskGame |= (SceneProxy->bHidePrimitivesInGame ? HideFlagBit : 0);
+
 			return;
 		}
 	}
