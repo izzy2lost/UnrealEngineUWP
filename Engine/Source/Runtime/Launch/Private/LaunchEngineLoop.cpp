@@ -2687,14 +2687,6 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 		FPlatformProcess::AddDllDirectory(*ProjectBinariesDirectory);
 		FModuleManager::Get().SetGameBinariesDirectory(*ProjectBinariesDirectory);
 
-#if !IS_MONOLITHIC
-		if (FCString::Strcmp(CurrentPlatformFile->GetName(), TEXT("PakFile")) == 0)
-		{
-			IPluginManager::Get().SetBinariesRootDirectories(EngineBinariesRootDirectory, ProjectBinariesRootDirectory);
-			IPluginManager::Get().SetPreloadBinaries();
-		}
-#endif
-
 		LaunchFixGameNameCase();
 	}
 #endif
@@ -2796,6 +2788,14 @@ int32 FEngineLoop::PreInitPreStartupScreen(const TCHAR* CmdLine)
 
 	// this can start using TaskGraph and ThreadPool so they must be created before
 	FDelayedAutoRegisterHelper::RunAndClearDelayedAutoRegisterDelegates(EDelayedRegisterRunPhase::TaskGraphSystemReady);
+
+#if !IS_PROGRAM && !IS_MONOLITHIC
+	if (FApp::HasProjectName() && FCString::Strcmp(CurrentPlatformFile->GetName(), TEXT("PakFile")) == 0)
+	{
+		IPluginManager::Get().SetBinariesRootDirectories(EngineBinariesRootDirectory, ProjectBinariesRootDirectory);
+		IPluginManager::Get().SetPreloadBinaries();
+	}
+#endif
 
 #if STATS
 	FThreadStats::StartThread();
