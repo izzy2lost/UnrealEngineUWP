@@ -756,45 +756,6 @@ const CTypeBase* SemanticTypeUtils::Substitute(const CTypeBase& Type, ETypePolar
     case ETypeKind::Variable:
     {
         const CTypeVariable* TypeVariable = &NormalType.AsChecked<CTypeVariable>();
-        if (const CDataDefinition* ExplicitParam = TypeVariable->_ExplicitParam)
-        {
-            // If `TypeVariable` is the positive type variable
-            if (const CTypeVariable* NegativeTypeVariable = TypeVariable->_NegativeTypeVariable)
-            {
-                // and this is a negative position,
-                if (Polarity == ETypePolarity::Negative)
-                {
-                    // use the negative type variable for `TypeVariable`.
-                    TypeVariable = NegativeTypeVariable;
-                }
-            }
-            else
-            {
-                // This is a use of the negative type variable created for a
-                // type variable.  This only occurs for uses in `CTypeType`
-                // created for an explicit `type` argument.
-                //
-                // If this is a negative use, i.e. the second argument to
-                // `CTypeType`, use the positive type variable.  This is
-                // counterintuitive, but matches the expectation that
-                // @code
-                // F(t:type, X:t):t
-                // @endcode
-                // rewrites to
-                // @code
-                // F(:type(u, v), X:u where u:type, v:type):v
-                // @endcode
-                // Note in the above the negative `v` (on the positive side of
-                // `CTypeType`, but in a negative position for the function
-                // type) is used for positive locations other than inside
-                // `type`.
-                if (Polarity == ETypePolarity::Negative)
-                {
-                    // Use the positive type variable for `TypeVariable`.
-                    TypeVariable = ExplicitParam->_ImplicitParam;
-                }
-            }
-        }
         if (auto Last = InstTypeVariables.end(), I = FindIf(InstTypeVariables.begin(), Last, [=](const STypeVariableSubstitution& Arg) { return Arg._TypeVariable == TypeVariable; }); I != Last)
         {
             switch (Polarity)
@@ -839,10 +800,53 @@ const CTypeBase* SemanticTypeUtils::Substitute(const CTypeBase& Type, ETypePolar
     }
 }
 
-TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<const CTypeVariable*>& TypeVariables)
+static TArray<STypeVariableSubstitution> Compose(TArray<STypeVariableSubstitution> First, TArray<STypeVariableSubstitution> Second)
 {
-    TArray<STypeVariableSubstitution> InstTypeVariables;
-    InstTypeVariables.Reserve(TypeVariables.Num());
+    TArray<STypeVariableSubstitution> Result;
+    for (const STypeVariableSubstitution& Substitution : First)
+    {
+        const CTypeBase* NegativeType = SemanticTypeUtils::Substitute(*Substitution._NegativeType, ETypePolarity::Negative, Second);
+        const CTypeBase* PositiveType = SemanticTypeUtils::Substitute(*Substitution._PositiveType, ETypePolarity::Positive, Second);
+        Result.Emplace(Substitution._TypeVariable, NegativeType, PositiveType);
+    }
+    return Result;
+}
+
+// See `CTypeVariable` and `AnalyzeParam` for an explanation of why this
+// substitution is necessary.
+static TArray<STypeVariableSubstitution> ExplicitTypeVariableSubsitutions(const TArray<const CTypeVariable*> TypeVariables)
+{
+    TArray<STypeVariableSubstitution> Result;
+    Result.Reserve(TypeVariables.Num());
+    for (const CTypeVariable* TypeVariable : TypeVariables)
+    {
+        const CTypeVariable* NegativeTypeVariable;
+        const CTypeVariable* PositiveTypeVariable;
+        if (TypeVariable->_ExplicitParam)
+        {
+            if (TypeVariable->_NegativeTypeVariable)
+            {
+                NegativeTypeVariable = TypeVariable->_NegativeTypeVariable;
+            }
+            else
+            {
+                NegativeTypeVariable = TypeVariable->_ExplicitParam->_ImplicitParam;
+            }
+        }
+        else
+        {
+            NegativeTypeVariable = TypeVariable;
+        }
+        PositiveTypeVariable = TypeVariable;
+        Result.Emplace(TypeVariable, NegativeTypeVariable, PositiveTypeVariable);
+    }
+    return Result;
+}
+
+static TArray<STypeVariableSubstitution> FlowTypeVariableSubsitutions(const TArray<const CTypeVariable*> TypeVariables)
+{
+    TArray<STypeVariableSubstitution> Result;
+    Result.Reserve(TypeVariables.Num());
     for (const CTypeVariable* TypeVariable : TypeVariables)
     {
         CSemanticProgram& Program = TypeVariable->GetProgram();
@@ -850,19 +854,14 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
         CFlowType& PositiveFlowType = Program.CreatePositiveFlowType();
         NegativeFlowType.AddFlowEdge(&PositiveFlowType);
         PositiveFlowType.AddFlowEdge(&NegativeFlowType);
-        InstTypeVariables.Add({TypeVariable, &NegativeFlowType, &PositiveFlowType});
+        Result.Emplace(TypeVariable, &NegativeFlowType, &PositiveFlowType);
     }
-    for (auto [TypeVariable, NegativeType, PositiveType] : InstTypeVariables)
+    for (auto [TypeVariable, NegativeType, PositiveType] : Result)
     {
         auto NegativeFlowType = NegativeType->AsFlowType();
         ULANG_ASSERT(NegativeFlowType);
         auto PositiveFlowType = PositiveType->AsFlowType();
         ULANG_ASSERT(PositiveFlowType);
-        const CTypeType* TypeType = TypeVariable->GetType()->GetNormalType().AsNullable<CTypeType>();
-        if (!TypeType)
-        {
-            continue;
-        }
 
         const CTypeType* NegativeTypeType = TypeVariable->_NegativeType->GetNormalType().AsNullable<CTypeType>();
         if (!NegativeTypeType)
@@ -870,10 +869,10 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
             continue;
         }
 
-        const CTypeBase* InstNegativeType = Substitute(
+        const CTypeBase* InstNegativeType = SemanticTypeUtils::Substitute(
             *NegativeTypeType->PositiveType(),
             ETypePolarity::Negative,
-            InstTypeVariables);
+            Result);
         if (const CFlowType* InstNegativeFlowType = InstNegativeType->AsFlowType())
         {
             // Maintain invariant that a `CFlowType`'s child is not a `CFlowType`.
@@ -884,10 +883,10 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
             NegativeFlowType->SetChild(InstNegativeType);
         }
 
-        const CTypeBase* InstPositiveType = Substitute(
+        const CTypeBase* InstPositiveType = SemanticTypeUtils::Substitute(
             *NegativeTypeType->NegativeType(),
             ETypePolarity::Positive,
-            InstTypeVariables);
+            Result);
         if (const CFlowType* InstPositiveFlowType = InstPositiveType->AsFlowType())
         {
             // Maintain invariant that a `CFlowType`'s child is not a `CFlowType`.
@@ -898,7 +897,12 @@ TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<co
             PositiveFlowType->SetChild(InstPositiveType);
         }
     }
-    return InstTypeVariables;
+    return Result;
+}
+
+TArray<STypeVariableSubstitution> SemanticTypeUtils::Instantiate(const TArray<const CTypeVariable*>& TypeVariables)
+{
+    return Compose(ExplicitTypeVariableSubsitutions(TypeVariables), FlowTypeVariableSubsitutions(TypeVariables));
 }
 
 const CFunctionType* SemanticTypeUtils::Instantiate(const CFunctionType* FunctionType)
@@ -907,13 +911,14 @@ const CFunctionType* SemanticTypeUtils::Instantiate(const CFunctionType* Functio
     {
         return nullptr;
     }
-    TArray<STypeVariableSubstitution> InstTypeVariables = Instantiate(FunctionType->GetTypeVariables());
-    if (InstTypeVariables.IsEmpty())
+    const TArray<const CTypeVariable*>& TypeVariables = FunctionType->GetTypeVariables();
+    if (TypeVariables.IsEmpty())
     {
         return FunctionType;
     }
     const CTypeBase* ParamsType = &FunctionType->GetParamsType();
     const CTypeBase* ReturnType = &FunctionType->GetReturnType();
+    TArray<STypeVariableSubstitution> InstTypeVariables = Instantiate(FunctionType->GetTypeVariables());
     const CTypeBase* InstParamsType = Substitute(*ParamsType, ETypePolarity::Negative, InstTypeVariables);
     const CTypeBase* InstReturnType = Substitute(*ReturnType, ETypePolarity::Positive, InstTypeVariables);
     return ParamsType == InstParamsType && ReturnType == InstReturnType
@@ -2667,7 +2672,7 @@ const CClass* JoinClasses(const CClass& Class1, const CClass& Class2)
         {
             if (!Class->TryMarkVisited(VisitStamp))
             {
-                return { };
+                return {};
             }
             Hierarchy.Push(Class);
             Class = Class->_Superclass;
@@ -3355,23 +3360,17 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
             // For classes, if one is a subclass of the other, that is the meet of the two classes.
             const CClass& Class1 = NormalType1.AsChecked<CClass>();
             const CClass& Class2 = NormalType2.AsChecked<CClass>();
-            if (Class1.IsClass(Class2))
-            {
-                return Type1;
-            }
-            else if (Class2.IsClass(Class1))
-            {
-                return Type2;
-            }
+            if (SemanticTypeUtils::IsSubtype(&Class1, &Class2)) { return Type1; }
+            if (SemanticTypeUtils::IsSubtype(&Class2, &Class1)) { return Type2; }
             return &Program._falseType;
         }
         case ETypeKind::Interface:
         {
             // For interfaces, if one is a subinterface of the other, that is the meet of the two interfaces.
-            const CInterface* Interface1 = &NormalType1.AsChecked<CInterface>();
-            const CInterface* Interface2 = &NormalType2.AsChecked<CInterface>();
-            if (SemanticTypeUtils::IsSubtype(Interface2, Interface1)) { return Type2; }
-            if (SemanticTypeUtils::IsSubtype(Interface1, Interface2)) { return Type1; }
+            const CInterface& Interface1 = NormalType1.AsChecked<CInterface>();
+            const CInterface& Interface2 = NormalType2.AsChecked<CInterface>();
+            if (SemanticTypeUtils::IsSubtype(&Interface2, &Interface1)) { return Type2; }
+            if (SemanticTypeUtils::IsSubtype(&Interface1, &Interface2)) { return Type1; }
             return &Program._falseType;
         }
         case ETypeKind::Type:
