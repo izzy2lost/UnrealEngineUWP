@@ -913,7 +913,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 	}
 	else // On Pin right click
 	{
-		if (const UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(Context->Node))
+		if (UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(const_cast<UEdGraphNode*>(Context->Node.Get())))
 		{
 			if (const UEdGraphPin* Pin = Context->Pin)
 			{
@@ -933,7 +933,7 @@ void UEdGraphSchema_CustomizableObject::GetContextMenuActions(UToolMenu* Menu, U
 				
 				if (TSharedPtr<IDetailsView> Widget = Node->CustomizePinDetails(*Pin))
 				{
-					Widget->OnFinishedChangingProperties().AddLambda([WeakMenu = Widget->AsWeak()](const FPropertyChangedEvent& Event){
+					Node->PostReconstructNodeDelegate.AddLambda([WeakMenu = Widget->AsWeak()](){
 						if (TSharedPtr<SWidget> Menu = WeakMenu.Pin())
 						{
 							FSlateApplication::Get().DismissMenuByWidget(Menu.ToSharedRef());

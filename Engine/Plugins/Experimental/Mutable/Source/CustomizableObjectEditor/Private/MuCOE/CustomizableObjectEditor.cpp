@@ -1166,6 +1166,8 @@ void FCustomizableObjectEditor::PostUndo(bool bSuccess)
 
 		GraphEditor->NotifyGraphChanged();
 		CustomizableObject->MarkPackageDirty();
+
+		FSlateApplication::Get().DismissAllMenus();
 	}
 }
 
