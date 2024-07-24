@@ -55,16 +55,25 @@ class _Builder(object):
     def read_actions(self):
         platform = self._platform
         variant = self._variant
-        targets = (x.get_name() for x in self._targets)
 
         args = self._args
+        if len(self._targets) > 1:
+            targets = []
+            for target in self._targets:
+                target = f"-Target={target.get_name()} {platform} {variant}"
+                targets.append(target)
+                variant = "development" # \o/
+        else:
+            targets = (x.get_name() for x in self._targets)
+            args = (platform, variant, *args)
+
         projected = any(x.is_project_target() for x in self._targets)
         if self._projected or projected:
             if project := self._ue_context.get_project():
                 args = ("-Project=" + str(project.get_path()), *args)
 
         ubt = self._ue_context.get_engine().get_ubt()
-        yield from ubt.read_actions(*targets, platform, variant, *args)
+        yield from ubt.read_actions(*targets, *args)
 
 
 
@@ -444,9 +453,7 @@ class Editor(_BuildCmd, unrealcmd.MultiPlatformCmd):
 
         editor_only = self.is_constrained_build() # i.e. single file or module
         editor_only |= bool(self.args.analyze)
-        editor_only |= self.args.variant != "development"
         if not editor_only:
-
             targets_to_add = []
             if not self.args.noscw:
                 targets_to_add.append("ShaderCompileWorker")

@@ -7,6 +7,7 @@ import pprint
 import hashlib
 import marshal
 import flow.cmd
+from pathlib import Path
 from urllib.request import urlopen, URLError
 
 #-------------------------------------------------------------------------------
@@ -104,11 +105,19 @@ class Paths(flow.cmd.Cmd):
     """ Prints behind-the-scenes paths. """
 
     def main(self):
+        for item in Path(__file__).parents:
+            if (item / "ushell.bat").is_file():
+                deploy_dir = item
+                break
+        else:
+            deploy_path = "*unknown*"
+
         channel = self.get_channel()
         system = channel.get_system()
-        print("State:", system.get_working_dir())
-        print("Tools:", system.get_tools_dir())
-        print(" Temp:", system.get_temp_dir())
+        print("Deploy:", deploy_dir)
+        print(" State:", system.get_working_dir())
+        print(" Tools:", system.get_tools_dir())
+        print("  Temp:", system.get_temp_dir())
 
 #-------------------------------------------------------------------------------
 class _Channels(flow.cmd.Cmd):
