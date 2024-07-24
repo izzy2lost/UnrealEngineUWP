@@ -2588,7 +2588,7 @@ int32 FWindowsApplication::ProcessDeferredMessage( const FDeferredWindowsMessage
 
 					if (!CurrentNativeEventWindowPtr->IsManualManageDPIChanges())
 					{
-						CurrentNativeEventWindowPtr->SetDPIScaleFactor(LOWORD(wParam) / 96.0f);
+						CurrentNativeEventWindowPtr->SetDPIScaleFactor(LOWORD(wParam) / static_cast<float>(USER_DEFAULT_SCREEN_DPI));
 
 						LPRECT NewRect = (LPRECT)lParam;
 						SetWindowPos(hwnd, nullptr, NewRect->left, NewRect->top, NewRect->right - NewRect->left, NewRect->bottom - NewRect->top, SWP_NOZORDER | SWP_NOACTIVATE);

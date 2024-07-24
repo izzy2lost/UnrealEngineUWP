@@ -1454,7 +1454,7 @@ private:
 		LPGetDpiForWindow GetDpiForWindow = (LPGetDpiForWindow)(void*)GetProcAddress(User32Module, "GetDpiForWindow");
 		if (GetDpiForWindow == nullptr) { return 1.0f; }
 
-		return static_cast<float>(GetDpiForWindow(HandleWnd)) / 96.0f;
+		return static_cast<float>(GetDpiForWindow(HandleWnd)) / USER_DEFAULT_SCREEN_DPI;
 	}
 
 	static void SetWindowStyleFlags(HWND HandleWnd, LONG Flags, bool bEnabled)
@@ -1802,7 +1802,7 @@ private:
 			return true;
 			case WM_DPICHANGED:
 				/*{
-					float NewScale = LOWORD(WParam) / 96.0f;
+					float NewScale = LOWORD(WParam) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
 					RECT* SuggestedRect = (RECT*)LParam;
 					SetWindowPos(HandleWnd,
 						HWND_NOTOPMOST,
