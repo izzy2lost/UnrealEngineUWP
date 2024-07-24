@@ -484,7 +484,7 @@ const FContextualAnimIKTargetDefContainer& FContextualAnimSceneBindings::GetIKTa
 		return FContextualAnimIKTargetDefContainer::EmptyContainer;
 	}
 
-	return GetSceneAsset()->GetIKTargetDefsForRoleInSection(GetSectionIdx(), GetRoleFromBinding(Binding));
+	return GetSceneAsset()->GetIKTargetDefsForRole(GetRoleFromBinding(Binding));
 }
 
 FTransform FContextualAnimSceneBindings::GetIKTargetTransformFromBinding(const FContextualAnimSceneBinding& Binding, const FName& TrackName, float Time) const

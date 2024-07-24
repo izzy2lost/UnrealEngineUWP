@@ -215,8 +215,8 @@ void FContextualAnimMovieSceneNotifyTrackEditor::BuildNewIKTargetSubMenu(FMenuBu
 		const FContextualAnimTrack* AnimTrack = SceneAsset->FindAnimTrackByAnimation(&Track->GetAnimation());
 		check(AnimTrack);
 
-		const FContextualAnimIKTargetDefContainer& IKTargets = SceneAsset->GetIKTargetDefsForRoleInSection(AnimTrack->SectionIdx, AnimTrack->Role);
-		for (const FContextualAnimIKTargetDefinition& IKTargetDef : IKTargets.IKTargetDefs)
+		const TArray<FContextualAnimIKTargetDefinition>& IKTargetDefs = SceneAsset->GetIKTargetDefsForRole(AnimTrack->Role).IKTargetDefs;
+		for (const FContextualAnimIKTargetDefinition& IKTargetDef : IKTargetDefs)
 		{
 			const FName GoalName = IKTargetDef.GoalName;
 			MenuBuilder.AddMenuEntry(

@@ -407,6 +407,16 @@ const FContextualAnimSceneBinding& UContextualAnimUtilities::BP_SceneBindings_Ge
 	return FContextualAnimSceneBinding::InvalidBinding;
 }
 
+const FContextualAnimSceneBinding& UContextualAnimUtilities::BP_SceneBindings_GetPrimaryBinding(const FContextualAnimSceneBindings& Bindings)
+{
+	if (const FContextualAnimSceneBinding* SceneActorData = Bindings.GetPrimaryBinding())
+	{
+		return *SceneActorData;
+	}
+
+	return FContextualAnimSceneBinding::InvalidBinding;
+}
+
 void UContextualAnimUtilities::BP_SceneBindings_CalculateWarpPoints(const FContextualAnimSceneBindings& Bindings, TArray<FContextualAnimWarpPoint>& OutWarpPoints)
 {
 	Bindings.CalculateWarpPoints(OutWarpPoints);

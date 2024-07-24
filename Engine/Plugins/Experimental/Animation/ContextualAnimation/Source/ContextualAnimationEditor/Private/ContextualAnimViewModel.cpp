@@ -713,15 +713,17 @@ void FContextualAnimViewModel::AddNewIKTarget(const UContextualAnimNewIKTargetPa
 	IKTargetDef.TargetRoleName = Params.TargetRole;
 	IKTargetDef.TargetBoneName = Params.TargetBone.BoneName;
 
-	if (FContextualAnimIKTargetDefContainer* ContainerPtr = SceneAsset->Sections[Params.SectionIdx].RoleToIKTargetDefsMap.Find(Params.SourceRole))
+	FName Role = Params.SourceRole;
+	if (FContextualAnimIKTargetDefContainer* ContainerPtr = SceneAsset->IKTargetParams.IKTargetDefsForEachRole.FindByPredicate([Role](const FContextualAnimIKTargetDefContainer& Item) { return Item.Role == Role; }))
 	{
 		ContainerPtr->IKTargetDefs.AddUnique(IKTargetDef);
 	}
 	else
 	{
 		FContextualAnimIKTargetDefContainer Container;
-		Container.IKTargetDefs.AddUnique(IKTargetDef);
-		SceneAsset->Sections[Params.SectionIdx].RoleToIKTargetDefsMap.Add(Params.SourceRole, Container);
+		Container.Role = Role;
+		Container.IKTargetDefs.Add(IKTargetDef);
+		SceneAsset->IKTargetParams.IKTargetDefsForEachRole.Add(Container);
 	}
 
 	SceneAsset->PrecomputeData();
