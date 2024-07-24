@@ -530,12 +530,7 @@ public:
 			{
 				TASKGRAPH_VERBOSE_EVENT_SCOPE(FTaskBase::Close);
 				checkSlow(!IsCompleted());
-
-				if (GetPipe() != nullptr)
-				{
-					ClearPipe();
-				}
-
+				
 				// Push the first subsequent to the local queue so we pick it up directly as our next task.
 				// This saves us the cost of going to the global queue and performing a wake-up.
 				// But if we're a task event, always wake up new workers because the current task could continue executing for a long time after the trigger.
@@ -546,6 +541,13 @@ public:
 					// bWakeUpWorker is passed by reference and is automatically set to true if we successfully schedule a task on the local queue.
 					// so all the remaining ones are sent to the global queue.
 					Subsequent->TryUnlock(bWakeUpWorker);
+				}
+
+				// Clear the pipe after the task is completed (subsequents closed) so that any tasks part of the
+				// pipe are not seen still being executed after FPipe::WaitUntilEmpty has returned.
+				if (GetPipe() != nullptr)
+				{
+					ClearPipe();
 				}
 
 				// release nested tasks
