@@ -388,7 +388,7 @@ half3 GetImageBasedReflectionLighting_Mobile(
 	}
 
 	SpecularIBL *= CompositeAlpha;
-#else // !(ENABLE_CLUSTERED_REFLECTION || MOBILE_DEFERRED_LIGHTING)
+#elif IS_MOBILE_BASE_PASS || IS_DECAL
 
 	bool UsingSkyReflection = MobileReflectionCapture.Params.y > 0.0f;
 	// Normalize for static skylight types which mix with lightmaps.
