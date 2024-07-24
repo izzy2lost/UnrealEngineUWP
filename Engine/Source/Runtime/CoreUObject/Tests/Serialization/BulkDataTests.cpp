@@ -7,11 +7,12 @@
 #include "TestMacros/Assertions.h"
 #include "Memory/SharedBuffer.h"
 #include "Serialization/BulkData.h"
+#include "Serialization/BulkDataScopedLock.h"
 #include "Serialization/LargeMemoryWriter.h"
 #include "Serialization/MemoryReader.h"
 #include <catch2/generators/catch_generators.hpp>
 
-namespace UE::Serialization::BulkDataTest
+namespace UE
 {
 
 static FUniqueBuffer CreatePayload(uint64 Size, uint64 Seed = 0)
@@ -375,6 +376,70 @@ TEST_CASE("CoreUObject::Serialization::FBulkData::Serialize", "[CoreUObject][Ser
 
 #endif // WITH_EDITORONLY_DATA
 
-} // namespace UE::Serialization::BulkDataTest
+TEST_CASE("CoreUObject::Serialization::FBulkData::LockScope", "[CoreUObject][Serialization]")
+{
+	const int32 NumElements = 32;
+	FByteBulkData BulkData;
+
+	// Lock for write
+	{
+		BulkData.Lock(LOCK_READ_WRITE);
+		BulkData.Realloc(32);
+		BulkData.Unlock();
+
+		{
+			TBulkDataScopedWriteLock WriteLock(BulkData);
+			REQUIRE(BulkData.IsLocked());
+
+			uint8* DataPtr = WriteLock.GetData();
+
+			REQUIRE(DataPtr != nullptr);
+
+			REQUIRE(WriteLock.Num() == NumElements);
+			REQUIRE(WriteLock.Num() == BulkData.GetElementCount());
+			REQUIRE(WriteLock.GetAllocatedSize() == BulkData.GetBulkDataSize());
+
+			REQUIRE(WriteLock.GetView().GetData() != nullptr);
+			REQUIRE(WriteLock.GetView().GetData() == DataPtr);
+			REQUIRE(WriteLock.GetView().Num() == BulkData.GetElementCount());
+
+			for (int32 Index = 0; Index < NumElements; ++Index)
+			{
+				DataPtr[Index] = static_cast<uint8>(Index);
+			}
+		}
+
+		REQUIRE_FALSE(BulkData.IsLocked());
+	}
+
+	// Lock for read
+	{
+		{
+			TBulkDataScopedReadLock ReadLock(BulkData);
+			REQUIRE(BulkData.IsLocked());
+
+			const uint8* DataPtr = ReadLock.GetData();
+
+			REQUIRE(DataPtr != nullptr);
+
+			REQUIRE(ReadLock.Num() == NumElements);
+			REQUIRE(ReadLock.Num() == BulkData.GetElementCount());
+			REQUIRE(ReadLock.GetAllocatedSize() == BulkData.GetBulkDataSize());
+
+			REQUIRE(ReadLock.GetView().GetData() != nullptr);
+			REQUIRE(ReadLock.GetView().GetData() == DataPtr);
+			REQUIRE(ReadLock.GetView().Num() == BulkData.GetElementCount());
+
+			for (int32 Index = 0; Index < NumElements; ++Index)
+			{
+				REQUIRE(DataPtr[Index] == Index);
+			}
+		}
+
+		REQUIRE_FALSE(BulkData.IsLocked());
+	}
+}
+
+} // namespace UE
 
 #endif // WITH_LOW_LEVEL_TESTS
