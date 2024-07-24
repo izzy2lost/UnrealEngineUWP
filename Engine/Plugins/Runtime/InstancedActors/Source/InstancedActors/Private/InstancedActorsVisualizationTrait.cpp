@@ -120,14 +120,17 @@ void UInstancedActorsVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildC
 	// @todo Implement version of AddVisualDescWithISMComponent that supports multiple ISMCs and use that here
 	if (ensure(InstanceData.IsValid()))
 	{
-		FMassRepresentationFragment& RepresentationFragment = BuildContext.GetFragmentChecked<FMassRepresentationFragment>();
-		RepresentationFragment.StaticMeshDescHandle = InstanceData->GetDefaultVisualizationChecked().MassStaticMeshDescHandle;
-
-		if (RepresentationFragment.LowResTemplateActorIndex == INDEX_NONE)
+		FMassRepresentationFragment* RepresentationFragment = BuildContext.GetFragment<FMassRepresentationFragment>();
+		if (ensureMsgf(RepresentationFragment, TEXT("Configuration error, we always expect to have a FMassRepresentationFragment instance at this point")))
 		{
-			// if there's no "low res actor" we reuse the high-res one, otherwise we risk the visualization actor getting 
-			// removed when switching from EMassLOD::High down to EMassLOD::Medium
-			RepresentationFragment.LowResTemplateActorIndex = RepresentationFragment.HighResTemplateActorIndex;
+			RepresentationFragment->StaticMeshDescHandle = InstanceData->GetDefaultVisualizationChecked().MassStaticMeshDescHandle;
+
+			if (RepresentationFragment->LowResTemplateActorIndex == INDEX_NONE)
+			{
+				// if there's no "low res actor" we reuse the high-res one, otherwise we risk the visualization actor getting 
+				// removed when switching from EMassLOD::High down to EMassLOD::Medium
+				RepresentationFragment->LowResTemplateActorIndex = RepresentationFragment->HighResTemplateActorIndex;
+			}
 		}
 	}
 }

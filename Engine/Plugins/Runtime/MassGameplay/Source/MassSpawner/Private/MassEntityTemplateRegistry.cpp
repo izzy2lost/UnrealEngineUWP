@@ -13,6 +13,8 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "Misc/UObjectToken.h"
+#include "Framework/Docking/TabManager.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "Mass"
@@ -88,100 +90,165 @@ void FMassEntityTemplateRegistry::DestroyTemplate(FMassEntityTemplateID Template
 //----------------------------------------------------------------------//
 bool FMassEntityTemplateBuildContext::BuildFromTraits(TConstArrayView<UMassEntityTraitBase*> Traits, const UWorld& World)
 {
-	TraitAddedTypes.Reset();
-	TraitsDependencies.Reset();
+	ensureMsgf(bBuildInProgress == false, TEXT("Unexpected occurrence - it suggests FMassEntityTemplateBuildContext::BuildFromTraits "
+		"has been called as a consequence of some UMassEntityTraitBase::BuildTemplate call. Check the callstack."));
 
+	bBuildInProgress = true;
 	for (const UMassEntityTraitBase* Trait : Traits)
 	{
 		check(Trait);
-		BuildingTrait = Trait;
-		BuildingTrait->BuildTemplate(*this, World);
+		if (SetTraitBeingProcessed(Trait))
+		{
+			Trait->BuildTemplate(*this, World);
+		}
+	}
+	bBuildInProgress = false;
+
+	const bool bTemplateValid = ValidateBuildContext(World);
+	
+	ResetBuildTimeData();
+
+	return bTemplateValid;
+}
+
+bool FMassEntityTemplateBuildContext::SetTraitBeingProcessed(const UMassEntityTraitBase* Trait)
+{
+	if (Trait == nullptr || TraitsProcessed.Contains(Trait) == false)
+	{
+		TraitsData.Add({Trait});
+		return true;
 	}
 
-	BuildingTrait = nullptr;
+	UE_LOG(LogMass, Warning, TEXT("Attempting to add %s to FMassEntityTemplateBuildContext while this or another instance of the trait class has already been added.")
+		, *GetNameSafe(Trait));
 
-	return ValidateBuildContext(World);
+	IgnoredTraits.Add(Trait);
+	return false;
 }
 
 bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 {
-	// Group same types(key) together
-	TraitAddedTypes.KeySort( [](const UStruct& LHS, const UStruct& RHS) { return LHS.GetName() < RHS.GetName(); } );
+#define WITH_MESSAGES (WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR)
+#if WITH_MESSAGES
+	TArray<TSharedRef<FTokenizedMessage>> Messages;
+#define IF_MESSAGES(Message) if (GEditor) { Message }
+#else
+#define IF_MESSAGES(_)
+#endif // WITH_MESSAGES
 
-	// Loop through all the registered fragments and make sure only one trait registered them.
-	const UStruct* CurrentStruct = nullptr;
-	const UMassEntityTraitBase* CurrentTrait = nullptr;
-	bool bHeaderOutputted = false;
-	bool bFragmentHasMultipleOwners = false;
-	for (const auto& Pair : TraitAddedTypes)
-	{
-		if (CurrentStruct != Pair.Key)
-		{
-			CurrentStruct = Pair.Key;
-			CurrentTrait = Pair.Value;
-			check(CurrentTrait);
-			CurrentTrait->ValidateTemplate(*this, World);
-			bHeaderOutputted = false;
-		}
-		else
-		{
-			if (!bHeaderOutputted)
-			{
-				UE_LOG(LogMass, Warning, TEXT("%s: Fragment(%s) was added multiple time and should only be added by one trait. Fragment was added by:")
-					, CurrentTrait ? *GetNameSafe(CurrentTrait->GetOuter()) : TEXT("None")
-					, CurrentStruct ? *CurrentStruct->GetName() : TEXT("null"));
-				UE_LOG(LogMass, Warning, TEXT("\t\t%s"), CurrentTrait ? *CurrentTrait->GetClass()->GetName() : TEXT("null"));
-				bHeaderOutputted = true;
-			}
-			UE_LOG(LogMass, Warning, TEXT("\t\t%s"), *Pair.Value->GetClass()->GetName());
-			bFragmentHasMultipleOwners = true;
-		}
- 	}
+	int32 ErrorCount = 0;
+	int32 WarningCount = 0;
 
-	// Loop through all the traits dependencies and check if they have been added
-	CurrentTrait = nullptr;
-	bHeaderOutputted = false;
-	bool bMissingFragmentDependencies = false;
-	for (const auto& Dependency : TraitsDependencies)
+
+	TMap<const UStruct*, const UMassEntityTraitBase*> TypesAlreadyAdded;
+
+	// these are non-critical warnings, we want to report these to the users as a potential configuration issue,
+	// but it won't affect the final entity template composition (for example adding the same fragment is fine since 
+	// the entity template handles that gracefully).
+	for (const FTraitData& TraitData : TraitsData)
 	{
-		if (CurrentTrait != Dependency.Get<1>())
+		for (const UStruct* TypeAdded : TraitData.TypesAdded)
 		{
-			CurrentTrait = Dependency.Get<1>();
-			bHeaderOutputted = false;
-		}
-		if (!TraitAddedTypes.Contains(Dependency.Get<0>()))
-		{
-			if (!bHeaderOutputted)
+			const UMassEntityTraitBase*& SourceTrait = TypesAlreadyAdded.FindOrAdd(TypeAdded);
+			if (SourceTrait != nullptr)
 			{
-				check(CurrentTrait);
-				UE_LOG(LogMass, Error, TEXT("%s: Trait(%s) has missing dependency:"), *GetNameSafe(CurrentTrait->GetOuter())
-					, *CurrentTrait->GetClass()->GetName());
-				bHeaderOutputted = true;
+				// we report this only if it wasn't added twice by the same trait, the one we're processing right now
+				UE_CLOG(SourceTrait != TraitData.Trait
+					, LogMass, Warning, TEXT("%s: Fragment %s already added by %s")
+					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeAdded), *SourceTrait->GetName());
+				++WarningCount;
+
+				IF_MESSAGES(
+					Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Warning))
+						->AddToken(FUObjectToken::Create(TraitData.Trait))
+						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFragmentDuplicationWarning1", "trying to add fragment of type")))
+						->AddToken(FUObjectToken::Create(TypeAdded))
+						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFragmentDuplicationWarning2", "while it has already been added by")))
+						->AddToken(FUObjectToken::Create(SourceTrait));
+				);
 			}
-			UE_LOG(LogMass, Error, TEXT("\t\t%s"), *Dependency.Get<0>()->GetName());
-			bMissingFragmentDependencies = true;
+			else
+			{
+				SourceTrait = TraitData.Trait;
+			}
 		}
 	}
 
-#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
-	if (GEditor && (bFragmentHasMultipleOwners || bMissingFragmentDependencies))
+	// these are critical, we're going to fail the validation if anything here fails
+	for (const FTraitData& TraitData : TraitsData)
 	{
+		for (const UStruct* TypeRequired : TraitData.TypesRequired)
+		{
+			if (TypesAlreadyAdded.Contains(TypeRequired) == false)
+			{
+				UE_LOG(LogMass, Error, TEXT("%s: Missing required fragment of type %s")
+					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeRequired));
+				++ErrorCount;
+				IF_MESSAGES(
+					Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Error))
+						->AddToken(FUObjectToken::Create(TraitData.Trait))
+						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitMissingDependencies", "unsatisfied dependency, missing")))
+						->AddToken(FUObjectToken::Create(TypeRequired));
+				);
+			}
+		}
+	}
+
+	for (const FTraitData& TraitData : TraitsData)
+	{
+		if (TraitData.Trait && TraitData.Trait->ValidateTemplate(*this, World) == false)
+		{
+			++ErrorCount;
+			IF_MESSAGES(
+				Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Error))
+					->AddToken(FUObjectToken::Create(TraitData.Trait))
+					->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFailedValidation", "trait-specific validation failed")));
+			);
+		}
+	}
+
+	for (const UMassEntityTraitBase* IgnoredTrait : IgnoredTraits)
+	{
+		IF_MESSAGES(
+			Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Warning))
+				->AddToken(FUObjectToken::Create(IgnoredTrait))
+				->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitIgnoredTrait", "trait was ignored. Check if it's not a duplicate.")));
+		);
+		++WarningCount;
+	}
+	
+	// @todo add dependencies on trait classes? might be hard if traits are unrelated, like requiring UMassLODCollectorTrait 
+	// or UMassDistanceLODCollectorTrait - both supply alternative implementations of a given functionality, but are unrelated.
+	// Could be done with a complex requirements system (similar to entity queries - "all of X", "any of Y", etc) - probably 
+	// not worth it since we don't even have a use case for it right now.
+
+#if WITH_MESSAGES
+	if (GEditor && Messages.Num())
+	{
+		TSharedRef<FTokenizedMessage> SummaryMessage = Messages.Add_GetRef(
+			FTokenizedMessage::Create(ErrorCount ? EMessageSeverity::Error : EMessageSeverity::Warning))
+			->AddToken(FTextToken::Create(FText::FormatOrdered(LOCTEXT("MassEntityTraitResult", "Mass Entity Template validation:\n{0} errors and {1} warnings found"), ErrorCount, WarningCount)));
+
+		Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Info))
+			->AddToken(FActionToken::Create(LOCTEXT("MassSeeLogForDetails", "See the log for more details.")
+				, LOCTEXT("MassSeeLogForDetailsTooltip", "Open the Output Log tab.")
+				, FOnActionTokenExecuted::CreateLambda([]()
+					{
+						FGlobalTabmanager::Get()->TryInvokeTab(FName("OutputLog"));
+					}))
+				);
+
 		FMessageLog EditorErrors("MassEntity");
-		if (bFragmentHasMultipleOwners)
-		{
-			EditorErrors.Warning(LOCTEXT("MassEntityTraitsFragmentOwnershipError", "Some fragments are added by multiple traits and can only be added by one!"));
-			EditorErrors.Notify(LOCTEXT("MassEntityTraitsFragmentOwnershipError", "Some fragments are added by multiple traits and can only be added by one!"));
-		}
-		if (bMissingFragmentDependencies)
-		{
-			EditorErrors.Error(LOCTEXT("MassEntityTraitsMissingFragment", "Some traits are requiring the presence of fragments which are missing!"));
-			EditorErrors.Notify(LOCTEXT("MassEntityTraitsMissingFragment", "Some traits are requiring the presence of fragments which are missing!"));
-		}
-		EditorErrors.Info(FText::FromString(TEXT("See the log for details")));
+		EditorErrors.AddMessages(Messages);
+		EditorErrors.Notify(SummaryMessage->ToText());
 	}
-#endif // WITH_UNREAL_DEVELOPER_TOOLS
+#endif // WITH_MESSAGES
 
-	return !bFragmentHasMultipleOwners && !bMissingFragmentDependencies;
+#undef IF_MESSAGES
+#undef WITH_MESSAGES
+
+	// only the Errors render the template invalid, Warnings just warn about stuff not being set up quite right, but we can recover.
+	return (ErrorCount == 0);
 }
 
 //-----------------------------------------------------------------------------

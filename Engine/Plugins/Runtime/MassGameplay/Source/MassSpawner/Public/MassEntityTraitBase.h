@@ -26,6 +26,14 @@ public:
 
 	virtual void DestroyTemplate() const {}
 
-	/** Called when all Traits have had BuildTemplate() called. */
-	virtual void ValidateTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const {};
+	/**
+	 * Called once all traits have been processed and fragment requirements have been checked. Override this function
+	 * to perform additional Trait's configuration validation. Returning `false` will indicate that the trait instance
+	 * is not happy with the validation results - this result will be treated as an error.
+	 * @return whether the validation was successful
+	 */
+	virtual bool ValidateTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
+	{
+		return true;
+	}
 };

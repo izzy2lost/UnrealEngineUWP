@@ -159,43 +159,45 @@ void UMassVisualizationTrait::Serialize(FArchive& Ar)
 #endif // WITH_EDITOR
 }
 
-#if WITH_EDITOR
-void UMassVisualizationTrait::ValidateParams() const
+bool UMassVisualizationTrait::ValidateTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
+	Super::ValidateTemplate(BuildContext, World);
+
+#if WITH_EDITOR
+	return ValidateParams();
+#else
+	return true;
+#endif // WITH_EDITOR
+}
+
+#if WITH_EDITOR
+bool UMassVisualizationTrait::ValidateParams() const
+{
+	bool bIssuesFound = false;
+
 	// if this test is called on any of the CDOs we don't care, we're never going to utilize those in practice.
-	if (HasAnyFlags(RF_ClassDefaultObject))
+	if (HasAnyFlags(RF_ClassDefaultObject) == false)
 	{
-		return;
-	}
-
-	// the SM config provided is not valid. We need to check if EMassRepresentationType::StaticMeshInstance
-	// is being used as any of the LODRepresentations. If so then we need to clear those out and report an error
-	if (StaticMeshInstanceDesc.IsValid() == false)
-	{
-		for (int32 LODIndex = 0; LODIndex < EMassLOD::Max; ++LODIndex)
+		// the SM config provided is not valid. We need to check if EMassRepresentationType::StaticMeshInstance
+		// is being used as any of the LODRepresentations. If so then we need to clear those out and report an error
+		if (StaticMeshInstanceDesc.IsValid() == false)
 		{
-			if (Params.LODRepresentation[LODIndex] == EMassRepresentationType::StaticMeshInstance)
+			for (int32 LODIndex = 0; LODIndex < EMassLOD::Max; ++LODIndex)
 			{
-#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
-				if (GEditor)
+				if (Params.LODRepresentation[LODIndex] == EMassRepresentationType::StaticMeshInstance)
 				{
-					static const FText ErrorMessage(LOCTEXT("VisualizationTraitMissingSM", "Trait using StaticMeshInstance representation type but no meshes are configured."));
-					static const FText InfoMessage(LOCTEXT("SeeLogForDetails", "See the log for details."));
+					bIssuesFound = true;
 
-					FMessageLog EditorErrors("MassEntity");
-					EditorErrors.Error(ErrorMessage);
-					EditorErrors.Notify(ErrorMessage);
-					EditorErrors.Info(InfoMessage);
+					UE_LOG(LogMassRepresentation, Error, TEXT("Trait %s is using StaticMeshInstance representation type for "
+						"LODRepresentation[%s] while the trait's StaticMeshInstanceDesc is not valid (has no Meshes). Entities "
+						"won't be visible at this LOD level.")
+						, *GetPathName(), *UEnum::GetValueAsString(EMassLOD::Type(LODIndex)));
 				}
-#endif // WITH_UNREAL_DEVELOPER_TOOLS
-
-				UE_LOG(LogMassRepresentation, Error, TEXT("Trait %s is using StaticMeshInstance representation type for "
-					"LODRepresentation[%s] while the trait's StaticMeshInstanceDesc is not valid (has no Meshes). Entities "
-					"won't be visible at this LOD level.")
-					, *GetPathName(), *UEnum::GetValueAsString(EMassLOD::Type(LODIndex)));
 			}
 		}
 	}
+
+	return !bIssuesFound;
 }
 
 void UMassVisualizationTrait::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)

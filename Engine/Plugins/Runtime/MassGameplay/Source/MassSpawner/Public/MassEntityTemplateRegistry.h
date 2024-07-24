@@ -9,6 +9,8 @@
 #include "MassTranslator.h"
 #include "MassEntityTemplateRegistry.generated.h"
 
+#define ENSURE_SUPPORTED_TRAIT_OPERATION() ensureMsgf(bBuildInProgress == false, TEXT("This method is not expected to be called as "\
+	"part of trait's BuildTemplate call. Traits are not supposed to add elements based on other traits due to arbitrary trait ordering."));
 
 class UWorld;
 class UMassEntityTraitBase;
@@ -92,24 +94,21 @@ struct FMassEntityTemplateBuildContext
 	}
 
 	template<typename T>
-	T& GetFragmentChecked()
+	T* GetFragment()
 	{
-		check(TraitAddedTypes.Find(T::StaticStruct()) != nullptr);
-		T* FragmentInstance = TemplateData.GetMutableFragment<T>();
-		check(FragmentInstance);
-		return *FragmentInstance;
+		return TemplateData.GetMutableFragment<T>();
 	}
 
 	template<typename T>
 	bool HasFragment() const
 	{
-		ensureMsgf(!BuildingTrait, TEXT("This method is not expected to be called within the build from trait call."));
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
 		return TemplateData.HasFragment<T>();
 	}
 	
 	bool HasFragment(const UScriptStruct& ScriptStruct) const
 	{
-		ensureMsgf(!BuildingTrait, TEXT("This method is not expected to be called within the build from trait call."));
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
 		return TemplateData.HasFragment(ScriptStruct);
 	}
 
@@ -122,21 +121,34 @@ struct FMassEntityTemplateBuildContext
 	template<typename T>
 	bool HasChunkFragment() const
 	{
-		ensureMsgf(!BuildingTrait, TEXT("This method is not expected to be called within the build from trait call."));
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
 		return TemplateData.HasChunkFragment<T>();
 	}
 
 	template<typename T>
 	bool HasSharedFragment() const
 	{
-		ensureMsgf(!BuildingTrait, TEXT("This method is not expected to be called within the build from trait call."));
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
 		return TemplateData.HasSharedFragment<T>();
 	}
 
 	bool HasSharedFragment(const UScriptStruct& ScriptStruct) const
 	{
-		ensureMsgf(!BuildingTrait, TEXT("This method is not expected to be called within the build from trait call."));
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
 		return TemplateData.HasSharedFragment(ScriptStruct);
+	}
+
+	template<typename T>
+	bool HasConstSharedFragment() const
+	{
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
+		return TemplateData.HasConstSharedFragment<T>();
+	}
+
+	bool HasConstSharedFragment(const UScriptStruct& ScriptStruct) const
+	{
+		ENSURE_SUPPORTED_TRAIT_OPERATION();
+		return TemplateData.HasConstSharedFragment(ScriptStruct);
 	}
 
 	//----------------------------------------------------------------------//
@@ -166,7 +178,7 @@ struct FMassEntityTemplateBuildContext
 
 	void AddDependency(const UStruct* Dependency)
 	{
-		TraitsDependencies.Add( {Dependency, BuildingTrait} );
+		TraitsData.Last().TypesRequired.Add(Dependency);
 	}
 
 	//----------------------------------------------------------------------//
@@ -198,15 +210,37 @@ protected:
 
 	void TypeAdded(const UStruct& Type)
 	{
-		if (ensureMsgf(BuildingTrait, TEXT("Expected to be called within the BuildTemplateFromTrait method")))
-		{
-			TraitAddedTypes.Add(&Type, BuildingTrait);
-		}
+		checkf(TraitsData.Num(), TEXT("Adding elements to the build context before BuildFromTraits or SetTraitBeingProcessed was called is unsupported"));
+		TraitsData.Last().TypesAdded.Add(&Type);
 	}
 
-	const UMassEntityTraitBase* BuildingTrait = nullptr;
-	TMultiMap<const UStruct*, const UMassEntityTraitBase*> TraitAddedTypes;
-	TArray< TTuple<const UStruct*, const UMassEntityTraitBase*> > TraitsDependencies;
+	/** 
+	 * Return true if the given trait can be used. The function will fail if a trait instance of the given class has already 
+	 * been processed. The function will also fail the very same trait instance is used multiple times.
+	 * Note that it's ok for Trait to be nullptr to indicate the subsequent additions to the build context are procedural
+	 * in nature and are not associated with any traits. In that case it's ok to have multiple SetTraitBeingProcessed(nullptr)
+	 * calls.
+	 */
+	bool SetTraitBeingProcessed(const UMassEntityTraitBase* Trait);
+
+	void ResetBuildTimeData()
+	{
+		TraitsData.Reset();
+		TraitsProcessed.Reset();
+		IgnoredTraits.Reset();
+		bBuildInProgress = false;
+	}
+
+	struct FTraitData
+	{
+		const UMassEntityTraitBase* Trait = nullptr;
+		TArray<const UStruct*> TypesAdded;
+		TArray<const UStruct*> TypesRequired;
+	};
+	TArray<FTraitData> TraitsData;
+	TSet<const UMassEntityTraitBase*> TraitsProcessed;
+	TSet<const UMassEntityTraitBase*> IgnoredTraits;
+	bool bBuildInProgress = false;
 
 	FMassEntityTemplateData& TemplateData;
 	FMassEntityTemplateID TemplateID;
@@ -275,3 +309,5 @@ class MASSSPAWNER_API UDEPRECATED_MassEntityTemplateRegistry : public UObject
 {
 	GENERATED_BODY()
 };
+
+#undef ENSURE_SUPPORTED_TRAIT_OPERATION
