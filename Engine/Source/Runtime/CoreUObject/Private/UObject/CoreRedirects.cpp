@@ -2121,7 +2121,8 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 
 	if (GConfig)
 	{
-		const FConfigSection* RedirectSection = GConfig->GetSection(TEXT("CoreRedirects"), false, IniName);
+		const TCHAR* RedirectSectionName = TEXT("CoreRedirects");
+		const FConfigSection* RedirectSection = GConfig->GetSection(RedirectSectionName, false, IniName);
 		if (RedirectSection)
 		{
 			TArray<FCoreRedirect> NewRedirects;
@@ -2246,6 +2247,9 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 					UE_LOG(LogCoreRedirects, Error, TEXT("ReadRedirectsFromIni(%s) failed to parse type for redirect %s!"), *IniName, *ValueString);
 				}
 			}
+
+			// We no longer need the redirect config data in memory, so drop it
+			GConfig->EmptySection(RedirectSectionName, IniName);
 
 			return AddRedirectList(NewRedirects, IniName);
 		}
