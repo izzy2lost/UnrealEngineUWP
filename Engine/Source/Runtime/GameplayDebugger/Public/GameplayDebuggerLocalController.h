@@ -43,7 +43,7 @@ class UGameplayDebuggerLocalController : public UObject
 	/** checks if key is bound by any action */
 	bool GAMEPLAYDEBUGGER_API IsKeyBound(const FName KeyName) const;
 
-	static void SetConsoleCommandsEnabled(const bool bEnabled) { bConsoleCommandsEnabled = bEnabled; }
+	static GAMEPLAYDEBUGGER_API void SetConsoleCommandsEnabled(const bool bEnabled) { bConsoleCommandsEnabled = bEnabled; }
 #endif // WITH_GAMEPLAY_DEBUGGER_MENU	
 protected:
 	UPROPERTY()

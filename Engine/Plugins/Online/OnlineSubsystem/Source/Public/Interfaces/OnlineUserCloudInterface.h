@@ -129,12 +129,14 @@ class IOnlineUserCloud
 {
 
 protected:
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	IOnlineUserCloud() {};
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 public:
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual ~IOnlineUserCloud() {};
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/**
 	 * Copies the file data into the specified buffer for the specified file

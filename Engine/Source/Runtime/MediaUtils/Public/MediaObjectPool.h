@@ -268,7 +268,7 @@ public:
 	 * @param NumReserve Number of objects to reserve.
 	 */
 	TMediaObjectPool(uint32 NumReserve)
-		: Storage(MakeShareable(new TStorage))
+		: Storage(MakeShareable(new TStorage(nullptr)))
 	{
 		Storage->Reserve(NumReserve);
 	}
