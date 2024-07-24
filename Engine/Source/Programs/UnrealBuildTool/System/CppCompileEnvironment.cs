@@ -288,11 +288,6 @@ namespace UnrealBuildTool
 		public bool bDisableAutoRTFMInstrumentation = false;
 
 		/// <summary>
-		/// Whether AutoRTFM instrumentation is enabled or not.
-		/// </summary>
-		public bool bEnableAutoRTFMInstrumentation => bUseAutoRTFMCompiler && !bDisableAutoRTFMInstrumentation;
-
-		/// <summary>
 		/// If unity builds are enabled this can be used to override if this specific module will build using Unity.
 		/// This is set using the per module configurations in BuildConfiguration.
 		/// </summary>
