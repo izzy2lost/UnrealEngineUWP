@@ -72,7 +72,7 @@ public: // UStruct -> JSON
 	 * If this returns true, it should have successfully turned the Json value into the property value.
 	 * If this returns false or is not bound, it will try generic type-specific import behavior before failing.
 	 */
-	using CustomImportCallback = TDelegate<bool(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, const void* Value)>;
+	using CustomImportCallback = TDelegate<bool(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, void* Value)>;
 
 	static JSONUTILITIES_API const CustomExportCallback ExportCallback_WriteISO8601Dates;
 

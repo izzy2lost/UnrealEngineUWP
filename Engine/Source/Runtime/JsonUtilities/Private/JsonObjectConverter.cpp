@@ -383,6 +383,15 @@ namespace
 	/** Convert JSON to property, assuming either the property is not an array or the value is an individual array element */
 	bool ConvertScalarJsonValueToFPropertyWithContainer(const TSharedPtr<FJsonValue>& JsonValue, FProperty* Property, void* OutValue, const UStruct* ContainerStruct, void* Container, int64 CheckFlags, int64 SkipFlags, const bool bStrictMode, FText* OutFailReason, const FJsonObjectConverter::CustomImportCallback* ImportCb)
 	{
+		if (ImportCb && ImportCb->IsBound())
+		{
+			if (ImportCb->Execute(JsonValue, Property, OutValue))
+			{
+				return true;
+			}
+			// fall through to default cases
+		}
+
 		if (FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
 		{
 			if (JsonValue->Type == EJson::String)
@@ -969,13 +978,7 @@ namespace
 			if (JsonValue->IsValid() && !(*JsonValue)->IsNull())
 			{
 				void* Value = Property->ContainerPtrToValuePtr<uint8>(OutStruct);
-				bool bHasValue = false;
-				if (ImportCb && ImportCb->IsBound())
-				{
-					bHasValue = ImportCb->Execute(*JsonValue, Property, Value);
-				}
-
-				if (!bHasValue && !JsonValueToFPropertyWithContainer(*JsonValue, Property, Value, ContainerStruct, Container, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
+				if (!JsonValueToFPropertyWithContainer(*JsonValue, Property, Value, ContainerStruct, Container, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
 				{
 					UE_LOG(LogJson, Error, TEXT("JsonObjectToUStruct - Unable to import JSON value into property %s"), *PropertyName);
 					if (OutFailReason)
