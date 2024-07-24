@@ -505,6 +505,57 @@ void FNiagaraSystemCompilationTask::Abort()
 	CompileCompletionEvent.Trigger();
 }
 
+FString FNiagaraSystemCompilationTask::GetDescription() const
+{
+	FString TaskDescription;
+	TaskDescription.Append(SystemInfo.SystemName);
+	if (bCompileForEdit)
+	{
+		TaskDescription.Append(TEXT(" [Edit]"));
+	}
+	return TaskDescription;
+}
+
+FString FNiagaraSystemCompilationTask::GetStatusString() const
+{
+	FString StatusString;
+
+	switch (CompilationState)
+	{
+		case EState::Invalid:
+		{
+			StatusString = TEXT("Invalid");
+			break;
+		}
+
+		case EState::WaitingForProcessing:
+		{
+			StatusString = TEXT("WaitingForProcessing");
+			break;
+		}
+
+		case EState::ResultsProcessed:
+		{
+			StatusString = TEXT("ResultsProcessed");
+			break;
+		}
+
+		case EState::Completed:
+		{
+			StatusString = TEXT("Completed");
+			break;
+		}
+
+		case EState::Aborted:
+		{
+			StatusString = TEXT("Aborted");
+			break;
+		}
+	}
+
+	return StatusString;
+}
+
 const FNiagaraSystemCompilationTask::FEmitterInfo* FNiagaraSystemCompilationTask::FSystemInfo::EmitterInfoBySourceEmitter(int32 InSourceEmitterIndex) const
 {
 	return EmitterInfo.FindByPredicate([InSourceEmitterIndex](const FEmitterInfo& Info) -> bool

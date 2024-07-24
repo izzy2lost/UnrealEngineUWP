@@ -45,6 +45,7 @@ protected:
 	// End - IAssetCompilingManager
 
 	bool ConditionalLaunchTask();
+	void CheckStalledTask(double CurrentTime, FNiagaraSystemCompilationTask* Task) const;
 
 	FNiagaraShaderType* NiagaraShaderType = nullptr;
 

@@ -49,13 +49,19 @@ struct FNiagaraSystemCompilationTask
 	void IssueCompilationTasks();
 	void IssuePostResultsProcessedTasks();
 	bool HasOutstandingCompileTasks() const;
+	FString GetDescription() const;
+	FString GetStatusString() const;
 
 	double PrepareStartTime = 0.0;
 	double QueueStartTime = 0.0;
 	double LaunchStartTime = 0.0;
+	double LastStallWarningTime = 0.0;
 
 	// compilation was forced
 	bool bForced = false;
+
+	// task has been deemed to be stalled
+	bool bStalled = false;
 
 	enum class EState : uint8
 	{

@@ -22,6 +22,14 @@ static FAutoConsoleVariableRef CVarNiagaraCompilationMaxActiveTaskCount(
 	ECVF_Default
 );
 
+static float GNiagaraCompilationStalledTaskWarningTime = 10.0f * 60.0f;
+static FAutoConsoleVariableRef CVarNiagaraCompilationStalledTaskWarningTime(
+	TEXT("fx.Niagara.Compilation.StalledTaskWarningTime"),
+	GNiagaraCompilationStalledTaskWarningTime,
+	TEXT("The length of time a task is being processed before warnings are generated."),
+	ECVF_Default
+);
+
 #if ENABLE_COOK_STATS
 namespace NiagaraSystemCookStats
 {
@@ -129,8 +137,12 @@ int32 FNiagaraSystemCompilingManager::GetNumRemainingAssets() const
 	int32 RemainingAssetCount = 0;
 
 	{
+		// note that we don't worry about including RequestsAwaitingRetrieval because
+		// those tasks do not reflect significant remaining work for the compilation manager.
+		// Additionally, it can cause deadlocks in some scenarios as calling code could wait
+		// for the remaining assets to get to 0 before advancing to polling for results.
 		FReadScopeLock Read(QueueLock);
-		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num() + RequestsAwaitingRetrieval.Num();
+		RemainingAssetCount = QueuedRequests.Num() + ActiveTasks.Num();
 	}
 
 	return RemainingAssetCount;
@@ -169,6 +181,39 @@ void FNiagaraSystemCompilingManager::Shutdown()
 {
 }
 
+void FNiagaraSystemCompilingManager::CheckStalledTask(double CurrentTime, FNiagaraSystemCompilationTask* Task) const
+{
+	const double ElapsedTime = CurrentTime - Task->LaunchStartTime;
+
+	if (ElapsedTime > GNiagaraCompilationStalledTaskWarningTime)
+	{
+		bool bWarn = true;
+
+		if (!Task->bStalled)
+		{
+			Task->LastStallWarningTime = CurrentTime;
+			Task->bStalled = true;
+
+		}
+		else
+		{
+			const double TimeSinceLastWarning = CurrentTime - Task->LastStallWarningTime;
+			if (TimeSinceLastWarning < GNiagaraCompilationStalledTaskWarningTime)
+			{
+				bWarn = false;
+			}
+		}
+
+		if (bWarn)
+		{
+			UE_LOG(LogNiagaraEditor, Warning, TEXT("NiagaraSystemCompilingManager - compilation task [%s] stalled for %f seconds.  Status - %s"),
+				*Task->GetDescription(), (float)ElapsedTime, *Task->GetStatusString());
+
+			Task->LastStallWarningTime = CurrentTime;
+		}
+	}
+}
+
 void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 {
 	{
@@ -190,12 +235,15 @@ void FNiagaraSystemCompilingManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 		}
 
 		{
+			double CurrentTime = FPlatformTime::Seconds();
+
 			FReadScopeLock ReadScope(QueueLock);
 			for (FNiagaraCompilationTaskHandle TaskHandle : ActiveTasks)
 			{
 				FTaskPtr TaskPtr = SystemRequestMap.FindRef(TaskHandle);
 				if (TaskPtr.IsValid())
 				{
+					CheckStalledTask(CurrentTime, TaskPtr.Get());
 					TaskPtr->Tick();
 				}
 			}
