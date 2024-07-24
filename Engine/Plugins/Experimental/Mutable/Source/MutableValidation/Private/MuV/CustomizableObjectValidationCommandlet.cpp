@@ -218,8 +218,8 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		TStrongObjectPtr<UCustomizableObjectInstance> InstanceToUpdate;
 		while (InstancesToProcess.Dequeue(InstanceToUpdate))
 		{
-			CollectGarbage(RF_NoFlags, true);
-			
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
+
 			if (!InstanceUpdatingUtility->UpdateInstance(InstanceToUpdate.Get()))
 			{
 				bInstanceFailedUpdate = true;

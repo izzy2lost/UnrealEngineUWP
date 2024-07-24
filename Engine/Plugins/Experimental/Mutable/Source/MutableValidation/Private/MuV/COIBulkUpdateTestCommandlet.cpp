@@ -166,14 +166,17 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 			Instances.RemoveAt(0);
 			UE_LOG(LogMutable,Display,TEXT("\t( %u / %u ) Processing instance : \"%s\" ."),CurrentInstanceIndex++, TotalAmountOfInstances ,*Instance->GetName());
 
-			CollectGarbage(RF_NoFlags, true);
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 			
 			// Update each one of the instances and notify if the update failed in any manner
 			InstanceUpdatingUtility->UpdateInstance(Instance.Get());
+			
+			// Remove standalone flag from the instance so we can GC it while keeping other standalone objects
+			Instance->ClearFlags(EObjectFlags::RF_Standalone);
 		}
 
 		ResourcesIterator.RemoveCurrent();
-		CollectGarbage(RF_NoFlags, true);
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 	}
 
 	UE_LOG(LogMutable,Display,TEXT("Mutable commandlet finished."));
