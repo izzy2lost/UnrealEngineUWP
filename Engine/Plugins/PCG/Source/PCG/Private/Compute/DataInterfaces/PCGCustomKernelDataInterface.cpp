@@ -19,7 +19,7 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 {
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("GetNumThreads"))
-		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Int));
+		.AddReturnType(FShaderValueType::Get(EShaderFundamentalType::Int, 3));
 
 	OutFunctions.AddDefaulted_GetRef()
 		.SetName(TEXT("GetSeed"))
