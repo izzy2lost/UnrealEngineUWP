@@ -5,6 +5,7 @@
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMCore/RigVMDispatchFactory.h"
 #include "RigVMModule.h"
+#include "RigVMStringUtils.h"
 #include "Algo/Accumulate.h"
 #include "Algo/ForEach.h"
 #include "Algo/Sort.h"
@@ -1122,6 +1123,28 @@ FName FRigVMTemplate::GetName() const
 		return *Left;
 	}
 	return NAME_None;
+}
+
+FName FRigVMTemplate::GetNodeName() const
+{
+#if WITH_EDITOR
+	if(UsesDispatch())
+	{
+		if(const FRigVMDispatchFactory* Factory = GetDispatchFactory())
+		{
+			if(const UScriptStruct* FactoryStruct = Factory->GetScriptStruct())
+			{
+				FString DisplayName = FactoryStruct->GetDisplayNameText().ToString();
+				RigVMStringUtils::SanitizeName(DisplayName, false, false, 100);
+				if(!DisplayName.IsEmpty())
+				{
+					return *DisplayName;
+				}
+			}
+		}
+	}
+#endif
+	return GetName();
 }
 
 #if WITH_EDITOR

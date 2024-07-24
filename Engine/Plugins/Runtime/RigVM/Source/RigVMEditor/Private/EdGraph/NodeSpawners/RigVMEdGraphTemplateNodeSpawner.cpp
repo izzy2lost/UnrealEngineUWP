@@ -219,7 +219,7 @@ URigVMEdGraphNode* URigVMEdGraphTemplateNodeSpawner::SpawnNode(UEdGraph* ParentG
 
 	if (RigBlueprint != nullptr && RigGraph != nullptr)
 	{
-		const FName Name = FRigVMBlueprintUtils::ValidateName(RigBlueprint, Template->GetName().ToString());
+		const FName Name = FRigVMBlueprintUtils::ValidateName(RigBlueprint, Template->GetNodeName().ToString());
 		URigVMController* Controller = RigBlueprint->GetController(ParentGraph);
 
 		Controller->OpenUndoBracket(FString::Printf(TEXT("Add '%s' Node"), *Name.ToString()));

@@ -150,7 +150,7 @@ FString URigVMTemplateNode::GetNodeTitle() const
 	{
 		if(const FRigVMTemplate* Template = GetTemplate())
 		{
-			return Template->GetName().ToString();
+			return Template->GetNodeName().ToString();
 		}
 	}
 	

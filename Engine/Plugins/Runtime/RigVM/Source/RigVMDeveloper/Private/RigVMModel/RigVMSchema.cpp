@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RigVMModel/RigVMSchema.h"
+#include "RigVMStringUtils.h"
 #include "RigVMModel/RigVMClient.h"
 #include "RigVMModel/RigVMController.h"
 
@@ -761,28 +762,7 @@ FString URigVMSchema::GetValidNodeName(const URigVMGraph* InGraph, const FString
 
 void URigVMSchema::SanitizeName(FString& InOutName, bool bAllowPeriod, bool bAllowSpace)
 {
-	// Sanitize the name
-	for (int32 i = 0; i < InOutName.Len(); ++i)
-	{
-		TCHAR& C = InOutName[i];
-
-		const bool bGoodChar =
-			FChar::IsAlpha(C) ||											// Any letter (upper and lowercase) anytime
-			(C == '_') || (C == '-') || 									// _  and - anytime
-			(bAllowPeriod && (C == '.')) ||
-			(bAllowSpace && (C == ' ')) ||
-			((i > 0) && FChar::IsDigit(C));									// 0-9 after the first character
-
-		if (!bGoodChar)
-		{
-			C = '_';
-		}
-	}
-
-	if (InOutName.Len() > GetMaxNameLength())
-	{
-		InOutName.LeftChopInline(InOutName.Len() - GetMaxNameLength());
-	}
+	RigVMStringUtils::SanitizeName(InOutName, bAllowPeriod, bAllowSpace, GetMaxNameLength());
 }
 
 FName URigVMSchema::GetUniqueName(const FName& InName, TFunction<bool(const FName&)> IsNameAvailablePredicate,

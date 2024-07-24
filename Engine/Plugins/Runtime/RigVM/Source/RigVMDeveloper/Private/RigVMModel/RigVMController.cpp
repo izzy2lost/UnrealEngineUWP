@@ -1461,7 +1461,7 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 	{
 		if(bSetupUndoRedo)
 		{
-			OpenUndoBracket(FString::Printf(TEXT("Add %s Node"), *Template->GetName().ToString()));
+			OpenUndoBracket(FString::Printf(TEXT("Add %s Node"), *Template->GetNodeName().ToString()));
 		}
 
 		const FString Name = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? InScriptStruct->GetName() : InNodeName);
@@ -15088,7 +15088,7 @@ URigVMTemplateNode* URigVMController::AddTemplateNode(const FName& InNotation, c
 		}
 	}
 
-	FString Name = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? Template->GetName().ToString() : InNodeName);
+	FString Name = GetSchema()->GetValidNodeName(Graph, InNodeName.IsEmpty() ? Template->GetNodeName().ToString() : InNodeName);
 	URigVMTemplateNode* Node = nullptr;
 
 	// determine what kind of node we need to create

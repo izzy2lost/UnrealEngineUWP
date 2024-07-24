@@ -187,3 +187,30 @@ TArray<FString> RigVMStringUtils::SplitDefaultValue(const FString& InDefaultValu
 	}
 	return Parts;
 }
+
+// Sanitizes a name as per ruleset
+void RigVMStringUtils::SanitizeName(FString& InOutName, bool bAllowPeriod, bool bAllowSpace, int32 InMaxNameLength)
+{
+	// Sanitize the name
+	for (int32 i = 0; i < InOutName.Len(); ++i)
+	{
+		TCHAR& C = InOutName[i];
+
+		const bool bGoodChar =
+			FChar::IsAlpha(C) ||											// Any letter (upper and lowercase) anytime
+			(C == '_') || (C == '-') || 									// _  and - anytime
+			(bAllowPeriod && (C == '.')) ||
+			(bAllowSpace && (C == ' ')) ||
+			((i > 0) && FChar::IsDigit(C));									// 0-9 after the first character
+
+		if (!bGoodChar)
+		{
+			C = '_';
+		}
+	}
+
+	if (InOutName.Len() > InMaxNameLength)
+	{
+		InOutName.LeftChopInline(InOutName.Len() - InMaxNameLength);
+	}
+}

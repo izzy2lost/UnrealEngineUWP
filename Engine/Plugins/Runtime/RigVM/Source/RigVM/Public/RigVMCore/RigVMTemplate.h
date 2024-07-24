@@ -406,6 +406,9 @@ public:
 	// Returns the name of the template
 	FName GetName() const;
 
+	// Returns the name to use for a node
+	FName GetNodeName() const;
+
 	// returns true if this template can merge another one
 	bool Merge(const FRigVMTemplate& InOther);
 
