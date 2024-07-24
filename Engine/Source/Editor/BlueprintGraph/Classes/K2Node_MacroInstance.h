@@ -119,7 +119,6 @@ private:
 	// the graph, and then back to any input pins:
 	void InferWildcards();
 	TArray<UEdGraphPin*> GetAllWildcardPins() const;
-	static bool ShouldDoSmartWildcardInference();
 	void SmartInferWildcardsImpl(const TArray<UEdGraphNode*>& InNodes) const;
 
 	/** Constructing FText strings can be costly, so we cache the node's tooltip */

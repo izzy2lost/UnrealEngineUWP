@@ -284,26 +284,36 @@ void UK2Node_MacroInstance::FindInContentBrowser(TWeakObjectPtr<UK2Node_MacroIns
 void UK2Node_MacroInstance::NotifyPinConnectionListChanged(UEdGraphPin* ChangedPin)
 {
 	Super::NotifyPinConnectionListChanged(ChangedPin);
+	const bool bShouldDoSmartInference = ShouldDoSmartWildcardInference();
+	if(bShouldDoSmartInference)
+	{
+		const bool bIsWildcardPin = FWildcardNodeUtils::HasAnyWildcards(ChangedPin);
+		if (bIsWildcardPin && ChangedPin->LinkedTo.Num() > 0)
+		{
+			// Search the changed pin's links for an inferrable pin:
+			if(const UEdGraphPin* InferrablePin = FWildcardNodeUtils::FindInferrableLinkedPin(ChangedPin))
+			{
+				// we found one, infer from it and then propagate the inference:
+				FWildcardNodeUtils::InferType(ChangedPin, InferrablePin->PinType);
+				InferWildcards();
+			}
+		}
+	}
 
 	// added a link?
 	if (ChangedPin->LinkedTo.Num() > 0)
 	{
 		// ... to a wildcard pin?
-		bool const bIsWildcardPin = ChangedPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard;
+		const bool bIsWildcardPin = ChangedPin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard;
 		if (bIsWildcardPin)
 		{
 			// get type of pin we just got linked to
 			FEdGraphPinType const LinkedPinType = ChangedPin->LinkedTo[0]->PinType;
-			if(ShouldDoSmartWildcardInference())
+
+			// change all other wildcard pins to the new type
+			// note we're assuming only one wildcard type per Macro node, for now
+			if(!bShouldDoSmartInference)
 			{
-				// only copy the category stuff to preserve array and ref status
-				FWildcardNodeUtils::InferType(ChangedPin, LinkedPinType);
-				InferWildcards();
-			}
-			else
-			{
-				// change all other wildcard pins to the new type
-				// note we're assuming only one wildcard type per Macro node, for now
 				for(int32 PinIdx=0; PinIdx<Pins.Num(); PinIdx++)
 				{
 					UEdGraphPin* const TmpPin = Pins[PinIdx];
@@ -362,6 +372,33 @@ FString UK2Node_MacroInstance::GetDocumentationExcerptName() const
 void UK2Node_MacroInstance::PostReconstructNode()
 {
 	bReconstructNode = false;
+
+	if(ShouldDoSmartWildcardInference())
+	{
+		// conform any type mismatches - or just conform
+		for(UEdGraphPin* Pin : WildcardPins)
+		{
+			if (FWildcardNodeUtils::HasAnyWildcards(Pin))
+			{
+				const FEdGraphPinType* ConnectedType = nullptr;
+				for(UEdGraphPin* Link : Pin->LinkedTo)
+				{
+					if(!FWildcardNodeUtils::HasAnyWildcards(Link))
+					{
+						ConnectedType = &Link->PinType;
+					}
+				}
+
+				if(ConnectedType)
+				{
+					FWildcardNodeUtils::InferType(Pin->PinType, *ConnectedType);
+				}
+			}
+		}
+
+		// rerun inference
+		InferWildcards();
+	}
 
 	Super::PostReconstructNode();
 }
@@ -474,12 +511,20 @@ void UK2Node_MacroInstance::PostFixupAllWildcardPins(bool bInAllWildcardPinsUnli
 		ResolvedWildcardType.ResetToDefaults();
 
 		// Collapse any wildcard pins that are split and set their type back to wildcard
-		for (UEdGraphPin* Pin : WildcardPins)
+		// doing this would be unsafe when using smart wildcard inference
+		// because recombining pin in the middle of reconstruction could result in
+		// pin allocation during reconstruction. Therefore we don't rely upon it 
+		// when doing smart wildcard inference
+		if (!ShouldDoSmartWildcardInference())
 		{
-			GetSchema()->RecombinePin(Pin);
-			Pin->PinType.PinCategory = UEdGraphSchema_K2::PC_Wildcard;
-			Pin->PinType.PinSubCategory = NAME_None;
-			Pin->PinType.PinSubCategoryObject = nullptr;
+			for (UEdGraphPin* Pin : WildcardPins)
+			{
+				GetSchema()->RecombinePin(Pin);
+
+				Pin->PinType.PinCategory = UEdGraphSchema_K2::PC_Wildcard;
+				Pin->PinType.PinSubCategory = NAME_None;
+				Pin->PinType.PinSubCategoryObject = nullptr;
+			}
 		}
 	}
 }
@@ -628,17 +673,6 @@ TArray<UEdGraphPin*> UK2Node_MacroInstance::GetAllWildcardPins() const
 	return Result;
 }
 
-bool UK2Node_MacroInstance::ShouldDoSmartWildcardInference()
-{
-#if 0
-	static const FBoolConfigValueHelper bUseSimpleWildcardInference(TEXT("Blueprints"), TEXT("bUseSimpleWildcardInference"), GEngineIni);
-	return !bUseSimpleWildcardInference;
-#else
-	// disabled until issues with partial wildcard types (e.g. TMaps with only wildcard keys or values) are fixed
-	return false;
-#endif
-}
-
 namespace UE::Private
 {
 
@@ -670,7 +704,7 @@ void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>&
 		{
 			for (UEdGraphPin* TunnelPin : Tunnel->Pins)
 			{
-				if (FWildcardNodeUtils::IsWildcardPin(TunnelPin))
+				if (FWildcardNodeUtils::HasAnyWildcards(TunnelPin))
 				{
 					// the tunnel node with input pins is the output on the macro:
 					TunnelWildcards.Add(TunnelPin);
@@ -700,7 +734,7 @@ void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>&
 
 				for(UEdGraphPin* LinkedPin : TunnelPin->LinkedTo)
 				{
-					if (FWildcardNodeUtils::IsWildcardPin(LinkedPin))
+					if (FWildcardNodeUtils::HasAnyWildcards(LinkedPin))
 					{
 						DirtyNodePins.AddUnique({LinkedPin->GetOwningNode(), LinkedPin});
 					}
@@ -717,7 +751,7 @@ void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>&
 		int32 WildcardCount = 0;
 		for(UEdGraphPin* Pin : Node->Pins)
 		{
-			if(FWildcardNodeUtils::IsWildcardPin(Pin))
+			if(FWildcardNodeUtils::HasAnyWildcards(Pin))
 			{
 				++WildcardCount;
 			}
@@ -778,7 +812,7 @@ void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>&
 				{
 					for(UEdGraphPin* LinkedPin : Pin->LinkedTo)
 					{
-						if(FWildcardNodeUtils::IsWildcardPin(LinkedPin))
+						if(FWildcardNodeUtils::HasAnyWildcards(LinkedPin))
 						{
 							// infer and mark dirty:
 							InferLinkedPins(LinkedPin, Pin, DirtyNodePins);
@@ -810,7 +844,7 @@ void UK2Node_MacroInstance::SmartInferWildcardsImpl(const TArray<UEdGraphNode*>&
 		UEdGraphPin* SourcePin = FindPin(
 			*TunnelWildcard->PinName.ToString(), 
 			UEdGraphPin::GetComplementaryDirection(TunnelWildcard->Direction));
-		if(FWildcardNodeUtils::IsWildcardPin(SourcePin))
+		if(FWildcardNodeUtils::HasAnyWildcards(SourcePin))
 		{
 			FWildcardNodeUtils::InferType(SourcePin, TunnelWildcard->PinType);
 		}

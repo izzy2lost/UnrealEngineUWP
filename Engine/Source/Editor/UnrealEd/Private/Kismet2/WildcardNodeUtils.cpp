@@ -2,6 +2,7 @@
 
 #include "Kismet2/WildcardNodeUtils.h"
 
+#include "Algo/Find.h"
 #include "Containers/Array.h"
 #include "EdGraphSchema_K2.h"
 #include "Misc/AssertionMacros.h"
@@ -25,6 +26,47 @@ FEdGraphPinType FWildcardNodeUtils::GetDefaultWildcardPinType()
 bool FWildcardNodeUtils::IsWildcardPin(const UEdGraphPin* const Pin)
 {
 	return Pin && Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard;
+}
+
+bool FWildcardNodeUtils::IsWildcardPin(const FEdGraphTerminalType& Terminal)
+{
+	return Terminal.TerminalCategory == UEdGraphSchema_K2::PC_Wildcard;
+}
+
+bool FWildcardNodeUtils::HasAnyWildcards(const UEdGraphPin* const Pin)
+{
+	check(Pin);
+	return Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard ||
+		Pin->PinType.PinValueType.TerminalCategory == UEdGraphSchema_K2::PC_Wildcard ;
+}
+
+bool FWildcardNodeUtils::HasAnyNonWildcards(const UEdGraphPin* Pin)
+{
+	check(Pin);
+	return Pin->PinType.PinCategory != UEdGraphSchema_K2::PC_Wildcard ||
+		Pin->PinType.PinValueType.TerminalCategory != UEdGraphSchema_K2::PC_Wildcard;
+}
+
+const UEdGraphPin* FWildcardNodeUtils::FindInferrableLinkedPin( const UEdGraphPin* ForPin)
+{
+	// first, look for pins with no wildcards to infer from:
+	UEdGraphPin *const* InferrablePin = Algo::FindByPredicate(ForPin->LinkedTo, 
+		[](const UEdGraphPin* Link)
+		{
+			return !FWildcardNodeUtils::HasAnyWildcards(Link);
+		});
+	if(InferrablePin == nullptr)
+	{
+		// no pins with no wildcards - are there any pins that have
+		// any non wildcards?
+		InferrablePin = Algo::FindByPredicate(ForPin->LinkedTo, 
+			[](const UEdGraphPin* Link)
+			{
+				return FWildcardNodeUtils::HasAnyNonWildcards(Link);
+			});
+	}
+
+	return InferrablePin ? *InferrablePin : nullptr;
 }
 
 bool FWildcardNodeUtils::IsLinkedToWildcard(const UEdGraphPin* const Pin)
@@ -78,12 +120,21 @@ void FWildcardNodeUtils::InferType(UEdGraphPin* ToPin, const FEdGraphPinType& Ty
 
 void FWildcardNodeUtils::InferType(FEdGraphPinType& ToType, const FEdGraphPinType& Type)
 {
-	check(ToType.PinCategory == UEdGraphSchema_K2::PC_Wildcard);
-	ToType.PinCategory = Type.PinCategory;
-	ToType.PinSubCategory = Type.PinSubCategory;
-	ToType.PinSubCategoryObject = Type.PinSubCategoryObject;
-	ToType.PinValueType = Type.PinValueType;
-	ToType.bIsUObjectWrapper = Type.bIsUObjectWrapper;
+	bool bInferredSomething = false;
+	if(ToType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+	{
+		bInferredSomething = true;
+		ToType.PinCategory = Type.PinCategory;
+		ToType.PinSubCategory = Type.PinSubCategory;
+		ToType.PinSubCategoryObject = Type.PinSubCategoryObject;
+		ToType.bIsUObjectWrapper = Type.bIsUObjectWrapper;
+	}
+	if(ToType.PinValueType.TerminalCategory == UEdGraphSchema_K2::PC_Wildcard)
+	{
+		bInferredSomething = true;
+		ToType.PinValueType = Type.PinValueType;
+	}
+	check(bInferredSomething);
 }
 
 void FWildcardNodeUtils::ResetToWildcard(UEdGraphPin* Pin)

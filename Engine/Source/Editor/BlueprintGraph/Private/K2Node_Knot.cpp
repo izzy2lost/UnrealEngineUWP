@@ -8,6 +8,7 @@
 #include "EdGraphSchema_K2.h"
 #include "Internationalization/Internationalization.h"
 #include "Kismet2/Kismet2NameValidators.h"
+#include "Kismet2/WildcardNodeUtils.h"
 #include "Misc/AssertionMacros.h"
 #include "Templates/Casts.h"
 #include "Templates/UnrealTemplate.h"
@@ -98,7 +99,7 @@ void UK2Node_Knot::PropagatePinType()
 
 	for (UEdGraphPin* Inputs : MyInputPin->LinkedTo)
 	{
-		if (Inputs->PinType.PinCategory != UEdGraphSchema_K2::PC_Wildcard)
+		if (!FWildcardNodeUtils::HasAnyWildcards(Inputs))
 		{
 			PropagatePinTypeFromDirection(true);
 			return;
@@ -107,7 +108,7 @@ void UK2Node_Knot::PropagatePinType()
 
 	for (UEdGraphPin* Outputs : MyOutputPin->LinkedTo)
 	{
-		if (Outputs->PinType.PinCategory != UEdGraphSchema_K2::PC_Wildcard)
+		if (!FWildcardNodeUtils::HasAnyWildcards(Outputs))
 		{
 			PropagatePinTypeFromDirection(false);
 			return;

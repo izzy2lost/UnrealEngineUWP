@@ -12,6 +12,7 @@
 #include "K2Node_Composite.h"
 #include "K2Node_MacroInstance.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/WildcardNodeUtils.h"
 #include "Math/UnrealMathSSE.h"
 #include "Templates/Casts.h"
 #include "Templates/Function.h"
@@ -277,6 +278,12 @@ bool UK2Node_Tunnel::ModifyUserDefinedPinDefaultValue(TSharedPtr<FUserPinInfo> P
 	return false;
 }
 
+bool UK2Node_Tunnel::ShouldDoSmartWildcardInference()
+{
+	static const FBoolConfigValueHelper bUseSimpleWildcardInference(TEXT("Blueprints"), TEXT("bUseSimpleWildcardInference"), GEngineIni);
+	return !bUseSimpleWildcardInference;
+}
+
 bool UK2Node_Tunnel::CanModifyExecutionWires()
 {
 	return true;
@@ -321,12 +328,26 @@ void UK2Node_Tunnel::CacheWildcardPins()
 {
 	WildcardPins.Reset();
 
-	for (UEdGraphPin* Pin : Pins)
+	const bool bSupportMapWildcards = ShouldDoSmartWildcardInference();
+	if(bSupportMapWildcards)
 	{
-		// for each of the wildcard pins...
-		if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+		for (UEdGraphPin* Pin : Pins)
 		{
-			WildcardPins.Add(Pin);
+			if (FWildcardNodeUtils::HasAnyWildcards(Pin))
+			{
+				WildcardPins.Add(Pin);
+			}
+		}
+	}
+	else
+	{
+		for (UEdGraphPin* Pin : Pins)
+		{
+			// for each of the wildcard pins...
+			if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+			{
+				WildcardPins.Add(Pin);
+			}
 		}
 	}
 }
@@ -376,11 +397,13 @@ void UK2Node_Tunnel::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& Ol
 
 	if (bAllWildcardsAreUnlinked == false)
 	{
+		const bool bSupportMapWildcards = ShouldDoSmartWildcardInference();
 		// Copy pin types from old pins for wildcard pins
 		for (UEdGraphPin* const Pin : WildcardPins)
 		{
 			// Only change the type if it is still a wildcard
-			if (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
+			if ((bSupportMapWildcards && FWildcardNodeUtils::HasAnyWildcards(Pin)) ||
+				Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_Wildcard)
 			{
 				// find it in the old pins and copy the type
 				for (UEdGraphPin const* const OldPin : OldPins)

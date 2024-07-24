@@ -20,6 +20,24 @@ public:
 	* and checks during compilation of nodes.
 	*/
 	static UNREALED_API FEdGraphPinType GetDefaultWildcardPinType();
+	
+	/** 
+	 * Checks if the pin has any wildcard components in its type. IsWildcardPin( const UEdGraphPin*) 
+	 * will return false for pins that have only wildcard TMap Values, this will not.
+	 * This function or IsWildcardPin(const FEdGraphTerminalType&) should be preferred.
+	 */
+	static UNREALED_API bool HasAnyWildcards(const UEdGraphPin* Pin);
+
+	/**
+	 * Returns true if the pin has any non wild cards (primary or secondary type)
+	 */
+	static UNREALED_API bool HasAnyNonWildcards(const UEdGraphPin* Pin);
+
+	/**
+	 * Returns a non wildcard pin from ForPin's LinkedTo list. Preferring pins
+	 * with no wildcards to pins with some wildcards.
+	 */
+	static UNREALED_API const UEdGraphPin* FindInferrableLinkedPin( const UEdGraphPin* ForPin);
 
 	/**
 	* Checks if the given pin is in a wildcard state
@@ -28,6 +46,7 @@ public:
 	* @return	True if the given pin is a Wildcard pin
 	*/
 	static UNREALED_API bool IsWildcardPin(const UEdGraphPin* const Pin);
+	static UNREALED_API bool IsWildcardPin(const FEdGraphTerminalType& Terminal);
 
 	/**
 	* Checks if the given pin is linked to any wildcard pins
