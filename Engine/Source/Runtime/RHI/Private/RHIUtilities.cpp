@@ -17,8 +17,17 @@ RHIUtilities.cpp:
 #include "RHIFwd.h"
 #include "RHIStrings.h"
 #include "Tasks/Task.h"
+#include "ProfilingDebugging/MiscTrace.h"
 
 #define USE_FRAME_OFFSET_THREAD 1
+
+#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+bool GVsyncInformationInsights = false;
+static FAutoConsoleVariableRef CVarVsyncInformationInsights(
+	TEXT("r.VsyncInformationInsights"),
+	GVsyncInformationInsights,
+	TEXT("Whether to show Vsync and Input events in UnrealInsights"));
+#endif
 
 TAutoConsoleVariable<FString> FDumpTransitionsHelper::CVarDumpTransitionsForResource(
 	TEXT("r.DumpTransitionsForResource"),
@@ -225,8 +234,8 @@ struct FRHIFrameOffsetThread : public FRunnable
 			double TargetFrameTimeInSeconds = double(SyncInterval) / double(FPlatformMisc::GetMaxRefreshRate());
 			double SlackInSeconds = FMath::Min(RHIGetSyncSlackMS() / 1000.0, TargetFrameTimeInSeconds);			// Clamp slack sync time to at most one full frame interval
 			double TargetFlipTime = (NewFlipFrame.VBlankTimeInSeconds + TargetFrameTimeInSeconds) - SlackInSeconds;
-
-			double Timeout = FMath::Max(0.0, TargetFlipTime - FPlatformTime::Seconds());
+			
+			double Timeout = FMath::Max(0.0, TargetFlipTime - FPlatformTime::ToSeconds64(FPlatformTime::Cycles64()));
 
 			FPlatformProcess::Sleep(Timeout);
 
@@ -243,7 +252,14 @@ struct FRHIFrameOffsetThread : public FRunnable
 					auto const& DebugInfo = FrameDebugInfos[DebugInfoIndex];
 					if (NewFlipFrame.PresentIndex == DebugInfo.PresentIndex)
 					{
-						GInputLatencyTime = (NewFlipFrame.VBlankTimeInSeconds / FPlatformTime::GetSecondsPerCycle64()) - DebugInfo.InputTime;
+						uint64 VBlankTimeInCycle = (uint64)(NewFlipFrame.VBlankTimeInSeconds / FPlatformTime::GetSecondsPerCycle64());
+
+						GInputLatencyTime = (VBlankTimeInCycle) - DebugInfo.InputTime;
+
+						if (GVsyncInformationInsights)
+						{
+							TRACE_BOOKMARK_CYCLES(VBlankTimeInCycle, TEXT("Vsync P:%d F:%d Lat:%.2f"), DebugInfo.PresentIndex, DebugInfo.FrameIndex, FPlatformTime::ToMilliseconds64(GInputLatencyTime))
+						}
 					}
 
 					if (DebugInfo.PresentIndex <= NewFlipFrame.PresentIndex)
@@ -334,14 +350,17 @@ public:
 	{
 #if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
 		FScopeLock Lock(&Singleton.CS);
-		if (Thread)
-		{
-			FFrameDebugInfo DebugInfo;
-			DebugInfo.PresentIndex = PresentIndex;
-			DebugInfo.FrameIndex = FrameIndex;
-			DebugInfo.InputTime = InputTime;
-			Singleton.FrameDebugInfos.Add(DebugInfo);
-		}
+
+		FFrameDebugInfo DebugInfo;
+		DebugInfo.PresentIndex = PresentIndex;
+		DebugInfo.FrameIndex = FrameIndex;
+		DebugInfo.InputTime = InputTime;
+		Singleton.FrameDebugInfos.Add(DebugInfo);
+
+ 		if (GVsyncInformationInsights)
+ 		{
+ 			TRACE_BOOKMARK_CYCLES(DebugInfo.InputTime, TEXT("Input P:%d F:%d"), DebugInfo.PresentIndex, DebugInfo.FrameIndex)
+ 		}
 #endif
 	}
 
@@ -549,6 +568,41 @@ void RHISetFrameDebugInfo(uint64 PresentIndex, uint64 FrameIndex, uint64 InputTi
 {
 #if USE_FRAME_OFFSET_THREAD
 	FRHIFrameOffsetThread::SetFrameDebugInfo(PresentIndex, FrameIndex, InputTime);
+#endif
+}
+
+void RHISetVsyncDebugInfo(FRHIFlipDetails& NewFlipFrame)
+{
+#if !UE_BUILD_SHIPPING && USE_FRAME_OFFSET_THREAD && PLATFORM_SUPPORTS_FLIP_TRACKING
+	check(FRHIFrameOffsetThread::Thread == nullptr);
+
+	FScopeLock Lock(&FRHIFrameOffsetThread::Singleton.CS);
+	FRHIFrameOffsetThread::Singleton.LastFlipFrame = NewFlipFrame;
+
+	for (int32 DebugInfoIndex = FRHIFrameOffsetThread::Singleton.FrameDebugInfos.Num() - 1; DebugInfoIndex >= 0; --DebugInfoIndex)
+	{
+		auto const& DebugInfo = FRHIFrameOffsetThread::Singleton.FrameDebugInfos[DebugInfoIndex];
+		//Note that we are using PresentIndex-1 since RHISetFrameDebugInfo is setting GRHIPresentCounter-1 due to other platforms setup
+		if ((NewFlipFrame.PresentIndex-1) == DebugInfo.PresentIndex)
+		{
+			uint64 VBlankTimeInCycle = NewFlipFrame.VBlankTimeInCycles;
+
+			if (VBlankTimeInCycle > DebugInfo.InputTime)
+			{
+				GInputLatencyTime = VBlankTimeInCycle - DebugInfo.InputTime;
+			}
+			
+			if (GVsyncInformationInsights)
+			{
+				TRACE_BOOKMARK_CYCLES(VBlankTimeInCycle, TEXT("Vsync P:%d F:%d Lat:%.2f"), DebugInfo.PresentIndex, DebugInfo.FrameIndex, FPlatformTime::ToMilliseconds64(GInputLatencyTime))
+			}
+		}
+
+		if (DebugInfo.PresentIndex <= NewFlipFrame.PresentIndex)
+		{
+			FRHIFrameOffsetThread::Singleton.FrameDebugInfos.RemoveAtSwap(DebugInfoIndex);
+		}
+	}
 #endif
 }
 

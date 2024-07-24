@@ -98,6 +98,14 @@ void FMiscTrace::OutputBookmarkInternal(const void* BookmarkPoint, uint16 Encode
 		<< Bookmark.FormatArgs(EncodedFormatArgs, EncodedFormatArgsSize);
 }
 
+void FMiscTrace::OutputBookmarkInternalCycles(uint64 Cycles, const void* BookmarkPoint, uint16 EncodedFormatArgsSize, uint8* EncodedFormatArgs)
+{
+	UE_TRACE_LOG(Misc, Bookmark, BookmarkChannel)
+		<< Bookmark.Cycle(Cycles)
+		<< Bookmark.BookmarkPoint(BookmarkPoint)
+		<< Bookmark.FormatArgs(EncodedFormatArgs, EncodedFormatArgsSize);
+}
+
 void FMiscTrace::OutputBeginFrame(ETraceFrameType FrameType)
 {
 	if (!UE_TRACE_CHANNELEXPR_IS_ENABLED(FrameChannel))

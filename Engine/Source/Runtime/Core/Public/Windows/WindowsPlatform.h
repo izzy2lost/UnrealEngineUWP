@@ -64,6 +64,7 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 
 #define PLATFORM_LITTLE_ENDIAN								1
 #define PLATFORM_SUPPORTS_UNALIGNED_LOADS					1
+#define PLATFORM_SUPPORTS_FLIP_TRACKING						1
 
 #define PLATFORM_SUPPORTS_PRAGMA_PACK						1
 #if (defined(__arm__) || defined(_M_ARM) || defined(__aarch64__) || defined(_M_ARM64) || defined(_M_ARM64EC))

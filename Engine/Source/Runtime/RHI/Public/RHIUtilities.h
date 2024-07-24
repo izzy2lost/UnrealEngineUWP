@@ -580,6 +580,9 @@ extern RHI_API void RHITriggerTaskEventOnFlip(uint64 PresentIndex, const UE::Tas
 /** Sets the FrameIndex and InputTime for the current frame. */
 extern RHI_API void RHISetFrameDebugInfo(uint64 PresentIndex, uint64 FrameIndex, uint64 InputTime);
 
+/** Sets the Vsync information for a new frame */
+extern RHI_API void RHISetVsyncDebugInfo(FRHIFlipDetails& NewFlipFrame);
+
 extern RHI_API void RHIInitializeFlipTracking();
 extern RHI_API void RHIShutdownFlipTracking();
 

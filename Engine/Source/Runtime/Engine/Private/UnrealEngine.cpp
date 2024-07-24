@@ -13119,7 +13119,7 @@ void FFrameEndSync::Sync( bool bAllowOneFrameThreadLag )
 			[CurrentFrameCounter, CurrentInputTime](FRHICommandListImmediate&)
 		{
 			// Set the FrameCount and InputTime for input latency stats and flip debugging.
-			RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter - 1, CurrentInputTime);
+			RHISetFrameDebugInfo(GRHIPresentCounter - 1, CurrentFrameCounter, CurrentInputTime);
 		});
 	});
 #endif

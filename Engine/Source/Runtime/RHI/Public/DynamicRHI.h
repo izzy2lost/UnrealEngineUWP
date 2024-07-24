@@ -46,17 +46,20 @@ struct FRHIFlipDetails
 	uint64 PresentIndex;
 	double FlipTimeInSeconds;
 	double VBlankTimeInSeconds;
+	uint64 VBlankTimeInCycles;
 
 	FRHIFlipDetails()
 		: PresentIndex(0)
 		, FlipTimeInSeconds(0)
 		, VBlankTimeInSeconds(0)
+		, VBlankTimeInCycles(0)
 	{}
 
-	FRHIFlipDetails(uint64 InPresentIndex, double InFlipTimeInSeconds, double InVBlankTimeInSeconds)
+	FRHIFlipDetails(uint64 InPresentIndex, double InFlipTimeInSeconds, double InVBlankTimeInSeconds, uint64 InVBlankTimeInCycles)
 		: PresentIndex(InPresentIndex)
 		, FlipTimeInSeconds(InFlipTimeInSeconds)
 		, VBlankTimeInSeconds(InVBlankTimeInSeconds)
+		, VBlankTimeInCycles(InVBlankTimeInCycles)
 	{}
 };
 

@@ -7,6 +7,7 @@
 #include "D3D12RHIPrivate.h"
 #include "Features/IModularFeatures.h"
 #include "HDRHelper.h"
+#include "RHIUtilities.h"
 #include "HAL/ThreadHeartBeat.h"
 #include "Windows/IDXGISwapchainProvider.h"
 
@@ -343,7 +344,37 @@ HRESULT FD3D12Viewport::PresentInternal(int32 SyncInterval)
 	{
 		// Ignore time spent waiting in Present. This function blocks based on GPU progress and space in the swap chain.
 		FRenderThreadIdleScope Scope(ERenderThreadIdleTypes::WaitingForGPUPresent);
-		return SwapChain1->Present(SyncInterval, Flags);
+#if !UE_BUILD_SHIPPING && PLATFORM_SUPPORTS_FLIP_TRACKING
+		static FRHIFlipDetails LastFlipFrame;
+		static DXGI_FRAME_STATISTICS LastStats = { 0 };
+		HRESULT GetStatHR;
+		DXGI_FRAME_STATISTICS stats = { 0 };
+		while (SUCCEEDED(GetStatHR = SwapChain1->GetFrameStatistics(&stats)) && (stats.PresentCount > LastFlipFrame.PresentIndex))
+		{
+			FRHIFlipDetails NewFlipFrame;
+			NewFlipFrame.PresentIndex = stats.PresentCount;
+			NewFlipFrame.VBlankTimeInCycles = stats.SyncQPCTime.QuadPart;
+
+			RHISetVsyncDebugInfo(NewFlipFrame);
+
+			LastFlipFrame = NewFlipFrame;
+			LastStats = stats;
+		}
+#endif
+
+		HRESULT PresentHR = SwapChain1->Present(SyncInterval, Flags);
+
+		UINT PresentID;
+		if (SUCCEEDED(SwapChain1->GetLastPresentCount(&PresentID)))
+		{
+			GRHIPresentCounter = PresentID;
+		}
+		else
+		{
+			GRHIPresentCounter++;
+		}
+
+		return PresentHR;
 	}
 
 	return S_OK;
