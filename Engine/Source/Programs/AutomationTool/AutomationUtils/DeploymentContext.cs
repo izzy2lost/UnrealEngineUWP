@@ -8,6 +8,7 @@ using AutomationTool;
 using UnrealBuildTool;
 using System.Linq;
 using EpicGames.Core;
+using EpicGames.ProjectStore;
 
 public struct StageTarget
 {
@@ -94,11 +95,18 @@ public class FilesToStage
 	}
 }
 
+public class ZenCookedFile
+{
+	public string Filename;
+	public IoHash ChunkId;
+}
+
 public class PackageStoreData
 {
+	public ZenServerStoreData ZenServerStore { get; set; }
 	public string ManifestFullPath { get; set; }
 	public string MarkerFullPath { get; set; }
-	public IList<string> ZenCookedFiles { get; set; }
+	public IList<ZenCookedFile> ZenCookedFiles { get; set; }
 }
 
 public class DeploymentContext //: ProjectParams
