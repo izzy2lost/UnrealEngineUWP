@@ -24,6 +24,14 @@ struct FCameraFilmbackSettings
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Filmback", meta = (ClampMin = "0.001", ForceUnits = mm))
 	float SensorHeight;
 
+	/** Horizontal offset of the filmback, in mm. */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Filmback", meta = (ForceUnits = mm))
+	float SensorHorizontalOffset;
+
+	/** Vertical offset of the filmback, in mm. */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = "Filmback", meta = (ForceUnits = mm))
+	float SensorVerticalOffset;
+	
 	/** Read-only. Computed from Sensor dimensions. */
 	UPROPERTY(Interp, VisibleAnywhere, BlueprintReadOnly, Category = "Filmback")
 	float SensorAspectRatio;
@@ -31,7 +39,9 @@ struct FCameraFilmbackSettings
 	bool operator==(const FCameraFilmbackSettings& Other) const
 	{
 		return (SensorWidth == Other.SensorWidth)
-			&& (SensorHeight == Other.SensorHeight);
+			&& (SensorHeight == Other.SensorHeight)
+			&& (SensorHorizontalOffset == Other.SensorHorizontalOffset)
+			&& (SensorVerticalOffset == Other.SensorVerticalOffset);
 	}
 
 	bool operator!=(const FCameraFilmbackSettings& Other) const
@@ -47,6 +57,8 @@ struct FCameraFilmbackSettings
 	FCameraFilmbackSettings()
 		: SensorWidth(24.89f)
 		, SensorHeight(18.67f)
+		, SensorHorizontalOffset(0.0f)
+		, SensorVerticalOffset(0.0f)
 		, SensorAspectRatio(1.33f)
 	{
 	}

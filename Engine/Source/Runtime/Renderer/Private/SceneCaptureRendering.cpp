@@ -1054,7 +1054,8 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			FPlane(1, 0, 0, 0),
 			FPlane(0, 1, 0, 0),
 			FPlane(0, 0, 0, 1));
-		const float FOV = CaptureComponent->FOVAngle * (float)PI / 360.0f;
+		const float UnscaledFOV = CaptureComponent->FOVAngle * (float)PI / 360.0f;
+		const float FOV = FMath::Atan((1.0f + CaptureComponent->Overscan) * FMath::Tan(UnscaledFOV));
 		FIntPoint CaptureSize(TextureRenderTarget->GetSurfaceWidth(), TextureRenderTarget->GetSurfaceHeight());
 
 		const bool bUseSceneColorTexture = CaptureNeedsSceneColor(CaptureComponent->CaptureSource);

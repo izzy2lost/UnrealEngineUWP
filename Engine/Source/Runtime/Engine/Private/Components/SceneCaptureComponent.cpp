@@ -595,7 +595,8 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 	AutoPlaneShift = 0.0f;
 	bUpdateOrthoPlanes = false;
 	bUseCameraHeightAsViewTarget = false;
-
+	Overscan = 0.0;
+	
 	bUseCustomProjectionMatrix = false;
 	bAutoActivate = true;
 	PrimaryComponentTick.bCanEverTick = true;
@@ -732,6 +733,8 @@ void USceneCaptureComponent2D::GetCameraView(float DeltaTime, FMinimalViewInfo& 
 	OutMinimalViewInfo.bUpdateOrthoPlanes = bUpdateOrthoPlanes;
 	OutMinimalViewInfo.bUseCameraHeightAsViewTarget = bUseCameraHeightAsViewTarget;
 
+	OutMinimalViewInfo.ApplyOverscan(Overscan);
+	
 	if (bAutoCalculateOrthoPlanes)
 	{
 		if(const AActor* ViewTarget = GetOwner())

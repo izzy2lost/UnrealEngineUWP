@@ -130,7 +130,12 @@ class UCameraComponent : public USceneComponent
 	uint8 bUseFieldOfViewForLOD : 1;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	void SetUseFieldOfViewForLOD(bool bInUseFieldOfViewForLOD) { bUseFieldOfViewForLOD = bInUseFieldOfViewForLOD; }
-
+	/** Amount to increase the view frustum by, from 0.0 for no increase to 1.0 for 100% increase */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions, meta = (UIMin="0.0", ClampMin="0.0", UIMax="1.0", ClampMax="1.0"))
+	float Overscan;
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetOverscan(float InOverscan) { Overscan = InOverscan; }
+	
 #if WITH_EDITOR
 	// Returns the filmback text used for burnins on preview viewports
 	UFUNCTION()

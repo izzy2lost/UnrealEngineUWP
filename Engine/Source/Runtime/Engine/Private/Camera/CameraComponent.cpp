@@ -85,6 +85,7 @@ UCameraComponent::UCameraComponent(const FObjectInitializer& ObjectInitializer)
 	OrthoFarClipPlane = DEFAULT_ORTHOFARPLANE;
 	bConstrainAspectRatio = false;
 	bOverrideAspectRatioAxisConstraint = false;
+	Overscan = 0.0f;
 	bUseFieldOfViewForLOD = true;
 	PostProcessBlendWeight = 1.0f;
 	bUsePawnControlRotation = false;
@@ -462,6 +463,8 @@ void UCameraComponent::GetCameraView(float DeltaTime, FMinimalViewInfo& DesiredV
 	DesiredView.FirstPersonFOV = bEnableFirstPersonFieldOfView ? FirstPersonFieldOfView : DesiredView.FOV;
 	DesiredView.FirstPersonScale = bEnableFirstPersonScale ? FirstPersonScale : 1.0f;
 	DesiredView.bUseFirstPersonParameters = bEnableFirstPersonFieldOfView || bEnableFirstPersonScale;
+	
+	DesiredView.ApplyOverscan(Overscan);
 	
 	if (bAutoCalculateOrthoPlanes)
 	{

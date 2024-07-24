@@ -50,6 +50,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Projection, meta = (editcondition = "ProjectionType==1 && bUpdateOrthoPlanes"))
 	bool bUseCameraHeightAsViewTarget;
 
+	/** Amount to increase the view frustum by, from 0.0 for no increase to 1.0 for 100% increase */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Projection, meta = (UIMin="0.0", ClampMin="0.0", UIMax="1.0", ClampMax="1.0"))
+	float Overscan;
+	
 	/** Output render target of the scene capture that can be read in materials. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=SceneCapture)
 	TObjectPtr<class UTextureRenderTarget2D> TextureTarget;

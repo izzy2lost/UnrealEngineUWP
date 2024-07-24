@@ -214,4 +214,9 @@ public:
 	 * It is computed as tan(SceneFOVRadians * 0.5) / tan(FirstPersonFOVRadians * 0.5).
 	 */
 	ENGINE_API float CalculateFirstPersonFOVCorrectionFactor() const;
+
+	/**
+	 * Apply overscan to the view info, which scales the field of view and ortho width to simulate expanding the view frustum.
+	 */
+	ENGINE_API void ApplyOverscan(float InOverscan);
 };
