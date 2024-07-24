@@ -135,6 +135,9 @@ void SGraphPanel::Construct( const SGraphPanel::FArguments& InArgs )
 	PreviousFrameSavedMousePosForSplineOverlap = FVector2D::ZeroVector;
 
 	TimeLeftToInvalidatePerTick = 0.0f;
+	
+	bHasCustomPrepass = true;
+	bCheckNodeGraphObjValidity = false;
 }
 
 SGraphPanel::~SGraphPanel()
@@ -749,6 +752,16 @@ void SGraphPanel::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrange
 	}
 
 	ArrangedChildren.Append(MyArrangedChildren);
+}
+
+bool SGraphPanel::CustomPrepass(float LayoutScaleMultiplier)
+{
+	if(bCheckNodeGraphObjValidity)
+	{
+		bCheckNodeGraphObjValidity = false;
+		RemoveAllNodesWithInvalidPointers();
+	}
+	return true; // still run prepass on everything
 }
 
 void SGraphPanel::UpdateSelectedNodesPositions(FVector2D PositionIncrement)
@@ -2182,6 +2195,36 @@ void SGraphPanel::RemoveNode(const UEdGraphNode* Node)
 	NodeToWidgetLookup.Remove(Node);
 }
 
+void SGraphPanel::RemoveAllNodesWithInvalidPointers()
+{
+	if (GraphObj == nullptr)
+	{
+		return;
+	}
+	
+	TArray<TSharedRef<SGraphNode>> NodesWithInvalidPointers;
+
+	for (int32 Iter = 0; Iter != Children.Num(); ++Iter)
+	{
+		TSharedRef<SGraphNode> Child = GetChild(Iter);
+		if (const UEdGraphNode* NodeObj = Child->GetNodeObj())
+		{
+			if (!GraphObj->Nodes.Contains(NodeObj))
+			{
+				NodesWithInvalidPointers.Add(Child);
+			}
+		}
+	}
+
+	for (const TSharedRef<SGraphNode>& NodeWithInvalidPoint : NodesWithInvalidPointers)
+	{
+		if (const UEdGraphNode* NodeObj = NodeWithInvalidPoint->GetNodeObj())
+		{
+			RemoveNode(NodeObj);
+		}
+	}
+}
+
 TSharedPtr<SGraphNode> SGraphPanel::GetNodeWidgetFromGuid(FGuid Guid) const
 {
 	return NodeGuidMap.FindRef(Guid).Pin();
@@ -2457,6 +2500,7 @@ void SGraphPanel::OnGraphChanged(const FEdGraphEditAction& EditAction)
 			}
 
 			RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda(RemoveNodesDelegateWrapper, StaticCastWeakPtr<SGraphPanel>(AsWeak()), NodePtrSet));
+			bCheckNodeGraphObjValidity = true;
 		}
 		if (bWasAddAction)
 		{
