@@ -3836,7 +3836,7 @@ void AActor::PostSpawnInitialize(FTransform const& UserSpawnTransform, AActor* I
 	CreationTime = (World ? World->GetTimeSeconds() : 0.f);
 
 	// Set network role.
-	check(GetLocalRole() == ROLE_Authority);
+	ensureMsgf(GetLocalRole() == ROLE_Authority, TEXT("Actor %s has an invalid Role and may be a corrupt asset!"), *GetFullName());
 	ExchangeNetRoles(bRemoteOwned);
 
 	// Set owner.
