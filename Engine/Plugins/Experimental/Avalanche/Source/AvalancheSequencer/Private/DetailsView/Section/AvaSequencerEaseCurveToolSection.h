@@ -8,14 +8,15 @@
 class FAvaSequencer;
 class FName;
 class FText;
+class ISequencer;
 class SWidget;
 
-class FAvaSequencePlaybackDetails : public ISidebarDrawerContent
+class FAvaSequencerEaseCurveToolSection : public ISidebarDrawerContent
 {
 public:
 	static const FName UniqueId;
 
-	FAvaSequencePlaybackDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer);
+	FAvaSequencerEaseCurveToolSection(const TSharedRef<FAvaSequencer>& InAvaSequencer);
 
 	//~ Begin ISidebarDrawerContent
 	virtual FName GetUniqueId() const override;

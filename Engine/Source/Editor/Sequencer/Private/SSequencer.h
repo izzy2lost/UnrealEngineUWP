@@ -17,7 +17,7 @@
 #include "ToolMenu.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Widgets/Input/NumericTypeInterface.h"
-#include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Sequencer.h"
 #include "SequencerWidgetsDelegates.h"
@@ -29,11 +29,14 @@ class FAssetDragDropOp;
 class FClassDragDropOp;
 class FMovieSceneClipboard;
 class FSequencerTimeSliderController;
+class ISidebarDrawerContent;
 class SCurveEditorTree;
 class SSequencerTransformBox;
 class SSequencerStretchBox;
 class SCurveEditorPanel;
+class SBox;
 class SDockTab;
+class SSidebar;
 class SWindow;
 class USequencerSettings;
 class FSequencerTrackFilter;
@@ -41,6 +44,7 @@ class SSequencerGroupManager;
 class SSequencerTreeFilterStatusBar;
 struct FPaintPlaybackRangeArgs;
 struct FSequencerCustomizationInfo;
+struct FSidebarDrawerConfig;
 
 namespace UE
 {
@@ -649,11 +653,60 @@ public:
 	/** Applies dynamic sequencer customizations to this editor. */
 	void ApplySequencerCustomizations(const TArrayView<const FSequencerCustomizationInfo> Customizations);
 
+	/**
+	 * Registers and displays a new drawer in the sidebar.
+	 * 
+	 * @param InDrawerConfig Configuration info for the new drawer
+	 * 
+	 * @return True if the new drawer registration was successful.
+	 */
+	bool RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig);
+
+	/**
+	 * Unregisters and removes a drawer from the sidebar.
+	 *
+	 * @param InDrawerId Unique drawer Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	bool UnregisterDrawer(const FName InDrawerId);
+
+	/**
+	 * Registers and displays a new drawer section in the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id to register
+	 * @param InSection Drawer content interface for the section
+	 * 
+	 * @return True if the new drawer section registration was successful.
+	 */
+	bool RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection);
+
+	/**
+	 * Unregisters and removes a drawer section from the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id that contains the section to unregister
+	 * @param InSectionId Unique drawer section Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId);
+
+	/** @return True if the sidebar is being displayed. */
+	bool IsSidebarVisible() const;
+
+	/** Toggles the sidebar "Selection" drawer open or closed. */
+	void ToggleSidebarSelectionDrawerOpen();
+
+	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
+	void ToggleSidebarDrawerDock();
+
 private:
 	/** Applies a single customization. */
 	void ApplySequencerCustomization(const FSequencerCustomizationInfo& Customization);
 
-private:
+	void OnSidebarDockStateChanged(const FName InDrawerId);
+
+	void OnSidebarSlotResized(const float InFillCoefficient);
 
 	/** Transform box widget. */
 	TSharedPtr<SSequencerTransformBox> TransformBox;
@@ -803,4 +856,9 @@ private:
 	TWeakPtr<SWindow> WeakNodeGroupWindow;
 
 	TSharedPtr<SSequencerGroupManager> NodeGroupManager;
+
+	TSharedPtr<SBox> DetailsDockLocation;
+
+	TSharedPtr<SSidebar> DetailsSidebar;
+	SSplitter::FSlot* SidebarSlot = nullptr;
 };

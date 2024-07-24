@@ -118,63 +118,80 @@ void FThumbnailSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("ThumbnailsMenu", "Thumbnails"),
 			FText(),
-			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& InMenuBuilder){
-
-				TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
-
-				FText CurrentTime = FText::FromString(Sequencer->GetNumericTypeInterface()->ToString(Sequencer->GetLocalTime().Time.GetFrame().Value));
-
-				InMenuBuilder.BeginSection(NAME_None, LOCTEXT("ThisSectionText", "This Section"));
-				{
-					InMenuBuilder.AddMenuEntry(
-						LOCTEXT("RefreshText", "Refresh"),
-						LOCTEXT("RefreshTooltip", "Refresh this section's thumbnails"),
-						FSlateIcon(),
-						FUIAction(FExecuteAction::CreateRaw(this, &FThumbnailSection::RedrawThumbnails))
-					);
-					InMenuBuilder.AddMenuEntry(
-						FText::Format(LOCTEXT("SetSingleTime", "Set Thumbnail Time To {0}"), CurrentTime),
-						LOCTEXT("SetSingleTimeTooltip", "Defines the time at which this section should draw its single thumbnail to the current cursor position"),
-						FSlateIcon(),
-						FUIAction(
-						FExecuteAction::CreateLambda([this, Sequencer]{
-								SetSingleTime(Sequencer->GetLocalTime().AsSeconds());
-								GetMutableDefault<UMovieSceneUserThumbnailSettings>()->bDrawSingleThumbnails = true;
-								GetMutableDefault<UMovieSceneUserThumbnailSettings>()->SaveConfig();
-							})
-						)
-					);
-				}
-				InMenuBuilder.EndSection();
-
-				InMenuBuilder.BeginSection(NAME_None, LOCTEXT("GlobalSettingsText", "Global Settings"));
-				{
-					InMenuBuilder.AddMenuEntry(
-						LOCTEXT("RefreshAllText", "Refresh All"),
-						LOCTEXT("RefreshAllTooltip", "Refresh all sections' thumbnails"),
-						FSlateIcon(),
-						FUIAction(FExecuteAction::CreateLambda([]{
-							GetDefault<UMovieSceneUserThumbnailSettings>()->BroadcastRedrawThumbnails();
-						}))
-					);
-
-					FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-
-					FDetailsViewArgs Args;
-					Args.bAllowSearch = false;
-					Args.NameAreaSettings = FDetailsViewArgs::HideNameArea;
-
-					TSharedRef<IDetailsView> DetailView = PropertyModule.CreateDetailView(Args);
-					DetailView->SetObject(GetMutableDefault<UMovieSceneUserThumbnailSettings>());
-					InMenuBuilder.AddWidget(DetailView, FText(), true);
-				}
-				InMenuBuilder.EndSection();
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& InMenuBuilder)
+			{
+				BuildThumbnailsMenu(InMenuBuilder);
 			})
 		);
 	}
 	MenuBuilder.EndSection();
 }
 
+void FThumbnailSection::BuildThumbnailsMenu(FMenuBuilder& InMenuBuilder)
+{
+	const TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const FText CurrentTime = FText::FromString(Sequencer->GetNumericTypeInterface()->ToString(Sequencer->GetLocalTime().Time.GetFrame().Value));
+
+	InMenuBuilder.BeginSection(TEXT("Thumbnails"), LOCTEXT("ThumbnailsMenuSection", "Thumbnails"));
+	{
+		InMenuBuilder.AddMenuEntry(
+			LOCTEXT("RefreshText", "Refresh"),
+			LOCTEXT("RefreshTooltip", "Refresh this section's thumbnails"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateRaw(this, &FThumbnailSection::RedrawThumbnails))
+		);
+		InMenuBuilder.AddMenuEntry(
+			FText::Format(LOCTEXT("SetSingleTime", "Set Thumbnail Time To {0}"), CurrentTime),
+			LOCTEXT("SetSingleTimeTooltip", "Defines the time at which this section should draw its single thumbnail to the current cursor position"),
+			FSlateIcon(),
+			FUIAction(
+			FExecuteAction::CreateLambda([this]
+				{
+					const TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
+					if (!Sequencer.IsValid())
+					{
+						return;
+					}
+
+					SetSingleTime(Sequencer->GetLocalTime().AsSeconds());
+					GetMutableDefault<UMovieSceneUserThumbnailSettings>()->bDrawSingleThumbnails = true;
+					GetMutableDefault<UMovieSceneUserThumbnailSettings>()->SaveConfig();
+				})
+			)
+		);
+
+		InMenuBuilder.AddMenuEntry(
+			LOCTEXT("RefreshAllText", "Refresh All"),
+			LOCTEXT("RefreshAllTooltip", "Refresh all sections' thumbnails"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([]
+				{
+					GetDefault<UMovieSceneUserThumbnailSettings>()->BroadcastRedrawThumbnails();
+				}))
+		);
+
+		FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+		FDetailsViewArgs Args;
+		Args.bAllowSearch = false;
+		Args.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+
+		TSharedRef<IDetailsView> DetailView = PropertyModule.CreateDetailView(Args);
+		DetailView->SetObject(GetMutableDefault<UMovieSceneUserThumbnailSettings>());
+		InMenuBuilder.AddWidget(DetailView, FText(), true);
+	}
+	InMenuBuilder.EndSection();
+}
+
+void FThumbnailSection::BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+{
+	BuildThumbnailsMenu(MenuBuilder);
+}
 
 float FThumbnailSection::GetSectionGripSize() const
 {

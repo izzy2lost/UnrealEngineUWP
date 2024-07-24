@@ -322,6 +322,21 @@ void FFolderModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.EndSection();
 }
 
+void FFolderModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
+
+	MenuBuilder.BeginSection(TEXT("Folder"), LOCTEXT("FolderContextMenuSectionName", "Folder"));
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("SetColor", "Set Color"),
+			LOCTEXT("SetColorTooltip", "Set the color for the selected folders"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateSP(this, &FFolderModel::SetFolderColor))
+		);
+	}
+	MenuBuilder.EndSection();
+}
 
 TSharedPtr<SWidget> FFolderModel::CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName)
 {

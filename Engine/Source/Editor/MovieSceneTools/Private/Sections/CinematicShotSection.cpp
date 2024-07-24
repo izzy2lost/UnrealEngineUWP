@@ -267,6 +267,16 @@ void FCinematicShotSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, c
 {
 	FViewportThumbnailSection::BuildSectionContextMenu(MenuBuilder, ObjectBinding);
 
+	AddShotMenuSection(MenuBuilder, ObjectBinding);
+}
+
+void FCinematicShotSection::BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+{
+	AddShotMenuSection(MenuBuilder, ObjectBinding);
+}
+
+void FCinematicShotSection::AddShotMenuSection(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+{
 	UMovieSceneCinematicShotSection& SectionObject = GetSectionObjectAs<UMovieSceneCinematicShotSection>();
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("ShotMenuText", "Shot"));

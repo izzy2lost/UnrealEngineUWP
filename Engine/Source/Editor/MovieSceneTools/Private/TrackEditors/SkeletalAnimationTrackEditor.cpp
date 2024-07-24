@@ -448,7 +448,7 @@ public:
 	{
 		if (Params.ParentObjectBindingGuid.IsValid())
 		{
-			if (USkeletalMeshComponent* SkelMeshComp = AcquireSkeletalMeshFromObjectGuid(Params.ParentObjectBindingGuid, Params.Sequencer))
+			if (USkeletalMeshComponent* SkelMeshComp = AcquireSkeletalMeshFromObjectGuid(Params.ParentObjectBindingGuid, Params.SequencerWeak.Pin()))
 			{
 				TScriptInterface<ISequencerAnimationOverride> SequencerAnimOverride = ISequencerAnimationOverride::GetSequencerAnimOverride(SkelMeshComp);
 				if (SequencerAnimOverride.GetObject())
@@ -491,7 +491,7 @@ public:
 				{
 					// Store the compatible skeleton's name, and create a property widget with a filter that will check
 					// for animations that match that skeleton.
-					Skeleton = AcquireSkeletonFromObjectGuid(Params.ParentObjectBindingGuid, Params.Sequencer);
+					Skeleton = AcquireSkeletonFromObjectGuid(Params.ParentObjectBindingGuid, Params.SequencerWeak.Pin());
 					SkeletonName = FAssetData(Skeleton).GetExportTextName();
 
 					TSharedPtr<IPropertyUtilities> PropertyUtilities = CustomizationUtils.GetPropertyUtilities();

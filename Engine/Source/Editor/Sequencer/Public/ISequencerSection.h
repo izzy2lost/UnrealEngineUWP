@@ -75,15 +75,15 @@ namespace SequencerSectionConstants
  */
 struct FSequencerSectionPropertyDetailsViewCustomizationParams
 {
-	FSequencerSectionPropertyDetailsViewCustomizationParams(TSharedRef<ISequencerSection> InSectionInterface, TSharedRef<ISequencer> InSequencer, ISequencerTrackEditor& InTrackEditor)
+	FSequencerSectionPropertyDetailsViewCustomizationParams(TSharedRef<ISequencerSection> InSectionInterface, TWeakPtr<ISequencer> InSequencerWeak, ISequencerTrackEditor& InTrackEditor)
 		: SectionInterface(InSectionInterface)
-		, Sequencer(InSequencer)
+		, SequencerWeak(InSequencerWeak)
 		, TrackEditor(InTrackEditor)
 	{}
 
 	FGuid ParentObjectBindingGuid;
 	TSharedRef<ISequencerSection> SectionInterface;
-	TSharedRef<ISequencer> Sequencer;
+	TWeakPtr<ISequencer> SequencerWeak;
 	ISequencerTrackEditor& TrackEditor;
 };
 
@@ -234,6 +234,14 @@ public:
 	 * @param ObjectBinding The object guid bound to this section
 	 */
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) {}
+
+	/**
+	 * Builds up the section sidebar menu for the outliner
+	 *
+	 * @param MenuBuilder	The menu builder to change
+	 * @param ObjectBinding The object guid bound to this section
+	 */
+	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) {}
 
 	/**
 	 * Called when the user requests that a category from this section be deleted. 

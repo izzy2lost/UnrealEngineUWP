@@ -348,6 +348,13 @@ public:
 	virtual TSharedPtr<FExtensibilityManager> GetActionsMenuExtensibilityManager() const = 0;
 
 	/**
+	 * Get the extensibility manager for the sidebar.
+	 *
+	 * @return Sidebar extensibility manager.
+	 */
+	virtual TSharedPtr<FExtensibilityManager> GetSidebarExtensibilityManager() const = 0;
+
+	/**
 	 * Get the sequencer customization manager, which handles editor customizations applied based on
 	 * the currently focused sequence type and other dynamic criteria.
 	 */

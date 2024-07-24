@@ -59,6 +59,7 @@ class FObjectBindingTagCache;
 class ISequencerTrackEditor;
 class ISequencerEditorObjectBinding;
 class SSequencer;
+class ISidebarDrawerContent;
 class ULevel;
 class UMovieSceneSequence;
 class UMovieSceneSubSection;
@@ -78,6 +79,7 @@ struct FKeyAttributes;
 struct FNotificationInfo;
 struct FEditorViewportViewModifierParams;
 struct FMovieSceneMarkedFrame;
+struct FSidebarDrawerConfig;
 
 enum class EMapChangeType : uint8;
 enum class ENearestKeyOption : uint8;
@@ -117,6 +119,7 @@ class FSequencer final
 	using FViewModel = UE::Sequencer::FViewModel;
 
 public:
+	SEQUENCER_API static const FName SelectionDrawerId;
 
 	/** Constructor */
 	FSequencer();
@@ -1171,6 +1174,50 @@ public:
 
 	ISequencer::FOnViewportSelectionLimitedChanged& OnViewportSelectionLimitedChanged() override;
 
+	/**
+	 * Registers and displays a new drawer in the sidebar.
+	 * 
+	 * @param InDrawerConfig	Configuration info for the new drawer
+	 * 
+	 * @return True if the new drawer registration was successful.
+	 */
+	virtual bool RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig) override;
+
+	/**
+	 * Unregisters and removes a drawer from the sidebar.
+	 *
+	 * @param InDrawerId	Unique drawer Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawer(const FName InDrawerId) override;
+	
+	/**
+	 * Registers and displays a new drawer section in the sidebar.
+	 * 
+	 * @param InDrawerId	Unique drawer Id to register
+	 * @param InSection		Drawer content interface for the section
+	 * 
+	 * @return True if the new drawer section registration was successful.
+	 */
+	virtual bool RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection) override;
+	
+	/**
+	 * Unregisters and removes a drawer section from the sidebar.
+	 * 
+	 * @param InDrawerId	Unique drawer Id that contains the section to unregister
+	 * @param InSectionId	Unique drawer section Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId) override;
+
+	/** Toggles the sidebar "Selection" drawer open or closed. */
+	void ShowHideSidebarSelectionDrawer();
+
+	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
+	void ToggleSidebarDrawerDocked();
+
 private:
 
 	/** Update the time bases for the current movie scene */
@@ -1180,6 +1227,8 @@ private:
 	void ToggleLimitViewportSelection();
 
 	void ForEachSubSequenceRecursively(UMovieSceneSequence* const InSequence, const TFunctionRef<bool(UMovieSceneSequence* const InCurrentSequence)>& InFunction);
+
+	FText GetSidebarSelectionDrawerToolTipText() const;
 
 	/** User-supplied settings object for this sequencer */
 	TObjectPtr<USequencerSettings> Settings;

@@ -35,6 +35,9 @@ private:
 	TSharedPtr<FExtender> CreateObjectBindingContextMenuExtender(FViewModelPtr InViewModel);
 	void ExtendObjectBindingContextMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel);
 
+	TSharedPtr<FExtender> CreateSidebarMenuExtender(FViewModelPtr InViewModel);
+	void ExtendSidebarMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel);
+
 private:
 
 	TWeakPtr<ISequencer> WeakSequencer;

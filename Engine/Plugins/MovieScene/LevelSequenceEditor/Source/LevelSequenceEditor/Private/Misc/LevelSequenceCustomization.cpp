@@ -58,6 +58,7 @@ void FLevelSequenceCustomization::RegisterSequencerCustomization(FSequencerCusto
 	// Add a customization callback for the object binding context menu.
 	FSequencerCustomizationInfo Customization;
 	Customization.OnBuildObjectBindingContextMenu = FOnGetSequencerMenuExtender::CreateRaw(this, &FLevelSequenceCustomization::CreateObjectBindingContextMenuExtender);
+	Customization.OnBuildSidebarMenu = FOnGetSequencerMenuExtender::CreateRaw(this, &FLevelSequenceCustomization::CreateSidebarMenuExtender);
 	Builder.AddCustomization(Customization);
 }
 
@@ -260,7 +261,26 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 	MenuBuilder.EndSection();
 }
 
+TSharedPtr<FExtender> FLevelSequenceCustomization::CreateSidebarMenuExtender(FViewModelPtr InViewModel)
+{
+	TSharedRef<FExtender> Extender = MakeShared<FExtender>();
+	
+	TSharedPtr<FObjectBindingModel> ObjectBindingModel = InViewModel->CastThisShared<FObjectBindingModel>();
+	
+	Extender->AddMenuExtension(TEXT("ObjectBindingActions"), EExtensionHook::Before, nullptr,
+		FMenuExtensionDelegate::CreateRaw(this, &FLevelSequenceCustomization::ExtendSidebarMenu, ObjectBindingModel));
+	
+	return Extender.ToSharedPtr();
+}
+
+void FLevelSequenceCustomization::ExtendSidebarMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
+{
+	if (ObjectBindingModel.IsValid())
+	{
+		ObjectBindingModel->BuildContextMenu(MenuBuilder);
+	}
+}
+
 } // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE
-

@@ -285,23 +285,26 @@ public:
 
 	void Construct(FArguments InArgs) { }
 
-	void SetDetailsAndSequencer(TSharedRef<SWidget> InDetailsPanel, TSharedRef<ISequencer> InSequencer)
+	void SetDetailsAndSequencer(TSharedRef<SWidget> InDetailsPanel, TWeakPtr<ISequencer> InSequencerWeak)
 	{
 		ChildSlot
 		[
 			InDetailsPanel
 		];
-		Sequencer = InSequencer;
+		SequencerWeak = InSequencerWeak;
 	}
 
 	//~ FNotifyHook interface
 	virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override
 	{
-		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+		if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+		{
+			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
+		}
 	}
 
 private:
-	TSharedPtr<ISequencer> Sequencer;
+	TWeakPtr<ISequencer> SequencerWeak;
 };
 
 
@@ -353,7 +356,7 @@ void SequencerHelpers::AddPropertiesMenu(FSequencer& Sequencer, FMenuBuilder& Me
 			{
 				TSharedPtr<ISequencerSection> SectionInterface = SectionHandle->GetSectionInterface();
 				FSequencerSectionPropertyDetailsViewCustomizationParams CustomizationDetails(
-					SectionInterface.ToSharedRef(), Sequencer.AsShared(), *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
+					SectionInterface.ToSharedRef(), Sequencer.AsWeak(), *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
 				TSharedPtr<FObjectBindingModel> ParentObjectBindingNode = SectionHandle->FindAncestorOfType<FObjectBindingModel>();
 				if (ParentObjectBindingNode.IsValid())
 				{
@@ -367,7 +370,7 @@ void SequencerHelpers::AddPropertiesMenu(FSequencer& Sequencer, FMenuBuilder& Me
 	Sequencer.OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.AsShared());
 	DetailsView->SetObjects(Sections);
 
-	DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, Sequencer.AsShared());
+	DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, Sequencer.AsWeak());
 	DetailsNotifyWrapper->SetEnabled(!Sequencer.IsReadOnly());
 	MenuBuilder.AddWidget(DetailsNotifyWrapper, FText::GetEmpty(), true);
 }

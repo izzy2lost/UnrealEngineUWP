@@ -179,7 +179,7 @@ void FCinematicShotTrackEditor::Tick(float DeltaTime)
 	}
 }
 
-void FCinematicShotTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track )
+void FCinematicShotTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track)
 {
 	MenuBuilder.BeginSection("Import/Export", NSLOCTEXT("Sequencer", "ImportExportMenuSectionName", "Import/Export"));
 
@@ -212,6 +212,11 @@ void FCinematicShotTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder
 			FExecuteAction::CreateRaw(this, &FCinematicShotTrackEditor::ExportFCPXML )));
 
 	MenuBuilder.EndSection();
+}
+
+void FCinematicShotTrackEditor::BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track)
+{
+	BuildTrackContextMenu(MenuBuilder, Track);
 }
 
 void FCinematicShotTrackEditor::InsertShot()

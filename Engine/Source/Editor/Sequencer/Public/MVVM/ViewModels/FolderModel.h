@@ -60,6 +60,7 @@ public:
 
 	/*~ FOutlinerItemModel */
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
+	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
 
 	/*~ IFolderEventHandler */
 	void OnTrackAdded(UMovieSceneTrack* Track) override;

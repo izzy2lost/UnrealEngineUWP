@@ -35,6 +35,7 @@ public:
 	virtual void Tick(const FGeometry& AllottedGeometry, const FGeometry& ClippedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual int32 OnPaintSection( FSequencerSectionPainter& Painter ) const override;
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override;
+	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override;
 	virtual FText GetSectionTitle() const override;
 	virtual float GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const override;
 	virtual FMargin GetContentPadding() const override;
@@ -47,6 +48,8 @@ public:
 	virtual UCameraComponent* GetViewCamera() override;
 
 private:
+
+	void AddShotMenuSection(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding);
 
 	/** The cinematic shot track editor that contains this section */
 	TWeakPtr<FCinematicShotTrackEditor> CinematicShotTrackEditor;

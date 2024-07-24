@@ -145,6 +145,7 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 	 * Extend the section context menu
 	 *
 	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param MenuExtender          The menu extender to use
 	 * @param Channels              Array of type specific channels that exist in the selected sections
 	 * @param Sections              Array of sections being shown on the context menu
 	 * @param InSequencer           The currently active sequencer
@@ -160,6 +161,28 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 		}
 
 		ExtendSectionMenu(MenuBuilder, MenuExtender, MoveTemp(TypedChannels), Sections, InSequencer);
+	}
+
+	/**
+	 * Extend the section sidebar menu
+	 *
+	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param MenuExtender          The menu extender to use
+	 * @param Channels              Array of type specific channels that exist in the selected sections
+	 * @param Sections              Array of sections being shown on the context menu
+	 * @param InSequencer           The currently active sequencer
+	 */
+	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const override
+	{
+		using namespace Sequencer;
+		TArray<TMovieSceneChannelHandle<ChannelType>> TypedChannels;
+
+		for (const FMovieSceneChannelHandle& RawHandle : Channels)
+		{
+			TypedChannels.Add(RawHandle.Cast<ChannelType>());
+		}
+
+		ExtendSidebarMenu(MenuBuilder, MenuExtender, MoveTemp(TypedChannels), Sections, InSequencer);
 	}
 
 	/**

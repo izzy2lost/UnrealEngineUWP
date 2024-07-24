@@ -10,12 +10,12 @@ class FName;
 class FText;
 class SWidget;
 
-class FAvaSequencePlaybackDetails : public ISidebarDrawerContent
+class FAvaSequenceTreeDetails : public ISidebarDrawerContent
 {
 public:
 	static const FName UniqueId;
 
-	FAvaSequencePlaybackDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer);
+	FAvaSequenceTreeDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer);
 
 	//~ Begin ISidebarDrawerContent
 	virtual FName GetUniqueId() const override;

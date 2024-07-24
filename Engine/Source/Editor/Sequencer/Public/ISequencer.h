@@ -46,6 +46,7 @@ class FSequencerSelectionPreview;
 class FUICommandList;
 class IDetailsView;
 class IKeyArea;
+class ISidebarDrawerContent;
 class ISequencerTrackEditor;
 class SWidget;
 class UActorFactory;
@@ -65,6 +66,7 @@ struct FMovieSceneBinding;
 struct FMovieSceneChannelHandle;
 struct FMovieSceneMarkedFrame;
 struct FQualifiedFrameTime;
+struct FSidebarDrawerConfig;
 template <typename NumericType> struct INumericTypeInterface;
 
 enum class EMapChangeType : uint8;
@@ -887,6 +889,44 @@ public:
 
 	/** @return Delegate executed when Sequencer selection limiting is enabled or disabled. */
 	virtual FOnViewportSelectionLimitedChanged& OnViewportSelectionLimitedChanged() = 0;
+
+	/**
+	 * Registers and displays a new drawer in the sidebar.
+	 * 
+	 * @param InDrawerConfig Configuration info for the new drawer
+	 * 
+	 * @return True if the new drawer registration was successful.
+	 */
+	virtual bool RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig) = 0;
+
+	/**
+	 * Unregisters and removes a drawer from the sidebar.
+	 *
+	 * @param InDrawerId Unique drawer Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawer(const FName InDrawerId) = 0;
+
+	/**
+	 * Registers and displays a new drawer section in the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id to register
+	 * @param InSection Drawer content interface for the section
+	 * 
+	 * @return True if the new drawer section registration was successful.
+	 */
+	virtual bool RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection) = 0;
+
+	/**
+	 * Unregisters and removes a drawer section from the sidebar.
+	 * 
+	 * @param InDrawerId Unique drawer Id that contains the section to unregister
+	 * @param InSectionId Unique drawer section Id to unregister
+	 * 
+	 * @return True if the drawer removal was successful.
+	 */
+	virtual bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId) = 0;
 
 protected:
 	FOnInitializeDetailsPanel InitializeDetailsPanelEvent;

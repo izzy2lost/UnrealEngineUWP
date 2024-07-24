@@ -16,7 +16,10 @@
 #include "CurveEditorTypes.h"
 #include "Tree/ICurveEditorTreeItem.h"
 
+class UMovieSceneSection;
 class UMovieSceneSequence;
+class UMovieSceneTrack;
+class FBoolProperty;
 class FSequencer;
 
 namespace UE
@@ -67,12 +70,16 @@ public:
 	/*~ IDimmableExtension */
 	bool IsDimmed() const override;
 
-protected:
+	virtual void BuildSidebarMenu(FMenuBuilder& MenuBuilder);
+
+//protected:
 
 	/** Get context menu contents. */
 	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder);
 	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
-
+	virtual void BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder);
+protected:
 	/** Set identifier for computing node paths */
 	void SetIdentifier(FName InNewIdentifier);
 
@@ -102,6 +109,12 @@ private:
 
 	ECheckBoxState SelectedModelsMuteState() const;
 	void ToggleSelectedModelsMuted();
+
+	TArray<UMovieSceneSection*> GetSelectedSections() const;
+	TArray<UMovieSceneTrack*> GetSelectedTracks() const;
+
+	void AddEvalOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);
+	void AddDisplayOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);
 
 private:
 

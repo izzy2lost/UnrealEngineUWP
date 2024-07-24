@@ -8,6 +8,7 @@
 #include "IAvaSequencer.h"
 #include "IAvaSequencerProvider.h"
 #include "MovieSceneSequenceID.h"
+#include "Widgets/Layout/SSplitter.h"
 
 class AActor;
 class FAvaEaseCurveTool;
@@ -25,7 +26,9 @@ class IPropertyHandle;
 class ISequencer;
 class ISequencerObjectChangeListener;
 class SAvaSequenceTree;
+class SBox;
 class SHeaderRow;
+class SSidebar;
 class SWidget;
 class UAvaSequence;
 class UAvaSequencerSettings;
@@ -51,6 +54,8 @@ namespace UE::Sequencer
 class FAvaSequencer : public IAvaSequencer, public FEditorUndoClient, public TSharedFromThis<FAvaSequencer>
 {
 public:
+	static const FName SidebarDrawerId;
+
 	explicit FAvaSequencer(IAvaSequencerProvider& InProvider, FAvaSequencerArgs&& InArgs);
 
 	virtual ~FAvaSequencer() override;
@@ -216,6 +221,12 @@ private:
 
 	void OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut);
 
+	void OnSidebarDockStateChanged(const FName InDrawerId);
+	void OnSidebarSlotResized(const float InFillCoefficient);
+
+	void ExtendSidebarSelectionMenu(FMenuBuilder& OutMenuBuilder);
+	void ExtendSidebarMarkedFramesMenu(FMenuBuilder& OutMenuBuilder);
+
 	FOnViewedSequenceChanged OnViewedSequenceChanged;
 
 	IAvaSequencerProvider& Provider;
@@ -265,8 +276,12 @@ private:
 	/** Whether FAvaSequencer is allowed to select to/from the ISequencer instance */
 	const bool bCanProcessSequencerSelections;
 
-	/** Selected sequence details sections to restore when a new sequence is selected. */
-	TSet<FName> SelectedSections;
-
 	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
+
+	TSharedPtr<SSidebar> LeftSidebar;
+	TSharedPtr<SBox> SequenceTreeDockLocation;
+	SSplitter::FSlot* SidebarSlot = nullptr;
+
+	TSharedPtr<FExtender> SidebarExtender;
+	FDelegateHandle SidebarSelectionExtenderHandle;
 };

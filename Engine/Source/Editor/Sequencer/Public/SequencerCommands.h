@@ -478,6 +478,12 @@ public:
 	/** Toggles selectability of viewport objects to Sequencer items only */
 	TSharedPtr< FUICommandInfo > ToggleLimitViewportSelection;
 
+	/** Toggles the sidebar "Selection" drawer open or closed */
+	TSharedPtr< FUICommandInfo > ToggleSidebarSelectionDrawerOpen;
+
+	/** Toggles the docked state of the current sidebar drawer. Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
+	TSharedPtr< FUICommandInfo > ToggleSidebarDrawerDock;
+
 	/**
 	 * Initialize commands
 	 */

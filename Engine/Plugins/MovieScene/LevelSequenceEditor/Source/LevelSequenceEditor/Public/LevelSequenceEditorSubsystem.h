@@ -304,6 +304,9 @@ private:
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
 	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
+public:
+	void AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder);
+private:
 	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID);
 
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
@@ -330,6 +333,7 @@ private:
 	TSharedPtr<FExtender> AssignActorMenuExtender;
 	TSharedPtr<FExtender> BindingPropertiesMenuExtender;
 	TSharedPtr<FExtender> RebindComponentMenuExtender;
+	TSharedPtr<FExtender> SidebarMenuExtender;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

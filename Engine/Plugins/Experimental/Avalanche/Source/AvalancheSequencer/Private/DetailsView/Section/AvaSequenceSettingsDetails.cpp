@@ -8,47 +8,65 @@
 
 #define LOCTEXT_NAMESPACE "AvaSequenceSettingsDetails"
 
-FName FAvaSequenceSettingsDetails::GetSectionName() const
+const FName FAvaSequenceSettingsDetails::UniqueId = TEXT("AvaSequenceSettingsDetails");
+
+FAvaSequenceSettingsDetails::FAvaSequenceSettingsDetails(const TSharedRef<FAvaSequencer>& InAvaSequencer)
+	: AvaSequencerWeak(InAvaSequencer)
+{
+}
+
+FName FAvaSequenceSettingsDetails::GetUniqueId() const
+{
+	return UniqueId;
+}
+
+FName FAvaSequenceSettingsDetails::GetSectionId() const
 {
 	return TEXT("Settings");
 }
 
-FText FAvaSequenceSettingsDetails::GetSectionDisplayName() const
+FText FAvaSequenceSettingsDetails::GetSectionDisplayText() const
 {
-	return LOCTEXT("SettingsLabel", "Sequence");
+	return LOCTEXT("SettingsLabel", "Settings");
 }
 
-TSharedRef<SWidget> FAvaSequenceSettingsDetails::CreateContentWidget(const TSharedRef<FAvaSequencer>& InAvaSequencer)
+bool FAvaSequenceSettingsDetails::ShouldShowSection() const
 {
-	AvaSequencerWeak = InAvaSequencer;
+	return AvaSequencerWeak.IsValid();
+}
 
+int32 FAvaSequenceSettingsDetails::GetSortOrder() const
+{
+	return 3;
+}
+
+TSharedRef<SWidget> FAvaSequenceSettingsDetails::CreateContentWidget()
+{
 	FCustomDetailsViewArgs CustomDetailsViewArgs;
 	CustomDetailsViewArgs.IndentAmount = 0.f;
 	CustomDetailsViewArgs.bShowCategories = true;
 	CustomDetailsViewArgs.bAllowGlobalExtensions = true;
 	CustomDetailsViewArgs.CategoryAllowList.Allow(TEXT("Sequence Settings"));
-	CustomDetailsViewArgs.ExpansionState.Add(FCustomDetailsViewItemId::MakeCategoryId("Sequence Settings"), true);
+	CustomDetailsViewArgs.ExpansionState.Add(FCustomDetailsViewItemId::MakeCategoryId(TEXT("Sequence Settings")), true);
 	CustomDetailsViewArgs.ExpansionState.Add(FCustomDetailsViewItemId::MakePropertyId<UAvaSequence>(TEXT("Marks")), true);
 
 	SettingsDetailsView = ICustomDetailsViewModule::Get().CreateCustomDetailsView(CustomDetailsViewArgs);
 
-	InAvaSequencer->GetOnViewedSequenceChanged().AddSP(this, &FAvaSequenceSettingsDetails::OnViewedSequenceChanged);
-
-	if (UAvaSequence* const ViewedSequence = InAvaSequencer->GetViewedSequence())
+	if (const TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin())
 	{
-		OnViewedSequenceChanged(ViewedSequence);	
+		AvaSequencer->GetOnViewedSequenceChanged().AddSP(this, &FAvaSequenceSettingsDetails::OnViewedSequenceChanged);
+
+		UAvaSequence* const ViewedSequence = AvaSequencer->GetViewedSequence();
+		if (IsValid(ViewedSequence))
+		{
+			OnViewedSequenceChanged(ViewedSequence);
+		}
 	}
 
 	return SettingsDetailsView.ToSharedRef();
 }
 
-bool FAvaSequenceSettingsDetails::ShouldShowSection() const
-{
-	TSharedPtr<FAvaSequencer> AvaSequencer = AvaSequencerWeak.Pin();
-	return AvaSequencer.IsValid() && IsValid(AvaSequencer->GetViewedSequence());
-}
-
-void FAvaSequenceSettingsDetails::OnViewedSequenceChanged(UAvaSequence* InSequence)
+void FAvaSequenceSettingsDetails::OnViewedSequenceChanged(UAvaSequence* const InSequence)
 {
 	SettingsDetailsView->SetObject(InSequence);
 }

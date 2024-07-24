@@ -989,8 +989,8 @@ void FObjectBindingModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	const UClass* ObjectClass = FindObjectClass();
 	
 	TSharedPtr<FExtender> Extender = EditorViewModel->GetSequencerMenuExtender(
-			SequencerModule.GetObjectBindingContextMenuExtensibilityManager(), TArrayBuilder<UObject*>().Add(BoundObject),
-			&FSequencerCustomizationInfo::OnBuildObjectBindingContextMenu, SharedThis(this));
+		SequencerModule.GetObjectBindingContextMenuExtensibilityManager(), TArrayBuilder<UObject*>().Add(BoundObject),
+		&FSequencerCustomizationInfo::OnBuildObjectBindingContextMenu, SharedThis(this));
 	if (Extender.IsValid())
 	{
 		MenuBuilder.PushExtender(Extender.ToSharedRef());
@@ -1024,6 +1024,29 @@ void FObjectBindingModel::BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder)
 	);
 
 	FOutlinerItemModel::BuildOrganizeContextMenu(MenuBuilder);
+}
+
+void FObjectBindingModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return;
+	}
+
+	UObject* const BoundObject = EditorViewModel->GetSequencerImpl()->FindSpawnedObjectOrTemplate(ObjectBindingID);
+	
+	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	
+	const TSharedPtr<FExtender> Extender = EditorViewModel->GetSequencerMenuExtender(SequencerModule.GetSidebarExtensibilityManager()
+		, TArrayBuilder<UObject*>().Add(BoundObject), &FSequencerCustomizationInfo::OnBuildSidebarMenu, SharedThis(this));
+	if (Extender.IsValid())
+	{
+		MenuBuilder.PushExtender(Extender.ToSharedRef());
+	}
+	
+	MenuBuilder.BeginSection(TEXT("ObjectBindingActions"), LOCTEXT("ObjectBindingsMenuSection", "Object Bindings"));
+	MenuBuilder.EndSection();
 }
 
 void FObjectBindingModel::AddTagMenu(FMenuBuilder& MenuBuilder)

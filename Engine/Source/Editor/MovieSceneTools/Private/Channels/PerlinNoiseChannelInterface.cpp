@@ -22,25 +22,39 @@ FPerlinNoiseChannelSectionMenuExtension::FPerlinNoiseChannelSectionMenuExtension
 	Initialize();
 }
 
-void FPerlinNoiseChannelSectionMenuExtension::ExtendMenu(FMenuBuilder& MenuBuilder)
+void FPerlinNoiseChannelSectionMenuExtension::ExtendMenu(FMenuBuilder& MenuBuilder, const bool bSubMenu)
 {
 	TSharedRef<FPerlinNoiseChannelSectionMenuExtension> SharedThis = this->AsShared();
 
 	if (ChannelHandles.Num() > 1)
 	{
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
-			LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
-			FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildChannelsMenu(InnerMenuBuilder); })
-		);
+		if (bSubMenu)
+		{
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
+				LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
+				FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildChannelsMenu(InnerMenuBuilder); })
+			);
+		}
+		else
+		{
+			SharedThis->BuildChannelsMenu(MenuBuilder);
+		}
 	}
 	else if (ChannelHandles.Num() == 1)
 	{
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
-			LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
-			FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildParametersMenu(InnerMenuBuilder, 0); })
-		);
+		if (bSubMenu)
+		{
+			MenuBuilder.AddSubMenu(
+				LOCTEXT("PerlinNoiseChannelsMenu", "Perlin Noise Channels"),
+				LOCTEXT("PerlinNoiseChannelsMenuToolTip", "Edit parameters for Perlin Noise channels"),
+				FNewMenuDelegate::CreateLambda([SharedThis](FMenuBuilder& InnerMenuBuilder) { SharedThis->BuildParametersMenu(InnerMenuBuilder, 0); })
+			);
+		}
+		else
+		{
+			SharedThis->BuildParametersMenu(MenuBuilder, 0);
+		}
 	}
 }
 

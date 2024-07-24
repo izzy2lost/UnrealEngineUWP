@@ -1,0 +1,54 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+#include "SequencerChannelTraits.h"
+#include "MovieSceneSection.h"
+
+struct FMovieSceneBoolChannel;
+struct FMovieSceneDoubleChannel;
+struct FMovieSceneFloatChannel;
+struct FMovieSceneIntegerChannel;
+enum class ECheckBoxState : uint8;
+enum ERichCurveExtrapolation : int;
+
+struct FCurveChannelSectionSidebarExtension : TSharedFromThis<FCurveChannelSectionSidebarExtension>
+{
+	FCurveChannelSectionSidebarExtension(const TWeakPtr<ISequencer>& InSequencerWeak);
+
+	void AddSections(TArrayView<UMovieSceneSection* const> InSections);
+
+	void ExtendMenu(FMenuBuilder& MenuBuilder);
+
+private:
+	void AddDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
+	void AddExtrapolationMenu(FMenuBuilder& MenuBuilder, const bool bInPreInfinity);
+
+	void GetChannels(TArray<FMovieSceneFloatChannel*>& FloatChannels, TArray<FMovieSceneDoubleChannel*>& DoubleChannels,
+		TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels) const;
+
+	void SetExtrapolationMode(const ERichCurveExtrapolation InExtrapolation, const bool bInPreInfinity);
+	bool IsExtrapolationModeSelected(const ERichCurveExtrapolation InExtrapolation, const bool bInPreInfinity) const;
+
+	void ToggleShowCurve();
+	ECheckBoxState IsShowCurve() const;
+	bool IsAnyShowCurve() const;
+
+	int32 GetKeyAreaHeight() const;
+	void OnKeyAreaHeightChanged(const int32 InNewValue);
+	
+	bool GetKeyAreaCurveNormalized(const FString InKeyAreaName) const;
+	void OnKeyAreaCurveNormalized(const FString InKeyAreaName);
+
+	double GetKeyAreaCurveMin(const FString InKeyAreaName) const;
+	void OnKeyAreaCurveMinChanged(const double InNewValue, const FString InKeyAreaName);
+
+	double GetKeyAreaCurveMax(const FString InKeyAreaName) const;
+	void OnKeyAreaCurveMaxChanged(const double InNewValue, const FString InKeyAreaName);
+
+	USequencerSettings* GetSequencerSettings() const;
+
+	TWeakPtr<ISequencer> SequencerWeak;
+
+	TSet<TWeakObjectPtr<UMovieSceneSection>> Sections;
+};

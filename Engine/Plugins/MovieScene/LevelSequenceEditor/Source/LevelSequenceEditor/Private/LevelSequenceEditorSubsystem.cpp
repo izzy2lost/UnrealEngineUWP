@@ -294,13 +294,13 @@ FMovieSceneBindingPropertyInfoDetailCustomization::FMovieSceneBindingPropertyInf
 
 void FMovieSceneBindingPropertyInfoDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandle> InStructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils)
 {
-	TSharedPtr<IPropertyUtilities> PropertyUtils = CustomizationUtils.GetPropertyUtilities();
+	HeaderRow.ShouldAutoExpand(true);
 
 	HeaderRow.NameContent()
 		[
 			InStructPropertyHandle->CreatePropertyNameWidget()
 		]
-	.ValueContent()
+		.ValueContent()
 		[
 			InStructPropertyHandle->CreatePropertyValueWidget()
 		];
@@ -558,6 +558,33 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		}));
 
 	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(RebindComponentMenuExtender);
+
+	SidebarMenuExtender = MakeShared<FExtender>();
+
+	SidebarMenuExtender->AddMenuExtension(TEXT("Possessable"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+		{
+			// Only add menu entries where the focused sequence is a ULevelSequence
+			if (GetActiveSequencer())
+			{
+				AddBindingPropertiesSidebar(MenuBuilder);
+			}
+
+			TArray<FName> ComponentNames;
+			GetRebindComponentNames(ComponentNames);
+			if (ComponentNames.Num() > 0)
+			{
+				RebindComponentMenu(MenuBuilder);
+			}
+		}));
+
+	SidebarMenuExtender->AddMenuExtension(TEXT("CustomBinding"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+		{
+			AddBindingPropertiesMenu(MenuBuilder);
+		}));
+
+	SequencerModule.GetSidebarExtensibilityManager()->AddExtender(SidebarMenuExtender);
 }
 
 void ULevelSequenceEditorSubsystem::Deinitialize()
@@ -2435,7 +2462,10 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 	}
 }
 
-
+void ULevelSequenceEditorSubsystem::AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder)
+{
+	AddBindingPropertiesMenu(MenuBuilder);
+}
 
 void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPreChange(FProperty* PropertyAboutToChange)
 {

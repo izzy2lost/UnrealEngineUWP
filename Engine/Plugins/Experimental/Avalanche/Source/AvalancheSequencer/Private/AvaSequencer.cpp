@@ -5,7 +5,6 @@
 #include "AvaSequencePlaybackObject.h"
 #include "AvaSequencePlayer.h"
 #include "AvaSequencerArgs.h"
-#include "AvaSequencerModule.h"
 #include "AvaSequencerUtils.h"
 #include "Clipboard/AvaSequenceExporter.h"
 #include "Clipboard/AvaSequenceImporter.h"
@@ -13,16 +12,16 @@
 #include "Commands/AvaSequencerCommands.h"
 #include "Commands/Stagger/AvaSequencerStagger.h"
 #include "CoreGlobals.h"
-#include "DetailsView/SAvaSequenceDetails.h"
+#include "DetailsView/SAvaMarkDetails.h"
 #include "DetailsView/Section/AvaSequencePlaybackDetails.h"
-#include "DetailsView/Section/AvaSequenceSelectionDetails.h"
+#include "DetailsView/Section/AvaSequencerEaseCurveToolSection.h"
 #include "DetailsView/Section/AvaSequenceSettingsDetails.h"
+#include "DetailsView/Section/AvaSequenceTreeDetails.h"
 #include "EaseCurveTool/AvaEaseCurveTool.h"
 #include "EaseCurveTool/AvaEaseCurveToolCommands.h"
 #include "Editor/Sequencer/Private/Sequencer.h"
-#include "EngineUtils.h"
-#include "EntitySystem/MovieSceneEntitySystemRunner.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IAvaSequenceProvider.h"
 #include "ISequencer.h"
@@ -32,6 +31,7 @@
 #include "MVVM/Selection/Selection.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/Views/SOutlinerView.h"
+#include "Misc/NotifyHook.h"
 #include "Misc/TextFilter.h"
 #include "MovieScene.h"
 #include "Playback/AvaSequencerCleanView.h"
@@ -39,21 +39,22 @@
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
 #include "Selection/AvaEditorSelection.h"
+#include "SequencerCommands.h"
+#include "SequencerSettings.h"
+#include "SequencerUtilities.h"
 #include "SequenceTree/AvaSequenceItem.h"
 #include "SequenceTree/Columns/AvaSequenceNameColumn.h"
 #include "SequenceTree/Columns/AvaSequenceStatusColumn.h"
 #include "SequenceTree/Columns/IAvaSequenceColumn.h"
 #include "SequenceTree/Widgets/SAvaSequenceTree.h"
-#include "SequencerCommands.h"
-#include "SequencerSettings.h"
-#include "SequencerUtilities.h"
 #include "Settings/AvaSequencerSettings.h"
+#include "Sidebar/SidebarDrawerConfig.h"
+#include "Sidebar/SSidebar.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
 #include "ToolMenus.h"
 #include "Toolkits/AssetEditorToolkit.h"
-#include "Tracks/MovieScene3DTransformTrack.h"
 #include "Widgets/Views/STreeView.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaSequencer, Log, All);
@@ -113,6 +114,8 @@ namespace UE::AvaSequencer::Private
 	};
 }
 
+const FName FAvaSequencer::SidebarDrawerId = TEXT("Sequence");
+
 FAvaSequencer::FAvaSequencer(IAvaSequencerProvider& InProvider, FAvaSequencerArgs&& InArgs)
 	: Provider(InProvider)
 	, CommandList(MakeShared<FUICommandList>())
@@ -140,8 +143,24 @@ FAvaSequencer::FAvaSequencer(IAvaSequencerProvider& InProvider, FAvaSequencerArg
 	{
 		const int32 NewIndex = SequencerModule.GetAddTrackMenuExtensibilityManager()->GetExtenderDelegates().Add(
 			FAssetEditorExtender::CreateRaw(this, &FAvaSequencer::GetAddTrackSequencerExtender));
-		
+
 		SequencerAddTrackExtenderHandle = SequencerModule.GetAddTrackMenuExtensibilityManager()->GetExtenderDelegates()[NewIndex].GetHandle();
+
+		SidebarExtender = MakeShared<FExtender>();
+
+		SidebarExtender->AddMenuExtension(
+			TEXT("KeyEdit"),
+			EExtensionHook::First,
+			CommandList,
+			FMenuExtensionDelegate::CreateRaw(this, &FAvaSequencer::ExtendSidebarSelectionMenu));
+
+		SidebarExtender->AddMenuExtension(
+			TEXT("MarkedFrames"),
+			EExtensionHook::After,
+			CommandList,
+			FMenuExtensionDelegate::CreateRaw(this, &FAvaSequencer::ExtendSidebarMarkedFramesMenu));
+
+		SequencerModule.GetSidebarExtensibilityManager()->AddExtender(SidebarExtender);
 	}
 
 	// Register to update when an undo/redo operation has been called to update our list of items
@@ -155,7 +174,7 @@ FAvaSequencer::~FAvaSequencer()
 	OnSequenceStartedHandle.Reset();
 	OnSequenceFinishedHandle.Reset();
 
-	if(GEngine)
+	if (GEngine)
 	{
 		GEditor->UnregisterForUndo(this);
 	}
@@ -168,6 +187,26 @@ FAvaSequencer::~FAvaSequencer()
 			{
 				return SequencerAddTrackExtenderHandle == Extender.GetHandle();
 			});
+	}
+
+	if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+	{
+		Sequencer->UnregisterDrawerSection(SidebarDrawerId, FAvaSequencePlaybackDetails::UniqueId);
+		Sequencer->UnregisterDrawerSection(SidebarDrawerId, FAvaSequenceSettingsDetails::UniqueId);
+		Sequencer->UnregisterDrawerSection(SidebarDrawerId, FAvaSequencerEaseCurveToolSection::UniqueId);
+
+		Sequencer->UnregisterDrawer(SidebarDrawerId);
+
+		Sequencer->UnregisterDrawerSection(FSequencer::SelectionDrawerId, FAvaSequencerEaseCurveToolSection::UniqueId);
+
+		if (SidebarExtender.IsValid())
+		{
+			ISequencerModule& SequencerModule = FAvaSequencerUtils::GetSequencerModule();
+
+			SequencerModule.GetSidebarExtensibilityManager()->RemoveExtender(SidebarExtender);
+
+			SidebarExtender.Reset();
+		}
 	}
 }
 
@@ -1449,39 +1488,66 @@ TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 
 	TSharedRef<ISequencer> Sequencer = GetSequencer();
 
-	TArray<TSharedRef<IAvaSequenceSectionDetails>> Sections =
-		{
-			MakeShared<FAvaSequenceSelectionDetails>(),
-			MakeShared<FAvaSequenceSettingsDetails>(),
-			MakeShared<FAvaSequencePlaybackDetails>(),
-		};
+	const TSharedRef<SOverlay> SidebarOverlay = SNew(SOverlay);
+	SequenceTreeDockLocation = SNew(SBox);
 
-	return SNew(SSplitter)
-		+ SSplitter::Slot()
-		.Value(0.15f)
+	TSharedRef<SOverlay> OutWidget = SNew(SOverlay)
+		+ SOverlay::Slot()
 		[
-			GetSequenceTreeWidget()
-		]
-		+ SSplitter::Slot()
-		.Value(0.65f)
-		[
-			SNew(SOverlay)
-			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Sequencer")))
-			+ SOverlay::Slot()
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
 			[
-				Sequencer->GetSequencerWidget()
+				SAssignNew(LeftSidebar, SSidebar, SidebarOverlay, SequenceTreeDockLocation.ToSharedRef())
+				.TabLocation(ESidebarTabLocation::Left)
+				.OnDockStateChanged(this, &FAvaSequencer::OnSidebarDockStateChanged)
+			]
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SSplitter)
+				+ SSplitter::Slot()
+				.Resizable(false)
+				.SizeRule(SSplitter::ESizeRule::SizeToContent)
+				.Value(FSidebarDrawerConfig::DefaultSizeCoefficient)
+				.OnSlotResized(this, &FAvaSequencer::OnSidebarSlotResized)
+				.Expose(SidebarSlot)
+				[
+					SequenceTreeDockLocation.ToSharedRef()
+				]
+				+ SSplitter::Slot()
+				.Value(0.8f)
+				[
+					SNew(SOverlay)
+					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Sequencer")))
+					+ SOverlay::Slot()
+					[
+						Sequencer->GetSequencerWidget()
+					]
+				]
 			]
 		]
-		+ SSplitter::Slot()
-		.Value(0.2f)
+		+ SOverlay::Slot()
 		[
-			SNew(SAvaSequenceDetails, SharedThis(this), MoveTemp(Sections))
-			.InitiallySelectedSections(SelectedSections)
-			.OnSelectedSectionsChanged_Lambda([this](const TSet<FName>& InNewSelectedSections)
-				{
-					SelectedSections = InNewSelectedSections;
-				})
+			SidebarOverlay
 		];
+
+	FSidebarDrawerConfig SequenceTreeDrawerConfig;
+	SequenceTreeDrawerConfig.UniqueId = SidebarDrawerId;
+	SequenceTreeDrawerConfig.ButtonText = LOCTEXT("SequenceLabel", "Sequence");
+	SequenceTreeDrawerConfig.ToolTipText = LOCTEXT("SequenceTooltip", "Open the Sequence options panel");
+	SequenceTreeDrawerConfig.Icon = FAppStyle::GetBrush(TEXT("Persona.EditInSequencer"));
+	SequenceTreeDrawerConfig.bInitiallyDocked = true;
+	LeftSidebar->RegisterDrawer(MoveTemp(SequenceTreeDrawerConfig));
+	
+	// Make sure the sequence tree widget is created
+	GetSequenceTreeWidget();
+
+	const TSharedRef<FAvaSequencer> ThisSequencerRef = SharedThis(this);
+	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequenceTreeDetails>(ThisSequencerRef));
+	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequencePlaybackDetails>(ThisSequencerRef));
+	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequenceSettingsDetails>(ThisSequencerRef));
+
+	return OutWidget;
 }
 
 void FAvaSequencer::OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors)
@@ -1736,6 +1802,57 @@ void FAvaSequencer::OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut)
 TSharedRef<FAvaEaseCurveTool> FAvaSequencer::GetEaseCurveTool() const
 {
 	return EaseCurveTool.ToSharedRef(); 
+}
+
+void FAvaSequencer::OnSidebarDockStateChanged(const FName InDrawerId)
+{
+	LeftSidebar->UpdateDockedSplitterSlot(SidebarDrawerId, SidebarSlot);
+}
+
+void FAvaSequencer::OnSidebarSlotResized(const float InFillCoefficient)
+{
+	if (InFillCoefficient == 0.f && LeftSidebar->HasDrawerDocked())
+	{
+		LeftSidebar->UndockAllDrawers();
+	}
+}
+
+void FAvaSequencer::ExtendSidebarSelectionMenu(FMenuBuilder& OutMenuBuilder)
+{
+	const TSharedPtr<FAvaSequencerEaseCurveToolSection> Section = MakeShared<FAvaSequencerEaseCurveToolSection>(SharedThis(this));
+	OutMenuBuilder.AddWidget(Section->CreateContentWidget(), FText::GetEmpty(), /*bInNoIndent=*/true);
+}
+
+void FAvaSequencer::ExtendSidebarMarkedFramesMenu(FMenuBuilder& OutMenuBuilder)
+{
+	UAvaSequence* const Sequence = GetViewedSequence();
+	if (!IsValid(Sequence))
+	{
+		return;
+	}
+
+	UMovieScene* const MovieScene = Sequence->GetMovieScene();
+	if (!IsValid(MovieScene))
+	{
+		return;
+	}
+
+	const TSharedPtr<UE::Sequencer::FSequencerSelection> SequencerSelection = GetSequencer()->GetViewModel()->GetSelection();
+	if (!SequencerSelection.IsValid())
+	{
+		return;
+	}
+
+	const TArray<FMovieSceneMarkedFrame>& MarkedFrames = MovieScene->GetMarkedFrames();
+
+	for (const int32 MarkIndex : SequencerSelection->MarkedFrames)
+	{
+		if (MarkedFrames.IsValidIndex(MarkIndex))
+		{
+			const TSharedRef<SWidget> DetailsWidget = SNew(SAvaMarkDetails, Sequence, MarkedFrames[MarkIndex]);
+			OutMenuBuilder.AddWidget(DetailsWidget, FText::GetEmpty(), /*bInNoIndent=*/true);
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

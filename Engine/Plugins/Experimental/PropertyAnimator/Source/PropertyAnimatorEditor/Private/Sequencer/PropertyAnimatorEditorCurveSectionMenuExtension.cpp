@@ -45,7 +45,7 @@ FPropertyAnimatorEditorCurveSectionMenuExtension::FPropertyAnimatorEditorCurveSe
 	Initialize();
 }
 
-void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& InMenuBuilder)
+void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& InMenuBuilder, const bool bSubMenu)
 {
 	TSharedRef<FPropertyAnimatorEditorCurveSectionMenuExtension> This = SharedThis(this);
 
@@ -54,17 +54,31 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& 
 
 	if (ChannelHandles.Num() > 1)
 	{
-		InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
-			{
-				This->BuildChannelsMenu(InInnerMenuBuilder);
-			}));
+		if (bSubMenu)
+		{
+			InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
+				{
+					This->BuildChannelsMenu(InInnerMenuBuilder);
+				}));
+		}
+		else
+		{
+			This->BuildChannelsMenu(InMenuBuilder);
+		}
 	}
 	else if (ChannelHandles.Num() == 1)
 	{
-		InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
-			{
-				This->BuildParametersMenu(InInnerMenuBuilder, 0);
-			}));
+		if (bSubMenu)
+		{
+			InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
+				{
+					This->BuildParametersMenu(InInnerMenuBuilder, 0);
+				}));
+		}
+		else
+		{
+			This->BuildParametersMenu(InMenuBuilder, 0);
+		}
 	}
 }
 

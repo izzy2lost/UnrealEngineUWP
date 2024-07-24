@@ -36,7 +36,7 @@ public:
 
 	virtual bool GetParameterStructData(FMovieSceneChannelHandle InChannelHandle, UStruct*& OutStruct, uint8*& OutData) const = 0;
 
-	void ExtendMenu(FMenuBuilder& InMenuBuilder);
+	void ExtendMenu(FMenuBuilder& InMenuBuilder, const bool bSubMenu = true);
 
 private:
 	void Initialize();

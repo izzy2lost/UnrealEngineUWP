@@ -196,7 +196,13 @@ public:
 	 * Builds the context menu for the track.
 	 * @param MenuBuilder The menu builder to use to build the track menu. 
 	 */
-	virtual void BuildTrackContextMenu( FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track ) = 0;
+	virtual void BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) = 0;
+
+	/**
+	 * Builds the sidebar menu for the track.
+	 * @param MenuBuilder The menu builder to use to build the track menu. 
+	 */
+	virtual void BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) = 0;
 
 	/**
 	 * Called when an asset is dropped into Sequencer. Can potentially consume the asset

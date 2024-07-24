@@ -62,8 +62,14 @@ struct FSequencerCustomizationInfo
 	/** Extender for the sequencer toolbar. */
 	TSharedPtr<FExtender> ToolbarExtender;
 
+	/** Extender for the sequencer sidebar. */
+	TSharedPtr<FExtender> SidebarExtender;
+
 	/** Extender for the object binding. */
 	FOnGetSequencerMenuExtender OnBuildObjectBindingContextMenu;
+
+	/** Called when the sequencer sidebar is being built. */
+	FOnGetSequencerMenuExtender OnBuildSidebarMenu;
 
 	/** Called when something is dragged over the sequencer. */
 	FOptionalOnDragDrop OnReceivedDragOver;

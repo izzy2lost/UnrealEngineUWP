@@ -260,6 +260,8 @@ void FSequencerUtilities::PopulateMenu_BlenderSubMenu(FMenuBuilder& MenuBuilder,
 		}
 	);
 
+	MenuBuilder.BeginSection(TEXT("Blending"), LOCTEXT("BlendingMenuSection", "Blending"));
+
 	for (TSubclassOf<UMovieSceneBlenderSystem> SystemClass : BlenderTypes)
 	{
 		MenuBuilder.AddMenuEntry(
@@ -282,6 +284,8 @@ void FSequencerUtilities::PopulateMenu_BlenderSubMenu(FMenuBuilder& MenuBuilder,
 			EUserInterfaceActionType::RadioButton
 		);
 	}
+	
+	MenuBuilder.EndSection();
 }
 
 void FSequencerUtilities::PopulateMenu_SetBlendType(FMenuBuilder& MenuBuilder, UMovieSceneSection* Section, TWeakPtr<ISequencer> InSequencer)

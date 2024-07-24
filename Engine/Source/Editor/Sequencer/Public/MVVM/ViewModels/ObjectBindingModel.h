@@ -102,6 +102,7 @@ public:
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
 	void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder) override;
 	bool GetDefaultExpansionState() const override;
+	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
 
 	/*~ IDraggableOutlinerExtension */
 	bool CanDrag() const override;

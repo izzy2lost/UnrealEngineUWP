@@ -35,6 +35,7 @@ struct TPropertyAnimatorEditorCurveChannelInterface : ISequencerChannelInterface
 	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle&, FName) const override { return nullptr; }
 	virtual TSharedPtr<UE::Sequencer::STrackAreaLaneView> CreateChannelView_Raw(const FMovieSceneChannelHandle&, TWeakPtr<UE::Sequencer::FChannelModel>, const UE::Sequencer::FCreateTrackLaneViewParams&) const override { return nullptr; }
 	virtual void ExtendSectionMenu_Raw(FMenuBuilder& InMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TConstArrayView<FMovieSceneChannelHandle> InChannels, TConstArrayView<UMovieSceneSection*> InSections, TWeakPtr<ISequencer> InSequencer) const override;
+	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& InMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TConstArrayView<FMovieSceneChannelHandle> InChannels, TConstArrayView<UMovieSceneSection*> InSections, TWeakPtr<ISequencer> InSequencer) const override;
 	virtual int32 DrawExtra_Raw(FMovieSceneChannel* InChannel, const UMovieSceneSection* InOwner, const FSequencerChannelPaintArgs& InPaintArgs, int32 InLayerId) const override;
 	virtual TSharedRef<SWidget> CreateKeyEditor_Raw(const FMovieSceneChannelHandle& InChannel, const UE::Sequencer::FCreateKeyEditorParams& Params) const override;
 	//~ End ISequencerChannelInterface
@@ -53,6 +54,17 @@ void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtension
 		{
 			Extension->ExtendMenu(InInnerMenuBuilder);
 		}));
+}
+
+template<typename InChannelType, typename InMenuExtensionType>
+void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::ExtendSidebarMenu_Raw(FMenuBuilder& InMenuBuilder
+	, TSharedPtr<FExtender> InMenuExtender
+	, TConstArrayView<FMovieSceneChannelHandle> InChannels
+	, TConstArrayView<UMovieSceneSection*> InSections
+	, TWeakPtr<ISequencer> InSequencer) const
+{
+	TSharedRef<FPropertyAnimatorEditorCurveSectionMenuExtension> Extension = MakeShared<FMenuExtensionType>(InChannels, InSections);
+	Extension->ExtendMenu(InMenuBuilder, false);
 }
 
 template<typename InChannelType, typename InMenuExtensionType>

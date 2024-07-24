@@ -42,7 +42,6 @@
 #include "Widgets/Layout/SScrollBorder.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SSeparator.h"
-#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -126,6 +125,9 @@
 #include "UnrealEdGlobals.h"
 #include "UniversalObjectLocators/ActorLocatorFragment.h"
 #include "SequencerUtilities.h"
+#include "Sidebar/SidebarDrawerConfig.h"
+#include "Sidebar/SSidebar.h"
+#include "Widgets/SOverlay.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -287,8 +289,14 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 	if (GetSequencerSettings())
 	{
-		ColumnFillCoefficients[0] = GetSequencerSettings()->GetTreeViewWidth();
-		ColumnFillCoefficients[1] = 1.f - GetSequencerSettings()->GetTreeViewWidth();
+		const float TreeViewWidth = GetSequencerSettings()->GetTreeViewWidth();
+		const float TimelineWidth = 1.f - TreeViewWidth;
+
+		if (TreeViewWidth > 0.f && TimelineWidth > 0.f)
+		{
+			ColumnFillCoefficients[0] = TreeViewWidth;
+			ColumnFillCoefficients[1] = TimelineWidth;
+		}
 	}
 
 	TAttribute<float> FillCoefficient_0, FillCoefficient_1;
@@ -340,6 +348,10 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 	}
 
 	PlayTimeDisplay = StaticCastSharedRef<STemporarilyFocusedSpinBox<double>>(SequencerPtr.Pin()->MakePlayTimeDisplay(GetNumericTypeInterface()));
+
+	const TSharedRef<SOverlay> SidebarOverlay = SNew(SOverlay);
+
+	DetailsDockLocation = SNew(SBox);
 
 	TAttribute<FAnimatedRange> ViewRangeAttribute = InArgs._ViewRange;
 
@@ -517,381 +529,417 @@ void SSequencer::Construct(const FArguments& InArgs, TSharedRef<FSequencer> InSe
 
 		+ SVerticalBox::Slot()
 		[
-			SNew(SSplitter)
-			.Orientation(Orient_Horizontal)
-			
-			+ SSplitter::Slot()
-			.Value(0.9f)
+			// Overlay for sequencer details sliding drawers
+			SNew(SOverlay)
+
+			+ SOverlay::Slot()
 			[
-				SNew(SOverlay)
+				SNew(SHorizontalBox)
 
-				+ SOverlay::Slot()
+				+ SHorizontalBox::Slot()
 				[
-					// track area grid panel
-					SNew( SGridPanel )
-					.FillRow( 2, 1.f )
-					.FillColumn( 0, FillCoefficient_0 )
-					.FillColumn( 1, FillCoefficient_1 )
+					SNew(SSplitter)
+					.Orientation(Orient_Horizontal)
 
-					+ SGridPanel::Slot( Column0, Row1 )
+					+ SSplitter::Slot()
+					.Value(1 - FSidebarDrawerConfig::DefaultSizeCoefficient)
 					[
-						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+						SNew(SOverlay)
+
+						+ SOverlay::Slot()
 						[
-							SNew(SSpacer)
-						]
-					]
+							// track area grid panel
+							SNew( SGridPanel )
+							.FillRow( 2, 1.f )
+							.FillColumn( 0, FillCoefficient_0 )
+							.FillColumn( 1, FillCoefficient_1 )
 
-					// outliner search box
-					+ SGridPanel::Slot( Column0, Row1, SGridPanel::Layer(10) )
-					[
-						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-						.Padding(FMargin(CommonPadding*2, CommonPadding))
-						.Clipping(EWidgetClipping::ClipToBounds)
-						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
-							[
-								MakeAddButton()
-							]
-						
-							+ SHorizontalBox::Slot()
-							.VAlign(VAlign_Center)
-							[
-								SAssignNew(SearchBox, SSearchBox)
-								.HintText(LOCTEXT("SearchNodesHint", "Search Tracks"))
-								.OnTextChanged( this, &SSequencer::OnOutlinerSearchChanged )
-							]
-
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
-							[
-								MakeFilterButton()
-							]
-						]
-					]
-
-					// main sequencer area
-					+ SGridPanel::Slot( Column0, Row2, SGridPanel::Layer(10) )
-					.ColumnSpan(2)
-					[
-						SAssignNew(MainSequencerArea, SVerticalBox)
-
-						+SVerticalBox::Slot()
-						.AutoHeight()
-						.MaxHeight(TAttribute<float>::Create(TAttribute<float>::FGetter::CreateSP(this, &SSequencer::GetPinnedAreaMaxHeight)))
-						.Padding(FMargin(0.f, 0.f, 0.f, CommonPadding))
-						[
-							SNew(SOverlay)
-							.Visibility(this, &SSequencer::GetPinnedAreaVisibility)
-
-							+ SOverlay::Slot()
-							[
-								SNew(SScrollBorder, PinnedTreeView.ToSharedRef())
-								[
-									SNew(SHorizontalBox)
-
-									// outliner tree
-									+ SHorizontalBox::Slot()
-									.FillWidth( FillCoefficient_0 )
-									[
-										PinnedTreeView.ToSharedRef()
-									]
-
-									// track area
-									+ SHorizontalBox::Slot()
-									.FillWidth( FillCoefficient_1 )
-									[
-										SNew(SBox)
-										.Padding(ResizeBarPadding)
-										.Clipping(EWidgetClipping::ClipToBounds)
-										[
-											PinnedTrackArea.ToSharedRef()
-										]
-									]
-								]
-							]
-
-							+ SOverlay::Slot()
-							.HAlign(HAlign_Right)
-							[
-								PinnedAreaScrollBar
-							]
-						]
-
-						+SVerticalBox::Slot()
-						[
-							SNew(SOverlay)
-
-							+ SOverlay::Slot()
-							[
-								SNew(SScrollBorder, TreeView.ToSharedRef())
-								[
-									SNew(SHorizontalBox)
-
-									// outliner tree
-									+ SHorizontalBox::Slot()
-									.FillWidth( FillCoefficient_0 )
-									[
-										TreeView.ToSharedRef()
-									]
-
-									// track area
-									+ SHorizontalBox::Slot()
-									.FillWidth( FillCoefficient_1 )
-									[
-										SNew(SBox)
-										.Padding(ResizeBarPadding)
-										.Clipping(EWidgetClipping::ClipToBounds)
-										[
-											TrackArea.ToSharedRef()
-										]
-									]
-								]
-							]
-
-							+ SOverlay::Slot()
-							.HAlign(HAlign_Right)
-							[
-								ScrollBar
-							]
-
-							+ SOverlay::Slot()
-							.VAlign(VAlign_Bottom)
-							[
-								SNew(SHorizontalBox)
-
-								+ SHorizontalBox::Slot()
-								.AutoWidth()
-								[
-									SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, InSequencer)
-									.Visibility(EVisibility::Hidden) // Initially hidden, visible on hover of the info button
-								]
-							]
-						]
-					]
-
-					// Info Button, Transport Controls and Current Frame
-					+ SGridPanel::Slot( Column0, Row4, SGridPanel::Layer(10) )
-					[
-						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-						.Clipping(EWidgetClipping::ClipToBounds)
-						[
-							SNew(SHorizontalBox)
-						
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Left)
-							[
-								SNew(SButton)
-								.VAlign(EVerticalAlignment::VAlign_Center)
-								.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-								.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
-								.ContentPadding(FMargin(1, 0))
-								.Visibility(this, &SSequencer::GetInfoButtonVisibility)
-								.OnHovered_Lambda([this] { SequencerTreeFilterStatusBar->ShowStatusBar(); })
-								.OnUnhovered_Lambda([this] { SequencerTreeFilterStatusBar->FadeOutStatusBar(); })
-								.OnClicked_Lambda([this] { SequencerTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
-								[
-									SNew(SImage)
-									.ColorAndOpacity(FSlateColor::UseForeground())
-									.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
-								]
-							]
-
-							+ SHorizontalBox::Slot()
+							+ SGridPanel::Slot( Column0, Row1 )
 							[
 								SNew(SBorder)
 								.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-								.HAlign(HAlign_Center)
 								[
-									SequencerPtr.Pin()->MakeTransportControls(true)
+									SNew(SSpacer)
 								]
 							]
 
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							.HAlign(HAlign_Right)
+							// outliner search box
+							+ SGridPanel::Slot( Column0, Row1, SGridPanel::Layer(10) )
 							[
-								SNew(SButton)
-								.VAlign(EVerticalAlignment::VAlign_Center)
-								.ButtonStyle(FAppStyle::Get(), "NoBorder")
-								.ContentPadding(FMargin(1, 0))
+								SNew(SBorder)
+								.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+								.Padding(FMargin(CommonPadding*2, CommonPadding))
+								.Clipping(EWidgetClipping::ClipToBounds)
 								[
 									SNew(SHorizontalBox)
-
 									+ SHorizontalBox::Slot()
 									.AutoWidth()
 									.VAlign(VAlign_Center)
-									.HAlign(HAlign_Right)
-									.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+									.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
 									[
-										SNew(SBorder)
-										.BorderImage(nullptr)
-										[
-											PlayTimeDisplay.ToSharedRef()
-										]
+										MakeAddButton()
+									]
+						
+									+ SHorizontalBox::Slot()
+									.VAlign(VAlign_Center)
+									[
+										SAssignNew(SearchBox, SSearchBox)
+										.HintText(LOCTEXT("SearchNodesHint", "Search Tracks"))
+										.OnTextChanged( this, &SSequencer::OnOutlinerSearchChanged )
 									]
 
 									+ SHorizontalBox::Slot()
 									.AutoWidth()
 									.VAlign(VAlign_Center)
-									.HAlign(HAlign_Right)
-									.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+									.Padding(FMargin(0.f, 0.f, CommonPadding, 0.f))
 									[
-										SNew(SBorder)
-										.BorderImage(nullptr)
+										MakeFilterButton()
+									]
+								]
+							]
+
+							// main sequencer area
+							+ SGridPanel::Slot( Column0, Row2, SGridPanel::Layer(10) )
+							.ColumnSpan(2)
+							[
+								SAssignNew(MainSequencerArea, SVerticalBox)
+
+								+SVerticalBox::Slot()
+								.AutoHeight()
+								.MaxHeight(TAttribute<float>::Create(TAttribute<float>::FGetter::CreateSP(this, &SSequencer::GetPinnedAreaMaxHeight)))
+								.Padding(FMargin(0.f, 0.f, 0.f, CommonPadding))
+								[
+									SNew(SOverlay)
+									.Visibility(this, &SSequencer::GetPinnedAreaVisibility)
+
+									+ SOverlay::Slot()
+									[
+										SNew(SScrollBorder, PinnedTreeView.ToSharedRef())
 										[
-											// Current loop index, if any
-											SAssignNew(LoopIndexDisplay, STextBlock)
-											.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
-											.Text_Lambda([this]() -> FText {
-												TOptional<int32> LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
-												return LoopIndex ? FText::AsNumber(LoopIndex.GetValue()) : FText();
-											})
+											SNew(SHorizontalBox)
+
+											// outliner tree
+											+ SHorizontalBox::Slot()
+											.FillWidth( FillCoefficient_0 )
+											[
+												PinnedTreeView.ToSharedRef()
+											]
+
+											// track area
+											+ SHorizontalBox::Slot()
+											.FillWidth( FillCoefficient_1 )
+											[
+												SNew(SBox)
+												.Padding(ResizeBarPadding)
+												.Clipping(EWidgetClipping::ClipToBounds)
+												[
+													PinnedTrackArea.ToSharedRef()
+												]
+											]
+										]
+									]
+
+									+ SOverlay::Slot()
+									.HAlign(HAlign_Right)
+									[
+										PinnedAreaScrollBar
+									]
+								]
+
+								+SVerticalBox::Slot()
+								[
+									SNew(SOverlay)
+
+									+ SOverlay::Slot()
+									[
+										SNew(SScrollBorder, TreeView.ToSharedRef())
+										[
+											SNew(SHorizontalBox)
+
+											// outliner tree
+											+ SHorizontalBox::Slot()
+											.FillWidth( FillCoefficient_0 )
+											[
+												TreeView.ToSharedRef()
+											]
+
+											// track area
+											+ SHorizontalBox::Slot()
+											.FillWidth( FillCoefficient_1 )
+											[
+												SNew(SBox)
+												.Padding(ResizeBarPadding)
+												.Clipping(EWidgetClipping::ClipToBounds)
+												[
+													TrackArea.ToSharedRef()
+												]
+											]
+										]
+									]
+
+									+ SOverlay::Slot()
+									.HAlign(HAlign_Right)
+									[
+										ScrollBar
+									]
+
+									+ SOverlay::Slot()
+									.VAlign(VAlign_Bottom)
+									[
+										SNew(SHorizontalBox)
+
+										+ SHorizontalBox::Slot()
+										.AutoWidth()
+										[
+											SAssignNew(SequencerTreeFilterStatusBar, SSequencerTreeFilterStatusBar, InSequencer)
+											.Visibility(EVisibility::Hidden) // Initially hidden, visible on hover of the info button
 										]
 									]
 								]
 							]
-						]
-					]
 
-					// Second column
-
-					+ SGridPanel::Slot( Column1, Row1 )
-					.Padding(ResizeBarPadding)
-					.RowSpan(3)
-					[
-						SNew(SBorder)
-						.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-						[
-							SNew(SSpacer)
-						]
-					]
-
-					+ SGridPanel::Slot( Column1, Row1, SGridPanel::Layer(10) )
-					.Padding(ResizeBarPadding)
-					[
-						SNew( SBorder )
-						.BorderImage( FAppStyle::GetBrush("ToolPanel.GroupBorder") )
-						.BorderBackgroundColor( FLinearColor(.50f, .50f, .50f, 1.0f ) )
-						.Padding(0)
-						.Clipping(EWidgetClipping::ClipToBounds)
-						[
-							TopTimeSlider.ToSharedRef()
-						]
-					]
-
-					// Overlay that draws the tick lines
-					+ SGridPanel::Slot( Column1, Row2, SGridPanel::Layer(10) )
-					.Padding(ResizeBarPadding)
-					[
-						SNew( SSequencerSectionOverlay, TimeSliderControllerRef )
-						.Visibility(this, &SSequencer::GetShowTickLines)
-						.DisplayScrubPosition( false )
-						.DisplayTickLines( true )
-						.Clipping(EWidgetClipping::ClipToBounds)
-					]
-
-					// Overlay that draws the scrub position
-					+ SGridPanel::Slot( Column1, Row2, SGridPanel::Layer(20) )
-					.Padding(ResizeBarPadding)
-					[
-						SNew( SSequencerSectionOverlay, TimeSliderControllerRef )
-						.Visibility( EVisibility::HitTestInvisible )
-						.DisplayScrubPosition( true )
-						.DisplayTickLines( false )
-						.DisplayMarkedFrames( true )
-						.PaintPlaybackRangeArgs(this, &SSequencer::GetSectionPlaybackRangeArgs)
-						.Clipping(EWidgetClipping::ClipToBounds)
-					]
-
-					+ SGridPanel::Slot(Column1, Row2, SGridPanel::Layer(30))
-						.Padding(ResizeBarPadding)
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Top)
-					[
-						// Transform box
-						SAssignNew(TransformBox, SSequencerTransformBox, SequencerPtr.Pin().ToSharedRef(), *GetSequencerSettings(), NumericTypeInterface.ToSharedRef())
-					]
-
-					+ SGridPanel::Slot(Column1, Row2, SGridPanel::Layer(40))
-						.Padding(ResizeBarPadding)
-						.HAlign(HAlign_Left)
-						.VAlign(VAlign_Top)
-					[
-						// Stretch box
-						SAssignNew(StretchBox, SSequencerStretchBox, SequencerPtr.Pin().ToSharedRef(), *GetSequencerSettings(), NumericTypeInterface.ToSharedRef())
-					]
-
-					// debug vis
-					+ SGridPanel::Slot( Column1, Row3, SGridPanel::Layer(10) )
-					.Padding(ResizeBarPadding)
-					[
-						SNew(SSequencerDebugVisualizer, InSequencer)
-						.ViewRange(FAnimatedRange::WrapAttribute(InArgs._ViewRange))
-						.Visibility(this, &SSequencer::GetDebugVisualizerVisibility)
-					]
-
-					// play range sliders
-					+ SGridPanel::Slot( Column1, Row4, SGridPanel::Layer(10) )
-					.Padding(ResizeBarPadding)
-					[
-						SNew( SBorder )
-						.BorderImage( FAppStyle::GetBrush("ToolPanel.GroupBorder") )
-						.BorderBackgroundColor( FLinearColor(.50f, .50f, .50f, 1.0f ) )
-						.Clipping(EWidgetClipping::ClipToBounds)
-						.Padding(0)
-						[
-							SNew( SOverlay )
-
-							+ SOverlay::Slot()
+							// Info Button, Transport Controls and Current Frame
+							+ SGridPanel::Slot( Column0, Row4, SGridPanel::Layer(10) )
 							[
-								BottomTimeSlider
+								SNew(SBorder)
+								.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+								.Clipping(EWidgetClipping::ClipToBounds)
+								[
+									SNew(SHorizontalBox)
+						
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.VAlign(VAlign_Center)
+									.HAlign(HAlign_Left)
+									[
+										SNew(SButton)
+										.VAlign(EVerticalAlignment::VAlign_Center)
+										.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+										.ToolTipText_Lambda([this] { return LOCTEXT("ShowStatus", "Show Status"); })
+										.ContentPadding(FMargin(1, 0))
+										.Visibility(this, &SSequencer::GetInfoButtonVisibility)
+										.OnHovered_Lambda([this] { SequencerTreeFilterStatusBar->ShowStatusBar(); })
+										.OnUnhovered_Lambda([this] { SequencerTreeFilterStatusBar->FadeOutStatusBar(); })
+										.OnClicked_Lambda([this] { SequencerTreeFilterStatusBar->HideStatusBar(); return FReply::Handled(); })
+										[
+											SNew(SImage)
+											.ColorAndOpacity(FSlateColor::UseForeground())
+											.Image(FAppStyle::Get().GetBrush("Icons.Info.Small"))
+										]
+									]
+
+									+ SHorizontalBox::Slot()
+									[
+										SNew(SBorder)
+										.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+										.HAlign(HAlign_Center)
+										[
+											SequencerPtr.Pin()->MakeTransportControls(true)
+										]
+									]
+
+									+ SHorizontalBox::Slot()
+									.AutoWidth()
+									.VAlign(VAlign_Center)
+									.HAlign(HAlign_Right)
+									[
+										SNew(SButton)
+										.VAlign(EVerticalAlignment::VAlign_Center)
+										.ButtonStyle(FAppStyle::Get(), "NoBorder")
+										.ContentPadding(FMargin(1, 0))
+										[
+											SNew(SHorizontalBox)
+
+											+ SHorizontalBox::Slot()
+											.AutoWidth()
+											.VAlign(VAlign_Center)
+											.HAlign(HAlign_Right)
+											.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+											[
+												SNew(SBorder)
+												.BorderImage(nullptr)
+												[
+													PlayTimeDisplay.ToSharedRef()
+												]
+											]
+
+											+ SHorizontalBox::Slot()
+											.AutoWidth()
+											.VAlign(VAlign_Center)
+											.HAlign(HAlign_Right)
+											.Padding(FMargin(CommonPadding, 0.f, 0.f, 0.f))
+											[
+												SNew(SBorder)
+												.BorderImage(nullptr)
+												[
+													// Current loop index, if any
+													SAssignNew(LoopIndexDisplay, STextBlock)
+													.Font(FCoreStyle::GetDefaultFontStyle("Regular", 8))
+													.Text_Lambda([this]() -> FText {
+														TOptional<int32> LoopIndex = SequencerPtr.Pin()->GetLocalLoopIndex();
+														return LoopIndex ? FText::AsNumber(LoopIndex.GetValue()) : FText();
+													})
+												]
+											]
+										]
+									]
+								]
 							]
 
-							+ SOverlay::Slot()
+							// Second column
+
+							+ SGridPanel::Slot( Column1, Row1 )
+							.Padding(ResizeBarPadding)
+							.RowSpan(3)
 							[
-								BottomTimeRange
+								SNew(SBorder)
+								.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+								[
+									SNew(SSpacer)
+								]
+							]
+
+							+ SGridPanel::Slot( Column1, Row1, SGridPanel::Layer(10) )
+							.Padding(ResizeBarPadding)
+							[
+								SNew( SBorder )
+								.BorderImage( FAppStyle::GetBrush("ToolPanel.GroupBorder") )
+								.BorderBackgroundColor( FLinearColor(.50f, .50f, .50f, 1.0f ) )
+								.Padding(0)
+								.Clipping(EWidgetClipping::ClipToBounds)
+								[
+									TopTimeSlider.ToSharedRef()
+								]
+							]
+
+							// Overlay that draws the tick lines
+							+ SGridPanel::Slot( Column1, Row2, SGridPanel::Layer(10) )
+							.Padding(ResizeBarPadding)
+							[
+								SNew( SSequencerSectionOverlay, TimeSliderControllerRef )
+								.Visibility(this, &SSequencer::GetShowTickLines)
+								.DisplayScrubPosition( false )
+								.DisplayTickLines( true )
+								.Clipping(EWidgetClipping::ClipToBounds)
+							]
+
+							// Overlay that draws the scrub position
+							+ SGridPanel::Slot( Column1, Row2, SGridPanel::Layer(20) )
+							.Padding(ResizeBarPadding)
+							[
+								SNew( SSequencerSectionOverlay, TimeSliderControllerRef )
+								.Visibility( EVisibility::HitTestInvisible )
+								.DisplayScrubPosition( true )
+								.DisplayTickLines( false )
+								.DisplayMarkedFrames( true )
+								.PaintPlaybackRangeArgs(this, &SSequencer::GetSectionPlaybackRangeArgs)
+								.Clipping(EWidgetClipping::ClipToBounds)
+							]
+
+							+ SGridPanel::Slot(Column1, Row2, SGridPanel::Layer(30))
+								.Padding(ResizeBarPadding)
+								.HAlign(HAlign_Left)
+								.VAlign(VAlign_Top)
+							[
+								// Transform box
+								SAssignNew(TransformBox, SSequencerTransformBox, SequencerPtr.Pin().ToSharedRef(), *GetSequencerSettings(), NumericTypeInterface.ToSharedRef())
+							]
+
+							+ SGridPanel::Slot(Column1, Row2, SGridPanel::Layer(40))
+								.Padding(ResizeBarPadding)
+								.HAlign(HAlign_Left)
+								.VAlign(VAlign_Top)
+							[
+								// Stretch box
+								SAssignNew(StretchBox, SSequencerStretchBox, SequencerPtr.Pin().ToSharedRef(), *GetSequencerSettings(), NumericTypeInterface.ToSharedRef())
+							]
+
+							// debug vis
+							+ SGridPanel::Slot( Column1, Row3, SGridPanel::Layer(10) )
+							.Padding(ResizeBarPadding)
+							[
+								SNew(SSequencerDebugVisualizer, InSequencer)
+								.ViewRange(FAnimatedRange::WrapAttribute(InArgs._ViewRange))
+								.Visibility(this, &SSequencer::GetDebugVisualizerVisibility)
+							]
+
+							// play range sliders
+							+ SGridPanel::Slot( Column1, Row4, SGridPanel::Layer(10) )
+							.Padding(ResizeBarPadding)
+							[
+								SNew( SBorder )
+								.BorderImage( FAppStyle::GetBrush("ToolPanel.GroupBorder") )
+								.BorderBackgroundColor( FLinearColor(.50f, .50f, .50f, 1.0f ) )
+								.Clipping(EWidgetClipping::ClipToBounds)
+								.Padding(0)
+								[
+									SNew( SOverlay )
+
+									+ SOverlay::Slot()
+									[
+										BottomTimeSlider
+									]
+
+									+ SOverlay::Slot()
+									[
+										BottomTimeRange
+									]
+								]
 							]
 						]
+
+						+ SOverlay::Slot()
+						[
+							// track area virtual splitter overlay
+							SAssignNew(TreeViewSplitter, SSequencerSplitterOverlay)
+							.Style(FAppStyle::Get(), "Sequencer.AnimationOutliner.Splitter")
+							.Visibility(EVisibility::SelfHitTestInvisible)
+							.OnSplitterFinishedResizing(this, &SSequencer::OnSplitterFinishedResizing)
+
+							+ SSplitter::Slot()
+							.Value(FillCoefficient_0)
+							// Can't use a minsize here because the grid panel that is actually being used to
+							//   lay out the widgets only supports fill coefficients and this leads to a disparity between the two
+							// .MinSize(200)
+							.OnSlotResized(SSplitter::FOnSlotResized::CreateSP(this, &SSequencer::OnColumnFillCoefficientChanged, 0))
+							[
+								SNew(SSpacer)
+							]
+
+							+ SSplitter::Slot()
+							.Value(FillCoefficient_1)
+							.OnSlotResized(SSplitter::FOnSlotResized::CreateSP(this, &SSequencer::OnColumnFillCoefficientChanged, 1))
+							[
+								SNew(SSpacer)
+							]
+						]
+					]
+
+					// Sequencer details sliding drawer content dock location
+					+ SSplitter::Slot()
+					.Resizable(false)
+					.SizeRule(SSplitter::ESizeRule::SizeToContent)
+					.Value(FSidebarDrawerConfig::DefaultSizeCoefficient)
+					.OnSlotResized(this, &SSequencer::OnSidebarSlotResized)
+					.Expose(SidebarSlot)
+					[
+						DetailsDockLocation.ToSharedRef()
 					]
 				]
 
-				+ SOverlay::Slot()
+				// Sequencer details sliding drawer sidebar
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
 				[
-					// track area virtual splitter overlay
-					SAssignNew(TreeViewSplitter, SSequencerSplitterOverlay)
-					.Style(FAppStyle::Get(), "Sequencer.AnimationOutliner.Splitter")
-					.Visibility(EVisibility::SelfHitTestInvisible)
-					.OnSplitterFinishedResizing(this, &SSequencer::OnSplitterFinishedResizing)
-
-					+ SSplitter::Slot()
-					.Value(FillCoefficient_0)
-					// Can't use a minsize here because the grid panel that is actually being used to
-					//   lay out the widgets only supports fill coefficients and this leads to a disparity between the two
-					// .MinSize(200)
-					.OnSlotResized(SSplitter::FOnSlotResized::CreateSP(this, &SSequencer::OnColumnFillCoefficientChanged, 0))
-					[
-						SNew(SSpacer)
-					]
-
-					+ SSplitter::Slot()
-					.Value(FillCoefficient_1)
-					.OnSlotResized(SSplitter::FOnSlotResized::CreateSP(this, &SSequencer::OnColumnFillCoefficientChanged, 1))
-					[
-						SNew(SSpacer)
-					]
+					SAssignNew(DetailsSidebar, SSidebar, SidebarOverlay, DetailsDockLocation.ToSharedRef())
+					.OnDockStateChanged(this, &SSequencer::OnSidebarDockStateChanged)
+					.Visibility_Lambda([this]() { return IsSidebarVisible() ? EVisibility::Visible : EVisibility::Collapsed; })
 				]
+			]
+
+			+ SOverlay::Slot()
+			[
+				SidebarOverlay
 			]
 		]
 	];
@@ -4178,5 +4226,88 @@ USequencerSettings* SSequencer::GetSequencerSettings() const
 	return nullptr;
 }
 
-#undef LOCTEXT_NAMESPACE
+bool SSequencer::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
+{
+	if (DetailsSidebar.IsValid())
+	{
+		return DetailsSidebar->RegisterDrawer(MoveTemp(InDrawerConfig));
+	}
+	return false;
+}
 
+bool SSequencer::UnregisterDrawer(const FName InDrawerId)
+{
+	if (DetailsSidebar.IsValid())
+	{
+		return DetailsSidebar->UnregisterDrawer(InDrawerId);
+	}
+	return false;
+}
+
+bool SSequencer::RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection)
+{
+	if (DetailsSidebar.IsValid())
+	{
+		return DetailsSidebar->RegisterDrawerSection(InDrawerId, InSection);
+	}
+	return false;
+}
+
+bool SSequencer::UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId)
+{
+	if (DetailsSidebar.IsValid())
+	{
+		return DetailsSidebar->UnregisterDrawerSection(InDrawerId, InSectionId);
+	}
+	return false;
+}
+
+void SSequencer::OnSidebarDockStateChanged(const FName InDrawerId)
+{
+	DetailsSidebar->UpdateDockedSplitterSlot(InDrawerId, SidebarSlot);
+}
+
+void SSequencer::OnSidebarSlotResized(const float InFillCoefficient)
+{
+	if (InFillCoefficient == 0.f && DetailsSidebar->HasDrawerDocked())
+	{
+		DetailsSidebar->UndockAllDrawers();
+	}
+}
+
+bool SSequencer::IsSidebarVisible() const
+{
+	return DetailsSidebar.IsValid() && DetailsSidebar->GetDrawerCount() > 0;
+}
+
+void SSequencer::ToggleSidebarSelectionDrawerOpen()
+{
+	if (DetailsSidebar->IsDrawerDocked(FSequencer::SelectionDrawerId))
+	{
+		DetailsSidebar->UndockAllDrawers();
+	}
+	else if (DetailsSidebar->IsDrawerOpened(FSequencer::SelectionDrawerId))
+	{
+		DetailsSidebar->CloseAllDrawers();
+	}
+	else
+	{
+		DetailsSidebar->TryOpenDrawer(FSequencer::SelectionDrawerId);
+	}
+}
+
+void SSequencer::ToggleSidebarDrawerDock()
+{
+	const FName OpenedDrawerId = DetailsSidebar->GetOpenedDrawerId();
+	if (!OpenedDrawerId.IsNone())
+	{
+		DetailsSidebar->SetDrawerDocked(OpenedDrawerId, true);
+		DetailsSidebar->CloseAllDrawers();
+	}
+	else if (DetailsSidebar->HasDrawerDocked())
+	{
+		DetailsSidebar->UndockAllDrawers();
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

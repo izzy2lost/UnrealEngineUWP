@@ -150,11 +150,23 @@ struct ISequencerChannelInterface
 	 * Extend the section context menu
 	 *
 	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param MenuExtender          The menu extender to use
 	 * @param Channels              Array of type specific channels that exist in the selected sections
 	 * @param Sections              Array of sections being shown on the context menu
 	 * @param InSequencer           The currently active sequencer
 	 */
 	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const = 0;
+
+	/**
+	 * Extend the section sidebar menu
+	 *
+	 * @param MenuBuilder           The menu builder used to create this context menu
+	 * @param MenuExtender          The menu extender to use
+	 * @param Channels              Array of type specific channels that exist in the selected sections
+	 * @param Sections              Array of sections being shown on the context menu
+	 * @param InSequencer           The currently active sequencer
+	 */
+	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const = 0;
 
 	/**
 	 * Gather information on how to draw the specified keys

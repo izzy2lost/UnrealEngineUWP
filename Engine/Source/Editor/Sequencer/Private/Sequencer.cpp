@@ -162,6 +162,8 @@
 #include "Systems/MovieSceneMotionVectorSimulationSystem.h"
 #include "IKeyArea.h"
 #include "Editor/TransBuffer.h"
+#include "Sidebar/SidebarDrawerConfig.h"
+#include "Widgets/Sidebar/SequencerSelectionDrawer.h"
 
 #include "EngineModule.h"
 #include "IViewportSelectableObject.h"
@@ -292,6 +294,7 @@ namespace UE
 } // namespace UE
 
 bool FSequencer::bSelectionLimited = false;
+const FName FSequencer::SelectionDrawerId = TEXT("SelectionDetails");
 
 void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates)
 {
@@ -665,6 +668,20 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	AddNodeGroupsCollectionChangedDelegate();
 
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs[0]);
+
+	{ // Selection Details Drawer
+		FSequencerSelectionDrawer SelectionDrawer(SharedThis(this));
+
+		FSidebarDrawerConfig DetailsDrawer;
+		DetailsDrawer.UniqueId = SelectionDrawerId;
+		DetailsDrawer.ButtonText = LOCTEXT("SelectionDetailsPanelLabel", "Selection");
+		DetailsDrawer.ToolTipText = TAttribute<FText>::CreateSP(this, &FSequencer::GetSidebarSelectionDrawerToolTipText);
+		DetailsDrawer.Icon = FAppStyle::GetBrush(TEXT("EditorPreferences.TabIcon"));
+		DetailsDrawer.bInitiallyDocked = true;
+		RegisterDrawer(MoveTemp(DetailsDrawer));
+
+		RegisterDrawerSection(SelectionDrawerId, MakeShared<FSequencerSelectionDrawer>(SharedThis(this)));
+	}
 }
 
 void FSequencer::SetSequencerSettings(USequencerSettings* InSettings)
@@ -11553,6 +11570,14 @@ void FSequencer::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FSequencer::IsViewportSelectionLimited));
 
+	SequencerCommandBindings->MapAction(
+		Commands.ToggleSidebarSelectionDrawerOpen,
+		FExecuteAction::CreateSP( this, &FSequencer::ShowHideSidebarSelectionDrawer));
+
+	SequencerCommandBindings->MapAction(
+		Commands.ToggleSidebarDrawerDock,
+		FExecuteAction::CreateSP( this, &FSequencer::ToggleSidebarDrawerDocked));
+
 	// If this sequencer supports a curve editor, let's add bindings for it.
 	FCurveEditorExtension* CurveEditorExtension = ViewModel->CastDynamic<FCurveEditorExtension>();
 	if (CurveEditorExtension && ensure(CurveEditorExtension->GetCurveEditor()))
@@ -12092,6 +12117,89 @@ void FSequencer::ForEachSubSequenceRecursively(UMovieSceneSequence* const InSequ
 ISequencer::FOnViewportSelectionLimitedChanged& FSequencer::OnViewportSelectionLimitedChanged()
 {
 	return OnSelectionLimitedChangedDelegate;
+}
+
+bool FSequencer::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
+{
+	if (SequencerWidget.IsValid())
+	{
+		return SequencerWidget->RegisterDrawer(MoveTemp(InDrawerConfig));
+	}
+	return false;
+}
+
+bool FSequencer::UnregisterDrawer(const FName InDrawerId)
+{
+	if (SequencerWidget.IsValid())
+	{
+		return SequencerWidget->UnregisterDrawer(InDrawerId);
+	}
+	return false;
+}
+
+bool FSequencer::RegisterDrawerSection(const FName InDrawerId, const TSharedPtr<ISidebarDrawerContent>& InSection)
+{
+	if (SequencerWidget.IsValid())
+	{
+		return SequencerWidget->RegisterDrawerSection(InDrawerId, InSection);
+	}
+	return false;
+}
+
+bool FSequencer::UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId)
+{
+	if (SequencerWidget.IsValid())
+	{
+		return SequencerWidget->UnregisterDrawerSection(InDrawerId, InSectionId);
+	}
+	return false;
+}
+
+void FSequencer::ShowHideSidebarSelectionDrawer()
+{
+	if (SequencerWidget.IsValid())
+	{
+		SequencerWidget->ToggleSidebarSelectionDrawerOpen();
+	}
+}
+
+void FSequencer::ToggleSidebarDrawerDocked()
+{
+	if (SequencerWidget.IsValid())
+	{
+		SequencerWidget->ToggleSidebarDrawerDock();
+	}
+}
+
+FText FSequencer::GetSidebarSelectionDrawerToolTipText() const
+{
+	const TSharedRef<const FInputChord> DrawerOpenActiveChord = FSequencerCommands::Get().ToggleSidebarSelectionDrawerOpen->GetFirstValidChord();
+	const TSharedRef<const FInputChord> DrawerDockActiveChord = FSequencerCommands::Get().ToggleSidebarDrawerDock->GetFirstValidChord();
+
+	FText ToolTipText = LOCTEXT("SelectionDetailsPanelTooltip", "Open Sequencer selection details panel.");
+
+	if (DrawerOpenActiveChord->IsValidChord() || DrawerDockActiveChord->IsValidChord())
+	{
+		ToolTipText = FText::Format(LOCTEXT("ExtendedSelectionDetailsPanelTooltip", "{0}\n"), ToolTipText);
+	}
+
+	if (DrawerOpenActiveChord->IsValidChord())
+	{
+		ToolTipText = FText::Format(LOCTEXT("ExtendedSelectionDrawerOpenDetailsPanelTooltip", "{0}\n"
+			"{1} to toggle the drawer open or closed")
+			, ToolTipText
+			, DrawerOpenActiveChord->GetInputText(true));
+	}
+
+	if (DrawerDockActiveChord->IsValidChord())
+	{
+		ToolTipText = FText::Format(LOCTEXT("ExtendedSelectionDrawerDockDetailsPanelTooltip", "{0}\n"
+			"{1} to toggle the drawer docked or undocked")
+			, ToolTipText
+			, DrawerDockActiveChord->GetInputText(true));
+	}
+
+	return ToolTipText;
 }
 
 #undef LOCTEXT_NAMESPACE

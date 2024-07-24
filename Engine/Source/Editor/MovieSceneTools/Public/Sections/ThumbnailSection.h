@@ -69,6 +69,7 @@ public:
 	//~ ISequencerSection interface
 
 	virtual void BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override;
+	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) override;
 	virtual TSharedRef<SWidget> GenerateSectionWidget() override;
 	virtual float GetSectionGripSize() const override;
 	virtual float GetSectionHeight(const UE::Sequencer::FViewDensityInfo& ViewDensity) const override;
@@ -90,6 +91,8 @@ protected:
 
 	/** Get rename visibility */
 	EVisibility GetRenameVisibility() const;
+
+	void BuildThumbnailsMenu(FMenuBuilder& InMenuBuilder);
 
 protected:
 

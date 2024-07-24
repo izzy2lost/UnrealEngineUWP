@@ -678,23 +678,7 @@ void FTrackModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	}
 
 	// Add menu items for selecting a blender
-	IMovieSceneBlenderSystemSupport* BlenderSystemSupport = Cast<IMovieSceneBlenderSystemSupport>(Track);
-	if (BlenderSystemSupport)
-	{
-		TArray<TSubclassOf<UMovieSceneBlenderSystem>> BlenderTypes;
-		BlenderSystemSupport->GetSupportedBlenderSystems(BlenderTypes);
-
-		if (BlenderTypes.Num() > 1)
-		{
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("BlendingAlgorithmSubMenu", "Blending Algorithm"),
-				FText(),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder){
-					FSequencerUtilities::PopulateMenu_BlenderSubMenu(SubMenuBuilder, Track, WeakSequencer);
-				})
-			);
-		}
-	}
+	BuildBlendingMenu(MenuBuilder);
 
 	// Find sections in the track to add batch properties for
 	TArray<TWeakObjectPtr<UObject>> TrackSections;
@@ -738,6 +722,83 @@ void FTrackModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	}
 
 	FOutlinerItemModel::BuildContextMenu(MenuBuilder);
+}
+
+void FTrackModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (!IsValid(Track))
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const IMovieSceneBlenderSystemSupport* const BlenderSystemSupport = Cast<IMovieSceneBlenderSystemSupport>(Track);
+	if (BlenderSystemSupport)
+	{
+		FSequencerUtilities::PopulateMenu_BlenderSubMenu(MenuBuilder, Track, Sequencer);
+	}
+
+	// Find sections in the track to add batch properties for
+	const TArray<TWeakObjectPtr<UObject>> TrackSections = GetSelectedTrackSections();
+	if (TrackSections.Num())
+	{
+		MenuBuilder.BeginSection(TEXT("TrackSection"), LOCTEXT("TrackSectionMenuSection", "Track Section"));
+		
+		FSequencer* const SequencerRaw = static_cast<FSequencer*>(Sequencer.Get());
+		SequencerHelpers::AddPropertiesMenu(*SequencerRaw, MenuBuilder, TrackSections);
+
+		MenuBuilder.EndSection();
+	}
+
+	FOutlinerItemModelMixin::BuildSidebarMenu(MenuBuilder);
+}
+
+void FTrackModel::BuildBlendingMenu(FMenuBuilder& MenuBuilder)
+{
+	UMovieSceneTrack* const Track = GetTrack();
+	if (!IsValid(Track))
+	{
+		return;
+	}
+
+	const IMovieSceneBlenderSystemSupport* const BlenderSystemSupport = Cast<IMovieSceneBlenderSystemSupport>(Track);
+	if (!BlenderSystemSupport)
+	{
+		return;
+	}
+
+	TArray<TSubclassOf<UMovieSceneBlenderSystem>> BlenderTypes;
+	BlenderSystemSupport->GetSupportedBlenderSystems(BlenderTypes);
+	if (BlenderTypes.Num() == 0)
+	{
+		return;
+	}
+	
+	const TSharedPtr<ISequencer> Sequencer = GetEditor()->GetSequencer();
+	if (!Sequencer)
+	{
+		return;
+	}
+	
+	MenuBuilder.AddSubMenu(
+		LOCTEXT("BlendingAlgorithmSubMenu", "Blending Algorithm"),
+		FText(),
+		FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder)
+			{
+				FSequencerUtilities::PopulateMenu_BlenderSubMenu(SubMenuBuilder, Track, Sequencer);
+			}));
 }
 
 bool FTrackModel::CanDelete(FText* OutErrorMessage) const
@@ -811,6 +872,57 @@ bool FTrackModel::FindBoundObjects(TArray<UObject*>& OutBoundObjects) const
 		}
 	}
 	return true;
+}
+
+TArray<TWeakObjectPtr<UObject>> FTrackModel::GetSelectedTrackSections() const
+{
+	TArray<TWeakObjectPtr<UObject>> TrackSections;
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return TrackSections;
+	}
+
+	const TSharedPtr<ISequencer> Sequencer = EditorViewModel->GetSequencer();
+	if (!Sequencer.IsValid())
+	{
+		return TrackSections;
+	}
+
+	const TSharedPtr<UE::Sequencer::FSequencerEditorViewModel> ViewModel = Sequencer->GetViewModel();
+	if (!ViewModel.IsValid())
+	{
+		return TrackSections;
+	}
+
+	const TSharedPtr<FSequencerSelection> Selection = ViewModel->GetSelection();
+	if (!Selection.IsValid())
+	{
+		return TrackSections;
+	}
+	
+	for (const TViewModelPtr<ITrackExtension> TrackExtension : Selection->Outliner.Filter<ITrackExtension>())
+	{
+		for (UMovieSceneSection* const Section : TrackExtension->GetSections())
+		{
+			TrackSections.Add(Section);
+		}
+	}
+
+	for (const TSharedPtr<FViewModel> TrackAreaModel : GetTrackAreaModelList())
+	{
+		constexpr bool bIncludeThis = true;
+		for (const TSharedPtr<FSectionModel> Section : TParentFirstChildIterator<FSectionModel>(TrackAreaModel, bIncludeThis))
+		{
+			if (UMovieSceneSection* const SectionObject = Section->GetSection())
+			{
+				TrackSections.AddUnique(SectionObject);
+			}
+		}
+	}
+
+	return TrackSections;
 }
 
 } // namespace UE::Sequencer
