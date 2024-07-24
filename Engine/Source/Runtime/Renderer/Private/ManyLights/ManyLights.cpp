@@ -149,13 +149,6 @@ static TAutoConsoleVariable<int32> CVarManyLightsIESProfiles(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarManyLightsTest(
-	TEXT("r.ManyLights.Test"),
-	1,
-	TEXT("Test."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
-
 namespace ManyLights
 {
 	// must match values in ManyLights.ush

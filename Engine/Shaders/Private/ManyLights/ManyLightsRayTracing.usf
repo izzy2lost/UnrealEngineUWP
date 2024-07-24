@@ -99,7 +99,6 @@ void CompactLightSampleTracesCS(
 	bool bTraceValid = false;
 	uint TraceTexelForThisThread = 0;
 
-	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
 	if (all(SampleCoord < SampleViewMin + SampleViewSize))
 	{
 		// #ml_todo: try to preserve z-order here for improved tracing coherency
