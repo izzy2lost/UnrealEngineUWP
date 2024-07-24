@@ -11,10 +11,16 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectSystem.h"
+#include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 
 
 int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 {
+	// Ensure we have the cvars used for our testing set
+	UCustomizableObjectSystem::SetBenchmarkState(true);
+	//CustomizableObjectBenchmarkingUtils::SetMutableCVarsForCIS();
+	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;
 
@@ -141,12 +147,9 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 		const FString CustomizableObjectName = CustomizableObject->GetName();
 		
 		// Set the compilation platform based on what the system is currently running on
-		FCompilationOptions CompilationOptions = CustomizableObject->GetPrivate()->GetCompileOptions();
+		FCompilationOptions CompilationOptions = GetCompilationOptionsForBenchmarking(*CustomizableObject);
 		CompilationOptions.TargetPlatform = TargetCompilationPlatform;
-		CompilationOptions.bUseDiskCompilation = false;
-		CompilationOptions.OptimizationLevel = UE_MUTABLE_MAX_OPTIMIZATION;
-		CompilationOptions.bSilentCompilation = false;
-
+		
 		// Compile the current CO object
 		if (!CompilationUtility->CompileCustomizableObject(CustomizableObject, false, &CompilationOptions))	// Do not log mutable data since mongoDB will not be able to handle it correctly 
 		{
@@ -166,14 +169,17 @@ int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 			Instances.RemoveAt(0);
 			UE_LOG(LogMutable,Display,TEXT("\t( %u / %u ) Processing instance : \"%s\" ."),CurrentInstanceIndex++, TotalAmountOfInstances ,*Instance->GetName());
 
-			CollectGarbage(RF_NoFlags, true);
+			CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 			
 			// Update each one of the instances and notify if the update failed in any manner
 			InstanceUpdatingUtility->UpdateInstance(Instance.Get());
+			
+			// Remove standalone flag from the instance so we can GC it while keeping other standalone objects
+			Instance->ClearFlags(EObjectFlags::RF_Standalone);
 		}
 
 		ResourcesIterator.RemoveCurrent();
-		CollectGarbage(RF_NoFlags, true);
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS, true);
 	}
 
 	UE_LOG(LogMutable,Display,TEXT("Mutable commandlet finished."));
