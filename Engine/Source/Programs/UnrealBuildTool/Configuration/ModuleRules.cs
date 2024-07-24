@@ -1059,9 +1059,8 @@ namespace UnrealBuildTool
 			"cplusplus.NewDelete",
 			"cplusplus.NewDeleteLeaks",
 			"unix.cstring.NullArg",
-			"unix.Malloc",
 
-			// Needs evalulation
+			// Needs evaluation
 			"deadcode.DeadStores",
 		};
 
