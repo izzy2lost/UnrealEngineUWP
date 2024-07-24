@@ -77,7 +77,6 @@ UHLODLayer* UHLODLayer::DuplicateHLODLayersSetup(UHLODLayer* HLODLayer, const FS
 		UPackage* Package = CreatePackage(*PackageName);
 		// In case Package already exists setting this flag will allow overwriting it
 		Package->MarkAsFullyLoaded();
-		Package->SetDirtyFlag(true);
 
 		FObjectDuplicationParameters ObjParameters(CurrentHLODLayer, Package);
 		ObjParameters.DestName = FName(Prefix + TEXT("_") + CurrentHLODLayer->GetName());
