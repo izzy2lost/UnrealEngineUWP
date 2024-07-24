@@ -402,7 +402,7 @@ class StepTrendsRenderer {
 
          let sum = 0;
          let count = 0;
-         const range = 50;
+         const range = 10;
          for (let j = idx - range; j < idx + range; j++) {
 
             if (j < 0 || j >= data.length) {
