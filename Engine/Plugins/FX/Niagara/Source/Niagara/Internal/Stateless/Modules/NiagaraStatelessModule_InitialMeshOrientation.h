@@ -25,10 +25,10 @@ class UNiagaraStatelessModule_InitialMeshOrientation : public UNiagaraStatelessM
 public:
 	using FParameters = NiagaraStateless::FInitialMeshOrientationModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg"))
 	FVector3f	Rotation = FVector3f::ZeroVector;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters")
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg"))
 	FVector3f	RandomRotationRange = FVector3f(360.0f, 360.0f, 360.0f);
 
 	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override

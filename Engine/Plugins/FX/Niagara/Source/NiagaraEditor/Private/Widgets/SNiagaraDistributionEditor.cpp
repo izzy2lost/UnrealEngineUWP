@@ -2,10 +2,13 @@
 
 #include "Widgets/SNiagaraDistributionEditor.h"
 
+#include "NiagaraEditorModule.h"
 #include "Curves/CurveOwnerInterface.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "NiagaraEditorStyle.h"
 #include "SColorGradientEditor.h"
+#include "SNiagaraParameterEditor.h"
+#include "TypeEditorUtilities/NiagaraFloatTypeEditorUtilities.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SVectorInputBox.h"
@@ -14,7 +17,6 @@
 #include "Widgets/NiagaraDistributionEditorUtilities.h"
 #include "Widgets/SNiagaraColorEditor.h"
 #include "Widgets/SNiagaraDistributionCurveEditor.h"
-#include "Widgets/SNiagaraExpandedToggle.h"
 #include "Widgets/SNiagaraParameterName.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraDistributionEditor"
@@ -194,7 +196,7 @@ public:
 			TSharedPtr<SWidget> ValueWidget;
 			if (bIsUniform)
 			{
-				ValueWidget = ConstructFloatWidget(0, 0, FText());
+				ValueWidget = ConstructCustomizableFloatWidget(0, 0);
 			}
 			else if (bIsColor)
 			{
@@ -303,7 +305,8 @@ private:
 			: SNew(STextBlock)
 				.TextStyle(FNiagaraEditorStyle::Get(), "NiagaraEditor.ParameterText")
 				.Text(LabelText);
-
+		EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
+		
 		return
 			SNew(SNumericEntryBox<float>)
 			.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
@@ -318,12 +321,26 @@ private:
 			.MinSliderValue(TOptional<float>())
 			.MaxSliderValue(TOptional<float>())
 			.BroadcastValueChangesPerKey(false)
+			.TypeInterface(MakeShareable(new TNumericUnitTypeInterface<float>(DisplayUnit)))
 			.MinDesiredValueWidth(SNiagaraDistributionEditor::DefaultInputSize - 18)
 			.LabelVAlign(EVerticalAlignment::VAlign_Center)
 			.Label()
 			[
 				LabelWidget
 			];
+	}
+
+	TSharedRef<SWidget> ConstructCustomizableFloatWidget(int32 ChannelIndex, int32 ValueIndex)
+	{
+		FNiagaraEditorModule& NiagaraEditorModule = FNiagaraEditorModule::Get();
+		TSharedPtr<INiagaraEditorTypeUtilities> TypeUtilities = NiagaraEditorModule.GetTypeUtilities(FNiagaraTypeDefinition::GetFloatDef());
+		FNiagaraInputParameterCustomization WidgetCustomization = DistributionAdapter->GetWidgetCustomization();
+		EUnit DisplayUnit = DistributionAdapter->GetDisplayUnit();
+		return SNew(SNiagaraFloatParameterEditor, DisplayUnit, WidgetCustomization)
+			.Value(this, &SNiagaraDistributionValueEditor::GetValueFloat, ChannelIndex, ValueIndex)
+			.OnValueChanged(this, &SNiagaraDistributionValueEditor::ValueChanged, ChannelIndex, ValueIndex)
+			.OnBeginValueChange(this, &SNiagaraDistributionValueEditor::BeginValueChange)
+			.OnEndValueChange(this, &SNiagaraDistributionValueEditor::EndValueChange);
 	}
 
 	typedef SNumericVectorInputBox<float, UE::Math::TVector2<float>, 2> SNumericVectorInputBox2;
@@ -418,6 +435,11 @@ private:
 	}
 
 	TOptional<float> GetValue(int32 ChannelIndex, int32 ValueIndex) const
+	{
+		return DistributionAdapter->GetConstantOrRangeValue(ChannelIndex, ValueIndex);
+	}
+
+	float GetValueFloat(int32 ChannelIndex, int32 ValueIndex) const
 	{
 		return DistributionAdapter->GetConstantOrRangeValue(ChannelIndex, ValueIndex);
 	}

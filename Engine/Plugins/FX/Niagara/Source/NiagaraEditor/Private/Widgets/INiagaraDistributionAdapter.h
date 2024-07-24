@@ -7,6 +7,7 @@
 #include "Internationalization/Text.h"
 #include "Styling/SlateColor.h"
 #include "NiagaraCommon.h"
+#include "NiagaraVariableMetaData.h"
 
 struct FRichCurve;
 
@@ -69,6 +70,12 @@ public:
 
 	/** A delegate which is called whenever the distribution mode has changed. */
 	virtual FSimpleMulticastDelegate& OnDistributionEditorModeChanged() = 0;
+
+	/** Returns the widget customization options defined by the property metadata. */
+	virtual FNiagaraInputParameterCustomization GetWidgetCustomization() = 0;
+
+	/** If specified, the unit to display for the property */
+	virtual EUnit GetDisplayUnit() = 0;
 
 	/** 
 		Gets a constant or range value by channel index and value index. 

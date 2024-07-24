@@ -29,7 +29,6 @@ public:
 	FNiagaraDistributionAdapter()
 		: PropertyHandle(nullptr)
 		, OwnerObjectWeak(nullptr)
-		, SourceDistribution(nullptr)
 		, SourceNumChannels(INDEX_NONE)
 	{
 	}
@@ -37,7 +36,7 @@ public:
 	void Initialize(TSharedPtr<IPropertyHandle> InPropertyHandle, UObject* InOwningObject, FNiagaraDistributionBase* InDistribution, int32 InNumChannels)
 	{
 		PropertyHandle = InPropertyHandle;
-		OwnerObjectWeak = TWeakObjectPtr<UObject>(InOwningObject);
+		OwnerObjectWeak = TWeakObjectPtr<>(InOwningObject);
 		SourceDistribution = InDistribution;
 		SourceNumChannels = InNumChannels;
 		if (IsValid())
@@ -49,14 +48,23 @@ public:
 			const FName DisableRangeDistributionName("DisableRangeDistribution");
 			const FName DisplayAsColorDistributionName("DisplayAsColorDistribution");
 			bAllowBinding = InDistribution->AllowBinding() && InDistribution->GetBindingTypeDef().IsValid() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableBindingDistributionName) == false : false);
-			bAllowUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableUniformDistributionName) == false : false;
-			bAllowNonUniform = PropertyHandle ? PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false : false;
-			bAllowRange = PropertyHandle ? PropertyHandle->HasMetaData(DisableRangeDistributionName) == false : false;
-			bAllowCurves = InDistribution->AllowCurves() && (PropertyHandle ? PropertyHandle->HasMetaData(DisableCurveDistributionName) == false : false);
-			bDisplayAsColor = InDistribution->DisplayAsColor() || (InNumChannels >= 3 && (PropertyHandle ? PropertyHandle->HasMetaData(DisplayAsColorDistributionName) : false));
+			bAllowUniform = PropertyHandle->HasMetaData(DisableUniformDistributionName) == false;
+			bAllowNonUniform = PropertyHandle->HasMetaData(DisableNonUniformDistributionName) == false;
+			bAllowRange = PropertyHandle->HasMetaData(DisableRangeDistributionName) == false;
+			bAllowCurves = InDistribution->AllowCurves() && PropertyHandle->HasMetaData(DisableCurveDistributionName) == false;
+			bDisplayAsColor = InDistribution->DisplayAsColor() || (InNumChannels >= 3 && PropertyHandle->HasMetaData(DisplayAsColorDistributionName));
 			PropertyHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this->AsShared(), &FNiagaraDistributionAdapter::DistributionPropertyChanged));
 			EditorMode = GetDistributionEditorModeFromSourceMode(SourceNumChannels, bDisplayAsColor, SourceDistribution->Mode);
 			EditorNumChannels = FNiagaraDistributionEditorUtilities::IsUniform(EditorMode) ? 1 : SourceNumChannels;
+			WidgetCustomizationOptions = FNiagaraInputParameterCustomization::MakeFromProperty(InPropertyHandle);
+
+			static const FName UnitsName("Units");
+			if (PropertyHandle->HasMetaData(UnitsName))
+			{
+				FString UnitString = PropertyHandle->GetMetaData(UnitsName);
+				TOptional<EUnit> PropertyUnit = FUnitConversion::UnitFromString(*UnitString);
+				DisplayUnit = PropertyUnit.Get(EUnit::Unspecified);
+			}
 		}
 	}
 
@@ -114,6 +122,16 @@ public:
 			}
 		}
 		return FSlateColor(EStyleColor::AccentWhite);
+	}
+
+	virtual FNiagaraInputParameterCustomization GetWidgetCustomization() override
+	{
+		return WidgetCustomizationOptions;
+	}
+
+	virtual EUnit GetDisplayUnit() override
+	{
+		return DisplayUnit;	
 	}
 
 	virtual void GetSupportedDistributionModes(TArray<ENiagaraDistributionEditorMode>& OutSupportedModes) const override
@@ -779,6 +797,8 @@ private:
 
 	ENiagaraDistributionEditorMode EditorMode = ENiagaraDistributionEditorMode::Constant;
 	int32 EditorNumChannels = 0;
+	FNiagaraInputParameterCustomization WidgetCustomizationOptions;
+	EUnit DisplayUnit = EUnit::Unspecified;
 
 	bool bContinuousTransactionPending = false;
 	TOptional<int32> ContinuousTransactionIndex;

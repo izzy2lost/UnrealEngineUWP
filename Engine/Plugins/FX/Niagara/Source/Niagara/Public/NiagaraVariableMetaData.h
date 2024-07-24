@@ -8,6 +8,7 @@
 #include "Math/UnitConversion.inl"
 #include "NiagaraVariableMetaData.generated.h"
 
+class IPropertyHandle;
 
 /** Defines options for conditionally editing and showing script inputs in the UI. */
 USTRUCT()
@@ -166,6 +167,10 @@ struct FNiagaraInputParameterCustomization
 	/** If true then the input is also displayed and editable as a 3d widget in the viewport (vector and transform types only). */
 	//UPROPERTY(EditAnywhere, Category="Customization")
 	//bool bCreateViewPortEditWidget = false;
+#if WITH_EDITOR
+	// Maps existing property tags as best it can to a customization object
+	NIAGARA_API static FNiagaraInputParameterCustomization MakeFromProperty(TSharedPtr<IPropertyHandle> InPropertyHandle);
+#endif
 };
 
 UENUM()

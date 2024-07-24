@@ -66,7 +66,7 @@ public:
 #if WITH_EDITOR
 	virtual bool CanDisableModule() const override { return true; }
 
-	virtual bool CanDebugDraw() const { return true; }
+	virtual bool CanDebugDraw() const override { return true; }
 	virtual void DrawDebug(const FNiagaraStatelessDrawDebugContext& DrawDebugContext) const override;
 #endif
 #if WITH_EDITORONLY_DATA

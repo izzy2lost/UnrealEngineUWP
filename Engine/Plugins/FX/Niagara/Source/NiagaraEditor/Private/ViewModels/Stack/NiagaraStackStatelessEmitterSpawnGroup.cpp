@@ -9,6 +9,7 @@
 #include "Stateless/NiagaraDistributionPropertyCustomization.h"
 #include "Stateless/NiagaraDistributionIntPropertyCustomization.h"
 #include "Stateless/NiagaraStatelessEmitter.h"
+#include "Stateless/NiagaraStatelessModule.h"
 #include "Styling/AppStyle.h"
 #include "ViewModels/NiagaraSystemSelectionViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
@@ -227,15 +228,16 @@ void UNiagaraStackStatelessEmitterSpawnItem::RefreshChildrenInternal(const TArra
 	FNiagaraStatelessSpawnInfo* SpawnInfo = GetSpawnInfo();
 	if (SpawnInfo != nullptr)
 	{
-		if (SpawnInfoStructOnScope.IsValid() == false || SpawnInfoStructOnScope->GetStructMemory() != (uint8*)SpawnInfo)
+		uint8* SpawnInfoPtr = reinterpret_cast<uint8*>(SpawnInfo);
+		if (SpawnInfoStructOnScope.IsValid() == false || SpawnInfoStructOnScope->GetStructMemory() != SpawnInfoPtr)
 		{
-			SpawnInfoStructOnScope = MakeShared<FStructOnScope>(FNiagaraStatelessSpawnInfo::StaticStruct(), (uint8*)SpawnInfo);
+			SpawnInfoStructOnScope = MakeShared<FStructOnScope>(FNiagaraStatelessSpawnInfo::StaticStruct(), SpawnInfoPtr);
 		}
 
 		UNiagaraStackObject* SpawnInfoObject = SpawnInfoObjectWeak.Get();
 		UObject* StatelessEmitterObject = StatelessEmitterWeak.Get();
 		if (SpawnInfoObject == nullptr || SpawnInfoObject->GetObject() != StatelessEmitterObject ||
-			SpawnInfoObject->GetDisplayedStruct().IsValid() == false || SpawnInfoObject->GetDisplayedStruct()->GetStructMemory() != (uint8*)SpawnInfo)
+			SpawnInfoObject->GetDisplayedStruct().IsValid() == false || SpawnInfoObject->GetDisplayedStruct()->GetStructMemory() != SpawnInfoPtr)
 		{
 			bool bIsInTopLevelStruct = true;
 			bool bHideTopLevelCategories = true;

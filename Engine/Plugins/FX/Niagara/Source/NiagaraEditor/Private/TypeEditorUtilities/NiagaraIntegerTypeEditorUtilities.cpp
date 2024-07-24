@@ -15,223 +15,220 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSlider.h"
 
-class SNiagaraIntegerParameterEditor : public SNiagaraParameterEditor
+void SNiagaraIntegerParameterEditor::Construct(const FArguments& InArgs, EUnit DisplayUnit, const FNiagaraInputParameterCustomization& WidgetCustomization)
 {
-public:
-	SLATE_BEGIN_ARGS(SNiagaraIntegerParameterEditor) { }
-	SLATE_END_ARGS();
+	ValueAttribute = InArgs._Value;
+	OnValueChangedEvent = InArgs._OnValueChanged;
+	OnBeginValueChangeEvent = InArgs._OnBeginValueChange;
+	OnEndValueChangeEvent = InArgs._OnEndValueChange;
+	SNiagaraParameterEditor::Construct(SNiagaraParameterEditor::FArguments()
+		.MinimumDesiredWidth(DefaultInputSize)
+		.MaximumDesiredWidth(DefaultInputSize));
 
-	void Construct(const FArguments& InArgs, EUnit DisplayUnit, const FNiagaraInputParameterCustomization& WidgetCustomization)
+	const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
+
+	if (WidgetCustomization.WidgetType == ENiagaraInputWidgetType::Slider)
 	{
-		SNiagaraParameterEditor::Construct(SNiagaraParameterEditor::FArguments()
-			.MinimumDesiredWidth(DefaultInputSize)
-			.MaximumDesiredWidth(DefaultInputSize));
-
-		const UGraphEditorSettings* Settings = GetDefault<UGraphEditorSettings>();
-
-		if (WidgetCustomization.WidgetType == ENiagaraInputWidgetType::Slider)
-		{
-			float MinValue = WidgetCustomization.bHasMinValue ? WidgetCustomization.MinValue : 0;
-			float MaxValue = WidgetCustomization.bHasMaxValue ? WidgetCustomization.MaxValue : 1;
-			ChildSlot
+		float MinValue = WidgetCustomization.bHasMinValue ? WidgetCustomization.MinValue : 0;
+		float MaxValue = WidgetCustomization.bHasMaxValue ? WidgetCustomization.MaxValue : 1;
+		ChildSlot
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+			.AutoWidth()
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
-				.AutoWidth()
-				[
-					SNew(SImage)
-					.ColorAndOpacity(UEdGraphSchema_Niagara::GetTypeColor(FNiagaraTypeDefinition::GetIntDef()))
-					.Image(FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Module.TypeIconPill"))
-				]
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBox).WidthOverride(100.0f)
-					[
-						SNew(SSlider)
-						.MinValue(MinValue)
-						.MaxValue(MaxValue)
-						.Value(this, &SNiagaraIntegerParameterEditor::GetSliderValue)
-						.OnValueChanged_Lambda([this, WidgetCustomization](float NewVal)
-						{
-							SliderValue = NewVal;
-
-							// slider only works with float, so we round for the actual parameter value
-							int32 Resolution = WidgetCustomization.bHasStepWidth && WidgetCustomization.StepWidth >= 1 ? WidgetCustomization.StepWidth : 1;
-							IntValue = FMath::RoundToInt(NewVal / Resolution) * Resolution;
-							ExecuteOnValueChanged();
-						})
-						.OnMouseCaptureBegin(this, &SNiagaraIntegerParameterEditor::ExecuteOnBeginValueChange)
-						.OnMouseCaptureEnd(this, &SNiagaraIntegerParameterEditor::ExecuteOnEndValueChange)
-					]
-				]
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBox).WidthOverride(75.0f)
-					[
-						SNew(SNumericEntryBox<int32>)
-						.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
-						.MinValue(MinValue)
-						.MaxValue(MaxValue)
-						.Value(this, &SNiagaraIntegerParameterEditor::GetValue)
-						.OnValueChanged(this, &SNiagaraIntegerParameterEditor::ValueChanged)
-						.OnValueCommitted(this, &SNiagaraIntegerParameterEditor::ValueCommitted)
-						.TypeInterface(GetTypeInterface<int32>(DisplayUnit))
-						.AllowSpin(false)
-						.Delta(WidgetCustomization.bHasStepWidth ? WidgetCustomization.StepWidth : 0)
-					]
-				]
-			];
-		}
-		else if (WidgetCustomization.WidgetType == ENiagaraInputWidgetType::NumericDropdown && WidgetCustomization.InputDropdownValues.Num() > 0)
-		{
-			TArray<SNiagaraNumericDropDown<int32>::FNamedValue> DropDownValues;
-			for (const FWidgetNamedInputValue& Value : WidgetCustomization.InputDropdownValues)
-			{
-				DropDownValues.Add(SNiagaraNumericDropDown<int32>::FNamedValue(Value.Value, Value.DisplayName.IsEmpty() ? FText::AsNumber(Value.Value) : Value.DisplayName, Value.Tooltip));
-			}
-
-			ChildSlot
+				SNew(SImage)
+				.ColorAndOpacity(UEdGraphSchema_Niagara::GetTypeColor(FNiagaraTypeDefinition::GetIntDef()))
+				.Image(FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Module.TypeIconPill"))
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
 			[
-				SNew(SNiagaraNumericDropDown<int32>)
-				.DropDownValues(DropDownValues)
-				.bShowNamedValue(true)
-				.MinDesiredValueWidth(75)
-				.PillType(FNiagaraTypeDefinition::GetIntDef())
-				.Value_Lambda([this]() 
-				{ 
-					return IntValue;
-				})
-				.OnValueChanged_Lambda([this](int32 NewVal)
-				{
-					IntValue = NewVal;
-					ExecuteOnValueChanged();
-				})
-			];
-		}
-		else if(WidgetCustomization.WidgetType == ENiagaraInputWidgetType::EnumStyle && WidgetCustomization.EnumStyleDropdownValues.Num() > 0)
-		{
-			TArray<SNiagaraNumericDropDown<int32>::FNamedValue> DropDownValues;
-			for(int32 EnumStyleValueIndex = 0; EnumStyleValueIndex < WidgetCustomization.EnumStyleDropdownValues.Num(); EnumStyleValueIndex++)
-			{
-				FText DisplayName = WidgetCustomization.EnumStyleDropdownValues[EnumStyleValueIndex].DisplayName;
-				FText Tooltip = WidgetCustomization.EnumStyleDropdownValues[EnumStyleValueIndex].Tooltip;
-						
-				DropDownValues.Add(SNiagaraNumericDropDown<int32>::FNamedValue(EnumStyleValueIndex, DisplayName, Tooltip));
-			}
-			
-			ChildSlot
-			[
-				SNew(SNiagaraNumericDropDown<int32>)
-				.DropDownValues(DropDownValues)
-				.bAllowTyping(false)
-				.bShowNamedValue(true)
-				.MinDesiredValueWidth(75)
-				.PillType(FNiagaraTypeDefinition::GetIntDef())
-				.Value_Lambda([this]() 
-				{ 
-					return IntValue;
-				})
-				.OnValueChanged_Lambda([this](int32 NewVal)
-				{
-					IntValue = NewVal;
-					ExecuteOnValueChanged();
-				})
-			];
-		}
-		else
-		{
-			TOptional<int32> MinValue;
-			TOptional<int32> MaxValue;
-			if (WidgetCustomization.bHasMinValue)
-			{
-				MinValue = WidgetCustomization.MinValue;
-			}
-			if (WidgetCustomization.bHasMaxValue)
-			{
-				MaxValue = WidgetCustomization.MaxValue;
-			}
-			
-			ChildSlot
-			[
-				SNew(SNumericEntryBox<int32>)
-				.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
-				.MinValue(MinValue)
-				.MaxValue(MaxValue)
-				.MinSliderValue(MinValue)
-				.MaxSliderValue(MaxValue)
-				.Value(this, &SNiagaraIntegerParameterEditor::GetValue)
-				.OnValueChanged(this, &SNiagaraIntegerParameterEditor::ValueChanged)
-				.OnValueCommitted(this, &SNiagaraIntegerParameterEditor::ValueCommitted)
-				.OnBeginSliderMovement(this, &SNiagaraIntegerParameterEditor::BeginSliderMovement)
-				.OnEndSliderMovement(this, &SNiagaraIntegerParameterEditor::EndSliderMovement)
-				.TypeInterface(GetTypeInterface<int32>(DisplayUnit))
-				.AllowSpin(true)
-				.BroadcastValueChangesPerKey(!GetDefault<UNiagaraEditorSettings>()->GetUpdateStackValuesOnCommitOnly() && !WidgetCustomization.bBroadcastValueChangesOnCommitOnly)
-				.LabelPadding(FMargin(3))
-				.LabelLocation(SNumericEntryBox<int32>::ELabelLocation::Inside)
-				.Label()
+				SNew(SBox).WidthOverride(100.0f)
 				[
-					SNumericEntryBox<int32>::BuildNarrowColorLabel(Settings->IntPinTypeColor)
+					SNew(SSlider)
+					.MinValue(MinValue)
+					.MaxValue(MaxValue)
+					.Value(this, &SNiagaraIntegerParameterEditor::GetSliderValue)
+					.OnValueChanged_Lambda([this, WidgetCustomization](float NewVal)
+					{
+						SliderValue = NewVal;
+
+						// slider only works with float, so we round for the actual parameter value
+						int32 Resolution = WidgetCustomization.bHasStepWidth && WidgetCustomization.StepWidth >= 1 ? WidgetCustomization.StepWidth : 1;
+						IntValue = FMath::RoundToInt(NewVal / Resolution) * Resolution;
+						ExecuteOnValueChanged();
+						OnValueChangedEvent.ExecuteIfBound(IntValue);
+					})
+					.OnMouseCaptureBegin(this, &SNiagaraIntegerParameterEditor::ExecuteOnBeginValueChange)
+					.OnMouseCaptureEnd(this, &SNiagaraIntegerParameterEditor::ExecuteOnEndValueChange)
 				]
-			];
-		}
+			]
+			+ SHorizontalBox::Slot().AutoWidth()
+			[
+				SNew(SBox).WidthOverride(75.0f)
+				[
+					SNew(SNumericEntryBox<int32>)
+					.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
+					.MinValue(MinValue)
+					.MaxValue(MaxValue)
+					.Value(this, &SNiagaraIntegerParameterEditor::GetValue)
+					.OnValueChanged(this, &SNiagaraIntegerParameterEditor::ValueChanged)
+					.OnValueCommitted(this, &SNiagaraIntegerParameterEditor::ValueCommitted)
+					.TypeInterface(GetTypeInterface<int32>(DisplayUnit))
+					.AllowSpin(false)
+					.Delta(WidgetCustomization.bHasStepWidth ? WidgetCustomization.StepWidth : 0)
+				]
+			]
+		];
 	}
-
-	virtual void UpdateInternalValueFromStruct(TSharedRef<FStructOnScope> Struct) override
+	else if (WidgetCustomization.WidgetType == ENiagaraInputWidgetType::NumericDropdown && WidgetCustomization.InputDropdownValues.Num() > 0)
 	{
-		checkf(Struct->GetStruct() == FNiagaraTypeDefinition::GetIntStruct(), TEXT("Struct type not supported."));
-		IntValue = reinterpret_cast<FNiagaraInt32*>(Struct->GetStructMemory())->Value;
-		SliderValue = IntValue;
-	}
-
-	virtual void UpdateStructFromInternalValue(TSharedRef<FStructOnScope> Struct) override
-	{
-		checkf(Struct->GetStruct() == FNiagaraTypeDefinition::GetIntStruct(), TEXT("Struct type not supported."));
-		reinterpret_cast<FNiagaraInt32*>(Struct->GetStructMemory())->Value = IntValue;
-	}
-
-	virtual bool CanChangeContinuously() const override { return true; }
-
-private:
-	void BeginSliderMovement()
-	{
-		ExecuteOnBeginValueChange();
-	}
-
-	void EndSliderMovement(int32 Value)
-	{
-		ExecuteOnEndValueChange();
-	}
-
-	TOptional<int32> GetValue() const
-	{
-		return IntValue;
-	}
-	
-	float GetSliderValue() const
-    {
-    	return SliderValue;
-    }
-
-	void ValueChanged(int32 Value)
-	{
-		IntValue = Value;
-		ExecuteOnValueChanged();
-	}
-
-	void ValueCommitted(int32 Value, ETextCommit::Type CommitInfo)
-	{
-		if (CommitInfo == ETextCommit::OnEnter || CommitInfo == ETextCommit::OnUserMovedFocus)
+		TArray<SNiagaraNumericDropDown<int32>::FNamedValue> DropDownValues;
+		for (const FWidgetNamedInputValue& Value : WidgetCustomization.InputDropdownValues)
 		{
-			ValueChanged(Value);
+			DropDownValues.Add(SNiagaraNumericDropDown<int32>::FNamedValue(Value.Value, Value.DisplayName.IsEmpty() ? FText::AsNumber(Value.Value) : Value.DisplayName, Value.Tooltip));
 		}
-	}
 
-	int32 IntValue = 0;
-	float SliderValue = 0;
-};
+		ChildSlot
+		[
+			SNew(SNiagaraNumericDropDown<int32>)
+			.DropDownValues(DropDownValues)
+			.bShowNamedValue(true)
+			.MinDesiredValueWidth(75)
+			.PillType(FNiagaraTypeDefinition::GetIntDef())
+			.Value_Lambda([this]() 
+			{ 
+				return IntValue;
+			})
+			.OnValueChanged_Lambda([this](int32 NewVal)
+			{
+				IntValue = NewVal;
+				ExecuteOnValueChanged();
+				OnValueChangedEvent.ExecuteIfBound(NewVal);
+			})
+		];
+	}
+	else if(WidgetCustomization.WidgetType == ENiagaraInputWidgetType::EnumStyle && WidgetCustomization.EnumStyleDropdownValues.Num() > 0)
+	{
+		TArray<SNiagaraNumericDropDown<int32>::FNamedValue> DropDownValues;
+		for(int32 EnumStyleValueIndex = 0; EnumStyleValueIndex < WidgetCustomization.EnumStyleDropdownValues.Num(); EnumStyleValueIndex++)
+		{
+			FText DisplayName = WidgetCustomization.EnumStyleDropdownValues[EnumStyleValueIndex].DisplayName;
+			FText Tooltip = WidgetCustomization.EnumStyleDropdownValues[EnumStyleValueIndex].Tooltip;
+					
+			DropDownValues.Add(SNiagaraNumericDropDown<int32>::FNamedValue(EnumStyleValueIndex, DisplayName, Tooltip));
+		}
+		
+		ChildSlot
+		[
+			SNew(SNiagaraNumericDropDown<int32>)
+			.DropDownValues(DropDownValues)
+			.bAllowTyping(false)
+			.bShowNamedValue(true)
+			.MinDesiredValueWidth(75)
+			.PillType(FNiagaraTypeDefinition::GetIntDef())
+			.Value_Lambda([this]() 
+			{ 
+				return IntValue;
+			})
+			.OnValueChanged_Lambda([this](int32 NewVal)
+			{
+				IntValue = NewVal;
+				ExecuteOnValueChanged();
+				OnValueChangedEvent.ExecuteIfBound(NewVal);
+			})
+		];
+	}
+	else
+	{
+		TOptional<int32> MinValue;
+		TOptional<int32> MaxValue;
+		if (WidgetCustomization.bHasMinValue)
+		{
+			MinValue = WidgetCustomization.MinValue;
+		}
+		if (WidgetCustomization.bHasMaxValue)
+		{
+			MaxValue = WidgetCustomization.MaxValue;
+		}
+		
+		ChildSlot
+		[
+			SNew(SNumericEntryBox<int32>)
+			.Font(FAppStyle::Get().GetFontStyle("PropertyWindow.NormalFont"))
+			.MinValue(MinValue)
+			.MaxValue(MaxValue)
+			.MinSliderValue(MinValue)
+			.MaxSliderValue(MaxValue)
+			.Value(this, &SNiagaraIntegerParameterEditor::GetValue)
+			.OnValueChanged(this, &SNiagaraIntegerParameterEditor::ValueChanged)
+			.OnValueCommitted(this, &SNiagaraIntegerParameterEditor::ValueCommitted)
+			.OnBeginSliderMovement(this, &SNiagaraIntegerParameterEditor::BeginSliderMovement)
+			.OnEndSliderMovement(this, &SNiagaraIntegerParameterEditor::EndSliderMovement)
+			.TypeInterface(GetTypeInterface<int32>(DisplayUnit))
+			.AllowSpin(true)
+			.BroadcastValueChangesPerKey(!GetDefault<UNiagaraEditorSettings>()->GetUpdateStackValuesOnCommitOnly() && !WidgetCustomization.bBroadcastValueChangesOnCommitOnly)
+			.LabelPadding(FMargin(3))
+			.LabelLocation(SNumericEntryBox<int32>::ELabelLocation::Inside)
+			.Label()
+			[
+				SNumericEntryBox<int32>::BuildNarrowColorLabel(Settings->IntPinTypeColor)
+			]
+		];
+	}
+}
+
+void SNiagaraIntegerParameterEditor::UpdateInternalValueFromStruct(TSharedRef<FStructOnScope> Struct)
+{
+	checkf(Struct->GetStruct() == FNiagaraTypeDefinition::GetIntStruct(), TEXT("Struct type not supported."));
+	IntValue = reinterpret_cast<FNiagaraInt32*>(Struct->GetStructMemory())->Value;
+	SliderValue = IntValue;
+}
+
+void SNiagaraIntegerParameterEditor::UpdateStructFromInternalValue(TSharedRef<FStructOnScope> Struct)
+{
+	checkf(Struct->GetStruct() == FNiagaraTypeDefinition::GetIntStruct(), TEXT("Struct type not supported."));
+	reinterpret_cast<FNiagaraInt32*>(Struct->GetStructMemory())->Value = IntValue;
+}
+
+void SNiagaraIntegerParameterEditor::BeginSliderMovement()
+{
+	ExecuteOnBeginValueChange();
+	OnBeginValueChangeEvent.ExecuteIfBound();
+}
+
+void SNiagaraIntegerParameterEditor::EndSliderMovement(int32 Value)
+{
+	ExecuteOnEndValueChange();
+	OnEndValueChangeEvent.ExecuteIfBound(Value);
+}
+
+TOptional<int32> SNiagaraIntegerParameterEditor::GetValue() const
+{
+	return ValueAttribute.Get(IntValue);
+}
+
+float SNiagaraIntegerParameterEditor::GetSliderValue() const
+{
+    return ValueAttribute.Get(SliderValue);
+}
+
+void SNiagaraIntegerParameterEditor::ValueChanged(int32 Value)
+{
+	IntValue = Value;
+	ExecuteOnValueChanged();
+	OnValueChangedEvent.ExecuteIfBound(Value);
+}
+
+void SNiagaraIntegerParameterEditor::ValueCommitted(int32 Value, ETextCommit::Type CommitInfo)
+{
+	if (CommitInfo == ETextCommit::OnEnter || CommitInfo == ETextCommit::OnUserMovedFocus)
+	{
+		ValueChanged(Value);
+	}
+}
 
 TSharedPtr<SNiagaraParameterEditor> FNiagaraEditorIntegerTypeUtilities::CreateParameterEditor(const FNiagaraTypeDefinition& ParameterType, EUnit DisplayUnit, const FNiagaraInputParameterCustomization& WidgetCustomization) const
 {
