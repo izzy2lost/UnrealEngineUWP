@@ -436,15 +436,21 @@ TOnlineAsyncOpHandle<FCommerceRedeemEntitlement> FCommerceEOS::RedeemEntitlement
 		const FCommerceRedeemEntitlement::Params& Params = Op.GetParams();
 		if (!Services.Get<FAuthEOS>()->IsLoggedIn(Params.LocalAccountId))
 		{
-			Promise.SetValue(nullptr);
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
 			return;
 		}
 		EOS_EpicAccountId LocalUserEasId = GetEpicAccountId(Params.LocalAccountId);
 		if (!EOS_EpicAccountId_IsValid(LocalUserEasId))
 		{
-			Promise.SetValue(nullptr);
 			Op.SetError(Errors::NotLoggedIn());
+			Promise.SetValue(nullptr);
+			return;
+		}
+		if (Params.Quantity != 1)
+		{
+			Op.SetError(Errors::InvalidParams());
+			Promise.SetValue(nullptr);
 			return;
 		}
 
