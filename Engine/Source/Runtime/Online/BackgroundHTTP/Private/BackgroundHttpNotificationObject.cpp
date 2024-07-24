@@ -82,8 +82,8 @@ FBackgroundHttpNotificationObject::~FBackgroundHttpNotificationObject()
 	{
 		if (!bNotifyOnlyOnFullSuccess || (NumFailedDownloads == 0))
 		{
-			//Setting the datetime to 0 forcing the local notifcation to be sent as soon as possible
-			FDateTime TargetTime = FDateTime();
+			// Schedule notification slightly in the future to pass checks preventing scheduling the past.
+			FDateTime TargetTime = FDateTime::Now() + FTimespan::FromSeconds(1);
 			if (nullptr != PlatformNotificationService)
 			{
 				PlatformNotificationService->ScheduleLocalNotificationAtTimeOverrideId(TargetTime, true, NotificationTitle, NotificationBody, NotificationAction, NotificationActivationString, IdOverride);

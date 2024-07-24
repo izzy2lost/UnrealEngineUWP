@@ -18,6 +18,19 @@
 
 #include "PlatformBackgroundHttp.h"
 
+FApplePlatformBackgroundHttpManager::FApplePlatformBackgroundHttpManager()
+	: FBackgroundHttpManagerImpl()
+	, PendingRemoveRequests()
+	, PendingRemoveRequestLock()
+{
+	OnDownloadCompletedHandle = FBackgroundURLSessionHandler::OnDownloadCompleted.AddRaw(this, &FApplePlatformBackgroundHttpManager::OnDownloadCompleted);
+}
+
+FApplePlatformBackgroundHttpManager::~FApplePlatformBackgroundHttpManager()
+{
+	FBackgroundURLSessionHandler::OnDownloadCompleted.Remove(OnDownloadCompletedHandle);
+}
+
 void FApplePlatformBackgroundHttpManager::AddRequest(const FBackgroundHttpRequestPtr GenericRequest)
 {
 	FAppleBackgroundHttpRequestPtr Request = StaticCastSharedPtr<FApplePlatformBackgroundHttpRequest>(GenericRequest);
@@ -101,4 +114,24 @@ bool FApplePlatformBackgroundHttpManager::Tick(float DeltaTime)
 	FBackgroundURLSessionHandler::SaveBackgroundHttpFileHashHelperState();
 
 	return true;
+}
+
+void FApplePlatformBackgroundHttpManager::OnDownloadCompleted(const uint64 DownloadId, const bool bSuccess)
+{
+	// Assuming this function will be called rarily (once a few seconds) and overall amount of downloads is limited (<500),
+	// it's then faster to just iterate over array to find the corresponding request.
+
+	FRWScopeLock ScopeLock(ActiveRequestLock, SLT_ReadOnly);
+	for (FBackgroundHttpRequestPtr& GenericRequest : ActiveRequests)
+	{
+		FAppleBackgroundHttpRequestPtr Request = StaticCastSharedPtr<FApplePlatformBackgroundHttpRequest>(GenericRequest);
+		if (ensureAlwaysMsgf(Request.IsValid(), TEXT("Invalid Request Pointer in ActiveRequests list!")))
+		{
+			if (Request->GetInternalDownloadId() == DownloadId)
+			{
+				Request->NotifyNotificationObjectOfComplete(bSuccess);
+				return;
+			}
+		}
+	}
 }

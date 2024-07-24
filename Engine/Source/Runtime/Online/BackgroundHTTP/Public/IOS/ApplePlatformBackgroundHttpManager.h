@@ -19,8 +19,8 @@ class BACKGROUNDHTTP_API FApplePlatformBackgroundHttpManager
 	: public FBackgroundHttpManagerImpl
 {
 public:
-	FApplePlatformBackgroundHttpManager() = default;
-	virtual ~FApplePlatformBackgroundHttpManager() = default;
+	FApplePlatformBackgroundHttpManager();
+	virtual ~FApplePlatformBackgroundHttpManager();
 
 	virtual void AddRequest(const FBackgroundHttpRequestPtr Request) override;
 	virtual void RemoveRequest(const FBackgroundHttpRequestPtr Request) override;
@@ -34,4 +34,6 @@ public:
 private:
 	TArray<FBackgroundHttpRequestPtr> PendingRemoveRequests;
 	FRWLock PendingRemoveRequestLock;
+	FDelegateHandle OnDownloadCompletedHandle;
+	void OnDownloadCompleted(const uint64 DownloadId, const bool bSuccess);
 };

@@ -52,9 +52,19 @@ public:
 	UE_DEPRECATED(5.5, "Use new API in FBackgroundURLSessionHandler.") static void OnDelayedBackgroundURLSessionCompleteHandlerCalled();
 
 	// New API for background downloading
-	
-	// Value of invalid download id which could be used to compare return value of CreateOrFindDownload 
+
+	// Value of invalid download id which could be used to compare return value of CreateOrFindDownload. 
 	static const uint64 InvalidDownloadId;
+
+	// Will be invoked from didFinishDownloadingToURL or didCompleteWithError.
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDownloadCompleted, const uint64 /*DownloadId*/, const bool /*bSuccess*/);
+	static FOnDownloadCompleted OnDownloadCompleted;
+
+	// Will be invoked from handleEventsForBackgroundURLSession application delegate. Needs to be registered very early, e.g. from static constructor.
+	// handleEventsForBackgroundURLSession is only invoked if app was killed by OS while in background and then relaunched to notify that downloads were completed.
+	// Is not invoked in any other scenario.
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDownloadsCompletedWhileAppWasNotRunning, const bool /*bSuccess*/);
+	static FOnDownloadsCompletedWhileAppWasNotRunning OnDownloadsCompletedWhileAppWasNotRunning;
 
 	// Sets if cellular is allowed to be used for new downloads.
 	// Existing downloads will be recreated to reflect new setting value.
