@@ -9,6 +9,7 @@
 #include "RigEditor/IKRigEditorStyle.h"
 #include "Engine/SkeletalMesh.h"
 #include "ToolMenus.h"
+#include "AssetRegistry/AssetData.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions"
 
@@ -38,16 +39,26 @@ void FAssetTypeActions_IKRigDefinition::ExtendSkeletalMeshMenuToMakeIKRig()
 		UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
 		if (Context)
 		{
-			TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
-			if (SelectedObjects.Num() > 0)
+			if (Context->SelectedAssets.Num() > 0)
 			{
 				InSection.AddMenuEntry(
 					"CreateIKRig",
 					LOCTEXT("CreateIKRig", "IK Rig"),
 					LOCTEXT("CreateIKRig_ToolTip", "Creates an IK rig for this skeletal mesh."),
 					FSlateIcon(FIKRigEditorStyle::Get().GetStyleSetName(), "IKRig", "ClassIcon.IKRigDefinition"),
-					FExecuteAction::CreateLambda([SelectedObjects]()
+					FExecuteAction::CreateLambda([InSelectedAssets = Context->SelectedAssets]()
 					{
+						TArray<UObject*> SelectedObjects;
+						SelectedObjects.Reserve(InSelectedAssets.Num());
+
+						for (const FAssetData& Asset : InSelectedAssets)
+						{
+							if (UObject* LoadedAsset = Asset.GetAsset())
+							{
+								SelectedObjects.Add(LoadedAsset);
+							}
+						}
+
 						for (UObject* SelectedObject : SelectedObjects)
 						{
 							CreateNewIKRigFromSkeletalMesh(SelectedObject);

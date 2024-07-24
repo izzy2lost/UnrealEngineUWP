@@ -13,6 +13,7 @@
 #include "Styling/AppStyle.h" 
 #include "Subsystems/AssetEditorSubsystem.h"
 
+#include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "ToolMenus.h"
 #include "ContentBrowserMenuContexts.h"
@@ -155,8 +156,7 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 			UContentBrowserAssetContextMenuContext* Context = InSection.FindContext<UContentBrowserAssetContextMenuContext>();
 			if (Context)
 			{
-				TArray<UObject*> SelectedObjects = Context->GetSelectedObjects();
-				if (SelectedObjects.Num() > 0)
+				if (Context->SelectedAssets.Num() > 0)
 				{
 					static constexpr bool bModularRig = true;
 					InSection.AddMenuEntry(
@@ -164,8 +164,20 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 						LOCTEXT("CreateControlRig", "Control Rig"),
 						LOCTEXT("CreateControlRig_ToolTip", "Creates a control rig and preconfigures it for this asset"),
 						FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"),
-						FExecuteAction::CreateLambda([SelectedObjects]()
+						FExecuteAction::CreateLambda([InSelectedAssets = Context->SelectedAssets]()
 						{
+							TArray<UObject*> SelectedObjects;
+							SelectedObjects.Reserve(InSelectedAssets.Num());
+
+							for (const FAssetData& Asset : InSelectedAssets)
+							{
+								if (UObject* LoadedAsset = Asset.GetAsset())
+								{
+									SelectedObjects.Add(LoadedAsset);
+								}
+							}
+
+
 							for (UObject* SelectedObject : SelectedObjects)
 							{
 								CreateControlRigFromSkeletalMeshOrSkeleton(SelectedObject, !bModularRig);
@@ -177,8 +189,19 @@ void FControlRigBlueprintActions::ExtendSketalMeshToolMenu()
 						LOCTEXT("CreateModularRig", "Modular Rig"),
 						LOCTEXT("CreateModularRig_ToolTip", "Creates a modular rig and preconfigures it for this asset"),
 						FSlateIcon(FRigVMEditorStyle::Get().GetStyleSetName(), "RigVM", "RigVM.Unit"),
-						FExecuteAction::CreateLambda([SelectedObjects]()
+						FExecuteAction::CreateLambda([InSelectedAssets = Context->SelectedAssets]()
 						{
+							TArray<UObject*> SelectedObjects;
+							SelectedObjects.Reserve(InSelectedAssets.Num());
+
+							for (const FAssetData& Asset : InSelectedAssets)
+							{
+								if (UObject* LoadedAsset = Asset.GetAsset())
+								{
+									SelectedObjects.Add(LoadedAsset);
+								}
+							}
+
 							for (UObject* SelectedObject : SelectedObjects)
 							{
 								CreateControlRigFromSkeletalMeshOrSkeleton(SelectedObject, bModularRig);
