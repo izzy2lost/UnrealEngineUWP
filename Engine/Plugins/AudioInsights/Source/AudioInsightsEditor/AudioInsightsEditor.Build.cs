@@ -25,6 +25,7 @@ public class AudioInsightsEditor : ModuleRules
 				"AudioMixer",
 				"AudioWidgets",
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
 				"InputCore",
 				"OutputLog",

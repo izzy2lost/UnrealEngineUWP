@@ -3,6 +3,7 @@
 
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
+#include "AudioInsightsEditorSettings.h"
 #include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
 #include "Editor.h"
@@ -64,7 +65,15 @@ namespace UE::Audio::Insights
 				const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
 				TraceModule.StartTraceAnalysis();
 
-				ActiveDeviceId = InDeviceId;
+				const TObjectPtr<const UAudioInsightsEditorSettings> AudioInsightsEditorSettings = GetDefault<UAudioInsightsEditorSettings>();
+
+				// We don't want to set ActiveDeviceId if bWorldFilterDefaultsToFirstClient is true and more than 2 PIE clients are running
+				if (AudioInsightsEditorSettings == nullptr ||
+					(AudioInsightsEditorSettings && !AudioInsightsEditorSettings->bWorldFilterDefaultsToFirstClient) ||
+					AudioDeviceIds.Num() < 2)
+				{
+					ActiveDeviceId = InDeviceId;
+				}
 			}
 		}
 
