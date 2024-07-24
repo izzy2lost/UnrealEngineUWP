@@ -104,7 +104,7 @@ namespace uba
 
 		u64 startTime = GetTime();
 		u32 timeout = 0;
-		while (!waitEntry.Done.IsSet(timeout)) // TODO WaitMultipleObjects (additional work and Done)
+		while (!waitEntry.done.IsSet(timeout)) // TODO WaitMultipleObjects (additional work and Done)
 		{
 			timeout = m_server.DoAdditionalWork() ? 0 : 50;
 
@@ -916,7 +916,7 @@ namespace uba
 					{
 						WaitEntry& waitEntry = waitFindIt->second;
 						waitEntry.Success = true;
-						waitEntry.Done.Set();
+						waitEntry.done.Set();
 					}
 					waitLock.Leave();
 

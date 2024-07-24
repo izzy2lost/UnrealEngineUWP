@@ -64,8 +64,8 @@ namespace uba
 
 		struct WaitEntry
 		{
-			WaitEntry() : Done(false) {}
-			Event Done;
+			WaitEntry() : done(false) {}
+			Event done;
 			bool Success = false;
 			u32 refCount = 0;
 		};
