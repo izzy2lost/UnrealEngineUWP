@@ -75,6 +75,16 @@ static FAutoConsoleCommand PrintReplicationFrequencyReportCommand(
 
 #endif
 
+#if WITH_EDITOR
+static FAutoConsoleCommand CMD_DumpGameplayTagSources(
+	TEXT("GameplayTags.DumpSources"),
+	TEXT("Dumps all known sources of gameplay tags"),
+	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Out){
+		UGameplayTagsManager::Get().DumpSources(Out);
+	})
+);
+#endif
+
 struct FCompareFGameplayTagNodeByTag
 {
 	FORCEINLINE bool operator()(const TSharedPtr<FGameplayTagNode>& A, const TSharedPtr<FGameplayTagNode>& B) const
@@ -446,6 +456,7 @@ void UGameplayTagsManager::ConstructGameplayTagTree()
 
 			for (const class FNativeGameplayTag* NativeTag : FNativeGameplayTag::GetRegisteredNativeTags())
 			{
+				FindOrAddTagSource(NativeTag->GetModuleName(), EGameplayTagSourceType::Native);
 				AddTagTableRow(NativeTag->GetGameplayTagTableRow(), NativeTag->GetModuleName());
 			}
 		}
@@ -2422,6 +2433,19 @@ bool UGameplayTagsManager::ValidateTagCreation(FName TagName) const
 	SCOPE_CYCLE_COUNTER(STAT_UGameplayTagsManager_ValidateTagCreation);
 
 	return FindTagNode(TagName).IsValid();
+}
+
+void UGameplayTagsManager::DumpSources(FOutputDevice& Out) const
+{
+	for (const TPair<FName, FGameplayTagSource>& Pair : TagSources)
+	{
+		Out.Logf(TEXT("%s : %s"), *Pair.Key.ToString(), *UEnum::GetValueAsString(Pair.Value.SourceType));
+		FString ConfigFilePath = Pair.Value.GetConfigFileName();
+		if (!ConfigFilePath.IsEmpty())
+		{
+			Out.Logf(TEXT("Config file path: %s"), *Pair.Value.SourceTagList->ConfigFileName);
+		}
+	}
 }
 
 FGameplayTagTableRow::FGameplayTagTableRow(FGameplayTagTableRow const& Other)

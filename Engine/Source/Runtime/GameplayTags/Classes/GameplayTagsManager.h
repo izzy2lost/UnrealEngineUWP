@@ -678,7 +678,6 @@ public:
 	/** Returns information about tag. If not found return false */
     GAMEPLAYTAGS_API bool GetTagEditorData(FName TagName, FString& OutComment, TArray<FName>& OutTagSources, bool& bOutIsTagExplicit, bool &bOutIsRestrictedTag, bool &bOutAllowNonRestrictedChildren) const;
 
-#if WITH_EDITOR
 	/** This is called after EditorRefreshGameplayTagTree. Useful if you need to do anything editor related when tags are added or removed */
 	static GAMEPLAYTAGS_API FSimpleMulticastDelegate OnEditorRefreshGameplayTagTree;
 
@@ -690,7 +689,6 @@ public:
 
 	/** Resumes EditorRefreshGameplayTagTree requests; triggers a refresh if a request was made while it was suspended */
 	GAMEPLAYTAGS_API void ResumeEditorRefreshGameplayTagTree(FGuid SuspendToken);
-#endif //if WITH_EDITOR
 
 	/** Gets a Tag Container containing all of the tags in the hierarchy that are children of this tag, and were explicitly added to the dictionary */
 	GAMEPLAYTAGS_API FGameplayTagContainer RequestGameplayTagChildrenInDictionary(const FGameplayTag& GameplayTag) const;
@@ -744,7 +742,8 @@ public:
 	
 	GAMEPLAYTAGS_API bool ShowGameplayTagAsHyperLinkEditor(FString TagName);
 
-
+	/** Implementation of console command GameplayTags.DumpSources */
+	void DumpSources(FOutputDevice& Out) const;
 #endif //WITH_EDITOR
 
 	GAMEPLAYTAGS_API void PrintReplicationIndices();
