@@ -257,7 +257,7 @@ namespace AutomationScripts
 		/// <returns></returns>
 		private static HashSet<string> ReadPakChunkManifest(DeploymentContext SC, string Filename)
 		{
-			var ResponseFile = ReadAllLinesFilesystemOrPackageStore(SC, Filename);
+			var ResponseFile = ReadAllLinesFilesystemOrPackageStore(SC, Filename).Select(Line => FileReference.Combine(SC.LocalRoot, Line).FullName);
 			var Result = new HashSet<string>(ResponseFile, StringComparer.InvariantCultureIgnoreCase);
 			return Result;
 		}
