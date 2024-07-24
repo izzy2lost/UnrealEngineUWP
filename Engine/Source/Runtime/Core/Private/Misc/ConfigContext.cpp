@@ -282,12 +282,8 @@ bool FConfigContext::Load(const TCHAR* InBaseIniName, FString& OutFinalFilename)
 		// delete the branch if it is useless
 		if (!bSuccess && ConfigSystem != nullptr && ExistingFile == nullptr && TemporaryBranch == nullptr)
 		{
-			static bool bRemoveEmptyPlugins = FParse::Param(FCommandLine::Get(), TEXT("RemoveEmptyConfigs"));
-			if (bRemoveEmptyPlugins)
-			{
-				ConfigSystem->Remove(DestIniFilename);
-				Branch = nullptr;
-			}
+			ConfigSystem->Remove(DestIniFilename);
+			Branch = nullptr;
 		}
 	}
 	return bSuccess;
