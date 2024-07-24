@@ -28,13 +28,13 @@ int SanitizeSocketIndex_{ParameterName}(int SocketIndex)
 int SanitizeFilteredSocketIndex_{ParameterName}(int SocketIndex)
 {
 	const int FilteredSocketIndex = SocketIndex >= 0 && SocketIndex < {ParameterName}_NumFilteredSockets ? (SocketIndex + 1) : 0;
-	return {ParameterName}_SocketData.Load(SocketIndex * 4);
+	return {ParameterName}_SocketData.Load(FilteredSocketIndex * 4);
 }
 
 int SanitizeUnfilteredSocketIndex_{ParameterName}(int SocketIndex)
 {
 	const int UnfilteredSocketIndex = SocketIndex >= 0 && SocketIndex < {ParameterName}_NumUnfilteredSockets ? (SocketIndex + 1 + {ParameterName}_NumFilteredSockets) : 0;
-	return {ParameterName}_SocketData.Load(SocketIndex * 4);
+	return {ParameterName}_SocketData.Load(UnfilteredSocketIndex * 4);
 }
 
 void GetSocketData_{ParameterName}(int SocketIndex, float Interp, out float3 OutPosition, out float4 OutRotation, out float3 OutScale, out float3 OutVelocity)
@@ -60,6 +60,13 @@ void GetSocketData_{ParameterName}(int SocketIndex, float Interp, out float3 Out
 }
 
 ////////////////////////////////////////////////////
+
+void GetComponentToWorld_{ParameterName}(out float3 Translation, out float4 Rotation, out float3 Scale)
+{
+	Translation = {ParameterName}_ComponentToTranslatedWorld_Translation;
+	Rotation	= {ParameterName}_ComponentToTranslatedWorld_Rotation;
+	Scale		= {ParameterName}_ComponentToTranslatedWorld_Scale;
+}
 
 void IsValid_{ParameterName}(out bool bValid)
 {

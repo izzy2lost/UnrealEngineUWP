@@ -11,6 +11,7 @@
 #include "NiagaraWorldManager.h"
 
 #include "Components/SceneComponent.h"
+#include "Engine/Canvas.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/StaticMesh.h"
@@ -30,6 +31,8 @@ namespace NDISocketReaderLocal
 	static const TCHAR* TemplateShaderFile = TEXT("/Plugin/FX/Niagara/Private/NiagaraDataInterfaceSocketReaderTemplate.ush");
 
 	static const FName	IsValidName("IsValid");
+
+	static const FName	GetComponentToWorldName("GetComponentToWorld");
 
 	static const FName	GetSocketCountName("GetSocketCount");
 	static const FName	GetFilteredSocketCountName("GetFilteredSocketCount");
@@ -506,6 +509,24 @@ namespace NDISocketReaderLocal
 		}
 	}
 
+	void VMGetComponentToWorld(FVectorVMExternalFunctionContext& Context)
+	{
+		VectorVM::FUserPtrHandler<FInstanceData_GameThread> InstanceData(Context);
+		FNDIOutputParam<FVector3f>	OutPosition(Context);
+		FNDIOutputParam<FQuat4f>	OutRotation(Context);
+		FNDIOutputParam<FVector3f>	OutScale(Context);
+
+		const FVector3f Translation = InstanceData->ComponentToTranslatedWorld.GetTranslation();
+		const FQuat4f	Rotation	= InstanceData->ComponentToTranslatedWorld.GetRotation();
+		const FVector3f	Scale		= InstanceData->ComponentToTranslatedWorld.GetScale3D();
+		for (int32 i = 0; i < Context.GetNumInstances(); ++i)
+		{
+			OutPosition.SetAndAdvance(Translation);
+			OutRotation.SetAndAdvance(Rotation);
+			OutScale.SetAndAdvance(Scale);
+		}
+	}
+
 	template<ESocketReadType ReadType>
 	void VMGetSocketCount(FVectorVMExternalFunctionContext& Context)
 	{
@@ -558,7 +579,7 @@ namespace NDISocketReaderLocal
 
 				case ESocketReadType::Unfiltered:
 				{
-					const int32 UnfilteredSockedIndex = SocketIndex >= 0 && SocketIndex < InstanceData->NumFilteredSockets ? (SocketIndex + 1 + InstanceData->NumFilteredSockets) : 0;
+					const int32 UnfilteredSockedIndex = SocketIndex >= 0 && SocketIndex < InstanceData->NumUnfilteredSockets ? (SocketIndex + 1 + InstanceData->NumFilteredSockets) : 0;
 					SocketIndex = InstanceData->SocketFilterUnfilteredIndex[UnfilteredSockedIndex];
 					break;
 				}
@@ -593,6 +614,7 @@ namespace NDISocketReaderLocal
 	static const TMap<FName, FVMExternalFunction> VMFunctionBindings =
 	{
 		{IsValidName,									FVMExternalFunction::CreateStatic(VMIsValid)},
+		{GetComponentToWorldName,						FVMExternalFunction::CreateStatic(VMGetComponentToWorld)},
 		{GetSocketCountName,							FVMExternalFunction::CreateStatic(VMGetSocketCount<ESocketReadType::Default>)},
 		{GetFilteredSocketCountName,					FVMExternalFunction::CreateStatic(VMGetSocketCount<ESocketReadType::Filtered>)},
 		{GetUnfilteredSocketCountName,					FVMExternalFunction::CreateStatic(VMGetSocketCount<ESocketReadType::Unfiltered>)},
@@ -640,6 +662,13 @@ void UNiagaraDataInterfaceSocketReader::GetFunctionsInternal(TArray<FNiagaraFunc
 		FNiagaraFunctionSignature& FunctionSignature = OutFunctions.Add_GetRef(ImmutableSig);
 		FunctionSignature.Name = IsValidName;
 		FunctionSignature.Outputs.Emplace(FNiagaraTypeDefinition::GetBoolDef(), TEXT("IsValid"));
+	}
+	{
+		FNiagaraFunctionSignature& FunctionSignature = OutFunctions.Add_GetRef(ImmutableSig);
+		FunctionSignature.Name = GetComponentToWorldName;
+		FunctionSignature.Outputs.Emplace(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Translation"));
+		FunctionSignature.Outputs.Emplace(FNiagaraTypeDefinition::GetQuatDef(), TEXT("Rotation"));
+		FunctionSignature.Outputs.Emplace(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Scale"));
 	}
 	{
 		FNiagaraFunctionSignature FunctionSignature = ImmutableSig;
@@ -854,6 +883,39 @@ bool UNiagaraDataInterfaceSocketReader::CopyToInternal(UNiagaraDataInterface* De
 	OtherTyped->bRequireCurrentFrameData = bRequireCurrentFrameData;
 	return true;
 }
+
+#if WITH_NIAGARA_DEBUGGER
+void UNiagaraDataInterfaceSocketReader::DrawDebugHud(FNDIDrawDebugHudContext& DebugHudContext) const
+{
+	using namespace NDISocketReaderLocal;
+
+	const FInstanceData_GameThread* InstanceData_GT = DebugHudContext.GetSystemInstance()->FindTypedDataInterfaceInstanceData<FInstanceData_GameThread>(this);
+	if (InstanceData_GT == nullptr)
+	{
+		return;
+	}
+
+	UObject* ResolvedObject = InstanceData_GT->ResolvedObject.Get();
+	DebugHudContext.GetOutputString().Appendf(TEXT("ResolvedObject(%s)"), *GetNameSafe(ResolvedObject));
+
+	UCanvas* Canvas = DebugHudContext.GetCanvas();
+	if (DebugHudContext.IsVerbose() && ResolvedObject && Canvas)
+	{
+		for ( const FTransform3f SocketTransform : InstanceData_GT->SocketTransforms )
+		{
+			const FTransform WorldTransform = FTransform(SocketTransform) * InstanceData_GT->ComponentToWorld;
+			const FVector SocketLocation = WorldTransform.GetLocation();
+			const FVector ScreenPos = Canvas->Project(SocketLocation, false);
+			if (ScreenPos.Z <= 0.0f)
+			{
+				continue;
+			}
+
+			Canvas->Canvas->DrawNGon(FVector2D(ScreenPos), FColor::Red, 8, 4.0f);
+		}
+	}
+}
+#endif
 
 #if WITH_EDITORONLY_DATA
 TArray<FName> UNiagaraDataInterfaceSocketReader::GetEditorSocketNames() const

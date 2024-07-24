@@ -33,7 +33,7 @@ FNiagaraTransform MultiplyTransform(in FNiagaraTransform A, in FNiagaraTransform
 {
 	FNiagaraTransform R;
 	R.Translation	= RotateVectorByQuat(A.Translation * B.Scale, B.Rotation) + B.Translation;
-	R.Rotation		= MultiplyQuat(A.Rotation, B.Rotation);
+	R.Rotation		= MultiplyQuat(B.Rotation, A.Rotation);
 	R.Scale			= A.Scale * B.Scale;
 	return R;
 }

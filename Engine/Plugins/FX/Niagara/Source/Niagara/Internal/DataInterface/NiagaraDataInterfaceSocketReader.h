@@ -130,6 +130,10 @@ public:
 	NIAGARA_API virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;
 
 	virtual bool HasPreSimulateTick() const override { return true; }
+
+#if WITH_NIAGARA_DEBUGGER
+	virtual void DrawDebugHud(FNDIDrawDebugHudContext& DebugHudContext) const override;
+#endif
 	//UNiagaraDataInterface Interface
 
 #if WITH_EDITORONLY_DATA
