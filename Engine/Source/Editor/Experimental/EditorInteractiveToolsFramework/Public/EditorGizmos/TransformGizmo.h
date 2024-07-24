@@ -591,7 +591,7 @@ protected:
 	FVector2D GetScreenRotateAxisDir(const FInputDeviceRay& InPressPos);
 
 	/** Compute rotate delta based on screen-space start/end positions */
-	virtual FQuat ComputeAxisRotateDelta(const FVector2D& InStartPos, const FVector2D& InEndPos);
+	virtual FQuat ComputeAxisRotateDelta(const FVector2D& InStartPos, const FInputDeviceRay& InDragPos);
 
 	/** Prepares data for arc rotation. This will return false if this is not possible (the rotate handle is perpendicular to the view) */
 	bool OnClickPressRotateArc( const FInputDeviceRay& InPressPos,
@@ -898,9 +898,14 @@ protected:
 	/** Actual rotate mode used (based on view dependant information). */
 	TEnumAsByte<EAxisRotateMode::Type> RotateMode = EAxisRotateMode::Arc;
 
+	/** Switch from tangential to normal projection based on the first mouse drag. */
+	bool bTrySwitchingToNormalPull = false;
+
 private:
 	/** Debug attributes to display the pull direction */
 	bool bDebugRotate = false;
 	FVector DebugDirection = FVector::ZeroVector;
 	FVector DebugClosest = FVector::ZeroVector;
+	FVector DebugNormalRemoved = FVector::ZeroVector;
+	FVector DebugNormalSkip = FVector::ZeroVector;
 };
