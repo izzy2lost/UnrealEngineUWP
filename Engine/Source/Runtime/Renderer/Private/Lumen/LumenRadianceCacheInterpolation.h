@@ -46,8 +46,7 @@ namespace LumenRadianceCache
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, RadianceCacheDepthAtlas)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, ProbeWorldOffset)
 		SHADER_PARAMETER_ARRAY(FVector4f, RadianceProbeSettings, [MaxClipmaps])
-		SHADER_PARAMETER_ARRAY(FVector4f, PaddedWorldPositionToRadianceProbeCoordBias, [MaxClipmaps])
-		SHADER_PARAMETER_ARRAY(FVector4f, PaddedRadianceProbeCoordToWorldPositionBias, [MaxClipmaps])
+		SHADER_PARAMETER_ARRAY(FVector4f, ClipmapCornerTWSAndCellSize, [MaxClipmaps])
 		SHADER_PARAMETER(FVector2f, InvProbeFinalRadianceAtlasResolution)
 		SHADER_PARAMETER(FVector2f, InvProbeFinalIrradianceAtlasResolution)
 		SHADER_PARAMETER(FVector2f, InvProbeDepthAtlasResolution)
@@ -64,25 +63,15 @@ namespace LumenRadianceCache
 	{
 		RadianceCacheInterpolationParameters.RadianceProbeSettings[Index].X = Value;
 	}
-	inline void SetWorldPositionToRadianceProbeCoordScale(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, float Value)
+	inline void SetClipmapCornerTWS(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, FVector3f Corner)
 	{
-		RadianceCacheInterpolationParameters.RadianceProbeSettings[Index].Y = Value;
+		RadianceCacheInterpolationParameters.ClipmapCornerTWSAndCellSize[Index].X = Corner.X;
+		RadianceCacheInterpolationParameters.ClipmapCornerTWSAndCellSize[Index].Y = Corner.Y;
+		RadianceCacheInterpolationParameters.ClipmapCornerTWSAndCellSize[Index].Z = Corner.Z;
 	}
-	inline void SetRadianceProbeCoordToWorldPositionScale(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, float Value)
+	inline void SetClipmapCellSize(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, float CellSize)
 	{
-		RadianceCacheInterpolationParameters.RadianceProbeSettings[Index].Z = Value;
-	}
-
-	// Padded in vector to satisfy 16 byte array element alignment :
-	// WorldPositionToRadianceProbeCoordBias, RadianceProbeCoordToWorldPositionBias
-	// Must match with LumenRadianceCacheInterpolation.ush
-	inline void SetWorldPositionToRadianceProbeCoordBias(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, const FVector3f& Value)
-	{
-		RadianceCacheInterpolationParameters.PaddedWorldPositionToRadianceProbeCoordBias[Index] = FVector4f(Value);
-	}
-	inline void SetRadianceProbeCoordToWorldPositionBias(FRadianceCacheInterpolationParameters& RadianceCacheInterpolationParameters, uint32 Index, const FVector3f& Value)
-	{
-		RadianceCacheInterpolationParameters.PaddedRadianceProbeCoordToWorldPositionBias[Index] = FVector4f(Value);
+		RadianceCacheInterpolationParameters.ClipmapCornerTWSAndCellSize[Index].W = CellSize;
 	}
 
 	void GetInterpolationParameters(

@@ -231,11 +231,7 @@ public:
 	FVector Center;
 	float Extent;
 
-	FVector ProbeCoordToWorldCenterBias;
-	float ProbeCoordToWorldCenterScale;
-
-	FVector WorldPositionToProbeCoordBias;
-	float WorldPositionToProbeCoordScale;
+	FVector3f CornerTranslatedWorldSpace;
 
 	float ProbeTMin;
 

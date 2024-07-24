@@ -114,7 +114,6 @@ void AllocateUsedProbesCS(
 	if (ClipmapIndex < NumRadianceProbeClipmaps && all(ProbeCoord < RadianceProbeClipmapResolution))
 	{
 		uint ProbeUsedMarker = RWRadianceProbeIndirectionTexture[DispatchThreadId];
-		float3 ProbeWorldPosition = ProbeCoord * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + GetRadianceProbeCoordToWorldPositionBias(ClipmapIndex);
 
 		if (ProbeUsedMarker != INVALID_PROBE_INDEX)
 		{
@@ -162,6 +161,7 @@ void AllocateUsedProbesCS(
 			{
 				// Update histogram
 				const uint PriorityBucketIndex = GetPriorityBucketIndex(LastTracedFrameIndex, LastUsedFrameIndex, ClipmapIndex);
+				const float3 ProbeWorldPosition = GetProbeTranslatedWorldPositionNoOffset(ProbeCoord, ClipmapIndex) - DFHackToFloat(PrimaryView.PreViewTranslation);
 				uint ProbeTraceCost = GetProbeTraceCost(ProbeWorldPosition);
 				InterlockedAdd(RWPriorityHistogram[PriorityBucketIndex], ProbeTraceCost);
 
@@ -232,7 +232,7 @@ void AllocateProbeTracesCS(
 	if (ClipmapIndex < NumRadianceProbeClipmaps && all(ProbeCoord < RadianceProbeClipmapResolution))
 	{
 		const uint ProbeIndex = RadianceProbeIndirectionTexture[DispatchThreadId];
-		float3 ProbeWorldPosition = ProbeCoord * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + GetRadianceProbeCoordToWorldPositionBias(ClipmapIndex);
+		float3 ProbeWorldPosition = GetProbeTranslatedWorldPositionNoOffset(ProbeCoord, ClipmapIndex) - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 		if (ProbeIndex < MaxNumProbes)
 		{
@@ -311,8 +311,18 @@ void ClearProbeFreeListCS(
 
 Buffer<uint> ProbeAllocator;
 Texture3D<uint> LastFrameRadianceProbeIndirectionTexture;
-float4 PackedLastFrameRadianceProbeCoordToWorldPosition[RADIANCE_PROBE_MAX_CLIPMAPS];
+float4 LastFrameClipmapCornerTWSAndCellSize[RADIANCE_PROBE_MAX_CLIPMAPS];
 uint NumFramesToKeepCachedProbes;
+
+float3 GetLastFrameProbeTranslatedWorldPosition(uint3 LastFrameProbeCoord, uint ClipmapIndex)
+{
+	float3 CornerTranslatedWorldSpace = LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex].xyz;
+	float CellSize = LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex].w;
+
+	const float3 CornerToProbe = (LastFrameProbeCoord + 0.5) * CellSize;
+	return CornerTranslatedWorldSpace + CornerToProbe;
+}
+
 
 #ifdef UpdateCacheForUsedProbesCS
 
@@ -332,8 +342,8 @@ void UpdateCacheForUsedProbesCS(
 
 		if (LastFrameProbeIndex != INVALID_PROBE_INDEX)
 		{
-			float3 ProbeWorldPosition = LastFrameProbeCoord * PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex].w + PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex].xyz;
-			int3 ProbeCoord = GetRadianceProbeCoord(ProbeWorldPosition, ClipmapIndex);
+			float3 ProbeTranslatedWorldPosition = GetLastFrameProbeTranslatedWorldPosition(LastFrameProbeCoord, ClipmapIndex);
+			int3 ProbeCoord = GetRadianceProbeCoord(ProbeTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation), ClipmapIndex);
 
 			bool bReused = false;
 

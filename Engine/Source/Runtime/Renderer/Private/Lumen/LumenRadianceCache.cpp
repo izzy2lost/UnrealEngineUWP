@@ -147,10 +147,8 @@ namespace LumenRadianceCache
 			const FRadianceCacheClipmap& Clipmap = RadianceCacheState.Clipmaps[ClipmapIndex];
 
 			SetRadianceProbeClipmapTMin(OutParameters, ClipmapIndex, Clipmap.ProbeTMin);
-			SetWorldPositionToRadianceProbeCoordScale(OutParameters, ClipmapIndex, Clipmap.WorldPositionToProbeCoordScale);
-			SetWorldPositionToRadianceProbeCoordBias(OutParameters, ClipmapIndex, (FVector3f)Clipmap.WorldPositionToProbeCoordBias);
-			SetRadianceProbeCoordToWorldPositionScale(OutParameters, ClipmapIndex, Clipmap.ProbeCoordToWorldCenterScale);
-			SetRadianceProbeCoordToWorldPositionBias(OutParameters, ClipmapIndex, (FVector3f)Clipmap.ProbeCoordToWorldCenterBias);
+			SetClipmapCornerTWS(OutParameters, ClipmapIndex, Clipmap.CornerTranslatedWorldSpace);
+			SetClipmapCellSize(OutParameters, ClipmapIndex, Clipmap.CellSize);
 		}
 
 		const FVector2f ProbeAtlasResolutionInProbesAsFloat = FVector2f(RadianceCacheInputs.ProbeAtlasResolutionInProbes);
@@ -190,8 +188,7 @@ namespace LumenRadianceCache
 		{
 			const FRadianceCacheClipmap& Clipmap = RadianceCacheState.Clipmaps[ClipmapIndex];
 
-			SetWorldPositionToRadianceProbeCoord(MarkParameters.PackedWorldPositionToRadianceProbeCoord[ClipmapIndex], (FVector3f)Clipmap.WorldPositionToProbeCoordBias, Clipmap.WorldPositionToProbeCoordScale);
-			SetRadianceProbeCoordToWorldPosition(MarkParameters.PackedRadianceProbeCoordToWorldPosition[ClipmapIndex], (FVector3f)Clipmap.ProbeCoordToWorldCenterBias, Clipmap.ProbeCoordToWorldCenterScale);
+			MarkParameters.ClipmapCornerTWSAndCellSizeForMark[ClipmapIndex] = FVector4f(Clipmap.CornerTranslatedWorldSpace, Clipmap.CellSize);
 		}
 
 		MarkParameters.RadianceProbeClipmapResolutionForMark = RadianceCacheInputs.RadianceProbeClipmapResolution;
@@ -337,7 +334,7 @@ class FUpdateCacheForUsedProbesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWProbeLastUsedFrame)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<uint>, LastFrameRadianceProbeIndirectionTexture)
 		SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedLastFrameRadianceProbeCoordToWorldPosition, [LumenRadianceCache::MaxClipmaps])
+		SHADER_PARAMETER_ARRAY(FVector4f, LastFrameClipmapCornerTWSAndCellSize, [LumenRadianceCache::MaxClipmaps])
 		SHADER_PARAMETER(uint32, FrameNumber)
 		SHADER_PARAMETER(uint32, NumFramesToKeepCachedProbes)
 		SHADER_PARAMETER(uint32, MaxNumProbes)
@@ -1050,6 +1047,95 @@ public:
 
 IMPLEMENT_GLOBAL_SHADER(FFixupBordersAndGenerateMipsCS, "/Engine/Private/Lumen/LumenRadianceCache.usf", "FixupBordersAndGenerateMipsCS", SF_Compute);
 
+struct FClipmapLevelGeometry
+{
+	/** Origin point, snapped to the cell grid of this level with floor(). */
+	FVector SnappedOrigin;
+	/** Worldspace length of this level on each axis. */
+	FVector Size;
+	/** Worldspace length of each cell on this level. */
+	FVector CellSize;
+
+	/** 
+	 * Shift the cell grid such that the center of a cell on this level
+	 * lines up with the center of a cell on every level below this one.
+	 */
+	FVector GetCenterAlignedOrigin() const
+	{
+		return SnappedOrigin - (0.5 * CellSize);
+	}
+};
+
+struct FClipmapGeometry
+{
+	/** Origin of this clipmap before snapping, so this point may not lie on the cell grid */
+	FVector Origin;
+	/** Worldspace length of each cell on the level. */
+	FVector Level0CellSize;
+	/** Resolution of the grid on each level */
+	FIntVector CellsPerLevel;
+	/** The maximum level present in this clipmap. Levels may also go below 0. */
+	int MaxLevel;
+
+	static FVector SnapToGrid(const FVector& Position, const FVector& GridCellSize)
+	{
+		FVector SnapUnits(
+			FMath::FloorToDouble(Position.X / GridCellSize.X),
+			FMath::FloorToDouble(Position.Y / GridCellSize.Y),
+			FMath::FloorToDouble(Position.Z / GridCellSize.Z));
+		FVector SnappedPosition(
+			SnapUnits.X * GridCellSize.X,
+			SnapUnits.Y * GridCellSize.Y,
+			SnapUnits.Z * GridCellSize.Z);
+		return SnappedPosition;
+	}
+
+	FVector GetCellSize(int Level) const
+	{
+		return Level0CellSize * FMath::Pow(2.0f, static_cast<float>(Level));
+	}
+
+	FClipmapGeometry(
+		/** Clipmap origin, in absolute world space */
+		FVector InOrigin,
+		int InMaxLevel,
+		FVector InLevel0CellSize,
+		FIntVector InCellsPerLevel)
+	: Origin(InOrigin)
+	, Level0CellSize(InLevel0CellSize)
+	, CellsPerLevel(InCellsPerLevel)
+	, MaxLevel(InMaxLevel)
+	{ }
+
+	FClipmapGeometry(
+		/** Clipmap origin, in absolute world space */
+		FVector InOrigin,
+		int InMaxLevel,
+		double InLevel0CellSize,
+		int InCellsPerLevel)
+	: FClipmapGeometry(InOrigin, InMaxLevel, FVector(InLevel0CellSize), FIntVector(InCellsPerLevel))
+	{ }
+
+	FClipmapLevelGeometry GetLevel(int Level) const
+	{
+		FClipmapLevelGeometry LevelGeometry;
+		LevelGeometry.CellSize = GetCellSize(Level);
+		LevelGeometry.SnappedOrigin = SnapToGrid(Origin, LevelGeometry.CellSize);
+		LevelGeometry.Size = LevelGeometry.CellSize * (FVector)CellsPerLevel;
+		return LevelGeometry;
+	}
+
+	/** 
+	 * Return the root origin of this clipmap, which is the origin of the last level.
+	 * This point is guaranteed to line up with the cell grid on every level.
+	 */
+	FVector GetRootOrigin() const
+	{
+		FClipmapLevelGeometry LastLevel = GetLevel(MaxLevel);
+		return LastLevel.SnappedOrigin;
+	}
+};
+
 bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, const LumenRadianceCache::FRadianceCacheInputs& RadianceCacheInputs, FRadianceCacheState& CacheState)
 {
 	bool bResetState = CacheState.ClipmapWorldExtent != RadianceCacheInputs.ClipmapWorldExtent || CacheState.ClipmapDistributionBase != RadianceCacheInputs.ClipmapDistributionBase;
@@ -1057,6 +1143,7 @@ bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 	CacheState.ClipmapWorldExtent = RadianceCacheInputs.ClipmapWorldExtent;
 	CacheState.ClipmapDistributionBase = RadianceCacheInputs.ClipmapDistributionBase;
 
+	const float ClipmapWorldExtent = RadianceCacheInputs.ClipmapWorldExtent;
 	const int32 ClipmapResolution = RadianceCacheInputs.RadianceProbeClipmapResolution;
 	const int32 NumClipmaps = RadianceCacheInputs.NumRadianceProbeClipmaps;
 
@@ -1064,33 +1151,26 @@ bool UpdateRadianceCacheState(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 	CacheState.Clipmaps.SetNum(NumClipmaps);
 
-	for (int32 ClipmapIndex = 0; ClipmapIndex < NumClipmaps; ++ClipmapIndex)
+	double Level0CellSize = (ClipmapWorldExtent * 2.0f) / ClipmapResolution;
+	FClipmapGeometry ClipmapGeometry(NewViewOrigin, NumClipmaps - 1, Level0CellSize, ClipmapResolution);
+
+	for (int32 LevelIndex = 0; LevelIndex < NumClipmaps; ++LevelIndex)
 	{
-		FRadianceCacheClipmap& Clipmap = CacheState.Clipmaps[ClipmapIndex];
+		FClipmapLevelGeometry LevelGeometry = ClipmapGeometry.GetLevel(LevelIndex);
 
-		const float ClipmapExtent = RadianceCacheInputs.ClipmapWorldExtent * FMath::Pow(RadianceCacheInputs.ClipmapDistributionBase, ClipmapIndex);
-		const float CellSize = (2.0f * ClipmapExtent) / ClipmapResolution;
 
-		FIntVector GridCenter;
-		GridCenter.X = FMath::FloorToInt(NewViewOrigin.X / CellSize);
-		GridCenter.Y = FMath::FloorToInt(NewViewOrigin.Y / CellSize);
-		GridCenter.Z = FMath::FloorToInt(NewViewOrigin.Z / CellSize);
+		const FVector WorldspaceCorner = LevelGeometry.GetCenterAlignedOrigin() - (LevelGeometry.Size / 2.0);
+		const FVector3f Corner = (FVector3f)(WorldspaceCorner + View.ViewMatrices.GetPreViewTranslation());
+		const float ClipmapExtent = LevelGeometry.Size.X / 2.0;
+		const float CellSize = LevelGeometry.CellSize.X;
 
-		const FVector SnappedCenter = FVector(GridCenter) * CellSize;
-
-		Clipmap.Center = SnappedCenter;
+		FRadianceCacheClipmap& Clipmap = CacheState.Clipmaps[LevelIndex];
+		Clipmap.Center = LevelGeometry.SnappedOrigin;
 		Clipmap.Extent = ClipmapExtent;
 		Clipmap.VolumeUVOffset = FVector(0.0f, 0.0f, 0.0f);
+		Clipmap.CornerTranslatedWorldSpace = Corner;
 		Clipmap.CellSize = CellSize;
 
-		// Shift the clipmap grid down so that probes align with other clipmaps
-		const FVector ClipmapMin = Clipmap.Center - Clipmap.Extent - 0.5f * Clipmap.CellSize;
-
-		Clipmap.ProbeCoordToWorldCenterBias = ClipmapMin + 0.5f * Clipmap.CellSize;
-		Clipmap.ProbeCoordToWorldCenterScale = Clipmap.CellSize;
-
-		Clipmap.WorldPositionToProbeCoordScale = 1.0f / CellSize;
-		Clipmap.WorldPositionToProbeCoordBias = -ClipmapMin / CellSize;
 		
 		Clipmap.ProbeTMin = RadianceCacheInputs.CalculateIrradiance ? 0.0f : FVector(CellSize, CellSize, CellSize).Size() * RadianceCacheInputs.ProbeTMinScale;
 	}
@@ -1467,7 +1547,7 @@ void UpdateRadianceCaches(
 					{
 						const FRadianceCacheClipmap& Clipmap = Setup.LastFrameClipmaps[ClipmapIndex];
 
-						SetRadianceProbeCoordToWorldPosition(PassParameters->PackedLastFrameRadianceProbeCoordToWorldPosition[ClipmapIndex], (FVector3f)Clipmap.ProbeCoordToWorldCenterBias, Clipmap.ProbeCoordToWorldCenterScale);
+						PassParameters->LastFrameClipmapCornerTWSAndCellSize[ClipmapIndex] = FVector4f(Clipmap.CornerTranslatedWorldSpace, Clipmap.CellSize);
 					}
 
 					auto ComputeShader = View.ShaderMap->GetShader<FUpdateCacheForUsedProbesCS>(0);

@@ -14,22 +14,11 @@ namespace LumenRadianceCache
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FRadianceCacheMarkParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<uint>, RWRadianceProbeIndirectionTexture)
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedWorldPositionToRadianceProbeCoord, [MaxClipmaps])
-		SHADER_PARAMETER_ARRAY(FVector4f, PackedRadianceProbeCoordToWorldPosition, [MaxClipmaps])
+		SHADER_PARAMETER_ARRAY(FVector4f, ClipmapCornerTWSAndCellSizeForMark, [MaxClipmaps])
 		SHADER_PARAMETER(uint32, RadianceProbeClipmapResolutionForMark)
 		SHADER_PARAMETER(uint32, NumRadianceProbeClipmapsForMark)
 		SHADER_PARAMETER(float, InvClipmapFadeSizeForMark)
 	END_SHADER_PARAMETER_STRUCT()
-}
-
-inline void SetWorldPositionToRadianceProbeCoord(FVector4f& PackedParams, const FVector3f& BiasForMark, const float ScaleForMark)
-{
-	PackedParams = FVector4f(BiasForMark, ScaleForMark);
-}
-
-inline void SetRadianceProbeCoordToWorldPosition(FVector4f& PackedParams, const FVector3f& BiasForMark, const float ScaleForMark)
-{
-	PackedParams = FVector4f(BiasForMark, ScaleForMark);
 }
 
 DECLARE_MULTICAST_DELEGATE_ThreeParams(FMarkUsedRadianceCacheProbes, FRDGBuilder&, const FViewInfo&, const LumenRadianceCache::FRadianceCacheMarkParameters&);

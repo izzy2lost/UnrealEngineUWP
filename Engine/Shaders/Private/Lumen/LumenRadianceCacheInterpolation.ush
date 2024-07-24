@@ -28,8 +28,7 @@
 	#define RadianceCacheFinalIrradianceAtlas  RadianceCacheInterpolation.RadianceCacheFinalIrradianceAtlas
 	#define RadianceCacheProbeOcclusionAtlas  RadianceCacheInterpolation.RadianceCacheProbeOcclusionAtlas
 	#define RadianceProbeSettings RadianceCacheInterpolation.RadianceProbeSettings
-	#define PaddedWorldPositionToRadianceProbeCoordBias  RadianceCacheInterpolation.PaddedWorldPositionToRadianceProbeCoordBias
-	#define PaddedRadianceProbeCoordToWorldPositionBias  RadianceCacheInterpolation.PaddedRadianceProbeCoordToWorldPositionBias
+	#define ClipmapCornerTWSAndCellSize RadianceCacheInterpolation.ClipmapCornerTWSAndCellSize
 	#define ReprojectionRadiusScale  RadianceCacheInterpolation.ReprojectionRadiusScale
 	#define InvClipmapFadeSize  RadianceCacheInterpolation.InvClipmapFadeSize
 	#define ProbeAtlasResolutionInProbes  RadianceCacheInterpolation.ProbeAtlasResolutionInProbes
@@ -62,8 +61,7 @@
 	StructuredBuffer<float4> ProbeWorldOffset;
 
 	float4 RadianceProbeSettings[RADIANCE_PROBE_MAX_CLIPMAPS];
-	float4 PaddedWorldPositionToRadianceProbeCoordBias[RADIANCE_PROBE_MAX_CLIPMAPS];
-	float4 PaddedRadianceProbeCoordToWorldPositionBias[RADIANCE_PROBE_MAX_CLIPMAPS];
+	float4 ClipmapCornerTWSAndCellSize[RADIANCE_PROBE_MAX_CLIPMAPS];
 
 	float ReprojectionRadiusScale;
 	float InvClipmapFadeSize;
@@ -99,42 +97,52 @@ float GetRadianceProbeTMin(uint ClipmapIndex)
 	return RadianceProbeSettings[ClipmapIndex].x; // must match with LumenRadianceCacheInterpolation.h
 }
 
-float GetWorldPositionToRadianceProbeCoordScale(uint ClipmapIndex)
+// The minimum coordinate of the clipmap, in translated world space
+float3 GetRadianceProbeClipmapCornerTWS(uint ClipmapIndex)
 {
-	return RadianceProbeSettings[ClipmapIndex].y; // must match with LumenRadianceCacheInterpolation.h
+	return ClipmapCornerTWSAndCellSize[ClipmapIndex].xyz; // must match with LumenRadianceCacheInterpolation.h
 }
 
-float GetRadianceProbeCoordToWorldPositionScale(uint ClipmapIndex)
+float GetRadianceProbeClipmapCellSize(uint ClipmapIndex)
 {
-	return RadianceProbeSettings[ClipmapIndex].z; // must match with LumenRadianceCacheInterpolation.h
+	return ClipmapCornerTWSAndCellSize[ClipmapIndex].w; // must match with LumenRadianceCacheInterpolation.h
 }
 
-float3 GetWorldPositionToRadianceProbeCoordBias(uint ClipmapIndex)
-{
-	return PaddedWorldPositionToRadianceProbeCoordBias[ClipmapIndex].xyz; // must match with LumenRadianceCacheInterpolation.h
-}
 
-float3 GetRadianceProbeCoordToWorldPositionBias(uint ClipmapIndex)
+
+float3 GetRadianceProbeCoordFloat(float3 ProbeWorldPosition, uint ClipmapIndex)
 {
-	return PaddedRadianceProbeCoordToWorldPositionBias[ClipmapIndex].xyz; // must match with LumenRadianceCacheInterpolation.h
+	const float3 ProbeTranslatedWorldPosition = ProbeWorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation);
+
+	const float3 CornerTranslatedWorldPosition = GetRadianceProbeClipmapCornerTWS(ClipmapIndex);
+	const float3 CornerToProbe = ProbeTranslatedWorldPosition - CornerTranslatedWorldPosition;
+	const float CellSize = GetRadianceProbeClipmapCellSize(ClipmapIndex);
+	return CornerToProbe / CellSize;
 }
 
 int3 GetRadianceProbeCoord(float3 ProbeWorldPosition, uint ClipmapIndex)
 {
 	// Use floor() to round negative numbers down
-	return floor(ProbeWorldPosition * GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex) + GetWorldPositionToRadianceProbeCoordBias(ClipmapIndex));
+	return floor(GetRadianceProbeCoordFloat(ProbeWorldPosition, ClipmapIndex));
 }
 
 int3 GetRadianceProbeBottomCornerCoord(float3 ProbeWorldPosition, uint ClipmapIndex)
 {
-	// Use floor() to round negative numbers down
-	return floor(ProbeWorldPosition * GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex) + GetWorldPositionToRadianceProbeCoordBias(ClipmapIndex) - 0.5f);
+	return GetRadianceProbeCoord(ProbeWorldPosition - 0.5f, ClipmapIndex);
+}
+
+float3 GetProbeTranslatedWorldPositionNoOffset(uint3 ProbeCoord, uint ClipmapIndex)
+{
+	const float3 CornerTranslatedWorldPosition = GetRadianceProbeClipmapCornerTWS(ClipmapIndex);
+	const float CellSize = GetRadianceProbeClipmapCellSize(ClipmapIndex);
+
+	const float3 CornerToProbe = (ProbeCoord + 0.5) * CellSize;
+	return CornerTranslatedWorldPosition + CornerToProbe;
 }
 
 float3 GetProbeWorldPosition(uint3 ProbeCoord, uint ClipmapIndex, uint ProbeIndex)
 {
-	float3 ProbeWorldPosition = ProbeCoord * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + GetRadianceProbeCoordToWorldPositionBias(ClipmapIndex);
-	return ProbeWorldPosition + ProbeWorldOffset[ProbeIndex].xyz;
+	return GetProbeTranslatedWorldPositionNoOffset(ProbeCoord, ClipmapIndex) + ProbeWorldOffset[ProbeIndex].xyz - DFHackToFloat(PrimaryView.PreViewTranslation);
 }
 
 bool IsValidRadianceCacheClipmap(uint FRadianceCacheCoverage)
@@ -148,7 +156,7 @@ uint GetRadianceProbeClipmap(float3 WorldSpacePosition, float ClipmapDitherRando
 
 	for (; ClipmapIndex < NumRadianceProbeClipmaps; ++ClipmapIndex)
 	{
-		float3 ProbeCoordFloat = WorldSpacePosition * GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex) + GetWorldPositionToRadianceProbeCoordBias(ClipmapIndex);
+		float3 ProbeCoordFloat = GetRadianceProbeCoordFloat(WorldSpacePosition, ClipmapIndex);
 		float3 BottomEdgeFades = saturate((ProbeCoordFloat - .5f) * InvClipmapFadeSize);
 		float3 TopEdgeFades = saturate(((float3)RadianceProbeClipmapResolution - .5f - ProbeCoordFloat) * InvClipmapFadeSize);
 		float EdgeFade = min(min3(BottomEdgeFades.x, BottomEdgeFades.y, BottomEdgeFades.z), min3(TopEdgeFades.x, TopEdgeFades.y, TopEdgeFades.z));
@@ -195,7 +203,7 @@ FRadianceCacheCoverage GetRadianceCacheCoverage(float3 RayOrigin, float3 RayDire
 	{
 		Coverage.bValid = true;
 
-		float CellOcclusionDistance = GetRadianceProbeCoordToWorldPositionScale(Coverage.ClipmapIndex) * sqrt(3.0f);
+		float CellOcclusionDistance = GetRadianceProbeClipmapCellSize(Coverage.ClipmapIndex) * sqrt(3.0f);
 		Coverage.MinTraceDistanceBeforeInterpolation = GetRadianceProbeTMin(Coverage.ClipmapIndex) + CellOcclusionDistance;
 	}
 
@@ -311,7 +319,7 @@ float3 SampleRadianceCacheInterpolated(FRadianceCacheCoverage Coverage, float3 W
 	}
 #endif
 
-	float3 ProbeCoordFloat = WorldSpacePosition * GetWorldPositionToRadianceProbeCoordScale(Coverage.ClipmapIndex) + GetWorldPositionToRadianceProbeCoordBias(Coverage.ClipmapIndex);
+	float3 ProbeCoordFloat = GetRadianceProbeCoordFloat(WorldSpacePosition, Coverage.ClipmapIndex);
 
 	//float ConeHalfAngle = acosFast(1.0f - NumTexels * NumTexels / (float)(RadianceProbeResolution * RadianceProbeResolution));
 	float NumTexels = sqrt(1.0f - cos(ConeHalfAngle)) * RadianceProbeResolution;
@@ -393,7 +401,7 @@ float3 SampleIrradianceCacheProbeCoord(uint3 ProbeCoord, uint ProbeClipmapIndex,
 
 float3 SampleIrradianceCacheInterpolated(float3 WorldSpacePosition, float3 WorldSpaceDirection, float3 BiasOffset, uint ClipmapIndex)
 {
-	float3 ProbeCoordFloat = WorldSpacePosition * GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex) + GetWorldPositionToRadianceProbeCoordBias(ClipmapIndex);
+	float3 ProbeCoordFloat = GetRadianceProbeCoordFloat(WorldSpacePosition, ClipmapIndex);
 
 	float3 CornerProbeCoordFloat = ProbeCoordFloat - .5f;
 	int3 CornerProbeCoord = floor(CornerProbeCoordFloat);

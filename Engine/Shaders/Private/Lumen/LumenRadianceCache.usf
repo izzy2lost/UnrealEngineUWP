@@ -150,7 +150,7 @@ void ComputeProbeWorldOffsetsCS(
 	const float3 ProbeTranslatedWorldCenter = ProbeWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 
 	float DistanceToSurface = GetDistanceToNearestSurfaceGlobal(ProbeTranslatedWorldCenter);
-	float TooCloseThreshold = .05f * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex);
+	float TooCloseThreshold = .05f * GetRadianceProbeClipmapCellSize(ClipmapIndex);
 
 	if (DistanceToSurface < TooCloseThreshold)
 	{
@@ -160,7 +160,7 @@ void ComputeProbeWorldOffsetsCS(
 		uint Y = (GroupThreadId % 16) / 4;
 		uint Z = GroupThreadId / 16;
 		{
-			float3 Offset = (float3(X, Y, Z) * 2.0f / 3.0f - 1.0f) * MaxVoxelOffset * GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex);
+			float3 Offset = (float3(X, Y, Z) * 2.0f / 3.0f - 1.0f) * MaxVoxelOffset * GetRadianceProbeClipmapCellSize(ClipmapIndex);
 			float SampleDistanceToSurface = GetDistanceToNearestSurfaceGlobal(ProbeTranslatedWorldCenter + Offset);
 			SharedBestOffset[GroupThreadId] = float4(Offset, SampleDistanceToSurface);
 		}
@@ -750,7 +750,7 @@ void TraceFromProbesCS(
 			// No temporal accumulation, so just reads as dirty lighting
 #define JITTER_TRACE_DIRECTION 0
 #if JITTER_TRACE_DIRECTION
-			uint2 RandomSeed = Rand3DPCG16(int3(floor(ProbeWorldCenter * GetWorldPositionToRadianceProbeCoordScale(0)))).xy;
+			uint2 RandomSeed = Rand3DPCG16(int3(floor(ProbeWorldCenter / GetRadianceProbeClipmapCellSize(0)))).xy;
 			ProbeTexelCenter = Hammersley16(0, 1, RandomSeed);
 #endif
 
@@ -953,11 +953,11 @@ void FilterProbeRadianceWithGatherCS(
 				float3 ToNeighborHit = NeighborHitPosition - ProbeWorldCenter;
 				uint2 ProbeTexelCoordForNeighborHit = InverseEquiAreaSphericalMapping(ToNeighborHit) * RadianceProbeResolution;
 				float ProbeDepthForNeighborHit = DepthProbeAtlasTexture[ProbeTexelCoordForNeighborHit + ProbeAtlasBaseCoord];
-				float VoxelRadius = sqrt(3.0f) / GetWorldPositionToRadianceProbeCoordScale(ClipmapIndex);
+				float VoxelRadius = sqrt(3.0f) * GetRadianceProbeClipmapCellSize(ClipmapIndex);
 
 				float DistanceWeight = 1.0f;
 
-				if (ProbeDepthForNeighborHit < 1.0f * (GetRadianceProbeCoordToWorldPositionScale(ClipmapIndex) + VoxelRadius))
+				if (ProbeDepthForNeighborHit < 1.0f * (GetRadianceProbeClipmapCellSize(ClipmapIndex) + VoxelRadius))
 				{
 					//@todo - need to trace through neighbor probe depths to see if the ray is occluded near the origin to stop leaking
 					DistanceWeight = 0;

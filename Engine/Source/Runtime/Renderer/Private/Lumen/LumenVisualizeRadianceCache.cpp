@@ -53,8 +53,7 @@ FAutoConsoleVariableRef CVarLumenRadianceCacheVisualizeProbeRadius(
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVisualizeRadianceCacheCommonParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(LumenRadianceCache::FRadianceCacheInterpolationParameters, RadianceCacheParameters)
-	SHADER_PARAMETER(FVector3f, ProbeCoordToWorldCenterBias)
-	SHADER_PARAMETER(float, ProbeCoordToWorldCenterScale)
+	SHADER_PARAMETER(FVector4f, ClipmapCornerTWSAndCellSizeForVisualization)
 	SHADER_PARAMETER(float, VisualizeProbeRadiusScale)
 	SHADER_PARAMETER(uint32, ProbeClipmapIndex)
 END_SHADER_PARAMETER_STRUCT()
@@ -164,8 +163,7 @@ void FDeferredShadingSceneRenderer::RenderLumenRadianceCacheVisualization(FRDGBu
 			LumenRadianceCache::GetInterpolationParameters(View, GraphBuilder, RadianceCacheState, RadianceCacheInputs, VisualizeCommonParameters.RadianceCacheParameters);
 			VisualizeCommonParameters.VisualizeProbeRadiusScale = GLumenRadianceCacheVisualizeRadiusScale;
 			VisualizeCommonParameters.ProbeClipmapIndex = ClipmapIndex;
-			VisualizeCommonParameters.ProbeCoordToWorldCenterBias = (FVector3f)Clipmap.ProbeCoordToWorldCenterBias;
-			VisualizeCommonParameters.ProbeCoordToWorldCenterScale = Clipmap.ProbeCoordToWorldCenterScale;
+			VisualizeCommonParameters.ClipmapCornerTWSAndCellSizeForVisualization = FVector4f(Clipmap.CornerTranslatedWorldSpace, Clipmap.CellSize);
 
 			FVisualizeRadianceCacheParameters* PassParameters = GraphBuilder.AllocParameters<FVisualizeRadianceCacheParameters>();
 			PassParameters->VS.VisualizeCommonParameters = VisualizeCommonParameters;
