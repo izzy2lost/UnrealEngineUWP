@@ -55,7 +55,7 @@ UGeometryMaskCanvasResource::UGeometryMaskCanvasResource()
 	PostProcess_DistanceField = MakeShared<FGeometryMaskPostProcess_DistanceField>(PostProcessParameters_DistanceField);
 }
 
-UGeometryMaskCanvasResource::~UGeometryMaskCanvasResource()
+void UGeometryMaskCanvasResource::BeginDestroy()
 {
 	if (IsValid(this)
 		&& CanvasObject
@@ -65,6 +65,8 @@ UGeometryMaskCanvasResource::~UGeometryMaskCanvasResource()
 		delete CanvasObject->Canvas;
 		CanvasObject->Canvas = nullptr;
 	}
+
+	Super::BeginDestroy();
 }
 
 const EGeometryMaskColorChannel UGeometryMaskCanvasResource::GetNextAvailableColorChannel() const

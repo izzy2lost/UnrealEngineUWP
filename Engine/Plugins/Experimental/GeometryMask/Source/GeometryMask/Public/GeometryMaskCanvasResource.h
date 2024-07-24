@@ -33,8 +33,9 @@ public:
 	static constexpr int32 MaxTextureSize = 8192;
 	
 	UGeometryMaskCanvasResource();
-	virtual ~UGeometryMaskCanvasResource() override;
-	
+
+	virtual void BeginDestroy() override;
+
 	/** Will return the first available color channel without a canvas assigned. EGeometryMaskColorChannel::None if not available. */
 	const EGeometryMaskColorChannel GetNextAvailableColorChannel() const;
 
