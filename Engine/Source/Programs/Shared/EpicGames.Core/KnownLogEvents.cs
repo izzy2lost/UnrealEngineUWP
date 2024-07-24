@@ -141,6 +141,11 @@ namespace EpicGames.Core
 		public static EventId AutomationTool_BuildGraphScript { get; } = new EventId(407);
 
 		/// <summary>
+		/// UAT: CodeSign message
+		/// </summary>
+		public static EventId AutomationTool_CodeSign { get; } = new EventId(408);
+
+		/// <summary>
 		/// MSBuild: Generic error
 		/// </summary>
 		public static EventId MSBuild { get; } = new EventId(500);
