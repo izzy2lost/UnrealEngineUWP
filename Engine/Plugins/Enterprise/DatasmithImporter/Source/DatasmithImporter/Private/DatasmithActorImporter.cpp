@@ -749,6 +749,10 @@ void FDatasmithActorImporter::SetupActorProperties(AActor* ImportedActor, const 
 
 void FDatasmithActorImporter::SetupSceneComponent( USceneComponent* SceneComponent, const TSharedRef< IDatasmithActorElement >& ActorElement, USceneComponent* Parent )
 {
+	static_assert((uint8)EDatasmithActorMobilityType::Static == (uint8)EComponentMobility::Type::Static, "ENUM_VALUE_HAS_CHANGED");
+	static_assert((uint8)EDatasmithActorMobilityType::Stationary == (uint8)EComponentMobility::Type::Stationary, "ENUM_VALUE_HAS_CHANGED");
+	static_assert((uint8)EDatasmithActorMobilityType::Movable == (uint8)EComponentMobility::Type::Movable, "ENUM_VALUE_HAS_CHANGED");
+
 	if ( !SceneComponent )
 	{
 		return;
@@ -758,7 +762,7 @@ void FDatasmithActorImporter::SetupSceneComponent( USceneComponent* SceneCompone
 	UDatasmithSceneComponentTemplate* SceneComponentTemplate = NewObject< UDatasmithSceneComponentTemplate >(Outer);
 
 	SceneComponentTemplate->RelativeTransform = ActorElement->GetRelativeTransform();
-	SceneComponentTemplate->Mobility = ActorElement->IsA(EDatasmithElementType::Camera) ? EComponentMobility::Movable : EComponentMobility::Static;
+	SceneComponentTemplate->Mobility = (EComponentMobility::Type)ActorElement->GetMobility();
 	SceneComponentTemplate->bVisible = ActorElement->GetVisibility();
 	SceneComponentTemplate->bCastShadow = ActorElement->GetCastShadow();
 	SceneComponentTemplate->AttachParent = Parent;

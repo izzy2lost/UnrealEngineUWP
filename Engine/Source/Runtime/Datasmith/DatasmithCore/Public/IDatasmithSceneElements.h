@@ -150,6 +150,12 @@ public:
 
 	/** Get whether an actor's casts shadow */
 	virtual bool GetCastShadow() const = 0;
+
+	/** Set a mesh actor's visibility */
+	virtual void SetMobility(EDatasmithActorMobilityType Mobility) = 0;
+
+	/** Get a mesh actor's visibility */
+	virtual EDatasmithActorMobilityType GetMobility() const = 0;
 };
 
 /**

@@ -146,6 +146,11 @@ FString FDatasmithSceneXmlWriterImpl::GetLabelAndLayer(const TSharedPtr<IDatasmi
 		LabelAndLayer += TEXT(" component=\"true\"");
 	}
 
+	ensure((int32)ActorElement->GetMobility() < UE_ARRAY_COUNT(DatasmithActorMobilityTypeStrings));
+	FString MobilityString = DatasmithActorMobilityTypeStrings[(int32)ActorElement->GetMobility()];
+
+	LabelAndLayer += TEXT(" mobility=\"") + MobilityString + TEXT("\"");
+
 	return LabelAndLayer;
 }
 

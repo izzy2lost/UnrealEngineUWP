@@ -647,3 +647,12 @@ static const TCHAR* KeyValuePropertyTypeStrings[] = { TEXT("String"), TEXT("Colo
 
 #define DATASMITH_DECALMATERIALNAME				TEXT("DecalMaterial")
 
+
+enum class EDatasmithActorMobilityType : uint8
+{
+	Static = 0,
+	Stationary,
+	Movable
+};
+
+static const TCHAR* DatasmithActorMobilityTypeStrings[] = { TEXT("Static"), TEXT("Stationary"), TEXT("Movable") };

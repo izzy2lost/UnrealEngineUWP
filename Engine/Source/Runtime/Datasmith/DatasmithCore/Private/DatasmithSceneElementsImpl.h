@@ -200,6 +200,9 @@ public:
 	virtual void SetCastShadow(bool bInCastShadow) override { bCastShadow = bInCastShadow; }
 	virtual bool GetCastShadow() const override { return bCastShadow; }
 
+	virtual void SetMobility(EDatasmithActorMobilityType InMobility) override { Mobility = InMobility; }
+	virtual EDatasmithActorMobilityType GetMobility() const override { return Mobility; }
+
 protected:
 	/** Converts all children's transforms to relative */
 	void ConvertChildsToRelative();
@@ -227,6 +230,7 @@ private:
 
 	TReflected<EActorFlags, uint8> Flags;
 	TReflected<bool> bCastShadow;
+	TReflected<EDatasmithActorMobilityType, uint8> Mobility;
 };
 
 template< typename InterfaceType >
@@ -240,6 +244,7 @@ inline FDatasmithActorElementImpl<T>::FDatasmithActorElementImpl(const TCHAR* In
 	, Rotation(FQuat::Identity)
 	, Flags(EActorFlags::IsVisible)
 	, bCastShadow(true)
+	, Mobility(EDatasmithActorMobilityType::Static)
 {
 	this->RegisterReferenceProxy(Children, "Children");
 	this->RegisterReferenceProxy(Parent,   "Parent"  );
@@ -251,6 +256,7 @@ inline FDatasmithActorElementImpl<T>::FDatasmithActorElementImpl(const TCHAR* In
 	Store.RegisterParameter(Tags,         "Tags"         ); // reflect as low prio for directlink
 	Store.RegisterParameter(Flags,        "Flags"        );
 	Store.RegisterParameter(bCastShadow,  "CastShadow"   );
+	Store.RegisterParameter(Mobility,     "Mobility"     );
 }
 
 template< typename T >

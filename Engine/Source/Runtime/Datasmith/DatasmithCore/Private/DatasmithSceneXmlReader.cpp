@@ -758,6 +758,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FString CastShadowAtribute = InNode->GetAttribute(TEXT("castshadow"));
 	InOutElement->SetCastShadow(CastShadowAtribute.IsEmpty() ? true : ValueFromString<bool>(CastShadowAtribute));
 
+	FString MobilityString = InNode->GetAttribute(TEXT("mobility"));
+	TArrayView< const TCHAR* > MobilityEnumStrings(DatasmithActorMobilityTypeStrings);
+	int32 MobilityIndexOfEnumValue = MobilityEnumStrings.IndexOfByPredicate([&MobilityString](const TCHAR* Value)
+		{
+			return MobilityString == Value;
+		});
+
+	if (MobilityIndexOfEnumValue != INDEX_NONE)
+	{
+		InOutElement->SetMobility((EDatasmithActorMobilityType)MobilityIndexOfEnumValue);
+	}
+
 	for (FXmlNode* ChildNode : InNode->GetChildrenNodes())
 	{
 		if (ChildNode->GetTag() == TEXT("transform"))

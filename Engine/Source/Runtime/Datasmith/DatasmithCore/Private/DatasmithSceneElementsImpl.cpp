@@ -267,6 +267,8 @@ FDatasmithCameraActorElementImpl::FDatasmithCameraActorElementImpl(const TCHAR* 
 	Store.RegisterParameter(FocalLength,         "FocalLength"        );
 	Store.RegisterParameter(ActorName,           "ActorName"          );
 	Store.RegisterParameter(bLookAtAllowRoll,    "bLookAtAllowRoll"   );
+
+	SetMobility(EDatasmithActorMobilityType::Movable);
 }
 
 float FDatasmithCameraActorElementImpl::GetSensorWidth() const
