@@ -186,7 +186,7 @@ struct PCG_API FPCGComponentSelectorSettings
 	GENERATED_BODY()
 
 	/** How to select when filtering actors. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Component Selector Settings", meta = (EditCondition = "bShowComponentSelection", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Component Selector Settings", meta = (EditCondition = "bShowComponentSelection", EditConditionHides, HideEditConditionToggle))
 	EPCGComponentSelection ComponentSelection = EPCGComponentSelection::ByTag;
 
 	/** Tag to match against when filtering actors. */
