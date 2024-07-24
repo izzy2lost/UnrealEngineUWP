@@ -602,7 +602,7 @@ namespace uba
 		return false;
 	}
 
-	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint)
+	bool StorageImpl::DecompressMemoryToMemory(u8* compressedData, u8* writeData, u64 decompressedSize, const tchar* readHint, const tchar* writeHint)
 	{
 		UBA_ASSERT(compressedData);
 		UBA_ASSERT(writeData);
@@ -724,13 +724,13 @@ namespace uba
 					break;
 				u32 decompressedBlockSize = ((u32*)readPos)[1];
 				if (decompressedBlockSize == 0 || decompressedBlockSize > left)
-					return m_logger.Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s)"), decompressedBlockSize, decompressedSize, readHint);
+					return m_logger.Error(TC("Decompressed block size %u is invalid. Decompressed file is %u (%s -> %s)"), decompressedBlockSize, decompressedSize, readHint, writeHint);
 				readPos += sizeof(u32) * 2;
 
 				TimerScope ts(stats.decompressToMem);
 				OO_SINTa decompLen = OodleLZ_Decompress(readPos, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize); (void)decompLen;
 				if (decompLen != decompressedBlockSize)
-					return m_logger.Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s)"), decompressedBlockSize, decompLen, readHint);
+					return m_logger.Error(TC("Expecting to be able to decompress to %u bytes but got %llu (%s -> %s)"), decompressedBlockSize, decompLen, readHint, writeHint);
 				writePos += decompressedBlockSize;
 				readPos += compressedBlockSize;
 				left -= decompressedBlockSize;
@@ -1682,7 +1682,7 @@ namespace uba
 								mem += sizeof(u64);
 								u8* dest = new u8[decompressedSize];
 								auto g = MakeGuard([dest]() { delete[] dest; });
-								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, filePath.c_str()))
+								if (!DecompressMemoryToMemory(mem, dest, decompressedSize, filePath.c_str(), TC("Memory")))
 									return;
 								checkedKey = CalculateCasKey(dest, decompressedSize, true);
 							}
@@ -2488,12 +2488,12 @@ namespace uba
 
 					if (casEntry->mappingHandle.IsValid())
 					{
-						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize, casFile.data))
+						if (!DecompressMemoryToMemory(readData, destinationFile.GetData(), decompressedSize, casFile.data, destination))
 							return false;
 					}
 					else
 					{
-						if (!DecompressFileToMemory(CasKeyString(actualKey).str, readHandle, destinationFile.GetData(), decompressedSize))
+						if (!DecompressFileToMemory(CasKeyString(actualKey).str, readHandle, destinationFile.GetData(), decompressedSize, destination))
 							return false;
 					}
 				}
@@ -2711,7 +2711,7 @@ namespace uba
 		return ToCasKey(hasher, storeCompressed);
 	}
 
-	bool StorageImpl::DecompressFileToMemory(const tchar* fileName, FileHandle fileHandle, u8* dest, u64 decompressedSize)
+	bool StorageImpl::DecompressFileToMemory(const tchar* fileName, FileHandle fileHandle, u8* dest, u64 decompressedSize, const tchar* writeHint)
 	{
 		if (m_workManager && decompressedSize > BufferSlotSize*4) // Arbitrary size threshold. We want to at least catch the pch here
 		{
@@ -2727,7 +2727,7 @@ namespace uba
 				return m_logger.Error(TC("Failed to map view of file mapping for %s (%s)"), fileName, LastErrorToText().data);
 			auto udg = MakeGuard([&]() { UnmapViewOfFile(fileData, compressedSize, fileName); });
 			
-			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize, fileName))
+			if (!DecompressMemoryToMemory(fileData + 8, dest, decompressedSize, fileName, writeHint))
 				return false;
 		}
 		else

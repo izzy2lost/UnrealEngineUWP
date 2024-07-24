@@ -553,7 +553,7 @@ namespace uba
 
 			if (isCompressed)
 			{
-				if (!m_storage.DecompressFileToMemory(fileName, fileHandle, mappedView.memory, size))
+				if (!m_storage.DecompressFileToMemory(fileName, fileHandle, mappedView.memory, size, TC("MappedMemory")))
 					return false;
 			}
 			else
@@ -640,7 +640,7 @@ namespace uba
 				auto mappedViewWrite = m_fileMappingBuffer.AllocAndMapView(MappedView_Transient, size, alignment, fileName);
 				auto unmapGuard = MakeGuard([&](){ m_fileMappingBuffer.UnmapView(mappedViewWrite, fileName); });
 
-				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size, fileName))
+				if (!m_storage.DecompressMemoryToMemory(readMemory, mappedViewWrite.memory, size, fileName, TC("TransientMapping")))
 					return false;
 				unmapGuard.Execute();
 
