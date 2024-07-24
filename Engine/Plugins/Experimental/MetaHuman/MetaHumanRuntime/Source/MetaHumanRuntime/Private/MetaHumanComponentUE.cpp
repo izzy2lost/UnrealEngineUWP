@@ -12,15 +12,15 @@
 void UMetaHumanComponentUE::OnRegister()
 {
 	Super::OnRegister();
-
-	SetupCustomizableBodyPart(Torso);
-	SetupCustomizableBodyPart(Legs);
-	SetupCustomizableBodyPart(Feet);
 }
 
 void UMetaHumanComponentUE::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SetupCustomizableBodyPart(Torso);
+	SetupCustomizableBodyPart(Legs);
+	SetupCustomizableBodyPart(Feet);
 
 	if (Face)
 	{
