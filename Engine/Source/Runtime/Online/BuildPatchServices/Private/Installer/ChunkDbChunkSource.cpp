@@ -162,6 +162,10 @@ namespace BuildPatchServices
 		virtual const TSet<FGuid>& GetAvailableChunks() const override;
 		// IInstallChunkSource interface end.
 
+		static void LoadChunkDbFiles(
+			const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList,
+			TArray<FChunkDbDataAccess>& OutChunkDbDataAccesses, TMap<FGuid, FChunkAccessLookup>& OutChunkDbDataAccessLookup, TSet<FGuid>* OutOptionalAvailableStore);
+
 	private:
 		void ThreadRun();
 		void LoadChunk(const FGuid& DataId);
@@ -207,25 +211,17 @@ namespace BuildPatchServices
 		TQueue<FGuid, EQueueMode::Mpsc> RepeatRequirementMessages;
 	};
 
-	FChunkDbChunkSource::FChunkDbChunkSource(FChunkDbSourceConfig InConfiguration, IPlatform* InPlatform, IFileSystem* InFileSystem, IChunkStore* InChunkStore, IChunkReferenceTracker* InChunkReferenceTracker, IChunkDataSerialization* InChunkDataSerialization, IMessagePump* InMessagePump, IInstallerError* InInstallerError, IChunkDbChunkSourceStat* InChunkDbChunkSourceStat)
-		: Configuration(MoveTemp(InConfiguration))
-		, Platform(InPlatform)
-		, FileSystem(InFileSystem)
-		, ChunkStore(InChunkStore)
-		, ChunkReferenceTracker(InChunkReferenceTracker)
-		, ChunkDataSerialization(InChunkDataSerialization)
-		, MessagePump(InMessagePump)
-		, InstallerError(InInstallerError)
-		, ChunkDbChunkSourceStat(InChunkDbChunkSourceStat)
-		, bStartedLoading(!InConfiguration.bBeginLoadsOnFirstGet)
+	// Read in the headers, evalutate the list of chunks, and determine when we'll be done with our chunk dbs.
+	void FChunkDbChunkSource::LoadChunkDbFiles(
+		const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList, 
+		TArray<FChunkDbDataAccess>& OutChunkDbDataAccesses, TMap<FGuid, FChunkAccessLookup>& OutChunkDbDataAccessLookup, TSet<FGuid>* OutOptionalAvailableStore)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(FChunkDbChunkSource_ctor);
 
 		// Allow OS intervention only once.
 		bool bResetOsIntervention = false;
 		int32 PreviousOsIntervention = 0;
 		// Load each chunkdb's TOC to enumerate available chunks.
-		for (const FString& ChunkDbFilename : Configuration.ChunkDbFiles)
+		for (const FString& ChunkDbFilename : ChunkDbFiles)
 		{
 			TUniquePtr<FArchive> ChunkDbFile(FileSystem->CreateFileReader(*ChunkDbFilename));
 			if (ChunkDbFile.IsValid())
@@ -248,10 +244,10 @@ namespace BuildPatchServices
 					DataSource.Archive = MoveTemp(ChunkDbFile);
 					DataSource.ChunkDbFileName = ChunkDbFilename;
 					DataSource.Header = MoveTemp(Header);
-					ChunkDbDataAccesses.Add(MoveTemp(DataSource));
+					OutChunkDbDataAccesses.Add(MoveTemp(DataSource));
 				}
 			}
-			else if(!bResetOsIntervention)
+			else if (!bResetOsIntervention)
 			{
 				bResetOsIntervention = true;
 				PreviousOsIntervention = ChunkDbSourceHelpers::DisableOsIntervention();
@@ -264,30 +260,30 @@ namespace BuildPatchServices
 		}
 
 		// Index all chunks to their location info.
-		for (FChunkDbDataAccess& ChunkDbDataAccess : ChunkDbDataAccesses)
+		for (FChunkDbDataAccess& ChunkDbDataAccess : OutChunkDbDataAccesses)
 		{
 			for (FChunkLocation& ChunkLocation : ChunkDbDataAccess.Header.Contents)
 			{
-				if (!ChunkDbDataAccessLookup.Contains(ChunkLocation.ChunkId))
+				if (!OutChunkDbDataAccessLookup.Contains(ChunkLocation.ChunkId))
 				{
-					ChunkDbDataAccessLookup.Add(ChunkLocation.ChunkId, {&ChunkLocation, &ChunkDbDataAccess});
-					AvailableChunks.Add(ChunkLocation.ChunkId);
+					OutChunkDbDataAccessLookup.Add(ChunkLocation.ChunkId, { &ChunkLocation, &ChunkDbDataAccess });
+
+					if (OutOptionalAvailableStore)
+					{
+						OutOptionalAvailableStore->Add(ChunkLocation.ChunkId);
+					}
 				}
 			}
 		}
 
-		// Once we have all the guids here we can predict when we'll be done with each
-		// chunkdb file by looking at the reference tracker.
-		TArray<FGuid> OrderedGuidList = InChunkReferenceTracker->GetNextReferences(0x7fffffff, [](const FGuid&) { return true; });
-
 		TMap<FString, int32> FileLastSeenAt;
 
 		int32 GuidIndex = 0;
-		for (; GuidIndex < OrderedGuidList.Num(); GuidIndex++)
+		for (; GuidIndex < ChunkAccessOrderedList.Num(); GuidIndex++)
 		{
-			const FGuid& Guid = OrderedGuidList[GuidIndex];
+			const FGuid& Guid = ChunkAccessOrderedList[GuidIndex];
 
-			FChunkAccessLookup* SourceForGuid = ChunkDbDataAccessLookup.Find(Guid);
+			FChunkAccessLookup* SourceForGuid = OutChunkDbDataAccessLookup.Find(Guid);
 			if (!SourceForGuid)
 			{
 				continue;
@@ -296,19 +292,74 @@ namespace BuildPatchServices
 			FileLastSeenAt.FindOrAdd(SourceForGuid->DbFile->Archive->GetArchiveName()) = GuidIndex;
 		}
 
-		for (FChunkDbDataAccess& ChunkDbDataAccess : ChunkDbDataAccesses)
+		for (FChunkDbDataAccess& ChunkDbDataAccess : OutChunkDbDataAccesses)
 		{
+			// Default to retired immediately (this is functionally after the first file completes)
+			ChunkDbDataAccess.RetireAt = ChunkAccessOrderedList.Num();
 			int32* LastAt = FileLastSeenAt.Find(ChunkDbDataAccess.Archive->GetArchiveName());
-			if (LastAt == nullptr)
+			if (LastAt)
 			{
-				// If the file isn't going to be used, it's immediately retired.
-				ChunkDbDataAccess.Retire(MessagePump, FileSystem, Configuration.bDeleteChunkDBAfterUse);
-			}
-			else
-			{
-				ChunkDbDataAccess.RetireAt = OrderedGuidList.Num() - *LastAt - 1;
+				// The reference stack gets popped rather than advanced, so we need to reverse the ordering.
+				// LastAt is the chunk index that last used the file, which means when we are at
+				// LastAt + 1 through the stack we can delete the file.
+				ChunkDbDataAccess.RetireAt = ChunkAccessOrderedList.Num() - (*LastAt + 1);
 			}
 		}
+	}
+
+
+	uint64 IChunkDbChunkSource::GetChunkDbSizesAtIndexes(const TArray<FString>& ChunkDbFiles, IFileSystem* FileSystem, const TArray<FGuid>& ChunkAccessOrderedList, const TArray<int32>& FileCompletionIndexes, TArray<uint64>& OutChunkDbSizesAtCompletion)
+	{
+		TArray<FChunkDbDataAccess> ChunkFiles;
+		TMap<FGuid, FChunkAccessLookup> ChunkGuidLookup;
+
+		FChunkDbChunkSource::LoadChunkDbFiles(ChunkDbFiles, FileSystem, ChunkAccessOrderedList, ChunkFiles, ChunkGuidLookup, nullptr);
+
+		uint64 AllChunkDbSize = 0;
+		for (const FChunkDbDataAccess& ChunkFile : ChunkFiles)
+		{
+			AllChunkDbSize += ChunkFile.Archive->TotalSize();
+		}
+
+		
+		// Go over the list of completions and evalute how many chunk dbs are left over.
+		for (int32 FileCompletionIndex : FileCompletionIndexes)
+		{
+			// retiring happens as the list is _popped_, so everything is backwards.
+			int32 RetireAtEquivalent = ChunkAccessOrderedList.Num() - FileCompletionIndex;
+
+			uint64 TotalSizeAtIndex = 0;
+			for (const FChunkDbDataAccess& ChunkFile : ChunkFiles)
+			{
+				if (ChunkFile.RetireAt < RetireAtEquivalent)
+				{
+					TotalSizeAtIndex += ChunkFile.Archive->TotalSize();
+				}
+			}
+
+			OutChunkDbSizesAtCompletion.Add(TotalSizeAtIndex);
+		}
+		return AllChunkDbSize;
+	}
+
+	FChunkDbChunkSource::FChunkDbChunkSource(FChunkDbSourceConfig InConfiguration, IPlatform* InPlatform, IFileSystem* InFileSystem, IChunkStore* InChunkStore, IChunkReferenceTracker* InChunkReferenceTracker, IChunkDataSerialization* InChunkDataSerialization, IMessagePump* InMessagePump, IInstallerError* InInstallerError, IChunkDbChunkSourceStat* InChunkDbChunkSourceStat)
+		: Configuration(MoveTemp(InConfiguration))
+		, Platform(InPlatform)
+		, FileSystem(InFileSystem)
+		, ChunkStore(InChunkStore)
+		, ChunkReferenceTracker(InChunkReferenceTracker)
+		, ChunkDataSerialization(InChunkDataSerialization)
+		, MessagePump(InMessagePump)
+		, InstallerError(InInstallerError)
+		, ChunkDbChunkSourceStat(InChunkDbChunkSourceStat)
+		, bStartedLoading(!InConfiguration.bBeginLoadsOnFirstGet)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FChunkDbChunkSource_ctor);
+
+		TArray<FGuid> OrderedGuidList;
+		InChunkReferenceTracker->CopyOutOrderedUseList(OrderedGuidList);
+
+		LoadChunkDbFiles(Configuration.ChunkDbFiles, FileSystem, OrderedGuidList, ChunkDbDataAccesses, ChunkDbDataAccessLookup, &AvailableChunks);
 
 		// Start threaded load worker.
 		if (ChunkDbDataAccesses.Num() > 0)
@@ -408,8 +459,6 @@ namespace BuildPatchServices
 	void FChunkDbChunkSource::ThreadRun()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ChunkDb_Thread);
-
-		int32 LastChunkReferenceWatermark = ChunkReferenceTracker->GetRemainingChunkCount();
 
 		while (!bShouldAbort)
 		{

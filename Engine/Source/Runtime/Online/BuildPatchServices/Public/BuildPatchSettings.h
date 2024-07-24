@@ -272,6 +272,10 @@ namespace BuildPatchServices
 		// If set, when we've read everything we're going to read from a chunkdb file, we delete it to minimize required disk space for install/patch.
 		bool bDeleteChunkDbFilesAfterUse = false;
 
+		// If set, don't actually do an installation, just figure out how much disk space is required if we are using entirely
+		// chunkdbs and we delete them as we go.
+		bool bCalculateDeleteChunkDbMaxDiskSpaceAndExit = false;
+
 		// The list of cloud directory roots that will be used to pull patch data from. Empty array will use module's global setting. This is only hit if a chunk can not be satisfied by
 		// other sources (i.e. chunkdbs or install directory for patches). If the chunk can not be serviced from here, it's a failure.
 		TArray<FString> CloudDirectories;

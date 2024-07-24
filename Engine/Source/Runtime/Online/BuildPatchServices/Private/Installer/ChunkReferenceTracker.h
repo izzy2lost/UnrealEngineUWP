@@ -73,6 +73,10 @@ namespace BuildPatchServices
 
 		// Return how many chunks are left to process.
 		virtual int32 GetRemainingChunkCount() const = 0;
+
+		// Return the ordered list we are consuming.
+		// copies the _remaining_ items!
+		virtual void CopyOutOrderedUseList(TArray<FGuid>& OutUseList) const = 0;
 	};
 
 	/**

@@ -20,6 +20,13 @@ namespace BuildPatchServices
 		~FChunkReferenceTracker();
 
 		// IChunkReferenceTracker interface begin.
+		virtual void CopyOutOrderedUseList(TArray<FGuid>& OutUseList) const override
+		{
+			UseStackCs.Lock();
+			OutUseList.Append(UseStack);
+			UseStackCs.Unlock();
+			Algo::Reverse(OutUseList);
+		}
 		virtual TSet<FGuid> GetReferencedChunks() const override;
 		virtual int32 GetReferenceCount(const FGuid& ChunkId) const override;
 		virtual void SortByUseOrder(TArray<FGuid>& ChunkList, ESortDirection Direction) const override;
