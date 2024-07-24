@@ -12,6 +12,10 @@ class UPrimitiveComponent;
 class FSceneView;
 class FSceneViewFamily;
 
+
+template <typename KeyType, typename ValueType>
+using TWeakObjectPtrKeyMap = TMap<TWeakObjectPtr<KeyType>, ValueType, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<KeyType>, ValueType>>;
+
 namespace UE::WaterInfo
 {
 
@@ -19,7 +23,7 @@ struct FRenderingContext
 {
 	AWaterZone* ZoneToRender = nullptr;
 	UTextureRenderTarget2DArray* TextureRenderTarget;
-	TArray<UWaterBodyComponent*> WaterBodies;
+	TArray<TWeakObjectPtr<UWaterBodyComponent>> WaterBodies;
 	TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
 	float CaptureZ;
 };
@@ -30,7 +34,7 @@ void UpdateWaterInfoRendering(
 
 void UpdateWaterInfoRendering2(
 	FSceneView& InView, 
-	const TMap<AWaterZone*, UE::WaterInfo::FRenderingContext>& WaterInfoContexts);
+	const TWeakObjectPtrKeyMap<AWaterZone, UE::WaterInfo::FRenderingContext> WaterInfoContexts);
 
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,

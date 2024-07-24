@@ -482,7 +482,7 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		// If they do not, we must submit compile jobs for them and wait until they are finished before re-rendering.
 		TArray<UMaterialInterface*> UsedMaterials;
 
-		TArray<UWaterBodyComponent*> WaterBodiesToRender;
+		TArray<TWeakObjectPtr<UWaterBodyComponent>> WaterBodiesToRender;
 		ForEachWaterBodyComponent([World, &WaterBodiesToRender, &WaterZMax, &WaterZMin, &UsedMaterials](UWaterBodyComponent* WaterBodyComponent)
 		{
 			// skip components which don't affect the water info texture
@@ -520,16 +520,19 @@ bool AWaterZone::UpdateWaterInfoTexture()
 		{
 			bool bHaveAllPSOsBeenCached = true;
 
-			for (UWaterBodyComponent* WaterBodyComponent : WaterBodiesToRender)
+			for (const TWeakObjectPtr<UWaterBodyComponent>& WaterBodyComponentPtr : WaterBodiesToRender)
 			{
-				// CheckPSOPrecachingAndBoostPriority returns true if PSOs are still precaching.
-				if (UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = WaterBodyComponent->GetWaterInfoMeshComponent())
+				if (UWaterBodyComponent* WaterBodyComponent = WaterBodyComponentPtr.Get())
 				{
-					bHaveAllPSOsBeenCached &= !WaterInfoMeshComponent->CheckPSOPrecachingAndBoostPriority();
-				}
-				if (UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = WaterBodyComponent->GetDilatedWaterInfoMeshComponent())
-				{
-					bHaveAllPSOsBeenCached &= !WaterInfoMeshComponent->CheckPSOPrecachingAndBoostPriority();
+					// CheckPSOPrecachingAndBoostPriority returns true if PSOs are still precaching.
+					if (UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = WaterBodyComponent->GetWaterInfoMeshComponent())
+					{
+						bHaveAllPSOsBeenCached &= !WaterInfoMeshComponent->CheckPSOPrecachingAndBoostPriority();
+					}
+					if (UWaterBodyInfoMeshComponent* WaterInfoMeshComponent = WaterBodyComponent->GetDilatedWaterInfoMeshComponent())
+					{
+						bHaveAllPSOsBeenCached &= !WaterInfoMeshComponent->CheckPSOPrecachingAndBoostPriority();
+					}
 				}
 			}
 

@@ -36,7 +36,7 @@ public:
 
 private:
 	/** Queued Water Info rendering contexts to submit for rendering on the next SetupView call */
-	TMap<AWaterZone*, UE::WaterInfo::FRenderingContext> WaterInfoContextsToRender;
+	TWeakObjectPtrKeyMap<AWaterZone, UE::WaterInfo::FRenderingContext> WaterInfoContextsToRender;
 
 	struct FWaterZoneInfo
 	{
@@ -46,7 +46,7 @@ private:
 		 */
 		TOptional<FBox2D> UpdateBounds = FBox2D(ForceInit);
 	};
-	TMap<AWaterZone*, FWaterZoneInfo> WaterZoneInfos;
+	TWeakObjectPtrKeyMap<AWaterZone, FWaterZoneInfo> WaterZoneInfos;
 
 	struct FWaterGPUResources
 	{
