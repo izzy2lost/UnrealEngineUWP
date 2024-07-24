@@ -1583,12 +1583,14 @@ protected:
 	/** Flip the editable space base buffer */
 	ENGINE_API void FlipEditableSpaceBases();
 
+public:
 	/** 
 	 * Should tick  pose (by calling TickPose) in Tick
 	 * 
 	 * @return : return true if should Tick. false otherwise.
 	 */
 	ENGINE_API virtual bool ShouldTickPose() const;
+protected:
 
 	/**
 	 * Allocate Transform Data array including SpaceBases, BoneVisibilityStates 

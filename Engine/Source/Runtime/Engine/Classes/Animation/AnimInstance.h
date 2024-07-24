@@ -911,6 +911,10 @@ protected:
 
 public:
 
+	/** Flush completed montages when animation tick is paused. 
+		This can be used to prevent montages from infinitely stacking up when not ticking. */
+	ENGINE_API void ConditionalFlushCompletedMontages();
+
 	/**  Builds an inertialization request from the montage's group, provided duration and optional blend profile*/
 	ENGINE_API void RequestMontageInertialization(const UAnimMontage* Montage, float Duration, const UBlendProfile* BlendProfile = nullptr);
 
