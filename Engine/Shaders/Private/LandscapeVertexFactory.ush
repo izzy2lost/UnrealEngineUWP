@@ -341,10 +341,7 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 	// Note we still use LocalToWorld. Landscape's transform never changes.
 	float3 LocalPosition = GetLocalPosition(Intermediates);
 	FDFMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
-
-	float3 TranslatedWorldPosition = TransformLocalToTranslatedWorld(LocalPosition, LocalToWorld).xyz;
-	float3 Delta = DFFastLocalSubtractDemote(ResolvedView.PrevPreViewTranslation, ResolvedView.PreViewTranslation);
-	return float4(TranslatedWorldPosition - Delta, 1.0f);
+	return TransformPreviousLocalPositionToTranslatedWorld(LocalPosition, LocalToWorld);
 }
 
 // local position relative to instance
