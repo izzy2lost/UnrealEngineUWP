@@ -2,7 +2,9 @@
 
 #include "MediaOutputSynchronizationPolicyRivermax.h"
 
+#include "Async/Async.h"
 #include "Cluster/IDisplayClusterClusterManager.h"
+#include "Config/IDisplayClusterConfigManager.h"
 #include "HAL/IConsoleManager.h"
 #include "IDisplayCluster.h"
 #include "IRivermaxCoreModule.h"
@@ -10,7 +12,6 @@
 #include "RivermaxMediaCapture.h"
 #include "RivermaxPTPUtils.h"
 #include "RivermaxSyncLog.h"
-
 
 
 namespace UE::RivermaxSync
@@ -25,9 +26,11 @@ namespace UE::RivermaxSync
 		TEXT("Whether to use exchanged data in the synchronization barrier to detect desynchronized state and act on it to self repair"),
 		ECVF_Default);
 
-	static TAutoConsoleVariable<int32> CVarRivermaxSyncMaxFrameTimeRange(
-		TEXT("Rivermax.Sync.MaxFrameTimeRange"), 8,
-		TEXT("Maximum number of frame last presented frame from nodes can be from each other when they join the barrier to enable self repair"),
+	static TAutoConsoleVariable<int32> CVarRivermaxPtpUnsyncFramesPerReport(
+		TEXT("Rivermax.Sync.Ptp.UnsyncFramesPerReport"), 120,
+		TEXT("When there are PTP mismatches in the cluster, Stage Monitor events are issued.\n"
+			 "PTP mismatches are a stable condition and this cvar controls how often to send the events.\n"
+			 "Use -1 (or any negative number) to disable these reports."),
 		ECVF_Default);
 
 	static bool GbTriggerRandomDesync = false;
@@ -35,7 +38,9 @@ namespace UE::RivermaxSync
 		TEXT("Rivermax.Sync.ForceDesync")
 		, UE::RivermaxSync::GbTriggerRandomDesync
 		, TEXT("After barrier synchronization, trigger random stall."), ECVF_Cheat);
+
 }
+
 
 FMediaOutputSynchronizationPolicyRivermaxHandler::FMediaOutputSynchronizationPolicyRivermaxHandler(UMediaOutputSynchronizationPolicyRivermax* InPolicyObject)
 	: Super(InPolicyObject)
@@ -237,7 +242,7 @@ bool FMediaOutputSynchronizationPolicyRivermaxHandler::InitializeBarrier(const F
 }
 
 
-bool FMediaOutputSynchronizationPolicyRivermaxHandler::FMediaSyncBarrierData::HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData, uint64& OutVsyncDelta) const
+bool FMediaOutputSynchronizationPolicyRivermaxHandler::FMediaSyncBarrierData::HasConfirmedDesync(const FMediaSyncBarrierData& OtherBarrierData, int64& OutVsyncDelta) const
 {
 	OutVsyncDelta = 0;
 
@@ -257,11 +262,13 @@ bool FMediaOutputSynchronizationPolicyRivermaxHandler::FMediaSyncBarrierData::Ha
 			// Keep track of the maximum Vsync delta of equal frames.
 			if (bSameFrame && !bSameVsync)
 			{
-				const uint64 VsyncDelta = FirstNodeVsyncBoundary > OtherNodeVsyncBoundary ?
-					FirstNodeVsyncBoundary - OtherNodeVsyncBoundary :
-					OtherNodeVsyncBoundary - FirstNodeVsyncBoundary;
+				// Positive means that the node has a PTP frame number larger than the base we're comparing with.
+				const int64 VsyncDelta = static_cast<int64>(OtherNodeVsyncBoundary) - static_cast<int64>(FirstNodeVsyncBoundary);
 
-				OutVsyncDelta = FMath::Max(OutVsyncDelta, VsyncDelta);
+				if (FMath::Abs(VsyncDelta) > FMath::Abs(OutVsyncDelta))
+				{
+					OutVsyncDelta = VsyncDelta;
+				}
 			}
 
 			// If they agree on a recent frame, consider them in sync
@@ -317,124 +324,195 @@ FString FMediaOutputSynchronizationPolicyRivermaxHandler::FMediaSyncBarrierData:
 	return BoundaryNumbers;
 }
 
+bool FMediaOutputSynchronizationPolicyRivermaxHandler::PickPtpBaseNodeAndData(
+	const FGenericBarrierSynchronizationDelegateData& BarrierSyncData, 
+	const FMediaSyncBarrierData*& OutPtpBaseNodeData,
+	FString& OutBaseNodeId
+) const
+{
+	// Identify the name of the primary node, which will be the default for PTP mismatch measurements.
+
+	OutPtpBaseNodeData = nullptr;
+
+	// We need at least one node.
+	if (BarrierSyncData.RequestData.Num() <= 0)
+	{
+		return false;
+	}
+
+	IDisplayClusterConfigManager* ConfigMgr = IDisplayCluster::Get().GetConfigMgr();
+
+	if (!ConfigMgr)
+	{
+		return false;
+	}
+
+	OutBaseNodeId = ConfigMgr->GetPrimaryNodeId();
+	const TArray<uint8>* PrimaryDataRaw = BarrierSyncData.RequestData.Find(OutBaseNodeId);
+
+	if (PrimaryDataRaw)
+	{
+		check(PrimaryDataRaw->Num() == sizeof(FMediaSyncBarrierData));
+		OutPtpBaseNodeData = reinterpret_cast<const FMediaSyncBarrierData*>(PrimaryDataRaw->GetData());
+
+		return true;
+	}
+
+	// If the primary node isn't in the barrier, then we pick the first one in a sorted list of node ids.
+	// We don't need to actually sort the list, just find the first one, which is O(n) instead of O(n log n).
+
+	const FString* FirstKeyIfSorted = nullptr;
+	const TArray<uint8>* FirstValueIfSorted = nullptr;
+
+	for (const auto& Elem : BarrierSyncData.RequestData)
+	{
+		const FString& Key = Elem.Key;
+		const TArray<uint8>& Value = Elem.Value;
+
+		if (!FirstKeyIfSorted || Key < *FirstKeyIfSorted)
+		{
+			FirstKeyIfSorted = &Key;
+			FirstValueIfSorted = &Value;
+		}
+	}
+
+	check(FirstKeyIfSorted && FirstValueIfSorted);
+
+	OutBaseNodeId = *FirstKeyIfSorted;
+
+	check(FirstValueIfSorted->Num() == sizeof(FMediaSyncBarrierData));
+	OutPtpBaseNodeData = reinterpret_cast<const FMediaSyncBarrierData*>(FirstValueIfSorted->GetData());
+
+	return true;
+}
+
 void FMediaOutputSynchronizationPolicyRivermaxHandler::HandleBarrierSync(FGenericBarrierSynchronizationDelegateData& BarrierSyncData)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(RmaxSync::BarrierSync);
 
-	if (bHasVerifiedClocks == false)
-	{
-		bHasVerifiedClocks = true;
-		bCanUseSelfRepair = ValidateNodesFrameTime(BarrierSyncData.RequestData);
-	}
-
-	if (!bCanUseSelfRepair || UE::RivermaxSync::CVarRivermaxSyncEnableSelfRepair.GetValueOnAnyThread() == false)
-	{
-		return;
-	}
-
+	// Nothing to do if there is no barrier data.
 	if (BarrierSyncData.RequestData.Num() <= 0)
 	{
 		UE_LOG(LogRivermaxSync, Verbose, TEXT("'%s': No data was provided by nodes for sync barrier."), *GetMediaDeviceId())
 		return;
 	}
 
-	FString FirstNodeName;
-	const FMediaSyncBarrierData* FirstNodeData = nullptr;
-	bool bSelfRepairRequired = false;
+	// Deterministically pick a node in the cluster to use as the PTP base for mismatch detections.
 
+	const FMediaSyncBarrierData* PtpBaseNodeData = nullptr;
+	FString PtpBaseNodeId;
+
+	if (!PickPtpBaseNodeAndData(BarrierSyncData, PtpBaseNodeData, PtpBaseNodeId))
+	{
+		UE_LOG(LogRivermaxSync, Warning, TEXT("Could not find a base node for ptp mismatch comparisons"));
+		return;
+	}
+
+	check(PtpBaseNodeData);
+
+	bool bSelfRepairRequired = false; // True if there is any need (and benefit) in initiating a sync repair action.
+
+	TMap<FString, int64> PtpMismatchedNodes; // Collects node ids with mismatched PTP frames.
+
+	// To avoid flooding the network and the receiver with these events, we only report ptp mismatches every few frames.
+	const int32 PtpUnsyncFramesPerReport = UE::RivermaxSync::CVarRivermaxPtpUnsyncFramesPerReport.GetValueOnAnyThread();
+	bool bShouldReportPtpMismatches = (PtpUnsyncFramesPerReport >= 0) && !(PtpBaseNodeData->LastRenderedFrameNumber[0] % PtpUnsyncFramesPerReport);
+
+	// Iterate over the nodes and detect PTP de-syncs.
 	for (const TPair<FString, TArray<uint8>>& NodePresentedFrame : BarrierSyncData.RequestData)
 	{
+		// Barrier data with unexpected sizes are a logical error.
 		check(NodePresentedFrame.Value.Num() == sizeof(FMediaSyncBarrierData));
 
+		// Get the node data in struct format.
 		const FMediaSyncBarrierData* const NodeData = reinterpret_cast<const FMediaSyncBarrierData* const>(NodePresentedFrame.Value.GetData());
-		
-		// We expect all nodes to enter the barrier after presenting the SAME frame at the SAME frame number.
-		// If a node enters the barrier a frame late on the other, self repair will be triggered.
-		// Samething goes if all nodes didn't present the same frame
-		if (!FirstNodeData)
+
+		// Skip base node comparing with itself
+		if (NodeData == PtpBaseNodeData)
 		{
-			FirstNodeName = NodePresentedFrame.Key;
-			FirstNodeData = NodeData;
 			continue;
 		}
 
-		uint64 VsyncDelta = 0;
+		// We expect all nodes to enter the barrier after presenting the SAME frame at the SAME frame number.
+		// If a node enters the barrier a frame late on the other, self repair will be triggered.
+		// Same thing goes if all nodes didn't present the same frame
 
-		if (FirstNodeData->HasConfirmedDesync(*NodeData, VsyncDelta))
+		int64 VsyncDelta = 0;
+
+		if (PtpBaseNodeData->HasConfirmedDesync(*NodeData, VsyncDelta))
 		{
 			bSelfRepairRequired = true;
 
 			UE_LOG(LogRivermaxSync, Warning,
 				TEXT("Desync detected: Node '%s' presented frames (%s) at boundaries (%s), but node '%s' presented frames (%s) at boundaries (%s)"),
-				*FirstNodeName,
-				*FirstNodeData->LastRenderedFrameNumbersAsString(),
-				*FirstNodeData->PresentedFrameBoundaryNumbersAsString(),
+				*PtpBaseNodeId,
+				*PtpBaseNodeData->LastRenderedFrameNumbersAsString(),
+				*PtpBaseNodeData->PresentedFrameBoundaryNumbersAsString(),
 				*NodePresentedFrame.Key,
 				*NodeData->LastRenderedFrameNumbersAsString(),
 				*NodeData->PresentedFrameBoundaryNumbersAsString());
 
 			// We do not break the loop, in order to log all timing issues detected in the current frame.
 		}
-		else if (VsyncDelta > 0)
+		else if (VsyncDelta != 0)
 		{
 			UE_LOG(LogRivermaxSync, Warning,
 				TEXT("Frames not presented at the same PTP frame boundary: Node '%s' presented frames (%s) at boundaries (%s), but node '%s' presented frames (%s) at boundaries (%s)"),
-				*FirstNodeName,
-				*FirstNodeData->LastRenderedFrameNumbersAsString(),
-				*FirstNodeData->PresentedFrameBoundaryNumbersAsString(),
+				*PtpBaseNodeId,
+				*PtpBaseNodeData->LastRenderedFrameNumbersAsString(),
+				*PtpBaseNodeData->PresentedFrameBoundaryNumbersAsString(),
 				*NodePresentedFrame.Key,
 				*NodeData->LastRenderedFrameNumbersAsString(),
 				*NodeData->PresentedFrameBoundaryNumbersAsString());
 		}
+
+		// Collect Vsync deltas for reporting purposes.
+		if (bShouldReportPtpMismatches && VsyncDelta)
+		{
+			PtpMismatchedNodes.Add(NodePresentedFrame.Key, VsyncDelta);
+		}
 	}
+
+	// Report to Stage Monitor the PTP mismatches.
+	if (bShouldReportPtpMismatches)
+	{
+		AsyncTask(ENamedThreads::GameThread, [PtpMismatchedNodes, PtpBaseNodeId]()
+			{
+				IStageDataProvider::SendMessage<FRivermaxClusterPtpUnsyncEvent>(
+					EStageMessageFlags::None, // Doesn't need to be reliable.
+					PtpMismatchedNodes,
+					PtpBaseNodeId
+				);
+			});
+	}
+
+	// This cvar can disable the self repair.
+	const bool bCanUseSelfRepair = UE::RivermaxSync::CVarRivermaxSyncEnableSelfRepair.GetValueOnAnyThread();
 
 	// If repair is required, we stall until we are past the next alignment point to have all scheduler present something and get closer to a synchronized state.
 	if (bSelfRepairRequired)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(RmaxSync::SelfRepair);
+		// Only trigger the self repair when allowed. It consists on sleeping until the next ptp vsync passes.
+		if (bCanUseSelfRepair)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(RmaxSync::SelfRepair);
 
-		const double TimeLeftSeconds = GetTimeBeforeNextSyncPoint();
-		const float OffsetTimeSeconds = UE::RivermaxSync::CVarRivermaxSyncWakeupOffset.GetValueOnAnyThread() * 1E-3;
-		const float SleepTime = TimeLeftSeconds + OffsetTimeSeconds;
-		FPlatformProcess::SleepNoStats(SleepTime);
-	}
-	else if (FirstNodeData)
-	{
-		UE_LOG(LogRivermaxSync, VeryVerbose, TEXT("'%s': Cluster likely synchronized (no confirmed desync). Node '%s' presented frame %u at frame boundary %llu"), 
-			*GetMediaDeviceId(),
-			*FirstNodeName,
-			FirstNodeData->LastRenderedFrameNumber[0],
-			FirstNodeData->PresentedFrameBoundaryNumber[0]
-		);
-	}
-}
-
-bool FMediaOutputSynchronizationPolicyRivermaxHandler::ValidateNodesFrameTime(const TMap<FString, TArray<uint8>>& NodeRequestData) const
-{
-	uint64 MinFrameTime = TNumericLimits<uint64>::Max();
-	uint64 MaxFrameTime = TNumericLimits<uint64>::Min();
-	for (const TPair<FString, TArray<uint8>>& NodePresentedFrame : NodeRequestData)
-	{
-		check(NodePresentedFrame.Value.Num() == sizeof(FMediaSyncBarrierData));
-
-		const FMediaSyncBarrierData* const NodeData = reinterpret_cast<const FMediaSyncBarrierData* const>(NodePresentedFrame.Value.GetData());
-
-		// We can just use the most recent ([0]) frame presentation data to compare how close or far the nodes are from each other.
-		MinFrameTime = FMath::Min(MinFrameTime, NodeData->PresentedFrameBoundaryNumber[0]);
-		MaxFrameTime = FMath::Max(MaxFrameTime, NodeData->PresentedFrameBoundaryNumber[0]);
-	}
-
-	const uint64 MaxRange = UE::RivermaxSync::CVarRivermaxSyncMaxFrameTimeRange.GetValueOnAnyThread();
-	const uint64 DetectedRange = MaxFrameTime - MinFrameTime;
-	if (DetectedRange > MaxRange)
-	{	
-		UE_LOG(LogRivermaxSync, Warning, TEXT("Self repair can't be enabled. Frame time range (%llu) across cluster too large. Verify PTP clocks to be identical on each node."), DetectedRange);
-		return false;
+			const double TimeLeftSeconds = GetTimeBeforeNextSyncPoint();
+			const float OffsetTimeSeconds = UE::RivermaxSync::CVarRivermaxSyncWakeupOffset.GetValueOnAnyThread() * 1E-3;
+			const float SleepTime = TimeLeftSeconds + OffsetTimeSeconds;
+			FPlatformProcess::SleepNoStats(SleepTime);
+		}
 	}
 	else
 	{
-		UE_LOG(LogRivermaxSync, Log, TEXT("Self repair can be used. Frame time range (%llu) across cluster points to a common time reference."), DetectedRange);
-		return true;
+		// VeryVerbose log of the ptp frame presentation values when everything is in ptp sync.
+
+		UE_LOG(LogRivermaxSync, VeryVerbose, TEXT("'%s': Cluster likely synchronized (no confirmed desync). ptp base node '%s' presented frame %u at frame boundary %llu"), 
+			*GetMediaDeviceId(),
+			*PtpBaseNodeId,
+			PtpBaseNodeData->LastRenderedFrameNumber[0],
+			PtpBaseNodeData->PresentedFrameBoundaryNumber[0]
+		);
 	}
 }
 
@@ -448,3 +526,35 @@ TSharedPtr<IDisplayClusterMediaOutputSynchronizationPolicyHandler> UMediaOutputS
 	return Handler;
 }
 
+
+FString FRivermaxClusterPtpUnsyncEvent::ToString() const
+{
+	if (NodePtpFrameDeltas.Num() > 0)
+	{
+		FString Result = FString::Printf(TEXT("PTP video frame mismatches compared to PTP base node '%s' on nodes: "), *PtpBaseNodeId);
+
+		// Sort the keys to produce a deterministic string output, which will help readability of repeated events.
+
+		TArray<FString> SortedKeys;
+		NodePtpFrameDeltas.GetKeys(SortedKeys);
+		SortedKeys.Sort();
+
+		// Iterate over sorted keys for deterministic output
+		for (int32 NodeIdx = 0; NodeIdx < SortedKeys.Num(); ++NodeIdx)
+		{
+			const FString& Key = SortedKeys[NodeIdx];
+			int64 PtpFrameDelta = NodePtpFrameDeltas[Key];
+
+			Result += FString::Printf(TEXT("%s(%lld)"), *Key, PtpFrameDelta);
+
+			if (NodeIdx < SortedKeys.Num() - 1)
+			{
+				Result += TEXT(", ");
+			}
+		}
+
+		return Result;
+	}
+
+	return FString(TEXT("All nodes are in PTP sync."));
+}
