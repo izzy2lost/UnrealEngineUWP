@@ -265,7 +265,9 @@ enum class EPCGAttachOptions : uint32
 {
 	NotAttached UMETA(Tooltip="Actor will not be attached to the target actor nor placed in an actor folder"),
 	Attached UMETA(Tooltip="Actor will be attached to the target actor in the given node"),
-	InFolder UMETA(Tooltip="Actor will be placed in an actor folder containing the name of the target actor.")
+	InFolder UMETA(Tooltip="Actor will be placed in an actor folder containing the name of the target actor."),
+	InGraphFolder UMETA(Tooltip="Actor will be placed in a folder named after the top graph it was generated from."),
+	InGeneratedFolder UMETA(Tooltip="Actor will be placed in the PCG_Generated folder.")
 };
 
 UENUM()

@@ -1359,9 +1359,27 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 			}
 		}
 
+		TSet<FName> DeletedActorFolders;
+
 		if (UWorld* World = WorldPtr.Get())
 		{
-			UPCGActorHelpers::DeleteActors(World, Context->ActorsToDelete.Array());
+			const TArray<TSoftObjectPtr<AActor>> ActorsToDelete = Context->ActorsToDelete.Array();
+
+#if WITH_EDITOR
+			for (const TSoftObjectPtr<AActor>& Actor : ActorsToDelete)
+			{
+				if (Actor.IsValid())
+				{
+					FName ActorFolderPath = Actor->GetFolderPath();
+					if (ActorFolderPath != NAME_None)
+					{
+						DeletedActorFolders.Add(ActorFolderPath);
+					}
+				}
+			}
+#endif
+
+			UPCGActorHelpers::DeleteActors(World, ActorsToDelete);
 		}
 
 		if (UPCGComponent* ThisComponent = ThisComponentWeakPtr.Get())
@@ -1369,21 +1387,16 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 #if WITH_EDITOR
 			if (UWorld* ThisWorld = ThisComponent->GetWorld(); ThisWorld && GEditor) // FActorFolders require the editor
 			{
-				// Look for a nested generated results subfolder and remove it if it exists
-				FString FolderPath;
-				PCGHelpers::GetGeneratedActorsFolderPath(ThisComponent->GetOwner(), FolderPath);
-
-				if (!FolderPath.IsEmpty())
+				for (FName FolderPath : DeletedActorFolders)
 				{
-					FFolder GeneratedFolder(FFolder::GetWorldRootFolder(ThisWorld).GetRootObject(), *FolderPath);
-
+					FFolder GeneratedFolder(FFolder::GetWorldRootFolder(ThisWorld).GetRootObject(), FolderPath);
 					const bool bFolderExists = GeneratedFolder.IsValid() && FActorFolders::Get().ContainsFolder(*ThisWorld, GeneratedFolder);
 					bool bFoundActors = false;
 
 					if (bFolderExists)
 					{
-						TArray<FName> Paths = { *FolderPath };
-						FActorFolders::ForEachActorInFolders(*ThisWorld, Paths, [&bFoundActors](AActor* InActor)
+						TSet<FName> Folders{ GeneratedFolder.GetPath() };
+						FActorFolders::ForEachActorInFolders(*ThisWorld, Folders, [&bFoundActors](AActor* InActor)
 						{
 							if (InActor)
 							{

@@ -76,9 +76,13 @@ namespace PCGHelpers
 
 #if WITH_EDITOR
 	PCG_API void GetGeneratedActorsFolderPath(const AActor* InTargetActor, FString& OutFolderPath);
+	PCG_API void GetGeneratedActorsFolderPath(const AActor* InTargetActor, const FPCGContext* InContext, EPCGAttachOptions AttachOptions, FString& OutFolderPath);
 #endif
 
+	UE_DEPRECATED(5.5, "This function has been deprecated in favor of the version with a context.")
 	PCG_API void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FString& GeneratedPath = FString());
+
+	PCG_API void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FPCGContext* InContext, const FString& GeneratedPath = FString());
 
 	/**
 	 * Finds functions on the actor matching the provided function names. Functions must be marked as CallInEditor

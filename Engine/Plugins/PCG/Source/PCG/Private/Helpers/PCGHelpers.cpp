@@ -501,9 +501,35 @@ namespace PCGHelpers
 		GeneratedActorsFolder << InTargetActor->GetActorLabel() << "_Generated";
 		OutFolderPath = GeneratedActorsFolder;
 	}
+
+	void GetGeneratedActorsFolderPath(const AActor* InTargetActor, const FPCGContext* InContext, EPCGAttachOptions AttachOptions, FString& OutFolderPath)
+	{
+		if (AttachOptions == EPCGAttachOptions::Attached || AttachOptions == EPCGAttachOptions::NotAttached)
+		{
+			OutFolderPath = FString();
+		}
+		else if (AttachOptions == EPCGAttachOptions::InFolder)
+		{
+			GetGeneratedActorsFolderPath(InTargetActor, OutFolderPath);
+		}
+		else if (AttachOptions == EPCGAttachOptions::InGraphFolder && InContext && InContext->Stack && InContext->Stack->GetRootGraph())
+		{
+			OutFolderPath = InContext->Stack->GetRootGraph()->GetName() + "_Generated";
+		}
+		else // Generated folder
+		{
+			OutFolderPath = TEXT("PCG_Generated_Actors");
+		}
+	}
 #endif
 
+	// Note: deprecated
 	void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FString& InGeneratedPath)
+	{
+		AttachToParent(InActorToAttach, InParent, AttachOptions, nullptr, InGeneratedPath);
+	}
+
+	void AttachToParent(AActor* InActorToAttach, AActor* InParent, EPCGAttachOptions AttachOptions, const FPCGContext* InContext, const FString& InGeneratedPath)
 	{
 		if (!InParent)
 		{
@@ -515,13 +541,12 @@ namespace PCGHelpers
 			InActorToAttach->AttachToActor(InParent, FAttachmentTransformRules::KeepWorldTransform);
 		}
 #if WITH_EDITOR
-		else if (AttachOptions == EPCGAttachOptions::InFolder)
+		else if(AttachOptions != EPCGAttachOptions::NotAttached)
 		{
 			FString DefaultFolderPath;
-
 			if (InGeneratedPath.IsEmpty())
 			{
-				GetGeneratedActorsFolderPath(InParent, DefaultFolderPath);
+				GetGeneratedActorsFolderPath(InParent, InContext, AttachOptions, DefaultFolderPath);
 			}
 
 			const FString& FolderPath = (InGeneratedPath.IsEmpty() ? DefaultFolderPath : InGeneratedPath);
