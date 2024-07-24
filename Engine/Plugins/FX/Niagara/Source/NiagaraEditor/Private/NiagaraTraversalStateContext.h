@@ -10,7 +10,7 @@ class FNiagaraCompilationNodeEmitter;
 class FNiagaraCompilationNodeFunctionCall;
 class FNiagaraFixedConstantResolver;
 
-#define WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME (UE_BUILD_DEBUG)
+#define WITH_NIAGARA_TRAVERSAL_FRIENDLY_NAME (1)
 
 struct FNiagaraTraversalStackEntry
 {
