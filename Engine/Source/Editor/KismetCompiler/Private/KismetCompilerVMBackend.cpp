@@ -2298,7 +2298,7 @@ void FKismetCompilerVMBackend::GenerateCodeFromClass(UClass* SourceClass, TIndir
 
 	// Remove duplicates from CalledFunctions:
 	UBlueprintGeneratedClass* ClassBeingBuilt = CastChecked<UBlueprintGeneratedClass>(SourceClass);
-	TSet<UFunction*> Unique(ClassBeingBuilt->CalledFunctions);
+	TSet<TObjectPtr<UFunction>> Unique(ClassBeingBuilt->CalledFunctions);
 	ClassBeingBuilt->CalledFunctions = Unique.Array();
 }
 
