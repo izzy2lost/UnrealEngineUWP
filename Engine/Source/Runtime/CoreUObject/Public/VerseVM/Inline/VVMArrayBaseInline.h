@@ -53,6 +53,24 @@ inline VValue VArrayBase::GetValue(uint32 Index)
 	}
 }
 
+inline const VValue VArrayBase::GetValue(uint32 Index) const
+{
+	checkSlow(IsInBounds(Index));
+	switch (GetArrayType())
+	{
+		case EArrayType::VValue:
+			return GetData<VValue>()[Index].Follow();
+		case EArrayType::Int32:
+			return VValue::FromInt32(GetData<int32>()[Index]);
+		case EArrayType::Char8:
+			return VValue::Char(GetData<uint8>()[Index]);
+		case EArrayType::Char32:
+			return VValue::Char32(GetData<uint32>()[Index]);
+		default:
+			V_DIE("Unhandled EArrayType encountered!");
+	}
+}
+
 template <bool bTransactional>
 inline void VArrayBase::ConvertDataToVValues(FAllocationContext Context, uint32 NewCapacity)
 {

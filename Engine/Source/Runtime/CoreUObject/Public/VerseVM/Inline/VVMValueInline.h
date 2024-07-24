@@ -75,7 +75,7 @@ inline VValue VValue::FromBool(bool Bool)
 	return Bool ? VValue(*GlobalTruePtr.Get()) : VValue(*GlobalFalsePtr.Get());
 }
 
-inline VValue VValue::Follow()
+inline const VValue VValue::Follow() const
 {
 	checkSlow(!IsRoot());
 	if (IsPlaceholder())

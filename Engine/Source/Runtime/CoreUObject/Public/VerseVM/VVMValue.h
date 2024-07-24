@@ -104,7 +104,7 @@ struct VValue
 		return Result;
 	}
 
-	VValue Follow();
+	const VValue Follow() const;
 	// This assumes we're a placeholder, does Follow(), and assumes we don't point
 	// (even transitively) to a concrete value. So we must be a placeholder and the
 	// placeholder we point at (transitively) isn't resolved.

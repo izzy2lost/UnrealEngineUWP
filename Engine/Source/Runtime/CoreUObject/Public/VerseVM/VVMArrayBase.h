@@ -5,6 +5,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Containers/StringView.h"
+#include "Containers/Utf8String.h"
 #include "VVMAtomics.h"
 #include "VVMAux.h"
 #include "VVMEmergentTypeCreator.h"
@@ -301,6 +302,7 @@ public:
 	bool IsInBounds(uint32 Index) const;
 	bool IsInBounds(const VInt& Index, const uint32 Bounds) const;
 	VValue GetValue(uint32 Index);
+	const VValue GetValue(uint32 Index) const;
 
 	/// Capacity parameter is required for handling when a re-allocation to VValues takes place during SetValue from a VMutableArray.
 protected:
@@ -345,34 +347,67 @@ public:
 
 	bool IsString() const
 	{
+		if (GetArrayType() == EArrayType::VValue)
+		{
+			for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+			{
+				if (!GetValue(Index).IsChar())
+				{
+					return false;
+				}
+			}
+		}
 		return ::Verse::IsString(GetArrayType());
 	}
 
 	FString AsString() const
 	{
-		if (IsString())
+		if (GetArrayType() == EArrayType::VValue)
+		{
+			FString String = FString::ConstructWithSlack(UTF8TEXT(""), Num());
+			for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+			{
+				if (!GetValue(Index).IsChar())
+				{
+					V_DIE("Couldn't convert index %d to Char8! Partially parsed: %s", Index, *String);
+				}
+				String[Index] = GetValue(Index).AsChar();
+			}
+			return String;
+		}
+		if (::Verse::IsString(GetArrayType()))
 		{
 			return FString(GetData<UTF8CHAR>());
 		}
-		V_DIE("Array is not UTF8!");
+		V_DIE("Couldn't convert Array to String!");
 		return FString();
 	}
 
 	FUtf8StringView AsStringView() const
 	{
-		if (IsString())
+		if (::Verse::IsString(GetArrayType()))
 		{
 			return FUtf8StringView(GetData<UTF8CHAR>());
 		}
-		V_DIE("Array is not UTF8!");
+		V_DIE("Couldn't convert Array to String!");
 		return FUtf8StringView();
 	}
 
-	// TODO SOL-6407: Is this actually right? Nothing is stopping us from having
-	// an array with a bunch of VValue chars.
 	bool Equals(const FUtf8StringView String) const
 	{
-		if (IsString())
+		if (GetArrayType() == EArrayType::VValue)
+		{
+			for (uint32 Index = 0, End = Num(); Index < End; ++Index)
+			{
+				VValue Val = GetValue(Index);
+				if (!Val.IsChar() || Val.AsChar() != String[Index])
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		else if (::Verse::IsString(GetArrayType()))
 		{
 			return AsStringView().Equals(String);
 		}
