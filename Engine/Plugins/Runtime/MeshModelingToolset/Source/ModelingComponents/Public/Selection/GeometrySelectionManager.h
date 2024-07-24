@@ -579,6 +579,8 @@ private:
 
 	void RemoveAllSets() const;
 
+	void RebuildSelectable() const;
+
 	// Tracks saved selection state. Useful when the selection is temporarily cleared (e.g., for a tool)
 	struct FSavedSelection
 	{
