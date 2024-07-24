@@ -17,6 +17,7 @@
 #include "ShaderParameterMacros.h"
 #include "UnifiedBuffer.h"
 #include "Tasks/Task.h"
+#include "Math/DoubleFloat.h"
 
 enum class ELumenReflectionPass
 {
@@ -589,11 +590,11 @@ struct FLumenViewOrigin
 
 	FVector LumenSceneViewOrigin;
 	FVector4f WorldCameraOrigin;
-	FVector4f PreViewTranslation;
-
+	FDFVector3 PreViewTranslationDF;
+	
 	// Matrix used for frustum clipping tests in Lumen.  For typical views, this is set to WorldToClip, while cube captures
 	// have an omnidirectional projection, and use a trivial matrix that will pass any point as in-frustum.
-	FMatrix44f FrustumWorldToClip;
+	FMatrix44f FrustumTranslatedWorldToClip;
 
 	float OrthoMaxDimension;				// If orthographic projection, max dimension, otherwise zero
 	float LastEyeAdaptationExposure;		// Shared origin views share exposure

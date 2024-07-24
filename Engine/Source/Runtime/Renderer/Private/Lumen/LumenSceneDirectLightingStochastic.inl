@@ -163,7 +163,8 @@ class FLumenSceneEvaluateStandaloneLightMaterialCS : public FMaterialShader
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, LightIndex)
 		SHADER_PARAMETER(uint32, ViewIndex)
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightCloudTransmittanceParameters, LightCloudTransmittanceParameters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
@@ -222,7 +223,8 @@ class FLumenSceneEvaluateStandaloneLightCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER(uint32, LightIndex)
 		SHADER_PARAMETER(uint32, ViewIndex)
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightCloudTransmittanceParameters, LightCloudTransmittanceParameters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
@@ -280,8 +282,9 @@ BEGIN_SHADER_PARAMETER_STRUCT(FLumenSceneLightingStochasticParameters, )
 	SHADER_PARAMETER(uint32, NumStandaloneLights)
 	SHADER_PARAMETER(uint32, NumViews)
 	SHADER_PARAMETER(float, DiffuseColorBoost)
-	SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumWorldToClip, [LUMEN_MAX_VIEWS])
-	SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+	SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumTranslatedWorldToClip, [LUMEN_MAX_VIEWS])
+	SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+	SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 	SHADER_PARAMETER(FVector2f, ViewExposure)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -581,13 +584,14 @@ static void ComputeStochasticLighting(
 			CommonParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
 		}
 
-		check(NumViewOrigins <= CommonParameters.FrustumWorldToClip.Num());
+		check(NumViewOrigins <= CommonParameters.FrustumTranslatedWorldToClip.Num());
 		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
 			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
 
-			CommonParameters.FrustumWorldToClip[OriginIndex] = ViewOrigin.FrustumWorldToClip;
-			CommonParameters.PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+			CommonParameters.FrustumTranslatedWorldToClip[OriginIndex] = ViewOrigin.FrustumTranslatedWorldToClip;
+			CommonParameters.PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+			CommonParameters.PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 			CommonParameters.ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 		}
 
@@ -854,7 +858,9 @@ static void ComputeStochasticLighting(
 					for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 					{
 						const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
-						PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+
+						PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+						PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 						PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 					}
 
@@ -910,7 +916,9 @@ static void ComputeStochasticLighting(
 					for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 					{
 						const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
-						PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+
+						PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+						PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 						PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 					}
 

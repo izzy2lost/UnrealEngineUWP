@@ -333,7 +333,8 @@ void BuildLightTilesCS(
 			// Loop over lights to select N most important lights
 			for (uint LightIndex = 0; LightIndex < NumLights; ++LightIndex)
 			{
-				FLumenLight LumenLight = LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
+				const FDFVector3 PreViewTranslation =  GetPreViewTranslation(ViewIndex);
+				FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 
 				float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
 				bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardPageWorldCenter);

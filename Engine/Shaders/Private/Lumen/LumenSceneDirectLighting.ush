@@ -142,7 +142,10 @@ void WriteShadowMaskRay(FShadowMaskRay Ray, uint CardTileIndex, uint2 CoordInCar
 // Must match FLumenPackedLight in LumenSceneDirectLighting.cpp
 struct FLumenPackedLight
 {
-	float3 WorldPosition; // LUMEN_LWC_TODO
+	float3 WorldPositionHigh;
+	uint LightingChannelMask;
+
+	float3 WorldPositionLow;
 	float InvRadius;
 
 	float3 Color;
@@ -165,7 +168,7 @@ struct FLumenPackedLight
 
 	float4 InfluenceSphere;
 
-	float3 ProxyPosition;
+	float3 ProxyRelativePosition;
 	float ProxyRadius;
 
 	float3 ProxyDirection;
@@ -174,10 +177,10 @@ struct FLumenPackedLight
 	float2 SinCosConeAngleOrRectLightAtlasUVScale;
 	float2 RectLightAtlasUVOffset;
 
-	uint LightingChannelMask;
 	uint LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone;
 	float IESAtlasIndex;
 	float InverseExposureBlend;
+	float Padding0;
 };
 
 struct FLumenLight
@@ -204,8 +207,10 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 {
 	FLumenPackedLight PackedLight = LumenPackedLights[LightIndex];
 
+	FDFVector3 WorldPosition = MakeDFVector3(PackedLight.WorldPositionHigh, PackedLight.WorldPositionLow);
+
 	FDeferredLightData DeferredLightData = (FDeferredLightData)0;
-	DeferredLightData.TranslatedWorldPosition = PackedLight.WorldPosition + PreViewTranslation;
+	DeferredLightData.TranslatedWorldPosition = DFHackToFloat(WorldPosition) + PreViewTranslation; // LUMEN_LWC_TODO
 	DeferredLightData.InvRadius = PackedLight.InvRadius;
 	DeferredLightData.Color = PackedLight.Color * InverseExposureLerp(Exposure, PackedLight.InverseExposureBlend);
 	DeferredLightData.FalloffExponent = PackedLight.FalloffExponent;
@@ -236,8 +241,9 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 
 	FLumenLight LumenLight = (FLumenLight)0;
 	LumenLight.DeferredLightData = DeferredLightData;
-	LumenLight.InfluenceSphere = PackedLight.InfluenceSphere;
-	LumenLight.ProxyPosition = PackedLight.ProxyPosition;
+	LumenLight.InfluenceSphere.xyz = PackedLight.InfluenceSphere.xyz + DFHackToFloat(WorldPosition); // LUMEN_LWC_TODO: rebase to translated world
+	LumenLight.InfluenceSphere.w = PackedLight.InfluenceSphere.w;
+	LumenLight.ProxyPosition = PackedLight.ProxyRelativePosition + DFHackToFloat(WorldPosition); // LUMEN_LWC_TODO: rebase to translated world
 	LumenLight.ProxyRadius = PackedLight.ProxyRadius;
 	LumenLight.ProxyDirection = PackedLight.ProxyDirection;
 	LumenLight.CosConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.y;

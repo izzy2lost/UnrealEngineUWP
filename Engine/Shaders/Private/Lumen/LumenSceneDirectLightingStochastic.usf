@@ -128,7 +128,8 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 #if SHADER_GENERATE_SAMPLE || SHADER_SHADING
 FLumenLight GetLumenLightData(uint LightIndex, uint ViewIndex)
 {
-	return LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
+	const FDFVector3 PreViewTranslation = GetPreViewTranslation(ViewIndex);
+	return LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 }
 #endif
 
@@ -312,7 +313,8 @@ void GenerateLightSamplesCS(
 					const uint LightIndex = LinearThreadIndex + THREADGROUP_COUNT * PassIt;
 					if (LightIndex < NumLights && LightIndex < MAX_LOCAL_LIGHT_INDEX)
 					{
-						const FLumenLight LumenLight = LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
+						const FDFVector3 PreViewTranslation = GetPreViewTranslation(ViewIndex);
+						const FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 
 						float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
 						bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardPageWorldCenter);
@@ -365,7 +367,8 @@ void GenerateLightSamplesCS(
 
 				if (SurfaceCacheData.bValid)
 				{
-					const float3 TranslatedWorldPosition = SurfaceCacheData.WorldPosition + PreViewTranslation[ViewIndex].xyz;
+					const FDFVector3 PreViewTranslation = GetPreViewTranslation(ViewIndex);
+					const float3 TranslatedWorldPosition = SurfaceCacheData.WorldPosition + DFHackToFloat(PreViewTranslation);
 					{
 						// Initialize random variables using spatiotemporal Blue Noise
 						float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
@@ -1029,8 +1032,9 @@ void MainCS(
 	const uint2 SampleCoord = TileCoord * CARD_TILE_SIZE + GroupThreadId.xy;
 	const uint SampleLayerIndex = GroupId.z;
 	const uint3 TexelCoord = uint3(SampleCoord, SampleLayerIndex);
+	const FDFVector3 PreViewTranslation = GetPreViewTranslation(ViewIndex);
 
-	const FLumenLight LumenLight = LoadLumenLight(LightIndex, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex]);
+	const FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 	FLightSample LightSample = UnpackLightSample(RWLightSamples[TexelCoord]);
 	if (LightSample.LocalLightIndex == LightIndex)
 	{
@@ -1046,7 +1050,7 @@ void MainCS(
 		#elif LIGHT_FUNCTION
 		if (ShadowFactor > ShadowThreshold)
 		{
-			ShadowFactor *= GetLumenLightFunction(SampleSceneData. TranslatedWorldPosition - PreViewTranslation[ViewIndex].xyz);
+			ShadowFactor *= GetLumenLightFunction(SampleSceneData.TranslatedWorldPosition - DFHackToFloat(PreViewTranslation));
 		}
 		#endif
 

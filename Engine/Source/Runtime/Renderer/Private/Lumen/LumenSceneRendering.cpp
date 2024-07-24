@@ -2457,10 +2457,9 @@ void FLumenViewOrigin::Init(const FViewInfo& View)
 	Family = View.Family;
 
 	LumenSceneViewOrigin = Lumen::GetLumenSceneViewOrigin(View, Lumen::GetNumGlobalDFClipmaps(View) - 1);
-	WorldCameraOrigin = FVector4f((FVector3f)View.ViewMatrices.GetViewOrigin(), 0.0f);
-	PreViewTranslation = FVector4f((FVector3f)View.ViewMatrices.GetPreViewTranslation(), 0.0f);
-	FrustumWorldToClip = FMatrix44f(View.ViewMatrices.GetViewProjectionMatrix());
-
+	WorldCameraOrigin = FVector4f((FVector3f)View.ViewMatrices.GetViewOrigin(), 0.0f); // LUMEN_LWC_TODO
+	PreViewTranslationDF = FDFVector3{ View.ViewMatrices.GetPreViewTranslation() };
+	FrustumTranslatedWorldToClip = FMatrix44f(View.ViewMatrices.GetTranslatedViewProjectionMatrix());
 	OrthoMaxDimension = View.ViewMatrices.GetOrthoDimensions().GetMax();			// Returns zero if not orthographic
 	LastEyeAdaptationExposure = View.GetLastEyeAdaptationExposure();
 	MaxTraceDistance = Lumen::GetMaxTraceDistance(View);
@@ -2481,7 +2480,7 @@ FLumenSceneFrameTemporaries::FLumenSceneFrameTemporaries(const TArray<FViewInfo>
 		// Cube captures are omnidirectional, so we want a matrix that will pass anything as in-frustum.  An all zero matrix
 		// will produce a clip position of [0,0,0,1] for any input vector, accomplishing that goal.
 		FVector3f ZeroVector(ForceInitToZero);
-		ViewOrigins[0].FrustumWorldToClip = FMatrix44f(ZeroVector, ZeroVector, ZeroVector, ZeroVector);
+		ViewOrigins[0].FrustumTranslatedWorldToClip = FMatrix44f(ZeroVector, ZeroVector, ZeroVector, ZeroVector);
 	}
 	else if (IStereoRendering::IsStereoEyeView(Views[0]))
 	{

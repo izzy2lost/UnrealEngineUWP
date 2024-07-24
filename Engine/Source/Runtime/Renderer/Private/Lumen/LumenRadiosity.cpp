@@ -258,8 +258,9 @@ class FBuildRadiosityTilesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardPageIndexData)
 		SHADER_PARAMETER(uint32, NumViews)
 		SHADER_PARAMETER(uint32, MaxCardTiles)
-		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumWorldToClip, [LUMEN_MAX_VIEWS])
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumTranslatedWorldToClip, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -711,13 +712,15 @@ void LumenRadiosity::AddRadiosityPass(
 		PassParameters->CardPageIndexData = GraphBuilder.CreateSRV(CardUpdateContext.CardPageIndexData);
 		PassParameters->NumViews = NumViewOrigins;
 		PassParameters->MaxCardTiles = MaxCardTiles;
-		check(NumViewOrigins <= PassParameters->FrustumWorldToClip.Num());
+		check(NumViewOrigins <= PassParameters->FrustumTranslatedWorldToClip.Num());
 
 		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; OriginIndex++)
 		{
 			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
-			PassParameters->FrustumWorldToClip[OriginIndex] = ViewOrigin.FrustumWorldToClip;
-			PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+
+			PassParameters->FrustumTranslatedWorldToClip[OriginIndex] = ViewOrigin.FrustumTranslatedWorldToClip;
+			PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+			PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 		}
 
 		auto ComputeShader = GlobalShaderMap->GetShader<FBuildRadiosityTilesCS>();

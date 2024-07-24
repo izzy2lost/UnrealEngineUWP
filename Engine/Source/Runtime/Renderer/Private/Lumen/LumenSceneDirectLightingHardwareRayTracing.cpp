@@ -127,8 +127,9 @@ class FLumenDirectLightingHardwareRayTracing : public FLumenHardwareRayTracingSh
 
 		// Stochastic lighting
 		SHADER_PARAMETER(FVector2f, ViewExposure)
-		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumWorldToClip, [LUMEN_MAX_VIEWS])
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumTranslatedWorldToClip, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<uint>, RWLightSamples)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedLightSampleData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompactedLightSampleAllocator)
@@ -362,8 +363,9 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 		{
 			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
 
-			PassParameters->FrustumWorldToClip[OriginIndex] = ViewOrigin.FrustumWorldToClip;
-			PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+			PassParameters->FrustumTranslatedWorldToClip[OriginIndex] = ViewOrigin.FrustumTranslatedWorldToClip;
+			PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+			PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 			PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 		}
 

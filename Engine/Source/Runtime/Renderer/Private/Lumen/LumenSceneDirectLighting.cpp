@@ -384,8 +384,9 @@ class FBuildLightTilesCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, MaxLightsPerTile)
 		SHADER_PARAMETER(uint32, NumLights)
 		SHADER_PARAMETER(uint32, NumViews)
-		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumWorldToClip, [LUMEN_MAX_VIEWS])
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FMatrix44f, FrustumTranslatedWorldToClip, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -582,7 +583,8 @@ class FLumenCardBatchDirectLightingCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, LightTileOffsetNumPerCardTile)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LightTilesPerCardTile)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDirectLightingAtlas)
-		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationHigh, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 		SHADER_PARAMETER(FVector3f, TargetFormatQuantizationError)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1031,7 +1033,8 @@ static void RenderDirectLightIntoLumenCardsBatched(
 	{
 		const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
 
-		PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+		PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+		PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 		PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 	}
 
@@ -1438,7 +1441,10 @@ void TraceDistanceFieldShadows(
 // Must match FLumenPackedLight in LumenSceneDirectLighting.ush
 struct FLumenPackedLight
 {
-	FVector3f WorldPosition;
+	FVector3f WorldPositionHigh;
+	uint32 LightingChannelMask;
+
+	FVector3f WorldPositionLow;
 	float InvRadius;
 
 	FVector3f Color;
@@ -1461,7 +1467,7 @@ struct FLumenPackedLight
 
 	FVector4f InfluenceSphere;
 
-	FVector3f ProxyPosition;
+	FVector3f ProxyRelativePosition;
 	float ProxyRadius;
 
 	FVector3f ProxyDirection;
@@ -1470,10 +1476,10 @@ struct FLumenPackedLight
 	FVector2f SinCosConeAngleOrRectLightAtlasUVScale;
 	FVector2f RectLightAtlasUVOffset;
 
-	uint32 LightingChannelMask;
 	uint32 LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone;
 	float IESAtlasIndex;
 	float InverseExposureBlend;
+	float Padding0;
 };
 
 struct FLightTileCullContext
@@ -1547,14 +1553,15 @@ static void CullDirectLightingTiles(
 		PassParameters->MaxLightsPerTile = MaxLightsPerTile;
 		PassParameters->NumLights = GatheredLights.Num();
 		PassParameters->NumViews = NumViewOrigins;
-		check(NumViewOrigins <= PassParameters->FrustumWorldToClip.Num());
+		check(NumViewOrigins <= PassParameters->FrustumTranslatedWorldToClip.Num());
 
 		for (int32 OriginIndex = 0; OriginIndex < NumViewOrigins; ++OriginIndex)
 		{
 			const FLumenViewOrigin& ViewOrigin = FrameTemporaries.ViewOrigins[OriginIndex];
 
-			PassParameters->FrustumWorldToClip[OriginIndex] = ViewOrigin.FrustumWorldToClip;
-			PassParameters->PreViewTranslation[OriginIndex] = ViewOrigin.PreViewTranslation;
+			PassParameters->FrustumTranslatedWorldToClip[OriginIndex] = ViewOrigin.FrustumTranslatedWorldToClip;
+			PassParameters->PreViewTranslationHigh[OriginIndex] = ViewOrigin.PreViewTranslationDF.High;
+			PassParameters->PreViewTranslationLow[OriginIndex] = ViewOrigin.PreViewTranslationDF.Low;
 			PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 		}
 
@@ -1787,8 +1794,13 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 			ShaderParameters.Color *= LightSceneInfo->Proxy->GetIndirectLightingScale();
 			// InverseExposureBlend applied in shader since it's view dependent
 
+			FDFVector3 WorldPositionDF { ShaderParameters.WorldPosition };
+
 			FLumenPackedLight& LightData = TaskData->PackedLightData[LightIndex];
-			LightData.WorldPosition = FVector3f(ShaderParameters.WorldPosition);
+			LightData.WorldPositionHigh = WorldPositionDF.High;
+			LightData.LightingChannelMask = LightSceneInfo->Proxy->GetLightingChannelMask();
+
+			LightData.WorldPositionLow = WorldPositionDF.Low;
 			LightData.InvRadius = ShaderParameters.InvRadius;
 
 			LightData.Color = FVector3f(ShaderParameters.Color);
@@ -1809,9 +1821,9 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 			LightData.LightType = LightSceneInfo->Proxy->GetLightType();
 			LightData.VirtualShadowMapId = 0;
 
-			LightData.InfluenceSphere = FVector4f((FVector3f)LightBounds.Center, LightBounds.W);
+			LightData.InfluenceSphere = FVector4f((FVector3f)(LightBounds.Center - ShaderParameters.WorldPosition), LightBounds.W);
 
-			LightData.ProxyPosition = FVector4f(LightSceneInfo->Proxy->GetPosition()); // LUMEN_LWC_TODO
+			LightData.ProxyRelativePosition = FVector4f(LightSceneInfo->Proxy->GetPosition() - ShaderParameters.WorldPosition);
 			LightData.ProxyRadius = LightSceneInfo->Proxy->GetRadius();
 
 			LightData.ProxyDirection = (FVector3f)LightSceneInfo->Proxy->GetDirection();
@@ -1831,8 +1843,8 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(const FLumenSceneFram
 				(ShaderParameters.LightFunctionAtlasLightIndex & 0x3FFFFFFFu) | 
 				( LumenLight.NeedsShadowMask()      ? (1 << 31) : 0)|
 				(!LumenLight.CanUseBatchedShadows() ? (1 << 30) : 0);
-			LightData.LightingChannelMask = LightSceneInfo->Proxy->GetLightingChannelMask();
 			LightData.InverseExposureBlend = ShaderParameters.InverseExposureBlend;
+			LightData.Padding0 = 0;
 
 			if (bUseBatchedShadows && LumenLight.NeedsShadowMask() && LumenLight.CanUseBatchedShadows())
 			{
