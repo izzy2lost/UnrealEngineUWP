@@ -632,6 +632,11 @@ void FWorldPartitionActorDesc::Serialize(FArchive& Ar)
 				RuntimeBounds = FBox(BoundsLocation - BoundsExtent, BoundsLocation + BoundsExtent);
 				EditorBounds = RuntimeBounds;
 			}
+			else
+			{
+				RuntimeBounds.Init();
+				EditorBounds.Init();
+			}
 		}
 		else
 		{
