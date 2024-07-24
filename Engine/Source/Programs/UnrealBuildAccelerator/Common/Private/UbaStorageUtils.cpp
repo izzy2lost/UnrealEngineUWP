@@ -154,7 +154,7 @@ namespace uba
 		{
 			Entry& entry = entries[i];
 			if (!entry.done.IsSet(5*60*1000))
-				logger.Error(TC("SendBatchMessages timed out getting async message response"));
+				logger.Error(TC("SendBatchMessages timed out after 5 minutes getting async message response (%u/%u). Received %llu bytes so far. FetchId: %u"), i, inFlightCount, responseSize, fetchId);
 			if (!entry.message.ProcessAsyncResults(entry.reader))
 				success = false;
 			else

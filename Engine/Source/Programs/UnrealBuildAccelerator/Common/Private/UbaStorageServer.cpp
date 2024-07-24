@@ -195,6 +195,8 @@ namespace uba
 					continue;
 				}
 
+				m_logger.Detail(TC("Cancelled fetch id %u because of disconnect of client with id %u"), u32(it->first), clientId);
+
 				fetch.Release(*this, TC("OnDisconnected"));
 
 				if (m_traceFetch)
@@ -659,7 +661,7 @@ namespace uba
 				SCOPED_READ_LOCK(m_activeFetchesLock, lock);
 				auto findIt = m_activeFetches.find(fetchId);
 				if (findIt == m_activeFetches.end())
-					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (index %u)"), fetchId, fetchIndex);
+					return m_logger.Error(TC("Can't find active fetch %u, disconnected client? (fetch index %u, client id %u uid %s)"), fetchId, fetchIndex, connectionInfo.GetId(), GuidToString(connectionInfo.GetUid()).str);
 				ActiveFetch& fetch = findIt->second;
 				UBA_ASSERT(fetch.clientId == connectionInfo.GetId());
 				lock.Leave();
