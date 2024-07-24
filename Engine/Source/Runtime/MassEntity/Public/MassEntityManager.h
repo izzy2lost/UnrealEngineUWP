@@ -362,6 +362,13 @@ public:
 	 */
 	bool AddConstSharedFragmentToEntity(const FMassEntityHandle Entity, const FConstSharedStruct& InConstSharedFragment);
 
+	/**
+	 * Removes a const shared fragment of the given type from the entity.
+	 * Will do nothing if entity did not have the shared fragment.
+	 * @return True if fragment removed from entity, false otherwise.
+	 */
+	bool RemoveConstSharedFragmentFromEntity(const FMassEntityHandle Entity, const UScriptStruct& ConstSharedFragmentType);
+
 	/** 
 	 * Reserves Count number of entities and appends them to InOutEntities
 	 * @return a view into InOutEntities containing only the freshly reserved entities

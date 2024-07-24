@@ -454,6 +454,43 @@ struct FSharedFragment_AddToEntity : FEntityTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_AddToEntity, "System.Mass.SharedFragments.AddToEntity");
 
+struct FSharedFragment_RemoveFromEntity : FEntityTestBase
+{
+	virtual bool InstantTest() override
+	{
+		constexpr int32 TestIntValue = 1023;
+		FTestConstSharedFragment_Int FragmentInstance(TestIntValue);
+		FConstSharedStruct SharedFragmentInstance = FSharedStruct::Make(FragmentInstance);
+
+		const FMassEntityHandle EntityHandle = EntityManager->CreateEntity(FloatsArchetype);
+
+		FTestConstSharedFragment_Int* EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
+		AITEST_NULL("Initially the entity is not expected to have the shared fragment", EntitySharedFragment);
+
+		AITEST_FALSE("Attempt to remove shared fragment from entity that doesn't have shared fragment should return false and do nothing",
+			EntityManager->RemoveConstSharedFragmentFromEntity(EntityHandle, *FTestConstSharedFragment_Int::StaticStruct()));
+
+		AITEST_TRUE("Adding shared fragment to entity should succeed",
+			EntityManager->AddConstSharedFragmentToEntity(EntityHandle, SharedFragmentInstance));
+
+		EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
+		AITEST_NOT_NULL("The entity is expected to have the shared fragment after the operation", EntitySharedFragment);
+		AITEST_EQUAL("The the shared fragment is expected to store the configured value", EntitySharedFragment->Value, TestIntValue);
+
+		AITEST_TRUE(
+			"Removing shared fragment from entity that has the shared fragment should succeed",
+			EntityManager->RemoveConstSharedFragmentFromEntity(EntityHandle, *FTestConstSharedFragment_Int::StaticStruct()));
+
+		EntitySharedFragment = EntityManager->GetConstSharedFragmentDataPtr<FTestConstSharedFragment_Int>(EntityHandle);
+		AITEST_NULL("The entity is not expected to have the shared fragment after the operation", EntitySharedFragment);
+		
+		AITEST_EQUAL("The the entity's new archetype is the same as the initial one", EntityManager->GetArchetypeForEntity(EntityHandle), FloatsArchetype);
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FSharedFragment_RemoveFromEntity, "System.Mass.SharedFragments.RemoveFromEntity");
+
 struct FSharedFragment_BatchAddToEntity : FEntityTestBase
 {
 	virtual bool InstantTest() override

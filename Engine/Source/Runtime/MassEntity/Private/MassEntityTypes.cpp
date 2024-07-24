@@ -220,6 +220,7 @@ int32 FMassArchetypeSharedFragmentValues::Remove(const FMassSharedFragmentBitSet
 
 	if (RemovedCount)
 	{
+		SharedFragments.RemoveAllSwap([](const FSharedStruct& SharedStruct) { return !SharedStruct.IsValid(); });
 		SharedFragmentBitSet -= CommonFragments;
 		DirtyHashCache();
 	}
@@ -248,6 +249,7 @@ int32 FMassArchetypeSharedFragmentValues::Remove(const FMassConstSharedFragmentB
 
 	if (RemovedCount)
 	{
+		ConstSharedFragments.RemoveAllSwap([](const FConstSharedStruct& SharedStruct) { return !SharedStruct.IsValid(); });
 		ConstSharedFragmentBitSet -= CommonFragments;
 		DirtyHashCache();
 	}

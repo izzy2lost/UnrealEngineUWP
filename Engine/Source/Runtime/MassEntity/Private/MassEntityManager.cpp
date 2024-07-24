@@ -1388,6 +1388,47 @@ bool FMassEntityManager::AddConstSharedFragmentToEntity(const FMassEntityHandle 
 	return true;
 }
 
+bool FMassEntityManager::RemoveConstSharedFragmentFromEntity(const FMassEntityHandle Entity, const UScriptStruct& ConstSharedFragmentType)
+{
+	if (!ensureMsgf(ConstSharedFragmentType.IsChildOf(FMassConstSharedFragment::StaticStruct()), TEXT("%hs parameter ConstSharedFragmentType is expected to be a FMassConstSharedFragment"), __FUNCTION__))
+	{
+		return false;
+	}
+	
+	CheckIfEntityIsActive(Entity);
+	
+	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetypeAsShared(Entity.Index).Get();
+	check(CurrentArchetype);
+	
+	if (!CurrentArchetype->GetCompositionDescriptor().ConstSharedFragments.Contains(ConstSharedFragmentType))
+	{
+		// Nothing to do
+		return true;
+	}
+
+	FMassArchetypeCompositionDescriptor NewComposition(CurrentArchetype->GetCompositionDescriptor());
+	NewComposition.ConstSharedFragments.Remove(ConstSharedFragmentType);
+	const FMassArchetypeHandle NewArchetypeHandle = CreateArchetype(NewComposition);
+	check(NewArchetypeHandle.IsValid());
+	FMassArchetypeData* NewArchetype = NewArchetypeHandle.DataPtr.Get();
+	check(NewArchetype);
+	
+	const FMassArchetypeSharedFragmentValues& OldSharedFragmentValues = CurrentArchetype->GetSharedFragmentValues(Entity.Index);
+	check(OldSharedFragmentValues.ContainsType(&ConstSharedFragmentType));
+	FMassArchetypeSharedFragmentValues NewSharedFragmentValues(OldSharedFragmentValues);
+	
+	const FMassConstSharedFragmentBitSet ToRemove(ConstSharedFragmentType);
+	NewSharedFragmentValues.Remove(ToRemove);
+	NewSharedFragmentValues.Sort();
+	
+	CurrentArchetype->MoveEntityToAnotherArchetype(Entity, *NewArchetype, &NewSharedFragmentValues);
+
+	// Change the entity archetype
+	GetEntityStorageInterface().SetArchetypeFromShared(Entity.Index, NewArchetypeHandle.DataPtr);
+	
+	return true;
+}
+
 void FMassEntityManager::BatchChangeTagsForEntities(TConstArrayView<FMassArchetypeEntityCollection> EntityCollections, const FMassTagBitSet& TagsToAdd, const FMassTagBitSet& TagsToRemove)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Mass_BatchChangeTagsForEntities);
