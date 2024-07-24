@@ -1193,7 +1193,17 @@ bool FMaterial::MaterialMayModifyMeshPosition() const
 {
 	// Conservative estimate when called before material translation has occurred. 
 	// This function is only intended for use in deciding whether or not shader permutations are required.
-	return HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected();
+	bool bMayModifyMeshPosition = false;
+	if (IsInRenderingThread())
+	{
+		bMayModifyMeshPosition = MaterialUsesWorldPositionOffset_RenderThread() || MaterialUsesDisplacement_RenderThread() || MaterialUsesPixelDepthOffset_RenderThread();
+	}
+	else if (IsInGameThread())
+	{
+		bMayModifyMeshPosition = MaterialUsesWorldPositionOffset_GameThread() || MaterialUsesDisplacement_GameThread() || MaterialUsesPixelDepthOffset_GameThread();
+	}
+
+	return bMayModifyMeshPosition || HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected();
 }
 
 bool FMaterial::MaterialUsesPixelDepthOffset_GameThread() const
