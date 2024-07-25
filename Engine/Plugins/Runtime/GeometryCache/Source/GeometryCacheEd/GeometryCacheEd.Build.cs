@@ -18,11 +18,15 @@ public class GeometryCacheEd : ModuleRules
                 "RenderCore",
                 "RHI",
 				"EditorFramework",
-                "UnrealEd",
+				"EditorWidgets",
+				"UnrealEd",
 				"AssetTools",
                 "GeometryCache",
 				"ToolMenus",
-				"NiagaraEditor"
+				"NiagaraEditor",
+				"AdvancedPreviewScene",
+				"SequencerWidgets",
+				"TimeManagement"
 			}
 		);
 

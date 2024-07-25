@@ -4,6 +4,7 @@
 
 #include "EditorFramework/AssetImportData.h"
 #include "GeometryCache.h"
+#include "GeometryCacheAssetEditorToolkit.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions"
 
@@ -31,6 +32,19 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_GeometryCache::GetAssetCate
 {
 	static const auto Categories = {EAssetCategoryPaths::Animation};
 	return Categories;
+}
+
+EAssetCommandResult UAssetDefinition_GeometryCache::OpenAssets(const FAssetOpenArgs& OpenArgs) const
+{
+	for (UGeometryCache* GeometryCacheAsset : OpenArgs.LoadObjects<UGeometryCache>())
+	{
+		if (GeometryCacheAsset != nullptr)
+		{
+			TSharedRef<FGeometryCacheAssetEditorToolkit> NewCustomAssetEditor(new FGeometryCacheAssetEditorToolkit());
+			NewCustomAssetEditor->InitCustomAssetEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, GeometryCacheAsset);
+		}
+	}
+	return EAssetCommandResult::Handled;
 }
 
 #undef LOCTEXT_NAMESPACE
