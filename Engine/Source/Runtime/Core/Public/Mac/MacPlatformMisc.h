@@ -54,7 +54,14 @@ struct CORE_API FMacPlatformMisc : public FApplePlatformMisc
 	 */
 	FORCEINLINE static const TCHAR* GetNullRHIShaderFormat() 
 	{ 
-		return TEXT("SF_METAL_SM5"); 
+		if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+		{
+			return TEXT("SF_METAL_SM5");
+		}
+		else
+		{
+			return TEXT("SF_METAL_SM6");
+		}
 	}
 
 	/**

@@ -763,7 +763,14 @@ int32 FUnixPlatformMisc::NumberOfCoresIncludingHyperthreads()
 
 const TCHAR* FUnixPlatformMisc::GetNullRHIShaderFormat()
 {
-	return TEXT("SF_VULKAN_SM5");
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("SF_VULKAN_SM5");
+	}
+	else
+	{
+		return TEXT("SF_VULKAN_SM6");
+	}
 }
 
 #define CPUINFO_TOKENS                            \

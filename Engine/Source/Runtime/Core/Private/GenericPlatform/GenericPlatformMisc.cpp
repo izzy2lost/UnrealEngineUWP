@@ -1231,7 +1231,14 @@ const TCHAR* FGenericPlatformMisc::LaunchDir()
 
 const TCHAR* FGenericPlatformMisc::GetNullRHIShaderFormat()
 {
-	return TEXT("PCD3D_SM5");
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("PCD3D_SM5");
+	}
+	else
+	{
+		return TEXT("PCD3D_SM6");
+	}
 }
 
 IPlatformChunkInstall* FGenericPlatformMisc::GetPlatformChunkInstall()
