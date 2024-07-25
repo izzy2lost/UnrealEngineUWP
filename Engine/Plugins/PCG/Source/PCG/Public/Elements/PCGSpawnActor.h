@@ -51,7 +51,7 @@ public:
 	TArray<FName> PostSpawnFunctionNames;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
-	EPCGSpawnActorOption Option = EPCGSpawnActorOption::CollapseActors;
+	EPCGSpawnActorOption Option = EPCGSpawnActorOption::CollapseActors; // Note that this is no longer the default value for new nodes, it is now EPCGSpawnActorOption::NoMerging.
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "Option==EPCGSpawnActorOption::NoMerging", EditConditionHides))
 	bool bForceDisableActorParsing = true;

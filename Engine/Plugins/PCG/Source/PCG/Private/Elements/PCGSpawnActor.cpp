@@ -132,6 +132,7 @@ UPCGSpawnActorSettings::UPCGSpawnActorSettings(const FObjectInitializer& ObjectI
 {
 	if (PCGHelpers::IsNewObjectAndNotDefault(this))
 	{
+		Option = EPCGSpawnActorOption::NoMerging;
 		AttachOptions = EPCGAttachOptions::InFolder;
 	}
 }
