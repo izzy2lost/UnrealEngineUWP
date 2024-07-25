@@ -73,7 +73,8 @@ namespace MeshPaintVirtualTexture
 	{
 		const int32 NumTexels = InNumVertices * CVarMeshPaintVirtualTextureTexelsPerVertex.GetValueOnGameThread();
 		const uint32 TextureSize = (uint32)FMath::Sqrt((float)NumTexels);
-		return FMath::DivideAndRoundUp(TextureSize, GetTileSize()) * GetTileSize();
+		const uint32 TextureSizePow2Aligned = FMath::RoundUpToPowerOfTwo(TextureSize);
+		return FMath::Max(GetTileSize(), TextureSizePow2Aligned);
 	}
 
 	/** 
