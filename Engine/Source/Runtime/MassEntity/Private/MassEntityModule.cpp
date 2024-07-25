@@ -3,9 +3,7 @@
 #include "Modules/ModuleInterface.h"
 #include "MassEntityTypes.h"
 #include "MassProcessingTypes.h"
-#if WITH_UNREAL_DEVELOPER_TOOLS
 #include "Modules/ModuleManager.h"
-#endif // WITH_UNREAL_DEVELOPER_TOOLS
 
 #define LOCTEXT_NAMESPACE "Mass"
 
