@@ -1446,7 +1446,7 @@ void FModuleManager::AddExtraBinarySearchPaths()
 	if (!bExtraBinarySearchPathsAdded)
 	{
 		// Ensure that dependency dlls can be found in restricted sub directories
-		TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
+		TArray<FString> RestrictedFolderNames = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist"), TEXT("LimitedAccess") };
 		for (FName PlatformName : FDataDrivenPlatformInfoRegistry::GetConfidentialPlatforms())
 		{
 			RestrictedFolderNames.Add(PlatformName.ToString());
@@ -1521,7 +1521,7 @@ void FModuleManager::AddBinariesDirectory(const TCHAR *InDirectory, bool bIsGame
 	FPlatformProcess::AddDllDirectory(InDirectory);
 
 	// Also recurse into restricted sub-folders, if they exist
-	const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist") };
+	const TCHAR* RestrictedFolderNames[] = { TEXT("NoRedist"), TEXT("NotForLicensees"), TEXT("CarefullyRedist"), TEXT("LimitedAccess") };
 	for (const TCHAR* RestrictedFolderName : RestrictedFolderNames)
 	{
 		FString RestrictedFolder = FPaths::Combine(InDirectory, RestrictedFolderName);

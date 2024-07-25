@@ -375,6 +375,10 @@ FString FPaths::ConvertPath(const FString& Path, EPathConversion Method, const T
 		case EPathConversion::Engine_NoRedist:
 		case EPathConversion::Project_NoRedist:
 			return bAppendSuffix ? FPaths::Combine(Prefix, TEXT("Restricted/NoRedist"), Suffix) : FPaths::Combine(Prefix, TEXT("Restricted/NoRedist"));
+
+		case EPathConversion::Engine_LimitedAccess:
+		case EPathConversion::Project_LimitedAccess:
+			return bAppendSuffix ? FPaths::Combine(Prefix, TEXT("Restricted/LimitedAccess"), Suffix) : FPaths::Combine(Prefix, TEXT("Restricted/LimitedAccess"));
 	}
 	
 	return TEXT("");
@@ -774,6 +778,7 @@ const TArray<FString>& FPaths::GetRestrictedFolderNames()
 
 	if (!StaticData.bRestrictedFolderNamesInitialized)
 	{
+		StaticData.RestrictedFolderNames.Add(TEXT("LimitedAccess"));
 		StaticData.RestrictedFolderNames.Add(TEXT("NotForLicensees"));
 		StaticData.RestrictedFolderNames.Add(TEXT("NoRedist"));
 		StaticData.RestrictedFolderNames.Add(TEXT("CarefullyRedist"));

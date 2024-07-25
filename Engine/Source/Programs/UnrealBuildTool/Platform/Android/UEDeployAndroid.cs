@@ -4293,9 +4293,11 @@ namespace UnrealBuildTool
 			string UnrealPreBuiltFilesPath = GetUnrealPreBuiltFilePath(EngineDirectory);
 			string UnrealBuildFilesPath_NFL = GetUnrealBuildFilePath(Path.Combine(EngineDirectory, "Restricted", "NotForLicensees"));
 			string UnrealBuildFilesPath_NR = GetUnrealBuildFilePath(Path.Combine(EngineDirectory, "Restricted", "NoRedist"));
+			string UnrealBuildFilesPath_LA = GetUnrealBuildFilePath(Path.Combine(EngineDirectory, "Restricted", "LimitedAccess"));
 			string GameBuildFilesPath = Path.Combine(ProjectDirectory, "Build", "Android");
 			string GameBuildFilesPath_NFL = Path.Combine(Path.Combine(ProjectDirectory, "Restricted", "NotForLicensees"), "Build", "Android");
 			string GameBuildFilesPath_NR = Path.Combine(Path.Combine(ProjectDirectory, "Restricted", "NoRedist"), "Build", "Android");
+			string GameBuildFilesPath_LA = Path.Combine(Path.Combine(ProjectDirectory, "Restricted", "LimitedAccess"), "Build", "Android");
 
 			// get a list of unique NDK architectures enabled for build
 			List<string> NDKArches = new List<string>();
@@ -4970,9 +4972,11 @@ namespace UnrealBuildTool
 				CopyFileDirectory(UnrealBuildFilesPath, UnrealBuildPath, Replacements, ExcludeFolders);
 				CopyFileDirectory(UnrealBuildFilesPath_NFL, UnrealBuildPath, Replacements, ExcludeFolders);
 				CopyFileDirectory(UnrealBuildFilesPath_NR, UnrealBuildPath, Replacements, ExcludeFolders);
+				CopyFileDirectory(UnrealBuildFilesPath_LA, UnrealBuildPath, Replacements, ExcludeFolders);
 				CopyFileDirectory(GameBuildFilesPath, UnrealBuildPath, Replacements, ExcludeFolders);
 				CopyFileDirectory(GameBuildFilesPath_NFL, UnrealBuildPath, Replacements, ExcludeFolders);
 				CopyFileDirectory(GameBuildFilesPath_NR, UnrealBuildPath, Replacements, ExcludeFolders);
+				CopyFileDirectory(GameBuildFilesPath_LA, UnrealBuildPath, Replacements, ExcludeFolders);
 
 				// Parse Gradle filters (may have been replaced by above copies)
 				ParseFilterFile(Path.Combine(UnrealBuildPath, "GradleFilter.txt"));

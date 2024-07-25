@@ -205,11 +205,13 @@ public:
 		Engine_PlatformExtension,
 		Engine_NotForLicensees,
 		Engine_NoRedist,
+		Engine_LimitedAccess,
 
 		Project_First,
 		Project_PlatformExtension = Project_First,
 		Project_NotForLicensees,
 		Project_NoRedist,
+		Project_LimitedAccess
 	};
 	
 	/**

@@ -215,6 +215,7 @@ public:
 	FName ConfigFileTag;
 	
 	// useful strings that are used alot when walking the hierarchy
+	FString ProjectLimitedAccessDir;
 	FString ProjectNotForLicenseesDir;
 	FString ProjectNoRedistDir;
 	TMap<FString, FPerPlatformDirs> PerPlatformDirs;

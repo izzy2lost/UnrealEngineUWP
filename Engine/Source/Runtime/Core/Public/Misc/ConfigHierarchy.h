@@ -97,6 +97,11 @@ inline FConfigLayerExpansion GConfigExpansions[] =
 		TEXT("{PROJECT}/Config/"),				TEXT("{RESTRICTEDPROJECT_NR}/Config/"),
 		EConfigExpansionFlags::ForUncooked 
 	},
+	{ 
+		TEXT("{ENGINE}/"),						TEXT("{ENGINE}/Restricted/LimitedAccess/"),			
+		TEXT("{PROJECT}/Config/"),				TEXT("{RESTRICTEDPROJECT_LA}/Config/"),
+		EConfigExpansionFlags::ForUncooked | EConfigExpansionFlags::ForCooked
+	},
 
 	// Platform Extensions
 	{
@@ -126,6 +131,11 @@ inline FConfigLayerExpansion GConfigExpansions[] =
 		TEXT("{ENGINE}/Config/{PLATFORM}/"),	TEXT("{ENGINE}/Restricted/NoRedist/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"),
 		TEXT("{PROJECT}/Config/{PLATFORM}/"),	TEXT("{RESTRICTEDPROJECT_NR}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"), 
 		EConfigExpansionFlags::ForUncooked // | EConfigExpansionFlags::ForPlugin
+	},
+	{
+		TEXT("{ENGINE}/Config/{PLATFORM}/"),	TEXT("{ENGINE}/Restricted/LimitedAccess/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"),
+		TEXT("{PROJECT}/Config/{PLATFORM}/"),	TEXT("{RESTRICTEDPROJECT_LA}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/"), 
+		EConfigExpansionFlags::ForUncooked | EConfigExpansionFlags::ForCooked // | EConfigExpansionFlags::ForPlugin
 	},
 };
 

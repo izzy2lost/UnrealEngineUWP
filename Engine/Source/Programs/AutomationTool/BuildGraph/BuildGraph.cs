@@ -947,7 +947,7 @@ namespace AutomationTool
 			if (file.IsUnderDirectory(engineDirectory))
 			{
 				string[] pathFragments = file.MakeRelativeTo(engineDirectory).Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-				if (pathFragments.All(x => !x.Equals("NotForLicensees", StringComparison.OrdinalIgnoreCase) && !x.Equals("NoRedist", StringComparison.OrdinalIgnoreCase)))
+				if (pathFragments.All(x => !x.Equals("NotForLicensees", StringComparison.OrdinalIgnoreCase) && !x.Equals("NoRedist", StringComparison.OrdinalIgnoreCase) && !x.Equals("LimitedAccess", StringComparison.OrdinalIgnoreCase)))
 				{
 					return true;
 				}

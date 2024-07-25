@@ -20,6 +20,7 @@ namespace UnrealBuildTool
 		private static readonly XNamespace SchemaInstance = XNamespace.Get("http://www.w3.org/2001/XMLSchema-instance");
 		private static readonly XNamespace SchemaLocation = XNamespace.Get("http://www.epicgames.com/BuildGraph ../../Build/Graph/Schema.xsd");
 		private static readonly List<string> RestrictedFoldersNonPlatform = new List<string>() {
+			RestrictedFolder.LimitedAccess.ToString(),
 			RestrictedFolder.NotForLicensees.ToString(),
 			RestrictedFolder.NoRedist.ToString(),
 			RestrictedFolder.EpicInternal.ToString(),

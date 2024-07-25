@@ -1760,7 +1760,8 @@ namespace UnrealBuildTool
 		private static string[] NoRedistFolders = new string[]
 		{
 			Path.DirectorySeparatorChar + "NoRedist" + Path.DirectorySeparatorChar,
-			Path.DirectorySeparatorChar + "NotForLicensees" + Path.DirectorySeparatorChar
+			Path.DirectorySeparatorChar + "NotForLicensees" + Path.DirectorySeparatorChar,
+			Path.DirectorySeparatorChar + "LimitedAccess" + Path.DirectorySeparatorChar
 		};
 
 		/// <summary>

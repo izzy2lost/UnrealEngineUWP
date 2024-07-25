@@ -108,11 +108,13 @@ void FConfigContext::CachePaths()
 			FPaths::MakePathRelativeTo(RelativeDir, *(EngineRootDir + TEXT("/")));
 			ProjectNotForLicenseesDir = FPaths::Combine(EngineRootDir, TEXT("Restricted/NotForLicensees"), RelativeDir);
 			ProjectNoRedistDir = FPaths::Combine(EngineRootDir, TEXT("Restricted/NoRedist"), RelativeDir);
+			ProjectLimitedAccessDir = FPaths::Combine(EngineRootDir, TEXT("Restricted/LimitedAccess"), RelativeDir);
 		}
 		else
 		{
 			ProjectNotForLicenseesDir = FPaths::Combine(ProjectRootDir, TEXT("Restricted/NotForLicensees"));
 			ProjectNoRedistDir = FPaths::Combine(ProjectRootDir, TEXT("Restricted/NoRedist"));
+			ProjectLimitedAccessDir = FPaths::Combine(ProjectRootDir, TEXT("Restricted/LimitedAccess"));
 		}
 		
 		// if we explicitly don't want project configs, then make a limited layer set without any {PROJECT} paths
@@ -640,6 +642,7 @@ FString FConfigContext::PerformFinalExpansions(const FString& InString, const FS
 	OutString = OutString.Replace(TEXT("{PROJECT}"), *ProjectRootDir);
 	OutString = OutString.Replace(TEXT("{RESTRICTEDPROJECT_NFL}"), *ProjectNotForLicenseesDir);
 	OutString = OutString.Replace(TEXT("{RESTRICTEDPROJECT_NR}"), *ProjectNoRedistDir);
+	OutString = OutString.Replace(TEXT("{RESTRICTEDPROJECT_LA}"), *ProjectLimitedAccessDir);
 
 	if (FPaths::IsUnderDirectory(ProjectRootDir, ProjectNotForLicenseesDir))
 	{
@@ -652,6 +655,13 @@ FString FConfigContext::PerformFinalExpansions(const FString& InString, const FS
 	{
 		FString RelativeDir = ProjectRootDir;
 		FPaths::MakePathRelativeTo(RelativeDir, *(ProjectNoRedistDir + TEXT("/")));
+
+		OutString = OutString.Replace(TEXT("{OPT_SUBDIR}"), *(RelativeDir + TEXT("/")));
+	}
+	else if (FPaths::IsUnderDirectory(ProjectRootDir, ProjectLimitedAccessDir))
+	{
+		FString RelativeDir = ProjectRootDir;
+		FPaths::MakePathRelativeTo(RelativeDir, *(ProjectLimitedAccessDir + TEXT("/")));
 
 		OutString = OutString.Replace(TEXT("{OPT_SUBDIR}"), *(RelativeDir + TEXT("/")));
 	}

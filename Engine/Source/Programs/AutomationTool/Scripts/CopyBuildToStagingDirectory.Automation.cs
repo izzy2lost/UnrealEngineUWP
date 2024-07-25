@@ -1830,7 +1830,7 @@ namespace AutomationScripts
 				Message.Append("\nIf these files are intended to be distributed in packaged builds, move the source files out of a restricted folder, or remap them during staging using the following syntax in DefaultGame.ini:");
 				Message.Append("\n[Staging]");
 				Message.Append("\n+RemapDirectories=(From=\"Foo/NoRedist\", To=\"Foo\")");
-				if (RestrictedNames.Any(x => x != "NotForLicensees" && x != "NoRedist")) // We don't ever want internal stuff white-listing folders like this
+				if (RestrictedNames.Any(x => x != "NotForLicensees" && x != "NoRedist" && x != "LimitedAccess")) // We don't ever want internal stuff white-listing folders like this
 				{
 					Message.Append("\nAlternatively, allow list them using this syntax in DefaultGame.ini:");
 					Message.Append("\n[Staging]");

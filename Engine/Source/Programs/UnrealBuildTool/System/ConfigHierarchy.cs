@@ -1028,11 +1028,13 @@ namespace UnrealBuildTool
 			// Restricted Locations
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/NotForLicensees/", Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_NFL}/Config/" },
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/NoRedist/",         Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_NR}/Config/" },
+			new ConfigLayerExpansion { Before1 = "{ENGINE}/", After1 = "{ENGINE}/Restricted/LimitedAccess/",    Before2 = "{PROJECT}/Config/", After2 = "{RESTRICTEDPROJECT_LA}/Config/" },
 			// Platform Extensions
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{EXTENGINE}/Config/",    Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{EXTPROJECT}/Config/" },
 			// Platform Extensions in Restricted Locations
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/NotForLicensees/Platforms/{PLATFORM}/Config/",   Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_NFL}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
 			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/NoRedist/Platforms/{PLATFORM}/Config/",          Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_NR}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
+			new ConfigLayerExpansion { Before1 = "{ENGINE}/Config/{PLATFORM}/", After1 = "{ENGINE}/Restricted/LimitedAccess/Platforms/{PLATFORM}/Config/",     Before2 = "{PROJECT}/Config/{PLATFORM}/", After2 = "{RESTRICTEDPROJECT_LA}/Platforms/{PLATFORM}/{OPT_SUBDIR}Config/" },
 		};
 
 		private static string PerformBasicReplacements(string InString, string BaseIniName, string CustomConfig)
@@ -1091,6 +1093,7 @@ namespace UnrealBuildTool
 			{
 				DirectoryReference NFLDir;
 				DirectoryReference NRDir;
+				DirectoryReference LADir;
 				string OptionalSubDir = "";
 
 				if (ProjectDir.IsUnderDirectory(Unreal.EngineDirectory))
@@ -1098,11 +1101,13 @@ namespace UnrealBuildTool
 					OptionalSubDir = ProjectDir.MakeRelativeTo(Unreal.EngineDirectory) + "/";
 					NFLDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/NotForLicensees");
 					NRDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/NoRedist");
+					LADir = DirectoryReference.Combine(Unreal.EngineDirectory, "Restricted/LimitedAccess");
 				}
 				else
 				{
 					NFLDir = DirectoryReference.Combine(ProjectDir, "Restricted/NotForLicensees");
 					NRDir = DirectoryReference.Combine(ProjectDir, "Restricted/NoRedist");
+					LADir = DirectoryReference.Combine(ProjectDir, "Restricted/LimitedAccess");
 				}
 
 				if (ProjectDir.IsUnderDirectory(NFLDir))
@@ -1113,6 +1118,10 @@ namespace UnrealBuildTool
 				{
 					OptionalSubDir = ProjectDir.MakeRelativeTo(NRDir) + "/";
 				}
+				else if (ProjectDir.IsUnderDirectory(LADir))
+				{
+					OptionalSubDir = ProjectDir.MakeRelativeTo(LADir) + "/";
+				}
 
 				string PlatformExtensionProjectConfigDir = DirectoryReference.Combine(ProjectDir, "Platforms", PlatformName).FullName;
 
@@ -1120,6 +1129,7 @@ namespace UnrealBuildTool
 				OutString = OutString.Replace("{EXTPROJECT}", PlatformExtensionProjectConfigDir);
 				OutString = OutString.Replace("{RESTRICTEDPROJECT_NFL}", NFLDir.FullName);
 				OutString = OutString.Replace("{RESTRICTEDPROJECT_NR}", NRDir.FullName);
+				OutString = OutString.Replace("{RESTRICTEDPROJECT_LA}", LADir.FullName);
 				OutString = OutString.Replace("{OPT_SUBDIR}", OptionalSubDir);
 
 			}
