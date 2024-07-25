@@ -32,6 +32,12 @@
 #include "Statistics.h"
 #include "String/LexFromString.h"
 
+#if PLATFORM_WINDOWS
+#	include <Windows/AllowWindowsPlatformTypes.h>
+#		include <winsock2.h>
+#	include <Windows/HideWindowsPlatformTypes.h>
+#endif //PLATFORM_WINDOWS
+
 DEFINE_LOG_CATEGORY(LogIoStoreOnDemand);
 DEFINE_LOG_CATEGORY(LogIas);
 
@@ -1281,6 +1287,24 @@ void FIoStoreOnDemandModule::InitializeInternal()
 	
 void FIoStoreOnDemandModule::StartupModule()
 {
+#if PLATFORM_WINDOWS
+	{
+		WSADATA WsaData;
+		int Result = WSAStartup(MAKEWORD(2, 2), &WsaData);
+		if (Result == 0)
+		{
+			bPlatformSpecificSetup = true;
+		}
+		else
+		{
+			TCHAR SystemErrorMsg[MAX_SPRINTF] = { 0 };
+			FPlatformMisc::GetSystemErrorMessage(SystemErrorMsg, sizeof(SystemErrorMsg), Result);
+
+			UE_LOG(LogIas, Error, TEXT("WSAStartup failed due to: %s (%d)"), SystemErrorMsg, Result);
+		}
+	}
+#endif //PLATFORM_WINDOWS
+
 #if !UE_IAS_CUSTOM_INITIALIZATION
 
 	if (!GIasSuspendSystem)
@@ -1297,6 +1321,22 @@ void FIoStoreOnDemandModule::StartupModule()
 
 void FIoStoreOnDemandModule::ShutdownModule()
 {
+#if PLATFORM_WINDOWS
+	if (bPlatformSpecificSetup)
+	{
+		if (WSACleanup() != 0)
+		{
+			const uint32 SystemError = FPlatformMisc::GetLastError();
+
+			TCHAR SystemErrorMsg[MAX_SPRINTF] = { 0 };
+			FPlatformMisc::GetSystemErrorMessage(SystemErrorMsg, sizeof(SystemErrorMsg), SystemError);
+
+			UE_LOG(LogIas, Error, TEXT("WSACleanup failed due to: %s (%u)"), SystemErrorMsg, SystemError);
+		}
+
+		bPlatformSpecificSetup = false;
+	}
+#endif //PLATFORM_WINDOWS
 }
 
 #if UE_IAS_CUSTOM_INITIALIZATION

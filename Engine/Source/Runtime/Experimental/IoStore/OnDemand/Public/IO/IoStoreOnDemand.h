@@ -386,6 +386,9 @@ private:
 	TOptional<bool> DeferredBulkOptionalEnabled;
 	TSharedPtr<FOnDemandIoStore, ESPMode::ThreadSafe> IoStore;
 
+	/** Indicates that platform specific setup was invoked when the module was started and needs to be cleaned up on shutdown */
+	bool bPlatformSpecificSetup = false;
+
 public:
 	UE_API void SetBulkOptionalEnabled(bool bInEnabled);
 	UE_API void SetEnabled(bool bInEnabled);
