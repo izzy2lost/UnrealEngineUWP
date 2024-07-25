@@ -1,6 +1,6 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "EditorObjectNameModel.h"
+#include "Replication/ObjectNameUtils.h"
 
 #include "Internationalization/Text.h"
 #include "Replication/Utils/ObjectUtils.h"
@@ -32,8 +32,8 @@ namespace UE::ConcertClientSharedSlate
 			return FText::GetEmpty();
 		}
 	}
-	
-	FText FEditorObjectNameModel::GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath) const
+
+	FText GetObjectDisplayName(const TSoftObjectPtr<>& ObjectPath)
 	{
 		if (UObject* ResolvedObject = ObjectPath.Get())
 		{
