@@ -4656,8 +4656,6 @@ bool FEngineLoop::LoadStartupCoreModules()
 	FModuleManager::Get().LoadModule(TEXT("PacketHandler"));
 	FModuleManager::Get().LoadModule(TEXT("NetworkReplayStreaming"));
 
-	FModuleManager::Get().LoadModule(TEXT("MassEntity"));
-
 	return bSuccess;
 }
 

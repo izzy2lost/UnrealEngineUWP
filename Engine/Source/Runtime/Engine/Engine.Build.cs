@@ -374,8 +374,6 @@ public class Engine : ModuleRules
 
 		}
 
-		DynamicallyLoadedModuleNames.Add("MassEntity");
-
 		if (Target.bBuildEditor == true)
 		{
 			PublicIncludePathModuleNames.AddRange(
@@ -422,8 +420,7 @@ public class Engine : ModuleRules
 					"AssetTools",
 					"HierarchicalLODUtilities",
 					"LevelInstanceEditor",
-					"NaniteBuilder",
-					"MassEntityEditor"
+					"NaniteBuilder"
 				}
 			);
 		}

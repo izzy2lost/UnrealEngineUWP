@@ -1480,8 +1480,7 @@ void UEditorEngine::LoadDefaultEditorModules()
 			TEXT("RenderResourceViewer"),
 			TEXT("UniversalObjectLocatorEditor"),
 			TEXT("StructUtilsEditor"),
-			TEXT("StructUtilsTestSuite"),
-			TEXT("MassEntityEditor")
+			TEXT("StructUtilsTestSuite")
 		};
 
 	FScopedSlowTask ModuleSlowTask((float)UE_ARRAY_COUNT(ModuleNames));
