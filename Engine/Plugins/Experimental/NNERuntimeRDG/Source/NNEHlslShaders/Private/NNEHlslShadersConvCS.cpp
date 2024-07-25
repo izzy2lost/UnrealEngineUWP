@@ -2,6 +2,7 @@
 
 #include "NNEHlslShadersConvCS.h"
 #include "NNE.h"
+#include "RHIGlobals.h"
 
 namespace UE::NNEHlslShaders::Internal
 {
@@ -40,7 +41,7 @@ namespace UE::NNEHlslShaders::Internal
 				NumThreadsPerGroup = 512;
 				break;
 			default:
-				NumThreadsPerGroup = 128;
+				check(false);
 				break;
 		}
 		check(FMath::Log2((float)NumThreadsPerGroup) == FMath::Floor(FMath::Log2((float)NumThreadsPerGroup)));
@@ -62,12 +63,68 @@ namespace UE::NNEHlslShaders::Internal
 		return Result;
 	}
 
+	uint32 GetTotalSharedMemoryUsed(uint32 ThreadGroupSize, uint32 Log2NumReadsPerThread)
+	{
+		return ThreadGroupSize * (1 + (1 << Log2NumReadsPerThread)) * sizeof(float);
+	}
+
 	} // namespace ConvUtils
+
+	bool FConvCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& InParameters)
+	{
+		if (!FHlslShaderBase::ShouldCompilePermutation(InParameters))
+		{
+			return false;
+		}
+
+		FPermutationDomain PermutationVector(InParameters.PermutationId);
+
+		int Log2NumReadsPerThread = PermutationVector.Get<FConvNumReadsPerThread>();
+		int32 ConvGroupSize = ConvUtils::GetNumThreadsPerGroup(PermutationVector.Get<FConvGroupSize>());
+
+		if(ConvUtils::GetTotalSharedMemoryUsed(ConvGroupSize, Log2NumReadsPerThread) > GetMaxComputeSharedMemory())
+		{
+			return false;
+		}
+		
+		return true;
+	}
 
 	void FConvCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(InParameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("MAX_NUM_DIMENSIONS"), FConvConstants::MAX_NUM_DIMENSIONS);
+	}
+
+	// Returns the biggest thread group size that allows to keep in shared memory the portion of the input tensor and the filter necessary to compute the portion of output tended by it (the thread group).
+	// If no suitable thread group size was found, EConvGroupSize::MAX is returned.
+	EConvGroupSize FConvCS::GetBiggestCompatibleGroupSize(TArrayView<const uint32> WShape, TArrayView<const int32> Dilations, TArrayView<const int32> Strides)
+	{
+		check(WShape.Num() > 2);
+		check(Dilations.Num() == 0 || Dilations.Num() == WShape.Num() - 2);
+		check(Strides.Num() == 0 || Strides.Num() == WShape.Num() - 2);
+		
+		for(EConvGroupSize TargetGroupSize = (EConvGroupSize)((uint8)EConvGroupSize::MAX - 1); (uint8)TargetGroupSize > 0; TargetGroupSize = (EConvGroupSize)((uint8)TargetGroupSize - 1))
+		{
+			const int32 NumDimensions = WShape.Num() - 2;
+			const TArray<int32> GroupShape = GetGroupShape(TargetGroupSize, NumDimensions);
+			TArray<int32> TargetXBlockShape = ConvUtils::GetXBlockShape(GroupShape, WShape, Dilations, Strides);
+			int32 XWindowSize = 1;
+			for (int32 Idx = 0; Idx < NumDimensions; Idx++)
+			{
+				XWindowSize *= TargetXBlockShape[Idx];
+			}
+			int32 NumReadsPerThread = FMath::DivideAndRoundUp(XWindowSize, ConvUtils::GetNumThreadsPerGroup(TargetGroupSize));
+			int32 Log2NumReadsPerThread = FMath::Max(FMath::RoundToPositiveInfinity(FMath::Log2((float)NumReadsPerThread)), FConvConstants::MIN_NUM_READS_PER_THREAD_POW2);
+			uint32 TotSharedMemoryUsed = ConvUtils::GetTotalSharedMemoryUsed(ConvUtils::GetNumThreadsPerGroup(TargetGroupSize), Log2NumReadsPerThread);
+
+			if(TotSharedMemoryUsed <= GetMaxComputeSharedMemory() && Log2NumReadsPerThread <= FConvConstants::MAX_NUM_READS_PER_THREAD_POW2)
+			{
+				return TargetGroupSize;
+			}
+		}
+
+		return EConvGroupSize::MAX;
 	}
 
 	TArray<int32> FConvCS::GetPadding(TArrayView<const uint32> XShape, TArrayView<const uint32> WShape, EConvAutoPad AutoPad, TArrayView<const int32> Dilations, TArrayView<const int32> Strides, TArrayView<const int32> Pads)
@@ -145,7 +202,7 @@ namespace UE::NNEHlslShaders::Internal
 		check(Dilations.Num() == 0 || Dilations.Num() == WShape.Num() - 2);
 		check(Strides.Num() == 0 || Strides.Num() == WShape.Num() - 2);
 		check(Pads.Num() == 0 || Pads.Num() == 2 * (WShape.Num() - 2));
-		check(GetNumReadsPerThread(GroupSize, WShape, Dilations, Strides) >= 0)
+		check(GroupSize != EConvGroupSize::MAX);
 		check(WShape[0] > 0)
 		check(WShape[1] > 0)
 
@@ -271,7 +328,7 @@ namespace UE::NNEHlslShaders::Internal
 
 	EConvGroupSize FConvCS::GetMinimalGroupSize(TArrayView<const int32> WShape)
 	{
-		int32 NumDimensions = WShape.Num() - 2;
+		const int32 NumDimensions = WShape.Num() - 2;
 		int32 WChannelSize = 1;
 		for (int32 i = 0; i < NumDimensions; i++)
 		{

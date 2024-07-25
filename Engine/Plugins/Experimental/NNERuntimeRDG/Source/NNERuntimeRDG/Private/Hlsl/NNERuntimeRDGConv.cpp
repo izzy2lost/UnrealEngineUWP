@@ -17,6 +17,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	DECLARE_GPU_STAT_NAMED(FNNEOperatorConvMatmul, TEXT("NNE.Operator.Hlsl.Conv.Matmul"));
 
 	using EConvAutoPad = UE::NNEHlslShaders::Internal::EConvAutoPad;
+	using EConvGroupSize = UE::NNEHlslShaders::Internal::EConvGroupSize;
 
 	/**
 	 * Convolution operator implementation
@@ -45,16 +46,26 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		TArray<int32> Strides;
 		bool bAreWeightsTransposed = false;
 		EPixelFormat BufferPixelFormat;
+		EConvGroupSize GroupSize = EConvGroupSize::MAX;
 
 	public:
 
 		virtual int PrepareOutputs(TConstArrayView<NNE::Internal::FTensorRef> InputTensors, TArrayView<NNE::Internal::FTensorRef> OutputTensors) override
 		{
+			using namespace UE::NNEHlslShaders::Internal;
+
 			check(InputTensors.Num() >= 2 && InputTensors.Num() <= 3);
 			check(OutputTensors.Num() == 1);
 
 			const NNE::FTensorShape& Input = InputTensors[0]->GetShape();
 			const NNE::FTensorShape& Weights = InputTensors[1]->GetShape();
+
+			GroupSize = FConvCS::GetBiggestCompatibleGroupSize(Weights.GetData(), Dilations, Strides);
+			if(GroupSize == EConvGroupSize::MAX)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("Hlsl Conv: kernel size, strides, dilations combination is not supported. Kernel tensor: %s."), *InputTensors[1]->GetName());
+				return -1;
+			}
 
 			const TArray<int32> OutputShapeData = NNEHlslShaders::Internal::FConvCS::GetOutputShape(Input.GetData(), Weights.GetData(), AutoPad, Dilations, Strides, Pads);
 			const NNE::FSymbolicTensorShape OutputShape = NNE::FSymbolicTensorShape::Make(OutputShapeData);
@@ -121,7 +132,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			using namespace UE::NNEHlslShaders::Internal;
 
 			constexpr EConvAlgorithm Algorithm = EConvAlgorithm::SharedMemory;
-			constexpr EConvGroupSize GroupSize = EConvGroupSize::Size256;
+			
 			bool HasBias = Bias != nullptr;
 			TArray<int32> OutputShape = FConvCS::GetOutputShape(Input.GetShape().GetData(), Weights.GetShape().GetData(), AutoPad, Dilations, Strides, Pads);
 
