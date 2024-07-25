@@ -355,9 +355,6 @@ struct FMaterialCachedExpressionData
 	uint32 bHasRuntimeVirtualTextureOutput : 1;
 
 	UPROPERTY()
-	uint32 bHasFirstPersonOutput : 1;
-
-	UPROPERTY()
 	uint32 bHasSceneColor : 1;
 
 	UPROPERTY()

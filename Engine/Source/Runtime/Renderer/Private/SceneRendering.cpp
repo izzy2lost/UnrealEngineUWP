@@ -6579,11 +6579,3 @@ bool SceneCaptureRequiresAlphaChannel(const FSceneView& View)
 	}
 	return false;
 }
-
-bool DoMaterialAndPrimitiveModifyMeshPosition(const FMaterial& Material, const FPrimitiveSceneProxy* PrimitiveSceneProxy)
-{
-	const bool bMaterialModifiesMeshPosition = Material.MaterialModifiesMeshPosition_RenderThread();
-	const bool bPrimitiveAllowsWPOEvaluation = !ShouldOptimizedWPOAffectNonNaniteShaderSelection() || (PrimitiveSceneProxy && PrimitiveSceneProxy->EvaluateWorldPositionOffset());
-	const bool bIsFirstPerson = Material.HasFirstPersonOutput() && PrimitiveSceneProxy && PrimitiveSceneProxy->IsFirstPerson(); // This check is necessary for first person rendering to function in case of ShouldOptimizedWPOAffectNonNaniteShaderSelection && !EvaluateWorldPositionOffset.
-	return bMaterialModifiesMeshPosition && (bPrimitiveAllowsWPOEvaluation || bIsFirstPerson);
-}

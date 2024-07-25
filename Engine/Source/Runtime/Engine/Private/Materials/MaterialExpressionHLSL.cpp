@@ -242,7 +242,6 @@
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
 #include "Materials/MaterialExpressionWhileLoop.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
-#include "Materials/MaterialExpressionFirstPersonOutput.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Materials/MaterialParameterCollection.h"
 #include "MaterialShared.h"
@@ -5249,28 +5248,6 @@ bool UMaterialExpressionNeuralNetworkOutput::GenerateHLSLExpression(FMaterialHLS
 	}
 
 	return true;
-}
-
-bool UMaterialExpressionFirstPersonOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
-{
-	if (OutputIndex == 0)
-	{
-		OutExpression = FirstPersonInterpolationAlpha.AcquireHLSLExpressionOrConstant(Generator, Scope, 1.0f);
-		return true;
-	}
-
-	return Generator.Error(TEXT("Invalid output"));
-}
-
-UE::Shader::EValueType UMaterialExpressionFirstPersonOutput::GetCustomOutputType(int32 OutputIndex) const
-{
-	using namespace UE::Shader;
-	if (OutputIndex == 0)
-	{
-		return EValueType::Float1;
-	}
-
-	return EValueType::Void;
 }
 
 #endif // WITH_EDITOR

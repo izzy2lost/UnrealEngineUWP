@@ -15,7 +15,6 @@
 #include "Materials/MaterialExpressionVertexInterpolator.h"
 #include "Materials/MaterialExpressionSceneColor.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
-#include "Materials/MaterialExpressionFirstPersonOutput.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
 #include "Materials/MaterialExpressionMakeMaterialAttributes.h"
@@ -454,10 +453,6 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		{
 			bHasRuntimeVirtualTextureOutput = true;
 		}
-		else if (Expression->IsA(UMaterialExpressionFirstPersonOutput::StaticClass()))
-		{
-			bHasFirstPersonOutput = true;
-		}
 		else if (Expression->IsA(UMaterialExpressionSceneColor::StaticClass()))
 		{
 			bHasSceneColor = true;
@@ -659,10 +654,6 @@ struct FMaterialConnectedPropertiesAnalyzer
 			else if (Expression->IsA(UMaterialExpressionRuntimeVirtualTextureOutput::StaticClass()))
 			{
 				CachedExpressionData.bHasRuntimeVirtualTextureOutput = true;
-			}
-			else if (Expression->IsA(UMaterialExpressionFirstPersonOutput::StaticClass()))
-			{
-				CachedExpressionData.bHasFirstPersonOutput = true;
 			}
 			else if (Expression->IsA(UMaterialExpressionSceneColor::StaticClass()))
 			{
