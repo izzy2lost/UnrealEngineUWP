@@ -2840,7 +2840,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 
 #if WITH_EDITOR
 			  // Extra render passes for landscape tools
-			if (GLandscapeEditModeActive && ViewSpecificFamily.EngineShowFlags.Editor)
+			if (GLandscapeEditModeActive && !View->bIsSceneCapture)
 			{
 				// Region selection
 				if (EditToolRenderData.SelectedType)
