@@ -436,7 +436,7 @@ namespace EpicGames.Horde
 		/// <param name="createPaused">Whether to create the deployment, but do not start rolling it out yet</param>
 		/// <param name="target">Location of a directory node describing the deployment</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, BlobRefValue target, CancellationToken cancellationToken = default)
+		public async Task<ToolDeploymentId> CreateToolDeploymentAsync(ToolId id, string? version, double? duration, bool? createPaused, HashedBlobRefValue target, CancellationToken cancellationToken = default)
 		{
 			CreateToolDeploymentRequest request = new CreateToolDeploymentRequest(version ?? String.Empty, duration, createPaused, target);
 			CreateToolDeploymentResponse response = await PostAsync<CreateToolDeploymentResponse, CreateToolDeploymentRequest>(_httpClient, $"api/v2/tools/{id}/deployments", request, cancellationToken);

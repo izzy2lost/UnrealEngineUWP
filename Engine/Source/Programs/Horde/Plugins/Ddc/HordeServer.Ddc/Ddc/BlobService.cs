@@ -176,7 +176,7 @@ namespace HordeServer.Ddc
 		{
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
-			IBlobRef blobRef;
+			IHashedBlobRef blobRef;
 			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
 				int contentLength = (int)content.Length;

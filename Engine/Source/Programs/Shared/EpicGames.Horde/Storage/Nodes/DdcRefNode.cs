@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// References to attachments. We embed this in the ref node to ensure any aliased blobs have a hard reference from the root.
 		/// </summary>
-		public List<IBlobRef> References { get; }
+		public List<IHashedBlobRef> References { get; }
 
 		/// <summary>
 		/// Constructor
@@ -33,16 +33,16 @@ namespace EpicGames.Horde.Storage.Nodes
 		public DdcRefNode(IoHash rootHash)
 		{
 			RootHash = rootHash;
-			References = new List<IBlobRef>();
+			References = new List<IHashedBlobRef>();
 		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public DdcRefNode(IoHash rootHash, IEnumerable<IBlobRef> references)
+		public DdcRefNode(IoHash rootHash, IEnumerable<IHashedBlobRef> references)
 		{
 			RootHash = rootHash;
-			References = new List<IBlobRef>(references);
+			References = new List<IHashedBlobRef>(references);
 		}
 	}
 
@@ -53,7 +53,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public override DdcRefNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
 			IoHash rootHash = reader.ReadIoHash();
-			List<IBlobRef> references = reader.ReadList(x => reader.ReadBlobRef());
+			List<IHashedBlobRef> references = reader.ReadList(x => reader.ReadBlobRef());
 			return new DdcRefNode(rootHash, references);
 		}
 

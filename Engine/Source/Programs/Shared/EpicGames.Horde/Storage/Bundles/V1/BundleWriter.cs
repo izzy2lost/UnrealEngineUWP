@@ -16,9 +16,9 @@ using Microsoft.Extensions.Logging;
 namespace EpicGames.Horde.Storage.Bundles.V1
 {
 	/// <summary>
-	/// Implementation of <see cref="IBlobHandle"/> for nodes which can be read from storage
+	/// Implementation of <see cref="IBlobRef"/> for nodes which can be read from storage
 	/// </summary>
-	sealed class FlushedNodeHandle : IBlobHandle
+	sealed class FlushedNodeHandle : IBlobRef
 	{
 		readonly BundleReader _reader;
 
@@ -28,7 +28,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <inheritdoc/>
 		public BundleHandle Outer { get; }
 
-		public IBlobHandle Innermost => this;
+		public IBlobRef Innermost => this;
 
 		/// <summary>
 		/// Constructor
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	public sealed class BundleWriter : BlobWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : IBlobRef
+		internal class PendingNode : IHashedBlobRef
 		{
 			readonly BundleReader _reader;
 
@@ -107,16 +107,16 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			public readonly int Packet;
 			public readonly int Offset;
 			public readonly int Length;
-			public readonly IBlobHandle[] Imports;
+			public readonly IBlobRef[] Imports;
 			public readonly AliasInfo[] Aliases;
 
-			public IBlobHandle Innermost => this;
+			public IBlobRef Innermost => this;
 			public PendingBundle? PendingBundle => _pendingBundle;
 			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
 			public BundleHandle Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
 
-			public PendingNode(BundleReader reader, BlobType blobType, IoHash hash, int packet, int offset, int length, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
+			public PendingNode(BundleReader reader, BlobType blobType, IoHash hash, int packet, int offset, int length, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
 				_reader = reader;
 
@@ -173,7 +173,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					return;
 				}
 
-				foreach (IBlobHandle import in Imports)
+				foreach (IBlobRef import in Imports)
 				{
 					await import.FlushAsync(cancellationToken);
 				}
@@ -321,7 +321,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			// Finish a node write
-			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases)
+			public PendingNode WriteNode(BlobType blobType, int size, IReadOnlyList<IBlobRef> refs, IReadOnlyList<AliasInfo> aliases)
 			{
 				IoHash hash = IoHash.Compute(GetBuffer(size, size).Span);
 
@@ -505,10 +505,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				Dictionary<BlobType, int> typeToIndex = new Dictionary<BlobType, int>();
 
 				// Map of node handle to reference
-				Dictionary<IBlobHandle, BundleExportRef> nodeHandleToExportRef = new Dictionary<IBlobHandle, BundleExportRef>();
+				Dictionary<IBlobRef, BundleExportRef> nodeHandleToExportRef = new Dictionary<IBlobRef, BundleExportRef>();
 				for (int exportIdx = 0; exportIdx < _queue.Count; exportIdx++)
 				{
-					IBlobHandle handle = _queue[exportIdx];
+					IBlobRef handle = _queue[exportIdx];
 					nodeHandleToExportRef[handle] = new BundleExportRef(-1, exportIdx);
 				}
 
@@ -519,7 +519,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					int typeIdx = FindOrAddItemIndex(nodeInfo.BlobType, types, typeToIndex);
 
 					List<BundleExportRef> exportRefs = new List<BundleExportRef>();
-					foreach (IBlobHandle import in nodeInfo.Imports)
+					foreach (IBlobRef import in nodeInfo.Imports)
 					{
 						BundleExportRef exportRef;
 						if (!nodeHandleToExportRef.TryGetValue(import, out exportRef))
@@ -771,7 +771,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IHashedBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
@@ -780,7 +780,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			TraceLogger?.LogInformation("Added new node for {NodeKey} in bundle {BundleId}", pendingNode, currentBundle.BundleId);
 
 			// Add dependencies on all bundles containing a dependent node
-			foreach (IBlobHandle import in imports)
+			foreach (IBlobRef import in imports)
 			{
 				PendingNode? pendingReference = import.Innermost as PendingNode;
 				if (pendingReference?.PendingBundle != null)

@@ -826,12 +826,12 @@ namespace JobDriver.Execution
 
 				Stopwatch timer = Stopwatch.StartNew();
 
-				IBlobRef<DirectoryNode> rootNodeRef;
+				IHashedBlobRef<DirectoryNode> rootNodeRef;
 				await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
 				{
 					DirectoryNode buildGraphNode = new DirectoryNode();
 					await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, blobWriter, cancellationToken: cancellationToken);
-					IBlobRef<DirectoryNode> outputNodeRef = await blobWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
+					IHashedBlobRef<DirectoryNode> outputNodeRef = await blobWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
 
 					DirectoryNode rootNode = new DirectoryNode();
 					rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));
@@ -1141,7 +1141,7 @@ namespace JobDriver.Execution
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
-				IBlobRef<DirectoryNode> rootRef;
+				IHashedBlobRef<DirectoryNode> rootRef;
 				await using (IBlobWriter blobWriter = storage.CreateBlobWriter(new RefName(artifact.RefName)))
 				{
 					try
@@ -1346,7 +1346,7 @@ namespace JobDriver.Execution
 				// Upload the data
 				Stopwatch timer = Stopwatch.StartNew();
 
-				IBlobRef<DirectoryNode> outputNodeRef;
+				IHashedBlobRef<DirectoryNode> outputNodeRef;
 				await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
 				{
 					DirectoryNode outputNode = new DirectoryNode();
@@ -1426,7 +1426,7 @@ namespace JobDriver.Execution
 					// Upload the data
 					Stopwatch timer = Stopwatch.StartNew();
 
-					IBlobRef<DirectoryNode> outputNodeRef;
+					IHashedBlobRef<DirectoryNode> outputNodeRef;
 					await using (IBlobWriter blobWriter = storage.CreateBlobWriter(artifact.RefName))
 					{
 						DirectoryNode outputNode = new DirectoryNode();

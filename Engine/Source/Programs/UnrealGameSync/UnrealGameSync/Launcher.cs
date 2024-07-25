@@ -187,7 +187,7 @@ namespace UnrealGameSync
 
 						// Download and extract the data
 						using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
-						IBlobHandle handle = storageClient.CreateBlobHandle(deployment.Locator);
+						IBlobRef handle = storageClient.CreateBlobRef(deployment.Locator);
 
 						DirectoryNode rootNode = await handle.ReadBlobAsync<DirectoryNode>(cancellationToken: cancellationToken);
 						await rootNode.CopyToDirectoryAsync(new DirectoryInfo(applicationFolder), new ExtractStatsLogger(0, rootNode.Length, logger), logger, cancellationToken);

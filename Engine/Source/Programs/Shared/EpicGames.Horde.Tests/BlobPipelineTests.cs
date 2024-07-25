@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using BundleStorageClient client = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
-			List<IBlobRef> handles = new List<IBlobRef>();
+			List<IHashedBlobRef> handles = new List<IHashedBlobRef>();
 			await using (IBlobWriter writer = client.CreateBlobWriter())
 			{
 				for (int idx = 0; idx < 4000; idx++)
@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Tests
 
 			await using (BlobPipeline<IoHash> pipeline = new BlobPipeline<IoHash>())
 			{
-				foreach (IBlobRef blobRef in handles)
+				foreach (IHashedBlobRef blobRef in handles)
 				{
 					pipeline.Add(new BlobRequest<IoHash>(blobRef, blobRef.Hash));
 				}

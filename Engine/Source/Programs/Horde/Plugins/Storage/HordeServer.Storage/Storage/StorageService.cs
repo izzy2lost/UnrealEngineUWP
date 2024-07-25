@@ -150,18 +150,18 @@ namespace HordeServer.Storage
 			#region Refs
 
 			/// <inheritdoc/>
-			public async Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken)
+			public async Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime, CancellationToken cancellationToken)
 			{
 				RefInfo? refInfo = await _outer.TryReadRefAsync(NamespaceId, name, cacheTime, cancellationToken);
 				if (refInfo == null)
 				{
 					return null;
 				}
-				return new BlobRefValue(refInfo.Hash, refInfo.Target);
+				return new HashedBlobRefValue(refInfo.Hash, refInfo.Target);
 			}
 
 			/// <inheritdoc/>
-			public Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+			public Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 				=> _outer.WriteRefAsync(NamespaceId, name, value, options, cancellationToken);
 
 			/// <inheritdoc/>
@@ -983,7 +983,7 @@ namespace HordeServer.Storage
 		}
 
 		/// <inheritdoc/>
-		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+		async Task WriteRefAsync(NamespaceId namespaceId, RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			string path = value.Locator.BaseLocator.ToString();
 

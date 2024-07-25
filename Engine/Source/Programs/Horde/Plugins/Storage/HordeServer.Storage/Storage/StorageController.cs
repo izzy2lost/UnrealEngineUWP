@@ -238,7 +238,7 @@ namespace HordeServer.Storage
 			}
 #pragma warning restore CS0618 // Type or member is obsolete
 
-			await backend.WriteRefAsync(refName, new BlobRefValue(request.Hash, request.Target), request.Options, cancellationToken);
+			await backend.WriteRefAsync(refName, new HashedBlobRefValue(request.Hash, request.Target), request.Options, cancellationToken);
 			return Ok();
 		}
 
@@ -281,7 +281,7 @@ namespace HordeServer.Storage
 				}
 			}
 
-			IBlobRef? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
+			IHashedBlobRef? target = await client.TryReadRefAsync(refName, cacheTime, cancellationToken: cancellationToken);
 			if (target == null)
 			{
 				return new NotFoundResult();
@@ -397,7 +397,7 @@ namespace HordeServer.Storage
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadBlobDataAsync(cancellationToken);
+			using BlobData blobData = await storageClient.CreateBlobRef(locator).ReadBlobDataAsync(cancellationToken);
 			if (data)
 			{
 				ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(blobData.Data.ToArray());
@@ -442,7 +442,7 @@ namespace HordeServer.Storage
 				if (commitNode.Metadata.Count > 0)
 				{
 					metadata = new Dictionary<Guid, object>();
-					foreach ((Guid blobGuid, IBlobRef handle) in commitNode.Metadata)
+					foreach ((Guid blobGuid, IHashedBlobRef handle) in commitNode.Metadata)
 					{
 						metadata.Add(blobGuid, GetNodeHandleLink(namespaceId, handle));
 					}
@@ -474,7 +474,7 @@ namespace HordeServer.Storage
 			return new { type = typeName, guid = blobData.Type.Guid, data = $"{GetNodeLink(namespaceId, locator)}&data=true", content = content };
 		}
 
-		static object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobHandle> imports)
+		static object? GetCbNodeObject(NamespaceId namespaceId, CbField field, IEnumerator<IBlobRef> imports)
 		{
 			if (field.IsAttachment())
 			{
@@ -516,9 +516,9 @@ namespace HordeServer.Storage
 		static object? GetNodeObject(NamespaceId namespaceId, DirectoryNodeRef? nodeRef) => (nodeRef == null) ? null : new { nodeRef.Length, nodeRef.Handle.Hash, link = GetNodeLink(namespaceId, nodeRef.Handle.GetLocator()) };
 
 		[return: NotNullIfNotNull("handle")]
-		static object? GetNodeHandleLink(NamespaceId namespaceId, IBlobRef? handle) => (handle == null) ? null : new { handle.Hash, link = GetNodeLink(namespaceId, handle.GetLocator()) };
+		static object? GetNodeHandleLink(NamespaceId namespaceId, IHashedBlobRef? handle) => (handle == null) ? null : new { handle.Hash, link = GetNodeLink(namespaceId, handle.GetLocator()) };
 
-		static string GetNodeLink(NamespaceId namespaceId, IBlobHandle handle) => GetNodeLink(namespaceId, handle.GetLocator());
+		static string GetNodeLink(NamespaceId namespaceId, IBlobRef handle) => GetNodeLink(namespaceId, handle.GetLocator());
 
 		static string GetNodeLink(NamespaceId namespaceId, BlobLocator locator) => $"/api/v1/storage/{namespaceId}/nodes/{locator.BaseLocator}?{locator.Fragment}";
 	}

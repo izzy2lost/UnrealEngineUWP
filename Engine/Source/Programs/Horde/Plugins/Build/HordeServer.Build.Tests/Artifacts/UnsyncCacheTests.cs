@@ -24,7 +24,7 @@ namespace HordeServer.Tests.Artifacts
 
 			Dictionary<IoHash, ReadOnlyMemory<byte>> chunks = new Dictionary<IoHash, ReadOnlyMemory<byte>>();
 
-			IBlobRef<DirectoryNode> directoryRef;
+			IHashedBlobRef<DirectoryNode> directoryRef;
 			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
 				using ChunkedDataWriter chunkedWriter = new ChunkedDataWriter(writer, new ChunkingOptions());
@@ -59,7 +59,7 @@ namespace HordeServer.Tests.Artifacts
 			int offset = 0;
 			foreach (UnsyncBlock block in file.Blocks)
 			{
-				IBlobRef? blobRef = await cache.ReadBlobRefAsync(artifact.Object, block.Blob.Hash);
+				IHashedBlobRef? blobRef = await cache.ReadBlobRefAsync(artifact.Object, block.Blob.Hash);
 				Assert.IsNotNull(blobRef);
 
 				using BlobData blobData = await blobRef.ReadBlobDataAsync();

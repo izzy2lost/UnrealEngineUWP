@@ -36,7 +36,7 @@ namespace HordeServer.Artifacts
 	/// <param name="Length">Length of the block</param>
 	/// <param name="RollingHash">Rolling hash of the block</param>
 	/// <param name="Blob">Handle to the corresponding blob</param>
-	public record class UnsyncBlock(long Offset, long Length, uint RollingHash, IBlobRef<LeafChunkedDataNode> Blob);
+	public record class UnsyncBlock(long Offset, long Length, uint RollingHash, IHashedBlobRef<LeafChunkedDataNode> Blob);
 
 	/// <summary>
 	/// Implements a cache for downloading Unsync blobs
@@ -48,9 +48,9 @@ namespace HordeServer.Artifacts
 			public IStorageClient StorageClient { get; }
 			public UnsyncManifest Manifest { get; }
 			public ReadOnlyMemory<byte> ManifestData { get; }
-			public FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> Blobs { get; }
+			public FrozenDictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> Blobs { get; }
 
-			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, FrozenDictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blobs)
+			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, FrozenDictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blobs)
 			{
 				StorageClient = storageClient;
 				Manifest = manifest;
@@ -191,7 +191,7 @@ namespace HordeServer.Artifacts
 		/// <param name="blobHash"></param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async ValueTask<IBlobRef?> ReadBlobRefAsync(IArtifact artifact, IoHash blobHash, CancellationToken cancellationToken = default)
+		public async ValueTask<IHashedBlobRef?> ReadBlobRefAsync(IArtifact artifact, IoHash blobHash, CancellationToken cancellationToken = default)
 		{
 			ArtifactInfo? artifactInfo = await GetArtifactInfoAsync(artifact, cancellationToken);
 			if (artifactInfo == null)
@@ -199,7 +199,7 @@ namespace HordeServer.Artifacts
 				return null;
 			}
 
-			IBlobRef<LeafChunkedDataNode>? blobRef;
+			IHashedBlobRef<LeafChunkedDataNode>? blobRef;
 			if (!artifactInfo.Blobs.TryGetValue(blobHash, out blobRef))
 			{
 				return null;
@@ -216,7 +216,7 @@ namespace HordeServer.Artifacts
 				Stopwatch timer = Stopwatch.StartNew();
 				storageClient = _storageService.CreateClient(artifact.NamespaceId);
 
-				IBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
+				IHashedBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 				if (target == null)
 				{
 					return null;
@@ -225,7 +225,7 @@ namespace HordeServer.Artifacts
 				List<UnsyncFile> files = new List<UnsyncFile>();
 				await FindFilesAsync(new Utf8StringBuilder(), target, files, cancellationToken);
 
-				Dictionary<IoHash, IBlobRef<LeafChunkedDataNode>> blocks = new Dictionary<IoHash, IBlobRef<LeafChunkedDataNode>>();
+				Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blocks = new Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>>();
 				foreach (UnsyncBlock block in files.SelectMany(x => x.Blocks))
 				{
 					blocks[block.Blob.Hash] = block.Blob;
@@ -246,7 +246,7 @@ namespace HordeServer.Artifacts
 			}
 		}
 
-		static async Task FindFilesAsync(Utf8StringBuilder path, IBlobRef<DirectoryNode> directoryNodeRef, List<UnsyncFile> files, CancellationToken cancellationToken)
+		static async Task FindFilesAsync(Utf8StringBuilder path, IHashedBlobRef<DirectoryNode> directoryNodeRef, List<UnsyncFile> files, CancellationToken cancellationToken)
 		{
 			DirectoryNode directoryNode = await directoryNodeRef.ReadBlobAsync(cancellationToken);
 

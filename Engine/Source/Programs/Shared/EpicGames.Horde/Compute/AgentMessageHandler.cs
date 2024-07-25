@@ -193,7 +193,7 @@ namespace EpicGames.Horde.Compute
 			BundleOptions bundleOptions = ComputeProtocolUtilities.GetBundleOptions(channel.Protocol);
 			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
 
-			IBlobHandle handle = store.CreateBlobHandle(locator);
+			IBlobRef handle = store.CreateBlobRef(locator);
 			DirectoryNode directoryNode = await handle.ReadBlobAsync<DirectoryNode>(options, cancellationToken);
 
 			DirectoryReference outputDir = DirectoryReference.Combine(_sandboxDir, path);

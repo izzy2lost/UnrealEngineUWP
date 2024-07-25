@@ -139,7 +139,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<BlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<HashedBlobRefValue?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			if (!FileReference.Exists(file))
@@ -153,11 +153,11 @@ namespace EpicGames.Horde.Storage.Backends
 			IoHash hash = IoHash.Parse(lines[0].Trim());
 			BlobLocator locator = new BlobLocator(lines[1].Trim());
 
-			return new BlobRefValue(hash, locator);
+			return new HashedBlobRefValue(hash, locator);
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, BlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, HashedBlobRefValue value, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			FileReference file = GetRefFile(name);
 			DirectoryReference.CreateDirectory(file.Directory);

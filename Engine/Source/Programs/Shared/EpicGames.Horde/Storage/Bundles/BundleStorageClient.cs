@@ -158,7 +158,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		#region Nodes
 
 		/// <inheritdoc/>
-		public IBlobHandle CreateBlobHandle(BlobLocator locator)
+		public IBlobRef CreateBlobRef(BlobLocator locator)
 		{
 			if (!locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
@@ -184,15 +184,21 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
+		public IBlobRef<T> CreateBlobRef<T>(BlobLocator locator, BlobSerializerOptions? options)
 		{
-			return BlobRef.Create(hash, CreateBlobHandle(locator));
+			return BlobRef.Create<T>(CreateBlobRef(locator), options);
 		}
 
 		/// <inheritdoc/>
-		public IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? options)
+		public IHashedBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
 		{
-			return BlobRef.Create<T>(hash, CreateBlobHandle(locator), options);
+			return HashedBlobRef.Create(hash, CreateBlobRef(locator));
+		}
+
+		/// <inheritdoc/>
+		public IHashedBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? options)
+		{
+			return HashedBlobRef.Create<T>(hash, CreateBlobRef(locator), options);
 		}
 
 		/// <inheritdoc/>
@@ -218,14 +224,14 @@ namespace EpicGames.Horde.Storage.Bundles
 		#region Aliases
 
 		/// <inheritdoc/>
-		public async Task AddAliasAsync(string name, IBlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+		public async Task AddAliasAsync(string name, IBlobRef handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 		{
 			await handle.FlushAsync(cancellationToken);
 			await _backend.AddAliasAsync(name, handle.GetLocator(), rank, data, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken)
+		public async Task RemoveAliasAsync(string name, IBlobRef handle, CancellationToken cancellationToken)
 		{
 			await handle.FlushAsync(cancellationToken);
 			await _backend.RemoveAliasAsync(name, handle.GetLocator(), cancellationToken);
@@ -240,7 +246,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			for (int idx = 0; idx < aliases.Length; idx++)
 			{
 				BlobAliasLocator alias = aliases[idx];
-				result[idx] = new BlobAlias(CreateBlobHandle(alias.Target), alias.Rank, alias.Data);
+				result[idx] = new BlobAlias(CreateBlobRef(alias.Target), alias.Rank, alias.Data);
 			}
 			return result;
 		}
@@ -254,9 +260,9 @@ namespace EpicGames.Horde.Storage.Bundles
 			=> _backend.DeleteRefAsync(name, cancellationToken);
 
 		/// <inheritdoc/>
-		public async Task<IBlobRef?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public async Task<IHashedBlobRef?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			BlobRefValue? target = await _backend.TryReadRefAsync(name, cacheTime, cancellationToken);
+			HashedBlobRefValue? target = await _backend.TryReadRefAsync(name, cacheTime, cancellationToken);
 			if (target == null)
 			{
 				return null;
@@ -265,10 +271,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, IBlobRef target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		public async Task WriteRefAsync(RefName name, IHashedBlobRef target, RefOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			await target.FlushAsync(cancellationToken);
-			await _backend.WriteRefAsync(name, new BlobRefValue(target.Hash, target.GetLocator()), options, cancellationToken);
+			await _backend.WriteRefAsync(name, new HashedBlobRefValue(target.Hash, target.GetLocator()), options, cancellationToken);
 		}
 
 		#endregion

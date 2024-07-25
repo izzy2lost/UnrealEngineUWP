@@ -61,7 +61,7 @@ namespace HordeServer.Logs
 				hash = IoHash.Zero;
 			}
 
-			IBlobRef target = store.CreateBlobRef(hash, new BlobLocator(request.TargetLocator));
+			IHashedBlobRef target = store.CreateBlobRef(hash, new BlobLocator(request.TargetLocator));
 			await store.WriteRefAsync(new RefName(request.LogId), target);
 
 			await log.UpdateLineCountAsync(request.LineCount, request.Complete, context.CancellationToken);

@@ -34,7 +34,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="handle">Handle to the data to read</param>
 		/// <param name="outputStream">The output stream to receive the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task CopyToStreamAsync(IBlobHandle handle, Stream outputStream, CancellationToken cancellationToken)
+		public static async Task CopyToStreamAsync(IBlobRef handle, Stream outputStream, CancellationToken cancellationToken)
 		{
 			using BlobData blobData = await handle.ReadBlobDataAsync(cancellationToken);
 			if (blobData.Type.Guid == LeafChunkedDataNode.BlobTypeGuid)
@@ -58,7 +58,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="file">File to write with the contents of this node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public static async Task CopyToFileAsync(IBlobHandle handle, FileInfo file, CancellationToken cancellationToken)
+		public static async Task CopyToFileAsync(IBlobRef handle, FileInfo file, CancellationToken cancellationToken)
 		{
 			if (file.Exists && (file.Attributes & FileAttributes.ReadOnly) != 0)
 			{
@@ -151,12 +151,12 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <param name="Length">Length of the data stream within this node</param>
 	/// <param name="RollingHash">Rolling hash for this chunk. Only serialized for leaf node references.</param>
 	/// <param name="Handle">Handle to the target node</param>
-	public record class ChunkedDataNodeRef(ChunkedDataNodeType Type, long Length, uint RollingHash, IBlobRef<ChunkedDataNode> Handle)
+	public record class ChunkedDataNodeRef(ChunkedDataNodeType Type, long Length, uint RollingHash, IHashedBlobRef<ChunkedDataNode> Handle)
 	{
 		/// <summary>
 		/// Leaf node constructor
 		/// </summary>
-		public ChunkedDataNodeRef(long length, uint rollingHash, IBlobRef<LeafChunkedDataNode> handle)
+		public ChunkedDataNodeRef(long length, uint rollingHash, IHashedBlobRef<LeafChunkedDataNode> handle)
 			: this(ChunkedDataNodeType.Leaf, length, rollingHash, handle)
 		{
 		}
@@ -164,7 +164,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Interior node constructor
 		/// </summary>
-		public ChunkedDataNodeRef(long length, IBlobRef<InteriorChunkedDataNode> handle)
+		public ChunkedDataNodeRef(long length, IHashedBlobRef<InteriorChunkedDataNode> handle)
 			: this(ChunkedDataNodeType.Interior, length, 0, handle)
 		{
 		}
@@ -172,25 +172,25 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Gets the target interior node handle
 		/// </summary>
-		public IBlobRef<InteriorChunkedDataNode> GetInteriorHandle()
+		public IHashedBlobRef<InteriorChunkedDataNode> GetInteriorHandle()
 		{
 			if (Type != ChunkedDataNodeType.Interior)
 			{
 				throw new InvalidOperationException("Node is not an interior node");
 			}
-			return BlobRef.Create<InteriorChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
+			return HashedBlobRef.Create<InteriorChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
 		}
 
 		/// <summary>
 		/// Gets the target leaf node handle
 		/// </summary>
-		public IBlobRef<LeafChunkedDataNode> GetLeafHandle()
+		public IHashedBlobRef<LeafChunkedDataNode> GetLeafHandle()
 		{
 			if (Type != ChunkedDataNodeType.Leaf)
 			{
 				throw new InvalidOperationException("Node is not a leaf node");
 			}
-			return BlobRef.Create<LeafChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
+			return HashedBlobRef.Create<LeafChunkedDataNode>(Handle.Hash, Handle, Handle.SerializerOptions);
 		}
 
 		/// <summary>
@@ -347,7 +347,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					sizeSinceProgressUpdate = 0;
 				}
 
-				IBlobRef<LeafChunkedDataNode> blobHandle = await writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
+				IHashedBlobRef<LeafChunkedDataNode> blobHandle = await writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
 				leafNodeRefs.Add(new ChunkedDataNodeRef(nextLength, rollingHash, blobHandle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
@@ -478,7 +478,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				handleBuffer.Clear();
 				foreach ((InteriorChunkedDataNode interiorNode, long interiorLength) in interiorNodes)
 				{
-					IBlobRef<InteriorChunkedDataNode> interiorHandle = await memoryWriter.WriteBlobAsync(interiorNode, cancellationToken);
+					IHashedBlobRef<InteriorChunkedDataNode> interiorHandle = await memoryWriter.WriteBlobAsync(interiorNode, cancellationToken);
 					handleBuffer.Add(new ChunkedDataNodeRef(interiorLength, interiorHandle));
 				}
 
@@ -504,7 +504,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 
 			InteriorChunkedDataNode targetNode = new InteriorChunkedDataNode(children);
-			IBlobRef<InteriorChunkedDataNode> targetHandle = await writer.WriteBlobAsync(targetNode, cancellationToken);
+			IHashedBlobRef<InteriorChunkedDataNode> targetHandle = await writer.WriteBlobAsync(targetNode, cancellationToken);
 
 			return new ChunkedDataNodeRef(source.Length, targetHandle);
 		}
@@ -565,7 +565,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			BlobReader nodeReader = new BlobReader(nodeData, null);
 			while (nodeReader.GetMemory(0).Length > 0)
 			{
-				IBlobRef<ChunkedDataNode> handle = nodeReader.ReadBlobRef<ChunkedDataNode>();
+				IHashedBlobRef<ChunkedDataNode> handle = nodeReader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType type = ChunkedDataNodeType.Unknown;
 				if (nodeReader.Version >= 2)
@@ -616,7 +616,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			List<ChunkedDataNodeRef> children = new List<ChunkedDataNodeRef>();
 			while (reader.GetMemory().Length > 0)
 			{
-				IBlobRef<ChunkedDataNode> handle = reader.ReadBlobRef<ChunkedDataNode>();
+				IHashedBlobRef<ChunkedDataNode> handle = reader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType type = ChunkedDataNodeType.Unknown;
 				if (reader.Version >= 2) // Pre sync with HordeApiVersion

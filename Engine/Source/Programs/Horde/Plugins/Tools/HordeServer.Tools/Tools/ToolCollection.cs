@@ -122,7 +122,7 @@ namespace HordeServer.Tools
 				return _collection.CreateToolObject(document);
 			}
 
-			public async Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken = default)
+			public async Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, HashedBlobRefValue target, CancellationToken cancellationToken = default)
 			{
 				ToolDocument? document = await _collection.CreateDeploymentAsync(_document, _config, options, target, cancellationToken);
 				return _collection.CreateToolObject(document);
@@ -328,7 +328,7 @@ namespace HordeServer.Tools
 
 			using IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
 
-			IBlobRef<DirectoryNode> nodeRef;
+			IHashedBlobRef<DirectoryNode> nodeRef;
 			await using (IBlobWriter writer = client.CreateBlobWriter($"{tool.Id}/{deploymentId}"))
 			{
 				DirectoryNode directoryNode = new DirectoryNode();
@@ -339,7 +339,7 @@ namespace HordeServer.Tools
 			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, nodeRef, cancellationToken);
 		}
 
-		async Task<ToolDocument?> CreateDeploymentAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentConfig options, HashedBlobRefValue target, CancellationToken cancellationToken)
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
@@ -347,7 +347,7 @@ namespace HordeServer.Tools
 			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, client.CreateBlobRef(target), cancellationToken);
 		}
 
-		async Task<ToolDocument?> CreateDeploymentInternalAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IBlobRef content, CancellationToken cancellationToken)
+		async Task<ToolDocument?> CreateDeploymentInternalAsync(ToolDocument tool, ToolConfig toolConfig, ToolDeploymentId deploymentId, ToolDeploymentConfig options, IStorageClient storageClient, IHashedBlobRef content, CancellationToken cancellationToken)
 		{
 			if (toolConfig is BundledToolConfig)
 			{
@@ -499,7 +499,7 @@ namespace HordeServer.Tools
 			IStorageClient client = CreateStorageClient(tool);
 			try
 			{
-				IBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+				IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 				return nodeRef.AsZipStream().WrapOwnership(client);
 			}
 			catch

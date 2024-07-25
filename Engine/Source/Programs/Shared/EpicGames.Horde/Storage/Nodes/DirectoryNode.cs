@@ -364,7 +364,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			int fileCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < fileCount; idx++)
 			{
-				IBlobRef<ChunkedDataNode> targetHandle = reader.ReadBlobRef<ChunkedDataNode>();
+				IHashedBlobRef<ChunkedDataNode> targetHandle = reader.ReadBlobRef<ChunkedDataNode>();
 
 				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
 				if (reader.Version >= 2) // Pre-unification with HordeApiVersion
@@ -402,7 +402,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			int directoryCount = (int)reader.ReadUnsignedVarInt();
 			for (int idx = 0; idx < directoryCount; idx++)
 			{
-				IBlobRef<DirectoryNode> directoryHandle = reader.ReadBlobRef<DirectoryNode>();
+				IHashedBlobRef<DirectoryNode> directoryHandle = reader.ReadBlobRef<DirectoryNode>();
 				long length = (long)reader.ReadUnsignedVarInt();
 				string name = reader.ReadString();
 
@@ -489,13 +489,13 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// </summary>
 	/// <param name="Length">Sum total of all the file lengths in this directory tree</param>
 	/// <param name="Handle">Handle to the target node</param>
-	public record class DirectoryNodeRef(long Length, IBlobRef<DirectoryNode> Handle);
+	public record class DirectoryNodeRef(long Length, IHashedBlobRef<DirectoryNode> Handle);
 
 	/// <summary>
 	/// Entry for a directory within a directory node
 	/// </summary>
 	[DebuggerDisplay("{Name}")]
-	public record class DirectoryEntry(string Name, long Length, IBlobRef<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
+	public record class DirectoryEntry(string Name, long Length, IHashedBlobRef<DirectoryNode> Handle) : DirectoryNodeRef(Length, Handle)
 	{
 	}
 }

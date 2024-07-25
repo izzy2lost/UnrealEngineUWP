@@ -171,7 +171,7 @@ namespace HordeServer.Artifacts
 					break;
 				}
 
-				BlobRefValue? refValue = await storageBackend.TryReadRefAsync(prevArtifact.RefName, cancellationToken: cancellationToken);
+				HashedBlobRefValue? refValue = await storageBackend.TryReadRefAsync(prevArtifact.RefName, cancellationToken: cancellationToken);
 				if (refValue != null)
 				{
 					return prevArtifact.RefName;
@@ -574,7 +574,7 @@ namespace HordeServer.Artifacts
 			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 			try
 			{
-				IBlobRef<DirectoryNode> directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
+				IHashedBlobRef<DirectoryNode> directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
 				Stream stream = directory.AsZipStream(filter).WrapOwnership(storageClient);
 				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };
@@ -724,7 +724,7 @@ namespace HordeServer.Artifacts
 						return BadRequest($"Invalid IoHash value: {block}");
 					}
 
-					IBlobRef? blobRef = await _unsyncCache.ReadBlobRefAsync(artifact, hash, cancellationToken);
+					IHashedBlobRef? blobRef = await _unsyncCache.ReadBlobRefAsync(artifact, hash, cancellationToken);
 					if (blobRef == null)
 					{
 						return NotFound($"Hash '{hash}' is not part of artifact {artifact.Id}");

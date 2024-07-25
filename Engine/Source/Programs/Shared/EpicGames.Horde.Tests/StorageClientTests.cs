@@ -22,15 +22,15 @@ namespace EpicGames.Horde.Tests
 
 			public int Value { get; }
 			public byte[] Padding { get; set; } = Array.Empty<byte>();
-			public IBlobRef<TestNode>[] Refs { get; }
+			public IHashedBlobRef<TestNode>[] Refs { get; }
 
-			public TestNode(int value, params IBlobRef<TestNode>[] refs)
+			public TestNode(int value, params IHashedBlobRef<TestNode>[] refs)
 			{
 				Value = value;
 				Refs = refs;
 			}
 
-			public TestNode(int value, byte[] padding, IBlobRef<TestNode>[] refs)
+			public TestNode(int value, byte[] padding, IHashedBlobRef<TestNode>[] refs)
 			{
 				Value = value;
 				Padding = padding;
@@ -44,7 +44,7 @@ namespace EpicGames.Horde.Tests
 			{
 				int value = reader.ReadInt32();
 				byte[] padding = reader.ReadVariableLengthBytes().ToArray();
-				IBlobRef<TestNode>[] refs = reader.ReadVariableLengthArray(() => reader.ReadBlobRef<TestNode>());
+				IHashedBlobRef<TestNode>[] refs = reader.ReadVariableLengthArray(() => reader.ReadBlobRef<TestNode>());
 
 				return new TestNode(value, padding, refs);
 			}
@@ -75,7 +75,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task TestBasicAsync(IStorageClient store)
 		{
-			IBlobRef<TestNode> nodeRef;
+			IHashedBlobRef<TestNode> nodeRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				nodeRef = await writer.WriteBlobAsync(new TestNode(123));
@@ -93,10 +93,10 @@ namespace EpicGames.Horde.Tests
 
 			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
-			IBlobRef<TestNode> nodeRef2;
+			IHashedBlobRef<TestNode> nodeRef2;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
-				IBlobRef<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123));
+				IHashedBlobRef<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123));
 				nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1));
 			}
 			await store.WriteRefAsync("hello", nodeRef2);
@@ -119,10 +119,10 @@ namespace EpicGames.Horde.Tests
 			using BundleStorageClient store = BundleStorageClient.CreateInMemory(bundleOptions, NullLogger.Instance);
 
 			await using IBlobWriter writer = store.CreateBlobWriter();
-			IBlobRef<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });
+			IHashedBlobRef<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });
 			await writer.FlushAsync();
-			IBlobRef<TestNode> nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1) { Padding = new byte[1024] });
-			IBlobRef<TestNode> nodeRef3 = await writer.WriteBlobAsync(new TestNode(789, nodeRef2));
+			IHashedBlobRef<TestNode> nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1) { Padding = new byte[1024] });
+			IHashedBlobRef<TestNode> nodeRef3 = await writer.WriteBlobAsync(new TestNode(789, nodeRef2));
 
 			// nodeRef1 is in a flushed bundle
 			ExportHandle export1 = (ExportHandle)nodeRef1.Innermost;

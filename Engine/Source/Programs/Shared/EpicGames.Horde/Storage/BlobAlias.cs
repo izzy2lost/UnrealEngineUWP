@@ -10,7 +10,7 @@ namespace EpicGames.Horde.Storage
 	/// <param name="Target">Handle to the target blob for the alias</param>
 	/// <param name="Rank">Rank for the alias</param>
 	/// <param name="Data">Data stored inline with the alias</param>
-	public record class BlobAlias(IBlobHandle Target, int Rank, ReadOnlyMemory<byte> Data);
+	public record class BlobAlias(IBlobRef Target, int Rank, ReadOnlyMemory<byte> Data);
 
 	/// <summary>
 	/// Data for an alias in the storage system. An alias is a named weak reference to a node.

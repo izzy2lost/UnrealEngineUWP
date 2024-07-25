@@ -159,7 +159,7 @@ namespace AutomationTool.Tasks
 
 			BlobSerializerOptions serializerOptions = BlobSerializerOptions.Create(infoResponse.ApiVersion);
 
-			IBlobRef handle;
+			IHashedBlobRef handle;
 
 			using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
 			await using (IBlobWriter blobWriter = storageClient.CreateBlobWriter(serializerOptions: serializerOptions))
@@ -195,7 +195,7 @@ namespace AutomationTool.Tasks
 				createPaused = true;
 			}
 
-			BlobRefValue locator = handle.GetRefValue();
+			HashedBlobRefValue locator = handle.GetRefValue();
 			ToolDeploymentId deploymentId = await hordeHttpClient.CreateToolDeploymentAsync(toolId, _parameters.Version, duration, createPaused, locator);
 			Logger.LogInformation("Created {ToolId} deployment {DeploymentId}", toolId, deploymentId);
 		}

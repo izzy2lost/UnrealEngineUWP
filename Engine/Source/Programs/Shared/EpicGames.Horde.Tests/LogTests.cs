@@ -69,7 +69,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			// Flush it to storage, and read the finished log node
-			IBlobRef<LogNode> logRef;
+			IHashedBlobRef<LogNode> logRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				logRef = await builder.FlushAsync(writer, true, CancellationToken.None);
@@ -118,7 +118,7 @@ namespace EpicGames.Horde.Tests
 				builder.WriteData(Encoding.UTF8.GetBytes(lines[lineIdx]));
 			}
 
-			IBlobRef<LogNode> rootNodeRef;
+			IHashedBlobRef<LogNode> rootNodeRef;
 			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				rootNodeRef = await builder.FlushAsync(writer, true, CancellationToken.None);

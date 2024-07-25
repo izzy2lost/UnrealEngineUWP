@@ -67,7 +67,7 @@ namespace HordeServer.Tests.Issues
 
 				await using (IBlobWriter writer = _storageClient.CreateBlobWriter())
 				{
-					IBlobRef<LogNode> handle = await _builder.FlushAsync(writer, true, CancellationToken.None);
+					IHashedBlobRef<LogNode> handle = await _builder.FlushAsync(writer, true, CancellationToken.None);
 					await _storageClient.WriteRefAsync(_log.RefName, handle);
 				}
 
@@ -356,7 +356,7 @@ namespace HordeServer.Tests.Issues
 					LogBuilder builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
 					builder.WriteData(data);
 
-					IBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
+					IHashedBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
 					await storageClient.WriteRefAsync(log!.RefName, handle);
 				}
 			}

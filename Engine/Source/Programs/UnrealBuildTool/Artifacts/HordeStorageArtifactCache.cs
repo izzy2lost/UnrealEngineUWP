@@ -29,7 +29,7 @@ namespace UnrealBuildTool.Artifacts
 		/// Collection of output file references.  There should be exactly the same number
 		/// of file references as outputs in the action
 		/// </summary>
-		public readonly IBlobRef<ChunkedDataNode>[] OutputRefs;
+		public readonly IHashedBlobRef<ChunkedDataNode>[] OutputRefs;
 
 		/// <summary>
 		/// Construct a new horde artifact number
@@ -39,7 +39,7 @@ namespace UnrealBuildTool.Artifacts
 		public HordeArtifactAction(ArtifactAction artifactAction)
 		{
 			ArtifactAction = artifactAction;
-			OutputRefs = new IBlobRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
+			OutputRefs = new IHashedBlobRef<ChunkedDataNode>[ArtifactAction.Outputs.Length];
 		}
 
 		/// <summary>
@@ -309,7 +309,7 @@ namespace UnrealBuildTool.Artifacts
 						output[index] = true;
 
 						int refIndex = 0;
-						foreach (IBlobRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
+						foreach (IHashedBlobRef<ChunkedDataNode> artifactRef in hordeArtifactAction.OutputRefs)
 						{
 							if (artifactRef == null)
 							{
@@ -478,7 +478,7 @@ namespace UnrealBuildTool.Artifacts
 					// Save the artifact action file
 					await using IBlobWriter writer = _store!.CreateBlobWriter();
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
-					IBlobRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
+					IHashedBlobRef<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
 					await writer.FlushAsync();
 
 					// Save the collection

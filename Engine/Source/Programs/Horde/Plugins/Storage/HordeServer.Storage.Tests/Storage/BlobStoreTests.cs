@@ -44,51 +44,51 @@ namespace HordeServer.Tests.Storage
 		class Blob
 		{
 			public ReadOnlyMemory<byte> Data { get; set; }
-			public List<BlobRefValue> References { get; set; }
+			public List<HashedBlobRefValue> References { get; set; }
 
-			public Blob() : this(ReadOnlyMemory<byte>.Empty, new List<BlobRefValue>())
+			public Blob() : this(ReadOnlyMemory<byte>.Empty, new List<HashedBlobRefValue>())
 			{
 			}
 
-			public Blob(ReadOnlyMemory<byte> data, IEnumerable<BlobRefValue> references)
+			public Blob(ReadOnlyMemory<byte> data, IEnumerable<HashedBlobRefValue> references)
 			{
 				Data = data;
-				References = new List<BlobRefValue>(references);
+				References = new List<HashedBlobRefValue>(references);
 			}
 		}
 
-		static async ValueTask<Blob> ReadBlobAsync(IStorageClient store, BlobRefValue locator)
+		static async ValueTask<Blob> ReadBlobAsync(IStorageClient store, HashedBlobRefValue locator)
 		{
 			using (BlobData blobData = await store.CreateBlobRef(locator.Hash, locator.Locator).ReadBlobDataAsync())
 			{
 				BlobReader reader = new BlobReader(blobData, null);
 				ReadOnlyMemory<byte> data = reader.ReadVariableLengthBytes();
 
-				List<IBlobRef> handles = new List<IBlobRef>();
+				List<IHashedBlobRef> handles = new List<IHashedBlobRef>();
 				while (reader.RemainingMemory.Length > 0)
 				{
 					handles.Add(reader.ReadBlobRef<object>());
 				}
 
-				List<BlobRefValue> locators = handles.ConvertAll(x => x.GetRefValue());
+				List<HashedBlobRefValue> locators = handles.ConvertAll(x => x.GetRefValue());
 				return new Blob(data, locators);
 			}
 		}
 
-		static async ValueTask<BlobRefValue> WriteBlobAsync(IStorageClient store, Blob blob)
+		static async ValueTask<HashedBlobRefValue> WriteBlobAsync(IStorageClient store, Blob blob)
 		{
 			await using IBlobWriter writer = store.CreateBlobWriter();
 			writer.WriteVariableLengthBytes(blob.Data.Span);
 
-			foreach (BlobRefValue reference in blob.References)
+			foreach (HashedBlobRefValue reference in blob.References)
 			{
 				writer.WriteBlobRef(store.CreateBlobRef(reference));
 			}
 
-			IBlobRef blobRef = await writer.CompleteAsync(s_blobType);
+			IHashedBlobRef blobRef = await writer.CompleteAsync(s_blobType);
 			await blobRef.FlushAsync();
 
-			return new BlobRefValue(blobRef.Hash, blobRef.GetLocator());
+			return new HashedBlobRefValue(blobRef.Hash, blobRef.GetLocator());
 		}
 
 		[TestMethod]
@@ -98,8 +98,8 @@ namespace HordeServer.Tests.Storage
 
 			byte[] input = CreateTestData(256, 0);
 
-			Blob inputBlob = new Blob(input, Array.Empty<BlobRefValue>());
-			BlobRefValue locator = await WriteBlobAsync(store, inputBlob);
+			Blob inputBlob = new Blob(input, Array.Empty<HashedBlobRefValue>());
+			HashedBlobRefValue locator = await WriteBlobAsync(store, inputBlob);
 			Blob outputBlob = await ReadBlobAsync(store, locator);
 
 			Assert.IsTrue(outputBlob.Data.Span.SequenceEqual(input));
@@ -112,19 +112,19 @@ namespace HordeServer.Tests.Storage
 			using IStorageClient store = CreateStorageClient();
 
 			byte[] input1 = CreateTestData(256, 1);
-			BlobRefValue locator1 = await WriteBlobAsync(store, new Blob(input1, Array.Empty<BlobRefValue>()));
+			HashedBlobRefValue locator1 = await WriteBlobAsync(store, new Blob(input1, Array.Empty<HashedBlobRefValue>()));
 			Blob blob1 = await ReadBlobAsync(store, locator1);
 			Assert.IsTrue(blob1.Data.Span.SequenceEqual(input1));
-			Assert.IsTrue(blob1.References.SequenceEqual(Array.Empty<BlobRefValue>()));
+			Assert.IsTrue(blob1.References.SequenceEqual(Array.Empty<HashedBlobRefValue>()));
 
 			byte[] input2 = CreateTestData(256, 2);
-			BlobRefValue locator2 = await WriteBlobAsync(store, new Blob(input2, new BlobRefValue[] { locator1 }));
+			HashedBlobRefValue locator2 = await WriteBlobAsync(store, new Blob(input2, new HashedBlobRefValue[] { locator1 }));
 			Blob blob2 = await ReadBlobAsync(store, locator2);
 			Assert.IsTrue(blob2.Data.Span.SequenceEqual(input2));
 			Assert.IsTrue(blob2.References.SequenceEqual(new[] { locator1 }));
 
 			byte[] input3 = CreateTestData(256, 3);
-			BlobRefValue locator3 = await WriteBlobAsync(store, new Blob(input3, new BlobRefValue[] { locator1, locator2, locator1 }));
+			HashedBlobRefValue locator3 = await WriteBlobAsync(store, new Blob(input3, new HashedBlobRefValue[] { locator1, locator2, locator1 }));
 			Blob blob3 = await ReadBlobAsync(store, locator3);
 			Assert.IsTrue(blob3.Data.Span.SequenceEqual(input3));
 			Assert.IsTrue(blob3.References.SequenceEqual(new[] { locator1, locator2, locator1 }));
@@ -133,7 +133,7 @@ namespace HordeServer.Tests.Storage
 			{
 				RefName refName = new RefName("hello");
 				await store.WriteRefAsync(refName, store.CreateBlobRef(locator3));
-				IBlobRef refTarget = await store.ReadRefAsync(refName);
+				IHashedBlobRef refTarget = await store.ReadRefAsync(refName);
 				Assert.AreEqual(locator3.Locator, refTarget.GetLocator());
 			}
 		}
@@ -143,8 +143,8 @@ namespace HordeServer.Tests.Storage
 		{
 			using IStorageClient store = CreateStorageClient();
 
-			Blob blob1 = new Blob(new byte[] { 1, 2, 3 }, Array.Empty<BlobRefValue>());
-			BlobRefValue target = await WriteBlobAsync(store, blob1);
+			Blob blob1 = new Blob(new byte[] { 1, 2, 3 }, Array.Empty<HashedBlobRefValue>());
+			HashedBlobRefValue target = await WriteBlobAsync(store, blob1);
 
 			await store.WriteRefAsync("test-ref-1", store.CreateBlobRef(target));
 			await store.WriteRefAsync("test-ref-2", store.CreateBlobRef(target), new RefOptions { Lifetime = TimeSpan.FromMinutes(30.0), Extend = true });
@@ -173,9 +173,9 @@ namespace HordeServer.Tests.Storage
 			Assert.AreEqual(default, await TryReadRefValueAsync(store, "test-ref-3"));
 		}
 
-		static async Task<BlobRefValue?> TryReadRefValueAsync(IStorageClient store, RefName name)
+		static async Task<HashedBlobRefValue?> TryReadRefValueAsync(IStorageClient store, RefName name)
 		{
-			IBlobRef? handle = await store.TryReadRefAsync(name);
+			IHashedBlobRef? handle = await store.TryReadRefAsync(name);
 			if (handle == null)
 			{
 				return default;

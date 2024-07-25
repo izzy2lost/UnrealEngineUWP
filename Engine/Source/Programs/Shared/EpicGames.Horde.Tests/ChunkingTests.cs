@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode directory = new DirectoryNode();
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
-				IBlobRef handle = await writer.WriteBlobAsync(directory);
+				IHashedBlobRef handle = await writer.WriteBlobAsync(directory);
 				await store.WriteRefAsync(RefName, handle);
 			}
 		}
@@ -180,7 +180,7 @@ namespace EpicGames.Horde.Tests
 
 			byte[] data = Encoding.UTF8.GetBytes("hello world");
 
-			IBlobRef<DirectoryNode> handle;
+			IHashedBlobRef<DirectoryNode> handle;
 			await using (IBlobWriter writer = store.CreateBlobWriter(options: serializerOptions))
 			{
 				using ChunkedDataWriter chunkedWriter = new ChunkedDataWriter(writer, chunkingOptions);
@@ -217,20 +217,20 @@ namespace EpicGames.Horde.Tests
 
 			await using MemoryBlobWriter blobWriter = new MemoryBlobWriter(new BlobSerializerOptions());
 
-			IBlobRef<LeafChunkedDataNode> leafRef = await blobWriter.WriteBlobAsync(new LeafChunkedDataNode(new byte[] { 1, 2, 3 }));
-			int leafRefIndex = MemoryBlobWriter.GetIndex((IBlobRef)leafRef);
+			IHashedBlobRef<LeafChunkedDataNode> leafRef = await blobWriter.WriteBlobAsync(new LeafChunkedDataNode(new byte[] { 1, 2, 3 }));
+			int leafRefIndex = MemoryBlobWriter.GetIndex((IHashedBlobRef)leafRef);
 			ChunkedDataNodeRef leafChunkedRef = new ChunkedDataNodeRef(3, 0, leafRef);
 
 			List<ChunkedDataNodeRef> leafNodeRefs = Enumerable.Repeat(leafChunkedRef, 10000).ToList();
 			ChunkedDataNodeRef root = await InteriorChunkedDataNode.CreateTreeAsync(leafNodeRefs, interiorOptions, blobWriter, CancellationToken.None);
 
-			List<IBlobHandle> list = new List<IBlobHandle>();
+			List<IBlobRef> list = new List<IBlobRef>();
 			await GetReadOrderAsync(root.Handle, list);
 
 			int prevIndex = Int32.MaxValue;
 			for (int idx = 0; idx < list.Count; idx++)
 			{
-				int index = MemoryBlobWriter.GetIndex((IBlobRef)list[idx].Innermost);
+				int index = MemoryBlobWriter.GetIndex((IHashedBlobRef)list[idx].Innermost);
 				if (index != leafRefIndex)
 				{
 					Console.WriteLine("{0}", index);
@@ -240,12 +240,12 @@ namespace EpicGames.Horde.Tests
 			}
 		}
 
-		static async Task GetReadOrderAsync(IBlobHandle handle, List<IBlobHandle> list)
+		static async Task GetReadOrderAsync(IBlobRef handle, List<IBlobRef> list)
 		{
 			list.Add(handle);
 
 			using BlobData blobData = await handle.ReadBlobDataAsync(CancellationToken.None);
-			foreach (IBlobHandle childHandle in blobData.Imports)
+			foreach (IBlobRef childHandle in blobData.Imports)
 			{
 				await GetReadOrderAsync(childHandle, list);
 			}

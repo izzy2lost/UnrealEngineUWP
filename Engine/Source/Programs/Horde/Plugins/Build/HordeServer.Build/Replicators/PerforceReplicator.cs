@@ -66,12 +66,12 @@ namespace HordeServer.Replicators
 		{
 			public int Change { get; }
 			public int ParentChange { get; }
-			public IBlobRef<CommitNode>? ParentHandle { get; }
+			public IHashedBlobRef<CommitNode>? ParentHandle { get; }
 			public long CopiedSize { get; set; }
-			public IBlobRef<DirectoryNode>? Contents { get; set; }
+			public IHashedBlobRef<DirectoryNode>? Contents { get; set; }
 			public List<string> Paths { get; }
 
-			public StateNode(int number, int parentNumber, IBlobRef<CommitNode>? parentHandle, long copiedSize, IBlobRef<DirectoryNode>? contents, List<string>? paths = null)
+			public StateNode(int number, int parentNumber, IHashedBlobRef<CommitNode>? parentHandle, long copiedSize, IHashedBlobRef<DirectoryNode>? contents, List<string>? paths = null)
 			{
 				Change = number;
 				ParentChange = parentNumber;
@@ -91,7 +91,7 @@ namespace HordeServer.Replicators
 				int change = (int)reader.ReadUnsignedVarInt();
 				int parentChange = (int)reader.ReadUnsignedVarInt();
 
-				IBlobRef<CommitNode>? parentHandle = null;
+				IHashedBlobRef<CommitNode>? parentHandle = null;
 				if (reader.ReadBoolean())
 				{
 					parentHandle = reader.ReadBlobRef<CommitNode>();
@@ -103,7 +103,7 @@ namespace HordeServer.Replicators
 					copiedSize = (long)reader.ReadUnsignedVarInt();
 				}
 
-				IBlobRef<DirectoryNode>? contents = null;
+				IHashedBlobRef<DirectoryNode>? contents = null;
 				if (reader.ReadBoolean())
 				{
 					contents = reader.ReadBlobRef<DirectoryNode>();
@@ -455,7 +455,7 @@ namespace HordeServer.Replicators
 					RedirectNode<CommitNode>? lastCommit = await store.TryReadRefTargetAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
 
 					CommitNode? parent = null;
-					IBlobRef<CommitNode>? parentHandle = lastCommit?.Target;
+					IHashedBlobRef<CommitNode>? parentHandle = lastCommit?.Target;
 					while (parentHandle != null)
 					{
 						CommitNode parentBlob = await parentHandle.ReadBlobAsync(cancellationToken);
@@ -736,7 +736,7 @@ namespace HordeServer.Replicators
 				await root.UpdateAsync(rootUpdate, directoryWriter, cancellationToken);
 				stateNode.Contents = await directoryWriter.WriteBlobAsync(root, cancellationToken);
 
-				IBlobRef<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, cancellationToken);
+				IHashedBlobRef<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, cancellationToken);
 				await directoryWriter.FlushAsync(cancellationToken);
 
 				await store.WriteRefAsync(incRefName, stateNodeRef, cancellationToken: cancellationToken);
@@ -758,11 +758,11 @@ namespace HordeServer.Replicators
 			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, stateNode.Contents!);
 
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
-			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobRef>());
-			IBlobRef<CommitNode> commitNodeRef = await commitWriter.WriteBlobAsync(commitNode, cancellationToken);
+			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IHashedBlobRef>());
+			IHashedBlobRef<CommitNode> commitNodeRef = await commitWriter.WriteBlobAsync(commitNode, cancellationToken);
 
 			RedirectNode<CommitNode> redirectNode = new RedirectNode<CommitNode>(commitNodeRef);
-			IBlobRef<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, cancellationToken);
+			IHashedBlobRef<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, cancellationToken);
 
 			await commitWriter.FlushAsync(cancellationToken);
 			await store.WriteRefAsync(refName, redirectNodeRef, options.RefOptions, cancellationToken: cancellationToken);

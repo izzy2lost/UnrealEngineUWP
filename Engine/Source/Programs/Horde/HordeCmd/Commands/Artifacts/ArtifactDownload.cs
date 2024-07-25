@@ -51,7 +51,7 @@ namespace Horde.Commands.Artifacts
 			}
 
 			using IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
-			IBlobHandle handle = await store.ReadRefAsync(new RefName("default"));
+			IBlobRef handle = await store.ReadRefAsync(new RefName("default"));
 
 			Stopwatch timer = Stopwatch.StartNew();
 

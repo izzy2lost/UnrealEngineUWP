@@ -34,15 +34,15 @@ namespace HordeServer.Tests.Storage
 			using IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
 
 			Random random = new Random(0);
-			IBlobRef[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
+			IHashedBlobRef[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);
 
-			HashSet<IBlobHandle> roots = new HashSet<IBlobHandle>();
+			HashSet<IBlobRef> roots = new HashSet<IBlobRef>();
 			for (int idx = 0; idx < 10; idx++)
 			{
 				int blobIdx = (int)(random.NextDouble() * blobs.Length);
 				if (roots.Add(blobs[blobIdx]))
 				{
-					IBlobRef handle = blobs[blobIdx];
+					IHashedBlobRef handle = blobs[blobIdx];
 					await store.WriteRefAsync(new RefName($"ref-{idx}"), handle);
 				}
 			}
@@ -60,16 +60,16 @@ namespace HordeServer.Tests.Storage
 			Assert.IsTrue(remaining.All(x => nodePaths.Contains(x)));
 		}
 
-		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<IBlobHandle> roots)
+		static async Task<HashSet<BlobLocator>> FindNodesAsync(IStorageClient store, IEnumerable<IBlobRef> roots)
 		{
 			HashSet<BlobLocator> nodes = new HashSet<BlobLocator>();
 			await FindNodesAsync(store, roots, nodes);
 			return nodes;
 		}
 
-		static async Task FindNodesAsync(IStorageClient store, IEnumerable<IBlobHandle> roots, HashSet<BlobLocator> nodes)
+		static async Task FindNodesAsync(IStorageClient store, IEnumerable<IBlobRef> roots, HashSet<BlobLocator> nodes)
 		{
-			foreach (IBlobHandle root in roots)
+			foreach (IBlobRef root in roots)
 			{
 				BlobLocator locator = root.GetLocator();
 				if (nodes.Add(locator))
@@ -80,7 +80,7 @@ namespace HordeServer.Tests.Storage
 			}
 		}
 
-		static async ValueTask<IBlobRef[]> CreateTestDataAsync(IStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
+		static async ValueTask<IHashedBlobRef[]> CreateTestDataAsync(IStorageClient store, int numRoots, int numInterior, int numLeaves, int avgChildren, Random random)
 		{
 			int firstRoot = 0;
 			int firstInterior = firstRoot + numRoots;
@@ -109,14 +109,14 @@ namespace HordeServer.Tests.Storage
 
 			BlobType blobType = new BlobType(Guid.Parse("{AFDF76A7-4DEE-5333-F5B5-37B8451251CA}"), 0);
 
-			IBlobRef[] handles = new IBlobRef[children.Length];
+			IHashedBlobRef[] handles = new IHashedBlobRef[children.Length];
 			for (int idx = numNodes - 1; idx >= 0; idx--)
 			{
-				IBlobRef handle;
+				IHashedBlobRef handle;
 				await using (IBlobWriter writer = store.CreateBlobWriter("gctest"))
 				{
-					List<IBlobRef> imports = children[idx].ConvertAll(x => handles[x]);
-					foreach (IBlobRef import in imports)
+					List<IHashedBlobRef> imports = children[idx].ConvertAll(x => handles[x]);
+					foreach (IHashedBlobRef import in imports)
 					{
 						writer.WriteBlobRef(import);
 					}

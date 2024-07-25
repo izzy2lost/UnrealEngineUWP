@@ -546,7 +546,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			Dictionary<BlobLocator, BundleHandle> locatorToBundleHandle = new Dictionary<BlobLocator, BundleHandle>();
 
-			List<IBlobHandle> imports = new List<IBlobHandle>(export.References.Count);
+			List<IBlobRef> imports = new List<IBlobRef>(export.References.Count);
 			foreach (BundleExportRef reference in export.References)
 			{
 				BlobLocator importBlob;

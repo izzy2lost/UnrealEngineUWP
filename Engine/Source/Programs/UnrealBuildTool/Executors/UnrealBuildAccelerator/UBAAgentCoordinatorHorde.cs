@@ -181,7 +181,7 @@ namespace UnrealBuildTool
 			await using IBlobWriter writer = _storage.CreateBlobWriter(serializerOptions: serializerOptions);
 			DirectoryNode sandbox = new();
 			await sandbox.AddFilesAsync(baseDir, files, writer, cancellationToken: cancellationToken);
-			IBlobRef<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
+			IHashedBlobRef<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox, cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 			return handle.GetLocator();
 		}

@@ -26,17 +26,17 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes. These handles do not have valid hashes.
 		/// </summary>
-		IReadOnlyList<IBlobHandle> Imports { get; }
+		IReadOnlyList<IBlobRef> Imports { get; }
 
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		IBlobRef ReadBlobRef();
+		IHashedBlobRef ReadBlobRef();
 
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		IBlobRef<T> ReadBlobRef<T>();
+		IHashedBlobRef<T> ReadBlobRef<T>();
 	}
 
 	/// <summary>
@@ -72,7 +72,7 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Locations of all referenced nodes.
 		/// </summary>
-		public IReadOnlyList<IBlobHandle> Imports => _blobData.Imports;
+		public IReadOnlyList<IBlobRef> Imports => _blobData.Imports;
 
 		readonly BlobData _blobData;
 		readonly BlobSerializerOptions _options;
@@ -91,21 +91,21 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets the next serialized blob reference
 		/// </summary>
-		public IBlobRef ReadBlobRef()
+		public IHashedBlobRef ReadBlobRef()
 		{
-			IBlobHandle import = Imports[_importIdx++];
+			IBlobRef import = Imports[_importIdx++];
 			IoHash hash = this.ReadIoHash();
-			return BlobRef.Create(hash, import);
+			return HashedBlobRef.Create(hash, import);
 		}
 
 		/// <summary>
 		/// Gets the next serialized blob reference
 		/// </summary>
-		public IBlobRef<T> ReadBlobRef<T>()
+		public IHashedBlobRef<T> ReadBlobRef<T>()
 		{
-			IBlobHandle import = Imports[_importIdx++];
+			IBlobRef import = Imports[_importIdx++];
 			IoHash hash = this.ReadIoHash();
-			return BlobRef.Create<T>(hash, import, _options);
+			return HashedBlobRef.Create<T>(hash, import, _options);
 		}
 	}
 }

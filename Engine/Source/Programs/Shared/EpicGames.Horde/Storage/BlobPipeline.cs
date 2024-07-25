@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Request to read a blob from storage
 	/// </summary>
-	public record class BlobRequest<TUserData>(IBlobHandle Handle, TUserData UserData);
+	public record class BlobRequest<TUserData>(IBlobRef Handle, TUserData UserData);
 
 	/// <summary>
 	/// Response from reading a blob from storage

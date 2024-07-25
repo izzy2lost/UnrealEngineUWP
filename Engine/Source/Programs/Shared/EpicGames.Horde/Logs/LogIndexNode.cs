@@ -102,7 +102,7 @@ namespace EpicGames.Horde.Logs
 			for (int idx = 0; idx < appendPlainTextChunks.Count; idx++)
 			{
 				LogChunkNode newChunk = appendPlainTextChunks[idx];
-				IBlobRef<LogChunkNode> newChunkRef = await writer.WriteBlobAsync(newChunk, cancellationToken);
+				IHashedBlobRef<LogChunkNode> newChunkRef = await writer.WriteBlobAsync(newChunk, cancellationToken);
 				newChunks[_plainTextChunkRefs.Length + idx] = new LogChunkRef(lineIndex, newChunk.LineCount, offset, newChunk.Length, newChunkRef);
 				lineIndex += newChunk.LineCount;
 				offset += newChunk.Length;

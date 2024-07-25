@@ -227,7 +227,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		record class OutputChunk(OutputFile File, long Offset, long Length, IBlobHandle Handle);
+		record class OutputChunk(OutputFile File, long Offset, long Length, IBlobRef Handle);
 
 		record class OutputBatch(List<OutputChunk> Chunks);
 
@@ -246,7 +246,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				_chunkWriter = chunkWriter;
 			}
 
-			public async Task WriteAsync(long offset, long length, IBlobHandle handle, CancellationToken cancellationToken)
+			public async Task WriteAsync(long offset, long length, IBlobRef handle, CancellationToken cancellationToken)
 			{
 				if (_bufferedChunk != null)
 				{
@@ -268,7 +268,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 
 #pragma warning disable IDE0060
-		static void TraceBlobRead(string type, string path, IBlobHandle handle, ILogger logger)
+		static void TraceBlobRead(string type, string path, IBlobRef handle, ILogger logger)
 		{
 			//			logger.LogTrace(KnownLogEvents.Horde_BlobRead, "Blob [{Type,-20}] Path=\"{Path}\", Locator={Locator}", type, path, handle.GetLocator());
 		}
@@ -438,7 +438,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Compare two blob handles to allow sorting for optimized reads
 		/// </summary>
-		public static int CompareBlobs(IBlobHandle a, IBlobHandle b)
+		public static int CompareBlobs(IBlobRef a, IBlobRef b)
 		{
 			if (a.Innermost is not ExportHandle exportHandleA || exportHandleA.Packet is not FlushedPacketHandle packetHandleA)
 			{

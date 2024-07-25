@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		public abstract BundleHandle Bundle { get; }
 
-		/// <inheritdoc cref="IBlobHandle.FlushAsync(CancellationToken)"/>
+		/// <inheritdoc cref="IBlobRef.FlushAsync(CancellationToken)"/>
 		public abstract ValueTask FlushAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>

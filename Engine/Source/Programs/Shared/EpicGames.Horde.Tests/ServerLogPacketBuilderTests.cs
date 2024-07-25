@@ -285,7 +285,7 @@ namespace EpicGames.Horde.Tests
 
 			// Read the log
 			using IStorageClient storageClient = hordeClient.CreateStorageClient(logId);
-			LogNode file = await storageClient.CreateBlobHandle(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
+			LogNode file = await storageClient.CreateBlobRef(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
 
 			// Check the index text
 			List<Utf8String> extractedIndexText = new List<Utf8String>();

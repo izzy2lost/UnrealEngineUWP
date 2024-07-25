@@ -25,7 +25,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Reference to the parent commit
 		/// </summary>
-		public IBlobRef<CommitNode>? Parent { get; set; }
+		public IHashedBlobRef<CommitNode>? Parent { get; set; }
 
 		/// <summary>
 		/// Human readable name of the author of this change
@@ -65,12 +65,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Metadata for this commit, keyed by arbitrary GUID
 		/// </summary>
-		public Dictionary<Guid, IBlobRef> Metadata { get; } = new Dictionary<Guid, IBlobRef>();
+		public Dictionary<Guid, IHashedBlobRef> Metadata { get; } = new Dictionary<Guid, IHashedBlobRef>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public CommitNode(int number, IBlobRef<CommitNode>? parent, string author, string? authorId, string? committer, string? commiterId, string message, DateTime time, DirectoryNodeRef contents, Dictionary<Guid, IBlobRef> metadata)
+		public CommitNode(int number, IHashedBlobRef<CommitNode>? parent, string author, string? authorId, string? committer, string? commiterId, string message, DateTime time, DirectoryNodeRef contents, Dictionary<Guid, IHashedBlobRef> metadata)
 		{
 			Number = number;
 			Parent = parent;
@@ -93,7 +93,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			int number = (int)reader.ReadUnsignedVarInt();
 
-			IBlobRef<CommitNode>? parent;
+			IHashedBlobRef<CommitNode>? parent;
 			if (reader.ReadBoolean())
 			{
 				parent = reader.ReadBlobRef<CommitNode>();
@@ -110,11 +110,11 @@ namespace EpicGames.Horde.Storage.Nodes
 			string message = reader.ReadString();
 			DateTime time = reader.ReadDateTime();
 
-			IBlobRef<DirectoryNode> contentsNode = reader.ReadBlobRef<DirectoryNode>();
+			IHashedBlobRef<DirectoryNode> contentsNode = reader.ReadBlobRef<DirectoryNode>();
 			long length = (long)reader.ReadUnsignedVarInt();
 			DirectoryNodeRef contents = new DirectoryNodeRef(length, contentsNode);
 
-			Dictionary<Guid, IBlobRef> metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadBlobRef());
+			Dictionary<Guid, IHashedBlobRef> metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadBlobRef());
 
 			return new CommitNode(number, parent, author, authorId, committer, committerId, message, time, contents, metadata);
 		}

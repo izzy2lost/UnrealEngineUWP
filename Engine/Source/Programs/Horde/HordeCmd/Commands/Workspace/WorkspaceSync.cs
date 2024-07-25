@@ -51,19 +51,19 @@ namespace Horde.Commands.Workspace
 			if (File != null)
 			{
 				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
-				IBlobHandle handle = store.CreateBlobHandle(await FileStorageBackend.ReadRefAsync(File));
+				IBlobRef handle = store.CreateBlobRef(await FileStorageBackend.ReadRefAsync(File));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				IBlobHandle handle = await store.ReadRefAsync(new RefName(Ref));
+				IBlobRef handle = await store.ReadRefAsync(new RefName(Ref));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
 				using IStorageClient store = CreateStorageClient();
-				IBlobHandle handle = store.CreateBlobHandle(new BlobLocator(Node));
+				IBlobRef handle = store.CreateBlobRef(new BlobLocator(Node));
 				return await ExecuteInternalAsync(store, handle, logger);
 			}
 			else
@@ -72,7 +72,7 @@ namespace Horde.Commands.Workspace
 			}
 		}
 
-		async Task<int> ExecuteInternalAsync(IStorageClient store, IBlobHandle handle, ILogger logger)
+		async Task<int> ExecuteInternalAsync(IStorageClient store, IBlobRef handle, ILogger logger)
 		{
 			RootDir ??= DirectoryReference.GetCurrentDirectory();
 			CancellationToken cancellationToken = CancellationToken.None;

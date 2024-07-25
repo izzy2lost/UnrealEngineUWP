@@ -29,9 +29,9 @@ namespace HordeServer.Tests.Storage
 			BlobType type2 = new BlobType(Guid.Parse("{6CB3A005-4787-26BA-3E79-D286CB7137D1}"), 0);
 			byte[] data2 = new byte[] { 4, 5, 6 };
 
-			IBlobRef handle1a;
-			IBlobRef handle1b;
-			IBlobRef handle2;
+			IHashedBlobRef handle1a;
+			IHashedBlobRef handle1b;
+			IHashedBlobRef handle2;
 			await using (IBlobWriter writer = client.CreateBlobWriter())
 			{
 				writer.WriteFixedLengthBytes(data1);

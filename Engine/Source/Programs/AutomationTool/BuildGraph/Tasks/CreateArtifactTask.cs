@@ -137,7 +137,7 @@ namespace AutomationTool.Tasks
 					int totalCount = files.Count;
 					long totalSize = files.Sum(x => x.Length);
 
-					IBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new UpdateStatsLogger(totalCount, totalSize, Logger));
+					IHashedBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new UpdateStatsLogger(totalCount, totalSize, Logger));
 					await writer.FlushAsync();
 
 					await client.WriteRefAsync(response.RefName, outputNodeRef);

@@ -74,7 +74,7 @@ namespace HordeServer.Commands.Generate
 			{
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
-					IBlobRef<DirectoryNode> dirNodeRef;
+					IHashedBlobRef<DirectoryNode> dirNodeRef;
 					await using (DedupeBlobWriter writer = client.CreateDedupeBlobWriter(refName))
 					{
 						logger.LogInformation("Populating cache with existing refs...");
@@ -142,13 +142,13 @@ namespace HordeServer.Commands.Generate
 		{
 			foreach (RefName refName in FileStorageBackend.EnumerateRefs(searchDir))
 			{
-				IBlobRef? blobRef = await client.TryReadRefAsync(refName, cancellationToken: cancellationToken);
+				IHashedBlobRef? blobRef = await client.TryReadRefAsync(refName, cancellationToken: cancellationToken);
 				if (blobRef != null)
 				{
 					using BlobData blobData = await blobRef.ReadBlobDataAsync(cancellationToken);
 					if (blobData.Type.Guid == DirectoryNode.BlobTypeGuid)
 					{
-						IBlobRef<DirectoryNode> directoryRef = BlobRef.Create<DirectoryNode>(blobRef);
+						IHashedBlobRef<DirectoryNode> directoryRef = HashedBlobRef.Create<DirectoryNode>(blobRef);
 						await writer.AddToCacheAsync(directoryRef, cancellationToken);
 					}
 				}

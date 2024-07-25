@@ -24,13 +24,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// The target handle
 		/// </summary>
-		public IBlobRef<T> Target { get; }
+		public IHashedBlobRef<T> Target { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="handle">Target node for the redirect</param>
-		public RedirectNode(IBlobRef<T> handle) => Target = handle;
+		public RedirectNode(IHashedBlobRef<T> handle) => Target = handle;
 	}
 
 	class RedirectNodeConverter<T> : BlobConverter<RedirectNode<T>>
@@ -40,7 +40,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override RedirectNode<T> Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			IBlobRef<T> handle = reader.ReadBlobRef<T>();
+			IHashedBlobRef<T> handle = reader.ReadBlobRef<T>();
 			return new RedirectNode<T>(handle);
 		}
 

@@ -13,11 +13,11 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class BlobDataTests
 	{
-		class DummyHandle : IBlobHandle
+		class DummyHandle : IBlobRef
 		{
 			readonly BlobLocator _locator;
 
-			public IBlobHandle Innermost => this;
+			public IBlobRef Innermost => this;
 
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
@@ -36,7 +36,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public void HeaderSerialization()
 		{
-			List<IBlobHandle> refs = new List<IBlobHandle>();
+			List<IBlobRef> refs = new List<IBlobRef>();
 			refs.Add(new DummyHandle("hello"));
 			refs.Add(new DummyHandle("world"));
 

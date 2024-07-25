@@ -125,7 +125,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				return _packetWriter.GetExport(exportIdx);
 			}
 
-			public ExportHandle CompleteExport(BlobType type, int size, IReadOnlyList<IBlobHandle> imports, IReadOnlyList<AliasInfo> aliases)
+			public ExportHandle CompleteExport(BlobType type, int size, IReadOnlyList<IBlobRef> imports, IReadOnlyList<AliasInfo> aliases)
 			{
 				RuntimeAssert(_packetWriter != null);
 				RuntimeAssert(_packetHandle != null);
@@ -325,7 +325,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			=> _currentBundle.GetOutputBuffer(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public override async ValueTask<IBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IHashedBlobRef> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobRef> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ExportHandle exportHandle = _currentBundle.CompleteExport(type, size, references, aliases);
 			if (_currentBundle.Length > _bundleOptions.MaxBlobSize)

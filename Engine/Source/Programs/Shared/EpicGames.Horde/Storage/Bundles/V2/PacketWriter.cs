@@ -99,7 +99,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <param name="size"></param>
 		/// <param name="type"></param>
 		/// <param name="imports"></param>
-		public int CompleteExport(int size, BlobType type, IReadOnlyList<IBlobHandle> imports)
+		public int CompleteExport(int size, BlobType type, IReadOnlyList<IBlobRef> imports)
 		{
 			int[] importIndices = new int[imports.Count];
 			for (int idx = 0; idx < imports.Count; idx++)
@@ -159,11 +159,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 				BlobType type = _types[header.TypeIdx];
 
-				IBlobHandle[] imports = new IBlobHandle[header.Imports.Length];
+				IBlobRef[] imports = new IBlobRef[header.Imports.Length];
 				for (int idx = 0; idx < header.Imports.Length; idx++)
 				{
 					int importIdx = header.Imports[idx];
-					imports[idx] = (IBlobHandle)_importHandles[importIdx + PacketImport.Bias];
+					imports[idx] = (IBlobRef)_importHandles[importIdx + PacketImport.Bias];
 				}
 
 				IReadOnlyMemoryOwner<byte> body = ReadOnlyMemoryOwner.Create(export.GetPayload(), _bufferHandle.AddRef());
@@ -205,7 +205,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="handle">Handle to add</param>
 		/// <returns>Index of the import</returns>
-		public int FindOrAddImport(IBlobHandle handle) => FindOrAddImportInternal(handle);
+		public int FindOrAddImport(IBlobRef handle) => FindOrAddImportInternal(handle);
 
 		int FindOrAddImportInternal(object handle)
 		{
@@ -242,7 +242,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				_bundleImportIndices.Add(bundleImportIdx);
 				return bundleImportIdx;
 			}
-			else if (handle is IBlobHandle blobHandle)
+			else if (handle is IBlobRef blobHandle)
 			{
 				BlobLocator locator;
 				if (!blobHandle.TryGetLocator(out locator))
@@ -260,8 +260,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Gets the import assigned to a particular index
 		/// </summary>
-		public IBlobHandle GetImport(int importIdx)
-			=> (_importHandles[importIdx + PacketImport.Bias] as IBlobHandle) ?? throw new InvalidOperationException("Import is not a blob handle");
+		public IBlobRef GetImport(int importIdx)
+			=> (_importHandles[importIdx + PacketImport.Bias] as IBlobRef) ?? throw new InvalidOperationException("Import is not a blob handle");
 
 		/// <summary>
 		/// Gets the import assigned to a particular index

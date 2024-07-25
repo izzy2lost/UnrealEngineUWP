@@ -88,7 +88,7 @@ namespace HordeServer.Tools
 		/// <param name="target">Path to the root node containing the tool data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated tool document, or null if it does not exist</returns>
-		Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, BlobRefValue target, CancellationToken cancellationToken = default);
+		Task<ITool?> CreateDeploymentAsync(ToolDeploymentConfig options, HashedBlobRefValue target, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the storage backend for a particular tool

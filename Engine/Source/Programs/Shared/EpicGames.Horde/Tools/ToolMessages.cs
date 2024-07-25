@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Tools
 	/// <param name="Duration">Number of minutes over which to do the deployment</param>
 	/// <param name="CreatePaused">Whether to create the deployment in a paused state</param>
 	/// <param name="Content">Handle to a directory node with the content for the deployment</param>
-	public record CreateToolDeploymentRequest(string Version, double? Duration, bool? CreatePaused, BlobRefValue Content);
+	public record CreateToolDeploymentRequest(string Version, double? Duration, bool? CreatePaused, HashedBlobRefValue Content);
 
 	/// <summary>
 	/// Response from creating a deployment

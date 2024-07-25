@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +30,15 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
-		IBlobHandle CreateBlobHandle(BlobLocator locator);
+		IBlobRef CreateBlobRef(BlobLocator locator);
+
+		/// <summary>
+		/// Creates a new blob handle by parsing a locator
+		/// </summary>
+		/// <param name="locator">Path to the blob</param>
+		/// <param name="serializerOptions">Options for deserializing the blob</param>
+		/// <returns>New handle to the blob</returns>
+		IBlobRef<T> CreateBlobRef<T>(BlobLocator locator, BlobSerializerOptions? serializerOptions = null);
 
 		/// <summary>
 		/// Creates a new blob reference from a locator and hash
@@ -37,7 +46,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="hash">Hash of the target blob</param>
 		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
-		IBlobRef CreateBlobRef(IoHash hash, BlobLocator locator);
+		IHashedBlobRef CreateBlobRef(IoHash hash, BlobLocator locator);
 
 		/// <summary>
 		/// Creates a new blob reference from a locator and hash
@@ -46,7 +55,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">Path to the blob</param>
 		/// <param name="serializerOptions">Options for deserializing the blob</param>
 		/// <returns>New handle to the blob</returns>
-		IBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? serializerOptions = null);
+		IHashedBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? serializerOptions = null);
 
 		/// <summary>
 		/// Creates a new writer for storage blobs
@@ -68,7 +77,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
 		/// <param name="data">Additional data to be stored inline with the alias</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task AddAliasAsync(string name, IBlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+		Task AddAliasAsync(string name, IBlobRef handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Removes an alias from a blob
@@ -76,7 +85,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="name">Name of the alias</param>
 		/// <param name="handle">Locator for the blob</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken = default);
+		Task RemoveAliasAsync(string name, IBlobRef handle, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds blobs with the given alias. Unlike refs, aliases do not serve as GC roots.
@@ -98,7 +107,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Blob pointed to by the ref</returns>
-		Task<IBlobRef?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+		Task<IHashedBlobRef?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a new ref to the store
@@ -108,7 +117,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options for the new ref</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique identifier for the blob</returns>
-		Task WriteRefAsync(RefName name, IBlobRef target, RefOptions? options = null, CancellationToken cancellationToken = default);
+		Task WriteRefAsync(RefName name, IHashedBlobRef target, RefOptions? options = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads data for a ref from the store
@@ -251,13 +260,13 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Create a blob ref from a RefValue
 		/// </summary>
-		public static IBlobRef CreateBlobRef(this IStorageClient store, BlobRefValue refValue)
+		public static IHashedBlobRef CreateBlobRef(this IStorageClient store, HashedBlobRefValue refValue)
 			=> store.CreateBlobRef(refValue.Hash, refValue.Locator);
 
 		/// <summary>
 		/// Create a typed blob ref from a RefValue
 		/// </summary>
-		public static IBlobRef<T> CreateBlobRef<T>(this IStorageClient store, BlobRefValue refValue, BlobSerializerOptions? options)
+		public static IHashedBlobRef<T> CreateBlobRef<T>(this IStorageClient store, HashedBlobRefValue refValue, BlobSerializerOptions? options)
 			=> store.CreateBlobRef<T>(refValue.Hash, refValue.Locator, options);
 
 		/// <summary>
@@ -298,7 +307,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>True if the ref exists, false if it did not exist</returns>
 		public static async Task<bool> RefExistsAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			IBlobHandle? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
+			IBlobRef? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			return target != null;
 		}
 
@@ -310,9 +319,9 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency of any cached result</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The ref target</returns>
-		public static async Task<IBlobRef> ReadRefAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public static async Task<IHashedBlobRef> ReadRefAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			IBlobRef? refTarget = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
+			IHashedBlobRef? refTarget = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			return refTarget ?? throw new RefNameNotFoundException(name);
 		}
 

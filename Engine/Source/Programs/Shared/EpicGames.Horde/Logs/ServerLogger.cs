@@ -352,7 +352,7 @@ namespace EpicGames.Horde.Logs
 
 			if (flush || _bufferLength > FlushLength)
 			{
-				IBlobRef<LogNode> target = await _builder.FlushAsync(_writer, flush, cancellationToken);
+				IHashedBlobRef<LogNode> target = await _builder.FlushAsync(_writer, flush, cancellationToken);
 				await UpdateLogAsync(target, _builder.LineCount, flush, cancellationToken);
 				_bufferLength = 0;
 			}
@@ -362,7 +362,7 @@ namespace EpicGames.Horde.Logs
 
 		#region RPC calls
 
-		async Task UpdateLogAsync(IBlobRef target, int lineCount, bool complete, CancellationToken cancellationToken)
+		async Task UpdateLogAsync(IHashedBlobRef target, int lineCount, bool complete, CancellationToken cancellationToken)
 		{
 			_internalLogger.LogInformation("Updating log {LogId} to line {LineCount}, target {Locator}", _logId, lineCount, target.GetLocator());
 
