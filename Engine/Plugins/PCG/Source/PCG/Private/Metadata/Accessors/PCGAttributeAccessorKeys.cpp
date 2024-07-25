@@ -20,23 +20,17 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(PCGMetadataEn
 	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
 
-FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata)
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ true)
 {
-	InitializeFromMetadata(Metadata);
+	InitializeFromMetadata(Metadata, bAddDefaultValueIfEmpty);
 	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
 
-FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata)
+FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty)
 	: IPCGAttributeAccessorKeys(/*bInReadOnly=*/ false)
 {
-	InitializeFromMetadata(Metadata);
-
-	// If the entries are still empty, we will always take the default value.
-	if (ExtractedEntries.IsEmpty())
-	{
-		ExtractedEntries.Add(PCGInvalidEntryKey);
-	}
+	InitializeFromMetadata(Metadata, bAddDefaultValueIfEmpty);
 
 	Entries = TArrayView<PCGMetadataEntryKey>(ExtractedEntries);
 }
@@ -55,7 +49,7 @@ FPCGAttributeAccessorKeysEntries::FPCGAttributeAccessorKeysEntries(const TArrayV
 
 }
 
-void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata* Metadata)
+void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty)
 {
 	if (!Metadata)
 	{
@@ -76,6 +70,11 @@ void FPCGAttributeAccessorKeysEntries::InitializeFromMetadata(const UPCGMetadata
 		{
 			ExtractedEntries.Add(Entry);
 		}
+	}
+
+	if (ExtractedEntries.IsEmpty() && bAddDefaultValueIfEmpty)
+	{
+		ExtractedEntries.Add(PCGInvalidEntryKey);
 	}
 }
 

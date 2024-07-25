@@ -8,6 +8,7 @@
 #include "PCGSettings.h"
 #include "PCGSplineMeshParams.h"
 #include "Async/PCGAsyncLoadingContext.h"
+#include "Metadata/PCGObjectPropertyOverride.h"
 
 #include "Engine/SplineMeshComponentDescriptor.h"
 
@@ -53,6 +54,10 @@ public:
 	/** Force meshes/materials to load synchronously. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Debug")
 	bool bSynchronousLoad = false;
+
+	/** Overrides for spline mesh descriptor. For now it is only support data wide attributes. Does not work for per-control point overrides for now. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings)
+	TArray<FPCGObjectPropertyOverrideDescription> SplineMeshOverrideDescriptions;
 };
 
 struct FPCGCreateSplineMeshContext : public FPCGContext, public IPCGAsyncLoadingContext {};

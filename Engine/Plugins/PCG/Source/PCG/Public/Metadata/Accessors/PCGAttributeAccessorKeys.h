@@ -145,9 +145,9 @@ public:
 	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<PCGMetadataEntryKey>& InEntries);
 	explicit FPCGAttributeAccessorKeysEntries(const TArrayView<const PCGMetadataEntryKey>& InEntries);
 
-	// Iterates on all the entries in the metadata.
-	explicit FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata);
-	explicit FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata);
+	// Iterates on all the entries in the metadata. By default, const keys don't have the default value if empty, non-const have it if empty.
+	explicit FPCGAttributeAccessorKeysEntries(const UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty = false);
+	explicit FPCGAttributeAccessorKeysEntries(UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty = true);
 
 	virtual int32 GetNum() const override { return Entries.Num(); }
 
@@ -155,7 +155,7 @@ protected:
 	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<PCGMetadataEntryKey*> OutEntryKeys) override;
 	virtual bool GetMetadataEntryKeys(int32 InStart, TArrayView<const PCGMetadataEntryKey*> OutEntryKeys) const override;
 
-	void InitializeFromMetadata(const UPCGMetadata* Metadata);
+	void InitializeFromMetadata(const UPCGMetadata* Metadata, bool bAddDefaultValueIfEmpty);
 
 	TArrayView<PCGMetadataEntryKey> Entries;
 	TArray<PCGMetadataEntryKey> ExtractedEntries;

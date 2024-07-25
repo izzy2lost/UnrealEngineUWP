@@ -205,7 +205,10 @@ namespace PCGAttributeAccessorHelpers
 			{
 				if (const UPCGMetadata* Metadata = InData->ConstMetadata())
 				{
-					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata);
+					// For const metadata, that is on SpatialData (not points), we allow for Default Value to support "data-wide" metadata
+					// It's only for spatial data and not Param data because for ParamData, GetNum on the keys should return the number of entries.
+					// If we have a default key, GetNum will return 1, while there is actually 0 values.
+					return MakeUnique<FPCGAttributeAccessorKeysEntries>(Metadata, /*bAddDefaultValueIfEmpty=*/!!Cast<UPCGSpatialData>(InData));
 				}
 			}
 			else

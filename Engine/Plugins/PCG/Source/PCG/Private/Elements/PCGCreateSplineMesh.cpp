@@ -107,18 +107,7 @@ bool FPCGCreateSplineMeshElement::ExecuteInternal(FPCGContext* Context) const
 
 	FSplineMeshComponentDescriptor Descriptor(Settings->SplineMeshDescriptor);
 
-	// TODO: Optionally read static mesh, materials, etc. from attributes.
-	UStaticMesh* StaticMesh = Descriptor.StaticMesh.Get();
-
-	if (!StaticMesh)
-	{
-		return true;
-	}
-
-	const FVector MeshExtents = StaticMesh->GetBounds().BoxExtent;
-
 	FPCGSplineMeshComponentBuilderParameters SMCBuilderParams;
-	SMCBuilderParams.Descriptor = Descriptor;
 	SMCBuilderParams.SplineMeshParams = Settings->SplineMeshParams;
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
@@ -145,6 +134,27 @@ bool FPCGCreateSplineMeshElement::ExecuteInternal(FPCGContext* Context) const
 
 		const int NumSegments = SplineData->GetNumSegments();
 		const bool bIsClosed = SplineData->IsClosed();
+
+		// Copy the descriptor, for the overrides (and reset the descriptor if it was overriden by previous inputs)
+		SMCBuilderParams.Descriptor = Descriptor;
+
+		// TODO: Support overrides on control points when we have better support for those.
+		FPCGObjectOverrides DescriptorOverride(&SMCBuilderParams.Descriptor);
+		DescriptorOverride.Initialize(Settings->SplineMeshOverrideDescriptions, &SMCBuilderParams.Descriptor, SplineData, Context);
+		if (DescriptorOverride.IsValid() && !DescriptorOverride.Apply(0))
+		{
+			const int32 Index = static_cast<int32>(&Input - Inputs.GetData());
+			PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("FailOverride", "Failed to override descriptor for input {0}"), Index));
+		}
+
+		UStaticMesh* StaticMesh = SMCBuilderParams.Descriptor.StaticMesh.Get();
+
+		if (!StaticMesh)
+		{
+			continue;
+		}
+
+		const FVector MeshExtents = StaticMesh->GetBounds().BoxExtent;
 
 		for (int Index = 0; Index < NumSegments; ++Index)
 		{

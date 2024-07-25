@@ -117,6 +117,8 @@ struct FPCGObjectOverrides
 	/** Initialize the object overrides. Call before using Apply(InputKeyIndex). */
 	void Initialize(const TArray<FPCGObjectPropertyOverrideDescription>& OverrideDescriptions, T* TemplateObject, const UPCGData* SourceData, FPCGContext* Context)
 	{
+		bInitialized = false;
+
 		if (!TemplateObject)
 		{
 			PCGLog::LogErrorOnGraph(NSLOCTEXT("PCGObjectPropertyOverride", "InitializeOverrideFailedNoObject", "Failed to initialize property overrides. No template object was provided."), Context);
@@ -133,7 +135,7 @@ struct FPCGObjectOverrides
 			ClassObject = TemplateObject->StaticStruct();
 		}
 
-		ObjectSingleOverrides.Reserve(OverrideDescriptions.Num());
+		ObjectSingleOverrides.Empty(OverrideDescriptions.Num());
 
 		for (int32 i = 0; i < OverrideDescriptions.Num(); ++i)
 		{
@@ -165,6 +167,8 @@ struct FPCGObjectOverrides
 				PCGLog::LogErrorOnGraph(FText::Format(NSLOCTEXT("PCGObjectPropertyOverride", "InitializeOverrideFailed", "Failed to initialize override '{0}' for property {1} on object '{2}'."), InputSelector.GetDisplayText(), FText::FromString(OutputProperty), FText::FromName(ClassObject->GetFName())), Context);
 			}
 		}
+
+		bInitialized = true;
 	}
 
 	/** Applies each property override to the object by reading from the InputAccessor at the given KeyIndex, and writing to the OutputKey which represents the object property. */
@@ -180,9 +184,13 @@ struct FPCGObjectOverrides
 		return bAllSucceeded;
 	}
 
+	/** Returns true if we have any override to apply */
+	bool IsValid() const { return bInitialized && !ObjectSingleOverrides.IsEmpty(); }
+
 private:
 	FPCGAttributeAccessorKeysSingleObjectPtr<T> OutputKey;
 	TArray<FPCGObjectSingleOverride> ObjectSingleOverrides;
+	bool bInitialized = false;
 };
 
 USTRUCT(BlueprintType, meta=(Deprecated = "5.4", DeprecationMessage="Use FPCGObjectPropertyOverrideDescription instead."))
