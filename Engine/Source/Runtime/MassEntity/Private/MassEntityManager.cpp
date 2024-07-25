@@ -1402,8 +1402,8 @@ bool FMassEntityManager::RemoveConstSharedFragmentFromEntity(const FMassEntityHa
 	
 	if (!CurrentArchetype->GetCompositionDescriptor().ConstSharedFragments.Contains(ConstSharedFragmentType))
 	{
-		// Nothing to do
-		return true;
+		// Nothing to do. Returning false to indicate nothing has been removed, as per function's documentation 
+		return false;
 	}
 
 	FMassArchetypeCompositionDescriptor NewComposition(CurrentArchetype->GetCompositionDescriptor());
