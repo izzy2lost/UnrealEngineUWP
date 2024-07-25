@@ -108,7 +108,7 @@ static void ConvertSurfaceDataToFColor(EPixelFormat Format, uint32 Width, uint32
 	}
 	else if (Format == PF_A16B16G16R16)
 	{
-		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out);
+		ConvertRawR16G16B16A16DataToFColor(Width, Height, In, SrcPitch, Out, bLinearToGamma);
 	}
 	else if (Format == PF_G16R16)
 	{
