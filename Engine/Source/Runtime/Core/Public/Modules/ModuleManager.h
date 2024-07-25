@@ -60,7 +60,10 @@ enum class EModuleLoadResult
 	CouldNotBeLoadedByOS,
 
 	/** Module initialization failed. */
-	FailedToInitialize
+	FailedToInitialize,
+
+	/** A thread attempted to load the module before the Game thread did. */
+	NotLoadedByGameThread
 };
 
 /**
@@ -336,6 +339,8 @@ public:
 
 private:
 	static CORE_API IModuleInterface* GetModulePtr_Internal(FName ModuleName);
+
+	IModuleInterface* GetOrLoadModule(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags = ELoadModuleFlags::None);
 
 public:
 

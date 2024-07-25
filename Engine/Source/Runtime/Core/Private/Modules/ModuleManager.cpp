@@ -466,16 +466,26 @@ void FModuleManager::RefreshModuleFilenameFromManifest(const FName InModuleName)
 
 IModuleInterface* FModuleManager::LoadModule(const FName InModuleName, ELoadModuleFlags InLoadModuleFlags)
 {
+	EModuleLoadResult FailureReason = EModuleLoadResult::Success;
+	return GetOrLoadModule(InModuleName, FailureReason, InLoadModuleFlags);
+}
+
+IModuleInterface* FModuleManager::GetOrLoadModule(const FName InModuleName, EModuleLoadResult& OutFailureReason, ELoadModuleFlags InLoadModuleFlags)
+{
 	LLM_SCOPE_BYNAME(TEXT("Modules"));
 	// We allow an already loaded module to be returned in other threads to simplify
 	// parallel processing scenarios but they must have been loaded from the main thread beforehand.
 	if(!IsInGameThread())
 	{
-		return GetModule(InModuleName);
+		IModuleInterface* Module = GetModule(InModuleName);
+		if (!Module)
+		{
+			OutFailureReason = EModuleLoadResult::NotLoadedByGameThread;
+		}
+		return Module;
 	}
 
-	EModuleLoadResult FailureReason;
-	IModuleInterface* Result = LoadModuleWithFailureReason(InModuleName, FailureReason, InLoadModuleFlags);
+	IModuleInterface* Result = LoadModuleWithFailureReason(InModuleName, OutFailureReason, InLoadModuleFlags);
 
 	// This should return a valid pointer only if and only if the module is loaded
 	checkSlow((Result != nullptr) == IsModuleLoaded(InModuleName));
@@ -483,11 +493,29 @@ IModuleInterface* FModuleManager::LoadModule(const FName InModuleName, ELoadModu
 	return Result;
 }
 
+static const TCHAR* LexToString(EModuleLoadResult LoadResult)
+{
+	switch (LoadResult)
+	{
+	case EModuleLoadResult::Success:				return TEXT("Success");
+	case EModuleLoadResult::FileNotFound:			return TEXT("FileNotFound");
+	case EModuleLoadResult::FileIncompatible:		return TEXT("FileIncompatible");
+	case EModuleLoadResult::CouldNotBeLoadedByOS:	return TEXT("CouldNotBeLoadedByOS");
+	case EModuleLoadResult::FailedToInitialize:		return TEXT("FailedToInitialize");
+	case EModuleLoadResult::NotLoadedByGameThread:	return TEXT("NotLoadedByGameThread");
+	default:										return TEXT("<Unknown>");
+	}
+}
 
 IModuleInterface& FModuleManager::LoadModuleChecked( const FName InModuleName )
 {
-	IModuleInterface* Module = LoadModule(InModuleName, ELoadModuleFlags::LogFailures);
-	checkf(Module, TEXT("%s"), *InModuleName.ToString());
+	EModuleLoadResult FailureReason = EModuleLoadResult::Success;
+	IModuleInterface* Module = GetOrLoadModule(InModuleName, FailureReason, ELoadModuleFlags::LogFailures);
+
+	checkf(Module, TEXT("ModuleName=%s, Failure=%s, IsInGameThread=%s"),
+		*InModuleName.ToString(),
+		LexToString(FailureReason),
+		IsInGameThread() ? TEXT("Yes") : TEXT("No"));
 
 	return *Module;
 }
