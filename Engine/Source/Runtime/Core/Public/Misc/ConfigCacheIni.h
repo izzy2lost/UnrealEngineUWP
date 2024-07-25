@@ -1020,6 +1020,14 @@ public:
 	 * if something does try to access it, it will reload in-place (can hitch your game, so be aware)
 	 */
 	CORE_API bool SafeUnload();
+	
+	/**
+	  * Removes the section completely from all layers of this branch 
+	  * This is destructive! It will not reload on demand (like SafeUnload does). Use this only when you know you will _never_ need
+	  * the values in the section again!
+	  * @return true if anything was removed
+	 */
+	CORE_API bool RemoveSection(const TCHAR* Section);
 
 	CORE_API void Flush();
 	
@@ -1549,6 +1557,13 @@ public:
 	 */
 	CORE_API bool SafeUnloadBranch(const TCHAR* Filename);
 
+	/**
+	  * Removes the section completely from all layers of a branch. 
+	  * This is destructive! It will not reload on demand (like SafeUnloadBranch does). Use this only when you know you will _never_ need
+	  * the values in the section again!
+	  * @return true if anything was removed
+	 */
+	CORE_API bool RemoveSectionFromBranch(const TCHAR* Section, const TCHAR* Filename);
 
 	// Static helper functions
 

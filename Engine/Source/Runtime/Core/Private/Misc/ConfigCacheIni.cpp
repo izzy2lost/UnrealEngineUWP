@@ -3286,6 +3286,28 @@ bool FConfigBranch::SafeUnload()
 	return true;
 }
 
+bool FConfigBranch::RemoveSection(const TCHAR* Section)
+{
+	int NumRemoved = 0;
+	
+	FString SectionName(Section);
+	for (TPair<FString, FConfigCommandStream>& Pair : StaticLayers)
+	{
+		NumRemoved += Pair.Value.Remove(SectionName);
+	}
+	for (DynamicLayerList::TIterator Node(DynamicLayers.GetHead()); Node; ++Node)
+	{
+		NumRemoved += Node->Remove(SectionName);
+	}
+
+	NumRemoved += InMemoryFile.Remove(SectionName);
+	NumRemoved += CombinedStaticLayers.Remove(SectionName);
+	NumRemoved += SavedLayer.Remove(SectionName);
+	NumRemoved += CommandLineOverrides.Remove(SectionName);
+	NumRemoved += FinalCombinedLayers.Remove(SectionName);
+
+	return NumRemoved > 0;
+}
 
 void FConfigBranch::Flush()
 {
@@ -4031,7 +4053,16 @@ bool FConfigCacheIni::SafeUnloadBranch(const TCHAR* BranchName)
 	return false;
 }
 
+bool FConfigCacheIni::RemoveSectionFromBranch(const TCHAR* Section, const TCHAR* Filename)
+{
+	FConfigBranch* Branch = FindBranchWithNoReload(Filename, Filename);
+	if (Branch)
+	{
+		return Branch->RemoveSection(Section);
+	}
 
+	return false;	
+}
 
 bool FConfigCacheIni::EmptySection( const TCHAR* Section, const FString& Filename )
 {
@@ -6243,6 +6274,30 @@ class FIniExec : public FSelfRegisteringExec
 			{
 				FConfigCacheIni::RemoveTagFromAllBranches("HotfixTest", ChangeTracker);
 			});
+		}
+		
+		if (FParse::Command(&Cmd, TEXT("RemoveSection")))
+		{
+			TCHAR BranchName[256];
+			TCHAR Section[256];
+
+			if (FParse::Token(Cmd, BranchName, UE_ARRAY_COUNT(BranchName), true) &&
+				FParse::Token(Cmd, Section, UE_ARRAY_COUNT(Section), true))
+			{
+				bool bRemovedSomething = GConfig->RemoveSectionFromBranch(Section, BranchName);
+				if (bRemovedSomething)
+				{
+					Ar.Logf(TEXT("Successfully removed '%s' from layer(s) in %s"), Section, BranchName);						
+				}
+				else
+				{
+					Ar.Logf(TEXT("Nothing was removed from %s (either branch wasn't found or the section '%s' wasn't)"), BranchName, Section);
+				}
+			}
+			else
+			{
+				Ar.Logf(TEXT("Usage: config RemoveSection <BranchName> <Section>"));	
+			}
 		}
 		
 		if (FParse::Command(&Cmd, TEXT("Timing")))
