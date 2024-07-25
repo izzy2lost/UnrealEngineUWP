@@ -2486,7 +2486,7 @@ void FRigVMEditor::HandleJumpToHyperlink(const UObject* InSubject)
 	{
 		if(URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(RigBlueprint->GetEdGraph(NodeToJumpTo->GetGraph())))
 		{
-			if(const URigVMEdGraphNode* EdGraphNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(NodeToJumpTo->GetFName())))
+			if(URigVMEdGraphNode* EdGraphNode = Cast<URigVMEdGraphNode>(EdGraph->FindNodeForModelNodeName(NodeToJumpTo->GetFName())))
 			{
 				if(PinToJumpTo)
 				{
@@ -2498,6 +2498,7 @@ void FRigVMEditor::HandleJumpToHyperlink(const UObject* InSubject)
 				}
 				
 				JumpToNode(EdGraphNode);
+				SetDetailObjects({EdGraphNode});
 				return;
 			}
 			
@@ -3393,15 +3394,15 @@ void FRigVMEditor::OnNodeDoubleClicked(URigVMBlueprint* InBlueprint, URigVMNode*
 
 	if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(InNode))
 	{
-		URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph();
-		if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
+		if (const URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
 		{
-			if (URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
+			if (const URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
 			{
-				ContainedGraph = ReferencedNode->GetContainedGraph();
+				HandleJumpToHyperlink(ReferencedNode);
+				return;
 			}
 		}
-		if(ContainedGraph)
+		if(URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph())
 		{
 			if (UEdGraph* EdGraph = InBlueprint->GetEdGraph(ContainedGraph))
 			{
@@ -3409,13 +3410,13 @@ void FRigVMEditor::OnNodeDoubleClicked(URigVMBlueprint* InBlueprint, URigVMNode*
 			}
 			else
 			{
-				if(URigVMCollapseNode* FunctionLibraryNode = Cast<URigVMCollapseNode>(ContainedGraph->GetOuter()))
+				if(const URigVMCollapseNode* FunctionLibraryNode = Cast<URigVMCollapseNode>(ContainedGraph->GetOuter()))
 				{
-					if(URigVMFunctionLibrary* FunctionLibrary = FunctionLibraryNode->GetLibrary())
+					if(const URigVMFunctionLibrary* FunctionLibrary = FunctionLibraryNode->GetLibrary())
 					{
-						if(URigVMBlueprint* FunctionBlueprint = Cast<URigVMBlueprint>(FunctionLibrary->GetOuter()))
+						if(const URigVMBlueprint* FunctionBlueprint = Cast<URigVMBlueprint>(FunctionLibrary->GetOuter()))
 						{
-							if (UEdGraph* FunctionEdGraph = FunctionBlueprint->GetEdGraph(ContainedGraph))
+							if (const UEdGraph* FunctionEdGraph = FunctionBlueprint->GetEdGraph(ContainedGraph))
 							{
 								FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(FunctionEdGraph);
 							}

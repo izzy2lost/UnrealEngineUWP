@@ -1502,6 +1502,70 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 
 	UClass* WrapperClass = ObjectsBeingCustomized[0]->GetClass();
 
+	if(NodesBeingCustomized.Num() == 1)
+	{
+		if(NodesBeingCustomized[0].IsValid())
+		{
+			if(const URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(NodesBeingCustomized[0].Get()))
+			{
+				const FRigVMGraphFunctionHeader& Header = FunctionReferenceNode->GetReferencedFunctionHeader();
+				const FRigVMGraphFunctionIdentifier& Identifier = Header.LibraryPointer;
+				
+				IDetailCategoryBuilder& FunctionCategory = DetailLayout.EditCategory("Function", LOCTEXT("Function", "Function"), ECategoryPriority::Uncommon);
+				FunctionCategory.InitiallyCollapsed(false);
+
+				FunctionCategory.AddCustomRow(LOCTEXT("FunctionName", "FunctionName"))
+					.NameContent()
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(TEXT("Name")))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+					.ValueContent()
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(Identifier.GetFunctionName()))
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					];
+
+				FunctionCategory.AddCustomRow(LOCTEXT("FunctionPath", "FunctionPath"))
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("Path")))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				.ValueContent()
+				[
+					SNew(SButton)
+					.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+					.ContentPadding(0)
+					.Text(FText::FromString(Identifier.GetLibraryNodePath()))
+					.OnClicked_Lambda([Header]() -> FReply
+					{
+						if(const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Header.LibraryPointer.GetNodeSoftPath().TryLoad()))
+						{
+							if(UBlueprint* Blueprint = LibraryNode->GetTypedOuter<UBlueprint>())
+							{
+								GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Blueprint);
+			
+								if(IAssetEditorInstance* Editor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(Blueprint, true))
+								{
+									if(FRigVMEditor* RigVMEditor = static_cast<FRigVMEditor*>(Editor))
+									{
+										RigVMEditor->HandleJumpToHyperlink(LibraryNode);
+										return FReply::Handled();
+									}
+								}
+							}
+						}
+						return FReply::Unhandled();
+					})
+				];
+			}
+		}
+	}
+
 	// now loop over all of the properties and display them
 	TArray<TSharedPtr<IPropertyHandle>> PropertiesToVisit;
 	for (TFieldIterator<FProperty> PropertyIt(WrapperClass); PropertyIt; ++PropertyIt)
