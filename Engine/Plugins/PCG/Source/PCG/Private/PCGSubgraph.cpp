@@ -307,6 +307,12 @@ FString UPCGSubgraphSettings::GetAdditionalTitleInformation() const
 		// Subgraphs with the subgraph override pin connected should not display any asset path.
 		return FString();
 	}
+
+	TOptional<FText> OverrideTitle = SubgraphInstance->GetTitleOverride();
+	if (OverrideTitle.IsSet())
+	{
+		return OverrideTitle.GetValue().ToString();
+	}
 #endif
 
 	if (UPCGGraph* TargetSubgraph = GetSubgraph())
@@ -348,6 +354,20 @@ void UPCGSubgraphSettings::PostEditChangeProperty(struct FPropertyChangedEvent& 
 	}
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+FLinearColor UPCGSubgraphSettings::GetNodeTitleColor() const
+{
+	if (!IsDynamicGraph())
+	{
+		TOptional<FLinearColor> OverrideColor = SubgraphInstance->GetColorOverride();
+		if (OverrideColor.IsSet())
+		{
+			return OverrideColor.GetValue();
+		}
+	}
+
+	return Super::GetNodeTitleColor();
 }
 #endif
 

@@ -25,6 +25,7 @@
 #include "PCGEditorUtils.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Blueprint/BlueprintSupport.h"
 #include "Engine/Blueprint.h"
 #include "Framework/Application/SlateApplication.h"
@@ -536,18 +537,74 @@ void UPCGEditorGraphSchema::GetSettingsElementActions(FGraphActionMenuBuilder& A
 
 void UPCGEditorGraphSchema::GetSubgraphElementActions(FGraphActionMenuBuilder& ActionMenuBuilder) const
 {
-	PCGEditorUtils::ForEachPCGGraphAssetData([&ActionMenuBuilder](const FAssetData& AssetData)
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+
+	PCGEditorUtils::ForEachPCGGraphAssetData([&ActionMenuBuilder, &AssetRegistryModule](const FAssetData& AssetData) -> bool
 	{
-		const bool bExposeToLibrary = AssetData.GetTagValueRef<bool>(TEXT("bExposeToLibrary"));
+		const bool bExposeToLibrary = AssetData.GetTagValueRef<bool>(GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bExposeToLibrary));
 		if (bExposeToLibrary)
 		{
-			const FText MenuDesc = FText::FromString(FName::NameToDisplayString(AssetData.AssetName.ToString(), false));
-			const FText Category = AssetData.GetTagValueRef<FText>(TEXT("Category"));
-			const FText Description = AssetData.GetTagValueRef<FText>(TEXT("Description"));
+			// Only exposing the instance if it's parent graph is defined for instances. Otherwise, it is not interesting.
+			// Also march up the hierarchy to find overrides for category and description.
+			// We don't look for override in titles because if we have no override for an instance but the parent has an override we will have 2 times the same entry in the palette.
+			auto GetRecursiveTextsAndIsValid = [&AssetRegistryModule](const FAssetData& InAssetData, FText& OutCategory, FText& OutDescription, auto Recurse)
+			{
+				if (InAssetData.IsInstanceOf<UPCGGraphInstance>())
+				{
+					const FSoftObjectPath ParentGraph(InAssetData.GetTagValueRef<FString>(GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Graph)));
+					if (ParentGraph.IsNull())
+					{
+						return false;
+					}
 
-			TSharedPtr<FPCGEditorGraphSchemaAction_NewSubgraphElement> NewSubgraphAction(new FPCGEditorGraphSchemaAction_NewSubgraphElement(Category, MenuDesc, Description, 0));
-			NewSubgraphAction->SubgraphObjectPath = AssetData.GetSoftObjectPath();
-			ActionMenuBuilder.AddAction(NewSubgraphAction);
+					if (OutCategory.IsEmpty())
+					{
+						OutCategory = InAssetData.GetTagValueRef<bool>(GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, bOverrideCategory)) 
+							? InAssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Category)) 
+							: FText();
+					}
+
+					if (OutDescription.IsEmpty())
+					{
+						OutDescription = InAssetData.GetTagValueRef<bool>(GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, bOverrideDescription)) 
+							? InAssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGGraphInstance, Description)) 
+							: FText();
+					}
+
+					// Asset data are not big so that should not be that big of a deal, but they are copied all the time.
+					// If we ever have performances issues, might be good to have a cache.
+					const FAssetData ParentAssetData = AssetRegistryModule.Get().GetAssetByObjectPath(ParentGraph);
+					return ParentAssetData.IsValid() ? Recurse(ParentAssetData, OutCategory, OutDescription, Recurse) : false;
+				}
+				else
+				{
+					if (OutCategory.IsEmpty())
+					{
+						OutCategory = InAssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGGraph, Category));
+					}
+
+					if (OutDescription.IsEmpty())
+					{
+						OutDescription = InAssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGGraph, Description));
+					}
+
+					return true;
+				}
+			};
+
+			FText Category, Description;
+
+			if (GetRecursiveTextsAndIsValid(AssetData, Category, Description, GetRecursiveTextsAndIsValid))
+			{
+				// As stated above, we either have an override and we take it, or we use the asset name, to differentiate all possible instances of the same graph.
+				const FText MenuDesc = AssetData.GetTagValueRef<bool>(GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bOverrideTitle))
+					? AssetData.GetTagValueRef<FText>(GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, Title))
+					: FText::FromString(FName::NameToDisplayString(AssetData.AssetName.ToString(), false));
+
+				TSharedPtr<FPCGEditorGraphSchemaAction_NewSubgraphElement> NewSubgraphAction(new FPCGEditorGraphSchemaAction_NewSubgraphElement(Category, MenuDesc, Description, 0));
+				NewSubgraphAction->SubgraphObjectPath = AssetData.GetSoftObjectPath();
+				ActionMenuBuilder.AddAction(NewSubgraphAction);
+			}
 		}
 
 		return true;

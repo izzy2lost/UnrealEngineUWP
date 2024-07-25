@@ -114,7 +114,38 @@ public:
 #if WITH_EDITOR
 	FOnPCGGraphChanged OnGraphChangedDelegate;
 	FOnPCGGraphParametersChanged OnGraphParametersChangedDelegate;
+
+	virtual TOptional<FText> GetTitleOverride() const { return bOverrideTitle ? Title : TOptional<FText>(); }
+	virtual TOptional<FLinearColor> GetColorOverride() const { return bOverrideColor ? Color : TOptional<FLinearColor>(); }
+protected:
+	/** By default export to library is visible only for graph that are assets, but can be enabled/disabled if needed. */
+	UFUNCTION()
+	virtual bool IsExportToLibraryEnabled() const { return IsAsset(); }
+
+	UFUNCTION()
+	virtual bool AreOverridesEnabled() const { return IsExportToLibraryEnabled() && bExposeToLibrary; }
 #endif // WITH_EDITOR
+
+public:
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "IsExportToLibraryEnabled", EditConditionHides))
+	bool bExposeToLibrary = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides))
+	bool bOverrideTitle = false;
+
+	/** Override of the title for the subgraph node for this graph. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideTitle", EditConditionHides))
+	FText Title;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides))
+	bool bOverrideColor = false;
+
+	/** Override of the color for the subgraph node for this graph. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, meta = (EditCondition = "AreOverridesEnabled && bOverrideColor", EditConditionHides))
+	FLinearColor Color = FLinearColor::White;
+#endif
 
 	template <typename T>
 	TValueOrError<T, EPropertyBagResult> GetGraphParameter(const FName PropertyName) const
@@ -209,9 +240,6 @@ public:
 	bool Use2DGrid() const { return bUse2DGrid; }
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
-	bool bExposeToLibrary = false;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable)
 	FText Category;
 
@@ -503,7 +531,7 @@ public:
 	bool IsPropertyOverridden(const FProperty* InProperty) const { return ParametersOverrides.IsPropertyOverridden(InProperty); }
 	bool IsPropertyOverriddenAndNotDefault(const FProperty* InProperty) const;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Instance)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Instance, AssetRegistrySearchable)
 	TObjectPtr<UPCGGraphInterface> Graph;
 
 	UPROPERTY(EditAnywhere, Category = Instance, meta = (NoResetToDefault))
@@ -519,10 +547,30 @@ public:
 	*/
 	bool CanGraphInterfaceBeSet(const UPCGGraphInterface* GraphInterface) const;
 
-private:
+#if WITH_EDITOR
+	virtual TOptional<FText> GetTitleOverride() const override;
+	virtual TOptional<FLinearColor> GetColorOverride() const override;
+#endif // WITH_EDITOR
+
 #if WITH_EDITORONLY_DATA
+private:
 	// Transient, to keep track of the previous graph when it changed.
 	TWeakObjectPtr<UPCGGraphInterface> PreGraphCache = nullptr;
+
+public:
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides, DisplayAfter = ColorOverride))
+	bool bOverrideDescription = false;
+
+	/** Can override the description of this instance. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideDescription", EditConditionHides, DisplayAfter = ColorOverride))
+	FText Description;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled", EditConditionHides, DisplayAfter = ColorOverride))
+	bool bOverrideCategory = false;
+
+	/** Can override the category of this instance. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = AssetInfo, AssetRegistrySearchable, meta = (EditCondition = "AreOverridesEnabled && bOverrideCategory", EditConditionHides, DisplayAfter = ColorOverride))
+	FText Category;
 #endif // WITH_EDITORONLY_DATA
 };
 

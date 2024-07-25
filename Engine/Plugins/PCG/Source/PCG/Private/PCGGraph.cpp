@@ -1455,6 +1455,13 @@ void UPCGGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEve
 		// The higen settings change the structure of the graph (presence or absence of links between grid levels).
 		NotifyGraphChanged(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, Title)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bOverrideTitle)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, Color)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UPCGGraphInterface, bOverrideColor))
+	{
+		NotifyGraphChanged(EPCGChangeType::Cosmetic);
+	}
 
 	PreviousPropertyBag = nullptr;
 }
@@ -1778,6 +1785,11 @@ void UPCGGraphInstance::PostEditChangeProperty(FPropertyChangedEvent& PropertyCh
 	{
 		OnGraphParametersChanged(this, EPCGGraphParameterEvent::ValueModifiedLocally, PropertyChangedEvent.GetMemberPropertyName());
 	}
+	else
+	{
+		// For other changes, push a cosmetic change
+		OnGraphChangedDelegate.Broadcast(this, EPCGChangeType::Cosmetic);
+	}
 }
 
 void UPCGGraphInstance::PreEditUndo()
@@ -1906,6 +1918,16 @@ void UPCGGraphInstance::NotifyGraphParametersChanged(EPCGGraphParameterEvent InC
 
 	// Also propagates the changes
 	OnGraphChanged(Graph, GetChangeTypeForGraphParameterChange(InChangeType, InChangedPropertyName));
+}
+
+TOptional<FText> UPCGGraphInstance::GetTitleOverride() const
+{
+	return (!bOverrideTitle && Graph) ? Graph->GetTitleOverride() : UPCGGraphInterface::GetTitleOverride();
+}
+
+TOptional<FLinearColor> UPCGGraphInstance::GetColorOverride() const
+{
+	return (!bOverrideColor && Graph) ? Graph->GetColorOverride() : UPCGGraphInterface::GetColorOverride();
 }
 #endif // WITH_EDITOR
 
