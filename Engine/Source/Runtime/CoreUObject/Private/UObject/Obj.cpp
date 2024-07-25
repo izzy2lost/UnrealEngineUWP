@@ -3418,8 +3418,6 @@ void UObject::SaveConfig(uint64 RequiredPropertyFlags, const TCHAR* InFilename, 
 
 				if (!bPropDeprecated && (!bShouldCheckIfIdenticalBeforeAdding || !Property->Identical_InContainer(this, SuperClassDefaultObject)))
 				{
-					check(Sec);
-
 					if (Array)
 					{
 						FScriptArrayHelper_InContainer ArrayHelper(Array, this);
