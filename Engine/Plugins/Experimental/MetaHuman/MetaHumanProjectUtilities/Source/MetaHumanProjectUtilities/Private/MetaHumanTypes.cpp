@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetaHumanTypes.h"
 
@@ -57,7 +57,7 @@ FInstalledMetaHuman::FInstalledMetaHuman(const FString& Name, const FString& Met
 {
 }
 
-EQualityLevel FInstalledMetaHuman::GetQualityLevel() const
+EMetaHumanQualityLevel FInstalledMetaHuman::GetQualityLevel() const
 {
 	const FString MetaHumanRootAsset = FPaths::Combine(MetaHumansAssetPath, Name, FString::Format(TEXT("BP_{0}.BP_{0}"), {Name}));
 
@@ -68,18 +68,22 @@ EQualityLevel FInstalledMetaHuman::GetQualityLevel() const
 		{
 			if (const FString* AssetQualityMetaData = Metadata->Find(MetaHumanAssetQualityLevelKey))
 			{
+				if (*AssetQualityMetaData == TEXT("Cinematic"))
+				{
+					return EMetaHumanQualityLevel::Cinematic;
+				}
 				if (*AssetQualityMetaData == TEXT("High"))
 				{
-					return EQualityLevel::High;
+					return EMetaHumanQualityLevel::High;
 				}
 				if (*AssetQualityMetaData == TEXT("Medium"))
 				{
-					return EQualityLevel::Medium;
+					return EMetaHumanQualityLevel::Medium;
 				}
 			}
 		}
 	}
-	return EQualityLevel::Low;
+	return EMetaHumanQualityLevel::Low;
 }
 
 TArray<FInstalledMetaHuman> FInstalledMetaHuman::GetInstalledMetaHumans(const FImportPaths& ImportPaths)

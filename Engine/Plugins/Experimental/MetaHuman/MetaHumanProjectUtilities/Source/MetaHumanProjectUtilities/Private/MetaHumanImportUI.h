@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -6,7 +6,7 @@
 class FSourceMetaHuman;
 class FInstalledMetaHuman;
 struct FAssetOperationPaths;
-enum class EQualityLevel: int;
+enum class EMetaHumanQualityLevel: uint8;
 
 enum class EImportOperationUserResponse: int
 {
@@ -22,4 +22,4 @@ enum class EImportOperationUserResponse: int
  */
 EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& SourceMetaHuman, const TSet<FString>& IncompatibleCharacters, const TArray<FInstalledMetaHuman>& InstalledMetaHumans, const TSet<FString>& AvailableMetaHumans, const FAssetOperationPaths& AssetOperations);
 
-bool DisplayQualityLevelChangeWarning(EQualityLevel Source, EQualityLevel Target);
+bool DisplayQualityLevelChangeWarning(EMetaHumanQualityLevel Source, EMetaHumanQualityLevel Target);

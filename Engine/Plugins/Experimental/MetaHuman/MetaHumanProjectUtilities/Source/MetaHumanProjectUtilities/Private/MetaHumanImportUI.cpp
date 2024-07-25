@@ -741,20 +741,24 @@ EImportOperationUserResponse DisplayUpgradeWarning(const FSourceMetaHuman& Sourc
 	return EImportOperationUserResponse::Cancel;
 }
 
-FText GetValueAsText(EQualityLevel Level)
+FText GetValueAsText(EMetaHumanQualityLevel Level)
 {
-	if (Level == EQualityLevel::High)
+	if (Level == EMetaHumanQualityLevel::Cinematic)
+	{
+		return LOCTEXT("EQualityLevel::Cinematic", "Cinematic");
+	}
+	if (Level == EMetaHumanQualityLevel::High)
 	{
 		return LOCTEXT("EQualityLevel:High", "High");
 	}
-	if (Level == EQualityLevel::Medium)
+	if (Level == EMetaHumanQualityLevel::Medium)
 	{
 		return LOCTEXT("EQualityLevel:Medium", "Medium");
 	}
 	return LOCTEXT("EQualityLevel:Low", "Low");
 }
 
-bool DisplayQualityLevelChangeWarning(EQualityLevel Source, EQualityLevel Target)
+bool DisplayQualityLevelChangeWarning(EMetaHumanQualityLevel Source, EMetaHumanQualityLevel Target)
 {
 	const FText Title = LOCTEXT("QualityLevelWarningTitle", "Proceed with import?");
 	const FText Message = FText::Format(LOCTEXT("QualityLevelWarningBody", "You are about to import a MetaHuman at the \"{0}\" quality level, over an existing MetaHuman at the \"{1}\" quality level."), GetValueAsText(Source), GetValueAsText(Target));

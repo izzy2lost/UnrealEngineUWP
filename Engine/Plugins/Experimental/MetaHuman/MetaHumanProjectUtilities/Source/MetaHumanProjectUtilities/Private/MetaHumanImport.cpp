@@ -356,8 +356,8 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 	if (!bIsNewCharacter && ImportDescription.bWarnOnQualityChange)
 	{
 		const FInstalledMetaHuman TargetMetaHuman(ImportDescription.CharacterName, ImportPaths.DestinationMetaHumansFilePath);
-		const EQualityLevel SourceQualityLevel = SourceMetaHuman.GetQualityLevel();
-		const EQualityLevel TargetQualityLevel = TargetMetaHuman.GetQualityLevel();
+		const EMetaHumanQualityLevel SourceQualityLevel = SourceMetaHuman.GetQualityLevel();
+		const EMetaHumanQualityLevel TargetQualityLevel = TargetMetaHuman.GetQualityLevel();
 		if (SourceQualityLevel != TargetQualityLevel)
 		{
 			const bool bContinue = DisplayQualityLevelChangeWarning(SourceQualityLevel, TargetQualityLevel);

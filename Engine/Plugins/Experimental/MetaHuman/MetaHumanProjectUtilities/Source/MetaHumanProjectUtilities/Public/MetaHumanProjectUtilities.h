@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+
 #include "CoreMinimal.h"
 
 struct FQuixelAccountMetaHumanEntry
@@ -49,6 +50,98 @@ public:
 	virtual void DoBulkImport(const TArray<FString>& MetaHumanIds) = 0;
 };
 
+enum class EMetaHumanQualityLevel : uint8
+{
+	Low,
+	Medium,
+	High,
+	Cinematic
+};
+
+// Representation of a MetaHuman Version. This is a simple semantic-versioning style version number that is stored
+// in a Json file at a specific location in the directory structure that MetaHumans use.
+struct FMetaHumanVersion
+{
+	// Currently default initialisation == 0.0.0 which is not a valid version. This needs a bit more thought
+	// TODO: refactor to use TOptional and avoid needing to represent invalid versions.
+	FMetaHumanVersion() = default;
+
+	explicit FMetaHumanVersion(const FString& VersionString);
+
+	explicit FMetaHumanVersion(const int Major, const int Minor, const int Revision)
+		: Major(Major)
+		, Minor(Minor)
+		, Revision(Revision)
+	{
+	}
+
+	// Comparison operators
+	friend bool operator <(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right)
+	{
+		return Left.Major < Right.Major || (Left.Major == Right.Major && (Left.Minor < Right.Minor || (Left.Minor == Right.Minor && Left.Revision < Right.Revision)));
+	}
+
+	friend bool operator>(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return Right < Left; }
+	friend bool operator<=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left > Right); }
+	friend bool operator>=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left < Right); }
+
+	friend bool operator ==(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right)
+	{
+		return Right.Major == Left.Major && Right.Minor == Left.Minor && Right.Revision == Left.Revision;
+	}
+
+	friend bool operator!=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left == Right); }
+
+	// Hash function
+	friend uint32 GetTypeHash(FMetaHumanVersion Version)
+	{
+		return (Version.Major << 20) + (Version.Minor << 10) + Version.Revision;
+	}
+
+	// Currently MetaHumans are compatible so long as they are from the same major version. In the future, compatibility
+	// between versions may be more complex or require inspecting particular assets.
+	bool IsCompatible(const FMetaHumanVersion& Other) const
+	{
+		return Major && Major == Other.Major;
+	}
+
+	FString AsString() const
+	{
+		return FString::Format(TEXT("{0}.{1}.{2}"), { Major, Minor, Revision });
+	}
+
+	static FMetaHumanVersion ReadFromFile(const FString& VersionFilePath);
+
+	int32 Major = 0;
+	int32 Minor = 0;
+	int32 Revision = 0;
+};
+
+// Class that handles the layout and filenames of a MetaHuman that has been added to a project.
+class METAHUMANPROJECTUTILITIES_API FInstalledMetaHuman
+{
+public:
+	// For now, it is assumed that a MetaHuman has files in {MetaHumansFilePath}/{Name} and {MetaHumansFilePath}/Common.
+	FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath);
+
+	const FString& GetName() const
+	{
+		return Name;
+	}
+
+	FMetaHumanVersion GetVersion() const;
+
+	EMetaHumanQualityLevel GetQualityLevel() const;
+
+	// Finds MetaHumans in the destination of a given import
+	static TArray<FInstalledMetaHuman> GetInstalledMetaHumans(const struct FImportPaths& ImportPaths);
+
+private:
+	FString Name;
+	FString MetaHumansFilePath;
+	FString MetaHumansAssetPath;
+};
+
 class FMetaHumanProjectUtilities
 {
 public:
@@ -60,4 +153,6 @@ public:
 	static void METAHUMANPROJECTUTILITIES_API ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);
 	// Provide the Url for the versioning service to use
 	static void METAHUMANPROJECTUTILITIES_API OverrideVersionServiceUrl(const FString& BaseUrl);
+	// Returns a list of all MetaHumans in the project
+	static TArray<FInstalledMetaHuman> METAHUMANPROJECTUTILITIES_API GetInstalledMetaHumans();
 };

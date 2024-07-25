@@ -1,18 +1,12 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
 #include "Misc/Paths.h"
+#include "MetaHumanProjectUtilities.h"
 
 // Common data types used in various parts of the MetaHumanProjectUtilities module
 
 struct FMetaHumanAssetImportDescription;
-
-enum class EQualityLevel: int
-{
-	Low,
-	Medium,
-	High
-};
 
 struct FMetaHumanAssetVersion
 {
@@ -129,77 +123,6 @@ struct FImportPaths
 };
 
 
-// Representation of a MetaHuman Version. This is a simple semantic-versioning style version number that is stored
-// in a Json file at a specific location in the directory structure that MetaHumans use.
-struct FMetaHumanVersion
-{
-	// Currently default initialisation == 0.0.0 which is not a valid version. This needs a bit more thought
-	// TODO: refactor to use TOptional and avoid needing to represent invalid versions.
-	FMetaHumanVersion() = default;
-
-	explicit FMetaHumanVersion(const FString& VersionString)
-	{
-		TArray<FString> ParsedVersionString;
-		const int32 NumSections = VersionString.ParseIntoArray(ParsedVersionString, TEXT("."));
-		verify(NumSections == 3);
-		if (NumSections == 3)
-		{
-			Major = FCString::Atoi(*ParsedVersionString[0]);
-			Minor = FCString::Atoi(*ParsedVersionString[1]);
-			Revision = FCString::Atoi(*ParsedVersionString[2]);
-		}
-	}
-
-	explicit FMetaHumanVersion(const int Major, const int Minor, const int Revision)
-		: Major(Major)
-		, Minor(Minor)
-		, Revision(Revision)
-	{
-	}
-
-	// Comparison operators
-	friend bool operator <(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right)
-	{
-		return Left.Major < Right.Major || (Left.Major == Right.Major && (Left.Minor < Right.Minor || (Left.Minor == Right.Minor && Left.Revision < Right.Revision)));
-	}
-
-	friend bool operator>(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return Right < Left; }
-	friend bool operator<=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left > Right); }
-	friend bool operator>=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left < Right); }
-
-	friend bool operator ==(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right)
-	{
-		return Right.Major == Left.Major && Right.Minor == Left.Minor && Right.Revision == Left.Revision;
-	}
-
-	friend bool operator!=(const FMetaHumanVersion& Left, const FMetaHumanVersion& Right) { return !(Left == Right); }
-
-	// Hash function
-	friend uint32 GetTypeHash(FMetaHumanVersion Version)
-	{
-		return (Version.Major << 20) + (Version.Minor << 10) + Version.Revision;
-	}
-
-	// Currently MetaHumans are compatible so long as they are from the same major version. In the future, compatibility
-	// between versions may be more complex or require inspecting particular assets.
-	bool IsCompatible(const FMetaHumanVersion& Other) const
-	{
-		return Major && Major == Other.Major;
-	}
-
-	FString AsString() const
-	{
-		return FString::Format(TEXT("{0}.{1}.{2}"), {Major, Minor, Revision});
-	}
-
-	static FMetaHumanVersion ReadFromFile(const FString& VersionFilePath);
-
-	int32 Major = 0;
-	int32 Minor = 0;
-	int32 Revision = 0;
-};
-
-
 // Class that handles the layout on-disk of a MetaHuman being used as the source of an Import operation
 // Gives us a single place to handle simple path operations, filenames etc.
 class FSourceMetaHuman
@@ -218,24 +141,24 @@ public:
 		return Name;
 	}
 
-	const FMetaHumanVersion& GetVersion() const
+	const struct FMetaHumanVersion& GetVersion() const
 	{
 		return Version;
 	}
 
-	EQualityLevel GetQualityLevel() const
+	EMetaHumanQualityLevel GetQualityLevel() const
 	{
 		if (RootPath.Contains(TEXT("Tier0")))
 		{
-			return EQualityLevel::High;
+			return EMetaHumanQualityLevel::High;
 		}
 		if (RootPath.Contains(TEXT("Tier2")))
 		{
-			return EQualityLevel::Medium;
+			return EMetaHumanQualityLevel::Medium;
 		}
 		else
 		{
-			return EQualityLevel::Low;
+			return EMetaHumanQualityLevel::Low;
 		}
 	}
 
@@ -246,31 +169,4 @@ private:
 };
 
 
-// Class that handles the layout and filenames of a MetaHuman that has been added to a project.
-class FInstalledMetaHuman
-{
-public:
-	// For now, it is assumed that a MetaHuman has files in {MetaHumansFilePath}/{Name} and {MetaHumansFilePath}/Common.
-	FInstalledMetaHuman(const FString& Name, const FString& MetaHumansFilePath);
 
-	const FString& GetName() const
-	{
-		return Name;
-	}
-
-	FMetaHumanVersion GetVersion() const
-	{
-		const FString VersionFilePath = FPaths::Combine(MetaHumansFilePath, Name, TEXT("VersionInfo.txt"));
-		return FMetaHumanVersion::ReadFromFile(VersionFilePath);
-	}
-
-	EQualityLevel GetQualityLevel() const;
-
-	// Finds MetaHumans in the destination of a given import
-	static TArray<FInstalledMetaHuman> GetInstalledMetaHumans(const FImportPaths& ImportPaths);
-
-private:
-	FString Name;
-	FString MetaHumansFilePath;
-	FString MetaHumansAssetPath;
-};
