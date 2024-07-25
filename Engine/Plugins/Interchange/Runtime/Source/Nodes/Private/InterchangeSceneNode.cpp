@@ -439,3 +439,13 @@ void UInterchangeSceneNode::SetGlobalBindPoseReferenceForMeshUIDs(const TMap<FSt
 		MeshToGlobalBindPoseReferences.SetKeyValue(Entry.Key, Entry.Value);
 	}
 }
+
+bool UInterchangeSceneNode::SetCustomHasBindPose(const bool& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(HasBindPose, bool);
+}
+
+bool UInterchangeSceneNode::GetCustomHasBindPose(bool& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(HasBindPose, bool);
+}

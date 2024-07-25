@@ -1222,7 +1222,25 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 		FImportAssetObjectLODData& ImportAssetObjectLODData = ImportAssetObjectData.LodDatas.AddDefaulted_GetRef();
 		ImportAssetObjectLODData.LodIndex = CurrentLodIndex;
 
-		SkeletonNode->GetCustomUseTimeZeroForBindPose(ImportAssetObjectLODData.bUseTimeZeroAsBindPose);
+		bool bUseTimeZeroAsBindPose = false;
+		SkeletonNode->GetCustomUseTimeZeroForBindPose(bUseTimeZeroAsBindPose);
+		if (!bUseTimeZeroAsBindPose)
+		{
+			bool bHasBoneWithoutBindPose = false;
+			UE::Interchange::Private::FSkeletonHelper::RecursiveBoneHasBindPose(Arguments.NodeContainer, RootJointNodeId, bHasBoneWithoutBindPose);
+			if (bHasBoneWithoutBindPose)
+			{
+				UInterchangeResultDisplay_Generic* Message = AddMessage<UInterchangeResultDisplay_Generic>();
+				Message->Text = FText::Format(NSLOCTEXT("InterchangeSkeletalMeshFactory", "BeginImportAsset_GameThread_NotAllJointsHaveBindPose", "Not all joints have BindPoses in the skeleton {0}, will use T0 as BindPose instead.")
+					, FText::FromString(SkeletonReference->GetName()));
+
+				UE_LOG(LogInterchangeImport, Display, TEXT("Not all joints have BindPoses in the skeleton %s, will use T0 as BindPose instead."), *SkeletonReference->GetName());
+
+				bUseTimeZeroAsBindPose = true;
+			}
+		}
+
+		ImportAssetObjectLODData.bUseTimeZeroAsBindPose = bUseTimeZeroAsBindPose;
 		
 		//Do not alter the skeletal mesh reference skeleton when importing geometry only
 		FReferenceSkeleton RefSkeleton;

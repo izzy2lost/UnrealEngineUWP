@@ -178,6 +178,42 @@ namespace UE::Interchange::Private
 		}
 	}
 
+	void FSkeletonHelper::RecursiveBoneHasBindPose(const UInterchangeBaseNodeContainer* NodeContainer, const FString& JointNodeId, bool& bHasBoneWithoutBindPose)
+	{
+		if (bHasBoneWithoutBindPose)
+		{
+			return;
+		}
+
+		const UInterchangeSceneNode* JointNode = Cast<UInterchangeSceneNode>(NodeContainer->GetNode(JointNodeId));
+		if (!JointNode)
+		{
+			UE_LOG(LogInterchangeImport, Warning, TEXT("Invalid Skeleton Joint"));
+			return;
+		}
+
+		bool bHasBindPose;
+		if (!JointNode->GetCustomHasBindPose(bHasBindPose))
+		{
+			//if not set, then its presumed to have bind pose
+			bHasBindPose = true;
+		}
+
+		if (!bHasBindPose)
+		{
+			bHasBoneWithoutBindPose = true;
+		}
+
+		if (!bHasBoneWithoutBindPose)
+		{
+			const TArray<FString> ChildrenIds = NodeContainer->GetNodeChildrenUids(JointNodeId);
+			for (int32 ChildIndex = 0; ChildIndex < ChildrenIds.Num(); ++ChildIndex)
+			{
+				RecursiveBoneHasBindPose(NodeContainer, ChildrenIds[ChildIndex], bHasBoneWithoutBindPose);
+			}
+		}
+	}
+
 	void FSkeletonHelper::RecursiveAddBones(const UInterchangeBaseNodeContainer* NodeContainer
 		, const FString& JointNodeId
 		, TArray <FJointInfo>& JointInfos

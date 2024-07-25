@@ -231,6 +231,13 @@ public:
 	bool GetGlobalBindPoseReferenceForMeshUID(const FString& MeshUID, FMatrix& GlobalBindPoseReference) const;
 
 
+	/** Sets if Joint has Bind Pose. Automatic T0 usage will be configured in case if the Skeleton contanis at least 1 Joint without BindPose. */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool SetCustomHasBindPose(const bool& bHasBindPose);
+
+	/** Gets if the joint has BindPose (if the setter was used, otherwise returns with false and T0 evaluation presumes bHasBindPose==true). */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | Joint")
+	bool GetCustomHasBindPose(bool &bHasBindPose) const;
 
 private:
 
@@ -258,6 +265,9 @@ private:
 
 	//A scene node can reference an asset. Asset can be Mesh, Light, camera...
 	const UE::Interchange::FAttributeKey Macro_CustomAssetInstanceUidKey = UE::Interchange::FAttributeKey(TEXT("AssetInstanceUid"));
+
+	//Tracks if Scene Node Has Bind Pose.
+	const UE::Interchange::FAttributeKey Macro_CustomHasBindPoseKey = UE::Interchange::FAttributeKey(TEXT("HasBindPose"));
 
 	//A scene node can represent many special types
 	UE::Interchange::TArrayAttributeHelper<FString> NodeSpecializeTypes;
