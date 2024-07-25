@@ -633,7 +633,7 @@ UCharacterMovementComponent::UCharacterMovementComponent(const FObjectInitialize
 		PrePhysicsTickFunction.SetTickFunctionEnable(true);
 		PrePhysicsTickFunction.TickGroup = TG_PrePhysics;
 	}
-
+	bDontFallBelowJumpZVelocityDuringJump = true;
 	bApplyGravityWhileJumping = true;
 
 	GravityScale = 1.f;
@@ -1084,21 +1084,41 @@ FVector UCharacterMovementComponent::GetPawnCapsuleExtent(const EShrinkCapsuleEx
 	return CapsuleExtent;
 }
 
-
 bool UCharacterMovementComponent::DoJump(bool bReplayingMoves)
+{
+	return DoJump(bReplayingMoves, 0.f);
+}
+
+bool UCharacterMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
 {
 	if ( CharacterOwner && CharacterOwner->CanJump() )
 	{
 		// Don't jump if we can't move up/down.
 		if (!bConstrainToPlane || !FMath::IsNearlyEqual(FMath::Abs(GetGravitySpaceZ(PlaneConstraintNormal)), 1.f))
 		{
-			if (HasCustomGravity())
+			// If first frame of DoJump, we want to always inject the initial jump velocity.
+			// For subsequent frames, during the time Jump is held, it depends... 
+			// bDontFallXXXX == true means we want to ensure the character's Z velocity is never less than JumpZVelocity in this period
+			// bDontFallXXXX == false means we just want to leave Z velocity alone and "let the chips fall where they may" (e.g. fall properly in physics)
+
+			// NOTE: 
+			// Checking JumpCurrentCountPreJump instead of JumpCurrentCount because Character::CheckJumpInput might have
+			// incremented JumpCurrentCount just before entering this function... in order to compensate for the case when
+			// on the first frame of the jump, we're already in falling stage. So we want the original value before any 
+			// modification here.
+			// 
+			const bool bFirstJump = (CharacterOwner->JumpCurrentCountPreJump == 0);
+
+			if (bFirstJump || bDontFallBelowJumpZVelocityDuringJump)
 			{
-				SetGravitySpaceZ(Velocity, FMath::Max<FVector::FReal>(GetGravitySpaceZ(Velocity), JumpZVelocity));
-			}
-			else
-			{
-				Velocity.Z = FMath::Max<FVector::FReal>(Velocity.Z, JumpZVelocity);
+				if (HasCustomGravity())
+				{
+					SetGravitySpaceZ(Velocity, FMath::Max<FVector::FReal>(GetGravitySpaceZ(Velocity), JumpZVelocity));
+				}
+				else
+				{
+					Velocity.Z = FMath::Max<FVector::FReal>(Velocity.Z, JumpZVelocity);
+				}
 			}
 			
 			SetMovementMode(MOVE_Falling);
@@ -13217,6 +13237,7 @@ void UCharacterMovementComponent::FillAsyncInput(const FVector& InputVector, FCh
 	AsyncInput.AirControl = AirControl;
 	AsyncInput.AirControlBoostMultiplier = AirControlBoostMultiplier;
 	AsyncInput.AirControlBoostVelocityThreshold = AirControlBoostVelocityThreshold;
+	AsyncInput.bDontFallBelowJumpZVelocityDuringJump = bDontFallBelowJumpZVelocityDuringJump;
 	AsyncInput.bApplyGravityWhileJumping = bApplyGravityWhileJumping;
 	AsyncInput.PhysicsVolumeTerminalVelocity = GetPhysicsVolume()->TerminalVelocity;
 	AsyncInput.MaxJumpApexAttemptsPerSimulation = MaxJumpApexAttemptsPerSimulation;

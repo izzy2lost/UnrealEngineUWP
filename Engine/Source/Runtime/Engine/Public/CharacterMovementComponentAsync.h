@@ -446,6 +446,7 @@ struct FCharacterMovementComponentAsyncInput : public Chaos::FSimCallbackInput
 	float AirControl;
 	float AirControlBoostMultiplier;
 	float AirControlBoostVelocityThreshold;
+	bool bDontFallBelowJumpZVelocityDuringJump;
 	bool bApplyGravityWhileJumping;
 	float PhysicsVolumeTerminalVelocity;
 	int32 MaxJumpApexAttemptsPerSimulation;

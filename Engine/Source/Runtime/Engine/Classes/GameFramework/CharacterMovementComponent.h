@@ -407,6 +407,13 @@ public:
 	UPROPERTY(Category="Character Movement (General Settings)", EditDefaultsOnly, BlueprintReadWrite)
 	uint8 bUseSeparateBrakingFriction:1;
 
+	/** 
+	 * True means while the jump key is held, we will not allow the vertical speed to fall below the JumpZVelocity tuning value 
+	 * even if a stronger force, such as gravity, is opposing the jump. 
+	 */
+	UPROPERTY(Category="Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, AdvancedDisplay)
+	uint8 bDontFallBelowJumpZVelocityDuringJump:1;
+
 	/**
 	 *	Apply gravity while the character is actively jumping (e.g. holding the jump key).
 	 *	Helps remove frame-rate dependent jump height, but may alter base jump height.
@@ -1396,16 +1403,24 @@ public:
 	UPROPERTY(Category = "Character Movement: Jumping / Falling", EditAnywhere, BlueprintReadWrite, meta = (editcondition = "bStayBasedInAir"))
 	float StayBasedInAirHeight = 1000.0f;
 
+
 	/** changes physics based on MovementMode */
 	ENGINE_API virtual void StartNewPhysics(float deltaTime, int32 Iterations);
 	
 	/**
+	 * NOTE: THIS FUNCTION IS DEPRECATED, PLEASE CALL DoJump(bool bReplayingMoves, float DeltaTime) ... 
+	 */
+	UE_DEPRECATED_FORGAME(5.5, "This function has been deprecated. Please call DoJump(bool bReplayingMoves, float DeltaTime)")
+	ENGINE_API virtual bool DoJump(bool bReplayingMoves);
+
+	/**
 	 * Perform jump. Called by Character when a jump has been detected because Character->bPressedJump was true. Checks Character->CanJump().
 	 * Note that you should usually trigger a jump through Character::Jump() instead.
 	 * @param	bReplayingMoves: true if this is being done as part of replaying moves on a locally controlled client after a server correction.
+	 * @param	DeltaTime: time slice for this jump move
 	 * @return	True if the jump was triggered successfully.
 	 */
-	ENGINE_API virtual bool DoJump(bool bReplayingMoves);
+	ENGINE_API virtual bool DoJump(bool bReplayingMoves, float DeltaTime);
 
 	/**
 	 * Returns true if current movement state allows an attempt at jumping. Used by Character::CanJump().

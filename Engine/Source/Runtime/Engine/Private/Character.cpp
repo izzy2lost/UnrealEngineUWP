@@ -42,6 +42,13 @@ namespace CharacterCVars
 		TEXT("p.EnableCharacterAccelerationReplication"),
 		EnableCharacterAccelerationReplication,
 		TEXT("Whether to author acceleration data with character movement replication to sim proxies."));
+
+	static int32 UseLegacyDoJump = 1;
+	static FAutoConsoleVariableRef CVarUseLegacyDoJump(
+		TEXT("p.UseLegacyDoJump"),
+		UseLegacyDoJump,
+		TEXT("Should CheckJumpInput call the legacy DoJump or the new DoJump. Default is true while we are still deprecating the old DoJump"),
+		ECVF_Default);
 }
 
 ACharacter::ACharacter(const FObjectInitializer& ObjectInitializer)
@@ -1131,7 +1138,7 @@ void ACharacter::CheckJumpInput(float DeltaTime)
 				JumpCurrentCount++;
 			}
 
-			const bool bDidJump = CanJump() && CharacterMovement->DoJump(bClientUpdating);
+			const bool bDidJump = CanJump() && (CharacterCVars::UseLegacyDoJump)? CharacterMovement->DoJump(bClientUpdating) : CharacterMovement->DoJump(bClientUpdating, DeltaTime);
 			if (bDidJump)
 			{
 				// Transition from not (actively) jumping to jumping.
