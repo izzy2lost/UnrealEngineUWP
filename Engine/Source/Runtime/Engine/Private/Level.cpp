@@ -1966,7 +1966,7 @@ bool ULevel::HasStaticMeshCompilationPending()
 			{
 				if (Component->IsCompiling())
 				{
-					bHasStaticMeshCompilationPending = false;
+					bHasStaticMeshCompilationPending = true;
 					return false;
 				}
 			}
@@ -1992,7 +1992,7 @@ bool ULevel::DeferRunningConstructionScripts(AActor* InActor)
 			bCachedHasStaticMeshCompilationPending = HasStaticMeshCompilationPending();
 		}
 
-		if (bCachedHasStaticMeshCompilationPending)
+		if (bCachedHasStaticMeshCompilationPending.GetValue())
 		{
 			FActorDeferredScriptManager::Get().AddActor(InActor);
 			return true;
