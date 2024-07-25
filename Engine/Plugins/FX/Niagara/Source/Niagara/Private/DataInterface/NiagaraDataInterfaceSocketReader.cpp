@@ -246,7 +246,7 @@ namespace NDISocketReaderLocal
 				while (AttachComponent)
 				{
 					if ((!SocketDI->AttachComponentClass || AttachComponent->IsA(SocketDI->AttachComponentClass)) &&
-						(!SocketDI->AttachComponentTag.IsNone() && AttachComponent->ComponentHasTag(SocketDI->AttachComponentTag)) )
+						(SocketDI->AttachComponentTag.IsNone() || AttachComponent->ComponentHasTag(SocketDI->AttachComponentTag)) )
 					{
 						break;
 					}
