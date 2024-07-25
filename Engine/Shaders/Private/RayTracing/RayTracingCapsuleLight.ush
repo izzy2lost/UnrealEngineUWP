@@ -40,11 +40,24 @@ bool GenerateCapsuleLightOcclusionRayWithSolidAngleSampling(
 	float4 Result = SampleCapsuleBounds(CapsuleBounds, RandSample);
 	// compute distance to capsule (and check that we hit it)
 	float Distance = CapsuleTest(Result.xyz, LightDirection, Axis, Radius2, SourceLength);
-	RayOrigin = TranslatedWorldPosition;
-	RayDirection = Result.xyz;
-	RayTMin = 0;
-	RayTMax = Distance;
-	RayPdf = Result.w;
-	return Distance > 0; // sample is only valid if we hit the light
+	// sample is only valid if we hit the light
+	if (Distance > 0)
+	{
+		RayOrigin = TranslatedWorldPosition;
+		RayDirection = Result.xyz;
+		RayTMin = 0;
+		RayTMax = Distance;
+		RayPdf = Result.w;
+		return true;
+	}
+	else
+	{
+		RayOrigin = 0;
+		RayDirection = 0;
+		RayTMin = 0;
+		RayTMax = 0;
+		RayPdf = 0;
+		return false;
+	}
 #endif
 }

@@ -389,6 +389,10 @@ float3 ComputeDirectLighting(
 			// hard shadow or no shadow -- just trace toward light center
 			ShadowRayLength = length(ToLight);
 		}
+		if (ShadowRayLength == 0)
+		{
+			Lit = 0;
+		}
 
 		const bool ApplyShadow = (Lit && ReflectedShadowsType != 0);
 
