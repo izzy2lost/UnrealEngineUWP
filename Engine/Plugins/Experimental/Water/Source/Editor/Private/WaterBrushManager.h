@@ -142,16 +142,16 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, Transient, meta=(Category="Debug"))
 	TMap<TObjectPtr<UCurveFloat>,FWaterBodyBrushCache> BrushCurveRTCache;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FVector WorldSize;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FIntPoint LandscapeRTRes;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FIntPoint LandscapeQuads;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta=(Category="Debug"))
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Transient, meta=(Category="Debug"))
 	FTransform LandscapeTransform;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(Category="Debug"))
