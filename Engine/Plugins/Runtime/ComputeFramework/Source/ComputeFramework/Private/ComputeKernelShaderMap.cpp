@@ -356,7 +356,7 @@ void FComputeKernelShaderMap::Compile(
 				if (ShaderType && ShouldCacheComputeKernelShader(ShaderType, InPlatform, InKernel))
 				{
 					// Verify that the shader map Id contains inputs for any shaders that will be put into this shader map
-					check(InShaderMapId.ContainsShaderType(ShaderType));
+					checkf(InShaderMapId.ContainsShaderType(ShaderType), TEXT("Compute shader map %s missing expected shader type %s"), *GetFriendlyName(), ShaderType->GetName());
 					
 					// Compile this ComputeKernel shader.
 					TArray<FString> ShaderErrors;
