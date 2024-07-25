@@ -13,7 +13,7 @@ FRigUnit_DebugHierarchy_Execute()
 	URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
 	if (Hierarchy)
 	{
-		DrawHierarchy(ExecuteContext, WorldOffset, Hierarchy, EControlRigDrawHierarchyMode::Axes, Scale, Color, Thickness, nullptr);
+		DrawHierarchy(ExecuteContext, WorldOffset, Hierarchy, EControlRigDrawHierarchyMode::Axes, Scale, Color, Thickness, nullptr, &Items);
 	}
 }
 
@@ -24,11 +24,11 @@ FRigUnit_DebugPose_Execute()
 	URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
 	if (Hierarchy)
 	{
-		FRigUnit_DebugHierarchy::DrawHierarchy(ExecuteContext, WorldOffset, Hierarchy, EControlRigDrawHierarchyMode::Axes, Scale, Color, Thickness, &Pose);
+		FRigUnit_DebugHierarchy::DrawHierarchy(ExecuteContext, WorldOffset, Hierarchy, EControlRigDrawHierarchyMode::Axes, Scale, Color, Thickness, &Pose, &Items);
 	}
 }
 
-void FRigUnit_DebugHierarchy::DrawHierarchy(const FRigVMExecuteContext& InContext, const FTransform& WorldOffset, URigHierarchy* Hierarchy, EControlRigDrawHierarchyMode::Type Mode, float Scale, const FLinearColor& Color, float Thickness, const FRigPose* InPose)
+void FRigUnit_DebugHierarchy::DrawHierarchy(const FRigVMExecuteContext& InContext, const FTransform& WorldOffset, URigHierarchy* Hierarchy, EControlRigDrawHierarchyMode::Type Mode, float Scale, const FLinearColor& Color, float Thickness, const FRigPose* InPose, const TArrayView<const FRigElementKey>* InItems)
 {
 	FRigVMDrawInterface* DrawInterface = InContext.GetDrawInterface();
 	if(DrawInterface == nullptr)
@@ -39,6 +39,18 @@ void FRigUnit_DebugHierarchy::DrawHierarchy(const FRigVMExecuteContext& InContex
 	if (!DrawInterface->IsEnabled())
 	{
 		return;
+	}
+
+	TMap<const FRigBaseElement*,  bool> ElementMap;
+	if(InItems)
+	{
+		for(const FRigElementKey& Item : *InItems)
+		{
+			if(const FRigBaseElement* Element = Hierarchy->Find(Item))
+			{
+				ElementMap.Add(Element, true);
+			}
+		}
 	}
 
 	switch (Mode)
@@ -76,6 +88,12 @@ void FRigUnit_DebugHierarchy::DrawHierarchy(const FRigVMExecuteContext& InContex
 					Transform = Hierarchy->GetTransform(InElement, ERigTransformType::CurrentGlobal);
 					return bValid;
 				};
+
+				// use the optional filter
+				if(!ElementMap.IsEmpty() && !ElementMap.Contains(Child))
+				{
+					return true;
+				}
 				
 				FTransform Transform = FTransform::Identity;
 				if(!GetTransformLambda(Child, Transform))
@@ -101,6 +119,12 @@ void FRigUnit_DebugHierarchy::DrawHierarchy(const FRigVMExecuteContext& InContex
 				{
 					if(FRigTransformElement* ParentTransformElement = Cast<FRigTransformElement>(Parents[ParentIndex]))
 					{
+						// use the optional filter
+						if(!ElementMap.IsEmpty() && !ElementMap.Contains(ParentTransformElement))
+						{
+							continue;
+						}
+
 						if(Weights.IsValidIndex(ParentIndex))
 						{
 							if(Weights[ParentIndex].IsAlmostZero())
