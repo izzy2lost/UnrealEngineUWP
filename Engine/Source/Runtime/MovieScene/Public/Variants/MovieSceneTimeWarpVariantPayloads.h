@@ -43,7 +43,7 @@ struct FMovieSceneFixedPlayRateStruct
 
 	/** The play rate */
 	UPROPERTY()
-	double PlayRate;
+	double PlayRate = 1.0;
 };
 
 
