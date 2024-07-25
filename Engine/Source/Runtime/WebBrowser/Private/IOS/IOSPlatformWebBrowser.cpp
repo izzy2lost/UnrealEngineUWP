@@ -8,6 +8,7 @@
 #include "Widgets/SLeafWidget.h"
 #include "MobileJS/MobileJSScripting.h"
 #include "PlatformHttp.h"
+#include "HAL/PlatformProcess.h"
 
 #import <UIKit/UIKit.h>
 #import <MetalKit/MetalKit.h>
@@ -303,6 +304,16 @@ class SIOSWebBrowserWidget : public SLeafWidget
 
 			[WebViewWrapper setVisibility : InIsVisible];
 		}
+	}
+
+	bool HandleOnBeforePopup(const FString& UrlStr, const FString& FrameName)
+	{
+		TSharedPtr<FWebBrowserWindow> BrowserWindow = WebBrowserWindowPtr.Pin();
+		if (BrowserWindow.IsValid() && BrowserWindow->OnBeforePopup().IsBound())
+		{
+			return BrowserWindow->OnBeforePopup().Execute(UrlStr, FrameName);
+		}
+		return false;
 	}
 
 	bool HandleShouldOverrideUrlLoading(const FString& Url)
@@ -797,10 +808,37 @@ supportsMetal : (bool)InSupportsMetal supportsMetalMRT : (bool)InSupportsMetalMR
 }
 
 #if !PLATFORM_TVOS
+
+- (nullable WKWebView *)webView:(WKWebView *)InWebView createWebViewWithConfiguration:(WKWebViewConfiguration *)InConfiguration forNavigationAction:(WKNavigationAction *)InNavigationAction windowFeatures:(WKWindowFeatures *)InWindowFeatures
+{
+	NSURLRequest *request = InNavigationAction.request;
+	FString UrlStr([[request URL] absoluteString]);
+
+	if (InNavigationAction.targetFrame == nil && !UrlStr.IsEmpty() && FPlatformProcess::CanLaunchURL(*UrlStr))
+	{
+		if (WebBrowserWidget->HandleOnBeforePopup(UrlStr, TEXT("_blank")))
+		{
+			// Launched the URL in external browser, don't create a new webview
+			return nil;
+		}
+	}
+	return nil;
+}
+
 - (void)webView:(WKWebView*)InWebView decidePolicyForNavigationAction : (WKNavigationAction*)InNavigationAction decisionHandler : (void(^)(WKNavigationActionPolicy))InDecisionHandler
 {
 	NSURLRequest *request = InNavigationAction.request;
-	FString UrlStr([[request URL]absoluteString]);
+	FString UrlStr([[request URL] absoluteString]);
+
+	if (InNavigationAction.targetFrame == nil && !UrlStr.IsEmpty() && FPlatformProcess::CanLaunchURL(*UrlStr))
+	{
+		if (WebBrowserWidget->HandleOnBeforePopup(UrlStr, TEXT("_blank")))
+		{
+			// Launched the URL in external browser, don't open the link here too
+			InDecisionHandler(WKNavigationActionPolicyCancel);
+			return;
+		}
+	}
 	
 	WebBrowserWidget->HandleShouldOverrideUrlLoading(UrlStr);
 	InDecisionHandler(WKNavigationActionPolicyAllow);
