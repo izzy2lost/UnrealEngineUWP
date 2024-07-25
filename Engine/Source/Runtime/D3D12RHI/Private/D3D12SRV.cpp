@@ -89,18 +89,25 @@ void FD3D12ShaderResourceView::UpdateMinLODClamp(FD3D12ContextArray const& Conte
 {
 	check(IsInitialized());
 
+	FLOAT* pResourceMinLODClamp = nullptr;
+
 	switch (D3DViewDesc.ViewDimension)
 	{
 	default: checkNoEntry(); return; // not supported
-	case D3D12_SRV_DIMENSION_TEXTURE2D       : D3DViewDesc.Texture2D       .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURE2DARRAY  : D3DViewDesc.Texture2DArray  .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURE3D       : D3DViewDesc.Texture3D       .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURECUBE     : D3DViewDesc.TextureCube     .ResourceMinLODClamp = MinLODClamp; break;
-	case D3D12_SRV_DIMENSION_TEXTURECUBEARRAY: D3DViewDesc.TextureCubeArray.ResourceMinLODClamp = MinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE2D       : pResourceMinLODClamp = &D3DViewDesc.Texture2D       .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE2DARRAY  : pResourceMinLODClamp = &D3DViewDesc.Texture2DArray  .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURE3D       : pResourceMinLODClamp = &D3DViewDesc.Texture3D       .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURECUBE     : pResourceMinLODClamp = &D3DViewDesc.TextureCube     .ResourceMinLODClamp; break;
+	case D3D12_SRV_DIMENSION_TEXTURECUBEARRAY: pResourceMinLODClamp = &D3DViewDesc.TextureCubeArray.ResourceMinLODClamp; break;
 	}
 
-	UpdateDescriptor();
-	UpdateBindlessSlot(Contexts);
+	if (pResourceMinLODClamp && *pResourceMinLODClamp != MinLODClamp)
+	{
+		*pResourceMinLODClamp = MinLODClamp;
+
+		UpdateDescriptor();
+		UpdateBindlessSlot(Contexts);
+	}
 }
 
 void FD3D12ShaderResourceView::UpdateDescriptor()

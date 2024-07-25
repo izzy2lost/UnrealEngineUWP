@@ -21,6 +21,10 @@ public:
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 	void SwitchToNewTexture(FD3D12ContextArray const& Contexts, FD3D12Texture* InNewTexture);
+
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	uint32 ReferencedDescriptorVersion{};
+#endif
 };
 
 template<>
