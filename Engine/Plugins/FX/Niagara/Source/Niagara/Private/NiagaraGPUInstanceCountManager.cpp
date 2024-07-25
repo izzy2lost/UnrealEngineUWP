@@ -189,7 +189,7 @@ uint32 FNiagaraGPUInstanceCountManager::AcquireOrAllocateEntry(FRHICommandListIm
 	return UsedInstanceCounts++;
 }
 
-uint32 FNiagaraGPUInstanceCountManager::AllocateEntryDeferred()
+uint32 FNiagaraGPUInstanceCountManager::AllocateDeferredEntry()
 {
 	check(IsInParallelRenderingThread());
 
@@ -214,6 +214,7 @@ void FNiagaraGPUInstanceCountManager::AllocateDeferredCounts(FRHICommandListImme
 		return;
 	}
 	ResizeBuffers(RHICmdList, AllocatedInstanceCounts + DeferredCountAllocations);
+	UsedInstanceCounts += DeferredCountAllocations;
 	DeferredCountAllocations = 0;
 }
 

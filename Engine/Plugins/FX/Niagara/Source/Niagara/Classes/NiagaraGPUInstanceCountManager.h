@@ -74,8 +74,11 @@ public:
 	/** Acquire an entry, this will either come from the free list or reallocate the buffer. */
 	uint32 AcquireOrAllocateEntry(FRHICommandListImmediate& RHICmdList);
 
-	/** Allocate an entry in the buffer, this could return an existing count or count yet to be allocated */
-	uint32 AllocateEntryDeferred();
+	/**
+	Allocate a count entry that might return an existing cleared count, or a count waiting to be allocated.
+	This method allows you to allocated counts concurrently, then commit them by calling AllocateDeferredCounts once you join back on the render thread.
+	*/
+	uint32 AllocateDeferredEntry();
 	/** Commit any deferred count allocations */
 	void AllocateDeferredCounts(FRHICommandListImmediate& RHICmdList);
 

@@ -1965,8 +1965,6 @@ void FNiagaraGpuComputeDispatch::PostInitViews(FRDGBuilder& GraphBuilder, TConst
 {
 	LLM_SCOPE(ELLMTag::Niagara);
 
-	GPUInstanceCounterManager.AllocateDeferredCounts(GraphBuilder.RHICmdList);
-
 	bAllowGPUParticleUpdate = bAllowGPUParticleUpdate && Views.Num() > 0 && Views[0].AllowGPUParticleUpdate();
 
 	if (bAllowGPUParticleUpdate && FNiagaraUtilities::AllowGPUParticles(GetShaderPlatform()))
