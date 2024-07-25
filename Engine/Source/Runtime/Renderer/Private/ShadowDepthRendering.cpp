@@ -2145,10 +2145,9 @@ bool FShadowDepthPassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTRICT M
 		const FMaterialRenderProxy* EffectiveMaterialRenderProxy = &MaterialRenderProxy;
 		const FMaterial* EffectiveMaterial = &Material;
 		const bool bVFTypeSupportsNullPixelShader = MeshBatch.VertexFactory->SupportsNullPixelShader();
-		const bool bEvaluateWPO = Material.MaterialModifiesMeshPosition_RenderThread()
-			&& (!ShouldOptimizedWPOAffectNonNaniteShaderSelection() || PrimitiveSceneProxy->EvaluateWorldPositionOffset());
+		const bool bModifiesMeshPosition = DoMaterialAndPrimitiveModifyMeshPosition(Material, PrimitiveSceneProxy);
 
-		if (UseDefaultMaterialForShadowDepth(Material, bVFTypeSupportsNullPixelShader, bEvaluateWPO))
+		if (UseDefaultMaterialForShadowDepth(Material, bVFTypeSupportsNullPixelShader, bModifiesMeshPosition))
 		{
 			const FMaterialRenderProxy* DefaultProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
 			const FMaterial* DefaultMaterialResource = DefaultProxy->GetMaterialNoFallback(FeatureLevel);

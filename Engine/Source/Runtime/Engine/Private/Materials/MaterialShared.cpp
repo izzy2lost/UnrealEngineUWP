@@ -1203,7 +1203,7 @@ bool FMaterial::MaterialMayModifyMeshPosition() const
 		bMayModifyMeshPosition = MaterialUsesWorldPositionOffset_GameThread() || MaterialUsesDisplacement_GameThread() || MaterialUsesPixelDepthOffset_GameThread();
 	}
 
-	return bMayModifyMeshPosition || HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected();
+	return bMayModifyMeshPosition || HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected() || HasFirstPersonOutput();
 }
 
 bool FMaterial::MaterialUsesPixelDepthOffset_GameThread() const
@@ -2298,6 +2298,11 @@ bool FMaterialResource::HasVertexInterpolator() const
 bool FMaterialResource::HasRuntimeVirtualTextureOutput() const
 {
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
+}
+
+bool FMaterialResource::HasFirstPersonOutput() const
+{
+	return GetCachedExpressionData().bHasFirstPersonOutput;
 }
 
 bool FMaterialResource::CastsRayTracedShadows() const

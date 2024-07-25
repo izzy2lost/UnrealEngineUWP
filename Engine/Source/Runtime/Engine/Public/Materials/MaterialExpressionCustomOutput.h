@@ -28,6 +28,7 @@ class UMaterialExpressionCustomOutput : public UMaterialExpression
 	virtual bool AllowMultipleCustomOutputs() { return false; }
 	virtual bool NeedsCustomOutputDefines() { return true; }
 	virtual bool ShouldCompileBeforeAttributes() { return false; }
+	virtual bool NeedsPreviousFrameEvaluation() { return false; }
 	virtual EShaderFrequency GetShaderFrequency() { return SF_Pixel; }
 
 	// This is currently only needed by the new HLSL translator

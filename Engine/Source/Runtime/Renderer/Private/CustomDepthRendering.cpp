@@ -572,9 +572,8 @@ bool FCustomDepthPassMeshProcessor::TryAddMeshBatch(
 	bool bPositionOnly = false;
 	const bool bSupportPositionOnlyStream = MeshBatch.VertexFactory->SupportsPositionOnlyStream();
 	const bool bVFTypeSupportsNullPixelShader = MeshBatch.VertexFactory->SupportsNullPixelShader();
-	const bool bEvaluateWPO = Material.MaterialModifiesMeshPosition_RenderThread()
-		&& (!ShouldOptimizedWPOAffectNonNaniteShaderSelection() || PrimitiveSceneProxy->EvaluateWorldPositionOffset());
-	bool bUseDefaultMaterial = UseDefaultMaterial(Material, bEvaluateWPO, bSupportPositionOnlyStream, bVFTypeSupportsNullPixelShader, bPositionOnly, bIgnoreThisMaterial);
+	const bool bModifiesMeshPosition = DoMaterialAndPrimitiveModifyMeshPosition(Material, PrimitiveSceneProxy);
+	bool bUseDefaultMaterial = UseDefaultMaterial(Material, bModifiesMeshPosition, bSupportPositionOnlyStream, bVFTypeSupportsNullPixelShader, bPositionOnly, bIgnoreThisMaterial);
 	if (bIgnoreThisMaterial)
 	{
 		return true;

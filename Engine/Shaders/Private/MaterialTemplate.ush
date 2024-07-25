@@ -3621,6 +3621,28 @@ half GetMaterialMaskedOpacity(FPixelMaterialInputs PixelMaterialInputs)
 }
 #endif
 
+#if SUPPORT_FIRST_PERSON_RENDERING
+
+float GetMaterialFirstPersonInterpolationAlpha(FMaterialVertexParameters Parameters)
+{
+#if HAVE_GetFirstPersonOutput0
+	return saturate(GetFirstPersonOutput0(Parameters));
+#else
+	return 1.0f;
+#endif
+}
+
+float GetMaterialPreviousFirstPersonInterpolationAlpha(FMaterialVertexParameters Parameters)
+{
+#if HAVE_GetFirstPersonOutput0Prev
+	return saturate(GetFirstPersonOutput0Prev(Parameters));
+#else
+	return 1.0f;
+#endif
+}
+
+#endif // SUPPORT_FIRST_PERSON_RENDERING
+
 bool ShouldEnableWorldPositionOffset(FMaterialVertexParameters Parameters)
 {
 #if USES_WORLD_POSITION_OFFSET
@@ -3669,7 +3691,9 @@ float3 GetMaterialWorldPositionOffset(FMaterialVertexParameters Parameters)
 	if ((GetPrimitiveData(Parameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE) != 0)
 	{
 		const float3 FirstPersonPosition = mul(Parameters.WorldPosition + WPO, (float3x3)ResolvedView.FirstPersonTransform);
-		WPO = FirstPersonPosition - Parameters.WorldPosition;
+		const float3 FirstPersonWPO = FirstPersonPosition - Parameters.WorldPosition;
+		const float LerpAlpha = GetMaterialFirstPersonInterpolationAlpha(Parameters);
+		WPO = lerp(WPO, FirstPersonWPO, LerpAlpha);
 	}
 #endif // SUPPORT_FIRST_PERSON_RENDERING
 	return WPO;
@@ -3696,7 +3720,9 @@ float3 GetMaterialPreviousWorldPositionOffset(FMaterialVertexParameters Paramete
 	if ((GetPrimitiveData(Parameters).Flags & PRIMITIVE_SCENE_DATA_FLAG_IS_FIRST_PERSON_PRIMITIVE) != 0)
 	{
 		const float3 FirstPersonPosition = mul(Parameters.WorldPosition + WPO, (float3x3)ResolvedView.PrevFirstPersonTransform);
-		WPO = FirstPersonPosition - Parameters.WorldPosition;
+		const float3 FirstPersonWPO = FirstPersonPosition - Parameters.WorldPosition;
+		const float LerpAlpha = GetMaterialPreviousFirstPersonInterpolationAlpha(Parameters);
+		WPO = lerp(WPO, FirstPersonWPO, LerpAlpha);
 	}
 #endif // SUPPORT_FIRST_PERSON_RENDERING
 	return WPO;

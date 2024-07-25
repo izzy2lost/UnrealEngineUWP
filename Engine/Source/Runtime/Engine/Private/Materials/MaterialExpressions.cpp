@@ -217,6 +217,7 @@
 #include "Materials/MaterialExpressionSmoothStep.h"
 #include "Materials/MaterialExpressionSingleLayerWaterMaterialOutput.h"
 #include "Materials/MaterialExpressionThinTranslucentMaterialOutput.h"
+#include "Materials/MaterialExpressionFirstPersonOutput.h"
 #include "Materials/MaterialExpressionSobol.h"
 #include "Materials/MaterialExpressionSpeedTree.h"
 #include "Materials/MaterialExpressionSphereMask.h"
@@ -31302,5 +31303,70 @@ uint32 UMaterialExpressionNeuralNetworkOutput::GetInputType(int32 InputIndex)
 	return MCT_Float2;
 }
 #endif // WITH_EDITOR
+
+///////////////////////////////////////////////////////////////////////////////
+// First Person Output
+///////////////////////////////////////////////////////////////////////////////
+
+UMaterialExpressionFirstPersonOutput::UMaterialExpressionFirstPersonOutput(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_FirstPerson;
+		FConstructorStatics()
+			: NAME_FirstPerson(LOCTEXT("FirstPerson", "First Person"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+	ConstFirstPersonInterpolationAlpha = 1.0f;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_FirstPerson);
+#endif
+
+#if WITH_EDITOR
+	Outputs.Reset();
+#endif
+}
+
+#if WITH_EDITOR
+
+int32 UMaterialExpressionFirstPersonOutput::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	int32 CodeInput = INDEX_NONE;
+
+	if (OutputIndex == 0)
+	{
+		CodeInput = FirstPersonInterpolationAlpha.IsConnected() ? FirstPersonInterpolationAlpha.Compile(Compiler) : Compiler->Constant(ConstFirstPersonInterpolationAlpha);
+	}
+
+	return Compiler->CustomOutput(this, OutputIndex, CodeInput);
+}
+
+void UMaterialExpressionFirstPersonOutput::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(FString(TEXT("First Person Output")));
+}
+
+#endif // WITH_EDITOR
+
+int32 UMaterialExpressionFirstPersonOutput::GetNumOutputs() const
+{
+	return 1;
+}
+
+FString UMaterialExpressionFirstPersonOutput::GetFunctionName() const
+{
+	return TEXT("GetFirstPersonOutput");
+}
+
+FString UMaterialExpressionFirstPersonOutput::GetDisplayName() const
+{
+	return TEXT("First Person Output");
+}
 
 #undef LOCTEXT_NAMESPACE

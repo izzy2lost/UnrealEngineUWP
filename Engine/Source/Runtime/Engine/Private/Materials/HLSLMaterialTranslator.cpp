@@ -35,6 +35,7 @@
 #include "Materials/MaterialExpressionViewProperty.h"
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
+#include "Materials/MaterialExpressionFirstPersonOutput.h"
 #include "Materials/MaterialSourceTemplate.h"
 #include "Materials/SubstrateMaterial.h"
 #include "StringTemplate.h"
@@ -979,18 +980,28 @@ void FHLSLMaterialTranslator::CompileCustomOutputs(TArray<UMaterialExpressionCus
 				if (NumOutputs > 0)
 				{
 					EShaderFrequency CustomOutputShaderFrequency = CustomOutput->GetShaderFrequency();
-					for (int32 Index = 0; Index < NumOutputs; Index++)
+					const bool bNeedsPreviousFrameEvaluation = CustomOutput->NeedsPreviousFrameEvaluation();
+					const int32 NumEvaluations = bNeedsPreviousFrameEvaluation ? 2 : 1;
+					const bool bCachedCompilingPreviousFrame = bCompilingPreviousFrame;
+
+					for (int32 PreviousFrameEvaluation = 0; PreviousFrameEvaluation < NumEvaluations; PreviousFrameEvaluation++)
 					{
+						for (int32 Index = 0; Index < NumOutputs; Index++)
 						{
-							ClearFunctionStack(CustomOutputShaderFrequency);
-							FunctionStacks[CustomOutputShaderFrequency].Add(new FMaterialFunctionCompileState(nullptr));
+							{
+								ClearFunctionStack(CustomOutputShaderFrequency);
+								FunctionStacks[CustomOutputShaderFrequency].Add(new FMaterialFunctionCompileState(nullptr));
+							}
+							MaterialProperty = MP_MAX; // Indicates we're not compiling any material property.
+							ShaderFrequency = CustomOutputShaderFrequency;
+							bCompilingPreviousFrame = PreviousFrameEvaluation != 0;
+							TArray<FShaderCodeChunk> CustomExpressionChunks;
+							AssignTempScope(CustomExpressionChunks);
+							CustomOutput->Compile(this, Index);
 						}
-						MaterialProperty = MP_MAX; // Indicates we're not compiling any material property.
-						ShaderFrequency = CustomOutputShaderFrequency;
-						TArray<FShaderCodeChunk> CustomExpressionChunks;
-						AssignTempScope(CustomExpressionChunks);
-						CustomOutput->Compile(this, Index);
 					}
+
+					bCompilingPreviousFrame = bCachedCompilingPreviousFrame; // Restore the cached value of bCompilingPreviousFrame
 
 					ClearFunctionStack(CustomOutputShaderFrequency);
 					FunctionStacks[CustomOutputShaderFrequency].Add(new FMaterialFunctionCompileState(nullptr));
@@ -1755,7 +1766,8 @@ void FHLSLMaterialTranslator::TranslateMaterial()
 		Material->IsTessellationEnabled() &&
 		IsMaterialPropertyUsed(MP_Displacement, Chunk[MP_Displacement], FLinearColor(-1, 0, 0, 0), 1);
 
-	MaterialCompilationOutput.bModifiesMeshPosition = bUsesPixelDepthOffset || bUsesWorldPositionOffset || bUsesDisplacement;
+	const bool bHasFirstPersonOutput = CustomOutputExpressions.FindByPredicate([](UMaterialExpressionCustomOutput* Expression) { return Expression->IsA<UMaterialExpressionFirstPersonOutput>(); }) != nullptr;
+	MaterialCompilationOutput.bModifiesMeshPosition = bUsesPixelDepthOffset || bUsesWorldPositionOffset || bUsesDisplacement || bHasFirstPersonOutput;
 	MaterialCompilationOutput.bUsesWorldPositionOffset = bUsesWorldPositionOffset;
 	MaterialCompilationOutput.bUsesPixelDepthOffset = bUsesPixelDepthOffset;
 	MaterialCompilationOutput.bUsesDisplacement = bUsesDisplacement;
@@ -14624,7 +14636,7 @@ int32 FHLSLMaterialTranslator::CustomOutput(class UMaterialExpressionCustomOutpu
 		GetFixedParameterCode(OutputCode, *CurrentScopeChunks, Definitions, Body, CompiledPDV_FiniteDifferences);
 	}
 
-	const FString FunctionNameBase = FString::Printf(TEXT("%s%d"), *Custom->GetFunctionName(), OutputIndex);
+	const FString FunctionNameBase = FString::Printf(TEXT("%s%d%s"), *Custom->GetFunctionName(), OutputIndex, bCompilingPreviousFrame ? TEXT("Prev") : TEXT(""));
 
 	// Primary function will have _LWC suffix if it returns an LWC type
 	// We also define a pre-processor symbol to indicate the custom output function is available so that
