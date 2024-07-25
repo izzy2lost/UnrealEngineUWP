@@ -1564,14 +1564,6 @@ public:
 	}
 
 	/**
-	 * Serializes an FIntRect value from or into an archive.
-	 *
-	 * @param Ar The archive to serialize from or to.
-	 * @param Value The value to serialize.
-	 */
-	friend FArchive& operator<<(FArchive& Ar, FIntRect& Value);
-
-	/**
 	 * Serializes an FString value from or into an archive.
 	 *
 	 * @param Ar The archive to serialize from or to.
