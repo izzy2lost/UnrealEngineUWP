@@ -86,8 +86,8 @@ bool FDisplayClusterViewport::GetViewPointCameraEye(const uint32 InContextNum, F
 	// Here we use the ViewPoint component as the eye position
 	if (UDisplayClusterCameraComponent* SceneCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
 	{
-		OutViewLocation = SceneCameraComponent->GetComponentLocation();
-		OutViewRotation = SceneCameraComponent->GetComponentRotation();
+		// Get eye position from the ViewPoint component.
+		SceneCameraComponent->GetEyePosition(GetConfiguration(), OutViewLocation, OutViewRotation);
 
 		// Calculate stereo ViewOffset:
 		OutViewOffset = ImplGetViewOffset(GetStereoEyeOffsetDistance(InContextNum), OutViewLocation, OutViewRotation);

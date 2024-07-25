@@ -19,7 +19,7 @@
 #include "Misc/DisplayClusterLog.h"
 
 #include "Components/DisplayClusterICVFXCameraComponent.h"
-
+#include "Components/DisplayClusterCameraComponent.h"
 #include "Containers/DisplayClusterProjectionCameraPolicySettings.h"
 
 namespace UE::DisplayCluster::Configuration::ProjectionPolicyHelpers
@@ -54,12 +54,23 @@ void FDisplayClusterViewportConfiguration_ProjectionPolicy::Update()
 			// ignore internal viewport
 			if (ViewportIt.IsValid() && !ViewportIt->IsInternalViewport())
 			{
-				// Support advanced logic for 'camera' projection policy
 				if (ViewportIt->GetProjectionPolicy().IsValid())
 				{
+					// Support advanced logic for 'camera' projection policy
 					if (ViewportIt->GetProjectionPolicy()->GetType().Compare(DisplayClusterProjectionStrings::projection::Camera) == 0)
 					{
 						UpdateCameraPolicy(*ViewportIt);
+					}
+
+					// Support postprocesses from the ViewPoint component
+					if (ViewportIt->GetProjectionPolicy()->ShouldUseViewPointComponentPostProcesses(ViewportIt.Get()))
+					{
+						// ViewPoint can use its own postprocess, so we apply it before anything else in case others override it.
+						if (UDisplayClusterCameraComponent* SceneViewPointCameraComponent = ViewportIt->GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
+						{
+							// Apply the PP of the cameras referenced by the ViewPoint to the viewport.
+							SceneViewPointCameraComponent->ApplyViewPointComponentPostProcessesToViewport(ViewportIt.Get());
+						}
 					}
 
 					// Projection policies can override postprocess settings

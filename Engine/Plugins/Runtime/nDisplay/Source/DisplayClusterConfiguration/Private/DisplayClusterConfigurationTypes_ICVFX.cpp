@@ -53,7 +53,7 @@ FDisplayClusterConfigurationICVFX_CameraRenderSettings::FDisplayClusterConfigura
 
 void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings, FMinimalViewInfo& InOutViewInfo) const
 {
-	// CameraSettings can disable posprocess from this camera
+	// CameraSettings can disable postprocess from this camera
 	if (!bUseCameraComponentPostprocess)
 	{
 		InOutViewInfo.PostProcessSettings = FPostProcessSettings();
@@ -744,4 +744,22 @@ void FDisplayClusterConfigurationICVFX_CameraMotionBlur::SetupViewInfo(const FDi
 		InOutViewInfo.PostProcessSettings.MotionBlurPerObjectSize = MotionBlurPPS.MotionBlurPerObjectSize;
 		InOutViewInfo.PostProcessSettings.bOverride_MotionBlurPerObjectSize = true;
 	}
+}
+
+///////////////////////////////////////////////////////////////////////////////////////
+// FDisplayClusterConfigurationICVFX_CameraDepthOfField
+///////////////////////////////////////////////////////////////////////////////////////
+UTexture2D* FDisplayClusterConfigurationICVFX_CameraDepthOfField::GetCompensationLUT(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const
+{
+	if (DynamicCompensationLUT)
+	{
+		return ToRawPtr(DynamicCompensationLUT);
+	}
+	
+	if (CompensationLUT.IsValid())
+	{
+		return CompensationLUT.Get();
+	}
+
+	return nullptr;
 }

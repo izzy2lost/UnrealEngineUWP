@@ -176,11 +176,7 @@ bool FDisplayClusterViewport::SetupViewPoint(FMinimalViewInfo& InOutViewInfo)
 		// The projection policy can override these ViewPoint data.
 		if (ProjectionPolicy.IsValid())
 		{
-			if (ADisplayClusterRootActor* SceneRootActor = Configuration->GetRootActor(EDisplayClusterRootActorType::Scene))
-			{
-				const float DeltaTime = SceneRootActor->GetWorldDeltaSeconds();
-				ProjectionPolicy->SetupProjectionViewPoint(this, DeltaTime, InOutViewInfo, &CustomNearClippingPlane);
-			}
+			ProjectionPolicy->SetupProjectionViewPoint(this, Configuration->GetRootActorWorldDeltaSeconds(), InOutViewInfo, &CustomNearClippingPlane);
 		}
 
 		return true;

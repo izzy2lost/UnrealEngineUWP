@@ -202,3 +202,40 @@ enum class EDisplayClusterViewportMediaState : uint8
 	InputLateOCIO = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportMediaState);
+
+/**
+* A set of flags defining the post-process parameters to be received from the camera.
+*/
+enum class EDisplayClusterViewportCameraPostProcessFlags : uint8
+{
+	// Ignore all post-processing from the camera.
+	None = 0,
+
+	// Use the PP settings from the specified camera.
+	// (Supported by Camera, CineCamera and ICVFXCamera components).
+	EnablePostProcess = 1 << 0,
+
+	// Enable the CineCamera DoF PP settings from the specified camera.
+	// (Supported by CineCamera and ICVFXCamera components).
+	EnableDepthOfField = 1 << 1,
+
+	// Use the custom NearClippingPlane value from the specified cine camera.
+	// (Supported by CineCamera and ICVFXCamera components).
+	EnableNearClippingPlane = 1 << 2,
+
+	// Use the DC ColorGrading from the specified ICVFX camera.
+	// (Supported by ICVFXCamera component only).
+	EnableICVFXColorGrading = 1 << 3,
+
+	// Use the DC Motion Blur settings from the specified ICVFX camera.
+	// (Supported by ICVFXCamera component only).
+	EnableICVFXMotionBlur = 1 << 4,
+
+	// Use the DC Depth-Of-Field settings from the specified ICVFX camera.
+	// (Supported by ICVFXCamera component only).
+	EnableICVFXDepthOfFieldCompensation = 1 << 5,
+
+	// Apply all possible post-processing from the camera.
+	All = 0xFF
+};
+ENUM_CLASS_FLAGS(EDisplayClusterViewportCameraPostProcessFlags);

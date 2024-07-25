@@ -584,6 +584,13 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationICVFX_CameraD
 	GENERATED_BODY()
 
 public:
+	/** Get the CompensationLUT texture corresponding to the current settings.
+	* 
+	* @param InStageSettings - it can be used for global LUT settings.
+	*/
+	UTexture2D* GetCompensationLUT(const FDisplayClusterConfigurationICVFX_StageSettings& InStageSettings) const;
+
+public:
 	/** Enables depth of field correction on the wall, which dynamically adjusts the size of the defocus circle of confusion to compensate for the real-world camera blur when shooting the wall */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = NDisplay)
 	bool bEnableDepthOfFieldCompensation = false;

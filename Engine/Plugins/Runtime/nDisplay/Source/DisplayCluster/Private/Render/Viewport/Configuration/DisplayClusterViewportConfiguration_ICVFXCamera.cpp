@@ -105,17 +105,11 @@ bool FDisplayClusterViewportConfiguration_ICVFXCamera::Initialize()
 		return false;
 	}
 
-	ADisplayClusterRootActor* SceneRootActor = Configuration.GetRootActor(EDisplayClusterRootActorType::Scene);
-	if (!SceneRootActor)
-	{
-		return false;
-	}
-
 	// Applying the correct sequence of steps to use the projection policy math:
 	// SetupProjectionViewPoint()->CalculateView()->GetProjectionMatrix()
 	FMinimalViewInfo CameraViewInfo;
 	float CustomNearClippingPlane = -1; // a value less than zero means ignoring.
-	CameraProjectionPolicy->SetupProjectionViewPoint(nullptr, SceneRootActor->GetWorldDeltaSeconds(), CameraViewInfo, &CustomNearClippingPlane);
+	CameraProjectionPolicy->SetupProjectionViewPoint(nullptr, Configuration.GetRootActorWorldDeltaSeconds(), CameraViewInfo, &CustomNearClippingPlane);
 
 	CameraContext.ViewLocation = CameraViewInfo.Location;
 	CameraContext.ViewRotation = CameraViewInfo.Rotation;

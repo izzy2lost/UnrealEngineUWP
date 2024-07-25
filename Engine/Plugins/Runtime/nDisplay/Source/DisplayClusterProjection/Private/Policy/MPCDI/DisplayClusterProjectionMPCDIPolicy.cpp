@@ -308,6 +308,18 @@ bool FDisplayClusterProjectionMPCDIPolicy::GetProjectionMatrix(IDisplayClusterVi
 	return false;
 }
 
+bool FDisplayClusterProjectionMPCDIPolicy::IsFrustumRotatedToFitContextSize(IDisplayClusterViewport* InViewport, const uint32 InContextNum)
+{
+	check(IsInGameThread());
+
+	if (WarpBlendContexts.IsValidIndex(InContextNum))
+	{
+		return WarpBlendContexts[InContextNum].bFrustumRotated;
+	}
+
+	return false;
+}
+
 bool FDisplayClusterProjectionMPCDIPolicy::IsWarpBlendSupported()
 {
 	return true;

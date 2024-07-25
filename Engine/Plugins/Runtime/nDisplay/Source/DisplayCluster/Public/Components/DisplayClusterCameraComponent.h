@@ -7,6 +7,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/IDisplayClusterComponent.h"
 #include "Render/DisplayDevice/Containers/DisplayClusterDisplayDevice_Enums.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 #include "DisplayClusterCameraComponent.generated.h"
 
@@ -19,6 +20,8 @@ class IDisplayClusterViewportManager;
 class IDisplayClusterWarpPolicy;
 class IDisplayClusterViewportConfiguration;
 class IDisplayClusterViewportPreview;
+class IDisplayClusterViewport;
+class UCameraComponent;
 struct FMinimalViewInfo;
 
 UENUM()
@@ -29,6 +32,42 @@ enum class EDisplayClusterEyeStereoOffset : uint8
 	Right UMETA(DisplayName = "Right Eye"),
 };
 
+/**
+* Specifies the parameters to be used from the specified camera.
+*/
+USTRUCT(BlueprintType)
+struct DISPLAYCLUSTER_API FDisplayClusterCameraComponent_OuterViewportPostProcessSettings
+{
+	GENERATED_BODY()
+
+	/** Decodes parameters into flags. */
+	EDisplayClusterViewportCameraPostProcessFlags GetCameraPostProcessFlags() const;
+
+public:
+	/** Use the NearClippingPlane value from the specified cine camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use Custom Near Clipping Plane"))
+	bool bEnableNearClippingPlane = false;
+
+	/** Use the PP settings from the specified camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use Post Process"))
+	bool bEnablePostProcess = true;
+
+	/** Enable the DoF PP settings from the specified camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use Depth Of Field"))
+	bool bEnableDepthOfField = false;
+
+	/** Use the DC Depth-Of-Field settings from the specified ICVFX camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use ICVFX Depth Of Field Compensation"))
+	bool bEnableICVFXDepthOfFieldCompensation = false;
+
+	/** Use the DC ColorGrading from the specified ICVFX camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use ICVFX Color Grading"))
+	bool bEnableICVFXColorGrading = true;
+
+	/** Use the DC Motion Blur settings from the specified ICVFX camera. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Advanced", meta = (DisplayName = "Use ICVFX Motion Blur"))
+	bool bEnableICVFXMotionBlur = false;
+};
 
 /**
  * 3D point in space used to render nDisplay viewports from
@@ -60,6 +99,9 @@ public:
 	 * @param OutCustomNearClippingPlane - Custom NCP, or a value less than zero if not defined.
 	 */
 	virtual void GetDesiredView(IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr);
+
+	/** Returns the position of the observer's eyes in the Stage. */
+	virtual void GetEyePosition(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FVector& OutViewLocation, FRotator& OutViewRotation);
 
 	/**
 	 * All cluster viewports that reference this component will be created in the background on the current cluster node if the function returns true.
@@ -102,6 +144,22 @@ public:
 	virtual void OnUpdateDisplayDeviceMeshAndMaterialInstance(IDisplayClusterViewportPreview& InViewportPreview, const EDisplayClusterDisplayDeviceMeshType InMeshType, const EDisplayClusterDisplayDeviceMaterialType InMaterialType, UMeshComponent* InMeshComponent, UMaterialInstanceDynamic* InMeshMaterialInstance) const
 	{ }
 
+	/** Apply the ViewPoint component's post-processes to the viewport.
+	* (Outer viewport camera)
+	*
+	* @param InViewport - viewport to be configured.
+	*/
+	virtual void ApplyViewPointComponentPostProcessesToViewport(IDisplayClusterViewport* InViewport);
+
+	/** Return a reference to the Camera component, which is used for Outer viewports.
+	* 
+	* return nullptr if the camera is not in use.
+	*/
+	virtual UCameraComponent* GetOuterViewportCameraComponent(const IDisplayClusterViewportConfiguration& InViewportConfiguration) const;
+
+protected:
+	/** Get Outer Viewport Camera view. */
+	virtual bool GetOuterViewportCameraDesiredViewInternal(const IDisplayClusterViewportConfiguration& InViewportConfiguration, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane = nullptr) const;
 
 public:
 	/**
@@ -225,6 +283,24 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UTexture2D> SpriteTexture;
 #endif
+
+public:
+	/** Use the post process from the specified camera. This applies to all viewports that use this viewpoint. */
+	UPROPERTY(EditAnywhere, Category = "Outer Viewport Post Process", meta = (DisplayName = "Use Outer Viewport Camera"))
+	bool bEnableOuterViewportCamera = false;
+
+	/** The viewpoint location follows the camera location. */
+	UPROPERTY(EditAnywhere, Category = "Outer Viewport Post Process", meta = (DisplayName = "Follow Outer Viewport Camera"))
+	bool bFollowOuterViewportCamera = false;
+
+	/** The name of the camera component that is used as the PP source.
+	* (An empty string means that the active game camera is used). */
+	UPROPERTY(EditAnywhere, Category = "Outer Viewport Post Process", meta = (DisplayName = "Outer Viewport Camera Name"))
+	FString OuterViewportCameraName;
+
+	/** Additional settings that control how PP will be used. */
+	UPROPERTY(EditAnywhere, Category = "Outer Viewport Post Process", meta = (DisplayName = "Post Process Settings"))
+	FDisplayClusterCameraComponent_OuterViewportPostProcessSettings OuterViewportPostProcessSettings;
 
 private:
 	UPROPERTY(EditAnywhere, Category = "Stereo")

@@ -485,67 +485,52 @@ bool FDisplayClusterDeviceBase::NeedReAllocateViewportRenderTarget(const class F
 //////////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterDeviceBase
 //////////////////////////////////////////////////////////////////////////////////////////////
-void FDisplayClusterDeviceBase::StartFinalPostprocessSettings(struct FPostProcessSettings* StartPostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex)
+void FDisplayClusterDeviceBase::StartFinalPostprocessSettings(FPostProcessSettings* StartPostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex)
 {
 	check(IsInGameThread());
 
 	// eSSP_FULL pass reserved for UE internal render
-	IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
-	if (StereoPassType != EStereoscopicPass::eSSP_FULL && ViewportManager)
+	if (StereoPassType != EStereoscopicPass::eSSP_FULL && StartPostProcessingSettings)
 	{
-		IDisplayClusterViewport* ViewportPtr = ViewportManager->FindViewport(StereoViewIndex);
-		if (ViewportPtr)
+		IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
+		uint32 ContextNum = 0;
+		if (IDisplayClusterViewport* Viewport = ViewportManager ? ViewportManager->FindViewport(StereoViewIndex, &ContextNum) : nullptr)
 		{
-			ViewportPtr->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Start, StartPostProcessingSettings);
+			Viewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(Viewport, ContextNum, IDisplayClusterViewport_CustomPostProcessSettings ::ERenderPass::Start, *StartPostProcessingSettings);
 		}
 	}
 }
 
-bool FDisplayClusterDeviceBase::OverrideFinalPostprocessSettings(struct FPostProcessSettings* OverridePostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex, float& BlendWeight)
+bool FDisplayClusterDeviceBase::OverrideFinalPostprocessSettings(FPostProcessSettings* OverridePostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex, float& BlendWeight)
 {
 	check(IsInGameThread());
 
 	// eSSP_FULL pass reserved for UE internal render
-	IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
-	if (StereoPassType != EStereoscopicPass::eSSP_FULL && ViewportManager)
+	if (StereoPassType != EStereoscopicPass::eSSP_FULL)
 	{
-		IDisplayClusterViewport* ViewportPtr = ViewportManager->FindViewport(StereoViewIndex);
-		if (ViewportPtr)
+		IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
+		uint32 ContextNum = 0;
+		if (IDisplayClusterViewport* Viewport = ViewportManager ? ViewportManager->FindViewport(StereoViewIndex, &ContextNum) : nullptr)
 		{
-			return ViewportPtr->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override, OverridePostProcessingSettings, &BlendWeight);
+			return Viewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(Viewport, ContextNum, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Override, *OverridePostProcessingSettings, &BlendWeight);
 		}
 	}
 
 	return false;
 }
 
-void FDisplayClusterDeviceBase::EndFinalPostprocessSettings(struct FPostProcessSettings* FinalPostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex)
+void FDisplayClusterDeviceBase::EndFinalPostprocessSettings(FPostProcessSettings* FinalPostProcessingSettings, const enum EStereoscopicPass StereoPassType, const int32 StereoViewIndex)
 {
 	check(IsInGameThread());
 
 	// eSSP_FULL pass reserved for UE internal render
-	IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
-	if (StereoPassType != EStereoscopicPass::eSSP_FULL && ViewportManager && FinalPostProcessingSettings != nullptr)
+	if (StereoPassType != EStereoscopicPass::eSSP_FULL)
 	{
-		IDisplayClusterViewport* ViewportPtr = ViewportManager->FindViewport(StereoViewIndex);
-		if (ViewportPtr)
+		IDisplayClusterViewportManager* ViewportManager = GetViewportManager();
+		uint32 ContextNum = 0;
+		if (IDisplayClusterViewport* Viewport = ViewportManager ? ViewportManager->FindViewport(StereoViewIndex, &ContextNum) : nullptr)
 		{
-			ViewportPtr->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Final, FinalPostProcessingSettings);
-
-			FPostProcessSettings RequestedFinalPerViewportPPS;
-			// Get the final overall cluster + per-viewport PPS from nDisplay
-			if (ViewportPtr->GetViewport_CustomPostProcessSettings().DoPostProcess(IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::FinalPerViewport, &RequestedFinalPerViewportPPS))
-			{
-				FDisplayClusterConfigurationViewport_ColorGradingRenderingSettings InPPSnDisplay;
-				FDisplayClusterViewportConfigurationHelpers_Postprocess::CopyPPSStructConditional(&InPPSnDisplay, &RequestedFinalPerViewportPPS);
-
-				// Get the passed-in cumulative PPS from the game/viewport (includes all PPVs affecting this viewport)
-				FDisplayClusterConfigurationViewport_ColorGradingRenderingSettings InPPSCumulative;
-				FDisplayClusterViewportConfigurationHelpers_Postprocess::CopyPPSStruct(&InPPSCumulative, FinalPostProcessingSettings);
-
-				// Blend both together with our custom math instead of the default PPS blending
-				FDisplayClusterViewportConfigurationHelpers_Postprocess::BlendPostProcessSettings(*FinalPostProcessingSettings, InPPSCumulative, InPPSnDisplay);
-			}
+			Viewport->GetViewport_CustomPostProcessSettings().ApplyCustomPostProcess(Viewport, ContextNum, IDisplayClusterViewport_CustomPostProcessSettings::ERenderPass::Final, *FinalPostProcessingSettings);
 		}
 	}
 }

@@ -9,14 +9,15 @@
 
 #include "DisplayClusterConfigurationTypes_ICVFX.h"
 #include "DisplayClusterEditorPropertyReference.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
-#include "Render/Viewport/Containers/DisplayClusterViewport_CameraDepthOfField.h"
 
 #include "DisplayClusterICVFXCameraComponent.generated.h"
 
 struct FMinimalViewInfo;
 class SWidget;
 class UCameraComponent;
+class IDisplayClusterViewport;
 
 
 /**
@@ -46,11 +47,19 @@ public:
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-public:
-	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters();
+	/** The ICVFXCamera component uses its own PostProcess and applies it to the viewport.
+	*
+	* @param InViewport - a viewport that need to be configured with a PP settings.
+	* @param InPostProcessFlags - Define the PostProcess set that will be used
+	*/
+	virtual void ApplyICVFXCameraPostProcessesToViewport(IDisplayClusterViewport* InDestViewport, const EDisplayClusterViewportCameraPostProcessFlags InPostProcessingFlags);
 
-	/** Gets the depth of field parameters to store on the display cluster viewport */
-	FDisplayClusterViewport_CameraDepthOfField GetDepthOfFieldParameters();
+public:
+	UE_DEPRECATED(5.5, "This function has been deprecated. Please use 'FDisplayClusterViewportConfigurationHelpers_Postprocess::GetICVFXCameraMotionBlurParameters()'.")
+	FDisplayClusterViewport_CameraMotionBlur GetMotionBlurParameters()
+	{
+		return FDisplayClusterViewport_CameraMotionBlur();
+	}
 
 	/**
 	 * Return the actual source camera, e.g. the camera component of the referenced cine camera.
@@ -68,10 +77,7 @@ public:
 	// Return unique camera name
 	FString GetCameraUniqueId() const;
 
-	const FDisplayClusterConfigurationICVFX_CameraSettings& GetCameraSettingsICVFX() const
-	{
-		return CameraSettings;
-	}
+	const FDisplayClusterConfigurationICVFX_CameraSettings& GetCameraSettingsICVFX() const;
 
 	/** Obtaining view information for the actual camera, such as the camera component to which the cine-camera is referencing.
 	 * The data from the CameraSettings variable is used in postprocess settings (EnableCameraPP, OverrideMotionBlur, etc.).

@@ -29,10 +29,12 @@
 #include "Views/Details/Media/DisplayClusterConfiguratorICVFXMediaCustomization.h"
 #include "Views/Details/Media/DisplayClusterConfiguratorMediaFullFrameCustomization.h"
 #include "Views/Details/Media/DisplayClusterConfiguratorMediaTileCustomization.h"
+#include "Views/Details/Components/DisplayClusterCameraComponentDetailsCustomization.h"
 #include "Views/Details/Policies/DisplayClusterConfiguratorPolicyDetailCustomization.h"
 
 #include "Blueprints/DisplayClusterBlueprint.h"
 #include "Components/DisplayClusterScreenComponent.h"
+#include "Components/DisplayClusterCameraComponent.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "Misc/DisplayClusterObjectRef.h"
 #include "DisplayClusterRootActor.h"
@@ -206,7 +208,8 @@ void FDisplayClusterConfiguratorModule::RegisterCustomLayouts()
 	REGISTER_OBJECT_LAYOUT(UDisplayClusterConfigurationCluster, FDisplayClusterConfiguratorClusterDetailsCustomization);
 	REGISTER_OBJECT_LAYOUT(UDisplayClusterConfigurationClusterNode, FDisplayClusterConfiguratorBaseDetailCustomization);
 	REGISTER_OBJECT_LAYOUT(UDisplayClusterConfigurationViewport, FDisplayClusterConfiguratorViewportDetailsCustomization);
-	REGISTER_OBJECT_LAYOUT(UDisplayClusterScreenComponent, FDisplayClusterConfiguratorScreenDetailsCustomization);	
+	REGISTER_OBJECT_LAYOUT(UDisplayClusterScreenComponent, FDisplayClusterConfiguratorScreenDetailsCustomization);
+	REGISTER_OBJECT_LAYOUT(UDisplayClusterCameraComponent, FDisplayClusterCameraComponentDetailsCustomization);
 	REGISTER_OBJECT_LAYOUT(UDisplayClusterICVFXCameraComponent, FDisplayClusterICVFXCameraComponentDetailsCustomization);
 	
 	/**

@@ -5,9 +5,13 @@
 
 #include "Cluster/IPDisplayClusterClusterManager.h"
 
+#include "Render/Viewport/IDisplayClusterViewport.h"
+
 #include "Render/Viewport/Containers/DisplayClusterViewport_CameraMotionBlur.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_CustomFrustumRuntimeSettings.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_ICVFX.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Postprocess.h"
+#include "Render/Viewport/Misc/DisplayClusterViewportHelpers.h"
 
 #include "Components/DisplayClusterCameraComponent.h"
 #include "DisplayClusterRootActor.h"
@@ -74,8 +78,6 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		return;
 	}
 
-	const FDisplayClusterConfigurationICVFX_StageSettings& StageSettings = RootActor->GetStageSettings();
-
 	if (CameraSettings.ExternalCameraActor.IsValid())
 	{
 		// Get ViewInfo from external CineCamera
@@ -87,7 +89,7 @@ void UDisplayClusterICVFXCameraComponent::GetCameraView(float DeltaTime, FMinima
 		UCineCameraComponent::GetCameraView(DeltaTime, InOutViewInfo);
 	}
 
-	CameraSettings.SetupViewInfo(StageSettings, InOutViewInfo);
+	CameraSettings.SetupViewInfo(RootActor->GetStageSettings(), InOutViewInfo);
 }
 
 UCineCameraComponent* UDisplayClusterICVFXCameraComponent::GetActualCineCameraComponent()
@@ -158,6 +160,23 @@ void UDisplayClusterICVFXCameraComponent::TickComponent(float DeltaTime, ELevelT
 	}
 }
 
+const FDisplayClusterConfigurationICVFX_CameraSettings& UDisplayClusterICVFXCameraComponent::GetCameraSettingsICVFX() const
+{
+	return CameraSettings;
+}
+
+void UDisplayClusterICVFXCameraComponent::ApplyICVFXCameraPostProcessesToViewport(IDisplayClusterViewport* InViewport, const EDisplayClusterViewportCameraPostProcessFlags InPostProcessingFlags)
+{
+	if (InViewport)
+	{
+		using namespace UE::DisplayClusterViewportHelpers;
+		// Get the same component from DCRA that is used as the configuration source. Then this component can also be used as a configuration data source.
+		const UDisplayClusterICVFXCameraComponent& CfgICVFXCameraComponent = GetMatchingComponentFromRootActor(InViewport->GetConfiguration(), EDisplayClusterRootActorType::Configuration, *this);
+		
+		FDisplayClusterViewportConfigurationHelpers_Postprocess::ImplApplyICVFXCameraPostProcessesToViewport(InViewport->ToSharedRef().Get(), *this, CfgICVFXCameraComponent.GetCameraSettingsICVFX(), InPostProcessingFlags);
+	}
+}
+
 void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 {
 	const ADisplayClusterRootActor* RootActor = Cast<ADisplayClusterRootActor>(GetOwner());
@@ -222,52 +241,6 @@ void UDisplayClusterICVFXCameraComponent::UpdateOverscanEstimatedFrameSize()
 	const int32 BasePixels = CameraSettings.CustomFrustum.InnerFrustumResolution.X * CameraSettings.CustomFrustum.InnerFrustumResolution.Y;
 
 	CameraSettings.CustomFrustum.OverscanPixelsIncrease = ((float)(EstimatedPixel) / (float)(BasePixels));
-}
-
-FDisplayClusterViewport_CameraMotionBlur UDisplayClusterICVFXCameraComponent::GetMotionBlurParameters()
-{
-	FDisplayClusterViewport_CameraMotionBlur OutParameters;
-	OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::Undefined;
-
-	switch (CameraSettings.CameraMotionBlur.MotionBlurMode)
-	{
-	case EDisplayClusterConfigurationCameraMotionBlurMode::Off:
-		OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::Off;
-		break;
-
-	case EDisplayClusterConfigurationCameraMotionBlurMode::On:
-		OutParameters.Mode = EDisplayClusterViewport_CameraMotionBlur::On;
-		break;
-
-	case EDisplayClusterConfigurationCameraMotionBlurMode::Override:
-		ADisplayClusterRootActor* RootActor = static_cast<ADisplayClusterRootActor*>(GetOwner());
-		if (RootActor)
-		{
-			UDisplayClusterCameraComponent* OuterCamera = RootActor->GetDefaultCamera();
-			if (OuterCamera)
-			{
-				OutParameters.CameraLocation   = OuterCamera->GetComponentLocation();
-				OutParameters.CameraRotation   = OuterCamera->GetComponentRotation();
-				OutParameters.TranslationScale = CameraSettings.CameraMotionBlur.TranslationScale;
-				OutParameters.Mode             = EDisplayClusterViewport_CameraMotionBlur::Override;
-			}
-		}
-		break;
-	}
-
-	return OutParameters;
-}
-
-FDisplayClusterViewport_CameraDepthOfField UDisplayClusterICVFXCameraComponent::GetDepthOfFieldParameters()
-{
-	FDisplayClusterViewport_CameraDepthOfField OutParameters;
-
-	OutParameters.bEnableDepthOfFieldCompensation = CameraSettings.CameraDepthOfField.bEnableDepthOfFieldCompensation;
-	OutParameters.DistanceToWall = CameraSettings.CameraDepthOfField.DistanceToWall;
-	OutParameters.DistanceToWallOffset = CameraSettings.CameraDepthOfField.DistanceToWallOffset;
-	OutParameters.CompensationLUT = CameraSettings.CameraDepthOfField.DynamicCompensationLUT ? ToRawPtr(CameraSettings.CameraDepthOfField.DynamicCompensationLUT) : CameraSettings.CameraDepthOfField.CompensationLUT.Get();
-
-	return OutParameters;
 }
 
 void UDisplayClusterICVFXCameraComponent::OnRegister()

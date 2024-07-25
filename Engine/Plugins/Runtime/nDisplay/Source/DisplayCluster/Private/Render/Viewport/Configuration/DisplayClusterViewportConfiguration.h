@@ -56,6 +56,7 @@ public:
 	virtual void ReleaseConfiguration() override;
 
 	virtual UWorld* GetCurrentWorld() const override;
+	virtual float GetRootActorWorldDeltaSeconds(const EDisplayClusterRootActorType InRootActorType = EDisplayClusterRootActorType::Scene) const override;
 	virtual ADisplayClusterRootActor* GetRootActor(const EDisplayClusterRootActorType InRootActorType) const override;
 	virtual IDisplayClusterViewportManager* GetViewportManager() const override;
 	virtual const UDisplayClusterConfigurationData* GetConfigurationData() const override;

@@ -217,6 +217,16 @@ UWorld* FDisplayClusterViewportConfiguration::GetCurrentWorld() const
 	return CurrentWorldRef.Get();
 }
 
+float FDisplayClusterViewportConfiguration::GetRootActorWorldDeltaSeconds(const EDisplayClusterRootActorType InRootActorType) const
+{
+	if (ADisplayClusterRootActor* RootActor = GetRootActor(InRootActorType))
+	{
+		return RootActor->GetWorldDeltaSeconds();
+	}
+
+	return 0.0f;
+}
+
 const UDisplayClusterConfigurationData* FDisplayClusterViewportConfiguration::GetConfigurationData() const
 {
 	ADisplayClusterRootActor* ConfigurationRootActor = GetRootActor(EDisplayClusterRootActorType::Configuration);

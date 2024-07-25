@@ -156,13 +156,12 @@ void UDisplayClusterInFrustumFitCameraComponent::GetDesiredView(IDisplayClusterV
 	const UDisplayClusterInFrustumFitCameraComponent& ConfigurationCameraComponent = GetConfigurationInFrustumFitCameraComponent(InViewportConfiguration);
 	if (ConfigurationCameraComponent.IsEnabled())
 	{
-		if (ADisplayClusterRootActor* SceneRootActor = InViewportConfiguration.GetRootActor(EDisplayClusterRootActorType::Scene))
+		UCameraComponent* CameraComponent = ConfigurationCameraComponent.GetExternalCameraComponent();
+		const float DeltaSeconds = InViewportConfiguration.GetRootActorWorldDeltaSeconds(EDisplayClusterRootActorType::Scene);
+		if (IDisplayClusterViewport::GetCameraComponentView(CameraComponent, DeltaSeconds, ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
 		{
-			if (IDisplayClusterViewport::GetCameraComponentView(ConfigurationCameraComponent.GetExternalCameraComponent(), SceneRootActor->GetWorldDeltaSeconds(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo, OutCustomNearClippingPlane))
-			{
-				// 1. Use external camera for rendering
-				return;
-			}
+			// 1. Use external camera for rendering
+			return;
 		}
 
 		if (IDisplayClusterViewport::GetPlayerCameraView(InViewportConfiguration.GetCurrentWorld(), ConfigurationCameraComponent.bUseCameraPostprocess, InOutViewInfo))
