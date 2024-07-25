@@ -45,6 +45,7 @@ public:
 protected:
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;
 	virtual TSharedPtr<SWidget> MakeViewportToolbar() override;
+	virtual TSharedPtr<SWidget> BuildViewportToolbar() override;
 private:
 	/** The scene for this viewport. */
 	TSharedPtr<FAdvancedPreviewScene> PreviewScene;
