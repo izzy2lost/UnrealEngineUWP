@@ -1004,6 +1004,9 @@ public:
 
 	static NAVIGATIONSYSTEM_API void CalcPolyRefBits(ARecastNavMesh* NavMeshOwner, int32& MaxTileBits, int32& MaxPolyBits);
 
+	/** Returns true if bGenerateNavLinks is enabled and bAllowLinkGeneration is true. */ 
+	bool IsGeneratingLinks() const;
+
 protected:
 	NAVIGATIONSYSTEM_API virtual void RestrictBuildingToActiveTiles(bool InRestrictBuildingToActiveTiles);
 	
