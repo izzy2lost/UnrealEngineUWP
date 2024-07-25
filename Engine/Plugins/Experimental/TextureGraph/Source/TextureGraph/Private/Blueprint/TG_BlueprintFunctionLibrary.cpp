@@ -85,11 +85,26 @@ T_Expr_Value GetParameterValue_Generic(UObject* WorldContextObject, UTextureGrap
 void UTG_BlueprintFunctionLibrary::SetTextureParameterValue(UObject* WorldContextObject, UTextureGraph* InTextureGraph, FName ParameterName, UTexture* ParameterValue)
 {
 	UTG_Expression_Texture* ExpressionPtr = GetParamExpression<UTG_Expression_Texture>(WorldContextObject, InTextureGraph, ParameterName);
-	if (ExpressionPtr)
+	UTextureRenderTarget2D* RenderTarget2D = Cast<UTextureRenderTarget2D>(ParameterValue);
+
+	if (ExpressionPtr && ExpressionPtr->CanHandleAsset(ParameterValue))
 	{
-		UTexture2D* DupTexture = (UTexture2D*)StaticDuplicateObject(ParameterValue, GetTransientPackage(), NAME_None, ~RF_Standalone, UTexture2D::StaticClass());
-		ExpressionPtr->SetAsset(DupTexture);
+		UTexture2D* Texture2D = Cast<UTexture2D>(ParameterValue);
+		if (Texture2D)
+		{
+			UTexture2D* DupTexture = (UTexture2D*)StaticDuplicateObject(ParameterValue, GetTransientPackage(), NAME_None, RF_Transient, UTexture2D::StaticClass());
+			ExpressionPtr->SetAsset(DupTexture);
+		}
+		
 	}
+#if WITH_EDITOR
+	else if (ExpressionPtr && RenderTarget2D)
+	{
+		UTexture2D* Texture = NewObject<UTexture2D>(GetTransientPackage(), NAME_None, RF_Transient);
+		UKismetRenderingLibrary::ConvertRenderTargetToTexture2DEditorOnly(WorldContextObject, RenderTarget2D, Texture);
+		ExpressionPtr->SetAsset(Texture);
+	}
+#endif
 	else
 	{
 		AddParamWarning(ParameterName, InTextureGraph, "SetTextureParameterValue");
