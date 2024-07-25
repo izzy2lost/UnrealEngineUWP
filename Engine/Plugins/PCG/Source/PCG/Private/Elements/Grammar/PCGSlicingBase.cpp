@@ -7,6 +7,7 @@
 #include "Data/PCGPointData.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Grammar/PCGGrammarParser.h"
+#include "Helpers/PCGPropertyHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
@@ -15,137 +16,133 @@
 
 namespace PCGSlicingBase
 {
-	static const FText AccessorFailGetText = LOCTEXT("AccessorFailGet", "Couldn't retrieve attribute {0} value, could it be the wrong type? Expected type: {1}, Attribute Type: {2}.");
-	static const FText AccessorGrammarFailCreate = LOCTEXT("GrammarAccessor", "Attribute {0} was not found for the grammar.");
 	static const FText DuplicatedSymbolText = LOCTEXT("SymbolDuplicate", "Symbol {0} is duplicated, ignored.");
 }
 
-FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const UPCGSlicingBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const
+void UPCGSlicingBaseSettings::PostLoad()
 {
-	FPCGModulesInfoMap ModulesInfo;
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (bGrammarAsAttribute_DEPRECATED != false)
+	{
+		GrammarSelection.bGrammarAsAttribute = bGrammarAsAttribute_DEPRECATED;
+		bGrammarAsAttribute_DEPRECATED = false;
+	}
+
+	if (!Grammar_DEPRECATED.IsEmpty())
+	{
+		GrammarSelection.GrammarString = Grammar_DEPRECATED;
+		Grammar_DEPRECATED.Empty();
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITOR
+}
+
+FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const TArray<FPCGSlicingSubmodule>& SubmodulesInfo, const UPCGParamData*& OutModuleInfoParamData) const
+{
+	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
 	OutModuleInfoParamData = nullptr;
 
-	if (InSettings->bModuleInfoAsInput)
+	ModulesInfo.Reserve(SubmodulesInfo.Num());
+	for (const FPCGSlicingSubmodule& SlicingModule : SubmodulesInfo)
 	{
-		const TArray<FPCGTaggedData> ModulesInfoInputs = InContext->InputData.GetInputsByPin(PCGSlicingBaseConstants::ModulesInfoPinLabel);
-
-		if (ModulesInfoInputs.IsEmpty())
+		if (ModulesInfo.Contains(SlicingModule.Symbol))
 		{
-			PCGLog::LogWarningOnGraph(LOCTEXT("NoModuleInfo", "No data was found on the module info pin."), InContext);
-			return ModulesInfo;
+			PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(SlicingModule.Symbol)), InContext);
+			continue;
 		}
 
-		const UPCGParamData* ParamData = Cast<UPCGParamData>(ModulesInfoInputs[0].Data);
-		if (!ParamData)
-		{
-			PCGLog::LogWarningOnGraph(LOCTEXT("ModuleInfoWrongType", "Module info input is not of type attribute set."), InContext);
-			return ModulesInfo;
-		}
-
-		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(InSettings->ModulesInfoAttributeNames.SymbolAttributeName));
-
-		auto GetRange = [InContext, &Keys, ParamData]<typename T>(TArray<T>& OutValues, const FName AttributeName, const bool bProvided = true)
-		{
-			if (!bProvided)
-			{
-				return true;
-			}
-
-			const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(ParamData, FPCGAttributePropertySelector::CreateAttributeSelector(AttributeName));
-			if (!Accessor || !Keys)
-			{
-				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("ModuleInfoMissingAttribute", "Module info input is missing attribute {0}."), FText::FromName(AttributeName)), InContext);
-				return false;
-			}
-
-			OutValues.SetNum(Keys->GetNum());
-
-			if (!Accessor->GetRange<T>(OutValues, 0, *Keys, EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
-			{
-				PCGLog::LogErrorOnGraph(FText::Format(PCGSlicingBase::AccessorFailGetText, FText::FromName(AttributeName), PCG::Private::GetTypeNameText<T>(), PCG::Private::GetTypeNameText(Accessor->GetUnderlyingType())), InContext);
-				return false;
-			}
-
-			return true;
-		};
-
-		TArray<FName> Symbols;
-		TArray<double> Sizes;
-		TArray<bool> Scalables;
-		TArray<FVector4> DebugColors;
-
-		if (!GetRange(Symbols, InSettings->ModulesInfoAttributeNames.SymbolAttributeName)
-			|| !GetRange(Sizes, InSettings->ModulesInfoAttributeNames.SizeAttributeName)
-			|| !GetRange(Scalables, InSettings->ModulesInfoAttributeNames.ScalableAttributeName, InSettings->ModulesInfoAttributeNames.bProvideScalable)
-			|| !GetRange(DebugColors, InSettings->ModulesInfoAttributeNames.DebugColorAttributeName, InSettings->ModulesInfoAttributeNames.bProvideDebugColor))
-		{
-			return ModulesInfo;
-		}
-
-		check(Keys);
-		ModulesInfo.Reserve(Keys->GetNum());
-
-		for (int32 i = 0; i < Keys->GetNum(); ++i)
-		{
-			if (ModulesInfo.Contains(Symbols[i]))
-			{
-				PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(Symbols[i])), InContext);
-				continue;
-			}
-
-			FPCGSlicingModule& Module = ModulesInfo.Emplace(Symbols[i]);
-			Module.Symbol = Symbols[i];
-			Module.Size = Sizes[i];
-
-			Module.bScalable = InSettings->ModulesInfoAttributeNames.bProvideScalable ? Scalables[i] : false;
-			Module.DebugColor = InSettings->ModulesInfoAttributeNames.bProvideDebugColor ? DebugColors[i] : FVector4::One();
-		}
-
-		OutModuleInfoParamData = ParamData;
-	}
-	else
-	{
-		ModulesInfo.Reserve(InSettings->ModulesInfo.Num());
-		for (const FPCGSlicingModule& SlicingModule : InSettings->ModulesInfo)
-		{
-			if (ModulesInfo.Contains(SlicingModule.Symbol))
-			{
-				PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(SlicingModule.Symbol)), InContext);
-				continue;
-			}
-
-			ModulesInfo.Emplace(SlicingModule.Symbol, SlicingModule);
-		}
+		ModulesInfo.Emplace(SlicingModule.Symbol, SlicingModule);
 	}
 
 	return ModulesInfo;
 }
 
-TArray<FPCGTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizeGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+FPCGSlicingBaseElement::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const FPCGSlicingModuleAttributeNames& InSlicingModuleAttributeNames, const UPCGParamData*& OutModuleInfoParamData) const
 {
-	FString Grammar = InSettings->Grammar;
+	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+	OutModuleInfoParamData = nullptr;
 
-	if (InSettings->bGrammarAsAttribute)
+	const TArray<FPCGTaggedData> ModulesInfoInputs = InContext->InputData.GetInputsByPin(PCGSlicingBaseConstants::ModulesInfoPinLabel);
+
+	if (ModulesInfoInputs.IsEmpty())
 	{
-		const FPCGAttributePropertyInputSelector Selector = InSettings->GrammarAttribute.CopyAndFixLast(InputData);
+		PCGLog::LogWarningOnGraph(LOCTEXT("NoModuleInfo", "No data was found on the module info pin."), InContext);
+		return ModulesInfo;
+	}
+
+	const UPCGParamData* ParamData = Cast<UPCGParamData>(ModulesInfoInputs[0].Data);
+	if (!ParamData)
+	{
+		PCGLog::LogWarningOnGraph(LOCTEXT("ModuleInfoWrongType", "Module info input is not of type attribute set."), InContext);
+		return ModulesInfo;
+	}
+
+	TMap<FName, TTuple<FName, bool>> PropertyNameMapping;
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, Symbol), {InSlicingModuleAttributeNames.SymbolAttributeName, /*bCanBeDefaulted=*/false});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, Size), {InSlicingModuleAttributeNames.SizeAttributeName, /*bCanBeDefaulted=*/false});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, bScalable), {InSlicingModuleAttributeNames.ScalableAttributeName, /*bCanBeDefaulted=*/!InSlicingModuleAttributeNames.bProvideScalable});
+	PropertyNameMapping.Emplace(GET_MEMBER_NAME_CHECKED(FPCGSlicingSubmodule, DebugColor), {InSlicingModuleAttributeNames.DebugColorAttributeName, /*bCanBeDefaulted=*/!InSlicingModuleAttributeNames.bProvideDebugColor});
+
+	const TArray<FPCGSlicingSubmodule> AllModules = PCGPropertyHelpers::ExtractAttributeSetAsArrayOfStructs<FPCGSlicingSubmodule>(ParamData, &PropertyNameMapping, InContext);
+
+	ModulesInfo.Reserve(AllModules.Num());
+
+	for (int32 i = 0; i < AllModules.Num(); ++i)
+	{
+		if (ModulesInfo.Contains(AllModules[i].Symbol))
+		{
+			PCGLog::LogWarningOnGraph(FText::Format(PCGSlicingBase::DuplicatedSymbolText, FText::FromName(AllModules[i].Symbol)), InContext);
+			continue;
+		}
+
+		ModulesInfo.Emplace(AllModules[i].Symbol, std::move(AllModules[i]));
+	}
+
+	OutModuleInfoParamData = ParamData;
+
+	return ModulesInfo;
+}
+
+PCGSlicingBase::FPCGModulesInfoMap FPCGSlicingBaseElement::GetModulesInfoMap(FPCGContext* InContext, const UPCGSlicingBaseSettings* InSettings, const UPCGParamData*& OutModuleInfoParamData) const
+{
+	if (InSettings->bModuleInfoAsInput)
+	{
+		return GetModulesInfoMap(InContext, InSettings->ModulesInfoAttributeNames, OutModuleInfoParamData);
+	}
+	else
+	{
+		return GetModulesInfoMap(InContext, InSettings->ModulesInfo, OutModuleInfoParamData);
+	}
+}
+
+PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGContext* InContext, const UPCGData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+{
+	FString Grammar = InSettings->GrammarSelection.GrammarString;
+
+	if (InSettings->GrammarSelection.bGrammarAsAttribute)
+	{
+		const FPCGAttributePropertyInputSelector Selector = InSettings->GrammarSelection.GrammarAttribute.CopyAndFixLast(InputData);
 		const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Selector);
 		if (!Accessor)
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(PCGSlicingBase::AccessorGrammarFailCreate, Selector.GetDisplayText()), InContext);
+			PCGLog::Accessor::LogFailToCreate(Selector, InContext);
 			return {};
 		}
 
 		if (!Accessor->Get(Grammar, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(PCGSlicingBase::AccessorFailGetText, Selector.GetDisplayText(), PCG::Private::GetTypeNameText<FString>(), PCG::Private::GetTypeNameText(Accessor->GetUnderlyingType())), InContext);
+			PCGLog::Accessor::LogFailToGet<FString>(Selector, Accessor.Get(), InContext);
 			return {};
 		}
 	}
 
-	return GetTokenizeGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
+	return PCGSlicingBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
 }
 
-TArray<FPCGTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizeGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+PCGGrammar::FTokenizedGrammar PCGSlicingBase::GetTokenizedGrammar(FPCGContext* InContext, const FString& InGrammar, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize)
 {
 	const FPCGGrammarResult Result = PCGGrammar::Parse(InGrammar);
 
@@ -172,17 +169,17 @@ TArray<FPCGTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizeGrammar(FPCGCont
 		return {};
 	}
 
-	TArray<FPCGTokenizedGrammar> TokenizeGrammar;
+	PCGGrammar::FTokenizedGrammar TokenizedGrammar;
 	OutMinSize = 0.0;
 
 	for (const PCGGrammar::FModuleDescriptor& ModuleDescriptor : Result.Modules)
 	{
-		FPCGTokenizedGrammar& CurrentModule = TokenizeGrammar.Emplace_GetRef();
+		PCGGrammar::FTokenizedModule& CurrentModule = TokenizedGrammar.Emplace_GetRef();
 		CurrentModule.NumRepeat = ModuleDescriptor.Repetitions;
 
 		for (const PCGGrammar::FModuleDescriptor::FSubmodule& SubmoduleDescriptor : ModuleDescriptor.Submodules)
 		{
-			if (const FPCGSlicingModule* It = InModulesInfo.Find(SubmoduleDescriptor.ID))
+			if (const FPCGSlicingSubmodule* It = InModulesInfo.Find(SubmoduleDescriptor.ID))
 			{
 				CurrentModule.Symbols.Add(SubmoduleDescriptor.ID);
 				CurrentModule.Size += It->Size;
@@ -191,33 +188,34 @@ TArray<FPCGTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizeGrammar(FPCGCont
 				CurrentModule.SymbolSizes.Add(It->Size);
 			}
 		}
-		if (CurrentModule.NumRepeat > 0)
-		{
-			OutMinSize += CurrentModule.Size * CurrentModule.NumRepeat;
-		}
 
 		if (CurrentModule.Symbols.IsEmpty())
 		{
 			// If we have no symbol, we skip.
 			continue;
 		}
+
+		if (CurrentModule.NumRepeat > 0)
+		{
+			OutMinSize += CurrentModule.Size * CurrentModule.NumRepeat;
+		}
 	}
 
-	return TokenizeGrammar;
+	return TokenizedGrammar;
 }
 
-TMap<FString, TArray<FPCGTokenizedGrammar>> FPCGSlicingBaseElement::GetTokenizeGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
+TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenizedGrammarForPoints(FPCGContext* InContext, const UPCGPointData* InputData, const UPCGSlicingBaseSettings* InSettings, const FPCGModulesInfoMap& InModulesInfo, double& OutMinSize) const
 {
-	TMap<FString, TArray<FPCGTokenizedGrammar>> Result;
+	TMap<FString, PCGGrammar::FTokenizedGrammar> Result;
 
-	if (InSettings->bGrammarAsAttribute)
+	if (InSettings->GrammarSelection.bGrammarAsAttribute)
 	{
-		const FPCGAttributePropertyInputSelector Selector = InSettings->GrammarAttribute.CopyAndFixLast(InputData);
+		const FPCGAttributePropertyInputSelector Selector = InSettings->GrammarSelection.GrammarAttribute.CopyAndFixLast(InputData);
 		const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Selector);
 		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputData, Selector);
 		if (!Accessor || !Keys)
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(PCGSlicingBase::AccessorGrammarFailCreate, Selector.GetDisplayText()), InContext);
+			PCGLog::Accessor::LogFailToCreate(Selector, InContext);
 			return Result;
 		}
 
@@ -231,18 +229,18 @@ TMap<FString, TArray<FPCGTokenizedGrammar>> FPCGSlicingBaseElement::GetTokenizeG
 
 		if (!bSuccess)
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(PCGSlicingBase::AccessorFailGetText, Selector.GetDisplayText(), PCG::Private::GetTypeNameText<FString>(), PCG::Private::GetTypeNameText(Accessor->GetUnderlyingType())), InContext);
+			PCGLog::Accessor::LogFailToGet<FString>(Selector, Accessor.Get(), InContext);
 			return Result;
 		}
 	}
 	else
 	{
-		Result.Emplace(InSettings->Grammar);
+		Result.Emplace(InSettings->GrammarSelection.GrammarString);
 	}
 
 	for (auto& [Grammar, TokenizeGrammar] : Result)
 	{
-		TokenizeGrammar = GetTokenizeGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
+		TokenizeGrammar = PCGSlicingBase::GetTokenizedGrammar(InContext, Grammar, InModulesInfo, OutMinSize);
 	}
 
 	return Result;
@@ -254,7 +252,7 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 
 	const UPCGMetadata* InputMetadata = InModuleInfoParamData->Metadata;
 
-	// We prepare everything to process all the output data afterwrads.
+	// We prepare everything to process all the output data afterward.
 	// Build the Symbol -> EntryKey mapping
 	// Since we don't know if it is a Name or a String, we need to get both.
 	TMap<FName, PCGMetadataEntryKey> SymbolToEntryKeyMapping;

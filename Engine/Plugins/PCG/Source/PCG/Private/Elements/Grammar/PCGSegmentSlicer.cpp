@@ -25,8 +25,8 @@ public:
 		FPCGMetadataAttribute<bool>* IsFinalPointAttribute = nullptr;
 		FPCGMetadataAttribute<int32>* ExtremityNeighborIndexAttribute = nullptr;
 
-		FPCGSlicingBaseElement::FPCGModulesInfoMap ModulesInfo;
-		TMap<FString, TArray<FPCGTokenizedGrammar>> CachedGrammars;
+		PCGSlicingBase::FPCGModulesInfoMap ModulesInfo;
+		TMap<FString, PCGGrammar::FTokenizedGrammar> CachedModules;
 		TArray<int32> CornerIndexes;
 
 		FVector SlicingDirection;
@@ -39,17 +39,17 @@ public:
 		UPCGMetadata* OutputMetadata = nullptr;
 	};
 
-	static void Process(const FPCGSegmentSlicerElement* InElement, FParameters& InOutParameters, const FString& InGrammar, const bool bFlipAxis, int32 Index)
+	static void Process(FParameters& InOutParameters, const FString& InGrammar, const bool bFlipAxis, int32 Index)
 	{
-		if (!InOutParameters.CachedGrammars.Contains(InGrammar))
+		if (!InOutParameters.CachedModules.Contains(InGrammar))
 		{
 			double MinSize;
-			InOutParameters.CachedGrammars.Emplace(InGrammar, InElement->GetTokenizeGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
+			InOutParameters.CachedModules.Emplace(InGrammar, PCGSlicingBase::GetTokenizedGrammar(InOutParameters.Context, InGrammar, InOutParameters.ModulesInfo, MinSize));
 		}
 
-		const TArray<FPCGTokenizedGrammar>& CurrentTokenizeGrammar = InOutParameters.CachedGrammars[InGrammar];
+		const PCGGrammar::FTokenizedGrammar& CurrentTokenizedGrammar = InOutParameters.CachedModules[InGrammar];
 
-		if (CurrentTokenizeGrammar.IsEmpty())
+		if (CurrentTokenizedGrammar.IsEmpty())
 		{
 			return;
 		}
@@ -61,24 +61,24 @@ public:
 		const int32 FirstModuleIndex = InOutParameters.OutPoints->Num();
 
 		FBox Segment = Point.GetLocalBounds();
-		FVector FullExtents = Point.GetScaledExtents() * 2.0;
+		FVector PointScaledSize = Point.GetScaledLocalSize();
 		if (bFlipAxis)
 		{
 			// Swap coordinates on the slicing direction
 			const FVector PreviousMin = Segment.Min;
 			Segment.Min = Segment.Min * InOutParameters.PerpendicularSlicingDirection + Segment.Max * InOutParameters.SlicingDirection;
 			Segment.Max = Segment.Max * InOutParameters.PerpendicularSlicingDirection + PreviousMin * InOutParameters.SlicingDirection;
-			FullExtents *= (InOutParameters.PerpendicularSlicingDirection - InOutParameters.SlicingDirection);
+			PointScaledSize *= (InOutParameters.PerpendicularSlicingDirection - InOutParameters.SlicingDirection);
 		}
 
 		const FVector Direction = TransformNoTranslation.TransformVectorNoScale(InOutParameters.SlicingDirection).GetSafeNormal();
-		const FVector OtherDirection = TransformNoTranslation.TransformVectorNoScale(FullExtents * InOutParameters.PerpendicularSlicingDirection) * 0.5;
-		const FVector HalfExtents2D = FullExtents * InOutParameters.PerpendicularSlicingDirection * 0.5;
-		const double Size = FullExtents.Dot(InOutParameters.SlicingDirection);
+		const FVector OtherDirection = TransformNoTranslation.TransformVectorNoScale(PointScaledSize * InOutParameters.PerpendicularSlicingDirection) * 0.5;
+		const FVector HalfExtents2D = PointScaledSize * InOutParameters.PerpendicularSlicingDirection * 0.5;
+		const double Size = PointScaledSize.Dot(InOutParameters.SlicingDirection);
 
-		TArray<PCGSlicingBase::PCGSubDivModuleInstance<FPCGTokenizedGrammar>> ModulesInstances;
+		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> ModulesInstances;
 		double RemainingSubdivide;
-		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(CurrentTokenizeGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context);
+		const bool bSubdivideSuccess = PCGSlicingBase::Subdivide(CurrentTokenizedGrammar, Size, ModulesInstances, RemainingSubdivide, InOutParameters.Context);
 
 		if (!bSubdivideSuccess)
 		{
@@ -98,18 +98,18 @@ public:
 
 		for (int32 ModuleInstanceIndex = 0; ModuleInstanceIndex < ModulesInstances.Num(); ModuleInstanceIndex++)
 		{
-			const PCGSlicingBase::PCGSubDivModuleInstance<FPCGTokenizedGrammar>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
+			const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& ModuleInstance = ModulesInstances[ModuleInstanceIndex];
 			for (int32 j = 0; j < ModuleInstance.NumRepeat; ++j)
 			{
 				for (int32 SymbolIndex = 0; SymbolIndex < ModuleInstance.Module->Symbols.Num(); ++SymbolIndex)
 				{
 					const FName Symbol = ModuleInstance.Module->Symbols[SymbolIndex];
 					const FVector Scale = FVector::OneVector + (InOutParameters.SlicingDirection * ModuleInstance.ExtraScales[SymbolIndex]);
-					const FPCGSlicingModule& SlicingModule = InOutParameters.ModulesInfo[Symbol];
+					const FPCGSlicingSubmodule& SlicingSubmodule = InOutParameters.ModulesInfo[Symbol];
 
 					const bool bIsFirstModule = (ModuleInstanceIndex == 0) && (j == 0) && (SymbolIndex == 0);
 					const bool bIsFinalModule = (ModuleInstanceIndex == ModulesInstances.Num() - 1) && (j == ModuleInstance.NumRepeat - 1) && (SymbolIndex == ModuleInstance.Module->Symbols.Num() - 1);
-					const double HalfDisplacement = SlicingModule.Size * 0.5;
+					const double HalfDisplacement = SlicingSubmodule.Size * 0.5;
 					const double HalfScaledDisplacement = Scale.Dot(InOutParameters.SlicingDirection) * HalfDisplacement;
 
 					const FVector LocalBoundsExtents = InOutParameters.SlicingDirection * HalfDisplacement + HalfExtents2D;
@@ -128,7 +128,7 @@ public:
 
 					if (InOutParameters.DebugColorAttribute)
 					{
-						InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingModule.DebugColor, 1.0));
+						InOutParameters.DebugColorAttribute->SetValue(OutPoint.MetadataEntry, FVector4(SlicingSubmodule.DebugColor, 1.0));
 					}
 
 					if (InOutParameters.ModuleIndexAttribute)
@@ -244,14 +244,14 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			continue;
 		}
-		
+
 		TUniquePtr<const IPCGAttributeAccessor> GrammarAccessor;
 		TUniquePtr<const IPCGAttributeAccessor> FlipAxisAccessor;
 		TUniquePtr<const IPCGAttributeAccessorKeys> Keys;
 
-		if (Settings->bGrammarAsAttribute)
+		if (Settings->GrammarSelection.bGrammarAsAttribute)
 		{
-			const FPCGAttributePropertyInputSelector Selector = Settings->GrammarAttribute.CopyAndFixLast(InputPointData);
+			const FPCGAttributePropertyInputSelector Selector = Settings->GrammarSelection.GrammarAttribute.CopyAndFixLast(InputPointData);
 			GrammarAccessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputPointData, Selector);
 			Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputPointData, Selector);
 			if (!GrammarAccessor || !Keys)
@@ -312,29 +312,29 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		}
 
 
-		if (Settings->bGrammarAsAttribute && Settings->bFlipAxisAsAttribute)
+		if (Settings->GrammarSelection.bGrammarAsAttribute && Settings->bFlipAxisAsAttribute)
 		{
-			auto Process = [this, &Parameters](const FString& InGrammar, const bool bFlipAxis, int32 Index) -> void
+			auto Process = [&Parameters](const FString& InGrammar, const bool bFlipAxis, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(this, Parameters, InGrammar, bFlipAxis, Index);
+				PCGSegmentSlicerHelpers::Process(Parameters, InGrammar, bFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnMultiAccessors<FString, bool>(*Keys, { GrammarAccessor.Get(), FlipAxisAccessor.Get() }, Process);
 		}
-		else if (Settings->bGrammarAsAttribute)
+		else if (Settings->GrammarSelection.bGrammarAsAttribute)
 		{
-			auto Process = [this, &Parameters, bShouldFlipAxis = Settings->bShouldFlipAxis](const FString& InGrammar, int32 Index) -> void
+			auto Process = [&Parameters, bShouldFlipAxis = Settings->bShouldFlipAxis](const FString& InGrammar, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(this, Parameters, InGrammar, bShouldFlipAxis, Index);
+				PCGSegmentSlicerHelpers::Process(Parameters, InGrammar, bShouldFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnAccessor<FString>(*Keys, *GrammarAccessor, Process);
 		}
 		else if (Settings->bFlipAxisAsAttribute)
 		{
-			auto Process = [this, &Parameters, Grammar = Settings->Grammar](const bool bFlipAxis, int32 Index) -> void
+			auto Process = [&Parameters, Grammar = Settings->GrammarSelection.GrammarString](const bool bFlipAxis, int32 Index) -> void
 			{
-				PCGSegmentSlicerHelpers::Process(this, Parameters, Grammar, bFlipAxis, Index);
+				PCGSegmentSlicerHelpers::Process(Parameters, Grammar, bFlipAxis, Index);
 			};
 
 			PCGMetadataElementCommon::ApplyOnAccessor<bool>(*Keys, *FlipAxisAccessor, Process);
@@ -343,7 +343,7 @@ bool FPCGSegmentSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			for (int32 SegmentIndex = 0; SegmentIndex < Parameters.InPoints->Num(); ++SegmentIndex)
 			{
-				PCGSegmentSlicerHelpers::Process(this, Parameters, Settings->Grammar, Settings->bShouldFlipAxis, SegmentIndex);
+				PCGSegmentSlicerHelpers::Process(Parameters, Settings->GrammarSelection.GrammarString, Settings->bShouldFlipAxis, SegmentIndex);
 			}
 		}
 

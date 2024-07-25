@@ -66,7 +66,7 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 	TArray<FPCGTaggedData>& Outputs = InContext->OutputData.TaggedData;
 
 	const UPCGParamData* ModuleInfoParamData = nullptr;
-	FPCGModulesInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
+	PCGSlicingBase::FPCGModulesInfoMap ModulesInfo = GetModulesInfoMap(InContext, Settings, ModuleInfoParamData);
 
 	const bool bMatchAndSetAttributes = Settings->bForwardAttributesFromModulesInfo && ModuleInfoParamData;
 
@@ -93,13 +93,13 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputSplineData, Selector);
 			if (!Accessor)
 			{
-				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("AccessorFailCreate", "Attribute {0} was not found in the input data."), Selector.GetDisplayText()), InContext);
+				PCGLog::Accessor::LogFailToCreate(Selector, InContext);
 				return false;
 			}
 
 			if (!Accessor->Get(OutValue, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 			{
-				PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("AccessorFailGet", "Couldn't retrieve attribute {0} value, could it be the wrong type? Expected type: {1}, Attribute Type: {2}."), Selector.GetDisplayText(), PCG::Private::GetTypeNameText<T>(), PCG::Private::GetTypeNameText(Accessor->GetUnderlyingType())), InContext);
+				PCGLog::Accessor::LogFailToGet<T>(Selector, Accessor.Get(), InContext);
 				return false;
 			}
 
@@ -120,16 +120,16 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		const FVector ExtrudeDirection = ExtrudeVector / ExtrudeLength;
 
 		double MinSize = 0.0;
-		TArray<FPCGTokenizedGrammar> TokenizeGrammar = GetTokenizeGrammar(InContext, InputSplineData, Settings, ModulesInfo, MinSize);
+		PCGGrammar::FTokenizedGrammar TokenizedGrammar = GetTokenizedGrammar(InContext, InputSplineData, Settings, ModulesInfo, MinSize);
 
-		if (TokenizeGrammar.IsEmpty())
+		if (TokenizedGrammar.IsEmpty())
 		{
 			continue;
 		}
 
-		TArray<PCGSlicingBase::PCGSubDivModuleInstance<FPCGTokenizedGrammar>> Instances;
+		TArray<PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>> Instances;
 		double RemainingLength = 0.0;
-		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(TokenizeGrammar, ExtrudeLength, Instances, RemainingLength);
+		const bool bHeightSubdivideSuccess = PCGSlicingBase::Subdivide(TokenizedGrammar, ExtrudeLength, Instances, RemainingLength);
 
 		if (!bHeightSubdivideSuccess)
 		{
@@ -140,7 +140,7 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 		FVector CurrentDisplacement = FVector::ZeroVector;
 		int32 SplineIndex = 0;
 
-		for (const PCGSlicingBase::PCGSubDivModuleInstance<FPCGTokenizedGrammar>& Instance : Instances)
+		for (const PCGSlicingBase::TPCGSubDivModuleInstance<PCGGrammar::FTokenizedModule>& Instance : Instances)
 		{
 			for (int i = 0; i < Instance.NumRepeat; ++i)
 			{
@@ -148,7 +148,7 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 				{
 					const FName Symbol = Instance.Module->Symbols[SymbolIndex];
 					const FVector Size = ExtrudeDirection * Instance.Module->SymbolSizes[SymbolIndex] * (FVector::OneVector + Instance.ExtraScales[SymbolIndex]);
-					const FPCGSlicingModule& CurrentBlock = ModulesInfo[Symbol];
+					const FPCGSlicingSubmodule& CurrentBlock = ModulesInfo[Symbol];
 					FPCGSplineStruct NewSpline = InputSplineData->SplineStruct;
 					for (FInterpCurvePointVector& ControlPoint : NewSpline.SplineCurves.Position.Points)
 					{
