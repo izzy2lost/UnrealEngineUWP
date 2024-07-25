@@ -7,6 +7,9 @@
 #include "RendererInterface.h"
 #include "Containers/ContainersFwd.h"
 
+// Temporary workaround for UE-209928 to fix holdout composite on nDisplay. Remove-disable once addressed.
+#define HOLDOUT_COMPOSITE_WORKAROUND_UE_209928 1
+
 class FViewInfo;
 
 class FHoldoutCompositeSceneViewExtension : public FWorldSceneViewExtension
@@ -22,7 +25,11 @@ public:
 	void UnregisterPrimitives(TArrayView<TSoftObjectPtr<UPrimitiveComponent>> InPrimitiveComponents, bool bInHoldoutState=false);
 
 	/* Called by the custom render pass to store its view render target for this frame. */
-	void CollectCustomRenderTarget(uint32 InViewId, FRDGTextureRef InRenderTarget);
+	template<typename T>
+	void CollectCustomRenderTarget(uint32 InViewId, T InRenderTarget)
+	{
+		CustomRenderTargetPerView_RenderThread.Add(InViewId, InRenderTarget);
+	}
 
 	//~ Begin ISceneViewExtension Interface
 	virtual int32 GetPriority() const override;
@@ -31,6 +38,7 @@ public:
 	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {};
 	virtual void SubscribeToPostProcessingPass(EPostProcessingPass PassId, const FSceneView& InView, FAfterPassCallbackDelegateArray& InOutPassCallbacks, bool bIsPassEnabled) override;
 	virtual void PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
+	virtual void PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
 	//~ End ISceneViewExtension Interface
 
 protected:
@@ -44,8 +52,12 @@ private:
 	// Collection of primitives to render as a custom render pass and composite after post-processing.
 	TSet<TSoftObjectPtr<UPrimitiveComponent>> CompositePrimitives;
 
+#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
+	TMap<uint32, TRefCountPtr<IPooledRenderTarget>> CustomRenderTargetPerView_RenderThread;
+#else
 	// Custom render pass render targets for each active view
 	TMap<uint32, FRDGTextureRef> CustomRenderTargetPerView_RenderThread;
+#endif
 
 	// Flag to enable global exposure on the composited render
 	std::atomic_bool bCompositeFollowsSceneExposure = false;

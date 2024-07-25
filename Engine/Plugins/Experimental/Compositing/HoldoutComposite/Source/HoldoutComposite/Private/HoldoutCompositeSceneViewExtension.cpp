@@ -126,7 +126,13 @@ public:
 
 	virtual void OnPostRender(FRDGBuilder& GraphBuilder) override
 	{
-		ParentExtension->CollectCustomRenderTarget(ViewId, CreateDilatedTexture(GraphBuilder));
+		FRDGTextureRef DilatedCRP = CreateDilatedTexture(GraphBuilder);
+
+#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
+		ParentExtension->CollectCustomRenderTarget(ViewId, GraphBuilder.ConvertToExternalTexture(DilatedCRP));
+#else
+		ParentExtension->CollectCustomRenderTarget(ViewId, DilatedCRP);
+#endif
 	}
 
 private:
@@ -214,11 +220,6 @@ void FHoldoutCompositeSceneViewExtension::UnregisterPrimitives(TArrayView<TSoftO
 		}
 	}
 
-}
-
-void FHoldoutCompositeSceneViewExtension::CollectCustomRenderTarget(uint32 InViewId, FRDGTextureRef InRenderTarget)
-{
-	CustomRenderTargetPerView_RenderThread.Add(InViewId, InRenderTarget);
 }
 
 bool FHoldoutCompositeSceneViewExtension::IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const
@@ -319,6 +320,7 @@ void FHoldoutCompositeSceneViewExtension::SetupView(FSceneViewFamily& InViewFami
 	PassInput.CustomRenderPass = CustomRenderPass;
 	PassInput.bIsSceneCapture = true;
 
+	// TODO: Once CRPs are associated with view(family), disable & remove HOLDOUT_COMPOSITE_WORKAROUND_UE_209928.
 	WorldPtr.Get()->Scene->AddCustomRenderPass(&InViewFamily, PassInput);
 }
 
@@ -345,13 +347,20 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 	FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 	check(SceneColor.IsValid());
 
-	const FRDGTextureRef* CustomRenderPassTexturePtr = CustomRenderTargetPerView_RenderThread.Find(InView.GetViewKey());
 	FRDGTextureRef CustomRenderPassTexture = GSystemTextures.GetBlackAlphaOneDummy(GraphBuilder);
-	
+#if HOLDOUT_COMPOSITE_WORKAROUND_UE_209928
+	const TRefCountPtr<IPooledRenderTarget>* CustomRenderPassRenderTargetPtr = CustomRenderTargetPerView_RenderThread.Find(InView.GetViewKey());
+	if (CustomRenderPassRenderTargetPtr != nullptr)
+	{
+		CustomRenderPassTexture = GraphBuilder.RegisterExternalTexture(*CustomRenderPassRenderTargetPtr);
+}
+#else
+	const FRDGTextureRef* CustomRenderPassTexturePtr = CustomRenderTargetPerView_RenderThread.Find(InView.GetViewKey());
 	if (CustomRenderPassTexturePtr && HasBeenProduced(*CustomRenderPassTexturePtr))
 	{
 		CustomRenderPassTexture = *CustomRenderPassTexturePtr;
 	}
+#endif
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(InView.GetFeatureLevel());
 	const FSceneViewFamily* Family = InView.Family;
@@ -420,8 +429,6 @@ FScreenPassTexture FHoldoutCompositeSceneViewExtension::PostProcessPassAfterTone
 
 void FHoldoutCompositeSceneViewExtension::PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily)
 {
-	CustomRenderTargetPerView_RenderThread.Reset();
-
 	// Cleanup invalid primitives.
 	for (auto Iter = CompositePrimitives.CreateIterator(); Iter; ++Iter)
 	{
@@ -430,5 +437,10 @@ void FHoldoutCompositeSceneViewExtension::PostRenderViewFamily_RenderThread(FRDG
 			Iter.RemoveCurrent();
 		}
 	}
+}
+
+void FHoldoutCompositeSceneViewExtension::PostRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
+{
+	CustomRenderTargetPerView_RenderThread.Remove(InView.GetViewKey());
 }
 
