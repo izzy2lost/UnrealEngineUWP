@@ -73,7 +73,16 @@ namespace Gauntlet
 				: this(new UnrealLogParser(InContents))
 		{
 		}
-		
+
+		/// <summary>
+		/// Constructor that takes UnrealLog instance
+		/// </summary>
+		/// <param name="InLog"></param>
+		public AutomationLogParser(UnrealLog InLog)
+				: this(new UnrealLogParser(InLog))
+		{
+		}
+
 		/// <summary>
 		/// Returns all results found in our construction content.
 		/// </summary>

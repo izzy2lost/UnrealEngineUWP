@@ -637,7 +637,7 @@ namespace UE
 				{
 					// Parse automaton info from the log then
 					TestPassResults = new UnrealAutomatedTestPassResults();
-					AutomationLogParser LogParser = new AutomationLogParser(InLog.FullLogContent);
+					AutomationLogParser LogParser = new AutomationLogParser(InLog);
 					IEnumerable<UnrealAutomatedTestResult> LogTestResults = LogParser.GetResults();
 					if (LogTestResults.Any())
 					{
@@ -1230,7 +1230,7 @@ namespace UE
 			{
 				if (Role.Artifacts.SessionRole.RoleType.IsEditor())
 				{
-					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 					AllErrors.AddRange(
 						Parser.GetResults().Where(R => R.HasFailed)
 							.SelectMany(R => R.Entries
@@ -1261,7 +1261,7 @@ namespace UE
 			{
 				if (Role.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
 				{
-					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 					AllWarnings.AddRange(
 						Parser.GetResults()
 							.SelectMany(R => R.Entries

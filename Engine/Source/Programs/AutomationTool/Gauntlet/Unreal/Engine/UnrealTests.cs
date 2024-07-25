@@ -75,7 +75,7 @@ namespace Gauntlet
 				{
 					if (Role.Artifacts.SessionRole.RoleType == UnrealTargetRole.Editor)
 					{
-						AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary.FullLogContent);
+						AutomationLogParser Parser = new AutomationLogParser(Role.LogSummary);
 						AllErrors.AddRange(
 							Parser.GetResults().Where(R => R.HasFailed)
 							.SelectMany(R => R.Entries
@@ -221,7 +221,7 @@ namespace Gauntlet
 					// if no fatal errors, check test results
 					if (InLog.FatalError == null)
 					{
-						AutomationLogParser Parser = new AutomationLogParser(InLog.FullLogContent);
+						AutomationLogParser Parser = new AutomationLogParser(InLog);
 
 						IEnumerable<UnrealAutomatedTestResult> TotalTests = Parser.GetResults();
 						IEnumerable<UnrealAutomatedTestResult> FailedTests = TotalTests.Where(R => R.HasFailed);
@@ -259,7 +259,7 @@ namespace Gauntlet
 
 				if (EditorRole != null)
 				{
-					AutomationLogParser Parser = new AutomationLogParser(EditorRole.LogSummary.FullLogContent);
+					AutomationLogParser Parser = new AutomationLogParser(EditorRole.LogSummary);
 
 					IEnumerable<UnrealAutomatedTestResult> AllTests = Parser.GetResults();
 					IEnumerable<UnrealAutomatedTestResult> FailedTests = AllTests.Where(R => R.IsComplete && R.HasFailed);

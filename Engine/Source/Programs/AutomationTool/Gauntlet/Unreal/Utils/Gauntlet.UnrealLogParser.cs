@@ -675,6 +675,16 @@ namespace Gauntlet
 			return ContentBuilder.ToString();
 		}
 
+		/// <summary>
+		/// Constructor that takes a UnrealLog instance
+		/// </summary>
+		/// <param name="Log"></param>
+		public UnrealLogParser(UnrealLog Log)
+		{
+			Content = Log.FullLogContent;
+			LogEntries = Log.LogEntries;
+		}
+
 		public UnrealLog GetSummary()
 		{
 			if (Summary == null)
@@ -958,15 +968,9 @@ namespace Gauntlet
 		/// <returns></returns>
 		public UnrealLog.CallstackMessage GetFatalError()
 		{
-			var Traces = GetASanErrors();
-			if (Traces.Any())
-			{
-				return Traces.Last();
-			}
-
 			string[] ErrorMsgMatches = new string[] { @"(Fatal Error:.+)", @"Critical error: =+\s+(?:[\S\s]+?\s*Error: +)?(.+)", @"(Assertion Failed:.+)", @"(Unhandled Exception:.+)", @"(LowLevelFatalError.+)", @"(Postmortem Cause:.*)" };
 
-			Traces = ParseTracedErrors(ErrorMsgMatches, 5);
+			var Traces = ParseTracedErrors(ErrorMsgMatches, 5).Concat(GetASanErrors());
 
 			// If we have a post-mortem error, return that one (on some devices the post-mortem info is way more informative).
 			var PostMortemTraces = Traces.Where(T => T.Message.IndexOf("Postmortem Cause:", StringComparison.OrdinalIgnoreCase) > -1);
