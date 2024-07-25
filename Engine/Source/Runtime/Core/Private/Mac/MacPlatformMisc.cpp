@@ -779,6 +779,18 @@ bool FMacPlatformMisc::CommandLineCommands()
 	return HandleFirstInstall();
 }
 
+const TCHAR* FMacPlatformMisc::GetNullRHIShaderFormat()
+{
+	if (FParse::Param(FCommandLine::Get(), TEXT("sm5")))
+	{
+		return TEXT("SF_METAL_SM5");
+	}
+	else
+	{
+		return TEXT("SF_METAL_SM6");
+	}
+}
+
 int32 FMacPlatformMisc::NumberOfCores()
 {	
 	static int32 NumberOfCores = -1;
