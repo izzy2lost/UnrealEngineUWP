@@ -159,6 +159,9 @@ FSubstrateDeferredLighting SubstrateDeferredLighting(
 		FLightAccumulator Out = (FLightAccumulator)0;
 		LightAccumulator_AddSplit(Out, DiffuseLuminance, SpecularLuminance, DiffuseLuminance, CommonMultiplier, BSDFEvaluate.bPostProcessSubsurface);
 		AccumulateSubstrateDeferredLighting(SubstrateLighting, Out, BSDFEvaluate.bPostProcessSubsurface, BSDF_GETISTOPLAYER(BSDF));
+
+		SubstrateLighting.TotalDiffuseLighting += Out.TotalLightDiffuse;
+		SubstrateLighting.TotalSpecularLighting += Out.TotalLightSpecular;
 	}
 
 	return SubstrateLighting;

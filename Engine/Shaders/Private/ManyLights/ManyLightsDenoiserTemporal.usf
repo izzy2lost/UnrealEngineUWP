@@ -216,10 +216,10 @@ void DenoiserTemporalCS(
 	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-		FGBufferData GBuffer = GetGBufferData(ScreenUV);
+		FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 
 		const float DeviceZ = SceneDepthTexture[ScreenCoord].x;
-		GBuffer.Depth = ConvertFromDeviceZ(DeviceZ);
+		Material.SetDepth(ConvertFromDeviceZ(DeviceZ));
 
 		uint3 PackedLighting = SharedResolvedLightingYCoCg[GroupThreadId.x + SHARED_TILE_BORDER][GroupThreadId.y + SHARED_TILE_BORDER];
 		float3 DiffuseLighting = UnpackDiffuse(PackedLighting);

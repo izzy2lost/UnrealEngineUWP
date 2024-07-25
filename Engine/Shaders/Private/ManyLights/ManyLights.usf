@@ -39,16 +39,18 @@ void TileClassificationCS(
 	{
 #if DOWNSAMPLED_CLASSIFICATION
 		float2 ScreenUV = DownsampledScreenCoordToScreenUV(ScreenCoord);
+		uint2 EffectiveScreenCoord = DownsampledScreenCoordToScreenCoord(ScreenCoord);
 #else
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
+		uint2 EffectiveScreenCoord = ScreenCoord;
 #endif
-		FGBufferData GBuffer = GetGBufferData(ScreenUV);
+		FManyLightMaterial Material = LoadMaterial(ScreenUV, EffectiveScreenCoord);
 
-		if (GBuffer.ShadingModelID == SHADINGMODELID_UNLIT)
+		if (!Material.IsValid())
 		{
 			SharedTileMode[LinearThreadIndex] = 0x1;
 		}
-		else if (GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT)
+		else if (Material.IsSimple())
 		{
 			SharedTileMode[LinearThreadIndex] = 0x2;
 		}
@@ -175,8 +177,8 @@ void InitCompositeUpsampleWeightsCS(
 	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-		FGBufferData GBuffer = GetGBufferData(ScreenUV);
-		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);		
+		const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
+		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 
 		int2 DownsampledScreenCoord00 = floor(ScreenUV * View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR - 0.5f);
 		float2 DownsampledGatherUV = (DownsampledScreenCoord00 + 1.0f) * DownsampledBufferInvSize;
@@ -201,7 +203,7 @@ void InitCompositeUpsampleWeightsCS(
 		#define PLANE_WEIGHTING 1
 		#if PLANE_WEIGHTING
 		{
-			float4 ScenePlane = float4(GBuffer.WorldNormal, dot(TranslatedWorldPosition, GBuffer.WorldNormal));
+			float4 ScenePlane = float4(Material.WorldNormal, dot(TranslatedWorldPosition, Material.WorldNormal));
 
 			float3 Position00 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(0, 0)), CornerDepths.x);
 			float3 Position10 = GetTranslatedWorldPositionFromScreenUV(DownsampledScreenCoordToScreenUV(DownsampledScreenCoord00 + uint2(1, 0)), CornerDepths.y);
@@ -214,14 +216,14 @@ void InitCompositeUpsampleWeightsCS(
 			PlaneDistances.z = abs(dot(float4(Position01, -1), ScenePlane));
 			PlaneDistances.w = abs(dot(float4(Position11, -1), ScenePlane));
 
-			float4 RelativeDepthDifference = PlaneDistances / GBuffer.Depth;
+			float4 RelativeDepthDifference = PlaneDistances / Material.Depth;
 
 			DepthWeights = select(CornerDepths > 0.0f, exp2(-10000.0f * (RelativeDepthDifference * RelativeDepthDifference)), 0.0f);
 		}
 		#else
 		{
-			float4 DepthDifference = abs(CornerDepths - GBuffer.Depth.xxxx);
-			float4 RelativeDepthDifference = DepthDifference / GBuffer.Depth;	
+			float4 DepthDifference = abs(CornerDepths - Material.Depth.xxxx);
+			float4 RelativeDepthDifference = DepthDifference / Material.Depth;
 
 			DepthWeights = select(CornerDepths > 0.0f, exp2(-100.0f * (RelativeDepthDifference * RelativeDepthDifference)), 0.0f);
 		}

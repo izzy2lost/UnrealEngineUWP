@@ -40,7 +40,7 @@ void DenoiserSpatialCS(
 
 		if (IsLightingValid(CenterDiffuseLightingAndSecondMoment.xyz))
 		{
-			FGBufferData GBuffer = GetGBufferData(ScreenUV);
+			FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 
 			float CenterDiffuseStdDev = sqrt(max(CenterDiffuseLightingAndSecondMoment.w - Pow2(Luminance(CenterDiffuseLightingAndSecondMoment.xyz)), 0.0f));
 			float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
@@ -56,8 +56,8 @@ void DenoiserSpatialCS(
 
 			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, ManyLightsStateFrameIndex)).xy;
 
-			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);
-			float4 ScenePlane = float4(GBuffer.WorldNormal, dot(TranslatedWorldPosition, GBuffer.WorldNormal));
+			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
+			float4 ScenePlane = float4(Material.WorldNormal, dot(TranslatedWorldPosition, Material.WorldNormal));
 
 			// #ml_todo: expose as CVars
 			float MinStdDev = 0.1f;
@@ -75,15 +75,15 @@ void DenoiserSpatialCS(
 					{
 						// Depth weight
 						float2 NeighborScreenUV = (NeighborCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-						FGBufferData NeighborGBuffer = GetGBufferData(NeighborScreenUV);
-						const float3 NeighborTranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(NeighborScreenUV, NeighborGBuffer.Depth);
+						const FManyLightMaterial NeighborMaterial = LoadMaterial(NeighborScreenUV, NeighborCoord);
+						const float3 NeighborTranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(NeighborScreenUV, NeighborMaterial.Depth);
 						float PlaneDistance = abs(dot(float4(NeighborTranslatedWorldPosition, -1), ScenePlane));
-						float RelativeDepthDifference = PlaneDistance / GBuffer.Depth;
+						float RelativeDepthDifference = PlaneDistance / Material.Depth;
 						float DepthWeight = exp2(-SpatialFilterDepthWeightScale * (RelativeDepthDifference * RelativeDepthDifference));
 
 						// #sdl_todo: separate weight for specular accounting for roughness and expose as CVars
 						// Normal weight
-						float AngleBetweenNormals = acosFast(saturate(dot(ScenePlane.xyz, NeighborGBuffer.WorldNormal)));
+						float AngleBetweenNormals = acosFast(saturate(dot(ScenePlane.xyz, NeighborMaterial.WorldNormal)));
 						float NormalWeight = 1.0f - saturate(AngleBetweenNormals);
 
 						// Diffuse
@@ -125,12 +125,11 @@ void DenoiserSpatialCS(
 			// Final pass outputs composites irradiance and outputs it to scene color
 			float3 DiffuseLighting = DiffuseLightingSum / DiffuseLightingWeightSum;
 			float3 SpecularLighting = SpecularLightingSum / SpecularLightingWeightSum;
-			ModulateLighting(GBuffer, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
+			ModulateLighting(Material, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 
 			// Composite diffuse and specular into scene color
-			const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
 			FLightAccumulator LightAccumulator = (FLightAccumulator)0;
-			LightAccumulator_AddSplit(LightAccumulator, DiffuseLighting, SpecularLighting, /*ScatterableLight*/ DiffuseLighting, /*CommonMultiplier*/ 1.0f, bNeedsSeparateSubsurfaceLightAccumulation);
+			LightAccumulator_AddSplit(LightAccumulator, DiffuseLighting, SpecularLighting, /*ScatterableLight*/ DiffuseLighting, /*CommonMultiplier*/ 1.0f, Material.bNeedsSeparateSubsurfaceLightAccumulation);
 			float4 AccumulatedSceneColor = LightAccumulator_GetResult(LightAccumulator);
 
 			#if DEBUG_MODE

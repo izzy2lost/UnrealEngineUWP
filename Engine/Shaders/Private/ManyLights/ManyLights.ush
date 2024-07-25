@@ -20,6 +20,10 @@
 
 #include "../Lumen/LumenPosition.ush"
 
+#include "../Substrate/Substrate.ush"
+#include "../Substrate/SubstrateEvaluation.ush"
+#include "../Substrate/SubstrateDeferredLighting.ush"
+
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
@@ -113,28 +117,205 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	return ScreenUV;
 }
 
-// Remove texture detail before denoising
-void DemodulateLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
+struct FManyLightMaterial
 {
-	const float3 N = GBuffer.WorldNormal;
+	float  Depth;
+	float3 WorldNormal;
+	float  Roughness;
+	bool   bIsValid;
+	bool   bIsSimple;
+	bool   bNeedsSeparateSubsurfaceLightAccumulation;
+
+	float3 DiffuseColor;
+	float3 SpecularColor;
+
+	bool IsValid()
+	{
+		return bIsValid;
+	}
+
+	bool IsSimple()
+	{
+		return bIsSimple;
+	}
+
+	void SetDepth(float In)
+	{
+		Depth = In;
+		#if !SUBSTRATE_ENABLED
+		GBuffer.Depth = In;
+		#endif
+	}
+
+	#if !SUBSTRATE_ENABLED
+	FGBufferData GBuffer;
+	#endif
+};
+
+FManyLightMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForceSimpleShading=false)
+#if SUBSTRATE_ENABLED
+{
+	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(ScreenCoord, 0)));
+	FManyLightMaterial Out = (FManyLightMaterial)0;
+	Out.WorldNormal   = TopLayerData.WorldNormal;
+	Out.Depth         = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(ScreenCoord, 0)).r);
+	Out.Roughness     = TopLayerData.Roughness;
+
+	#if SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
+
+	const float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Out.Depth);
+	const float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
+
+	const FSubstrateIntegrationSettings Settings = InitSubstrateIntegrationSettings(false /*bForceFullyRough*/, Substrate.bRoughDiffuse, Substrate.PeelLayersAboveDepth, Substrate.bRoughnessTracking);
+	FSubstrateAddressing SubstrateAddressing	= GetSubstratePixelDataByteOffset(ScreenCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader= UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+
+	Out.bIsValid      = SubstratePixelHeader.IsSubstrateMaterial();
+	Out.bIsSimple     = SubstratePixelHeader.ClosureCount == 1;	
+	Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
+	{
+		FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
+
+		// Create the BSDF context
+		FSubstrateBSDFContext SubstrateBSDFContext = SubstrateCreateBSDFContext(SubstratePixelHeader, BSDF, SubstrateAddressing, V);
+		const float3 BSDFThroughput = LuminanceWeight(SubstrateBSDFContext, BSDF);
+
+		// Evaluate environment lighting
+		FSubstrateEnvLightResult SubstrateEnvLight = SubstrateEvaluateForEnvLight(SubstrateBSDFContext, true /*bEnableSpecular*/, Settings);
+		
+		Out.DiffuseColor  += BSDFThroughput * SubstrateEnvLight.DiffuseColor;  //SubstrateEnvLight.DiffuseWeight;
+		Out.SpecularColor += BSDFThroughput * SubstrateEnvLight.SpecularColor; //SubstrateEnvLight.SpecularWeight;
+		#if SUBSTRATE_FASTPATH==0
+		if (any(SubstrateEnvLight.SpecularHazeWeight > 0.0f))
+		{
+			Out.SpecularColor += BSDFThroughput * SubstrateEnvLight.SpecularHazeWeight;
+		}
+		#endif 
+		if (SubstrateEnvLight.bPostProcessSubsurface)
+		{
+			Out.bNeedsSeparateSubsurfaceLightAccumulation = true;
+		}
+	}
+	#endif //SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
+
+	return Out;
+}
+#else
+{
+	FGBufferData GBuffer = GetGBufferData(ScreenUV);
+	GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
+	if (GBuffer.ShadingModelID != SHADINGMODELID_UNLIT && bForceSimpleShading)
+	{
+		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
+	}
+
+	FManyLightMaterial Out = (FManyLightMaterial)0;
+	Out.bIsValid      = GBuffer.ShadingModelID != SHADINGMODELID_UNLIT;
+	Out.bIsSimple     = GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT;
+	Out.bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
+	Out.WorldNormal   = GBuffer.WorldNormal;
+	Out.Depth         = GBuffer.Depth;
+	Out.Roughness     = GBuffer.Roughness;
+	Out.DiffuseColor  = GBuffer.DiffuseColor;
+	Out.SpecularColor = GBuffer.SpecularColor;
+	Out.GBuffer       = GBuffer;
+	return Out;
+}
+#endif
+
+// Remove texture detail before denoising
+void DemodulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
+{
+	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 	const float NoV = saturate(dot(N, V));
-	const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+	const float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
 
 	// #ml_todo: demodulate earlier during BRDF evaluation
-	DiffuseLighting = DiffuseLighting / max(GBuffer.DiffuseColor, 0.001f);
+	DiffuseLighting = DiffuseLighting / max(Material.DiffuseColor, 0.001f);
 	SpecularLighting = SpecularLighting / max(SpecularEnv, 0.001f);	
 }
 
 // Restore texture detail after denoising
-void ModulateLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
+void ModulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
 {
-	const float3 N = GBuffer.WorldNormal;
+	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 	const float NoV = saturate(dot(N, V));
-	const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
+	const float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
 
 	// Final pass outputs composites irradiance and outputs it to scene color
-	DiffuseLighting = DiffuseLighting * max(GBuffer.DiffuseColor, 0.001f);
+	DiffuseLighting = DiffuseLighting * max(Material.DiffuseColor, 0.001f);
 	SpecularLighting = SpecularLighting * max(SpecularEnv, 0.001f);
 }
+
+FDeferredLightingSplit GetManyLightSplitLighting(
+	float3 TranslatedWorldPosition, 
+	float3 CameraVector, 
+	FManyLightMaterial Material, 
+	float AmbientOcclusion, 
+	FDeferredLightData LightData, 
+	float4 LightAttenuation, 
+	float Dither, 
+	uint2 ScreenCoord, 
+	inout float SurfaceShadow)
+#if SUBSTRATE_ENABLED
+{	
+	const uint2 PixelCoord = ScreenCoord;
+
+	FDeferredLightingSplit Out = (FDeferredLightingSplit)0;
+	FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+
+	BRANCH
+	if (SubstratePixelHeader.ClosureCount > 0) 
+	{
+		float3 V =-CameraVector;
+		float3 L = LightData.Direction;	// Already normalized
+		float3 ToLight = L;
+		float LightMask = 1;
+		if (LightData.bRadialLight)
+		{
+			LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+			#if ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+			//LightAttenuation *= ComputeTransmittance(TranslatedWorldPosition, LightData.TranslatedWorldPosition, 256);
+			LightAttenuation *= AVSM_SampleTransmittance(TranslatedWorldPosition, LightData.TranslatedWorldPosition);
+			#endif // ADAPTIVE_VOLUMETRIC_SHADOW_MAP
+		}
+
+		if (LightMask > 0)
+		{
+			FSubstrateShadowTermInputParameters SubstrateShadowTermInputParameters	= GetInitialisedSubstrateShadowTermInputParameters();
+			SubstrateShadowTermInputParameters.bEvaluateShadowTerm					= true;
+			SubstrateShadowTermInputParameters.SceneDepth							= Material.Depth;
+			SubstrateShadowTermInputParameters.PrecomputedShadowFactors				= 1.f;  //SubstrateReadPrecomputedShadowFactors(SubstratePixelHeader, PixelCoord, SceneTexturesStruct.GBufferETexture);
+			SubstrateShadowTermInputParameters.TranslatedWorldPosition				= TranslatedWorldPosition;
+			SubstrateShadowTermInputParameters.LightAttenuation						= LightAttenuation;
+			SubstrateShadowTermInputParameters.Dither								= Dither;
+
+			FSubstrateDeferredLighting SubstrateLighting = SubstrateDeferredLighting(
+				LightData,
+				V,
+				L,
+				ToLight,
+				LightMask,
+				SubstrateShadowTermInputParameters,
+				Substrate.MaterialTextureArray,
+				SubstrateAddressing,
+				SubstratePixelHeader);
+
+			// SUBSTRATE_TODO - Add support for SUBSTRATE_OPAQUE_ROUGH_REFRACTION_ENABLED
+			Out.DiffuseLighting  = float4(SubstrateLighting.TotalDiffuseLighting, 0);
+			Out.SpecularLighting = float4(SubstrateLighting.TotalSpecularLighting, 0);
+		}
+	}
+	return Out;
+}
+#else // SUBSTRATE_ENABLED
+{
+	return GetDynamicLightingSplit(
+		TranslatedWorldPosition, CameraVector, Material.GBuffer, AmbientOcclusion, Material.GBuffer.ShadingModelID, 
+		LightData, LightAttenuation, Dither, ScreenCoord, 
+		SurfaceShadow);
+}
+#endif // SUBSTRATE_ENABLED

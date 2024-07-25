@@ -185,6 +185,9 @@ struct FSubstrateDeferredLighting
 	// only used for development (not compiled out with #if so we can use if() instead of #if for better readability and compiler error checking)
 	// assumed to be compiled out otherwise
 	float EstimatedCost;
+
+	float3 TotalDiffuseLighting;
+	float3 TotalSpecularLighting;
 };
 
 FSubstrateDeferredLighting GetInitialisedSubstrateDeferredLighting()

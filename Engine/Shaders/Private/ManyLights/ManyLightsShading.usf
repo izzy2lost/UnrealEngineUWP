@@ -135,7 +135,7 @@ void ShadeLightSamplesCS(
 	#endif
 
 			float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			FGBufferData GBuffer = GetGBufferData(ScreenUV);
+			FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING /*bForceSimpleShading*/);
 
 			// #ml_todo: handle this path when shadows are disabled
 			float ScreenSpaceAO = 1.0f;//Texture2DSampleLevel(SceneTexturesStruct.ScreenSpaceAOTexture, SceneTexturesStruct_ScreenSpaceAOTextureSampler, ScreenUV, 0).x;
@@ -143,12 +143,12 @@ void ShadeLightSamplesCS(
 			float3 DiffuseLighting = INVALID_LIGHTING;
 			float3 SpecularLighting = INVALID_LIGHTING;
 
-			if (GBuffer.Depth > 0.0f && GBuffer.ShadingModelID != SHADINGMODELID_UNLIT)
+			if (Material.Depth > 0.0f && Material.IsValid())
 			{
 				DiffuseLighting = 0.0f;
 				SpecularLighting = 0.0f;
 
-				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);		
+				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 				float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
 				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
 
@@ -213,23 +213,14 @@ void ShadeLightSamplesCS(
 
 						if (SampleWeight > 0.0f)
 						{
-							GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
-
 							float4 LightAttenuation = 1.0f;
 							float Dither = 0.5f;
 							float SurfaceShadow = 1;
 							float AmbientOcclusion = ScreenSpaceAO;
-
-							// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
-							#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
-							{
-								GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
-							}
-							#endif
 							LightData.ShadowedBits = 0;
 
-							FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
-								TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
+							FDeferredLightingSplit SplitLighting = GetManyLightSplitLighting(
+								TranslatedWorldPosition, CameraVector, Material, AmbientOcclusion, 
 								LightData, LightAttenuation, Dither, ScreenCoord, 
 								SurfaceShadow);
 
@@ -251,7 +242,7 @@ void ShadeLightSamplesCS(
 				DiffuseLighting *= View.PreExposure;
 				SpecularLighting *= View.PreExposure;
 
-				DemodulateLighting(GBuffer, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
+				DemodulateLighting(Material, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 			}
 
 			#if DEBUG_MODE

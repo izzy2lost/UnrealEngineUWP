@@ -38,28 +38,21 @@ FLightTargetPDF InitLightTargetPDF()
 	return LightTargetPDF;
 }
 
-FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FGBufferData GBuffer, uint2 ScreenCoord, inout FDebug Debug)
+FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FManyLightMaterial Material, uint2 ScreenCoord, inout FDebug Debug)
 {
 	FLightTargetPDF LightTargetPDF = InitLightTargetPDF();
 
 	float3 CameraVector = normalize(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
-	GBuffer.Roughness = max(GBuffer.Roughness, View.MinRoughness);
 
 	float4 LightAttenuation = 1.0f;
 	float Dither = 0.5f;
 	float SurfaceShadow = 1.0f;
 	float AmbientOcclusion = 1.0f;
 
-	// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
-	#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
-	{
-		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
-	}
-	#endif
 	LightData.ShadowedBits = 0;
 
-	FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
-		TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, GBuffer.ShadingModelID, 
+	FDeferredLightingSplit SplitLighting = GetManyLightSplitLighting(
+		TranslatedWorldPosition, CameraVector, Material, AmbientOcclusion, 
 		LightData, LightAttenuation, Dither, ScreenCoord, 
 		SurfaceShadow);
 
@@ -136,8 +129,8 @@ void GenerateLightSamplesCS(
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FGBufferData GBuffer = GetGBufferData(ScreenUV);
-			const float SceneDepth = GBuffer.Depth;
+			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const float SceneDepth = Material.Depth;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
 
@@ -199,8 +192,8 @@ void GenerateLightSamplesCS(
 			};
 
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FGBufferData GBuffer = GetGBufferData(ScreenUV);
-			const float SceneDepth = GBuffer.Depth;
+			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const float SceneDepth = Material.Depth;
 			float3 DiffuseSum = 0.0f;
 			float3 SpecularSum = 0.0f;
 			float WeightSum = 0.0f;
@@ -280,7 +273,7 @@ void GenerateLightSamplesCS(
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 					
-						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, GBuffer, ScreenCoord, Debug);
+						FLightTargetPDF LightTargetPDF = GetLocalLightTargetPDF(LightData, TranslatedWorldPosition, Material, ScreenCoord, Debug);
 
 						#if DEBUG_MODE
 						if (Debug.bActive)
@@ -321,7 +314,7 @@ void GenerateLightSamplesCS(
 					}
 				}
 
-				DemodulateLighting(GBuffer, TranslatedWorldPosition, DiffuseSum, SpecularSum);
+				DemodulateLighting(Material, TranslatedWorldPosition, DiffuseSum, SpecularSum);
 
 				#if DEBUG_MODE
 				if (Debug.bActive)
@@ -363,7 +356,7 @@ void GenerateLightSamplesCS(
 			}
 
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
-			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(GBuffer.WorldNormal);
+			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(Material.WorldNormal);
 			RWSampleLuminanceSum[DownsampledScreenCoord] = float2(Luminance(DiffuseSum), Luminance(SpecularSum));
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
