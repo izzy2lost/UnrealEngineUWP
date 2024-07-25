@@ -144,6 +144,20 @@ public:
 	SLATECORE_API static void MakeShapedText( FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FShapedGlyphSequenceRef& InShapedGlyphSequence, ESlateDrawEffect InDrawEffects, const FLinearColor& BaseTint, const FLinearColor& OutlineTint, FTextOverflowArgs TextOverflowArgs = FTextOverflowArgs());
 
 	/**
+	 * Creates a text element which displays a series of shaped glyphs on the screen
+	 *
+	 * @param ElementList			The list in which to add elements
+	 * @param InLayer               The layer to draw the element on
+	 * @param PaintGeometry         DrawSpace position and dimensions; see FPaintGeometry
+	 * @param InShapedGlyphSequence The shaped glyph sequence to draw
+	 * @param InDrawEffects         Optional draw effects to apply
+	 * @param BaseTint              Color to tint the element
+	 * @param OutlineTint           Color to tint the outline
+	 * @param Angle2D               The rotation of the element in radians
+	 */
+	SLATECORE_API static void MakeRotatedShapedText(FSlateWindowElementList& ElementList, uint32 InLayer, const FPaintGeometry& PaintGeometry, const FShapedGlyphSequenceRef& InShapedGlyphSequence, ESlateDrawEffect InDrawEffects, const FLinearColor& BaseTint, const FLinearColor& OutlineTint, float Angle2D, const UE::Slate::FDeprecateOptionalVector2DParameter& InRotationPoint = TOptional<FVector2f>(), ERotationSpace RotationSpace = RelativeToElement, const FTextOverflowArgs& TextOverflowArgs = FTextOverflowArgs());
+	
+	/**
 	 * Creates a gradient element
 	 *
 	 * @param ElementList			   The list in which to add elements
