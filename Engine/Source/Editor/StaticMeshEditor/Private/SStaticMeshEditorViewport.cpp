@@ -819,6 +819,34 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::BuildViewportToolbar()
 			FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
 			RightSection.Alignment = EToolMenuSectionAlign::Last;
 
+			// Add the "Camera" submenu.
+			{
+				const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+				const FName ParentSubmenuName = "StaticMeshEditor.ViewportToolbar.Camera";
+				const FName SubmenuName = "StaticMeshEditor.ViewportToolbar.CameraOptions";
+
+				// Create our grandparent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+				}
+
+				// Create our parent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+				}
+
+				// Create our menu.
+				UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+				UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+
+				FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+				CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(CameraSubmenu);
+			}
+
 			// Add the "View Modes" sub menu.
 			{
 				// Stay backward-compatible with the old viewport toolbar.

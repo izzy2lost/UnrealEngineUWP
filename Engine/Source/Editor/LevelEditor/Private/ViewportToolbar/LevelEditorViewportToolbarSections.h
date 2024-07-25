@@ -47,6 +47,5 @@ void GenerateViewportLayoutsMenu(UToolMenu* InMenu);
 TSharedRef<SWidget> BuildVolumeControlCustomWidget();
 FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu();
 
-FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu();
-
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName);
 } // namespace UE::LevelEditor

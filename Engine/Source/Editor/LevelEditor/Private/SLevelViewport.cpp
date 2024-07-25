@@ -2013,7 +2013,31 @@ TSharedPtr<SWidget> SLevelViewport::BuildViewportToolbar()
 
 				// Add the "Camera" submenu.
 				{
-					FToolMenuEntry CameraSubmenu = UE::LevelEditor::CreateLevelEditorViewportToolbarCameraSubmenu();
+
+					const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+					const FName ParentSubmenuName = "LevelEditor.ViewportToolbar.Camera";
+					const FName SubmenuName = "LevelEditor.ViewportToolbar.CameraOptions";
+
+					// Create our grandparent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+					}
+
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+					}
+
+					// Create our menu.
+					UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+					// Extending using both Level Editor specific and UnrealEd generic entries
+					UE::LevelEditor::ExtendCameraSubmenu(SubmenuName);
+					UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+
+					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
 					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(CameraSubmenu);
 				}

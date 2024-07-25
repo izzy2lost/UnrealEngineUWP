@@ -1999,53 +1999,23 @@ void CreateCameraSpeedMenu(UToolMenu* InMenu)
 	Section.AddEntry(CreateCameraSpeedScalarSlider(LevelViewport));
 }
 
-FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 {
-	return FToolMenuEntry::InitSubMenu(
-		"Camera",
-		LOCTEXT("CameraSubmenuLabel", "Camera"),
-		LOCTEXT("CameraSubmenuTooltip", "Viewport-related Camera settings"),
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InCameraOptionsSubmenuName);
+
+	Submenu->AddDynamicSection(
+		"LevelEditorCameraExtensionDynamicSection",
 		FNewToolMenuDelegate::CreateLambda(
-			[](UToolMenu* Submenu) -> void
+			[](UToolMenu* InDynamicMenu)
 			{
-				TWeakPtr<::SLevelViewport> LevelViewportWeak = Submenu->FindContext<ULevelViewportContext>()->LevelViewport;
+				TWeakPtr<::SLevelViewport> LevelViewportWeak = InDynamicMenu->FindContext<ULevelViewportContext>()->LevelViewport;
 
 				// TODO:
 				// add Select Active Camera
 
-				// Perspective Section
-				{
-					FToolMenuSection& PerspectiveSection =
-						Submenu->FindOrAddSection("Perspective", LOCTEXT("PerspectiveLabel", "Perspective"));
-
-					PerspectiveSection.AddMenuEntry(FEditorViewportCommands::Get().Perspective);
-
-					// TODO: show separator based on actual list of cameras
-					// PerspectiveSection.AddSeparator("PerspectiveSeparator");
-					// Camera list
-					// Camera types
-				}
-
-				// Orthographic Section
-				{
-					FToolMenuSection& OrthographicSection =
-						Submenu->FindOrAddSection("Orthographic", LOCTEXT("OrthographicLabel", "Orthographic"));
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Top);
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Bottom);
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Left);
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Right);
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Front);
-					OrthographicSection.AddMenuEntry(FEditorViewportCommands::Get().Back);
-
-					OrthographicSection.AddSeparator("PerspectiveSeparator");
-
-					OrthographicSection.AddEntry(CreateFOVMenu(LevelViewportWeak));
-					OrthographicSection.AddEntry(CreateFarViewPlaneMenu(LevelViewportWeak));
-				}
-
 				// Create Section
 				{
-					FToolMenuSection& CreateSection = Submenu->FindOrAddSection("Create", LOCTEXT("CreateLabel", "Create"));
+					FToolMenuSection& CreateSection = InDynamicMenu->FindOrAddSection("Create", LOCTEXT("CreateLabel", "Create"));
 
 					CreateSection.AddSubMenu(
 						"CreateCamera",
@@ -2079,7 +2049,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
 				// Positioning Section
 				{
 					FToolMenuSection& PositioningSection =
-						Submenu->FindOrAddSection("Positioning", LOCTEXT("PositioningLabel", "Positioning"));
+						InDynamicMenu->FindOrAddSection("Positioning", LOCTEXT("PositioningLabel", "Positioning"));
 
 					// Camera Speed Submenu
 					{
@@ -2147,7 +2117,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
 				// Options Section
 				{
 					FToolMenuSection& OptionsSection =
-						Submenu->FindOrAddSection("CameraOptions", LOCTEXT("OptionsLabel", "Options"));
+						InDynamicMenu->FindOrAddSection("CameraOptions", LOCTEXT("OptionsLabel", "Options"));
 					// add Cinematic Viewport
 					// add Allow Cinematic Control
 					// add Game View
@@ -2165,7 +2135,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarCameraSubmenu()
 					// This additional options section is used to force certain elements to appear after extensions
 					{
 						FToolMenuSection& AdditionalOptions =
-							Submenu->FindOrAddSection("AdditionalOptions", LOCTEXT("AdditionalOptionsLabel", ""));
+							InDynamicMenu->FindOrAddSection("AdditionalOptions", LOCTEXT("AdditionalOptionsLabel", ""));
 						AdditionalOptions.AddSeparator("AdditionalOptionsSeparator");
 
 						FToolMenuEntry HighResolutionScreenshot =

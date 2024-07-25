@@ -23,6 +23,7 @@
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
+#include "ToolMenus.h"
 #include "ViewportToolbar/UnrealEdViewportToolbarContext.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -1663,7 +1664,7 @@ TSharedRef<SWidget> CreateFOVMenuWidget(const TSharedRef<SEditorViewport>& InVie
 	constexpr float FOVMin = 5.0f;
 	constexpr float FOVMax = 170.0f;
 
-	TSharedPtr<FEditorViewportClient> ViewportClient = InViewport->GetViewportClient();
+	TWeakPtr<FEditorViewportClient> ViewportClientWeak = InViewport->GetViewportClient();
 
 	return
 		// clang-format off
@@ -1683,15 +1684,22 @@ TSharedRef<SWidget> CreateFOVMenuWidget(const TSharedRef<SEditorViewport>& InVie
 					.Font( FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
 					.MinValue(FOVMin)
 					.MaxValue(FOVMax)
-					.Value_Lambda([ViewportClient]()
+					.Value_Lambda([ViewportClientWeak]()
 					{
-						return ViewportClient->ViewFOV;
+						if (TSharedPtr<FEditorViewportClient> ViewportClient = ViewportClientWeak.Pin())
+						{
+							return ViewportClient->ViewFOV;
+						}
+						return 90.0f;
 					})
-					.OnValueChanged_Lambda([ViewportClient](float InNewValue)
+					.OnValueChanged_Lambda([ViewportClientWeak](float InNewValue)
 					{
-						ViewportClient->FOVAngle = InNewValue;
-						ViewportClient->ViewFOV = InNewValue;
-						ViewportClient->Invalidate();
+						if (TSharedPtr<FEditorViewportClient> ViewportClient = ViewportClientWeak.Pin())
+						{
+							ViewportClient->FOVAngle = InNewValue;
+							ViewportClient->ViewFOV = InNewValue;
+							ViewportClient->Invalidate();
+						}
 					})
 				]
 			]
@@ -1701,7 +1709,7 @@ TSharedRef<SWidget> CreateFOVMenuWidget(const TSharedRef<SEditorViewport>& InVie
 
 TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewport>& InViewport)
 {
-	TSharedPtr<FEditorViewportClient> ViewportClient = InViewport->GetViewportClient();
+	TWeakPtr<FEditorViewportClient> ViewportClientWeak = InViewport->GetViewportClient();
 
 	return
 		// clang-format off
@@ -1722,14 +1730,22 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 					.MinValue(0.0f)
 					.MaxValue(100000.0f)
 					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-					.Value_Lambda([ViewportClient]()
+					.Value_Lambda([ViewportClientWeak]()
 					{
-						return ViewportClient->GetFarClipPlaneOverride();
+						if (TSharedPtr<FEditorViewportClient> ViewportClient = ViewportClientWeak.Pin())
+						{
+							return ViewportClient->GetFarClipPlaneOverride();
+						}
+
+						return 100000.0f;
 					})
-					.OnValueChanged_Lambda([ViewportClient](float InNewValue)
+					.OnValueChanged_Lambda([ViewportClientWeak](float InNewValue)
 					{
-						ViewportClient->OverrideFarClipPlane(InNewValue);
-						ViewportClient->Invalidate();
+						if (TSharedPtr<FEditorViewportClient> ViewportClient = ViewportClientWeak.Pin())
+						{
+							ViewportClient->OverrideFarClipPlane(InNewValue);
+							ViewportClient->Invalidate();
+						}
 					})
 				]
 			]
@@ -1737,18 +1753,61 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 	// clang-format on
 }
 
-FToolMenuEntry CreateCameraSubmenu()
+FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 {
-	return FToolMenuEntry::InitSubMenu(
-		"Camera",
-		LOCTEXT("CameraSubmenuLabel", "Camera"),
-		LOCTEXT("CameraSubmenuTooltip", "Camera options"),
+	return FToolMenuEntry::InitDynamicEntry(
+		"DynamicCameraOptions",
+		FNewToolMenuSectionDelegate::CreateLambda(
+			[](FToolMenuSection& InDynamicSection) -> void
+			{
+				InDynamicSection.AddSubMenu(
+					"CameraOptions",
+					LOCTEXT("CameraSubmenuLabel", "Camera"),
+					LOCTEXT("CameraSubmenuTooltip", "Camera options"),
+					FNewToolMenuDelegate::CreateLambda(
+						[](UToolMenu* Submenu) -> void
+						{
+							PopulateCameraMenu(Submenu);
+						}
+					)
+				);
+			}
+		)
+	);
+}
+
+void PopulateCameraMenu(UToolMenu* InMenu)
+{
+	UUnrealEdViewportToolbarContext* const EditorViewportContext = InMenu->FindContext<UUnrealEdViewportToolbarContext>();
+	if (!EditorViewportContext)
+	{
+		return;
+	}
+
+	const TSharedPtr<SEditorViewport> EditorViewport = EditorViewportContext->Viewport.Pin();
+	if (!EditorViewport)
+	{
+		return;
+	}
+
+	FToolMenuSection& UnnamedSection = InMenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+
+	UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
+		"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(EditorViewport.ToSharedRef()), FText(), true
+	));
+}
+
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
+{
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InCameraOptionsSubmenuName);
+
+	Submenu->AddDynamicSection(
+		"EditorCameraExtensionDynamicSection",
 		FNewToolMenuDelegate::CreateLambda(
-			[](UToolMenu* Submenu) -> void
+			[](UToolMenu* InDynamicMenu)
 			{
 				UUnrealEdViewportToolbarContext* const EditorViewportContext =
-					Submenu->FindContext<UUnrealEdViewportToolbarContext>();
-
+					InDynamicMenu->FindContext<UUnrealEdViewportToolbarContext>();
 				if (!EditorViewportContext)
 				{
 					return;
@@ -1760,12 +1819,10 @@ FToolMenuEntry CreateCameraSubmenu()
 					return;
 				}
 
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+				FToolMenuInsert InsertPosition("CameraOptions", EToolMenuInsertType::After);
 
-				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
-					"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(EditorViewport.ToSharedRef()), FText(), true
-				));
-
+				FToolMenuSection& UnnamedSection =
+					InDynamicMenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""), InsertPosition);
 				UnnamedSection.AddSeparator("CameraSubmenuSeparator");
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(

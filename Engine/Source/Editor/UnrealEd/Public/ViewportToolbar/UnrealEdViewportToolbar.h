@@ -115,7 +115,14 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 	int32 InMaxFractionalDigits = 2
 );
 
-UNREALED_API FToolMenuEntry CreateCameraSubmenu();
+UNREALED_API FToolMenuEntry CreateViewportToolbarCameraSubmenu();
+
+UNREALED_API void PopulateCameraMenu(UToolMenu* InMenu);
+
+/**
+ * Adds Field of View and Far View Plane entries to the specified Camera Submenu
+ */
+UNREALED_API void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName);
 
 UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu();
 

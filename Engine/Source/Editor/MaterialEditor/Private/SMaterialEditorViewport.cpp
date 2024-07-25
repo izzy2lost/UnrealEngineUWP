@@ -963,7 +963,28 @@ TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 
 				// Add the "Camera" submenu.
 				{
-					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateCameraSubmenu();
+					// Create our grandparent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered("UnrealEd.ViewportToolbar.Camera"))
+					{
+						UToolMenus::Get()->RegisterMenu("UnrealEd.ViewportToolbar.Camera");
+					}
+
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered("MaterialEditor.ViewportToolbar.Camera"))
+					{
+						UToolMenus::Get()->RegisterMenu(
+							"MaterialEditor.ViewportToolbar.Camera", "UnrealEd.ViewportToolbar.Camera"
+						);
+					}
+
+					// Create our menu.
+					UToolMenus::Get()->RegisterMenu(
+						"MaterialEditor.ViewportToolbar.CameraOptions", "MaterialEditor.ViewportToolbar.Camera"
+					);
+
+					UE::UnrealEd::ExtendCameraSubmenu("MaterialEditor.ViewportToolbar.CameraOptions");
+
+					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
 					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(CameraSubmenu);
 				}
