@@ -432,7 +432,11 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 			{
 				if (bReimport)
 				{
+#if WITH_EDITORONLY_DATA
 					StaticMesh->GetBodySetup()->AggGeom.EmptyImportedElements();
+#else
+					StaticMesh->GetBodySetup()->AggGeom.EmptyElements();
+#endif
 				}
 				bImportedCustomCollision |= ImportBoxCollision(Arguments, StaticMesh, LodDataNode);
 				bImportedCustomCollision |= ImportCapsuleCollision(Arguments, StaticMesh, LodDataNode);
