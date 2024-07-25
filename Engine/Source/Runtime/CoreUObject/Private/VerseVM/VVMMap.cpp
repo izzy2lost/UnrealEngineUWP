@@ -231,8 +231,9 @@ TPair<uint32, bool> VMapBase::AddWithoutLocking(FAllocationContext Context, uint
 			Context.CurrentTransaction()->AddAuxRoot(Context, OldSequenceData);
 		}
 
-		(void)AutoRTFM::Close([=] {
-			AutoRTFM::OnAbort([=] {
+		const AutoRTFM::EContextStatus Status = AutoRTFM::Close([this, bAddedNewEntry, bGrewCapacity, OldCapacity, OldData, OldSequenceData] {
+			// TODO: Check that `this` always lives long enough!
+			AutoRTFM::OnAbort([this, bAddedNewEntry, bGrewCapacity, OldCapacity, OldData, OldSequenceData] {
 				// It's safe to do this in a different critical section to reverting the
 				// stores to key/value because the pair table is zero initialized. The
 				// GC is guaranteed to visit valid VValues even if we race with it. It
@@ -255,6 +256,8 @@ TPair<uint32, bool> VMapBase::AddWithoutLocking(FAllocationContext Context, uint
 				}
 			});
 		});
+
+		check(AutoRTFM::EContextStatus::OnTrack == Status);
 	}
 
 	bool bReplacedExistingEntry = !bAddedNewEntry;

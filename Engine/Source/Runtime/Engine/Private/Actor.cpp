@@ -247,7 +247,7 @@ void AActor::InitializeDefaults()
 #if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Increment actor class count
 	// Update our ActorClassName count after the transaction finishes
-	UE_AUTORTFM_ONCOMMIT2(=)
+	UE_AUTORTFM_ONCOMMIT2(this)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{
@@ -803,7 +803,7 @@ void AActor::BeginDestroy()
 #if (CSV_PROFILER_STATS && !UE_BUILD_SHIPPING)
 	// Decrement actor class count
 	// Update our ActorClassName count after the transaction finishes
-	UE_AUTORTFM_ONCOMMIT2(=)
+	UE_AUTORTFM_ONCOMMIT2(this)
 	{
 		if (!HasAnyFlags(RF_ArchetypeObject | RF_ClassDefaultObject))
 		{

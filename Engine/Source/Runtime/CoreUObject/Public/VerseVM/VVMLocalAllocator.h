@@ -47,6 +47,7 @@ private:
 #if defined(__clang__)
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu-folding-constant"
+#pragma clang diagnostic ignored "-Wvla-cxx-extension"
 #endif // defined(__clang__)
 	char OpaqueData[VERSE_SMALL_SEGREGATED_LOCAL_ALLOCATOR_SIZE];
 #if defined(__clang__)
