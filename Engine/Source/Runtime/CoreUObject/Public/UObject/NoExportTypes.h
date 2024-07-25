@@ -2208,6 +2208,9 @@ struct FTimecode
 	UPROPERTY(BlueprintReadWrite, Category=Timecode)
 	int32 Frames;
 
+	UPROPERTY(BlueprintReadWrite, Category=Timecode)
+	float Subframe;
+
 	/** If true, this Timecode represents a Drop Frame timecode used to account for fractional frame rates in NTSC play rates. */
 	UPROPERTY(BlueprintReadWrite, Category= Timecode)
 	bool bDropFrameFormat;
