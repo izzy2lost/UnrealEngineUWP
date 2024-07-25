@@ -198,6 +198,9 @@ class FPCGInputForwardingElement : public IPCGElement
 public:
 	explicit FPCGInputForwardingElement(const FPCGDataCollection& InputToForward);
 
+	// Since this class is stateful because it owns a FPCGDataCollection it can't be cached unless it implements a proper GetDependenciesCrc.
+	// For now since it only forwards its input, we just disable the caching.
+	virtual bool IsCacheable(const UPCGSettings* InSettings) const override { return false; }
 protected:
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
 	virtual bool IsPassthrough(const UPCGSettings* InSettings) const override { return true; }
