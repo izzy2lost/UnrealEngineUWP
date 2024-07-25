@@ -42,6 +42,7 @@ namespace UnrealBuildTool.Rules
 				"SlateCore",
 				"StructUtilsEditor",
 				"ToolWidgets",
+				"ToolMenus"
 			}
 			);
 		}
