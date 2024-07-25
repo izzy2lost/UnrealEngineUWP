@@ -32,7 +32,7 @@ static TAutoConsoleVariable<FString> CVarMediaUtilsStartupProfile(
 class FMediaFrameworkUtilitiesModule : public IMediaFrameworkUtilitiesModule
 {
 	FMediaProfileManager MediaProfileManager;
-	FDelegateHandle PostEngineInitHandle;
+	FDelegateHandle InitHandle;
 
 	virtual void StartupModule() override
 	{
@@ -136,22 +136,15 @@ class FMediaFrameworkUtilitiesModule : public IMediaFrameworkUtilitiesModule
 
 		if (FApp::CanEverRender() || GetDefault<UMediaProfileSettings>()->bApplyInCommandlet)
 		{
-			if (GEngine && GEngine->IsInitialized())
-			{
-				ApplyMediaProfile();
-			}
-			else
-			{
-				PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddLambda(ApplyMediaProfile);
-			}
+			InitHandle = FCoreDelegates::OnFEngineLoopInitComplete.AddLambda(ApplyMediaProfile);
 		}
 	}
 
 	void RemoveStartupMediaProfile()
 	{
-		if (PostEngineInitHandle.IsValid())
+		if (InitHandle.IsValid())
 		{
-			FCoreDelegates::OnPostEngineInit.Remove(PostEngineInitHandle);
+			FCoreDelegates::OnFEngineLoopInitComplete.Remove(InitHandle);
 		}
 
 		if (!IsEngineExitRequested())
