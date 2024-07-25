@@ -168,6 +168,10 @@ class UGameplayTagsSettings : public UGameplayTagsList
 	/** Add a new gameplay tag config file for saving plugin or game-specific tags. */
 	UPROPERTY(EditAnywhere, transient, Category = "GameplayTags")
 	FString NewTagSource;
+
+	/** Find and remove unused tags */
+	UPROPERTY(EditAnywhere, transient, Category = "GameplayTags")
+	FString CleanupUnusedTags;
 #endif
 
 #if WITH_EDITOR

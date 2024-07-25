@@ -43,6 +43,7 @@ namespace UnrealBuildTool.Rules
 					"ToolMenus",
 					"SettingsEditor",
 					"ToolWidgets",
+					"EditorWidgets",
 				}
 			);
 
