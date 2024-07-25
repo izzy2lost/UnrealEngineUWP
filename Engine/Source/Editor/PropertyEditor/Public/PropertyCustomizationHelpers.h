@@ -89,6 +89,65 @@ struct FPropertyComboBoxArgs
 	{}
 };
 
+struct FPropertyFunctionCallArgs
+{
+	TWeakObjectPtr<UFunction> Function;
+
+	TOptional<FText> LabelOverride;
+
+	TOptional<FText> ToolTipTextOverride;
+
+	using FOnExecute = TDelegate<FReply(TWeakObjectPtr<UFunction>)>;
+	FOnExecute OnExecute;
+
+	using FOnCanExecute = TDelegate<bool(TWeakObjectPtr<UFunction>)>;
+	FOnCanExecute OnCanExecute;
+
+	FTextBuilder* SearchText = nullptr;
+
+	FPropertyFunctionCallArgs(
+		UFunction* InFunction,
+		const FOnExecute& InOnExecute,
+		const FOnCanExecute& InOnCanExecute = {},
+		const TOptional<FText>& InLabelOverride = {},
+		const TOptional<FText>& InToolTipTextOverride = {},
+		FTextBuilder* InSearchText = nullptr)
+		: Function(InFunction)
+		, LabelOverride(InLabelOverride)
+		, ToolTipTextOverride(InToolTipTextOverride)
+		, OnExecute(InOnExecute)
+		, OnCanExecute(InOnCanExecute)
+		, SearchText(InSearchText)
+	{
+	}
+};
+
+/** The callbacks, if specified, are used when invoking function calls. */
+struct FPropertyFunctionCallDelegates
+{
+	using FOnGetExecutionContext = TDelegate<TArray<TWeakObjectPtr<UObject>>(TWeakObjectPtr<UFunction>)>;
+	FOnGetExecutionContext OnGetExecutionContext;
+
+	using FOnExecute = TDelegate<FReply(TWeakObjectPtr<UFunction>)>;
+	FOnExecute OnExecute;
+
+	using FOnCanExecute = TDelegate<bool(TWeakObjectPtr<UFunction>)>;
+	FOnCanExecute OnCanExecute;
+
+	FPropertyFunctionCallDelegates(
+		const FOnExecute& InOnExecute,
+		const FOnCanExecute& InOnCanExecute = {})
+		: OnExecute(InOnExecute)
+		, OnCanExecute(InOnCanExecute)
+	{
+	}
+
+	FPropertyFunctionCallDelegates(const FOnGetExecutionContext& InOnGetExecutionContext)
+		: OnGetExecutionContext(InOnGetExecutionContext)
+	{
+	}
+};
+
 namespace PropertyCustomizationHelpers
 {
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeResetButton(FSimpleDelegate OnResetClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
@@ -119,6 +178,11 @@ namespace PropertyCustomizationHelpers
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeSaveButton(FSimpleDelegate OnSaveClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeSetOptionalButton(FSimpleDelegate OnSetOptionalClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
 	PROPERTYEDITOR_API TSharedRef<SWidget> MakeClearOptionalButton(FSimpleDelegate OnClearOptionalClicked, TAttribute<FText> OptionalToolTipText = FText(), TAttribute<bool> IsEnabled = true);
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeFunctionCallButton(const FPropertyFunctionCallArgs& InArgs);
+	PROPERTYEDITOR_API void AddFunctionCallWidgets(IDetailGroup& RootGroup, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddFunctionCallWidgets(IDetailLayoutBuilder& DetailBuilder, const TArrayView<UFunction*>& InCallInEditorFunctions, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddCallInEditorFunctionCallWidgetsForClass(IDetailGroup& RootGroup, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs);
+	PROPERTYEDITOR_API void AddCallInEditorFunctionCallWidgetsForClass(IDetailLayoutBuilder& DetailBuilder, const UClass* Class, const FPropertyFunctionCallDelegates& InArgs);
 
 	/** @return the FBoolProperty edit condition property if one exists. */
 	PROPERTYEDITOR_API FBoolProperty* GetEditConditionProperty(const FProperty* InProperty, bool& bNegate);
@@ -161,6 +225,16 @@ namespace PropertyCustomizationHelpers
 	 * The metadata string is likely from something like AllowedClasses or DisallowedClasses.
 	 */
 	PROPERTYEDITOR_API TArray<const UClass*> GetClassesFromMetadataString(const FString& MetadataString);
+
+	/**
+	 *
+	 */
+	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);
+
+	/**
+	 *	@param InFunctionFilter	A filter to select candidate UFunctions
+	 */
+	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, const TFunctionRef<bool(const UFunction*)>& InFunctionFilter, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);
 }
 
 
