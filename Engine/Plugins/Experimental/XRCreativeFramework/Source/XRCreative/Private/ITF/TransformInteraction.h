@@ -6,6 +6,7 @@
 #include "TransformInteraction.generated.h"
 
 
+class FCombinedTransformGizmoActorFactory;
 class FXRCreativeTransformGizmoActorFactory;
 class UTransformProxy;
 class UCombinedTransformGizmo;
@@ -34,7 +35,8 @@ public:
 	 * Set up the transform interaction. 
 	 * @param InGizmoEnabledCallback callback that determines if Gizmo should be created and visible. For example during a Tool we generally want to hide the TRS Gizmo.
 	 */
-	void Initialize(UTypedElementSelectionSet* InSelectionSet,
+	void Initialize(TSharedRef<FCombinedTransformGizmoActorFactory> InGizmoActorFactory,
+		UTypedElementSelectionSet* InSelectionSet,
 		UInteractiveGizmoManager* InGizmoManager,
 		TUniqueFunction<bool()> InGizmoEnabledCallback);
 
@@ -62,7 +64,7 @@ protected:
 	TWeakObjectPtr<UTypedElementSelectionSet> WeakSelectionSet;
 	TWeakObjectPtr<UInteractiveGizmoManager> WeakGizmoManager;
 
-	TSharedPtr<FXRCreativeTransformGizmoActorFactory> GizmoActorFactory;
+	TSharedPtr<FCombinedTransformGizmoActorFactory> GizmoActorFactory;
 
 	void UpdateGizmoTargets(const UTypedElementSelectionSet* InSelectionSet);
 

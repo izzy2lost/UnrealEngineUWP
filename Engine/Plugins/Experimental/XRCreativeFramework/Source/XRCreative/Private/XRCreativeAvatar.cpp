@@ -183,6 +183,14 @@ void AXRCreativeAvatar::BeginPlay()
 }
 
 
+void AXRCreativeAvatar::GetActorEyesViewPoint(FVector& Location, FRotator& Rotation) const
+{
+	FTransform HeadTransform = GetHeadTransform();
+	Location = HeadTransform.GetLocation();
+	Rotation = HeadTransform.GetRotation().Rotator();
+}
+
+
 void AXRCreativeAvatar::ConfigureToolset(UXRCreativeToolset* InToolset)
 {
 	check(InToolset);
