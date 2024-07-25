@@ -710,3 +710,48 @@ FRigUnit_PoseLoop_Execute()
 	Ratio = GetRatioFromIndex(Index, Count);
 }
 
+FRigUnit_HierarchyCreatePoseItemArray_Execute()
+{
+	const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy;
+	if(Hierarchy == nullptr)
+	{
+		Pose.Reset();
+		return;
+	}
+	
+	Pose.Elements.Reset(Entries.Num());
+	Pose.HierarchyTopologyVersion = Hierarchy->GetTopologyVersion();
+	Pose.PoseHash = Pose.HierarchyTopologyVersion;
+
+	for(const FRigUnit_HierarchyCreatePoseItemArray_Entry& Entry : Entries)
+	{
+		if(const FRigTransformElement* TransformElement = Hierarchy->Find<FRigTransformElement>(Entry.Item))
+		{
+			const FRigElementKey& Key = Entry.Item;
+			FRigPoseElement Element;
+			Element.Index = FCachedRigElement(Key, Hierarchy);
+			Element.ActiveParent = Hierarchy->GetActiveParent(Key);
+			Element.LocalTransform = Entry.LocalTransform;
+			Element.GlobalTransform = Entry.GlobalTransform;
+			Element.CurveValue = Entry.CurveValue;
+			Element.PreferredEulerAngle = FVector::ZeroVector;
+
+			if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(TransformElement))
+			{
+				if(Entry.UseEulerAngles)
+				{
+					Element.PreferredEulerAngle = Entry.EulerAngles;
+				}
+				else
+				{
+					FRigPreferredEulerAngles EulerAngles = ControlElement->PreferredEulerAngles;
+					EulerAngles.SetRotator(Entry.LocalTransform.Rotator(), false, false);
+					Element.PreferredEulerAngle = EulerAngles.GetAngles(false, EulerAngles.RotationOrder); 
+				}
+			}
+
+			Pose.Elements.Add(Element);
+			Pose.PoseHash = HashCombine(Pose.PoseHash, GetTypeHash(Key));
+		}
+	}
+}

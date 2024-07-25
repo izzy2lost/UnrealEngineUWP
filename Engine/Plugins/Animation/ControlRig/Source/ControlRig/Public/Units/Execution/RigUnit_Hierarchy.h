@@ -824,3 +824,65 @@ struct CONTROLRIG_API FRigUnit_PoseLoop : public FRigUnit_HierarchyBaseMutable
 	UPROPERTY(meta = (Output))
 	FControlRigExecuteContext Completed;
 };
+
+USTRUCT(BlueprintType)
+struct FRigUnit_HierarchyCreatePoseItemArray_Entry
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyCreatePoseItemArray_Entry()
+	: Item(NAME_None, ERigElementType::Bone)
+	, LocalTransform(FTransform::Identity)
+	, GlobalTransform(FTransform::Identity)
+	, UseEulerAngles(false)
+	, EulerAngles(FVector::ZeroVector)
+	, CurveValue(0.f)
+	{
+	}
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FRigElementKey Item;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FTransform LocalTransform;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FTransform GlobalTransform;
+
+	// in case of a control this can be used to drive the preferred euler angles
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	bool UseEulerAngles;
+
+	// in case of a control this can be used to drive the preferred euler angles
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	FVector EulerAngles;
+
+	// in case of a curve this can be used to drive the curve value
+	UPROPERTY(BlueprintReadWrite, Category = "Entry")
+	float CurveValue;
+};
+
+
+/**
+ * Creates the hierarchy's pose
+ */
+USTRUCT(meta=(DisplayName="Create Pose Cache", Keywords="Hierarchy,Pose,State,MakePoseCache,NewPoseCache,EmptyPoseCache", Varying, Category = "Pose Cache"))
+struct CONTROLRIG_API FRigUnit_HierarchyCreatePoseItemArray : public FRigUnit_HierarchyBase
+{
+	GENERATED_BODY()
+
+	FRigUnit_HierarchyCreatePoseItemArray()
+	{
+		Pose = FRigPose();
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	// The entries to create
+	UPROPERTY(meta = (Input))
+	TArray<FRigUnit_HierarchyCreatePoseItemArray_Entry> Entries;
+
+	UPROPERTY(meta = (Output))
+	FRigPose Pose;
+};
