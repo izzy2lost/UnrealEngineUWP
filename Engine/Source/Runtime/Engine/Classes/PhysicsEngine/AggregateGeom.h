@@ -222,6 +222,28 @@ struct FKAggregateGeom
 		return INDEX_NONE;
 	}
 
+#if WITH_EDITORONLY_DATA
+	void EmptyImportedElements()
+	{
+		auto CleanUp = [](auto& Elems)
+		{
+			Elems.RemoveAllSwap([](const FKShapeElem& Elem)
+			{
+				return Elem.bIsGenerated == false;
+			});
+		};
+		CleanUp(BoxElems);
+		CleanUp(ConvexElems);
+		CleanUp(SphylElems);
+		CleanUp(SphereElems);
+		CleanUp(TaperedCapsuleElems);
+		CleanUp(LevelSetElems);
+		CleanUp(SkinnedLevelSetElems);
+
+		FreeRenderInfo();
+	}
+#endif
+
 	void EmptyElements()
 	{
 		BoxElems.Empty();

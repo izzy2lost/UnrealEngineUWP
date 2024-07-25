@@ -118,7 +118,7 @@ struct FKShapeElem
 
 #if WITH_EDITORONLY_DATA
 	/** True when the shape was created by the engine and was not imported. */
-	UPROPERTY()
+	UPROPERTY(Category = Shape, EditAnywhere, DisplayName="Collision Generated")
 	uint8 bIsGenerated : 1;
 #endif
 
@@ -131,6 +131,9 @@ protected:
 		Name = Other.Name;
 		bContributeToMass = Other.bContributeToMass;
 		CollisionEnabled = Other.CollisionEnabled;
+#if WITH_EDITORONLY_DATA
+		bIsGenerated = Other.bIsGenerated;
+#endif
 	}
 
 private:
