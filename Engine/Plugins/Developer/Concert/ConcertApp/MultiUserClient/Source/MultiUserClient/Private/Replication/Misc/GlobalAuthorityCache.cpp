@@ -23,7 +23,7 @@ namespace UE::MultiUserClient
 
 	void FGlobalAuthorityCache::ForEachClientWithObjectInStream(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
 	{
-		const TSet<FGuid>* Clients = RegisteredObjectsToClients.Find(Object);
+		const TSet<FGuid>* Clients = StreamObjectsToClients.Find(Object);
 		if (!Clients)
 		{
 			return;
@@ -41,7 +41,7 @@ namespace UE::MultiUserClient
 	bool FGlobalAuthorityCache::IsObjectOrChildReferenced(const FSoftObjectPath& Object) const
 	{
 		const FString ObjectPathString = Object.ToString();
-		for (const TPair<FSoftObjectPath, TSet<FGuid>>& Pair : RegisteredObjectsToClients)
+		for (const TPair<FSoftObjectPath, TSet<FGuid>>& Pair : StreamObjectsToClients)
 		{
 			if (Pair.Key.ToString().Contains(ObjectPathString))
 			{
@@ -53,7 +53,7 @@ namespace UE::MultiUserClient
 
 	void FGlobalAuthorityCache::ForEachClientWithAuthorityOverObject(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
 	{
-		const TSet<FGuid>* Clients = OwnedObjectsToClients.Find(Object);
+		const TSet<FGuid>* Clients = AuthorityObjectsToClients.Find(Object);
 		if (!Clients)
 		{
 			return;
@@ -139,7 +139,7 @@ namespace UE::MultiUserClient
 
 	void FGlobalAuthorityCache::ForEachClientReferencingProperty(const FSoftObjectPath& Object, const FConcertPropertyChain& Property, TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback) const
 	{
-		const TSet<FGuid>* ClientsWithStreams = RegisteredObjectsToClients.Find(Object);
+		const TSet<FGuid>* ClientsWithStreams = StreamObjectsToClients.Find(Object);
 		if (!ClientsWithStreams)
 		{
 			return;
@@ -237,17 +237,19 @@ namespace UE::MultiUserClient
 		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& StreamContents : ClientObjectMap.ReplicatedObjects)
 		{
 			const FSoftObjectPath& Object = StreamContents.Key;
-			RegisteredObjectsToClients.FindOrAdd(Object).Add(ClientId);
+			StreamObjectsToClients.FindOrAdd(Object).Add(ClientId);
+			StreamObjectHierarchy.AddObject(Object);
+			
 			if (ClientAuthority.HasAuthorityOver(Object))
 			{
-				OwnedObjectsToClients.FindOrAdd(Object).Add(ClientId);
+				AuthorityObjectsToClients.FindOrAdd(Object).Add(ClientId);
 			}
 		}
 	}
 
 	void FGlobalAuthorityCache::RemoveClient(const FGuid& ClientId)
 	{
-		for (auto It = OwnedObjectsToClients.CreateIterator(); It; ++It)
+		for (auto It = AuthorityObjectsToClients.CreateIterator(); It; ++It)
 		{
 			It->Value.Remove(ClientId);
 			if (It->Value.IsEmpty())
@@ -256,11 +258,12 @@ namespace UE::MultiUserClient
 			}
 		}
 
-		for (auto It = RegisteredObjectsToClients.CreateIterator(); It; ++It)
+		for (auto It = StreamObjectsToClients.CreateIterator(); It; ++It)
 		{
 			It->Value.Remove(ClientId);
 			if (It->Value.IsEmpty())
 			{
+				StreamObjectHierarchy.RemoveObject(It->Key);
 				It.RemoveCurrent();
 			}
 		}

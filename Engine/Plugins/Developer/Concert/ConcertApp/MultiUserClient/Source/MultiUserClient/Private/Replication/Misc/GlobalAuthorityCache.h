@@ -7,6 +7,7 @@
 #include "Replication/AuthorityConflictSharedUtils.h"
 
 #include "Delegates/Delegate.h"
+#include "Misc/ObjectPathHierarchy.h"
 #include "Templates/Function.h"
 
 struct FConcertPropertyChain;
@@ -78,6 +79,9 @@ namespace UE::MultiUserClient
 		 * @param SendingClient The client that will send the request
 		 */
 		void CleanseConflictsFromStreamRequest(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient) const;
+
+		/** Allows efficient retrieving of registered child objects. */
+		const ConcertSyncCore::FObjectPathHierarchy& GetStreamObjectHierarchy() const { return StreamObjectHierarchy; }
 		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnCacheChanged, const FGuid& ClientId);
 		/** Called when the cache changes for a specific client. */
@@ -88,10 +92,12 @@ namespace UE::MultiUserClient
 		/** Used to obtain the clients and their states */
 		FReplicationClientManager& ClientManager;
 		
-		/** Maps objects that are owned to the clients that own them (have authority) */
-		TMap<FSoftObjectPath, TSet<FGuid>> OwnedObjectsToClients;
 		/** Maps objects that are owned to the clients that have them in the stream */
-		TMap<FSoftObjectPath, TSet<FGuid>> RegisteredObjectsToClients;
+		TMap<FSoftObjectPath, TSet<FGuid>> StreamObjectsToClients;
+		/** Maps objects that are owned to the clients that own them (have authority) */
+		TMap<FSoftObjectPath, TSet<FGuid>> AuthorityObjectsToClients;
+		/** The hierarchy of objects that have been registered by all clients. Allows efficient retrieving of child objects. */
+		ConcertSyncCore::FObjectPathHierarchy StreamObjectHierarchy;
 		
 		/** Called when the cache changes for a specific client. */
 		FOnCacheChanged OnCacheChangedDelegate;
