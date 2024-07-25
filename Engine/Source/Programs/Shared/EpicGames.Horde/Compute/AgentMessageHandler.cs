@@ -193,8 +193,7 @@ namespace EpicGames.Horde.Compute
 			BundleOptions bundleOptions = ComputeProtocolUtilities.GetBundleOptions(channel.Protocol);
 			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
 
-			IBlobRef handle = store.CreateBlobRef(locator);
-			DirectoryNode directoryNode = await handle.ReadBlobAsync<DirectoryNode>(options, cancellationToken);
+			IBlobRef<DirectoryNode> directoryRef = store.CreateBlobRef<DirectoryNode>(locator, options);
 
 			DirectoryReference outputDir = DirectoryReference.Combine(_sandboxDir, path);
 			if (!outputDir.IsUnderDirectory(_sandboxDir))
@@ -202,8 +201,8 @@ namespace EpicGames.Horde.Compute
 				throw new InvalidOperationException("Cannot write files outside sandbox");
 			}
 
-			await directoryNode.CopyToDirectoryAsync(outputDir.ToDirectoryInfo(), _logger, cancellationToken);
-			await VerifyFilesAsync(outputDir, directoryNode, cancellationToken);
+			await directoryRef.ExtractAsync(outputDir.ToDirectoryInfo(), _logger, cancellationToken);
+			await VerifyFilesAsync(outputDir, directoryRef, cancellationToken);
 
 			using (IAgentMessageBuilder message = await channel.CreateMessageAsync(AgentMessageType.WriteFilesResponse, cancellationToken))
 			{
@@ -211,10 +210,11 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task<bool> VerifyFilesAsync(DirectoryReference outputDir, DirectoryNode directoryNode, CancellationToken cancellationToken = default)
+		async Task<bool> VerifyFilesAsync(DirectoryReference outputDir, IBlobRef<DirectoryNode> directoryRef, CancellationToken cancellationToken = default)
 		{
 			bool result = true;
 
+			DirectoryNode directoryNode = await directoryRef.ReadBlobAsync(cancellationToken);
 			foreach (FileEntry fileEntry in directoryNode.Files)
 			{
 				FileReference file = FileReference.Combine(outputDir, fileEntry.Name);
@@ -242,8 +242,7 @@ namespace EpicGames.Horde.Compute
 
 			foreach (DirectoryEntry directoryEntry in directoryNode.Directories)
 			{
-				DirectoryNode subNode = await directoryEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
-				result &= await VerifyFilesAsync(DirectoryReference.Combine(outputDir, directoryEntry.Name), subNode, cancellationToken);
+				result &= await VerifyFilesAsync(DirectoryReference.Combine(outputDir, directoryEntry.Name), directoryEntry.Handle, cancellationToken);
 			}
 
 			return result;

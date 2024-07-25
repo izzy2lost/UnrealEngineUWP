@@ -229,6 +229,18 @@ namespace EpicGames.Horde.Storage
 		/// <typeparam name="T">Return type for the deserialized object</typeparam>
 		/// <param name="handle">Handle to the blob to deserialize</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async ValueTask<T> ReadBlobAsync<T>(this IBlobRef<T> handle, CancellationToken cancellationToken = default)
+		{
+			using BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
+			return BlobSerializer.Deserialize<T>(data, handle.SerializerOptions);
+		}
+
+		/// <summary>
+		/// Deserialize an object
+		/// </summary>
+		/// <typeparam name="T">Return type for the deserialized object</typeparam>
+		/// <param name="handle">Handle to the blob to deserialize</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async ValueTask<T> ReadBlobAsync<T>(this IHashedBlobRef<T> handle, CancellationToken cancellationToken = default)
 		{
 			using BlobData data = await handle.ReadBlobDataAsync(cancellationToken);

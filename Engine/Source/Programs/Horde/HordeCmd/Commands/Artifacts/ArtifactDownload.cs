@@ -51,12 +51,11 @@ namespace Horde.Commands.Artifacts
 			}
 
 			using IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
-			IBlobRef handle = await store.ReadRefAsync(new RefName("default"));
 
 			Stopwatch timer = Stopwatch.StartNew();
 
-			DirectoryNode node = await handle.ReadBlobAsync<DirectoryNode>();
-			await node.CopyToDirectoryAsync(OutputDir.ToDirectoryInfo(), new ExtractStatsLogger(logger), logger, CancellationToken.None);
+			IBlobRef<DirectoryNode> handle = await store.ReadRefAsync<DirectoryNode>(new RefName("default"));
+			await handle.ExtractAsync(OutputDir.ToDirectoryInfo(), new ExtractStatsLogger(logger), logger, CancellationToken.None);
 
 			logger.LogInformation("Elapsed: {Time}s", timer.Elapsed.TotalSeconds);
 

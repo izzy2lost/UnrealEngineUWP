@@ -195,8 +195,7 @@ namespace EpicGames.Horde.Tests
 			DirectoryInfo tempDir = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
 			try
 			{
-				DirectoryNode expandedNode = await handle.ReadBlobAsync();
-				await expandedNode.CopyToDirectoryAsync(tempDir, null, NullLogger.Instance, CancellationToken.None);
+				await handle.ExtractAsync(tempDir, null, NullLogger.Instance, CancellationToken.None);
 
 				byte[] outputData = await File.ReadAllBytesAsync(Path.Combine(tempDir.FullName, "test"));
 				Assert.IsTrue(outputData.SequenceEqual(data));

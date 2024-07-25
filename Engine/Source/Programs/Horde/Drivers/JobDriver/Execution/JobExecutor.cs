@@ -1084,7 +1084,7 @@ namespace JobDriver.Execution
 				DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken: cancellationToken);
 				if (buildGraphDir != null)
 				{
-					await buildGraphDir.CopyToDirectoryAsync(new DirectoryInfo(workspaceDir.FullName), null, logger, cancellationToken);
+					await buildGraphDir.ExtractAsync(new DirectoryInfo(workspaceDir.FullName), logger, cancellationToken);
 					logger.LogInformation("Copying preprocessed script from {BuildGraphFolderName} into {OutputDir}", BuildGraphTempStorageDir, workspaceDir);
 				}
 				else
