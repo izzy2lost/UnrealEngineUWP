@@ -29,7 +29,7 @@ struct FGenericMemoryStats;
 #define UE_MB2_MINIMUM_ALIGNMENT			16			// Alignment of bins
 #define UE_MB2_MAXIMUM_ALIGNMENT			128
 #define UE_MB2_MAX_SMALL_POOL_SIZE			(32768-16)	// Maximum bin size in SmallBinSizes in cpp file
-#define UE_MB2_SMALL_POOL_COUNT				45
+#define UE_MB2_SMALL_POOL_COUNT				51
 
 
 #define UE_DEFAULT_GBinned2PerThreadCaches						1
