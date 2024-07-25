@@ -50,7 +50,7 @@ public class BinkMediaPlayerSDK : ModuleRules
 		PublicDefinitions.Add("BUILDING_FOR_UNREAL_ONLY=1");
 		PublicDefinitions.Add("__RADNOEXPORTS__=1");
 		PublicDefinitions.Add("__RADINSTATICLIB__=1");
-		RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/..."); // For chunked streaming
+		//RuntimeDependencies.Add("$(ProjectDir)/Content/Movies/..."); // For chunked streaming
 
 		string Lib = LibName;
 		string Platform = Target.Platform.ToString();
