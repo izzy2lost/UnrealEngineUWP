@@ -99,9 +99,9 @@ namespace HordeServer.Tests.Jobs.Schedules
 		{
 			List<IJob> jobs = await FileTestHelperAsync("....cpp");
 			Assert.AreEqual(3, jobs.Count);
-			Assert.AreEqual(100, jobs[0].Change);
-			Assert.AreEqual(103, jobs[1].Change);
-			Assert.AreEqual(104, jobs[2].Change);
+			Assert.AreEqual(100, jobs[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(103, jobs[1].CommitId.GetPerforceChange());
+			Assert.AreEqual(104, jobs[2].CommitId.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -109,8 +109,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 		{
 			List<IJob> jobs = await FileTestHelperAsync("/foo/...");
 			Assert.AreEqual(2, jobs.Count);
-			Assert.AreEqual(103, jobs[0].Change);
-			Assert.AreEqual(105, jobs[1].Change);
+			Assert.AreEqual(103, jobs[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(105, jobs[1].CommitId.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -118,9 +118,9 @@ namespace HordeServer.Tests.Jobs.Schedules
 		{
 			List<IJob> jobs = await FileTestHelperAsync("....uasset", "-/bar/...");
 			Assert.AreEqual(3, jobs.Count);
-			Assert.AreEqual(101, jobs[0].Change);
-			Assert.AreEqual(102, jobs[1].Change);
-			Assert.AreEqual(105, jobs[2].Change);
+			Assert.AreEqual(101, jobs[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(102, jobs[1].CommitId.GetPerforceChange());
+			Assert.AreEqual(105, jobs[2].CommitId.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -215,8 +215,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
-			Assert.AreEqual(102, jobs2[0].Change);
-			Assert.AreEqual(100, jobs2[0].CodeChange);
+			Assert.AreEqual(102, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs2[0].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -243,15 +243,15 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
-			Assert.AreEqual(102, jobs2[0].Change);
-			Assert.AreEqual(100, jobs2[0].CodeChange);
+			Assert.AreEqual(102, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs2[0].CodeCommitId!.GetPerforceChange());
 
 			StreamConfig? streamConfig;
 			GlobalConfig.CurrentValue.Plugins.GetBuildConfig().TryGetStream(StreamId, out streamConfig);
 
 			IStream stream2 = (await StreamCollection.GetAsync(streamConfig!))!;
 			ITemplateSchedule schedule2 = stream2.Templates.First().Value.Schedule!;
-			Assert.AreEqual(102, schedule2.LastTriggerChange);
+			Assert.AreEqual(102, schedule2.LastTriggerCommitId!.GetPerforceChange());
 			Assert.AreEqual(Clock.UtcNow, schedule2.LastTriggerTimeUtc);
 
 			// Trigger another job
@@ -294,10 +294,10 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs2.Count);
-			Assert.AreEqual(104, jobs2[0].Change);
-			Assert.AreEqual(104, jobs2[0].CodeChange);
-			Assert.AreEqual(106, jobs2[1].Change);
-			Assert.AreEqual(106, jobs2[1].CodeChange);
+			Assert.AreEqual(104, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(104, jobs2[0].CodeCommitId!.GetPerforceChange());
+			Assert.AreEqual(106, jobs2[1].CommitId.GetPerforceChange());
+			Assert.AreEqual(106, jobs2[1].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -332,10 +332,10 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs2.Count);
-			Assert.AreEqual(103, jobs2[0].Change);
-			Assert.AreEqual(103, jobs2[0].CodeChange);
-			Assert.AreEqual(106, jobs2[1].Change);
-			Assert.AreEqual(106, jobs2[1].CodeChange);
+			Assert.AreEqual(103, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(103, jobs2[0].CodeCommitId!.GetPerforceChange());
+			Assert.AreEqual(106, jobs2[1].CommitId.GetPerforceChange());
+			Assert.AreEqual(106, jobs2[1].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -358,8 +358,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
-			Assert.AreEqual(102, jobs2[0].Change);
-			Assert.AreEqual(100, jobs2[0].CodeChange);
+			Assert.AreEqual(102, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs2[0].CodeCommitId!.GetPerforceChange());
 
 			// Test that another job does not trigger
 			await Clock.AdvanceAsync(TimeSpan.FromHours(0.5));
@@ -377,8 +377,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs4 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs4.Count);
-			Assert.AreEqual(102, jobs4[0].Change);
-			Assert.AreEqual(100, jobs4[0].CodeChange);
+			Assert.AreEqual(102, jobs4[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs4[0].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -399,8 +399,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs2 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs2.Count);
-			Assert.AreEqual(102, jobs2[0].Change);
-			Assert.AreEqual(100, jobs2[0].CodeChange);
+			Assert.AreEqual(102, jobs2[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs2[0].CodeCommitId!.GetPerforceChange());
 
 			// Check another job does not trigger due to the change above
 			await Clock.AdvanceAsync(TimeSpan.FromHours(1.25));
@@ -450,10 +450,10 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			// Create a job and fail it
 			CreateJobOptions options1 = new CreateJobOptions();
-			options1.PreflightChange = 999;
+			options1.PreflightCommitId = CommitId.FromPerforceChange(999);
 			options1.Arguments.Add("-Target=TriggerNext");
 
-			IJob job1 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", 1234, 1233, options1);
+			IJob job1 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", CommitIdWithOrder.FromPerforceChange(1234), CommitIdWithOrder.FromPerforceChange(1233), options1);
 			JobStepBatchId batchId1 = job1.Batches[0].Id;
 			JobStepId stepId1 = job1.Batches[0].Steps[0].Id;
 			job1 = Deref(await JobService.UpdateBatchAsync(job1, batchId1, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
@@ -470,10 +470,10 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			// Create a job and make it succeed
 			CreateJobOptions options2 = new CreateJobOptions();
-			options2.PreflightChange = 999;
+			options2.PreflightCommitId = CommitId.FromPerforceChange(999);
 			options2.Arguments.Add("-Target=TriggerNext");
 
-			IJob job2 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", 1234, 1233, options2);
+			IJob job2 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, newTemplate1.Hash, graphA, "Hello", CommitIdWithOrder.FromPerforceChange(1234), CommitIdWithOrder.FromPerforceChange(1233), options2);
 			JobStepBatchId batchId2 = job2.Batches[0].Id;
 			JobStepId stepId2 = job2.Batches[0].Steps[0].Id;
 			job2 = Deref(await JobService.UpdateBatchAsync(job2, batchId2, config, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
@@ -484,8 +484,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 			await ScheduleService.TickForTestingAsync();
 			List<IJob> jobs4 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs4.Count);
-			Assert.AreEqual(1234, jobs4[0].Change);
-			Assert.AreEqual(1233, jobs4[0].CodeChange);
+			Assert.AreEqual(1234, jobs4[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(1233, jobs4[0].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -550,7 +550,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 				CreateJobOptions options1 = new CreateJobOptions();
 				options1.Arguments.Add("-Target=TriggerNext");
 
-				IJob job1 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, _template.Hash, graphA, "Hello", change, codeChange, options1);
+				IJob job1 = await JobService.CreateJobAsync(null, config, newTemplateRefId1, _template.Hash, graphA, "Hello", CommitIdWithOrder.FromPerforceChange(change), CommitIdWithOrder.FromPerforceChange(codeChange), options1);
 				for (int batchIdx = 0; batchIdx < job1.Batches.Count; batchIdx++)
 				{
 					JobStepBatchId batchId1 = job1.Batches[batchIdx].Id;
@@ -570,8 +570,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 			await ScheduleService.TriggerAsync(StreamId, newTemplateRefId2, Clock.UtcNow, default);
 			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(2, jobs3.Count);
-			Assert.AreEqual(1230, jobs3[0].Change);
-			Assert.AreEqual(1233, jobs3[1].Change);
+			Assert.AreEqual(1230, jobs3[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(1233, jobs3[1].CommitId.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -593,8 +593,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs1 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs1.Count);
-			Assert.AreEqual(102, jobs1[0].Change);
-			Assert.AreEqual(100, jobs1[0].CodeChange);
+			Assert.AreEqual(102, jobs1[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs1[0].CodeCommitId!.GetPerforceChange());
 
 			// Make sure the job is registered
 			IStream? stream1 = await StreamCollection.GetAsync(GlobalConfig.CurrentValue.Plugins.GetBuildConfig().Streams[0]);
@@ -638,8 +638,8 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			List<IJob> jobs3 = await GetNewJobsAsync();
 			Assert.AreEqual(1, jobs3.Count);
-			Assert.AreEqual(102, jobs3[0].Change);
-			Assert.AreEqual(100, jobs3[0].CodeChange);
+			Assert.AreEqual(102, jobs3[0].CommitId.GetPerforceChange());
+			Assert.AreEqual(100, jobs3[0].CodeCommitId!.GetPerforceChange());
 		}
 
 		[TestMethod]
@@ -722,7 +722,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 			List<IJob> jobs = (await JobCollection.FindAsync()).ToList();
 			jobs.RemoveAll(x => _initialJobIds.Contains(x.Id));
 			_initialJobIds.UnionWith(jobs.Select(x => x.Id));
-			return jobs.OrderBy(x => x.Change).ToList();
+			return jobs.OrderBy(x => x.CommitId).ToList();
 		}
 	}
 }

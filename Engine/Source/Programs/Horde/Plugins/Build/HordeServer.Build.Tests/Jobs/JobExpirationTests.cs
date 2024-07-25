@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
@@ -38,13 +39,13 @@ namespace HordeServer.Tests.Jobs
 			SetConfig(globalConfig);
 
 			CreateJobOptions options = new CreateJobOptions();
-			options.PreflightChange = 999;
+			options.PreflightCommitId = CommitId.FromPerforceChange(999);
 
 			ITemplate template = await TemplateCollection.GetOrAddAsync(streamConfig.Templates[0]);
 
 			IGraph graph = await GraphCollection.AddAsync(template, null);
 
-			return await JobService.CreateJobAsync(null, streamConfig, templateId, template.Hash, graph, "Hello", 1234, 1233, options);
+			return await JobService.CreateJobAsync(null, streamConfig, templateId, template.Hash, graph, "Hello", CommitIdWithOrder.FromPerforceChange(1234), CommitIdWithOrder.FromPerforceChange(1233), options);
 		}
 
 		[TestMethod]

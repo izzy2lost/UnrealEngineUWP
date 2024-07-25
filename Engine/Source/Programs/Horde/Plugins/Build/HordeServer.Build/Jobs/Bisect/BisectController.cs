@@ -6,6 +6,7 @@ using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
+using HordeServer.Commits;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Streams;
 using HordeServer.Users;
@@ -43,7 +44,23 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Set of changes to ignore. Can be modified later through <see cref="UpdateBisectTaskRequest"/>.
 		/// </summary>
-		public List<int>? IgnoreChanges { get; set; }
+		[Obsolete("Use IgnoreCommitIds instead")]
+		public List<int>? IgnoreChanges
+		{
+			get => _ignoreChanges ?? _ignoreCommitIds?.ConvertAll(x => x.GetPerforceChangeOrMinusOne());
+			set => _ignoreChanges = value;
+		}
+		List<int>? _ignoreChanges;
+
+		/// <summary>
+		/// Set of changes to ignore. Can be modified later through <see cref="UpdateBisectTaskRequest"/>.
+		/// </summary>
+		public List<CommitId>? IgnoreCommitIds
+		{
+			get => _ignoreCommitIds ?? _ignoreChanges?.ConvertAll(x => CommitId.FromPerforceChange(x));
+			set => _ignoreCommitIds = value;
+		}
+		List<CommitId>? _ignoreCommitIds;
 
 		/// <summary>
 		/// Set of jobs to ignore. Can be modified later through <see cref="UpdateBisectTaskRequest"/>.
@@ -101,8 +118,12 @@ namespace HordeServer.Jobs.Bisect
 		/// Initial Job Step Id
 		public string InitialStepId => _bisectTask.InitialJobStep.StepId.ToString();
 
-		/// <inheritdoc cref="IBisectTask.InitialChange"/>
-		public int InitialChange => _bisectTask.InitialChange;
+		/// <inheritdoc cref="IBisectTask.InitialCommitId"/>
+		[Obsolete("Use InitialCommitId instead")]
+		public int InitialChange => InitialCommitId.GetPerforceChangeOrMinusOne();
+
+		/// <inheritdoc cref="IBisectTask.InitialCommitId"/>
+		public CommitIdWithOrder InitialCommitId => _bisectTask.InitialCommitId;
 
 		/// Min Job Id
 		public string? MinJobId => _bisectTask.MinJobStep?.JobId.ToString();
@@ -113,8 +134,12 @@ namespace HordeServer.Jobs.Bisect
 		/// Min Job Step Id
 		public string? MinStepId => _bisectTask.MinJobStep?.StepId.ToString();
 
-		/// <inheritdoc cref="IBisectTask.MinChange"/>
-		public int? MinChange => _bisectTask.MinChange;
+		/// <inheritdoc cref="IBisectTask.MinCommitId"/>
+		[Obsolete("Use MinCommitId instead")]
+		public int? MinChange => MinCommitId?.GetPerforceChangeOrMinusOne();
+
+		/// <inheritdoc cref="IBisectTask.MinCommitId"/>
+		public CommitIdWithOrder? MinCommitId => _bisectTask.MinCommitId;
 
 		/// Current Job Id
 		public string CurrentJobId => _bisectTask.CurrentJobStep.JobId.ToString();
@@ -125,8 +150,12 @@ namespace HordeServer.Jobs.Bisect
 		/// Current Job Step Id
 		public string CurrentStepId => _bisectTask.CurrentJobStep.StepId.ToString();
 
-		/// <inheritdoc cref="IBisectTask.CurrentChange"/>
-		public int CurrentChange => _bisectTask.CurrentChange;
+		/// <inheritdoc cref="IBisectTask.CurrentCommitId"/>
+		[Obsolete("Use CurrentCommit instead")]
+		public int CurrentChange => CurrentCommitId.GetPerforceChangeOrMinusOne();
+
+		/// <inheritdoc cref="IBisectTask.CurrentCommitId"/>
+		public CommitIdWithOrder CurrentCommitId => _bisectTask.CurrentCommitId;
 
 		/// <summary>
 		/// The next job id for a running bisection task
@@ -136,7 +165,13 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// The next job change
 		/// </summary>
-		public int? NextJobChange { get; }
+		[Obsolete("Use NextJobCommit instead")]
+		public int? NextJobChange => NextJobCommit?.TryGetPerforceChange();
+
+		/// <summary>
+		/// The next job change
+		/// </summary>
+		public CommitIdWithOrder? NextJobCommit { get; }
 
 		/// <summary>
 		/// The steps involved in the bisection
@@ -149,7 +184,7 @@ namespace HordeServer.Jobs.Bisect
 			Owner = owner;
 			Steps = steps.Select(s => StreamsController.CreateGetJobStepRefResponse(s)).ToList();
 			NextJobId = nextJob?.Id;
-			NextJobChange = nextJob?.Change;
+			NextJobCommit = nextJob?.CommitId;
 		}
 	}
 
@@ -166,12 +201,44 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// List of change numbers to include in the search. 
 		/// </summary>
-		public List<int> IncludeChanges { get; set; } = new List<int>();
+		[Obsolete("Use IncludeCommits instead")]
+		public List<int> IncludeChanges
+		{
+			get => _includeChanges ?? _includeCommitIds?.ConvertAll(x => x.GetPerforceChangeOrMinusOne()) ?? new List<int>();
+			set => _includeChanges = value;
+		}
+		List<int>? _includeChanges;
+
+		/// <summary>
+		/// List of commits to include in the search. 
+		/// </summary>
+		public List<CommitId> IncludeCommitIds
+		{
+			get => _includeCommitIds ?? _includeChanges?.ConvertAll(x => CommitId.FromPerforceChange(x)) ?? new List<CommitId>();
+			set => _includeCommitIds = value;
+		}
+		List<CommitId>? _includeCommitIds;
 
 		/// <summary>
 		/// List of change numbers to exclude from the search.
 		/// </summary>
-		public List<int> ExcludeChanges { get; set; } = new List<int>();
+		[Obsolete("Use ExcludeCommitIds instead")]
+		public List<int> ExcludeChanges
+		{
+			get => _excludeChanges ?? _excludeCommitIds?.Select(x => x.TryGetPerforceChange() ?? 0).Where(x => x != 0).ToList() ?? new List<int>();
+			set => _excludeChanges = value;
+		}
+		List<int>? _excludeChanges;
+
+		/// <summary>
+		/// List of commits to exclude from the search
+		/// </summary>
+		public List<CommitId> ExcludeCommitIds
+		{
+			get => _excludeCommitIds ?? _excludeChanges?.ConvertAll(x => CommitId.FromPerforceChange(x)) ?? new List<CommitId>();
+			set => _excludeCommitIds = value;
+		}
+		List<CommitId>? _excludeCommitIds;
 
 		/// <summary>
 		/// List of jobs to include in the search.
@@ -195,6 +262,7 @@ namespace HordeServer.Jobs.Bisect
 		readonly IBisectTaskCollection _bisectTaskCollection;
 		readonly IJobCollection _jobCollection;
 		readonly JobService _jobService;
+		readonly ICommitService _commitService;
 		readonly IJobStepRefCollection _jobStepRefs;
 		readonly IGraphCollection _graphCollection;
 		readonly IUserCollection _userCollection;
@@ -205,10 +273,11 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BisectTasksController(IBisectTaskCollection bisectTaskCollection, JobService jobService, IJobCollection jobCollection, IJobStepRefCollection jobStepRefs, IGraphCollection graphCollection, IUserCollection userCollection, Tracer tracer, ILogger<BisectTasksController> logger, IOptionsSnapshot<BuildConfig> buildConfig)
+		public BisectTasksController(IBisectTaskCollection bisectTaskCollection, JobService jobService, ICommitService commitService, IJobCollection jobCollection, IJobStepRefCollection jobStepRefs, IGraphCollection graphCollection, IUserCollection userCollection, Tracer tracer, ILogger<BisectTasksController> logger, IOptionsSnapshot<BuildConfig> buildConfig)
 		{
 			_bisectTaskCollection = bisectTaskCollection;
 			_jobService = jobService;
+			_commitService = commitService;
 			_jobCollection = jobCollection;
 			_jobStepRefs = jobStepRefs;
 			_graphCollection = graphCollection;
@@ -287,8 +356,8 @@ namespace HordeServer.Jobs.Bisect
 
 			CreateBisectTaskOptions options = new CreateBisectTaskOptions();
 			options.CommitTags = create.CommitTags;
-			options.IgnoreChanges = create.IgnoreChanges;
-			options.IgnoreJobs = create.IgnoreJobs;
+			options.IgnoreCommitIds = create.IgnoreCommitIds;
+			options.IgnoreJobIds = create.IgnoreJobs;
 
 			UserId? userId = User.GetUserId();
 
@@ -362,8 +431,8 @@ namespace HordeServer.Jobs.Bisect
 
 				UpdateBisectTaskOptions options = new UpdateBisectTaskOptions();
 				options.State = (!request.Cancel.HasValue) ? null : request.Cancel.Value ? BisectTaskState.Cancelled : BisectTaskState.Running;
-				options.IncludeChanges = request.IncludeChanges;
-				options.ExcludeChanges = request.ExcludeChanges;
+				options.IncludeCommitIds = request.IncludeCommitIds;
+				options.ExcludeCommitIds = request.ExcludeCommitIds;
 				options.IncludeJobs = request.IncludeJobs;
 				options.ExcludeJobs = request.ExcludeJobs;
 

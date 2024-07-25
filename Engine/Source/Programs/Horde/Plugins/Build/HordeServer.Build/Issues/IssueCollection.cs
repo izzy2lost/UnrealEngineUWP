@@ -4,6 +4,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -13,6 +14,7 @@ using EpicGames.Horde.Telemetry;
 using EpicGames.Horde.Users;
 using EpicGames.Redis.Utility;
 using HordeServer.Auditing;
+using HordeServer.Commits;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
@@ -97,17 +99,23 @@ namespace HordeServer.Issues
 
 			public DateTime LastSeenAt { get; set; }
 
-			[BsonIgnoreIfNull]
+			[BsonIgnore]
+			public CommitId? FixCommitId
+			{
+				get => (FixCommitName != null)? new CommitId(FixCommitName) : (FixChange != null)? CommitId.FromPerforceChange(FixChange.Value) : null;
+				set => (FixCommitName, FixChange) = (value?.Name, null);
+			}
+
+			[BsonElement("FixCommit"), BsonIgnoreIfNull]
+			public string? FixCommitName { get; set; }
+
+			[BsonElement("FixChange"), BsonIgnoreIfNull]
 			public int? FixChange { get; set; }
-			int? IIssue.FixChange => FixChange ?? (FixedSystemic ? -1 : null);
 
 			[BsonIgnoreIfDefault, BsonDefaultValue(false)]
-			public bool FixedSystemic { get; set; }
+			public bool FixSystemic { get; set; }
 
 			public List<IssueStreamDocument> Streams { get; set; } = new List<IssueStreamDocument>();
-
-			public int MinSuspectChange { get; set; }
-			public int MaxSuspectChange { get; set; }
 
 			[BsonElement("Suspects"), BsonIgnoreIfNull]
 			public List<IssueSuspectDocument>? SuspectsDeprecated { get; set; }
@@ -207,7 +215,20 @@ namespace HordeServer.Issues
 			public ObjectId Id { get; set; }
 			public int IssueId { get; set; }
 			public UserId AuthorId { get; set; }
-			public int Change { get; set; }
+
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null) ? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("Commit")]
+			public string? CommitName { get; set; }
+
+			[BsonElement("Change")]
+			public int CommitOrder { get; set; }
+
 			public DateTime? DeclinedAt { get; set; }
 			public DateTime? ResolvedAt { get; set; } // Degenerate
 
@@ -220,21 +241,21 @@ namespace HordeServer.Issues
 				Id = ObjectId.GenerateNewId();
 				IssueId = issueId;
 				AuthorId = newSuspect.AuthorId;
-				Change = newSuspect.Change;
+				CommitId = newSuspect.CommitId;
 				ResolvedAt = resolvedAt;
 			}
 
 			public IssueSuspectDocument(int issueId, IIssueSpanSuspect suspect)
-				: this(issueId, suspect.AuthorId, suspect.OriginatingChange ?? suspect.Change, null, null)
+				: this(issueId, suspect.AuthorId, suspect.SourceCommitId ?? suspect.CommitId, null, null)
 			{
 			}
 
-			public IssueSuspectDocument(int issueId, UserId authorId, int change, DateTime? declinedAt, DateTime? resolvedAt)
+			public IssueSuspectDocument(int issueId, UserId authorId, CommitIdWithOrder commit, DateTime? declinedAt, DateTime? resolvedAt)
 			{
 				Id = ObjectId.GenerateNewId();
 				IssueId = issueId;
 				AuthorId = authorId;
-				Change = change;
+				CommitId = commit;
 				DeclinedAt = declinedAt;
 				ResolvedAt = resolvedAt;
 			}
@@ -425,8 +446,11 @@ namespace HordeServer.Issues
 			[BsonRequired]
 			public IssueFingerprintDocument Fingerprint { get; set; }
 
-			public int MinChange { get; set; }
-			public int MaxChange { get; set; } = Int32.MaxValue;
+			[BsonElement("MinChange")]
+			public int MinCommitOrder { get; set; }
+
+			[BsonElement("MaxChange")]
+			public int MaxCommitOrder { get; set; } = Int32.MaxValue;
 
 			public IssueStepDocument? LastSuccess { get; set; }
 
@@ -476,14 +500,14 @@ namespace HordeServer.Issues
 				Fingerprint = new IssueFingerprintDocument(newSpan.Fingerprint);
 				if (newSpan.LastSuccess != null)
 				{
-					MinChange = newSpan.LastSuccess.Change;
+					MinCommitOrder = newSpan.LastSuccess.CommitId.Order;
 					LastSuccess = new IssueStepDocument(Id, newSpan.LastSuccess);
 				}
 				FirstFailure = new IssueStepDocument(Id, newSpan.FirstFailure);
 				LastFailure = new IssueStepDocument(Id, newSpan.FirstFailure);
 				if (newSpan.NextSuccess != null)
 				{
-					MaxChange = newSpan.NextSuccess.Change;
+					MaxCommitOrder = newSpan.NextSuccess.CommitId.Order;
 					NextSuccess = new IssueStepDocument(Id, newSpan.NextSuccess);
 				}
 				PromoteByDefault = newSpan.FirstFailure.PromoteByDefault;
@@ -494,9 +518,33 @@ namespace HordeServer.Issues
 
 		class IssueSpanSuspectDocument : IIssueSpanSuspect
 		{
-			public int Change { get; set; }
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null)? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("Commit")]
+			private string? CommitName { get; set; }
+
+			[BsonElement("Change")]
+			private int CommitOrder { get; set; }
+
 			public UserId AuthorId { get; set; }
-			public int? OriginatingChange { get; set; }
+
+			[BsonIgnore]
+			public CommitIdWithOrder? SourceCommitId
+			{
+				get => (SourceCommitName != null)? new CommitIdWithOrder(SourceCommitName, SourceCommitOrder ?? 0) : (SourceCommitOrder != null)? CommitIdWithOrder.FromPerforceChange(SourceCommitOrder.Value) : null;
+				set => (SourceCommitName, SourceCommitOrder) = (value?.Name, value?.Order);
+			}
+
+			[BsonElement("SourceCommit")]
+			public string? SourceCommitName { get; set; }
+
+			[BsonElement("OriginatingChange")]
+			public int? SourceCommitOrder { get; set; }
 
 			[BsonConstructor]
 			private IssueSpanSuspectDocument()
@@ -505,9 +553,9 @@ namespace HordeServer.Issues
 
 			public IssueSpanSuspectDocument(NewIssueSpanSuspectData newSuspectData)
 			{
-				Change = newSuspectData.Change;
+				CommitId = newSuspectData.CommitId;
 				AuthorId = newSuspectData.AuthorId;
-				OriginatingChange = newSuspectData.OriginatingChange;
+				SourceCommitId = newSuspectData.SourceCommitId;
 			}
 		}
 
@@ -516,7 +564,19 @@ namespace HordeServer.Issues
 			public ObjectId Id { get; set; }
 			public ObjectId SpanId { get; set; }
 
-			public int Change { get; set; }
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null)? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("Commit")]
+			public string? CommitName { get; set; }
+
+			[BsonElement("Change")]
+			public int CommitOrder { get; set; }
+
 			public IssueSeverity Severity { get; set; }
 
 			[BsonRequired]
@@ -556,7 +616,7 @@ namespace HordeServer.Issues
 			{
 				Id = ObjectId.GenerateNewId();
 				SpanId = spanId;
-				Change = stepData.Change;
+				CommitId = stepData.CommitId;
 				Severity = stepData.Severity;
 				JobName = stepData.JobName;
 				JobId = stepData.JobId;
@@ -598,6 +658,7 @@ namespace HordeServer.Issues
 
 		readonly IRedisService _redisService;
 		readonly IUserCollection _userCollection;
+		readonly ICommitService _commitService;
 		readonly ISingletonDocument<IssueLedger> _ledgerSingleton;
 		readonly IMongoCollection<IssueDocument> _issues;
 		readonly IMongoCollection<IssueSpanDocument> _issueSpans;
@@ -628,10 +689,11 @@ namespace HordeServer.Issues
 			});
 		}
 
-		public IssueCollection(IMongoService mongoService, IRedisService redisService, IUserCollection userCollection, IAuditLogFactory<int> auditLogFactory, ITelemetryWriter telemetryWriter, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<IssueCollection> logger)
+		public IssueCollection(IMongoService mongoService, IRedisService redisService, IUserCollection userCollection, ICommitService commitService, IAuditLogFactory<int> auditLogFactory, ITelemetryWriter telemetryWriter, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<IssueCollection> logger)
 		{
 			_redisService = redisService;
 			_userCollection = userCollection;
+			_commitService = commitService;
 			_telemetryWriter = telemetryWriter;
 			_buildConfig = buildConfig;
 			_tracer = tracer;
@@ -646,8 +708,8 @@ namespace HordeServer.Issues
 
 			List<MongoIndex<IssueSpanDocument>> issueSpanIndexes = new List<MongoIndex<IssueSpanDocument>>();
 			issueSpanIndexes.Add(keys => keys.Ascending(x => x.IssueId));
-			issueSpanIndexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.MinChange).Ascending(x => x.MaxChange));
-			issueSpanIndexes.Add("StreamChanges", keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateRefId).Ascending(x => x.NodeName).Ascending(x => x.MinChange).Ascending(x => x.MaxChange));
+			issueSpanIndexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.MinCommitOrder).Ascending(x => x.MaxCommitOrder));
+			issueSpanIndexes.Add("StreamChanges", keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateRefId).Ascending(x => x.NodeName).Ascending(x => x.MinCommitOrder).Ascending(x => x.MaxCommitOrder));
 			_issueSpans = mongoService.GetCollection<IssueSpanDocument>("IssuesV2.Spans", issueSpanIndexes);
 
 			List<MongoIndex<IssueStepDocument>> issueStepIndexes = new List<MongoIndex<IssueStepDocument>>();
@@ -656,9 +718,9 @@ namespace HordeServer.Issues
 			_issueSteps = mongoService.GetCollection<IssueStepDocument>("IssuesV2.Steps", issueStepIndexes);
 
 			List<MongoIndex<IssueSuspectDocument>> issueSuspectIndexes = new List<MongoIndex<IssueSuspectDocument>>();
-			issueSuspectIndexes.Add(keys => keys.Ascending(x => x.Change));
+			issueSuspectIndexes.Add(keys => keys.Ascending(x => x.CommitOrder));
 			issueSuspectIndexes.Add(keys => keys.Ascending(x => x.AuthorId).Ascending(x => x.ResolvedAt));
-			issueSuspectIndexes.Add(keys => keys.Ascending(x => x.IssueId).Ascending(x => x.Change), unique: true);
+			issueSuspectIndexes.Add(keys => keys.Ascending(x => x.IssueId).Ascending(x => x.CommitOrder), unique: true);
 			_issueSuspects = mongoService.GetCollection<IssueSuspectDocument>("IssuesV2.Suspects", issueSuspectIndexes);
 
 			_auditLog = auditLogFactory.Create("IssuesV2.History", "IssueId");
@@ -757,8 +819,8 @@ namespace HordeServer.Issues
 					AcknowledgedAt = issue.AcknowledgedAt,
 					CreatedAt = issue.CreatedAt,
 					OwnerId = issue.OwnerId,
-					FixChange = issue.FixChange,
-					FixedSystemic = issue.FixedSystemic,
+					FixChange = issue.FixCommitId,
+					FixedSystemic = issue.FixSystemic,
 					LastSeenAt = issue.LastSeenAt,
 					NominatedAt = issue.NominatedAt,
 					NominatedById = issue.NominatedById,
@@ -842,26 +904,26 @@ namespace HordeServer.Issues
 					issueLogger.LogInformation("Issue was acknowledged by {UserName} ({UserId})", await GetUserNameAsync(newIssue.OwnerId, cancellationToken), newIssue.OwnerId);
 				}
 			}
-			if (newIssue.FixChange != oldIssue.FixChange)
+			if (newIssue.FixCommitId != oldIssue.FixCommitId)
 			{
-				if (newIssue.FixChange == 0)
+				if (newIssue.FixCommitId == null)
 				{
 					issueLogger.LogInformation("Issue was marked as not fixed");
 				}
 				else
 				{
-					issueLogger.LogInformation("Issue was marked as fixed in {Change}", newIssue.FixChange);
+					issueLogger.LogInformation("Issue was marked as fixed in {Commit}", newIssue.FixCommitId);
 				}
 			}
-			if (newIssue.FixedSystemic != oldIssue.FixedSystemic)
+			if (newIssue.FixSystemic != oldIssue.FixSystemic)
 			{
-				if (newIssue.FixChange == 0)
+				if (newIssue.FixSystemic)
 				{
-					issueLogger.LogInformation("Issue was marked as not fixed");
+					issueLogger.LogInformation("Issue was marked fixed as a systemic issue");
 				}
 				else
 				{
-					issueLogger.LogInformation("Issue was marked as fixed in {Change}", newIssue.FixChange);
+					issueLogger.LogInformation("Issue was marked as not fixed as a systemic issue");
 				}
 			}
 			if (newIssue.ResolvedById != oldIssue.ResolvedById)
@@ -957,15 +1019,15 @@ namespace HordeServer.Issues
 
 		async Task LogIssueSuspectChangesAsync(ILogger issueLogger, IReadOnlyList<IssueSuspectDocument> oldIssueSuspects, List<IssueSuspectDocument> newIssueSuspects, CancellationToken cancellationToken)
 		{
-			HashSet<(UserId, int)> oldSuspects = new HashSet<(UserId, int)>(oldIssueSuspects.Select(x => (x.AuthorId, x.Change)));
-			HashSet<(UserId, int)> newSuspects = new HashSet<(UserId, int)>(newIssueSuspects.Select(x => (x.AuthorId, x.Change)));
-			foreach ((UserId userId, int change) in newSuspects.Where(x => !oldSuspects.Contains(x)))
+			HashSet<(UserId, CommitId)> oldSuspects = new HashSet<(UserId, CommitId)>(oldIssueSuspects.Select(x => (x.AuthorId, (CommitId)x.CommitId)));
+			HashSet<(UserId, CommitId)> newSuspects = new HashSet<(UserId, CommitId)>(newIssueSuspects.Select(x => (x.AuthorId, (CommitId)x.CommitId)));
+			foreach ((UserId userId, CommitId commit) in newSuspects.Where(x => !oldSuspects.Contains(x)))
 			{
-				issueLogger.LogInformation("Added suspect {UserName} ({UserId}) for change {Change}", await GetUserNameAsync(userId, cancellationToken), userId, change);
+				issueLogger.LogInformation("Added suspect {UserName} ({UserId}) for commit {Commit}", await GetUserNameAsync(userId, cancellationToken), userId, commit);
 			}
-			foreach ((UserId userId, int change) in oldSuspects.Where(x => !newSuspects.Contains(x)))
+			foreach ((UserId userId, CommitId commit) in oldSuspects.Where(x => !newSuspects.Contains(x)))
 			{
-				issueLogger.LogInformation("Removed suspect {UserName} ({UserId}) for change {Change}", await GetUserNameAsync(userId, cancellationToken), userId, change);
+				issueLogger.LogInformation("Removed suspect {UserName} ({UserId}) for commit {Commit}", await GetUserNameAsync(userId, cancellationToken), userId, commit);
 			}
 
 			HashSet<UserId> oldDeclinedBy = new HashSet<UserId>(oldIssueSuspects.Where(x => x.DeclinedAt != null).Select(x => x.AuthorId));
@@ -1000,13 +1062,13 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
 			IReadOnlyList<IIssue> results;
 
 			if (ownerId == null)
 			{
-				results = await FilterIssuesByStreamIdAsync(ids, streamId, minChange, maxChange, resolved ?? false, promoted, index ?? 0, count, cancellationToken);
+				results = await FilterIssuesByStreamIdAsync(ids, streamId, minCommitId, maxCommitId, resolved ?? false, promoted, index ?? 0, count, cancellationToken);
 			}
 			else
 			{
@@ -1016,11 +1078,16 @@ namespace HordeServer.Issues
 			return results;
 		}
 
-		async Task<IReadOnlyList<IIssue>> FilterIssuesByStreamIdAsync(IEnumerable<int>? ids, StreamId? streamId, int? minChange, int? maxChange, bool? resolved, bool? promoted, int index, int? count, CancellationToken cancellationToken)
+		async Task<IReadOnlyList<IIssue>> FilterIssuesByStreamIdAsync(IEnumerable<int>? ids, StreamId? streamId, CommitId? minCommitId, CommitId? maxCommitId, bool? resolved, bool? promoted, int index, int? count, CancellationToken cancellationToken)
 		{
 			if (streamId == null)
 			{
-				return await FilterIssuesByOtherFieldsAsync(ids, minChange, maxChange, resolved, promoted, index, count, cancellationToken);
+				if (minCommitId != null || maxCommitId != null)
+				{
+					throw new ArgumentException("Cannot search commit range without stream parameter");
+				}
+
+				return await FilterIssuesByOtherFieldsAsync(ids, resolved, promoted, index, count, cancellationToken);
 			}
 			else
 			{
@@ -1034,13 +1101,15 @@ namespace HordeServer.Issues
 					filter &= Builders<IssueSpanDocument>.Filter.Exists(x => x.IssueId);
 				}
 
-				if (minChange != null)
+				if (minCommitId != null)
 				{
-					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Lt(x => x.MaxChange, minChange.Value));
+					CommitIdWithOrder minCommitWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Lt(x => x.MaxCommitOrder, minCommitWithOrder.Order));
 				}
-				if (maxChange != null)
+				if (maxCommitId != null)
 				{
-					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Gt(x => x.MinChange, maxChange.Value));
+					CommitIdWithOrder maxCommitWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Gt(x => x.MinCommitOrder, maxCommitWithOrder.Order));
 				}
 
 				if (resolved != null)
@@ -1057,7 +1126,7 @@ namespace HordeServer.Issues
 
 				using (IAsyncCursor<ProjectedIssueId> cursor = await _issueSpans.Aggregate().Match(filter).Group(x => x.IssueId, x => new ProjectedIssueId { _id = x.Key }).SortByDescending(x => x._id).ToCursorAsync(cancellationToken))
 				{
-					List<IssueDocument> results = await PaginatedJoinAsync(cursor, (nextIds, nextIndex, nextCount) => FilterIssuesByOtherFieldsAsync(nextIds, null, null, null, promoted, nextIndex, nextCount, cancellationToken), index, count, cancellationToken);
+					List<IssueDocument> results = await PaginatedJoinAsync(cursor, (nextIds, nextIndex, nextCount) => FilterIssuesByOtherFieldsAsync(nextIds, null, promoted, nextIndex, nextCount, cancellationToken), index, count, cancellationToken);
 					if (resolved != null)
 					{
 						for (int idx = results.Count - 1; idx >= 0; idx--)
@@ -1075,7 +1144,7 @@ namespace HordeServer.Issues
 			}
 		}
 
-		async Task<List<IssueDocument>> FilterIssuesByOtherFieldsAsync(IEnumerable<int>? ids, int? minChange, int? maxChange, bool? resolved, bool? promoted, int index, int? count, CancellationToken cancellationToken)
+		async Task<List<IssueDocument>> FilterIssuesByOtherFieldsAsync(IEnumerable<int>? ids, bool? resolved, bool? promoted, int index, int? count, CancellationToken cancellationToken)
 		{
 			FilterDefinition<IssueDocument> filter = FilterDefinition<IssueDocument>.Empty;
 			if (ids != null)
@@ -1092,14 +1161,6 @@ namespace HordeServer.Issues
 				{
 					filter &= Builders<IssueDocument>.Filter.Eq(x => x.ResolvedAt, null);
 				}
-			}
-			if (minChange != null)
-			{
-				filter &= Builders<IssueDocument>.Filter.Not(Builders<IssueDocument>.Filter.Lt(x => x.MaxSuspectChange, minChange.Value));
-			}
-			if (maxChange != null)
-			{
-				filter &= Builders<IssueDocument>.Filter.Not(Builders<IssueDocument>.Filter.Gt(x => x.MinSuspectChange, maxChange.Value));
 			}
 			if (promoted != null)
 			{
@@ -1147,14 +1208,15 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IIssue>> FindIssuesForChangesAsync(List<int> changes, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IIssue>> FindIssuesForChangesAsync(List<CommitIdWithOrder> commits, CancellationToken cancellationToken)
 		{
-			List<int> issueIds = await (await _issueSuspects.DistinctAsync(x => x.IssueId, Builders<IssueSuspectDocument>.Filter.In(x => x.Change, changes), cancellationToken: cancellationToken)).ToListAsync(cancellationToken);
+			List<int> commitOrders = commits.ConvertAll(x => x.Order);
+			List<int> issueIds = await (await _issueSuspects.DistinctAsync(x => x.IssueId, Builders<IssueSuspectDocument>.Filter.In(x => x.CommitOrder, commitOrders), cancellationToken: cancellationToken)).ToListAsync(cancellationToken);
 			return await _issues.Find(Builders<IssueDocument>.Filter.In(x => x.Id, issueIds)).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newManuallyPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, bool? newFixedSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternaIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default)
+		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newManuallyPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, CommitId? newFixCommit = null, bool? newFixSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternaIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default)
 		{
 			IssueDocument issueDocument = (IssueDocument)issue;
 
@@ -1251,30 +1313,26 @@ namespace HordeServer.Issues
 					}
 				}
 			}
-			if (newFixChange != null)
+			if (newFixCommit != null)
 			{
-				if (newFixChange < 0)
+				if (String.IsNullOrEmpty(newFixCommit.Name))
 				{
-					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Set(x => x.FixedSystemic, true));
-				}
-				else if (newFixChange == 0)
-				{
-					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Unset(x => x.FixedSystemic));
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixChange, newFixChange).Unset(x => x.FixedSystemic));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixCommitName, newFixCommit.Name).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 			}
-			else if (newFixedSystemic != null)
+			else if (newFixSystemic != null)
 			{
-				if (newFixedSystemic.Value)
+				if (newFixSystemic.Value)
 				{
-					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixChange!).Set(x => x.FixedSystemic, true));
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Set(x => x.FixSystemic, true));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixedSystemic));
+					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 			}
 			if (newResolvedById != null)
@@ -1435,10 +1493,6 @@ namespace HordeServer.Issues
 				}
 			}
 
-			// Get the range of suspect changes
-			int newMinSuspectChange = (newSuspects.Count > 0) ? newSuspects.Min(x => x.Change) : 0;
-			int newMaxSuspectChange = (newSuspects.Count > 0) ? newSuspects.Min(x => x.Change) : 0;
-
 			// Perform the actual update with this data
 			List<UpdateDefinition<IssueDocument>> updates = new List<UpdateDefinition<IssueDocument>>();
 			if (!String.Equals(issue.Summary, newSummary, StringComparison.Ordinal))
@@ -1460,14 +1514,6 @@ namespace HordeServer.Issues
 			if (issue.Streams.Count != newStreams.Count || !newStreams.Zip(issue.Streams).All(x => x.First.StreamId == x.Second.StreamId && x.First.ContainsFix == x.Second.ContainsFix))
 			{
 				updates.Add(Builders<IssueDocument>.Update.Set(x => x.Streams, newStreams.Select(x => new IssueStreamDocument(x))));
-			}
-			if (issueImpl.MinSuspectChange != newMinSuspectChange)
-			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.MinSuspectChange, newMinSuspectChange));
-			}
-			if (issueImpl.MaxSuspectChange != newMaxSuspectChange)
-			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.MaxSuspectChange, newMaxSuspectChange));
 			}
 			if (issueImpl.DefaultOwnerId != newDefaultOwnerId)
 			{
@@ -1505,11 +1551,11 @@ namespace HordeServer.Issues
 			List<IssueSuspectDocument> newSuspectImpls = new List<IssueSuspectDocument>(oldSuspectImpls);
 
 			// Find the current list of suspects
-			HashSet<(UserId, int)> curSuspectKeys = new HashSet<(UserId, int)>(oldSuspectImpls.Select(x => (x.AuthorId, x.Change)));
-			List<IssueSuspectDocument> createSuspects = newSuspects.Where(x => !curSuspectKeys.Contains((x.AuthorId, x.Change))).Select(x => new IssueSuspectDocument(issueId, x, resolvedAt)).ToList();
+			HashSet<(UserId, CommitId)> curSuspectKeys = new HashSet<(UserId, CommitId)>(oldSuspectImpls.Select(x => (x.AuthorId, (CommitId)x.CommitId)));
+			List<IssueSuspectDocument> createSuspects = newSuspects.Where(x => !curSuspectKeys.Contains((x.AuthorId, x.CommitId))).Select(x => new IssueSuspectDocument(issueId, x, resolvedAt)).ToList();
 
-			HashSet<(UserId, int)> newSuspectKeys = new HashSet<(UserId, int)>(newSuspects.Select(x => (x.AuthorId, x.Change)));
-			List<IssueSuspectDocument> deleteSuspects = oldSuspectImpls.Where(x => !newSuspectKeys.Contains((x.AuthorId, x.Change))).ToList();
+			HashSet<(UserId, CommitId)> newSuspectKeys = new HashSet<(UserId, CommitId)>(newSuspects.Select(x => (x.AuthorId, (CommitId)x.CommitId)));
+			List<IssueSuspectDocument> deleteSuspects = oldSuspectImpls.Where(x => !newSuspectKeys.Contains((x.AuthorId, x.CommitId))).ToList();
 
 			// Apply the suspect changes
 			if (createSuspects.Count > 0)
@@ -1520,7 +1566,7 @@ namespace HordeServer.Issues
 			if (deleteSuspects.Count > 0)
 			{
 				await _issueSuspects.DeleteManyAsync(Builders<IssueSuspectDocument>.Filter.In(x => x.Id, deleteSuspects.Select(y => y.Id)), cancellationToken);
-				newSuspectImpls.RemoveAll(x => !newSuspectKeys.Contains((x.AuthorId, x.Change)));
+				newSuspectImpls.RemoveAll(x => !newSuspectKeys.Contains((x.AuthorId, x.CommitId)));
 			}
 
 			// Make sure all the remaining suspects have the correct resolved time
@@ -1554,8 +1600,8 @@ namespace HordeServer.Issues
 					Id = issueSpan.Id,
 					IssueId = issueSpan.IssueId,
 					Fingerprint = new { Type = issueSpan.Fingerprint.Type, Keys = issueSpan.Fingerprint.Keys },
-					FirstFailure = new { JobId = issueSpan.FirstFailure.JobId, JobName = issueSpan.FirstFailure.JobName, Change = issueSpan.FirstFailure.Change, StepId = issueSpan.FirstFailure.SpanId },
-					LastFailure = (issueSpan.LastFailure != null) ? new { JobId = issueSpan.LastFailure.JobId, JobName = issueSpan.LastFailure.JobName, Change = issueSpan.LastFailure.Change, StepId = issueSpan.LastFailure.SpanId } : null,
+					FirstFailure = new { JobId = issueSpan.FirstFailure.JobId, JobName = issueSpan.FirstFailure.JobName, Change = issueSpan.FirstFailure.CommitId, StepId = issueSpan.FirstFailure.SpanId },
+					LastFailure = (issueSpan.LastFailure != null) ? new { JobId = issueSpan.LastFailure.JobId, JobName = issueSpan.LastFailure.JobName, Change = issueSpan.LastFailure.CommitId, StepId = issueSpan.LastFailure.SpanId } : null,
 					StreamId = issueSpan.StreamId,
 					StreamName = issueSpan.StreamName,
 					TemplateRefId = issueSpan.TemplateRefId
@@ -1575,27 +1621,27 @@ namespace HordeServer.Issues
 			List<UpdateDefinition<IssueSpanDocument>> updates = new List<UpdateDefinition<IssueSpanDocument>>();
 			if (newLastSuccess != null)
 			{
-				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.MinChange, newLastSuccess.Change));
+				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.MinCommitOrder, newLastSuccess.CommitId.Order));
 				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.LastSuccess, new IssueStepDocument(span.Id, newLastSuccess)));
 			}
 			if (newFailure != null)
 			{
-				if (newFailure.Change < span.FirstFailure.Change)
+				if (newFailure.CommitId < span.FirstFailure.CommitId)
 				{
 					updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.FirstFailure, new IssueStepDocument(span.Id, newFailure)));
 				}
-				if (newFailure.Change >= span.LastFailure.Change)
+				if (newFailure.CommitId >= span.LastFailure.CommitId)
 				{
 					updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.LastFailure, new IssueStepDocument(span.Id, newFailure)));
 				}
-				if (newFailure.PromoteByDefault != span.PromoteByDefault && newFailure.Change >= span.LastFailure.Change)
+				if (newFailure.PromoteByDefault != span.PromoteByDefault && newFailure.CommitId >= span.LastFailure.CommitId)
 				{
 					updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.PromoteByDefault, newFailure.PromoteByDefault));
 				}
 			}
 			if (newNextSuccess != null)
 			{
-				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.MaxChange, newNextSuccess.Change));
+				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.MaxCommitOrder, newNextSuccess.CommitId.Order));
 				updates.Add(Builders<IssueSpanDocument>.Update.Set(x => x.NextSuccess, new IssueStepDocument(span.Id, newNextSuccess)));
 			}
 			if (newSuspects != null)
@@ -1618,15 +1664,15 @@ namespace HordeServer.Issues
 				ILogger logger = GetLogger(newSpan.IssueId);
 				if (newLastSuccess != null)
 				{
-					logger.LogInformation("Set last success for span {SpanId} to job {JobId} at CL {Change}", newSpan.Id, newLastSuccess.JobId, newLastSuccess.Change);
+					logger.LogInformation("Set last success for span {SpanId} to job {JobId} at commit {Commit}", newSpan.Id, newLastSuccess.JobId, newLastSuccess.CommitId);
 				}
 				if (newNextSuccess != null)
 				{
-					logger.LogInformation("Set next success for span {SpanId} to job {JobId} at CL {Change}", newSpan.Id, newNextSuccess.JobId, newNextSuccess.Change);
+					logger.LogInformation("Set next success for span {SpanId} to job {JobId} at commit {Commit}", newSpan.Id, newNextSuccess.JobId, newNextSuccess.CommitId);
 				}
 				if (newFailure != null)
 				{
-					logger.LogInformation("Added failure for span {SpanId} in job {JobId} at CL {Change}", newSpan.Id, newFailure.JobId, newFailure.Change);
+					logger.LogInformation("Added failure for span {SpanId} in job {JobId} at commit {Commit}", newSpan.Id, newFailure.JobId, newFailure.CommitId);
 				}
 				SendTelemetry(newSpan);
 			}
@@ -1646,13 +1692,14 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string nodeName, int change, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string nodeName, CommitId commitId, CancellationToken cancellationToken)
 		{
-			return await _issueSpans.Find(x => x.StreamId == streamId && x.TemplateRefId == templateId && x.NodeName == nodeName && change >= x.MinChange && change <= x.MaxChange).ToListAsync(cancellationToken);
+			CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, commitId, cancellationToken);
+			return await _issueSpans.Find(x => x.StreamId == streamId && x.TemplateRefId == templateId && x.NodeName == nodeName && commitIdWithOrder.Order >= x.MinCommitOrder && commitIdWithOrder.Order <= x.MaxCommitOrder).ToListAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? spanIds, IEnumerable<int>? issueIds, StreamId? streamId, int? minChange, int? maxChange, bool? resolved, int? index, int? count, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? spanIds, IEnumerable<int>? issueIds, StreamId? streamId, CommitId? minCommitId, CommitId? maxCommitId, bool? resolved, int? index, int? count, CancellationToken cancellationToken)
 		{
 			FilterDefinition<IssueSpanDocument> filter = FilterDefinition<IssueSpanDocument>.Empty;
 
@@ -1664,19 +1711,21 @@ namespace HordeServer.Issues
 			if (streamId != null)
 			{
 				filter &= Builders<IssueSpanDocument>.Filter.Eq(x => x.StreamId, streamId);
+				if (minCommitId != null)
+				{
+					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Lt(x => x.MaxCommitOrder, minCommitIdWithOrder.Order));
+				}
+				if (maxCommitId != null)
+				{
+					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Gt(x => x.MinCommitOrder, maxCommitIdWithOrder.Order));
+				}
 			}
 
 			if (issueIds != null)
 			{
 				filter &= Builders<IssueSpanDocument>.Filter.In(x => x.IssueId, issueIds.Select<int, int?>(x => x));
-			}
-			if (minChange != null)
-			{
-				filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Lt(x => x.MaxChange, minChange.Value));
-			}
-			if (maxChange != null)
-			{
-				filter &= Builders<IssueSpanDocument>.Filter.Not(Builders<IssueSpanDocument>.Filter.Gt(x => x.MinChange, maxChange.Value));
 			}
 			if (resolved != null)
 			{

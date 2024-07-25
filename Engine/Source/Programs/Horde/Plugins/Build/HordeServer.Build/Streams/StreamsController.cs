@@ -247,7 +247,7 @@ namespace HordeServer.Streams
 		[HttpGet]
 		[Route("/api/v1/streams/{streamId}/changes")]
 		[ProducesResponseType(typeof(List<GetCommitResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetChangesAsync(StreamId streamId, [FromQuery] int? min = null, [FromQuery] int? max = null, [FromQuery] int results = 50, [FromQuery] string? tags = null, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<List<object>>> GetChangesAsync(StreamId streamId, [FromQuery] CommitId? min = null, [FromQuery] CommitId? max = null, [FromQuery] int results = 50, [FromQuery] string? tags = null, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			StreamConfig? streamConfig;
 			if (!_buildConfig.Value.TryGetStream(streamId, out streamConfig))
@@ -278,7 +278,7 @@ namespace HordeServer.Streams
 
 		static GetCommitResponse CreateGetCommitResponse(ICommit commit, IUser author, IReadOnlyList<CommitTag>? tags, IReadOnlyList<string>? files)
 		{
-			GetCommitResponse response = new GetCommitResponse(commit.Number, author.ToThinApiResponse(), commit.Description);
+			GetCommitResponse response = new GetCommitResponse(author.ToThinApiResponse(), commit.Description) { Id = commit.Id };
 			if (tags != null)
 			{
 				response.Tags = new List<CommitTag>(tags);
@@ -302,7 +302,7 @@ namespace HordeServer.Streams
 		[HttpGet]
 		[Route("/api/v1/streams/{streamId}/changes/{changeNumber}")]
 		[ProducesResponseType(typeof(GetCommitResponse), 200)]
-		public async Task<ActionResult<object>> GetChangeDetailsAsync(StreamId streamId, int changeNumber, int maxFiles = 100, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetChangeDetailsAsync(StreamId streamId, CommitId changeNumber, int maxFiles = 100, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			StreamConfig? streamConfig;
 			if (!_buildConfig.Value.TryGetStream(streamId, out streamConfig))
@@ -340,7 +340,7 @@ namespace HordeServer.Streams
 		[HttpGet]
 		[Route("/api/v1/streams/{streamId}/history")]
 		[ProducesResponseType(typeof(List<GetJobStepRefResponse>), 200)]
-		public async Task<ActionResult<List<object>>> GetStepHistoryAsync(StreamId streamId, [FromQuery] string templateId, [FromQuery] string step, [FromQuery] int? change = null, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
+		public async Task<ActionResult<List<object>>> GetStepHistoryAsync(StreamId streamId, [FromQuery] string templateId, [FromQuery] string step, [FromQuery] CommitId? change = null, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null)
 		{
 			StreamConfig? streamConfig;
 			if (!_buildConfig.Value.TryGetStream(streamId, out streamConfig))
@@ -354,7 +354,13 @@ namespace HordeServer.Streams
 
 			TemplateId templateIdValue = new TemplateId(templateId);
 
-			List<IJobStepRef> steps = await _jobStepRefCollection.GetStepsForNodeAsync(streamId, templateIdValue, step, change, true, count);
+			CommitIdWithOrder? commitIdWithOrder = null;
+			if (change != null)
+			{
+				commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, change, HttpContext.RequestAborted);
+			}
+
+			List<IJobStepRef> steps = await _jobStepRefCollection.GetStepsForNodeAsync(streamId, templateIdValue, step, commitIdWithOrder, true, count, HttpContext.RequestAborted);
 			return steps.ConvertAll(x => PropertyFilter.Apply(CreateGetJobStepRefResponse(x), filter));
 		}
 
@@ -368,7 +374,7 @@ namespace HordeServer.Streams
 			response.JobId = jobStepRef.Id.JobId;
 			response.BatchId = jobStepRef.Id.BatchId;
 			response.StepId = jobStepRef.Id.StepId;
-			response.Change = jobStepRef.Change;
+			response.CommitId = jobStepRef.CommitId;
 			response.LogId = jobStepRef.LogId.ToString();
 			response.PoolId = jobStepRef.PoolId?.ToString();
 			response.AgentId = jobStepRef.AgentId?.ToString();

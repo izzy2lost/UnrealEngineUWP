@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
@@ -303,8 +304,8 @@ namespace HordeServer.Jobs.TestData
 			[FromQuery(Name = "Sid")] string[]? suiteIds = null,
 			[FromQuery] DateTimeOffset? minCreateTime = null,
 			[FromQuery] DateTimeOffset? maxCreateTime = null,
-			[FromQuery] int? minChange = null,
-			[FromQuery] int? maxChange = null)
+			[FromQuery] CommitId? minChange = null,
+			[FromQuery] CommitId? maxChange = null)
 		{
 			StreamId[] streamIdValues = Array.ConvertAll(streamIds, x => new StreamId(x));
 
@@ -335,7 +336,7 @@ namespace HordeServer.Jobs.TestData
 					JobId = testData.JobId?.ToString(),
 					StepId = testData.StepId?.ToString(),
 					Duration = testData.Duration,
-					BuildChangeList = testData.BuildChangeList,
+					BuildCommitId = testData.BuildCommitId,
 					MetaId = testData.Metadata.ToString(),
 					TestId = testData.TestId?.ToString(),
 					Outcome = testData.TestId != null ? testData.Outcome : null,
@@ -395,7 +396,7 @@ namespace HordeServer.Jobs.TestData
 		[HttpGet]
 		[Route("/api/v1/testdata")]
 		[ProducesResponseType(typeof(List<GetTestDataResponse>), 200)]
-		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<List<object>>> FindTestDataAsync([FromQuery] string? streamId = null, [FromQuery] CommitId? minChange = null, [FromQuery] CommitId? maxChange = null, JobId? jobId = null, JobStepId? jobStepId = null, string? key = null, int index = 0, int count = 10, PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			StreamId? streamIdValue = null;
 			if (streamId != null)
@@ -417,7 +418,7 @@ namespace HordeServer.Jobs.TestData
 						TemplateRefId = testData.TemplateRefId.ToString(),
 						JobId = testData.JobId.ToString(),
 						StepId = testData.StepId.ToString(),
-						Change = testData.Change,
+						CommitId = testData.CommitId,
 						Key = testData.Key,
 						Data = BsonSerializer.Deserialize<Dictionary<string, object>>(testData.Data)
 					}
@@ -457,7 +458,7 @@ namespace HordeServer.Jobs.TestData
 				TemplateRefId = testData.TemplateRefId.ToString(),
 				JobId = testData.JobId.ToString(),
 				StepId = testData.StepId.ToString(),
-				Change = testData.Change,
+				CommitId = testData.CommitId,
 				Key = testData.Key,
 				Data = BsonSerializer.Deserialize<Dictionary<string, object>>(testData.Data)
 			}, filter);

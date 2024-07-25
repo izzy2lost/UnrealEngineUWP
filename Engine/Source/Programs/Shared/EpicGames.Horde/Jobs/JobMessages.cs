@@ -191,7 +191,23 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// The changelist number to build. Can be null for latest.
 		/// </summary>
-		public int? Change { get; set; }
+		[Obsolete("Use CommitId instead")]
+		public int? Change
+		{
+			get => _change ?? _commitId?.GetPerforceChangeOrMinusOne();
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// The changelist number to build. Can be null for latest.
+		/// </summary>
+		public CommitId? CommitId
+		{
+			get => _commitId ?? CommitId.FromPerforceChange(_change);
+			set => _commitId = value;
+		}
+		CommitId? _commitId;
 
 		/// <summary>
 		/// Parameters to use when selecting the change to execute at.
@@ -211,7 +227,23 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// The preflight changelist number
 		/// </summary>
-		public int? PreflightChange { get; set; }
+		[Obsolete("Use PreflightCommitId instead")]
+		public int? PreflightChange
+		{
+			get => _preflightChange ?? _preflightCommitId?.GetPerforceChangeOrMinusOne();
+			set => _preflightChange = value;
+		}
+		int? _preflightChange;
+
+		/// <summary>
+		/// The preflight commit
+		/// </summary>
+		public CommitId? PreflightCommitId
+		{
+			get => _preflightCommitId ?? CommitId.FromPerforceChange(_preflightChange);
+			set => _preflightCommitId = value;
+		}
+		CommitId? _preflightCommitId;
 
 		/// <summary>
 		/// Job options
@@ -393,22 +425,86 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// The changelist number to build
 		/// </summary>
-		public int Change { get; set; }
+		[Obsolete("Use CommitId instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.GetPerforceChangeOrMinusOne() ?? 0;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// The commit to build
+		/// </summary>
+		public CommitIdWithOrder CommitId
+		{
+			get => _commitId ?? CommitIdWithOrder.FromPerforceChange(_change) ?? CommitIdWithOrder.Empty;
+			set => _commitId = value;
+		}
+		CommitIdWithOrder? _commitId;
 
 		/// <summary>
 		/// The code changelist
 		/// </summary>
-		public int? CodeChange { get; set; }
+		[Obsolete("Use CodeCommitId instead")]
+		public int? CodeChange
+		{
+			get => _codeChange ?? _codeCommitId?.GetPerforceChangeOrMinusOne();
+			set => _codeChange = value;
+		}
+		int? _codeChange;
+
+		/// <summary>
+		/// The code commit to build
+		/// </summary>
+		public CommitIdWithOrder? CodeCommitId
+		{
+			get => _codeCommitId ?? CommitIdWithOrder.FromPerforceChange(_codeChange);
+			set => _codeCommitId = value;
+		}
+		CommitIdWithOrder? _codeCommitId;
 
 		/// <summary>
 		/// The preflight changelist number
 		/// </summary>
-		public int? PreflightChange { get; set; }
+		[Obsolete("Use PreflightCommitId instead")]
+		public int? PreflightChange
+		{
+			get => _preflightChange ?? _preflightCommitId?.GetPerforceChangeOrMinusOne();
+			set => _preflightChange = value;
+		}
+		int? _preflightChange;
+
+		/// <summary>
+		/// The preflight commit
+		/// </summary>
+		public CommitId? PreflightCommitId
+		{
+			get => _preflightCommitId ?? Horde.Commits.CommitId.FromPerforceChange(_preflightChange);
+			set => _preflightCommitId = value;
+		}
+		CommitId? _preflightCommitId;
 
 		/// <summary>
 		/// The cloned preflight changelist number
 		/// </summary>
-		public int? ClonedPreflightChange { get; set; }
+		[Obsolete("Use ClonedPreflightCommitId instead")]
+		public int? ClonedPreflightChange
+		{
+			get => _clonedPreflightChange ?? _clonedPreflightCommitId?.GetPerforceChangeOrMinusOne();
+			set => _clonedPreflightChange = value;
+		}
+		int? _clonedPreflightChange;
+
+		/// <summary>
+		/// The cloned preflight commit
+		/// </summary>
+		public CommitId? ClonedPreflightCommitId
+		{
+			get => _clonedPreflightCommitId ?? Horde.Commits.CommitId.FromPerforceChange(_clonedPreflightChange);
+			set => _clonedPreflightCommitId = value;
+		}
+		CommitId? _clonedPreflightCommitId;
 
 		/// <summary>
 		/// Description of the preflight
@@ -1302,7 +1398,23 @@ namespace EpicGames.Horde.Jobs
 		/// <summary>
 		/// The change number being built
 		/// </summary>
-		public int Change { get; set; }
+		[Obsolete("Use CommitId instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.GetPerforceChangeOrMinusOne() ?? 0;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// The commit being built
+		/// </summary>
+		public CommitIdWithOrder CommitId
+		{
+			get => _commitId ?? CommitIdWithOrder.FromPerforceChange(_change) ?? CommitIdWithOrder.Empty;
+			set => _commitId = value;
+		}
+		CommitIdWithOrder? _commitId;
 
 		/// <summary>
 		/// The step log id

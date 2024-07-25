@@ -657,6 +657,28 @@ namespace HordeServer
 			LogValueFormatter.RegisterTypeAnnotation<UserId>("UserId");
 		}
 
+		public sealed class CommitIdBsonSerializer : SerializerBase<CommitId>
+		{
+			/// <inheritdoc/>
+			public override CommitId Deserialize(BsonDeserializationContext context, BsonDeserializationArgs args)
+			{
+				if (context.Reader.GetCurrentBsonType() == BsonType.Int32)
+				{
+					return CommitId.FromPerforceChange(context.Reader.ReadInt32());
+				}
+				else
+				{
+					return new CommitId(context.Reader.ReadString());
+				}
+			}
+
+			/// <inheritdoc/>
+			public override void Serialize(BsonSerializationContext context, BsonSerializationArgs args, CommitId value)
+			{
+				context.Writer.WriteString(value.Name);
+			}
+		}
+
 		public sealed class BlobLocatorBsonSerializer : SerializerBase<BlobLocator>
 		{
 			/// <inheritdoc/>
@@ -873,6 +895,7 @@ namespace HordeServer
 				ConventionRegistry.Register("Horde", conventionPack, type => true);
 
 				// Register the custom serializers
+				BsonSerializer.RegisterSerializer(new CommitIdBsonSerializer());
 				BsonSerializer.RegisterSerializer(new BlobLocatorBsonSerializer());
 				BsonSerializer.RegisterSerializer(new RefNameBsonSerializer());
 				BsonSerializer.RegisterSerializer(new IoHashBsonSerializer());

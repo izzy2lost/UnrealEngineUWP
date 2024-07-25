@@ -52,14 +52,14 @@ namespace HordeServer.Tests.Jobs
 			SetConfig(globalConfig);
 
 			CreateJobOptions options = new CreateJobOptions();
-			options.PreflightChange = 999;
+			options.PreflightCommitId = CommitId.FromPerforceChange(999);
 			options.JobTriggers.AddRange(streamConfig.Templates[0].ChainedJobs!);
 
 			ITemplate template = await TemplateCollection.GetOrAddAsync(streamConfig.Templates[0]);
 
 			IGraph graph = await GraphCollection.AddAsync(template, null);
 
-			IJob job = await JobService.CreateJobAsync(null, streamConfig, templateRefId1, template.Hash, graph, "Hello", 1234, 1233, options);
+			IJob job = await JobService.CreateJobAsync(null, streamConfig, templateRefId1, template.Hash, graph, "Hello", CommitIdWithOrder.FromPerforceChange(1234), CommitIdWithOrder.FromPerforceChange(1233), options);
 			Assert.AreEqual(1, job.ChainedJobs.Count);
 
 			job = Deref(await JobService.UpdateBatchAsync(job, job.Batches[0].Id, streamConfig, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
@@ -72,9 +72,9 @@ namespace HordeServer.Tests.Jobs
 			Assert.IsNotNull(chainedJob);
 			Assert.AreEqual(chainedJob!.Id, job!.ChainedJobs[0].JobId);
 
-			Assert.AreEqual(chainedJob!.Change, job!.Change);
-			Assert.AreEqual(chainedJob!.CodeChange, job!.CodeChange);
-			Assert.AreEqual(chainedJob!.PreflightChange, job!.PreflightChange);
+			Assert.AreEqual(chainedJob!.CommitId, job!.CommitId);
+			Assert.AreEqual(chainedJob!.CodeCommitId, job!.CodeCommitId);
+			Assert.AreEqual(chainedJob!.PreflightCommitId, job!.PreflightCommitId);
 			Assert.AreEqual(chainedJob!.StartedByUserId, job!.StartedByUserId);
 		}
 
@@ -105,19 +105,19 @@ namespace HordeServer.Tests.Jobs
 			ICommitCollection commits = PerforceService.GetCommits(streamConfig);
 
 			{
-				int? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Code }, null, commits, CancellationToken.None);
-				Assert.AreEqual(1002, change);
+				CommitIdWithOrder? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Code }, null, commits, CancellationToken.None);
+				Assert.AreEqual(1002, change!.GetPerforceChange());
 			}
 			{
-				int? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content }, null, commits, CancellationToken.None);
-				Assert.AreEqual(1004, change);
+				CommitIdWithOrder? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content }, null, commits, CancellationToken.None);
+				Assert.AreEqual(1004, change!.GetPerforceChange());
 			}
 			{
-				int? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content, Condition = "tag.code == 1" }, new List<CommitTag> { CommitTag.Code }, commits, CancellationToken.None);
-				Assert.AreEqual(1004, change);
+				CommitIdWithOrder? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content, Condition = "tag.code == 1" }, new List<CommitTag> { CommitTag.Code }, commits, CancellationToken.None);
+				Assert.AreEqual(1004, change!.GetPerforceChange());
 			}
 			{
-				int? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content, Condition = "tag.content == 1" }, new List<CommitTag> { CommitTag.Code }, commits, CancellationToken.None);
+				CommitIdWithOrder? change = await JobService.EvaluateChangeQueryAsync(streamId, new ChangeQueryConfig { CommitTag = CommitTag.Content, Condition = "tag.content == 1" }, new List<CommitTag> { CommitTag.Code }, commits, CancellationToken.None);
 				Assert.IsNull(change);
 			}
 		}
@@ -187,7 +187,7 @@ namespace HordeServer.Tests.Jobs
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync(startedByUserName);
 
 			CreateJobOptions options = new CreateJobOptions();
-			options.PreflightChange = preflightChange;
+			options.PreflightCommitId = CommitId.FromPerforceChange(preflightChange);
 			options.StartedByUserId = user.Id;
 			options.Arguments.AddRange(arguments);
 
@@ -198,8 +198,8 @@ namespace HordeServer.Tests.Jobs
 				templateHash: new ContentHash(Encoding.ASCII.GetBytes(templateHash)),
 				graph: fixture!.Graph,
 				name: "hello1",
-				change: 1000001,
-				codeChange: 1000002,
+				commitId: CommitIdWithOrder.FromPerforceChange(1000001),
+				codeCommitId: CommitIdWithOrder.FromPerforceChange(1000002),
 				options
 			);
 		}
@@ -268,10 +268,10 @@ namespace HordeServer.Tests.Jobs
 			graph = await GraphCollection.AppendAsync(graph, new List<NewGroup> { groupA, groupB });
 
 			CreateJobOptions options = new CreateJobOptions();
-			options.PreflightChange = 999;
+			options.PreflightCommitId = CommitId.FromPerforceChange(999);
 			options.Arguments.Add("-Target=Pak");
 
-			IJob job = await JobService.CreateJobAsync(null, streamConfig!, new TemplateId("temp"), new ContentHash(new byte[] { 1, 2, 3 }), graph, "Hello", 1234, 1233, options);
+			IJob job = await JobService.CreateJobAsync(null, streamConfig!, new TemplateId("temp"), new ContentHash(new byte[] { 1, 2, 3 }), graph, "Hello", CommitIdWithOrder.FromPerforceChange(1234), CommitIdWithOrder.FromPerforceChange(1233), options);
 
 			job = Deref(await JobService.UpdateBatchAsync(job, job.Batches[0].Id, streamConfig, LogIdUtils.GenerateNewId(), JobStepBatchState.Running));
 			job = Deref(await JobService.UpdateStepAsync(job, job.Batches[0].Id, job.Batches[0].Steps[0].Id, streamConfig, JobStepState.Running));

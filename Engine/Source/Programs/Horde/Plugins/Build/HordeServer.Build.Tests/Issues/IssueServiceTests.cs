@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -295,7 +296,7 @@ namespace HordeServer.Tests.Issues
 			job.SetupGet(x => x.StreamId).Returns(streamId);
 			job.SetupGet(x => x.TemplateId).Returns(new TemplateId("test-template"));
 			job.SetupGet(x => x.CreateTimeUtc).Returns(utcNow);
-			job.SetupGet(x => x.Change).Returns(change);
+			job.SetupGet(x => x.CommitId).Returns(CommitIdWithOrder.FromPerforceChange(change));
 			job.SetupGet(x => x.Batches).Returns(batches);
 			job.SetupGet(x => x.ShowUgsBadges).Returns(promoteByDefault);
 			job.SetupGet(x => x.ShowUgsAlerts).Returns(promoteByDefault);
@@ -312,7 +313,7 @@ namespace HordeServer.Tests.Issues
 
 			JobStepRefId jobStepRefId = new JobStepRefId(job.Id, batch.Id, step.Id);
 			string nodeName = _graph.Groups[batch.GroupIdx].Nodes[step.NodeIdx].Name;
-			await JobStepRefCollection.InsertOrReplaceAsync(jobStepRefId, "TestJob", nodeName, job.StreamId, job.TemplateId, job.Change, step.LogId, null, null, JobStepState.Completed, outcome, job.UpdateIssues, null, null, 0.0f, 0.0f, job.CreateTimeUtc, step.StartTimeUtc!.Value, step.StartTimeUtc);
+			await JobStepRefCollection.InsertOrReplaceAsync(jobStepRefId, "TestJob", nodeName, job.StreamId, job.TemplateId, job.CommitId, step.LogId, null, null, JobStepState.Completed, outcome, job.UpdateIssues, null, null, 0.0f, 0.0f, job.CreateTimeUtc, step.StartTimeUtc!.Value, step.StartTimeUtc);
 
 			if (job.UpdateIssues)
 			{
@@ -1006,22 +1007,22 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual("Compile errors in fog.cpp", issue.Summary);
 
 				IIssueSpan stream = spans[0];
-				Assert.AreEqual(105, stream.LastSuccess?.Change);
-				Assert.AreEqual(null, stream.NextSuccess?.Change);
+				Assert.AreEqual(105, stream.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, stream.NextSuccess?.CommitId);
 
 				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issue);
 				suspects = suspects.OrderBy(x => x.Id).ToList();
 				Assert.AreEqual(3, suspects.Count);
 
-				Assert.AreEqual(75 /*115*/, suspects[1].Change);
+				Assert.AreEqual(75 /*115*/, suspects[1].CommitId.GetPerforceChange());
 				Assert.AreEqual(_jerryId, suspects[1].AuthorId);
 				//				Assert.AreEqual(75, Suspects[1].OriginatingChange);
 
-				Assert.AreEqual(110, suspects[2].Change);
+				Assert.AreEqual(110, suspects[2].CommitId.GetPerforceChange());
 				Assert.AreEqual(_bobId, suspects[2].AuthorId);
 				//			Assert.AreEqual(null, Suspects[2].OriginatingChange);
 
-				Assert.AreEqual(120, suspects[0].Change);
+				Assert.AreEqual(120, suspects[0].CommitId.GetPerforceChange());
 				Assert.AreEqual(_timId, suspects[0].AuthorId);
 				//				Assert.AreEqual(null, Suspects[0].OriginatingChange);
 
@@ -1044,16 +1045,16 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual(spans.Count, 1);
 
 				IIssueSpan stream = spans[0];
-				Assert.AreEqual(110, stream.LastSuccess?.Change);
-				Assert.AreEqual(null, stream.NextSuccess?.Change);
+				Assert.AreEqual(110, stream.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, stream.NextSuccess?.CommitId);
 
-				IReadOnlyList<IIssueSuspect> suspects = (await IssueCollection.FindSuspectsAsync(issue)).OrderByDescending(x => x.Change).ToList();
+				IReadOnlyList<IIssueSuspect> suspects = (await IssueCollection.FindSuspectsAsync(issue)).OrderByDescending(x => x.CommitId).ToList();
 				Assert.AreEqual(2, suspects.Count);
 
-				Assert.AreEqual(120, suspects[0].Change);
+				Assert.AreEqual(120, suspects[0].CommitId.GetPerforceChange());
 				Assert.AreEqual(_timId, suspects[0].AuthorId);
 
-				Assert.AreEqual(75, suspects[1].Change);
+				Assert.AreEqual(75, suspects[1].CommitId.GetPerforceChange());
 				Assert.AreEqual(_jerryId, suspects[1].AuthorId);
 
 				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
@@ -1075,8 +1076,8 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual(spans.Count, 1);
 
 				IIssueSpan stream = spans[0];
-				Assert.AreEqual(110, stream.LastSuccess?.Change);
-				Assert.AreEqual(125, stream.NextSuccess?.Change);
+				Assert.AreEqual(110, stream.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(125, stream.NextSuccess?.CommitId.GetPerforceChange());
 
 				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync(resolved: false);
 				Assert.AreEqual(0, openIssues.Count);
@@ -1103,8 +1104,8 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual(1, spans.Count);
 
 				IIssueSpan span = spans[0];
-				Assert.AreEqual(110, span.LastSuccess?.Change);
-				Assert.AreEqual(125, span.NextSuccess?.Change);
+				Assert.AreEqual(110, span.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(125, span.NextSuccess?.CommitId.GetPerforceChange());
 
 				IReadOnlyList<IIssueStep> steps = await IssueCollection.FindStepsAsync(span.Id);
 				Assert.AreEqual(2, steps.Count);
@@ -1794,8 +1795,8 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual(issue.Fingerprints[0].Type, "Symbol");
 
 				IIssueSpan stream = spans[0];
-				Assert.AreEqual(105, stream.LastSuccess?.Change);
-				Assert.AreEqual(null, stream.NextSuccess?.Change);
+				Assert.AreEqual(105, stream.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, stream.NextSuccess?.CommitId);
 
 				IReadOnlyList<IIssueSuspect> suspects = await IssueCollection.FindSuspectsAsync(issues[0]);
 
@@ -1857,12 +1858,12 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual(issue.Fingerprints[0].Type, "Symbol");
 
 				IIssueSpan span1 = spans[0];
-				Assert.AreEqual(105, span1.LastSuccess?.Change);
-				Assert.AreEqual(null, span1.NextSuccess?.Change);
+				Assert.AreEqual(105, span1.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, span1.NextSuccess?.CommitId);
 
 				IIssueSpan span2 = spans[1];
-				Assert.AreEqual(null, span2.LastSuccess?.Change);
-				Assert.AreEqual(null, span2.NextSuccess?.Change);
+				Assert.AreEqual(null, span2.LastSuccess?.CommitId);
+				Assert.AreEqual(null, span2.NextSuccess?.CommitId);
 			}
 		}
 
@@ -1904,8 +1905,8 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual("Symbol", issue.Fingerprints[0].Type);
 
 				IIssueSpan span = spans[0];
-				Assert.AreEqual(105, span.LastSuccess?.Change);
-				Assert.AreEqual(null, span.NextSuccess?.Change);
+				Assert.AreEqual(105, span.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, span.NextSuccess?.CommitId);
 			}
 
 			// #3
@@ -1931,8 +1932,8 @@ namespace HordeServer.Tests.Issues
 				Assert.AreEqual("Hashed", issue.Fingerprints[0].Type);
 
 				IIssueSpan span = spans[0];
-				Assert.AreEqual(105, span.LastSuccess?.Change);
-				Assert.AreEqual(null, span.NextSuccess?.Change);
+				Assert.AreEqual(105, span.LastSuccess?.CommitId.GetPerforceChange());
+				Assert.AreEqual(null, span.NextSuccess?.CommitId);
 			}
 		}
 
@@ -2404,7 +2405,7 @@ namespace HordeServer.Tests.Issues
 			// Scenario: Issue is marked fixed again, at a particular changelist
 			// Expected: Resolved time, owner is set
 			{
-				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixChange: 115);
+				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixCommitId: CommitId.FromPerforceChange(115));
 
 				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
@@ -2437,7 +2438,7 @@ namespace HordeServer.Tests.Issues
 			// Scenario: Issue is marked fixed again, at a particular changelist
 			// Expected: Resolved time, owner is set
 			{
-				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixChange: 125);
+				await IssueService.UpdateIssueAsync(issueId, resolvedById: _bobId, fixCommitId: CommitIdWithOrder.FromPerforceChange(125));
 
 				IReadOnlyList<IIssue> openIssues = await IssueCollection.FindIssuesAsync();
 				Assert.AreEqual(0, openIssues.Count);
@@ -2943,8 +2944,8 @@ namespace HordeServer.Tests.Issues
 		static IIssueSpanSuspect MockSuspect(int change, int? originatingChange)
 		{
 			Mock<IIssueSpanSuspect> suspect = new Mock<IIssueSpanSuspect>(MockBehavior.Strict);
-			suspect.SetupGet(x => x.Change).Returns(change);
-			suspect.SetupGet(x => x.OriginatingChange).Returns(originatingChange);
+			suspect.SetupGet(x => x.CommitId).Returns(CommitIdWithOrder.FromPerforceChange(change));
+			suspect.SetupGet(x => x.SourceCommitId).Returns(CommitIdWithOrder.FromPerforceChange(originatingChange));
 			return suspect.Object;
 		}
 

@@ -798,13 +798,13 @@ namespace HordeServer.Jobs
 
 				// Get the lease name
 				StringBuilder leaseName = new StringBuilder($"{streamConfig.Name} - ");
-				if (job.PreflightChange > 0)
+				if (job.PreflightCommitId != null)
 				{
-					leaseName.Append((job.Change > 0) ? $"Preflight CL {job.PreflightChange} against CL {job.Change}" : $"Preflight CL {job.PreflightChange} against latest");
+					leaseName.Append($"Preflight CL {job.PreflightCommitId} against CL {job.CommitId}");
 				}
 				else
 				{
-					leaseName.Append((job.Change > 0) ? $"CL {job.Change}" : "Latest CL");
+					leaseName.Append($"CL {job.CommitId}");
 				}
 				leaseName.Append(CultureInfo.InvariantCulture, $" - {job.Name}");
 
@@ -875,13 +875,13 @@ namespace HordeServer.Jobs
 		{
 			// Get the lease name
 			StringBuilder leaseName = new StringBuilder($"{streamConfig.Name} - ");
-			if (job.PreflightChange > 0)
+			if (job.PreflightCommitId != null)
 			{
-				leaseName.Append((job.Change > 0) ? $"Preflight CL {job.PreflightChange} against CL {job.Change}" : $"Preflight CL {job.PreflightChange} against latest");
+				leaseName.Append($"Preflight CL {job.PreflightCommitId} against CL {job.CommitId}");
 			}
 			else
 			{
-				leaseName.Append((job.Change > 0) ? $"CL {job.Change}" : "Latest CL");
+				leaseName.Append($"CL {job.CommitId}");
 			}
 			leaseName.Append(CultureInfo.InvariantCulture, $" - {job.Name}");
 
@@ -894,7 +894,7 @@ namespace HordeServer.Jobs
 			claims.Add(HordeClaims.AgentRoleClaim);
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Lease, leaseId.ToString()));
 
-			string storagePrefix = $"{job.StreamId}/{job.Change}-{job.Id}";
+			string storagePrefix = $"{job.StreamId}/{job.CommitId}-{job.Id}";
 			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{namespaceId}:{storagePrefix}"));
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{namespaceId}:{storagePrefix}"));
 
@@ -990,7 +990,7 @@ namespace HordeServer.Jobs
 		/// <returns>Async task</returns>
 		public async Task UpdateUgsBadgesAsync(IJob job, IGraph graph, IReadOnlyList<(LabelState, LabelOutcome)> oldLabelStates, IReadOnlyList<(LabelState, LabelOutcome)> newLabelStates, CancellationToken cancellationToken)
 		{
-			if (!job.ShowUgsBadges || job.PreflightChange != 0)
+			if (!job.ShowUgsBadges || job.PreflightCommitId != null)
 			{
 				return;
 			}
@@ -1050,11 +1050,11 @@ namespace HordeServer.Jobs
 				int change;
 				if (label.Change == RpcLabelChange.Code)
 				{
-					change = job.CodeChange;
+					change = job.CodeCommitId?.GetPerforceChange() ?? 0;
 				}
 				else
 				{
-					change = job.Change;
+					change = job.CommitId.GetPerforceChange();
 				}
 
 				// Get the current metadata state

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
@@ -19,11 +20,11 @@ namespace HordeServer.Jobs
 	/// </summary>
 	public class CreateJobOptions
 	{
-		/// <inheritdoc cref="IJob.PreflightChange"/>
-		public int? PreflightChange { get; set; }
+		/// <inheritdoc cref="IJob.PreflightCommitId"/>
+		public CommitId? PreflightCommitId { get; set; }
 
-		/// <inheritdoc cref="IJob.ClonedPreflightChange"/>
-		public int? ClonedPreflightChange { get; set; }
+		/// <inheritdoc cref="IJob.ClonedPreflightCommitId"/>
+		public CommitId? ClonedPreflightCommitId { get; set; }
 
 		/// <inheritdoc cref="IJob.PreflightDescription"/>
 		public string? PreflightDescription { get; set; }
@@ -123,12 +124,12 @@ namespace HordeServer.Jobs
 		/// <param name="templateHash">Template for this job</param>
 		/// <param name="graph">The graph for the new job</param>
 		/// <param name="name">Name of the job</param>
-		/// <param name="change">The change to build</param>
-		/// <param name="codeChange">The corresponding code changelist number</param>
+		/// <param name="commitId">The commit to build</param>
+		/// <param name="codeCommitId">The corresponding code changelist number</param>
 		/// <param name="options">Additional options for the new job</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new job document</returns>
-		Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, int change, int codeChange, CreateJobOptions options, CancellationToken cancellationToken = default);
+		Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, CommitId commitId, CommitId? codeCommitId, CreateJobOptions options, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a job with the given unique id
@@ -153,10 +154,11 @@ namespace HordeServer.Jobs
 		/// <param name="streamId">The stream containing the job</param>
 		/// <param name="name">Name of the job</param>
 		/// <param name="templates">Templates to look for</param>
-		/// <param name="minChange">The minimum changelist number</param>
-		/// <param name="maxChange">The maximum changelist number</param>
-		/// <param name="preflightChange">Preflight change to find</param>
+		/// <param name="minCommitId">The minimum commit</param>
+		/// <param name="maxCommitId">The maximum commit</param>
+		/// <param name="preflightCommitId">Preflight change to find</param>
 		/// <param name="preflightOnly">Whether to only include preflights</param>
+		/// <param name="includePreflight">Whether to include preflights in the results</param>
 		/// <param name="startedByUser">User id for which to include jobs</param>
 		/// <param name="preflightStartedByUser">User for which to include preflight jobs</param>
 		/// <param name="minCreateTime">The minimum creation time</param>
@@ -171,7 +173,7 @@ namespace HordeServer.Jobs
 		/// <param name="excludeUserJobs">Whether to exclude user jobs from the find</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of jobs matching the given criteria</returns>
-		Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, int? minChange = null, int? maxChange = null, int? preflightChange = null, bool? preflightOnly = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, JobStepBatchState? batchState = null, int? index = null, int? count = null, bool consistentRead = true, string? indexHint = null, bool? excludeUserJobs = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CommitId? preflightCommitId = null, bool? preflightOnly = null, bool? includePreflight = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, JobStepBatchState? batchState = null, int? index = null, int? count = null, bool consistentRead = true, string? indexHint = null, bool? excludeUserJobs = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for jobs matching the given criteria

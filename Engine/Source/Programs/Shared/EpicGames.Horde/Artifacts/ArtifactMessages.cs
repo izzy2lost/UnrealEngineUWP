@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 
@@ -17,10 +18,31 @@ namespace EpicGames.Horde.Artifacts
 	/// <param name="Type">Additional search keys tagged on the artifact</param>
 	/// <param name="Description">Description for the artifact</param>
 	/// <param name="StreamId">Stream to create the artifact for</param>
-	/// <param name="Change">Change number for the artifact</param>
 	/// <param name="Keys">Keys used to identify the artifact</param>
 	/// <param name="Metadata">Metadata for the artifact</param>
-	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, string? Description, StreamId? StreamId, int? Change, List<string> Keys, List<string> Metadata);
+	public record CreateArtifactRequest(ArtifactName Name, ArtifactType Type, string? Description, StreamId? StreamId, List<string> Keys, List<string> Metadata)
+	{
+		/// <summary>
+		/// Legacy Perforce changelist number.
+		/// </summary>
+		[Obsolete("Use CommitId instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.TryGetPerforceChange() ?? -1;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// Commit for the new artifact
+		/// </summary>
+		public CommitId CommitId
+		{
+			get => _commitId ?? CommitId.FromPerforceChange(_change) ?? CommitId.Empty;
+			set => _commitId = value;
+		}
+		CommitId? _commitId;
+	}
 
 	/// <summary>
 	/// Information about a created artifact
@@ -81,7 +103,23 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Change number
 		/// </summary>
-		public int Change { get; }
+		[Obsolete("Use CommitId instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.TryGetPerforceChange() ?? -1;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// Commit
+		/// </summary>
+		public CommitId CommitId
+		{
+			get => _commitId ?? CommitId.FromPerforceChange(_change) ?? CommitId.Empty;
+			set => _commitId = value;
+		}
+		CommitId? _commitId;
 
 		/// <summary>
 		/// Keys used to collate artifacts
@@ -101,14 +139,13 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, DateTime createdAtUtc)
+		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, DateTime createdAtUtc)
 		{
 			Id = id;
 			Name = name;
 			Type = type;
 			Description = description;
 			StreamId = streamId;
-			Change = change;
 			Keys = keys;
 			Metadata = metadata;
 			CreatedAtUtc = createdAtUtc;

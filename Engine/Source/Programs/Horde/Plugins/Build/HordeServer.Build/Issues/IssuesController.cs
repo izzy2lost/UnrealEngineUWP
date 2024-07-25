@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -8,6 +9,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using HordeServer.Auditing;
+using HordeServer.Commits;
 using HordeServer.Issues.External;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
@@ -71,7 +73,7 @@ namespace HordeServer.Issues
 		[HttpGet]
 		[Route("/api/v2/issues")]
 		[ProducesResponseType(typeof(List<FindIssueResponse>), 200)]
-		public async Task<ActionResult<object>> FindIssuesV2Async([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] StreamId? streamId = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] bool? resolved = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> FindIssuesV2Async([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] StreamId? streamId = null, [FromQuery] CommitId? minChange = null, [FromQuery] CommitId? maxChange = null, [FromQuery] bool? resolved = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (ids != null && ids.Length == 0)
 			{
@@ -209,7 +211,7 @@ namespace HordeServer.Issues
 		static GetIssueStepResponse NewGetIssueStepResponse(IIssueStep issueStep)
 		{
 			GetIssueStepResponse response = new GetIssueStepResponse();
-			response.Change = issueStep.Change;
+			response.CommitId = issueStep.CommitId;
 			response.Severity = issueStep.Severity;
 			response.JobName = issueStep.JobName;
 			response.JobId = issueStep.JobId;
@@ -251,8 +253,8 @@ namespace HordeServer.Issues
 				response.NominatedBy = nominatedBy.ToThinApiResponse();
 			}
 			response.AcknowledgedAt = issue.AcknowledgedAt;
-			response.FixChange = issue.FixChange;
-			response.FixedSystemic = issue.FixedSystemic;
+			response.FixCommitId = issue.FixCommitId;
+			response.FixSystemic = issue.FixSystemic;
 			response.ResolvedAt = issue.ResolvedAt;
 			if (resolvedBy != null)
 			{
@@ -295,7 +297,7 @@ namespace HordeServer.Issues
 		[HttpGet]
 		[Route("/api/v1/issues")]
 		[ProducesResponseType(typeof(List<GetIssueResponse>), 200)]
-		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] int? change = null, [FromQuery] int? minChange = null, [FromQuery] int? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> FindIssuesAsync([FromQuery(Name = "Id")] int[]? ids = null, [FromQuery] string? streamId = null, [FromQuery] CommitId? change = null, [FromQuery] CommitId? minChange = null, [FromQuery] CommitId? maxChange = null, [FromQuery] JobId? jobId = null, [FromQuery] JobStepBatchId? batchId = null, [FromQuery] JobStepId? stepId = null, [FromQuery(Name = "label")] int? labelIdx = null, [FromQuery] string? ownerId = null, [FromQuery] bool? resolved = null, [FromQuery] bool? promoted = null, [FromQuery] int index = 0, [FromQuery] int count = 10, [FromQuery] PropertyFilter? filter = null, CancellationToken cancellationToken = default)
 		{
 			if (ids != null && ids.Length == 0)
 			{
@@ -499,8 +501,8 @@ namespace HordeServer.Issues
 			response.NominatedBy = details.NominatedBy?.Login;
 			response.NominatedByInfo = details.NominatedBy?.ToThinApiResponse();
 			response.AcknowledgedAt = issue.AcknowledgedAt;
-			response.FixChange = issue.FixChange;
-			response.FixedSystemic = issue.FixedSystemic;
+			response.FixCommitId = issue.FixCommitId;
+			response.FixSystemic = issue.FixSystemic;
 			response.ResolvedAt = issue.ResolvedAt;
 			response.ResolvedBy = details.ResolvedBy?.Login;
 			response.ResolvedById = details.ResolvedBy?.Id.ToString();
@@ -585,13 +587,13 @@ namespace HordeServer.Issues
 
 			foreach (IIssueSpan span in spans)
 			{
-				if (span.LastSuccess != null && (response.MinChange == null || span.LastSuccess.Change < response.MinChange.Value))
+				if (span.LastSuccess != null && (response.MinCommitId == null || span.LastSuccess.CommitId < response.MinCommitId))
 				{
-					response.MinChange = span.LastSuccess.Change;
+					response.MinCommitId = span.LastSuccess.CommitId;
 				}
-				if (span.NextSuccess != null && (response.MaxChange == null || span.NextSuccess.Change > response.MaxChange.Value))
+				if (span.NextSuccess != null && (response.MaxCommitId == null || span.NextSuccess.CommitId > response.MaxCommitId))
 				{
-					response.MaxChange = span.NextSuccess.Change;
+					response.MaxCommitId = span.NextSuccess.CommitId;
 				}
 				response.Nodes.Add(NewGetIssueSpanResponse(span, steps.Where(y => y.SpanId == span.Id).ToList()));
 			}
@@ -836,7 +838,7 @@ namespace HordeServer.Issues
 				removeSpans = request.RemoveSpans.ConvertAll(x => ObjectId.Parse(x));
 			}
 
-			if (!await _issueService.UpdateIssueAsync(issueId, request.Summary, request.Description, request.Promoted, newOwnerId, newNominatedById, request.Acknowledged, newDeclinedById, request.FixChange, newResolvedById, addSpans, removeSpans, request.ExternalIssueKey, newQuarantinedById, newForceClosedById, initiatedById: User.GetUserId()))
+			if (!await _issueService.UpdateIssueAsync(issueId, request.Summary, request.Description, request.Promoted, newOwnerId, newNominatedById, request.Acknowledged, newDeclinedById, request.FixCommitId, request.FixSystemic, newResolvedById, addSpans, removeSpans, request.ExternalIssueKey, newQuarantinedById, newForceClosedById, initiatedById: User.GetUserId()))
 			{
 				return NotFound();
 			}

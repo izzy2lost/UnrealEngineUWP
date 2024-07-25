@@ -2,6 +2,7 @@
 
 using System.Security.Claims;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Devices;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -190,7 +191,7 @@ namespace HordeServer.Tests.Devices
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Run Tests");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue5-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue5-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			job = await StartBatchAsync(job, 0);
 			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build

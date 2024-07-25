@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
@@ -372,18 +373,18 @@ namespace HordeServer.Replicators
 				ICommit? nextCommit;
 				if (replicator.LastChange != null)
 				{
-					nextCommit = await commits.SubscribeAsync(replicator.LastChange.Value, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
-					_logger.LogInformation("Replicating next change for {ReplicatorId} at CL {Change}", replicator.Id, nextCommit.Number);
+					nextCommit = await commits.SubscribeAsync(CommitIdWithOrder.FromPerforceChange(replicator.LastChange.Value), cancellationToken: cancellationToken).FirstAsync(cancellationToken);
+					_logger.LogInformation("Replicating next change for {ReplicatorId} at CL {Change}", replicator.Id, nextCommit.Id);
 				}
 				else
 				{
 					nextCommit = await commits.GetLatestAsync(cancellationToken);
-					_logger.LogInformation("Starting {ReplicatorId} replication from latest CL {Change}", replicator.Id, nextCommit.Number);
+					_logger.LogInformation("Starting {ReplicatorId} replication from latest CL {Change}", replicator.Id, nextCommit.Id);
 				}
 
 				await store.DeleteRefAsync(incRefName, cancellationToken);
 
-				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { CurrentChange = nextCommit.Number };
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { CurrentChange = nextCommit.Id.GetPerforceChange() };
 				replicator = await UpdateReplicatorAsync(replicator, updateOptions, cancellationToken);
 			}
 

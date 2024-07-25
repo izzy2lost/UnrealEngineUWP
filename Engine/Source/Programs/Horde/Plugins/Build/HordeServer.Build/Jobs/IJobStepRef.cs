@@ -3,6 +3,7 @@
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
@@ -181,7 +182,7 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// The change number being built
 		/// </summary>
-		public int Change { get; }
+		public CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Log for this step
@@ -216,12 +217,12 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// The last change that succeeded. Note that this is only set when the ref is updated; it is not necessarily consistent with steps run later.
 		/// </summary>
-		public int? LastSuccess { get; }
+		public CommitIdWithOrder? LastSuccess { get; }
 
 		/// <summary>
 		/// The last change that succeeded, or completed a warning. See <see cref="LastSuccess"/>.
 		/// </summary>
-		public int? LastWarning { get; }
+		public CommitIdWithOrder? LastWarning { get; }
 
 		/// <summary>
 		/// Time taken for the batch containing this batch to start after it became ready

@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Telemetry;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Dashboard;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Graphs;
@@ -132,13 +133,13 @@ namespace EpicGames.Horde
 		/// <param name="type">Additional search keys tagged on the artifact</param>
 		/// <param name="description">Description for the artifact</param>
 		/// <param name="streamId">Stream to create the artifact for</param>
-		/// <param name="change">Change number for the artifact</param>
+		/// <param name="commitId">Commit for the artifact</param>
 		/// <param name="keys">Keys used to identify the artifact</param>
 		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId? streamId = null, int? change = null, List<string>? keys = null, List<string>? metadata = null, CancellationToken cancellationToken = default)
+		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, List<string>? keys = null, List<string>? metadata = null, CancellationToken cancellationToken = default)
 		{
-			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, change, keys ?? new List<string>(), metadata ?? new List<string>()), cancellationToken);
+			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, keys ?? new List<string>(), metadata ?? new List<string>()) { CommitId = commitId }, cancellationToken);
 		}
 
 		/// <summary>

@@ -510,7 +510,7 @@ namespace HordeServer.Ugs
 			Owner = owner?.Login;
 			NominatedBy = nominatedBy?.Login;
 			AcknowledgedAt = issue.AcknowledgedAt;
-			FixChange = issue.FixChange;
+			FixChange = issue.FixCommitId?.GetPerforceChange();
 			ResolvedAt = issue.ResolvedAt;
 			BNotify = notify;
 			BWarning = issue.Severity == IssueSeverity.Warning;

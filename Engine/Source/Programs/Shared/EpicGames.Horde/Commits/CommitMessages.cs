@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using EpicGames.Horde.Users;
 
@@ -13,9 +14,25 @@ namespace EpicGames.Horde.Commits
 	public class GetCommitResponse
 	{
 		/// <summary>
-		/// The source changelist number
+		/// The commit id
 		/// </summary>
-		public int Number { get; set; }
+		public CommitIdWithOrder Id
+		{
+			get => _id ?? CommitIdWithOrder.FromPerforceChange(_number) ?? CommitIdWithOrder.Empty;
+			set => _id = value;
+		}
+		CommitIdWithOrder? _id;
+
+		/// <summary>
+		/// The changelist number
+		/// </summary>
+		[Obsolete("Use Id instead")]
+		public int Number
+		{
+			get => _number ?? _id?.TryGetPerforceChange() ?? -1;
+			set => _number = value;
+		}
+		int? _number;
 
 		/// <summary>
 		/// Name of the user that authored this change [DEPRECATED]
@@ -45,9 +62,8 @@ namespace EpicGames.Horde.Commits
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetCommitResponse(int number, GetThinUserInfoResponse authorInfo, string description)
+		public GetCommitResponse(GetThinUserInfoResponse authorInfo, string description)
 		{
-			Number = number;
 			Author = authorInfo.Name;
 			AuthorInfo = authorInfo;
 			Description = description;

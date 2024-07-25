@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -257,8 +258,8 @@ namespace HordeServer.Issues
 	/// </summary>
 	public class NewIssueStepData
 	{
-		/// <inheritdoc cref="IIssueStep.Change"/>
-		public int Change { get; set; }
+		/// <inheritdoc cref="IIssueStep.CommitId"/>
+		public CommitIdWithOrder CommitId { get; set; }
 
 		/// <inheritdoc cref="IIssueStep.Severity"/>
 		public IssueSeverity Severity { get; set; }
@@ -290,7 +291,7 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="change">The changelist number for this job</param>
+		/// <param name="commitId">The commit for this job</param>
 		/// <param name="severity">Severity of the issue in this step</param>
 		/// <param name="jobName">The job name</param>
 		/// <param name="jobId">The unique job id</param>
@@ -300,9 +301,9 @@ namespace HordeServer.Issues
 		/// <param name="logId">Unique id of the log file for this step</param>
 		/// <param name="annotations">Annotations for this step</param>
 		/// <param name="promoted">Whether this step is promoted</param>
-		public NewIssueStepData(int change, IssueSeverity severity, string jobName, JobId jobId, JobStepBatchId batchId, JobStepId stepId, DateTime stepTime, LogId? logId, IReadOnlyNodeAnnotations? annotations, bool promoted)
+		public NewIssueStepData(CommitIdWithOrder commitId, IssueSeverity severity, string jobName, JobId jobId, JobStepBatchId batchId, JobStepId stepId, DateTime stepTime, LogId? logId, IReadOnlyNodeAnnotations? annotations, bool promoted)
 		{
-			Change = change;
+			CommitId = commitId;
 			Severity = severity;
 			JobName = jobName;
 			JobId = jobId;
@@ -327,7 +328,7 @@ namespace HordeServer.Issues
 		/// <param name="annotations">Annotations for this step</param>
 		/// <param name="promoted">Whether this step is promoted</param>
 		public NewIssueStepData(IJob job, IJobStepBatch batch, IJobStep step, IssueSeverity severity, IReadOnlyNodeAnnotations? annotations, bool promoted)
-			: this(job.Change, severity, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, annotations, promoted)
+			: this(job.CommitId, severity, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, annotations, promoted)
 		{
 		}
 
@@ -336,7 +337,7 @@ namespace HordeServer.Issues
 		/// </summary>
 		/// <param name="jobStepRef">The jobstep reference</param>
 		public NewIssueStepData(IJobStepRef jobStepRef)
-			: this(jobStepRef.Change, IssueSeverity.Unspecified, jobStepRef.JobName, jobStepRef.Id.JobId, jobStepRef.Id.BatchId, jobStepRef.Id.StepId, jobStepRef.StartTimeUtc, jobStepRef.LogId, null, false)
+			: this(jobStepRef.CommitId, IssueSeverity.Unspecified, jobStepRef.JobName, jobStepRef.Id.JobId, jobStepRef.Id.BatchId, jobStepRef.Id.StepId, jobStepRef.StartTimeUtc, jobStepRef.LogId, null, false)
 		{
 		}
 	}
@@ -349,18 +350,18 @@ namespace HordeServer.Issues
 		/// <inheritdoc cref="IIssueSuspect.AuthorId"/>
 		public UserId AuthorId { get; set; }
 
-		/// <inheritdoc cref="IIssueSuspect.Change"/>
-		public int Change { get; set; }
+		/// <inheritdoc cref="IIssueSuspect.CommitId"/>
+		public CommitIdWithOrder CommitId { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="authorId">Author of the change</param>
-		/// <param name="change">The changelist number</param>
-		public NewIssueSuspectData(UserId authorId, int change)
+		/// <param name="commitId">The changelist number</param>
+		public NewIssueSuspectData(UserId authorId, CommitIdWithOrder commitId)
 		{
 			AuthorId = authorId;
-			Change = change;
+			CommitId = commitId;
 		}
 	}
 
@@ -369,23 +370,23 @@ namespace HordeServer.Issues
 	/// </summary>
 	public class NewIssueSpanSuspectData
 	{
-		/// <inheritdoc cref="IIssueSpanSuspect.Change"/>
-		public int Change { get; set; }
+		/// <inheritdoc cref="IIssueSpanSuspect.CommitId"/>
+		public CommitIdWithOrder CommitId { get; set; }
 
 		/// <inheritdoc cref="IIssueSpanSuspect.AuthorId"/>
 		public UserId AuthorId { get; set; }
 
-		/// <inheritdoc cref="IIssueSpanSuspect.OriginatingChange"/>
-		public int? OriginatingChange { get; set; }
+		/// <inheritdoc cref="IIssueSpanSuspect.SourceCommitId"/>
+		public CommitIdWithOrder? SourceCommitId { get; set; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="change">The changelist number</param>
 		/// <param name="authorId">Author of the change</param>
-		public NewIssueSpanSuspectData(int change, UserId authorId)
+		public NewIssueSpanSuspectData(CommitIdWithOrder change, UserId authorId)
 		{
-			Change = change;
+			CommitId = change;
 			AuthorId = authorId;
 		}
 	}
@@ -460,23 +461,23 @@ namespace HordeServer.Issues
 		/// <param name="ids">Set of issue ids to find</param>
 		/// <param name="ownerId">The user to find issues for</param>
 		/// <param name="streamId">The stream affected by the issue</param>
-		/// <param name="minChange">Minimum changelist affected by the issue</param>
-		/// <param name="maxChange">Maximum changelist affected by the issue</param>
+		/// <param name="minCommitId">Minimum changelist affected by the issue</param>
+		/// <param name="maxCommitId">Maximum changelist affected by the issue</param>
 		/// <param name="resolved">Include issues that are now resolved</param>
 		/// <param name="promoted">Include only promoted issues</param>
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of streams open in the given stream at the given changelist</returns>
-		Task<IReadOnlyList<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IIssue>> FindIssuesAsync(IEnumerable<int>? ids = null, UserId? ownerId = null, StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, bool? resolved = null, bool? promoted = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for open issues
 		/// </summary>
-		/// <param name="changes">List of suspect changes</param>
+		/// <param name="commits">List of suspect commits</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of issues that are affected by the given changes</returns>
-		Task<IReadOnlyList<IIssue>> FindIssuesForChangesAsync(List<int> changes, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IIssue>> FindIssuesForChangesAsync(List<CommitIdWithOrder> commits, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Try to update the state of an issue
@@ -492,8 +493,8 @@ namespace HordeServer.Issues
 		/// <param name="newNominatedById">Person that nominated the new owner</param>
 		/// <param name="newAcknowledged">Whether the issue has been acknowledged</param>
 		/// <param name="newDeclinedById">Name of a user that has declined the issue</param>
-		/// <param name="newFixChange">Fix changelist for the issue. Pass 0 to clear the fix changelist, -1 for systemic issue.</param>
-		/// <param name="newFixedSystemic">Whether the issue should be marked fixed as a systemic issue</param>
+		/// <param name="newFixCommitId">Fix changelist for the issue. Pass a default value to clear the fix changelist.</param>
+		/// <param name="newFixSystemic">Whether the issue should be marked fixed as a systemic issue</param>
 		/// <param name="newResolvedById">User that resolved the issue (may be ObjectId.Empty to clear)</param>
 		/// <param name="newExcludeSpanIds">List of span ids to exclude from this issue</param>
 		/// <param name="newLastSeenAt"></param>
@@ -503,7 +504,7 @@ namespace HordeServer.Issues
 		/// <param name="newWorkflowThreadUrl">The workflow thread url associated with the issue</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the issue was updated</returns>
-		Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, int? newFixChange = null, bool? newFixedSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternalIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default);
+		Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, CommitId? newFixCommitId = null, bool? newFixSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternalIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Updates derived data for an issue (ie. data computed from the spans attached to it). Also clears the issue's 'modified' state.
@@ -577,10 +578,10 @@ namespace HordeServer.Issues
 		/// <param name="streamId">The stream id</param>
 		/// <param name="templateId">The template id</param>
 		/// <param name="name">Name of the node</param>
-		/// <param name="change">Changelist number to query</param>
+		/// <param name="commitId">Changelist number to query</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of open issues</returns>
-		Task<IReadOnlyList<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string name, int change, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IIssueSpan>> FindOpenSpansAsync(StreamId streamId, TemplateId templateId, string name, CommitId commitId, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for open issues
@@ -588,14 +589,14 @@ namespace HordeServer.Issues
 		/// <param name="ids">Set of issue ids to find</param>
 		/// <param name="issueIds">The issue ids to retrieve spans for</param>
 		/// <param name="streamId">The stream affected by the issue</param>
-		/// <param name="minChange">Minimum changelist affected by the issue</param>
-		/// <param name="maxChange">Maximum changelist affected by the issue</param>
+		/// <param name="minCommitId">Minimum commit affected by the issue</param>
+		/// <param name="maxCommitId">Maximum commit affected by the issue</param>
 		/// <param name="resolved">Include issues that are now resolved</param>
 		/// <param name="index">Index within the results to return</param>
 		/// <param name="count">Number of results</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of streams open in the given stream at the given changelist</returns>
-		Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? ids = null, IEnumerable<int>? issueIds = null, StreamId? streamId = null, int? minChange = null, int? maxChange = null, bool? resolved = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IIssueSpan>> FindSpansAsync(IEnumerable<ObjectId>? ids = null, IEnumerable<int>? issueIds = null, StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, bool? resolved = null, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		#endregion
 

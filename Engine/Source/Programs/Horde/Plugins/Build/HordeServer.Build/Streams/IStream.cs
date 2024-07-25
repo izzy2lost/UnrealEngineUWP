@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
@@ -99,7 +100,7 @@ namespace HordeServer.Streams
 		/// <summary>
 		/// Last changelist number that this was triggered for
 		/// </summary>
-		int LastTriggerChange { get; }
+		CommitIdWithOrder? LastTriggerCommitId { get; }
 
 		/// <summary>
 		/// Gets the last trigger time, in UTC

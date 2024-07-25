@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Agents;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -23,6 +24,7 @@ using EpicGames.Slack;
 using EpicGames.Slack.Blocks;
 using EpicGames.Slack.Elements;
 using HordeServer.Agents;
+using HordeServer.Commits;
 using HordeServer.Configuration;
 using HordeServer.Devices;
 using HordeServer.Issues;
@@ -208,6 +210,7 @@ namespace HordeServer.Notifications.Sinks
 
 		readonly IRedisService _redisService;
 		readonly IssueService _issueService;
+		readonly ICommitService _commitService;
 		readonly IUserCollection _userCollection;
 		readonly ILogCollection _logCollection;
 		readonly IWebHostEnvironment _environment;
@@ -242,10 +245,11 @@ namespace HordeServer.Notifications.Sinks
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public SlackNotificationSink(IMongoService mongoService, IRedisService redisService, IssueService issueService, IUserCollection userCollection, ILogCollection logCollection, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<StaticBuildConfig> settings, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildConfig> buildConfig, ILogger<SlackNotificationSink> logger)
+		public SlackNotificationSink(IMongoService mongoService, IRedisService redisService, IssueService issueService, ICommitService commitService, IUserCollection userCollection, ILogCollection logCollection, IExternalIssueService externalIssueService, IWebHostEnvironment environment, IOptions<StaticBuildConfig> settings, IClock clock, IServerInfo serverInfo, IOptionsMonitor<BuildConfig> buildConfig, ILogger<SlackNotificationSink> logger)
 		{
 			_redisService = redisService;
 			_issueService = issueService;
+			_commitService = commitService;
 			_userCollection = userCollection;
 			_logCollection = logCollection;
 			_externalIssueService = externalIssueService;
@@ -581,7 +585,7 @@ namespace HordeServer.Notifications.Sinks
 						autoSubmitMessage = $"\n\n```{job.AutoSubmitMessage}```";
 					}
 
-					attachment.AddSection($"Files in CL *{job.PreflightChange}* were *not submitted*. Please resolve these issues and submit manually.{autoSubmitMessage}");
+					attachment.AddSection($"Files in CL *{job.PreflightCommitId}* were *not submitted*. Please resolve these issues and submit manually.{autoSubmitMessage}");
 				}
 			}
 
@@ -903,16 +907,46 @@ namespace HordeServer.Notifications.Sinks
 			await UpdateReportsAsync(buildConfig, issue, details.Spans, cancellationToken);
 		}
 
-		static IIssueSpan? GetFixFailedSpan(IIssue issue, IReadOnlyList<IIssueSpan> spans)
+		async Task<IIssueStep?> GetFixFailedStepAsync(IIssue issue, IEnumerable<IIssueSpan> spans, CancellationToken cancellationToken)
 		{
-			if (issue.FixChange != null)
+			if (issue.FixCommitId != null)
+			{
+				foreach(IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId))
+				{
+					IIssueStream? stream = issue.Streams.FirstOrDefault(x => x.StreamId == group.Key);
+					if (stream != null && (stream.ContainsFix ?? false))
+					{
+						CommitIdWithOrder fixedCommitIdWithOrder = await _commitService.GetOrderedAsync(group.Key, issue.FixCommitId, cancellationToken);
+						foreach (IIssueSpan span in group)
+						{
+							if (span.LastFailure.CommitId >= fixedCommitIdWithOrder)
+							{
+								return span.LastFailure;
+							}
+						}
+					}
+				}
+			}
+			return null;
+		}
+
+		async Task<IIssueSpan?> GetFixFailedSpanAsync(IIssue issue, IReadOnlyList<IIssueSpan> spans, CancellationToken cancellationToken)
+		{
+			if (issue.FixCommitId != null)
 			{
 				HashSet<StreamId> originStreams = new HashSet<StreamId>(issue.Streams.Where(x => x.MergeOrigin ?? false).Select(x => x.StreamId));
-				foreach (IIssueSpan originSpan in spans.Where(x => originStreams.Contains(x.StreamId)).OrderBy(x => x.StreamId.ToString()))
+				foreach(IGrouping<StreamId, IIssueSpan> group in spans.GroupBy(x => x.StreamId).OrderBy(x => x.Key.ToString()))
 				{
-					if (originSpan.LastFailure.Change > issue.FixChange.Value)
+					if (originStreams.Contains(group.Key))
 					{
-						return originSpan;
+						CommitIdWithOrder fixedCommitIdWithOrder = await _commitService.GetOrderedAsync(group.Key, issue.FixCommitId, cancellationToken);
+						foreach (IIssueSpan span in group)
+						{
+							if (span.LastFailure.CommitId > fixedCommitIdWithOrder)
+							{
+								return span;
+							}
+						}
 					}
 				}
 			}
@@ -1075,9 +1109,9 @@ namespace HordeServer.Notifications.Sinks
 			}
 
 			IIssueSpan? fixFailedSpan = null;
-			if (issue.FixChange != null)
+			if (issue.FixCommitId != null)
 			{
-				fixFailedSpan = GetFixFailedSpan(issue, spans);
+				fixFailedSpan = await GetFixFailedSpanAsync(issue, spans, cancellationToken);
 			}
 
 			if (!isSecondThread)
@@ -1155,7 +1189,7 @@ namespace HordeServer.Notifications.Sinks
 					{
 						string mention = await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions, cancellationToken);
 
-						string changes = String.Join(", ", suspects.Where(x => x.AuthorId == issue.OwnerId).Select(x => FormatChange(x.Change)));
+						string changes = String.Join(", ", suspects.Where(x => x.AuthorId == issue.OwnerId).Select(x => FormatChange(x.CommitId)));
 						if (changes.Length > 0)
 						{
 							mention += $" ({changes})";
@@ -1173,7 +1207,7 @@ namespace HordeServer.Notifications.Sinks
 							foreach (IGrouping<UserId, IIssueSuspect> suspectGroup in suspectGroups)
 							{
 								string mention = await FormatMentionAsync(suspectGroup.Key, workflow.AllowMentions, cancellationToken);
-								string changes = String.Join(", ", suspectGroup.Select(x => FormatChange(x.Change)));
+								string changes = String.Join(", ", suspectGroup.Select(x => FormatChange(x.CommitId)));
 								suspectList.Add($"{mention} ({changes})");
 								inviteUserIds.Add(suspectGroup.Key);
 							}
@@ -1231,18 +1265,18 @@ namespace HordeServer.Notifications.Sinks
 					}
 				}
 
-				if (issue.FixChange != null)
+				if (issue.FixCommitId != null)
 				{
 					if (fixFailedSpan == null)
 					{
-						string fixedEventId = $"issue_{issue.Id}_fixed_{issue.FixChange}";
-						string fixedMessage = $"Marked as fixed in {FormatChange(issue.FixChange.Value)}";
+						string fixedEventId = $"issue_{issue.Id}_fixed_{issue.FixCommitId}";
+						string fixedMessage = $"Marked as fixed in {FormatChange(issue.FixCommitId)}";
 						await PostSingleMessageToThreadAsync(triageChannel, fixedEventId, threadId, fixedMessage, cancellationToken);
 					}
 					else
 					{
-						string fixFailedEventId = $"issue_{issue.Id}_fixfailed_{issue.FixChange}";
-						string fixFailedMessage = $"Issue not fixed by {FormatChange(issue.FixChange.Value)}; see {FormatJobStep(fixFailedSpan.LastFailure, fixFailedSpan.NodeName)} at CL {fixFailedSpan.LastFailure.Change} in {fixFailedSpan.StreamName}.";
+						string fixFailedEventId = $"issue_{issue.Id}_fixfailed_{issue.FixCommitId}";
+						string fixFailedMessage = $"Issue not fixed by {FormatChange(issue.FixCommitId)}; see {FormatJobStep(fixFailedSpan.LastFailure, fixFailedSpan.NodeName)} at CL {fixFailedSpan.LastFailure.CommitId} in {fixFailedSpan.StreamName}.";
 						if (issue.OwnerId.HasValue)
 						{
 							string mention = await FormatMentionAsync(issue.OwnerId.Value, workflow.AllowMentions, cancellationToken);
@@ -1258,14 +1292,14 @@ namespace HordeServer.Notifications.Sinks
 							if ((stream.MergeOrigin ?? false) && !(stream.ContainsFix ?? false))
 							{
 								string streamName = spans.FirstOrDefault(x => x.StreamId == stream.StreamId)?.StreamName ?? stream.StreamId.ToString();
-								string missingEventId = $"issue_{issue.Id}_fixmissing_{issue.FixChange}_{stream.StreamId}";
+								string missingEventId = $"issue_{issue.Id}_fixmissing_{issue.FixCommitId}_{stream.StreamId}";
 								string missingMessage = $"Note: Fix may need manually merging to {streamName}";
 								await PostSingleMessageToThreadAsync(triageChannel, missingEventId, threadId, missingMessage, cancellationToken);
 							}
 						}
 					}
 				}
-				else if (issue.FixedSystemic)
+				else if (issue.FixSystemic)
 				{
 					string fixedEventId = $"issue_{issue.Id}_fixed_systemic";
 					string fixedMessage = $"Marked fixed as a systemic issue";
@@ -1376,7 +1410,7 @@ namespace HordeServer.Notifications.Sinks
 			}
 			else
 			{
-				return new Uri(_settings.P4SwarmUrl, $"files/{span.StreamName.TrimStart('/')}?range=@{span.LastSuccess.Change + 1},@{span.FirstFailure.Change}#commits");
+				return new Uri(_settings.P4SwarmUrl, $"files/{span.StreamName.TrimStart('/')}?range=@{span.LastSuccess.CommitId.GetPerforceChange() + 1},@{span.FirstFailure.CommitId}#commits");
 			}
 		}
 
@@ -1474,23 +1508,23 @@ namespace HordeServer.Notifications.Sinks
 				}
 			}
 
-			if (issue.FixChange != null)
+			if (issue.FixCommitId != null)
 			{
-				IIssueStep? fixFailedStep = issue.FindFixFailedStep(details.Spans);
+				IIssueStep? fixFailedStep = await GetFixFailedStepAsync(issue, details.Spans, cancellationToken);
 
 				string text;
 				if (fixFailedStep != null)
 				{
 					Uri fixFailedUrl = new Uri(_serverInfo.DashboardUrl, $"job/{fixFailedStep.JobId}?step={fixFailedStep.StepId}&issue={issue.Id}");
-					text = $":cross: Marked fixed in *CL {issue.FixChange.Value}*, but seen again at *<{fixFailedUrl}|CL {fixFailedStep.Change}>*";
+					text = $":cross: Marked fixed in *CL {issue.FixCommitId}*, but seen again at *<{fixFailedUrl}|CL {fixFailedStep.CommitId}>*";
 				}
 				else
 				{
-					text = $":tick: Marked fixed in *CL {issue.FixChange.Value}*.";
+					text = $":tick: Marked fixed in *CL {issue.FixCommitId}*.";
 				}
 				attachment.AddSection(text);
 			}
-			else if (issue.FixedSystemic)
+			else if (issue.FixSystemic)
 			{
 				attachment.AddSection(":tick: Marked as a systemic issue.");
 			}
@@ -1510,7 +1544,7 @@ namespace HordeServer.Notifications.Sinks
 					}
 					else
 					{
-						List<int> changes = details.Suspects.Where(x => x.AuthorId == userId).Select(x => x.Change).OrderBy(x => x).ToList();
+						List<int> changes = details.Suspects.Where(x => x.AuthorId == userId).Select(x => x.CommitId.GetPerforceChange()).OrderBy(x => x).ToList();
 						if (changes.Count > 0)
 						{
 							string text = $"Horde has determined that {StringUtils.FormatList(changes.Select(x => $"CL {x}"), "or")} is the most likely cause for this issue.";
@@ -1570,15 +1604,15 @@ namespace HordeServer.Notifications.Sinks
 				{
 					if (!details.Issue.Promoted)
 					{
-						declinedLines.Add($"Possibly {await FormatNameAsync(suspect.AuthorId, cancellationToken)} (CL {suspect.Change})");
+						declinedLines.Add($"Possibly {await FormatNameAsync(suspect.AuthorId, cancellationToken)} (CL {suspect.CommitId})");
 					}
 					else if (suspect.DeclinedAt == null)
 					{
-						declinedLines.Add($":heavy_minus_sign: Ignored by {await FormatNameAsync(suspect.AuthorId, cancellationToken)} (CL {suspect.Change})");
+						declinedLines.Add($":heavy_minus_sign: Ignored by {await FormatNameAsync(suspect.AuthorId, cancellationToken)} (CL {suspect.CommitId})");
 					}
 					else
 					{
-						declinedLines.Add($":downvote: Declined by {await FormatNameAsync(suspect.AuthorId, cancellationToken)} at {FormatSlackTime(suspect.DeclinedAt.Value)} (CL {suspect.Change})");
+						declinedLines.Add($":downvote: Declined by {await FormatNameAsync(suspect.AuthorId, cancellationToken)} at {FormatSlackTime(suspect.DeclinedAt.Value)} (CL {suspect.CommitId})");
 					}
 				}
 				attachment.AddSection(String.Join("\n", declinedLines));
@@ -1630,7 +1664,7 @@ namespace HordeServer.Notifications.Sinks
 			}
 		}
 
-		string FormatChange(int change)
+		string FormatChange(CommitId change)
 		{
 			if (_settings.P4SwarmUrl != null)
 			{
@@ -2009,7 +2043,7 @@ namespace HordeServer.Notifications.Sinks
 			}
 
 			string status = "*Unassigned*";
-			if (issue.FixChange != null)
+			if (issue.FixCommitId != null)
 			{
 				if (issue.Streams.Any(x => x.FixFailed ?? false))
 				{
@@ -2021,18 +2055,18 @@ namespace HordeServer.Notifications.Sinks
 				}
 				else
 				{
-					status = $"Fixed in CL {issue.FixChange.Value}";
+					status = $"Fixed in CL {issue.FixCommitId}";
 				}
 			}
-			else if (issue.FixedSystemic)
+			else if (issue.FixSystemic)
 			{
-				status = "Closed as systemic issue";
+				status = "Marked fixed as systemic";
 			}
 			else if (issue.OwnerId != null)
 			{
 				if (owner == null)
 				{
-					status = $"Assigned to user {issue.OwnerId.Value}";
+					status = $"Assigned to {GetDefaultUserName(issue.OwnerId.Value)}";
 				}
 				else
 				{
@@ -2497,13 +2531,13 @@ namespace HordeServer.Notifications.Sinks
 
 		static string GetJobChangeText(IJob job)
 		{
-			if (job.PreflightChange == 0)
+			if (job.PreflightCommitId == null)
 			{
-				return $"CL {job.Change}";
+				return $"CL {job.CommitId}";
 			}
 			else
 			{
-				return $"Preflight CL {job.PreflightChange} against CL {job.Change}";
+				return $"Preflight CL {job.PreflightCommitId} against CL {job.CommitId}";
 			}
 		}
 
@@ -2728,7 +2762,7 @@ namespace HordeServer.Notifications.Sinks
 			{
 				return null;
 			}
-			if (issue.FixChange != null && GetFixFailedSpan(issue, spans) == null)
+			if (issue.IsMarkedFixed() && await GetFixFailedSpanAsync(issue, spans, cancellationToken) == null)
 			{
 				return null;
 			}
@@ -3020,16 +3054,9 @@ namespace HordeServer.Notifications.Sinks
 							string? fixChangeStr;
 							if (payload.View.State.TryGetValue("fix_cl", "fix_cl_action", out fixChangeStr))
 							{
-								int fixChange;
-								if (!Int32.TryParse(fixChangeStr, out fixChange) || fixChange < 0)
-								{
-									Dictionary<string, string> errors = new Dictionary<string, string>();
-									errors.Add("fix_cl", $"'{fixChangeStr}' is not a valid fix changelist.");
-									return new { response_action = "errors", errors };
-								}
-
-								await _issueService.UpdateIssueAsync(issueId, fixChange: fixChange, resolvedById: resolvedById, initiatedById: userId, cancellationToken: cancellationToken);
-								_logger.LogInformation("Marked issue {IssueId} fixed by user {UserId} in {Change}", issueId, resolvedById, fixChange);
+								CommitId commitId = new CommitId(fixChangeStr);
+								await _issueService.UpdateIssueAsync(issueId, fixCommitId: commitId, resolvedById: resolvedById, initiatedById: userId, cancellationToken: cancellationToken);
+								_logger.LogInformation("Marked issue {IssueId} fixed by user {UserId} in {Change}", issueId, resolvedById, commitId);
 							}
 						}
 						else if (TryMatch(payload.View.CallbackId, @"^issue_(\d+)_ack_([a-fA-F0-9]{24})$", out match))

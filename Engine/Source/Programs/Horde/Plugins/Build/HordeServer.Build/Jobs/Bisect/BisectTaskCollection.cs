@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Runtime.CompilerServices;
+using EpicGames.Core;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
@@ -49,21 +50,50 @@ namespace HordeServer.Jobs.Bisect
 			[BsonElement("ijob")]
 			public JobStepRefId InitialJobStep { get; set; }
 
+			[BsonIgnore]
+			public CommitIdWithOrder InitialCommitId
+			{
+				get => (InitialCommitName != null) ? new CommitIdWithOrder(InitialCommitName, InitialCommitOrder) : CommitIdWithOrder.FromPerforceChange(InitialCommitOrder);
+				set => (InitialCommitName, InitialCommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("icom")]
+			public string? InitialCommitName { get; set; }
+
 			[BsonElement("ichg")]
-			public int InitialChange { get; set; }
+			public int InitialCommitOrder { get; set; }
 
 			[BsonElement("curjob")]
 			public JobStepRefId CurrentJobStep { get; set; }
 
+			[BsonIgnore]
+			public CommitIdWithOrder CurrentCommitId
+			{
+				get => (CurrentCommitName != null) ? new CommitIdWithOrder(CurrentCommitName, CurrentCommitOrder) : CommitIdWithOrder.FromPerforceChange(CurrentCommitOrder);
+				set => (CurrentCommitName, CurrentCommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("curCom")]
+			public string? CurrentCommitName { get; set; }
+
 			[BsonElement("curChg")]
-			public int CurrentChange { get; set; }
+			public int CurrentCommitOrder { get; set; }
 
 			// Lower bounds of bisection
 			[BsonElement("minJob"), BsonIgnoreIfNull]
 			public JobStepRefId? MinJobStep { get; set; }
 
+			public CommitIdWithOrder? MinCommitId
+			{
+				get => (MinCommitName != null) ? new CommitIdWithOrder(MinCommitName, MinCommitOrder ?? 0) : CommitIdWithOrder.FromPerforceChange(MinCommitOrder);
+				set => (MinCommitName, MinCommitOrder) = (value?.Name, value?.Order);
+			}
+
+			[BsonElement("minCom"), BsonIgnoreIfNull]
+			public string? MinCommitName { get; set; }
+
 			[BsonElement("minChg"), BsonIgnoreIfNull]
-			public int? MinChange { get; set; }
+			public int? MinCommitOrder { get; set; }
 
 			[BsonElement("steps")]
 			public List<JobStepRefId> Steps { get; set; } = new List<JobStepRefId>();
@@ -77,12 +107,12 @@ namespace HordeServer.Jobs.Bisect
 			IReadOnlyList<CommitTag>? IBisectTask.CommitTags => CommitTags;
 
 			[BsonElement("nochg")]
-			public HashSet<int> IgnoreChanges { get; set; } = new HashSet<int>();
-			IReadOnlySet<int> IBisectTask.IgnoreChanges => IgnoreChanges;
+			public HashSet<CommitId> IgnoreCommitIds { get; set; } = new HashSet<CommitId>();
+			IReadOnlySet<CommitId> IBisectTask.IgnoreCommitIds => IgnoreCommitIds;
 
 			[BsonElement("nojob")]
 			public HashSet<JobId> IgnoreJobs { get; set; } = new HashSet<JobId>();
-			IReadOnlySet<JobId> IBisectTask.IgnoreJobs => IgnoreJobs;
+			IReadOnlySet<JobId> IBisectTask.IgnoreJobIds => IgnoreJobs;
 		}
 
 		readonly Tracer _tracer;
@@ -114,9 +144,9 @@ namespace HordeServer.Jobs.Bisect
 			bisectTaskDoc.Outcome = outcome;
 			bisectTaskDoc.InitialJobId = job.Id;
 			bisectTaskDoc.InitialJobStep = new JobStepRefId(job.Id, batchId, stepId);
-			bisectTaskDoc.InitialChange = job.Change;
+			bisectTaskDoc.InitialCommitId = job.CommitId;
 			bisectTaskDoc.CurrentJobStep = new JobStepRefId(job.Id, batchId, stepId);
-			bisectTaskDoc.CurrentChange = job.Change;
+			bisectTaskDoc.CurrentCommitId = job.CommitId;
 
 			if (options != null)
 			{
@@ -124,13 +154,13 @@ namespace HordeServer.Jobs.Bisect
 				{
 					bisectTaskDoc.CommitTags = new List<CommitTag>(options.CommitTags);
 				}
-				if (options.IgnoreChanges != null)
+				if (options.IgnoreCommitIds != null)
 				{
-					bisectTaskDoc.IgnoreChanges.UnionWith(options.IgnoreChanges);
+					bisectTaskDoc.IgnoreCommitIds.UnionWith(options.IgnoreCommitIds);
 				}
-				if (options.IgnoreJobs != null)
+				if (options.IgnoreJobIds != null)
 				{
-					bisectTaskDoc.IgnoreJobs.UnionWith(options.IgnoreJobs);
+					bisectTaskDoc.IgnoreJobs.UnionWith(options.IgnoreJobIds);
 				}
 			}
 
@@ -203,7 +233,7 @@ namespace HordeServer.Jobs.Bisect
 				filter &= filterBuilder.Lte(x => x.Id!, maxTime);
 			}
 
-			List<BisectTaskDoc> steps = await _bisectTasks.Find(filter).SortByDescending(x => x.InitialChange).Range(index, count).ToListAsync(cancellationToken);
+			List<BisectTaskDoc> steps = await _bisectTasks.Find(filter).SortByDescending(x => x.InitialCommitOrder).Range(index, count).ToListAsync(cancellationToken);
 			return steps.ConvertAll<IBisectTask>(x => x);
 		}
 
@@ -215,12 +245,18 @@ namespace HordeServer.Jobs.Bisect
 			UpdateDefinition<BisectTaskDoc> update = Builders<BisectTaskDoc>.Update.Inc(x => x.UpdateIdx, 1);
 			if (options.CurrentJobStep != null)
 			{
-				update = update.Set(x => x.CurrentJobStep, options.CurrentJobStep.Value.Step).Set(x => x.CurrentChange, options.CurrentJobStep.Value.Change);
+				update = update
+					.Set(x => x.CurrentJobStep, options.CurrentJobStep.Value.Step)
+					.Set(x => x.CurrentCommitName, options.CurrentJobStep.Value.CommitId.Name)
+					.Set(x => x.CurrentCommitOrder, options.CurrentJobStep.Value.CommitId.Order);
 			}
 
 			if (options.MinJobStep != null)
 			{
-				update = update.Set(x => x.MinJobStep, options.MinJobStep.Value.Step).Set(x => x.MinChange, options.MinJobStep.Value.Change);
+				update = update
+					.Set(x => x.MinJobStep, options.MinJobStep.Value.Step)
+					.Set(x => x.MinCommitName, options.MinJobStep.Value.CommitId.Name)
+					.Set(x => x.MinCommitOrder, options.MinJobStep.Value.CommitId.Order);
 			}
 
 			if (options.State != null)
@@ -241,13 +277,13 @@ namespace HordeServer.Jobs.Bisect
 				update = update.AddToSet(x => x.Steps, options.NewJobStep.Value);
 			}
 
-			if (options.IncludeChanges != null && options.IncludeChanges.Count > 0)
+			if (options.IncludeCommitIds != null && options.IncludeCommitIds.Count > 0)
 			{
-				update = update.PullAll(x => x.IgnoreChanges, options.IncludeChanges);
+				update = update.PullAll(x => x.IgnoreCommitIds, options.IncludeCommitIds);
 			}
-			else if (options.ExcludeChanges != null && options.ExcludeChanges.Count > 0)
+			else if (options.ExcludeCommitIds != null && options.ExcludeCommitIds.Count > 0)
 			{
-				update = update.AddToSetEach(x => x.IgnoreChanges, options.ExcludeChanges);
+				update = update.AddToSetEach(x => x.IgnoreCommitIds, options.ExcludeCommitIds);
 			}
 
 			if (options.IncludeJobs != null && options.IncludeJobs.Count > 0)

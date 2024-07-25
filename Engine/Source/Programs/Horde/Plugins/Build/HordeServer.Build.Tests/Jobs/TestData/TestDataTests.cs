@@ -2,6 +2,7 @@
 
 using System.Security.Claims;
 using EpicGames.Horde;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs.TestData;
@@ -146,8 +147,8 @@ namespace HordeServer.Tests.Jobs.TestData
 			job.SetupGet(x => x.Name).Returns(name);
 			job.SetupGet(x => x.StreamId).Returns(streamId);
 			job.SetupGet(x => x.TemplateId).Returns(new TemplateId("test-template"));
-			job.SetupGet(x => x.Change).Returns(change);
-			job.SetupGet(x => x.PreflightChange).Returns(0);
+			job.SetupGet(x => x.CommitId).Returns(CommitIdWithOrder.FromPerforceChange(change));
+			job.SetupGet(x => x.PreflightCommitId).Returns(default(CommitId));
 			job.SetupGet(x => x.Batches).Returns(batches);
 			job.SetupGet(x => x.ShowUgsBadges).Returns(false);
 			job.SetupGet(x => x.ShowUgsAlerts).Returns(false);

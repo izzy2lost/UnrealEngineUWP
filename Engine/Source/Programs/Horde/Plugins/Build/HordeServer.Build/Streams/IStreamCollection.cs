@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 
@@ -42,11 +43,11 @@ namespace HordeServer.Streams
 		/// <param name="stream">The stream to update</param>
 		/// <param name="templateRefId">The template ref id</param>
 		/// <param name="lastTriggerTimeUtc">New last trigger time for the schedule</param>
-		/// <param name="lastTriggerChange">New last trigger changelist for the schedule</param>
+		/// <param name="lastTriggerCommitId">New last trigger commit for the schedule</param>
 		/// <param name="newActiveJobs">New list of active jobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The updated stream if successful, null otherwise</returns>
-		Task<IStream?> TryUpdateScheduleTriggerAsync(IStream stream, TemplateId templateRefId, DateTime? lastTriggerTimeUtc, int? lastTriggerChange, List<JobId> newActiveJobs, CancellationToken cancellationToken = default);
+		Task<IStream?> TryUpdateScheduleTriggerAsync(IStream stream, TemplateId templateRefId, DateTime? lastTriggerTimeUtc, CommitIdWithOrder? lastTriggerCommitId, List<JobId> newActiveJobs, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to update a stream template ref
@@ -93,12 +94,12 @@ namespace HordeServer.Streams
 		/// <param name="stream">The stream to update</param>
 		/// <param name="templateRefId">The template ref id</param>
 		/// <param name="lastTriggerTimeUtc"></param>
-		/// <param name="lastTriggerChange"></param>
+		/// <param name="lastTriggerCommitId"></param>
 		/// <param name="addJobs">Jobs to add</param>
 		/// <param name="removeJobs">Jobs to remove</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the stream was updated</returns>
-		public static async Task<IStream?> UpdateScheduleTriggerAsync(this IStreamCollection streamCollection, IStream stream, TemplateId templateRefId, DateTime? lastTriggerTimeUtc = null, int? lastTriggerChange = null, List<JobId>? addJobs = null, List<JobId>? removeJobs = null, CancellationToken cancellationToken = default)
+		public static async Task<IStream?> UpdateScheduleTriggerAsync(this IStreamCollection streamCollection, IStream stream, TemplateId templateRefId, DateTime? lastTriggerTimeUtc = null, CommitIdWithOrder? lastTriggerCommitId = null, List<JobId>? addJobs = null, List<JobId>? removeJobs = null, CancellationToken cancellationToken = default)
 		{
 			IStream? newStream = stream;
 			while (newStream != null)
@@ -123,7 +124,7 @@ namespace HordeServer.Streams
 					newActiveJobs = newActiveJobs.Union(addJobs);
 				}
 
-				newStream = await streamCollection.TryUpdateScheduleTriggerAsync(newStream, templateRefId, lastTriggerTimeUtc, lastTriggerChange, newActiveJobs.ToList(), cancellationToken);
+				newStream = await streamCollection.TryUpdateScheduleTriggerAsync(newStream, templateRefId, lastTriggerTimeUtc, lastTriggerCommitId, newActiveJobs.ToList(), cancellationToken);
 
 				if (newStream != null)
 				{

@@ -34,8 +34,13 @@ namespace HordeServer.Tests.Stubs.Services
 		public class Commit : ICommit
 		{
 			public StreamId StreamId { get; }
+			
 			public int Number { get; }
+			CommitIdWithOrder ICommit.Id => CommitIdWithOrder.FromPerforceChange(Number);
+	
 			public int OriginalChange { get; }
+			CommitIdWithOrder ICommit.OriginalCommitId => CommitIdWithOrder.FromPerforceChange(OriginalChange);
+
 			public UserId AuthorId { get; }
 			public UserId OwnerId { get; }
 			public string Description { get; }
@@ -123,9 +128,18 @@ namespace HordeServer.Tests.Stubs.Services
 			streamChanges.Add(number, new Commit(streamId, number, originalNumber, author.Id, owner.Id, description, files.ToList()));
 		}
 
-		public Task<List<ICommit>> GetChangesAsync(StreamConfig stream, int? minChange, int? maxChange, int? numResults, CancellationToken cancellationToken)
+		public Task<List<ICommit>> GetChangesAsync(StreamConfig stream, int? minChange, bool includeMinChange, int? maxChange, bool includeMaxChange, int? numResults, CancellationToken cancellationToken)
 		{
 			_ = cancellationToken;
+
+			if (minChange != null && !includeMinChange)
+			{
+				minChange = minChange.Value + 1;
+			}
+			if (maxChange != null && !includeMaxChange)
+			{
+				maxChange = maxChange.Value - 1;
+			}
 
 			List<ICommit> results = new List<ICommit>();
 
@@ -220,14 +234,14 @@ namespace HordeServer.Tests.Stubs.Services
 				_streamConfig = stream;
 			}
 
-			public Task<int> CreateNewAsync(string path, string description, CancellationToken cancellationToken = default)
+			public Task<CommitIdWithOrder> CreateNewAsync(string path, string description, CancellationToken cancellationToken = default)
 			{
 				throw new NotImplementedException();
 			}
 
-			public async IAsyncEnumerable<ICommit> FindAsync(int? minChange, int? maxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			public async IAsyncEnumerable<ICommit> FindAsync(CommitId? minChange, bool includeMinChange, CommitId? maxChange, bool includeMaxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
-				foreach (ICommit commit in await _owner.GetChangesAsync(_streamConfig, minChange, maxChange, null, cancellationToken))
+				foreach (ICommit commit in await _owner.GetChangesAsync(_streamConfig, minChange?.GetPerforceChange(), includeMinChange, maxChange?.GetPerforceChange(), includeMaxChange, null, cancellationToken))
 				{
 					if (tags != null && tags.Count > 0)
 					{
@@ -241,19 +255,22 @@ namespace HordeServer.Tests.Stubs.Services
 				}
 			}
 
-			public async Task<ICommit> GetAsync(int changeNumber, CancellationToken cancellationToken = default)
+			public async Task<ICommit> GetAsync(CommitId changeNumber, CancellationToken cancellationToken = default)
 			{
-				List<ICommit> commits = await _owner.GetChangeDetailsAsync(_streamConfig, new[] { changeNumber }, cancellationToken);
+				List<ICommit> commits = await _owner.GetChangeDetailsAsync(_streamConfig, new[] { changeNumber.GetPerforceChange() }, cancellationToken);
 				return commits[0];
 			}
 
-			public async Task<int> LatestNumberAsync(CancellationToken cancellationToken = default)
+			public ValueTask<CommitIdWithOrder> GetOrderedAsync(CommitId commit, CancellationToken cancellationToken = default)
+				=> ValueTask.FromResult(CommitIdWithOrder.FromPerforceChange(commit.GetPerforceChange()));
+
+			public async Task<CommitIdWithOrder> LatestNumberAsync(CancellationToken cancellationToken = default)
 			{
-				List<ICommit> commits = await _owner.GetChangesAsync(_streamConfig, null, null, 1, cancellationToken);
-				return commits[0].Number;
+				List<ICommit> commits = await _owner.GetChangesAsync(_streamConfig, null, true, null, true, 1, cancellationToken);
+				return commits[0].Id;
 			}
 
-			public IAsyncEnumerable<ICommit> SubscribeAsync(int minChange, IReadOnlyList<CommitTag>? tags = null, CancellationToken cancellationToken = default)
+			public IAsyncEnumerable<ICommit> SubscribeAsync(CommitId minChange, IReadOnlyList<CommitTag>? tags = null, CancellationToken cancellationToken = default)
 			{
 				throw new NotImplementedException();
 			}

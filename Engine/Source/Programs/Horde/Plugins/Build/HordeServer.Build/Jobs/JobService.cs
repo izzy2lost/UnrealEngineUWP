@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Globalization;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
@@ -159,12 +158,12 @@ namespace HordeServer.Jobs
 		/// <param name="templateHash">Template for this job</param>
 		/// <param name="graph">The graph for the new job</param>
 		/// <param name="name">Name of the job</param>
-		/// <param name="change">The change to build</param>
-		/// <param name="codeChange">The corresponding code changelist</param>
+		/// <param name="commitId">The change to build</param>
+		/// <param name="codeCommitId">The corresponding code changelist</param>
 		/// <param name="options">Options for the new job</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Unique id representing the job</returns>
-		public async Task<IJob> CreateJobAsync(JobId? jobId, StreamConfig streamConfig, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, int change, int codeChange, CreateJobOptions options, CancellationToken cancellationToken = default)
+		public async Task<IJob> CreateJobAsync(JobId? jobId, StreamConfig streamConfig, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, CommitId commitId, CommitId? codeCommitId, CreateJobOptions options, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(CreateJobAsync)}");
 			span.SetAttribute("JobId", jobId?.ToString());
@@ -173,10 +172,10 @@ namespace HordeServer.Jobs
 			span.SetAttribute("TemplateHash", templateHash);
 			span.SetAttribute("GraphId", graph.Id);
 			span.SetAttribute("Name", name);
-			span.SetAttribute("Change", change);
-			span.SetAttribute("CodeChange", codeChange);
-			span.SetAttribute("PreflightChange", options.PreflightChange);
-			span.SetAttribute("ClonedPreflightChange", options.ClonedPreflightChange);
+			span.SetAttribute("Change", commitId.ToString());
+			span.SetAttribute("CodeChange", codeCommitId?.ToString());
+			span.SetAttribute("PreflightChange", options.PreflightCommitId?.GetPerforceChange());
+			span.SetAttribute("ClonedPreflightChange", options.ClonedPreflightCommitId?.GetPerforceChange());
 			span.SetAttribute("StartedByUserId", options.StartedByUserId.ToString());
 			span.SetAttribute("Priority", options.Priority.ToString());
 			span.SetAttribute("ShowUgsBadges", options.ShowUgsBadges);
@@ -200,18 +199,18 @@ namespace HordeServer.Jobs
 			JobId jobIdValue = jobId ?? JobIdUtils.GenerateNewId();
 			using IDisposable? scope = _logger.BeginScope("CreateJobAsync({JobId})", jobIdValue);
 
-			if (options.PreflightChange != null && ShouldClonePreflightChange(streamConfig.Id))
+			if (options.PreflightCommitId != null && ShouldClonePreflightChange(streamConfig.Id))
 			{
-				options.ClonedPreflightChange = await CloneShelvedChangeAsync(streamConfig.ClusterName, options.ClonedPreflightChange ?? options.PreflightChange.Value, cancellationToken);
+				options.ClonedPreflightCommitId = await CloneShelvedChangeAsync(streamConfig.ClusterName, options.ClonedPreflightCommitId ?? options.PreflightCommitId, cancellationToken);
 			}
 
-			_logger.LogInformation("Creating job at CL {Change}, code CL {CodeChange}, preflight CL {PreflightChange}, cloned CL {ClonedPreflightChange}", change, codeChange, options.PreflightChange, options.ClonedPreflightChange);
+			_logger.LogInformation("Creating job at CL {Change}, code CL {CodeChange}, preflight CL {PreflightChange}, cloned CL {ClonedPreflightChange}", commitId, codeCommitId, options.PreflightCommitId, options.ClonedPreflightCommitId);
 
 			Dictionary<string, string> properties = new Dictionary<string, string>();
-			properties["Change"] = change.ToString(CultureInfo.InvariantCulture);
-			properties["CodeChange"] = codeChange.ToString(CultureInfo.InvariantCulture);
-			properties["PreflightChange"] = options.PreflightChange?.ToString(CultureInfo.InvariantCulture) ?? String.Empty;
-			properties["ClonedPreflightChange"] = options.ClonedPreflightChange?.ToString(CultureInfo.InvariantCulture) ?? String.Empty;
+			properties["Change"] = commitId.ToString();
+			properties["CodeChange"] = codeCommitId?.ToString() ?? String.Empty;
+			properties["PreflightChange"] = options.PreflightCommitId?.ToString() ?? String.Empty;
+			properties["ClonedPreflightChange"] = options.ClonedPreflightCommitId?.ToString() ?? String.Empty;
 			properties["StreamId"] = streamConfig.Id.ToString();
 			properties["TemplateId"] = templateRefId.ToString();
 			properties["JobId"] = jobIdValue.ToString();
@@ -223,7 +222,7 @@ namespace HordeServer.Jobs
 
 			name = StringUtils.ExpandProperties(name, properties);
 
-			IJob newJob = await _jobs.AddAsync(jobIdValue, streamConfig.Id, templateRefId, templateHash, graph, name, change, codeChange, options, cancellationToken);
+			IJob newJob = await _jobs.AddAsync(jobIdValue, streamConfig.Id, templateRefId, templateHash, graph, name, commitId, codeCommitId, options, cancellationToken);
 			_jobTaskSource.UpdateQueuedJob(newJob, graph);
 
 			await _jobTaskSource.UpdateUgsBadgesAsync(newJob, graph, new List<(LabelState, LabelOutcome)>(), cancellationToken);
@@ -245,9 +244,9 @@ namespace HordeServer.Jobs
 			span.SetAttribute("JobName", newJob.Name);
 
 			IReadOnlyList<IJob> jobsToAbort = new List<IJob>();
-			if (newJob.PreflightChange > 0)
+			if (newJob.PreflightCommitId != null)
 			{
-				jobsToAbort = await _jobs.FindAsync(preflightChange: newJob.PreflightChange, cancellationToken: cancellationToken);
+				jobsToAbort = await _jobs.FindAsync(preflightCommitId: newJob.PreflightCommitId, cancellationToken: cancellationToken);
 			}
 
 			foreach (IJob job in jobsToAbort)
@@ -397,14 +396,14 @@ namespace HordeServer.Jobs
 		/// Evaluate a change query to determine which CL to run a job at
 		/// </summary>
 		/// <returns></returns>
-		public async Task<int?> EvaluateChangeQueriesAsync(StreamId streamId, List<ChangeQueryConfig> queries, List<CommitTag>? commitTags, ICommitCollection commits, CancellationToken cancellationToken)
+		public async Task<CommitIdWithOrder?> EvaluateChangeQueriesAsync(StreamId streamId, List<ChangeQueryConfig> queries, List<CommitTag>? commitTags, ICommitCollection commits, CancellationToken cancellationToken)
 		{
 			foreach (ChangeQueryConfig query in queries)
 			{
-				int? change = await EvaluateChangeQueryAsync(streamId, query, commitTags, commits, cancellationToken);
-				if (change != null)
+				CommitIdWithOrder? commitId = await EvaluateChangeQueryAsync(streamId, query, commitTags, commits, cancellationToken);
+				if (commitId != null)
 				{
-					return change;
+					return commitId;
 				}
 			}
 			return null;
@@ -414,7 +413,7 @@ namespace HordeServer.Jobs
 		/// Evaluate a change query to determine which CL to run a job at
 		/// </summary>
 		/// <returns></returns>
-		public async ValueTask<int?> EvaluateChangeQueryAsync(StreamId streamId, ChangeQueryConfig query, List<CommitTag>? commitTags, ICommitCollection commits, CancellationToken cancellationToken)
+		public async ValueTask<CommitIdWithOrder?> EvaluateChangeQueryAsync(StreamId streamId, ChangeQueryConfig query, List<CommitTag>? commitTags, ICommitCollection commits, CancellationToken cancellationToken)
 		{
 			if (query.Condition == null || query.Condition.Evaluate(propertyName => GetTagPropertyValues(propertyName, commitTags)))
 			{
@@ -424,8 +423,8 @@ namespace HordeServer.Jobs
 					ICommit? taggedCommit = await commits.FindAsync(null, null, 1, new[] { query.CommitTag.Value }, cancellationToken).FirstOrDefaultAsync(cancellationToken);
 					if (taggedCommit != null)
 					{
-						_logger.LogInformation("Last commit with tag '{Tag}' was {Change}", query.CommitTag.Value, taggedCommit.Number);
-						return taggedCommit.Number;
+						_logger.LogInformation("Last commit with tag '{Tag}' was {Change}", query.CommitTag.Value, taggedCommit.Id);
+						return taggedCommit.Id;
 					}
 				}
 
@@ -437,8 +436,8 @@ namespace HordeServer.Jobs
 					IReadOnlyList<IJob> jobs = await FindJobsAsync(streamId: streamId, templates: new[] { query.TemplateId.Value }, target: query.Target, state: new[] { JobStepState.Completed }, outcome: outcomes.ToArray(), count: 1, excludeUserJobs: true, excludeCancelled: true, cancellationToken: cancellationToken);
 					if (jobs.Count > 0)
 					{
-						_logger.LogInformation("Last successful build of {TemplateId} target {Target} was job {JobId} at change {Change}", query.TemplateId, query.Target, jobs[0].Id, jobs[0].Change);
-						return jobs[0].Change;
+						_logger.LogInformation("Last successful build of {TemplateId} target {Target} was job {JobId} at change {Change}", query.TemplateId, query.Target, jobs[0].Id, jobs[0].CommitId);
+						return jobs[0].CommitId;
 					}
 				}
 			}
@@ -536,10 +535,11 @@ namespace HordeServer.Jobs
 		/// <param name="streamId">The stream containing the job</param>
 		/// <param name="name">Name of the job</param>
 		/// <param name="templates">Templates to look for</param>
-		/// <param name="minChange">The minimum changelist number</param>
-		/// <param name="maxChange">The maximum changelist number</param>		
-		/// <param name="preflightChange">The preflight change to look for</param>
+		/// <param name="minCommitId">The minimum commit</param>
+		/// <param name="maxCommitId">The maximum commit</param>		
+		/// <param name="preflightCommitId">The preflight change to look for</param>
 		/// <param name="preflightOnly">Whether to only include preflights</param>
+		/// <param name="includePreflights">Whether to include preflight jobs</param>
 		/// <param name="preflightStartedByUser">User for which to include preflight jobs</param>		
 		/// <param name="startedByUser">User for which to include jobs</param>
 		/// <param name="minCreateTime">The minimum creation time</param>
@@ -557,16 +557,16 @@ namespace HordeServer.Jobs
 		/// <param name="excludeCancelled">Whether to exclude cancelled jobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of jobs matching the given criteria</returns>
-		public async Task<IReadOnlyList<IJob>> FindJobsAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, int? minChange = null, int? maxChange = null, int? preflightChange = null, bool? preflightOnly = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<IJob>> FindJobsAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CommitId? preflightCommitId = null, bool? preflightOnly = null, bool? includePreflights = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(FindJobsAsync)}");
 			span.SetAttribute("JobIds", (jobIds == null) ? null : String.Join(',', jobIds));
 			span.SetAttribute("StreamId", streamId);
 			span.SetAttribute("Name", name);
 			span.SetAttribute("Templates", templates);
-			span.SetAttribute("MinChange", minChange);
-			span.SetAttribute("MaxChange", maxChange);
-			span.SetAttribute("PreflightChange", preflightChange);
+			span.SetAttribute("MinCommitId", minCommitId?.ToString());
+			span.SetAttribute("MaxCommitId", maxCommitId?.ToString());
+			span.SetAttribute("PreflightCommitId", preflightCommitId?.ToString());
 			span.SetAttribute("PreflightStartedByUser", preflightStartedByUser?.ToString());
 			span.SetAttribute("StartedByUser", startedByUser?.ToString());
 			span.SetAttribute("MinCreateTime", minCreateTime);
@@ -581,24 +581,31 @@ namespace HordeServer.Jobs
 
 			if (target == null && (state == null || state.Length == 0) && (outcome == null || outcome.Length == 0))
 			{
-				return await _jobs.FindAsync(jobIds, streamId, name, templates, minChange, maxChange, preflightChange, preflightOnly, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, index, count, consistentRead, null, excludeUserJobs, cancellationToken);
+				return await _jobs.FindAsync(jobIds, streamId, name, templates, minCommitId, maxCommitId, preflightCommitId, preflightOnly, includePreflights, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, index, count, consistentRead, null, excludeUserJobs, cancellationToken);
 			}
 			else
 			{
 				List<IJob> results = new List<IJob>();
 				_logger.LogInformation("Performing scan for job with ");
 
+				bool excludeMaxCommitId = false;
+
 				int maxCount = (count ?? 1);
 				while (results.Count < maxCount)
 				{
-					IReadOnlyList<IJob> scanJobs = await _jobs.FindAsync(jobIds, streamId, name, templates, minChange, maxChange, preflightChange, preflightOnly, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, 0, 5, consistentRead, null, excludeUserJobs, cancellationToken);
+					IReadOnlyList<IJob> scanJobs = await _jobs.FindAsync(jobIds, streamId, name, templates, minCommitId, maxCommitId, preflightCommitId, preflightOnly, includePreflights, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, 0, 5, consistentRead, null, excludeUserJobs, cancellationToken);
 					if (scanJobs.Count == 0)
 					{
 						break;
 					}
 
-					foreach (IJob job in scanJobs.OrderByDescending(x => x.Change))
+					foreach (IJob job in scanJobs.OrderByDescending(x => x.CommitId))
 					{
+						if (excludeMaxCommitId && job.CommitId == maxCommitId)
+						{
+							continue;
+						}
+
 						if (excludeCancelled != null && excludeCancelled.Value && WasCancelled(job))
 						{
 							continue;
@@ -628,7 +635,8 @@ namespace HordeServer.Jobs
 						}
 					}
 
-					maxChange = scanJobs.Min(x => x.Change) - 1;
+					maxCommitId = scanJobs.Min(x => x.CommitId);
+					excludeMaxCommitId = true;
 				}
 
 				return results;
@@ -731,7 +739,7 @@ namespace HordeServer.Jobs
 							JobStepTimingData? stepTimingData;
 							if (!cachedNewSteps.TryGetValue(node.Name, out stepTimingData))
 							{
-								stepTimingData = await GetStepTimingInfoAsync(job.StreamId, job.TemplateId, node.Name, job.Change, cancellationToken);
+								stepTimingData = await GetStepTimingInfoAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, cancellationToken);
 							}
 							newSteps.Add(stepTimingData);
 						}
@@ -774,19 +782,19 @@ namespace HordeServer.Jobs
 		/// <param name="streamId">The stream to search</param>
 		/// <param name="templateId">The template id</param>
 		/// <param name="nodeName">Name of the node</param>
-		/// <param name="change">Maximum changelist to consider</param>
+		/// <param name="commitId">Maximum changelist to consider</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Expected duration for the given step</returns>
-		async Task<JobStepTimingData> GetStepTimingInfoAsync(StreamId streamId, TemplateId templateId, string nodeName, int? change, CancellationToken cancellationToken)
+		async Task<JobStepTimingData> GetStepTimingInfoAsync(StreamId streamId, TemplateId templateId, string nodeName, CommitIdWithOrder? commitId, CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(GetStepTimingInfoAsync)}");
 			span.SetAttribute("StreamId", streamId);
 			span.SetAttribute("TemplateId", templateId);
 			span.SetAttribute("NodeName", nodeName);
-			span.SetAttribute("Change", change);
+			span.SetAttribute("Change", commitId?.ToString());
 
 			// Find all the steps matching the given criteria
-			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(streamId, templateId, nodeName, change, false, 10, cancellationToken);
+			List<IJobStepRef> steps = await _jobStepRefs.GetStepsForNodeAsync(streamId, templateId, nodeName, commitId, false, 10, cancellationToken);
 
 			// Sum up all the durations and wait times
 			int count = 0;
@@ -922,9 +930,9 @@ namespace HordeServer.Jobs
 		{
 			try
 			{
-				if (job.PreflightChange != 0)
+				if (job.PreflightCommitId != null)
 				{
-					(CheckShelfResult result, _) = await _perforceService.CheckShelfAsync(streamConfig, job.PreflightChange, cancellationToken);
+					(CheckShelfResult result, _) = await _perforceService.CheckShelfAsync(streamConfig, job.PreflightCommitId.GetPerforceChange(), cancellationToken);
 					if (result != CheckShelfResult.Ok)
 					{
 						_logger.LogWarning("Job {JobId} is no longer valid - check shelf returned {Result}", job.Id, result);
@@ -1080,7 +1088,7 @@ namespace HordeServer.Jobs
 					}
 
 					// Submit the change if auto-submit is enabled
-					if (job.PreflightChange != 0 && newState == JobStepState.Completed)
+					if (job.PreflightCommitId != null && newState == JobStepState.Completed)
 					{
 						(JobStepState state, JobStepOutcome outcome) = job.GetTargetState();
 						if (state == JobStepState.Completed)
@@ -1089,18 +1097,18 @@ namespace HordeServer.Jobs
 							{
 								job = await AutoSubmitChangeAsync(streamConfig, job, graph, cancellationToken);
 							}
-							else if (job.ClonedPreflightChange == 0 && job.StartedByUserId.HasValue && outcome == JobStepOutcome.Success && job.AbortedByUserId == null)
+							else if (job.ClonedPreflightCommitId == null && job.StartedByUserId.HasValue && outcome == JobStepOutcome.Success && job.AbortedByUserId == null)
 							{
 								IUserSettings settings = await _userCollection.GetSettingsAsync(job.StartedByUserId.Value, cancellationToken);
 								if (settings.AlwaysTagPreflightCL)
 								{
-									_logger.LogInformation("Updating description for {PreflightChange} for {UserId} user settings", job.PreflightChange, job.StartedByUserId.Value);
-									await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, job.PreflightChange, x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
+									_logger.LogInformation("Updating description for {PreflightChange} for {UserId} user settings", job.PreflightCommitId, job.StartedByUserId.Value);
+									await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, job.PreflightCommitId.GetPerforceChange(), x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
 								}
 							}
-							else if (job.ClonedPreflightChange != 0)
+							else if (job.ClonedPreflightCommitId != null)
 							{
-								await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.ClonedPreflightChange);
+								await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.ClonedPreflightCommitId);
 							}
 						}
 					}
@@ -1186,6 +1194,11 @@ namespace HordeServer.Jobs
 		/// <returns></returns>
 		private async Task<IJob> AutoSubmitChangeAsync(StreamConfig streamConfig, IJob job, IGraph graph, CancellationToken cancellationToken)
 		{
+			if (job.PreflightCommitId == null)
+			{
+				return job;
+			}
+
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(AutoSubmitChangeAsync)}");
 			span.SetAttribute("Job", job.Id.ToString());
 			span.SetAttribute("Graph", graph.Id);
@@ -1194,27 +1207,27 @@ namespace HordeServer.Jobs
 			string message;
 			try
 			{
-				int clonedPreflightChange = job.ClonedPreflightChange;
-				if (clonedPreflightChange == 0)
+				CommitId? clonedPreflightChange = job.ClonedPreflightCommitId;
+				if (clonedPreflightChange == null)
 				{
 					if (ShouldClonePreflightChange(job.StreamId))
 					{
-						clonedPreflightChange = await CloneShelvedChangeAsync(streamConfig.ClusterName, job.PreflightChange, cancellationToken);
+						clonedPreflightChange = await CloneShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId, cancellationToken);
 					}
 					else
 					{
-						clonedPreflightChange = job.PreflightChange;
+						clonedPreflightChange = job.PreflightCommitId;
 					}
 				}
 
 				_logger.LogInformation("Updating description for {ClonedPreflightChange}", clonedPreflightChange);
 
-				await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, clonedPreflightChange, x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
+				await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, clonedPreflightChange.GetPerforceChange(), x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
 
-				_logger.LogInformation("Submitting change {Change} (through {ChangeCopy}) after successful completion of {JobId}", job.PreflightChange, clonedPreflightChange, job.Id);
-				(change, message) = await _perforceService.SubmitShelvedChangeAsync(streamConfig, clonedPreflightChange, job.PreflightChange, cancellationToken);
+				_logger.LogInformation("Submitting change {Change} (through {ChangeCopy}) after successful completion of {JobId}", job.PreflightCommitId, clonedPreflightChange, job.Id);
+				(change, message) = await _perforceService.SubmitShelvedChangeAsync(streamConfig, clonedPreflightChange.GetPerforceChange(), job.PreflightCommitId.GetPerforceChange(), cancellationToken);
 
-				_logger.LogInformation("Attempt to submit {Change} (through {ChangeCopy}): {Message}", job.PreflightChange, clonedPreflightChange, message);
+				_logger.LogInformation("Attempt to submit {Change} (through {ChangeCopy}): {Message}", job.PreflightCommitId, clonedPreflightChange, message);
 
 				if (!String.IsNullOrEmpty(message))
 				{
@@ -1223,16 +1236,16 @@ namespace HordeServer.Jobs
 
 				if (ShouldClonePreflightChange(job.StreamId))
 				{
-					if (change != null && job.ClonedPreflightChange != 0)
+					if (change != null && job.ClonedPreflightCommitId != null)
 					{
-						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightChange);
+						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId);
 					}
 				}
 				else
 				{
-					if (change != null && job.PreflightChange != 0)
+					if (change != null)
 					{
-						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightChange);
+						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId);
 					}
 				}
 			}
@@ -1267,12 +1280,12 @@ namespace HordeServer.Jobs
 		/// <param name="change">The changelist to clone</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		private async Task<int> CloneShelvedChangeAsync(string clusterName, int change, CancellationToken cancellationToken = default)
+		private async Task<CommitId> CloneShelvedChangeAsync(string clusterName, CommitId change, CancellationToken cancellationToken = default)
 		{
 			int clonedChange;
 			try
 			{
-				clonedChange = await _perforceService.DuplicateShelvedChangeAsync(clusterName, change, cancellationToken);
+				clonedChange = await _perforceService.DuplicateShelvedChangeAsync(clusterName, change.GetPerforceChange(), cancellationToken);
 				_logger.LogInformation("CL {Change} was duplicated into {ClonedChange}", change, clonedChange);
 			}
 			catch (Exception ex)
@@ -1280,7 +1293,7 @@ namespace HordeServer.Jobs
 				_logger.LogError(ex, "Unable to CL {Change} for preflight: {Message}", change, ex.Message);
 				throw;
 			}
-			return clonedChange;
+			return CommitId.FromPerforceChange(clonedChange);
 		}
 
 		/// <summary>
@@ -1289,7 +1302,7 @@ namespace HordeServer.Jobs
 		/// <param name="clusterName"></param>
 		/// <param name="change">The changelist to delete</param>
 		/// <returns>True if the change was deleted successfully, false otherwise</returns>
-		private Task<bool> DeleteShelvedChangeAsync(string clusterName, int change)
+		private Task<bool> DeleteShelvedChangeAsync(string clusterName, CommitId change)
 		{
 			_ = clusterName;
 			_logger.LogInformation("Leaving shelved change {Change}", change);
@@ -1346,39 +1359,39 @@ namespace HordeServer.Jobs
 
 					IGraph triggerGraph = await _graphs.AddAsync(template, streamConfig.InitialAgentType);
 
-					int? change = null;
-					int codeChange;
+					CommitIdWithOrder? commitId = null;
+					CommitIdWithOrder? codeCommitId;
 					if (jobTrigger.UseDefaultChangeForTemplate)
 					{
 						ICommitCollection commits = _perforceService.GetCommits(streamConfig);
 
 						if (templateRefConfig.DefaultChange != null)
 						{
-							change = await EvaluateChangeQueriesAsync(streamConfig.Id, templateRefConfig.DefaultChange, null, commits, cancellationToken);
+							commitId = await EvaluateChangeQueriesAsync(streamConfig.Id, templateRefConfig.DefaultChange, null, commits, cancellationToken);
 						}
-						if (change == null)
+						if (commitId == null)
 						{
-							change = await commits.GetLatestNumberAsync(cancellationToken);
+							commitId = await commits.GetLastCommitIdAsync(cancellationToken);
 						}
 
-						ICommit? commit = await commits.GetLastCodeChangeAsync(change, cancellationToken);
-						codeChange = commit?.Number ?? change.Value;
+						ICommit? codeCommit = await commits.GetLastCodeChangeAsync(commitId, cancellationToken);
+						codeCommitId = codeCommit?.Id;
 					}
 					else
 					{
-						change = job.Change;
-						codeChange = job.CodeChange;
+						commitId = job.CommitId;
+						codeCommitId = job.CodeCommitId;
 					}
 
-					_logger.LogInformation("Creating downstream job {ChainedJobId} from job {JobId} at change {Change}", chainedJobId, newJob.Id, change);
+					_logger.LogInformation("Creating downstream job {ChainedJobId} from job {JobId} at change {Change}", chainedJobId, newJob.Id, commitId);
 
 					CreateJobOptions options = new CreateJobOptions(templateRefConfig);
-					options.PreflightChange = newJob.PreflightChange;
+					options.PreflightCommitId = newJob.PreflightCommitId;
 					options.PreflightDescription = newJob.PreflightDescription;
 					template.GetDefaultParameters(options.Parameters, true);
 					template.GetArgumentsForParameters(options.Parameters, options.Arguments);
 
-					await CreateJobAsync(chainedJobId, streamConfig, jobTrigger.TemplateRefId, template.Hash, triggerGraph, templateRefConfig.Name, change.Value, codeChange, options);
+					await CreateJobAsync(chainedJobId, streamConfig, jobTrigger.TemplateRefId, template.Hash, triggerGraph, templateRefConfig.Name, commitId, codeCommitId, options);
 					return newJob;
 				}
 

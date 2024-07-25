@@ -9,6 +9,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
@@ -16,6 +17,7 @@ using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using HordeServer.Acls;
+using HordeServer.Commits;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
 using HordeServer.Server;
@@ -61,10 +63,10 @@ namespace HordeServer.Jobs
 
 			BisectTaskId? IJob.StartedByBisectTaskId => _document.StartedByBisectTaskId;
 			string IJob.Name => _document.Name;
-			int IJob.Change => _document.Change;
-			int IJob.CodeChange => _document.CodeChange;
-			int IJob.PreflightChange => _document.PreflightChange;
-			int IJob.ClonedPreflightChange => _document.ClonedPreflightChange;
+			CommitIdWithOrder IJob.CommitId => _document.CommitId;
+			CommitIdWithOrder? IJob.CodeCommitId => _document.CodeCommitId;
+			CommitId? IJob.PreflightCommitId => _document.PreflightCommitId;
+			CommitId? IJob.ClonedPreflightCommitId => _document.ClonedPreflightCommitId;
 			string? IJob.PreflightDescription => _document.PreflightDescription;
 			Priority IJob.Priority => _document.Priority;
 			bool IJob.AutoSubmit => _document.AutoSubmit;
@@ -415,10 +417,48 @@ namespace HordeServer.Jobs
 			[BsonRequired]
 			public string Name { get; set; }
 
-			public int Change { get; set; }
-			public int CodeChange { get; set; }
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null)? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonElement("Commit")]
+			public string? CommitName { get; set; }
+
+			[BsonElement("Change")]
+			public int CommitOrder { get; set; }
+
+			[BsonIgnore]
+			public CommitIdWithOrder? CodeCommitId
+			{
+				get => (CodeCommitName != null) ? new CommitIdWithOrder(CodeCommitName, CodeCommitOrder) : (CodeCommitOrder != 0) ? CommitIdWithOrder.FromPerforceChange(CodeCommitOrder) : null;
+				set => (CodeCommitName, CodeCommitOrder) = (value?.Name, value?.Order ?? 0);
+			}
+
+			[BsonElement("CodeCommit")]
+			public string? CodeCommitName { get; set; }
+
+			[BsonElement("CodeChange")]
+			public int CodeCommitOrder { get; set; }
+
+			[BsonIgnore]
+			public CommitId? PreflightCommitId
+			{
+				get => (PreflightCommitName != null) ? new CommitId(PreflightCommitName) : (PreflightChange != 0) ? EpicGames.Horde.Commits.CommitId.FromPerforceChange(PreflightChange) : null;
+				set => (PreflightCommitName, PreflightChange) = (value?.Name, (value == null) ? 0 : value.TryGetPerforceChange() ?? -1);
+			}
+
+			[BsonElement("PreflightCommit")]
+			public string? PreflightCommitName { get; set; }
+
+			// -1 for non-P4 preflights
 			public int PreflightChange { get; set; }
-			public int ClonedPreflightChange { get; set; }
+
+			[BsonElement("ClonedPreflightChange"), BsonIgnoreIfNull]
+			public CommitId? ClonedPreflightCommitId { get; set; }
+
 			public string? PreflightDescription { get; set; }
 			public Priority Priority { get; set; }
 
@@ -491,7 +531,7 @@ namespace HordeServer.Jobs
 				GraphHash = null!;
 			}
 
-			public JobDocument(JobId id, StreamId streamId, TemplateId templateId, ContentHash templateHash, ContentHash graphHash, string name, int change, int codeChange, CreateJobOptions options, DateTime createTimeUtc)
+			public JobDocument(JobId id, StreamId streamId, TemplateId templateId, ContentHash templateHash, ContentHash graphHash, string name, CommitIdWithOrder commitId, CommitIdWithOrder? codeCommitId, CreateJobOptions options, DateTime createTimeUtc)
 			{
 				Id = id;
 				StreamId = streamId;
@@ -499,16 +539,16 @@ namespace HordeServer.Jobs
 				TemplateHash = templateHash;
 				GraphHash = graphHash;
 				Name = name;
-				Change = change;
-				CodeChange = codeChange;
-				PreflightChange = options.PreflightChange ?? 0;
-				ClonedPreflightChange = options.ClonedPreflightChange ?? 0;
+				CommitId = commitId;
+				CodeCommitId = codeCommitId;
+				PreflightCommitId = options.PreflightCommitId;
+				ClonedPreflightCommitId = options.ClonedPreflightCommitId;
 				PreflightDescription = options.PreflightDescription;
 				StartedByUserId = options.StartedByUserId;
 				StartedByBisectTaskId = options.StartedByBisectTaskId;
 				Priority = options.Priority ?? Priority.Normal;
 				AutoSubmit = options.AutoSubmit ?? false;
-				UpdateIssues = options.UpdateIssues ?? (options.StartedByUserId == null && (options.PreflightChange == 0 || options.PreflightChange == null));
+				UpdateIssues = options.UpdateIssues ?? (options.StartedByUserId == null && options.PreflightCommitId == null);
 				PromoteIssuesByDefault = options.PromoteIssuesByDefault ?? false;
 				Claims = options.Claims;
 				JobOptions = options.JobOptions;
@@ -725,6 +765,7 @@ namespace HordeServer.Jobs
 		readonly IClock _clock;
 		readonly IGraphCollection _graphCollection;
 		readonly ILogCollection _logCollection;
+		readonly ICommitService _commitService;
 		readonly Tracer _tracer;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 		readonly ILogger<JobCollection> _logger;
@@ -732,11 +773,12 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobCollection(IMongoService mongoService, IClock clock, IGraphCollection graphCollection, ILogCollection logCollection, ITelemetryWriter telemetryWriter, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<JobCollection> logger)
+		public JobCollection(IMongoService mongoService, IClock clock, IGraphCollection graphCollection, ILogCollection logCollection, ICommitService commitService, ITelemetryWriter telemetryWriter, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<JobCollection> logger)
 		{
 			_clock = clock;
 			_graphCollection = graphCollection;
 			_logCollection = logCollection;
+			_commitService = commitService;
 			_telemetryWriter = telemetryWriter;
 			_buildConfig = buildConfig;
 			_tracer = tracer;
@@ -745,8 +787,9 @@ namespace HordeServer.Jobs
 			List<MongoIndex<JobDocument>> indexes = new List<MongoIndex<JobDocument>>();
 			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.CreateTimeUtc));
 			indexes.Add(_streamThenTemplateThenCreationTimeIndex = MongoIndex.Create<JobDocument>(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Descending(x => x.CreateTimeUtc)));
-			indexes.Add(MongoIndex.Create<JobDocument>(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Descending(x => x.Change)));
-			indexes.Add(keys => keys.Ascending(x => x.Change));
+			indexes.Add(MongoIndex.Create<JobDocument>(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.TemplateId).Descending(x => x.CommitOrder)));
+			indexes.Add(keys => keys.Ascending(x => x.CommitOrder));
+			indexes.Add(keys => keys.Ascending(x => x.PreflightCommitName));
 			indexes.Add(keys => keys.Ascending(x => x.PreflightChange));
 			indexes.Add(_createTimeIndex = MongoIndex.Create<JobDocument>(keys => keys.Descending(x => x.CreateTimeUtc)));
 			indexes.Add(keys => keys.Ascending(x => x.StartedByUserId));
@@ -777,9 +820,17 @@ namespace HordeServer.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, int change, int codeChange, CreateJobOptions options, CancellationToken cancellationToken)
+		public async Task<IJob> AddAsync(JobId jobId, StreamId streamId, TemplateId templateRefId, ContentHash templateHash, IGraph graph, string name, CommitId commitId, CommitId? codeCommitId, CreateJobOptions options, CancellationToken cancellationToken)
 		{
-			JobDocument newJob = new JobDocument(jobId, streamId, templateRefId, templateHash, graph.Id, name, change, codeChange, options, DateTime.UtcNow);
+			CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, commitId, cancellationToken);
+
+			CommitIdWithOrder? codeCommitIdWithOrder = null;
+			if (codeCommitId != null)
+			{
+				codeCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId, codeCommitId, cancellationToken);
+			}
+
+			JobDocument newJob = new JobDocument(jobId, streamId, templateRefId, templateHash, graph.Id, name, commitIdWithOrder, codeCommitIdWithOrder, options, DateTime.UtcNow);
 			CreateBatches(newJob, graph, _logger);
 
 			await _jobs.InsertOneAsync(newJob, null, cancellationToken);
@@ -793,12 +844,12 @@ namespace HordeServer.Jobs
 					StreamId = newJob.StreamId,
 					Arguments = newJob.Arguments,
 					AutoSubmit = newJob.AutoSubmit,
-					Change = newJob.Change,
-					CodeChange = newJob.CodeChange,
+					Change = newJob.CommitId.Name,
+					CodeChange = newJob.CodeCommitId?.Name,
 					CreateTimeUtc = newJob.CreateTimeUtc,
 					GraphHash = newJob.GraphHash,
 					Name = newJob.Name,
-					PreflightChange = newJob.PreflightChange,
+					PreflightChange = newJob.PreflightCommitId,
 					PreflightDescription = newJob.PreflightDescription,
 					Priority = newJob.Priority,
 					StartedByUserId = newJob.StartedByUserId,
@@ -847,7 +898,7 @@ namespace HordeServer.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, int? minChange, int? maxChange, int? preflightChange, bool? preflightOnly, UserId? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, CommitId? minCommitId, CommitId? maxCommitId, CommitId? preflightCommitId, bool? preflightOnly, bool? includePreflight, UserId? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<JobDocument> filterBuilder = Builders<JobDocument>.Filter;
 
@@ -859,6 +910,16 @@ namespace HordeServer.Jobs
 			if (streamId != null)
 			{
 				filter &= filterBuilder.Eq(x => x.StreamId, streamId.Value);
+				if (minCommitId != null)
+				{
+					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					filter &= filterBuilder.Gte(x => x.CommitOrder, minCommitIdWithOrder.Order);
+				}
+				if (maxCommitId != null)
+				{
+					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					filter &= filterBuilder.Lte(x => x.CommitOrder, maxCommitIdWithOrder.Order);
+				}
 			}
 			if (name != null)
 			{
@@ -883,17 +944,21 @@ namespace HordeServer.Jobs
 					filter &= filterBuilder.In(x => x.TemplateId, templates);
 				}
 			}
-			if (minChange != null)
+			if (preflightCommitId != null)
 			{
-				filter &= filterBuilder.Gte(x => x.Change, minChange);
+				int? preflightChange = preflightCommitId.TryGetPerforceChange();
+				if (preflightChange == null)
+				{
+					filter &= filterBuilder.Eq(x => x.PreflightCommitName, preflightCommitId.Name);
+				}
+				else
+				{
+					filter &= filterBuilder.Eq(x => x.PreflightChange, preflightChange);
+				}
 			}
-			if (maxChange != null)
+			if (includePreflight != null && !includePreflight.Value)
 			{
-				filter &= filterBuilder.Lte(x => x.Change, maxChange);
-			}
-			if (preflightChange != null)
-			{
-				filter &= filterBuilder.Eq(x => x.PreflightChange, preflightChange);
+				filter &= filterBuilder.Eq(x => x.PreflightChange, 0);
 			}
 			if (preflightOnly != null && preflightOnly.Value)
 			{

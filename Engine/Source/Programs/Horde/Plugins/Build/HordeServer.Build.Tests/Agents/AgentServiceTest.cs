@@ -28,7 +28,7 @@ public class AgentServiceTest : BuildTestSetup
 		ActionResult<List<object>> res = await JobsController.FindJobsAsync();
 
 		List<GetJobResponse> responses = res.Value!.ConvertAll(x => (GetJobResponse)x);
-		responses.SortBy(x => x.Change);
+		responses.SortBy(x => x.CommitId);
 
 		Assert.AreEqual(2, responses.Count);
 		Assert.AreEqual("hello1", responses[0].Name);

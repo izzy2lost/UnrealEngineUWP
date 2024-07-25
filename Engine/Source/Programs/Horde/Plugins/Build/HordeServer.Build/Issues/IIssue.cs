@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
@@ -103,14 +104,14 @@ namespace HordeServer.Issues
 		public DateTime LastSeenAt { get; }
 
 		/// <summary>
-		/// Fix changelist for this issue
+		/// Fix commit for this issue
 		/// </summary>
-		public int? FixChange { get; }
+		public CommitId? FixCommitId { get; }
 
 		/// <summary>
 		/// Whether the issue is marked fixed as systemic
 		/// </summary>
-		public bool FixedSystemic { get; }
+		public bool FixSystemic { get; }
 
 		//		/// <summary>
 		//		/// The first stream that encountered the error. The fix will be considered failed if an error after FixChange occurs in this stream. 
@@ -205,9 +206,9 @@ namespace HordeServer.Issues
 		UserId AuthorId { get; }
 
 		/// <summary>
-		/// The change suspected of causing this issue (in the origin stream)
+		/// The commit suspected of causing this issue (in the origin stream)
 		/// </summary>
-		int Change { get; }
+		CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Time at which the author declined the issue
@@ -220,6 +221,12 @@ namespace HordeServer.Issues
 	/// </summary>
 	static class IssueExtensions
 	{
+		/// <summary>
+		/// Test whether an issue is marked as fixed
+		/// </summary>
+		public static bool IsMarkedFixed(this IIssue issue)
+			=> issue.FixCommitId != null || issue.FixSystemic;
+
 		/// <summary>
 		/// Creates a lookup from stream id to whether it's fixed
 		/// </summary>
@@ -236,30 +243,6 @@ namespace HordeServer.Issues
 				}
 			}
 			return fixStreamIds;
-		}
-
-		/// <summary>
-		/// Find the first fix-failed step for this issue
-		/// </summary>
-		/// <param name="issue"></param>
-		/// <param name="spans"></param>
-		/// <returns></returns>
-		public static IIssueStep? FindFixFailedStep(this IIssue issue, IEnumerable<IIssueSpan> spans)
-		{
-			IIssueStep? fixFailedStep = null;
-			if (issue.FixChange != null && issue.FixChange.Value >= 0)
-			{
-				foreach (IIssueSpan span in spans)
-				{
-					IIssueStream? stream = issue.Streams.FirstOrDefault(x => x.StreamId == span.StreamId);
-					if (stream != null && (stream.ContainsFix ?? false) && span.LastFailure.Change >= issue.FixChange.Value)
-					{
-						fixFailedStep = span.LastFailure;
-						break;
-					}
-				}
-			}
-			return fixFailedStep;
 		}
 	}
 }

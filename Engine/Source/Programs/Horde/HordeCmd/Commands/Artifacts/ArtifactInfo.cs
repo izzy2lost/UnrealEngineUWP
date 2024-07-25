@@ -31,7 +31,7 @@ namespace Horde.Commands.Artifacts
 			logger.LogInformation("Name: {Name}", artifact.Name);
 			logger.LogInformation("Type: {Type}", artifact.Type);
 			logger.LogInformation("Stream: {Stream}", artifact.StreamId);
-			logger.LogInformation("Change: {Change}", artifact.Change);
+			logger.LogInformation("Commit: {Commit}", artifact.CommitId);
 			logger.LogInformation("Description: {Desc}", artifact.Description);
 
 			if (artifact.Keys.Count > 0)

@@ -2,6 +2,7 @@
 
 using System.Security.Claims;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
@@ -39,9 +40,9 @@ namespace HordeServer.Tests.Jobs.Bisect
 			Assert.AreEqual("CompileEditor", response.NodeName);
 			Assert.AreEqual(JobStepOutcome.Failure, response.Outcome);
 			Assert.AreEqual("TestUser", response.Owner?.Name ?? "");
-			Assert.AreEqual(failedJob.Change, response.InitialChange);
+			Assert.AreEqual(failedJob.CommitId, response.InitialCommitId);
 			Assert.AreEqual(failedJob.Id.ToString(), response.InitialJobId);
-			Assert.AreEqual(failedJob.Change, response.CurrentChange);
+			Assert.AreEqual(failedJob.CommitId, response.CurrentCommitId);
 			Assert.AreEqual(failedJob.Id.ToString(), response.CurrentJobId);
 
 			IUser user = await UserCollection.FindOrAddUserByLoginAsync("TestUser");
@@ -61,10 +62,10 @@ namespace HordeServer.Tests.Jobs.Bisect
 
 			GetBisectTaskResponse bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
 			Assert.AreEqual(BisectTaskState.Running, bisectTask.State);
-			Assert.AreEqual(10, bisectTask.MinChange);
+			Assert.AreEqual(10, bisectTask.MinCommitId!.GetPerforceChange());
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
-			Assert.AreEqual(14, jobs[0].Change);
+			Assert.AreEqual(14, jobs[0].CommitId.GetPerforceChange());
 			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Failure);
 
 			List<GetBisectTaskResponse> bisectTasks = Deref(await BisectTasksController!.FindBisectTasksAsync(null, bisectTask.Owner?.Id.ToString() ?? ""));
@@ -80,7 +81,7 @@ namespace HordeServer.Tests.Jobs.Bisect
 			Assert.AreEqual(BisectTaskState.Running, bisectTask.State);
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
-			Assert.AreEqual(12, jobs[0].Change);
+			Assert.AreEqual(12, jobs[0].CommitId.GetPerforceChange());
 			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Success);
 
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
@@ -89,15 +90,15 @@ namespace HordeServer.Tests.Jobs.Bisect
 			Assert.AreEqual(BisectTaskState.Running, bisectTask.State);
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(1, jobs.Count);
-			Assert.AreEqual(13, jobs[0].Change);
+			Assert.AreEqual(13, jobs[0].CommitId.GetPerforceChange());
 			await SetJobOutcomeAsync(jobs[0], graph, JobStepOutcome.Success);
 
 			await Clock.AdvanceAsync(TimeSpan.FromMinutes(30));
 
 			bisectTask = Deref(await BisectTasksController!.GetAsync(task!.BisectTaskId));
 			Assert.AreEqual(BisectTaskState.Succeeded, bisectTask.State);
-			Assert.AreEqual(20, bisectTask.InitialChange);
-			Assert.AreEqual(14, bisectTask.CurrentChange);
+			Assert.AreEqual(20, bisectTask.InitialCommitId.GetPerforceChange());
+			Assert.AreEqual(14, bisectTask.CurrentCommitId.GetPerforceChange());
 			jobs = await JobCollection.FindBisectTaskJobsAsync(bisectTask.Id, running: true).ToListAsync();
 			Assert.AreEqual(0, jobs.Count);
 
@@ -165,7 +166,7 @@ namespace HordeServer.Tests.Jobs.Bisect
 
 		async Task<IJob> CreateJobAsync(int change, IGraph graph, JobStepOutcome outcome, CreateJobOptions options)
 		{
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), StreamId, TemplateId, ContentHash.SHA1("hello"), graph, "Test job", change, change, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), StreamId, TemplateId, ContentHash.SHA1("hello"), graph, "Test job", CommitIdWithOrder.FromPerforceChange(change), CommitIdWithOrder.FromPerforceChange(change), options);
 			return await SetJobOutcomeAsync(job, graph, outcome);
 		}
 
@@ -184,7 +185,7 @@ namespace HordeServer.Tests.Jobs.Bisect
 
 			INodeGroup group = graph.Groups[batch.GroupIdx];
 			INode node = group.Nodes[step.NodeIdx];
-			await JobStepRefCollection.InsertOrReplaceAsync(new JobStepRefId(job.Id, batch.Id, step.Id), job.Name, node.Name, job.StreamId, job.TemplateId, job.Change, LogIdUtils.GenerateNewId(), null, null, JobStepState.Completed, outcome, false, null, null, 0.0f, 0.0f, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue);
+			await JobStepRefCollection.InsertOrReplaceAsync(new JobStepRefId(job.Id, batch.Id, step.Id), job.Name, node.Name, job.StreamId, job.TemplateId, job.CommitId, LogIdUtils.GenerateNewId(), null, null, JobStepState.Completed, outcome, false, null, null, 0.0f, 0.0f, DateTime.MinValue, DateTime.MinValue, DateTime.MinValue);
 			await BisectTaskCollection.UpdateAsync(job, batch, step, graph);
 
 			return job;

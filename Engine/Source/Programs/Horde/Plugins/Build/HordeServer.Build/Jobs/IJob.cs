@@ -8,6 +8,7 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Jobs.Templates;
@@ -99,24 +100,24 @@ namespace HordeServer.Jobs
 		public string Name { get; }
 
 		/// <summary>
-		/// The changelist number to build
+		/// The commit to build
 		/// </summary>
-		public int Change { get; }
+		public CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
-		/// The code changelist number for this build
+		/// The code commit for this build
 		/// </summary>
-		public int CodeChange { get; }
+		public CommitIdWithOrder? CodeCommitId { get; }
 
 		/// <summary>
 		/// The preflight changelist number
 		/// </summary>
-		public int PreflightChange { get; }
+		public CommitId? PreflightCommitId { get; }
 
 		/// <summary>
 		/// The cloned preflight changelist number (if the prefight change is duplicated via p4 reshelve)
 		/// </summary>
-		public int ClonedPreflightChange { get; }
+		public CommitId? ClonedPreflightCommitId { get; }
 
 		/// <summary>
 		/// Description for the shelved change if running a preflight
@@ -1178,10 +1179,10 @@ namespace HordeServer.Jobs
 		{
 			RpcGetJobResponse response = new RpcGetJobResponse();
 			response.StreamId = job.StreamId.ToString();
-			response.Change = job.Change;
-			response.CodeChange = job.CodeChange;
-			response.PreflightChange = job.PreflightChange;
-			response.ClonedPreflightChange = job.ClonedPreflightChange;
+			response.Change = job.CommitId.GetPerforceChange();
+			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;
+			response.PreflightChange = job.PreflightCommitId?.GetPerforceChange() ?? 0;
+			response.ClonedPreflightChange = job.ClonedPreflightCommitId?.GetPerforceChange() ?? 0;
 			response.Arguments.Add(job.Arguments);
 			return response;
 		}

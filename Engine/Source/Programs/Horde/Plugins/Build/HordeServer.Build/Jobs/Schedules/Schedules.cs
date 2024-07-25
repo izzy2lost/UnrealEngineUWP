@@ -60,7 +60,23 @@ namespace HordeServer.Jobs.Schedules
 		/// <summary>
 		/// Last changelist number that this was triggered for
 		/// </summary>
-		public int LastTriggerChange { get; set; }
+		[Obsolete("Use LastTriggerCommitId instead")]
+		public int LastTriggerChange
+		{
+			get => _lastTriggerChange ?? _lastTriggerCommitId?.TryGetPerforceChange() ?? 0;
+			set => _lastTriggerChange = value;
+		}
+		int? _lastTriggerChange;
+
+		/// <summary>
+		/// Last changelist number that this was triggered for
+		/// </summary>
+		public CommitIdWithOrder? LastTriggerCommitId
+		{
+			get => _lastTriggerCommitId ?? CommitIdWithOrder.FromPerforceChange(_lastTriggerChange);
+			set => _lastTriggerCommitId = value;
+		}
+		CommitIdWithOrder? _lastTriggerCommitId;
 
 		/// <summary>
 		/// Last time that the schedule was triggered
@@ -95,7 +111,7 @@ namespace HordeServer.Jobs.Schedules
 #pragma warning restore CS0618 // Type or member is obsolete
 			TemplateParameters = schedule.Config.TemplateParameters;
 			Patterns = schedule.Config.Patterns;
-			LastTriggerChange = schedule.LastTriggerChange;
+			LastTriggerCommitId = schedule.LastTriggerCommitId;
 			LastTriggerTime = schedule.LastTriggerTimeUtc;
 			ActiveJobs = new List<JobId>(schedule.ActiveJobs);
 

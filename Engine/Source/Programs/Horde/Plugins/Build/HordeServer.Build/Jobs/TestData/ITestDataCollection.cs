@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using MongoDB.Bson;
@@ -28,11 +29,11 @@ namespace HordeServer.Jobs.TestData
 		/// <param name="suiteIds"></param>
 		/// <param name="minCreateTime"></param>
 		/// <param name="maxCreateTime"></param>
-		/// <param name="minChange"></param>
-		/// <param name="maxChange"></param>
+		/// <param name="minCommitId"></param>
+		/// <param name="maxCommitId"></param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<IReadOnlyList<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Find test details
@@ -80,8 +81,8 @@ namespace HordeServer.Jobs.TestData
 		/// Searches for test data that matches a set of criteria
 		/// </summary>
 		/// <param name="streamId">The stream id</param>
-		/// <param name="minChange">The minimum changelist number to return (inclusive)</param>
-		/// <param name="maxChange">The maximum changelist number to return (inclusive)</param>
+		/// <param name="minCommitId">The minimum commit to return (inclusive)</param>
+		/// <param name="maxCommitId">The maximum commit to return (inclusive)</param>
 		/// <param name="jobId">The job id</param>
 		/// <param name="stepId">The unique step id</param>
 		/// <param name="key">Key identifying the result to return</param>
@@ -89,7 +90,7 @@ namespace HordeServer.Jobs.TestData
 		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The stream document</returns>
-		Task<IReadOnlyList<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<ITestData>> FindAsync(StreamId? streamId, CommitId? minCommitId, CommitId? maxCommitId, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Find test meta data

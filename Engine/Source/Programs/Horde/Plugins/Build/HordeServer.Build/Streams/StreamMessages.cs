@@ -2,6 +2,7 @@
 
 using System.ComponentModel.DataAnnotations;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
@@ -478,8 +479,12 @@ namespace HordeServer.Streams
 	{
 		readonly ITemplateSchedule _schedule;
 
-		/// <inheritdoc cref="ITemplateSchedule.LastTriggerChange"/>
-		public int LastTriggerChange => _schedule.LastTriggerChange;
+		/// <inheritdoc cref="ITemplateSchedule.LastTriggerCommitId"/>
+		[Obsolete("Use LastTriggerCommit instead")]
+		public int LastTriggerChange => _schedule.LastTriggerCommitId?.GetPerforceChangeOrMinusOne() ?? 0;
+
+		/// <inheritdoc cref="ITemplateSchedule.LastTriggerCommitId"/>
+		public CommitIdWithOrder? LastTriggerCommit => _schedule.LastTriggerCommitId;
 
 		/// <inheritdoc cref="ITemplateSchedule.LastTriggerTimeUtc"/>
 		public DateTime LastTriggerTimeUtc => _schedule.LastTriggerTimeUtc;

@@ -511,7 +511,7 @@ namespace HordeServer.Notifications
 			IReadOnlyList<IUser> usersToNotify = await GetUsersToNotifyAsync(jobCompleteEvent, job.NotificationTriggerId, true, cancellationToken);
 			foreach (IUser userToNotify in usersToNotify)
 			{
-				if (job.PreflightChange != 0)
+				if (job.PreflightCommitId != null)
 				{
 					if (userToNotify.Id != job.StartedByUserId)
 					{
@@ -521,7 +521,7 @@ namespace HordeServer.Notifications
 				EnqueueTasks((sink, ctx) => sink.NotifyJobCompleteAsync(userToNotify, job, graph, outcome, ctx));
 			}
 
-			if (job.PreflightChange == 0)
+			if (job.PreflightCommitId == null)
 			{
 				EnqueueTasks((sink, ctx) => sink.NotifyJobCompleteAsync(job, graph, outcome, ctx));
 			}
@@ -690,7 +690,7 @@ namespace HordeServer.Notifications
 
 			foreach (IUser slackUser in usersToNotify)
 			{
-				if (job.PreflightChange != 0)
+				if (job.PreflightCommitId != null)
 				{
 					if (slackUser.Id != job.StartedByUserId)
 					{
@@ -757,7 +757,7 @@ namespace HordeServer.Notifications
 					IReadOnlyList<IUser> usersToNotify = await GetUsersToNotifyAsync(eventId, triggerId, fireTrigger, cancellationToken);
 
 					// filter preflight label notifications to only include initiator
-					if (usersToNotify.Count > 0 && job.PreflightChange != 0 && job.StartedByUserId != null)
+					if (usersToNotify.Count > 0 && job.PreflightCommitId != null && job.StartedByUserId != null)
 					{
 						usersToNotify = usersToNotify.Where(x => x.Id == job.StartedByUserId).ToList();
 					}

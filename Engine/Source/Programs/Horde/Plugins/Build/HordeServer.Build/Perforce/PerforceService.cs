@@ -145,8 +145,13 @@ namespace HordeServer.Perforce
 			readonly StreamConfig _streamConfig;
 
 			public StreamId StreamId => _streamConfig.Id;
+
 			public int Number { get; }
+			CommitIdWithOrder ICommit.Id => CommitIdWithOrder.FromPerforceChange(Number);
+
 			public int OriginalChange { get; }
+			CommitIdWithOrder ICommit.OriginalCommitId => CommitIdWithOrder.FromPerforceChange(OriginalChange);
+
 			public UserId AuthorId { get; }
 			public UserId OwnerId { get; }
 			public string Description { get; }
@@ -1180,21 +1185,35 @@ namespace HordeServer.Perforce
 				Logger = logger;
 			}
 
-			public async Task<int> CreateNewAsync(string path, string description, CancellationToken cancellationToken = default)
+			public async Task<CommitIdWithOrder> CreateNewAsync(string path, string description, CancellationToken cancellationToken = default)
 			{
 				Match match = Regex.Match(path, @"^(//[^/]+/[^/]+)/(.+)$");
 				if (match.Success)
 				{
-					return await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, match.Groups[1].Value, match.Groups[2].Value, description, cancellationToken);
+					return CommitIdWithOrder.FromPerforceChange(await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, match.Groups[1].Value, match.Groups[2].Value, description, cancellationToken));
 				}
 				else
 				{
-					return await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, StreamConfig.Name, path, description, cancellationToken);
+					return CommitIdWithOrder.FromPerforceChange(await PerforceService.CreateNewChangeAsync(StreamConfig.ClusterName, StreamConfig.Name, path, description, cancellationToken));
 				}
 			}
 
-			public virtual async IAsyncEnumerable<ICommit> FindAsync(int? minChange, int? maxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			public IAsyncEnumerable<ICommit> FindAsync(CommitId? minChange = null, bool includeMinChange = true, CommitId? maxChange = null, bool includeMaxChange = true, int? maxResults = null, IReadOnlyList<CommitTag>? tags = null, CancellationToken cancellationToken = default)
 			{
+				return FindAsync(minChange?.GetPerforceChange(), includeMinChange, maxChange?.GetPerforceChange(), includeMaxChange, maxResults, tags, cancellationToken);
+			}
+
+			public virtual async IAsyncEnumerable<ICommit> FindAsync(int? minChange, bool includeMinChange, int? maxChange, bool includeMaxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			{
+				if (minChange != null && minChange.Value > 0 && !includeMinChange)
+				{
+					minChange = minChange.Value + 1;
+				}
+				if (maxChange != null && maxChange.Value > 0 && !includeMaxChange)
+				{
+					maxChange = maxChange.Value - 1;
+				}
+
 				using TelemetrySpan span = PerforceService._tracer.StartActiveSpan($"{nameof(Perforce.PerforceService)}.{nameof(PerforceService.CommitSource)}.{nameof(FindAsync)}");
 				span.SetAttribute("stream", StreamConfig.ClusterName);
 				span.SetAttribute("minChange", minChange ?? -2);
@@ -1257,20 +1276,30 @@ namespace HordeServer.Perforce
 			}
 
 			/// <inheritdoc/>
+			public Task<ICommit> GetAsync(CommitId changeNumber, CancellationToken cancellationToken = default)
+				=> GetAsync(changeNumber.GetPerforceChange(), cancellationToken);
+
+			/// <inheritdoc/>
 			public virtual Task<ICommit> GetAsync(int changeNumber, CancellationToken cancellationToken = default)
-			{
-				return PerforceService.GetChangeDetailsAsync(StreamConfig, changeNumber, cancellationToken);
-			}
+				=> PerforceService.GetChangeDetailsAsync(StreamConfig, changeNumber, cancellationToken);
+
+			/// <inheritdoc/>
+			public ValueTask<CommitIdWithOrder> GetOrderedAsync(CommitId commit, CancellationToken cancellationToken = default)
+				=> ValueTask.FromResult(new CommitIdWithOrder(commit.Name, commit.GetPerforceChange()));
+
+			/// <inheritdoc/>
+			public IAsyncEnumerable<ICommit> SubscribeAsync(CommitId minCommit, IReadOnlyList<CommitTag>? tags = null, CancellationToken cancellationToken = default)
+				=> SubscribeAsync(minCommit.GetPerforceChange(), tags, cancellationToken);
 
 			/// <inheritdoc/>
 			public virtual async IAsyncEnumerable<ICommit> SubscribeAsync(int minChange, IReadOnlyList<CommitTag>? tags = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
 				for (; ; )
 				{
-					await foreach (ICommit commit in FindAsync(minChange + 1, null, 10, tags, cancellationToken))
+					await foreach (ICommit commit in FindAsync(minChange: CommitId.FromPerforceChange(minChange), includeMinChange: false, maxResults: 10, tags: tags, cancellationToken: cancellationToken))
 					{
 						yield return commit;
-						minChange = commit.Number;
+						minChange = commit.Id.GetPerforceChange();
 					}
 					await Task.Delay(TimeSpan.FromSeconds(10.0), cancellationToken);
 				}

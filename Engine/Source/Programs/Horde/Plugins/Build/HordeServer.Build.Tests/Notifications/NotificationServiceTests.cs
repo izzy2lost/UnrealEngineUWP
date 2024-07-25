@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Streams;
 using HordeServer.Agents;
@@ -89,7 +90,7 @@ namespace HordeServer.Tests.Notifications
 			job.SetupGet(x => x.Id).Returns(jobId);
 			job.SetupGet(x => x.Name).Returns(name);
 			job.SetupGet(x => x.StreamId).Returns(streamId);
-			job.SetupGet(x => x.Change).Returns(change);
+			job.SetupGet(x => x.CommitId).Returns(CommitIdWithOrder.FromPerforceChange(change));
 			job.SetupGet(x => x.Batches).Returns(batches);
 			return job.Object;
 		}

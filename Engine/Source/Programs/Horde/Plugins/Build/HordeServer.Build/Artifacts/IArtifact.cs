@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 
@@ -39,7 +40,7 @@ namespace HordeServer.Artifacts
 		/// <summary>
 		/// Change that the artifact corresponds to
 		/// </summary>
-		public int Change { get; }
+		public CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Keys used to collate artifacts

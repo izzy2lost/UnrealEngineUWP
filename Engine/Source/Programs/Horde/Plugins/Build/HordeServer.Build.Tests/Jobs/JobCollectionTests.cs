@@ -6,9 +6,11 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Logs;
+using EpicGames.Horde.Projects;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using HordeServer.Agents.Sessions;
@@ -16,6 +18,8 @@ using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
 using HordeServer.Logs;
+using HordeServer.Projects;
+using HordeServer.Streams;
 using HordeServer.Utilities;
 using Moq;
 
@@ -24,6 +28,18 @@ namespace HordeServer.Tests.Jobs
 	[TestClass]
 	public class JobCollectionTests : BuildTestSetup
 	{
+		public JobCollectionTests()
+		{
+			UpdateConfig(globalConfig =>
+			{
+				ProjectConfig projectConfig = new ProjectConfig();
+				projectConfig.Id = new ProjectId("ue4");
+				projectConfig.Streams.Add(new StreamConfig { Id = new StreamId("ue4-main") });
+
+				globalConfig.Plugins.GetBuildConfig().Projects.Add(projectConfig);
+			});
+		}
+
 		static NewGroup AddGroup(List<NewGroup> groups)
 		{
 			NewGroup group = new NewGroup("win64", new List<NewNode>());
@@ -79,7 +95,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Publish Client");
 			options.Arguments.Add("-Target=Post-Publish Client");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			job = await RunBatchAsync(job, 0);
 			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
@@ -140,7 +156,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Gather");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			job = await RunBatchAsync(job, 0);
 			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
@@ -209,7 +225,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Gather");
 			options.Arguments.Add("-Target=Initial Node");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			// Try a batch and fail it
 			job = await RunBatchAsync(job, 0);
@@ -272,7 +288,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Step 1");
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			job = await RunBatchAsync(job, 0);
 			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build
@@ -328,7 +344,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Step 1");
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 			Assert.AreEqual(1, job.Batches.Count);
 
 			job = await RunBatchAsync(job, 0);
@@ -379,7 +395,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Step 1");
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 			Assert.AreEqual(1, job.Batches.Count);
 
 			// First retry
@@ -461,7 +477,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step 2");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			// Fail the first step
 			job = await RunBatchAsync(job, 0);
@@ -563,7 +579,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step 2");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			// Fail the first step
 			job = await RunBatchAsync(job, 0);
@@ -626,7 +642,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			// Fail the first step
 			job = await RunBatchAsync(job, 0);
@@ -695,7 +711,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), graph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			// Pass the first step
 			job = await RunBatchAsync(job, 0);
@@ -747,7 +763,7 @@ namespace HordeServer.Tests.Jobs
 			options.Arguments.Add("-Target=Step 1");
 			options.Arguments.Add("-Target=Step 3");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 			Assert.AreEqual(1, job.Batches.Count);
 
 			job = await RunBatchAsync(job, 0);
@@ -767,7 +783,7 @@ namespace HordeServer.Tests.Jobs
 			CreateJobOptions options = new CreateJobOptions();
 			options.Arguments.Add("-Target=Compile Editor");
 
-			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", 123, 123, options);
+			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), new StreamId("ue4-main"), new TemplateId("test-build"), ContentHash.SHA1("hello"), baseGraph, "Test job", CommitIdWithOrder.FromPerforceChange(123), CommitIdWithOrder.FromPerforceChange(123), options);
 
 			job = await RunBatchAsync(job, 0);
 			job = await RunStepAsync(job, 0, 0, JobStepOutcome.Success); // Setup Build

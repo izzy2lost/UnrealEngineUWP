@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
@@ -87,7 +88,7 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// The submitted changelist
 		/// </summary>
-		public int Change { get; }
+		public CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Id of the changelist's author
@@ -97,6 +98,6 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// The original changelist number, if merged from another branch. For changes merged between several branches, this is the originally submitted change.
 		/// </summary>
-		public int? OriginatingChange { get; }
+		public CommitIdWithOrder? SourceCommitId { get; }
 	}
 }

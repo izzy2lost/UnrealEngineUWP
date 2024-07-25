@@ -138,8 +138,13 @@ namespace HordeServer.Perforce
 			public ObjectId Id { get; set; }
 
 			public StreamId StreamId { get; set; }
+
 			public int Number { get; set; }
+			CommitIdWithOrder ICommit.Id => CommitIdWithOrder.FromPerforceChange(Number);
+
 			public int OriginalChange { get; set; }
+			CommitIdWithOrder ICommit.OriginalCommitId => CommitIdWithOrder.FromPerforceChange(OriginalChange);
+
 			public UserId AuthorId { get; set; }
 			public UserId OwnerId { get; set; }
 			public string Description { get; set; }
@@ -160,8 +165,8 @@ namespace HordeServer.Perforce
 			public CachedCommitDoc(ICommit commit, List<CommitTag> commitTags)
 			{
 				StreamId = commit.StreamId;
-				Number = commit.Number;
-				OriginalChange = commit.OriginalChange;
+				Number = commit.Id.GetPerforceChange();
+				OriginalChange = commit.OriginalCommitId.GetPerforceChange();
 				AuthorId = commit.AuthorId;
 				OwnerId = commit.OwnerId;
 				Description = commit.Description;
@@ -610,8 +615,17 @@ namespace HordeServer.Perforce
 				_owner = owner;
 			}
 
-			public override async IAsyncEnumerable<ICommit> FindAsync(int? minChange, int? maxChange, int? maxResults, IReadOnlyList<CommitTag>? tags, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+			public override async IAsyncEnumerable<ICommit> FindAsync(int? minChange = null, bool includeMinChange = true, int? maxChange = null, bool includeMaxChange = true, int? maxResults = null, IReadOnlyList<CommitTag>? tags = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 			{
+				if (minChange != null && !includeMinChange)
+				{
+					minChange = minChange.Value + 1;
+				}
+				if (maxChange != null && !includeMaxChange)
+				{
+					maxChange = maxChange.Value - 1;
+				}
+
 				if (minChange != null && maxChange != null && minChange.Value > maxChange.Value)
 				{
 					yield break;
@@ -624,7 +638,7 @@ namespace HordeServer.Perforce
 				if (state.Clusters.TryGetValue(StreamConfig.ClusterName, out ClusterState? clusterState))
 				{
 					int minReplicatedChange;
-					if (clusterState.MinChanges.TryGetValue(StreamConfig.Id, out minReplicatedChange) && (maxChange == null || maxChange > minReplicatedChange))
+					if (clusterState.MinChanges.TryGetValue(StreamConfig.Id, out minReplicatedChange) && (maxChange == null || maxChange.Value > minReplicatedChange))
 					{
 						FilterDefinition<CachedCommitDoc> filter = Builders<CachedCommitDoc>.Filter.Eq(x => x.StreamId, StreamConfig.Id);
 
@@ -688,12 +702,12 @@ namespace HordeServer.Perforce
 						// Expand the range of cached changes if necessary
 						if ((maxResults == null || maxResults.Value > 0) && maxChange > 0)
 						{
-							await foreach (ICommit commit in base.FindAsync(minChange, maxChange, maxResults, null, cancellationToken))
+							await foreach (ICommit commit in base.FindAsync(minChange, true, maxChange, true, maxResults, null, cancellationToken))
 							{
 								CachedCommitDoc cachedCommit = await CachedCommitDoc.FromCommitAsync(commit, cancellationToken);
 								await _owner.AddCachedCommitAsync(cachedCommit, cancellationToken);
-								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Number, maxChange), cancellationToken);
-								_owner._logger.LogDebug("Adding new cached commit for {StreamId} at change {Change}", StreamConfig.Id, commit.Number);
+								await _owner._mongoService.UpdateSingletonAsync<CacheState>(x => TryUpdateRange(x, StreamConfig, commit.Id.GetPerforceChange(), maxChange), cancellationToken);
+								_owner._logger.LogDebug("Adding new cached commit for {StreamId} at change {Change}", StreamConfig.Id, commit.Id);
 
 								if (tags == null || tags.Any(x => cachedCommit.CommitTags.Contains(x)))
 								{
@@ -717,7 +731,7 @@ namespace HordeServer.Perforce
 				{
 					_owner._logger.LogDebug("Querying Perforce server for {StreamId} commits from {MinChange} to {MaxChange} (max: {MaxResults}, tags: {Tags})", StreamConfig.Id, minChange ?? -2, maxChange ?? -2, maxResults ?? -1, (tags == null || tags.Count == 0) ? "none" : String.Join("/", tags.Select(x => x.ToString())));
 
-					await foreach (ICommit commit in base.FindAsync(minChange, maxChange, maxResults, tags, cancellationToken))
+					await foreach (ICommit commit in base.FindAsync(minChange, true, maxChange, true, maxResults, tags, cancellationToken))
 					{
 						yield return commit;
 					}
@@ -776,10 +790,10 @@ namespace HordeServer.Perforce
 						Task task = updateEvent.Task;
 
 						int numResults = 10;
-						await foreach (ICommit commit in FindAsync(minChange + 1, null, numResults, tags, cancellationToken))
+						await foreach (ICommit commit in FindAsync(minChange, includeMinChange: false, maxResults: numResults, tags: tags, cancellationToken: cancellationToken))
 						{
 							yield return commit;
-							minChange = commit.Number;
+							minChange = commit.Id.GetPerforceChange();
 							numResults--;
 						}
 

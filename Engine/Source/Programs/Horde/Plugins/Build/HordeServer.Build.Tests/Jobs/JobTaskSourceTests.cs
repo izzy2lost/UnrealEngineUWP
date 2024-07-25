@@ -2,6 +2,7 @@
 
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Users;
 using HordeServer.Agents;
@@ -125,7 +126,7 @@ namespace HordeServer.Tests.Jobs
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), stream.Id,
 				fixture.TemplateRefId1, fixture.Template.Hash, graph, "Test Paused Step Job",
-				1000, 1000, options);
+				CommitIdWithOrder.FromPerforceChange(1000), CommitIdWithOrder.FromPerforceChange(1000), options);
 
 			// validate
 			await JobTaskSource.TickAsync(CancellationToken.None);

@@ -78,12 +78,12 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Changes to exclude from the bisection
 		/// </summary>
-		public IReadOnlyList<int>? IgnoreChanges { get; set; }
+		public IReadOnlyList<CommitId>? IgnoreCommitIds { get; set; }
 
 		/// <summary>
 		/// Jobs to exclude from the bisection
 		/// </summary>
-		public IReadOnlyList<JobId>? IgnoreJobs { get; set; }
+		public IReadOnlyList<JobId>? IgnoreJobIds { get; set; }
 	}
 
 	/// <summary>
@@ -94,12 +94,12 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// First job to bisect from
 		/// </summary>
-		public (JobStepRefId Step, int Change)? CurrentJobStep { get; set; }
+		public (JobStepRefId Step, CommitIdWithOrder CommitId)? CurrentJobStep { get; set; }
 
 		/// <summary>
 		/// The lower bounds of the bisection task
 		/// </summary>
-		public (JobStepRefId Step, int Change)? MinJobStep { get; set; }
+		public (JobStepRefId Step, CommitIdWithOrder CommitId)? MinJobStep { get; set; }
 
 		/// <summary>
 		/// New state for the task
@@ -114,12 +114,12 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Changes to include in the bisection
 		/// </summary>
-		public IReadOnlyList<int>? IncludeChanges { get; set; }
+		public IReadOnlyList<CommitId>? IncludeCommitIds { get; set; }
 
 		/// <summary>
 		/// Changes to exclude from the bisection
 		/// </summary>
-		public IReadOnlyList<int>? ExcludeChanges { get; set; }
+		public IReadOnlyList<CommitId>? ExcludeCommitIds { get; set; }
 
 		/// <summary>
 		/// Jobs to include in the bisection

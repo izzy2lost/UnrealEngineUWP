@@ -2,6 +2,7 @@
 
 using System.Text.RegularExpressions;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 using HordeServer.Commits;
 using HordeServer.Server;
@@ -24,7 +25,7 @@ namespace HordeServer.Issues
 		class State : SingletonBase
 		{
 			[BsonElement("streams"), BsonDictionaryOptions(DictionaryRepresentation.ArrayOfDocuments)]
-			public Dictionary<StreamId, int> Streams { get; set; } = new Dictionary<StreamId, int>();
+			public Dictionary<StreamId, CommitId> Streams { get; set; } = new Dictionary<StreamId, CommitId>();
 		}
 
 		readonly ISingletonDocument<State> _state;
@@ -108,15 +109,15 @@ namespace HordeServer.Issues
 		{
 			ICommitCollection commits = _commitService.GetCollection(streamConfig);
 
-			int minChange;
-			if (!initialState.Streams.TryGetValue(streamConfig.Id, out minChange))
+			CommitId? minCommitId;
+			if (!initialState.Streams.TryGetValue(streamConfig.Id, out minCommitId))
 			{
-				minChange = await commits.GetLatestNumberAsync(cancellationToken);
+				minCommitId = await commits.GetLastCommitIdAsync(cancellationToken);
 			}
 
-			await foreach (ICommit commit in commits.SubscribeAsync(minChange + 1, null, cancellationToken))
+			await foreach (ICommit commit in commits.SubscribeAsync(minCommitId, null, cancellationToken))
 			{
-				_logger.LogDebug("Checking commit {Change} in {StreamId}", commit.Number, streamConfig.Id);
+				_logger.LogDebug("Checking commit {Change} in {StreamId}", commit.Id, streamConfig.Id);
 				foreach (int issueId in ParseTags(_buildConfig.CurrentValue.IssueFixedTag, commit.Description))
 				{
 					for (; ; )
@@ -124,19 +125,19 @@ namespace HordeServer.Issues
 						IIssue? issue = await _issueCollection.GetIssueAsync(issueId, cancellationToken);
 						if (issue == null)
 						{
-							_logger.LogInformation("Commit {Change} by {Author} in {StreamId} has invalid issue id {IssueId}", commit.Number, commit.AuthorId, streamConfig.Id, issueId);
+							_logger.LogInformation("Commit {Change} by {Author} in {StreamId} has invalid issue id {IssueId}", commit.Id, commit.AuthorId, streamConfig.Id, issueId);
 							break;
 						}
 
-						issue = await _issueCollection.TryUpdateIssueAsync(issue, commit.AuthorId, newFixChange: commit.Number, newResolvedById: commit.AuthorId, cancellationToken: cancellationToken);
+						issue = await _issueCollection.TryUpdateIssueAsync(issue, commit.AuthorId, newFixCommitId: commit.Id, newResolvedById: commit.AuthorId, cancellationToken: cancellationToken);
 						if (issue != null)
 						{
-							_logger.LogInformation("Commit {Change} by {Author} in {StreamId} fixes issue id {IssueId}", commit.Number, commit.AuthorId, streamConfig.Id, issueId);
+							_logger.LogInformation("Commit {Change} by {Author} in {StreamId} fixes issue id {IssueId}", commit.Id, commit.AuthorId, streamConfig.Id, issueId);
 							break;
 						}
 					}
 				}
-				await _state.UpdateAsync(x => x.Streams[streamConfig.Id] = commit.Number, cancellationToken);
+				await _state.UpdateAsync(x => x.Streams[streamConfig.Id] = commit.Id, cancellationToken);
 			}
 		}
 

@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
@@ -95,9 +96,9 @@ namespace HordeServer.Tests
 				templateHash: Template.Hash,
 				graph: Graph,
 				name: "hello1",
-				change: 1000001,
-				codeChange: 1000002,
-				new CreateJobOptions { PreflightChange = 1001 }
+				commitId: CommitIdWithOrder.FromPerforceChange(1000001),
+				codeCommitId: CommitIdWithOrder.FromPerforceChange(1000002),
+				new CreateJobOptions { PreflightCommitId = CommitId.FromPerforceChange(1001) }
 			);
 			Job1 = (await jobService.GetJobAsync(Job1.Id))!;
 
@@ -108,8 +109,8 @@ namespace HordeServer.Tests
 				templateHash: ContentHash.MD5("made-up-template-hash"),
 				graph: fg,
 				name: "hello2",
-				change: 2000001,
-				codeChange: 2000002,
+				commitId: CommitIdWithOrder.FromPerforceChange(2000001),
+				codeCommitId: CommitIdWithOrder.FromPerforceChange(2000002),
 				new CreateJobOptions()
 			);
 			Job2 = (await jobService.GetJobAsync(Job2.Id))!;

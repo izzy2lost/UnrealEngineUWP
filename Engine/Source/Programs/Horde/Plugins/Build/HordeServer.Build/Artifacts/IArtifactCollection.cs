@@ -2,6 +2,7 @@
 
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 
 namespace HordeServer.Artifacts
@@ -18,13 +19,13 @@ namespace HordeServer.Artifacts
 		/// <param name="type">Type identifier for the artifact</param>
 		/// <param name="description">Description for the artifact</param>
 		/// <param name="streamId">Stream that the artifact was built from</param>
-		/// <param name="change">Change number that the artifact was built from</param>
+		/// <param name="commitId">Commit that the artifact was built from</param>
 		/// <param name="keys">Keys for the artifact</param>
 		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="scopeName">Inherited scope used for permissions</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default);
+		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Deletes artifacts
@@ -47,15 +48,15 @@ namespace HordeServer.Artifacts
 		/// Finds artifacts with the given keys.
 		/// </summary>
 		/// <param name="streamId">Stream to find artifacts for</param>
-		/// <param name="minChange">Minimum changelist number for the artifacts</param>
-		/// <param name="maxChange">Maximum changelist number for the artifacts</param>
+		/// <param name="minCommitId">Minimum commit for the artifacts (inclusive)</param>
+		/// <param name="maxCommitId">Maximum commit for the artifacts (inclusive)</param>
 		/// <param name="name">Name of the artifact to search for</param>
 		/// <param name="type">The artifact type</param>
 		/// <param name="keys">Set of keys, all of which must all be present on any returned artifacts</param>
 		/// <param name="maxResults">Maximum number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Sequence of artifacts. Ordered by descending CL order, then by descending order in which they were created.</returns>
-		IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets an artifact by ID

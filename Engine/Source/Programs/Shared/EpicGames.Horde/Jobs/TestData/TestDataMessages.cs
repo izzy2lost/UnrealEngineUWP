@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using EpicGames.Horde.Commits;
 
 #pragma warning disable CA2227 // Change 'x' to be read-only by removing the property setter
 
@@ -113,7 +114,23 @@ namespace EpicGames.Horde.Jobs.TestData
 		/// <summary>
 		/// The changelist number that contained the data
 		/// </summary>
-		public int Change { get; set; } = 0;
+		[Obsolete("Use CommitId instead")]
+		public int Change
+		{
+			get => _change ?? _commitId?.GetPerforceChangeOrMinusOne() ?? 0;
+			set => _change = value;
+		}
+		int? _change;
+
+		/// <summary>
+		/// The changelist number that contained the data
+		/// </summary>
+		public CommitIdWithOrder CommitId
+		{
+			get => _commitId ?? CommitIdWithOrder.FromPerforceChange(_change) ?? CommitIdWithOrder.Empty;
+			set => _commitId = value;
+		}
+		CommitIdWithOrder? _commitId;
 
 		/// <summary>
 		/// Key used to identify the particular data
@@ -346,7 +363,26 @@ namespace EpicGames.Horde.Jobs.TestData
 		/// <summary>
 		/// The build changelist upon which the test ran, may not correspond to the job changelist
 		/// </summary>
-		public int BuildChangeList { get; set; }
+		[Obsolete("Use BuildCommitId instead")]
+		public int BuildChangeList
+		{
+			get => _buildChangeList ?? _buildCommitId?.GetPerforceChangeOrMinusOne() ?? 0;
+			set => _buildChangeList = value;
+		}
+		int? _buildChangeList;
+
+#pragma warning disable CS0618 // Type or member is obsolete
+		/// <summary>
+		/// The build changelist upon which the test ran, may not correspond to the job changelist
+		/// </summary>
+		public CommitId BuildCommitId
+		{
+			get => _buildCommitId ?? CommitId.FromPerforceChange(_buildChangeList) ?? CommitId.Empty;
+			set => _buildCommitId = value;
+		}
+#pragma warning restore CS0618 // Type or member is obsolete
+
+		CommitId? _buildCommitId;
 
 		/// <summary>
 		/// The platform the test ran on 

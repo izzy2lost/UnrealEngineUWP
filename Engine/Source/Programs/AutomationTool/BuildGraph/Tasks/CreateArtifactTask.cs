@@ -12,9 +12,11 @@ using System.Xml;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Streams;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -50,6 +52,12 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter]
 		public string? BaseDir { get; set; }
+
+		/// <summary>
+		/// Stream for this artifact
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public string? StreamId { get; set; }
 
 		/// <summary>
 		/// Changelist number for this artifact
@@ -111,8 +119,9 @@ namespace AutomationTool.Tasks
 			ArtifactType artifactType = new ArtifactType(_parameters.Type);
 
 			HordeHttpClient hordeHttpClient = serviceProvider.GetRequiredService<HordeHttpClient>();
-			int? change = (_parameters.Change == 0) ? (int?)null : _parameters.Change;
-			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, _parameters.Description, change: change);
+			StreamId streamId = new StreamId(_parameters.StreamId ?? throw new InvalidOperationException("Missing StreamId parameter")); 
+			CommitId commitId = CommitId.FromPerforceChange(_parameters.Change ?? CommandUtils.P4Env.Changelist);
+			CreateArtifactResponse response = await hordeHttpClient.CreateArtifactAsync(artifactName, artifactType, _parameters.Description, streamId: streamId, commitId: commitId);
 			Logger.LogInformation("Creating artifact {ArtifactId} '{ArtifactName}' ({ArtifactType}) (ns: {NamespaceId}, ref: {RefName})", response.ArtifactId, artifactName, artifactType, response.NamespaceId, response.RefName);
 
 			Stopwatch timer = Stopwatch.StartNew();

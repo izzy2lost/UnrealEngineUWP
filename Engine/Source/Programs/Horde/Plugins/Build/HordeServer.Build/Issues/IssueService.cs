@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
@@ -443,7 +444,8 @@ namespace HordeServer.Issues
 		/// <param name="nominatedById">Person that nominated the new owner</param>
 		/// <param name="acknowledged">Whether the issue has been acknowledged</param>
 		/// <param name="declinedById">Name of the user that has declined this issue</param>
-		/// <param name="fixChange">Fix changelist for the issue</param>
+		/// <param name="fixCommitId">Fix changelist for the issue</param>
+		/// <param name="fixSystemic">There was a systemic fix for this issue</param>
 		/// <param name="resolvedById">Whether the issue has been resolved</param>
 		/// <param name="addSpanIds">Add spans to this issue</param>
 		/// <param name="removeSpanIds">Remove spans from this issue</param>
@@ -454,7 +456,7 @@ namespace HordeServer.Issues
 		/// <param name="workflowThreadUrl">The workfloe thread created for the issue</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the issue was updated</returns>
-		public async Task<bool> UpdateIssueAsync(int id, string? summary = null, string? description = null, bool? promoted = null, UserId? ownerId = null, UserId? nominatedById = null, bool? acknowledged = null, UserId? declinedById = null, int? fixChange = null, UserId? resolvedById = null, List<ObjectId>? addSpanIds = null, List<ObjectId>? removeSpanIds = null, string? externalIssueKey = null, UserId? quarantinedById = null, UserId? forceClosedById = null, UserId? initiatedById = null, Uri? workflowThreadUrl = null, CancellationToken cancellationToken = default)
+		public async Task<bool> UpdateIssueAsync(int id, string? summary = null, string? description = null, bool? promoted = null, UserId? ownerId = null, UserId? nominatedById = null, bool? acknowledged = null, UserId? declinedById = null, CommitId? fixCommitId = null, bool? fixSystemic = null, UserId? resolvedById = null, List<ObjectId>? addSpanIds = null, List<ObjectId>? removeSpanIds = null, string? externalIssueKey = null, UserId? quarantinedById = null, UserId? forceClosedById = null, UserId? initiatedById = null, Uri? workflowThreadUrl = null, CancellationToken cancellationToken = default)
 		{
 			IIssue? issue;
 			for (; ; )
@@ -465,7 +467,7 @@ namespace HordeServer.Issues
 					return false;
 				}
 
-				issue = await _issueCollection.TryUpdateIssueAsync(issue, initiatedById, newUserSummary: summary, newDescription: description, newPromoted: promoted, newOwnerId: ownerId ?? resolvedById, newNominatedById: nominatedById, newDeclinedById: declinedById, newAcknowledged: acknowledged, newFixChange: fixChange, newResolvedById: resolvedById, newExcludeSpanIds: removeSpanIds, newExternalIssueKey: externalIssueKey, newQuarantinedById: quarantinedById, newForceClosedById: forceClosedById, newWorkflowThreadUrl: workflowThreadUrl, cancellationToken: cancellationToken);
+				issue = await _issueCollection.TryUpdateIssueAsync(issue, initiatedById, newUserSummary: summary, newDescription: description, newPromoted: promoted, newOwnerId: ownerId ?? resolvedById, newNominatedById: nominatedById, newDeclinedById: declinedById, newAcknowledged: acknowledged, newFixCommitId: fixCommitId, newFixSystemic: fixSystemic, newResolvedById: resolvedById, newExcludeSpanIds: removeSpanIds, newExternalIssueKey: externalIssueKey, newQuarantinedById: quarantinedById, newForceClosedById: forceClosedById, newWorkflowThreadUrl: workflowThreadUrl, cancellationToken: cancellationToken);
 				if (issue != null)
 				{
 					break;
@@ -495,7 +497,7 @@ namespace HordeServer.Issues
 						continue;
 					}
 
-					await _issueCollection.TryUpdateSpanAsync(span, newNextSuccess: new NewIssueStepData(step.Change, step.Severity, step.JobName, step.JobId, step.BatchId, step.StepId, step.StepTime, step.LogId, step.Annotations, step.PromoteByDefault), cancellationToken: cancellationToken);
+					await _issueCollection.TryUpdateSpanAsync(span, newNextSuccess: new NewIssueStepData(step.CommitId, step.Severity, step.JobName, step.JobId, step.BatchId, step.StepId, step.StepTime, step.LogId, step.Annotations, step.PromoteByDefault), cancellationToken: cancellationToken);
 				}
 			}
 
@@ -619,8 +621,8 @@ namespace HordeServer.Issues
 				for (; ; )
 				{
 					// Get the spans that are currently open
-					List<IIssueSpan> openSpans = (await _issueCollection.FindOpenSpansAsync(job.StreamId, job.TemplateId, node.Name, job.Change, cancellationToken)).ToList();
-					_logger.LogDebug("{NumSpans} spans are open in {StreamId} at CL {Change} for template {TemplateId}, node {Node}", openSpans.Count, job.StreamId, job.Change, job.TemplateId, node.Name);
+					List<IIssueSpan> openSpans = (await _issueCollection.FindOpenSpansAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, cancellationToken)).ToList();
+					_logger.LogDebug("{NumSpans} spans are open in {StreamId} at CL {Change} for template {TemplateId}, node {Node}", openSpans.Count, job.StreamId, job.CommitId, job.TemplateId, node.Name);
 
 					// Add the events to existing issues, and create new issues for everything else
 					if (eventGroups.Count > 0)
@@ -786,7 +788,7 @@ namespace HordeServer.Issues
 
 						// Update the span if this changes the current range
 						IIssueSpan? newSpan = openSpan;
-						if (newFailure.Change <= openSpan.FirstFailure.Change || newFailure.Change >= openSpan.LastFailure.Change)
+						if (newFailure.CommitId <= openSpan.FirstFailure.CommitId || newFailure.CommitId >= openSpan.LastFailure.CommitId)
 						{
 							newSpan = await _issueCollection.TryUpdateSpanAsync(openSpan, newFailure: newFailure, cancellationToken: cancellationToken);
 							if (newSpan == null)
@@ -880,14 +882,14 @@ namespace HordeServer.Issues
 				// Get the span data
 				NewIssueSpanData spanData = new NewIssueSpanData(streamConfig.Id, streamConfig.Name, job.TemplateId, node.Name, eventGroup.Fingerprint, stepData);
 
-				IJobStepRef? prevJob = await _jobStepRefs.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.Change, JobStepOutcome.Success, true);
+				IJobStepRef? prevJob = await _jobStepRefs.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, JobStepOutcome.Success, true);
 				if (prevJob != null)
 				{
 					spanData.LastSuccess = new NewIssueStepData(prevJob);
-					spanData.Suspects = await FindSuspectsForSpanAsync(streamConfig, spanData.Fingerprint, spanData.LastSuccess.Change + 1, spanData.FirstFailure.Change, cancellationToken);
+					spanData.Suspects = await FindSuspectsForSpanAsync(streamConfig, spanData.Fingerprint, spanData.LastSuccess.CommitId, spanData.FirstFailure.CommitId, cancellationToken);
 				}
 
-				IJobStepRef? nextJob = await _jobStepRefs.GetNextStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.Change, JobStepOutcome.Success, true);
+				IJobStepRef? nextJob = await _jobStepRefs.GetNextStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, JobStepOutcome.Success, true);
 				if (nextJob != null)
 				{
 					spanData.NextSuccess = new NewIssueStepData(nextJob);
@@ -920,22 +922,22 @@ namespace HordeServer.Issues
 			return issue;
 		}
 
-		static void GetChangeMap(IIssueSpan span, Dictionary<int, int> originChangeToSuspectChange)
+		static void GetChangeMap(IIssueSpan span, Dictionary<CommitId, CommitIdWithOrder> originChangeToSuspectChange)
 		{
 			foreach (IIssueSpanSuspect suspect in span.Suspects)
 			{
-				originChangeToSuspectChange[suspect.OriginatingChange ?? suspect.Change] = suspect.Change;
+				originChangeToSuspectChange[suspect.SourceCommitId ?? suspect.CommitId] = suspect.CommitId;
 			}
 		}
 
-		static int CompareSpans(Dictionary<int, int> originChangeToSuspectChange, IIssueSpan span)
+		static int CompareSpans(Dictionary<CommitId, CommitIdWithOrder> originChangeToSuspectChange, IIssueSpan span)
 		{
 			foreach (IIssueSpanSuspect suspect in span.Suspects)
 			{
-				int originChange = suspect.OriginatingChange ?? suspect.Change;
-				if (originChangeToSuspectChange.TryGetValue(originChange, out int suspectChange) && suspectChange != suspect.Change)
+				CommitId originChange = suspect.SourceCommitId ?? suspect.CommitId;
+				if (originChangeToSuspectChange.TryGetValue(originChange, out CommitIdWithOrder? suspectChange) && suspectChange != suspect.CommitId)
 				{
-					return suspectChange - suspect.Change;
+					return suspectChange.Order - suspect.CommitId.Order;
 				}
 			}
 			return 0;
@@ -950,7 +952,7 @@ namespace HordeServer.Issues
 			{
 				originSpans.Add(spans[0]);
 
-				Dictionary<int, int> originChangeToSuspectChange = new Dictionary<int, int>();
+				Dictionary<CommitId, CommitIdWithOrder> originChangeToSuspectChange = new Dictionary<CommitId, CommitIdWithOrder>();
 				GetChangeMap(spans[0], originChangeToSuspectChange);
 
 				for (int idx = 1; idx < spans.Count; idx++)
@@ -974,7 +976,7 @@ namespace HordeServer.Issues
 
 		async Task<IIssue?> UpdateIssueDerivedDataAsync(IIssue issue, CancellationToken cancellationToken)
 		{
-			Dictionary<(StreamId, int), bool> fixChangeCache = new Dictionary<(StreamId, int), bool>();
+			Dictionary<(StreamId, CommitId), bool> fixChangeCache = new Dictionary<(StreamId, CommitId), bool>();
 			for (; ; )
 			{
 				BuildConfig buildConfig = _buildConfig.CurrentValue;
@@ -998,12 +1000,12 @@ namespace HordeServer.Issues
 					List<IIssueSpan> spansWithSuspects = spans.Where(x => x.LastSuccess != null).ToList();
 					if (spansWithSuspects.Count > 0)
 					{
-						HashSet<int> suspectChanges = new HashSet<int>(spansWithSuspects[0].Suspects.Select(x => x.OriginatingChange ?? x.Change));
+						HashSet<CommitId> suspectChanges = new HashSet<CommitId>(spansWithSuspects[0].Suspects.Select(x => (CommitId)(x.SourceCommitId ?? x.CommitId)));
 						for (int spanIdx = 1; spanIdx < spansWithSuspects.Count; spanIdx++)
 						{
-							suspectChanges.IntersectWith(spansWithSuspects[spanIdx].Suspects.Select(x => x.OriginatingChange ?? x.Change));
+							suspectChanges.IntersectWith(spansWithSuspects[spanIdx].Suspects.Select(x => (CommitId)(x.SourceCommitId ?? x.CommitId)));
 						}
-						newSuspects = spansWithSuspects[0].Suspects.Where(x => suspectChanges.Contains(x.OriginatingChange ?? x.Change)).Select(x => new NewIssueSuspectData(x.AuthorId, x.OriginatingChange ?? x.Change)).ToList();
+						newSuspects = spansWithSuspects[0].Suspects.Where(x => suspectChanges.Contains(x.SourceCommitId ?? x.CommitId)).Select(x => new NewIssueSuspectData(x.AuthorId, x.SourceCommitId ?? x.CommitId)).ToList();
 					}
 				}
 
@@ -1092,7 +1094,7 @@ namespace HordeServer.Issues
 
 				// Get the new list of streams
 				List<NewIssueStream> newStreams = spans.Select(x => x.StreamId).OrderBy(x => x.ToString(), StringComparer.Ordinal).Distinct().Select(x => new NewIssueStream(x)).ToList();
-				if (issue.FixChange != null)
+				if (issue.FixCommitId != null)
 				{
 					foreach (NewIssueStream newStream in newStreams)
 					{
@@ -1102,9 +1104,10 @@ namespace HordeServer.Issues
 							newStream.ContainsFix = stream.ContainsFix;
 						}
 
-						newStream.ContainsFix ??= await ContainsFixChangeAsync(buildConfig, newStream.StreamId, issue.FixChange.Value, fixChangeCache, cancellationToken);
+						newStream.ContainsFix ??= await ContainsFixChangeAsync(buildConfig, newStream.StreamId, issue.FixCommitId, fixChangeCache, cancellationToken);
 
-						if (spans.Any(x => x.StreamId == newStream.StreamId && x.LastFailure.Change > issue.FixChange.Value))
+						CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(newStream.StreamId, issue.FixCommitId, cancellationToken);
+						if (spans.Any(x => x.StreamId == newStream.StreamId && x.LastFailure.CommitId > commitIdWithOrder))
 						{
 							newStream.FixFailed = true;
 						}
@@ -1125,7 +1128,7 @@ namespace HordeServer.Issues
 				// If a fix changelist has been specified and it's not valid, clear it out
 				if (newVerifiedAt == null && newResolvedAt != null)
 				{
-					if (spans.Any(x => HasFixFailed(x, issue.FixChange, newResolvedAt.Value, newStreams)))
+					if(await HasFixFailedAsync(spans, issue.FixCommitId, newResolvedAt.Value, newStreams, cancellationToken))
 					{
 						newStreams.ForEach(x => x.ContainsFix = null);
 						newResolvedAt = null;
@@ -1153,21 +1156,22 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Determine if an issue should be marked as fix failed
 		/// </summary>
-		static bool HasFixFailed(IIssueSpan span, int? fixChange, DateTime resolvedAt, IReadOnlyList<NewIssueStream> streams)
+		async Task<bool> HasFixFailedAsync(IEnumerable<IIssueSpan> spans, CommitId? fixCommit, DateTime resolvedAt, IReadOnlyList<NewIssueStream> streams, CancellationToken cancellationToken)
 		{
-			if (span.NextSuccess == null)
+			foreach (IGrouping<StreamId, IIssueSpan> group in spans.Where(x => x.NextSuccess == null).GroupBy(x => x.StreamId))
 			{
-				NewIssueStream? stream = streams.FirstOrDefault(x => x.StreamId == span.StreamId);
-				if (stream != null && fixChange != null && (stream.ContainsFix ?? false))
+				NewIssueStream? stream = streams.FirstOrDefault(x => x.StreamId == group.Key);
+				if (stream != null && fixCommit != null && (stream.ContainsFix ?? false))
 				{
-					if (span.LastFailure.Change > fixChange.Value)
+					CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(stream.StreamId, fixCommit, cancellationToken);
+					if (group.Any(x => x.LastFailure.CommitId > commitIdWithOrder))
 					{
 						return true;
 					}
 				}
 				else
 				{
-					if (span.LastFailure.StepTime > resolvedAt + TimeSpan.FromHours(24.0))
+					if (group.Any(x => x.LastFailure.StepTime > resolvedAt + TimeSpan.FromHours(24.0)))
 					{
 						return true;
 					}
@@ -1179,10 +1183,10 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Figure out if a stream contains a fix changelist
 		/// </summary>
-		async ValueTask<bool> ContainsFixChangeAsync(BuildConfig buildConfig, StreamId streamId, int fixChange, Dictionary<(StreamId, int), bool> cachedContainsFixChange, CancellationToken cancellationToken)
+		async ValueTask<bool> ContainsFixChangeAsync(BuildConfig buildConfig, StreamId streamId, CommitId fixChange, Dictionary<(StreamId, CommitId), bool> cachedContainsFixChange, CancellationToken cancellationToken)
 		{
 			bool containsFixChange;
-			if (!cachedContainsFixChange.TryGetValue((streamId, fixChange), out containsFixChange) && fixChange > 0)
+			if (!cachedContainsFixChange.TryGetValue((streamId, fixChange), out containsFixChange))
 			{
 				StreamConfig? streamConfig;
 				if (buildConfig.TryGetStream(streamId, out streamConfig))
@@ -1206,19 +1210,19 @@ namespace HordeServer.Issues
 		/// </summary>
 		/// <param name="streamConfig">The stream name</param>
 		/// <param name="fingerprint">The fingerprint for the span</param>
-		/// <param name="minChange">Minimum changelist to consider</param>
-		/// <param name="maxChange">Maximum changelist to consider</param>
+		/// <param name="lastSuccess">The last successful commit</param>
+		/// <param name="firstFailure">The first failing commit</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of suspects</returns>
-		async Task<List<NewIssueSpanSuspectData>> FindSuspectsForSpanAsync(StreamConfig streamConfig, IIssueFingerprint fingerprint, int minChange, int maxChange, CancellationToken cancellationToken)
+		async Task<List<NewIssueSpanSuspectData>> FindSuspectsForSpanAsync(StreamConfig streamConfig, IIssueFingerprint fingerprint, CommitId lastSuccess, CommitId firstFailure, CancellationToken cancellationToken)
 		{
 			List<NewIssueSpanSuspectData> suspects = new List<NewIssueSpanSuspectData>();
 			if (!String.IsNullOrEmpty(fingerprint.ChangeFilter))
 			{
-				_logger.LogDebug("Querying for changes in {StreamName} between {MinChange} and {MaxChange}", streamConfig.Name, minChange, maxChange);
+				_logger.LogDebug("Querying for changes in {StreamName} between {LastSuccess} and {FirstFailure}", streamConfig.Name, lastSuccess, firstFailure);
 
 				// Get the submitted changes before this job
-				List<ICommit> changes = await _commitService.GetCollection(streamConfig).FindAsync(minChange, maxChange, MaxChanges, cancellationToken: cancellationToken).ToListAsync(cancellationToken);
+				List<ICommit> changes = await _commitService.GetCollection(streamConfig).FindAsync(lastSuccess, includeMinCommit: false, firstFailure, includeMaxCommit: true, MaxChanges, cancellationToken: cancellationToken).ToListAsync(cancellationToken);
 				_logger.LogDebug("Found {NumResults} changes", changes.Count);
 
 				// Get all the parameters used to rank suspects
@@ -1267,8 +1271,8 @@ namespace HordeServer.Issues
 
 					if (rank == maxRank)
 					{
-						NewIssueSpanSuspectData suspect = new NewIssueSpanSuspectData(commit.Number, commit.OwnerId);
-						suspect.OriginatingChange = commit.OriginalChange;
+						NewIssueSpanSuspectData suspect = new NewIssueSpanSuspectData(commit.Id, commit.OwnerId);
+						suspect.SourceCommitId = commit.OriginalCommitId;
 						suspects.Add(suspect);
 					}
 				}
@@ -1325,11 +1329,11 @@ namespace HordeServer.Issues
 			IReadOnlyList<IIssue> existingIssues;
 			if (span.LastSuccess == null)
 			{
-				existingIssues = await _issueCollection.FindIssuesAsync(streamId: span.StreamId, minChange: span.FirstFailure.Change, maxChange: span.FirstFailure.Change, resolved: false, cancellationToken: cancellationToken);
+				existingIssues = await _issueCollection.FindIssuesAsync(streamId: span.StreamId, minCommitId: span.FirstFailure.CommitId, maxCommitId: span.FirstFailure.CommitId, resolved: false, cancellationToken: cancellationToken);
 			}
 			else
 			{
-				existingIssues = await _issueCollection.FindIssuesForChangesAsync(span.Suspects.ConvertAll(x => x.OriginatingChange ?? x.Change), cancellationToken);
+				existingIssues = await _issueCollection.FindIssuesForChangesAsync(span.Suspects.ConvertAll(x => x.SourceCommitId ?? x.CommitId), cancellationToken);
 			}
 
 			IIssue? issue = existingIssues.FirstOrDefault(x => x.Fingerprints.Any(y => y.IsMatch(span.Fingerprint)));
@@ -1352,13 +1356,13 @@ namespace HordeServer.Issues
 			IReadOnlyList<IIssue> existingIssues;
 			if (span.LastSuccess == null)
 			{
-				existingIssues = await _issueCollection.FindIssuesAsync(streamId: span.StreamId, minChange: span.FirstFailure.Change, maxChange: span.FirstFailure.Change, resolved: false, cancellationToken: cancellationToken);
-				_logger.LogDebug("Found {NumIssues} open issues at {Change} in {StreamId}", existingIssues.Count, span.FirstFailure.Change, span.StreamId);
+				existingIssues = await _issueCollection.FindIssuesAsync(streamId: span.StreamId, minCommitId: span.FirstFailure.CommitId, maxCommitId: span.FirstFailure.CommitId, resolved: false, cancellationToken: cancellationToken);
+				_logger.LogDebug("Found {NumIssues} open issues at {Change} in {StreamId}", existingIssues.Count, span.FirstFailure.CommitId, span.StreamId);
 			}
 			else
 			{
-				existingIssues = await _issueCollection.FindIssuesForChangesAsync(span.Suspects.ConvertAll(x => x.OriginatingChange ?? x.Change), cancellationToken);
-				_logger.LogDebug("Found {NumIssues} open issues in {StreamId} from [{ChangeList}]", existingIssues.Count, span.StreamId, String.Join(", ", span.Suspects.ConvertAll(x => (x.OriginatingChange ?? x.Change).ToString())));
+				existingIssues = await _issueCollection.FindIssuesForChangesAsync(span.Suspects.ConvertAll(x => x.SourceCommitId ?? x.CommitId), cancellationToken);
+				_logger.LogDebug("Found {NumIssues} open issues in {StreamId} from [{ChangeList}]", existingIssues.Count, span.StreamId, String.Join(", ", span.Suspects.ConvertAll(x => (x.SourceCommitId ?? x.CommitId).ToString())));
 			}
 
 			IIssue? issue = existingIssues.FirstOrDefault(x => x.VerifiedAt == null && x.Fingerprints.Any(y => y.IsMatch(span.Fingerprint)));
@@ -1504,32 +1508,32 @@ namespace HordeServer.Issues
 		{
 			foreach (IIssueSpan span in spans)
 			{
-				if (job.Change < span.FirstFailure.Change && (span.LastSuccess == null || job.Change > span.LastSuccess.Change))
+				if (job.CommitId < span.FirstFailure.CommitId && (span.LastSuccess == null || job.CommitId > span.LastSuccess.CommitId))
 				{
-					NewIssueStepData newLastSuccess = new NewIssueStepData(job.Change, IssueSeverity.Unspecified, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, null, false);
-					List<NewIssueSpanSuspectData> newSuspects = await FindSuspectsForSpanAsync(streamConfig, span.Fingerprint, job.Change + 1, span.FirstFailure.Change, cancellationToken);
+					NewIssueStepData newLastSuccess = new NewIssueStepData(job.CommitId, IssueSeverity.Unspecified, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, null, false);
+					List<NewIssueSpanSuspectData> newSuspects = await FindSuspectsForSpanAsync(streamConfig, span.Fingerprint, job.CommitId, span.FirstFailure.CommitId, cancellationToken);
 
 					if (await _issueCollection.TryUpdateSpanAsync(span, newLastSuccess: newLastSuccess, newSuspects: newSuspects, cancellationToken: cancellationToken) == null)
 					{
 						return false;
 					}
 
-					_logger.LogInformation("Set last success for issue {IssueId}, template {TemplateId}, node {Node} as job {JobId}, cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, job.Change);
+					_logger.LogInformation("Set last success for issue {IssueId}, template {TemplateId}, node {Node} as job {JobId}, cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, job.CommitId);
 					await UpdateIssueDerivedDataAsync(span.IssueId, cancellationToken);
 				}
-				else if (job.Change > span.LastFailure.Change && (span.NextSuccess == null || job.Change < span.NextSuccess.Change))
+				else if (job.CommitId > span.LastFailure.CommitId && (span.NextSuccess == null || job.CommitId < span.NextSuccess.CommitId))
 				{
 					IIssue? issue = await _issueCollection.GetIssueAsync(span.IssueId, cancellationToken);
 					if (issue == null || issue.QuarantinedByUserId == null)
 					{
-						NewIssueStepData newNextSucccess = new NewIssueStepData(job.Change, IssueSeverity.Unspecified, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, null, false);
+						NewIssueStepData newNextSucccess = new NewIssueStepData(job.CommitId, IssueSeverity.Unspecified, job.Name, job.Id, batch.Id, step.Id, step.StartTimeUtc ?? default, step.LogId, null, false);
 
 						if (await _issueCollection.TryUpdateSpanAsync(span, newNextSuccess: newNextSucccess, cancellationToken: cancellationToken) == null)
 						{
 							return false;
 						}
 
-						_logger.LogInformation("Set next success for issue {IssueId}, template {TemplateId}, node {Node} as job {JobId}, cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, job.Change);
+						_logger.LogInformation("Set next success for issue {IssueId}, template {TemplateId}, node {Node} as job {JobId}, cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, job.CommitId);
 					}
 					else
 					{
@@ -1540,7 +1544,7 @@ namespace HordeServer.Issues
 						{
 							NewIssueStepData newStep = new NewIssueStepData(job, batch, step, IssueSeverity.Unspecified, null, false);
 							await _issueCollection.AddStepAsync(span.Id, newStep, cancellationToken);
-							_logger.LogInformation("Adding step to quarantined issue {IssueId}, template {TemplateId}, node {Node} job {JobId} batch {BatchId} step {StepId} cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, batch.Id, step.Id, job.Change);
+							_logger.LogInformation("Adding step to quarantined issue {IssueId}, template {TemplateId}, node {Node} job {JobId} batch {BatchId} step {StepId} cl {Change}", span.IssueId, job.TemplateId, span.NodeName, job.Id, batch.Id, step.Id, job.CommitId);
 						}
 					}
 

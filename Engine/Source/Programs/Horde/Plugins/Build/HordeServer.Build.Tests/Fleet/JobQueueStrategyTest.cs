@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Projects;
@@ -169,7 +170,7 @@ namespace HordeServer.Tests.Fleet
 
 			IJob job = await JobCollection.AddAsync(JobIdUtils.GenerateNewId(), streamId,
 				new TemplateId("bogusTemplateRefId"), ContentHash.Empty, graph, "bogusJobName",
-				1000, 1000, options);
+				CommitIdWithOrder.FromPerforceChange(1000), CommitIdWithOrder.FromPerforceChange(1000), options);
 
 			return job;
 		}

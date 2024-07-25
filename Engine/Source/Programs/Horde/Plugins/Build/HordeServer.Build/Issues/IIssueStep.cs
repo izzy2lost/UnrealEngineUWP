@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
@@ -9,7 +10,7 @@ using MongoDB.Bson;
 namespace HordeServer.Issues
 {
 	/// <summary>
-	/// Identifies a particular changelist and job that contributes to a span
+	/// Identifies a particular commit and job that contributes to a span
 	/// </summary>
 	public interface IIssueStep
 	{
@@ -19,9 +20,9 @@ namespace HordeServer.Issues
 		public ObjectId SpanId { get; }
 
 		/// <summary>
-		/// The changelist number
+		/// The commit
 		/// </summary>
-		public int Change { get; }
+		public CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Severity of the issue in this step

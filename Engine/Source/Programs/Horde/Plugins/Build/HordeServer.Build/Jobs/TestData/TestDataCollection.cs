@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs.TestData;
 using EpicGames.Horde.Streams;
+using HordeServer.Commits;
 using HordeServer.Server;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging;
@@ -243,8 +245,17 @@ namespace HordeServer.Jobs.TestData
 			[BsonRequired, BsonElement("m")]
 			public TestMetaId Metadata { get; set; }
 
+			public CommitIdWithOrder BuildCommitId
+			{
+				get => (BuildCommitName != null) ? new CommitIdWithOrder(BuildCommitName, BuildCommitOrder) : CommitIdWithOrder.FromPerforceChange(BuildCommitOrder);
+				set => (BuildCommitName, BuildCommitOrder) = (value.Name, value.Order);
+			}
+
+			[BsonIgnoreIfNull, BsonElement("bcn")]
+			public string? BuildCommitName { get; set; }
+
 			[BsonRequired, BsonElement("bcl")]
-			public int BuildChangeList { get; set; }
+			public int BuildCommitOrder { get; set; }
 
 			[BsonRequired, BsonElement("d")]
 			public TimeSpan Duration { get; set; }
@@ -335,7 +346,19 @@ namespace HordeServer.Jobs.TestData
 			public TemplateId TemplateRefId { get; set; }
 			public JobId JobId { get; set; }
 			public JobStepId StepId { get; set; }
-			public int Change { get; set; }
+
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null) ? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
+
+			public string? CommitName { get; set; }
+			
+			[BsonElement("Change")]
+			public int CommitOrder { get; set; }
+
 			public string Key { get; set; }
 			public BsonDocument Data { get; set; }
 
@@ -352,59 +375,34 @@ namespace HordeServer.Jobs.TestData
 				TemplateRefId = job.TemplateId;
 				JobId = job.Id;
 				StepId = jobStep.Id;
-				Change = job.Change;
+				CommitId = job.CommitId;
 				Key = key;
 				Data = value;
 			}
 		}
 
-		/// <summary>
-		/// The detailed test data collection
-		/// </summary>
 		readonly IMongoCollection<TestDataDocument> _testDataDocuments;
-
-		/// <summary>
-		/// Test meta collection
-		/// </summary>
 		readonly IMongoCollection<TestMetaDocument> _testMeta;
-
-		/// <summary>
-		/// Test collection
-		/// </summary>
 		readonly IMongoCollection<TestDocument> _tests;
-
-		/// <summary>
-		/// Test suite collection
-		/// </summary>
 		readonly IMongoCollection<TestSuiteDocument> _testSuites;
-
-		/// <summary>
-		/// Test data refs collection
-		/// </summary>
 		readonly IMongoCollection<TestDataRefDocument> _testRefs;
-
-		/// <summary>
-		/// Test data refs collection
-		/// </summary>
 		readonly IMongoCollection<TestDataDetailsDocument> _testDetails;
-		/// <summary>
-		/// Test streams collection
-		/// </summary>
 		readonly IMongoCollection<TestStreamDocument> _testStreams;
-
+		readonly ICommitService _commitService;
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public TestDataCollection(IMongoService mongoService, Tracer tracer, ILogger<TestDataCollection> logger)
+		public TestDataCollection(IMongoService mongoService, ICommitService commitService, Tracer tracer, ILogger<TestDataCollection> logger)
 		{
+			_commitService = commitService;
 			_tracer = tracer;
 			_logger = logger;
 
 			List<MongoIndex<TestDataDocument>> indexes = new List<MongoIndex<TestDataDocument>>();
-			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.Change).Ascending(x => x.Key));
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.CommitOrder).Ascending(x => x.Key));
 			indexes.Add(keys => keys.Ascending(x => x.JobId).Ascending(x => x.StepId).Ascending(x => x.Key), unique: true);
 			_testDataDocuments = mongoService.GetCollection<TestDataDocument>("TestData", indexes);
 
@@ -421,7 +419,7 @@ namespace HordeServer.Jobs.TestData
 			_testSuites = mongoService.GetCollection<TestSuiteDocument>("TestData.TestSuitesV2", testSuiteIndexes);
 
 			List<MongoIndex<TestDataRefDocument>> testRefIndexes = new List<MongoIndex<TestDataRefDocument>>();
-			testRefIndexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.Metadata).Descending(x => x.BuildChangeList).Ascending(x => x.TestId).Ascending(x => x.SuiteId));
+			testRefIndexes.Add(keys => keys.Ascending(x => x.StreamId).Ascending(x => x.Metadata).Descending(x => x.BuildCommitOrder).Ascending(x => x.TestId).Ascending(x => x.SuiteId));
 			_testRefs = mongoService.GetCollection<TestDataRefDocument>("TestData.TestRefsV2", testRefIndexes);
 
 			_testDetails = mongoService.GetCollection<TestDataDetailsDocument>("TestData.TestDetailsV2");
@@ -433,7 +431,7 @@ namespace HordeServer.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, int? minChange = null, int? maxChange = null, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<ITestDataRef>> FindTestRefsAsync(StreamId[] streamIds, TestMetaId[]? metaIds = null, TestId[]? testIds = null, TestSuiteId[]? suiteIds = null, DateTime? minCreateTime = null, DateTime? maxCreateTime = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CancellationToken cancellationToken = default)
 		{
 
 			FilterDefinition<TestDataRefDocument> filter = FilterDefinition<TestDataRefDocument>.Empty;
@@ -476,13 +474,15 @@ namespace HordeServer.Jobs.TestData
 				}
 			}
 
-			if (minChange != null)
+			if (minCommitId != null)
 			{
-				filter &= filterBuilder.Gte(x => x.BuildChangeList, minChange);
+				int minCommitOrder = minCommitId.GetPerforceChange(); // TODO: need to resolve against correct stream
+				filter &= filterBuilder.Gte(x => x.BuildCommitOrder, minCommitOrder);
 			}
-			if (maxChange != null)
+			if (maxCommitId != null)
 			{
-				filter &= filterBuilder.Lte(x => x.BuildChangeList, maxChange);
+				int maxCommitOrder = maxCommitId.GetPerforceChange(); // TODO: need to resolve against correct stream
+				filter &= filterBuilder.Lte(x => x.BuildCommitOrder, maxCommitOrder);
 			}
 
 			List<TestDataRefDocument> results;
@@ -549,19 +549,21 @@ namespace HordeServer.Jobs.TestData
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<ITestData>> FindAsync(StreamId? streamId, int? minChange, int? maxChange, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyList<ITestData>> FindAsync(StreamId? streamId, CommitId? minCommitId, CommitId? maxCommitId, JobId? jobId, JobStepId? stepId, string? key = null, int index = 0, int count = 10, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<TestDataDocument> filter = FilterDefinition<TestDataDocument>.Empty;
 			if (streamId != null)
 			{
 				filter &= Builders<TestDataDocument>.Filter.Eq(x => x.StreamId, streamId.Value);
-				if (minChange != null)
+				if (minCommitId != null)
 				{
-					filter &= Builders<TestDataDocument>.Filter.Gte(x => x.Change, minChange.Value);
+					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					filter &= Builders<TestDataDocument>.Filter.Gte(x => x.CommitOrder, minCommitIdWithOrder.Order);
 				}
-				if (maxChange != null)
+				if (maxCommitId != null)
 				{
-					filter &= Builders<TestDataDocument>.Filter.Lte(x => x.Change, maxChange.Value);
+					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					filter &= Builders<TestDataDocument>.Filter.Lte(x => x.CommitOrder, maxCommitIdWithOrder.Order);
 				}
 			}
 			if (jobId != null)
@@ -577,7 +579,7 @@ namespace HordeServer.Jobs.TestData
 				filter &= Builders<TestDataDocument>.Filter.Eq(x => x.Key, key);
 			}
 
-			SortDefinition<TestDataDocument> sort = Builders<TestDataDocument>.Sort.Ascending(x => x.StreamId).Descending(x => x.Change);
+			SortDefinition<TestDataDocument> sort = Builders<TestDataDocument>.Sort.Ascending(x => x.StreamId).Descending(x => x.CommitOrder);
 
 			return await _testDataDocuments.Find(filter).Sort(sort).Skip(index).Limit(count).ToListAsync(cancellationToken);
 		}
@@ -1052,7 +1054,7 @@ namespace HordeServer.Jobs.TestData
 		{
 
 			// do not add preflight to temporal data
-			if (job.PreflightChange != 0)
+			if (job.PreflightCommitId != null)
 			{
 				return;
 			}
@@ -1508,7 +1510,7 @@ namespace HordeServer.Jobs.TestData
 				testRef.JobId = job.Id;
 				testRef.StepId = step.Id;
 				testRef.Metadata = metaData.Id;
-				testRef.BuildChangeList = testData.BuildChangeList <= 0 ? job.Change : testData.BuildChangeList;
+				testRef.BuildCommitId = testData.BuildChangeList <= 0 ? job.CommitId : CommitIdWithOrder.FromPerforceChange(testData.BuildChangeList);
 				testRef.Duration = TimeSpan.FromSeconds(testData.TotalDurationSeconds);
 				testRef.TestId = test.Id;
 				testRef.Outcome = testData.HasSucceeded ? TestOutcome.Success : TestOutcome.Unspecified;
@@ -1644,7 +1646,7 @@ namespace HordeServer.Jobs.TestData
 						testRef.JobId = job.Id;
 						testRef.StepId = step.Id;
 						testRef.Metadata = metaData.Id;
-						testRef.BuildChangeList = job.Change;
+						testRef.BuildCommitId = job.CommitId;
 						testRef.Duration = TimeSpan.FromSeconds(session.TestSessionInfo!.TimeElapseSec);
 						testRef.Outcome = TestOutcome.Unspecified;
 						testRef.SuiteId = testSuite.Id;

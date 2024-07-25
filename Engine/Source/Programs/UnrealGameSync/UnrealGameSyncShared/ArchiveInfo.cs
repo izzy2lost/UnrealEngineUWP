@@ -340,7 +340,7 @@ namespace UnrealGameSync
 						foreach (GetArtifactResponse response in group)
 						{
 							HordeArchive archive = new HordeArchive(hordeClient, response.Id);
-							channel.ChangeNumberToArchive[response.Change] = archive;
+							channel.ChangeNumberToArchive[response.CommitId!.GetPerforceChange()] = archive;
 						}
 						channels.Add(channel);
 					}

@@ -4,8 +4,10 @@ using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
+using HordeServer.Commits;
 using HordeServer.Server;
 using HordeServer.Storage;
 using HordeServer.Utilities;
@@ -37,8 +39,18 @@ namespace HordeServer.Artifacts
 			[BsonElement("str")]
 			public StreamId StreamId { get; set; }
 
+			[BsonElement("com")]
+			public string? CommitName { get; set; }
+
 			[BsonElement("chg")]
-			public int Change { get; set; }
+			public int CommitOrder { get; set; } // Was P4 changelist number
+
+			[BsonIgnore]
+			public CommitIdWithOrder CommitId
+			{
+				get => (CommitName != null)? new CommitIdWithOrder(CommitName, CommitOrder) : CommitIdWithOrder.FromPerforceChange(CommitOrder);
+				set => (CommitName, CommitOrder) = (value.Name, value.Order);
+			}
 
 			[BsonElement("key")]
 			public List<string> Keys { get; set; } = new List<string>();
@@ -72,14 +84,14 @@ namespace HordeServer.Artifacts
 			{
 			}
 
-			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, IEnumerable<string> metadata, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, AclScopeName scopeName)
+			public Artifact(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitIdWithOrder commitId, IEnumerable<string> keys, IEnumerable<string> metadata, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, AclScopeName scopeName)
 			{
 				Id = id;
 				Name = name;
 				Type = type;
 				Description = description;
 				StreamId = streamId;
-				Change = change;
+				CommitId = commitId;
 				Keys.AddRange(keys);
 				Metadata.AddRange(metadata);
 				NamespaceId = namespaceId;
@@ -91,19 +103,21 @@ namespace HordeServer.Artifacts
 
 		readonly IMongoCollection<Artifact> _artifacts;
 		readonly IClock _clock;
+		readonly ICommitService _commitService;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactCollection(IMongoService mongoService, IClock clock)
+		public ArtifactCollection(IMongoService mongoService, IClock clock, ICommitService commitService)
 		{
 			List<MongoIndex<Artifact>> indexes = new List<MongoIndex<Artifact>>();
 			indexes.Add(keys => keys.Ascending(x => x.Keys));
 			indexes.Add(keys => keys.Ascending(x => x.Type).Descending(x => x.Id));
-			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.Change).Ascending(x => x.Name).Descending(x => x.Id));
+			indexes.Add(keys => keys.Ascending(x => x.StreamId).Descending(x => x.CommitOrder).Ascending(x => x.Name).Descending(x => x.Id));
 			_artifacts = mongoService.GetCollection<Artifact>("ArtifactsV2", indexes);
 
 			_clock = clock;
+			_commitService = commitService;
 		}
 
 #pragma warning disable CA1308 // Expect ansi-only keys here
@@ -117,7 +131,7 @@ namespace HordeServer.Artifacts
 		public static string GetArtifactPath(StreamId streamId, ArtifactName name, ArtifactType type) => $"{streamId}/{name}/{type}";
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, int change, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken)
 		{
 			if (name.Id.IsEmpty)
 			{
@@ -131,9 +145,11 @@ namespace HordeServer.Artifacts
 			ArtifactId id = new ArtifactId(BinaryIdUtils.CreateNew());
 
 			NamespaceId namespaceId = Namespace.Artifacts;
-			RefName refName = new RefName($"{GetArtifactPath(streamId, name, type)}/{change}/{id}");
+			RefName refName = new RefName($"{GetArtifactPath(streamId, name, type)}/{commitId}/{id}");
 
-			Artifact artifact = new Artifact(id, name, type, description, streamId, change, keys.Select(x => NormalizeKey(x)), metadata, namespaceId, refName, _clock.UtcNow, scopeName);
+			CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, commitId, cancellationToken);
+
+			Artifact artifact = new Artifact(id, name, type, description, streamId, commitIdWithOrder, keys.Select(x => NormalizeKey(x)), metadata, namespaceId, refName, _clock.UtcNow, scopeName);
 			await _artifacts.InsertOneAsync(artifact, null, cancellationToken);
 			return artifact;
 		}
@@ -146,20 +162,22 @@ namespace HordeServer.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, int? minChange = null, int? maxChange = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<Artifact> filter = FilterDefinition<Artifact>.Empty;
 			if (streamId != null)
 			{
 				filter &= Builders<Artifact>.Filter.Eq(x => x.StreamId, streamId.Value);
-			}
-			if (minChange != null)
-			{
-				filter &= Builders<Artifact>.Filter.Gte(x => x.Change, minChange.Value);
-			}
-			if (maxChange != null)
-			{
-				filter &= Builders<Artifact>.Filter.Lte(x => x.Change, maxChange.Value);
+				if (minCommitId != null)
+				{
+					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					filter &= Builders<Artifact>.Filter.Gte(x => x.CommitOrder, minCommitIdWithOrder.Order);
+				}
+				if (maxCommitId != null)
+				{
+					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					filter &= Builders<Artifact>.Filter.Lte(x => x.CommitOrder, maxCommitIdWithOrder.Order);
+				}
 			}
 			if (name != null)
 			{
@@ -174,7 +192,7 @@ namespace HordeServer.Artifacts
 				filter &= Builders<Artifact>.Filter.All(x => x.Keys, keys.Select(x => NormalizeKey(x)));
 			}
 
-			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(filter).SortByDescending(x => x.Change).ThenByDescending(x => x.Id).Limit(maxResults).ToCursorAsync(cancellationToken))
+			using (IAsyncCursor<Artifact> cursor = await _artifacts.Find(filter).SortByDescending(x => x.CommitOrder).ThenByDescending(x => x.Id).Limit(maxResults).ToCursorAsync(cancellationToken))
 			{
 				while (await cursor.MoveNextAsync(cancellationToken))
 				{

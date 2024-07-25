@@ -13,19 +13,19 @@ namespace HordeServer.Commits
 	public interface ICommit
 	{
 		/// <summary>
+		/// Id for this commit
+		/// </summary>
+		CommitIdWithOrder Id { get; }
+
+		/// <summary>
 		/// Stream containing the commit
 		/// </summary>
 		StreamId StreamId { get; }
 
 		/// <summary>
-		/// The changelist number
-		/// </summary>
-		int Number { get; }
-
-		/// <summary>
 		/// The change that this commit originates from
 		/// </summary>
-		int OriginalChange { get; }
+		CommitIdWithOrder OriginalCommitId { get; }
 
 		/// <summary>
 		/// The author user id

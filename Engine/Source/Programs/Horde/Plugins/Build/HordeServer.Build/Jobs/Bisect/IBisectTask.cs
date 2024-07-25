@@ -98,7 +98,7 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Starting change for the bisection
 		/// </summary>
-		public int InitialChange { get; }
+		public CommitIdWithOrder InitialCommitId { get; }
 
 		/// <summary>
 		/// First known job id that is broken
@@ -108,7 +108,7 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Changelist number of the first broken job id
 		/// </summary>
-		public int CurrentChange { get; }
+		public CommitIdWithOrder CurrentCommitId { get; }
 
 		/// <summary>
 		/// Lower bound of bisection job Id
@@ -118,7 +118,7 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Lower bound of bisection changelist number
 		/// </summary>
-		public int? MinChange { get; }
+		public CommitIdWithOrder? MinCommitId { get; }
 
 		/// <summary>
 		/// The steps involved in the bisection
@@ -133,11 +133,11 @@ namespace HordeServer.Jobs.Bisect
 		/// <summary>
 		/// Set of changes to ignore while doing the bisection
 		/// </summary>
-		public IReadOnlySet<int> IgnoreChanges { get; }
+		public IReadOnlySet<CommitId> IgnoreCommitIds { get; }
 
 		/// <summary>
 		/// Set of jobs to ignore while doing the bisection
 		/// </summary>
-		public IReadOnlySet<JobId> IgnoreJobs { get; }
+		public IReadOnlySet<JobId> IgnoreJobIds { get; }
 	}
 }

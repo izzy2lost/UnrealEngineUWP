@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Graphs;
 using EpicGames.Horde.Jobs.Templates;
@@ -106,7 +107,7 @@ namespace HordeServer.Jobs
 			{
 				return BadRequest("Missing template referenced by {TemplateId}", create.TemplateId);
 			}
-			if (!template.AllowPreflights && create.PreflightChange > 0)
+			if (!template.AllowPreflights && create.PreflightCommitId != null)
 			{
 				return BadRequest("Template {TemplateId} does not allow preflights", create.TemplateId);
 			}
@@ -131,23 +132,25 @@ namespace HordeServer.Jobs
 
 			// Check the preflight change is valid
 			ShelfInfo? shelfInfo = null;
-			if (create.PreflightChange != null)
+			if (create.PreflightCommitId != null)
 			{
-				(CheckShelfResult result, shelfInfo) = await _perforce.CheckShelfAsync(streamConfig, create.PreflightChange.Value, HttpContext.RequestAborted);
+				int preflightChange = create.PreflightCommitId.GetPerforceChange();
+
+				(CheckShelfResult result, shelfInfo) = await _perforce.CheckShelfAsync(streamConfig, preflightChange, HttpContext.RequestAborted);
 				switch (result)
 				{
 					case CheckShelfResult.Ok:
 						break;
 					case CheckShelfResult.NoChange:
-						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not exist", create.PreflightChange);
+						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not exist", preflightChange);
 					case CheckShelfResult.NoShelvedFiles:
-						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not contain any shelved files", create.PreflightChange);
+						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not contain any shelved files", preflightChange);
 					case CheckShelfResult.WrongStream:
-						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not contain files in {Stream}", create.PreflightChange, streamConfig.Name);
+						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} does not contain files in {Stream}", preflightChange, streamConfig.Name);
 					case CheckShelfResult.MixedStream:
-						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} contains files from multiple streams", create.PreflightChange);
+						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} contains files from multiple streams", preflightChange);
 					default:
-						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} cannot be preflighted ({Result})", create.PreflightChange, result);
+						return BadRequest(KnownLogEvents.Horde_InvalidPreflight, "CL {Change} cannot be preflighted ({Result})", preflightChange, result);
 				}
 
 				if (shelfInfo!.Tags != null)
@@ -167,11 +170,11 @@ namespace HordeServer.Jobs
 			ICommitCollection commits = _commitService.GetCollection(streamConfig);
 
 			// Get the change to build
-			int change = await GetChangeToBuildAsync(create, streamConfig.Id, template, shelfInfo, commits, HttpContext.RequestAborted);
+			CommitIdWithOrder commitId = await GetChangeToBuildAsync(create, streamConfig.Id, template, shelfInfo, commits, HttpContext.RequestAborted);
 
 			// And get the matching code changelist
-			ICommit? lastCodeCommit = await commits.GetLastCodeChangeAsync(change, HttpContext.RequestAborted);
-			int codeChange = lastCodeCommit?.Number ?? change;
+			ICommit? lastCodeCommit = await commits.GetLastCodeChangeAsync(commitId, HttpContext.RequestAborted);
+			CommitIdWithOrder? codeCommitId = lastCodeCommit?.Id;
 
 			// New properties for the job
 			bool? updateIssues = null;
@@ -186,7 +189,7 @@ namespace HordeServer.Jobs
 
 			// Create options for the new job
 			CreateJobOptions options = new CreateJobOptions(templateRefConfig);
-			options.PreflightChange = create.PreflightChange;
+			options.PreflightCommitId = create.PreflightCommitId;
 			options.PreflightDescription = shelfInfo?.Description;
 			options.StartedByUserId = User.GetUserId();
 			options.Priority = priority;
@@ -247,37 +250,37 @@ namespace HordeServer.Jobs
 			}
 
 			// Create the job
-			IJob job = await _jobService.CreateJobAsync(null, streamConfig, templateRefId, template.Hash, graph, name, change, codeChange, options, cancellationToken);
+			IJob job = await _jobService.CreateJobAsync(null, streamConfig, templateRefId, template.Hash, graph, name, commitId, codeCommitId, options, cancellationToken);
 			await UpdateNotificationsAsync(job.Id, new UpdateNotificationsRequest { Slack = true }, cancellationToken);
 			return new CreateJobResponse(job.Id.ToString());
 		}
 
-		async ValueTask<int> GetChangeToBuildAsync(CreateJobRequest create, StreamId streamId, ITemplate template, ShelfInfo? shelfInfo, ICommitCollection commits, CancellationToken cancellationToken)
+		async ValueTask<CommitIdWithOrder> GetChangeToBuildAsync(CreateJobRequest create, StreamId streamId, ITemplate template, ShelfInfo? shelfInfo, ICommitCollection commits, CancellationToken cancellationToken)
 		{
 			// If there's an explicit change specified, use that
-			if (create.Change.HasValue && create.Change.Value != -1)
+			if (create.CommitId != null)
 			{
-				return create.Change.Value;
+				return await _commitService.GetOrderedAsync(streamId, create.CommitId, cancellationToken);
 			}
 
 			// Evaluate the change queries
 			if (create.ChangeQueries != null && create.ChangeQueries.Count > 0)
 			{
-				int? change = await _jobService.EvaluateChangeQueriesAsync(streamId, create.ChangeQueries, shelfInfo?.Tags, commits, cancellationToken);
-				if (change != null)
+				CommitIdWithOrder? commitId = await _jobService.EvaluateChangeQueriesAsync(streamId, create.ChangeQueries, shelfInfo?.Tags, commits, cancellationToken);
+				if (commitId != null)
 				{
-					return change.Value;
+					return commitId;
 				}
 			}
 
 			// If we need to submit a new change, do that
-			if (create.PreflightChange == null && template.SubmitNewChange != null)
+			if (create.PreflightCommitId == null && template.SubmitNewChange != null)
 			{
 				return await commits.CreateNewAsync(template, cancellationToken);
 			}
 
 			// Otherwise return the latest change
-			return await commits.GetLatestNumberAsync(cancellationToken);
+			return await commits.GetLastCommitIdAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -589,10 +592,10 @@ namespace HordeServer.Jobs
 		static GetJobResponse CreateGetJobResponse(IJob job, GetThinUserInfoResponse? startedByUserInfo, GetThinUserInfoResponse? abortedByUserInfo)
 		{
 			GetJobResponse response = new GetJobResponse(job.Id, job.StreamId, job.TemplateId, job.Name);
-			response.Change = job.Change;
-			response.CodeChange = (job.CodeChange != 0) ? (int?)job.CodeChange : null;
-			response.PreflightChange = (job.PreflightChange != 0) ? (int?)job.PreflightChange : null;
-			response.ClonedPreflightChange = (job.ClonedPreflightChange != 0) ? (int?)job.ClonedPreflightChange : null;
+			response.CommitId = job.CommitId;
+			response.CodeCommitId = job.CodeCommitId;
+			response.PreflightCommitId = job.PreflightCommitId;
+			response.ClonedPreflightCommitId = job.ClonedPreflightCommitId;
 			response.PreflightDescription = job.PreflightDescription;
 			response.TemplateHash = job.TemplateHash?.ToString() ?? String.Empty;
 			response.GraphHash = job.GraphHash.ToString();
@@ -1054,11 +1057,11 @@ namespace HordeServer.Jobs
 			[FromQuery] string? streamId = null,
 			[FromQuery] string? name = null,
 			[FromQuery(Name = "template")] string[]? templates = null,
-			[FromQuery] int? minChange = null,
-			[FromQuery] int? maxChange = null,
+			[FromQuery] CommitId? minChange = null,
+			[FromQuery] CommitId? maxChange = null,
 			[FromQuery] bool includePreflight = true,
 			[FromQuery] bool? preflightOnly = null,
-			[FromQuery] int? preflightChange = null,
+			[FromQuery] CommitId? preflightChange = null,
 			[FromQuery] string? preflightStartedByUserId = null,
 			[FromQuery] string? startedByUserId = null,
 			[FromQuery] DateTimeOffset? minCreateTime = null,
@@ -1077,11 +1080,6 @@ namespace HordeServer.Jobs
 
 			TemplateId[]? templateRefIds = (templates != null && templates.Length > 0) ? templates.Select(x => new TemplateId(x)).ToArray() : null;
 
-			if (includePreflight == false)
-			{
-				preflightChange = 0;
-			}
-
 			UserId? preflightStartedByUserIdValue = null;
 
 			if (preflightStartedByUserId != null)
@@ -1098,7 +1096,7 @@ namespace HordeServer.Jobs
 
 			IReadOnlyList<IJob> jobs;
 			jobs = await _jobService.FindJobsAsync(jobIdValues, streamIdValue, name, templateRefIds, minChange,
-				maxChange, preflightChange, preflightOnly, preflightStartedByUserIdValue, startedByUserIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, target, null, state, outcome,
+				maxChange, preflightChange, preflightOnly, includePreflight, preflightStartedByUserIdValue, startedByUserIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, target, null, state, outcome,
 				modifiedBefore, modifiedAfter, index, count, false);
 
 			return await CreateAuthorizedJobResponsesAsync(jobs, filter);

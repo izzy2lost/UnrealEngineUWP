@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
@@ -147,7 +148,16 @@ namespace HordeServer.Streams
 
 		class TemplateScheduleDoc : ITemplateSchedule
 		{
-			public int LastTriggerChange { get; set; }
+			public CommitIdWithOrder LastTriggerCommitId
+			{
+				get => (LastTriggerCommitName != null) ? new CommitIdWithOrder(LastTriggerCommitName, LastTriggerCommitOrder) : CommitIdWithOrder.FromPerforceChange(LastTriggerCommitOrder);
+				set => (LastTriggerCommitName, LastTriggerCommitOrder) = (value.Name, value.Order);
+			}
+
+			public string? LastTriggerCommitName { get; set; }
+
+			[BsonElement("LastTriggerChange")]
+			public int LastTriggerCommitOrder { get; set; }
 
 			[BsonIgnoreIfNull, Obsolete("Use LastTriggerTimeUtc instead")]
 			public DateTimeOffset? LastTriggerTime { get; set; }
@@ -382,7 +392,7 @@ namespace HordeServer.Streams
 		}
 
 		/// <inheritdoc/>
-		public async Task<IStream?> TryUpdateScheduleTriggerAsync(IStream streamInterface, TemplateId templateId, DateTime? lastTriggerTimeUtc, int? lastTriggerChange, List<JobId> newActiveJobs, CancellationToken cancellationToken)
+		public async Task<IStream?> TryUpdateScheduleTriggerAsync(IStream streamInterface, TemplateId templateId, DateTime? lastTriggerTimeUtc, CommitIdWithOrder? lastTriggerCommitId, List<JobId> newActiveJobs, CancellationToken cancellationToken)
 		{
 			StreamDoc stream = (StreamDoc)streamInterface;
 			TemplateRefDoc template = stream.Templates[templateId];
@@ -394,18 +404,24 @@ namespace HordeServer.Streams
 			{
 				FieldDefinition<StreamDoc, DateTime> lastTriggerTimeField = $"{nameof(stream.Templates)}.{templateId}.{nameof(template.Schedule)}.{nameof(schedule.LastTriggerTimeUtc)}";
 				updates.Add(Builders<StreamDoc>.Update.Set(lastTriggerTimeField, lastTriggerTimeUtc.Value));
+
 				schedule.LastTriggerTimeUtc = lastTriggerTimeUtc.Value;
 			}
-			if (lastTriggerChange.HasValue && lastTriggerChange.Value > schedule.LastTriggerChange)
+			if (lastTriggerCommitId != null && lastTriggerCommitId > schedule.LastTriggerCommitId)
 			{
-				FieldDefinition<StreamDoc, int> lastTriggerChangeField = $"{nameof(stream.Templates)}.{templateId}.{nameof(template.Schedule)}.{nameof(schedule.LastTriggerChange)}";
-				updates.Add(Builders<StreamDoc>.Update.Set(lastTriggerChangeField, lastTriggerChange.Value));
-				schedule.LastTriggerChange = lastTriggerChange.Value;
+				FieldDefinition<StreamDoc, string> lastTriggerCommitNameField = $"{nameof(stream.Templates)}.{templateId}.{nameof(template.Schedule)}.{nameof(schedule.LastTriggerCommitName)}";
+				updates.Add(Builders<StreamDoc>.Update.Set(lastTriggerCommitNameField, lastTriggerCommitId.Name));
+
+				FieldDefinition<StreamDoc, int> lastTriggerChangeField = $"{nameof(stream.Templates)}.{templateId}.{nameof(template.Schedule)}.LastTriggerChange";
+				updates.Add(Builders<StreamDoc>.Update.Set(lastTriggerChangeField, lastTriggerCommitId.Order));
+
+				schedule.LastTriggerCommitId = lastTriggerCommitId;
 			}
 			if (newActiveJobs != null)
 			{
 				FieldDefinition<StreamDoc, List<JobId>> field = $"{nameof(stream.Templates)}.{templateId}.{nameof(template.Schedule)}.{nameof(schedule.ActiveJobs)}";
 				updates.Add(Builders<StreamDoc>.Update.Set(field, newActiveJobs));
+
 				schedule.ActiveJobs = newActiveJobs;
 			}
 

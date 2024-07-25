@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Users;
 using HordeServer.Issues;
@@ -283,7 +284,7 @@ namespace HordeServer.Ugs
 		{
 			HashSet<ObjectId> unresolvedSpans = new HashSet<ObjectId>(issue.Spans.Where(x => x.NextSuccess == null).Select(x => x.Id));
 
-			IIssueStep? step = issue.Steps.OrderByDescending(x => unresolvedSpans.Contains(x.SpanId)).ThenByDescending(x => x.Change).FirstOrDefault();
+			IIssueStep? step = issue.Steps.OrderByDescending(x => unresolvedSpans.Contains(x.SpanId)).ThenByDescending(x => x.CommitId).FirstOrDefault();
 			if (step == null)
 			{
 				return null;
@@ -301,7 +302,7 @@ namespace HordeServer.Ugs
 		/// <returns>Response object</returns>
 		GetUgsIssueBuildResponse CreateBuildResponse(IIssueSpan span, IIssueStep step, IssueBuildOutcome outcome)
 		{
-			GetUgsIssueBuildResponse response = new GetUgsIssueBuildResponse(span.StreamName, step.Change, outcome);
+			GetUgsIssueBuildResponse response = new GetUgsIssueBuildResponse(span.StreamName, step.CommitId.GetPerforceChange(), outcome);
 			response.Id = step.LogId.GetHashCode();
 			response.JobName = $"{step.JobName}: {span.NodeName}";
 			response.JobUrl = new Uri(_serverInfo.DashboardUrl, $"job/{step.JobId}");
@@ -349,7 +350,7 @@ namespace HordeServer.Ugs
 				newResolvedById = request.Resolved.Value ? IIssue.ResolvedByUnknownId : UserId.Empty;
 			}
 
-			if (!await _issueService.UpdateIssueAsync(issueId, ownerId: newOwnerId, nominatedById: newNominatedById, acknowledged: request.Acknowledged, declinedById: newDeclinedById, fixChange: request.FixChange, resolvedById: newResolvedById, initiatedById: User.GetUserId()))
+			if (!await _issueService.UpdateIssueAsync(issueId, ownerId: newOwnerId, nominatedById: newNominatedById, acknowledged: request.Acknowledged, declinedById: newDeclinedById, fixCommitId: CommitId.FromPerforceChange(request.FixChange), resolvedById: newResolvedById, initiatedById: User.GetUserId()))
 			{
 				return NotFound();
 			}

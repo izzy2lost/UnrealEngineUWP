@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Jobs.TestData;
@@ -17,6 +18,7 @@ namespace HordeServer.Jobs.TestData
 		/// The test meta id
 		/// </summary>
 		TestMetaId Id { get; }
+
 		/// <summary>
 		/// The name of the test platform
 		/// </summary>
@@ -146,7 +148,9 @@ namespace HordeServer.Jobs.TestData
 	/// </summary>
 	public interface ITestDataRef
 	{
+		/// <summary>
 		/// The test ref id
+		/// </summary>
 		TestRefId Id { get; }
 
 		/// <summary>
@@ -172,7 +176,7 @@ namespace HordeServer.Jobs.TestData
 		/// <summary>
 		/// The build changelist upon which the test ran, may not correspond to the job changelist
 		/// </summary>
-		int BuildChangeList { get; }
+		CommitIdWithOrder BuildCommitId { get; }
 
 		/// <summary>
 		/// The environment the test ran in
@@ -220,7 +224,9 @@ namespace HordeServer.Jobs.TestData
 	/// </summary>
 	public interface ITestDataDetails
 	{
+		/// <summary>
 		/// The corresponding test ref		
+		/// </summary>
 		TestRefId Id { get; }
 
 		/// <summary>
@@ -286,9 +292,9 @@ namespace HordeServer.Jobs.TestData
 		JobStepId StepId { get; }
 
 		/// <summary>
-		/// The changelist number that contained the data
+		/// The commit that contained the data
 		/// </summary>
-		int Change { get; }
+		CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Key used to identify the particular data

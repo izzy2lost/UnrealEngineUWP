@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +9,7 @@ using EpicGames.Horde;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Google.Protobuf.WellKnownTypes;
@@ -197,10 +197,10 @@ namespace HordeServer.Jobs
 			response.LogId = batch.LogId.ToString();
 			response.AgentType = graph.Groups[batch.GroupIdx].AgentType;
 			response.StreamName = streamConfig.Name;
-			response.Change = job.Change;
-			response.CodeChange = job.CodeChange;
-			response.PreflightChange = job.PreflightChange;
-			response.ClonedPreflightChange = job.ClonedPreflightChange;
+			response.Change = job.CommitId.GetPerforceChange();
+			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;
+			response.PreflightChange = job.PreflightCommitId?.GetPerforceChange() ?? 0;
+			response.ClonedPreflightChange = job.ClonedPreflightCommitId?.GetPerforceChange() ?? 0;
 			response.Arguments.AddRange(job.Arguments);
 			if (agentConfig.TempStorageDir != null)
 			{
@@ -374,60 +374,60 @@ namespace HordeServer.Jobs
 					response.EnvVars.Add(job.Environment);
 				}
 
-				IJobStepRef? lastStep = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.Change);
+				IJobStepRef? lastStep = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId);
 				if (lastStep != null)
 				{
-					response.EnvVars.Add("UE_HORDE_LAST_CL", lastStep.Change.ToString(CultureInfo.InvariantCulture));
+					response.EnvVars.Add("UE_HORDE_LAST_CL", lastStep.CommitId.ToString());
 
-					int? lastSuccessChange = null;
+					CommitIdWithOrder? lastSuccessCommitId = null;
 					if (lastStep.Outcome == JobStepOutcome.Success)
 					{
-						lastSuccessChange = lastStep.Change;
+						lastSuccessCommitId = lastStep.CommitId;
 					}
 					else if (lastStep.LastSuccess != null)
 					{
-						lastSuccessChange = lastStep.LastSuccess.Value;
+						lastSuccessCommitId = lastStep.LastSuccess;
 					}
 					else
 					{
 						// Previous job hasn't finished yet; need to search for *current* last success step
-						IJobStepRef? lastSuccess = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.Change, outcome: JobStepOutcome.Success);
+						IJobStepRef? lastSuccess = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, outcome: JobStepOutcome.Success);
 						if (lastSuccess != null)
 						{
-							lastSuccessChange = lastSuccess.Change;
+							lastSuccessCommitId = lastSuccess.CommitId;
 						}
 					}
 
-					int? lastWarningChange = null;
+					CommitIdWithOrder? lastWarningCommitId = null;
 					if (lastStep.Outcome == JobStepOutcome.Success || lastStep.Outcome == JobStepOutcome.Warnings)
 					{
-						lastWarningChange = lastStep.Change;
+						lastWarningCommitId = lastStep.CommitId;
 					}
 					else if (lastStep.LastWarning != null)
 					{
-						lastWarningChange = lastStep.LastWarning.Value;
+						lastWarningCommitId = lastStep.LastWarning;
 					}
 					else
 					{
 						// Previous job hasn't finished yet; need to search for *current* last warning step
-						IJobStepRef? lastWarnings = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.Change, outcome: JobStepOutcome.Warnings);
-						if (lastWarnings != null && (lastSuccessChange == null || lastWarnings.Change > lastSuccessChange.Value))
+						IJobStepRef? lastWarnings = await _jobStepRefCollection.GetPrevStepForNodeAsync(job.StreamId, job.TemplateId, node.Name, job.CommitId, outcome: JobStepOutcome.Warnings);
+						if (lastWarnings != null && (lastSuccessCommitId == null || lastWarnings.CommitId > lastSuccessCommitId))
 						{
-							lastWarningChange = lastWarnings.Change;
+							lastWarningCommitId = lastWarnings.CommitId;
 						}
 						else
 						{
-							lastWarningChange = lastSuccessChange;
+							lastWarningCommitId = lastSuccessCommitId;
 						}
 					}
 
-					if (lastSuccessChange != null)
+					if (lastSuccessCommitId != null)
 					{
-						response.EnvVars.Add("UE_HORDE_LAST_SUCCESS_CL", lastSuccessChange.Value.ToString(CultureInfo.InvariantCulture));
+						response.EnvVars.Add("UE_HORDE_LAST_SUCCESS_CL", lastSuccessCommitId.ToString());
 					}
-					if (lastWarningChange != null)
+					if (lastWarningCommitId != null)
 					{
-						response.EnvVars.Add("UE_HORDE_LAST_WARNING_CL", lastWarningChange.Value.ToString(CultureInfo.InvariantCulture));
+						response.EnvVars.Add("UE_HORDE_LAST_WARNING_CL", lastWarningCommitId.ToString());
 					}
 				}
 
@@ -819,7 +819,7 @@ namespace HordeServer.Jobs
 				description = request.Name;
 			}
 
-			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, job.StreamId, job.Change, keys, request.Metadata, templateConfig.Acl.ScopeName, context.CancellationToken);
+			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, job.StreamId, job.CommitId, keys, request.Metadata, templateConfig.Acl.ScopeName, context.CancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{artifact.NamespaceId}:{artifact.RefName}"));
