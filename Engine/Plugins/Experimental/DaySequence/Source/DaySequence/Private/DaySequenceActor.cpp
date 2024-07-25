@@ -539,6 +539,11 @@ void ADaySequenceActor::InitializePlayer()
 void ADaySequenceActor::InitializeRootSequence()
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceActor_InitializeRootSequence);
+
+	if (IsTemplate())
+	{
+		return;
+	}
 	
 	ensureMsgf(!SequencePlayer || !SequencePlayer->IsValid(), TEXT("InitializeRootSequence called but the sequence player has already been initialized."));
 	
