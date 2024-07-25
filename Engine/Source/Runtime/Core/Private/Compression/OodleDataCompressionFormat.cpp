@@ -464,19 +464,17 @@ ICompressionFormat * CreateOodleDataCompressionFormat()
 
 			// NOTE : we get OodleCompressDLL from Engine.ini for the platform we are running *on* not the platform we are packaging *for*
 			// the ProjectPackaging settings we get on the command line from Game.ini come from the *target* platform
-			FString OodleDLL = "";
+			FString OodleDLL = TEXT("");
 
-			// check command line first : 
+			// do NOT read OodleCompressDLL from GConfig here; it is passed on command line from CopyBuildToStagingDirectory.Automation.cs : 
 			FParse::Value(FCommandLine::Get(), TEXT("OodleCompressDLL="), OodleDLL);
-
-			if ( OodleDLL.IsEmpty() && GConfig )
+			
+			if ( OodleDLL.Equals( TEXT("latest"), ESearchCase::IgnoreCase) )
 			{
-				// @todo Oodle : possibly remove this? unnecessary if it's always been put on command line
-				// UnrealPak and other "programs" do not read the project config hierarchy
-				// CopyBuildToStagingDirectory.Automation.cs reads this config value and passes it on the command line
-				GConfig->GetString(TEXT("OodleDataCompressionFormat"), TEXT("OodleCompressDLL"), OodleDLL, GEngineIni);
+				// allow use of "latest" as a synonym for not passing any OodleCompressDLL arg
+				OodleDLL = TEXT("");
 			}
-		
+			
 			if ( ! OodleDLL.IsEmpty() )
 			{
 				UE_LOG(OodleDataCompression, Display, TEXT("OodleCompressDLL=%s"), *OodleDLL);

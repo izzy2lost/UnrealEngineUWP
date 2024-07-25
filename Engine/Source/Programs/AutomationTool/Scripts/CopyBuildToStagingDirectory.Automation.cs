@@ -3258,34 +3258,44 @@ namespace AutomationScripts
 					CompressionFormats += " -compressmethod=" + CompressionMethod;
 				}
 
+				// bForceUseLatestOodle is like the other compress config, it comes from the *target* platform
+				//	unlike OodleCompressDLL which is on the *packager* platform
+				//	this lets you set OodleCompressDLL on the packager and then turn it off per-target selectively with bForceUseLatestOodle
+				bool bForceUseLatestOodle = false;
+				PlatformGameConfig.GetBool("/Script/UnrealEd.ProjectPackagingSettings", "bForceUseLatestOodle", out bForceUseLatestOodle);
 
-				// unlike the other config, the DLL should be fetched from the build platform not the target platform
-				// it's the DLL to use during packaging, not during runtime, so it needs to be for the platform the packager runs on, not the platform you're packaging for.
-				// Most of the compression options come from the platform you're packaging FOR
-
-				ConfigHierarchy BuildPlatformEngineConfig = ConfigCache.ReadHierarchy(
-					ConfigHierarchyType.Engine,
-					DirectoryReference.FromFile(Params.RawProjectPath),
-					BuildHostPlatform.Current.Platform,
-					SC.CustomConfig,
-					Params.ConfigOverrideParams.ToArray());
-
-				string OodleCompressDLL;
-				BuildPlatformEngineConfig.GetString("OodleDataCompressionFormat", "OodleCompressDLL", out OodleCompressDLL);
-				if (!string.IsNullOrWhiteSpace(Params.ForceOodleDllVersion))
+				if (!bForceUseLatestOodle)
 				{
-					if (string.Equals(Params.ForceOodleDllVersion, "latest", StringComparison.OrdinalIgnoreCase))
+					// unlike the other config, the DLL should be fetched from the build platform not the target platform
+					// it's the DLL to use during packaging, not during runtime, so it needs to be for the platform the packager runs on, not the platform you're packaging for.
+					// Most of the compression options come from the platform you're packaging FOR
+
+					ConfigHierarchy BuildPlatformEngineConfig = ConfigCache.ReadHierarchy(
+						ConfigHierarchyType.Engine,
+						DirectoryReference.FromFile(Params.RawProjectPath),
+						BuildHostPlatform.Current.Platform,
+						SC.CustomConfig,
+						Params.ConfigOverrideParams.ToArray());
+
+					string OodleCompressDLL;
+					BuildPlatformEngineConfig.GetString("OodleDataCompressionFormat", "OodleCompressDLL", out OodleCompressDLL);
+
+					// ForceOodleDllVersion build param (eg. for UEFN) can override config
+					if (!string.IsNullOrWhiteSpace(Params.ForceOodleDllVersion))
 					{
-						OodleCompressDLL = "";
+						if (string.Equals(Params.ForceOodleDllVersion, "latest", StringComparison.OrdinalIgnoreCase))
+						{
+							OodleCompressDLL = "";
+						}
+						else
+						{
+							OodleCompressDLL = Params.ForceOodleDllVersion;
+						}
 					}
-					else
+					if (!string.IsNullOrWhiteSpace(OodleCompressDLL))
 					{
-						OodleCompressDLL = Params.ForceOodleDllVersion;
+						CompressionFormats += " -OodleCompressDLL=" + OodleCompressDLL;
 					}
-				}
-				if (!string.IsNullOrWhiteSpace(OodleCompressDLL))
-				{
-					CompressionFormats += " -OodleCompressDLL=" + OodleCompressDLL;
 				}
 			}
 
