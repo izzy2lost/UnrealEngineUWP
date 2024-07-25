@@ -291,6 +291,16 @@ public:
 	 * @return True if the replication activity was found, false otherwise.
 	 */
 	bool GetReplicationActivity(const int64 InActivityId, FConcertSyncReplicationActivity& OutReplicationActivity) const;
+
+	/**
+	 * Get a replication activity from this database by its event ID
+	 *
+	 * @param InEventId					The ID of the event that is saved in a replication activity.
+	 * @param OutReplicationActivity	The replication activity to populate with the result.
+	 *
+	 * @return True if the replication activity was found, false otherwise.
+	 */
+	bool GetReplicationActivityForEvent(const int64 InEventId, FConcertSyncReplicationActivity& OutReplicationActivity) const;
 	
 	/**
 	 * Get the type of an activity in this database.

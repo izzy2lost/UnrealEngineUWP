@@ -2,6 +2,7 @@
 
 #include "ReplicationWorkspace.h"
 
+#include "ConcertLogGlobal.h"
 #include "ConcertSyncSessionDatabase.h"
 #include "Replication/Messages/ReplicationActivity.h"
 
@@ -68,7 +69,7 @@ namespace UE::ConcertSyncServer
 			NewestEventId = FMath::Max(NewestEventId, EventId);
 		}
 
-		const bool bGotData = NewestEventId != INDEX_NONE && Database.GetReplicationActivity(NewestEventId, OutActivity);
+		const bool bGotData = NewestEventId != INDEX_NONE && Database.GetReplicationActivityForEvent(NewestEventId, OutActivity);
 		return bGotData;
 	}
 

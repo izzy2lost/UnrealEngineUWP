@@ -1969,6 +1969,12 @@ bool FConcertSyncSessionDatabase::GetReplicationActivity(const int64 InActivityI
 		&& GetReplicationEvent(OutReplicationActivity.EventId, OutReplicationActivity.EventData);
 }
 
+bool FConcertSyncSessionDatabase::GetReplicationActivityForEvent(const int64 InEventId, FConcertSyncReplicationActivity& OutReplicationActivity) const
+{
+	return GetActivityForEvent(InEventId, EConcertSyncActivityEventType::Replication, OutReplicationActivity)
+		&& GetReplicationEvent(OutReplicationActivity.EventId, OutReplicationActivity.EventData);
+}
+
 bool FConcertSyncSessionDatabase::GetActivityEventType(const int64 InActivityId, EConcertSyncActivityEventType& OutEventType) const
 {
 	return Statements->GetActivityEventTypeForId(InActivityId, OutEventType);
