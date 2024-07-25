@@ -8,6 +8,23 @@
 
 #include "EditorAssetSubsystem.generated.h"
 
+UENUM(BlueprintType, DisplayName = "Sort Order")
+enum class EEditorAssetSortOrder : uint8
+{
+	Ascending,
+	Descending
+};
+
+UENUM(BlueprintType, DisplayName = "Meta Data Sort Type")
+enum class EEditorAssetMetaDataSortType : uint8
+{
+	String,
+	Numeric,
+	DateTime
+};
+
+DECLARE_DYNAMIC_DELEGATE_RetVal_TwoParams(bool, FEditorAssetSortingPredicate, const FAssetData&, Left, const FAssetData&, Right);
+
 /**
 * UEditorAssetSubsystem
 * Subsystem for exposing asset related utilities to scripts.
@@ -394,14 +411,14 @@ public:
 	 * for example from a drag and drop operation.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-		UNREALED_API void AddOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
+	UNREALED_API void AddOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
 
 	/**
 	 * Call this to remove a callback added with AddOnExtractAssetFromFile.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-		UNREALED_API void RemoveOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
-
+	UNREALED_API void RemoveOnExtractAssetFromFile(FOnExtractAssetFromFileDynamic Delegate);
+	
 	/**
 	 * Get the delegate for extracting an asset from a file,
 	 * for example from a drag and drop operation.
@@ -410,6 +427,47 @@ public:
 	 * Broadcasting this will also call anything added with AddOnExtractAssetFromFile.
 	 */
 	FOnExtractAssetFromFile& GetOnExtractAssetFromFile() { return OnExtractAssetFromFile; }
+	
+	/**
+	 * Gets all assets which have the given tags.
+	 * 
+	 * @params RequiredTags The tags the assets should have
+	 * @params AllowedClasses The class types the contained assets should have
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API TArray<FAssetData> GetAllAssetsByMetaDataTags(const TSet<FName>& RequiredTags, const TSet<UClass*>& AllowedClasses);
+
+	/**
+	 * Sorts the assets based on a custom Blueprint delegate.
+	 * 
+	 * @param Assets The assets to sort
+	 * @param SortingPredicate Implements a Left <= Right relation
+	 * @param SortOrder Whether to sort ascending or descending
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API void SortByPredicate(UPARAM(Ref) TArray<FAssetData>& Assets, FEditorAssetSortingPredicate SortingPredicate, EEditorAssetSortOrder SortOrder);
+
+	/**
+	 * Sorts the assets by their asset name.
+	 *
+	 * @param Assets The assets to sort
+	 * @param SortOrder Whether to sort ascending or descending
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API void SortByName(UPARAM(Ref) TArray<FAssetData>& Assets, EEditorAssetSortOrder SortOrder);
+	
+	/**
+	 * Sorts the assets based on their meta data's type.
+	 * Supported types: FString, int, float, FDateTime.
+	 * 
+	 * @param Assets The assets to sort
+	 * @param MetaDataTag The on which the sort is based
+	 * @param MetaDataType The meta data type of MetaDataTag
+	 * @param SortOrder Whether to sort ascending or descending
+	 * @return Whether the data was sorted, e.g. false if not all assets have the MetaDataTag.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API bool SortByMetaData(UPARAM(Ref) TArray<FAssetData>& Assets, FName MetaDataTag, EEditorAssetMetaDataSortType MetaDataType, EEditorAssetSortOrder SortOrder);
 
 private:
 
