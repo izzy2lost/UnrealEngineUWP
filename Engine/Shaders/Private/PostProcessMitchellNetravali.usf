@@ -144,7 +144,12 @@ void DownsampleMainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	}
 
 	// Remove unecessary ALU work for alpha channel if unsupported on project.
-	#if POST_PROCESS_ALPHA == 0
+	#if DIM_ALPHA_CHANNEL
+	{
+		OutColor[3] = select(OutColor[3] > 0.995, 1.0, OutColor[3]);
+		OutColor[3] = select(OutColor[3] < 0.005, 0.0, OutColor[3]);
+	}
+	#else
 		OutColor.a = 0;
 	#endif
 

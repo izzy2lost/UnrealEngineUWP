@@ -4,6 +4,7 @@
 #include "PostProcess/SceneFilterRendering.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #include "SceneRendering.h"
+#include "PostProcessing.h"
 
 namespace
 {
@@ -51,8 +52,9 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FUpscalePS, FGlobalShader);
 	using FParameters = FUpscaleParameters;
 
+	class FAlphaChannelDim : SHADER_PERMUTATION_BOOL("DIM_ALPHA_CHANNEL");
 	class FMethodDimension : SHADER_PERMUTATION_ENUM_CLASS("METHOD", EUpscaleMethod);
-	using FPermutationDomain = TShaderPermutationDomain<FMethodDimension>;
+	using FPermutationDomain = TShaderPermutationDomain<FAlphaChannelDim, FMethodDimension>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -156,6 +158,7 @@ FScreenPassTexture ISpatialUpscaler::AddDefaultUpscalePass(
 	PassParameters->View = View.ViewUniformBuffer;
 
 	FUpscalePS::FPermutationDomain PixelPermutationVector;
+	PixelPermutationVector.Set<FUpscalePS::FAlphaChannelDim>(IsPostProcessingWithAlphaChannelSupported());
 	PixelPermutationVector.Set<FUpscalePS::FMethodDimension>(Method);
 	TShaderMapRef<FUpscalePS> PixelShader(View.ShaderMap, PixelPermutationVector);
 
@@ -167,6 +170,7 @@ FScreenPassTexture ISpatialUpscaler::AddDefaultUpscalePass(
 		RDG_EVENT_NAME("Upscale(%s Method=%d%s) %dx%d -> %dx%d",
 			StageName,
 			int32(Method),
+			PixelPermutationVector.Get<FUpscalePS::FAlphaChannelDim>() ? TEXT(" Alpha") : TEXT(""),
 			bApplyLensDistortion ? TEXT(" LensDistortion") : TEXT(""),
 			Inputs.SceneColor.ViewRect.Width(), Inputs.SceneColor.ViewRect.Height(),
 			Output.ViewRect.Width(), Output.ViewRect.Height()),

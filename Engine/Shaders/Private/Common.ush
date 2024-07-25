@@ -143,16 +143,6 @@ const static float Max11BitsFloat = 65024.0f;
 const static float Max10BitsFloat = 64512.0f;
 const static float3 Max111110BitsFloat3 = float3(Max11BitsFloat, Max11BitsFloat, Max10BitsFloat);
 
-#if POST_PROCESS_ALPHA
-#define SceneColorLayout float4
-#define CastFloat4ToSceneColorLayout(x) (x)
-#define SetSceneColorLayoutToFloat4(dest,value) dest = (value)
-#else
-#define SceneColorLayout float3
-#define CastFloat4ToSceneColorLayout(x) ((x).rgb)
-#define SetSceneColorLayoutToFloat4(dest,value) dest.rgb = (value).rgb
-#endif
-
 #define SUPPORTS_TEXTURE_EXTERNAL		(COMPILER_GLSL_ES3_1)
 
 #if !SUPPORTS_TEXTURE_EXTERNAL

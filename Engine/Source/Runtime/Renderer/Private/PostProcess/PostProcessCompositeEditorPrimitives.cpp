@@ -11,6 +11,7 @@
 #include "Substrate/Substrate.h"
 #include "MeshEdgesRendering.h"
 #include "PixelShaderUtils.h"
+#include "PostProcess/PostProcessing.h" // IsPostProcessingWithAlphaChannelSupported
 
 namespace
 {
@@ -42,6 +43,7 @@ public:
 		SHADER_PARAMETER(uint32, bOpaqueEditorGizmo)
 		SHADER_PARAMETER(uint32, bCompositeAnyNonNullDepth)
 		SHADER_PARAMETER(FVector2f, DepthTextureJitter)
+		SHADER_PARAMETER(uint32, bProcessAlpha)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -431,6 +433,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 		PassParameters->bOpaqueEditorGizmo = bOpaqueEditorGizmo;
 		PassParameters->bCompositeAnyNonNullDepth = bProducedByPriorPass && !View.Family->EngineShowFlags.MeshEdges;
 		PassParameters->DepthTextureJitter = SceneDepthJitter;
+		PassParameters->bProcessAlpha = IsPostProcessingWithAlphaChannelSupported();
 
 		for (int32 i = 0; i < int32(NumMSAASamples); i++)
 		{
