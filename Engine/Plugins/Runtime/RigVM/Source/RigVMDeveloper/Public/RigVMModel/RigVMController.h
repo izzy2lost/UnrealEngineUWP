@@ -24,6 +24,7 @@
 #include "RigVMController.generated.h"
 
 class URigVMActionStack;
+class IRigVMClientHost;
 struct FRigVMGraphFunctionArgument;
 struct FRigVMGraphFunctionHeader;
 
@@ -293,6 +294,12 @@ public:
 	// Returns another controller for a given graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	URigVMController* GetControllerForGraph(const URigVMGraph* InGraph) const;
+
+	// Returns the client host this controller belongs to
+	IRigVMClientHost* GetClientHost() const;
+
+	// Returns all events present on the client host
+	TArray<FName> GetAllEventNames() const; 
 
 	// The Modified event used to subscribe to changes
 	// happening within the Graph. This is broadcasted to 
@@ -1435,6 +1442,7 @@ public:
 
 protected:
 
+	IRigVMClientHost* GetClientHost_Internal(const URigVMGraph* InGraph) const;
 	URigVMPin* CreatePinFromPinInfo(const FRigVMRegistry& InRegistry, const FRigVMPinInfoArray& InPreviousPinInfos, const FRigVMPinInfo& InPinInfo, const FString& InPinPath, UObject* InOuter);
 
 	// backwards compatibility code

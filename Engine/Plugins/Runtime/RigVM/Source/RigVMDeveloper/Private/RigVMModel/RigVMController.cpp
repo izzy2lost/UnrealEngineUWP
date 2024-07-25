@@ -268,17 +268,7 @@ URigVMController* URigVMController::GetControllerForGraph(const URigVMGraph* InG
 		return const_cast<URigVMController*>(this);
 	}
 
-	// get the client host from the graph rather than this controller,
-	// since the graph may be in a different host / rigvmblueprint.
-	IRigVMClientHost* ClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>();
-
-	// the graph may not be nested under a client in some unit tests
-	if(ClientHost == nullptr)
-	{
-		ClientHost = GetImplementingOuter<IRigVMClientHost>();
-	}
-	
-	if(ClientHost)
+	if(IRigVMClientHost* ClientHost = GetClientHost())
 	{
 		if(FRigVMClient* Client = ClientHost->GetRigVMClient())
 		{
@@ -299,6 +289,60 @@ URigVMController* URigVMController::GetControllerForGraph(const URigVMGraph* InG
 		}
 	}
 	return nullptr;
+}
+
+IRigVMClientHost* URigVMController::GetClientHost() const
+{
+	return GetClientHost_Internal(GetGraph());
+}
+
+IRigVMClientHost* URigVMController::GetClientHost_Internal(const URigVMGraph* InGraph) const
+{
+	// get the client host from the graph rather than this controller,
+	// since the graph may be in a different host / rigvmblueprint.
+	IRigVMClientHost* ClientHost = nullptr;
+
+	if(InGraph)
+	{
+		ClientHost = InGraph->GetImplementingOuter<IRigVMClientHost>();
+	}
+
+	// the graph may not be nested under a client in some unit tests
+	if(ClientHost == nullptr)
+	{
+		ClientHost = GetImplementingOuter<IRigVMClientHost>();
+	}
+
+	return ClientHost;
+}
+
+TArray<FName> URigVMController::GetAllEventNames() const
+{
+	TArray<FName> AllEventNames;
+	if(!IsValidGraph())
+	{
+		return AllEventNames;
+	}
+
+	TArray<const URigVMGraph*> GraphsToCheck = {GetGraph()};
+	if(const IRigVMClientHost* ClientHost = GetClientHost())
+	{
+		const TArray<URigVMGraph*> ClientModels = ClientHost->GetAllModels();
+		for(const URigVMGraph* ClientModel : ClientModels)
+		{
+			GraphsToCheck.AddUnique(ClientModel);
+		}
+	}
+	for(const URigVMGraph* GraphToCheck : GraphsToCheck)
+	{
+		const TArray<FName> EventNames = GraphToCheck->GetEventNames();
+		for(const FName& EventName : EventNames)
+		{
+			AllEventNames.AddUnique(EventName);
+		}
+	}
+
+	return AllEventNames;
 }
 
 FRigVMGraphModifiedEvent& URigVMController::OnModified()
@@ -1520,7 +1564,9 @@ URigVMUnitNode* URigVMController::AddUnitNode(UScriptStruct* InScriptStruct, TSu
 			return nullptr;
 		}
 
-		if (Graph->GetEventNames().Contains(StructMemory->GetEventName()))
+		// make sure to check all graphs when adding an event - we cannot
+		// have the same event twice under two graphs within the client.
+		if(GetAllEventNames().Contains(StructMemory->GetEventName()))
 		{
 			ReportAndNotifyErrorf(TEXT("Event %s already exists in the graph."), *StructMemory->GetEventName().ToString());
 			return nullptr;
@@ -4391,6 +4437,10 @@ TArray<FName> URigVMController::ImportNodesFromText(const FString& InText, bool 
 						Graph->DetachedLinks.Add(CreatedLink);
 						ControllerForGraph->AddLink(SourcePin, TargetPin, false);
 					}
+				}
+				else
+				{
+					Graph->DetachedLinks.AddUnique(CreatedLink);
 				}
 
 				// if the link is still part of the detached link array

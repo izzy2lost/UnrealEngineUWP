@@ -385,7 +385,7 @@ bool URigVMSchema::CanAddNode(URigVMController* InController, const URigVMNode* 
 					return false;
 				}
 
-				if (Graph->GetEventNames().Contains(InUnitNode->GetEventName()))
+				if (InController->GetAllEventNames().Contains(InUnitNode->GetEventName()))
 				{
 					static const FString Message = FString::Printf(TEXT("An event named %s already exists."), *InUnitNode->GetEventName().ToString()); 
 					InController->ReportError(Message);
