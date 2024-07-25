@@ -6441,13 +6441,12 @@ bool UMaterial::RecursiveGetExpressionChain(
 		}
 
 		// here we assume ALL inputs to the MaterialFunctionCall are active
-		Inputs.Empty(InExpression->CountInputs());
+		Inputs.Reserve(Inputs.Num() + InExpression->CountInputs());
 		for (FExpressionInputIterator It{ InExpression }; It; ++It)
 		{
 			Inputs.Push(It.Input);
+			InputsFrequency.Push(InShaderFrequency);
 		}
-
-		InputsFrequency.Init(InShaderFrequency, Inputs.Num());
 	}
 	else
 	{
