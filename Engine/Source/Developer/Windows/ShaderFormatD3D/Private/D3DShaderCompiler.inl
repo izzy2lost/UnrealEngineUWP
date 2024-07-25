@@ -555,6 +555,9 @@ inline void GenerateFinalOutput(
 
 	Output.NumTextureSamplers = PackedResourceCounts.NumSamplers;
 
+	// Pass the target through to the output.
+	Output.Target = Input.Target;
+
 	// SRV Limits
 	{
 		if (CompileData.bBindlessResources)
