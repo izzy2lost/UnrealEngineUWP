@@ -105,7 +105,7 @@ private:
 	TSharedPtr<SOpenVDBAttributesConfigurator> AttributesAConfigurator;
 	TSharedPtr<SOpenVDBAttributesConfigurator> AttributesBConfigurator;
 	TSharedPtr<SCheckBox> ImportAsSequenceCheckBox;
-	TSharedPtr<SWidget> ImportButton;
+	TSharedPtr<SButton> ImportButton;
 	TWeakPtr<SWindow> WidgetWindow;
 	bool bShouldImport;
 

@@ -244,7 +244,7 @@ public:
 			.ItemHeight(NewLevelDialogDefs::TemplateTileHeight + 9)
 			.ItemWidth(NewLevelDialogDefs::TemplateTileWidth + 9);
 
-		TSharedPtr<SWidget> CreateButton;
+		TSharedPtr<SButton> CreateButton;
 
 		this->ChildSlot
 		[

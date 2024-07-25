@@ -32,6 +32,6 @@ private:
 
 	TAttribute<FString> Link;
 	TAttribute<FString> BaseUrlId;
-	TSharedPtr<class SWidget> Button;
+	TSharedPtr<class SButton> Button;
 	TSharedPtr<class SImage> ButtonImage;
 };
