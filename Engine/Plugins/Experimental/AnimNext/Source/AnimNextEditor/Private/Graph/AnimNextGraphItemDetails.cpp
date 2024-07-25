@@ -25,7 +25,7 @@ void FAnimNextGraphItemDetails::HandleDoubleClick(const FToolMenuContext& ToolMe
 	{
 		if(const TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(AssetEditorContext->Toolkit.Pin()))
 		{
-			const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = WorkspaceItemContext->SelectedExports[0].Data;
+			const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = WorkspaceItemContext->SelectedExports[0].GetData();
 			if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
 			{
 				const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();							
@@ -49,7 +49,7 @@ void FAnimNextGraphItemDetails::HandleDoubleClick(const FToolMenuContext& ToolMe
 
 UPackage* FAnimNextGraphItemDetails::GetPackage(const FWorkspaceOutlinerItemExport& Export) const 
 {
-	const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = Export.Data;
+	const TInstancedStruct<FWorkspaceOutlinerItemData>& Data = Export.GetData();
 	if (Data.IsValid() && Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct())
 	{
 		const FAnimNextGraphOutlinerData& GraphData = Data.Get<FAnimNextGraphOutlinerData>();
@@ -84,7 +84,7 @@ void FAnimNextGraphItemDetails::RegisterToolMenuExtensions()
 					TArray<FWorkspaceOutlinerItemExport> GraphExports;
 					Algo::TransformIf(WorkspaceItemContext->SelectedExports, GraphExports, [](const FWorkspaceOutlinerItemExport& Export)
 					{
-						return Export.Data.IsValid() && Export.Data.GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct();
+						return Export.GetData().IsValid() && Export.GetData().GetScriptStruct() == FAnimNextGraphOutlinerData::StaticStruct();
 					},
 					[](const FWorkspaceOutlinerItemExport& Export)
 					{
@@ -107,7 +107,7 @@ void FAnimNextGraphItemDetails::RegisterToolMenuExtensions()
 									TArray<UObject*> ObjectsToOpen;
 									for (const FWorkspaceOutlinerItemExport& Export : GraphExports)
 									{
-										const FAnimNextGraphOutlinerData& GraphData = Export.Data.Get<FAnimNextGraphOutlinerData>();
+										const FAnimNextGraphOutlinerData& GraphData = Export.GetData().Get<FAnimNextGraphOutlinerData>();
 										if (GraphData.GraphInterface)
 										{
 											if (URigVMGraph* RigVMGraph = GraphData.GraphInterface->GetRigVMGraph())

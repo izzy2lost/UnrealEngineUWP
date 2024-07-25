@@ -43,10 +43,10 @@ namespace UE::Workspace
 	{
 		if (const FWorkspaceOutlinerTreeItem* TreeItem = Item.CastTo<FWorkspaceOutlinerTreeItem>())
 		{
-			const FName ParentIdentifier = TreeItem->Export.ParentIdentifier;
-			if (ParentIdentifier != NAME_None)
+			const uint32 ParentHash = TreeItem->Export.GetParentHash();
+			if (ParentHash != INDEX_NONE)
 			{
-				if (const FSceneOutlinerTreeItemPtr* ParentItem = Items.Find(HashCombine(GetTypeHash(TreeItem->Export.AssetPath),GetTypeHash(ParentIdentifier))))
+				if (const FSceneOutlinerTreeItemPtr* ParentItem = Items.Find(ParentHash))
 				{
 					return *ParentItem;
 				}
@@ -57,17 +57,18 @@ namespace UE::Workspace
 						TArray<FAssetData> AssetDataEntries; 
 						Workspace->GetAssetDataEntries(AssetDataEntries);
 
-						if(const FAssetData* AssetDataPtr = AssetDataEntries.FindByPredicate([AssetPath = TreeItem->Export.AssetPath](const FAssetData& AssetData) { return AssetData.GetSoftObjectPath() == AssetPath; }))
+						if(const FAssetData* AssetDataPtr = AssetDataEntries.FindByPredicate([AssetPath = TreeItem->Export.GetAssetPath()](const FAssetData& AssetData) { return AssetData.GetSoftObjectPath() == AssetPath; }))
 						{
 							FString TagValue;
-							if((*AssetDataPtr).GetTagValue(UE::Workspace::ExportsWorkspaceItemsRegistryTag, TagValue))
+							if(AssetDataPtr->GetTagValue(UE::Workspace::ExportsWorkspaceItemsRegistryTag, TagValue))
 							{
 								FWorkspaceOutlinerItemExports Exports;
 								FWorkspaceOutlinerItemExports::StaticStruct()->ImportText(*TagValue, &Exports, nullptr, 0, nullptr, FWorkspaceOutlinerItemExports::StaticStruct()->GetName());
 								
+								const FName ParentIdentifier = TreeItem->Export.GetParentIdentifier();
 								if (const FWorkspaceOutlinerItemExport* ExportPtr = Exports.Exports.FindByPredicate([ParentIdentifier](const FWorkspaceOutlinerItemExport& ItemExport)
 								{
-									return ItemExport.Identifier == ParentIdentifier;
+									return ItemExport.GetIdentifier() == ParentIdentifier;
 								}))
 								{
 									Mode->CreateItemFor<FWorkspaceOutlinerTreeItem>(FWorkspaceOutlinerTreeItem::FItemData{*ExportPtr}, true);

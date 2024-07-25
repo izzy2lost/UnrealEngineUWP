@@ -68,7 +68,7 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 				{
 					const bool bSelectionContainsTopLevelAsset = MenuContext->SelectedExports.Num() && MenuContext->SelectedExports.ContainsByPredicate([](const FWorkspaceOutlinerItemExport& Export)
 					{
-						return Export.ParentIdentifier == NAME_None;
+						return Export.GetParentIdentifier() == NAME_None;
 					});
 
 					FToolMenuSection& AssetsSection = InMenu->AddSection("Assets", LOCTEXT("AssetSectionLabel", "Assets"));
@@ -85,9 +85,9 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 									TSet<FSoftObjectPath> AssetPaths;
 									for (const FWorkspaceOutlinerItemExport& ItemExport : SelectedExports)
 									{
-										if (ItemExport.ParentIdentifier == NAME_None)
+										if (ItemExport.GetParentIdentifier() == NAME_None)
 										{
-											AssetPaths.Add(ItemExport.AssetPath);	
+											AssetPaths.Add(ItemExport.GetAssetPath());	
 										}
 									}
 
@@ -110,9 +110,9 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 									TSet<FSoftObjectPath> AssetPaths;
 									for (const FWorkspaceOutlinerItemExport& ItemExport : SelectedExports)
 									{
-										if (ItemExport.ParentIdentifier == NAME_None)
+										if (ItemExport.GetParentIdentifier() == NAME_None)
 										{
-											AssetPaths.Add(ItemExport.AssetPath);	
+											AssetPaths.Add(ItemExport.GetAssetPath());	
 										}
 									}
 
@@ -156,9 +156,9 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 											SavablePackages.AddUnique(Package);								
 										}										
 									}
-									else if (ItemExport.ParentIdentifier == NAME_None)
+									else if (ItemExport.GetParentIdentifier() == NAME_None)
 									{
-										if (UPackage* Package = FindPackage(nullptr, *ItemExport.AssetPath.GetLongPackageName()))
+										if (UPackage* Package = FindPackage(nullptr, *ItemExport.GetAssetPath().GetLongPackageName()))
 										{
 											if (IsPackageDirty(Package))
 											{
@@ -186,9 +186,9 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 											return true;
 										}
 									}
-									else if (ItemExport.ParentIdentifier == NAME_None)
+									else if (ItemExport.GetParentIdentifier() == NAME_None)
 									{
-										if (const UPackage* Package = FindPackage(nullptr, *ItemExport.AssetPath.GetLongPackageName()))
+										if (const UPackage* Package = FindPackage(nullptr, *ItemExport.GetAssetPath().GetLongPackageName()))
 										{
 											if (IsPackageDirty(Package))
 											{
@@ -276,9 +276,9 @@ void FWorkspaceOutlinerMode::HandleItemSelection(const FSceneOutlinerItemSelecti
 		{
 			if(FWorkspaceOutlinerTreeItem* TreeItem = SelectedItems[0]->CastTo<FWorkspaceOutlinerTreeItem>())
 			{
-				if(TreeItem->Export.Data.IsValid())
+				if(TreeItem->Export.GetData().IsValid())
 				{
-					TSharedPtr<FStructOnScope> ExportDataView = MakeShared<FStructOnScope>(TreeItem->Export.Data.GetScriptStruct(), TreeItem->Export.Data.GetMutableMemory());
+					TSharedPtr<FStructOnScope> ExportDataView = MakeShared<FStructOnScope>(TreeItem->Export.GetData().GetScriptStruct(), TreeItem->Export.GetData().GetMutableMemory());
 					// TODO JDB handle struct selections
 					//SharedWorkspaceEditor->SetDetailsStruct(ExportDataView);
 				}
@@ -319,11 +319,11 @@ void FWorkspaceOutlinerMode::OpenItems(TArrayView<const FSceneOutlinerTreeItemPt
 	{
 		if (const FWorkspaceOutlinerTreeItem* TreeItem = Item->CastTo<FWorkspaceOutlinerTreeItem>())
 		{
-			if(TreeItem->Export.ParentIdentifier == NAME_None)
+			if(TreeItem->Export.GetParentIdentifier() == NAME_None)
 			{
 				if (const TSharedPtr<UE::Workspace::IWorkspaceEditor> SharedWorkspaceEditor = StaticCastSharedPtr<UE::Workspace::IWorkspaceEditor>(WeakWorkspaceEditor.Pin()))
 				{			
-					SharedWorkspaceEditor->OpenAssets({TreeItem->Export.AssetPath.TryLoad()});
+					SharedWorkspaceEditor->OpenAssets({TreeItem->Export.GetAssetPath().TryLoad()});
 				}
 			}
 			else
@@ -350,9 +350,9 @@ void FWorkspaceOutlinerMode::DeleteItems(TArrayView<const FSceneOutlinerTreeItem
 	{
 		if (const FWorkspaceOutlinerTreeItem* TreeItem = Item->CastTo<FWorkspaceOutlinerTreeItem>())
 		{
-			if(TreeItem->Export.ParentIdentifier == NAME_None)
+			if(TreeItem->Export.GetParentIdentifier() == NAME_None)
 			{
-				Filter.SoftObjectPaths.AddUnique(TreeItem->Export.AssetPath);
+				Filter.SoftObjectPaths.AddUnique(TreeItem->Export.GetAssetPath());
 			}
 		}		
 	}

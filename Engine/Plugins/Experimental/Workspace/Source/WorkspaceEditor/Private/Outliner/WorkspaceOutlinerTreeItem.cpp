@@ -97,7 +97,7 @@ namespace UE::Workspace
 
 	bool FWorkspaceOutlinerTreeItem::IsValid() const
 	{
-		return Export.Identifier.IsValid();
+		return Export.GetIdentifier().IsValid();
 	}
 
 	FSceneOutlinerTreeItemID FWorkspaceOutlinerTreeItem::GetID() const
@@ -107,7 +107,7 @@ namespace UE::Workspace
 
 	FString FWorkspaceOutlinerTreeItem::GetDisplayString() const
 	{
-		return Export.Identifier.ToString();
+		return Export.GetIdentifier().ToString();
 	}
 
 	TSharedRef<SWidget> FWorkspaceOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
@@ -121,9 +121,9 @@ namespace UE::Workspace
 		{
 			return SharedFactory->GetPackage(Export)->GetName();
 		}
-		else if (Export.ParentIdentifier == NAME_None && Export.AssetPath.IsValid())
+		else if (Export.GetParentIdentifier() == NAME_None && Export.GetAssetPath().IsValid())
 		{
-			return Export.AssetPath.GetLongPackageName();
+			return Export.GetAssetPath().GetLongPackageName();
 		}		
 		
 		return ISceneOutlinerTreeItem::GetPackageName();

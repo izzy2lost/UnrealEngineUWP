@@ -59,7 +59,7 @@ namespace UE::Workspace
 				
 				if (!WeakPackage.IsValid())
 				{
-					if(const UObject* Object = TreeItem->Export.AssetPath.ResolveObject())
+					if(const UObject* Object = TreeItem->Export.GetAssetPath().ResolveObject())
 					{
 						WeakPackage = Object->GetPackage();
 					}

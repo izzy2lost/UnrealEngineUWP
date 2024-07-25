@@ -16,12 +16,8 @@ void UAnimNextModuleWorkspaceAssetUserData::GetAssetRegistryTags(FAssetRegistryT
 		const UAnimNextModule* ModuleOuter = CastChecked<UAnimNextModule>(GetOuter());
 		const UAnimNextModule_EditorData* GraphEditorData = UE::AnimNext::UncookedOnly::FUtils::GetEditorData(ModuleOuter);	
 		{
-			FWorkspaceOutlinerItemExport& RootAssetExport = Exports.Exports.AddDefaulted_GetRef();	
-			RootAssetExport.Identifier = ModuleOuter->GetFName();
-			RootAssetExport.ParentIdentifier = NAME_None;
-			RootAssetExport.AssetPath = ModuleOuter;
-
-			RootAssetExport.Data.InitializeAsScriptStruct(FAnimNextGraphAssetOutlinerData::StaticStruct());
+			FWorkspaceOutlinerItemExport& RootAssetExport = Exports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(ModuleOuter->GetFName(), ModuleOuter));
+			RootAssetExport.GetData().InitializeAsScriptStruct(FAnimNextGraphAssetOutlinerData::StaticStruct());
 		}
 	
 		UE::AnimNext::UncookedOnly::FUtils::GetAssetOutlinerItems(GraphEditorData, Exports);

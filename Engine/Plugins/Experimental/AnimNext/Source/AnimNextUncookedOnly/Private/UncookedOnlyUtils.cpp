@@ -1655,6 +1655,8 @@ void FUtils::GetBlueprintParameters(const UBlueprint* InBlueprint, TSet<FAnimNex
 
 void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports)
 {
+	FWorkspaceOutlinerItemExport AssetIdentifier = FWorkspaceOutlinerItemExport(EditorData->GetOuter()->GetFName(), EditorData->GetOuter());
+	
 	constexpr bool bExportParametersAsOutlinerItems = false;
 	if (bExportParametersAsOutlinerItems)
 	{
@@ -1666,13 +1668,10 @@ void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorDa
 		{
 			if (!ParameterNames.Contains(Entry.Name))
 			{
-				FWorkspaceOutlinerItemExport& ParameterExport = OutExports.Exports.AddDefaulted_GetRef();	
-				ParameterExport.Identifier = Entry.Name;						
-				ParameterExport.ParentIdentifier = EditorData->GetOuter()->GetFName();
-				ParameterExport.AssetPath = EditorData->GetOuter();
+				FWorkspaceOutlinerItemExport& ParameterExport = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(Entry.Name, AssetIdentifier));	
 
-				ParameterExport.Data.InitializeAsScriptStruct(FAnimNextParameterOutlinerData::StaticStruct());
-				FAnimNextParameterOutlinerData& AssetData = ParameterExport.Data.GetMutable<FAnimNextParameterOutlinerData>();
+				ParameterExport.GetData().InitializeAsScriptStruct(FAnimNextParameterOutlinerData::StaticStruct());
+				FAnimNextParameterOutlinerData& AssetData = ParameterExport.GetData().GetMutable<FAnimNextParameterOutlinerData>();
 				AssetData.Type = Entry.Type;
 
 				ParameterNames.Add(Entry.Name);
@@ -1684,13 +1683,10 @@ void FUtils::GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorDa
 	{
 		if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
-			FWorkspaceOutlinerItemExport& Export = OutExports.Exports.AddDefaulted_GetRef();
-			Export.Identifier = Entry->GetEntryName();
-			Export.ParentIdentifier = EditorData->GetOuter()->GetFName();					
-			Export.AssetPath = EditorData->GetOuter();
+			FWorkspaceOutlinerItemExport& Export = OutExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(Entry->GetEntryName(), AssetIdentifier));
 
-			Export.Data.InitializeAsScriptStruct(FAnimNextGraphOutlinerData::StaticStruct());
-			FAnimNextGraphOutlinerData& GraphData = Export.Data.GetMutable<FAnimNextGraphOutlinerData>();
+			Export.GetData().InitializeAsScriptStruct(FAnimNextGraphOutlinerData::StaticStruct());
+			FAnimNextGraphOutlinerData& GraphData = Export.GetData().GetMutable<FAnimNextGraphOutlinerData>();
 			GraphData.GraphInterface = GraphInterface->_getUObject();
 		}
 	}

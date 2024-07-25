@@ -40,13 +40,9 @@ void FModule::StartupModule()
 
 		FWorkspaceOutlinerItemExports OutlinerExports;
 		{
-			FWorkspaceOutlinerItemExport& RootAssetExport = OutlinerExports.Exports.AddDefaulted_GetRef();
-			RootAssetExport.Identifier = InSchedule->GetFName();
-			RootAssetExport.ParentIdentifier = NAME_None;
-			RootAssetExport.AssetPath = InSchedule;
-
-			RootAssetExport.Data.InitializeAsScriptStruct(FAnimNextSchedulerData::StaticStruct());
-			FAnimNextSchedulerData& AssetData = RootAssetExport.Data.GetMutable<FAnimNextSchedulerData>();
+			FWorkspaceOutlinerItemExport& RootAssetExport = OutlinerExports.Exports.Add_GetRef(FWorkspaceOutlinerItemExport(InSchedule->GetFName(), InSchedule));
+			RootAssetExport.GetData().InitializeAsScriptStruct(FAnimNextSchedulerData::StaticStruct());
+			FAnimNextSchedulerData& AssetData = RootAssetExport.GetData().GetMutable<FAnimNextSchedulerData>();
 
 			{
 				FString TagValue;
