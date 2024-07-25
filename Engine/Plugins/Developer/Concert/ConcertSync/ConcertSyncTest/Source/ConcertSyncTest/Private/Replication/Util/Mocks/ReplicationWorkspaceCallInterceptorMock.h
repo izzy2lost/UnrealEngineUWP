@@ -30,7 +30,7 @@ namespace UE::ConcertSyncTests::Replication
 		/** The result to return in ProduceClientLeaveReplicationActivity. */
 		TOptional<int64> ReturnResult_ProduceClientMuteReplicationActivity = 0;
 		/** The result to return in GetLastReplicationActivityByClient. */
-		TOptional<FConcertSyncReplicationActivity> ReturnResult_GetLastReplicationActivityByClient;
+		TMap<EConcertSyncReplicationActivityType, FConcertSyncReplicationActivity> ReturnResult_GetLastReplicationActivityByClient;
 		/** The result to return in GetReplicationEventById. */
 		TOptional<FConcertSyncReplicationEvent> ReturnResult_GetReplicationEventById;
 		/** The values to enumerate in EnumerateMuteActivities. */
@@ -66,14 +66,15 @@ namespace UE::ConcertSyncTests::Replication
 			}
 		}
 
-		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const override
+		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, EConcertSyncReplicationActivityType ActivityType, FConcertSyncReplicationActivity& OutActivity) const override
 		{
 			LastCall_GetLastReplicationActivityByClient = MakeTuple(InClientInfo);
-			if (ReturnResult_GetLastReplicationActivityByClient)
+			if (const FConcertSyncReplicationActivity* Result = ReturnResult_GetLastReplicationActivityByClient.Find(ActivityType))
 			{
-				OutActivity = *ReturnResult_GetLastReplicationActivityByClient;
+				OutActivity = *Result;
+				return true;
 			}
-			return ReturnResult_GetLastReplicationActivityByClient.IsSet();
+			return false;
 		}
 
 		virtual bool GetReplicationEventById(const int64 ActivityId, FConcertSyncReplicationEvent& OutEvent) const override

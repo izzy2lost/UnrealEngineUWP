@@ -48,7 +48,7 @@ namespace UE::ConcertSyncServer::Replication
 		 * @param OutActivity The activity, if present
 		 * @return Whether OutActivity contains a valid result.
 		 */
-		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const = 0;
+		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, EConcertSyncReplicationActivityType ActivityType, FConcertSyncReplicationActivity& OutActivity) const = 0;
 		/** Gets the last leave replication activity associated with the given client info. */
 		bool GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const;
 		
@@ -79,7 +79,7 @@ namespace UE::ConcertSyncServer::Replication
 	inline bool IReplicationWorkspace::GetLastLeaveReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationPayload_LeaveReplication& OutLeaveReplication) const
 	{
 		FConcertSyncReplicationActivity Activity;
-		return GetLastReplicationActivityByClient(InClientInfo, Activity)
+		return GetLastReplicationActivityByClient(InClientInfo, EConcertSyncReplicationActivityType::LeaveReplication, Activity)
 			&& ensureMsgf(Activity.EventData.ActivityType == EConcertSyncReplicationActivityType::LeaveReplication, TEXT("Caller expected ActivityId %lld to be a LeaveReplication event"), Activity.ActivityId)
 			&& Activity.EventData.GetPayload(OutLeaveReplication);
 	}

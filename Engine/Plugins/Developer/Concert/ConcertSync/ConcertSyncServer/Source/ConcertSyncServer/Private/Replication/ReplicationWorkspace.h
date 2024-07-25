@@ -38,7 +38,7 @@ namespace UE::ConcertSyncServer
 
 		//~ Begin IReplicationWorkspace Interface
 		virtual TOptional<int64> ProduceReplicationActivity(const FGuid& EndpointId, const FConcertSyncReplicationEvent& EventData) override;
-		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const override;
+		virtual bool GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, EConcertSyncReplicationActivityType ActivityType, FConcertSyncReplicationActivity& OutActivity) const override;
 		virtual bool GetReplicationEventById(const int64 ActivityId, FConcertSyncReplicationEvent& OutEvent) const override;
 		virtual void EnumerateReplicationActivities(TFunctionRef<EBreakBehavior(const FConcertSyncReplicationActivity& Activity)> Callback) const override;
 		//~ End IReplicationWorkspace Interface

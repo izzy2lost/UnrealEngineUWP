@@ -36,7 +36,7 @@ namespace UE::ConcertSyncServer
 		return bSuccess ? ActivityId : TOptional<int64>{};
 	}
 
-	bool FReplicationWorkspace::GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, FConcertSyncReplicationActivity& OutActivity) const
+	bool FReplicationWorkspace::GetLastReplicationActivityByClient(const FConcertSessionClientInfo& InClientInfo, EConcertSyncReplicationActivityType ActivityType, FConcertSyncReplicationActivity& OutActivity) const
 	{
 		// Goal: Iterate all endpoints with the same display name. Then, get the latest transaction ID from all of them.
 		// This entire approach is suboptimal though: There should be a dedicated SQL prepared statement  to which we give the client and device name.
@@ -64,7 +64,7 @@ namespace UE::ConcertSyncServer
 		for (const FConcertSyncEndpointIdAndData& ClientData : ArrayToSearch)
 		{
 			int64 EventId = INDEX_NONE;
-			Database.GetReplicationMaxEventIdByClientAndType(ClientData.EndpointId, EConcertSyncReplicationActivityType::LeaveReplication, EventId);
+			Database.GetReplicationMaxEventIdByClientAndType(ClientData.EndpointId, ActivityType, EventId);
 			NewestEventId = FMath::Max(NewestEventId, EventId);
 		}
 
