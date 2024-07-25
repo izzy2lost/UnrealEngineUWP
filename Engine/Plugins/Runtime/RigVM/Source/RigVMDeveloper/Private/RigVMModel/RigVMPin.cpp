@@ -400,6 +400,11 @@ FName URigVMPin::GetDisplayName() const
 {
 	if (DisplayName == NAME_None)
 	{
+		if(IsArrayElement())
+		{
+			return *FString::FromInt(GetPinIndex());
+		}
+		
 		if(const URigVMNode* Node = GetNode())
 		{
 			const FName DisplayNameFromNode = Node->GetDisplayNameForPin(this->GetSegmentPath(true));
