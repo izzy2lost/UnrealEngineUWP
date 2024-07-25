@@ -136,6 +136,7 @@ class FMediaFrameworkUtilitiesModule : public IMediaFrameworkUtilitiesModule
 
 		if (FApp::CanEverRender() || GetDefault<UMediaProfileSettings>()->bApplyInCommandlet)
 		{
+			check(!(GEngine && GEngine->IsInitialized()));
 			InitHandle = FCoreDelegates::OnFEngineLoopInitComplete.AddLambda(ApplyMediaProfile);
 		}
 	}
