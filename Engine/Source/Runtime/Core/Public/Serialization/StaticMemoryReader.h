@@ -30,6 +30,9 @@ public:
 		return NumBytes;
 	}
 
+	// returns the raw data ptr assigned to the memory reader.
+	const uint8* GetData() const { return Bytes; }
+
 	void Serialize( void* Data, int64 Num )
 	{
 		if (Num && !IsError())

@@ -50,15 +50,15 @@ FMetalShaderLibrary::FMetalShaderLibrary(EShaderPlatform Platform,
 										 FString const& Name,
 										 const FString& InShaderLibraryFilename,
 										 const FMetalShaderLibraryHeader& InHeader,
-										 const FSerializedShaderArchive& InSerializedShaders,
-										 const TArray<uint8>& InShaderCode,
+										 FSerializedShaderArchive&& InSerializedShaders,
+                                         FShaderCodeArrayType&& InShaderCode,
 										 const TArray<MTLLibraryPtr>& InLibrary)
 	: FRHIShaderLibrary(Platform, Name)
 	, ShaderLibraryFilename(InShaderLibraryFilename)
 	, Library(InLibrary)
 	, Header(InHeader)
-	, SerializedShaders(InSerializedShaders)
-	, ShaderCode(InShaderCode)
+	, SerializedShaders(MoveTemp(InSerializedShaders))
+	, ShaderCode(MoveTemp(InShaderCode))
 {
 #if !UE_BUILD_SHIPPING
 	DebugFile = nullptr;
@@ -88,28 +88,32 @@ bool FMetalShaderLibrary::IsNativeLibrary() const
 
 int32 FMetalShaderLibrary::GetNumShaders() const
 {
-	return SerializedShaders.ShaderEntries.Num();
+	return SerializedShaders.GetShaderEntries().Num();
 }
 
 int32 FMetalShaderLibrary::GetNumShaderMaps() const
 {
-	return SerializedShaders.ShaderMapEntries.Num();
+	return SerializedShaders.GetShaderMapEntries().Num();
 }
 
 uint32 FMetalShaderLibrary::GetSizeBytes() const
 {
+#if USE_MMAPPED_SHADERARCHIVE
+	return SerializedShaders.GetAllocatedSize() + ShaderCode.Num() * ShaderCode.GetTypeSize();
+#else
 	return SerializedShaders.GetAllocatedSize() + ShaderCode.GetAllocatedSize();
+#endif
 }
 
 int32 FMetalShaderLibrary::GetNumShadersForShaderMap(int32 ShaderMapIndex) const
 {
-	return SerializedShaders.ShaderMapEntries[ShaderMapIndex].NumShaders;
+	return SerializedShaders.GetShaderMapEntries()[ShaderMapIndex].NumShaders;
 }
 
 int32 FMetalShaderLibrary::GetShaderIndex(int32 ShaderMapIndex, int32 i) const
 {
-	const FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
-	return SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
+	const FShaderMapEntry& ShaderMapEntry = SerializedShaders.GetShaderMapEntries()[ShaderMapIndex];
+	return SerializedShaders.GetShaderIndices()[ShaderMapEntry.ShaderIndicesOffset + i];
 }
 
 int32 FMetalShaderLibrary::FindShaderMapIndex(const FSHAHash& Hash)
@@ -124,12 +128,12 @@ int32 FMetalShaderLibrary::FindShaderIndex(const FSHAHash& Hash)
 
 TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 {
-	const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[Index];
+	const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[Index];
 
 	// We don't handle compressed shaders here, since typically these are just tiny headers.
 	check(ShaderEntry.Size == ShaderEntry.UncompressedSize);
 
-	const TArrayView<uint8> Code = MakeArrayView(ShaderCode.GetData() + ShaderEntry.Offset, ShaderEntry.Size);
+	const TArrayView<const uint8> Code = MakeArrayView(ShaderCode.GetData() + ShaderEntry.Offset, ShaderEntry.Size);
 	const int32 LibraryIndex = Index / Header.NumShadersPerLibrary;
 
 	TRefCountPtr<FRHIShader> Shader;
@@ -179,7 +183,7 @@ TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 
 	if (Shader)
 	{
-		Shader->SetHash(SerializedShaders.ShaderHashes[Index]);
+		Shader->SetHash(SerializedShaders.GetShaderHashes()[Index]);
 	}
 
 	return Shader;

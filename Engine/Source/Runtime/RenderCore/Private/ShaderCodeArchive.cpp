@@ -19,6 +19,7 @@
 #include "ShaderCodeLibrary.h"
 #include "ShaderCore.h"
 #include "Stats/Stats.h"
+#include "Serialization/StaticMemoryReader.h"
 
 #if WITH_EDITOR
 #include "Misc/Optional.h"
@@ -104,6 +105,7 @@ int32 FSerializedShaderArchive::FindShaderMap(const FSHAHash& Hash) const
 	return FindShaderMapWithKey(Hash, Key);
 }
 
+#if !USE_MMAPPED_SHADERARCHIVE
 bool FSerializedShaderArchive::FindOrAddShaderMap(const FSHAHash& Hash, int32& OutIndex, const FShaderMapAssetPaths* AssociatedAssets)
 {
 	const uint32 Key = GetTypeHash(Hash);
@@ -127,6 +129,7 @@ bool FSerializedShaderArchive::FindOrAddShaderMap(const FSHAHash& Hash, int32& O
 	OutIndex = Index;
 	return bAdded;
 }
+#endif
 
 int32 FSerializedShaderArchive::FindShaderWithKey(const FSHAHash& Hash, uint32 Key) const
 {
@@ -146,6 +149,7 @@ int32 FSerializedShaderArchive::FindShader(const FSHAHash& Hash) const
 	return FindShaderWithKey(Hash, Key);
 }
 
+#if !USE_MMAPPED_SHADERARCHIVE
 bool FSerializedShaderArchive::FindOrAddShader(const FSHAHash& Hash, int32& OutIndex)
 {
 	const uint32 Key = GetTypeHash(Hash);
@@ -246,7 +250,8 @@ bool LoadFromCompactBinary(FCbFieldView Field, FSerializedShaderArchive& OutArch
 
 	return bOk;
 }
-#endif
+#endif //WITH_EDITOR
+#endif //!USE_MMAPPED_SHADERARCHIVE
 
 
 #if UE_SCA_VISUALIZE_SHADER_USAGE
@@ -445,6 +450,7 @@ void FSerializedShaderArchive::DecompressShader(int32 Index, const TArray<TArray
 	}
 }
 
+#if !USE_MMAPPED_SHADERARCHIVE
 void FSerializedShaderArchive::Finalize()
 {
 	// Set the correct offsets
@@ -496,15 +502,47 @@ void FSerializedShaderArchive::Finalize()
 		check(CurrentPreloadEntry.Size == 0);
 	}
 }
+#endif
 
 void FSerializedShaderArchive::Serialize(FArchive& Ar)
 {
+#if USE_MMAPPED_SHADERARCHIVE
+	auto SerializeMappedToArrayView = [](auto& ArrayView, FStaticMemoryReader& Ar)
+	{
+        using ArrayType = std::remove_cvref_t <decltype(ArrayView)>;
+        typename ArrayType::SizeType SerializeNum;
+        
+        Ar << SerializeNum;
+
+        uint64 ArrayBytes = SerializeNum * sizeof(typename ArrayType::ElementType);
+        uint64 Offset = Ar.Tell();
+
+        ArrayView = TArrayView<typename ArrayType::ElementType >((typename ArrayType::ElementType*)(Ar.GetData() + Offset), SerializeNum);
+        Ar.Seek(Offset + ArrayBytes);
+	};
+    
+    FStaticMemoryReader& MemReaderAr = static_cast<FStaticMemoryReader&>(Ar);
+    if (Ar.GetArchiveName() != TEXT("FStaticMemoryReader"))
+    {
+        UE_LOG(LogShaderLibrary, Fatal, TEXT("mmapped shader archive must be serialized via FStaticMemoryReader"));
+    }
+    else
+    {
+        SerializeMappedToArrayView(ShaderMapHashes, MemReaderAr);
+        SerializeMappedToArrayView(ShaderHashes, MemReaderAr);
+        SerializeMappedToArrayView(ShaderMapEntries, MemReaderAr);
+        SerializeMappedToArrayView(ShaderEntries, MemReaderAr);
+        SerializeMappedToArrayView(PreloadEntries, MemReaderAr);
+        SerializeMappedToArrayView(ShaderIndices, MemReaderAr);
+    }
+#else
 	Ar << ShaderMapHashes;
 	Ar << ShaderHashes;
 	Ar << ShaderMapEntries;
 	Ar << ShaderEntries;
 	Ar << PreloadEntries;
 	Ar << ShaderIndices;
+#endif
 
 	check(ShaderHashes.Num() == ShaderEntries.Num());
 	check(ShaderMapHashes.Num() == ShaderMapEntries.Num());
@@ -1037,9 +1075,9 @@ FShaderCodeArchive* FShaderCodeArchive::Create(EShaderPlatform InPlatform, FArch
 	// Open library for async reads
 	Library->FileCacheHandle = IFileCacheHandle::CreateFileCacheHandle(*InDestFilePath);
 
-	Library->DebugVisualizer.Initialize(Library->SerializedShaders.ShaderEntries.Num());
+	Library->DebugVisualizer.Initialize(Library->SerializedShaders.GetShaderEntries().Num());
 
-	UE_LOG(LogShaderLibrary, Display, TEXT("Using %s for material shader code. Total %d unique shaders."), *InDestFilePath, Library->SerializedShaders.ShaderEntries.Num());
+	UE_LOG(LogShaderLibrary, Display, TEXT("Using %s for material shader code. Total %d unique shaders."), *InDestFilePath, Library->SerializedShaders.GetShaderEntries().Num());
 
 	INC_DWORD_STAT_BY(STAT_Shaders_ShaderResourceMemory, Library->GetSizeBytes());
 
@@ -1073,7 +1111,7 @@ void FShaderCodeArchive::Teardown()
 		FShaderPreloadEntry& ShaderPreloadEntry = ShaderPreloads[ShaderIndex];
 		if (ShaderPreloadEntry.Code)
 		{
-			const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
+			const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 			FMemory::Free(ShaderPreloadEntry.Code);
 			ShaderPreloadEntry.Code = nullptr;
 			DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderEntry.Size);
@@ -1085,7 +1123,7 @@ void FShaderCodeArchive::Teardown()
 
 void FShaderCodeArchive::OnShaderPreloadFinished(int32 ShaderIndex, const IMemoryReadStreamRef& PreloadData)
 {
-	const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
+	const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 	PreloadData->EnsureReadNonBlocking();		// Ensure data is ready before taking the lock
 	{
 		FWriteScopeLock Lock(ShaderPreloadLock);
@@ -1129,7 +1167,7 @@ bool FShaderCodeArchive::PreloadShader(int32 ShaderIndex, FGraphEventArray& OutC
 	{
 		check(!ShaderPreloadEntry.PreloadEvent);
 
-		const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
+		const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 		ShaderPreloadEntry.Code = FMemory::Malloc(ShaderEntry.Size);
 		ShaderPreloadEntry.FramePreloadStarted = GFrameNumber;
 		DebugVisualizer.MarkExplicitlyPreloadedForVisualization(ShaderIndex);
@@ -1158,18 +1196,19 @@ bool FShaderCodeArchive::PreloadShaderMap(int32 ShaderMapIndex, FGraphEventArray
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 
-	const FShaderMapEntry& ShaderMapEntry = SerializedShaders.ShaderMapEntries[ShaderMapIndex];
+	const FShaderMapEntry& ShaderMapEntry = SerializedShaders.GetShaderMapEntries()[ShaderMapIndex];
 	const EAsyncIOPriorityAndFlags IOPriority = (EAsyncIOPriorityAndFlags)GShaderCodeLibraryAsyncLoadingPriority;
 	const uint32 FrameNumber = GFrameNumber;
 	uint32 PreloadMemory = 0u;
 	
 	FWriteScopeLock Lock(ShaderPreloadLock);
 
+	TArrayView ShaderIndices = SerializedShaders.GetShaderIndices();
 	for (uint32 i = 0u; i < ShaderMapEntry.NumShaders; ++i)
 	{
-		const int32 ShaderIndex = SerializedShaders.ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
+		const int32 ShaderIndex = ShaderIndices[ShaderMapEntry.ShaderIndicesOffset + i];
 		FShaderPreloadEntry& ShaderPreloadEntry = ShaderPreloads[ShaderIndex];
-		const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
+		const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 
 #if RHI_RAYTRACING
 		if (!IsRayTracingAllowed() && !IsCreateShadersOnLoadEnabled() && IsRayTracingShaderFrequency(static_cast<EShaderFrequency>(ShaderEntry.Frequency)))
@@ -1248,7 +1287,7 @@ void FShaderCodeArchive::ReleasePreloadedShader(int32 ShaderIndex)
 		{
 			FMemory::Free(ShaderPreloadEntry.Code);
 			ShaderPreloadEntry.Code = nullptr;
-			const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[ShaderIndex];
+			const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[ShaderIndex];
 			DEC_DWORD_STAT_BY(STAT_Shaders_ShaderPreloadMemory, ShaderEntry.Size);
 		}
 	}
@@ -1263,7 +1302,7 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 	FMemStackBase& MemStack = FMemStack::Get();
 	FMemMark Mark(MemStack);
 
-	const FShaderCodeEntry& ShaderEntry = SerializedShaders.ShaderEntries[Index];
+	const FShaderCodeEntry& ShaderEntry = SerializedShaders.GetShaderEntries()[Index];
 	FShaderPreloadEntry& ShaderPreloadEntry = ShaderPreloads[Index];
 	checkf(!ShaderPreloadEntry.bNeverToBePreloaded, TEXT("We are creating a shader that shouldn't be preloaded in this run (e.g. raytracing shader on D3D11)."));
 
@@ -1297,7 +1336,7 @@ TRefCountPtr<FRHIShader> FShaderCodeArchive::CreateShader(int32 Index)
 	ensureAlwaysMsgf(IsInRenderingThread() || GRHISupportsMultithreadedShaderCreation, TEXT("More than one thread is creating shaders, but GRHISupportsMultithreadedShaderCreation is false."));
 
 	const auto ShaderCodeView = MakeArrayView(ShaderCode, ShaderEntry.UncompressedSize);
-	const FSHAHash& ShaderHash = SerializedShaders.ShaderHashes[Index];
+	const FSHAHash& ShaderHash = SerializedShaders.GetShaderHashes()[Index];
 	switch (ShaderEntry.Frequency)
 	{
 	case SF_Vertex: Shader = RHICreateVertexShader(ShaderCodeView, ShaderHash); CheckShaderCreation(Shader, Index); break;
@@ -1359,12 +1398,12 @@ FIoChunkId FIoStoreShaderCodeArchive::GetShaderCodeChunkId(const FSHAHash& Shade
 
 void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName& Format, const FSerializedShaderArchive& SerializedShaders, FIoStoreShaderCodeArchiveHeader& OutHeader)
 {
-	OutHeader.ShaderMapHashes = SerializedShaders.ShaderMapHashes;
-	OutHeader.ShaderHashes = SerializedShaders.ShaderHashes;
+	OutHeader.ShaderMapHashes = SerializedShaders.GetShaderMapHashes();
+	OutHeader.ShaderHashes = SerializedShaders.GetShaderHashes();
 	// shader group hashes will be populated later
 
-	OutHeader.ShaderMapEntries.Empty(SerializedShaders.ShaderMapEntries.Num());
-	for (const FShaderMapEntry& ShaderMapEntry : SerializedShaders.ShaderMapEntries)
+	OutHeader.ShaderMapEntries.Empty(SerializedShaders.GetShaderMapEntries().Num());
+	for (const FShaderMapEntry& ShaderMapEntry : SerializedShaders.GetShaderMapEntries())
 	{
 		FIoStoreShaderMapEntry& IoStoreShaderMapEntry = OutHeader.ShaderMapEntries.AddDefaulted_GetRef();
 		IoStoreShaderMapEntry.ShaderIndicesOffset = ShaderMapEntry.ShaderIndicesOffset;
@@ -1372,11 +1411,11 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 	}
 
 	// indices should be copied before grouping as the groups will append to the array
-	OutHeader.ShaderIndices = SerializedShaders.ShaderIndices;
+	OutHeader.ShaderIndices = SerializedShaders.GetShaderIndices();
 
 	// shader entries are copied, the remainder of the field will be assigned when splitting into groups
-	OutHeader.ShaderEntries.Empty(SerializedShaders.ShaderEntries.Num());
-	for (const FShaderCodeEntry& ShaderEntry : SerializedShaders.ShaderEntries)
+	OutHeader.ShaderEntries.Empty(SerializedShaders.GetShaderEntries().Num());
+	for (const FShaderCodeEntry& ShaderEntry : SerializedShaders.GetShaderEntries())
 	{
 		FIoStoreShaderCodeEntry& IoStoreShaderEntry = OutHeader.ShaderEntries.AddDefaulted_GetRef();
 		IoStoreShaderEntry.Frequency = ShaderEntry.Frequency;
@@ -1484,8 +1523,8 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 		ShaderIndicesInGroup.Sort(
 			[&SerializedShaders](const int32 ShaderIndexA, const int32 ShaderIndexB)
 			{
-				const FShaderCodeEntry& ShaderEntryA = SerializedShaders.ShaderEntries[ShaderIndexA];
-				const FShaderCodeEntry& ShaderEntryB = SerializedShaders.ShaderEntries[ShaderIndexB];
+				const FShaderCodeEntry& ShaderEntryA = SerializedShaders.GetShaderEntries()[ShaderIndexA];
+				const FShaderCodeEntry& ShaderEntryB = SerializedShaders.GetShaderEntries()[ShaderIndexB];
 				if (ShaderEntryA.UncompressedSize != ShaderEntryB.UncompressedSize)
 				{
 					return ShaderEntryA.UncompressedSize < ShaderEntryB.UncompressedSize;
@@ -1509,6 +1548,9 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 		GroupEntry.NumShaders = ShaderIndicesInGroup.Num();
 		// ShaderIndicesOffset will be filled later, once we know all the groups (see comment about StoredGroupShaderIndices above).
 
+		const TArrayView<const FSHAHash> ShaderHashes = SerializedShaders.GetShaderHashes();
+		const TArrayView<const FShaderCodeEntry> ShaderEntries = SerializedShaders.GetShaderEntries();
+
 		// update shader entries both with the group number and their uncompressed offset in the group
 		FSHA1 GroupHasher;
 		uint32 CurrentGroupSize = 0;
@@ -1520,11 +1562,11 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 			IoStoreShaderEntry.UncompressedOffsetInGroup = CurrentGroupSize;
 
 			// group hash is constructed from hashing the shaders in the group.
-			GroupHasher.Update(SerializedShaders.ShaderHashes[ShaderIndex].Hash, sizeof(FSHAHash));
+			GroupHasher.Update(ShaderHashes[ShaderIndex].Hash, sizeof(FSHAHash));
 			// shader hash as of now excludes optional data, so we cannot rely on it, especially across the shader formats. Make the group hash a bit more robust by including the shader size in it.
-			GroupHasher.Update(reinterpret_cast<const uint8*>(&SerializedShaders.ShaderEntries[ShaderIndex].UncompressedSize), sizeof(FShaderCodeEntry::UncompressedSize));
+			GroupHasher.Update(reinterpret_cast<const uint8*>(&ShaderEntries[ShaderIndex].UncompressedSize), sizeof(FShaderCodeEntry::UncompressedSize));
 
-			CurrentGroupSize += SerializedShaders.ShaderEntries[ShaderIndex].UncompressedSize;
+			CurrentGroupSize += ShaderEntries[ShaderIndex].UncompressedSize;
 		}
 		// Shader hashes cannot be used to uniquely identify across shader formats due to aforementioned exclusion of optional data from it.
 		// Include the shader format (in a platform-agnostic way) into the group hash to lower the risk of collision of shaders of different formats.
@@ -1545,9 +1587,10 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 	{
 		// calculate current group size
 		uint32 GroupSize = 0;
+		const TArrayView<const FShaderCodeEntry> ShaderEntries = SerializedShaders.GetShaderEntries();
 		for (uint32 ShaderIdx : CurrentShaderGroup)
 		{
-			GroupSize += SerializedShaders.ShaderEntries[ShaderIdx].UncompressedSize;
+			GroupSize += ShaderEntries[ShaderIdx].UncompressedSize;
 		}
 		
 		if (LIKELY(GroupSize <= MaxUncompressedShaderGroupSize || CurrentShaderGroup.Num() == 1))
@@ -1569,8 +1612,9 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 			CurrentShaderGroup.Sort(
 				[&SerializedShaders](const int32 ShaderIndexA, const int32 ShaderIndexB)
 				{
-					const FShaderCodeEntry& ShaderEntryA = SerializedShaders.ShaderEntries[ShaderIndexA];
-					const FShaderCodeEntry& ShaderEntryB = SerializedShaders.ShaderEntries[ShaderIndexB];
+					const TArrayView<const FShaderCodeEntry> ShaderEntries = SerializedShaders.GetShaderEntries();
+					const FShaderCodeEntry& ShaderEntryA = ShaderEntries[ShaderIndexA];
+					const FShaderCodeEntry& ShaderEntryB = ShaderEntries[ShaderIndexB];
 					if (ShaderEntryA.UncompressedSize != ShaderEntryB.UncompressedSize)
 					{
 						return ShaderEntryA.UncompressedSize > ShaderEntryB.UncompressedSize;
@@ -1600,7 +1644,7 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 				}
 
 				NewGroups[SmallestNewGroupIdx].Add(ShaderIdx);
-				NewGroupSizes[SmallestNewGroupIdx] += SerializedShaders.ShaderEntries[ShaderIdx].UncompressedSize;
+				NewGroupSizes[SmallestNewGroupIdx] += ShaderEntries[ShaderIdx].UncompressedSize;
 			}
 			
 #if DO_CHECK // sanity checks
@@ -1698,7 +1742,7 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 	}
 
 	/** Tries to find whether NewIndices exist as a subsequence in ExistingIndices.Returns - 1 if not found. */
-	auto FindSequenceInArray = [](const TArray<uint32>& ExistingIndices, const TArray<uint32>& NewIndices) -> int32
+	auto FindSequenceInArray = [](const TArrayView<const uint32> ExistingIndices, const TArrayView<const uint32> NewIndices) -> int32
 	{
 		check(NewIndices.Num() > 0);
 
@@ -1742,7 +1786,7 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 			// See if we can find indices in that order somewhere in the ShaderIndices array already, to avoid adding new indices.
 			// We are looking in the read-only original array, because there's no sense to look in OutHeader.ShaderIndices - groups don't overlap,
 			// so we know that newly added (by some previous group) indices aren't useful for us.
-			int32 ExistingOffset = FindSequenceInArray(SerializedShaders.ShaderIndices, ShaderIndicesInGroup);
+			int32 ExistingOffset = FindSequenceInArray(SerializedShaders.GetShaderIndices(), ShaderIndicesInGroup);
 			if (ExistingOffset != INDEX_NONE)
 			{
 				GroupEntry.ShaderIndicesOffset = static_cast<uint32>(ExistingOffset);
@@ -1769,8 +1813,8 @@ void FIoStoreShaderCodeArchive::CreateIoStoreShaderCodeArchiveHeader(const FName
 		}
 	}
 
-	checkf(OutHeader.ShaderEntries.Num() == SerializedShaders.ShaderEntries.Num(), TEXT("Error creating IoStoreShaderArchive header - shader entries differ (%d in IoStore, %d original). Bug in grouping logic?"),
-		OutHeader.ShaderEntries.Num(), SerializedShaders.ShaderEntries.Num());
+	checkf(OutHeader.ShaderEntries.Num() == SerializedShaders.GetShaderEntries().Num(), TEXT("Error creating IoStoreShaderArchive header - shader entries differ (%d in IoStore, %d original). Bug in grouping logic?"),
+		OutHeader.ShaderEntries.Num(), SerializedShaders.GetShaderEntries().Num());
 	checkf(OutHeader.ShaderGroupIoHashes.Num() == OutHeader.ShaderGroupEntries.Num(), TEXT("Error creating IoStoreShaderArchive header - mismatch between shader group hashes and descriptors (%d descriptors, %d hashes). Bug in grouping logic?"),
 		OutHeader.ShaderGroupEntries.Num(), OutHeader.ShaderGroupIoHashes.Num());
 	checkf(OutHeader.ShaderGroupEntries.Num() != 0, TEXT("At least one group must have been created"));

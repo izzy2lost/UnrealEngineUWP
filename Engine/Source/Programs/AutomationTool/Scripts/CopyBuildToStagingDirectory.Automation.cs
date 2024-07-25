@@ -203,6 +203,23 @@ namespace AutomationScripts
 		}
 
 		/// <summary>
+		/// returns a hash set containing file extensions that will not be compressed within pak files
+		/// or null if no settings could be found.
+		/// </summary>
+		private static HashSet<string> GetFileExtensionsToSkipCompression(ConfigHierarchy PlatformGameConfig)
+		{
+			if (PlatformGameConfig != null)
+			{
+				List<string> FileExtensionsToSkipCompressionList = null;
+				PlatformGameConfig.GetArray("/Script/UnrealEd.ProjectPackagingSettings", "FileExtensionsToSkipCompressionInPak", out FileExtensionsToSkipCompressionList);
+				HashSet<string> FileExtensionsToSkipCompression = (FileExtensionsToSkipCompressionList is not null) ? new HashSet<string>(FileExtensionsToSkipCompressionList) : null;
+				return FileExtensionsToSkipCompression;
+			}
+
+			return null;
+		}
+
+		/// <summary>
 		/// Writes a pak response file to disk
 		/// </summary>
 		/// <param name="Filename"></param>
@@ -211,7 +228,7 @@ namespace AutomationScripts
 		/// <param name="RehydrateAssets"></param>
 		/// <param name="CryptoSettings"></param>
 		/// <param name="bForceFullEncryption"></param>
-		private static void WritePakResponseFile(string Filename, Dictionary<string, string> ResponseFile, bool Compressed, bool RehydrateAssets, EncryptionAndSigning.CryptoSettings CryptoSettings, bool bForceFullEncryption)
+		private static void WritePakResponseFile(string Filename, Dictionary<string, string> ResponseFile, bool Compressed, bool RehydrateAssets, EncryptionAndSigning.CryptoSettings CryptoSettings, bool bForceFullEncryption, HashSet<string> FileExtensionsToSkipCompression)
 		{
 			using (var Writer = new StreamWriter(Filename, false, new System.Text.UTF8Encoding(true)))
 			{
@@ -220,8 +237,10 @@ namespace AutomationScripts
 					string Extension = Path.GetExtension(Entry.Key);
 					string Line = String.Format("\"{0}\" \"{1}\"", Entry.Key, Entry.Value);
 
+					bool bSkipCompression = FileExtensionsToSkipCompression != null && FileExtensionsToSkipCompression.Contains(Path.GetExtension(Entry.Key));
+					
 					// explicitly exclude some file types from compression
-					if (Compressed && !Path.GetExtension(Entry.Key).Contains(".mp4") && !Extension.Contains("ushaderbytecode") && !Path.GetExtension(Entry.Key).Contains("upipelinecache"))
+					if (Compressed && !bSkipCompression && !Path.GetExtension(Entry.Key).Contains(".mp4") && !Extension.Contains("ushaderbytecode") && !Path.GetExtension(Entry.Key).Contains("upipelinecache"))
 					{
 						Line += " -compress";
 					}
@@ -301,7 +320,7 @@ namespace AutomationScripts
 			return CmdLine.ToString();
 		}
 
-		static private string GetPakFileSpecificUnrealPakArguments(Dictionary<string, string> UnrealPakResponseFile, FileReference OutputLocation, string AdditionalOptions, bool Compressed, bool RehydrateAssets,  EncryptionAndSigning.CryptoSettings CryptoSettings, String PatchSourceContentPath, string EncryptionKeyGuid)
+		static private string GetPakFileSpecificUnrealPakArguments(Dictionary<string, string> UnrealPakResponseFile, FileReference OutputLocation, string AdditionalOptions, bool Compressed, bool RehydrateAssets,  EncryptionAndSigning.CryptoSettings CryptoSettings, String PatchSourceContentPath, string EncryptionKeyGuid, HashSet<string> FileExtensionsToSkipCompression)
 		{
 			StringBuilder CmdLine = new StringBuilder(MakePathSafeToUseWithCommandLine(OutputLocation.FullName));
 
@@ -312,7 +331,7 @@ namespace AutomationScripts
 			string ResponseFilesPath = CombinePaths(CmdEnv.EngineSavedFolder, "ResponseFiles");
 			InternalUtils.SafeCreateDirectory(ResponseFilesPath);
 			string UnrealPakResponseFileName = CombinePaths(ResponseFilesPath, "PakList_" + PakName + ".txt");
-			WritePakResponseFile(UnrealPakResponseFileName, UnrealPakResponseFile, Compressed, RehydrateAssets, CryptoSettings, bForceEncryption);
+			WritePakResponseFile(UnrealPakResponseFileName, UnrealPakResponseFile, Compressed, RehydrateAssets, CryptoSettings, bForceEncryption, FileExtensionsToSkipCompression);
 			CmdLine.AppendFormat(" -create={0}", CommandUtils.MakePathSafeToUseWithCommandLine(UnrealPakResponseFileName));
 
 			if (!String.IsNullOrEmpty(PatchSourceContentPath))
@@ -343,9 +362,10 @@ namespace AutomationScripts
 				bool bUnattended)
 		{
 			bool RehydrateAssets = false;
+			HashSet<string> FileExtensionsToSkipCompression = null;
 
 			StringBuilder CmdLine = new StringBuilder();
-			CmdLine.Append(GetPakFileSpecificUnrealPakArguments(UnrealPakResponseFile, OutputLocation, "", Compressed, RehydrateAssets, CryptoSettings, PatchSourceContentPath, EncryptionKeyGuid));
+			CmdLine.Append(GetPakFileSpecificUnrealPakArguments(UnrealPakResponseFile, OutputLocation, "", Compressed, RehydrateAssets, CryptoSettings, PatchSourceContentPath, EncryptionKeyGuid, FileExtensionsToSkipCompression));
 			CmdLine.Append(" ");
 			CmdLine.Append(GetCommonUnrealPakArguments(PakOrderFileLocations, AdditionalOptions, CryptoSettings, CryptoKeysCacheFilename, SecondaryPakOrderFileLocations, bUnattended));
 			return CmdLine.ToString();
@@ -363,7 +383,8 @@ namespace AutomationScripts
 			string EncryptionKeyGuid,
 			string PatchSourceContentPath,
 			bool bGenerateDiffPatch,
-			bool bIsDLC)
+			bool bIsDLC,
+			HashSet<string> FileExtensionsToSkipCompression)
 		{
 			StringBuilder CmdLine = new StringBuilder();
 			CmdLine.AppendFormat("-Output={0}", MakePathSafeToUseWithCommandLine(Path.ChangeExtension(PakOutputLocation.FullName, ".utoc")));
@@ -394,7 +415,7 @@ namespace AutomationScripts
 			string ResponseFilesPath = CombinePaths(CmdEnv.EngineSavedFolder, "ResponseFiles");
 			InternalUtils.SafeCreateDirectory(ResponseFilesPath);
 			string UnrealPakResponseFileName = CombinePaths(ResponseFilesPath, "PakListIoStore_" + ContainerName + ".txt");
-			WritePakResponseFile(UnrealPakResponseFileName, UnrealPakResponseFile, bCompressed, RehydrateAssets, CryptoSettings, bForceEncryption);
+			WritePakResponseFile(UnrealPakResponseFileName, UnrealPakResponseFile, bCompressed, RehydrateAssets, CryptoSettings, bForceEncryption, FileExtensionsToSkipCompression);
 			CmdLine.AppendFormat(" -ResponseFile={0}", CommandUtils.MakePathSafeToUseWithCommandLine(UnrealPakResponseFileName));
 
 			if (CryptoSettings != null && CryptoSettings.bDataCryptoRequired)
@@ -3138,6 +3159,8 @@ namespace AutomationScripts
 			bool bForceUseProjectCompressionFormatIgnoreHardwareOverride = false;// do we want to override HW compression with project? if so, read it below
 			PlatformGameConfig.GetBool("/Script/UnrealEd.ProjectPackagingSettings", "bForceUseProjectCompressionFormatIgnoreHardwareOverride", out bForceUseProjectCompressionFormatIgnoreHardwareOverride);
 
+			HashSet<string> FileExtensionsToSkipCompressionInPaks = GetFileExtensionsToSkipCompression(PlatformGameConfig);
+
 			string HardwareCompressionFormat = null;
 			if ( ! bForceUseProjectCompressionFormatIgnoreHardwareOverride )
 			{
@@ -3771,7 +3794,8 @@ namespace AutomationScripts
 								Params.SkipEncryption ? "" : PakParams.EncryptionKeyGuid,
 								ContainerPatchSourcePath,
 								bGenerateDiffPatch,
-								Params.HasDLCName));
+								Params.HasDLCName,
+								FileExtensionsToSkipCompressionInPaks));
 						}
 
 						if (!PakParams.bStageLoose)
@@ -3790,7 +3814,8 @@ namespace AutomationScripts
 								PakParams.bRehydrateAssets,
 								Params.SkipEncryption ? null : CryptoSettings,
 								PatchSourceContentPath,
-								Params.SkipEncryption ? "" : PakParams.EncryptionKeyGuid));
+								Params.SkipEncryption ? "" : PakParams.EncryptionKeyGuid,
+								FileExtensionsToSkipCompressionInPaks));
 						}
 						LogNames.Add(OutputLocation.GetFileNameWithoutExtension());
 					}

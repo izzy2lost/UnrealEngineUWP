@@ -10,10 +10,42 @@
 #include "MetalShaderResources.h"
 #include "RHIShaderLibrary.h"
 #include "ShaderCodeArchive.h"
+#include "Async/MappedFileHandle.h"
 
 class FMetalShaderLibrary final : public FRHIShaderLibrary
 {
 public:
+
+#if !USE_MMAPPED_SHADERARCHIVE
+    using FShaderCodeArrayType = TArray<uint8>;
+#else
+    struct FShaderLibDataOwner
+    {
+        TArray<uint8> Mem;
+        TUniquePtr<IMappedFileHandle> MappedCacheFile;
+        TUniquePtr<IMappedFileRegion> MappedRegion;
+    };
+    
+	using FShaderCodeArrayType = TArrayView<const uint8>;
+private:
+    TUniquePtr<FShaderLibDataOwner> MemOwner;
+public:
+    
+    FMetalShaderLibrary(EShaderPlatform Platform,
+        FString const& Name,
+        const FString& InShaderLibraryFilename,
+        const FMetalShaderLibraryHeader& InHeader,
+        FSerializedShaderArchive&& InSerializedShaders,
+        FShaderCodeArrayType&& InShaderCode,
+        const TArray<MTLLibraryPtr>& InLibrary,
+        TUniquePtr<FShaderLibDataOwner>&& InMemOwner)
+        :
+        FMetalShaderLibrary(Platform, Name, InShaderLibraryFilename, InHeader, MoveTemp(InSerializedShaders), MoveTemp(InShaderCode), InLibrary)
+        {
+            MemOwner = MoveTemp(InMemOwner);
+        }
+#endif
+  
 	static FCriticalSection LoadedShaderLibraryMutex;
 	static TMap<FString, FRHIShaderLibrary*> LoadedShaderLibraryMap;
 
@@ -21,8 +53,8 @@ public:
 						FString const& Name,
 						const FString& InShaderLibraryFilename,
 						const FMetalShaderLibraryHeader& InHeader,
-						const FSerializedShaderArchive& InSerializedShaders,
-						const TArray<uint8>& InShaderCode,
+						FSerializedShaderArchive&& InSerializedShaders,
+						FShaderCodeArrayType&& InShaderCode,
 						const TArray<MTLLibraryPtr>& InLibrary);
 
 	virtual ~FMetalShaderLibrary();
@@ -39,7 +71,7 @@ public:
 	virtual int32 FindShaderIndex(const FSHAHash& Hash) override;
 	virtual FSHAHash GetShaderHash(int32 ShaderMapIndex, int32 ShaderIndex) override
 	{ 
-		return SerializedShaders.ShaderHashes[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
+		return SerializedShaders.GetShaderHashes()[GetShaderIndex(ShaderMapIndex, ShaderIndex)];
 	};
 
 	virtual bool PreloadShader(int32 ShaderIndex, FGraphEventArray& OutCompletionEvents) override { return false; }
@@ -52,7 +84,7 @@ private:
 	TArray<MTLLibraryPtr> Library;
 	FMetalShaderLibraryHeader Header;
 	FSerializedShaderArchive SerializedShaders;
-	TArray<uint8> ShaderCode;
+	FShaderCodeArrayType ShaderCode;
 #if !UE_BUILD_SHIPPING
 	class FMetalShaderDebugZipFile* DebugFile;
 #endif
