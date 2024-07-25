@@ -29,6 +29,7 @@
 #include "Render/DisplayDevice/Components/DisplayClusterDisplayDeviceBaseComponent.h"
 
 #include "EngineUtils.h"
+#include "OpenColorIORendering.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
 #include "UnrealClient.h"
@@ -323,6 +324,11 @@ void FDisplayClusterViewport::SetupSceneView(uint32 ContextNum, class UWorld* Wo
 	if (OpenColorIO.IsValid())
 	{
 		OpenColorIO->SetupSceneView(InOutViewFamily, InOutView);
+	}
+	// When capturing with late OCIO, we also need to modify some OCIO specific parameters
+	else if (RenderSettings.HasAnyMediaStates(EDisplayClusterViewportMediaState::CaptureLateOCIO))
+	{
+		FOpenColorIORendering::PrepareView(InOutViewFamily, InOutView);
 	}
 
 	if(Contexts[ContextNum].GPUIndex >= 0)

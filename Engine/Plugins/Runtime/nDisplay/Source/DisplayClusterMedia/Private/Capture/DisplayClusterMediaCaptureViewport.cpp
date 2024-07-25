@@ -79,6 +79,12 @@ void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClu
 	{
 		// Raise flags that this viewport will be captured by media.
 		InOutMediaState |= EDisplayClusterViewportMediaState::Capture;
+
+		// Late OCIO flag
+		if (IsLateOCIO())
+		{
+			InOutMediaState |= EDisplayClusterViewportMediaState::CaptureLateOCIO;
+		}
 	}
 }
 

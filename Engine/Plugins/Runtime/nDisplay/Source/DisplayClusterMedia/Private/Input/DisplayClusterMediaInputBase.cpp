@@ -166,9 +166,6 @@ void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRHICommandList
 
 	MediaTexture->JustInTimeRender();
 
-	// Media texture relies on RDGBuilder so calling this before MediaTexture causes a crash.
-	FRDGBuilder GraphBuilder(RHICmdList);
-
 	FRHITexture* SrcTexture = MediaTexture->GetResource() ? MediaTexture->GetResource()->GetTextureRHI() : nullptr;
 	FRHITexture* const DstTexture = TextureInfo.Texture;
 
@@ -180,7 +177,7 @@ void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRHICommandList
 	// Apply OCIO if needed
 	if (IsLateOCIO())
 	{
-		const bool bApplied = ProcessLateOCIO(GraphBuilder, SrcTexture, TextureInfo.OCIOPassResources);
+		const bool bApplied = ProcessLateOCIO(RHICmdList, SrcTexture, TextureInfo.OCIOPassResources);
 		if (bApplied)
 		{
 			// Redirect SrcTexture to the intermediate OCIO texture so we'll be importing this new one
@@ -207,19 +204,16 @@ void FDisplayClusterMediaInputBase::ImportMediaData_RenderThread(FRHICommandList
 			CopyInfo.DestPosition = FIntVector(DstRect.Min.X, DstRect.Min.Y, 0);
 			CopyInfo.Size = FIntVector(DstRect.Size().X, DstRect.Size().Y, 0);
 
-			TransitionAndCopyTexture(GraphBuilder.RHICmdList, SrcTexture, DstTexture, CopyInfo);
+			TransitionAndCopyTexture(RHICmdList, SrcTexture, DstTexture, CopyInfo);
 		}
 		else
 		{
-			DisplayClusterMediaHelpers::ResampleTexture_RenderThread(GraphBuilder.RHICmdList, SrcTexture, DstTexture, SrcRect, DstRect);
+			DisplayClusterMediaHelpers::ResampleTexture_RenderThread(RHICmdList, SrcTexture, DstTexture, SrcRect, DstRect);
 		}
 	}
-
-	GraphBuilder.Execute();
-
 }
 
-bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRDGBuilder& GraphBuilder, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources)
+bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources)
 {
 	checkSlow(SrcTexture);
 
@@ -255,6 +249,8 @@ bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRDGBuilder& GraphBuilder, F
 		return false;
 	}
 
+	FRDGBuilder GraphBuilder(RHICmdList);
+
 	FRDGTextureRef InputTexture = RegisterExternalTexture(GraphBuilder, SrcTexture, TEXT("DCMediaLateOCIOTexIn"));
 	FRDGTextureRef OutputTexture = RegisterExternalTexture(GraphBuilder, OCIOAppliedTexture, TEXT("DCMediaLateOCIOTexOut"));
 
@@ -274,6 +270,8 @@ bool FDisplayClusterMediaInputBase::ProcessLateOCIO(FRDGBuilder& GraphBuilder, F
 		1.0f,
 		EOpenColorIOTransformAlpha::None
 	);
+
+	GraphBuilder.Execute();
 
 	return true;
 }

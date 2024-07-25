@@ -91,7 +91,7 @@ protected:
 private:
 
 	/** Applies OCIO transformation to the SRC texture, and stores result into DST */
-	bool ProcessLateOCIO(FRDGBuilder& GraphBuilder, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources);
+	bool ProcessLateOCIO(FRHICommandListImmediate& RHICmdList, FRHITexture* SrcTexture, const FOpenColorIORenderPassResources& OCIORenderPassResources);
 
 	/** Creates an internal intermediate texture */
 	FTextureRHIRef CreateTexture(const FRHITexture* ReferenceTexture);
@@ -120,15 +120,15 @@ private:
 	TObjectPtr<UMediaTexture> MediaTexture;
 	//~ End GC by AddReferencedObjects
 
-	// Used to restart media player in the case it falls in error
+	/** Used to restart media player in the case it falls in error */
 	bool bWasPlayerStarted = false;
 
-	// Used to control the rate at which we try to restart the player
+	/** Used to control the rate at which we try to restart the player */
 	double LastRestartTimestamp = 0;
 
-	// Intermediate texture for late OCIO pass
+	/** Intermediate texture for late OCIO pass */
 	FTextureRHIRef OCIOAppliedTexture;
 
-	// [Temp workaround] Whether current media is Rivermax
+	/** [Temp workaround] Whether current media is Rivermax */
 	bool bRunningRivermaxMedia = false;
 };

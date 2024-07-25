@@ -103,6 +103,12 @@ void FDisplayClusterMediaInputViewport::OnUpdateViewportMediaState(IDisplayClust
 	{
 		// Raise flags that this viewport texture will be overridden by media.
 		InOutMediaState |= EDisplayClusterViewportMediaState::Input;
+
+		// Late OCIO flag
+		if (IsLateOCIO())
+		{
+			InOutMediaState |= EDisplayClusterViewportMediaState::InputLateOCIO;
+		}
 	}
 }
 

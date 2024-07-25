@@ -192,7 +192,13 @@ enum class EDisplayClusterViewportMediaState : uint8
 	// This viewport will be captured by a media device.
 	Capture = 1 << 0,
 
+	// Custom OCIO transformation is expected on the receiving side
+	CaptureLateOCIO = 1 << 1,
+
 	// This viewport is overridden by a media device.
-	Input = 1 << 1,
+	Input = 1 << 2,
+
+	// Custom OCIO transformation is expected on receiving
+	InputLateOCIO = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EDisplayClusterViewportMediaState);
