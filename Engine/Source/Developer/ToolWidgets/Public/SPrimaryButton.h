@@ -6,11 +6,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
 
-class SActionButton;
-class SHorizontalBox;
-
 class TOOLWIDGETS_API SPrimaryButton
-	: public SCompoundWidget
+	: public SButton
 {
 public:
 	SLATE_BEGIN_ARGS(SPrimaryButton)
@@ -28,7 +25,4 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-
-private:
-	TSharedPtr<SActionButton> ActionButton;
 };

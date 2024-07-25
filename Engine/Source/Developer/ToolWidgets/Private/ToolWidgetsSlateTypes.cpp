@@ -2,6 +2,8 @@
 
 #include "ToolWidgetsSlateTypes.h"
 
+#include "ToolWidgetsStylePrivate.h"
+
 namespace UE::ToolWidgets::Private
 {
 	inline FName LexToName(const EActionButtonType ActionButtonType)
@@ -101,6 +103,24 @@ FActionButtonStyle& FActionButtonStyle::SetIconButtonStyle(const FButtonStyle& I
 {
 	IconButtonStyle = InButtonStyle;
 	return *this;
+}
+
+FMargin FActionButtonStyle::GetButtonContentPadding() const
+{
+	static const FMargin DefaultButtonContentPadding = FMargin(
+		UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
+		UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
+
+	return ButtonContentPadding.IsSet()
+		? ButtonContentPadding.GetValue()
+		: DefaultButtonContentPadding;
+}
+
+FMargin FActionButtonStyle::GetComboButtonContentPadding() const
+{
+	return ComboButtonContentPadding.IsSet()
+		? ComboButtonContentPadding.GetValue()
+		: ComboButtonStyle.ContentPadding;
 }
 
 FActionButtonStyle& FActionButtonStyle::SetButtonContentPadding(const FMargin& InContentPadding)

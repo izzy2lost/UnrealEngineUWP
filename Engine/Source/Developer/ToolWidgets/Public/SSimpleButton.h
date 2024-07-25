@@ -8,7 +8,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class TOOLWIDGETS_API SSimpleButton
-	: public SCompoundWidget
+	: public SButton
 {
 public:
 	SLATE_BEGIN_ARGS(SSimpleButton)

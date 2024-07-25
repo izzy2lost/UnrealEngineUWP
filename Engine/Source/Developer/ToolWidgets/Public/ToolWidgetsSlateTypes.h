@@ -61,6 +61,8 @@ struct FActionButtonStyle : public FSlateWidgetStyle
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
 	TOptional<FMargin> ButtonContentPadding;
+
+	FMargin GetButtonContentPadding() const;
 	FActionButtonStyle& SetButtonContentPadding(const FMargin& InContentPadding);
 
 	/**
@@ -82,6 +84,8 @@ struct FActionButtonStyle : public FSlateWidgetStyle
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Appearance")
 	TOptional<FMargin> ComboButtonContentPadding;
+
+	FMargin GetComboButtonContentPadding() const;
 	FActionButtonStyle& SetComboButtonContentPadding(const FMargin& InContentPadding);
 
 	/**

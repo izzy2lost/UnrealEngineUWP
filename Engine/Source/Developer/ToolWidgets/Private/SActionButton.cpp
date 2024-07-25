@@ -4,11 +4,10 @@
 
 #include "Styling/StyleColors.h"
 #include "ToolWidgetsStyle.h"
-#include "ToolWidgetsStylePrivate.h"
+#include "ToolWidgetsUtilitiesPrivate.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SSpacer.h"
-#include "Widgets/Layout/SWidgetSwitcher.h"
 
 namespace UE::ToolWidgets::Private
 {
@@ -17,9 +16,10 @@ namespace UE::ToolWidgets::Private
 		static TMap<EActionButtonType, const FName> Lookup = {
 			{ EActionButtonType::Default, TEXT("ActionButton") },
 			{ EActionButtonType::Simple, TEXT("SimpleComboButton") },
+			{ EActionButtonType::Primary, TEXT("PrimaryButton") },
 			{ EActionButtonType::Positive, TEXT("PositiveActionButton") },
-			{ EActionButtonType::Warning, TEXT("NegativeActionButton") },
-			{ EActionButtonType::Error, TEXT("NegativeActionButton") },
+			{ EActionButtonType::Warning, TEXT("NegativeActionButton.Warning") },
+			{ EActionButtonType::Error, TEXT("NegativeActionButton.Error") },
 		};
 
 		if (const FName* FoundName = Lookup.Find(ActionButtonType))
@@ -60,14 +60,16 @@ void SActionButton::Construct(const FArguments& InArgs)
 	ComboButtonStyle = InArgs._ComboButtonStyle ? InArgs._ComboButtonStyle : &ActionButtonStyle->ComboButtonStyle;
 	TextBlockStyle = InArgs._TextBlockStyle ? InArgs._TextBlockStyle : &ActionButtonStyle->TextBlockStyle;
 
-	const EHorizontalAlignment HorizontalContentAlignment = InArgs._HorizontalContentAlignment.IsSet()
+	const EHorizontalAlignment HorizontalContentAlignment =
+		InArgs._HorizontalContentAlignment.IsSet()
 		? InArgs._HorizontalContentAlignment.Get(EHorizontalAlignment::HAlign_Center)
 		: static_cast<EHorizontalAlignment>(ActionButtonStyle->HorizontalContentAlignment);
 
 	const bool bHasDownArrow = InArgs._HasDownArrow.IsSet() ? InArgs._HasDownArrow.Get(false) : ActionButtonStyle->bHasDownArrow;
 
 	// Check for widget level override, then style override, otherwise unset
-	const TAttribute<const FSlateBrush*> Icon = InArgs._Icon.IsSet()
+	const TAttribute<const FSlateBrush*> Icon =
+		InArgs._Icon.IsSet()
 		? InArgs._Icon.Get()
 		: ActionButtonStyle->IconBrush.IsSet()
 		? &ActionButtonStyle->IconBrush.GetValue()
@@ -76,7 +78,8 @@ void SActionButton::Construct(const FArguments& InArgs)
 	const bool bHasIcon = Icon.Get() || Icon.IsBound();
 
 	// Check for widget level override, then style override, otherwise get from ActionButtonType
-	const TAttribute<FSlateColor> IconColorAndOpacity = InArgs._IconColorAndOpacity.IsSet()
+	const TAttribute<FSlateColor> IconColorAndOpacity =
+		InArgs._IconColorAndOpacity.IsSet()
 		? InArgs._IconColorAndOpacity.Get()
 		: ActionButtonStyle->IconColorAndOpacity.IsSet()
 		? TAttribute<FSlateColor>(ActionButtonStyle->IconColorAndOpacity.GetValue())
@@ -84,64 +87,22 @@ void SActionButton::Construct(const FArguments& InArgs)
 
 	TAttribute<FText> Text = InArgs._Text;
 
-	static constexpr float DefaultIconHeight = UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultIconHeight;
-	static constexpr float IconTextPadding = UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultIconLabelSpacing;
-
-	const TSharedRef<SHorizontalBox> ButtonContentContainer = SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		.Padding(0)
-		[
-			SNew(SWidgetSwitcher)
-			.WidgetIndex(bHasIcon ? 1 : 0)
-
-			+ SWidgetSwitcher::Slot()
-			[
-				SNew(SSpacer)
-				.Size(FVector2D{ 0, DefaultIconHeight })
-			]
-
-			+ SWidgetSwitcher::Slot()
-			[
-				SNew(SImage)
-				.Image(Icon)
-				.ColorAndOpacity(IconColorAndOpacity)
-				.Visibility(bHasIcon ? EVisibility::HitTestInvisible : EVisibility::Collapsed)
-			]
-		]
-
-		+ SHorizontalBox::Slot()
-		.VAlign(VAlign_Center)
-		.FillWidth(1.0f)
-		.Padding(FMargin(bHasIcon ? IconTextPadding : 0, 0, 0, 0))
-		[
-			SNew(STextBlock)
-			.TextStyle(TextBlockStyle)
-			.Text(InArgs._Text)
-			.Visibility_Lambda([Text]()
-			{
-				return Text.Get(FText::GetEmpty()).IsEmpty()
-					? EVisibility::Collapsed
-					: EVisibility::Visible;
-			})
-		];
+	const TSharedRef<SWidget> ButtonContent =
+		UE::ToolWidgets::Private::ActionButton::MakeButtonContent(
+			Icon,
+			IconColorAndOpacity,
+			Text,
+			TextBlockStyle);
 
 	// Treated as a ComboButton if OnClicked is not bound
 	const bool bIsComboButton = !InArgs._OnClicked.IsBound();
 
 	if (bIsComboButton)
 	{
-		static const FMargin DefaultComboButtonContentPadding = FMargin(
-			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
-			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
-
-		const TAttribute<FMargin> ComboButtonContentPadding = InArgs._ButtonContentPadding.IsSet()
-			? InArgs._ButtonContentPadding.Get(DefaultComboButtonContentPadding)
-			: ActionButtonStyle->ComboButtonContentPadding.IsSet()
-			? ActionButtonStyle->ComboButtonContentPadding.GetValue()
-			: ActionButtonStyle->ComboButtonStyle.ContentPadding;
+		const TAttribute<FMargin> ComboButtonContentPadding =
+			InArgs._ButtonContentPadding.IsSet()
+			? InArgs._ButtonContentPadding.Get()
+			: ActionButtonStyle->GetComboButtonContentPadding();
 
 		ChildSlot
 		[
@@ -156,7 +117,7 @@ void SActionButton::Construct(const FArguments& InArgs)
 			.VAlign(VAlign_Center)
 			.ButtonContent()
 			[
-				ButtonContentContainer
+				ButtonContent
 			]
 			.MenuContent()
 			[
@@ -169,15 +130,10 @@ void SActionButton::Construct(const FArguments& InArgs)
 	}
 	else
 	{
-		static const FMargin DefaultButtonContentPadding = FMargin(
-			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultHorizontalPadding,
-			UE::ToolWidgets::Private::FToolWidgetsStylePrivate::FActionButton::DefaultVerticalPadding);
-
-		const TAttribute<FMargin> ButtonContentPadding = InArgs._ButtonContentPadding.IsSet()
-			? InArgs._ButtonContentPadding.Get(DefaultButtonContentPadding)
-			: ActionButtonStyle->ButtonContentPadding.IsSet()
-			? ActionButtonStyle->ButtonContentPadding.GetValue()
-			: DefaultButtonContentPadding;
+		const TAttribute<FMargin> ButtonContentPadding =
+			InArgs._ButtonContentPadding.IsSet()
+			? InArgs._ButtonContentPadding.Get()
+			: ActionButtonStyle->GetButtonContentPadding();
 
 		ChildSlot
 		[
@@ -190,7 +146,7 @@ void SActionButton::Construct(const FArguments& InArgs)
 			.VAlign(VAlign_Center)
 			.OnClicked(InArgs._OnClicked)
 			[
-				ButtonContentContainer
+				ButtonContent
 			]
 		];
 	}

@@ -5,11 +5,11 @@
 #include "Framework/SlateDelegates.h"
 #include "SActionButton.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "Widgets/SCompoundWidget.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Widgets/SCompoundWidget.h"
 
 class TOOLWIDGETS_API SSimpleComboButton
-	: public SCompoundWidget
+	: public SComboButton
 	, public IActionButton
 {
 public:
@@ -40,7 +40,4 @@ public:
 	virtual void SetMenuContentWidgetToFocus(TWeakPtr<SWidget> InWidget) override;
 	virtual void SetIsMenuOpen(bool bInIsOpen, bool bInIsFocused) override;
 	//~ End IActionButton
-
-private:
-	TSharedPtr<SActionButton> ActionButton;
 };

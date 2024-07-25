@@ -107,7 +107,7 @@ namespace UE::ToolWidgets
 					.SetButtonStyle(ComboButtonStyle.ButtonStyle)
 					.SetComboButtonContentPadding(ModifyContentPadding(ComboButtonStyle, DefaultButtonContentPadding))
 					.SetHorizontalContentAlignment(HAlign_Left)
-					.SetTextBlockStyle(GetWidgetStyle<FTextBlockStyle>("SmallText"))
+					.SetTextBlockStyle(GetWidgetStyle<FTextBlockStyle>("SmallButtonText"))
 					.SetIconColorAndOpacity(FSlateColor::UseForeground());
 
 				Set("SimpleComboButton", SimpleComboButton);
