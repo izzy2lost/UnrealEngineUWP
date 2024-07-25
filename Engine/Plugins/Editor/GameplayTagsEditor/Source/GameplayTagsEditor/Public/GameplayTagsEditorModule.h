@@ -80,6 +80,9 @@ public:
 	 * @param FilterString		Optional filter string, same format as Categories metadata on tag properties
 	 */
 	GAMEPLAYTAGSEDITOR_API virtual TSharedRef<SWidget> MakeGameplayTagWidget(FOnSetGameplayTag OnSetTag, TSharedPtr<FGameplayTag> GameplayTag, const FString& FilterString = FString()) = 0;
+
+	/** Returns the list of gameplay tags that are not used by content */
+	GAMEPLAYTAGSEDITOR_API virtual void GetUnusedGameplayTags(TArray<TSharedPtr<struct FGameplayTagNode>>& OutUnusedTags) = 0;
 };
 
 /** This is public so that child structs of FGameplayTag can use the details customization */
