@@ -2568,13 +2568,13 @@ public:
 		return FQuat();
 	}
 
-	FVector GetControlAnglesFromQuat(const FRigControlElement* InControlElement, const FQuat& InQuat) const
+	FVector GetControlAnglesFromQuat(const FRigControlElement* InControlElement, const FQuat& InQuat, bool bUseRotationOrder) const
 	{
 		FVector Angle(0, 0, 0);
 		if (InControlElement)
 		{
 
-			if (GetUsePreferredRotationOrder(InControlElement))
+			if (bUseRotationOrder && InControlElement->Settings.bUsePreferredRotationOrder)
 			{
 				FRotator Rotator = InControlElement->PreferredEulerAngles.GetRotatorFromQuat(InQuat);
 				Angle = Rotator.Euler();

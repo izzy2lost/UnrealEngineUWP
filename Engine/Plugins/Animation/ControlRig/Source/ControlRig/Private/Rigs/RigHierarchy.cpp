@@ -4301,7 +4301,7 @@ void URigHierarchy::SetPreferredEulerAnglesFromValue(FRigControlElement* InContr
 		{
 			FEulerTransform EulerTransform = GetEulerTransformFromControlValue(InValue);
 			FQuat Quat = EulerTransform.GetRotation();
-			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat);
+			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat, bFixEulerFlips);
 			InControlElement->PreferredEulerAngles.SetAngles(Angle, bInitial, InControlElement->PreferredEulerAngles.RotationOrder, bFixEulerFlips);
 			break;
 		}
@@ -4309,7 +4309,7 @@ void URigHierarchy::SetPreferredEulerAnglesFromValue(FRigControlElement* InContr
 		{
 			FTransform Transform = GetTransformFromControlValue(InValue);
 			FQuat Quat = Transform.GetRotation();
-			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat);
+			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat, bFixEulerFlips);
 			InControlElement->PreferredEulerAngles.SetAngles(Angle, bInitial, InControlElement->PreferredEulerAngles.RotationOrder, bFixEulerFlips);
 			break;
 		}
@@ -4317,7 +4317,7 @@ void URigHierarchy::SetPreferredEulerAnglesFromValue(FRigControlElement* InContr
 		{
 			FTransform Transform = GetTransformNoScaleFromControlValue(InValue);
 			FQuat Quat = Transform.GetRotation();
-			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat);
+			const FVector Angle = GetControlAnglesFromQuat(InControlElement, Quat, bFixEulerFlips);
 			InControlElement->PreferredEulerAngles.SetAngles(Angle, bInitial, InControlElement->PreferredEulerAngles.RotationOrder, bFixEulerFlips);
 			break;
 		}

@@ -4883,7 +4883,9 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 				}
 				
 				ControlRig->Evaluate_AnyThread();
-				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, /*fix flips*/ true);
+				//fix flips and do rotation orders only if not additive
+				const bool bFixEulerFlips = ControlRig->IsAdditive() == false ? true : false;
+				SetControlShapeTransform(ShapeActor, NewTransform, ToWorldTransform, Context, bPrintPythonCommands, bFixEulerFlips);
 				//UpdatePreferredEulerAngles(ControlRig);
 				NotifyDrivenControls(ControlRig, ShapeActor->GetElementKey(),Context);
 				if(const FRigControlElement* ControlElement = ControlRig->FindControl(ShapeActor->ControlName))
@@ -5538,6 +5540,7 @@ void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const 
 	{
 		if(ControlElement->CanDriveControls())
 		{
+			const bool bFixEulerFlips = InControlRig->IsAdditive() == false ? true : false;
 			FRigControlModifiedContext Context(InContext);
 			Context.EventName = FRigUnit_BeginExecution::EventName;
 
@@ -5546,7 +5549,7 @@ void FControlRigEditMode::NotifyDrivenControls(UControlRig* InControlRig, const 
 				if(DrivenKey.Type == ERigElementType::Control)
 				{
 					const FTransform DrivenTransform = InControlRig->GetControlLocalTransform(DrivenKey.Name);
-					InControlRig->SetControlLocalTransform(DrivenKey.Name, DrivenTransform, true, Context, false /*undo*/, true/* bFixEulerFlips*/);
+					InControlRig->SetControlLocalTransform(DrivenKey.Name, DrivenTransform, true, Context, false /*undo*/, bFixEulerFlips);
 				}
 			}
 		}
