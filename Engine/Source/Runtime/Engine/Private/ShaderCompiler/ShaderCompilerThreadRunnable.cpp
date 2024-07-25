@@ -432,44 +432,6 @@ void FShaderCompileThreadRunnable::PushCompletedJobsToManager()
 			Manager->WorkersBusyTime += ElapsedTime;
 			COOK_STAT(ShaderCompilerCookStats::AsyncCompileTimeSec += ElapsedTime);
 
-			// Log if requested or if there was an exceptionally slow batch, to see the offender easily
-			if (Manager->bLogJobCompletionTimes || ElapsedTime > 60.0)
-			{
-				TArray<FShaderCommonCompileJobPtr> SortedJobs = CurrentWorkerInfo.QueuedJobs;
-				SortedJobs.Sort([](const FShaderCommonCompileJobPtr& JobA, const FShaderCommonCompileJobPtr& JobB)
-					{
-						const FShaderCompileJob* SingleJobA = JobA->GetSingleShaderJob();
-						const FShaderCompileJob* SingleJobB = JobB->GetSingleShaderJob();
-
-						const double TimeA = SingleJobA ? SingleJobA->Output.CompileTime : 0.0f;
-						const double TimeB = SingleJobB ? SingleJobB->Output.CompileTime : 0.0f;
-
-						return TimeA > TimeB;
-					});
-
-				FString JobNames;
-
-				for (int32 JobIndex = 0; JobIndex < SortedJobs.Num(); JobIndex++)
-				{
-					const FShaderCommonCompileJob& Job = *SortedJobs[JobIndex];
-					if (const FShaderCompileJob* SingleJob = Job.GetSingleShaderJob())
-					{
-						const TCHAR* JobName = Manager->bLogJobCompletionTimes ? *SingleJob->Input.DebugGroupName : SingleJob->Key.ShaderType->GetName();
-						JobNames += FString::Printf(TEXT("%s:%d(%s) [WorkerTime=%.3fs]"), JobName, SingleJob->Key.PermutationId, *SingleJob->Input.ShaderFormat.ToString(), SingleJob->Output.CompileTime);
-					}
-					else
-					{
-						const FShaderPipelineCompileJob* PipelineJob = Job.GetShaderPipelineJob();
-						JobNames += FString(PipelineJob->Key.ShaderPipeline->GetName());
-					}
-					if (JobIndex < SortedJobs.Num() - 1)
-					{
-						JobNames += TEXT(", ");
-					}
-				}
-
-				UE_LOG(LogShaderCompilers, Display, TEXT("Worker (%d/%d) finished batch of %u jobs in %.3fs, %s"), WorkerIndex + 1, WorkerInfos.Num(), SortedJobs.Num(), ElapsedTime, *JobNames);
-			}
 
 			CurrentWorkerInfo.FinishTime = FPlatformTime::Seconds();
 			CurrentWorkerInfo.bComplete = false;

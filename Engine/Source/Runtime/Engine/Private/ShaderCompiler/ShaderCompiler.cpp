@@ -162,6 +162,13 @@ static TAutoConsoleVariable<bool> CVarShaderCompilerDumpDDCKeys(
 	ECVF_Default
 );
 
+static TAutoConsoleVariable<int> CVarShaderCompilerLogSlowJobThreshold(
+	TEXT("r.ShaderCompiler.LogSlowJobThreshold"),
+	30,
+	TEXT("If a single compilation job's compile time exceeds the specified value (in seconds), info about the job will be automatically logged for investigation."),
+	ECVF_Default
+);
+
 
 bool AreShaderErrorsFatal()
 {
@@ -1371,6 +1378,26 @@ FShaderPipelineCompileJob* FShaderCompilingManager::PreparePipelineCompileJob(ui
 
 void FShaderCompilingManager::ProcessFinishedJob(FShaderCommonCompileJob* FinishedJob)
 {
+	bool bIsPipelineJob = FinishedJob->Type == EShaderCompileJobType::Pipeline;
+	FinishedJob->ForEachSingleShaderJob([this](FShaderCompileJob& SingleJob)
+		{
+			// Log if requested or if there was an exceptionally slow batch, to see the offender easily
+			if (bLogJobCompletionTimes || SingleJob.Output.CompileTime > (double)CVarShaderCompilerLogSlowJobThreshold.GetValueOnAnyThread())
+			{
+				TStringBuilder<256> JobName;
+				if (SingleJob.Input.DumpDebugInfoEnabled())
+				{
+					JobName << SingleJob.Input.DumpDebugInfoPath;
+				}
+				else
+				{
+					JobName << SingleJob.Key.ShaderType->GetName();
+					JobName.Appendf(TEXT("(permutation %d, format %s)"), SingleJob.Key.PermutationId, *SingleJob.Input.ShaderFormat.ToString());
+				}
+				UE_LOG(LogShaderCompilers, Display, TEXT("Job %s compile time exceeded threshold (%.3fs)"), JobName.ToString(), SingleJob.Output.CompileTime);
+			}
+		});
+
 	AllJobs.ProcessFinishedJob(FinishedJob);
 }
 
