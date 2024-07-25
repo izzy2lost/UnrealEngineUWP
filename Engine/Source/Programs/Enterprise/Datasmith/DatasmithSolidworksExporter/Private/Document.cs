@@ -251,7 +251,58 @@ namespace DatasmithSolidworks
 		public abstract Dictionary<FComponentName, FObjectMaterials> LoadDocumentMaterials(HashSet<FComponentName> ComponentNamesToExportSet);
 		public abstract void AddComponentMaterials(FComponentName ComponentName, FObjectMaterials Materials);
 		public abstract FObjectMaterials GetComponentMaterials(Component2 Comp);
+		
+		public FMetadata GetComponentMetadata(Component2 InComponent, string CfgName)
+		{
+			ModelDoc2 ModelDoc = (ModelDoc2)InComponent.GetModelDoc2();
+			if (ModelDoc == null)
+			{
+				return new FMetadata(FMetadata.EOwnerType.Actor);
+			}
+			
+			FMetadata Metadata = new FMetadata(FMetadata.EOwnerType.Actor);
+			
+			string Doctype = "";
+			bool bIsPart = false;
+			switch (ModelDoc)
+			{
+				case AssemblyDoc _:
+				{
+					Doctype = "Assembly";
+					break;
+				}
+				case PartDoc _:
+				{
+					Doctype = "Part";
+					bIsPart = true;
+					break;
+				}
+			}
+			Metadata.AddPair("Document_Type", Doctype);
+			Metadata.AddPair("Document_Filename", System.IO.Path.GetFileName(ModelDoc.GetPathName()));
 
+			
+			Metadata.AddPair("Document_Author", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoAuthor]);
+			Metadata.AddPair("Document_Comment", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoComment]);
+			Metadata.AddPair("Document_CreateDate", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoCreateDate]);
+			Metadata.AddPair("Document_CreateDate2", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoCreateDate2]);
+			Metadata.AddPair("Document_Keywords", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoKeywords]);
+			Metadata.AddPair("Document_SaveDate", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSaveDate]);
+			Metadata.AddPair("Document_SaveDate2", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSaveDate2]);
+			Metadata.AddPair("Document_SavedBy", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSavedBy]);
+			Metadata.AddPair("Document_Subject", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoSubject]);
+			Metadata.AddPair("Document_Title", ModelDoc.SummaryInfo[(int)swSummInfoField_e.swSumInfoTitle]);
+
+			FMetadataManager.ExportCustomProperties(ModelDoc, Metadata);
+			FMetadataManager.ExportCustomProperties(ModelDoc, Metadata, CfgName);
+			if (bIsPart == false)
+			{
+				FMetadataManager.AddAssemblyDisplayStateMetadata(ModelDoc as AssemblyDoc, Metadata);
+			}
+			FMetadataManager.ExportCommentsAndBom(ModelDoc, Metadata);
+			
+			return Metadata;
+		}
 
 		// Record which meshes are used aby a component
 		public abstract void AddMeshForComponent(FComponentName ComponentName, FMeshName MeshName);
@@ -301,6 +352,7 @@ namespace DatasmithSolidworks
 		{
 			Exporter.AssignMaterialsToDatasmithMeshes(CreatedMeshes);
 		}
+		
 	};
 
 

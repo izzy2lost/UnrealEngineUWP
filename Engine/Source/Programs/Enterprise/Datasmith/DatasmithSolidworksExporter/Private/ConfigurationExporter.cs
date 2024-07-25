@@ -369,7 +369,8 @@ namespace DatasmithSolidworks
 						VariantName = VariantName.LinkedDisplayStateVariant(DisplayStates[0]);
 					}
 				}
-
+				
+				// Node, to collect data for the configuration
 				FConfigurationTree.FComponentTreeNode ConfigNode = new FConfigurationTree.FComponentTreeNode();
 				ConfigNode.ComponentInfo.ComponentName = VariantName.GetRootComponentName();
 
@@ -381,7 +382,7 @@ namespace DatasmithSolidworks
 				// Use GetRootComponent3() with Resolve = true to ensure suppressed components will be loaded
 				// todo: docs says that Part document SW returns null. Not the case. But probably better to add a guard
 				LogDebug($"Components:");
-				CollectComponentsRecursive(InDoc, swConfiguration.GetRootComponent3(true), ConfigNode, MeshesConfiguration);
+				CollectComponentsRecursive(InDoc, swConfiguration.GetRootComponent3(true), CfgName, ConfigNode, MeshesConfiguration);
 
 				ExportedVariantNames.Add(CfgName, new List<FVariantName>(){VariantName});
 
@@ -783,6 +784,7 @@ namespace DatasmithSolidworks
 		}
 
 		private static void CollectComponentsRecursive(FDocumentTracker InDoc, Component2 InComponent,
+			string CfgName,
 			FComponentTreeNode InParentNode, FMeshes.FConfiguration Meshes)
 		{
 			LogDebug($"'{InComponent.Name2}'");
@@ -797,7 +799,8 @@ namespace DatasmithSolidworks
 			// ComponentDoc is null if component is suppressed or lightweight
 			ModelDoc2 ModelDoc = (ModelDoc2)InComponent.GetModelDoc2();
 			NewNode.ComponentInfo.PartPath = (ModelDoc is PartDoc) ? ModelDoc.GetPathName() : null;  // Identify whether the component is a Part component
-
+			
+			NewNode.Metadata = InDoc.GetComponentMetadata(InComponent, CfgName);
 
 			NewNode.CommonConfig.bVisible = InComponent.Visible != (int)swComponentVisibilityState_e.swComponentHidden;
 			NewNode.CommonConfig.bSuppressed = InComponent.IsSuppressed();
@@ -813,7 +816,7 @@ namespace DatasmithSolidworks
 				{
 					Component2 Child = (Component2)ObjChild;
 					LogIndent();
-					CollectComponentsRecursive(InDoc, Child, NewNode, Meshes);
+					CollectComponentsRecursive(InDoc, Child, CfgName, NewNode, Meshes);
 					LogDedent();
 				}
 
@@ -833,7 +836,7 @@ namespace DatasmithSolidworks
 			}
 			InDoc.AddCollectedComponent(NewNode);
 		}
-
+		
 		private static void ComputeNodeTransform(FComponentConfig ParentConfig, FComponentTreeNode InNode, FComponentConfig ComponentConfig)
 		{
 			// Read transform

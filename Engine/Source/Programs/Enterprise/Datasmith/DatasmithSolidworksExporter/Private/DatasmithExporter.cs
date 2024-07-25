@@ -224,7 +224,8 @@ namespace DatasmithSolidworks
 		public FMeshName MeshName;
 		public FConvertedTransform Transform;
 		public bool bVisible;
-
+		public FMetadata Metadata;
+		
 		public override string ToString()
 		{
 			return $"FDatasmithActorExportInfo(Name={Name}, Label={Label}, Type={Type}, MeshName={MeshName}, ParentName={ParentName}, bVisible={bVisible})";
@@ -340,6 +341,11 @@ namespace DatasmithSolidworks
 					MeshActor.SetMesh(DatasmithMeshName);
 				}
 			}
+			
+			if (InExportInfo.Metadata != null)
+			{
+				ExportMetadata(InExportInfo.Metadata);
+			}
 
 			return Actor;
 		}
@@ -430,6 +436,13 @@ namespace DatasmithSolidworks
 			{
 				Tuple<EActorType, FDatasmithFacadeActor> ActorInfo = ExportedActorsMap[InActorName];
 				FDatasmithFacadeActor Actor = ActorInfo.Item2;
+				
+				FDatasmithFacadeMetaData DatasmithMetaData = DatasmithScene.GetMetaData(Actor);
+				if (DatasmithMetaData != null)
+				{
+					DatasmithScene.RemoveMetaData(DatasmithMetaData);
+				}
+
 				DatasmithScene.RemoveActor(Actor);
 				ExportedActorsMap.Remove(InActorName);
 			}
@@ -609,11 +622,12 @@ namespace DatasmithSolidworks
 
 				if (DatasmithMetadata == null)
 				{
-					DatasmithMetadata = new FDatasmithFacadeMetaData("SolidWorks Document Metadata");
+					DatasmithMetadata = new FDatasmithFacadeMetaData(InMetadata.OwnerName + "_DATA");
 					DatasmithMetadata.SetAssociatedElement(Element);
 					DatasmithScene.AddMetaData(DatasmithMetadata);
 				}
-
+				
+				DatasmithMetadata.ResetProperties();
 				foreach (IMetadataPair Pair in InMetadata.Pairs)
 				{
 					Pair.WriteToDatasmithMetaData(DatasmithMetadata);

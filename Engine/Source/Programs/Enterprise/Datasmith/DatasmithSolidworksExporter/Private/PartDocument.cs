@@ -290,6 +290,10 @@ namespace DatasmithSolidworks
 					ExportInfo.Label = ActorName.GetString();
 					ExportInfo.MeshName = MeshNameForConfiguration;
 					ExportInfo.Type = bHasMesh ? EActorType.MeshActor : EActorType.SimpleActor;
+
+					ExportInfo.Metadata = ConfigurationExporter.CombinedTree.Children[0].Metadata;
+					ExportInfo.Metadata.OwnerName = ExportInfo.Name;
+
 					Exporter.ExportOrUpdateActor(ExportInfo);
 				}
 			}
@@ -340,6 +344,9 @@ namespace DatasmithSolidworks
 				ExportInfo.Label = ActorName.GetString();
 				ExportInfo.MeshName = MeshName;
 				ExportInfo.Type = bHasMesh ? EActorType.MeshActor : EActorType.SimpleActor;
+				
+				ExportInfo.Metadata = ConfigurationExporter.CombinedTree.Children[0].Metadata;
+				ExportInfo.Metadata.OwnerName = ExportInfo.Name;
 				Exporter.ExportOrUpdateActor(ExportInfo);
 			}
 
@@ -350,7 +357,7 @@ namespace DatasmithSolidworks
 		{
 			return null;
 		}
-
+		
 		public override void AddMeshForComponent(FComponentName ComponentName, FMeshName MeshName)
 		{
 		}
