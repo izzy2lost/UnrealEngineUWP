@@ -36,7 +36,7 @@ namespace UE::MovieGraph::Private
 		// Create the variable assignments container if it wasn't found
 		TObjectPtr<UMovieJobVariableAssignmentContainer> NewVariableAssignments = NewObject<UMovieJobVariableAssignmentContainer>(InAssignmentsOwner);
 		InVariableAssignments.Add(NewVariableAssignments);
-		NewVariableAssignments->SetGraphConfig(InGraph);
+		NewVariableAssignments->SetGraphConfig(const_cast<UMovieGraphConfig*>(InGraph));
 
 #if WITH_EDITOR
 		NewVariableAssignments->UpdateGraphVariableOverrides();

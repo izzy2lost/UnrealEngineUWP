@@ -2037,7 +2037,7 @@ bool FAssignActorDataLayer::AddDataLayerAsset(AActor* InActor, const UDataLayerA
 	else if (!InActor->DataLayerAssets.Contains(InDataLayerAsset))
 	{
 		InActor->Modify();
-		InActor->DataLayerAssets.Add(InDataLayerAsset);
+		InActor->DataLayerAssets.Add(const_cast<UDataLayerAsset*>(InDataLayerAsset));
 		return true;
 	}
 
@@ -2057,7 +2057,7 @@ bool FAssignActorDataLayer::RemoveDataLayerAsset(AActor* InActor, const UDataLay
 	else if (InActor->DataLayerAssets.Contains(InDataLayerAsset))
 	{
 		InActor->Modify();
-		InActor->DataLayerAssets.Remove(InDataLayerAsset);
+		InActor->DataLayerAssets.Remove(const_cast<UDataLayerAsset*>(InDataLayerAsset));
 		return true;
 	}
 

@@ -772,7 +772,7 @@ void UMovieGraphConditionGroupQuery_Actor::AddActors(const TArray<AActor*>& InAc
 	const FScopedTransaction Transaction(LOCTEXT("AddActorsToCollection", "Add Actors to Collection"));
 	Modify();
 	
-	for (const AActor* Actor : InActors)
+	for (AActor* Actor : InActors)
 	{
 		if (Actor && !ActorsToMatch.Contains(Actor))
 		{
@@ -2283,7 +2283,7 @@ void UMovieGraphConditionGroupQuery_DataLayer::AddDataLayers(const TArray<const 
 	{
 		if (DataLayer && !DataLayers.Contains(DataLayer))
 		{
-			DataLayers.Add(DataLayer);
+			DataLayers.Add(const_cast<UDataLayerAsset*>(DataLayer));
 			ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
 		}
 	}

@@ -803,7 +803,7 @@ void UPCGComponent::PurgeUnlinkedResources(const AActor* InActor)
 
 	ThisActor->GetAttachedActors(AttachedActors);
 
-	for (const AActor* Actor : AttachedActors)
+	for (AActor* Actor : AttachedActors)
 	{
 		if (Actor && Actor->ActorHasTag(PCGHelpers::DefaultPCGActorTag))
 		{

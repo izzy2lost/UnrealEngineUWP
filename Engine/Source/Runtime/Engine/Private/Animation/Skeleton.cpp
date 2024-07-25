@@ -303,7 +303,7 @@ bool USkeleton::IsCompatibleSkeletonByAssetString(const FString& SkeletonAssetSt
 
 void USkeleton::AddCompatibleSkeleton(const USkeleton* SourceSkeleton)
 {
-	CompatibleSkeletons.AddUnique(SourceSkeleton);
+	CompatibleSkeletons.AddUnique(const_cast<USkeleton*>(SourceSkeleton));
 }
 
 void USkeleton::AddCompatibleSkeletonSoft(const TSoftObjectPtr<USkeleton>& SourceSkeleton)
@@ -313,7 +313,7 @@ void USkeleton::AddCompatibleSkeletonSoft(const TSoftObjectPtr<USkeleton>& Sourc
 
 void USkeleton::RemoveCompatibleSkeleton(const USkeleton* SourceSkeleton)
 {
-	CompatibleSkeletons.Remove(SourceSkeleton);
+	CompatibleSkeletons.Remove(const_cast<USkeleton*>(SourceSkeleton));
 }
 
 void USkeleton::RemoveCompatibleSkeleton(const TSoftObjectPtr<USkeleton>& SourceSkeleton)
