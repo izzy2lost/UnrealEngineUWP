@@ -607,21 +607,15 @@ void MainCS(
 		#endif
 
 		// Convert input to shading LDR
-		tsr_tensor_halfC ExposedInput = AddPerceptionAdd(Input, /* DestPerceptionAdd = */ PerceptionAdd);
-		tsr_tensor_halfC ExposedHistory = ChangePerceptionAdd(
-			History,
-			/* SourcePerceptionAdd = */ kHistoryGuidePreceptionAdd,
-			/* DestPerceptionAdd   = */ PerceptionAdd);
+		tsr_tensor_halfC ExposedInput = LinearToSMCS(Input);
+		tsr_tensor_halfC ExposedHistory = GCSToSMCS(History);
 			
 		// Check whether the history resurrection is closer to input, to discard and no pay the register pressure of OriginalResurrectedHistory
 		#if CONFIG_HISTORY_RESURRECTION
 		BRANCH
 		if (bEnableResurrection)
 		{
-			tsr_tensor_halfC ExposedResurrectedHistory = ChangePerceptionAdd(
-				OriginalResurrectedHistory,
-				/* SourcePerceptionAdd = */ kHistoryGuidePreceptionAdd,
-				/* DestPerceptionAdd   = */ PerceptionAdd);
+			tsr_tensor_halfC ExposedResurrectedHistory = GCSToSMCS(OriginalResurrectedHistory);
 				
 			bResurrectionIsCloser = IsResurrectedFrameCloserThanPreviousFrame(bIsResurrectionOffScreen, ExposedInput, ExposedHistory, ExposedResurrectedHistory);
 		}
@@ -688,11 +682,8 @@ void MainCS(
 		#endif
 		
 		// Convert input to shading LDR
-		tsr_tensor_halfC ExposedInput = AddPerceptionAdd(Input, /* DestPerceptionAdd = */ PerceptionAdd);
-		tsr_tensor_halfC ExposedResurrectedHistory = ChangePerceptionAdd(
-			ResurrectedHistory,
-			/* SourcePerceptionAdd = */ kHistoryGuidePreceptionAdd,
-			/* DestPerceptionAdd   = */ PerceptionAdd);
+		tsr_tensor_halfC ExposedInput = LinearToSMCS(Input);
+		tsr_tensor_halfC ExposedResurrectedHistory = GCSToSMCS(ResurrectedHistory);
 			
 		// Mutual Annihilation
 		tsr_tensor_halfC ClampedResurrectedInput, ClampedResurrectedHistory;
@@ -774,10 +765,13 @@ void MainCS(
 		}
 		#endif // CONFIG_HISTORY_RESURRECTION
 
-		// Convert input to LDR
-		tsr_tensor_halfC ExposedInput = AddPerceptionAdd(Input, /* DestPerceptionAdd = */ kHistoryGuidePreceptionAdd);
-	
-		FinalGuide = UpdateGuide(ExposedInput, History, bIsDisoccluded, RejectionBlendFinal);
+		// Convert input to same color space as the accumulation
+		tsr_tensor_halfC ExposedInput   = AddPerceptionAdd(Input,                /* DestPerceptionAdd = */ kHistoryAccumulationPreceptionAdd);
+		tsr_tensor_halfC ExposedHistory = AddPerceptionAdd(GCSToLinear(History), /* DestPerceptionAdd = */ kHistoryAccumulationPreceptionAdd);
+		
+		tsr_tensor_halfC ExposedFinalGuide = UpdateGuide(ExposedInput, ExposedHistory, bIsDisoccluded, RejectionBlendFinal);
+
+		FinalGuide = LinearToGCS(RemovePerceptionAdd(ExposedFinalGuide, /* SourcePerceptionAdd = */ kHistoryAccumulationPreceptionAdd));
 	}
 
 	// Controls how the history and its validity is clamped.

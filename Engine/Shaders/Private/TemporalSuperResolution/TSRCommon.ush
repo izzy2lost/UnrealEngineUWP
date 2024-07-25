@@ -235,16 +235,6 @@ static const int2 kOffsetSW = int2(-1, +1);
 // Largest encodable normal number in a half used on console.
 static const tsr_half LargestNormalNumber = tsr_half(65504.0);
 
-// Largest encodable scene color value to not overflaw in YCoCg with halfs on console
-static const tsr_half3 LargestSceneColorRGB = (LargestNormalNumber * tsr_half(0.25)).xxx;
-static const tsr_half4 LargestSceneColorRGBA = (LargestNormalNumber * tsr_half(0.25)).xxxx;
-static const tsr_half3 LargestSceneColorYCoCg = LargestNormalNumber.xxx;
-static const tsr_half4 LargestSceneColorYCoCgA = LargestNormalNumber.xxxx;
-
-// Weight of each channel for the computation of luminance.
-static const tsr_half kMoireLumaToChannel = tsr_half(3.0);
-static const tsr_half3 kMoireLumaWeights = rcp(kMoireLumaToChannel).xxx;
-
 
 //------------------------------------------------------- PARAMETERS
 
@@ -656,87 +646,6 @@ tsr_half ComputeLowFrequencyContribution(tsr_half HistoryValidity)
 	return dpv_lo(ComputeLowFrequencyContribution(dpv_interleave_mono_registers(HistoryValidity)));
 }
 
-// Some bright pixel can cause HdrWeight to get nullified under fp16 representation. So clamping this to a value close to the minimum float float positive value (0.000061).
-#define HDR_WEIGHT_SAFE_MIN_VALUE 0.0001
-
-// Faster but less accurate luma computation. 
-// Luma includes a scaling by 4.
-CALL_SITE_DEBUGLOC
-tsr_half2 Luma4(tsr_half3x2 Color)
-{
-	return (Color[1] * tsr_half(2.0)) + (Color[0] + Color[2]);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 Luma4(tsr_half4x2 Color)
-{
-	return Luma4(tsr_half3x2(Color[0], Color[1], Color[2]));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half Luma4(tsr_half3 Color)
-{
-	return dpv_lo(Luma4(dpv_interleave_mono_registers(Color)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half Luma4(tsr_half4 Color)
-{
-	return Luma4(Color.rgb);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeightY(tsr_half2 Luma)
-{
-	tsr_half Exposure = tsr_half(1.0);
-
-	return max(tsr_half(HDR_WEIGHT_SAFE_MIN_VALUE), rcp(Luma * Exposure + tsr_half(4.0)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeightY(tsr_half Luma)
-{
-	return dpv_lo(HdrWeightY(dpv_interleave_mono_registers(Luma)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeightInvY(tsr_half2 LDRLuma) 
-{
-	return tsr_half(4.0) * rcp(tsr_half(1.0) - LDRLuma);
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeightInvY(tsr_half LDRLuma) 
-{
-	return dpv_lo(HdrWeightInvY(dpv_interleave_mono_registers(LDRLuma)));
-}
-
-// Optimized HDR weighting function.
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeight4(tsr_half3x2 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half2 HdrWeight4(tsr_half4x2 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeight4(tsr_half3 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half HdrWeight4(tsr_half4 Color)
-{
-	return HdrWeightY(Luma4(Color));
-}
-
-
 // Returns the weight of a pixels at a coordinate <PixelDelta> from the PDF highest point.
 CALL_SITE_DEBUGLOC
 tsr_half2 ComputeSampleWeigth(tsr_half2 UpscaleFactor, tsr_half2x2 PixelDelta, const float MinimalContribution)
@@ -807,67 +716,6 @@ void IsOffScreenOrDisoccluded(uint bCameraCut, float2x2 ScreenPos, bool2 bIsPara
 
 	bIsOffScreen = or(bIsCameraCut, bIsOutOfBounds);
 	bIsDisoccluded = and(!bIsOffScreen, bIsParallaxRejected);
-}
-
-tsr_half MeasureBackbufferLDRQuantizationError()
-{
-	// Assume the backbuffer is 10bit per channels
-	return tsr_half(0.5 / 1024.0);
-}
-
-tsr_half2 MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half2 Luma)
-{
-	tsr_half2 Tonemap = Luma * HdrWeightY(Luma) + MeasureBackbufferLDRQuantizationError().xx;
-	tsr_half2 PixelColorQuantizationError = abs(Tonemap * HdrWeightInvY(Tonemap) - Luma);
-
-	return PixelColorQuantizationError;
-}
-
-tsr_half MeasureBackbufferLDRQuantizationErrorFromHDRLuma(tsr_half Luma)
-{
-	return dpv_lo(MeasureBackbufferLDRQuantizationErrorFromHDRLuma(dpv_interleave_mono_registers(Luma)));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 QuantizeForUNormRenderTarget(tsr_half3x2 Color, tsr_half E, const float3 QuantizationError)
-{
-	return Color + dpv_interleave_mono_registers(tsr_half3(QuantizationError)) * (E - tsr_half(0.5));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 QuantizeForUNormRenderTarget(tsr_half3 Color, tsr_half E, const float3 QuantizationError)
-{
-	return dpv_lo(QuantizeForUNormRenderTarget(dpv_interleave_mono_registers(Color), E, QuantizationError));
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3x2 QuantizeForFloatRenderTarget(tsr_half3x2 Color, tsr_half E, const float3 QuantizationError)
-{
-	tsr_half3x2 Error = dpv_mul(Color, tsr_half3(QuantizationError));
-
-	#if 0
-		// NOP
-	#elif CONFIG_COMPILE_FP16
-	{
-		Error[0] = asfloat16(asint16(Error[0]) & uint16_t(~0x03FF));
-		Error[1] = asfloat16(asint16(Error[1]) & uint16_t(~0x03FF));
-		Error[2] = asfloat16(asint16(Error[2]) & uint16_t(~0x03FF));
-	}
-	#else
-	{
-		Error[0] = asfloat(asuint(Error[0]) & ~0x007FFFFF);
-		Error[1] = asfloat(asuint(Error[1]) & ~0x007FFFFF);
-		Error[2] = asfloat(asuint(Error[2]) & ~0x007FFFFF);
-	}
-	#endif
-	
-	return Color + Error * E;
-}
-
-CALL_SITE_DEBUGLOC
-tsr_half3 QuantizeForFloatRenderTarget(tsr_half3 Color, tsr_half E, const float3 QuantizationError)
-{
-	return dpv_lo(QuantizeForFloatRenderTarget(dpv_interleave_mono_registers(Color), E, QuantizationError));
 }
 
 CALL_SITE_DEBUGLOC

@@ -1894,9 +1894,10 @@ FloatInfos decodeFloat(float x)
 #define isinf(x) decodeFloat(x).is_infinity
 #define isdenorm(x) decodeFloat(x).is_denormal
 
-vec3 LinearToGamma22(vec3 Color)
+// https://www.shadertoy.com/view/7tKXWR
+vec3 LinearToWebGLDisplayGamma(vec3 Color)
 {
-	return pow(Color, vec3(2.2));
+	return pow(Color, vec3(1.0/2.2));
 }
 
 vec3 LinearToRec709(vec3 lin) 
@@ -1927,6 +1928,17 @@ vec3 SRGBToLinear(vec3 Color)
 	Color.g = Color.g > 0.04045 ? pow(Color.g * (1.0 / 1.055) + 0.0521327, 2.4) : Color.g * (1.0 / 12.92);
 	Color.b = Color.b > 0.04045 ? pow(Color.b * (1.0 / 1.055) + 0.0521327, 2.4) : Color.b * (1.0 / 12.92);
 	return Color;
+}
+
+// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+vec3 ACESFilm(vec3 x)
+{
+	float a = 2.51f;
+	float b = 0.03f;
+	float c = 2.43f;
+	float d = 0.59f;
+	float e = 0.14f;
+	return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
 }
 
 `;
@@ -2121,7 +2133,7 @@ class TextureView extends ResourceView
 		this.viewport_selected = false;
 		this.is_draging_canvas = false;
 		this.src_channels = 'RGB';
-		this.src_color_space = 'Gamut=sRGB Gamma 2.2';
+		this.src_color_space = 'Gamut=sRGB Pixel Values';
 		this.display_mode = 'Visualization';
 	}
 
@@ -2185,10 +2197,11 @@ class TextureView extends ResourceView
 						</div>
 						<div class="button_list" id="texture_visualization_change_src_color"><!---
 							---><span>Src color:</span><!---
-							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Gamut=sRGB Gamma 2.2" title="Performs no modifications to display to WebGL's sRGB gamut backbuffer (default)."/><!---
-							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Gamut=sRGB Linear[0;1]" title="Applies a LinearToGamma22(display.rgb); to output WebGL's sRGB gamut backbuffer."/><!---
-							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="sRGB" title="Applies a LinearToGamma22(SRGBToLinear(display.rgba)) To output to WebGL's sRGB gamut backbuffer."/><!---
-							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Rec709" title="Applies LinearToGamma22(Rec709ToLinear(display.rgb)) to output WebGL's sRGB gamut backbuffer."/>
+							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Gamut=sRGB Pixel Values" title="Performs no modifications to display to WebGL's sRGB gamut backbuffer (default)."/><!---
+							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Gamut=sRGB Linear[0;1]" title="Applies a LinearToWebGLDisplayGamma(display.rgb); to output WebGL's sRGB gamut backbuffer."/><!---
+							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Gamut=sRGB Linear ACES Film" title="Applies a LinearToWebGLDisplayGamma(ACESFilm(display.rgb)); to output WebGL's sRGB gamut backbuffer."/><!---
+							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="sRGB" title="Applies a LinearToWebGLDisplayGamma(SRGBToLinear(display.rgba)) To output to WebGL's sRGB gamut backbuffer."/><!---
+							---><input type="button" onclick="g_view.resource_view.change_src_color(this);" value="Rec709" title="Applies LinearToWebGLDisplayGamma(Rec709ToLinear(display.rgb)) to output WebGL's sRGB gamut backbuffer."/>
 						</div>
 						<div class="button_list" id="texture_visualization_change_display_modes"><!---
 							---><input type="button" onclick="g_view.resource_view.change_display_mode(this);" value="Visualization" title="Display the WebGL's visualization shader's display.rgb."/><!---
@@ -3783,21 +3796,25 @@ void main(void) {
 			}
 
 			// verify_backbuffer_color_space() check webgl is a sRGB gamut backbuffer
-			if (this.src_color_space == 'Gamut=sRGB Gamma 2.2')
+			if (this.src_color_space == 'Gamut=sRGB Pixel Values')
 			{
-				// NOP because verify_backbuffer_color_space() check webgl is a sRGB backbuffer
+				// NOP because verify_backbuffer_color_space() check webgl is a sRGB backbuffer, that directly export pixel values
 			}
 			else if (this.src_color_space == 'Gamut=sRGB Linear[0;1]')
 			{
-				final_frag_code += 'display.rgb = LinearToGamma22(display.rgb);';
+				final_frag_code += 'display.rgb = LinearToWebGLDisplayGamma(display.rgb);';
+			}
+			else if (this.src_color_space == 'Gamut=sRGB Linear ACES Film')
+			{
+				final_frag_code += 'display.rgb = LinearToWebGLDisplayGamma(ACESFilm(display.rgb));';
 			}
 			else if (this.src_color_space == 'sRGB')
 			{
-				final_frag_code += 'display.rgb = LinearToGamma22(SRGBToLinear(display.rgb));';
+				final_frag_code += 'display.rgb = LinearToWebGLDisplayGamma(SRGBToLinear(display.rgb));';
 			}
 			else if (this.src_color_space == 'Rec709')
 			{
-				final_frag_code += 'display.rgb = LinearToGamma22(Rec709ToLinear(display.rgb));';
+				final_frag_code += 'display.rgb = LinearToWebGLDisplayGamma(Rec709ToLinear(display.rgb));';
 			}
 			final_frag_code += '}';
 

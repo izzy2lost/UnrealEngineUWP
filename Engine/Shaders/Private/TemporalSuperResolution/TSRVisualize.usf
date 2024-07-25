@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#include "TSRColorSpace.ush"
 #include "TSRReprojectionField.ush"
 #if TSR_SUPPORT_LENS_DISTORTION
 	#include "../LensDistortion.ush"
@@ -43,7 +43,6 @@ uint bReprojectionField;
 float MaxHistorySampleCount;
 float OutputToHistoryResolutionFractionSquare;
 float FlickeringFramePeriod;
-float PerceptionAdd;
 
 Texture2D<float2>    PrevDistortingDisplacementTexture;
 Texture2D<float2>    ResurrectedDistortingDisplacementTexture;
@@ -332,11 +331,11 @@ tsr_half3 DisplayAntiFlickering(FContext Ctx)
 		
 		tsr_half3 OriginalInput = OriginalOpaqueInput * OriginalTranslucencyInput.a + OriginalTranslucencyInput.rgb;
 		
-		OriginalInput = OriginalInput * rcp(OriginalInput + tsr_half(PerceptionAdd));
-		OriginalOpaqueInput = OriginalOpaqueInput * rcp(OriginalOpaqueInput + tsr_half(PerceptionAdd));
+		OriginalInput = LinearToSMCS(OriginalInput);
+		OriginalOpaqueInput = LinearToSMCS(OriginalOpaqueInput);
 
-		tsr_half SceneColorLuma = dot(OriginalOpaqueInput.rgb, kMoireLumaWeights);
-		tsr_half TranslucencyChange = dot(abs(OriginalOpaqueInput.rgb - OriginalInput.rgb), kMoireLumaWeights);
+		tsr_half SceneColorLuma = dot(OriginalOpaqueInput.rgb, kMoireSMCSWeights);
+		tsr_half TranslucencyChange = dot(abs(OriginalOpaqueInput.rgb - OriginalInput.rgb), kMoireSMCSWeights);
 		
 		InputLumaModification = tsr_half(0.0);
 		InputLumaModification = max(InputLumaModification, abs(MoireInput - SceneColorLuma) - InputLumaEncodingError);

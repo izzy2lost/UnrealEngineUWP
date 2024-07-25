@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#include "TSRColorSpace.ush"
 #include "TSRReprojectionField.ush"
 
 
@@ -62,7 +62,6 @@ float2 ResurrectionGuideUVViewportBilinearMin;
 float2 ResurrectionGuideUVViewportBilinearMax;
 float3 HistoryGuideQuantizationError;
 float ParallaxRejectionMaskThreshold;
-float PerceptionAdd;
 float ResurrectionFrameIndex;
 float PrevFrameIndex;
 float4x4 ClipToResurrectionClip;
@@ -442,11 +441,7 @@ struct FCatmullRomFetches
 // Correct pre exposure of the guide color.
 tsr_halfC CorrectGuideColorExposure(tsr_halfC ReprojectedHistoryGuideColor, const float PreExposureCorrection)
 {
-	tsr_halfC LDRToLinear = min(rcp(saturate(tsr_half(1.0) - ReprojectedHistoryGuideColor)) * tsr_half(PreExposureCorrection), tsr_half(MaxHalfFloat));
-
-	tsr_halfC LinearReprojectedHistoryGuideColor = ReprojectedHistoryGuideColor * LDRToLinear;
-				
-	ReprojectedHistoryGuideColor = LinearReprojectedHistoryGuideColor * rcp(LinearReprojectedHistoryGuideColor + tsr_half(1.0));
+	ReprojectedHistoryGuideColor = PreExposureCorrectGCS(ReprojectedHistoryGuideColor, PreExposureCorrection);
 
 	// Removes NaN
 	ReprojectedHistoryGuideColor = -min(-ReprojectedHistoryGuideColor, tsr_half(0.0));
@@ -469,11 +464,7 @@ tsr_half4 CorrectMoireExposure(tsr_half4 ReprojectedHistoryMoireColor, const flo
 {
 	tsr_half PrevFlickeringHistory = ReprojectedHistoryMoireColor[0];
 
-	tsr_half LDRToLinear = min(rcp(saturate(tsr_half(1.0) - PrevFlickeringHistory)) * tsr_half(PerceptionAdd) * tsr_half(PreExposureCorrection), tsr_half(MaxHalfFloat));
-	
-	tsr_half LinearPrevFlickeringHistory = PrevFlickeringHistory * LDRToLinear;
-		
-	PrevFlickeringHistory = LinearPrevFlickeringHistory * rcp(LinearPrevFlickeringHistory + tsr_half(PerceptionAdd));
+	PrevFlickeringHistory = PreExposureCorrectGCS(PrevFlickeringHistory.xxx, PreExposureCorrection).r;
 
 	// Removes NaN
 	PrevFlickeringHistory = -min(-PrevFlickeringHistory, tsr_half(0.0));
@@ -521,6 +512,7 @@ void ReprojectAllPrevTextures(
 	
 		float2 PrevOutputScreenPos = OutputScreenPos - DecodeReprojectionVector(EncodedReprojectionVector);
 		bIsOffScreen = (
+			(bCameraCut != 0) ||
 			(PrevOutputScreenPos.x < -1.0) ||
 			(PrevOutputScreenPos.y < -1.0) ||
 			(PrevOutputScreenPos.x > 1.0) ||
@@ -713,7 +705,7 @@ void MainCS(
 	{
 		#if CONFIG_SCENE_COLOR_ALPHA
 		{
-			ReprojectedHistoryGuideColor = ReprojectedHistoryGuideSamples.AccumulateSamples();
+			ReprojectedHistoryGuideColor = saturate(ReprojectedHistoryGuideSamples.AccumulateSamples());
 			ReprojectedHistoryGuideUncertainty = ReprojectedHistoryGuideUncertaintySamples.AccumulateSamples().r;
 		}
 		#else
