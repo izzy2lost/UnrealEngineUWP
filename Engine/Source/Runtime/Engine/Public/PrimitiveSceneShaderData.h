@@ -49,81 +49,28 @@ struct FPrimitiveSceneShaderData
 class FSinglePrimitiveStructured : public FRenderResource
 {
 public:
-
 	FSinglePrimitiveStructured()
-		: ShaderPlatform(SP_NumPlatforms)
 	{}
 
 	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 
 	virtual void ReleaseRHI() override
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		PrimitiveSceneDataBufferRHI.SafeRelease();
-		PrimitiveSceneDataBufferSRV.SafeRelease();
 		SkyIrradianceEnvironmentMapRHI.SafeRelease();
 		SkyIrradianceEnvironmentMapSRV.SafeRelease();
-		InstanceSceneDataBufferRHI.SafeRelease();
-		InstanceSceneDataBufferSRV.SafeRelease();
-		InstancePayloadDataBufferRHI.SafeRelease();
-		InstancePayloadDataBufferSRV.SafeRelease();
 		PrimitiveSceneDataTextureRHI.SafeRelease();
 		PrimitiveSceneDataTextureSRV.SafeRelease();
-		LightmapSceneDataBufferRHI.SafeRelease();
-		LightmapSceneDataBufferSRV.SafeRelease();
-		EditorVisualizeLevelInstanceDataBufferRHI.SafeRelease();
-		EditorVisualizeLevelInstanceDataBufferSRV.SafeRelease();
-		EditorSelectedDataBufferRHI.SafeRelease();
-		EditorSelectedDataBufferSRV.SafeRelease();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	ENGINE_API void UploadToGPU(FRHICommandListBase& RHICmdList);
 
 	EShaderPlatform ShaderPlatform=SP_NumPlatforms;
 
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FPrimitiveSceneShaderData PrimitiveSceneData;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FInstanceSceneShaderData InstanceSceneData;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FLightmapSceneShaderData LightmapSceneData;
-
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef PrimitiveSceneDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef PrimitiveSceneDataBufferSRV;
-
 	FBufferRHIRef SkyIrradianceEnvironmentMapRHI;
 	FShaderResourceViewRHIRef SkyIrradianceEnvironmentMapSRV;
 
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef InstanceSceneDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef InstanceSceneDataBufferSRV;
-
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef InstancePayloadDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef InstancePayloadDataBufferSRV;
-
 	FTextureRHIRef PrimitiveSceneDataTextureRHI;
 	FShaderResourceViewRHIRef PrimitiveSceneDataTextureSRV;
-
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef LightmapSceneDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef LightmapSceneDataBufferSRV;
-
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef EditorVisualizeLevelInstanceDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef EditorVisualizeLevelInstanceDataBufferSRV;
-
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FBufferRHIRef EditorSelectedDataBufferRHI;
-	UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-	FShaderResourceViewRHIRef EditorSelectedDataBufferSRV;
 };
 
 /**
@@ -131,5 +78,3 @@ public:
 * This is used when the VF is used for rendering outside normal mesh passes, where there is no valid scene.
 */
 extern ENGINE_API TGlobalResource<FSinglePrimitiveStructured> GIdentityPrimitiveBuffer;
-UE_DEPRECATED(5.3, "Use IRendererModule::CreateSinglePrimitiveSceneUniformBuffer instead")
-extern ENGINE_API TGlobalResource<FSinglePrimitiveStructured> GTilePrimitiveBuffer;
