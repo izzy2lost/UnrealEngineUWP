@@ -14,25 +14,6 @@
 	"IsBetaVersion": true,
 	"Installed": false,
 	"EnabledByDefault": false,
-	"Modules": [
-		{
-			"Name": "MassEntityTestSuite",
-			"Type": "UncookedOnly",
-			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "MassEntityEditor",
-			"Type": "Editor"
-		},
-		{
-			"Name": "MassEntityDebugger",
-			"Type": "DeveloperTool"
-		},
-		{
-			"Name": "MassEntityDebugger",
-			"Type": "Editor"
-		}
-	],
-	"Plugins": [
-	]
+	"Modules": [],
+	"Plugins": []
 }
