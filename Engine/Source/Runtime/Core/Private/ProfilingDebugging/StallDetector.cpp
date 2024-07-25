@@ -753,7 +753,7 @@ namespace UE::StallDetector::Private
 	static void HandleSlowTaskFinalize(const FText& TaskName, double DurationInSeconds)
 	{
 		FSlowTaskStallDetectorPause* PauseState = static_cast<FSlowTaskStallDetectorPause*>(FPlatformTLS::GetTlsValue(SlowTaskPauseSlot.GetSlot()));
-		FSlowTaskStallDetectorPause* Parent = PauseState->GetParent();
+		FSlowTaskStallDetectorPause* Parent = ensure(PauseState) ? PauseState->GetParent() : nullptr;
 		FPlatformTLS::SetTlsValue(SlowTaskPauseSlot.GetSlot(), Parent);
 		delete PauseState;
 	}

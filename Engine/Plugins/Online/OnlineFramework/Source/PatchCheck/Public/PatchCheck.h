@@ -23,6 +23,7 @@ enum class EPatchCheckResult : uint8
 	PatchCheckFailure,
 	Count,
 };
+PATCHCHECK_API const TCHAR* LexToString(EPatchCheckResult Value);
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPatchCheckComplete, EPatchCheckResult /*Result*/);
 
@@ -58,6 +59,7 @@ protected:
 	virtual void StartOSSPatchCheck();
 	void HandleOSSPatchCheck();
 	virtual bool EnvironmentWantsPatchCheck() const;
+	virtual bool EditorWantsPatchCheck() const;
 	bool SkipPatchCheck() const;
 	void OnCheckForPatchComplete(const FUniqueNetId& UniqueId, EUserPrivileges::Type Privilege, uint32 PrivilegeResult, bool bConsoleCheck);
 	virtual void PatchCheckComplete(EPatchCheckResult PatchResult);
