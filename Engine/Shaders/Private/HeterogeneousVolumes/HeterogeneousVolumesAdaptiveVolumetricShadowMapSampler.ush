@@ -9,8 +9,8 @@
 #define AVSM_BILINEAR_INTERPOLATION 1
 #endif //
 
-#define INVALID_SAMPLE_INDEX 0xFF
-#define INVALID_SAMPLE_INDEX4 0xFFFFFFFF
+#define INVALID_SAMPLE_INDEX 0xFFu
+#define INVALID_SAMPLE_INDEX4 0xFFFFFFFFu
 
 #if 0
 // Reference single-channel implementation

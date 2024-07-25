@@ -2256,7 +2256,7 @@ void FSubstratePixelHeader::SubstrateConvertFromDBuffer(
 	OutData = GetSubstrateSlabBSDF(
 		PixelFootprint,		// PixelFootprint
 		ComputeDiffuseAlbedo(In.BaseColor, In.Metallic),
-		ComputeF0(In.Specular, In.BaseColor, In.Metallic),
+		ComputeF0(half(In.Specular), half3(In.BaseColor), half(In.Metallic)),
 		1.0f,				// F90
 		In.Roughness,		// Roughness
 		0.f,				// Anisotropy
