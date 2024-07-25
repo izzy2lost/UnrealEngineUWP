@@ -448,10 +448,21 @@ TSharedRef<SWidget> SLevelViewportToolBar::GenerateOptionsMenu()
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>( TEXT("LevelEditor") );
 	TSharedPtr<FExtender> MenuExtender = LevelEditorModule.AssembleExtenders(CommandList, LevelEditorModule.GetAllLevelViewportOptionsMenuExtenders());
 
-	ULevelViewportToolBarContext* ContextObject = NewObject<ULevelViewportToolBarContext>();
-	ContextObject->LevelViewportToolBarWidget = SharedThis(this);
+	FToolMenuContext MenuContext(CommandList, MenuExtender);
+	{
+		{
+			ULevelViewportToolBarContext* ToolbarContextObject = NewObject<ULevelViewportToolBarContext>();
+			ToolbarContextObject->LevelViewportToolBarWidget = SharedThis(this);
+			MenuContext.AddObject(ToolbarContextObject);
+		}
 
-	FToolMenuContext MenuContext(CommandList, MenuExtender, ContextObject);
+		{
+			ULevelViewportContext* const LevelContextObject = NewObject<ULevelViewportContext>();
+			LevelContextObject->LevelViewport = Viewport;
+			MenuContext.AddObject(LevelContextObject);
+		}
+	}
+
 	return UToolMenus::Get()->GenerateWidget(MenuName, MenuContext);
 }
 
