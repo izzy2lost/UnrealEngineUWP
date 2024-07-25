@@ -5,16 +5,11 @@
 
 #define LOCTEXT_NAMESPACE "MeshPaintEditorModeCommands"
 
-
-
 void FMeshPaintingToolActionCommands::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
 {
 	ToolCDOs.Add(GetMutableDefault<USingleSelectionTool>());
 	ToolCDOs.Add(GetMutableDefault<UMeshColorPaintingTool>());
 }
-
-
-
 
 void FMeshPaintingToolActionCommands::RegisterAllToolActions()
 {
@@ -34,74 +29,55 @@ void FMeshPaintingToolActionCommands::UpdateToolCommandBinding(UInteractiveTool*
 	}
 }
 
-
-
-
 void FMeshPaintEditorModeCommands::RegisterCommands()
 {
-	TArray<TSharedPtr<FUICommandInfo>> ColorCommands;
-	TArray<TSharedPtr<FUICommandInfo>> WeightCommands;
-	TArray<TSharedPtr<FUICommandInfo>> VertexCommands;
-	TArray<TSharedPtr<FUICommandInfo>> TextureCommands;
-	 
-	UI_COMMAND(VertexSelect, "Select", "Select the mesh for vertex painting", EUserInterfaceActionType::ToggleButton, FInputChord());
-	ColorCommands.Add(VertexSelect);
-	WeightCommands.Add(VertexSelect);
+	UI_COMMAND(SelectVertex, "Select", "Select the mesh for vertex painting", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(SelectTexture, "Select", "Select the mesh for texture painting", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(PaintVertexColor, "Paint", "Paint the mesh vertex colors", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(PaintVertexWeight, "Paint", "Paint the mesh vertex weights", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(PaintTextureColor, "Paint", "Paint the mesh texture colors", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(PaintTextureAsset, "Paint", "Paint texture assets used by the mesh material", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(SwapColor, "Swap", "Switches the foreground and background colors used for painting", EUserInterfaceActionType::Button, FInputChord(EKeys::X));
+	UI_COMMAND(FillVertex, "Fill", "Fills the selected meshes with the paint color", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(FillTexture, "Fill", "Fills the selected textures with the paint color", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Apply, "Apply", "Propagates instance vertex colors to the source meshes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Commit, "Commit", "Commits texture edits to the source texture assets", EUserInterfaceActionType::Button, FInputChord(EKeys::C, EModifierKey::Control | EModifierKey::Shift));
+	UI_COMMAND(Propagate, "All LODs", "Applies the vertex colors from LOD0 to all LOD levels", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SaveVertex, "Save", "Saves the source meshes for the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(SaveTexture, "Save", "Saves the modified textures for the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Add, "Add", "Adds mesh paint textures to the selected mesh components to enable painting", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RemoveVertex, "Remove", "Removes any vertex colors from the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(RemoveTexture, "Remove", "Removes any mesh paint textures from the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Copy, "Copy", "Copies colors from the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Paste, "Paste", "Pastes colors on the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Import, "Import", "Imports vertex colors from a TGA texture file to the selected meshes", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(GetVertexColors, "Vertex", "Imports texture colors from vertex colors on the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(GetTextureColors, "Texture", "Imports vertex colors from texture colors on the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(Fix, "Fix", "Applies any required color data fixes to the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(PreviousLOD, "Previous LOD", "Cycles to the previous possible mesh LOD to paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::B));
+	UI_COMMAND(NextLOD, "Next LOD", "Cycles to the next possible mesh LOD to paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::N));
+	UI_COMMAND(PreviousTexture, "Previous Texture", "Cycle To previous texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Comma));
+	UI_COMMAND(NextTexture, "Next Texture", "Cycle To next texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Period));
 
-	UI_COMMAND(ColorPaint, "Paint", "Paint the mesh", EUserInterfaceActionType::ToggleButton, FInputChord());
-	ColorCommands.Add(ColorPaint);
-	UI_COMMAND(WeightPaint, "Paint", "Paint the mesh", EUserInterfaceActionType::ToggleButton, FInputChord());
-	WeightCommands.Add(WeightPaint);
-	UI_COMMAND(SwitchForeAndBackgroundColor, "Swap", "Switches the Foreground and Background Colors used for Vertex Painting", EUserInterfaceActionType::Button, FInputChord(EKeys::X));
-	VertexCommands.Add(SwitchForeAndBackgroundColor);
-	UI_COMMAND(Fill, "Fill", "Fills the selected Meshes with the Paint Color", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(Fill);
-	UI_COMMAND(Propagate, "Apply", "Propagates Instance Vertex Colors to the Source Meshes", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(Propagate);
- 	UI_COMMAND(Import, "Import", "Imports Vertex Colors from a TGA Texture File to the Selected Meshes", EUserInterfaceActionType::Button, FInputChord());
- 	VertexCommands.Add(Import);
- 	UI_COMMAND(Save, "Save", "Saves the Source Meshes for the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(Save);
-	UI_COMMAND(Copy, "Copy", "Copies Vertex Colors from the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
- 	VertexCommands.Add(Copy);
-	UI_COMMAND(Paste, "Paste", "Tried to Paste Vertex Colors on the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
- 	VertexCommands.Add(Paste);
-	UI_COMMAND(Remove, "Remove", "Removes Vertex Colors from the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(Remove);
-	UI_COMMAND(Fix, "Fix", "If necessary fixes Vertex Colors applied to the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(Fix);
-	UI_COMMAND(PropagateVertexColorsToLODs, "All LODs", "Applied the Vertex Colors from LOD0 to all LOD levels", EUserInterfaceActionType::Button, FInputChord());
-	VertexCommands.Add(PropagateVertexColorsToLODs);
+	TArray<TSharedPtr<FUICommandInfo>> VertexColorCommands = {
+		SelectVertex, PaintVertexColor, SwapColor, FillVertex, Apply, Propagate, SaveVertex, RemoveVertex, Copy, Paste, Import, GetTextureColors, Fix
+	};
+	Commands.Add(UMeshPaintMode::MeshPaintMode_VertexColor, VertexColorCommands);
 
-	UI_COMMAND(CycleToPreviousLOD, "Previous LOD", "Cycles to the previous possible Mesh LOD to Paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::B));
-	UI_COMMAND(CycleToNextLOD, "Next LOD", "Cycles to the next possible Mesh LOD to Paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::N));
+	TArray<TSharedPtr<FUICommandInfo>> VertexWeightCommands = {
+		SelectVertex, PaintVertexWeight, SwapColor, FillVertex, Apply, Propagate, SaveVertex, RemoveVertex, Copy, Paste, Import, Fix
+	};
+	Commands.Add(UMeshPaintMode::MeshPaintMode_VertexWeights, VertexWeightCommands);
 
-	ColorCommands.Append(VertexCommands);
-	WeightCommands.Append(VertexCommands);
-	Commands.Add(UMeshPaintMode::MeshPaintMode_Color, ColorCommands);
-	Commands.Add(UMeshPaintMode::MeshPaintMode_Weights, WeightCommands);
+	TArray<TSharedPtr<FUICommandInfo>> TextureColorCommands = {
+		SelectTexture, PaintTextureColor, SwapColor, FillTexture, Commit, SaveTexture, Add, RemoveTexture, Copy, Paste, GetVertexColors
+	};
+	Commands.Add(UMeshPaintMode::MeshPaintMode_TextureColor, TextureColorCommands);
 
-	UI_COMMAND(TextureSelect, "Select", "Select the mesh for texture painting", EUserInterfaceActionType::ToggleButton, FInputChord());
-	TextureCommands.Add(TextureSelect);
-	UI_COMMAND(TexturePaint, "Paint", "Paint the mesh", EUserInterfaceActionType::ToggleButton, FInputChord());
-	TextureCommands.Add(TexturePaint);
-	UI_COMMAND(TextureFill, "Fill", "Fills the selected Mesh's texture with the Paint Color", EUserInterfaceActionType::Button, FInputChord());
-	TextureCommands.Add(TextureFill);
-	
-	UI_COMMAND(PreviousTexture, "Previous Texture", "Cycle To Previous Texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Comma));
-	UI_COMMAND(NextTexture, "Next Texture", "Cycle To Next Texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Period));
-
-	UI_COMMAND(PropagateTexturePaint, "Commit", "Commits Texture Painting Changes", EUserInterfaceActionType::Button, FInputChord(EKeys::C, EModifierKey::Control | EModifierKey::Shift));
-	TextureCommands.Add(PropagateTexturePaint);
-	UI_COMMAND(SaveTexturePaint, "Save", "Saves the Modified Textures for the selected Mesh Components", EUserInterfaceActionType::Button, FInputChord());
-	TextureCommands.Add(SaveTexturePaint);
-
-	Commands.Add(UMeshPaintMode::MeshPaintMode_Texture, TextureCommands);
-
-
-
-
+	TArray<TSharedPtr<FUICommandInfo>> TextureAssetCommands = {
+		SelectTexture, PaintTextureAsset, SwapColor, FillTexture, Commit, SaveTexture
+	};
+	Commands.Add(UMeshPaintMode::MeshPaintMode_TextureAsset, TextureAssetCommands);
 }
 
 #undef LOCTEXT_NAMESPACE
-

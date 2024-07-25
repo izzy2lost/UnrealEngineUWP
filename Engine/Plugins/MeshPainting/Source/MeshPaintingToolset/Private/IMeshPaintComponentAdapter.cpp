@@ -110,9 +110,10 @@ void IMeshPaintComponentAdapter::DefaultQueryPaintableTextures(int32 MaterialInd
 				// If material samples the primitive mesh paint texture, then add it here.
 				if (UMaterialExpressionMeshPaintTextureObject* MeshPaintTextureExpression = Cast<UMaterialExpressionMeshPaintTextureObject>(Expression))
 				{
-					if (UTexture* MesPaintTexture = MeshComponent->GetMeshPaintTexture())
+					if (UTexture* MeshPaintTexture = MeshComponent->GetMeshPaintTexture())
 					{
-						InOutTextureList.AddUnique(FPaintableTexture{ MesPaintTexture, 0 });
+						const int32 CoordinateIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
+						InOutTextureList.AddUnique(FPaintableTexture(MeshPaintTexture, CoordinateIndex, true));
 					}
 				}
 			}
@@ -434,7 +435,8 @@ namespace UE::MeshPaintingToolset
 		}
 
 		// Check to see if the source texture is the special mesh paint texture on the component.
-		if (InMeshComponent->GetMeshPaintTexture() == SourceTexture)
+		// But always apply setting override to nullptr which can happen after the SourceTexture is cleared from the component.
+		if (InMeshComponent->GetMeshPaintTexture() == SourceTexture || !OverrideTexture)
 		{
 			InMeshComponent->SetMeshPaintTextureOverride(OverrideTexture);
 		}

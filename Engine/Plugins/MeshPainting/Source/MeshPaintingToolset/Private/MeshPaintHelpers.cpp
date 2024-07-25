@@ -15,6 +15,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "MeshVertexPaintingTool.h"
+#include "VT/MeshPaintVirtualTexture.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshPaintHelpers)
 
@@ -74,6 +75,49 @@ void UMeshPaintingSubsystem::RemoveComponentInstanceVertexColors(UStaticMeshComp
 	}
 }
 
+void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
+{
+	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() == nullptr)
+	{
+		StaticMeshComponent->Modify();
+
+		const uint32 TextureSize = MeshPaintVirtualTexture::GetDefaultTextureSize(StaticMeshComponent->GetStaticMesh()->GetNumVertices(0));
+		const uint32 TextureNumMips = FMath::FloorLog2(TextureSize) + 1;
+
+		UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+		NewTexture->Source.Init(TextureSize, TextureSize, 1, TextureNumMips, TSF_BGRA8);
+		NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+		NewTexture->UpdateResource();
+
+		StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+	}
+}
+
+void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent, FImageView const& InImage)
+{
+	if (StaticMeshComponent != nullptr)
+	{
+		StaticMeshComponent->Modify();
+
+		UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+		NewTexture->Source.Init(InImage);
+		NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+		NewTexture->UpdateResource();
+
+		StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+	}
+}
+
+void UMeshPaintingSubsystem::RemoveComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
+{
+	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() != nullptr)
+	{
+		// Mark the mesh component as modified
+		StaticMeshComponent->Modify();
+
+		StaticMeshComponent->SetMeshPaintTexture(nullptr);
+	}
+}
 
 bool UMeshPaintingSubsystem::PropagateColorsToRawMesh(UStaticMesh* StaticMesh, int32 LODIndex, FStaticMeshComponentLODInfo& ComponentLODInfo)
 {
@@ -1120,6 +1164,12 @@ FColor UMeshPaintingSubsystem::PickVertexColorFromTextureData(const uint8* MipDa
 		VertexColor.DWColor() &= ColorMask.DWColor();
 	}
 
+	// Vertex color is linear
+ 	if (Texture->SRGB)
+ 	{
+ 		VertexColor = FLinearColor(VertexColor).ToFColor(false);
+ 	}
+
 	return VertexColor;
 }
 
@@ -1482,6 +1532,8 @@ void UMeshPaintingSubsystem::CleanUp()
 	}
 	ComponentToAdapterMap.Empty();
 	FMeshPaintComponentAdapterFactory::CleanupGlobals();
+
+	CopiedTextureData.Init(FImageInfo());
 }
 
 bool UMeshPaintingSubsystem::FindHitResult(const FRay Ray, FHitResult& BestTraceResult)
@@ -1539,6 +1591,19 @@ TArray<FPerComponentVertexColorData> UMeshPaintingSubsystem::GetCopiedColorsByCo
 void UMeshPaintingSubsystem::SetCopiedColorsByComponent(TArray<FPerComponentVertexColorData>& InCopiedColors)
 {
 	CopiedColorsByComponent = InCopiedColors;
+}
+
+FImage const& UMeshPaintingSubsystem::GetCopiedTexture() const
+{
+	return CopiedTextureData;
+}
+
+void UMeshPaintingSubsystem::SetCopiedTexture(UTexture* InTexture)
+{
+	if (InTexture != nullptr)
+	{
+		InTexture->Source.GetMipImage(CopiedTextureData, 0);
+	}
 }
 
 void UMeshPaintingSubsystem::CacheSelectionData(const int32 PaintLODIndex, const int32 UVChannel)

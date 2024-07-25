@@ -5,6 +5,7 @@
 #include "Engine/Engine.h"
 #include "Engine/HitResult.h"
 #include "Engine/StaticMesh.h"
+#include "ImageCore.h"
 #include "Math/Ray.h"
 #include "UObject/Package.h"
 #include "MeshPaintHelpers.generated.h"
@@ -28,6 +29,7 @@ class FSceneView;
 struct FStaticMeshComponentLODInfo;
 class UMeshVertexPaintingToolProperties;
 class UBrushBaseProperties;
+struct FMeshDescription;
 
 enum class EMeshPaintDataColorViewMode : uint8;
 
@@ -134,7 +136,14 @@ public:
 
 	/** Removes vertex colors associated with the mesh component */
 	void RemoveComponentInstanceVertexColors(UStaticMeshComponent* StaticMeshComponent);
-	
+
+	/** Creates mesh paint texture associated with the mesh component */
+	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent);
+	void CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent, FImageView const& InImage);
+
+	/** Removes mesh paint texture associated with the mesh component */
+	void RemoveComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent);
+
 	/** Propagates per-instance vertex colors to the underlying Mesh for the given LOD Index */
 	bool PropagateColorsToRawMesh(UStaticMesh* StaticMesh, int32 LODIndex, FStaticMeshComponentLODInfo& ComponentLODInfo);	
 
@@ -260,6 +269,9 @@ public:
 	bool SelectionContainsPerLODColors() const { return bSelectionContainsPerLODColors; }
 	void ClearSelectionLODColors() { bSelectionContainsPerLODColors = false; }
 
+	FImage const& GetCopiedTexture() const;
+	void SetCopiedTexture(UTexture* InTexture);
+
 public:
 	bool bNeedsRecache;
 	UPROPERTY(Transient)
@@ -285,6 +297,9 @@ private:
 	/** Contains copied vertex color data */
 	TArray<FPerComponentVertexColorData> CopiedColorsByComponent;
 	bool bSelectionContainsPerLODColors;
+
+	/** Contains copied texture data */
+	FImage CopiedTextureData;
 };
 
 template<typename T>

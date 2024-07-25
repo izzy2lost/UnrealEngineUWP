@@ -84,7 +84,6 @@ public:
 	bool bWriteAlpha;
 	int32 TotalWeightCount;
 	int32 PaintWeightIndex;
-	int32 UVChannel;
 	FApplyVertexPaintData ApplyVertexDataDelegate;
 	FVector2f BrushPosition2D;
 	bool bUseFillBucket = false;
@@ -103,19 +102,22 @@ struct FPaintableTexture
 {
 	UTexture*	Texture;
 	int32		UVChannelIndex;
+	bool		bIsMeshTexture;
 
 	FPaintableTexture()
 		: Texture(nullptr)
 		, UVChannelIndex(0)
+		, bIsMeshTexture(false)
 	{}
 
 	template <
 		typename T
 		UE_REQUIRES(std::is_convertible_v<T, UTexture*>)
 	>
-	FPaintableTexture(T InTexture = nullptr, uint32 InUVChannelIndex = 0)
+	FPaintableTexture(T InTexture = nullptr, uint32 InUVChannelIndex = 0, bool bInIsMeshTexture = false)
 		: Texture(InTexture)
 		, UVChannelIndex(InUVChannelIndex)
+		, bIsMeshTexture(bInIsMeshTexture)
 	{}
 
 	/** Overloaded equality operator for use with TArrays Contains method. */
@@ -130,6 +132,7 @@ USTRUCT()
 struct FPaintTexture2DData
 {
 	GENERATED_BODY()
+
 	/** The original texture that we're painting */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> PaintingTexture2D = nullptr;
@@ -157,6 +160,22 @@ struct FPaintTexture2DData
 	UPROPERTY(Transient)
 	TObjectPtr<class UVirtualTextureAdapter> PaintRenderTargetTextureAdapter = nullptr;
 
+	/** Temporary render target used to draw incremental paint to */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> BrushRenderTargetTexture;
+
+	/** Temporary render target used to store a mask of the affected paint region, updated every time we add incremental texture paint */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> BrushMaskRenderTargetTexture;
+
+	/** Optional render target used to store generated mask for texture seams. We create this by projecting object triangles into texture space using the selected UV channel. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTextureRenderTarget2D> SeamMaskRenderTargetTexture = nullptr;
+
+	/** True if we need to generate a texture seam mask used for texture dilation */
+	UPROPERTY(Transient)
+	bool bGenerateSeamMask;
+
 	FPaintTexture2DData() = default;
 
 	FPaintTexture2DData(UTexture2D* InPaintingTexture2D, bool InbIsPaintingTexture2DModified = false)
@@ -164,7 +183,6 @@ struct FPaintTexture2DData
 		, bIsPaintingTexture2DModified(InbIsPaintingTexture2DModified)
 	{
 	}
-
 };
 
 USTRUCT()

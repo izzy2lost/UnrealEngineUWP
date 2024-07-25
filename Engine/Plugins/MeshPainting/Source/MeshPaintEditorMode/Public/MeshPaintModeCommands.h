@@ -30,34 +30,37 @@ public:
 	}
 
 public:
-	TSharedPtr<FUICommandInfo> NextTexture;
-	TSharedPtr<FUICommandInfo> PreviousTexture;
-	TSharedPtr<FUICommandInfo> CommitTexturePainting;
+	TSharedPtr<FUICommandInfo> SelectVertex;
+	TSharedPtr<FUICommandInfo> SelectTexture;
 
+	TSharedPtr<FUICommandInfo> PaintVertexColor;
+	TSharedPtr<FUICommandInfo> PaintVertexWeight;
+	TSharedPtr<FUICommandInfo> PaintTextureColor;
+	TSharedPtr<FUICommandInfo> PaintTextureAsset;
+
+	TSharedPtr<FUICommandInfo> SwapColor;
+	TSharedPtr<FUICommandInfo> FillVertex;
+	TSharedPtr<FUICommandInfo> FillTexture;
+	TSharedPtr<FUICommandInfo> Apply;
+	TSharedPtr<FUICommandInfo> Commit;
+	TSharedPtr<FUICommandInfo> Propagate;
+	TSharedPtr<FUICommandInfo> SaveVertex;
+	TSharedPtr<FUICommandInfo> SaveTexture;
+	TSharedPtr<FUICommandInfo> Add;
+	TSharedPtr<FUICommandInfo> RemoveVertex;
+	TSharedPtr<FUICommandInfo> RemoveTexture;
 	TSharedPtr<FUICommandInfo> Copy;
 	TSharedPtr<FUICommandInfo> Paste;
-	TSharedPtr<FUICommandInfo> Remove;
-	TSharedPtr<FUICommandInfo> Fix;
-	TSharedPtr<FUICommandInfo> Fill;
-	TSharedPtr<FUICommandInfo> Propagate;
 	TSharedPtr<FUICommandInfo> Import;
-	TSharedPtr<FUICommandInfo> Save;
+	TSharedPtr<FUICommandInfo> GetTextureColors;
+	TSharedPtr<FUICommandInfo> GetVertexColors;
+	TSharedPtr<FUICommandInfo> Fix;
 
-	TSharedPtr<FUICommandInfo> SwitchForeAndBackgroundColor;
-	TSharedPtr<FUICommandInfo> CycleToNextLOD;
-	TSharedPtr<FUICommandInfo> CycleToPreviousLOD;
+	TSharedPtr<FUICommandInfo> PreviousLOD;
+	TSharedPtr<FUICommandInfo> NextLOD;
+	TSharedPtr<FUICommandInfo> PreviousTexture;
+	TSharedPtr<FUICommandInfo> NextTexture;
 
-	TSharedPtr<FUICommandInfo> PropagateTexturePaint;
-	TSharedPtr<FUICommandInfo> SaveTexturePaint;
-
-	TSharedPtr<FUICommandInfo> PropagateVertexColorsToLODs;
-
-	TSharedPtr<FUICommandInfo> ColorPaint;
-	TSharedPtr<FUICommandInfo> WeightPaint;
-	TSharedPtr<FUICommandInfo> TexturePaint;
-	TSharedPtr<FUICommandInfo> VertexSelect;
-	TSharedPtr<FUICommandInfo> TextureSelect;
-	TSharedPtr<FUICommandInfo> TextureFill;
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> Commands;
 };
 

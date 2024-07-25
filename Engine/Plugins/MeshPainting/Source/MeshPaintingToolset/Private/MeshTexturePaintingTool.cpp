@@ -134,19 +134,29 @@ namespace UE::MeshPaintingToolset::Private::TexturePainting
 	}
 }
 
+
 /*
  * ToolBuilder
  */
 
-bool UMeshTexturePaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+bool UMeshTextureColorPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
 	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SelectionHasMaterialValidForTexturePaint();
 }
 
-UInteractiveTool* UMeshTexturePaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+UInteractiveTool* UMeshTextureColorPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
-	UMeshTexturePaintingTool* NewTool = NewObject<UMeshTexturePaintingTool>(SceneState.ToolManager);
-	return NewTool;
+	return NewObject<UMeshTextureColorPaintingTool>(SceneState.ToolManager);
+}
+
+bool UMeshTextureAssetPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+{
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SelectionHasMaterialValidForTexturePaint();
+}
+
+UInteractiveTool* UMeshTextureAssetPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+{
+	return NewObject<UMeshTextureAssetPaintingTool>(SceneState.ToolManager);
 }
 
 
@@ -154,24 +164,10 @@ UInteractiveTool* UMeshTexturePaintingToolBuilder::BuildTool(const FToolBuilderS
  * Tool
  */
 
-UMeshTexturePaintingToolProperties::UMeshTexturePaintingToolProperties()
-	:UBrushBaseProperties(),
-	PaintColor(FLinearColor::White),
-	EraseColor(FLinearColor::Black),
-	bWriteRed(true),
-	bWriteGreen(true),
-	bWriteBlue(true),
-	bWriteAlpha(false),
-	UVChannel(0),
-	bEnableSeamPainting(false),
-	PaintTexture(nullptr)
-{
-}
 UMeshTexturePaintingTool::UMeshTexturePaintingTool()
 {
 	PropertyClass = UMeshTexturePaintingToolProperties::StaticClass();
 }
-
 
 void UMeshTexturePaintingTool::Setup()
 {
@@ -195,13 +191,8 @@ void UMeshTexturePaintingTool::Setup()
 
 	BrushStampIndicator->LineColor = FLinearColor::Green;
 
-	GetToolManager()->DisplayMessage(
-		LOCTEXT("OnStartTexturePaintTool", "The Texture Weight Painting mode enables you to paint on textures and access available properties while doing so ."),
-		EToolMessageLevel::UserNotification);
-
 	SelectionMechanic = NewObject<UMeshPaintSelectionMechanic>(this);
 	SelectionMechanic->Setup(this);
-
 }
 
 
@@ -298,7 +289,6 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 				BucketFillParams.bWriteGreen = TextureProperties->bWriteGreen;
 				BucketFillParams.bWriteBlue = TextureProperties->bWriteBlue;
 				BucketFillParams.bWriteAlpha = TextureProperties->bWriteAlpha;
-				BucketFillParams.UVChannel = TextureProperties->UVChannel;
 				BucketFillParams.bUseFillBucket = true;
 			}
 
@@ -306,13 +296,16 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 			for (int32 j = 0; j < SelectedMeshComponents.Num(); ++j)
 			{
 				UMeshComponent* SelectedComponent = SelectedMeshComponents[j];
+				
+				const int32 UVChannel = GetSelectedUVChannel(SelectedComponent);
+
 				IMeshPaintComponentAdapter* MeshAdapter = MeshPaintingSubsystem->GetAdapterForComponent(SelectedComponent).Get();
 				if (MeshAdapter)
 				{
 					if (MeshAdapter->SupportsTexturePaint())
 					{
 						Textures.Empty();
-						const UTexture2D* TargetTexture2D = TextureProperties->PaintTexture;
+						const UTexture2D* TargetTexture2D = GetSelectedPaintTexture(SelectedComponent);
 						if (TargetTexture2D)
 						{
 							Textures.Add(TargetTexture2D);
@@ -327,7 +320,7 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 							UTexturePaintToolset::RetrieveMeshSectionsForTextures(SelectedComponent, 0 /*CachedLODIndex*/, Textures, MaterialSections);
 
 							TArray<FTexturePaintTriangleInfo> TrianglePaintInfoArray;
-							FPerTrianglePaintAction TempAction = FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, TextureProperties->UVChannel);
+							FPerTrianglePaintAction TempAction = FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel);
 
 							// We are flooding the texture, so all triangles are influenced
 
@@ -355,14 +348,15 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 							}
 
 							FMeshPaintParameters* LastParams = nullptr;
-							PaintTexture(BucketFillParams, TrianglePaintInfoArray, *MeshAdapter, LastParams);
+							PaintTexture(BucketFillParams, UVChannel, TrianglePaintInfoArray, *MeshAdapter, LastParams);
 						}
 					}
 				}
 			}
 		}
 
-		if (MeshPaintingSubsystem->bNeedsRecache || (PaintableTextures.Num() > 0 && TextureProperties && TextureProperties->PaintTexture == nullptr))
+		UMeshComponent* FirstSelectedComponent = MeshPaintingSubsystem->GetSelectedMeshComponents()[0];
+		if (MeshPaintingSubsystem->bNeedsRecache || (PaintableTextures.Num() > 0 && TextureProperties && GetSelectedPaintTexture(FirstSelectedComponent) == nullptr))
 		{
 			CacheSelectionData();
 			CacheTexturePaintData();
@@ -478,34 +472,6 @@ void UMeshTexturePaintingTool::CacheSelectionData()
 	}
 }
 
-void UMeshTexturePaintingTool::CacheTexturePaintData()
-{
-	UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
-	if (MeshPaintingSubsystem)
-	{
-		TArray<UMeshComponent*> PaintableComponents = MeshPaintingSubsystem->GetPaintableMeshComponents();
-		
-		PaintableTextures.Empty();
-		if (PaintableComponents.Num() == 1 && PaintableComponents[0])
-		{
-			const UMeshComponent* Component = PaintableComponents[0];
-			TSharedPtr<IMeshPaintComponentAdapter> Adapter = MeshPaintingSubsystem->GetAdapterForComponent(Component);
-			UTexturePaintToolset::RetrieveTexturesForComponent(Component, Adapter.Get(), PaintableTextures);
-		}
-
-		// Ensure that the selection remains valid or is invalidated
-		if (!PaintableTextures.Contains(TextureProperties->PaintTexture))
-		{
-			UTexture2D* NewTexture = nullptr;
-			if (PaintableTextures.Num() > 0)
-			{
-				NewTexture = Cast<UTexture2D>(PaintableTextures[0].Texture);
-			}
-			TextureProperties->PaintTexture = NewTexture;
-		}
-	}
-}
-
 bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVector>>& Rays, EMeshPaintModeAction PaintAction, float PaintStrength)
 {
 	TArray<FPaintRayResults> PaintRayResults;
@@ -549,15 +515,27 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 			}
 		}
 
-		bool bUsed = false;
+		UMeshComponent* BestTraceMeshComponent = Cast<UMeshComponent>(BestTraceResult.GetComponent());
+		// If painting texture assets, just use the BestTraceMeshComponent as we only support painting a single mesh at a time in that mode.
+		const bool bAllowMultiselect = AllowsMultiselect();
 
-		if (BestTraceResult.GetComponent() != nullptr)
+		bool bUsed = false;
+		for (UMeshComponent* MeshComponent : MeshPaintingSubsystem->GetPaintableMeshComponents())
 		{
-			// If we're using texture paint, just use the best trace result we found as we currently only
-			// support painting a single mesh at a time in that mode.
-			UMeshComponent* ComponentToPaint = CastChecked<UMeshComponent>(BestTraceResult.GetComponent());
-			HoveredComponents.FindOrAdd(ComponentToPaint).Add(i);
-			bUsed = true;
+			if (MeshComponent == BestTraceMeshComponent)
+			{
+				HoveredComponents.FindOrAdd(MeshComponent).Add(i);
+				bUsed = true;
+			}
+			else if (bAllowMultiselect)
+			{
+				FSphere Sphere(BestTraceResult.Location, BrushRadius);
+				if (MeshComponent->GetLocalBounds().GetSphere().TransformBy(MeshComponent->GetComponentTransform()).Intersects(Sphere))
+				{
+					HoveredComponents.FindOrAdd(MeshComponent).Add(i);
+					bUsed = true;
+				}
+			}
 		}
 
 		if (bUsed)
@@ -598,11 +576,6 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 				Params.bWriteAlpha = TextureProperties->bWriteAlpha;
 				FVector BrushSpaceVertexPosition = Params.InverseBrushToWorldMatrix.TransformVector(FVector4(Params.BrushPosition, 1.0f));
 				Params.BrushPosition2D = FVector2f(BrushSpaceVertexPosition.X, BrushSpaceVertexPosition.Y);
-	
-
-				// @todo MeshPaint: Ideally we would default to: TexturePaintingCurrentMeshComponent->StaticMesh->LightMapCoordinateIndex
-				//		Or we could indicate in the GUI which channel is the light map set (button to set it?)
-				Params.UVChannel = TextureProperties->UVChannel;
 			}
 		}
 	}
@@ -626,10 +599,12 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 				continue;
 			}
 
+			const int32 UVChannel = GetSelectedUVChannel(HoveredComponent);
+
 			if (MeshAdapter->SupportsTexturePaint())
 			{
 				Textures.Empty();
-				const UTexture2D* TargetTexture2D = TextureProperties->PaintTexture;
+				const UTexture2D* TargetTexture2D = GetSelectedPaintTexture(HoveredComponent);
 				if (TargetTexture2D)
 				{
 					Textures.Add(TargetTexture2D);
@@ -649,7 +624,7 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 						const FVector& BestTraceResultLocation = PaintRayResults[PaintRayResultId].BestTraceResult.Location;
 						FViewCameraState CameraState;
 						GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
-						bPaintApplied |= MeshPaintingSubsystem->ApplyPerTrianglePaintAction(MeshAdapter, CameraState.Position, BestTraceResultLocation, BrushProperties, FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, TextureProperties->UVChannel), TextureProperties->bOnlyFrontFacingTriangles);
+						bPaintApplied |= MeshPaintingSubsystem->ApplyPerTrianglePaintAction(MeshAdapter, CameraState.Position, BestTraceResultLocation, BrushProperties, FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel), TextureProperties->bOnlyFrontFacingTriangles);
 						break;
 					}
 
@@ -676,7 +651,7 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 								LastParams = &LastPaintRayResults[PaintRayResultId].Params;
 							}
 
-							PaintTexture(Params, TrianglePaintInfoArray, *MeshAdapter, LastParams);
+							PaintTexture(Params, UVChannel, TrianglePaintInfoArray, *MeshAdapter, LastParams);
 							break;
 						}
 					}
@@ -753,8 +728,8 @@ FInputRayHit UMeshTexturePaintingTool::CanBeginClickDragSequence(const FInputDev
 	{
 		MeshPaintingSubsystem->LastPaintedComponent = (UMeshComponent*)LastBestHitResult.Component.Get();
 		GVertexViewModeOverrideOwnerName = *LastBestHitResult.Component->GetOwner()->GetName();
-		CommitAllPaintedTextures();
-		MeshPaintingSubsystem->bNeedsRecache = true;
+		//CommitAllPaintedTextures();
+		//MeshPaintingSubsystem->bNeedsRecache = true;
 	}
 
 	return Super::CanBeginClickDragSequence(PressPos);
@@ -896,7 +871,7 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 
 	const auto FeatureLevel = InMeshComponent->GetWorld()->GetFeatureLevel();
 
-	UTexture2D* Texture2D = TextureProperties->PaintTexture;
+	UTexture2D* Texture2D = GetSelectedPaintTexture(InMeshComponent);
 	if (Texture2D == nullptr)
 	{
 		return;
@@ -970,56 +945,56 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 			const int32 BrushTargetTextureHeight = TextureHeight;
 
 			// Create the rendertarget used to store our paint delta
-			if (BrushRenderTargetTexture == nullptr ||
-				BrushRenderTargetTexture->GetSurfaceWidth() != BrushTargetTextureWidth ||
-				BrushRenderTargetTexture->GetSurfaceHeight() != BrushTargetTextureHeight)
+			if (TextureData->BrushRenderTargetTexture == nullptr ||
+				TextureData->BrushRenderTargetTexture->GetSurfaceWidth() != BrushTargetTextureWidth ||
+				TextureData->BrushRenderTargetTexture->GetSurfaceHeight() != BrushTargetTextureHeight)
 			{
-				BrushRenderTargetTexture = nullptr;
-				BrushRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+				TextureData->BrushRenderTargetTexture = nullptr;
+				TextureData->BrushRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
 				const bool bForceLinearGamma = true;
-				BrushRenderTargetTexture->ClearColor = FLinearColor::Black;
-				BrushRenderTargetTexture->bNeedsTwoCopies = true;
-				BrushRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_A16B16G16R16, bForceLinearGamma);
-				BrushRenderTargetTexture->UpdateResourceImmediate();
-				BrushRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
-				BrushRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
+				TextureData->BrushRenderTargetTexture->ClearColor = FLinearColor::Black;
+				TextureData->BrushRenderTargetTexture->bNeedsTwoCopies = true;
+				TextureData->BrushRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_A16B16G16R16, bForceLinearGamma);
+				TextureData->BrushRenderTargetTexture->UpdateResourceImmediate();
+				TextureData->BrushRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
+				TextureData->BrushRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
 			}
 
 			if (TextureProperties->bEnableSeamPainting)
 			{
 				// Create the rendertarget used to store a mask for our paint delta area 
-				if (BrushMaskRenderTargetTexture == nullptr ||
-					BrushMaskRenderTargetTexture->GetSurfaceWidth() != BrushTargetTextureWidth ||
-					BrushMaskRenderTargetTexture->GetSurfaceHeight() != BrushTargetTextureHeight)
+				if (TextureData->BrushMaskRenderTargetTexture == nullptr ||
+					TextureData->BrushMaskRenderTargetTexture->GetSurfaceWidth() != BrushTargetTextureWidth ||
+					TextureData->BrushMaskRenderTargetTexture->GetSurfaceHeight() != BrushTargetTextureHeight)
 				{
-					BrushMaskRenderTargetTexture = nullptr;
-					BrushMaskRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+					TextureData->BrushMaskRenderTargetTexture = nullptr;
+					TextureData->BrushMaskRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
 					const bool bForceLinearGamma = true;
-					BrushMaskRenderTargetTexture->ClearColor = FLinearColor::Black;
-					BrushMaskRenderTargetTexture->bNeedsTwoCopies = true;
-					BrushMaskRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_B8G8R8A8, bForceLinearGamma);
-					BrushMaskRenderTargetTexture->UpdateResourceImmediate();
-					BrushMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
-					BrushMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
+					TextureData->BrushMaskRenderTargetTexture->ClearColor = FLinearColor::Black;
+					TextureData->BrushMaskRenderTargetTexture->bNeedsTwoCopies = true;
+					TextureData->BrushMaskRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_B8G8R8A8, bForceLinearGamma);
+					TextureData->BrushMaskRenderTargetTexture->UpdateResourceImmediate();
+					TextureData->BrushMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
+					TextureData->BrushMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
 				}
 
 				// Create the rendertarget used to store a texture seam mask
-				if (SeamMaskRenderTargetTexture == nullptr ||
-					SeamMaskRenderTargetTexture->GetSurfaceWidth() != TextureWidth ||
-					SeamMaskRenderTargetTexture->GetSurfaceHeight() != TextureHeight)
+				if (TextureData->SeamMaskRenderTargetTexture == nullptr ||
+					TextureData->SeamMaskRenderTargetTexture->GetSurfaceWidth() != TextureWidth ||
+					TextureData->SeamMaskRenderTargetTexture->GetSurfaceHeight() != TextureHeight)
 				{
-					SeamMaskRenderTargetTexture = nullptr;
-					SeamMaskRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
+					TextureData->SeamMaskRenderTargetTexture = nullptr;
+					TextureData->SeamMaskRenderTargetTexture = NewObject<UTextureRenderTarget2D>(GetTransientPackage(), NAME_None, RF_Transient);
 					const bool bForceLinearGamma = true;
-					SeamMaskRenderTargetTexture->ClearColor = FLinearColor::Black;
-					SeamMaskRenderTargetTexture->bNeedsTwoCopies = true;
-					SeamMaskRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_B8G8R8A8, bForceLinearGamma);
-					SeamMaskRenderTargetTexture->UpdateResourceImmediate();
-					SeamMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
-					SeamMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
+					TextureData->SeamMaskRenderTargetTexture->ClearColor = FLinearColor::Black;
+					TextureData->SeamMaskRenderTargetTexture->bNeedsTwoCopies = true;
+					TextureData->SeamMaskRenderTargetTexture->InitCustomFormat(BrushTargetTextureWidth, BrushTargetTextureHeight, PF_B8G8R8A8, bForceLinearGamma);
+					TextureData->SeamMaskRenderTargetTexture->UpdateResourceImmediate();
+					TextureData->SeamMaskRenderTargetTexture->AddressX = TextureData->PaintRenderTargetTexture->AddressX;
+					TextureData->SeamMaskRenderTargetTexture->AddressY = TextureData->PaintRenderTargetTexture->AddressY;
 				}
 
-				bGenerateSeamMask = true;
+				TextureData->bGenerateSeamMask = true;
 			}
 
 			// MeshPaint: Here we override the textures on the mesh with the render target.  The problem is that other meshes in the scene that use
@@ -1079,7 +1054,7 @@ void UMeshTexturePaintingTool::StartPaintingTexture(UMeshComponent* InMeshCompon
 	}
 }
 
-void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArray<FTexturePaintTriangleInfo>& InInfluencedTriangles, const IMeshPaintComponentAdapter& GeometryInfo, FMeshPaintParameters* LastParams)
+void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, int32 UVChannel, TArray<FTexturePaintTriangleInfo>& InInfluencedTriangles, const IMeshPaintComponentAdapter& GeometryInfo, FMeshPaintParameters* LastParams)
 {
 	// We bail early if there are no influenced triangles
 	if (InInfluencedTriangles.Num() <= 0)
@@ -1096,8 +1071,8 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 
 	// Copy the current image to the brush rendertarget texture.
 	{
-		check(BrushRenderTargetTexture != nullptr);
-		UTexturePaintToolset::CopyTextureToRenderTargetTexture(TextureData->PaintRenderTargetTexture, BrushRenderTargetTexture, FeatureLevel);
+		check(TextureData->BrushRenderTargetTexture != nullptr);
+		UTexturePaintToolset::CopyTextureToRenderTargetTexture(TextureData->PaintRenderTargetTexture, TextureData->BrushRenderTargetTexture, FeatureLevel);
 	}
 
 	const bool bEnableSeamPainting = TextureProperties->bEnableSeamPainting;
@@ -1106,7 +1081,7 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 	// Grab the actual render target resource from the textures.  Note that we're absolutely NOT ALLOWED to
 	// dereference these pointers.  We're just passing them along to other functions that will use them on the render
 	// thread.  The only thing we're allowed to do is check to see if they are nullptr or not.
-	FTextureRenderTargetResource* BrushRenderTargetResource = BrushRenderTargetTexture->GameThread_GetRenderTargetResource();
+	FTextureRenderTargetResource* BrushRenderTargetResource = TextureData->BrushRenderTargetTexture->GameThread_GetRenderTargetResource();
 	check(BrushRenderTargetResource != nullptr);
 
 	// Create a canvas for the brush render target.
@@ -1128,7 +1103,7 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 		}
 		MeshPaintBatchedElementParameters->ShaderParams.PaintBrushRotationOffset = TextureProperties->PaintBrushRotationOffset;
 		MeshPaintBatchedElementParameters->ShaderParams.bUseFillBucket = InParams.bUseFillBucket;
-		MeshPaintBatchedElementParameters->ShaderParams.CloneTexture = BrushRenderTargetTexture;
+		MeshPaintBatchedElementParameters->ShaderParams.CloneTexture = TextureData->BrushRenderTargetTexture;
 		MeshPaintBatchedElementParameters->ShaderParams.WorldToBrushMatrix = WorldToBrushMatrix;
 		MeshPaintBatchedElementParameters->ShaderParams.BrushRadius = InParams.InnerBrushRadius + InParams.BrushRadialFalloffRange;
 		MeshPaintBatchedElementParameters->ShaderParams.BrushRadialFalloffRange = InParams.BrushRadialFalloffRange;
@@ -1157,7 +1132,7 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 
 	if (bEnableSeamPainting)
 	{
-		BrushMaskRenderTargetResource = BrushMaskRenderTargetTexture->GameThread_GetRenderTargetResource();
+		BrushMaskRenderTargetResource = TextureData->BrushMaskRenderTargetTexture->GameThread_GetRenderTargetResource();
 		check(BrushMaskRenderTargetResource != nullptr);
 
 		// Create a canvas for the brush mask rendertarget and clear it to black.
@@ -1327,11 +1302,10 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 	if (!bEnableSeamPainting)
 	{
 		// Seam painting is not enabled so we just copy our delta paint info to the paint target.
-		UTexturePaintToolset::CopyTextureToRenderTargetTexture(BrushRenderTargetTexture, TextureData->PaintRenderTargetTexture, FeatureLevel);
+		UTexturePaintToolset::CopyTextureToRenderTargetTexture(TextureData->BrushRenderTargetTexture, TextureData->PaintRenderTargetTexture, FeatureLevel);
 	}
 	else
 	{
-
 		// Constants used for generating quads across entire paint rendertarget
 		const float MinU = 0.0f;
 		const float MinV = 0.0f;
@@ -1342,15 +1316,11 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 		const float MaxX = TextureData->PaintRenderTargetTexture->GetSurfaceWidth();
 		const float MaxY = TextureData->PaintRenderTargetTexture->GetSurfaceHeight();
 
-		if (bGenerateSeamMask == true)
+		if (TextureData->bGenerateSeamMask == true)
 		{
-			// Generate the texture seam mask.  This is a slow operation when the object has many triangles so we only do it
-			//  once when painting is started.
-
-			FPaintTexture2DData* SeamTextureData = GetPaintTargetData(TextureProperties->PaintTexture);
-
-			UTexturePaintToolset::GenerateSeamMask(TexturePaintingCurrentMeshComponent, InParams.UVChannel, SeamMaskRenderTargetTexture, TextureProperties->PaintTexture, SeamTextureData != nullptr ? SeamTextureData->PaintRenderTargetTexture : nullptr);
-			bGenerateSeamMask = false;
+			// Generate the texture seam mask.  This is a slow operation when the object has many triangles so we only do it once when painting is started.
+			UTexturePaintToolset::GenerateSeamMask(TexturePaintingCurrentMeshComponent, UVChannel, TextureData->SeamMaskRenderTargetTexture, TextureData->PaintingTexture2D, TextureData->PaintRenderTargetTexture);
+			TextureData->bGenerateSeamMask = false;
 		}
 
 		FTextureRenderTargetResource* RenderTargetResource = TextureData->PaintRenderTargetTexture->GameThread_GetRenderTargetResource();
@@ -1363,9 +1333,9 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 
 			TRefCountPtr< FMeshPaintDilateBatchedElementParameters > MeshPaintDilateBatchedElementParameters(new FMeshPaintDilateBatchedElementParameters());
 			{
-				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture0 = BrushRenderTargetTexture;
-				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture1 = SeamMaskRenderTargetTexture;
-				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture2 = BrushMaskRenderTargetTexture;
+				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture0 = TextureData->BrushRenderTargetTexture;
+				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture1 = TextureData->SeamMaskRenderTargetTexture;
+				MeshPaintDilateBatchedElementParameters->ShaderParams.Texture2 = TextureData->BrushMaskRenderTargetTexture;
 				MeshPaintDilateBatchedElementParameters->ShaderParams.WidthPixelOffset = (float)(1.0f / TextureData->PaintRenderTargetTexture->GetSurfaceWidth());
 				MeshPaintDilateBatchedElementParameters->ShaderParams.HeightPixelOffset = (float)(1.0f / TextureData->PaintRenderTargetTexture->GetSurfaceHeight());
 
@@ -1408,7 +1378,6 @@ void UMeshTexturePaintingTool::PaintTexture(FMeshPaintParameters& InParams, TArr
 
 			// Tell the rendering thread to draw any remaining batched elements
 			Canvas3.Flush_GameThread(true);
-
 		}
 
 		ENQUEUE_RENDER_COMMAND(UpdateMeshPaintRTCommand3)(
@@ -1592,33 +1561,14 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 						CompareSortedArrayElements<TObjectPtr<UTexture2D>>(CurrentTextures, OverrideTextures, TextureOverrideIsNotNeeded, TextureOverrideIsMissing, UpdateOverridedComponents);
 					}
 
-
 					// Update the render targets
+					for (TPair<TObjectPtr<UTexture2D>, FPaintTexture2DData>& TargetData : PaintTargetData)
 					{
-						if (Transaction->ContainsObject(this) && TextureProperties)
-						{
-							if (TextureProperties->PaintTexture)
-							{
-								if (FPaintTexture2DData* TextureData = GetPaintTargetData(TextureProperties->PaintTexture))
-								{
-									if (TextureData->ScratchTexture)
-									{
-										UTexturePaintToolset::UpdateRenderTargetData(*TextureData);
-									}
-								}
-							}
-						}
-						else
-						{
-							for (TPair<TObjectPtr<UTexture2D>, FPaintTexture2DData>& TagetData : PaintTargetData)
-							{
-								FPaintTexture2DData& PaintTexture2DData = TagetData.Value;
+						FPaintTexture2DData& PaintTexture2DData = TargetData.Value;
 
-								if (Transaction->ContainsObject(PaintTexture2DData.ScratchTexture))
-								{
-									UTexturePaintToolset::UpdateRenderTargetData(PaintTexture2DData);
-								}
-							}
+						if (Transaction->ContainsObject(PaintTexture2DData.ScratchTexture))
+						{
+							UTexturePaintToolset::UpdateRenderTargetData(PaintTexture2DData);
 						}
 					}
 				}
@@ -1627,13 +1577,13 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 	}
 }
 
-void UMeshTexturePaintingTool::CycleTextures(int32 Direction)
+void UMeshTextureAssetPaintingTool::CycleTextures(int32 Direction)
 {
 	if (!PaintableTextures.Num())
 	{
 		return;
 	}
-	TObjectPtr<UTexture2D>& SelectedTexture = TextureProperties->PaintTexture;
+	TObjectPtr<UTexture2D>& SelectedTexture = AssetProperties->PaintTexture;
 	const int32 TextureIndex = (SelectedTexture != nullptr) ? PaintableTextures.IndexOfByKey(SelectedTexture) : 0;
 	if (TextureIndex != INDEX_NONE)
 	{
@@ -1704,10 +1654,6 @@ void UMeshTexturePaintingTool::CommitAllPaintedTextures()
 					FMemory::Memcpy(Colors, TexturePixels.GetData(), TexturePixels.Num() * sizeof(FColor));
 					TextureData->PaintingTexture2D->Source.UnlockMip(0);
 
-					// If render target gamma used was 1.0 then disable SRGB for the static texture
-					// @todo MeshPaint: We are not allowed to dereference the RenderTargetResource pointer, figure out why we need this when the GetDisplayGamma() function is hard coded to return 2.2.
-					TextureData->PaintingTexture2D->SRGB = FMath::Abs(RenderTargetResource->GetDisplayGamma() - 1.0f) >= KINDA_SMALL_NUMBER;
-
 					TextureData->PaintingTexture2D->bHasBeenPaintedInEditor = true;
 
 					// Update the texture (generate mips, compress if needed)
@@ -1767,7 +1713,107 @@ int32 UMeshTexturePaintingTool::GetNumberOfPendingPaintChanges() const
 	return Result;
 }
 
-bool UMeshTexturePaintingTool::ShouldFilterTextureAsset(const FAssetData& AssetData) const
+bool UMeshTexturePaintingTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+{
+	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
+}
+
+void UMeshTexturePaintingTool::FloodCurrentPaintTexture()
+{
+	bRequestPaintBucketFill = true;
+}
+
+
+UMeshTextureColorPaintingTool::UMeshTextureColorPaintingTool()
+{
+	PropertyClass = UMeshTextureColorPaintingToolProperties::StaticClass();
+}
+
+void UMeshTextureColorPaintingTool::Setup()
+{
+	Super::Setup();
+	ColorProperties = Cast<UMeshTextureColorPaintingToolProperties>(BrushProperties);
+
+	GetToolManager()->DisplayMessage(
+		LOCTEXT("OnStartTextureColorPaintTool", "Paint colors to the Mesh Paint Texture object stored on mesh components."),
+		EToolMessageLevel::UserNotification);
+}
+
+UTexture2D* UMeshTextureColorPaintingTool::GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const
+{
+	return Cast<UTexture2D>(InMeshComponent->GetMeshPaintTexture());
+}
+
+int32 UMeshTextureColorPaintingTool::GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const
+{
+	return InMeshComponent != nullptr ? InMeshComponent->GetMeshPaintTextureCoordinateIndex() : 0;
+}
+
+void UMeshTextureColorPaintingTool::GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const
+{
+	for (FPaintableTexture const& PaintableTexture : PaintableTextures)
+	{
+		if (PaintableTexture.Texture->GetOutermost()->IsDirty())
+		{
+			OutTexturesToSave.Add(PaintableTexture.Texture);
+		}
+	}
+}
+
+void UMeshTextureColorPaintingTool::CacheTexturePaintData()
+{
+	UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
+	if (MeshPaintingSubsystem)
+	{
+		PaintableTextures.Empty();
+
+		TArray<UMeshComponent*> PaintableComponents = MeshPaintingSubsystem->GetPaintableMeshComponents();
+		for (UMeshComponent const* Component : PaintableComponents)
+		{
+			int32 DummyDefaultIndex;
+			TSharedPtr<IMeshPaintComponentAdapter> Adapter = MeshPaintingSubsystem->GetAdapterForComponent(Component);
+			UTexturePaintToolset::RetrieveTexturesForComponent(Component, Adapter.Get(), DummyDefaultIndex, PaintableTextures);
+		}
+
+		PaintableTextures.RemoveAll([](FPaintableTexture const& PaintableTexture) { return !PaintableTexture.bIsMeshTexture; });
+	}
+}
+
+
+UMeshTextureAssetPaintingTool::UMeshTextureAssetPaintingTool()
+{
+	PropertyClass = UMeshTextureAssetPaintingToolProperties::StaticClass();
+}
+
+void UMeshTextureAssetPaintingTool::Setup()
+{
+	Super::Setup();
+	AssetProperties = Cast<UMeshTextureAssetPaintingToolProperties>(BrushProperties);
+
+	GetToolManager()->DisplayMessage(
+		LOCTEXT("OnStartTexturePaintTool", "The Texture Weight Painting mode enables you to paint on textures and access available properties while doing so ."),
+		EToolMessageLevel::UserNotification);
+}
+
+UTexture2D* UMeshTextureAssetPaintingTool::GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const
+{
+	return AssetProperties->PaintTexture;
+}
+
+int32 UMeshTextureAssetPaintingTool::GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const
+{
+	return AssetProperties->UVChannel;
+}
+
+void UMeshTextureAssetPaintingTool::GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const
+{
+	if (AssetProperties->PaintTexture != nullptr && AssetProperties->PaintTexture->GetOutermost()->IsDirty())
+	{
+		OutTexturesToSave.Add(AssetProperties->PaintTexture);
+	}
+}
+
+bool UMeshTextureAssetPaintingTool::ShouldFilterTextureAsset(const FAssetData& AssetData) const
 {
 	UTexture2D* AssetTexture = Cast<UTexture2D>(AssetData.GetAsset());
 	if (!AssetTexture)
@@ -1777,7 +1823,7 @@ bool UMeshTexturePaintingTool::ShouldFilterTextureAsset(const FAssetData& AssetD
 	return !(PaintableTextures.ContainsByPredicate([=](const FPaintableTexture& Texture) { return Texture.Texture->GetFullName() == AssetTexture->GetFullName(); }));
 }
 
-void UMeshTexturePaintingTool::PaintTextureChanged(const FAssetData& AssetData)
+void UMeshTextureAssetPaintingTool::PaintTextureChanged(const FAssetData& AssetData)
 {
 	UTexture2D* Texture = Cast<UTexture2D>(AssetData.GetAsset());
 	if (Texture)
@@ -1789,7 +1835,7 @@ void UMeshTexturePaintingTool::PaintTextureChanged(const FAssetData& AssetData)
 			if (TextureTarget.TextureData == Texture)
 			{
 				TextureTarget.bIsSelected = true;
-				TextureProperties->UVChannel = TextureTarget.UVChannelIndex;
+				AssetProperties->UVChannel = TextureTarget.UVChannelIndex;
 			}
 			else
 			{
@@ -1799,14 +1845,44 @@ void UMeshTexturePaintingTool::PaintTextureChanged(const FAssetData& AssetData)
 	}
 }
 
-bool UMeshTexturePaintingTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+void UMeshTextureAssetPaintingTool::CacheTexturePaintData()
 {
-	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
-}
+	UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
+	if (MeshPaintingSubsystem)
+	{
+		PaintableTextures.Empty();
+		
+		UTexture* DefaultTexture = nullptr;
+	
+		TArray<UMeshComponent*> PaintableComponents = MeshPaintingSubsystem->GetPaintableMeshComponents();
+		if (PaintableComponents.IsValidIndex(0))
+		{
+			int32 DefaultTextureIndex = INDEX_NONE;
+			TSharedPtr<IMeshPaintComponentAdapter> Adapter = MeshPaintingSubsystem->GetAdapterForComponent(PaintableComponents[0]);
+			UTexturePaintToolset::RetrieveTexturesForComponent(PaintableComponents[0], Adapter.Get(), DefaultTextureIndex, PaintableTextures);
+			if (PaintableTextures.IsValidIndex(DefaultTextureIndex))
+			{
+				DefaultTexture = PaintableTextures[DefaultTextureIndex].Texture;
+			}
+		}
 
-void UMeshTexturePaintingTool::FloodCurrentPaintTexture()
-{
-	bRequestPaintBucketFill = true;
+		PaintableTextures.RemoveAll([](FPaintableTexture const& PaintableTexture) { return PaintableTexture.bIsMeshTexture; });
+
+		// Ensure that the selection remains valid or is invalidated
+		if (!PaintableTextures.Contains(AssetProperties->PaintTexture))
+		{
+			UTexture2D* NewTexture = nullptr;
+			if (PaintableTextures.Contains(DefaultTexture))
+			{
+				NewTexture = Cast<UTexture2D>(DefaultTexture);
+			}
+			else if (PaintableTextures.Num() > 0)
+			{
+				NewTexture = Cast<UTexture2D>(PaintableTextures[0].Texture);
+			}
+			AssetProperties->PaintTexture = NewTexture;
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

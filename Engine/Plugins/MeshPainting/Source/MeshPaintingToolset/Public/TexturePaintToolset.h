@@ -101,7 +101,7 @@ public:
 	static void RetrieveMeshSectionsForMaterialIndices(const UMeshComponent* MeshComponent, int32 LODIndex, const TArray<int32>& MaterialIndices, TArray<FTexturePaintMeshSectionInfo>& OutSectionInfo);
 
 	/** Retrieves all Paintable Textures from the given MeshComponent */
-	static void RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, TArray<FPaintableTexture>& OutTextures);
+	static void RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, int32& OutDefaultIndex, TArray<FPaintableTexture>& OutTextures);
 
 	/** Checks whether or not the given MeshComponent's materials use the specified texture */
 	static bool DoesMeshComponentUseTexture(UMeshComponent* MeshComponent, UTexture* Texture);

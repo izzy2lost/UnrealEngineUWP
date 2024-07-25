@@ -3,6 +3,7 @@
 #pragma once
 
 #include "BaseTools/BaseBrushTool.h"
+#include "BaseMeshPaintingToolProperties.h"
 #include "MeshPaintingToolsetTypes.h"
 #include "MeshPaintInteractions.h"
 #include "MeshVertexPaintingTool.generated.h"
@@ -74,28 +75,12 @@ public:
 
 
 UCLASS()
-class MESHPAINTINGTOOLSET_API UMeshVertexPaintingToolProperties : public UBrushBaseProperties
+class MESHPAINTINGTOOLSET_API UMeshVertexPaintingToolProperties : public UMeshPaintingToolProperties
 {
 	GENERATED_BODY()
 
 public:
 	UMeshVertexPaintingToolProperties();
-
-	/** Color used for Applying Vertex Color Painting */
-	UPROPERTY(EditAnywhere, Category = VertexPainting)
-	FLinearColor PaintColor;
-
-	/** Color used for Erasing Vertex Color Painting */
-	UPROPERTY(EditAnywhere, Category = VertexPainting)
-	FLinearColor EraseColor;
-
-	/** Enables "Flow" painting where paint is continually applied from the brush every tick */
-	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Enable Brush Flow"))
-	bool bEnableFlow;
-
-	/** Whether back-facing triangles should be ignored */
-	UPROPERTY(EditAnywhere, Category = Brush, meta = (DisplayName = "Ignore Back-Facing"))
-	bool bOnlyFrontFacingTriangles;
 
 	/** Size of vertex points drawn when mesh painting is active. */
 	UPROPERTY(EditAnywhere, Category = "VertexPainting|Visualization")
@@ -104,46 +89,43 @@ public:
 
 
 UCLASS()
-class MESHPAINTINGTOOLSET_API UMeshColorPaintingToolProperties : public UMeshVertexPaintingToolProperties
+class MESHPAINTINGTOOLSET_API UMeshVertexColorPaintingToolProperties : public UMeshVertexPaintingToolProperties
 {
 	GENERATED_BODY()
 
 public:
-	UMeshColorPaintingToolProperties();
-
-
 	/** Whether or not to apply Vertex Color Painting to the Red Channel */
 	UPROPERTY(EditAnywhere, Category = ColorPainting, DisplayName = "Red")
-	bool bWriteRed;
+	bool bWriteRed = true;
 
 	/** Whether or not to apply Vertex Color Painting to the Green Channel */
 	UPROPERTY(EditAnywhere, Category = ColorPainting, DisplayName = "Green")
-	bool bWriteGreen;
+	bool bWriteGreen = true;
 
 	/** Whether or not to apply Vertex Color Painting to the Blue Channel */
 	UPROPERTY(EditAnywhere, Category = ColorPainting, DisplayName = "Blue")
-	bool bWriteBlue;
+	bool bWriteBlue = true;
 
 	/** Whether or not to apply Vertex Color Painting to the Alpha Channel */
 	UPROPERTY(EditAnywhere, Category = ColorPainting, DisplayName = "Alpha")
-	bool bWriteAlpha;
+	bool bWriteAlpha = false;
 
 	/** When unchecked the painting on the base LOD will be propagate automatically to all other LODs when exiting the mode or changing the selection */
 	UPROPERTY(EditAnywhere, Category = Painting, meta = (TransientToolProperty))
-	bool bPaintOnSpecificLOD;
+	bool bPaintOnSpecificLOD = false;
 
 	/** LOD Index to which should specifically be painted */
 	UPROPERTY(EditAnywhere, Category = Painting, meta = (UIMin = "0", ClampMin = "0", EditCondition = "bPaintOnSpecificLOD", TransientToolProperty))
-	int32 LODIndex;
+	int32 LODIndex = 0;
 };
 
 UCLASS()
-class MESHPAINTINGTOOLSET_API UMeshWeightPaintingToolProperties : public UMeshVertexPaintingToolProperties
+class MESHPAINTINGTOOLSET_API UMeshVertexWeightPaintingToolProperties : public UMeshVertexPaintingToolProperties
 {
 	GENERATED_BODY()
 
 public:
-	UMeshWeightPaintingToolProperties();
+	UMeshVertexWeightPaintingToolProperties();
 
 	/** Texture Blend Weight Painting Mode */
 	UPROPERTY(EditAnywhere, Category = WeightPainting, meta = (EnumCondition = 1))
@@ -264,7 +246,7 @@ protected:
 
 private:
 	UPROPERTY(Transient)
-	TObjectPtr<UMeshColorPaintingToolProperties> ColorProperties;
+	TObjectPtr<UMeshVertexColorPaintingToolProperties> ColorProperties;
 
 	/** Current LOD index used for painting / forcing */
 	int32 CachedLODIndex;
@@ -288,7 +270,7 @@ protected:
 
 private:
 	UPROPERTY(Transient)
-	TObjectPtr<UMeshWeightPaintingToolProperties> WeightProperties;
+	TObjectPtr<UMeshVertexWeightPaintingToolProperties> WeightProperties;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

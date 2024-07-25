@@ -21,7 +21,8 @@ namespace UnrealBuildTool.Rules
 					"UnrealEd",
 					"InterchangeEngine",
 					"InterchangePipelines",
-					"Chaos"
+					"Chaos",
+					"ImageCore"
 				}
                 );
 

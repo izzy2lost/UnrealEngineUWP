@@ -298,13 +298,16 @@ bool UTexturePaintToolset::GenerateSeamMask(UMeshComponent* MeshComponent, int32
 			EachTri.V2_Color = FLinearColor::Black;
 			TriList.Add(EachTri);
 		}
-		// Setup the tri render item with the list of tris
-		FCanvasTriangleItem TriItem(TriList, RenderTargetResource);
-		TriItem.BlendMode = SE_BLEND_Opaque;
-		// And render it
-		Canvas.DrawItem(TriItem);
-		// Tell the rendering thread to draw any remaining batched elements
-		Canvas.Flush_GameThread(true);
+		if (TriList.Num())
+		{
+			// Setup the tri render item with the list of tris
+			FCanvasTriangleItem TriItem(TriList, RenderTargetResource);
+			TriItem.BlendMode = SE_BLEND_Opaque;
+			// And render it
+			Canvas.DrawItem(TriItem);
+			// Tell the rendering thread to draw any remaining batched elements
+			Canvas.Flush_GameThread(true);
+		}
 	}
 
 
@@ -563,8 +566,10 @@ bool UTexturePaintToolset::DoesMeshComponentUseTexture(UMeshComponent* MeshCompo
 	return UsedTextures.Contains(Texture);
 }
 
-void UTexturePaintToolset::RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, TArray<FPaintableTexture>& OutTextures)
+void UTexturePaintToolset::RetrieveTexturesForComponent(const UMeshComponent* Component, IMeshPaintComponentAdapter* Adapter, int32& OutDefaultIndex, TArray<FPaintableTexture>& OutTextures)
 {
+	OutDefaultIndex = INDEX_NONE;
+
 	if (Component && Adapter)
 	{
 		// Get the materials used by the mesh
@@ -573,21 +578,27 @@ void UTexturePaintToolset::RetrieveTexturesForComponent(const UMeshComponent* Co
 
 		for (int32 MaterialIndex = 0; MaterialIndex < UsedMaterials.Num(); ++MaterialIndex)
 		{
-			int32 OutDefaultIndex = 0;
-			Adapter->QueryPaintableTextures(MaterialIndex, OutDefaultIndex, OutTextures);
+			int32 OutDefaultIndexForMaterial = INDEX_NONE;
+			Adapter->QueryPaintableTextures(MaterialIndex, OutDefaultIndexForMaterial, OutTextures);
+
+			// We can only collect one default texture from the multiple materials!
+			if (OutDefaultIndex == INDEX_NONE && OutDefaultIndexForMaterial != INDEX_NONE)
+			{
+				OutDefaultIndex = OutDefaultIndexForMaterial;
+			}
 		}
 
 		// Filter out any paintable texture that is not supported currently (Todo: should we do this here or could we just move some logic in the FPaintableTexture)?
 		OutTextures.RemoveAll([](const FPaintableTexture& PaintableTexture)
+		{
+			if (const UTexture* Texture = PaintableTexture.Texture)
 			{
-				if (const UTexture* Texture = PaintableTexture.Texture)
-				{
-					// Only BRGA8 image are supported by the tool currently (we should probably provide some feedback to the user on why some texture are not supported and a way to convert them)
-					return Texture->Source.GetFormat() != TSF_BGRA8;
-				}
+				// Only BRGA8 image are supported by the tool currently (we should probably provide some feedback to the user on why some texture are not supported and a way to convert them)
+				return Texture->Source.GetFormat() != TSF_BGRA8;
+			}
 
-				return true;
-			});
+			return true;
+		});
 	}
 }
 

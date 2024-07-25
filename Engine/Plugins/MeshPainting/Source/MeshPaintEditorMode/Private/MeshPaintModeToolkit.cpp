@@ -24,7 +24,6 @@ FName FMeshPaintModeToolkit::GetToolkitFName() const
 	return FName( "MeshPaintMode" );
 }
 
-
 FText FMeshPaintModeToolkit::GetBaseToolkitName() const
 {
 	return LOCTEXT( "ToolkitName", "Mesh Paint Mode" );
@@ -32,25 +31,30 @@ FText FMeshPaintModeToolkit::GetBaseToolkitName() const
 
 void FMeshPaintModeToolkit::GetToolPaletteNames(TArray<FName>& PaletteNames) const
 {
-	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_Color);
-	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_Weights);
-	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_Texture);
+	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_VertexColor);
+	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_VertexWeights);
+	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_TextureColor);
+	PaletteNames.Add(UMeshPaintMode::MeshPaintMode_TextureAsset);
 }
 
 
 FText FMeshPaintModeToolkit::GetToolPaletteDisplayName(FName Palette) const
 {
-	if (Palette == UMeshPaintMode::MeshPaintMode_Color)
+	if (Palette == UMeshPaintMode::MeshPaintMode_VertexColor)
 	{
-		return LOCTEXT("MeshPaintMode_Color", "Colors");
+		return LOCTEXT("MeshPaintMode_VertexColor", "Vertex\nColor");
 	}
-	if (Palette == UMeshPaintMode::MeshPaintMode_Weights)
+	if (Palette == UMeshPaintMode::MeshPaintMode_VertexWeights)
 	{
-		return LOCTEXT("MeshPaintMode_Weights", "Weights");
+		return LOCTEXT("MeshPaintMode_VertexWeights", "Vertex\nWeights");
 	}
-	if (Palette == UMeshPaintMode::MeshPaintMode_Texture)
+	if (Palette == UMeshPaintMode::MeshPaintMode_TextureColor)
 	{
-		return LOCTEXT("MeshPaintMode_Texture", "Textures");
+		return LOCTEXT("MeshPaintMode_TextureColor", "Texture\nColor");
+	}
+	if (Palette == UMeshPaintMode::MeshPaintMode_TextureAsset)
+	{
+		return LOCTEXT("MeshPaintMode_TextureAsset", "Textures");
 	}
 	return FText();
 }

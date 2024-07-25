@@ -41,6 +41,12 @@
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangePythonPipelineBase.h"
 
+#include "Math/Color.h"
+#include "StaticMeshLODResourcesToDynamicMesh.h"
+#include "Sampling/MeshMapBaker.h"
+#include "Sampling/MeshPropertyMapEvaluator.h"
+#include "VT/MeshPaintVirtualTexture.h"
+
 
 void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient)
 {
@@ -113,7 +119,7 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				if (ActiveMode == EMeshPaintActiveMode::Texture)
 				{
 					UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
-					UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
+					UMeshTextureAssetPaintingToolProperties* Settings = UMeshPaintMode::GetTextureAssetToolProperties();
 					if (MeshPaintingSubsystem && MeshPaintingSubsystem->OverridePaintTexture.IsValid())
 					{
 						SelectedTexture = MeshPaintingSubsystem->OverridePaintTexture.Get();
@@ -269,6 +275,89 @@ void UMeshPaintModeSubsystem::ImportVertexColorsFromTexture(UMeshComponent* Mesh
 			// Able to import file but incorrect format
 		}
 	}
+}
+
+void UMeshPaintModeSubsystem::ImportVertexColorsFromMeshPaintTexture(UMeshComponent* MeshComponent)
+{
+	if (UTexture2D* Texture = Cast<UTexture2D>(MeshComponent->GetMeshPaintTexture()))
+	{
+		UImportVertexColorOptions* Options = NewObject<UImportVertexColorOptions>();
+ 		Options->UVIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
+
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent))
+		{
+			ImportVertexColorsToStaticMeshComponent(StaticMeshComponent, Options, Texture);
+		}
+	}
+}
+
+void UMeshPaintModeSubsystem::ImportMeshPaintTextureFromVertexColors(UMeshComponent* MeshComponent)
+{
+	UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(MeshComponent);
+	if (StaticMeshComponent == nullptr)
+	{
+		return;
+	}
+
+	UStaticMesh* StaticMesh = StaticMeshComponent->GetStaticMesh();
+	if (StaticMesh == nullptr)
+	{
+		return;
+	}
+
+	const int32 LodIndex = 0;
+
+	FStaticMeshComponentLODInfo* InstanceMeshLODInfo = StaticMeshComponent->LODData.IsValidIndex(LodIndex) ? &StaticMeshComponent->LODData[LodIndex] : nullptr;
+	const bool bHasPerInstanceVertexColors = InstanceMeshLODInfo != nullptr && InstanceMeshLODInfo->OverrideVertexColors != nullptr;
+
+	UE::Geometry::FStaticMeshLODResourcesToDynamicMesh::ConversionOptions ConversionOptions;
+	ConversionOptions.bWantTangents = false;
+	ConversionOptions.bWantMaterialIDs = false;
+
+	UE::Geometry::FDynamicMesh3 DynamicMesh;
+	UE::Geometry::FStaticMeshLODResourcesToDynamicMesh Converter;
+	Converter.Convert(
+		&StaticMesh->GetRenderData()->LODResources[LodIndex],
+		ConversionOptions,
+		DynamicMesh,
+		bHasPerInstanceVertexColors,
+		[InstanceMeshLODInfo](int32 Index)
+		{
+			return InstanceMeshLODInfo->OverrideVertexColors->VertexColor(Index);
+		});
+
+	const int32 TextureSize = MeshPaintVirtualTexture::GetDefaultTextureSize(DynamicMesh.VertexCount());
+
+	const UE::Geometry::FDynamicMeshAABBTree3 DetailSpatial(&DynamicMesh);
+	UE::Geometry::FMeshBakerDynamicMeshSampler DetailSampler(&DynamicMesh, &DetailSpatial);
+
+	TSharedPtr<UE::Geometry::FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<UE::Geometry::FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+	PropertyEval->Property = UE::Geometry::EMeshPropertyMapType::VertexColor;
+
+	UE::Geometry::FMeshMapBaker Baker;
+	Baker.SetTargetMesh(&DynamicMesh);
+	Baker.SetDetailSampler(&DetailSampler);
+	Baker.AddEvaluator(PropertyEval);
+	Baker.SetTargetMeshUVLayer(StaticMeshComponent->GetMeshPaintTextureCoordinateIndex());
+	Baker.SetDimensions(UE::Geometry::FImageDimensions(TextureSize, TextureSize));
+	Baker.SetProjectionDistance(3.0f);
+	Baker.SetSamplesPerPixel(1);
+	Baker.SetFilter(UE::Geometry::FMeshMapBaker::EBakeFilterType::BSpline);
+	Baker.SetGutterEnabled(true);
+	Baker.SetGutterSize(4);
+	Baker.Bake();
+
+	FImageView ResultImage((FLinearColor*)Baker.GetBakeResults(0)[0]->GetImageBuffer().GetData(), TextureSize, TextureSize);
+	FImage ConvertedImage;
+	ResultImage.CopyTo(ConvertedImage, ERawImageFormat::BGRA8, EGammaSpace::sRGB);
+
+	UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+	NewTexture->Source.Init(ConvertedImage);
+	NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+	NewTexture->UpdateResource();
+
+	StaticMeshComponent->Modify();
+	StaticMeshComponent->SetMeshPaintTexture(NewTexture);
 }
 
 
@@ -812,10 +901,9 @@ void UMeshPaintModeSubsystem::RemovePerLODColors(const TArray<UMeshComponent*>& 
 	}
 }
 
-void UMeshPaintModeSubsystem::SwapVertexColors()
+void UMeshPaintModeSubsystem::SwapColors()
 {
-	UMeshVertexPaintingToolProperties* Settings = UMeshPaintMode::GetVertexToolProperties();
-	if (Settings)
+	if (UMeshPaintingToolProperties* Settings = UMeshPaintMode::GetToolProperties())
 	{
 		Settings->Modify();
 
@@ -823,38 +911,4 @@ void UMeshPaintModeSubsystem::SwapVertexColors()
 		Settings->PaintColor = Settings->EraseColor;
 		Settings->EraseColor = TempPaintColor;
 	}
-}
-
-
-
-void UMeshPaintModeSubsystem::SaveModifiedTextures()
-{
-	UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
-	if (Settings)
-	{
-		UTexture2D* SelectedTexture = Settings->PaintTexture;
-
-		if (nullptr != SelectedTexture)
-		{
-			TArray<UObject*> TexturesToSaveArray;
-			TexturesToSaveArray.Add(SelectedTexture);
-			UPackageTools::SavePackagesForObjects(TexturesToSaveArray);
-		}
-	}
-}
-
-bool UMeshPaintModeSubsystem::CanSaveModifiedTextures()
-{
-	/** Check whether or not the current selected paint texture requires saving */
-	bool bRequiresSaving = false;
-	UMeshTexturePaintingToolProperties* Settings = UMeshPaintMode::GetTextureToolProperties();
-	if (Settings)
-	{
-		const UTexture2D* SelectedTexture = Settings->PaintTexture;
-		if (nullptr != SelectedTexture)
-		{
-			bRequiresSaving = SelectedTexture->GetOutermost()->IsDirty();
-		}
-	}
-	return bRequiresSaving;
 }

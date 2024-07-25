@@ -7,9 +7,12 @@
 #include "Tools/LegacyEdModeInterfaces.h"
 #include "MeshPaintMode.generated.h"
 
+class UMeshPaintingToolProperties;
 class UMeshVertexPaintingToolProperties;
-class UMeshColorPaintingToolProperties;
+class UMeshVertexColorPaintingToolProperties;
 class UMeshTexturePaintingToolProperties;
+class UMeshTextureColorPaintingToolProperties;
+class UMeshTextureAssetPaintingToolProperties;
 class UMeshPaintModeSettings;
 class IMeshPaintComponentAdapter;
 class UMeshComponent;
@@ -26,24 +29,29 @@ public:
 
 	/** Default constructor for UMeshPaintMode */
 	UMeshPaintMode();
+	static UMeshPaintingToolProperties* GetToolProperties();
 	static UMeshVertexPaintingToolProperties* GetVertexToolProperties();
-	static UMeshColorPaintingToolProperties* GetColorToolProperties();
-	static UMeshWeightPaintingToolProperties* GetWeightToolProperties();
+	static UMeshVertexColorPaintingToolProperties* GetVertexColorToolProperties();
+	static UMeshVertexWeightPaintingToolProperties* GetVertexWeightToolProperties();
 	static UMeshTexturePaintingToolProperties* GetTextureToolProperties();
+	static UMeshTextureColorPaintingToolProperties* GetTextureColorToolProperties();
+	static UMeshTextureAssetPaintingToolProperties* GetTextureAssetToolProperties();
 	static UMeshPaintMode* GetMeshPaintMode();
 	virtual void Enter() override;
 	virtual void Exit() override;
 	virtual void CreateToolkit() override;
 	virtual void Tick(FEditorViewportClient* ViewportClient, float DeltaTime) override;
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy* HitProxy, const FViewportClick& Click) override;
-	static FName MeshPaintMode_Color;
-	static FName MeshPaintMode_Texture;
-	static FName MeshPaintMode_Weights;
+	static FName MeshPaintMode_VertexColor;
+	static FName MeshPaintMode_VertexWeights;
+	static FName MeshPaintMode_TextureColor;
+	static FName MeshPaintMode_TextureAsset;
 	static FString VertexSelectToolName;
 	static FString TextureSelectToolName;
-	static FString ColorPaintToolName;
-	static FString WeightPaintToolName;
-	static FString TexturePaintToolName;
+	static FString VertexColorPaintToolName;
+	static FString VertexWeightPaintToolName;
+	static FString TextureColorPaintToolName;
+	static FString TextureAssetPaintToolName;
 
 	virtual TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> GetModeCommands() const override;
 	/** Returns the instance of ComponentClass found in the current Editor selection */
@@ -67,44 +75,73 @@ protected:
 	virtual void ActivateDefaultTool() override;
 	virtual void UpdateOnPaletteChange(FName NewPalette);
 	// end UEdMode Interface
+	
 	void UpdateSelectedMeshes();
 
-	void CheckSelectionForTexturePaintCompat(const TArray<UMeshComponent*>& CurrentMeshComponents);
-	
+	void UpdateToolForSelection(const TArray<UMeshComponent*>& CurrentMeshComponents);
 
 	void UpdateOnMaterialChange(bool bInvalidateHitProxies);
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstanceMap);
 	void OnResetViewMode();
-	void FillWithVertexColor();
-	void PropagateVertexColorsToAsset();
-	bool CanPropagateVertexColors() const;
-	void ImportVertexColors();
-	void SavePaintedAssets();
-	bool CanSaveMeshPackages() const;
-	bool CanRemoveInstanceColors() const;
-	bool CanPasteInstanceVertexColors() const;
-	bool CanCopyInstanceVertexColors() const;
-	bool CanPropagateVertexColorsToLODs() const;
-	/** Copy and pasting functionality from and to a StaticMeshComponent (currently only supports per instance)*/
-	void CopyVertexColors();
-	void PasteVertexColors();
-	void FixVertexColors();
-	bool DoesRequireVertexColorsFixup() const;
-	void RemoveVertexColors();
-	void PropagateVertexColorsToLODs();
+	void OnVertexPaintFinished();
+
 	void UpdateCachedVertexDataSize();
+
+	bool IsInSelectTool() const;
+	bool IsInPaintTool() const;
+
+	// Start command bindings
+	void SwapColors();
+	bool CanSwapColors() const;
+	void FillVertexColors();
+	bool CanFillVertexColors() const;
+	void FillTexture();
+	bool CanFillTexture() const;
+	void ApplyVertexColorsToAsset();
+	bool CanApplyVertexColorsToAsset() const;
+	void CommitTextureColorsToAsset();
+	bool CanCommitTextureColorsToAsset() const;
+	void PropagateVertexColorsToLODs();
+	bool CanPropagateVertexColorsToLODs() const;
+	void SaveVertexColorsToAssets();
+	bool CanSaveVertexColorsToAssets() const;
+	void SaveTexturePackages();
+	bool CanSaveTexturePackages() const;
+	void AddMeshPaintTextures();
+	bool CanAddMeshPaintTextures() const;
+	void RemoveInstanceVertexColors();
+	bool CanRemoveInstanceVertexColors() const;
+	void RemoveMeshPaintTexture();
+	bool CanRemoveMeshPaintTextures() const;
+	void CopyInstanceVertexColors();
+	bool CanCopyInstanceVertexColors() const;
+	void CopyMeshPaintTexture();
+	bool CanCopyMeshPaintTexture() const;
+	void Copy();
+	bool CanCopy() const;
+	void PasteInstanceVertexColors();
+	bool CanPasteInstanceVertexColors() const;
+	void PasteMeshPaintTexture();
+	bool CanPasteMeshPaintTexture() const;
+	void Paste();
+	bool CanPaste() const;
+	void ImportVertexColorsFromFile();
+	bool CanImportVertexColorsFromFile() const;
+	void ImportVertexColorsFromMeshPaintTexture();
+	bool CanImportVertexColorsFromMeshPaintTexture() const;
+	void ImportMeshPaintTextureFromVertexColors();
+	bool CanImportMeshPaintTextureFromVertexColors() const;
+	void FixVertexColors();
+	bool CanFixVertexColors() const;
 	void CycleMeshLODs(int32 Direction);
+	bool CanCycleMeshLODs() const;
 	void CycleTextures(int32 Direction);
 	bool CanCycleTextures() const;
-	void CommitAllPaintedTextures();
-	int32 GetNumberOfPendingPaintChanges();
-	void OnVertexPaintFinished();
-	void FillWithTextureColor();
+	// End command bindings
 
 protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshPaintModeSettings> ModeSettings;
-
 
 	// End vertex paint state
 	FGetSelectedMeshComponents MeshComponentDelegate;
@@ -112,6 +149,5 @@ protected:
 	bool bRecacheVertexDataSize;
 
 	FDelegateHandle PaletteChangedHandle;
-
 };
 

@@ -46,10 +46,7 @@ UInteractiveTool* UMeshWeightPaintingToolBuilder::BuildTool(const FToolBuilderSt
  */
 
 UMeshVertexPaintingToolProperties::UMeshVertexPaintingToolProperties()
-	:UBrushBaseProperties(),
-	PaintColor(FLinearColor::White),
-	EraseColor(FLinearColor::Black),
-	bEnableFlow(false),
+	:UMeshPaintingToolProperties(),
 	VertexPreviewSize(6.0f)
 {
 }
@@ -522,25 +519,16 @@ void UMeshVertexPaintingTool::FinishPainting()
 	}
 }
 
-UMeshColorPaintingToolProperties::UMeshColorPaintingToolProperties()
-	:UMeshVertexPaintingToolProperties(),
-	bWriteRed(true),
-	bWriteGreen(true),
-	bWriteBlue(true),
-	bWriteAlpha(false)
-{
-
-}
 
 UMeshColorPaintingTool::UMeshColorPaintingTool()
 {
-	PropertyClass = UMeshColorPaintingToolProperties::StaticClass();
+	PropertyClass = UMeshVertexColorPaintingToolProperties::StaticClass();
 }
 
 void UMeshColorPaintingTool::Setup()
 {
 	Super::Setup();
-	ColorProperties = Cast<UMeshColorPaintingToolProperties>(BrushProperties);
+	ColorProperties = Cast<UMeshVertexColorPaintingToolProperties>(BrushProperties);
 
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartColorPaintTool", "Paint vertex colors on selected meshes.  Use the Color View Mode to preview your applied changes."),
@@ -699,7 +687,7 @@ void UMeshColorPaintingTool::CycleMeshLODs(int32 Direction)
 	}
 }
 
-UMeshWeightPaintingToolProperties::UMeshWeightPaintingToolProperties()
+UMeshVertexWeightPaintingToolProperties::UMeshVertexWeightPaintingToolProperties()
 	:UMeshVertexPaintingToolProperties(),
 	TextureWeightType(EMeshPaintWeightTypes::AlphaLerp),
 	PaintTextureWeightIndex(EMeshPaintTextureIndex::TextureOne),
@@ -710,13 +698,13 @@ UMeshWeightPaintingToolProperties::UMeshWeightPaintingToolProperties()
 
 UMeshWeightPaintingTool::UMeshWeightPaintingTool()
 {
-	PropertyClass = UMeshWeightPaintingToolProperties::StaticClass();
+	PropertyClass = UMeshVertexWeightPaintingToolProperties::StaticClass();
 }
 
 void UMeshWeightPaintingTool::Setup()
 {
 	Super::Setup();
-	WeightProperties = Cast<UMeshWeightPaintingToolProperties>(BrushProperties);
+	WeightProperties = Cast<UMeshVertexWeightPaintingToolProperties>(BrushProperties);
 
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartPaintWeightsTool", "Paint Vertex Weights on selected meshes."),

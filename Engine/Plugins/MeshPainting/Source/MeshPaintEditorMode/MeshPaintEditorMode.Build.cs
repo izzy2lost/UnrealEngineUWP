@@ -35,8 +35,12 @@ namespace UnrealBuildTool.Rules
                     "RHI",
 					"ToolWidgets",
 					"InterchangeEngine",
-					"InterchangePipelines"
-                }
+					"InterchangePipelines",
+					"DynamicMesh",
+					"GeometryCore",
+					"ImageCore",
+					"MeshConversionEngineTypes"
+				}
             );
 
         }
