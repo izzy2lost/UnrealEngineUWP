@@ -147,7 +147,7 @@ void FPCGContext::InitializeSettings(bool bSkipPostLoad)
 						if (!bIsInGameThread)
 						{
 							// Outside of GameThread we need to clear the Async flags on newly duplicated objects
-							KeyValuePair.Value->ClearInternalFlags(EInternalObjectFlags::Async);
+							AsyncObjects.Add(KeyValuePair.Value);
 						}
 
 						if (bSkipPostLoad)
