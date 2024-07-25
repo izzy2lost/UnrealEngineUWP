@@ -27,15 +27,14 @@ namespace UE::EditorDataStorage
 	{
 	public:
 
-
-
 		// Create an attribute binder for a given row
 		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(TypedElementDataStorage::RowHandle InTargetRow);
 
 		/**
 		 * Bind a specific data member inside a TEDS column to an attribute of the same type as the data
-		 *
-		 * @param Variable The data member inside a column to be bound
+		 * 
+		 * @param InVariable The data member inside a column to be bound
+		 * @param InDefaultValue The default value to be used when the column isn't present on a row
 		 * @return A TAttribute bound to the row, column pair specified
 		 *
 		 * Example:
@@ -43,13 +42,15 @@ namespace UE::EditorDataStorage
 		 * TAttribute<FString> TestAttribute(Binder.BindData(&FTypedElementLabelColumn::Label))
 		 */
 		template <typename AttributeType, TypedElementDataStorage::TDataColumnType ColumnType>
-		TAttribute<AttributeType> BindData(AttributeType ColumnType::* Variable);
+		TAttribute<AttributeType> BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue = AttributeType());
 
 		/**
 		 * Bind a specific data member inside a TEDS column to an attribute of a different type than the data by providing a conversion function
+		 * NOTE: the default value is not the actual attribute type but rather the data type in the column and it gets passed to the conversion function
 		 *
-		 * @param Variable The data member inside a column to be bound
-		 * @param Converter Conversion function to convert from DataType -> AttributeType
+		 * @param InVariable The data member inside a column to be bound
+		 * @param InConverter Conversion function to convert from DataType -> AttributeType
+		 * @param InDefaultValue The default value to be used when the column isn't present on a row 
 		 * @return A TAttribute bound to the row, column pair specified
 		 *
 		 * Example:
@@ -62,18 +63,19 @@ namespace UE::EditorDataStorage
 		 *                                 ));
 		 */
 		template <typename AttributeType, typename DataType, TypedElementDataStorage::TDataColumnType ColumnType>
-		TAttribute<AttributeType> BindData(DataType ColumnType::* Variable, const TFunction<AttributeType(const DataType&)>& Converter);
+		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter, const DataType& InDefaultValue = DataType());
 
 		/**
 		 * Overload for the conversion binder to accept lambdas instead of TFunctions
 		 *
-		 * @param Variable The data member inside a column to be bound
-		 * @param Converter Conversion function to convert from DataType -> AttributeType
+		 * @param InVariable The data member inside a column to be bound
+		 * @param InConverter Conversion function to convert from DataType -> AttributeType
+		 * @param InDefaultValue The default value to be used when the column isn't present on a row
 		 * @return A TAttribute bound to the row, column pair specified
 		 */
 		template <typename DataType, TypedElementDataStorage::TDataColumnType ColumnType, typename FunctionType>
 			requires AttributeBinderInvocable<FunctionType, DataType>
-		auto BindData(DataType ColumnType::* Variable, FunctionType Converter);
+		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType());
 		
 	private:
 

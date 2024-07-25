@@ -120,7 +120,7 @@ namespace UE::EditorDataStorage
 	};
 	
 	template <typename AttributeType, TypedElementDataStorage::TDataColumnType ColumnType>
-	TAttribute<AttributeType> FAttributeBinder::BindData(AttributeType ColumnType::* Variable)
+	TAttribute<AttributeType> FAttributeBinder::BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue)
 	{
 		if(!DataStorage)
 		{
@@ -129,22 +129,22 @@ namespace UE::EditorDataStorage
 		
 		// Create a direct property and bind it to the given variable
 		Property<AttributeType> Prop;
-		Prop.Bind(Variable);
+		Prop.Bind(InVariable);
 
 		// We don't want any references to this in the lambda because binders are designed to be used and destructed on the stack
-		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow]()
+		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue]()
 		{
 			// Get the column from the given row and use that to return the stored property
 			if(ColumnType* Column = Storage->GetColumn<ColumnType>(Row))
 			{
 				return Property.Get(Column, ColumnType::StaticStruct());
 			}
-			return AttributeType();
+			return DefaultValue;
 		});
 	}
 
 	template <typename AttributeType, typename DataType, TypedElementDataStorage::TDataColumnType ColumnType>
-	TAttribute<AttributeType> FAttributeBinder::BindData(DataType ColumnType::* Variable, const TFunction<AttributeType(const DataType&)>& Converter)
+	TAttribute<AttributeType> FAttributeBinder::BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter, const DataType& InDefaultValue)
 	{
 		if(!DataStorage)
 		{
@@ -153,27 +153,27 @@ namespace UE::EditorDataStorage
 		
 		// Create a convertible property and bind it to the given variable
 		Property<AttributeType> Prop;
-		Prop.Bind(Variable, Converter);
+		Prop.Bind(InVariable, InConverter);
 	
-		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow]()
+		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue, Converter = InConverter]()
 		{
 			if(ColumnType* Column = Storage->GetColumn<ColumnType>(Row))
 			{
 				return Property.Get(Column, ColumnType::StaticStruct());
 			}
 
-			return AttributeType();
+			return Converter(DefaultValue);
 		});
 	}
 	
 	template <typename DataType, TypedElementDataStorage::TDataColumnType ColumnType, typename FunctionType>
 		requires AttributeBinderInvocable<FunctionType, DataType>
-	auto FAttributeBinder::BindData(DataType ColumnType::* Variable, FunctionType Converter)
+	auto FAttributeBinder::BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue)
 	{
 		// Deduce the attribute type from the return value of the converter function
-		using AttributeType = decltype(Converter(std::declval<DataType>()));
+		using AttributeType = decltype(InConverter(std::declval<DataType>()));
 		
-		return BindData<AttributeType, DataType>(Variable, TFunction<AttributeType(const DataType&)>(Converter));
+		return BindData<AttributeType, DataType>(InVariable, TFunction<AttributeType(const DataType&)>(InConverter), InDefaultValue);
 	}
 	
 }

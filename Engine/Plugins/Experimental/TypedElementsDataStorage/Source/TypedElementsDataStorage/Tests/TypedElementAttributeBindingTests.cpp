@@ -9,7 +9,7 @@
 
 namespace TypedElementDataStorageTests
 {
-	BEGIN_DEFINE_SPEC(TypedElementAttributeBindingTestsFixture, "TypedElementsDataStorage.AttributeBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	BEGIN_DEFINE_SPEC(TypedElementAttributeBindingTestsFixture, "EditorDataStorage.AttributeBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 		ITypedElementDataStorageInterface* TedsInterface = nullptr;
 		const FName TestTableName = TEXT("TestTable_AttributeBinding");
@@ -182,6 +182,34 @@ namespace TypedElementDataStorageTests
 						TestEqual("Expecting attribute value to update after modification", TestAttribute.Get().ToString(), UpdatedValue);
 						TestEqual("Expecting attribute value to match column value after modification", TestAttribute.Get().ToString(), TestColumnString->TestString);
 					});
+				});
+			});
+
+			Describe("Default Value", [this]()
+			{
+				It("Default value should be used when column isn't present", [this]()
+				{
+					constexpr int DefaultValue = 10;
+					
+					UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+
+					// Create an int attribute and directly bind it
+					const TAttribute TestIntAttribute(Binder.BindData(&FTestColumnInt::TestInt, DefaultValue));
+
+					// Create a float attribute and bind it by providing a conversion function
+					const TAttribute<float> TestFloatAttribute(Binder.BindData(&FTestColumnInt::TestInt,
+						[](const int& Data)
+						{
+							return static_cast<float>(Data);
+						}, DefaultValue));
+
+
+					// Remove FTestColumnInt from TestRowHandle so the default value is used
+					TedsInterface->RemoveColumn(TestRowHandle, FTestColumnInt::StaticStruct());
+
+					TestEqual("Expecting int attribute value to match default value", TestIntAttribute.Get(), DefaultValue);
+					TestEqual("Expecting float attribute value to match default value", static_cast<int>(TestFloatAttribute.Get()), DefaultValue);
+
 				});
 			});
 		});
