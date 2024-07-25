@@ -1611,6 +1611,10 @@ namespace EpicGames.MCP.Automation
 			/// Specifies the desired output FeatureLevel of BuildPatchTool, if this is not provided BPT will default to before optimised deltas.
 			/// </summary>
 			public string FeatureLevel;
+			/// <summary>
+			/// Specifies additional arguments to be passed to BPT
+			/// </summary>
+			public string AdditionalArguments;
 		}
 
 		public class PackageChunksOutput
