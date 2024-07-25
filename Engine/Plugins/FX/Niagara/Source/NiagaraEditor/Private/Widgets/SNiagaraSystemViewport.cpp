@@ -23,6 +23,7 @@
 #include "NiagaraSystemInstanceController.h"
 #include "NiagaraSystemGpuComputeProxy.h"
 #include "NiagaraSystemEditorData.h"
+#include "NiagaraSystemEditorViewportToolbarSections.h"
 #include "SNiagaraSystemViewportToolBar.h"
 #include "UnrealEdGlobals.h"
 #include "Editor/EditorEngine.h"
@@ -32,12 +33,38 @@
 #include "Engine/TextureCube.h"
 #include "Slate/SceneViewport.h"
 #include "ThumbnailRendering/ThumbnailManager.h"
+#include "ToolMenus.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "SNiagaraSystemViewport"
 
 class UNiagaraSystemEditorData;
+
+namespace UE::NiagaraSystemEditor::Private
+{
+void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
+{
+	UToolMenu* const Submenu = UToolMenus::Get()->ExtendMenu(InCameraOptionsSubmenuName);
+
+	Submenu->AddDynamicSection(
+		"EditorCameraExtensionDynamicSection",
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* InDynamicMenu)
+			{
+				FToolMenuSection& PositioningSection = InDynamicMenu->FindOrAddSection(
+					"NavigationOptions", LOCTEXT("NavigationOptionsLabel", "Navigation Options")
+				);
+
+				PositioningSection.AddMenuEntry(FNiagaraEditorCommands::Get().ToggleOrbit);
+			}
+		)
+	);
+}
+
+}
+
 
 /** Viewport Client for the preview viewport */
 class FNiagaraSystemViewportClient : public FEditorViewportClient, public TSharedFromThis<FNiagaraSystemViewportClient>
@@ -1145,9 +1172,158 @@ TSharedRef<FEditorViewportClient> SNiagaraSystemViewport::MakeEditorViewportClie
 
 TSharedPtr<SWidget> SNiagaraSystemViewport::MakeViewportToolbar()
 {
-	//return SNew(SNiagaraSystemViewportToolBar)
+	// return SNew(SNiagaraSystemViewportToolBar)
 	//.Viewport(SharedThis(this));
 	return SNew(SBox);
+}
+TSharedPtr<SWidget> SNiagaraSystemViewport::BuildViewportToolbar()
+{
+	// Register the viewport toolbar if another viewport hasn't already (it's shared).
+	const FName ViewportToolbarName = "NiagaraSystemEditor.ViewportToolbar";
+
+	if (!UToolMenus::Get()->IsMenuRegistered(ViewportToolbarName))
+	{
+		UToolMenu* const ViewportToolbarMenu = UToolMenus::Get()->RegisterMenu(
+			ViewportToolbarName, NAME_None /* parent */, EMultiBoxType::SlimHorizontalToolBar
+		);
+
+		// Add the left-aligned part of the viewport toolbar.
+		{
+			FToolMenuSection& LeftSection = ViewportToolbarMenu->FindOrAddSection("Left");
+		}
+
+		// Add the right-aligned part of the viewport toolbar.
+		{
+			// Add the submenus of this section as EToolMenuInsertType::Last to sort them after any
+			// default-positioned submenus external code might add.
+			FToolMenuSection& RightSection = ViewportToolbarMenu->FindOrAddSection("Right");
+			RightSection.Alignment = EToolMenuSectionAlign::Last;
+
+			// Add the "Camera" submenu.
+			{
+				const FName GrandParentSubmenuName = "UnrealEd.ViewportToolbar.Camera";
+				const FName ParentSubmenuName = "NiagaraSystemEditor.ViewportToolbar.Camera";
+				const FName SubmenuName = "NiagaraSystemEditor.ViewportToolbar.CameraOptions";
+
+				// Create our grandparent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(GrandParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(GrandParentSubmenuName);
+				}
+
+				// Create our parent menu.
+				if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+				{
+					UToolMenus::Get()->RegisterMenu(ParentSubmenuName, GrandParentSubmenuName);
+				}
+
+				// Create our menu.
+				UToolMenus::Get()->RegisterMenu(SubmenuName, ParentSubmenuName);
+
+				UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
+				UE::NiagaraSystemEditor::Private::ExtendCameraSubmenu(SubmenuName);
+
+				FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+				CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(CameraSubmenu);
+
+				// TODO: add navigation options --> Orbit Mode toggle
+			}
+
+			// Add the "View Modes" sub menu.
+			{
+				// Stay backward-compatible with the old viewport toolbar.
+				{
+					const FName ParentSubmenuName = "UnrealEd.ViewportToolbar.View";
+					// Create our parent menu.
+					if (!UToolMenus::Get()->IsMenuRegistered(ParentSubmenuName))
+					{
+						UToolMenus::Get()->RegisterMenu(ParentSubmenuName);
+					}
+
+					// Register our ToolMenu here first, before we create the submenu, so we can set our parent.
+					UToolMenus::Get()->RegisterMenu("NiagaraSystemEditor.ViewportToolbar.ViewModes", ParentSubmenuName);
+				}
+
+				FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
+				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(ViewModesSubmenu);
+
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the Show submenu.
+			{
+				FToolMenuEntry ShowSubmenu = UE::NiagaraSystemEditor::CreateShowSubmenu(SharedThis(this));
+				ShowSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(ShowSubmenu);
+			}
+
+			// Add the Performance and Scalability submenu.
+			{
+				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
+				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the Settings submenu.
+			{
+				FToolMenuEntry SettingsSubmenu = UE::NiagaraSystemEditor::CreateSettingsSubmenu(SharedThis(this));
+				SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+				RightSection.AddEntry(SettingsSubmenu);
+			}
+		}
+	}
+
+	FToolMenuContext ViewportToolbarContext;
+	{
+		ViewportToolbarContext.AppendCommandList(GetCommandList());
+
+		// Add the UnrealEd viewport toolbar context.
+		{
+			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+			ContextObject->Viewport = SharedThis(this);
+
+			// Hook up our toolbar's filter for supported view modes.
+			ContextObject->IsViewModeSupported = UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
+				[](EViewModeIndex ViewModeIndex) -> bool
+				{
+					// This code is taken from SViewportToolBar::IsViewModeSupported
+					// SSCSEditorViewportToolBar does not override it, so we just take it as-is
+					// TODO: maybe create a private function for it, or move IsViewModeSupported to SEditorViewport
+
+					switch (ViewModeIndex)
+					{
+					case VMI_PrimitiveDistanceAccuracy:
+					case VMI_MaterialTextureScaleAccuracy:
+					case VMI_RequiredTextureResolution:
+						return false;
+					default:
+						return true;
+					}
+				}
+			);
+
+			ViewportToolbarContext.AddObject(ContextObject);
+		}
+	}
+
+	// clang-format off
+	const TSharedRef<SWidget> NewViewportToolbar = SNew(SBox)
+	.Visibility_Lambda(
+		[this]() -> EVisibility
+		{
+			return  UE::UnrealEd::ShowNewViewportToolbars() ? EVisibility::Visible: EVisibility::Collapsed;
+		}
+	)
+	[
+		UToolMenus::Get()->GenerateWidget(ViewportToolbarName, ViewportToolbarContext)
+	];
+	// clang-format on
+
+	return NewViewportToolbar;
 }
 
 EVisibility SNiagaraSystemViewport::OnGetViewportContentVisibility() const
@@ -1186,11 +1362,23 @@ FText SNiagaraSystemViewport::GetViewportCompileStatusText() const
 
 void SNiagaraSystemViewport::PopulateViewportOverlays(TSharedRef<class SOverlay> Overlay)
 {
-	Overlay->AddSlot()
-	.VAlign(VAlign_Top)
-	[
-		SNew(SNiagaraSystemViewportToolBar, SharedThis(this)).Sequencer(Sequencer)
-	];
+	if (UE::UnrealEd::ShowOldViewportToolbars())
+	{
+		// clang-format off
+		Overlay->AddSlot()
+		.VAlign(VAlign_Top)
+		[
+			SNew(SNiagaraSystemViewportToolBar, SharedThis(this))
+			.Sequencer(Sequencer)
+			.Visibility_Lambda([]()
+				{
+					return UE::UnrealEd::ShowOldViewportToolbars() ? EVisibility::Visible : EVisibility::Collapsed;
+				}
+			)
+		];
+		// clang-format on
+	}
+
 	Overlay->AddSlot()
 	.VAlign(VAlign_Center)
 	.HAlign(HAlign_Center)
