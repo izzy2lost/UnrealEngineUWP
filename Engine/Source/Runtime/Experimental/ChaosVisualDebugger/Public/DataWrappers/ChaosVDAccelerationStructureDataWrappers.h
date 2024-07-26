@@ -54,7 +54,10 @@ struct FChaosVDBVCellElementDataWrapper : public FChaosVDWrapperDataBase
 	CHAOSVDRUNTIME_API bool Serialize(FArchive& Ar);
 };
 
+// TODO: Disabling C4996 due to MSVC 14.30 bug
+#pragma warning(disable : 4996)
 CVD_IMPLEMENT_SERIALIZER(FChaosVDBVCellElementDataWrapper)
+#pragma warning(default : 4996)
 
 USTRUCT()
 struct FChaosVDBoundingVolumeDataWrapper : public FChaosVDAccelerationStructureBase
