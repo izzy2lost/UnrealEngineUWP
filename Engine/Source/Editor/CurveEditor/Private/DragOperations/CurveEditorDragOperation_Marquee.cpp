@@ -154,7 +154,17 @@ void FCurveEditorDragOperation_Marquee::OnEndDrag(FVector2D InitialPosition, FVe
 		}
 		else if (bIsControlDown)
 		{
-			CurveEditor->Selection.Toggle(Point);
+			if (bPreferPointSelection)
+			{
+				if (Point.PointType == ECurvePointType::Key)
+				{
+					CurveEditor->Selection.Toggle(Point);
+				}
+			}
+			else
+			{
+				CurveEditor->Selection.Toggle(Point);
+			}
 		}
 		else
 		{
