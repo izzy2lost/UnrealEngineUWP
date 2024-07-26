@@ -7,6 +7,12 @@
 #include "HeadMountedDisplayTypes.h"
 #include "SceneInterface.h"
 
+static TAutoConsoleVariable<bool> CVarXRLateUpdateMangerDisable(
+	TEXT("xr.LateUpdateManager.Disable"),
+	false,
+	TEXT("Disable the LateUpdateManager preventing child components from receiving late updates.\n"),
+	ECVF_Default);
+
 FLateUpdateManager::FLateUpdateManager()
 	: LateUpdateGameWriteIndex(0)
 	, LateUpdateRenderReadIndex(0)
@@ -16,6 +22,7 @@ FLateUpdateManager::FLateUpdateManager()
 void FLateUpdateManager::Setup(const FTransform& ParentToWorld, USceneComponent* Component, bool bSkipLateUpdate)
 {
 	check(IsInGameThread());
+	bSkipLateUpdate = bSkipLateUpdate || CVarXRLateUpdateMangerDisable.GetValueOnGameThread();
 
 	UpdateStates[LateUpdateGameWriteIndex].Primitives.Reset();
 	UpdateStates[LateUpdateGameWriteIndex].ParentToWorld = ParentToWorld;
@@ -31,7 +38,6 @@ void FLateUpdateManager::Setup(const FTransform& ParentToWorld, USceneComponent*
 	{
 		LateUpdateRenderReadIndex = NextFrameRenderReadIndex;
 	});
-
 }
 
 void FLateUpdateManager::Apply_RenderThread(FSceneInterface* Scene, const FTransform& OldRelativeTransform, const FTransform& NewRelativeTransform)

@@ -145,16 +145,6 @@ void FDefaultXRCamera::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSc
 void FDefaultXRCamera::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
 {
 	check(IsInGameThread());
-	{
-		// Backwards compatibility during deprecation phase. Remove once IHeadMountedDisplay::BeginRendering_GameThread has been removed.
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		auto HMD = TrackingSystem->GetHMDDevice();
-		if (HMD)
-		{
-			HMD->BeginRendering_GameThread();
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
 	TrackingSystem->OnBeginRendering_GameThread();
 }
 
@@ -193,17 +183,6 @@ void FDefaultXRCamera::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilde
 
 			LateUpdate.Apply_RenderThread(ViewFamily.Scene, OldRelativeTransform, CurrentRelativeTransform);
 			TrackingSystem->OnLateUpdateApplied_RenderThread(GraphBuilder.RHICmdList, CurrentRelativeTransform);
-
-			{
-				// Backwards compatibility during deprecation phase. Remove once IHeadMountedDisplay::BeginRendering_RenderThread has been removed.
-				PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					auto HMD = TrackingSystem->GetHMDDevice();
-				if (HMD)
-				{
-					HMD->BeginRendering_RenderThread(CurrentRelativeTransform, GraphBuilder.RHICmdList, ViewFamily);
-				}
-				PRAGMA_ENABLE_DEPRECATION_WARNINGS
-			}
 		}
 	}
 }

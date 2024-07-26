@@ -121,20 +121,6 @@ public:
 	 */
 	virtual bool GetHMDDistortionEnabled(EShadingPath ShadingPath) const = 0;
 
-	/** 
-	 * Called just before rendering the current frame on the render thread. Invoked before applying late update, so plugins that want to refresh poses on the
-	 * render thread prior to late update. Use this to perform any initializations prior to rendering.
-	 */
-	UE_DEPRECATED(4.19, "Use IXRTrackingSystem::OnBeginRendering_Renderthread instead")
-	virtual void BeginRendering_RenderThread(const FTransform& NewRelativeTransform, FRHICommandListImmediate& RHICmdList, FSceneViewFamily& ViewFamily) {}
-
-	/**
-	 * Called just before rendering the current frame on the game frame.
-	 */
-	UE_DEPRECATED(4.19, "Use IXRTrackingSystem::OnBeginRendering_GameThread instead")
-	virtual void BeginRendering_GameThread() {}
-
-
 	// Are we outputting so a Spectator Screen now.
 	virtual bool IsSpectatorScreenActive() const { return false; }
 
