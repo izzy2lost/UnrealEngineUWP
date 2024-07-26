@@ -237,19 +237,19 @@ struct FMaterialEditorPostProcessOverrides
 
 	// Tracks if this is a material where post process overrides can be applied (MaterialDomain == MD_PostProcess, BlendableLocation != BL_ReplacingTonemapper)
 	UPROPERTY()
-	bool bIsOverrideable;
+	bool bIsOverrideable = false;
 
 	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
-	bool bOverrideBlendableLocation;
+	bool bOverrideBlendableLocation = false;
 
 	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue)
-	bool bOverrideBlendablePriority;
+	bool bOverrideBlendablePriority = false;
 
 	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Location"), meta = (InvalidEnumValues = "BL_ReplacingTonemapper"))
-	TEnumAsByte<EBlendableLocation> BlendableLocationOverride;
+	TEnumAsByte<EBlendableLocation> BlendableLocationOverride { BL_SceneColorAfterTonemapping };
 
 	UPROPERTY(EditAnywhere, Category = PostProcessOverrideValue, meta = (DisplayName = "Blendable Priority"))
-	int32 BlendablePriorityOverride;
+	int32 BlendablePriorityOverride = 0;
 
 	/** Overrides for user scene texture inputs */
 	UPROPERTY(EditAnywhere, editfixedsize, Category = PostProcessOverrideValue)
