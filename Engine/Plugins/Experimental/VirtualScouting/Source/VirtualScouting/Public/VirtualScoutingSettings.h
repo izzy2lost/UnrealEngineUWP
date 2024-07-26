@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Engine/DeveloperSettingsBackedByCVars.h"
+#include "Engine/DeveloperSettings.h"
 #include "VirtualScoutingSettings.generated.h"
 
 
@@ -10,11 +10,17 @@
  * Per project settings for Virtual Scouting.
  */
 UCLASS(Config=VirtualScoutingSettings, DefaultConfig, DisplayName="Virtual Scouting")
-class VIRTUALSCOUTING_API UVirtualScoutingSettings : public UObject
+class VIRTUALSCOUTING_API UVirtualScoutingSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 	
 public:
+	//~ Begin UDeveloperSettings interface
+	virtual FName GetCategoryName() const override;
+	//~ End UDeveloperSettings interface
+
+	UFUNCTION(BlueprintPure, Category="Virtual Scouting", DisplayName="Virtual Scouting Settings")
+	static UVirtualScoutingSettings* GetVirtualScoutingSettings();
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting", meta=(DisplayName="Show Measurements in Imperial Units"))
 	bool bUseImperial = false;
@@ -36,20 +42,20 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Virtual Scouting", meta = (DisplayName = "Content Browser Tool Collection"))
 	FName ContentBrowserToolCollection;
-	
-	UFUNCTION(BlueprintPure, Category="Virtual Scouting", DisplayName="Virtual Scouting Settings")
-	static UVirtualScoutingSettings* GetVirtualScoutingSettings();
 };
 
 /**
  * Per user settings for Virtual Scouting Editor.
  */
-UCLASS(Config=EditorPerProjectUserSettings, DisplayName="Virtual Scouting Editor Settings")
-class VIRTUALSCOUTING_API UVirtualScoutingEditorSettings : public UObject
+UCLASS(Config=EditorPerProjectUserSettings, DisplayName="Virtual Scouting Editor")
+class VIRTUALSCOUTING_API UVirtualScoutingEditorSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 	
 public:
+	//~ Begin UDeveloperSettings interface
+	virtual FName GetCategoryName() const override;
+	//~ End UDeveloperSettings interface
 
 	UFUNCTION(BlueprintPure, Category="Virtual Scouting Editor")
 	static UVirtualScoutingEditorSettings* GetVirtualScoutingEditorSettings();
@@ -68,5 +74,4 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category="Virtual Scouting User", meta=(DisplayName= "Use Teleport Rotation", ToolTip="Use the forward axis roll from the motion controller to define and adjust teleport rotation"));
 	bool bUseTeleportRotation = false;
-	
 };

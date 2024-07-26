@@ -30,7 +30,6 @@ public class XRCreative : ModuleRules
 				"LevelSequence",
 				"ModelViewViewModel",
 				"RenderCore", // TODO: Kill this? Only for FlushRenderingCommands
-				"Settings",
 				"Slate",
 				"SlateCore",
 				"TypedElementFramework",

@@ -29,7 +29,6 @@ public class VirtualScouting : ModuleRules
 				"InteractiveToolsFramework",
 				"LevelSequence",
 				"RenderCore", // TODO: Kill this? Only for FlushRenderingCommands
-				"Settings",
 				"Slate",
 				"SlateCore",
 				"TypedElementFramework",
