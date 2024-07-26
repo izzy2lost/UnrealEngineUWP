@@ -15,6 +15,7 @@
 enum class ECustomizableObjectProjectorType : uint8;
 namespace ESelectInfo { enum Type : int; }
 
+class SCustomizableObjectEditorPerformanceAnalyzer;
 class FCustomizableObjectEditorViewportClient;
 class FProperty;
 class FSpawnTabArgs;
@@ -277,6 +278,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AdvancedPreviewSettings(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_PerformanceReport(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_PerformanceAnalyzer(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_TagExplorer(const FSpawnTabArgs& Args);
 	
 	/** Binds commands associated with the Static Mesh Editor. */
@@ -359,6 +361,9 @@ private:
 	/** Open the Performance Report tab */
 	void OpenPerformanceReportTab();
 
+	/** Open the Performance Analyzer tab */
+	void OpenPerformanceAnalyzerTab();
+	
 	/** Creates the actor and necessary components for the preview of the CO instance */
 	void CreatePreviewActor();
 
@@ -389,6 +394,7 @@ public:
 	static const FName AdvancedPreviewSettingsTabId;
 	static const FName TextureAnalyzerTabId;
 	static const FName PerformanceReportTabId;
+	static const FName PerformanceAnalyzerTabId;
 	static const FName TagExplorerTabId;
 	static const FName ObjectDebuggerTabId;
 	static const FName PopulationClassTagManagerTabId;
@@ -440,6 +446,9 @@ private:
 	/** Performance report widget to test and analyze the current customizable object resource demands */
 	TSharedPtr<class SCustomizableObjecEditorPerformanceReport> PerformanceReport;
 
+	/** New performance analyzer widget */
+	TSharedPtr<SCustomizableObjectEditorPerformanceAnalyzer> PerformanceAnalyzer;
+	
 	/** Widget to explore all the tags related with the Customizable Object open in the editor */
 	TSharedPtr<class SCustomizableObjectEditorTagExplorer> TagExplorer;
 

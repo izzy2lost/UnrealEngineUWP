@@ -88,6 +88,8 @@ TSharedRef<FSlateStyleSet> FCustomizableObjectEditorStyle::Create()
 	Style->Set("CustomizableObjectEditor.TextureAnalyzer.Small", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/Common/IssueTracker", Icon20x20));
 	Style->Set("CustomizableObjectEditor.PerformanceReport", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/simulate", Icon40x40));
 	Style->Set("CustomizableObjectEditor.PerformanceReport.Small", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/simulate", Icon20x20));
+	Style->Set("CustomizableObjectEditor.PerformanceAnalyzer", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/simulate", Icon40x40));
+	Style->Set("CustomizableObjectEditor.PerformanceAnalyzer.Small", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/simulate", Icon20x20));
 
 	Style->Set("CustomizableObjectEditor.CompileGatherReferences", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/compile", Icon40x40));
 	Style->Set("CustomizableObjectEditor.CompileGatherReferences.Small", new IMAGE_BRUSH_SVG(Style, "Editor/Slate/Starship/MainToolbar/compile", Icon20x20));

@@ -21,6 +21,7 @@ public:
 	TSharedPtr< FUICommandInfo > Debug;
 
 	TSharedPtr< FUICommandInfo > PerformanceReport;
+	TSharedPtr< FUICommandInfo > PerformanceAnalyzer;
 	TSharedPtr< FUICommandInfo > ResetPerformanceReportOptions;
 	TSharedPtr< FUICommandInfo > TextureAnalyzer;
 

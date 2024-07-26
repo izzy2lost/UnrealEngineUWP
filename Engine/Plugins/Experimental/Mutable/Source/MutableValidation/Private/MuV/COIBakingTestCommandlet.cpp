@@ -13,6 +13,7 @@
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 
 
 /** Flag useful to know if we are currently updating an instance or not */
@@ -36,6 +37,8 @@ void OnInstanceUpdate(const FUpdateContext& Result)
 
 int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 {
+	UCustomizableObjectSystem::SetBenchmarkState(true);
+	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;
 	

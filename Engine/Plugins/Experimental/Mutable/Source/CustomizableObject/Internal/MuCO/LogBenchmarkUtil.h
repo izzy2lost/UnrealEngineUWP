@@ -6,6 +6,7 @@
 #include "UObject/NameTypes.h"
 #include "Stats/Stats.h"
 #include "HAL/IConsoleManager.h"
+#include "MuCO/CustomizableObjectInstanceUsage.h"
 
 class UCustomizableObjectInstance;
 class UTexture2D;
@@ -69,13 +70,60 @@ DECLARE_BENCHMARK_INSIGHTS(InstanceBuildTimeAvrg, TEXT("Avrg Instance Build Time
 
 extern TAutoConsoleVariable<bool> CVarEnableBenchmark;
 
+/** Object representing the update data of an instance. In practical terms represents one row of the CSV we generate */
+struct FInstanceUpdateStats
+{
+	FString CustomizableObjectPathName = "";
+	FString CustomizableObjectInstancePathName = "";
+	FString UpdateType = "";
+	FString Descriptor = "";			// Simplified for compatibility (maybe in the future we keep the entire descriptor)
+
+	EUpdateResult UpdateResult = EUpdateResult::Error;
+
+	bool bLevelBegunPlay = false;
+	
+	double QueueTime = 0.0;
+	double UpdateTime = 0.0;
+	double TaskGetMeshTime = 0.0;
+	double TaskLockCacheTime = 0.0;
+
+	double TaskGetImagesTime = 0.0;
+	double TaskConvertResourcesTime = 0.0;
+	double TaskCallbacksTime = 0.0;
+	
+	double UpdatePeakMemory = 0.0;
+	double UpdateRealPeakMemory = 0.0;
+
+	double TaskUpdateImageTime = 0.0;
+	double TaskUpdateImagePeakMemory = 0.0;
+	double TaskUpdateImageRealPeakMemory = 0.0;
+};
+
+
+// Delegate signature
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMeshUpdateReportedSignature, const TSharedRef<FUpdateContextPrivate> /* Context */, FInstanceUpdateStats)
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnImageUpdateReportedSignature, FInstanceUpdateStats)
+
 
 /** Benchmarking system. Gathers stats and send it to Insights an Benchmarking Files. */
 class FLogBenchmarkUtil
 {
 public:
 	~FLogBenchmarkUtil();
-
+	
+	/**
+	 * Enables or disables the benchmarking system from code. Usefull for enabling the benchmarking without having to mess
+	 * with CVarEnableBenchmark
+	 * @param bIsEnabled True to enable, false to disable and let CVarEnableBenchmark decide .
+	 */
+	CUSTOMIZABLEOBJECT_API static void SetBenchmarkReportingStateOverride(bool bIsEnabled);
+	
+	/**
+	 * Get to know if the benchmarking is active or not
+	 * @return True if the CVarEnableBenchmark CVar or the override are set to true, false otherwise
+	 */
+	CUSTOMIZABLEOBJECT_API static bool IsBenchmarkingReportingEnabled();
+	
 	/** Get stats. */
 	void GetInstancesStats(int32& OutNumInstances, int32& OutNumBuiltInstances, int32& OutNumInstancesLOD0, int32& OutNumInstancesLOD1, int32& OutNumInstancesLOD2, int32& OutNumAllocatedSkeletalMeshes) const;
 
@@ -107,8 +155,19 @@ public:
 	TArray<TWeakObjectPtr<UTexture2D>> TextureTrackerArray;
 
 private:
+	
+	inline static bool bIsEnabledOverride = false;
+	
 	double TotalUpdateTime = 0;
 	uint32 NumUpdates = 0;
 
 	TSharedPtr<FArchive> Archive;
+
+public:
+
+	/** Delegate invoked each time a new mesh update is reported by this utility */
+	FOnMeshUpdateReportedSignature OnMeshUpdateReported;
+
+	/** Delegate invoked each time a new mip update is reported by this utility */
+	FOnImageUpdateReportedSignature OnImageUpdateReported;
 };

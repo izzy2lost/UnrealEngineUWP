@@ -116,7 +116,7 @@ namespace impl
 		OperationData->System->EndUpdate(InstanceID);
 		OperationData->System->ReleaseInstance(InstanceID);
 
-		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+		if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 		{
 			OperationData->System->ClearWorkingMemory();
 		}

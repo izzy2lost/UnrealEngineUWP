@@ -120,7 +120,7 @@ void FLogBenchmarkUtil::AddTexture(UTexture2D& Texture)
 {
 	check(IsInGameThread());
 
-	if (!CVarEnableBenchmark.GetValueOnGameThread())
+	if (!IsBenchmarkingReportingEnabled())
 	{
 		return;
 	}
@@ -133,7 +133,7 @@ void FLogBenchmarkUtil::UpdateStats()
 {
 	check(IsInGameThread());
 	
-	if (!CVarEnableBenchmark.GetValueOnGameThread())
+	if (!IsBenchmarkingReportingEnabled())
 	{
 		return;
 	}
@@ -285,7 +285,7 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 {
 	check(IsInGameThread());
 
-	if (!CVarEnableBenchmark.GetValueOnGameThread())
+	if (!IsBenchmarkingReportingEnabled())
 	{
 		return;
 	}
@@ -311,29 +311,46 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 	{
 		Archive = CreateFile();
 	}
-
-	const FString ID_CO = Context->Instance->GetCustomizableObject()->GetPathName();
-	const FString ID_COI = Instance->GetPathName();
-	const FString ID_UpdateType = TEXT("Mesh");
-	const FString ID_Descriptor = Context->GetCapturedDescriptor().ToString();
-	const FString ID_UpdateResult = StaticEnum<EUpdateResult>()->GetValueAsString(Context->UpdateResult);
-	const double Time_Queue = Context->QueueTime * 1000;
-	const double Time_Update = Context->UpdateTime * 1000;
-	const double Time_TaskGetMesh = Context->TaskGetMeshTime * 1000;
-	const double Time_TaskLockCache = Context->TaskLockCacheTime * 1000;
-	const double Time_TaskGetImages = Context->TaskGetImagesTime * 1000;
-	const double Time_TaskConvertResources = Context->TaskConvertResourcesTime * 1000;
-	const double Time_TaskCallbacks =  Context->TaskCallbacksTime * 1000;
-
-	// Context data to know in what situation did the update happen
-	const FString Context_LevelBegunPlay =  Context->bLevelBegunPlay ? TEXT("true") : TEXT("false");
-
-	const double Memory_UpdateEndPeakMB = (Context->UpdateEndPeakBytes / 1024.0) / 1024.0;
-	const double Memory_UpdateEndRealPeakMB = (Context->UpdateEndRealPeakBytes / 1024.0) / 1024.0;
 	
-	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;%s;%s;%f;%f;%f;%f;%f;%f;%f;%f;%f"), *ID_CO, *ID_COI, *ID_UpdateType, *ID_Descriptor, *ID_UpdateResult, *Context_LevelBegunPlay, Time_Queue, Time_Update, Time_TaskGetMesh, Time_TaskLockCache, Time_TaskGetImages, Time_TaskConvertResources, Time_TaskCallbacks, Memory_UpdateEndPeakMB, Memory_UpdateEndRealPeakMB);
+	// Identifying data
+	FInstanceUpdateStats UpdateData;
+	UpdateData.UpdateType = TEXT("Mesh");
+	UpdateData.CustomizableObjectPathName = Context->Instance->GetCustomizableObject()->GetPathName();
+	UpdateData.CustomizableObjectInstancePathName = Instance->GetPathName();
+	UpdateData.Descriptor = Context->GetCapturedDescriptor().ToString();
+	UpdateData.UpdateResult = Context->UpdateResult;
+	UpdateData.bLevelBegunPlay = Context->bLevelBegunPlay;
+	UpdateData.QueueTime = Context->QueueTime * 1000;
+	UpdateData.UpdateTime = Context->UpdateTime * 1000;
+	UpdateData.TaskGetMeshTime = Context->TaskGetMeshTime * 1000;
+	UpdateData.TaskLockCacheTime = Context->TaskLockCacheTime * 1000;
+	UpdateData.TaskGetImagesTime = Context->TaskGetImagesTime * 1000;
+	UpdateData.TaskConvertResourcesTime = Context->TaskConvertResourcesTime * 1000;
+	UpdateData.TaskCallbacksTime = Context->TaskCallbacksTime * 1000;
+	UpdateData.UpdatePeakMemory = (Context->UpdateEndPeakBytes / 1024.0) / 1024.0;
+	UpdateData.UpdateRealPeakMemory = (Context->UpdateEndRealPeakBytes / 1024.0) / 1024.0;
+
+	// todo: Find a better way of handling the construction of this string so we know the symmetry with the header row will not get lost when adding new elements
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;%s;%s;%f;%f;%f;%f;%f;%f;%f;%f;%f"),
+		*UpdateData.CustomizableObjectPathName,
+		*UpdateData.CustomizableObjectInstancePathName,
+		*UpdateData.UpdateType,
+		*UpdateData.Descriptor,
+		*StaticEnum<EUpdateResult>()->GetValueAsString(UpdateData.UpdateResult),
+		(UpdateData.bLevelBegunPlay ? TEXT("true") : TEXT("false")),
+		UpdateData.QueueTime,
+		UpdateData.UpdateTime,
+		UpdateData.TaskGetMeshTime,
+		UpdateData.TaskLockCacheTime,
+		UpdateData.TaskGetImagesTime,
+		UpdateData.TaskConvertResourcesTime,
+		UpdateData.TaskCallbacksTime,
+		UpdateData.UpdatePeakMemory,
+		UpdateData.UpdateRealPeakMemory);
 	LogBenchmarkUtil::Write(*Archive, UpdateString);
 	Archive->Flush();
+
+	OnMeshUpdateReported.Broadcast(Context, UpdateData);
 }
 
 
@@ -341,22 +358,45 @@ void FLogBenchmarkUtil::FinishUpdateImage(const FString& CustomizableObjectPathN
 {
 	check(IsInGameThread());
 
-	if (!CVarEnableBenchmark.GetValueOnGameThread())
+	if (!IsBenchmarkingReportingEnabled())
 	{
 		return;
 	}
 
-	const FString& ID_CO = CustomizableObjectPathName;
-	const FString& ID_COI = InstancePathName;
-	const FString ID_Descriptor = InstanceDescriptor;
-	const FString Context_LevelBegunPlay =  bDidLevelBeginPlay ? TEXT("true") : TEXT("false");
-	const FString ID_UpdateType = TEXT("Image");
-	const double Time_TaskUpdateImage = TaskUpdateImageTime * 1000;
-	const double Memory_TaskUpdateImagePeakMB = (TaskUpdateImageMemoryPeak / 1024.0) / 1024.0;
-	const double Memory_TaskUpdateImageRealPeakMB = (TaskUpdateImageRealMemoryPeak / 1024.0) / 1024.0;
+	FInstanceUpdateStats MipsUpdateData;
+	MipsUpdateData.UpdateType = TEXT("Image");
+	MipsUpdateData.CustomizableObjectPathName = CustomizableObjectPathName;
+	MipsUpdateData.CustomizableObjectInstancePathName = InstancePathName;
+	MipsUpdateData.Descriptor = InstanceDescriptor;
+	MipsUpdateData.bLevelBegunPlay = bDidLevelBeginPlay;
+	MipsUpdateData.TaskUpdateImageTime = TaskUpdateImageTime * 1000;
+	MipsUpdateData.TaskUpdateImagePeakMemory = (TaskUpdateImageMemoryPeak / 1024.0) / 1024.0;
+	MipsUpdateData.TaskUpdateImageRealPeakMemory = (TaskUpdateImageRealMemoryPeak / 1024.0) / 1024.0;
+	
 
-	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;;%s;;;;;;;;;;%f;%f;%f"), *ID_CO, *ID_COI, *ID_UpdateType, *ID_Descriptor, *Context_LevelBegunPlay, Time_TaskUpdateImage, Memory_TaskUpdateImagePeakMB,Memory_TaskUpdateImageRealPeakMB);
+	// todo: Find a better way of handling the construction of this string so we know the symmetry with the header row will not get lost when adding new elements
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;;%s;;;;;;;;;;%f;%f;%f"),
+		*MipsUpdateData.CustomizableObjectPathName,
+		*MipsUpdateData.CustomizableObjectInstancePathName,
+		*MipsUpdateData.UpdateType,
+		*MipsUpdateData.Descriptor,
+		(MipsUpdateData.bLevelBegunPlay ? TEXT("true") : TEXT("false")),
+		MipsUpdateData.TaskUpdateImageTime,
+		MipsUpdateData.TaskUpdateImagePeakMemory,
+		MipsUpdateData.TaskUpdateImageRealPeakMemory);
 	LogBenchmarkUtil::Write(*Archive, UpdateString);
-	Archive->Flush();	
+	Archive->Flush();
+
+	OnImageUpdateReported.Broadcast(MipsUpdateData);
+}
+
+void FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(bool bIsEnabled)
+{
+	bIsEnabledOverride = bIsEnabled;
+}
+
+bool FLogBenchmarkUtil::IsBenchmarkingReportingEnabled()
+{
+	return CVarEnableBenchmark.GetValueOnAnyThread() || bIsEnabledOverride;
 }
 

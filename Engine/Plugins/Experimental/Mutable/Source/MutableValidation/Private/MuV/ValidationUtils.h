@@ -1,6 +1,9 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+struct FCompilationOptions;
+class UCustomizableObject;
+
 /**
  * Prepare the asset registry so we can later use it to search assets. It is required by Mutable to compile.
  */
@@ -21,3 +24,11 @@ void Wait(const double ToWaitSeconds);
  */
 void LogGlobalSettings();
 
+
+/**
+ * Returns the settings used by CIS based on the compilation options of the provided CO. 
+ * @param ReferenceCustomizableObject CO used to get the base FCompilationOptions we want. 
+ * @return The FCompilationOptions for the provided CO but with some settings changed to be adecuate for a benchmark
+ * oriented compilation.
+ */
+FCompilationOptions GetCompilationOptionsForBenchmarking (UCustomizableObject& ReferenceCustomizableObject);

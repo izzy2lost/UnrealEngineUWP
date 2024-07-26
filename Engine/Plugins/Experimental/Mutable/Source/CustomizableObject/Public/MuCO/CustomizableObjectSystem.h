@@ -271,11 +271,6 @@ public:
 	// being used and it's not compiled.  Callers can add additional information to the error log.
 	void AddUncompiledCOWarning(const UCustomizableObject& InObject, FString const* OptionalLogInfo = nullptr);
 
-	// Enables the collection of internal Mutable performance data. It has a performance cost.
-	void EnableBenchmark();
-	// Writes the benchmark results
-	void EndBenchmark();
-
 	// Show data about all UCustomizableObjectInstance existing elements
 	void LogShowData(bool bFullInfo, bool ShowMaterialInfo) const;
 
@@ -354,6 +349,26 @@ public:
 	/** Get Mutable's working memory limit (bytes). See SetWorkingMemory(int32). */
 	int32 GetWorkingMemory() const;
 
+	/**
+	 * Get if the mutable mesh cache for the instance meshes is enabled or not.
+	 * @param bCheckCVarOnGameThread Force the checking of the relevant CVar to use the GameThread as target thread
+	 * @return True if it is enabled and false otherwise
+	 */
+	static bool IsMeshCacheEnabled(bool bCheckCVarOnGameThread = false);
+
+	/**
+	 * Get if mutable should clear its working memory between instance updates.
+	 * @return True if the clearing of memory will be performed, false otherwise.
+	 */
+	static bool ShouldClearWorkingMemoryOnUpdateEnd();
+
+	/**
+	 * Get if mutable will try to reuse textures in between instances.
+	 * @return True if mutable will try to reuse them, false otherwise.
+	 */
+	static bool ShouldReuseTexturesBetweenInstances();
+
+
 #if WITH_EDITOR
 	// Copy of the Mutable Editor Settings tied to CO compilation. They are updated whenever changed
 	FEditorCompileSettings EditorSettings;
@@ -362,6 +377,26 @@ public:
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UCustomizableObjectSystemPrivate> Private = nullptr;
+
+
+public:
+	
+	/**
+	 * Enable or disable the benchmarking mode for the MutableSystem.
+	 * @param bIsEnabled True to enable it and false to disable it
+	 */
+	static void SetBenchmarkState(bool bIsEnabled);
+	
+	/**
+	 * Get if the system is in benchmarking mode or not.
+	 * @return True if it is in benchmarking mode and false otherwise
+	 */
+	static bool IsBenchmarking();
+	
+private:
+
+	/** Flag that controls some of the settings used for the generation of instances. */
+	inline static bool bIsBenchmarking = false;
 };
 
 

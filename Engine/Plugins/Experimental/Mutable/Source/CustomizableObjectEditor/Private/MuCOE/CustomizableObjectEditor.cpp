@@ -2,6 +2,7 @@
 
 #include "MuCOE/CustomizableObjectEditor.h"
 
+#include "CustomizableObjectEditorPerformanceAnalyzer.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -84,6 +85,7 @@ const FName FCustomizableObjectEditor::GraphNodePropertiesTabId( TEXT( "Customiz
 const FName FCustomizableObjectEditor::AdvancedPreviewSettingsTabId(TEXT("CustomizableObjectEditor_AdvancedPreviewSettings"));
 const FName FCustomizableObjectEditor::TextureAnalyzerTabId(TEXT("CustomizableObjectEditor_TextureAnalyzer"));
 const FName FCustomizableObjectEditor::PerformanceReportTabId(TEXT("CustomizableObjectEditor_PerformanceReport"));
+const FName FCustomizableObjectEditor::PerformanceAnalyzerTabId(TEXT("CustomizableObjectEditor_MewPerformanceReport"));
 const FName FCustomizableObjectEditor::TagExplorerTabId(TEXT("CustomizableObjectEditor_TagExplorer"));
 const FName FCustomizableObjectEditor::ObjectDebuggerTabId(TEXT("CustomizableObjectEditor_ObjectDebugger"));
 const FName FCustomizableObjectEditor::PopulationClassTagManagerTabId(TEXT("CustomizableObjectEditor_PopulationClassTabManager"));
@@ -134,6 +136,10 @@ void FCustomizableObjectEditor::RegisterTabSpawners(const TSharedRef<class FTabM
 		.SetDisplayName(LOCTEXT("PerformanceReport", "Performance Report"))
 		.SetGroup(WorkspaceMenuCategoryRef);
 
+	InTabManager->RegisterTabSpawner(PerformanceAnalyzerTabId, FOnSpawnTab::CreateSP(this, &FCustomizableObjectEditor::SpawnTab_PerformanceAnalyzer))
+		.SetDisplayName(LOCTEXT("PerformanceAnalyzer", "Performance Analyzer"))
+		.SetGroup(WorkspaceMenuCategoryRef);
+	
 	InTabManager->RegisterTabSpawner(TagExplorerTabId, FOnSpawnTab::CreateSP(this, &FCustomizableObjectEditor::SpawnTab_TagExplorer))
 		.SetDisplayName(LOCTEXT("TagExplorerTab", "Tag Explorer"))
 		.SetGroup(WorkspaceMenuCategoryRef);
@@ -150,7 +156,9 @@ void FCustomizableObjectEditor::UnregisterTabSpawners(const TSharedRef<class FTa
 	InTabManager->UnregisterTabSpawner(AdvancedPreviewSettingsTabId);
 	InTabManager->UnregisterTabSpawner(TextureAnalyzerTabId);
 	InTabManager->UnregisterTabSpawner(PerformanceReportTabId);
-}
+	InTabManager->UnregisterTabSpawner(PerformanceAnalyzerTabId);
+}	
+
 
 
 FCustomizableObjectEditor::~FCustomizableObjectEditor()
@@ -659,6 +667,13 @@ void FCustomizableObjectEditor::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked());
 
+	// Performance Analyzer
+	ToolkitCommands->MapAction(
+		Commands.PerformanceAnalyzer,
+		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::OpenPerformanceAnalyzerTab),
+		FCanExecuteAction(),
+		FIsActionChecked());
+	
 	// Undo-Redo
 	ToolkitCommands->MapAction(
 		FGenericCommands::Get().Undo,
@@ -1201,6 +1216,7 @@ void FCustomizableObjectEditor::ExtendToolbar()
 			ToolbarBuilder.BeginSection("Information");
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().TextureAnalyzer);
 			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().PerformanceReport);
+			ToolbarBuilder.AddToolBarButton(FCustomizableObjectEditorCommands::Get().PerformanceAnalyzer);
 			ToolbarBuilder.EndSection();
 		}
 	};
@@ -2227,6 +2243,10 @@ void FCustomizableObjectEditor::OpenPerformanceReportTab()
 	TabManager->TryInvokeTab(PerformanceReportTabId);
 }
 
+void FCustomizableObjectEditor::OpenPerformanceAnalyzerTab()
+{
+	TabManager->TryInvokeTab(PerformanceAnalyzerTabId);
+}
 
 TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_TextureAnalyzer(const FSpawnTabArgs& Args)
 {
@@ -2254,6 +2274,24 @@ TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_PerformanceReport(const
 	.Label(LOCTEXT("Performance Report", "Performance Report"))
 	[
 		PerformanceReport.ToSharedRef()
+	];
+}
+
+
+TSharedRef<SDockTab> FCustomizableObjectEditor::SpawnTab_PerformanceAnalyzer(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == PerformanceAnalyzerTabId);
+	check(CustomizableObject);
+
+	if (!PerformanceAnalyzer.IsValid())
+	{
+		PerformanceAnalyzer = SNew(SCustomizableObjectEditorPerformanceAnalyzer).CustomizableObject(CustomizableObject);
+	}
+
+	return SNew(SDockTab)
+	.Label(LOCTEXT("Performance Analyzer", "Performance Analyzer"))
+	[
+		PerformanceAnalyzer.ToSharedRef()
 	];
 }
 

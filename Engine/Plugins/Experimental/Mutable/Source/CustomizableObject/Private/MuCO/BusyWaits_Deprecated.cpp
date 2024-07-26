@@ -56,7 +56,7 @@ namespace CustomizableObjectSystem::ImplDeprecated
 			}
 
 			const bool bCached = ImagesInThisInstance.Contains(Image.ImageID) || // See if it is cached from this same instance (can happen with LODs)
-				(CVarReuseImagesBetweenInstances.GetValueOnAnyThread() && CustomizableObjectSystemPrivateData->ProtectedObjectCachedImages.Contains(Image.ImageID)); // See if it is cached from another instance
+				(UCustomizableObjectSystem::ShouldReuseTexturesBetweenInstances() && CustomizableObjectSystemPrivateData->ProtectedObjectCachedImages.Contains(Image.ImageID)); // See if it is cached from another instance
 
 			if (bCached)
 			{
@@ -483,7 +483,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_UpdateImage);
 		const double StartTime = FPlatformTime::Seconds();
 		
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 		{
 			// Cache memory used when starting the update of the image
 			OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
@@ -589,7 +589,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 					System->EndUpdate(InstanceID);
 					System->ReleaseInstance(InstanceID);
 
-					if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+					if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 					{
 						System->ClearWorkingMemory();
 					}
@@ -597,7 +597,7 @@ namespace CustomizableObjectMipDataProvider::ImplDeprecated
 			}
 		}
 
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 		{
 			double Time = FPlatformTime::Seconds() - StartTime;
 			// Report the peak memory used by the operation
@@ -690,7 +690,7 @@ namespace CustomizableObjectMeshUpdate::ImplDeprecated
 		System->EndUpdate(InstanceID);
 		System->ReleaseInstance(InstanceID);
 
-		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+		if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 		{
 			System->ClearWorkingMemory();
 		}

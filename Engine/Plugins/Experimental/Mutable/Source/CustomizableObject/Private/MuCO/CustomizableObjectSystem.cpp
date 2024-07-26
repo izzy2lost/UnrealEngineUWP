@@ -900,8 +900,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 	const uint32 InstanceId = Instance ? Instance->GetUniqueID() : 0;
 	UE_LOG(LogMutable, Log, TEXT("Finished UpdateSkeletalMesh Async. Instance=%d, Frame=%d, QueueTime=%f, UpdateTime=%f"), InstanceId, GFrameNumber, Context->QueueTime, Context->UpdateTime);
 
-	if (SystemPrivate &&
-		CVarEnableBenchmark.GetValueOnAnyThread())
+	if (SystemPrivate && FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 	{
 		FFunctionGraphTask::CreateAndDispatchWhenReady( // Calling Benchmark in a task so we make sure we exited all scopes.
 		[Context]()
@@ -1651,7 +1650,7 @@ namespace impl
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
 		const UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivate();
 		
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 		{
 			// Get the amount of mutable memory in use now
 			Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
@@ -2684,7 +2683,7 @@ namespace impl
 		}
 
 		const bool bCached = ImagesInThisInstance->Contains(Image.ImageID) || // See if it is cached from this same instance (can happen with LODs)
-			(CVarReuseImagesBetweenInstances.GetValueOnAnyThread() && CustomizableObjectSystemPrivateData->ProtectedObjectCachedImages.Contains(Image.ImageID)); // See if it is cached from another instance
+			(UCustomizableObjectSystem::ShouldReuseTexturesBetweenInstances() && CustomizableObjectSystemPrivateData->ProtectedObjectCachedImages.Contains(Image.ImageID)); // See if it is cached from another instance
 
 		if (bCached)
 		{
@@ -2805,7 +2804,7 @@ namespace impl
 
 		MutableSystem->SetImagePixelConversionOverride(nullptr);
 
-		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+		if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 		{
 			MutableSystem->ClearWorkingMemory();
 		}
@@ -2824,7 +2823,7 @@ namespace impl
 			MutableSystem->ReleaseInstance(InstanceID);
 		}
 
-		if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+		if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 		{
 			MutableSystem->ClearWorkingMemory();
 		}
@@ -2957,7 +2956,7 @@ namespace impl
 			}
 		} // if (!bInstanceValid)
 
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 		{
 			// Memory used in the context of this the update of mesh
 			OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
@@ -3259,7 +3258,7 @@ namespace impl
 		MUTABLE_CPUPROFILER_SCOPE(Task_Game_StartUpdate)
 
 		// Check if a level has been loaded
-		if (CVarEnableBenchmark.GetValueOnAnyThread() && GWorld)
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled() && GWorld)
 		{
 			Operation->bLevelBegunPlay = GWorld->GetBegunPlay();
 		}
@@ -3405,7 +3404,7 @@ namespace impl
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
-		Operation->bUseMeshCache = CustomizableObject->bEnableMeshCache && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
+		Operation->bUseMeshCache = CustomizableObject->bEnableMeshCache && !Operation->bLiveUpdateMode && UCustomizableObjectSystem::IsMeshCacheEnabled(true);
 
 		const bool bStreamingEnabled = (CustomizableObject->bEnableMeshStreaming || bForceStreamMeshLODs) && bStreamMeshLODs;
 		Operation->bStreamMeshLODs = bStreamingEnabled && IStreamingManager::Get().IsRenderAssetStreamingEnabled(EStreamableRenderAssetType::SkeletalMesh);
@@ -4105,21 +4104,39 @@ void UCustomizableObjectSystem::AddUncompiledCOWarning(const UCustomizableObject
 }
 
 
-void UCustomizableObjectSystem::EnableBenchmark()
-{
-	CVarEnableBenchmark->Set(true);
-}
-
-
-void UCustomizableObjectSystem::EndBenchmark()
-{
-	CVarEnableBenchmark->Set(false);
-}
-
-
 void UCustomizableObjectSystem::SetReleaseMutableTexturesImmediately(bool bReleaseTextures)
 {
 	GetPrivate()->bReleaseTexturesImmediately = bReleaseTextures;
+}
+
+
+void UCustomizableObjectSystem::SetBenchmarkState(bool bIsEnabled)
+{
+	bIsBenchmarking = bIsEnabled;
+}
+
+
+bool UCustomizableObjectSystem::IsBenchmarking()
+{
+	return bIsBenchmarking;
+}
+
+
+bool UCustomizableObjectSystem::IsMeshCacheEnabled(bool bCheckCVarOnGameThread /** = false */)
+{
+	return bIsBenchmarking ? false : CVarEnableMeshCache.GetValueOnAnyThread(bCheckCVarOnGameThread);
+}
+
+
+bool UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd()
+{
+	return bIsBenchmarking ? true : CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread();
+}
+
+
+bool UCustomizableObjectSystem::ShouldReuseTexturesBetweenInstances()
+{
+	return bIsBenchmarking ? false : CVarReuseImagesBetweenInstances.GetValueOnAnyThread();
 }
 
 
@@ -4134,7 +4151,7 @@ void UCustomizableObjectSystem::SetWorkingMemory(int32 Bytes)
 
 int32 UCustomizableObjectSystem::GetWorkingMemory() const
 {
-	return WorkingMemory;
+	return bIsBenchmarking ? 16384 : WorkingMemory;
 }
 
 

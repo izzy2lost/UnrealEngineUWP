@@ -136,7 +136,7 @@ namespace Impl
 	{
 		const double StartTime = FPlatformTime::Seconds();
 		
-		if (CVarEnableBenchmark.GetValueOnAnyThread())
+		if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 		{
 			// Cache memory used when starting the update of the image
 			OperationData->ImageUpdateStartBytes = mu::FGlobalMemoryCounter::GetAbsoluteCounter();
@@ -265,13 +265,13 @@ namespace Impl
 						System->EndUpdate(InstanceID);
 						System->ReleaseInstance(InstanceID);
 
-						if (CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread())
+						if (UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd())
 						{
 							System->ClearWorkingMemory();
 						}
 					}
 
-					if (CVarEnableBenchmark.GetValueOnAnyThread())
+					if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 					{
 						double Time = FPlatformTime::Seconds() - StartTime;
 						// Report the peak memory used by the operation

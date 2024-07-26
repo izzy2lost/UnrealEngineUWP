@@ -7,6 +7,9 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "RHIGlobals.h"
+#include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
+#include "UObject/ObjectPtr.h"
 
 void PrepareAssetRegistry()
 {
@@ -55,6 +58,18 @@ void Wait(const double ToWaitSeconds)
 	}
 
 	UE_LOG(LogMutable,Display,TEXT("Resuming test execution."));
+}
+
+
+FCompilationOptions GetCompilationOptionsForBenchmarking (UCustomizableObject& ReferenceCustomizableObject)
+{
+	// Override some configurations that may have been changed by the user
+	FCompilationOptions CISCompilationOptions = ReferenceCustomizableObject.GetPrivate()->GetCompileOptions();
+	CISCompilationOptions.bSilentCompilation = false;										// totally optional
+	CISCompilationOptions.OptimizationLevel = CustomizableObjectBenchmarkingUtils::GetOptimizationLevelForBenchmarking();
+	CISCompilationOptions.TextureCompression = ECustomizableObjectTextureCompression::Fast;	// Does not affect instance update speed but does compilation
+
+	return CISCompilationOptions;
 }
 
 

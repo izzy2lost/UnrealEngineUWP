@@ -6064,7 +6064,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 	    OperationData->GetCapturedDescriptor().GetState());
 
 	// Cache the descriptor as a string if we want to later report it using our benchmark utility. 
-	if (CVarEnableBenchmark.GetValueOnAnyThread())
+	if (FLogBenchmarkUtil::IsBenchmarkingReportingEnabled())
 	{
 		UpdateContext->CapturedDescriptor = OperationData->GetCapturedDescriptor().ToString();
 		if (GWorld)
