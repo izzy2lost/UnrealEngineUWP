@@ -316,19 +316,19 @@ public:
 	bool operator==(const FConfigValue& Other) const { return SavedValueHash == Other.SavedValueHash; }
 	bool operator!=(const FConfigValue& Other) const { return !(FConfigValue::operator==(Other)); }
 
-	friend FArchive& operator<<(FArchive& Ar, FConfigValue& ConfigSection)
+	friend FArchive& operator<<(FArchive& Ar, FConfigValue& ConfigValue)
 	{
-		FStructuredArchiveFromArchive(Ar).GetSlot() << ConfigSection;
+		FStructuredArchiveFromArchive(Ar).GetSlot() << ConfigValue;
 		return Ar;
 	}
 
-	friend void operator<<(FStructuredArchive::FSlot Slot, FConfigValue& ConfigSection)
+	friend void operator<<(FStructuredArchive::FSlot Slot, FConfigValue& ConfigValue)
 	{
-		Slot << ConfigSection.SavedValue;
+		Slot << ConfigValue.SavedValue;
 
 		if (Slot.GetUnderlyingArchive().IsLoading())
 		{
-			ConfigSection.ExpandValueInternal();
+			ConfigValue.ExpandValueInternal();
 		}
 	}
 
@@ -387,6 +387,7 @@ public:
 	friend class FConfigCacheIni;
 	friend class FConfigFile;
 	friend class FConfigBranch;
+	friend struct FDetailedConfigMemUsage;
 	const FString& GetSavedValueForWriting() const
 	{
 		return SavedValue;
@@ -1126,9 +1127,18 @@ public:
 	CORE_API bool RemoveSection(const TCHAR* Section);
 
 	CORE_API void Flush();
-	
+
+	CORE_API void Shrink();
+
 	CORE_API void Dump(FOutputDevice& Ar);
-	
+
+
+	/**
+	 * Run a function on every file in the branch
+	 */
+	CORE_API void RunOnEachFile(TFunction<void(FConfigFile& File, const FString& Name)> Func);
+	CORE_API void RunOnEachCommandStream(TFunction<void(FConfigCommandStream& File, const FString& Name)> Func);
+
 private:
 	void InitFiles();
 	

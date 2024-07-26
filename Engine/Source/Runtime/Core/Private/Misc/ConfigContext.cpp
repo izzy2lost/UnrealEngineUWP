@@ -394,7 +394,9 @@ bool FConfigContext::PerformSingleFileLoad()
 
 bool FConfigContext::PrepareForLoad(bool& bPerformLoad)
 {
+#if !UE_BUILD_SHIPPING
 	if (IsInGameThread()) GPrepareForLoadTime -= FPlatformTime::Seconds();
+#endif
 
 	checkf(ConfigSystem != nullptr || ExistingFile != nullptr, TEXT("Loading config expects to either have a ConfigFile already passed in, or have a ConfigSystem passed in"));
 
@@ -488,7 +490,9 @@ bool FConfigContext::PerformLoad()
 {
 	LLM_SCOPE(ELLMTag::ConfigSystem);
 
+#if !UE_BUILD_SHIPPING
 	if (IsInGameThread()) GPerformLoadTime -= FPlatformTime::Seconds();
+#endif
 
 #if DISABLE_GENERATED_INI_WHEN_COOKED
 	if (BaseIniName == TEXT("GameUserSettings"))
@@ -584,7 +588,9 @@ bool FConfigContext::PerformLoad()
 		}
 	}
 
+#if !UE_BUILD_SHIPPING
 	if (IsInGameThread()) GPerformLoadTime += FPlatformTime::Seconds();
+#endif
 
 	return bGeneratedFile;
 }
@@ -989,11 +995,18 @@ bool FConfigContext::LoadIniFileHierarchy()
 	// if we had been reading into the Static cache, not InMemory, then start the InMemory from this point
 	if (Branch->ReplayMethod != EBranchReplayMethod::NoReplay)
 	{
+		Branch->CombinedStaticLayers.Shrink();
+
 		Branch->InMemoryFile = Branch->CombinedStaticLayers;
 		
 		// need to reset this since it just got blown away
 		Branch->InMemoryFile.ChangeTracker = &Branch->SavedLayer;
 	}
+	else
+	{
+		Branch->InMemoryFile.Shrink();
+	}
+
 	Branch->FinalCombinedLayers = Branch->InMemoryFile;
 	return bReadAnyFile;
 }
