@@ -3425,7 +3425,7 @@ FConfigBranch* FConfigCacheIni::FindBranch(FName BaseIniName, const FString& Fil
 		Context.DestIniFilename = Branch->IniPath;
 		Context.Load(*BaseIniName.ToString());
 
-		UE_LOG(LogConfig, Warning, TEXT("Branch '%s' had been unloaded. Reloading on-demand took %.2fms"), *Branch->IniName.ToString(), (FPlatformTime::Seconds() - StartTime) * 1000.0f);
+		UE_LOG(LogConfig, Log, TEXT("Branch '%s' had been unloaded. Reloading on-demand took %.2fms"), *Branch->IniName.ToString(), (FPlatformTime::Seconds() - StartTime) * 1000.0f);
 	}
 
 	return Branch;
