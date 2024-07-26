@@ -22,6 +22,7 @@
 // Forward Declarations
 struct FMetasoundFrontendClass;
 struct FMetasoundFrontendClassInterface;
+struct FMetaSoundFrontendDocumentBuilder;
 
 enum class EMetasoundFrontendClassType : uint8;
 
@@ -35,8 +36,8 @@ namespace Metasound
 
 	namespace Frontend
 	{
-		constexpr FGuid DefaultGraphPageID(0, 0, 0, 0);
-		constexpr TCHAR DefaultGraphPageName[] = TEXT("Default");
+		constexpr FGuid DefaultPageID(0, 0, 0, 0);
+		constexpr TCHAR DefaultPageName[] = TEXT("Default");
 
 #if WITH_EDITORONLY_DATA
 		extern const FText METASOUNDFRONTEND_API DefaultGraphPageDisplayName;
@@ -934,6 +935,36 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassStyleDisplay
 };
 
 
+USTRUCT()
+struct METASOUNDFRONTEND_API FMetasoundFrontendClassInputDefault
+{
+	GENERATED_BODY()
+
+	FMetasoundFrontendClassInputDefault() = default;
+
+	FMetasoundFrontendClassInputDefault(const FMetasoundFrontendLiteral& Literal)
+		: Literal(Literal)
+		, PageID(Metasound::Frontend::DefaultPageID)
+	{
+	}
+
+	FMetasoundFrontendClassInputDefault(const FGuid& InPageID)
+		: PageID(InPageID)
+	{
+	}
+
+	FMetasoundFrontendClassInputDefault(const FAudioParameter& InParameter)
+		: Literal(InParameter)
+	{
+	}
+
+	UPROPERTY()
+	FMetasoundFrontendLiteral Literal;
+
+	UPROPERTY()
+	FGuid PageID = Metasound::Frontend::DefaultPageID;
+};
+
 // Contains info for input vertex of a Metasound class.
 USTRUCT() 
 struct METASOUNDFRONTEND_API FMetasoundFrontendClassInput : public FMetasoundFrontendClassVertex
@@ -941,13 +972,37 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassInput : public FMetasoundFro
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassInput() = default;
-
 	FMetasoundFrontendClassInput(const FMetasoundFrontendClassVertex& InOther);
 	FMetasoundFrontendClassInput(const Audio::FParameterInterface::FInput& InInput);
 
-	// Default value for this input.
-	UPROPERTY(EditAnywhere, Category = Parameters)
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecationMessage = "5.5 - Direct access will be revoked and page manipulation limited to public API in future builds. Field has been rolled into DefaultLiterals Array."))
 	FMetasoundFrontendLiteral DefaultLiteral;
+#endif // WITH_EDITORONLY_DATA
+
+private:
+	UPROPERTY(EditAnywhere, Category = Parameters)
+	TArray<FMetasoundFrontendClassInputDefault> Defaults;
+
+public:
+#if WITH_EDITORONLY_DATA
+	FMetasoundFrontendLiteral& AddDefault(const FGuid& InPageID);
+#endif // WITH_EDITORONLY_DATA
+
+	bool ContainsDefault(const FGuid& InPageID) const;
+	const FMetasoundFrontendLiteral* FindConstDefault(const FGuid& InPageID) const;
+	const FMetasoundFrontendLiteral& FindConstDefaultChecked(const FGuid& InPageID) const;
+	FMetasoundFrontendLiteral* FindDefault(const FGuid& InPageID);
+	FMetasoundFrontendLiteral& FindDefaultChecked(const FGuid& InPageID);
+	FMetasoundFrontendLiteral& InitDefault();
+	void InitDefault(FMetasoundFrontendLiteral InitLiteral);
+	void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral&)> IterFunc);
+	void IterateDefaults(TFunctionRef<void(const FGuid&, const FMetasoundFrontendLiteral&)> IterFunc) const;
+
+#if WITH_EDITORONLY_DATA
+	void RemoveAllDefaults();
+	bool RemoveDefault(const FGuid& InPageID);
+#endif // WITH_EDITORONLY_DATA
 };
 
 // Contains info for variable vertex of a Metasound class.
@@ -1664,8 +1719,10 @@ public:
 	FMetasoundFrontendGraphClass();
 	virtual ~FMetasoundFrontendGraphClass() = default;
 
-	UPROPERTY(meta = (DeprecationMessage = "5.5 - Direct Graph access will be revoked and page manipulation applied via public API below in future builds."))
+#if WITH_EDITORONLY_DATA
+	UPROPERTY(meta = (DeprecationMessage = "5.5 - GraphClasses now support multiple paged graphs. Use the provided page graph accessors"))
 	FMetasoundFrontendGraph Graph;
+#endif // WITH_EDITORONLY_DATA
 
 private:
 	UPROPERTY()
@@ -1687,6 +1744,9 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 	bool ContainsGraphPage(const FGuid& InPageID) const;
+
+	FMetasoundFrontendGraph& InitDefaultPage();
+
 	void IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc);
 	void IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const;
 
@@ -1697,6 +1757,20 @@ public:
 	FMetasoundFrontendGraph& GetDefaultGraph();
 	const FMetasoundFrontendGraph& GetConstDefaultGraph() const;
 	void ResetGraphs();
+
+#if WITH_EDITORONLY_DATA
+	struct IPropertyVersionTransform
+	{
+	public:
+		virtual ~IPropertyVersionTransform() = default;
+
+	protected:
+		virtual bool Transform(FMetasoundFrontendGraphClass& OutClass) const = 0;
+
+		// Allows for unsafe access to a document for property migration.
+		static TArray<FMetasoundFrontendGraph>& GetPagesUnsafe(FMetasoundFrontendGraphClass& GraphClass);
+	};
+#endif // WITH_EDITORONLY_DATA
 };
 
 UCLASS()
@@ -1744,7 +1818,9 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendDocument
 	GENERATED_BODY()
 
 public:
+#if WITH_EDITORONLY_DATA
 	static FMetasoundFrontendVersionNumber GetMaxVersion();
+#endif // WITH_EDITORONLY_DATA
 
 	Metasound::Frontend::FAccessPoint AccessPoint;
 

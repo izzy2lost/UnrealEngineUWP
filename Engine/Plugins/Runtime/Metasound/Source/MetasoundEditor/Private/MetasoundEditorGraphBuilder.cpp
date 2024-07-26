@@ -1366,14 +1366,14 @@ namespace Metasound
 			// Can be unset if attempting to mirror parameters from a reroute, so default to reference
 			ClassInput.AccessType = InParams.AccessType == EMetasoundFrontendVertexAccessType::Unset ? EMetasoundFrontendVertexAccessType::Reference : InParams.AccessType;
 
-			if (nullptr != InDefaultValue)
+			if (InDefaultValue)
 			{
-				ClassInput.DefaultLiteral = *InDefaultValue;
+				ClassInput.InitDefault(*InDefaultValue);
 			}
 			else
 			{
 				Metasound::FLiteral Literal = Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(InParams.DataType);
-				ClassInput.DefaultLiteral.SetFromLiteral(Literal);
+				ClassInput.InitDefault().SetFromLiteral(Literal);
 			}
 
 			return ClassInput;

@@ -1258,7 +1258,8 @@ namespace Metasound
 		{
 			if (const FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithVertexID(InVertexID))
 			{
-				return Desc->DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindConstDefaultChecked(Frontend::DefaultPageID);
+				return DefaultLiteral;
 			}
 			return FMetasoundFrontendLiteral{};
 		}
@@ -1269,7 +1270,8 @@ namespace Metasound
 			{
 				if (ensure(IDataTypeRegistry::Get().IsLiteralTypeSupported(Desc->TypeName, InLiteral.GetType())))
 				{
-					Desc->DefaultLiteral = InLiteral;
+					FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+					DefaultLiteral = InLiteral;
 					return true;
 				}
 				else
@@ -1286,8 +1288,9 @@ namespace Metasound
 			if (FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithVertexID(InVertexID))
 			{
 				Metasound::FLiteral Literal = IDataTypeRegistry::Get().CreateDefaultLiteral(Desc->TypeName);
-				Desc->DefaultLiteral.SetFromLiteral(Literal);
-				return Desc->DefaultLiteral.IsValid();
+				FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+				DefaultLiteral.SetFromLiteral(Literal);
+				return DefaultLiteral.IsValid();
 			}
 
 			return false;
@@ -1414,7 +1417,8 @@ namespace Metasound
 		{
 			if (FMetasoundFrontendClassInput* Desc = FindInputDescriptionWithName(InInputName))
 			{
-				Desc->DefaultLiteral.Clear();
+				FMetasoundFrontendLiteral& DefaultLiteral = Desc->FindDefaultChecked(Frontend::DefaultPageID);
+				DefaultLiteral.Clear();
 			}
 
 			return false;
@@ -1631,7 +1635,7 @@ namespace Metasound
 				FString UnknownAsset = TEXT("UnknownAsset");
 				FProxyDataCache ProxyCache;
 				const FMetasoundFrontendDocument& Doc = *(OwningDocument->GetDocumentPtr().Get());
-				ProxyCache.CreateAndCacheProxies(Doc, Frontend::DefaultGraphPageID);
+				ProxyCache.CreateAndCacheProxies(Doc, Frontend::DefaultPageID);
 
 				TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(*GraphClass, Subgraphs, Dependencies, ProxyCache, UnknownAsset, Frontend::CreateLocallyUniqueId(), { });
 

@@ -694,7 +694,7 @@ namespace Metasound::EngineTest{
 					TestNodeName, 
 					TestNodeID, 
 					TestVertexName,
-					NodeClass.Interface.Inputs[0].DefaultLiteral.ToLiteral(DataTypeName)
+					NodeClass.Interface.Inputs[0].FindConstDefaultChecked(Frontend::DefaultPageID).ToLiteral(DataTypeName)
 				};
 
 				Node = DataTypeRegistry.CreateInputNode(DataTypeName, MoveTemp(NodeInitData));

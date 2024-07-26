@@ -501,7 +501,6 @@ FMetasoundFrontendClassInterface FMetasoundFrontendClassInterface::GenerateClass
 		for (const FInputDataVertex& InputVertex : InputInterface)
 		{
 			FMetasoundFrontendClassInput ClassInput;
-
 			ClassInput.Name = InputVertex.VertexName;
 			ClassInput.TypeName = InputVertex.DataTypeName;
 			ClassInput.AccessType = Metasound::DocumentPrivate::CoreVertexAccessTypeToFrontendVertexAccessType(InputVertex.AccessType);
@@ -527,9 +526,8 @@ FMetasoundFrontendClassInterface FMetasoundFrontendClassInterface::GenerateClass
 			FLiteral DefaultLiteral = InputVertex.GetDefaultLiteral();
 			if (DefaultLiteral.GetType() != ELiteralType::Invalid)
 			{
-				ClassInput.DefaultLiteral.SetFromLiteral(DefaultLiteral);
+				ClassInput.InitDefault().SetFromLiteral(DefaultLiteral);
 			}
-
 
 			ClassInterface.Inputs.Add(MoveTemp(ClassInput));
 		}
@@ -813,21 +811,21 @@ FMetasoundFrontendClassMetadata FMetasoundFrontendClassMetadata::GenerateClassMe
 FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const FMetasoundFrontendClassVertex& InOther)
 :	FMetasoundFrontendClassVertex(InOther)
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
-	EMetasoundFrontendLiteralType DefaultType = GetMetasoundFrontendLiteralType(IDataTypeRegistry::Get().GetDesiredLiteralType(InOther.TypeName));
-
-	DefaultLiteral.SetType(DefaultType);
+	const ELiteralType LiteralType = Frontend::IDataTypeRegistry::Get().GetDesiredLiteralType(InOther.TypeName);
+	const EMetasoundFrontendLiteralType DefaultType = Frontend::GetMetasoundFrontendLiteralType(LiteralType);
+	InitDefault().SetType(DefaultType);
 }
 
 FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const Audio::FParameterInterface::FInput& InInput)
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
 	Name = InInput.InitValue.ParamName;
-	DefaultLiteral = FMetasoundFrontendLiteral(InInput.InitValue);
-	TypeName = Metasound::DocumentPrivate::ResolveMemberDataType(InInput.DataType, InInput.InitValue.ParamType);
-	VertexID = FClassIDGenerator::Get().CreateInputID(InInput);
+	InitDefault(FMetasoundFrontendLiteral(InInput.InitValue));
+	TypeName = DocumentPrivate::ResolveMemberDataType(InInput.DataType, InInput.InitValue.ParamType);
+	VertexID = Frontend::FClassIDGenerator::Get().CreateInputID(InInput);
 
 #if WITH_EDITOR
 	// Interfaces should never serialize text to avoid desync between
@@ -838,6 +836,97 @@ FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const Audio::FParamet
 	Metadata.SortOrderIndex = InInput.SortOrderIndex;
 #endif // WITH_EDITOR
 }
+
+#if WITH_EDITORONLY_DATA
+FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::AddDefault(const FGuid& InPageID)
+{
+	checkf(!ContainsDefault(InPageID), TEXT("Page default with given ID already exists"));
+	return Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault { InPageID }).Literal;
+}
+#endif // WITH_EDITORONLY_DATA
+
+bool FMetasoundFrontendClassInput::ContainsDefault(const FGuid& InPageID) const
+{
+	auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+	return Defaults.ContainsByPredicate(IsPage);
+}
+
+const FMetasoundFrontendLiteral* FMetasoundFrontendClassInput::FindConstDefault(const FGuid& InPageID) const
+{
+	auto IsPage = [&InPageID](FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+	if (const FMetasoundFrontendClassInputDefault* Default = Defaults.FindByPredicate(IsPage))
+	{
+		return &Default->Literal;
+	}
+
+	return nullptr;
+}
+
+const FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::FindConstDefaultChecked(const FGuid& InPageID) const
+{
+	const FMetasoundFrontendLiteral* Literal = FindConstDefault(InPageID);
+	check(Literal);
+	return *Literal;
+}
+
+FMetasoundFrontendLiteral* FMetasoundFrontendClassInput::FindDefault(const FGuid& InPageID)
+{
+	auto IsPage = [&InPageID](FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+	if (FMetasoundFrontendClassInputDefault* Default = Defaults.FindByPredicate(IsPage))
+	{
+		return &Default->Literal;
+	}
+
+	return nullptr;
+}
+
+FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::FindDefaultChecked(const FGuid& InPageID)
+{
+	FMetasoundFrontendLiteral* Literal = FindDefault(InPageID);
+	check(Literal);
+	return *Literal;
+}
+
+FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::InitDefault()
+{
+	checkf(Defaults.IsEmpty(), TEXT("Default(s) already initialized"));
+	return Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault { Metasound::Frontend::DefaultPageID }).Literal;
+}
+
+void FMetasoundFrontendClassInput::InitDefault(FMetasoundFrontendLiteral InitLiteral)
+{
+	checkf(Defaults.IsEmpty(), TEXT("Default(s) already initialized"));
+	Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault{ Metasound::Frontend::DefaultPageID }).Literal = MoveTemp(InitLiteral);
+}
+
+void FMetasoundFrontendClassInput::IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral&)> IterFunc)
+{
+	for (FMetasoundFrontendClassInputDefault& Default : Defaults)
+	{
+		IterFunc(Default.PageID, Default.Literal);
+	}
+}
+
+void FMetasoundFrontendClassInput::IterateDefaults(TFunctionRef<void(const FGuid&, const FMetasoundFrontendLiteral&)> IterFunc) const
+{
+	for (const FMetasoundFrontendClassInputDefault& Default : Defaults)
+	{
+		IterFunc(Default.PageID, Default.Literal);
+	}
+}
+
+#if WITH_EDITORONLY_DATA
+void FMetasoundFrontendClassInput::RemoveAllDefaults()
+{
+	Defaults.Reset();
+}
+
+bool FMetasoundFrontendClassInput::RemoveDefault(const FGuid& InPageID)
+{
+	auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+	return Defaults.RemoveAllSwap(IsPage) > 0;
+}
+#endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendClassVariable::FMetasoundFrontendClassVariable(const FMetasoundFrontendClassVertex& InOther)
 	: FMetasoundFrontendClassVertex(InOther)
@@ -888,15 +977,13 @@ FMetasoundFrontendGraphClass::FMetasoundFrontendGraphClass()
 #if WITH_EDITORONLY_DATA
 const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph)
 {
-	checkf(InPageID != Metasound::Frontend::DefaultGraphPageID, TEXT("Cannot add graph with DefaultPageID"))
 	checkf(!ContainsGraphPage(InPageID), TEXT("Cannot add new graph page with existing PageID"));
 
 	FMetasoundFrontendGraph* NewGraph = nullptr;
 	if (bDuplicateLastGraph)
 	{
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		FMetasoundFrontendGraph ToDuplicate = PagedGraphs.IsEmpty() ? Graph : PagedGraphs.Last();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		checkf(!PagedGraphs.IsEmpty(), TEXT("Cannot duplicate graph. No graph to duplicate"));
+		FMetasoundFrontendGraph ToDuplicate = PagedGraphs.Last();
 		NewGraph = &PagedGraphs.Add_GetRef(MoveTemp(ToDuplicate));
 	}
 	else
@@ -911,13 +998,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FMetasoundFrontendGraphClass::ContainsGraphPage(const FGuid& InPageID) const
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (InPageID == Graph.PageID)
-	{
-		return true;
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	auto MatchesPageID = [&InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	return PagedGraphs.ContainsByPredicate(MatchesPageID);
 }
@@ -926,10 +1006,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 void FMetasoundFrontendGraphClass::RemoveAllGraphPages()
 {
 	PagedGraphs.Empty();
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	Graph.PageID = FGuid();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID)
@@ -963,13 +1039,6 @@ bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid*
 
 FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindGraph(const FGuid& InPageID)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (InPageID == Graph.PageID)
-	{
-		return &Graph;
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
 	return PageGraph;
@@ -984,13 +1053,6 @@ FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::FindGraphChecked(const FG
 
 const FMetasoundFrontendGraph* FMetasoundFrontendGraphClass::FindConstGraph(const FGuid& InPageID) const
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if (InPageID == Graph.PageID)
-	{
-		return &Graph;
-	}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	auto MatchesPageID = [this, &InPageID](const FMetasoundFrontendGraph& Iter) { return Iter.PageID == InPageID; };
 	const FMetasoundFrontendGraph* PageGraph = PagedGraphs.FindByPredicate(MatchesPageID);
 	return PageGraph;
@@ -1005,20 +1067,24 @@ const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::FindConstGraphCheck
 
 FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetDefaultGraph()
 {
-	return FindGraphChecked(FGuid());
+	return FindGraphChecked(Metasound::Frontend::DefaultPageID);
 }
 
 const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetConstDefaultGraph() const
 {
-	return FindConstGraphChecked(FGuid());
+	return FindConstGraphChecked(Metasound::Frontend::DefaultPageID);
+}
+
+FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::InitDefaultPage()
+{
+	checkf(PagedGraphs.IsEmpty(), TEXT("Attempting to initialize default page for graph class with existing graph implementation"));
+	FMetasoundFrontendGraph& NewGraph = PagedGraphs.AddDefaulted_GetRef();
+	NewGraph.PageID = Metasound::Frontend::DefaultPageID;
+	return NewGraph;
 }
 
 void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc)
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	IterFunc(Graph);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	for (FMetasoundFrontendGraph& Iter : PagedGraphs)
 	{
 		IterFunc(Iter);
@@ -1027,10 +1093,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FMetasoundFrontendGraphClass::IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const
 {
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	IterFunc(Graph);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	for (const FMetasoundFrontendGraph& Iter : PagedGraphs)
 	{
 		IterFunc(Iter);
@@ -1040,17 +1102,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 void FMetasoundFrontendGraphClass::ResetGraphs()
 {
 	PagedGraphs.Empty();
+}
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	Graph.Nodes.Reset();
-	Graph.Edges.Reset();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#if WITH_EDITORONLY_DATA
+TArray<FMetasoundFrontendGraph>& FMetasoundFrontendGraphClass::IPropertyVersionTransform::GetPagesUnsafe(FMetasoundFrontendGraphClass& GraphClass)
+{
+	return GraphClass.PagedGraphs;
 }
 
 FMetasoundFrontendVersionNumber FMetasoundFrontendDocument::GetMaxVersion()
 {
 	return Metasound::Frontend::GetMaxDocumentVersion();
 }
+#endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendDocument::FMetasoundFrontendDocument()
 {
@@ -1196,7 +1260,8 @@ namespace Metasound::Frontend
 	{
 		for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
 		{
-			OnLiteral(ClassInput.TypeName, ClassInput.DefaultLiteral);
+			const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
+			OnLiteral(ClassInput.TypeName, DefaultLiteral);
 		}
 	}
 

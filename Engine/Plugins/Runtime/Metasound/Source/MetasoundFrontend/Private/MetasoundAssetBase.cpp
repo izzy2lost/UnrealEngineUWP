@@ -534,15 +534,10 @@ void FMetasoundAssetBase::SetDocument(FMetasoundFrontendDocument InDocument, boo
 bool FMetasoundAssetBase::VersionAsset(FMetaSoundFrontendDocumentBuilder& Builder)
 {
 	using namespace Metasound;
-	using namespace Metasound::Frontend;
 
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(MetaSoundAssetBase::VersionAsset);
 
-	bool bDidEdit = false;
-
-	// Version Document Model
-	bDidEdit = Builder.VersionInterfaces();
-	bDidEdit |= Metasound::Frontend::VersionDocument(*this, Builder);
+	bool bDidEdit = Frontend::VersionDocument(Builder);
 
 	// TODO: Move this logic to builder API above, which will require rewriting update transforms to
 	// take in builder instead of DocumentHandle.
@@ -558,6 +553,7 @@ bool FMetasoundAssetBase::VersionAsset(FMetaSoundFrontendDocumentBuilder& Builde
 			bPassUpdated = false;
 
 			const TArray<FMetasoundFrontendVersion> Versions = Document.Interfaces.Array();
+
 			for (const FMetasoundFrontendVersion& Version : Versions)
 			{
 				bPassUpdated |= TryUpdateInterfaceFromVersion(Version);

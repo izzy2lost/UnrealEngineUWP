@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "Containers/UnrealString.h"
-#include "MetasoundDocumentInterface.h"
-#include "MetasoundFrontendController.h"
-#include "MetasoundFrontendTransform.h"
-#include "MetasoundFrontendDocument.h"
-#include "UObject/NameTypes.h"
-#include "UObject/ScriptInterface.h"
+#include "Misc/CoreMiscDefines.h"
 
+#if WITH_EDITORONLY_DATA
+#include "MetasoundFrontendDocument.h"
+
+
+// Forward Declartions
 class IMetaSoundDocumentInterface;
 struct FMetaSoundFrontendDocumentBuilder;
 
@@ -17,10 +16,11 @@ namespace Metasound::Frontend
 {
 	static FMetasoundFrontendVersionNumber GetMaxDocumentVersion()
 	{
-		return FMetasoundFrontendVersionNumber { 1, 12 };
+		return FMetasoundFrontendVersionNumber { 1, 13 };
 	}
 
 	// Versions Frontend Document. Passed as AssetBase for backward compat to
 	// version asset documents predating the IMetaSoundDocumentInterface
-	bool VersionDocument(FMetasoundAssetBase& InAssetBase, FMetaSoundFrontendDocumentBuilder& Builder);
+	bool VersionDocument(FMetaSoundFrontendDocumentBuilder& Builder);
 } // namespace Metasound::Frontend
+#endif // WITH_EDITORONLY_DATA

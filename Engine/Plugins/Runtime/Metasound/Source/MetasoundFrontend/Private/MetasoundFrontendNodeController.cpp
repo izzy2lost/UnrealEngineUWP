@@ -134,7 +134,7 @@ namespace Metasound
 						if (ClassInput)
 						{
 							// Check if setting back to class default literal
-							const FMetasoundFrontendLiteral& ClassDefaultLiteral = ClassInput->DefaultLiteral;
+							const FMetasoundFrontendLiteral& ClassDefaultLiteral = ClassInput->FindConstDefaultChecked(Frontend::DefaultPageID);
 							bSettingToClassDefaultLiteral = ClassDefaultLiteral.IsEqual(InVertexLiteral.Value);
 
 							// Check if setting from class default literal (which may have a None type) to an appropriate type 
@@ -964,12 +964,13 @@ namespace Metasound
 			Algo::Transform(OutInterfaceUpdates.RegistryClass.Interface.Inputs, OutInterfaceUpdates.AddedInputs, [&](const FMetasoundFrontendClassInput& Input) { return &Input; });
 			for (const FMetasoundFrontendClassInput& Input : NodeClassInterface.Inputs)
 			{
-				auto IsEquivalent = [NodeClassInput = &Input](const FMetasoundFrontendClassInput* Iter)
+				const FMetasoundFrontendLiteral& NodeClassDefault = Input.FindConstDefaultChecked(Frontend::DefaultPageID);
+				auto IsEquivalent = [&NodeClassDefault, &Input](const FMetasoundFrontendClassInput* Iter)
 				{
-					const bool bDefaultEquivalent = Iter->DefaultLiteral.IsEqual(NodeClassInput->DefaultLiteral);
+					const bool bDefaultEquivalent = Iter->FindConstDefaultChecked(Frontend::DefaultPageID).IsEqual(NodeClassDefault);
 					if (bDefaultEquivalent)
 					{
-						return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(*NodeClassInput, *Iter);
+						return FMetasoundFrontendClassVertex::IsFunctionalEquivalent(Input, *Iter);
 					}
 					return false;
 				};

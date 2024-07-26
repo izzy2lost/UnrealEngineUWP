@@ -78,7 +78,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FNodeModifyDelegates& FDocumentModifyDelegates::FindNodeDelegatesChecked(const FGuid& InPageID)
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return InPageID == DefaultGraphPageID
+		return InPageID == DefaultPageID
 		? NodeDelegates
 		: PageNodeDelegates.FindChecked(InPageID);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
@@ -87,7 +87,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FEdgeModifyDelegates& FDocumentModifyDelegates::FindEdgeDelegatesChecked(const FGuid& InPageID)
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		return InPageID == DefaultGraphPageID
+		return InPageID == DefaultPageID
 		? EdgeDelegates
 		: PageEdgeDelegates.FindChecked(InPageID);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

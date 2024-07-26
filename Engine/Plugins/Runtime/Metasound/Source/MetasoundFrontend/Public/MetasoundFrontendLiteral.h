@@ -161,6 +161,8 @@ public:
 	// Remove any stored data and set to an invalid state.
 	void Clear();
 
+	static FMetasoundFrontendLiteral GetInvalid();
+
 private:
 	// Remove all values.
 	void Empty();

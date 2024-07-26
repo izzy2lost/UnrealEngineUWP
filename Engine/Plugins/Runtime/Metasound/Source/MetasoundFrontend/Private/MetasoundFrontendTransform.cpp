@@ -288,7 +288,8 @@ namespace Metasound
 				{
 					if (FMetasoundFrontendVertex::IsFunctionalEquivalent(*ClassInput, OriginalVertex))
 					{
-						NewVertex.DefaultLiteral = ClassInput->DefaultLiteral;
+						const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput->FindConstDefaultChecked(Frontend::DefaultPageID);
+						NewVertex.FindDefaultChecked(Frontend::DefaultPageID) = DefaultLiteral;
 						NewVertex.NodeID = ClassInput->NodeID;
 						FNodeHandle OriginalInputNode = GraphHandle->GetInputNodeWithName(OriginalVertex.Name);
 
@@ -866,6 +867,7 @@ namespace Metasound
 						ClassInput.NodeID = ExistingClassInput->NodeID;
 					}
 
+					FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.InitDefault();
 					if (InPresetGraph->ContainsInputVertex(NodeName, ClassInput.TypeName))
 					{
 						// If the input vertex already exists in the parent graph,
@@ -874,12 +876,12 @@ namespace Metasound
 						if (InPresetGraph->GetInputsInheritingDefault().Contains(NodeName))
 						{
 							const FGuid ReferencedVertexID = ReferencedGraph->GetVertexIDForInputVertex(NodeName);
-							ClassInput.DefaultLiteral = ReferencedGraph->GetDefaultInput(ReferencedVertexID);
+							DefaultLiteral = ReferencedGraph->GetDefaultInput(ReferencedVertexID);
 						}
 						else
 						{
 							FGuid VertexID = InPresetGraph->GetVertexIDForInputVertex(NodeName);
-							ClassInput.DefaultLiteral = InPresetGraph->GetDefaultInput(VertexID);
+							DefaultLiteral = InPresetGraph->GetDefaultInput(VertexID);
 						}
 					}
 					else
@@ -888,7 +890,7 @@ namespace Metasound
 						// then it is a new vertex and should use the default value
 						// of the referenced graph.
 						const FGuid ReferencedVertexID = ReferencedGraph->GetVertexIDForInputVertex(NodeName);
-						ClassInput.DefaultLiteral = ReferencedGraph->GetDefaultInput(ReferencedVertexID);
+						DefaultLiteral = ReferencedGraph->GetDefaultInput(ReferencedVertexID);
 					}
 
 					ClassInputs.Add(MoveTemp(ClassInput));

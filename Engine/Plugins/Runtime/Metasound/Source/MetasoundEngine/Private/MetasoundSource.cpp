@@ -710,11 +710,11 @@ void UMetaSoundSource::OnAsyncReferencedAssetsLoaded(const TArray<FMetasoundAsse
 void UMetaSoundSource::MigrateEditorGraph(FMetaSoundFrontendDocumentBuilder& OutBuilder)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (Graph)
-		{
-			Graph->MigrateEditorDocumentData(OutBuilder);
-			Graph = nullptr;
-		}
+	if (Graph)
+	{
+		Graph->MigrateEditorDocumentData(OutBuilder);
+		Graph = nullptr;
+	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
@@ -1726,7 +1726,8 @@ UMetaSoundSource::FRuntimeInput UMetaSoundSource::CreateRuntimeInput(const Metas
 		UE_LOG(LogMetaSound, Warning, TEXT("Failed to find data type '%s' in registry. Assuming data type is not transmittable"), *Input.TypeName.ToString());
 	}
 
-	FAudioParameter DefaultParameter = SourcePrivate::MakeAudioParameter(Registry, Input.Name, Input.TypeName, Input.DefaultLiteral, bCreateUObjectProxies);
+	const FMetasoundFrontendLiteral& DefaultLiteral = Input.FindConstDefaultChecked(Frontend::DefaultPageID);
+	FAudioParameter DefaultParameter = SourcePrivate::MakeAudioParameter(Registry, Input.Name, Input.TypeName, DefaultLiteral, bCreateUObjectProxies);
 
 	return FRuntimeInput { Input.Name, Input.TypeName, Input.AccessType, DefaultParameter, bIsTransmittable };
 }
@@ -1773,7 +1774,8 @@ Metasound::TSortedVertexNameMap<UMetaSoundSource::FRuntimeInput> UMetaSoundSourc
 
 	// Add the parameter pack input that ALL Metasounds have
 	FMetasoundFrontendClassInput ParameterPackInput = UMetasoundParameterPack::GetClassInput();
-	FAudioParameter ParameterPackDefaultParameter = SourcePrivate::MakeAudioParameter(Registry, ParameterPackInput.Name, ParameterPackInput.TypeName, ParameterPackInput.DefaultLiteral, bCreateUObjectProxies) ;
+	const FMetasoundFrontendLiteral& DefaultLiteral = ParameterPackInput.FindConstDefaultChecked(Frontend::DefaultPageID);
+	FAudioParameter ParameterPackDefaultParameter = SourcePrivate::MakeAudioParameter(Registry, ParameterPackInput.Name, ParameterPackInput.TypeName, DefaultLiteral, bCreateUObjectProxies) ;
 	PublicInputs.Add(ParameterPackInput.Name, FRuntimeInput{ParameterPackInput.Name, ParameterPackInput.TypeName, ParameterPackInput.AccessType, ParameterPackDefaultParameter, true /* bIsTransmittable */});
 	
 	return PublicInputs;

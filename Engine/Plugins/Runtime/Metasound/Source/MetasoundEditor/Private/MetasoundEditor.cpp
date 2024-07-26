@@ -913,9 +913,16 @@ namespace Metasound
 
 			if (AssetEditorPrivate::EnablePageEditor)
 			{
-				InTabManager->RegisterTabSpawner(TabNamesPrivate::Pages, FOnSpawnTab::CreateLambda([InPagesDetails = PagesDetails](const FSpawnTabArgs&)
+				InTabManager->RegisterTabSpawner(TabNamesPrivate::Pages, FOnSpawnTab::CreateLambda([this, InPagesDetails = PagesDetails](const FSpawnTabArgs&)
 				{
-					return SNew(SDockTab).Label(LOCTEXT("MetasoundPagesDetailsTitle", "Pages"))[InPagesDetails.ToSharedRef()];
+					return SNew(SDockTab)
+						.Visibility(TAttribute<EVisibility>::Create([this]()
+						{
+							return Builder.IsValid() && Builder->IsPreset()
+								? EVisibility::Hidden
+								: EVisibility::Visible;
+						}))
+						.Label(LOCTEXT("MetasoundPagesDetailsTitle", "Pages"))[ InPagesDetails.ToSharedRef() ];
 				}))
 				.SetDisplayName(LOCTEXT("PagesTab", "Pages"))
 					.SetGroup(WorkspaceMenuCategoryRef)
@@ -3429,7 +3436,7 @@ namespace Metasound
 			{
 				TSharedPtr<FMetasoundGraphMemberSchemaAction> MetasoundAction = StaticCastSharedPtr<FMetasoundGraphMemberSchemaAction>(Action);
 				if (MetasoundAction.IsValid())
-				{						
+				{
 					if (const UMetasoundEditorGraphVertex* GraphVertex = Cast<UMetasoundEditorGraphVertex>(MetasoundAction->GetGraphMember()))
 					{
 						if (GraphVertex->IsInterfaceMember())
@@ -3438,7 +3445,7 @@ namespace Metasound
 						}
 					}
 				}
-			}		
+			}
 
 			return true;
 		}
@@ -3507,7 +3514,7 @@ namespace Metasound
 						{
 							if (const FMetasoundFrontendClassInput* SourceInput = DocumentBuilder.FindGraphInput(SourceMemberName))
 							{
-								if (const FMetasoundFrontendNode* FrontendNode = DocumentBuilder.DuplicateGraphInput(*SourceInput, SourceInput->DefaultLiteral, Name))
+								if (const FMetasoundFrontendNode* FrontendNode = DocumentBuilder.DuplicateGraphInput(*SourceInput, Name))
 								{
 									FGraphBuilder::SynchronizeGraphMembers(DocumentBuilder, Graph);
 									NewGraphMember = Graph.FindInput(FrontendNode->Name);

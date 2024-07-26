@@ -143,7 +143,7 @@ private:
 	  * for the active platform, uses order of cooked pages (see 'Page Settings' for order) falling back to lower index-ordered page
 	  * implemented in MetaSound asset. */
 	UPROPERTY(EditAnywhere, config, Category = Pages)
-	FName TargetPageName = Metasound::Frontend::DefaultGraphPageName;
+	FName TargetPageName = Metasound::Frontend::DefaultPageName;
 
 	/** Array of possible page settings that can be added to a MetaSound object. Order
 	  * defines default fallback logic whereby a higher index-ordered page

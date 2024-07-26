@@ -331,9 +331,10 @@ namespace Metasound
 		if (nullptr == Literal)
 		{
 			// Find Class Default that is not invalid
-			if (InOwningGraphClassInput.DefaultLiteral.IsValid())
+			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
+			if (DefaultLiteral.IsValid())
 			{
-				Literal = &InOwningGraphClassInput.DefaultLiteral;
+				Literal = &DefaultLiteral;
 			}
 		}
 
@@ -342,9 +343,10 @@ namespace Metasound
 		{
 			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs[0];
 
-			if (InputNodeClassInput.DefaultLiteral.IsValid())
+			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
+			if (DefaultLiteral.IsValid())
 			{
-				Literal = &InputNodeClassInput.DefaultLiteral;
+				Literal = &DefaultLiteral;
 			}
 		}
 

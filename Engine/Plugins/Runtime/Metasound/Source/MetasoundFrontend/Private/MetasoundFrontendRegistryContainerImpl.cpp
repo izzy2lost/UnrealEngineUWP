@@ -480,7 +480,7 @@ namespace Metasound::Frontend
 
 		// Use the asset path of the provided document interface object for identification, *NOT* the
 		// built version as the build process may in fact create a new object with a transient path.
-		FGuid PageID = Frontend::DefaultGraphPageID;
+		FGuid PageID = Frontend::DefaultPageID;
 		const TScriptInterface<IMetaSoundDocumentInterface> RegistryDocInterface = RegistryPrivate::BuildRegistryDocument(InDocumentInterface, bAsync, PageID);
 
 		UObject* OwningObject = RegistryDocInterface.GetObject();

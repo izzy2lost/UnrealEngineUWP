@@ -59,11 +59,11 @@ void UMetaSoundBuilderBase::BeginDestroy()
 
 FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName Name, FName DataType, FMetasoundFrontendLiteral DefaultValue, EMetaSoundBuilderResult& OutResult, bool bIsConstructorInput)
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
 	FMetaSoundBuilderNodeOutputHandle NewHandle;
 
-	if (IDataTypeRegistry::Get().FindDataTypeRegistryEntry(DataType) == nullptr)
+	if (Frontend::IDataTypeRegistry::Get().FindDataTypeRegistryEntry(DataType) == nullptr)
 	{
 		UE_LOG(LogMetaSound, Error, TEXT("AddGraphInputNode Failed on builder '%s' when attempting to add '%s': '%s' is not a registered DataType"), *GetName(), *Name.ToString(), *DataType.ToString());
 	}
@@ -76,7 +76,7 @@ FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName
 		}
 		else
 		{
-			FDocumentIDGenerator& IDGenerator = FDocumentIDGenerator::Get();
+			Frontend::FDocumentIDGenerator& IDGenerator = Frontend::FDocumentIDGenerator::Get();
 			const FMetasoundFrontendDocument& Doc = GetConstBuilder().GetConstDocumentChecked();
 
 			FMetasoundFrontendClassInput Description;
@@ -84,8 +84,10 @@ FMetaSoundBuilderNodeOutputHandle UMetaSoundBuilderBase::AddGraphInputNode(FName
 			Description.TypeName = DataType;
 			Description.NodeID = IDGenerator.CreateNodeID(Doc);
 			Description.VertexID = IDGenerator.CreateVertexID(Doc);
-			Description.DefaultLiteral = static_cast<FMetasoundFrontendLiteral>(DefaultValue);
 			Description.AccessType = bIsConstructorInput ? EMetasoundFrontendVertexAccessType::Value : EMetasoundFrontendVertexAccessType::Reference;
+
+			Description.InitDefault(MoveTemp(DefaultValue));
+
 			Node = Builder.AddGraphInput(Description);
 		}
 
@@ -803,8 +805,8 @@ void UMetaSoundBuilderBase::Initialize()
 	TScriptInterface<IMetaSoundDocumentInterface> DocObject = NewObject<UObject>(GetTransientPackage(), &GetBaseMetaSoundUClass(), { }, NewObjectFlags);
 	TSharedRef<FDocumentModifyDelegates> DocumentDelegates = MakeShared<FDocumentModifyDelegates>(DocObject->GetConstDocument());
 	Builder = FMetaSoundFrontendDocumentBuilder(DocObject, DocumentDelegates);
-	InitDelegates(*DocumentDelegates);
 	Builder.InitDocument();
+	InitDelegates(*DocumentDelegates);
 }
 
 void UMetaSoundBuilderBase::InitNodeLocations()

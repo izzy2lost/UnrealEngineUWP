@@ -879,6 +879,13 @@ void FMetasoundFrontendLiteral::Clear()
 	AsNumDefault = 1;
 }
 
+FMetasoundFrontendLiteral FMetasoundFrontendLiteral::GetInvalid()
+{
+	FMetasoundFrontendLiteral InvalidValue;
+	InvalidValue.Type = EMetasoundFrontendLiteralType::Invalid;
+	return InvalidValue;
+}
+
 void FMetasoundFrontendLiteral::Empty()
 {
 	AsNumDefault = 0;

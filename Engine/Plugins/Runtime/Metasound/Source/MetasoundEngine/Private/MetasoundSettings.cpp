@@ -156,10 +156,10 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 	for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
 	{
 		FMetaSoundPageSettings& Page = PageSettings[Index];
-		const bool bIsDefaultName = Page.Name == Frontend::DefaultGraphPageName;
+		const bool bIsDefaultName = Page.Name == Frontend::DefaultPageName;
 		if (bIsDefaultName)
 		{
-			if (Page.UniqueId != Frontend::DefaultGraphPageID)
+			if (Page.UniqueId != Frontend::DefaultPageID)
 			{
 				Page.UniqueId = { };
 				bDefaultConformed = true;
@@ -169,7 +169,7 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 		}
 		else
 		{
-			if (Page.UniqueId == Frontend::DefaultGraphPageID)
+			if (Page.UniqueId == Frontend::DefaultPageID)
 			{
 				Page.UniqueId = FGuid::NewGuid();
 				bDefaultConformed = true;
@@ -180,7 +180,7 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 	if (!bContainsPageDefault)
 	{
 		FMetaSoundPageSettings DefaultSettings;
-		DefaultSettings.Name = Frontend::DefaultGraphPageName;
+		DefaultSettings.Name = Frontend::DefaultPageName;
 		PageSettings.Insert(MoveTemp(DefaultSettings), 0);
 		bDefaultConformed = true;
 	}
@@ -221,7 +221,7 @@ const FGuid& UMetaSoundSettings::GetTargetPageID() const
 
 	if (PageSettings.IsEmpty())
 	{
-		return Metasound::Frontend::DefaultGraphPageID;
+		return Metasound::Frontend::DefaultPageID;
 	}
 
 	return PageSettings.Last().UniqueId;

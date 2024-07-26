@@ -1712,8 +1712,7 @@ UMetasoundEditorGraphInput* UMetasoundEditorGraph::FindInput(FName InName) const
 
 UMetasoundEditorGraphInput* UMetasoundEditorGraph::FindOrAddInput(const FGuid& InNodeID)
 {
-	using namespace Metasound::Editor;
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
 	if (TObjectPtr<UMetasoundEditorGraphInput> Input = FindInput(InNodeID))
 	{
@@ -1725,12 +1724,12 @@ UMetasoundEditorGraphInput* UMetasoundEditorGraph::FindOrAddInput(const FGuid& I
 	{
 		if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(Node->Name))
 		{
-			const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput->DefaultLiteral;
+			const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput->FindConstDefaultChecked(Frontend::DefaultPageID);
 			if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
 			{
 				FMetasoundFrontendClassName ClassName = Class->Metadata.GetClassName();
 
-				UMetasoundEditorGraphInput* NewInput = NewObject<UMetasoundEditorGraphInput>(this, GraphPrivate::GetUniqueTransientMemberName(), RF_Transactional);
+				UMetasoundEditorGraphInput* NewInput = NewObject<UMetasoundEditorGraphInput>(this, Editor::GraphPrivate::GetUniqueTransientMemberName(), RF_Transactional);
 				if (ensure(NewInput))
 				{
 					NewInput->InitMember(ClassInput->TypeName, DefaultLiteral, InNodeID, MoveTemp(ClassName));

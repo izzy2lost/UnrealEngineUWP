@@ -579,16 +579,16 @@ namespace Metasound::Editor
 			{
 				constexpr bool bFocusEditor = false; // Already focused by user action
 				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), Frontend::DefaultGraphPageName, bFocusEditor, Result);
+				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), Frontend::DefaultPageName, bFocusEditor, Result);
 				if (Result == EMetaSoundBuilderResult::Succeeded)
 				{
-					BuildPageName = Frontend::DefaultGraphPageName;
+					BuildPageName = Frontend::DefaultPageName;
 				}
 			}
 		}
 		else
 		{
-			BuildPageName = Frontend::DefaultGraphPageName;
+			BuildPageName = Frontend::DefaultPageName;
 		}
 
 		UpdateItemNames();

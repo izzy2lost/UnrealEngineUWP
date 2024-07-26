@@ -143,7 +143,7 @@ namespace Metasound
 		{
 			if (const FMetasoundFrontendClassInput* ClassInput = ClassInputPtr.Get())
 			{
-				return &(ClassInput->DefaultLiteral);
+				return ClassInput->FindConstDefault(Frontend::DefaultPageID);
 			}
 			return nullptr;
 		}

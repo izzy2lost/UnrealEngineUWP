@@ -177,6 +177,7 @@ namespace EngineTestMetaSoundSourcePrivate
 
 		Document.RootGraph.Metadata.SetClassName(FMetasoundFrontendClassName { "Namespace", "Unit Test Node", *LexToString(FGuid::NewGuid()) });
 		Document.RootGraph.Metadata.SetType(EMetasoundFrontendClassType::Graph);
+		Document.RootGraph.InitDefaultPage();
 
 		FDocumentHandle DocumentHandle = IDocumentController::CreateDocumentHandle(Document);
 		FGraphHandle RootGraph = DocumentHandle->GetRootGraph();
@@ -201,7 +202,7 @@ namespace EngineTestMetaSoundSourcePrivate
 		FrequencyInput.Name = "Frequency";
 		FrequencyInput.TypeName = GetMetasoundDataTypeName<float>();
 		FrequencyInput.VertexID = FGuid::NewGuid();
-		FrequencyInput.DefaultLiteral.Set(100.f);
+		FrequencyInput.InitDefault().Set(100.f);
 		FNodeHandle FrequencyInputNode = RootGraph->AddInputVertex(FrequencyInput);
 		check(FrequencyInputNode->IsValid());
 

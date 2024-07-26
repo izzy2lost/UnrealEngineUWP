@@ -180,7 +180,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	// Adds a graph page to the given builder's document
-	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph = true, bool bSetAsBuildGraph = true);
+	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph, bool bSetAsBuildGraph = true);
 #endif // WITH_EDITORONLY_DATA
 
 	// Returns whether or not the given edge can be added, which requires that its input
@@ -206,7 +206,7 @@ public:
 	bool ConvertFromPreset();
 	bool ConvertToPreset(const FMetasoundFrontendDocument& InReferencedDocument, TSharedRef<Metasound::Frontend::FDocumentModifyDelegates> ModifyDelegates = { });
 
-	const FMetasoundFrontendNode* DuplicateGraphInput(const FMetasoundFrontendClassInput& InClassInput, FMetasoundFrontendLiteral DefaultValue, const FName InName, const FGuid* InPageID = nullptr);
+	const FMetasoundFrontendNode* DuplicateGraphInput(const FMetasoundFrontendClassInput& InClassInput, const FName InName, const FGuid* InPageID = nullptr);
 	const FMetasoundFrontendNode* DuplicateGraphOutput(const FMetasoundFrontendClassOutput& InClassOutput, const FName InName, const FGuid* InPageID = nullptr);
 
 #if WITH_EDITORONLY_DATA
@@ -440,7 +440,21 @@ public:
 	bool TransformTemplateNodes();
 
 	// Versions legacy document members that contained interface information
+	UE_DEPRECATED(5.5, "Moved to internally implemented versioning logic")
 	bool VersionInterfaces();
+
+	// Struct enabling property migration of data that must be applied prior to versioning logic
+	struct IPropertyVersionTransform
+	{
+	public:
+		virtual ~IPropertyVersionTransform() = default;
+
+	protected:
+		virtual bool Transform(FMetaSoundFrontendDocumentBuilder& Builder) const = 0;
+
+		// Allows for unsafe access to a document for property migration.
+		static FMetasoundFrontendDocument& GetDocumentUnsafe(const FMetaSoundFrontendDocumentBuilder& Builder);
+	};
 #endif // WITH_EDITORONLY_DATA
 
 private:
