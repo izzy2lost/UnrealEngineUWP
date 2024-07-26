@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,31 +31,6 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">Path to the blob</param>
 		/// <returns>New handle to the blob</returns>
 		IBlobRef CreateBlobRef(BlobLocator locator);
-
-		/// <summary>
-		/// Creates a new blob handle by parsing a locator
-		/// </summary>
-		/// <param name="locator">Path to the blob</param>
-		/// <param name="serializerOptions">Options for deserializing the blob</param>
-		/// <returns>New handle to the blob</returns>
-		IBlobRef<T> CreateBlobRef<T>(BlobLocator locator, BlobSerializerOptions? serializerOptions = null);
-
-		/// <summary>
-		/// Creates a new blob reference from a locator and hash
-		/// </summary>
-		/// <param name="hash">Hash of the target blob</param>
-		/// <param name="locator">Path to the blob</param>
-		/// <returns>New handle to the blob</returns>
-		IHashedBlobRef CreateBlobRef(IoHash hash, BlobLocator locator);
-
-		/// <summary>
-		/// Creates a new blob reference from a locator and hash
-		/// </summary>
-		/// <param name="hash">Hash of the target blob</param>
-		/// <param name="locator">Path to the blob</param>
-		/// <param name="serializerOptions">Options for deserializing the blob</param>
-		/// <returns>New handle to the blob</returns>
-		IHashedBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? serializerOptions = null);
 
 		/// <summary>
 		/// Creates a new writer for storage blobs
@@ -257,6 +233,37 @@ namespace EpicGames.Horde.Storage
 		#region Blobs
 
 		/// <summary>
+		/// Creates a new blob handle by parsing a locator
+		/// </summary>
+		/// <param name="storageClient">Storage client to operate on</param>
+		/// <param name="locator">Path to the blob</param>
+		/// <param name="serializerOptions">Options for deserializing the blob</param>
+		/// <returns>New handle to the blob</returns>
+		public static IBlobRef<T> CreateBlobRef<T>(this IStorageClient storageClient, BlobLocator locator, BlobSerializerOptions? serializerOptions = null)
+			=> storageClient.CreateBlobRef(locator).ForType<T>(serializerOptions);
+
+		/// <summary>
+		/// Creates a new blob reference from a locator and hash
+		/// </summary>
+		/// <param name="storageClient">Storage client to operate on</param>
+		/// <param name="hash">Hash of the target blob</param>
+		/// <param name="locator">Path to the blob</param>
+		/// <returns>New handle to the blob</returns>
+		public static IHashedBlobRef CreateBlobRef(this IStorageClient storageClient, IoHash hash, BlobLocator locator)
+			=> HashedBlobRef.Create(hash, storageClient.CreateBlobRef(locator));
+
+		/// <summary>
+		/// Creates a new blob reference from a locator and hash
+		/// </summary>
+		/// <param name="storageClient">Storage client to operate on</param>
+		/// <param name="hash">Hash of the target blob</param>
+		/// <param name="locator">Path to the blob</param>
+		/// <param name="serializerOptions">Options for deserializing the blob</param>
+		/// <returns>New handle to the blob</returns>
+		public static IHashedBlobRef<T> CreateBlobRef<T>(this IStorageClient storageClient, IoHash hash, BlobLocator locator, BlobSerializerOptions? serializerOptions = null)
+			=> HashedBlobRef.Create<T>(hash, storageClient.CreateBlobRef(locator), serializerOptions);
+
+		/// <summary>
 		/// Create a blob ref from a RefValue
 		/// </summary>
 		public static IHashedBlobRef CreateBlobRef(this IStorageClient store, HashedBlobRefValue refValue)
@@ -267,6 +274,58 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public static IHashedBlobRef<T> CreateBlobRef<T>(this IStorageClient store, HashedBlobRefValue refValue, BlobSerializerOptions? options)
 			=> store.CreateBlobRef<T>(refValue.Hash, refValue.Locator, options);
+
+		class NamedBlobRef : IBlobRef
+		{
+			readonly IStorageClient _storageClient;
+			readonly RefName _name;
+			readonly RefCacheTime _cacheTime;
+
+			public NamedBlobRef(IStorageClient storageClient, RefName name, RefCacheTime cacheTime = default)
+			{
+				_storageClient = storageClient;
+				_name = name;
+				_cacheTime = cacheTime;
+			}
+
+			public IBlobRef Innermost => this;
+
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default)
+				=> default;
+
+			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			{
+				IHashedBlobRef handle = await _storageClient.ReadRefAsync(_name, _cacheTime, cancellationToken);
+				return await handle.ReadBlobDataAsync(cancellationToken);
+			}
+
+			public bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+			{
+				locator = default;
+				return false;
+			}
+		}
+
+		/// <summary>
+		/// Creates a new blob ref from a ref name
+		/// </summary>
+		/// <param name="storageClient">The store instance to read from</param>
+		/// <param name="name">Name of the reference</param>
+		/// <param name="cacheTime">Maximum age for cached responses</param>
+		/// <returns>New handle to the blob</returns>
+		public static IBlobRef CreateBlobRef(this IStorageClient storageClient, RefName name, RefCacheTime cacheTime = default)
+			=> new NamedBlobRef(storageClient, name, cacheTime);
+
+		/// <summary>
+		/// Creates a new blob ref from a ref name
+		/// </summary>
+		/// <param name="storageClient">The store instance to read from</param>
+		/// <param name="name">Name of the reference</param>
+		/// <param name="cacheTime">Maximum age for cached responses</param>
+		/// <param name="serializerOptions">Options for deserializing the blob</param>
+		/// <returns>New handle to the blob</returns>
+		public static IBlobRef<T> CreateBlobRef<T>(this IStorageClient storageClient, RefName name, RefCacheTime cacheTime = default, BlobSerializerOptions? serializerOptions = null)
+			=> CreateBlobRef(storageClient, name, cacheTime).ForType<T>(serializerOptions);
 
 		/// <summary>
 		/// Creates a writer using a refname as a base path

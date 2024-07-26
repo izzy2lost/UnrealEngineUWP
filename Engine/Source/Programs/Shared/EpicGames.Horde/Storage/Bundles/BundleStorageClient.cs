@@ -184,24 +184,6 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IBlobRef<T> CreateBlobRef<T>(BlobLocator locator, BlobSerializerOptions? options)
-		{
-			return BlobRef.Create<T>(CreateBlobRef(locator), options);
-		}
-
-		/// <inheritdoc/>
-		public IHashedBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
-		{
-			return HashedBlobRef.Create(hash, CreateBlobRef(locator));
-		}
-
-		/// <inheritdoc/>
-		public IHashedBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? options)
-		{
-			return HashedBlobRef.Create<T>(hash, CreateBlobRef(locator), options);
-		}
-
-		/// <inheritdoc/>
 		public IBlobWriter CreateBlobWriter(string? basePath = null, BlobSerializerOptions? serializerOptions = null)
 		{
 			BundleVersion version = _options.MaxVersion;
@@ -267,7 +249,7 @@ namespace EpicGames.Horde.Storage.Bundles
 			{
 				return null;
 			}
-			return CreateBlobRef(target.Hash, target.Locator);
+			return this.CreateBlobRef(target.Hash, target.Locator);
 		}
 
 		/// <inheritdoc/>

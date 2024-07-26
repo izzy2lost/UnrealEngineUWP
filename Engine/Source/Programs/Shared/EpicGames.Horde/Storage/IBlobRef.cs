@@ -49,9 +49,9 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Static methods for IBlobRef types.
+	/// Extension methods for <see cref="IBlobRef"/>
 	/// </summary>
-	public static class BlobRef
+	public static class BlobRefExtensions
 	{
 		class TypedBlobRef<T> : IBlobRef<T>
 		{
@@ -84,15 +84,9 @@ namespace EpicGames.Horde.Storage
 		/// <typeparam name="T">Target type</typeparam>
 		/// <param name="blobRef">Blob referfence to wrap</param>
 		/// <param name="serializerOptions">Options for deserializing the blob</param>
-		public static IBlobRef<T> Create<T>(IBlobRef blobRef, BlobSerializerOptions? serializerOptions = null)
+		public static IBlobRef<T> ForType<T>(this IBlobRef blobRef, BlobSerializerOptions? serializerOptions = null)
 			=> new TypedBlobRef<T>(blobRef, serializerOptions);
-	}
 
-	/// <summary>
-	/// Extension methods for <see cref="IBlobRef"/>
-	/// </summary>
-	public static class BlobRefExtensions
-	{
 		/// <summary>
 		/// Gets a path to this blob that can be used to describe blob references over the wire.
 		/// </summary>

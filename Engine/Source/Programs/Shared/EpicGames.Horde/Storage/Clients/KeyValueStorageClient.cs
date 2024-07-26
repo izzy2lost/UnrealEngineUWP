@@ -146,24 +146,6 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public IBlobRef<T> CreateBlobRef<T>(BlobLocator locator, BlobSerializerOptions? options)
-		{
-			return BlobRef.Create<T>(CreateBlobRef(locator), options);
-		}
-
-		/// <inheritdoc/>
-		public IHashedBlobRef CreateBlobRef(IoHash hash, BlobLocator locator)
-		{
-			return HashedBlobRef.Create(hash, CreateBlobRef(locator));
-		}
-
-		/// <inheritdoc/>
-		public IHashedBlobRef<T> CreateBlobRef<T>(IoHash hash, BlobLocator locator, BlobSerializerOptions? options)
-		{
-			return HashedBlobRef.Create<T>(hash, CreateBlobRef(locator), options);
-		}
-
-		/// <inheritdoc/>
 		public IBlobWriter CreateBlobWriter(string? basePath = null, BlobSerializerOptions? options = null) => new Writer(this, basePath, options);
 
 		/// <inheritdoc/>
@@ -226,7 +208,7 @@ namespace EpicGames.Horde.Storage.Clients
 			{
 				return null;
 			}
-			return CreateBlobRef(value.Hash, value.Locator);
+			return this.CreateBlobRef(value.Hash, value.Locator);
 		}
 
 		/// <inheritdoc/>
