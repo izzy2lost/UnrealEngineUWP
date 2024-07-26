@@ -178,7 +178,9 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 		{
 			const FAssetPackageData* Current = CurrentState.GetAssetPackageData(NamePackageDataPair.Key);
 
-			const FAssetData* BaseMIAsset = UE::AssetRegistry::GetMostImportantAsset(BaseState.GetAssetsByPackageName(NamePackageDataPair.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+			const FAssetData* BaseMIAsset = UE::AssetRegistry::GetMostImportantAsset(
+				BaseState.CopyAssetsByPackageName(NamePackageDataPair.Key),
+				UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 			uint64 BaseCompressedSize = 0;
 			if (BaseMIAsset && BaseMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, BaseCompressedSize))
 			{
@@ -201,7 +203,9 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 		{
 			const FAssetPackageData* Base = BaseState.GetAssetPackageData(NamePackageDataPair.Key);
 
-			const FAssetData* CurrentMIAsset = UE::AssetRegistry::GetMostImportantAsset(CurrentState.GetAssetsByPackageName(NamePackageDataPair.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+			const FAssetData* CurrentMIAsset = UE::AssetRegistry::GetMostImportantAsset(
+				CurrentState.CopyAssetsByPackageName(NamePackageDataPair.Key),
+				UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 			uint64 CurrentCompressedSize = 0;
 			if (CurrentMIAsset && CurrentMIAsset->GetTagValue(UE::AssetRegistry::Stage_ChunkCompressedSizeFName, CurrentCompressedSize))
 			{
@@ -316,8 +320,8 @@ int32 UDiffAssetBulkDataCommandlet::Main(const FString& FullCommandLine)
 	TMap < FName /* PackageName */, TPair<uint64, uint64>> PackageSizes;
 	for (const FName& ChangedPackageName : ChangedPackages)
 	{
-		TConstArrayView<FAssetData const*> BaseAssetDatas = BaseState.GetAssetsByPackageName(ChangedPackageName);
-		TConstArrayView<FAssetData const*> CurrentAssetDatas = CurrentState.GetAssetsByPackageName(ChangedPackageName);
+		TArray<FAssetData const*> BaseAssetDatas = BaseState.CopyAssetsByPackageName(ChangedPackageName);
+		TArray<FAssetData const*> CurrentAssetDatas = CurrentState.CopyAssetsByPackageName(ChangedPackageName);
 
 		struct FDiffTag
 		{

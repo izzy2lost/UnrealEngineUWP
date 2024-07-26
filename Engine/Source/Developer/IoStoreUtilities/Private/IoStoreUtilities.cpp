@@ -4119,7 +4119,9 @@ static void UpdatePluginMetadataAndWriteJsons(
 
 		// Grab the most important asset out and use it to track largest asset classes for the plugin.
 		// This might be null!
-		const FAssetData* AssetData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(AssetPackage.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+		const FAssetData* AssetData = UE::AssetRegistry::GetMostImportantAsset(
+			AssetRegistry.CopyAssetsByPackageName(AssetPackage.Key),
+			UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 		
 		const TArray<FIoStoreChunkSource, TInlineAllocator<2>>* PackageChunks = PackageToChunks.Find(FPackageId::FromName(AssetPackage.Key));
 		if (PackageChunks == nullptr)
@@ -4482,7 +4484,9 @@ static void AddChunkInfoToAssetRegistry(TMap<FPackageId, TArray<FIoStoreChunkSou
 
 		FPackageId PackageId = FPackageId::FromName(AssetPackage.Key);
 
-		const FAssetData* AssetData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(AssetPackage.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+		const FAssetData* AssetData = UE::AssetRegistry::GetMostImportantAsset(
+			AssetRegistry.CopyAssetsByPackageName(AssetPackage.Key),
+			UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 		if (AssetData == nullptr)
 		{
 			// e.g. /Script packages.
@@ -9611,14 +9615,22 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 						// skip over packages that were not actually saved out, but were added to the AR - the DLC may now have those packages included,
 						// and there will be a conflict later on if the package is in this list and the DLC list. PackageFlags of 0 means it was 
 						// evaluated and skipped.
-						TArrayView<FAssetData const* const> AssetsForPackage = ReleaseAssetRegistry.GetAssetsByPackageName(PackageName);
-						checkf(AssetsForPackage.Num() > 0, TEXT("It is unexpected that no assets were found in DevelopmentAssetRegistry for the package %s. This indicates an invalid AR."), *PackageName.ToString());
-						// just check the first one in the list, they will all have the same flags
-						if (AssetsForPackage[0]->PackageFlags != 0)
-						{
-							Arguments.ReleasedPackages.PackageNames.Add(PackageName);
-							Arguments.ReleasedPackages.PackageIdToName.Add(FPackageId::FromName(PackageName), PackageName);
-						}
+						bool bHasAny = false;
+						ReleaseAssetRegistry.EnumerateAssetsByPackageName(PackageName,
+							[&bHasAny, &Arguments, PackageName](const FAssetData* AssetData)
+							{
+								// just check the first one in the list, they will all have the same flags
+								if (AssetData->PackageFlags != 0)
+								{
+									Arguments.ReleasedPackages.PackageNames.Add(PackageName);
+									Arguments.ReleasedPackages.PackageIdToName.Add(FPackageId::FromName(PackageName), PackageName);
+								}
+								bHasAny = true;
+								return false; // stop iterating
+							});
+						checkf(bHasAny,
+							TEXT("It is unexpected that no assets were found in DevelopmentAssetRegistry for the package %s. This indicates an invalid AR."),
+							*PackageName.ToString());
 					}
 				}
 			}

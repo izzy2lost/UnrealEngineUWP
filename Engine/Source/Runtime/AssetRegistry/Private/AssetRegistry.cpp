@@ -1599,7 +1599,7 @@ void FAssetRegistryImpl::CollectCodeGeneratorClasses()
 		// when AddAssetData is called for those instances, but when we add a new generator class we have to recheck all
 		// instances of the class since they would have failed to detect they were Blueprint classes before.
 		// This can happen if blueprints in plugin B are scanned before their blueprint class from plugin A is scanned.
-		for (const FAssetData* AssetData : State.GetAssetsByClassPathName(BPCoreClassName))
+		State.EnumerateAssetsByClassPathName(BPCoreClassName, [this](const FAssetData* AssetData)
 		{
 			const FString GeneratedClass = AssetData->GetTagValueRef<FString>(FBlueprintTags::GeneratedClassPath);
 			const FString ParentClass = AssetData->GetTagValueRef<FString>(FBlueprintTags::ParentClassPath);
@@ -1616,7 +1616,8 @@ void FAssetRegistryImpl::CollectCodeGeneratorClasses()
 					TempCachedInheritanceBuffer.bDirty = true;
 				}
 			}
-		}
+			return true; // Keep iterating the assets for the class
+		});
 	}
 }
 
@@ -4371,7 +4372,7 @@ void FAssetRegistryImpl::AssetsSaved(UE::AssetRegistry::Impl::FEventContext& Eve
 	for (FAssetData& NewAssetData : Assets)
 	{
 		FCachedAssetKey Key(NewAssetData);
-		FAssetData** DataFromGather = State.CachedAssets.Find(Key);
+		FAssetData* DataFromGather = State.GetMutableAssetByObjectPath(Key);
 
 		AssetDataObjectPathsUpdatedOnLoad.Add(NewAssetData.GetSoftObjectPath());
 
@@ -4382,7 +4383,7 @@ void FAssetRegistryImpl::AssetsSaved(UE::AssetRegistry::Impl::FEventContext& Eve
 		}
 		else
 		{
-			UpdateAssetData(EventContext, *DataFromGather, MoveTemp(NewAssetData), false /* bKeepDeletedTags */);
+			UpdateAssetData(EventContext, DataFromGather, MoveTemp(NewAssetData), false /* bKeepDeletedTags */);
 		}
 	}
 }
@@ -5308,7 +5309,8 @@ void FAssetRegistryImpl::LoadCalculatedDependencies(FName PackageName,
 	FReadScopeLock GathererClassScopeLock(RegisteredDependencyGathererClassesLock);
 
 	TArray<UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*, TInlineAllocator<2>> Gatherers;
-	for (const FAssetData* AssetData : State.GetAssetsByPackageName(PackageName))
+	State.EnumerateAssetsByPackageName(PackageName,
+		[this, &Gatherers, &GetCompiledFilter, &bOutHadActivity, PackageName](const FAssetData* AssetData)
 	{
 		Gatherers.Reset();
 
@@ -5346,7 +5348,9 @@ void FAssetRegistryImpl::LoadCalculatedDependencies(FName PackageName,
 				AddDirectoryReferencer(PackageName, Directory);
 			}
 		}
-	}
+
+		return true; // Keep iterating the assets in the package
+	});
 }
 
 void FAssetRegistryImpl::AddDirectoryReferencer(FName PackageName, const FString& DirectoryLocalPathOrLongPackageName)
@@ -5466,28 +5470,25 @@ void FAssetRegistryImpl::CachePathsFromState(Impl::FEventContext& EventContext, 
 	CollectCodeGeneratorClasses();
 
 	// Add paths to cache
-	for (const FAssetData* AssetData : InState.CachedAssets)
+	InState.EnumerateAllAssets([this, &EventContext](const FAssetData& AssetData)
 	{
-		if (AssetData != nullptr)
+		AddAssetPath(EventContext, AssetData.PackagePath);
+
+		// Populate the class map if adding blueprint
+		if (ClassGeneratorNames.Contains(AssetData.AssetClassPath))
 		{
-			AddAssetPath(EventContext, AssetData->PackagePath);
+			FAssetRegistryExportPath GeneratedClass = AssetData.GetTagValueRef<FAssetRegistryExportPath>(FBlueprintTags::GeneratedClassPath);
+			FAssetRegistryExportPath ParentClass = AssetData.GetTagValueRef<FAssetRegistryExportPath>(FBlueprintTags::ParentClassPath);
 
-			// Populate the class map if adding blueprint
-			if (ClassGeneratorNames.Contains(AssetData->AssetClassPath))
+			if (GeneratedClass && ParentClass)
 			{
-				FAssetRegistryExportPath GeneratedClass = AssetData->GetTagValueRef<FAssetRegistryExportPath>(FBlueprintTags::GeneratedClassPath);
-				FAssetRegistryExportPath ParentClass = AssetData->GetTagValueRef<FAssetRegistryExportPath>(FBlueprintTags::ParentClassPath);
+				AddCachedBPClassParent(GeneratedClass.ToTopLevelAssetPath(), ParentClass.ToTopLevelAssetPath());
 
-				if (GeneratedClass && ParentClass)
-				{
-					AddCachedBPClassParent(GeneratedClass.ToTopLevelAssetPath(), ParentClass.ToTopLevelAssetPath());
-
-					// Invalidate caching because CachedBPInheritanceMap got modified
-					TempCachedInheritanceBuffer.bDirty = true;
-				}
+				// Invalidate caching because CachedBPInheritanceMap got modified
+				TempCachedInheritanceBuffer.bDirty = true;
 			}
 		}
-	}
+	});
 }
 
 }
@@ -5857,10 +5858,12 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 		}
 		for (const FString& PackageName : Context.PackageFiles)
 		{
-			for (const FAssetData* AssetData : State.GetAssetsByPackageName(FName(*PackageName)))
-			{
-				OldAssetsToRemove.Add(AssetData->ToSoftObjectPath());
-			}
+			State.EnumerateAssetsByPackageName(FName(*PackageName),
+				[&OldAssetsToRemove](const FAssetData* AssetData)
+				{
+					OldAssetsToRemove.Add(AssetData->ToSoftObjectPath());
+					return true;
+				});
 			for (const TCHAR* Extension : FAssetDataGatherer::GetVerseFileExtensions())
 			{
 				FName VerseName(*WriteToString<256>(PackageName, Extension), FNAME_Find);
@@ -6026,7 +6029,7 @@ void FAssetRegistryImpl::ScanPathsSynchronous(Impl::FScanPathContext& Context)
 #endif
 	for (FSoftObjectPath& OldAssetToRemove : OldAssetsToRemove)
 	{
-		FAssetData* AssetDataToRemove = const_cast<FAssetData*>(State.GetAssetByObjectPath(OldAssetToRemove));
+		FAssetData* AssetDataToRemove = State.GetMutableAssetByObjectPath(OldAssetToRemove);
 		if (AssetDataToRemove)
 		{
 			RemoveAssetData(Context.EventContext, AssetDataToRemove);
@@ -6426,8 +6429,7 @@ void FAssetRegistryImpl::AssetSearchDataGathered(Impl::FEventContext& EventConte
 
 		// Look for an existing asset to check whether we need to add or update
 		FCachedAssetKey Key(*BackgroundResult);
-		FAssetData* const* FoundData = State.CachedAssets.Find(Key);
-		FAssetData* ExistingAssetData = FoundData ? *FoundData : nullptr;
+		FAssetData* ExistingAssetData = State.GetMutableAssetByObjectPath(Key);
 		// The background result should not already be registered; it should be impossible since it is in TUnqiuePtr
 		check(ExistingAssetData == nullptr || ExistingAssetData != BackgroundResult.Get());
 
@@ -6985,8 +6987,15 @@ bool FAssetRegistryImpl::RemoveAssetData(Impl::FEventContext& EventContext, FAss
 
 void FAssetRegistryImpl::RemovePackageData(Impl::FEventContext& EventContext, const FName PackageName)
 {
-	TArray<FAssetData*, TInlineAllocator<1>>* PackageAssetsPtr = State.CachedAssetsByPackageName.Find(PackageName);
-	if (PackageAssetsPtr && PackageAssetsPtr->Num() > 0)
+	// Even if we could point to the array, we have to copy the array since RemoveAssetData may re-allocate it.
+	TArray<FAssetData*, TInlineAllocator<1>> PackageAssets;
+	State.EnumerateMutableAssetsByPackageName(PackageName, [&PackageAssets](FAssetData* AssetData)
+		{
+			PackageAssets.Add(AssetData);
+			return true;
+		});
+
+	if (PackageAssets.Num() > 0)
 	{
 		FAssetIdentifier PackageAssetIdentifier(PackageName);
 		// If there were any EDependencyCategory::Package referencers, re-add them to a new empty dependency node, as it would be when the referencers are loaded from disk
@@ -7001,8 +7010,6 @@ void FAssetRegistryImpl::RemovePackageData(Impl::FEventContext& EventContext, co
 			}
 		}
 
-		// Copy the array since RemoveAssetData may re-allocate it!
-		TArray<FAssetData*, TInlineAllocator<1>> PackageAssets = *PackageAssetsPtr;
 		for (FAssetData* PackageAsset : PackageAssets)
 		{
 			RemoveAssetData(EventContext, PackageAsset);
@@ -7584,7 +7591,7 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 			continue;
 		}
 		FCachedAssetKey Key(NewAssetData);
-		FAssetData** DataFromGather = State.CachedAssets.Find(Key);
+		FAssetData* DataFromGather = State.GetMutableAssetByObjectPath(Key);
 
 		AssetDataObjectPathsUpdatedOnLoad.Add(NewAssetData.GetSoftObjectPath());
 
@@ -7603,7 +7610,7 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 			// Modified tag values on the other hand do overwrite the old values from disk.
 			// This means that the only way to delete no-longer present tags from an AssetData
 			// is to resave the package, or to manually call AssetUpdateTags(EAssetRegistryTagsCaller::FullUpdate) from c++.
-			UpdateAssetData(EventContext, *DataFromGather, MoveTemp(NewAssetData), true /* bKeepDeletedTags */);
+			UpdateAssetData(EventContext, DataFromGather, MoveTemp(NewAssetData), true /* bKeepDeletedTags */);
 		}
 	}
 
@@ -7617,19 +7624,19 @@ void FAssetRegistryImpl::PushProcessLoadedAssetsBatch(Impl::FEventContext& Event
 
 void FAssetRegistryImpl::UpdateRedirectCollector()
 {
-	// Look for all redirectors in list
-	const TArray<const FAssetData*>& RedirectorAssets = State.GetAssetsByClassPathName(UE::AssetRegistry::GetClassPathObjectRedirector());
-
-	for (const FAssetData* AssetData : RedirectorAssets)
-	{
-		FSoftObjectPath Source = AssetData->GetSoftObjectPath();
-		FSoftObjectPath Destination = GetRedirectedObjectPath(Source, nullptr, nullptr, /*bNeedsScanning*/ false);
-
-		if (Destination != Source)
+	// Look for all redirectors in the AssetRegistry
+	State.EnumerateAssetsByClassPathName(UE::AssetRegistry::GetClassPathObjectRedirector(),
+		[this](const FAssetData* AssetData)
 		{
-			GRedirectCollector.AddAssetPathRedirection(Source, Destination);
-		}
-	}
+			FSoftObjectPath Source = AssetData->GetSoftObjectPath();
+			FSoftObjectPath Destination = GetRedirectedObjectPath(Source, nullptr, nullptr, /*bNeedsScanning*/ false);
+
+			if (Destination != Source)
+			{
+				GRedirectCollector.AddAssetPathRedirection(Source, Destination);
+			}
+			return true; // Keep iterating
+		});
 }
 
 }
@@ -7687,11 +7694,16 @@ void FAssetRegistryImpl::ScanModifiedAssetFiles(Impl::FEventContext& EventContex
 		ExistingAssetDatas.Reserve(InFilePaths.Num());
 		for (const FString& PackageName : ModifiedPackageNames)
 		{
-			TArray<FAssetData*, TInlineAllocator<1>>* PackageAssetsPtr = State.CachedAssetsByPackageName.Find(*PackageName);
-			if (PackageAssetsPtr && PackageAssetsPtr->Num() > 0)
+			TArray<const FAssetData*, TInlineAllocator<1>> PackageAssets;
+			State.EnumerateAssetsByPackageName(*PackageName, [&PackageAssets](const FAssetData* AssetData)
+				{
+					PackageAssets.Add(AssetData);
+					return true;
+				});
+			if (PackageAssets.Num() > 0)
 			{
-				ExistingAssetDatas.Reserve(ExistingAssetDatas.Num() + PackageAssetsPtr->Num());
-				for (FAssetData* AssetData : *PackageAssetsPtr)
+				ExistingAssetDatas.Reserve(ExistingAssetDatas.Num() + PackageAssets.Num());
+				for (const FAssetData* AssetData : PackageAssets)
 				{
 					ExistingAssetDatas.Add(AssetData->ToSoftObjectPath());
 				}
@@ -7712,7 +7724,7 @@ void FAssetRegistryImpl::ScanModifiedAssetFiles(Impl::FEventContext& EventContex
 		{
 			if (!FoundAssets.Contains(OldAssetPath))
 			{
-				FAssetData* OldAssetData = const_cast<FAssetData*>(State.GetAssetByObjectPath(OldAssetPath));
+				FAssetData* OldAssetData = State.GetMutableAssetByObjectPath(OldAssetPath);
 				if (OldAssetData)
 				{
 					RemoveAssetData(EventContext, OldAssetData);
@@ -7723,10 +7735,10 @@ void FAssetRegistryImpl::ScanModifiedAssetFiles(Impl::FEventContext& EventContex
 		// Send ModifiedOnDisk event for every Asset that was modified
 		for (const FSoftObjectPath& FoundAsset : FoundAssets)
 		{
-			FAssetData** AssetData = State.CachedAssets.Find(FCachedAssetKey(FoundAsset));
+			const FAssetData* AssetData = State.GetAssetByObjectPath(FCachedAssetKey(FoundAsset));
 			if (AssetData)
 			{
-				EventContext.AssetEvents.Emplace(**AssetData, Impl::FEventContext::EEvent::UpdatedOnDisk);
+				EventContext.AssetEvents.Emplace(*AssetData, Impl::FEventContext::EEvent::UpdatedOnDisk);
 			}
 		}
 	}
@@ -7905,11 +7917,11 @@ void FAssetRegistryImpl::OnContentPathDismounted(Impl::FEventContext& EventConte
 		for (FName PathName : PathList)
 		{
 			// Gather assets
-			TArray<FAssetData*>* AssetsInPath = State.CachedAssetsByPath.Find(PathName);
-			if (AssetsInPath)
-			{
-				AllAssetDataToRemove.Append(*AssetsInPath);
-			}
+			State.EnumerateMutableAssetsByPackagePath(PathName, [&AllAssetDataToRemove](FAssetData* AssetData)
+				{
+					AllAssetDataToRemove.Add(AssetData);
+					return true;
+				});
 
 			// Forget Verse files
 			const TArray<FName>* VerseFilesInPath = CachedVerseFilesByPath.Find(PathName);
@@ -8595,14 +8607,12 @@ namespace UE::AssetRegistry
 
 bool FAssetRegistryImpl::SetPrimaryAssetIdForObjectPath(Impl::FEventContext& EventContext, const FSoftObjectPath& ObjectPath, FPrimaryAssetId PrimaryAssetId)
 {
-	FAssetData** FoundAssetData = State.CachedAssets.Find(FCachedAssetKey(ObjectPath));
+	FAssetData* AssetData = State.GetMutableAssetByObjectPath(ObjectPath);
 
-	if (!FoundAssetData)
+	if (!AssetData)
 	{
 		return false;
 	}
-
-	FAssetData* AssetData = *FoundAssetData;
 
 	FAssetDataTagMap TagsAndValues = AssetData->TagsAndValues.CopyMap();
 	TagsAndValues.Add(FPrimaryAssetId::PrimaryAssetTypeTag, PrimaryAssetId.PrimaryAssetType.ToString());
@@ -8747,14 +8757,16 @@ void FAssetRegistryImpl::PruneAndCoalescePackagesRequiringDependencyCalculation(
 			for (auto Iter = SourceSet.CreateIterator(); Iter; ++Iter)
 			{
 				bool HasAnyRegisteredDependencyGatherers = false;
-				for (const FAssetData* AssetData : State.GetAssetsByPackageName(*Iter))
-				{
-					if (RegisteredDependencyGathererClasses.Contains(AssetData->AssetClassPath))
+				State.EnumerateAssetsByPackageName(*Iter,
+					[this, &HasAnyRegisteredDependencyGatherers](const FAssetData* AssetData)
 					{
-						HasAnyRegisteredDependencyGatherers = true;
-						break;
-					}
-				}
+						if (RegisteredDependencyGathererClasses.Contains(AssetData->AssetClassPath))
+						{
+							HasAnyRegisteredDependencyGatherers = true;
+							return false; // stop iterating
+						}
+						return true; // Keep iterating
+					});
 
 				// If we need to process this asset and we have a destination set, move it there
 				if ((OptDestinationSet != nullptr) && HasAnyRegisteredDependencyGatherers)

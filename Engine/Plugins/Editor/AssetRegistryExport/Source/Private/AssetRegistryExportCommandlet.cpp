@@ -334,7 +334,7 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					FName PackageName;
 					while (PackageQueue.Dequeue(PackageName))
 					{
-						TArrayView<const FAssetData* const> AssetDataList = AssetRegistry.GetAssetsByPackageName(PackageName);
+						TArray<const FAssetData*> AssetDataList = AssetRegistry.CopyAssetsByPackageName(PackageName);
 
 						TArray<FAssetIdentifier> PackageDependencies;
 						AssetRegistry.GetDependencies(FAssetIdentifier(PackageName), PackageDependencies);
@@ -366,7 +366,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << PrimaryAsset->GetObjectPathString() << ",";
 					Line << PackageDependency.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(PackageDependency), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(PackageDependency),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -428,7 +430,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 						Pair.Value.UniquePackageDependencies.Add(PackageDependency);
 						UnionUniqueDependencies.Add(PackageDependency);
 
-						const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(PackageDependency), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+						const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+							AssetRegistry.CopyAssetsByPackageName(PackageDependency),
+							UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 						if (UseAsClassData)
 						{
 							uint64 CompressedSize = 0;
@@ -461,7 +465,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << "Unassigned,";
 					Line << Package.Key.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(Package.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(Package.Key),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -502,7 +508,9 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 					Line << "Shared,";
 					Line << Package.Key.ToString() << ",";
 
-					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(AssetRegistry.GetAssetsByPackageName(Package.Key), UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
+					const FAssetData* UseAsClassData = UE::AssetRegistry::GetMostImportantAsset(
+						AssetRegistry.CopyAssetsByPackageName(Package.Key),
+						UE::AssetRegistry::EGetMostImportantAssetFlags::IgnoreSkipClasses);
 					if (UseAsClassData)
 					{
 						Line << UseAsClassData->AssetClassPath.ToString() << ",";
@@ -615,7 +623,7 @@ int32 UAssetRegistryExportCommandlet::Main(const FString& CmdLineParams)
 
 				UE_LOG(LogAssetRegistryExport, Warning, TEXT("...Orphaned: %s (%s bytes, in packagemap: %s"), *LD->PackageName.ToString(), *NumberString(value), *LexToString(AllPackages.Contains(LD->PackageName)));
 
-				TArrayView<const FAssetData* const> PackageAssets = AssetRegistry.GetAssetsByPackageName(LD->PackageName);
+				TArray<const FAssetData*> PackageAssets = AssetRegistry.CopyAssetsByPackageName(LD->PackageName);
 				for (const FAssetData* AD : PackageAssets)
 				{
 					uint64 blah = 0;

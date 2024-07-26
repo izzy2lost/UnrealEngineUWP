@@ -883,16 +883,13 @@ void FAssetRegistryGenerator::SetPreviousAssetRegistry(TUniquePtr<FAssetRegistry
 			FIterativelySkippedPackageUpdateData& UpdateData = PreviousPackagesToUpdate.FindOrAdd(PackageName);
 			bool bGenerated = false;
 
-			TArrayView<FAssetData const * const> PreviousAssetDatas = InPreviousState->GetAssetsByPackageName(PackageName);
-			if (PreviousAssetDatas.Num() > 0)
-			{
-				UpdateData.AssetDatas.Reserve(PreviousAssetDatas.Num());
-				for (const FAssetData* AssetData : PreviousAssetDatas)
+			UpdateData.AssetDatas.Reserve(InPreviousState->NumAssetsByPackageName(PackageName));
+			InPreviousState->EnumerateAssetsByPackageName(PackageName, [&bGenerated, &UpdateData](const FAssetData* AssetData)
 				{
 					bGenerated |= (AssetData->PackageFlags & PKG_CookGenerated) != 0;
 					UpdateData.AssetDatas.Emplace(*AssetData);
-				}
-			}
+					return true; // Keep iterating
+				});
 			UpdateData.PackageData = *Pair.Value;
 
 			// Keep the dependencies and referencers of generated packages
@@ -921,11 +918,8 @@ void FAssetRegistryGenerator::InjectEncryptionData(FAssetRegistryState& TargetSt
 
 		for (FName EncryptedRootPackageName : EncryptedRootAssets)
 		{
-			for (const FAssetData* PackageAsset : TargetState.GetAssetsByPackageName(EncryptedRootPackageName))
-			{
-				FAssetData* AssetData = const_cast<FAssetData*>(PackageAsset);
-
-				if (AssetData)
+			TargetState.EnumerateMutableAssetsByPackageName(EncryptedRootPackageName,
+				[&GuidCache, &AssetManager, &TargetState](FAssetData* AssetData)
 				{
 					FString GuidString;
 					const FAssetData::FChunkArrayView ChunkIDs = AssetData->GetChunkIDs();
@@ -956,8 +950,8 @@ void FAssetRegistryGenerator::InjectEncryptionData(FAssetRegistryState& TargetSt
 							TargetState.UpdateAssetData(AssetData, MoveTemp(NewAssetData));
 						}
 					}
-				}
-			}
+					return true; // Keep iterating assets in the package
+				});
 		}
 	}
 }
@@ -1104,7 +1098,7 @@ void FAssetRegistryGenerator::UpdateCollectionAssetData()
 		const FSoftObjectPath& AssetPath = AssetPathToCollectionTagsPair.Key;
 		const TArray<FName>& CollectionTagsForAsset = AssetPathToCollectionTagsPair.Value;
 
-		const FAssetData* AssetData = State.GetAssetByObjectPath(AssetPath);
+		FAssetData* AssetData = State.GetMutableAssetByObjectPath(AssetPath);
 		if (AssetData)
 		{
 			FAssetDataTagMap TagsAndValues = AssetData->TagsAndValues.CopyMap();
@@ -1114,7 +1108,7 @@ void FAssetRegistryGenerator::UpdateCollectionAssetData()
 			}
 			FAssetData NewAssetData(*AssetData);
 			NewAssetData.TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(TagsAndValues));
-			State.UpdateAssetData(const_cast<FAssetData*>(AssetData), MoveTemp(NewAssetData));
+			State.UpdateAssetData(AssetData, MoveTemp(NewAssetData));
 		}
 	}
 }
@@ -1457,8 +1451,12 @@ FAssetPackageData FAssetRegistryGenerator::CopyAssetPackageDataForIncrementalCoo
 
 FName FAssetRegistryGenerator::GetGeneratorPackage(FName PackageName, const FAssetRegistryState& InState)
 {
-	TConstArrayView<const FAssetData*> Assets = InState.GetAssetsByPackageName(PackageName);
-	bool bGenerated = !Assets.IsEmpty() && (Assets[0]->PackageFlags & PKG_CookGenerated) != 0;
+	bool bGenerated = false;
+	InState.EnumerateAssetsByPackageName(PackageName, [&bGenerated](const FAssetData* Asset)
+		{
+			bGenerated = (Asset->PackageFlags & PKG_CookGenerated) != 0;
+			return false; // Stop iterating
+		});
 	if (!bGenerated)
 	{
 		return NAME_None;
@@ -1486,8 +1484,12 @@ void FAssetRegistryGenerator::ComputePackageRemovals(const FAssetRegistryState& 
 		{
 			// If it's a generated package, never mark it as removed (that can only be handled by the generator)
 			// Mark it as modified if its generator or any of its dependencies are modified.
-			TConstArrayView<const FAssetData*> PreviousAssets = PreviousState.GetAssetsByPackageName(PackageName);
-			bool bGenerated = !PreviousAssets.IsEmpty() && (PreviousAssets[0]->PackageFlags & PKG_CookGenerated);
+			bool bGenerated = false;
+			PreviousState.EnumerateAssetsByPackageName(PackageName, [&bGenerated](const FAssetData* AssetData)
+				{
+					bGenerated = (AssetData->PackageFlags & PKG_CookGenerated) != 0;
+					return false; // stop iterating
+				});
 			if (bGenerated)
 			{
 				TArray<FAssetIdentifier> Referencers;
@@ -1587,7 +1589,7 @@ void FAssetRegistryGenerator::FinalizeChunkIDs(const TSet<FName>& InCookedPackag
 	}
 
 	// Copy ExplicitChunkIDs and other data from the AssetRegistry into the maps we use during finalization
-	State.EnumerateAllAssets([&](const FAssetData& AssetData)
+	State.EnumerateAllMutableAssets([&](FAssetData& AssetData)
 	{
 		for (int32 ChunkID : AssetData.GetChunkIDs())
 		{
@@ -1602,7 +1604,7 @@ void FAssetRegistryGenerator::FinalizeChunkIDs(const TSet<FName>& InCookedPackag
 
 		// Clear the Asset's chunk id list. We will fill it with the final IDs to use later on.
 		// Chunk Ids are safe to modify in place so do a const cast
-		const_cast<FAssetData&>(AssetData).ClearChunkIDs();
+		AssetData.ClearChunkIDs();
 
 		// Update whether the owner package contains a map
 		if ((AssetData.PackageFlags & PKG_ContainsMap) != 0)
@@ -2429,11 +2431,12 @@ void FAssetRegistryGenerator::FixupPackageDependenciesForChunks(UE::Cook::FCookS
 		check(FinalChunkManifests[PakchunkIndex]);
 		for (const TPair<FName, FString>& Asset : *FinalChunkManifests[PakchunkIndex])
 		{
-			for (const FAssetData* AssetData : State.GetAssetsByPackageName(Asset.Key))
-			{
-				// Chunk Ids are safe to modify in place
-				const_cast<FAssetData*>(AssetData)->AddChunkID(PakchunkIndex);
-			}
+			State.EnumerateMutableAssetsByPackageName(Asset.Key, [PakchunkIndex](FAssetData* AssetData)
+				{
+					// Chunk Ids are safe to modify in place
+					AssetData->AddChunkID(PakchunkIndex);
+					return true;
+				});
 		}
 	}
 }

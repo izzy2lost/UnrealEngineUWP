@@ -12829,16 +12829,24 @@ bool UCookOnTheFlyServer::GetAllPackageFilenamesFromAssetRegistry(const FString&
 			TSet<FName> Names;
 		} UniquePackageNames[UNIQUEPACKAGENAMES_BUCKETS];
 
-		const int32 NumPackages = SerializedState->GetAssetDataMap().Num();
-		OutPackageDatas.SetNum(NumPackages);
+		const int32 NumAssets = SerializedState->GetNumAssets();
+		TArray<const FAssetData*> StateAssets;
+		StateAssets.Reserve(NumAssets);
+		SerializedState->EnumerateAllAssets([&StateAssets](const FAssetData& AssetData)
+			{
+				StateAssets.Add(&AssetData);
+			});
 
-		// Convert the Map of RegistryData into an Array of FAssetData and populate PackageNames in the output array
-		// We can index directly from the set because we know its congiguous as we just deserialized it.
-		checkf(SerializedState->GetAssetDataMap().GetMaxIndex() == NumPackages, TEXT("The set needs to be contiguous so we can index into it directly"));
-		ParallelFor(NumPackages,
+		// We set the output packages size to the number of assets, even though the number of packages will be less than
+		// the number of assets. We check for duplicates in a critical section inside the parallel for and skip the duplicate
+		// work. We remove the entries for the skipped duplicates after the parallel for.
+		// We are iterating over assets instead of packages because it is faster in the parallelfor to do the flat iteration over assets.
+		OutPackageDatas.SetNum(NumAssets);
+		// populate PackageNames in the output array
+		ParallelFor(NumAssets,
 			[&](int32 Index)
 			{
-				const FAssetData& RegistryData = *SerializedState->GetAssetDataMap()[FSetElementId::FromInteger(Index)];
+				const FAssetData& RegistryData = *StateAssets[Index];
 
 				// If we want to reevaluate (try cooking again) the uncooked packages (packages that were found to be empty when we cooked them before),
 				// then remove the uncooked packages from the set of known packages. Uncooked packages are identified by PackageFlags == 0.

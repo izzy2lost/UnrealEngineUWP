@@ -512,7 +512,7 @@ bool	UDiffAssetRegistriesCommandlet::IsInRelevantChunk(FAssetRegistryState& InRe
 		return true;
 
 	}
-	TArrayView<FAssetData const* const> Assets = InRegistryState.GetAssetsByPackageName(InAssetPath);
+	TArray<const FAssetData*> Assets = InRegistryState.CopyAssetsByPackageName(InAssetPath);
 	if (!Assets.IsEmpty())
 	{
 		const FAssetData::FChunkArrayView ChunkIDs = Assets[0]->GetChunkIDs();
@@ -529,7 +529,7 @@ FName UDiffAssetRegistriesCommandlet::GetClassName(FAssetRegistryState& InRegist
 {
 	if (AssetPathToClassName.Contains(InAssetPath) == false)
 	{
-		TArrayView<FAssetData const * const> Assets = InRegistryState.GetAssetsByPackageName(InAssetPath);
+		TArray<const FAssetData*> Assets = InRegistryState.CopyAssetsByPackageName(InAssetPath);
 
 		FName NewName;
 		if (Assets.Num() > 0)
@@ -558,7 +558,7 @@ TArray<int32> UDiffAssetRegistriesCommandlet::GetAssetChunks(FAssetRegistryState
 {
 	if (ChunkIdByAssetPath.Contains(InAssetPath) == false)
 	{
-		TArrayView<FAssetData const* const> Assets = InRegistryState.GetAssetsByPackageName(InAssetPath);
+		TArray<const FAssetData* > Assets = InRegistryState.CopyAssetsByPackageName(InAssetPath);
 		const FAssetData::FChunkArrayView ChunkIDs = Assets.IsEmpty() ? FAssetData::FChunkArrayView() : Assets[0]->GetChunkIDs();
 		if (!ChunkIDs.IsEmpty())
 		{
@@ -1147,7 +1147,7 @@ void UDiffAssetRegistriesCommandlet::DiffAssetRegistries(const FString& OldPath,
 				newuncooked++;
 			}
 			
-			newassets += NewState.GetAssetsByPackageName(Name).Num();
+			newassets += NewState.NumAssetsByPackageName(Name);
 			
 			if (!PrevData)
 			{
@@ -1217,7 +1217,7 @@ void UDiffAssetRegistriesCommandlet::DiffAssetRegistries(const FString& OldPath,
 				newuncooked++;
 			}
 			
-			newassets += NewState.GetAssetsByPackageName(Name).Num();
+			newassets += NewState.NumAssetsByPackageName(Name);
 			
 			if (!PrevData)
 			{
@@ -1265,7 +1265,7 @@ void UDiffAssetRegistriesCommandlet::DiffAssetRegistries(const FString& OldPath,
 			olduncooked++;
 		}
 
-		oldassets += OldState.GetAssetsByPackageName(Name).Num();
+		oldassets += OldState.NumAssetsByPackageName(Name);
 
 		if (!Data)
 		{

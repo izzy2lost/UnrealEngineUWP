@@ -769,10 +769,11 @@ TUniquePtr<FAssetRegistryState> FLooseCookedPackageWriter::LoadPreviousAssetRegi
 				bool bIsCookedOnly = bIsScriptPackage;
 				if (!bIsCookedOnly)
 				{
-					for (const FAssetData* AssetData : PreviousState->GetAssetsByPackageName(PackageName))
-					{
-						bIsCookedOnly |= !!(AssetData->PackageFlags & PKG_CookGenerated);
-					}
+					PreviousState->EnumerateAssetsByPackageName(PackageName, [&bIsCookedOnly](const FAssetData* AssetData)
+						{
+							bIsCookedOnly |= !!(AssetData->PackageFlags & PKG_CookGenerated);
+							return true; // Keep iterating
+						});
 				}
 				bNoLongerExistsInEditor = !bIsCookedOnly;
 			}
