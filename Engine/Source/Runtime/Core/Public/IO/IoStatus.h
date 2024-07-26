@@ -30,6 +30,7 @@ enum class EIoErrorCode
 	InvalidEncryptionKey,
 	CompressionError,
 	PendingFork,
+	PendingEncryptionKey,
 };
 
 /** Get I/O error code description. */

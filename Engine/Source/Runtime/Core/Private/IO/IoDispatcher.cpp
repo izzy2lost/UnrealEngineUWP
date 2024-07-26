@@ -47,7 +47,8 @@ static const TCHAR* const GetIoErrorText_ErrorCodeTextArray[] =
 	TEXT("Signature Error"),
 	TEXT("Invalid Encryption Key"),
 	TEXT("Compression Error"),
-	TEXT("Pending Fork")
+	TEXT("Pending Fork"),
+	TEXT("Pending Encryption Key")
 };
 
 CORE_API const TCHAR* const* GetIoErrorText_ErrorCodeText = GetIoErrorText_ErrorCodeTextArray;
