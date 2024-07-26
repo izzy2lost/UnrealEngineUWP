@@ -656,8 +656,11 @@ bool FShaderCompileThreadRunnable::LaunchWorkersIfNeeded()
 				CurrentWorkerInfo.WorkerProcess = Manager->LaunchWorker(WorkingDirectory, Manager->ProcessId, WorkerIndex, GWorkerInputFilename, GWorkerOutputFilename);
 				CurrentWorkerInfo.bLaunchedWorker = true;
 
-				// Assign process to job object to monitor the total memory consumption of all SCW processes
-				ApplyWorkerProcessMemoryLimits(CurrentWorkerInfo.WorkerProcess);
+				// Assign process to job object to monitor the total memory consumption of all SCW processes. Ignore if we only estimate the memory due to partial support in POSIX/Wine.
+				if (!bEstimateCommittedMemory)
+				{
+					ApplyWorkerProcessMemoryLimits(CurrentWorkerInfo.WorkerProcess);
+				}
 
 				NumberLaunched++;
 			}
