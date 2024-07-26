@@ -928,6 +928,7 @@ FConfigFile::FConfigFile(FConfigFile&& Other)
 
 FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
 {
+	FWriteScopeLock ScopeLock(ConfigFileMapLock);
 	this->FConfigFileMap::operator=(Other);
 	Dirty = Other.Dirty;
 	NoSave = Other.NoSave;
@@ -974,6 +975,7 @@ FConfigFile& FConfigFile::operator=(const FConfigFile& Other)
 
 FConfigFile& FConfigFile::operator=(FConfigFile&& Other)
 {
+	FWriteScopeLock ScopeLock(ConfigFileMapLock);
 	this->FConfigFileMap::operator=(MoveTemp(Other));
 	Dirty = Other.Dirty;
 	NoSave = Other.NoSave;
@@ -1049,6 +1051,8 @@ UE::ConfigAccessTracking::FFile* FConfigFile::GetFileAccess() const
 
 bool FConfigFile::operator==( const FConfigFile& Other ) const
 {
+	FReadScopeLock ScopeLock(ConfigFileMapLock);
+
 	if ( Pairs.Num() != Other.Pairs.Num() )
 		return 0;
 
@@ -1104,6 +1108,7 @@ bool FConfigFile::Combine(const FString& Filename)
 
 void FConfigFile::Shrink()
 {
+	FWriteScopeLock ScopeLock(ConfigFileMapLock);
 	FConfigFileMap::Shrink();
 	for (FConfigFileMap::TIterator It(*this); It; ++It)
 	{
@@ -5915,6 +5920,7 @@ FCriticalSection FConfigCacheIni::ConfigForPlatformLock;
 TMap<FName, FConfigCacheIni::FPluginInfo*> FConfigCacheIni::RegisteredPlugins;
 FCriticalSection FConfigCacheIni::RegisteredPluginsLock;
 
+FRWLock FConfigFile::ConfigFileMapLock;
 
 void FConfigCacheIni::AddPluginToAllBranches(FName PluginName, FConfigModificationTracker* ModificationTracker)
 {
