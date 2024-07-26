@@ -10,9 +10,9 @@
 #include "SConcertSessionPackageViewer.h"
 #include "Templates/NonNullPointer.h"
 
-FConcertSessionPackageViewerController::FConcertSessionPackageViewerController(TSharedRef<IConcertServerSession> InspectedSession, TSharedRef<IConcertSyncServer> SyncServer)
-	: InspectedSession(MoveTemp(InspectedSession))
-	, SyncServer(MoveTemp(SyncServer))
+FConcertSessionPackageViewerController::FConcertSessionPackageViewerController(TSharedRef<IConcertServerSession> InInspectedSession, TSharedRef<IConcertSyncServer> InSyncServer)
+	: InspectedSession(MoveTemp(InInspectedSession))
+	, SyncServer(MoveTemp(InSyncServer))
 	, PackageViewer(MakePackageViewer())
 {
 	ReloadActivities();

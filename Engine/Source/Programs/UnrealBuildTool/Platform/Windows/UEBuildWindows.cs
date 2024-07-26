@@ -1173,6 +1173,7 @@ namespace UnrealBuildTool
 						break;
 					case StaticAnalyzer.None:
 					case StaticAnalyzer.Clang:
+					case StaticAnalyzer.Default:
 						Target.WindowsPlatform.Compiler = WindowsCompiler.ClangRTFM;
 						break;
 				}

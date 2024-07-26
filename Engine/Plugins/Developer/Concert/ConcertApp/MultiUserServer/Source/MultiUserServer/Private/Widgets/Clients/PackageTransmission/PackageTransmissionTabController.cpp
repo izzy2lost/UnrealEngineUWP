@@ -14,26 +14,25 @@
 namespace UE::MultiUserServer
 {
 	FPackageTransmissionTabController::FPackageTransmissionTabController(
-			FName TabId,
-			TSharedRef<FTabManager> OwningTabManager,
-			TSharedRef<FWorkspaceItem> WorkspaceItem,
-			TSharedRef<FPackageTransmissionModel> TransmissionModel,
-			TSharedRef<FEndpointToUserNameCache> EndpointToUserNameCache,
-			FCanScrollToLog CanScrollToLogDelegate,
-			FScrollToLog ScrollToLogDelegate
+			FName InTabId,
+			TSharedRef<FTabManager> InOwningTabManager,
+			TSharedRef<FWorkspaceItem> InWorkspaceItem,
+			TSharedRef<FPackageTransmissionModel> InTransmissionModel,
+			TSharedRef<FEndpointToUserNameCache> InEndpointToUserNameCache,
+			FCanScrollToLog InCanScrollToLogDelegate,
+			FScrollToLog InScrollToLogDelegate
 			)
-		: TabId(TabId)
-		, OwningTabManager(MoveTemp(OwningTabManager))
-		, TransmissionModel(MoveTemp(TransmissionModel))
-		, EndpointToUserNameCache(MoveTemp(EndpointToUserNameCache))
-		, CanScrollToLogDelegate(MoveTemp(CanScrollToLogDelegate))
-		, ScrollToLogDelegate(MoveTemp(ScrollToLogDelegate))
-		, Tokenizer(MakeShared<FPackageTransmissionEntryTokenizer>(EndpointToUserNameCache))
+		: TabId(InTabId)
+		, OwningTabManager(MoveTemp(InOwningTabManager))
+		, TransmissionModel(MoveTemp(InTransmissionModel))
+		, CanScrollToLogDelegate(MoveTemp(InCanScrollToLogDelegate))
+		, ScrollToLogDelegate(MoveTemp(InScrollToLogDelegate))
+		, Tokenizer(MakeShared<FPackageTransmissionEntryTokenizer>(MoveTemp(InEndpointToUserNameCache)))
 	{
 		OwningTabManager->RegisterTabSpawner(TabId, FOnSpawnTab::CreateRaw(this, &FPackageTransmissionTabController::SpawnTab))
 			// In the future we may create multiple FPackageTransmissionTabController and may want to change this name to depend on some parameter
 			.SetDisplayName(LOCTEXT("PackageTabLabel", "Packages"))
-			.SetGroup(WorkspaceItem)
+			.SetGroup(InWorkspaceItem)
 			.SetIcon(FSlateIcon(FConcertServerStyle::GetStyleSetName(), TEXT("Concert.Icon.Package")));
 	}
 

@@ -12,8 +12,8 @@
 #include "Algo/AnyOf.h"
 #include "Features/IModularFeatures.h"
 
-FEndpointToUserNameCache::FEndpointToUserNameCache(TSharedRef<IConcertServer> Server)
-	: Server(MoveTemp(Server))
+FEndpointToUserNameCache::FEndpointToUserNameCache(TSharedRef<IConcertServer> InServer)
+	: Server(MoveTemp(InServer))
 {
 	ConcertServerEvents::OnLiveSessionCreated().AddRaw(this, &FEndpointToUserNameCache::OnLiveSessionCreated);
 	ConcertServerEvents::OnLiveSessionDestroyed().AddRaw(this, &FEndpointToUserNameCache::OnLiveSessionDestroyed);
