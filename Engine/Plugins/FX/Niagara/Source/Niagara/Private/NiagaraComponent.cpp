@@ -45,7 +45,7 @@ DEFINE_LOG_CATEGORY(LogNiagara);
 
 DEFINE_RENDER_COMMAND_PIPE(NiagaraDynamicData, ERenderCommandPipeFlags::None);
 
-static bool GNiagaraParallelGDME = false;
+static bool GNiagaraParallelGDME = true;
 static FAutoConsoleVariableRef CVarNiagaraParallelGDME(
 	TEXT("fx.Niagara.ParallelGDME"),
 	GNiagaraParallelGDME,
