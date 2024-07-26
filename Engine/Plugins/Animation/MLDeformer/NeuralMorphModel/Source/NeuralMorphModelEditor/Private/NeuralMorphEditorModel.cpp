@@ -314,7 +314,6 @@ namespace UE::NeuralMorphModel
 		}
 
 		const int32 NumBaseMeshVerts = Model->GetNumBaseMeshVerts();
-		check(NumBaseMeshVerts > 0);
 
 		USkeletalMesh* SkeletalMesh = Model->GetSkeletalMesh();	
 		UNeuralMorphInputInfo* NeuralMorphInputInfo = Cast<UNeuralMorphInputInfo>(GetEditorInputInfo());

@@ -1036,7 +1036,7 @@ void USkeletalMesh::ReleaseResources()
 int32 USkeletalMesh::GetNumImportedVertices() const
 {
 	const FSkeletalMeshModel* SkeletalMeshModel = GetImportedModel();
-	if (SkeletalMeshModel)
+	if (SkeletalMeshModel && !SkeletalMeshModel->LODModels.IsEmpty())
 	{
 		const int32 MaxIndex = SkeletalMeshModel->LODModels[0].MaxImportVertex;
 		return (MaxIndex > 0) ? (MaxIndex + 1) : 0;
