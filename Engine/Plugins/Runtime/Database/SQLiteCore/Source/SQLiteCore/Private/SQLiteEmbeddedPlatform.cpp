@@ -550,6 +550,12 @@ private:
 		// Zero the buffer first in-case of a short read
 		FMemory::Memzero(OutBuffer, InReadAmountBytes);
 
+		//Seek() returns differently on different platform when offset is out of bound, so check it ahead
+		int64 iFileSize = File->FileHandle->Size();
+		if (InReadOffsetBytes >= iFileSize) {
+			return SQLITE_IOERR_SHORT_READ;
+		}
+
 		if (!File->FileHandle->Seek(InReadOffsetBytes))
 		{
 			return SQLITE_IOERR_SEEK;
