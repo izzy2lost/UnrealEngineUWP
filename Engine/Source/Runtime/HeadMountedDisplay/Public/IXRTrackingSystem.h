@@ -429,7 +429,10 @@ public:
 	/**
 	 * Platform Agnostic Query about MotionControllers details
 	 */
+	UE_DEPRECATED(5.5, "Deprecated along with UHeadMountedDisplayFunctionLibrary::GetMotionControllerData")
 	virtual void GetMotionControllerData(UObject* WorldContext, const EControllerHand Hand, FXRMotionControllerData& MotionControllerData) = 0;
+	virtual void GetMotionControllerState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, const EXRControllerPoseType XRControllerPoseType, FXRMotionControllerState& MotionControllerState) = 0;
+	virtual void GetHandTrackingState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, FXRHandTrackingState& HandTrackingState) = 0;
 	virtual bool GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile) = 0;
 
 	UE_DEPRECATED(5.3, "The only implementation for this function was removed many UE releases ago.")

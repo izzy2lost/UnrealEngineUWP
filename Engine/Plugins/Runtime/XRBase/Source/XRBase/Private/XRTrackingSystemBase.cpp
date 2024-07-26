@@ -178,6 +178,65 @@ void FXRTrackingSystemBase::GetMotionControllerData(UObject* WorldContext, const
 	}
 }
 
+void FXRTrackingSystemBase::GetMotionControllerState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, const EXRControllerPoseType XRControllerPoseType, FXRMotionControllerState& MotionControllerState)
+{
+	MotionControllerState.bValid = false;
+	MotionControllerState.DeviceName = GetSystemName();
+	MotionControllerState.ApplicationInstanceID = FApp::GetInstanceId();
+	MotionControllerState.XRSpaceType = XRSpaceType;
+	MotionControllerState.Hand = Hand;
+	MotionControllerState.XRControllerPoseType = XRControllerPoseType;
+
+#if WITH_EDITOR
+	const UWorld* const MyWorld = WorldContext ? WorldContext->GetWorld() : nullptr;
+#endif // WITH_EDITOR
+
+	//get all motion controllers and find the one for this hand for this local player
+	TArray<UObject*> MotionControllers;
+	GetObjectsOfClass(UMotionControllerComponent::StaticClass(), MotionControllers);
+	for (int32 MotionControllerIndex = 0; MotionControllerIndex < MotionControllers.Num(); ++MotionControllerIndex)
+	{
+		UMotionControllerComponent* MotionController = Cast<UMotionControllerComponent>(MotionControllers[MotionControllerIndex]);
+		check(MotionController);
+
+#if WITH_EDITOR
+		// In PIE there could be motion controller components that are not part of the world. We need to ignore those.
+		// If no world context is provided it's hard to tell what world we care about. 
+		if (MyWorld && (MotionController->GetWorld() != MyWorld))
+		{
+			continue;
+		}
+#endif // WITH_EDITOR
+
+		AActor* Owner = MotionController->GetOwner();
+		if ((Owner != nullptr) && (MotionController->GetTrackingSource() == Hand) && (Owner->GetLocalRole() == ROLE_Authority))
+		{
+			MotionControllerState.bValid = true;
+			MotionControllerState.TrackingStatus = MotionController->CurrentTrackingStatus;
+
+			//NOTE: XRTrackingSystemBase ignores XRControllerPoseType, all the controller poses will be the same.
+			const FTransform Transform = MotionController->GetComponentTransform();
+			MotionControllerState.ControllerLocation = Transform.GetLocation();
+			MotionControllerState.ControllerRotation = Transform.GetRotation();
+			break;
+		}
+	}
+
+	if (!MotionControllerState.bValid)
+	{
+		UE_LOG(LogHMD, Warning, TEXT("GetMotionControllerData could not find matching UMotionControllerComponent, Hand: %d"), int(Hand));
+	}
+
+}
+
+void FXRTrackingSystemBase::GetHandTrackingState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, FXRHandTrackingState& HandTrackingState)
+{
+	// Currently we are only supporting hand tracking through OpenXR, though it would be possible to support it here.
+	HandTrackingState.bValid = false;
+	HandTrackingState.XRSpaceType = XRSpaceType;
+	HandTrackingState.Hand = Hand;
+}
+
 bool FXRTrackingSystemBase::GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile)
 {
 	UE_LOG(LogHMD, Warning, TEXT("GetCurrentInteractionProfile for %i failed because the current VR tracking system does not support it!"), int(Hand));

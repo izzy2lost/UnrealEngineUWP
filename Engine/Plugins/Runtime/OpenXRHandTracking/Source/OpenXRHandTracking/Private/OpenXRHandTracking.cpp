@@ -255,8 +255,9 @@ void FOpenXRHandTracking::UpdateDeviceLocations(XrSession InSession, XrTime Disp
 
 		XR_ENSURE(xrLocateHandJointsEXT(HandState.HandTracker, &LocateInfo, &HandState.Locations));
 
-		HandState.ReceivedJointPoses = HandState.Locations.isActive == XR_TRUE;
-		if (HandState.ReceivedJointPoses) {
+		HandState.bTracked = HandState.Locations.isActive == XR_TRUE;
+		HandState.HasReceivedJointPoses |= HandState.bTracked;
+		if (HandState.bTracked) {
 
 			static_assert(XR_HAND_JOINT_PALM_EXT == 0 && XR_HAND_JOINT_LITTLE_TIP_EXT == XR_HAND_JOINT_COUNT_EXT - 1, "XrHandJointEXT enum is not as assumed for the following loop!");
 			for (int j = 0; j < XR_HAND_JOINT_COUNT_EXT; ++j)
@@ -287,7 +288,7 @@ bool FOpenXRHandTracking::FHandState::GetTransform(EHandKeypoint Keypoint, FTran
 	check((int32)Keypoint < EHandKeypointCount);
 	OutTransform = KeypointTransforms[(uint32)Keypoint];
 	
-	return ReceivedJointPoses;
+	return HasReceivedJointPoses;
 }
 
 const FTransform& FOpenXRHandTracking::FHandState::GetTransform(EHandKeypoint Keypoint) const
@@ -364,15 +365,11 @@ bool FOpenXRHandTracking::GetControllerOrientationAndPosition(const int32 Contro
 		{
 			const EHandKeypoint KeyPoint = KeyPointInfoPtr->Key;
 			const bool bIsLeft = KeyPointInfoPtr->Value;
-			if (bIsLeft)
+			const FHandState& HandState = bIsLeft ? GetLeftHandState() : GetRightHandState();
+			if (HandState.HasReceivedJointPoses)
 			{
-				ControllerTransform = GetLeftHandState().GetTransform(KeyPoint);
-				bTracked = GetLeftHandState().ReceivedJointPoses;
-			}
-			else
-			{
-				ControllerTransform = GetRightHandState().GetTransform(KeyPoint);
-				bTracked = GetRightHandState().ReceivedJointPoses;
+				ControllerTransform = HandState.GetTransform(KeyPoint);
+				bTracked = HandState.bTracked;
 			}
 		}
 
@@ -395,7 +392,7 @@ ETrackingStatus FOpenXRHandTracking::GetControllerTrackingStatus(const int32 Con
 	{
 		const bool bIsLeft = KeyPointInfoPtr->Value;
 		const FOpenXRHandTracking::FHandState& HandState = bIsLeft ? GetLeftHandState() : GetRightHandState();
-		return HandState.ReceivedJointPoses ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
+		return HandState.bTracked ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
 	}
 
 	return ETrackingStatus::NotTracked;
@@ -534,7 +531,7 @@ bool FOpenXRHandTracking::GetKeypointState(EControllerHand Hand, EHandKeypoint K
 	return gotTransform;
 }
 
-bool FOpenXRHandTracking::GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii) const
+bool FOpenXRHandTracking::GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii, bool& OutIsTracked) const
 {
 	if (!bHandTrackingAvailable)
 	{
@@ -548,11 +545,14 @@ bool FOpenXRHandTracking::GetAllKeypointStates(EControllerHand Hand, TArray<FVec
 
 	const FOpenXRHandTracking::FHandState& HandState = (Hand == EControllerHand::Left) ? GetLeftHandState() : GetRightHandState();
 
-	if (!HandState.ReceivedJointPoses)
+	if (!HandState.HasReceivedJointPoses)
 	{
 		return false;
 	}
 
+	OutIsTracked = HandState.bTracked;
+
+	// If we ever received poses we return the last data we received, even if not currently tracking to avoid pops back to 0,0,0 and the like.
 	OutPositions.Empty(EHandKeypointCount);
 	OutRotations.Empty(EHandKeypointCount);
 	const FTransform& TrackingToWoldTransform = XRTrackingSystem->GetTrackingToWorldTransform();

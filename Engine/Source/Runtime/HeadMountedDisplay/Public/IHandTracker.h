@@ -47,7 +47,10 @@ public:
 	 */
 	virtual bool GetKeypointState(EControllerHand Hand, EHandKeypoint Keypoint, FTransform& OutTransform, float& OutRadius) const = 0;
 
-	virtual bool GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii) const = 0;
+	UE_DEPRECATED(5.5, "Deprecated in favor of the version that explicitly returns OutIsTracked")
+	virtual bool GetAllKeypointStates(EControllerHand Hand, TArray<FVector>&OutPositions, TArray<FQuat>&OutRotations, TArray<float>&OutRadii) const { return false; } // No longer pure virtual so that it can be removed.
+
+	virtual bool GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii, bool& OutIsTracked) const { return false; }; // This will be made pure virtual when the deprecated function is removed.
 
 	virtual bool HasHandMeshData() const
 	{

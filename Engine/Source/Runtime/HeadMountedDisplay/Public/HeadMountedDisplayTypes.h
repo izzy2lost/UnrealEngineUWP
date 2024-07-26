@@ -312,6 +312,34 @@ enum class EXRVisualType : uint8
 	Hand
 };
 
+/**
+ * Used to get unreal world space or tracking space positions in XR.
+ * Working only with unreal world space coordinates is almost always simpler and should be generally preferred.
+ * There are specific cases where raw XRTrackingSpace coordinates may be useful, particularly in apps where world scale is not 1:1 or where it changes.
+ */
+UENUM(BlueprintType)
+enum class EXRSpaceType : uint8
+{
+	/* The unreal coordinate system.  Affected by world scaling and the TrackingToWorldTransform.*/
+	UnrealWorldSpace,
+	/* The coordinate system the XR Device is tracking itself in.  Should be fixed relative to the real world over short timescales, not affected by world scaling or the TrackingToWorldTransoform.  May change relationship to the physical world through recentering or similar events.*/
+	XRTrackingSpace
+};
+
+/**
+ * Controllers, due to their various shapes, might have different natural usages.
+ */
+UENUM(BlueprintType)
+enum class EXRControllerPoseType : uint8
+{
+	/* A pose meant to represent pointing.*/
+	Aim,
+	/* A poose meant to represent holding a stick.*/
+	Grip,
+	/* A pose meant to represent holding an item in the palm of the hand.*/
+	Palm
+};
+
 USTRUCT(BlueprintType)
 struct FXRHMDData
 {
@@ -333,7 +361,7 @@ struct FXRHMDData
 	FQuat Rotation = FQuat(EForceInit::ForceInitToZero);
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta=(Deprecated="5.5", DeprecationMessage="Use FXRMotionControllerState and FXRHandTrackingState instead."))
 struct FXRMotionControllerData
 {
 	GENERATED_USTRUCT_BODY();
@@ -386,4 +414,78 @@ struct FXRMotionControllerData
 
 	UPROPERTY(BlueprintReadOnly, Category = "XR")
 	bool bIsGrasped = false;
+};
+
+USTRUCT(BlueprintType)
+struct FXRMotionControllerState
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The state is valid if a pose has ever been provided.
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	bool bValid = false;
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FName DeviceName;
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FGuid ApplicationInstanceID;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	EXRSpaceType XRSpaceType = EXRSpaceType::UnrealWorldSpace;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	EControllerHand Hand = EControllerHand::Left;
+
+	// If a controller pose has been provided this frame the TrackingStatus will be Tracked.
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	ETrackingStatus TrackingStatus = ETrackingStatus::NotTracked;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	EXRControllerPoseType XRControllerPoseType = EXRControllerPoseType::Grip;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FVector ControllerLocation;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FQuat ControllerRotation;
+
+	// These are used by the XRVisualizationFunctionLibrary, and are not exposed to blueprint.
+	UPROPERTY()
+	FVector GripUnrealSpaceLocation;
+	UPROPERTY()
+	FQuat GripUnrealSpaceRotation;
+};
+
+USTRUCT(BlueprintType)
+struct FXRHandTrackingState
+{
+	GENERATED_USTRUCT_BODY();
+
+	// The state is valid if poses have ever been provided.
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	bool bValid = false;
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FName DeviceName;
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	FGuid ApplicationInstanceID;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	EXRSpaceType XRSpaceType = EXRSpaceType::UnrealWorldSpace;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	EControllerHand Hand = EControllerHand::Left;
+
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	ETrackingStatus TrackingStatus = ETrackingStatus::NotTracked;
+
+	// The indices of this array are the values of EHandKeypoint (Palm, Wrist, ThumbMetacarpal, etc).
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	TArray<FVector> HandKeyLocations;
+
+	// The indices of this array are the values of EHandKeypoint (Palm, Wrist, ThumbMetacarpal, etc).
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	TArray<FQuat> HandKeyRotations;
+
+	// The indices of this array are the values of EHandKeypoint (Palm, Wrist, ThumbMetacarpal, etc).
+	UPROPERTY(BlueprintReadOnly, Category = "XR")
+	TArray<float> HandKeyRadii;
 };

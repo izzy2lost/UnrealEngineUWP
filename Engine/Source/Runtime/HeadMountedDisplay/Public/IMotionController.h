@@ -15,7 +15,7 @@ UENUM(BlueprintType)
 enum class ETrackingStatus : uint8
 {
 	NotTracked,
-	InertialOnly,
+	InertialOnly, //Note This value of the enum is deprecated and only used by legacy platforms.  Please do not introduce new usages of it.
 	Tracked,
 };
 

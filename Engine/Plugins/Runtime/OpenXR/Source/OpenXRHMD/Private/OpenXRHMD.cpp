@@ -325,13 +325,179 @@ void FOpenXRHMD::GetMotionControllerData(UObject* WorldContext, const EControlle
 		{
 			MotionControllerData.DeviceVisualType = EXRVisualType::Hand;
 
-			MotionControllerData.bValid = HandTracker->GetAllKeypointStates(Hand, MotionControllerData.HandKeyPositions, MotionControllerData.HandKeyRotations, MotionControllerData.HandKeyRadii);
+			bool bTracked_UNUSED = false;
+			MotionControllerData.bValid = HandTracker->GetAllKeypointStates(Hand, MotionControllerData.HandKeyPositions, MotionControllerData.HandKeyRotations, MotionControllerData.HandKeyRadii, bTracked_UNUSED);
+			// Begin backward compatibility with deprecated function, remove this block along with the deprecated GetAllKeypointStates.  (Though it shoudl be time to remove this entire function as well!)
+			if (MotionControllerData.bValid == false)
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				MotionControllerData.bValid = HandTracker->GetAllKeypointStates(Hand, MotionControllerData.HandKeyPositions, MotionControllerData.HandKeyRotations, MotionControllerData.HandKeyRadii);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			}
+			// End backward compability
 			check(!MotionControllerData.bValid || (MotionControllerData.HandKeyPositions.Num() == EHandKeypointCount && MotionControllerData.HandKeyRotations.Num() == EHandKeypointCount && MotionControllerData.HandKeyRadii.Num() == EHandKeypointCount));
 		}
 	}
+}
+void FOpenXRHMD::GetMotionControllerState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, const EXRControllerPoseType XRControllerPoseType, FXRMotionControllerState& MotionControllerState)
+{
+	auto ToMotionSourceName = [](const EControllerHand Hand, const EXRControllerPoseType XRControllerPoseType)
+		{
+			static FLazyName LeftAim = "LeftAim";
+			static FLazyName LeftGrip = "LeftGrip";
+			static FLazyName LeftPalm = "LeftPalm";
+			static FLazyName RightAim = "RightAim";
+			static FLazyName RightGrip = "RightGrip";
+			static FLazyName RightPalm = "RightPalm";
+			if (Hand == EControllerHand::Left)
+			{
+				switch (XRControllerPoseType)
+				{
+				case EXRControllerPoseType::Aim:
+					return LeftAim;
+				case EXRControllerPoseType::Grip:
+					return LeftGrip;
+				case EXRControllerPoseType::Palm:
+					return LeftPalm;
+				default:
+					check(false);
+					return LeftGrip;
+				}
+			}
+			else
+			{
+				switch (XRControllerPoseType)
+				{
+				case EXRControllerPoseType::Aim:
+					return RightAim;
+				case EXRControllerPoseType::Grip:
+					return RightGrip;
+				case EXRControllerPoseType::Palm:
+					return RightPalm;
+				default:
+					check(false);
+					return RightGrip;
+				}
+			}
+		};
 
-	//TODO: this is reportedly a wmr specific convenience function for rapid prototyping.  Not sure it is useful for openxr.
-	MotionControllerData.bIsGrasped = false;
+	MotionControllerState.DeviceName = NAME_None;
+	MotionControllerState.ApplicationInstanceID = FApp::GetInstanceId();
+	MotionControllerState.TrackingStatus = ETrackingStatus::NotTracked;
+	MotionControllerState.Hand = Hand;
+	MotionControllerState.XRSpaceType = XRSpaceType;
+	MotionControllerState.bValid = false;
+
+	TArray<int32> Devices;
+	if (EnumerateTrackedDevices(Devices, EXRTrackedDeviceType::Controller) && Devices.IsValidIndex((int32)Hand))
+	{
+		FReadScopeLock SessionLock(SessionHandleMutex);
+		if (Session)
+		{
+			XrInteractionProfileState Profile = { XR_TYPE_INTERACTION_PROFILE_STATE };
+			if (XR_SUCCEEDED(xrGetCurrentInteractionProfile(Session, GetTrackedDevicePath(Devices[(int32)Hand]), &Profile)) &&
+				Profile.interactionProfile != XR_NULL_PATH)
+			{
+				MotionControllerState.DeviceName = FOpenXRPath(Profile.interactionProfile);
+			}
+		}
+	}
+
+	if ((Hand == EControllerHand::Left) || (Hand == EControllerHand::Right))
+	{
+		FName MotionControllerName("OpenXR");
+		TArray<IMotionController*> MotionControllers = IModularFeatures::Get().GetModularFeatureImplementations<IMotionController>(IMotionController::GetModularFeatureName());
+		IMotionController* MotionController = nullptr;
+		for (auto Itr : MotionControllers)
+		{
+			if (Itr->GetMotionControllerDeviceTypeName() == MotionControllerName)
+			{
+				MotionController = Itr;
+				break;
+			}
+		}
+
+		if (MotionController)
+		{
+			{
+				// Handle the pose that is actually being requested
+				FName MotionSource = ToMotionSourceName(Hand, XRControllerPoseType);
+				FVector Position = FVector::ZeroVector;
+				FRotator Rotation = FRotator::ZeroRotator;
+				FTransform TrackingToWorld = XRSpaceType == EXRSpaceType::UnrealWorldSpace ? GetTrackingToWorldTransform() : FTransform::Identity;
+				const float WorldToMeters = XRSpaceType == EXRSpaceType::UnrealWorldSpace ? GetWorldToMetersScale() : 100.0f;
+				bool bSuccess = MotionController->GetControllerOrientationAndPosition(0, MotionSource, Rotation, Position, WorldToMeters);
+				if (bSuccess)
+				{
+					MotionControllerState.ControllerLocation = TrackingToWorld.TransformPosition(Position);
+					MotionControllerState.ControllerRotation = TrackingToWorld.TransformRotation(FQuat(Rotation));
+				}
+				MotionControllerState.bValid |= bSuccess;
+
+				MotionControllerState.TrackingStatus = MotionController->GetControllerTrackingStatus(0, MotionSource);
+			}
+
+			{
+				// We always provide the grip transform in unreal space for XRVisualizationFunctionLibrary
+				// THe bValid and TrackingStatus above are also valid for this pose.
+				FName MotionSource = ToMotionSourceName(Hand, EXRControllerPoseType::Grip);
+				FVector Position = FVector::ZeroVector;
+				FRotator Rotation = FRotator::ZeroRotator;
+				FTransform TrackingToWorld = GetTrackingToWorldTransform();
+				bool bSuccess = MotionController->GetControllerOrientationAndPosition(0, MotionSource, Rotation, Position, GetWorldToMetersScale());
+				if (bSuccess)
+				{
+					MotionControllerState.GripUnrealSpaceLocation = TrackingToWorld.TransformPosition(Position);
+					MotionControllerState.GripUnrealSpaceRotation = TrackingToWorld.TransformRotation(FQuat(Rotation));
+				}
+			}
+		}
+	}
+}
+
+void FOpenXRHMD::GetHandTrackingState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, FXRHandTrackingState& HandTrackingState)
+{
+	HandTrackingState.ApplicationInstanceID = FApp::GetInstanceId();
+	HandTrackingState.TrackingStatus = ETrackingStatus::NotTracked;
+	HandTrackingState.Hand = Hand;
+	HandTrackingState.XRSpaceType = XRSpaceType;
+	HandTrackingState.bValid = false;
+
+	FName HandTrackerName("OpenXRHandTracking");
+	TArray<IHandTracker*> HandTrackers = IModularFeatures::Get().GetModularFeatureImplementations<IHandTracker>(IHandTracker::GetModularFeatureName());
+	IHandTracker* HandTracker = nullptr;
+	for (auto Itr : HandTrackers)
+	{
+		if (Itr->GetHandTrackerDeviceTypeName() == HandTrackerName)
+		{
+			HandTracker = Itr;
+			break;
+		}
+	}
+
+	if ((Hand == EControllerHand::Left) || (Hand == EControllerHand::Right))
+	{
+		const float WorldToMeters = GetWorldToMetersScale();
+		if (HandTracker && HandTracker->IsHandTrackingStateValid())
+		{
+			bool bTracked = false;
+			HandTrackingState.bValid = HandTracker->GetAllKeypointStates(Hand, HandTrackingState.HandKeyLocations, HandTrackingState.HandKeyRotations, HandTrackingState.HandKeyRadii, bTracked);
+			// Begin backward compatibility with deprecated function, remove this block along with the deprecated GetAllKeypointStates.
+			if (HandTrackingState.bValid == false)
+			{
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				HandTrackingState.bValid = HandTracker->GetAllKeypointStates(Hand, HandTrackingState.HandKeyLocations, HandTrackingState.HandKeyRotations, HandTrackingState.HandKeyRadii);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				bTracked = HandTrackingState.bValid; // The inability to distinguish this is the reason for the deprecation.
+			}
+			// End backward compability
+			if (HandTrackingState.bValid)
+			{
+				HandTrackingState.TrackingStatus = bTracked ? ETrackingStatus::Tracked : ETrackingStatus::NotTracked;
+			}
+			check(!HandTrackingState.bValid || (HandTrackingState.HandKeyLocations.Num() == EHandKeypointCount && HandTrackingState.HandKeyRotations.Num() == EHandKeypointCount && HandTrackingState.HandKeyRadii.Num() == EHandKeypointCount));
+		}
+	}
 }
 
 bool FOpenXRHMD::GetCurrentInteractionProfile(const EControllerHand Hand, FString& InteractionProfile)

@@ -311,8 +311,30 @@ class XRBASE_API UHeadMountedDisplayFunctionLibrary : public UBlueprintFunctionL
 	 * @param  Hand						Indicates which hand we want data for.
 	 * @param  MotionControllerData		[out] Struct filled with information about the motion controller state.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking")
+	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking", meta=(DeprecatedFunction, Deprecationmessage="Replaced with GetMotionControllerState/GetHandTrackingState for 5.5."))
 	static void GetMotionControllerData(UObject* WorldContext, const EControllerHand Hand, FXRMotionControllerData& MotionControllerData);
+
+	/**
+	 * Cross XR-System query that returns critical information about the motion controller (position, orientation)
+	 *
+	 * @param  WorldContext				Any object in the world (the player pawn would work).  Used in PIE to make sure we get this data from a motioncontroller component that is currently active, rather than one in an editor view world that is never tracked.
+	 * @param  XRSpaceType				Can switch between unreal world coordinates and tracking space coordinates.  Tracking space may be useful with non-1:1 world scales.
+	 * @param  Hand						Indicates which hand we want data for.
+	 * @param  MotionControllerData		[out] Struct filled with information about the motion controller state.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking")
+	static void GetMotionControllerState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, const EXRControllerPoseType ControllerPoseType, FXRMotionControllerState& MotionControllerState);
+
+	/**
+	 * Cross XR-System query that returns critical information about the motion controller (position, orientation, hand/finger position)
+	 *
+	 * @param  WorldContext				Any object in the world (the player pawn would work).  Used in PIE to make sure we get this data from a motioncontroller component that is currently active, rather than one in an editor view world that is never tracked.
+	 * @param  XRSpaceType				Can switch between unreal world coordinates and tracking space coordinates.  Tracking space may be useful with non-1:1 world scales.
+	 * @param  Hand						Indicates which hand we want data for.
+	 * @param  HandTrackingData			[out] Struct filled with information about the hand tracking state.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking")
+	static void GetHandTrackingState(UObject* WorldContext, const EXRSpaceType XRSpaceType, const EControllerHand Hand, FXRHandTrackingState& HandTrackingState);
 
 	/**
 	 * Get the openXR interaction profile name for the given controller. Returns true if the openxr call is successfully made.  The string may be empty
@@ -334,7 +356,7 @@ class XRBASE_API UHeadMountedDisplayFunctionLibrary : public UBlueprintFunctionL
 	/** 
 	* Hook up a delegate to get an OpenXR action event with action time.  
 	* For a boolean input the the 'value' parameter of the delegate will be 1.0 for a press and 0.0 for a release.  For an analog input the value's range is action and platform specific.
-	* Use in combination with GetControllerTransformForTime for potentially improved temporal transform precision and velocity data. 
+	* Use in combination with GetControllerTransformForTime2 for potentially improved temporal transform precision and velocity data. 
 	* "Left Grip" is an example of a valid ActionName.
 	* Note: this is likely to be replaced by native support for event times in the core input system at some time in the future.
 	*/
@@ -358,21 +380,6 @@ class XRBASE_API UHeadMountedDisplayFunctionLibrary : public UBlueprintFunctionL
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking")
 	static bool GetControllerTransformForTime2(UObject* WorldContext, const int32 ControllerIndex, const FName MotionSource, FTimespan Time, bool& bTimeWasUsed, FRotator& Orientation, FVector& Position, bool& bProvidedLinearVelocity, FVector& LinearVelocity, bool& bProvidedAngularVelocity, FRotator& AngularVelocity, bool& bProvidedLinearAcceleration, FVector& LinearAcceleration);
-
-	/**
-	* Get the transform and potentially velocity data at a specified time near the current frame in unreal world space.
-	* This is intended for use with sub-frame input action timing data from SetXRTimedInputActionDelegate, or future support for timestamps in the core input system.
-	* The valid time window is platform dependent, but the intention per OpenXR is to fetch transforms for times from, at most, the previous few frames in the past or future.  
-	* The OpenXR spec suggests that 50ms in the past should return an accurate result.  There is no guarantee for the future, but the underlying system is likely to have been
-	* designed to predict out to about 50ms as well.
-	* On some platforms this  will always just return a cached position and rotation, ignoring time.  bTimeWasUsed will be false in that case.
-	* 
-	* AngularVelocityRadPerSec is a vector where direction is the axis of rotation and length is the speed of rotation in radians per second. 
-	* Note that it is not difficult to rotate a controller at more than 0.5 or 1 rotation per second briefly and some mathmatical operations (such as conversion to quaternion) lose rotations beyond 180 degrees or 360 degrees.  
-	* In some cases that is OK becuase the resulting final rotation is the same, but in some cases it would generate incorrect results.
-	*/
-	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking", meta = (DeprecatedFunction, DeprecationMessage = "Use new GetControllerTransformForTime2 which represents angular velocity as an FRotator rather than in the non-standard way this function represented it."))
-	static bool GetControllerTransformForTime(UObject* WorldContext, const int32 ControllerIndex, const FName MotionSource, FTimespan Time, bool& bTimeWasUsed, FRotator& Orientation, FVector& Position, bool& bProvidedLinearVelocity, FVector& LinearVelocity, bool& bProvidedAngularVelocity, FVector& AngularVelocityAsAxisAndLength, bool& bProvidedLinearAcceleration, FVector& LinearAcceleration);
 
 	/**
 	 * Get the bounds of the area where the user can freely move while remaining tracked centered around the specified origin

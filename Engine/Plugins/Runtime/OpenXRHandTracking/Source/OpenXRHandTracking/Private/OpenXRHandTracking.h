@@ -37,7 +37,8 @@ public:
 		// Transforms are cached in Unreal Tracking Space
 		FTransform KeypointTransforms[EHandKeypointCount];
 		float Radii[EHandKeypointCount];
-		bool ReceivedJointPoses = false;
+		bool HasReceivedJointPoses = false; // true if this hand has ever been tracked, and therefore its poses are valid.
+		bool bTracked = false; // true if tracked right now.
 
 		bool GetTransform(EHandKeypoint KeyPoint, FTransform& OutTransform) const;
 		const FTransform& GetTransform(EHandKeypoint KeyPoint) const;
@@ -87,7 +88,7 @@ public:
 	virtual FName GetHandTrackerDeviceTypeName() const override;
 	virtual bool IsHandTrackingStateValid() const override;
 	virtual bool GetKeypointState(EControllerHand Hand, EHandKeypoint Keypoint, FTransform& OutTransform, float& OutRadius) const override;
-	virtual bool GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii) const override;
+	virtual bool GetAllKeypointStates(EControllerHand Hand, TArray<FVector>& OutPositions, TArray<FQuat>& OutRotations, TArray<float>& OutRadii, bool& OutIsTracked) const override;
 
 private:
 	FHandState& GetLeftHandState();
