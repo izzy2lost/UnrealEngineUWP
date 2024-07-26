@@ -6,6 +6,8 @@
 #include "Async/Mutex.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
+#include "Commands/EditorDataStorageCommandBuffer.h"
+#include "Commands/EditorDataStorageCompatibilityCommands.h"
 #include "Compatibility/TypedElementObjectReinstancingManager.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
@@ -23,7 +25,6 @@ class FTypedElementDatabaseEnvironment;
 class UTypedElementMementoSystem;
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8;
-struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
 
 UCLASS()
 class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabaseCompatibility
@@ -31,10 +32,11 @@ class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabaseCompatibility
 	, public ITypedElementDataStorageCompatibilityInterface
 {
 	GENERATED_BODY()
+
+	friend struct UE::EditorDataStorage::FCommandProcessor;
+	friend struct UE::EditorDataStorage::FPatchData;
+	friend struct UE::EditorDataStorage::FPrepareCommands;
 public:
-	using ObjectAddedCallback = TFunction<void(const void* /*Object*/, const FTypedElementDatabaseCompatibilityObjectTypeInfo&, TypedElementRowHandle /*Row*/)>;
-	using ObjectRemovedCallback = TFunction<void(const void* /*Object*/, const FTypedElementDatabaseCompatibilityObjectTypeInfo&, TypedElementRowHandle /*Row*/)>;
-	
 	~UTypedElementDatabaseCompatibility() override = default;
 
 	void Initialize(UTypedElementDatabase* InStorage);
@@ -43,13 +45,13 @@ public:
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
 	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
 	void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) override;
-	FDelegateHandle RegisterObjectAddedCallback(ObjectAddedCallback&& OnObjectAdded);
+	FDelegateHandle RegisterObjectAddedCallback(UE::EditorDataStorage::ObjectAddedCallback&& OnObjectAdded);
 	void UnregisterObjectAddedCallback(FDelegateHandle Handle);
-	FDelegateHandle RegisterObjectRemovedCallback(ObjectRemovedCallback&& OnObjectRemoved);
+	FDelegateHandle RegisterObjectRemovedCallback(UE::EditorDataStorage::ObjectRemovedCallback&& OnObjectRemoved);
 	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
 	
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo) override;
+	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) override;
 	
 	void RemoveCompatibleObjectExplicit(UObject* Object) override;
 	void RemoveCompatibleObjectExplicit(void* Object) override;
@@ -61,7 +63,6 @@ public:
 	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
 	
 private:
-
 	// The below changes expect UTypedElementDatabaseCompatibility to be the object passed in to StoreUndo.
 	// Note that we cannot pass in TargetObject to StoreUndo because doing so seems to stomp regular Modify()
 	// changes for that object.
@@ -112,6 +113,7 @@ private:
 	TypedElementRowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
+	void TickPendingCommands();
 	void TickPendingUObjectRegistration();
 	void TickPendingExternalObjectRegistration();
 	void TickObjectSync();
@@ -119,8 +121,8 @@ private:
 	void OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain);
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnObjectModified(UObject* Object);
-	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
-	void OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
+	void TriggerOnObjectAdded(const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
+	void TriggerOnPreObjectRemoved(const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
 	void OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects);
 
 	void OnPostGcUnreachableAnalysis();
@@ -139,7 +141,7 @@ private:
 		void Process(UTypedElementDatabaseCompatibility& Compatibility);
 
 	private:
-		TOptional<TWeakObjectPtr<UObject>> ProcessResolveTypeRecursively(const TWeakObjectPtr<const UObject>& Target);
+		TOptional<TWeakObjectPtr<UObject>> ProcessResolveTypeRecursively(const TWeakObjectPtr<UObject>& Target);
 
 		struct FTypeInfoEntryKeyFuncs : TDefaultMapHashableKeyFuncs<TWeakObjectPtr<UObject>, TWeakObjectPtr<UObject>, false>
 		{
@@ -159,7 +161,7 @@ private:
 	struct ExternalObjectRegistration
 	{
 		void* Object;
-		TWeakObjectPtr<const UScriptStruct> TypeInfo;
+		TWeakObjectPtr<UScriptStruct> TypeInfo;
 	};
 	
 	template<typename AddressType>
@@ -185,6 +187,8 @@ private:
 		void Reset();
 	};
 
+	UE::EditorDataStorage::CompatibilityCommandBuffer QueuedCommands;
+	UE::EditorDataStorage::CompatibilityCommandBuffer::FCollection PendingCommands;
 	PendingRegistration<TWeakObjectPtr<UObject>> UObjectsPendingRegistration;
 	PendingRegistration<ExternalObjectRegistration> ExternalObjectsPendingRegistration;
 	TArray<TypedElementDataStorage::RowHandle> RowScratchBuffer;
@@ -193,13 +197,13 @@ private:
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
 	using TypeToTableMapType = TMap<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>;
 	TypeToTableMapType TypeToTableMap;
-	TArray<TPair<ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
-	TArray<TPair<ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
+	TArray<TPair<UE::EditorDataStorage::ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
+	TArray<TPair<UE::EditorDataStorage::ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
-	TypedElementTableHandle StandardActorTable{ TypedElementInvalidTableHandle };
-	TypedElementTableHandle StandardActorWithTransformTable{ TypedElementInvalidTableHandle };
-	TypedElementTableHandle StandardUObjectTable{ TypedElementInvalidTableHandle };
-	TypedElementTableHandle StandardExternalObjectTable{ TypedElementInvalidTableHandle };
+	TypedElementDataStorage::TableHandle StandardActorTable{ TypedElementDataStorage::InvalidTableHandle };
+	TypedElementDataStorage::TableHandle StandardActorWithTransformTable{ TypedElementDataStorage::InvalidTableHandle };
+	TypedElementDataStorage::TableHandle StandardUObjectTable{ TypedElementDataStorage::InvalidTableHandle };
+	TypedElementDataStorage::TableHandle StandardExternalObjectTable{ TypedElementDataStorage::InvalidTableHandle };
 	ITypedElementDataStorageInterface* Storage{ nullptr };
 
 	/**
@@ -208,7 +212,7 @@ private:
 	 */
 	struct FSyncTagInfo
 	{
-		TWeakObjectPtr<const UScriptStruct> ColumnType;
+		TWeakObjectPtr<UScriptStruct> ColumnType;
 		bool bAddColumn;
 
 		bool operator==(const FSyncTagInfo& Rhs) const = default;
@@ -237,47 +241,3 @@ private:
 };
 
 SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column);
-
-enum class ETypedElementDatabaseCompatibilityObjectType : uint8
-{
-	Struct,
-	Class
-};
-
-/**
- * Objects with type info defined in either UScriptStruct or UClass can be stored into TEDS via the
- * ITypedElementDataStorageCompatibilityInterface
- * This is a discriminated union which aids with callbacks made when objects are added
- */
-struct FTypedElementDatabaseCompatibilityObjectTypeInfo
-{
-	ETypedElementDatabaseCompatibilityObjectType TypeInfoType;
-
-	union
-	{
-		const UScriptStruct* ScriptStruct;
-		const UClass* Class;
-	};
-
-	FTypedElementDatabaseCompatibilityObjectTypeInfo(const UScriptStruct* InScriptStruct)
-		: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Struct)
-		, ScriptStruct(InScriptStruct)
-	{}
-
-	FTypedElementDatabaseCompatibilityObjectTypeInfo(const UClass* InClass)
-	: TypeInfoType(ETypedElementDatabaseCompatibilityObjectType::Class)
-	, Class(InClass)
-	{}
-
-	FName GetFName() const;
-};
-
-inline FName FTypedElementDatabaseCompatibilityObjectTypeInfo::GetFName() const
-{
-	switch(TypeInfoType)
-	{
-	case ETypedElementDatabaseCompatibilityObjectType::Struct: return ScriptStruct->GetFName();
-	case ETypedElementDatabaseCompatibilityObjectType::Class: return Class->GetFName();
-	default: return FName();
-	}
-}

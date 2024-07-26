@@ -18,6 +18,9 @@ UTypedElementObjectReinstancingManager::UTypedElementObjectReinstancingManager()
 
 void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
 {
+	using namespace TypedElementDataStorage;
+	using namespace UE::EditorDataStorage;
+
 	Database = &InDatabase;
 	DataStorageCompatibility = &InDataStorageCompatibility;
 	
@@ -26,7 +29,7 @@ void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& I
 	ReinstancingCallbackHandle = 
 		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced);
 	ObjectRemovedCallbackHandle = DataStorageCompatibility->RegisterObjectRemovedCallback(
-		[this](const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle Row)
+		[this](const void* Object, const FObjectTypeInfo& TypeInfo, RowHandle Row)
 		{
 			HandleOnObjectPreRemoved(Object, TypeInfo, Row);
 		});
@@ -55,10 +58,12 @@ void UTypedElementObjectReinstancingManager::UpdateCompleted()
 }
 
 void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(
-	const void* Object, const FTypedElementDatabaseCompatibilityObjectTypeInfo& TypeInfo, TypedElementRowHandle ObjectRow)
+	const void* Object, 
+	const UE::EditorDataStorage::FObjectTypeInfo& TypeInfo, 
+	TypedElementDataStorage::RowHandle ObjectRow)
 {
 	// This is the chance to record the old object to memento
-	TypedElementRowHandle Memento = Database->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
+	TypedElementDataStorage::RowHandle Memento = Database->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
 	OldObjectToMementoMap.Add(Object, Memento);
 }
 

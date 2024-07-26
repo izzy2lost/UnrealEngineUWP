@@ -10,7 +10,7 @@ namespace TypedElementDataStorage
 	static constexpr TableHandle InvalidTableHandle = TNumericLimits<TableHandle>::Max();
 
 	using RowHandle = uint64;
-	static constexpr RowHandle InvalidRowHandle = TNumericLimits<RowHandle>::Max();
+	static constexpr RowHandle InvalidRowHandle = 0;
 
 	using QueryHandle = uint64;
 	static constexpr QueryHandle InvalidQueryHandle = TNumericLimits<QueryHandle>::Max();

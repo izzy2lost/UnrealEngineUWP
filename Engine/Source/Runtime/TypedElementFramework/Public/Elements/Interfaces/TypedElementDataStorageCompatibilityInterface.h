@@ -13,8 +13,6 @@
 
 #include "TypedElementDataStorageCompatibilityInterface.generated.h"
 
-struct FTypedElementDatabaseCompatibilityObjectTypeInfo;
-
 UINTERFACE(MinimalAPI)
 class UTypedElementDataStorageCompatibilityInterface : public UInterface
 {
@@ -88,7 +86,7 @@ public:
 	/** Adds a UObject to the data storage. */
 	virtual TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
 	/** Adds an FStruct to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo) = 0;
+	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) = 0;
 	
 	/** Removes a UObject from the data storage. */
 	virtual void RemoveCompatibleObjectExplicit(UObject* Object) = 0;
