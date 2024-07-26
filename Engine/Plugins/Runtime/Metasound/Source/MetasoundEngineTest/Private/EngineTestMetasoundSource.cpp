@@ -177,7 +177,7 @@ namespace EngineTestMetaSoundSourcePrivate
 
 		Document.RootGraph.Metadata.SetClassName(FMetasoundFrontendClassName { "Namespace", "Unit Test Node", *LexToString(FGuid::NewGuid()) });
 		Document.RootGraph.Metadata.SetType(EMetasoundFrontendClassType::Graph);
-		Document.RootGraph.InitDefaultPage();
+		Document.RootGraph.InitDefaultGraph();
 
 		FDocumentHandle DocumentHandle = IDocumentController::CreateDocumentHandle(Document);
 		FGraphHandle RootGraph = DocumentHandle->GetRootGraph();
