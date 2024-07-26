@@ -58,10 +58,14 @@ public:
 	 *
 	 * @param bInAnimateOpen Whether to play an animation when opening the drawer, defaults to true.
 	 */
-	void Open(bool bInAnimateOpen = true);
+	void Open(const bool bInAnimateOpen = true);
 
-	/** Begins an animation which closes the drawer. */
-	void Close();
+	/**
+	 * Closes the drawer.
+	 *
+	 * @param bInAnimateOpen Whether to play an animation when closing the drawer, defaults to true.
+	 */
+	void Close(const bool bInAnimateOpen = true);
 
 	/** @return True if the drawer is open. */
 	bool IsOpen() const;
@@ -75,6 +79,8 @@ public:
 	TSharedPtr<FSidebarDrawer> GetDrawer() const;
 
 protected:
+	static constexpr float AnimationLength = 0.15f;
+
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override;
 	virtual FVector2D ComputeDesiredSize(const float InLayoutScaleMultiplier) const override;
@@ -89,20 +95,18 @@ protected:
 	//~ End SWidget
 
 	FGeometry GetRenderTransformedGeometry(const FGeometry& InAllottedGeometry) const;
-	
+
 	FGeometry GetResizeHandleGeometry(const FGeometry& InAllottedGeometry) const;
-	
+
 	EActiveTimerReturnType UpdateAnimation(const double InCurrentTime, const float InDeltaTime);
-	
+
 	void OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 		, const FWeakWidgetPath& InOldFocusedWidgetPath, const TSharedPtr<SWidget>& InOldFocusedWidget
 		, const FWidgetPath& InNewFocusedWidgetPath, const TSharedPtr<SWidget>& InNewFocusedWidget);
-	
-	void OnActiveTabChanged(const TSharedPtr<FSidebarDrawer>& InNewlyActivated, const TSharedPtr<FSidebarDrawer>& InPreviouslyActive);
 
 	TWeakPtr<FSidebarDrawer> DrawerWeak;
 	ESidebarTabLocation TabLocation = ESidebarTabLocation::Right;
-	
+
 	float MinDrawerSize = 0.f;
 	float MaxDrawerSize = 0.f;
 	float TargetDrawerSize = 0.f;
@@ -119,9 +123,9 @@ protected:
 
 	FThrottleRequest ResizeThrottleHandle;
 	FThrottleRequest AnimationThrottle;
-	
+
 	float CurrentSize = 0.f;
-	
+
 	bool bIsResizing = false;
 	bool bIsResizeHandleHovered = false;
 	float InitialSizeAtResize = 0.f;

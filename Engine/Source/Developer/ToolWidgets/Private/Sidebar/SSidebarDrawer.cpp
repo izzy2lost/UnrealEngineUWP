@@ -33,7 +33,7 @@ void SSidebarDrawer::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 	OnDrawerFocusLost = InArgs._OnDrawerFocusLost;
 	OnDrawerClosed = InArgs._OnDrawerClosed;
 
-	OpenCloseAnimation = FCurveSequence(0.f, 0.15f, ECurveEaseFunction::QuadOut);
+	OpenCloseAnimation = FCurveSequence(0.f, AnimationLength, ECurveEaseFunction::QuadOut);
 
 	FSlateApplication::Get().OnFocusChanging().AddSP(this, &SSidebarDrawer::OnGlobalFocusChanging);
 
@@ -52,35 +52,41 @@ void SSidebarDrawer::SetCurrentSize(const float InSize)
 	CurrentSize = FMath::Clamp(InSize, MinDrawerSize, TargetDrawerSize);
 }
 
-void SSidebarDrawer::Open(bool bAnimateOpen)
+void SSidebarDrawer::Open(const bool bInAnimateOpen)
 {
-	if (!bAnimateOpen)
+	if (!bInAnimateOpen)
 	{
 		SetCurrentSize(TargetDrawerSize);
 		OpenCloseAnimation.JumpToEnd();
 		return;
 	}
 
-	OpenCloseAnimation.Play(AsShared(), false, OpenCloseAnimation.IsPlaying() ? OpenCloseAnimation.GetSequenceTime() : 0.0f, false);
+	const float StartTime = OpenCloseAnimation.IsPlaying() ? OpenCloseAnimation.GetSequenceTime() : 0.f;
+	OpenCloseAnimation.Play(AsShared(), false, StartTime, false);
 
 	if (!OpenCloseTimer.IsValid())
 	{
 		AnimationThrottle = FSlateThrottleManager::Get().EnterResponsiveMode();
-		OpenCloseTimer = RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SSidebarDrawer::UpdateAnimation));
+		OpenCloseTimer = RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SSidebarDrawer::UpdateAnimation));
 	}
 }
 
-void SSidebarDrawer::Close()
+void SSidebarDrawer::Close(const bool bInAnimateOpen)
 {
-	if (OpenCloseAnimation.IsForward())
+	if (!bInAnimateOpen)
 	{
-		OpenCloseAnimation.Reverse();
+		SetCurrentSize(0.f);
+		OpenCloseAnimation.JumpToStart();
+		return;
 	}
+
+	const float StartTime = OpenCloseAnimation.IsPlaying() ? OpenCloseAnimation.GetSequenceTime() : AnimationLength;
+	OpenCloseAnimation.PlayReverse(AsShared(), false, StartTime, true);
 
 	if (!OpenCloseTimer.IsValid())
 	{
 		AnimationThrottle = FSlateThrottleManager::Get().EnterResponsiveMode();
-		OpenCloseTimer = RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateSP(this, &SSidebarDrawer::UpdateAnimation));
+		OpenCloseTimer = RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SSidebarDrawer::UpdateAnimation));
 	}
 }
 
@@ -199,7 +205,7 @@ FReply SSidebarDrawer::OnMouseMove(const FGeometry& InAllottedGeometry, const FP
 		const FVector2D MousePosition = InMouseEvent.GetScreenSpacePosition();
 		const FVector2D LocalMousePosition = InitialResizeGeometry.AbsoluteToLocal(MousePosition);
 
-		float DeltaSize = 0.0f;
+		float DeltaSize = 0.f;
 
 		switch (TabLocation)
 		{
@@ -522,7 +528,6 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 {
 	// Sometimes when dismissing focus can change which will trigger this again
 	static bool bIsReEntrant = false;
-
 	if (bIsReEntrant)
 	{
 		return;
@@ -560,11 +565,10 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 	{
 		// New focus is on something else, try to check if it's a menu or child window
 		const TSharedRef<SWindow> NewWindow = InNewFocusedWidgetPath.GetWindow();
-		const TSharedPtr<SWindow> MyWindow = FSlateApplication::Get().FindWidgetWindow(ThisWidget);
+		const TSharedPtr<SWindow> ThisWindow = FSlateApplication::Get().FindWidgetWindow(ThisWidget);
 
 		// See if this is a child window (like a color picker being opened from details), and if so, don't dismiss
-		// Rely on OnActiveTabChanged below to lose focus if the child window actually contains tabs
-		if (!NewWindow->IsDescendantOf(MyWindow))
+		if (!NewWindow->IsDescendantOf(ThisWindow))
 		{
 			if (const TSharedPtr<SWidget> MenuHost = FSlateApplication::Get().GetMenuHostWidget())
 			{
@@ -592,14 +596,5 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 	if (bShouldLoseFocus)
 	{
 		OnDrawerFocusLost.ExecuteIfBound(ThisWidget);
-	}
-}
-
-void SSidebarDrawer::OnActiveTabChanged(const TSharedPtr<FSidebarDrawer>& InPreviouslyActive, const TSharedPtr<FSidebarDrawer>& InNewlyActivated)
-{
-	// This tab lost the active status to some other tab; treat this like focus was lost
-	if (InPreviouslyActive == DrawerWeak && InNewlyActivated.IsValid())
-	{
-		OnDrawerFocusLost.ExecuteIfBound(SharedThis(this));
 	}
 }

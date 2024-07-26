@@ -277,19 +277,19 @@ void SSidebar::OnDrawerTabDockToggled(const TSharedRef<FSidebarDrawer>& InDrawer
 
 void SSidebar::OnTabDrawerFocusLost(const TSharedRef<SSidebarDrawer>& InDrawerWidget)
 {
-	const TSharedPtr<FSidebarDrawer> DrawerWidget = InDrawerWidget->GetDrawer();
-	if (!DrawerWidget.IsValid())
+	const TSharedPtr<FSidebarDrawer> Drawer = InDrawerWidget->GetDrawer();
+	if (!Drawer.IsValid())
 	{
 		return;
 	}
 
 	// Don't automatically close a pinned tab that is in the foreground
-	if (IsDrawerPinned(DrawerWidget->GetUniqueId()) && DrawerWidget == GetForegroundTab())
+	if (IsDrawerPinned(Drawer->GetUniqueId()) && Drawer == GetForegroundTab())
 	{
 		return;
 	}
 
-	CloseDrawerInternal(DrawerWidget.ToSharedRef());
+	CloseDrawerInternal(Drawer.ToSharedRef());
 }
 
 void SSidebar::OnTabDrawerClosed(const TSharedRef<SSidebarDrawer>& InDrawerWidget)
@@ -535,8 +535,12 @@ void SSidebar::CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer)
 {
 	if (const TSharedPtr<SSidebarDrawer> OpenedDrawer = FindOpenedDrawer(InDrawer))
 	{
-		OpenedDrawer->Close();
 		const TSharedRef<SSidebarDrawer> OpenedDrawerRef = OpenedDrawer.ToSharedRef();
+
+		// Setting bInAnimateOpen to true causes a bug that forces keyboard focus to the drawer.
+		// Setting this false until this can be worked out. For some reason, inside Close(), the
+		// RegisterActiveTimer doesn't actually start a timer. This works for Open() though.
+		OpenedDrawerRef->Close(/*bInAnimateOpen=*/false);
 
 		if (const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin())
 		{
@@ -544,9 +548,9 @@ void SSidebar::CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer)
 		}
 
 		OpenedDrawers.Remove(OpenedDrawerRef);
-	}
 
-	InDrawer->bIsOpen = false;
+		InDrawer->bIsOpen = false;
+	}
 
 	SummonPinnedTabIfNothingOpened();
 	UpdateDrawerAppearance();
