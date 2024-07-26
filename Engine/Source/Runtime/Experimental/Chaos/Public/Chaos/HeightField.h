@@ -895,6 +895,12 @@ namespace Chaos
 				Max = { FMath::Max(Max.X, InPoint.X), FMath::Max(Max.Y, InPoint.Y) };
 			}
 
+			void Inflate(const FVec2& InInflation)
+			{
+				Min -= InInflation;
+				Max += InInflation;
+			}
+
 			FVec2 Clamp(const FVec2& InToClamp, FReal InNudge = UE_SMALL_NUMBER) const
 			{
 				const FVec2 NudgeVec(InNudge, InNudge);

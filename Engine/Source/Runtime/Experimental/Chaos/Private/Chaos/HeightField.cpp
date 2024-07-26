@@ -1446,10 +1446,12 @@ namespace Chaos
 			if (bSameCell)
 			{
 				//start and end in same cell, so test it and any cells that the InHalfExtents overlap with
-				const FVec2 MinPoint = Start2D - Inflation2D;
-				const FVec2 MaxPoint = Start2D + Inflation2D;
-				TVec2<int32> MinCell = FlatGrid.Cell(MinPoint / Scale2D);
-				TVec2<int32> MaxCell = FlatGrid.Cell(MaxPoint / Scale2D);
+				FBounds2D ClippedBounds = FBounds2D::FromPoints(ClippedStart, ClippedEnd);
+				ClippedBounds.Inflate(Inflation2D);
+
+				TVec2<int32> MinCell = FlatGrid.Cell(ClippedBounds.Min / Scale2D);
+				TVec2<int32> MaxCell = FlatGrid.Cell(ClippedBounds.Max / Scale2D);
+
 				for (int32 Y = MinCell[1]; Y <= MaxCell[1]; ++Y)
 				{
 					for (int32 X = MinCell[0]; X <= MaxCell[0]; ++X)
