@@ -152,6 +152,7 @@ Deploys a tool update through Horde
 | Type        | String    | Optional | Type of the artifact                                                              |
 | Description | String    | Optional | Description for the artifact                                                      |
 | BaseDir     | String    | Required | Base directory to resolve relative paths for input files.                         |
+| StreamId    | String    | Optional | Stream for this artifact                                                          |
 | Change      | Integer   | Optional | Changelist number for this artifact                                               |
 | Files       | FileSpec  | Optional | Files to be uploaded.                                                             |
 | If          | Condition | Optional | Whether to execute this task. It is ignored if this condition evaluates to false. |
