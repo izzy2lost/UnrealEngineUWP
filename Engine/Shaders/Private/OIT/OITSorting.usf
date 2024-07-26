@@ -127,7 +127,7 @@ uint GetDebugInfoCount(Buffer<uint> InDebugData)
 
 FOITDebugData GetDebugInfo(Buffer<uint> InDebugData, uint Index)
 {
-	FOITDebugData Out;
+	FOITDebugData Out = (FOITDebugData)0;
 	if (Index < InDebugData[0])
 	{
 		const uint Index3 = 1 + Index * 7u;

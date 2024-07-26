@@ -128,7 +128,7 @@ void CompactLightSampleTracesCS(
 		const uint LastLaneIndex = WaveGetLaneCount() - 1;
 		const uint LaneIndex = WaveGetLaneIndex();
 		const uint OffsetInWave = WavePrefixCountBits(bTraceValid);
-		uint OffsetInGroup;
+		uint OffsetInGroup = 0;
 
 		if (LaneIndex == LastLaneIndex)
 		{
@@ -218,7 +218,6 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
 		#endif
 
-		#if !STRATA_ENABLED
 		// Bias along the normal to avoid self-intersecting camera facing scene depth texels
 		// HZB traversal uses point filtering, so scene depth texels stick out from the plane they are representing
 		{
@@ -239,7 +238,6 @@ void ScreenSpaceRayTraceLightSamplesCS(
 				return;
 			}
 		}
-		#endif
 
 		bool bHit;
 		bool bUncertain;

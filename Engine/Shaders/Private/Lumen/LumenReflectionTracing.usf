@@ -365,7 +365,7 @@ void ReflectionCompactTracesCS(
 	const uint LastLaneIndex = WaveGetLaneCount() - 1;
 	const uint LaneIndex = WaveGetLaneIndex();
 	const uint OffsetInWave = WavePrefixCountBits(bTraceValid);
-	uint OffsetInGroup;
+	uint OffsetInGroup = 0;
 
 	if (LaneIndex == LastLaneIndex)
 	{

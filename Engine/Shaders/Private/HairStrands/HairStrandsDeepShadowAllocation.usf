@@ -304,7 +304,7 @@ void CreateViewInfo(uint2 DispatchThreadId : SV_DispatchThreadID)
 	}
 	GroupMemoryBarrierWithGroupSync();
 
-	FDeepShadowViewInfo ViewInfo;
+	FDeepShadowViewInfo ViewInfo = (FDeepShadowViewInfo)0;
 	if (SlotIndex < SlotIndexCount)
 	{
 		const FLightData LightData = LightDataBuffer[SlotIndex];

@@ -182,7 +182,7 @@ void ComputeCulledTilesStartOffsetCS(
 	uint2 TileCoordinate = DispatchThreadId.xy;
 	bool bValidTile = all(TileCoordinate < ShadowTileListGroupSize);
 	uint TileIndex = TileCoordinate.y * ShadowTileListGroupSize.x + TileCoordinate.x;
-	uint TileStartOffset;
+	uint TileStartOffset = 0;
 
 	if (bValidTile)
 	{
