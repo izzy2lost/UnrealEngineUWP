@@ -207,7 +207,8 @@ namespace UE::Detour::NavLink::Private
 		case DT_LINK_ACTION_JUMP_OVER:
 			return config.jumpOverConfig.filterDistanceThreshold;
 		default:
-			dtAssert(false);
+			const bool dtval = false;
+			dtAssert(dtval);
 			return 100.f;
 		}
 	}

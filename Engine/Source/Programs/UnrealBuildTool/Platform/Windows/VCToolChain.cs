@@ -412,6 +412,11 @@ namespace UnrealBuildTool
 
 				// Re-evalulate new analysis warnings at a later time
 				Arguments.Add("/wd6031"); // return value ignored: called-function could return unexpected value
+
+				if (CompileEnvironment.SystemIncludePaths.Concat(CompileEnvironment.SharedSystemIncludePaths).Any(x => x.FullName.Contains("GoogleTest", StringComparison.OrdinalIgnoreCase)))
+				{
+					Arguments.Add("/wd6326"); // Potential comparison of a constant with another constant
+				}
 			}
 
 			// Prevents the compiler from displaying its logo for each invocation.

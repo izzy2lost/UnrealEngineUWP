@@ -97,11 +97,18 @@ void FCUDAModule::UnloadCuda()
 
 bool FCUDAModule::IsDeviceIndexRHISelected(int DeviceIndex)
 {
+#ifdef _MSC_VER
+#	pragma warning(push)
+#	pragma warning(disable:6398) // The address-of a field cannot be null in well-defined code
+#endif
 	if (DriverLibrary == nullptr || &DriverApiPtrs == nullptr)
 	{
 		UE_LOG(LogCUDA, Warning, TEXT("Failed to check IsRHISelectedDevice at %s:%u"), ANSI_TO_TCHAR(__FILE__), __LINE__);
 		return false;
 	}
+#ifdef _MSC_VER
+#	pragma warning(pop)
+#endif
 
 	// Get the current CUDA device.
 	CUdevice cuDevice;
