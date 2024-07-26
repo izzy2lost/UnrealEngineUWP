@@ -141,7 +141,7 @@ public:
 		return Name;
 	}
 
-	const struct FMetaHumanVersion& GetVersion() const
+	const FMetaHumanVersion& GetVersion() const
 	{
 		return Version;
 	}
