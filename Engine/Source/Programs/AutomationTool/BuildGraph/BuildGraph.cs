@@ -500,7 +500,7 @@ namespace AutomationTool
 				FileReference fullScriptFile = FileReference.Combine(Unreal.RootDirectory, scriptFileName);
 
 				// Read the script from disk
-				graph = await BgScriptReader.ReadAsync(fullScriptFile, arguments, defaultProperties, schema, Logger, singleNodeName);
+				graph = await BgScriptReader.ReadAsync(fullScriptFile, Unreal.RootDirectory, arguments, defaultProperties, schema, Logger, singleNodeName);
 				if (graph == null)
 				{
 					return ExitCode.Error_Unknown;
