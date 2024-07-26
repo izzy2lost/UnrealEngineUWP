@@ -10,6 +10,7 @@
 #include "MeshBoneWeightFunctions.generated.h"
 
 class UDynamicMesh;
+class USkeleton;
 
 
 USTRUCT(BlueprintType, meta = (DisplayName = "Bone Weights"))
@@ -412,11 +413,26 @@ public:
 	 * Copy the bone attributes (skeleton) from the SourceMesh to the TargetMesh.
 	 * @param SourceMesh Mesh we are copying the bone attributes from.
 	 * @param TargetMesh Mesh we are copying the bone attributes to.
+	 * @param Options An option object to control how the copying is performed.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	CopyBonesFromMesh(
 		UDynamicMesh* SourceMesh,
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptCopyBonesFromMeshOptions Options = FGeometryScriptCopyBonesFromMeshOptions(),
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Copy the bone attributes (skeleton) from the SourceSkeleton to the TargetMesh.
+	 * @param SourceSkeleton The skeleton asset we are copying the bone attributes from.
+	 * @param TargetMesh Mesh we are copying the bone attributes to.
+	 * @param Options An option object to control how the copying is performed.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	CopyBonesFromSkeleton(
+		USkeleton* SourceSkeleton,
 		UDynamicMesh* TargetMesh,
 		FGeometryScriptCopyBonesFromMeshOptions Options = FGeometryScriptCopyBonesFromMeshOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
