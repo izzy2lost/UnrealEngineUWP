@@ -1251,7 +1251,7 @@ DeleteOldFilesInDirectory(const FPath& Path, uint32 MaxFilesToKeep)
 	{
 		const FEntry& Oldest = Entries.back();
 
-		std::wstring PathStr = FPath(RemoveExtendedPathPrefix(Oldest.Path)).wstring();
+		std::wstring PathStr = RemoveExtendedPathPrefix(Oldest.Path).wstring();
 
 		if (GDryRun)
 		{

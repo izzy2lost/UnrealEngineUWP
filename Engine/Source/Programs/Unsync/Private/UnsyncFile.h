@@ -527,6 +527,6 @@ FPath MakeExtendedAbsolutePath(const FPath& InAbsolutePath);
 
 // Removes `\\?\` or `\\?\UNC\` prefix from a given path.
 // Returns original path on non-Windows.
-FPathStringView RemoveExtendedPathPrefix(const FPath& InPath);
+FPath RemoveExtendedPathPrefix(const FPath& InPath);
 
 }  // namespace unsync

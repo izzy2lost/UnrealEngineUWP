@@ -63,14 +63,49 @@ MakeExtendedAbsolutePath(const FPath& InAbsolutePath)
 #endif // UNSYNC_PLATFORM_WINDOWS
 }
 
-FPathStringView
+// Removes \\, \\?\UNC\, \\.\UNC\, \\.\ or \\?\ prefix from a path.
+//	\\server\foo\bar -> server\foo\bar
+//	\\?\d:\foo\bar -> d:\foo\bar
+//	d:\foo\bar -> d:\foo\bar
+// Returns original path on non-Windows.
+static inline FPathStringView
+RemoveUNCPrefix(const FPath& InPath)
+{
+	FPathStringView InPathString = InPath.native();
+
+#if UNSYNC_PLATFORM_WINDOWS
+	if (InPathString.starts_with(L"\\\\?\\UNC\\"))
+	{
+		return InPathString.substr(8);
+	}
+	else if (InPathString.starts_with(L"\\\\?\\"))
+	{
+		return InPathString.substr(4);
+	}
+	else if (InPathString.starts_with(L"\\\\"))
+	{
+		return InPathString.substr(2);
+	}
+	else
+#endif
+	{
+		return InPathString;
+	}
+}
+
+FPath
 RemoveExtendedPathPrefix(const FPath& InPath)
 {
 	FPathStringView InPathString = InPath.native();
 #if UNSYNC_PLATFORM_WINDOWS
 	if (InPathString.starts_with(L"\\\\?\\UNC\\"))
 	{
-		return InPathString.substr(8);
+		FPathStringView Remainder = InPathString.substr(8);
+		std::wstring Result;
+		Result.reserve(Remainder.length() + 2);
+		Result += L"\\\\";
+		Result += Remainder;
+		return FPath(Result);
 	}
 	else if (InPathString.starts_with(L"\\\\?\\"))
 	{
@@ -119,19 +154,21 @@ FPathStringView
 GetRelativePathView(const FPath& Path, const FPath& Base)
 {
 	// Try a trivial case first, without touching the filesystem
-	FPathStringView PathView = RemoveExtendedPathPrefix(Path);
-	FPathStringView BaseView = RemoveExtendedPathPrefix(Base);
+	FPathStringView PathView = RemoveUNCPrefix(Path);
+	FPathStringView BaseView = RemoveUNCPrefix(Base);
 
-	FPathStringView PathViewRemainder = PathView.substr(BaseView.length());
-
-	if (PathView.starts_with(BaseView) && PathViewRemainder.starts_with(FPath::preferred_separator))
+	if (PathView.starts_with(BaseView))
 	{
-		FPathStringView RelativePath = PathView.substr(BaseView.length());
-		while (RelativePath.starts_with(FPath::preferred_separator))
+		FPathStringView PathViewRemainder = PathView.substr(BaseView.length());
+		if (PathViewRemainder.starts_with(FPath::preferred_separator))
 		{
-			RelativePath = RelativePath.substr(1);
+			FPathStringView RelativePath = PathView.substr(BaseView.length());
+			while (RelativePath.starts_with(FPath::preferred_separator))
+			{
+				RelativePath = RelativePath.substr(1);
+			}
+			return RelativePath;
 		}
-		return RelativePath;
 	}
 
 	return {};
@@ -1585,6 +1622,94 @@ TestFileAttrib()
 	std::error_code ErrorCode;
 	const bool		bFileDeleted = FileRemove(TestFilename, ErrorCode);
 	UNSYNC_ASSERT(bFileDeleted);
+}
+
+void
+TestPathUtil()
+{
+#if UNSYNC_PLATFORM_WINDOWS
+
+	UNSYNC_LOG(L"TestPathUtil()");
+	UNSYNC_LOG_INDENT;
+
+	// Test path manipulation helpers
+
+	{
+		FPath Simple   = FPath("\\\\?\\UNC\\server\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		UNSYNC_ASSERT(Simple == Extended);
+	}
+
+	{
+		FPath Simple   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		UNSYNC_ASSERT(Simple == Extended);
+	}
+
+	{
+		FPath Simple   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		FPath Stripped = RemoveExtendedPathPrefix(Extended);
+		UNSYNC_ASSERT(Stripped == Simple);
+	}
+
+	{
+		FPath Simple   = FPath("\\\\server\\local\\subdir\\a\\b\\c");
+		FPath Extended = MakeExtendedAbsolutePath(Simple);
+		FPath Stripped = RemoveExtendedPathPrefix(Extended);
+		UNSYNC_ASSERT(Stripped == Simple);
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\server\\subdir");
+		FPath Full	   = FPath("\\\\server\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\?\\d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("\\\\?\\d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\d:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative == FPath("a\\b\\c"));
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("\\\\?\\e:\\local\\subdir\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative.empty());
+	}
+
+	{
+		FPath Base	   = FPath("d:\\local\\subdir");
+		FPath Full	   = FPath("d:\\local\\a\\b\\c");
+		FPath Relative = GetRelativePath(Full, Base);
+		UNSYNC_ASSERT(Relative.empty());
+	}
+
+#endif // UNSYNC_PLATFORM_WINDOWS
 }
 
 }  // namespace unsync

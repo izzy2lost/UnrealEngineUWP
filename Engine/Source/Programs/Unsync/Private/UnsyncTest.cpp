@@ -947,6 +947,12 @@ RunTests(const std::string& Preset)
 		TestFileAttrib();
 	}
 
+	if (Preset == "pathutil" || Preset == "all")
+	{
+		extern void TestPathUtil();
+		TestPathUtil();
+	}
+
 	if (Preset == "horde_manifest_decode" || Preset == "all")
 	{
 		extern void TestHordeManifestDecode();
