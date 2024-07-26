@@ -10,18 +10,15 @@
 
 namespace mu
 {
-
-	//---------------------------------------------------------------------------------------------
-	//! Optimized linear factor version for morphing 2 targets
-	//---------------------------------------------------------------------------------------------
-    inline void MeshMorph2(Mesh* Result, const Mesh* pBase, const Mesh* pMin, const Mesh* pMax, const float Factor, bool& bOutSuccess)
+	/**
+	 * Optimized linear factor version for morphing 2 targets
+	 */
+    inline void MeshMorph2(Mesh* BaseMesh, const Mesh* MinMesh, const Mesh* MaxMesh, const float Factor)
     {
         MUTABLE_CPUPROFILER_SCOPE(MeshMorph2);
-		bOutSuccess = true;
 
-		if (!pBase)
+		if (!BaseMesh)
 		{
-			bOutSuccess = true; // return an empty mesh.
 			return;
 		}
 
@@ -228,18 +225,15 @@ namespace mu
 
 
 		// Number of vertices to modify
-		const int32 MinNum = pMin ? pMin->GetVertexBuffers().GetElementCount() : 0;
-		const int32 MaxNum = pMax ? pMax->GetVertexBuffers().GetElementCount() : 0;
-		const int32 BaseNum = pBase ? pBase->GetVertexBuffers().GetElementCount() : 0;
-		const Mesh* RefTarget = MinNum > 0 ? pMin : pMax;
+		const int32 MinNum = MinMesh ? MinMesh->GetVertexBuffers().GetElementCount() : 0;
+		const int32 MaxNum = MaxMesh ? MaxMesh->GetVertexBuffers().GetElementCount() : 0;
+		const int32 BaseNum = BaseMesh ? BaseMesh->GetVertexBuffers().GetElementCount() : 0;
+		const Mesh* RefTarget = MinNum > 0 ? MinMesh : MaxMesh;
 
 		if (BaseNum == 0 || (MinNum + MaxNum) == 0)
 		{
-			bOutSuccess = false; // Use the passed pBase as result.
 			return;
 		}
-
-		Result->CopyFrom(*pBase);
 
 		if (RefTarget)
 		{
@@ -258,7 +252,7 @@ namespace mu
 			UntypedMeshBufferIteratorConst MinNormalChannelIter;
 			UntypedMeshBufferIteratorConst MaxNormalChannelIter;
 
-			const bool bBaseHasNormals = UntypedMeshBufferIteratorConst(pBase->GetVertexBuffers(), MBS_NORMAL, 0).ptr() != nullptr;
+			const bool bBaseHasNormals = UntypedMeshBufferIteratorConst(BaseMesh->GetVertexBuffers(), MBS_NORMAL, 0).ptr() != nullptr;
 			for (int32 ChannelIndex = 0; ChannelIndex < ChannelsNum; ++ChannelIndex)
 			{
 				const FMeshBufferSet& MBSPriv = RefTarget->GetVertexBuffers();
@@ -268,45 +262,45 @@ namespace mu
 			
 				if (Sem == MBS_NORMAL && bBaseHasNormals)
 				{
-					BaseTangentFrameChannelsIters[2] = UntypedMeshBufferIterator(Result->GetVertexBuffers(), Sem, SemIndex);
+					BaseTangentFrameChannelsIters[2] = UntypedMeshBufferIterator(BaseMesh->GetVertexBuffers(), Sem, SemIndex);
 					if (MinNum > 0)
 					{
-						MinNormalChannelIter = UntypedMeshBufferIteratorConst(pMin->GetVertexBuffers(), Sem, SemIndex);
+						MinNormalChannelIter = UntypedMeshBufferIteratorConst(MinMesh->GetVertexBuffers(), Sem, SemIndex);
 					}
 
 					if (MaxNum > 0)
 					{
-						MaxNormalChannelIter = UntypedMeshBufferIteratorConst(pMax->GetVertexBuffers(), Sem, SemIndex);
+						MaxNormalChannelIter = UntypedMeshBufferIteratorConst(MaxMesh->GetVertexBuffers(), Sem, SemIndex);
 					}
 				}
 				else if (Sem == MBS_TANGENT && bBaseHasNormals)
 				{
-					BaseTangentFrameChannelsIters[1] = UntypedMeshBufferIterator(Result->GetVertexBuffers(), Sem, SemIndex);
+					BaseTangentFrameChannelsIters[1] = UntypedMeshBufferIterator(BaseMesh->GetVertexBuffers(), Sem, SemIndex);
 				}
 				else if (Sem == MBS_BINORMAL && bBaseHasNormals)
 				{
-					BaseTangentFrameChannelsIters[0] = UntypedMeshBufferIterator(Result->GetVertexBuffers(), Sem, SemIndex);
+					BaseTangentFrameChannelsIters[0] = UntypedMeshBufferIterator(BaseMesh->GetVertexBuffers(), Sem, SemIndex);
 				}
 				else
 				{
-					BaseChannelsIters[ChannelIndex] = UntypedMeshBufferIterator(Result->GetVertexBuffers(), Sem, SemIndex);
+					BaseChannelsIters[ChannelIndex] = UntypedMeshBufferIterator(BaseMesh->GetVertexBuffers(), Sem, SemIndex);
 					if (MinNum > 0)
 					{
-						MinChannelsIters[ChannelIndex] = UntypedMeshBufferIteratorConst(pMin->GetVertexBuffers(), Sem, SemIndex);
+						MinChannelsIters[ChannelIndex] = UntypedMeshBufferIteratorConst(MinMesh->GetVertexBuffers(), Sem, SemIndex);
 					}
 
 					if (MaxNum > 0)
 					{
-						MaxChannelsIters[ChannelIndex] = UntypedMeshBufferIteratorConst(pMax->GetVertexBuffers(), Sem, SemIndex);
+						MaxChannelsIters[ChannelIndex] = UntypedMeshBufferIteratorConst(MaxMesh->GetVertexBuffers(), Sem, SemIndex);
 					}
 				}
 			}
 			
-			MeshVertexIdIteratorConst BaseIdIter(pBase);
+			MeshVertexIdIteratorConst BaseIdIter(BaseMesh);
 
 			if (MinNum > 0)
 			{
-				MeshVertexIdIteratorConst MinIdIter(pMin);
+				MeshVertexIdIteratorConst MinIdIter(MinMesh);
 				SparseIndexMapSet IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MinIdIter, MinNum);
 
 				ApplyGenericMorph(BaseIdIter, BaseChannelsIters, BaseNum, MinIdIter, MinChannelsIters, MinNum, IndexMap, 1.0f - Factor);
@@ -318,7 +312,7 @@ namespace mu
 
 			if (MaxNum > 0)
 			{
-				MeshVertexIdIteratorConst MaxIdIter(pMax);
+				MeshVertexIdIteratorConst MaxIdIter(MaxMesh);
 				SparseIndexMapSet IndexMap = MakeIndexMap(BaseIdIter, BaseNum, MaxIdIter, MaxNum);
 
 				ApplyGenericMorph(BaseIdIter, BaseChannelsIters, BaseNum, MaxIdIter, MaxChannelsIters, MaxNum, IndexMap, Factor);
@@ -331,20 +325,16 @@ namespace mu
 		}
     }
 
-	//---------------------------------------------------------------------------------------------
-	//! \TODO Optimized linear factor version
-	//---------------------------------------------------------------------------------------------
-	inline void MeshMorph(Mesh* Result, const Mesh* pBase, const Mesh* pMorph, float factor, bool& bOutSuccess)
+	//TODO Optimized linear factor version
+	inline void MeshMorph(Mesh* BaseMesh, const Mesh* MorphMesh, float Factor)
 	{
-		MeshMorph2(Result, pBase, nullptr, pMorph, factor, bOutSuccess);
+		MeshMorph2(BaseMesh, nullptr, MorphMesh, Factor);
 	}
 
-    //---------------------------------------------------------------------------------------------
-    //! \TODO Optimized Factor-less version
-    //---------------------------------------------------------------------------------------------
-	inline void MeshMorph(Mesh* Result, const Mesh* pBase, const Mesh* pMorph, bool& bOutSuccess)
+    //TODO Optimized Factor-less version
+	inline void MeshMorph(Mesh* BaseMesh, const Mesh* MorphMesh)
     {
         // Trust the compiler to remove the factor
-		MeshMorph(Result, pBase, pMorph, 1.0f, bOutSuccess);
+		MeshMorph(BaseMesh, MorphMesh, 1.0f);
     }
 }
