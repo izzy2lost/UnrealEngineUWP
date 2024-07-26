@@ -22,15 +22,4 @@ void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDo
 	}
 }
 
-void FNavLinkGenerationJumpOverConfig::CopyToDetourConfig(dtNavLinkBuilderJumpOverConfig& OutDetourConfig) const
-{
-	OutDetourConfig.enabled = bEnabled;
-	OutDetourConfig.jumpGapWidth = JumpGapWidth;
-	OutDetourConfig.jumpGapHeightTolerance = JumpGapHeightTolerance;
-	OutDetourConfig.jumpDistanceFromGapCenter = JumpDistanceFromGapCenter;
-	OutDetourConfig.jumpHeight = JumpHeight;
-	OutDetourConfig.jumpEndsHeightTolerance	= JumpEndsHeightTolerance;
-	OutDetourConfig.samplingSeparationFactor = SamplingSeparationFactor;
-	OutDetourConfig.filterDistanceThreshold = FilterDistanceThreshold;
-}
 #endif //WITH_RECAST

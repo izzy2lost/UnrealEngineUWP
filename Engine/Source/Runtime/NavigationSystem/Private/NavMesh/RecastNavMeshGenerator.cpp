@@ -4993,12 +4993,10 @@ void FRecastNavMeshGenerator::ConfigureBuildProperties(FRecastBuildConfig& OutCo
 	{
 		// NavLink builder configuration
 		const FNavLinkGenerationJumpDownConfig& JumpDown = DestNavMesh->NavLinkJumpDownConfig;
-		const FNavLinkGenerationJumpOverConfig& JumpOver = DestNavMesh->NavLinkJumpOverConfig;
 		JumpDown.CopyToDetourConfig(OutConfig.JumpDownConfig);
-		JumpOver.CopyToDetourConfig(OutConfig.JumpOverConfig);
 
 		const float JumpDownSpillDistance = JumpDown.bEnabled ? JumpDown.JumpLength - JumpDown.JumpDistanceFromEdge : 0.f;
-		const float JumpOverSpillDistance = JumpOver.bEnabled ? JumpOver.JumpDistanceFromGapCenter : 0.f;
+		constexpr float JumpOverSpillDistance = 0.f; //JumpOver.bEnabled ? JumpOver.JumpDistanceFromGapCenter : 0.f;		// @todo: jump over config is not exposed for now
 		OutConfig.LinkSpillDistance = FMath::Max(JumpDownSpillDistance, JumpOverSpillDistance);
 	}
 	

@@ -3508,7 +3508,6 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 		if (CategoryName == NAME_Generation)
 		{
 			static const FName NAME_NavLinkJumpDownConfig = GET_MEMBER_NAME_CHECKED(ARecastNavMesh, NavLinkJumpDownConfig);
-			static const FName NAME_NavLinkJumpOverConfig = GET_MEMBER_NAME_CHECKED(ARecastNavMesh, NavLinkJumpOverConfig);
 			
 			const FName PropName = PropertyChangedChainEvent.Property->GetFName();
 			bool bRebuild = false;
@@ -3545,7 +3544,7 @@ void ARecastNavMesh::PostEditChangeChainProperty(FPropertyChangedChainEvent& Pro
 			{
 				bRebuild = true;
 			}
-			else if (MemberProperty && (MemberProperty->GetFName() == NAME_NavLinkJumpDownConfig || MemberProperty->GetFName() == NAME_NavLinkJumpOverConfig))
+			else if (MemberProperty && (MemberProperty->GetFName() == NAME_NavLinkJumpDownConfig))
 			{
 				bRebuild = true;
 			}

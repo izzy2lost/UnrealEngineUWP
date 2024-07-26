@@ -986,10 +986,6 @@ protected:
 	/** Experimental: paramters for building jump down links.  */
 	UPROPERTY(EditAnywhere, Category=Generation, config)
 	FNavLinkGenerationJumpDownConfig NavLinkJumpDownConfig;
-
-	/** Experimental: paramters for building jump over links.  */
-	UPROPERTY(EditAnywhere, Category=Generation, config)
-	FNavLinkGenerationJumpOverConfig NavLinkJumpOverConfig;
 	
 private:
 	/** Cache rasterized voxels instead of just collision vertices/indices in navigation octree */
