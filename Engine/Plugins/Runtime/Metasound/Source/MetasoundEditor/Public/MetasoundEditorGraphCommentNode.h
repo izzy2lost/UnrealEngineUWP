@@ -51,10 +51,17 @@ public:
 
 	UMetaSoundBuilderBase& GetBuilderChecked() const;
 
-	// Returns frontend comment ID
+	// Get/Set frontend comment ID
 	FGuid GetCommentID() const;
+	void SetCommentID(const FGuid& InGuid);
+
+	// Get this node's MetaSound
+	UObject& GetMetasoundChecked() const;
 
 	bool RemoveFromDocument() const;
+
+	// Update the frontend location with this editor node location
+	void UpdateFrontendNodeLocation();
 
 private:
 	FMetasoundAssetBase& GetAssetChecked();

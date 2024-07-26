@@ -303,16 +303,40 @@ namespace Metasound::Editor
 		}
 	}
 
-	void FDocumentClipboardUtils::ProcessPastedCommentNodes(FMetasoundAssetBase& OutAsset, const TArrayView<UMetasoundEditorGraphCommentNode*> CommentNodes)
+	void FDocumentClipboardUtils::ProcessPastedCommentNodes(FMetasoundAssetBase& OutAsset, const FVector2D& InLocation, const TArrayView<UMetasoundEditorGraphCommentNode*> CommentNodes)
 	{
 		using namespace Engine;
 		using namespace Frontend;
 
 		UMetasoundEditorGraph& Graph = *CastChecked<UMetasoundEditorGraph>(&OutAsset.GetGraphChecked());
 		UMetaSoundBuilderBase& Builder = FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*OutAsset.GetOwningAsset());
+
+		// Calculate average node position 
+		FVector2D AvgNodePosition = FVector2D::ZeroVector;
+		for (UEdGraphNode* Node : CommentNodes)
+		{
+			AvgNodePosition.X += Node->NodePosX;
+			AvgNodePosition.Y += Node->NodePosY;
+		}
+
+		if (!CommentNodes.IsEmpty())
+		{
+			float InvNumNodes = 1.0f / CommentNodes.Num();
+			AvgNodePosition.X *= InvNumNodes;
+			AvgNodePosition.Y *= InvNumNodes;
+		}
+
 		for (UMetasoundEditorGraphCommentNode* CommentNode : CommentNodes)
 		{
+			// Regenerate id
 			CommentNode->CreateNewGuid();
+			CommentNode->SetCommentID(CommentNode->NodeGuid);
+
+			// Add offset based on paste location to avoid comments automatically being captured by the original node if using group movement 
+			CommentNode->NodePosX = (CommentNode->NodePosX - AvgNodePosition.X) + InLocation.X;
+			CommentNode->NodePosY = (CommentNode->NodePosY - AvgNodePosition.Y) + InLocation.Y;
+
+			// Update frontend node
 			FMetaSoundFrontendGraphComment& NewComment = Builder.FindOrAddGraphComment(CommentNode->GetCommentID());
 			UMetasoundEditorGraphCommentNode::ConvertToFrontendComment(*CommentNode, NewComment);
 		}
@@ -432,7 +456,7 @@ namespace Metasound::Editor
 		OutMetaSound.Modify();
 		Asset->GetGraphChecked().Modify();
 
-		ProcessPastedCommentNodes(*Asset, PastedCommentNodes);
+		ProcessPastedCommentNodes(*Asset, InLocation, PastedCommentNodes);
 
 		ProcessPastedInputNodes(*Asset, PastedGraphNodes);
 		ProcessPastedOutputNodes(*Asset, PastedGraphNodes);

@@ -94,6 +94,12 @@ FGuid UMetasoundEditorGraphCommentNode::GetCommentID() const
 	return CommentID;
 }
 
+UObject& UMetasoundEditorGraphCommentNode::GetMetasoundChecked() const
+{
+	UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(GetGraph());
+	return EdGraph->GetMetasoundChecked();
+}
+
 bool UMetasoundEditorGraphCommentNode::RemoveFromDocument() const
 {
 	return GetBuilderChecked().RemoveGraphComment(CommentID);
@@ -102,10 +108,12 @@ bool UMetasoundEditorGraphCommentNode::RemoveFromDocument() const
 void UMetasoundEditorGraphCommentNode::SetBounds(const class FSlateRect& Rect)
 {
 	Super::SetBounds(Rect);
+	UpdateFrontendNodeLocation();
+}
 
-	FMetaSoundFrontendGraphComment& FrontendComment = GetBuilderChecked().FindOrAddGraphComment(CommentID);
-	FrontendComment.Position = FVector2D(NodePosX, NodePosY);
-	FrontendComment.Size = FVector2D(NodeWidth, NodeHeight);
+void UMetasoundEditorGraphCommentNode::SetCommentID(const FGuid& InGuid)
+{ 
+	CommentID = InGuid; 
 }
 
 void UMetasoundEditorGraphCommentNode::OnRenameNode(const FString& NewName)
@@ -114,5 +122,13 @@ void UMetasoundEditorGraphCommentNode::OnRenameNode(const FString& NewName)
 
 	UMetaSoundBuilderBase& Builder = GetBuilderChecked();
 	Builder.FindOrAddGraphComment(CommentID).Comment = NewName;
+}
+
+void UMetasoundEditorGraphCommentNode::UpdateFrontendNodeLocation()
+{
+	using namespace Metasound::Frontend;
+	FMetaSoundFrontendGraphComment& FrontendComment = GetBuilderChecked().FindOrAddGraphComment(CommentID);
+	FrontendComment.Position = FVector2D(NodePosX, NodePosY);
+	FrontendComment.Size = FVector2D(NodeWidth, NodeHeight);
 }
 #undef LOCTEXT_NAMESPACE

@@ -14,6 +14,14 @@ namespace Metasound
 		{
 			SGraphNodeComment::MoveTo(NewPosition, NodeFilter, bMarkDirty);
 
+			// Update frontend node position for current node 
+			UEdGraphNode* Node = GetNodeObj();
+			if (UMetasoundEditorGraphCommentNode* MetaSoundCommentNode = Cast<UMetasoundEditorGraphCommentNode>(Node))
+			{
+				MetaSoundCommentNode->GetMetasoundChecked().Modify();
+				MetaSoundCommentNode->UpdateFrontendNodeLocation();
+			}
+			
 			// Update Frontend node positions for unselected nodes that are dragged along with the comment box
 			// partially copied from SGraphNodeComment::MoveTo
 			// Don't drag note content if either of the shift keys are down.
@@ -34,9 +42,13 @@ namespace Metasound
 						{
 							FVector2D MetasoundNodePosition = FVector2D(MetasoundGraphNode->NodePosX, MetasoundGraphNode->NodePosY);
 							MetasoundNodePosition += PositionDelta;
-
 							MetasoundGraphNode->GetMetasoundChecked().Modify();
 							MetasoundGraphNode->UpdateFrontendNodeLocation(MetasoundNodePosition);
+						}
+						else if (UMetasoundEditorGraphCommentNode* MetasoundCommentNode = Cast<UMetasoundEditorGraphCommentNode>(*NodeIt))
+						{
+							MetasoundCommentNode->GetMetasoundChecked().Modify();
+							MetasoundCommentNode->UpdateFrontendNodeLocation();
 						}
 					}
 				}
