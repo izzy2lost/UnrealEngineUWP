@@ -68,6 +68,8 @@ public:
 	/** Compile the library and fill the view and viewclass */
 	bool Compile(UWidgetBlueprintGeneratedClass* Class, UMVVMViewClass* ViewExtension);
 
+	/** Get the list of generated function during the compilation process. */
+	TArray<FName> GetGeneratedFunctions() const;
 
 	static void TestGenerateSetter(const UBlueprint* Context, FStringView ObjectName, FStringView FieldPath, FStringView FunctionName);
 
@@ -348,6 +350,11 @@ private:
 	 * List of public expose function
 	 */
 	TArray<FName> FunctionPermissionsToAdd;
+
+	/**
+	 * List of generated function
+	 */
+	TArray<FName> GeneratedFunctions;
 
 private:
 	TMap<FName, UWidget*> WidgetNameToWidgetPointerMap;

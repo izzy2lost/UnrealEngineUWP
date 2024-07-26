@@ -108,6 +108,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FWidgetBlueprintGeneratedClassDelegates::FGetAssetTags FWidgetBlueprintGeneratedClassDelegates::GetAssetTags;
 PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 FWidgetBlueprintGeneratedClassDelegates::FGetAssetTagsWithContext FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext;
+FWidgetBlueprintGeneratedClassDelegates::FCollectSaveOverrides FWidgetBlueprintGeneratedClassDelegates::CollectSaveOverrides;
 
 #endif
 
@@ -555,6 +556,12 @@ void UWidgetBlueprintGeneratedClass::GetAssetRegistryTags(FAssetRegistryTagsCont
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	FWidgetBlueprintGeneratedClassDelegates::GetAssetTagsWithContext.Broadcast(this, Context);
+}
+
+void UWidgetBlueprintGeneratedClass::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)
+{
+	Super::CollectSaveOverrides(SaveContext);
+	FWidgetBlueprintGeneratedClassDelegates::CollectSaveOverrides.Broadcast(this, SaveContext);
 }
 #endif
 

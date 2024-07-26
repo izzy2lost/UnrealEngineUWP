@@ -71,6 +71,11 @@ public:
 		return BlueprintViewChangedDelegate;
 	}
 
+	const TArrayView<const FName> GetGeneratedFunctions() const
+	{
+		return GeneratedFunctions;
+	}
+
 public:
 	//~ Begin UObject interface
 	virtual void PostLoad() override;
@@ -112,6 +117,9 @@ private:
 
 	UPROPERTY(Transient)
 	FMVVMViewBindingFilterSettings FilterSettings;
+	
+	UPROPERTY(Transient)
+	TArray<FName> GeneratedFunctions;
 
 	FSimpleMulticastDelegate BlueprintViewChangedDelegate;
 	TPimplPtr<UE::MVVM::Private::FMVVMViewBlueprintCompiler> CurrentCompilerContext;

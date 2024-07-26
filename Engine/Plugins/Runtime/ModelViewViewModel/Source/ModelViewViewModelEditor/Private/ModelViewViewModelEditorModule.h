@@ -43,6 +43,7 @@ private:
 	void HandleActivateMode(FWidgetBlueprintApplicationMode& InDesignerMode);
 	void HandleWidgetBlueprintAssetTags(const UWidgetBlueprint* Widget, FAssetRegistryTagsContext Context);
 	void HandleClassBlueprintAssetTags(const UWidgetBlueprintGeneratedClass* GeneratedClass, FAssetRegistryTagsContext Context);
+	void HandleCollectSaveOverrides(const UWidgetBlueprintGeneratedClass* GeneratedClass, FObjectCollectSaveOverridesContext SaveContext);
 	void HandleRegisterMenus();
 	void UnregisterMenus();
 

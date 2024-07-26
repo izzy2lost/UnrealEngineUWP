@@ -59,9 +59,12 @@ public:
 	// delegate for generating widget asset registry tags.
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTagsWithContext, const UWidgetBlueprintGeneratedClass*, FAssetRegistryTagsContext);
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FGetAssetTags, const UWidgetBlueprintGeneratedClass*, TArray<UObject::FAssetRegistryTag>&);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FCollectSaveOverrides, const UWidgetBlueprintGeneratedClass*, FObjectCollectSaveOverridesContext);
 
 	// called by UWidgetBlueprintGeneratedClass::GetAssetRegistryTags()
 	static UMG_API FGetAssetTagsWithContext GetAssetTagsWithContext;
+	// called by UWidgetBlueprintGeneratedClass::CollectSaveOverrides()
+	static UMG_API FCollectSaveOverrides CollectSaveOverrides;
 	UE_DEPRECATED(5.4, "Subscribe to GetAssetTagsWithContext instead.")
 	static UMG_API FGetAssetTags GetAssetTags;
 };
@@ -163,6 +166,7 @@ public:
 	UMG_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
 	UE_DEPRECATED(5.4, "Implement the version that takes FAssetRegistryTagsContext instead.")
 	UMG_API virtual void GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const override;
+	UMG_API virtual void CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext) override;
 #endif
 	//~ End UObject interface
 

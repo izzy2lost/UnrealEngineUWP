@@ -1144,7 +1144,8 @@ void FMVVMViewBlueprintCompiler::CreatePublicFunctionsDeclaration(const FWidgetB
 			}
 
 			BlueprintView->TemporaryGraph.Add(Setter.SetterGraph);
-			FunctionPermissionsToAdd.Add(Setter.SetterGraph->GetFName());
+			FunctionPermissionsToAdd.AddUnique(Setter.SetterGraph->GetFName());
+			GeneratedFunctions.AddUnique(Setter.SetterGraph->GetFName());
 
 			UE::MVVM::FunctionGraphHelper::AddFunctionArgument(Setter.SetterGraph, const_cast<UClass*>(Setter.Class), "Viewmodel");
 		}
@@ -1460,6 +1461,7 @@ void FMVVMViewBlueprintCompiler::CreateIntermediateGraphFunctions(const FWidgetB
 
 			// the new path can only be set later, once the function is compiled.
 			GeneratedDestination->GeneratedFunctionName = GeneratedSetterGraph->GetFName();
+			GeneratedFunctions.Add(GeneratedSetterGraph->GetFName());
 		}
 	}
 
@@ -1481,6 +1483,7 @@ void FMVVMViewBlueprintCompiler::CreateIntermediateGraphFunctions(const FWidgetB
 				{
 					Context.AddGeneratedFunctionGraph(WrapperGraph);
 				}
+				GeneratedFunctions.Add(WrapperGraph->GetFName());
 			}
 		}
 	}
@@ -1490,12 +1493,14 @@ void FMVVMViewBlueprintCompiler::CreateIntermediateGraphFunctions(const FWidgetB
 	{
 		UMVVMBlueprintViewEvent* EventPtr = Event->Event.Get();
 		UEdGraph* WrapperGraph = EventPtr->GetOrCreateWrapperGraph();
-		ensure(WrapperGraph);
-
-		bool bAlreadyContained = WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph);
-		if (ensure(!bAlreadyContained))
+		if (ensure(WrapperGraph))
 		{
-			Context.AddGeneratedFunctionGraph(WrapperGraph);
+			bool bAlreadyContained = WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph);
+			if (ensure(!bAlreadyContained))
+			{
+				Context.AddGeneratedFunctionGraph(WrapperGraph);
+				GeneratedFunctions.Add(WrapperGraph->GetFName());
+			}
 		}
 	}
 }
@@ -1592,6 +1597,12 @@ bool FMVVMViewBlueprintCompiler::Compile(UWidgetBlueprintGeneratedClass* Class, 
 	}
 
 	return AreStepsValid();
+}
+
+
+TArray<FName> FMVVMViewBlueprintCompiler::GetGeneratedFunctions() const
+{
+	return GeneratedFunctions;
 }
 
 
