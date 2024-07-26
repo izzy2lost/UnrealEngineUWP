@@ -207,6 +207,31 @@ static inline bool IsReferenceMaskSet(uint64 ReferenceMask, uint64 PSOMask)
 	return (ReferenceMask & PSOMask) == ReferenceMask;
 }
 
+#if PLATFORM_WINDOWS
+
+FRHIShader::~FRHIShader()
+{
+	if (InUseByPSOCompilation > 0)
+	{
+		UE_LOG(LogRHI, Fatal, TEXT("FRHIShader with hash: %s and Frequency: %d still in use by PSO compilation when being destroyed"), *Hash.ToString(), Frequency);
+	}
+}
+
+void FRHIShader::SetInUseByPSOCompilation(bool bInUse)
+{
+	if (bInUse)
+	{
+		FPlatformAtomics::InterlockedIncrement(&InUseByPSOCompilation);
+	}
+	else
+	{
+		check(InUseByPSOCompilation > 0);
+		FPlatformAtomics::InterlockedDecrement(&InUseByPSOCompilation);
+	}
+}
+
+#endif // PLATFORM_WINDOWS
+
 void FRHIComputeShader::UpdateStats()
 {
 	FPipelineStateStats::UpdateStats(Stats);

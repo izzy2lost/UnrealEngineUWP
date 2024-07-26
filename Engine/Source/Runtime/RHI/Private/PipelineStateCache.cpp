@@ -2170,9 +2170,28 @@ public:
 		{
 			GPipelinePrecompileTasksInFlight++;
 		}
+				
+#if PLATFORM_WINDOWS
+		auto MarkInUseByPSOCompilation = [](FRHIShader* Shader)
+		{
+			if (Shader)
+			{
+				Shader->SetInUseByPSOCompilation(true);
+			}
+		};
+#endif // PLATFORM_WINDOWS
 
 		if (!Pipeline->IsCompute())
 		{
+#if PLATFORM_WINDOWS
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.GetMeshShader());
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.GetAmplificationShader());
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.VertexShaderRHI);
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.PixelShaderRHI);
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.GetGeometryShader());
+			MarkInUseByPSOCompilation(Initializer.BoundShaderState.GetMeshShader());
+#endif // PLATFORM_WINDOWS
+
 			if (Initializer.BoundShaderState.GetMeshShader())
 			{
 				Initializer.BoundShaderState.GetMeshShader()->AddRef();
@@ -2222,7 +2241,14 @@ public:
 			{
 				Initializer.DepthStencilState->AddRef();
 			}
+		}		
+#if PLATFORM_WINDOWS
+		else
+		{
+			FComputePipelineState* ComputePipeline = static_cast<FComputePipelineState*>(Pipeline);
+			MarkInUseByPSOCompilation(ComputePipeline->ComputeShader);
 		}
+#endif // PLATFORM_WINDOWS
 	}
 
 	~FCompilePipelineStateTask()
@@ -2263,6 +2289,17 @@ public:
 			case EPSOPrecacheResult::NotSupported: PSOPrecacheResultScopeString = TEXT("PSOPrecache: Not Supported"); break;
 			case EPSOPrecacheResult::Untracked:    PSOPrecacheResultScopeString = TEXT("PSOPrecache: Untracked"); break;
 		}
+
+#if PLATFORM_WINDOWS
+		auto MarkUnusedByPSOCompilation = [](FRHIShader* Shader)
+		{
+			if (Shader)
+			{
+				Shader->SetInUseByPSOCompilation(false);
+			}
+		};
+#endif // PLATFORM_WINDOWS
+
 		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(PSOPrecacheResultScopeString);
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE_TEXT_CONDITIONAL(*PSOCompilationDebugData.PSOCompilationEventName, !PSOCompilationDebugData.PSOCompilationEventName.IsEmpty())
@@ -2285,6 +2322,10 @@ public:
 					bool bCSValid = ComputePipeline->RHIPipeline != nullptr && ComputePipeline->RHIPipeline->IsValid();
 					GPrecacheComputePipelineCache.PrecacheFinished(FPrecacheComputeInitializer(ComputePipeline->ComputeShader, ComputePipeline->Name), bCSValid);
 				}
+				
+#if PLATFORM_WINDOWS
+				MarkUnusedByPSOCompilation(ComputePipeline->ComputeShader);
+#endif // PLATFORM_WINDOWS
 			}
 			else
 			{
@@ -2344,6 +2385,15 @@ public:
 				{
 					GPrecacheGraphicsPipelineCache.PrecacheFinished(Initializer, GfxPipeline->RHIPipeline != nullptr);
 				}
+				
+#if PLATFORM_WINDOWS
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.GetMeshShader());
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.GetAmplificationShader());
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.VertexShaderRHI);
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.PixelShaderRHI);
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.GetGeometryShader());
+				MarkUnusedByPSOCompilation(Initializer.BoundShaderState.GetMeshShader());
+#endif // PLATFORM_WINDOWS
 
 				if (Initializer.BoundShaderState.GetMeshShader())
 				{

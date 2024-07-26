@@ -918,6 +918,11 @@ public:
 	{
 	}
 
+#if PLATFORM_WINDOWS
+	RHI_API virtual ~FRHIShader();	
+	RHI_API void SetInUseByPSOCompilation(bool bInUse);
+#endif // PLATFORM_WINDOWS
+
 	inline EShaderFrequency GetFrequency() const
 	{
 		return Frequency;
@@ -948,6 +953,9 @@ private:
 	EShaderFrequency Frequency;
 	uint8 bNoDerivativeOps : 1;
 	uint8 bHasShaderBundleUsage : 1;
+#if PLATFORM_WINDOWS
+	volatile int16 InUseByPSOCompilation = 0;
+#endif // PLATFORM_WINDOWS
 };
 
 class FRHIGraphicsShader : public FRHIShader
