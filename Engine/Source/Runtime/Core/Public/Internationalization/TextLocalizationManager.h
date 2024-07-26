@@ -120,7 +120,7 @@ private:
 		return InitializedFlags != ETextLocalizationManagerInitializedFlags::None;
 	}
 
-	mutable FCriticalSection DisplayStringTableCS;
+	mutable FRWLock DisplayStringTableRW;
 	FDisplayStringLookupTable DisplayStringLookupTable;
 	FDisplayStringsByLocalizationTargetId DisplayStringsByLocalizationTargetId;
 
