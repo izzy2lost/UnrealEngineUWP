@@ -9,6 +9,7 @@
 
 #include "ToolMenus.h"
 #include "GameFramework/Actor.h"
+#include "Misc/Optional.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Views/STreeView.h"
 
@@ -224,7 +225,8 @@ private:
 	bool IsSelectDebugObjectButtonEnabled() const;
 
 	void SetDebugObjectFromSelection_OnClicked();
-	bool IsSetDebugObjectFromSelectionButtonEnabled() const;
+	bool IsSetDebugObjectFromSelectionButtonEnabled() const { return IsSetDebugObjectFromSelectionEnabled.IsSet() && IsSetDebugObjectFromSelectionEnabled.GetValue(); }
+	void UpdateIsSetDebugObjectFromSelectionEnabled();
 
 	void RefreshTree();
 	void SortTreeItems(bool bIsAscending = true, bool bIsRecursive = true);
@@ -238,6 +240,7 @@ private:
 	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InPropertyChain);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InPropertyChangedEvent);
 	void OnObjectConstructed(UObject* InObject);
+	void OnEditorSelectionChanged(UObject* InObject);
 
 	UPCGGraph* GetPCGGraph() const;
 
@@ -266,6 +269,9 @@ private:
 
 	/** Set true to avoid broadcasting debug object change notifications when setting the object from code. */
 	bool bDisableDebugObjectChangeNotification = false;
+
+	/** Latest value for IsSetDebugObjectFromSelectionButtonEnabled */
+	TOptional<bool> IsSetDebugObjectFromSelectionEnabled;
 
 	/** Used to retain item expansion state across tree refreshes. */
 	TSet<FPCGStack> ExpandedStacks;

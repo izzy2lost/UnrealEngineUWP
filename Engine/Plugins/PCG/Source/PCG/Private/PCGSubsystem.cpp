@@ -1739,7 +1739,7 @@ TArray<FPCGStack> UPCGSubsystem::GetExecutedStacks(const UPCGComponent* InCompon
 
 	for (const FPCGStack& Stack : ExecutedStacks)
 	{
-		if (Stack.GetRootComponent() == InComponent && Stack.GetGraphForCurrentFrame() == InSubgraph)
+		if ((!InComponent || Stack.GetRootComponent() == InComponent) && Stack.GetGraphForCurrentFrame() == InSubgraph)
 		{
 			MatchingStacks.Add(Stack);
 		}

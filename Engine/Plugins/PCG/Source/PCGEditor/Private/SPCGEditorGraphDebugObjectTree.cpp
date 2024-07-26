@@ -230,6 +230,7 @@ SPCGEditorGraphDebugObjectTree::~SPCGEditorGraphDebugObjectTree()
 	FCoreUObjectDelegates::OnPreObjectPropertyChanged.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 	FCoreUObjectDelegates::OnObjectConstructed.RemoveAll(this);
+	USelection::SelectionChangedEvent.RemoveAll(this);
 }
 
 void SPCGEditorGraphDebugObjectTree::Construct(const FArguments& InArgs, TSharedPtr<FPCGEditor> InPCGEditor)
@@ -243,6 +244,7 @@ void SPCGEditorGraphDebugObjectTree::Construct(const FArguments& InArgs, TShared
 	FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddSP(this, &SPCGEditorGraphDebugObjectTree::OnPreObjectPropertyChanged);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &SPCGEditorGraphDebugObjectTree::OnObjectPropertyChanged);
 	FCoreUObjectDelegates::OnObjectConstructed.AddSP(this, &SPCGEditorGraphDebugObjectTree::OnObjectConstructed);
+	USelection::SelectionChangedEvent.AddSP(this, &SPCGEditorGraphDebugObjectTree::OnEditorSelectionChanged);
 
 	const TSharedRef<SScrollBar> HorizontalScrollBar = SNew(SScrollBar)
 		.Orientation(Orient_Horizontal)
@@ -348,6 +350,11 @@ void SPCGEditorGraphDebugObjectTree::Tick(const FGeometry& AllottedGeometry, con
 			bNeedsRefresh = false;
 			RefreshTree();
 		}
+	}
+
+	if (!IsSetDebugObjectFromSelectionEnabled.IsSet())
+	{
+		UpdateIsSetDebugObjectFromSelectionEnabled();
 	}
 }
 
@@ -469,18 +476,20 @@ void SPCGEditorGraphDebugObjectTree::SetDebugObjectFromSelection_OnClicked()
 	}
 }
 
-bool SPCGEditorGraphDebugObjectTree::IsSetDebugObjectFromSelectionButtonEnabled() const
+void SPCGEditorGraphDebugObjectTree::UpdateIsSetDebugObjectFromSelectionEnabled()
 {
+	IsSetDebugObjectFromSelectionEnabled = false;
+
 	const UPCGGraph* PCGGraph = GetPCGGraph();
 	if (!PCGGraph)
 	{
-		return false;
+		return;
 	}
 
 	USelection* SelectedActors = GEditor->GetSelectedActors();
 	if (!IsValid(SelectedActors))
 	{
-		return false;
+		return;
 	}
 
 	UPCGSubsystem* Subsystem = PCGEditor.Pin() ? PCGEditor.Pin()->GetSubsystem() : nullptr;
@@ -509,7 +518,8 @@ bool SPCGEditorGraphDebugObjectTree::IsSetDebugObjectFromSelectionButtonEnabled(
 			{
 				if (Algo::AnyOf(StackContext.GetStacks(), [&PCGGraph](const FPCGStack& InStack) { return InStack.GetGraphForCurrentFrame() == PCGGraph; }))
 				{
-					return true;
+					IsSetDebugObjectFromSelectionEnabled = true;
+					return;
 				}
 			}
 
@@ -518,13 +528,12 @@ bool SPCGEditorGraphDebugObjectTree::IsSetDebugObjectFromSelectionButtonEnabled(
 			{
 				if (Algo::AnyOf(Subsystem->GetExecutedStacks(PCGComponent, PCGGraph), [&PCGGraph](const FPCGStack& InStack) { return InStack.GetGraphForCurrentFrame() == PCGGraph; }))
 				{
-					return true;
+					IsSetDebugObjectFromSelectionEnabled = true;
+					return;
 				}
 			}
 		}
 	}
-
-	return false;
 }
 
 void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& Stacks,
@@ -750,38 +759,51 @@ void SPCGEditorGraphDebugObjectTree::RefreshTree()
 	TArray<UObject*> PCGComponents;
 	GetObjectsOfClass(UPCGComponent::StaticClass(), PCGComponents, /*bIncludeDerivedClasses=*/ true);
 
-	TMap<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>> ActorItems;
-	TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr> StackToItem;
-
-	for (UObject* PCGComponentObject : PCGComponents)
+	if (!PCGComponents.IsEmpty())
 	{
-		if (!IsValid(PCGComponentObject))
+		TMap<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>> ActorItems;
+		TMap<const FPCGStack, FPCGEditorGraphDebugObjectItemPtr> StackToItem;
+
+		TArray<FPCGStack> GraphStacks = Subsystem->GetExecutedStacks(nullptr, PCGGraph);
+		TMap<const UPCGComponent*, TArray<FPCGStack>> ComponentsGraphStacks;
+		for (FPCGStack& GraphStack : GraphStacks)
 		{
-			continue;
+			ComponentsGraphStacks.FindOrAdd(GraphStack.GetRootComponent()).Add(MoveTemp(GraphStack));
 		}
 
-		UPCGComponent* PCGComponent = Cast<UPCGComponent>(PCGComponentObject);
-		if (!PCGComponent || !PCGComponent->IsRegistered())
+		for (UObject* PCGComponentObject : PCGComponents)
 		{
-			continue;
+			if (!IsValid(PCGComponentObject))
+			{
+				continue;
+			}
+
+			UPCGComponent* PCGComponent = Cast<UPCGComponent>(PCGComponentObject);
+			if (!PCGComponent || !PCGComponent->IsRegistered())
+			{
+				continue;
+			}
+
+			// Process static stacks that can be read from the compiled graph.
+			FPCGStackContext StackContext;
+			if (!PCGComponent->GetStackContext(StackContext))
+			{
+				continue;
+			}
+			AddStacksToTree(StackContext.GetStacks(), ActorItems, StackToItem);
+
+			// Process stacks encountered during execution so far, which will include dynamic subgraphs & loop subgraphs.
+			// There will be overlaps with the static stacks but only unique entries will be added to the tree.
+			if (TArray<FPCGStack>* ComponentGraphStacks = ComponentsGraphStacks.Find(PCGComponent))
+			{
+				AddStacksToTree(*ComponentGraphStacks, ActorItems, StackToItem);
+			}
 		}
 
-		// Process static stacks that can be read from the compiled graph.
-		FPCGStackContext StackContext;
-		if (!PCGComponent->GetStackContext(StackContext))
+		for (TPair<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>>& ActorItem : ActorItems)
 		{
-			continue;
+			RootItems.Add(MoveTemp(ActorItem.Value));
 		}
-		AddStacksToTree(StackContext.GetStacks(), ActorItems, StackToItem);
-
-		// Process stacks encountered during execution so far, which will include dynamic subgraphs & loop subgraphs.
-		// There will be overlaps with the static stacks but only unique entries will be added to the tree.
-		AddStacksToTree(Subsystem->GetExecutedStacks(PCGComponent, PCGGraph), ActorItems, StackToItem);
-	}
-
-	for (TPair<AActor*, TSharedPtr<FPCGEditorGraphDebugObjectItem_Actor>>& ActorItem : ActorItems)
-	{
-		RootItems.Add(MoveTemp(ActorItem.Value));
 	}
 
 	SortTreeItems();
@@ -937,6 +959,11 @@ void SPCGEditorGraphDebugObjectTree::OnObjectPropertyChanged(UObject* InObject, 
 			RequestRefresh();
 		}
 	}
+}
+
+void SPCGEditorGraphDebugObjectTree::OnEditorSelectionChanged(UObject* InObject)
+{
+	IsSetDebugObjectFromSelectionEnabled.Reset();
 }
 
 void SPCGEditorGraphDebugObjectTree::OnObjectConstructed(UObject* InObject)
