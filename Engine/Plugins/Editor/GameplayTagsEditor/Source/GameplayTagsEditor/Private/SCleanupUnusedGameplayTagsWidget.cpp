@@ -212,7 +212,6 @@ void SCleanupUnusedGameplayTagsWidget::Construct(const FArguments& InArgs)
 						]
 
 						+ SVerticalBox::Slot()
-						.MaxHeight(800.f)
 						[
 							SAssignNew(UnusedTagsListView, SListView<TSharedPtr<FUnusedTagItem>>)
 								.ListItemsSource(&UnusedTags)
