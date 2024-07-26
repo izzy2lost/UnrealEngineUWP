@@ -367,7 +367,8 @@ bool FSlateInvalidationWidgetListTest::RunTest(const FString& Parameters)
 
 			{
 				bool bChildRemoved = TestRemoveWidget(WidgetC, TEXT("C"));
-				AddErrorIfFalse(!bChildRemoved || !UE::Slate::Private::bUpdateOnlyWhatIsNeeded, TEXT("C no widget was removed"));
+				bool bUpdateOnlyWhatIsNeeded = UE::Slate::Private::bUpdateOnlyWhatIsNeeded;
+				AddErrorIfFalse(!bChildRemoved || !bUpdateOnlyWhatIsNeeded, TEXT("C no widget was removed"));
 			}
 		}
 	}

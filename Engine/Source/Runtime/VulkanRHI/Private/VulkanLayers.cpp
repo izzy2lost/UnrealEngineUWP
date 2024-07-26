@@ -399,7 +399,8 @@ void FVulkanIntanceSetupHelper::AddDebugLayers(const TArray<FLayerWithExtensions
 		}
 	}
 
-	const bool bForceDebugUtils = VULKAN_ENABLE_DRAW_MARKERS || FParse::Param(FCommandLine::Get(), TEXT("vulkandebugutils"));
+	bool bVulkanEnableDrawMarkers = VULKAN_ENABLE_DRAW_MARKERS;
+	const bool bForceDebugUtils = bVulkanEnableDrawMarkers || FParse::Param(FCommandLine::Get(), TEXT("vulkandebugutils"));
 	if ((bUseVulkanValidation || bForceDebugUtils) && (ActiveDebugLayerExtension == FVulkanDynamicRHI::EActiveDebugLayerExtension::None))
 	{
 		auto FindLayerContainingExtension = [](const ANSICHAR* ExtensionName, const TArray<FLayerWithExtensions>& LayerProperties)

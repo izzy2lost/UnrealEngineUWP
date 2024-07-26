@@ -1541,7 +1541,8 @@ bool FRHIClearTextureTests::Test_ClearTexture(FRHICommandListImmediate& RHICmdLi
 		FTestContext TestContext(VertexDeclarationRHI, RHITextureCreateDescs, SentinelColor);
 		EPixelFormat CurrentPixelFormat = PF_Unknown;
 
-		bool bGPUCapture = GGPUCaptureTest && IRenderCaptureProvider::IsAvailable();
+		bool bGGPUCaptureTest = GGPUCaptureTest;
+		bool bGPUCapture = bGGPUCaptureTest && IRenderCaptureProvider::IsAvailable();
 		if (bGPUCapture)
 		{
 			Test_ClearTextureBeginCapture(RHICmdList);

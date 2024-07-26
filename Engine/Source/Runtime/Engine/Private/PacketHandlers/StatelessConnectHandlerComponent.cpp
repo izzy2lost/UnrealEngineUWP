@@ -1685,8 +1685,8 @@ bool StatelessConnectHandlerComponent::CheckVersion(const FParsedHandshakeData& 
 	}
 
 	const EEngineNetworkRuntimeFeatures LocalNetworkFeatures = Driver ? Driver->GetNetworkRuntimeFeatures() : EEngineNetworkRuntimeFeatures::None;
-
-	const bool bCheckNetVersion = !UE_BUILD_SHIPPING || GHandshakeEnforceNetworkCLVersion;
+	bool bUEBuildShipping = UE_BUILD_SHIPPING;
+	const bool bCheckNetVersion = !bUEBuildShipping || GHandshakeEnforceNetworkCLVersion;
 	bool bValidNetCLVersion = true;
 	bool bIsNetFeatureCompatible = true;
 

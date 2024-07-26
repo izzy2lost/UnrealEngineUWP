@@ -285,7 +285,9 @@ public:
 #define PLATFORM_PROVIDES_FILE_CACHE 0
 #endif
 		// Default to false on platforms that already do platform file level caching
-		bool bResult = !PLATFORM_PROVIDES_FILE_CACHE && !PLATFORM_WINDOWS && FPlatformProperties::RequiresCookedData();
+		bool bPlatformProvidesFileCache = PLATFORM_PROVIDES_FILE_CACHE;
+		bool bPlatformWindows = PLATFORM_WINDOWS;
+		bool bResult = !bPlatformProvidesFileCache && !bPlatformWindows && FPlatformProperties::RequiresCookedData();
 
 		// Allow a choice between shorter load times or less memory on desktop platforms.
 		// Note: this cannot be in config since they aren't read at that point.
