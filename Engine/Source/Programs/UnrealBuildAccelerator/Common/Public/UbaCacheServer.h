@@ -35,6 +35,9 @@ namespace uba
 		// The time cache entries will stay around after they were last used in hours (defaults to two days)
 		// Set to zero to never expire
 		u64 expirationTimeSeconds = 2*24*60*60;
+
+		// The amount of reserved memory used per core when doing maintenance
+		u64 maintenanceReserveSize = 128ull * 1024 * 1024;
 	};
 
 	class CacheServer
@@ -82,6 +85,8 @@ namespace uba
 		StringBuffer<MaxPath> m_rootDir;
 
 		Atomic<u32> m_addsSinceMaintenance;
+		Atomic<u64> m_cacheKeyFetchCount;
+		Atomic<u64> m_cacheKeyHitCount;
 		Atomic<bool> m_isRunningMaintenance;
 
 		ReaderWriterLock m_bucketsLock;
@@ -92,8 +97,10 @@ namespace uba
 
 		Atomic<bool> m_shutdownRequested = false;
 
+		u64 m_maintenanceReserveSize = 0;
 		u64 m_creationTime = 0;
-		u64 m_startTime = 0;
+		u64 m_bootTime = 0;
+		u64 m_lastMaintenance = 0;
 		u64 m_longestMaintenance = 0;
 		u64 m_expirationTimeSeconds = 0;
 		bool m_dbfileDirty = false;

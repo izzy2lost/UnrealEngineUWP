@@ -70,13 +70,15 @@ namespace uba
 		va_list arg;
 		va_start(arg, format);
 		tchar buffer[1024];
-		int count = TSprintf_s(buffer, 1024, format, arg);
+		int count = Tvsprintf_s(buffer, 1024, format, arg);
 		if (count <= 0)
 			TStrcpy_s(buffer, 1024, format);
 		va_end(arg);
 #if PLATFORM_WINDOWS
 		wprintf(TC("FATAL ERROR %u: %s\n"), code, buffer);
 		fflush(stdout);
+		if (IsDebuggerPresent())
+			DebugBreak();
 		ExitProcess(code);
 #else
 		printf(TC("FATAL ERROR %u: %s\n"), code, buffer);
@@ -312,8 +314,10 @@ namespace uba
 			TSprintf_s(str, 32, TC("%.1fkb"), double(bytes) / 1000ull);
 		else if (bytes < 1000ull * 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fmb"), double(bytes) / (1000ull * 1000));
-		else
+		else if (bytes < 1000ull * 1000 * 1000 * 1000)
 			TSprintf_s(str, 32, TC("%.1fgb"), double(bytes) / (1000ull * 1000 * 1000));
+		else
+			TSprintf_s(str, 32, TC("%.1ftb"), double(bytes) / (1000ull * 1000 * 1000 * 1000));
 	}
 
 #if UBA_DEBUG_LOGGER

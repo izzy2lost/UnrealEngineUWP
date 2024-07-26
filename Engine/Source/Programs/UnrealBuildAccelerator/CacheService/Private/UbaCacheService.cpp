@@ -198,7 +198,18 @@ namespace uba
 		#if UBA_DEBUG
 		dbgStr = TC(" (DEBUG)");
 		#endif
-		logger.Info(TC("UbaCacheService v%s(%u)%s (Workers: %u, Rootdir: \"%s\", StoreCapacity: %uGb, Expiration: %s)\n"), Version, CacheNetworkVersion, dbgStr, GetLogicalProcessorCount(), g_rootDir.data, storageCapacityGb, TimeToText(MsToTime(expirationTimeSeconds)*1000, true).str);
+		logger.Info(TC("UbaCacheService v%s(%u)%s (Workers: %u, Rootdir: \"%s\", StoreCapacity: %uGb, Expiration: %s)"), Version, CacheNetworkVersion, dbgStr, GetLogicalProcessorCount(), g_rootDir.data, storageCapacityGb, TimeToText(MsToTime(expirationTimeSeconds)*1000, true).str);
+
+		u64 maintenanceReserveSizeMb = 128;
+
+		#if PLATFORM_LINUX
+		u64 hugePageCount = GetHugePageCount();
+		u64 recommendedHugePageCount = (maintenanceReserveSizeMb*GetLogicalProcessorCount())/2;
+		if (hugePageCount < recommendedHugePageCount)
+			logger.Info(TC("  Improve maintenance performance by enabling %llu huge pages on system (%llu enabled)"), recommendedHugePageCount, hugePageCount);
+		#endif
+
+		logger.Info(TC(""));
 
 		u64 storageCapacity = u64(storageCapacityGb)*1000*1000*1000;
 
@@ -209,13 +220,6 @@ namespace uba
 			workDir.Append(currentDir);
 
 		// TODO: Change workdir to make it full
-
-
-		StringBuffer<> logFile;
-		#if UBA_DEBUG
-		logFile.count = GetFullPathNameW(g_rootDir.data, logFile.capacity, logFile.data, nullptr);
-		logFile.EnsureEndsWithSlash().Append(TC("DebugLog.log"));
-		#endif
 
 		#if PLATFORM_WINDOWS
 		SetConsoleCtrlHandler(ConsoleHandler, TRUE);
@@ -245,6 +249,7 @@ namespace uba
 
 		CacheServerCreateInfo cacheInfo(storageServer, g_rootDir.data, logWriter);
 		cacheInfo.expirationTimeSeconds = expirationTimeSeconds;
+		cacheInfo.maintenanceReserveSize = maintenanceReserveSizeMb * 1024 * 1024;
 		CacheServer cacheServer(cacheInfo);
 
 		if (!cacheServer.Load())
@@ -303,7 +308,8 @@ namespace uba
 #if PLATFORM_WINDOWS
 int wmain(int argc, wchar_t* argv[])
 {
-	return uba::WrappedMain(argc, argv);
+	int res = uba::WrappedMain(argc, argv);
+	return res;
 }
 #else
 int main(int argc, char* argv[])

@@ -95,7 +95,7 @@ namespace uba
 		MemoryBlock(u64 reserveSize_, void* baseAddress_ = nullptr);
 		MemoryBlock(u8* baseAddress_ = nullptr);
 		~MemoryBlock();
-		void Init(u64 reserveSize_, void* baseAddress_ = nullptr);
+		bool Init(u64 reserveSize_, void* baseAddress_ = nullptr, bool useHugePages = false);
 		void Deinit();
 		void* Allocate(u64 bytes, u64 alignment, const tchar* hint);
 		void* AllocateNoLock(u64 bytes, u64 alignment, const tchar* hint);
@@ -273,4 +273,6 @@ namespace uba
 
 		return v;
 	}
+
+	u64 GetHugePageCount();
 }

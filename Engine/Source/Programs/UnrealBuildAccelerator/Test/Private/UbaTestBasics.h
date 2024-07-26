@@ -260,10 +260,23 @@ namespace uba
 
 	bool TestMemoryBlock(Logger& logger, const StringBufferBase& rootDir)
 	{
-		MemoryBlock block(1024 * 1024);
-		u64* mem = (u64*)block.Allocate(8, 1, TC("Foo"));
-		*mem = 0x1234;
-		block.Free(mem);
+		{
+			MemoryBlock block(1024 * 1024);
+			u64* mem = (u64*)block.Allocate(8, 1, TC("Foo"));
+			*mem = 0x1234;
+			block.Free(mem);
+		}
+
+		if (GetHugePageCount())
+		{
+			MemoryBlock block;
+			if (!block.Init(1024 * 1024, nullptr, true))
+				return logger.Error(TC("Failed to allocate huge pages even though system says they exists"));
+			u64* mem = (u64*)block.Allocate(8, 1, TC("Foo"));
+			*mem = 0x1234;
+			block.Free(mem);
+		}
+
 		return true;
 	}
 

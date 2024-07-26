@@ -73,8 +73,9 @@ namespace uba
 	,	m_storage(info.storage)
 	{
 		m_checkInputsForDeletedCas = info.checkInputsForDeletedCas;
-		m_startTime = GetTime();
+		m_bootTime = GetTime();
 
+		m_maintenanceReserveSize = info.maintenanceReserveSize;
 		m_expirationTimeSeconds = info.expirationTimeSeconds;
 
 		m_rootDir.count = GetFullPathNameW(info.rootDir, m_rootDir.capacity, m_rootDir.data, NULL);
@@ -447,11 +448,27 @@ namespace uba
 		bool forceAllSteps = m_forceAllSteps;
 		m_forceAllSteps = false;
 
+		bool entriesAdded = m_addsSinceMaintenance != 0;
+		m_addsSinceMaintenance = 0;
+
+		u64 startTime = GetTime();
+
+		if (entriesAdded)
+		{
+			auto& storageStats = m_storage.Stats();
+			u64 hits = m_cacheKeyHitCount;
+			u64 miss = m_cacheKeyFetchCount - hits;
+			m_logger.Info(TC("Stats since boot (%s ago)"), TimeToText(startTime - m_bootTime, true).str);
+			m_logger.Info(TC("  CacheServer %llu hits, %llu misses"), hits, miss);
+			u64 recvCount = storageStats.sendCas.count.load();
+			u64 sendCount = storageStats.recvCas.count.load();
+			m_logger.Info(TC("  StorageServer cas %llu (%s) sent, %llu (%s) received"), recvCount, BytesToText(storageStats.sendCasBytesComp).str, sendCount, BytesToText(storageStats.recvCasBytesComp).str);
+		}
+
 		if (m_shouldWipe)
 		{
 			m_shouldWipe = false;
 			m_logger.Info(TC("Obliterating database"));
-			m_addsSinceMaintenance = 0;
 			m_longestMaintenance = 0;
 			m_buckets.clear();
 			forceAllSteps = true;
@@ -459,14 +476,12 @@ namespace uba
 		}
 		else
 		{
-			m_logger.Info(TC("Maintenance started after %u added cache entries"), m_addsSinceMaintenance.load());
+			TimeToText lastTime(startTime - m_lastMaintenance, true);
+			m_logger.Info(TC("Maintenance started after %u added cache entries (Ran last time %s ago)"), entriesAdded, (m_lastMaintenance ? lastTime.str : TC("Never")));
 		}
+
+		m_lastMaintenance = startTime;
 		
-		u64 startTime = GetTime();
-
-		bool entriesAdded = m_addsSinceMaintenance != 0;
-		m_addsSinceMaintenance = 0;
-
 		UnorderedSet<CasKey> deletedCasFiles;
 		m_storage.HandleOverflow(&deletedCasFiles);
 		u64 deletedCasCount = deletedCasFiles.size();
@@ -758,6 +773,8 @@ namespace uba
 		if (shouldExit())
 			return true;
 
+		u64 maxCommittedMemory = 0;
+
 		m_server.ParallelFor(workerCountToUseForBuckets, m_buckets, [&](auto& it)
 		{
 			u64 bucketStartTime = GetTime();
@@ -771,7 +788,10 @@ namespace uba
 			}
 			bucket.hasDeletedEntries = false;
 
-			MemoryBlock memoryBlock(128*1024*1024);
+			// Try to use large blocks
+			MemoryBlock memoryBlock;
+			if (!memoryBlock.Init(m_maintenanceReserveSize, nullptr, true))
+				memoryBlock.Init(m_maintenanceReserveSize, nullptr, false);
 
 			GrowingNoLockUnorderedSet<u32> usedCasKeyOffsets(&memoryBlock);
 			usedCasKeyOffsets.reserve(bucket.m_casKeyTable.GetKeyCount());
@@ -894,6 +914,10 @@ namespace uba
 			bucket.needsSave = true;
 
 			m_logger.Info(TC("    Bucket %u Done (%s). CacheEntries: %llu (%s) PathTable: %s CasTable: %s"), bucket.index, TimeToText(GetTime() - bucketStartTime).str, bucket.totalEntryCount.load(), BytesToText(bucket.totalEntrySize.load()).str, BytesToText(bucket.m_pathTable.GetSize()).str, BytesToText(bucket.m_casKeyTable.GetSize()).str);
+
+			SCOPED_WRITE_LOCK(existingCasLock, l); // Just reusing lock for other purpose
+			maxCommittedMemory = Max(maxCommittedMemory, memoryBlock.writtenSize);
+
 		}, TC(""), true);
 
 		// Need to make sure all cas entries are dropped before saving cas table
@@ -917,7 +941,7 @@ namespace uba
 		u64 oldestTime = oldest ? GetFileTimeAsTime(now - (m_creationTime + oldest)) : 0;
 		u64 longestUnusedTime = longestUnused ? GetFileTimeAsTime(now - (m_creationTime + longestUnused)) : 0;
 		u64 duration = GetTime() - startTime;
-		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) Entries: %llu Oldest: %s LongestUnused: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, totalEntryCount.load(), TimeToText(oldestTime, true).str, TimeToText(longestUnusedTime, true).str);
+		m_logger.Info(TC("Maintenance done! (%s) CasFiles: %llu (%s) Entries: %llu Oldest: %s LongestUnused: %s MaintenanceMem: %s"), TimeToText(duration).str, totalCasCount - deletedCasCount, BytesToText(totalCasSize).str, totalEntryCount.load(), TimeToText(oldestTime, true).str, TimeToText(longestUnusedTime, true).str, BytesToText(maxCommittedMemory).str);
 		
 		m_longestMaintenance = Max(m_longestMaintenance, duration);
 
@@ -1305,6 +1329,8 @@ namespace uba
 		Bucket& bucket = GetBucket(reader);
 		CasKey cmdKey = reader.ReadCasKey();
 
+		++m_cacheKeyFetchCount;
+
 		SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock);
 		auto findIt = bucket.m_cacheEntryLookup.find(cmdKey);
 		if (findIt == bucket.m_cacheEntryLookup.end())
@@ -1324,6 +1350,8 @@ namespace uba
 		Bucket& bucket = GetBucket(reader);
 		CasKey cmdKey = reader.ReadCasKey();
 		u64 entryId = reader.Read7BitEncoded();
+
+		++m_cacheKeyHitCount;
 
 		SCOPED_READ_LOCK(bucket.m_cacheEntryLookupLock, lock);
 		auto findIt = bucket.m_cacheEntryLookup.find(cmdKey);
@@ -1473,7 +1501,7 @@ namespace uba
 		{
 			writeLine(TC("UbaCacheServer status"));
 			writeLine(line.Clear().Appendf(TC("  CreationTime: %s ago"), TimeToText(GetFileTimeAsTime(GetSystemTimeAsFileTime() - m_creationTime), true).str).data);
-			writeLine(line.Clear().Appendf(TC("  UpTime: %s"), TimeToText(GetTime() - m_startTime, true).str).data);
+			writeLine(line.Clear().Appendf(TC("  UpTime: %s"), TimeToText(GetTime() - m_bootTime, true).str).data);
 			writeLine(line.Clear().Appendf(TC("  Longest maintenance: %s"), TimeToText(m_longestMaintenance).str).data);
 			writeLine(line.Clear().Appendf(TC("  Buckets:")).data);
 			u32 index = 0;
