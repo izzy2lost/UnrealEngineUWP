@@ -1668,6 +1668,24 @@ static const int2 kOffsets3x3[8] =
 	int2( 1,  1),
 };
 
+bool IsNeighborPixelValid(uint2 InNeighborScreenCoord, uint InClosureIndex, bool bDefaultValue)
+{
+	// With Substrate, we can't ensure the neighbor indirect diffuse/rough lighting values have been computed for closure index > 0. 
+	// This is because we only clear lighting data for pixel within a tile, not pixels of neighboring tiles (In FScreenProbeTileClassificationMarkCS). 
+	// The following test ensures (only used for closer index > 0), ensure we don't fetch invalid/uninitialized lighting data.
+	// Ideally this should be computed ahead of time and directly stored into LightingTexture.w to avoid this extra fetch. 
+	bool bIsValid = bDefaultValue;
+	#if SUBSTRATE_ENABLED
+	if (InClosureIndex > 0)
+	{
+		FSubstrateAddressing SubstrateAddressing = GetSubstratePixelDataByteOffset(InNeighborScreenCoord.xy, uint2(View.BufferSizeAndInvSize.xy), Substrate.MaxBytesPerPixel);
+		const FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(Substrate.MaterialTextureArray, SubstrateAddressing, Substrate.TopLayerTexture);
+		bIsValid = InClosureIndex < SubstratePixelHeader.ClosureCount;
+	}
+	#endif
+	return bIsValid;
+}
+
 float3 GetFilteredNeighborhoodLighting(
 	Texture2DArray LightingTexture,
 	uint2 ScreenCoord, 
@@ -1685,7 +1703,8 @@ float3 GetFilteredNeighborhoodLighting(
 		const uint3 NeighborScreenCoord = uint3(clamp(int2(ScreenCoord) + SampleOffset, int2(MinScreenCoord), int2(MaxScreenCoord)), InClosureIndex);
 
 		const float4 Lighting = LightingTexture[NeighborScreenCoord];
-		const bool bSampleLightingIsValid = Lighting.w > 0.0f;
+
+		const bool bSampleLightingIsValid = IsNeighborPixelValid(NeighborScreenCoord.xy, InClosureIndex, Lighting.w > 0.0f /*DefaultValue*/);
 		if (bSampleLightingIsValid)
 		{
 			FilteredLighting += Lighting.xyz;
@@ -1715,9 +1734,13 @@ float3 ClampHistory(
 		const int2 SampleOffset = kOffsets3x3[NeighborId];
 		const uint3 NeighborScreenCoord = uint3(clamp(int2(ScreenCoord) + SampleOffset, int2(MinScreenCoord), int2(MaxScreenCoord)), InClosureIndex);
 
-		const float3 Lighting = LightingTexture[NeighborScreenCoord].xyz;
-		NeighborMin = min(NeighborMin, Lighting.xyz);
-		NeighborMax = max(NeighborMax, Lighting.xyz);
+		const bool bSampleLightingIsValid = IsNeighborPixelValid(NeighborScreenCoord.xy, InClosureIndex, true /*DefaultValue*/);
+		if (bSampleLightingIsValid)
+		{
+			const float3 Lighting = LightingTexture[NeighborScreenCoord].xyz;
+			NeighborMin = min(NeighborMin, Lighting.xyz);
+			NeighborMax = max(NeighborMax, Lighting.xyz);
+		}
 	}
 
 	HistoryLighting = clamp(HistoryLighting, NeighborMin, NeighborMax);
