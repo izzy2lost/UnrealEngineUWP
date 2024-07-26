@@ -343,7 +343,7 @@ namespace Metasound
 		{
 			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs[0];
 
-			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
+			const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
 			if (DefaultLiteral.IsValid())
 			{
 				Literal = &DefaultLiteral;
