@@ -556,6 +556,7 @@ void FVerifierSpec::MakeUnit(BuildPatchServices::EVerifyMode Mode)
 		FakeFileSystem.Get(),
 		MockVerificationStat.Get(),
 		Mode,
+		nullptr,
 		/*TouchedFiles,*/
 		ManifestSet.Get(),
 		VerifyDirectory,
