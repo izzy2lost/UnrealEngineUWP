@@ -23,6 +23,7 @@
 #include "Templates/IdentityFunctor.h"
 #include "Templates/Invoke.h"
 #include "Templates/Less.h"
+#include "Templates/LosesQualifiersFromTo.h"
 #include "Templates/Requires.h"
 #include "Templates/Sorting.h"
 #include "Templates/AlignmentTemplates.h"
@@ -304,17 +305,22 @@ namespace UE::Core::Private
 	template <typename FromArrayType, typename ToArrayType>
 	constexpr bool CanMoveTArrayPointersBetweenArrayTypes()
 	{
-		using FromAllocatorType = typename FromArrayType::AllocatorType;
-		using ToAllocatorType   = typename ToArrayType::AllocatorType;
-		using FromElementType   = typename FromArrayType::ElementType;
-		using ToElementType     = typename ToArrayType::ElementType;
+		using FromAllocatorType          = typename FromArrayType::AllocatorType;
+		using ToAllocatorType            = typename ToArrayType::AllocatorType;
+		using FromElementType            = typename FromArrayType::ElementType;
+		using ToElementType              = typename ToArrayType::ElementType;
+		using UnqualifiedFromElementType = std::remove_cv_t<FromElementType>;
+		using UnqualifiedToElementType   = std::remove_cv_t<ToElementType>;
 
 		// Allocators must be equal or move-compatible...
 		if constexpr (std::is_same_v<FromAllocatorType, ToAllocatorType> || TCanMoveBetweenAllocators<FromAllocatorType, ToAllocatorType>::Value)
 		{
 			return
-				std::is_same_v         <ToElementType, FromElementType> ||      // The element type of the container must be the same, or...
-				TIsBitwiseConstructible<ToElementType, FromElementType>::Value; // ... the element type of the source container must be bitwise constructible from the element type in the destination container
+				!TLosesQualifiersFromTo<FromElementType, ToElementType>::Value &&
+				(
+					std::is_same_v         <const ToElementType, const FromElementType> ||               // The element type of the container must be the same, or...
+					TIsBitwiseConstructible<UnqualifiedToElementType, UnqualifiedFromElementType>::Value // ... the element type of the source container must be bitwise constructible from the element type in the destination container
+				);
 		}
 		else
 		{
