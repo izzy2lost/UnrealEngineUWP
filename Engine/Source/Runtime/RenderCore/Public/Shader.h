@@ -2052,39 +2052,6 @@ public:
 };
 
 
-/** Used to compare two shader pipeline types by name. */
-class FCompareShaderPipelineNameTypes
-{
-public:
-	/*FORCEINLINE*/ bool operator()(const FShaderPipelineType& A, const FShaderPipelineType& B) const
-	{
-		//#todo-rco: Avoid this by adding an FNullShaderPipelineType
-		bool bNullA = &A == nullptr;
-		bool bNullB = &B == nullptr;
-		if (bNullA && bNullB)
-		{
-			return false;
-		}
-		else if (bNullA)
-		{
-			return true;
-		}
-		else if (bNullB)
-		{
-			return false;
-		}
-
-
-		int32 AL = FCString::Strlen(A.GetName());
-		int32 BL = FCString::Strlen(B.GetName());
-		if (AL == BL)
-		{
-			return FCString::Strncmp(A.GetName(), B.GetName(), AL) > 0;
-		}
-		return AL > BL;
-	}
-};
-
 // A Shader Pipeline instance with compiled stages
 class FShaderPipeline
 {

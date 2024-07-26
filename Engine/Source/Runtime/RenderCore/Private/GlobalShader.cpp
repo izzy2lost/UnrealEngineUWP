@@ -415,9 +415,11 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 		}
 	}
 
-	for (TLinkedList<FShaderPipelineType*>::TIterator ShaderPipelineIt(FShaderPipelineType::GetTypeList()); ShaderPipelineIt; ShaderPipelineIt.Next())
+	const TArray<FShaderPipelineType*>& SortedMaterialPipelineTypes = FShaderPipelineType::GetSortedTypes(FShaderType::EShaderTypeForDynamicCast::Global);
+
+	for (FShaderPipelineType* Pipeline : SortedMaterialPipelineTypes)
 	{
-		const FShaderPipelineType* Pipeline = *ShaderPipelineIt;
+		check(Pipeline);
 		if (Pipeline->IsGlobalTypePipeline())
 		{
 			int32 NumStagesNeeded = 0;
@@ -456,8 +458,6 @@ FGlobalShaderMapId::FGlobalShaderMapId(EShaderPlatform Platform, const ITargetPl
 		Dependencies.Add(Dependency);
 	}
 
-	// Shader pipeline dependencies
-	ShaderPipelineTypes.Sort(FCompareShaderPipelineNameTypes());
 	for (int32 TypeIndex = 0; TypeIndex < ShaderPipelineTypes.Num(); TypeIndex++)
 	{
 		const FShaderPipelineType* Pipeline = ShaderPipelineTypes[TypeIndex];
