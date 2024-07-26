@@ -177,6 +177,7 @@ namespace UE::NearestNeighborModel
 
 	void FNearestNeighborEditorModel::OnPostTraining(ETrainingResult TrainingResult, bool bUsePartiallyTrainedWhenAborted)
 	{
+		UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
 		if (TrainingResult == ETrainingResult::Aborted && !bUsePartiallyTrainedWhenAborted)
 		{
 			GetMorphModel()->SetMorphTargetDeltas(MorphTargetDeltasBackup);
@@ -184,17 +185,19 @@ namespace UE::NearestNeighborModel
 		}
 		else if (TrainingResult == ETrainingResult::Success || (TrainingResult == ETrainingResult::Aborted && bUsePartiallyTrainedWhenAborted))
 		{
-			UNearestNeighborModel* const NearestNeighborModel = GetCastModel();
-			if (!NearestNeighborModel)
+			if (NearestNeighborModel)
 			{
-				return;
-			}
-			NearestNeighborModel->InvalidateInference();
-			if (NearestNeighborModel->DoesUseFileCache())
-			{
-				NearestNeighborModel->UpdateFileCache();
+				NearestNeighborModel->InvalidateInference();
+				if (NearestNeighborModel->DoesUseFileCache())
+				{
+					NearestNeighborModel->UpdateFileCache();
+				}
 			}
 			ResetMorphTargets();
+		}
+		if (NearestNeighborModel)
+		{
+			NearestNeighborModel->UpdateForInference();
 		}
 		FMLDeformerMorphModelEditorModel::OnPostTraining(TrainingResult, bUsePartiallyTrainedWhenAborted);
 	}
