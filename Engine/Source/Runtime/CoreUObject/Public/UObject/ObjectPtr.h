@@ -1267,6 +1267,7 @@ namespace UE::Core::Private // private facilities; not for direct use
 		{
 #if UE_WITH_OBJECT_HANDLE_LATE_RESOLVE || UE_WITH_OBJECT_HANDLE_TRACKING
 			Value.Get();
+			check(Value.IsResolved());
 #endif
 		}
 	};

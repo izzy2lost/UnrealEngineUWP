@@ -57,10 +57,11 @@ void FObjectPropertyBase::InstanceSubobjects(void* Data, void const* DefaultData
 {
 	for ( int32 ArrayIndex = 0; ArrayIndex < ArrayDim; ArrayIndex++ )
 	{
-		UObject* CurrentValue = GetObjectPropertyValue((uint8*)Data + ArrayIndex * ElementSize);
-		if ( CurrentValue )
+		TObjectPtr<UObject> CurrentObjectPtr = GetObjectPtrPropertyValue((uint8*)Data + ArrayIndex * ElementSize);
+		UObject* CurrentValue = CurrentObjectPtr.Get();
+		if (CurrentObjectPtr.IsResolved() && CurrentValue)
 		{
-			UObject *SubobjectTemplate = DefaultData ? GetObjectPropertyValue((uint8*)DefaultData + ArrayIndex * ElementSize): nullptr;
+			TObjectPtr<UObject> SubobjectTemplate = DefaultData ? GetObjectPtrPropertyValue((uint8*)DefaultData + ArrayIndex * ElementSize): nullptr;
 			EInstancePropertyValueFlags Flags = EInstancePropertyValueFlags::None;
 			if (HasAnyPropertyFlags(CPF_InstancedReference))
 			{

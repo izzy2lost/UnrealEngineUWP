@@ -182,6 +182,13 @@ namespace UE
 		return bIsEnabled;
 	}
 
+
+	bool IsClassOfInstanceDataObjectClass(UStruct* Class)
+	{
+		return Class->IsA(UInstanceDataObjectClass::StaticClass()) || Class->IsA(UInstanceDataObjectStruct::StaticClass());
+	}
+
+
 	bool StructContainsLooseProperties(const UStruct* Struct)
 	{
 		return Struct->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
@@ -347,7 +354,7 @@ namespace UE
 			// effects on that data as part of the construction/serialization path.
 			// 
 			// @todo - Remove if/when this flag is no longer required to signal whether this value is to be resolved via a subobject instancing graph.
-			Property->SetPropertyFlags(CPF_PersistentInstance);
+			Property->SetPropertyFlags(CPF_PersistentInstance| CPF_InstancedReference);
 		}
 	}
 

@@ -27,6 +27,9 @@ namespace UE
 bool IsInstanceDataObjectSupportEnabled(const UObject* Object = nullptr);
 bool StructContainsLooseProperties(const UStruct* Struct);
 
+/** Helper to check if a class is an IDO class. */
+bool IsClassOfInstanceDataObjectClass(UStruct* Class);
+
 /** Generate a UClass that contains the union of the properties of PropertyTree and OwnerClass. */
 UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer);
 
