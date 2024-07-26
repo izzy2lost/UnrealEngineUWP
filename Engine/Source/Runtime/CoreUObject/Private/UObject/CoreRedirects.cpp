@@ -2248,8 +2248,8 @@ bool FCoreRedirects::ReadRedirectsFromIni(const FString& IniName)
 				}
 			}
 
-			// We no longer need the redirect config data in memory, so drop it
-			GConfig->EmptySection(RedirectSectionName, IniName);
+			// We no longer need the redirect config data in memory so remove it entirely
+			GConfig->RemoveSectionFromBranch(RedirectSectionName, *IniName);
 
 			return AddRedirectList(NewRedirects, IniName);
 		}
