@@ -129,7 +129,7 @@ TSharedPtr<STranslationPickerFloatingWindow> TranslationPickerManager::PickerWin
 bool TranslationPickerManager::OpenPickerWindow()
 {
 	// Not picking previously, launch a picker window
-	if (!PickerWindow.IsValid())
+	if (!PickerWindow.IsValid() && !PickerWindowWidget.IsValid())
 	{
 		TSharedRef<SWindow> NewWindow = SWindow::MakeCursorDecorator();
 		NewWindow->SetSizingRule(ESizingRule::FixedSize);
@@ -165,7 +165,14 @@ void TranslationPickerManager::ClosePickerWindow()
 	{
 		FSlateApplication::Get().RequestDestroyWindow(PickerWindow.ToSharedRef());
 	}
-	PickerWindow.Reset(); 
+
+	ResetPickerWindow();
+}
+
+void TranslationPickerManager::ResetPickerWindow()
+{
+	PickerWindow.Reset();
+
 	PickerWindowWidget.Reset();
 }
 

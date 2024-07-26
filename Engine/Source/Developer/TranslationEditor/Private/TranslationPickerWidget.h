@@ -24,6 +24,8 @@ public:
 	static bool OpenPickerWindow();
 
 	static void ClosePickerWindow();
+
+	static void ResetPickerWindow();
 };
 
 /** Widget used to launch a 'picking' session */

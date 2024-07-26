@@ -34,6 +34,8 @@ class STranslationPickerFloatingWindow : public SCompoundWidget
 private:
 	friend class FTranslationPickerInputProcessor;
 
+	FReply Close();
+
 	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;
 
 	/** Pull the FText reference out of an SWidget */
@@ -43,7 +45,7 @@ private:
 	void PickTextFromChildWidgets(TSharedRef<SWidget> Widget);
 
 	/** Switch from floating window to edit window */
-	void SwitchToEditWindow();
+	bool SwitchToEditWindow();
 
 	/** Input processor used to capture the 'Esc' key */
 	TSharedPtr<FTranslationPickerInputProcessor> InputProcessor;

@@ -269,10 +269,10 @@ STranslationPickerEditWindow::~STranslationPickerEditWindow()
 
 FReply STranslationPickerEditWindow::Close()
 {
-	if (ParentWindow.IsValid())
+	const TSharedPtr<SWindow> ContainingWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
+	if (ContainingWindow.IsValid())
 	{
-		FSlateApplication::Get().RequestDestroyWindow(ParentWindow.Pin().ToSharedRef());
-		ParentWindow.Reset();
+		ContainingWindow->RequestDestroyWindow();
 	}
 
 	return FReply::Handled();
@@ -573,8 +573,7 @@ FReply STranslationPickerEditWidget::SaveAndPreview()
 	TArray<UTranslationUnit*> TempArray;
 	TempArray.Add(TranslationUnit);
 	FTranslationDataManager::SaveSelectedTranslations(TempArray, ILocalizationServiceModule::Get().GetProvider().IsEnabled() && TranslationPickerSettings->bSubmitTranslationPickerChangesToLocalizationService);
-
-#else
+#endif // WITH_EDITOR
 
 	FTextLocalizationManager::Get().AddOrUpdateDisplayStringInLiveTable(TranslationUnit->Namespace, TranslationUnit->Key, TranslationUnit->Translation, &TranslationUnit->Source);
 
@@ -582,7 +581,6 @@ FReply STranslationPickerEditWidget::SaveAndPreview()
 	{
 		CObj->AsCommand()->Execute(/*Args=*/TArray<FString>(), /*InWorld=*/nullptr, *GLog);
 	}
-#endif // WITH_EDITOR
 
 	return FReply::Handled();
 }

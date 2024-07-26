@@ -79,12 +79,15 @@ public:
 
 		if (Key == EKeys::Escape)
 		{
-			TranslationPickerManager::ClosePickerWindow();
+			Owner->Close();
 			return true;
 		}
 		else if (Key == EKeys::Enter)
 		{
-			Owner->SwitchToEditWindow();
+			if (Owner->SwitchToEditWindow())
+			{
+				Owner->Close();
+			}
 			return true;
 		}
 		else if (InKeyEvent.IsControlDown())
@@ -158,6 +161,18 @@ STranslationPickerFloatingWindow::~STranslationPickerFloatingWindow()
 		}
 		InputProcessor.Reset();
 	}
+}
+
+FReply STranslationPickerFloatingWindow::Close()
+{
+	const TSharedPtr<SWindow> ContainingWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
+	if (ContainingWindow.IsValid())
+	{
+		ContainingWindow->RequestDestroyWindow();
+	}
+	TranslationPickerManager::ResetPickerWindow();
+
+	return FReply::Handled();
 }
 
 void STranslationPickerFloatingWindow::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
@@ -371,7 +386,7 @@ void STranslationPickerFloatingWindow::PickTextFromChildWidgets(TSharedRef<SWidg
 	}
 }
 
-void STranslationPickerFloatingWindow::SwitchToEditWindow()
+bool STranslationPickerFloatingWindow::SwitchToEditWindow()
 {
 	if (PickedTexts.Num() > 0)
 	{
@@ -401,9 +416,11 @@ void STranslationPickerFloatingWindow::SwitchToEditWindow()
 		}
 
 		NewWindow->MoveWindowTo(ParentWindow.Pin()->GetPositionInScreen());
-	}
 
-	TranslationPickerManager::ClosePickerWindow();
+		return true;
+	}
+	return false;
 }
+
 
 #undef LOCTEXT_NAMESPACE
