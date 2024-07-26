@@ -102,6 +102,8 @@ class BuildOptions {
          this.preflightChange = this.queryShelvedChange;
       }
 
+      this.advJobPriority = jobDetails?.jobData?.priority;
+
       if (query.get("autosubmit") === "true") {
          this.autoSubmit = true;
       }
