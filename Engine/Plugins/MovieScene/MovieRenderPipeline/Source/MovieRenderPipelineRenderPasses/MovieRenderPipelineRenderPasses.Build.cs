@@ -7,6 +7,7 @@ public class MovieRenderPipelineRenderPasses : ModuleRules
 	public MovieRenderPipelineRenderPasses(ReadOnlyTargetRules Target) : base(Target)
 	{
 		bEnableExceptions = true;
+		bDisableAutoRTFMInstrumentation = true; // AutoRTFM cannot be used with exceptions
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
