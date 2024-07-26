@@ -26,6 +26,7 @@
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCOE/CustomizableObjectEditorActions.h"
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMenuAnchor.h"
@@ -104,6 +105,18 @@ void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArg
 			.ParentToolBar(SharedThis(this))
 			.Label(LOCTEXT("ViewOptionsMenuLabel","View Options"))
 			.OnGetMenuContent(this, &SCustomizableObjectEditorViewportToolBar::GenerateViewportOptionsMenu)
+		]
+	
+	// Character Menu
+	+SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.0f, 2.0f)
+		[
+			//Show Bones
+			SNew(SEditorViewportToolbarMenu)
+			.ParentToolBar(SharedThis(this))
+			.Label(LOCTEXT("CharacterMenuLabel","Character"))
+			.OnGetMenuContent(this, &SCustomizableObjectEditorViewportToolBar::GenerateCharacterMenu)
 		];
 	
 	TSharedRef<SWidget> RTSButtons = GenerateRTSButtons();
@@ -270,6 +283,34 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateLODMenu() 
 	return ShowMenuBuilder.MakeWidget();
 }
 
+
+TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateCharacterMenu() const
+{
+	FMenuBuilder MenuBuilder(true, Viewport.Pin()->GetCommandList());
+	
+	MenuBuilder.BeginSection("Mesh", LOCTEXT("Mesh", "Mesh"));
+	MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().ShowDisplayInfo);
+
+	// Uncomment once UE-217529 fixed.
+	// MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().SetShowNormals);
+	// MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().SetShowTangents);
+	// MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().SetShowBinormals);
+
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("Bones", LOCTEXT("Bones", "Bones"));
+	MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportLODCommands::Get().ShowBones);
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("Clothing", LOCTEXT("Clothing", "Clothing"));
+	MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().EnableClothSimulation);
+	MenuBuilder.AddMenuEntry(FCustomizableObjectEditorViewportCommands::Get().DebugDrawPhysMeshWired);
+	MenuBuilder.EndSection();
+	
+	return MenuBuilder.MakeWidget();
+}
+
+
 TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportTypeMenu() const
 {
 	const bool bInShouldCloseWindowAfterMenuSelection = true;
@@ -308,61 +349,45 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportOp
 	const bool bInShouldCloseWindowAfterMenuSelection = true;
 
 	FMenuBuilder ShowMenuBuilder(bInShouldCloseWindowAfterMenuSelection, Viewport.Pin()->GetCommandList());
-	{
-		ShowMenuBuilder.AddSubMenu(LOCTEXT("OptionsMenu_CameraOptions", "Camera Mode"),
-			LOCTEXT("OptionsMenu_CameraOptionsTooltip", "Select the camera mode"),
-		FNewMenuDelegate::CreateLambda([this, &Actions](FMenuBuilder& SubMenuBuilder)
-		{
-			SubMenuBuilder.BeginSection("Camera");
-			{
-				TSharedPtr<SWidget> BoneSizeWidget = SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight()
-				.HAlign(HAlign_Left)
-				.Padding(FMargin(20.0f, 5.0f, 0.0f, 0.0f))
-				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("OptionsMenu_CameraOptions_CameraSpeed_Text", "Camera Speed"))
-					.Font(UE_MUTABLE_GET_FONTSTYLE(TEXT("MenuItem.Font")))
-				]
+	ShowMenuBuilder.BeginSection("Camera", LOCTEXT("Camera", "Camera"));
 
-				+SVerticalBox::Slot().AutoHeight()
-				.HAlign(HAlign_Left)
-				.Padding(FMargin(20.0f, 0.0f, 0.0f, 0.0f))
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().AutoWidth()
-					[
-						SNew(SBox).WidthOverride(100.0f)
-						[
-							SNew(SSlider)
-							.Value_Lambda([this]() {return Viewport.Pin().Get()->GetViewportCameraSpeed(); })
-							.MinValue(1).MaxValue(4)
-							.OnValueChanged_Lambda([this](int32 Value) { Viewport.Pin().Get()->SetViewportCameraSpeed(Value); })
-						]
-					]
-					+ SHorizontalBox::Slot().AutoWidth()
-					[
-						SNew(STextBlock).Text_Lambda([this]() { return FText::AsNumber(Viewport.Pin().Get()->GetViewportCameraSpeed()); })
-					]
-				];
-				
-				SubMenuBuilder.AddMenuEntry(Actions.OrbitalCamera);
-				SubMenuBuilder.AddMenuEntry(Actions.FreeCamera);
-				SubMenuBuilder.AddWidget(BoneSizeWidget.ToSharedRef(), LOCTEXT("OptionMenu_CameraOptions_CameraSpeed", ""));
-			}
-			SubMenuBuilder.EndSection();
-		}));
+	ShowMenuBuilder.AddMenuEntry(Actions.OrbitalCamera);
+	ShowMenuBuilder.AddMenuEntry(Actions.FreeCamera);
+	
+	TSharedPtr<SWidget> BoneSizeWidget = SNew(SVerticalBox)
+	+ SVerticalBox::Slot().AutoHeight()
+	.HAlign(HAlign_Left)
+	.Padding(FMargin(20.0f, 5.0f, 0.0f, 0.0f))
+	[
+		SNew(STextBlock)
+		.Text(LOCTEXT("OptionsMenu_CameraOptions_CameraSpeed_Text", "Camera Speed"))
+		.Font(UE_MUTABLE_GET_FONTSTYLE(TEXT("MenuItem.Font")))
+	]
 
-		ShowMenuBuilder.AddSubMenu(LOCTEXT("OptionsMenu_BoneOptions", "Bones"), LOCTEXT("OptionsMenu_BoneOptionsTooltip", "Show/hide bone hierarchy"),
-		FNewMenuDelegate::CreateLambda([&Actions](FMenuBuilder& SubMenuBuilder)
-		{
-			SubMenuBuilder.BeginSection("Bones");
-			{
-				SubMenuBuilder.AddMenuEntry(Actions.ShowBones);
-			}
-			SubMenuBuilder.EndSection();
-		}));
-	}
+	+SVerticalBox::Slot().AutoHeight()
+	.HAlign(HAlign_Left)
+	.Padding(FMargin(20.0f, 0.0f, 0.0f, 0.0f))
+	[
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			SNew(SBox).WidthOverride(100.0f)
+			[
+				SNew(SSlider)
+				.Value_Lambda([this]() {return Viewport.Pin().Get()->GetViewportCameraSpeed(); })
+				.MinValue(1).MaxValue(4)
+				.OnValueChanged_Lambda([this](int32 Value) { Viewport.Pin().Get()->SetViewportCameraSpeed(Value); })
+			]
+		]
+		+ SHorizontalBox::Slot().AutoWidth()
+		[
+			SNew(STextBlock).Text_Lambda([this]() { return FText::AsNumber(Viewport.Pin().Get()->GetViewportCameraSpeed()); })
+		]
+	];
+	
+	ShowMenuBuilder.AddWidget(BoneSizeWidget.ToSharedRef(), LOCTEXT("OptionMenu_CameraOptions_CameraSpeed", ""));
+	
+	ShowMenuBuilder.EndSection();
 
 	return ShowMenuBuilder.MakeWidget();
 }

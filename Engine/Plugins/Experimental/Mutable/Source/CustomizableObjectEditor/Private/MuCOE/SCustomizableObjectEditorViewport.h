@@ -63,6 +63,12 @@ private:
 	FText GetCompileErrorOverlayText() const;
 
 	FText GetWarningText() const;
+
+	EVisibility GetWarningTextVisibility() const;
+
+	FText GetMeshInfoText() const;
+
+	EVisibility GetMeshInfoTextVisibility() const;
 	
 	// Viewport client
 	TSharedPtr<FCustomizableObjectEditorViewportClient> LevelViewportClient;

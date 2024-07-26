@@ -85,15 +85,30 @@ void SCustomizableObjectEditorViewport::PopulateViewportOverlays(TSharedRef<SOve
 	[
 		SNew(SVerticalBox)
 		+SVerticalBox::Slot()
+		.VAlign(VAlign_Top)
+		.AutoHeight()
 		[
 			SNew(SCustomizableObjectEditorViewportToolBar, TabBodyPtr.Pin(), SharedThis(this)).Cursor(EMouseCursor::Default)
 		]
 		+SVerticalBox::Slot()
+		.VAlign(VAlign_Top)
+		.AutoHeight()
 		.Padding(4.0, 16.0, 0.0, 0.0)
 		[
 			SNew(STextBlock)
 			.Text(this, &SCustomizableObjectEditorViewport::GetWarningText)
+			.Visibility(this, &SCustomizableObjectEditorViewport::GetWarningTextVisibility)
 			.ColorAndOpacity(FLinearColor::Yellow)
+		]
+		+SVerticalBox::Slot()
+		.VAlign(VAlign_Top)
+		.AutoHeight()
+		.Padding(4.0, 16.0, 0.0, 0.0)
+		[
+			SNew(STextBlock)
+			.Text(this, &SCustomizableObjectEditorViewport::GetMeshInfoText)
+			.Visibility(this, &SCustomizableObjectEditorViewport::GetMeshInfoTextVisibility)
+			.ColorAndOpacity(FLinearColor::White)
 		]
 	];
 	Overlay->AddSlot()
@@ -211,6 +226,24 @@ FText SCustomizableObjectEditorViewport::GetWarningText() const
 	}
 
 	return {};
+}
+
+
+EVisibility SCustomizableObjectEditorViewport::GetWarningTextVisibility() const
+{
+	return !GetWarningText().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+
+FText SCustomizableObjectEditorViewport::GetMeshInfoText() const
+{
+	return LevelViewportClient->GetMeshInfoText();
+}
+
+
+EVisibility SCustomizableObjectEditorViewport::GetMeshInfoTextVisibility() const
+{
+	return LevelViewportClient->IsShowingMeshInfo() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 
@@ -585,8 +618,43 @@ void SCustomizableObjectEditorViewportTabBody::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsActiveViewportType, LVT_OrthoNegativeXY));
 
-	// all other LODs will be added dynamically 
+	CommandList.MapAction( 
+		Commands.ShowDisplayInfo,
+		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::OnShowDisplayInfo),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsShowingMeshInfo));
 
+	CommandList.MapAction( 
+		Commands.EnableClothSimulation,
+		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::OnEnableClothSimulation),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsClothSimulationEnabled));
+
+	CommandList.MapAction( 
+		Commands.DebugDrawPhysMeshWired,
+		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::OnDebugDrawPhysMeshWired),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsDebugDrawPhysMeshWired));
+	
+	CommandList.MapAction(
+		Commands.SetShowNormals,
+		FExecuteAction::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::ToggleShowNormals),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsSetShowNormalsChecked));
+
+	CommandList.MapAction(
+		Commands.SetShowTangents,
+		FExecuteAction::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::ToggleShowTangents),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsSetShowTangentsChecked)); 
+
+	CommandList.MapAction(
+		Commands.SetShowBinormals,
+		FExecuteAction::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::ToggleShowBinormals),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP( EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsSetShowBinormalsChecked));
+	
+	// all other LODs will be added dynamically 
 }
 
 

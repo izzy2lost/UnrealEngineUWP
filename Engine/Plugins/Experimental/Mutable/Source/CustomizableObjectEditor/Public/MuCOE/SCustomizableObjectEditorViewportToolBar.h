@@ -54,6 +54,13 @@ private:
 	FText GetLODMenuLabel() const;
 
 	/**
+	* Generates the toolbar Character menu content
+	*
+	* @return The widget containing the view menu content
+	*/
+	TSharedRef<SWidget> GenerateCharacterMenu() const;
+	
+	/**
 	* Generates the toolbar viewport type menu content
 	*
 	* @return The widget containing the viewport type menu content

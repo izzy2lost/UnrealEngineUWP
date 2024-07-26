@@ -70,7 +70,7 @@ class FCustomizableObjectEditorViewportClient : public FEditorViewportClient, pu
 public:
 	FCustomizableObjectEditorViewportClient(TWeakPtr<ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene, const TSharedPtr<SEditorViewport>& EditorViewportWidget);
 	~FCustomizableObjectEditorViewportClient();
-
+	
 	/** persona config options **/
 	class UPersonaOptions* ConfigOption;
 
@@ -257,6 +257,32 @@ public:
 	bool IsShowingBones() const;
 
 	const TArray<ULightComponent*>& GetLightComponents() const;
+
+	void OnShowDisplayInfo();
+
+	bool IsShowingMeshInfo() const;
+	
+	void OnEnableClothSimulation();
+	
+	bool IsClothSimulationEnabled() const;
+
+	void OnDebugDrawPhysMeshWired();
+
+	bool IsDebugDrawPhysMeshWired() const;
+	
+	FText GetMeshInfoText() const;
+	
+	void ToggleShowNormals();
+
+	bool IsSetShowNormalsChecked() const;
+	
+	void ToggleShowTangents();
+
+	bool IsSetShowTangentsChecked() const;
+	
+	void ToggleShowBinormals();
+
+	bool IsSetShowBinormalsChecked() const;
 	
 private:
 	/** Draws Mesh Bones in foreground (From: FAnimationViewportClient) */
@@ -337,6 +363,9 @@ private:
 	/** Flag to control the bones visibility in the viewport */
 	bool bShowBones;
 
+	/** Draw wireframe physics mesh. */
+	bool bShowDebugClothing = false;
+	
 	// Temp Instance used in the bake process if a new instance is needed because mutable texture streaming is enabled so the viewport 
 	// instance does not have the high quality mips in the texture's platform data
 	TObjectPtr<UCustomizableObjectInstance> BakeTempInstance = nullptr;
@@ -344,6 +373,21 @@ private:
 	// Cache System configuration cached before performing the mandatory instance update for baking so we can restore it after the bake operation
 	bool bIsProgressiveMipStreamingEnabled = false;
 	bool bIsOnlyGenerateRequestedLODsEnabled = false;
+
+	/** Show detailed mesh info text. */
+	bool bShowDisplayInfo = false;
+
+	/** See USkeletalMeshComponent::bDisableClothSimulation. */
+	bool bDisableClothSimulation = false;
+
+	/** See USkeletalMeshComponent::bDrawNormals. */
+	bool bDrawNormals = false;
+
+	/** See USkeletalMeshComponent::bDrawTangents. */
+	bool bDrawTangents = false;
+
+	/** See USkeletalMeshComponent::bDrawBinormals. */
+	bool bDrawBinormals = false;
 	
 	// The following delegates currently are only used by the EWidgetType::Projector
 	FWidgetLocationDelegate WidgetLocationDelegate;

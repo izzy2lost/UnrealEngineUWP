@@ -384,6 +384,24 @@ void FCustomizableObjectEditorViewportClient::Draw(const FSceneView* View, FPrim
 			}
 		}
 	}
+
+	if (bShowDebugClothing)
+	{
+		IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("p.ChaosClothEditor.DebugDrawPhysMeshWired"));
+		check(CVar);
+		const bool bPreviousValue = CVar->GetBool();
+		CVar->Set(true);
+		
+		for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+		{
+			if (SkeletalMeshComponent.IsValid())
+			{
+				SkeletalMeshComponent->DebugDrawClothing(PDI);
+			}
+		}
+		
+		CVar->Set(bPreviousValue);
+	}
 }
 
 
@@ -676,7 +694,20 @@ void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectP
 	SkeletalMeshComponents = InSkeletalMeshComponents;
 	Actor = InActor;
 
+	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		if (SkeletalMeshComponent.IsValid())
+		{
+			SkeletalMeshComponent->bDisableClothSimulation = bDisableClothSimulation;
+			SkeletalMeshComponent->bDrawNormals = bDrawNormals;
+			SkeletalMeshComponent->bDrawTangents = bDrawTangents;
+			SkeletalMeshComponent->bDrawBinormals = bDrawBinormals;
+		}
+	}
+	
 	InInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectEditorViewportClient::OnInstanceUpdate);
+	
+	Invalidate();
 }
 
 
@@ -1800,6 +1831,259 @@ bool FCustomizableObjectEditorViewportClient::IsShowingBones() const
 const TArray<ULightComponent*>& FCustomizableObjectEditorViewportClient::GetLightComponents() const
 {
 	return LightComponents;
+}
+
+
+void FCustomizableObjectEditorViewportClient::OnShowDisplayInfo()
+{
+	bShowDisplayInfo = !bShowDisplayInfo;
+	
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsShowingMeshInfo() const
+{
+	return bShowDisplayInfo;
+}
+
+
+void FCustomizableObjectEditorViewportClient::OnEnableClothSimulation()
+{
+	bDisableClothSimulation = !bDisableClothSimulation;
+	
+	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		if (SkeletalMeshComponent.IsValid())
+		{
+			SkeletalMeshComponent->bDisableClothSimulation = bDisableClothSimulation;
+		}
+	}
+
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsClothSimulationEnabled() const
+{
+	return bDisableClothSimulation;	
+}
+
+
+void FCustomizableObjectEditorViewportClient::OnDebugDrawPhysMeshWired()
+{
+	bShowDebugClothing = !bShowDebugClothing;
+	
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsDebugDrawPhysMeshWired() const
+{
+	return bShowDebugClothing;
+}
+
+
+FText MergeLine(const FText& InText, const FText& InNewLine)
+{
+	if (InText.IsEmpty())
+	{
+		return InNewLine;
+	}
+
+	return FText::Format(LOCTEXT("ViewportTextNewlineFormatter", "{0}\n{1}"), InText, InNewLine);
+}
+
+
+// Based on FAnimationViewportClient::GetDisplayInfo(bool)
+FText FCustomizableObjectEditorViewportClient::GetMeshInfoText() const
+{
+	FText TextValue;
+
+	for (int32 ComponentIndex = 0; ComponentIndex < SkeletalMeshComponents.Num(); ++ComponentIndex)
+	{
+		TWeakObjectPtr<UDebugSkelMeshComponent> PreviewMeshComponent = SkeletalMeshComponents[ComponentIndex];
+		
+		if (!PreviewMeshComponent.IsValid())
+		{
+			continue;
+		}
+
+		FSkeletalMeshRenderData* SkelMeshResource = PreviewMeshComponent->GetSkeletalMeshRenderData();
+		if (!SkelMeshResource)
+		{
+			continue;
+		}
+
+		// Draw stats about the mesh
+		int32 NumBonesInUse;
+		int32 NumBonesMappedToVerts;
+		int32 NumSectionsInUse;
+
+		const int32 LODIndex = FMath::Clamp(PreviewMeshComponent->GetPredictedLODLevel(), 0, SkelMeshResource->LODRenderData.Num() - 1);
+		FSkeletalMeshLODRenderData& LODData = SkelMeshResource->LODRenderData[LODIndex];
+
+		NumBonesInUse = LODData.RequiredBones.Num();
+		NumBonesMappedToVerts = LODData.ActiveBoneIndices.Num();
+		NumSectionsInUse = LODData.RenderSections.Num();
+
+		// Calculate polys based on non clothing sections so we don't duplicate the counts.
+		uint32 NumTotalTriangles = 0;
+		int32 NumSections = LODData.RenderSections.Num();
+		for(int32 SectionIndex = 0; SectionIndex < NumSections; SectionIndex++)
+		{
+			NumTotalTriangles += LODData.RenderSections[SectionIndex].NumTriangles;
+		}
+
+		if (ComponentIndex > 0)
+		{
+			TextValue = FText::Format(LOCTEXT("MeshInfoComponentSeparation", "{0}\n"), TextValue);
+		}
+		
+		TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("MeshInfoFormat", "Component: {0}, LOD: {1}, Bones: {2} (Mapped to Vertices: {3}), Polys: {4}"),
+			FText::AsNumber(ComponentIndex),
+			FText::AsNumber(LODIndex),
+			FText::AsNumber(NumBonesInUse),
+			FText::AsNumber(NumBonesMappedToVerts),
+			FText::AsNumber(NumTotalTriangles)));
+
+		for (int32 SectionIndex = 0; SectionIndex < LODData.RenderSections.Num(); SectionIndex++)
+		{
+			int32 SectionVerts = LODData.RenderSections[SectionIndex].GetNumVertices();
+
+			FText SectionDisabledText = LODData.RenderSections[SectionIndex].bDisabled ? LOCTEXT("SectionIsDisbable", " Disabled") : FText::GetEmpty();
+			TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("SectionFormat", " [Section {0}]{1} Verts: {2}, Bones: {3}, Max Influences: {4}"),
+				FText::AsNumber(SectionIndex),
+				SectionDisabledText,
+				FText::AsNumber(SectionVerts),
+				FText::AsNumber(LODData.RenderSections[SectionIndex].BoneMap.Num()),
+				FText::AsNumber(LODData.RenderSections[SectionIndex].MaxBoneInfluences)
+				));
+		}
+
+		TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("TotalVerts", "TOTAL Verts: {0}"),
+			FText::AsNumber(LODData.GetNumVertices())));
+
+		TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("Sections", "Sections: {0}"),
+			NumSectionsInUse
+			));
+
+		TArray<FTransform> LocalBoneTransforms = PreviewMeshComponent->GetBoneSpaceTransforms();
+		if (PreviewMeshComponent->BonesOfInterest.Num() > 0)
+		{
+			int32 BoneIndex = PreviewMeshComponent->BonesOfInterest[0];
+			FTransform ReferenceTransform = PreviewMeshComponent->GetReferenceSkeleton().GetRefBonePose()[BoneIndex];
+			FTransform LocalTransform = LocalBoneTransforms[BoneIndex];
+			FTransform ComponentTransform = PreviewMeshComponent->GetDrawTransform(BoneIndex);
+
+			auto GetDisplayTransform = [](const FTransform& InTransform) -> FText
+			{
+				FRotator R(InTransform.GetRotation());
+				FVector T(InTransform.GetTranslation());
+				FVector S(InTransform.GetScale3D());
+
+				FString Output = FString::Printf(TEXT("Rotation: X(Roll) %f Y(Pitch)  %f Z(Yaw) %f\r\n"), R.Roll, R.Pitch, R.Yaw);
+				Output += FString::Printf(TEXT("Translation: %f %f %f\r\n"), T.X, T.Y, T.Z);
+				Output += FString::Printf(TEXT("Scale3D: %f %f %f\r\n"), S.X, S.Y, S.Z);
+
+				return FText::FromString(Output);
+			};
+
+			TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("LocalTransform", "Local: {0}"), GetDisplayTransform(LocalTransform)));
+
+			TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("ComponentTransform", "Component: {0}"), GetDisplayTransform(ComponentTransform)));
+
+			TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("ReferenceTransform", "Reference: {0}"), GetDisplayTransform(ReferenceTransform)));
+		}
+
+		TextValue = MergeLine(TextValue, FText::Format(LOCTEXT("ApproximateSize", "Approximate Size: {0}x{1}x{2}"),
+			FText::AsNumber(FMath::RoundToInt(PreviewMeshComponent->Bounds.BoxExtent.X * 2.0f)),
+			FText::AsNumber(FMath::RoundToInt(PreviewMeshComponent->Bounds.BoxExtent.Y * 2.0f)),
+			FText::AsNumber(FMath::RoundToInt(PreviewMeshComponent->Bounds.BoxExtent.Z * 2.0f))));
+
+		uint32 NumNotiesWithErrors = PreviewMeshComponent->AnimNotifyErrors.Num();
+		for (uint32 i = 0; i < NumNotiesWithErrors; ++i)
+		{
+			uint32 NumErrors = PreviewMeshComponent->AnimNotifyErrors[i].Errors.Num();
+			for (uint32 ErrorIdx = 0; ErrorIdx < NumErrors; ++ErrorIdx)
+			{
+				TextValue = MergeLine(TextValue, FText::FromString(PreviewMeshComponent->AnimNotifyErrors[i].Errors[ErrorIdx]));
+			}
+		}	
+	}
+	
+	return TextValue;
+}
+
+
+void FCustomizableObjectEditorViewportClient::ToggleShowNormals()
+{
+	bDrawNormals = !bDrawNormals;
+	
+	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		if (SkeletalMeshComponent.IsValid())
+		{
+			SkeletalMeshComponent->bDrawNormals;
+			SkeletalMeshComponent->MarkRenderStateDirty();
+		}
+	}
+
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsSetShowNormalsChecked() const
+{
+	return bDrawNormals;
+}
+
+
+void FCustomizableObjectEditorViewportClient::ToggleShowTangents()
+{
+	bDrawTangents = !bDrawTangents;
+
+	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		if (SkeletalMeshComponent.IsValid())
+		{
+			SkeletalMeshComponent->bDrawTangents = bDrawTangents;
+			SkeletalMeshComponent->MarkRenderStateDirty();
+		}
+	}
+
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsSetShowTangentsChecked() const
+{
+	return bDrawTangents;
+}
+
+
+void FCustomizableObjectEditorViewportClient::ToggleShowBinormals()
+{
+	bDrawBinormals = !bDrawBinormals;
+	
+	for (const TWeakObjectPtr<UDebugSkelMeshComponent>& SkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		if (SkeletalMeshComponent.IsValid())
+		{
+			SkeletalMeshComponent->bDrawBinormals = bDrawBinormals;
+			SkeletalMeshComponent->MarkRenderStateDirty();
+		}
+	}
+	
+	GetWorld()->SendAllEndOfFrameUpdates();
+
+	Invalidate();
+}
+
+
+bool FCustomizableObjectEditorViewportClient::IsSetShowBinormalsChecked() const
+{
+	return bDrawBinormals;
 }
 
 

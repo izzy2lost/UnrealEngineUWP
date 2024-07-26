@@ -44,17 +44,22 @@ class FCustomizableObjectEditorViewportCommands : public TCommands<FCustomizable
 public:
 	FCustomizableObjectEditorViewportCommands();
 	
-	TSharedPtr< FUICommandInfo > SetDrawUVs;
-	TSharedPtr< FUICommandInfo > SetShowGrid;
-	TSharedPtr< FUICommandInfo > SetShowSky;
-	TSharedPtr< FUICommandInfo > SetShowBounds;
-	TSharedPtr< FUICommandInfo > SetShowCollision;
-	TSharedPtr< FUICommandInfo > SetCameraLock;
-	TSharedPtr< FUICommandInfo > SaveThumbnail;
-
-	TSharedPtr< FUICommandInfo > BakeInstance;
-	TSharedPtr< FUICommandInfo > StateChangeShowData;
-	TSharedPtr< FUICommandInfo > StateChangeShowGeometryData;
+	TSharedPtr<FUICommandInfo> SetDrawUVs;
+	TSharedPtr<FUICommandInfo> SetShowGrid;
+	TSharedPtr<FUICommandInfo> SetShowSky;
+	TSharedPtr<FUICommandInfo> SetShowBounds;
+	TSharedPtr<FUICommandInfo> SetShowCollision;
+	TSharedPtr<FUICommandInfo> SetCameraLock;
+	TSharedPtr<FUICommandInfo> SaveThumbnail;
+	TSharedPtr<FUICommandInfo> BakeInstance;
+	TSharedPtr<FUICommandInfo> StateChangeShowData;
+	TSharedPtr<FUICommandInfo> StateChangeShowGeometryData;
+	TSharedPtr<FUICommandInfo> ShowDisplayInfo;
+	TSharedPtr<FUICommandInfo> EnableClothSimulation;
+	TSharedPtr<FUICommandInfo> DebugDrawPhysMeshWired;
+	TSharedPtr<FUICommandInfo> SetShowNormals;
+	TSharedPtr<FUICommandInfo> SetShowTangents;
+	TSharedPtr<FUICommandInfo> SetShowBinormals;
 
 	/**
 	 * Initialize commands
