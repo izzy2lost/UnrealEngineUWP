@@ -882,6 +882,10 @@ void FChooserTableEditor::UpdateTableColumns()
 								Chooser->Modify(true);
 								Chooser->ColumnsStructs.Swap(ColumnIndex, ColumnIndex - 1);
 								UpdateTableColumns();
+								if (SelectedColumn)
+								{
+									SelectColumn(Chooser, ColumnIndex - 1);
+								}
 							})
 							));
 				}
@@ -895,6 +899,10 @@ void FChooserTableEditor::UpdateTableColumns()
 								Chooser->Modify(true);
 								Chooser->ColumnsStructs.Swap(ColumnIndex, ColumnIndex + 1);
 								UpdateTableColumns();
+								if (SelectedColumn)
+								{
+									SelectColumn(Chooser, ColumnIndex + 1);
+								}
 							})
 							));
 				}
