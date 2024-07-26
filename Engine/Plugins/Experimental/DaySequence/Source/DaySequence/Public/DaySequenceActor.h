@@ -8,7 +8,7 @@
 #include "IMovieScenePlaybackClient.h"
 #include "MovieSceneBindingOwnerInterface.h"
 
-#include "Misc/Timecode.h"
+#include "DaySequenceTime.h"
 #include "TimerManager.h"
 
 #include "DaySequenceActor.generated.h"
@@ -480,7 +480,7 @@ protected:
 	 * Can be used as the initial time of day in PIE if bOverrideInitialTimeOfDay is true.
 	 */
 	UPROPERTY(EditAnywhere, Category = Preview, NonTransactional)
-	FTimecode TimeOfDayPreview;
+	FDaySequenceTime TimeOfDayPreview;
 #endif
 
 	/** Whether or not to run a day cycle. If this is unchecked the day cycle will remain fixed at the time specified by the Initial Time setting */
@@ -492,15 +492,15 @@ protected:
 
 	/** How long a single day cycle is */
 	UPROPERTY(EditAnywhere, Category = RuntimeDayCycle)
-	FTimecode DayLength;
+	FDaySequenceTime DayLength;
 
 	/** How long does it take for a day cycle to complete in world time. If this is the same value as day duration that means real world time is used */
 	UPROPERTY(EditAnywhere, Category = RuntimeDayCycle)
-	FTimecode TimePerCycle;
+	FDaySequenceTime TimePerCycle;
 
 	/** The initial time that the day cycle will start at */
 	UPROPERTY(EditAnywhere, Category = RuntimeDayCycle)
-	FTimecode InitialTimeOfDay;
+	FDaySequenceTime InitialTimeOfDay;
 	
 	/** Cached static time controller applied from SetStaticTimeOfDay */
 	TWeakPtr<UE::DaySequence::FStaticTimeControllerOverride> WeakTimeControllerOverride;

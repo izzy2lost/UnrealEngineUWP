@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DaySequenceTime.h"
 #include "Misc/OptionalFwd.h"
 
 struct FTimecode;
@@ -20,7 +21,7 @@ public:
 	 * @param InRate Optional frame rate to convert frames portion of Timecode.
 	 * @return result in hours.
 	 */
-	static float TimecodeToHours(const FTimecode& InTimecode, const TOptional<FFrameRate>& InRate);
+	static float TimecodeToHours(const FDaySequenceTime& InTimecode, const TOptional<FFrameRate>& InRate);
 
 	/**
 	 * Convert Timecode to seconds. Optionally provide a frame rate to convert
@@ -31,7 +32,7 @@ public:
 	 * @param InRate Optional frame rate to convert frames portion of Timecode.
 	 * @return result in seconds.
 	 */
-	static float TimecodeToSeconds(const FTimecode& InTimecode, const TOptional<FFrameRate>& InRate);
+	static float TimecodeToSeconds(const FDaySequenceTime& InTimecode, const TOptional<FFrameRate>& InRate);
 
 	/**
 	 * Convert hours to Timecode. Optionally provide a frame rate to convert
@@ -42,7 +43,7 @@ public:
 	 * @param InRate Optional frame rate to convert fractional seconds to frames.
 	 * @return result in timecode.
 	 */
-	static FTimecode HoursToTimecode(float InHours, const TOptional<FFrameRate>& InRate);
+	static FDaySequenceTime HoursToTimecode(float InHours, const TOptional<FFrameRate>& InRate);
 
 	/**
 	 * Convert seconds to Timecode. Optionally provide a frame rate to convert
@@ -53,5 +54,5 @@ public:
 	 * @param InRate Optional frame rate to convert fractional seconds to frames.
 	 * @return result in timecode.
 	 */
-	static FTimecode SecondsToTimecode(float InSeconds, const TOptional<FFrameRate>& InRate);
+	static FDaySequenceTime SecondsToTimecode(float InSeconds, const TOptional<FFrameRate>& InRate);
 };

@@ -11,6 +11,7 @@
 #include "DaySequenceEditorActorSpawner.h"
 #include "DaySequenceSubsystem.h"
 #include "DaySequenceConditionSetCustomization.h"
+#include "DaySequenceTimeDetailsCustomization.h"
 #include "DaySequenceEditorToolkit.h"
 #include "DaySequenceTrackEditor.h"
 #include "DaySequenceModifierComponent.h"
@@ -50,6 +51,7 @@ static const FName LevelEditorModuleName("LevelEditor");
 static const FName PropertyEditorModuleName("PropertyEditor");
 static const FName DaySequenceActorClassName("DaySequenceActor");
 static const FName DaySequenceConditionSetName("DaySequenceConditionSet");
+static const FName DaySequenceTimeName("DaySequenceTime");
 static const FName DaySequenceViewportToolBarExtensionName("DaySequenceEditorViewportToolBar");
 static const FName EnvironmentLightingActorClassName("EnvironmentLightingActor");
 
@@ -247,7 +249,8 @@ void FDaySequenceEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout(DaySequenceActorClassName, FOnGetDetailCustomizationInstance::CreateStatic(&FDaySequenceActorDetails::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(EnvironmentLightingActorClassName, FOnGetDetailCustomizationInstance::CreateStatic(&FEnvironmentLightingActorDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout(DaySequenceConditionSetName, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDaySequenceConditionSetCustomization::MakeInstance));
-
+	PropertyModule.RegisterCustomPropertyTypeLayout(DaySequenceTimeName, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FDaySequenceTimeDetailsCustomization::MakeInstance));
+	
 	RegisterModulePropertySections();
 
 	RegisterEditorObjectBindings();

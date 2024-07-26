@@ -2,7 +2,7 @@
 
 #include "ProceduralDaySequenceBuilder.h"
 
-#include "DaySequenceHelpers.h"
+#include "DaySequenceTime.h"
 #include "MovieSceneCommonHelpers.h"
 
 #include "Sections/MovieSceneBoolSection.h"
@@ -76,9 +76,9 @@ UDaySequence* UProceduralDaySequenceBuilder::Initialize(ADaySequenceActor* InAct
 		const FName SequenceName = MakeUniqueObjectName(InActor, UDaySequence::StaticClass());
 		ProceduralDaySequence = NewObject<UDaySequence>(InActor, SequenceName, RF_Transient);
 		ProceduralDaySequence->Initialize(RF_Transient);
-		const TOptional<FFrameRate> FrameRate = TargetActor->GetRootSequence() ? TargetActor->GetRootSequence()->GetMovieScene()->GetDisplayRate() : TOptional<FFrameRate>();
-		const FQualifiedFrameTime FrameTimePerCycle(DaySequenceHelpers::HoursToTimecode(TargetActor->GetTimePerCycle(), FrameRate), FFrameRate());
-		const float DaySeconds = FrameTimePerCycle.AsSeconds();
+
+		const float DaySeconds = TargetActor->GetTimePerCycle() * FDaySequenceTime::SecondsPerHour;
+		
 		const int32 Duration = ProceduralDaySequence->GetMovieScene()->GetTickResolution().AsFrameNumber(DaySeconds).Value;
 		ProceduralDaySequence->GetMovieScene()->SetPlaybackRange(0, Duration);
 	}

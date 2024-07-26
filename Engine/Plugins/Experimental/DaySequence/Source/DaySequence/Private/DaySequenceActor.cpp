@@ -71,7 +71,7 @@ namespace UE::DaySequence
 		float TimeInHours;
 		FFrameTime StaticTime;
 #if WITH_EDITORONLY_DATA
-		FTimecode PreviousTimeOfDayPreview;
+		FDaySequenceTime PreviousTimeOfDayPreview;
 #endif
 
 		FStaticTimeControllerOverride(FFrameTime InStaticTime, TSharedPtr<FMovieSceneTimeController> InPreviousTimeController)
@@ -112,9 +112,9 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 : Super(Init)
 , bRunDayCycle(true)
 , bUseInterpCurve(false)
-, DayLength(24, 0, 0, 0, false)
-, TimePerCycle(0, 5, 0, 0, false)
-, InitialTimeOfDay(6, 0, 0, 0, false)
+, DayLength(24, 0, 0)
+, TimePerCycle(0, 5, 0)
+, InitialTimeOfDay(6, 0, 0)
 {
 	USceneComponent* SceneRootComponent = CreateDefaultSubobject<USceneComponent>(USceneComponent::GetDefaultSceneRootVariableName());
 	SetRootComponent(SceneRootComponent);
@@ -140,7 +140,7 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 		}
 	}
 
-	TimeOfDayPreview = FTimecode(6, 0, 0, 0, false);
+	TimeOfDayPreview = FDaySequenceTime(6, 0, 0);
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR || ENABLE_DRAW_DEBUG
@@ -468,7 +468,7 @@ void ADaySequenceActor::ConditionalSetTimeOfDayPreview(float InHours)
 	// Wrap the input hours using day length
 	InHours = FMath::Frac(InHours / GetDayLength()) * GetDayLength(); 
 	const TOptional<FFrameRate> FrameRate = RootSequence ? RootSequence->GetMovieScene()->GetDisplayRate() : TOptional<FFrameRate>();
-	const FTimecode NewTimeOfDayPreview = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
+	const FDaySequenceTime NewTimeOfDayPreview = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
 	if (NewTimeOfDayPreview != TimeOfDayPreview)
 	{
 		TimeOfDayPreview = NewTimeOfDayPreview;
@@ -495,7 +495,7 @@ void ADaySequenceActor::SetTimeOfDayPreview(float InHours)
 	// Wrap the input hours using day length
 	InHours = FMath::Frac(InHours / GetDayLength()) * GetDayLength(); 
 	const TOptional<FFrameRate> FrameRate = RootSequence ? RootSequence->GetMovieScene()->GetDisplayRate() : TOptional<FFrameRate>();
-	const FTimecode NewTimeOfDayPreview = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
+	const FDaySequenceTime NewTimeOfDayPreview = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
 	TimeOfDayPreview = NewTimeOfDayPreview;
 	OnTimeOfDayPreviewChangedEvent.Broadcast(InHours);
 	OnTimeOfDayPreviewChanged.Broadcast(InHours);
@@ -1039,7 +1039,7 @@ void ADaySequenceActor::SetDayLength(float InHours)
 	const TOptional<FFrameRate> FrameRate = RootSequence ? RootSequence->GetMovieScene()->GetDisplayRate() : TOptional<FFrameRate>();
 
 	// Set min day length to 1 second.
-	const FTimecode OneSecond(0, 0, 1, 0, false);
+	const FDaySequenceTime OneSecond(0, 0, 1);
 	InHours = FMath::Max(InHours, DaySequenceHelpers::TimecodeToHours(OneSecond, FrameRate));
 	DayLength = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
 }
@@ -1055,7 +1055,7 @@ void ADaySequenceActor::SetTimePerCycle(float InHours)
 	const TOptional<FFrameRate> FrameRate = RootSequence ? RootSequence->GetMovieScene()->GetDisplayRate() : TOptional<FFrameRate>();
 
 	// Set min cycle length to 1 second.
-	const FTimecode OneSecond(0, 0, 1, 0, false);
+	const FDaySequenceTime OneSecond(0, 0, 1);
 	InHours = FMath::Max(InHours, DaySequenceHelpers::TimecodeToHours(OneSecond, FrameRate));
 	TimePerCycle = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate);
 }
@@ -1068,16 +1068,16 @@ void ADaySequenceActor::Multicast_SetTimePerCycle_Implementation(float InHours)
 	const float CurrentTimeOfDay = bIsGameWorld ? GetTimeOfDay() : 0.f;
 
 	// Set min cycle length to 1 second.
-	const FTimecode OneSecond(0, 0, 1, 0, false);
+	const FDaySequenceTime OneSecond(0, 0, 1);
 	InHours = FMath::Max(InHours, DaySequenceHelpers::TimecodeToHours(OneSecond, FrameRate));
-	const FTimecode NewTimePerCycle = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate); 
+	const FDaySequenceTime NewTimePerCycle = DaySequenceHelpers::HoursToTimecode(InHours, FrameRate); 
 	if (NewTimePerCycle != TimePerCycle)
 	{
 		// Validate the new TimePerCycle to avoid overflowing the playback range.
 		UMovieScene* RootMovieScene = RootSequence->GetMovieScene();
 		const FFrameRate DisplayRate = RootMovieScene->GetDisplayRate();
 		const FFrameRate TickResolution = RootMovieScene->GetTickResolution();
-		const auto IsTimePerCycleOverflow = [&DisplayRate, &TickResolution](const FTimecode& InTimePerCycle)
+		const auto IsTimePerCycleOverflow = [&DisplayRate, &TickResolution](const FDaySequenceTime& InTimePerCycle)
 		{
 			const float TimePerCycleSeconds = DaySequenceHelpers::TimecodeToSeconds(InTimePerCycle, TOptional<FFrameRate>());
 			const int32 CycleSeconds = static_cast<int32>(TimePerCycleSeconds) + 1;
@@ -1098,8 +1098,7 @@ void ADaySequenceActor::Multicast_SetTimePerCycle_Implementation(float InHours)
 		if (bIsGameWorld)
 		{
 			// Update playback range for the root sequence.
-			const FQualifiedFrameTime FrameTimePerCycle(TimePerCycle, FFrameRate());
-			const float DaySeconds = FrameTimePerCycle.AsSeconds();
+			const float DaySeconds = DaySequenceHelpers::TimecodeToSeconds(TimePerCycle, FFrameRate());
 			const int32 RootDuration = RootMovieScene->GetTickResolution().AsFrameNumber(DaySeconds).Value;
 			RootMovieScene->MarkAsChanged();
 			RootMovieScene->SetPlaybackRange(0, RootDuration);
