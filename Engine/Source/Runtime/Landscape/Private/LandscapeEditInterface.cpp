@@ -1897,7 +1897,7 @@ void ULandscapeComponent::FillLayer(ULandscapeLayerInfoObject* LayerInfo, FLands
 	{
 		FillLayerIdx = ComponentWeightmapLayerAllocations.Num();
 		ComponentWeightmapLayerAllocations.Add(FWeightmapLayerAllocationInfo(LayerInfo));
-		Component->ReallocateWeightmapsInternal(&LandscapeEdit, EditLayerGuid);
+		Component->ReallocateWeightmaps(/*DataInterface =*/&LandscapeEdit, EditLayerGuid, /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 	}
 
 	check(FillLayerIdx != INDEX_NONE);
@@ -2863,7 +2863,7 @@ void FLandscapeEditDataInterface::SetAlphaData(ULandscapeLayerInfoObject* const 
 
 				UpdateLayerIdx = ComponentWeightmapLayerAllocations.Num();
 				new (ComponentWeightmapLayerAllocations) FWeightmapLayerAllocationInfo(LayerInfo);
-				Component->ReallocateWeightmapsInternal(this, GetEditLayer());
+				Component->ReallocateWeightmaps(/*DataInterface =*/this, GetEditLayer(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 
 				if (!Component->GetLandscapeProxy()->HasLayersContent())
 				{
@@ -3317,7 +3317,7 @@ void FLandscapeEditDataInterface::SetAlphaData(const TSet<ULandscapeLayerInfoObj
 						}
 						ComponentWeightmapLayerAllocations.Emplace(LayerInfoNeedingAllocation);
 					}
-					Component->ReallocateWeightmapsInternal(this, GetEditLayer());
+					Component->ReallocateWeightmaps(/*DataInterface =*/this, GetEditLayer(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 					
 					if (!Component->GetLandscapeProxy()->HasLayersContent())
 					{

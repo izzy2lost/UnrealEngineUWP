@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Misc/EnumRange.h"
 
 #include "LandscapeEditTypes.generated.h"
 
@@ -13,7 +14,20 @@ enum class ELandscapeToolTargetType : uint8
 	Weightmap = 1,
 	Visibility = 2,
 	Invalid = 3 UMETA(Hidden), // only valid for LandscapeEdMode->CurrentToolTarget.TargetType
+	Count = Invalid UMETA(Hidden), // Only the elements above Invalid actually count as proper target types
 };
+ENUM_RANGE_BY_COUNT(ELandscapeToolTargetType, ELandscapeToolTargetType::Count);
+
+enum class ELandscapeToolTargetTypeFlags : uint8
+{
+	None = 0,
+	Heightmap = (1 << static_cast<uint8>(ELandscapeToolTargetType::Heightmap)),
+	Weightmap = (1 << static_cast<uint8>(ELandscapeToolTargetType::Weightmap)),
+	Visibility = (1 << static_cast<uint8>(ELandscapeToolTargetType::Visibility)),
+	All = Heightmap | Weightmap | Visibility,
+};
+ENUM_CLASS_FLAGS(ELandscapeToolTargetTypeFlags);
+
 
 namespace UE::Landscape
 {

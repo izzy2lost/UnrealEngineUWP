@@ -20,6 +20,22 @@ void ULandscapeEditLayerBase::PostLoad()
 	SetFlags(RF_Transactional);
 }
 
+#if WITH_EDITOR
+
+const FLandscapeLayer* ULandscapeEditLayerBase::GetOwningLayer() const
+{
+	if (OwningLandscape != nullptr)
+	{
+		TArrayView<const FLandscapeLayer> Layers = OwningLandscape->GetLayers();
+		return Layers.FindByPredicate([this](const FLandscapeLayer& Struct) { return Struct.EditLayer == this; });
+	}
+
+	return nullptr;
+}
+
+#endif // WITH_EDITOR
+
+
 // ----------------------------------------------------------------------------------
 
 bool ULandscapeEditLayer::SupportsTargetType(ELandscapeToolTargetType InType) const

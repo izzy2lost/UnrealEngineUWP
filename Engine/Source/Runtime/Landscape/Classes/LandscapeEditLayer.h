@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "LandscapeEditLayerRenderer.h"
+
 #include "LandscapeEditLayer.generated.h"
 
 enum class ELandscapeToolTargetType : uint8;
@@ -14,6 +16,9 @@ class ALandscape;
 */
 UCLASS(MinimalAPI, Abstract)
 class ULandscapeEditLayerBase : public UObject
+#if CPP && WITH_EDITOR
+	, public ILandscapeEditLayerRenderer
+#endif // CPP && WITH_EDITOR
 {
 	GENERATED_BODY()
 
@@ -149,8 +154,14 @@ public:
 
 	// UObject
 	LANDSCAPE_API virtual void PostLoad() override;
-protected:
 
+protected:
+#if WITH_EDITOR
+	// TODO [jonathan.bard] remove this dependency to FLandscapeLayer ASAP (once all data from there has moved to the ULandscapeEditLayer class) :
+	const FLandscapeLayer* GetOwningLayer() const;
+#endif // WITH_EDITOR
+
+protected:
 	// TODO: This might be removed once more things are moved from FLandscapeLayer to ULandscapeLayer
 	UPROPERTY()
 	TWeakObjectPtr<ALandscape> OwningLandscape;
@@ -169,6 +180,16 @@ public:
 	virtual bool NeedsPersistentTextures() const override { return true; };
 	virtual bool SupportsCollapsingTo() const override { return true; } // If the layer has persistent textures, it can be collapsed to another layer (one that supports being collapsed away, that is)
 	// End ULandscapeEditLayerBase implementation
+
+#if WITH_EDITOR
+	//~ Begin ILandscapeEditLayerRenderer implementation
+	LANDSCAPE_API virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
+		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutSupportedTargetTypeState, UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutEnabledTargetTypeState, TArray<TSet<FName>>& OutRenderGroups) const override;
+	LANDSCAPE_API virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
+	LANDSCAPE_API virtual void RenderLayer(ILandscapeEditLayerRenderer::FRenderParams& InRenderParams) override;
+	LANDSCAPE_API virtual FString GetEditLayerRendererDebugName() const override;
+	//~ End ILandscapeEditLayerRenderer implementation
+#endif // WITH_EDITOR
 };
 
 /** 

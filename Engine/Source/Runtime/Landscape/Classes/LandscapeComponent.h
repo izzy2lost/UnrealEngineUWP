@@ -965,6 +965,12 @@ public:
 		return FIntPoint(SectionBaseX, SectionBaseY);
 	}
 
+	/** @return the component's coordinates (aka index, aka component key) in the entire landscape */
+	FIntPoint GetComponentKey() const
+	{
+		return GetSectionBase() / ComponentSizeQuads;
+	}
+
 	/** @param InSectionBase new section base for a component */
 	void SetSectionBase(FIntPoint InSectionBase)
 	{
@@ -1127,12 +1133,13 @@ public:
 	/**
 	 * Create weightmaps for this component for the layers specified in the WeightmapLayerAllocations array, works in the landscape current edit layer when InCanUseEditingWeightmap is true
 	 */
+	UE_DEPRECATED(5.5, "Use the new prototype of ReallocateWeightmaps : note : this is very internal stuff, normally, you shouldn't have to use this function at all")
 	LANDSCAPE_API void ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface = nullptr, bool InCanUseEditingWeightmap = true, bool InSaveToTransactionBuffer = true, bool InForceReallocate = false, ALandscapeProxy* InTargetProxy = nullptr, TArray<UTexture*>* OutNewCreatedTextures = nullptr);
 
 	/**
 	 * Create weightmaps for this component for the layers specified in the WeightmapLayerAllocations array, works in the specified edit layer
 	 */
-	void ReallocateWeightmapsInternal(FLandscapeEditDataInterface* DataInterface = nullptr, const FGuid& InEditLayerGuid = FGuid(), bool InSaveToTransactionBuffer = true, bool InForceReallocate = false, ALandscapeProxy* InTargetProxy = nullptr, TArray<UTexture*>* OutNewCreatedTextures = nullptr);
+	LANDSCAPE_API TArray<UTexture*> ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool bInSaveToTransactionBuffer, bool bInForceReallocate, ALandscapeProxy* InTargetProxy, TSet<ULandscapeComponent*>* InRestrictSharingToComponents);
 
 	/** Returns true if the component has a valid LandscapeHoleMaterial */
 	LANDSCAPE_API bool IsLandscapeHoleMaterialValid() const;

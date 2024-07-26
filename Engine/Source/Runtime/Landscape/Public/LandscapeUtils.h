@@ -4,9 +4,6 @@
 
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIDefinitions.h"
-#endif
 #include "UObject/NameTypes.h"
 #include "AssetRegistry/AssetData.h"
 
@@ -16,6 +13,8 @@ class ULandscapeComponent;
 class ULandscapeLayerInfoObject;
 class UTexture2D;
 class UTexture;
+enum class ELandscapeToolTargetType : uint8;
+enum class ELandscapeToolTargetTypeFlags : uint8;
 
 namespace UE::Landscape
 {
@@ -26,10 +25,9 @@ namespace UE::Landscape
 */
 LANDSCAPE_API bool DoesPlatformSupportEditLayers(EShaderPlatform InShaderPlatform);
 
-int32 ComputeMaxDeltasOffsetForMip(int32 InMipIndex, int32 InNumRelevantMips);
-int32 ComputeMaxDeltasCountForMip(int32 InMipIndex, int32 InNumRelevantMips);
-int32 ComputeMipToMipMaxDeltasIndex(int32 InSourceMipIndex, int32 InDestinationMipIndex, int32 InNumRelevantMips);
-int32 ComputeMipToMipMaxDeltasCount(int32 InNumRelevantMips);
+LANDSCAPE_API ELandscapeToolTargetTypeFlags GetLandscapeToolTargetTypeAsFlags(ELandscapeToolTargetType InTargetType);
+LANDSCAPE_API ELandscapeToolTargetType GetLandscapeToolTargetTypeSingleFlagAsType(ELandscapeToolTargetTypeFlags InSingleFlag);
+LANDSCAPE_API FString GetLandscapeToolTargetTypeFlagsAsString(ELandscapeToolTargetTypeFlags InTargetTypeFlags);
 
 #if WITH_EDITOR
 
@@ -106,12 +104,6 @@ LANDSCAPE_API FString GetLayerInfoObjectPackageName(const ULevel* InLevel, const
 
 /** Returns true if the provided layer info object is the current visibility layer. */
 LANDSCAPE_API bool IsVisibilityLayer(const ULandscapeLayerInfoObject* InLayerInfoObject);
-
-/** Returns true if InPlatform is a mobile platform and the Landscape.MobileWeightTextureArray CVar set */
-bool UseWeightmapTextureArray(EShaderPlatform InPlatform);	
-
-/** Check if Landscape.MobileWeightTextureArray CVar set and we should attempt to use texture arrays for weight maps on mobile platforms  */
-bool IsMobileWeightmapTextureArrayEnabled();
 
 struct FLayerInfoFinder
 {

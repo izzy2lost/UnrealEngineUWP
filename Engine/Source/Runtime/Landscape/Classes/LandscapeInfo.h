@@ -432,6 +432,9 @@ public:
 	 * 
 	 * @return true if at least one overlapped component
 	 */
+	// TODO [jonathan.bard] : There should be multiple versions of this. 
+	//  1. This currently performs AABB to AABB checks and is therefore not optimal (but faster than OOBB to OOBB could ever be, which is why we might need 2 versions) :
+	//  2. Returning a TMap<> is a bit overkill, since the component key can be retrieved trivially from the component
 	LANDSCAPE_API bool GetOverlappedComponents(const FTransform& InAreaWorldTransform, const FBox2D& InAreaExtents, TMap<FIntPoint, ULandscapeComponent*>& OutOverlappedComponents, FIntRect& OutComponentIndicesBoundingRect);
 
 #if WITH_EDITOR

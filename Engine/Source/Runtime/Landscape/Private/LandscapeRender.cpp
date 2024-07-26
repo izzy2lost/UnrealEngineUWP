@@ -54,7 +54,7 @@ LandscapeRender.cpp: New terrain rendering
 #include "RenderGraphBuilder.h"
 #include "Scalability.h"
 #include "Rendering/CustomRenderPass.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "SceneRendererInterface.h"
 
 using namespace UE::Landscape;
@@ -2950,7 +2950,7 @@ void FLandscapeComponentSceneProxy::GetDynamicMeshElements(const TArray<const FS
 		{
 			for (int32 DestinationMipIndex = SourceMipIndex + 1; DestinationMipIndex < NumRelevantMips; ++DestinationMipIndex)
 			{
-				int32 MipToMipDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex, NumRelevantMips);
+				int32 MipToMipDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex, NumRelevantMips);
 				MipToMipInfoString += FString::Printf(TEXT("- %i->%i: %f\n"), SourceMipIndex, DestinationMipIndex, WorldSpaceMipToMipMaxDeltas[MipToMipDeltaIndex]);
 			}
 		}
@@ -4566,13 +4566,13 @@ bool FLandscapeComponentSceneProxy::ShouldInvalidateShadows(const FSceneView& In
 	check(DestinationMipIndex + 1 < NumRelevantMips);
 
 	// Evaluate the max delta for both SourceLODValue and DestinationLODValue against SourceMipIndex :
-	const int32 SourceMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, SourceMipIndex + 1, NumRelevantMips);
+	const int32 SourceMipToMipMaxDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, SourceMipIndex + 1, NumRelevantMips);
 	const double SourceMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[SourceMipToMipMaxDeltaIndex];
 	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to SourceMipIndex + 1 but we want to compute the error at SourceLODValue
 	//  so re-scale the delta within that range to evaluate the actual error : 
 	const double SourceMaxDelta = SourceMipToMipMaxDelta * (SourceLODValue - SourceMipIndex);
 
-	const int32 DestinationMipToMipMaxDeltaIndex = UE::Landscape::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex + 1, NumRelevantMips);
+	const int32 DestinationMipToMipMaxDeltaIndex = UE::Landscape::Private::ComputeMipToMipMaxDeltasIndex(SourceMipIndex, DestinationMipIndex + 1, NumRelevantMips);
 	const double DestinationMipToMipMaxDelta = WorldSpaceMipToMipMaxDeltas[DestinationMipToMipMaxDeltaIndex];
 	// MipToMipMaxDelta represents the maximum delta if we were to transition from SourceMipIndex to DestinationMipIndex + 1 but we want to compute the error at DestinationLODValue
 	//  so re-scale the delta within that range to evaluate the actual error : 

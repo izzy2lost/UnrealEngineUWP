@@ -6,7 +6,7 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialExpressionShadingModel.h"
 
@@ -159,7 +159,7 @@ int32 UMaterialExpressionLandscapeLayerBlend::Compile(class FMaterialCompiler* C
 	TArray<int32> WeightCodes;
 	WeightCodes.Empty(Layers.Num());
 
-	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	const bool bTextureArrayEnabled = UE::Landscape::Private::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	
 	for (int32 LayerIdx = 0; LayerIdx<Layers.Num(); LayerIdx++)
 	{
@@ -335,7 +335,7 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType != LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			const bool bTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)
@@ -399,7 +399,7 @@ bool UMaterialExpressionLandscapeLayerBlend::GenerateHLSLExpression(FMaterialHLS
 		if (Layer.BlendType == LB_AlphaBlend)
 		{
 			const FExpression* WeightExpression = nullptr;
-			const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+			const bool bTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 			verify(GenerateStaticTerrainLayerWeightExpression(Layer.LayerName, Layer.PreviewWeight, bTextureArrayEnabled, Generator, WeightExpression));
 
 			if (WeightExpression)

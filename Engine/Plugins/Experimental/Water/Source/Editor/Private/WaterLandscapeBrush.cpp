@@ -404,6 +404,21 @@ void AWaterLandscapeBrush::AddReferencedObjects(UObject* InThis, FReferenceColle
 	}
 }
 
+#if WITH_EDITOR
+TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> AWaterLandscapeBrush::GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const
+{
+	using namespace UE::Landscape::EditLayers; 
+
+	TArray<FEditLayerRenderItem> RenderItems = Super::GetRenderItems(InLandscapeInfo);
+	check(RenderItems.Num() == 1);
+
+	// For now, this brush requires the entire landscape to be loaded to work deterministically, so we force the input area to be "infinite" : 
+	RenderItems[0].SetInputWorldArea(FInputWorldArea::CreateInfinite());
+
+	return RenderItems;
+}
+#endif // WITH_EDITOR
+
 void AWaterLandscapeBrush::GetWaterBodies(TSubclassOf<AWaterBody> WaterBodyClass, TArray<AWaterBody*>& OutWaterBodies) const
 {
 	FGetActorsOfType<AWaterBody>()(this, WaterBodyClass, OutWaterBodies);
@@ -484,8 +499,13 @@ void AWaterLandscapeBrush::SetTargetLandscape(ALandscape* InTargetLandscape)
 #endif // WITH_EDITOR
 }
 
-void AWaterLandscapeBrush::OnFullHeightmapRenderDone(UTextureRenderTarget2D* InHeightmapRenderTarget)
+void AWaterLandscapeBrush::OnEditLayersMerged(const FOnLandscapeEditLayersMergedParams& InParams)
 {
+	if (!InParams.bIsHeightmapMerge)
+	{
+		return;
+	}
+
 	// #todo_water [roey]: This needs to be changed when the WaterZone can maintain it's own list of "ground actors" so that we don't needlessly update all water zones.
 	if (UWaterSubsystem* WaterSubsystem = UWaterSubsystem::GetWaterSubsystem(GetWorld()))
 	{
@@ -497,14 +517,14 @@ void AWaterLandscapeBrush::SetOwningLandscape(ALandscape* InOwningLandscape)
 {
 	if (OwningLandscape != nullptr)
 	{
-		OwningLandscape->OnFullHeightmapRenderDoneDelegate().RemoveAll(this);
+		OwningLandscape->OnEditLayersMerged().RemoveAll(this);
 	}
 
 	Super::SetOwningLandscape(InOwningLandscape);
 
 	if (OwningLandscape != nullptr)
 	{
-		OwningLandscape->OnFullHeightmapRenderDoneDelegate().AddUObject(this, &AWaterLandscapeBrush::OnFullHeightmapRenderDone);
+		OwningLandscape->OnEditLayersMerged().AddUObject(this, &AWaterLandscapeBrush::OnEditLayersMerged);
 	}
 }
 

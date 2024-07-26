@@ -85,7 +85,7 @@ public:
 	 * @param InOptionalCameraLocations : (optional) camera locations that should be used when updating the grass. If not specified, the usual (streaming manager-based) view locations will be used
 	 */
 	LANDSCAPE_API void RegenerateGrass(bool bInFlushGrass, bool bInForceSync, TOptional<TArrayView<FVector>> InOptionalCameraLocations = TOptional<TArrayView<FVector>>());
-	
+
 	// Remove all grass instances from the specified components.  If passed null, removes all grass instances from all proxies.
 	void RemoveGrassInstances(const TSet<ULandscapeComponent*>* ComponentsToRemoveGrassInstances = nullptr);
 
@@ -171,7 +171,7 @@ private:
 	FLandscapeTextureStreamingManager* TextureStreamingManager = nullptr;
 	FLandscapeGrassMapsBuilder* GrassMapsBuilder = nullptr;
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	class FLandscapePhysicalMaterialBuilder* PhysicalMaterialBuilder = nullptr;
 	
 	FLandscapeNotificationManager* NotificationManager = nullptr;
@@ -186,7 +186,7 @@ private:
 	std::atomic<int32> NaniteBuildsInFlight;
 	std::atomic<int32> NaniteStaticMeshesInFlight;
 
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 	
 	FDelegateHandle OnScalabilityChangedHandle;
 };

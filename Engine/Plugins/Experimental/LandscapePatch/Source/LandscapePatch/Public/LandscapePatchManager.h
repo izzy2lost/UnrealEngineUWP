@@ -32,6 +32,12 @@ public:
 		const FIntPoint& InLandscapeRenderTargetSize) override;
 	virtual UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters) override;
 
+#if WITH_EDITOR
+	//~ Begin ILandscapeEditLayerRenderer implementation
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
+	//~ End ILandscapeEditLayerRenderer implementation
+#endif // WITH_EDITOR
+
 	// Adds the brush to the given landscape, removing it from any previous one. This differs from SetOwningLandscape
 	// in that SetOwningLandscape is called by the landscape itself from AddBrushToLayer to update the manager.
 	UFUNCTION(BlueprintCallable, Category = LandscapeManager)
@@ -79,6 +85,7 @@ public:
 	void MigrateToPrioritySystemAndDelete();
 
 	// ALandscapeBlueprintBrushBase
+	virtual bool CanAffectWeightmapLayer(const FName& InLayerName) const override;
 	virtual bool AffectsHeightmap() const override;
 	virtual bool AffectsWeightmap() const override;
 	virtual bool AffectsWeightmapLayer(const FName& InLayerName) const override;

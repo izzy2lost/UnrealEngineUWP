@@ -38,9 +38,7 @@ public:
 	 * is called. This function calls the virtual InitializeAsBlueprintBrush and RenderLayerAsBlueprintBrush
 	 * functions, which are equivalent to a blueprint brush actor's Initialize_Native and RenderLayer_Native.
 	 */
-	UTextureRenderTarget2D* RenderAsBlueprintBrush(const FLandscapeBrushParameters& InParameters, const FTransform& LandscapeTransform, 
-		// TODO: Someday will be part of FLandscapeBrushParameters
-		const FIntPoint& RenderAreaSize);
+	UTextureRenderTarget2D* RenderAsBlueprintBrush(const FLandscapeBrushParameters& InParameters, const FTransform& LandscapeTransform);
 
 	// Called in the same places as the equivalent methods on FLandscapeLayerBrush.
 	virtual bool AffectsHeightmapAsBlueprintBrush() const { return false; }

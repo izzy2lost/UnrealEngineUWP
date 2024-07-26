@@ -81,6 +81,7 @@ Landscape.cpp: Terrain rendering
 #include "LandscapeEditLayer.h"
 #include "LandscapeTextureStorageProvider.h"
 #include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "LandscapeVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
 #include "UObject/FortniteReleaseBranchCustomObjectVersion.h"
@@ -638,7 +639,7 @@ void ULandscapeComponent::CheckGenerateMobilePlatformData(bool bIsCooking, const
 	FString MobileVersion = FDevSystemGuids::GetSystemGuid(FDevSystemGuids::Get().LANDSCAPE_MOBILE_COOK_VERSION).ToString();
 	ComponentStateAr << MobileVersion;
 
-	bool IsTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	bool IsTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 	ComponentStateAr << IsTextureArrayEnabled;
 
 	uint32 Hash[5];
@@ -1677,7 +1678,6 @@ ALandscape::ALandscape(const FObjectInitializer& ObjectInitializer)
 	WeightmapScratchExtractLayerTextureResource = nullptr;
 	WeightmapScratchPackLayerTextureResource = nullptr;
 	bLandscapeLayersAreInitialized = false;
-	bLandscapeLayersAreUsingLocalMerge = false;
 	LandscapeEdMode = nullptr;
 	bGrassUpdateEnabled = true;
 	bIsSpatiallyLoaded = false;
@@ -2393,9 +2393,7 @@ void ULandscapeComponent::CopyFinalLayerIntoEditingLayer(FLandscapeEditDataInter
 		}
 	}
 
-	const bool bEditingWeighmaps = true;
-	const bool bSaveToTransactionBuffer = true;
-	ReallocateWeightmaps(&DataInterface, bEditingWeighmaps, bSaveToTransactionBuffer);
+	ReallocateWeightmaps(&DataInterface, GetEditingLayerGUID(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 
 	const TArray<TObjectPtr<UTexture2D>>& EditingWeightmapTextures = GetWeightmapTextures(true);
 	for (const FWeightmapLayerAllocationInfo& AllocInfo : EditingLayerWeightmapLayerAllocations)
@@ -2850,7 +2848,6 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			}
 			check(Layer.EditLayer == nullptr);
 			Layer.EditLayer = NewObject<ULandscapeEditLayerBase>(this, EditLayerClass, MakeUniqueObjectName(this, EditLayerClass));
-			Layer.EditLayer->SetBackPointer(this);
 			Layer.EditLayer->OnLayerCreated(Layer);
 		}
 
@@ -2872,18 +2869,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				Brush.SetOwner(this);
 			}
 
+			Layer.EditLayer->SetBackPointer(this);
 		}
 		else
 		{
 			UE_LOG(LogLandscape, Error, TEXT("Couldn't load edit layer object associated with layer %s for landscape %s. This may happen when the edit layer class cannot be found (for example, when a plugin is removed from the project). The layer will be deleted."), *Layer.Name.ToString(), *GetFullName());
-			// Don't use DeleteLayer because it relies on the ULandscapeInfo object to be valid, which is not the case on PostLoad. 
-			// Simply remove the layer from list and the proxies will eventually tell the user to remove their data associated with this layer upon registration (in order to let them avoid data loss) :
-			LandscapeEditLayers.RemoveAt(LayerIndex);
-			--LayerIndex;
-
-			// Request Update
-			RequestLayersContentUpdateForceAll();
+			ensure(DeleteLayer(LayerIndex));
 		}
+	}
+
+	// In case we're a landscape with edit layers but we actually lack a layer (e.g. it was removed by the test above, because its edit layer class is unknown), let's create one all the same 
+	//  because we're always supposed to have at least 1 : 
+	if (CanHaveLayersContent() && LandscapeEditLayers.IsEmpty())
+	{
+		ensure(CreateLayer() != INDEX_NONE);
 	}
 #endif // WITH_EDITOR
 
@@ -5907,6 +5906,7 @@ void ULandscapeInfo::UnregisterCollisionComponent(ULandscapeHeightfieldCollision
 	}
 }
 
+// TODO [jonathan.bard] : improve this function or create another one to take into account unloaded proxies : 
 bool ULandscapeInfo::GetOverlappedComponents(const FTransform& InAreaWorldTransform, const FBox2D& InAreaExtents, 
 	TMap<FIntPoint, ULandscapeComponent*>& OutOverlappedComponents, FIntRect& OutComponentIndicesBoundingRect)
 {
@@ -5915,33 +5915,46 @@ bool ULandscapeInfo::GetOverlappedComponents(const FTransform& InAreaWorldTransf
 		return false;
 	}
 
-	// Compute the AABB for this area in landscape space to find which of the landscape components are overlapping :
-	FVector Extremas[4];
-	const FTransform& LandscapeTransform = LandscapeActor->GetTransform();
-	Extremas[0] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Min.X, InAreaExtents.Min.Y, 0.0)));
-	Extremas[1] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Min.X, InAreaExtents.Max.Y, 0.0)));
-	Extremas[2] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Max.X, InAreaExtents.Min.Y, 0.0)));
-	Extremas[3] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Max.X, InAreaExtents.Max.Y, 0.0)));
-	FBox LocalExtents(Extremas, 4);
-
-	// Indices of the landscape components needed for rendering this area : 
-	FIntRect BoundingIndices;
-	BoundingIndices.Min = FIntPoint(FMath::FloorToInt32(LocalExtents.Min.X / ComponentSizeQuads), FMath::FloorToInt32(LocalExtents.Min.Y / ComponentSizeQuads));
-	// The max here is meant to be an exclusive bound, hence the +1
-	BoundingIndices.Max = FIntPoint(FMath::FloorToInt32(LocalExtents.Max.X / ComponentSizeQuads), FMath::FloorToInt32(LocalExtents.Max.Y / ComponentSizeQuads)) + FIntPoint(1);
-
-	// There could be missing components, so the effective area is actually a subset of this area :
 	FIntRect EffectiveBoundingIndices;
-	// Go through each loaded component and find out the actual bounds of the area we need to render :
-	for (int32 KeyY = BoundingIndices.Min.Y; KeyY < BoundingIndices.Max.Y; ++KeyY)
+
+	// Consider invalid extents as meaning "infinite", in which case, return all loaded components : 
+	if (!InAreaExtents.bIsValid)
 	{
-		for (int32 KeyX = BoundingIndices.Min.X; KeyX < BoundingIndices.Max.X; ++KeyX)
+		OutOverlappedComponents.Reserve(XYtoComponentMap.Num());
+		for (const TPair<FIntPoint, ULandscapeComponent*>& XYComponentPair : XYtoComponentMap)
 		{
-			FIntPoint Key(KeyX, KeyY);
-			if (ULandscapeComponent* Component = XYtoComponentMap.FindRef(Key))
+			EffectiveBoundingIndices.Union(FIntRect(XYComponentPair.Key, XYComponentPair.Key + FIntPoint(1)));
+			OutOverlappedComponents.Add(XYComponentPair);
+		}
+	}
+	else
+	{
+		// Compute the AABB for this area in landscape space to find which of the landscape components are overlapping :
+		FVector Extremas[4];
+		const FTransform& LandscapeTransform = LandscapeActor->GetTransform();
+		Extremas[0] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Min.X, InAreaExtents.Min.Y, 0.0)));
+		Extremas[1] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Min.X, InAreaExtents.Max.Y, 0.0)));
+		Extremas[2] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Max.X, InAreaExtents.Min.Y, 0.0)));
+		Extremas[3] = LandscapeTransform.InverseTransformPosition(InAreaWorldTransform.TransformPosition(FVector(InAreaExtents.Max.X, InAreaExtents.Max.Y, 0.0)));
+		FBox LocalExtents(Extremas, 4);
+
+		// Indices of the landscape components needed for rendering this area : 
+		FIntRect BoundingIndices;
+		BoundingIndices.Min = FIntPoint(FMath::FloorToInt32(LocalExtents.Min.X / ComponentSizeQuads), FMath::FloorToInt32(LocalExtents.Min.Y / ComponentSizeQuads));
+		// The max here is meant to be an exclusive bound, hence the +1
+		BoundingIndices.Max = FIntPoint(FMath::FloorToInt32(LocalExtents.Max.X / ComponentSizeQuads), FMath::FloorToInt32(LocalExtents.Max.Y / ComponentSizeQuads)) + FIntPoint(1);
+
+		// Go through each loaded component and find out the actual bounds of the area we need to render :
+		for (int32 KeyY = BoundingIndices.Min.Y; KeyY < BoundingIndices.Max.Y; ++KeyY)
+		{
+			for (int32 KeyX = BoundingIndices.Min.X; KeyX < BoundingIndices.Max.X; ++KeyX)
 			{
-				EffectiveBoundingIndices.Union(FIntRect(Key, Key + FIntPoint(1)));
-				OutOverlappedComponents.Add(Key, Component);
+				FIntPoint Key(KeyX, KeyY);
+				if (ULandscapeComponent* Component = XYtoComponentMap.FindRef(Key))
+				{
+					EffectiveBoundingIndices.Union(FIntRect(Key, Key + FIntPoint(1)));
+					OutOverlappedComponents.Add(Key, Component);
+				}
 			}
 		}
 	}
@@ -5967,7 +5980,7 @@ void ULandscapeInfo::RegisterActorComponent(ULandscapeComponent* Component, bool
 	check(Component);
 
 	FIntPoint ComponentKey = Component->GetSectionBase() / Component->ComponentSizeQuads;
-	auto RegisteredComponent = XYtoComponentMap.FindRef(ComponentKey);
+	ULandscapeComponent* RegisteredComponent = XYtoComponentMap.FindRef(ComponentKey);
 
 	if (RegisteredComponent != Component)
 	{
@@ -6023,7 +6036,7 @@ void ULandscapeInfo::UnregisterActorComponent(ULandscapeComponent* Component)
 	if (ensure(Component))
 	{
 		FIntPoint ComponentKey = Component->GetSectionBase() / Component->ComponentSizeQuads;
-		auto RegisteredComponent = XYtoComponentMap.FindRef(ComponentKey);
+		ULandscapeComponent* RegisteredComponent = XYtoComponentMap.FindRef(ComponentKey);
 
 		if (RegisteredComponent == Component)
 		{
@@ -6036,7 +6049,7 @@ void ULandscapeInfo::UnregisterActorComponent(ULandscapeComponent* Component)
 		// When removing a key, we need to iterate to find the new bounds
 		XYComponentBounds = FIntRect(MAX_int32, MAX_int32, MIN_int32, MIN_int32);
 
-		for (const auto& XYComponentPair : XYtoComponentMap)
+		for (const TPair<FIntPoint, ULandscapeComponent*>& XYComponentPair : XYtoComponentMap)
 	{
 			XYComponentBounds.Include(XYComponentPair.Key);
 	}

@@ -6,7 +6,7 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 
 #if WITH_EDITOR
 #include "MaterialHLSLGenerator.h"
@@ -42,7 +42,7 @@ UMaterialExpressionLandscapeLayerSample::UMaterialExpressionLandscapeLayerSample
 #if WITH_EDITOR
 int32 UMaterialExpressionLandscapeLayerSample::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	const bool bTextureArrayEnabled = UE::Landscape::Private::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	const int32 WeightCode = Compiler->StaticTerrainLayerWeight(ParameterName, Compiler->Constant(PreviewWeight), bTextureArrayEnabled);
 	if (WeightCode == INDEX_NONE)
 	{
@@ -57,7 +57,7 @@ int32 UMaterialExpressionLandscapeLayerSample::Compile(class FMaterialCompiler* 
 
 bool UMaterialExpressionLandscapeLayerSample::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	const bool bTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	const bool bTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 	return GenerateStaticTerrainLayerWeightExpression(ParameterName, PreviewWeight, bTextureArrayEnabled, Generator, OutExpression);
 }
 

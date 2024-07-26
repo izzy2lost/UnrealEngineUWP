@@ -83,6 +83,7 @@ LandscapeEdit.cpp: Landscape editing
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 #include "LandscapeSplineActor.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "ShaderPlatformCachedIniValue.h"
@@ -5698,11 +5699,11 @@ ALandscapeProxy* ULandscapeInfo::MoveComponentsToProxy(const TArray<ULandscapeCo
 		FLandscapeEditDataInterface LandscapeEdit(this);
 		for (ULandscapeComponent* Component : TargetSelectedComponents)
 		{
-			Component->ReallocateWeightmaps(&LandscapeEdit, false, true, true, LandscapeProxy);
+			Component->ReallocateWeightmaps(/*DataInterface = */&LandscapeEdit, /*InEditLayerGuid = */FGuid(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */true, /*InTargetProxy = */LandscapeProxy, /*InRestrictSharingToComponents = */nullptr);
 			Component->ForEachLayer([&](const FGuid& LayerGuid, FLandscapeLayerComponentData& LayerData)
 			{
 				FScopedSetLandscapeEditingLayer Scope(Landscape, LayerGuid);
-				Component->ReallocateWeightmaps(&LandscapeEdit, true, true, true, LandscapeProxy);
+				Component->ReallocateWeightmaps(/*DataInterface = */&LandscapeEdit, LayerGuid, /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */true, /*InTargetProxy = */LandscapeProxy, /*InRestrictSharingToComponents = */nullptr);
 			});
 			Landscape->RequestLayersContentUpdateForceAll();
 		}
@@ -7076,14 +7077,21 @@ void ULandscapeInfo::ClearSelectedRegion(bool bIsComponentwise /*= true*/)
 	}
 }
 
-void ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, bool InCanUseEditingWeightmap, bool InSaveToTransactionBuffer, bool InForceReallocate, ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
+void ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, bool InCanUseEditingWeightmap, bool InSaveToTransactionBuffer, bool InForceReallocate, 
+	ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
 {
 	FGuid TargetLayerGuid = InCanUseEditingWeightmap ? GetEditingLayerGUID() : FGuid();
-	ReallocateWeightmapsInternal(DataInterface, TargetLayerGuid, InSaveToTransactionBuffer, InForceReallocate, InTargetProxy, OutNewCreatedTextures);
+	TArray<UTexture*> CreatedTextures = ReallocateWeightmaps(DataInterface, TargetLayerGuid, InSaveToTransactionBuffer, InForceReallocate, InTargetProxy, /*InRestrictSharingToComponents = */nullptr);
+	if (OutNewCreatedTextures != nullptr)
+	{
+		*OutNewCreatedTextures = CreatedTextures;
+	}
 }
 
-void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool InSaveToTransactionBuffer, bool InForceReallocate, ALandscapeProxy* InTargetProxy, TArray<UTexture*>* OutNewCreatedTextures)
+TArray<UTexture*> ULandscapeComponent::ReallocateWeightmaps(FLandscapeEditDataInterface* DataInterface, const FGuid& InEditLayerGuid, bool bInSaveToTransactionBuffer, bool bInForceReallocate, 
+	ALandscapeProxy* InTargetProxy, TSet<ULandscapeComponent*>* InRestrictSharingToComponents)
 {
+	TArray<UTexture*> CreatedTextures;
 	int32 NeededNewChannels = 0;
 	ALandscapeProxy* TargetProxy = InTargetProxy ? InTargetProxy : GetLandscapeProxy();
 	
@@ -7099,7 +7107,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 	TArray<TObjectPtr<ULandscapeWeightmapUsage>>& ComponentWeightmapTexturesUsage = GetWeightmapTexturesUsage(InEditLayerGuid);
 
 	// When force reallocating, skip tests to see if allocations are necessary based on Component's WeightmapLayeAllocInfo
-	if (!InForceReallocate)
+	if (!bInForceReallocate)
 	{
 		for (int32 LayerIdx = 0; LayerIdx < ComponentWeightmapLayerAllocations.Num(); LayerIdx++)
 		{
@@ -7112,20 +7120,20 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 		// All channels allocated!
 		if (NeededNewChannels == 0)
 		{
-			return;
+			return {};
 		}
 	}
 
 	ULandscapeInfo* LandscapeInfo = GetLandscapeInfo();
 
 	bool bMarkPackageDirty = DataInterface == nullptr ? true : DataInterface->GetShouldDirtyPackage();
-	if (InSaveToTransactionBuffer)
+	if (bInSaveToTransactionBuffer)
 	{
 		LandscapeInfo->ModifyObject(this, bMarkPackageDirty);
 		LandscapeInfo->ModifyObject(TargetProxy, bMarkPackageDirty);
 	}
 
-	if (!InForceReallocate)
+	if (!bInForceReallocate)
 	{
 		// UE_LOG(LogLandscape, Log, TEXT("----------------------"));
 		// UE_LOG(LogLandscape, Log, TEXT("Component %s needs %d layers (%d new)"), *GetName(), WeightmapLayerAllocations.Num(), NeededNewChannels);
@@ -7188,7 +7196,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 
 						if (NeededNewChannels == 0)
 						{
-							return;
+							return {};
 						}
 					}
 				}
@@ -7241,6 +7249,17 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 								int32 TryDistanceSquared = (TryWeightmapUsage->ChannelUsage[ChanIdx]->GetSectionBase() - GetSectionBase()).SizeSquared();
 								if (TryDistanceSquared < BestDistanceSquared)
 								{
+									if (InRestrictSharingToComponents != nullptr)
+									{
+										TSet<ULandscapeComponent*, DefaultKeyFuncs<ULandscapeComponent*>, TInlineSetAllocator<4>> WeightmapComponents(MakeArrayView(TryWeightmapUsage->GetUniqueValidComponents()));
+										int32 NumWeightmapComponents = WeightmapComponents.Num();
+										// Don't pick this candidate if it will lead the texture to be shared with a component that's not in the provided list :
+										if ((NumWeightmapComponents > 0) && WeightmapComponents.Intersect(*InRestrictSharingToComponents).Num() != NumWeightmapComponents)
+										{
+											break;
+										}
+									}
+
 									CurrentWeightmapTexture = ItPair.Key;
 									CurrentWeightmapUsage = TryWeightmapUsage;
 									BestDistanceSquared = TryDistanceSquared;
@@ -7283,10 +7302,7 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 
 			CurrentWeightmapTexture->PostEditChange();
 
-			if (OutNewCreatedTextures != nullptr)
-			{
-				OutNewCreatedTextures->Add(CurrentWeightmapTexture);
-			}
+			CreatedTextures.Add(CurrentWeightmapTexture);
 
 			// Store it in the usage map
 			CurrentWeightmapUsage = TargetProxy->WeightmapUsageMap.Add(CurrentWeightmapTexture, TargetProxy->CreateWeightmapUsage());
@@ -7368,6 +7384,8 @@ void ULandscapeComponent::ReallocateWeightmapsInternal(FLandscapeEditDataInterfa
 	SetWeightmapTexturesUsageInternal(MoveTemp(NewComponentWeightmapTexturesUsage), InEditLayerGuid);
 
 	TargetProxy->ValidateProxyLayersWeightmapUsage();
+
+	return CreatedTextures;
 }
 
 void ALandscapeProxy::RemoveInvalidWeightmaps()
@@ -7576,7 +7594,7 @@ void ULandscapeComponent::InitWeightmapData(TArray<ULandscapeLayerInfoObject*>& 
 		new (WeightmapLayerAllocations)FWeightmapLayerAllocationInfo(LayerInfos[Idx]);
 	}
 
-	ReallocateWeightmaps();
+	ReallocateWeightmaps(/*DataInterface = */nullptr, GetEditingLayerGUID(), /*bInSaveToTransactionBuffer = */true, /*bool bInForceReallocate = */false, /*InTargetProxy = */nullptr, /*InRestrictSharingToComponents = */nullptr);
 
 	check(WeightmapLayerAllocations.Num() > 0 && WeightmapTextures.Num() > 0);
 
@@ -7769,7 +7787,7 @@ void ULandscapeComponent::GenerateMobilePlatformPixelData(bool bIsCooking, const
 
 	const int32 NumWeightTextures = FMath::DivideAndRoundUp(static_cast<int32>(Algo::CountIf(MobileWeightmapLayerAllocations, [](const FWeightmapLayerAllocationInfo& AllocationInfo) { return AllocationInfo.LayerInfo; })), 4);
 
-	const bool MobileWeightmapTextureArrayEnabled = UE::Landscape::IsMobileWeightmapTextureArrayEnabled();
+	const bool MobileWeightmapTextureArrayEnabled = UE::Landscape::Private::IsMobileWeightmapTextureArrayEnabled();
 	
 	if (MobileWeightmapTextureArrayEnabled && NumWeightTextures > 0)
 	{

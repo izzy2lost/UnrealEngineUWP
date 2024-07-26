@@ -6,7 +6,7 @@
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
 #include "Materials/Material.h"
-#include "LandscapeUtils.h"
+#include "LandscapeUtilsPrivate.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MaterialExpressionLandscapeLayerWeight)
 
@@ -59,7 +59,7 @@ bool UMaterialExpressionLandscapeLayerWeight::IsResultMaterialAttributes(int32 O
 
 int32 UMaterialExpressionLandscapeLayerWeight::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	const bool bTextureArrayEnabled = UE::Landscape::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
+	const bool bTextureArrayEnabled = UE::Landscape::Private::UseWeightmapTextureArray(Compiler->GetShaderPlatform());
 	const int32 BaseCode = Base.Expression
 		                       ? Base.Compile(Compiler)
 		                       : Compiler->Constant3(static_cast<float>(ConstBase.X), static_cast<float>(ConstBase.Y), static_cast<float>(ConstBase.Z));

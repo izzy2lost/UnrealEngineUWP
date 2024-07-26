@@ -29,6 +29,12 @@ public:
 	virtual void UnregisterAllComponents(bool bForReregister) override;
 	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
+#if WITH_EDITOR
+	//~ Begin ILandscapeEditLayerRenderer implementation
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
+	//~ End ILandscapeEditLayerRenderer implementation
+#endif // WITH_EDITOR
+
 	UFUNCTION(BlueprintCallable, Category = "Water", meta = (DeterminesOutputType = "WaterBodyClass", DynamicOutputParam = "OutWaterBodies"))
 	void GetWaterBodies(TSubclassOf<AWaterBody> WaterBodyClass, TArray<AWaterBody*>& OutWaterBodies) const;
 
@@ -69,18 +75,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Cache")
 	void ClearActorCache(AActor* InActor);
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Cache", meta = (CallInEditor = "true", DeprecatedFunction, DeprecationMessage = "This event isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
+	UFUNCTION(BlueprintNativeEvent, meta = (DeprecatedFunction, DeprecationMessage = "This event isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
 	void BlueprintGetRenderTargets(UTextureRenderTarget2D* InHeightRenderTarget, UTextureRenderTarget2D*& OutVelocityRenderTarget);
 	UE_DEPRECATED(all, "This function isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)")
 	virtual void BlueprintGetRenderTargets_Native(UTextureRenderTarget2D* InHeightRenderTarget, UTextureRenderTarget2D*& OutVelocityRenderTarget) {}
 
-	UFUNCTION(BlueprintNativeEvent, Category = "Cache", meta = (CallInEditor = "true", DeprecatedFunction, DeprecationMessage = "This event isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
+	UFUNCTION(BlueprintNativeEvent, meta = (DeprecatedFunction, DeprecationMessage = "This event isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
 	void BlueprintOnRenderTargetTexturesUpdated(UTexture2D* VelocityTexture);
 	UE_DEPRECATED(all, "This function isn't called anymore, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)")
 	virtual void BlueprintOnRenderTargetTexturesUpdated_Native(UTexture2D* VelocityTexture) {}
 
 	UE_DEPRECATED(all, "This function is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone).")
-	UFUNCTION(BlueprintCallable, Category = "Cache", meta = (CallInEditor = "true", DeprecatedFunction, DeprecationMessage = "This function is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
+	UFUNCTION(BlueprintCallable, meta = (DeprecatedFunction, DeprecationMessage = "This function is now useless, the WaterVelocityTexture is now regenerated at runtime (WaterInfoTexture in AWaterZone)."))
 	void ForceWaterTextureUpdate() {}
 
 	void SetTargetLandscape(ALandscape* InTargetLandscape);
@@ -122,7 +128,7 @@ private:
 	void ClearActors();
 	bool IsActorAffectingLandscape(AActor* Actor) const;
 	void RegisterDelegates();
-	void OnFullHeightmapRenderDone(UTextureRenderTarget2D* HeightmapRenderTarget);
+	void OnEditLayersMerged(const struct FOnLandscapeEditLayersMergedParams& InParams);
 	void OnWaterBrushActorChanged(const IWaterBrushActorInterface::FWaterBrushActorChangedEventParams& InParams);
 	void OnActorsAffectingLandscapeChanged();
 	void OnLevelActorAdded(AActor* InActor);

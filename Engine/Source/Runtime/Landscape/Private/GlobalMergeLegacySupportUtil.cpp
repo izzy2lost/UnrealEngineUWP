@@ -8,7 +8,7 @@
 
 #if WITH_EDITOR
 UTextureRenderTarget2D* ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport::RenderAsBlueprintBrush(
-	const FLandscapeBrushParameters& InParameters, const FTransform& NewLandscapeTransform, const FIntPoint& RenderAreaSize)
+	const FLandscapeBrushParameters& InParameters, const FTransform& NewLandscapeTransform)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySupport::RenderAsBlueprintBrush);
 
@@ -28,11 +28,11 @@ UTextureRenderTarget2D* ILandscapeBrushRenderCallAdapter_GlobalMergeLegacySuppor
 
 	const FIntPoint NewLandscapeRenderTargetSize = FIntPoint(InParameters.CombinedResult->SizeX, InParameters.CombinedResult->SizeY);
 	if (!CurrentRenderAreaWorldTransform.Equals(NewLandscapeTransform) 
-		|| (CurrentRenderAreaSize != RenderAreaSize)
+		|| (CurrentRenderAreaSize != InParameters.RenderAreaSize)
 		|| CurrentRenderTargetSize != NewLandscapeRenderTargetSize)
 	{
 		CurrentRenderAreaWorldTransform = NewLandscapeTransform;
-		CurrentRenderAreaSize = RenderAreaSize;
+		CurrentRenderAreaSize = InParameters.RenderAreaSize;
 		CurrentRenderTargetSize = NewLandscapeRenderTargetSize;
 
 		InitializeAsBlueprintBrush(CurrentRenderAreaWorldTransform, CurrentRenderAreaSize, CurrentRenderTargetSize);

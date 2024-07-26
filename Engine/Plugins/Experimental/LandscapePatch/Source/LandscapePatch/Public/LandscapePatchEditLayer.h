@@ -45,7 +45,7 @@ public:
 	virtual double GetHighestPatchPriority();
 
 	void RequestLandscapeUpdate(bool bInUserTriggered = false);
-#endif
+#endif // WITH_EDITOR
 
 	inline static const double PATCH_PRIORITY_BASE = 1000;
 
@@ -58,8 +58,16 @@ public:
 	virtual void OnLayerRemoved() override;
 	// TODO: Remove once our guid gets initialized somewhere else
 	virtual void OnLayerCreated(FLandscapeLayer& Layer);
-	
+
 #if WITH_EDITOR
+	// TODO [jonathan.bard] : The following implementation is completely bogus, for now, until this supports batched merge : 
+	//~ Begin ILandscapeEditLayerRenderer implementation
+	virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
+		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutSupportedTargetTypeState, UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutEnabledTargetTypeState, TArray<TSet<FName>>& OutRenderGroups) const override {}
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override { return {}; }
+	virtual FString GetEditLayerRendererDebugName() const override { return TEXT("LandscapePatchEditLayer"); }
+	//~ End ILandscapeEditLayerRenderer implementation
+	
 	// UObject
 	virtual void PostLoad() override;
 	virtual void PostEditUndo() override;
@@ -74,11 +82,11 @@ protected:
 		const FIntPoint& InLandscapeSize,
 		const FIntPoint& InLandscapeRenderTargetSize) override;
 	virtual UTextureRenderTarget2D* RenderLayerAsBlueprintBrush(const FLandscapeBrushParameters& InParameters) override;
+#endif // WITH_EDITOR
 
-private:
-#endif
 #if WITH_EDITORONLY_DATA
 
+private:
 	// This is the transient list of patches that are bound to this edit layer, usually sorted by priority.
 	//  TSoftObjectPtr is used because it is robust across blueprint actor construction script reruns.
 	UPROPERTY(Transient)
@@ -93,7 +101,8 @@ private:
 	//  is used as a safety in case some lack of notifications puts us in a situation where our patches
 	//  are not all valid and sorted.
 	bool bPatchListDirty = false;
-#endif
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 	void UpdatePatchList();
 	void UpdatePatchListIfDirty();
@@ -108,10 +117,11 @@ private:
 
 	// Used in legacy global merge path to pass transform information from Initialize to RenderLayer
 	FTransform HeightmapCoordsToWorld;
-#endif
+#endif // WITH_EDITOR
+
 #if WITH_EDITORONLY_DATA
 	// TODO: Remove this once guid is stored in the base edit layer UObject
 	UPROPERTY()
 	FGuid EditLayerGuid;
-#endif
+#endif // WITH_EDITORONLY_DATA
 };
