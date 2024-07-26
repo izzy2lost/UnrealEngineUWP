@@ -3174,6 +3174,11 @@ float4 SceneTextureFetchFunc(FMaterialPixelParameters Parameters, int SceneTextu
 #endif
 }
 
+float4 SceneTextureFetchFunc(FMaterialPixelParameters Parameters, int SceneTextureIndex, float PixelOffsetX, float PixelOffsetY)
+{
+	return SceneTextureFetchFunc(Parameters, SceneTextureIndex, float2(PixelOffsetX, PixelOffsetY));
+}
+
 #define SceneTextureFetch(SceneTextureIndex, PixelOffset) SceneTextureFetchFunc(Parameters, SceneTextureIndex, PixelOffset)
 
 #endif // SHADING_PATH_DEFERRED

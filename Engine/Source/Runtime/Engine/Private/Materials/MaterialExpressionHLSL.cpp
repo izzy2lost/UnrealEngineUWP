@@ -4569,6 +4569,8 @@ bool UMaterialExpressionObjectRadius::GenerateHLSLExpression(FMaterialHLSLGenera
 	return true;
 }
 
+extern FString CustomExpressionSceneTextureInputFixup(const UMaterialExpressionCustom* Custom, const TCHAR* Code);
+
 bool UMaterialExpressionCustom::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
 	using namespace UE::HLSLTree;
@@ -4637,17 +4639,27 @@ bool UMaterialExpressionCustom::GenerateHLSLExpression(FMaterialHLSLGenerator& G
 		}
 	}
 
-	FStringView FunctionCode;
-	if (Code.Contains(TEXT("return")))
+	TStringBuilder<8 * 1024> FormattedCode;
+	if (!Code.Contains(TEXT("return")))
 	{
-		// Can just reference to 'Code' field directly, the UMaterialExpressionCustom lifetime will be longer than the resulting HLSLTree
-		FunctionCode = Code;
+		FormattedCode.Appendf(TEXT("return %s;"), *Code);
+	}
+
+	FString SceneTextureFixupCode = CustomExpressionSceneTextureInputFixup(this, FormattedCode.Len() ? FormattedCode.ToString() : *Code);
+
+	FStringView FunctionCode;
+	if (SceneTextureFixupCode.Len())
+	{
+		FunctionCode = UE::MemStack::AllocateStringView(Allocator, FStringView(SceneTextureFixupCode));
+	}
+	else if (FormattedCode.Len())
+	{
+		FunctionCode = UE::MemStack::AllocateStringView(Allocator, FormattedCode.ToView());
 	}
 	else
 	{
-		TStringBuilder<8 * 1024> FormattedCode;
-		FormattedCode.Appendf(TEXT("return %s;"), *Code);
-		FunctionCode = UE::MemStack::AllocateStringView(Allocator, FormattedCode.ToView());
+		// Can just reference to 'Code' field directly, the UMaterialExpressionCustom lifetime will be longer than the resulting HLSLTree
+		FunctionCode = Code;
 	}
 
 	const FExpression* ExpressionCustom = Generator.GetTree().NewExpression<FExpressionCustomHLSL>(
