@@ -138,6 +138,13 @@ public:
 	void OnEndSliderMovement()
 	{
 		bIsUsingSlider = false;
+
+		// set value once more with default flags so the TextureGraph system recognizes a non-interactive change as well.
+		float OrgValue(0);
+		if (ScalarHandle->GetValue(OrgValue) != FPropertyAccess::Fail)
+		{
+			ScalarHandle->SetValue(OrgValue);
+		}
 		GEditor->EndTransaction();
 	}
 

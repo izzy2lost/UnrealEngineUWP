@@ -42,6 +42,8 @@ struct TEXTUREGRAPHENGINE_API JobArgBindInfo
 class TEXTUREGRAPHENGINE_API JobArg
 {
 protected:
+	bool							bIgnoreDesc = false;/// Whether to ignore the descriptor for this argument
+														/// when combining descriptors during merge
 	bool							bIgnoreHash = false;/// Whether to ignore this argument in hash calculation or not
 	bool							bUnbound = false;	/// Sometimes you need to add an argument for hashing calculation 
 														/// and not necessarily binding to a BlobTransform
@@ -72,6 +74,9 @@ public:
 
 	FORCEINLINE bool				Unbounded() const { return bUnbound; }
 	FORCEINLINE void 				WithUnbounded(bool unbounded) { bUnbound = unbounded; }
+
+	FORCEINLINE bool				IgnoreDesc() const { return bIgnoreDesc; }
+	FORCEINLINE void 				WithIgnoreDesc(bool ignoreDesc) { bIgnoreDesc = ignoreDesc; }
 };
 
 typedef std::shared_ptr<JobArg>		JobArgPtr;
@@ -395,6 +400,11 @@ public:
 //Blob can be fetched in HLSL using GetFullBlob(inout float 4) method. See AdjustUVGeneric.usf and TiledFetch_Combined.ush for help
 #define ARG_COMBINEDBLOB(v, n)				std::make_shared<JobArg_Blob_Combined>(v, n)	//With Custom SRV
 
+FORCEINLINE JobArgPtr				WithIgnoreDesc(JobArgPtr Arg, bool bIgnoreDesc = true)
+{
+	Arg->WithIgnoreDesc(bIgnoreDesc);
+	return Arg;
+}
 
 FORCEINLINE JobArgPtr				WithIgnoreHash(JobArgPtr Arg, bool bIgnoreHash = true)
 {

@@ -42,7 +42,7 @@ AsyncJobResultPtr HistogramService::Tick()
 {
 	check(IsInGameThread());
 
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Svc_Histogram::Tick"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Svc_Histogram::Tick"));
 
 	if (Batch)
 	{

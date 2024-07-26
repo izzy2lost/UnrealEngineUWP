@@ -13,7 +13,7 @@ class Scheduler;
 class JobBatch;
 class MixUpdateCycle;
 
-DECLARE_LOG_CATEGORY_EXTERN(LogJob, Log, Verbose);
+DECLARE_LOG_CATEGORY_EXTERN(LogJob, Log, All);
 
 class RenderMesh;
 

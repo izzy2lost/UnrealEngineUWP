@@ -263,7 +263,7 @@ void Scheduler::UpdateIdle()
 			return;
 	}
 
-	UE_LOG(LogIdle_Svc, Verbose, TEXT("Scheduler::UpdateIdle"));
+	UE_LOG(LogIdle_Svc, VeryVerbose, TEXT("Scheduler::UpdateIdle"));
 
 	if (TextureGraphEngine::IsDestroying())
 		return;

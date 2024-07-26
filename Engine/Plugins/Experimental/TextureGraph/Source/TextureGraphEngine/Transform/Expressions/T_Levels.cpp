@@ -329,7 +329,7 @@ TiledBlobPtr	T_Levels::Create(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredO
 		->AddArg(ARG_FLOAT(InLevels->OutLow, "OutLow"))
 		->AddArg(ARG_FLOAT(InLevels->OutHigh, "OutHigh"))
 		->AddArg(ARG_FLOAT(OutputRange, "OutputRange"))
-		->AddArg(std::make_shared<JobArg_Blob>(JobArg_Blob(Histogram, "Histogram").WithNotHandleTiles()))
+		->AddArg(WithIgnoreDesc(std::make_shared<JobArg_Blob>(JobArg_Blob(Histogram, "Histogram").WithNotHandleTiles())))
 		;
 
 

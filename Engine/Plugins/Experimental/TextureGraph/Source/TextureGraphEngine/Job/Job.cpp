@@ -280,7 +280,7 @@ BufferDescriptor Job::GetCombinedDesc(BufferDescriptor& ArgsDescCombined, size_t
 		JobArgPtr Arg = Args[ArgIndex];
 		const BufferDescriptor* ArgDesc = Arg->GetDescriptor();
 
-		if (ArgDesc)
+		if (ArgDesc && !Arg->IgnoreDesc())
 		{
 			Descs.push_back(*ArgDesc);
 		}
@@ -662,7 +662,7 @@ bool Job::CheckCulled(JobRunInfo InRunInfo)
 
 	/// Nothing to do over here. We just call the BeginNative and EndNative here
 	/// so that the job collects timing information
-	BeginNative(RunInfo);
+	BeginNative(InRunInfo);
 	EndNative();
 
 	/// Make sure that the promise is resolved over here, if the job is culled
@@ -1042,9 +1042,10 @@ AsyncJobResultPtr Job::Run(JobRunInfo InRunInfo)
 //////////////////////////////////////////////////////////////////////////
 AsyncInt Job::BeginNative(JobRunInfo InRunInfo)
 {
+	RunInfo = InRunInfo;
+
 	UE_LOG(LogJob, VeryVerbose, TEXT("Job::BeginNative: %llu.%llu.%s"), RunInfo.Batch->GetBatchId(), Id, *Transform->GetName());
 
-	RunInfo = InRunInfo;
 	Stats.BeginNativeTime = Util::Time();
 
 	if (bIsCulled)
@@ -1063,10 +1064,13 @@ void Job::MarkJobDone()
 
 	check((!Result || Result->IsFinalised()) && (!ResultOrg || ResultOrg->IsFinalised()));
 	if (RunInfo.Batch)
+	{
 		RunInfo.Batch->OnJobDone(this, GetJobId());
+		
+		UE_LOG(LogJob, VeryVerbose, TEXT("Job::Done: %llu.%d.%s"), RunInfo.Batch->GetBatchId(), GetJobId(), *Transform->GetName());
+	}
 
 	DeviceNativeTask::bIsDone = true;
-	UE_LOG(LogJob, VeryVerbose, TEXT("Job::Done: %llu.%d.%s"), RunInfo.Batch->GetBatchId(), GetJobId(), *Transform->GetName());
 
 	Prev.clear();
 }
