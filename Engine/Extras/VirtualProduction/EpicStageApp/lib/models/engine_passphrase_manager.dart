@@ -14,14 +14,14 @@ class EnginePassphraseManager {
   }
 
   /// Set the [passphrase] associated with the given [connectionData], or delete it if no passphrase is given.
-  void setPassphrase(ConnectionData connectionData, String? passphrase) {
+  Future<void> setPassphrase(ConnectionData connectionData, String? passphrase) {
     final String key = _makeKeyForConnection(connectionData);
 
     if (passphrase == null) {
-      _secureStorage.delete(key: key);
-    } else {
-      _secureStorage.write(key: key, value: passphrase);
+      return _secureStorage.delete(key: key);
     }
+
+    return _secureStorage.write(key: key, value: passphrase);
   }
 
   /// Given [connectionData], create a unique key to refer to its passphrase in the secure storage database.

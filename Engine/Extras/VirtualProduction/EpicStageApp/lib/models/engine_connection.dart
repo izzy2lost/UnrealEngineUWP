@@ -379,10 +379,7 @@ class EngineConnectionManager with WidgetsBindingObserver {
     // Set up the batch request and listen for its completion
     final batchRequest = UnrealHttpRequest(url: '/remote/batch', verb: 'PUT', body: {'Requests': requestParameters});
     final batchParameters = _generateHttpRequestParameters(batchRequest);
-    final message = {
-      'MessageName': 'http',
-      'Parameters': batchParameters,
-    };
+    final message = createUnrealWebSocketMessage('http', batchParameters);
 
     final Completer<UnrealHttpResponse> completer = _makeHttpResponseCompleterFromParameters(batchParameters);
     sendRawMessage(message);
@@ -557,10 +554,16 @@ class EngineConnectionManager with WidgetsBindingObserver {
     _saveLastConnection(connectionData);
 
     // Check passphrase
-    final bool bIsPassphraseValid = await _checkPassphrase().timeout(
-      Duration(seconds: 3),
-      onTimeout: () => false,
-    );
+    _log.info('Checking passphrase');
+    final bool bIsPassphraseValid;
+    try {
+      bIsPassphraseValid = await _checkPassphrase().timeout(Duration(seconds: 3));
+    } catch (e) {
+      _log.severe('Timed out waiting for passphrase check response');
+      disconnect();
+      return EngineConnectionResult.genericFailure;
+    }
+
     if (!bIsPassphraseValid) {
       // The HTTP handler will have already disconnected us, so we can just return the result
       return EngineConnectionResult.passphraseRejected;
@@ -767,6 +770,8 @@ class EngineConnectionManager with WidgetsBindingObserver {
       ),
       bIsHandshakeMessage: true,
     );
+
+    _log.info('Passphrase check returned with code ${response.code} / ${response.body}');
 
     return response.code != HttpResponseCode.unauthorized;
   }

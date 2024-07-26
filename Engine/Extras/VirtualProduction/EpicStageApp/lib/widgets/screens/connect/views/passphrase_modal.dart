@@ -173,7 +173,7 @@ class _PassphraseModalDialogState extends State<PassphraseModalDialog> with Conn
     }
 
     final passphraseManager = Provider.of<EnginePassphraseManager>(context, listen: false);
-    passphraseManager.setPassphrase(_connectionData, _textController.text);
+    await passphraseManager.setPassphrase(_connectionData, _textController.text);
 
     final EngineConnectionResult result = await connect(
       _connectionData,
