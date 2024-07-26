@@ -1226,22 +1226,36 @@ void FMetalDynamicRHI::Init()
 	GIsRHIInitialized = true;
 }
 
-void FMetalRHICommandContext::RHIBeginFrame()
+void FMetalDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Metal EndFrame"),
+		[this](FMetalContextArray const& Contexts)
+	{
+		MTL_SCOPED_AUTORELEASE_POOL;
+
 #if ENABLE_METAL_GPUPROFILE
-    Profiler->BeginFrame();
+		Contexts[ERHIPipeline::Graphics]->GetProfiler()->EndFrame();
 #endif
-    ((FMetalDeviceContext*)Context)->BeginFrame();
+		Contexts[ERHIPipeline::Graphics]->GetInternalContext().EndFrame();
+	});
+
+	FDynamicRHI::RHIEndFrame_RenderThread(RHICmdList);
+
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Metal BeginFrame"),
+		[this](FMetalContextArray const& Contexts)
+	{
+		MTL_SCOPED_AUTORELEASE_POOL;
+
+#if ENABLE_METAL_GPUPROFILE
+		Contexts[ERHIPipeline::Graphics]->GetProfiler()->BeginFrame();
+#endif
+		Contexts[ERHIPipeline::Graphics]->GetInternalContext().BeginFrame();
+	});
 }
 
-void FMetalRHICommandContext::RHIEndFrame()
+void FMetalDynamicRHI::RHIEndFrame()
 {
-    MTL_SCOPED_AUTORELEASE_POOL;
-#if ENABLE_METAL_GPUPROFILE
-    Profiler->EndFrame();
-#endif
-    ((FMetalDeviceContext*)Context)->EndFrame();
+	// Currently we have nothing to do
 }
 
 #if WITH_RHI_BREADCRUMBS

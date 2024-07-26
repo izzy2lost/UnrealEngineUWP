@@ -100,9 +100,6 @@ public:
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
 
-	virtual void RHIBeginFrame() final override;
-	virtual void RHIEndFrame() final override;
-
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override;
 	virtual void RHIEndRenderPass() final override;
 	virtual void RHINextSubpass() final override;
@@ -327,3 +324,16 @@ private:
 	friend class FVulkanDevice;
 };
 #endif
+
+struct FVulkanContextArray : public TRHIPipelineArray<FVulkanCommandListContext*>
+{
+	FVulkanContextArray(FRHIContextArray const& Contexts)
+		: TRHIPipelineArray(InPlace, nullptr)
+	{
+		for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
+		{
+			IRHIComputeContext* Context = Contexts[Pipeline];
+			(*this)[Pipeline] = Context ? static_cast<FVulkanCommandListContext*>(&Context->GetLowestLevelContext()) : nullptr;
+		}
+	}
+};

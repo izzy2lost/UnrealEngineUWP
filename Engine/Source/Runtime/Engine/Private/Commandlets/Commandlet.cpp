@@ -115,7 +115,6 @@ void CommandletHelpers::TickEngine(UWorld* InWorld, double InDeltaTime)
 			ENQUEUE_RENDER_COMMAND(BeginFrame)([](FRHICommandListImmediate& RHICmdList)
 			{
 				GFrameNumberRenderThread++;
-				RHICmdList.BeginFrame();
 				FCoreDelegates::OnBeginFrameRT.Broadcast();
 			});
 

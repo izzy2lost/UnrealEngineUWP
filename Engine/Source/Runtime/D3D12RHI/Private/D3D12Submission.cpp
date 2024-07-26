@@ -481,7 +481,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 								// Barrier command list will run on a different queue.
 								if (!BarrierQueue.PayloadToSubmit)
 								{
-									BarrierQueue.PayloadToSubmit = new FD3D12Payload(BarrierCommandList->Device, BarrierCommandList->QueueType);
+									BarrierQueue.PayloadToSubmit = new FD3D12Payload(BarrierQueue);
 									QueuesWithPayloads.Add(&BarrierQueue);
 								}
 								
@@ -1433,8 +1433,8 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 	return Result;
 }
 
-FD3D12PayloadBase::FD3D12PayloadBase(FD3D12Device* const Device, ED3D12QueueType const QueueType)
-	: Queue(Device->GetQueue(QueueType))
+FD3D12PayloadBase::FD3D12PayloadBase(FD3D12Queue& Queue)
+	: Queue(Queue)
 {}
 
 FD3D12PayloadBase::~FD3D12PayloadBase()

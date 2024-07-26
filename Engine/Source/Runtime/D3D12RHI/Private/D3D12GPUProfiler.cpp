@@ -217,21 +217,10 @@ void FD3D12GPUProfiler::BeginFrame()
 		SetEmitDrawEvents(bOriginalGEmitDrawEvents);
 	}
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FD3D12GPUProfiler::EndFrame()
 {
-	if (GetEmitDrawEvents())
-	{
-		PopEvent();
-		check(StackDepth == 0);
-	}
-
 	const uint32 GPUIndex = GetParentDevice()->GetGPUIndex();
 
 	// if we have a frame open, close it now.

@@ -449,8 +449,9 @@ void RHIExit()
 	GRHICommandList.CleanupGraphEvents();
 }
 
-void FDynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
+void FDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
+	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::EndFrame);
 }
 
 // Default fallback; will not work for non-8-bit surfaces and it's extremely slow.

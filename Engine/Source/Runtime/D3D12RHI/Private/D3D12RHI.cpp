@@ -6,6 +6,7 @@
 
 #include "D3D12RHI.h"
 #include "D3D12RHIPrivate.h"
+#include "D3D12RayTracing.h"
 #include "RHIStaticStates.h"
 #include "OneColorShader.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -391,7 +392,7 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 
 	ForEachQueue([&](FD3D12Queue& Queue)
 	{
-		FD3D12Payload* Payload = new FD3D12Payload(Queue.Device, Queue.QueueType);
+		FD3D12Payload* Payload = new FD3D12Payload(Queue);
 
 		FD3D12SyncPointRef SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 		Payload->SyncPointsToSignal.Emplace(SyncPoint);
@@ -524,6 +525,87 @@ void FD3D12DynamicRHI::RHIProcessDeleteQueue()
 			Device->GetDefaultCommandContext().ClearState(FD3D12ContextCommon::EClearStateMode::TransientOnly);
 		}
 	}
+}
+
+void FD3D12DynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
+{
+	// Close the GPU profiler frame
+#if (RHI_NEW_GPU_PROFILER == 0)
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("D3D12 EndFrame"),
+		[this](FD3D12ContextArray const& Contexts)
+	{
+		for (auto& Adapter : ChosenAdapters)
+		{
+			for (auto& Device : Adapter->GetDevices())
+			{
+				Device->GetGPUProfiler().EndFrame();
+			}
+		}
+	});
+#endif
+
+	for (auto& Adapter : ChosenAdapters)
+	{
+		Adapter->GetFrameFence().AdvanceTOP();
+	}
+
+	// Base implementation flushes all prior work and results in a bottom-of-pipe call to RHIEndFrame() on the RHI thread.
+	FDynamicRHI::RHIEndFrame_RenderThread(RHICmdList);
+
+	// Start the next GPU profiler frame
+	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("D3D12 BeginFrame"),
+		[this](FD3D12ContextArray const& Contexts)
+	{
+		for (auto& Adapter : ChosenAdapters)
+		{
+			for (auto& Device : Adapter->GetDevices())
+			{
+				Device->GetDefaultBufferAllocator().BeginFrame(Contexts);
+				Device->GetTextureAllocator().BeginFrame(Contexts);
+
+#if D3D12_RHI_RAYTRACING
+				// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
+				Device->GetRayTracingCompactionRequestHandler()->Update(*static_cast<FD3D12CommandContext*>(Contexts[ERHIPipeline::Graphics]));
+#endif // D3D12_RHI_RAYTRACING
+
+#if (RHI_NEW_GPU_PROFILER == 0)
+				Device->GetGPUProfiler().BeginFrame();
+#endif
+			}
+		}
+	});
+}
+
+void FD3D12DynamicRHI::RHIEndFrame()
+{
+	for (auto& Adapter : ChosenAdapters)
+	{
+		Adapter->EndFrame();
+
+		for (auto& Device : Adapter->GetDevices())
+		{
+			Device->GetTextureAllocator().CleanUpAllocations();
+
+			// Only delete free blocks when not used in the last 2 frames, to make sure we are not allocating and releasing
+			// the same blocks every frame.
+			uint64 BufferPoolDeletionFrameLag = 20;
+			Device->GetDefaultBufferAllocator().CleanupFreeBlocks(BufferPoolDeletionFrameLag);
+
+			uint64 FastAllocatorDeletionFrameLag = 10;
+			Device->GetDefaultFastAllocator().CleanupPages(FastAllocatorDeletionFrameLag);
+		}
+
+		Adapter->GetFrameFence().AdvanceBOP();
+	}
+
+	UpdateMemoryStats();
+
+	// Close the previous frame's timing and start a new one
+	FlushTiming(true);
+
+	// Pump the interrupt queue to gather completed events
+	// (required if we're not using an interrupt thread).
+	ProcessInterruptQueueUntil(nullptr);
 }
 
 TArray<FD3D12MinimalAdapterDesc> FD3D12DynamicRHI::RHIGetAdapterDescs() const
@@ -838,7 +920,7 @@ void FD3D12DynamicRHI::RHIRunOnQueue(ED3D12RHIRunOnQueueType QueueType, TFunctio
 	FGraphEventRef SubmissionEvent;
 
 	TArray<FD3D12Payload*> Payloads;
-	FD3D12Payload* Payload = new FD3D12Payload(GetRHIDevice(0), (QueueType == ED3D12RHIRunOnQueueType::Graphics) ?  ED3D12QueueType::Direct : ED3D12QueueType::Copy);
+	FD3D12Payload* Payload = new FD3D12Payload(GetRHIDevice(0)->GetQueue((QueueType == ED3D12RHIRunOnQueueType::Graphics) ? ED3D12QueueType::Direct : ED3D12QueueType::Copy));
 	Payloads.Add(Payload);
 
 	Payload->PreExecuteCallback = MoveTemp(CodeToRun);

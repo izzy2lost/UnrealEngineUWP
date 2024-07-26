@@ -242,3 +242,27 @@ void FMetalRHICommandContext::RHIEndOcclusionQueryBatch()
 	check(CommandBufferFence.IsValid());
 	CommandBufferFence.Reset();
 }
+
+FMetalContextArray::FMetalContextArray(FRHIContextArray const& Contexts)
+	: TRHIPipelineArray(InPlace, nullptr)
+{
+	for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
+	{
+		IRHIComputeContext* Context = Contexts[Pipeline];
+
+		switch (Pipeline)
+		{
+		default:
+			checkNoEntry();
+			break;
+
+		case ERHIPipeline::Graphics:
+			(*this)[Pipeline] = Context ? static_cast<FMetalRHICommandContext*>(&Context->GetLowestLevelContext()) : nullptr;
+			break;
+
+		case ERHIPipeline::AsyncCompute:
+			(*this)[Pipeline] = Context ? static_cast<FMetalRHICommandContext*>(&Context->GetLowestLevelContext()) : nullptr;
+			break;
+		}
+	}
+}

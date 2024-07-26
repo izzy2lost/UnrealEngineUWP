@@ -217,42 +217,28 @@ FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext()
 	return *CachedContextState;
 }
 
-void FOpenGLDynamicRHI::RHIBeginFrame()
-{
-#if (RHI_NEW_GPU_PROFILER == 0)
-	GPUProfilingData.BeginFrame(this);
-#endif
-
-#if PLATFORM_ANDROID //adding #if since not sure if this is required for any other platform.
-	PendingState.DepthStencil = 0 ;
-#endif
-
-	OpenGL_PollAllFences();
-}
-
-extern void OpenGLCommands_OnEndFrame();
-
 void FOpenGLDynamicRHI::RHIEndFrame()
 {
 #if (RHI_NEW_GPU_PROFILER == 0)
-	GPUProfilingData.EndFrame();
+	GPUProfilingData->EndFrame();
 #endif
 
 	OpenGL_PollAllFences();
 
+	extern void OpenGLCommands_OnEndFrame();
 	OpenGLCommands_OnEndFrame();
-}
 
-void FOpenGLDynamicRHI::RHIAdvanceFrameFence()
-{
-	RunOnGLRenderContextThread([]()
-	{
-		BeginFrame_UniformBufferPoolCleanup();
-		BeginFrame_VertexBufferCleanup();
-		BeginFrame_QueryBatchCleanup();
-	});
+#if PLATFORM_ANDROID //adding #if since not sure if this is required for any other platform.
+	PendingState.DepthStencil = 0;
+#endif
 
-	OpenGL_PollAllFences();
+	BeginFrame_UniformBufferPoolCleanup();
+	BeginFrame_VertexBufferCleanup();
+	BeginFrame_QueryBatchCleanup();
+
+#if (RHI_NEW_GPU_PROFILER == 0)
+	GPUProfilingData->BeginFrame();
+#endif
 }
 
 #if PLATFORM_ANDROID
@@ -1287,12 +1273,6 @@ FDynamicRHI* FOpenGLDynamicRHIModule::CreateRHI(ERHIFeatureLevel::Type InRequest
 
 
 FOpenGLDynamicRHI::FOpenGLDynamicRHI()
-:	bRevertToSharedContextAfterDrawingViewport(false)
-,	bIsRenderingContextAcquired(false)
-,	PlatformDevice(NULL)
-#if (RHI_NEW_GPU_PROFILER == 0)
-,	GPUProfilingData(this)
-#endif
 {
 	check(Singleton == nullptr);
 	Singleton = this;
@@ -1388,6 +1368,8 @@ FOpenGLDynamicRHI::FOpenGLDynamicRHI()
 
 	PrivateOpenGLDevicePtr = this;
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
+
+	GPUProfilingData.Emplace();
 }
 
 extern void DestroyShadersAndPrograms();
@@ -1508,7 +1490,7 @@ void FOpenGLDynamicRHI::Cleanup()
 		GIsRHIInitialized = false;
 
 #if (RHI_NEW_GPU_PROFILER == 0)
-		GPUProfilingData.Cleanup();
+		GPUProfilingData->Cleanup();
 #endif
 
 		// Ask all initialized FRenderResources to release their RHI resources.

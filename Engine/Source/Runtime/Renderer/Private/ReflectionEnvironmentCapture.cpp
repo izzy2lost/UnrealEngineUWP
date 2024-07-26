@@ -1267,7 +1267,6 @@ void CaptureSceneIntoScratchCubemap(
 				[](FRHICommandListImmediate& RHICmdList)
 			{
 				GFrameNumberRenderThread++;
-				RHICmdList.BeginFrame();
 			});
 		}
 

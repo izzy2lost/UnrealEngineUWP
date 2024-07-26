@@ -1441,7 +1441,6 @@ static void HighResScreenshotBeginFrame(FDummyViewport* DummyViewport)
 		GFrameCounterRenderThread = CurrentFrameCounter;
 		GFrameNumberRenderThread++;
 		GPU_STATS_BEGINFRAME(RHICmdList);
-		RHICmdList.BeginFrame();
 		FCoreDelegates::OnBeginFrameRT.Broadcast();
 		if (DummyViewport)
 		{

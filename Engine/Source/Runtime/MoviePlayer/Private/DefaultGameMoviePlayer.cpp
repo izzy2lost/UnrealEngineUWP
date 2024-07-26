@@ -536,9 +536,7 @@ void FDefaultGameMoviePlayer::WaitForMovieToFinish(bool bAllowEngineTick)
 				ENQUEUE_RENDER_COMMAND(BeginLoadingMovieFrameAndTickMovieStreamer)(
 					[InMoviePlayer, DeltaTime](FRHICommandListImmediate& RHICmdList)
 					{
-						GFrameNumberRenderThread++;
-						GRHICommandList.GetImmediateCommandList().BeginFrame();
-				
+						GFrameNumberRenderThread++;				
 						InMoviePlayer->TickStreamer(DeltaTime);
 					}
 				);
@@ -711,7 +709,6 @@ void FDefaultGameMoviePlayer::Tick( float DeltaTime )
 			if(SyncMechanism->IsSlateDrawPassEnqueued())
 			{
 				GFrameNumberRenderThread++;
-				GRHICommandList.GetImmediateCommandList().BeginFrame();
 				TickStreamer(DeltaTime);
 				SyncMechanism->ResetSlateDrawPassEnqueued();
 				GRHICommandList.GetImmediateCommandList().EndFrame();

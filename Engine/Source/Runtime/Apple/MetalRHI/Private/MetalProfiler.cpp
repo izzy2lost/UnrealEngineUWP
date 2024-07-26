@@ -594,20 +594,10 @@ void FMetalProfiler::BeginFrame()
 	}
 	
 	FMetalGPUProfiler::BeginFrame();
-	
-	if (MetalGPUProfilerIsInSafeThread() && GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FMetalProfiler::EndFrame()
-{
-	if (MetalGPUProfilerIsInSafeThread() && GetEmitDrawEvents())
-	{
-		PopEvent();
-	}
-	
+{	
 	FMetalGPUProfiler::EndFrame();
 	
 	if (MetalGPUProfilerIsInSafeThread() && bEnabled)

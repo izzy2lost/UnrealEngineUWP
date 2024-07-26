@@ -19,7 +19,6 @@ struct FComputedBSS;
 struct FComputedUniformBuffer;
 struct FMemory;
 struct FRHICommandBeginDrawingViewport;
-struct FRHICommandBeginFrame;
 struct FRHICommandBeginRenderQuery;
 struct FRHICommandBuildLocalBoundShaderState;
 struct FRHICommandBuildLocalGraphicsPipelineState;
@@ -32,7 +31,6 @@ struct FRHICommandDrawPrimitiveIndirect;
 struct FRHICommandMultiDrawPrimitiveIndirect;
 struct FRHICommandSetDepthBounds;
 struct FRHICommandEndDrawingViewport;
-struct FRHICommandEndFrame;
 struct FRHICommandEndOcclusionQueryBatch;
 struct FRHICommandEndRenderQuery;
 struct FRHICommandSetBlendFactor;
@@ -569,18 +567,6 @@ void FRHICommandSetBindingsOnShaderBindingTable::Execute(FRHICommandListBase& Cm
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		
 	INTERNAL_DECORATOR(RHISetBindingsOnShaderBindingTable)(SBT, RayTracingPipelineState, NumBindings, Bindings, BindingType);
-}
-
-void FRHICommandBeginFrame::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(BeginFrame);
-	INTERNAL_DECORATOR(RHIBeginFrame)();
-}
-
-void FRHICommandEndFrame::Execute(FRHICommandListBase& CmdList)
-{
-	RHISTAT(EndFrame);
-	INTERNAL_DECORATOR(RHIEndFrame)();
 }
 
 void FRHICommandBeginDrawingViewport::Execute(FRHICommandListBase& CmdList)

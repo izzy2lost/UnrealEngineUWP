@@ -151,7 +151,8 @@ public:
 
 	/////// RHI Methods
 
-	RHI_API virtual void RHIBeginFrame(FRHICommandListImmediate& RHICmdList);
+	RHI_API virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList);
+	virtual void RHIEndFrame() = 0;
 
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) = 0;
@@ -683,8 +684,6 @@ public:
 
 	// Check if PSO Initializers are the same used during PSO Precaching (only compare data relevant for the RHI specific PSO)
 	RHI_API virtual bool RHIMatchPrecachePSOInitializers(const FGraphicsPipelineStateInitializer& LHS, const FGraphicsPipelineStateInitializer& RHS);
-
-	virtual void RHIAdvanceFrameFence() {};
 
 	// Only relevant with an RHI thread, this advances the backbuffer for the purpose of GetViewportBackBuffer
 	// FlushType: Thread safe

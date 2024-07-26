@@ -315,11 +315,15 @@ protected:
 	FD3D12Payload* GetPayload(EPhase Phase)
 	{
 		if (Payloads.Num() == 0 || Phase < CurrentPhase)
-			Payloads.Add(new FD3D12Payload(Device, QueueType));
+		{
+			NewPayload();
+		}
 
 		CurrentPhase = Phase;
 		return Payloads.Last();
 	}
+
+	void NewPayload();
 
 	uint32 ActiveQueries = 0;
 
@@ -470,10 +474,6 @@ public:
 
 	void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-
-	void RHIEndFrame() final override;
-
-	virtual void UpdateMemoryStats();
 
 	FRHIGPUMask GetGPUMask() const { return GPUMask; }
 	FRHIGPUMask GetPhysicalGPUMask() const { return PhysicalGPUMask; }
@@ -695,8 +695,6 @@ public:
     virtual void RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRateCombiner Combiner) final override;
 
 	virtual void RHIClearMRTImpl(bool* bClearColorArray, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil);
-
-	void RHIBeginFrame() final override;
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName)
 	{
@@ -1046,11 +1044,6 @@ public:
 	FORCEINLINE virtual void RHISetShadingRate(EVRSShadingRate ShadingRate, EVRSRateCombiner Combiner) final override
 	{
 		ContextRedirect(RHISetShadingRate(ShadingRate, Combiner));
-	}
-
-	FORCEINLINE virtual void RHIBeginFrame() final override
-	{
-		ContextRedirect(RHIBeginFrame());
 	}
 
 	virtual void RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName) final override

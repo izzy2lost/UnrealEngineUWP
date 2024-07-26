@@ -2326,22 +2326,6 @@ FRHICOMMAND_MACRO(FRHICommandPollOcclusionQueries)
 	RHI_API void Execute(FRHICommandListBase& CmdList);
 };
 
-FRHICOMMAND_MACRO(FRHICommandBeginFrame)
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandBeginFrame()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
-FRHICOMMAND_MACRO(FRHICommandEndFrame)
-{
-	FORCEINLINE_DEBUGGABLE FRHICommandEndFrame()
-	{
-	}
-	RHI_API void Execute(FRHICommandListBase& CmdList);
-};
-
 FRHICOMMAND_MACRO(FRHICommandBeginDrawingViewport)
 {
 	FRHIViewport* Viewport;
@@ -4521,8 +4505,9 @@ enum class ERHISubmitFlags
 	// If combined with DeleteResources, the pending deletes queue is processed in a loop until all released resources have been deleted.
 	FlushRHIThread = 1 << 2,
 
-	// Accumulates RHI draw stats etc
-	ProcessStats = 1 << 3,
+	// Marks the end of an engine frame. Causes RHI draw stats etc to be accumulated,
+	// and calls RHIEndFrame for platform RHIs to do various cleanup tasks.
+	EndFrame = 1 << 3,
 
 #if CAN_TOGGLE_COMMAND_LIST_BYPASS
 	// Used when toggling RHI command bypass.
@@ -4542,7 +4527,6 @@ class FRHICommandListImmediate : public FRHICommandList
 {
 	friend class FRHICommandListExecutor;
 	friend class FRHICommandListScopedExtendResourceLifetime;
-	friend struct FRHICommandBeginFrame;
 
 	friend void RHI_API RHIResourceLifetimeReleaseRef(FRHICommandListImmediate&, int32);
 
@@ -4580,7 +4564,10 @@ public:
 
 	RHI_API void BeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI);
 	RHI_API void EndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync);
-	RHI_API void BeginFrame();
+
+	UE_DEPRECATED(5.5, "FRHICommandListImmediate::BeginFrame() is deprecated and is no longer necessary. Remove any remaining calls to BeginFrame(). There is no replacement.")
+	void BeginFrame() {}
+
 	RHI_API void EndFrame();
 
 	struct FQueuedCommandList

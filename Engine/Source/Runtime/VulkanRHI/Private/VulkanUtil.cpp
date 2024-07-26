@@ -449,6 +449,7 @@ FVulkanGPUProfiler::FVulkanGPUProfiler(FVulkanCommandListContext* InCmd, FVulkan
 	, CmdContext(InCmd)
 	, bBeginFrame(false)
 {
+	BeginFrame();
 }
 
 FVulkanGPUProfiler::~FVulkanGPUProfiler()
@@ -521,11 +522,6 @@ void FVulkanGPUProfiler::BeginFrame()
 		SetEmitDrawEvents(bOriginalGEmitDrawEvents);
 	}
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FVulkanGPUProfiler::EndFrameBeforeSubmit()

@@ -111,7 +111,9 @@ struct FD3D12GPUProfiler : public FGPUProfiler, public FD3D12DeviceChild
 
 	FD3D12GPUProfiler(FD3D12Device* Parent)
 		: FD3D12DeviceChild(Parent)
-	{}
+	{
+		BeginFrame();
+	}
 
 	virtual FGPUProfilerEventNode* CreateEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent) override
 	{

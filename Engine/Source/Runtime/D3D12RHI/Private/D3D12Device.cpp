@@ -519,7 +519,7 @@ void FD3D12Device::BlockUntilIdle()
 	{
 		FD3D12SyncPointRef SyncPoint = FD3D12SyncPoint::Create(ED3D12SyncPointType::GPUAndCPU);
 
-		FD3D12Payload* Payload = new FD3D12Payload(this, (ED3D12QueueType)QueueTypeIndex);
+		FD3D12Payload* Payload = new FD3D12Payload(GetQueue((ED3D12QueueType)QueueTypeIndex));
 		Payload->SyncPointsToSignal.Add(SyncPoint);
 		Payload->bAlwaysSignal = true;
 

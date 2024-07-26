@@ -1294,7 +1294,6 @@ void FRHIDrawStats::Accumulate(FRHIDrawStats& Other)
 	}
 }
 
-// Called from RHIBeginFrame
 RHI_API void FRHIDrawStats::ProcessAsFrameStats()
 {
 #if HAS_GPU_STATS

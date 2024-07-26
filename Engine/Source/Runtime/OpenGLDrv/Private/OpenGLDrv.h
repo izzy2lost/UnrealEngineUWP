@@ -50,15 +50,15 @@ public:
 	 * @param InOpenGLRHI			RHI interface
 	 * @param InBufferSize		Number of buffered measurements
 	 */
-	FOpenGLBufferedGPUTiming(class FOpenGLDynamicRHI* InOpenGLRHI, int32 BufferSize);
+	FOpenGLBufferedGPUTiming(int32 BufferSize);
 
-	void	StartTiming();
+	void StartTiming();
 
 	/**
 	 * End a GPU timing measurement.
 	 * The timing for this particular measurement will be resolved at a later time by the GPU.
 	 */
-	void	EndTiming();
+	void EndTiming();
 
 	/**
 	 * Retrieves the most recently resolved timing measurement.
@@ -79,20 +79,18 @@ private:
 	 */
 	static void PlatformStaticInitialize(void* UserData);
 
-	/** RHI interface */
-	FOpenGLDynamicRHI*					OpenGLRHI;
 	/** Number of timestamps created in 'StartTimestamps' and 'EndTimestamps'. */
-	int32								BufferSize;
+	const int32							BufferSize;
 	/** Current timing being measured on the CPU. */
-	int32								CurrentTimestamp;
+	int32								CurrentTimestamp = -1;
 	/** Number of measurements in the buffers (0 - BufferSize). */
-	int32								NumIssuedTimestamps;
+	int32								NumIssuedTimestamps = 0;
 	/** Timestamps for all StartTimings. */
 	TArray<FOpenGLRenderQuery *>		StartTimestamps;
 	/** Timestamps for all EndTimings. */
 	TArray<FOpenGLRenderQuery *>		EndTimestamps;
 	/** Whether we are currently timing the GPU: between StartTiming() and EndTiming(). */
-	bool								bIsTiming;
+	bool								bIsTiming = false;
 };
 
 /**
@@ -103,13 +101,7 @@ private:
 class FOpenGLDisjointTimeStampQuery
 {
 public:
-	FOpenGLDisjointTimeStampQuery(class FOpenGLDynamicRHI* InOpenGLRHI=NULL);
-
-	void Init(class FOpenGLDynamicRHI* InOpenGLRHI)
-	{
-		OpenGLRHI = InOpenGLRHI;
-		InitResources();
-	}
+	FOpenGLDisjointTimeStampQuery() = default;
 
 	void StartTracking();
 	void EndTracking();
@@ -133,11 +125,9 @@ public:
 
 
 private:
-	bool	bIsResultValid;
-	GLuint	DisjointQuery;
-	uint64	Context;
-
-	FOpenGLDynamicRHI* OpenGLRHI;
+	bool	bIsResultValid = false;
+	GLuint	DisjointQuery = 0;
+	uint64	Context = 0;
 };
 
 /** A single perf event node, which tracks information about a appBeginDrawEvent/appEndDrawEvent range. */
@@ -145,9 +135,9 @@ class FOpenGLEventNode : public FGPUProfilerEventNode
 {
 public:
 
-	FOpenGLEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent, class FOpenGLDynamicRHI* InRHI)
-	:	FGPUProfilerEventNode(InName, InParent)
-	,	Timing(InRHI, 1)
+	FOpenGLEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent)
+		: FGPUProfilerEventNode(InName, InParent)
+		, Timing(1)
 	{
 		// Initialize Buffered timestamp queries 
 		Timing.InitResources();
@@ -181,18 +171,16 @@ public:
 class FOpenGLEventNodeFrame : public FGPUProfilerEventNodeFrame
 {
 public:
-	FOpenGLEventNodeFrame(class FOpenGLDynamicRHI* InRHI) :
-		FGPUProfilerEventNodeFrame(),
-		RootEventTiming(InRHI, 1),
-		DisjointQuery(InRHI)
+	FOpenGLEventNodeFrame()
+		: RootEventTiming(1)
+		, DisjointQuery()
 	{
-	  RootEventTiming.InitResources();
-	  DisjointQuery.InitResources();
+		RootEventTiming.InitResources();
+		DisjointQuery.InitResources();
 	}
 
 	~FOpenGLEventNodeFrame()
 	{
-
 		RootEventTiming.ReleaseResources();
 		DisjointQuery.ReleaseResources();
 	}
@@ -227,41 +215,37 @@ struct FOpenGLGPUProfiler : public FGPUProfiler
 	/** Measuring GPU frame time with a disjoint query. */
 	static const int MAX_GPUFRAMEQUERIES = 4;
 	FOpenGLDisjointTimeStampQuery DisjointGPUFrameTimeQuery[MAX_GPUFRAMEQUERIES];
-	int CurrentGPUFrameQueryIndex;
+	int32 CurrentGPUFrameQueryIndex = 0;
 
-	class FOpenGLDynamicRHI* OpenGLRHI;
 	// count the number of beginframe calls without matching endframe calls.
-	int32 NestedFrameCount;
+	int32 NestedFrameCount = 0;
 
-	uint32 ExternalGPUTime;
+	uint32 ExternalGPUTime = 0;
 
 	/** GPU hitch profile histories */
 	TIndirectArray<FOpenGLEventNodeFrame> GPUHitchEventNodeFrames;
 
-	FOpenGLGPUProfiler(class FOpenGLDynamicRHI* InOpenGLRHI)
-	:	FGPUProfiler()
-	,	FrameTiming(InOpenGLRHI, 4)
-	,	CurrentGPUFrameQueryIndex(0)
-	,	OpenGLRHI(InOpenGLRHI)
-	,	NestedFrameCount(0)
-	,	ExternalGPUTime(0)
+	FOpenGLGPUProfiler()
+		: FrameTiming(4)
 	{
 		FrameTiming.InitResources();
 		for (int32 Index = 0; Index < MAX_GPUFRAMEQUERIES; ++Index)
 		{
-			DisjointGPUFrameTimeQuery[Index].Init(OpenGLRHI);
+			DisjointGPUFrameTimeQuery[Index].InitResources();
 		}
+
+		BeginFrame();
 	}
 
 	virtual FGPUProfilerEventNode* CreateEventNode(const TCHAR* InName, FGPUProfilerEventNode* InParent) override
 	{
-		FOpenGLEventNode* EventNode = new FOpenGLEventNode(InName, InParent, OpenGLRHI);
+		FOpenGLEventNode* EventNode = new FOpenGLEventNode(InName, InParent);
 		return EventNode;
 	}
 
 	void Cleanup();
 
-	void BeginFrame(class FOpenGLDynamicRHI* InRHI);
+	void BeginFrame();
 	void EndFrame();
 };
 
@@ -425,8 +409,6 @@ public:
 	virtual void RHIEndRenderQuery(FRHIRenderQuery* RenderQuery) final override;
 	virtual void RHIBeginDrawingViewport(FRHIViewport* Viewport, FRHITexture* RenderTargetRHI) final override;
 	virtual void RHIEndDrawingViewport(FRHIViewport* Viewport, bool bPresent, bool bLockToVsync) final override;
-	using FDynamicRHI::RHIBeginFrame;
-	virtual void RHIBeginFrame() final override;
 	virtual void RHIEndFrame() final override;
 	virtual void RHISetStreamSource(uint32 StreamIndex, FRHIBuffer* VertexBuffer, uint32 Offset) final override;
 	virtual void RHISetRasterizerState(FRHIRasterizerState* NewState) final override;
@@ -769,7 +751,6 @@ public:
 	void LinkComputeProgram(FRHIComputeShader* ComputeShaderRHI);
 
 	FBoundShaderStateRHIRef RHICreateBoundShaderState_OnThisThread(FRHIVertexDeclaration* VertexDeclaration, FRHIVertexShader* VertexShader, FRHIPixelShader* PixelShader, FRHIGeometryShader* GeometryShader, bool FromPSOFileCache);
-	virtual void RHIAdvanceFrameFence() final override;
 
 	virtual void RHIPostExternalCommandsReset() final override;
 
@@ -809,9 +790,9 @@ private:
 	/** A list of all viewport RHIs that have been created. */
 	TArray<FOpenGLViewport*> Viewports;
 	TRefCountPtr<FOpenGLViewport>		DrawingViewport;
-	bool								bRevertToSharedContextAfterDrawingViewport;
+	bool								bRevertToSharedContextAfterDrawingViewport = false;
 
-	bool								bIsRenderingContextAcquired;
+	bool								bIsRenderingContextAcquired = false;
 
 	EPrimitiveType						PrimitiveType = PT_Num;
 
@@ -832,7 +813,7 @@ private:
 	TMap<GLuint, TPair<GLenum, GLenum>> TextureMipLimits;
 
 	/** Underlying platform-specific data */
-	struct FPlatformOpenGLDevice* PlatformDevice;
+	struct FPlatformOpenGLDevice* PlatformDevice = nullptr;
 
 	/** Query list. This is used to inform queries they're no longer valid when OpenGL context they're in gets released from another thread. */
 	TArray<FOpenGLRenderQuery*> Queries;
@@ -854,16 +835,16 @@ private:
 
 #else
 
-	FOpenGLGPUProfiler GPUProfilingData;
+	TOptional<FOpenGLGPUProfiler> GPUProfilingData;
 	friend FOpenGLGPUProfiler;
 
 	void RegisterGPUWork(uint32 NumPrimitives = 0, uint32 NumVertices = 0)
 	{
-		GPUProfilingData.RegisterGPUWork(NumPrimitives, NumVertices);
+		GPUProfilingData->RegisterGPUWork(NumPrimitives, NumVertices);
 	}
 	void RegisterGPUDispatch(FIntVector GroupCount)
 	{
-		GPUProfilingData.RegisterGPUDispatch(GroupCount);
+		GPUProfilingData->RegisterGPUDispatch(GroupCount);
 	}
 
 #endif

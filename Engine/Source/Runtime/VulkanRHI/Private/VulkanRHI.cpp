@@ -1094,21 +1094,66 @@ void FVulkanDynamicRHI::InitInstance()
 	}
 }
 
-void FVulkanCommandListContext::RHIBeginFrame()
+void FVulkanDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-	check(IsImmediate());
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Vulkan EndFrame"),
+		[this](FVulkanContextArray const& Contexts)
+	{
+		FVulkanCommandListContext& Context = *Contexts[ERHIPipeline::Graphics];
 
-	extern uint32 GVulkanRHIDeletionFrameNumber;
-	++GVulkanRHIDeletionFrameNumber;
+		check(Context.IsImmediate());
 
 #if (RHI_NEW_GPU_PROFILER == 0)
-	GpuProfiler.BeginFrame();
+		Context.ReadAndCalculateGPUFrameTime();
+		Context.GpuProfiler.EndFrame();
 #endif
 
-	if (GRHISupportsRayTracing)
+		bool bTrimMemory = false;
+		Context.GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
+
+		Context.Device->GetStagingManager().ProcessPendingFree(false, true);
+		Context.Device->GetMemoryManager().ReleaseFreedPages(Context);
+		Context.Device->GetDeferredDeletionQueue().ReleaseResources();
+
+		if (UseVulkanDescriptorCache())
+		{
+			Context.Device->GetDescriptorSetCache().GC();
+		}
+		Context.Device->GetDescriptorPoolsManager().GC();
+
+		Context.Device->ReleaseUnusedOcclusionQueryPools();
+
+		Context.Device->GetPipelineStateCache()->TickLRU();
+
+		++Context.FrameCounter;
+	});
+
+	FDynamicRHI::RHIEndFrame_RenderThread(RHICmdList);
+
+	RHICmdList.EnqueueLambdaMultiPipe(ERHIPipeline::Graphics, FRHICommandListBase::EThreadFence::Enabled, TEXT("Vulkan BeginFrame"),
+		[this](FVulkanContextArray const& Contexts)
 	{
-		Device->GetRayTracingCompactionRequestHandler()->Update(*this);
-	}
+		FVulkanCommandListContext& Context = *Contexts[ERHIPipeline::Graphics];
+
+		check(Context.IsImmediate());
+
+		extern uint32 GVulkanRHIDeletionFrameNumber;
+		++GVulkanRHIDeletionFrameNumber;
+
+#if (RHI_NEW_GPU_PROFILER == 0)
+		Context.GpuProfiler.BeginFrame();
+#endif
+
+		if (GRHISupportsRayTracing)
+		{
+			Context.Device->GetRayTracingCompactionRequestHandler()->Update(Context);
+		}
+	});
+}
+
+void FVulkanDynamicRHI::RHIEndFrame()
+{
+	// @todo dev-pr - refactor RHIEndFrame_RenderThread to reduce use of the immediate command list, and move cleanup work to here.
 }
 
 void FVulkanCommandListContext::RHIBeginDrawingViewport(FRHIViewport* ViewportRHI, FRHITexture* RenderTargetRHI)
@@ -1152,36 +1197,6 @@ void FVulkanCommandListContext::RHIEndDrawingViewport(FRHIViewport* ViewportRHI,
 	RHI->DrawingViewport = nullptr;
 
 	WriteBeginTimestamp(CommandBufferManager->GetActiveCmdBuffer());
-}
-
-void FVulkanCommandListContext::RHIEndFrame()
-{
-	check(IsImmediate());
-	//FRCLog::Printf(FString::Printf(TEXT("FVulkanCommandListContext::RHIEndFrame()")));
-	
-#if (RHI_NEW_GPU_PROFILER == 0)
-	ReadAndCalculateGPUFrameTime();
-	GpuProfiler.EndFrame();
-#endif
-
-	bool bTrimMemory = false;
-	GetCommandBufferManager()->FreeUnusedCmdBuffers(bTrimMemory);
-
-	Device->GetStagingManager().ProcessPendingFree(false, true);
-	Device->GetMemoryManager().ReleaseFreedPages(*this);
-	Device->GetDeferredDeletionQueue().ReleaseResources();
-
-	if (UseVulkanDescriptorCache())
-	{
-		Device->GetDescriptorSetCache().GC();
-	}
-	Device->GetDescriptorPoolsManager().GC();
-
-	Device->ReleaseUnusedOcclusionQueryPools();
-
-	Device->GetPipelineStateCache()->TickLRU();
-
-	++FrameCounter;
 }
 
 #if WITH_RHI_BREADCRUMBS

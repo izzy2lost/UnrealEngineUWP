@@ -598,6 +598,11 @@ FD3D12SyncPoint* FD3D12CopyScope::GetSyncPoint() const
 	return SyncPoint;
 }
 
+void FD3D12ContextCommon::NewPayload()
+{
+	Payloads.Add(new FD3D12Payload(Device->GetQueue(QueueType)));
+}
+
 void FD3D12ContextCommon::FlushCommands(ED3D12FlushFlags FlushFlags)
 {
 	// We should only be flushing the default context
@@ -651,34 +656,6 @@ void FD3D12ContextCommon::ConditionalSplitCommandList()
 	}
 }
 
-void FD3D12DynamicRHI::RHIBeginFrame(FRHICommandListImmediate& RHICmdList)
-{
-	RHICmdList.EnqueueLambdaMultiPipe(GetEnabledRHIPipelines(), FRHICommandListBase::EThreadFence::Enabled, TEXT("FD3D12DynamicRHI::RHIBeginFrame"),
-		[this](FD3D12ContextArray const& Contexts)
-		{
-			for (auto& Adapter : ChosenAdapters)
-			{
-				for (auto& Device : Adapter->GetDevices())
-				{
-#if (RHI_NEW_GPU_PROFILER == 0)
-					Device->GetGPUProfiler().BeginFrame();
-#endif
-
-					Device->GetDefaultBufferAllocator().BeginFrame(Contexts);
-					Device->GetTextureAllocator().BeginFrame(Contexts);
-				}
-			}
-		}
-	);
-}
-
-void FD3D12CommandContext::RHIBeginFrame()
-{
-#if D3D12_RHI_RAYTRACING
-	Device->GetRayTracingCompactionRequestHandler()->Update(*this);
-#endif // D3D12_RHI_RAYTRACING
-}
-
 void FD3D12CommandContext::ClearState(EClearStateMode Mode)
 {
 	StateCache.ClearState();
@@ -726,80 +703,35 @@ void FD3D12CommandContext::ClearAllShaderResources()
 	StateCache.ClearSRVs();
 }
 
-void FD3D12CommandContextBase::RHIEndFrame()
-{
-	FD3D12Device* Device = ParentAdapter->GetDevice(0);
-
-	ParentAdapter->EndFrame();
-
-	for (uint32 GPUIndex : GPUMask)
-	{
-		Device = ParentAdapter->GetDevice(GPUIndex);
-
-		FD3D12CommandContext& DefaultContext = Device->GetDefaultCommandContext();
-		DefaultContext.FlushResourceBarriers();
-
-		DefaultContext.ClearState();
-		DefaultContext.FlushCommands();
-
-		Device->GetTextureAllocator().CleanUpAllocations();
-
-		// Only delete free blocks when not used in the last 2 frames, to make sure we are not allocating and releasing
-		// the same blocks every frame.
-		uint64 BufferPoolDeletionFrameLag = 20;
-		Device->GetDefaultBufferAllocator().CleanupFreeBlocks(BufferPoolDeletionFrameLag);
-
-		uint64 FastAllocatorDeletionFrameLag = 10;
-		Device->GetDefaultFastAllocator().CleanupPages(FastAllocatorDeletionFrameLag);
-	}
-
-	UpdateMemoryStats();
-
-	// Stop Timing at the very last moment
-	for (uint32 GPUIndex : GPUMask)
-	{
-		Device = ParentAdapter->GetDevice(GPUIndex);
-#if (RHI_NEW_GPU_PROFILER == 0)
-		Device->GetGPUProfiler().EndFrame();
-#endif
-	}
-
-	// Close the previous frame's timing and start a new one
-	FD3D12DynamicRHI::GetD3DRHI()->FlushTiming(true);
-
-	// Pump the interrupt queue to gather completed events
-	// (required if we're not using an interrupt thread).
-	FD3D12DynamicRHI::GetD3DRHI()->ProcessInterruptQueueUntil(nullptr);
-}
-
-void FD3D12CommandContextBase::UpdateMemoryStats()
+void FD3D12DynamicRHI::UpdateMemoryStats()
 {
 #if PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 	SCOPE_CYCLE_COUNTER(STAT_D3DUpdateVideoMemoryStats);
 
-	// Refresh captured memory stats.
-	const FD3DMemoryStats& MemoryStats = ParentAdapter->CollectMemoryStats();
-	UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
+	for (TSharedPtr<FD3D12Adapter> const& Adapter : ChosenAdapters)
+	{
+		// Refresh captured memory stats.
+		const FD3DMemoryStats& MemoryStats = Adapter->CollectMemoryStats();
+		UpdateD3DMemoryStatsAndCSV(MemoryStats, true);
 	
 #if STATS
-	uint64 MaxTexAllocWastage = 0;
-	for (uint32 GPUIndex : GPUMask)
-	{
-		FD3D12Device* Device = ParentAdapter->GetDevice(GPUIndex);
-
+		uint64 MaxTexAllocWastage = 0;
+		for (FD3D12Device* Device : Adapter->GetDevices())
+		{
 #if D3D12RHI_SEGREGATED_TEXTURE_ALLOC && D3D12RHI_SEGLIST_ALLOC_TRACK_WASTAGE
-		uint64 TotalAllocated;
-		uint64 TotalUnused;
-		Device->GetTextureAllocator().GetMemoryStats(TotalAllocated, TotalUnused);
-		MaxTexAllocWastage = FMath::Max(MaxTexAllocWastage, TotalUnused);
-		SET_MEMORY_STAT(STAT_D3D12TextureAllocatorAllocated, TotalAllocated);
-		SET_MEMORY_STAT(STAT_D3D12TextureAllocatorUnused, TotalUnused);
+			uint64 TotalAllocated;
+			uint64 TotalUnused;
+			Device->GetTextureAllocator().GetMemoryStats(TotalAllocated, TotalUnused);
+			MaxTexAllocWastage = FMath::Max(MaxTexAllocWastage, TotalUnused);
+			SET_MEMORY_STAT(STAT_D3D12TextureAllocatorAllocated, TotalAllocated);
+			SET_MEMORY_STAT(STAT_D3D12TextureAllocatorUnused, TotalUnused);
 #endif
 
-		Device->GetDefaultBufferAllocator().UpdateMemoryStats();
-		ParentAdapter->GetUploadHeapAllocator(GPUIndex).UpdateMemoryStats();
-	}
+			Device->GetDefaultBufferAllocator().UpdateMemoryStats();
+			Adapter->GetUploadHeapAllocator(Device->GetGPUIndex()).UpdateMemoryStats();
+		}
 #endif // STATS
+	}
 #endif // PLATFORM_WINDOWS && (STATS || CSV_PROFILER_STATS)
 }
 

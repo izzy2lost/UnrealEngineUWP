@@ -100,6 +100,9 @@ public:
 
 	/////// RHI Methods
 
+	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) override final;
+	virtual void RHIEndFrame() override final;
+
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) override final
 	{
@@ -860,13 +863,6 @@ public:
 	virtual void RHIGetDisplaysInformation(FDisplayInformationArray& OutDisplayInformation) override final
 	{
 		RHI->RHIGetDisplaysInformation(OutDisplayInformation);
-	}
-
-	virtual void RHIAdvanceFrameFence() override final
-	{
-		check(IsInRenderingThread());
-		RHI->RHIAdvanceFrameFence();
-		RenderThreadFrameID++;
 	}
 
 	// Only relevant with an RHI thread, this advances the backbuffer for the purpose of GetViewportBackBuffer

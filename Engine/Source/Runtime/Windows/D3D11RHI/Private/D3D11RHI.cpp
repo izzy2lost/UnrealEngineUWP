@@ -29,21 +29,20 @@ extern void UniformBufferBeginFrame();
 // Has to be .exe module to be correctly detected.
 // extern "C" { _declspec(dllexport) uint32 NvOptimusEnablement = 0x00000001; }
 
-void FD3D11DynamicRHI::RHIBeginFrame()
-{
-	UniformBufferBeginFrame();
-#if (RHI_NEW_GPU_PROFILER == 0)
-	GPUProfilingData.BeginFrame(this);
-#endif
-}
-
 void FD3D11DynamicRHI::RHIEndFrame()
 {
+	// End Frame
 #if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData.EndFrame();
 #endif
 	UpdateMemoryStats();
 	CurrentComputeShader = nullptr;
+
+	// Begin Frame
+	UniformBufferBeginFrame();
+#if (RHI_NEW_GPU_PROFILER == 0)
+	GPUProfilingData.BeginFrame(this);
+#endif
 }
 
 template <int32 Frequency>
@@ -334,20 +333,10 @@ void FD3DGPUProfiler::BeginFrame(FD3D11DynamicRHI* InRHI)
 	bPreviousLatchedGProfilingGPUHitches = bLatchedGProfilingGPUHitches;
 
 	FrameTiming.StartTiming();
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FD3DGPUProfiler::EndFrame()
 {
-	if (GetEmitDrawEvents())
-	{
-		PopEvent();
-	}
-
 	FrameTiming.EndTiming();
 
 	if (FrameTiming.IsSupported())
@@ -473,6 +462,8 @@ FD3DGPUProfiler::FD3DGPUProfiler(class FD3D11DynamicRHI* InD3DRHI)
 {
 	// Initialize Buffered timestamp queries 
 	FrameTiming.InitResource(FRHICommandListImmediate::Get());
+
+	BeginFrame(InD3DRHI);
 }
 
 void FD3DGPUProfiler::PushEvent(const TCHAR* Name, FColor Color)

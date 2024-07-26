@@ -938,20 +938,16 @@ FValidationContext::FValidationContext(EType InType)
 	Tracker = &State.TrackerInstance;
 }
 
-void FValidationContext::RHIBeginFrame()
+void FValidationRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
-	State.Reset();
-	RHIContext->RHIBeginFrame();
+	RenderThreadFrameID++;
+	RHI->RHIEndFrame_RenderThread(RHICmdList);
 }
 
-void FValidationContext::RHIEndFrame()
+void FValidationRHI::RHIEndFrame()
 {
-	RHIContext->RHIEndFrame();
-
-	// The RHI thread should always be updated at its own frequency (called from RHI thread if available)
-	// The RenderThread FrameID is update in RHIAdvanceFrameFence which is called on the RenderThread
-	FValidationRHI* ValidateRHI = (FValidationRHI*)GDynamicRHI;
-	ValidateRHI->RHIThreadFrameID++;
+	RHIThreadFrameID++;
+	RHI->RHIEndFrame();
 }
 
 namespace RHIValidation

@@ -5465,7 +5465,6 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 	if ( !FApp::CanEverRender() )
 	{
 		GFrameNumberRenderThread++;
-		RHICmdList.BeginFrame();
 		return;
 	}
 
@@ -5499,7 +5498,6 @@ static inline void BeginFrameRenderThread(FRHICommandListImmediate& RHICmdList, 
 #endif
 
 	GPU_STATS_BEGINFRAME(RHICmdList);
-	RHICmdList.BeginFrame();
 	FCoreDelegates::OnBeginFrameRT.Broadcast();
 
 	RHICmdList.EnqueueLambda([CurrentFrameCounter](FRHICommandListImmediate& InRHICmdList)
@@ -5536,8 +5534,6 @@ static inline void EndFrameRenderThread(FRHICommandListImmediate& RHICmdList, ui
 	});
 
 	FCoreDelegates::OnEndFrameRT.Broadcast();
-	RHICmdList.EndFrame();
-
 	GVisualizeTexture.EndFrameRenderThread();
 
 	GPU_STATS_ENDFRAME(RHICmdList);
@@ -5546,6 +5542,8 @@ static inline void EndFrameRenderThread(FRHICommandListImmediate& RHICmdList, ui
 	GRHIFrameBreadcrumb->End(RHICmdList);
 	GRHIFrameBreadcrumb.Reset();
 #endif
+
+	RHICmdList.EndFrame();
 
 	TRACE_END_FRAME(TraceFrameType_Rendering);
 }

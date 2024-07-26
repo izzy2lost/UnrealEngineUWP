@@ -847,11 +847,11 @@ void FRHICommandListExecutor::FSubmitState::Dispatch(FRHICommandListBase* CmdLis
 
 		//
 		// Don't start new translations until all prior submissions have been made.
-		// This is because some RHI commands directly submit to GPU queues from within the RHI (during RHICmdList translation).
+		// This is because work inside RHIEndFrame needs to complete on the RHI thread before any new translates can start.
+		// 
+		// Also some RHI commands directly submit to GPU queues from within the RHI (during RHICmdList translation).
 		// Not waiting for prior submits means these internal submissions can happen out-of-order with respect to other translations.
 		// E.g. some platform implementations of EndDrawingViewport() submit directly to the GPU to perform the flip / present.
-		// 
-		// @todo: remove this if/when Present() is properly pipelined, and any other implicit submits in RHI implementations are removed.
 		//
 		Prereqs.Add(GRHICommandList.LastSubmit);
 
@@ -1034,8 +1034,9 @@ void FRHICommandListExecutor::FSubmitState::Submit()
 		GDynamicRHI->RHIProcessDeleteQueue();
 	}
 
-	if (EnumHasAnyFlags(SubmitFlags, ERHISubmitFlags::ProcessStats))
+	if (EnumHasAnyFlags(SubmitFlags, ERHISubmitFlags::EndFrame))
 	{
+		GDynamicRHI->RHIEndFrame();
 		GRHICommandList.FrameDrawStats.ProcessAsFrameStats();
 	}
 
@@ -1619,53 +1620,10 @@ void FRHICommandListImmediate::EndDrawingViewport(FRHIViewport* Viewport, bool b
 	RHIAdvanceFrameForGetViewportBackBuffer(Viewport);
 }
 
-void FRHICommandListImmediate::BeginFrame()
-{
-	check(IsImmediate() && IsInRenderingThread());
-
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(BeginFrame_Flush);
-		CSV_SCOPED_TIMING_STAT(RHITFlushes, BeginFrame);
-
-		// Use the ERHISubmitFlags::ProcessStats flag to delineate stat data between the previous and next frames.
-		ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::ProcessStats);
-	}
-
-	GDynamicRHI->RHIBeginFrame(*this);
-
-	if (Bypass())
-	{
-		GetContext().RHIBeginFrame();
-		return;
-	}
-	ALLOC_COMMAND(FRHICommandBeginFrame)();
-}
-
 void FRHICommandListImmediate::EndFrame()
 {
-	check(IsImmediate() && IsInRenderingThread());
-
-	if (Bypass())
-	{
-		GetContext().RHIEndFrame();
-		GDynamicRHI->RHIAdvanceFrameFence();
-		return;
-	}
-
-	ALLOC_COMMAND(FRHICommandEndFrame)();
-	GDynamicRHI->RHIAdvanceFrameFence();
-
-	if (!IsRunningRHIInSeparateThread())
-	{
-		// if we aren't running an RHIThread, there is no good reason to buffer this frame advance stuff and that complicates state management, so flush everything out now
-		QUICK_SCOPE_CYCLE_COUNTER(EndFrame_Flush);
-		CSV_SCOPED_TIMING_STAT(RHITFlushes, EndFrame);
-		ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-	}
-	else
-	{
-		ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
-	}
+	check(IsInRenderingThread());
+	GDynamicRHI->RHIEndFrame_RenderThread(*this);
 }
 
 void FRHIComputeCommandList::Transition(TArrayView<const FRHITransitionInfo> Infos, ERHITransitionCreateFlags CreateFlags)

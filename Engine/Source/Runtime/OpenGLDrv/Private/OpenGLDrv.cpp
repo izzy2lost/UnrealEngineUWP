@@ -61,7 +61,7 @@ void FOpenGLDynamicRHI::RHISetExternalGPUTime(uint32 InExternalGPUTime)
 #if RHI_NEW_GPU_PROFILER
 	checkNoEntry(); // @todo - new gpu profiler
 #else
-	GPUProfilingData.ExternalGPUTime = InExternalGPUTime;
+	GPUProfilingData->ExternalGPUTime = InExternalGPUTime;
 #endif
 }
 
@@ -143,9 +143,9 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 		}
 
 	#if (RHI_NEW_GPU_PROFILER == 0)
-		if (GPUProfilingData.IsProfilingGPU())
+		if (GPUProfilingData->IsProfilingGPU())
 		{
-			GPUProfilingData.PushEvent(GetNameStr(), FColor::White);
+			GPUProfilingData->PushEvent(GetNameStr(), FColor::White);
 		}
 	#endif
 	}
@@ -153,9 +153,9 @@ void FOpenGLDynamicRHI::RHIEGLTerminateContext()
 	void FOpenGLDynamicRHI::RHIEndBreadcrumbGPU(FRHIBreadcrumbNode* Breadcrumb)
 	{
 	#if (RHI_NEW_GPU_PROFILER == 0)
-		if (GPUProfilingData.IsProfilingGPU())
+		if (GPUProfilingData->IsProfilingGPU())
 		{
-			GPUProfilingData.PopEvent();
+			GPUProfilingData->PopEvent();
 		}
 	#endif
 
@@ -226,7 +226,7 @@ bool FOpenGLDynamicRHI::RHIMatchPrecachePSOInitializers(const FGraphicsPipelineS
 
 #if (RHI_NEW_GPU_PROFILER == 0)
 
-void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
+void FOpenGLGPUProfiler::BeginFrame()
 {
 	if (NestedFrameCount++>0)
 	{
@@ -264,7 +264,7 @@ void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
 		{
 			SetEmitDrawEvents(true);  // thwart an attempt to turn this off on the game side
 			bTrackingEvents = true;
-			CurrentEventNodeFrame = new FOpenGLEventNodeFrame(InRHI);
+			CurrentEventNodeFrame = new FOpenGLEventNodeFrame();
 			CurrentEventNodeFrame->StartFrame();
 		}
 	}
@@ -285,11 +285,6 @@ void FOpenGLGPUProfiler::BeginFrame(FOpenGLDynamicRHI* InRHI)
 		CurrentGPUFrameQueryIndex = (CurrentGPUFrameQueryIndex + 1) % MAX_GPUFRAMEQUERIES;
 		DisjointGPUFrameTimeQuery[CurrentGPUFrameQueryIndex].StartTracking();
 	}
-
-	if (GetEmitDrawEvents())
-	{
-		PushEvent(TEXT("FRAME"), FColor(0, 255, 0, 255));
-	}
 }
 
 void FOpenGLGPUProfiler::EndFrame()
@@ -298,11 +293,6 @@ void FOpenGLGPUProfiler::EndFrame()
 	{
 		// ignore endframes calls from nested beginframe calls.
 		return;
-	}
-
-	if (GetEmitDrawEvents())
-	{
-		PopEvent();
 	}
 
 	if (FrameTiming.IsSupported())

@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "Containers/Array.h"
+#include "Containers/Map.h"
 #include "D3D12ThirdParty.h"
 #include "Templates/RefCounting.h"
 
 class FD3D12Adapter;
 class FD3D12CommandContext;
+class FD3D12Queue;
 
 extern int32 GEmitRgpFrameMarkers;
 
@@ -16,15 +17,10 @@ extern int32 GEmitRgpFrameMarkers;
 class FD3D12ManualFence final
 {
 	FD3D12Adapter* const Parent;
-	struct FFencePair
-	{
-		TRefCountPtr<ID3D12Fence> Fence;
-		FD3D12CommandContext* Context;
-	};
+	TMap<FD3D12Queue*, TRefCountPtr<ID3D12Fence>> Fences;
 
-	TArray<FFencePair> FencePairs;
-
-	FThreadSafeCounter NextFenceValue = 0;
+	FThreadSafeCounter NextFenceValueTOP = 0;
+	uint64 NextFenceValueBOP = 0;
 	uint64 CompletedFenceValue = 0;
 
 	FD3D12ManualFence(FD3D12ManualFence const&) = delete;
@@ -47,9 +43,9 @@ public:
 	// Returns the next value to be signaled.
 	uint64 GetNextFenceToSignal() const
 	{
-		return NextFenceValue.GetValue() + 1;
+		return NextFenceValueTOP.GetValue() + 1;
 	}
 
-	// Should only be called by RHIAdvanceFrameFence
-	void AdvanceFrame();
+	void AdvanceTOP();
+	void AdvanceBOP();
 };

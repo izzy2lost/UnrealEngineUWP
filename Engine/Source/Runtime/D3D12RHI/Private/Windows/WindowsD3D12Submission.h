@@ -7,8 +7,8 @@
 // Standard Windows implementation, used to mark the type as 'final'.
 struct FD3D12Payload final : public FD3D12PayloadBase
 {
-	FD3D12Payload(FD3D12Device* Device, ED3D12QueueType QueueType)
-		: FD3D12PayloadBase(Device, QueueType)
+	FD3D12Payload(FD3D12Queue& Queue)
+		: FD3D12PayloadBase(Queue)
 	{
 	}
 };

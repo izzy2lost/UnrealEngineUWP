@@ -272,7 +272,7 @@ struct FD3D12PayloadBase
 	}
 
 protected:
-	FD3D12PayloadBase(FD3D12Device* Device, ED3D12QueueType QueueType);
+	FD3D12PayloadBase(FD3D12Queue& Queue);
 };
 
 #include COMPILED_PLATFORM_HEADER(D3D12Submission.h)

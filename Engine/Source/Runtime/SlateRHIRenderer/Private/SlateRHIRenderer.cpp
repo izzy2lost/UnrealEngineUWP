@@ -2160,10 +2160,8 @@ void FSlateRHIRenderer::Sync() const
 void FSlateRHIRenderer::BeginFrame() const
 {
 	ENQUEUE_RENDER_COMMAND(SlateRHIBeginFrame)(
-	   [](FRHICommandListImmediate& RHICmdList)
+	   [](FRHICommandListImmediate&)
 	   {
-		   RHICmdList.BeginFrame();
-
 		   // Suspend stat gathering when running modal dialog 'fake' frame loops
 		   GPU_STATS_SUSPENDFRAME();
 	   }

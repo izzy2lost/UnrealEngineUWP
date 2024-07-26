@@ -1614,7 +1614,8 @@ void FD3D12DefaultBufferAllocator::BeginFrame(FD3D12ContextArray const& Contexts
 	}
 
 	{
-		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
+		// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
+		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingBufferCopyOps);
 		RHI_BREADCRUMB_EVENT(CommandContext, BufferPoolCopyOps);
@@ -1813,7 +1814,8 @@ void FD3D12TextureAllocatorPool::BeginFrame(FD3D12ContextArray const& Contexts)
 	}
 
 	{
-		FD3D12CommandContext& CommandContext = GetParentDevice()->GetDefaultCommandContext();
+		// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
+		FD3D12CommandContext& CommandContext = *Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(GetParentDevice()->GetGPUIndex());
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(FlushPendingTextureCopyOps);
 		RHI_BREADCRUMB_EVENT(CommandContext, TexturePoolCopyOps);

@@ -781,12 +781,6 @@ void FD3D12CommandContextBase::RHIEndDrawingViewport(FRHIViewport* ViewportRHI, 
 	}
 }
 
-void FD3D12DynamicRHI::RHIAdvanceFrameFence()
-{
-	check(IsInRenderingThread());
-	GetAdapter().GetFrameFence().AdvanceFrame();
-}
-
 void FD3D12DynamicRHI::RHIAdvanceFrameForGetViewportBackBuffer(FRHIViewport* ViewportRHI)
 {
 	check(IsInRenderingThread());

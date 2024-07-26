@@ -382,7 +382,6 @@ void FPreLoadScreenManager::RenderTick_RenderThread()
 		if (MainWindow.IsValid() && VirtualRenderWindow.IsValid() && !PinnedActivePreloadScreen->IsDone())
 		{
 			GFrameNumberRenderThread++;
-			GRHICommandList.GetImmediateCommandList().BeginFrame();
 			PinnedActivePreloadScreen->RenderTick(DeltaTime);
 			GRHICommandList.GetImmediateCommandList().EndFrame();
 			GRHICommandList.GetImmediateCommandList().ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources);
@@ -542,7 +541,6 @@ void FPreLoadScreenManager::EarlyPlayRenderFrameTick()
 					if (FPreLoadScreenManager::bRenderingEnabled && PinnedActivePreloadScreen && !bHasRenderPreLoadScreenFrame_RenderThread)
 					{
 						GFrameNumberRenderThread++;
-						GRHICommandList.GetImmediateCommandList().BeginFrame();
 
 						bHasRenderPreLoadScreenFrame_RenderThread = true;
 						PinnedActivePreloadScreen->RenderTick(SlateDeltaTime);

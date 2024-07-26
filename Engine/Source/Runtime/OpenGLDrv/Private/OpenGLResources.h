@@ -1158,10 +1158,9 @@ public:
 	uint8 const bMultisampleRenderbuffer : 1;
 };
 
-class FOpenGLRenderQuery : public FRHIRenderQuery
+class FOpenGLRenderQuery final
 {
 public:
-
 	/** The query resource. */
 	GLuint Resource;
 
@@ -1169,7 +1168,7 @@ public:
 	uint64 ResourceContext;
 
 	/** The cached query result. */
-	GLuint64 Result;
+	GLuint64 Result = 0;
 
 	FThreadSafeCounter TotalBegins;
 	FThreadSafeCounter TotalResults;
@@ -1178,16 +1177,32 @@ public:
 	bool bResultWasSuccess;
 
 	/** true if the context the query is in was released from another thread */
-	bool bInvalidResource;
+	bool bInvalidResource = true;
 
 	// todo: memory optimize
-	ERenderQueryType QueryType;
+	const ERenderQueryType QueryType;
 
 	FOpenGLRenderQuery(ERenderQueryType InQueryType);
-	virtual ~FOpenGLRenderQuery();
+	~FOpenGLRenderQuery();
+};
 
-	void AcquireResource();
-	static void ReleaseResource(GLuint Resource, uint64 ResourceContext);
+class FOpenGLRenderQuery_RHI : public FRHIRenderQuery
+{
+	TOptional<FOpenGLRenderQuery> Inner;
+
+public:
+	FOpenGLRenderQuery_RHI(FRHICommandListBase& RHICmdList, ERenderQueryType QueryType)
+	{
+		RHICmdList.EnqueueLambda([this, QueryType](FRHICommandListBase&)
+		{
+			Inner.Emplace(QueryType);
+		});
+	}
+
+	FOpenGLRenderQuery* GetInnerQuery()
+	{
+		return &Inner.GetValue();
+	}
 };
 
 class FOpenGLView : public TIntrusiveLinkedList<FOpenGLView>
@@ -1402,7 +1417,7 @@ struct TOpenGLResourceTraits<FRHIBoundShaderState>
 template<>
 struct TOpenGLResourceTraits<FRHIRenderQuery>
 {
-	typedef FOpenGLRenderQuery TConcreteType;
+	typedef FOpenGLRenderQuery_RHI TConcreteType;
 };
 template<>
 struct TOpenGLResourceTraits<FRHIUniformBuffer>

@@ -21,13 +21,13 @@ static FAutoConsoleVariableRef CVarOpenGLPollRenderQueryResult(
 
 struct FQueryItem
 {
-	FRHIRenderQuery* Query;
+	TRefCountPtr<FRHIRenderQuery> Query;
 	int32 BeginSequence;
 
 	FQueryItem(FRHIRenderQuery* InQueryRHI)
 		: Query(InQueryRHI)
 	{
-		FOpenGLRenderQuery* InQuery = FOpenGLDynamicRHI::ResourceCast(InQueryRHI);
+		FOpenGLRenderQuery* InQuery = FOpenGLDynamicRHI::ResourceCast(InQueryRHI)->GetInnerQuery();
 		BeginSequence = InQuery->TotalBegins.GetValue();
 	}
 };
@@ -99,7 +99,7 @@ struct FGLQueryBatcher
 			{
 				FQueryItem& Item = Batch->BatchContents[IndexInner];
 				FRHIRenderQuery* QueryRHI = Item.Query;
-				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI);
+				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI)->GetInnerQuery();
 				if (TargetQueryRHI == QueryRHI)
 				{
 					bFoundQuery = true;
@@ -158,7 +158,7 @@ struct FGLQueryBatcher
 			{
 				FQueryItem& Item = Batch->BatchContents[IndexInner];
 				FRHIRenderQuery* QueryRHI = Item.Query;
-				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI);
+				FOpenGLRenderQuery* Query = FOpenGLDynamicRHI::ResourceCast(QueryRHI)->GetInnerQuery();
 
 				int32 Begins = Query->TotalBegins.GetValue();
 
@@ -256,7 +256,6 @@ void FOpenGLDynamicRHI::RHIPollOcclusionQueries()
 
 FRenderQueryRHIRef FOpenGLDynamicRHI::RHICreateRenderQuery(ERenderQueryType QueryType)
 {
-
 	check(QueryType == RQT_Occlusion || QueryType == RQT_AbsoluteTime);
 
 	if(QueryType == RQT_AbsoluteTime && FOpenGL::SupportsTimestampQueries() == false)
@@ -264,18 +263,18 @@ FRenderQueryRHIRef FOpenGLDynamicRHI::RHICreateRenderQuery(ERenderQueryType Quer
 		return NULL;
 	}
 
-	return new FOpenGLRenderQuery(QueryType);
+	return new FOpenGLRenderQuery_RHI(FRHICommandListImmediate::Get(), QueryType);
 }
 
 void FOpenGLDynamicRHI::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 {
 	VERIFY_GL_SCOPE();
 
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
+	FOpenGLRenderQuery_RHI* Query = ResourceCast(QueryRHI);
 
 	if (Query)
 	{
-		BeginRenderQuery_OnThisThread(Query);
+		BeginRenderQuery_OnThisThread(Query->GetInnerQuery());
 		GBatcher.Add(QueryRHI);
 	}
 }
@@ -284,12 +283,13 @@ void FOpenGLDynamicRHI::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 {
 	VERIFY_GL_SCOPE();
 
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
+	FOpenGLRenderQuery_RHI* Query = ResourceCast(QueryRHI);
 
 	if (Query)
 	{
-		EndRenderQuery_OnThisThread(Query);
-		if (Query->QueryType == RQT_AbsoluteTime)
+		FOpenGLRenderQuery* InnerQuery = Query->GetInnerQuery();
+		EndRenderQuery_OnThisThread(InnerQuery);
+		if (InnerQuery->QueryType == RQT_AbsoluteTime)
 		{
 			GBatcher.AddSingle(Query);
 		}
@@ -540,7 +540,7 @@ bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 {
 	check(IsInRenderingThread() || IsInRHIThread());
 
-	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI);
+	FOpenGLRenderQuery* Query = ResourceCast(QueryRHI)->GetInnerQuery();
 
 	if (!Query)
 	{
@@ -567,13 +567,13 @@ bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 				if (IsRunningRHIInDedicatedThread())
 				{
 					// send a command that will wait, so if the RHIT runs out of work, it just blocks and waits for the GPU
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), true); });
+					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI)->GetInnerQuery(), true); });
 					FGraphEventRef Done = RHICmdList.RHIThreadFence(false);
 					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GBatcher.Flush(*this, QueryRHI); });
 					RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 					while (!Done->IsComplete())
 					{
-						FGraphEventRef RHITask = TGraphTask<FPollQueriesRHIThreadTask>::CreateTask().ConstructAndDispatchWhenReady(ResourceCast(QueryRHI), this, false);
+						FGraphEventRef RHITask = TGraphTask<FPollQueriesRHIThreadTask>::CreateTask().ConstructAndDispatchWhenReady(ResourceCast(QueryRHI)->GetInnerQuery(), this, false);
 						FTaskGraphInterface::Get().WaitUntilTaskCompletes(RHITask);
 
 						if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
@@ -587,7 +587,7 @@ bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 				}
 				else
 				{
-					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), true); });
+					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI)->GetInnerQuery(), true); });
 					FGraphEventRef Done = RHICmdList.RHIThreadFence(false);
 					ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GBatcher.Flush(*this, QueryRHI); });
 					RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
@@ -597,7 +597,7 @@ bool FOpenGLDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint6
 			}
 			else
 			{
-				ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI), false); GBatcher.Flush(*this, QueryRHI);  });
+				ALLOC_COMMAND_CL(RHICmdList, FRHICommandGLCommand)([this, QueryRHI]() {GetRenderQueryResult_OnThisThread(ResourceCast(QueryRHI)->GetInnerQuery(), false); GBatcher.Flush(*this, QueryRHI);  });
 			}
 		}	
 	}
@@ -629,42 +629,29 @@ extern void OnQueryCreation( FOpenGLRenderQuery* Query );
 extern void OnQueryDeletion( FOpenGLRenderQuery* Query );
 
 FOpenGLRenderQuery::FOpenGLRenderQuery(ERenderQueryType InQueryType)
-	: Result(0)
-	, bInvalidResource(true)
-	, QueryType(InQueryType)
+	: QueryType(InQueryType)
 {
-	FRHICommandListImmediate::Get().EnqueueLambda(
-		[this](FRHICommandListImmediate&) { AcquireResource(); }
-	);
-}
+	VERIFY_GL_SCOPE();
 
+	bInvalidResource = false;
+	PlatformGetNewRenderQuery(&Resource, &ResourceContext);
+	
+	OnQueryCreation(this);
+}
 
 FOpenGLRenderQuery::~FOpenGLRenderQuery()
 {
 	VERIFY_GL_SCOPE();
-	OnQueryDeletion( this );
+	OnQueryDeletion(this);
 
 	if (Resource && !bInvalidResource)
 	{
 		bInvalidResource = true;
-		ReleaseResource(Resource, ResourceContext);
+
+		check(Resource);
+		PlatformReleaseRenderQuery(Resource, ResourceContext);
 	}
 }
-
-void FOpenGLRenderQuery::AcquireResource()
-{
-	VERIFY_GL_SCOPE();
-	bInvalidResource = false;
-	PlatformGetNewRenderQuery(&Resource, &ResourceContext);
-	OnQueryCreation(this);
-}
-void FOpenGLRenderQuery::ReleaseResource(GLuint Resource, uint64 ResourceContext)
-{
-	VERIFY_GL_SCOPE();
-	check(Resource);
-	PlatformReleaseRenderQuery(Resource, ResourceContext);
-}
-
 
 
 void FOpenGLEventQuery::IssueEvent()
@@ -741,12 +728,8 @@ FOpenGLEventQuery::~FOpenGLEventQuery()
  * @param InOpenGLRHI			RHI interface
  * @param InBufferSize		Number of buffered measurements
  */
-FOpenGLBufferedGPUTiming::FOpenGLBufferedGPUTiming( FOpenGLDynamicRHI* InOpenGLRHI, int32 InBufferSize )
-:	OpenGLRHI( InOpenGLRHI )
-,	BufferSize( InBufferSize )
-,	CurrentTimestamp( -1 )
-,	NumIssuedTimestamps( 0 )
-,	bIsTiming( false )
+FOpenGLBufferedGPUTiming::FOpenGLBufferedGPUTiming(int32 InBufferSize)
+	: BufferSize(InBufferSize)
 {
 }
 
@@ -781,7 +764,7 @@ static FOpenGLRenderQuery* GetTimeQuery()
 
 void FOpenGLBufferedGPUTiming::InitResources()
 {
-	StaticInitialize(OpenGLRHI, PlatformStaticInitialize);
+	StaticInitialize(nullptr, PlatformStaticInitialize);
 
 	CurrentTimestamp = 0;
 	NumIssuedTimestamps = 0;
@@ -1016,14 +999,6 @@ uint64 FOpenGLBufferedGPUTiming::GetTiming(bool bGetCurrentResultsAndBlock)
 	return 0;
 }
 
-FOpenGLDisjointTimeStampQuery::FOpenGLDisjointTimeStampQuery(class FOpenGLDynamicRHI* InOpenGLRHI)
-:	bIsResultValid(false)
-,	DisjointQuery(0)
-,	Context(0)
-,	OpenGLRHI(InOpenGLRHI)
-{
-}
-
 void FOpenGLDisjointTimeStampQuery::StartTracking()
 {
 	VERIFY_GL_SCOPE();
@@ -1095,11 +1070,10 @@ bool FOpenGLDisjointTimeStampQuery::GetResult( uint64* OutResult/*=NULL*/ )
 
 void FOpenGLDisjointTimeStampQuery::InitResources()
 {
+	VERIFY_GL_SCOPE();
 	if (IsSupported())
 	{
-		FRHICommandListExecutor::GetImmediateCommandList().EnqueueLambda([this](FRHICommandListImmediate&) { 
-				PlatformGetNewRenderQuery(&DisjointQuery, &Context); 
-		});
+		PlatformGetNewRenderQuery(&DisjointQuery, &Context); 
 	}
 }
 
