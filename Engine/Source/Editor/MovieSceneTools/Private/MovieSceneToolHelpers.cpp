@@ -402,12 +402,12 @@ bool MovieSceneToolHelpers::ParseShotName(const FString& InShotName, FString& Sh
 				ShotPrefix = ShotName.Left(LastSlashPos);
 			}
 			
-			FString TakeStr = ShotName.RightChop(LastSlashPos + 1);
+			FString TakeStr = ShotName.RightChop(LastSlashPos + ProjectSettings->TakeSeparator.Len());
 			if (TakeStr.IsNumeric())
 			{
 				ShotNumber = INDEX_NONE; // Nullify the shot number since we only have a shot prefix
 				TakeNumber = FCString::Atoi(*TakeStr);
-				TakeNumberDigits = ShotName.Len() - (LastSlashPos+1);
+				TakeNumberDigits = ShotName.Len() - (LastSlashPos + ProjectSettings->TakeSeparator.Len());
 				return true;
 			}
 		}
