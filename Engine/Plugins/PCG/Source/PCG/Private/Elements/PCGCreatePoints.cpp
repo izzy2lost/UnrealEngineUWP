@@ -139,6 +139,18 @@ bool FPCGCreatePointsElement::ExecuteInternal(FPCGContext* Context) const
 	return true;
 }
 
+bool FPCGCreatePointsElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const 
+{
+	if (Context && Context->CurrentPhase == EPCGExecutionPhase::Execute)
+	{
+		const UPCGCreatePointsSettings* Settings = Context->GetInputSettings<UPCGCreatePointsSettings>();
+		check(Settings);
+		return Settings->bCullPointsOutsideVolume;
+	}
+
+	return false;
+}
+
 bool FPCGCreatePointsElement::IsCacheable(const UPCGSettings* InSettings) const
 {
 	const UPCGCreatePointsSettings* Settings = Cast<const UPCGCreatePointsSettings>(InSettings);

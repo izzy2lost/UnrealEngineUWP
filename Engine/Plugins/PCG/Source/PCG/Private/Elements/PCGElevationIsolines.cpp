@@ -49,6 +49,17 @@ TArray<FPCGPinProperties> UPCGElevationIsolinesSettings::OutputPinProperties() c
 	return Properties;
 }
 
+bool FPCGElevationIsolinesElement::CanExecuteOnlyOnMainThread(FPCGContext* Context) const
+{
+	// Dependency on GetActorPCGData requires to run on Main Thread
+	if (Context && Context->CurrentPhase == EPCGExecutionPhase::Execute)
+	{
+		return true;
+	}
+
+	return false;
+}
+
 bool FPCGElevationIsolinesElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGElevationIsolinesElement::Execute);

@@ -65,6 +65,9 @@ public:
 
 class FPCGElevationIsolinesElement : public IPCGElement
 {
+public:
+	virtual bool CanExecuteOnlyOnMainThread(FPCGContext* Context) const override;
+
 protected:
 	virtual bool ExecuteInternal(FPCGContext* InContext) const override;
 };
