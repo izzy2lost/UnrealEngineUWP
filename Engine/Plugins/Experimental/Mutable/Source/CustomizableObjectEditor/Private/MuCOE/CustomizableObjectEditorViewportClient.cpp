@@ -2024,7 +2024,7 @@ void FCustomizableObjectEditorViewportClient::ToggleShowNormals()
 	{
 		if (SkeletalMeshComponent.IsValid())
 		{
-			SkeletalMeshComponent->bDrawNormals;
+			SkeletalMeshComponent->bDrawNormals = bDrawNormals;
 			SkeletalMeshComponent->MarkRenderStateDirty();
 		}
 	}
