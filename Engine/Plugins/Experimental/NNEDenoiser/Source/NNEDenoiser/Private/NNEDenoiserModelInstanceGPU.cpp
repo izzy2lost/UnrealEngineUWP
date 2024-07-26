@@ -126,21 +126,21 @@ namespace UE::NNEDenoiser::Private
 #endif
 
 			ScratchInputBuffers.SetNum(DenoiserParameters->InputBuffers.Num());
-			TArray<NNE::FTensorBindingGPU> InputBindings;
+			TArray<NNE::FTensorBindingCPU> InputBindings;
 			for (int32 Idx = 0; Idx < DenoiserParameters->InputBuffers.Num(); Idx++)
 			{
 				ScratchInputBuffers[Idx].SetNumUninitialized(DenoiserParameters->InputBuffers[Idx].GetBuffer()->GetRHI()->GetSize());
 
-				InputBindings.Emplace(NNE::FTensorBindingGPU{(void *)ScratchInputBuffers[Idx].GetData(), (uint64)ScratchInputBuffers[Idx].Num()});
+				InputBindings.Emplace(NNE::FTensorBindingCPU{(void *)ScratchInputBuffers[Idx].GetData(), (uint64)ScratchInputBuffers[Idx].Num()});
 			}
 
 			ScratchOutputBuffers.SetNum(DenoiserParameters->OutputBuffers.Num());
-			TArray<NNE::FTensorBindingGPU> OutputBindings;
+			TArray<NNE::FTensorBindingCPU> OutputBindings;
 			for (int32 Idx = 0; Idx < DenoiserParameters->OutputBuffers.Num(); Idx++)
 			{
 				ScratchOutputBuffers[Idx].SetNumUninitialized(DenoiserParameters->OutputBuffers[Idx].GetBuffer()->GetRHI()->GetSize());
 
-				OutputBindings.Emplace(NNE::FTensorBindingGPU{(void *)ScratchOutputBuffers[Idx].GetData(), (uint64)ScratchOutputBuffers[Idx].Num()});
+				OutputBindings.Emplace(NNE::FTensorBindingCPU{(void *)ScratchOutputBuffers[Idx].GetData(), (uint64)ScratchOutputBuffers[Idx].Num()});
 			}
 
 			for (int32 Idx = 0; Idx < DenoiserParameters->InputBuffers.Num(); Idx++)

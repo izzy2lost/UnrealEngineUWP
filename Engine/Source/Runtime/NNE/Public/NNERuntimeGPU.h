@@ -12,6 +12,7 @@ class UNNEModelData;
 
 namespace UE::NNE
 {
+UE_DEPRECATED(5.5, "Use UE::NNE::FTensorBindingCPU instead.")
 typedef FTensorBindingCPU FTensorBindingGPU;
 
 /**
