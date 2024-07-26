@@ -593,8 +593,3 @@ extern RHI_API void RHICalculateFrameTime();
 
 /** Returns the VendorID of the preferred vendor or -1 if none were specified. */
 extern RHI_API EGpuVendorId RHIGetPreferredAdapterVendor();
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "RHILockTracker.h"
-#include "PixelFormat.h"
-#endif

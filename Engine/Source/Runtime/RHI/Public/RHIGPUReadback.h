@@ -153,7 +153,3 @@ public:
 	FTextureRHIRef DestinationStagingTextures[1];
 #endif
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "CoreMinimal.h"
-#endif

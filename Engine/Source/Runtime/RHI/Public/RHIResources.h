@@ -5261,11 +5261,6 @@ public:
 	// Finds a SRV matching the descriptor in the cache or creates a new one and updates the cache.
 	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& CreateInfo);
 
-	UE_DEPRECATED(5.3, "GetOrCreateUAV now requires a command list.")
-	RHI_API FRHIUnorderedAccessView* GetOrCreateUAV(FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& CreateInfo);
-	UE_DEPRECATED(5.3, "GetOrCreateSRV now requires a command list.")
-	RHI_API FRHIShaderResourceView* GetOrCreateSRV(FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& CreateInfo);
-
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	RHI_API void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName);
@@ -5281,21 +5276,3 @@ private:
 	TArray<TPair<FRHIBufferUAVCreateInfo, FUnorderedAccessViewRHIRef>, TInlineAllocator<1>> UAVs;
 	TArray<TPair<FRHIBufferSRVCreateInfo, FShaderResourceViewRHIRef>, TInlineAllocator<1>> SRVs;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Async/TaskGraphInterfaces.h"
-#include "Containers/ClosableMpscQueue.h"
-#include "Containers/ConsumeAllMpmcQueue.h"
-#include "Containers/LockFreeList.h"
-#include "Experimental/Containers/HazardPointer.h"
-#include "Hash/CityHash.h"
-#include "Misc/CoreDelegates.h"
-#include "Misc/SecureHash.h"
-#include "RHIShaderLibrary.h"
-#include "RHITextureReference.h"
-#include "TextureProfiler.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Serialization/MemoryImage.h"
-#endif

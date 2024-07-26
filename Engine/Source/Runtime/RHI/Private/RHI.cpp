@@ -2011,11 +2011,6 @@ FRHIUnorderedAccessView* FRHITextureViewCache::GetOrCreateUAV(FRHICommandListBas
 	return View;
 }
 
-FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& SRVCreateInfo)
-{
-	return GetOrCreateSRV(FRHICommandListImmediate::Get(), Buffer, SRVCreateInfo);
-}
-
 FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferSRVCreateInfo& SRVCreateInfo)
 {
 	for (const auto& KeyValue : SRVs)
@@ -2059,11 +2054,6 @@ FRHIShaderResourceView* FRHIBufferViewCache::GetOrCreateSRV(FRHICommandListBase&
 	FRHIShaderResourceView* View = RHIShaderResourceView.GetReference();
 	SRVs.Emplace(SRVCreateInfo, MoveTemp(RHIShaderResourceView));
 	return View;
-}
-
-FRHIUnorderedAccessView* FRHIBufferViewCache::GetOrCreateUAV(FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& UAVCreateInfo)
-{
-	return GetOrCreateUAV(FRHICommandListImmediate::Get(), Buffer, UAVCreateInfo);
 }
 
 FRHIUnorderedAccessView* FRHIBufferViewCache::GetOrCreateUAV(FRHICommandListBase& RHICmdList, FRHIBuffer* Buffer, const FRHIBufferUAVCreateInfo& UAVCreateInfo)

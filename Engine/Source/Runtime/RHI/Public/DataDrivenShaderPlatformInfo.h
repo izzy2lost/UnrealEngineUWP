@@ -1224,7 +1224,3 @@ inline bool RHISupportsWorkGraphs(const FStaticShaderPlatform Platform)
 {
 	return FDataDrivenShaderPlatformInfo::GetSupportsWorkGraphs(Platform);
 }
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Internationalization/Text.h"
-#endif

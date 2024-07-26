@@ -1534,18 +1534,3 @@ struct FShaderCodeValidationUBSize
 	uint16 BindPoint;
 	uint32 Size;
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "CoreMinimal.h"
-#include "DataDrivenShaderPlatformInfo.h"
-#include "HAL/IConsoleManager.h"
-#include "PixelFormat.h"
-#include "RHIFeatureLevel.h"
-#include "RHIImmutableSamplerState.h"
-#include "RHIShaderPlatform.h"
-#include "RHIStrings.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "Serialization/MemoryLayout.h"
-#endif

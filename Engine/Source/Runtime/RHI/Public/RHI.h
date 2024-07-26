@@ -633,25 +633,3 @@ inline uint32 GetExpectedFeatureLevelMaxTextureSamplers(const FStaticFeatureLeve
 RHI_API ERHIBindlessConfiguration RHIParseBindlessConfiguration(EShaderPlatform Platform, const FString& ConfigSetting, const FString& CvarSetting);
 RHI_API ERHIBindlessConfiguration RHIGetRuntimeBindlessResourcesConfiguration(EShaderPlatform Platform);
 RHI_API ERHIBindlessConfiguration RHIGetRuntimeBindlessSamplersConfiguration(EShaderPlatform Platform);
-
-UE_DEPRECATED(5.3, "RHIGetRuntimeBindlessResourcesConfiguration should be used instead")
-inline ERHIBindlessConfiguration RHIGetBindlessResourcesConfiguration(EShaderPlatform Platform)
-{
-	return RHIGetRuntimeBindlessResourcesConfiguration(Platform);
-}
-UE_DEPRECATED(5.3, "RHIGetRuntimeBindlessSamplersConfiguration should be used instead")
-inline ERHIBindlessConfiguration RHIGetBindlessSamplersConfiguration(EShaderPlatform Platform)
-{
-	return RHIGetRuntimeBindlessSamplersConfiguration(Platform);
-}
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIStrings.h"
-#endif
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_3
-#include "CoreMinimal.h"
-#include "ProfilingDebugging/CsvProfilerConfig.h"
-#include "RHIUtilities.h"
-#include "Stats/Stats.h"
-#endif

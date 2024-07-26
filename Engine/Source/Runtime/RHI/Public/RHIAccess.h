@@ -124,7 +124,3 @@ extern RHI_API ERHIAccess GRHIMergeableAccessMask;
 
 /** Mask of states which are allowed to be considered for multi-pipeline state merging. This should be a subset of GRHIMergeableAccessMask. */
 extern RHI_API ERHIAccess GRHIMultiPipelineMergeableAccessMask;
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "RHIStrings.h"
-#endif
