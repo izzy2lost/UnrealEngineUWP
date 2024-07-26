@@ -818,7 +818,7 @@ static bool CompileAndProcessD3DShaderFXCExt(
 
 			// Compile HLSL source to SPIR-V binary
 			CrossCompiler::FShaderConductorOptions Options;
-
+			Options.bWarningsAsErrors = Input.Environment.CompilerFlags.Contains(CFLAG_WarningsAsErrors);
 			Options.bPreserveStorageInput = true; // Input/output stage variables must match
 			if (bHlslVersion2021)
 			{

@@ -5,7 +5,7 @@ D3DCommon.ush: Common defines for the D3D shader compiler
 =============================================================================*/
 
 // Update this GUID to invalidate D3D shaders and force a shader recompilation for D3D RHIs.
-#pragma message("UESHADERMETADATA_VERSION 46268304-2E81-419C-8152-0154868CFB1E")
+#pragma message("UESHADERMETADATA_VERSION 2A25C1D1-C5AB-4121-B43E-EF3CE44B05B1")
 
 #include "/Engine/Shared/HLSLReservedSpaces.h"
 
