@@ -129,7 +129,7 @@ namespace HordeServer.Issues
 							break;
 						}
 
-						issue = await _issueCollection.TryUpdateIssueAsync(issue, commit.AuthorId, newFixCommitId: commit.Id, newResolvedById: commit.AuthorId, cancellationToken: cancellationToken);
+						issue = await _issueCollection.TryUpdateIssueAsync(issue, commit.AuthorId, new UpdateIssueOptions { FixCommitId = commit.Id, ResolvedById = commit.AuthorId }, cancellationToken: cancellationToken);
 						if (issue != null)
 						{
 							_logger.LogInformation("Commit {Change} by {Author} in {StreamId} fixes issue id {IssueId}", commit.Id, commit.AuthorId, streamConfig.Id, issueId);

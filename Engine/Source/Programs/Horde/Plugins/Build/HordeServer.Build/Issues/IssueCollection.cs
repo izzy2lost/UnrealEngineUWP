@@ -1216,65 +1216,64 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, IssueSeverity? newSeverity = null, string? newSummary = null, string? newUserSummary = null, string? newDescription = null, bool? newManuallyPromoted = null, UserId? newOwnerId = null, UserId? newNominatedById = null, bool? newAcknowledged = null, UserId? newDeclinedById = null, CommitId? newFixCommit = null, bool? newFixSystemic = null, UserId? newResolvedById = null, List<ObjectId>? newExcludeSpanIds = null, DateTime? newLastSeenAt = null, string? newExternaIssueKey = null, UserId? newQuarantinedById = null, UserId? newForceClosedById = null, Uri? newWorkflowThreadUrl = null, CancellationToken cancellationToken = default)
+		public async Task<IIssue?> TryUpdateIssueAsync(IIssue issue, UserId? initiatedByUserId, UpdateIssueOptions options, CancellationToken cancellationToken = default)
 		{
 			IssueDocument issueDocument = (IssueDocument)issue;
 
-			if (newDeclinedById != null && newDeclinedById == issueDocument.OwnerId)
+			if (options.DeclinedById != null && options.DeclinedById == issueDocument.OwnerId)
 			{
-				newOwnerId = UserId.Empty;
+				options = options with { OwnerId = UserId.Empty };
 			}
 
-			if (issue.ResolvedById == null && (newForceClosedById != null && newResolvedById == null))
+			if (issue.ResolvedById == null && (options.ForceClosedById != null && options.ResolvedById == null))
 			{
-				newResolvedById = newForceClosedById;
+				options = options with { ResolvedById = options.ForceClosedById };
 			}
 
 			DateTime utcNow = DateTime.UtcNow;
 
 			List<UpdateDefinition<IssueDocument>> updates = new List<UpdateDefinition<IssueDocument>>();
-			if (newSeverity != null)
+			if (options.Severity != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.Severity, newSeverity.Value));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.Severity, options.Severity.Value));
 			}
-			if (newSummary != null)
+			if (options.Summary != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.Summary, newSummary));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.Summary, options.Summary));
 			}
-			if (newUserSummary != null)
+			if (options.UserSummary != null)
 			{
-				if (newUserSummary.Length == 0)
+				if (options.UserSummary.Length == 0)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.UserSummary!));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.UserSummary, newUserSummary));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.UserSummary, options.UserSummary));
 				}
 			}
-			if (newDescription != null)
+			if (options.Description != null)
 			{
-				if (newDescription.Length == 0)
+				if (options.Description.Length == 0)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.Description));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.Description, newDescription));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.Description, options.Description));
 				}
 			}
-			if (newManuallyPromoted != null)
+			if (options.Promoted != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.ManuallyPromoted, newManuallyPromoted.Value));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.ManuallyPromoted, options.Promoted.Value));
 			}
-			if (newResolvedById != null)
+			if (options.ResolvedById != null)
 			{
-				newOwnerId ??= newResolvedById;
-				newAcknowledged ??= true;
+				options = options with { OwnerId = options.OwnerId ?? options.ResolvedById, Acknowledged = options.Acknowledged ?? true };
 			}
-			if (newOwnerId != null)
+			if (options.OwnerId != null)
 			{
-				if (newOwnerId.Value == UserId.Empty)
+				if (options.OwnerId.Value == UserId.Empty)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.OwnerId!));
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.NominatedAt!));
@@ -1282,23 +1281,23 @@ namespace HordeServer.Issues
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.OwnerId!, newOwnerId.Value));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.OwnerId!, options.OwnerId.Value));
 
 					updates.Add(Builders<IssueDocument>.Update.Set(x => x.NominatedAt, DateTime.UtcNow));
-					if (newNominatedById == null)
+					if (options.NominatedById == null)
 					{
 						updates.Add(Builders<IssueDocument>.Update.Unset(x => x.NominatedById!));
 					}
 					else
 					{
-						updates.Add(Builders<IssueDocument>.Update.Set(x => x.NominatedById, newNominatedById.Value));
+						updates.Add(Builders<IssueDocument>.Update.Set(x => x.NominatedById, options.NominatedById.Value));
 					}
-					newAcknowledged ??= false;
+					options = options with { Acknowledged = options.Acknowledged ?? false };
 				}
 			}
-			if (newAcknowledged != null)
+			if (options.Acknowledged != null)
 			{
-				if (newAcknowledged.Value)
+				if (options.Acknowledged.Value)
 				{
 					if (issueDocument.AcknowledgedAt == null)
 					{
@@ -1313,20 +1312,20 @@ namespace HordeServer.Issues
 					}
 				}
 			}
-			if (newFixCommit != null)
+			if (options.FixCommitId != null)
 			{
-				if (String.IsNullOrEmpty(newFixCommit.Name))
+				if (String.IsNullOrEmpty(options.FixCommitId.Name))
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixCommitName, newFixCommit.Name).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.FixCommitName, options.FixCommitId.Name).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 			}
-			else if (newFixSystemic != null)
+			else if (options.FixSystemic != null)
 			{
-				if (newFixSystemic.Value)
+				if (options.FixSystemic.Value)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Set(x => x.FixSystemic, true));
 				}
@@ -1335,14 +1334,14 @@ namespace HordeServer.Issues
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.FixCommitName).Unset(x => x.FixChange).Unset(x => x.FixSystemic));
 				}
 			}
-			if (newResolvedById != null)
+			if (options.ResolvedById != null)
 			{
-				if (newResolvedById.Value != UserId.Empty)
+				if (options.ResolvedById.Value != UserId.Empty)
 				{
-					if (issueDocument.ResolvedAt == null || issueDocument.ResolvedById != newResolvedById)
+					if (issueDocument.ResolvedAt == null || issueDocument.ResolvedById != options.ResolvedById)
 					{
 						updates.Add(Builders<IssueDocument>.Update.Set(x => x.ResolvedAt, utcNow));
-						updates.Add(Builders<IssueDocument>.Update.Set(x => x.ResolvedById, newResolvedById.Value));
+						updates.Add(Builders<IssueDocument>.Update.Set(x => x.ResolvedById, options.ResolvedById.Value));
 					}
 				}
 				else
@@ -1357,65 +1356,65 @@ namespace HordeServer.Issues
 					}
 				}
 			}
-			if (newExcludeSpanIds != null)
+			if (options.ExcludeSpanIds != null)
 			{
-				List<ObjectId> newCombinedExcludeSpanIds = newExcludeSpanIds;
+				List<ObjectId> newCombinedExcludeSpanIds = options.ExcludeSpanIds;
 				if (issue.ExcludeSpans != null)
 				{
 					newCombinedExcludeSpanIds = newCombinedExcludeSpanIds.Union(issue.ExcludeSpans).ToList();
 				}
 				updates.Add(Builders<IssueDocument>.Update.Set(x => x.ExcludeSpans, newCombinedExcludeSpanIds));
 			}
-			if (newLastSeenAt != null)
+			if (options.LastSeenAt != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.LastSeenAt, newLastSeenAt.Value));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.LastSeenAt, options.LastSeenAt.Value));
 			}
 
-			if (newDeclinedById != null)
+			if (options.DeclinedById != null)
 			{
-				GetLogger(issue.Id).LogInformation("Declined by {UserId}", newDeclinedById.Value);
-				await _issueSuspects.UpdateManyAsync(x => x.IssueId == issue.Id && x.AuthorId == newDeclinedById.Value, Builders<IssueSuspectDocument>.Update.Set(x => x.DeclinedAt, DateTime.UtcNow), null, cancellationToken);
+				GetLogger(issue.Id).LogInformation("Declined by {UserId}", options.DeclinedById.Value);
+				await _issueSuspects.UpdateManyAsync(x => x.IssueId == issue.Id && x.AuthorId == options.DeclinedById.Value, Builders<IssueSuspectDocument>.Update.Set(x => x.DeclinedAt, DateTime.UtcNow), null, cancellationToken);
 			}
-			if (newQuarantinedById != null)
+			if (options.QuarantinedById != null)
 			{
-				if (newQuarantinedById.Value == UserId.Empty)
+				if (options.QuarantinedById.Value == UserId.Empty)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.QuarantinedByUserId));
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.QuarantineTimeUtc));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.QuarantinedByUserId!, newQuarantinedById.Value));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.QuarantinedByUserId!, options.QuarantinedById.Value));
 					updates.Add(Builders<IssueDocument>.Update.Set(x => x.QuarantineTimeUtc, DateTime.UtcNow));
 				}
 			}
-			else if ((newResolvedById != null && newResolvedById.Value != UserId.Empty) || (newForceClosedById != null && newForceClosedById.Value != UserId.Empty))
+			else if ((options.ResolvedById != null && options.ResolvedById.Value != UserId.Empty) || (options.ForceClosedById != null && options.ForceClosedById.Value != UserId.Empty))
 			{
 				// Clear quarantine if being resolved or if being force closed
 				updates.Add(Builders<IssueDocument>.Update.Unset(x => x.QuarantinedByUserId));
 				updates.Add(Builders<IssueDocument>.Update.Unset(x => x.QuarantineTimeUtc));
 			}
 
-			if (newForceClosedById != null)
+			if (options.ForceClosedById != null)
 			{
-				if (newForceClosedById.Value == UserId.Empty)
+				if (options.ForceClosedById.Value == UserId.Empty)
 				{
 					updates.Add(Builders<IssueDocument>.Update.Unset(x => x.ForceClosedByUserId));
 				}
 				else
 				{
-					updates.Add(Builders<IssueDocument>.Update.Set(x => x.ForceClosedByUserId, newForceClosedById.Value));
+					updates.Add(Builders<IssueDocument>.Update.Set(x => x.ForceClosedByUserId, options.ForceClosedById.Value));
 				}
 			}
 
-			if (newExternaIssueKey != null)
+			if (options.ExternalIssueKey != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.ExternalIssueKey, newExternaIssueKey.Length == 0 ? null : newExternaIssueKey));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.ExternalIssueKey, options.ExternalIssueKey.Length == 0 ? null : options.ExternalIssueKey));
 			}
 
-			if (newWorkflowThreadUrl != null)
+			if (options.WorkflowThreadUrl != null)
 			{
-				updates.Add(Builders<IssueDocument>.Update.Set(x => x.WorkflowThreadUrl, newWorkflowThreadUrl.ToString().Length == 0 ? null : newWorkflowThreadUrl));
+				updates.Add(Builders<IssueDocument>.Update.Set(x => x.WorkflowThreadUrl, options.WorkflowThreadUrl.ToString().Length == 0 ? null : options.WorkflowThreadUrl));
 			}
 
 			if (updates.Count == 0)

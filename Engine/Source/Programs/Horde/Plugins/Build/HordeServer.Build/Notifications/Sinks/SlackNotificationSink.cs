@@ -1093,7 +1093,7 @@ namespace HordeServer.Notifications.Sinks
 							break;
 						}
 
-						updateIssue = await _issueService.Collection.TryUpdateIssueAsync(updateIssue, null, newWorkflowThreadUrl: new Uri(permalink), cancellationToken: cancellationToken);
+						updateIssue = await _issueService.Collection.TryUpdateIssueAsync(updateIssue, null, new UpdateIssueOptions { WorkflowThreadUrl = new Uri(permalink) }, cancellationToken: cancellationToken);
 						if (updateIssue != null)
 						{
 							break;
