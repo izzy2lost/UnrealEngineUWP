@@ -359,3 +359,22 @@ void USoundBase::InjectPropertySheet()
 }
 
 #endif //WITH_EDITORONLY_DATA
+
+float USoundBase::ComputeMaxDistance() const
+{
+	if (const FSoundAttenuationSettings* Settings = GetAttenuationSettingsToApply())
+	{
+		if (!Settings->bAttenuate)
+		{
+			return FAudioDevice::GetMaxWorldDistance();
+		}
+
+		const float MaxDimension = Settings->GetMaxDimension();
+		if (MaxDimension > UE_KINDA_SMALL_NUMBER)
+		{
+			return MaxDimension;
+		}
+	}
+
+	return GetMaxDistance();
+}

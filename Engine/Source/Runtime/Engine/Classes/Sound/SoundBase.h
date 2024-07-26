@@ -162,7 +162,8 @@ public:
 	UPROPERTY(Category = Developer, AssetRegistrySearchable, VisibleAnywhere, BlueprintReadOnly)
 	float Duration;
 
-	/** The max distance of the asset, as determined by attenuation settings. */
+	/** The MaxDistance property is calculated statically on load or at asset edit time, but is not reliable at runtime.
+	  * the GetMaxDistance function should be used to determine the applied max distance based on runtime behavior. */
 	UPROPERTY(Category = Developer, AssetRegistrySearchable, VisibleAnywhere, BlueprintReadOnly)
 	float MaxDistance;
 
@@ -355,4 +356,7 @@ public:
 
 	void InjectPropertySheet();
 #endif //WITH_EDITORONLY_DATA
+
+protected:
+	ENGINE_API virtual float ComputeMaxDistance() const;
 };

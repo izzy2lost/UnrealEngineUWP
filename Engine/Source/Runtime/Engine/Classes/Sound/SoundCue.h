@@ -279,13 +279,12 @@ public:
 
 protected:
 	ENGINE_API bool RecursiveFindPathToNode(USoundNode* CurrentNode, const UPTRINT CurrentHash, const UPTRINT NodeHashToFind, TArray<USoundNode*>& OutPath) const;
+	ENGINE_API float ComputeMaxDistance() const override;
 
 private:
 	ENGINE_API void AudioQualityChanged();
 	ENGINE_API void OnPostEngineInit();
 	ENGINE_API void EvaluateNodes(bool bAddToRoot);
-
-	ENGINE_API float FindMaxDistanceInternal() const;
 
 	FDelegateHandle OnPostEngineInitHandle;
 	static ENGINE_API int32 CachedQualityLevel;

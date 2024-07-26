@@ -1474,6 +1474,8 @@ void USoundWave::PostInitProperties()
 		InvalidateCompressedData(false, false);
 	}
 
+	MaxDistance = ComputeMaxDistance();
+
 #if WITH_EDITORONLY_DATA
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
@@ -2031,6 +2033,7 @@ void USoundWave::PostLoad()
 
 
 	CacheInheritedLoadingBehavior();
+	MaxDistance = ComputeMaxDistance();
 	
 	if (FApp::CanEverRenderAudio())
 	{
@@ -2366,8 +2369,6 @@ void USoundWave::RemoveAudioResource()
 	SoundWaveDataPtr->ResourceSize = 0;
 	SoundWaveDataPtr->ResourceData.Empty();
 }
-
-
 
 #if WITH_EDITOR
 
@@ -3038,6 +3039,8 @@ void USoundWave::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 			}
 		}
 	}
+
+	MaxDistance = ComputeMaxDistance();
 }
 
 bool USoundWave::CanEditChange(const FProperty* InProperty) const
