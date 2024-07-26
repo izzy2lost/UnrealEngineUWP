@@ -31,6 +31,8 @@ struct FFrameRate
 		: Numerator(InNumerator), Denominator(InDenominator)
 	{}
 
+	/** IMPORTANT: If you change the struct data, ensure that you also update the version in NoExportTypes.h  */
+
 	/**
 	 * The numerator of the framerate represented as a number of frames per second (e.g. 60 for 60 fps)
 	 */

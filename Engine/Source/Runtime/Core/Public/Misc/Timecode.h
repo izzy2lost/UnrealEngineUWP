@@ -376,7 +376,7 @@ public:
 		return Builder.ToString();
 	}
 
-	/*
+	/**
 	 * Will return true if the timecode represents a valid timecode value where
 	 *
 	 * Hours is +/- [0,23]
@@ -395,6 +395,8 @@ public:
 		return InAbsRange(Hours,0,23) && InAbsRange(Minutes, 0, 59) && InAbsRange(Seconds, 0, 59) && Subframe >= 0;
 	}
 public:
+
+	/** IMPORTANT: If you change the struct data, ensure that you also update the version in NoExportTypes.h  */
 
 	/** How many hours does this timecode represent */
 	int32 Hours;

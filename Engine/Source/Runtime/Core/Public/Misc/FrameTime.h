@@ -93,6 +93,8 @@ public:
 	 */
 	static FFrameTime FromDecimal(double InDecimalFrame);
 
+	/** IMPORTANT: If you change the struct data, ensure that you also update the version in NoExportTypes.h  */
+
 	FFrameNumber FrameNumber;
 
 private:

@@ -79,6 +79,8 @@ public:
 
 public:
 
+	/** IMPORTANT: If you change the struct data, ensure that you also update the version in NoExportTypes.h  */
+
 	/** The frame time */
 	FFrameTime Time;
 
