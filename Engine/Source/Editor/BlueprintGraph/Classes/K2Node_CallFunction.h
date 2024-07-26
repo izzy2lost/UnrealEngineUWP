@@ -181,7 +181,7 @@ public:
 	virtual void PostParameterPinCreated(UEdGraphPin *Pin) {}
 
 	UE_DEPRECATED(5.5, "Moved to ObjectTools::GetUserFacingFunctionName.")
-	static FText GetUserFacingFunctionName(const UFunction* Function);
+	static FText GetUserFacingFunctionName(const UFunction* Function, ENodeTitleType::Type NodeTitleType = ENodeTitleType::EditableTitle);
 
 	/** Set up a pins tooltip from a function's tooltip */
 	static void GeneratePinTooltipFromFunction(UEdGraphPin& Pin, const UFunction* Function);

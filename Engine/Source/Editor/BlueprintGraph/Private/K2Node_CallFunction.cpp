@@ -610,8 +610,9 @@ FText UK2Node_CallFunction::GetNodeTitle(ENodeTitleType::Type TitleType) const
 
 	if (UFunction* Function = GetTargetFunction())
 	{
+		const bool bAllowFriendlyNames = (TitleType == ENodeTitleType::FullTitle);
 		RPCString = UK2Node_Event::GetLocalizedNetString(Function->FunctionFlags, true);
-		FunctionName = ObjectTools::GetUserFacingFunctionName(Function);
+		FunctionName = ObjectTools::GetUserFacingFunctionName(Function, bAllowFriendlyNames);
 		ContextString = GetFunctionContextString();
 	}
 	else
@@ -1797,9 +1798,10 @@ void UK2Node_CallFunction::GeneratePinTooltipFromFunction(UEdGraphPin& Pin, cons
 	GetDefault<UEdGraphSchema_K2>()->ConstructBasicPinTooltip(Pin, FText::FromString(Pin.PinToolTip), Pin.PinToolTip);
 }
 
-FText UK2Node_CallFunction::GetUserFacingFunctionName(const UFunction* Function)
+FText UK2Node_CallFunction::GetUserFacingFunctionName(const UFunction* Function, ENodeTitleType::Type NodeTitleType /*= ENodeTitleType::EditableTitle*/)
 {
-	return ObjectTools::GetUserFacingFunctionName(Function);
+	const bool bAllowFriendlyNames = NodeTitleType == ENodeTitleType::FullTitle;
+	return ObjectTools::GetUserFacingFunctionName(Function, bAllowFriendlyNames);
 }
 
 FString UK2Node_CallFunction::GetDefaultTooltipForFunction(const UFunction* Function)

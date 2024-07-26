@@ -5035,17 +5035,27 @@ namespace ObjectTools
 		}
 	}
 
-	FText GetUserFacingFunctionName(const UFunction* Function)
+	FText GetUserFacingFunctionName(const UFunction* Function, bool bAllowFriendlyNames)
 	{
 		FText ReturnDisplayName;
 
 		if (Function != nullptr)
 		{
-			if (GEditor && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
+			static const FName NAME_DisplayName { TEXT("DisplayName") };
+
+			// Functions do not use friendly names because they can be manually input by a user in the editor (and it would otherwise not adhere to their name)
+			// There is a long-term goal of removing friendly names from the Engine.  However, we keep them in the case of FullTitle as it helps the nodes
+			// be decipherable in a zoomed-out view.
+			if (GEditor && bAllowFriendlyNames && GetDefault<UEditorStyleSettings>()->bShowFriendlyNames)
 			{
 				ReturnDisplayName = Function->GetDisplayNameText();
 			}
-			else
+			else if (const FString* OverrideDisplayName = Function->FindMetaData(NAME_DisplayName))
+			{
+				ReturnDisplayName = FText::FromString(*OverrideDisplayName);
+			}
+
+			if (ReturnDisplayName.IsEmpty())
 			{
 				// Previous (and similar) code paths would go through FField::GetMetaDataText(DisplayName) which attempts localization
 				// However, we do not localize function names (and we've explicitly requested non-friendly names), so just show us the real name

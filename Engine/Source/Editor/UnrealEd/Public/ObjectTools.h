@@ -678,10 +678,11 @@ namespace ObjectTools
 
 	/**
 	 * Gets the user-facing name for the given UFunction.
-	 * @param Function	the function to find the name for
+	 * @param Function				the function to find the name for
+	 * @param bAllowFriendlyNames	set to true if you will allow a FriendlyName (name with spaces which does not match the Function's Name)
 	 * @return the name as localized text
 	 */
-	UNREALED_API FText GetUserFacingFunctionName(const UFunction* Function);
+	UNREALED_API FText GetUserFacingFunctionName(const UFunction* Function, bool bAllowFriendlyNames = false);
 
 
 	/**

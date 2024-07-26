@@ -303,7 +303,8 @@ UBlueprintFunctionNodeSpawner* UBlueprintFunctionNodeSpawner::Create(TSubclassOf
 	}
 	else
 	{
-		MenuSignature.MenuName = ObjectTools::GetUserFacingFunctionName(Function);
+		constexpr bool bAllowFriendlyNames = true;
+		MenuSignature.MenuName = ObjectTools::GetUserFacingFunctionName(Function, bAllowFriendlyNames);
 		MenuSignature.Category = UK2Node_CallFunction::GetDefaultCategoryForFunction(Function, FText::GetEmpty());
 		MenuSignature.Tooltip = FText::FromString(ObjectTools::GetDefaultTooltipForFunction(Function));
 		// add at least one character, so that PrimeDefaultUiSpec() doesn't attempt to query the template node
