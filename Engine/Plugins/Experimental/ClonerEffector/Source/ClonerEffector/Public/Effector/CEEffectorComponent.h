@@ -210,7 +210,7 @@ protected:
 	FLinearColor Color = FLinearColor::Red;
 
 	/** Name of the shape type to use */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Shape", meta=(GetOptions="GetEffectorTypeNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Shape", Category="Shape", meta=(GetOptions="GetEffectorTypeNames"))
 	FName TypeName = NAME_None;
 
 	/** Cached active type used for faster access */
@@ -218,7 +218,7 @@ protected:
 	TObjectPtr<UCEEffectorTypeBase> ActiveType;
 
 	/** Name of the shape type to use */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Mode", meta=(GetOptions="GetEffectorModeNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Mode", Category="Mode", meta=(GetOptions="GetEffectorModeNames"))
 	FName ModeName = NAME_None;
 
 	/** Cached active mode used for faster access */

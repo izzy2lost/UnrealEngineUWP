@@ -305,7 +305,7 @@ protected:
 	FLinearColor Color = FLinearColor::White;
 
 	/** Name of the layout to use */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Layout", Category="Layout", meta=(GetOptions="GetClonerLayoutNames"))
 	FName LayoutName = NAME_None;
 
 	/** Active layout used */
