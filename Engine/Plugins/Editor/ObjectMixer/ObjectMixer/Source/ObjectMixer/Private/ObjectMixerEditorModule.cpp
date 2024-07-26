@@ -11,11 +11,8 @@
 
 #include "Engine/Level.h"
 #include "ISettingsModule.h"
-#include "LevelEditor.h"
 #include "LevelEditorSequencerIntegration.h"
 #include "Misc/CoreDelegates.h"
-#include "Misc/TransactionObjectEvent.h"
-#include "Selection.h"
 #include "ToolMenus.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
@@ -54,8 +51,6 @@ UWorld* FObjectMixerEditorModule::GetWorld()
 
 void FObjectMixerEditorModule::Initialize()
 {	
-	BindDelegates();
-	
 	SetupMenuItemVariables();
 	
 	RegisterTabSpawner();
@@ -64,51 +59,6 @@ void FObjectMixerEditorModule::Initialize()
 
 void FObjectMixerEditorModule::Teardown()
 {
-	// Unbind Delegates
-	if (GEngine)
-	{
-		GEngine->OnLevelActorFolderChanged().RemoveAll(this);
-		GEngine->OnLevelActorListChanged().RemoveAll(this);
-		GEngine->OnActorFolderAdded().RemoveAll(this);
-		GEngine->OnLevelActorDetached().RemoveAll(this);
-		GEngine->OnLevelActorAttached().RemoveAll(this);
-		GEngine->OnActorFolderAdded().RemoveAll(this);
-		GEngine->OnActorFoldersUpdatedEvent().RemoveAll(this);
-	}
-
-	if (GEditor)
-	{
-		GEditor->OnLevelActorAdded().RemoveAll(this);
-		GEditor->OnLevelActorDeleted().RemoveAll(this);
-		GEditor->GetSelectedActors()->SelectionChangedEvent.RemoveAll(this);
-	}
-	
-	FEditorDelegates::MapChange.RemoveAll(this);
-	FEditorDelegates::PostUndoRedo.RemoveAll(this);
-	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
-	FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
-
-	if (FLevelEditorModule* LevelEditorModule = FModuleManager::GetModulePtr<FLevelEditorModule>("LevelEditor"))
-	{
-		LevelEditorModule->OnComponentsEdited().RemoveAll(this);
-	}
-
-	FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().RemoveAll(this);
-
-	if (FModuleManager::Get().IsModuleLoaded(TEXT("ObjectMixer")))
-	{
-		if (UObjectMixerEditorSettings* Settings = GetMutableDefault<UObjectMixerEditorSettings>())
-		{
-			Settings->OnSettingChanged().RemoveAll(this);
-		}
-	}
-
-	for (FDelegateHandle& Delegate : DelegateHandles)
-	{
-		Delegate.Reset();
-	}
-	DelegateHandles.Empty();
-	
 	ListModel.Reset();
 
 	UToolMenus::UnregisterOwner(this);
@@ -119,7 +69,7 @@ void FObjectMixerEditorModule::Teardown()
 
 FObjectMixerEditorModule& FObjectMixerEditorModule::Get()
 {
-	return FModuleManager::LoadModuleChecked< FObjectMixerEditorModule >("ObjectMixerEditor");
+	return FModuleManager::LoadModuleChecked<FObjectMixerEditorModule>("ObjectMixerEditor");
 }
 
 void FObjectMixerEditorModule::OpenProjectSettings()
@@ -177,22 +127,6 @@ bool FObjectMixerEditorModule::RegenerateListWidget()
 	}
 
 	return false;
-}
-
-void FObjectMixerEditorModule::RequestRebuildList() const
-{
-	if (ListModel.IsValid())
-	{
-		ListModel->RequestRebuildList();
-	}
-}
-
-void FObjectMixerEditorModule::RefreshList() const
-{
-	if (ListModel.IsValid())
-	{
-		ListModel->RefreshList();
-	}
 }
 
 void FObjectMixerEditorModule::OnRenameCommand()
@@ -316,112 +250,6 @@ TSharedRef<SDockTab> FObjectMixerEditorModule::SpawnTab(const FSpawnTabArgs& Arg
 TSharedPtr<FWorkspaceItem> FObjectMixerEditorModule::GetWorkspaceGroup()
 {
 	return WorkspaceGroup;
-}
-
-void FObjectMixerEditorModule::BindDelegates()
-{
-	check(GEngine && GEditor);
-	DelegateHandles.Add(GEngine->OnLevelActorListChanged().AddLambda([this] ()
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEngine->OnActorFolderAdded().AddLambda([this] (UActorFolder*)
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEngine->OnActorFoldersUpdatedEvent().AddLambda([this] (ULevel*)
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEngine->OnLevelActorFolderChanged().AddLambda([this] (const AActor*, FName)
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEngine->OnLevelActorAttached().AddLambda([this] (AActor*, const AActor*)
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEngine->OnLevelActorDetached().AddLambda([this] (AActor*, const AActor*)
-	{
-		RequestRebuildList();
-	}));
-
-	DelegateHandles.Add(GEditor->OnLevelActorAdded().AddLambda([this] (AActor*)
-	{
-		RequestRebuildList();
-	}));
-	DelegateHandles.Add(GEditor->OnLevelActorDeleted().AddLambda([this] (AActor*)
-	{
-		RequestRebuildList();
-	}));
-	
-	DelegateHandles.Add(FEditorDelegates::MapChange.AddLambda([this](uint32)
-	{
-		RequestRebuildList();
-	}));
-	
-	DelegateHandles.Add(FEditorDelegates::PostUndoRedo.AddLambda([this]()
-	{
-		RequestRebuildList();
-		
-		// Because we can undo/redo collection adds and removes, we need to save the data after each
-		GetMutableDefault<UObjectMixerEditorSerializedData>()->SaveConfig();
-	}));
-	
-	DelegateHandles.Add(FCoreUObjectDelegates::OnObjectTransacted.AddLambda([this](UObject*, const FTransactionObjectEvent& Event)
-	{		
-		if (Event.GetEventType() == ETransactionObjectEventType::Finalized)
-		{
-			if (Event.HasNameChange())
-			{
-				RequestRebuildList();
-			}
-			else if (const TSet<FName> PropertiesThatRequireRefresh = GetPropertiesThatRequireRefresh(); PropertiesThatRequireRefresh.Num() > 0)
-			{
-				const TSet<FName> ChangedPropertyNames = TSet<FName>(Event.GetChangedProperties());
-	
-				if (ChangedPropertyNames.Intersect(PropertiesThatRequireRefresh).Num() > 0)
-				{
-					RequestRebuildList();
-				}
-			}
-		}
-	}));
-	
-	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-	DelegateHandles.Add(LevelEditorModule.OnComponentsEdited().AddLambda([this]()
-	{
-		RequestRebuildList();
-	}));
-
-	DelegateHandles.Add(FLevelEditorSequencerIntegration::Get().GetOnSequencersChanged().AddLambda([this]
-	{
-		RegenerateListWidget();
-	}));
-
-	DelegateHandles.Add(GetMutableDefault<UObjectMixerEditorSettings>()->OnSettingChanged().AddLambda(
-		[this](UObject*, FPropertyChangedEvent& Event)
-		{
-			if (UObjectMixerEditorSettings::DoesPropertyChangeRequireListRebuild(Event))
-			{
-				RequestRebuildList();
-			}
-		}));
-}
-
-TSet<FName> FObjectMixerEditorModule::GetPropertiesThatRequireRefresh() const
-{
-	TSet<FName> ReturnValue;
-
-	if (ListModel.IsValid())
-	{
-		for (const TObjectPtr<UObjectMixerObjectFilter>& Instance : ListModel->GetObjectFilterInstances())
-		{
-			ReturnValue.Append(Instance->GetPropertiesThatRequireListRefresh());
-		}
-	}
-
-	return ReturnValue;
 }
 
 const TSubclassOf<UObjectMixerObjectFilter>& FObjectMixerEditorModule::GetDefaultFilterClass() const

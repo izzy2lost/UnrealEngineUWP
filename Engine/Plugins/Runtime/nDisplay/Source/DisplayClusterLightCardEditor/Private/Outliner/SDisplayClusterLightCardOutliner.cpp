@@ -8,6 +8,7 @@
 #include "DisplayClusterLightCardOutlinerColumns.h"
 
 #include "IDisplayClusterOperator.h"
+#include "IDisplayClusterOperatorViewModel.h"
 
 #include "DisplayClusterConfigurationTypes.h"
 
@@ -90,6 +91,8 @@ void SDisplayClusterLightCardOutliner::GetSelectedActors(TArray<AActor*>& OutSel
 
 void SDisplayClusterLightCardOutliner::SelectActors(const TArray<AActor*>& ActorsToSelect)
 {
+	IDisplayClusterOperator::Get().GetOperatorViewModel()->OnOutlinerSelectionChanged().Broadcast(ActorsToSelect);
+
 	if (bIsOutlinerChangingSelection)
 	{
 		// Selection change initiated from outliner

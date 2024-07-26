@@ -7,6 +7,14 @@ public class ColorGradingEditor : ModuleRules
 {
 	public ColorGradingEditor(ReadOnlyTargetRules ROTargetRules) : base(ROTargetRules)
 	{
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"SceneOutliner",
+				"ObjectMixerEditor"
+			}
+		);
+
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"ApplicationCore",
@@ -17,8 +25,8 @@ public class ColorGradingEditor : ModuleRules
 				"DetailCustomizations",
 				"EditorStyle",
 				"Engine",
-				"LevelEditor",
 				"InputCore",
+				"LevelEditor",
 				"PropertyEditor",
 				"PropertyPath",
 				"Slate",

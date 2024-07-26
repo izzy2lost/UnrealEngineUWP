@@ -14,6 +14,7 @@
 #include "DisplayClusterRootActor.h"
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 #include "DisplayClusterConfigurationTypes.h"
+#include "SelectionInterface/DisplayClusterObjectMixerSelectionInterface.h"
 
 #include "ColorCorrectRegion.h"
 #include "ColorCorrectWindow.h"
@@ -57,12 +58,13 @@ void SDisplayClusterColorGradingDrawer::Construct(const FArguments& InArgs, bool
 	ChildSlot
 	[
 		SAssignNew(MainPanel, SColorGradingPanel)
+		.SelectionInterface(MakeShared<FDisplayClusterObjectMixerSelectionInterface>())
 		.OverrideWorld(this, &SDisplayClusterColorGradingDrawer::GetOperatorWorld)
 		.IsInDrawer(bInIsInDrawer)
 		.OnDocked_Lambda([]() {
 			IDisplayClusterColorGrading::Get().GetColorGradingDrawerSingleton().DockColorGradingDrawer();
 		})
-		.ActorFilter([SharedThis, this](AActor* Actor) -> bool {
+		.ActorFilter([SharedThis, this](const AActor* Actor) -> bool {
 			if (SharedThis.IsValid() && OperatorViewModel.IsValid() && Actor && Actor->IsA<ADisplayClusterRootActor>())
 			{
 				return Actor == OperatorViewModel->GetRootActor();

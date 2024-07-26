@@ -25,6 +25,10 @@
 		{
 			"Name": "ColorCorrectRegions",
 			"Enabled": true
+		},
+		{
+			"Name": "ObjectMixer",
+			"Enabled": true
 		}
 	]
 }

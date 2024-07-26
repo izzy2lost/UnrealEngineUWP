@@ -75,6 +75,7 @@ private:
 
 	ECheckBoxState IsColorGradingElementSelected(FText ElementName) const;
 	EVisibility GetColorWheelPanelVisibility() const;
+	EVisibility GetMultiSelectWarningVisibility() const;
 	EVisibility GetColorWheelVisibility(int32 ColorWheelIndex) const;
 
 	EColorGradingColorDisplayMode GetColorDisplayMode() const { return ColorDisplayMode; }

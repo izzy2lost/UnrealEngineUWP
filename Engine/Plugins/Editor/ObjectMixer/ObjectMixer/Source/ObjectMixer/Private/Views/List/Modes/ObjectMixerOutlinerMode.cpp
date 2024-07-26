@@ -5,10 +5,12 @@
 #include "ObjectMixerEditorLog.h"
 #include "ObjectMixerEditorModule.h"
 #include "ObjectMixerEditorSettings.h"
+#include "ObjectFilter/ObjectMixerEditorObjectFilter.h"
 #include "Views/List/ObjectMixerEditorList.h"
 #include "Views/List/Modes/ObjectMixerOutlinerHierarchy.h"
 #include "Views/List/Modes/SFilterClassMenuItem.h"
 #include "Views/List/ObjectMixerUtils.h"
+#include "Views/List/SObjectMixerEditorList.h"
 #include "Views/List/RowTypes/ObjectMixerEditorListRowActor.h"
 #include "Views/Widgets/ObjectMixerEditorListMenuContext.h"
 
@@ -79,6 +81,12 @@ TObjectPtr<UObjectMixerOutlinerModeEditorConfig> UObjectMixerOutlinerModeEditorC
 
 namespace ObjectMixerOutliner
 {
+	FHybridRowSelector::FHybridRowSelector(const FObjectMixerOutlinerMode* Mode)
+	{
+		check(Mode);
+		bAllowHybridRows = Mode->ShouldAllowHybridRows();
+	}
+
 	bool FWeakActorSelectorAcceptingComponents::operator()(const TWeakPtr<ISceneOutlinerTreeItem>& Item, TWeakObjectPtr<AActor>& DataOut) const
 	{
 		if (TSharedPtr<ISceneOutlinerTreeItem> ItemPtr = Item.Pin())
@@ -125,7 +133,7 @@ namespace ObjectMixerOutliner
 				if (ActorItem->IsValid())
 				{
 					// Get the component from a hybrid row if we're in HybridComponent mode
-					if (GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
+					if (ShouldAllowHybridRows() && GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
 						ActorItem->RowData.GetHybridComponent())
 					{
 						DataOut = ActorItem->RowData.GetHybridComponent();
@@ -163,7 +171,7 @@ namespace ObjectMixerOutliner
 				if (ActorItem->IsValid())
 				{
 					// Skip hybrid rows here if in HybridComponent mode, we'll get the components from them in FComponentSelector
-					if (GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
+					if (ShouldAllowHybridRows() && GetDefault<UObjectMixerEditorSettings>()->HybridRowPolicy == EObjectMixerHybridMode::HybridComponent &&
 						ActorItem->RowData.GetIsHybridRow())
 					{
 						return false;
@@ -500,8 +508,13 @@ FObjectMixerOutlinerMode::FObjectMixerOutlinerMode(
 		return false;
 	}), FSceneOutlinerFilter::EDefaultBehaviour::Pass));
 
-	USelection::SelectionChangedEvent.AddRaw(this, &FObjectMixerOutlinerMode::OnLevelSelectionChanged);
-	USelection::SelectObjectEvent.AddRaw(this, &FObjectMixerOutlinerMode::OnLevelSelectionChanged);
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
+	{
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			PinnedList->GetSelectionInterface()->OnSelectionChanged().AddRaw(this, &FObjectMixerOutlinerMode::OnEditorSelectionChanged);
+		}
+	}
 
 	FEditorDelegates::MapChange.AddRaw(this, &FObjectMixerOutlinerMode::OnMapChange);
 	FEditorDelegates::NewCurrentLevel.AddRaw(this, &FObjectMixerOutlinerMode::OnNewCurrentLevel);
@@ -541,6 +554,14 @@ FObjectMixerOutlinerMode::~FObjectMixerOutlinerMode()
 		}
 	}
 
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
+	{
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			PinnedList->GetSelectionInterface()->OnSelectionChanged().RemoveAll(this);
+		}
+	}
+
 	FEditorDelegates::OnEditCutActorsBegin.RemoveAll(this);
 	FEditorDelegates::OnEditCutActorsEnd.RemoveAll(this);
 	FEditorDelegates::OnEditCopyActorsBegin.RemoveAll(this);
@@ -551,9 +572,6 @@ FObjectMixerOutlinerMode::~FObjectMixerOutlinerMode()
 	FEditorDelegates::OnDuplicateActorsEnd.RemoveAll(this);
 	FEditorDelegates::OnDeleteActorsBegin.RemoveAll(this);
 	FEditorDelegates::OnDeleteActorsEnd.RemoveAll(this);
-
-	USelection::SelectionChangedEvent.RemoveAll(this);
-	USelection::SelectObjectEvent.RemoveAll(this);
 
 	FEditorDelegates::MapChange.RemoveAll(this);
 	FEditorDelegates::NewCurrentLevel.RemoveAll(this);
@@ -575,8 +593,13 @@ void FObjectMixerOutlinerMode::OnNewCurrentLevel()
 	SceneOutliner->FullRefresh();
 }
 
-void FObjectMixerOutlinerMode::OnLevelSelectionChanged(UObject* Obj)
+void FObjectMixerOutlinerMode::OnEditorSelectionChanged()
 {
+	if (!ShouldSyncSelectionFromEditor())
+	{
+		return;
+	}
+
 	const FSceneOutlinerFilterInfo* ShowOnlySelectedActorsFilter = FilterInfoMap.Find(TEXT("ShowOnlySelectedActors"));
 
 	// Since there is no way to know which items were removed/added to a selection, we must force a full refresh to handle this
@@ -592,22 +615,25 @@ void FObjectMixerOutlinerMode::OnLevelSelectionChanged(UObject* Obj)
 		SceneOutliner->RefreshSelection();
 
 		// Scroll last item into view - this means if we are multi-selecting, we show newest selection. @TODO Not perfect though
-		if (const AActor* LastSelectedActor = GEditor->GetSelectedActors()->GetBottom<AActor>())
+		const TArray<AActor*> SelectedActors = GetSelectedActorsInEditor();
+		if (!SelectedActors.IsEmpty())
 		{
-			if (FSceneOutlinerTreeItemPtr TreeItem = SceneOutliner->GetTreeItem(LastSelectedActor, false))
+			if (const AActor* LastSelectedActor = SelectedActors.Last())
 			{
-				// Only scroll if selection framing is enabled
-				if(bAlwaysFrameSelection)
+				if (FSceneOutlinerTreeItemPtr TreeItem = SceneOutliner->GetTreeItem(LastSelectedActor, false))
 				{
-					SceneOutliner->ScrollItemIntoView(TreeItem);
+					// Only scroll if selection framing is enabled
+					if (bAlwaysFrameSelection)
+					{
+						SceneOutliner->ScrollItemIntoView(TreeItem);
+					}
 				}
-			}
-			else
-			{
-				SceneOutliner::ENewItemAction::Type Action = bAlwaysFrameSelection ? SceneOutliner::ENewItemAction::ScrollIntoView : SceneOutliner::ENewItemAction::Select;
-				
-				SceneOutliner->OnItemAdded(LastSelectedActor, Action);
-				
+				else
+				{
+					SceneOutliner::ENewItemAction::Type Action = bAlwaysFrameSelection ? SceneOutliner::ENewItemAction::ScrollIntoView : SceneOutliner::ENewItemAction::Select;
+
+					SceneOutliner->OnItemAdded(LastSelectedActor, Action);
+				}
 			}
 		}
 	}
@@ -669,11 +695,11 @@ void FObjectMixerOutlinerMode::SynchronizeAllSelectionsToEditor()
 
 	// Actors
 	SynchronizeSelectedActorDescs();
-	TArray<AActor*> SelectedActors = SceneOutliner->GetSelection().GetData<AActor*>(ObjectMixerOutliner::FActorSelector());
+	TArray<AActor*> SelectedActors = SceneOutliner->GetSelection().GetData<AActor*>(ObjectMixerOutliner::FActorSelector(this));
 	bool bHasActorSelectionChanged = HasActorSelectionChanged(SelectedActors, bAreAnyInPIE);
 		
 	// Components
-	TArray<UActorComponent*> SelectedComponents = SceneOutliner->GetSelection().GetData<UActorComponent*>(ObjectMixerOutliner::FComponentSelector());
+	TArray<UActorComponent*> SelectedComponents = SceneOutliner->GetSelection().GetData<UActorComponent*>(ObjectMixerOutliner::FComponentSelector(this));
 	bool bHasComponentSelectionChanged = HasComponentSelectionChanged(SelectedComponents, bAreAnyInPIE);
 		
 	// If there's a discrepancy, update the selected objects to reflect the list.
@@ -684,18 +710,20 @@ void FObjectMixerOutlinerMode::SynchronizeAllSelectionsToEditor()
 
 		if (bHasActorSelectionChanged)
 		{
-			SelectActorsInEditor(SelectedActors);
+			SelectActorsInEditor(SelectedActors, true, true);
 		}
 			
 		if (bHasComponentSelectionChanged)
 		{
-			SelectComponentsInEditor(SelectedComponents);
+			SelectComponentsInEditor(SelectedComponents, true, true);
 		}
 	}
 }
 
 bool FObjectMixerOutlinerMode::HasActorSelectionChanged(TArray<AActor*>& OutSelectedActors, bool& bOutAreAnyInPIE)
 {
+	TArray<AActor*> EditorSelectedActors = GetSelectedActorsInEditor();
+
 	bool bHasSelectionChanged = false;
 	for (AActor* Actor : OutSelectedActors)
 	{
@@ -703,16 +731,15 @@ bool FObjectMixerOutlinerMode::HasActorSelectionChanged(TArray<AActor*>& OutSele
 		{
 			bOutAreAnyInPIE = true;
 		}
-		if (!GEditor->GetSelectedActors()->IsSelected(Actor))
+		if (!EditorSelectedActors.Contains(Actor))
 		{
 			bHasSelectionChanged = true;
 			break;
 		}
 	}
 
-	for (FSelectionIterator SelectionIt(*GEditor->GetSelectedActors()); SelectionIt && !bHasSelectionChanged; ++SelectionIt)
+	for (AActor* Actor : EditorSelectedActors)
 	{
-		const AActor* Actor = CastChecked< AActor >(*SelectionIt);
 		if (!bOutAreAnyInPIE && Actor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
 		{
 			bOutAreAnyInPIE = true;
@@ -735,6 +762,11 @@ bool FObjectMixerOutlinerMode::HasActorSelectionChanged(TArray<AActor*>& OutSele
 				}
 			}
 		}
+
+		if (bHasSelectionChanged)
+		{
+			break;
+		}
 	}
 
 	return bHasSelectionChanged;
@@ -742,6 +774,8 @@ bool FObjectMixerOutlinerMode::HasActorSelectionChanged(TArray<AActor*>& OutSele
 
 bool FObjectMixerOutlinerMode::HasComponentSelectionChanged(TArray<UActorComponent*>& OutSelectedComponents, bool& bOutAreAnyInPIE)
 {
+	TArray<UActorComponent*> EditorSelectedComponents = GetSelectedComponentsInEditor();
+
 	bool bHasSelectionChanged = false;
 	for (UActorComponent* Component : OutSelectedComponents)
 	{
@@ -749,72 +783,124 @@ bool FObjectMixerOutlinerMode::HasComponentSelectionChanged(TArray<UActorCompone
 		{
 			bOutAreAnyInPIE = true;
 		}
-		if (!GEditor->GetSelectedComponents()->IsSelected(Component))
+		if (!EditorSelectedComponents.Contains(Component))
 		{
 			bHasSelectionChanged = true;
 			break;
 		}
 	}
 
-	for (FSelectionIterator SelectionIt(*GEditor->GetSelectedComponents()); SelectionIt && !bHasSelectionChanged; ++SelectionIt)
+	for (UActorComponent* Component : EditorSelectedComponents)
 	{
-		const UActorComponent* Actor = CastChecked< UActorComponent >(*SelectionIt);
-		if (!bOutAreAnyInPIE && Actor->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
+		if (!bOutAreAnyInPIE && Component->GetPackage()->HasAnyPackageFlags(PKG_PlayInEditor))
 		{
 			bOutAreAnyInPIE = true;
 		}
-		if (!OutSelectedComponents.Contains(Actor))
+		if (!OutSelectedComponents.Contains(Component))
 		{
-			// Actor has been deselected
+			// Component has been deselected
 			bHasSelectionChanged = true;
+			break;
 		}
 	}
 
 	return bHasSelectionChanged;
 }
 
-void FObjectMixerOutlinerMode::SelectActorsInEditor(const TArray<AActor*>& InSelectedActors)
+void FObjectMixerOutlinerMode::SelectActorsInEditor(const TArray<AActor*>& InSelectedActors, bool bShouldSelect, bool bSelectEvenIfHidden)
 {
-	GEditor->GetSelectedActors()->Modify();
-				
-	// We'll batch selection changes instead by using BeginBatchSelectOperation()
-	GEditor->GetSelectedActors()->BeginBatchSelectOperation();
-
-	// Clear the selection
-	GEditor->GetSelectedActors()->DeselectAll();
-				
-	for (AActor* Actor : InSelectedActors)
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
 	{
-		constexpr bool bShouldSelect = true;
-		constexpr bool bNotifyAfterSelect = false;
-		constexpr bool bSelectEvenIfHidden = true;
-		GEditor->SelectActor(Actor, bShouldSelect, bNotifyAfterSelect, bSelectEvenIfHidden);
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			PinnedList->GetSelectionInterface()->SelectActors(InSelectedActors, bShouldSelect, bSelectEvenIfHidden);
+		}
 	}
-
-	// Commit selection changes
-	GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify*/false);
 }
 
-void FObjectMixerOutlinerMode::SelectComponentsInEditor(const TArray<UActorComponent*>& InSelectedComponents)
-{	
-	GEditor->GetSelectedComponents()->Modify();
-				
-	// We'll batch selection changes instead by using BeginBatchSelectOperation()
-	GEditor->GetSelectedComponents()->BeginBatchSelectOperation();
-
-	// Clear the selection
-	GEditor->GetSelectedComponents()->DeselectAll();
-				
-	for (UActorComponent* Component : InSelectedComponents)
+void FObjectMixerOutlinerMode::SelectComponentsInEditor(const TArray<UActorComponent*>& InSelectedComponents, bool bShouldSelect, bool bSelectEvenIfHidden)
+{
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
 	{
-		constexpr bool bShouldSelect = true;
-		constexpr bool bNotifyAfterSelect = false;
-		constexpr bool bSelectEvenIfHidden = true;
-		GEditor->SelectComponent(Component, bShouldSelect, bNotifyAfterSelect, bSelectEvenIfHidden);
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			PinnedList->GetSelectionInterface()->SelectComponents(InSelectedComponents, bShouldSelect, bSelectEvenIfHidden);
+		}
+	}
+}
+
+void FObjectMixerOutlinerMode::SelectActorsInMixer(const TArray<AActor*>& InSelectedActors, bool bShouldSelect, bool bSelectEvenIfHidden)
+{
+	TArray<FSceneOutlinerTreeItemPtr> ItemsToSelect;
+	ItemsToSelect.Reserve(InSelectedActors.Num());
+
+	Algo::TransformIf(InSelectedActors, ItemsToSelect,
+		[this, bSelectEvenIfHidden](AActor* Actor) -> bool
+		{
+			if (const FSceneOutlinerTreeItemPtr& Item = SceneOutliner->GetTreeItem(Actor))
+			{
+				return bSelectEvenIfHidden || !Item->Flags.bIsFilteredOut;
+			}
+
+			return false;
+		},
+		[this](AActor* Actor) -> FSceneOutlinerTreeItemPtr
+		{
+			return SceneOutliner->GetTreeItem(Actor);
+		}
+	);
+
+	SceneOutliner->SetItemSelection(ItemsToSelect, bShouldSelect);
+}
+
+void FObjectMixerOutlinerMode::SelectComponentsInMixer(const TArray<UActorComponent*>& InSelectedComponents, bool bShouldSelect, bool bSelectEvenIfHidden)
+{
+	TArray<FSceneOutlinerTreeItemPtr> ItemsToSelect;
+	ItemsToSelect.Reserve(InSelectedComponents.Num());
+
+	Algo::TransformIf(InSelectedComponents, ItemsToSelect,
+		[this, bSelectEvenIfHidden](UActorComponent* Component) -> bool
+		{
+			if (const FSceneOutlinerTreeItemPtr& Item = SceneOutliner->GetTreeItem(Component))
+			{
+				return bSelectEvenIfHidden || !Item->Flags.bIsFilteredOut;
+			}
+
+			return false;
+		},
+		[this](UActorComponent* Component) -> FSceneOutlinerTreeItemPtr
+		{
+			return SceneOutliner->GetTreeItem(Component);
+		}
+	);
+
+	SceneOutliner->SetItemSelection(ItemsToSelect, bShouldSelect);
+}
+
+TArray<AActor*> FObjectMixerOutlinerMode::GetSelectedActorsInEditor() const
+{
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
+	{
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			return PinnedList->GetSelectionInterface()->GetSelectedActors();
+		}
 	}
 
-	// Commit selection changes
-	GEditor->GetSelectedComponents()->EndBatchSelectOperation(/*bNotify*/false);
+	return TArray<AActor*>();
+}
+
+TArray<UActorComponent*> FObjectMixerOutlinerMode::GetSelectedComponentsInEditor() const
+{
+	if (TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
+	{
+		if (PinnedList->GetSelectionInterface().IsValid())
+		{
+			return PinnedList->GetSelectionInterface()->GetSelectedComponents();
+		}
+	}
+
+	return TArray<UActorComponent*>();
 }
 
 void FObjectMixerOutlinerMode::OnActorLabelChanged(AActor* ChangedActor)
@@ -1768,14 +1854,16 @@ TSharedPtr<SWidget> FObjectMixerOutlinerMode::BuildContextMenu()
 
 TSharedPtr<SWidget> FObjectMixerOutlinerMode::CreateContextMenu()
 {
+	constexpr bool bShouldSelect = false;
+	constexpr bool bSelectEvenIfHidden = true;
+
 	// Make sure that no components are selected
-	if (GEditor->GetSelectedComponentCount() > 0)
+	TArray<UActorComponent*> SelectedComponents = GetSelectedComponentsInEditor();
+	if (!SelectedComponents.IsEmpty())
 	{
 		// We want to be able to undo to regain the previous component selection
 		const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "ClickingOnActorsContextMenu", "Clicking on Actors (context menu)"));
-		USelection* ComponentSelection = GEditor->GetSelectedComponents();
-		ComponentSelection->Modify(false);
-		ComponentSelection->DeselectAll();
+		SelectComponentsInEditor(SelectedComponents, bShouldSelect, bSelectEvenIfHidden);
 
 		GUnrealEd->UpdatePivotLocationForSelection();
 		GEditor->RedrawLevelEditingViewports(false);
@@ -1792,8 +1880,8 @@ void FObjectMixerOutlinerMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 		{
 			++FilteredActorCount;
 
-			// Synchronize selection
-			if (GEditor->GetSelectedActors()->IsSelected(ActorItem->Actor.Get()))
+			// Synchronize selection with editor (or always select if sync is disabled)
+			if (!ShouldSyncSelectionFromEditor() || GetSelectedActorsInEditor().Contains(ActorItem->Actor.Get()))
 			{
 				SceneOutliner->SetItemSelection(Item, true);
 			}
@@ -1910,7 +1998,7 @@ void FObjectMixerOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
 			if (Selection.Has<FActorTreeItem>())
 			{
 				const bool bActiveViewportOnly = false;
-				GEditor->MoveViewportCamerasToActor(Selection.GetData<AActor*>(ObjectMixerOutliner::FActorSelector()), bActiveViewportOnly);
+				GEditor->MoveViewportCamerasToActor(Selection.GetData<AActor*>(ObjectMixerOutliner::FActorSelector(this)), bActiveViewportOnly);
 			}
 		}
 		else
@@ -1927,26 +2015,18 @@ void FObjectMixerOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item)
 
 void FObjectMixerOutlinerMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Selection, ETextCommit::Type CommitType)
 {
-	// Start batching selection changes
-	GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+	const TArray<AActor*> Actors = Selection.GetData<AActor*>(ObjectMixerOutliner::FActorSelector(this));
 
-	// Select actors (and only the actors) that match the filter text
-	const bool bNoteSelectionChange = false;
-	const bool bDeselectBSPSurfs = false;
-	const bool WarnAboutManyActors = true;
-	GEditor->SelectNone(bNoteSelectionChange, bDeselectBSPSurfs, WarnAboutManyActors);
-	for (AActor* Actor : Selection.GetData<AActor*>(ObjectMixerOutliner::FActorSelector()))
+	constexpr bool bShouldSelect = true;
+	constexpr bool bSelectEvenIfHidden = false;
+	if (ShouldSyncSelectionToEditor())
 	{
-		const bool bShouldSelect = true;
-		const bool bSelectEvenIfHidden = false;
-		GEditor->SelectActor(Actor, bShouldSelect, bNoteSelectionChange, bSelectEvenIfHidden);
+		SelectActorsInEditor(Actors, bShouldSelect, bSelectEvenIfHidden);
 	}
-
-	// Commit selection changes
-	GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify*/false);
-
-	// Fire selection changed event
-	GEditor->NoteSelectionChange();
+	else
+	{
+		SelectActorsInMixer(Actors, bShouldSelect, bSelectEvenIfHidden);
+	}
 
 	// Set keyboard focus to the SceneOutliner, so the user can perform keyboard commands that interact
 	// with selected actors (such as Delete, to delete selected actors.)
@@ -2276,28 +2356,53 @@ FFolder FObjectMixerOutlinerMode::GetWorldDefaultRootFolder() const
 	return FFolder::GetWorldRootFolder(RepresentingWorld.Get());
 }
 
-void FObjectMixerOutlinerMode::SynchronizeComponentSelection()
+void FObjectMixerOutlinerMode::SynchronizeComponentAndActorSelection()
 {
-	USelection* SelectedComponents = GEditor->GetSelectedComponents();
+	// Implementation based FActorMode::SynchronizeActorSelection, but we use GetSelectedActorsInEditor instead and handle components as well
 
-	// Deselect components in the tree that are no longer selected in the world
+	TArray<UActorComponent*> SelectedComponents = GetSelectedComponentsInEditor();
+
+	// Deselect components in the tree that are no longer selected in the editor.
 	const FSceneOutlinerItemSelection Selection(SceneOutliner->GetSelection());
-	auto DeselectComponents = [this](FComponentTreeItem& Item)
+	auto DeselectComponents = [this, &SelectedComponents](FComponentTreeItem& Item)
 	{
-		if (!Item.Component.IsValid() || !Item.Component.Get()->IsSelected())
+		if (!Item.Component.IsValid() || !SelectedComponents.Contains(Item.Component.Get()))
 		{
 			SceneOutliner->SetItemSelection(Item.AsShared(), false);
+			return;
 		}
 	};
 	Selection.ForEachItem<FComponentTreeItem>(DeselectComponents);
 
+	TArray<AActor*> SelectedActors = GetSelectedActorsInEditor();
+
+	// Remove any actors from the selected list that own selected components, since they're necessarily selected when an owned component is
+	// selected, but presumably not the user's editing target.
+	// NOTE: this assumption needs to be revisited if we implement multi-select
+	for (UActorComponent* Component : SelectedComponents)
+	{
+		if (Component)
+		{
+			SelectedActors.Remove(Component->GetOwner());
+		}
+	}
+	
+	// Deselect actors in the tree that are no longer selected in the editor (or owned by a selected component)
+	auto DeselectActors = [this, &SelectedActors](FActorTreeItem& Item)
+	{
+		if (!Item.Actor.IsValid() || !SelectedActors.Contains(Item.Actor.Get()))
+		{
+			SceneOutliner->SetItemSelection(Item.AsShared(), false);
+		}
+	};
+	Selection.ForEachItem<FActorTreeItem>(DeselectActors);
+
 	// See if the tree view selector is pointing at a selected item
 	bool bSelectorInSelectionSet = false;
 
-	TArray<FSceneOutlinerTreeItemPtr> ComponentItems;
-	for (FSelectionIterator SelectionIt(*SelectedComponents); SelectionIt; ++SelectionIt)
+	TArray<FSceneOutlinerTreeItemPtr> SelectedItems;
+	for (UActorComponent* Component : SelectedComponents)
 	{
-		UActorComponent* Component = CastChecked< UActorComponent >(*SelectionIt);
 		if (FSceneOutlinerTreeItemPtr ComponentItem = SceneOutliner->GetTreeItem(Component))
 		{
 			if (!bSelectorInSelectionSet && SceneOutliner->HasSelectorFocus(ComponentItem))
@@ -2305,13 +2410,26 @@ void FObjectMixerOutlinerMode::SynchronizeComponentSelection()
 				bSelectorInSelectionSet = true;
 			}
 
-			ComponentItems.Add(ComponentItem);
+			SelectedItems.Add(ComponentItem);
+		}
+	}
+
+	for (AActor* Actor : SelectedActors)
+	{
+		if (FSceneOutlinerTreeItemPtr ActorItem = SceneOutliner->GetTreeItem(Actor))
+		{
+			if (!bSelectorInSelectionSet && SceneOutliner->HasSelectorFocus(ActorItem))
+			{
+				bSelectorInSelectionSet = true;
+			}
+
+			SelectedItems.Add(ActorItem);
 		}
 	}
 
 	// If NOT bSelectorInSelectionSet then we want to just move the selector to the first selected item.
 	ESelectInfo::Type SelectInfo = bSelectorInSelectionSet ? ESelectInfo::Direct : ESelectInfo::OnMouseClick;
-	SceneOutliner->AddToSelection(ComponentItems, SelectInfo);
+	SceneOutliner->AddToSelection(SelectedItems, SelectInfo);
 
 	FSceneOutlinerDelegates::Get().SelectionChanged.Broadcast();
 }
@@ -2677,7 +2795,7 @@ void FObjectMixerOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const 
 				Payload.ForEachItem<FFolderTreeItem>(MoveToDestination);
 
 				// Since target root is directly the Level Instance, clear folder path
-				TArray<AActor*> DraggedActors = Payload.GetData<AActor*>(ObjectMixerOutliner::FActorSelector());
+				TArray<AActor*> DraggedActors = Payload.GetData<AActor*>(ObjectMixerOutliner::FActorSelector(this));
 				for (auto& Actor : DraggedActors)
 				{
 					Actor->SetFolderPath_Recursively(FName());
@@ -2942,7 +3060,9 @@ namespace ObjectMixerActorBrowsingModeUtils
 		}
 	}
 
-	static void RecursiveActorSelect(SSceneOutliner* SceneOutliner, const FSceneOutlinerTreeItemPtr& Item, bool bSelectImmediateChildrenOnly)
+	// Get a list of unique actors to select as descendents of the Item in the SceneOutliner
+	// Note that this also selects any folders encountered during the search
+	static void RecursiveGetActorsToSelect(SSceneOutliner* SceneOutliner, const FSceneOutlinerTreeItemPtr& Item, bool bSelectImmediateChildrenOnly, TArray<AActor*>& OutActorsToSelect)
 	{
 		if (Item.IsValid())
 		{
@@ -2951,7 +3071,7 @@ namespace ObjectMixerActorBrowsingModeUtils
 			{
 				if (AActor* Actor = ActorItem->Actor.Get())
 				{
-					GEditor->SelectActor(Actor, true, false);
+					OutActorsToSelect.AddUnique(Actor);
 				}
 			}
 			// Select all children
@@ -2964,7 +3084,7 @@ namespace ObjectMixerActorBrowsingModeUtils
 					{
 						if (AActor* Actor = ActorItem->Actor.Get())
 						{
-							GEditor->SelectActor(Actor, true, false);
+							OutActorsToSelect.AddUnique(Actor);
 						}
 					}
 					else if (FFolderTreeItem* FolderItem = ChildPtr->CastTo<FFolderTreeItem>())
@@ -2976,7 +3096,7 @@ namespace ObjectMixerActorBrowsingModeUtils
 					{
 						for (const TWeakPtr<ISceneOutlinerTreeItem>& Grandchild : ChildPtr->GetChildren())
 						{
-							RecursiveActorSelect(SceneOutliner, Grandchild.Pin(), bSelectImmediateChildrenOnly);
+							RecursiveGetActorsToSelect(SceneOutliner, Grandchild.Pin(), bSelectImmediateChildrenOnly, OutActorsToSelect);
 						}
 					}
 				}
@@ -3071,15 +3191,22 @@ void FObjectMixerOutlinerMode::SelectFoldersDescendants(const TArray<FFolderTree
 	}
 
 	// batch selection
-	GEditor->GetSelectedActors()->BeginBatchSelectOperation();
-
+	TArray<AActor*> ActorsToSelect;
 	for (FFolderTreeItem* Folder : FolderItems)
 	{
-		ObjectMixerActorBrowsingModeUtils::RecursiveActorSelect(SceneOutliner, Folder->AsShared(), bSelectImmediateChildrenOnly);
+		ObjectMixerActorBrowsingModeUtils::RecursiveGetActorsToSelect(SceneOutliner, Folder->AsShared(), bSelectImmediateChildrenOnly, ActorsToSelect);
 	}
 
-	GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify*/false);
-	GEditor->NoteSelectionChange();
+	constexpr bool bShouldSelect = true;
+	constexpr bool bSelectEvenIfHidden = true;
+	if (ShouldSyncSelectionToEditor())
+	{
+		SelectActorsInEditor(ActorsToSelect, bShouldSelect, bSelectEvenIfHidden);
+	}
+	else
+	{
+		SelectActorsInMixer(ActorsToSelect, bShouldSelect, bSelectEvenIfHidden);
+	}
 }
 
 bool FObjectMixerOutlinerMode::CanPinItems(const TArray<FSceneOutlinerTreeItemPtr>& InItems) const
@@ -3095,32 +3222,34 @@ void FObjectMixerOutlinerMode::PinItems(const TArray<FSceneOutlinerTreeItemPtr>&
 		return;
 	}
 
-	TArray<FGuid> ActorsToPin;
+	TArray<FGuid> ActorsGuidsToPin;
 	// If Unloaded actors are hidden and we are pinning folders we need to find them through FActorFolders
 	const bool bSearchForHiddenUnloadedActors = bHideUnloadedActors;
-	ObjectMixerActorBrowsingModeUtils::RecursiveAddItemsToActorGuidList(InItems, ActorsToPin, bSearchForHiddenUnloadedActors);
+	ObjectMixerActorBrowsingModeUtils::RecursiveAddItemsToActorGuidList(InItems, ActorsGuidsToPin, bSearchForHiddenUnloadedActors);
 
-	if (ActorsToPin.Num())
+	if (ActorsGuidsToPin.Num())
 	{
-		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
-		GEditor->SelectNone(/*bNoteSelectionChange=*/false, /*bDeselectBSPSurfs=*/true);
+		WorldPartition->PinActors(ActorsGuidsToPin);
 
-		WorldPartition->PinActors(ActorsToPin);
+		TArray<AActor*> ActorsToPin;
+		ActorsToPin.Reserve(ActorsGuidsToPin.Num());
 
 		AActor* LastPinnedActor = nullptr;
-		for (const FGuid& ActorGuid : ActorsToPin)
+		for (const FGuid& ActorGuid : ActorsGuidsToPin)
 		{
 			if (FWorldPartitionHandle ActorHandle(WorldPartition, ActorGuid); ActorHandle.IsValid())
 			{
 				if (AActor* PinnedActor = ActorHandle.GetActor())
 				{
-					GEditor->SelectActor(PinnedActor, /*bInSelected=*/true, /*bNotify=*/false);
+					ActorsToPin.Add(PinnedActor);
 					LastPinnedActor = PinnedActor;
 				}
 			}
 		}
 
-		GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify=*/true);
+		constexpr bool bShouldSelect = true;
+		constexpr bool bSelectEvenIfHidden = true;
+		SelectActorsInEditor(ActorsToPin, bShouldSelect, bSelectEvenIfHidden);
 
 		if (LastPinnedActor)
 		{
@@ -3142,29 +3271,32 @@ void FObjectMixerOutlinerMode::UnpinItems(const TArray<FSceneOutlinerTreeItemPtr
 		return;
 	}
 
-	TArray<FGuid> ActorsToUnpin;
+	TArray<FGuid> ActorGuidsToUnpin;
 	// No need to search for hidden unloaded actors when unloading
 	const bool bSearchForHiddenUnloadedActors = false;
-	ObjectMixerActorBrowsingModeUtils::RecursiveAddItemsToActorGuidList(InItems, ActorsToUnpin, bSearchForHiddenUnloadedActors);
+	ObjectMixerActorBrowsingModeUtils::RecursiveAddItemsToActorGuidList(InItems, ActorGuidsToUnpin, bSearchForHiddenUnloadedActors);
 
-	if (ActorsToUnpin.Num())
+	if (ActorGuidsToUnpin.Num())
 	{
-		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+		TArray<AActor*> ActorsToUnpin;
+		ActorsToUnpin.Reserve(ActorGuidsToUnpin.Num());
 
-		for (const FGuid& ActorGuid : ActorsToUnpin)
+		for (const FGuid& ActorGuid : ActorGuidsToUnpin)
 		{
 			if (FWorldPartitionHandle ActorHandle(WorldPartition, ActorGuid); ActorHandle.IsValid())
 			{
 				if (AActor* PinnedActor = ActorHandle.GetActor())
 				{
-					GEditor->SelectActor(PinnedActor, /*bInSelected=*/false, /*bNotify=*/false);
+					ActorsToUnpin.Add(PinnedActor);
 				}
 			}
 		}
 
-		WorldPartition->UnpinActors(ActorsToUnpin);
+		constexpr bool bShouldSelect = false;
+		constexpr bool bSelectEvenIfHidden = true;
+		SelectActorsInEditor(ActorsToUnpin, bShouldSelect, bSelectEvenIfHidden);
 
-		GEditor->GetSelectedActors()->EndBatchSelectOperation(/*bNotify=*/true);
+		WorldPartition->UnpinActors(ActorGuidsToUnpin);
 	}
 }
 
@@ -3172,9 +3304,10 @@ void FObjectMixerOutlinerMode::SynchronizeSelection()
 {
 	if (ShouldSyncSelectionFromEditor())
 	{
-		SynchronizeActorSelection();
-		SynchronizeComponentSelection();
+		SynchronizeComponentAndActorSelection();
 		SynchronizeSelectedActorDescs();
+
+		StaticCast<SObjectMixerEditorList*>(SceneOutliner)->GetOnSelectionSynchronized().Broadcast();
 	}
 	
 	bShouldTemporarilyForceSelectionSyncFromEditor = false;
@@ -3281,6 +3414,19 @@ void FObjectMixerOutlinerMode::OnDeleteActorsBegin()
 void FObjectMixerOutlinerMode::OnDeleteActorsEnd()
 {
 	SceneOutliner->DeleteFoldersEnd();
+}
+
+bool FObjectMixerOutlinerMode::ShouldAllowHybridRows() const
+{
+	if (const TSharedPtr<FObjectMixerEditorList> PinnedList = GetListModelPtr().Pin())
+	{
+		if (const UObjectMixerObjectFilter* ObjectFilter = PinnedList->GetMainObjectFilterInstance())
+		{
+			return ObjectFilter->ShouldAllowHybridRows();
+		}
+	}
+
+	return true;
 }
 
 FObjectMixerOutlinerModeConfig* FObjectMixerOutlinerMode::GetMutableConfig() const

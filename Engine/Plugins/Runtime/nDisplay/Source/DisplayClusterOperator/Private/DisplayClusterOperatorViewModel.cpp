@@ -57,6 +57,11 @@ void FDisplayClusterOperatorViewModel::ShowDetailsForObjects(const TArray<UObjec
 	}
 }
 
+void FDisplayClusterOperatorViewModel::SelectActors(const TArray<AActor*>& Actors, bool bShouldSelect)
+{
+	ActorsSelectedExternally.Broadcast(Actors, bShouldSelect);
+}
+
 TSharedRef<FTabManager> FDisplayClusterOperatorViewModel::CreateTabManager(const TSharedRef<SDockTab>& MajorTabOwner)
 {
 	TabManager = FGlobalTabmanager::Get()->NewTabManager(MajorTabOwner);

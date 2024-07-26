@@ -141,13 +141,10 @@ TSharedRef<SWidget> SObjectMixerEditorList::OnGenerateAddObjectButtonMenu() cons
 	{
 		FMenuBuilder AddObjectButtonMenuBuilder = FMenuBuilder(true, nullptr);
 
-		for (const UClass* Class : ClassesToPlace)
+		for (UClass* Class : ClassesToPlace)
 		{
-			if (const UActorFactory* Factory = GEditor->FindActorFactoryForActorClass(Class))
-			{
-				AddObjectButtonMenuBuilder.AddWidget(
-					SNew(SObjectMixerPlacementAssetMenuEntry, MakeShareable(new FPlaceableItem(*Factory->GetClass()))), FText::GetEmpty());
-			}
+			TSharedPtr<FPlaceableItem> Item = MakeShared<FPlaceableItem>(GEditor->FindActorFactoryForActorClass(Class), FAssetData(Class));
+			AddObjectButtonMenuBuilder.AddWidget(SNew(SObjectMixerPlacementAssetMenuEntry, Item), FText::GetEmpty());
 		}
 
 		return AddObjectButtonMenuBuilder.MakeWidget();
@@ -673,6 +670,17 @@ void SObjectMixerEditorList::Tick(const FGeometry& AllottedGeometry, const doubl
 
 TSharedRef<SWidget> SObjectMixerEditorList::GenerateHeaderRowContextMenu()
 {
+	TSharedPtr<FObjectMixerEditorList> PinnedListModel = ListModelPtr.Pin(); 
+	check(PinnedListModel);
+
+	if (const UObjectMixerObjectFilter* Filter = PinnedListModel->GetMainObjectFilterInstance())
+	{
+		if (!Filter->ShouldAllowColumnCustomizationByUser())
+		{
+			return SNullWidget::NullWidget;
+		}
+	}
+
 	if (!HeaderRowContextMenuWidget)
 	{
 		FMenuBuilder MenuBuilder(false, nullptr);

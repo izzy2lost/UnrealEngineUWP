@@ -4,10 +4,13 @@
 
 #include "ColorGradingCommands.h"
 #include "ColorGradingEditorDataModel.h"
+#include "ColorGradingMixerObjectFilter.h"
 #include "IColorGradingEditor.h"
 #include "SColorGradingColorWheelPanel.h"
-#include "SColorGradingObjectList.h"
 
+#include "ActorTreeItem.h"
+#include "Algo/Compare.h"
+#include "ComponentTreeItem.h"
 #include "ColorCorrectRegion.h"
 #include "Editor.h"
 #include "Engine/Blueprint.h"
@@ -16,6 +19,8 @@
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "LevelEditorSubsystem.h"
+#include "Views/List/ObjectMixerEditorList.h"
+#include "Views/List/SObjectMixerEditorList.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
@@ -29,19 +34,6 @@
 
 SColorGradingPanel::~SColorGradingPanel()
 {
-	for (const FColorGradingListItemRef& ColorGradingItem : ColorGradingItemList)
-	{
-		if (ColorGradingItem->Component.IsValid())
-		{
-			UnbindBlueprintCompiledDelegate(ColorGradingItem->Component->GetClass());
-		}
-
-		if (ColorGradingItem->Actor.IsValid())
-		{
-			UnbindBlueprintCompiledDelegate(ColorGradingItem->Actor->GetClass());
-		}
-	}
-
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 
 	if (GEngine)
@@ -66,11 +58,32 @@ void SColorGradingPanel::Construct(const FArguments& InArgs)
 	ColorGradingDataModel = MakeShared<FColorGradingEditorDataModel>();
 	ColorGradingDataModel->OnDataModelGenerated().AddSP(this, &SColorGradingPanel::OnColorGradingDataModelGenerated);
 
-	FCoreUObjectDelegates::OnObjectsReplaced.AddSP(this, &SColorGradingPanel::OnObjectsReplaced);
-	GEngine->OnLevelActorAdded().AddSP(this, &SColorGradingPanel::OnLevelActorAdded);
-	GEngine->OnLevelActorDeleted().AddSP(this, &SColorGradingPanel::OnLevelActorDeleted);
-	GEngine->OnWorldAdded().AddSP(this, &SColorGradingPanel::OnWorldAdded);
-	GEngine->OnWorldDestroyed().AddSP(this, &SColorGradingPanel::OnWorldDestroyed);
+	const FName ModuleName = FName(TEXT("ColorGrading"));
+	ObjectListModel = MakeShared<FObjectMixerEditorList>(ModuleName, InArgs._SelectionInterface);
+	ObjectListModel->Initialize();
+	ObjectListModel->SetDefaultFilterClass(UColorGradingMixerObjectFilter::StaticClass());
+
+	TSharedRef<SWidget> ObjectListWidget = ObjectListModel->GetOrCreateWidget();
+	ColorGradingObjectListView = StaticCastSharedRef<SSceneOutliner>(ObjectListWidget).ToSharedPtr();
+
+	TSharedRef<SObjectMixerEditorList> ObjectMixerList = StaticCastSharedRef<SObjectMixerEditorList>(ObjectListWidget);
+	ObjectMixerList->GetOnItemSelectionChanged().AddSP(this, &SColorGradingPanel::OnListSelectionChanged);
+	ObjectMixerList->GetOnSelectionSynchronized().AddSP(this, &SColorGradingPanel::OnListSelectionSynchronized);
+
+	ObjectMixerList->AddFilter(
+		MakeShared<TSceneOutlinerPredicateFilter<FActorTreeItem>>(
+			FActorTreeItem::FFilterPredicate::CreateSPLambda(this, [this](const AActor* Actor)
+			{
+				if (ActorFilter)
+				{
+					return ActorFilter(Actor);
+				}
+
+				return true;
+			}),
+			FSceneOutlinerFilter::EDefaultBehaviour::Pass
+		)
+	);
 
 	GEditor->RegisterForUndo(this);
 
@@ -91,51 +104,18 @@ void SColorGradingPanel::Construct(const FArguments& InArgs)
 
 			// Splitter slot for object list
 			+SSplitter::Slot()
-			.Value(0.12f)
+			.Value(0.2f)
 			[
 				SNew(SBox)
 				.Padding(FMargin(4.f))
 				[
-					SNew(SBorder)
-					.Padding(FMargin(0.0f))
-					.BorderImage(FAppStyle::GetBrush("Brushes.Recessed"))
-					[
-						SNew(SScrollBox)
-						+SScrollBox::Slot()
-						[
-							SNew(SExpandableArea)
-							.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
-							.BodyBorderImage(FAppStyle::Get().GetBrush("Brushes.Recessed"))
-							.HeaderPadding(FMargin(4.0f, 2.0f))
-							.InitiallyCollapsed(false)
-							.AllowAnimatedTransition(false)
-							.Visibility_Lambda([this]() { return ColorGradingItemList.Num() ? EVisibility::Visible : EVisibility::Collapsed; })
-							.HeaderContent()
-							[
-								SNew(SBox)
-								.HeightOverride(24.0f)
-								.VAlign(VAlign_Center)
-								[
-									SNew(STextBlock)
-										.Text(LOCTEXT("ColorGradingObjectListLabel", "Objects"))
-										.TextStyle(FAppStyle::Get(), "ButtonText")
-										.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
-								]
-							]
-							.BodyContent()
-							[
-								SAssignNew(ColorGradingObjectListView, SColorGradingObjectList)
-								.ColorGradingItemsSource(&ColorGradingItemList)
-								.OnSelectionChanged(this, &SColorGradingPanel::OnListSelectionChanged)
-							]
-						]
-					]
+					ObjectListWidget
 				]
 			]
 
 			// Splitter slot for color grading controls/details
 			+SSplitter::Slot()
-			.Value(0.88f)
+			.Value(0.8f)
 			[
 				SNew(SVerticalBox)
 
@@ -205,18 +185,6 @@ void SColorGradingPanel::Construct(const FArguments& InArgs)
 	];
 }
 
-void SColorGradingPanel::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-
-	if (bRefreshOnNextTick)
-	{
-		Refresh();
-
-		bRefreshOnNextTick = false;
-	}
-}
-
 void SColorGradingPanel::Refresh()
 {
 	FColorGradingPanelState PanelState;
@@ -245,19 +213,30 @@ void SColorGradingPanel::GetPanelState(FColorGradingPanelState& OutPanelState) c
 
 	if (ColorGradingObjectListView.IsValid())
 	{
-		TArray<FColorGradingListItemRef> SelectedItems = ColorGradingObjectListView->GetSelectedItems();
+		TArray<FSceneOutlinerTreeItemPtr> SelectedItems = ColorGradingObjectListView->GetSelectedItems();
 
-		for (const FColorGradingListItemRef& SelectedItem : SelectedItems)
+		for (const FSceneOutlinerTreeItemPtr& SelectedItem : SelectedItems)
 		{
-			if (SelectedItem.IsValid())
+			if (!SelectedItem.IsValid())
 			{
-				if (SelectedItem->Component.IsValid())
+				continue;
+			}
+			
+			if (const FComponentTreeItem* ComponentTreeItem = SelectedItem->CastTo<FComponentTreeItem>())
+			{
+				if (ComponentTreeItem->Component.IsValid())
 				{
-					OutPanelState.SelectedObjects.Add(SelectedItem->Component);
+					OutPanelState.SelectedObjects.Add(ComponentTreeItem->Component.Get());
+					continue;
 				}
-				else if (SelectedItem->Actor.IsValid())
+			}
+			
+			if (const FActorTreeItem* ActorTreeItem = SelectedItem->CastTo<FActorTreeItem>())
+			{
+				if (ActorTreeItem->Actor.IsValid())
 				{
-					OutPanelState.SelectedObjects.Add(SelectedItem->Actor);
+					OutPanelState.SelectedObjects.Add(ActorTreeItem->Actor.Get());
+					continue;
 				}
 			}
 		}
@@ -266,33 +245,28 @@ void SColorGradingPanel::GetPanelState(FColorGradingPanelState& OutPanelState) c
 
 void SColorGradingPanel::SetPanelState(const FColorGradingPanelState& InPanelState)
 {
-	TArray<FColorGradingListItemRef> ItemsToSelect;
+	TArray<FSceneOutlinerTreeItemPtr> ItemsToSelect;
 
 	for (const TWeakObjectPtr<UObject>& SelectedObject : InPanelState.SelectedObjects)
 	{
-		if (SelectedObject.IsValid())
+		if (!SelectedObject.IsValid())
 		{
-			auto FindColorGradingItem = [&SelectedObject](const FColorGradingListItemRef& ColorGradingItem)
-			{
-				if (SelectedObject->IsA<AActor>())
-				{
-					return ColorGradingItem->Actor == SelectedObject && ColorGradingItem->Component == nullptr;
-				}
-
-				return ColorGradingItem->Actor == SelectedObject || ColorGradingItem->Component == SelectedObject;
-			};
-
-			if (FColorGradingListItemRef* FoundItem = ColorGradingItemList.FindByPredicate(FindColorGradingItem))
-			{
-				ItemsToSelect.Add(*FoundItem);
-				break;
-			}
+			continue;
 		}
+
+		FSceneOutlinerTreeItemPtr Item = ColorGradingObjectListView->GetTreeItem(SelectedObject.Get());
+		if (Item.IsValid())
+		{
+			ItemsToSelect.Add(Item);
+			break;
+		}
+
 	}
 
 	if (!ItemsToSelect.IsEmpty() && ColorGradingObjectListView.IsValid())
 	{
-		ColorGradingObjectListView->SetSelectedItems(ItemsToSelect);
+		ColorGradingObjectListView->ClearSelection();
+		ColorGradingObjectListView->SetItemSelection(ItemsToSelect, true);
 	}
 
 	ColorGradingDataModel->SetPanelState(InPanelState);
@@ -373,90 +347,11 @@ UWorld* SColorGradingPanel::GetWorld()
 	return Level->GetWorld();
 }
 
-void SColorGradingPanel::BindBlueprintCompiledDelegate(const UClass* Class)
-{
-	if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(Class))
-	{
-		if (!Blueprint->OnCompiled().IsBoundToObject(this))
-		{
-			Blueprint->OnCompiled().AddSP(this, &SColorGradingPanel::OnBlueprintCompiled);
-		}
-	}
-}
-
-void SColorGradingPanel::UnbindBlueprintCompiledDelegate(const UClass* Class)
-{
-	if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(Class))
-	{
-		Blueprint->OnCompiled().RemoveAll(this);
-	}
-}
-
 void SColorGradingPanel::RefreshColorGradingList()
 {
-	for (const FColorGradingListItemRef& Item : ColorGradingItemList)
+	if (ObjectListModel)
 	{
-		if (Item->Component.IsValid())
-		{
-			UnbindBlueprintCompiledDelegate(Item->Component->GetClass());
-		}
-
-		if (Item->Actor.IsValid())
-		{
-			UnbindBlueprintCompiledDelegate(Item->Actor->GetClass());
-		}
-	}
-
-	ColorGradingItemList.Empty();
-
-	UWorld* World = GetWorld();
-	if (World && ColorGradingDataModel.IsValid())
-	{
-		// Sorter that sorts the list items alphabetically by their display name
-		auto AlphabeticalSort = [](const FColorGradingListItemRef& A, const FColorGradingListItemRef& B)
-		{
-			if (A.IsValid() && B.IsValid())
-			{
-				return *A < *B;
-			}
-			else
-			{
-				return false;
-			}
-		};
-
-		// Add all relevant actors
-		const TSet<TSubclassOf<AActor>>& ListItemClasses = FColorGradingListItem::GetActorClassesWithListItemGenerators();
-
-		for (TSubclassOf<AActor> ActorClass : ListItemClasses)
-		{
-			for (TActorIterator<AActor> ActorIter(World, ActorClass.Get()); ActorIter; ++ActorIter)
-			{
-				AActor* Actor = *ActorIter;
-
-				if (ActorFilter && !ActorFilter(Actor))
-				{
-					continue;
-				}
-
-				TArray<FColorGradingListItemRef> ListItems = FColorGradingListItem::GenerateColorGradingListItems(Actor);
-
-				if (ListItems.IsEmpty())
-				{
-					continue;
-				}
-
-				BindBlueprintCompiledDelegate(Actor->GetClass());
-				ColorGradingItemList.Append(ListItems);
-			}
-		}
-
-		ColorGradingItemList.Sort(AlphabeticalSort);
-	}
-
-	if (ColorGradingObjectListView.IsValid())
-	{
-		ColorGradingObjectListView->RefreshList();
+		ObjectListModel->RequestRebuildList();
 	}
 }
 
@@ -623,109 +518,6 @@ void SColorGradingPanel::OnColorGradingGroupRenamed(const FText& InText, ETextCo
 	ColorGradingDataModel->OnColorGradingGroupRenamed().Broadcast(GroupIndex, InText);
 }
 
-void SColorGradingPanel::OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
-{
-	bool bNeedsFullRefresh = false;
-	bool bNeedsListRefresh = false;
-
-	const TArray<TWeakObjectPtr<UObject>> SelectedObjects = ColorGradingDataModel->GetObjects();
-
-	for (const TPair<UObject*, UObject*>& Pair : OldToNewInstanceMap)
-	{
-		if (Pair.Key && Pair.Value)
-		{
-			FColorGradingListItemRef* FoundColorGradingItemPtr = nullptr;
-
-			// Must use GetEvenIfUnreachable on the weak pointers here because most of the time, the objects being replaced have already been marked for GC, and TWeakObjectPtr
-			// will return nullptr from Get on GC-marked objects
-			FoundColorGradingItemPtr = ColorGradingItemList.FindByPredicate([&Pair](const FColorGradingListItemRef& ColorGradingItem)
-			{
-				return ColorGradingItem->Actor.GetEvenIfUnreachable() == Pair.Key || ColorGradingItem->Component.GetEvenIfUnreachable() == Pair.Key;
-			});
-
-			if (FoundColorGradingItemPtr)
-			{
-				FColorGradingListItemRef FoundColorGradingItem = *FoundColorGradingItemPtr;
-				if (FoundColorGradingItem->Actor.GetEvenIfUnreachable() == Pair.Key)
-				{
-					FoundColorGradingItem->Actor = Cast<AActor>(Pair.Value);
-				}
-				else if (FoundColorGradingItem->Component.GetEvenIfUnreachable() == Pair.Key)
-				{
-					FoundColorGradingItem->Component = Cast<UActorComponent>(Pair.Value);
-				}
-
-				bNeedsListRefresh = true;
-			}
-
-			if (SelectedObjects.Contains(Pair.Key))
-			{
-				bNeedsFullRefresh = true;
-			}
-		}
-	}
-
-	if (bNeedsFullRefresh)
-	{
-		Refresh();
-	}
-	else if (bNeedsListRefresh && ColorGradingObjectListView)
-	{
-		ColorGradingObjectListView->RefreshList();
-	}
-}
-
-void SColorGradingPanel::OnLevelActorAdded(AActor* Actor)
-{
-	// Only refresh when the actor being added is being added to the edited world
-	if (UWorld* World = GetWorld())
-	{
-		if (World == Actor->GetWorld())
-		{
-			if (Actor->IsA<APostProcessVolume>() || Actor->IsA<AColorCorrectRegion>())
-			{
-				// Wait to refresh, as this event can be fired off for several actors in a row in certain cases, such as when the root actor is recompiled after a property change
-				bRefreshOnNextTick = true;
-			}
-		}
-	}
-}
-
-void SColorGradingPanel::OnLevelActorDeleted(AActor* Actor)
-{
-	auto ContainsActorRef = [Actor](const FColorGradingListItemRef& ColorGradingItem)
-	{
-		return ColorGradingItem->Actor.GetEvenIfUnreachable() == Actor;
-	};
-
-	if (ColorGradingItemList.ContainsByPredicate(ContainsActorRef))
-	{
-		// Must wait for next tick to refresh because the actor has not actually been removed from the level at this point
-		bRefreshOnNextTick = true;
-	}
-}
-
-void SColorGradingPanel::OnWorldAdded(UWorld* World)
-{
-	bRefreshOnNextTick = true;
-}
-
-void SColorGradingPanel::OnWorldDestroyed(UWorld* World)
-{
-	auto NoLongerValid = [World](const FColorGradingListItemRef& ColorGradingItem)
-	{
-		return !ColorGradingItem->Actor.IsValid() || ColorGradingItem->Actor->GetWorld() == World;
-	};
-
-	// Immediately remove any affected actors so we don't try to access them
-	ColorGradingItemList.RemoveAll(NoLongerValid);
-}
-
-void SColorGradingPanel::OnBlueprintCompiled(UBlueprint* Blueprint)
-{
-	Refresh();
-}
-
 void SColorGradingPanel::OnColorGradingDataModelGenerated()
 {
 	FillColorGradingGroupToolBar();
@@ -736,25 +528,49 @@ void SColorGradingPanel::OnColorGradingDataModelGenerated()
 	}
 }
 
-void SColorGradingPanel::OnListSelectionChanged(TSharedRef<SColorGradingObjectList> SourceList, FColorGradingListItemRef SelectedItem, ESelectInfo::Type SelectInfo)
+void SColorGradingPanel::OnListSelectionChanged(FSceneOutlinerTreeItemPtr TreeItem, ESelectInfo::Type Type)
 {
-	if (SelectInfo != ESelectInfo::Direct)
+	if (Type == ESelectInfo::Direct)
 	{
-		TArray<FColorGradingListItemRef> SelectedObjects = SourceList->GetSelectedItems();
-		TArray<UObject*> ObjectsToColorGrade;
-		for (const FColorGradingListItemRef& SelectedObject : SelectedObjects)
+		return;
+	}
+
+	UpdateSelectionFromList();
+}
+
+void SColorGradingPanel::OnListSelectionSynchronized()
+{
+	UpdateSelectionFromList();
+}
+
+void SColorGradingPanel::UpdateSelectionFromList()
+{
+	TArray<FSceneOutlinerTreeItemPtr> SelectedOutlinerItems = ColorGradingObjectListView->GetSelectedItems();
+	TArray<UObject*> SelectedObjects;
+
+	for (FSceneOutlinerTreeItemPtr OutlinerItems : SelectedOutlinerItems)
+	{
+		if (const FActorTreeItem* ActorTreeItem = OutlinerItems->CastTo<FActorTreeItem>())
 		{
-			if (SelectedObject->Component.IsValid())
+			if (ActorTreeItem->Actor.IsValid())
 			{
-				ObjectsToColorGrade.Add(SelectedObject->Component.Get());
-			}
-			else if (SelectedObject->Actor.IsValid())
-			{
-				ObjectsToColorGrade.Add(SelectedObject->Actor.Get());
+				SelectedObjects.Add(ActorTreeItem->Actor.Get());
 			}
 		}
 
-		SetSelectedObjects(ObjectsToColorGrade);
+		if (const FComponentTreeItem* ComponentTreeItem = OutlinerItems->CastTo<FComponentTreeItem>())
+		{
+			if (ComponentTreeItem->Component.IsValid())
+			{
+				SelectedObjects.Add(ComponentTreeItem->Component.Get());
+			}
+		}
+	}
+
+	TArray<TWeakObjectPtr<UObject>> OldSelectedObjects = ColorGradingDataModel->GetObjects();
+	if (!Algo::Compare(OldSelectedObjects, SelectedObjects))
+	{
+		SetSelectedObjects(SelectedObjects);
 	}
 }
 

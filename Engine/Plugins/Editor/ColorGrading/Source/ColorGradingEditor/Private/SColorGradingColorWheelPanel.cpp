@@ -50,144 +50,163 @@ void SColorGradingColorWheelPanel::Construct(const FArguments& InArgs)
 	for (int32 Index = 0; Index < NumColorWheels; ++Index)
     ChildSlot
 	[
-		SNew(SSplitter)
-		.Orientation(Orient_Horizontal)
-		.PhysicalSplitterHandleSize(1.0f)
-		.HitDetectionSplitterHandleSize(5.0f)
-		.Style(FAppStyle::Get(), "DetailsView.Splitter")
+		SNew(SVerticalBox)
 
-		+ SSplitter::Slot()
-		.Value(0.8f)
+		// Message indicating that multi select is unavailable in this panel
+		+ SVerticalBox::Slot()
 		[
-			SNew(SVerticalBox)
+			SNew(SBox)
+			.Visibility(this, &SColorGradingColorWheelPanel::GetMultiSelectWarningVisibility)
+			.HAlign(EHorizontalAlignment::HAlign_Center)
+			.VAlign(EVerticalAlignment::VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("MultiSelectWarning", "Multi-select editing is unavailable in the Color Grading panel."))
+			]
+		]
+
+		// Color wheel panel
+		+ SVerticalBox::Slot()
+		[
+			SNew(SSplitter)
+			.Orientation(Orient_Horizontal)
+			.PhysicalSplitterHandleSize(1.0f)
+			.HitDetectionSplitterHandleSize(5.0f)
+			.Style(FAppStyle::Get(), "DetailsView.Splitter")
 			.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelPanelVisibility)
 
-			// Toolbar slot
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.Padding(6, 4)
+			+ SSplitter::Slot()
+			.Value(0.8f)
 			[
-				SNew(SHorizontalBox)
+				SNew(SVerticalBox)
 
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
+				// Toolbar slot
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(6, 4)
 				[
-					SAssignNew(ColorGradingGroupPropertyBox, SBox)
-				]
+					SNew(SHorizontalBox)
 
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				[
-					SNew(SSpacer)
-				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SAssignNew(ColorGradingElementsToolBarBox, SHorizontalBox)
-				]
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				[
-					SNew(SSpacer)
-				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					MakeColorDisplayModeCheckbox()
-				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(5.0f, 0.0f, 0.0f, 0.0f)
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
-				[
-					SNew(SComboButton)
-					.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
-					.OnGetMenuContent(this, &SColorGradingColorWheelPanel::MakeSettingsMenu)
-					.HasDownArrow(false)
-					.ContentPadding(FMargin(1.0f, 0.0f))
-					.ButtonContent()
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
 					[
-						SNew(SImage)
-						.ColorAndOpacity(FSlateColor::UseForeground())
-						.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
+						SAssignNew(ColorGradingGroupPropertyBox, SBox)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					[
+						SNew(SSpacer)
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SAssignNew(ColorGradingElementsToolBarBox, SHorizontalBox)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					[
+						SNew(SSpacer)
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						MakeColorDisplayModeCheckbox()
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(5.0f, 0.0f, 0.0f, 0.0f)
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SComboButton)
+						.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
+						.OnGetMenuContent(this, &SColorGradingColorWheelPanel::MakeSettingsMenu)
+						.HasDownArrow(false)
+						.ContentPadding(FMargin(1.0f, 0.0f))
+						.ButtonContent()
+						[
+							SNew(SImage)
+							.ColorAndOpacity(FSlateColor::UseForeground())
+							.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
+						]
+					]
+				]
+
+				+ SVerticalBox::Slot()
+				.FillHeight(1.0f)
+				.Padding(6, 4)
+				[
+					SNew(SHorizontalBox)
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.HAlign(HAlign_Fill)
+					.Padding(2, 0)
+					[
+						SAssignNew(ColorWheels[0], SColorGradingColorWheel)
+						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+						.Orientation(ColorWheelOrientation)
+						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 0)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.HAlign(HAlign_Fill)
+					.Padding(2, 0)
+					[
+						SAssignNew(ColorWheels[1], SColorGradingColorWheel)
+						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+						.Orientation(ColorWheelOrientation)
+						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 1)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.HAlign(HAlign_Fill)
+					.Padding(2, 0)
+					[
+						SAssignNew(ColorWheels[2], SColorGradingColorWheel)
+						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+						.Orientation(ColorWheelOrientation)
+						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 2)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.HAlign(HAlign_Fill)
+					.Padding(2, 0)
+					[
+						SAssignNew(ColorWheels[3], SColorGradingColorWheel)
+						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+						.Orientation(ColorWheelOrientation)
+						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 3)
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.0f)
+					.HAlign(HAlign_Fill)
+					.Padding(2, 0)
+					[
+						SAssignNew(ColorWheels[4], SColorGradingColorWheel)
+						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+						.Orientation(ColorWheelOrientation)
+						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 4)
 					]
 				]
 			]
 
-			+ SVerticalBox::Slot()
-			.FillHeight(1.0f)
-			.Padding(6, 4)
+			+ SSplitter::Slot()
+			.Value(0.2f)
 			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Fill)
-				.Padding(2, 0)
-				[
-					SAssignNew(ColorWheels[0], SColorGradingColorWheel)
-					.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-					.Orientation(ColorWheelOrientation)
-					.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 0)
-				]
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Fill)
-				.Padding(2, 0)
-				[
-					SAssignNew(ColorWheels[1], SColorGradingColorWheel)
-					.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-					.Orientation(ColorWheelOrientation)
-					.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 1)
-				]
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Fill)
-				.Padding(2, 0)
-				[
-					SAssignNew(ColorWheels[2], SColorGradingColorWheel)
-					.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-					.Orientation(ColorWheelOrientation)
-					.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 2)
-				]
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Fill)
-				.Padding(2, 0)
-				[
-					SAssignNew(ColorWheels[3], SColorGradingColorWheel)
-					.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-					.Orientation(ColorWheelOrientation)
-					.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 3)
-				]
-
-				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Fill)
-				.Padding(2, 0)
-				[
-					SAssignNew(ColorWheels[4], SColorGradingColorWheel)
-					.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-					.Orientation(ColorWheelOrientation)
-					.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 4)
-				]
+				SAssignNew(DetailView, SColorGradingDetailView)
+				.PropertyRowGeneratorSource(ColorGradingDataModel->GetPropertyRowGenerator())
+				.OnFilterDetailTreeNode(this, &SColorGradingColorWheelPanel::FilterDetailTreeNode)
 			]
-		]
-
-		+ SSplitter::Slot()
-		.Value(0.2f)
-		[
-			SAssignNew(DetailView, SColorGradingDetailView)
-			.PropertyRowGeneratorSource(ColorGradingDataModel->GetPropertyRowGenerator())
-			.OnFilterDetailTreeNode(this, &SColorGradingColorWheelPanel::FilterDetailTreeNode)
 		]
 	];
 }
@@ -674,8 +693,14 @@ ECheckBoxState SColorGradingColorWheelPanel::IsColorGradingElementSelected(FText
 
 EVisibility SColorGradingColorWheelPanel::GetColorWheelPanelVisibility() const
 {
-	bool bHasObjects = ColorGradingDataModel && ColorGradingDataModel->GetPropertyRowGenerator()->GetSelectedObjects().Num() > 0;
-	return bHasObjects ? EVisibility::Visible : EVisibility::Collapsed;
+	bool bHasObject = ColorGradingDataModel && ColorGradingDataModel->GetPropertyRowGenerator()->GetSelectedObjects().Num() == 1;
+	return bHasObject ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility SColorGradingColorWheelPanel::GetMultiSelectWarningVisibility() const
+{
+	bool bHasMultipleObjects = ColorGradingDataModel && ColorGradingDataModel->GetPropertyRowGenerator()->GetSelectedObjects().Num() > 1;
+	return bHasMultipleObjects ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility SColorGradingColorWheelPanel::GetColorWheelVisibility(int32 ColorWheelIndex) const

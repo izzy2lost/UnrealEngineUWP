@@ -5,18 +5,20 @@
 #include "CoreMinimal.h"
 #include "Widgets/SCompoundWidget.h"
 #include "EditorUndoClient.h"
+#include "SceneOutlinerFwd.h"
+#include "SelectionInterface/IObjectMixerSelectionInterface.h"
 
 #include "ColorGradingPanelState.h"
 #include "ColorGradingListItem.h"
 
 class FColorGradingEditorDataModel;
+class FObjectMixerEditorList;
 class SColorGradingColorWheelPanel;
-class SColorGradingObjectList;
 class SHorizontalBox;
 class SInlineEditableTextBlock;
 class UWorld;
 
-using FColorGradingActorFilter = TFunction<bool(AActor*)>;
+using FColorGradingActorFilter = TFunction<bool(const AActor*)>;
 
 /** Main panel of a color grading drawer widget, which displays color wheels or selected object details */
 class COLORGRADINGEDITOR_API SColorGradingPanel : public SCompoundWidget, public FEditorUndoClient
@@ -40,13 +42,12 @@ public:
 		/** Function which, if it returns false when passed an actor, filters it and its sub-entries out of the color grading item list */
 		SLATE_ARGUMENT(FColorGradingActorFilter, ActorFilter)
 
+		/** Optional interface which, if provided, will determine how objects selected in this panel will be synchronized with the rest of the editor */
+		SLATE_ARGUMENT(TSharedPtr<IObjectMixerSelectionInterface>, SelectionInterface)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-
-	//~ SWidget interface
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	//~ End SWidget interface
 
 	/** Refreshes the panel's UI to match the current state of the level */
 	void Refresh();
@@ -66,12 +67,6 @@ private:
 
 	/** Get the world currently being edited */
 	UWorld* GetWorld();
-
-	/** Binds a callback to the BlueprintCompiled delegate of the specified class */
-	void BindBlueprintCompiledDelegate(const UClass* Class);
-
-	/** Unbinds a callback to the BlueprintCompiled delegate of the specified class */
-	void UnbindBlueprintCompiledDelegate(const UClass* Class);
 
 	/** Refreshes the object list, filling it with the current color gradable objects from the root actor and world */
 	void RefreshColorGradingList();
@@ -106,24 +101,6 @@ private:
 	/** Raised when a rename has been committed on a color grading group */
 	void OnColorGradingGroupRenamed(const FText& InText, ETextCommit::Type TextCommitType, int32 GroupIndex);
 
-	/** Raised when the editor replaces any UObjects with new instantiations, usually when actors have been recompiled from blueprints */
-	void OnObjectsReplaced(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
-
-	/** Raised when an actor is added to the current level */
-	void OnLevelActorAdded(AActor* Actor);
-
-	/** Raised when an actor has been deleted from the currnent level */
-	void OnLevelActorDeleted(AActor* Actor);
-
-	/** Raised when a world has been added */
-	void OnWorldAdded(UWorld* World);
-
-	/** Raised when a world has been destroyed */
-	void OnWorldDestroyed(UWorld* World);
-
-	/** Raised when the specified blueprint has been recompiled */
-	void OnBlueprintCompiled(UBlueprint* Blueprint);
-
 	/** Raised when the color grading data model has been generated */
 	void OnColorGradingDataModelGenerated();
 
@@ -131,10 +108,19 @@ private:
 	FReply DockInLayout();
 
 	/** Raised when the user has selected a new item in any of the drawer's list views */
-	void OnListSelectionChanged(TSharedRef<SColorGradingObjectList> SourceList, FColorGradingListItemRef SelectedItem, ESelectInfo::Type SelectInfo);
+	void OnListSelectionChanged(FSceneOutlinerTreeItemPtr TreeItem, ESelectInfo::Type Type);
+
+	/** Raised when the drawer's outliner has been synchronized with the editor selection */
+	void OnListSelectionSynchronized();
+
+	/** Update the selected items to match the list view */
+	void UpdateSelectionFromList();
 
 
 private:
+	/** Model for the object mixer list used to display the color gradable object hierarchy. */
+	TSharedPtr<FObjectMixerEditorList> ObjectListModel;
+
 	/** Box containing the color grading groups */
 	TSharedPtr<SHorizontalBox> ColorGradingGroupToolBarBox;
 
@@ -148,10 +134,7 @@ private:
 	TAttribute<UWorld*> OverrideWorld;
 
 	/** Color grading object list widget being displayed in the drawer's list panel */
-	TSharedPtr<SColorGradingObjectList> ColorGradingObjectListView;
-
-	/** Source list for the color grading object list widget */
-	TArray<FColorGradingListItemRef> ColorGradingItemList;
+	TSharedPtr<SSceneOutliner> ColorGradingObjectListView;
 
 	/** The color grading data model for the currently selected objects */
 	TSharedPtr<FColorGradingEditorDataModel> ColorGradingDataModel;

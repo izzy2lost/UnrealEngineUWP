@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ObjectMixerEditorListRowData.h"
+#include "SelectionInterface/IObjectMixerSelectionInterface.h"
 
 #include "Templates/SharedPointer.h"
 #include "Widgets/SWidget.h"
@@ -19,7 +20,7 @@ class OBJECTMIXEREDITOR_API FObjectMixerEditorList : public TSharedFromThis<FObj
 {
 public:
 
-	FObjectMixerEditorList(const FName InModuleName);
+	FObjectMixerEditorList(const FName InModuleName, TSharedPtr<IObjectMixerSelectionInterface> InSelectionInterface = nullptr);
 
 	virtual ~FObjectMixerEditorList();
 
@@ -44,6 +45,9 @@ public:
 	 * Useful for when the list state has gone stale but the variable count has not changed.
 	 */
 	void RefreshList() const;
+
+	/** Get the selection interface used to synchronize this with the rest of the editor */
+	TSharedPtr<IObjectMixerSelectionInterface> GetSelectionInterface() const { return SelectionInterface; }
 
 	void BuildPerformanceCache();
 
@@ -189,6 +193,15 @@ public:
 	bool bShouldShowTransientObjectsCache = false;
 
 protected:
+
+	/** Bind delegates to refresh the list when editor state changes. */
+	virtual void BindRefreshDelegates();
+
+	/** Unbind delegates to refresh the list when editor state changes. */
+	virtual void UnbindRefreshDelegates();
+
+	/** If a property is changed that has a name found in this set, the list will be refreshed. */
+	TSet<FName> GetPropertiesThatRequireRefresh();
 	
 	virtual void AddReferencedObjects( FReferenceCollector& Collector )  override
 	{
@@ -226,4 +239,10 @@ protected:
 	FName ModuleName = NAME_None;
 	
 	FDelegateHandle OnBlueprintFilterCompiledHandle;
+
+	/** Interface used to synchronize selection with another part of the editor */
+	TSharedPtr<IObjectMixerSelectionInterface> SelectionInterface;
+
+	/** Handles for delegates registered to refresh the list */
+	TSet<FDelegateHandle> DelegateHandles;
 };

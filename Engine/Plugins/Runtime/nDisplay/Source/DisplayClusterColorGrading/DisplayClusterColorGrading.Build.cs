@@ -24,6 +24,7 @@ public class DisplayClusterColorGrading : ModuleRules
 				"Engine",
 				"InputCore",
 				"Kismet",
+				"ObjectMixerEditor",
 				"PropertyEditor",
 				"PropertyPath",
 				"Slate",

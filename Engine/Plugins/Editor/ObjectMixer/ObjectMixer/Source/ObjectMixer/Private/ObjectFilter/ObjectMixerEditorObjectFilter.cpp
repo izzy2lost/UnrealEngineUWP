@@ -20,6 +20,16 @@ bool UObjectMixerObjectFilter::GetShowTransientObjects() const
 	return false;
 }
 
+bool UObjectMixerObjectFilter::ShouldAllowHybridRows() const
+{
+	return true;
+}
+
+bool UObjectMixerObjectFilter::ShouldAllowColumnCustomizationByUser() const
+{
+	return true;
+}
+
 TSet<FName> UObjectMixerObjectFilter::GetColumnsToShowByDefault() const
 {
 	return {};

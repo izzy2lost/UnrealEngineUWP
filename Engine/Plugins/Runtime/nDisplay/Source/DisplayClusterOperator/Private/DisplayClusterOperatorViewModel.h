@@ -23,7 +23,10 @@ public:
 	virtual const TArray<TWeakObjectPtr<UObject>> GetDetailObjects() override { return DetailObjects; }
 	virtual void ShowDetailsForObject(UObject* Object) override;
 	virtual void ShowDetailsForObjects(const TArray<UObject*>& Objects) override;
+	virtual void SelectActors(const TArray<AActor*>& Actors, bool bShouldSelect) override;
 	virtual FOnDetailObjectsChanged& OnDetailObjectsChanged() override { return DetailObjectsChanged; }
+	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() override { return OutlinerSelectionChanged; }
+	virtual FOnActorsSelected& OnActorsSelectedExternally() override { return ActorsSelectedExternally; }
 	virtual TSharedPtr<FTabManager> GetTabManager() const override { return TabManager; }
 
 	virtual TSharedPtr<FWorkspaceItem> GetWorkspaceMenuGroup() const override { return WorkspaceItem; }
@@ -40,4 +43,6 @@ private:
 
 	FOnActiveRootActorChanged RootActorChanged;
 	FOnDetailObjectsChanged DetailObjectsChanged;
+	FOnActorsSelected ActorsSelectedExternally;
+	FOnOutlinerSelectionChanged OutlinerSelectionChanged;
 };

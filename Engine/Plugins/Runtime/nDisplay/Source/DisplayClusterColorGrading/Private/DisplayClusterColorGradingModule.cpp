@@ -11,6 +11,7 @@
 #include "Components/DisplayClusterICVFXCameraComponent.h"
 
 #include "ColorCorrectRegion.h"
+#include "ColorGradingMixerObjectFilterRegistry.h"
 #include "Engine/PostProcessVolume.h"
 
 #define LOCTEXT_NAMESPACE "DisplayClusterColorGrading"
@@ -27,6 +28,11 @@ void FDisplayClusterColorGradingModule::StartupModule()
 
 	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_RootActor>();
 	FColorGradingListItem::RegisterColorGradingListItemGenerator<FDisplayClusterColorGradingListItemGenerator_ICVFXCamera>();
+
+	FColorGradingMixerObjectFilterRegistry::RegisterActorClassToPlace(ADisplayClusterRootActor::StaticClass());
+
+	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(ADisplayClusterRootActor::StaticClass());
+	FColorGradingMixerObjectFilterRegistry::RegisterObjectClassToFilter(UDisplayClusterICVFXCameraComponent::StaticClass());
 
 	FDisplayClusterColorGradingCommands::Register();
 }

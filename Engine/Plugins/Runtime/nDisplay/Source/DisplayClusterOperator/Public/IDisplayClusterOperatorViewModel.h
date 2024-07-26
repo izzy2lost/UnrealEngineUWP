@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 
+class AActor;
 class ADisplayClusterRootActor;
 class FTabManager;
 class FWorkspaceItem;
@@ -15,6 +16,8 @@ class DISPLAYCLUSTEROPERATOR_API IDisplayClusterOperatorViewModel
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnActiveRootActorChanged, ADisplayClusterRootActor*);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDetailObjectsChanged, const TArray<UObject*>&);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnOutlinerSelectionChanged, const TArray<AActor*>&);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnActorsSelected, const TArray<AActor*>&, bool bShouldSelect);
 
 public:
 	/** Gets whether the view model has been populated with a valid root actor */
@@ -38,8 +41,17 @@ public:
 	/** Displays the properties of the specified object in the operator's details panel */
 	virtual void ShowDetailsForObjects(const TArray<UObject*>& Objects) = 0;
 
+	/** Selects the specified actors in the operator's outliner panel, or if bShouldSelect is false, deselects them */
+	virtual void SelectActors(const TArray<AActor*>& Actors, bool bShouldSelect) = 0;
+
 	/** Gets the event handler that is raised when the objects being displayed in the operator's details panel are changed */
 	virtual FOnDetailObjectsChanged& OnDetailObjectsChanged() = 0;
+
+	/** Gets the event handler that is raised when the actors selected in the operator's outliner panel are changed */
+	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() = 0;
+
+	/** Gets the event handler that is raised when actors are selected from outside the operator itself, i.e. directly from this view model */
+	virtual FOnActorsSelected& OnActorsSelectedExternally() = 0;
 
 	/** Gets the tab manager of the active operator panel, if there is an open operator panel */
 	virtual TSharedPtr<FTabManager> GetTabManager() const = 0;
