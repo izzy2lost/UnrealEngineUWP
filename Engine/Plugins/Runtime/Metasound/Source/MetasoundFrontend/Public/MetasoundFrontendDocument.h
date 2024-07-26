@@ -1745,7 +1745,7 @@ public:
 
 	bool ContainsGraphPage(const FGuid& InPageID) const;
 
-	FMetasoundFrontendGraph& InitDefaultPage();
+	FMetasoundFrontendGraph& InitDefaultGraph();
 
 	void IterateGraphPages(TFunctionRef<void(FMetasoundFrontendGraph&)> IterFunc);
 	void IterateGraphPages(TFunctionRef<void(const FMetasoundFrontendGraph&)> IterFunc) const;

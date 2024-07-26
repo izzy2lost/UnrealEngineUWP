@@ -1075,7 +1075,7 @@ const FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::GetConstDefaultGrap
 	return FindConstGraphChecked(Metasound::Frontend::DefaultPageID);
 }
 
-FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::InitDefaultPage()
+FMetasoundFrontendGraph& FMetasoundFrontendGraphClass::InitDefaultGraph()
 {
 	checkf(PagedGraphs.IsEmpty(), TEXT("Attempting to initialize default page for graph class with existing graph implementation"));
 	FMetasoundFrontendGraph& NewGraph = PagedGraphs.AddDefaulted_GetRef();
