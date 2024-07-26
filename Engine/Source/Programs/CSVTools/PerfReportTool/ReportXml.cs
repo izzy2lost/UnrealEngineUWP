@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using CSVStats;
 using PerfSummaries;
 using System.Globalization;
+using System.Text.Json;
 
 namespace PerfReportTool
 {
@@ -642,6 +643,37 @@ namespace PerfReportTool
 					string value = vars[key].Replace(", ",",").Replace(",",", "); // Ensure padding for arrays
 					Console.WriteLine(key.PadRight(50) + value);
 				}
+			}
+		}
+		public void SerializeToJson(string Filename, string toMatch, string toIgnore)
+		{
+			string[] keys = vars.Keys.ToArray();
+			List<string> MatchedKeys = new List<string>();
+			foreach (string key in keys)
+			{
+				if (key.Contains(toMatch) && (toIgnore.Length==0 || !key.Contains(toIgnore)))
+				{
+					MatchedKeys.Add(key);
+				}
+			}
+
+			if (MatchedKeys.Any())
+			{
+				MatchedKeys.Sort();
+
+				Dictionary<string, string> MatchedVars = new Dictionary<string, string>();
+				foreach (string key in MatchedKeys)
+				{
+					if (vars.ContainsKey(key) && vars[key].Any())
+					{
+						MatchedVars[key] = vars[key].Replace(", ", ",").Replace(",", ", ");
+					}
+				}
+
+				JsonSerializerOptions options = new JsonSerializerOptions { WriteIndented = true };
+				FileStream createStream = File.Create(Filename);
+				JsonSerializer.Serialize(createStream, MatchedVars, options);
+				createStream.Dispose();
 			}
 		}
 

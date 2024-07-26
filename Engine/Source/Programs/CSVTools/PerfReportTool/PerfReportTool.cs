@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.237.6";
+        private static string VersionString = "4.238.0";
 
         public static string Get() { return VersionString; }
     };
@@ -101,6 +101,7 @@ namespace PerfReportTool
 			"  -noSmooth : disable smoothing on all graphs\n" +
 			"  -listSummaryTables: lists available summary tables from the current report XML\n" +
 			"  -dumpVariables | -dumpVariablesAll : dumps variables to the log for each CSV (all includes metadata)\n" +
+			"  -dumpVariablesToJson | -dumpAllVariablesToJson <path> : path (usually a json filename) to write variables (like budgets) to json (all includes metadata)\n" +
 			"\n" +
 			"Performance args:\n" +
 			"  -perfLog : output performance logging information\n" +
@@ -128,6 +129,7 @@ namespace PerfReportTool
 			"  -customTable <comma separated fields>\n" +
 			"  -customTableSort <comma separated field row sort order> (use with -customTable)\n" +
 			"  -noDetailedReports : skips individual report generation\n" +
+			"  -noReports : skips generating reports\n" +
 			"  -collateTable : writes a collated table in addition to the main one, merging by row sort\n" +
 			"  -collateTableOnly : as -collateTable, but doesn't write the standard summary table.\n" +
 			"  -emailTable : writes a condensed email-friendly table (see the 'condensed' summary table)\n" +
@@ -473,6 +475,7 @@ namespace PerfReportTool
 			}
 
 			bool writeDetailedReports = !GetBoolArg("noDetailedReports");
+			bool writeReports = !GetBoolArg("noReports");
 			bool bReadAllStats = GetBoolArg("readAllStats");
 
 			bool bSummaryTableCacheReadonly = GetBoolArg("summaryTableCacheReadOnly");
@@ -580,13 +583,32 @@ namespace PerfReportTool
 							}
 							else
 							{
-								GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, true, cachedCsvFile.reportTypeInfo, csvDir);
-								perfLog.LogTiming("  GenerateReport");
-
-								if ( ( GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll") ) && cachedCsvFile.xmlVariableMappings != null)
+								if (writeReports)
 								{
-									Console.WriteLine("\nDumping variables for " + cachedCsvFile.filename + "\n");
-									cachedCsvFile.xmlVariableMappings.DumpToLog(GetBoolArg("dumpVariablesAll"));
+									GenerateReport(cachedCsvFile, outputDir, bBulkMode, rowData, bBatchedGraphs, writeDetailedReports, true, cachedCsvFile.reportTypeInfo, csvDir);
+									perfLog.LogTiming("  GenerateReport");
+								}
+
+								if (cachedCsvFile.xmlVariableMappings != null)
+								{
+									if ((GetBoolArg("dumpVariables") || GetBoolArg("dumpVariablesAll")))
+									{
+										Console.WriteLine("\nDumping variables for " + cachedCsvFile.filename + "\n");
+										cachedCsvFile.xmlVariableMappings.DumpToLog(GetBoolArg("dumpVariablesAll"));
+									}
+
+									string variablesJsonOutPath = GetArg("dumpVariablesToJson", null);
+									if (variablesJsonOutPath != null)
+									{
+										cachedCsvFile.xmlVariableMappings.SerializeToJson(variablesJsonOutPath, "", "meta.");
+									}
+
+									string allVariablesJsonOutPath = GetArg("dumpAllVariablesToJson", null);
+									if (allVariablesJsonOutPath != null)
+									{
+										cachedCsvFile.xmlVariableMappings.SerializeToJson(allVariablesJsonOutPath, "", "");
+									}
+
 								}
 
 								if (rowData != null && bWriteToSummaryTableCache)
