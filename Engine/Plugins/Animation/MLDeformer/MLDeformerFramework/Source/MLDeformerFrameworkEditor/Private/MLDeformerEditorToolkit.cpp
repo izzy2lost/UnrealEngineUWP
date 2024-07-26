@@ -338,6 +338,8 @@ namespace UE::MLDeformer
 		// Tell the editor we use this model now.
 		TSharedPtr<FMLDeformerEditorModel> NewModel = TSharedPtr<FMLDeformerEditorModel>(EditorModel);
 		NewModel->CopyBaseSettingsFromModel(ActiveModel.Get());
+		NewModel->GetModel()->InitVertexMap();
+		NewModel->GetModel()->InitGPUData();
 
 		ActiveModel.Reset();
 		ActiveModel = NewModel;
