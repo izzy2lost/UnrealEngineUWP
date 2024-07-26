@@ -49,7 +49,7 @@ private:
 
 	template <typename ReturnSlotType>
 	VFrame(FAllocationContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VProcedure& Procedure)
-		: VCell(Context, VEmergentTypeCreator::GetOrCreate(Context, VTrivialType::Singleton.Get(), &StaticCppClassInfo))
+		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, CallerPC(CallerPC)
 		, CallerFrame(Context, CallerFrame)
 		, ReturnSlot(Context, ReturnSlot)
