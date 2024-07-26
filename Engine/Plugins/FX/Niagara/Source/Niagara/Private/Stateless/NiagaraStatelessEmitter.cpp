@@ -387,7 +387,23 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 			}
 		}
 
-		// Prepare renderer bindings this avoid having to do this per instance spawned
+		// Populate any renderer bindings from the emitter state and spawn infos
+		EmitterBuildContext.ConvertDistributionToRange(StatelessEmitterData->EmitterState.LoopDuration, 0.0f);
+		EmitterBuildContext.ConvertDistributionToRange(StatelessEmitterData->EmitterState.LoopDelay, 0.0f);
+		for ( const FNiagaraStatelessSpawnInfo& SpawnInfo : StatelessEmitterData->SpawnInfos )
+		{
+			if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
+			{
+				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.Rate, 0.0f);
+			}
+			else //if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Burst)
+			{
+				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.Amount, 0.0f);
+				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.SpawnProbability, 0.0f);
+			}
+		}
+
+		// Prepare renderer bindings this avoids having to do this per instance spawned
 		// Note: Order is important here we detect if we need to update shader parameters on binding changes above by looking to see if we had any renderer bindings so this must be below
 		for (UNiagaraRendererProperties* Renderer : RendererProperties )
 		{

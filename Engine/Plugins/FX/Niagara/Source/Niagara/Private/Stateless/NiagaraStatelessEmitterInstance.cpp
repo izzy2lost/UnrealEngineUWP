@@ -10,6 +10,35 @@
 
 #include "Shader.h"
 
+namespace NiagaraStatelessEmitterInstancePrivate
+{
+	static const float DefaultLoopDuration		= 0.001f;
+	static const float DefaultLoopDelay			= 0.0f;
+	static const float DefaultSpawnRate			= 0.0f;
+	static const float DefaultSpawnProbability	= 0.0f;
+	static const int32 DefaultSpawnAmount		= 0;
+
+	// Other areas work on built distributions so this is a helper function to work with a raw distribution
+	float EvaluateDistribution(const FNiagaraDistributionRangeFloat& Distribution, FRandomStream& RandomStream, const FNiagaraParameterStore& ParameterStore, const float DefaultValue)
+	{
+		if (Distribution.IsBinding())
+		{
+			return Distribution.ParameterBinding.IsValid() ? ParameterStore.GetParameterValueOrDefault(Distribution.ParameterBinding, DefaultValue) : DefaultValue;
+		}
+		const float Fraction = RandomStream.GetFraction();
+		return ((Distribution.Max - Distribution.Max) * Fraction) + Distribution.Min;
+	}
+
+	int32 EvaluateDistribution(const FNiagaraDistributionRangeInt& Distribution, FRandomStream& RandomStream, const FNiagaraParameterStore& ParameterStore, const int32 DefaultValue)
+	{
+		if (Distribution.IsBinding())
+		{
+			return Distribution.ParameterBinding.IsValid() ? ParameterStore.GetParameterValueOrDefault(Distribution.ParameterBinding, DefaultValue) : DefaultValue;
+		}
+		return RandomStream.RandRange(Distribution.Min, Distribution.Max);
+	}
+}
+
 FNiagaraDataBuffer* NiagaraStateless::FEmitterInstance_RT::GetDataToRender(FRHICommandListBase& RHICmdList, bool bIsLowLatencyTranslucent) const
 {
 	return ComputeManager ? ComputeManager->GetDataBuffer(RHICmdList, uintptr_t(this), this) : nullptr;
@@ -238,16 +267,22 @@ void FNiagaraStatelessEmitterInstance::Tick(float DeltaSeconds)
 
 void FNiagaraStatelessEmitterInstance::InitEmitterState()
 {
+	using namespace NiagaraStatelessEmitterInstancePrivate;
+
 	const FNiagaraEmitterStateData& EmitterState = EmitterData->EmitterState;
 	LoopCount			= 0;
-	CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
-	CurrentLoopDelay	= RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
+	CurrentLoopDuration = EvaluateDistribution(EmitterState.LoopDuration, RandomStream, RendererBindings, DefaultLoopDuration);
+	CurrentLoopDuration = FMath::Max(CurrentLoopDuration, DefaultLoopDuration);
+	CurrentLoopDelay	= EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
+	CurrentLoopDelay	= FMath::Max(CurrentLoopDelay, 0.0f);
 	CurrentLoopAgeStart	= 0.0f;
 	CurrentLoopAgeEnd	= CurrentLoopAgeStart + CurrentLoopDelay + CurrentLoopDuration;
 }
 
 void FNiagaraStatelessEmitterInstance::TickEmitterState()
 {
+	using namespace NiagaraStatelessEmitterInstancePrivate;
+
 	// Update execution state based on the parent which be told to go inactive / complete
 	{
 		const ENiagaraExecutionState ParentExecutionState = ParentSystemInstance ? ParentSystemInstance->GetActualExecutionState() : ENiagaraExecutionState::Complete;
@@ -364,7 +399,8 @@ void FNiagaraStatelessEmitterInstance::TickEmitterState()
 
 				if (EmitterState.bRecalculateDurationEachLoop)
 				{
-					CurrentLoopDuration = RandomStream.FRandRange(EmitterState.LoopDuration.Min, EmitterState.LoopDuration.Max);
+					CurrentLoopDuration = EvaluateDistribution(EmitterState.LoopDuration, RandomStream, RendererBindings, DefaultLoopDuration);
+					CurrentLoopDuration = FMath::Max(CurrentLoopDuration, DefaultLoopDuration);
 				}
 
 				if (EmitterState.bDelayFirstLoopOnly)
@@ -373,7 +409,8 @@ void FNiagaraStatelessEmitterInstance::TickEmitterState()
 				}
 				else if (EmitterState.bRecalculateDelayEachLoop)
 				{
-					CurrentLoopDelay = RandomStream.FRandRange(EmitterState.LoopDelay.Min, EmitterState.LoopDelay.Max);
+					CurrentLoopDelay = EvaluateDistribution(EmitterState.LoopDelay, RandomStream, RendererBindings, DefaultLoopDelay);
+					CurrentLoopDelay = FMath::Max(CurrentLoopDelay, 0.0f);
 				}
 
 				CurrentLoopAgeStart = CurrentLoopAgeEnd;
@@ -429,15 +466,18 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 	DataForRenderThread.Age				= Age;
 	DataForRenderThread.ExecutionState	= ExecutionState;
 
-	if ( EmitterData->bModulesHaveRendererBindings && RendererBindings.GetParametersDirty() )
+	if (RendererBindings.GetParametersDirty())
 	{
 		RendererBindings.Tick();
-		DataForRenderThread.bHasBindingBufferData = true;
-		DataForRenderThread.BindingBufferData = RendererBindings.GetParameterDataArray();
-		check((DataForRenderThread.BindingBufferData.Num() % sizeof(uint32)) == 0);
+		if (EmitterData->bModulesHaveRendererBindings)
+		{
+			DataForRenderThread.bHasBindingBufferData = true;
+			DataForRenderThread.BindingBufferData = RendererBindings.GetParameterDataArray();
+			check((DataForRenderThread.BindingBufferData.Num() % sizeof(uint32)) == 0);
 
-		DataForRenderThread.ShaderParameters = WeakStatelessEmitter->AllocateShaderParameters(RendererBindings);
-		DataForRenderThread.ShaderParameters->Common_RandomSeed = RandomSeed;
+			DataForRenderThread.ShaderParameters = WeakStatelessEmitter->AllocateShaderParameters(RendererBindings);
+			DataForRenderThread.ShaderParameters->Common_RandomSeed = RandomSeed;
+		}
 	}
 
 	if (bSpawnInfosDirty)
@@ -474,6 +514,8 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 
 void FNiagaraStatelessEmitterInstance::InitSpawnInfos(float InitializationAge)
 {
+	using namespace NiagaraStatelessEmitterInstancePrivate;
+
 	// If we are not enabled, or not awake from scalability skip adding
 	if (!bEmitterEnabled_GT || (ScalabilityState != ENiagaraExecutionStateManagement::Awaken))
 	{
@@ -484,7 +526,8 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfos(float InitializationAge)
 	{
 		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 		{
-			const float SpawnRate = RandomStream.FRandRange(SpawnInfo.Rate.Min, SpawnInfo.Rate.Max) * EmitterData->SpawnCountScale;
+			float SpawnRate = EvaluateDistribution(SpawnInfo.Rate, RandomStream, RendererBindings, DefaultSpawnRate) * EmitterData->SpawnCountScale;
+			SpawnRate = FMath::Max(SpawnRate, 0.0f);
 			if (SpawnRate > 0.0f)
 			{
 				FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
@@ -499,6 +542,8 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfos(float InitializationAge)
 
 void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float InitializationAge)
 {
+	using namespace NiagaraStatelessEmitterInstancePrivate;
+
 	// If we are not enabled, or not awake from scalability skip adding
 	if (!bEmitterEnabled_GT || (ScalabilityState != ENiagaraExecutionStateManagement::Awaken))
 	{
@@ -560,12 +605,17 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float Initializatio
 			continue;
 		}
 
-		if (SpawnInfo.bSpawnProbabilityEnabled && SpawnInfo.SpawnProbability < RandomStream.FRand())
+		if (SpawnInfo.bSpawnProbabilityEnabled)
 		{
-			continue;
+			float SpawnProbability = EvaluateDistribution(SpawnInfo.SpawnProbability, RandomStream, RendererBindings, DefaultSpawnProbability);
+			SpawnProbability = FMath::Clamp(SpawnProbability, 0.0f, 1.0f);
+			if (SpawnProbability < RandomStream.FRand())
+			{
+				continue;
+			}
 		}
 
-		const int32 UnscaledSpawnAmount = RandomStream.RandRange(SpawnInfo.Amount.Min, SpawnInfo.Amount.Max);
+		const int32 UnscaledSpawnAmount = EvaluateDistribution(SpawnInfo.Amount, RandomStream, RendererBindings, DefaultSpawnAmount);
 		const int32 SpawnAmount = FMath::FloorToInt(float(UnscaledSpawnAmount) * EmitterData->SpawnCountScale);
 		if (SpawnAmount <= 0)
 		{

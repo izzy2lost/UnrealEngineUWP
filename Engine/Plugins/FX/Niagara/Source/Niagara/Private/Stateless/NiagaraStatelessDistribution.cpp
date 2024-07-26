@@ -442,6 +442,19 @@ FNiagaraStatelessRangeColor FNiagaraDistributionColor::CalculateRange(const FLin
 	return Range;
 }
 
+bool FNiagaraDistributionRangeFloat::SerializeFromMismatchedTag(const struct FPropertyTag& Tag, FStructuredArchive::FSlot Slot)
+{
+	if (Tag.Type == NAME_FloatProperty)
+	{
+		float Value;
+		Slot << Value;
+		*this = FNiagaraDistributionRangeFloat(Value);
+		return true;
+	}
+
+	return false;
+}
+
 #if WITH_EDITORONLY_DATA
 void FNiagaraDistributionBase::PostEditChangeProperty(UObject* OwnerObject, FPropertyChangedEvent& PropertyChangedEvent)
 {
