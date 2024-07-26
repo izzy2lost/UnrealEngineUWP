@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#include "TSRDepthVelocityAnalysis.ush"
 #include "TSRSpatialAntiAliasing.ush"
 #include "TSRReprojectionField.ush"
+#include "TSRClosestOccluder.ush"
 
 #if DIM_MOTION_BLUR_DIRECTIONS > 0
 	#define CONFIG_MAX_RANGE_SIZE (DIM_MOTION_BLUR_DIRECTIONS)
@@ -18,28 +19,10 @@
 	#define TILE_SIZE 8
 #endif
 
-/** Whether to use the velocity from SceneVelocityTexture. */
-#define CONFIG_USE_SCENE_VELOCITY 1
-
-/** Whether the dilation should be only on depth edges, improving texture reprojection accuracy on flat surfaces. */
-#define CONFIG_DEPTH_EDGE_DETECTION 1
-
-
-//------------------------------------------------------- CONSTANTS
-
-static const int2 kPairOffsets[4] = {
-	int2( 1,  0),
-	int2( 1,  1),
-	int2( 0,  1),
-	int2(-1,  1),
-};
-
 
 //------------------------------------------------------- PARAMETERS
 
 float4x4 RotationalClipToPrevClip;
-float2 PrevOutputBufferUVMin;
-float2 PrevOutputBufferUVMax;
 float InvFlickeringMaxParralaxVelocity;
 float ReprojectionFieldAntiAliasVelocityThreshold;
 uint bReprojectionField;
@@ -64,428 +47,7 @@ RWTexture2DArray<float4> VelocityTileArrayOutput;
 static float4 Debug[DEBUG_ARRAY_SIZE];
 
 
-//------------------------------------------------------- UTILITY
-
-uint PackDepthAndOffset(const int2 Offset, float DeviceZ)
-{
-	return ((asuint(DeviceZ) << 2) & ~0xF) | (uint(1 + Offset.x) << 0) | (uint(1 + Offset.y) << 2);
-}
-
-void UnpackDepthAndOffset(uint Packed, out tsr_short2 Offset, out float DeviceZ)
-{
-	DeviceZ = asfloat((Packed & ~0xF) >> 2);
-	Offset.x = tsr_short((Packed >> 0u) & 0x3u) - tsr_short(1);
-	Offset.y = tsr_short((Packed >> 2u) & 0x3u) - tsr_short(1);
-}
-
-
 //------------------------------------------------------- FUNCTIONS
-
-/* Loads all the 3x3's depth. */
-void FetchDepth3x3(
-	tsr_short2 InputPixelPos,
-	out float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES])
-{
-	UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-	for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-	{
-		tsr_short2 SampleInputPixelPos = GetNeighborhoodPixelPos(i, InputPixelPos);
-		
-		DevizeZNeighborhood[i] = SceneDepthTexture[SampleInputPixelPos];
-	}
-} // FetchDepthVelocity3x3()
-
-/* Loads all the 3x3's depth and velocities. */
-void FetchDepthVelocity3x3(
-	tsr_short2 InputPixelPos,
-	out float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out float4 VelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES])
-{
-	UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-	for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-	{
-		tsr_short2 SampleInputPixelPos = GetNeighborhoodPixelPos(i, InputPixelPos);
-		
-		DevizeZNeighborhood[i] = SceneDepthTexture[SampleInputPixelPos];
-		VelocityNeighborhood[i] = SceneVelocityTexture[SampleInputPixelPos];
-	}
-} // FetchDepthVelocity3x3()
-
-/** Convert the fetches velocities to pixel velocities. */
-void ComputePixelVelocityNeighborhood(
-	tsr_short2 InputPixelPos,
-	float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	float4 VelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out float2 PixelVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out float  DepthVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out bool   bIsDrawingVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES])
-{
-	bool bHasAnyStaticPixels = false;
-	bool bHasAnyDynamicPixels = false;
-	{
-		UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-		for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-		{
-			#if CONFIG_USE_SCENE_VELOCITY
-				bool bIsDrawingVelocity = VelocityNeighborhood[i].x > 0.0;
-			#else
-				const bool bIsDrawingVelocity = false;
-			#endif
-			bIsDrawingVelocityNeighborhood[i] = bIsDrawingVelocity;
-			bHasAnyStaticPixels  |= !bIsDrawingVelocity;
-			bHasAnyDynamicPixels |= bIsDrawingVelocity;
-		}
-
-		#if COMPILER_SUPPORTS_WAVE_VOTE
-			bHasAnyStaticPixels  = WaveActiveAnyTrue(bHasAnyStaticPixels);
-			bHasAnyDynamicPixels = WaveActiveAnyTrue(bHasAnyDynamicPixels);
-		#else
-			bHasAnyStaticPixels  = true;
-			bHasAnyDynamicPixels = true;
-		#endif
-	}
-	
-	#if CONFIG_USE_SCENE_VELOCITY
-	BRANCH
-	if (bHasAnyStaticPixels && bHasAnyDynamicPixels)
-	{
-		UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-		for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-		{
-			tsr_short2 SampleInputPixelPos = GetNeighborhoodPixelPos(i, InputPixelPos);
-			float2 ScreenPos = ApplyScreenTransform(float2(int2(SampleInputPixelPos)), InputPixelPosToScreenPos);
-
-			float3 ScreenVelocity = ComputeStaticVelocity(ScreenPos, DevizeZNeighborhood[i]);
-			FLATTEN
-			if (VelocityNeighborhood[i].x > 0.0)
-			{
-				ScreenVelocity = DecodeVelocityFromTexture(VelocityNeighborhood[i]);
-			}
-
-			PixelVelocityNeighborhood[i] = ScreenVelocity.xy * ScreenVelocityToInputPixelVelocity;
-			DepthVelocityNeighborhood[i] = ScreenVelocity.z;
-		}
-	}
-	else if (bHasAnyDynamicPixels) // && !bHasAnyStaticPixels)
-	{
-		UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-		for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-		{
-			float3 ScreenVelocity = DecodeVelocityFromTexture(VelocityNeighborhood[i]);
-
-			PixelVelocityNeighborhood[i] = ScreenVelocity.xy * ScreenVelocityToInputPixelVelocity;
-			DepthVelocityNeighborhood[i] = ScreenVelocity.z;
-		}
-	}
-	else // if (bHasAnyStaticPixels && !bHasAnyDynamicPixels
-	#endif // !CONFIG_USE_SCENE_VELOCITY
-	{
-		UNROLL_N(CONFIG_BUTTERFLY_SAMPLES)
-		for (uint i = 0; i < CONFIG_BUTTERFLY_SAMPLES; i++)
-		{
-			tsr_short2 SampleInputPixelPos = GetNeighborhoodPixelPos(i, InputPixelPos);
-			float2 ScreenPos = ApplyScreenTransform(float2(int2(SampleInputPixelPos)), InputPixelPosToScreenPos);
-
-			float3 ScreenVelocity = ComputeStaticVelocity(ScreenPos, DevizeZNeighborhood[i]);
-
-			PixelVelocityNeighborhood[i] = ScreenVelocity.xy * ScreenVelocityToInputPixelVelocity;
-			DepthVelocityNeighborhood[i] = ScreenVelocity.z;
-		}
-	}
-} // ComputePixelVelocityNeighborhood()
-
-/** Find the closest DevizeZ and its corresponding offset */
-void FindClosestDepthOffset(
-	float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out float ClosestDeviceZ,
-	out tsr_short2 ReprojectionOffset)
-{
-	float DeviceZ = AccessNeighborhoodCenter(DevizeZNeighborhood);
-	float DeviceZError = ComputePixelDeviceZError(DeviceZ);
-	uint PackedDepthOffset = PackDepthAndOffset(/* Offset = */ int2(0, 0), DeviceZ);
-	
-	#if 0
-		UNROLL_N(4)
-		for (uint i = 0; i < 4; i++)
-	#elif 1
-		UNROLL_N(2)
-		for (uint i = 0; i < 4; i+= 2)
-	#else
-		UNROLL_N(2)
-		for (uint i = 1; i < 4; i+= 2)
-	#endif
-	{
-		const int2 PairOffset = kPairOffsets[i];
-
-		float SampleDeviceZ0 = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, +PairOffset);
-		float SampleDeviceZ1 = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, -PairOffset);
-
-		#if CONFIG_DEPTH_EDGE_DETECTION
-		{
-			float DepthDiff = abs(SampleDeviceZ1 - SampleDeviceZ0);
-			float DepthVariation = (SampleDeviceZ0 + SampleDeviceZ1) * 0.5 - DeviceZ;
-
-			FLATTEN
-			if (DepthVariation > max(DepthDiff * 0.25, DeviceZError))
-			{
-				PackedDepthOffset = max(PackedDepthOffset, PackDepthAndOffset(+PairOffset, SampleDeviceZ0));
-				PackedDepthOffset = max(PackedDepthOffset, PackDepthAndOffset(-PairOffset, SampleDeviceZ1));
-			}
-		}
-		#else
-		{
-			PackedDepthOffset = max(PackedDepthOffset, PackDepthAndOffset(+PairOffset, SampleDeviceZ0));
-			PackedDepthOffset = max(PackedDepthOffset, PackDepthAndOffset(-PairOffset, SampleDeviceZ1));
-		}
-		#endif
-	}
-
-	UnpackDepthAndOffset(PackedDepthOffset, /* out */ ReprojectionOffset, /* out */ ClosestDeviceZ);
-	
-	#if CONFIG_BUTTERFLY_KERNEL
-		tsr_short2 LaneOffsetSign = GetLaneOffsetSign();
-		ReprojectionOffset *= LaneOffsetSign;
-	#endif
-} // FindClosestDepthOffset()
-
-/** Compute the velocity jacobian along a two orthogonal axes, taking a common closest depth. */
-bool ComputeDepthBilaterals(
-	const int2 DirectionE,
-	const int2 DirectionS,
-	bool bCompute,
-	float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	inout float DepthError,
-	out tsr_half BilateralWeights[4])
-{
-	float DevizeZC = AccessNeighborhoodCenter(DevizeZNeighborhood);
-	float DevizeZE = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, +DirectionE);
-	float DevizeZW = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, -DirectionE);
-	float DevizeZS = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, +DirectionS);
-	float DevizeZN = AccessNeighborhoodStaticOffset(DevizeZNeighborhood, -DirectionS);
-	
-	tsr_half WeightE;
-	tsr_half WeightW;
-	tsr_half WeightS;
-	tsr_half WeightN;
-		
-	bool bSuccess;
-	BRANCH
-	if (bCompute)
-	{
-		const float WeightOffset = 1.5;
-		const float PixelDistance = length(float2(DirectionE));
-
-		float VariationEW = abs(DevizeZC - (DevizeZE + DevizeZW) * 0.5);
-		float VariationSN = abs(DevizeZC - (DevizeZS + DevizeZN) * 0.5);
-
-		float DepthDiffE = abs(DevizeZE - DevizeZC);
-		float DepthDiffW = abs(DevizeZW - DevizeZC);
-		float DepthDiffS = abs(DevizeZS - DevizeZC);
-		float DepthDiffN = abs(DevizeZN - DevizeZC);
-	
-		float DepthDiffEW = abs(DevizeZE - DevizeZW);
-		float DepthDiffSN = abs(DevizeZS - DevizeZN);
-
-		float MinDepthDerivativeE = min3(DepthDiffEW, DepthDiffE, DepthDiffW);
-		float MinDepthDerivativeS = min3(DepthDiffSN, DepthDiffS, DepthDiffN);
-		
-		float PixelDeviceZError = ComputePixelDeviceZError(DevizeZC) * PixelDistance;
-
-		float FinalDepthDerivativeE = min(max(MinDepthDerivativeE, PixelDeviceZError), max(MinDepthDerivativeS, 8.0 * PixelDeviceZError));
-		float FinalDepthDerivativeS = min(max(MinDepthDerivativeS, PixelDeviceZError), max(MinDepthDerivativeE, 8.0 * PixelDeviceZError));
-
-		WeightE = tsr_half(saturate(WeightOffset - min(DepthDiffE, VariationEW) / FinalDepthDerivativeE));
-		WeightW = tsr_half(saturate(WeightOffset - min(DepthDiffW, VariationEW) / FinalDepthDerivativeE));
-		WeightS = tsr_half(saturate(WeightOffset - min(DepthDiffS, VariationSN) / FinalDepthDerivativeS));
-		WeightN = tsr_half(saturate(WeightOffset - min(DepthDiffN, VariationSN) / FinalDepthDerivativeS));
-
-	
-		tsr_half TotalWeightEW = WeightE + WeightW;
-		tsr_half TotalWeightSN = WeightS + WeightN;
-	
-		bool bSuccessEW = TotalWeightEW > tsr_half(0.0);
-		bool bSuccessSN = TotalWeightSN > tsr_half(0.0);
-
-		tsr_half InvTotalWeightEW = select(bSuccessEW, rcp(TotalWeightEW), tsr_half(0.0));
-		tsr_half InvTotalWeightSN = select(bSuccessSN, rcp(TotalWeightSN), tsr_half(0.0));
-
-		WeightE *= InvTotalWeightEW;
-		WeightW *= InvTotalWeightEW;
-		WeightS *= InvTotalWeightSN;
-		WeightN *= InvTotalWeightSN;
-		bSuccess = bSuccessEW || bSuccessSN;
-		
-		DepthError = max(DepthDiffE * WeightE + DepthDiffW * WeightW, DepthDiffS * WeightS + DepthDiffN * WeightN);
-	}
-	else
-	{
-		WeightE = tsr_half(1.0);
-		WeightW = tsr_half(1.0);
-		WeightS = tsr_half(1.0);
-		WeightN = tsr_half(1.0);
-		bSuccess = false;
-	}
-
-	BilateralWeights[0] = WeightE;
-	BilateralWeights[1] = WeightW;
-	BilateralWeights[2] = WeightS;
-	BilateralWeights[3] = WeightN;
-
-	return bSuccess;
-} // ComputeDepthBilaterals()
-
-void ComputeVelocityJacobian(
-	const int2 DirectionE,
-	const int2 DirectionS,
-	bool bCompute,
-	float2 PixelVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	tsr_half BilateralWeights[4],
-	inout tsr_half2x2 ReprojectionJacobian)
-{
-	
-	float2 PixelVelocityC = AccessNeighborhoodCenter(PixelVelocityNeighborhood);
-	float2 PixelVelocityE = AccessNeighborhoodStaticOffset(PixelVelocityNeighborhood, +DirectionE);
-	float2 PixelVelocityW = AccessNeighborhoodStaticOffset(PixelVelocityNeighborhood, -DirectionE);
-	float2 PixelVelocityS = AccessNeighborhoodStaticOffset(PixelVelocityNeighborhood, +DirectionS);
-	float2 PixelVelocityN = AccessNeighborhoodStaticOffset(PixelVelocityNeighborhood, -DirectionS);
-	
-	tsr_half WeightE = BilateralWeights[0];
-	tsr_half WeightW = BilateralWeights[1];
-	tsr_half WeightS = BilateralWeights[2];
-	tsr_half WeightN = BilateralWeights[3];
-
-	BRANCH
-	if (bCompute)
-	{
-		tsr_half2 VelocityDeltaE = tsr_half2(PixelVelocityE - PixelVelocityC);
-		tsr_half2 VelocityDeltaW = tsr_half2(PixelVelocityC - PixelVelocityW);
-		tsr_half2 VelocityDeltaS = tsr_half2(PixelVelocityS - PixelVelocityC);
-		tsr_half2 VelocityDeltaN = tsr_half2(PixelVelocityC - PixelVelocityN);
-
-		ReprojectionJacobian[0] = VelocityDeltaE * WeightE + VelocityDeltaW * WeightW;
-		ReprojectionJacobian[1] = VelocityDeltaS * WeightS + VelocityDeltaN * WeightN;
-	}
-} // ComputeVelocityJacobian()
-
-/** Compute the depth error on horizontal and vertical. */
-float ComputeDepthError(float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES])
-{
-	float DepthError;
-	tsr_half BilateralWeights[4];
-
-	ComputeDepthBilaterals(
-		kOffsetE, kOffsetS,
-		/* bCompute = */ true,
-		DevizeZNeighborhood,
-		/* inout */ DepthError,
-		/* out */ BilateralWeights);
-
-	return DepthError;
-}
-
-/** Find the closest DevizeZ and its corresponding offset */
-void ComputeReprojectionJacobian(
-	float  DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	float2 PixelVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES],
-	out tsr_half2x2 ReprojectionJacobian,
-	out float DepthError)
-{
-	float DeviceZ = AccessNeighborhoodCenter(DevizeZNeighborhood);
-	
-	ReprojectionJacobian = tsr_half(0.0);
-	DepthError = 0.0;
-
-	// Horizontal & vertical cardinals first as the pixels are closer than on diagonals
-	bool bSuccess;
-	{
-		const bool bCompute = true;
-		const int2 DirectionE = kOffsetE;
-		const int2 DirectionS = kOffsetS;
-
-		tsr_half BilateralWeights[4];
-		bSuccess = ComputeDepthBilaterals(
-			DirectionE, DirectionS,
-			bCompute,
-			DevizeZNeighborhood,
-			/* inout */ DepthError,
-			/* out */ BilateralWeights);
-		
-		ComputeVelocityJacobian(
-			DirectionE, DirectionS,
-			bCompute,
-			PixelVelocityNeighborhood,
-			BilateralWeights,
-			/* inout */ ReprojectionJacobian);
-	}
-	
-	// Compute diagonal jacobian if the horizontal/vertical failed
-#if CONFIG_BUTTERFLY_KERNEL && COMPILER_SUPPORTS_WAVE_VOTE
-	if (WaveActiveAnyTrue(!bSuccess))
-#endif
-	{
-		const bool bCompute = !bSuccess;
-		const int2 DirectionE = kOffsetSE;
-		const int2 DirectionS = kOffsetSW;
-		
-		tsr_half BilateralWeights[4];
-		ComputeDepthBilaterals(
-			DirectionE, DirectionS,
-			bCompute,
-			DevizeZNeighborhood,
-			/* inout */ DepthError,
-			/* out */ BilateralWeights);
-		
-		ComputeVelocityJacobian(
-			DirectionE, DirectionS,
-			bCompute,
-			PixelVelocityNeighborhood,
-			BilateralWeights,
-			/* inout */ ReprojectionJacobian);
-			
-		// Rotate the diagonal jacobian back to horizontal/vertical
-		if (bCompute)
-		{
-			tsr_half2 DifferentialSE = ReprojectionJacobian[0];
-			tsr_half2 DifferentialSW = ReprojectionJacobian[1];
-			ReprojectionJacobian[0] = DifferentialSE * tsr_half(+0.5) + DifferentialSW * tsr_half(-0.5);
-			ReprojectionJacobian[1] = DifferentialSE * tsr_half(+0.5) + DifferentialSW * tsr_half(+0.5);
-		}
-	}
-	
-	// Flips the signs due to the butterfly kernel.
-	#if CONFIG_BUTTERFLY_KERNEL && 1
-		tsr_half2 LaneOffsetSign = tsr_half2(GetLaneOffsetSign());
-		ReprojectionJacobian[0] *= LaneOffsetSign.x;
-		ReprojectionJacobian[1] *= LaneOffsetSign.y;
-	#endif
-} // ComputeReprojectionJacobian()
-
-void FetchAndComputeScreenVelocity(
-	tsr_short2 InputPixelPos,
-	float ClosestDeviceZ,
-	tsr_short2 ReprojectionOffset,
-	out float3 ScreenVelocity,
-	out bool bHasPixelAnimation)
-{
-	float4 EncodedVelocity = SceneVelocityTexture[InputPixelPos + ReprojectionOffset];
-
-	#if VELOCITY_ENCODE_HAS_PIXEL_ANIMATION
-		bHasPixelAnimation = DecodeHasPixelAnimationFromVelocityTexture(EncodedVelocity);
-	#endif
-	
-	#if CONFIG_USE_SCENE_VELOCITY
-	BRANCH
-	if (EncodedVelocity.x > 0.0)
-	{
-		ScreenVelocity = DecodeVelocityFromTexture(EncodedVelocity);
-	}
-	else
-	#endif
-	{
-		float2 ScreenPos = ApplyScreenTransform(float2(int2(InputPixelPos)), InputPixelPosToScreenPos);
-		ScreenVelocity = ComputeStaticVelocity(ScreenPos, ClosestDeviceZ);
-	}
-} // FetchAndComputeScreenVelocity()
 
 /** Spatial anti-alias the depth buffer and return the boundary. */
 tsr_half2 ComputeReprojectionBoundary(
@@ -575,65 +137,6 @@ tsr_half2 ComputeReprojectionBoundary(
 	return ReprojectionBoundary;
 } // ComputeReprojectionBoundary()
 
-void ScatterClosestOccluder(bool bValidOutputPixel, float2 ScreenPos, float2 FinalScreenVelocity, float PrevClosestDeviceZ)
-{
-	const float PrevUseCountQuantization = 63.0;
-
-	float2 PrevScreenPos = ScreenPos - FinalScreenVelocity.xy;
-	float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
-
-	uint EncodedHoleFillingVelocity = EncodeHoleFillingVelocity(FinalScreenVelocity.xy * ScreenVelocityToInputPixelVelocity);
-
-	bool bValidHistoryCoord = bValidOutputPixel && all(and(PrevInputBufferUV > PrevOutputBufferUVMin, PrevInputBufferUV < PrevOutputBufferUVMax));
-
-	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
-	
-	#if CONFIG_SUPPORT_ORTHO_VIEW
-	BRANCH
-	if (IsOrthoProjection())
-	{
-		uint Depth = clamp(uint(round(PrevClosestDeviceZ * 8388607.0)), 0, 8388607) << 9;
-
-		uint PrevClosestDepth0 = Depth | ((EncodedHoleFillingVelocity >> 9u) & 0x1FFu);
-		uint PrevClosestDepth1 = Depth | ((EncodedHoleFillingVelocity >> 0u) & 0x1FFu);
-		
-		UNROLL_N(4)
-		for (uint i = 0; i < 4; i++)
-		{
-			float Weight = GetSampleWeight(BilinearInter, i);
-			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-			uint FinalAdd = uint(round(Weight * PrevUseCountQuantization));
-			
-			PixelPos.x = ((FinalAdd > 0) && bValidHistoryCoord) ? PixelPos.x : (~0);
-
-			uint PreviousDepth0;
-			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 0)], PrevClosestDepth0, /* out */ PreviousDepth0);
-
-			PixelPos.x = select(PreviousDepth0 < PrevClosestDepth0, PixelPos.x, ~0u);
-			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 1)], PrevClosestDepth1);
-		}
-	}
-	else
-	#endif // CONFIG_SUPPORT_ORTHO_VIEW
-	{
-		uint PrevClosestDepth = (f32tof16(PrevClosestDeviceZ) << VELOCITY_HOLE_FILLING_BITS) | EncodedHoleFillingVelocity;
-			
-		UNROLL_N(4)
-		for (uint i = 0; i < 4; i++)
-		{
-			float Weight = GetSampleWeight(BilinearInter, i);
-			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-			uint FinalAdd = uint(round(Weight * PrevUseCountQuantization));
-			
-			PixelPos.x = ((FinalAdd > 0) && bValidHistoryCoord) ? PixelPos.x : (~0);
-
-			InterlockedMax(PrevAtomicOutput[tsr_ushort3(PixelPos, 0)], PrevClosestDepth);
-		}
-	}
-} // ScatterClosestOccluder()
-		
 
 //------------------------------------------------------- ENTRY POINT
 
@@ -661,7 +164,7 @@ void MainCS(
 	uint EncodedReprojectionJacobian;
 	uint EncodedDeviceZError;
 	bool bHasPixelAnimation;
-	tsr_half VelocityEdge;
+	tsr_half ReprojectionEdge;
 	BRANCH
 	if (bReprojectionField)
 	{
@@ -670,7 +173,7 @@ void MainCS(
 		float4 VelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES];
 		ISOLATE
 		{
-			FetchDepthVelocity3x3(InputPixelPos, /* out */ DevizeZNeighborhood, /* out */ VelocityNeighborhood);
+			FetchDepthVelocity3x3(SceneDepthTexture, SceneVelocityTexture, InputPixelPos, /* out */ DevizeZNeighborhood, /* out */ VelocityNeighborhood);
 		}
 
 		// Convert velocities to pixel velocities to take down register pressure.
@@ -722,6 +225,7 @@ void MainCS(
 			// Compute the dilated screen velocity.
 			bool bDildatedHasPixelAnimation;
 			FetchAndComputeScreenVelocity(
+				SceneVelocityTexture,
 				InputPixelPos,
 				ClosestDeviceZ,
 				ReprojectionOffset,
@@ -729,8 +233,7 @@ void MainCS(
 				/* out */ bDildatedHasPixelAnimation);
 		}
 	
-		tsr_half2 NeighborDeltaPixelVelocity = tsr_half2((DilatedScreenVelocity.xy - ScreenVelocity) * ScreenVelocityToInputPixelVelocity);
-		VelocityEdge = saturate(tsr_half(1.1) - dot(abs(NeighborDeltaPixelVelocity), tsr_half(1.1).xx));
+		ReprojectionEdge = ComputeReprojectionEdge(ScreenVelocity, DilatedScreenVelocity.xy);
 		
 		// Compute the reprojection boundary using a depth spatial anti-aliaser
 		ISOLATE
@@ -757,7 +260,7 @@ void MainCS(
 		float DevizeZNeighborhood[CONFIG_BUTTERFLY_SAMPLES];
 		ISOLATE
 		{
-			FetchDepth3x3(InputPixelPos, /* out */ DevizeZNeighborhood);
+			FetchDepth3x3(SceneDepthTexture, InputPixelPos, /* out */ DevizeZNeighborhood);
 		}
 		
 		tsr_short2 ReprojectionOffset;
@@ -775,6 +278,7 @@ void MainCS(
 		// Compute the screen vecocity.
 		float3 ScreenVelocity;
 		FetchAndComputeScreenVelocity(
+			SceneVelocityTexture,
 			InputPixelPos,
 			ClosestDeviceZ,
 			/* ReprojectionOffset = */ tsr_short2(0, 0),
@@ -784,14 +288,14 @@ void MainCS(
 		// Compute the dilated screen vecocity.
 		bool bDilatedHasPixelAnimation;
 		FetchAndComputeScreenVelocity(
+			SceneVelocityTexture,
 			InputPixelPos,
 			ClosestDeviceZ,
 			ReprojectionOffset,
 			/* out */ DilatedScreenVelocity,
 			/* out */ bDilatedHasPixelAnimation);
 			
-		tsr_half2 NeighborDeltaPixelVelocity = tsr_half2((DilatedScreenVelocity.xy - ScreenVelocity.xy) * ScreenVelocityToInputPixelVelocity);
-		VelocityEdge = saturate(tsr_half(1.1) - dot(abs(NeighborDeltaPixelVelocity), tsr_half(1.1).xx));
+		ReprojectionEdge = ComputeReprojectionEdge(ScreenVelocity.xy, DilatedScreenVelocity.xy);
 		
 		// Encode the device z error.
 		{
@@ -853,7 +357,7 @@ void MainCS(
 
 		ClosestDepthOutput[OutputPixelPos] = float2(select(bHasPixelAnimation, -PrevClosestDeviceZ, PrevClosestDeviceZ), ClosestDeviceZ);
 
-		R8Output[uint3(OutputPixelPos, 0)] = uint(round(VelocityEdge * 255.0));
+		R8Output[uint3(OutputPixelPos, 0)] = uint(round(ReprojectionEdge * 255.0));
 		R8Output[uint3(OutputPixelPos, 1)] = EncodedDeviceZError;
 		BRANCH
 		if (bOutputIsMovingTexture)
@@ -882,7 +386,7 @@ void MainCS(
 		
 		// Scatter parallax rejection
 		float2 ScreenPos = ApplyScreenTransform(float2(int2(OutputPixelPos)), InputPixelPosToScreenPos);
-		ScatterClosestOccluder(bValidOutputPixel, ScreenPos, DilatedScreenVelocity.xy, PrevClosestDeviceZ);
+		ScatterClosestOccluder(PrevAtomicOutput, bValidOutputPixel, ScreenPos, DilatedScreenVelocity.xy, PrevClosestDeviceZ);
 		
 		#if DEBUG_OUTPUT
 		for (uint DebugId = 0; DebugId < DEBUG_ARRAY_SIZE; DebugId++)

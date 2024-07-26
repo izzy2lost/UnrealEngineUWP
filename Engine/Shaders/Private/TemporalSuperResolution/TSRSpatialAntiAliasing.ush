@@ -1,6 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TSRCommon.ush"
+#pragma once
+
+#include "TSRKernels.ush"
+
+
+//------------------------------------------------------- DEFINITIONS
+
+#define SPATIAL_ANTI_ALIASER_MIN_LUMIMANCE 0.05
 
 
 //------------------------------------------------------- SAMPLING FUNCTION
@@ -622,3 +629,51 @@ tsr_half2 ComputeReprojectionBoundary(
 	}
 	#endif
 } // ComputeReprojectionBoundary()
+
+
+//------------------------------------------------------- ENCODE ANTI-ALIASING OFFSET
+
+// Spatial anti-aliasing encoding settings.
+#define SPATIAL_ANTI_ALIASING_OFFSET_RANGE 0.5
+#define SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL 4
+
+CALL_SITE_DEBUGLOC
+uint2 EncodeSpatialAntiAliasingOffset(tsr_half2x2 TexelOffset)
+{
+	const uint Mask = (1 << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL) - 1;
+	const uint Zero = Mask / 2;
+
+	tsr_half Multiply = tsr_half(float(Zero) / SPATIAL_ANTI_ALIASING_OFFSET_RANGE);
+
+	uint2 EncodedTexelOffset = 0;
+	EncodedTexelOffset |= fastClamp(uint2(int2(round(TexelOffset[0] * Multiply)) + int(1 + Zero)), uint(1), Mask) << 0;
+	EncodedTexelOffset |= fastClamp(uint2(int2(round(TexelOffset[1] * Multiply)) + int(1 + Zero)), uint(1), Mask) << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL;
+	return EncodedTexelOffset;
+}
+
+CALL_SITE_DEBUGLOC
+uint EncodeSpatialAntiAliasingOffset(tsr_half2 TexelOffset)
+{
+	return dpv_lo(EncodeSpatialAntiAliasingOffset(dpv_interleave_mono_registers(TexelOffset)));
+}
+
+CALL_SITE_DEBUGLOC
+tsr_half2x2 DecodeSpatialAntiAliasingOffset(tsr_ushort2 EncodedInputTexelOffset)
+{
+	const tsr_ushort Mask = tsr_ushort(1 << SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL) - tsr_ushort(1);
+	const tsr_ushort Zero = Mask / tsr_ushort(2);
+	
+	tsr_half Multiply = tsr_half(SPATIAL_ANTI_ALIASING_OFFSET_RANGE / float(Zero));
+
+	tsr_half2x2 TexelOffset;
+	TexelOffset[0] = tsr_half2((EncodedInputTexelOffset >> tsr_ushort(0                                                )) & Mask) * Multiply - (tsr_half(1 + Zero) * Multiply);
+	TexelOffset[1] = tsr_half2((EncodedInputTexelOffset >> tsr_ushort(SPATIAL_ANTI_ALIASING_OFFSET_BITDEPTH_PER_CHANNEL)) & Mask) * Multiply - (tsr_half(1 + Zero) * Multiply);
+
+	return TexelOffset;
+}
+
+CALL_SITE_DEBUGLOC
+tsr_half2 DecodeSpatialAntiAliasingOffset(tsr_ushort EncodedInputTexelOffset)
+{
+	return dpv_lo(DecodeSpatialAntiAliasingOffset(dpv_interleave_mono_registers(EncodedInputTexelOffset)));
+}

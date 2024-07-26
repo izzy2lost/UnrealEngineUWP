@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "TSRCommon.ush"
+#include "TSRKernels.ush"
 #include "/Engine/Public/LaneVectorization.ush"
 
 

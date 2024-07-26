@@ -6,6 +6,7 @@
 //------------------------------------------------------- INCLUDES
 
 #include "TSRColorSpace.ush"
+#include "TSRSpatialAntiAliasing.ush"
 #include "TSRConvolutionNetworkPass.ush"
 
 

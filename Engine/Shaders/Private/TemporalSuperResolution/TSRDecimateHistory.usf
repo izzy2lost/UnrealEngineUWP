@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "TSRDepthVelocityAnalysis.ush"
+#include "TSRClosestOccluder.ush"
 #include "TSRColorSpace.ush"
 #include "TSRReprojectionField.ush"
 
@@ -11,19 +13,6 @@
 #define CONFIG_KERNEL 0
 
 #define CONFIG_MANUAL_LDS_SPILL 1
-
-#define CONFIG_VELOCITY_SAMPLES 9
-#define CONFIG_VELOCITY_SAMPLE_PAIRS ((CONFIG_VELOCITY_SAMPLES - 1) / 2)
-
-#if CONFIG_BUTTERFLY_KERNEL
-	#if CONFIG_VELOCITY_SAMPLES == 9
-		#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 4
-	#else
-		#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES 3
-	#endif
-#else // !CONFIG_BUTTERFLY_KERNEL
-	#define CONFIG_VELOCITY_PRE_FETCH_SAMPLES (CONFIG_VELOCITY_SAMPLES)
-#endif
 
 /** Whether to compile the moire reprojection. */
 #define CONFIG_MOIRE_REPROJECTION (DIM_MOIRE_REPROJECTION)
@@ -61,7 +50,6 @@ FScreenTransform ScreenPosToResurrectionGuideBufferUV;
 float2 ResurrectionGuideUVViewportBilinearMin;
 float2 ResurrectionGuideUVViewportBilinearMax;
 float3 HistoryGuideQuantizationError;
-float ParallaxRejectionMaskThreshold;
 float ResurrectionFrameIndex;
 float PrevFrameIndex;
 float4x4 ClipToResurrectionClip;
@@ -89,354 +77,6 @@ static float4 Debug[DEBUG_ARRAY_SIZE];
 
 
 //------------------------------------------------------- FUNCTIONS
-
-void LoadReprojectionNeighborhood(
-	tsr_short2 InputPixelPos,
-	out uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES])
-{
-	tsr_short2 LaneOffsetSign = GetLaneOffsetSign();
-
-	UNROLL_N(CONFIG_VELOCITY_PRE_FETCH_SAMPLES)
-	for (uint i = 0; i < CONFIG_VELOCITY_PRE_FETCH_SAMPLES; i++)
-	{
-		tsr_short2 SampleInputPixelPos;
-		#if CONFIG_BUTTERFLY_KERNEL
-		{
-			tsr_short2 Offset = tsr_short2(Offsets2x2[i]) * LaneOffsetSign;
-
-			SampleInputPixelPos = InputPixelPos + Offset;
-			SampleInputPixelPos = ClampPixelOffset(SampleInputPixelPos, InputPixelPosMin, InputPixelPosMax);
-		}
-		#else
-		{
-			tsr_short2 Offset;
-			#if CONFIG_VELOCITY_SAMPLES == 9
-				Offset = tsr_short2(kOffsets3x3[kSquareIndexes3x3[i]]);
-			#elif CONFIG_VELOCITY_SAMPLES == 5
-				Offset = tsr_short2(kOffsets3x3[kPlusIndexes3x3[i]]);
-			#endif
-
-			SampleInputPixelPos = InputPixelPos + ClampPixelOffset(
-				InputPixelPos,
-				Offset, Offset,
-				InputPixelPosMin, InputPixelPosMax);
-		}
-		#endif
-
-		EncodedReprojectionVectorNeighborhood[i] = ReprojectionVectorTexture[SampleInputPixelPos];
-	}
-} // LoadReprojectionNeighborhood()
-
-void ComputePixelVelocityNeighborhood(
-	uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
-	out float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES])
-{
-	UNROLL_N(CONFIG_VELOCITY_PRE_FETCH_SAMPLES)
-	for (uint i = 0; i < CONFIG_VELOCITY_PRE_FETCH_SAMPLES; i++)
-	{
-		PixelVelocityNeighborhood[i] = DecodeReprojectionVector(EncodedReprojectionVectorNeighborhood[i]) * ScreenVelocityToInputPixelVelocity;
-	}
-} // ComputePixelVelocityNeighborhood()
-
-/** Compute the reprojection edge from the pixel velocities. */
-void ComputeReprojectionEdge(
-	float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES],
-	out tsr_half ReprojectionEdge)
-{
-	ReprojectionEdge = tsr_half(0.0);
-
-	// Sample
-	float2 ScreenPixelVelocity = PixelVelocityNeighborhood[0];
-	tsr_short2 LaneOffsetSign = GetLaneOffsetSign();
-
-	UNROLL_N(CONFIG_VELOCITY_SAMPLE_PAIRS)
-	for (uint i = 0; i < CONFIG_VELOCITY_SAMPLE_PAIRS; i++)
-	ISOLATE
-	{
-		tsr_short2 Offset0;
-		tsr_short2 Offset1;
-			
-		float2 NeighborPixelVelocity0;
-		float2 NeighborPixelVelocity1;
-
-		#if CONFIG_BUTTERFLY_KERNEL
-		{
-			const uint PairIndex = i;
-				
-			const uint ButterflyArray0[] = { 0x0, 0x0, 0x0, 0x1 };
-			const uint ButterflyArray1[] = { 0x1, 0x2, 0x3, 0x2 };
-				
-			FWaveBroadcastSettings BroadcastSettings[2];
-			BroadcastSettings[0] = InitWaveXorButterfly(ButterflyArray0[PairIndex]);
-			BroadcastSettings[1] = InitWaveXorButterfly(ButterflyArray1[PairIndex]);
-				
-			uint FetchIndex[2];
-			if (PairIndex == 3)
-			{
-				FetchIndex[0] = 2;
-				FetchIndex[1] = 1;
-				Offset0 = tsr_short2(-1, 1);
-			}
-			else
-			{
-				FetchIndex[0] = PairIndex + 1;
-				FetchIndex[1] = 0;
-				Offset0 = tsr_short2(Offsets2x2[PairIndex + 1]);
-			}
-
-			Offset0 *= LaneOffsetSign;
-			Offset1 = -Offset0;
-
-			NeighborPixelVelocity0 = WaveBroadcast(BroadcastSettings[0], PixelVelocityNeighborhood[FetchIndex[0]]);
-			NeighborPixelVelocity1 = WaveBroadcast(BroadcastSettings[1], PixelVelocityNeighborhood[FetchIndex[1]]);
-		}
-		#else
-		{
-			const uint NeightbordId0 = i + 1;
-			const uint NeightbordId1 = i + 1 + CONFIG_VELOCITY_SAMPLE_PAIRS;
-			
-			#if CONFIG_VELOCITY_SAMPLES == 9
-				Offset0 = tsr_short2(kOffsets3x3[kSquareIndexes3x3[NeightbordId0]]);
-				Offset1 = tsr_short2(kOffsets3x3[kSquareIndexes3x3[NeightbordId1]]);
-			#elif CONFIG_VELOCITY_SAMPLES == 5
-				Offset0 = tsr_short2(kOffsets3x3[kPlusIndexes3x3[NeightbordId0]]);
-				Offset1 = tsr_short2(kOffsets3x3[kPlusIndexes3x3[NeightbordId1]]);
-			#endif
-					
-			NeighborPixelVelocity0 = PixelVelocityNeighborhood[NeightbordId0];
-			NeighborPixelVelocity1 = PixelVelocityNeighborhood[NeightbordId1];
-		}
-		#endif
-
-		tsr_half2 NeighborDeltaPixelVelocity0 = tsr_half2(ScreenPixelVelocity - NeighborPixelVelocity0);
-		tsr_half2 NeighborDeltaPixelVelocity1 = tsr_half2(ScreenPixelVelocity - NeighborPixelVelocity1);
-			
-		// Reject high frequency on reprojection edge discontinuity.
-		{
-			tsr_half IsOverlapingEdge0 = tsr_half(1.0) - dot(saturate(abs(NeighborDeltaPixelVelocity0 * Offset0)), tsr_half(1.0).xx); // * saturate(ScreenPixelVelocityLength - NeighborPixelVelocityLength0);
-			tsr_half IsOverlapingEdge1 = tsr_half(1.0) - dot(saturate(abs(NeighborDeltaPixelVelocity1 * Offset1)), tsr_half(1.0).xx); // * saturate(ScreenPixelVelocityLength - NeighborPixelVelocityLength1);
-				
-			tsr_half IsOverlapingEdge = min(IsOverlapingEdge0, IsOverlapingEdge1);
-
-			if (i == 0)
-				ReprojectionEdge = IsOverlapingEdge;
-			else
-				ReprojectionEdge = min(ReprojectionEdge, IsOverlapingEdge);
-		}
-	} // for (uint i = 0; i < CONFIG_VELOCITY_SAMPLE_PAIRS; i++)
-
-	// Remove noise from high frequency rejections.
-	ReprojectionEdge = saturate(ReprojectionEdge * tsr_half(1.1));
-} // ComputeReprojectionEdge()
-
-void LoadPrevAtomicTexturesSamples(
-	float2 PrevScreenPos,
-	out uint HistoryClosestDeviceZSamples0[4],
-	out uint HistoryClosestDeviceZSamples1[4])
-{
-	float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
-	PrevInputBufferUV = INVARIANT(PrevInputBufferUV);
-	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
-
-	UNROLL_N(4)
-	for (uint i = 0; i < 4; i++)
-	{
-		float BilinearWeight = GetSampleWeight(BilinearInter, i);
-		uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-		HistoryClosestDeviceZSamples0[i] = PrevAtomicTextureArray[uint3(PixelPos, 0)];
-
-		#if CONFIG_SUPPORT_ORTHO_VIEW
-		{
-			HistoryClosestDeviceZSamples1[i] = PrevAtomicTextureArray[uint3(PixelPos, 1)];
-		}
-		#else
-		{
-			HistoryClosestDeviceZSamples1[i] = 0;
-		}
-		#endif
-	}
-} // LoadPrevAtomicTexturesSamples()
-
-void ProcessPrevAtomicTexturesSamples(
-	uint HistoryClosestDeviceZSamples0[4],
-	uint HistoryClosestDeviceZSamples1[4],
-	float2 ScreenPos,
-	float2 ScreenVelocity,
-	float PrevDeviceZ,
-	float DeviceZError,
-	bool bIsOffScreen,
-	out bool bIsParallaxDisocclusion,
-	out float2 HoleFillingPixelVelocity,
-	out bool bCanHoleFill)
-{
-	float WorldDepth = ConvertFromDeviceZ(PrevDeviceZ);
-	float WorldDepthError = abs(WorldDepth - ConvertFromDeviceZ(PrevDeviceZ + DeviceZError));
-	
-	float2 PrevScreenPos = ScreenPos - ScreenVelocity;
-	float2 PrevInputBufferUV = (InputInfo_ScreenPosToViewportScale * PrevScreenPos + InputInfo_ScreenPosToViewportBias) * InputInfo_ExtentInverse;
-	PrevInputBufferUV = INVARIANT(PrevInputBufferUV);
-	FBilinearSampleInfos BilinearInter = GetBilinearSampleLevelInfos(PrevInputBufferUV, InputInfo_Extent, InputInfo_ExtentInverse);
-	
-	tsr_half ParallaxRejectionMask = tsr_half(0.0);
-	bool bIsValidHoleFillingPixelVelocity = false;
-	uint EncodedHoleFillingVelocity = 0;
-	#if CONFIG_SUPPORT_ORTHO_VIEW
-	BRANCH
-	if (IsOrthoProjection())
-	{
-		float ClosestDeviceZ = 0.0f;
-
-		UNROLL_N(4)
-		for (uint i = 0; i < 4; i++)
-		{
-			float BilinearWeight = GetSampleWeight(BilinearInter, i);
-			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-			bool bValidPixelPos = all(and(PixelPos >= InputInfo_ViewportMin, PixelPos < InputInfo_ViewportMax));
-			
-			uint SampleHistoryClosestDeviceZ0 = HistoryClosestDeviceZSamples0[i];
-			uint SampleHistoryClosestDeviceZ1 = HistoryClosestDeviceZSamples1[i];
-		
-			uint SampleEncodedHoleFillingVelocity = ((SampleHistoryClosestDeviceZ0 & 0x1FFu) << 9) | (SampleHistoryClosestDeviceZ1 & 0x1FFu);
-
-			float HistoryClosestDeviceZ = float((SampleHistoryClosestDeviceZ0 & 0xFFFFFE00u) >> 9u) * rcp(8388607.0);
-			float HistoryClosestWorldDepth = ConvertFromDeviceZ(HistoryClosestDeviceZ);
-
-			tsr_half DepthRejection;
-			{
-				const float PixelDepthError = 3.0;
-				const float RadiusToDiameter = 2.0;
-				float WorldDepthEpsilon = GetDepthPixelRadiusForProjectionType(HistoryClosestWorldDepth) * PixelDepthError * RadiusToDiameter;
-				WorldDepthEpsilon += WorldDepthError;
-				float DeltaDepth = abs(HistoryClosestWorldDepth - WorldDepth);
-
-				DepthRejection = saturate(tsr_half(2.0) - tsr_half(DeltaDepth / WorldDepthEpsilon));
-			}
-
-			bIsValidHoleFillingPixelVelocity = bIsValidHoleFillingPixelVelocity || bValidPixelPos;
-
-			FLATTEN
-			if (bValidPixelPos && HistoryClosestDeviceZ > ClosestDeviceZ)
-			{
-				EncodedHoleFillingVelocity = SampleEncodedHoleFillingVelocity;
-			}
-
-			ParallaxRejectionMask = select(bValidPixelPos, ParallaxRejectionMask + tsr_half(BilinearWeight) * DepthRejection, ParallaxRejectionMask);
-		}
-	}
-	else
-	#endif // CONFIG_SUPPORT_ORTHO_VIEW
-	{
-		UNROLL_N(4)
-		for (uint i = 0; i < 4; i++)
-		{
-			float BilinearWeight = GetSampleWeight(BilinearInter, i);
-			uint2 PixelPos = GetSamplePixelCoord(BilinearInter, i);
-
-			bool bValidPixelPos = all(and(PixelPos >= InputInfo_ViewportMin, PixelPos < InputInfo_ViewportMax));
-			
-			uint SampleHistoryClosestDeviceZ = HistoryClosestDeviceZSamples0[i];
-		
-			float HistoryClosestDeviceZ = f16tof32(SampleHistoryClosestDeviceZ >> VELOCITY_HOLE_FILLING_BITS);
-			float HistoryClosestWorldDepth = ConvertFromDeviceZ(HistoryClosestDeviceZ);
-
-			tsr_half DepthRejection;
-			{
-				const float PixelDepthError = 3.0;
-				const float RadiusToDiameter = 2.0;
-				float WorldDepthEpsilon = GetDepthPixelRadiusForProjectionType(HistoryClosestWorldDepth) * PixelDepthError * RadiusToDiameter;
-				WorldDepthEpsilon += WorldDepthError;
-				float DeltaDepth = abs(HistoryClosestWorldDepth - WorldDepth);
-
-				DepthRejection = saturate(tsr_half(2.0) - tsr_half(DeltaDepth / WorldDepthEpsilon));
-			}
-
-			bIsValidHoleFillingPixelVelocity = bIsValidHoleFillingPixelVelocity || bValidPixelPos;
-
-			EncodedHoleFillingVelocity = select(bValidPixelPos, max(EncodedHoleFillingVelocity, SampleHistoryClosestDeviceZ), EncodedHoleFillingVelocity);
-			ParallaxRejectionMask = select(bValidPixelPos, ParallaxRejectionMask + tsr_half(BilinearWeight) * DepthRejection, ParallaxRejectionMask);
-		}
-	}
-	
-	float HoleFillingPixelAngle;
-	float HoleFillingPixelLength;
-	DecodeHoleFillingVelocity(EncodedHoleFillingVelocity, /* out */ HoleFillingPixelAngle, /* out */ HoleFillingPixelLength);
-
-	bool bIsEncodablePixelLength = HoleFillingPixelLength < GetMaxEncodableHoleFillingPixelLength();
-
-	HoleFillingPixelVelocity = CartesianHoleFillingVelocity(HoleFillingPixelAngle, HoleFillingPixelLength);
-	bCanHoleFill = bIsValidHoleFillingPixelVelocity && bIsEncodablePixelLength;
-	//bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
-
-	// Dim down the parallax rejection mask if the hole fill velocity matches
-	FLATTEN
-	if (bIsEncodablePixelLength)
-	{
-		const float AnglePrecision = 2.0 * PI * pow(0.5, VELOCITY_HOLE_FILLING_ANGLE_BITS);
-		const float LengthPixelPrecision = VELOCITY_HOLE_FILLING_LENGTH_PRECISION;
-
-		float2 PixelVelocity = ScreenVelocity * ScreenVelocityToInputPixelVelocity;
-
-		float PixelVelocityAngle, PixelVelocityLength;
-		PolarCoordinateHoleFillingVelocity(PixelVelocity, /* out */ PixelVelocityAngle, /* out */ PixelVelocityLength);
-		
-		float CartesianCoordinatePrecision = AnglePrecision * PixelVelocityLength;
-
-		float PixelLengthDiff = abs(HoleFillingPixelLength - PixelVelocityLength) - 2.0;
-		float PixelAngleDiff = abs(PixelVelocityAngle - HoleFillingPixelAngle);
-		PixelAngleDiff = min(PixelAngleDiff, 2.0 * PI - PixelAngleDiff);
-		
-		float VelocityDiff = length(HoleFillingPixelVelocity - PixelVelocity);
-		float PixelAngleCompare = saturate(2.0 - PixelAngleDiff / AnglePrecision);
-		float PixelLengthCompare = saturate(1.0 + rcp(LengthPixelPrecision) - PixelLengthDiff);
-
-		float MinParallaxRejectionMaskPolar = min(PixelLengthCompare, PixelAngleCompare);
-		float MinParallaxRejectionMaskCartesian = saturate(1.0 + CartesianCoordinatePrecision - VelocityDiff);
-		
-		float MinParallaxRejectionMask = lerp(MinParallaxRejectionMaskCartesian, MinParallaxRejectionMaskPolar, saturate(min(HoleFillingPixelLength, PixelVelocityLength) - 2.0));
-
-		ParallaxRejectionMask = max(ParallaxRejectionMask, tsr_half(MinParallaxRejectionMask));
-	}
-
-	bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
-} // ProcessPrevAtomicTexturesSamples()
-
-template<typename Type>
-struct FCatmullRomFetches
-{
-	Type Colors[BICUBIC_CATMULL_ROM_SAMPLES];
-	tsr_half Weights[BICUBIC_CATMULL_ROM_SAMPLES];
-	
-	void FetchSamples(Texture2DArray<Type> InTexture, float2 UV, float SliceIndex, float2 Size, float2 InvSize, float2 MinUV, float2 MaxUV)
-	{
-		FCatmullRomSamples Samples = GetBicubic2DCatmullRomSamples_Stubbe(UV, Size, InvSize);
-		
-		UNROLL_N(BICUBIC_CATMULL_ROM_SAMPLES)
-		for (uint i = 0; i < BICUBIC_CATMULL_ROM_SAMPLES; i++)
-		{
-			float2 SampleUV = Samples.UV[i];
-			SampleUV = fastClamp(
-				SampleUV,
-				MinUV,
-				MaxUV);
-
-			Colors[i] = InTexture.SampleLevel(GlobalBilinearClampedSampler, float3(SampleUV, SliceIndex), 0);
-			Weights[i] = tsr_half(Samples.Weight[i]);
-		}
-	}
-
-	Type AccumulateSamples()
-	{
-		Type Color = tsr_half(0.0);
-		UNROLL_N(BICUBIC_CATMULL_ROM_SAMPLES)
-		for (uint i = 0; i < BICUBIC_CATMULL_ROM_SAMPLES; i++)
-		{
-			Color += Colors[i] * Weights[i];
-		}
-		return Color;
-	}
-};
 
 // Correct pre exposure of the guide color.
 tsr_halfC CorrectGuideColorExposure(tsr_halfC ReprojectedHistoryGuideColor, const float PreExposureCorrection)
@@ -502,7 +142,9 @@ void ReprojectAllPrevTextures(
 	{
 		float2 ScreenPos = ApplyScreenTransform(float2(InputPixelPos), InputPixelPosToScreenPos);
 		float2 PrevScreenPos = ScreenPos - DecodeReprojectionVector(EncodedReprojectionVector);
-		LoadPrevAtomicTexturesSamples(PrevScreenPos,
+		LoadPrevAtomicTexturesSamples(
+			PrevAtomicTextureArray,
+			PrevScreenPos,
 			/* out */ HistoryClosestDeviceZSamples0,
 			/* out */ HistoryClosestDeviceZSamples1);
 	}
@@ -627,7 +269,7 @@ void MainCS(
 			bHasPixelAnimation = DeviceZAndPrevDeviceZ.r < 0.0;
 			DeviceZError = DecodeDeviceZError(PrevDeviceZ, EncodedDeviceZError);
 
-			//LoadReprojectionNeighborhood(InputPixelPos, /* out */ EncodedReprojectionVectorNeighborhood);
+			//FetchReprojectionNeighborhood(ReprojectionVectorTexture, InputPixelPos, /* out */ EncodedReprojectionVectorNeighborhood);
 			//DilatedEncodedReprojectionVector = EncodedReprojectionVectorNeighborhood[0];
 			DilatedEncodedReprojectionVector = ReprojectionFieldOutput[tsr_ushort3(InputPixelPos, 0)];
 		}

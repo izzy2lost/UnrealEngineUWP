@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "TSRKernels.ush"
+#include "TSRSpatialAntiAliasing.ush"
 #include "TSRColorSpace.ush"
 #include "TSRReprojectionField.ush"
 
