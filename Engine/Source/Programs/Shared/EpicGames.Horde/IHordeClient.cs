@@ -25,6 +25,11 @@ namespace EpicGames.Horde
 		Uri ServerUrl { get; }
 
 		/// <summary>
+		/// Accessor for the artifact collection
+		/// </summary>
+		IArtifactCollection Artifacts { get; }
+
+		/// <summary>
 		/// Connect to the Horde server
 		/// </summary>
 		/// <param name="allowPrompt">Whether to allow prompting for credentials</param>

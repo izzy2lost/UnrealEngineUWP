@@ -15,17 +15,16 @@ namespace Horde.Commands.Bundles
 		[Description("Artifact keys to search for. Multiple keys may be added to artifacts at upload time, eg. 'job:63dd5487c67f8a45453361c5/step:62ce'.")]
 		public List<string> Keys { get; } = new List<string>();
 
-		readonly HordeHttpClient _hordeHttpClient;
+		readonly IHordeClient _hordeClient;
 
-		public ArtifactFind(HordeHttpClient httpClient)
+		public ArtifactFind(IHordeClient hordeClient)
 		{
-			_hordeHttpClient = httpClient;
+			_hordeClient = hordeClient;
 		}
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			List<GetArtifactResponse> artifacts = await _hordeHttpClient.FindArtifactsAsync(keys: Keys);
-			foreach (GetArtifactResponse artifact in artifacts)
+			await foreach(IArtifact artifact in _hordeClient.Artifacts.FindAsync(keys: Keys))
 			{
 				logger.LogInformation("");
 				logger.LogInformation("Artifact {Id} ({Type})", artifact.Id, artifact.Type);

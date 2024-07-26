@@ -202,7 +202,7 @@ namespace HordeServer.Artifacts
 			{
 				if (_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.ReadArtifact, User))
 				{
-					response.Artifacts.Add(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Keys, artifact.Metadata, artifact.CreatedAtUtc) { CommitId = artifact.CommitId });
+					response.Artifacts.Add(new GetArtifactResponse(artifact));
 				}
 			}
 
@@ -230,7 +230,7 @@ namespace HordeServer.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
-			return PropertyFilter.Apply(new GetArtifactResponse(artifact.Id, artifact.Name, artifact.Type, artifact.Description, artifact.StreamId, artifact.Keys, artifact.Metadata, artifact.CreatedAtUtc) { CommitId = artifact.CommitId }, filter);
+			return PropertyFilter.Apply(new GetArtifactResponse(artifact), filter);
 		}
 
 		/// <summary>

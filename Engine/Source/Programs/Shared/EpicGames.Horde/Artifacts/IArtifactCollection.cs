@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
-using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Streams;
 
-namespace HordeServer.Artifacts
+namespace EpicGames.Horde.Artifacts
 {
 	/// <summary>
 	/// Interface for a collection of artifacts

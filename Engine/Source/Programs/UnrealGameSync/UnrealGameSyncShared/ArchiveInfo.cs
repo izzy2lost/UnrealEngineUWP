@@ -317,7 +317,7 @@ namespace UnrealGameSync
 				ArtifactType artifactType = new ArtifactType("ugs-pcb");
 				string[] artifactKeys = new[] { $"ugs-project={projectIdentifier}" };
 
-				List<GetArtifactResponse> artifactResponses = await hordeHttpClient.FindArtifactsByTypeAsync(artifactType, keys: artifactKeys, cancellationToken: cancellationToken);
+				List<GetArtifactResponse> artifactResponses = await hordeHttpClient.FindArtifactsAsync(type: artifactType, keys: artifactKeys, cancellationToken: cancellationToken);
 				foreach (IGrouping<ArtifactName, GetArtifactResponse> group in artifactResponses.GroupBy(x => x.Name))
 				{
 					GetArtifactResponse? first = group.FirstOrDefault();

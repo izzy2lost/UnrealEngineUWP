@@ -2,6 +2,7 @@
 
 using System.Diagnostics.CodeAnalysis;
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Fleet;

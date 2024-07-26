@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
@@ -75,30 +76,20 @@ namespace EpicGames.Horde.Artifacts
 	/// </summary>
 	public class GetArtifactResponse
 	{
-		/// <summary>
-		/// Identifier for the Artifact. Randomly generated.
-		/// </summary>
-		public ArtifactId Id { get; }
+		/// <inheritdoc cref="IArtifact.Id"/>
+		public ArtifactId Id { get; set; }
 
-		/// <summary>
-		/// Name of the artifact
-		/// </summary>
-		public ArtifactName Name { get; }
+		/// <inheritdoc cref="IArtifact.Name"/>
+		public ArtifactName Name { get; set; }
 
-		/// <summary>
-		/// Type of artifact
-		/// </summary>
-		public ArtifactType Type { get; }
+		/// <inheritdoc cref="IArtifact.Type"/>
+		public ArtifactType Type { get; set; }
 
-		/// <summary>
-		/// Description for this artifact
-		/// </summary>
+		/// <inheritdoc cref="IArtifact.Description"/>
 		public string? Description { get; }
 
-		/// <summary>
-		/// Stream that produced the artifact
-		/// </summary>
-		public StreamId StreamId { get; }
+		/// <inheritdoc cref="IArtifact.StreamId"/>
+		public StreamId StreamId { get; set; }
 
 		/// <summary>
 		/// Change number
@@ -111,44 +102,55 @@ namespace EpicGames.Horde.Artifacts
 		}
 		int? _change;
 
-		/// <summary>
-		/// Commit
-		/// </summary>
-		public CommitId CommitId
+		/// <inheritdoc cref="IArtifact.CommitId"/>
+		public CommitIdWithOrder CommitId
 		{
-			get => _commitId ?? CommitId.FromPerforceChange(_change) ?? CommitId.Empty;
+			get => _commitId ?? CommitIdWithOrder.FromPerforceChange(_change) ?? CommitIdWithOrder.Empty;
 			set => _commitId = value;
 		}
-		CommitId? _commitId;
+		CommitIdWithOrder? _commitId;
 
-		/// <summary>
-		/// Keys used to collate artifacts
-		/// </summary>
-		public IReadOnlyList<string> Keys { get; }
+		/// <inheritdoc cref="IArtifact.Keys"/>
+		public IReadOnlyList<string> Keys { get; set; }
 
-		/// <summary>
-		/// List of metadata properties stored with the artifact, in the form 'Key=Value'
-		/// </summary>
-		public IReadOnlyList<string> Metadata { get; }
+		/// <inheritdoc cref="IArtifact.Metadata"/>
+		public IReadOnlyList<string> Metadata { get; set; }
 
-		/// <summary>
-		/// Time that the artifact was created
-		/// </summary>
+		/// <inheritdoc cref="IArtifact.NamespaceId"/>
+		public NamespaceId NamespaceId { get; set; }
+
+		/// <inheritdoc cref="IArtifact.RefName"/>
+		public RefName RefName { get; set; }
+
+		/// <inheritdoc cref="IArtifact.CreatedAtUtc"/>
 		public DateTime CreatedAtUtc { get; }
+
+		/// <summary>
+		/// Default constructor
+		/// </summary>
+		[JsonConstructor]
+		public GetArtifactResponse()
+		{
+			Keys = Array.Empty<string>();
+			Metadata = Array.Empty<string>();
+		}
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public GetArtifactResponse(ArtifactId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, IReadOnlyList<string> keys, IReadOnlyList<string> metadata, DateTime createdAtUtc)
+		/// <param name="artifact"></param>
+		public GetArtifactResponse(IArtifact artifact)
 		{
-			Id = id;
-			Name = name;
-			Type = type;
-			Description = description;
-			StreamId = streamId;
-			Keys = keys;
-			Metadata = metadata;
-			CreatedAtUtc = createdAtUtc;
+			Id = artifact.Id;
+			Name = artifact.Name;
+			Type = artifact.Type;
+			Description = artifact.Description;
+			StreamId = artifact.StreamId;
+			Keys = artifact.Keys;
+			Metadata = artifact.Metadata;
+			NamespaceId = artifact.NamespaceId;
+			RefName = artifact.RefName;
+			CreatedAtUtc = artifact.CreatedAtUtc;
 		}
 	}
 

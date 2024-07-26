@@ -8,6 +8,7 @@ using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Logs;
@@ -45,6 +46,9 @@ namespace EpicGames.Horde
 		/// <inheritdoc/>
 		public Uri ServerUrl => _serverUrl;
 
+		/// <inheritdoc/>
+		public IArtifactCollection Artifacts { get; }
+
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -55,6 +59,8 @@ namespace EpicGames.Horde
 			_hordeOptions = hordeOptions.Value;
 			_loggerFactory = loggerFactory;
 			_logger = _loggerFactory.CreateLogger<HordeClient>();
+
+			Artifacts = new ArtifactHttpCollection(this);
 		}
 
 		/// <inheritdoc/>
