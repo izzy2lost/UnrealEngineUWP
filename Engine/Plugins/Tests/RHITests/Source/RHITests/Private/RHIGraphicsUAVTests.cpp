@@ -89,8 +89,7 @@ static void Test_GraphicsUAV_Common(FRHICommandListImmediate& RHICmdList,
 	Vertices.Add(FVector4f(-1.0f, +3.0f, 0.0f, 1.0f));
 	Vertices.Add(FVector4f(+3.0f, -1.0f, 0.0f, 1.0f));
 
-	FBufferRHIRef VertexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer,
-		ERHIAccess::VertexOrIndexBuffer, TEXT("GraphicsUAVTests_VertexBuffer"), MakeArrayView(Vertices));
+	FBufferRHIRef VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("GraphicsUAVTests_VertexBuffer"), MakeConstArrayView(Vertices));
 
 	FRHITexture* ColorRTs[1] = { RenderTarget.GetReference() };
 	FRHIRenderPassInfo RenderPassInfo(1, ColorRTs, ERenderTargetActions::DontLoad_DontStore);

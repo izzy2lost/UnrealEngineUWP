@@ -218,13 +218,8 @@ public:
 			FVector3f(+1.0f, -1.0f, -1.0f),
 		};
 
-		IndexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer,
-			TEXT("FInstanceCullingOcclusionQueryBox_IndexBuffer"),
-			MakeArrayView(BoxIndexBufferData));
-
-		VertexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
-			TEXT("FInstanceCullingOcclusionQueryBox_VertexBuffer"),
-			MakeArrayView(BoxVertexBufferData));
+		IndexBuffer = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FInstanceCullingOcclusionQueryBox_IndexBuffer"), MakeConstArrayView(BoxIndexBufferData));
+		VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FInstanceCullingOcclusionQueryBox_VertexBuffer"), MakeConstArrayView(BoxVertexBufferData));
 
 		FVertexDeclarationElementList VertexDeclarationElements;
 		VertexDeclarationElements.Add(FVertexElement(0, 0, VET_Float3, 0, 12));

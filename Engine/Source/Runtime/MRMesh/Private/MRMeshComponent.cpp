@@ -60,11 +60,8 @@ public:
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<DataType>& PerVertexData )
 	{
 		NumVerts = PerVertexData.Num();
-
-		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshVertexBuffer"), PerVertexData);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_ShaderResource, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FMRMeshVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(PerVertexData));
 	}
-
 };
 
 class FMRMeshIndexBuffer : public FIndexBuffer
@@ -74,17 +71,13 @@ public:
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<uint32>& Indices )
 	{
 		NumIndices = Indices.Num();
-
-		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshIndexBuffer"), Indices);
-		IndexBufferRHI = RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_IndexBuffer, sizeof(uint32), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FMRMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	void InitRHIWith(FRHICommandListBase& RHICmdList, const TArray<uint16>& Indices)
 	{
 		NumIndices = Indices.Num();
-
-		FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FMRMeshIndexBuffer"), Indices);
-		IndexBufferRHI = RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), BUF_Static | BUF_IndexBuffer, sizeof(uint16), ERHIAccess::VertexOrIndexBuffer, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FMRMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 };
 

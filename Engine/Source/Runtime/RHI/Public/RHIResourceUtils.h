@@ -43,17 +43,34 @@ struct FRHIResourceCreateInfoUploadArray : public FRHIResourceCreateInfo
 
 namespace UE::RHIResourceUtils
 {
-	template <typename T>
-	static FBufferRHIRef CreateBufferWithData(FRHICommandListBase& RHICmdList, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TConstArrayView<T> Data)
+	template <typename TElementType>
+	static FBufferRHIRef CreateBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, TConstArrayView<TElementType> Array)
 	{
-		FRHIResourceCreateInfoUploadArray CreateInfo(Name, Data);
-		return RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), UsageFlags, Data.GetTypeSize(), ResourceState, CreateInfo);
+		FRHIResourceCreateInfoUploadArray CreateInfo(Name, Array);
+		return RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), UsageFlags, Array.GetTypeSize(), ResourceState, CreateInfo);
 	}
 
-	template<typename T>
-	static FBufferRHIRef CreateBufferWithData(FRHICommandListBase& RHICmdList, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, const TCHAR* Name, TArrayView<T> Data)
+	template<typename TElementType>
+	static FBufferRHIRef CreateVertexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags ExtraFlags, TConstArrayView<TElementType> Array)
 	{
-		return CreateBufferWithData(RHICmdList, UsageFlags, ResourceState, Name, TConstArrayView<T>(Data));
+		return CreateBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::VertexBuffer | ExtraFlags, ERHIAccess::VertexOrIndexBuffer, Array);
+	}
+
+	template<typename TElementType>
+	static FBufferRHIRef CreateVertexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, TConstArrayView<TElementType> Array)
+	{
+		return CreateVertexBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::None, Array);
+	}
+
+	template<typename TElementType>
+	static FBufferRHIRef CreateIndexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags ExtraFlags, TConstArrayView<TElementType> Array)
+	{
+		return CreateBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::IndexBuffer | ExtraFlags, ERHIAccess::VertexOrIndexBuffer, Array);
+	}
+
+	template<typename TElementType>
+	static FBufferRHIRef CreateIndexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, TConstArrayView<TElementType> Array)
+	{
+		return CreateIndexBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::None, Array);
 	}
 }
-

@@ -74,7 +74,7 @@ struct FDrawTestResources
 		{
 			InstanceIDs[i] = i;
 		}
-		InstanceIDBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_InstanceID"), MakeArrayView(InstanceIDs));
+		InstanceIDBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("DrawTest_InstanceID"), MakeConstArrayView(InstanceIDs));
 
 		// Indices for 4 triangles
 		const uint16 Indices[NumTotalVertices] =
@@ -85,7 +85,7 @@ struct FDrawTestResources
 			9, 10, 11 // degenerate
 		};
 
-		IndexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_IndexBuffer"), MakeArrayView(Indices));
+		IndexBuffer = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("DrawTest_IndexBuffer"), MakeConstArrayView(Indices));
 
 		TArray<FVector4f> Vertices;
 		Vertices.Reserve(NumTotalVertices);
@@ -102,7 +102,7 @@ struct FDrawTestResources
 		{
 			Vertices.Add(FVector4f(0.0f, 0.0f, 0.0f, 1.0f));
 		}
-		VertexBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer, TEXT("DrawTest_VertexBuffer"), MakeArrayView(Vertices));
+		VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("DrawTest_VertexBuffer"), MakeConstArrayView(Vertices));
 
 		static constexpr uint32 OutputBufferStride = sizeof(uint32);
 		static constexpr uint32 OutputBufferSize = OutputBufferStride * MaxInstances;
@@ -167,8 +167,13 @@ bool FRHIDrawTests::InternalDrawBaseVertexAndInstance(FRHICommandListImmediate& 
 	FBufferRHIRef DrawArgBuffer;
 	if (DrawKind == EDrawKind::Indirect)
 	{
-		DrawArgBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer, ERHIAccess::IndirectArgs,
-			TEXT("InternalDrawBaseVertexAndInstance_DrawArgs"), MakeArrayView(DrawArgs));
+		DrawArgBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+			RHICmdList,
+			TEXT("InternalDrawBaseVertexAndInstance_DrawArgs"), 
+			EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer,
+			ERHIAccess::IndirectArgs,
+			MakeConstArrayView(DrawArgs)
+		);
 	}
 
 	RHICmdList.Transition(FRHITransitionInfo(Resources.OutputBufferUAV, ERHIAccess::UAVCompute, ERHIAccess::UAVGraphics, EResourceTransitionFlags::None));
@@ -256,7 +261,13 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 	FDrawTestResources Resources(RHICmdList);
 
 	const uint32 CountValues[4] = { 1, 1, 16, 0 };
-	FBufferRHIRef CountBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess, ERHIAccess::IndirectArgs, TEXT("Test_MultiDrawIndirect_Count"), MakeArrayView(CountValues));
+	FBufferRHIRef CountBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+		RHICmdList,
+		TEXT("Test_MultiDrawIndirect_Count"),
+		EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess,
+		ERHIAccess::IndirectArgs,
+		MakeConstArrayView(CountValues)
+	);
 
 	const FRHIDrawIndexedIndirectParameters DrawArgs[] =
 	{
@@ -272,8 +283,13 @@ bool FRHIDrawTests::Test_MultiDrawIndirect(FRHICommandListImmediate& RHICmdList)
 
 	const uint32 ExpectedDrawnInstances[Resources.MaxInstances] = { 1, 0, 1, 1, 0, 1, 1, 0 };
 
-	FBufferRHIRef DrawArgBuffer = UE::RHIResourceUtils::CreateBufferWithData(RHICmdList, EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer, ERHIAccess::IndirectArgs,
-		TEXT("Test_MultiDrawIndirect_DrawArgs"), MakeArrayView(DrawArgs));
+	FBufferRHIRef DrawArgBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+		RHICmdList,
+		TEXT("Test_MultiDrawIndirect_DrawArgs"),
+		EBufferUsageFlags::DrawIndirect | EBufferUsageFlags::UnorderedAccess | EBufferUsageFlags::VertexBuffer,
+		ERHIAccess::IndirectArgs,
+		MakeConstArrayView(DrawArgs)
+	);
 
 	RHICmdList.ClearUAVUint(Resources.OutputBufferUAV, FUintVector4(0));
 
