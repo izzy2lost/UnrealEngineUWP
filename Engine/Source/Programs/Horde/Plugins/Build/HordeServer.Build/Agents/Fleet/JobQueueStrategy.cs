@@ -113,7 +113,7 @@ namespace HordeServer.Agents.Fleet
 			span.SetAttribute("after", jobsCreatedAfter);
 
 			Dictionary<StreamId, StreamConfig> streams = _buildConfig.CurrentValue.Streams.ToDictionary(x => x.Id, x => (StreamConfig)x);
-			IReadOnlyList<IJob> recentJobs = await _jobs.FindAsync(minCreateTime: jobsCreatedAfter, batchState: JobStepBatchState.Ready, cancellationToken: cancellationToken);
+			IReadOnlyList<IJob> recentJobs = await _jobs.FindAsync(new FindJobOptions(MinCreateTime: jobsCreatedAfter, BatchState: JobStepBatchState.Ready), cancellationToken: cancellationToken);
 			span.SetAttribute("numJobs", recentJobs.Count);
 			span.SetAttribute("numUniqueGraphs", recentJobs.Select(x => x.GraphHash).Distinct().Count());
 

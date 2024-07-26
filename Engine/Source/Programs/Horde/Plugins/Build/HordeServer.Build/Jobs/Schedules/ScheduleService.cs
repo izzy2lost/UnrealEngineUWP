@@ -514,7 +514,7 @@ namespace HordeServer.Jobs.Schedules
 			{
 				cancellationToken.ThrowIfCancellationRequested();
 
-				IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(streamId: streamId, templates: new[] { gate.TemplateId }, minCommitId: minCommitId, maxCommitId: maxCommitId, count: 2, cancellationToken: cancellationToken);
+				IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(new FindJobOptions(StreamId: streamId, Templates: new[] { gate.TemplateId }, MinCommitId: minCommitId, MaxCommitId: maxCommitId), count: 2, cancellationToken: cancellationToken);
 
 				IJob? job = jobs.FirstOrDefault(x => maxCommitId == null || x.CommitId < maxCommitId);
 				if (job == null)

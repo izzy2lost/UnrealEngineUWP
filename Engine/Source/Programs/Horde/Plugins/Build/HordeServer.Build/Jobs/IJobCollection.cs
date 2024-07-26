@@ -150,30 +150,12 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Searches for jobs matching the given criteria
 		/// </summary>
-		/// <param name="jobIds">List of job ids to return</param>
-		/// <param name="streamId">The stream containing the job</param>
-		/// <param name="name">Name of the job</param>
-		/// <param name="templates">Templates to look for</param>
-		/// <param name="minCommitId">The minimum commit</param>
-		/// <param name="maxCommitId">The maximum commit</param>
-		/// <param name="preflightCommitId">Preflight change to find</param>
-		/// <param name="preflightOnly">Whether to only include preflights</param>
-		/// <param name="includePreflight">Whether to include preflights in the results</param>
-		/// <param name="startedByUser">User id for which to include jobs</param>
-		/// <param name="preflightStartedByUser">User for which to include preflight jobs</param>
-		/// <param name="minCreateTime">The minimum creation time</param>
-		/// <param name="maxCreateTime">The maximum creation time</param>
-		/// <param name="modifiedBefore">Filter the results by modified time</param>
-		/// <param name="modifiedAfter">Filter the results by modified time</param>
-		/// <param name="batchState">One or more batches matches this state</param>
+		/// <param name="options">Options for the search</param>
 		/// <param name="index">Index of the first result to return</param>
 		/// <param name="count">Number of results to return</param>
-		/// <param name="consistentRead">If the database read should be made to the replica server</param>
-		/// <param name="indexHint">Name of index to be specified as a hint to the database query planner</param>
-		/// <param name="excludeUserJobs">Whether to exclude user jobs from the find</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of jobs matching the given criteria</returns>
-		Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CommitId? preflightCommitId = null, bool? preflightOnly = null, bool? includePreflight = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, JobStepBatchState? batchState = null, int? index = null, int? count = null, bool consistentRead = true, string? indexHint = null, bool? excludeUserJobs = null, CancellationToken cancellationToken = default);
+		Task<IReadOnlyList<IJob>> FindAsync(FindJobOptions options, int? index = null, int? count = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Searches for jobs matching the given criteria
@@ -220,4 +202,53 @@ namespace HordeServer.Jobs
 		/// <returns>Async task</returns>
 		Task UpgradeDocumentsAsync();
 	}
+
+	/// <summary>
+	/// Options for finding jobs
+	/// </summary>
+	/// <param name="JobIds">List of job ids to return</param>
+	/// <param name="StreamId">The stream containing the job</param>
+	/// <param name="Name">Name of the job</param>
+	/// <param name="Templates">Templates to look for</param>
+	/// <param name="MinCommitId">The minimum commit</param>
+	/// <param name="MaxCommitId">The maximum commit</param>
+	/// <param name="PreflightCommitId">Preflight change to find</param>
+	/// <param name="PreflightOnly">Whether to only include preflights</param>
+	/// <param name="IncludePreflight">Whether to include preflights in the results</param>
+	/// <param name="StartedByUser">User id for which to include jobs</param>
+	/// <param name="PreflightStartedByUser">User for which to include preflight jobs</param>
+	/// <param name="MinCreateTime">The minimum creation time</param>
+	/// <param name="MaxCreateTime">The maximum creation time</param>
+	/// <param name="ModifiedBefore">Filter the results by modified time</param>
+	/// <param name="ModifiedAfter">Filter the results by modified time</param>
+	/// <param name="Target">The target to query</param>
+	/// <param name="State">State to query</param>
+	/// <param name="Outcome">Outcomes to return</param>
+	/// <param name="BatchState">One or more batches matches this state</param>
+	/// <param name="ExcludeUserJobs">Whether to exclude user jobs from the find</param>
+	/// <param name="ExcludeCancelled">Whether to exclude cancelled jobs</param>
+	public record class FindJobOptions
+	(
+		JobId[]? JobIds = null,
+		StreamId? StreamId = null,
+		string? Name = null,
+		TemplateId[]? Templates = null,
+		CommitId? MinCommitId = null,
+		CommitId? MaxCommitId = null,
+		CommitId? PreflightCommitId = null,
+		bool? PreflightOnly = null,
+		bool? IncludePreflight = null,
+		UserId? PreflightStartedByUser = null,
+		UserId? StartedByUser = null,
+		DateTimeOffset? MinCreateTime = null,
+		DateTimeOffset? MaxCreateTime = null,
+		DateTimeOffset? ModifiedBefore = null,
+		DateTimeOffset? ModifiedAfter = null,
+		string? Target = null,
+		JobStepState[]? State = null,
+		JobStepOutcome[]? Outcome = null,
+		JobStepBatchState? BatchState = null,
+		bool? ExcludeUserJobs = null,
+		bool? ExcludeCancelled = null
+	);
 }

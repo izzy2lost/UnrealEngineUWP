@@ -187,7 +187,7 @@ namespace HordeServer.Jobs
 			}
 
 			minCreateTime ??= DateTimeOffset.UtcNow.Subtract(TimeSpan.FromDays(1));
-			IReadOnlyList<IJob> jobs = await _jobService.FindJobsAsync(minCreateTime: minCreateTime, maxCreateTime: maxCreateTime);
+			IReadOnlyList<IJob> jobs = await _jobService.FindJobsAsync(new FindJobOptions(MinCreateTime: minCreateTime, MaxCreateTime: maxCreateTime));
 			List<JobTiming> allJobTimings = await CalculateJobTimingsAsync(jobs);
 
 			if (onlySetupBuild)
@@ -343,7 +343,7 @@ namespace HordeServer.Jobs
 				return BadRequest();
 			}
 
-			IReadOnlyList<IJob> jobs = await _jobService.FindJobsAsync(minCreateTime: minTime, maxCreateTime: maxTime);
+			IReadOnlyList<IJob> jobs = await _jobService.FindJobsAsync(new FindJobOptions(MinCreateTime: minTime, MaxCreateTime: maxTime));
 			foreach (IJob job in jobs)
 			{
 				StreamConfig? streamConfig;

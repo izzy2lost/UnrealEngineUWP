@@ -53,7 +53,7 @@ namespace HordeServer.Jobs
 					DateTimeOffset maxCreateTime = new DateTimeOffset(currentTime) - TimeSpan.FromDays(expireAfterDays);
 					for (; ; )
 					{
-						IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(streamId: streamConfig.Id, maxCreateTime: maxCreateTime, count: 50, cancellationToken: cancellationToken);
+						IReadOnlyList<IJob> jobs = await _jobCollection.FindAsync(new FindJobOptions(StreamId: streamConfig.Id, MaxCreateTime: maxCreateTime), count: 50, cancellationToken: cancellationToken);
 						if (jobs.Count == 0)
 						{
 							break;

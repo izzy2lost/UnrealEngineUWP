@@ -42,7 +42,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 			_template = TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" }).Result;
 
-			_initialJobIds = new HashSet<JobId>(JobCollection.FindAsync().Result.Select(x => x.Id));
+			_initialJobIds = new HashSet<JobId>(JobCollection.FindAsync(new FindJobOptions()).Result.Select(x => x.Id));
 
 			PerforceService.Changes.Clear();
 			PerforceService.AddChange(StreamId, 100, bob, "", new[] { "code.cpp" });
@@ -719,7 +719,7 @@ namespace HordeServer.Tests.Jobs.Schedules
 
 		async Task<List<IJob>> GetNewJobsAsync()
 		{
-			List<IJob> jobs = (await JobCollection.FindAsync()).ToList();
+			List<IJob> jobs = (await JobCollection.FindAsync(new FindJobOptions())).ToList();
 			jobs.RemoveAll(x => _initialJobIds.Contains(x.Id));
 			_initialJobIds.UnionWith(jobs.Select(x => x.Id));
 			return jobs.OrderBy(x => x.CommitId).ToList();

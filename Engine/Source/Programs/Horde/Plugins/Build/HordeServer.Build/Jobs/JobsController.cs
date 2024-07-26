@@ -11,7 +11,6 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using HordeServer.Acls;
 using HordeServer.Agents;
-using HordeServer.Artifacts;
 using HordeServer.Commits;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
@@ -1095,9 +1094,9 @@ namespace HordeServer.Jobs
 			}
 
 			IReadOnlyList<IJob> jobs;
-			jobs = await _jobService.FindJobsAsync(jobIdValues, streamIdValue, name, templateRefIds, minChange,
-				maxChange, preflightChange, preflightOnly, includePreflight, preflightStartedByUserIdValue, startedByUserIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, target, null, state, outcome,
-				modifiedBefore, modifiedAfter, index, count, false);
+			jobs = await _jobService.FindJobsAsync(new FindJobOptions(jobIdValues, streamIdValue, name, templateRefIds, minChange,
+				maxChange, preflightChange, preflightOnly, includePreflight, preflightStartedByUserIdValue, startedByUserIdValue, minCreateTime?.UtcDateTime, maxCreateTime?.UtcDateTime, Target: target, State: state, Outcome: outcome,
+				ModifiedBefore: modifiedBefore, ModifiedAfter: modifiedAfter), index, count);
 
 			return await CreateAuthorizedJobResponsesAsync(jobs, filter);
 		}

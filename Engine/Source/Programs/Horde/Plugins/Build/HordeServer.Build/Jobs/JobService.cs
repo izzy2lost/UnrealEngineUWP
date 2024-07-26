@@ -246,7 +246,7 @@ namespace HordeServer.Jobs
 			IReadOnlyList<IJob> jobsToAbort = new List<IJob>();
 			if (newJob.PreflightCommitId != null)
 			{
-				jobsToAbort = await _jobs.FindAsync(preflightCommitId: newJob.PreflightCommitId, cancellationToken: cancellationToken);
+				jobsToAbort = await _jobs.FindAsync(new FindJobOptions(PreflightCommitId: newJob.PreflightCommitId), cancellationToken: cancellationToken);
 			}
 
 			foreach (IJob job in jobsToAbort)
@@ -433,7 +433,7 @@ namespace HordeServer.Jobs
 				{
 					List<JobStepOutcome> outcomes = query.Outcomes ?? new List<JobStepOutcome> { JobStepOutcome.Success };
 
-					IReadOnlyList<IJob> jobs = await FindJobsAsync(streamId: streamId, templates: new[] { query.TemplateId.Value }, target: query.Target, state: new[] { JobStepState.Completed }, outcome: outcomes.ToArray(), count: 1, excludeUserJobs: true, excludeCancelled: true, cancellationToken: cancellationToken);
+					IReadOnlyList<IJob> jobs = await FindJobsAsync(new FindJobOptions(StreamId: streamId, Templates: new[] { query.TemplateId.Value }, Target: query.Target, State: new[] { JobStepState.Completed }, Outcome: outcomes.ToArray(), ExcludeUserJobs: true, ExcludeCancelled: true), count: 1, cancellationToken: cancellationToken);
 					if (jobs.Count > 0)
 					{
 						_logger.LogInformation("Last successful build of {TemplateId} target {Target} was job {JobId} at change {Change}", query.TemplateId, query.Target, jobs[0].Id, jobs[0].CommitId);
@@ -531,124 +531,14 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Searches for jobs matching the given criteria
 		/// </summary>
-		/// <param name="jobIds">List of job ids to return</param>
-		/// <param name="streamId">The stream containing the job</param>
-		/// <param name="name">Name of the job</param>
-		/// <param name="templates">Templates to look for</param>
-		/// <param name="minCommitId">The minimum commit</param>
-		/// <param name="maxCommitId">The maximum commit</param>		
-		/// <param name="preflightCommitId">The preflight change to look for</param>
-		/// <param name="preflightOnly">Whether to only include preflights</param>
-		/// <param name="includePreflights">Whether to include preflight jobs</param>
-		/// <param name="preflightStartedByUser">User for which to include preflight jobs</param>		
-		/// <param name="startedByUser">User for which to include jobs</param>
-		/// <param name="minCreateTime">The minimum creation time</param>
-		/// <param name="maxCreateTime">The maximum creation time</param>
-		/// <param name="target">The target to query</param>
-		/// <param name="batchState">One or more batches matches this state</param>
-		/// <param name="state">State to query</param>
-		/// <param name="outcome">Outcomes to return</param>
-		/// <param name="modifiedBefore">Filter the results by last modified time</param>
-		/// <param name="modifiedAfter">Filter the results by last modified time</param>
+		/// <param name="options">Options for the search</param>
 		/// <param name="index">Index of the first result to return</param>
 		/// <param name="count">Number of results to return</param>
-		/// <param name="consistentRead">If the database read should be made to the replica server</param>
-		/// <param name="excludeUserJobs">Whether to exclude user jobs from the find</param>
-		/// <param name="excludeCancelled">Whether to exclude cancelled jobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of jobs matching the given criteria</returns>
-		public async Task<IReadOnlyList<IJob>> FindJobsAsync(JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CommitId? preflightCommitId = null, bool? preflightOnly = null, bool? includePreflights = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, CancellationToken cancellationToken = default)
+		public Task<IReadOnlyList<IJob>> FindJobsAsync(FindJobOptions options, int? index = null, int? count = null, CancellationToken cancellationToken = default)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(FindJobsAsync)}");
-			span.SetAttribute("JobIds", (jobIds == null) ? null : String.Join(',', jobIds));
-			span.SetAttribute("StreamId", streamId);
-			span.SetAttribute("Name", name);
-			span.SetAttribute("Templates", templates);
-			span.SetAttribute("MinCommitId", minCommitId?.ToString());
-			span.SetAttribute("MaxCommitId", maxCommitId?.ToString());
-			span.SetAttribute("PreflightCommitId", preflightCommitId?.ToString());
-			span.SetAttribute("PreflightStartedByUser", preflightStartedByUser?.ToString());
-			span.SetAttribute("StartedByUser", startedByUser?.ToString());
-			span.SetAttribute("MinCreateTime", minCreateTime);
-			span.SetAttribute("MaxCreateTime", maxCreateTime);
-			span.SetAttribute("Target", target);
-			span.SetAttribute("State", state?.ToString());
-			span.SetAttribute("Outcome", outcome?.ToString());
-			span.SetAttribute("ModifiedBefore", modifiedBefore);
-			span.SetAttribute("ModifiedAfter", modifiedAfter);
-			span.SetAttribute("Index", index);
-			span.SetAttribute("Count", count);
-
-			if (target == null && (state == null || state.Length == 0) && (outcome == null || outcome.Length == 0))
-			{
-				return await _jobs.FindAsync(jobIds, streamId, name, templates, minCommitId, maxCommitId, preflightCommitId, preflightOnly, includePreflights, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, index, count, consistentRead, null, excludeUserJobs, cancellationToken);
-			}
-			else
-			{
-				List<IJob> results = new List<IJob>();
-				_logger.LogInformation("Performing scan for job with ");
-
-				bool excludeMaxCommitId = false;
-
-				int maxCount = (count ?? 1);
-				while (results.Count < maxCount)
-				{
-					IReadOnlyList<IJob> scanJobs = await _jobs.FindAsync(jobIds, streamId, name, templates, minCommitId, maxCommitId, preflightCommitId, preflightOnly, includePreflights, preflightStartedByUser, startedByUser, minCreateTime, maxCreateTime, modifiedBefore, modifiedAfter, batchState, 0, 5, consistentRead, null, excludeUserJobs, cancellationToken);
-					if (scanJobs.Count == 0)
-					{
-						break;
-					}
-
-					foreach (IJob job in scanJobs.OrderByDescending(x => x.CommitId))
-					{
-						if (excludeMaxCommitId && job.CommitId == maxCommitId)
-						{
-							continue;
-						}
-
-						if (excludeCancelled != null && excludeCancelled.Value && WasCancelled(job))
-						{
-							continue;
-						}
-
-						(JobStepState, JobStepOutcome)? result;
-						if (target == null)
-						{
-							result = job.GetTargetState();
-						}
-						else
-						{
-							result = job.GetTargetState(await GetGraphAsync(job, cancellationToken), target);
-						}
-
-						if (result != null)
-						{
-							(JobStepState jobState, JobStepOutcome jobOutcome) = result.Value;
-							if ((state == null || state.Length == 0 || state.Contains(jobState)) && (outcome == null || outcome.Length == 0 || outcome.Contains(jobOutcome)))
-							{
-								results.Add(job);
-								if (results.Count == maxCount)
-								{
-									break;
-								}
-							}
-						}
-					}
-
-					maxCommitId = scanJobs.Min(x => x.CommitId);
-					excludeMaxCommitId = true;
-				}
-
-				return results;
-			}
-		}
-
-		/// <summary>
-		/// Test whether a job was cancelled
-		/// </summary>
-		static bool WasCancelled(IJob job)
-		{
-			return job.AbortedByUserId != null || job.Batches.Any(x => x.Steps.Any(y => y.AbortedByUserId != null));
+			return _jobs.FindAsync(options, index, count, cancellationToken);
 		}
 
 		/// <summary>
@@ -666,15 +556,6 @@ namespace HordeServer.Jobs
 		/// <returns>List of jobs matching the given criteria</returns>
 		public async Task<IReadOnlyList<IJob>> FindJobsByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser = null, DateTimeOffset? maxCreateTime = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, CancellationToken cancellationToken = default)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(FindJobsByStreamWithTemplatesAsync)}");
-			span.SetAttribute("StreamId", streamId);
-			span.SetAttribute("Templates", templates);
-			span.SetAttribute("PreflightStartedByUser", preflightStartedByUser?.ToString());
-			span.SetAttribute("MaxCreateTime", maxCreateTime);
-			span.SetAttribute("ModifiedAfter", modifiedAfter);
-			span.SetAttribute("Index", index);
-			span.SetAttribute("Count", count);
-
 			return await _jobs.FindLatestByStreamWithTemplatesAsync(streamId, templates, preflightStartedByUser, maxCreateTime, modifiedAfter, index, count, consistentRead, cancellationToken);
 		}
 

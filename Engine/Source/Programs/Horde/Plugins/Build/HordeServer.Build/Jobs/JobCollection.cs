@@ -898,106 +898,202 @@ namespace HordeServer.Jobs
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IJob>> FindAsync(JobId[]? jobIds, StreamId? streamId, string? name, TemplateId[]? templates, CommitId? minCommitId, CommitId? maxCommitId, CommitId? preflightCommitId, bool? preflightOnly, bool? includePreflight, UserId? preflightStartedByUser, UserId? startedByUser, DateTimeOffset? minCreateTime, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedBefore, DateTimeOffset? modifiedAfter, JobStepBatchState? batchState, int? index, int? count, bool consistentRead, string? indexHint, bool? excludeUserJobs, CancellationToken cancellationToken)
+		public async Task<IReadOnlyList<IJob>> FindAsync(FindJobOptions options, int? index = null, int? count = null, CancellationToken cancellationToken = default)
+		{
+			// JobId[]? jobIds = null, StreamId? streamId = null, string? name = null, TemplateId[]? templates = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, CommitId? preflightCommitId = null, bool? preflightOnly = null, bool? includePreflights = null, UserId? preflightStartedByUser = null, UserId? startedByUser = null, DateTimeOffset? minCreateTime = null, DateTimeOffset? maxCreateTime = null, string? target = null, JobStepBatchState? batchState = null, JobStepState[]? state = null, JobStepOutcome[]? outcome = null, DateTimeOffset? modifiedBefore = null, DateTimeOffset? modifiedAfter = null, int? index = null, int? count = null, bool consistentRead = true, bool? excludeUserJobs = null, bool? excludeCancelled = null, 
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobCollection)}.{nameof(FindAsync)}");
+			span.SetAttribute("JobIds", (options.JobIds == null) ? null : String.Join(',', options.JobIds));
+			span.SetAttribute("StreamId", options.StreamId);
+			span.SetAttribute("Name", options.Name);
+			span.SetAttribute("Templates", options.Templates);
+			span.SetAttribute("MinCommitId", options.MinCommitId?.ToString());
+			span.SetAttribute("MaxCommitId", options.MaxCommitId?.ToString());
+			span.SetAttribute("PreflightCommitId", options.PreflightCommitId?.ToString());
+			span.SetAttribute("PreflightStartedByUser", options.PreflightStartedByUser?.ToString());
+			span.SetAttribute("StartedByUser", options.StartedByUser?.ToString());
+			span.SetAttribute("MinCreateTime", options.MinCreateTime);
+			span.SetAttribute("MaxCreateTime", options.MaxCreateTime);
+			span.SetAttribute("Target", options.Target);
+			span.SetAttribute("State", options.State?.ToString());
+			span.SetAttribute("Outcome", options.Outcome?.ToString());
+			span.SetAttribute("ModifiedBefore", options.ModifiedBefore);
+			span.SetAttribute("ModifiedAfter", options.ModifiedAfter);
+			span.SetAttribute("Index", index);
+			span.SetAttribute("Count", count);
+
+			if (options.Target == null && (options.State == null || options.State.Length == 0) && (options.Outcome == null || options.Outcome.Length == 0))
+			{
+				return await FindInternalAsync(options, index, count, cancellationToken: cancellationToken);
+			}
+			else
+			{
+				List<IJob> results = new List<IJob>();
+				_logger.LogInformation("Performing scan for job with ");
+
+				bool excludeMaxCommitId = false;
+
+				int maxCount = (count ?? 1);
+				while (results.Count < maxCount)
+				{
+					IReadOnlyList<IJob> scanJobs = await FindInternalAsync(options, 0, 5, cancellationToken: cancellationToken);
+					if (scanJobs.Count == 0)
+					{
+						break;
+					}
+
+					foreach (IJob job in scanJobs.OrderByDescending(x => x.CommitId))
+					{
+						if (excludeMaxCommitId && job.CommitId == options.MaxCommitId)
+						{
+							continue;
+						}
+
+						if (options.ExcludeCancelled != null && options.ExcludeCancelled.Value && WasCancelled(job))
+						{
+							continue;
+						}
+
+						(JobStepState, JobStepOutcome)? result;
+						if (options.Target == null)
+						{
+							result = job.GetTargetState();
+						}
+						else
+						{
+							result = job.GetTargetState(await _graphCollection.GetAsync(job.GraphHash, cancellationToken), options.Target);
+						}
+
+						if (result != null)
+						{
+							(JobStepState jobState, JobStepOutcome jobOutcome) = result.Value;
+							if ((options.State == null || options.State.Length == 0 || options.State.Contains(jobState)) && (options.Outcome == null || options.Outcome.Length == 0 || options.Outcome.Contains(jobOutcome)))
+							{
+								results.Add(job);
+								if (results.Count == maxCount)
+								{
+									break;
+								}
+							}
+						}
+					}
+
+					options = options with { MaxCommitId = scanJobs.Min(x => x.CommitId) };
+					excludeMaxCommitId = true;
+				}
+
+				return results;
+			}
+		}
+
+		/// <summary>
+		/// Test whether a job was cancelled
+		/// </summary>
+		static bool WasCancelled(IJob job)
+		{
+			return job.AbortedByUserId != null || job.Batches.Any(x => x.Steps.Any(y => y.AbortedByUserId != null));
+		}
+
+		/// <inheritdoc/>
+		public async Task<IReadOnlyList<IJob>> FindInternalAsync(FindJobOptions options, int? index = null, int? count = null, bool consistentRead = false, string? indexHint = null, CancellationToken cancellationToken = default)
 		{
 			FilterDefinitionBuilder<JobDocument> filterBuilder = Builders<JobDocument>.Filter;
 
 			FilterDefinition<JobDocument> filter = filterBuilder.Empty;
-			if (jobIds != null && jobIds.Length > 0)
+			if (options.JobIds != null && options.JobIds.Length > 0)
 			{
-				filter &= filterBuilder.In(x => x.Id, jobIds);
+				filter &= filterBuilder.In(x => x.Id, options.JobIds);
 			}
-			if (streamId != null)
+			if (options.StreamId != null)
 			{
-				filter &= filterBuilder.Eq(x => x.StreamId, streamId.Value);
-				if (minCommitId != null)
+				filter &= filterBuilder.Eq(x => x.StreamId, options.StreamId.Value);
+				if (options.MinCommitId != null)
 				{
-					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, minCommitId, cancellationToken);
+					CommitIdWithOrder minCommitIdWithOrder = await _commitService.GetOrderedAsync(options.StreamId.Value, options.MinCommitId, cancellationToken);
 					filter &= filterBuilder.Gte(x => x.CommitOrder, minCommitIdWithOrder.Order);
 				}
-				if (maxCommitId != null)
+				if (options.MaxCommitId != null)
 				{
-					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(streamId.Value, maxCommitId, cancellationToken);
+					CommitIdWithOrder maxCommitIdWithOrder = await _commitService.GetOrderedAsync(options.StreamId.Value, options.MaxCommitId, cancellationToken);
 					filter &= filterBuilder.Lte(x => x.CommitOrder, maxCommitIdWithOrder.Order);
 				}
 			}
-			if (name != null)
+			if (options.Name != null)
 			{
-				if (name.StartsWith("$", StringComparison.InvariantCulture))
+				if (options.Name.StartsWith("$", StringComparison.InvariantCulture))
 				{
-					BsonRegularExpression regex = new BsonRegularExpression(name.Substring(1), "i");
+					BsonRegularExpression regex = new BsonRegularExpression(options.Name.Substring(1), "i");
 					filter &= filterBuilder.Regex(x => x.Name, regex);
 				}
 				else
 				{
-					filter &= filterBuilder.Eq(x => x.Name, name);
+					filter &= filterBuilder.Eq(x => x.Name, options.Name);
 				}
 			}
-			if (templates != null)
+			if (options.Templates != null)
 			{
-				if (templates.Length == 1)
+				if (options.Templates.Length == 1)
 				{
-					filter &= filterBuilder.Eq(x => x.TemplateId, templates[0]);
+					filter &= filterBuilder.Eq(x => x.TemplateId, options.Templates[0]);
 				}
 				else
 				{
-					filter &= filterBuilder.In(x => x.TemplateId, templates);
+					filter &= filterBuilder.In(x => x.TemplateId, options.Templates);
 				}
 			}
-			if (preflightCommitId != null)
+			if (options.PreflightCommitId != null)
 			{
-				int? preflightChange = preflightCommitId.TryGetPerforceChange();
+				int? preflightChange = options.PreflightCommitId.TryGetPerforceChange();
 				if (preflightChange == null)
 				{
-					filter &= filterBuilder.Eq(x => x.PreflightCommitName, preflightCommitId.Name);
+					filter &= filterBuilder.Eq(x => x.PreflightCommitName, options.PreflightCommitId.Name);
 				}
 				else
 				{
 					filter &= filterBuilder.Eq(x => x.PreflightChange, preflightChange);
 				}
 			}
-			if (includePreflight != null && !includePreflight.Value)
+			if (options.IncludePreflight != null && !options.IncludePreflight.Value)
 			{
 				filter &= filterBuilder.Eq(x => x.PreflightChange, 0);
 			}
-			if (preflightOnly != null && preflightOnly.Value)
+			if (options.PreflightOnly != null && options.PreflightOnly.Value)
 			{
 				filter &= filterBuilder.Ne(x => x.PreflightChange, 0);
 			}
-			if (excludeUserJobs != null && excludeUserJobs.Value)
+			if (options.ExcludeUserJobs != null && options.ExcludeUserJobs.Value)
 			{
 				filter &= filterBuilder.Eq(x => x.StartedByUserId, null);
 			}
 			else
 			{
-				if (preflightStartedByUser != null)
+				if (options.PreflightStartedByUser != null)
 				{
-					filter &= filterBuilder.Or(filterBuilder.Eq(x => x.PreflightChange, 0), filterBuilder.Eq(x => x.StartedByUserId, preflightStartedByUser));
+					filter &= filterBuilder.Or(filterBuilder.Eq(x => x.PreflightChange, 0), filterBuilder.Eq(x => x.StartedByUserId, options.PreflightStartedByUser));
 				}
-				if (startedByUser != null)
+				if (options.StartedByUser != null)
 				{
-					filter &= filterBuilder.Eq(x => x.StartedByUserId, startedByUser);
+					filter &= filterBuilder.Eq(x => x.StartedByUserId, options.StartedByUser);
 				}
 			}
-			if (minCreateTime != null)
+			if (options.MinCreateTime != null)
 			{
-				filter &= filterBuilder.Gte(x => x.CreateTimeUtc!, minCreateTime.Value.UtcDateTime);
+				filter &= filterBuilder.Gte(x => x.CreateTimeUtc!, options.MinCreateTime.Value.UtcDateTime);
 			}
-			if (maxCreateTime != null)
+			if (options.MaxCreateTime != null)
 			{
-				filter &= filterBuilder.Lte(x => x.CreateTimeUtc!, maxCreateTime.Value.UtcDateTime);
+				filter &= filterBuilder.Lte(x => x.CreateTimeUtc!, options.MaxCreateTime.Value.UtcDateTime);
 			}
-			if (modifiedBefore != null)
+			if (options.ModifiedBefore != null)
 			{
-				filter &= filterBuilder.Lte(x => x.UpdateTimeUtc!, modifiedBefore.Value.UtcDateTime);
+				filter &= filterBuilder.Lte(x => x.UpdateTimeUtc!, options.ModifiedBefore.Value.UtcDateTime);
 			}
-			if (modifiedAfter != null)
+			if (options.ModifiedAfter != null)
 			{
-				filter &= filterBuilder.Gte(x => x.UpdateTimeUtc!, modifiedAfter.Value.UtcDateTime);
+				filter &= filterBuilder.Gte(x => x.UpdateTimeUtc!, options.ModifiedAfter.Value.UtcDateTime);
 			}
-			if (batchState != null)
+			if (options.BatchState != null)
 			{
-				filter &= filterBuilder.ElemMatch(x => x.Batches, batch => batch.State == batchState);
+				filter &= filterBuilder.ElemMatch(x => x.Batches, batch => batch.State == options.BatchState);
 			}
 
 			List<JobDocument> documents;
@@ -1047,13 +1143,30 @@ namespace HordeServer.Jobs
 		/// <inheritdoc/>
 		public async Task<IReadOnlyList<IJob>> FindLatestByStreamWithTemplatesAsync(StreamId streamId, TemplateId[] templates, UserId? preflightStartedByUser, DateTimeOffset? maxCreateTime, DateTimeOffset? modifiedAfter, int? index, int? count, bool consistentRead, CancellationToken cancellationToken)
 		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(JobCollection)}.{nameof(FindLatestByStreamWithTemplatesAsync)}");
+			span.SetAttribute("StreamId", streamId);
+			span.SetAttribute("Templates", templates);
+			span.SetAttribute("PreflightStartedByUser", preflightStartedByUser?.ToString());
+			span.SetAttribute("MaxCreateTime", maxCreateTime);
+			span.SetAttribute("ModifiedAfter", modifiedAfter);
+			span.SetAttribute("Index", index);
+			span.SetAttribute("Count", count);
+
 			string indexHint = _streamThenTemplateThenCreationTimeIndex.Name;
 
 			// This find call uses an index hint. Modifying the parameter passed to FindAsync can affect execution time a lot as the query planner is forced to use the specified index.
-			// Casting to interface to benefit from default parameter values
-			return await (this as IJobCollection).FindAsync(
-				streamId: streamId, templates: templates, preflightStartedByUser: preflightStartedByUser, modifiedAfter: modifiedAfter, maxCreateTime: maxCreateTime,
-				index: index, count: count, indexHint: indexHint, consistentRead: consistentRead, cancellationToken: cancellationToken);
+			return await FindInternalAsync(
+				new FindJobOptions(
+					StreamId: streamId, 
+					Templates: templates, 
+					PreflightStartedByUser: preflightStartedByUser, 
+					ModifiedAfter: modifiedAfter, 
+					MaxCreateTime: maxCreateTime),
+				index: index,
+				count: count,
+				indexHint: indexHint,
+				consistentRead: consistentRead, 
+				cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
