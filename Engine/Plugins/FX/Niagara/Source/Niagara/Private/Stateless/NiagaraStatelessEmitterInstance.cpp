@@ -101,7 +101,7 @@ void FNiagaraStatelessEmitterInstance::Init(int32 InEmitterIndex)
 	//CompletionAge = EmitterData->CalculateCompletionAge(RandomSeed);
 
 	// Initialize data set
-	ParticleDataSet->Init(&EmitterData->ParticleDataSetCompiledData);
+	ParticleDataSet->Init(EmitterData->ParticleDataSetCompiledData.Get());
 
 	// Prepare our parameters
 	RendererBindings = EmitterData->RendererBindings;

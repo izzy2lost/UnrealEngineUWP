@@ -310,7 +310,7 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	{
 		if (Renderer && Renderer->GetIsEnabled())
 		{
-			Renderer->CacheFromCompiledData(&StatelessEmitterData->ParticleDataSetCompiledData);
+			Renderer->CacheFromCompiledData(StatelessEmitterData->ParticleDataSetCompiledData.Get());
 		}
 	}
 
@@ -348,11 +348,11 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 	{
 		if (EnumHasAnyFlags(StatelessEmitterData->FeatureMask, ENiagaraStatelessFeatureMask::ExecuteCPU))
 		{
-			StatelessEmitterData->ParticleSimExecData = new NiagaraStateless::FParticleSimulationExecData(StatelessEmitterData->ParticleDataSetCompiledData);
+			StatelessEmitterData->ParticleSimExecData = new NiagaraStateless::FParticleSimulationExecData(*StatelessEmitterData->ParticleDataSetCompiledData.Get());
 		}
 
 		FNiagaraStatelessEmitterDataBuildContext EmitterBuildContext(
-			StatelessEmitterData->ParticleDataSetCompiledData,
+			*StatelessEmitterData->ParticleDataSetCompiledData.Get(),
 			StatelessEmitterData->RendererBindings,
 			StatelessEmitterData->BuiltData,
 			StatelessEmitterData->StaticFloatData,
@@ -509,7 +509,7 @@ void UNiagaraStatelessEmitter::BuildCompiledDataSet()
 		ComponentOffsets.Shrink();
 	}
 #endif
-	StatelessEmitterData->ParticleDataSetCompiledData = ParticleDataSetCompiledData;
+	StatelessEmitterData->ParticleDataSetCompiledData = MakeShared<FNiagaraDataSetCompiledData>(ParticleDataSetCompiledData);
 	StatelessEmitterData->ComponentOffsets = ComponentOffsets;
 }
 

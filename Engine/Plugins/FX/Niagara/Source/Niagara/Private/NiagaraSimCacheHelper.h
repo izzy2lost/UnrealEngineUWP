@@ -339,7 +339,7 @@ struct FNiagaraSimCacheHelper
 		{
 			const UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter();
 			const FNiagaraStatelessEmitterDataPtr StatelessEmitterData = StatelessEmitter ? StatelessEmitter->GetEmitterData() : nullptr;
-			ParticleDataSet = StatelessEmitterData ? &StatelessEmitterData->ParticleDataSetCompiledData : nullptr;
+			ParticleDataSet = StatelessEmitterData ? StatelessEmitterData->ParticleDataSetCompiledData.Get() : nullptr;
 		}
 
 		if (ParticleDataSet == nullptr)

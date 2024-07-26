@@ -32,7 +32,7 @@ struct FNiagaraStatelessEmitterData
 	FNiagaraStatelessEmitterData() = default;
 	~FNiagaraStatelessEmitterData();
 
-	FNiagaraDataSetCompiledData						ParticleDataSetCompiledData;
+	TSharedPtr<FNiagaraDataSetCompiledData>			ParticleDataSetCompiledData;
 	TArray<int32>									ComponentOffsets;
 
 	bool											bCanEverExecute = false;

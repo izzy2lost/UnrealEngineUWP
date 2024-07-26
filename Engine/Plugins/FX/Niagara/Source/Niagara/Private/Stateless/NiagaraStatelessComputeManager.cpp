@@ -195,7 +195,7 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(FRHICommandLi
 
 	FNiagaraGpuComputeDispatchInterface* ComputeInterface = GetOwnerInterface();
 
-	const uint32 DataSetLayoutHash = EmitterInstance->EmitterData->ParticleDataSetCompiledData.GetLayoutHash();
+	const uint32 DataSetLayoutHash = EmitterInstance->EmitterData->ParticleDataSetCompiledData->GetLayoutHash();
 
 	FStatelessDataCache* CacheData = nullptr;
 	if (GUseDataBufferCache)
@@ -215,7 +215,8 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(FRHICommandLi
 	{
 		CacheData = new FStatelessDataCache();
 		CacheData->DataSetLayoutHash = DataSetLayoutHash;
-		CacheData->DataSet.Init(&EmitterInstance->EmitterData->ParticleDataSetCompiledData);
+		CacheData->DataSetCompiledData = EmitterInstance->EmitterData->ParticleDataSetCompiledData;
+		CacheData->DataSet.Init(CacheData->DataSetCompiledData.Get());
 		CacheData->DataBuffer = new FNiagaraDataBuffer(&CacheData->DataSet);
 	}
 

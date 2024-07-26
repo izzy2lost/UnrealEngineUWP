@@ -22,6 +22,7 @@ public:
 	struct FStatelessDataCache
 	{
 		uint32										DataSetLayoutHash = 0;
+		TSharedPtr<FNiagaraDataSetCompiledData>		DataSetCompiledData;
 		FNiagaraDataSet								DataSet;
 		FNiagaraDataBufferRef						DataBuffer;
 
