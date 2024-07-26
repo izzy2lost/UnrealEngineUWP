@@ -457,10 +457,11 @@ void UPCGTextureData::InitializeInternal(UTexture* InTexture, uint32 InTextureIn
 			// Duplicate texture and change access flags (editor only). This duplicate texture will be used by the normal logic below.
 			FObjectDuplicationParameters DuplicationParams(Texture2D, /*Outer=*/this);
 			DuplicateTexture = CastChecked<UTexture2D>(StaticDuplicateObjectEx(DuplicationParams));
+			DuplicateTexture->PreEditChange(nullptr);
 			DuplicateTexture->MipGenSettings = TextureMipGenSettings::TMGS_NoMipmaps;
 			DuplicateTexture->CompressionSettings = TextureCompressionSettings::TC_VectorDisplacementmap; // Allows the texture to be in a non-compressed format (B8G8R8A8), which is necessary to convince the data to remain CPU-side.
 			DuplicateTexture->SRGB = false;
-			DuplicateTexture->UpdateResource();
+			DuplicateTexture->PostEditChange();
 		}
 	}
 #endif

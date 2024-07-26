@@ -156,6 +156,7 @@ namespace Generator
 
 		if (bSettingsChanged)
 		{
+			Texture->PreEditChange(nullptr);
 			Texture->MipGenSettings = MipGenSettings;
 			Texture->CompressionNoAlpha = Property.bCompressionNoAlpha;
 			Texture->CompressionSettings = Property.CompressionSettings;
@@ -165,7 +166,6 @@ namespace Generator
 			Texture->LODGroup = Property.LODGroup;
 			Texture->SRGB = bIsSRGB;
 			Texture->bFlipGreenChannel = Property.bFlipGreenChannel;
-			Texture->UpdateResource();
 			Texture->PostEditChange();
 		}
 	}

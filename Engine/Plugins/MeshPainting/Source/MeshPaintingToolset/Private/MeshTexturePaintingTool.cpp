@@ -1422,9 +1422,7 @@ void UMeshTexturePaintingTool::FinishPaintingTexture()
 			RenderTargetResource->ReadPixels(TexturePixels);
 
 			{
-				// For undo
-				// @@ use PreEdit/PostEdit instead
-				TextureData->ScratchTexture->Modify();
+				TextureData->ScratchTexture->PreEditChange(nullptr);
 
 				const int32 NumPixels = TexturePixels.Num();
 
@@ -1446,6 +1444,7 @@ void UMeshTexturePaintingTool::FinishPaintingTexture()
 				// If render target gamma used was 1.0 then disable SRGB for the static texture
 				TextureData->ScratchTexture->SRGB = FMath::Abs(RenderTargetResource->GetDisplayGamma() - 1.0f) >= KINDA_SMALL_NUMBER;
 				TextureData->ScratchTexture->bHasBeenPaintedInEditor = true;
+				TextureData->ScratchTexture->PostEditChange();
 			}
 		}
 
@@ -1643,9 +1642,8 @@ void UMeshTexturePaintingTool::CommitAllPaintedTextures()
 
 				{
 					// For undo
-					// @@ use PreEdit/PostEdit instead
 					TextureData->PaintingTexture2D->SetFlags(RF_Transactional);
-					TextureData->PaintingTexture2D->Modify();
+					TextureData->PaintingTexture2D->PreEditChange(nullptr);
 
 					// Store source art
 					// @@ use FMipLock.Image instead
