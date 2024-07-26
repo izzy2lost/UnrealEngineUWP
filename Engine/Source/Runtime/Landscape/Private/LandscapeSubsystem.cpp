@@ -258,6 +258,8 @@ void ULandscapeSubsystem::Deinitialize()
 	delete GrassMapsBuilder;
 	delete PhysicalMaterialBuilder;
 	delete NotificationManager;
+	delete TextureStreamingManager;
+
 #endif
 	Proxies.Empty();
 	LandscapeActors.Empty();

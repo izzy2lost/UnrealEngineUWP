@@ -65,6 +65,7 @@ public:
 
 	static bool IsTextureFullyStreamedIn(UTexture* Texture);
 
+	FLandscapeTextureStreamingManager();
 	~FLandscapeTextureStreamingManager();
 
 private:
@@ -72,9 +73,17 @@ private:
 	{
 		int32 RequestCount = 0;
 		bool bForever = false;
+
+		bool WantsTextureStreamedIn() const
+		{
+			return bForever || (RequestCount > 0);
+		}
 	};
 
 	TMap<TWeakObjectPtr<UTexture>, FTextureState, FDefaultSetAllocator, TWeakObjectPtrMapKeyFuncs<TWeakObjectPtr<UTexture>, FTextureState>> TextureStates;
+
+	static TArray<FLandscapeTextureStreamingManager*> AllStreamingManagers;
+	static bool AnyStreamingManagerWantsTextureStreamedIn(TWeakObjectPtr<UTexture> TexturePtr);
 
 #if WITH_EDITOR
 	FLandscapeTextureStreamingManagerUndoDetector UndoDetector;
