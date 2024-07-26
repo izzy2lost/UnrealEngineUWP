@@ -19,9 +19,9 @@ static TAutoConsoleVariable<int32> CVarManyLightsNumSamplesPerPixel(
 	TEXT("r.ManyLights.NumSamplesPerPixel"),
 	4,
 	TEXT("Number of samples (shadow rays) per half-res pixel.\n")
-	TEXT("1 - 0.25 trace per pixel\n")
 	TEXT("2 - 0.5 trace per pixel\n")
-	TEXT("4 - 1 trace per pixel"),
+	TEXT("4 - 1 trace per pixel")
+	TEXT("16 - 4 traces per pixel"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
@@ -201,13 +201,23 @@ namespace ManyLights
 
 	FIntPoint GetNumSamplesPerPixel2d(int32 NumSamplesPerPixel1d)
 	{
-		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
+		if (NumSamplesPerPixel1d >= 16)
+		{
+			return FIntPoint(4, 4);
+		}
+		else if (NumSamplesPerPixel1d >= 4)
+		{
+			return FIntPoint(2, 2);
+		}
+		else
+		{
+			return FIntPoint(2, 1);
+		}
 	}
 
 	FIntPoint GetNumSamplesPerPixel2d()
 	{
-		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarManyLightsNumSamplesPerPixel.GetValueOnAnyThread(), 1, 4));
-		return GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
+		return GetNumSamplesPerPixel2d(CVarManyLightsNumSamplesPerPixel.GetValueOnAnyThread());
 	}
 
 	int32 GetDebugMode()
@@ -325,7 +335,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
-	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
+	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
 	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FDebugMode>;
 
@@ -376,6 +386,12 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		const int32 NumSamplesPerPixel1d = PermutationVector.Get<FNumSamplesPerPixel1d>();
+		const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d(NumSamplesPerPixel1d);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_2D_X"), NumSamplesPerPixel2d.X);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_PIXEL_2D_Y"), NumSamplesPerPixel2d.Y);
 	}
 };
 
@@ -473,7 +489,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
-	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 1, 2, 4);
+	class FNumSamplesPerPixel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_PIXEL_1D", 2, 4, 16);
 	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
 	using FPermutationDomain = TShaderPermutationDomain<FTileType, FIESProfile, FLightFunctionAtlas, FTexturedRectLights, FNumSamplesPerPixel1d, FDebugMode>;
 

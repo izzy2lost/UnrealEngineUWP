@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Many Lights shaders
-#pragma message("UESHADERMETADATA_VERSION A48A689C-146E-4051-BAD6-21564B78503F")
+#pragma message("UESHADERMETADATA_VERSION 79F169FE-4FCA-47EA-8539-1ED66DAF713E")
 
 #define MANY_LIGHTS 1
 #include "../LightGridCommon.ush"

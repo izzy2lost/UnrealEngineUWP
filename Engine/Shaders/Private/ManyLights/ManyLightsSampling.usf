@@ -2,6 +2,8 @@
 
 #ifndef NUM_SAMPLES_PER_PIXEL_1D
 	#define NUM_SAMPLES_PER_PIXEL_1D 1
+	#define NUM_SAMPLES_PER_PIXEL_2D_X 1
+	#define NUM_SAMPLES_PER_PIXEL_2D_Y 1
 #endif
 
 #ifndef TILE_TYPE
@@ -183,14 +185,6 @@ void GenerateLightSamplesCS(
 				LightSamples[LightSampleIndex] = InitLightSample();
 			}
 
-			const uint2 LightSampleOffsets[4] = 
-			{
-				uint2(0, 0),
-				uint2(1, 0),
-				uint2(0, 1),
-				uint2(1, 1),
-			};
-
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
@@ -336,7 +330,7 @@ void GenerateLightSamplesCS(
 
 						if (DebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 						{
-							const uint2 SampleCoord = DownsampledScreenCoord * DOWNSAMPLE_FACTOR + LightSampleOffsets[LightSampleIndex];
+							const uint2 SampleCoord = DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X);
 
 							const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 							const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
@@ -373,7 +367,7 @@ void GenerateLightSamplesCS(
 					LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
 				}
 
-				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
+				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X)] = PackLightSample(LightSample);
 			}
 		}
 	}
