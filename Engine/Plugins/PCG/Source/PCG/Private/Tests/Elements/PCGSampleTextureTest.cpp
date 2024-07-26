@@ -67,9 +67,16 @@ protected:
 		Texture->UpdateResource();
 
 		UPCGTextureData* TextureData = NewObject<UPCGTextureData>();
-		TextureData->Initialize(Texture, /*InTextureIndex*/0, FTransform(), /*PostInitializeCallback*/[]() {});
+		while (!TextureData->Initialize(Texture, /*InTextureIndex*/0, FTransform())) {}
 
-		return TextureData;
+		if (ensure(TextureData->IsSuccessfullyInitialized()))
+		{
+			return TextureData;
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 	
 	bool GenerateTestDataRunAndValidate(const FTestParameters& Parameters)

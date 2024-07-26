@@ -5,6 +5,7 @@
 #include "PCGComponent.h"
 #include "PCGContext.h"
 #include "PCGCrc.h"
+#include "PCGSubsystem.h"
 #include "Helpers/PCGBlueprintHelpers.h"
 #include "Helpers/PCGDynamicTrackingHelpers.h"
 #include "Helpers/PCGHelpers.h"
@@ -107,6 +108,14 @@ void UPCGTextureSamplerSettings::UpdateDisplayTextureArrayIndex()
 }
 #endif
 
+void FPCGTextureSamplerContext::AddExtraStructReferencedObjects(FReferenceCollector& Collector)
+{
+	if (TextureData)
+	{
+		Collector.AddReferencedObject(TextureData);
+	}
+}
+
 bool FPCGTextureSamplerElement::PrepareDataInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGTextureSamplerElement::Execute);
@@ -190,67 +199,81 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 
 	const FTransform& Transform = Settings->Transform;
-	const bool bUseAbsoluteTransform = Settings->bUseAbsoluteTransform;
-	const bool bUseDensitySourceChannel = Settings->bUseDensitySourceChannel;
-	const EPCGTextureColorChannel ColorChannel = Settings->ColorChannel;
-	const EPCGTextureFilter Filter = Settings->Filter;
-	const float TexelSize = Settings->TexelSize;
-	const bool bUseAdvancedTiling = Settings->bUseAdvancedTiling;
-	const FVector2D& Tiling = Settings->Tiling;
-	const FVector2D& CenterOffset = Settings->CenterOffset;
-	const float Rotation = Settings->Rotation;
-	const bool bUseTileBounds = Settings->bUseTileBounds;
-	const FVector2D& TileBoundsMin = Settings->TileBoundsMin;
-	const FVector2D& TileBoundsMax = Settings->TileBoundsMax;
 #if WITH_EDITOR
 	const bool bForceEditorOnlyCPUSampling = Settings->bForceEditorOnlyCPUSampling;
 #else
 	const bool bForceEditorOnlyCPUSampling = false;
 #endif
 
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-	FPCGTaggedData& Output = Outputs.Emplace_GetRef();
-
-	UPCGTextureData* TextureData = FPCGContext::NewObject_AnyThread<UPCGTextureData>(Context);
-	Output.Data = TextureData;
-
-	AActor* OriginalActor = UPCGBlueprintHelpers::GetOriginalComponent(*Context)->GetOwner();
-	FTransform FinalTransform = Transform;
-	if (!bUseAbsoluteTransform)
+	// Texture data can take some frames to prepare, so we poll it once per frame until it is done.
+	// TODO - review other similar cases and consider adding helpers/abstractions to support this.
+	UPCGTextureData* TextureData = nullptr;
+	if (Context->TextureData)
 	{
-		FTransform OriginalActorTransform = OriginalActor->GetTransform();
-		FinalTransform = Transform * OriginalActorTransform;
+		TextureData = Context->TextureData.Get();
+	}
+	else
+	{
+		TextureData = FPCGContext::NewObject_AnyThread<UPCGTextureData>(Context);
+		Context->TextureData = TextureData;
 
-		FBox OriginalActorLocalBounds = PCGHelpers::GetActorLocalBounds(OriginalActor);
-		FinalTransform.SetScale3D(FinalTransform.GetScale3D() * 0.5 * (OriginalActorLocalBounds.Max - OriginalActorLocalBounds.Min));
+		AActor* OriginalActor = UPCGBlueprintHelpers::GetOriginalComponent(*Context)->GetOwner();
+
+		if (Settings->bUseAbsoluteTransform)
+		{
+			Context->Transform = Transform;
+		}
+		else
+		{
+			FTransform OriginalActorTransform = OriginalActor->GetTransform();
+			Context->Transform = Transform * OriginalActorTransform;
+
+			FBox OriginalActorLocalBounds = PCGHelpers::GetActorLocalBounds(OriginalActor);
+			Context->Transform.SetScale3D(Context->Transform.GetScale3D() * 0.5 * (OriginalActorLocalBounds.Max - OriginalActorLocalBounds.Min));
+		}
 	}
 
-	// Initialize & set properties
-	Context->bIsPaused = true;
-
-	auto PostInitializeCallback = [Context, TextureData]()
+	if (!ensure(TextureData))
 	{
-		Context->bIsPaused = false;
-		Context->bTextureReadbackDone = true;
+		PCGE_LOG_C(Error, LogOnly, Context, LOCTEXT("TextureDataInitFailed", "Failed to initialize texture data."));
+		return true;
+	}
 
-		if (!TextureData->IsValid())
+	if (!TextureData->IsSuccessfullyInitialized())
+	{
+		if (!TextureData->Initialize(Texture, TextureArrayIndex, Context->Transform, bForceEditorOnlyCPUSampling))
 		{
-			PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("TextureDataInitFailed", "Texture data failed to initialize, check log for more information"));
+			// Initialization not complete. Could be waiting on async texture processing or for GPU readback. Sleep until next frame.
+			Context->bIsPaused = true;
+			Context->SourceComponent->GetSubsystem()->RegisterBeginTickAction([Context]()
+			{
+				Context->bIsPaused = false;
+			});
+
+			return false;
 		}
-	};
 
-	TextureData->Initialize(Texture, TextureArrayIndex, FinalTransform, PostInitializeCallback, bForceEditorOnlyCPUSampling);
+		if (!TextureData->IsSuccessfullyInitialized())
+		{
+			PCGE_LOG(Warning, LogOnly, LOCTEXT("TextureInitFailed", "Data could not be retrieved for this texture, initialization failed."));
+			Context->OutputData.TaggedData.Empty();
+			return true;
+		}
+	}
 
-	TextureData->bUseDensitySourceChannel = bUseDensitySourceChannel;
-	TextureData->ColorChannel = ColorChannel;
-	TextureData->Filter = Filter;
-	TextureData->TexelSize = TexelSize;
-	TextureData->bUseAdvancedTiling = bUseAdvancedTiling;
-	TextureData->Tiling = Tiling;
-	TextureData->CenterOffset = CenterOffset;
-	TextureData->Rotation = Rotation;
-	TextureData->bUseTileBounds = bUseTileBounds;
-	TextureData->TileBounds = FBox2D(TileBoundsMin, TileBoundsMax);
+	// Commit to adding texture data.
+	Context->OutputData.TaggedData.Emplace_GetRef().Data = TextureData;
+
+	TextureData->bUseDensitySourceChannel = Settings->bUseDensitySourceChannel;
+	TextureData->ColorChannel = Settings->ColorChannel;
+	TextureData->Filter = Settings->Filter;
+	TextureData->TexelSize = Settings->TexelSize;
+	TextureData->bUseAdvancedTiling = Settings->bUseAdvancedTiling;
+	TextureData->Tiling = Settings->Tiling;
+	TextureData->CenterOffset = Settings->CenterOffset;
+	TextureData->Rotation = Settings->Rotation;
+	TextureData->bUseTileBounds = Settings->bUseTileBounds;
+	TextureData->TileBounds = FBox2D(Settings->TileBoundsMin, Settings->TileBoundsMax);
 
 #if WITH_EDITOR
 	// If we have an override, register for dynamic tracking.
@@ -260,7 +283,7 @@ bool FPCGTextureSamplerElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 #endif // WITH_EDITOR
 
-	return false;
+	return true;
 }
 
 FPCGContext* FPCGTextureSamplerElement::CreateContext()

@@ -141,7 +141,15 @@ protected:
 
 struct FPCGTextureSamplerContext : public FPCGContext, public IPCGAsyncLoadingContext
 {
+public:
 	bool bTextureReadbackDone = false;
+
+	TObjectPtr<UPCGTextureData> TextureData;
+
+	FTransform Transform;
+
+protected:
+	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 };
 
 class FPCGTextureSamplerElement : public IPCGElement
