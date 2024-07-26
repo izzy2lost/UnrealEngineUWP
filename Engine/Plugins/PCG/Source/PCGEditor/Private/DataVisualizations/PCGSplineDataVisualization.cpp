@@ -15,20 +15,37 @@ FPCGTableVisualizerInfo IPCGSplineDataVisualization::GetTableVisualizerInfo(cons
 {
 	FPCGTableVisualizerInfo Info = IPCGSpatialDataVisualization::GetTableVisualizerInfo(Data);
 
-	Info.DoubleClickCallback = [](const UPCGData* Data, int Index)
+	Info.FocusOnDataCallback = [](const UPCGData* Data, TArrayView<const int> Indices)
 	{
 		if (const UPCGSplineData* SplineData = Cast<UPCGSplineData>(Data))
 		{
-			const TArray<FInterpCurvePointVector>& Positions = SplineData->SplineStruct.SplineCurves.Position.Points;
-			const TArray<FInterpCurvePointVector>& Scales = SplineData->SplineStruct.SplineCurves.Scale.Points;
+			FBox BoundingBox(EForceInit::ForceInit);
 
-			check(Positions.IsValidIndex(Index) && Scales.IsValidIndex(Index));
+			if (Indices.IsEmpty())
+			{
+				BoundingBox = SplineData->GetBounds();
+			}
+			else
+			{
+				const TArray<FInterpCurvePointVector>& Positions = SplineData->SplineStruct.SplineCurves.Position.Points;
+				const TArray<FInterpCurvePointVector>& Scales = SplineData->SplineStruct.SplineCurves.Scale.Points;
 
-			const FVector& Position = SplineData->GetTransform().TransformPosition(Positions[Index].OutVal);
-			const FVector HalfExtent = Scales[Index].OutVal * PCGSplineDataVisualizationConstants::HalfExtents;
+				for (const int& Index : Indices)
+				{
+					check(Positions.IsValidIndex(Index) && Scales.IsValidIndex(Index));
 
-			FBox BoundingBox(Position + HalfExtent, Position - HalfExtent);
-			GEditor->MoveViewportCamerasToBox(BoundingBox, /*bActiveViewportOnly=*/true, /*DrawDebugBoxTimeInSeconds=*/2.5f);
+					const FVector& Position = SplineData->GetTransform().TransformPosition(Positions[Index].OutVal);
+					const FVector HalfExtent = Scales[Index].OutVal * PCGSplineDataVisualizationConstants::HalfExtents;
+
+					FBox PointBoundingBox(Position + HalfExtent, Position - HalfExtent);
+					BoundingBox += PointBoundingBox;
+				}
+			}
+
+			if (GEditor && BoundingBox.IsValid)
+			{
+				GEditor->MoveViewportCamerasToBox(BoundingBox, /*bActiveViewportOnly=*/true, /*DrawDebugBoxTimeInSeconds=*/2.5f);
+			}
 		}
 	};
 

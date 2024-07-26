@@ -40,7 +40,7 @@ struct FPCGTableVisualizerInfo
 	TArray<FPCGTableVisualizerColumnInfo> ColumnInfos;
 	EPCGTableVisualizerColumnSortingMode SortingMode = EPCGTableVisualizerColumnSortingMode::Ascending;
 	FName SortingColumn = NAME_None;
-	TFunction<void(const UPCGData*, int)> DoubleClickCallback = nullptr;
+	TFunction<void(const UPCGData*, TArrayView<const int>)> FocusOnDataCallback = nullptr;
 	TSharedPtr<const IPCGAttributeAccessorKeys> AccessorKeys;
 };
 

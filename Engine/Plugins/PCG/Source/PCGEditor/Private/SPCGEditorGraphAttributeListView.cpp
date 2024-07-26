@@ -23,6 +23,7 @@
 #include "PCGEditor.h"
 #include "PCGEditorGraph.h"
 #include "PCGEditorGraphNodeBase.h"
+#include "PCGEditorStyle.h"
 
 #include "Fonts/FontMeasure.h"
 #include "Framework/Commands/GenericCommands.h"
@@ -96,10 +97,10 @@ void FPCGListViewUpdater::AsyncSort()
 
 void FPCGListViewUpdater::AsyncFilter()
 {
-	TArray<PCGListviewItemPtr> FilteredListViewItems;
+	TArray<PCGListViewItemPtr> FilteredListViewItems;
 	FilteredListViewItems.Reserve(ListViewItems.Num());
 
-	for (const PCGListviewItemPtr& ListViewItem : ListViewItems)
+	for (const PCGListViewItemPtr& ListViewItem : ListViewItems)
 	{
 		const FPCGPointFilterExpressionContext PointFilterContext(ListViewItem.Get(), &ColumnData);
 		if (TextFilter->TestTextFilter(PointFilterContext))
@@ -117,7 +118,7 @@ void SPCGListViewItemRow::Construct(const FArguments& InArgs, const TSharedRef<S
 	InternalItem = InArgs._ListViewItem;
 	AttributeListView = InArgs._AttributeListView;
 
-	SMultiColumnTableRow<PCGListviewItemPtr>::Construct(
+	SMultiColumnTableRow<PCGListViewItemPtr>::Construct(
 		SMultiColumnTableRow::FArguments()
 		.Style(FAppStyle::Get(), "DataTableEditor.CellListViewRow"),
 		InOwnerTableView);
@@ -293,11 +294,12 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 		return (ListViewItems.IsEmpty() && ListViewHeader->GetColumns().IsEmpty()) ? EVisibility::Hidden : EVisibility::Visible;
 	};
 
-	SAssignNew(ListView, SListView<PCGListviewItemPtr>)
+	SAssignNew(ListView, SListView<PCGListViewItemPtr>)
 		.ListItemsSource(&ListViewItems)
 		.HeaderRow(ListViewHeader)
 		.OnGenerateRow(this, &SPCGEditorGraphAttributeListView::OnGenerateRow)
 		.OnMouseButtonDoubleClick(this, &SPCGEditorGraphAttributeListView::OnItemDoubleClicked)
+		.OnContextMenuOpening(this, &SPCGEditorGraphAttributeListView::OnItemsContextMenu)
 		.AllowOverscroll(EAllowOverscroll::No)
 		.ExternalScrollbar(VerticalScrollBar)
 		.Visibility_Lambda(VisibilityTest)
@@ -334,13 +336,27 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 		.ContentPadding(FMargin(4, 2))
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Center)
-		.ToolTipText(LOCTEXT("LockSelectionButton_ToolTip", "Locks the current attribute list view to this selection"))
+		.ToolTipText(LOCTEXT("LockSelectionButton_ToolTip", "Locks the current attribute list view to this selection."))
 		[
 			SNew(SImage)
 				.ColorAndOpacity(FSlateColor::UseForeground())
 				.Image(this, &SPCGEditorGraphAttributeListView::OnGetLockButtonImageResource)
 		];
 
+	TSharedPtr<SButton> FrameDataButton = SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+		.OnClicked(this, &SPCGEditorGraphAttributeListView::OnFocusOnDataClicked)
+		.IsEnabled(this, &SPCGEditorGraphAttributeListView::IsFocusOnDataEnabled)
+		.ContentPadding(FMargin(4, 2))
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.ToolTipText(LOCTEXT("FocusOnDataButton_ToolTip", "Zoom to selected data."))
+		[
+			SNew(SImage)
+				.ColorAndOpacity(FSlateColor::UseForeground())
+				.Image(FPCGEditorStyle::Get().GetBrush("PCG.Editor.ZoomToSelection"))
+		];
+		
 	TSharedPtr<SComboButton> FilterButton = SNew(SComboButton)
 		.ForegroundColor(FSlateColor::UseStyle())
 		.HasDownArrow(false)
@@ -384,6 +400,12 @@ void SPCGEditorGraphAttributeListView::Construct(const FArguments& InArgs, TShar
 			.Padding(1.0f, 0.0f)
 			[
 				LockButton->AsShared()
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.Padding(1.0f, 0.0f)
+			[
+				FrameDataButton->AsShared()
 			]
 			+SHorizontalBox::Slot()
 			.AutoWidth()
@@ -651,7 +673,7 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 	HiddenAttributes = ListViewHeader->GetHiddenColumnIds();
 
 	// Swapping to an empty item list to force a widget clear, otherwise the widgets will try to update during add column and access invalid data
-	static const TArray<PCGListviewItemPtr> EmptyList;
+	static const TArray<PCGListViewItemPtr> EmptyList;
 	ListView->SetItemsSource(&EmptyList);
 
 	PCGColumnData.Empty();
@@ -698,20 +720,23 @@ void SPCGEditorGraphAttributeListView::RefreshAttributeList()
 
 		SortingColumn = TableVisualizerInfo.SortingColumn;
 		SortMode = (EColumnSortMode::Type)TableVisualizerInfo.SortingMode;
+		FocusOnDataCallback = TableVisualizerInfo.FocusOnDataCallback;
 
 		const uint32 NumEntries = TableVisualizerInfo.AccessorKeys.IsValid() ? TableVisualizerInfo.AccessorKeys->GetNum() : 0;
 		ListViewItems.Reserve(NumEntries);
 
-		const TArray<FPCGPoint>& Points = Cast<UPCGPointData>(DataStrongPtr.Get()) ? Cast<UPCGPointData>(DataStrongPtr.Get())->GetPoints() : TArray<FPCGPoint>();
-
 		for (uint32 Index = 0; Index < NumEntries; ++Index)
 		{
-			PCGListviewItemPtr ListViewItem = MakeShared<FPCGListViewItem>();
+			PCGListViewItemPtr ListViewItem = MakeShared<FPCGListViewItem>();
 			ListViewItem->Index = Index;
-			ListViewItem->DoubleClickCallback = TableVisualizerInfo.DoubleClickCallback;
-
 			ListViewItems.Add(ListViewItem);
 		}
+	}
+	else // No visualization, just default back the values
+	{
+		SortingColumn = NAME_None;
+		SortMode = EColumnSortMode::Type::Ascending;
+		FocusOnDataCallback.Reset();
 	}
 
 	ListView->SetItemsSource(&ListViewItems);
@@ -1077,21 +1102,44 @@ bool SPCGEditorGraphAttributeListView::IsAttributeEnabled(FName InAttributeName)
 	return ListViewHeader->IsColumnVisible(InAttributeName);
 }
 
-TSharedRef<ITableRow> SPCGEditorGraphAttributeListView::OnGenerateRow(PCGListviewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
+TSharedRef<ITableRow> SPCGEditorGraphAttributeListView::OnGenerateRow(PCGListViewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	return SNew(SPCGListViewItemRow, OwnerTable)
 		.AttributeListView(SharedThis(this))
 		.ListViewItem(Item);
 }
 
-void SPCGEditorGraphAttributeListView::OnItemDoubleClicked(PCGListviewItemPtr Item) const
+void SPCGEditorGraphAttributeListView::OnItemDoubleClicked(PCGListViewItemPtr Item) const
 {
 	check(Item);
-
-	if (Item->DoubleClickCallback)
+	if (FocusOnDataCallback)
 	{
-		Item->DoubleClickCallback(DataStrongPtr.Get(), Item->Index);
+		FocusOnDataCallback(DataStrongPtr.Get(), { Item->Index });
 	}
+}
+
+TSharedPtr<SWidget> SPCGEditorGraphAttributeListView::OnItemsContextMenu()
+{
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, /*InCommandList=*/nullptr);
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ShowInViewport", "Zoom to selection"),
+		LOCTEXT("ShowInViewport_Tooltip", "Frames the viewport so that all selected entries are visible."),
+		FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Editor.ZoomToSelection"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::FocusOnSelection),
+			FCanExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::CanFocusOnSelection)),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CopyToClipboard", "Copy to clipboard"),
+		LOCTEXT("CopyToClipboard_Tooltip", "Copies the contents of the entries to the clipboard."),
+		FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Editor.CopyToClipboard"),
+		FUIAction(FExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::CopySelectionToClipboard),
+			FCanExecuteAction::CreateSP(this, &SPCGEditorGraphAttributeListView::CanCopySelectionToClipboard)),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	return MenuBuilder.MakeWidget();
 }
 
 void SPCGEditorGraphAttributeListView::OnColumnSortModeChanged(const EColumnSortPriority::Type InSortPriority, const FName& InColumnId, const EColumnSortMode::Type InNewSortMode)
@@ -1206,7 +1254,7 @@ void SPCGEditorGraphAttributeListView::CopySelectionToClipboard() const
 	}
 
 	// Gather selected rows and sort them to match the displayed order instead of selection order
-	TArray<PCGListviewItemPtr> SelectedListViewItems = ListView->GetSelectedItems();
+	TArray<PCGListViewItemPtr> SelectedListViewItems = ListView->GetSelectedItems();
 	if (const FPCGColumnData* ColumnData = PCGColumnData.Find(SortingColumn))
 	{
 		if (ColumnData->DataAccessor.IsValid() && ColumnData->DataKeys.IsValid())
@@ -1217,7 +1265,7 @@ void SPCGEditorGraphAttributeListView::CopySelectionToClipboard() const
 	}
 
 	// Write each row
-	for (const PCGListviewItemPtr&  ListViewItem : SelectedListViewItems)
+	for (const PCGListViewItemPtr&  ListViewItem : SelectedListViewItems)
 	{
 		CSVExport += LineEnd;
 
@@ -1268,6 +1316,49 @@ FReply SPCGEditorGraphAttributeListView::OnNodeNameClicked()
 	}
 
 	return FReply::Handled();
+}
+
+FReply SPCGEditorGraphAttributeListView::OnFocusOnDataClicked() const
+{
+	if (IsFocusOnDataEnabled())
+	{
+		FocusOnDataCallback(DataStrongPtr.Get(), {});
+	}
+
+	return FReply::Handled();
+}
+
+bool SPCGEditorGraphAttributeListView::IsFocusOnDataEnabled() const
+{
+	return (!ListViewItems.IsEmpty() && FocusOnDataCallback);
+}
+
+void SPCGEditorGraphAttributeListView::FocusOnSelection() const
+{
+	if (!IsFocusOnDataEnabled())
+	{
+		return;
+	}
+
+	// Note: this implementation assumes it's the same callback for all entries, which is currently true
+	const TArray<PCGListViewItemPtr> SelectedItems = ListView->GetSelectedItems();
+	TArray<int> Indices;
+	Indices.Reserve(SelectedItems.Num());
+
+	for (PCGListViewItemPtr SelectedItem : SelectedItems)
+	{
+		if (SelectedItem)
+		{
+			Indices.Add(SelectedItem->Index);
+		}
+	}
+
+	FocusOnDataCallback(DataStrongPtr.Get(), Indices);
+}
+
+bool SPCGEditorGraphAttributeListView::CanFocusOnSelection() const
+{
+	return ListView->GetNumItemsSelected() > 0;
 }
 
 #undef LOCTEXT_NAMESPACE

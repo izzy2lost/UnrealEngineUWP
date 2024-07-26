@@ -303,17 +303,42 @@ FPCGTableVisualizerInfo IPCGSpatialDataVisualization::GetTableVisualizerInfo(con
 	// Column Sorting
 	Info.SortingColumn = NAME_Index;
 
-	// Double Click Behavior
-	Info.DoubleClickCallback = [](const UPCGData* Data, int Index)
+	// Focus on data behavior
+	Info.FocusOnDataCallback = [](const UPCGData* Data, TArrayView<const int> Indices)
 	{
-		if (const UPCGPointData* PointData = Cast<UPCGPointData>(Data))
+		if (const UPCGSpatialData* SpatialData = Cast<UPCGSpatialData>(Data))
 		{
-			const TArray<FPCGPoint>& Points = PointData->GetPoints();
-			check(Points.IsValidIndex(Index));
+			const UPCGPointData* PointData = SpatialData->ToPointData(nullptr);
 
-			const FPCGPoint& Point = Points[Index];
-			const FBox BoundingBox = Point.GetLocalBounds().TransformBy(Point.Transform.ToMatrixWithScale());
-			GEditor->MoveViewportCamerasToBox(BoundingBox, /*bActiveViewportOnly=*/true, /*DrawDebugBoxTimeInSeconds=*/2.5f);
+			if (!PointData)
+			{
+				return;
+			}
+
+			const TArray<FPCGPoint>& Points = PointData->GetPoints();
+
+			FBox BoundingBox(EForceInit::ForceInit);
+			if (Indices.IsEmpty())
+			{
+				BoundingBox = PointData->GetBounds();
+			}
+			else
+			{
+				for (const int& Index : Indices)
+				{
+					check(Points.IsValidIndex(Index));
+
+					const FPCGPoint& Point = Points[Index];
+					const FBox PointBoundingBox = Point.GetLocalBounds().TransformBy(Point.Transform.ToMatrixWithScale());
+
+					BoundingBox += PointBoundingBox;
+				}
+			}
+
+			if (GEditor && BoundingBox.IsValid)
+			{
+				GEditor->MoveViewportCamerasToBox(BoundingBox, /*bActiveViewportOnly=*/true, /*DrawDebugBoxTimeInSeconds=*/2.5f);
+			}
 		}
 	};
 
