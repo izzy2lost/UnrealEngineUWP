@@ -287,6 +287,6 @@ private:
 	static_assert(XR_HAND_LEFT_EXT == 1 && XR_HAND_RIGHT_EXT == 2);  // We will assume this to use value-1 as array index.
 	FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) { return HandTrackers[Hand - 1]; }
 	const FOXRVisionOSHandTracker& GetHandTracker(XrHandEXT Hand) const { return HandTrackers[Hand - 1]; }
-	bool ValidateXrHandTrackerEXT(XrHandTrackerEXT handTracker) { return (((FOXRVisionOSHandTracker*)handTracker) - ((FOXRVisionOSHandTracker*)&HandTrackers)) <= 1; }
+	bool ValidateXrHandTrackerEXT(XrHandTrackerEXT HandTracker) { return (((FOXRVisionOSHandTracker*)HandTracker) - ((FOXRVisionOSHandTracker*)&HandTrackers)) <= 1; }
 	void SyncHandTracking();
 };
