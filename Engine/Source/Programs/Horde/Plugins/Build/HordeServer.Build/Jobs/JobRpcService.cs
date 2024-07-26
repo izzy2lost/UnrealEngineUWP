@@ -200,7 +200,6 @@ namespace HordeServer.Jobs
 			response.Change = job.CommitId.GetPerforceChange();
 			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;
 			response.PreflightChange = job.PreflightCommitId?.GetPerforceChange() ?? 0;
-			response.ClonedPreflightChange = job.ClonedPreflightCommitId?.GetPerforceChange() ?? 0;
 			response.Arguments.AddRange(job.Arguments);
 			if (agentConfig.TempStorageDir != null)
 			{

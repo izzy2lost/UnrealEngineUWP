@@ -594,7 +594,6 @@ namespace HordeServer.Jobs
 			response.CommitId = job.CommitId;
 			response.CodeCommitId = job.CodeCommitId;
 			response.PreflightCommitId = job.PreflightCommitId;
-			response.ClonedPreflightCommitId = job.ClonedPreflightCommitId;
 			response.PreflightDescription = job.PreflightDescription;
 			response.TemplateHash = job.TemplateHash?.ToString() ?? String.Empty;
 			response.GraphHash = job.GraphHash.ToString();

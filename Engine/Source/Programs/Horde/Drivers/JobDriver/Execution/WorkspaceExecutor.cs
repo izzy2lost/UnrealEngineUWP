@@ -61,8 +61,7 @@ namespace JobDriver.Execution
 			{
 				scope.Span.SetTag(Datadog.Trace.OpenTracing.DatadogTags.ResourceName, _workspace.Identifier);
 
-				int preflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
-				await _workspace.SyncAsync(Batch.Change, preflightChange, new SyncOptions(), cancellationToken);
+				await _workspace.SyncAsync(Batch.Change, Batch.PreflightChange, new SyncOptions(), cancellationToken);
 
 				// TODO: Purging of cache for ManagedWorkspace did happen here in WorkspaceInfo
 

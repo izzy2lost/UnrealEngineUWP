@@ -142,13 +142,6 @@ namespace HordeServer.Jobs
 			};
 		}
 
-#pragma warning disable IDE0060
-		static bool ShouldClonePreflightChange(StreamId streamId)
-		{
-			return false; //			return StreamId == new StreamId("ue5-main");
-		}
-#pragma warning restore IDE0060
-
 		/// <summary>
 		/// Creates a new job
 		/// </summary>
@@ -175,7 +168,6 @@ namespace HordeServer.Jobs
 			span.SetAttribute("Change", commitId.ToString());
 			span.SetAttribute("CodeChange", codeCommitId?.ToString());
 			span.SetAttribute("PreflightChange", options.PreflightCommitId?.GetPerforceChange());
-			span.SetAttribute("ClonedPreflightChange", options.ClonedPreflightCommitId?.GetPerforceChange());
 			span.SetAttribute("StartedByUserId", options.StartedByUserId.ToString());
 			span.SetAttribute("Priority", options.Priority.ToString());
 			span.SetAttribute("ShowUgsBadges", options.ShowUgsBadges);
@@ -199,18 +191,12 @@ namespace HordeServer.Jobs
 			JobId jobIdValue = jobId ?? JobIdUtils.GenerateNewId();
 			using IDisposable? scope = _logger.BeginScope("CreateJobAsync({JobId})", jobIdValue);
 
-			if (options.PreflightCommitId != null && ShouldClonePreflightChange(streamConfig.Id))
-			{
-				options.ClonedPreflightCommitId = await CloneShelvedChangeAsync(streamConfig.ClusterName, options.ClonedPreflightCommitId ?? options.PreflightCommitId, cancellationToken);
-			}
-
-			_logger.LogInformation("Creating job at CL {Change}, code CL {CodeChange}, preflight CL {PreflightChange}, cloned CL {ClonedPreflightChange}", commitId, codeCommitId, options.PreflightCommitId, options.ClonedPreflightCommitId);
+			_logger.LogInformation("Creating job at CL {Change}, code CL {CodeChange}, preflight CL {PreflightChange}", commitId, codeCommitId, options.PreflightCommitId);
 
 			Dictionary<string, string> properties = new Dictionary<string, string>();
 			properties["Change"] = commitId.ToString();
 			properties["CodeChange"] = codeCommitId?.ToString() ?? String.Empty;
 			properties["PreflightChange"] = options.PreflightCommitId?.ToString() ?? String.Empty;
-			properties["ClonedPreflightChange"] = options.ClonedPreflightCommitId?.ToString() ?? String.Empty;
 			properties["StreamId"] = streamConfig.Id.ToString();
 			properties["TemplateId"] = templateRefId.ToString();
 			properties["JobId"] = jobIdValue.ToString();
@@ -978,7 +964,7 @@ namespace HordeServer.Jobs
 							{
 								job = await AutoSubmitChangeAsync(streamConfig, job, graph, cancellationToken);
 							}
-							else if (job.ClonedPreflightCommitId == null && job.StartedByUserId.HasValue && outcome == JobStepOutcome.Success && job.AbortedByUserId == null)
+							else if (job.StartedByUserId.HasValue && outcome == JobStepOutcome.Success && job.AbortedByUserId == null)
 							{
 								IUserSettings settings = await _userCollection.GetSettingsAsync(job.StartedByUserId.Value, cancellationToken);
 								if (settings.AlwaysTagPreflightCL)
@@ -986,10 +972,6 @@ namespace HordeServer.Jobs
 									_logger.LogInformation("Updating description for {PreflightChange} for {UserId} user settings", job.PreflightCommitId, job.StartedByUserId.Value);
 									await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, job.PreflightCommitId.GetPerforceChange(), x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
 								}
-							}
-							else if (job.ClonedPreflightCommitId != null)
-							{
-								await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.ClonedPreflightCommitId);
 							}
 						}
 					}
@@ -1088,46 +1070,25 @@ namespace HordeServer.Jobs
 			string message;
 			try
 			{
-				CommitId? clonedPreflightChange = job.ClonedPreflightCommitId;
-				if (clonedPreflightChange == null)
-				{
-					if (ShouldClonePreflightChange(job.StreamId))
-					{
-						clonedPreflightChange = await CloneShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId, cancellationToken);
-					}
-					else
-					{
-						clonedPreflightChange = job.PreflightCommitId;
-					}
-				}
+				CommitId preflightCommitId = job.PreflightCommitId;
 
-				_logger.LogInformation("Updating description for {ClonedPreflightChange}", clonedPreflightChange);
+				_logger.LogInformation("Updating description for {PreflightChange}", preflightCommitId);
 
-				await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, clonedPreflightChange.GetPerforceChange(), x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
+				await _perforceService.UpdateChangelistDescriptionAsync(streamConfig.ClusterName, preflightCommitId.GetPerforceChange(), x => x.TrimEnd() + $"\n#preflight {job.Id}", cancellationToken);
 
-				_logger.LogInformation("Submitting change {Change} (through {ChangeCopy}) after successful completion of {JobId}", job.PreflightCommitId, clonedPreflightChange, job.Id);
-				(change, message) = await _perforceService.SubmitShelvedChangeAsync(streamConfig, clonedPreflightChange.GetPerforceChange(), job.PreflightCommitId.GetPerforceChange(), cancellationToken);
+				_logger.LogInformation("Submitting change {Change} (through {ChangeCopy}) after successful completion of {JobId}", job.PreflightCommitId, preflightCommitId, job.Id);
+				(change, message) = await _perforceService.SubmitShelvedChangeAsync(streamConfig, preflightCommitId.GetPerforceChange(), job.PreflightCommitId.GetPerforceChange(), cancellationToken);
 
-				_logger.LogInformation("Attempt to submit {Change} (through {ChangeCopy}): {Message}", job.PreflightCommitId, clonedPreflightChange, message);
+				_logger.LogInformation("Attempt to submit {Change} (through {ChangeCopy}): {Message}", job.PreflightCommitId, preflightCommitId, message);
 
 				if (!String.IsNullOrEmpty(message))
 				{
 					message = Regex.Replace(message, @"^Submit validation failed.*\n(?:\s*'[^']*' validation failed:\s*\n)?", "");
 				}
 
-				if (ShouldClonePreflightChange(job.StreamId))
+				if (change != null)
 				{
-					if (change != null && job.ClonedPreflightCommitId != null)
-					{
-						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId);
-					}
-				}
-				else
-				{
-					if (change != null)
-					{
-						await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId);
-					}
+					await DeleteShelvedChangeAsync(streamConfig.ClusterName, job.PreflightCommitId);
 				}
 			}
 			catch (Exception ex)

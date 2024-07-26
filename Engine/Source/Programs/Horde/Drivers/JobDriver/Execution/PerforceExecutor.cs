@@ -125,8 +125,7 @@ namespace JobDriver.Execution
 				}
 
 				// Sync the workspace
-				int syncPreflightChange = (Batch.ClonedPreflightChange != 0) ? Batch.ClonedPreflightChange : Batch.PreflightChange;
-				await _workspace.SyncAsync(perforce, Batch.Change, syncPreflightChange, null, cancellationToken);
+				await _workspace.SyncAsync(perforce, Batch.Change, Batch.PreflightChange, null, cancellationToken);
 
 				// Remove any cached BuildGraph manifests
 				DirectoryReference manifestDir = DirectoryReference.Combine(_workspace.WorkspaceDir, "Engine", "Saved", "BuildGraph");

@@ -115,11 +115,6 @@ namespace HordeServer.Jobs
 		public CommitId? PreflightCommitId { get; }
 
 		/// <summary>
-		/// The cloned preflight changelist number (if the prefight change is duplicated via p4 reshelve)
-		/// </summary>
-		public CommitId? ClonedPreflightCommitId { get; }
-
-		/// <summary>
 		/// Description for the shelved change if running a preflight
 		/// </summary>
 		public string? PreflightDescription { get; }
@@ -1182,7 +1177,6 @@ namespace HordeServer.Jobs
 			response.Change = job.CommitId.GetPerforceChange();
 			response.CodeChange = job.CodeCommitId?.GetPerforceChange() ?? 0;
 			response.PreflightChange = job.PreflightCommitId?.GetPerforceChange() ?? 0;
-			response.ClonedPreflightChange = job.ClonedPreflightCommitId?.GetPerforceChange() ?? 0;
 			response.Arguments.Add(job.Arguments);
 			return response;
 		}

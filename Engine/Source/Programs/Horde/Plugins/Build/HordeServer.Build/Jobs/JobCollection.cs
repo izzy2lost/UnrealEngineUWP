@@ -66,7 +66,6 @@ namespace HordeServer.Jobs
 			CommitIdWithOrder IJob.CommitId => _document.CommitId;
 			CommitIdWithOrder? IJob.CodeCommitId => _document.CodeCommitId;
 			CommitId? IJob.PreflightCommitId => _document.PreflightCommitId;
-			CommitId? IJob.ClonedPreflightCommitId => _document.ClonedPreflightCommitId;
 			string? IJob.PreflightDescription => _document.PreflightDescription;
 			Priority IJob.Priority => _document.Priority;
 			bool IJob.AutoSubmit => _document.AutoSubmit;
@@ -456,9 +455,6 @@ namespace HordeServer.Jobs
 			// -1 for non-P4 preflights
 			public int PreflightChange { get; set; }
 
-			[BsonElement("ClonedPreflightChange"), BsonIgnoreIfNull]
-			public CommitId? ClonedPreflightCommitId { get; set; }
-
 			public string? PreflightDescription { get; set; }
 			public Priority Priority { get; set; }
 
@@ -542,7 +538,6 @@ namespace HordeServer.Jobs
 				CommitId = commitId;
 				CodeCommitId = codeCommitId;
 				PreflightCommitId = options.PreflightCommitId;
-				ClonedPreflightCommitId = options.ClonedPreflightCommitId;
 				PreflightDescription = options.PreflightDescription;
 				StartedByUserId = options.StartedByUserId;
 				StartedByBisectTaskId = options.StartedByBisectTaskId;

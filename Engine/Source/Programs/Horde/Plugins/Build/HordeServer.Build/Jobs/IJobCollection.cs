@@ -23,9 +23,6 @@ namespace HordeServer.Jobs
 		/// <inheritdoc cref="IJob.PreflightCommitId"/>
 		public CommitId? PreflightCommitId { get; set; }
 
-		/// <inheritdoc cref="IJob.ClonedPreflightCommitId"/>
-		public CommitId? ClonedPreflightCommitId { get; set; }
-
 		/// <inheritdoc cref="IJob.PreflightDescription"/>
 		public string? PreflightDescription { get; set; }
 

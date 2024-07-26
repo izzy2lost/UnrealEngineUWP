@@ -486,27 +486,6 @@ namespace EpicGames.Horde.Jobs
 		CommitId? _preflightCommitId;
 
 		/// <summary>
-		/// The cloned preflight changelist number
-		/// </summary>
-		[Obsolete("Use ClonedPreflightCommitId instead")]
-		public int? ClonedPreflightChange
-		{
-			get => _clonedPreflightChange ?? _clonedPreflightCommitId?.GetPerforceChangeOrMinusOne();
-			set => _clonedPreflightChange = value;
-		}
-		int? _clonedPreflightChange;
-
-		/// <summary>
-		/// The cloned preflight commit
-		/// </summary>
-		public CommitId? ClonedPreflightCommitId
-		{
-			get => _clonedPreflightCommitId ?? Horde.Commits.CommitId.FromPerforceChange(_clonedPreflightChange);
-			set => _clonedPreflightCommitId = value;
-		}
-		CommitId? _clonedPreflightCommitId;
-
-		/// <summary>
 		/// Description of the preflight
 		/// </summary>
 		public string? PreflightDescription { get; set; }
