@@ -576,7 +576,7 @@ FReply STranslationPickerEditWidget::SaveAndPreview()
 
 #else
 
-	FTextLocalizationManager::Get().ReplaceStringInLiveTable(TranslationUnit->Namespace, TranslationUnit->Key, TranslationUnit->Translation);
+	FTextLocalizationManager::Get().AddOrUpdateDisplayStringInLiveTable(TranslationUnit->Namespace, TranslationUnit->Key, TranslationUnit->Translation, &TranslationUnit->Source);
 
 	if (IConsoleObject* CObj = IConsoleManager::Get().FindConsoleObject(TEXT("Slate.TriggerInvalidate")))
 	{
