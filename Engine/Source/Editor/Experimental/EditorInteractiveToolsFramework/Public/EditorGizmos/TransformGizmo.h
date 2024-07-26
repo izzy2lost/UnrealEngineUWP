@@ -605,7 +605,7 @@ protected:
 	virtual void OnClickPressScreenSpaceRotate(const FInputDeviceRay& PressPos);
 
 	/** Handle click drag for screen-space rotate */
-	virtual void OnClickDragScreenSpaceRotate(const FInputDeviceRay& DragPos);
+	virtual void OnClickDragScreenSpaceRotate(const FInputDeviceRay& InDragPos);
 
 	/** Handle click release for screen-space rotate */
 	virtual void OnClickReleaseScreenSpaceRotate(const FInputDeviceRay& ReleasePos);
