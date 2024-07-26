@@ -560,6 +560,12 @@ struct FRayTracingSceneBuildParams
 	FRHIBuffer* InstanceBuffer = nullptr;
 	uint32 InstanceBufferOffset = 0;
 
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TConstArrayView<FRHIRayTracingGeometry*> ReferencedGeometries;
+	// One entry per instance
+	TConstArrayView<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
 	EAccelerationStructureBuildMode BuildMode = EAccelerationStructureBuildMode::Build;
 };
 

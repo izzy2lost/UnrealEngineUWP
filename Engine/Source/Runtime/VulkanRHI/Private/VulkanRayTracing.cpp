@@ -883,7 +883,7 @@ void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommand
 	FVulkanRayTracingGeometryParameters* MappedParameters = reinterpret_cast<FVulkanRayTracingGeometryParameters*>(MappedBuffer);
 	uint32 ParameterIndex = 0;
 
-	for (FRHIRayTracingGeometry* GeometryRHI : Initializer.PerInstanceGeometries)
+	for (FRHIRayTracingGeometry* GeometryRHI : PerInstanceGeometries)
 	{
 		const FVulkanRayTracingGeometry* Geometry = ResourceCast(GeometryRHI);
 		const FRayTracingGeometryInitializer& GeometryInitializer = Geometry->GetInitializer();
@@ -1367,6 +1367,16 @@ void FVulkanCommandListContext::RHIBuildAccelerationStructure(const FRayTracingS
 	FVulkanRayTracingScene* const Scene = ResourceCast(SceneBuildParams.Scene);
 	FVulkanResourceMultiBuffer* const ScratchBuffer = ResourceCast(SceneBuildParams.ScratchBuffer);
 	FVulkanResourceMultiBuffer* const InstanceBuffer = ResourceCast(SceneBuildParams.InstanceBuffer);
+
+	Scene->ReferencedGeometries.Reserve(SceneBuildParams.ReferencedGeometries.Num());
+
+	for (FRHIRayTracingGeometry* ReferencedGeometry : SceneBuildParams.ReferencedGeometries)
+	{
+		Scene->ReferencedGeometries.Add(ReferencedGeometry);
+	}
+
+	Scene->PerInstanceGeometries = SceneBuildParams.PerInstanceGeometries;
+
 	Scene->BuildAccelerationStructure(
 		*this,
 		ScratchBuffer, SceneBuildParams.ScratchBufferOffset, 

@@ -2424,8 +2424,8 @@ FRHICOMMAND_UNNAMED(FRHICommandBuildAccelerationStructure)
 {
 	FRayTracingSceneBuildParams SceneBuildParams;
 
-	explicit FRHICommandBuildAccelerationStructure(const FRayTracingSceneBuildParams& InSceneBuildParams)
-		: SceneBuildParams(InSceneBuildParams)
+	explicit FRHICommandBuildAccelerationStructure(FRayTracingSceneBuildParams InSceneBuildParams)
+		: SceneBuildParams(MoveTemp(InSceneBuildParams))
 	{}
 
 	RHI_API void Execute(FRHICommandListBase& CmdList);
@@ -3394,7 +3394,15 @@ public:
 		}
 		else
 		{
-			ALLOC_COMMAND(FRHICommandBuildAccelerationStructure)(SceneBuildParams);
+			FRayTracingSceneBuildParams InlineParams = SceneBuildParams;
+			InlineParams.ReferencedGeometries = AllocArray(SceneBuildParams.ReferencedGeometries);
+			InlineParams.PerInstanceGeometries = AllocArray(SceneBuildParams.PerInstanceGeometries);
+
+			ALLOC_COMMAND(FRHICommandBuildAccelerationStructure)(MoveTemp(InlineParams));
+
+			// This RHI command modifies members of the FRHIRayTracingScene inside platform RHI implementations.
+			// It therefore needs the RHI lock fence to prevent races on those members.
+			RHIThreadFence(true);
 		}
 	}
 
@@ -4288,7 +4296,9 @@ public:
 		check(LooseParameterDataSize <= UINT16_MAX);
 
 		FRayTracingLocalShaderBindings* InlineBindings = new(Alloc<FRayTracingLocalShaderBindings>()) FRayTracingLocalShaderBindings();
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InlineBindings->Geometry = Scene->GetInitializer().PerInstanceGeometries[InstanceIndex];
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		InlineBindings->SegmentIndex = SegmentIndex;
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		InlineBindings->RecordIndex = (Scene->GetInitializer().SegmentPrefixSum[InstanceIndex] + SegmentIndex) * Scene->GetInitializer().ShaderSlotsPerGeometrySegment + ShaderSlot;

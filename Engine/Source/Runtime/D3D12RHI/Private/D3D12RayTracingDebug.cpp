@@ -149,10 +149,10 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	checkf(OutputBuffer.Num() == 0, TEXT("Scene header must be written into the buffer first"));
 	Serialize(&SceneHeader, sizeof(SceneHeader), EAlignmentMode::AlignBeginning); // Reserve space for the header
 
-	const int32 NumReferencedGeometries = SceneInitializer.ReferencedGeometries.Num();
+	const int32 NumReferencedGeometries = Scene.ReferencedGeometries.Num();
 	for (int32 GeometryIndex = 0; GeometryIndex < NumReferencedGeometries; ++GeometryIndex)
 	{
-		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(SceneInitializer.ReferencedGeometries[GeometryIndex].GetReference());
+		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene.ReferencedGeometries[GeometryIndex].GetReference());
 		TRefCountPtr<FD3D12Buffer> BlasBuffer = Geometry->AccelerationStructureBuffers[0];
 		D3D12_GPU_VIRTUAL_ADDRESS Address = BlasBuffer->ResourceLocation.GetGPUVirtualAddress();
 		GeometryMap.FindOrAdd(Address, GeometryMap.Num());
@@ -223,7 +223,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 		{
 			FGeometryHeader GeometryHeader;
 
-			FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(SceneInitializer.ReferencedGeometries[GeometryIndex].GetReference());
+			FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Scene.ReferencedGeometries[GeometryIndex].GetReference());
 
 			FString DebugName = Geometry->DebugName.ToString();
 			FString OwnerName = Geometry->OwnerName.ToString();

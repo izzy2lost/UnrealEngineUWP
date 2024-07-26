@@ -3524,10 +3524,10 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			checkf(ScratchBufferOffset + Layer.UpdateScratchOffset + PrebuildInfo.UpdateScratchDataSizeInBytes <= ScratchBuffer->GetSize(),
 				TEXT("TLAS scratch buffer size is %d bytes with offset %d (%d bytes available), but the update requires %lld bytes. ")
-				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d, PerInstanceGeometries.Num = %d."),
+				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d."),
 				ScratchBuffer->GetSize(), ScratchBufferOffset + Layer.UpdateScratchOffset, ScratchBuffer->GetSize() - ScratchBufferOffset,
 				PrebuildInfo.UpdateScratchDataSizeInBytes,
-				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.PerInstanceGeometries.Num());
+				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex]);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		else
@@ -3535,10 +3535,10 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			checkf(ScratchBufferOffset + Layer.BuildScratchOffset + PrebuildInfo.ScratchDataSizeInBytes <= ScratchBuffer->GetSize(),
 				TEXT("TLAS scratch buffer size is %d bytes with offset %d (%d bytes available), but the build requires %lld bytes. ")
-				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d, PerInstanceGeometries.Num = %d."),
+				TEXT("BuildInputs.NumDescs = %d, Instances.Num = %d."),
 				ScratchBuffer->GetSize(), ScratchBufferOffset + Layer.BuildScratchOffset, ScratchBuffer->GetSize() - ScratchBufferOffset,
 				PrebuildInfo.ScratchDataSizeInBytes,
-				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.PerInstanceGeometries.Num());
+				Layer.BuildInputs.NumDescs, Initializer.NumNativeInstancesPerLayer[LayerIndex]);
 			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 	}
@@ -3591,10 +3591,10 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 			#endif // ENABLE_RESIDENCY_MANAGEMENT
 			};
 
-			const int32 NumReferencedGeometries = Initializer.ReferencedGeometries.Num();
+			const int32 NumReferencedGeometries = ReferencedGeometries.Num();
 			for (int32 Index = 0; Index < NumReferencedGeometries; ++Index)
 			{
-				FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Initializer.ReferencedGeometries[Index].GetReference());
+				FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(ReferencedGeometries[Index].GetReference());
 
 				checkf(!Geometry->IsDirty(CommandContext.GetGPUIndex()),
 					TEXT("Acceleration structures for all geometries must be built before building the top level acceleration structure for the scene."));
@@ -3623,10 +3623,10 @@ void FD3D12RayTracingScene::BuildAccelerationStructure(FD3D12CommandContext& Com
 	
 	// Build the actual acceleration structure
 
-	const int32 NumReferencedGeometries = Initializer.ReferencedGeometries.Num();
+	const int32 NumReferencedGeometries = ReferencedGeometries.Num();
 	for (int32 Index = 0; Index < NumReferencedGeometries; ++Index)
 	{
-		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(Initializer.ReferencedGeometries[Index].GetReference());
+		FD3D12RayTracingGeometry* Geometry = FD3D12DynamicRHI::ResourceCast(ReferencedGeometries[Index].GetReference());
 		CommandContext.UpdateResidency(Geometry->AccelerationStructureBuffers[GPUIndex]->ResourceLocation.GetResource());
 	}
 
@@ -3985,6 +3985,14 @@ void FD3D12CommandContext::RHIBuildAccelerationStructure(const FRayTracingSceneB
 	FD3D12RayTracingScene* Scene = FD3D12DynamicRHI::ResourceCast(SceneBuildParams.Scene);
 	FD3D12Buffer* ScratchBuffer = RetrieveObject<FD3D12Buffer>(SceneBuildParams.ScratchBuffer);
 	FD3D12Buffer* InstanceBuffer = RetrieveObject<FD3D12Buffer>(SceneBuildParams.InstanceBuffer);
+
+	Scene->ReferencedGeometries.Reserve(SceneBuildParams.ReferencedGeometries.Num());
+
+	for (FRHIRayTracingGeometry* ReferencedGeometry : SceneBuildParams.ReferencedGeometries)
+	{
+		Scene->ReferencedGeometries.Add(ReferencedGeometry);
+	}
+
 	Scene->BuildAccelerationStructure(
 		*this,
 		ScratchBuffer, SceneBuildParams.ScratchBufferOffset,

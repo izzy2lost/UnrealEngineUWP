@@ -42,10 +42,10 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 	Output.InstanceGeometryIndices.SetNumUninitialized(NumSceneInstances);
 	Output.BaseUploadBufferOffsets.SetNumUninitialized(NumSceneInstances);
 	Output.BaseInstancePrefixSum.SetNumUninitialized(NumSceneInstances);
+	Output.PerInstanceGeometries.SetNumUninitialized(NumSceneInstances);
 
 	FRayTracingSceneInitializer2 Initializer;
 	Initializer.DebugName = FName(TEXT("FRayTracingScene"));
-	Initializer.PerInstanceGeometries.SetNumUninitialized(NumSceneInstances);
 	Initializer.BuildFlags = BuildFlags;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -77,7 +77,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 		checkf(InstanceDesc.GeometryRHI, TEXT("Ray tracing instance must have a valid geometry."));
 
-		Initializer.PerInstanceGeometries[InstanceIndex] = InstanceDesc.GeometryRHI;
+		Output.PerInstanceGeometries[InstanceIndex] = InstanceDesc.GeometryRHI;
 
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		// Compute geometry segment count prefix sum to be later used in GetHitRecordBaseIndex()
@@ -86,11 +86,11 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 		Output.TotalNumSegments += InstanceDesc.GeometryRHI->GetNumSegments();
 
-		uint32 GeometryIndex = UniqueGeometries.FindOrAdd(InstanceDesc.GeometryRHI, Initializer.ReferencedGeometries.Num());
+		uint32 GeometryIndex = UniqueGeometries.FindOrAdd(InstanceDesc.GeometryRHI, Output.ReferencedGeometries.Num());
 		Output.InstanceGeometryIndices[InstanceIndex] = GeometryIndex;
-		if (GeometryIndex == Initializer.ReferencedGeometries.Num())
+		if (GeometryIndex == Output.ReferencedGeometries.Num())
 		{
-			Initializer.ReferencedGeometries.Add(InstanceDesc.GeometryRHI);
+			Output.ReferencedGeometries.Add(InstanceDesc.GeometryRHI);
 		}
 
 		if (bGpuSceneInstance)

@@ -3284,9 +3284,12 @@ struct FRayTracingSceneInitializer2
 {
 	// Unique list of geometries referenced by all instances in this scene.
 	// Any referenced geometry is kept alive while the scene is alive.
+	UE_DEPRECATED(5.5, "ReferencedGeometries should be provided in FRayTracingSceneBuildParams.")
 	TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
 	// One entry per instance
+	UE_DEPRECATED(5.5, "PerInstanceGeometries should be provided in FRayTracingSceneBuildParams.")
 	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
 	// Exclusive prefix sum of `Instance.NumTransforms` for all instances in this scene. Used to emulate SV_InstanceID in hit shaders.
 	UE_DEPRECATED(5.5, "Providing BaseInstancePrefixSum is no longer necessary.")
 	TArray<uint32> BaseInstancePrefixSum;

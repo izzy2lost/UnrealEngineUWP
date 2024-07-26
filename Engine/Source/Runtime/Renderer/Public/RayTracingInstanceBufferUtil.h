@@ -58,6 +58,12 @@ struct FRayTracingSceneWithGeometryInstances
 	UE_DEPRECATED(5.5, "GPUInstances no longer supported. Use GPUSceneInstances instead.")
 	TArray<FRayTracingGPUInstance> GPUInstances;
 
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TArray<FRHIRayTracingGeometry*> ReferencedGeometries;
+	// One entry per instance
+	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FRayTracingSceneWithGeometryInstances() = default;
 	FRayTracingSceneWithGeometryInstances(const FRayTracingSceneWithGeometryInstances&) = default;

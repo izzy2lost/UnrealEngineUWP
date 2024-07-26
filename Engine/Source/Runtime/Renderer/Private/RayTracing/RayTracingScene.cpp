@@ -94,8 +94,6 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 		Layer.RayTracingSceneRHI = Layer.InitializationData.Scene;
 
-		const FRayTracingSceneInitializer2& SceneInitializer = Layer.RayTracingSceneRHI->GetInitializer();
-
 		const uint32 NumNativeInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
 		const uint32 NumNativeInstancesAligned = FMath::DivideAndRoundUp(FMath::Max(NumNativeInstances, 1U), AllocationGranularity) * AllocationGranularity;
 		const uint32 NumTransformsAligned = FMath::DivideAndRoundUp(FMath::Max(Layer.InitializationData.NumNativeCPUInstances, 1U), AllocationGranularity) * AllocationGranularity;
@@ -138,7 +136,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 		{
 			// Round to PoT to avoid resizing too often
-			const uint32 NumGeometries = FMath::RoundUpToPowerOfTwo(SceneInitializer.ReferencedGeometries.Num());
+			const uint32 NumGeometries = FMath::RoundUpToPowerOfTwo(Layer.InitializationData.ReferencedGeometries.Num());
 			const uint32 AccelerationStructureAddressesBufferSize = NumGeometries * sizeof(FRayTracingAccelerationStructureAddress);
 
 			if (Layer.AccelerationStructureAddressesBuffer.NumBytes < AccelerationStructureAddressesBufferSize)
@@ -293,7 +291,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 					}
 				});
 
-			GraphBuilder.AddCommandListSetupTask([&Layer, &SceneInitializer](FRHICommandList& RHICmdList)
+			GraphBuilder.AddCommandListSetupTask([&Layer](FRHICommandList& RHICmdList)
 				{
 					for (uint32 GPUIndex : RHICmdList.GetGPUMask())
 					{
@@ -301,15 +299,17 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 							Layer.AccelerationStructureAddressesBuffer.Buffer,
 							GPUIndex,
 							0,
-							SceneInitializer.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
+							Layer.InitializationData.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
 
-						RHICmdList.EnqueueLambda([AddressesPtr, &SceneInitializer, GPUIndex](FRHICommandListBase&)
+						const TArrayView<FRHIRayTracingGeometry*> ReferencedGeometries = RHICmdList.AllocArray(MakeConstArrayView(Layer.InitializationData.ReferencedGeometries));
+
+						RHICmdList.EnqueueLambda([AddressesPtr, ReferencedGeometries, GPUIndex](FRHICommandListBase&)
 							{
 								TRACE_CPUPROFILER_EVENT_SCOPE(GetAccelerationStructuresAddresses);
 
-								for (int32 GeometryIndex = 0; GeometryIndex < SceneInitializer.ReferencedGeometries.Num(); ++GeometryIndex)
+								for (int32 GeometryIndex = 0; GeometryIndex < ReferencedGeometries.Num(); ++GeometryIndex)
 								{
-									AddressesPtr[GeometryIndex] = SceneInitializer.ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
+									AddressesPtr[GeometryIndex] = ReferencedGeometries[GeometryIndex]->GetAccelerationStructureAddress(GPUIndex);
 								}
 							});
 
@@ -452,6 +452,8 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 				BuildParams.ScratchBufferOffset = 0;
 				BuildParams.InstanceBuffer = PassParams->InstanceBuffer->GetRHI();
 				BuildParams.InstanceBufferOffset = 0;
+				BuildParams.ReferencedGeometries = Layer.InitializationData.ReferencedGeometries;
+				BuildParams.PerInstanceGeometries = Layer.InitializationData.PerInstanceGeometries;
 
 				RHICmdList.BindAccelerationStructureMemory(Layer.RayTracingSceneRHI, PassParams->TLASBuffer->GetRHI(), 0);
 				RHICmdList.BuildAccelerationStructure(BuildParams);

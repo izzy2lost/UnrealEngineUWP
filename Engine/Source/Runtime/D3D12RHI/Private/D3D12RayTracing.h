@@ -126,6 +126,10 @@ public:
 
 	const FRayTracingSceneInitializer2 Initializer;
 
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
+
 	// Scene keeps track of child acceleration structure buffers to ensure
 	// they are resident when any ray tracing work is dispatched.
 	// Resources that share residency handles are deduplicated.
