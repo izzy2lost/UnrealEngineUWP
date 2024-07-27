@@ -6280,6 +6280,12 @@ void UGeometryCollectionComponent::ForceBrokenForCustomRenderer(bool bForceBroke
 	RefreshCustomRenderer();
 }
 
+void UGeometryCollectionComponent::SetRootProxyComponentSpaceTransform(int32 Index, const FTransform& RootProxyTransform)
+{
+	SetRootProxyLocalTransform(Index, FTransform3f(RootProxyTransform));
+	RefreshRootProxies();
+}
+
 void UGeometryCollectionComponent::SetRootProxyLocalTransform(int32 Index, const FTransform3f& RootProxyTransform)
 {
 	if (RootProxyLocalTransforms.IsEmpty() && RestCollection)

@@ -1333,6 +1333,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Physics")
 	GEOMETRYCOLLECTIONENGINE_API void ForceBrokenForCustomRenderer(bool bForceBroken);
 
+	/** 
+	* blueprint function to set a specific root proxy local transform 
+	* warning: when called from C++ and calling it on multiple root proxies it is recommended to use SetRootProxyLocalTransform instead and then call RefreshCustomRenderer
+	* to avoid the cost of refreshing the renderer each time
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Physics")
+	GEOMETRYCOLLECTIONENGINE_API void SetRootProxyComponentSpaceTransform(int32 Index, const FTransform& RootProxyTransform);
+
 	/** Set a specific root proxy local transform */
 	GEOMETRYCOLLECTIONENGINE_API void SetRootProxyLocalTransform(int32 Index, const FTransform3f& RootProxyTransform);
 
