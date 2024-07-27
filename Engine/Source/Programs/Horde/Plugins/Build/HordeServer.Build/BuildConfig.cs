@@ -16,6 +16,7 @@ using EpicGames.Perforce;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Pools;
+using HordeServer.Commits;
 using HordeServer.Devices;
 using HordeServer.Perforce;
 using HordeServer.Plugins;
@@ -213,6 +214,21 @@ namespace HordeServer
 		/// <param name="config">Configuration for the stream</param>
 		/// <returns>True if the stream configuration was found</returns>
 		public bool TryGetProject(ProjectId projectId, [NotNullWhen(true)] out ProjectConfig? config) => _projectLookup.TryGetValue(projectId, out config);
+
+		/// <summary>
+		/// Get configuration for a stream from this object
+		/// </summary>
+		/// <param name="streamId">The stream identifier</param>
+		/// <returns>Configuration for the stream</returns>
+		public StreamConfig GetStream(StreamId streamId)
+		{
+			StreamConfig? streamConfig;
+			if (!TryGetStream(streamId, out streamConfig))
+			{
+				throw new StreamNotFoundException(streamId);
+			}
+			return streamConfig;
+		}
 
 		/// <summary>
 		/// Attempts to get configuration for a stream from this object
