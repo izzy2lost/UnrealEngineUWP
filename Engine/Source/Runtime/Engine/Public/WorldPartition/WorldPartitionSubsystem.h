@@ -210,6 +210,8 @@ private:
 	// Tracks world partition loading and pending loads
 	TSet<TWeakObjectPtr<const ULevelStreaming>> WorldPartitionLoadingAndPendingLoadStreamingLevels;
 
+	bool bHasBegunPlay = false;
+
 #if WITH_EDITOR
 	bool bIsRunningConvertWorldPartitionCommandlet;
 #endif

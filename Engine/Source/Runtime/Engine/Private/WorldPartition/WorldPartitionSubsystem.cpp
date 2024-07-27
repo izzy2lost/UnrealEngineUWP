@@ -565,7 +565,7 @@ void UWorldPartitionSubsystem::OnWorldPartitionInitialized(UWorldPartition* InWo
 		}
 	}
 
-	if (const UWorld* OwningWorld = GetWorld(); OwningWorld && OwningWorld->HasBegunPlay())
+	if (bHasBegunPlay)
 	{
 		InWorldPartition->OnBeginPlay();
 	}
@@ -1095,6 +1095,7 @@ void UWorldPartitionSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
+	bHasBegunPlay = true;
 	for (UWorldPartition* RegisteredWorldPartition : RegisteredWorldPartitions)
 	{
 		RegisteredWorldPartition->OnBeginPlay();
