@@ -170,6 +170,15 @@ public:
 				Eval->MaxDistance = OcclusionSettings.MaxDistance;
 				Eval->SpreadAngle = OcclusionSettings.SpreadAngle;
 				Eval->BiasAngleDeg = OcclusionSettings.BiasAngle;
+				switch (OcclusionSettings.NormalSpace)
+				{
+				case EBakeNormalSpace::Tangent:
+					Eval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Tangent;
+					break;
+				case EBakeNormalSpace::Object:
+					Eval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Object;
+					break;
+				}
 				Baker->AddEvaluator(Eval);
 			}
 		};
@@ -369,6 +378,7 @@ void UBakeMeshAttributeMapsTool::Setup()
 	OcclusionSettings->WatchProperty(OcclusionSettings->MaxDistance, [this](float) { OpState |= EBakeOpState::Evaluate; });
 	OcclusionSettings->WatchProperty(OcclusionSettings->SpreadAngle, [this](float) { OpState |= EBakeOpState::Evaluate; });
 	OcclusionSettings->WatchProperty(OcclusionSettings->BiasAngle, [this](float) { OpState |= EBakeOpState::Evaluate; });
+	OcclusionSettings->WatchProperty(OcclusionSettings->NormalSpace, [this](EBakeNormalSpace) { OpState |= EBakeOpState::Evaluate; });
 
 
 	CurvatureSettings = NewObject<UBakeCurvatureMapToolProperties>(this);

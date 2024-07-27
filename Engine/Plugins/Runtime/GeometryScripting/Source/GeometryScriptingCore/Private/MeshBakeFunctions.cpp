@@ -378,6 +378,15 @@ namespace GeometryScriptBakeLocals
 			OcclusionEval->NumOcclusionRays = OcclusionOptions->OcclusionRays;
 			OcclusionEval->MaxDistance = (OcclusionOptions->MaxDistance == 0) ? TNumericLimits<float>::Max() : OcclusionOptions->MaxDistance;
 			OcclusionEval->SpreadAngle = OcclusionOptions->SpreadAngle;
+			switch (OcclusionOptions->NormalSpace)
+			{
+			case EGeometryScriptBakeNormalSpace::Tangent:
+				OcclusionEval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Tangent;
+				break;
+			case EGeometryScriptBakeNormalSpace::Object:
+				OcclusionEval->NormalSpace = FMeshOcclusionMapEvaluator::ESpace::Object;
+				break;
+			}			
 			if (!GetTargetMeshTangents(EvalState))
 			{
 				return nullptr;
@@ -975,7 +984,8 @@ FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBak
 FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBakeTypeBentNormal(
 	int OcclusionRays,
 	float MaxDistance,
-	float SpreadAngle)
+	float SpreadAngle,
+	EGeometryScriptBakeNormalSpace NormalSpace)
 {
 	FGeometryScriptBakeTypeOptions Output;
 	Output.BakeType = EGeometryScriptBakeTypes::BentNormal;
@@ -983,6 +993,7 @@ FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBak
 	OcclusionOptions->OcclusionRays = OcclusionRays;
 	OcclusionOptions->MaxDistance = MaxDistance;
 	OcclusionOptions->SpreadAngle = SpreadAngle;
+	OcclusionOptions->NormalSpace = NormalSpace;
 	Output.Options = OcclusionOptions;
 	return Output;
 }

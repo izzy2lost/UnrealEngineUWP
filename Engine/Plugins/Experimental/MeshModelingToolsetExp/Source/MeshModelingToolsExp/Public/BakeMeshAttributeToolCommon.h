@@ -162,6 +162,10 @@ public:
 	/** Angle in degrees from the horizon for occlusion rays for which the contribution is attenuated to reduce faceting artifacts. */
 	UPROPERTY(EditAnywhere, Category = OcclusionOutput, meta = (UIMin = "0", UIMax = "45.0", ClampMin = "0", ClampMax = "89.9"))
 	float BiasAngle = 15.0f;
+
+	/** Normal space for Bent Normal bakes. */
+	UPROPERTY(EditAnywhere, Category = OcclusionOutput)
+	EBakeNormalSpace NormalSpace = EBakeNormalSpace::Tangent;
 };
 
 
@@ -340,6 +344,7 @@ struct FOcclusionMapSettings
 	float MaxDistance;
 	float SpreadAngle;
 	float BiasAngle;
+	EBakeNormalSpace NormalSpace = EBakeNormalSpace::Tangent;
 
 	bool operator==(const FOcclusionMapSettings& Other) const
 	{
@@ -347,7 +352,8 @@ struct FOcclusionMapSettings
 			OcclusionRays == Other.OcclusionRays &&
 			MaxDistance == Other.MaxDistance &&
 			SpreadAngle == Other.SpreadAngle &&
-			BiasAngle == Other.BiasAngle;
+			BiasAngle == Other.BiasAngle &&
+			NormalSpace == Other.NormalSpace;
 	}
 };
 

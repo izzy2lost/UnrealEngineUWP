@@ -79,6 +79,7 @@ EBakeOpState UBakeMeshAttributeTool::UpdateResult_Occlusion(const FImageDimensio
 	OcclusionMapSettings.OcclusionRays = OcclusionSettings->OcclusionRays;
 	OcclusionMapSettings.SpreadAngle = OcclusionSettings->SpreadAngle;
 	OcclusionMapSettings.BiasAngle = OcclusionSettings->BiasAngle;
+	OcclusionMapSettings.NormalSpace = OcclusionSettings->NormalSpace;
 
 	if ( !(CachedOcclusionMapSettings == OcclusionMapSettings) )
 	{

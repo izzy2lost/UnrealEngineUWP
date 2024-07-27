@@ -111,6 +111,9 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Occlusion : public FGeo
 
 	/** Angle in degrees from the horizon for occlusion rays for which the contribution is attenuated to reduce faceting artifacts. */
 	float BiasAngle = 15.0f;
+
+	/** Normal space for Bent Normals. */
+	EGeometryScriptBakeNormalSpace NormalSpace = EGeometryScriptBakeNormalSpace::Tangent;
 };
 
 UENUM(BlueprintType)
@@ -499,7 +502,8 @@ public:
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeBentNormal(
 		int OcclusionRays = 16,
 		float MaxDistance = 0.0f,
-		float SpreadAngle = 180.0f);
+		float SpreadAngle = 180.0f,
+		EGeometryScriptBakeNormalSpace NormalSpace = EGeometryScriptBakeNormalSpace::Tangent);
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypePosition();
