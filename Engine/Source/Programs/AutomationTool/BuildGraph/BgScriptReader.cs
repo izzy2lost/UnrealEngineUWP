@@ -921,7 +921,7 @@ namespace AutomationTool
 						string input = ReadAttribute(element, "Input");
 						Match match = regexValue.Match(input);
 
-						bool optional = await BgCondition.Evaluate(ReadAttribute(element, "Optional"));
+						bool optional = await BgCondition.EvaluateAsync(ReadAttribute(element, "Optional"), new BgConditionContext(_rootDir));
 						if (!match.Success)
 						{
 							if (!optional)
@@ -2273,7 +2273,7 @@ namespace AutomationTool
 			try
 			{
 				string text = ExpandProperties(element, element.GetAttribute("If"));
-				return await BgCondition.Evaluate(text);
+				return await BgCondition.EvaluateAsync(text, new BgConditionContext(_rootDir));
 			}
 			catch (BgConditionException ex)
 			{

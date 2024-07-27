@@ -163,12 +163,12 @@ namespace AutomationTool
 			Node = node;
 		}
 
-		public bool Bind(Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<string, BgNodeOutput> tagNameToNodeOutput, ILogger logger)
+		public async ValueTask<bool> BindAsync(Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<string, BgNodeOutput> tagNameToNodeOutput, ILogger logger)
 		{
 			bool result = true;
 			foreach (BgTask taskInfo in Node.Tasks)
 			{
-				BgTaskImpl? boundTask = BindTask(taskInfo, nameToTask, tagNameToNodeOutput, logger);
+				BgTaskImpl? boundTask = await BindTaskAsync(taskInfo, nameToTask, tagNameToNodeOutput, logger);
 				if (boundTask == null)
 				{
 					result = false;
@@ -181,7 +181,7 @@ namespace AutomationTool
 			return result;
 		}
 
-		BgTaskImpl? BindTask(BgTask taskInfo, Dictionary<string, ScriptTaskBinding> nameToTask, IReadOnlyDictionary<string, BgNodeOutput> tagNameToNodeOutput, ILogger logger)
+		async ValueTask<BgTaskImpl?> BindTaskAsync(BgTask taskInfo, Dictionary<string, ScriptTaskBinding> nameToTask, IReadOnlyDictionary<string, BgNodeOutput> tagNameToNodeOutput, ILogger logger)
 		{
 			// Get the reflection info for this element
 			ScriptTaskBinding? task;
@@ -202,6 +202,9 @@ namespace AutomationTool
 				}
 			}
 
+			// Create a context for evaluating conditions
+			BgConditionContext conditionContext = new BgConditionContext(Unreal.RootDirectory);
+
 			// Read all the attributes into a parameters object for this task
 			object parametersObject = Activator.CreateInstance(task.ParametersClass)!;
 			foreach ((string name, string value) in taskInfo.Arguments)
@@ -220,7 +223,7 @@ namespace AutomationTool
 					if (parameter.CollectionType == null)
 					{
 						// Parse it and assign it to the parameters object
-						object? fieldValue = ParseValue(value, parameter.ValueType);
+						object? fieldValue = await ParseValueAsync(value, parameter.ValueType, conditionContext);
 						if (fieldValue != null)
 						{
 							parameter.SetValue(parametersObject, fieldValue);
@@ -244,7 +247,7 @@ namespace AutomationTool
 						List<string> valueStrings = BgTaskImpl.SplitDelimitedList(value);
 						foreach (string valueString in valueStrings)
 						{
-							object? elementValue = ParseValue(valueString, parameter.ValueType);
+							object? elementValue = await ParseValueAsync(valueString, parameter.ValueType, conditionContext);
 							if (elementValue != null)
 							{
 								parameter.CollectionType.InvokeMember("Add", BindingFlags.InvokeMethod | BindingFlags.Instance | BindingFlags.Public, null, collectionValue, new object[] { elementValue });
@@ -304,8 +307,9 @@ namespace AutomationTool
 		/// </summary>
 		/// <param name="valueText">The text to parse</param>
 		/// <param name="valueType">Type of the value to parse</param>
+		/// <param name="context">Context for evaluating boolean expressions</param>
 		/// <returns>Value that was parsed</returns>
-		static object? ParseValue(string valueText, Type valueType)
+		static async ValueTask<object?> ParseValueAsync(string valueText, Type valueType, BgConditionContext context)
 		{
 			// Parse it and assign it to the parameters object
 			if (valueType.IsEnum)
@@ -314,7 +318,7 @@ namespace AutomationTool
 			}
 			else if (valueType == typeof(Boolean))
 			{
-				return BgCondition.Evaluate(valueText).AsTask().Result;
+				return await BgCondition.EvaluateAsync(valueText, context);
 			}
 			else if (valueType == typeof(FileReference))
 			{

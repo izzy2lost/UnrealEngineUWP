@@ -727,14 +727,14 @@ namespace AutomationTool
 			Dictionary<BgNodeDef, BgNodeExecutor> nodeToExecutor = new Dictionary<BgNodeDef, BgNodeExecutor>();
 			if (skipValidation && singleNode != null)
 			{
-				if (!BindNodes(singleNode, nameToTask, graph.TagNameToNodeOutput, nodeToExecutor))
+				if (!await BindNodesAsync(singleNode, nameToTask, graph.TagNameToNodeOutput, nodeToExecutor))
 				{
 					return ExitCode.Error_Unknown;
 				}
 			}
 			else
 			{
-				if (!BindNodes(graph, nameToTask, nodeToExecutor))
+				if (!await BindNodesAsync(graph, nameToTask, nodeToExecutor))
 				{
 					return ExitCode.Error_Unknown;
 				}
@@ -761,26 +761,26 @@ namespace AutomationTool
 			return ExitCode.Success;
 		}
 
-		static bool BindNodes(BgGraphDef graph, Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<BgNodeDef, BgNodeExecutor> nodeToExecutor)
+		static async ValueTask<bool> BindNodesAsync(BgGraphDef graph, Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<BgNodeDef, BgNodeExecutor> nodeToExecutor)
 		{
 			bool result = true;
 			foreach (BgAgentDef agent in graph.Agents)
 			{
 				foreach (BgNodeDef node in agent.Nodes)
 				{
-					result &= BindNodes(node, nameToTask, graph.TagNameToNodeOutput, nodeToExecutor);
+					result &= await BindNodesAsync(node, nameToTask, graph.TagNameToNodeOutput, nodeToExecutor);
 				}
 			}
 			return result;
 		}
 
-		static bool BindNodes(BgNodeDef node, Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<string, BgNodeOutput> tagNameToNodeOutput, Dictionary<BgNodeDef, BgNodeExecutor> nodeToExecutor)
+		static async ValueTask<bool> BindNodesAsync(BgNodeDef node, Dictionary<string, ScriptTaskBinding> nameToTask, Dictionary<string, BgNodeOutput> tagNameToNodeOutput, Dictionary<BgNodeDef, BgNodeExecutor> nodeToExecutor)
 		{
 			if (node is BgScriptNode scriptNode)
 			{
 				BgScriptNodeExecutor executor = new BgScriptNodeExecutor(scriptNode);
 				nodeToExecutor[node] = executor;
-				return executor.Bind(nameToTask, tagNameToNodeOutput, Logger);
+				return await executor.BindAsync(nameToTask, tagNameToNodeOutput, Logger);
 			}
 			else if (node is BgNodeExpressionDef bytecodeNode)
 			{
