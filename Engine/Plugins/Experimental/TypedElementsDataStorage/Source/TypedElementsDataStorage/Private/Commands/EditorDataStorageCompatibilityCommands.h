@@ -152,18 +152,20 @@ namespace UE::EditorDataStorage
 
 	struct FAddSyncFromWorldTag final
 	{
-		static UScriptStruct* Type;
-
 		TObjectKey<const UObject> Target;
 		TypedElementDataStorage::RowHandle Row;
+
+		static UScriptStruct* GetType();
+		static UScriptStruct** GetTypeAddress();
 	};
 
 	struct FAddInteractiveSyncFromWorldTag final
 	{
-		static UScriptStruct* Type;
-
 		TObjectKey<const UObject> Target;
 		TypedElementDataStorage::RowHandle Row;
+
+		static UScriptStruct* GetType();
+		static UScriptStruct** GetTypeAddress();
 	};
 
 	struct FRemoveInteractiveSyncFromWorldTag final
