@@ -161,6 +161,11 @@ void FWaitingQueue::PrepareWait(FWaitEvent* Node)
 	State.fetch_add(WaiterInc, std::memory_order_relaxed);
 }
 
+bool FWaitingQueue::IsOversubscriptionLimitReached() const
+{
+	return Oversubscription.load(std::memory_order_relaxed) >= MaxThreadCount;
+}
+
 void FWaitingQueue::CheckState(uint64 InState, bool bInIsWaiter)
 {
 	using namespace WaitingQueueImpl;
@@ -404,7 +409,12 @@ void FWaitingQueue::IncrementOversubscription()
 {
 	using namespace WaitingQueueImpl;
 
-	++Oversubscription;
+	if (++Oversubscription >= MaxThreadCount)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FWaitingQueue::OversubscriptionLimitReached);
+		CSV_CUSTOM_STAT(Scheduler, OversubscriptionLimitReached, 1, ECsvCustomStatOp::Accumulate);
+		OversubscriptionLimitReachedEvent.Broadcast();
+	}
 
 	// This is important that StandbyState is invalidated after Oversubscription is increased so we
 	// can detect stale decisions and reevaluate oversubscription.

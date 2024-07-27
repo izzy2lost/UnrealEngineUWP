@@ -208,6 +208,15 @@ namespace LowLevelTasks
 
 		//get the background priority set when workers were started
 		inline EThreadPriority GetBackgroundPriority() const { return BackgroundPriority; }
+
+		//determine if we're currently out of workers for a given task priority
+		CORE_API bool IsOversubscriptionLimitReached(ETaskPriority TaskPriority) const;
+
+		//event that will fire when the scheduler has reached its oversubscription limit (all threads are waiting).
+		//note: This event can be broadcasted from any thread so the receiver needs to be thread-safe
+		//      For optimal performance, avoid binding UObjects to this event and use AddRaw/AddLambda instead.
+		//      Also, what's happening inside that callback should be as brief and simple as possible (i.e. raising an event)
+		CORE_API FOversubscriptionLimitReached& GetOversubscriptionLimitReachedEvent();
 	public:
 		FScheduler() = default;
 		~FScheduler();
@@ -228,7 +237,7 @@ namespace LowLevelTasks
 
 		friend class FOversubscriptionScope;
 	private:
-		Private::FWaitingQueue                         WaitingQueue[2] = { WorkerEvents, WorkerEvents };
+		Private::FWaitingQueue                         WaitingQueue[2] = { { WorkerEvents, OversubscriptionLimitReachedEvent }, { WorkerEvents, OversubscriptionLimitReachedEvent } };
 		FSchedulerTls::FQueueRegistry                  QueueRegistry;
 		FCriticalSection                               WorkerThreadsCS;
 		TArray<TUniquePtr<FThread>>                    WorkerThreads;
@@ -243,6 +252,7 @@ namespace LowLevelTasks
 		EThreadPriority                                WorkerPriority = EThreadPriority::TPri_Normal;
 		EThreadPriority                                BackgroundPriority = EThreadPriority::TPri_BelowNormal;
 		std::atomic_bool                               TemporaryShutdown{ false };
+		FOversubscriptionLimitReached                  OversubscriptionLimitReachedEvent;
 	};
 
 	namespace Private

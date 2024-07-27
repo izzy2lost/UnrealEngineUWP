@@ -41,18 +41,19 @@ namespace LowLevelTasks::Private
 
 	class FWaitingQueue
 	{
-		uint32                     ThreadCount{ 0 };    // Normal amount of threads when there is no oversubscription.
-		uint32                     MaxThreadCount{ 0 }; // Max limit that can be reached during oversubscription period.
-		TFunction<void()>          CreateThread;
-		std::atomic<uint32>        Oversubscription{ 0 };
-		std::atomic<uint64>        State;
-		std::atomic<uint64>        StandbyState;
-		TAlignedArray<FWaitEvent>& NodesArray;
-		std::atomic<bool>          bIsShuttingDown{ false };
-
+		uint32                         ThreadCount{ 0 };    // Normal amount of threads when there is no oversubscription.
+		uint32                         MaxThreadCount{ 0 }; // Max limit that can be reached during oversubscription period.
+		TFunction<void()>              CreateThread;
+		std::atomic<uint32>            Oversubscription{ 0 };
+		std::atomic<uint64>            State;
+		std::atomic<uint64>            StandbyState;
+		TAlignedArray<FWaitEvent>&     NodesArray;
+		std::atomic<bool>              bIsShuttingDown{ false };
+		FOversubscriptionLimitReached& OversubscriptionLimitReachedEvent;
 	public:
-		FWaitingQueue(TAlignedArray<FWaitEvent>& InNodesArray)
+		FWaitingQueue(TAlignedArray<FWaitEvent>& InNodesArray, FOversubscriptionLimitReached& InOversubscriptionLimitReachedEvent)
 			: NodesArray(InNodesArray)
+			, OversubscriptionLimitReachedEvent(InOversubscriptionLimitReachedEvent)
 		{
 		}
 
@@ -84,6 +85,9 @@ namespace LowLevelTasks::Private
 		// Decrement oversubscription only, any active threads will finish their current task and will
 		// go to sleep if conditional standby determines we're now over the active thread count.
 		CORE_API void DecrementOversubscription();
+
+		// Is the current waiting queue out of workers
+		CORE_API bool IsOversubscriptionLimitReached() const;
 
 		// Try to wake up the amount of workers passed in the parameters.
 		// Return the number that were woken up.

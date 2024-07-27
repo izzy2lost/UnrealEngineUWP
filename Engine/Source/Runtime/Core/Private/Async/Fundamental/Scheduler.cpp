@@ -209,6 +209,29 @@ namespace LowLevelTasks
 			}
 		}
 	}
+	
+	bool FScheduler::IsOversubscriptionLimitReached(ETaskPriority TaskPriority) const
+	{
+		const bool bIsBackgroundTask = TaskPriority >= ETaskPriority::ForegroundCount;
+		if (bIsBackgroundTask)
+		{
+			return 
+				WaitingQueue[1].IsOversubscriptionLimitReached();
+		}
+		else
+		{
+			// Since we are allowing background thread to run foreground task we need both waiting queue
+			// to reach their limit to consider that priority's limit reached.
+			return 
+				WaitingQueue[0].IsOversubscriptionLimitReached() &&
+				WaitingQueue[1].IsOversubscriptionLimitReached();
+		}
+	}
+	
+	FOversubscriptionLimitReached& FScheduler::GetOversubscriptionLimitReachedEvent()
+	{
+		return OversubscriptionLimitReachedEvent;
+	}
 
 	inline FTask* FScheduler::ExecuteTask(FTask* InTask)
 	{
