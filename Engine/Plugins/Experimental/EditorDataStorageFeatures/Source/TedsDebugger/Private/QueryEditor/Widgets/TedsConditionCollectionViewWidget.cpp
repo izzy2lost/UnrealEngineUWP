@@ -1,8 +1,8 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
-#include "TEDSConditionCollectionViewWidget.h"
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "TedsConditionCollectionViewWidget.h"
 
 #include "Components/HorizontalBox.h"
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"

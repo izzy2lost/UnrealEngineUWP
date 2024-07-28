@@ -1,7 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/SCompoundWidget.h"
 

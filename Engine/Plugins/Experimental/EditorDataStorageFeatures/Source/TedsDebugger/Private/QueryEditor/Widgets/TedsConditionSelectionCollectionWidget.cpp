@@ -1,5 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
-#include "QueryEditor/Widgets/TEDSConditionSelectionCollectionWidget.h"
+#include "QueryEditor/Widgets/TedsConditionSelectionCollectionWidget.h"
 
 namespace UE::Teds::Debug::QueryEditor
 {

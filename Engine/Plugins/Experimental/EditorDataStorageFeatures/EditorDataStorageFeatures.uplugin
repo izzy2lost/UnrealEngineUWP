@@ -22,6 +22,18 @@
 		{
 			"Name": "TedsAssetData",
 			"Type":  "Editor"
+		},
+		{
+			"Name": "TedsOutliner",
+			"Type": "Editor"
+		},
+		{
+			"Name": "TedsPropertyEditor",
+			"Type": "Editor"
+		},
+		{
+			"Name": "TedsDebugger",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [

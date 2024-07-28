@@ -1,5 +1,5 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 
 #include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Common/TypedElementDataStorageLog.h"

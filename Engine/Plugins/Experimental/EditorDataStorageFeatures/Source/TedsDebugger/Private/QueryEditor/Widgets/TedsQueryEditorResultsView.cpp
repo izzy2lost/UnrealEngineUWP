@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TEDSQueryEditorResultsView.h"
+#include "TedsQueryEditorResultsView.h"
 
 #include "SceneOutlinerPublicTypes.h"
 #include "SWarningOrErrorBox.h"
@@ -12,7 +12,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Modules/ModuleManager.h"
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerModule"

@@ -2,7 +2,7 @@
 #pragma once
 
 #include "Elements/Common/TypedElementHandles.h"
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SCompoundWidget.h"
 

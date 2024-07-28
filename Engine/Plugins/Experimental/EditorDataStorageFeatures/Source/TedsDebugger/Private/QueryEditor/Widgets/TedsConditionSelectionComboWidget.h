@@ -2,7 +2,7 @@
 #pragma once
 #include "Filters/GenericFilter.h"
 #include "Filters/SFilterBar.h"
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/SCompoundWidget.h"
 
 template<typename>

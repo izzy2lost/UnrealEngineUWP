@@ -1,7 +1,7 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
-#include "TEDSConditionSelectionComboWidget.h"
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "TedsConditionSelectionComboWidget.h"
 
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 
 #include "Algo/FindSortedStringCaseInsensitive.h"
 #include "Elements/Common/TypedElementDataStorageLog.h"

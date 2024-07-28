@@ -10,7 +10,7 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Modules/ModuleManager.h"
-#include "QueryEditor/TEDSQueryEditor.h"
+#include "QueryEditor/TedsQueryEditor.h"
 #include "TedsOutlinerModule.h"
 #include "TypedElementOutlinerMode.h"
 

@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "QueryEditor/TEDSQueryEditor.h"
+#include "QueryEditor/TedsQueryEditor.h"
 
-#include "QueryEditor/TEDSQueryEditorModel.h"
+#include "QueryEditor/TedsQueryEditorModel.h"
 #include "Components/VerticalBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SEditableComboBox.h"
-#include "QueryEditor/Widgets/TEDSConditionSelectionComboWidget.h"
-#include "Widgets/TEDSConditionCollectionViewWidget.h"
-#include "Widgets/TEDSQueryEditorResultsView.h"
+#include "QueryEditor/Widgets/TedsConditionSelectionComboWidget.h"
+#include "Widgets/TedsConditionCollectionViewWidget.h"
+#include "Widgets/TedsQueryEditorResultsView.h"
 
 #define LOCTEXT_NAMESPACE "TedsQueryEditor"
 
