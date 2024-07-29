@@ -21,7 +21,7 @@ namespace UE::Workspace
 namespace UE::AnimNext::Editor
 {
 
-class FAnimNextEditorModule : public IAnimNextEditorModule
+class FModule : public IModule
 {
 
 private:
@@ -32,7 +32,6 @@ private:
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override;
 	virtual void RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
 	virtual void UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
-	virtual void AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) override;
 
 private:
 	void RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule);

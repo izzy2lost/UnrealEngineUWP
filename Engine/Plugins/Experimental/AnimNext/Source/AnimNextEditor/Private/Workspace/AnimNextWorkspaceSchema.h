@@ -14,7 +14,4 @@ class UAnimNextWorkspaceSchema : public UWorkspaceSchema
 	// UWorkspaceSchema interface
 	virtual FText GetDisplayName() const override;
 	virtual TConstArrayView<FTopLevelAssetPath> GetSupportedAssetClassPaths() const override;
-	
-public:
-	static TArray<FTopLevelAssetPath> SupportedAssetClasses;
 };

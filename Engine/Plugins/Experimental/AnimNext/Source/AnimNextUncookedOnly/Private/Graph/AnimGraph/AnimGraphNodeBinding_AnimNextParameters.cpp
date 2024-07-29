@@ -479,7 +479,7 @@ TSharedRef<SWidget> UAnimGraphNodeBinding_AnimNextParameters::MakePropertyBindin
 				}
 				MenuBuilder.EndSection();
 
-				IAnimNextEditorModule& EditorModule = FModuleManager::Get().LoadModuleChecked<IAnimNextEditorModule>("AnimNextEditor");
+				IModule& EditorModule = FModuleManager::Get().LoadModuleChecked<IModule>("AnimNextEditor");
 				FParameterPickerArgs Args;
 				Args.OnParameterPicked = FOnParameterPicked::CreateLambda([InArgs, BindingPropertyPath, PinArrayIndex, bIsArray, bIsArrayElement, Blueprint](const FParameterBindingReference& InBinding)
 				{

@@ -21,7 +21,7 @@ class FLocatorContext : public UE::UniversalObjectLocator::ILocatorFragmentEdito
 
 	virtual bool IsFragmentAllowed(FName InFragmentName) const override
 	{
-		FAnimNextEditorModule& EditorModule = FModuleManager::GetModuleChecked<FAnimNextEditorModule>("AnimNextEditor");
+		FModule& EditorModule = FModuleManager::GetModuleChecked<FModule>("AnimNextEditor");
 		return EditorModule.LocatorFragmentEditorNames.Contains(InFragmentName);
 	}
 };

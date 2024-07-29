@@ -28,7 +28,7 @@ namespace UE::AnimNext::Editor
 	class SParameterPicker;
 	class SRigVMAssetViewRow;
 	class FParameterCustomization;
-	class FAnimNextEditorModule;
+	class FModule;
 	class FWorkspaceEditor;
 }
 
@@ -74,7 +74,7 @@ protected:
 	friend class UE::AnimNext::Editor::SRigVMAssetViewRow;
 	friend struct UE::AnimNext::Editor::FUtils;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
-	friend class UE::AnimNext::Editor::FAnimNextEditorModule;
+	friend class UE::AnimNext::Editor::FModule;
 	friend class UE::AnimNext::Editor::FWorkspaceEditor;
 	friend class UAnimNextRigVMAssetEntry;
 	friend class UAnimNextRigVMAssetLibrary;

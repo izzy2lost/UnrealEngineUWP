@@ -6,12 +6,6 @@
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceSchema"
 
-TArray<FTopLevelAssetPath> UAnimNextWorkspaceSchema::SupportedAssetClasses =
-{
-	UAnimNextSchedule::StaticClass()->GetClassPathName(),
-	UAnimNextModule::StaticClass()->GetClassPathName()
-};
-
 FText UAnimNextWorkspaceSchema::GetDisplayName() const
 {
 	return LOCTEXT("DisplayName", "AnimNext Workspace");
@@ -19,7 +13,13 @@ FText UAnimNextWorkspaceSchema::GetDisplayName() const
 
 TConstArrayView<FTopLevelAssetPath> UAnimNextWorkspaceSchema::GetSupportedAssetClassPaths() const
 {
-	return SupportedAssetClasses;
+	static const FTopLevelAssetPath Assets[] =
+	{
+		UAnimNextSchedule::StaticClass()->GetClassPathName(),
+		UAnimNextModule::StaticClass()->GetClassPathName(),
+	};
+	
+	return Assets;
 }
 
 #undef LOCTEXT_NAMESPACE
