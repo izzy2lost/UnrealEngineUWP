@@ -43,7 +43,7 @@ TRACE_DECLARE_ATOMIC_INT_COUNTER(IoStoreDDCPutCount, TEXT("IoStoreWriter/DDCPutC
 
 static UE::DerivedData::FCacheBucket IoStoreDDCBucket = UE::DerivedData::FCacheBucket(ANSITEXTVIEW("IoStoreCompression"));
 static UE::DerivedData::ECachePolicy IoStoreDDCPolicy = UE::DerivedData::ECachePolicy::Default;
-static FStringView IoStoreDDCVersion = TEXTVIEW("985D3FAD-71D0-4758-A777-A910B49CC4BF");
+static FStringView IoStoreDDCVersion = TEXTVIEW("36EEC49B-E63B-498B-87D0-55FD11E4F9D6");
 
 struct FChunkBlock
 {
@@ -2314,8 +2314,7 @@ void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 		{
 			FIoStoreWriteQueueEntry* Next = Entry->Next;
 			Entry->FinishCompressionBarrier.Wait();
-			TRACE_COUNTER_INCREMENT(IoStoreBeginEncryptionAndSigningCount);
-			Entry->Writer->BeginEncryptAndSign(Entry);
+			
 			if (Entry->bStoreCompressedDataInDDC)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(AddDDCPutRequest);
@@ -2332,6 +2331,12 @@ void FIoStoreWriterContextImpl::BeginEncryptionAndSigningThreadFunc()
 				}
 			}
 			DDCPutRequestDispatcher.DispatchPutRequests(HandleDDCPutResult);
+
+			// Must be done after we have serialized the compressed data for DDC as it can potentially modify the
+			// data stored by Entry!
+			TRACE_COUNTER_INCREMENT(IoStoreBeginEncryptionAndSigningCount);
+			Entry->Writer->BeginEncryptAndSign(Entry);
+
 			WriterQueue.Enqueue(Entry);
 			Entry = Next;
 		}
