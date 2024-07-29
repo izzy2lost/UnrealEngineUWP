@@ -48,6 +48,7 @@ namespace uba
 		UBA_TEST(TestLocalSchedule) \
 		UBA_TEST(TestLocalScheduleReuse) \
 		UBA_TEST(TestRemoteScheduleReuse) \
+		UBA_TEST(TestCacheClientAndServer) \
 
 #define UBA_WINDOWS_TESTS \
 		UBA_NONMAC_TESTS \

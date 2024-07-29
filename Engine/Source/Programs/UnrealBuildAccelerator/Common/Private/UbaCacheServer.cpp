@@ -12,7 +12,7 @@
 
 namespace uba
 {
-	static constexpr u32 CacheFileVersion = 5;
+	static constexpr u32 CacheFileVersion = 6;
 	static constexpr u32 CacheFileCompatibilityVersion = 3;
 
 	bool IsCaseInsensitive(u64 id) { return (id & (1ull << 32)) == 0; }
@@ -184,7 +184,7 @@ namespace uba
 		}
 
 		u64 duration = GetTime() - startTime;
-		m_logger.Detail(TC("Database (v%u) loaded from %s in %s (%llu bucket(s) containing %s paths, %s keys, %llu cache entries)"), databaseVersion, fileName.data, TimeToText(duration).str, m_buckets.size(), BytesToText(stats.totalPathTableSize).str, BytesToText(stats.totalCasKeyTableSize).str, stats.totalCacheEntryCount.load());
+		m_logger.Detail(TC("Database loaded from %s (v%u)  in %s (%llu bucket(s) containing %s paths, %s keys, %llu cache entries)"), fileName.data, databaseVersion, TimeToText(duration).str, m_buckets.size(), BytesToText(stats.totalPathTableSize).str, BytesToText(stats.totalCasKeyTableSize).str, stats.totalCacheEntryCount.load());
 		return true;
 	}
 
@@ -351,7 +351,7 @@ namespace uba
 		{
 			file.Write(kv2.first);
 
-			temp.resize(kv2.second.GetTotalSize(true));
+			temp.resize(kv2.second.GetTotalSize(CacheNetworkVersion, true));
 			BinaryWriter writer(temp.data(), 0, temp.size());
 			kv2.second.Write(writer, CacheNetworkVersion, true);
 			UBA_ASSERT(writer.GetPosition() == temp.size());
@@ -477,7 +477,7 @@ namespace uba
 		else
 		{
 			TimeToText lastTime(startTime - m_lastMaintenance, true);
-			m_logger.Info(TC("Maintenance started after %u added cache entries (Ran last time %s ago)"), entriesAdded, (m_lastMaintenance ? lastTime.str : TC("Never")));
+			m_logger.Info(TC("Maintenance started after %u added cache entries (Ran last time %s ago)"), entriesAdded, (m_lastMaintenance ? lastTime.str : TC("<never>")));
 		}
 
 		m_lastMaintenance = startTime;
@@ -564,7 +564,7 @@ namespace uba
 				ReaderWriterLock keysToEraseLock;
 				Vector<CasKey> keysToErase;
 
-				u64 lastUseTimeLimit = ~0u;
+				u64 lastUseTimeLimit = 0; // This is the time relative to server startup time
 				if (bucket.expirationTimeSeconds)
 				{
 					// If cas key table size is over 30mb we need to shorten expiration time
@@ -608,7 +608,7 @@ namespace uba
 						auto& entry = *i;
 						bool deleteEntry = false;
 
-						u64 neededSize = entries.GetEntrySize(entry, false);
+						u64 neededSize = entries.GetEntrySize(entry, CacheNetworkVersion, false);
 						if (neededSize > capacityLeft)
 						{
 							deleteEntry = true;
@@ -722,7 +722,7 @@ namespace uba
 						keysToErase.push_back(li->first);
 					}
 					else
-						bucket.totalEntrySize += entries.GetTotalSize(false);
+						bucket.totalEntrySize += entries.GetTotalSize(CacheNetworkVersion, false);
 				});
 
 				for (auto& key : keysToErase)
@@ -965,11 +965,13 @@ namespace uba
 		lock.Leave();
 	}
 
-	CacheServer::ConnectionBucket& CacheServer::GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader)
+	CacheServer::ConnectionBucket& CacheServer::GetConnectionBucket(const ConnectionInfo& connectionInfo, BinaryReader& reader, u32* outClientVersion)
 	{
 		u64 id = reader.Read7BitEncoded();
 		SCOPED_WRITE_LOCK(m_connectionsLock, lock);
 		auto& connection = m_connections[connectionInfo.GetId()];
+		if (outClientVersion)
+			*outClientVersion = connection.clientVersion;
 		return connection.buckets.try_emplace(id, id).first->second;
 	}
 
@@ -1037,8 +1039,9 @@ namespace uba
 		}
 		case CacheMessageType_StoreEntry:
 		{
-			auto& bucket = GetConnectionBucket(connectionInfo, reader);
-			return HandleStoreEntry(bucket, reader, writer);
+			u32 clientVersion;
+			auto& bucket = GetConnectionBucket(connectionInfo, reader, &clientVersion);
+			return HandleStoreEntry(bucket, reader, writer, clientVersion);
 		}
 		case CacheMessageType_StoreEntryDone:
 		{
@@ -1086,8 +1089,12 @@ namespace uba
 			return HandleExecuteCommand(reader, writer);
 
 		case CacheMessageType_ReportUsedEntry:
-			return HandleReportUsedEntry(reader, writer);
-
+		{
+			SCOPED_READ_LOCK(m_connectionsLock, lock);
+			u32 clientVersion = m_connections[connectionInfo.GetId()].clientVersion;
+			lock.Leave();
+			return HandleReportUsedEntry(reader, writer, clientVersion);
+		}
 		case CacheMessageType_RequestShutdown:
 		{
 			TString reason = reader.ReadString();
@@ -1102,9 +1109,14 @@ namespace uba
 		}
 	}
 
-	bool CacheServer::HandleStoreEntry(ConnectionBucket& connectionBucket, BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleStoreEntry(ConnectionBucket& connectionBucket, BinaryReader& reader, BinaryWriter& writer, u32 clientVersion)
 	{
 		CasKey cmdKey = reader.ReadCasKey();
+
+		u64 inputCount = ~0u;
+		if (clientVersion >= 5)
+			inputCount = reader.Read7BitEncoded();
+
 
 		u64 outputCount = reader.Read7BitEncoded();
 		u64 index = 0;
@@ -1118,8 +1130,11 @@ namespace uba
 
 		while (reader.GetLeft())
 		{
-			u32 offset = u32(reader.Read7BitEncoded());
 			bool isInput = index++ >= outputCount;
+			if (isInput && !inputCount--) // For client versions under 5 we will hit reader.GetLeft() == false first.
+				break;
+
+			u32 offset = u32(reader.Read7BitEncoded());
 			if (!isInput)
 				continue;
 
@@ -1146,6 +1161,14 @@ namespace uba
 			bytesForInput += Get7BitEncodedCount(casKeyOffset);
 
 			//m_logger.Info(TC("%s - %s"), path.data, CasKeyString(casKey).str);
+		}
+
+		// For client versions 5 and over we have log entries after the inputs
+		Vector<u8> logLines;
+		if (u64 logLinesSize = reader.GetLeft())
+		{
+			logLines.resize(logLinesSize);
+			reader.ReadBytes(logLines.data(), logLinesSize);
 		}
 
 		Vector<u8> inputCasKeyOffsets;
@@ -1176,20 +1199,6 @@ namespace uba
 			matchingEntry = i;
 			break;
 		}
-
-		#if UBA_USE_OLD
-		List<CacheEntry>::iterator matchingEntry2 = cacheEntries.entries.end();
-		for (auto i=cacheEntries.entries.begin(), e=cacheEntries.entries.end(); i!=e; ++i)
-		{
-			if (i->inputCasKeyOffsets != inputCasKeyOffsets)
-				continue;
-			matchingEntry2 = i;
-			break;
-		}
-		if (matchingEntry2 != matchingEntry)
-			m_logger.Warning(L"CODE MISMATCH!!!");
-		#endif
-
 
 		// Already exists
 		if (matchingEntry != cacheEntries.entries.end())
@@ -1236,12 +1245,6 @@ namespace uba
 				return true;
 		}
 
-		#if UBA_USE_OLD
-		// Add new entry
-		newEntry.inputCasKeyOffsets.swap(inputCasKeyOffsets);
-		cacheEntries.ValidateEntry(m_logger, newEntry);
-		#endif
-
 		Set<u32> outputs;
 		u64 bytesForOutput = 0;
 
@@ -1281,6 +1284,28 @@ namespace uba
 
 		newEntry.creationTime = GetSystemTimeAsFileTime() - m_creationTime;
 		newEntry.id = cacheEntries.idCounter++;
+
+		if (logLines.empty())
+		{
+			newEntry.logLinesType = LogLinesType_Empty;
+		}
+		else if (cacheEntries.sharedLogLines.empty() && logLines.size() < 150) // If log line is very long it is most likely a warning that will be fixed
+		{
+			cacheEntries.sharedLogLines = std::move(logLines);
+			newEntry.logLinesType = LogLinesType_Shared;
+		}
+		else
+		{
+			if (cacheEntries.sharedLogLines == logLines)
+			{
+				newEntry.logLinesType = LogLinesType_Shared;
+			}
+			else
+			{
+				newEntry.logLinesType = LogLinesType_Owned;
+				newEntry.logLines = std::move(logLines);
+			}
+		}
 
 		// If cache server has all content we can put the new cache entry directly in the lookup.. otherwise we'll have to wait until client has uploaded content
 		if (hasAllContent)
@@ -1345,7 +1370,7 @@ namespace uba
 		return cacheEntries.Write(writer, clientVersion, false);
 	}
 
-	bool CacheServer::HandleReportUsedEntry(BinaryReader& reader, BinaryWriter& writer)
+	bool CacheServer::HandleReportUsedEntry(BinaryReader& reader, BinaryWriter& writer, u32 clientVersion)
 	{
 		Bucket& bucket = GetBucket(reader);
 		CasKey cmdKey = reader.ReadCasKey();
@@ -1368,6 +1393,10 @@ namespace uba
 			u64 fileTime = GetSystemTimeAsFileTime() - m_creationTime;
 			entry.lastUsedTime = fileTime;
 			bucket.lastUsedTime = fileTime;
+
+			if (clientVersion >= 5 && entry.logLinesType == LogLinesType_Owned)
+				if (entry.logLines.size() <= writer.GetCapacityLeft())
+					writer.WriteBytes(entry.logLines.data(), entry.logLines.size());
 			break;
 		}
 		return true;

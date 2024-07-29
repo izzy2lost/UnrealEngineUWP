@@ -603,15 +603,42 @@ extern "C"
 
 	bool CacheClient_WriteToCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process, const uba::u8* inputs, uba::u32 inputsSize, const uba::u8* outputs, uba::u32 outputsSize)
 	{
-		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize, process->GetId());
+		using namespace uba;
+		StackBinaryWriter<16*1024> logLinesWriter;
+
+		auto& logLines = process->GetLogLines();
+		for (auto& line : logLines)
+		{
+			if (logLinesWriter.GetCapacityLeft() < 1 + GetStringWriteSize(line.text.c_str(), line.text.size()))
+				break;
+			logLinesWriter.WriteString(line.text);
+			logLinesWriter.WriteByte(line.type);
+		}
+
+		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize, logLinesWriter.GetData(), logLinesWriter.GetPosition(), process->GetId());
 	}
 
-	bool CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
+	bool CacheClient_WriteToCache2(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessHandle* process, const uba::u8* inputs, uba::u32 inputsSize, const uba::u8* outputs, uba::u32 outputsSize, const uba::u8* logLines, uba::u32 logLinesSize)
+	{
+		return cacheClient->WriteToCache(*rootPaths, bucket, process->GetStartInfo(), inputs, inputsSize, outputs, outputsSize, logLines, logLinesSize, process->GetId());
+	}
+
+	uba::u32 CacheClient_FetchFromCache(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
 	{
 		using namespace uba;
-		bool cacheHit = false;
-		bool res = cacheClient->FetchFromCache(cacheHit, *rootPaths, bucket, info);
-		return res && cacheHit;
+		CacheResult cacheResult;
+		bool res = cacheClient->FetchFromCache(cacheResult, *rootPaths, bucket, info);
+		return (res && cacheResult.hit) ? 1 : 0;
+	}
+
+	uba::CacheResult* CacheClient_FetchFromCache2(uba::CacheClient* cacheClient, uba::RootPaths* rootPaths, uba::u32 bucket, const uba::ProcessStartInfo& info)
+	{
+		using namespace uba;
+		auto cacheResult = new CacheResult();
+		if (cacheClient->FetchFromCache(*cacheResult, *rootPaths, bucket, info))
+			return cacheResult;
+		delete cacheResult;
+		return nullptr;
 	}
 
 	void CacheClient_RequestServerShutdown(uba::CacheClient* cacheClient, const uba::tchar* reason)
@@ -626,6 +653,27 @@ extern "C"
 		networkClient.Disconnect();
 		delete cacheClient;
 		delete &networkClient;
+	}
+
+	const uba::tchar* CacheResult_GetLogLine(uba::CacheResult* result, uba::u32 index)
+	{
+		auto& lines = result->logLines;
+		if (index >= lines.size())
+			return nullptr;
+		return lines[index].text.c_str();
+	}
+
+	uba::u32 CacheResult_GetLogLineType(uba::CacheResult* result, uba::u32 index)
+	{
+		auto& lines = result->logLines;
+		if (index >= lines.size())
+			return 0;
+		return uba::u32(lines[index].type);
+	}
+
+	void CacheResult_Delete(uba::CacheResult* result)
+	{
+		delete result;
 	}
 
 	void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler)

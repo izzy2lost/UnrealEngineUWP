@@ -202,12 +202,13 @@ namespace uba
 
 		u64 maintenanceReserveSizeMb = 128;
 
-		#if PLATFORM_LINUX
-		u64 hugePageCount = GetHugePageCount();
-		u64 recommendedHugePageCount = (maintenanceReserveSizeMb*GetLogicalProcessorCount())/2;
-		if (hugePageCount < recommendedHugePageCount)
-			logger.Info(TC("  Improve maintenance performance by enabling %llu huge pages on system (%llu enabled)"), recommendedHugePageCount, hugePageCount);
-		#endif
+		if (SupportsHugePages())
+		{
+			u64 hugePageCount = GetHugePageCount();
+			u64 recommendedHugePageCount = (maintenanceReserveSizeMb*GetLogicalProcessorCount())/2;
+			if (hugePageCount < recommendedHugePageCount)
+				logger.Info(TC("  Improve maintenance performance by enabling %llu huge pages on system (%llu enabled)"), recommendedHugePageCount, hugePageCount);
+		}
 
 		logger.Info(TC(""));
 

@@ -1467,7 +1467,7 @@ namespace uba
 		if (logStats)
 		{
 			u64 duration = GetTime() - startTime;
-			m_logger.Detail(TC("Database loaded from %s in %s (contained %llu entries estimated to %s)"), fileName.data, TimeToText(duration).str, m_casLookup.size(), BytesToText(m_casTotalBytes).str);
+			m_logger.Detail(TC("Database loaded from %s (v%u) in %s (contained %llu entries estimated to %s)"), fileName.data, version, TimeToText(duration).str, m_casLookup.size(), BytesToText(m_casTotalBytes).str);
 		}
 
 		return true;
@@ -2121,8 +2121,9 @@ namespace uba
 
 		SCOPED_WRITE_LOCK(casEntry.lock, entryLock);
 
-		if (casEntry.verified)
-			return casEntry.exists;
+		if (casEntry.verified && casEntry.exists)
+			return true;
+
 		SCOPED_WRITE_LOCK(m_deferredCasCreationLookupLock, deferredLock);
 		auto findIt = m_deferredCasCreationLookup.find(casKey);
 		if (findIt == m_deferredCasCreationLookup.end())

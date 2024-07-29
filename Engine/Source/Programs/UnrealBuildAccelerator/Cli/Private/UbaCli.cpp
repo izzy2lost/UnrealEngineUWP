@@ -462,6 +462,7 @@ namespace uba
 
 			StringBuffer<> rootDir2(g_rootDir.data);
 			rootDir2.Append("_CHECKCAS2");
+			DeleteAllFiles(logger, rootDir2.data);
 			Client client;
 
 			auto g = MakeGuard([&]() { server.DisconnectClients(); });
@@ -480,13 +481,14 @@ namespace uba
 						{
 							Storage::RetrieveResult res;
 							storageServer.EnsureCasFile(casKey, TC("Dummy"));
-							CasKey casKey2 = AsCompressed(casKey, true);
-							if (!client.storageClient->RetrieveCasFile(res, casKey2, TC("")))
+							if (!client.storageClient->RetrieveCasFile(res, AsCompressed(casKey, false), TC("")))
+								success = false;
+							if (!client.storageClient->RetrieveCasFile(res, casKey, TC("")))
 								success = false;
 						}, 1, TC(""));
 				});
 			workManager.FlushWork();
-			return success;
+			return success ? 0 : -1;
 		}
 
 #if UBA_USE_AWS
@@ -712,9 +714,9 @@ namespace uba
 			u32 bucketId = 1337;
 			if (cacheClient)
 			{
-				bool hit = false;
-				cacheClient->FetchFromCache(hit, RootPaths(), bucketId, pinfo);
-				if (hit)
+				CacheResult cacheResult;
+				cacheClient->FetchFromCache(cacheResult, RootPaths(), bucketId, pinfo);
+				if (cacheResult.hit)
 				{
 					logger.Info(TC("%s run took %s [cached]"), (enableDetour ? TC("Boxed") : TC("Native")), TimeToText(GetTime() - start).str);
 					return true;
@@ -738,7 +740,7 @@ namespace uba
 			{
 				logger.Error(TC("Populating cache not implemented... todo"));
 				RootPaths rootPaths;
-				cacheClient->WriteToCache(rootPaths, 0, pinfo, nullptr, 1, nullptr, 0);
+				cacheClient->WriteToCache(rootPaths, 0, pinfo, nullptr, 1, nullptr, 0, nullptr, 0);
 			}
 			return true;
 		};

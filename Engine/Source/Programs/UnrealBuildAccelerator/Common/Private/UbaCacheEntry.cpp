@@ -8,17 +8,28 @@ namespace uba
 {
 	u64 CacheEntries::GetSharedSize()
 	{
-		return sizeof(u16) + Get7BitEncodedCount(sharedInputCasKeyOffsets.size()) + sharedInputCasKeyOffsets.size();
+		return sizeof(u16)
+			+ Get7BitEncodedCount(sharedInputCasKeyOffsets.size()) + sharedInputCasKeyOffsets.size()
+			+ Get7BitEncodedCount(sharedLogLines.size()) + sharedLogLines.size();
 	}
 
-	u64 CacheEntries::GetEntrySize(CacheEntry& entry, bool toDisk)
+	u64 CacheEntries::GetEntrySize(CacheEntry& entry, u32 clientVersion, bool toDisk)
 	{
 		u64 size = 0;
 
 		if (toDisk)
+		{
 			size += Get7BitEncodedCount(entry.creationTime) + Get7BitEncodedCount(entry.lastUsedTime);
+			if (clientVersion >= 5 && entry.logLinesType == LogLinesType_Owned)
+				size += Get7BitEncodedCount(entry.logLines.size()) + entry.logLines.size();
+		}
 		else
+		{
 			size += Get7BitEncodedCount(entry.id);
+		}
+
+		if (clientVersion >= 5)
+			++size; // logLinesType
 
 		auto& extra = entry.extraInputCasKeyOffsets;
 		size += Get7BitEncodedCount(extra.size()) + extra.size();
@@ -31,11 +42,11 @@ namespace uba
 		return size;
 	}
 
-	u64 CacheEntries::GetTotalSize(bool toDisk)
+	u64 CacheEntries::GetTotalSize(u32 clientVersion, bool toDisk)
 	{
 		u64 size = GetSharedSize();
 		for (auto& entry : entries)
-			size += GetEntrySize(entry, toDisk);
+			size += GetEntrySize(entry, clientVersion, toDisk);
 		return size;
 	}
 
@@ -69,16 +80,22 @@ namespace uba
 		}
 
 		{
-			auto& shared = sharedInputCasKeyOffsets;
+			auto& sharedOffsets = sharedInputCasKeyOffsets;
 
 			if (!toDisk)
 			{
-				u64 neededSize = Get7BitEncodedCount(shared.size()) + shared.size();
+				u64 neededSize = Get7BitEncodedCount(sharedOffsets.size()) + sharedOffsets.size();
+				neededSize += Get7BitEncodedCount(sharedLogLines.size()) + sharedLogLines.size();
 				if (neededSize > writer.GetCapacityLeft())
 					return true;
 			}
-			writer.Write7BitEncoded(shared.size());
-			writer.WriteBytes(shared.data(), shared.size());
+			writer.Write7BitEncoded(sharedOffsets.size());
+			writer.WriteBytes(sharedOffsets.data(), sharedOffsets.size());
+			if (clientVersion >= 5)
+			{
+				writer.Write7BitEncoded(sharedLogLines.size());
+				writer.WriteBytes(sharedLogLines.data(), sharedLogLines.size());
+			}
 		}
 
 		for (auto& entry : entries)
@@ -97,6 +114,8 @@ namespace uba
 				u64 neededSize = Get7BitEncodedCount(entry.id) + Get7BitEncodedCount(extra.size()) + extra.size();
 				neededSize += Get7BitEncodedCount(ranges.size()) + ranges.size();
 				neededSize += Get7BitEncodedCount(outputs.size()) + outputs.size();
+				if (clientVersion >= 5)
+					neededSize += 1; // hasLogLines
 
 				if (neededSize > writer.GetCapacityLeft())
 					return true;
@@ -112,6 +131,21 @@ namespace uba
 
 			writer.Write7BitEncoded(outputs.size());
 			writer.WriteBytes(outputs.data(), outputs.size());
+
+			// Log lines are not included in network data.
+			if (toDisk)
+			{
+				writer.WriteByte(entry.logLinesType);
+				if (entry.logLinesType == LogLinesType_Owned)
+				{
+					writer.Write7BitEncoded(entry.logLines.size());
+					writer.WriteBytes(entry.logLines.data(), entry.logLines.size());
+				}
+			}
+			else if (clientVersion >= 5)
+			{
+				writer.WriteByte(entry.logLinesType);
+			}
 
 			++entryCount;
 		}
@@ -134,11 +168,6 @@ namespace uba
 				cacheEntry.lastUsedTime = GetSystemTimeAsFileTime();
 
 				u32 inputSize = reader.ReadU32();
-				#if UBA_USE_OLD
-				cacheEntry.inputCasKeyOffsets.resize(inputSize);
-				reader.ReadBytes(cacheEntry.inputCasKeyOffsets.data(), inputSize);
-				reader.SetPosition(reader.GetPosition() - inputSize);
-				#endif
 
 				u64 inputEnd = reader.GetPosition() + inputSize;
 				temp.clear();
@@ -151,9 +180,6 @@ namespace uba
 				reader.ReadBytes(cacheEntry.outputCasKeyOffsets.data(), outputSize);
 			}
 
-			#if UBA_USE_OLD
-			ValidateEntries(logger);
-			#endif
 			return true;
 		}
 
@@ -161,6 +187,13 @@ namespace uba
 		u64 sharedSize = reader.Read7BitEncoded();
 		sharedInputCasKeyOffsets.resize(sharedSize);
 		reader.ReadBytes(sharedInputCasKeyOffsets.data(), sharedSize);
+
+		if (databaseVersion >= 6)
+		{
+			u64 sharedLogLinesSize = reader.Read7BitEncoded();
+			sharedLogLines.resize(sharedLogLinesSize);
+			reader.ReadBytes(sharedLogLines.data(), sharedLogLinesSize);
+		}
 
 		while (entryCount--)
 		{
@@ -181,9 +214,17 @@ namespace uba
 			entry.outputCasKeyOffsets.resize(outputSize);
 			reader.ReadBytes(entry.outputCasKeyOffsets.data(), outputSize);
 
-			#if UBA_USE_OLD
-			Flatten(entry.inputCasKeyOffsets, entry);
-			#endif
+			if (databaseVersion >= 6)
+			{
+				entry.logLinesType = LogLinesType(reader.ReadByte());
+				if (entry.logLinesType == LogLinesType_Owned)
+				{
+					u64 logLinesSize = reader.Read7BitEncoded();
+					entry.logLines.resize(logLinesSize);
+					reader.ReadBytes(entry.logLines.data(), logLinesSize);
+				}
+			}
+
 		}
 
 		return true;
@@ -394,62 +435,10 @@ namespace uba
 		BuildInputsT(entry, inputs, entries.empty());
 	}
 
-	void CacheEntries::UpdateEntries()
-	{
-		if (entries.empty())
-			return;
-
-		// Checking if first entry is still the matching entry
-		auto& firstEntry = *entries.begin();
-		if (firstEntry.extraInputCasKeyOffsets.empty())
-		{
-			BinaryReader reader(firstEntry.sharedInputCasKeyOffsetRanges.data(), 0, firstEntry.sharedInputCasKeyOffsetRanges.size());
-			u64 begin = reader.Read7BitEncoded();
-			u64 end = reader.Read7BitEncoded();
-			if (begin == 0 && end == sharedInputCasKeyOffsets.size())
-				return;
-		}
-
-		// First entry is gone, need to refresh the shared table...
-
-
-		Vector<u8> oldShared;
-		bool isFirst = true;
-		Vector<u32> temp;
-		for (auto& entry : entries)
-		{
-			if (isFirst)
-			{
-				primaryId = entry.id;
-				// Flatten first entry into new shared
-				Flatten(oldShared, entry);
-				oldShared.swap(sharedInputCasKeyOffsets);
-				entry.extraInputCasKeyOffsets.clear();
-				entry.sharedInputCasKeyOffsetRanges.resize(1 + Get7BitEncodedCount(sharedInputCasKeyOffsets.size()));
-				BinaryWriter rangeWriter(entry.sharedInputCasKeyOffsetRanges.data(), 0, entry.sharedInputCasKeyOffsetRanges.size());
-				rangeWriter.Write7BitEncoded(0);
-				rangeWriter.Write7BitEncoded(sharedInputCasKeyOffsets.size());
-				isFirst = false;
-			}
-			else
-			{
-				// Flatten using old shared and rebuild it with new shared
-				Flatten(temp, entry, oldShared);
-				entry.extraInputCasKeyOffsets.clear();
-				entry.sharedInputCasKeyOffsetRanges.clear();
-				BuildInputsT(entry, temp, false);
-			}
-		}
-	}
-
 	void CacheEntries::UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2)
 	{
 		if (entries.empty())
 			return;
-
-		#if UBA_USE_OLD
-		ValidateEntries(logger);
-		#endif
 
 		auto convertOffsets = [&](Vector<u8>& offsets)
 			{
@@ -475,12 +464,7 @@ namespace uba
 			};
 
 		for (auto& entry : entries)
-		{
-			#if UBA_USE_OLD
-			convertOffsets(entry.inputCasKeyOffsets);
-			#endif
 			convertOffsets(entry.outputCasKeyOffsets);
-		}
 
 		auto writePrimaryRange = [&](CacheEntry& entry, u64 newSize)
 			{
@@ -607,25 +591,9 @@ namespace uba
 					// Create new extras
 					convertOffsets(entry.extraInputCasKeyOffsets);
 				}
-
-				#if UBA_USE_OLD
-				ValidateEntry(logger, entry);
-				#endif
 			}
 		}
-
-		#if UBA_USE_OLD
-		ValidateEntries(logger);
-		#endif
 	}
-
-	#if UBA_USE_OLD
-	void CacheEntries::ValidateEntries(Logger& logger)
-	{
-		for (auto& entry : entries)
-			ValidateEntry(logger, entry, entry.inputCasKeyOffsets);
-	}
-	#endif
 
 	void CacheEntries::ValidateEntry(Logger& logger, CacheEntry& entry, Vector<u8>& inputCasKeyOffsets)
 	{

@@ -18,8 +18,6 @@
 #define UBA_LOG_WRITE_CACHE_INFO 0 // 0 = Disabled, 1 = Normal, 2 = Detailed
 #define UBA_LOG_FETCH_CACHE_INFO 0 // 0 = Disabled, 1 = Misses, 2 = Both misses and hits
 
-#define UBA_OLD_TEST 0
-
 namespace uba
 {
 	void CacheClientCreateInfo::Apply(Config& config)
@@ -128,7 +126,7 @@ namespace uba
 
 	CacheClient::~CacheClient() = default;
 
-	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize, u32 processId)
+	bool CacheClient::WriteToCache(const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info, const u8* inputs, u64 inputsSize, const u8* outputs, u64 outputsSize, const u8* logLines, u64 logLinesSize, u32 processId)
 	{
 		if (!m_connected)
 			return false;
@@ -350,7 +348,7 @@ namespace uba
 			return false;
 
 		// actual cache entry now when we know server has the needed tables
-		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey, bytesSent))
+		if (!SendCacheEntry(bucket, rootPaths, cmdKey, inputsStringToCasKey, outputsStringToCasKey, logLines, logLinesSize, bytesSent))
 			return false;
 
 
@@ -386,9 +384,9 @@ namespace uba
 	}
 
 
-	bool CacheClient::FetchFromCache(bool& outCacheHit, const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
+	bool CacheClient::FetchFromCache(CacheResult& outResult, const RootPaths& rootPaths, u32 bucketId, const ProcessStartInfo& info)
 	{
-		outCacheHit = false;
+		outResult.hit = false;
 
 		if (!m_connected)
 			return false;
@@ -436,11 +434,6 @@ namespace uba
 			if (!msg.Send(reader))
 				return false;
 		}
-
-		// Traverse entries and test inputs against local machine
-#if UBA_OLD_TEST
-		BinaryReader traverserReader(reader.GetPositionData(), 0, reader.GetLeft());
-#endif
 
 		u32 entryCount = reader.ReadU16();
 
@@ -530,45 +523,6 @@ namespace uba
 			};
 
 
-#if UBA_OLD_TEST
-		bool testIsMatch = false;
-		u32 matchingId = ~0u;
-		{
-			CacheEntriesTraverser traverser(traverserReader);
-			u32 entryIndex = 0;
-			for (; entryIndex!=entryCount; ++entryIndex)
-			{
-				{
-					bool isMatch = true;
-					bool result = traverser.TraverseEntryInputs([&](u32 casKeyOffset)
-						{
-							bool entryMatch;
-							if (!IsCasKeyMatch(entryMatch, casKeyOffset, entryIndex, true))
-								return false;
-							isMatch &= entryMatch;
-							return true;
-						});
-
-					if (isMatch && !result) // Returned false before setting isMatch, something went wrong
-						return false;
-
-					// No match, test next entry
-					if (!isMatch)
-					{
-						traverser.SkipEntryOutputs();
-						continue;
-					}
-				}
-
-				testIsMatch = true;
-				matchingId = traverser.lastId;
-			}
-		}
-#endif
-
-
-
-
 		struct Range
 		{
 			u32 begin;
@@ -576,6 +530,8 @@ namespace uba
 		};
 		Vector<Range> sharedMatchingRanges;
 
+		const u8* sharedLogLines;
+		u64 sharedLogLinesSize;
 
 		// Create ranges out of shared offsets that matches local state
 		{
@@ -584,6 +540,10 @@ namespace uba
 
 			BinaryReader sharedReader(reader.GetPositionData(), 0, sharedSize);
 			reader.Skip(sharedSize);
+
+			sharedLogLinesSize = reader.Read7BitEncoded();
+			sharedLogLines = reader.GetPositionData();
+			reader.Skip(sharedLogLinesSize);
 
 			u32 rangeBegin = 0;
 
@@ -645,6 +605,8 @@ namespace uba
 				u64 outSize = reader.Read7BitEncoded();
 				BinaryReader outputsReader(reader.GetPositionData(), 0, outSize);
 				reader.Skip(outSize);
+				
+				auto logLinesType = LogLinesType(reader.ReadByte());
 
 				{
 					TimerScope ts(cacheStats.testEntry);
@@ -680,22 +642,16 @@ namespace uba
 						continue;
 				}
 
-#if UBA_OLD_TEST
-				UBA_ASSERTF(testIsMatch, TC("%s"), info.GetDescription());
-				UBA_ASSERTF(matchingId == entryId, TC("%u vs %u"), matchingId, entryId);
-#endif
-
 				if (!m_useCacheHit)
 					return false;
 
-				{
-					StackBinaryWriter<128> writer;
-					NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ReportUsedEntry, writer);
-					writer.Write7BitEncoded(MakeId(bucket.id));
-					writer.WriteCasKey(cmdKey);
-					writer.Write7BitEncoded(entryId);
-					msg.Send();
-				}
+
+				if (logLinesType == LogLinesType_Shared)
+					if (!PopulateLogLines(outResult.logLines, sharedLogLines, sharedLogLinesSize))
+						return false;
+
+				if (!ReportUsedEntry(outResult.logLines, logLinesType == LogLinesType_Owned, bucket, cmdKey, entryId))
+					return false;
 
 				// Fetch output files from cache (and some files need to be "denormalized" before written to disk
 
@@ -807,15 +763,11 @@ namespace uba
 					if (!m_session.RegisterNewFile(path.data))
 						return false;
 				}
-				outCacheHit = true;
+				outResult.hit = true;
 				success = true;
 				return true;
 			}
 		}
-
-#if UBA_OLD_TEST
-		UBA_ASSERTF(!testIsMatch, TC("%s"), info.GetDescription());
-#endif
 
 		for (auto& miss : misses)
 			m_logger.Info(TC("Cache miss on %s because of mismatch of %s (entry: %u, local: %s cache: %s)"), info.GetDescription(), miss.path.data(), miss.entryIndex, CasKeyString(miss.local).str, CasKeyString(miss.cache).str);
@@ -937,7 +889,7 @@ namespace uba
 		return true;
 	}
 
-	bool CacheClient::SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey, u64& outBytesSent)
+	bool CacheClient::SendCacheEntry(Bucket& bucket, const RootPaths& rootPaths, const CasKey& cmdKey, const Map<u32, u32>& inputsStringToCasKey, const Map<u32, u32>& outputsStringToCasKey, const u8* logLines, u64 logLinesSize, u64& outBytesSent)
 	{
 		StackBinaryReader<1024> reader;
 		{
@@ -947,12 +899,17 @@ namespace uba
 			writer.Write7BitEncoded(MakeId(bucket.id));
 			writer.WriteCasKey(cmdKey);
 
+			writer.Write7BitEncoded(inputsStringToCasKey.size());
 			writer.Write7BitEncoded(outputsStringToCasKey.size());
 			for (auto& kv : outputsStringToCasKey)
 				writer.Write7BitEncoded(kv.second);
 
 			for (auto& kv : inputsStringToCasKey)
 				writer.Write7BitEncoded(kv.second);
+
+			if (logLinesSize)
+				if (writer.GetCapacityLeft() > logLinesSize + Get7BitEncodedCount(logLinesSize))
+					writer.WriteBytes(logLines, logLinesSize);
 
 			if (!msg.Send(reader))
 				return false;
@@ -1146,6 +1103,36 @@ namespace uba
 		}
 
 		bucket.availableCasKeyTableSize = bucket.serverCasKeyTable.GetSize();
+		return true;
+	}
+
+	bool CacheClient::ReportUsedEntry(Vector<ProcessLogLine>& outLogLines, bool ownedLogLines, Bucket& bucket, const CasKey& cmdKey, u32 entryId)
+	{
+		StackBinaryWriter<128> writer;
+		NetworkMessage msg(m_client, CacheServiceId, CacheMessageType_ReportUsedEntry, writer);
+		writer.Write7BitEncoded(MakeId(bucket.id));
+		writer.WriteCasKey(cmdKey);
+		writer.Write7BitEncoded(entryId);
+
+		if (!ownedLogLines)
+			return msg.Send();
+
+		StackBinaryReader<SendMaxSize> reader;
+		if (!msg.Send(reader))
+			return false;
+
+		return PopulateLogLines(outLogLines, reader.GetPositionData(), reader.GetLeft());
+	}
+
+	bool CacheClient::PopulateLogLines(Vector<ProcessLogLine>& outLogLines, const u8* mem, u64 memLen)
+	{
+		BinaryReader reader(mem, 0, memLen);
+		while (reader.GetLeft())
+		{
+			auto& logLine = outLogLines.emplace_back();
+			logLine.text = reader.ReadString();
+			logLine.type = LogEntryType(reader.ReadByte());
+		}
 		return true;
 	}
 

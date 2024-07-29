@@ -4,23 +4,28 @@
 
 #include "UbaBinaryReaderWriter.h"
 #include "UbaLogger.h"
-
-#define UBA_USE_OLD 0
+#include "UbaProcessHandle.h"
 
 namespace uba
 {
+	enum LogLinesType : u8
+	{
+		LogLinesType_Empty,
+		LogLinesType_Shared,
+		LogLinesType_Owned,
+	};
+
 	struct CacheEntry
 	{
 		u64 creationTime = 0;
 		u64 lastUsedTime = 0;
 		u32 id = 0;
+		LogLinesType logLinesType = LogLinesType_Empty;
 
-		#if UBA_USE_OLD
-		Vector<u8> inputCasKeyOffsets;
-		#endif
 		Vector<u8> sharedInputCasKeyOffsetRanges;
 		Vector<u8> extraInputCasKeyOffsets;
 		Vector<u8> outputCasKeyOffsets;
+		Vector<u8> logLines;
 	};
 
 	struct CacheEntries
@@ -28,21 +33,17 @@ namespace uba
 		ReaderWriterLock lock;
 		List<CacheEntry> entries;
 		Vector<u8> sharedInputCasKeyOffsets;
+		Vector<u8> sharedLogLines;
 		u32 idCounter = 0;
 		u32 primaryId = ~0u; // Id of entry that shared offsets was made from
 
 		u64 GetSharedSize();
-		u64 GetEntrySize(CacheEntry& entry, bool toDisk);
-		u64 GetTotalSize(bool toDisk);
+		u64 GetEntrySize(CacheEntry& entry, u32 clientVersion, bool toDisk);
+		u64 GetTotalSize(u32 clientVersion, bool toDisk);
 		bool Write(BinaryWriter& writer, u32 clientVersion, bool toDisk);
 		bool Read(Logger& logger, BinaryReader& reader, u32 databaseVersion);
 		void BuildInputs(CacheEntry& entry, const Set<u32>& inputs);
-		void UpdateEntries();
 		void UpdateEntries(Logger& logger, const GrowingNoLockUnorderedMap<u32, u32>& oldToNewCasKeyOffset, Vector<u32>& temp, Vector<u8>& temp2);
-
-		#if UBA_USE_OLD
-		void ValidateEntries(Logger& logger);
-		#endif
 
 		void Flatten(Vector<u8>& out, const CacheEntry& entry);
 		void Flatten(Vector<u32>& out, const CacheEntry& entry, const Vector<u8>& sharedOffsets);

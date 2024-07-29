@@ -117,19 +117,25 @@ namespace uba
 		out.Append(IsWindows ? TC("UbaTestApp.exe") : TC("UbaTestApp"));
 	}
 
+	bool CreateTextFile(StringBufferBase& outPath, LoggerWithWriter& logger, const tchar* workingDir, const tchar* fileName, const char* text)
+	{
+		outPath.Clear().Append(workingDir).EnsureEndsWithSlash().Append(fileName);
+		FileAccessor fr(logger, outPath.data);
+		if (!fr.CreateWrite())
+			return false;
+		fr.Write(text, strlen(text) + 1);
+		return fr.Close();
+	}
+
 	bool RunTestApp(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 	{
 		StringBuffer<MaxPath> testApp;
 		GetTestAppPath(logger, testApp);
 
-		{
-			StringBuffer<MaxPath> fileR;
-			fileR.Append(workingDir).Append(TC("FileR.h"));
-			FileAccessor fr(logger, fileR.data);
-			fr.CreateWrite();
-			fr.Write("Foo", 4);
-			fr.Close();
-		}
+		StringBuffer<MaxPath> fileR;
+		if (!CreateTextFile(fileR, logger, workingDir, TC("FileR.h"), "Foo"))
+			return false;
+
 		{
 			StringBuffer<MaxPath> dir1;
 			dir1.Append(workingDir).Append(TC("Dir1"));

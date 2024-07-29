@@ -150,11 +150,16 @@ namespace uba
 			if (!runInWaitFunc())
 				return false;
 
+		u32 timeOutTimeMs = 5*60*1000;
+
 		for (u32 i=0; i!=inFlightCount; ++i)
 		{
 			Entry& entry = entries[i];
-			if (!entry.done.IsSet(5*60*1000))
+			if (!entry.done.IsSet(timeOutTimeMs))
+			{
 				logger.Error(TC("SendBatchMessages timed out after 5 minutes getting async message response (%u/%u). Received %llu bytes so far. FetchId: %u"), i, inFlightCount, responseSize, fetchId);
+				timeOutTimeMs = 10;
+			}
 			if (!entry.message.ProcessAsyncResults(entry.reader))
 				success = false;
 			else

@@ -5,6 +5,13 @@
 
 #if PLATFORM_LINUX
 #include <linux/mman.h>
+#if defined(MAP_HUGE_2MB)
+#define UBA_SUPPORTS_HUGE_PAGES 1
+#endif
+#endif
+
+#if !defined(UBA_SUPPORTS_HUGE_PAGES)
+#define UBA_SUPPORTS_HUGE_PAGES 0
 #endif
 
 namespace uba
@@ -38,7 +45,7 @@ namespace uba
 
 		int flags = MAP_PRIVATE | MAP_ANONYMOUS;
 		int reserveAlign = MemoryBlock_ReserveAlign;
-		#if PLATFORM_LINUX
+		#if UBA_SUPPORTS_HUGE_PAGES
 		if (useHugePages)
 		{
 			flags |= MAP_HUGETLB | MAP_HUGE_2MB;
@@ -159,9 +166,13 @@ namespace uba
 		other.mappedSize = ms;
 	}
 
+	bool SupportsHugePages()
+	{
+		return UBA_SUPPORTS_HUGE_PAGES != 0;
+	}
 	u64 GetHugePageCount()
 	{
-#if PLATFORM_LINUX
+#if UBA_SUPPORTS_HUGE_PAGES
 		FILE* f = fopen("/proc/sys/vm/nr_hugepages", "r");
 		if (!f)
 			return 0;

@@ -274,5 +274,6 @@ namespace uba
 		return v;
 	}
 
+	bool SupportsHugePages();
 	u64 GetHugePageCount();
 }
