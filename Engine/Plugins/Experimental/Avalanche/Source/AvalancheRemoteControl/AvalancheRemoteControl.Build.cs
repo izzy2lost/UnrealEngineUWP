@@ -22,8 +22,9 @@ public class AvalancheRemoteControl : ModuleRules
             new string[]
             {
                 "RemoteControlComponents", 
+                "RemoteControlLogic",
                 "Slate",
-                "SlateCore", 
+                "SlateCore",
             }
         );
 

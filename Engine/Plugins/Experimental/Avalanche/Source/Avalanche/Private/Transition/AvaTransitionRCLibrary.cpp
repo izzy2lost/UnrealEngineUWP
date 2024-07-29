@@ -131,3 +131,69 @@ bool UAvaTransitionRCLibrary::CompareRCControllerValues(UObject* InTransitionNod
 
 	return CompareRCControllerValues(*TransitionContext, InControllerId, InValueComparisonType);
 }
+
+TArray<URCVirtualPropertyBase*> UAvaTransitionRCLibrary::GetChangedRCControllers(UObject* InTransitionNode)
+{
+	IAvaTransitionNodeInterface* NodeInterface = Cast<IAvaTransitionNodeInterface>(InTransitionNode);
+	if (!NodeInterface)
+	{
+		return {};
+	}
+
+	const FAvaTransitionContext* TransitionContext = NodeInterface->GetBehaviorInstanceCache().GetTransitionContext();
+	if (!TransitionContext)
+	{
+		return {};
+	}
+
+	const FAvaTransitionScene* TransitionScene = TransitionContext->GetTransitionScene();
+	if (!TransitionScene)
+	{
+		return {};
+	}
+
+	ULevel* Level = TransitionScene->GetLevel();
+	if (!Level || !Level->OwningWorld)
+	{
+		return {};
+	}
+
+	UAvaSceneSubsystem* SceneSubsystem = Level->OwningWorld->GetSubsystem<UAvaSceneSubsystem>();
+	if (!SceneSubsystem)
+	{
+		return {};
+	}
+
+	IAvaSceneInterface* SceneInterface = SceneSubsystem->GetSceneInterface(Level);
+	if (!SceneInterface)
+	{
+		return {};
+	}
+
+	URemoteControlPreset* RemoteControlPreset = SceneInterface->GetRemoteControlPreset();
+	if (!RemoteControlPreset)
+	{
+		return {};
+	}
+
+	TArray<URCVirtualPropertyBase*> Controllers = RemoteControlPreset->GetControllers();
+
+	// Remove Invalid Controllers and Controllers that are not different/changed between scenes
+	Controllers.RemoveAll(
+		[TransitionContext](URCVirtualPropertyBase* InController)
+		{
+			if (!InController)
+			{
+				return true;
+			}
+			return !CompareRCControllerValues(*TransitionContext, FAvaRCControllerId(InController), EAvaTransitionComparisonResult::Different);
+		});
+
+	Controllers.StableSort(
+		[](const URCVirtualPropertyBase& A, const URCVirtualPropertyBase& B)
+		{
+			return A.DisplayIndex < B.DisplayIndex;
+		});
+
+	return Controllers;
+}

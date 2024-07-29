@@ -14,6 +14,10 @@ struct FAvaRCControllerId
 {
 	GENERATED_BODY()
 
+	FAvaRCControllerId() = default;
+
+	AVALANCHEREMOTECONTROL_API explicit FAvaRCControllerId(URCVirtualPropertyBase* InController); 
+
 	AVALANCHEREMOTECONTROL_API URCVirtualPropertyBase* FindController(URemoteControlPreset* InPreset) const;
 
 	AVALANCHEREMOTECONTROL_API FText ToText() const;

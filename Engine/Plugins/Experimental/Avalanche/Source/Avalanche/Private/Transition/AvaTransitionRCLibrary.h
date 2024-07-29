@@ -21,6 +21,9 @@ class UAvaTransitionRCLibrary : public UBlueprintFunctionLibrary
 public:
 	static bool CompareRCControllerValues(const FAvaTransitionContext& InTransitionContext, const FAvaRCControllerId& InControllerId, EAvaTransitionComparisonResult InValueComparisonType);
 
-	UFUNCTION(BlueprintPure, DisplayName="Compare RC Controller Values", Category="Remote Control", meta=(DefaultToSelf="InTransitionNode"))
+	UFUNCTION(BlueprintPure, DisplayName="Compare RC Controller Values", Category="Transition Logic|Remote Control", meta=(DefaultToSelf="InTransitionNode"))
 	static bool CompareRCControllerValues(UObject* InTransitionNode, const FAvaRCControllerId& InControllerId, EAvaTransitionComparisonResult InValueComparisonType = EAvaTransitionComparisonResult::Different);
+
+	UFUNCTION(BlueprintCallable, DisplayName="Get Changed RC Controllers", Category="Transition Logic|Remote Control", meta=(DefaultToSelf="InTransitionNode"))
+	static TArray<URCVirtualPropertyBase*> GetChangedRCControllers(UObject* InTransitionNode);
 };
