@@ -86,6 +86,7 @@ namespace UE
 		bool IsValid() const;
 		bool IsPseudoRoot() const;
 		bool IsModel() const;
+		bool IsDefined() const;
 		bool IsGroup() const;
 
 		TArray<FName> GetAppliedSchemas() const;

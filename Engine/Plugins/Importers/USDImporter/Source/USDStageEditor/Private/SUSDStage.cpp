@@ -2457,6 +2457,8 @@ void SUsdStage::FileReset()
 
 void SUsdStage::FileClose()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStage::FileClose);
+
 	TOptional<FScopedTransaction> Transaction;
 	if (!GDiscardUndoBufferOnStageOpenClose)
 	{

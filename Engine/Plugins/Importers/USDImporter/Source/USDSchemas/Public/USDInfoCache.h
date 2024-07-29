@@ -138,5 +138,17 @@ public:
 	TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> GetAllAssetPrimLinks() const;
 
 private:
+	friend class FUsdGeomXformableTranslator;
+	// Returns true if every prim on the subtree below RootPath (including the RootPath prim itself) returns true for
+	// CanBeCollapsed(), according to their own schema translators.
+	//
+	// WARNING: This is intended for internal use, and exclusively during the actual info cache build process as it will
+	// need to query the prim/stage directly. Calling it after the info cache build may yield back an empty optional,
+	// meaning it is unknown at this point whether the prim CanBeCollapsed or not.
+	//
+	// In general, you shouldn't call this, but just use "IsPathCollapsed" or "DoesPathCollapseChildren" instead.
+	TOptional<bool> CanXformableSubtreeBeCollapsed(const UE::FSdfPath& RootPath, FUsdSchemaTranslationContext& Context) const;
+
+private:
 	TUniquePtr<FUsdInfoCacheImpl> Impl;
 };

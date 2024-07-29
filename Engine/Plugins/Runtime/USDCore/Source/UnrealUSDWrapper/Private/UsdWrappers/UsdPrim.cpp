@@ -215,6 +215,15 @@ namespace UE
 #endif	  // #if USE_USD_SDK
 	}
 
+	bool FUsdPrim::IsDefined() const
+	{
+#if USE_USD_SDK
+		return Impl->PxrUsdPrim.Get().IsDefined();
+#else
+		return false;
+#endif	  // #if USE_USD_SDK
+	}
+
 	bool FUsdPrim::IsGroup() const
 	{
 #if USE_USD_SDK

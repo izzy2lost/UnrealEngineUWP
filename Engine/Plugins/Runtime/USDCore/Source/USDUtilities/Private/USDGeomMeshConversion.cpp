@@ -215,6 +215,8 @@ namespace UE::UsdGeomMeshConversion::Private
 
 	pxr::VtArray<int> GetFaceVertexCounts(const pxr::UsdPrim& UsdPrim, pxr::UsdTimeCode TimeCode)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(GetFaceVertexCounts);
+
 		if (pxr::UsdGeomMesh Mesh = pxr::UsdGeomMesh{UsdPrim})
 		{
 			pxr::UsdAttribute Attr = Mesh.GetFaceVertexCountsAttr();
@@ -3360,6 +3362,8 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	const pxr::TfToken& MaterialPurpose
 )
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::GetPrimMaterialAssignments);
+
 	if (!UsdPrim)
 	{
 		return {};
@@ -3471,19 +3475,6 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 	std::vector<pxr::UsdGeomSubset> GeomSubsets = pxr::UsdShadeMaterialBindingAPI(UsdPrim).GetMaterialBindSubsets();
 	if (GeomSubsets.size() > 0)
 	{
-		std::string ReasonWhyNotPartition;
-		bool bHasValidPartitions = pxr::UsdGeomSubset::ValidateSubsets(GeomSubsets, NumFaces, pxr::UsdGeomTokens->partition, &ReasonWhyNotPartition);
-		if (!bHasValidPartitions)
-		{
-			UE_LOG(
-				LogUsd,
-				Warning,
-				TEXT("Found an invalid GeomSubsets partition in prim '%s': %s"),
-				*UsdToUnreal::ConvertPath(UsdPrim.GetPath()),
-				*UsdToUnreal::ConvertString(ReasonWhyNotPartition)
-			);
-		}
-
 		for (uint32 GeomSubsetIndex = 0; GeomSubsetIndex < GeomSubsets.size(); ++GeomSubsetIndex)
 		{
 			const pxr::UsdGeomSubset& GeomSubset = GeomSubsets[GeomSubsetIndex];
@@ -3570,24 +3561,48 @@ UsdUtils::FUsdPrimMaterialAssignmentInfo UsdUtils::GetPrimMaterialAssignments(
 			}
 		}
 
-		// Extra slot for unspecified faces.
-		// We need to fetch this even if we won't provide indices because we may need to create an additional slot for unassigned polygons
-		pxr::VtIntArray UnassignedIndices = pxr::UsdGeomSubset::GetUnassignedIndices(GeomSubsets, NumFaces);
-		if (UnassignedIndices.size() == 0)
 		{
-			bNeedsMainAssignment = false;
-		}
-		else
-		{
-			// Assign these leftover indices to the *next* material slot we'll create (doesn't exist yet),
-			// which will be the "main" material assignment slot
-			int32 LeftoverSlotIndex = Result.Slots.Num();
-			if (bProvideMaterialIndices)
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetUnassignedFaces);
+
+			// Check if we have any unassigned faces
+			//
+			// Just summing the indices like this is an approximation, because they may be invalid/repeated indices, etc.
+			// Ideally we'd call pxr::UsdGeomSubset::GetUnassignedIndices right away here to know for sure if we need an additional slot.
+			// That can be slow however, and this function is in the hot path of the info cache build, so given that invalid partitions
+			// are invalid data in the first place, this approximation is hopefully a good enough compromise in order to not slow down the
+			// general case too much
+			uint64 SubsetIndexTotal = 0;
+			for (const pxr::UsdGeomSubset& Subset : GeomSubsets)
 			{
-				for (int PolygonIndex : UnassignedIndices)
+				pxr::VtIntArray PolygonIndicesInSubset;
+				Subset.GetIndicesAttr().Get(&PolygonIndicesInSubset, TimeCode);
+
+				SubsetIndexTotal += PolygonIndicesInSubset.size();
+			}
+
+			// Extra slot for unspecified faces.
+			// We need to fetch this even if we won't provide indices because we may need to create an additional slot for unassigned polygons
+			const bool bHasUnassignedIndices = SubsetIndexTotal != NumFaces;
+			if (bHasUnassignedIndices)
+			{
+				UE_LOG(LogUsd, Warning, TEXT("Found an invalid GeomSubsets partition in prim '%s'"), *UsdToUnreal::ConvertPath(UsdPrim.GetPath()));
+
+				// Assign these leftover indices to the *next* material slot we'll create (doesn't exist yet),
+				// which will be the "main" material assignment slot
+				int32 LeftoverSlotIndex = Result.Slots.Num();
+
+				if (bProvideMaterialIndices)
 				{
-					Result.MaterialIndices[PolygonIndex] = LeftoverSlotIndex;
+					pxr::VtIntArray UnassignedIndices = pxr::UsdGeomSubset::GetUnassignedIndices(GeomSubsets, NumFaces);
+					for (int PolygonIndex : UnassignedIndices)
+					{
+						Result.MaterialIndices[PolygonIndex] = LeftoverSlotIndex;
+					}
 				}
+			}
+			else
+			{
+				bNeedsMainAssignment = false;
 			}
 		}
 	}
@@ -4630,6 +4645,8 @@ void UsdUtils::RepairNormalsAndTangents(const FString& PrimPath, FMeshDescriptio
 
 TOptional<UsdUtils::FDisplayColorMaterial> UsdUtils::ExtractDisplayColorMaterial(const pxr::UsdGeomGprim& Gprim, const pxr::UsdTimeCode TimeCode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::ExtractDisplayColorMaterial);
+
 	if (!Gprim)
 	{
 		return {};
@@ -5531,6 +5548,8 @@ UsdUtils::EMeshTopologyVariance UsdUtils::GetMeshTopologyVariance(const pxr::Usd
 
 uint64 UsdUtils::GetGprimVertexCount(const pxr::UsdGeomGprim& Gprim, double TimeCode)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::GetGprimVertexCount);
+
 	if (pxr::UsdGeomMesh Mesh{Gprim})
 	{
 		if (pxr::UsdAttribute Points = Mesh.GetPointsAttr())

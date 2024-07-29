@@ -3114,6 +3114,8 @@ void UsdUtils::AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, c
 
 TOptional<FString> UsdUtils::GetUnrealSurfaceOutput(const pxr::UsdPrim& MaterialPrim)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::GetUnrealSurfaceOutput);
+
 	if (!MaterialPrim)
 	{
 		return {};

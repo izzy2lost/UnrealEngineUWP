@@ -37,6 +37,7 @@
 #include "Misc/App.h"
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
+#include "NaniteDefinitions.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
@@ -205,8 +206,7 @@ namespace UsdGeomMeshTranslatorImpl
 		{
 			TOptional<uint64> SubtreeSectionCount = Context.InfoCache->GetSubtreeMaterialSlotCount(PrimPath);
 
-			const int32 MaxNumSections = 64;	// There is no define for this, but it's checked for on NaniteBuilder.cpp, FBuilderModule::Build
-			if (!SubtreeSectionCount.IsSet() || SubtreeSectionCount.GetValue() > MaxNumSections)
+			if (!SubtreeSectionCount.IsSet() || SubtreeSectionCount.GetValue() > NANITE_MAX_CLUSTER_MATERIALS)
 			{
 				UE_LOG(
 					LogUsd,
@@ -215,7 +215,7 @@ namespace UsdGeomMeshTranslatorImpl
 						 "'%d'"),
 					*PrimPath.GetString(),
 					SubtreeSectionCount.GetValue(),
-					MaxNumSections
+					NANITE_MAX_CLUSTER_MATERIALS
 				);
 				return false;
 			}
@@ -742,8 +742,8 @@ namespace UsdGeomMeshTranslatorImpl
 		{
 			StaticMesh.GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
 		}
-#endif // RHI_RAYTRACING
-#endif // WITH_EDITOR
+#endif	  // RHI_RAYTRACING
+#endif	  // WITH_EDITOR
 
 		return true;
 	}

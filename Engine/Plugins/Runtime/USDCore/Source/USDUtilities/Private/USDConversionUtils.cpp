@@ -1517,6 +1517,8 @@ TArray<TUsdStore<pxr::UsdPrim>> UsdUtils::GetAllPrimsOfType(
 	const TArray<TUsdStore<pxr::TfType>>& ExcludeSchemaTypes
 )
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UsdUtils::GetAllPrimsOfType);
+
 	TArray<TUsdStore<pxr::UsdPrim>> Result;
 
 	pxr::UsdPrimRange PrimRange(StartPrim, pxr::UsdTraverseInstanceProxies());

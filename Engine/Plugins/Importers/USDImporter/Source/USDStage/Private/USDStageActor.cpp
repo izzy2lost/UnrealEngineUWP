@@ -1866,9 +1866,17 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 
 USDSTAGE_API void AUsdStageActor::Reset()
 {
-	Modify();
+	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::Reset);
 
-	Super::Reset();
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Modify);
+		Modify();
+	}
+
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Reset);
+		Super::Reset();
+	}
 
 	bool bUnloadIfNeeded = true;
 	CloseUsdStage(bUnloadIfNeeded);
@@ -1948,8 +1956,12 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(
 	UUsdPrimTwin* UsdPrimTwin = nullptr;
 #if USE_USD_SDK
 	// "Active" is the non-destructive deletion used in USD. Sometimes when we rename/remove a prim in a complex stage it may remain in
-	// an inactive state, but its otherwise effectively deleted
-	if (!Prim || !Prim.IsActive())
+	// an inactive state, but its otherwise effectively deleted.
+	//
+	// We check IsDefined() because we need to consider the possibility that we've been called directly for this prim
+	// (e.g. when handling an update notice). During regular traversal when opening the stage, the Prim.GetFilteredChildren() call
+	// within this same function will naturally strip all "pure over" prims
+	if (!Prim || !Prim.IsActive() || !Prim.IsDefined())
 	{
 		return nullptr;
 	}
@@ -3250,6 +3262,8 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 
 void AUsdStageActor::UnloadUsdStage()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::UnloadUsdStage);
+
 	// No point doing any of this if we're unloading because we're exiting the engine altogether
 	if (IsEngineExitRequested())
 	{

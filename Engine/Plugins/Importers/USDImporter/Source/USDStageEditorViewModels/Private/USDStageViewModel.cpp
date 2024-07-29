@@ -196,6 +196,7 @@ void FUsdStageViewModel::ResetStage()
 
 void FUsdStageViewModel::CloseStage()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdStageViewModel::CloseStage);
 	if (AUsdStageActor* StageActor = UsdStageActor.Get())
 	{
 		StageActor->Reset();
