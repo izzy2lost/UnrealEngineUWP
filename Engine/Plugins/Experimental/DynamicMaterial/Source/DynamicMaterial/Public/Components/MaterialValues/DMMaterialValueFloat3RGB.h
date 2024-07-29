@@ -62,7 +62,7 @@ protected:
  
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, BlueprintSetter = SetDefaultValue, Category = "Material Designer",
-		meta = (AllowPrivateAccess = "true"))
+		meta = (AllowPrivateAccess = "true", HideAlphaChannel))
 	FLinearColor DefaultValue;
 #endif
 };

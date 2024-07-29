@@ -1,111 +1,33 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageGradients/DMMSGLinear.h"
+
 #include "DMDefs.h"
-#include "Materials/MaterialExpressionComponentMask.h"
-#include "Materials/MaterialExpressionConstant.h"
-#include "Materials/MaterialExpressionFmod.h"
-#include "Materials/MaterialExpressionIf.h"
+#include "Components/DMMaterialStageFunction.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
-#include "Materials/MaterialExpressionSubtract.h"
-#include "Model/DMMaterialBuildState.h"
-#include "Model/DMMaterialBuildUtils.h"
-#include "Utils/DMMaterialFunctionLibrary.h"
-#include "Utils/DMUtils.h"
+#include "Materials/MaterialFunctionInterface.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageGradientLinear"
 
+TSoftObjectPtr<UMaterialFunctionInterface> UDMMaterialStageGradientLinear::LinearGradientNoTileFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FSoftObjectPath(TEXT(
+	"/Script/Engine.MaterialFunction'/DynamicMaterial/MaterialFunctions/Gradients/MF_DM_LinearGradient.MF_DM_LinearGradient'"
+)));
+
+TSoftObjectPtr<UMaterialFunctionInterface> UDMMaterialStageGradientLinear::LinearGradientTileFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FSoftObjectPath(TEXT(
+	"/Script/Engine.MaterialFunction'/DynamicMaterial/MaterialFunctions/Gradients/MF_DM_LinearGradient_Tile.MF_DM_LinearGradient_Tile'"
+)));
+
+TSoftObjectPtr<UMaterialFunctionInterface> UDMMaterialStageGradientLinear::LinearGradientTileAndMirrorFunction = TSoftObjectPtr<UMaterialFunctionInterface>(FSoftObjectPath(TEXT(
+	"/Script/Engine.MaterialFunction'/DynamicMaterial/MaterialFunctions/Gradients/MF_DM_LinearGradient_TileAndMirror.MF_DM_LinearGradient_TileAndMirror'"
+)));
+
 UDMMaterialStageGradientLinear::UDMMaterialStageGradientLinear()
 	: UDMMaterialStageGradient(LOCTEXT("GradientLinear", "Linear Gradient"))
+	, Tiling(ELinearGradientTileType::NoTile)
 {
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageGradientLinear, Tiling));
-}
 
-void UDMMaterialStageGradientLinear::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
-{
-	if (!IsComponentValid() || !IsComponentAdded())
-	{
-		return;
-	}
-
-	if (InBuildState->HasStageSource(this))
-	{
-		return;
-	}
-
-	UMaterialExpressionComponentMask* Mask = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionComponentMask>(UE_DM_NodeComment_Default);
-
-	Mask->R = 1;
-	Mask->G = 0;
-	Mask->B = 0;
-	Mask->A = 0;
-
-	TArray<UMaterialExpression*> OutputExpressions;
-	OutputExpressions.Add(Mask);
-
-	UMaterialExpression* Output = nullptr;
-
-	switch (Tiling)
-	{
-		case ELinearGradientTileType::NoTile:
-			Output = Mask;
-			break;
-
-		case ELinearGradientTileType::Tile:
-		{
-			UMaterialExpressionFmod* Fmod = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionFmod>(UE_DM_NodeComment_Default);
-			UMaterialExpressionConstant* Divisor = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionConstant>(UE_DM_NodeComment_Default);
-
-			Mask->ConnectExpression(&Fmod->A, 0);
-
-			Divisor->R = 1.f;
-			Divisor->ConnectExpression(&Fmod->B, 0);
-
-			Output = Fmod;
-			OutputExpressions.Append({Divisor, Fmod});
-			break;
-		}
-
-		case ELinearGradientTileType::TileAndMirror:
-		{
-			UMaterialExpressionFmod* Fmod = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionFmod>(UE_DM_NodeComment_Default);
-			UMaterialExpressionConstant* Divisor = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionConstant>(UE_DM_NodeComment_Default);
-			UMaterialExpressionSubtract* Subtract = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionSubtract>(UE_DM_NodeComment_Default);
-			UMaterialExpressionIf* IfExpr = InBuildState->GetBuildUtils().CreateExpression<UMaterialExpressionIf>(UE_DM_NodeComment_Default);
-
-			Mask->ConnectExpression(&Fmod->A, 0);
-
-			Divisor->R = 2.f;
-			Divisor->ConnectExpression(&Fmod->B, 0);
-
-			Fmod->ConnectExpression(&Subtract->B, 0);
-			Fmod->ConnectExpression(&IfExpr->A, 0);
-			Fmod->ConnectExpression(&IfExpr->AEqualsB, 0);
-			Fmod->ConnectExpression(&IfExpr->ALessThanB, 0);
-
-			Subtract->ConstA = 2.f;
-			Subtract->ConnectExpression(&IfExpr->AGreaterThanB, 0);
-
-			IfExpr->ConstB = 1.f;
-			IfExpr->EqualsThreshold = 0.f;
-
-			Output = IfExpr;
-			OutputExpressions.Append({Divisor, Fmod, Subtract, IfExpr});
-			break;
-		}
-
-		default:
-			checkNoEntry();
-			break;
-	}
-
-	UMaterialExpression* MakeFloat = FDMMaterialFunctionLibrary::Get().GetMakeFloat3(InBuildState->GetDynamicMaterial(), UE_DM_NodeComment_Default);
-	Output->ConnectExpression(MakeFloat->GetInput(0), 0);
-	Output->ConnectExpression(MakeFloat->GetInput(1), 0);
-	Output->ConnectExpression(MakeFloat->GetInput(2), 0);
-
-	OutputExpressions.Add(MakeFloat);	
-	InBuildState->AddStageSourceExpressions(this, OutputExpressions);
+	MaterialFunction = GetMaterialFunctionForTilingType(Tiling);
 }
 
 void UDMMaterialStageGradientLinear::SetTilingType(ELinearGradientTileType InType)
@@ -117,7 +39,54 @@ void UDMMaterialStageGradientLinear::SetTilingType(ELinearGradientTileType InTyp
 
 	Tiling = InType;
 
-	Update(EDMUpdateType::Structure);
+	OnTilingChanged();
+}
+
+void UDMMaterialStageGradientLinear::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	const FName MemberName = PropertyChangedEvent.GetMemberPropertyName();
+
+	if (MemberName == GET_MEMBER_NAME_CHECKED(UDMMaterialStageGradientLinear, Tiling))
+	{
+		OnTilingChanged();
+	}
+}
+
+void UDMMaterialStageGradientLinear::PostEditUndo()
+{
+	Super::PostEditUndo();
+
+	SetMaterialFunction(GetMaterialFunctionForTilingType(Tiling));
+}
+
+UMaterialFunctionInterface* UDMMaterialStageGradientLinear::GetMaterialFunctionForTilingType(ELinearGradientTileType) const
+{
+	switch (Tiling)
+	{
+		case ELinearGradientTileType::NoTile:
+			return LinearGradientNoTileFunction.LoadSynchronous();
+
+		case ELinearGradientTileType::Tile:
+			return LinearGradientTileFunction.LoadSynchronous();
+
+		case ELinearGradientTileType::TileAndMirror:
+			return LinearGradientTileAndMirrorFunction.LoadSynchronous();
+
+		default:
+			return UDMMaterialStageFunction::NoOp.LoadSynchronous();
+	}
+}
+
+void UDMMaterialStageGradientLinear::OnTilingChanged()
+{
+	const bool bWasUpdateCalled = SetMaterialFunction(GetMaterialFunctionForTilingType(Tiling));
+
+	if (!bWasUpdateCalled)
+	{
+		Update(EDMUpdateType::Structure);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

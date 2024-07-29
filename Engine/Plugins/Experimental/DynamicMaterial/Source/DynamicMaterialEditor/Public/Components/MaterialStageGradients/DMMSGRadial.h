@@ -13,10 +13,8 @@ class UDMMaterialStageGradientRadial : public UDMMaterialStageGradient
 {
 	GENERATED_BODY()
 
-public:
 	UDMMaterialStageGradientRadial();
 
-	//~ Begin UDMMaterialStageSource
-	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	//~ End UDMMaterialStageSource
+public:
+	static TSoftObjectPtr<UMaterialFunctionInterface> RadialGradientFunction;
 };

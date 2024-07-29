@@ -17,6 +17,8 @@ class UDMMaterialStageFunction : public UDMMaterialStageThroughput
 public:
 	static constexpr int32 InputPreviousStage = 0;
 
+	DYNAMICMATERIALEDITOR_API static TSoftObjectPtr<UMaterialFunctionInterface> NoOp;
+
 	DYNAMICMATERIALEDITOR_API static UDMMaterialStage* CreateStage(UDMMaterialLayerObject* InLayer = nullptr);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -61,8 +63,6 @@ public:
 	//~ End UObject
 
 protected:
-	static TSoftObjectPtr<UMaterialFunctionInterface> NoOp;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, BlueprintSetter = SetMaterialFunction, Category = "Material Designer",
 		meta = (DisplayThumbnail = true, AllowPrivateAccess = "true", HighPriority, NotKeyframeable, NoCreate))
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction;

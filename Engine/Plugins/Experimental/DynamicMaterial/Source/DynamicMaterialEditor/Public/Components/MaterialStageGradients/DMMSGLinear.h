@@ -30,12 +30,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API virtual void SetTilingType(ELinearGradientTileType InType);
 
-	//~ Begin UDMMaterialStageSource
-	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
-	//~ End UDMMaterialStageSource
+	//~ Begin UObject
+	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+	virtual void PostEditUndo() override;
+	//~ End UObject
 
 protected:
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientNoTileFunction;
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientTileFunction;
+	static TSoftObjectPtr<UMaterialFunctionInterface> LinearGradientTileAndMirrorFunction;
+
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = GetTilingType, Setter=SetTilingType, BlueprintSetter = SetTilingType, 
 		Category = "Material Designer")
 	ELinearGradientTileType Tiling;
+
+	UMaterialFunctionInterface* GetMaterialFunctionForTilingType(ELinearGradientTileType) const;
+
+	void OnTilingChanged();
 };
