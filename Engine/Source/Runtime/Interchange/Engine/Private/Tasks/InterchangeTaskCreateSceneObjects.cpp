@@ -51,12 +51,18 @@ void UE::Interchange::FTaskCreateSceneObjects_GameThread::Execute()
 		return;
 	}
 
+	TArray<TObjectPtr<UObject>> ImportObjects;
+	AsyncHelper->IterateImportedAssets(SourceIndex, [&ImportObjects](const TArray<UE::Interchange::FImportAsyncHelper::FImportedObjectInfo>& ImportedObjectInfos)
+		{
+			for (const UE::Interchange::FImportAsyncHelper::FImportedObjectInfo& Info : ImportedObjectInfos)
+			{
+				ImportObjects.Add(Info.ImportedObject);
+			}
+		});
+
 	UObject* ReimportObject = AsyncHelper->TaskData.ReimportObject;
 	ULevel* ImportLevel = AsyncHelper->TaskData.ImportLevel ? AsyncHelper->TaskData.ImportLevel : GWorld->GetCurrentLevel();
 	UWorld* ImportWorld = ImportLevel->GetWorld();
-	const FString WorldPath = ImportWorld->GetOutermost()->GetPathName();
-	const FString WorldName = ImportWorld->GetName();
-	const FString NodePrefix = ImportLevel->GetName() + TEXT(".");
 
 	for (UInterchangeFactoryBaseNode* FactoryNode : FactoryNodes)
 	{
@@ -73,12 +79,39 @@ void UE::Interchange::FTaskCreateSceneObjects_GameThread::Execute()
 		FString SceneNodeName = FactoryNode->GetAssetName();
 		UInterchangeManager::GetInterchangeManager().SanitizeNameInline(SceneNodeName, ESanitizeNameTypeFlags::ObjectName | ESanitizeNameTypeFlags::ObjectPath | ESanitizeNameTypeFlags::LongPackage);
 
+		ULevel* FactoryImportLevel = ImportLevel;
+		UWorld* FactoryImportWorld = ImportWorld;
+
+		FString FactoryNodeLevelUid;
+		if (FactoryNode->GetCustomLevelUid(FactoryNodeLevelUid))
+		{
+			if (UInterchangeFactoryBaseNode* LevelFactoryNode = AsyncHelper->BaseNodeContainers[SourceIndex]->GetFactoryNode(FactoryNodeLevelUid))
+			{
+				FSoftObjectPath LevelAssetPath;
+				if (LevelFactoryNode->GetCustomReferenceObject(LevelAssetPath))
+				{
+					if (UWorld* FactoryNodeWorld = Cast<UWorld>(LevelAssetPath.TryLoad()))
+					{
+						if (FactoryNodeWorld->PersistentLevel)
+						{
+							FactoryImportWorld = FactoryNodeWorld;
+							FactoryImportLevel = FactoryNodeWorld->PersistentLevel;
+						}
+					}
+				}
+			}
+		}
+		const FString FactoryNodeWorldPath = FactoryImportWorld->GetOutermost()->GetPathName();
+		const FString FactoryNodeWorldName = FactoryImportWorld->GetName();
+		const FString FactoryNodeNodePrefix = FactoryImportLevel->GetName() + TEXT(".");
+
 		UInterchangeFactoryBase::FImportSceneObjectsParams CreateSceneObjectsParams;
 		CreateSceneObjectsParams.ObjectName = SceneNodeName;
 		CreateSceneObjectsParams.FactoryNode = FactoryNode;
-		CreateSceneObjectsParams.Level = ImportLevel;
-		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(Factory, ReimportObject, *FactoryNode, WorldPath, WorldName, NodePrefix + SceneNodeName);
-		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, WorldPath, WorldName, NodePrefix + SceneNodeName);
+		CreateSceneObjectsParams.Level = FactoryImportLevel;
+		CreateSceneObjectsParams.ImportAssets = ImportObjects;
+		CreateSceneObjectsParams.ReimportObject = FFactoryCommon::GetObjectToReimport(Factory, ReimportObject, *FactoryNode, FactoryNodeWorldPath, FactoryNodeWorldName, FactoryNodeNodePrefix + SceneNodeName);
+		CreateSceneObjectsParams.ReimportFactoryNode = FFactoryCommon::GetFactoryNode(ReimportObject, FactoryNodeWorldPath, FactoryNodeWorldName, FactoryNodeNodePrefix + SceneNodeName);
 
 		if (AsyncHelper->BaseNodeContainers.IsValidIndex(SourceIndex))
 		{

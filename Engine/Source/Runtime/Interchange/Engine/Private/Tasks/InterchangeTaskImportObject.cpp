@@ -4,6 +4,7 @@
 #include "AssetCompilingManager.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "CoreMinimal.h"
+#include "Engine/World.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeEngineLogPrivate.h"
 #include "InterchangeFactoryBase.h"
@@ -330,11 +331,25 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 			}
 		};
 
+	//Check if the node reference a map
+	const bool bRefObjectIsMap = [this]()
+		{
+			FSoftObjectPath Reference;
+			if (FactoryNode->GetCustomReferenceObject(Reference))
+			{
+				if (UObject* RefObj = Reference.TryLoad())
+				{
+					return RefObj->IsA<UWorld>();
+				}
+			}
+			return false;
+		}();
+
 	//If the factory node is disable see if there is an existing UObject for it
 	if (!FactoryNode->IsEnabled())
 	{
 		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
-		if (!FPackageUtils::IsMapPackageAsset(PackageName))
+		if (bRefObjectIsMap || !FPackageUtils::IsMapPackageAsset(PackageName))
 		{
 			Pkg = FindPackage(nullptr, *PackageName);
 			if (Pkg)
@@ -390,7 +405,8 @@ void UE::Interchange::FTaskImportObject_GameThread::Execute()
 
 		Private::InternalGetPackageName(*AsyncHelper, SourceIndex, PackageBasePath, FactoryNode, PackageName, AssetName);
 		// We can not create assets that share the name of a map file in the same location
-		if (FPackageUtils::IsMapPackageAsset(PackageName))
+		//Except if we reference a map
+		if (!bRefObjectIsMap && FPackageUtils::IsMapPackageAsset(PackageName))
 		{
 			//Skip this asset
 			UInterchangeResultError_Generic* Message = Factory->AddMessage<UInterchangeResultError_Generic>();

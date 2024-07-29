@@ -8,6 +8,7 @@
 #include "InterchangeSceneImportAsset.h"
 
 #include "ContentBrowserMenuContexts.h"
+#include "LevelInstance/LevelInstanceActor.h"
 #include "Misc/App.h"
 #include "Misc/DelayedAutoRegister.h"
 #include "ThumbnailRendering/SceneThumbnailInfo.h"
@@ -31,6 +32,23 @@ UThumbnailInfo* UAssetDefinition_InterchangeSceneImportAsset::LoadThumbnailInfo(
 
 namespace MenuExtension_InterchangeSceneImportAsset
 {
+	ULevel* GetOriginalLevel(UInterchangeSceneImportAsset* Asset)
+	{
+		TArray<FSoftObjectPath> SceneSoftObjectPaths;
+		Asset->GetSceneSoftObjectPaths(SceneSoftObjectPaths);
+		for (const FSoftObjectPath& SoftObjectPath : SceneSoftObjectPaths)
+		{
+			if (AActor* Actor = Cast<AActor>(SoftObjectPath.TryLoad()))
+			{
+				if (!Actor->IsA<ALevelInstance>())
+				{
+					return Actor->GetLevel();
+				}
+			}
+		}
+		return nullptr;
+	}
+
 	void ExecuteReimportOneAsset(UInterchangeSceneImportAsset* Asset, const FString& FilePath)
 	{
 		using namespace UE::Interchange;
@@ -45,6 +63,7 @@ namespace MenuExtension_InterchangeSceneImportAsset
 			ImportAssetParameters.bIsAutomated = GIsAutomationTesting || FApp::IsUnattended() || IsRunningCommandlet() || GIsRunningUnattendedScript;
 			ImportAssetParameters.ReimportAsset = Asset;
 			ImportAssetParameters.ReimportSourceIndex = INDEX_NONE;
+			ImportAssetParameters.ImportLevel = GetOriginalLevel(Asset);
 
 			TTuple<FAssetImportResultRef, FSceneImportResultRef> ImportResult = InterchangeManager.ImportSceneAsync(FString(), SourceData, ImportAssetParameters);
 

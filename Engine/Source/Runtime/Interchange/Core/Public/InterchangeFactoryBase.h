@@ -220,6 +220,11 @@ public:
 		 * Factory base node associated with the reimported scene node.
 		 */
 		const UInterchangeFactoryBaseNode* ReimportFactoryNode = nullptr;
+
+		/**
+		 * Get all assets we are importing the actor could point on
+		 */
+		TArray<TObjectPtr<UObject>> ImportAssets;
 	};
 
 	/**

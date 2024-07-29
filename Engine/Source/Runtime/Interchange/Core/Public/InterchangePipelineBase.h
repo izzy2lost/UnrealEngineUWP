@@ -520,6 +520,12 @@ public:
 	UPROPERTY()
 	FString ContentImportPath;
 
+	/*
+	 * Extra data available for scene pipeline, when we do a re-import we need to know what is the level so we do not create a new one.
+	 */
+	UPROPERTY()
+	FSoftObjectPath ReimportLevel;
+
 protected:
 
 	INTERCHANGECORE_API virtual FString GetPipelineDisplayName() const;

@@ -212,6 +212,17 @@ bool UInterchangeFactoryBaseNode::SetCustomSubPath(const FString& AttributeValue
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(SubPath, FString)
 }
 
+bool UInterchangeFactoryBaseNode::GetCustomLevelUid(FString& AttributeValue) const
+{
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(LevelUid, FString);
+}
+
+bool UInterchangeFactoryBaseNode::SetCustomLevelUid(const FString& AttributeValue)
+{
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(LevelUid, FString);
+}
+
+
 int32 UInterchangeFactoryBaseNode::GetFactoryDependenciesCount() const
 {
 	return FactoryDependencies.GetCount();

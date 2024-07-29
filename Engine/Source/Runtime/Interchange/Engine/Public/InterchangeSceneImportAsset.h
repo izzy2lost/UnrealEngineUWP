@@ -23,7 +23,7 @@ class UInterchangeSceneImportAsset : public UObject, public IInterface_AssetUser
 
 public:
 #if WITH_EDITORONLY_DATA
-	/** Importing data and options used for this Datasmith scene */
+	/** Importing data and options used for this scene */
 	UPROPERTY(EditAnywhere, Instanced, Category=ImportSettings)
 	TObjectPtr<UInterchangeAssetImportData> AssetImportData;
 

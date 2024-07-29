@@ -224,6 +224,18 @@ public:
 	INTERCHANGECORE_API bool SetCustomSubPath(const FString& AttributeValue);
 
 	/**
+	 * If this node represent a scene asset (actor), return a specific level in which we will create this scene asset.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | ActorFactory")
+	INTERCHANGECORE_API bool GetCustomLevelUid(FString& AttributeValue) const;
+
+	/**
+	 * If this node represent a scene asset (actor), you can set a specific level in which we will create this scene asset.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | ActorFactory")
+	INTERCHANGECORE_API bool SetCustomLevelUid(const FString& AttributeValue);
+
+	/**
 	 * Retrieve the number of factory dependencies for this object.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node")
@@ -364,6 +376,7 @@ protected:
 private:
 
 	const UE::Interchange::FAttributeKey Macro_CustomSubPathKey = UE::Interchange::FAttributeKey(TEXT("SubPath"));
+	const UE::Interchange::FAttributeKey Macro_CustomLevelUidKey = UE::Interchange::FAttributeKey(TEXT("LevelUid"));
 	const UE::Interchange::FAttributeKey Macro_CustomReferenceObjectKey = UE::Interchange::FAttributeKey(TEXT("ReferenceObject"));
 };
 

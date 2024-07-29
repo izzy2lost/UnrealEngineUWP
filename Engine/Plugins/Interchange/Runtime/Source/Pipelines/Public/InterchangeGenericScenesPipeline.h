@@ -11,10 +11,21 @@
 
 #include "InterchangeGenericScenesPipeline.generated.h"
 
+class ALevelInstance;
 class UInterchangeActorFactoryNode;
+class UInterchangeLevelFactoryNode;
+class UInterchangeLevelInstanceActorFactoryNode;
 class UInterchangeSceneNode;
 class UInterchangeSceneVariantSetsNode;
 class UInterchangeSceneImportAssetFactoryNode;
+class UWorld;
+
+UENUM(BlueprintType)
+enum class EInterchangeSceneHierarchyType : uint8
+{
+	CreateLevelActors UMETA(DisplayName = "Create level actors", ToolTip = "Create actors in the current editor world for all scene nodes in the source hierarchy."),
+	CreateLevelInstanceActor UMETA(DisplayName = "Create a level instance actor", ToolTip = "Create a world containing all scene nodes in the source hierarchy and reference the world has a level instance actor in the current editor world."),
+};
 
 UCLASS(BlueprintType, editinlinenew)
 class INTERCHANGEPIPELINES_API UInterchangeGenericLevelPipeline : public UInterchangePipelineBase
@@ -22,27 +33,31 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericLevelPipeline : public UInterc
 	GENERATED_BODY()
 public:
 	/** The name of the pipeline that will be display in the import dialog. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
 	FString PipelineDisplayName;
 
 	/* Set the reimport strategy when reimporting into the level. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Actors properties", AdjustPipelineAndRefreshDetailOnChange = "True"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (SubCategory = "Actors properties", AdjustPipelineAndRefreshDetailOnChange = "True"))
 	EReimportStrategyFlags ReimportPropertyStrategy = EReimportStrategyFlags::ApplyNoProperties;
 
+	/* Choose how you want to import the hierarchy. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene")
+	EInterchangeSceneHierarchyType SceneHierarchyType = EInterchangeSceneHierarchyType::CreateLevelActors;
+
 	/* If enabled, deletes actors that were not part of the translation when reimporting into a level. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Actors"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (SubCategory = "Reimport Actors"))
 	bool bDeleteMissingActors = false;
 
 	/* If enabled, respawns actors that were deleted in the editor prior to a reimport. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Actors"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (SubCategory = "Reimport Actors"))
 	bool bForceReimportDeletedActors = false;
 
 	/* If enabled, recreates assets that were deleted in the editor prior to reimporting into a level. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Assets"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (SubCategory = "Reimport Assets"))
 	bool bForceReimportDeletedAssets = false;
 
 	/* If enabled, deletes assets that were not part of the translation when reimporting into a level. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level Reimport Policy", meta = (SubCategory = "Reimport Assets"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scene", meta = (SubCategory = "Reimport Assets"))
 	bool bDeleteMissingAssets = false;
 
 	/** BEGIN UInterchangePipelineBase overrides */
@@ -94,6 +109,22 @@ protected:
 	 * of a level will not work at runtime
 	 */
 	UInterchangeSceneImportAssetFactoryNode* SceneImportFactoryNode = nullptr;
+	UInterchangeLevelFactoryNode* LevelFactoryNode = nullptr;
+	UInterchangeLevelInstanceActorFactoryNode* LevelInstanceActorFactoryNode = nullptr;
+
+	struct FPostPipelineImportData
+	{
+		void AddWorld(UWorld* World);
+		void AddLevelInstanceActor(ALevelInstance* LevelInstanceActor, UWorld* ReferenceWorld);
+	private:
+		bool UpdateLevelInstanceInternal(ALevelInstance* LevelInstanceActor, UWorld* ReferenceWorld);
+
+		//The bool is to know if we have save this world already or not
+		TMap<UWorld*, bool> Worlds;
+		TMap<ALevelInstance*, UWorld*> ReferenceWorldPerLevelInstanceToUpdates;
+	};
+
+	FPostPipelineImportData PostPipelineImportData;
 #endif
 };
 

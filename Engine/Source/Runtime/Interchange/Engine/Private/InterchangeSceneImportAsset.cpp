@@ -205,36 +205,51 @@ UObject* UInterchangeSceneImportAsset::GetSceneObject(const FString& PackageName
 #if WITH_EDITORONLY_DATA
 	const FSoftObjectPath ObjectPath(FName(PackageName), FName(AssetName), SubPathString);
 
-	if (SceneObjects.Find(ObjectPath))
+	UObject* SceneObject = nullptr;
+	for (const TPair<FSoftObjectPath, FString>& SceneObjectPair : SceneObjects)
 	{
-		if (UObject* SceneObject = ObjectPath.TryLoad())
+		const FSoftObjectPath& SceneObjectPath = SceneObjectPair.Key;
+		if (SceneObjectPath.GetLongPackageFName() == ObjectPath.GetLongPackageFName()
+			&& SceneObjectPath.GetAssetFName() == ObjectPath.GetAssetFName())
 		{
-			if (IsValid(SceneObject))
+			//World partition actor have a guid that we need to remove before comparison
+			FName SceneObjectSubPathFName = FActorSpawnUtils::GetBaseName(*SceneObjectPath.GetSubPathString());
+			if (SceneObjectSubPathFName == *ObjectPath.GetSubPathString())
 			{
-				if (SceneObject->IsA<AActor>())
+				SceneObject = SceneObjectPath.TryLoad();
+				break;
+			}
+		}
+	}
+	
+	if (SceneObject)
+	{
+		if (IsValid(SceneObject))
+		{
+			if (SceneObject->IsA<AActor>())
+			{
+				return SceneObject;
+			}
+
+			// Most likely an asset, check whether SceneObject has actually already been imported
+			TArray<UObject*> SubObjects;
+			GetObjectsWithOuter(SceneObject, SubObjects);
+			for (UObject* SubObject : SubObjects)
+			{
+				if (SubObject && SubObject->IsA<UInterchangeAssetImportData>())
 				{
 					return SceneObject;
 				}
-
-				// Most likely an asset, check whether SceneObject has actually already been imported
-				TArray<UObject*> SubObjects;
-				GetObjectsWithOuter(SceneObject, SubObjects);
-				for (UObject* SubObject : SubObjects)
-				{
-					if (SubObject && SubObject->IsA<UInterchangeAssetImportData>())
-					{
-						return SceneObject;
-					}
-				}
-
-				return nullptr;
 			}
 
-			// SceneObject is still in memory but invalid. Move it to TransientPackage
-			// Call UObject::Rename because for actors AActor::Rename will unnecessarily unregister and re-register components
-			SceneObject->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
+			return nullptr;
 		}
+
+		// SceneObject is still in memory but invalid. Move it to TransientPackage
+		// Call UObject::Rename because for actors AActor::Rename will unnecessarily unregister and re-register components
+		SceneObject->UObject::Rename(nullptr, GetTransientPackage(), REN_DontCreateRedirectors);
 	}
+
 #endif
 
 	return nullptr;
@@ -250,9 +265,20 @@ const UInterchangeFactoryBaseNode* UInterchangeSceneImportAsset::GetFactoryNode(
 
 	const FSoftObjectPath ObjectPath(FName(PackageName), FName(AssetName), SubPathString);
 
-	if (const FString* UniqueIDPtr = SceneObjects.Find(ObjectPath))
+	UObject* SceneObject = nullptr;
+	for (const TPair<FSoftObjectPath, FString>& SceneObjectPair : SceneObjects)
 	{
-		return Cast<UInterchangeFactoryBaseNode>(AssetImportData->GetStoredNode(*UniqueIDPtr));
+		const FSoftObjectPath& SceneObjectPath = SceneObjectPair.Key;
+		if (SceneObjectPath.GetLongPackageFName() == ObjectPath.GetLongPackageFName()
+			&& SceneObjectPath.GetAssetFName() == ObjectPath.GetAssetFName())
+		{
+			//World partition actor have a guid that we need to remove before comparison
+			FName SceneObjectSubPathFName = FActorSpawnUtils::GetBaseName(*SceneObjectPath.GetSubPathString());
+			if (SceneObjectSubPathFName == *ObjectPath.GetSubPathString())
+			{
+				return Cast<UInterchangeFactoryBaseNode>(AssetImportData->GetStoredNode(SceneObjectPair.Value));
+			}
+		}
 	}
 #endif
 

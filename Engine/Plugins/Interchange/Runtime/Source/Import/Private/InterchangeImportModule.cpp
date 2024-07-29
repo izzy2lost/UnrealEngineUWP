@@ -23,6 +23,8 @@
 #include "Scene/InterchangeActorFactory.h"
 #include "Scene/InterchangeCameraActorFactory.h"
 #include "Scene/InterchangeSceneImportAssetFactory.h"
+#include "Scene/InterchangeLevelFactory.h"
+#include "Scene/InterchangeLevelInstanceActorFactory.h"
 #include "Scene/InterchangeLightActorFactory.h"
 #include "Scene/InterchangeSceneVariantSetsFactory.h"
 #include "Scene/InterchangeStaticMeshActorFactory.h"
@@ -105,6 +107,8 @@ void FInterchangeImportModule::StartupModule()
 		InterchangeManager.RegisterFactory(UInterchangeStaticMeshFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangePhysicsAssetFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeActorFactory::StaticClass());
+		InterchangeManager.RegisterFactory(UInterchangeLevelFactory::StaticClass());
+		InterchangeManager.RegisterFactory(UInterchangeLevelInstanceActorFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeLevelSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeAnimSequenceFactory::StaticClass());
 		InterchangeManager.RegisterFactory(UInterchangeCineCameraActorFactory::StaticClass());

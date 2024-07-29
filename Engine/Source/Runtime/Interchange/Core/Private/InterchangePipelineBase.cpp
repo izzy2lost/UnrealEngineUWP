@@ -445,6 +445,11 @@ void GatherObjectAndWeakObjectPtrs(UClass* Class, UObject* Object/*Value*/, TMap
 			if (SubObject)
 			{
 				FString PropertyName = Property->GetName();
+				if (ObjectPtrs.Contains(PropertyName))
+				{
+					//Prevent circular fetch (ULevel and UWorld will create an infinite loop)
+					continue;
+				}
 				ObjectPtrs.Add(PropertyName, SubObject);
 
 				UClass* SubObjectPropertyClass = SubObject->GetClass();

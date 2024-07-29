@@ -32,6 +32,7 @@
 
 class FAsyncTaskNotification;
 class UInterchangeBlueprintPipelineBase;
+class UInterchangeEditorUtilitiesBase;
 class UInterchangeFactoryBaseNode;
 class UInterchangePipelineBase;
 class UInterchangePythonPipelineBase;
@@ -779,6 +780,16 @@ public:
 	*/
 	INTERCHANGEENGINE_API static TOptional<bool> GetReplaceExistingAlldialogAnswer();
 
+	/**
+	* Set the editor utilities, those are use for editor operation like saving an asset.
+	*/
+	INTERCHANGEENGINE_API void SetEditorUtilities(UClass* EditorUtilitiesClass);
+	
+	/**
+	* Get the editor utilities, those are use for editor operation like saving an asset.
+	*/
+	INTERCHANGEENGINE_API UInterchangeEditorUtilitiesBase* GetEditorUtilities() const;
+
 protected:
 
 	/** Return true if Interchange can show UI. */
@@ -877,6 +888,9 @@ private:
 	//The manager will create only one converter per type.
 	UPROPERTY()
 	TMap<TObjectPtr<const UClass>, TObjectPtr<UInterchangeAssetImportDataConverterBase> > RegisteredConverters;
+
+	//We support one editor utilities class
+	TStrongObjectPtr<UInterchangeEditorUtilitiesBase> EditorUtilities = nullptr;
 
 	//If interchange is currently importing, we have a timer to watch the cancel and we block GC.
 	FThreadSafeBool bIsActive = false;

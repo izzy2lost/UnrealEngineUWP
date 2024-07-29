@@ -18,6 +18,7 @@
 #include "Framework/Notifications/NotificationManager.h"
 #include "InterchangeAssetImportData.h"
 #include "InterchangeBlueprintPipelineBase.h"
+#include "InterchangeEditorUtilitiesBase.h"
 #include "InterchangeFactoryBase.h"
 #include "InterchangeEngineLogPrivate.h"
 #include "InterchangeProjectSettings.h"
@@ -977,6 +978,9 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 
 		bIsCreatingSingleton = false;
 
+		//Make sure we have a valid editor utilities
+		InterchangeManager->SetEditorUtilities(UInterchangeEditorUtilitiesBase::StaticClass());
+
 		//We cancel any running task when we pre exit the engine
 		FCoreDelegates::OnEnginePreExit.AddLambda([]()
 		{
@@ -1005,6 +1009,9 @@ UInterchangeManager& UInterchangeManager::GetInterchangeManager()
 				FTSTicker::GetCoreTicker().RemoveTicker(InterchangeManager->QueuedPostImportTasksTickerHandle);
 				InterchangeManager->QueuedPostImportTasksTickerHandle.Reset();
 			}
+
+			//Release the editor utilities resources
+			InterchangeManager->EditorUtilities.Reset();
 
 			//Release the InterchangeManager object
 			InterchangeManager.Reset();
@@ -1906,6 +1913,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				Context = bImportScene ? EInterchangePipelineContext::SceneImport : EInterchangePipelineContext::AssetImport;
 			}
 			Pipeline->ContentImportPath = ContentBasePath;
+			Pipeline->ReimportLevel = bIsReimport && bImportScene ? TaskData.ImportLevel : nullptr;
 			FInterchangePipelineContextParams ContextParams;
 			ContextParams.ContextType = Context;
 			ContextParams.ReimportAsset = TaskData.ReimportObject;
@@ -2271,6 +2279,22 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 
 	PreReturn();
 	return TTuple<UE::Interchange::FAssetImportResultRef, UE::Interchange::FSceneImportResultRef>{ AsyncHelper->AssetImportResult, AsyncHelper->SceneImportResult };
+}
+
+void UInterchangeManager::SetEditorUtilities(UClass* EditorUtilitiesClass)
+{
+	//Create the object
+	if (UInterchangeEditorUtilitiesBase* NewEditorUtilities = NewObject<UInterchangeEditorUtilitiesBase>(GetTransientPackage(), EditorUtilitiesClass, NAME_None))
+	{
+		//If successful, assign the new editor utilities
+		EditorUtilities.Reset();
+		EditorUtilities = TStrongObjectPtr<UInterchangeEditorUtilitiesBase>(NewEditorUtilities);
+	}
+}
+
+UInterchangeEditorUtilitiesBase* UInterchangeManager::GetEditorUtilities() const
+{
+	return EditorUtilities.Get();
 }
 
 bool UInterchangeManager::IsObjectBeingImported(UObject* Object) const
