@@ -1552,7 +1552,8 @@ FName FLiveLinkClient::GetRebroadcastName(const FLiveLinkSubjectKey& InSubjectKe
 {
 	if (ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(GetSubjectSettings(InSubjectKey)))
 	{
-		return Settings->GetRebroadcastName();
+		FName RebroadcastName = Settings->GetRebroadcastName();
+		return RebroadcastName.IsNone() ? InSubjectKey.SubjectName.Name : RebroadcastName;
 	}
 
 	return InSubjectKey.SubjectName;
