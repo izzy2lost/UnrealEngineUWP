@@ -1288,8 +1288,26 @@ bool IsItemDirty(const UContentBrowserDataSource* InOwnerDataSource, const FCont
 
 bool IsAssetFileItemDirty(const FContentBrowserAssetFileItemDataPayload& InAssetPayload)
 {
-	UPackage* AssetPackage = InAssetPayload.GetPackage();
-	return AssetPackage && AssetPackage->IsDirty();
+	if (const UPackage* AssetPackage = InAssetPayload.GetPackage())
+	{
+		if (const UAssetDefinition* AssetDefinition = InAssetPayload.GetAssetDefinition())
+		{
+			if (AssetDefinition->ShouldSaveExternalPackages())
+			{
+				for (const UPackage* ExternalPackage : AssetPackage->GetExternalPackages())
+				{
+					if (ExternalPackage && ExternalPackage->IsDirty())
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return AssetPackage->IsDirty();
+	}
+	
+	return false;
 }
 
 bool UpdateItemThumbnail(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem, FAssetThumbnail& InThumbnail)

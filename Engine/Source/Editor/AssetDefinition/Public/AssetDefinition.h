@@ -566,7 +566,7 @@ public:
 		return TSharedPtr<SWidget>();
 	}
 
-	/** Whether or not external packages associated with this asset should be saved in addition to the asset itself */
+	/** Whether this asset has external packages associated with it (impacts saving and dirty-state behavior) */
 	virtual bool ShouldSaveExternalPackages() const
 	{
 		return false;

@@ -18,4 +18,5 @@ void UWorkspaceAssetEntry::GetAssetRegistryTags(FAssetRegistryTagsContext Contex
 {
 	UObject::GetAssetRegistryTags(Context);
 	Context.AddTag(FAssetRegistryTag(UWorkspaceAssetEntry::ExportsAssetRegistryTag, Asset.GetUniqueID().ToString(), FAssetRegistryTag::TT_Hidden));
+	Context.AddTag(FAssetRegistryTag(FPrimaryAssetId::PrimaryAssetDisplayNameTag, *Asset.GetAssetName(), FAssetRegistryTag::TT_Hidden));
 }
