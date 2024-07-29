@@ -39,7 +39,7 @@ namespace UE::AnimNext::UncookedOnly
 
 namespace UE::AnimNext::Editor
 {
-	class FModule;
+	class FAnimNextEditorModule;
 }
 
 USTRUCT()
@@ -248,7 +248,7 @@ private:
 	friend struct FAnimNextSchedulerEntry;
 	friend class UAnimNextComponent;
 	friend class UAnimNextSchedulerWorldSubsystem;
-	friend class UE::AnimNext::Editor::FModule;
+	friend class UE::AnimNext::Editor::FAnimNextEditorModule;
 	friend class UE::AnimNext::UncookedOnly::FModule;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 

@@ -6,13 +6,19 @@
 #include "Modules/ModuleManager.h"
 
 class SWidget;
+struct FTopLevelAssetPath;
+
+namespace UE::Workspace
+{
+class IWorkspaceEditor;
+};
 
 namespace UE::AnimNext::Editor
 {
 
 struct FParameterPickerArgs;
 
-class IModule : public IModuleInterface
+class IAnimNextEditorModule : public IModuleInterface
 {
 public:
 	// Create a parameter picker
@@ -26,6 +32,10 @@ public:
 	// Unregister a valid fragment type name to be used with parameter UOLs
 	// @param InLocatorFragmentEditorName The name of the locator fragment editor
 	virtual void UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) = 0;
+
+	// Add a UClass path to the set of classes which can be opened within an AnimNext Workspace
+	// @param InClassAssetPath Asset path for to-be-registered Class 
+	virtual void AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) = 0;
 };
 
 }

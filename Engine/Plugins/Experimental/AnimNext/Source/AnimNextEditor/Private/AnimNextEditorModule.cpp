@@ -48,13 +48,14 @@
 #include "Param/AnimNextActorLocatorEditor.h"
 #include "IWorkspaceEditor.h"
 #include "Framework/Docking/LayoutExtender.h"
+#include "Workspace/AnimNextWorkspaceSchema.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorModule"
 
 namespace UE::AnimNext::Editor
 {
 
-void FModule::StartupModule()
+void FAnimNextEditorModule::StartupModule()
 {
 	// Register settings for user editing
 	ISettingsModule& SettingsModule = FModuleManager::Get().LoadModuleChecked<ISettingsModule>("Settings");
@@ -230,7 +231,7 @@ void FModule::StartupModule()
 	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
 }
 
-void FModule::ShutdownModule()
+void FAnimNextEditorModule::ShutdownModule()
 {
 	if(FModuleManager::Get().IsModuleLoaded("PropertyEditor"))
 	{
@@ -282,23 +283,31 @@ void FModule::ShutdownModule()
 	UnregisterLocatorFragmentEditorType("AnimNextActor");
 }
 
-TSharedRef<SWidget> FModule::CreateParameterPicker(const FParameterPickerArgs& InArgs)
+TSharedRef<SWidget> FAnimNextEditorModule::CreateParameterPicker(const FParameterPickerArgs& InArgs)
 {
 	return SNew(SParameterPicker)
 		.Args(InArgs);
 }
 
-void FModule::RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
+void FAnimNextEditorModule::RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
 {
 	LocatorFragmentEditorNames.Add(InLocatorFragmentEditorName);
 }
 
-void FModule::UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
+void FAnimNextEditorModule::UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName)
 {
 	LocatorFragmentEditorNames.Remove(InLocatorFragmentEditorName);
 }
 
-void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule)
+void FAnimNextEditorModule::AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath)
+{
+	if (InClassAssetPath.IsValid())
+	{
+		UAnimNextWorkspaceSchema::SupportedAssetClasses.AddUnique(InClassAssetPath);
+	}
+}
+
+void FAnimNextEditorModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule)
 {
 	// --- AnimNextSchedule ---
 	Workspace::FObjectDocumentArgs ScheduleDocumentArgs(
@@ -909,7 +918,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 	WorkspaceEditorModule.RegisterObjectDocumentType(FTopLevelAssetPath(TEXT("/Script/AnimNextUncookedOnly.AnimNextEdGraph")), GraphDocumentArgs);
 }
 
-void FModule::UnregisterWorkspaceDocumentTypes()
+void FAnimNextEditorModule::UnregisterWorkspaceDocumentTypes()
 {
 	if(FModuleManager::Get().IsModuleLoaded("WorkspaceEditor"))
 	{
@@ -922,6 +931,6 @@ void FModule::UnregisterWorkspaceDocumentTypes()
 
 }
 
-IMPLEMENT_MODULE(UE::AnimNext::Editor::FModule, AnimNextEditor);
+IMPLEMENT_MODULE(UE::AnimNext::Editor::FAnimNextEditorModule, AnimNextEditor);
 
 #undef LOCTEXT_NAMESPACE
