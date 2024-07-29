@@ -1175,6 +1175,9 @@ namespace UnrealBuildTool
 					case StaticAnalyzer.Clang:
 					case StaticAnalyzer.Default:
 						Target.WindowsPlatform.Compiler = WindowsCompiler.ClangRTFM;
+
+						// We always use clang linker with AutoRTFM.
+						Target.WindowsPlatform.bAllowClangLinker = true;
 						break;
 				}
 			}
