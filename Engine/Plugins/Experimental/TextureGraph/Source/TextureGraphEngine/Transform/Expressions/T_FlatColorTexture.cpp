@@ -21,7 +21,7 @@ BufferDescriptor T_FlatColorTexture::GetFlatColorDesc(FString name, BufferFormat
 	Desc.ItemsPerPoint = 4;
 	Desc.Width = 1;
 	Desc.Height = 1;
-	Desc.bMipMaps = true;
+	Desc.bMipMaps = false;
 	
 	return Desc;
 }
@@ -40,7 +40,7 @@ TiledBlobPtr T_FlatColorTexture::Create(MixUpdateCyclePtr InCycle, BufferDescrip
 	Desc.Height = InCycle->GetMix()->GetNumYTiles();
 	Desc.Format = BufferFormat::Byte;
 	Desc.ItemsPerPoint = 4;
-	Desc.bMipMaps = true;
+	Desc.bMipMaps = false;
 	
 	BufferDescriptor OutputDesc = BufferDescriptor::Combine(Desc, DesiredOutputDesc);
 	if (OutputDesc.Format == BufferFormat::Byte) // Byte size automatically enable sRGB
