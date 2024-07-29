@@ -58,6 +58,13 @@ void FLiveLinkSubject::Update()
 {
 	FScopeLock Lock(&SettingsCriticalSection);
 
+	if (bClearOverrideStaticData)
+	{
+		ClearFrames();
+		OverrideStaticData.Reset();
+		bClearOverrideStaticData = false;
+	}
+
 	// Clear all frames that are too old
 	if (FrameData.Num() > CachedSettings.BufferSettings.MaxNumberOfFrameToBuffered)
 	{
@@ -208,6 +215,26 @@ void FLiveLinkSubject::ClearFrames()
 bool FLiveLinkSubject::HasValidFrameSnapshot() const
 {
 	return FrameSnapshot.StaticData.IsValid() && FrameSnapshot.FrameData.IsValid();
+}
+
+FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData()
+{
+	if (OverrideStaticData)
+	{
+		return *OverrideStaticData;
+	}
+
+	return StaticData;
+}
+
+const FLiveLinkStaticDataStruct& FLiveLinkSubject::GetStaticData() const
+{
+	if (OverrideStaticData)
+	{
+		return *OverrideStaticData;
+	}
+
+	return StaticData;
 }
 
 TArray<FLiveLinkTime> FLiveLinkSubject::GetFrameTimes() const
@@ -408,7 +435,7 @@ void FLiveLinkSubject::AddFrameData(FLiveLinkFrameDataStruct&& InFrameData)
 		{
 			PreProcessor->PreProcessFrame(InFrameData);
 		}
-		
+
 		//Assign identifier to incoming frame and insert it where it belongs
 		const FLiveLinkFrameIdentifier ThisFrameIdentifier = NextIdentifier++;
 		ReceivedOrderedFrames.Enqueue(ThisFrameIdentifier);
@@ -471,6 +498,11 @@ bool FLiveLinkSubject::ValidateFrameData(const FLiveLinkFrameDataStruct& InFrame
 	}
 
 	return true;
+}
+
+void FLiveLinkSubject::ClearOverrideStaticData_AnyThread()
+{
+	bClearOverrideStaticData = true;
 }
 
 int32 FLiveLinkSubject::FindNewFrame_WorldTime(const FLiveLinkWorldTime& WorldTime) const
@@ -1094,6 +1126,58 @@ void FLiveLinkSubject::CacheSettings(ULiveLinkSourceSettings* SourceSetting, ULi
 					FramePreProcessors.Add(NewPreProcessor);
 				}
 			}
+		}
+
+		SubjectRemapper.Reset();
+		if (SubjectSetting->Remapper)
+		{
+			// If there wasn't a remapper, then we need to initialize the one we will create.
+			bool bRecreateRemapper = SubjectSetting->Remapper->GetWorker() == nullptr || SubjectSetting->Remapper->bDirty;
+
+			ULiveLinkSubjectRemapper::FWorkerSharedPtr NewRemapper = bRecreateRemapper ? SubjectSetting->Remapper->CreateWorker() : SubjectSetting->Remapper->GetWorker();
+
+			if (NewRemapper.IsValid())
+			{
+				// If this is a new remapper, then do an initial remapping.
+				if (bRecreateRemapper)
+				{
+					SubjectSetting->Remapper->bDirty = false;
+
+					if (SubjectSetting->Remapper->IsValidRemapper())
+					{
+						// Since the remapper has changed, we need to update the static data as well. 
+						FLiveLinkStaticDataStruct RemappedStaticData;
+						RemappedStaticData.InitializeWith(StaticData);
+						NewRemapper->RemapStaticData(RemappedStaticData);
+
+						if (HasValidFrameSnapshot())
+						{
+							NewRemapper->RemapStaticData(FrameSnapshot.StaticData);
+							NewRemapper->RemapFrameData(FrameSnapshot.StaticData, FrameSnapshot.FrameData);
+						}
+
+						// Important: Because we changed the static data, we have to update the frame data to match the new static data.
+						for (FLiveLinkFrameDataStruct& FrameDataStruct : FrameData)
+						{
+							NewRemapper->RemapFrameData(RemappedStaticData, FrameDataStruct);
+						}
+
+						OverrideStaticData = MoveTemp(RemappedStaticData);
+
+						SetStaticDataAsRebroadcasted(false);
+					}
+					else
+					{
+						// Remapper isn't valid, reset static data.
+						ClearFrames();
+
+						OverrideStaticData.Reset();
+					}
+
+				}
+			}
+
+			SubjectRemapper = MoveTemp(NewRemapper);
 		}
 
 		// Create a new or fetch the interpolation for this frame

@@ -20,6 +20,7 @@ class FLiveLinkTimedDataInput;
 class ULiveLinkFrameInterpolationProcessor;
 class ULiveLinkFramePreProcessor;
 class ULiveLinkFrameTranslator;
+class ULiveLinkSubjectRemapper;
 class ULiveLinkRole;
 
 /**
@@ -78,6 +79,10 @@ public:
 	UPROPERTY(EditAnywhere, Instanced, Category = "LiveLink", meta = (DisplayName = "Translators"))
 	TArray<TObjectPtr<ULiveLinkFrameTranslator>> Translators;
 
+	/** Remapper used to modify incoming static and frame data for a subject. */
+	UPROPERTY(EditAnywhere, Instanced, Category = "LiveLink")
+	TObjectPtr<ULiveLinkSubjectRemapper> Remapper;
+
 	UPROPERTY()
 	TSubclassOf<ULiveLinkRole> Role;
 
@@ -90,7 +95,7 @@ public:
 	bool bAllowModifyingRebroadcast = true;
 	
 	/** If enabled, rebroadcast this subject */
-	UPROPERTY(EditAnywhere, Category = "LiveLink", meta=(EditConditionHides, EditCondition="bAllowModifyingRebroadcast"))
+	UPROPERTY(EditAnywhere, Category = "LiveLink", meta=(EditCondition="bAllowModifyingRebroadcast"))
     bool bRebroadcastSubject;
 
 	/** Validate PreProcessors, Translators and Interpolation processors. Usually called after a property change event.
@@ -101,6 +106,7 @@ public:
 public:
 	//~ Begin UObject interface
 #if WITH_EDITOR
+	LIVELINKINTERFACE_API virtual void PreEditChange(FProperty* Property) override;
 	LIVELINKINTERFACE_API virtual void PostEditChangeChainProperty(struct FPropertyChangedChainEvent& PropertyChangedEvent) override;
 #endif
 	//~ End UObject interface
@@ -109,4 +115,8 @@ protected:
 	/** Key of the subject that owns this setting. */
 	UPROPERTY()
 	FLiveLinkSubjectKey Key;
+
+private:
+	/** We need to keep track of the remapper when it's reset in order to restore the static data. */
+	TStrongObjectPtr<ULiveLinkSubjectRemapper> RemapperBeingReset;
 };

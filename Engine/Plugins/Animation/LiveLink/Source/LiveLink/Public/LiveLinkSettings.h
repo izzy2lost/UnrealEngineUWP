@@ -124,11 +124,11 @@ public:
 
 	/** Whether to Preprocess frames before rebroadcasting them. */
 	UPROPERTY(config)
-	bool bPreProcessRebroadcastedFrames = false;
+	bool bPreProcessRebroadcastFrames = false;
 
 	/** Whether to translate frames before rebroadcasting them. */
 	UPROPERTY(config)
-	bool bTranslateRebroadcastedFrames = false;
+	bool bTranslateRebroadcastFrames = false;
 
 	/**
 	 * A source may still exist but does not send frames for a subject.

@@ -12,6 +12,7 @@
 #include "LiveLinkRoleTrait.h"
 #include "LiveLinkProvider.h"
 #include "LiveLinkSettings.h"
+#include "LiveLinkSubjectRemapper.h"
 #include "LiveLinkSourceCollection.h"
 #include "LiveLinkSourceFactory.h"
 #include "LiveLinkTimedDataInput.h"
@@ -75,8 +76,8 @@ FLiveLinkClient::FLiveLinkClient()
 	// Setup rebroadcaster name in case we need it later
 	RebroadcastLiveLinkProviderName = TEXT("LiveLink Rebroadcast");
 
-	bPreProcessRebroadcastedFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastedFrames;
-	bTranslateRebroadcastedFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastedFrames;
+	bPreProcessRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastFrames;
+	bTranslateRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastFrames;
 }
 
 FLiveLinkClient::~FLiveLinkClient()
@@ -280,7 +281,7 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 				FLiveLinkFrameDataStruct FrameDataCopy;
 				FrameDataCopy.InitializeWith(InFrameData);
 
-				if (bPreProcessRebroadcastedFrames)
+				if (bPreProcessRebroadcastFrames)
 				{
 					InSubject->PreprocessFrame(FrameDataCopy);
 				}
@@ -290,7 +291,7 @@ void FLiveLinkClient::HandleSubjectRebroadcast(ILiveLinkSubject* InSubject, cons
 
 				TSubclassOf<ULiveLinkRole> SubjectRole = InSubject->GetRole();
 
-				if (bTranslateRebroadcastedFrames)
+				if (bTranslateRebroadcastFrames)
 				{
 					TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> Translators = InSubject->GetFrameTranslators();
 					if (Translators.Num() && Translators[0].IsValid())
@@ -801,6 +802,20 @@ void FLiveLinkClient::PushSubjectStaticData_Internal(FPendingSubjectStatic&& Sub
 
 	if (LiveLinkSubject)
 	{
+		if (ULiveLinkSubjectRemapper::FWorkerSharedPtr Remapper = LiveLinkSubject->GetFrameRemapper())
+		{
+			// ATM we will assume vsubjects can't have remappers.
+			if (ULiveLinkSubjectSettings* Settings = Cast<ULiveLinkSubjectSettings>(GetSubjectSettings(SubjectStaticData.SubjectKey)))
+			{
+				// Make sure we have a valid settings object to not remap the static data while we're resetting the remapper.
+				if (Settings->Remapper)
+				{
+					// Make sure to rebroadcast the new static data.
+					LiveLinkSubject->SetStaticDataAsRebroadcasted(false);
+				}
+			}
+		}
+
 		if (const FSubjectFramesAddedHandles* Handles = SubjectFrameAddedHandles.Find(SubjectStaticData.SubjectKey.SubjectName))
 		{
 			Handles->OnStaticDataAdded.Broadcast(SubjectStaticData.SubjectKey, SubjectStaticData.Role, SubjectStaticData.StaticData);
@@ -909,6 +924,11 @@ void FLiveLinkClient::PushSubjectFrameData_Internal(FPendingSubjectFrame&& Subje
 	if (Role == nullptr)
 	{
 		return;
+	}
+
+	if (ULiveLinkSubjectRemapper::FWorkerSharedPtr Remapper = LinkSubject->GetFrameRemapper())
+	{
+		Remapper->RemapFrameData(LinkSubject->GetStaticData(), SubjectFrameData.FrameData);
 	}
 
 	bool bShouldLogWarning = true;
@@ -1364,6 +1384,14 @@ bool FLiveLinkClient::HasPendingSubjectFrames()
 {
 	FScopeLock PendingFramesLock(&PendingFramesCriticalSection);
 	return !SubjectFrameToPush.IsEmpty();
+}
+
+void FLiveLinkClient::ClearOverrideStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey)
+{
+	if (const FLiveLinkCollectionSubjectItem* SubjectItem = Collection->FindSubject(InSubjectKey))
+	{
+		SubjectItem->GetLiveSubject()->ClearOverrideStaticData_AnyThread();
+	}
 }
 
 bool FLiveLinkClient::EvaluateFrame_AnyThread(FLiveLinkSubjectName InSubjectName, TSubclassOf<ULiveLinkRole> InDesiredRole, FLiveLinkSubjectFrameData& OutFrame)

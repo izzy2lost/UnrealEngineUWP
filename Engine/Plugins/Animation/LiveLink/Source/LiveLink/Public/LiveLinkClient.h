@@ -125,6 +125,7 @@ public:
 	virtual bool EvaluateFrameAtSceneTime_AnyThread(FLiveLinkSubjectName SubjectName, const FQualifiedFrameTime& FrameTime, TSubclassOf<ULiveLinkRole> DesiredRole, FLiveLinkSubjectFrameData& OutFrame) override;
 	virtual void ForceTick() override;
 	virtual bool HasPendingSubjectFrames() override;
+	virtual void ClearOverrideStaticData_AnyThread(const FLiveLinkSubjectKey& InSubjectKey) override;
 
 	virtual FSimpleMulticastDelegate& OnLiveLinkTicked() override;
 	virtual FSimpleMulticastDelegate& OnLiveLinkSourcesChanged() override;
@@ -305,10 +306,10 @@ private:
 	const FName ALL_SUBJECTS_DELEGATE_TOKEN = "__Internal_AllSubjects_Update";
 
 	/** Whether to Preprocess frames before rebroadcasting them. */
-	bool bPreProcessRebroadcastedFrames = false;
+	bool bPreProcessRebroadcastFrames = false;
 
 	/** Whether to translate frames before rebroadcasting them. */
-	bool bTranslateRebroadcastedFrames = false;
+	bool bTranslateRebroadcastFrames = false;
 
 #if WITH_EDITOR
 	/** Delegate when a subject is evaluated. */

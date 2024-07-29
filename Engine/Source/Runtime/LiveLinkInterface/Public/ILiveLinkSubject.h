@@ -6,9 +6,12 @@
 #include "CoreMinimal.h"
 #include "LiveLinkFrameTranslator.h"
 #include "LiveLinkRole.h"
+#include "LiveLinkSubjectRemapper.h"
 #include "LiveLinkTypes.h"
 #include "Templates/SubclassOf.h"
 
+struct FLiveLinkAnimationFrameData;
+struct FLiveLinkSkeletonStaticData;
 class ILiveLinkClient;
 class ULiveLinkFrameInterpolationProcessor;
 class ULiveLinkFramePreProcessor;
@@ -41,6 +44,8 @@ public:
 	/** List of available translator the subject can use. */
 	virtual const TArray<ULiveLinkFrameTranslator::FWorkerSharedPtr> GetFrameTranslators() const = 0;
 
+	/** Get this subject's frame remapper. */
+	virtual const ULiveLinkSubjectRemapper::FWorkerSharedPtr GetFrameRemapper() const = 0;
 
 	/** Whether this subject is rebroadcasted */
 	virtual bool IsRebroadcasted() const = 0;
@@ -53,6 +58,9 @@ public:
 
 	/** Apply this subject's preprocessors to a frame data. */
 	virtual void PreprocessFrame(FLiveLinkFrameDataStruct& InOutFrameData) {};
+
+	/** Apply a remapper to a frame data. Called after preprocessing.*/
+	virtual void RemapFrame(FLiveLinkSkeletonStaticData& InOutSkeletonData, FLiveLinkAnimationFrameData& InOutFrameData) {}
 
 protected:
 	virtual const FLiveLinkSubjectFrameData& GetFrameSnapshot() const = 0;
