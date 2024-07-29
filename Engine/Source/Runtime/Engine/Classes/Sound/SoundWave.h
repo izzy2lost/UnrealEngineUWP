@@ -440,7 +440,7 @@ class USoundWave : public USoundBase, public IAudioProxyDataFactory, public IInt
 private:
 
 	/** Platform agnostic compression quality. 1..100 with 1 being best compression and 100 being best quality. ADPCM and PCM sound asset compression types ignore this parameter. */
-	UPROPERTY(EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM && SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
+	UPROPERTY(Config, EditAnywhere, Category = "Format|Quality", meta = (DisplayName = "Compression", ClampMin = "1", ClampMax = "100", EditCondition = "SoundAssetCompressionType != ESoundAssetCompressionType::PCM && SoundAssetCompressionType != ESoundAssetCompressionType::ADPCM"), AssetRegistrySearchable)
 	int32 CompressionQuality;
 
 public:
@@ -479,7 +479,7 @@ private:
 	uint8 bUseBinkAudio : 1;
 
 	/** The compression type to use for the sound wave asset. */
-	UPROPERTY(EditAnywhere, Category = "Format", AssetRegistrySearchable)
+	UPROPERTY(Config, EditAnywhere, Category = "Format", AssetRegistrySearchable)
 	ESoundAssetCompressionType SoundAssetCompressionType = ESoundAssetCompressionType::PlatformSpecific;
 
 public:

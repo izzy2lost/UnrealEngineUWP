@@ -927,7 +927,6 @@ USoundWave::USoundWave(const FObjectInitializer& ObjectInitializer)
 {
 	Volume = 1.0;
 	Pitch = 1.0;
-	CompressionQuality = -1; // Note: This is set in PostInitProperties, as its unsafe to GetDefault<UAudioSettings> here.
 	SubtitlePriority = DEFAULT_SUBTITLE_PRIORITY;
 	ResourceState = ESoundWaveResourceState::NeedsFree;
 	RawPCMDataSize = 0;
@@ -956,7 +955,8 @@ USoundWave::USoundWave(const FObjectInitializer& ObjectInitializer)
 	bProcedural = false;
 	bRequiresStopFade = false;
 
-	SoundAssetCompressionType = ESoundAssetCompressionType::ProjectDefined;	
+	SoundAssetCompressionType = ESoundAssetCompressionType::ProjectDefined;
+	CompressionQuality = 80;
 
 #if WITH_EDITOR
 	bWasStreamCachingEnabledOnLastCook = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
@@ -1462,11 +1462,6 @@ bool USoundWave::SupportsSubtitles() const
 void USoundWave::PostInitProperties()
 {
 	Super::PostInitProperties();
-
-	// Safe to query the AudioSettings here, instead of the Constructor
-	// These defaults are then overwritten by the UPROPERTY serialization if there's non default property values.
-	CompressionQuality = GetDefault<UAudioSettings>()->GetDefaultCompressionQuality();
-	SoundAssetCompressionType = Audio::ToSoundAssetCompressionType(GetDefault<UAudioSettings>()->DefaultAudioCompressionType);
 
 	if(!IsTemplate())
 	{
