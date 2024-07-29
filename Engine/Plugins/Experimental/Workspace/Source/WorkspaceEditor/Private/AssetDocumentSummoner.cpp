@@ -32,6 +32,11 @@ void FAssetDocumentSummoner::SetAllowedClassPaths(TConstArrayView<FTopLevelAsset
 
 void FAssetDocumentSummoner::OnTabActivated(TSharedPtr<SDockTab> Tab) const
 {
+	TSharedRef<SWorkspaceTabWrapper> TabWrapper = StaticCastSharedRef<SWorkspaceTabWrapper>(Tab->GetContent());
+	if (UObject* DocumentAsset = TabWrapper->GetDocumentObject().Get())
+	{
+		HostingAppPtr.Pin()->SetFocussedAsset(DocumentAsset);
+	}
 }
 
 void FAssetDocumentSummoner::OnTabBackgrounded(TSharedPtr<SDockTab> Tab) const
@@ -116,7 +121,7 @@ TAttribute<FText> FAssetDocumentSummoner::ConstructTabLabelSuffix(const FWorkflo
 		{
 			if(UObject* Object = WeakObject.Get())
 			{
-				if(Object->IsAsset() && Object->GetPackage()->IsDirty())
+				if(Object->GetPackage()->IsDirty())
 				{
 					return LOCTEXT("TabSuffixAsterisk", "*");
 				}

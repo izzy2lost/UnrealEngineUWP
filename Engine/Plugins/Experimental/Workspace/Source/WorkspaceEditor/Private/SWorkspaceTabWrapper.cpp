@@ -1,7 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SWorkspaceTabWrapper.h"
+
+#include "EditorModeManager.h"
 #include "Widgets/Layout/SSeparator.h"
+#include "Widgets/Docking/SDockTab.h"
 #include "Modules/ModuleManager.h"
 #include "ToolMenus.h"
 
@@ -12,6 +15,17 @@ void SWorkspaceTabWrapper::Construct( const FArguments& InArgs, TSharedPtr<class
 	Content = InArgs._Content.Widget;
 	WeakWorkspaceEditor = InWorkspaceEditor;
 	WeakDocumentObject = InDocumentID;
+
+	if (InTabInfo->GetTab().IsValid())
+	{
+		InTabInfo->GetTab().Pin()->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateLambda([WeakEditor=WeakWorkspaceEditor, WeakObject=WeakDocumentObject](TSharedRef<SDockTab>)
+		{
+			if (const TSharedPtr<UE::Workspace::FWorkspaceEditor> SharedWorkspaceEditor = WeakEditor.Pin())
+			{
+				SharedWorkspaceEditor->RemoveEditingObject(WeakObject.Get());
+			}
+		}));
+	}
 
 	// Set-up shared breadcrumb defaults JDB TODO figure out correct padding to align fake title with breadcrumbs
     const FMargin BreadcrumbTrailPadding = FMargin(4.f, 2.f);

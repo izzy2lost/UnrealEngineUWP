@@ -20,6 +20,7 @@ public:
 	
 	void Construct(const FArguments& InArgs, TSharedPtr<class FTabInfo> InTabInfo, TSharedPtr<UE::Workspace::FWorkspaceEditor> InWorkspaceEditor, UObject* InDocumentID);
 	TSharedRef<SWidget> GetContent() const { return Content.ToSharedRef(); }
+	TWeakObjectPtr<UObject> GetDocumentObject() const { return WeakDocumentObject; }
 	
 protected:
 	void RebuildBreadcrumbTrail() const;

@@ -68,11 +68,14 @@ private:
 	virtual void OnClose() override;
 	virtual void RegisterToolbar() override;
 	virtual bool ShouldReopenEditorForSavedAsset(const UObject* Asset) const override;
+	virtual void RemoveEditingObject(UObject* Object);
 
 	// FAssetEditorToolkit interface
 	virtual void GetSaveableObjects(TArray<UObject*>& OutObjects) const override;
 	virtual bool CanSaveAsset() const override;
 	virtual FText GetTabSuffix() const override;
+	virtual FText GetToolkitName() const override;
+	virtual FText GetToolkitToolTipText() const override;	
 	virtual bool IsFindInContentBrowserButtonVisible() const { return false; }
 
 	// FGCObject interface
@@ -92,8 +95,9 @@ private:
 	virtual void SetDetailsObjects(const TArray<UObject*>& InObjects) override;
 	virtual void RefreshDetails() override;
 	virtual UWorkspaceSchema* GetSchema() const override;
-
 	virtual void SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate) override;
+	virtual void SetFocussedAsset(const TObjectPtr<UObject> InAsset) override;	
+	virtual const TObjectPtr<UObject> GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const override;	
 
 	void BindCommands();
 

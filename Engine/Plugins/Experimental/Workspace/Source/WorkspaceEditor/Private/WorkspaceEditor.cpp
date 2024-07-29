@@ -19,6 +19,9 @@
 #include "Dialogs/Dialogs.h"
 #include "Framework/Docking/LayoutExtender.h"
 #include "ToolMenus.h"
+#include "AssetEditorModeManager.h"
+#include "Selection.h"
+#include "EditorModeManager.h"
 
 #define LOCTEXT_NAMESPACE "WorkspaceEditor"
 
@@ -216,6 +219,12 @@ void FWorkspaceEditor::SaveEditedObjectState() const
 TSharedPtr<SDockTab> FWorkspaceEditor::OpenDocument(const UObject* InForObject, FDocumentTracker::EOpenDocumentCause InCause)
 {
 	const TSharedRef<FTabPayload_UObject> Payload = FTabPayload_UObject::Make(InForObject);
+	const bool bIsSupportedDocument = DocumentManager->FindSupportingFactory(Payload).IsValid();
+	if (bIsSupportedDocument)
+	{
+		AddEditingObject(const_cast<UObject*>(InForObject));
+	}
+	
 	TSharedPtr<SDockTab> NewTab = DocumentManager->OpenDocument(Payload, InCause);
 
 	if(InCause != FDocumentTracker::RestorePreviousDocument)
@@ -297,6 +306,28 @@ void FWorkspaceEditor::SetGlobalSelection(FGlobalSelectionId SelectionId, FOnCle
 
 	LastGlobalSelectionId = SelectionId;
 	LastOnClearSelectionDelegate = OnClearSelectionDelegate;
+}
+
+void FWorkspaceEditor::SetFocussedAsset(const TObjectPtr<UObject> InAsset)
+{
+	FAssetEditorModeManager* ModeManager = static_cast<FAssetEditorModeManager*>(&GetEditorModeManager());	
+	ModeManager->GetSelectedObjects()->DeselectAll();
+	
+	if (InAsset != nullptr)
+	{
+		ModeManager->GetSelectedObjects()->Select(InAsset);
+	}
+}
+
+const TObjectPtr<UObject> FWorkspaceEditor::GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const
+{
+	FAssetEditorModeManager* ModeManager = static_cast<FAssetEditorModeManager*>(&GetEditorModeManager());	
+	if (USelection* Selection = ModeManager->GetSelectedObjects())
+	{
+		return Selection->GetTop(AssetClass);
+	}
+
+	return nullptr;
 }
 
 void FWorkspaceEditor::BindCommands()
@@ -473,6 +504,28 @@ FText FWorkspaceEditor::GetTabSuffix() const
 	return CanSaveAsset() ? LOCTEXT("TabSuffixAsterix", "*") : FText::GetEmpty();
 }
 
+FText FWorkspaceEditor::GetToolkitName() const
+{
+	UObject* const* WorkspaceObject = GetEditingObjects().FindByPredicate([](const UObject* Object) { return Object && Object->IsA<UWorkspace>(); });
+	check (WorkspaceObject != nullptr);
+	
+	return GetLabelForObject(*WorkspaceObject);
+}
+
+FText FWorkspaceEditor::GetToolkitToolTipText() const
+{
+	UObject* const* WorkspaceObject = GetEditingObjects().FindByPredicate([](const UObject* Object) { return Object && Object->IsA<UWorkspace>(); });
+	check (WorkspaceObject != nullptr);
+	
+	FText FocussedAssetText = FText::FromName(NAME_None);	
+	if (const UObject* FocussedObject = GetFocussedAsset())
+	{
+		 FocussedAssetText = GetLabelForObject(FocussedObject);
+	}
+	
+	return FText::Format(LOCTEXT("TookitTooltipFormat", "{0} ({1})"), GetToolTipTextForObject(*WorkspaceObject), FocussedAssetText);
+}
+
 void FWorkspaceEditor::RecordDocumentState(const TInstancedStruct<FWorkspaceDocumentState>& InState) const
 {
 	UWorkspaceState* State = Workspace->GetState();
@@ -572,6 +625,15 @@ void FWorkspaceEditor::RegisterToolbar()
 bool FWorkspaceEditor::ShouldReopenEditorForSavedAsset(const UObject* Asset) const
 {
 	return !bClosingDown;
+}
+
+void FWorkspaceEditor::RemoveEditingObject(UObject* Object)
+{
+	IWorkspaceEditor::RemoveEditingObject(Object);	
+	if (GetFocussedAsset() == Object)
+	{
+		SetFocussedAsset(nullptr);
+	}
 }
 }
 
