@@ -65,6 +65,8 @@ public:
 	void TerminateActiveDisplayClusterProcesses();
 
 private:
+	void EnsureMultiUserDiscovery();
+	void StopMultiUserDiscovery();
 
 	void OnFEngineLoopInitComplete();
 
@@ -134,4 +136,6 @@ private:
 	TArray<FProcHandle> ActiveDisplayClusterProcesses;
 
 	EConcertServerRequestStatus ConcertServerRequestStatus = EConcertServerRequestStatus::None;
+
+	bool bDidStartDiscovery = false;
 };
