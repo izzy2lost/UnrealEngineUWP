@@ -265,6 +265,7 @@ namespace UE
 				AsStructProperty->Struct = Struct;
 				AsStructProperty->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
+				AsStructProperty->Struct->SetMetaData(NAME_OriginalType, *OriginalName);
 				AsStructProperty->Struct->SetMetaData(NAME_PresentAsTypeMetadata, *OriginalName);
 
 				TrySetContainsLooseProperties(AsStructProperty, AsStructProperty->Struct);
@@ -420,6 +421,12 @@ namespace UE
 		const FName InstanceDataObjectName = (TemplateStruct) ? FName(WriteToString<128>(TemplateStruct->GetName(), TEXTVIEW("_InstanceDataObject"))) : FName(TEXTVIEW("InstanceDataObject"));
 		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(nullptr, StructClass, InstanceDataObjectName));
 		Result->SetSuperStruct(Super);
+
+		// inherit ContainsLooseProperties metadata
+		if (Super && Super->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata))
+		{
+			Result->SetMetaData(NAME_ContainsLoosePropertiesMetadata, TEXT("True"));
+		}
 
 		TSet<FString> ExcludedLoosePropertyTypes = GetExcludedLoosePropertyTypes();
 

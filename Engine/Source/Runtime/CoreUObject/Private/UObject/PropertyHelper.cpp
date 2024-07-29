@@ -304,39 +304,36 @@ const FString* FindOriginalTypeName(const UField* Field)
 
 const FString* FindOriginalTypeName(const FProperty* Property)
 {
-	if (FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+	// Prioritize metadata on the property over metadata on the type.
+	if (const FString* OriginalType = Property->FindMetaData(NAME_OriginalType))
 	{
-		// Prioritize metadata on the property over metadata on the type.
-		if (const FString* OriginalType = Property->FindMetaData(NAME_OriginalType))
+		return OriginalType;
+	}
+
+	// Search the owner chain to support metadata defined in UPROPERTY on a container for testing purposes.
+	for (FField* OwnerField = Property->Owner.ToField(); OwnerField; OwnerField = OwnerField->Owner.ToField())
+	{
+		if (const FString* OriginalType = OwnerField->FindMetaData(NAME_OriginalType))
 		{
 			return OriginalType;
 		}
+	}
 
-		// Search the owner chain to support metadata defined in UPROPERTY on a container for testing purposes.
-		for (FField* OwnerField = Property->Owner.ToField(); OwnerField; OwnerField = OwnerField->Owner.ToField())
-		{
-			if (const FString* OriginalType = OwnerField->FindMetaData(NAME_OriginalType))
-			{
-				return OriginalType;
-			}
-		}
-
-		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-		{
-			return FindOriginalTypeName(StructProperty->Struct);
-		}
-		if (const FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
-		{
-			return FindOriginalTypeName(ClassProperty->PropertyClass);
-		}
-		if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
-		{
-			return FindOriginalTypeName(EnumProperty->GetEnum());
-		}
-		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property); ByteProperty && ByteProperty->Enum)
-		{
-			return FindOriginalTypeName(ByteProperty->Enum);
-		}
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		return FindOriginalTypeName(StructProperty->Struct);
+	}
+	if (const FClassProperty* ClassProperty = CastField<FClassProperty>(Property))
+	{
+		return FindOriginalTypeName(ClassProperty->PropertyClass);
+	}
+	if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
+	{
+		return FindOriginalTypeName(EnumProperty->GetEnum());
+	}
+	if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property); ByteProperty && ByteProperty->Enum)
+	{
+		return FindOriginalTypeName(ByteProperty->Enum);
 	}
 	return nullptr;
 }
@@ -469,12 +466,15 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 		// Compare against the original type of an impersonated struct.
 		if constexpr (std::is_same_v<PropertyType, FStructProperty>)
 		{
-			if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
+			if (FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
 			{
-				FieldName = OriginalType.GetName();
-				if (FieldName == OldNameRedirect.ObjectName)
+				if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
 				{
-					return false;
+					FieldName = OriginalType.GetName();
+					if (FieldName == OldNameRedirect.ObjectName)
+					{
+						return false;
+					}
 				}
 			}
 		}
