@@ -12,22 +12,8 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis string with a given value type
 	/// </summary>
 	/// <typeparam name="TValue">The type of element stored in the list</typeparam>
-	public readonly struct RedisStringKey<TValue>
+	public record struct RedisStringKey<TValue>(RedisKey Inner)
 	{
-		/// <summary>
-		/// The untyped key for the string
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner"></param>
-		public RedisStringKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
@@ -44,7 +30,7 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Extension methods for strings
 	/// </summary>
-	public static class RedisStringExtensions
+	public static class RedisStringKeyExtensions
 	{
 		#region Conditions
 

@@ -13,42 +13,28 @@ namespace EpicGames.Redis
 	/// Represents a redis hash key, with members corresponding to the property names of a type
 	/// </summary>
 	/// <typeparam name="T">Type of the hash fields</typeparam>
-	public readonly struct RedisHashKey<T>
+	public record struct RedisHashKey<T>(RedisKey Inner)
 	{
 		/// <summary>
-		/// The key for the list
+		/// Implicit conversion to typed redis key.
 		/// </summary>
-		public readonly RedisKey Inner { get; }
+		/// <param name="key">Key to convert</param>
+		public static implicit operator RedisHashKey<T>(string key) => new RedisHashKey<T>(new RedisKey(key));
 
 		/// <summary>
-		/// Constructor
+		/// Implicit conversion to untyped redis keys.
 		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisHashKey(RedisKey inner)
-			=> Inner = inner;
+		/// <param name="key">Key to convert</param>
+		public static implicit operator TypedRedisKey(RedisHashKey<T> key) => new TypedRedisKey(key.Inner);
 	}
 
 	/// <summary>
-	/// Represents a typed Redis list with a given key
+	/// Represents a typed Redis hash with given key/value types
 	/// </summary>
 	/// <typeparam name="TName">Type of the hash key</typeparam>
 	/// <typeparam name="TValue">Type of the hash value</typeparam>
-	public readonly struct RedisHashKey<TName, TValue>
+	public record struct RedisHashKey<TName, TValue>(RedisKey Inner)
 	{
-		/// <summary>
-		/// The key for the list
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisHashKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
@@ -104,7 +90,7 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Extension methods for hashes
 	/// </summary>
-	public static class RedisHashExtensions
+	public static class RedisHashKeyExtensions
 	{
 		/// <summary>
 		/// Helper method to convert an array of hash entries into a dictionary
@@ -278,7 +264,7 @@ namespace EpicGames.Redis
 		#region HashIncrementAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.HashIncrementAsync(RedisKey, RedisValue, Int64, CommandFlags)"/>
-		public static Task<long> HashInccrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, long>> selector, long value = 1L, CommandFlags flags = CommandFlags.None)
+		public static Task<long> HashIncrementAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, long>> selector, long value = 1L, CommandFlags flags = CommandFlags.None)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return target.HashIncrementAsync(key.Inner, memberExpression.Member.Name, value, flags);
@@ -298,7 +284,7 @@ namespace EpicGames.Redis
 		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashIncrementAsync(RedisKey, RedisValue, Double, CommandFlags)"/>
-		public static Task<double> HashIncrementAsync<TName>(this IDatabaseAsync target, RedisHashKey<TName, long> key, TName name, double value = 1.0, CommandFlags flags = CommandFlags.None)
+		public static Task<double> HashIncrementAsync<TName>(this IDatabaseAsync target, RedisHashKey<TName, double> key, TName name, double value = 1.0, CommandFlags flags = CommandFlags.None)
 		{
 			return target.HashIncrementAsync(key.Inner, RedisSerializer.Serialize<TName>(name), value, flags);
 		}
@@ -321,6 +307,19 @@ namespace EpicGames.Redis
 		public static Task<long> HashLengthAsync(this IDatabaseAsync target, TypedRedisKey key, CommandFlags flags = CommandFlags.None)
 		{
 			return target.HashLengthAsync(key, flags);
+		}
+
+		#endregion
+
+		#region HashScanAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.HashScanAsync(RedisKey, RedisValue, int, long, int, CommandFlags)"/>
+		public static async IAsyncEnumerable<HashEntry<TName, TValue>> HashScanAsync<TName, TValue>(this IDatabaseAsync target, RedisHashKey<TName, TValue> key, RedisValue pattern, int pageSize = 250, long cursor = 0, int pageOffset = 0, CommandFlags flags = CommandFlags.None)
+		{
+			await foreach (HashEntry entry in target.HashScanAsync(key.Inner, pattern, pageSize, cursor, pageOffset, flags))
+			{
+				yield return new HashEntry<TName, TValue>(RedisSerializer.Deserialize<TName>(entry.Name), RedisSerializer.Deserialize<TValue>(entry.Value));
+			}
 		}
 
 		#endregion

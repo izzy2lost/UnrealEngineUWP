@@ -11,22 +11,8 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis list with a given key
 	/// </summary>
 	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public readonly struct RedisListKey<TElement>
+	public record struct RedisListKey<TElement>(RedisKey Inner)
 	{
-		/// <summary>
-		/// The key for the list
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisListKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
@@ -43,7 +29,7 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Extension methods for sets
 	/// </summary>
-	public static class RedisListExtensions
+	public static class RedisListKeyExtensions
 	{
 		#region Conditions
 
@@ -194,7 +180,7 @@ namespace EpicGames.Redis
 		#region ListSetByIndexAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.ListSetByIndexAsync(RedisKey, Int64, RedisValue, CommandFlags)"/>
-		public static Task ListSetByIndexAsync<TElement>(IDatabaseAsync target, RedisListKey<TElement> key, long index, TElement value, CommandFlags flags = CommandFlags.None)
+		public static Task ListSetByIndexAsync<TElement>(this IDatabaseAsync target, RedisListKey<TElement> key, long index, TElement value, CommandFlags flags = CommandFlags.None)
 		{
 			return target.ListSetByIndexAsync(key.Inner, index, RedisSerializer.Serialize(value), flags);
 		}

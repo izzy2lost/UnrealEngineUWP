@@ -11,22 +11,8 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis set with a given key
 	/// </summary>
 	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public readonly struct RedisSetKey<TElement>
+	public record struct RedisSetKey<TElement>(RedisKey Inner)
 	{
-		/// <summary>
-		/// The key for the list
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisSetKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
@@ -43,7 +29,7 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Extension methods for sets
 	/// </summary>
-	public static class RedisSetExtensions
+	public static class RedisSetKeyExtensions
 	{
 		#region Conditions
 

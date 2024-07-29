@@ -12,22 +12,8 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis sorted set with a given key
 	/// </summary>
 	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public readonly struct RedisSortedSetKey<TElement>
+	public record struct RedisSortedSetKey<TElement>(RedisKey Inner)
 	{
-		/// <summary>
-		/// The key for the list
-		/// </summary>
-		public readonly RedisKey Inner { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="inner">Redis key this type is using</param>
-		public RedisSortedSetKey(RedisKey inner)
-		{
-			Inner = inner;
-		}
-
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
@@ -100,7 +86,7 @@ namespace EpicGames.Redis
 	/// <summary>
 	/// Extension methods for sets
 	/// </summary>
-	public static class RedisSortedSetExtensions
+	public static class RedisSortedSetKeyExtensions
 	{
 		#region Conditions
 
@@ -181,7 +167,7 @@ namespace EpicGames.Redis
 		#region SortedSetRangeByRankAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SortedSetRangeByRankAsync(RedisKey, Int64, Int64, Order, CommandFlags)"/>
-		public static Task<TElement[]> SortedSetRangeByRankAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, long start, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
+		public static Task<TElement[]> SortedSetRangeByRankAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, long start = 0, long stop = -1, Order order = Order.Ascending, CommandFlags flags = CommandFlags.None)
 		{
 			return target.SortedSetRangeByRankAsync(key.Inner, start, stop, order, flags).DeserializeAsync<TElement>();
 		}
