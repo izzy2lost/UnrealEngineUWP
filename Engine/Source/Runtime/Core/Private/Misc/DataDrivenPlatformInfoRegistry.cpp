@@ -299,11 +299,10 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 
 
 				FString AllDeviceProfiles = GetSectionString(Section.Value, FName("DeviceProfileName"));
-				FText AllFriendlyName;
-				FTextStringHelper::ReadFromBuffer(*GetSectionString(Section.Value, FName("FriendlyName")), AllFriendlyName);
+				FString AllFriendlyName = GetSectionString(Section.Value, FName("FriendlyName"));
 				TArray<FString> DeviceProfileNames, FriendlyNames;
 				AllDeviceProfiles.ParseIntoArray(DeviceProfileNames, TEXT(":"));
-				AllFriendlyName.ToString().ParseIntoArray(FriendlyNames, TEXT(":"));
+				AllFriendlyName.ParseIntoArray(FriendlyNames, TEXT(":"));
 
 				if (DeviceProfileNames.Num() == 0)
 				{
@@ -316,7 +315,7 @@ static void ParsePreviewPlatforms(const FConfigFile& IniFile)
 					Item.DeviceProfileName = *DeviceProfileNames[DPIndex].TrimStartAndEnd();
 					if (DPIndex < FriendlyNames.Num())
 					{
-						Item.OptionalFriendlyNameOverride = FText::FromString(FriendlyNames[DPIndex].TrimStartAndEnd());
+						FTextStringHelper::ReadFromBuffer(*FriendlyNames[DPIndex].TrimStartAndEnd(), Item.OptionalFriendlyNameOverride);
 					}
 					else if (DeviceProfileNames.Num() > 1)
 					{

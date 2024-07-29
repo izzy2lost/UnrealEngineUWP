@@ -1300,11 +1300,24 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 			[](UToolMenu* InMenu) -> void
 			{
 				FToolMenuSection& Section =
-					InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModeDevices", "Preview Devices"));
-				// Preview platforms discovered from ITargetPlatforms.
-				for (auto& Item : FLevelEditorCommands::Get().PreviewPlatformOverrides)
+					InMenu->AddSection("EditorPreviewMode", LOCTEXT("EditorPreviewModeDevices", "Preview Platforms"));
+
+				for (auto Iter = FLevelEditorCommands::Get().PlatformToPreviewPlatformOverrides.CreateConstIterator(); Iter; ++Iter)
 				{
-					Section.AddMenuEntry(Item);
+					FName PlatformName = Iter.Key();
+					const TArray<TSharedPtr<FUICommandInfo>>& CommandList = Iter.Value();
+
+					Section.AddSubMenu(FName(PlatformName), FText::FromString(PlatformName.ToString()), FText(),
+						FNewToolMenuDelegate::CreateLambda([CommandList](UToolMenu* InSubMenu)
+							{
+								FToolMenuSection& Section =
+									InSubMenu->AddSection("", LOCTEXT("EditorPreviewModeDevices", "Preview Devices"));
+								for (const TSharedPtr<FUICommandInfo>& Command : CommandList)
+								{
+									Section.AddMenuEntry(Command);
+								}
+							})
+					);
 				}
 			}
 		)
