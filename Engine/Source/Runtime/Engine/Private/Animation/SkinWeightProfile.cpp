@@ -82,23 +82,20 @@ static void OnDefaultProfileCVarsChanged(IConsoleVariable* Variable)
 
 			for (TObjectIterator<USkeletalMesh> It; It; ++It)
 			{
-				if (*It)
+				if (FSkeletalMeshRenderData* RenderData = It->GetResourceForRendering())
 				{
-					if (FSkeletalMeshRenderData* RenderData = It->GetResourceForRendering())
+					FSkinnedMeshComponentRecreateRenderStateContext RecreateState(*It);
+					for (int32 LODIndex = 0; LODIndex < RenderData->LODRenderData.Num(); ++LODIndex)
 					{
-						FSkinnedMeshComponentRecreateRenderStateContext RecreateState(*It);
-						for (int32 LODIndex = 0; LODIndex < RenderData->LODRenderData.Num(); ++LODIndex)
+						FSkeletalMeshLODRenderData& LOD = RenderData->LODRenderData[LODIndex];
+						if (bClearBuffer)
 						{
-							FSkeletalMeshLODRenderData& LOD = RenderData->LODRenderData[LODIndex];
-							if (bClearBuffer)
-							{
-								LOD.SkinWeightProfilesData.ClearDynamicDefaultSkinWeightProfile(*It, LODIndex);
-							}
-							else if (bSetBuffer)
-							{
-								LOD.SkinWeightProfilesData.ClearDynamicDefaultSkinWeightProfile(*It, LODIndex);
-								LOD.SkinWeightProfilesData.SetDynamicDefaultSkinWeightProfile(*It, LODIndex);
-							}
+							LOD.SkinWeightProfilesData.ClearDynamicDefaultSkinWeightProfile(*It, LODIndex);
+						}
+						else if (bSetBuffer)
+						{
+							LOD.SkinWeightProfilesData.ClearDynamicDefaultSkinWeightProfile(*It, LODIndex);
+							LOD.SkinWeightProfilesData.SetDynamicDefaultSkinWeightProfile(*It, LODIndex);
 						}
 					}
 				}

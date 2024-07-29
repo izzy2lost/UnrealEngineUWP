@@ -812,7 +812,7 @@ namespace Audio
 
 				for (TObjectIterator<USoundSubmix> It; It; ++It)
 				{
-					if (*It && It->bMuteWhenBackgrounded)
+					if (It->bMuteWhenBackgrounded)
 					{
 						FMixerSubmixPtr SubmixInstance = GetSubmixInstance(*It).Pin();
 						if (SubmixInstance.IsValid())

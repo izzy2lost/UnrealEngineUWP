@@ -81,14 +81,11 @@ void FRigVMBlueprintUtils::ForAllRigVMStructs(TFunction<void(UScriptStruct*)> In
 	// Run over all unit types
 	for(TObjectIterator<UStruct> StructIt; StructIt; ++StructIt)
 	{
-		if (*StructIt)
+		if(StructIt->IsChildOf(FRigVMStruct::StaticStruct()) && !StructIt->HasMetaData(FRigVMStruct::AbstractMetaName))
 		{
-			if(StructIt->IsChildOf(FRigVMStruct::StaticStruct()) && !StructIt->HasMetaData(FRigVMStruct::AbstractMetaName))
+			if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(*StructIt))
 			{
-				if (UScriptStruct* ScriptStruct = Cast<UScriptStruct>(*StructIt))
-				{
-					InFunction(ScriptStruct);
-				}
+				InFunction(ScriptStruct);
 			}
 		}
 	}
