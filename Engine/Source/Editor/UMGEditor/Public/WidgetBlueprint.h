@@ -313,6 +313,9 @@ public:
 	/** Gets any named slots exposed by the parent generated class that can be slotted into by the subclass. */
 	TArray<FName> GetInheritedAvailableNamedSlots() const;
 
+	/** Gets named slots exposed by the parent generated class that already have content in the parent widget tree. */
+	TSet<FName> GetInheritedNamedSlotsWithContentInSameTree() const;
+
 	virtual UWidgetEditingProjectSettings* GetRelevantSettings();
 	virtual const UWidgetEditingProjectSettings* GetRelevantSettings() const;
 

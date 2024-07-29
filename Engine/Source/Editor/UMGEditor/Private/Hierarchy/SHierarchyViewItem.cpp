@@ -762,8 +762,17 @@ void FHierarchyRoot::GetChildren(TArray< TSharedPtr<FHierarchyModel> >& Children
 	}
 
 	// Grab any exposed named slots from the super classes CDO.  These slots can have content slotted into them by this subclass.
+	TSet<FName> InheritedNamedSlotsWithContentInSameTree = Blueprint->GetInheritedNamedSlotsWithContentInSameTree();
 	for ( const FName& SlotName : Blueprint->GetInheritedAvailableNamedSlots() )
 	{
+		if (InheritedNamedSlotsWithContentInSameTree.Contains(SlotName))
+		{
+			if (!Blueprint->WidgetTree->GetContentForSlot(SlotName))
+			{
+				continue;
+			}
+		}
+
 		TSharedPtr<FNamedSlotModelSubclass> ChildItem = MakeShareable(new FNamedSlotModelSubclass(Blueprint, SlotName, BPEd));
 		Children.Add(ChildItem);
 	}

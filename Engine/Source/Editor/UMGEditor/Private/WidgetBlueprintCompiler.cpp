@@ -985,40 +985,51 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 
 		// Add all the names of the named slot widgets to the slot names structure.
 		{
-			TArray<FName> NamedSlotsWithContentInSameTree;
 		#if WITH_EDITOR
 			BPGClass->NamedSlotsWithID.Reset();
+			BPGClass->NamedSlotsWithContentInSameTree.Reset();
 		#endif
 			BPGClass->NamedSlots.Reset();
 			BPGClass->InstanceNamedSlots.Reset();
+
+			TArray<FName> NamedSlotsPerWidgetBlueprint;
+
 			UWidgetBlueprint* WidgetBPIt = WidgetBP;
 			while (WidgetBPIt)
 			{
+				NamedSlotsPerWidgetBlueprint.Reset();
 				WidgetBPIt->ForEachSourceWidget([&] (const UWidget* Widget) {
 					if (const UNamedSlot* NamedSlot = Cast<UNamedSlot>(Widget))
 					{
-						BPGClass->NamedSlots.Add(Widget->GetFName());
+						NamedSlotsPerWidgetBlueprint.Add(Widget->GetFName());
 
 					#if WITH_EDITOR
 						BPGClass->NamedSlotsWithID.Add(TPair<FName, FGuid>(Widget->GetFName(), NamedSlot->GetSlotGUID()));
+
+						// A namedslot whose content is in the same blueprint class is treated as a regular panel widget.
+						// We need to keep track of these to later remove them from the hierarchy.
+						if (NamedSlot->GetChildrenCount() > 0)
+						{
+							BPGClass->NamedSlotsWithContentInSameTree.Add(NamedSlot->GetFName());
+						}
 					#endif
 
 						if (NamedSlot->bExposeOnInstanceOnly)
 						{
 							BPGClass->InstanceNamedSlots.Add(Widget->GetFName());
 						}
-
-						// A namedslot whose content is in the same blueprint class is treated as a regular panel widget.
-						// We need to keep track of these to later remove them from the available namedslots list.
-						if (NamedSlot->GetChildrenCount() > 0)
-						{
-							NamedSlotsWithContentInSameTree.Add(NamedSlot->GetFName());
-						}
 					}
 				});
 				
+				// Here we reverse this array to maintain the order of sibling namedslots once the final array BPGClass->NamedSlots is reversed.
+				Algo::Reverse(NamedSlotsPerWidgetBlueprint);
+				BPGClass->NamedSlots.Append(NamedSlotsPerWidgetBlueprint);
+
 				WidgetBPIt = Cast<UWidgetBlueprint>(WidgetBPIt->ParentClass->ClassGeneratedBy);
 			}
+
+			// We iterate widget blueprints from child to parent, but we need the final namedslot array to be sorted from parent to child, so we reverse it.
+			Algo::Reverse(BPGClass->NamedSlots);
 
 			BPGClass->AvailableNamedSlots = BPGClass->NamedSlots;
 
@@ -1028,12 +1039,6 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 				// If we find content for this slot, remove it from the available set.
 				BPGClass->AvailableNamedSlots.Remove(SlotName);
 			});
-
-			// Remove any named slots with content in the same widget tree from the available slots.
-			for (const FName& NamedSlotWithContent : NamedSlotsWithContentInSameTree)
-			{
-				BPGClass->AvailableNamedSlots.Remove(NamedSlotWithContent);
-			}
 
 			// Remove any available subclass named slots that are marked as instance named slot.
 			for (const FName& InstanceNamedSlot : BPGClass->InstanceNamedSlots)
@@ -1086,6 +1091,16 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 				{
 					if (UWidget* ContentInSlot = Tree->GetContentForSlot(SlotName))
 					{
+						if (NamedSlotClass->NamedSlotsWithContentInSameTree.Contains(SlotName))
+						{
+							UClass* SubClassWithSlotFilled = ContentInSlot->GetTypedOuter<UClass>();
+							MessageLog.Error(
+								*FText::Format(
+									LOCTEXT("NamedSlotAlreadyFilled", "The Named Slot '{0}' already has content in the widget blueprint it was created in but the subclass @@ tried to slot @@ into it. Please remove at least one of the contents."),
+									FText::FromName(SlotName)
+								).ToString(),
+								SubClassWithSlotFilled, ContentInSlot);
+						}
 						if (!NamedSlotContentMap.Contains(SlotName))
 						{
 							NamedSlotContentMap.Add(SlotName, ContentInSlot);
@@ -1094,13 +1109,14 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 						{
 							UClass* SubClassWithSlotFilled = ContentInSlot->GetTypedOuter<UClass>();
 							UClass* ParentClassWithSlotFilled = NamedSlotClass;
-							MessageLog.Note(
+							MessageLog.Error(
 								*FText::Format(
-									LOCTEXT("NamedSlotAlreadyFilled", "The Named Slot '{0}' already contains @@ from the class @@ but the subclass @@ tried to slot @@ into it."),
+									LOCTEXT("NamedSlotAlreadyFilled", "The Named Slot '{0}' already contains @@ from the class @@ but the subclass @@ tried to slot @@ into it. Please remove the content @@ from the class @@ to fix this error."),
 									FText::FromName(SlotName)
 								).ToString(),
 								ContentInSlot, ParentClassWithSlotFilled,
-								SubClassWithSlotFilled, NamedSlotContentMap.FindRef(SlotName));
+								SubClassWithSlotFilled, NamedSlotContentMap.FindRef(SlotName),
+								ContentInSlot, ParentClassWithSlotFilled);
 						}
 					}
 				}
@@ -1207,7 +1223,10 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 		}
 	}
 
-	BPGClass->bCanCallInitializedWithoutPlayerContext = WidgetBP->bCanCallInitializedWithoutPlayerContext;
+	if (BPGClass)
+	{
+		BPGClass->bCanCallInitializedWithoutPlayerContext = WidgetBP->bCanCallInitializedWithoutPlayerContext;
+	}
 
 	Super::FinishCompilingClass(Class);
 

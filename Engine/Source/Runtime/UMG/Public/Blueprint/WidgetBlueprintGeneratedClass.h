@@ -131,6 +131,9 @@ public:
 	/** All named slots mapped the assigned GUID of their UNamedSlot widget. **/
 	UPROPERTY()
 	TMap<FName, FGuid> NamedSlotsWithID;
+
+	UPROPERTY(Transient)
+	TSet<FName> NamedSlotsWithContentInSameTree;
 #endif
 
 	/**

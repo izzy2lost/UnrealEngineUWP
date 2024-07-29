@@ -1426,6 +1426,16 @@ TArray<FName> UWidgetBlueprint::GetInheritedAvailableNamedSlots() const
 	return TArray<FName>();
 }
 
+TSet<FName> UWidgetBlueprint::GetInheritedNamedSlotsWithContentInSameTree() const
+{
+	if (const UWidgetBlueprintGeneratedClass* GeneratedBPClass = Cast<UWidgetBlueprintGeneratedClass>(GeneratedClass->GetSuperClass()))
+	{
+		return GeneratedBPClass->NamedSlotsWithContentInSameTree;
+	}
+
+	return TSet<FName>();
+}
+
 UWidgetEditingProjectSettings* UWidgetBlueprint::GetRelevantSettings()
 {
 	return GetMutableDefault<UUMGEditorProjectSettings>();

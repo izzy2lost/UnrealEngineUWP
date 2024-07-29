@@ -1547,27 +1547,39 @@ UUserWidget* FWidgetBlueprintEditorUtils::CreateUserWidgetFromBlueprint(UObject*
 
 		UWidgetTree* LatestWidgetTree = FWidgetBlueprintEditorUtils::FindLatestWidgetTree(BP, CreatedUserWidget);
 
-		TMap<FName, UWidget*> NamedSlotContentToMerge;
+		TMap<FName, UWidget*> SortedNamedSlotContentToMerge;
 		UWidgetBlueprint* WidgetBlueprintIterator = BP;
+		TArray<TTuple<FName, UWidget*>> NamedSlotContentToMergeArray;
+
 		while (WidgetBlueprintIterator)
 		{
 			TArray<FName> SlotNames;
 			WidgetBlueprintIterator->WidgetTree->GetSlotNames(SlotNames);
 
-			for (const FName SlotName : SlotNames)
+			// We iterate widget blueprints from child to parent, but we need the final namedslot array to be sorted from parent to child.
+			// Here, we iterate the slot names in reverse to maintain the order of namedslots per widget blueprint once the final array is reversed.
+			for (int32 Index = SlotNames.Num() - 1; Index >= 0; Index--)
 			{
+				FName SlotName = SlotNames[Index];
 				if (UWidget* Content = WidgetBlueprintIterator->WidgetTree->GetContentForSlot(SlotName))
 				{
-					NamedSlotContentToMerge.Add(SlotName, Content);
+					NamedSlotContentToMergeArray.Add(TTuple<FName, UWidget*>(SlotName, Content));
 				}
 			}
 
 			WidgetBlueprintIterator = Cast<UWidgetBlueprint>(WidgetBlueprintIterator->GeneratedClass->GetSuperClass()->ClassGeneratedBy);
 		}
 
+		// We iterate the array in reverse so that the final SortedNamedSlotContentToMerge map ends up sorted from outermost namedslot to innermost.
+		for (int32 Index = NamedSlotContentToMergeArray.Num() - 1; Index >= 0; Index--)
+		{
+			TTuple<FName, UWidget*>& Element = NamedSlotContentToMergeArray[Index];
+			SortedNamedSlotContentToMerge.Add(Element.Key, Element.Value);
+		}
+		 
 		// Update the widget tree directly to match the blueprint tree.  That way the preview can update
 		// without needing to do a full recompile.
-		CreatedUserWidget->DuplicateAndInitializeFromWidgetTree(LatestWidgetTree, NamedSlotContentToMerge);
+		CreatedUserWidget->DuplicateAndInitializeFromWidgetTree(LatestWidgetTree, SortedNamedSlotContentToMerge);
 
 		// Establish the widget as being in design time before initializing (so that IsDesignTime is reliable within Initialize)
         // We have to call it to make sure that all the WidgetTree had the DesignerFlags set correctly
@@ -3074,7 +3086,7 @@ UWidgetBlueprint* FWidgetBlueprintEditorUtils::GetWidgetBlueprintFromWidget(cons
 			{
 				return WidgetBlueprint;
 			}
-			else
+			else if (WidgetTree->GetOuter())
 			{
 				WidgetBlueprint = Cast<UWidgetBlueprint>(WidgetTree->GetOuter()->GetClass()->ClassGeneratedBy);
 				if (WidgetBlueprint)
