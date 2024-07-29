@@ -35,6 +35,27 @@ struct FTypedElementPackageReference final : public FTypedElementDataStorageColu
 };
 
 /**
+ * Tag that indicates some related package information has been modified.
+ */
+USTRUCT(meta = (DisplayName = "Package information has been updated"))
+struct FTypedElementPackageUpdatedTag final : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+/**
+ * Column that stores relevant rows when a package is updated
+ */
+USTRUCT()
+struct FTypedElementPackageUpdateColumn final : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+	
+	TypedElementDataStorage::RowHandle ObjectRow;
+	TypedElementDataStorage::RowHandle PackageRow;
+};
+
+/**
  * Column that stores the path of a package.
  */
 USTRUCT(meta = (DisplayName = "Package path"))

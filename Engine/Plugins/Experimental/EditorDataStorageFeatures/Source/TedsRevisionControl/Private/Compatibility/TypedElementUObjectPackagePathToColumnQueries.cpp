@@ -32,6 +32,10 @@ static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryCon
 				
 	Context.AddColumn(PackageRow, MoveTemp(PathColumn));
 	Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));
+
+	FTypedElementPackageReference PackageBackReference;
+	PackageBackReference.Row = Row;
+	Context.AddColumn(PackageRow, MoveTemp(PackageBackReference));
 };
 
 void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
@@ -52,7 +56,6 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 			}
 		}
 	);
-
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Resolve package references"),

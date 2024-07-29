@@ -2021,6 +2021,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 	auto UpdateDataStorage = [](const FPerforceSourceControlState& State)
 	{
 		using namespace TypedElementQueryBuilder;
+		using namespace TypedElementDataStorage;
 		using DSI = ITypedElementDataStorageInterface;
 
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -2041,7 +2042,7 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 			FPaths::NormalizeFilename(Filename);
 			Filename = FPaths::ConvertRelativePathToFull(Filename);
 			
-			uint64 Index = TypedElementDataStorage::GenerateIndexHash(Filename);
+			uint64 Index = GenerateIndexHash(Filename);
 			TypedElementRowHandle Row = DataStorage->FindIndexedRow(Index);
 
 			if (!DataStorage->IsRowAvailable(Row))
@@ -2121,6 +2122,16 @@ bool FPerforceUpdateStatusWorker::UpdateStates() const
 		{
 			DataStorage->RemoveColumn(Row, Column);
 		}
+		
+        if (FTypedElementPackageReference* BackReference = DataStorage->GetColumn<FTypedElementPackageReference>(Row))
+        {
+        	if (RowHandle ObjectRow = BackReference->Row; ObjectRow != InvalidRowHandle)
+        	{
+        		static TableHandle Table = DataStorage->FindTable(FName("Editor_PackageUpdateTable"));
+        		RowHandle UpdateRow = DataStorage->AddRow(Table);
+        		DataStorage->AddColumn(UpdateRow, FTypedElementPackageUpdateColumn{ .ObjectRow = ObjectRow, .PackageRow = Row });
+        	}
+        }
 	};
 
 	bool bUpdated = false;
