@@ -39,7 +39,7 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 {
 	Super::PostLoad();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 	const int32 CustomVersion = GetLinkerCustomVersion(FDisplayClusterICVFXCameraCustomVersion::GUID);
 	if (CustomVersion < FDisplayClusterICVFXCameraCustomVersion::UpdateChromakeyConfig)
 	{
@@ -60,7 +60,16 @@ void UDisplayClusterICVFXCameraComponent::PostLoad()
 			CameraSettings.Chromakey.ChromakeySettingsSource = EDisplayClusterConfigurationICVFX_ChromakeySettingsSource::ICVFXCamera;
 		}
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+
+	// Propagate Media settings from the Archetype. Works around instanced property limitations.
+	if (!IsTemplate())
+	{
+		if (const UDisplayClusterICVFXCameraComponent* Archetype = Cast<UDisplayClusterICVFXCameraComponent>(GetArchetype()))
+		{
+			CameraSettings.RenderSettings.Media = Archetype->CameraSettings.RenderSettings.Media;
+		}
+	}
 }
 
 void UDisplayClusterICVFXCameraComponent::PostApplyToComponent()

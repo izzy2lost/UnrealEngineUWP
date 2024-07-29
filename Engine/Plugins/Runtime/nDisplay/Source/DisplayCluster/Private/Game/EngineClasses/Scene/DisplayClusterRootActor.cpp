@@ -86,6 +86,95 @@ namespace UE::DisplayCluster::RootActor
 			}
 		}
 	}
+
+	/**
+	 * Syncs default media settings to instance.
+	 *
+	 * @param InstanceDCRA Instance of the nDisplay root actor.
+	 */
+	static void PropagateMediaSettingsFromDefault(ADisplayClusterRootActor* InstanceDCRA)
+	{
+		if (!InstanceDCRA || InstanceDCRA->IsTemplate())
+		{
+			return;
+		}
+
+		// Note: ICVFX Camera Component Media property propagation is done in the ICVFXCamera itself.
+
+		// Propagate Backbuffer and Viewports MediaSettings property
+		//
+		const UDisplayClusterConfigurationData* const ArchetypeConfig = InstanceDCRA->GetDefaultConfigDataFromAsset();
+		const UDisplayClusterConfigurationData* const InstanceConfig = InstanceDCRA->GetConfigData();
+
+		if (!IsValid(ArchetypeConfig)
+			|| !IsValid(InstanceConfig)
+			|| !IsValid(ArchetypeConfig->Cluster)
+			|| !IsValid(InstanceConfig->Cluster))
+		{
+			return;
+		}
+
+		// Iterate over instance nodes, find the archetype, and copy the Media setting.
+		for (auto ItNode = InstanceConfig->Cluster->Nodes.CreateIterator(); ItNode; ++ItNode)
+		{
+			const FString& NodeName = ItNode.Key();
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> InstanceNode = ItNode.Value();
+
+			if (!InstanceNode)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode>* ArchetypeNodePtr = ArchetypeConfig->Cluster->Nodes.Find(NodeName);
+
+			if (!ArchetypeNodePtr)
+			{
+				continue;
+			}
+
+			TObjectPtr<UDisplayClusterConfigurationClusterNode> ArchetypeNode = *ArchetypeNodePtr;
+
+			if (!ArchetypeNode)
+			{
+				continue;
+			}
+
+			// Copy node media settings.
+			InstanceNode->MediaSettings = ArchetypeNode->MediaSettings;
+
+			// Viewports Media property
+			//
+
+			// Iterate over instance viewports, find the archetype, and deep-copy the Media setting.
+			for (auto ItViewport = InstanceNode->Viewports.CreateIterator(); ItViewport; ++ItViewport)
+			{
+				const FString& ViewportName = ItViewport.Key();
+				TObjectPtr<UDisplayClusterConfigurationViewport> InstanceViewport = ItViewport.Value();
+
+				if (!InstanceViewport)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport>* ArchetypeViewportPtr = ArchetypeNode->Viewports.Find(ViewportName);
+
+				if (!ArchetypeViewportPtr)
+				{
+					continue;
+				}
+
+				TObjectPtr<UDisplayClusterConfigurationViewport> ArchetypeViewport = *ArchetypeViewportPtr;
+
+				if (!ArchetypeViewport)
+				{
+					continue;
+				}
+
+				// Copy viewport media settings.
+				InstanceViewport->RenderSettings.Media = ArchetypeViewport->RenderSettings.Media;
+			}
+		}
+	}
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -744,6 +833,12 @@ void ADisplayClusterRootActor::InitializeRootActor()
 	{
 		BuildHierarchy();
 	}
+
+	// Propagate Media settings that should always override the instance settings.
+	// This is currently required due to limitation of instanced property propagation,
+	// where the instanced media settings may be incorrectly considered dirty and therefore
+	// not propagated from the template to the instance.
+	UE::DisplayCluster::RootActor::PropagateMediaSettingsFromDefault(this);
 }
 
 void ADisplayClusterRootActor::UpdateProceduralMeshComponentData(const UProceduralMeshComponent* InProceduralMeshComponent)

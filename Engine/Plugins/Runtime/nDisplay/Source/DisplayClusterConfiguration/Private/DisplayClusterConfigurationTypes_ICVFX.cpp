@@ -61,32 +61,6 @@ void FDisplayClusterConfigurationICVFX_CameraRenderSettings::SetupViewInfo(const
 	}
 }
 
-
-bool FDisplayClusterConfigurationICVFX_CameraRenderSettings::Serialize(FArchive& Ar)
-{	
-	// When loading, overwrite Media settings with defaults unless this is the archetype
-
-	if (!Ar.IsLoading() && !Ar.IsSaving())
-	{
-		return true;
-	}
-
-	UScriptStruct& Struct = *StaticStruct();
-
-	if (Ar.IsLoading() && !FDisplayClusterConfigurationUtils::IsSerializingTemplate(Ar))
-	{
-		const FDisplayClusterConfigurationMediaICVFX MediaOriginal = Media;
-		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
-		Media = MediaOriginal;
-	}
-	else
-	{
-		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
-	}
-
-	return true;
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterConfigurationICVFX_LightcardCustomOCIO
 ///////////////////////////////////////////////////////////////////////////////////////
