@@ -244,14 +244,13 @@ FORCEINLINE T* ExactCast( UObject* Src )
 #else
 
 	template <typename To, typename From>
-	FUNCTION_NON_NULL_RETURN_START
 		FORCEINLINE To* CastChecked(From* Src)
-	FUNCTION_NON_NULL_RETURN_END
 	{
 		static_assert(sizeof(From) > 0 && sizeof(To) > 0, "Attempting to cast between incomplete types");
 
 		if (!Src)
 		{
+			// TODO: should this instead be an unreachable?
 			return nullptr;
 		}
 
