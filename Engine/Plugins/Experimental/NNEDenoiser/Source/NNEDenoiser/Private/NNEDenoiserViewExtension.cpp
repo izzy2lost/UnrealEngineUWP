@@ -6,7 +6,7 @@
 #include "NNEDenoiserGenericDenoiser.h"
 #include "NNEDenoiserIOProcessBase.h"
 #include "NNEDenoiserLog.h"
-#include "NNEDenoiserModelData.h"
+#include "NNEDenoiserAsset.h"
 #include "NNEDenoiserModelInstanceCPU.h"
 #include "NNEDenoiserModelInstanceGPU.h"
 #include "NNEDenoiserModelInstanceRDG.h"
@@ -27,11 +27,11 @@ static TAutoConsoleVariable<bool> CVarNNEDenoiser(
 	TEXT("Enable the NNE Denoiser.")
 );
 
-static TAutoConsoleVariable<int32> CVarNNEDenoiserModelData(
-	TEXT("NNEDenoiser.ModelData"),
+static TAutoConsoleVariable<int32> CVarNNEDenoiserAsset(
+	TEXT("NNEDenoiser.Asset"),
 	0,
-	TEXT("Defines the model data of the denoiser model.\n")
-	TEXT("  0: Use model data from Project Settings\n")
+	TEXT("Defines asset to used to create the denoiser.\n")
+	TEXT("  0: Use denoiser asset defined by Project Settings\n")
 	TEXT("  1: OIDN Fast\n")
 	TEXT("  2: OIDN Balanced\n")
 	TEXT("  3: OIDN High Quality\n")
@@ -63,12 +63,12 @@ EDenoiserRuntimeType GetDenoiserRuntimeTypeFromCVar()
 	return static_cast<EDenoiserRuntimeType>(FMath::Clamp(Value, Min, Max));
 }
 
-FString GetDenoiserModelDataNameFromCVarAndSettings(const UNNEDenoiserSettings* Settings)
+FString GetDenoiserAssetNameFromCVarAndSettings(const UNNEDenoiserSettings* Settings)
 {
-	const int32 Idx = FMath::Clamp(CVarNNEDenoiserModelData.GetValueOnGameThread(), 0, 6);
+	const int32 Idx = FMath::Clamp(CVarNNEDenoiserAsset.GetValueOnGameThread(), 0, 6);
 	switch(Idx)
 	{
-		case 0: return !Settings->DenoiserModelData.IsNull() ? Settings->DenoiserModelData.ToString() : FString();
+		case 0: return !Settings->DenoiserAsset.IsNull() ? Settings->DenoiserAsset.ToString() : FString();
 
 		case 1: return TEXT("/NNEDenoiser/NNED_Oidn2-3_Fast.NNED_Oidn2-3_Fast");
 		case 2: return TEXT("/NNEDenoiser/NNED_Oidn2-3_Balanced.NNED_Oidn2-3_Balanced");
@@ -207,15 +207,15 @@ static FResourceMappingList MakeTensorLayout(UDataTable* DataTable)
 	return Result;
 }
 
-FParameters GetParametersValidated(const UNNEDenoiserModelData& DenoiserModelData)
+FParameters GetParametersValidated(const UNNEDenoiserAsset& DenoiserAsset)
 {
 	FParameters Parameters{
 		.TilingConfig =
 		{
-			.Alignment = DenoiserModelData.TilingConfig.Alignment,
-			.Overlap = DenoiserModelData.TilingConfig.Overlap,
-			.MaxSize = DenoiserModelData.TilingConfig.MaxSize,
-			.MinSize = DenoiserModelData.TilingConfig.MinSize
+			.Alignment = DenoiserAsset.TilingConfig.Alignment,
+			.Overlap = DenoiserAsset.TilingConfig.Overlap,
+			.MaxSize = DenoiserAsset.TilingConfig.MaxSize,
+			.MinSize = DenoiserAsset.TilingConfig.MinSize
 		}
 	};
 
@@ -266,28 +266,28 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 		return {};
 	}
 
-	UNNEDenoiserModelData *DenoiserModelData = LoadObject<UNNEDenoiserModelData>(nullptr, *AssetName);
-	if (!DenoiserModelData)
+	UNNEDenoiserAsset *DenoiserAsset = LoadObject<UNNEDenoiserAsset>(nullptr, *AssetName);
+	if (!DenoiserAsset)
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not load denoiser model data asset!"));
 		return {};
 	}
 
-	UNNEModelData* ModelData = DenoiserModelData->ModelData.LoadSynchronous();
+	UNNEModelData* ModelData = DenoiserAsset->ModelData.LoadSynchronous();
 	if (!ModelData)
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Asset does not contain model data!"));
 		return {};
 	}
-	UDataTable* InputMappingTable = DenoiserModelData->InputMapping.LoadSynchronous();
+	UDataTable* InputMappingTable = DenoiserAsset->InputMapping.LoadSynchronous();
 	if (InputMappingTable)
 	{
-		UE_LOG(LogNNEDenoiser, Log, TEXT("Loaded input mapping from %s"), *DenoiserModelData->InputMapping.GetAssetName());
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Loaded input mapping from %s"), *DenoiserAsset->InputMapping.GetAssetName());
 	}
-	UDataTable* OutputMappingTable = DenoiserModelData->OutputMapping.LoadSynchronous();
+	UDataTable* OutputMappingTable = DenoiserAsset->OutputMapping.LoadSynchronous();
 	if (OutputMappingTable)
 	{
-		UE_LOG(LogNNEDenoiser, Log, TEXT("Loaded output mapping from %s"), *DenoiserModelData->OutputMapping.GetAssetName());
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Loaded output mapping from %s"), *DenoiserAsset->OutputMapping.GetAssetName());
 	}
 
 	FResourceMappingList InputLayout;
@@ -318,7 +318,7 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 	TUniquePtr<IInputProcess> InputProcess = MakeUnique<FInputProcessBase>(MoveTemp(InputLayout), TransferFunction);
 	TUniquePtr<IOutputProcess> OutputProcess = MakeUnique<FOutputProcessBase>(MoveTemp(OutputLayout), TransferFunction);
 
-	FParameters Parameters = GetParametersValidated(*DenoiserModelData);
+	FParameters Parameters = GetParametersValidated(*DenoiserAsset);
 
 	return CreateNNEDenoiser(
 		*ModelData,
@@ -388,7 +388,7 @@ void FViewExtension::ApplySettings(const UNNEDenoiserSettings* Settings)
 	bNeedsUpdate |= CVarNNEDenoiser.GetValueOnGameThread() != bDenoiserEnabled;
 	bNeedsUpdate |= GetDenoiserRuntimeTypeFromCVar() != RuntimeType;
 	bNeedsUpdate |= CVarNNEDenoiserRuntimeName.GetValueOnGameThread() != RuntimeName;
-	bNeedsUpdate |= GetDenoiserModelDataNameFromCVarAndSettings(Settings) != ModelDataName;
+	bNeedsUpdate |= GetDenoiserAssetNameFromCVarAndSettings(Settings) != ModelDataName;
 
 	if (!bNeedsUpdate)
 	{
@@ -406,7 +406,7 @@ void FViewExtension::ApplySettings(const UNNEDenoiserSettings* Settings)
 
 	RuntimeType = GetDenoiserRuntimeTypeFromCVar();
 	RuntimeName = CVarNNEDenoiserRuntimeName.GetValueOnGameThread();
-	ModelDataName = GetDenoiserModelDataNameFromCVarAndSettings(Settings);
+	ModelDataName = GetDenoiserAssetNameFromCVarAndSettings(Settings);
 
 	UE_LOG(LogNNEDenoiser, Log, TEXT("Create denoiser from asset %s..."), *ModelDataName);
 

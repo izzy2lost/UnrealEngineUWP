@@ -6,7 +6,7 @@
 #include "Engine/DataTable.h"
 #include "NNEModelData.h"
 
-#include "NNEDenoiserModelData.generated.h"
+#include "NNEDenoiserAsset.generated.h"
 
 /** Tiling configuration for fixed and dynamic size models */
 USTRUCT(BlueprintType)
@@ -15,7 +15,7 @@ struct FTilingConfig
 	GENERATED_BODY()
 
 	/** Tile size alignment (applies only to dynamic size models) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser, meta = (DisplayName = "Size Alignment"))
 	int32 Alignment = 1;
 
 	/** Tile overlap */
@@ -33,7 +33,7 @@ struct FTilingConfig
 
 /** Denoiser model data asset */
 UCLASS(BlueprintType)
-class NNEDENOISER_API UNNEDenoiserModelData : public UDataAsset
+class NNEDENOISER_API UNNEDenoiserAsset : public UDataAsset
 {
 	GENERATED_BODY()
 
@@ -43,11 +43,11 @@ public:
 	TSoftObjectPtr<UNNEModelData> ModelData;
 
 	/** Input mapping table */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser, meta = (RequiredAssetDataTags = "RowStructure=/Script/NNEDenoiser.NNEDenoiserModelIOMappingData"))
 	TSoftObjectPtr<UDataTable> InputMapping;
 
 	/** Output mapping table */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser, meta = (RequiredAssetDataTags = "RowStructure=/Script/NNEDenoiser.NNEDenoiserModelIOMappingData"))
 	TSoftObjectPtr<UDataTable> OutputMapping;
 
 	/** Tiling configuration */

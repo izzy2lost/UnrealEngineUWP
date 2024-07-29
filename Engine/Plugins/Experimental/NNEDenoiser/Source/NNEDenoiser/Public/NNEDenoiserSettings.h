@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Engine/DeveloperSettingsBackedByCVars.h"
-#include "NNEDenoiserModelData.h"
+#include "NNEDenoiserAsset.h"
 
 #include "NNEDenoiserSettings.generated.h"
 
@@ -16,7 +16,7 @@ enum EDenoiserRuntimeType : uint8
 	RDG
 };
 
-/** Settings used to create a NNE Denoiser */
+/** Settings to select a NNE Denoiser and its runtime */
 UCLASS(Config = Engine, meta = (DisplayName = "NNE Denoiser"))
 class NNEDENOISER_API UNNEDenoiserSettings : public UDeveloperSettingsBackedByCVars
 {
@@ -27,9 +27,9 @@ public:
 
 	virtual void PostInitProperties() override;
 
-	/** Denoiser model data used to create a NNE Denoiser */
-	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Denoiser model data", ToolTip = "Select the denoiser model data"))
-	TSoftObjectPtr<UNNEDenoiserModelData> DenoiserModelData;
+	/** Denoiser asset data used to create a NNE Denoiser */
+	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Denoiser Asset", ToolTip = "Select the denoiser asset"))
+	TSoftObjectPtr<UNNEDenoiserAsset> DenoiserAsset;
 
 private:
 	/** Runtime type used to run the NNE Denoiser model. Backed by the console variable 'NNEDenoiser.Runtime.Type'. */
