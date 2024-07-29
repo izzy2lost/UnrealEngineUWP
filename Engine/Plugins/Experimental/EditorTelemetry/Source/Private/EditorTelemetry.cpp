@@ -29,8 +29,6 @@
 #include "UnrealEdGlobals.h"
 #include "Virtualization/VirtualizationSystem.h"
 
-UE_DISABLE_OPTIMIZATION_SHIP
-
 namespace Private
 {
 	const FName ContentBrowserModuleName = TEXT("ContentBrowser");
@@ -1020,5 +1018,3 @@ void FEditorTelemetry::EndSession()
 {
 	FStudioTelemetry::Get().EndSpan(EditorSpan);
 }
-
-UE_ENABLE_OPTIMIZATION_SHIP
