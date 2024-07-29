@@ -40,6 +40,25 @@ FVulkanShaderFactory::~FVulkanShaderFactory()
 	}
 }
 
+
+static void ReadShaderOptionalData(FShaderCodeReader& ShaderCode, FRHIShader* RHIShader)
+{
+	const FShaderCodePackedResourceCounts* PackedResourceCounts = ShaderCode.FindOptionalData<FShaderCodePackedResourceCounts>();
+	if (PackedResourceCounts)
+	{
+		if (RHIShader->GetFrequency() == SF_Compute)
+		{
+			RHIShader->SetNoDerivativeOps(EnumHasAnyFlags(PackedResourceCounts->UsageFlags, EShaderResourceUsageFlags::NoDerivativeOps));
+		}
+		RHIShader->SetShaderBundleUsage(EnumHasAnyFlags(PackedResourceCounts->UsageFlags, EShaderResourceUsageFlags::ShaderBundle));
+	}
+
+#if RHI_INCLUDE_SHADER_DEBUG_DATA
+	RHIShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
+	UE::RHICore::SetupShaderCodeValidationData(RHIShader, ShaderCode);
+#endif
+}
+
 template <typename ShaderType> 
 ShaderType* FVulkanShaderFactory::CreateShader(TArrayView<const uint8> Code, FVulkanDevice* Device)
 {
@@ -75,11 +94,8 @@ ShaderType* FVulkanShaderFactory::CreateShader(TArrayView<const uint8> Code, FVu
 
 				ShaderMap[ShaderType::StaticFrequency].Add(ShaderKey, RetShader);
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				FShaderCodeReader ShaderCode(Code);
-				RetShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
-				UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
-#endif
+				ReadShaderOptionalData(ShaderCode, RetShader);
 			}
 		}
 	}
@@ -160,11 +176,8 @@ FVulkanRayTracingShader* FVulkanShaderFactory::CreateRayTracingShader(TArrayView
 
 				ShaderMap[ShaderFrequency].Add(ShaderKey, RetShader);
 
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 				FShaderCodeReader ShaderCode(Code);
-				RetShader->Debug.ShaderName = ShaderCode.FindOptionalData(FShaderCodeName::Key);
-                UE::RHICore::SetupShaderCodeValidationData(RetShader, ShaderCode);
-#endif
+				ReadShaderOptionalData(ShaderCode, RetShader);
 			}
 		}
 	}

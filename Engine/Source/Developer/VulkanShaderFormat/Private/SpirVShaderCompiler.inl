@@ -137,6 +137,7 @@ struct SpirvShaderCompilerSerializedOutput
 	SpirvShaderCompilerSerializedOutput()
 		: Header(FVulkanShaderHeader::EZero)
 	{
+		FMemory::Memzero(PackedResourceCounts);
 	}
 
 	FVulkanShaderHeader Header;  // TODO: Convert descriptors into more generic Spirv information
@@ -145,6 +146,7 @@ struct SpirvShaderCompilerSerializedOutput
 	FSpirv Spirv;
 	uint32 SpirvCRC = 0;
 	const ANSICHAR* SpirvEntryPointName = nullptr;
+	FShaderCodePackedResourceCounts PackedResourceCounts;
 
 	TSet<FString> UsedBindlessUB;
 };
@@ -186,6 +188,62 @@ static uint32 GetUBLayoutHash(const FShaderCompilerInput& ShaderInput, const FSt
 	return LayoutHash;
 }
 
+static bool HasDerivatives(const FSpirv& Spirv)
+{
+	for (FSpirvConstIterator Iter = Spirv.begin(); Iter != Spirv.end(); ++Iter)
+	{
+		switch (Iter.Opcode())
+		{
+		case SpvOpCapability:
+		{
+			const uint32 Capability = Iter.Operand(1);
+			if ((Capability == SpvCapabilityComputeDerivativeGroupLinearNV) ||
+				(Capability == SpvCapabilityComputeDerivativeGroupQuadsNV))
+			{
+				return true;
+			}
+		}
+		break;
+
+		case SpvOpExtension:
+		case SpvOpEntryPoint:
+			// By the time we've reached extensions/entrypoints, we're done listing capabilities
+			return false;
+
+		default:
+			break;
+		}
+	}
+	return false;
+}
+
+static void FillShaderResourceUsageFlags(const FSpirvShaderCompilerInternalState& InternalState, SpirvShaderCompilerSerializedOutput& SerializedOutput)
+{
+	FShaderCodePackedResourceCounts& PackedResourceCounts = SerializedOutput.PackedResourceCounts;
+
+	if (InternalState.Input.Target.GetFrequency() == SF_Compute && 
+		InternalState.Input.Environment.CompilerFlags.Contains(CFLAG_CheckForDerivativeOps))
+	{
+		if (!HasDerivatives(SerializedOutput.Spirv))
+		{
+			PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::NoDerivativeOps;
+		}
+	}
+
+	if (InternalState.bSupportsBindless)
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessResources;
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::BindlessSamplers;
+	}
+
+	if (InternalState.Input.Environment.CompilerFlags.Contains(CFLAG_ShaderBundle))
+	{
+		PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::ShaderBundle;
+	}
+
+	// TODO: When DiagnosticBuffer is supported:
+	// PackedResourceCounts.UsageFlags |= EShaderResourceUsageFlags::DiagnosticBuffer;
+}
 
 static void BuildShaderOutput(
 	SpirvShaderCompilerSerializedOutput& SerializedOutput,
@@ -795,6 +853,7 @@ static bool BuildShaderOutputFromSpirv(
 		const int32 GlobalUBCount = AddReflectionInfos(Bindings.UniformBuffers, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, true);
 		const int32 UBOBindings = AddReflectionInfos(Bindings.UniformBuffers, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, GlobalUBCount);
 		SerializedOutput.Header.NumBoundUniformBuffers = UBOBindings;
+		SerializedOutput.PackedResourceCounts.NumCBs = (uint8)UBOBindings;
 
 		AddReflectionInfos(Bindings.InputAttachments, VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 0);
 
@@ -802,13 +861,17 @@ static bool BuildShaderOutputFromSpirv(
 		UAVBindings = AddReflectionInfos(Bindings.TBufferUAVs, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, UAVBindings);
 		UAVBindings = AddReflectionInfos(Bindings.SBufferUAVs, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, UAVBindings);
 		UAVBindings = AddReflectionInfos(Bindings.TextureUAVs, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, UAVBindings);
+		SerializedOutput.PackedResourceCounts.NumUAVs = (uint8)UAVBindings;
 
 		int32 SRVBindings = 0;
 		SRVBindings = AddReflectionInfos(Bindings.TBufferSRVs, VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, SRVBindings);
 		checkf(Bindings.SBufferSRVs.IsEmpty(), TEXT("GatherSpirvReflectionBindings should have dumped all SBufferSRVs into SBufferUAVs."));
 		SRVBindings = AddReflectionInfos(Bindings.TextureSRVs, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRVBindings);
+		SerializedOutput.PackedResourceCounts.NumSRVs = (uint8)SRVBindings;
 
 		Output.NumTextureSamplers = AddReflectionInfos(Bindings.Samplers, VK_DESCRIPTOR_TYPE_SAMPLER, 0);
+		SerializedOutput.PackedResourceCounts.NumSamplers = (uint8)Output.NumTextureSamplers;
+
 		AddReflectionInfos(Bindings.AccelerationStructures, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 0);
 	}
 
