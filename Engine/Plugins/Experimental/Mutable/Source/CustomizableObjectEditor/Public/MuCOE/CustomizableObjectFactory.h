@@ -42,8 +42,13 @@ struct FCustomizableObjectOptions
 	// Number of components
 	int32 NumMeshComponents = 1;
 
-	// Array with the skeletal meshes of each component
-	TArray<TWeakObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes;
+	struct FComponentInfo 
+	{
+		TSoftObjectPtr<USkeletalMesh> ReferenceSkeletalMesh;
+		FName ComponentName;
+	};
+
+	TArray<FComponentInfo> ComponentsInfo;
 };
 
 
@@ -100,7 +105,7 @@ public:
 
 	// Component Selectior Widget methods
 	EVisibility GetComponentWidgetsVisibility() const;
-	FText GetMeshSelectorWidgetText() const;
+	FText GetSelectorWidgetText(bool bIsName) const;
 	FString GetSelectedComponentSkeletalMeshPath() const;
 	int32 GetNumComponents() const;
 	void OnNumComponentsChanged(int32 Value, ETextCommit::Type CommitInfo);
@@ -108,6 +113,11 @@ public:
 	void OnPickedComponentSkeletalMesh(const FAssetData& SelectedAsset);
 	void GenerateComponentOptions();
 	bool IsComponentSelectorEnabled() const;
+
+	FText GetComponentName() const;
+	void OnTextCommited(const FText& NewName, ETextCommit::Type CommitInfo);
+
+	int32 GetSelectedComponentIndex() const;
 
 private:
 
