@@ -5,6 +5,16 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMNodeLayout)
 
+FString FRigVMPinCategory::GetName() const
+{
+	FString Left, Right;
+	if(!RigVMStringUtils::SplitNodePathAtEnd(Path, Left, Right))
+	{
+		Right = Path;
+	}
+	return Right;
+}
+
 const FString* FRigVMNodeLayout::FindCategory(const FString& InElement) const
 {
 	for(const FRigVMPinCategory& Category : Categories)

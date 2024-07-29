@@ -21,6 +21,8 @@ struct RIGVM_API FRigVMPinCategory
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	TArray<FString> Elements;
 
+	FString GetName() const;
+
 	friend uint32 GetTypeHash(const FRigVMPinCategory& Category)
 	{
 		uint32 Hash = GetTypeHash(Category.Path);
@@ -88,6 +90,16 @@ struct RIGVM_API FRigVMNodeLayout
 		return Hash;
 	}
 
+	bool operator ==(const FRigVMNodeLayout& OtherLayout) const
+	{
+		return GetTypeHash(*this) == GetTypeHash(OtherLayout);
+	}
+
+	bool operator !=(const FRigVMNodeLayout& OtherLayout) const
+	{
+		return !(*this == OtherLayout);
+	}
+	
 	friend RIGVM_API FArchive& operator<<(FArchive& Ar, FRigVMNodeLayout& Layout);
 
 	const FString* FindCategory(const FString& InElement) const;

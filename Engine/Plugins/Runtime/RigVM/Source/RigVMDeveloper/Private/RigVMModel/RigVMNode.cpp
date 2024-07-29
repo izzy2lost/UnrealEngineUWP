@@ -303,7 +303,36 @@ FRigVMNodeLayout URigVMNode::GetPinLayout() const
 	{
 		if(const FRigVMPinCategory* Category = CategoryMap.Find(PinCategory))
 		{
-			Layout.Categories.Add(*Category);
+			FRigVMPinCategory CategoryCopy = *Category;
+
+			// sort the elements based on pin index
+			// we start by assuming indices above the user defined range,
+			// so say for 4 pins we'll use (4,5,6,7) and then inline the
+			// user provided pin indices within the range of 0 to 3.
+			TMap<FString,int32> PinPathToIndex;
+			for(const FString& PinPath : CategoryCopy.Elements)
+			{
+				const int32 Index = CategoryCopy.Elements.Num() + PinPathToIndex.Num();
+				PinPathToIndex.Add(PinPath, Index);
+			}
+			for(const FString& PinPath : CategoryCopy.Elements)
+			{
+				if(const URigVMPin* Pin = FindPin(PinPath))
+				{
+					const int32 Index = Pin->GetIndexInCategory();
+					if(CategoryCopy.Elements.IsValidIndex(Index))
+					{
+						PinPathToIndex.FindChecked(PinPath) = Index;
+					}
+				}
+			}
+
+			Algo::SortBy(Category->Elements, [PinPathToIndex](const FString& PinPath) -> int32
+			{
+ 				return PinPathToIndex.FindChecked(PinPath);
+			});
+			
+			Layout.Categories.Add(CategoryCopy);
 		}
 	}
 
