@@ -167,7 +167,8 @@ public:
 	TArrayView<const FNiagaraCachedViewInfo> GetCachedViewInfo() const { return MakeArrayView(CachedViewInfo); }
 
 	//Returns the distance to the nearest viewpoint to the give location. Used for a distance on which to base LODs.
-	NIAGARA_API FVector::FReal GetLODDistance(FVector Location)const;
+	NIAGARA_API FVector::FReal GetLODDistance(FVector Location) const;
+	NIAGARA_API FVector::FReal GetLODDistance(FVector Location, TConstArrayView<FVector> ViewPoints) const;
 
 	UNiagaraComponentPool* GetComponentPool() { return ComponentPool; }
 

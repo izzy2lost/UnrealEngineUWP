@@ -1556,16 +1556,24 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 			PlayerViewLocations = World->ViewLocationsRenderedLastFrame;
 		}
 
-		if (PlayerViewLocations.Num() > 0)
+		LODDistance = GetLODDistance(Location, PlayerViewLocations);
+	}
+	return LODDistance;
+}
+
+FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location, TConstArrayView<FVector> ViewPoints) const
+{
+	FVector::FReal LODDistance = 0.0f;
+
+	if (ViewPoints.Num() > 0)
+	{
+		FVector::FReal LODDistanceSqr = FMath::Square(WORLD_MAX);
+		for (const FVector& ViewLocation : ViewPoints)
 		{
-			FVector::FReal LODDistanceSqr = FMath::Square(WORLD_MAX);
-			for (const FVector& ViewLocation : PlayerViewLocations)
-			{
-				const FVector::FReal DistanceToEffectSqr = FVector(ViewLocation - Location).SizeSquared();
-				LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
-			}
-			LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
+			const FVector::FReal DistanceToEffectSqr = FVector(ViewLocation - Location).SizeSquared();
+			LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
 		}
+		LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
 	}
 	return LODDistance;
 }
