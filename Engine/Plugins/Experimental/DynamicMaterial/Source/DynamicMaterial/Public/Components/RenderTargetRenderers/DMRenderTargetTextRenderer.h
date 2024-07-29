@@ -287,7 +287,7 @@ protected:
 	float PaddingBottom = 0.f;
 
 	/** When true, will change the size of the render target to fit the text. */
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = IsOverridingRenderTargetSize, Setter = SetOverrideRenderTargetSize, BlueprintSetter = SetOverrideRenderTargetSize, Category = "Material Designer|Text",
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Getter = IsOverridingRenderTargetSize, Setter = SetOverrideRenderTargetSize, BlueprintSetter = SetOverrideRenderTargetSize, Category = "Material Designer|Render Target",
 		meta = (NotKeyframeable, AllowPrivateAccess = "true"))
 	bool bOverrideRenderTargetSize = true;
 

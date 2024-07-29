@@ -47,7 +47,7 @@ void UDMRenderTargetWidgetRendererBase::UpdateRenderTarget_Internal()
 	WidgetRenderer->DrawWidget(
 		RenderTarget,
 		Widget.ToSharedRef(),
-		{(double)RenderTarget->SizeX, (double)RenderTarget->SizeX},
+		{(double)RenderTarget->SizeX, (double)RenderTarget->SizeY},
 		/* Delta Time */ 0.f
 	);
 }
