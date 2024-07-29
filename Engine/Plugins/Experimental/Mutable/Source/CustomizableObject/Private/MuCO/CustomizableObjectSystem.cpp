@@ -43,9 +43,6 @@
 #include "Engine/Engine.h"
 #endif
 
-
-#include "BusyWaits_Deprecated.h"
-
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectSystem)
 
 class AActor;
@@ -111,12 +108,6 @@ TAutoConsoleVariable<bool> CVarEnableMeshCache(
 	TEXT("mutable.EnableMeshCache"),
 	true,
 	TEXT("Enables or disables the reuse of meshes."),
-	ECVF_Scalability);
-
-TAutoConsoleVariable<bool> CVarEnableNewSplitMutableTask(
-	TEXT("mutable.EnableNewSplitMutableTask"),
-	true,
-	TEXT("Enables or disables the then new split GetImages and GetMesh tasks that remove BusyWaits."),
 	ECVF_Scalability);
 
 TAutoConsoleVariable<bool> CVarEnableUpdateOptimization(
@@ -2428,7 +2419,7 @@ namespace impl
 	}
 
 
-	namespace impl_new
+	namespace Impl
 	{
 		/** Start of the GetMeshes tasks.
 		  * Gathers all GetMeshes that has to be called. */
@@ -2530,14 +2521,7 @@ namespace impl
 
 	void Task_Mutable_GetMeshes(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
-		if (CVarEnableNewSplitMutableTask->GetBool())
-		{
-			impl_new::Task_Mutable_GetMeshes(OperationData);
-		}
-		else
-		{
-			CustomizableObjectSystem::ImplDeprecated::Task_Mutable_GetMeshes(OperationData);
-		}
+		Impl::Task_Mutable_GetMeshes(OperationData);
 	}
 
 	
@@ -2753,7 +2737,7 @@ namespace impl
 	}
 
 
-	namespace impl_new
+	namespace Impl
 	{
 		// This runs in a worker thread.
 		void Task_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData)
@@ -2774,14 +2758,7 @@ namespace impl
 	/** Start of the GetImages tasks. */
 	void Task_Mutable_GetImages(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
-		if (CVarEnableNewSplitMutableTask->GetBool())
-		{
-			impl_new::Task_Mutable_GetImages(OperationData);
-		}
-		else
-		{
-			CustomizableObjectSystem::ImplDeprecated::Task_Mutable_GetImages(OperationData);						
-		}
+		Impl::Task_Mutable_GetImages(OperationData);
 	}
 
 

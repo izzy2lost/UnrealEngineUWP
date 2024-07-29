@@ -20,8 +20,6 @@ CustomizableObjectMeshUpdate.cpp: Helpers to stream in CustomizableObject skelet
 #include "Rendering/SkeletalMeshRenderData.h"
 
 
-#include "BusyWaits_Deprecated.h"
-
 template class TRenderAssetUpdate<FSkelMeshUpdateContext>;
 
 #define UE_MUTABLE_UPDATE_MESH_REGION		TEXT("Task_Mutable_UpdateMesh")
@@ -217,17 +215,7 @@ void FCustomizableObjectMeshStreamIn::RequestMeshUpdate(const FContext& Context)
 		TEXT("Mutable_MeshUpdate"),
 		[SharedOperationData, RefThis]() mutable
 		{
-			if (CVarEnableNewSplitMutableTask.GetValueOnAnyThread())
-			{
-				impl::Task_Mutable_UpdateMesh(SharedOperationData, RefThis);
-			}
-			else
-			{
-				using namespace CustomizableObjectMeshUpdate;
-				ImplDeprecated::Task_Mutable_UpdateMesh(SharedOperationData);
-				
-				RefThis->OnUpdateMeshFinished();
-			}
+			impl::Task_Mutable_UpdateMesh(SharedOperationData, RefThis);
 		});
 }
 

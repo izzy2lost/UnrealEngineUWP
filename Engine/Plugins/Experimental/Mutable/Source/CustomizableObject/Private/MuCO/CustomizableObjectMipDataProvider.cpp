@@ -7,7 +7,6 @@
 #include "MuR/Model.h"
 #include "TextureResource.h"
 #include "UnrealMutableImageProvider.h"
-#include "MuCO/BusyWaits_Deprecated.h"
 
 #include "Containers/Ticker.h"
 
@@ -399,15 +398,7 @@ int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Conte
 				TEXT("Mutable_MipUpdate"),
 				[OperationData = this->OperationData]()
 				{
-					if (CVarEnableNewSplitMutableTask.GetValueOnAnyThread())
-					{
-						Impl::Task_Mutable_UpdateImage(OperationData);
-					}
-					else
-					{
-						using namespace CustomizableObjectMipDataProvider;
-						ImplDeprecated::Task_Mutable_UpdateImage(OperationData);
-					}
+					Impl::Task_Mutable_UpdateImage(OperationData);
 				});
 		}
 
