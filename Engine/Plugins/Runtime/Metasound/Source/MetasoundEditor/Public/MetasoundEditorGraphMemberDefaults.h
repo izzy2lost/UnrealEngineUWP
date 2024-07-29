@@ -197,6 +197,7 @@ public:
 	virtual void ForceRefresh() override;
 	virtual FMetasoundFrontendLiteral GetDefault() const override;
 	virtual EMetasoundFrontendLiteralType GetLiteralType() const override;
+	virtual void Initialize() override;
 	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral) override;
 	virtual void UpdatePreviewInstance(const Metasound::FVertexName& InParameterName, TScriptInterface<IAudioParameterControllerInterface>& InParameterInterface) const override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent) override;

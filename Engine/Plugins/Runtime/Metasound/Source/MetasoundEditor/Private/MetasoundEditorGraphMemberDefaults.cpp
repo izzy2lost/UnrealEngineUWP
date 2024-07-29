@@ -11,6 +11,7 @@
 #include "MetasoundEditorGraph.h"
 #include "MetasoundEditorGraphBuilder.h"
 #include "MetasoundEditorGraphNode.h"
+#include "MetasoundEditorSettings.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
@@ -171,6 +172,14 @@ FMetasoundFrontendLiteral UMetasoundEditorGraphMemberDefaultFloat::GetDefault() 
 EMetasoundFrontendLiteralType UMetasoundEditorGraphMemberDefaultFloat::GetLiteralType() const
 {
 	return EMetasoundFrontendLiteralType::Float;
+}
+
+void UMetasoundEditorGraphMemberDefaultFloat::Initialize()
+{
+	if (const UMetasoundEditorSettings* EditorSettings = ::GetDefault<UMetasoundEditorSettings>())
+	{
+		WidgetType = EditorSettings->DefaultInputWidgetType;
+	}
 }
 
 void UMetasoundEditorGraphMemberDefaultFloat::ForceRefresh()

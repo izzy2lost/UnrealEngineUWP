@@ -56,6 +56,10 @@ public:
 	{
 	}
 
+	// Called when literal is initialized for the first time to allow for setting
+	// initial editor-only fields based on context within editor/document model.
+	virtual void Initialize() { };
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent) override;
