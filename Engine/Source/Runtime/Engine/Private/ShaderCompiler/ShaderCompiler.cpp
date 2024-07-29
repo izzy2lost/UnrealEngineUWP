@@ -162,6 +162,13 @@ static TAutoConsoleVariable<bool> CVarShaderCompilerDumpDDCKeys(
 	ECVF_Default
 );
 
+bool GDebugDumpWorkerCrashLog = false;
+static FAutoConsoleVariableRef CVarDebugDumpWorkerCrashLog(
+	TEXT("r.ShaderCompiler.DebugDumpWorkerCrashLog"),
+	GDebugDumpWorkerCrashLog,
+	TEXT("If true, the ShaderCompileWorker will dump its entire log to the Saved folder when a crash is detected."),
+	ECVF_ReadOnly
+
 static TAutoConsoleVariable<int> CVarShaderCompilerLogSlowJobThreshold(
 	TEXT("r.ShaderCompiler.LogSlowJobThreshold"),
 	30,
@@ -682,6 +689,11 @@ void FShaderCompilingManager::ReportMemoryUsage()
 	}
 }
 
+static FString GetBuildMachineArtifactBasePath()
+{
+	return FPaths::Combine(*FPaths::EngineDir(), TEXT("Programs"), TEXT("AutomationTool"), TEXT("Saved"), TEXT("Logs"));
+}
+
 FShaderCompilingManager::FShaderCompilingManager() :
 	bCompilingDuringGame(false),
 	NumExternalJobs(0),
@@ -789,11 +801,7 @@ FShaderCompilingManager::FShaderCompilingManager() :
 	AbsoluteShaderBaseWorkingDirectory = AbsoluteBaseDirectory + TEXT("/");
 
 	// Build machines should dump to the AutomationTool/Saved/Logs directory and they will upload as build artifacts via the AutomationTool.
-	FString BaseDebugInfoPath = FPaths::ProjectSavedDir();
-	if (GIsBuildMachine)
-	{
-		BaseDebugInfoPath = FPaths::Combine(*FPaths::EngineDir(), TEXT("Programs"), TEXT("AutomationTool"), TEXT("Saved"), TEXT("Logs"));
-	}
+	const FString BaseDebugInfoPath = GIsBuildMachine ? GetBuildMachineArtifactBasePath() : FPaths::ProjectSavedDir();
 
 	FString AbsoluteDebugInfoDirectory = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*(BaseDebugInfoPath / TEXT("ShaderDebugInfo")));
 	const FString OverrideShaderDebugDir = CVarShaderOverrideDebugDir.GetValueOnAnyThread();
@@ -1446,6 +1454,26 @@ FProcHandle FShaderCompilingManager::LaunchWorker(const FString& WorkingDirector
 #else
 	WorkerParameters += FString(TEXT(" -nothreading "));
 #endif // USE_SHADER_COMPILER_WORKER_TRACE
+
+	if (GDebugDumpWorkerCrashLog)
+	{
+		WorkerParameters += TEXT(" -LogToMemory -DumpLogOnExitCrashOnly ");
+
+		const FString WorkerLogFilename = FString::Printf(TEXT("ShaderCompileWorker-%d.log"), ThreadId);
+		FString CustomCrashLogsDir;
+		if (FParse::Value(FCommandLine::Get(), TEXT("ShaderCompileWorkerCrashLogsDir"), CustomCrashLogsDir))
+		{
+			WorkerParameters += FString::Printf(TEXT("-AbsLog=%s"), *FPaths::Combine(CustomCrashLogsDir, WorkerLogFilename));
+		}
+		else if (GIsBuildMachine)
+		{
+			WorkerParameters += FString::Printf(TEXT("-AbsLog=%s"), *FPaths::Combine(GetBuildMachineArtifactBasePath(), WorkerLogFilename));
+		}
+		else
+		{
+			WorkerParameters += FString::Printf(TEXT("-Log=%s"), *WorkerLogFilename);
+		}
+	}
 
 	// Launch the worker process
 	int32 PriorityModifier = -1; // below normal
