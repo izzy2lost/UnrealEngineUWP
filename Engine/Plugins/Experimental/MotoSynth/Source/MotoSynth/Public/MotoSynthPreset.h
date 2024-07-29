@@ -175,7 +175,7 @@ class FMotoSynthEnginePreviewer : public ISubmixBufferListener
 {
 public:
 	FMotoSynthEnginePreviewer();
-	virtual ~FMotoSynthEnginePreviewer() override = default;
+	virtual ~FMotoSynthEnginePreviewer() override;
 
 	void StartPreviewing();
 	void StopPreviewing();

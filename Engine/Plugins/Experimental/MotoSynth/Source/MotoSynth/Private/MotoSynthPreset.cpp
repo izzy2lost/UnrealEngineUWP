@@ -106,6 +106,10 @@ FMotoSynthEnginePreviewer::FMotoSynthEnginePreviewer()
 	SynthEngine = TUniquePtr<FMotoSynthEngine>(new FMotoSynthEngine);
 }
 
+FMotoSynthEnginePreviewer::~FMotoSynthEnginePreviewer()
+{
+}
+
 void FMotoSynthEnginePreviewer::SetSettings(const FMotoSynthRuntimeSettings& InSettings)
 {
 	FScopeLock Lock(&PreviewEngineCritSect);
