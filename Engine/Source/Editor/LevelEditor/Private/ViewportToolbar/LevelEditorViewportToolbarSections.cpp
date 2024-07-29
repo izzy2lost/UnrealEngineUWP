@@ -677,6 +677,11 @@ FToolMenuEntry CreateShowFoliageSubmenu()
 					return;
 				}
 
+				if (!Viewport->GetWorld())
+				{
+					return;
+				}
+
 				{
 					FToolMenuSection& Section = Submenu->AddSection("LevelViewportFoliageMeshes");
 					// Map 'Show All' and 'Hide All' commands
