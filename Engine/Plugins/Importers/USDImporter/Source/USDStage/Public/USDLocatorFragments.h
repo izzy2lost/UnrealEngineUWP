@@ -18,7 +18,7 @@ struct FUsdPrimLocatorFragment
 	GENERATED_BODY()
 
 	UPROPERTY()
-	bool bPreferComponent;
+	bool bPreferComponent = false;
 
 	UPROPERTY()
 	FString PrimPath;
