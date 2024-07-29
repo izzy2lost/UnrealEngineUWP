@@ -18,8 +18,6 @@ UDMRenderTargetWidgetRendererBase::UDMRenderTargetWidgetRendererBase()
 
 void UDMRenderTargetWidgetRendererBase::UpdateRenderTarget_Internal()
 {
-	Super::UpdateRenderTarget_Internal();
-
 	UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue();
 
 	if (!RenderTargetValue)
