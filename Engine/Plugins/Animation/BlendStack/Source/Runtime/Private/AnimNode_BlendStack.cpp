@@ -719,7 +719,7 @@ void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::EvaluatePlayer(FPos
 void UE::BlendStack::FBlendStack_SampleGraphExecutionHelper::ConditionalCacheBones(const FAnimationBaseContext& Context, FPoseLink& SamplePoseLink)
 {
 	// Only call CacheBones when needed.
-	if (!CacheBoneCounter.IsSynchronized_Counter(Context.AnimInstanceProxy->GetCachedBonesCounter()))
+	if (!CacheBoneCounter.IsSynchronized_All(Context.AnimInstanceProxy->GetCachedBonesCounter()))
 	{
 		// Keep track of samples that have had CacheBones called on.
 		CacheBoneCounter.SynchronizeWith(Context.AnimInstanceProxy->GetCachedBonesCounter());
