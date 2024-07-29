@@ -994,6 +994,7 @@ class FDeferredLightPS : public FGlobalShader
 			PermutationVector.Set< FCloudTransmittance >(false);
 			PermutationVector.Set< FAnistropicMaterials >(false);
 			PermutationVector.Set< FVirtualShadowMapMask >(false);
+			PermutationVector.Set< FHairComplexTransmittance >(false);
 		}
 
 		return PermutationVector;
