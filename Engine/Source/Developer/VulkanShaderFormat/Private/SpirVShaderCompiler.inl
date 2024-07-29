@@ -1225,6 +1225,10 @@ static bool CompileWithShaderConductor(
 		ExtraDxcArgs.Add(TEXT("-fvk-allow-rwstructuredbuffer-arrays"));
 	}
 
+	// Fix issues when reading matrices directly for ByteAddrBuffer
+	// By default the compiler will emit column-major loads and this flag makes sure to revert to the original behavior of row-major.
+	ExtraDxcArgs.Add(TEXT("-fspv-use-legacy-buffer-matrix-order"));
+
 	// Load shader source into compiler context
 	CompilerContext.LoadSource(PreprocessedShader, Input.VirtualSourceFilePath, InternalState.GetEntryPointName(), InternalState.GetShaderFrequency(), &AdditionalDefines, &ExtraDxcArgs);
 
