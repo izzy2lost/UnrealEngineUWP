@@ -235,6 +235,16 @@ private:
 	/** If set, this output provider will execute every frame */
 	UPROPERTY(EditAnywhere, BlueprintGetter = "IsActive", BlueprintSetter = "SetActive", Category = "Output", meta = (DisplayPriority = "1"))
 	bool bIsActive = false;
+	
+	/**
+	 * This makes sure that every OnActivate call is matched with exactly one OnDeactivate call, and vice versa.
+	 * These functions allocate external resources (e.g. signalling server in pixel streaming), so the calls must be matched exactly.
+	 * 
+	 * Without this variable, it would be difficult to keep track of whether we're actually active because of the many systems that set  bIsActive directly,
+	 * e.g. undo / redo and Multi-User.
+	 */
+	UPROPERTY(Transient, NonTransactional)
+	bool bIsActuallyActive = false;
 
 	/** Which viewport to use for this VCam */
 	UPROPERTY(EditAnywhere, BlueprintGetter = "GetTargetViewport", BlueprintSetter = "SetTargetViewport", Category = "Output", meta = (DisplayPriority = "2"))
@@ -248,11 +258,11 @@ private:
 	UPROPERTY()
 	FWidgetTreeSnapshot WidgetSnapshot;
 	
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	bool bInitialized = false;
 
 	/** Valid when active and if UMGClass is valid. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TObjectPtr<UVPFullScreenUserWidget> UMGWidget = nullptr;
 
 #if WITH_EDITORONLY_DATA
@@ -260,8 +270,8 @@ private:
 	UPROPERTY(Transient)
 	FPostProcessSettings PostProcessSettingsForWidget;
 
-	/** Whether this object is currently being transacted */
-	UPROPERTY(Transient)
+	/** Prevents certain messages from being generated while undoing. */
+	UPROPERTY(Transient, NonTransactional)
 	bool bIsUndoing = false;
 	
 	/** Handle to ModifyViewportPostProcessSettings */
@@ -276,11 +286,16 @@ private:
 	bool bWasOutputSuspendedWhileActive = false;
 
 	/** If in a game world, these player controllers must have their view targets reverted when this output provider is deactivated. */
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TSet<TWeakObjectPtr<APlayerController>> PlayersWhoseViewTargetsWereSet; 
 
-	bool IsActiveAndOuterComponentAllowsActivity() const { return bIsActive && IsOuterComponentEnabledAndInitialized(); }
-	bool IsOuterComponentEnabledAndInitialized() const;
+	bool IsActiveAndOuterComponentAllowsActivity(bool bSkipGarbageCheck = false) const { return bIsActive && IsOuterComponentEnabledAndInitialized(bSkipGarbageCheck); }
+	bool IsOuterComponentEnabledAndInitialized(bool bSkipGarbageCheck = false) const;
+
+	/** Calls OnActivate, it it has not yet been.  */
+	void HandleCallingOnActivate();
+	/** Calls OnDeactivate, it it has not yet been.  */
+	void HandleCallingOnDeactivate();
 
 #if WITH_EDITOR
 	/** Passed to FEditorViewportClient::ViewModifiers whenever DisplayType == EVPWidgetDisplayType::PostProcessWithBlendMaterial. */

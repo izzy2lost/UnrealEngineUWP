@@ -80,7 +80,7 @@ void UVCamOutputProviderBase::Initialize()
 		{
 			if (IsOuterComponentEnabledAndInitialized())
 			{
-				OnActivate();
+				HandleCallingOnActivate();
 			}
 		}
 	}
@@ -90,7 +90,7 @@ void UVCamOutputProviderBase::Deinitialize()
 {
 	if (bInitialized)
 	{
-		OnDeactivate();
+		HandleCallingOnDeactivate();
 		bInitialized = false;
 	}
 }
@@ -112,10 +112,31 @@ void UVCamOutputProviderBase::SetActive(const bool bInActive)
 	}
 }
 
-bool UVCamOutputProviderBase::IsOuterComponentEnabledAndInitialized() const
+bool UVCamOutputProviderBase::IsOuterComponentEnabledAndInitialized(bool bSkipGarbageCheck) const
 {
 	const UVCamComponent* OuterComponent = GetTypedOuter<UVCamComponent>();
-	return OuterComponent && OuterComponent->IsEnabled() && OuterComponent->IsInitialized();
+	const bool bIsSafeToDereference = (bSkipGarbageCheck && OuterComponent)
+		// IsValid will also detect whether the owning VCam is marked as garbage, e.g. VCam could be invalid right now because its deletion was redone (delete, undo, redo).
+		|| (!bSkipGarbageCheck && IsValid(OuterComponent));
+	return bIsSafeToDereference
+		&& OuterComponent->IsEnabled()
+		&& OuterComponent->IsInitialized();
+}
+
+void UVCamOutputProviderBase::HandleCallingOnActivate()
+{
+	if (!bIsActuallyActive)
+	{
+		OnActivate();
+	}
+}
+
+void UVCamOutputProviderBase::HandleCallingOnDeactivate()
+{
+	if (bIsActuallyActive)
+	{
+		OnDeactivate();
+	}
 }
 
 void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
@@ -162,7 +183,7 @@ void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
 	// Deactivation is a clean up operation that we always allow but ...
 	if (!bIsActive)
 	{
-		OnDeactivate();
+		HandleCallingOnDeactivate();
 		return;
 	}
 	
@@ -172,7 +193,7 @@ void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
 	const bool bCanPerformActivationLogic = bInitialized && IsOuterComponentEnabledAndInitialized();
 	if (bCanPerformActivationLogic)
 	{
-		OnActivate();
+		HandleCallingOnActivate();
 	}
 	else
 	{
@@ -188,6 +209,8 @@ void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
 void UVCamOutputProviderBase::OnActivate()
 {
 	check(IsInitialized());
+	check(!bIsActuallyActive);
+	bIsActuallyActive = true;
 
 	RequestResolutionRefresh();
 	CreateUMG();
@@ -198,6 +221,9 @@ void UVCamOutputProviderBase::OnActivate()
 
 void UVCamOutputProviderBase::OnDeactivate()
 {
+	check(bIsActuallyActive);
+	bIsActuallyActive = false;
+	
 	RequestResolutionRefresh();
 	DestroyUMG();
 	
@@ -466,17 +492,8 @@ void UVCamOutputProviderBase::PostLoad()
 
 void UVCamOutputProviderBase::PreEditUndo()
 {
-	bIsUndoing = true;
 	Super::PreEditUndo();
-
-	if (UE::VCamCore::CanInitVCamOutputProvider(this))
-	{
-		// If bIsActive is about to be set to false, we need to deactivate here because either
-		// - UMGWidget will be null-ed, or
-		// - the UVPFullScreenWidget::CurrentDisplayType will be set to Inactive
-		// Both prevent us from removing the widget from the viewport correctly so we'll just ALWAYS disable and optionally restore in PostEditUndo.
-		OnDeactivate();
-	}
+	bIsUndoing = true;
 }
 
 void UVCamOutputProviderBase::PostEditUndo()
@@ -484,20 +501,22 @@ void UVCamOutputProviderBase::PostEditUndo()
 	ON_SCOPE_EXIT { bIsUndoing = false; };
 	Super::PostEditUndo();
 
-	if (UE::VCamCore::CanInitVCamOutputProvider(this) && IsActiveAndOuterComponentAllowsActivity())
+	if (UE::VCamCore::CanInitVCamOutputProvider(this)
+		// The owning VCam may have deinitialize us as part of the undo - in that case the OnDeactivate() call has already been made.
+		&& IsInitialized())
 	{
-		// Need to restore because we killed the widget in PreEditUndo
-		// The transaction has overwritten our properties, e.g. UMGWidget, which would make OnActivate fail 
-		OnDeactivate();
+		const bool bCurrentActiveState = IsActiveAndOuterComponentAllowsActivity();
+		const bool bWasActiveButNoLongerIs = bIsActuallyActive && !bCurrentActiveState;
+		const bool bWasInActiveButNowIs = !bIsActuallyActive && bCurrentActiveState;
 
-		// Our initialized state may also not line up anymore - in that case we must be initialized before activating.
-		if (!IsInitialized())
+		if (bWasActiveButNoLongerIs)
 		{
-			Initialize();
+			HandleCallingOnDeactivate();
 		}
-		
-		// Now we're in a clean base state to re-activate
-		OnActivate();
+		else if (bWasInActiveButNowIs)
+		{
+			HandleCallingOnActivate();
+		}
 	}
 }
 
