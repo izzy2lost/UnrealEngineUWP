@@ -352,7 +352,7 @@ public:
 	void GetSubClasses(Impl::FClassInheritanceContext& InheritanceContext, const TArray<FTopLevelAssetPath>& InClassNames,
 		const TSet<FTopLevelAssetPath>& ExcludedClassNames, TSet<FTopLevelAssetPath>& SubClassNames) const;
 
-	bool IsInitialSearchCompleted() const { return bInitialSearchCompleted; }
+	bool IsInitialSearchCompleted() const { return bInitialSearchCompleted.load(std::memory_order_relaxed); }
 	bool IsTempCachingEnabled() const { return bIsTempCachingEnabled; }
 	bool IsTempCachingAlwaysEnabled() const { return bIsTempCachingAlwaysEnabled; }
 	bool IsInitialSearchStarted() const { return bInitialSearchStarted; }
@@ -579,8 +579,10 @@ private:
 	double InitialSearchStartTime = 0.0f;
 	/** Flag to indicate if we used an initial async search */
 	bool bInitialSearchStarted;
-	/** Flag to indicate if the initial background search has completed */
-	bool bInitialSearchCompleted;
+	/** Flag to indicate if the initial background search has completed. All access are relaxed because
+	 *  the actual search data can only be accessed under a proper lock.
+	 */
+	std::atomic<bool> bInitialSearchCompleted;
 	/**
 	 * Flag to indicate PreloadingComplete; finishing the background search is blocked until preloading complete
 	 * because preloading can add assets.

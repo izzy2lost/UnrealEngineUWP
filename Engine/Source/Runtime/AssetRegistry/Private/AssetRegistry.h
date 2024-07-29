@@ -412,7 +412,11 @@ private:
 	/** The delegate to execute scanning has ended */
 	FScanEndedEvent ScanEndedEvent;
 
+	/** Storage for events that will be broadcast later on the game thread. Only safe
+	 *  to access under the DeferredEventsCriticalSection. 
+	 */
 	UE::AssetRegistry::Impl::FEventContext DeferredEvents;
+	FCriticalSection DeferredEventsCriticalSection;
 
 	friend class UE::AssetRegistry::FAssetRegistryImpl;
 	friend struct UE::AssetRegistry::Premade::FAsyncConsumer;
