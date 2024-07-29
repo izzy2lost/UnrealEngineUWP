@@ -1251,12 +1251,10 @@ void FIoStoreOnDemandModule::InitializeInternal()
 			MountArgs.GetValue().Options = EOnDemandMountOptions::InstallOnDemand;
 
 			static FOnDemandContentHandle ContentHandle = FOnDemandContentHandle::Create(TEXT("AllContent"));
-			InstallArgs.Emplace(FOnDemandInstallArgs
-			{
-				.Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath,
-				.MountId = MountArgs.GetValue().MountId,
-				.ContentHandle = ContentHandle
-			});
+			InstallArgs.Emplace();
+			InstallArgs->Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath;
+			InstallArgs->MountId = MountArgs.GetValue().MountId;
+			InstallArgs->ContentHandle = ContentHandle;
 		}
 	}
 #endif
