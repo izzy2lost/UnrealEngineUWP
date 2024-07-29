@@ -1985,7 +1985,6 @@ bool FSequencerUtilities::PasteSections(const FString& TextToImport, FMovieScene
 	for (int32 Index = 0; Index < PasteSectionsParams.Tracks.Num(); ++Index)
 	{
 		UMovieSceneTrack* Track = PasteSectionsParams.Tracks[Index];
-		int32 RowIndex = Index < PasteSectionsParams.TrackRowIndices.Num() ? PasteSectionsParams.TrackRowIndices[Index] : 0;
 
 		for (int32 SectionIndex = 0; SectionIndex < ImportedSections.Num(); ++SectionIndex)
 		{
@@ -1994,6 +1993,8 @@ bool FSequencerUtilities::PasteSections(const FString& TextToImport, FMovieScene
 			{
 				continue;
 			}
+
+			int32 RowIndex = SectionIndex < PasteSectionsParams.TrackRowIndices.Num() ? PasteSectionsParams.TrackRowIndices[SectionIndex] : Section->GetRowIndex();
 
 			SectionIndicesImported.AddUnique(SectionIndex);
 
@@ -3295,12 +3296,6 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 				}
 			}
 		}
-	}
-
-	// Remap bindings in sections (ie. attach tracks)
-	for (TPair<FGuid, FGuid> GuidPair : OldToNewGuidMap)
-	{
-		UpdateBindingIDs(Sequencer, GuidPair.Key, GuidPair.Value);
 	}
 
 	for (auto BindingPasted : BindingsPasted)
