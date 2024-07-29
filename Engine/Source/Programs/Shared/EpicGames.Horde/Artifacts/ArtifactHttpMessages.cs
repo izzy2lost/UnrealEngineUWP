@@ -146,6 +146,7 @@ namespace EpicGames.Horde.Artifacts
 			Type = artifact.Type;
 			Description = artifact.Description;
 			StreamId = artifact.StreamId;
+			CommitId = artifact.CommitId;
 			Keys = artifact.Keys;
 			Metadata = artifact.Metadata;
 			NamespaceId = artifact.NamespaceId;
