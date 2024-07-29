@@ -321,21 +321,17 @@ enum class EOnDemandInstallOptions
 };
 ENUM_CLASS_FLAGS(EOnDemandInstallOptions);
 
-struct FOnDemandInstallArgsCommon
+/** Arguments for installing/downloading on-demand content. */
+struct FOnDemandInstallArgs
 {
+	/** URL from where to download the chunks. */
+	FString Url;
 	/** Install all content from containers matching this mount ID. */
 	FString MountId;
 	/** Install content matching a set of tag(s) and optionally the mount ID. */
 	TArray<FString> TagSets;
 	/** Package ID's to install. */
 	TArray<FPackageId> PackageIds;
-};
-
-/** Arguments for installing/downloading on-demand content. */
-struct FOnDemandInstallArgs : public FOnDemandInstallArgsCommon
-{
-	/** URL from where to download the chunks. */
-	FString Url;
 	/** Content handle. */
 	FOnDemandContentHandle ContentHandle;
 	/** Install options. */
@@ -358,9 +354,23 @@ struct FOnDemandInstallResult
 /** Install completion callback. */
 using FOnDemandInstallCompleted = TUniqueFunction<void(FOnDemandInstallResult)>;
 
-/** Arguments for getting the size of on-demand content */
-struct FOnDemandGetInstallSizeArgs : public FOnDemandInstallArgsCommon
+struct FOnDemandGetInstallSizeArgs
 {
+	/* Includes all packages from matching containers */
+	struct FPackagesWhere
+	{
+		/* The MountId to collect packages from*/
+		FString MountId;
+		/* Includes only packages from the specificed tag sets if not empty */
+		TArray<FString> TagSets;
+	};
+
+	/* Includes all packages from matching containers */
+	// TODO: implement this
+	// TArray<FPackagesWhere> PackagesWhere;
+
+	/* Explicit packages to include */
+	TArray<FPackageId> Packages;
 };
 
 class FIoStoreOnDemandModule

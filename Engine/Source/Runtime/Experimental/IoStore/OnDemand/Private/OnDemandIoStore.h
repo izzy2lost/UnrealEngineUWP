@@ -7,7 +7,6 @@
 #include "Async/Mutex.h"
 #include "Containers/AnsiString.h"
 #include "Containers/BitArray.h"
-#include "IO/IoBuffer.h"
 #include "IO/IoStoreOnDemand.h"
 #include "IO/IoHash.h"
 #include "IO/IoChunkEncoding.h"
@@ -191,11 +190,11 @@ TBitArray<> FOnDemandContainer::GetReferencedChunkEntries() const
 ///////////////////////////////////////////////////////////////////////////////
 namespace Private
 {
-	static FIoStatus DecodeContainerChunk(
+	static FIoStatus FetchContainerHeader(
+		FStringView Host,
+		FAnsiStringBuilderBase& ChunkUrlBuilder,
 		FSharedOnDemandContainer Container,
-		const FOnDemandChunkEntry& Entry,
-		FMemoryView EncodedHeaderChunk,
-		FIoBuffer& OutRawChunk);
+		FIoContainerHeader& OutHeader);
 }
 
 struct FOnDemandChunkInfo
@@ -219,11 +218,11 @@ struct FOnDemandChunkInfo
 
 private:
 	friend class FOnDemandIoStore;
-	friend FIoStatus Private::DecodeContainerChunk(
+	friend FIoStatus Private::FetchContainerHeader(
+		FStringView Host,
+		FAnsiStringBuilderBase& ChunkUrlBuilder,
 		FSharedOnDemandContainer Container,
-		const FOnDemandChunkEntry& Entry,
-		FMemoryView EncodedHeaderChunk,
-		FIoBuffer& OutRawChunk);
+		FIoContainerHeader& OutHeader);
 
 	FOnDemandChunkInfo(FSharedOnDemandContainer InContainer, const FOnDemandChunkEntry& InEntry)
 		: SharedContainer(InContainer)
@@ -252,12 +251,15 @@ class FOnDemandIoStore
 {
 	struct FMountRequest
 	{
-		FOnDemandMountArgs			Args;
-		FOnDemandMountCompleted		OnCompleted;
-		double						DurationInSeconds = 0.0;
+		FOnDemandMountArgs					Args;
+		FOnDemandMountCompleted				OnCompleted;
+		TArray<FSharedOnDemandContainer>	Containers;
+		std::atomic_bool					bCancelled{false};
+		double								DurationInSeconds = 0.0;
 	};
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
+	using FMountRequestMap		= TMap<FString, FSharedMountRequest>;
 
 	struct FInstallRequest
 	{
@@ -285,18 +287,13 @@ public:
 	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FOnDemandChunkInfo		GetStreamingChunkInfo(const FIoChunkId& ChunkId);
 	FOnDemandChunkInfo		GetInstalledChunkInfo(const FIoChunkId& ChunkId);
+	TArray<FSharedOnDemandContainer> GetContainers();
+	TArray<FSharedOnDemandContainer> GetContainers(
+		TFunctionRef<bool(const FSharedOnDemandContainer& Container)> Predicate);
 	void					ReleaseContent(FOnDemandInternalContentHandle& ContentHandle);
 	void					GetReferencedContent(TArray<FSharedOnDemandContainer>& OutContainers, TArray<TBitArray<>>& OutChunkEntryIndices);
 
 private:
-	FIoStatus				GetContainersForInstall(
-		FStringView MountId,
-		TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-		TSet<FSharedOnDemandContainer>& OutContainersWithMountId);
-	FIoStatus				GetContainersAndPackagesForInstall(
-		const FOnDemandInstallArgsCommon& Args,
-		TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-		TSet<FPackageId>& OutPackageIdsToInstall);
 	void					OnPostFork(EForkProcessRole ProcessRole);
 	FIoStatus				InitializeOnDemandInstallCache();
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
@@ -304,9 +301,7 @@ private:
 	void					TickLoop();
 	bool					Tick();
 	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
-	void					OnMountRequestComplete(FMountRequest& MountRequest, FOnDemandMountResult&& MountResult);
 	FIoStatus				TickInstallRequest(FInstallRequest& InstallRequest);
-	void					OnInstallRequestComplete(FInstallRequest& InstallRequest, FOnDemandInstallResult&& InstallResult);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,
@@ -318,10 +313,9 @@ private:
 	FSharedPackageStoreBackend			PackageStoreBackend;
 	FDelegateHandle						OnMountPakHandle;
 	TArray<FSharedOnDemandContainer>	Containers;
-	TMap<FString, FIoBuffer>			EncodedContainerHeaders;
 	UE::FMutex							ContainerMutex;
 
-	TArray<FSharedMountRequest>			MountRequests;
+	FMountRequestMap					MountRequests;
 	TArray<FSharedInstallRequest>		InstallRequests;
 	UE::FMutex							MountRequestMutex;
 
