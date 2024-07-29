@@ -238,10 +238,10 @@ public:
 			return;
 		}
 
-		UE_AUTORTFM_OPEN(
-			{
-				FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
-			});
+		UE_AUTORTFM_OPEN2
+		{
+			FPlatformAtomics::InterlockedOr((int32*)&ObjectFlags, FlagsToAdd);
+		};
 
 		// If we abort we undo setting the flags we just set.
 		AutoRTFM::OnAbort([this, OldFlags, FlagsToAdd]
@@ -271,10 +271,10 @@ public:
 			return;
 		}
 
-		UE_AUTORTFM_OPEN(
-			{
-				FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
-			});
+		UE_AUTORTFM_OPEN2 
+		{
+			FPlatformAtomics::InterlockedAnd((int32*)&ObjectFlags, ~FlagsToClear);
+		};
 
 		// If we abort we undo clearing the flags we just unset.
 		AutoRTFM::OnAbort([this, OldFlags, FlagsToClear]

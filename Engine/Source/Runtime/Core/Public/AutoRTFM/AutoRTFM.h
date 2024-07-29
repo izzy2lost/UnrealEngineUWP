@@ -686,6 +686,8 @@ namespace ForTheRuntime
 {
 	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONABORT2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnAbortMacro() {}
 	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_ONCOMMIT2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOnCommitMacro() {}
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_OPEN2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseOpenMacro() {}
+	[[deprecated("This macro is deprecated. Use UE_AUTORTFM_TRANSACT2 instead!")]] UE_AUTORTFM_FORCEINLINE void DeprecatedUseTransactMacro() {}
 
 	// An enum to represent the various ways we want to enable/disable the AutoRTFM runtime.
 	enum EAutoRTFMEnabledState
@@ -993,28 +995,28 @@ namespace AutoRTFM::Private
 #endif
 
 // Runs a block of code in the open, non-transactionally. Anything performed in the open will not be undone if a transaction fails.
-#define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_OPEN(...) UE_AUTORTFM_OPEN_IMPL(AutoRTFM::ForTheRuntime::DeprecatedUseOpenMacro(); __VA_ARGS__)
 // This new version is used like UE_AUTORTFM_OPEN2 { ... code ... };
 #define UE_AUTORTFM_OPEN2 UE_AUTORTFM_OPEN_IMPL2
 
 // Runs a block of code if a transaction aborts.
 // In non-transactional code paths the block of code will not be executed at all.
 // This captures any used variables from the parent function by-value.
-#define UE_AUTORTFM_ONABORT(...) UE_AUTORTFM_ONABORT_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_ONABORT(...) UE_AUTORTFM_ONABORT_IMPL(AutoRTFM::ForTheRuntime::DeprecatedUseOnAbortMacro(); __VA_ARGS__)
 // In the new version of the macro, the macro arguments are the capture specification for the lambda
-// Used like UE_AUTORTFM_ABORT2(=) { ... code ... };
+// Used like UE_AUTORTFM_ONABORT2(=) { ... code ... };
 #define UE_AUTORTFM_ONABORT2(...) UE_AUTORTFM_ONABORT_IMPL2(__VA_ARGS__)
 
 // Runs a block of code if a transaction commits successfully.
 // In non-transactional code paths the block of code will be executed immediately.
 // This captures any used variables from the parent function by-value.
-#define UE_AUTORTFM_ONCOMMIT(...) UE_AUTORTFM_ONCOMMIT_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_ONCOMMIT(...) UE_AUTORTFM_ONCOMMIT_IMPL(AutoRTFM::ForTheRuntime::DeprecatedUseOnCommitMacro(); __VA_ARGS__)
 // In the new version of the macro, the macro arguments are the capture specification for the lambda
-// Used like UE_AUTORTFM_COMMIT2(=) { ... code ... };
+// Used like UE_AUTORTFM_ONCOMMIT2(=) { ... code ... };
 #define UE_AUTORTFM_ONCOMMIT2(...) UE_AUTORTFM_ONCOMMIT_IMPL2(__VA_ARGS__)
 
 // Runs a block of code in the closed, transactionally, within a new transaction.
-#define UE_AUTORTFM_TRANSACT(...) UE_AUTORTFM_TRANSACT_IMPL(__VA_ARGS__)
+#define UE_AUTORTFM_TRANSACT(...) UE_AUTORTFM_TRANSACT_IMPL(AutoRTFM::ForTheRuntime::DeprecatedUseTransactMacro(); __VA_ARGS__)
 // New version is used like a block: UE_AUTORTFM_TRANSACT2 { ... code ... };
 #define UE_AUTORTFM_TRANSACT2 UE_AUTORTFM_TRANSACT_IMPL2
 

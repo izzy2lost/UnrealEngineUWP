@@ -382,11 +382,11 @@ public:
 	FORCEINLINE bool IsValid() const
 	{
 		bool bIsValid = false;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			bIsValid = IsValid_NoLock();
-		});
+		};
 
 		return bIsValid;
 	}
@@ -403,11 +403,11 @@ public:
 	FORCEINLINE bool ValidatePattern(const FCulturePtr& InCulture, TArray<FString>& OutValidationErrors)
 	{
 		bool bIsValid = false;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			bIsValid = ValidatePattern_NoLock(InCulture, OutValidationErrors);
-		});
+		};
 
 		return bIsValid;
 	}
@@ -418,11 +418,11 @@ public:
 	FORCEINLINE FString Format(const FPrivateTextFormatArguments& InFormatArgs)
 	{
 		FString RetString;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			RetString = Format_NoLock(InFormatArgs);
-		});
+		};
 
 		return RetString;
 	}
@@ -432,11 +432,11 @@ public:
 	 */
 	FORCEINLINE void GetFormatArgumentNames(TArray<FString>& OutArgumentNames)
 	{
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			GetFormatArgumentNames_NoLock(OutArgumentNames);
-		});
+		};
 	}
 
 	/**
@@ -463,11 +463,11 @@ public:
 	FORCEINLINE FTextFormat::EExpressionType GetExpressionType() const
 	{
 		FTextFormat::EExpressionType RetType = FTextFormat::EExpressionType::Invalid;
-		UE_AUTORTFM_OPEN(
+		UE_AUTORTFM_OPEN2
 		{
 			UE::TScopeLock Lock(CompiledDataMutex);
 			RetType = CompiledExpressionType;
-		});
+		};
 
 		return RetType;
 	}

@@ -226,7 +226,6 @@ struct FEntityInitializer
 				FComponentTypeID ComponentTypeID = FComponentTypeID::FromBitIndex(It.GetIndex());
 				const FComponentTypeInfo& TypeInfo = EntityManager.GetComponents()->GetComponentTypeChecked(ComponentTypeID);
 
-
 #if UE_MOVIESCENE_ENTITY_DEBUG
 				if (GRichComponentDebugging)
 				{
@@ -234,28 +233,18 @@ struct FEntityInitializer
 					Header->Size = &Allocation->Size;
 				}
 				else
+#endif
 				{
-					UE_AUTORTFM_OPEN(
+					UE_AUTORTFM_OPEN2
 					{
 						new (Header) FComponentHeader();
-					});
+					};
 						
-					UE_AUTORTFM_ONABORT(
+					UE_AUTORTFM_ONABORT2(Header)
 					{
 						Header->~FComponentHeader();
-					});
+					};
 				}
-#else
-				UE_AUTORTFM_OPEN(
-				{
-					new (Header) FComponentHeader();
-				});
-				
-				UE_AUTORTFM_ONABORT(
-				{
-					Header->~FComponentHeader();
-				});
-#endif
 
 				Header->ComponentType = ComponentTypeID;
 				Header->Sizeof = TypeInfo.Sizeof;
@@ -1050,12 +1039,9 @@ void FEntityManager::AccumulateMask(const FEntityComponentFilter& InFilter, FCom
 
 void FEntityManager::EnterIteration() const
 {
-	UE_AUTORTFM_OPEN(
-	{
-		++IterationCount;
-	});
+	UE_AUTORTFM_OPEN2 { ++IterationCount; };
 
-	AutoRTFM::PushOnAbortHandler(this, [this](){ --(this->IterationCount); });
+	AutoRTFM::PushOnAbortHandler(this, [this] { --(this->IterationCount); });
 }
 
 void FEntityManager::ExitIteration() const
@@ -1065,10 +1051,7 @@ void FEntityManager::ExitIteration() const
 	// We only ever call the exit after an enter so we should not have to handle the case where exit is called first in order to ++ on the iterator
 	AutoRTFM::PopOnAbortHandler(this);
 
-	UE_AUTORTFM_OPEN(
-	{
-		--IterationCount;
-	});
+	UE_AUTORTFM_OPEN2 { --IterationCount; };
 }
 
 FEntityAllocation* FEntityManager::CreateEntityAllocation(const FComponentMask& EntityComponentMask, uint16 InitialCapacity, uint16 MaxCapacity, FEntityAllocation* MigrateComponentDataFrom)

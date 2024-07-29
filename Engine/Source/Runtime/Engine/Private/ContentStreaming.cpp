@@ -373,10 +373,10 @@ FStreamingManagerCollection& IStreamingManager::Get()
 	{
 		// Since this is a lazily created static global variable we create it
 		// in the open.
-		UE_AUTORTFM_OPEN(
-			{
-				StreamingManagerCollection = new FStreamingManagerCollection();
-			});
+		UE_AUTORTFM_OPEN2
+		{
+			StreamingManagerCollection = new FStreamingManagerCollection();
+		};
 	}
 	return *StreamingManagerCollection;
 }

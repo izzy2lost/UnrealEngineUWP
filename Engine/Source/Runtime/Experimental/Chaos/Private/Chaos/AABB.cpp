@@ -410,10 +410,10 @@ inline TAABB<FReal, 3> TransformedAABBHelperISPC(const TAABB<FReal, 3>& AABB, co
 	check(bRealTypeCompatibleWithISPC);
 #if INTEL_ISPC
 	TVector<Chaos::FReal, 3> NewMin, NewMax;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		ispc::TransformedAABB((const ispc::FTransform&)SpaceTransform, (const ispc::FVector&)AABB.Min(), (const ispc::FVector&)AABB.Max(), (ispc::FVector&)NewMin, (ispc::FVector&)NewMax);
-	});
+	};
 
 	TAABB<FReal, 3> NewAABB(NewMin, NewMax);
 	return NewAABB;
@@ -436,10 +436,10 @@ inline TAABB<Chaos::FRealSingle, 3> TransformedAABBHelperISPC(const TAABB<Chaos:
 	static_assert(sizeof(ispc::FVector3f) == sizeof(Chaos::TVector<Chaos::FRealSingle, 3>), "sizeof(ispc::FVector3f) != sizeof(Chaos::TVector<Chaos::FRealSingle, 3>)");
 
 	TVector<Chaos::FRealSingle, 3> NewMin, NewMax;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		ispc::TransformedAABBMixed((const ispc::FTransform&)SpaceTransform, (const ispc::FVector3f&)AABB.Min(), (const ispc::FVector3f&)AABB.Max(), (ispc::FVector3f&)NewMin, (ispc::FVector3f&)NewMax);
-	});
+	};
 
 	TAABB<Chaos::FRealSingle, 3> NewAABB(NewMin, NewMax);
 	return NewAABB;
@@ -460,10 +460,10 @@ inline TAABB<FReal, 3> TransformedAABBHelperISPC2(const TAABB<FReal, 3>& AABB, c
 	check(bRealTypeCompatibleWithISPC);
 #if INTEL_ISPC
 	TVector<Chaos::FReal, 3> NewMin, NewMax;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		ispc::TransformedAABB2((const ispc::FTransform&)SpaceTransform, (const ispc::FVector&)AABB.Min(), (const ispc::FVector&)AABB.Max(), (ispc::FVector&)NewMin, (ispc::FVector&)NewMax);
-	});
+	};
 
 	TAABB<FReal, 3> NewAABB(NewMin, NewMax);
 	return NewAABB;
@@ -486,10 +486,10 @@ inline TAABB<Chaos::FRealSingle, 3> TransformedAABBHelperISPC2(const TAABB<Chaos
 	static_assert(sizeof(ispc::FVector3f) == sizeof(Chaos::TVector<Chaos::FRealSingle, 3>), "sizeof(ispc::FVector3f) != sizeof(Chaos::TVector<Chaos::FRealSingle, 3>)");
 
 	TVector<Chaos::FRealSingle, 3> NewMin, NewMax;
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
 	{
 		ispc::TransformedAABBMixed((const ispc::FTransform&)SpaceTransform, (const ispc::FVector3f&)AABB.Min(), (const ispc::FVector3f&)AABB.Max(), (ispc::FVector3f&)NewMin, (ispc::FVector3f&)NewMax);
-	});
+	};
 
 	TAABB<Chaos::FRealSingle, 3> NewAABB(NewMin, NewMax);
 	return NewAABB;

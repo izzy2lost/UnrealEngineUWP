@@ -778,7 +778,7 @@ public:
 		FUniqueIdx Result;
 		
 		// This uses thread safe atomics, so we have to do it in the open.
-		UE_AUTORTFM_OPEN({ Result = Particles.GetUniqueIndices().GenerateUniqueIdx(); });
+		UE_AUTORTFM_OPEN2 { Result = Particles.GetUniqueIndices().GenerateUniqueIdx(); };
 
 		// But if we abort, we need to release the now unused index.
 		AutoRTFM::OnAbort([this, Result] { this->ReleaseUniqueIdx(Result); });

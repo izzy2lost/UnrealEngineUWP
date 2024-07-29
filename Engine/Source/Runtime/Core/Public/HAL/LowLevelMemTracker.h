@@ -904,7 +904,7 @@ public:
 		if (FLowLevelMemTracker::IsEnabled())
 		{
 			// We run the init in the open, because we want to track LLM even in transactions.
-			UE_AUTORTFM_OPEN({ Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride); });
+			UE_AUTORTFM_OPEN2 { Init(TagName, bIsStatTag, InTagSet, InTracker, bOverride); };
 			// But remember that if we abort while we hold the scope, we need to destroy the scope.
 			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
@@ -915,7 +915,7 @@ public:
 		if (FLowLevelMemTracker::IsEnabled())
 		{
 			// We run the init in the open, because we want to track LLM even in transactions.
-			UE_AUTORTFM_OPEN({ Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride); });
+			UE_AUTORTFM_OPEN2 { Init(TagEnum, bIsStatTag, InTagSet, InTracker, bOverride); };
 			// But remember that if we abort while we hold the scope, we need to destroy the scope.
 			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
@@ -926,7 +926,7 @@ public:
 		if (FLowLevelMemTracker::IsEnabled())
 		{
 			// We run the init in the open, because we want to track LLM even in transactions.
-			UE_AUTORTFM_OPEN({ Init(TagData, bIsStatTag, Set, Tracker, bOverride); });
+			UE_AUTORTFM_OPEN2 { Init(TagData, bIsStatTag, Set, Tracker, bOverride); };
 			// But remember that if we abort while we hold the scope, we need to destroy the scope.
 			AutoRTFM::PushOnAbortHandler(this, [this] { if (bEnabled) { Destruct(); } });
 		}
@@ -937,7 +937,7 @@ public:
 		if (bEnabled)
 		{
 			// We run the destroy in the open, because we want to track LLM even in transactions.
-			UE_AUTORTFM_OPEN({ Destruct(); });
+			UE_AUTORTFM_OPEN2 { Destruct(); };
 			// But remember to pop our on-abort handler (so that we don't try and double destroy).
 			AutoRTFM::PopOnAbortHandler(this);
 		}

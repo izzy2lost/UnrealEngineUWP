@@ -77,10 +77,7 @@ public:
 	static FORCEINLINE FName ULangStrToFName(const uLang::CUTF8String& ULangString)
 	{
 		FName Result;
-		UE_AUTORTFM_OPEN(
-		{
-			Result = FName(UTF8_TO_TCHAR(ULangString.AsUTF8()));
-		});
+		UE_AUTORTFM_OPEN2{ Result = FName(UTF8_TO_TCHAR(ULangString.AsUTF8())); };
 		return Result;
 	}
 

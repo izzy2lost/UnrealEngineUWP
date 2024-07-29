@@ -972,7 +972,7 @@ bool UPrimitiveComponent::WeldToImplementation(USceneComponent * InParent, FName
 				void* OriginalWeldParent = nullptr;
 
 				// Because this uses atomics we need to run it non-transactionally.
-				UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr); });
+				UE_AUTORTFM_OPEN2 { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&BI->WeldParent, nullptr); };
 
 				// But remember that on abort we need to fudge the pointer back into the place we took it from.
 				AutoRTFM::OnAbort([BI, OriginalWeldParent]
@@ -1041,7 +1041,7 @@ void UPrimitiveComponent::UnWeldFromParent()
 				void* OriginalWeldParent = nullptr;
 
 				// Because this uses atomics we need to run it non-transactionally.
-				UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr); });
+				UE_AUTORTFM_OPEN2 { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&NewRootBI->WeldParent, nullptr); };
 
 				// But remember that on abort we need to fudge the pointer back into the place we took it from.
 				AutoRTFM::OnAbort([NewRootBI, OriginalWeldParent]
@@ -1089,7 +1089,7 @@ void UPrimitiveComponent::UnWeldFromParent()
 
 					// Because this uses atomics we need to run it non-transactionally.
 					//null because we are currently kinematic
-					UE_AUTORTFM_OPEN({ OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); });
+					UE_AUTORTFM_OPEN2 { OriginalWeldParent = FPlatformAtomics::InterlockedExchangePtr((void**)&ChildBI->WeldParent, nullptr); };
 
 					// But remember that on abort we need to fudge the pointer back into the place we took it from.
 					AutoRTFM::OnAbort([ChildBI, OriginalWeldParent]

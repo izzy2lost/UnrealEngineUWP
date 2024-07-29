@@ -67,21 +67,21 @@ void FUObjectItem::CreateStatID() const
 #if STATS
 	StatID = FDynamicStats::CreateStatId<FStatGroup_STATGROUP_UObjects>(LongName);
 #else // ENABLE_STATNAMEDEVENTS
-	UE_AUTORTFM_OPEN(
+	UE_AUTORTFM_OPEN2
+	{
+		const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
+		const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
+
+		PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
+		FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
+
+		if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
 		{
-			const auto& ConversionData = StringCast<PROFILER_CHAR>(*LongName);
-			const int32 NumStorageChars = (ConversionData.Length() + 1);	//length doesn't include null terminator
+			delete[] StoragePtr;
+		}
 
-			PROFILER_CHAR* const StoragePtr = new PROFILER_CHAR[NumStorageChars];
-			FMemory::Memcpy(StoragePtr, ConversionData.Get(), NumStorageChars * sizeof(PROFILER_CHAR));
-
-			if (FPlatformAtomics::InterlockedCompareExchangePointer((void**)&StatIDStringStorage, StoragePtr, nullptr) != nullptr)
-			{
-				delete[] StoragePtr;
-			}
-
-			StatID = TStatId(StatIDStringStorage);
-		});
+		StatID = TStatId(StatIDStringStorage);
+	};
 #endif
 }
 #endif

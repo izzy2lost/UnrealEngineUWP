@@ -609,10 +609,10 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 			}
 #endif
 
-			UE_AUTORTFM_OPEN(
+			UE_AUTORTFM_OPEN2
 			{
 				LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
-			});
+			};
 
 #if WITH_EDITOR
 			// Look at core redirects if we didn't find the object

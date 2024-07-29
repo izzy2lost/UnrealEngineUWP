@@ -33,9 +33,7 @@ void FLocalizableMessageModule::ShutdownModule()
 ILocalizableMessageModule& ILocalizableMessageModule::Get()
 {
 	ILocalizableMessageModule* VerseModule;
-	UE_AUTORTFM_OPEN(
-		VerseModule = &FModuleManager::LoadModuleChecked<FLocalizableMessageModule>(TEXT("LocalizableMessage"));
-	);
+	UE_AUTORTFM_OPEN2{ VerseModule = &FModuleManager::LoadModuleChecked<FLocalizableMessageModule>(TEXT("LocalizableMessage")); };
 	return *VerseModule;
 }
 

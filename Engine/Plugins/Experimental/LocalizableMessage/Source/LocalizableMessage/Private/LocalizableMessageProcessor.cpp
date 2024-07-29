@@ -62,9 +62,7 @@ FText FLocalizableMessageProcessor::Localize(const FLocalizableMessage& Message,
 	FText LocalizedText;
 	if (!Message.IsEmpty())
 	{
-		UE_AUTORTFM_OPEN({
-			LocalizedText = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*Message.DefaultText, TEXT(""), *Message.Key);
-		});
+		UE_AUTORTFM_OPEN2{ LocalizedText = FInternationalization::ForUseOnlyByLocMacroAndGraphNodeTextLiterals_CreateText(*Message.DefaultText, TEXT(""), *Message.Key); };
 	}
 	if (FormatArguments.Num() > 0)
 	{
