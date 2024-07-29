@@ -83,6 +83,8 @@ typedef FIOSPlatformTypes FPlatformTypes;
 #undef PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST
 #define PLATFORM_COMPILER_SUPPORTS_BUILTIN_BITCAST (__clang_major__ >= 13)
 
+#define PLATFORM_RETURN_ADDRESS_FOR_CALLSTACKTRACING    PLATFORM_RETURN_ADDRESS
+
 #define PLATFORM_GLOBAL_LOG_CATEGORY					LogIOS
 
 #define PLATFORM_BREAK()                                __builtin_debugtrap()

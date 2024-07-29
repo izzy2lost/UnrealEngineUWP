@@ -149,6 +149,13 @@ public class Core : ModuleRules
 			{
 				PublicDefinitions.Add("USE_MALLOC_BINNED3=1");
 				PublicDefinitions.Add("USE_512MB_MAX_MEMORY_PER_BLOCK_SIZE=1");
+				
+				if (Target.Configuration != UnrealTargetConfiguration.Shipping && Target.Type != TargetType.Program)
+				{
+					PublicDefinitions.Add("UE_MEMORY_TRACE_AVAILABLE=1");
+					PublicDefinitions.Add("UE_MEMORY_TAGS_TRACE_ENABLED=1");
+					PublicDefinitions.Add("UE_CALLSTACK_TRACE_ENABLED=1");
+				}
 			}
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
