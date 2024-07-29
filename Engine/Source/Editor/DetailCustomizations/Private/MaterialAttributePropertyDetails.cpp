@@ -20,6 +20,7 @@
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyHandle.h"
 #include "Templates/Tuple.h"
+#include "RenderUtils.h"
 
 class SToolTip;
 
@@ -42,7 +43,11 @@ void FMaterialAttributePropertyDetails::CustomizeDetails(IDetailLayoutBuilder& D
 		// We do not want to blend Substrate BSDF which could increase the complexity of the material (BSDF / Slab count) for each blend operation.
 		// Only parameters are allowed to finally be transform into Substrate at the end of the chain.
 		// This filtering is ran only when constructing the UI element.
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		if(Substrate::IsSubstrateEnabled() || NameGUIDPair.Key != ExcludedFrontMaterialName)
+#else
 		if (NameGUIDPair.Key != ExcludedFrontMaterialName)
+#endif
 		{
 			AttributeDisplayNameList.Add(MakeShareable(new FString(NameGUIDPair.Key)));
 		}

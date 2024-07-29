@@ -147,6 +147,7 @@
 #include "MaterialLayersFunctionsCustomization.h"
 #include "MaterialEditor/MaterialEditorPreviewParameters.h"
 #include "SMaterialLayersFunctionsTree.h"
+#include "Materials/MaterialExpressionGetMaterialAttributes.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
 #include "Settings/EditorExperimentalSettings.h"
 #include "Materials/MaterialExpressionBlendMaterialAttributes.h"
@@ -774,16 +775,16 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 							BaseAttributesInput->PreviewValue = FLinearColor::MakeRandomColor();
 						}
 
-						UMaterialExpression* SetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateSetAttributes::StaticClass(), FVector2D(-50, 300), false, true);
-						UMaterialExpression* GetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-450, 300), false, true);
-						if (Input && SetSubstrateAttributes && GetSubstrateAttributes)
+						UMaterialExpressionSetMaterialAttributes* SetMaterialAttributes = Cast<UMaterialExpressionSetMaterialAttributes>(CreateNewMaterialExpression(UMaterialExpressionSetMaterialAttributes::StaticClass(), FVector2D(0, 300), false, true));
+						UMaterialExpressionGetMaterialAttributes* GetMaterialAttributes = Cast<UMaterialExpressionGetMaterialAttributes>(CreateNewMaterialExpression(UMaterialExpressionGetMaterialAttributes::StaticClass(), FVector2D(-400, 300), false, true));
+						if (Input && SetMaterialAttributes && GetMaterialAttributes)
 						{
-							UMaterialEditingLibrary::ConnectMaterialExpressions(Input, FString(), GetSubstrateAttributes, FString());
+							UMaterialEditingLibrary::ConnectMaterialExpressions(Input, FString(), GetMaterialAttributes, FString());
 						
-							UMaterialEditingLibrary::ConnectMaterialExpressions(GetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, SetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT);
-							UMaterialEditingLibrary::ConnectMaterialExpressions(GetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, SetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT);
+							SetMaterialAttributes->ConnectInputAttribute(MP_FrontMaterial, GetMaterialAttributes, GetMaterialAttributes->CreateOrGetOutputAttribute(MP_FrontMaterial));
+							SetMaterialAttributes->ConnectInputAttribute(MP_MaterialAttributes, GetMaterialAttributes, GetMaterialAttributes->CreateOrGetOutputAttribute(MP_MaterialAttributes));
 
-							UMaterialEditingLibrary::ConnectMaterialExpressions(SetSubstrateAttributes, FString(), Expression, FString());
+							UMaterialEditingLibrary::ConnectMaterialExpressions(SetMaterialAttributes, FString(), Expression, FString());
 							bMaterialDirty = true;
 						}
 
@@ -868,27 +869,36 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 
 								if (!bMaterialDirty)
 								{
-									UMaterialExpression* SetSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateSetAttributes::StaticClass(), FVector2D(-75, 300), false, true);
+									UMaterialExpressionSetMaterialAttributes* SetMaterialAttributes = Cast<UMaterialExpressionSetMaterialAttributes>(CreateNewMaterialExpression(UMaterialExpressionSetMaterialAttributes::StaticClass(), FVector2D(-75, 300), false, true));
 									UMaterialExpression* HorizontalMixingNode = CreateNewMaterialExpression(UMaterialExpressionSubstrateHorizontalMixing::StaticClass(), FVector2D(-350, 200), false, true);
-									UMaterialExpression* GetBottomSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-750, 200), false, true);
+									UMaterialExpressionGetMaterialAttributes* GetBottomMaterialAttributes = Cast<UMaterialExpressionGetMaterialAttributes>(CreateNewMaterialExpression(UMaterialExpressionGetMaterialAttributes::StaticClass(), FVector2D(-750, 200), false, true));
+									int32 BottomFrontMaterialIndex = GetBottomMaterialAttributes->CreateOrGetOutputAttribute(MP_FrontMaterial);
 
 									UMaterialExpression* LegacyBlendNode = CreateNewMaterialExpression(UMaterialExpressionBlendMaterialAttributes::StaticClass(), FVector2D(-350, 400), false, true);
-									UMaterialExpression* GetTopSubstrateAttributes = CreateNewMaterialExpression(UMaterialExpressionSubstrateGetAttributes::StaticClass(), FVector2D(-750, 400), false, true);
+									UMaterialExpressionGetMaterialAttributes* GetTopMaterialAttributes = Cast< UMaterialExpressionGetMaterialAttributes>(CreateNewMaterialExpression(UMaterialExpressionGetMaterialAttributes::StaticClass(), FVector2D(-750, 400), false, true));
+									int32 TopFrontMaterialIndex = GetTopMaterialAttributes->CreateOrGetOutputAttribute(MP_FrontMaterial);
 
-									if (SetSubstrateAttributes && HorizontalMixingNode && GetBottomSubstrateAttributes && LegacyBlendNode && GetTopSubstrateAttributes)
+									if (SetMaterialAttributes 
+										&& HorizontalMixingNode 
+										&& GetBottomMaterialAttributes && BottomFrontMaterialIndex > 0 
+										&& LegacyBlendNode 
+										&& GetTopMaterialAttributes && TopFrontMaterialIndex > 0)
 									{
-										UMaterialEditingLibrary::ConnectMaterialExpressions(InputBottom, FString(), GetBottomSubstrateAttributes, FString());
-										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, HorizontalMixingNode, FString("Background"));
-										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, LegacyBlendNode, FString("A"));
+										const FString FrontMaterialName = FMaterialAttributeDefinitionMap::GetAttributeName(MP_FrontMaterial);
+										const FString MaterialAttributesName = FMaterialAttributeDefinitionMap::GetAttributeName(MP_MaterialAttributes);
 
-										UMaterialEditingLibrary::ConnectMaterialExpressions(InputTop, FString(), GetTopSubstrateAttributes, FString());
-										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT, HorizontalMixingNode, FString("Foreground"));
-										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT, LegacyBlendNode, FString("B"));
+										UMaterialEditingLibrary::ConnectMaterialExpressions(InputBottom, FString(), GetBottomMaterialAttributes, FString());
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomMaterialAttributes, FrontMaterialName, HorizontalMixingNode, FString("Background"));
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetBottomMaterialAttributes, MaterialAttributesName, LegacyBlendNode, FString("A"));
 
-										UMaterialEditingLibrary::ConnectMaterialExpressions(HorizontalMixingNode, FString(), SetSubstrateAttributes, FRONT_MATERIAL_ATTRIBUTES_TEXT);
-										UMaterialEditingLibrary::ConnectMaterialExpressions(LegacyBlendNode, FString(), SetSubstrateAttributes, NON_SUBSTRATE_ATTRIBUTES_TEXT);
+										UMaterialEditingLibrary::ConnectMaterialExpressions(InputTop, FString(), GetTopMaterialAttributes, FString());
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopMaterialAttributes, FrontMaterialName, HorizontalMixingNode, FString("Foreground"));
+										UMaterialEditingLibrary::ConnectMaterialExpressions(GetTopMaterialAttributes, MaterialAttributesName, LegacyBlendNode, FString("B"));
 
-										UMaterialEditingLibrary::ConnectMaterialExpressions(SetSubstrateAttributes, FString(), Expression, FString());
+										SetMaterialAttributes->ConnectInputAttribute(MP_FrontMaterial, HorizontalMixingNode);
+										SetMaterialAttributes->ConnectInputAttribute(MP_MaterialAttributes, LegacyBlendNode);
+
+										UMaterialEditingLibrary::ConnectMaterialExpressions(SetMaterialAttributes, FString(), Expression, FString());
 										bMaterialDirty = true;
 									}
 								}

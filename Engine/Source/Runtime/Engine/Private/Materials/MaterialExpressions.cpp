@@ -7310,6 +7310,7 @@ uint32 UMaterialExpressionBreakMaterialAttributes::GetOutputType(int32 OutputInd
 
 // -----
 
+#define GET_SET_MA_MATERIALATTRIBUTESINDEX 0
 UMaterialExpressionGetMaterialAttributes::UMaterialExpressionGetMaterialAttributes(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -7340,6 +7341,40 @@ UMaterialExpressionGetMaterialAttributes::UMaterialExpressionGetMaterialAttribut
 }
 
 #if WITH_EDITOR
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+int32 UMaterialExpressionGetMaterialAttributes::CreateOrGetOutputAttribute(EMaterialProperty Attribute)
+{
+	int32 OutputIndex = INDEX_NONE;
+	if (Attribute == MP_MaterialAttributes)
+	{
+		OutputIndex = GET_SET_MA_MATERIALATTRIBUTESINDEX;
+	}
+	else
+	{
+		FGuid AttributeId = FMaterialAttributeDefinitionMap::GetID(Attribute);
+		if (AttributeGetTypes.Find(AttributeId, OutputIndex))
+		{
+			/**
+			* Add one to compensate for the AttributeGetTypes list not containing MP_MaterialAttributes
+			* It's none trivial to iterate the Outputs list for the matching attribute so this is a simpler solution.
+			*/
+			OutputIndex++;
+		}
+		else
+		{
+			int32 GetTypesIndex = AttributeGetTypes.Add(AttributeId);
+			if(GetTypesIndex != INDEX_NONE)
+			{
+				PreEditChange(nullptr);
+				FString AttributeName = FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(AttributeGetTypes[GetTypesIndex], Material).ToString();
+				OutputIndex = Outputs.Add(FExpressionOutput(*AttributeName, 0, 0, 0, 0, 0));
+			}
+		}
+	}
+	return OutputIndex;
+}
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
+
 int32 UMaterialExpressionGetMaterialAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	// Verify setup
@@ -7363,12 +7398,12 @@ int32 UMaterialExpressionGetMaterialAttributes::Compile(class FMaterialCompiler*
 	// Compile attribute
 	int32 Result = INDEX_NONE;
 
-	if (OutputIndex == 0)
+	if (OutputIndex == GET_SET_MA_MATERIALATTRIBUTESINDEX)
 	{
 		const FGuid AttributeID = Compiler->GetMaterialAttribute();
 		Result = MaterialAttributes.CompileWithDefault(Compiler, AttributeID);
 	}
-	else if (OutputIndex > 0)
+	else if (OutputIndex > GET_SET_MA_MATERIALATTRIBUTESINDEX)
 	{
 		checkf(OutputIndex <= AttributeGetTypes.Num(), TEXT("Requested non-existent pin."));
 		Result = MaterialAttributes.CompileWithDefault(Compiler, AttributeGetTypes[OutputIndex-1]);
@@ -7393,7 +7428,7 @@ uint32 UMaterialExpressionGetMaterialAttributes::GetOutputType(int32 OutputIndex
 	uint32 OutputType = Super::GetOutputType(OutputIndex);
 
 	// Override the type if it's a ShadingModel type
-	if (OutputIndex > 0) // "0th" place is the mandatory MaterialAttribute itself, skip it
+	if (OutputIndex > GET_SET_MA_MATERIALATTRIBUTESINDEX) // "0th" place is the mandatory MaterialAttribute itself, skip it
 	{
 		ensure(OutputIndex < AttributeGetTypes.Num() + 1);
 		EMaterialValueType PinType = FMaterialAttributeDefinitionMap::GetValueType(AttributeGetTypes[OutputIndex - 1]);
@@ -7413,9 +7448,9 @@ uint32 UMaterialExpressionGetMaterialAttributes::GetOutputType(int32 OutputIndex
 bool UMaterialExpressionGetMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
 {	
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
-	if (OutputIndex >= 1 && OutputIndex <= AttributeGetTypes.Num())
+	if (--OutputIndex >= 0 && OutputIndex < AttributeGetTypes.Num())
 	{
-		return FMaterialAttributeDefinitionMap::GetValueType(AttributeGetTypes[OutputIndex - 1]) == MCT_Substrate;
+		return FMaterialAttributeDefinitionMap::GetValueType(AttributeGetTypes[OutputIndex]) == MCT_Substrate;
 	}
 #endif
 
@@ -7640,9 +7675,9 @@ int32 UMaterialExpressionSetMaterialAttributes::Compile(class FMaterialCompiler*
 	if (CompilingAttributeID == FMaterialAttributeDefinitionMap::GetID(MP_MaterialAttributes))
 	{
 		int32 Result = INDEX_NONE;
-		if (Inputs[0].GetTracedInput().Expression)
+		if (Inputs[GET_SET_MA_MATERIALATTRIBUTESINDEX].GetTracedInput().Expression)
 		{
-			Result = Inputs[0].GetTracedInput().Compile(Compiler);
+			Result = Inputs[GET_SET_MA_MATERIALATTRIBUTESINDEX].GetTracedInput().Compile(Compiler);
 		}
 		else
 		{
@@ -7685,9 +7720,9 @@ int32 UMaterialExpressionSetMaterialAttributes::Compile(class FMaterialCompiler*
 			EMaterialValueType ValueType = FMaterialAttributeDefinitionMap::GetValueType(CompilingAttributeID);
 			return Compiler->ValidCast(AttributeInput->GetTracedInput().Compile(Compiler), ValueType);
 		}
-		else if (Inputs[0].GetTracedInput().Expression)
+		else if (Inputs[GET_SET_MA_MATERIALATTRIBUTESINDEX].GetTracedInput().Expression)
 		{
-			return Inputs[0].GetTracedInput().Compile(Compiler);
+			return Inputs[GET_SET_MA_MATERIALATTRIBUTESINDEX].GetTracedInput().Compile(Compiler);
 		}
 
 		return FMaterialAttributeDefinitionMap::CompileDefaultExpression(Compiler, CompilingAttributeID);
@@ -7719,11 +7754,11 @@ FName UMaterialExpressionSetMaterialAttributes::GetInputName(int32 InputIndex) c
 {
 	FName Name;
 
-	if (InputIndex == 0)
+	if (InputIndex == GET_SET_MA_MATERIALATTRIBUTESINDEX)
 	{
 		Name = *NSLOCTEXT("SetMaterialAttributes", "InputName", "MaterialAttributes").ToString();
 	}
-	else if (InputIndex > 0)
+	else if (InputIndex > GET_SET_MA_MATERIALATTRIBUTESINDEX)
 	{
 		Name = *FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(AttributeSetTypes[InputIndex-1], Material).ToString();
 	}
@@ -7735,13 +7770,13 @@ uint32 UMaterialExpressionSetMaterialAttributes::GetInputType(int32 InputIndex)
 {
 	uint32 InputType = MCT_Unknown;
 
-	if (InputIndex == 0)
+	if (InputIndex == GET_SET_MA_MATERIALATTRIBUTESINDEX)
 	{
 		InputType = MCT_MaterialAttributes;
 	}
 	else
 	{
-		ensure(InputIndex > 0 && InputIndex < AttributeSetTypes.Num() + 1);
+		ensure(InputIndex > GET_SET_MA_MATERIALATTRIBUTESINDEX && InputIndex < AttributeSetTypes.Num() + 1);
 		InputType = FMaterialAttributeDefinitionMap::GetValueType(AttributeSetTypes[InputIndex - 1]);
 		if (InputType == MCT_ShadingModel)
 		{
@@ -7760,24 +7795,99 @@ uint32 UMaterialExpressionSetMaterialAttributes::GetInputType(int32 InputIndex)
 	return InputType;
 }
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+int32 UMaterialExpressionSetMaterialAttributes::CreateOrGetInputAttribute(EMaterialProperty Attribute)
+{
+	int32 InputsIndex = INDEX_NONE;
+	if (Attribute == MP_MaterialAttributes)
+	{
+		InputsIndex = GET_SET_MA_MATERIALATTRIBUTESINDEX;
+	}
+	else
+	{
+		FGuid AttributeId = FMaterialAttributeDefinitionMap::GetID(Attribute);
+		if (AttributeSetTypes.Find(AttributeId, InputsIndex))
+		{
+			/**
+			* Add one to compensate for the AttributeGetTypes list not containing MP_MaterialAttributes
+			* It's none trivial to iterate the Inputs list for the matching attribute so this is a simpler solution.
+			*/
+			InputsIndex++;
+		}
+		else
+		{
+			int32 SetTypesIndex = AttributeSetTypes.Add(AttributeId);
+			if(SetTypesIndex != INDEX_NONE)
+			{
+				PreEditChange(nullptr);
+				InputsIndex = Inputs.Add(FExpressionInput());
+				if (Inputs.IsValidIndex(InputsIndex))
+				{
+					Inputs[InputsIndex].InputName = FName(*FMaterialAttributeDefinitionMap::GetDisplayNameForMaterial(AttributeSetTypes[SetTypesIndex], Material).ToString());
+				}
+			}
+		}
+	}
+	return InputsIndex;
+}
+
+bool UMaterialExpressionSetMaterialAttributes::ConnectInputAttribute(EMaterialProperty Attribute, UMaterialExpression* Expression, int32 OutputIndex)
+{
+	int32 Index = CreateOrGetInputAttribute(Attribute);
+	if(Expression && OutputIndex != INDEX_NONE && Inputs.IsValidIndex(Index))
+	{
+		Inputs[Index].Connect(OutputIndex, Expression);
+		return Inputs[Index].IsConnected();
+	}
+	return false;
+}
+
+bool UMaterialExpressionSetMaterialAttributes::GetSubstrateMaterialInputIndex(int32 OutputIndex, int32& InputIndex)
+{
+	for (InputIndex = Inputs.Num() - 1; InputIndex >= GET_SET_MA_MATERIALATTRIBUTESINDEX; InputIndex--)
+	{
+		if (GetInputType(InputIndex) == MCT_Substrate)
+		{			
+			return Inputs[InputIndex].IsConnected();
+		}
+		else if (GetInputType(InputIndex) == MCT_MaterialAttributes && Inputs[InputIndex].IsConnected())
+		{
+			return Inputs[InputIndex].Expression->IsResultSubstrateMaterial(Inputs[InputIndex].OutputIndex);
+		}
+	}
+
+	return false;
+}
+#endif // ENABLE_MATERIAL_LAYER_PROTOTYPE
+
 bool UMaterialExpressionSetMaterialAttributes::IsResultSubstrateMaterial(int32 OutputIndex)
 {
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
-	if (Inputs[0].IsConnected())
+	int32 InputIndex = INDEX_NONE;
+	return GetSubstrateMaterialInputIndex(OutputIndex, InputIndex);
+#else
+	return false;
+#endif
+}
+
+void UMaterialExpressionSetMaterialAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
+{
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	int32 InputIndex = INDEX_NONE;
+	if(GetSubstrateMaterialInputIndex(OutputIndex, InputIndex))
 	{
-		Inputs[0].Expression->IsResultSubstrateMaterial(Inputs[0].OutputIndex);
+		Inputs[InputIndex].Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, Inputs[InputIndex].OutputIndex);
 	}
 #endif
-
-	return false;
 }
 
 FSubstrateOperator* UMaterialExpressionSetMaterialAttributes::SubstrateGenerateMaterialTopologyTree(FMaterialCompiler* Compiler, UMaterialExpression* Parent, int32 OutputIndex)
 {
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
-	if(IsResultSubstrateMaterial(OutputIndex))
+	int32 InputIndex = INDEX_NONE;
+	if (GetSubstrateMaterialInputIndex(OutputIndex, InputIndex))
 	{
-		Inputs[0].Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, Inputs[0].OutputIndex);
+		return Inputs[InputIndex].Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, Inputs[InputIndex].OutputIndex);
 	}
 #endif
 	return nullptr;
@@ -15980,11 +16090,37 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 	{
 		for (UMaterialExpression* Expression : Function->GetExpressions())
 		{
-			if (Expression->IsA<UMaterialExpressionSubstrateBSDF>()
+			if (!Expression || Expression->IsA<UMaterialExpressionSubstrateBSDF>()
 				|| Expression->IsA<UMaterialExpressionSubstrateUtilityBase>())
 			{
 				//If Substrate nodes are present, do not convert this function, assume previously converted or Substrate MF
 				return;
+			}
+
+			//Check if we have already applied FrontMaterial logic to the Set/GetMaterialAttributes nodes, and if so, skip further processing.
+			if(UMaterialExpressionSetMaterialAttributes* SetAttributes = Cast<UMaterialExpressionSetMaterialAttributes>(Expression))
+			{
+				TArrayView<FExpressionInput*> InputsArray = SetAttributes->GetInputsView();
+				//0 index is always MaterialAttributes so no need to check that entry
+				for(int32 InputIndex = InputsArray.Num() - 1; InputIndex > 0; InputIndex--)
+				{
+					if(SetAttributes->GetInputType(InputIndex) == MCT_Substrate)
+					{
+						return;
+					}
+				}
+			}
+
+			if (UMaterialExpressionGetMaterialAttributes* GetAttributes = Cast<UMaterialExpressionGetMaterialAttributes>(Expression))
+			{
+				//0 index is always MaterialAttributes so no need to check that entry
+				for(int32 OutputIndex = GetAttributes->GetOutputs().Num() - 1; OutputIndex > 0; OutputIndex--)
+				{
+					if (GetAttributes->GetOutputType(OutputIndex) == MCT_Substrate)
+					{
+						return;
+					}
+				}
 			}
 		}
 	}
@@ -16006,7 +16142,7 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 		NewNode->MaterialExpressionEditorY = ExistingNode->MaterialExpressionEditorY + DownOffset;
 	};
 
-	auto ReplaceNodeAndMoveToTheRight = [](UMaterialExpression* ExistingNode, UMaterialExpression* NewNode, int32 RightOffset = 350)
+	auto ReplaceNodeAndMoveToTheRight = [](UMaterialExpression* ExistingNode, UMaterialExpression* NewNode, int32 RightOffset = 300)
 	{
 		NewNode->MaterialExpressionEditorX = ExistingNode->MaterialExpressionEditorX;
 		NewNode->MaterialExpressionEditorY = ExistingNode->MaterialExpressionEditorY;
@@ -16104,14 +16240,14 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 			else if (InputExpression->IsA<UMaterialExpressionSetMaterialAttributes>() || InputExpression->IsA<UMaterialExpressionMakeMaterialAttributes>())
 			{
 				//Same behaviour as above, but for now extends the Make/Set nodes with conversion, so we don't remove the existing node in this case.
-				UMaterialExpressionSubstrateSetAttributes* SetSubstrateNode = ReplacementNodeMapping.Contains(InputExpression) ? Cast<UMaterialExpressionSubstrateSetAttributes>(*ReplacementNodeMapping.Find(InputExpression)) : nullptr;
-				if(!SetSubstrateNode)
+				UMaterialExpressionSetMaterialAttributes* SetAttributesNode = ReplacementNodeMapping.Contains(InputExpression) ? Cast<UMaterialExpressionSetMaterialAttributes>(*ReplacementNodeMapping.Find(InputExpression)) : nullptr;
+				if(!SetAttributesNode)
 				{
-					SetSubstrateNode = Cast<UMaterialExpressionSubstrateSetAttributes>(ReplacementNodeMapping.Add(InputExpression, NewObject<UMaterialExpressionSubstrateSetAttributes>(this)));
-					SetSubstrateNode->Function = this;
-					SetSubstrateNode->NonSubstrateAttributes.Connect(0, InputExpression);
-					Expressions.Add(SetSubstrateNode);
-					RecursedExpressions.Add(SetSubstrateNode);
+					SetAttributesNode = Cast<UMaterialExpressionSetMaterialAttributes>(ReplacementNodeMapping.Add(InputExpression, NewObject<UMaterialExpressionSetMaterialAttributes>(this)));
+					SetAttributesNode->Function = this;
+					SetAttributesNode->ConnectInputAttribute(MP_MaterialAttributes, InputExpression);
+					Expressions.Add(SetAttributesNode);
+					RecursedExpressions.Add(SetAttributesNode);
 
 					UMaterialExpressionSubstrateConvertMaterialAttributes* ConvertNode = NewObject<UMaterialExpressionSubstrateConvertMaterialAttributes>(this);
 					ConvertNode->Function = this;
@@ -16120,15 +16256,15 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 					Expressions.Add(ConvertNode);
 					RecursedExpressions.Add(ConvertNode);
 
-					SetSubstrateNode->FrontMaterial.Connect(0, ConvertNode);
+					SetAttributesNode->ConnectInputAttribute(MP_FrontMaterial, ConvertNode);
 
 					PlaceBelowNode(InputExpression, ConvertNode);
-					PlaceBelowNode(ConvertNode, SetSubstrateNode, 250);
+					PlaceBelowNode(ConvertNode, SetAttributesNode, 250);
 				}
 
-				if(SetSubstrateNode)
+				if(SetAttributesNode)
 				{
-					Input->Connect(0, SetSubstrateNode);
+					Input->Connect(0, SetAttributesNode);
 					bBlendConverted = true;
 				}
 			}
@@ -16178,6 +16314,7 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 		ConvertAttributesNode->MaterialAttributes.Connect(0, OutputNode->A.Expression);
 		ConvertAttributesNode->ShadingModelOverride = MSM_DefaultLit;
 		ReplaceNodeAndMoveToTheRight(OutputNode, ConvertAttributesNode);
+		PlaceBelowNode(ConvertAttributesNode, ConvertAttributesNode);
 
 		//Add Custom logic connections
 		TArray<class UMaterialExpressionCustomOutput*> CustomOutputExpressions;
@@ -16213,16 +16350,16 @@ void UMaterialFunction::ConvertExpressionsBetweenLegacyAndSubstrate()
 		 * Layer MFs differ from materials in that they only have 1 output,
 		 * so we use the Set Substrate Attributes node to collect the Front Material and MAs to pass to the next function in the layer stack.
 		 */
-		UMaterialExpressionSubstrateSetAttributes* SetAttributesNode = NewObject<UMaterialExpressionSubstrateSetAttributes>(this);
-		SetAttributesNode->Function = this;
-		SetAttributesNode->NonSubstrateAttributes.Connect(0, OutputNode->A.Expression);
-		SetAttributesNode->FrontMaterial.Connect(0, ConvertAttributesNode);
-		ReplaceNodeAndMoveToTheRight(OutputNode, SetAttributesNode);
+		UMaterialExpressionSetMaterialAttributes* SetMatAttributesNode = NewObject<UMaterialExpressionSetMaterialAttributes>(this);
+		SetMatAttributesNode->Function = this;
+		SetMatAttributesNode->ConnectInputAttribute(MP_MaterialAttributes, OutputNode->A.Expression);
+		SetMatAttributesNode->ConnectInputAttribute(MP_FrontMaterial, ConvertAttributesNode);
+		ReplaceNodeAndMoveToTheRight(OutputNode, SetMatAttributesNode);
 
-		Expressions.EmplaceAt(1, SetAttributesNode);
+		Expressions.EmplaceAt(1, SetMatAttributesNode);
 		Expressions.EmplaceAt(2, ConvertAttributesNode);
 
-		OutputNode->A.Connect(0, SetAttributesNode);
+		OutputNode->A.Connect(0, SetMatAttributesNode);
 	}
 	MoveNodeInHorizonalAxis(OutputNode, 50);
 	OutputNode->bCollapsed = true;
@@ -29888,247 +30025,6 @@ bool UMaterialExpressionSubstrateConvertMaterialAttributes::HasSSS() const
 }
 
 #endif // WITH_EDITOR
-
-// Substrate Attributes Start -----
-UMaterialExpressionSubstrateGetAttributes::UMaterialExpressionSubstrateGetAttributes(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-#if ENABLE_MATERIAL_LAYER_PROTOTYPE
-#if WITH_EDITORONLY_DATA
-	// Structure to hold one-time initialization
-	struct FConstructorStatics
-	{
-		FText NAME_SubstrateAttributes;
-		FConstructorStatics()
-			: NAME_SubstrateAttributes(LOCTEXT("SubstrateAttributes", "Substrate Attributes"))
-		{
-		}
-	};
-
-	static FConstructorStatics ConstructorStatics;
-
-	bShowOutputNameOnPin = true;
-	bShowMaskColorsOnPin = false;
-
-	MenuCategories.Add(ConstructorStatics.NAME_SubstrateAttributes); //Check this setup for other Substrate nodes
-
-	Outputs.Reset();
-	Outputs.SetNum(ESubstrateAttributeIndex::MSA_MAX);
-	Outputs[ESubstrateAttributeIndex::MSA_NonSubstrateAttributes] = FExpressionOutput(NON_SUBSTRATE_ATTRIBUTES_TEXT);
-	Outputs[ESubstrateAttributeIndex::MSA_FrontMaterial] = FExpressionOutput(FRONT_MATERIAL_ATTRIBUTES_TEXT);
-#endif
-
-#if WITH_EDITOR
-	CachedInputs.Empty();
-	CachedInputs.Add(&MaterialAttributes);
-#endif
-#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
-}
-
-#if ENABLE_MATERIAL_LAYER_PROTOTYPE
-#if WITH_EDITOR
-void UMaterialExpressionSubstrateGetAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (GraphNode && PropertyChangedEvent.Property != nullptr)
-	{
-		GraphNode->ReconstructNode();
-	}
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-
-int32 UMaterialExpressionSubstrateGetAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
-{
-	int32 Ret = INDEX_NONE;
-
-	FGuid AttributeId = Compiler->GetMaterialAttribute();
-	EMaterialProperty Property = FMaterialAttributeDefinitionMap::GetProperty(AttributeId);
-
-	if ((OutputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes && Property != MP_FrontMaterial)
-		|| (OutputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial && Property == MP_FrontMaterial))
-	{
-		Ret = MaterialAttributes.CompileWithDefault(Compiler, AttributeId);
-	}
-
-	return Ret;
-}
-
-void UMaterialExpressionSubstrateGetAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
-{
-	if (MaterialAttributes.Expression && IsResultSubstrateMaterial(OutputIndex))
-	{
-		MaterialAttributes.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, MaterialAttributes.OutputIndex);
-	}
-}
-
-FSubstrateOperator* UMaterialExpressionSubstrateGetAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
-{
-	if (MaterialAttributes.Expression && IsResultSubstrateMaterial(OutputIndex))
-	{
-		return MaterialAttributes.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, MaterialAttributes.OutputIndex);
-	}
-
-	return nullptr;
-}
-
-void UMaterialExpressionSubstrateGetAttributes::GetCaption(TArray<FString>& OutCaptions) const
-{
-	OutCaptions.Add(TEXT("Get Substrate Attributes"));
-}
-
-
-FName UMaterialExpressionSubstrateGetAttributes::GetInputName(int32 InputIndex) const
-{
-	if (0 == InputIndex)
-	{
-		return *NSLOCTEXT("GetSubstrateAttributes", "InputName", "Material Attributes").ToString();
-	}
-	return NAME_None;
-}
-
-bool UMaterialExpressionSubstrateGetAttributes::IsInputConnectionRequired(int32 InputIndex) const
-{
-	return true;
-}
-
-uint32 UMaterialExpressionSubstrateGetAttributes::GetInputType(int32 InputIndex)
-{
-	return MCT_MaterialAttributes;
-}
-
-uint32 UMaterialExpressionSubstrateGetAttributes::GetOutputType(int32 OutputIndex)
-{
-	switch (OutputIndex)
-	{
-	case ESubstrateAttributeIndex::MSA_FrontMaterial: return MCT_Substrate;
-	case ESubstrateAttributeIndex::MSA_NonSubstrateAttributes: return MCT_MaterialAttributes;
-	}
-	check(false);
-	return MCT_Float1;
-}
-#endif // WITH_EDITOR
-#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
-
-UMaterialExpressionSubstrateSetAttributes::UMaterialExpressionSubstrateSetAttributes(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-#if ENABLE_MATERIAL_LAYER_PROTOTYPE
-#if WITH_EDITORONLY_DATA
-	// Structure to hold one-time initialization
-	struct FConstructorStatics
-	{
-		FText NAME_SubstrateAttributes;
-		FConstructorStatics()
-			: NAME_SubstrateAttributes(LOCTEXT("SubstrateAttributes", "Substrate Attributes"))
-		{
-		}
-	};
-
-	static FConstructorStatics ConstructorStatics;
-
-	bShowOutputNameOnPin = true;
-	bShowMaskColorsOnPin = false;
-
-	MenuCategories.Add(ConstructorStatics.NAME_SubstrateAttributes);
-
-	Outputs.Reset();
-	Outputs.Add(FExpressionOutput(TEXT("Material Attributes")));
-#endif
-
-#if WITH_EDITOR
-	CachedInputs.Empty();
-	CachedInputs.Add(&FrontMaterial);
-	CachedInputs.Add(&NonSubstrateAttributes);
-#endif
-#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
-}
-
-#if ENABLE_MATERIAL_LAYER_PROTOTYPE
-#if WITH_EDITOR
-void UMaterialExpressionSubstrateSetAttributes::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	if (GraphNode && PropertyChangedEvent.Property != nullptr)
-	{
-		GraphNode->ReconstructNode();
-	}
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-
-int32 UMaterialExpressionSubstrateSetAttributes::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
-{
-	int32 Ret = INDEX_NONE;
-	FExpressionInput* Expression = nullptr;
-
-	FGuid AttributeId = Compiler->GetMaterialAttribute();
-	if (AttributeId == FMaterialAttributeDefinitionMap::GetID(MP_FrontMaterial))
-	{
-		Ret = FrontMaterial.Compile(Compiler);
-	}
-	else
-	{
-		Ret = NonSubstrateAttributes.CompileWithDefault(Compiler, AttributeId);
-	}
-
-	return Ret;
-}
-
-void UMaterialExpressionSubstrateSetAttributes::GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex)
-{
-	if (FrontMaterial.Expression)
-	{
-		FrontMaterial.Expression->GatherSubstrateMaterialInfo(SubstrateMaterialInfo, FrontMaterial.OutputIndex);
-	}
-}
-
-FSubstrateOperator* UMaterialExpressionSubstrateSetAttributes::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
-{
-	if (FrontMaterial.Expression)
-	{
-		return FrontMaterial.Expression->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, FrontMaterial.OutputIndex);
-	}
-
-	return nullptr;
-}
-
-void UMaterialExpressionSubstrateSetAttributes::GetCaption(TArray<FString>& OutCaptions) const
-{
-	OutCaptions.Add(TEXT("Set Substrate Attributes"));
-}
-
-
-FName UMaterialExpressionSubstrateSetAttributes::GetInputName(int32 InputIndex) const
-{
-	if (InputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes)
-	{
-		return FName(NON_SUBSTRATE_ATTRIBUTES_TEXT);
-	}
-	if (InputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial)
-	{
-		return FName(FRONT_MATERIAL_ATTRIBUTES_TEXT);
-	}
-	return NAME_None;
-}
-
-uint32 UMaterialExpressionSubstrateSetAttributes::GetInputType(int32 InputIndex)
-{
-	if (InputIndex == ESubstrateAttributeIndex::MSA_NonSubstrateAttributes)
-	{
-		return MCT_MaterialAttributes;
-	}
-	if (InputIndex == ESubstrateAttributeIndex::MSA_FrontMaterial)
-	{
-		return MCT_Substrate;
-	}
-	return Super::GetInputType(InputIndex);
-}
-
-bool UMaterialExpressionSubstrateSetAttributes::IsInputConnectionRequired(int32 InputIndex) const
-{
-	return true;
-}
-#endif // WITH_EDITOR
-#endif // ENABLE_MATERIAL_LAYER_PROTOTYPE
-
-// Substrate Attributes End -----
 
 UMaterialExpressionExecBegin::UMaterialExpressionExecBegin(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

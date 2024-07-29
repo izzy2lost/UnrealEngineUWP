@@ -30,6 +30,7 @@
 #include "Materials/MaterialExpressionMakeMaterialAttributes.h"
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
+#include "Materials/MaterialExpressionGetMaterialAttributes.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
@@ -3409,11 +3410,11 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 		if(FinalNode && LayersNode)
 		{
 			//Separate the layers/blends MAs to Substrate/Non-Substrate respectively and connect to their relevant material output
-			UMaterialExpressionSubstrateGetAttributes* GetAttributesNode = NewObject<UMaterialExpressionSubstrateGetAttributes>(this);
+			UMaterialExpressionGetMaterialAttributes* GetAttributesNode = NewObject<UMaterialExpressionGetMaterialAttributes>(this);
 			GetAttributesNode->Material = this;
 			GetAttributesNode->MaterialAttributes.Connect(0, FinalNode);
-			EditorOnly->FrontMaterial.Connect(ESubstrateAttributeIndex::MSA_FrontMaterial, GetAttributesNode);
-			EditorOnly->MaterialAttributes.Connect(ESubstrateAttributeIndex::MSA_NonSubstrateAttributes, GetAttributesNode);
+			EditorOnly->FrontMaterial.Connect(GetAttributesNode->CreateOrGetOutputAttribute(MP_FrontMaterial), GetAttributesNode);
+			EditorOnly->MaterialAttributes.Connect(GetAttributesNode->CreateOrGetOutputAttribute(MP_MaterialAttributes), GetAttributesNode);
 			SetPosXAndMoveReferenceToTheRight(GetAttributesNode);
 
 			//If a non-Substrate default input is connected to the MLA node, convert it.
@@ -3424,10 +3425,10 @@ void UMaterial::ConvertMaterialToSubstrateMaterial()
 				ConvertAttributeNode->MaterialAttributes.Connect(LayersNode->Input.OutputIndex, LayersNode->Input.Expression);
 				ConvertAttributeNode->ShadingModelOverride = MSM_DefaultLit;
 
-				UMaterialExpressionSubstrateSetAttributes* SetAttributesNode = NewObject<UMaterialExpressionSubstrateSetAttributes>(this);
+				UMaterialExpressionSetMaterialAttributes* SetAttributesNode = NewObject<UMaterialExpressionSetMaterialAttributes>(this);
 				SetAttributesNode->Material = this;
-				SetAttributesNode->FrontMaterial.Connect(0, ConvertAttributeNode);
-				SetAttributesNode->NonSubstrateAttributes.Connect(LayersNode->Input.OutputIndex, LayersNode->Input.Expression);
+				SetAttributesNode->ConnectInputAttribute(MP_FrontMaterial, ConvertAttributeNode);
+				SetAttributesNode->ConnectInputAttribute(MP_MaterialAttributes, LayersNode->Input.Expression, LayersNode->Input.OutputIndex);
 
 				LayersNode->Input.Connect(0, SetAttributesNode);
 
