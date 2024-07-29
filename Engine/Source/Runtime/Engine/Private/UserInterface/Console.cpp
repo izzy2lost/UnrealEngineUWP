@@ -660,6 +660,11 @@ void UConsole::OutputTextLine(const FString& Text)
 
 	// Add the line
 	Scrollback.Add(Text);
+
+	if (Selection.bActive)
+	{
+		Selection.Offset += TextH;
+	}
 }
 
 
@@ -1275,6 +1280,25 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool UConsole::InputKey_Open(FInputDeviceId DeviceId, FKey Key, EInputEvent Event, float AmountDepressed, bool bGamepad)
 {
+	if (Key == EKeys::LeftMouseButton)
+	{
+		if (Event == IE_Pressed)
+		{
+			Selection.MousePosDown = FVector2D(Selection.MousePosX, Selection.MousePosY);
+			Selection.bActive = true;
+			Selection.bMade = false;
+			Selection.Offset = 0.0f;
+			return true;
+		}
+		else if (Event == IE_Released)
+		{
+			Selection.MousePosUp = FVector2D(Selection.MousePosX, Selection.MousePosY);
+			Selection.bCapture = true;
+			Selection.bMade = true;
+			return true;
+		}
+	}
+
 	if (Key == EKeys::PageUp || Key == EKeys::MouseScrollUp)
 	{
 		if (SBPos < Scrollback.Num() - 1)
@@ -1332,33 +1356,34 @@ void UConsole::PostRender_Console_Open(UCanvas* Canvas)
 	const bool bDPIAwareStringMeasurement = true;
 
 	// determine the height of the text
-	float xl, yl;
-	Canvas->StrLen(Font, TEXT("M"),xl,yl, bDPIAwareStringMeasurement);
+	float xl;
+	Canvas->StrLen(Font, TEXT("M"), xl, TextH, bDPIAwareStringMeasurement);
 	xl /= DPIScale;
-	yl /= DPIScale;
-	// Background
-	FLinearColor BackgroundColor = ConsoleDefs::AutocompleteBackgroundColor.ReinterpretAsLinear();
-	BackgroundColor.A = ConsoleSettings->BackgroundOpacityPercentage / 100.0f;
-	FCanvasTileItem ConsoleTile(FVector2D(LeftPos, 0.0f), DefaultTexture_Black->GetResource(), FVector2D(ClipX, Height + TopPos - yl), FVector2D(0.0f, 0.0f), FVector2D(1.0f, 1.0f), BackgroundColor);
+	TextH /= DPIScale;
 
-	// Preserve alpha to allow single-pass composite
-	ConsoleTile.BlendMode = SE_BLEND_AlphaBlend;
-
-	Canvas->DrawItem(ConsoleTile);
-
-	// figure out which element of the scrollback buffer to should appear first (at the top of the screen)
-	int32 idx = SBHead - SBPos;
-
-	float y = Height - yl;
+	float y = Height - TextH;
 
 	if (Scrollback.Num())
 	{
-		FCanvasTextItem ConsoleText(FVector2D(LeftPos, TopPos + Height - 5 - yl), FText::FromString(TEXT("")), Font, ConsoleSettings->InputColor);
-		// change the text color to white
-		ConsoleText.SetColor(FLinearColor::White);
+		FLinearColor BackgroundColorBlack = ConsoleDefs::AutocompleteBackgroundColor.ReinterpretAsLinear();
+		FLinearColor BackgroundColorWhite = FLinearColor::White;
+		BackgroundColorBlack.A = ConsoleSettings->BackgroundOpacityPercentage / 100.0f;
+		BackgroundColorWhite.A = ConsoleSettings->BackgroundOpacityPercentage / 100.0f;
+
+		FCanvasTextItem ConsoleText(FVector2D(LeftPos, TopPos + Height - 5 - TextH), FText::FromString(TEXT("")), Font, ConsoleSettings->InputColor);
+
+		FCanvasTileItem ConsoleTileBlack(FVector2D(LeftPos, 0.0f), DefaultTexture_Black->GetResource(), FVector2D(ClipX, Height + TopPos - TextH), BackgroundColorBlack);
+		FCanvasTileItem ConsoleTileWhite(FVector2D(LeftPos, 0.0f), DefaultTexture_White->GetResource(), FVector2D(ClipX, Height + TopPos - TextH), BackgroundColorWhite);
+		ConsoleTileBlack.BlendMode = SE_BLEND_AlphaBlend;		// Preserve alpha to allow single-pass composite
+		ConsoleTileWhite.BlendMode = SE_BLEND_AlphaBlend;		// Preserve alpha to allow single-pass composite
+
+		// figure out which element of the scrollback buffer should appear first (at the bottom of the scrollback area)
+		int32 idx = SBHead - SBPos;
+
+		TArray<FString> SelectedLines;
 
 		// while we have enough room to draw another line and there are more lines to draw
-		while (y > -yl && idx >= 0)
+		while (y > -TextH && idx >= 0)
 		{
 			float PenX;
 			float PenY;
@@ -1373,19 +1398,94 @@ void UConsole::PostRender_Console_Open(UCanvas* Canvas)
 				Canvas->StrLen(Font, Scrollback[idx], ScrollLineXL, ScrollLineYL, bDPIAwareStringMeasurement);
 				ScrollLineXL /= DPIScale;
 				ScrollLineYL /= DPIScale;
-				if (ScrollLineYL > yl)
+				if (ScrollLineYL > TextH)
 				{
-					y -= (ScrollLineYL - yl);
+					y -= (ScrollLineYL - TextH);
 					PenX = LeftPos;
 					PenY = TopPos + y;
+				}
+
+				bool bLineSelected = false;
+				if (Selection.bActive)
+				{
+					// Check if selection range overlaps current line
+					float x0 = PenY;
+					float x1 = PenY + TextH;
+					float y0 = Selection.MousePosDown.Y;
+					float y1 = Selection.bMade ? Selection.MousePosUp.Y : Selection.MousePosY;
+
+					// Adjust for new lines added since selection was initiated
+					y0 -= Selection.Offset;
+					y1 -= Selection.Offset;
+
+					// Swap to keep range in order, to allow drag selecting down or up
+					if (y0 > y1)
+					{
+						float tmp = y0;
+						y0 = y1;
+						y1 = tmp;
+					}
+
+					auto Overlaps = [](float x0, float x1, float y0, float y1)
+					{
+						return (x0 <= y1) && (x1 >= y0);
+					};
+
+					bLineSelected = Overlaps(x0, x1, y0, y1);
+				}
+
+				if (bLineSelected)
+				{
+					// Selected line (black text on white background)
+					ConsoleTileWhite.Position = FVector2D(LeftPos, PenY);
+					ConsoleTileWhite.Size = FVector2D(ClipX, TextH);
+					Canvas->DrawItem(ConsoleTileWhite);
+
+					ConsoleText.SetColor(FLinearColor::Black);
+
+					if (Selection.bCapture)
+					{
+						SelectedLines.Add(Scrollback[idx]);
+					}
+				}
+				else
+				{
+					// Unselected line (white text on black background)
+					ConsoleTileBlack.Position = FVector2D(LeftPos, PenY);
+					ConsoleTileBlack.Size = FVector2D(ClipX, TextH);
+					Canvas->DrawItem(ConsoleTileBlack);
+
+					ConsoleText.SetColor(FLinearColor::White);
 				}
 
 				ConsoleText.Text = FText::FromString(Scrollback[idx]);
 				Canvas->DrawItem(ConsoleText, PenX, PenY);
 			}
 			idx--;
-			y -= yl;
+			y -= TextH;
 		}
+
+		if (Selection.bCapture && !SelectedLines.IsEmpty())
+		{
+			Algo::Reverse(SelectedLines);
+			const FString SelectedText = FString::Join(SelectedLines, LINE_TERMINATOR);
+
+			FPlatformApplicationMisc::ClipboardCopy(*SelectedText);
+
+			Selection.bCapture = false;		// Finished copy to clipboard when mouse is released
+		}
+	}
+
+	{
+		// Draw any remaining empty scrollback area to the top of viewport
+
+		FLinearColor BackgroundColor = ConsoleDefs::AutocompleteBackgroundColor.ReinterpretAsLinear();
+		BackgroundColor.A = ConsoleSettings->BackgroundOpacityPercentage / 100.0f;
+
+		FCanvasTileItem ConsoleTile(FVector2D(LeftPos, 0.0f), DefaultTexture_Black->GetResource(), FVector2D(ClipX, y + TextH), BackgroundColor);
+		ConsoleTile.BlendMode = SE_BLEND_AlphaBlend;			// Preserve alpha to allow single-pass composite
+
+		Canvas->DrawItem(ConsoleTile);
 	}
 
 	PostRender_InputLine(Canvas, FIntPoint(LeftPos, TopPos + Height + 6));
@@ -1462,12 +1562,26 @@ bool UConsole::InputKey(FInputDeviceId DeviceId, FKey Key, EInputEvent Event, fl
 	return bWasConsumed;
 }
 
+void UConsole::MouseMove(FViewport* Viewport, int32 X, int32 Y)
+{
+	Selection.MousePosX = X;
+	Selection.MousePosY = Y;
+}
+
+void UConsole::CapturedMouseMove(FViewport* InViewport, int32 X, int32 Y)
+{
+	Selection.MousePosX = X;
+	Selection.MousePosY = Y;
+}
 
 void UConsole::PostRender_Console(UCanvas* Canvas)
 {
-	if (ConsoleState != NAME_None)
+	if (ConsoleState == NAME_None)
 	{
-		Canvas->ApplySafeZoneTransform();
+		return;
+	}
+
+	Canvas->ApplySafeZoneTransform();
 
 	if (ConsoleState == NAME_Typing)
 	{
@@ -1478,8 +1592,7 @@ void UConsole::PostRender_Console(UCanvas* Canvas)
 		PostRender_Console_Open(Canvas);
 	}
 
-		Canvas->PopSafeZoneTransform();
-	}
+	Canvas->PopSafeZoneTransform();
 }
 
 void UConsole::PostRender_InputLine(UCanvas* Canvas, FIntPoint UserInputLinePos)
@@ -1718,6 +1831,9 @@ void UConsole::FakeGotoState(FName NextStateName)
 	else if (ConsoleState == NAME_Open)
 	{
 		EndState_Open(NextStateName);
+
+		// Restore mouse capture for non-open states
+		GetOuterUGameViewportClient()->SetMouseCaptureMode(EMouseCaptureMode::CapturePermanently);
 	}
 	if (NextStateName == NAME_Typing)
 	{
@@ -1739,6 +1855,13 @@ void UConsole::FakeGotoState(FName NextStateName)
 
 		// Console has opened
 		OnConsoleActivationStateChanged.Broadcast(true);
+
+		// Ensure we receive IE_Pressed with LeftMouseButton
+		GetOuterUGameViewportClient()->SetMouseCaptureMode(EMouseCaptureMode::CaptureDuringMouseDown);
+		Selection.bActive = false;
+		Selection.bCapture = false;
+		Selection.bMade = false;
+		Selection.Offset = 0.0f;
 	}
 	else if (NextStateName == NAME_None)
 	{

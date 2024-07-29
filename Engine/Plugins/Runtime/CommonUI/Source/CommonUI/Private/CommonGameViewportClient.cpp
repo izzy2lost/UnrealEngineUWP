@@ -101,6 +101,22 @@ bool UCommonGameViewportClient::InputTouch(FViewport* InViewport, int32 Controll
 	return Super::InputTouch(InViewport, ControllerId, Handle, Type, TouchLocation, Force, DeviceTimestamp, TouchpadIndex);
 }
 
+void UCommonGameViewportClient::MouseMove(FViewport* InViewport, int32 X, int32 Y)
+{
+	if (ViewportConsole)
+	{
+		ViewportConsole->MouseMove(InViewport, X, Y);
+	}
+}
+
+void UCommonGameViewportClient::CapturedMouseMove(FViewport* InViewport, int32 X, int32 Y)
+{
+	if (ViewportConsole)
+	{
+		ViewportConsole->CapturedMouseMove(InViewport, X, Y);
+	}
+}
+
 void UCommonGameViewportClient::HandleRerouteInput(FInputDeviceId DeviceId, FKey Key, EInputEvent EventType, FReply& Reply)
 {
 	FPlatformUserId OwningPlatformUser = IPlatformInputDeviceMapper::Get().GetUserForInputDevice(DeviceId);

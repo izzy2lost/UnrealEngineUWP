@@ -28,6 +28,8 @@ public:
 	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 	virtual bool InputAxis(FViewport* InViewport, FInputDeviceId InputDevice, FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad) override;
 	virtual bool InputTouch(FViewport* InViewport, int32 ControllerId, uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex) override;
+	virtual void MouseMove(FViewport* InViewport, int32 X, int32 Y) override;
+	virtual void CapturedMouseMove(FViewport* InViewport, int32 X, int32 Y) override;
 	// UGameViewportClient interface end
 
 	FOnRerouteInputDelegate& OnRerouteInput() { return RerouteInput; }

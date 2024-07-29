@@ -11,6 +11,7 @@
 
 #include "Console.generated.h"
 
+class FViewport;
 class SWidget;
 struct FAutoCompleteCommand;
 
@@ -135,6 +136,21 @@ class UConsole
 
 	/** Current list of matching commands for auto-complete, @see UpdateCompleteIndices() */
 	TArray<FAutoCompleteCommand> AutoComplete;
+
+	// Scrollback region selection mouse and state
+	struct ScrollbackSelection
+	{
+		FVector2D MousePosDown = FVector2D(0, 0);
+		FVector2D MousePosUp = FVector2D(0, 0);
+		int32 MousePosX = 0;
+		int32 MousePosY = 0;
+		bool bActive = false;
+		bool bCapture = false;
+		bool bMade = false;
+		float Offset = 0.0f;
+	} Selection;
+
+	float TextH = 15.0f;
 
 	ENGINE_API ~UConsole();
 
@@ -294,6 +310,9 @@ class UConsole
 	UE_DEPRECATED(5.1, "This version of InputTouch has been deprecated. Please use the version that takes an FInputDeviceId instead")
 	virtual bool InputTouch(int32 ControllerId, uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex) { return false; }
 	virtual bool InputTouch(FInputDeviceId DevideId, uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex) { return false; }
+
+	ENGINE_API virtual void MouseMove(FViewport* Viewport, int32 X, int32 Y);
+	ENGINE_API virtual void CapturedMouseMove(FViewport* InViewport, int32 X, int32 Y);
 
 	/** render to the canvas based on the console state */
 	ENGINE_API virtual void PostRender_Console(class UCanvas* Canvas);
