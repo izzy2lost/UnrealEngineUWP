@@ -30,7 +30,5 @@ public class TedsCore : ModuleRules
 			PrivateDependencyModuleNames.AddRange(new string[] {});
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});
 		}
-
-		ShortName = "TElmntsDataStor";
 	}
 }

@@ -5,7 +5,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "UObject/ObjectMacros.h"
 
-#include "TypedElementSlateWidgetReferenceColumnUpdateProcessor.generated.h"
+#include "WidgetReferenceColumnUpdateProcessor.generated.h"
 
 /**
  * Queries that check whether or not a widget still exists. If it has been deleted
@@ -13,12 +13,12 @@
  * the FTypedElementSlateWidgetReferenceDeletesRowTag was found.
  */
 UCLASS()
-class UTypedElementSlateWidgetReferenceColumnUpdateFactory : public UTypedElementDataStorageFactory
+class UWidgetReferenceColumnUpdateFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementSlateWidgetReferenceColumnUpdateFactory() override = default;
+	~UWidgetReferenceColumnUpdateFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
