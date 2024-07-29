@@ -12,6 +12,7 @@
 #include "GameplayTagContainer.h"
 #include "MuCO/DescriptorHash.h"
 #include "UObject/Package.h"
+#include "Tasks/Task.h"
 
 #include "CustomizableObjectInstancePrivate.generated.h"
 
@@ -194,12 +195,15 @@ public:
 
 	// Handle used to store a streaming request operation if one is ongoing.
 	TSharedPtr<FStreamableHandle> StreamingHandle;
+	UE::Tasks::FTaskEvent AssetAsyncLoadCompletionEvent = UE::Tasks::FTaskEvent(TEXT(""));
+	TArray<FSoftObjectPath> AssetsToStream;
 
 	// Only used in LiveUpdateMode to reuse core instances between updates and their temp data to speed up updates, but spend way more memory
 	mu::Instance::ID LiveUpdateModeInstanceID = 0;
 
-#if WITH_EDITOR
+	UCustomizableInstancePrivate();
 
+#if WITH_EDITOR
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 
 	void BindObjectDelegates(UCustomizableObject* CurrentCustomizableObject, UCustomizableObject* NewCustomizableObject);
@@ -207,7 +211,7 @@ public:
 	void OnPostCompile();
 	void OnObjectStatusChanged(FCustomizableObjectStatus::EState Previous, FCustomizableObjectStatus::EState Next);
 #endif
-
+	
 	/** Invalidates the previously generated data and retrieves information from the CObject after specific actions.
 	 *  It'll be called in the PostLoad, after Compiling the CO, and after changing the CO of the Instance. */
 	void InitCustomizableObjectData(const UCustomizableObject* InCustomizableObject);
@@ -226,7 +230,7 @@ public:
 
 	/** Returns the task that will be called when all assets and data are loaded, may be already completed if no assets or data needs loading.
 	 * If no StreamableManager is provided, it will load assets synchronously. */
-	UE::Tasks::FTask LoadAdditionalAssetsAndData(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager, bool bAsync);
+	UE::Tasks::FTask LoadAdditionalAssetsAndData(const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager);
 
 	void AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public);
 
@@ -304,7 +308,7 @@ public:
 
 	void SetState(int32 InState);
 
-	void AdditionalAssetsAsyncLoaded(UE::Tasks::FTaskEvent CompletionEvent);
+	void AdditionalAssetsAsyncLoaded();
 
 	FCustomizableObjectInstanceDescriptor& GetDescriptor() const;
 

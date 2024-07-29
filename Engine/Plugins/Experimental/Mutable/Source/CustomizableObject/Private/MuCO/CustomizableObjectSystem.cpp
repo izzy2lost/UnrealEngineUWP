@@ -3141,7 +3141,7 @@ namespace impl
 
 		// Next Task: Load Unreal Assets
 		//-------------------------------------------------------------
-		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndData(OperationData, System->GetPrivate()->StreamableManager, !System->GetPrivate()->bBlocking);
+		UE::Tasks::FTask Game_LoadUnrealAssets = ObjectInstancePrivateData->LoadAdditionalAssetsAndData(OperationData, System->GetPrivate()->StreamableManager);
 
 		// Next-next Task: Convert Resources
 		//-------------------------------------------------------------
@@ -3559,12 +3559,12 @@ void UCustomizableObjectSystem::AdvanceCurrentOperation()
 
 bool UCustomizableObjectSystem::Tick(float DeltaTime)
 {
-	TickInternal();
+	TickInternal(false);
 	return true;
 }
 
 
-int32 UCustomizableObjectSystem::TickInternal()
+int32 UCustomizableObjectSystem::TickInternal(const bool bBlocking)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableObjectSystem::TickInternal)
 
@@ -3817,13 +3817,25 @@ int32 UCustomizableObjectSystem::TickInternal()
 		static_cast<int32>(LODUpdateCandidateFound != nullptr) + // Still a pending LOD update. We can not use the size of RequestedLODUpdates since not all requests valid in future ticks.
 		RemainingTasks;
 
-#if WITH_EDITOR
-	if (Private->bBlocking)
+	if (bBlocking)
 	{
+#if WITH_EDITOR
 		ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
 		RemainingWork += EditorModule ? EditorModule->Tick(true) : 0;
-	}
 #endif
+		
+		if (GetPrivate()->CurrentMutableOperation)
+		{
+			UCustomizableInstancePrivate* InstancePrivate = GetPrivate()->CurrentMutableOperation->Instance->GetPrivate();
+			
+			if (InstancePrivate->StreamingHandle)
+			{
+				InstancePrivate->StreamingHandle->CancelHandle();
+				GetPrivate()->StreamableManager.RequestSyncLoad(InstancePrivate->AssetsToStream);
+				InstancePrivate->AdditionalAssetsAsyncLoaded();
+			}
+		}
+	}
 	
 	return RemainingWork;
 }
@@ -4316,15 +4328,12 @@ bool UCustomizableObjectSystem::IsMutableAnimInfoDebuggingEnabled() const
 
 void UCustomizableObjectSystemPrivate::UpdateResourceStreaming(float DeltaTime, bool bProcessEverything)
 {
-	GetPublic()->TickInternal();
+	GetPublic()->TickInternal(false);
 }
 
 
 int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeLimit, bool bLogResults)
 {
-	bBlocking = true;
-	ON_SCOPE_EXIT {bBlocking = false; };
-	
 	const double BlockEndTime = FPlatformTime::Seconds() + TimeLimit;
 
 	int32 RemainingWork = TNumericLimits<int32>::Max();
@@ -4333,7 +4342,7 @@ int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeL
 	{
 		while (RemainingWork > 0)
 		{
-			RemainingWork = GetPublic()->TickInternal();
+			RemainingWork = GetPublic()->TickInternal(true);
 		}
 	}
 	else
@@ -4345,7 +4354,7 @@ int32 UCustomizableObjectSystemPrivate::BlockTillAllRequestsFinished(float TimeL
 				return RemainingWork;
 			}
 			
-			RemainingWork = GetPublic()->TickInternal();
+			RemainingWork = GetPublic()->TickInternal(true);
 		}
 	}
 

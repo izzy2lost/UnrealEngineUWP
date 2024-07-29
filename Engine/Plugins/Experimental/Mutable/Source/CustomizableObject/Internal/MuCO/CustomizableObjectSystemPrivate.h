@@ -791,9 +791,6 @@ public:
 
 	bool bAutoCompileCommandletEnabled = false;
 
-	/** We are in BlockTillAllRequestsFinished scope. */
-	bool bBlocking = false;
-
 	UPROPERTY()
 	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
 	

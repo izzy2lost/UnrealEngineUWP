@@ -298,9 +298,13 @@ void UCustomizableInstancePrivate::PrepareForUpdate(const TSharedRef<FUpdateCont
 }
 
 
+UCustomizableInstancePrivate::UCustomizableInstancePrivate()
+{
+	AssetAsyncLoadCompletionEvent.Trigger(); // MakeCompletedEvent does not exist. Trigger the placeholder event.
+}
+
+
 #if WITH_EDITOR
-
-
 void UCustomizableInstancePrivate::PostDuplicate(bool bDuplicateForPIE)
 {
 	Super::PostDuplicate(bDuplicateForPIE);
@@ -5164,7 +5168,7 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 
 
 UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
-		const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager, bool bAsync)
+		const TSharedRef<FUpdateContextPrivate>& OperationData, FStreamableManager& StreamableManager)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::LoadAdditionalAssetsAndDataAsync);
 
@@ -5172,7 +5176,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-	TArray<FSoftObjectPath> AssetsToStream;
+	AssetsToStream.Empty();
 	TArray<uint32> RealTimeMorphStreamableBlocksToStream;
 	TArray<uint32> ClothingStreamableBlocksToStream;
 
@@ -5472,8 +5476,9 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 	TArray<UE::Tasks::FTaskEvent> StreamingCompletionEvents;
 	if (AssetsToStream.Num() > 0)
-	{	
-		UE::Tasks::FTaskEvent AssetAsyncLoadCompletionEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AssetAsyncLoadCompletionEvent"));
+	{
+		check(AssetAsyncLoadCompletionEvent.IsCompleted());
+		AssetAsyncLoadCompletionEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AssetAsyncLoadCompletionEvent"));
 
 #if WITH_EDITOR
 		// TODO: Remove with UE-217665 when the underlying bug in the ColorPicker is solved
@@ -5482,19 +5487,10 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		FSlateThrottleManager::Get().DisableThrottle(true);
 #endif
 
-		if (bAsync)
-		{
-			StreamingHandle = StreamableManager.RequestAsyncLoad(
-					AssetsToStream, 
-					FStreamableDelegate::CreateUObject(this, &UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded, AssetAsyncLoadCompletionEvent),
-					bEnableHighPriorityLoading ? FStreamableManager::AsyncLoadHighPriority : FStreamableManager::DefaultAsyncLoadPriority);			
-		}
-		else
-		{
-			StreamableManager.RequestSyncLoad(AssetsToStream);
-			
-			AdditionalAssetsAsyncLoaded(AssetAsyncLoadCompletionEvent);
-		}
+		StreamingHandle = StreamableManager.RequestAsyncLoad(
+				AssetsToStream, 
+				FStreamableDelegate::CreateUObject(this, &UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded),
+				bEnableHighPriorityLoading ? FStreamableManager::AsyncLoadHighPriority : FStreamableManager::DefaultAsyncLoadPriority);			
 	}
 
 	
@@ -5737,12 +5733,12 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	}
 }
 
-void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UE::Tasks::FTaskEvent CompletionEvent)
+void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded()
 {
 	// TODO: Do we need this separated?
 	//check(IsInGameThread())
 	AdditionalAssetsAsyncLoaded(GetPublic());
-	CompletionEvent.Trigger(); // TODO: we know it is game thread?
+	AssetAsyncLoadCompletionEvent.Trigger(); // TODO: we know it is game thread?
 
 	StreamingHandle = nullptr;
 

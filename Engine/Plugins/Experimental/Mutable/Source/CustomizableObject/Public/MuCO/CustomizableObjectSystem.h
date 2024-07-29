@@ -327,7 +327,7 @@ private:
 	bool Tick(float DeltaTime);
 
 	/** Returns the number of remaining operations. */
-	int32 TickInternal();
+	int32 TickInternal(bool bBlocking);
 
 	// If there is an on-going operation, advance it.
 	void AdvanceCurrentOperation();
