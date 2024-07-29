@@ -102,9 +102,9 @@ TArray<FName> UPlatformSettingsManager::GetKnownAndEnablePlatformIniNames()
 	return Results;
 }
 
-TArray<UPlatformSettings*> UPlatformSettingsManager::GetAllPlatformSettings(TSubclassOf<UPlatformSettings> SettingsClass) const
+TArray<TObjectPtr<UPlatformSettings>> UPlatformSettingsManager::GetAllPlatformSettings(TSubclassOf<UPlatformSettings> SettingsClass) const
 {
-	TArray<UPlatformSettings*> Settings;
+	TArray<TObjectPtr<UPlatformSettings>> Settings;
 	for (FName PlatformIniName : GetKnownAndEnablePlatformIniNames())
 	{
 		Settings.Add(GetSettingsForPlatform(SettingsClass, PlatformIniName));

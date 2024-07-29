@@ -681,9 +681,9 @@ const TArray<FName>& UInputPlatformSettings::GetAllHardwareDeviceNames()
 	HardwareDevices.Add(FHardwareDeviceIdentifier::DefaultKeyboardAndMouse.HardwareDeviceIdentifier);
 
 	// Get every known platform's InputPlatformSettings and compile a list of them
-	TArray<UPlatformSettings*> AllInputSettings = UPlatformSettingsManager::Get().GetAllPlatformSettings<UInputPlatformSettings>();
+	TArray<TObjectPtr<UPlatformSettings>> AllInputSettings = UPlatformSettingsManager::Get().GetAllPlatformSettings<UInputPlatformSettings>();
 
-	for (const UPlatformSettings* Setting : AllInputSettings)
+	for (const TObjectPtr<UPlatformSettings>& Setting : AllInputSettings)
 	{
 		if (const UInputPlatformSettings* InputSetting = Cast<UInputPlatformSettings>(Setting))
 		{
