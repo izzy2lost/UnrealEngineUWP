@@ -1124,18 +1124,18 @@ bool pas_large_sharing_pool_allocate_and_commit(
     pas_physical_memory_synchronization_style synchronization_style,
     pas_mmap_capability mmap_capability)
 {
-    static const bool verbose = false;
+    static const bool local_verbose = false;
     
     pas_large_free_heap_deferred_commit_log commit_log;
     uint64_t epoch;
     
-    if (verbose) {
+    if (local_verbose) {
         pas_log("Doing allocate and commit %p-%p.\n", (void*)range.begin, (void*)range.end);
         pas_log("Balance = %zd.\n", pas_physical_page_sharing_pool_balance);
     }
     
     if (!pas_large_sharing_pool_enabled) {
-        if (verbose)
+        if (local_verbose)
             pas_log("Giving up on allocate and commit because it's disabled.\n");
         return true;
     }
@@ -1147,7 +1147,7 @@ bool pas_large_sharing_pool_allocate_and_commit(
     if (!try_splat(range, splat_allocate_and_commit, epoch,
                    &commit_log, NULL, transaction, synchronization_style, mmap_capability)) {
         pas_large_free_heap_deferred_commit_log_destruct(&commit_log);
-        if (verbose)
+        if (local_verbose)
             pas_log("Giving up on allocate and commit because the splat failed.\n");
         return false;
     }
@@ -1164,7 +1164,7 @@ bool pas_large_sharing_pool_allocate_and_commit(
             pas_lock* locks_held[max_num_locks_held];
             size_t num_locks_held;
             
-            if (verbose)
+            if (local_verbose)
                 pas_log("Allocate and commit needs to commit %zu bytes.\n", commit_log.total);
             
             num_locks_held = 0;
@@ -1175,7 +1175,7 @@ bool pas_large_sharing_pool_allocate_and_commit(
             
             PAS_ASSERT(num_locks_held <= max_num_locks_held);
             
-            if (verbose)
+            if (local_verbose)
                 pas_log("Doing a take of %zu bytes.\n", commit_log.total);
             pas_physical_page_sharing_pool_take(
                 commit_log.total, pas_lock_is_held, locks_held, num_locks_held);
@@ -1187,7 +1187,7 @@ bool pas_large_sharing_pool_allocate_and_commit(
     
     pas_large_free_heap_deferred_commit_log_destruct(&commit_log);
     
-    if (verbose)
+    if (local_verbose)
         pas_log("Done with allocate and commit %p-%p.\n", (void*)range.begin, (void*)range.end);
 
     return true;

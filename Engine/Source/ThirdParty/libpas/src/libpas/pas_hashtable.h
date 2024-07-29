@@ -94,7 +94,7 @@ PAS_BEGIN_EXTERN_C;
         name* table, unsigned new_size, name##_in_flux_stash* in_flux_stash, \
         const pas_allocation_config* allocation_config) \
     { \
-        static const bool verbose = false; \
+        static const bool local_verbose = false; \
         \
         size_t new_byte_size; \
         size_t old_size; \
@@ -111,7 +111,7 @@ PAS_BEGIN_EXTERN_C;
         \
         new_table_mask = new_size - 1; \
         new_byte_size = (size_t)new_size * sizeof(entry_type); \
-        if (verbose) \
+        if (local_verbose) \
             pas_log("Allocating a new table with new_size = %u, new_byte_size = %zu.\n", new_size, new_byte_size); \
         new_table = (entry_type*)allocation_config->allocate( \
             new_byte_size, #name "/table", pas_object_allocation, allocation_config->arg); \

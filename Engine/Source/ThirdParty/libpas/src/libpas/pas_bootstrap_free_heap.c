@@ -191,7 +191,7 @@ void pas_bootstrap_free_heap_deallocate(
     size_t size,
     pas_allocation_kind allocation_kind)
 {
-    static const bool verbose = false;
+    static const bool local_verbose = false;
     
     pas_large_free_heap_config config;
 
@@ -200,7 +200,7 @@ void pas_bootstrap_free_heap_deallocate(
 
     if (!size)
         return;
-    if (verbose) {
+    if (local_verbose) {
         pas_log("%s: Simple freeing %p with size %zu\n",
                 pas_heap_kind_get_string(pas_bootstrap_free_heap_kind), ptr, size);
     }
@@ -217,7 +217,7 @@ void pas_bootstrap_free_heap_deallocate(
 
     if (allocation_kind == pas_object_allocation) {
         pas_bootstrap_free_heap_num_allocated_object_bytes -= size;
-        if (verbose)
+        if (local_verbose)
             pas_log("Deallocated %zu simple bytes at %p.\n", size, ptr);
     }
 }
