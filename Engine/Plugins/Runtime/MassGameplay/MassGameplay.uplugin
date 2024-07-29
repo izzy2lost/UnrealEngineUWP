@@ -85,10 +85,6 @@
 	],
 	"Plugins": [
 		{
-			"Name": "MassEntity",
-			"Enabled": true
-		},
-		{
 			"Name": "ZoneGraph",
 			"Enabled": true
 		},
