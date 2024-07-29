@@ -125,6 +125,8 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 
 	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::Status))
 	{
+		TraceEndpoint = InStatus.Endpoint;
+
 		Stats.BytesSentPerSecond = 0;
 		Stats.BytesTracedPerSecond = 0;
 
@@ -208,6 +210,7 @@ void FSessionTraceControllerFilterService::OnSessionSelectionChanged()
 {
 	bHasStats = false;
 	bHasSettings = false;
+	TraceEndpoint.Empty();
 }
 
 } // namespace UE::TraceTools

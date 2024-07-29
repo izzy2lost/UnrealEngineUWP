@@ -8,6 +8,8 @@
 #include "Widgets/SCompoundWidget.h"
 
 class ITraceController;
+class FReply;
+struct FSlateBrush;
 
 namespace UE::TraceTools
 {
@@ -58,12 +60,6 @@ private:
 	bool TraceSnapshot_CanExecute() const;
 	void TraceSnapshot_Execute();
 
-	bool PauseTrace_CanExecute() const;
-	void PauseTrace_Execute();
-
-	bool ResumeTrace_CanExecute() const;
-	void ResumeTrace_Execute();
-
 	bool TraceBookmark_CanExecute() const;
 	void TraceBookmark_Execute();
 
@@ -73,6 +69,12 @@ private:
 	bool ToggleStatNamedEvents_CanExecute() const;
 	bool ToggleStatNamedEvents_IsChecked() const;
 	void ToggleStatNamedEvents_Execute();
+
+	FReply TogglePauseResume_OnClicked();
+	bool TogglePauseResume_CanExecute() const;
+	FText TogglePauseResume_GetTooltip() const;
+
+	const FSlateBrush* GetPauseResumeBrush() const;
 
 private:
 	TSharedPtr<ITraceController> TraceController;

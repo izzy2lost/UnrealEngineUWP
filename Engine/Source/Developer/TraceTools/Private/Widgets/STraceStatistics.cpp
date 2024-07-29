@@ -2,9 +2,12 @@
 
 #include "STraceStatistics.h"
 
+#include "HAL/PlatformApplicationMisc.h"
 #include "Internationalization/Text.h"
 #include "SlateOptMacros.h"
 #include "Styling/StyleColors.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -42,230 +45,283 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 			SNew(SBorder)
 			.BorderImage(FTraceToolsStyle::GetBrush("FilterPresets.BackgroundBorder"))
 			[
-				SNew(SHorizontalBox)
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
+				SNew(SVerticalBox)
+				
+				+ SVerticalBox::Slot()
+				.HAlign(EHorizontalAlignment::HAlign_Left)
+				.Padding(0.0f, 3.0f, 0.0f, 0.0f)
+				.AutoHeight()
 				[
-					SNew(SVerticalBox)
-
-					// Trace Settings
-					+ SVerticalBox::Slot()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.Padding(0.0f, 10.0f, 0.0f, 0.0f)
-					.AutoHeight()
+					SNew(SHorizontalBox)
+							
+					+ SHorizontalBox::Slot()
+					.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+					.AutoWidth()
 					[
 						SNew(STextBlock)
-						.Text(LOCTEXT("Trace Settings", "Trace Settings"))
-						.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
+						.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+						.ToolTipText(LOCTEXT("TraceEndpointTooltip", "The endpoint the current trace is sending data to."))
+						.Text(LOCTEXT("TraceEndpoint", "Trace Endpoint:"))
 					]
 
-					+ SVerticalBox::Slot()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.AutoHeight()
+					+ SHorizontalBox::Slot()
+					.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+					.AutoWidth()
 					[
-						SNew(SHorizontalBox)
-							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("ImportantEventsSettingTooltip", "The state of the Important Events cache."))
-							.Text(LOCTEXT("ImportantCache", "Important Events Cache:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetSettingsOnOffText(SessionFilterService->GetSettings().bUseImportantCache); })
-						]
+						SNew(STextBlock)
+						.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+						.Text(this, &STraceStatistics::GetTraceEndpointText)
 					]
 
-					+ SVerticalBox::Slot()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.AutoHeight()
+					+ SHorizontalBox::Slot()
+					.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+					.AutoWidth()
 					[
-						SNew(SHorizontalBox)
-							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
+						SNew(SButton)
+						.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+						.ContentPadding(FMargin(0.0f, 0.0f, 0.0f, 0.0f))
+						.HAlign(HAlign_Left)
+						.VAlign(VAlign_Bottom)
+						.ToolTipText(LOCTEXT("CopyEndpointTooltip", "Copy the value of the current endpoint."))
+						.OnClicked(this, &STraceStatistics::CopyEndpoint_OnClicked)
+						.Content()
 						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("UseWorkerThreadTooltip", "If trace uses a worker thread. If not, TraceLog is pumped on end frame."))
-							.Text(LOCTEXT("WorkerThread", "Worker Thread:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetSettingsOnOffText(SessionFilterService->GetSettings().bUseWorkerThread); })
-						]
-					]
-
-					+ SVerticalBox::Slot()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.AutoHeight()
-					[
-						SNew(SHorizontalBox)
-							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("TailSizeTooltip", "Size of the tail buffer where the last seconds of trace data are stored."))
-							.Text(LOCTEXT("TailSize", "Tail Size:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0f, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetSettingsMemoryValueText(SessionFilterService->GetSettings().TailSizeBytes); })
+							SNew(SImage)
+							.Image(FTraceToolsStyle::GetBrush("TraceStatistics.CopyEndpoint"))
+							.Visibility(this, &STraceStatistics::GetCopyEndpointVisibility)
 						]
 					]
 				]
-
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(30.0f, 0.0f, 0.0f, 0.0f)
+				
+				+ SVerticalBox::Slot()
+				.Padding(0.0f, 5.0f, 0.0f, 0.0f)
 				[
-					SNew(SVerticalBox)
+					SNew(SHorizontalBox)
 
-					// Trace statistics
-					+ SVerticalBox::Slot()
-					.HAlign(EHorizontalAlignment::HAlign_Left)
-					.Padding(0.0f, 10.0f, 0.0f, 0.0f)
-					.AutoHeight()
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
 					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("Statistics", "Statistics"))
-						.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
-					]
+						SNew(SVerticalBox)
 
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
+						// Trace Settings
+						+ SVerticalBox::Slot()
+						.HAlign(EHorizontalAlignment::HAlign_Left)
+						.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("Trace Settings", "Trace Settings"))
+							.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
+						]
+
+						+ SVerticalBox::Slot()
+						.HAlign(EHorizontalAlignment::HAlign_Left)
+						.AutoHeight()
+						[
+							SNew(SHorizontalBox)
+
 							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("BytesSentTooltip", "Number of bytes sent to server or file."))
-							.Text(LOCTEXT("BytesSent", "Bytes Sent:"))
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("ImportantEventsSettingTooltip", "The state of the Important Events cache."))
+								.Text(LOCTEXT("ImportantCache", "Important Events Cache:"))
+							]
+
+							+ SHorizontalBox::Slot()
+							.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetSettingsOnOffText(SessionFilterService->GetSettings().bUseImportantCache); })
+							]
 						]
 
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
+						+ SVerticalBox::Slot()
+						.HAlign(EHorizontalAlignment::HAlign_Left)
+						.AutoHeight()
 						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesSent); })
-						]
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.Padding(4.0f, 2.0, 0.0f, 0.0f)
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesSentPerSecond); })
-						]
-					]
-
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
+							SNew(SHorizontalBox)
 							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("BytesTracedTooltip", "Number of (uncompressed) bytes traced from process."))
-							.Text(LOCTEXT("BytesTraced", "Bytes Traced:"))
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("UseWorkerThreadTooltip", "If trace uses a worker thread. If not, TraceLog is pumped on end frame."))
+								.Text(LOCTEXT("WorkerThread", "Worker Thread:"))
+							]
+
+							+ SHorizontalBox::Slot()
+							.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetSettingsOnOffText(SessionFilterService->GetSettings().bUseWorkerThread); })
+							]
 						]
 
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
+						+ SVerticalBox::Slot()
+						.HAlign(EHorizontalAlignment::HAlign_Left)
+						.AutoHeight()
 						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesTraced); })
-						]
+							SNew(SHorizontalBox)
+							
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("TailSizeTooltip", "Size of the tail buffer where the last seconds of trace data are stored."))
+								.Text(LOCTEXT("TailSize", "Tail Size:"))
+							]
 
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesTracedPerSecond); })
+							+ SHorizontalBox::Slot()
+							.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetSettingsMemoryValueText(SessionFilterService->GetSettings().TailSizeBytes); })
+							]
 						]
 					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(30.0f, 0.0f, 0.0f, 0.0f)
+					[
+						SNew(SVerticalBox)
+
+						// Trace statistics
+						+ SVerticalBox::Slot()
+						.HAlign(EHorizontalAlignment::HAlign_Left)
+						.Padding(0.0f, 10.0f, 0.0f, 0.0f)
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Text(LOCTEXT("Statistics", "Statistics"))
+							.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
+						]
+
+						+ SVerticalBox::Slot()
+						[
+							SNew(SHorizontalBox)
+							
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("BytesSentTooltip", "Number of bytes sent to server or file."))
+								.Text(LOCTEXT("BytesSent", "Bytes Sent:"))
+							]
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(2.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesSent); })
+							]
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(4.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesSentPerSecond); })
+							]
+						]
+
+						+ SVerticalBox::Slot()
+						[
+							SNew(SHorizontalBox)
+							
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("BytesTracedTooltip", "Number of (uncompressed) bytes traced from process."))
+								.Text(LOCTEXT("BytesTraced", "Bytes Traced:"))
+							]
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(2.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.BytesTraced); })
+							]
+
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(2.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsBandwidthText(SessionFilterService->GetStats().BytesTracedPerSecond); })
+							]
+						]
 		
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
+						+ SVerticalBox::Slot()
+						[
+							SNew(SHorizontalBox)
 							
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("MemoryUsedTooltip", "Total memory used by TraceLog."))
-							.Text(LOCTEXT("MemoryUsed", "Memory Used:"))
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("MemoryUsedTooltip", "Total memory used by TraceLog."))
+								.Text(LOCTEXT("MemoryUsed", "Memory Used:"))
+							]
+
+							+ SHorizontalBox::Slot()
+							.Padding(2.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.MemoryUsed); })
+							]
 						]
 
-						+ SHorizontalBox::Slot()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
+						+ SVerticalBox::Slot()
 						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsMemoryValueText(SessionFilterService->GetStats().StandardStats.MemoryUsed); })
-						]
-					]
+							SNew(SHorizontalBox)
 
-					+ SVerticalBox::Slot()
-					[
-						SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.Padding(0.0f, 2.0, 0.0f, 0.0f)
+							.AutoWidth()
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+								.ToolTipText(LOCTEXT("ImportantEventsMemoryTooltip", "Memory for important events."))
+								.Text(LOCTEXT("ImportantEventsCache:", "Cache:"))
+							]
 
-						+ SHorizontalBox::Slot()
-						.Padding(0.0f, 2.0, 0.0f, 0.0f)
-						.AutoWidth()
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
-							.ToolTipText(LOCTEXT("ImportantEventsMemoryTooltip", "Memory for important events."))
-							.Text(LOCTEXT("ImportantEventsCache:", "Cache:"))
-						]
-
-						+ SHorizontalBox::Slot()
-						.AutoWidth()
-						.Padding(2.0f, 2.0, 0.0f, 0.0f)
-						[
-							SNew(STextBlock)
-							.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
-							.Text_Lambda([this]() { return this->GetStatsCacheText(); })
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							.Padding(2.0f, 2.0, 0.0f, 0.0f)
+							[
+								SNew(STextBlock)
+								.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+								.Text_Lambda([this]() { return this->GetStatsCacheText(); })
+							]
 						]
 					]
 				]
@@ -356,6 +412,38 @@ FText STraceStatistics::GetStatsCacheText() const
 	FText CacheWasted = FText::AsMemory(Stats.CacheWaste, &FormattingOptionsMem);
 
 	return FText::Format(LOCTEXT("TraceCacheTextFormat", "{0} ({1} used + {2} unused | {3} waste)"), CacheAllocated, CacheUsed, CacheUnused, CacheWasted);
+}
+
+FText STraceStatistics::GetTraceEndpointText() const
+{
+	if (!SessionFilterService->HasStats() || SessionFilterService->GetTraceEndpoint().IsEmpty())
+	{
+		return LOCTEXT("N/A", "N/A");
+	}
+
+	return FText::FromString(SessionFilterService->GetTraceEndpoint());
+}
+
+FReply STraceStatistics::CopyEndpoint_OnClicked() const
+{
+	const FString& Endpoint = SessionFilterService->GetTraceEndpoint();
+
+	if (!Endpoint.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Endpoint);
+	}
+
+	return FReply::Handled();
+}
+
+EVisibility STraceStatistics::GetCopyEndpointVisibility() const
+{
+	if (!SessionFilterService->HasStats() || SessionFilterService->GetTraceEndpoint().IsEmpty())
+	{
+		return EVisibility::Collapsed;
+	}
+
+	return EVisibility::Visible;
 }
 
 } // namespace UE::TraceTools

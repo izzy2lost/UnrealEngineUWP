@@ -10,6 +10,7 @@ public class TraceTools : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(
 				new string[] {
+					"ApplicationCore",
 					"Core",
 					"CoreUObject",
 					"InputCore",

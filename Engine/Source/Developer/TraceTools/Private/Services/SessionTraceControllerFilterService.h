@@ -36,6 +36,8 @@ public:
 
 	virtual bool HasStats() const override;
 	virtual const FTraceStats& GetStats() const override;
+
+	virtual const FString& GetTraceEndpoint() const override { return TraceEndpoint; }
 	/** End ISessionTraceFilterService overrides */
 
 protected:
@@ -71,6 +73,8 @@ protected:
 
 	FTraceStats Stats;
 	bool bHasStats = false;
+
+	FString TraceEndpoint;
 };
 
 } // namespace UE::TraceTools

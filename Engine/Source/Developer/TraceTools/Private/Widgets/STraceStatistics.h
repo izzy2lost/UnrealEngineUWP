@@ -6,6 +6,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
+struct EVisibility;
+class FReply;
 class ITraceController;
 
 namespace UE::TraceTools
@@ -35,6 +37,10 @@ private:
 	FText GetStatsMemoryValueText(uint64 InValue) const;
 	FText GetStatsBandwidthText(uint64 InValue) const;
 	FText GetStatsCacheText() const;
+	FText GetTraceEndpointText() const;
+
+	FReply CopyEndpoint_OnClicked() const;
+	EVisibility GetCopyEndpointVisibility() const;
 
 private:
 	TSharedPtr<ISessionTraceFilterService> SessionFilterService;

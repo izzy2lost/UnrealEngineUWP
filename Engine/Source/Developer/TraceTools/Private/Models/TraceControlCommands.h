@@ -37,9 +37,6 @@ public:
 		UI_COMMAND(StopTrace, "Stop Trace", "Stop trace on the selected session.", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(TraceSnapshot, "Snapshot", "Save a trace snapshot on the selected session.", EUserInterfaceActionType::Button, FInputChord());
 
-		UI_COMMAND(PauseTrace, "Pause Trace", "Disable all the trace channels and save the channel list so it can be enabled again with the resume command.", EUserInterfaceActionType::Button, FInputChord());
-		UI_COMMAND(ResumeTrace, "Resume Trace", "Enable the channels that were enabled before trace was paused.", EUserInterfaceActionType::Button, FInputChord());
-
 		UI_COMMAND(TraceBookmark, "Bookmark", "Trace a bookmark with a predefined name.", EUserInterfaceActionType::Button, FInputChord());
 		UI_COMMAND(TraceScreenshot, "Screenshot", "Trace a screenshot with a predefined name.", EUserInterfaceActionType::Button, FInputChord());
 
@@ -52,8 +49,6 @@ public:
 	TSharedPtr<FUICommandInfo> StartTrace;
 	TSharedPtr<FUICommandInfo> StopTrace;
 	TSharedPtr<FUICommandInfo> TraceSnapshot;
-	TSharedPtr<FUICommandInfo> PauseTrace;
-	TSharedPtr<FUICommandInfo> ResumeTrace;
 	TSharedPtr<FUICommandInfo> TraceBookmark;
 	TSharedPtr<FUICommandInfo> TraceScreenshot;
 	TSharedPtr<FUICommandInfo> ToggleStatNamedEvents;

@@ -202,6 +202,8 @@ void FTraceToolsStyle::Initialize()
 	StyleSet->Set("ToggleTraceButton.RecordTraceRecording.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/RecordTraceRecording", Icon20x20));
 	StyleSet->Set("ToggleTraceButton.TraceStop.SlimToolbar", new CORE_IMAGE_BRUSH_SVG("Starship/Insights/TraceTools/TraceStop", Icon20x20, FStyleColors::Error));
 	
+	StyleSet->Set("TraceStatistics.CopyEndpoint", new CORE_IMAGE_BRUSH_SVG("Starship/Common/Copy", FVector2D(10.0f, 10.0f)));
+	
 	FSlateStyleRegistry::RegisterSlateStyle( *StyleSet.Get() );
 }
 

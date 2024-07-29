@@ -43,16 +43,16 @@ class ISessionTraceFilterService : public TSharedFromThis<ISessionTraceFilterSer
 public:
 	virtual ~ISessionTraceFilterService() {}
 
-	/** Returns the root level set of objects */
+	/** Returns the root level set of objects. */
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const = 0;
 	
-	/** Returns the object with the specified name */
+	/** Returns the object with the specified name. */
 	virtual const FTraceObjectInfo* GetObject(const FString& Name ) const = 0;
 
-	/** Set the filtered state for an individual object by its hash */
+	/** Set the filtered state for an individual object by its hash. */
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) = 0;
 	
-	/** Set timestamp for last processed update (data change) */
+	/** Set timestamp for last processed update (data change). */
 	virtual const FDateTime& GetTimestamp() const = 0;
 
 	/** Update filter preset */
@@ -61,14 +61,17 @@ public:
 	/** Returns true if settings are available for the selected session. */
 	virtual bool HasSettings() const = 0 ;
 
-	/** Get the settings of the selected session */
+	/** Get the settings of the selected session. */
 	virtual const FTraceStatus::FSettings& GetSettings() const = 0;
 
 	/** Returns true if stats are available for the selected session. */
 	virtual bool HasStats() const = 0;
 
-	/** Get the stats of the selected session */
+	/** Get the stats of the selected session. */
 	virtual const FTraceStats& GetStats() const = 0;
+
+	/** Get the endpoint of the current running trace. */
+	virtual const FString& GetTraceEndpoint() const = 0;
 };
 
 } // namespace UE::TraceTools

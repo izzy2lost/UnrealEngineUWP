@@ -8,6 +8,9 @@
 #include "SlateOptMacros.h"
 #include "SocketSubsystem.h"
 #include "Styling/AppStyle.h"
+#include "Styling/StyleColors.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -77,8 +80,28 @@ void STraceControlToolbar::Construct(const FArguments& InArgs, const TSharedRef<
 
 		Toolbar.AddSeparator();
 
-		Toolbar.AddToolBarButton(FTraceControlCommands::Get().PauseTrace);
-		Toolbar.AddToolBarButton(FTraceControlCommands::Get().ResumeTrace);
+		TSharedRef<SWidget> PauseResumeWidget =
+			SNew(SHorizontalBox)
+
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SButton)
+				.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+				.ContentPadding(FMargin(0.0f, 0.0f, 0.0f, 3.0f))
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Bottom)
+				.ToolTipText(this, &STraceControlToolbar::TogglePauseResume_GetTooltip)
+				.OnClicked(this, &STraceControlToolbar::TogglePauseResume_OnClicked)
+				.IsEnabled(this, &STraceControlToolbar::TogglePauseResume_CanExecute)
+				.Content()
+				[
+					SNew(SImage)
+					.Image(this, &STraceControlToolbar::GetPauseResumeBrush)
+					.ColorAndOpacity(FStyleColors::Foreground)
+				]
+			];
+
+		Toolbar.AddWidget(PauseResumeWidget);
 
 		Toolbar.AddSeparator();
 
@@ -127,14 +150,6 @@ void STraceControlToolbar::BindCommands(const TSharedRef<FUICommandList>& Comman
 	CommandList->MapAction(FTraceControlCommands::Get().TraceSnapshot, 
 						   FExecuteAction::CreateSP(this, &STraceControlToolbar::TraceSnapshot_Execute),
 						   FCanExecuteAction::CreateSP(this, &STraceControlToolbar::TraceSnapshot_CanExecute));
-
-	CommandList->MapAction(FTraceControlCommands::Get().PauseTrace, 
-						   FExecuteAction::CreateSP(this, &STraceControlToolbar::PauseTrace_Execute),
-						   FCanExecuteAction::CreateSP(this, &STraceControlToolbar::PauseTrace_CanExecute));
-
-	CommandList->MapAction(FTraceControlCommands::Get().ResumeTrace, 
-						   FExecuteAction::CreateSP(this, &STraceControlToolbar::ResumeTrace_Execute),
-						   FCanExecuteAction::CreateSP(this, &STraceControlToolbar::ResumeTrace_CanExecute));
 
 	CommandList->MapAction(FTraceControlCommands::Get().TraceBookmark, 
 						   FExecuteAction::CreateSP(this, &STraceControlToolbar::TraceBookmark_Execute),
@@ -231,34 +246,6 @@ void STraceControlToolbar::TraceSnapshot_Execute()
 	});
 }
 
-bool STraceControlToolbar::PauseTrace_CanExecute() const
-{
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing && bIsPaused == false;
-}
-
-void STraceControlToolbar::PauseTrace_Execute()
-{
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
-	{
-		Commands.Pause();
-	});
-	bIsPaused = true;
-}
-
-bool STraceControlToolbar::ResumeTrace_CanExecute() const
-{
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing && bIsPaused == true;
-}
-
-void STraceControlToolbar::ResumeTrace_Execute()
-{
-	TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
-	{
-		Commands.Resume();
-	});
-	bIsPaused = false;
-}
-
 bool STraceControlToolbar::TraceBookmark_CanExecute() const
 {
 	return TraceController->HasAvailableSelectedInstance() && bIsTracing && !bIsPaused;
@@ -335,6 +322,53 @@ void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FT
 	bIsTracing = InStatus.bIsTracing;
 	bIsPaused = InStatus.bIsPaused;
 	bAreStatNamedEventsEnabled = InStatus.bAreStatNamedEventsEnabled;
+}
+
+bool STraceControlToolbar::TogglePauseResume_CanExecute() const
+{
+	return TraceController->HasAvailableSelectedInstance() && bIsTracing;
+}
+
+FReply STraceControlToolbar::TogglePauseResume_OnClicked()
+{
+	if (bIsPaused)
+	{
+		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+			{
+				Commands.Resume();
+			});
+		bIsPaused = false;
+	}
+	else
+	{
+		TraceController->WithSelectedInstances([&](const FTraceStatus& Status, ITraceControllerCommands& Commands)
+			{
+				Commands.Pause();
+			});
+		bIsPaused = true;
+	}
+
+	return FReply::Handled();
+}
+
+const FSlateBrush* STraceControlToolbar::GetPauseResumeBrush() const
+{
+	if (bIsPaused)
+	{
+		return FTraceToolsStyle::GetBrush("TraceControl.ResumeTrace.Small");
+	}
+		
+	return FTraceToolsStyle::GetBrush("TraceControl.PauseTrace.Small");
+}
+
+FText STraceControlToolbar::TogglePauseResume_GetTooltip() const
+{
+	if (bIsPaused)
+	{
+		return LOCTEXT("ResumeTraceTooltip", "Enable the channels that were enabled before trace was paused.");
+	}
+
+	return LOCTEXT("PauseTraceTooltip", "Disable all the trace channels and save the channel list so they can be enabled again with the resume command.");
 }
 
 } // namespace UE::TraceTools
