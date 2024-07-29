@@ -241,6 +241,8 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 			}
 			CurrentLayeredMoves.ResetResidualVelocity();
 
+			MoverComp->ProcessGeneratedMovement.ExecuteIfBound(SubstepStartData, SubTimeStep, OUT CombinedMove);
+			
 			// Execute the combined proposed move
 			{
 				FSimulationTickParams SimTickParams;

@@ -234,6 +234,16 @@ void UMoverComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, F
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
+void UMoverComponent::BindProcessGeneratedMovement(FMover_ProcessGeneratedMovement ProcessGeneratedMovementEvent)
+{
+	ProcessGeneratedMovement = ProcessGeneratedMovementEvent;
+}
+
+void UMoverComponent::UnbindProcessGeneratedMovement()
+{
+	ProcessGeneratedMovement.Clear();
+}
+
 void UMoverComponent::ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContext* Cmd)
 {
 	Cmd->InputCollection.Empty();
