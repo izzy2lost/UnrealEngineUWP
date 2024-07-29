@@ -1204,7 +1204,7 @@ void FAnimGraphNodeBindingExtension::GetOptionalPinData(const IPropertyHandle& P
 	PropertyHandle.GetOuterObjects(Objects);
 
 	FProperty* Property = PropertyHandle.GetProperty();
-	if(Property)
+	if(Property && Objects.Num())
 	{
 		OutAnimGraphNode = Cast<UAnimGraphNode_Base>(Objects[0]);
 		if (OutAnimGraphNode != nullptr)
