@@ -1,12 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "AssetProcessors.h"
+#include "Processors/AssetProcessors.h"
 
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
+#include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 #include "TedsAssetDataColumns.h"
 
-void UTypedElementAssetFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) 
+void UTedsAssetDataFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) 
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<

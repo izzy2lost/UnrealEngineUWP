@@ -3,18 +3,18 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
-#include "UObject/ObjectMacros.h"
 
 #include "AssetProcessors.generated.h"
 
+class ITypedElementDataStorageInterface;
+
 UCLASS()
-class UTypedElementAssetFactory : public UTypedElementDataStorageFactory
+class UTedsAssetDataFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementAssetFactory() override = default;
+	~UTedsAssetDataFactory() override = default;
 
 	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
 

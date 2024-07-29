@@ -13,14 +13,14 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Misc/ScopeExit.h"
 #include "TedsAssetDataColumns.h"
-#include "TypedElementsDataStorageAssetDataModule.h"
+#include "TedsAssetDataModule.h"
 #include "UObject/NameTypes.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTedsAssetDataTest, "TEDS.AssetRegistry.ValidateState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::HighPriority)
  
 bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 {
-	UE::TypedElementsDataStorageAssetData::FTypedElementsDataStorageAssetDataModule& TedsAssetRegistry = UE::TypedElementsDataStorageAssetData::FTypedElementsDataStorageAssetDataModule::GetChecked();
+	UE::EditorDataStorage::AssetData::FTedsAssetDataModule& TedsAssetRegistry = UE::EditorDataStorage::AssetData::FTedsAssetDataModule::GetChecked();
 
 	const bool bIsEnabled = TedsAssetRegistry.IsTedsAssetRegistryStorageEnabled();
 	ON_SCOPE_EXIT

@@ -16,7 +16,7 @@
 
 #define TRACK_TEDSASSETDATA_MEMORY 0
 
-namespace UE::TypedElementsDataStorageAssetData::Private
+namespace UE::EditorDataStorage::AssetData::Private
 {
 	
 constexpr int32 ParallelForMinBatchSize = 1024 * 4;

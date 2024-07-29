@@ -1,24 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementsDataStorageAssetDataModule.h"
+#include "TedsAssetDataModule.h"
 
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
 #include "Modules/ModuleManager.h"
 #include "TedsAssetData.h"
 
-IMPLEMENT_MODULE(UE::TypedElementsDataStorageAssetData::FTypedElementsDataStorageAssetDataModule, TedsAssetData);
+IMPLEMENT_MODULE(UE::EditorDataStorage::AssetData::FTedsAssetDataModule, TedsAssetData);
 
-namespace UE::TypedElementsDataStorageAssetData
+namespace UE::EditorDataStorage::AssetData
 {
 
 namespace Private
 {
-TAutoConsoleVariable<bool> CVarTEDSAssetDataStorage(TEXT("Teds.AssetDataStorage"), false, TEXT("When true we will activate a wrapper that store the a copy of the asset data including the in memory change from the asset registry into TEDS.")
+TAutoConsoleVariable<bool> CVarTEDSAssetDataStorage(TEXT("TEDS.AssetDataStorage"), false, TEXT("When true we will activate a wrapper that store the a copy of the asset data including the in memory change from the asset registry into TEDS.")
 	, FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* Variable)
 	{
 		const bool bIsEnabled = Variable->GetBool();
-		FTypedElementsDataStorageAssetDataModule& Module = FTypedElementsDataStorageAssetDataModule::GetChecked();
+		FTedsAssetDataModule& Module = FTedsAssetDataModule::GetChecked();
 
 		if (bIsEnabled)
 		{
@@ -31,7 +31,7 @@ TAutoConsoleVariable<bool> CVarTEDSAssetDataStorage(TEXT("Teds.AssetDataStorage"
 	}));
 }
 
-void FTypedElementsDataStorageAssetDataModule::StartupModule()
+void FTedsAssetDataModule::StartupModule()
 {
 	if (Private::CVarTEDSAssetDataStorage.GetValueOnGameThread())
 	{
@@ -39,7 +39,7 @@ void FTypedElementsDataStorageAssetDataModule::StartupModule()
 	}
 }
 
-void FTypedElementsDataStorageAssetDataModule::ShutdownModule()
+void FTedsAssetDataModule::ShutdownModule()
 {
 	if (UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance())
 	{
@@ -47,17 +47,17 @@ void FTypedElementsDataStorageAssetDataModule::ShutdownModule()
 	}
 }
 
-FTypedElementsDataStorageAssetDataModule* FTypedElementsDataStorageAssetDataModule::Get()
+FTedsAssetDataModule* FTedsAssetDataModule::Get()
 {
-	return FModuleManager::Get().LoadModulePtr<FTypedElementsDataStorageAssetDataModule>(TEXT("TypedElementsDataStorageAssetData"));
+	return FModuleManager::Get().LoadModulePtr<FTedsAssetDataModule>(TEXT("TypedElementsDataStorageAssetData"));
 }
 
-FTypedElementsDataStorageAssetDataModule& FTypedElementsDataStorageAssetDataModule::GetChecked()
+FTedsAssetDataModule& FTedsAssetDataModule::GetChecked()
 {
-	return FModuleManager::Get().LoadModuleChecked<FTypedElementsDataStorageAssetDataModule>(TEXT("TypedElementsDataStorageAssetData"));
+	return FModuleManager::Get().LoadModuleChecked<FTedsAssetDataModule>(TEXT("TypedElementsDataStorageAssetData"));
 }
 
-void FTypedElementsDataStorageAssetDataModule::EnableTedsAssetRegistryStorage()
+void FTedsAssetDataModule::EnableTedsAssetRegistryStorage()
 {
 	if (!AssetRegistryStorage)
 	{
@@ -69,7 +69,7 @@ void FTypedElementsDataStorageAssetDataModule::EnableTedsAssetRegistryStorage()
 		}
 		else
 		{
-			TypedElementRegistry->OnDataStorageInterfacesSet().AddRaw(this, &FTypedElementsDataStorageAssetDataModule::InitAssetRegistryStorage);
+			TypedElementRegistry->OnDataStorageInterfacesSet().AddRaw(this, &FTedsAssetDataModule::InitAssetRegistryStorage);
 		}
 
 		if (!Private::CVarTEDSAssetDataStorage.GetValueOnGameThread())
@@ -79,7 +79,7 @@ void FTypedElementsDataStorageAssetDataModule::EnableTedsAssetRegistryStorage()
 	}
 }
 
-void FTypedElementsDataStorageAssetDataModule::DisableTedsAssetRegistryStorage()
+void FTedsAssetDataModule::DisableTedsAssetRegistryStorage()
 {
 	if (AssetRegistryStorage)
 	{
@@ -92,12 +92,12 @@ void FTypedElementsDataStorageAssetDataModule::DisableTedsAssetRegistryStorage()
 	}
 }
 
-bool FTypedElementsDataStorageAssetDataModule::IsTedsAssetRegistryStorageEnabled() const
+bool FTedsAssetDataModule::IsTedsAssetRegistryStorageEnabled() const
 {
 	return AssetRegistryStorage.IsValid();
 }
 
-void FTypedElementsDataStorageAssetDataModule::ProcessDependentEvents()
+void FTedsAssetDataModule::ProcessDependentEvents()
 {
 	if (Private::FTedsAssetData* Storage = AssetRegistryStorage.Get())
 	{
@@ -105,7 +105,7 @@ void FTypedElementsDataStorageAssetDataModule::ProcessDependentEvents()
 	}
 }
 
-void FTypedElementsDataStorageAssetDataModule::InitAssetRegistryStorage()
+void FTedsAssetDataModule::InitAssetRegistryStorage()
 {
 	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(*UTypedElementRegistry::GetInstance()->GetMutableDataStorage());
 }

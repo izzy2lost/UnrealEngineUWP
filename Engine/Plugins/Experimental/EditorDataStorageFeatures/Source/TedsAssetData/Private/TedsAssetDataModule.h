@@ -5,7 +5,7 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/UniquePtr.h"
 
-namespace UE::TypedElementsDataStorageAssetData
+namespace UE::EditorDataStorage::AssetData
 { 
 
 namespace Private
@@ -13,14 +13,14 @@ namespace Private
 	class FTedsAssetData;
 }
 
-class FTypedElementsDataStorageAssetDataModule : public IModuleInterface
+class FTedsAssetDataModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
-	static FTypedElementsDataStorageAssetDataModule* Get();
-	static FTypedElementsDataStorageAssetDataModule& GetChecked();
+	static FTedsAssetDataModule* Get();
+	static FTedsAssetDataModule& GetChecked();
 
 	void EnableTedsAssetRegistryStorage();
 	void DisableTedsAssetRegistryStorage();

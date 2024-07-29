@@ -10,7 +10,7 @@ struct FAssetData;
 
 class ITypedElementDataStorageInterface;
 
-namespace UE::TypedElementsDataStorageAssetData::Private
+namespace UE::EditorDataStorage::AssetData::Private
 {
 
 /**
