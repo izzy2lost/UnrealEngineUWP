@@ -16309,14 +16309,19 @@ void UMaterialFunction::PostLoad()
 
 		if (!bAllExpressionsLoadedCorrectly)
 		{
-			UE_LOG(LogMaterial, Display, TEXT("Some expression in Material Function %s failed to load correctly. This will cause any material using this MF to fail translation. Please check open affected Material Function, make sure its expression graph is valid and resave it."), *GetFullName());
-			
 			// Dirty this function by deterministically changing its StateId.
 			static FGuid NotAllExpressionsLoadedCorrectlyToken(TEXT("6B9D300E-ED9D-4E4A-A141-05DE059B5704"));
 			StateId.A ^= NotAllExpressionsLoadedCorrectlyToken.A;
 			StateId.B ^= NotAllExpressionsLoadedCorrectlyToken.B;
 			StateId.C ^= NotAllExpressionsLoadedCorrectlyToken.C;
 			StateId.D ^= NotAllExpressionsLoadedCorrectlyToken.D;
+
+			UE_LOG(LogMaterial, Log, TEXT(
+				"Some expression in Material Function %s failed to load correctly. "
+				"This will cause any material using this MF to fail translation. "
+				"Please check open affected Material Function, make sure its expression graph is valid and resave it. "
+				"Material Function's GUID was changed to %s."
+			), *GetFullName(), *StateId.ToString());
 		}
 	}
 
