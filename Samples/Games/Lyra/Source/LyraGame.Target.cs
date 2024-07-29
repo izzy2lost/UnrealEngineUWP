@@ -63,6 +63,9 @@ public class LyraGameTarget : TargetRules
 			{
 				// We don't use the path tracer at runtime, only for beauty shots, and this DLL is quite large
 				Target.DisablePlugins.Add("OpenImageDenoise");
+
+				// Reduce memory use in AssetRegistry always-loaded data, but add more cputime expensive queries
+				Target.GlobalDefinitions.Add("UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS=1");
 			}
 
 			LyraGameTarget.ConfigureGameFeaturePlugins(Target);

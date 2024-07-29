@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetDataMap.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
@@ -143,67 +144,6 @@ struct FAssetRegistryPruneOptions
 	TSet<FPrimaryAssetType> RemoveDependenciesWithoutPackagesKeepPrimaryAssetTypes;
 };
 
-namespace UE::AssetRegistry::Private
-{
-
-/* 
-* Key type for TSet<FAssetData*> in the asset registry.
-* Top level assets are searched for by their asset path as two names (e.g. '/Path/ToPackageName' + 'AssetName')
-* Other assets (e.g. external actors) are searched for by their full path with the whole outer chain as a single name. 
-* (e.g. '/Path/To/Package.TopLevel:Subobject' + 'DeeperSubobject')
-*/
-struct FCachedAssetKey
-{
-	explicit FCachedAssetKey(const FAssetData* InAssetData);
-	explicit FCachedAssetKey(const FAssetData& InAssetData);
-	explicit FCachedAssetKey(FTopLevelAssetPath InAssetPath);
-	explicit FCachedAssetKey(const FSoftObjectPath& InObjectPath);
-
-	FString ToString() const;
-	int32 Compare(const FCachedAssetKey& Other) const;	// Order asset keys with fast non-lexical comparison
-	void AppendString(FStringBuilderBase& Builder) const;
-
-	FName OuterPath = NAME_None;
-	FName ObjectName = NAME_None;
-};
-
-inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key);
-inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B);
-inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B);
-inline uint32 GetTypeHash(const FCachedAssetKey& A);
-
-/* 
-* Policy type for TSet<FAssetData*> to use FCachedAssetKey for hashing/equality.
-* This allows is to store just FAssetData* in the map without storing an extra copy of the key fields to save memory.
-*/
-struct FCachedAssetKeyFuncs
-{
-	using KeyInitType = FCachedAssetKey;
-	using ElementInitType = void; // TSet doesn't actually use this type 
-
-	enum { bAllowDuplicateKeys = false };
-
-	static FORCEINLINE KeyInitType GetSetKey(const FAssetData* Element)
-	{
-		return FCachedAssetKey(*Element);
-	}
-
-	static FORCEINLINE bool Matches(KeyInitType A, KeyInitType B)
-	{
-		return A == B;
-	}
-
-	static FORCEINLINE uint32 GetKeyHash(KeyInitType Key)
-	{
-		return GetTypeHash(Key);
-	}
-};
-
-using FAssetDataMap = TSet<FAssetData*, FCachedAssetKeyFuncs>;
-using FConstAssetDataMap = TSet<const FAssetData*, FCachedAssetKeyFuncs>;
-
-} // namespace UE::AssetRegistry::Private
-
 /**
  * The state of an asset registry, this is used internally by IAssetRegistry to represent the disk cache,
  * and is also accessed directly to save/load cooked caches.
@@ -212,11 +152,20 @@ class FAssetRegistryState
 {
 private:
 	using FCachedAssetKey = UE::AssetRegistry::Private::FCachedAssetKey;
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	using FAssetDataMap = UE::AssetRegistry::Private::FAssetDataMap;
+	using FAssetDataPtrIndex = UE::AssetRegistry::Private::FAssetDataPtrIndex;
+	using FAssetDataArrayIndex = UE::AssetRegistry::Private::FAssetDataArrayIndex;
+	using FAssetDataOrArrayIndex = UE::AssetRegistry::Private::FAssetDataOrArrayIndex;
+#endif
+
 public:
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	// These types are an implementation detail and they and the functions which take/return them are subject to change
 	// without deprecation warnings.
 	using FAssetDataMap = UE::AssetRegistry::Private::FAssetDataMap;
 	using FConstAssetDataMap = UE::AssetRegistry::Private::FConstAssetDataMap;
+#endif
 
 	FAssetRegistryState();
 	FAssetRegistryState(const FAssetRegistryState&) = delete;
@@ -410,8 +359,10 @@ public:
 	 * @param PackageName the path of the package to be looked up
 	 * @return an array of AssetData*, empty if nothing found
 	 */
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	UE_DEPRECATED(5.5, "Use EnumerateAssetsByPackageName or CopyAssetsByPackageName instead.")
 	TArrayView<FAssetData const* const> GetAssetsByPackageName(const FName PackageName) const;
+#endif
 	void EnumerateAssetsByPackageName(const FName PackageName,
 		TFunctionRef<bool(const FAssetData* AssetData)> Callback) const;
 	/** Gets the array of AssetData pointers for the package; does not copy the AssetDatas, just the pointers. */
@@ -427,8 +378,10 @@ public:
 	 * @param ClassPathName the class path name of the assets to look for
 	 * @return An array of AssetData*, empty if nothing found
 	 */
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	UE_DEPRECATED(5.5, "Use EnumerateAssetsByClassPathName instead.")
 	const TArray<const FAssetData*>& GetAssetsByClassPathName(const FTopLevelAssetPath ClassPathName) const;
+#endif
 	void EnumerateAssetsByClassPathName(const FTopLevelAssetPath ClassPathName,
 		TFunctionRef<bool(const FAssetData* AssetData)> Callback) const;
 
@@ -448,8 +401,10 @@ public:
 	 * @param TagName the tag name to search for
 	 * @return An array of AssetData*, empty if nothing found
 	 */
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	UE_DEPRECATED(5.5, "Use EnumerateAssetsByTagName instead.")
 	const TArray<const FAssetData*>& GetAssetsByTagName(const FName TagName) const;
+#endif
 
 	/**
 	 * Enumerates the asset data for the specified asset tag
@@ -469,13 +424,17 @@ public:
 	ASSETREGISTRY_API void EnumerateTagToAssetDatas(
 		TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const;
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	/** Returns const version of internal ObjectPath->AssetData map for fast iteration */
 	UE_DEPRECATED(5.5, "FAssetDataMap is a complicated implementation detail of FAssetRegistryState. Use the enumeration functions on FAssetRegistryState instead of using it directly.")
 	const FConstAssetDataMap& GetAssetDataMap() const;
+#endif
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	/** Returns const version of internal Tag->AssetDatas map for fast iteration */
 	UE_DEPRECATED(5.5, "Use EnumerateTags or EnumerateTagToAssetDatas instead.")
 	const TMap<FName, const TArray<const FAssetData*>> GetTagToAssetDatasMap() const;
+#endif
 
 	/** Returns const version of internal PackageName->PackageData map for fast iteration */
 	const TMap<FName, const FAssetPackageData*>& GetAssetPackageDataMap() const;
@@ -704,7 +663,11 @@ private:
 	void SetDependencyNodeSorting(bool bSortDependencies, bool bSortReferencers);
 
 	void RemoveAssetData(FAssetData* AssetData, const FCachedAssetKey& Key, bool bRemoveDependencyData,
-		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData);
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+		UE::AssetRegistry::Private::FAssetDataPtrIndex AssetIndex,
+#endif
+		bool& bOutRemovedAssetData, bool& bOutRemovedPackageData
+	);
 
 	/**
 	 * Returns true if the given package should be filtered from the results because the package belongs
@@ -719,19 +682,34 @@ private:
 	 * implicitly converted to FCachedAssetKey.
 	 */
 	FAssetDataMap CachedAssets;
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	UE::AssetRegistry::Private::FIndirectAssetDataArrays IndirectAssetDataArrays;
+#endif
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	/** The map of package names to asset data for assets saved to disk */
 	TMap<FName, TArray<FAssetData*, TInlineAllocator<1>> > CachedAssetsByPackageName;
-
 	/** The map of long package path to asset data for assets saved to disk */
 	TMap<FName, TArray<FAssetData*> > CachedAssetsByPath;
-
 	/** The map of class name to asset data for assets saved to disk */
 	TMap<FTopLevelAssetPath, TArray<FAssetData*> > CachedAssetsByClass;
+#else
+	/** The map of package names to asset data for assets saved to disk */
+	UE::AssetRegistry::Private::FAssetPackageNameMap CachedAssetsByPackageName;
+	/** The map of long package path to asset data for assets saved to disk */
+	TMap<FName, TArray<FAssetDataPtrIndex> > CachedAssetsByPath;
+	/** The map of class name to asset data for assets saved to disk */
+	TMap<FTopLevelAssetPath, TArray<FAssetDataPtrIndex> > CachedAssetsByClass;
+#endif
 
 #if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	/** The map of asset tag to asset data for assets saved to disk */
 	TMap<FName, TSet<FAssetData*> > CachedAssetsByTag;
+#else
+	/** The map of asset tag to asset data for assets saved to disk */
+	TMap<FName, TSet<FAssetDataPtrIndex> > CachedAssetsByTag;
+#endif
 #else
 	/** The map of asset tag to asset data for assets saved to disk */
 	TMap<FName, TSet<FTopLevelAssetPath> > CachedClassesByTag;
@@ -766,121 +744,6 @@ private:
 	friend class UAssetRegistryImpl;
 	friend class UE::AssetRegistry::FAssetRegistryImpl;
 };
-
-namespace UE::AssetRegistry::Private
-{
-
-FORCEINLINE uint32 HashCombineQuick(uint32 A, uint32 B)
-{
-	return A ^ (B + 0x9e3779b9 + (A << 6) + (A >> 2));
-}
-
-inline FCachedAssetKey::FCachedAssetKey(const FAssetData* InAssetData)
-{
-	if (!InAssetData)
-	{
-		return;
-	}
-
-#if WITH_EDITORONLY_DATA
-	if (!InAssetData->GetOptionalOuterPathName().IsNone())
-	{
-		OuterPath = InAssetData->GetOptionalOuterPathName();
-	}
-	else
-#endif
-	{
-		OuterPath = InAssetData->PackageName;
-	}
-	ObjectName = InAssetData->AssetName;
-}
-
-inline FCachedAssetKey::FCachedAssetKey(const FAssetData& InAssetData)
-	: FCachedAssetKey(&InAssetData)
-{
-}
-
-inline FCachedAssetKey::FCachedAssetKey(FTopLevelAssetPath InAssetPath)
-	: OuterPath(InAssetPath.GetPackageName())
-	, ObjectName(InAssetPath.GetAssetName())
-{
-}
-
-inline FCachedAssetKey::FCachedAssetKey(const FSoftObjectPath& InObjectPath)
-{
-	if (InObjectPath.GetAssetFName().IsNone())
-	{
-		// Packages themselves never appear in the asset registry
-		return;
-	}
-	else if (InObjectPath.GetSubPathString().IsEmpty())
-	{
-		// If InObjectPath represents a top-level asset we can just take the existing FNames.
-		OuterPath = InObjectPath.GetLongPackageFName();
-		ObjectName = InObjectPath.GetAssetFName();
-	}
-	else
-	{
-		// If InObjectPath represents a subobject we need to split the path into the path of the outer and the name of the innermost object.
-		TStringBuilder<FName::StringBufferSize> Builder;
-		InObjectPath.ToString(Builder);
-
-		const FAssetPathParts Parts = SplitIntoOuterPathAndAssetName(Builder);
-
-		// This should be impossible as at bare minimum concatenating the package name and asset name should add a separator
-		check(!Parts.OuterPath.IsEmpty() && !Parts.InnermostName.IsEmpty()); 
-
-		// Don't create FNames for this query struct. If the AssetData exists to find, the FName will already exist due to OptionalOuterPath on FAssetData.
-		OuterPath = FName(Parts.OuterPath, FNAME_Find); 
-		ObjectName = FName(Parts.InnermostName);
-	}
-}
-inline FString FCachedAssetKey::ToString() const
-{
-	TStringBuilder<FName::StringBufferSize> Builder;
-	AppendString(Builder);
-	return FString(Builder);
-}
-
-inline int32 FCachedAssetKey::Compare(const FCachedAssetKey& Other) const
-{
-	if (OuterPath == Other.OuterPath)
-	{
-		return ObjectName.CompareIndexes(Other.ObjectName);
-	}
-	else
-	{
-		return OuterPath.CompareIndexes(Other.OuterPath);
-	}
-}
-
-inline void FCachedAssetKey::AppendString(FStringBuilderBase& Builder) const
-{
-	ConcatenateOuterPathAndObjectName(Builder, OuterPath, ObjectName);
-}
-
-inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FCachedAssetKey& Key)
-{
-	Key.AppendString(Builder);
-	return Builder;
-}
-
-inline bool operator==(const FCachedAssetKey& A, const FCachedAssetKey& B)
-{
-	return A.OuterPath == B.OuterPath && A.ObjectName == B.ObjectName;
-}
-
-inline bool operator!=(const FCachedAssetKey& A, const FCachedAssetKey& B)
-{
-	return A.OuterPath != B.OuterPath || A.ObjectName != B.ObjectName;
-}
-
-inline uint32 GetTypeHash(const FCachedAssetKey& A)
-{
-	return HashCombineQuick(GetTypeHash(A.OuterPath), GetTypeHash(A.ObjectName));
-}
-
-} // namespace UE::AssetRegistry::Private
 
 
 ///////////////////////////////////////////////////////
@@ -921,10 +784,16 @@ inline FAssetRegistryLoadOptions::FAssetRegistryLoadOptions(const FAssetRegistry
 }
 
 inline FAssetRegistryState::FAssetRegistryState()
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	: CachedAssetsByPackageName(CachedAssets, IndirectAssetDataArrays)
+#endif
 {
 }
 
 inline FAssetRegistryState::FAssetRegistryState(FAssetRegistryState&& Rhs)
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	: CachedAssetsByPackageName(CachedAssets, IndirectAssetDataArrays)
+#endif
 {
 	*this = MoveTemp(Rhs);
 }
@@ -952,6 +821,7 @@ inline FAssetData* FAssetRegistryState::GetMutableAssetByObjectPath(
 	return FoundAsset ? *FoundAsset : nullptr;
 }
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 inline TArrayView<FAssetData const* const> FAssetRegistryState::GetAssetsByPackageName(const FName PackageName) const
 {
 	if (const TArray<FAssetData*, TInlineAllocator<1>>*FoundAssetArray = CachedAssetsByPackageName.Find(PackageName))
@@ -961,6 +831,7 @@ inline TArrayView<FAssetData const* const> FAssetRegistryState::GetAssetsByPacka
 
 	return TArrayView<FAssetData* const>();
 }
+#endif
 
 inline void FAssetRegistryState::EnumerateAssetsByPackageName(const FName PackageName,
 	TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
@@ -976,6 +847,7 @@ inline void FAssetRegistryState::EnumerateMutableAssetsByPackageName(const FName
 {
 	using namespace UE::AssetRegistry::Private;
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	if (const TArray<FAssetData*, TInlineAllocator<1>>* FoundAssetArray
 		= CachedAssetsByPackageName.Find(PackageName))
 	{
@@ -987,6 +859,18 @@ inline void FAssetRegistryState::EnumerateMutableAssetsByPackageName(const FName
 			}
 		}
 	}
+#else
+	if (TOptional<TConstArrayView<FAssetDataPtrIndex>> AssetArray = CachedAssetsByPackageName.Find(PackageName))
+	{
+		for (FAssetDataPtrIndex Index : *AssetArray)
+		{
+			if (!Callback(CachedAssets[Index]))
+			{
+				break;
+			}
+		}
+	}
+#endif
 }
 
 inline TArray<const FAssetData*> FAssetRegistryState::CopyAssetsByPackageName(const FName PackageName) const
@@ -1003,8 +887,13 @@ inline TArray<const FAssetData*> FAssetRegistryState::CopyAssetsByPackageName(co
 
 inline int32 FAssetRegistryState::NumAssetsByPackageName(const FName PackageName) const
 {
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	const auto* Array = CachedAssetsByPackageName.Find(PackageName);
 	return Array ? Array->Num() : 0;
+#else
+	const TOptional<TConstArrayView<FAssetDataPtrIndex>> Array = CachedAssetsByPackageName.Find(PackageName);
+	return Array ? Array->Num() : 0;
+#endif
 }
 
 inline void FAssetRegistryState::EnumerateAssetsByPackagePath(FName LongPackagePathName,
@@ -1021,6 +910,7 @@ inline void FAssetRegistryState::EnumerateMutableAssetsByPackagePath(FName LongP
 {
 	using namespace UE::AssetRegistry::Private;
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	const TArray<FAssetData*>* AssetsInPath = CachedAssetsByPath.Find(LongPackagePathName);
 	if (AssetsInPath)
 	{
@@ -1032,8 +922,22 @@ inline void FAssetRegistryState::EnumerateMutableAssetsByPackagePath(FName LongP
 			}
 		}
 	}
+#else
+	const TArray<FAssetDataPtrIndex>* AssetsInPath = CachedAssetsByPath.Find(LongPackagePathName);
+	if (AssetsInPath)
+	{
+		for (FAssetDataPtrIndex AssetIndex : *AssetsInPath)
+		{
+			if (!Callback(CachedAssets[AssetIndex]))
+			{
+				break;
+			}
+		}
+	}
+#endif
 }
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByClassPathName(
 	const FTopLevelAssetPath ClassPathName) const
 {
@@ -1046,12 +950,14 @@ inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByClassPat
 
 	return InvalidArray;
 }
+#endif
 
 inline void FAssetRegistryState::EnumerateAssetsByClassPathName(
 	const FTopLevelAssetPath ClassPathName, TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
 {
 	using namespace UE::AssetRegistry::Private;
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	if (const TArray<FAssetData*>* FoundAssetArray = CachedAssetsByClass.Find(ClassPathName))
 	{
 		for (FAssetData* AssetData : *FoundAssetArray)
@@ -1059,6 +965,18 @@ inline void FAssetRegistryState::EnumerateAssetsByClassPathName(
 			Callback(AssetData);
 		}
 	}
+#else
+	if (const TArray<FAssetDataPtrIndex>* FoundAssetArray = CachedAssetsByClass.Find(ClassPathName))
+	{
+		for (FAssetDataPtrIndex AssetIndex : *FoundAssetArray)
+		{
+			if (!Callback(CachedAssets[AssetIndex]))
+			{
+				break;
+			}
+		}
+	}
+#endif
 }
 
 inline void FAssetRegistryState::EnumerateTags(TFunctionRef<bool(FName TagName)> Callback) const
@@ -1085,18 +1003,23 @@ inline bool FAssetRegistryState::ContainsTag(FName TagName) const
 #endif
 }
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 inline const TArray<const FAssetData*>& FAssetRegistryState::GetAssetsByTagName(const FName TagName) const
 {
 	ensureMsgf(false, TEXT("GetAssetsByTagName has been deprecated. Please use EnumerateAssetsByTagName"));
 	static TArray<const FAssetData*> InvalidArray;
 	return InvalidArray;
 }
+#endif
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 inline const FAssetRegistryState::FConstAssetDataMap& FAssetRegistryState::GetAssetDataMap() const
 {
 	return reinterpret_cast<const FConstAssetDataMap&>(CachedAssets);
 }
+#endif
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 inline const TMap<FName, const TArray<const FAssetData*>> FAssetRegistryState::GetTagToAssetDatasMap() const
 {
 	ensureMsgf(false,
@@ -1104,6 +1027,7 @@ inline const TMap<FName, const TArray<const FAssetData*>> FAssetRegistryState::G
 	static TMap<FName, const TArray<const FAssetData*>> InvalidMap;
 	return InvalidMap;
 }
+#endif
 
 inline const TMap<FName, const FAssetPackageData*>& FAssetRegistryState::GetAssetPackageDataMap() const
 {

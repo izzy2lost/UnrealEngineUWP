@@ -41,6 +41,9 @@ FAssetRegistryState& FAssetRegistryState::operator=(FAssetRegistryState&& Rhs)
 	Reset();
 
 	CachedAssets						= MoveTemp(Rhs.CachedAssets);
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	IndirectAssetDataArrays				= MoveTemp(Rhs.IndirectAssetDataArrays);
+#endif
 	CachedAssetsByPackageName			= MoveTemp(Rhs.CachedAssetsByPackageName);
 	CachedAssetsByPath					= MoveTemp(Rhs.CachedAssetsByPath);
 	CachedAssetsByClass					= MoveTemp(Rhs.CachedAssetsByClass);
@@ -157,6 +160,9 @@ void FAssetRegistryState::Reset()
 #endif
 	CachedDependsNodes.Empty();
 	CachedPackageData.Empty();
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	IndirectAssetDataArrays.Empty();
+#endif
 	CachedAssets.Empty();
 }
 
@@ -788,11 +794,66 @@ void ArrayIntersection(TArray<const FAssetData*>& InOutResults,
 	}
 }
 
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+void ArrayIntersection(TArray<const FAssetData*>& InOutResults,
+	TConstArrayView<TConstArrayView<FAssetDataPtrIndex>> Matches, int32 TotalMatches,
+	const FAssetDataMap& CachedAssets)
+{
+	if (InOutResults.Num() < TotalMatches)
+	{
+		TMap<const FAssetData*, bool> Exists;
+		Exists.Reserve(InOutResults.Num());
+		for (const FAssetData* Result : InOutResults)
+		{
+			Exists.Add(Result, false);
+		}
+		InOutResults.Empty();
+		for (TConstArrayView<FAssetDataPtrIndex> Assets : Matches)
+		{
+			for (FAssetDataPtrIndex AssetIndex: Assets)
+			{
+				const FAssetData* Asset = CachedAssets[AssetIndex];
+				bool* Result = Exists.Find(Asset);
+				if (Result && 
+					!(*Result) // If there are duplicates of an Asset in multiple elements of Matches,
+					           // only add the first one
+				)
+				{
+					*Result = true;
+					InOutResults.Add(Asset);
+				}
+ 			}
+		}
+	}
+	else
+	{
+		TSet<const FAssetData*> Exists;
+		Exists.Reserve(TotalMatches);
+		for (TConstArrayView<FAssetDataPtrIndex> Assets : Matches)
+		{
+			for (FAssetDataPtrIndex AssetIndex : Assets)
+			{
+				Exists.Add(CachedAssets[AssetIndex]);
+			}
+		}
+
+		InOutResults.RemoveAllSwap([&Exists](const FAssetData* Asset)
+			{
+				return !Exists.Contains(Asset);
+			});
+	}
+}
+#endif
+
 template<class ArrayType, typename KeyType, typename CallbackType>
 void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<KeyType, ArrayType>& AccelerationMap,
-	const TSet<KeyType>& Keys, CallbackType&& FunctionToKeepAsset, int32 FilterComplexity)
+	const TSet<KeyType>& Keys, CallbackType&& FunctionToKeepAsset, int32 FilterComplexity, const FAssetDataMap& CachedAssets)
 {
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	TArray<TConstArrayView<const FAssetData*>, TInlineAllocator<10>> Matches;
+#else
+	TArray<TConstArrayView<FAssetDataPtrIndex>, TInlineAllocator<10>> Matches;
+#endif
 	Matches.Reserve(Keys.Num());
 	uint32 TotalMatches = 0;
 
@@ -800,8 +861,13 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<KeyType, A
 	{
 		if (const ArrayType* Assets = AccelerationMap.Find(Key))
 		{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 			const FAssetData** AssetPtr = const_cast<const FAssetData**>(Assets->GetData());
 			Matches.Add(TConstArrayView<const FAssetData*>(AssetPtr, Assets->Num()));
+#else
+			FAssetDataPtrIndex* AssetPtr = const_cast<FAssetDataPtrIndex*>(Assets->GetData());
+			Matches.Add(TConstArrayView<FAssetDataPtrIndex>(AssetPtr, Assets->Num()));
+#endif
 			TotalMatches += Assets->Num();
 		}
 	}
@@ -812,9 +878,75 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<KeyType, A
 	{
 		// No previous Results; set Results equal to the values found in AccelerationMap
 		InOutResults.Reserve(TotalMatches);
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		for (TConstArrayView<const FAssetData*> Assets : Matches)
 		{
 			InOutResults.Append(Assets);
+		}
+#else
+		for (TConstArrayView<FAssetDataPtrIndex> Assets : Matches)
+		{
+			for (FAssetDataPtrIndex AssetIndex : Assets)
+			{
+				InOutResults.Add(CachedAssets[AssetIndex]);
+			}
+		}
+#endif
+	}
+	else
+	{
+		bool bUseFiltering = DecideIntersectionMethod(InOutResults.Num(), TotalMatches, FilterComplexity);
+		if (bUseFiltering)
+		{
+			InOutResults.RemoveAllSwap([&FunctionToKeepAsset](const FAssetData* AssetData)
+				{
+					return !FunctionToKeepAsset(AssetData);
+				});
+		}
+		else
+		{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+			ArrayIntersection(InOutResults, TConstArrayView<TConstArrayView<const FAssetData*>>(Matches), TotalMatches);
+#else
+			ArrayIntersection(InOutResults, TConstArrayView<TConstArrayView<FAssetDataPtrIndex>>(Matches), TotalMatches, CachedAssets);
+#endif
+		}
+	}
+}
+
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+template<typename CallbackType>
+void FilterAssetsByPackageName(
+	TArray<const FAssetData*>& InOutResults,
+	const FAssetPackageNameMap& AccelerationMap,
+	const TSet<FName>& Keys, CallbackType&& FunctionToKeepAsset, int32 FilterComplexity,
+	const FAssetDataMap& CachedAssets)
+{
+	TArray<TConstArrayView<FAssetDataPtrIndex>, TInlineAllocator<10>> Matches;
+	Matches.Reserve(Keys.Num());
+	uint32 TotalMatches = 0;
+
+	for (const FName& Key : Keys)
+	{
+		if (TOptional<TConstArrayView<FAssetDataPtrIndex>> Array = AccelerationMap.Find(Key))
+		{
+			Matches.Add(*Array);
+			TotalMatches += Matches.Num();
+		}
+	}
+
+	// Keys is a TSet and entries in the AccelerationMap do not overlap,
+	// so there should be no duplicates to remove in Matches
+	if (InOutResults.IsEmpty())
+	{
+		// No previous Results; set Results equal to the values found in AccelerationMap
+		InOutResults.Reserve(TotalMatches);
+		for (TConstArrayView<FAssetDataPtrIndex> Assets : Matches)
+		{
+			for (FAssetDataPtrIndex AssetIndex : Assets)
+			{
+				InOutResults.Add(CachedAssets[AssetIndex]);
+			}
 		}
 	}
 	else
@@ -829,10 +961,11 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const TMap<KeyType, A
 		}
 		else
 		{
-			ArrayIntersection(InOutResults, TConstArrayView<TConstArrayView<const FAssetData*>>(Matches), TotalMatches);
+			ArrayIntersection(InOutResults, TConstArrayView<TConstArrayView<FAssetDataPtrIndex>>(Matches), TotalMatches, CachedAssets);
 		}
 	}
 }
+#endif
 
 template<typename CallbackType>
 void FilterAssets(TArray<const FAssetData*>&InOutResults,
@@ -894,7 +1027,7 @@ bool AssetDataMatchesTag(const FAssetData* AssetData, const TPair<FName, TOption
 template<typename CallbackType, typename AccelerationMapType>
 void FilterAssets(TArray<const FAssetData*>& InOutResults, const AccelerationMapType& AccelerationMap,
 	const TMultiMap<FName, TOptional<FString>>& TagsAndValues,
-	CallbackType&& FunctionToKeepAsset, int32 FilterComplexity)
+	CallbackType&& FunctionToKeepAsset, int32 FilterComplexity, const FAssetDataMap& CachedAssets)
 {
 	TArray<TArray<const FAssetData*>, TInlineAllocator<10>> Matches;
 	Matches.Reserve(TagsAndValues.Num());
@@ -906,8 +1039,14 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const AccelerationMap
 		if (const auto* TagAssets = AccelerationMap.Find(TagPair.Key))
 		{
 			Results.Reserve(TagAssets->Num());
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 			for (FAssetData* AssetData : *TagAssets)
 			{
+#else
+			for (FAssetDataPtrIndex AssetIndex : *TagAssets)
+			{
+				FAssetData* AssetData = CachedAssets[AssetIndex];
+#endif
 				if (AssetDataMatchesTag(AssetData, TagPair))
 				{
 					Results.Add(AssetData);
@@ -959,9 +1098,14 @@ void FilterAssets(TArray<const FAssetData*>& InOutResults, const AccelerationMap
 template<typename CallbackType>
 void FilterAssetsByCachedClassesByTag(TArray<const FAssetData*>& InOutResults,
 	const TMap<FName, TSet<FTopLevelAssetPath>>& CachedClassesByTag,
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	const TMap<FTopLevelAssetPath, TArray<FAssetData*>>& CachedAssetsByClass,
+#else
+	const TMap<FTopLevelAssetPath, TArray<FAssetDataPtrIndex>>& CachedAssetsByClass,
+#endif
 	const TMultiMap<FName, TOptional<FString>>& TagsAndValues,
-	CallbackType&& FunctionToKeepAsset, int32 FilterComplexity)
+	CallbackType&& FunctionToKeepAsset, int32 FilterComplexity,
+	const FAssetDataMap& CachedAssets)
 {
 	TArray<TArray<const FAssetData*>, TInlineAllocator<10>> Matches;
 	Matches.Reserve(TagsAndValues.Num());
@@ -978,10 +1122,21 @@ void FilterAssetsByCachedClassesByTag(TArray<const FAssetData*>& InOutResults,
 		{
 			for (const FTopLevelAssetPath& ClassPath : *TagClasses)
 			{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 				if (const TArray<FAssetData*>* ClassAssets = CachedAssetsByClass.Find(ClassPath))
 				{
 					Results.Append(*ClassAssets);
 				}
+#else
+				if (const TArray<FAssetDataPtrIndex>* ClassAssets = CachedAssetsByClass.Find(ClassPath))
+				{
+					Results.Reserve(Results.Num() + ClassAssets->Num());
+					for (FAssetDataPtrIndex Index : *ClassAssets)
+					{
+						Results.Add(CachedAssets[Index]);
+					}
+				}
+#endif
 			}
 		}
 		// Some assets are in a class that could have the tag, but the specific asset actually does not have the tag.
@@ -1114,13 +1269,17 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 
 	if (Filter.PackageNames.Num() > 0)
 	{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		FilterAssets(
+#else
+		FilterAssetsByPackageName(
+#endif
 			AccumulatedResults, CachedAssetsByPackageName, Filter.PackageNames,
 			[&Filter](const FAssetData* AssetData)
 			{
 				return Filter.PackageNames.Contains(AssetData->PackageName);
 			},
-			Filter.PackageNames.Num());
+			Filter.PackageNames.Num(), CachedAssets);
 		if (AccumulatedResults.IsEmpty())
 		{
 			return true;
@@ -1134,7 +1293,7 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 			{
 				return Filter.PackagePaths.Contains(AssetData->PackagePath);
 			},
-			Filter.PackagePaths.Num());
+			Filter.PackagePaths.Num(), CachedAssets);
 		if (AccumulatedResults.IsEmpty())
 		{
 			return true;
@@ -1160,7 +1319,7 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 				}
 				return false; // remove
 			},
-			Filter.TagsAndValues.Num());
+			Filter.TagsAndValues.Num(), CachedAssets);
 		if (AccumulatedResults.IsEmpty())
 		{
 			return true;
@@ -1174,7 +1333,7 @@ bool FAssetRegistryState::EnumerateAssets(const FARCompiledFilter& Filter, const
 			{
 				return Filter.ClassPaths.Contains(AssetData->AssetClassPath);
 			},
-			Filter.ClassPaths.Num());
+			Filter.ClassPaths.Num(), CachedAssets);
 		if (AccumulatedResults.IsEmpty())
 		{
 			return true;
@@ -1273,7 +1432,7 @@ bool FAssetRegistryState::EnumerateAllAssets(const TSet<FName>& PackageNamesToSk
 
 void FAssetRegistryState::EnumerateAllPaths(TFunctionRef<void(FName PathName)> Callback) const
 {
-	for (const TPair<FName, TArray<FAssetData*>>& Pair : CachedAssetsByPath)
+	for (const auto& Pair : CachedAssetsByPath)
 	{
 		Callback(Pair.Key);
 	}
@@ -1932,6 +2091,9 @@ void FAssetRegistryState::LoadDependencies_BeforeFlags(FArchive& Ar, bool bSeria
 SIZE_T FAssetRegistryState::GetAllocatedSize(bool bLogDetailed) const
 {
 	SIZE_T MapMemory = CachedAssets.GetAllocatedSize();
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	MapMemory += IndirectAssetDataArrays.GetAllocatedSize();
+#endif
 	MapMemory += CachedAssetsByPackageName.GetAllocatedSize();
 	MapMemory += CachedAssetsByPath.GetAllocatedSize();
 	MapMemory += CachedAssetsByClass.GetAllocatedSize();
@@ -1955,7 +2117,9 @@ SIZE_T FAssetRegistryState::GetAllocatedSize(bool bLogDetailed) const
 			MapArrayMemory += Pair.Value.GetAllocatedSize();
 		}
 	};
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	SubArray(CachedAssetsByPackageName);
+#endif
 	SubArray(CachedAssetsByPath);
 
 	for (auto& Pair : CachedAssetsByClass)
@@ -2163,6 +2327,8 @@ void ShrinkMultimap(TMap<KeyType, TArray<ValueType>>& Map)
 
 void FAssetRegistryState::SetAssetDatas(TArrayView<FAssetData> AssetDatas, const FAssetRegistryLoadOptions& Options)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	UE_CLOG(NumAssets != 0, LogAssetRegistry, Fatal,
 		TEXT("Can only load into empty asset registry states. Load into temporary and append using InitializeFromExisting() instead."));
 
@@ -2183,33 +2349,58 @@ void FAssetRegistryState::SetAssetDatas(TArrayView<FAssetData> AssetDatas, const
 	auto SetPackageNameCache = [this, &AssetDatas]()
 	{
 		CachedAssetsByPackageName.Empty(AssetDatas.Num());
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		for (FAssetData& AssetData : AssetDatas)
 		{
 			CachedAssetsByPackageName.FindOrAdd(AssetData.PackageName).Add(&AssetData);
 		}
+#else
+		CachedAssets.Enumerate([this](FAssetData& AssetData, FAssetDataPtrIndex AssetIndex)
+			{
+				CachedAssetsByPackageName.Add(AssetData.PackageName, AssetIndex);
+				return true;
+			});
+#endif
 	};
 
 	auto SetPackagePathCache = [this, &AssetDatas]()
 	{
 		CachedAssetsByPath.Empty();
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		for (FAssetData& AssetData : AssetDatas)
 		{
 			CachedAssetsByPath.FindOrAdd(AssetData.PackagePath).Add(&AssetData);
 		}
+#else
+		CachedAssets.Enumerate([this](FAssetData& AssetData, FAssetDataPtrIndex AssetIndex)
+			{
+				CachedAssetsByPath.FindOrAdd(AssetData.PackagePath).Add(AssetIndex);
+				return true;
+			});
+#endif
 		ShrinkMultimap(CachedAssetsByPath);
 	};
 
 	auto SetClassAndTagCaches = [this, &AssetDatas]()
 	{
 		CachedAssetsByClass.Empty();
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		for (FAssetData& AssetData : AssetDatas)
 		{
 			CachedAssetsByClass.FindOrAdd(AssetData.AssetClassPath).Add(&AssetData);
 		}
+#else
+		CachedAssets.Enumerate([this](FAssetData& AssetData, FAssetDataPtrIndex AssetIndex)
+			{
+				CachedAssetsByClass.FindOrAdd(AssetData.AssetClassPath).Add(AssetIndex);
+				return true;
+			});
+#endif
 		ShrinkMultimap(CachedAssetsByClass);
 
 #if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
 		CachedAssetsByTag.Empty();
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		for (FAssetData& AssetData : AssetDatas)
 		{
 			for (const TPair<FName, FAssetTagValueRef>& Pair : AssetData.TagsAndValues)
@@ -2217,6 +2408,16 @@ void FAssetRegistryState::SetAssetDatas(TArrayView<FAssetData> AssetDatas, const
 				CachedAssetsByTag.FindOrAdd(Pair.Key).Add(&AssetData);
 			}
 		}
+#else
+		CachedAssets.Enumerate([this](FAssetData& AssetData, FAssetDataPtrIndex AssetIndex)
+			{
+				for (const TPair<FName, FAssetTagValueRef>& Pair : AssetData.TagsAndValues)
+				{
+					CachedAssetsByTag.FindOrAdd(Pair.Key).Add(AssetIndex);
+				}
+				return true;
+			});
+#endif
 		CachedAssetsByTag.Shrink();
 		for (auto& Pair : CachedAssetsByTag)
 		{
@@ -2249,20 +2450,35 @@ void FAssetRegistryState::SetAssetDatas(TArrayView<FAssetData> AssetDatas, const
 	}
 	else
 	{
-		TFuture<void> Task1 = Async(EAsyncExecution::TaskGraph, [=]() { SetObjectPathCache(); });
-		TFuture<void> Task2 = Async(EAsyncExecution::TaskGraph, [=]() { SetPackageNameCache(); });
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+		TFuture<void> Task1 = Async(EAsyncExecution::TaskGraph, [&SetObjectPathCache]() { SetObjectPathCache(); });
+		TFuture<void> Task2 = Async(EAsyncExecution::TaskGraph, [&SetPackageNameCache]() { SetPackageNameCache(); });
 		SetPackagePathCache();
 		SetClassAndTagCaches();
 		Task1.Wait();
 		Task2.Wait();
+#else
+		SetObjectPathCache();
+		TFuture<void> Task1 = Async(EAsyncExecution::TaskGraph, [&SetPackagePathCache]() { SetPackagePathCache(); });
+		TFuture<void> Task2 = Async(EAsyncExecution::TaskGraph, [&SetPackageNameCache]() { SetPackageNameCache(); });
+		SetClassAndTagCaches();
+		Task1.Wait();
+		Task2.Wait();
+#endif
 	}
 }
 
 void FAssetRegistryState::AddAssetData(FAssetData* AssetData)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	bool bAlreadyInSet = false;
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	CachedAssets.Add(AssetData, &bAlreadyInSet);
 	FAssetData* MapElement = AssetData;
+#else
+	FAssetDataPtrIndex MapElement = CachedAssets.Add(AssetData, &bAlreadyInSet);
+#endif
 	if (bAlreadyInSet)
 	{
 		UE_LOG(LogAssetRegistry, Error, TEXT("AddAssetData called with ObjectPath %s which already exists. ")
@@ -2273,7 +2489,11 @@ void FAssetRegistryState::AddAssetData(FAssetData* AssetData)
 		++NumAssets;
 	}
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	CachedAssetsByPackageName.FindOrAdd(AssetData->PackageName).Add(MapElement);
+#else
+	CachedAssetsByPackageName.Add(AssetData->PackageName, MapElement);
+#endif
 	CachedAssetsByPath.FindOrAdd(AssetData->PackagePath).Add(MapElement);
 	CachedAssetsByClass.FindOrAdd(AssetData->AssetClassPath).Add(MapElement);
 
@@ -2291,13 +2511,20 @@ void FAssetRegistryState::AddAssetData(FAssetData* AssetData)
 
 void FAssetRegistryState::AddTagsToAssetData(const FSoftObjectPath& InObjectPath, FAssetDataTagMap&& InTagsAndValues)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	if (InTagsAndValues.IsEmpty())
 	{
 		return;
 	}
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	FSetElementId Id = CachedAssets.FindId(FCachedAssetKey(InObjectPath));
 	if (!Id.IsValidId())
+#else
+	FAssetDataPtrIndex Id = CachedAssets.FindId(FCachedAssetKey(InObjectPath));
+	if (Id == AssetDataPtrIndexInvalid)
+#endif
 	{
 		UE_LOG(LogAssetRegistry, Warning,
 			TEXT("AddTagsToAssetData called with asset data that doesn't exist! Tags not added. ObjectPath: %s"),
@@ -2313,6 +2540,8 @@ void FAssetRegistryState::AddTagsToAssetData(const FSoftObjectPath& InObjectPath
 
 void FAssetRegistryState::FilterTags(const FAssetRegistrySerializationOptions& Options)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	// Calling SetTagsOnExistingAsset for any changed tags might be slow.
 	// For cases where many Assets change it might be faster to recreate CachedAssetsByTag/CachedClassesByTag rather
 	// than trying to update its elements for each Asset change. For that reason we (currently) always recreate
@@ -2329,10 +2558,15 @@ void FAssetRegistryState::FilterTags(const FAssetRegistrySerializationOptions& O
 	}
 #endif
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	for (FAssetData* AssetDataPtr : CachedAssets)
 	{
 		FAssetData& AssetData = *AssetDataPtr;
 		FAssetData* AssetIndex = AssetDataPtr;
+#else
+	CachedAssets.Enumerate([this, &Options](FAssetData& AssetData, FAssetDataPtrIndex AssetIndex)
+	{
+#endif
 		FAssetDataTagMap LocalTagsAndValues;
 		FAssetRegistryState::FilterTags(AssetData.TagsAndValues, LocalTagsAndValues,
 			Options.CookFilterlistTagsByClass.Find(AssetData.AssetClassPath), Options);
@@ -2351,13 +2585,22 @@ void FAssetRegistryState::FilterTags(const FAssetRegistrySerializationOptions& O
 			CachedClassesByTag.FindOrAdd(TagIt.Key()).Add(AssetData.AssetClassPath);
 #endif
 		}
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	}
+#else
+		return true;
+	});
+#endif
 }
 
 void FAssetRegistryState::SetTagsOnExistingAsset(FAssetData* AssetData, FAssetDataTagMap&& NewTags)
 {
 	// Update the tag cache map to remove deleted tags
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	FAssetData* AssetIndex = AssetData;
+#else
+	FAssetDataPtrIndex AssetIndex = CachedAssets.FindId(FCachedAssetKey(AssetData));
+#endif
 	for (auto TagIt = AssetData->TagsAndValues.CreateConstIterator(); TagIt; ++TagIt)
 	{
 		const FName FNameKey = TagIt.Key();
@@ -2436,17 +2679,28 @@ void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, const FAssetDat
 
 void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, FAssetData&& NewAssetData, bool* bOutModified)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	bool bKeyFieldIsModified = false;
 	FCachedAssetKey OldKey(AssetData);
 	FCachedAssetKey NewKey(NewAssetData);
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	FAssetData* AssetIndex = AssetData;
+#else
+	FAssetDataPtrIndex AssetIndex = CachedAssets.FindId(OldKey);
+	check(AssetIndex != AssetDataPtrIndexInvalid);
+#endif
 
 	// Update ObjectPath
 	if (OldKey != NewKey)
 	{
 		bKeyFieldIsModified = true;
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		int32 NumRemoved = CachedAssets.Remove(OldKey);
+#else
+		int32 NumRemoved = CachedAssets.RemoveOnlyKeyLookup(OldKey);
+#endif
 		check(NumRemoved <= 1);
 		if (NumRemoved == 0)
 		{
@@ -2461,8 +2715,13 @@ void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, FAssetData&& Ne
 	if (AssetData->PackageName != NewAssetData.PackageName)
 	{
 		bKeyFieldIsModified = true;
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		CachedAssetsByPackageName.Find(AssetData->PackageName)->Remove(AssetIndex);
 		CachedAssetsByPackageName.FindOrAdd(NewAssetData.PackageName).Add(AssetIndex);
+#else
+		CachedAssetsByPackageName.Remove(AssetData->PackageName, AssetIndex);
+		CachedAssetsByPackageName.Add(NewAssetData.PackageName, AssetIndex);
+#endif
 	}
 
 	// Update PackagePath
@@ -2551,7 +2810,11 @@ void FAssetRegistryState::UpdateAssetData(FAssetData* AssetData, FAssetData&& Ne
 	if (OldKey != NewKey)
 	{
 		bool bExisting = false;
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		CachedAssets.Add(AssetData, &bExisting);
+#else
+		CachedAssets.AddKeyLookup(AssetData, AssetIndex, &bExisting);
+#endif
 		if (bExisting)
 		{
 			UE_LOG(LogAssetRegistry, Error,
@@ -2581,14 +2844,32 @@ bool FAssetRegistryState::UpdateAssetDataPackageFlags(FName PackageName, uint32 
 void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, bool bRemoveDependencyData,
 	bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	if (!ensure(AssetData))
 	{
 		bOutRemovedAssetData = false;
 		bOutRemovedPackageData = false;
 		return;
 	}
-	RemoveAssetData(AssetData,  FCachedAssetKey(AssetData), bRemoveDependencyData, bOutRemovedAssetData,
-		bOutRemovedPackageData);
+	FCachedAssetKey AssetKey(AssetData);
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	FAssetDataPtrIndex AssetIndex = CachedAssets.FindId(AssetKey);
+	if (AssetIndex == AssetDataPtrIndexInvalid)
+	{
+		bOutRemovedAssetData = false;
+		bOutRemovedPackageData = false;
+	}
+	else
+#endif
+	{
+		RemoveAssetData(AssetData, AssetKey, bRemoveDependencyData,
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+			AssetIndex,
+#endif
+			bOutRemovedAssetData, bOutRemovedPackageData
+		);
+	}
 	if (!bOutRemovedAssetData)
 	{
 		UE_LOG(LogAssetRegistry, Error,
@@ -2600,21 +2881,40 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, bool bRemoveDep
 void FAssetRegistryState::RemoveAssetData(const FSoftObjectPath& AssetPath, bool bRemoveDependencyData,
 	bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	FCachedAssetKey Key(AssetPath);
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	FAssetData** AssetDataPtrPtr = CachedAssets.Find(Key);
 	FAssetData* AssetData = AssetDataPtrPtr ? *AssetDataPtrPtr : nullptr;
+#else
+	FAssetDataPtrIndex AssetIndex = CachedAssets.FindId(Key);
+	FAssetData* AssetData = AssetIndex != AssetDataPtrIndexInvalid ? CachedAssets[AssetIndex] : nullptr;
+#endif
 	if (!AssetData)
 	{
 		bOutRemovedAssetData = false;
 		bOutRemovedPackageData = false;
 		return;
 	}
-	RemoveAssetData(AssetData, Key, bRemoveDependencyData, bOutRemovedAssetData, bOutRemovedPackageData);
+	RemoveAssetData(AssetData, Key, bRemoveDependencyData,
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+		AssetIndex,
+#endif
+		bOutRemovedAssetData, bOutRemovedPackageData
+	);
 }
 
 void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAssetKey& Key,
-	bool bRemoveDependencyData, bool& bOutRemovedAssetData, bool& bOutRemovedPackageData)
+	bool bRemoveDependencyData,
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+	UE::AssetRegistry::Private::FAssetDataPtrIndex AssetIndex,
+#endif
+	bool& bOutRemovedAssetData, bool& bOutRemovedPackageData
+)
 {
+	using namespace UE::AssetRegistry::Private;
+
 	bOutRemovedAssetData = false;
 	bOutRemovedPackageData = false;
 	int32 NumRemoved = CachedAssets.Remove(Key);
@@ -2624,6 +2924,7 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAs
 		return;
 	}
 
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	FAssetData* AssetIndex = AssetData;
 
 	TArray<FAssetData*, TInlineAllocator<1>>* OldPackageAssets =
@@ -2634,6 +2935,10 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAs
 	{
 		CachedAssetsByPackageName.Remove(AssetData->PackageName);
 	}
+#else
+	CachedAssetsByPackageName.Remove(AssetData->PackageName, AssetIndex);
+	bool bOldPackageAssetsEmpty = !CachedAssetsByPackageName.Contains(AssetData->PackageName);
+#endif
 	CachedAssetsByPath.Find(AssetData->PackagePath)->RemoveSingleSwap(AssetIndex);
 	CachedAssetsByClass.Find(AssetData->AssetClassPath)->RemoveSingleSwap(AssetIndex);
 
@@ -2828,7 +3133,10 @@ bool FAssetRegistryState::IsFilterValid(const FARCompiledFilter& Filter)
 void FAssetRegistryState::EnumerateAssetsByTagName(const FName TagName,
 	TFunctionRef<bool(const FAssetData* AssetData)> Callback) const
 {
+	using namespace UE::AssetRegistry::Private;
+
 #if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	const TSet<FAssetData*>* FoundAssets = CachedAssetsByTag.Find(TagName);
 	if (FoundAssets)
 	{
@@ -2840,6 +3148,19 @@ void FAssetRegistryState::EnumerateAssetsByTagName(const FName TagName,
 			}
 		}
 	}
+#else
+	const TSet<FAssetDataPtrIndex>* FoundAssets = CachedAssetsByTag.Find(TagName);
+	if (FoundAssets)
+	{
+		for (FAssetDataPtrIndex AssetIndex : *FoundAssets)
+		{
+			if (!Callback(CachedAssets[AssetIndex]))
+			{
+				break;
+			}
+		}
+	}
+#endif
 #else
 	const TSet<FTopLevelAssetPath>* FoundClasses = CachedClassesByTag.Find(TagName);
 	if (!FoundClasses)
@@ -2853,11 +3174,23 @@ void FAssetRegistryState::EnumerateAssetsByTagName(const FName TagName,
 	TArray<FAssetData*> PossibleAssets;
 	for (const FTopLevelAssetPath& ClassPath : *FoundClasses)
 	{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 		const TArray<FAssetData*>* ClassAssets = CachedAssetsByClass.Find(ClassPath);
 		if (ClassAssets)
 		{
 			PossibleAssets.Append(*ClassAssets);
 		}
+#else
+		const TArray<FAssetDataPtrIndex>* ClassAssets = CachedAssetsByClass.Find(ClassPath);
+		if (ClassAssets)
+		{
+			PossibleAssets.Reserve(PossibleAssets.Num() + ClassAssets->Num());
+			for (FAssetDataPtrIndex AssetIndex : *ClassAssets)
+			{
+				PossibleAssets.Add(CachedAssets[AssetIndex]);
+			}
+		}
+#endif
 	}
 
 	for (const FAssetData* AssetData : PossibleAssets)
@@ -2878,13 +3211,24 @@ void FAssetRegistryState::EnumerateTagToAssetDatas(
 	TFunctionRef<bool(FName TagName, IAssetRegistry::FEnumerateAssetDatasFunc EnumerateAssets)> Callback) const
 {
 #if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 	for (const TPair<FName, TSet<FAssetData*>>& Pair : CachedAssetsByTag)
 	{
+#else
+	for (const TPair<FName, TSet<FAssetDataPtrIndex>>& Pair : CachedAssetsByTag)
+	{
+#endif
 		const bool bKeepEnumerating = Callback(Pair.Key,
 			[&Pair, this](IAssetRegistry::FAssetDataFunc AssetCallback)
 			{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 				for (const FAssetData* AssetData : Pair.Value)
 				{
+#else
+				for (FAssetDataPtrIndex AssetIndex : Pair.Value)
+				{
+					FAssetData* AssetData = CachedAssets[AssetIndex];
+#endif
 					if (!AssetCallback(AssetData))
 					{
 						return false;
@@ -3027,8 +3371,11 @@ struct FPrintAssetDataMapKeyIsLess
 template <typename MapType>
 static void PrintAssetDataMap(FString Name, const MapType& AssetMap, TStringBuilder<16>& PageBuffer,
 	const TFunctionRef<void()>& AddLine,
+	const UE::AssetRegistry::Private::FAssetDataMap& CachedAssets,
 	TUniqueFunction<void(const typename MapType::KeyType& Key, const FAssetData& Data)>&& PrintValue = {})
 {
+	using namespace UE::AssetRegistry::Private;
+
 	PageBuffer.Appendf(TEXT("--- Begin %s ---"), *Name);
 	AddLine();
 
@@ -3054,7 +3401,11 @@ static void PrintAssetDataMap(FString Name, const MapType& AssetMap, TStringBuil
 		Items.Reserve(AssetArray.Num());
 		for (const auto& It : AssetArray)
 		{
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
 			Items.Add(It);
+#else
+			Items.Add(CachedAssets[It]);
+#endif
 		}
 		Items.Sort([](const FAssetData& A, const FAssetData& B)
 			{
@@ -3132,6 +3483,65 @@ static void PrintClassDataMap(FString Name, const MapType& ClassPathMap, TString
 	PageBuffer.Appendf(TEXT("--- End %s : %d entries ---"), *Name, ValidCount);
 	AddLine();
 };
+
+#if UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+template <typename MapType>
+static void PrintPackageNameMap(FString Name, const MapType& AssetMap, TStringBuilder<16>& PageBuffer,
+	const TFunctionRef<void()>& AddLine,
+	const UE::AssetRegistry::Private::FAssetDataMap& CachedAssets)
+{
+	using namespace UE::AssetRegistry::Private;
+
+	PageBuffer.Appendf(TEXT("--- Begin %s ---"), *Name);
+	AddLine();
+
+	TArray<typename MapType::KeyType> Keys;
+	AssetMap.GenerateKeyArray(Keys);
+
+	Keys.Sort(FPrintAssetDataMapKeyIsLess<typename MapType::KeyType>());
+
+	TArray<FAssetData*> Items;
+	Items.Reserve(1024);
+
+	int32 ValidCount = 0;
+	for (const typename MapType::KeyType& Key : Keys)
+	{
+		TOptional<TConstArrayView<FAssetDataPtrIndex>> AssetArrayPtr = AssetMap.Find(Key);
+		TConstArrayView<FAssetDataPtrIndex> AssetArray = AssetArrayPtr
+			? *AssetArrayPtr : TConstArrayView<FAssetDataPtrIndex>();
+		if (AssetArray.Num() == 0)
+		{
+			continue;
+		}
+		++ValidCount;
+
+		Items.Reset();
+		Items.Reserve(AssetArray.Num());
+		for (const auto& It : AssetArray)
+		{
+			Items.Add(CachedAssets[It]);
+		}
+		Items.Sort([](const FAssetData& A, const FAssetData& B)
+			{
+				return A.GetSoftObjectPath().LexicalLess(B.GetSoftObjectPath());
+			});
+
+		PageBuffer.Append(TEXT("\t"));
+		Key.AppendString(PageBuffer);
+		PageBuffer.Appendf(TEXT(" : %d item(s)"), Items.Num());
+		AddLine();
+		for (const FAssetData* Data : Items)
+		{
+			PageBuffer.Append(TEXT("\t\t"));
+			Data->AppendObjectPath(PageBuffer);
+			AddLine();
+		}
+	}
+
+	PageBuffer.Appendf(TEXT("--- End %s : %d entries ---"), *Name, ValidCount);
+	AddLine();
+};
+#endif
 
 void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>& OutPages, int32 LinesPerPage) const
 {
@@ -3286,19 +3696,23 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 	if (bAllFields || Arguments.Contains(TEXT("PackageName")))
 	{
 		AddPageBreak();
-		PrintAssetDataMap(TEXT("CachedAssetsByPackageName"), CachedAssetsByPackageName, PageBuffer, AddLine);
+#if !UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS
+		PrintAssetDataMap(TEXT("CachedAssetsByPackageName"), CachedAssetsByPackageName, PageBuffer, AddLine, CachedAssets);
+#else
+		PrintPackageNameMap(TEXT("CachedAssetsByPackageName"), CachedAssetsByPackageName, PageBuffer, AddLine, CachedAssets);
+#endif
 	}
 
 	if (bAllFields || Arguments.Contains(TEXT("Path")))
 	{
 		AddPageBreak();
-		PrintAssetDataMap(TEXT("CachedAssetsByPath"), CachedAssetsByPath, PageBuffer, AddLine);
+		PrintAssetDataMap(TEXT("CachedAssetsByPath"), CachedAssetsByPath, PageBuffer, AddLine, CachedAssets);
 	}
 
 	if (bAllFields || Arguments.Contains(TEXT("Class")))
 	{
 		AddPageBreak();
-		PrintAssetDataMap(TEXT("CachedAssetsByClass"), CachedAssetsByClass, PageBuffer, AddLine);
+		PrintAssetDataMap(TEXT("CachedAssetsByClass"), CachedAssetsByClass, PageBuffer, AddLine, CachedAssets);
 	}
 
 	// Only print this if it's requested specifically - '-all' will print tags-per-asset rather than assets-per-tag.
@@ -3306,7 +3720,7 @@ void FAssetRegistryState::Dump(const TArray<FString>& Arguments, TArray<FString>
 	{
 		AddPageBreak();
 #if UE_ASSETREGISTRY_CACHEDASSETSBYTAG
-		PrintAssetDataMap(TEXT("CachedAssetsByTag"), CachedAssetsByTag, PageBuffer, AddLine,
+		PrintAssetDataMap(TEXT("CachedAssetsByTag"), CachedAssetsByTag, PageBuffer, AddLine, CachedAssets,
 			[&PageBuffer, &AddLine](const FName& TagName, const FAssetData& Data)
 			{
 				PageBuffer << TEXT(", ") << Data.TagsAndValues.FindTag(TagName).ToLoose();
