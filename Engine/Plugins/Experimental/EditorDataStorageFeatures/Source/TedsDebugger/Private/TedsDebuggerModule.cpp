@@ -12,9 +12,11 @@
 
 #define LOCTEXT_NAMESPACE "TedsDebuggerModule"
 
-namespace UE::Teds::Debugger::Private
+namespace UE::EditorDataStorage::Debug
 {
-	FName TedsDebuggerTablName = TEXT("TEDS Debugger");
+namespace Private
+{
+	FName TedsDebuggerTableName = TEXT("TEDS Debugger");
 }
 
 void FTedsDebuggerModule::StartupModule()
@@ -35,10 +37,10 @@ void FTedsDebuggerModule::ShutdownModule()
 
 void FTedsDebuggerModule::RegisterTabSpawners()
 {
-	using namespace UE::Teds::Debugger::Private;
+	using namespace UE::EditorDataStorage::Debug::Private;
 
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
-		TedsDebuggerTablName,
+		TedsDebuggerTableName,
 		FOnSpawnTab::CreateRaw(this, &FTedsDebuggerModule::OpenTedsDebuggerTab))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory())
 		.SetDisplayName(LOCTEXT("TedsDebugger_QueryEditorDisplayName", "TEDS Debugger"))
@@ -50,7 +52,7 @@ void FTedsDebuggerModule::UnregisterTabSpawners() const
 {
 	if (FSlateApplication::IsInitialized())
 	{
-		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(UE::Teds::Debugger::Private::TedsDebuggerTablName);
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(UE::EditorDataStorage::Debug::Private::TedsDebuggerTableName);
 	}
 }
 
@@ -80,7 +82,7 @@ void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow
 	// If the debugger isn't already open, open it
 	if(!TedsDebuggerInstance.IsValid())
 	{
-		FGlobalTabmanager::Get()->TryInvokeTab(UE::Teds::Debugger::Private::TedsDebuggerTablName);
+		FGlobalTabmanager::Get()->TryInvokeTab(UE::EditorDataStorage::Debug::Private::TedsDebuggerTableName);
 	}
 
 	TSharedPtr<STedsDebugger> TedsDebuggerPinned = TedsDebuggerInstance.Pin();
@@ -91,7 +93,8 @@ void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow
 
 	TedsDebuggerPinned->NavigateToRow(InRow);
 }
+}
 
-IMPLEMENT_MODULE(FTedsDebuggerModule, TedsDebugger);
+IMPLEMENT_MODULE(UE::EditorDataStorage::Debug::FTedsDebuggerModule, TedsDebugger);
 
 #undef LOCTEXT_NAMESPACE

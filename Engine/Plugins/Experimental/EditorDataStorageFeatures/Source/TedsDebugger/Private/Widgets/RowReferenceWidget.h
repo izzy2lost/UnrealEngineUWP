@@ -3,37 +3,41 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
-#include "TypedElementSlateWidgetReferenceWidget.generated.h"
+#include "RowReferenceWidget.generated.h"
+
+class ITypedElementDataStorageInterface;
+class SWidget;
 
 /*
- * Widget for the TEDS Debugger that shows a slate widget reference
+ * Widget for the TEDS Debugger that visualizes a reference to another row
  */
 UCLASS()
-class UTypedElementWidgetReferenceFactory : public UTypedElementDataStorageFactory
+class URowReferenceWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementWidgetReferenceFactory() override = default;
+	~URowReferenceWidgetFactory() override;
 
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
+	
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 };
 
 USTRUCT()
-struct FTypedElementWidgetReferenceConstructor : public FTypedElementWidgetConstructor
+struct FRowReferenceWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementWidgetReferenceConstructor();
-	~FTypedElementWidgetReferenceConstructor() override = default;
+	FRowReferenceWidgetConstructor();
+	~FRowReferenceWidgetConstructor() override = default;
 
 protected:
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
+		TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };

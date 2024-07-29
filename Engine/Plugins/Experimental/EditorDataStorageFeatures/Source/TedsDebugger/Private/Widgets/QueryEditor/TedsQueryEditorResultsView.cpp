@@ -15,9 +15,9 @@
 #include "QueryEditor/TedsQueryEditorModel.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "TedsOutlinerModule"
+#define LOCTEXT_NAMESPACE "TedsDebuggerModule"
 
-using namespace UE::Teds::Debug::QueryEditor;
+using namespace UE::EditorDataStorage::Debug::QueryEditor;
 
 SResultsView::~SResultsView()
 {

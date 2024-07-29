@@ -50,5 +50,5 @@ private:
 	TWeakPtr<ISceneOutliner> TableViewerInstance;
 
 	// Query Editor
-	TUniquePtr<UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
+	TUniquePtr<UE::EditorDataStorage::Debug::QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
 };

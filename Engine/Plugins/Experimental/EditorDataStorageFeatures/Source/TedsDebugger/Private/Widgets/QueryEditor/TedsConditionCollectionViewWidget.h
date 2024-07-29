@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
 #include "QueryEditor/TedsQueryEditorModel.h"
@@ -8,7 +8,7 @@
 class SWrapBox;
 class SHorizontalBox;
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	enum class EOperatorType : uint32;
 	class FTedsQueryEditorModel;

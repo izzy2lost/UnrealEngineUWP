@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
@@ -8,7 +8,7 @@ class ISceneOutliner;
 class SSceneOutliner;
 class SHorizontalBox;
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 

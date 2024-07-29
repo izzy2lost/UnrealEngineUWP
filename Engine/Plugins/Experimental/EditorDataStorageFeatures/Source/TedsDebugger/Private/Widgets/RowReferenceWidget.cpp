@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementRowReferenceWidget.h"
+#include "Widgets/RowReferenceWidget.h"
 
 #include "Columns/TedsOutlinerColumns.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "ISceneOutliner.h"
 #include "Modules/ModuleManager.h"
 #include "TedsDebuggerModule.h"
@@ -16,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "RowReferenceWidget"
 
-namespace UE::TypedElementRowReferenceWidget::Local
+namespace UE::EditorDataStorage::Debug::Private
 {
 	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle TargetRowHandle, TypedElementDataStorage::RowHandle UiRowHandle)
 	{
@@ -48,7 +49,7 @@ namespace UE::TypedElementRowReferenceWidget::Local
 		}
 
 		// If it wasn't found in the table viewer owning this widget, navigate to it in the global TEDS debugger
-		FTedsDebuggerModule& TedsDebuggerModule = FModuleManager::GetModuleChecked<FTedsDebuggerModule>("TedsDebugger");
+		UE::EditorDataStorage::Debug::FTedsDebuggerModule& TedsDebuggerModule = FModuleManager::GetModuleChecked<UE::EditorDataStorage::Debug::FTedsDebuggerModule>("TedsDebugger");
 		TedsDebuggerModule.NavigateToRow(TargetRowHandle);
 	}
 	
@@ -85,7 +86,7 @@ namespace UE::TypedElementRowReferenceWidget::Local
 					.Text(Text)
 					.Style(FAppStyle::Get(), "Common.GotoBlueprintHyperlink")
 					.ToolTipText(TooltipText)
-					.OnNavigate(FSimpleDelegate::CreateStatic(&UE::TypedElementRowReferenceWidget::Local::OnNavigateHyperlink, DataStorage, TargetRow, UiRow));
+					.OnNavigate(FSimpleDelegate::CreateStatic(&UE::EditorDataStorage::Debug::Private::OnNavigateHyperlink, DataStorage, TargetRow, UiRow));
 			
 			WidgetInstance->SetContent(HyperlinkWidget);
 		}
@@ -94,18 +95,18 @@ namespace UE::TypedElementRowReferenceWidget::Local
 
 }
 
-UTypedElementRowReferenceWidgetFactory::~UTypedElementRowReferenceWidgetFactory()
+URowReferenceWidgetFactory::~URowReferenceWidgetFactory()
 {
 }
 
-void UTypedElementRowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	// TEDS UI TODO: We can re-use this widget for FTypedElementParentColumn
-	DataStorageUi.RegisterWidgetFactory<FTypedElementRowReferenceWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FRowReferenceWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
 	TypedElementDataStorage::FColumn<FTypedElementRowReferenceColumn>());
 }
 
-void UTypedElementRowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -131,7 +132,7 @@ void UTypedElementRowReferenceWidgetFactory::RegisterQueries(ITypedElementDataSt
 				Context.RunSubquery(0, Target.Row, CreateSubqueryCallbackBinding(
 					[&Widget, UiRowHandle](const FTypedElementRowReferenceColumn& Target)
 					{
-						UE::TypedElementRowReferenceWidget::Local::CreateInternalWidget(Widget.Widget, UiRowHandle, Target.Row);
+						UE::EditorDataStorage::Debug::Private::CreateInternalWidget(Widget.Widget, UiRowHandle, Target.Row);
 					}));
 			})
 		.DependsOn()
@@ -140,19 +141,19 @@ void UTypedElementRowReferenceWidgetFactory::RegisterQueries(ITypedElementDataSt
 	);
 }
 
-FTypedElementRowReferenceWidgetConstructor::FTypedElementRowReferenceWidgetConstructor()
-	: Super(FTypedElementRowReferenceWidgetConstructor::StaticStruct())
+FRowReferenceWidgetConstructor::FRowReferenceWidgetConstructor()
+	: Super(FRowReferenceWidgetConstructor::StaticStruct())
 {
 }
 
-TSharedPtr<SWidget> FTypedElementRowReferenceWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FRowReferenceWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SBox)
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Center);
 }
 
-bool FTypedElementRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
@@ -170,7 +171,7 @@ bool FTypedElementRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDat
 		TargetRowReference = RowReferenceColumn->Row;
 	}
 	
-	UE::TypedElementRowReferenceWidget::Local::CreateInternalWidget(Widget, Row, TargetRowReference);
+	UE::EditorDataStorage::Debug::Private::CreateInternalWidget(Widget, Row, TargetRowReference);
 
 	return true;
 }

@@ -6,13 +6,13 @@
 #include "Components/VerticalBox.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SEditableComboBox.h"
-#include "QueryEditor/Widgets/TedsConditionSelectionComboWidget.h"
-#include "Widgets/TedsConditionCollectionViewWidget.h"
-#include "Widgets/TedsQueryEditorResultsView.h"
+#include "Widgets/QueryEditor/TedsConditionSelectionComboWidget.h"
+#include "Widgets/QueryEditor/TedsConditionCollectionViewWidget.h"
+#include "Widgets/QueryEditor/TedsQueryEditorResultsView.h"
 
 #define LOCTEXT_NAMESPACE "TedsQueryEditor"
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	struct SQueryEditorWidget::ColumnComboItem
 	{
@@ -26,7 +26,7 @@ namespace UE::Teds::Debug::QueryEditor
 
 	void SQueryEditorWidget::Construct(const FArguments& InArgs, FTedsQueryEditorModel& QueryEditorModel)
 	{
-		using namespace UE::Teds::Debug;
+		using namespace UE::EditorDataStorage::Debug;
 	
 		ComboItems.Reset();
 		Model = &QueryEditorModel;
@@ -48,7 +48,7 @@ namespace UE::Teds::Debug::QueryEditor
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(QueryEditor::SConditionComboWidget, *Model, QueryEditor::EOperatorType::Select)
+						SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::Select)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -57,12 +57,12 @@ namespace UE::Teds::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-						SNew(UE::Teds::Debug::QueryEditor::SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::All)
+						SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::All)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(QueryEditor::SConditionComboWidget, *Model, QueryEditor::EOperatorType::All)
+						SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::All)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -71,12 +71,12 @@ namespace UE::Teds::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-					SNew(UE::Teds::Debug::QueryEditor::SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::Any)
+					SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::Any)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-					SNew(QueryEditor::SConditionComboWidget, *Model, QueryEditor::EOperatorType::Any)
+					SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::Any)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -85,17 +85,17 @@ namespace UE::Teds::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-					SNew(UE::Teds::Debug::QueryEditor::SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::None)
+					SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::None)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-					SNew(QueryEditor::SConditionComboWidget, *Model, QueryEditor::EOperatorType::None)
+					SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::None)
 					]
 				]
 				+SVerticalBox::Slot()
 				[
-					SNew(QueryEditor::SResultsView, *Model)
+					SNew(SResultsView, *Model)
 				]
 			]
 			

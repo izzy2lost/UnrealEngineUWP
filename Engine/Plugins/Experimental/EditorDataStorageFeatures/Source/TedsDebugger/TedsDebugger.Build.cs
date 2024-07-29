@@ -6,7 +6,6 @@ public class TedsDebugger : ModuleRules
 {
 	public TedsDebugger(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateDependencyModuleNames.AddRange(new string[] { "EditorWidgets", "EditorWidgets", "EditorWidgets" });
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		if (Target.bBuildEditor)

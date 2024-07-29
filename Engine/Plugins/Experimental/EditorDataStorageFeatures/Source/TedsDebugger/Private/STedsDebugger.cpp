@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "STedsDebugger"
 
-namespace UE::Teds::Debugger::Private
+namespace UE::EditorDataStorage::Debugger::Private
 {
 	FName QueryEditorToolTabName = TEXT("TEDS Query Editor");
 	FName TableViewerToolTabName = TEXT("TEDS Table Viewer");
@@ -43,7 +43,7 @@ void STedsDebugger::Construct(const FArguments& InArgs, const TSharedRef<SDockTa
 	// Register Tab Spawners
 	RegisterTabSpawners();
 
-	using namespace UE::Teds::Debugger::Private;
+	using namespace UE::EditorDataStorage::Debugger::Private;
 
 	// Setup the default layout
 	TSharedRef<FTabManager::FLayout> Layout = FTabManager::NewLayout("TedsDebuggerLayout_v0")
@@ -136,15 +136,15 @@ TSharedRef<SDockTab> STedsDebugger::SpawnQueryEditorTab(const FSpawnTabArgs& Arg
 		if (Registry && Registry->AreDataStorageInterfacesSet())
 		{
 			ITypedElementDataStorageInterface* DataStorageInterface = Registry->GetMutableDataStorage();
-			QueryEditorModel = MakeUnique<UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel>(*DataStorageInterface);
+			QueryEditorModel = MakeUnique<UE::EditorDataStorage::Debug::QueryEditor::FTedsQueryEditorModel>(*DataStorageInterface);
 		}
 	}
 	if (QueryEditorModel)
 	{
 		QueryEditorModel->Reset();	
 
-		TSharedRef<UE::Teds::Debug::QueryEditor::SQueryEditorWidget> QueryEditor =
-			SNew(UE::Teds::Debug::QueryEditor::SQueryEditorWidget, *QueryEditorModel);
+		TSharedRef<UE::EditorDataStorage::Debug::QueryEditor::SQueryEditorWidget> QueryEditor =
+			SNew(UE::EditorDataStorage::Debug::QueryEditor::SQueryEditorWidget, *QueryEditorModel);
 		DockTab->SetContent(QueryEditor);
 	}
 	else
@@ -207,7 +207,7 @@ TSharedRef<SDockTab> STedsDebugger::SpawnTableViewerTab(const FSpawnTabArgs& Arg
 
 void STedsDebugger::RegisterTabSpawners()
 {
-	using namespace UE::Teds::Debugger::Private;
+	using namespace UE::EditorDataStorage::Debugger::Private;
 
 	const TSharedRef<FWorkspaceItem> AppMenuGroup =
 		TabManager->AddLocalWorkspaceMenuCategory(LOCTEXT("TedsDebuggerGroupName", "Teds Debugger"));
@@ -248,7 +248,7 @@ void STedsDebugger::NavigateToRow(TypedElementDataStorage::RowHandle InRow) cons
 	// If the debugger isn't already open, open it
 	if (!TableViewerInstance.IsValid())
 	{
-		TabManager->TryInvokeTab(UE::Teds::Debugger::Private::TableViewerToolTabName);
+		TabManager->TryInvokeTab(UE::EditorDataStorage::Debugger::Private::TableViewerToolTabName);
 	}
 
 	TSharedPtr<ISceneOutliner> TableViewerPinned = TableViewerInstance.Pin();

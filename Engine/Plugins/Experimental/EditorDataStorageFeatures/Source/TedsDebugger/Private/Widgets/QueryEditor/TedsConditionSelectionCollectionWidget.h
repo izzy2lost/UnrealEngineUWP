@@ -1,9 +1,9 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 #include "Widgets/SCompoundWidget.h"
 #include "Templates/SharedPointerFwd.h"
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	
@@ -17,10 +17,8 @@ namespace UE::Teds::Debug::QueryEditor
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel);
+
 	private:
 		FTedsQueryEditorModel* Model = nullptr;
-	
 	};
 }
-
-

@@ -1,31 +1,32 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementSlateWidgetReferenceWidget.h"
+#include "Widgets/SlateVisualizationWidget.h"
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 
 
-void UTypedElementWidgetReferenceFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
+void USlateVisualizationWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetFactory<FTypedElementWidgetReferenceConstructor>(FName(TEXT("SceneOutliner.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FSlateVisualizationWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
 	TypedElementDataStorage::FColumn<FTypedElementSlateWidgetReferenceColumn>());
 }
 
-FTypedElementWidgetReferenceConstructor::FTypedElementWidgetReferenceConstructor()
-	: Super(FTypedElementWidgetReferenceConstructor::StaticStruct())
+FSlateVisualizationWidgetConstructor::FSlateVisualizationWidgetConstructor()
+	: Super(FSlateVisualizationWidgetConstructor::StaticStruct())
 {
 
 }
 
-TSharedPtr<SWidget> FTypedElementWidgetReferenceConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FSlateVisualizationWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SHorizontalBox);
 }
 
-bool FTypedElementWidgetReferenceConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FSlateVisualizationWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 	"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "

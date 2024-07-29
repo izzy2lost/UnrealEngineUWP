@@ -9,11 +9,11 @@
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Text/STextBlock.h"
 
-using namespace UE::Teds::Debug::QueryEditor;
+using namespace UE::EditorDataStorage::Debug::QueryEditor;
 
-#define LOCTEXT_NAMESPACE "TedsOutlinerModule"
+#define LOCTEXT_NAMESPACE "TedsDebuggerModule"
 
-namespace UE::Teds::Debug::QueryEditor::Private
+namespace UE::EditorDataStorage::Debug::QueryEditor::Private
 {
 	FText GetOperatorTypeText(EOperatorType OperatorType)
 	{

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 #include "Filters/GenericFilter.h"
 #include "Filters/SFilterBar.h"
@@ -8,7 +8,7 @@
 template<typename>
 class SComboBox;
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	struct FConditionEntry;
@@ -21,15 +21,13 @@ namespace UE::Teds::Debug::QueryEditor
 
 		~SConditionComboWidget() override;
 		void OnConditionCollectionChanged();
-		void Construct(const FArguments& InArgs, UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel& InModel, QueryEditor::EOperatorType InConditionType);
+		void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel, QueryEditor::EOperatorType InConditionType);
 	private:
 
 		struct FComboItem;
 		void PopulateComboItems();
 		void OnSelectionChanged(TSharedPtr<FComboItem> NewSelection, ESelectInfo::Type SelectInfo);
 		TSharedRef<SWidget> OnGenerateWidget(TSharedPtr<FComboItem> Item);
-
-		
 
 		FTedsQueryEditorModel* Model = nullptr;
 		QueryEditor::EOperatorType ConditionType = QueryEditor::EOperatorType::Invalid;

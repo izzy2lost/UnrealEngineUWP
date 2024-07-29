@@ -9,7 +9,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SComboBox.h"
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	struct SConditionComboWidget::FComboItem
 	{
@@ -29,7 +29,7 @@ namespace UE::Teds::Debug::QueryEditor
 		Model->GetModelChangedDelegate().Remove(ConditionCollectionChangedHandle);
 	}
 
-	void SConditionComboWidget::Construct(const FArguments& InArgs, UE::Teds::Debug::QueryEditor::FTedsQueryEditorModel& InModel, QueryEditor::EOperatorType InConditionType)
+	void SConditionComboWidget::Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel, QueryEditor::EOperatorType InConditionType)
 	{
 		Model = &InModel;
 

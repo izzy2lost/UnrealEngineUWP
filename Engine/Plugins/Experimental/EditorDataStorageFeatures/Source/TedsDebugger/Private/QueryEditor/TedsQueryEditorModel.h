@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Framework/TypedElementMetaData.h"
@@ -6,7 +6,7 @@
 
 class ITypedElementDataStorageInterface;
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	

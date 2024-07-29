@@ -5,8 +5,6 @@
 #include "Elements/Common/TypedElementHandles.h"
 #include "Modules/ModuleInterface.h"
 #include "Templates/SharedPointer.h"
-#include "Delegates/IDelegateInstance.h"
-#include "Templates/UniquePtr.h"
 
 class SDockTab;
 class SWidget;
@@ -14,8 +12,10 @@ class FSpawnTabArgs;
 class ISceneOutliner;
 class STedsDebugger;
 
+namespace UE::EditorDataStorage::Debug
+{
 /**
- * Implements the Scene Outliner module.
+ * Implements the Teds Debugger module.
  */
 class FTedsDebuggerModule
 	: public IModuleInterface
@@ -40,3 +40,4 @@ private:
 private:
 	TWeakPtr<STedsDebugger> TedsDebuggerInstance;
 };
+}

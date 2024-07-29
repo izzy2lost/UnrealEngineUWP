@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 #include "QueryEditor/TedsQueryEditorModel.h"
 
 #include "Elements/Common/TypedElementCommonTypes.h"
@@ -6,7 +6,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "UObject/UObjectIterator.h"
 
-namespace UE::Teds::Debug::QueryEditor
+namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	bool FConditionEntryHandle::operator==(const FConditionEntryHandle& Rhs) const
 	{
