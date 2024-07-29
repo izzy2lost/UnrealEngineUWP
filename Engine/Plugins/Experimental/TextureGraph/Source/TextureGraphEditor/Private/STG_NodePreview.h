@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IImageViewer.h"
+#include "SImageViewport.h"
 #include "Data/Blob.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -41,11 +42,16 @@ public:
 	bool IsSingleChannel() const;
 
 	/** Sets the node buffer to a given node. */
-	void SetTexture(const BlobPtr& InBlob);
+	void SetTexture(const BlobPtr& InBlob, FLinearColor InClearColor = FLinearColor(0.1, 0.1, 0.1, 1));
 
 	/** Toggles RGBA components for display. */
 	void SetRGBA(bool bR, bool bG, bool bB, bool bA);
 
+	/** Sets the required Draw settings for the viewport. */ 
+	void SetDrawSettings(const UE::ImageWidgets::SImageViewport::FDrawSettings& InDrawSettings);
+
+	/** Returns the Draw settings for the viewport. */ 
+	UE::ImageWidgets::SImageViewport::FDrawSettings GetDrawSettings() const;
 private:
 	/** Draws the node texture in the viewport */
 	void DrawTexture(const FTextureResource* TextureResource, FCanvas* Canvas, const FDrawProperties::FPlacement& TilePlacementInfo,
@@ -71,6 +77,9 @@ private:
 
 	/** Node meta data.  */
 	BufferDescriptor NodeDescriptor;
+
+	/** Current draw settings for the viewport. */ 
+	UE::ImageWidgets::SImageViewport::FDrawSettings DrawSettings;
 };
 
 /**
@@ -91,6 +100,7 @@ public:
 
 	virtual ~STG_NodePreviewWidget() override;
 
+	UE::ImageWidgets::SImageViewport::FDrawSettings GetDrawSettings() const;
 	void Construct(const FArguments& InArgs);
 
 	/** Notify the preview about the node selection having changed. */

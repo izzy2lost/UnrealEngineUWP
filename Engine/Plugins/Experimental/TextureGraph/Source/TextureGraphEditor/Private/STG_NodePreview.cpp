@@ -69,6 +69,11 @@ TOptional<TVariant<FColor, FLinearColor>> FNodeViewer::GetCurrentImagePixelColor
 	return {};
 }
 
+UE::ImageWidgets::SImageViewport::FDrawSettings FNodeViewer::GetDrawSettings() const
+{
+	return DrawSettings;
+}
+
 FText FNodeViewer::GetFormatLabelText() const
 {
 	if (NodeTexture != nullptr)
@@ -87,12 +92,13 @@ bool FNodeViewer::IsSingleChannel() const
 	return NodeDescriptor.ItemsPerPoint == 1;
 }
 
-void FNodeViewer::SetTexture(const BlobPtr& InBlob)
+void FNodeViewer::SetTexture(const BlobPtr& InBlob, const FLinearColor InClearColor /*= FLinearColor(0.1, 0.1, 0.1, 1)*/)
 {
 	NodeTexture = nullptr;
 	CurrentBlob = InBlob;
 
 	NodeDescriptor = {};
+	DrawSettings.ClearColor = InClearColor;
 
 	if (InBlob)
 	{
@@ -110,6 +116,11 @@ void FNodeViewer::SetRGBA(bool bR, bool bG, bool bB, bool bA)
 	bRGBA[1] = bG;
 	bRGBA[2] = bB;
 	bRGBA[3] = bA;
+}
+
+void FNodeViewer::SetDrawSettings(const UE::ImageWidgets::SImageViewport::FDrawSettings& InDrawSettings)
+{
+	DrawSettings = InDrawSettings;
 }
 
 void FNodeViewer::DrawTexture(const FTextureResource* TextureResource, FCanvas* Canvas, const FDrawProperties::FPlacement& Placement,
@@ -216,9 +227,21 @@ STG_NodePreviewWidget::~STG_NodePreviewWidget()
 	FPreviewViewerCommands::Unregister();
 }
 
+UE::ImageWidgets::SImageViewport::FDrawSettings STG_NodePreviewWidget::GetDrawSettings() const
+{
+	return NodeViewer->GetDrawSettings();
+}
+
 void STG_NodePreviewWidget::Construct(const FArguments& InArgs)
 {
 	NodeViewer = MakeShared<FNodeViewer>();
+
+	NodeViewer->SetDrawSettings(UE::ImageWidgets::SImageViewport::FDrawSettings{
+					.ClearColor = FVector3f(0.1f),
+					.bBorderEnabled = false,
+					.bBackgroundColorEnabled = true,
+					.BackgroundColor = FLinearColor::Black,
+					.bBackgroundCheckerEnabled = true});
 
 	OnNodeBlobChanged = InArgs._OnNodeBlobChanged;
 
@@ -249,13 +272,7 @@ void STG_NodePreviewWidget::Construct(const FArguments& InArgs)
 			SAssignNew(Viewport, UE::ImageWidgets::SImageViewport, NodeViewer.ToSharedRef())
 				.ToolbarExtender(ToolbarExtender)
 				.StatusBarExtender(StatusBarExtender)
-				.DrawSettings(UE::ImageWidgets::SImageViewport::FDrawSettings{
-					.ClearColor = FVector3f(0.1f),
-					.bBorderEnabled = false,
-					.bBackgroundColorEnabled = true,
-					.BackgroundColor = FLinearColor::Black,
-					.bBackgroundCheckerEnabled = true
-				})
+				.DrawSettings(this,&STG_NodePreviewWidget::GetDrawSettings)
 				.ControllerSettings(UE::ImageWidgets::SImageViewport::FControllerSettings{
 					.DefaultZoomMode = UE::ImageWidgets::SImageViewport::FControllerSettings::EDefaultZoomMode::Fill
 				})
@@ -297,54 +314,78 @@ void STG_NodePreviewWidget::NodeDeleted(const UTG_Node* Node)
 void STG_NodePreviewWidget::Update() const
 {
 	const UTG_Node* PreviewNode = LockedNode ? LockedNode : SelectedNode;
+	BlobPtr Blob;
+	
+	// Get the Variant if preview node is valid or assign a nullptr if not.
+	const FTG_Variant* Variant = nullptr;
+	TArray<FTG_Variant> OutVariants;
+	TArray<FName>* OutNames = nullptr;
 
-	// Get blob if preview node is valid or assign a nullptr if not.
-	const BlobPtr Blob = [PreviewNode]() -> BlobPtr
+	if(PreviewNode)
 	{
-		if (PreviewNode)
+		PreviewNode->GetAllOutputValues(OutVariants, OutNames);
+
+		if (!OutVariants.IsEmpty())
 		{
-			TArray<FTG_Texture> OutTextures;
-			PreviewNode->GetAllOutputValues(OutTextures);
-
-			if (!OutTextures.IsEmpty())
-			{
-				return OutTextures[0].RasterBlob;
-			}
-		}
-
-		return nullptr;
-	}();
+			Variant = &OutVariants[0];
+		}	
+	}
 
 	// Lambda for actually updating the preview.
-	auto UpdatePreview = [this, Blob]
+	auto UpdatePreview = [this, Variant]
 	{
-		NodeViewer->SetTexture(Blob);
-		Viewport->ResetZoom(NodeViewer->GetCurrentImageInfo().Size);
-	};
-
-	if (Blob)
-	{
-		// Set non-empty preview if blob is valid.
-		// Note that if the blob is tiled, it needs to be combined first.
-		if (Blob->IsTiled())
+		if(Variant)
 		{
-			Blob->OnFinalise()
-			    .then([Blob]()
-			    {
-				    const TiledBlobPtr BlobTiled = std::static_pointer_cast<TiledBlob>(Blob);
-				    return BlobTiled->CombineTiles(false, false);
-			    })
-			    .then(UpdatePreview);
+			if(Variant->IsTexture())
+			{
+				NodeViewer->SetTexture(Variant->GetTexture().RasterBlob);
+			}
+			else if(Variant->IsColor())
+			{
+				NodeViewer->SetTexture(nullptr, Variant->GetColor());
+			}
+			else
+			{
+				NodeViewer->SetTexture(nullptr);	
+			}
 		}
 		else
 		{
-			Blob->OnFinalise()
-			    .then(UpdatePreview);
+			NodeViewer->SetTexture(nullptr);
+		}
+		
+		Viewport->ResetZoom(NodeViewer->GetCurrentImageInfo().Size);
+	};
+
+	if(Variant && Variant->IsTexture())
+	{
+		Blob = Variant->GetTexture().RasterBlob;
+
+		if(Blob)
+		{
+			if (Blob->IsTiled())
+			{
+				Blob->OnFinalise()
+					.then([Blob]()
+					{
+						const TiledBlobPtr BlobTiled = std::static_pointer_cast<TiledBlob>(Blob);
+						return BlobTiled->CombineTiles(false, false);
+					})
+					.then(UpdatePreview);
+			}
+			else
+			{
+				Blob->OnFinalise()
+					.then(UpdatePreview);
+			}
+		}
+		else
+		{
+			UpdatePreview();
 		}
 	}
 	else
 	{
-		// Set black preview, i.e. Blob is nullptr.
 		UpdatePreview();
 	}
 
