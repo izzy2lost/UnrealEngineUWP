@@ -2842,20 +2842,22 @@ namespace Audio
 		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.UnregisterSubmixBufferListener"), STAT_UnregisterSubmixBufferListener, STATGROUP_AudioThreadCommands);
 
 		const TWeakObjectPtr<USoundSubmix> SubmixPtr(&InSubmix);
-
-		auto UnregisterLambda = [this, InSubmixBufferListener, SubmixPtr]()
+		UPTRINT ListenerPtr = reinterpret_cast<UPTRINT>(&InSubmixBufferListener.Get());
+		FString ListenerName = InSubmixBufferListener->GetListenerName();
+		
+		auto UnregisterLambda = [this, SubmixPtr, ListenerPtr, ListenerName]()
 		{
 			CSV_SCOPED_TIMING_STAT(Audio, UnregisterSubmixBufferListener);
 
 			FMixerSubmixPtr FoundSubmix = GetSubmixInstance(SubmixPtr.Get()).Pin();
 			if (FoundSubmix.IsValid())
 			{
-				UE_LOG(LogAudioMixer, Display, TEXT("Unregistering submix buffer listener '%s' from submix '%s'"), *InSubmixBufferListener->GetListenerName(), *FoundSubmix->SubmixName);
-				FoundSubmix->UnregisterBufferListener(InSubmixBufferListener);
+				UE_LOG(LogAudioMixer, Display, TEXT("Unregistering submix buffer listener '%s' from submix '%s'"), *ListenerName, *FoundSubmix->SubmixName);
+				FoundSubmix->UnregisterBufferListenerInternal(ListenerPtr);
 			}
 			else
 			{
-				UE_LOG(LogAudioMixer, Display, TEXT("Submix buffer listener '%s' not unregistered. Submix not loaded."), *InSubmixBufferListener->GetListenerName());
+				UE_LOG(LogAudioMixer, Display, TEXT("Submix buffer listener '%s' not unregistered. Submix not loaded."), *ListenerName);
 			}
 		};
 

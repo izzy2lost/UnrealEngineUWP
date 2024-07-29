@@ -588,9 +588,9 @@ namespace Audio
 		// Submix command queue to shuffle commands from audio thread to audio render thread.
 		TQueue<TFunction<void()>> CommandQueue;
 
-		// List of submix buffer listeners.
-		TArray<TSharedRef<ISubmixBufferListener, ESPMode::ThreadSafe>> BufferListeners;
+		// List of submix buffer listeners. (mutable for pruning stale weak references)
 
+		mutable TArray<TWeakPtr<ISubmixBufferListener>> BufferListenerPtrs;
 		// Critical section used for modifying and interacting with buffer listeners
 		mutable FCriticalSection BufferListenerCriticalSection;
 
@@ -683,6 +683,10 @@ namespace Audio
 
 	private:
 		AUDIOMIXER_API void SendAudioToRegisteredAudioBuses(FAlignedFloatBuffer& OutAudioBuffer);
+
+		void UnregisterBufferListenerInternal(UPTRINT ListenerBufferPtr);
+
+		void PruneSubmixBufferListeners();
 
 		// Registered audio buses
 		TMap<Audio::FAudioBusKey, Audio::FPatchInput> AudioBuses;

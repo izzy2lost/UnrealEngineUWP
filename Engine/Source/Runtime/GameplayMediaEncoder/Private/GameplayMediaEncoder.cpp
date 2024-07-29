@@ -89,7 +89,11 @@ FGameplayMediaEncoder::FGameplayMediaEncoder() {}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-FGameplayMediaEncoder::~FGameplayMediaEncoder() { Shutdown(); }
+FGameplayMediaEncoder::~FGameplayMediaEncoder()
+{
+	bIsInDestructor = true;
+	Shutdown();
+}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool FGameplayMediaEncoder::RegisterListener(IGameplayMediaEncoderListener* Listener)
@@ -374,7 +378,11 @@ void FGameplayMediaEncoder::Stop()
 	{
 		if(FAudioDevice* AudioDevice = GameEngine->GetMainAudioDeviceRaw())
 		{
-			AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
+			// AsShared() cannot be called in the destructor of the ref counted object!
+			if(!bIsInDestructor)
+			{
+				AudioDevice->UnregisterSubmixBufferListener(AsShared(), AudioDevice->GetMainSubmixObject());
+			}
 		}
 
 		if(FSlateApplication::IsInitialized())
