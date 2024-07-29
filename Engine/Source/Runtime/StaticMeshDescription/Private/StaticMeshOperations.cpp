@@ -2261,10 +2261,12 @@ bool FStaticMeshOperations::GenerateUV(const FMeshDescription& MeshDescription, 
 
 	OutTexCoords.Reset();
 
-	const bool bAutoUVAvailable = WITH_EDITOR;
 	const bool bHasUVs = VertexInstanceUVs.GetNumElements() > 0;
-	const bool bUseLegacy = GenerateUVOptions.UVMethod == EGenerateUVMethod::Legacy || !bAutoUVAvailable;
-	if (bHasUVs && bUseLegacy)
+#if WITH_EDITOR
+	if (bHasUVs && GenerateUVOptions.UVMethod == EGenerateUVMethod::Legacy)
+#else
+	if (bHasUVs)
+#endif
 	{
 		FUniqueUVMeshDescriptionView MeshDescriptionView(MeshDescription, GenerateUVOptions.bMergeTrianglesWithIdenticalAttributes, OutTexCoords);
 

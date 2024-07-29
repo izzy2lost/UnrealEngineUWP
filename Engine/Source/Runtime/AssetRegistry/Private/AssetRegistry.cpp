@@ -1018,8 +1018,11 @@ void FAssetRegistryImpl::Initialize(Impl::FInitializeContext& Context)
 		{
 			// For the Editor and editor game we need to take responsibility for the synchronous search;
 			// Commandlets and cooked game will handle it themselves.
-			constexpr bool bEditorExecutable = WITH_EDITOR;
-			Context.bNeedsSearchAllAssetsAtStartSynchronous = bEditorExecutable && !IsRunningCommandlet();
+#if WITH_EDITOR
+			Context.bNeedsSearchAllAssetsAtStartSynchronous = !IsRunningCommandlet();
+#else
+			Context.bNeedsSearchAllAssetsAtStartSynchronous = false;
+#endif 
 		}
 	}
 
