@@ -148,7 +148,11 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 #define STDCALL		__stdcall										/* Standard calling convention */
 #define FORCEINLINE __forceinline									/* Force code to be inline */
 #define FORCENOINLINE __declspec(noinline)							/* Force code to NOT be inline */
+
+// When using clang-cl we will pick up the ClangPlatform.h definition of this macro before this, so check first!
+#ifndef FUNCTION_NON_NULL_RETURN_START
 #define FUNCTION_NON_NULL_RETURN_START _Ret_notnull_				/* Indicate that the function never returns nullptr. */
+#endif
 
 #define DECLARE_UINT64(x)	x
 

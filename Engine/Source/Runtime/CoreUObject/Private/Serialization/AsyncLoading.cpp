@@ -2069,7 +2069,7 @@ FObjectImport* FAsyncPackage::FindExistingImport(int32 LocalImportIndex)
 		if (Import->OuterIndex.IsNull())
 		{
 			Import->XObject = StaticFindObjectFast(UPackage::StaticClass(), nullptr, Linker->GetInstancingContext().RemapPackage(Import->ObjectName), true);
-			check(!Import->XObject || CastChecked<UPackage>(Import->XObject));
+			check(!Import->XObject || CastChecked<UPackage>(Import->XObject, ECastCheckedType::NullChecked));
 		}
 		else if (Import->OuterIndex.IsImport())
 		{
