@@ -4,18 +4,18 @@
 
 #include "TypedElementOutlinerMode.h"
 
-DECLARE_DELEGATE_OneParam(FOnElementSelected, TypedElementDataStorage::RowHandle RowHandle);
-DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterElement, const TypedElementDataStorage::RowHandle RowHandle);
+DECLARE_DELEGATE_OneParam(FOnTedsRowSelected, TypedElementDataStorage::RowHandle RowHandle);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterTedsRow, const TypedElementDataStorage::RowHandle RowHandle);
 
 /*
 * Picking mode for TEDs Scene Outliner Widgets. Based off of FActorPickingMode
 */
-class TEDSPROPERTYEDITOR_API FTypedElementPickingMode : public FTypedElementOutlinerMode
+class TEDSPROPERTYEDITOR_API FTedsRowPickingMode : public FTypedElementOutlinerMode
 {
 public:
-	FTypedElementPickingMode(const FTypedElementOutlinerModeParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate);
+	FTedsRowPickingMode(const FTypedElementOutlinerModeParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate);
 
-	virtual ~FTypedElementPickingMode() {};
+	virtual ~FTedsRowPickingMode() = default;
 public:
 	virtual void OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection) override;
 

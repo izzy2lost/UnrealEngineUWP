@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/SPropertyMenuTypedElementPicker.h"
+#include "Widgets/SPropertyMenuTedsRowPicker.h"
 
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "TypedElementPickingMode.h"
+#include "TedsRowPickingMode.h"
 #include "TypedElementOutlinerItem.h"
 
 #define LOCTEXT_NAMESPACE "TedsPropertyEditor"
-void SPropertyMenuTypedElementPicker::Construct(const FArguments& InArgs)
+void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 {
 	bAllowClear = InArgs._AllowClear;
 	TypedElementQueryFilter = InArgs._TypedElementQueryFilter;
@@ -24,7 +24,7 @@ void SPropertyMenuTypedElementPicker::Construct(const FArguments& InArgs)
 				LOCTEXT("ClearElement", "Clear"),
 				LOCTEXT("ClearElement_Tooltip", "Clears the item set on this field"),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SPropertyMenuTypedElementPicker::OnClear))
+				FUIAction(FExecuteAction::CreateSP(this, &SPropertyMenuTedsRowPicker::OnClear))
 			);
 		}
 	}
@@ -69,7 +69,7 @@ void SPropertyMenuTypedElementPicker::Construct(const FArguments& InArgs)
 					{
 						FTypedElementOutlinerModeParams Params(Outliner);
 						Params.QueryDescription = TypedElementQueryFilter;
-						return new FTypedElementPickingMode(Params, OnItemPicked);
+						return new FTedsRowPickingMode(Params, OnItemPicked);
 					});
 
 				TSharedPtr<SSceneOutliner> Outliner = SNew(SSceneOutliner, InitOptions);
@@ -105,19 +105,19 @@ void SPropertyMenuTypedElementPicker::Construct(const FArguments& InArgs)
 	];
 }
 
-void SPropertyMenuTypedElementPicker::OnClear()
+void SPropertyMenuTedsRowPicker::OnClear()
 {
 	SetValue(TypedElementInvalidRowHandle);
 	OnClose.ExecuteIfBound();
 }
 
-void SPropertyMenuTypedElementPicker::OnElementSelected(TypedElementDataStorage::RowHandle RowHandle)
+void SPropertyMenuTedsRowPicker::OnElementSelected(TypedElementDataStorage::RowHandle RowHandle)
 {
 	SetValue(RowHandle);
 	OnClose.ExecuteIfBound();
 }
 
-void SPropertyMenuTypedElementPicker::SetValue(TypedElementDataStorage::RowHandle RowHandle)
+void SPropertyMenuTedsRowPicker::SetValue(TypedElementDataStorage::RowHandle RowHandle)
 {
 	OnSet.ExecuteIfBound(RowHandle);
 }

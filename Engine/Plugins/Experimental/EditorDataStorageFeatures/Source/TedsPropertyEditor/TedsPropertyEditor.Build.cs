@@ -18,18 +18,13 @@ public class TedsPropertyEditor : ModuleRules
 				{
 					"Core",
 					"CoreUObject",
-					"EditorFramework",
 					"Engine",
 					"SceneOutliner",
 					"Slate",
 					"SlateCore",
 					"TypedElementFramework",
-					"TedsOutliner"
-				});
-			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"UnrealEd" // For EditorUndoClient
+					"TedsOutliner",
+					"UnrealEd", // For EditorUndoClient
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

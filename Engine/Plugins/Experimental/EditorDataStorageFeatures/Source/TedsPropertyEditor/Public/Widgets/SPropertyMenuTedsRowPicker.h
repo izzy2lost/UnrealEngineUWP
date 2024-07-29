@@ -2,21 +2,20 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-#include "TypedElementPickingMode.h"
+#include "TedsRowPickingMode.h"
 #include "Widgets/SCompoundWidget.h"
 
-class TEDSPROPERTYEDITOR_API SPropertyMenuTypedElementPicker : public SCompoundWidget
+class TEDSPROPERTYEDITOR_API SPropertyMenuTedsRowPicker : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SPropertyMenuTypedElementPicker)
+	SLATE_BEGIN_ARGS(SPropertyMenuTedsRowPicker)
 		: _AllowClear(true)
 		, _ElementFilter()
 	{}
 		SLATE_ARGUMENT(bool, AllowClear)
 		SLATE_ARGUMENT(TypedElementDataStorage::FQueryDescription, TypedElementQueryFilter)
-		SLATE_ARGUMENT(FOnShouldFilterElement, ElementFilter)
-		SLATE_EVENT(FOnElementSelected, OnSet)
+		SLATE_ARGUMENT(FOnShouldFilterTedsRow, ElementFilter)
+		SLATE_EVENT(FOnTedsRowSelected, OnSet)
 		SLATE_EVENT(FSimpleDelegate, OnClose)
 	SLATE_END_ARGS()
 
@@ -35,9 +34,9 @@ private:
 
 	TypedElementDataStorage::FQueryDescription TypedElementQueryFilter;
 
-	FOnShouldFilterElement ElementFilter;
+	FOnShouldFilterTedsRow ElementFilter;
 
-	FOnElementSelected OnSet;
+	FOnTedsRowSelected OnSet;
 
 	FSimpleDelegate OnClose;
 
