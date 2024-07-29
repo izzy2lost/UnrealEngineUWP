@@ -513,6 +513,7 @@ void FDefaultInstallBundleManager::TickGetContentState()
 				State.DownloadSize += SourceState.DownloadSize;
 				State.InstallSize += SourceState.InstallSize;
 				State.InstallOverheadSize = FMath::Max(State.InstallOverheadSize, SourceState.InstallOverheadSize);
+				State.MaxDiskSpaceRequired += SourceState.MaxDiskSpaceRequired;
 				State.FreeSpace = FMath::Max(State.FreeSpace, SourceState.FreeSpace);
 			}
 

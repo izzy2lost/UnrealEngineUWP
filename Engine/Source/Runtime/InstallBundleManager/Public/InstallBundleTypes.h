@@ -131,6 +131,7 @@ struct FInstallBundleCombinedContentState
 	uint64 DownloadSize = 0;
 	uint64 InstallSize = 0;
 	uint64 InstallOverheadSize = 0;
+	uint64 MaxDiskSpaceRequired = 0;
 	uint64 FreeSpace = 0;
 
 	INSTALLBUNDLEMANAGER_API bool GetAllBundlesHaveState(EInstallBundleInstallState State, TArrayView<const FName> ExcludedBundles = TArrayView<const FName>()) const;	
