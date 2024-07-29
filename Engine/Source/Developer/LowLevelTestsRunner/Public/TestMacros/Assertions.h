@@ -2,8 +2,8 @@
 #pragma once
 
 #include "Misc/AssertionMacros.h"
-#include "LowLevelTestsRunner/EnsureScope.h"
-#include "LowLevelTestsRunner/CheckScope.h"
+#include "Tests/EnsureScope.h"
+#include "Tests/CheckScope.h"
 
 //requires that an UE `ensure` fails in this call
 #define REQUIRE_ENSURE(...) INTERNAL_UE_ENSURE( "REQUIRE_ENSURE", DO_ENSURE, Catch::ResultDisposition::Normal, #__VA_ARGS__, __VA_ARGS__ )
@@ -33,7 +33,7 @@
 	do { \
 		Catch::AssertionHandler catchAssertionHandler( macroName##_catch_sr, CATCH_INTERNAL_LINEINFO, ensureExpr, resultDisposition ); \
 		INTERNAL_CATCH_TRY { \
-			::UE::LowLevelTests::FEnsureScope scope; \
+			FEnsureScope scope; \
 			static_cast<void>(__VA_ARGS__); \
 			bool bEncounteredEnsure = scope.GetCount() > 0; \
 			if (doEnsure && !bEncounteredEnsure) \
@@ -46,7 +46,7 @@
 	do { \
 		Catch::AssertionHandler catchAssertionHandler( macroName##_catch_sr, CATCH_INTERNAL_LINEINFO, ensureExpr, resultDisposition ); \
 		INTERNAL_CATCH_TRY { \
-			::UE::LowLevelTests::FEnsureScope scope(msg); \
+			FEnsureScope scope(msg); \
 			static_cast<void>(__VA_ARGS__); \
 			bool bEncounteredEnsure = scope.GetCount() > 0; \
 			if (doEnsure && !bEncounteredEnsure) \
@@ -59,7 +59,7 @@
 	do { \
 		Catch::AssertionHandler catchAssertionHandler( macroName##_catch_sr, CATCH_INTERNAL_LINEINFO, checkExpr, resultDisposition ); \
 		INTERNAL_CATCH_TRY { \
-			::UE::LowLevelTests::FCheckScope scope; \
+			FCheckScope scope; \
 			__VA_ARGS__; \
 			bool bEncounteredEnsure = scope.GetCount() > 0; \
 			if (doCheck && !bEncounteredEnsure) \
@@ -72,7 +72,7 @@
 	do { \
 		Catch::AssertionHandler catchAssertionHandler( macroName##_catch_sr, CATCH_INTERNAL_LINEINFO, checkExpr, resultDisposition ); \
 		INTERNAL_CATCH_TRY { \
-			::UE::LowLevelTests::FCheckScope scope(msg); \
+			FCheckScope scope(msg); \
 			__VA_ARGS__; \
 			bool bEncounteredEnsure = scope.GetCount() > 0; \
 			if (doCheck && !bEncounteredEnsure) \

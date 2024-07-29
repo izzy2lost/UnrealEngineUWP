@@ -14,7 +14,7 @@
 #include "UObject/Package.h"
 #include "HAL/IConsoleManager.h"
 #include "UObject/Class.h"
-#include "LowLevelTestsRunner/WarnFilterScope.h"
+#include "Tests/WarnFilterScope.h"
 #include "UObject/FastReferenceCollector.h"
 
 
@@ -174,7 +174,7 @@ namespace UE::CoreUObject::Private::Tests
 		};
 		RefObj->ObjectPtr = Obj; //add a reference
 
-		UE::Testing::FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
+		FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 			{
 				bool bFiltered = FCString::Strncmp(Message, TEXT("Marking leaking package"), FCString::Strlen(TEXT("Marking leaking package"))) == 0 && Verbosity == ELogVerbosity::Type::Warning && Category == TEXT("PluginHandlerLog");
 				return bFiltered;

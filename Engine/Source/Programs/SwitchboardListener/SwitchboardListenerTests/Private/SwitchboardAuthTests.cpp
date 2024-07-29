@@ -8,7 +8,7 @@
 #include "JsonWebToken.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
-#include "LowLevelTestsRunner/WarnFilterScope.h"
+#include "Tests/WarnFilterScope.h"
 
 
 namespace UE::SwitchboardListener::Private::Tests
@@ -118,7 +118,7 @@ namespace UE::SwitchboardListener::Private::Tests
 
 			// Previously issued JWT was expired by a password change.
 			{
-				UE::Testing::FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
+				FWarnFilterScope _([](const TCHAR* Message, ELogVerbosity::Type Verbosity, const FName& Category)
 					{
 						constexpr FStringView ExpectedError = TEXTVIEW("JWT issued at time predates last password change");
 						const bool bFiltered =

@@ -9,6 +9,7 @@
 #include "Templates/Function.h"
 
 #include "Tests/TestHarnessAdapter.h"
+#include "Tests/Assertions.h"
 
 namespace UE
 {
