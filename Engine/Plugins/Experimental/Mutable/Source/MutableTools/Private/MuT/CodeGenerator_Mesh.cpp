@@ -354,12 +354,12 @@ namespace mu
 		check(TexCoordsBufferIndex >= 0);
 		check(TexCoordsChannelIndex >= 0);
 
-		const FMeshBufferChannel& TexCoordsChannel = Mesh->VertexBuffers.m_buffers[TexCoordsBufferIndex].m_channels[TexCoordsChannelIndex];
-		check(TexCoordsChannel.m_semantic== MBS_TEXCOORDS);
+		const FMeshBufferChannel& TexCoordsChannel = Mesh->VertexBuffers.Buffers[TexCoordsBufferIndex].Channels[TexCoordsChannelIndex];
+		check(TexCoordsChannel.Semantic == MBS_TEXCOORDS);
 
 		uint8* TexCoordData = Mesh->GetVertexBuffers().GetBufferData(TexCoordsBufferIndex);
 		int32 elemSize = Mesh->GetVertexBuffers().GetElementSize(TexCoordsBufferIndex);
-		int32 channelOffset = TexCoordsChannel.m_offset;
+		int32 channelOffset = TexCoordsChannel.Offset;
 		TexCoordData += channelOffset;
 
 		// Get a copy of the UVs as FVector2f to work with them. 
@@ -374,11 +374,11 @@ namespace mu
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
 				FVector2f& UV = TexCoords[VertexIndex];
-				if (TexCoordsChannel.m_format == MBF_FLOAT32)
+				if (TexCoordsChannel.Format == MBF_FLOAT32)
 				{
 					UV = *((FVector2f*)pVertices);
 				}
-				else if (TexCoordsChannel.m_format == MBF_FLOAT16)
+				else if (TexCoordsChannel.Format == MBF_FLOAT16)
 				{
 					const FFloat16* pUV = reinterpret_cast<const FFloat16*>(pVertices);
 					UV = FVector2f(float(pUV[0]), float(pUV[1]));
@@ -698,12 +698,12 @@ namespace mu
 				}
 
 				// Copy UVs
-				if (TexCoordsChannel.m_format == MBF_FLOAT32)
+				if (TexCoordsChannel.Format == MBF_FLOAT32)
 				{
 					FVector2f* pUV = reinterpret_cast<FVector2f*>(pVertices);
 					*pUV = *UV;
 				}
-				else if (TexCoordsChannel.m_format == MBF_FLOAT16)
+				else if (TexCoordsChannel.Format == MBF_FLOAT16)
 				{
 					FFloat16* pUV = reinterpret_cast<FFloat16*>(pVertices);
 					pUV[0] = FFloat16((*UV)[0]);

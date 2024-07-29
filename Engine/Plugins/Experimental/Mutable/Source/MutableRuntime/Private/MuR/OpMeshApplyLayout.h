@@ -67,8 +67,8 @@ namespace mu
 		}
 
         check( layoutBuffer>=0 && layoutChannel>=0 );
-        check( pApplied->GetVertexBuffers().m_buffers[layoutBuffer].m_channels.Num()==1 );
-        check( pApplied->GetVertexBuffers().m_buffers[layoutBuffer].m_channels[layoutChannel].m_componentCount==1 );
+        check( pApplied->GetVertexBuffers().Buffers[layoutBuffer].Channels.Num()==1 );
+        check( pApplied->GetVertexBuffers().Buffers[layoutBuffer].Channels[layoutChannel].ComponentCount==1 );
 
         const uint16* pLayoutData = reinterpret_cast<const uint16*>( pApplied->GetVertexBuffers().GetBufferData( layoutBuffer ) );
 		UntypedMeshBufferIterator ItLayoutData(pApplied->GetVertexBuffers(), MBS_LAYOUTBLOCK, texCoordsSet);

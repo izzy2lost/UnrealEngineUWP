@@ -31,13 +31,13 @@ namespace mu
 		FMatrix44f transformIT = transform.Inverse().GetTransposed();
 
         const FMeshBufferSet& MBSPriv = Result->GetVertexBuffers();
-        for ( int32 b=0; b<MBSPriv.m_buffers.Num(); ++b )
+        for ( int32 b=0; b<MBSPriv.Buffers.Num(); ++b )
         {
 
-            for ( int32 c=0; c<MBSPriv.m_buffers[b].m_channels.Num(); ++c )
+            for ( int32 c=0; c<MBSPriv.Buffers[b].Channels.Num(); ++c )
             {
-                EMeshBufferSemantic sem = MBSPriv.m_buffers[b].m_channels[c].m_semantic;
-                int semIndex = MBSPriv.m_buffers[b].m_channels[c].m_semanticIndex;
+                EMeshBufferSemantic sem = MBSPriv.Buffers[b].Channels[c].Semantic;
+                int semIndex = MBSPriv.Buffers[b].Channels[c].SemanticIndex;
 
                 UntypedMeshBufferIterator it( Result->GetVertexBuffers(), sem, semIndex );
 

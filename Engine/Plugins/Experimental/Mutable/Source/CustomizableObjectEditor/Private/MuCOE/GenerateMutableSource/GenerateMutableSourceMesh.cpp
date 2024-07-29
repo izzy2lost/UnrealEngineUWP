@@ -45,6 +45,7 @@
 #include "MuT/NodeMeshSwitch.h"
 #include "MuT/NodeMeshTable.h"
 #include "MuT/NodeMeshVariation.h"
+#include "MuR/Types.h"
 #include "PhysicsEngine/PhysicsAsset.h"
 #include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Engine/SkinnedAssetCommon.h"
@@ -614,33 +615,33 @@ namespace MutablePrivate
 	{
 		MUTABLE_CPUPROFILER_SCOPE(CopyBufferClearingPadding);
 
-		int32 ElementCount = BufferSet.m_elementCount;
+		int32 ElementCount = BufferSet.ElementCount;
 
 		for (int32 BufferIndex = 0; BufferIndex < BufferSet.GetBufferCount(); ++BufferIndex)
 		{
-			int32 ChannelCount = BufferSet.m_buffers[BufferIndex].m_channels.Num();
-			int32 ElementSize = BufferSet.m_buffers[BufferIndex].m_elementSize;
+			int32 ChannelCount = BufferSet.Buffers[BufferIndex].Channels.Num();
+			int32 ElementSize = BufferSet.Buffers[BufferIndex].ElementSize;
 
-			check(SourceBufferFormat.m_buffers.Num()==1);
-			const mu::FMeshBuffer& SourceBuffer = SourceBufferFormat.m_buffers[0];
+			check(SourceBufferFormat.Buffers.Num()==1);
+			const mu::FMeshBuffer& SourceBuffer = SourceBufferFormat.Buffers[0];
 
 			uint8* TargetData = BufferSet.GetBufferData(BufferIndex);
 			TArray<const uint8*, TInlineAllocator<8>> SourceDataPerChannel;
 			SourceDataPerChannel.SetNumUninitialized(ChannelCount);
 			for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
 			{
-				const mu::FMeshBufferChannel& DestinationChannel = BufferSet.m_buffers[BufferIndex].m_channels[ChannelIndex];
+				const mu::FMeshBufferChannel& DestinationChannel = BufferSet.Buffers[BufferIndex].Channels[ChannelIndex];
 
 				int32 SourceBufferIndex = -1;
 				int32 SourceChannelIndex = -1;
-				SourceBufferFormat.FindChannel(DestinationChannel.m_semantic, DestinationChannel.m_semanticIndex, &SourceBufferIndex, &SourceChannelIndex);
+				SourceBufferFormat.FindChannel(DestinationChannel.Semantic, DestinationChannel.SemanticIndex, &SourceBufferIndex, &SourceChannelIndex);
 				check(SourceBufferIndex==0 && SourceChannelIndex >=0);
 
-				const mu::FMeshBufferChannel& SourceChannel = SourceBuffer.m_channels[SourceChannelIndex];
-				check(SourceChannel.m_format == DestinationChannel.m_format);
-				check(SourceChannel.m_componentCount == DestinationChannel.m_componentCount);
+				const mu::FMeshBufferChannel& SourceChannel = SourceBuffer.Channels[SourceChannelIndex];
+				check(SourceChannel.Format == DestinationChannel.Format);
+				check(SourceChannel.ComponentCount == DestinationChannel.ComponentCount);
 
-				SourceDataPerChannel[ChannelIndex] = reinterpret_cast<const uint8*>(InSourceData) + SourceChannel.m_offset;
+				SourceDataPerChannel[ChannelIndex] = reinterpret_cast<const uint8*>(InSourceData) + SourceChannel.Offset;
 			}
 
 			for (int32 Element = 0; Element < ElementCount; ++Element)
@@ -648,9 +649,9 @@ namespace MutablePrivate
 				int32 CurrentOffset = 0;
 				for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
 				{
-					const mu::FMeshBufferChannel& Channel = BufferSet.m_buffers[BufferIndex].m_channels[ChannelIndex];
+					const mu::FMeshBufferChannel& Channel = BufferSet.Buffers[BufferIndex].Channels[ChannelIndex];
 
-					int32 ChannelOffset = Channel.m_offset;
+					int32 ChannelOffset = Channel.Offset;
 
 					int32 PreviousPadding = ChannelOffset - CurrentOffset;
 					if (PreviousPadding > 0)
@@ -660,10 +661,10 @@ namespace MutablePrivate
 						CurrentOffset += PreviousPadding;
 					}
 
-					int32 ChannelSize = Channel.m_componentCount * GetMeshFormatData(Channel.m_format).SizeInBytes;
+					int32 ChannelSize = Channel.ComponentCount * GetMeshFormatData(Channel.Format).SizeInBytes;
 					FMemory::Memcpy(TargetData, SourceDataPerChannel[ChannelIndex], ChannelSize);
 					TargetData += ChannelSize;
-					SourceDataPerChannel[ChannelIndex] += SourceBuffer.m_elementSize;
+					SourceDataPerChannel[ChannelIndex] += SourceBuffer.ElementSize;
 					CurrentOffset += ChannelSize;
 				}
 
@@ -1009,7 +1010,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			const int32 ElementSize = sizeof(float) * 13 + 4;
 
 			MutableMesh->GetVertexBuffers().SetBuffer(0, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
-			check(!MutableMesh->VertexBuffers.m_buffers[0].HasPadding());
+			check(!MutableMesh->VertexBuffers.Buffers[0].HasPadding());
 		}
 
 		// Texture coordinates
@@ -1029,7 +1030,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 			};
 
 			MutableMesh->GetVertexBuffers().SetBuffer(1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
-			check(!MutableMesh->VertexBuffers.m_buffers[1].HasPadding());
+			check(!MutableMesh->VertexBuffers.Buffers[1].HasPadding());
 		}
 	}
 
@@ -1147,7 +1148,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 
 	// TODO: Add Mesh generation flags to not include RT Morph and clothing if not needed.
-	int32 NextBufferIndex = MutableMesh->VertexBuffers.m_buffers.Num();
+	int32 NextBufferIndex = MutableMesh->VertexBuffers.Buffers.Num();
 	if (GenerationContext.Options.bRealTimeMorphTargetsEnabled)
 	{
 
@@ -1274,7 +1275,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				int32 Components[ChannelCount] = { 1 };
 				const int32 Offsets[ChannelCount] = { 0 };
 
-				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets, mu::EMemoryInitPolicy::Zeroed);
 			}
 
 			// MorphTarget vertex morph count.
@@ -1290,7 +1291,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				int32 Components[ChannelCount] = { 1 };
 				const int32 Offsets[ChannelCount] = { 0 };
 
-				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex + 1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex + 1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets, mu::EMemoryInitPolicy::Zeroed);
 			}
 
 			// Setup MorphTarget reconstruction data.
@@ -1622,7 +1623,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				int32 Components[ChannelCount] = { 1 };
 				const int32 Offsets[ChannelCount] = { 0 };
 
-				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets, mu::EMemoryInitPolicy::Zeroed);
 			}
 
 			{
@@ -1635,7 +1636,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 				int32 Components[ChannelCount] = { 1 };
 				const int32 Offsets[ChannelCount] = { 0 };
 
-				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex + 1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets);
+				MutableMesh->GetVertexBuffers().SetBuffer(NextBufferIndex + 1, ElementSize, ChannelCount, Semantics, SemanticIndices, Formats, Components, Offsets, mu::EMemoryInitPolicy::Zeroed);
 			}
 
 			TArrayView<int32> ClothSectionIndexView(reinterpret_cast<int32*>(

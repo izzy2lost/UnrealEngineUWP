@@ -187,18 +187,18 @@ namespace mu
 		/** Create a new empty mesh that repreents an external resource mesh. */
 		static Ptr<Mesh> CreateAsReference(uint32 ID, bool bForceLoad);
 
-        //! Deep clone this mesh.
+        /** Deep clone this mesh. */
         Ptr<Mesh> Clone() const;
 		
-		// Clone with flags allowing to not include some parts in the cloned mesh
+		/** Clone with flags allowing to not include some parts in the cloned mesh */
 		Ptr<Mesh> Clone(EMeshCopyFlags Flags) const;
 
-		// Copy form another mesh.
+		/** Copy form another mesh. */
 		void CopyFrom(const Mesh& From, EMeshCopyFlags Flags = EMeshCopyFlags::AllFlags);
 
-        //! Serialisation
-        static void Serialise( const Mesh* p, OutputArchive& arch );
-        static Ptr<Mesh> StaticUnserialise( InputArchive& arch );
+        /** Serialisation */
+        static void Serialise(const Mesh* InMesh, OutputArchive& Arch );
+        static Ptr<Mesh> StaticUnserialise(InputArchive& Arch);
 
 		// Resource interface
 		int32 GetDataSize() const override;
@@ -222,30 +222,33 @@ namespace mu
         //!
         int32 GetIndexCount() const;
 
-        //! Index buffers. They are owned by this mesh.
+        /** Index buffers. They are owned by this mesh. */
         FMeshBufferSet& GetIndexBuffers();
         const FMeshBufferSet& GetIndexBuffers() const;
 
         //
         int32 GetVertexCount() const;
 
-        //! Vertex buffers. They are owned by this mesh.
+        /** Vertex buffers. They are owned by this mesh. */
         FMeshBufferSet& GetVertexBuffers();
         const FMeshBufferSet& GetVertexBuffers() const;
 
-        //
         int32 GetFaceCount() const;
 
-        //! Get the number of surfaces defined in this mesh. Surfaces are buffer-contiguous mesh
-        //! fragments that share common properties (usually material)
+        /**
+		 * Get the number of surfaces defined in this mesh. Surfaces are buffer-contiguous mesh
+         * fragments that share common properties (usually material)
+		 */
         int32 GetSurfaceCount() const;
         void GetSurface(int32 SurfaceIndex,
                         int32& OutFirstVertex, int32& OutVertexCount,
                         int32& OutFirstIndex, int32& OutIndexCount,
 						int32& OutFirstBone, int32& OutBoneCount) const;
 
-        //! Return an internal id that can be used to match mesh surfaces and instance surfaces.
-        //! Only valid for meshes that are part of instances.
+        /**
+		 * Return an internal id that can be used to match mesh surfaces and instance surfaces.
+         * Only valid for meshes that are part of instances.
+		 */
         uint32 GetSurfaceId(int32 SurfaceIndex) const;
 
         //! \}
@@ -358,14 +361,16 @@ namespace mu
         //! \}
 
 
-        //! Get an internal identifier used to reference this mesh in operations like deferred
-        //! mesh building, or instance updating.
+        /** 
+		 * Get an internal identifier used to reference this mesh in operations like deferred
+         * mesh building, or instance updating.
+		 */
         uint32 GetId() const;
 
 
     protected:
 
-        //! Forbidden. Manage with the Ptr<> template.
+        /** Forbidden. Manage with the Ptr<> template. */
 		~Mesh() {}
 
     
@@ -377,7 +382,8 @@ namespace mu
 		/** Non-persistent internal id unique for a mesh generated for a specific state and parameter values. */
 		mutable uint32 InternalId = 0;
 
-		/** This is bit - mask on the EMeshFlags enumeration, marking what static formats are compatible with this one and other properties. 
+		/** 
+		 * This is bit - mask on the EMeshFlags enumeration, marking what static formats are compatible with this one and other properties. 
 		 * It should be reset after any operation that modifies the format.
 		 */
 		mutable EMeshFlags Flags = EMeshFlags::None;
@@ -385,41 +391,43 @@ namespace mu
 		/** Only valid if the right flags are set, this identifies a referenced mesh. */
 		uint32 ReferenceID = 0;
 
-		/** Prefix for the unique IDs related to this mesh (vertices and layout blocks). Useful if the mesh stores them in an implicit, or relative way. 
-		* See MeshVertexIdIterator for details.
-		*/
+		/** 
+		 * Prefix for the unique IDs related to this mesh (vertices and layout blocks). Useful if the mesh stores them in an implicit, or relative way. 
+		 * See MeshVertexIdIterator for details.
+		 */
 		uint32 MeshIDPrefix = 0;
 
-		//!
 		FMeshBufferSet VertexBuffers;
 
-		//!
 		FMeshBufferSet IndexBuffers;
 
-		//! Additional buffers used for temporary or custom data in different algorithms.
+		/** Additional buffers used for temporary or custom data in different algorithms. */
 		TArray<TPair<EMeshBufferType, FMeshBufferSet>> AdditionalBuffers;
 
 		TArray<FMeshSurface> Surfaces;
 
-		// Externally provided SkeletonIDs of the skeletons required by this mesh.
+		/** Externally provided SkeletonIDs of the skeletons required by this mesh. */
 		TArray<uint32> SkeletonIDs;
 
-		//! This skeleton and physics body are not owned and may be used by other meshes, so it cannot be modified
-		//! once the mesh has been fully created.
+		/** 
+		 * This skeleton and physics body are not owned and may be used by other meshes, so it cannot be modified
+		 * once the mesh has been fully created.
+		 */
 		Ptr<const Skeleton> Skeleton;
 		Ptr<const PhysicsBody> PhysicsBody;
 
-		//! Additional physics bodies referenced by the mesh that don't merge.
+		/** Additional physics bodies referenced by the mesh that don't merge. */
 		TArray<Ptr<const mu::PhysicsBody>> AdditionalPhysicsBodies;
 
-		//! Texture Layout blocks attached to this mesh. They are const because they could be shared with
-		//! other meshes, so they need to be cloned and replaced if a modification is needed.
+		/** 
+		 * Texture Layout blocks attached to this mesh. They are const because they could be shared with
+		 * other meshes, so they need to be cloned and replaced if a modification is needed.
+		 */
 		TArray<Ptr<const Layout>> Layouts;		
 
-		//!
 		TArray<FString> Tags;
 
-		// Opaque handle to external resources.
+		/** Opaque handle to external resources. */
 		TArray<uint64> StreamedResources;
 
 		struct FBonePose
@@ -433,27 +441,26 @@ namespace mu
 			inline void Serialise(OutputArchive& arch) const;
 			inline void Unserialise(InputArchive& arch);
 
-			//!
 			inline bool operator==(const FBonePose& Other) const
 			{
 				return BoneUsageFlags == Other.BoneUsageFlags && BoneId == Other.BoneId;
 			}
 		};
-		// This is the pose used by this mesh fragment, used to update the transforms of the final skeleton
-		// taking into consideration the meshes being used.
+
+		/** 
+		 * This is the pose used by this mesh fragment, used to update the transforms of the final skeleton
+		 * taking into consideration the meshes being used.
+		 */
 		TMemoryTrackedArray<FBonePose> BonePoses;
 
-		// Array containing the bonemaps of all surfaces in the mesh.
+		/** Array containing the bonemaps of all surfaces in the mesh. */
 		TArray<FBoneName> BoneMap;
 
-		//!
 		inline void Serialise(OutputArchive& arch) const;
 
-        //!
 		inline void Unserialise(InputArchive& arch);
 
 
-        //!
 		inline bool operator==(const Mesh& o) const
 		{
 			bool bEqual = true;
@@ -509,49 +516,56 @@ namespace mu
 			return bEqual;
 		}
 
-		//! Compare the mesh with another one, but ignore internal data like generated vertex
-		//! indices.
-		bool IsSimilar(const Mesh& o, bool bCompareLayouts) const;
+		/** 
+		 * Compare the mesh with another one, but ignore internal data like generated vertex
+		 * indices.
+		 */
+		bool IsSimilar(const Mesh& Other, bool bCompareLayouts) const;
 
 
-		//! Make a map from the vertices in this mesh to thefirst matching vertex of the given
-		//! mesh. If non is found, the index is set to -1.
+		/**
+		 * Make a map from the vertices in this mesh to thefirst matching vertex of the given
+		 * mesh. If non is found, the index is set to -1.
+		 */
 		struct FVertexMatchMap
 		{
-			//! One for every vertex
+			/** One for every vertex */
 			TArray<int32> FirstMatch;
 
-			//! The matches of every vertex in a sequence
+			/** The matches of every vertex in a sequence */
 			TArray<int32> Matches;
 
-			//!
-			bool DoMatch(int32 v, int32 ov) const;
+			bool DoMatch(int32 Vertex, int32 OtherVertex) const;
 		};
 
-		void GetVertexMap( const Mesh& other, FVertexMatchMap& vertexMap, float tolerance = 1e-3f) const;
+		void GetVertexMap(const Mesh& Other, FVertexMatchMap& VertexMap, float Tolerance = 1e-3f) const;
 
-		//! Compare the vertex attributes to check if they match.
+		/** Compare the vertex attributes to check if they match. */
 		UE::Math::TIntVector3<uint32> GetFaceVertexIndices(int32 f) const;
 
-		//! Return true if the given mesh has the same vertex and index formats, and in the same
-		//! buffer structure.
-		bool HasCompatibleFormat(const Mesh* pOther) const;
+		/** 
+		 * Return true if the given mesh has the same vertex and index formats, and in the same
+		 * buffer structure.
+		 */
+		bool HasCompatibleFormat(const Mesh* Other) const;
 
-		//! Update the flags identifying the mesh format as some of the optimised formats.
+		/** Update the flags identifying the mesh format as some of the optimised formats. */
 		void ResetStaticFormatFlags() const;
 
-		//! Create the surface data if not present.
+		/** Create the surface data if not present. */
 		void EnsureSurfaceData();
 
-		//! Check mesh buffer data for possible inconsistencies
+		/** Check mesh buffer data for possible inconsistencies */
 		void CheckIntegrity() const;
 
-		//! Change the buffer descriptions so that all buffer indices start at 0 and are in the
-		//! same order than memory.
+		/** 
+		 * Change the buffer descriptions so that all buffer indices start at 0 and are in the
+		 * same order than memory.
+		 */
 		void ResetBufferIndices();
 
-		//! Debug: get a text representation of the mesh
-		void Log(FString& out, int32 VertrexLimit);
+		/** Debug: get a text representation of the mesh */
+		void Log(FString& Out, int32 VertrexLimit);
     };
 
 

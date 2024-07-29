@@ -256,9 +256,9 @@ namespace mu
 			for (int32 ChannelIndex = 0; ChannelIndex < ChannelsNum; ++ChannelIndex)
 			{
 				const FMeshBufferSet& MBSPriv = RefTarget->GetVertexBuffers();
-				const FMeshBufferChannel& Channel = MBSPriv.m_buffers[MorphBufferDataChannel].m_channels[ChannelIndex];
-				EMeshBufferSemantic Sem = Channel.m_semantic;
-				int32 SemIndex = Channel.m_semanticIndex;
+				const FMeshBufferChannel& Channel = MBSPriv.Buffers[MorphBufferDataChannel].Channels[ChannelIndex];
+				EMeshBufferSemantic Sem = Channel.Semantic;
+				int32 SemIndex = Channel.SemanticIndex;
 			
 				if (Sem == MBS_NORMAL && bBaseHasNormals)
 				{

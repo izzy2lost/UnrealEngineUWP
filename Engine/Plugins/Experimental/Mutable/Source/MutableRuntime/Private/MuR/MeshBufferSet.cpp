@@ -19,7 +19,6 @@ namespace mu
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMeshBufferSemantic);
 
 	
-	//---------------------------------------------------------------------------------------------
 	static FMeshBufferFormatData s_meshBufferFormatData[] = // MBF_COUNT entries
 	{
 		{ 0, 0 },
@@ -55,42 +54,32 @@ namespace mu
 
 	static_assert(sizeof(s_meshBufferFormatData) / sizeof(FMeshBufferFormatData) == int32(MBF_COUNT));
 
-	//---------------------------------------------------------------------------------------------
-	const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat format)
+	const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat Format)
 	{
-		check(format >= 0);
-		check(format < MBF_COUNT);
-		return s_meshBufferFormatData[format];
+		check(Format >= 0);
+		check(Format < MBF_COUNT);
+		return s_meshBufferFormatData[Format];
+	}
+
+	void FMeshBufferSet::Serialise(OutputArchive& Arch) const
+	{
+		Arch << ElementCount;
+		Arch << Buffers;
+	}
+
+	void FMeshBufferSet::Unserialise(InputArchive& Arch)
+	{
+		Arch >> ElementCount;
+		Arch >> Buffers;
 	}
 
 
-	//-----------------------------------------------------------------------------------------
-	void FMeshBufferSet::Serialise(OutputArchive& arch) const
-	{
-		arch << m_elementCount;
-		arch << m_buffers;
-	}
-
-
-	//-----------------------------------------------------------------------------------------
-	void FMeshBufferSet::Unserialise(InputArchive& arch)
-	{
-		arch >> m_elementCount;
-		arch >> m_buffers;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
-	//---------------------------------------------------------------------------------------------
 	int32 FMeshBufferSet::GetElementCount() const
 	{
-		return m_elementCount;
+		return ElementCount;
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::SetElementCount(int32 Count)
+	void FMeshBufferSet::SetElementCount(int32 Count, EMemoryInitPolicy MemoryInitPolicy)
 	{
 		check(Count >= 0);
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
@@ -101,264 +90,132 @@ namespace mu
 		// allow it if no other allocation will be done.  
 		const EAllowShrinking AllowShrinking = (Count == 0) ? EAllowShrinking::Yes : EAllowShrinking::No;
 
-		for (FMeshBuffer& buf : m_buffers)
+		for (FMeshBuffer& Buffer : Buffers)
 		{
-			buf.m_data.SetNumUninitialized(buf.m_elementSize * Count, AllowShrinking);
+			if (MemoryInitPolicy == EMemoryInitPolicy::Uninitialized)
+			{
+				Buffer.Data.SetNumUninitialized(Buffer.ElementSize * Count, AllowShrinking);
+			}
+			else if (MemoryInitPolicy == EMemoryInitPolicy::Zeroed)
+			{
+				Buffer.Data.SetNumZeroed(Buffer.ElementSize * Count, AllowShrinking);
+			}
+			else
+			{
+				check(false);
+			}
 		}
 		
-		m_elementCount = Count;
+		ElementCount = Count;
 	}
 
 
-	//---------------------------------------------------------------------------------------------
 	int32 FMeshBufferSet::GetBufferCount() const
 	{
-		return m_buffers.Num();
+		return Buffers.Num();
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::SetBufferCount(int32 count)
+	void FMeshBufferSet::SetBufferCount(int32 Count)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		m_buffers.SetNum(count);
+		Buffers.SetNum(Count);
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	int32 FMeshBufferSet::GetBufferChannelCount(int32 buffer) const
+	int32 FMeshBufferSet::GetBufferChannelCount(int32 BufferIndex) const
 	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		if (buffer >= 0 && buffer < m_buffers.Num())
+		check(Buffers.IsValidIndex(BufferIndex));
+		
+		if (Buffers.IsValidIndex(BufferIndex))
 		{
-			return m_buffers[buffer].m_channels.Num();
+			return Buffers[BufferIndex].Channels.Num();
 		}
+
 		return 0;
 	}
 
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::GetChannel
-	(
-		int32 buffer,
-		int32 channel,
-		EMeshBufferSemantic* pSemantic,
-		int32* pSemanticIndex,
-		EMeshBufferFormat* pFormat,
-		int32* pComponentCount,
-		int32* pOffset
-	) const
+	void FMeshBufferSet::GetChannel(
+			int32 BufferIndex,
+			int32 ChannelIndex,
+			EMeshBufferSemantic* SemanticPtr,
+			int32* SemanticIndexPtr,
+			EMeshBufferFormat* FormatPtr,
+			int32* ComponentCountPtr,
+			int32* OffsetPtr) const
 	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		check(channel >= 0 && channel < m_buffers[buffer].m_channels.Num());
+		check(Buffers.IsValidIndex(BufferIndex));
+		check(Buffers[BufferIndex].Channels.IsValidIndex(ChannelIndex));
 
-		const FMeshBufferChannel& chan = m_buffers[buffer].m_channels[channel];
+		const FMeshBufferChannel& Channel = Buffers[BufferIndex].Channels[ChannelIndex];
 
-		if (pSemantic)
+		if (SemanticPtr)
 		{
-			*pSemantic = chan.m_semantic;
+			*SemanticPtr = Channel.Semantic;
 		}
 
-		if (pSemanticIndex)
+		if (SemanticIndexPtr)
 		{
-			*pSemanticIndex = chan.m_semanticIndex;
+			*SemanticIndexPtr = Channel.SemanticIndex;
 		}
 
-		if (pFormat)
+		if (FormatPtr)
 		{
-			*pFormat = chan.m_format;
+			*FormatPtr = Channel.Format;
 		}
 
-		if (pComponentCount)
+		if (ComponentCountPtr)
 		{
-			*pComponentCount = chan.m_componentCount;
+			*ComponentCountPtr = Channel.ComponentCount;
 		}
 
-		if (pOffset)
+		if (OffsetPtr)
 		{
-			*pOffset = chan.m_offset;
+			*OffsetPtr = Channel.Offset;
 		}
 	}
 
 
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::SetBuffer
-	(
-		int32 buffer,
-		int32 elementSize,
-		int32 channelCount,
-		const EMeshBufferSemantic* pSemantics,
-		const int32* pSemanticIndices,
-		const EMeshBufferFormat* pFormats,
-		const int32* pComponentCount,
-		const int32* pOffsets
-	)
+	void FMeshBufferSet::SetBuffer(
+		int32 BufferIndex,
+		int32 ElementSize,
+		int32 ChannelCount,
+		const EMeshBufferSemantic* SemanticsPtr,
+		const int32* SemanticIndicesPtr,
+		const EMeshBufferFormat* FormatsPtr,
+		const int32* ComponentCountPtr,
+		const int32* OffsetsPtr,
+		EMemoryInitPolicy MemoryInitPolicy)
 	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
+		check(Buffers.IsValidIndex(BufferIndex));
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-		FMeshBuffer& buf = m_buffers[buffer];
+		FMeshBuffer& Buffer = Buffers[BufferIndex];
 
 		int32 MinElemSize = 0;
-		buf.m_channels.SetNum(channelCount);
-		for (int c = 0; c < channelCount; ++c)
+		Buffer.Channels.SetNum(ChannelCount);
+		for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
 		{
-			FMeshBufferChannel& chan = buf.m_channels[c];
-			chan.m_semantic = pSemantics ? pSemantics[c] : MBS_NONE;
-			chan.m_semanticIndex = pSemanticIndices ? pSemanticIndices[c] : 0;
-			chan.m_format = pFormats ? pFormats[c] : MBF_NONE;
-			chan.m_componentCount = pComponentCount ? ((uint16)pComponentCount[c]) : 0;
-			chan.m_offset = pOffsets ? ((uint8)pOffsets[c]) : 0;
+			FMeshBufferChannel& Channel = Buffer.Channels[ChannelIndex];
+			Channel.Semantic = SemanticsPtr ? SemanticsPtr[ChannelIndex] : MBS_NONE;
+			Channel.SemanticIndex = SemanticIndicesPtr ? SemanticIndicesPtr[ChannelIndex] : 0;
+			Channel.Format = FormatsPtr ? FormatsPtr[ChannelIndex] : MBF_NONE;
+			Channel.ComponentCount = ComponentCountPtr ? ((uint16)ComponentCountPtr[ChannelIndex]) : 0;
+			Channel.Offset = OffsetsPtr ? ((uint8)OffsetsPtr[ChannelIndex]) : 0;
 
-			int32 ThisChannelMinElemSize = chan.m_offset + chan.m_componentCount * GetMeshFormatData(chan.m_format).SizeInBytes;			
+			int32 ThisChannelMinElemSize = Channel.Offset + Channel.ComponentCount * GetMeshFormatData(Channel.Format).SizeInBytes;			
 			MinElemSize = FMath::Max(MinElemSize, ThisChannelMinElemSize);
 		}
 
 		// Set the user specified element size, or enlarge it if it was too small
-		buf.m_elementSize = FMath::Max(elementSize, MinElemSize);
+		Buffer.ElementSize = FMath::Max(ElementSize, MinElemSize);
 
 		// Update the buffer data
-		buf.m_data.SetNumUninitialized(buf.m_elementSize * m_elementCount, EAllowShrinking::No);
-	}
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::SetBufferChannel
-	(
-		int32 buffer,
-		int32 channelIndex,
-		EMeshBufferSemantic semantic,
-		int32 semanticIndex,
-		EMeshBufferFormat format,
-		int32 componentCount,
-		int32 offset
-	)
-	{
-		if (!(buffer >= 0 && buffer < m_buffers.Num()))
+		if (MemoryInitPolicy == EMemoryInitPolicy::Uninitialized)
 		{
-			check(false);
-			return;
+			Buffer.Data.SetNumUninitialized(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
 		}
-
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-
-		FMeshBuffer& buf = m_buffers[buffer];
-
-		if (!(channelIndex >= 0 && channelIndex < buf.m_channels.Num()))
+		else if (MemoryInitPolicy == EMemoryInitPolicy::Zeroed)
 		{
-			check(false);
-			return;
-		}
-
-		FMeshBufferChannel& chan = buf.m_channels[channelIndex];
-		chan.m_semantic = semantic;
-		chan.m_semanticIndex = semanticIndex;
-		chan.m_format = format;
-		chan.m_componentCount = uint16(componentCount);
-		chan.m_offset = uint8(offset);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	uint8* FMeshBufferSet::GetBufferData(int32 buffer)
-	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		uint8* pResult = m_buffers[buffer].m_data.GetData();
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	const uint8* FMeshBufferSet::GetBufferData(int32 buffer) const
-	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		const uint8* pResult = m_buffers[buffer].m_data.GetData();
-		return pResult;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	uint32 FMeshBufferSet::GetBufferDataSize(int32 buffer) const
-	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		const uint32 Result = m_buffers[buffer].m_data.Num();
-
-#if WITH_EDITOR
-		int32 Size = m_buffers[buffer].m_elementSize * m_elementCount;
-		ensure(Size == Result);
-#endif
-
-		return Result;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::FindChannel
-	(
-		EMeshBufferSemantic semantic, int32 semanticIndex,
-		int32* pBuffer, int32* pChannel
-	) const
-	{
-		check(pBuffer && pChannel);
-
-		*pBuffer = -1;
-		*pChannel = -1;
-
-		for (int32 b = 0; b < m_buffers.Num(); ++b)
-		{
-			for (int32 c = 0; c < m_buffers[b].m_channels.Num(); ++c)
-			{
-				if (m_buffers[b].m_channels[c].m_semantic == semantic &&
-					m_buffers[b].m_channels[c].m_semanticIndex == semanticIndex)
-				{
-					*pBuffer = b;
-					*pChannel = c;
-					return;
-				}
-			}
-		}
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int32 FMeshBufferSet::GetElementSize(int32 buffer) const
-	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-
-		return m_buffers[buffer].m_elementSize;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	int32 FMeshBufferSet::GetChannelOffset
-	(
-		int32 buffer,
-		int32 channel
-	) const
-	{
-		check(buffer >= 0 && buffer < m_buffers.Num());
-		check(channel >= 0 && channel < m_buffers[buffer].m_channels.Num());
-
-		return m_buffers[buffer].m_channels[channel].m_offset;
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::AddBuffer(const FMeshBufferSet& Other, int32 buffer)
-	{
-		check(GetElementCount() == Other.GetElementCount());
-
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-
-		m_buffers.Add(Other.m_buffers[buffer]);
-	}
-
-
-	//---------------------------------------------------------------------------------------------
-	void FMeshBufferSet::RemoveBuffer(int32 BufferIndex)
-	{
-		if (BufferIndex >= 0 && BufferIndex < m_buffers.Num())
-		{
-			m_buffers.RemoveAt(BufferIndex);
+			Buffer.Data.SetNumZeroed(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
 		}
 		else
 		{
@@ -366,19 +223,139 @@ namespace mu
 		}
 	}
 
+	void FMeshBufferSet::SetBufferChannel(
+		int32 BufferIndex,
+		int32 ChannelIndex,
+		EMeshBufferSemantic Semantic,
+		int32 SemanticIndex,
+		EMeshBufferFormat Format,
+		int32 ComponentCount,
+		int32 Offset)
+	{
+		if (!Buffers.IsValidIndex(BufferIndex))
+		{
+			check(false);
+			return;
+		}
 
-	//---------------------------------------------------------------------------------------------
+		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+
+		FMeshBuffer& Buffer = Buffers[BufferIndex];
+
+		if (!Buffer.Channels.IsValidIndex(ChannelIndex))
+		{
+			check(false);
+			return;
+		}
+
+		FMeshBufferChannel& Channel = Buffer.Channels[ChannelIndex];
+		Channel.Semantic = Semantic;
+		Channel.SemanticIndex = SemanticIndex;
+		Channel.Format = Format;
+		Channel.ComponentCount = uint16(ComponentCount);
+		Channel.Offset = uint8(Offset);
+	}
+
+
+	uint8* FMeshBufferSet::GetBufferData(int32 BufferIndex)
+	{
+		check(Buffers.IsValidIndex(BufferIndex));
+		uint8* ResultPtr = Buffers[BufferIndex].Data.GetData();
+		return ResultPtr;
+	}
+
+	const uint8* FMeshBufferSet::GetBufferData(int32 BufferIndex) const
+	{
+		check(Buffers.IsValidIndex(BufferIndex));
+		const uint8* ResultPtr = Buffers[BufferIndex].Data.GetData();
+		return ResultPtr;
+	}
+
+	uint32 FMeshBufferSet::GetBufferDataSize(int32 BufferIndex) const
+	{
+		check(Buffers.IsValidIndex(BufferIndex));
+		const uint32 Result = Buffers[BufferIndex].Data.Num();
+
+#if WITH_EDITOR
+		int32 Size = Buffers[BufferIndex].ElementSize * ElementCount;
+		ensure(Size == Result);
+#endif
+
+		return Result;
+	}
+
+	void FMeshBufferSet::FindChannel(EMeshBufferSemantic Semantic, int32 SemanticIndex, int32* BufferPtr, int32* ChannelPtr) const
+	{
+		check(BufferPtr && ChannelPtr);
+
+		*BufferPtr = -1;
+		*ChannelPtr = -1;
+
+		const int32 NumBuffers = Buffers.Num();
+		for (int32 BufferIndex = 0; BufferIndex < NumBuffers; ++BufferIndex)
+		{
+			const int32 NumChannels = Buffers[BufferIndex].Channels.Num();
+			for (int32 ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
+			{
+				if (Buffers[BufferIndex].Channels[ChannelIndex].Semantic == Semantic &&
+					Buffers[BufferIndex].Channels[ChannelIndex].SemanticIndex == SemanticIndex)
+				{
+					*BufferPtr = BufferIndex;
+					*ChannelPtr = ChannelIndex;
+
+					return;
+				}
+			}
+		}
+	}
+
+	int32 FMeshBufferSet::GetElementSize(int32 BufferIndex) const
+	{
+		check(Buffers.IsValidIndex(BufferIndex));
+
+		return Buffers[BufferIndex].ElementSize;
+	}
+
+	int32 FMeshBufferSet::GetChannelOffset(int32 BufferIndex, int32 ChannelIndex) const
+	{
+		check(Buffers.IsValidIndex(BufferIndex));
+		check(Buffers[BufferIndex].Channels.IsValidIndex(ChannelIndex));
+
+		return Buffers[BufferIndex].Channels[ChannelIndex].Offset;
+	}
+
+	void FMeshBufferSet::AddBuffer(const FMeshBufferSet& Other, int32 BufferIndex)
+	{
+		check(GetElementCount() == Other.GetElementCount());
+
+		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+
+		Buffers.Add(Other.Buffers[BufferIndex]);
+	}
+
+	void FMeshBufferSet::RemoveBuffer(int32 BufferIndex)
+	{
+		if (Buffers.IsValidIndex(BufferIndex))
+		{
+			Buffers.RemoveAt(BufferIndex);
+		}
+		else
+		{
+			check(false);
+		}
+	}
+
 	bool FMeshBufferSet::HasSameFormat(const FMeshBufferSet& Other) const
 	{
-		int32 bc = GetBufferCount();
-		if (Other.GetBufferCount() != bc)
+		const int32 BufferCount = GetBufferCount();
+		if (Other.GetBufferCount() != BufferCount)
 		{
 			return false;
 		}
 
-		for (int32 b = 0; b < bc; ++b)
+		for (int32 BufferIndex = 0; BufferIndex < BufferCount; ++BufferIndex)
 		{
-			if (!HasSameFormat(b, Other, b))
+			if (!HasSameFormat(BufferIndex, Other, BufferIndex))
 			{
 				return false;
 			}
@@ -387,81 +364,74 @@ namespace mu
 		return true;
 	}
 
-
-	//---------------------------------------------------------------------------------------------
 	bool FMeshBufferSet::HasSameFormat(int32 ThisBufferIndex, const FMeshBufferSet& Other, int32 OtherBufferIndex) const
 	{
-		return m_buffers[ThisBufferIndex].HasSameFormat(Other.m_buffers[OtherBufferIndex]);
+		return Buffers[ThisBufferIndex].HasSameFormat(Other.Buffers[OtherBufferIndex]);
 	}
 
-
-	//---------------------------------------------------------------------------------------------
 	int32 FMeshBufferSet::GetDataSize() const
 	{
-		int32 res = 0;
+		int32 Result = 0;
 
-		for (int32 b = 0; b < m_buffers.Num(); ++b)
+		const int32 NumBuffers = Buffers.Num();
+		for (int32 BufferIndex = 0; BufferIndex < NumBuffers; ++BufferIndex)
 		{
-			res += m_buffers[b].m_elementSize * m_elementCount;
+			Result += Buffers[BufferIndex].ElementSize * ElementCount;
 		}
 
-		return res;
+		return Result;
 	}
 
 	int32 FMeshBufferSet::GetAllocatedSize() const
 	{
 		int32 ByteCount = 0;
 
-		for (int32 BufferIndex = 0; BufferIndex < m_buffers.Num(); ++BufferIndex)
+		const int32 NumBuffers = Buffers.Num();
+		for (int32 BufferIndex = 0; BufferIndex < NumBuffers; ++BufferIndex)
 		{
-			ByteCount += m_buffers[BufferIndex].m_data.GetAllocatedSize();
+			ByteCount += Buffers[BufferIndex].Data.GetAllocatedSize();
 		}
 
 		return ByteCount;
 	}
 
-	//-----------------------------------------------------------------------------------------
-	void FMeshBufferSet::CopyElement(uint32 fromIndex, uint32 toIndex)
+	void FMeshBufferSet::CopyElement(uint32 FromIndex, uint32 ToIndex)
 	{
-		check(fromIndex < m_elementCount);
-		check(toIndex < m_elementCount);
+		check(FromIndex < ElementCount);
+		check(ToIndex < ElementCount);
 
-		if (fromIndex != toIndex)
+		if (FromIndex != ToIndex)
 		{
-			for (FMeshBuffer& b : m_buffers)
+			for (FMeshBuffer& Buffer : Buffers)
 			{
-				FMemory::Memcpy(&b.m_data[b.m_elementSize * toIndex],
-					&b.m_data[b.m_elementSize * fromIndex],
-					b.m_elementSize);
+				FMemory::Memcpy(
+						&Buffer.Data[Buffer.ElementSize * ToIndex],
+						&Buffer.Data[Buffer.ElementSize * FromIndex],
+						Buffer.ElementSize);
 			}
 		}
 	}
 
-
-	//-----------------------------------------------------------------------------------------
-	bool FMeshBufferSet::IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& b) const
+	bool FMeshBufferSet::IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& Buffer) const
 	{
-		if (b.m_channels.Num() == 1
-			&&
-			b.m_channels[0].m_semantic == MBS_VERTEXINDEX)
+		if (Buffer.Channels.Num() == 1 && Buffer.Channels[0].Semantic == MBS_VERTEXINDEX)
 		{
 			return true;
 		}
-		if (b.m_channels.Num() == 1
-			&&
-			b.m_channels[0].m_semantic == MBS_LAYOUTBLOCK)
+
+		if (Buffer.Channels.Num() == 1 && Buffer.Channels[0].Semantic == MBS_LAYOUTBLOCK)
 		{
 			return true;
 		}
+
 		return false;
 	}
 
-	//-----------------------------------------------------------------------------------------
 	bool FMeshBufferSet::IsSimilarRobust(const FMeshBufferSet& Other, bool bCompareUVs) const
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FMeshBufferSet::IsSimilarRobust);
 
-		if (m_elementCount != Other.m_elementCount)
+		if (ElementCount != Other.ElementCount)
 		{
 			return false;
 		}
@@ -473,31 +443,31 @@ namespace mu
 			return true;
 		}
 
-		const int32 ThisNumBuffers = m_buffers.Num();
-		const int32 OtherNumBuffers = Other.m_buffers.Num();
+		const int32 ThisNumBuffers = Buffers.Num();
+		const int32 OtherNumBuffers = Other.Buffers.Num();
 
 		int32 I = 0, J = 0;
 		while (I < ThisNumBuffers && J < OtherNumBuffers)
 		{
-			if (IsSpecialBufferToIgnoreInSimilar(m_buffers[I]))
+			if (IsSpecialBufferToIgnoreInSimilar(Buffers[I]))
 			{
 				++I;
 				continue;
 			}
 
-			if (IsSpecialBufferToIgnoreInSimilar(Other.m_buffers[J]))
+			if (IsSpecialBufferToIgnoreInSimilar(Other.Buffers[J]))
 			{
 				++J;
 				continue;
 			}
 
-			const int32 ThisNumChannels = m_buffers[I].m_channels.Num();
-			const int32 OtherNumChannels = m_buffers[J].m_channels.Num();
+			const int32 ThisNumChannels = Buffers[I].Channels.Num();
+			const int32 OtherNumChannels = Buffers[J].Channels.Num();
 
-			const FMeshBuffer& ThisBuffer = m_buffers[I];
-			const FMeshBuffer& OtherBuffer = Other.m_buffers[J];
+			const FMeshBuffer& ThisBuffer = Buffers[I];
+			const FMeshBuffer& OtherBuffer = Other.Buffers[J];
 
-			if (!(ThisBuffer.m_channels == OtherBuffer.m_channels && ThisBuffer.m_elementSize==OtherBuffer.m_elementSize))
+			if (!(ThisBuffer.Channels == OtherBuffer.Channels && ThisBuffer.ElementSize == OtherBuffer.ElementSize))
 			{
 				return false;
 			}
@@ -509,7 +479,7 @@ namespace mu
 				MUTABLE_CPUPROFILER_SCOPE(FastCompare);
 
 				// This buffer can be directly compared
-				if (FMemory::Memcmp(ThisBuffer.m_data.GetData(), OtherBuffer.m_data.GetData(), ThisBuffer.m_data.Num()) != 0)
+				if (FMemory::Memcmp(ThisBuffer.Data.GetData(), OtherBuffer.Data.GetData(), ThisBuffer.Data.Num()) != 0)
 				{
 					return false;
 				}
@@ -518,21 +488,21 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(SlowCompare);
 
-				for (uint32 Elem = 0; Elem < m_elementCount; ++Elem)
+				for (uint32 Elem = 0; Elem < ElementCount; ++Elem)
 				{
 					for (int32 C = 0; C < ThisNumChannels; ++C)
 					{
-						if (!bCompareUVs && ThisBuffer.m_channels[C].m_semantic == MBS_TEXCOORDS)
+						if (!bCompareUVs && ThisBuffer.Channels[C].Semantic == MBS_TEXCOORDS)
 						{
 							continue;
 						}
 
-						const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.m_channels[C].m_format).SizeInBytes * ThisBuffer.m_channels[C].m_componentCount;
-						const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.m_channels[C].m_format).SizeInBytes * OtherBuffer.m_channels[C].m_componentCount;
+						const SIZE_T SizeA = GetMeshFormatData(ThisBuffer.Channels[C].Format).SizeInBytes * ThisBuffer.Channels[C].ComponentCount;
+						const SIZE_T SizeB = GetMeshFormatData(OtherBuffer.Channels[C].Format).SizeInBytes * OtherBuffer.Channels[C].ComponentCount;
 						check(SizeA == SizeB);
 
-						const uint8* BuffA = ThisBuffer.m_data.GetData() + Elem * ThisBuffer.m_elementSize + ThisBuffer.m_channels[C].m_offset;
-						const uint8* BuffB = OtherBuffer.m_data.GetData() + Elem * OtherBuffer.m_elementSize + OtherBuffer.m_channels[C].m_offset;
+						const uint8* BuffA = ThisBuffer.Data.GetData() + Elem * ThisBuffer.ElementSize + ThisBuffer.Channels[C].Offset;
+						const uint8* BuffB = OtherBuffer.Data.GetData() + Elem * OtherBuffer.ElementSize + OtherBuffer.Channels[C].Offset;
 
 						if (FMemory::Memcmp(BuffA, BuffB, SizeA) != 0)
 						{
@@ -549,7 +519,7 @@ namespace mu
 		// Whatever buffers are left should be irrelevant
 		while (I < ThisNumBuffers)
 		{
-			if (!IsSpecialBufferToIgnoreInSimilar(m_buffers[I]))
+			if (!IsSpecialBufferToIgnoreInSimilar(Buffers[I]))
 			{
 				return false;
 			}
@@ -558,7 +528,7 @@ namespace mu
 
 		while (J < OtherNumBuffers)
 		{
-			if (!IsSpecialBufferToIgnoreInSimilar(Other.m_buffers[J]))
+			if (!IsSpecialBufferToIgnoreInSimilar(Other.Buffers[J]))
 			{
 				return false;
 			}
@@ -568,37 +538,39 @@ namespace mu
 		return true;
 	}
 
-	//-----------------------------------------------------------------------------------------
 	bool FMeshBufferSet::IsSimilar(const FMeshBufferSet& Other) const
 	{
 		MUTABLE_CPUPROFILER_SCOPE(FMeshBufferSet::IsSimilar);
 
-		if (m_elementCount != Other.m_elementCount) return false;
+		if (ElementCount != Other.ElementCount)
+		{
+			return false;
+		}
 
 		// Compare all buffers except the vertex index channel, which should always be alone in
 		// the last buffer
 		int32 Index = 0;
 		int32 OtherIndex = 0;
 
-		const int32 ThisNumBuffers = m_buffers.Num();
-		const int32 OtherNumBuffers = Other.m_buffers.Num();
+		const int32 ThisNumBuffers = Buffers.Num();
+		const int32 OtherNumBuffers = Other.Buffers.Num();
 
 		while (Index < ThisNumBuffers && OtherIndex < OtherNumBuffers)
 		{
 			// Is it a special buffer that we should ignore?
-			if (IsSpecialBufferToIgnoreInSimilar(m_buffers[Index]))
+			if (IsSpecialBufferToIgnoreInSimilar(Buffers[Index]))
 			{
 				++Index;
 				continue;
 			}
 
-			if (IsSpecialBufferToIgnoreInSimilar(Other.m_buffers[OtherIndex]))
+			if (IsSpecialBufferToIgnoreInSimilar(Other.Buffers[OtherIndex]))
 			{
 				++OtherIndex;
 				continue;
 			}
 
-			if (!(m_buffers[Index] == Other.m_buffers[OtherIndex]))
+			if (!(Buffers[Index] == Other.Buffers[OtherIndex]))
 			{
 				return false;
 			}
@@ -609,7 +581,7 @@ namespace mu
 		// Whatever buffers are left should be irrelevant
 		while (Index < ThisNumBuffers)
 		{
-			if (!IsSpecialBufferToIgnoreInSimilar(m_buffers[Index]))
+			if (!IsSpecialBufferToIgnoreInSimilar(Buffers[Index]))
 			{
 				return false;
 			}
@@ -618,7 +590,7 @@ namespace mu
 
 		while (OtherIndex < OtherNumBuffers)
 		{
-			if (!IsSpecialBufferToIgnoreInSimilar(Other.m_buffers[OtherIndex]))
+			if (!IsSpecialBufferToIgnoreInSimilar(Other.Buffers[OtherIndex]))
 			{
 				return false;
 			}
@@ -628,57 +600,52 @@ namespace mu
 		return true;
 	}
 
-
-	//-----------------------------------------------------------------------------------------
 	void FMeshBufferSet::ResetBufferIndices()
 	{
-		int32 currentIndices[MBS_COUNT];
-		memset(currentIndices, 0, sizeof(currentIndices));
-
-		for (FMeshBuffer& b : m_buffers)
+		int32 CurrentIndices[MBS_COUNT] = {0};
+		for (FMeshBuffer& Buffer : Buffers)
 		{
-			for (FMeshBufferChannel& c : b.m_channels)
+			for (FMeshBufferChannel& Channel : Buffer.Channels)
 			{
-				c.m_semanticIndex = currentIndices[c.m_semantic];
-				currentIndices[c.m_semantic]++;
+				Channel.SemanticIndex = CurrentIndices[Channel.Semantic];
+				CurrentIndices[Channel.Semantic]++;
 			}
 		}
 	}
 
-
-	//-----------------------------------------------------------------------------------------
-	void FMeshBufferSet::UpdateOffsets(int32 b)
+	void FMeshBufferSet::UpdateOffsets(int32 BufferIndex)
 	{
-		uint32 offset = 0;
-		for (FMeshBufferChannel& c : m_buffers[b].m_channels)
+		uint32 Offset = 0;
+		for (FMeshBufferChannel& Channel : Buffers[BufferIndex].Channels)
 		{
-			if (c.m_offset < offset)
+			if (Channel.Offset < Offset)
 			{
-				c.m_offset = offset;
+				Channel.Offset = Offset;
 			}
 			else
 			{
-				offset = c.m_offset;
+				Offset = Channel.Offset;
 			}
-			offset += c.m_componentCount * GetMeshFormatData(c.m_format).SizeInBytes;
+
+			Offset += Channel.ComponentCount * GetMeshFormatData(Channel.Format).SizeInBytes;
 		}
 
-		if (m_buffers[b].m_elementSize < offset)
+		if (Buffers[BufferIndex].ElementSize < Offset)
 		{
-			m_buffers[b].m_elementSize = offset;
+			Buffers[BufferIndex].ElementSize = Offset;
 		}
 	}
 
-
 	bool FMeshBufferSet::HasAnySemanticWithDifferentFormat(EMeshBufferSemantic Semantic, EMeshBufferFormat ExpectedFormat) const
 	{
-		for (const FMeshBuffer& Buffer : m_buffers)
+		for (const FMeshBuffer& Buffer : Buffers)
 		{
-			for (int32 ChannelIndex = 0; ChannelIndex < Buffer.m_channels.Num(); ++ChannelIndex)
+			const int32 NumChannels = Buffer.Channels.Num();
+			for (int32 ChannelIndex = 0; ChannelIndex < NumChannels; ++ChannelIndex)
 			{
-				if (Buffer.m_channels[ChannelIndex].m_semantic == Semantic)
+				if (Buffer.Channels[ChannelIndex].Semantic == Semantic)
 				{
-					if (Buffer.m_channels[ChannelIndex].m_format != ExpectedFormat)
+					if (Buffer.Channels[ChannelIndex].Format != ExpectedFormat)
 					{
 						return true;
 					}
@@ -689,22 +656,17 @@ namespace mu
 		return false;
 	}
 
-	
-	//-----------------------------------------------------------------------------------------
-	void FMeshBuffer::Serialise(OutputArchive& arch) const
+	void FMeshBuffer::Serialise(OutputArchive& Arch) const
 	{
-		arch << m_channels;
-		arch << m_data;
-		arch << m_elementSize;
+		Arch << Channels;
+		Arch << Data;
+		Arch << ElementSize;
 	}
 
-	
-	//-----------------------------------------------------------------------------------------
-	void FMeshBuffer::Unserialise(InputArchive& arch)
+	void FMeshBuffer::Unserialise(InputArchive& Arch)
 	{
-		arch >> m_channels;
-		arch >> m_data;
-		arch >> m_elementSize;
+		Arch >> Channels;
+		Arch >> Data;
+		Arch >> ElementSize;
 	}
-	
 }

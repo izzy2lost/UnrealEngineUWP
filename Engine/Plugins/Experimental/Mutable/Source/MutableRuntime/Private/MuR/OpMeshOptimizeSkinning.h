@@ -46,16 +46,16 @@ namespace mu
 		
 		// Iterate all vertex buffers and check if the BoneIndices buffers have the desired format
 		const FMeshBufferSet& InMeshVertexBuffers = InMesh->GetVertexBuffers();
-		for (int32 VertexBufferIndex = 0; !bRequiresFormatChange && VertexBufferIndex < InMeshVertexBuffers.m_buffers.Num(); ++VertexBufferIndex)
+		for (int32 VertexBufferIndex = 0; !bRequiresFormatChange && VertexBufferIndex < InMeshVertexBuffers.Buffers.Num(); ++VertexBufferIndex)
 		{
-			const FMeshBuffer& Buffer = InMeshVertexBuffers.m_buffers[VertexBufferIndex];
+			const FMeshBuffer& Buffer = InMeshVertexBuffers.Buffers[VertexBufferIndex];
 
 			const int32 ChannelsCount = InMeshVertexBuffers.GetBufferChannelCount(VertexBufferIndex);
 			for (int32 ChannelIndex = 0; ChannelIndex < ChannelsCount; ++ChannelIndex)
 			{
-				if (Buffer.m_channels[ChannelIndex].m_semantic == MBS_BONEINDICES)
+				if (Buffer.Channels[ChannelIndex].Semantic == MBS_BONEINDICES)
 				{
-					bRequiresFormatChange = Buffer.m_channels[ChannelIndex].m_format != DesiredBoneIndexFormat;
+					bRequiresFormatChange = Buffer.Channels[ChannelIndex].Format != DesiredBoneIndexFormat;
 					break;
 				}
 			}
@@ -82,12 +82,12 @@ namespace mu
 
 		mu::FMeshBufferSet& VertexBuffers = Result->GetVertexBuffers();
 
-		VertexBuffers.m_buffers.Reserve(VertexBuffersCount);
+		VertexBuffers.Buffers.Reserve(VertexBuffersCount);
 		VertexBuffers.SetElementCount(ElementCount);
 
 		for (int32 BufferIndex = 0; BufferIndex < VertexBuffersCount; ++BufferIndex)
 		{
-			const FMeshBuffer& SourceBuffer = InMeshVertexBuffers.m_buffers[BufferIndex];
+			const FMeshBuffer& SourceBuffer = InMeshVertexBuffers.Buffers[BufferIndex];
 			const int32 ChannelsCount = InMeshVertexBuffers.GetBufferChannelCount(BufferIndex);
 
 			int32 BoneIndexChannelIndex = INDEX_NONE;
@@ -107,26 +107,26 @@ namespace mu
 			// Copy and fix channel details
 			for (int32 ChannelIndex = 0; ChannelIndex < ChannelsCount; ++ChannelIndex)
 			{
-				const FMeshBufferChannel& Channel = SourceBuffer.m_channels[ChannelIndex];
-				EMeshBufferFormat Format = Channel.m_format;
+				const FMeshBufferChannel& Channel = SourceBuffer.Channels[ChannelIndex];
+				EMeshBufferFormat Format = Channel.Format;
 
-				if (Channel.m_semantic == MBS_BONEINDICES)
+				if (Channel.Semantic == MBS_BONEINDICES)
 				{
-					SourceBoneIndexFormat = Channel.m_format;
+					SourceBoneIndexFormat = Channel.Format;
 					Format = mu::MBF_UINT8;
 					BoneIndexChannelIndex = ChannelIndex;
 				}
 
-				Semantics.Add(Channel.m_semantic);
-				SemanticIndices.Add(Channel.m_semanticIndex);
+				Semantics.Add(Channel.Semantic);
+				SemanticIndices.Add(Channel.SemanticIndex);
 				Formats.Add(Format);
-				Components.Add(Channel.m_componentCount);
+				Components.Add(Channel.ComponentCount);
 				Offsets.Add(AuxOffset);
 
 				const int32 FormatSize = GetMeshFormatData(Format).SizeInBytes;
 
 				ElementSize += FormatSize;
-				AuxOffset += FormatSize * Channel.m_componentCount;
+				AuxOffset += FormatSize * Channel.ComponentCount;
 			}
 
 			// Copy buffers
@@ -137,7 +137,7 @@ namespace mu
 				VertexBuffers.SetBuffer(BufferIndex, ElementSize, ChannelsCount, Semantics.GetData(), SemanticIndices.GetData(), Formats.GetData(), Components.GetData(), Offsets.GetData());
 				uint8* Data = VertexBuffers.GetBufferData(BufferIndex);
 
-				const uint8* SourceData = (const uint8*)SourceBuffer.m_data.GetData();
+				const uint8* SourceData = (const uint8*)SourceBuffer.Data.GetData();
 				const int32 SourceBoneIndexSize = GetMeshFormatData(SourceBoneIndexFormat).SizeInBytes;
 
 				const int32 BoneIndexSize = GetMeshFormatData(mu::MBF_UINT8).SizeInBytes;

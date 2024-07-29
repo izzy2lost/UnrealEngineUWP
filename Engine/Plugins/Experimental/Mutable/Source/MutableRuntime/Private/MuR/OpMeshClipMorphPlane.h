@@ -140,9 +140,9 @@ namespace mu
 			VertexInfo.SetNum(VertexCount);
 			//int32 FirstCount = pBase->GetVertexBuffers().GetElementCount();
 
-			for (int32 BufferIndex = 0; BufferIndex < pBase->GetVertexBuffers().m_buffers.Num(); ++BufferIndex)
+			for (int32 BufferIndex = 0; BufferIndex < pBase->GetVertexBuffers().Buffers.Num(); ++BufferIndex)
 			{
-				const FMeshBuffer& Buffer = pBase->GetVertexBuffers().m_buffers[BufferIndex];
+				const FMeshBuffer& Buffer = pBase->GetVertexBuffers().Buffers[BufferIndex];
 
 				int32 ElemSize = pBase->GetVertexBuffers().GetElementSize(BufferIndex);
 				//int32 FirstSize = FirstCount * ElemSize;
@@ -172,7 +172,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint8* pD = &Buffer.m_data[i*ElemSize + Offset];
+									const uint8* pD = &Buffer.Data[i*ElemSize + Offset];
 									for (int32 j = 0; j < Components; ++j)
 									{
 										VertexInfo[i].BoneIndices.Add(pD[j]);
@@ -186,7 +186,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.m_data[i*ElemSize + Offset]);
+									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.Data[i*ElemSize + Offset]);
 
 									for (int32 j = 0; j < Components; ++j)
 									{
@@ -201,7 +201,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.m_data[i*ElemSize + Offset]);
+									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.Data[i*ElemSize + Offset]);
 
 									for (int32 j = 0; j < Components; ++j)
 									{
@@ -228,7 +228,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint8* pD = &Buffer.m_data[i*ElemSize + Offset];
+									const uint8* pD = &Buffer.Data[i*ElemSize + Offset];
 
 									for (int32 j = 0; j < Components; ++j)
 									{
@@ -244,7 +244,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.m_data[i*ElemSize + Offset]);
+									const uint16* pD = reinterpret_cast<const uint16*>(&Buffer.Data[i*ElemSize + Offset]);
 
 									for (int32 j = 0; j < Components; ++j)
 									{
@@ -260,7 +260,7 @@ namespace mu
 							{
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.m_data[i*ElemSize + Offset]);
+									const uint32* pD = reinterpret_cast<const uint32*>(&Buffer.Data[i*ElemSize + Offset]);
 
 									for (int32 j = 0; j < Components; ++j)
 									{
@@ -274,7 +274,7 @@ namespace mu
                             {
 								for (int32 i = 0; i < NumVertices; ++i)
 								{
-									const float* pD = reinterpret_cast<const float*>(&Buffer.m_data[i*ElemSize + Offset]);
+									const float* pD = reinterpret_cast<const float*>(&Buffer.Data[i*ElemSize + Offset]);
 
 									for (int32 j = 0; j < Components; ++j)
 									{

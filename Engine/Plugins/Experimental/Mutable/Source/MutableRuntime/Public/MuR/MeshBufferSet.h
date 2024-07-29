@@ -17,8 +17,7 @@ namespace mu::MemoryCounters
 
 namespace mu
 {
-	//! Supported formats for the elements in mesh buffers.
-	//! \ingroup runtime
+	/** Supported formats for the elements in mesh buffers. **/
 	typedef enum
 	{
 
@@ -33,30 +32,34 @@ namespace mu
 		MBF_INT16,
 		MBF_INT32,
 
-		//! Integers interpreted as being in the range 0.0f to 1.0f
+		/** Integers interpreted as being in the range 0.0f to 1.0f */
 		MBF_NUINT8,
 		MBF_NUINT16,
 		MBF_NUINT32,
 
-		//! Integers interpreted as being in the range -1.0f to 1.0f
+		/** Integers interpreted as being in the range -1.0f to 1.0f */
 		MBF_NINT8,
 		MBF_NINT16,
 		MBF_NINT32,
 
-        //! Packed 1 to -1 value using multiply+add (128 is almost zero). Use 8-bit unsigned ints.
+        /** Packed 1 to -1 value using multiply+add (128 is almost zero). Use 8-bit unsigned ints. */
         MBF_PACKEDDIR8,
 
-        //! Same as MBF_PACKEDDIR8, with the w component replaced with the sign of the determinant
-        //! of the vertex basis to define the orientation of the tangent space in UE4 format.
-        //! Use 8-bit unsigned ints.
+        /** 
+		 * Same as MBF_PACKEDDIR8, with the w component replaced with the sign of the determinant
+         * of the vertex basis to define the orientation of the tangent space in UE4 format.
+         * Use 8-bit unsigned ints.
+		*/
         MBF_PACKEDDIR8_W_TANGENTSIGN,
 
-        //! Packed 1 to -1 value using multiply+add (128 is almost zero). Use 8-bit signed ints.
+        /** Packed 1 to -1 value using multiply+add (128 is almost zero). Use 8-bit signed ints. */
         MBF_PACKEDDIRS8,
 
-        //! Same as MBF_PACKEDDIRS8, with the w component replaced with the sign of the determinant
-        //! of the vertex basis to define the orientation of the tangent space in UE4 format.
-        //! Use 8-bit signed ints.
+        /** 
+		 * Same as MBF_PACKEDDIRS8, with the w component replaced with the sign of the determinant
+         * of the vertex basis to define the orientation of the tangent space in UE4 format.
+         * Use 8-bit signed ints.
+		 */
         MBF_PACKEDDIRS8_W_TANGENTSIGN,
 
 		MBF_FLOAT64,
@@ -71,7 +74,7 @@ namespace mu
 
 	} EMeshBufferFormat;
 
-	//!
+	/** */
 	struct FMeshBufferFormatData
 	{
 		/** Size per component in bytes. */
@@ -81,20 +84,19 @@ namespace mu
 		uint8 MaxValueBits;
 	};
 
-	MUTABLERUNTIME_API const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat format);
+	MUTABLERUNTIME_API const FMeshBufferFormatData& GetMeshFormatData(EMeshBufferFormat Format);
 
 
-	//! Semantics of the mesh buffers
-	//! \ingroup runtime
+	/** Semantics of the mesh buffers */
 	typedef enum
 	{
 
 		MBS_NONE,
 
-		//! For index buffers, and mesh morphs
+		/** For index buffers, and mesh morphs */
 		MBS_VERTEXINDEX,
 
-		//! Standard vertex semantics
+		/** Standard vertex semantics */
 		MBS_POSITION,
 		MBS_NORMAL,
 		MBS_TANGENT,
@@ -104,71 +106,72 @@ namespace mu
 		MBS_BONEWEIGHTS,
 		MBS_BONEINDICES,
 
-		//! Internal semantic indicating what layout block each vertex belongs to.
-		//! It can be safely ignored if present in meshes returned by the system.
-		//! It will never be in the same buffer that other vertex semantics.
+		/**
+		 * Internal semantic indicating what layout block each vertex belongs to.
+		 * It can be safely ignored if present in meshes returned by the system.
+		 * It will never be in the same buffer that other vertex semantics.
+		 */
 		MBS_LAYOUTBLOCK,
 
 		MBS_CHART_DEPRECATED,
 
-		//! To let users define channels with semantics unknown to the system.
-		//! These channels will never be transformed, and the per-vertex or per-index data will be
-		//! simply copied.
+		/** 
+		 * To let users define channels with semantics unknown to the system.
+		 * These channels will never be transformed, and the per-vertex or per-index data will be
+		 * simply copied.
+		 */
 		MBS_OTHER,
 
-        //! Sign to define the orientation of the tangent space.
+        /** Sign to define the orientation of the tangent space. **/
         MBS_TANGENTSIGN_DEPRECATED,
 
-		//! Semantics usefule for mesh binding.
+		/** Semantics usefule for mesh binding. */
 		MBS_TRIANGLEINDEX,
 		MBS_BARYCENTRICCOORDS,
 		MBS_DISTANCE,
 
-		//! Semantics useful for alternative skin weight profiles.
+		/** Semantics useful for alternative skin weight profiles. */
 		MBS_ALTSKINWEIGHT,
 
-		//! Utility
+		/** Utility */
 		MBS_COUNT,
 
         _MBS_FORCE32BITS = 0xFFFFFFFF
 	} EMeshBufferSemantic;
 
 
-	//!
+	/** */
 	struct FMeshBufferChannel
 	{
 		FMeshBufferChannel()
 		{
-			m_semantic = MBS_NONE;
-			m_format = MBF_NONE;
-			m_semanticIndex = 0;
-			m_offset = 0;
-			m_componentCount = 0;
+			Semantic = MBS_NONE;
+			Format = MBF_NONE;
+			SemanticIndex = 0;
+			Offset = 0;
+			ComponentCount = 0;
 		}
 
-		//!
-		EMeshBufferSemantic m_semantic;
+		EMeshBufferSemantic Semantic;
 
-		//!
-		EMeshBufferFormat m_format;
+		EMeshBufferFormat Format;
 
-		//! Index of the semantic, in case there are more than one of this type.
-		int32 m_semanticIndex;
+		/** Index of the semantic, in case there are more than one of this type. */
+		int32 SemanticIndex;
 
-		//! Offset in bytes from the begining of a buffer element
-		uint16 m_offset;
+		/** Offset in bytes from the begining of a buffer element */
+		uint16 Offset;
 
-		//! Number of components of the type in m_format for every value in the channel
-		uint16 m_componentCount;
+		/** Number of components of the type in Format for every value in the channel */
+		uint16 ComponentCount;
 
-		//!
-		inline bool operator==(const FMeshBufferChannel& o) const
+		inline bool operator==(const FMeshBufferChannel& Other) const
 		{
-			return (m_semantic == o.m_semantic) &&
-				(m_format == o.m_format) &&
-				(m_semanticIndex == o.m_semanticIndex) &&
-				(m_offset == o.m_offset) &&
-				(m_componentCount == o.m_componentCount);
+			return (Semantic == Other.Semantic) &&
+				(Format == Other.Format) &&
+				(SemanticIndex == Other.SemanticIndex) &&
+				(Offset == Other.Offset) &&
+				(ComponentCount == Other.ComponentCount);
 		}
 
 	};
@@ -179,36 +182,28 @@ namespace mu
 		template<typename Type>
 		using TMemoryTrackedArray = TArray<Type, FDefaultMemoryTrackingAllocator<MemoryCounters::FMeshMemoryCounter>>;
 
-		//!
-		TArray<FMeshBufferChannel> m_channels;
+		TArray<FMeshBufferChannel> Channels;
+		TMemoryTrackedArray<uint8> Data;
+		uint32 ElementSize = 0;
 
-		//!
-		TMemoryTrackedArray<uint8> m_data;
+		void Serialise(mu::OutputArchive& Arch) const;
+		inline void Unserialise(mu::InputArchive& Arch);
 
-		//!
-		uint32 m_elementSize = 0;
-
-		//!
-		void Serialise(mu::OutputArchive& arch) const;
-
-		//!
-		inline void Unserialise(mu::InputArchive& arch);
-
-		//!
-		inline bool operator==(const FMeshBuffer& o) const
+		inline bool operator==(const FMeshBuffer& Other) const
 		{
-			bool equal = (m_channels == o.m_channels);
-			if (equal) equal = (m_elementSize == o.m_elementSize);
-			if (equal) equal = (m_data == o.m_data);
-			return equal;
+			bool bEqual = (Channels == Other.Channels);
+			bEqual = bEqual && (ElementSize == Other.ElementSize);
+			bEqual = bEqual && (Data == Other.Data);
+
+			return bEqual;
 		}
 
 		/** Return true if the buffer has any channel with the passed semantic. */
 		inline bool HasSemantic(EMeshBufferSemantic Semantic) const
 		{
-			for ( const FMeshBufferChannel& Channel : m_channels)
+			for (const FMeshBufferChannel& Channel : Channels)
 			{
-				if (Channel.m_semantic == Semantic)
+				if (Channel.Semantic == Semantic)
 				{
 					return true;
 				}
@@ -218,204 +213,219 @@ namespace mu
 
 		inline bool HasSameFormat(const FMeshBuffer& Other) const
 		{
-			return (m_channels == Other.m_channels && m_elementSize == Other.m_elementSize);
+			return (Channels == Other.Channels && ElementSize == Other.ElementSize);
 		}
 
 		inline bool HasPadding() const
 		{
 			uint32 ActualElementSize = 0;
-			for (const FMeshBufferChannel& Channel : m_channels)
+			for (const FMeshBufferChannel& Channel : Channels)
 			{
-				ActualElementSize += Channel.m_componentCount * GetMeshFormatData(Channel.m_format).SizeInBytes;
+				ActualElementSize += Channel.ComponentCount * GetMeshFormatData(Channel.Format).SizeInBytes;
 			}
-			check(ActualElementSize<=m_elementSize);
-			return ActualElementSize < m_elementSize;
+			check(ActualElementSize <= ElementSize);
+			return ActualElementSize < ElementSize;
 		}
 	};
 
 
-	//! Set of buffers storing mesh element data. Elements can be vertices, indices or faces.
+	/** Set of buffers storing mesh element data. Elements can be vertices, indices or faces. */
 	class MUTABLERUNTIME_API FMeshBufferSet
 	{
 	public:
 
-		//!
-		uint32 m_elementCount = 0;
+		uint32 ElementCount = 0;
+		TArray<FMeshBuffer> Buffers;
 
-		//!
-		TArray<FMeshBuffer> m_buffers;
+		void Serialise(OutputArchive& Arch) const;
+		void Unserialise(InputArchive& Arch);
 
-		//!
-		void Serialise(OutputArchive& arch) const;
-
-		//!
-		void Unserialise(InputArchive& arch);
-
-		//!
-		inline bool operator==(const FMeshBufferSet& o) const
+		inline bool operator==(const FMeshBufferSet& Other) const
 		{
-			return (m_elementCount == o.m_elementCount) &&
-				(m_buffers == o.m_buffers);
+			return ElementCount == Other.ElementCount && Buffers == Other.Buffers;
 		}
 
 	public:
 
-		//! Get the number of elements in the buffers.
+		/** Get the number of elements in the buffers */
 		int32 GetElementCount() const;
 
-		//! Set the number of vertices in the mesh. This will resize the vertex buffers keeping the
-		//! previous data when possible. New data is undefined.
-		void SetElementCount( int32 );
+		/** 
+		* Set the number of vertices in the mesh. This will resize the vertex buffers keeping the
+		* previous data when possible. New data content is defined by MemoryInitPolicy.
+		*/
+		void SetElementCount(int32 Count, EMemoryInitPolicy MemoryInitPolicy = EMemoryInitPolicy::Uninitialized);
 
-		//! Get the size in bytes of a buffer element.
-		//! \param buffer index of the buffer from 0 to GetBufferCount()-1
-		int32 GetElementSize( int32 buffer ) const;
+		/**
+		* Get the size in bytes of a buffer element.
+		* @param buffer index of the buffer from 0 to GetBufferCount()-1
+		*/
+		int32 GetElementSize(int32 Buffer) const;
 
-		//! Get the number of vertex buffers in the mesh
+		/** Get the number of vertex buffers in the mesh */
 		int32 GetBufferCount() const;
 
-		//! Set the number of vertex buffers in the mesh.
-		void SetBufferCount( int32 );
+		/** Set the number of vertex buffers in the mesh. */
+		void SetBufferCount(int32 Count);
 
-		//! Get the number of channels in a vertex buffer.
-		//! \param buffer index of the vertex buffer from 0 to GetBufferCount()-1
-		int32 GetBufferChannelCount( int32 buffer ) const;
+		/**
+		* Get the number of channels in a vertex buffer.
+		* \param buffer index of the vertex buffer from 0 to GetBufferCount()-1
+		*/
+		int32 GetBufferChannelCount(int32 BufferIndex) const;
 
-		//! Get a channel of a buffer by index
-		//! \param buffer index of the vertex buffer from 0 to GetBufferCount()-1
-		//! \param channel index of the channel from 0 to GetBufferChannelCount( buffer )-1
-		//! \param[out] pSemantic semantic of the channel
-		//! \param[out] pSemanticIndex index of the semantic in case of having more than one of the
-		//!				same type.
-		//! \param[out] pFormat data format of the channel
-		//! \param[out] pComponentCount components of an element of the channel
-		//! \param[out] pOffset offset in bytes from the beginning of an element of the buffer
-		void GetChannel
-			(
-				int32 buffer,
-				int32 channel,
-				EMeshBufferSemantic* pSemantic,
-				int32* pSemanticIndex,
-				EMeshBufferFormat* pFormat,
-				int32* pComponentCount,
-				int32* pOffset
+		/**
+		 * Get a channel of a buffer by index
+		 * \param buffer index of the vertex buffer from 0 to GetBufferCount()-1
+		 * \param channel index of the channel from 0 to GetBufferChannelCount( buffer )-1
+		 * \param[out] pSemantic semantic of the channel
+		 * \param[out] pSemanticIndex index of the semantic in case of having more than one of the
+		 *				same type.
+		 * \param[out] pFormat data format of the channel
+		 * \param[out] pComponentCount components of an element of the channel
+		 * \param[out] pOffset offset in bytes from the beginning of an element of the buffer
+		 */
+		void GetChannel(
+				int32 BufferIndex,
+				int32 ChannelIndex,
+				EMeshBufferSemantic* SemanticPtr,
+				int32* SemanticIndexPtr,
+				EMeshBufferFormat* FormatPtr,
+				int32* ComponentCountPtr,
+				int32* OffsetPtr
 			) const;
 
-		//! Set all the channels of a buffer
-		//! \param buffer index of the buffer from 0 to GetBufferCount()-1
-        //! \param elementSize sizei n bytes of a vertex element in this buffer
-        //! \param channelCount number of channels to set in the buffer
-        //! \param pSemantics buffer of channelCount semantics
-        //! \param pSemanticIndices buffer of indices for the semantic of every channel
-        //! \param pFormats buffer of channelCount formats
-        //! \param pComponentCounts buffer of channelCount component counts
-        //! \param pOffsets offsets in bytes of every particular channel inside the buffer element
-        void SetBuffer
-			(
-				int32 buffer,
-				int32 elementSize,
-				int32 channelCount,
-				const EMeshBufferSemantic* pSemantics=nullptr,
-				const int32* pSemanticIndices=nullptr,
-				const EMeshBufferFormat* pFormats=nullptr,
-				const int32* pComponentCounts=nullptr,
-				const int32* pOffsets=nullptr
+		/** 
+		 * Set all the channels of a buffer
+		 * \param buffer index of the buffer from 0 to GetBufferCount()-1
+         * \param elementSize sizei n bytes of a vertex element in this buffer
+         * \param channelCount number of channels to set in the buffer
+         * \param pSemantics buffer of channelCount semantics
+         * \param pSemanticIndices buffer of indices for the semantic of every channel
+         * \param pFormats buffer of channelCount formats
+         * \param pComponentCounts buffer of channelCount component counts
+         * \param pOffsets offsets in bytes of every particular channel inside the buffer element
+		 */ 
+        void SetBuffer(
+				int32 BufferIndex,
+				int32 ElementSize,
+				int32 ChannelCount,
+				const EMeshBufferSemantic* SemanticsPtr = nullptr,
+				const int32* SemanticIndicesPtr = nullptr,
+				const EMeshBufferFormat* FormatsPtr = nullptr,
+				const int32* ComponentCountsPtr = nullptr,
+				const int32* OffsetsPtr = nullptr,
+				EMemoryInitPolicy MemoryInitPolicy = EMemoryInitPolicy::Uninitialized);
+
+		/**
+		 * Set one  channels of a buffer
+		 * \param buffer index of the buffer from 0 to GetBufferCount()-1
+         * \param elementSize sizei n bytes of a vertex element in this buffer
+         * \param channelIndex number of channels to set in the buffer
+		 */
+        void SetBufferChannel(
+				int32 BufferIndex,
+				int32 ChannelIndex,
+				EMeshBufferSemantic Semantic,
+				int32 SemanticIndex,
+				EMeshBufferFormat Format,
+				int32 ComponentCount,
+				int32 Offset
 			);
 
-		//! Set one  channels of a buffer
-		//! \param buffer index of the buffer from 0 to GetBufferCount()-1
-        //! \param elementSize sizei n bytes of a vertex element in this buffer
-        //! \param channelIndex number of channels to set in the buffer
-        void SetBufferChannel
-			(
-				int32 buffer,
-				int32 channelIndex,
-				EMeshBufferSemantic semantic,
-				int32 semanticIndice,
-				EMeshBufferFormat format,
-				int32 componentCount,
-				int32 offset
-			);
+		/** 
+		 * Get a pointer to the object-owned data of a buffer.
+		 * Channel data is interleaved for every element and packed in the order it was set
+		 * without any padding.
+		 * \param buffer index of the buffer from 0 to GetBufferCount()-1
+		 * \todo Add padding support for better alignment of buffer elements.
+		*/
+        uint8* GetBufferData(int32 Buffer);
+		const uint8* GetBufferData(int32 Buffer) const;
+		uint32 GetBufferDataSize(int32 Buffer) const;
 
-		//! Get a pointer to the object-owned data of a buffer.
-		//! Channel data is interleaved for every element and packed in the order it was set
-		//! without any padding.
-		//! \param buffer index of the buffer from 0 to GetBufferCount()-1
-		//! \todo Add padding support for better alignment of buffer elements.
-        uint8* GetBufferData( int32 buffer );
-		const uint8* GetBufferData(int32 buffer) const;
-		uint32 GetBufferDataSize( int32 buffer ) const;
+		/** Utility methods */
 
-		//-----------------------------------------------------------------------------------------
-		// Utility methods
-		//-----------------------------------------------------------------------------------------
+		/** 
+		 * Find the index of a buffer channel by semantic and relative index inside the semantic.
+         * \param semantic Semantic of the channel we are searching.
+         * \param semanticIndex Index of the semantic of the channel we are searching. e.g. if we
+         *         want the second set of texture coordinates, it should be 1.
+         * \param[out] pBuffer -1 if the channel is not found, otherwise it will contain the index
+		 * of the buffer where the channel was found.
+		 * \param[out] pChannel -1 if the channel is not found, otherwise it will contain the
+		 * channel index of the channel inside the buffer returned at [buffer]
+		 */
+		void FindChannel(EMeshBufferSemantic Semantic, int32 SemanticIndex, int32* BufferPtr, int32* ChannelPtr) const;
 
-		//! Find the index of a buffer channel by semantic and relative index inside the semantic.
-        //! \param semantic Semantic of the channel we are searching.
-        //! \param semanticIndex Index of the semantic of the channel we are searching. e.g. if we
-        //!         want the second set of texture coordinates, it should be 1.
-        //! \param[out] pBuffer -1 if the channel is not found, otherwise it will contain the index
-		//! of the buffer where the channel was found.
-		//! \param[out] pChannel -1 if the channel is not found, otherwise it will contain the
-		//! channel index of the channel inside the buffer returned at [buffer]
-		void FindChannel
-			(
-				EMeshBufferSemantic semantic,
-				int32 semanticIndex,
-				int32* pBuffer, int32* pChannel
-			) const;
+		/**
+		 * Get the offset in bytes of the data of this channel inside an element data.
+		 * \param buffer index of the buffer from 0 to GetBufferCount()-1
+		 * \param channel index of the channel from 0 to GetBufferChannelCount( buffer )-1
+		 */ 
+		int32 GetChannelOffset(int32 Buffer, int32 Channel) const;
 
-		//! Get the offset in bytes of the data of this channel inside an element data.
-		//! \param buffer index of the buffer from 0 to GetBufferCount()-1
-		//! \param channel index of the channel from 0 to GetBufferChannelCount( buffer )-1
-		int32 GetChannelOffset( int32 buffer, int32 channel ) const;
+		/**
+		 * Add a new buffer by cloning a buffer from another set.
+		 * The buffers must have the same number of elements.
+		 */ 
+		void AddBuffer( const FMeshBufferSet& Other, int32 BufferIndex);
 
-		//! Add a new buffer by cloning a buffer from another set.
-		//! The buffers must have the same number of elements.
-		void AddBuffer( const FMeshBufferSet& Other, int32 buffer );
+		/** Return true if the formats of the two vertex buffers set match. **/
+		bool HasSameFormat(const FMeshBufferSet& Other) const;
 
-		//! Return true if the formats of the two vertex buffers set match.
-		bool HasSameFormat( const FMeshBufferSet& Other ) const;
-
-		//! Remove the buffer at the specified position. This "invalidates" any buffer index that
-		//! was referencing buffers after the removed one.
-		void RemoveBuffer( int32 BufferIndex);
+		/** 
+		 * Remove the buffer at the specified position. This "invalidates" any buffer index that
+		 * was referencing buffers after the removed one.
+		 */ 
+		void RemoveBuffer(int32 BufferIndex);
 
 	public:
 
-		//! Copy an element from one position to another, overwriting the other element.
-		//! Both positions must be valid, buffer size won't change.
-		void CopyElement(uint32 fromIndex, uint32 toIndex);
+		/**
+		 * Copy an element from one position to another, overwriting the other element.
+		 * Both positions must be valid, buffer size won't change.
+		 */ 
+		void CopyElement(uint32 FromIndex, uint32 ToIndex);
 
-		//! Compare the format of the two buffers at index buffer and return true if they match.
+		/** Compare the format of the two buffers at index buffer and return true if they match. **/
 		bool HasSameFormat(int32 ThisBufferIndex, const FMeshBufferSet& pOther, int32 OtherBufferIndex) const;
 
-		//! Get the total memory size of the buffers and this struct
+		/** Get the total memory size of the buffers and this struct */
 		int32 GetDataSize() const;
 
+		/** */
 		int32 GetAllocatedSize() const;
 
-		//! Compare the mesh buffer with another one, but ignore internal data like generated
-		//! vertex indices.
-		bool IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& b) const;
+		/** 
+		 * Compare the mesh buffer with another one, but ignore internal data like generated
+		 * vertex indices.
+		 */ 
+		bool IsSpecialBufferToIgnoreInSimilar(const FMeshBuffer& Buffer) const;
 
-		//! Compare the mesh buffer with another one, but ignore internal data like generated
-		//! vertex indices. Be aware this method compares the data byte by byte without checking
-		//! if the data belong to the buffer components and could give false negatives if unset 
-		//! padding data is present.
-		bool IsSimilar(const FMeshBufferSet& o) const;
+		/** 
+		 * Compare the mesh buffer with another one, but ignore internal data like generated
+		 * vertex indices. Be aware this method compares the data byte by byte without checking
+		 * if the data belong to the buffer components and could give false negatives if unset 
+		 * padding data is present.
+		 */ 
+		bool IsSimilar(const FMeshBufferSet& Other) const;
 
-		//! Compare the mesh buffer with another one, but ignore internal data like generated
-		//! vertex indices. This version compares the data component-wise, skipping any memory
-		//! not specified in the buffer description.	
-		bool IsSimilarRobust(const FMeshBufferSet& Other,bool bCompareUVs) const;
+		/** 
+		 * Compare the mesh buffer with another one, but ignore internal data like generated
+		 * vertex indices. This version compares the data component-wise, skipping any memory
+		 * not specified in the buffer description.
+		 */
+		bool IsSimilarRobust(const FMeshBufferSet& Other, bool bCompareUVs) const;
 
-		//! Change the buffer descriptions so that all buffer indices start at 0 and are in the
-		//! same order than memory.
+		/** 
+		 * Change the buffer descriptions so that all buffer indices start at 0 and are in the
+		 * same order than memory.
+		 */
 		void ResetBufferIndices();
 
-		//!
-		void UpdateOffsets(int32 b);
+		/** */
+		void UpdateOffsets(int32 BufferIndex);
 		
 		/** Check that all channels of a specific semantic use the provided format. */
 		bool HasAnySemanticWithDifferentFormat(EMeshBufferSemantic Semantic, EMeshBufferFormat ExpectedFormat) const;

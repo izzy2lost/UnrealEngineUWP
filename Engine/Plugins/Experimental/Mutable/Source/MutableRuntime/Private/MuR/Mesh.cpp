@@ -19,24 +19,24 @@ MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EShapeBindingMethod);
 MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EVertexColorUsage);
 
 
-void Mesh::Serialise( const Mesh* p, OutputArchive& arch )
+void Mesh::Serialise(const Mesh* MeshPtr, OutputArchive& Arch)
 {
-    //p->m_pD->CheckIntegrity();
-    arch << *p;
+    //MeshPtr->m_pD->CheckIntegrity();
+    Arch << *MeshPtr;
 }
 
 
-MeshPtr Mesh::StaticUnserialise( InputArchive& arch )
+Ptr<Mesh> Mesh::StaticUnserialise(InputArchive& Arch)
 {
     MUTABLE_CPUPROFILER_SCOPE(MeshUnserialise)
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-    MeshPtr pResult = new Mesh();
-    arch >> *pResult;
+    Ptr<Mesh> Result = new Mesh();
+    Arch >> *Result;
 
-    //pResult->m_pD->CheckIntegrity();
+    //Result->m_pD->CheckIntegrity();
 
-    return pResult;
+    return Result;
 }
 
 
@@ -74,32 +74,32 @@ uint32 Mesh::GetReferencedMesh() const
 }
 
 
-MeshPtr Mesh::Clone() const
+Ptr<Mesh> Mesh::Clone() const
 {
     //MUTABLE_CPUPROFILER_SCOPE(MeshClone);
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-    MeshPtr pResult = new Mesh();
+    Ptr<Mesh> Result = new Mesh();
 
-    pResult->InternalId = InternalId;
-	pResult->Flags = Flags;
-	pResult->ReferenceID = ReferenceID;
-	pResult->Surfaces = Surfaces;
-	pResult->Skeleton = Skeleton;
-	pResult->PhysicsBody = PhysicsBody;
-	pResult->Tags = Tags;
-	pResult->StreamedResources = StreamedResources;
-	pResult->MeshIDPrefix = MeshIDPrefix;
+    Result->InternalId = InternalId;
+	Result->Flags = Flags;
+	Result->ReferenceID = ReferenceID;
+	Result->Surfaces = Surfaces;
+	Result->Skeleton = Skeleton;
+	Result->PhysicsBody = PhysicsBody;
+	Result->Tags = Tags;
+	Result->StreamedResources = StreamedResources;
+	Result->MeshIDPrefix = MeshIDPrefix;
 
     // Clone the main buffers
-    pResult->VertexBuffers = VertexBuffers;
-    pResult->IndexBuffers = IndexBuffers;
+    Result->VertexBuffers = VertexBuffers;
+    Result->IndexBuffers = IndexBuffers;
 
 	// Clone additional buffers
-	pResult->AdditionalBuffers = AdditionalBuffers;
+	Result->AdditionalBuffers = AdditionalBuffers;
 
     // Clone the layouts
-	pResult->Layouts = Layouts;
+	Result->Layouts = Layouts;
 
     // The skeleton is not cloned because it is not owned by this mesh and it is always assumed
     // to be shared.
@@ -107,14 +107,14 @@ MeshPtr Mesh::Clone() const
 	// physics body doen't need to be deep cloned either as they are also assumed to be shared.
 	
 	// Clone bone poses
-	pResult->BonePoses = BonePoses;
-	pResult->BoneMap = BoneMap;
+	Result->BonePoses = BonePoses;
+	Result->BoneMap = BoneMap;
 
 	// Clone SkeletonIDs
-	pResult->SkeletonIDs = SkeletonIDs;
-	pResult->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
+	Result->SkeletonIDs = SkeletonIDs;
+	Result->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
 
-    return pResult;
+    return Result;
 }
 
 
@@ -123,59 +123,59 @@ Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
     //MUTABLE_CPUPROFILER_SCOPE(MeshClone);
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-	Ptr<Mesh> pResult = new Mesh();
+	Ptr<Mesh> Result = new Mesh();
 
-    pResult->InternalId = InternalId;
-	pResult->MeshIDPrefix = MeshIDPrefix;
-	pResult->Flags = Flags;
-	pResult->ReferenceID = ReferenceID;
+    Result->InternalId = InternalId;
+	Result->MeshIDPrefix = MeshIDPrefix;
+	Result->Flags = Flags;
+	Result->ReferenceID = ReferenceID;
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
 	{
-		pResult->Surfaces = Surfaces;
+		Result->Surfaces = Surfaces;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeleton))
 	{
-		pResult->Skeleton = Skeleton;
+		Result->Skeleton = Skeleton;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPhysicsBody))
 	{
-		pResult->PhysicsBody = PhysicsBody;
+		Result->PhysicsBody = PhysicsBody;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithTags))
 	{
-		pResult->Tags = Tags;
+		Result->Tags = Tags;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithStreamedResources))
 	{
-		pResult->StreamedResources = StreamedResources;
+		Result->StreamedResources = StreamedResources;
 	}
 
     // Clone the main buffers
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithVertexBuffers))
     {
-		pResult->VertexBuffers = VertexBuffers;
+		Result->VertexBuffers = VertexBuffers;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithIndexBuffers))
     {
-		pResult->IndexBuffers = IndexBuffers;
+		Result->IndexBuffers = IndexBuffers;
 	}
 
 	// Clone additional buffers
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalBuffers))
 	{
-		pResult->AdditionalBuffers = AdditionalBuffers;
+		Result->AdditionalBuffers = AdditionalBuffers;
 	}
 
     // Clone the layout	
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithLayouts))
 	{
-		pResult->Layouts = Layouts;
+		Result->Layouts = Layouts;
 	}
     // The skeleton is not cloned because it is not owned by this mesh and it is always assumed
     // to be shared.
@@ -185,27 +185,27 @@ Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
 	// Clone bone poses
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPoses))
 	{
-		pResult->BonePoses = BonePoses;
+		Result->BonePoses = BonePoses;
 	}
 
 	// Clone BoneMap
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithBoneMap))
 	{
-		pResult->BoneMap = BoneMap;
+		Result->BoneMap = BoneMap;
 	}
 
 	// Clone SkeletonIDs
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeletonIDs))
 	{
-		pResult->SkeletonIDs = SkeletonIDs;
+		Result->SkeletonIDs = SkeletonIDs;
 	}
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalPhysics))
 	{
-		pResult->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
+		Result->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
 	}
 
-    return pResult;
+    return Result;
 }
 
 
@@ -339,11 +339,15 @@ bool Mesh::AreVertexIdsExplicit() const
 	int32 ChannelIndex = -1;
 	VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &BufferIndex, &ChannelIndex);
 
-	bool bExplicit = (BufferIndex >= 0) && (ChannelIndex >= 0) && (VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex].m_format == MBF_UINT64);
+	bool bExplicit = 
+			(BufferIndex >= 0) && (ChannelIndex >= 0) && 
+			(VertexBuffers.Buffers[BufferIndex].Channels[ChannelIndex].Format == MBF_UINT64);
+
 	if (bExplicit)
 	{
 		check(MeshIDPrefix == 0);
 	}
+
 	return bExplicit;
 }
 
@@ -359,13 +363,13 @@ void Mesh::MakeVertexIdsRelative()
 	EMeshBufferFormat Format = MBF_UINT32;
 	int32 Components = 1;
 	int32 Offset = 0;
-	VertexBuffers.SetBuffer(NewBuffer, sizeof(uint32), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset );
-	uint32* pIdData = reinterpret_cast<uint32*>( VertexBuffers.GetBufferData(NewBuffer) );
+	VertexBuffers.SetBuffer(NewBuffer, sizeof(uint32), 1, &Semantic, &SemanticIndex, &Format, &Components, &Offset);
+	uint32* IdDataPtr = reinterpret_cast<uint32*>(VertexBuffers.GetBufferData(NewBuffer));
 
 	int32 VertexCount = GetVertexCount();
-	for (int32 i = 0; i < VertexCount; ++i)
+	for (int32 Index = 0; Index < VertexCount; ++Index)
 	{
-		(*pIdData++) = i;
+		(*IdDataPtr++) = Index;
 	}
 }
 
@@ -375,56 +379,56 @@ void Mesh::MakeIdsExplicit()
 	MUTABLE_CPUPROFILER_SCOPE(Mesh_MakeIdsExplicit);
 
 	int32 VertexCount = GetVertexCount();
-	check(VertexCount==0);
+	check(VertexCount == 0);
 
 	// Vertex IDs
 	{
 		bool bHasRelativeVertexIndices = false;
 
-		int32 OldBuf = -1;
-		int32 OldChan = -1;
-		VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &OldBuf, &OldChan);
-		bool bHasVertexIndices = (OldBuf >= 0 && OldChan >= 0);
+		int32 OldBufferIndex = -1;
+		int32 OldChannelIndex = -1;
+		VertexBuffers.FindChannel(MBS_VERTEXINDEX, 0, &OldBufferIndex, &OldChannelIndex);
+		bool bHasVertexIndices = (OldBufferIndex >= 0 && OldChannelIndex >= 0);
 		if (bHasVertexIndices)
 		{
-			check(OldChan == 0 && VertexBuffers.m_buffers[OldBuf].m_channels.Num() == 1);
+			check(OldChannelIndex == 0 && VertexBuffers.Buffers[OldBufferIndex].Channels.Num() == 1);
 
-			FMeshBuffer& Buffer = VertexBuffers.m_buffers[OldBuf];
-			Buffer.m_channels[0].m_format = MBF_UINT64;
-			Buffer.m_elementSize = sizeof(uint64);
+			FMeshBuffer& Buffer = VertexBuffers.Buffers[OldBufferIndex];
+			Buffer.Channels[0].Format = MBF_UINT64;
+			Buffer.ElementSize = sizeof(uint64);
 		}
 
 		else
 		{
 			// The mesh has implicit Ids
 			// Create a new buffer with explicit ids
-			FMeshBuffer& Buffer = VertexBuffers.m_buffers.Emplace_GetRef();
-			Buffer.m_elementSize = sizeof(uint64);
-			FMeshBufferChannel& Channel = Buffer.m_channels.Emplace_GetRef();
-			Channel.m_semantic = MBS_VERTEXINDEX;
-			Channel.m_semanticIndex= 0;
-			Channel.m_format = MBF_UINT64;
-			Channel.m_componentCount = 1;
-			Channel.m_offset = 0;
+			FMeshBuffer& Buffer = VertexBuffers.Buffers.Emplace_GetRef();
+			Buffer.ElementSize = sizeof(uint64);
+			FMeshBufferChannel& Channel = Buffer.Channels.Emplace_GetRef();
+			Channel.Semantic = MBS_VERTEXINDEX;
+			Channel.SemanticIndex= 0;
+			Channel.Format = MBF_UINT64;
+			Channel.ComponentCount = 1;
+			Channel.Offset = 0;
 		}
 	}
 
 	// Layout block IDs
 	{
-		for (FMeshBuffer& Buffer: VertexBuffers.m_buffers)
+		for (FMeshBuffer& Buffer : VertexBuffers.Buffers)
 		{
-			for (FMeshBufferChannel& Channel : Buffer.m_channels)
+			for (FMeshBufferChannel& Channel : Buffer.Channels)
 			{
-				if (Channel.m_semantic != MBS_LAYOUTBLOCK)
+				if (Channel.Semantic != MBS_LAYOUTBLOCK)
 				{
 					continue;
 				}
 
-				check(Buffer.m_channels.Num() == 1);
-				check(Buffer.m_channels[0].m_offset == 0);
+				check(Buffer.Channels.Num() == 1);
+				check(Buffer.Channels[0].Offset == 0);
 
-				Buffer.m_channels[0].m_format = MBF_UINT64;
-				Buffer.m_elementSize = sizeof(uint64);
+				Buffer.Channels[0].Format = MBF_UINT64;
+				Buffer.ElementSize = sizeof(uint64);
 			}
 		}
 	}
@@ -440,9 +444,9 @@ mu::Ptr<const Skeleton> Mesh::GetSkeleton() const
 }
 
 
-void Mesh::SetSkeleton( Ptr<const mu::Skeleton> s )
+void Mesh::SetSkeleton(Ptr<const mu::Skeleton> InSkeleton)
 {
-    Skeleton = s;
+    Skeleton = InSkeleton;
 }
 
 
@@ -452,7 +456,7 @@ mu::Ptr<const PhysicsBody> Mesh::GetPhysicsBody() const
 }
 
 
-void Mesh::SetPhysicsBody( Ptr<const mu::PhysicsBody> InPhysicsBody )
+void Mesh::SetPhysicsBody(Ptr<const mu::PhysicsBody> InPhysicsBody)
 {
     PhysicsBody = InPhysicsBody;
 }
@@ -464,11 +468,11 @@ int32 Mesh::AddAdditionalPhysicsBody(Ptr<const mu::PhysicsBody> Body)
 }
 
 
-Ptr<const PhysicsBody> Mesh::GetAdditionalPhysicsBody(int32 I) const
+Ptr<const PhysicsBody> Mesh::GetAdditionalPhysicsBody(int32 Index) const
 {
-	check(I >= 0 && I < AdditionalPhysicsBodies.Num());
+	check(AdditionalPhysicsBodies.IsValidIndex(Index));
 
-	return AdditionalPhysicsBodies[I];
+	return AdditionalPhysicsBodies[Index];
 }
 
 
@@ -478,7 +482,7 @@ int32 Mesh::GetFaceCount() const
 }
 
 
-int Mesh::GetIndexCount() const
+int32 Mesh::GetIndexCount() const
 {
     return GetIndexBuffers().GetElementCount();
 }
@@ -496,16 +500,17 @@ const FMeshBufferSet& Mesh::GetIndexBuffers() const
 }
 
 
-int Mesh::GetSurfaceCount() const
+int32 Mesh::GetSurfaceCount() const
 {
     return Surfaces.Num();
 }
 
 
-void Mesh::GetSurface(int32 SurfaceIndex,
-                      int32& OutFirstVertex, int32& OutVertexCount,
-                      int32& OutFirstIndex, int32& OutIndexCount,
-					  int32& OutBoneIndex, int32& OutBoneCount) const
+void Mesh::GetSurface(
+		int32 SurfaceIndex,
+        int32& OutFirstVertex, int32& OutVertexCount,
+    	int32& OutFirstIndex, int32& OutIndexCount,
+		int32& OutBoneIndex, int32& OutBoneCount) const
 {
     int32 Count = GetSurfaceCount();
 
@@ -565,55 +570,55 @@ uint32 Mesh::GetSurfaceId(int32 SurfaceIndex) const
 }
 
 
-void Mesh::AddLayout(Ptr<const Layout> pLayout )
+void Mesh::AddLayout(Ptr<const Layout> InLayout)
 {
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-    Layouts.Add( pLayout );
+    Layouts.Add(InLayout);
 }
 
 
-int Mesh::GetLayoutCount() const
+int32 Mesh::GetLayoutCount() const
 {
     return Layouts.Num();
 }
 
 
-const Layout* Mesh::GetLayout( int i ) const
+const Layout* Mesh::GetLayout(int32 LayoutIndex) const
 {
-    check( i>=0 && i<Layouts.Num() );
+    check(Layouts.IsValidIndex(LayoutIndex));
 
-    return Layouts[i].get();
+    return Layouts[LayoutIndex].get();
 }
 
 
-void Mesh::SetLayout( int i, Ptr<const Layout> pLayout )
+void Mesh::SetLayout(int32 LayoutIndex, Ptr<const Layout> InLayout)
 {
-    check( i>=0 && i<Layouts.Num() );
+    check(Layouts.IsValidIndex(LayoutIndex));
 
-    Layouts[i] = pLayout;
+    Layouts[LayoutIndex] = InLayout;
 }
 
 
-int Mesh::GetTagCount() const
+int32 Mesh::GetTagCount() const
 {
     return Tags.Num();
 }
 
 
-void Mesh::SetTagCount( int count )
+void Mesh::SetTagCount(int32 Count)
 {
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-    Tags.SetNum( count );
+    Tags.SetNum(Count);
 }
 
 
-const FString& Mesh::GetTag( int tagIndex ) const
+const FString& Mesh::GetTag(int32 TagIndex) const
 {
-    check( tagIndex>=0 && tagIndex<GetTagCount() );
+    check(Tags.IsValidIndex(TagIndex));
 
-    if (tagIndex >= 0 && tagIndex < GetTagCount())
+    if (Tags.IsValidIndex(TagIndex))
     {
-        return Tags[tagIndex];
+        return Tags[TagIndex];
     }
     else
     {
@@ -623,14 +628,14 @@ const FString& Mesh::GetTag( int tagIndex ) const
 }
 
 
-void Mesh::SetTag( int tagIndex, const FString& Name )
+void Mesh::SetTag(int32 TagIndex, const FString& Name)
 {
-    check( tagIndex>=0 && tagIndex<GetTagCount() );
+    check(Tags.IsValidIndex(TagIndex));
 	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
 
-    if (tagIndex >= 0 && tagIndex < GetTagCount())
+    if (Tags.IsValidIndex(TagIndex))
     {
-        Tags[tagIndex] = Name;
+        Tags[TagIndex] = Name;
     }
 }
 
@@ -748,28 +753,26 @@ int32 Mesh::GetDataSize() const
 }
 
 
-bool Mesh::HasCompatibleFormat( const Mesh* pOther ) const
+bool Mesh::HasCompatibleFormat(const Mesh* Other) const
 {
-    bool compatible = true;
+    bool bCompatible = true;
 
-    compatible &= Layouts.Num()==pOther->Layouts.Num();
-    compatible &= VertexBuffers.GetBufferCount()
-            == pOther->VertexBuffers.GetBufferCount();
-
+    bCompatible = Layouts.Num() == Other->Layouts.Num();
+    bCompatible = bCompatible && VertexBuffers.GetBufferCount() == Other->VertexBuffers.GetBufferCount();
 
     // Indices
     //-----------------
-    if ( IndexBuffers.GetElementCount()>0 && pOther->GetIndexCount()>0 )
+    if (IndexBuffers.GetElementCount() > 0 && Other->GetIndexCount() > 0)
     {
-        check( IndexBuffers.m_buffers.Num() == 1 );
-        check( pOther->GetIndexBuffers().m_buffers.Num() == 1 );
-        check( IndexBuffers.GetBufferChannelCount(0) == 1 );
-        check( pOther->GetIndexBuffers().GetBufferChannelCount(0) == 1 );
+        check(IndexBuffers.Buffers.Num() == 1);
+        check(Other->GetIndexBuffers().Buffers.Num() == 1);
+        check(IndexBuffers.GetBufferChannelCount(0) == 1);
+        check(Other->GetIndexBuffers().GetBufferChannelCount(0) == 1);
 
-        const FMeshBuffer& dest = IndexBuffers.m_buffers[0];
-        const FMeshBuffer& source = pOther->GetIndexBuffers().m_buffers[0];
+        const FMeshBuffer& Dest = IndexBuffers.Buffers[0];
+        const FMeshBuffer& Source = Other->GetIndexBuffers().Buffers[0];
 
-        compatible &= dest.m_channels[0].m_format == source.m_channels[0].m_format;
+        bCompatible = bCompatible && Dest.Channels[0].Format == Source.Channels[0].Format;
     }
 
 
@@ -780,159 +783,162 @@ bool Mesh::HasCompatibleFormat( const Mesh* pOther ) const
 
     // Vertices
     //-----------------
-    for ( int vb = 0; vb<VertexBuffers.GetBufferCount(); ++vb )
+	const int32 NumVertexBuffers =  VertexBuffers.GetBufferCount();
+    for (int32 VertexBufferIndex = 0; VertexBufferIndex < NumVertexBuffers; ++VertexBufferIndex)
     {
-        const FMeshBuffer& dest = VertexBuffers.m_buffers[vb];
-        const FMeshBuffer& source = pOther->GetVertexBuffers().m_buffers[vb];
+        const FMeshBuffer& Dest = VertexBuffers.Buffers[VertexBufferIndex];
+        const FMeshBuffer& Source = Other->GetVertexBuffers().Buffers[VertexBufferIndex];
 
         // TODO: More checks about channels formats and semantics
-        //compatible &= GetVertexBufferElementSize(vb) == pOther->GetVertexBufferElementSize(vb);
-        compatible &= dest.m_channels.Num()==source.m_channels.Num();
+        //bCompatible = bCompatible && GetVertexBufferElementSize(VertexBufferIndex) == Other->GetVertexBufferElementSize(VertexBufferIndex);
+        bCompatible = bCompatible && Dest.Channels.Num() == Source.Channels.Num();
     }
 
-    return compatible;
+    return bCompatible;
 }
 
 
-UE::Math::TIntVector3<uint32_t>  Mesh::GetFaceVertexIndices( int f ) const
+UE::Math::TIntVector3<uint32> Mesh::GetFaceVertexIndices(int32 FaceIndex) const
 {
-	UE::Math::TIntVector3<uint32> res;
+	UE::Math::TIntVector3<uint32> Result;
 
-    MeshBufferIteratorConst<MBF_UINT32,uint32_t,1> it( IndexBuffers, MBS_VERTEXINDEX );
-    it += f*3;
+    MeshBufferIteratorConst<MBF_UINT32, uint32, 1> Iter(IndexBuffers, MBS_VERTEXINDEX);
+    Iter += FaceIndex*3;
 
-    res[0] = (*it)[0];
-    ++it;
+    Result[0] = (*Iter)[0];
+    ++Iter;
 
-    res[1] = (*it)[0];
-    ++it;
+    Result[1] = (*Iter)[0];
+    ++Iter;
 
-    res[2] = (*it)[0];
-    ++it;
+    Result[2] = (*Iter)[0];
+    ++Iter;
 
-    return res;
+    return Result;
 }
 
 
-bool Mesh::FVertexMatchMap::DoMatch(int32 v, int32 ov) const
+bool Mesh::FVertexMatchMap::DoMatch(int32 Vertex, int32 OtherVertex) const
 {
-	if (v >= 0 && v < FirstMatch.Num())
+	if (Vertex >= 0 && Vertex < FirstMatch.Num())
 	{
-		int32 start = FirstMatch[v];
-		int32 end = v + 1 < FirstMatch.Num() ? FirstMatch[v + 1] : Matches.Num();
-		bool res = false;
+		int32 Start = FirstMatch[Vertex];
+		int32 End = Vertex + 1 < FirstMatch.Num() ? FirstMatch[Vertex + 1] : Matches.Num();
 
-		while (!res && start < end)
+		bool bResult = false;
+		while (!bResult && Start < End)
 		{
-			if (Matches[start] == ov)
+			if (Matches[Start] == OtherVertex)
 			{
-				res = true;
+				bResult = true;
 			}
-			++start;
+
+			++Start;
 		}
 
-		return res;
+		return bResult;
 	}
 
 	return false;
 }
 
 
-void Mesh::GetVertexMap( const Mesh& other, FVertexMatchMap& vertexMap, float tolerance ) const
+void Mesh::GetVertexMap(const Mesh& Other, FVertexMatchMap& VertexMap, float Tolerance) const
 {
-    int32 vertexCount = VertexBuffers.GetElementCount();
-    vertexMap.FirstMatch.SetNum( vertexCount );
-    vertexMap.Matches.SetNum( vertexCount+(vertexCount>>2) );
+    int32 VertexCount = VertexBuffers.GetElementCount();
+    VertexMap.FirstMatch.SetNum(VertexCount);
+    VertexMap.Matches.SetNum(VertexCount + (VertexCount >> 2));
 
-    int otherVertexCount = other.VertexBuffers.GetElementCount();
+    int32 OtherVertexCount = Other.VertexBuffers.GetElementCount();
 
-    if ( !vertexCount || !otherVertexCount )
+    if (!VertexCount || !OtherVertexCount)
     {
         return;
     }
 
 
-    MeshBufferIteratorConst< MBF_FLOAT32, float, 3 > itp( VertexBuffers, MBS_POSITION);
-    MeshBufferIteratorConst< MBF_FLOAT32, float, 3 > itopBegin( other.VertexBuffers, MBS_POSITION);
+    MeshBufferIteratorConst<MBF_FLOAT32, float, 3> ItPosition(VertexBuffers, MBS_POSITION);
+    MeshBufferIteratorConst<MBF_FLOAT32, float, 3> ItOtherPositionBegin(Other.VertexBuffers, MBS_POSITION);
 
 
     // Bucket the other mesh
 #define MUTABLE_NUM_BUCKETS 256
 #define MUTABLE_BUCKET_CHANNEL 0
 
-    float rangeMin = TNumericLimits<float>::Max();
-    float rangeMax = -TNumericLimits<float>::Max();
-    MeshBufferIteratorConst< MBF_FLOAT32, float, 3 >  itop = itopBegin;
-    for ( int32 ov=0; ov<otherVertexCount; ++ov )
+    float RangeMin = TNumericLimits<float>::Max();
+    float RangeMax = -TNumericLimits<float>::Max();
+    MeshBufferIteratorConst< MBF_FLOAT32, float, 3 >  ItOtherPosition = ItOtherPositionBegin;
+    
+	for (int32 OtherVertex = 0; OtherVertex < OtherVertexCount; ++OtherVertex)
     {
-        float v = (*itop)[MUTABLE_BUCKET_CHANNEL];
-        rangeMin = FMath::Min( rangeMin, v );
-        rangeMax = FMath::Max( rangeMax, v );
-        ++itop;
+        float V = (*ItOtherPosition)[MUTABLE_BUCKET_CHANNEL];
+        RangeMin = FMath::Min(RangeMin, V);
+        RangeMax = FMath::Max(RangeMax, V);
+        ++ItOtherPosition;
     }
-    rangeMin -= tolerance;
-    rangeMax += tolerance;
+    RangeMin -= Tolerance;
+    RangeMax += Tolerance;
 
-    TArray<int32> buckets[MUTABLE_NUM_BUCKETS];
-    for ( int32 b=0; b<MUTABLE_NUM_BUCKETS; ++b )
+    TArray<int32> Buckets[MUTABLE_NUM_BUCKETS];
+    for (int32 BucketIndex = 0; BucketIndex < MUTABLE_NUM_BUCKETS; ++BucketIndex)
     {
-        buckets[b].Reserve( otherVertexCount/MUTABLE_NUM_BUCKETS*2 );
+        Buckets[BucketIndex].Reserve(OtherVertexCount/MUTABLE_NUM_BUCKETS*2);
     }
 
-    float bucketSize = (rangeMax-rangeMin)/float(MUTABLE_NUM_BUCKETS);
-    itop = itopBegin;
-    for ( int32 ov=0; ov<otherVertexCount; ++ov )
+    float BucketSize = (RangeMax-RangeMin)/float(MUTABLE_NUM_BUCKETS);
+    ItOtherPosition = ItOtherPositionBegin;
+    for (int32 OtherVertex = 0; OtherVertex < OtherVertexCount; ++OtherVertex)
     {
-        float v = (*itop)[MUTABLE_BUCKET_CHANNEL];
+        float V = (*ItOtherPosition)[MUTABLE_BUCKET_CHANNEL];
 
-        int32 bucket0 = int32( floor( (v-tolerance-rangeMin)/bucketSize ) );
-        bucket0 = FMath::Min( MUTABLE_NUM_BUCKETS-1, FMath::Max( 0, bucket0 ) );
-        buckets[bucket0].Add(ov);
+        int32 Bucket0 = FMath::FloorToInt((V-Tolerance-RangeMin)/BucketSize);
+        Bucket0 = FMath::Min(MUTABLE_NUM_BUCKETS-1, FMath::Max(0, Bucket0));
+        Buckets[Bucket0].Add(OtherVertex);
 
-        int32 bucket1 = int32( floor( (v+tolerance-rangeMin)/bucketSize ) );
-        bucket1 = FMath::Min( MUTABLE_NUM_BUCKETS-1, FMath::Max( 0, bucket1 ) );
+        int32 Bucket1 = FMath::FloorToInt((V + Tolerance - RangeMin)/BucketSize);
+        Bucket1 = FMath::Min(MUTABLE_NUM_BUCKETS-1, FMath::Max(0, Bucket1));
 
-        if (bucket1!=bucket0)
+        if (Bucket1 != Bucket0)
         {
-            buckets[bucket1].Add(ov);
+            Buckets[Bucket1].Add(OtherVertex);
         }
 
-        ++itop;
+        ++ItOtherPosition;
     }
 
     // TODO Compare only positions?
 
     // Use buckets
-    for ( int32 v=0; v<vertexCount; ++v )
+    for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
     {
-        vertexMap.FirstMatch[v] = vertexMap.Matches.Num();
+        VertexMap.FirstMatch[VertexIndex] = VertexMap.Matches.Num();
 
-        float vbucket = (*itp)[MUTABLE_BUCKET_CHANNEL];
-        int32 bucket = int32( floor( (vbucket-rangeMin)/bucketSize ) );
+        float VBucket = (*ItPosition)[MUTABLE_BUCKET_CHANNEL];
+        int32 Bucket = FMath::FloorToInt((VBucket - RangeMin)/BucketSize);
 
-        if (bucket>=0 && bucket<MUTABLE_NUM_BUCKETS)
+        if (Bucket >= 0 && Bucket < MUTABLE_NUM_BUCKETS)
         {
-            int32 bucketVertexCount = buckets[bucket].Num();
-            for ( int32 ov=0; ov<bucketVertexCount; ++ov )
+            int32 BucketVertexCount = Buckets[Bucket].Num();
+            for (int32 OtherVertex = 0; OtherVertex < BucketVertexCount; ++OtherVertex)
             {
-                int32 otherVertexIndex = buckets[bucket][ov];
-                FVector3f p = (itopBegin+otherVertexIndex).GetAsVec3f();
+                int32 OtherVertexIndex = Buckets[Bucket][OtherVertex];
+                FVector3f Position = (ItOtherPositionBegin + OtherVertexIndex).GetAsVec3f();
 
-                bool same = true;
-                for ( int32 d=0; same && d<3; ++d )
+                bool bSame = true;
+                for (int32 Dim = 0; bSame && Dim < 3; ++Dim)
                 {
-                    float diff = fabs( (*itp)[d] - p[d] );
-                    same = diff <= tolerance;
+                    float Diff = FMath::Abs((*ItPosition)[Dim] - Position[Dim]);
+                    bSame = Diff <= Tolerance;
                 }
 
-                if ( same )
+                if (bSame)
                 {
-                    vertexMap.Matches.Add( otherVertexIndex );
+                    VertexMap.Matches.Add(OtherVertexIndex);
                 }
             }
         }
 
-        ++itp;
+        ++ItPosition;
     }
 
 }
@@ -984,19 +990,19 @@ void FMeshSurface::Unserialise(InputArchive& Arch)
 }
 
 
-void Mesh::FBonePose::Serialise(OutputArchive& arch) const
+void Mesh::FBonePose::Serialise(OutputArchive& Arch) const
 {
-	arch << BoneId;
-	arch << BoneUsageFlags;
-	arch << BoneTransform;
+	Arch << BoneId;
+	Arch << BoneUsageFlags;
+	Arch << BoneTransform;
 }
 
 
-void Mesh::FBonePose::Unserialise(InputArchive& arch)
+void Mesh::FBonePose::Unserialise(InputArchive& Arch)
 {
-	arch >> BoneId;
-	arch >> BoneUsageFlags;
-	arch >> BoneTransform;
+	Arch >> BoneId;
+	Arch >> BoneUsageFlags;
+	Arch >> BoneTransform;
 }
 
 
@@ -1066,7 +1072,7 @@ void Mesh::Unserialise(InputArchive& Arch)
 }
 
 
-bool Mesh::IsSimilar(const Mesh& o, bool bCompareLayouts) const
+bool Mesh::IsSimilar(const Mesh& Other, bool bCompareLayouts) const
 {
 	// Some meshes are just vertex indices (masks) we don't consider them for similarity,
 	// because the kind of vertex channel data they store is the kind that is ignored.
@@ -1075,52 +1081,58 @@ bool Mesh::IsSimilar(const Mesh& o, bool bCompareLayouts) const
 		return false;
 	}
 
-	bool equal = IndexBuffers == o.IndexBuffers;
-	if (equal) equal = (ReferenceID==o.ReferenceID);
-	if (equal && bCompareLayouts) equal = (Layouts.Num() == o.Layouts.Num());
-	if (equal && Skeleton != o.Skeleton)
+	bool bEqual = IndexBuffers == Other.IndexBuffers;
+	bEqual = bEqual && (ReferenceID == Other.ReferenceID);
+	
+	if (bEqual && bCompareLayouts) 
 	{
-		if (Skeleton && o.Skeleton)
+		bEqual = (Layouts.Num() == Other.Layouts.Num());
+	}
+
+	if (bEqual && Skeleton != Other.Skeleton)
+	{
+		if (Skeleton && Other.Skeleton)
 		{
-			equal = (*Skeleton == *o.Skeleton);
+			bEqual = (*Skeleton == *Other.Skeleton);
 		}
 		else
 		{
-			equal = false;
+			bEqual = false;
 		}
 	}
 	
-	if (equal && PhysicsBody != o.PhysicsBody)
+	if (bEqual && PhysicsBody != Other.PhysicsBody)
 	{
-		if (PhysicsBody && o.PhysicsBody)
+		if (PhysicsBody && Other.PhysicsBody)
 		{
-			equal = (*PhysicsBody == *o.PhysicsBody);
+			bEqual = (*PhysicsBody == *Other.PhysicsBody);
 		}
 		else
 		{
-			equal = false;
+			bEqual = false;
 		}
 	}
 
-	if (equal) equal = (Surfaces == o.Surfaces);
-	if (equal) equal = (Tags == o.Tags);
+	bEqual = bEqual && (Surfaces == Other.Surfaces);
+	bEqual = bEqual && (Tags == Other.Tags);
 
 	// Special comparison for layouts
 	if (bCompareLayouts)
 	{
-		for (int32 i = 0; equal && i < Layouts.Num(); ++i)
+		const int32 NumLayouts = Layouts.Num();
+		for (int32 LayoutIndex = 0; bEqual && LayoutIndex < NumLayouts; ++LayoutIndex)
 		{
-			equal &= Layouts[i]->IsSimilar(*o.Layouts[i]);
+			bEqual &= Layouts[LayoutIndex]->IsSimilar(*Other.Layouts[LayoutIndex]);
 		}
 	}
 
 	// Special comparison for vertex buffers
-	if (equal)
+	if (bEqual)
 	{
-		equal = VertexBuffers.IsSimilarRobust(o.VertexBuffers, bCompareLayouts);
+		bEqual = VertexBuffers.IsSimilarRobust(Other.VertexBuffers, bCompareLayouts);
 	}
 
-	return equal;
+	return bEqual;
 
 }
 
@@ -1289,155 +1301,155 @@ void Mesh::CheckIntegrity() const
 }
 
 
-static bool StaticMeshFormatIdentify_Project( const Mesh* pM )
+static bool StaticMeshFormatIdentify_Project(const Mesh* InMesh)
 {
     // This format is used internally for the mesh project
-    bool res = true;
+    bool bResult = true;
 
     // The first vertex buffer must be texcoords(2f), position(3f), normal(3f)
     // all tightly packed
-    res &= pM->VertexBuffers.GetBufferCount()>=1;
+    bResult &= InMesh->VertexBuffers.GetBufferCount() >= 1;
 
-    if ( res )
+    if (bResult)
     {
-        res &= pM->VertexBuffers.m_buffers[0].m_channels.Num()==3;
+        bResult &= InMesh->VertexBuffers.Buffers[0].Channels.Num() == 3;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[0];
 
-        res &= chan.m_semantic == MBS_TEXCOORDS;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 2;
+        bResult &= Channel.Semantic == MBS_TEXCOORDS;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 2;
         //we don't really care about the semantic index
-        //res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 0;
+        //bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 0;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[1];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[1];
 
-        res &= chan.m_semantic == MBS_POSITION;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 3;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 8;
+        bResult &= Channel.Semantic == MBS_POSITION;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 3;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 8;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[2];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[2];
 
-        res &= chan.m_semantic == MBS_NORMAL;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 3;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 20;
+        bResult &= Channel.Semantic == MBS_NORMAL;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 3;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 20;
     }
 
     // The first index buffer must be just index buffers u32
-    if ( res )
+    if (bResult)
     {
-        res &= pM->IndexBuffers.m_buffers[0].m_channels.Num()>=1;
+        bResult &= InMesh->IndexBuffers.Buffers[0].Channels.Num() >= 1;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->IndexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& Channel = InMesh->IndexBuffers.Buffers[0].Channels[0];
 
-        res &= chan.m_semantic == MBS_VERTEXINDEX;
-        res &= chan.m_format == MBF_UINT32;
-        res &= chan.m_componentCount == 1;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 0;
+        bResult &= Channel.Semantic == MBS_VERTEXINDEX;
+        bResult &= Channel.Format == MBF_UINT32;
+        bResult &= Channel.ComponentCount == 1;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 0;
     }
 
-    return res;
+    return bResult;
 }
 
 
-static bool StaticMeshFormatIdentify_ProjectWrapping( const Mesh* pM )
+static bool StaticMeshFormatIdentify_ProjectWrapping(const Mesh* InMesh)
 {
     // This format is used internally for the mesh project
-    bool res = true;
+    bool bResult = true;
 
     // The first vertex buffer must be texcoords(2f), position(3f), normal(3f), layoutBlock(uint32_t)
     // all tightly packed
-    res &= pM->VertexBuffers.GetBufferCount()>=2;
+    bResult &= InMesh->VertexBuffers.GetBufferCount() >= 2;
 
-    if ( res )
+    if (bResult)
     {
-        res &= pM->VertexBuffers.m_buffers[0].m_channels.Num()==3;
+        bResult &= InMesh->VertexBuffers.Buffers[0].Channels.Num() == 3;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[0];
 
-        res &= chan.m_semantic == MBS_TEXCOORDS;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 2;
+        bResult &= Channel.Semantic == MBS_TEXCOORDS;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 2;
         // we don't really care about the semantic index as long as there is only one
-        // res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 0;
+        // bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 0;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[1];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[1];
 
-        res &= chan.m_semantic == MBS_POSITION;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 3;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 8;
+        bResult &= Channel.Semantic == MBS_POSITION;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 3;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 8;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[0].m_channels[2];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[0].Channels[2];
 
-        res &= chan.m_semantic == MBS_NORMAL;
-        res &= chan.m_format == MBF_FLOAT32;
-        res &= chan.m_componentCount == 3;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 20;
+        bResult &= Channel.Semantic == MBS_NORMAL;
+        bResult &= Channel.Format == MBF_FLOAT32;
+        bResult &= Channel.ComponentCount == 3;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 20;
     }
 
 	// Block IDs
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->VertexBuffers.m_buffers[1].m_channels[0];
+        const FMeshBufferChannel& Channel = InMesh->VertexBuffers.Buffers[1].Channels[0];
 
-        res &= chan.m_semantic == MBS_LAYOUTBLOCK;
+        bResult &= Channel.Semantic == MBS_LAYOUTBLOCK;
 		// We don't care about the layout block id format. We need to support them all.
-        //res &= chan.m_format == MBF_UINT64;
-        res &= chan.m_componentCount == 1;
+        //bResult &= Channel.Format == MBF_UINT64;
+        bResult &= Channel.ComponentCount == 1;
         // we don't really care about the semantic index as long as there is only one
-        // res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 0;
+        // bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 0;
     }
 
     // The first index buffer must be just index buffers u32
-    if ( res )
+    if (bResult)
     {
-        res &= pM->IndexBuffers.m_buffers[0].m_channels.Num()>=1;
+        bResult &= InMesh->IndexBuffers.Buffers[0].Channels.Num() >= 1;
     }
 
-    if ( res )
+    if (bResult)
     {
-        const FMeshBufferChannel& chan = pM->IndexBuffers.m_buffers[0].m_channels[0];
+        const FMeshBufferChannel& Channel = InMesh->IndexBuffers.Buffers[0].Channels[0];
 
-        res &= chan.m_semantic == MBS_VERTEXINDEX;
-        res &= chan.m_format == MBF_UINT32;
-        res &= chan.m_componentCount == 1;
-        res &= chan.m_semanticIndex == 0;
-        res &= chan.m_offset == 0;
+        bResult &= Channel.Semantic == MBS_VERTEXINDEX;
+        bResult &= Channel.Format == MBF_UINT32;
+        bResult &= Channel.ComponentCount == 1;
+        bResult &= Channel.SemanticIndex == 0;
+        bResult &= Channel.Offset == 0;
     }
 
-    return res;
+    return bResult;
 }
 
 
@@ -1460,54 +1472,72 @@ void Mesh::ResetStaticFormatFlags() const
 
 namespace
 {
-    void LogBuffer( FString& out, const FMeshBufferSet& bufset, int32 BufferElementLimit)
+    void LogBuffer(FString& Out, const FMeshBufferSet& BufferSet, int32 BufferElementLimit)
     {
-        (void)out;
-        (void)bufset;
+		uint32 ElemCount = BufferSet.ElementCount;
+        Out += FString::Printf(TEXT("  Set with %d buffers and %d elements\n"), BufferSet.Buffers.Num(), ElemCount);
 
-		uint32 elemCount = bufset.m_elementCount;
-        out += "  Set with "
-                + FString::Printf(TEXT("%d"), bufset.m_buffers.Num())
-                + " buffers and "
-                + FString::Printf(TEXT("%d"), elemCount)
-                + " elements.\n";
-
-        for( const FMeshBuffer& buf : bufset.m_buffers )
+        for(const FMeshBuffer& Buffer : BufferSet.Buffers)
         {
-            const uint8* pData = buf.m_data.GetData();
-
-            out += "    Buffer with "+ FString::Printf(TEXT("%d"), buf.m_channels.Num())
-                    + " channels and "+ FString::Printf(TEXT("%d"), buf.m_elementSize)+" elementsize\n";
-            for( const FMeshBufferChannel& chan : buf.m_channels )
+            Out += FString::Printf(TEXT("    Buffer with %d channels and %d elementsize\n"), Buffer.Channels.Num(), Buffer.ElementSize);
+            
+			const uint8* DataPtr = Buffer.Data.GetData();
+            for (const FMeshBufferChannel& Channel : Buffer.Channels)
             {
-                out += "      Channel with format: "+ FString::Printf(TEXT("%d"), chan.m_format)
-                        + " semantic: "+ FString::Printf(TEXT("%d"), chan.m_semantic)
-                        + " " + FString::Printf(TEXT("%d"), chan.m_semanticIndex)
-                        + " components: " + FString::Printf(TEXT("%d"), chan.m_componentCount)
-                        + " offset: " + FString::Printf(TEXT("%d"), chan.m_offset)+"\n";
-                for( size_t e=0; e<elemCount && e<BufferElementLimit; ++e )
+				Out += FString::Printf(TEXT("      Channel with format: %d semantic: %d %d, components: %d, offset: %d\n"),
+							Channel.Format, Channel.Semantic, Channel.SemanticIndex, Channel.ComponentCount, Channel.Offset);
+                
+				for (int32 ElemIndex = 0; uint32(ElemIndex) < ElemCount && ElemIndex < BufferElementLimit; ++ElemIndex)
                 {
-                    const uint8* pElementData = pData+buf.m_elementSize*e;
-                    const uint8* pChanData = pElementData+chan.m_offset;
-                    out += "        ";
-                    for (int c=0; c<chan.m_componentCount; ++c)
+                    Out += "        ";
+                    
+                    const uint8* ChanDataPtr = DataPtr + Buffer.ElementSize*ElemIndex + Channel.Offset;
+					for (uint32 CompIndex = 0; CompIndex < Channel.ComponentCount; ++CompIndex)
                     {
-                        out += "\t";
-                        switch (chan.m_format)
+                        Out += "\t";
+                        
+						switch (Channel.Format)
                         {
                         case MBF_UINT32:
-                        case MBF_NUINT32: out += FString::Printf(TEXT("%d"), *(const uint32_t*)pChanData); pChanData +=4; break;
+                        case MBF_NUINT32:
+						{
+							Out += FString::Printf(TEXT("%d"), *(const uint32*)ChanDataPtr); 
+							ChanDataPtr += 4; 
+							break;
+						}
                         case MBF_UINT16:
-                        case MBF_NUINT16: out += FString::Printf(TEXT("%d"), *(const uint16*)pChanData); pChanData +=2; break;
+                        case MBF_NUINT16: 
+						{
+							Out += FString::Printf(TEXT("%d"), *(const uint16*)ChanDataPtr); 
+							ChanDataPtr += 2; 
+							break;
+						}
                         case MBF_UINT8:
-                        case MBF_NUINT8: out += FString::Printf(TEXT("%d"), *(const uint8_t*)pChanData); pChanData +=1; break;
-						case MBF_FLOAT32: out += FString::Printf(TEXT("%.3f"), *(const float*)pChanData); pChanData += 4; break;
-                        case MBF_FLOAT16: out += FString::Printf(TEXT("%d"), *(const uint16*)pChanData); pChanData +=2; break;
-                        default: break;
+                        case MBF_NUINT8: 
+						{
+							Out += FString::Printf(TEXT("%d"), *(const uint8*)ChanDataPtr); 
+							ChanDataPtr += 1; 
+							break;
+						}
+						case MBF_FLOAT32: 
+						{
+							Out += FString::Printf(TEXT("%.3f"), *(const float*)ChanDataPtr); 
+							ChanDataPtr += 4; 
+							break;
+						}
+                        case MBF_FLOAT16: 
+						{
+							Out += FString::Printf(TEXT("%d"), *(const uint16*)ChanDataPtr); 
+							ChanDataPtr += 2; 
+							break;
+						}
+                        default: 
+							break;
                         }
-                        out += ",";
+
+                        Out += ",";
                     }
-                    out += "\n";
+                    Out += "\n";
                 }
             }
         }

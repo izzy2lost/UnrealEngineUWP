@@ -763,18 +763,18 @@ namespace mu
 	
 		FMeshBufferSet& ResultBuffers = VerticesReshapeMesh->GetVertexBuffers();
 
-		check(ResultBuffers.m_buffers.Num() == 0);
+		check(ResultBuffers.Buffers.Num() == 0);
 
 		// Copy buffers skipping binding data. 
-		ResultBuffers.m_elementCount = VB.m_elementCount;
+		ResultBuffers.ElementCount = VB.ElementCount;
 		// Remove one element to the number of buffers if BarycentricDataBuffer found. 
-		ResultBuffers.m_buffers.SetNum(FMath::Max(0, VB.m_buffers.Num() - int32(BarycentricDataBuffer >= 0)));
+		ResultBuffers.Buffers.SetNum(FMath::Max(0, VB.Buffers.Num() - int32(BarycentricDataBuffer >= 0)));
 		
-		for (int32 B = 0, R = 0; B < VB.m_buffers.Num(); ++B)
+		for (int32 B = 0, R = 0; B < VB.Buffers.Num(); ++B)
 		{
 			if (B != BarycentricDataBuffer)
 			{
-				ResultBuffers.m_buffers[R++] = VB.m_buffers[B];
+				ResultBuffers.Buffers[R++] = VB.Buffers[B];
 			}
 		}
 

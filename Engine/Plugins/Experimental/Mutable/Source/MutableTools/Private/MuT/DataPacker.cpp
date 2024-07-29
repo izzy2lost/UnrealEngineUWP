@@ -716,7 +716,7 @@ namespace mu
 
             if (!used)
             {
-                TArray<FMeshBuffer>& buffers = pMesh->GetVertexBuffers().m_buffers;
+                TArray<FMeshBuffer>& buffers = pMesh->GetVertexBuffers().Buffers;
                 buffers.RemoveAt(v);
             }
             else

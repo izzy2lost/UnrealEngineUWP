@@ -422,12 +422,12 @@ namespace mu { namespace
         uint32 DestVertexCount = pBase->GetVertexCount();
 
         const FMeshBufferSet& MBSPriv2 = pBase->GetVertexBuffers();
-        for (int32 b = 0; b < MBSPriv2.m_buffers.Num(); ++b)
+        for (int32 b = 0; b < MBSPriv2.Buffers.Num(); ++b)
         {
-            for (int32 c = 0; c < MBSPriv2.m_buffers[b].m_channels.Num(); ++c)
+            for (int32 c = 0; c < MBSPriv2.Buffers[b].Channels.Num(); ++c)
             {
-                EMeshBufferSemantic Sem = MBSPriv2.m_buffers[b].m_channels[c].m_semantic;
-                int32 SemIndex = MBSPriv2.m_buffers[b].m_channels[c].m_semanticIndex;
+                EMeshBufferSemantic Sem = MBSPriv2.Buffers[b].Channels[c].Semantic;
+                int32 SemIndex = MBSPriv2.Buffers[b].Channels[c].SemanticIndex;
 
                 UntypedMeshBufferIteratorConst It(pBase->GetVertexBuffers(), Sem, SemIndex);
 
@@ -520,19 +520,19 @@ namespace mu { namespace
 
 		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh
 		const FMeshBufferSet& MBSPriv = Base->GetVertexBuffers();
-		for (int32 b = 0; b < MBSPriv.m_buffers.Num(); ++b)
+		for (int32 b = 0; b < MBSPriv.Buffers.Num(); ++b)
 		{
-			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.m_buffers[b].m_channels;
+			const TArray<mu::FMeshBufferChannel>& Channels = MBSPriv.Buffers[b].Channels;
 
 			for (int32 c = 0; c < Channels.Num(); ++c)
 			{
-				EMeshBufferSemantic Sem = Channels[c].m_semantic;
+				EMeshBufferSemantic Sem = Channels[c].Semantic;
 				if (Sem != MBS_TEXCOORDS)
 				{
 					continue;
 				}
 
-				int32 SemIndex = Channels[c].m_semanticIndex;
+				int32 SemIndex = Channels[c].SemanticIndex;
 				if (SemIndex != LayoutIndex)
 				{
 					continue;

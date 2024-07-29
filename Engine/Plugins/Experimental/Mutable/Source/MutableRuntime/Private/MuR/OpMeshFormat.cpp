@@ -33,57 +33,57 @@ namespace mu
 		}
 
 		// This happens in the debugger
-		if (ResultBuffer.m_channels.IsEmpty() || ResultBuffer.m_elementSize==0)
+		if (ResultBuffer.Channels.IsEmpty() || ResultBuffer.ElementSize==0)
 		{
 			return;
 		}
 
-		check(ResultBuffer.m_elementSize);
-		int32 ResultElementCount = ResultBuffer.m_data.Num() / ResultBuffer.m_elementSize;
+		check(ResultBuffer.ElementSize);
+		int32 ResultElementCount = ResultBuffer.Data.Num() / ResultBuffer.ElementSize;
 		check(SourceElementCount + ResultOffsetElements <= ResultElementCount);
 
 		// For every channel in this buffer
-		for (int32 ResultChannelIndex = 0; ResultChannelIndex < ResultBuffer.m_channels.Num(); ++ResultChannelIndex)
+		for (int32 ResultChannelIndex = 0; ResultChannelIndex < ResultBuffer.Channels.Num(); ++ResultChannelIndex)
 		{
-			FMeshBufferChannel& ResultChannel = ResultBuffer.m_channels[ResultChannelIndex];
+			FMeshBufferChannel& ResultChannel = ResultBuffer.Channels[ResultChannelIndex];
 
 			// Find this channel in the source mesh
 			int32 SourceBufferIndex;
 			int32 SourceChannelIndex;
-			Source.FindChannel(ResultChannel.m_semantic, ResultChannel.m_semanticIndex, &SourceBufferIndex, &SourceChannelIndex);
+			Source.FindChannel(ResultChannel.Semantic, ResultChannel.SemanticIndex, &SourceBufferIndex, &SourceChannelIndex);
 
-			int32 resultElemSize = ResultBuffer.m_elementSize;
-			int32 resultComponents = ResultChannel.m_componentCount;
-			int32 resultChannelSize = GetMeshFormatData(ResultChannel.m_format).SizeInBytes * resultComponents;
-			uint8* pResultBuf = ResultBuffer.m_data.GetData() + ResultOffsetElements*ResultBuffer.m_elementSize;
-			pResultBuf += ResultChannel.m_offset;
+			int32 resultElemSize = ResultBuffer.ElementSize;
+			int32 resultComponents = ResultChannel.ComponentCount;
+			int32 resultChannelSize = GetMeshFormatData(ResultChannel.Format).SizeInBytes * resultComponents;
+			uint8* pResultBuf = ResultBuffer.Data.GetData() + ResultOffsetElements*ResultBuffer.ElementSize;
+			pResultBuf += ResultChannel.Offset;
 
 			// Case 1: Special semantics that may be implicit or relative
 			//---------------------------------------------------------------------------------
-			if (bHasSpecialSemantics && ResultChannel.m_semantic == MBS_VERTEXINDEX)
+			if (bHasSpecialSemantics && ResultChannel.Semantic == MBS_VERTEXINDEX)
 			{
 				bool bHasVertexIndices = (SourceBufferIndex >=0 );
 				if (bHasVertexIndices)
 				{
-					check(SourceChannelIndex == 0 && Source.m_buffers[SourceBufferIndex].m_channels.Num() == 1);
+					check(SourceChannelIndex == 0 && Source.Buffers[SourceBufferIndex].Channels.Num() == 1);
 
-					const FMeshBuffer& SourceBuffer = Source.m_buffers[SourceBufferIndex];
-					const FMeshBufferChannel& SourceChannel = SourceBuffer.m_channels[SourceChannelIndex];
+					const FMeshBuffer& SourceBuffer = Source.Buffers[SourceBufferIndex];
+					const FMeshBufferChannel& SourceChannel = SourceBuffer.Channels[SourceChannelIndex];
 
-					bool bHasSameFormat = SourceChannel.m_format == ResultChannel.m_format;
+					bool bHasSameFormat = SourceChannel.Format == ResultChannel.Format;
 					if (bHasSameFormat)
 					{
 						check(SourceChannel == ResultChannel);
-						FMemory::Memcpy(pResultBuf,SourceBuffer.m_data.GetData(),SourceBuffer.m_data.Num());
+						FMemory::Memcpy(pResultBuf,SourceBuffer.Data.GetData(),SourceBuffer.Data.Num());
 					}
 					else
 					{
 						// Relative vertex IDs
 						check(IDPrefix);
-						check(SourceChannel.m_format == MBF_UINT32);
-						const uint32* SourceData = reinterpret_cast<const uint32*>(SourceBuffer.m_data.GetData());
+						check(SourceChannel.Format == MBF_UINT32);
+						const uint32* SourceData = reinterpret_cast<const uint32*>(SourceBuffer.Data.GetData());
 
-						check(ResultChannel.m_format == MBF_UINT64);
+						check(ResultChannel.Format == MBF_UINT64);
 						uint64* ResultData = reinterpret_cast<uint64*>(pResultBuf);
 
 						for (int32 i = 0; i < SourceElementCount; ++i)
@@ -100,7 +100,7 @@ namespace mu
 					// Implicit IDs
 					check(IDPrefix);
 
-					check(ResultChannel.m_format == MBF_UINT64);
+					check(ResultChannel.Format == MBF_UINT64);
 					uint64* ResultData = reinterpret_cast<uint64*>(pResultBuf);
 
 					for (int32 VertexIndex = 0; VertexIndex < SourceElementCount; ++VertexIndex)
@@ -114,28 +114,28 @@ namespace mu
 				continue;
 			}
 
-			else if (bHasSpecialSemantics && ResultChannel.m_semantic == MBS_LAYOUTBLOCK)
+			else if (bHasSpecialSemantics && ResultChannel.Semantic == MBS_LAYOUTBLOCK)
 			{
 				bool bHasBlockIds = (SourceBufferIndex >= 0);
 
 				if (bHasBlockIds)
 				{
-					const FMeshBuffer& SourceBuffer = Source.m_buffers[SourceBufferIndex];
-					const FMeshBufferChannel& SourceChannel = SourceBuffer.m_channels[SourceChannelIndex];
+					const FMeshBuffer& SourceBuffer = Source.Buffers[SourceBufferIndex];
+					const FMeshBufferChannel& SourceChannel = SourceBuffer.Channels[SourceChannelIndex];
 
-					bool bHasSameFormat = SourceChannel.m_format == ResultChannel.m_format;
+					bool bHasSameFormat = SourceChannel.Format == ResultChannel.Format;
 					if (bHasSameFormat)
 					{
 						check(SourceChannel==ResultChannel);
-						FMemory::Memcpy(pResultBuf, SourceBuffer.m_data.GetData(), SourceBuffer.m_data.Num());
+						FMemory::Memcpy(pResultBuf, SourceBuffer.Data.GetData(), SourceBuffer.Data.Num());
 					}
 					else
 					{
 						// Relative vertex IDs
-						check(SourceChannel.m_format == MBF_UINT16);
-						const uint16* SourceData = reinterpret_cast<const uint16*>(SourceBuffer.m_data.GetData());
+						check(SourceChannel.Format == MBF_UINT16);
+						const uint16* SourceData = reinterpret_cast<const uint16*>(SourceBuffer.Data.GetData());
 
-						check(ResultChannel.m_format == MBF_UINT64);
+						check(ResultChannel.Format == MBF_UINT64);
 						uint64* ResultData = reinterpret_cast<uint64*>(pResultBuf);
 
 						for (int32 i = 0; i < SourceElementCount; ++i)
@@ -168,11 +168,11 @@ namespace mu
 
 				// If we have to add colour channels, we will add them as white, to be neutral.
 				// \todo: normal channels also should have special values.
-				if (ResultChannel.m_semantic == MBS_COLOUR)
+				if (ResultChannel.Semantic == MBS_COLOUR)
 				{
 					generated = true;
 
-					switch (ResultChannel.m_format)
+					switch (ResultChannel.Format)
 					{
 					case MBF_FLOAT32:
 					{
@@ -253,9 +253,9 @@ namespace mu
 					&sourceFormat, &sourceComponents,
 					&sourceOffset
 				);
-				check(sourceSemantic == ResultChannel.m_semantic
+				check(sourceSemantic == ResultChannel.Semantic
 					&&
-					sourceSemanticIndex == ResultChannel.m_semanticIndex);
+					sourceSemanticIndex == ResultChannel.SemanticIndex);
 
 				int32 sourceElemSize = Source.GetElementSize(SourceBufferIndex);
 				const uint8* pSourceBuf = Source.GetBufferData(SourceBufferIndex);
@@ -264,13 +264,13 @@ namespace mu
 				// Copy element by element
 				for (int32 v = 0; v < SourceElementCount; ++v)
 				{
-					if (ResultChannel.m_format == sourceFormat && resultComponents == sourceComponents)
+					if (ResultChannel.Format == sourceFormat && resultComponents == sourceComponents)
 					{
 						FMemory::Memcpy(pResultBuf, pSourceBuf, resultChannelSize);
 					}
-					else if (ResultChannel.m_format == MBF_PACKEDDIR8_W_TANGENTSIGN
+					else if (ResultChannel.Format == MBF_PACKEDDIR8_W_TANGENTSIGN
 						||
-						ResultChannel.m_format == MBF_PACKEDDIRS8_W_TANGENTSIGN)
+						ResultChannel.Format == MBF_PACKEDDIRS8_W_TANGENTSIGN)
 					{
 						check(sourceComponents >= 3);
 						check(resultComponents == 4);
@@ -283,7 +283,7 @@ namespace mu
 								ConvertData
 								(
 									i,
-									pResultBuf, ResultChannel.m_format,
+									pResultBuf, ResultChannel.Format,
 									pSourceBuf, sourceFormat
 								);
 							}
@@ -295,15 +295,15 @@ namespace mu
 
 						// Look for the full tangent space
 						int32 tanXBuf, tanXChan, tanYBuf, tanYChan, tanZBuf, tanZChan;
-						Source.FindChannel(MBS_TANGENT, ResultChannel.m_semanticIndex, &tanXBuf, &tanXChan);
-						Source.FindChannel(MBS_BINORMAL, ResultChannel.m_semanticIndex, &tanYBuf, &tanYChan);
-						Source.FindChannel(MBS_NORMAL, ResultChannel.m_semanticIndex, &tanZBuf, &tanZChan);
+						Source.FindChannel(MBS_TANGENT, ResultChannel.SemanticIndex, &tanXBuf, &tanXChan);
+						Source.FindChannel(MBS_BINORMAL, ResultChannel.SemanticIndex, &tanYBuf, &tanYChan);
+						Source.FindChannel(MBS_NORMAL, ResultChannel.SemanticIndex, &tanZBuf, &tanZChan);
 
 						if (tanXBuf >= 0 && tanYBuf >= 0 && tanZBuf >= 0)
 						{
-							UntypedMeshBufferIteratorConst xIt(Source, MBS_TANGENT, ResultChannel.m_semanticIndex);
-							UntypedMeshBufferIteratorConst yIt(Source, MBS_BINORMAL, ResultChannel.m_semanticIndex);
-							UntypedMeshBufferIteratorConst zIt(Source, MBS_NORMAL, ResultChannel.m_semanticIndex);
+							UntypedMeshBufferIteratorConst xIt(Source, MBS_TANGENT, ResultChannel.SemanticIndex);
+							UntypedMeshBufferIteratorConst yIt(Source, MBS_BINORMAL, ResultChannel.SemanticIndex);
+							UntypedMeshBufferIteratorConst zIt(Source, MBS_NORMAL, ResultChannel.SemanticIndex);
 
 							xIt += v;
 							yIt += v;
@@ -312,11 +312,11 @@ namespace mu
 							FMatrix44f Mat(xIt.GetAsVec3f(), yIt.GetAsVec3f(), zIt.GetAsVec3f(), FVector3f(0, 0, 0));
 
 							uint8 sign = 0;
-							if (ResultChannel.m_format == MBF_PACKEDDIR8_W_TANGENTSIGN)
+							if (ResultChannel.Format == MBF_PACKEDDIR8_W_TANGENTSIGN)
 							{
 								sign = Mat.RotDeterminant() < 0 ? 0 : 255;
 							}
-							else if (ResultChannel.m_format == MBF_PACKEDDIRS8_W_TANGENTSIGN)
+							else if (ResultChannel.Format == MBF_PACKEDDIRS8_W_TANGENTSIGN)
 							{
 								sign = Mat.RotDeterminant() < 0 ? -128 : 127;
 							}
@@ -338,7 +338,7 @@ namespace mu
 								ConvertData
 								(
 									i,
-									pResultBuf, ResultChannel.m_format,
+									pResultBuf, ResultChannel.Format,
 									pSourceBuf, sourceFormat
 								);
 							}
@@ -347,8 +347,8 @@ namespace mu
 								// Add zeros. TODO: Warning?
 								FMemory::Memzero
 								(
-									pResultBuf + GetMeshFormatData(ResultChannel.m_format).SizeInBytes * i,
-									GetMeshFormatData(ResultChannel.m_format).SizeInBytes
+									pResultBuf + GetMeshFormatData(ResultChannel.Format).SizeInBytes * i,
+									GetMeshFormatData(ResultChannel.Format).SizeInBytes
 								);
 							}
 						}
@@ -359,7 +359,7 @@ namespace mu
 						// TODO: Optimise
 						if (sourceSemantic == MBS_BONEWEIGHTS)
 						{
-							if (ResultChannel.m_format == MBF_NUINT8)
+							if (ResultChannel.Format == MBF_NUINT8)
 							{
 								uint8* pData = (uint8*)pResultBuf;
 								uint8 accum = 0;
@@ -370,7 +370,7 @@ namespace mu
 								pData[0] += 255 - accum;
 							}
 
-							else if (ResultChannel.m_format == MBF_NUINT16)
+							else if (ResultChannel.Format == MBF_NUINT16)
 							{
 								uint16* pData = (uint16*)pResultBuf;
 								uint16 accum = 0;
@@ -471,7 +471,7 @@ namespace mu
 		Result.SetElementCount(vCount);
 		for (int32 b = 0; b < Result.GetBufferCount(); ++b)
 		{
-			MeshFormatBuffer(Source, Result.m_buffers[b], 0, bIsVertexBuffer, IDPrefix);
+			MeshFormatBuffer(Source, Result.Buffers[b], 0, bIsVertexBuffer, IDPrefix);
 		}
 
 
@@ -511,8 +511,8 @@ namespace mu
 						else
 						{
 							// Replace the buffer
-							check(Result.m_buffers[AlreadyExistingBufIndex].m_channels.Num()==1);
-							Result.m_buffers[AlreadyExistingBufIndex] = Source.m_buffers[b];
+							check(Result.Buffers[AlreadyExistingBufIndex].Channels.Num()==1);
+							Result.Buffers[AlreadyExistingBufIndex] = Source.Buffers[b];
 						}
 					}
 				}
@@ -569,17 +569,17 @@ namespace mu
 				const int32 ChannelCount = VertexBuffers.GetBufferChannelCount(BufferIndex);
 				for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
 				{
-					const FMeshBufferChannel& Channel = VertexBuffers.m_buffers[BufferIndex].m_channels[ChannelIndex];
+					const FMeshBufferChannel& Channel = VertexBuffers.Buffers[BufferIndex].Channels[ChannelIndex];
 
-					if (Channel.m_semantic == MBS_BONEINDICES)
+					if (Channel.Semantic == MBS_BONEINDICES)
 					{
 						int32 resultBuf = 0;
 						int32 resultChan = 0;
 						FMeshBufferSet& formBuffs = Result->GetVertexBuffers();
-						formBuffs.FindChannel(MBS_BONEINDICES, Channel.m_semanticIndex, &resultBuf, &resultChan);
+						formBuffs.FindChannel(MBS_BONEINDICES, Channel.SemanticIndex, &resultBuf, &resultChan);
 						if (resultBuf >= 0)
 						{
-							UntypedMeshBufferIteratorConst it(VertexBuffers, MBS_BONEINDICES, Channel.m_semanticIndex);
+							UntypedMeshBufferIteratorConst it(VertexBuffers, MBS_BONEINDICES, Channel.SemanticIndex);
 							int32 maxBoneIndex = 0;
 							for (int32 v = 0; v < VertexBuffers.GetElementCount(); ++v)
 							{
@@ -594,7 +594,7 @@ namespace mu
 								++it;
 							}
 
-							EMeshBufferFormat& format = formBuffs.m_buffers[resultBuf].m_channels[resultChan].m_format;
+							EMeshBufferFormat& format = formBuffs.Buffers[resultBuf].Channels[resultChan].Format;
 							if (maxBoneIndex > 0xffff && (format == MBF_UINT8 || format == MBF_UINT16))
 							{
 								format = MBF_UINT32;
@@ -740,26 +740,26 @@ namespace mu
 
 				// \todo: This is a generic innefficient way
 				FMeshBufferSet NewVertexBuffers;
-				NewVertexBuffers.m_buffers = VertexBuffers.m_buffers;
+				NewVertexBuffers.Buffers = VertexBuffers.Buffers;
 
-				for (FMeshBuffer& Buffer: NewVertexBuffers.m_buffers)
+				for (FMeshBuffer& Buffer: NewVertexBuffers.Buffers)
 				{
 					int32 OffsetDelta = 0;
-					for (FMeshBufferChannel& Channel : Buffer.m_channels)
+					for (FMeshBufferChannel& Channel : Buffer.Channels)
 					{
-						Channel.m_offset += OffsetDelta;
+						Channel.Offset += OffsetDelta;
 
-						if (Channel.m_semanticIndex == SemanticIndex
+						if (Channel.SemanticIndex == SemanticIndex
 							&&
-							(Channel.m_semantic == MBS_BONEWEIGHTS || Channel.m_semantic == MBS_BONEINDICES)
+							(Channel.Semantic == MBS_BONEWEIGHTS || Channel.Semantic == MBS_BONEINDICES)
 							)
 						{
-							Channel.m_componentCount = RealInfluences;
-							OffsetDelta -= (BufferInfluences - RealInfluences) * GetMeshFormatData(Channel.m_format).SizeInBytes;
+							Channel.ComponentCount = RealInfluences;
+							OffsetDelta -= (BufferInfluences - RealInfluences) * GetMeshFormatData(Channel.Format).SizeInBytes;
 						}
 					}
 
-					Buffer.m_elementSize += OffsetDelta;
+					Buffer.ElementSize += OffsetDelta;
 				}
 
 				FormatBufferSet( VertexBuffers, NewVertexBuffers, true, false, true);

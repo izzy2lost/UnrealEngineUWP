@@ -778,7 +778,7 @@ namespace Private
 		float FadeEndCos = FMath::Cos(FadeEnd);
 
 		// Calculate the culled flag
-		EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.m_buffers[1].m_channels[0].m_format;
+		EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.Buffers[1].Channels[0].Format;
 		switch (LayoutBlockType)
 		{
 		case MBF_UINT64:
@@ -2173,10 +2173,10 @@ void MeshProject_Optimised_Wrapping(const Mesh* pMesh,
 		// Get the vertices
     int vertexCount = pMesh->GetVertexCount();
 	check(pMesh->GetVertexBuffers().GetElementSize(0) == sizeof(FOptimizedVertex));
-	check(pMesh->GetVertexBuffers().m_buffers.Num() == 2);
+	check(pMesh->GetVertexBuffers().Buffers.Num() == 2);
 	const FOptimizedVertex* pVertices = reinterpret_cast<const FOptimizedVertex*>(pMesh->GetVertexBuffers().GetBufferData(0));
 
-	EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.m_buffers[1].m_channels[0].m_format;
+	EMeshBufferFormat LayoutBlockType = pMesh->VertexBuffers.Buffers[1].Channels[0].Format;
 
     // Get the indices
     check(pMesh->GetIndexBuffers().GetElementSize(0) == 4);
