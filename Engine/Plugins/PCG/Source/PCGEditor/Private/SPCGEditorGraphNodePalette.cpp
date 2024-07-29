@@ -130,8 +130,8 @@ void SPCGEditorGraphNodePalette::CollectAllActions(FGraphActionListBuilderBase& 
 
 void SPCGEditorGraphNodePalette::OnAssetChanged(const FAssetData& InAssetData)
 {
-	if (InAssetData.AssetClassPath == UPCGGraph::StaticClass()->GetClassPathName() ||
-		InAssetData.AssetClassPath == UPCGSettings::StaticClass()->GetClassPathName() ||
+	if (InAssetData.IsInstanceOf<UPCGGraphInterface>() ||
+		InAssetData.IsInstanceOf<UPCGSettings>() ||
 		PCGEditorUtils::IsAssetPCGBlueprint(InAssetData))
 	{
 		RefreshActionsList(true);
