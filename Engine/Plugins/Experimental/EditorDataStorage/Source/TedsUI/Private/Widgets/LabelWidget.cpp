@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementLabelWidget.h"
+#include "Widgets/LabelWidget.h"
 
 #include "ActorEditorUtils.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
@@ -8,18 +8,18 @@
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementValueCacheColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiEditableCapability.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTooltipCapability.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiStyleOverrideCapability.h"
-#include "TypedElementSubsystems.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementUI_LabelWidget"
+#define LOCTEXT_NAMESPACE "TedsUI_LabelWidget"
 
 //
-// UTypedElementLabelWidgetFactory
+// ULabelWidgetFactory
 //
 
 static void UpdateTextWidget(const TWeakPtr<SWidget>& Widget, const FTypedElementLabelColumn& Label, const uint64* HashValue)
@@ -72,7 +72,7 @@ static void SyncColumnsToWidget(
 	}
 }
 
-void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -101,7 +101,7 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 				DSI::IQueryContext& Context, 
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				FTypedElementU64IntValueCacheColumn& TextHash,
-				const FTypedElementLabelWidgetColumn& Config,
+				const FLabelWidgetColumn& Config,
 				const FTypedElementRowReferenceColumn& Target)
 			{
 				Context.RunSubquery(0, Target.Row, CreateSubqueryCallbackBinding(
@@ -125,41 +125,41 @@ void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageIn
 	);
 }
 
-void UTypedElementLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void ULabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementDataStorage;
 
-	DataStorageUi.RegisterWidgetFactory<FTypedElementLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
+	DataStorageUi.RegisterWidgetFactory<FLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
 		FColumn<FTypedElementLabelColumn>() || (FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>()));
 }
 
 
 
 //
-// FTypedElementLabelWidgetConstructor
+// FLabelWidgetConstructor
 //
 
-FTypedElementLabelWidgetConstructor::FTypedElementLabelWidgetConstructor()
-	: Super(FTypedElementLabelWidgetConstructor::StaticStruct())
+FLabelWidgetConstructor::FLabelWidgetConstructor()
+	: Super(FLabelWidgetConstructor::StaticStruct())
 {
 }
 
-FTypedElementLabelWidgetConstructor::FTypedElementLabelWidgetConstructor(const UScriptStruct* InTypeInfo)
+FLabelWidgetConstructor::FLabelWidgetConstructor(const UScriptStruct* InTypeInfo)
 	: Super(InTypeInfo)
 {
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementLabelWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FLabelWidgetConstructor::GetAdditionalColumnsList() const
 {
 	static const TTypedElementColumnTypeList<
 		FTypedElementRowReferenceColumn,
 		FTypedElementU64IntValueCacheColumn,
-		FTypedElementLabelWidgetColumn> Columns;
+		FLabelWidgetColumn> Columns;
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
+TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
 	TypedElementRowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
@@ -225,13 +225,13 @@ TSharedPtr<SWidget> FTypedElementLabelWidgetConstructor::Construct(
 	return nullptr;
 }
 
-bool FTypedElementLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
+bool FLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
-	DataStorage->AddColumn(Row, FTypedElementLabelWidgetColumn{ .bShowHashInTooltip = (MatchedColumnTypes.Num() == 2) });
+	DataStorage->AddColumn(Row, FLabelWidgetColumn{ .bShowHashInTooltip = (MatchedColumnTypes.Num() == 2) });
 	return true;
 }
 
-bool FTypedElementLabelWidgetConstructor::FinalizeWidget(
+bool FLabelWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	TypedElementRowHandle Row,

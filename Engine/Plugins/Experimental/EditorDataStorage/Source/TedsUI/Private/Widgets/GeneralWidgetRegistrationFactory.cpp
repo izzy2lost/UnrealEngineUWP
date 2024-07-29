@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementGeneralRegistration.h"
+#include "Widgets/GeneralWidgetRegistrationFactory.h"
 
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementsUI_GeneralRegistration"
 
-const FName UTypedElementGeneralRegistrationFactory::CellPurpose(TEXT("General.Cell"));
-const FName UTypedElementGeneralRegistrationFactory::HeaderPurpose(TEXT("General.Header"));
-const FName UTypedElementGeneralRegistrationFactory::CellDefaultPurpose(TEXT("General.Cell.Default"));
-const FName UTypedElementGeneralRegistrationFactory::HeaderDefaultPurpose(TEXT("General.Header.Default"));
+const FName UGeneralWidgetRegistrationFactory::CellPurpose(TEXT("General.Cell"));
+const FName UGeneralWidgetRegistrationFactory::HeaderPurpose(TEXT("General.Header"));
+const FName UGeneralWidgetRegistrationFactory::CellDefaultPurpose(TEXT("General.Cell.Default"));
+const FName UGeneralWidgetRegistrationFactory::HeaderDefaultPurpose(TEXT("General.Header.Default"));
 
-void UTypedElementGeneralRegistrationFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UGeneralWidgetRegistrationFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	DataStorageUi.RegisterWidgetPurpose(CellPurpose, ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
 		LOCTEXT("GeneralCellPurpose", "General purpose widgets that can be used as cells for specific columns or column combinations."));

@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementCounterWidget.h"
+#include "Widgets/CounterWidget.h"
 
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementValueCacheColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "Framework/Text/TextLayout.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "Layout/Margin.h"
 #include "Misc/CoreDelegates.h"
@@ -16,7 +16,7 @@
 #include "Widgets/SWindow.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementUI_CounterWidget"
+#define LOCTEXT_NAMESPACE "TedsUI_CounterWidget"
 
 
 FAutoConsoleCommand EnableCounterWidgetsConsoleCommand(
@@ -24,26 +24,26 @@ FAutoConsoleCommand EnableCounterWidgetsConsoleCommand(
 	TEXT("Adds registered counter widgets to the bottom right status bar of the main editor window."),
 	FConsoleCommandDelegate::CreateLambda([]()
 		{
-			UTypedElementCounterWidgetFactory::EnableCounterWidgets();
+			UCounterWidgetFactory::EnableCounterWidgets();
 		}));
 
 //
-// UTypedElementCounterWidgetFactory
+// UCounterWidgetFactory
 //
 
-FName UTypedElementCounterWidgetFactory::WigetPurpose(TEXT("LevelEditor.StatusBar.ToolBar"));
-bool UTypedElementCounterWidgetFactory::bAreCounterWidgetsEnabled{ false };
-bool UTypedElementCounterWidgetFactory::bHasBeenSetup{ false };
+FName UCounterWidgetFactory::WigetPurpose(TEXT("LevelEditor.StatusBar.ToolBar"));
+bool UCounterWidgetFactory::bAreCounterWidgetsEnabled{ false };
+bool UCounterWidgetFactory::bHasBeenSetup{ false };
 
-UTypedElementCounterWidgetFactory::UTypedElementCounterWidgetFactory()
+UCounterWidgetFactory::UCounterWidgetFactory()
 {
 	if (bAreCounterWidgetsEnabled)
 	{
-		IMainFrameModule::Get().OnMainFrameCreationFinished().AddStatic(&UTypedElementCounterWidgetFactory::SetupMainWindowIntegrations);
+		IMainFrameModule::Get().OnMainFrameCreationFinished().AddStatic(&UCounterWidgetFactory::SetupMainWindowIntegrations);
 	}
 }
 
-void UTypedElementCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -55,7 +55,7 @@ void UTypedElementCounterWidgetFactory::RegisterQueries(ITypedElementDataStorage
 			DSI::IQueryContext& Context,
 			FTypedElementSlateWidgetReferenceColumn& Widget,
 			FTypedElementU32IntValueCacheColumn& Comparison, 
-			const FTypedElementCounterWidgetColumn& Counter
+			const FCounterWidgetColumn& Counter
 		)
 		{
 			DSI::FQueryResult Result = Context.RunQuery(Counter.Query);
@@ -78,18 +78,18 @@ void UTypedElementCounterWidgetFactory::RegisterQueries(ITypedElementDataStorage
 	).Compile());
 }
 
-void UTypedElementCounterWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void UCounterWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	DataStorageUi.RegisterWidgetPurpose(WigetPurpose, ITypedElementDataStorageUiInterface::EPurposeType::Generic,
 		LOCTEXT("ToolBarPurposeDescription", "Widgets added to the status bar at the bottom editor of the main editor window."));
 }
 
-void UTypedElementCounterWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void UCounterWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementQueryBuilder;
 
-	TUniquePtr<FTypedElementCounterWidgetConstructor> WidgetCounter = MakeUnique<FTypedElementCounterWidgetConstructor>();
+	TUniquePtr<FCounterWidgetConstructor> WidgetCounter = MakeUnique<FCounterWidgetConstructor>();
 	WidgetCounter->LabelText = LOCTEXT("WidgetCounterStatusBarLabel", "{0} {0}|plural(one=Widget, other=Widgets)");
 	WidgetCounter->ToolTipText = LOCTEXT(
 		"WidgetCounterStatusBarToolTip",
@@ -102,13 +102,13 @@ void UTypedElementCounterWidgetFactory::RegisterWidgetConstructors(ITypedElement
 	DataStorageUi.RegisterWidgetFactory(WigetPurpose, MoveTemp(WidgetCounter));
 }
 
-void UTypedElementCounterWidgetFactory::EnableCounterWidgets()
+void UCounterWidgetFactory::EnableCounterWidgets()
 {
 	bAreCounterWidgetsEnabled = true;
-	UTypedElementCounterWidgetFactory::SetupMainWindowIntegrations(nullptr, false);
+	UCounterWidgetFactory::SetupMainWindowIntegrations(nullptr, false);
 }
 
-void UTypedElementCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<SWindow> ParentWindow, bool bIsRunningStartupDialog)
+void UCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<SWindow> ParentWindow, bool bIsRunningStartupDialog)
 {
 	if (!bHasBeenSetup)
 	{
@@ -151,21 +151,21 @@ void UTypedElementCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<S
 
 
 //
-// FTypedElementCounterWidgetConstructor
+// FCounterWidgetConstructor
 //
 
-FTypedElementCounterWidgetConstructor::FTypedElementCounterWidgetConstructor()
-	: Super(FTypedElementCounterWidgetConstructor::StaticStruct())
+FCounterWidgetConstructor::FCounterWidgetConstructor()
+	: Super(FCounterWidgetConstructor::StaticStruct())
 {
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementCounterWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FCounterWidgetConstructor::GetAdditionalColumnsList() const
 {
-	static TTypedElementColumnTypeList<FTypedElementCounterWidgetColumn, FTypedElementU32IntValueCacheColumn> Columns;
+	static TTypedElementColumnTypeList<FCounterWidgetColumn, FTypedElementU32IntValueCacheColumn> Columns;
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FCounterWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock)
 		.Text(FText::Format(LabelText, 0))
@@ -174,10 +174,10 @@ TSharedPtr<SWidget> FTypedElementCounterWidgetConstructor::CreateWidget(const Ty
 		.Justification(ETextJustify::Center);
 }
 
-bool FTypedElementCounterWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
+bool FCounterWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
-	FTypedElementCounterWidgetColumn* CounterColumn = DataStorage->GetColumn<FTypedElementCounterWidgetColumn>(Row);
-	checkf(CounterColumn, TEXT("Added a new FTypedElementCounterWidgetColumn to the Typed Elements Data Storage, but didn't get a valid pointer back."));
+	FCounterWidgetColumn* CounterColumn = DataStorage->GetColumn<FCounterWidgetColumn>(Row);
+	checkf(CounterColumn, TEXT("Added a new FCounterWidgetColumn to the Typed Elements Data Storage, but didn't get a valid pointer back."));
 	CounterColumn->LabelTextFormatter = LabelText;
 	CounterColumn->Query = Query;
 

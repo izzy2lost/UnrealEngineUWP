@@ -1,19 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementExportedTextWidget.h"
+#include "Widgets/ExportedTextWidget.h"
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "TypedElementSubsystems.h"
-#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementUI_ExportedTextWidget"
+#define LOCTEXT_NAMESPACE "TedsUI_ExportedTextWidget"
 
 //
-// UTypedElementExportedTextWidgetFactory
+// UExportedTextWidgetFactory
 //
 
 static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetReferenceColumn& Widget, 
@@ -24,7 +22,7 @@ static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetR
 		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
 		"references."));
 	checkf(WidgetPointer->GetType() == STextBlock::StaticWidgetClass().GetWidgetType(),
-		TEXT("Stored widget with FTypedElementExportedTextWidgetTag doesn't match type %s, but was a %s."),
+		TEXT("Stored widget with FExportedTextWidgetTag doesn't match type %s, but was a %s."),
 		*(STextBlock::StaticWidgetClass().GetWidgetType().ToString()),
 		*(WidgetPointer->GetTypeAsString()));
 
@@ -86,7 +84,7 @@ static TypedElementQueryHandle RegisterUpdateCallback(ITypedElementDataStorageIn
 				 *
 				 * E.g a row could have ColumnA and ColumnB which are both using the exported text widget to display - but there is no way for the
 				 * two widgets to be differentiated from a TEDS query. So if the widget for ColumnB wants to update: Both the widgets for ColumnA
-				 * and ColumnB would match the query condition (WidgetRow has FTypedElementExportedTextWidgetTag && TargetRow has ColumnB), but this
+				 * and ColumnB would match the query condition (WidgetRow has FExportedTextWidgetTag && TargetRow has ColumnB), but this
 				 * query (+ subquery) only have access to ColumnB and only want to update the widget that's displaying ColumnB.
 				 *
 				 * To work around this we check to make sure the widget this query is trying to update is for the column this query is targeting.
@@ -102,48 +100,48 @@ static TypedElementQueryHandle RegisterUpdateCallback(ITypedElementDataStorageIn
 				}
 			})
 		.Where()
-			.All<FTypedElementExportedTextWidgetTag>()
+			.All<FExportedTextWidgetTag>()
 		.DependsOn()
 			.SubQuery(TypeDataQuery)
 		.Compile());
 }
 
-void UTypedElementExportedTextWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void UExportedTextWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell.Default")), FTypedElementExportedTextWidgetConstructor::StaticStruct());
+	DataStorageUi.RegisterWidgetFactory(FName(TEXT("General.Cell.Default")), FExportedTextWidgetConstructor::StaticStruct());
 }
 
 //
-// FTypedElementExportedTextWidgetConstructor
+// FExportedTextWidgetConstructor
 //
 
-FTypedElementExportedTextWidgetConstructor::FTypedElementExportedTextWidgetConstructor()
-	: Super(FTypedElementExportedTextWidgetConstructor::StaticStruct())
+FExportedTextWidgetConstructor::FExportedTextWidgetConstructor()
+	: Super(FExportedTextWidgetConstructor::StaticStruct())
 {
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementExportedTextWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FExportedTextWidgetConstructor::GetAdditionalColumnsList() const
 {
 	static TTypedElementColumnTypeList<
 		FTypedElementRowReferenceColumn,
 		FTypedElementScriptStructTypeInfoColumn,
-		FTypedElementExportedTextWidgetTag> Columns;
+		FExportedTextWidgetTag> Columns;
 	return Columns;
 }
 
-const TypedElementDataStorage::FQueryConditions* FTypedElementExportedTextWidgetConstructor::GetQueryConditions() const
+const TypedElementDataStorage::FQueryConditions* FExportedTextWidgetConstructor::GetQueryConditions() const
 {
 	// For the exported text widget, the query condition we are matched against is the column we are exporting text for
 	return &MatchedColumn;
 }
 
-TSharedPtr<SWidget> FTypedElementExportedTextWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock);
 }
 
-bool FTypedElementExportedTextWidgetConstructor::FinalizeWidget(
+bool FExportedTextWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	TypedElementRowHandle Row,
@@ -151,7 +149,7 @@ bool FTypedElementExportedTextWidgetConstructor::FinalizeWidget(
 {
 	FTypedElementScriptStructTypeInfoColumn& TypeInfoColumn = *DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
 
-	// NOTE: We are currently assuming that an instance of FTypedElementExportedTextWidgetConstructor will only be used to show the same type info
+	// NOTE: We are currently assuming that an instance of FExportedTextWidgetConstructor will only be used to show the same type info
 	// which isn't ideal but it's better than nothing since we need some sort of matched conditions for column based virtualization to work.
 	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
 	MatchedColumn = TypedElementDataStorage::FQueryConditions(TypedElementDataStorage::FColumn(TypeInfoColumn.TypeInfo));
@@ -162,8 +160,8 @@ bool FTypedElementExportedTextWidgetConstructor::FinalizeWidget(
 		TypeInfoColumn,
 		*DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row));
 	
-	UTypedElementExportedTextWidgetFactory* Factory = 
-		UTypedElementExportedTextWidgetFactory::StaticClass()->GetDefaultObject<UTypedElementExportedTextWidgetFactory>();
+	UExportedTextWidgetFactory* Factory = 
+		UExportedTextWidgetFactory::StaticClass()->GetDefaultObject<UExportedTextWidgetFactory>();
 	if (Factory && !Factory->RegisteredTypes.Contains(TypeInfoColumn.TypeInfo))
 	{
 		RegisterUpdateCallback(*DataStorage, TypeInfoColumn.TypeInfo.Get());

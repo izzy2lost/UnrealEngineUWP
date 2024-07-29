@@ -19,15 +19,11 @@ public class TedsUI : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"EditorFramework",
-					"SceneOutliner",
 					"Slate",
 					"SlateCore",
 					"ToolMenus",
 					"TypedElementFramework",
 					"TedsCore",
-					"EditorSubsystem",
-					"UnrealEd",
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

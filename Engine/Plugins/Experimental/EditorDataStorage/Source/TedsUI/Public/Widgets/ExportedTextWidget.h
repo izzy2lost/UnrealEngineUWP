@@ -3,20 +3,21 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
-#include "Internationalization/Text.h"
-#include "UObject/ObjectMacros.h"
+#include "Elements/Common/TypedElementQueryConditions.h"
 
-#include "TypedElementExportedTextWidget.generated.h"
+#include "ExportedTextWidget.generated.h"
+
+class ITypedElementDataStorageInterface;
+class UScriptStruct;
 
 UCLASS()
-class TEDSUI_API UTypedElementExportedTextWidgetFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UExportedTextWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	virtual ~UTypedElementExportedTextWidgetFactory() override = default;
+	virtual ~UExportedTextWidgetFactory() override = default;
 
 	virtual void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
@@ -25,13 +26,13 @@ public:
 };
 
 USTRUCT()
-struct TEDSUI_API FTypedElementExportedTextWidgetConstructor : public FTypedElementWidgetConstructor
+struct TEDSUI_API FExportedTextWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementExportedTextWidgetConstructor();
-	virtual ~FTypedElementExportedTextWidgetConstructor() override = default;
+	FExportedTextWidgetConstructor();
+	virtual ~FExportedTextWidgetConstructor() override = default;
 
 	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 	virtual const TypedElementDataStorage::FQueryConditions* GetQueryConditions() const override;
@@ -50,7 +51,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Exported text widget"))
-struct TEDSUI_API FTypedElementExportedTextWidgetTag : public FTypedElementDataStorageTag
+struct TEDSUI_API FExportedTextWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };

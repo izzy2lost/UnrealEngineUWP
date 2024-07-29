@@ -1,54 +1,51 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementPackagePathWidget.h"
+#include "Widgets/PackagePathWidget.h"
 
 #include "Elements/Columns/TypedElementPackageColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
-#include "Elements/Columns/TypedElementValueCacheColumns.h"
-#include "Elements/Framework/TypedElementQueryBuilder.h"
-#include "TypedElementSubsystems.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Widgets/Text/STextBlock.h"
 
 //
-// UTypedElementPackagePathWidgetFactory
+// UPackagePathWidgetFactory
 //
 
-void UTypedElementPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void UPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementDataStorage;
 
-	DataStorageUi.RegisterWidgetFactory<FTypedElementPackagePathWidgetConstructor>(FName(TEXT("General.Cell")), 
+	DataStorageUi.RegisterWidgetFactory<FPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
 		FColumn<FTypedElementPackagePathColumn>());
-	DataStorageUi.RegisterWidgetFactory<FTypedElementLoadedPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FLoadedPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
 		FColumn<FTypedElementPackageLoadedPathColumn>());
 }
 
 
 
 //
-// FTypedElementPackagePathWidgetConstructor
+// FPackagePathWidgetConstructor
 //
 
-FTypedElementPackagePathWidgetConstructor::FTypedElementPackagePathWidgetConstructor()
-	: Super(FTypedElementPackagePathWidgetConstructor::StaticStruct())
+FPackagePathWidgetConstructor::FPackagePathWidgetConstructor()
+	: Super(FPackagePathWidgetConstructor::StaticStruct())
 {
 }
 
-FTypedElementPackagePathWidgetConstructor::FTypedElementPackagePathWidgetConstructor(const UScriptStruct* InTypeInfo)
-	: Super(FTypedElementPackagePathWidgetConstructor::StaticStruct())
+FPackagePathWidgetConstructor::FPackagePathWidgetConstructor(const UScriptStruct* InTypeInfo)
+	: Super(FPackagePathWidgetConstructor::StaticStruct())
 {
 }
 
-TSharedPtr<SWidget> FTypedElementPackagePathWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FPackagePathWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock)
 		.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 		.Justification(ETextJustify::Right);
 }
 
-bool FTypedElementPackagePathWidgetConstructor::FinalizeWidget(
+bool FPackagePathWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	TypedElementRowHandle Row,
@@ -72,15 +69,15 @@ bool FTypedElementPackagePathWidgetConstructor::FinalizeWidget(
 
 
 //
-// FTypedElementPackagePathWidgetConstructor
+// FLoadedPackagePathWidgetConstructor
 //
 
-FTypedElementLoadedPackagePathWidgetConstructor::FTypedElementLoadedPackagePathWidgetConstructor()
-	: Super(FTypedElementLoadedPackagePathWidgetConstructor::StaticStruct())
+FLoadedPackagePathWidgetConstructor::FLoadedPackagePathWidgetConstructor()
+	: Super(FLoadedPackagePathWidgetConstructor::StaticStruct())
 {
 }
 
-bool FTypedElementLoadedPackagePathWidgetConstructor::FinalizeWidget(
+bool FLoadedPackagePathWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	TypedElementRowHandle Row,

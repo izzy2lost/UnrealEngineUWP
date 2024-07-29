@@ -5,10 +5,10 @@
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "UObject/ObjectMacros.h"
 
-#include "TypedElementGeneralRegistration.generated.h"
+#include "GeneralWidgetRegistrationFactory.generated.h"
 
 UCLASS()
-class TEDSUI_API UTypedElementGeneralRegistrationFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UGeneralWidgetRegistrationFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
@@ -18,7 +18,7 @@ public:
 	static const FName CellDefaultPurpose;
 	static const FName HeaderDefaultPurpose;
 
-	~UTypedElementGeneralRegistrationFactory() override = default;
+	~UGeneralWidgetRegistrationFactory() override = default;
 
 	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };

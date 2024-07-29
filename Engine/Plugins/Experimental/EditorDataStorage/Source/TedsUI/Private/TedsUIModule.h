@@ -2,18 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/GCObject.h"
-#include "UObject/ObjectPtr.h"
 
 class FReferenceCollector;
-class SWindow;
 
-class FTypedElementsDataStorageUiModule : public IModuleInterface, public FGCObject
+class FTedsUIModule : public IModuleInterface, public FGCObject
 {
 public:
-	~FTypedElementsDataStorageUiModule() override = default;
+	~FTedsUIModule() override = default;
 
 	//
 	// IModuleInterface

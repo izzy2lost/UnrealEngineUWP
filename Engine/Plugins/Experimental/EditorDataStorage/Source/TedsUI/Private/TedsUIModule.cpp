@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementsDataStorageUI.h"
+#include "TedsUIModule.h"
 
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
@@ -8,7 +8,7 @@
 #include "Misc/CoreDelegates.h"
 #include "UObject/UObjectGlobals.h"
 
-#define LOCTEXT_NAMESPACE "FTypedElementsDataStorageModule"
+#define LOCTEXT_NAMESPACE "TedsUIModule"
 
 namespace UE::TypedElementsDataStorageUI::Private
 {
@@ -38,25 +38,23 @@ namespace UE::TypedElementsDataStorageUI::Private
 	);
 }
 
-
-
-void FTypedElementsDataStorageUiModule::StartupModule()
+void FTedsUIModule::StartupModule()
 {
 }
 
-void FTypedElementsDataStorageUiModule::ShutdownModule()
+void FTedsUIModule::ShutdownModule()
 {
 }
 
-void FTypedElementsDataStorageUiModule::AddReferencedObjects(FReferenceCollector& Collector)
+void FTedsUIModule::AddReferencedObjects(FReferenceCollector& Collector)
 {
 }
 
-FString FTypedElementsDataStorageUiModule::GetReferencerName() const
+FString FTedsUIModule::GetReferencerName() const
 {
-	return TEXT("Typed Elements: Data Storage UI Module");
+	return TEXT("TEDS: Editor Data Storage UI Module");
 }
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FTypedElementsDataStorageUiModule, TedsUI)
+IMPLEMENT_MODULE(FTedsUIModule, TedsUI)

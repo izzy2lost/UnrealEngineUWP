@@ -3,36 +3,37 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
-#include "Internationalization/Text.h"
-#include "UObject/ObjectMacros.h"
 
-#include "TypedElementPackagePathWidget.generated.h"
+#include "PackagePathWidget.generated.h"
+
+class ITypedElementDataStorageInterface;
+class SWidget;
+class UScriptStruct;
 
 UCLASS()
-class TEDSUI_API UTypedElementPackagePathWidgetFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UPackagePathWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementPackagePathWidgetFactory() override = default;
+	~UPackagePathWidgetFactory() override = default;
 
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
 
 USTRUCT()
-struct TEDSUI_API FTypedElementPackagePathWidgetConstructor : public FTypedElementWidgetConstructor
+struct TEDSUI_API FPackagePathWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementPackagePathWidgetConstructor();
-	~FTypedElementPackagePathWidgetConstructor() override = default;
+	FPackagePathWidgetConstructor();
+	~FPackagePathWidgetConstructor() override = default;
 
 protected:
-	explicit FTypedElementPackagePathWidgetConstructor(const UScriptStruct* InTypeInfo);
+	explicit FPackagePathWidgetConstructor(const UScriptStruct* InTypeInfo);
 
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
@@ -40,13 +41,13 @@ protected:
 };
 
 USTRUCT()
-struct TEDSUI_API FTypedElementLoadedPackagePathWidgetConstructor : public FTypedElementPackagePathWidgetConstructor
+struct TEDSUI_API FLoadedPackagePathWidgetConstructor : public FPackagePathWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementLoadedPackagePathWidgetConstructor();
-	~FTypedElementLoadedPackagePathWidgetConstructor() override = default;
+	FLoadedPackagePathWidgetConstructor();
+	~FLoadedPackagePathWidgetConstructor() override = default;
 
 protected:
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,

@@ -3,25 +3,26 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
+#include "Framework/Text/TextLayout.h"
 #include "Internationalization/Text.h"
-#include "UObject/ObjectMacros.h"
 
-#include "TypedElementCounterWidget.generated.h"
+#include "CounterWidget.generated.h"
 
+class ITypedElementDataStorageInterface;
 class SWindow;
+class UScriptStruct;
 
 UCLASS()
-class TEDSUI_API UTypedElementCounterWidgetFactory : public UTypedElementDataStorageFactory
+class TEDSUI_API UCounterWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
 	static FName WigetPurpose;
 
-	UTypedElementCounterWidgetFactory();
-	~UTypedElementCounterWidgetFactory() override = default;
+	UCounterWidgetFactory();
+	~UCounterWidgetFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
@@ -44,13 +45,13 @@ private:
  * entry found and otherwise "MyCounters".
  */
 USTRUCT()
-struct TEDSUI_API FTypedElementCounterWidgetConstructor : public FTypedElementWidgetConstructor
+struct TEDSUI_API FCounterWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementCounterWidgetConstructor();
-	~FTypedElementCounterWidgetConstructor() override = default;
+	FCounterWidgetConstructor();
+	~FCounterWidgetConstructor() override = default;
 
 	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
@@ -64,7 +65,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Counter widget"))
-struct TEDSUI_API FTypedElementCounterWidgetColumn : public FTypedElementDataStorageColumn
+struct TEDSUI_API FCounterWidgetColumn : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
