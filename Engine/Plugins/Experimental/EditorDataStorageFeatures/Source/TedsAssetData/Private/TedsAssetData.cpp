@@ -186,10 +186,39 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 	AssetsDataTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
 	if (AssetsDataTable == TypedElementDataStorage::InvalidTableHandle)
 	{
-		AssetsDataTable = Database.RegisterTable<FAssetDataColumn_Experimental>(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
+		AssetsDataTable = Database.RegisterTable<FAssetDataColumn_Experimental, FUpdatedPathTag, FUpdatedAssetDataTag>(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
 	}
 
-	UpdateAssetsInPath = Database.RegisterQuery(
+
+	RemoveUpdatedPathTagQuery = Database.RegisterQuery(
+			TypedElementQueryBuilder::Select(
+				TEXT("FTedsAssetData: Remove Updated Path Tag"),
+				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
+				[](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+				{
+					Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<TypedElementRowHandle>(Rows, Context.GetRowCount()));
+				}
+			)
+			.Where()
+				.All<FUpdatedPathTag>()
+			.Compile()
+		);
+
+	RemoveUpdatedAssetDataTagQuery = Database.RegisterQuery(
+			TypedElementQueryBuilder::Select(
+				TEXT("FTedsAssetData: Remove Updated Asset Data Tag"),
+				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
+				[](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+				{
+					Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<TypedElementRowHandle>(Rows, Context.GetRowCount()));
+				}
+			)
+			.Where()
+				.All<FUpdatedAssetDataTag>()
+				.Compile()
+		);
+
+	UpdateAssetsInPathQuery = Database.RegisterQuery(
 		TypedElementQueryBuilder::Select()
 			.ReadWrite<FAssetsInPathColumn_Experimental>()
 			.Compile()
@@ -197,7 +226,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 
 	ResolveMissingAssetInPathQuery = Database.RegisterQuery(
 		TypedElementQueryBuilder::Select(
-			TEXT("Resolve Missing Asset In Path"),
+			TEXT("FTedsAssetData: Resolve Missing Asset In Path"),
 			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
 			[this](TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
 			{
@@ -223,7 +252,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 			}
 		)
 		.DependsOn()
-			.SubQuery(UpdateAssetsInPath)
+			.SubQuery(UpdateAssetsInPathQuery)
 		.Compile()
 	);
 
@@ -235,7 +264,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 
 	ResolveMissingParentPathQuery = Database.RegisterQuery(
 		TypedElementQueryBuilder::Select(
-			TEXT("Resolve Missing Parent Path Row"),
+			TEXT("FTedsAssetData: Resolve Missing Parent Path Row"),
 			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
 			[this](TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
 			{
@@ -346,26 +375,27 @@ FTedsAssetData::~FTedsAssetData()
 	LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
 #endif
 
-	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
+	// Not needed on a editor shut down
+	if (!IsEngineExitRequested())
 	{
-		Database.UnregisterQuery(ResolveMissingParentPathQuery);
-		Database.UnregisterQuery(UpdateParentToChildrenAssetPathQuery);
-		Database.UnregisterQuery(ResolveMissingAssetInPathQuery);
-		Database.UnregisterQuery(UpdateAssetsInPath);
-
-
-		AssetRegistry->OnAssetsAdded().RemoveAll(this);
-		AssetRegistry->OnAssetsRemoved().RemoveAll(this);
-		AssetRegistry->OnAssetsUpdated().RemoveAll(this);
-		AssetRegistry->OnAssetsUpdatedOnDisk().RemoveAll(this);
-		AssetRegistry->OnAssetRenamed().RemoveAll(this);
-		AssetRegistry->OnPathsAdded().RemoveAll(this);
-		AssetRegistry->OnPathsRemoved().RemoveAll(this);
-	
-
-		// Not needed on a editor shut down
-		if (!IsEngineExitRequested())
+		if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
 		{
+			Database.UnregisterQuery(ResolveMissingParentPathQuery);
+			Database.UnregisterQuery(UpdateParentToChildrenAssetPathQuery);
+			Database.UnregisterQuery(ResolveMissingAssetInPathQuery);
+			Database.UnregisterQuery(UpdateAssetsInPathQuery);
+			Database.UnregisterQuery(RemoveUpdatedAssetDataTagQuery);
+			Database.UnregisterQuery(RemoveUpdatedPathTagQuery);
+
+
+			AssetRegistry->OnAssetsAdded().RemoveAll(this);
+			AssetRegistry->OnAssetsRemoved().RemoveAll(this);
+			AssetRegistry->OnAssetsUpdated().RemoveAll(this);
+			AssetRegistry->OnAssetsUpdatedOnDisk().RemoveAll(this);
+			AssetRegistry->OnAssetRenamed().RemoveAll(this);
+			AssetRegistry->OnPathsAdded().RemoveAll(this);
+			AssetRegistry->OnPathsRemoved().RemoveAll(this);
+	
 			AssetRegistry->EnumerateAllCachedPaths([this](FName InPath)
 				{
 					const TypedElementDataStorage::IndexHash PathHash = TypedElementDataStorage::GenerateIndexHash(InPath);
@@ -499,6 +529,7 @@ void FTedsAssetData::OnAssetsUpdated(TConstArrayView<FAssetData> InAssetsUpdated
 		if (Database.IsRowAssigned(Row))
 		{
 			Database.GetColumn<FAssetDataColumn_Experimental>(Row)->AssetData = Asset;
+			Database.AddColumn<FUpdatedAssetDataTag>(Row);
 		}
 	}
 }
@@ -518,6 +549,7 @@ void FTedsAssetData::OnAssetsUpdatedOnDisk(TConstArrayView<FAssetData> InAssetsU
 		if (Database.IsRowAssigned(Row))
 		{
 			Database.GetColumn<FAssetDataColumn_Experimental>(Row)->AssetData = Asset;
+			Database.AddColumn<FUpdatedAssetDataTag>(Row);
 		}
 	}
 }
@@ -574,6 +606,7 @@ void FTedsAssetData::OnAssetRenamed(const FAssetData& InAsset, const FString& In
 			}
 		}
 
+		Database.AddColumn<FUpdatedPathTag>(Row);
 		Database.ReindexRow(OldAssetHash, NewAssetHash, Row);
 	}
 }

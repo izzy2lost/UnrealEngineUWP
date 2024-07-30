@@ -20,10 +20,18 @@ public class TedsAssetData : ModuleRules
 				new string[]
 				{
 					"AssetRegistry",
+					"ContentBrowserData",
 					"Core",
 					"CoreUObject",
 					"Engine",
 					"TypedElementFramework",
+					"UnrealEd",
+				});
+
+			PublicDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"Projects",
 				});
 
 		}

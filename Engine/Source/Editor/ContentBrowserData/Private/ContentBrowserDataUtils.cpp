@@ -72,6 +72,8 @@ int32 ContentBrowserDataUtils::GetMaxFolderDepthRequiredForAttributeFilter()
  
 bool ContentBrowserDataUtils::PathPassesAttributeFilter(const FStringView InPath, const int32 InAlreadyCheckedDepth, const EContentBrowserItemAttributeFilter InAttributeFilter)
 {
+	// Note Keep the implementation of that function pure as it is called from outside of the game thread
+
 	static const FString ProjectContentRootName = TEXT("Game");
 	static const FString EngineContentRootName = TEXT("Engine");
 	static const FString LocalizationFolderName = TEXT("L10N");

@@ -2,6 +2,7 @@
 
 #include "TedsAssetDataModule.h"
 
+#include "CB/TedsAssetDataCBDataSource.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
 #include "Modules/ModuleManager.h"
@@ -107,7 +108,10 @@ void FTedsAssetDataModule::ProcessDependentEvents()
 
 void FTedsAssetDataModule::InitAssetRegistryStorage()
 {
-	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(*UTypedElementRegistry::GetInstance()->GetMutableDataStorage());
+	ITypedElementDataStorageInterface& MutableDataStorage = *UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+	AssetDataCBDataSource = MakeUnique<Private::FTedsAssetDataCBDataSource>(MutableDataStorage);
+	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(MutableDataStorage);
 }
 
 }

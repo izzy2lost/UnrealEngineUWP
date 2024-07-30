@@ -107,3 +107,35 @@ struct FVersePathColumn final : public FTypedElementDataStorageColumn
 	
 	UE::Core::FVersePath VersePath;
 };
+
+// Used to notify the dependent queries of the update to the path of the row
+USTRUCT()
+struct FUpdatedPathTag : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+// Used to notify the dependent queries of a update to the asset data
+USTRUCT()
+struct FUpdatedAssetDataTag : public FTypedElementDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(meta = (DisplayName = "CB Item Path"))
+struct FVirtualPathColumn_Experimental : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName VirtualPath;
+};
+
+USTRUCT(meta = (DisplayName = "Name"))
+struct FItemNameColumn_Experimental : public FTypedElementDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName Name;
+};

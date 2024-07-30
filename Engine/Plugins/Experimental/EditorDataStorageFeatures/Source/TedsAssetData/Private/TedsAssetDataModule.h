@@ -11,6 +11,7 @@ namespace UE::EditorDataStorage::AssetData
 namespace Private
 {
 	class FTedsAssetData;
+	class FTedsAssetDataCBDataSource;
 }
 
 class FTedsAssetDataModule : public IModuleInterface
@@ -36,6 +37,7 @@ public:
 private:
 	void InitAssetRegistryStorage();
 
+	TUniquePtr<Private::FTedsAssetDataCBDataSource> AssetDataCBDataSource;
 	TUniquePtr<Private::FTedsAssetData> AssetRegistryStorage;
 };
 

@@ -40,10 +40,13 @@ private:
 	TypedElementDataStorage::TableHandle PathsTable = TypedElementDataStorage::InvalidTableHandle;
 	TypedElementDataStorage::TableHandle AssetsDataTable = TypedElementDataStorage::InvalidTableHandle;
 
+	TypedElementDataStorage::QueryHandle UpdateAssetsInPathQuery = TypedElementDataStorage::InvalidQueryHandle;
 	TypedElementDataStorage::QueryHandle UpdateAssetsInPath = TypedElementDataStorage::InvalidQueryHandle;
 	TypedElementDataStorage::QueryHandle ResolveMissingAssetInPathQuery = TypedElementDataStorage::InvalidQueryHandle;
 	TypedElementDataStorage::QueryHandle UpdateParentToChildrenAssetPathQuery = TypedElementDataStorage::InvalidQueryHandle;
 	TypedElementDataStorage::QueryHandle ResolveMissingParentPathQuery = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle RemoveUpdatedPathTagQuery = TypedElementDataStorage::InvalidQueryHandle;
+	TypedElementDataStorage::QueryHandle RemoveUpdatedAssetDataTagQuery = TypedElementDataStorage::InvalidQueryHandle;
 };
 
 }
