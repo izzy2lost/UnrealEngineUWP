@@ -126,6 +126,9 @@ protected:
 
 	FPostPipelineImportData PostPipelineImportData;
 #endif
+
+	void CacheActiveJointUids();
+	TArray<FString> Cached_ActiveJointUids;
 };
 
 
