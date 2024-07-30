@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/FrameRate.h"
+#include "Misc/Timecode.h"
 
 //THIRDPARTY_INCLUDES_START
 #include <AvidDNxCodec.h>
@@ -50,6 +51,7 @@ struct FAvidDNxEncoderOptions
 		, FrameRate(30, 1)
 		, bCompress(true)
 		, NumberOfEncodingThreads(0)
+		, bDropFrameTimecode(false)
 	{}
 
 	/** The absolute path on disk to try and save the video file to. */
@@ -75,6 +77,12 @@ struct FAvidDNxEncoderOptions
 	
 	/** Number of Encoding Threads. Must be at least 1. */
 	uint32 NumberOfEncodingThreads;
+
+	/** If true, timecode track will use drop frame notation for the 29.97 frame rate. */
+	bool bDropFrameTimecode;
+
+	/** The timecode to start the movie at. */
+	FTimecode StartTimecode;
 };
 
 /**

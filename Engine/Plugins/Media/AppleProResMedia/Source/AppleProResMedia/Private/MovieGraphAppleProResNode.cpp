@@ -58,25 +58,25 @@ FSlateIcon UMovieGraphAppleProResNode::GetIconAndTint(FLinearColor& OutColor) co
 }
 #endif // WITH_EDITOR
 
-TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAppleProResNode::Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO)
+TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAppleProResNode::Initialize_GameThread(const FMovieGraphVideoNodeInitializationContext& InInitializationContext)
 {
 	bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	UMovieGraphGlobalOutputSettingNode* OutputSetting =
-		InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+		InInitializationContext.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 
 	bIncludeCDOs = false;
 	const UMovieGraphAppleProResNode* EvaluatedNode = Cast<UMovieGraphAppleProResNode>(
-		InEvaluatedConfig->GetSettingForBranch(GetClass(), FName(InBranchName), bIncludeCDOs, bExactMatch));
-	checkf(EvaluatedNode, TEXT("Apple ProRes node could not be found in the graph in branch [%s]."), *InBranchName);
+		InInitializationContext.EvaluatedConfig->GetSettingForBranch(GetClass(), FName(InInitializationContext.PassData->Key.RootBranchName), bIncludeCDOs, bExactMatch));
+	checkf(EvaluatedNode, TEXT("Apple ProRes node could not be found in the graph in branch [%s]."), *InInitializationContext.PassData->Key.RootBranchName.ToString());
 	
-	const FFrameRate SourceFrameRate = InPipeline->GetDataSourceInstance()->GetDisplayRate();
+	const FFrameRate SourceFrameRate = InInitializationContext.Pipeline->GetDataSourceInstance()->GetDisplayRate();
 	const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
 	
 	FAppleProResEncoderOptions Options;
-	Options.OutputFilename = InFileName;
-	Options.Width = InResolution.X;
-	Options.Height = InResolution.Y;
+	Options.OutputFilename = InInitializationContext.FileName;
+	Options.Width = InInitializationContext.PassData->Value->GetSize().X;
+	Options.Height = InInitializationContext.PassData->Value->GetSize().Y;
 	Options.FrameRate = EffectiveFrameRate;
 	Options.Codec = EvaluatedNode->Quality;
 	Options.ColorPrimaries = EAppleProResEncoderColorPrimaries::CD_HDREC709; // Force Rec 709 for now
@@ -85,12 +85,12 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAppleProResNode::Init
 	Options.bDropFrameTimecode = bDropFrameTimecode;
 
 	// If OCIO is enabled, don't do additional color conversion
-	Options.bConvertToSrgb = !(EvaluatedNode->bOverride_OCIOConfiguration && EvaluatedNode->OCIOConfiguration.bIsEnabled && bAllowOCIO);
+	Options.bConvertToSrgb = !(EvaluatedNode->bOverride_OCIOConfiguration && EvaluatedNode->OCIOConfiguration.bIsEnabled && InInitializationContext.bAllowOCIO);
 	
 	TUniquePtr<FProResWriter> NewWriter = MakeUnique<FProResWriter>();
 	NewWriter->Writer = MakeUnique<FAppleProResEncoder>(Options);
 
-	CachedPipeline = InPipeline;
+	CachedPipeline = InInitializationContext.Pipeline;
 	
 	return NewWriter;
 }

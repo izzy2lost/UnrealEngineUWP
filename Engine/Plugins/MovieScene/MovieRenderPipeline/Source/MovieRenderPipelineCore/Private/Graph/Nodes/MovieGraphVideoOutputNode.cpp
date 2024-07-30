@@ -255,13 +255,16 @@ UMovieGraphVideoOutputNode::FMovieGraphCodecWriterWithPromise* UMovieGraphVideoO
 	
 	if (!OutputWriter)
 	{
-		// Create a new writer for this file name (and output format settings)
-		TUniquePtr<MovieRenderGraph::IVideoCodecWriter> NewWriter = Initialize_GameThread(
-			InPipeline, EvaluatedConfig, InRenderPassData.Key.RootBranchName.ToString(), FinalFilePath,
-			InRenderPassData.Value->GetSize(), InRenderPassData.Value->GetType(), InRenderPassData.Value->GetPixelLayout(),
-			InRenderPassData.Value->GetBitDepth(), InRenderPassData.Value->GetNumChannels(), Payload->bAllowOCIO);
+		FMovieGraphVideoNodeInitializationContext InitializationContext;
+		InitializationContext.Pipeline = InPipeline;
+		InitializationContext.EvaluatedConfig = EvaluatedConfig;
+		InitializationContext.TraversalContext = &InRawFrameData->TraversalContext;
+		InitializationContext.PassData = &InRenderPassData;
+		InitializationContext.FileName = FinalFilePath;
+		InitializationContext.bAllowOCIO = Payload->bAllowOCIO;
 
-		if (NewWriter)
+		// Create a new writer for this file name (and output settings)
+		if (TUniquePtr<MovieRenderGraph::IVideoCodecWriter> NewWriter = Initialize_GameThread(InitializationContext))
 		{
 			// Store the stable filename this was generated with so we can match them up later.
 			NewWriter->StableFileName = StableFilePath;

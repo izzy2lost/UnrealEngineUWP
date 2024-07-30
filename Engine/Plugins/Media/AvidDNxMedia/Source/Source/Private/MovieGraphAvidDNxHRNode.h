@@ -25,7 +25,7 @@ class UMovieGraphAvidDNxHRNode : public UMovieGraphVideoOutputNode
 	GENERATED_BODY()
 
 public:
-	UMovieGraphAvidDNxHRNode() = default;
+	UMovieGraphAvidDNxHRNode();
 
 	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
 
@@ -39,7 +39,7 @@ public:
 
 protected:
 	// UMovieGraphVideoOutputNode Interface
-	virtual TUniquePtr<MovieRenderGraph::IVideoCodecWriter> Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO) override;
+	virtual TUniquePtr<MovieRenderGraph::IVideoCodecWriter> Initialize_GameThread(const FMovieGraphVideoNodeInitializationContext& InInitializationContext) override;
 	virtual bool Initialize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) override;
 	virtual void WriteFrame_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter, FImagePixelData* InPixelData, TArray<FMovieGraphPassData>&& InCompositePasses, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName) override;
 	virtual void BeginFinalize_EncodeThread(MovieRenderGraph::IVideoCodecWriter* InWriter) override;
@@ -63,6 +63,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_Quality : 1;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_CustomTimecodeStart : 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
+	uint8 bOverride_bDropFrameTimecode : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_OCIOConfiguration : 1;
@@ -77,6 +83,14 @@ public:
 	/**  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Avid DNxHR", meta=(EditCondition="bOverride_Quality"))
 	EAvidDNxEncoderQuality Quality = EAvidDNxEncoderQuality::HQ_8bit;
+
+	/** Start the timecode at a specific value, rather than the value coming from the Level Sequence. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avid DNxHR", meta = (EditCondition = "bOverride_CustomTimecodeStart"))
+	FTimecode CustomTimecodeStart;
+
+	/** Whether the embedded timecode track should be written using drop-frame format. Only applicable if the sequence framerate is 29.97. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Avid DNxHR", DisplayName = "Use DF Timecode if 29.97 FPS", meta = (EditCondition = "bOverride_bDropFrameTimecode"))
+	bool bDropFrameTimecode;
 
 	/**
 	* OCIO configuration/transform settings.

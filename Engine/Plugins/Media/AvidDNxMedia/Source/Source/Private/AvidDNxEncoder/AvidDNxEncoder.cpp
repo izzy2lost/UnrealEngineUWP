@@ -342,6 +342,15 @@ bool FAvidDNxEncoder::InitializeMXFWriter()
 	};
 	const DNXMXF_Rational_t AspectRatio = AvidDNx::AspectRatioFromResolution(Options.Width, Options.Height);
 
+	const FFrameRate TwentyNineNineSeven = FFrameRate(30000, 1001);
+	DNXMXF_TimeCodeComponent_t TimeCodeComponent = DNXMXF_TimeCodeComponent_t(
+		Options.StartTimecode.Hours,
+		Options.StartTimecode.Minutes,
+		Options.StartTimecode.Seconds,
+		Options.StartTimecode.Frames,
+		Options.StartTimecode.bDropFrameFormat && (Options.FrameRate == TwentyNineNineSeven)
+	);
+
 	const DNXMXF_WriterParams_t MXFwriterParams
 	{
 		sizeof(DNXMXF_WriterParams_t),
@@ -356,7 +365,8 @@ bool FAvidDNxEncoder::InitializeMXFWriter()
 		nullptr,
 		AspectRatio,
 		0, 0,
-		Options.bCompress ? DNXMXF_ESSENCE_DNXHR_HD : DNXMXF_ESSENCE_DNXUNCOMPRESSED
+		Options.bCompress ? DNXMXF_ESSENCE_DNXHR_HD : DNXMXF_ESSENCE_DNXUNCOMPRESSED,
+		&TimeCodeComponent
 	};
 
 	if (DNXMXF_CreateWriter(&MXFoptions, &MXFwriterParams, &MXFwriter) != DNXMXF_SUCCESS)

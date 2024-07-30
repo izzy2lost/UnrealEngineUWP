@@ -13,6 +13,11 @@
 #include "MovieRenderPipelineCoreModule.h"
 #include "Styling/AppStyle.h"
 
+UMovieGraphAvidDNxHRNode::UMovieGraphAvidDNxHRNode()
+	: bDropFrameTimecode(true)
+{
+}
+
 EMovieGraphBranchRestriction UMovieGraphAvidDNxHRNode::GetBranchRestriction() const
 {
 	return EMovieGraphBranchRestriction::Globals;
@@ -50,29 +55,49 @@ FSlateIcon UMovieGraphAvidDNxHRNode::GetIconAndTint(FLinearColor& OutColor) cons
 	return AvidDNxHRIcon;
 }
 
-TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initialize_GameThread(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig> InEvaluatedConfig, const FString& InBranchName, const FString& InFileName, FIntPoint InResolution, EImagePixelType InPixelType, ERGBFormat InPixelFormat, uint8 InBitDepth, uint8 InNumChannels, bool bAllowOCIO)
+TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initialize_GameThread(const FMovieGraphVideoNodeInitializationContext& InInitializationContext)
 {
 	bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
 	UMovieGraphGlobalOutputSettingNode* OutputSetting =
-		InEvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+		InInitializationContext.EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 
 	bIncludeCDOs = false;
 	const UMovieGraphAvidDNxHRNode* EvaluatedNode = Cast<UMovieGraphAvidDNxHRNode>(
-		InEvaluatedConfig->GetSettingForBranch(GetClass(), FName(InBranchName), bIncludeCDOs, bExactMatch));
-	checkf(EvaluatedNode, TEXT("Avid DNxHR node could not be found in the graph in branch [%s]."), *InBranchName);
+		InInitializationContext.EvaluatedConfig->GetSettingForBranch(GetClass(), InInitializationContext.PassData->Key.RootBranchName, bIncludeCDOs, bExactMatch));
+	checkf(EvaluatedNode, TEXT("Avid DNxHR node could not be found in the graph in branch [%s]."), *InInitializationContext.PassData->Key.RootBranchName.ToString());
 	
-	const FFrameRate SourceFrameRate = InPipeline->GetDataSourceInstance()->GetDisplayRate();
+	const FFrameRate SourceFrameRate = InInitializationContext.Pipeline->GetDataSourceInstance()->GetDisplayRate();
 	const FFrameRate EffectiveFrameRate = UMovieGraphBlueprintLibrary::GetEffectiveFrameRate(OutputSetting, SourceFrameRate);
+
+	// Determine the timecode that the movie should be started at
+	FTimecode StartTimecode;
+	if (EvaluatedNode->bOverride_CustomTimecodeStart)
+	{
+		const int32 OutputFrameNumber = InInitializationContext.TraversalContext->Time.OutputFrameNumber;
+
+		// When using a custom timecode start, just use the root-level frame number (relative to zero) offset by the custom timecode start
+		StartTimecode = FTimecode::FromFrameNumber(
+			OutputFrameNumber + EvaluatedNode->CustomTimecodeStart.ToFrameNumber(EffectiveFrameRate).Value,
+			EffectiveFrameRate,
+			EvaluatedNode->bDropFrameTimecode);
+	}
+	else
+	{
+		// This is the frame number on the global time, can have overlaps (between encoders) or repeats when using handle frames/slowmo.
+		StartTimecode = InInitializationContext.TraversalContext->Time.RootTimeCode;
+	}
 	
 	FAvidDNxEncoderOptions Options;
-	Options.OutputFilename = InFileName;
-	Options.Width = InResolution.X;
-	Options.Height = InResolution.Y;
+	Options.OutputFilename = InInitializationContext.FileName;
+	Options.Width = InInitializationContext.PassData->Value->GetSize().X;
+	Options.Height = InInitializationContext.PassData->Value->GetSize().Y;
 	Options.Quality = EvaluatedNode->Quality;
 	Options.FrameRate = EffectiveFrameRate;
 	Options.bCompress = true;
 	Options.NumberOfEncodingThreads = 4;
+	Options.bDropFrameTimecode = EvaluatedNode->bDropFrameTimecode;
+	Options.StartTimecode = StartTimecode;
 
 	// If OCIO is enabled, don't do additional color conversion. RGB444 12-bit is never converted to sRGB.
 	if (EvaluatedNode->Quality == EAvidDNxEncoderQuality::RGB444_12bit)
@@ -81,13 +106,13 @@ TUniquePtr<MovieRenderGraph::IVideoCodecWriter> UMovieGraphAvidDNxHRNode::Initia
 	}
 	else
 	{
-		Options.bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && bAllowOCIO);
+		Options.bConvertToSrgb = !(bOverride_OCIOConfiguration && OCIOConfiguration.bIsEnabled && InInitializationContext.bAllowOCIO);
 	}
 	
 	TUniquePtr<FAvidWriter> NewWriter = MakeUnique<FAvidWriter>();
 	NewWriter->Writer = MakeUnique<FAvidDNxEncoder>(Options);
 
-	CachedPipeline = InPipeline;
+	CachedPipeline = InInitializationContext.Pipeline;
 	
 	return NewWriter;
 }
