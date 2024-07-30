@@ -16,6 +16,7 @@
 #include "MaterialEditorSettings.h"
 #include "Animation/CurveSequence.h"
 
+class FPreviewProfileController;
 class FMaterialEditorViewportClient;
 class IMaterialEditor;
 class SMaterialEditorUIPreviewZoomer;
@@ -117,6 +118,9 @@ private:
 
 	/** Preview Scene - uses advanced preview settings */
 	TSharedPtr<class FAdvancedPreviewScene> AdvancedPreviewScene;
+
+	/** Handles Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	/** Post process volume actor. */
 	TObjectPtr<class APostProcessVolume> PostProcessVolumeActor;

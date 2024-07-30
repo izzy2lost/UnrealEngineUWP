@@ -4,6 +4,7 @@
 
 #include "WaterWavesEditorToolkit.h"
 #include "AdvancedPreviewScene.h"
+#include "PreviewProfileController.h"
 #include "WaterBodyCustomActor.h"
 #include "WaterEditorSettings.h"
 #include "WaterSplineComponent.h"
@@ -176,12 +177,13 @@ TSharedPtr<SWidget> SWaterWavesEditorViewport::BuildViewportToolbar()
 				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 			}
 
-			// Add the Settings submenu.
+			// Add the "Preview Profile" sub menu.
 			{
-				// TODO: needs some shared function e.g. in UnrealEdToolbar.cpp since this menu is quite common
-				/*FToolMenuEntry SettingsSubmenu = ;
-				SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-				RightSection.AddEntry(SettingsSubmenu);*/
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
 			}
 		}
 	}

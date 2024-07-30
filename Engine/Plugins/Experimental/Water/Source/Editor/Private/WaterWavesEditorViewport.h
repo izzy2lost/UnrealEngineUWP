@@ -6,6 +6,7 @@
 #include "SAssetEditorViewport.h"
 #include "SCommonEditorViewportToolbarBase.h"
 
+class FPreviewProfileController;
 class FWaterWavesEditorToolkit;
 class FAdvancedPreviewScene;
 class FEditorViewportClient;
@@ -52,6 +53,9 @@ private:
 
 	/** Editor viewport client */
 	TSharedPtr<FEditorViewportClient> EditorViewportClient;
+
+	/** Handles Preview Profiles */
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	TWeakPtr<FWaterWavesEditorToolkit> WaterWavesEditorToolkitPtr;
 

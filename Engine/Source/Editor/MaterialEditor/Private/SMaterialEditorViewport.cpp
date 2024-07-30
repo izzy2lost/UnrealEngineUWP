@@ -49,6 +49,7 @@
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditor"
+#include "PreviewProfileController.h"
 #include "UnrealWidget.h"
 
 /** Viewport Client for the preview viewport */
@@ -1011,22 +1012,13 @@ TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 					RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 				}
 
-				// Add the Settings submenu.
+				// Add the "Preview Profile" sub menu.
 				{
-					//CreatePerformanceAndScalabilitySubmenu
-					FToolMenuEntry SettingsSubmenu = FToolMenuEntry::InitSubMenu(
-						"Settings",
-						LOCTEXT("SettingsSubmenuLabel", "Settings"),
-						LOCTEXT("SettingsSubmenuTooltip", "Show flags related to the current viewport"),
-						FNewToolMenuDelegate::CreateLambda(
-							[](UToolMenu* InMenu) -> void
-							{
-								//TODO: fill submenu
-							}
-						)
-					);
-					SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-					RightSection.AddEntry(SettingsSubmenu);
+					PreviewProfileController = MakeShared<FPreviewProfileController>();
+					FToolMenuEntry PreviewProfileSubmenu =
+						UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+					PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+					RightSection.AddEntry(PreviewProfileSubmenu);
 				}
 			}
 		}

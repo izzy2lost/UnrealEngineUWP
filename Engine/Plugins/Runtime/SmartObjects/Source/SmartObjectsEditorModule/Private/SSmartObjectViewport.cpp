@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SSmartObjectViewport.h"
+
+#include "PreviewProfileController.h"
 #include "SmartObjectAssetEditorViewportClient.h"
 #include "SSmartObjectViewportToolbar.h"
 #include "SmartObjectAssetToolkit.h"
@@ -131,12 +133,13 @@ TSharedPtr<SWidget> SSmartObjectViewport::BuildViewportToolbar()
 				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
 			}
 
-			// Add the Settings submenu.
+			// Add the "Preview Profile" sub menu.
 			{
-				// TODO: needs some shared function e.g. in UnrealEdToolbar.cpp since this menu is quite common
-				/*FToolMenuEntry SettingsSubmenu = ;
-				SettingsSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
-				RightSection.AddEntry(SettingsSubmenu);*/
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
 			}
 		}
 	}
