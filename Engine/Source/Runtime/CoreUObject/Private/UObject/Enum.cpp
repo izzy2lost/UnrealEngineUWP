@@ -7,6 +7,7 @@
 #include "UObject/Class.h"
 #include "UObject/Package.h"
 #include "UObject/MetaData.h"
+#include "UObject/PropertyHelper.h"
 #include "UObject/PropertyPortFlags.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/DevObjectVersion.h"
@@ -14,7 +15,7 @@
 #include "UObject/CoreRedirects.h"
 #include "UObject/LinkerLoad.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogEnum, Log, All);
+DEFINE_LOG_CATEGORY(LogEnum);
 
 /*-----------------------------------------------------------------------------
 	UEnum implementation.

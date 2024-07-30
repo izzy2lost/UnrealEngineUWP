@@ -8,6 +8,13 @@
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
 
+#if WITH_EDITORONLY_DATA
+#include "UObject/PropertyBagRepository.h"
+#endif
+
+// Implemented in EnumProperty.cpp
+bool TryLoadEnumValueByName(FStructuredArchive::FSlot Slot, FArchive& UnderlyingArchive, UEnum* Enum, FName& OutEnumValueName, int64& OutEnumValue);
+
 /*-----------------------------------------------------------------------------
 	FByteProperty.
 -----------------------------------------------------------------------------*/
@@ -57,24 +64,18 @@ void FByteProperty::SerializeItem( FStructuredArchive::FSlot Slot, void* Value, 
 	else if (UnderlyingArchive.IsLoading())
 	{
 		FName EnumValueName;
-		Slot << EnumValueName;
-		// Make sure enum is properly populated
-		if( Enum->HasAnyFlags(RF_NeedLoad) )
+		int64 EnumValue = 0;
+		if (!TryLoadEnumValueByName(Slot, UnderlyingArchive, Enum, EnumValueName, EnumValue))
 		{
-			UnderlyingArchive.Preload(Enum);
+		#if WITH_EDITORONLY_DATA
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			if (UNLIKELY(SerializeContext->bTrackUnknownEnumNames))
+			{
+				UE::FPropertyBagRepository::Get().AddUnknownEnumName(SerializeContext->SerializedObject, Enum, UE::FindOriginalType(this), EnumValueName);
+			}
+		#endif
 		}
-
-		// There's no guarantee EnumValueName is still present in Enum, in which case Value will be set to the enum's max value.
-		// On save, it will then be serialized as NAME_None.
-		int32 EnumIndex = Enum->GetIndexByName(EnumValueName, EGetByNameFlags::ErrorIfNotFound);
-		if (EnumIndex == INDEX_NONE)
-		{
-			*(uint8*)Value = IntCastChecked<uint8>(Enum->GetMaxEnumValue());
-		}
-		else
-		{
-			*(uint8*)Value = IntCastChecked<uint8>(Enum->GetValueByIndex(EnumIndex));
-		}
+		*(uint8*)Value = IntCastChecked<uint8>(EnumValue);
 	}
 	// Saving
 	else
@@ -473,7 +474,13 @@ bool FByteProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag*
 		return true;
 	}
 
+#if WITH_EDITORONLY_DATA
+	Enum = StaticEnum<EFallbackEnum>();
+	SetMetaData(UE::NAME_OriginalType, *WriteToString<256>(Type.GetParameter(0)));
+	return true;
+#else
 	return false;
+#endif
 }
 
 void FByteProperty::SaveTypeName(UE::FPropertyTypeNameBuilder& Type) const

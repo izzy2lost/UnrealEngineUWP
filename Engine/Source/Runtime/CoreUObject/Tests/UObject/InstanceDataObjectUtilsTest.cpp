@@ -210,6 +210,13 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 		return Builder.Build();
 	};
 
+	const auto SavePropertyTypeName = [](const FProperty* Property)
+	{
+		FPropertyTypeNameBuilder Builder;
+		Property->SaveTypeName(Builder);
+		return Builder.Build();
+	};
+
 	UObject* Owner = NewObject<UTestInstanceDataObjectClass>();
 
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
@@ -228,6 +235,10 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	AltStructData.Grain = ETestInstanceDataObjectGrainAlternate::Corn;
 	AltStructData.Fruit = ETestInstanceDataObjectFruitAlternate::Orange;
 	AltStructData.Direction = ETestInstanceDataObjectDirectionAlternate::North | ETestInstanceDataObjectDirectionAlternate::West;
+	AltStructData.GrainTypeChange = ETestInstanceDataObjectGrainAlternate::Corn;
+	AltStructData.FruitTypeChange = ETestInstanceDataObjectFruitAlternate::Orange;
+	AltStructData.GrainTypeAndPropertyChange = ETestInstanceDataObjectGrainAlternateEnumClass::Corn;
+	AltStructData.FruitTypeAndPropertyChange = ETestInstanceDataObjectFruitAlternateNamespace::Orange;
 	AltStructData.Point.U = 1;
 	AltStructData.Point.V = 2;
 	AltStructData.Point.W = 3;
@@ -269,6 +280,11 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.Grain == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.Fruit == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
+	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
+	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
+	//CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
+	//CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Point.X == 0);
 	CHECK(StructData.Point.Y == 0);
 	CHECK(StructData.Point.Z == 0);
@@ -313,6 +329,23 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 		#endif
 		}
 	}
+	// TODO: Enum type name changes are not recorded as a conversion.
+	//{
+	//	FSerializedPropertyPathScope Path(SerializeContext, {"GrainTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("GrainTypeChange")))});
+	//	CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	//}
+	//{
+	//	FSerializedPropertyPathScope Path(SerializeContext, {"FruitTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("FruitTypeChange")))});
+	//	CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	//}
+	{
+		FSerializedPropertyPathScope Path(SerializeContext, {"GrainTypeAndPropertyChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("GrainTypeAndPropertyChange")))});
+		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	}
+	{
+		FSerializedPropertyPathScope Path(SerializeContext, {"FruitTypeAndPropertyChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("FruitTypeAndPropertyChange")))});
+		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	}
 	FPropertyBagRepository::Get().DestroyOuterBag(Owner);
 
 #if WITH_TEXT_ARCHIVE_SUPPORT
@@ -333,6 +366,11 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.Grain == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.Fruit == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
+	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
+	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
+	//CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
+	//CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Point.X == 0);
 	CHECK(StructData.Point.Y == 0);
 	CHECK(StructData.Point.Z == 0);
@@ -341,6 +379,189 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 #endif
 
 	// Testing of the unknown property tree is skipped because it is not supported by the text format.
+#endif // WITH_TEXT_ARCHIVE_SUPPORT
+}
+
+TEST_CASE_NAMED(FTrackUnknownEnumNamesTest, "CoreUObject::Serialization::TrackUnknownEnumNames", "[CoreUObject][EngineFilter]")
+{
+	const auto MakePropertyTypeName = [](const UEnum* Enum)
+	{
+		FPropertyTypeNameBuilder Builder;
+		Builder.AddPath(Enum);
+		return Builder.Build();
+	};
+
+	const auto ParsePropertyTypeName = [](const TCHAR* Name) -> FPropertyTypeName
+	{
+		FPropertyTypeNameBuilder Builder;
+		CHECK(Builder.TryParse(Name));
+		return Builder.Build();
+	};
+
+	UObject* Owner = NewObject<UTestInstanceDataObjectClass>();
+
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	TGuardValue<UObject*> SerializedObjectScope(SerializeContext->SerializedObject, Owner);
+	TGuardValue<bool> TrackSerializedPropertyPathScope(SerializeContext->bTrackSerializedPropertyPath, true);
+	TGuardValue<bool> TrackUnknownPropertiesScope(SerializeContext->bTrackUnknownProperties, true);
+	TGuardValue<bool> TrackUnknownEnumNamesScope(SerializeContext->bTrackUnknownEnumNames, true);
+	TGuardValue<bool> TrackImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
+	FSerializedPropertyPathScope SerializedObjectPath(SerializeContext, {"Struct"});
+
+	FTestInstanceDataObjectStructAlternate AltStructData;
+	AltStructData.Grain = ETestInstanceDataObjectGrainAlternate::Rye;
+	AltStructData.Fruit = ETestInstanceDataObjectFruitAlternate::Cherry;
+	AltStructData.Direction = ETestInstanceDataObjectDirectionAlternate::North | ETestInstanceDataObjectDirectionAlternate::West |
+		ETestInstanceDataObjectDirectionAlternate::Up | ETestInstanceDataObjectDirectionAlternate::Down;
+	AltStructData.GrainFromEnumClass = ETestInstanceDataObjectGrainAlternateEnumClass::Corn;
+	AltStructData.FruitFromNamespace = ETestInstanceDataObjectFruitAlternateNamespace::Orange;
+	AltStructData.GrainTypeChange = ETestInstanceDataObjectGrainAlternate::Corn;
+	AltStructData.FruitTypeChange = ETestInstanceDataObjectFruitAlternate::Orange;
+	AltStructData.DeletedGrain = ETestInstanceDataObjectGrainAlternate::Rice;
+	AltStructData.DeletedFruit = ETestInstanceDataObjectFruitAlternate::Apple;
+	AltStructData.DeletedDirection = ETestInstanceDataObjectDirectionAlternate::South | ETestInstanceDataObjectDirectionAlternate::Up;
+
+	TArray<uint8> BinaryData;
+	{
+		FMemoryWriter Ar(BinaryData, /*bIsPersistent*/ true);
+		FBinaryArchiveFormatter Formatter(Ar);
+		FStructuredArchive StructuredAr(Formatter);
+		FTestInstanceDataObjectStructAlternate::StaticStruct()->SerializeTaggedProperties(StructuredAr.Open(), (uint8*)&AltStructData, nullptr, nullptr);
+	}
+
+#if WITH_TEXT_ARCHIVE_SUPPORT
+	TArray<uint8> JsonData;
+	{
+		FMemoryWriter Ar(JsonData, /*bIsPersistent*/ true);
+		FJsonArchiveOutputFormatter Formatter(Ar);
+		FStructuredArchive StructuredAr(Formatter);
+		FTestInstanceDataObjectStructAlternate::StaticStruct()->SerializeTaggedProperties(StructuredAr.Open(), (uint8*)&AltStructData, nullptr, nullptr);
+	}
+#endif // WITH_TEXT_ARCHIVE_SUPPORT
+
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogClass, ELogVerbosity::Error);
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEnum, ELogVerbosity::Error);
+
+	const FPropertyTypeName GrainTypeName = MakePropertyTypeName(StaticEnum<ETestInstanceDataObjectGrain::Type>());
+	const FPropertyTypeName FruitTypeName = MakePropertyTypeName(StaticEnum<ETestInstanceDataObjectFruit>());
+	const FPropertyTypeName DirectionTypeName = MakePropertyTypeName(StaticEnum<ETestInstanceDataObjectDirection>());
+
+	FPropertyBagRepository& Repo = FPropertyBagRepository::Get();
+	TArray<FName> Names{NAME_None};
+	bool bHasFlags = false;
+
+	FTestInstanceDataObjectStruct StructData;
+
+	{
+		FMemoryReader Ar(BinaryData, /*bIsPersistent*/ true);
+		FBinaryArchiveFormatter Formatter(Ar);
+		FStructuredArchive StructuredAr(Formatter);
+		FTestInstanceDataObjectStruct::StaticStruct()->SerializeTaggedProperties(StructuredAr.Open(), (uint8*)&StructData, nullptr, nullptr);
+	}
+
+	CHECK(StructData.Grain == (ETestInstanceDataObjectGrain::Type)((uint8)ETestInstanceDataObjectGrain::Wheat + 1));
+	CHECK(StructData.Fruit == (ETestInstanceDataObjectFruit)((uint8)ETestInstanceDataObjectFruit::Orange + 1));
+	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection)MAX_uint16);
+	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
+	//CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
+	//CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
+
+#if WITH_METADATA
+	Repo.FindUnknownEnumNames(Owner, GrainTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Rye");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, FruitTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Cherry");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, DirectionTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 2)
+	{
+		CHECK(Names[0] == "Up");
+		CHECK(Names[1] == "Down");
+	}
+	CHECK(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, ParsePropertyTypeName(TEXT("ETestInstanceDataObjectDeletedGrain(/Script/CoreUObject)")), Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Rice");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, ParsePropertyTypeName(TEXT("ETestInstanceDataObjectDeletedFruit(/Script/CoreUObject)")), Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Apple");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, ParsePropertyTypeName(TEXT("ETestInstanceDataObjectDeletedDirection(/Script/CoreUObject)")), Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 2)
+	{
+		CHECK(Names[0] == "Up");
+		CHECK(Names[1] == "South");
+	}
+	CHECK(bHasFlags);
+#endif // WITH_METADATA
+
+	FPropertyBagRepository::Get().DestroyOuterBag(Owner);
+
+#if WITH_TEXT_ARCHIVE_SUPPORT
+	StructData = {};
+
+	{
+		FMemoryReader Ar(JsonData, /*bIsPersistent*/ true);
+		FJsonArchiveInputFormatter Formatter(Ar);
+		FStructuredArchive StructuredAr(Formatter);
+		FTestInstanceDataObjectStruct::StaticStruct()->SerializeTaggedProperties(StructuredAr.Open(), (uint8*)&StructData, nullptr, nullptr);
+	}
+
+	CHECK(StructData.Grain == (ETestInstanceDataObjectGrain::Type)((uint8)ETestInstanceDataObjectGrain::Wheat + 1));
+	CHECK(StructData.Fruit == (ETestInstanceDataObjectFruit)((uint8)ETestInstanceDataObjectFruit::Orange + 1));
+	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection)MAX_uint16);
+	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
+	//CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
+	//CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
+
+#if WITH_METADATA
+	Repo.FindUnknownEnumNames(Owner, GrainTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Rye");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, FruitTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 1)
+	{
+		CHECK(Names[0] == "Cherry");
+	}
+	CHECK_FALSE(bHasFlags);
+
+	Repo.FindUnknownEnumNames(Owner, DirectionTypeName, Names, bHasFlags);
+	CHECKED_IF(Names.Num() == 2)
+	{
+		CHECK(Names[0] == "Up");
+		CHECK(Names[1] == "Down");
+	}
+	CHECK(bHasFlags);
+
+	// Testing of the unknown property tree is skipped because it is not supported by the text format.
+#endif // WITH_METADATA
+
+	FPropertyBagRepository::Get().DestroyOuterBag(Owner);
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 }
 

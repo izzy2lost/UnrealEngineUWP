@@ -8,6 +8,10 @@
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectThreadContext.h"
 
+#if WITH_EDITORONLY_DATA
+#include "UObject/PropertyBagRepository.h"
+#endif
+
 namespace UE::CoreUObject::Private
 {
 	template <typename OldIntType>
@@ -166,6 +170,48 @@ namespace UE::CoreUObject::Private
 	}
 }
 
+bool TryLoadEnumValueByName(FStructuredArchive::FSlot Slot, FArchive& UnderlyingArchive, UEnum* Enum, FName& OutEnumValueName, int64& OutEnumValue)
+{
+	Slot << OutEnumValueName;
+
+	if (Enum)
+	{
+		// Make sure enum is properly populated
+		if (Enum->HasAnyFlags(RF_NeedLoad))
+		{
+			UnderlyingArchive.Preload(Enum);
+		}
+
+		if (Enum->HasAnyEnumFlags(EEnumFlags::Flags))
+		{
+			if (OutEnumValueName != NAME_None)
+			{
+				OutEnumValue = Enum->GetValueOrBitfieldFromString(*OutEnumValueName.ToString());
+				return OutEnumValue != INDEX_NONE;
+			}
+		}
+		else
+		{
+			// There's no guarantee EnumValueName is still present in Enum, in which case Value will be set to the enum's max value.
+			// On save, it will then be serialized as NAME_None.
+			const int32 EnumIndex = Enum->GetIndexByName(OutEnumValueName, EGetByNameFlags::ErrorIfNotFound);
+			if (EnumIndex == INDEX_NONE)
+			{
+				OutEnumValue = Enum->GetMaxEnumValue();
+				return false;
+			}
+			else
+			{
+				OutEnumValue = Enum->GetValueByIndex(EnumIndex);
+				return true;
+			}
+		}
+	}
+
+	OutEnumValue = 0;
+	return false;
+}
+
 IMPLEMENT_FIELD(FEnumProperty)
 
 FEnumProperty::FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
@@ -245,42 +291,18 @@ void FEnumProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, v
 	if (UnderlyingArchive.IsLoading())
 	{
 		FName EnumValueName;
-		Slot << EnumValueName;
-
-		int64 NewEnumValue = 0;
-
-		if (Enum)
+		int64 EnumValue = 0;
+		if (!TryLoadEnumValueByName(Slot, UnderlyingArchive, Enum, EnumValueName, EnumValue))
 		{
-			// Make sure enum is properly populated
-			if (Enum->HasAnyFlags(RF_NeedLoad))
+		#if WITH_EDITORONLY_DATA
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+			if (UNLIKELY(SerializeContext->bTrackUnknownEnumNames))
 			{
-				UnderlyingArchive.Preload(Enum);
+				UE::FPropertyBagRepository::Get().AddUnknownEnumName(SerializeContext->SerializedObject, Enum, UE::FindOriginalType(this), EnumValueName);
 			}
-
-			if (Enum->HasAnyEnumFlags(EEnumFlags::Flags))
-			{
-				if (EnumValueName != NAME_None)
-				{
-					NewEnumValue = Enum->GetValueOrBitfieldFromString(*EnumValueName.ToString());
-				}
-			}
-			else
-			{
-				// There's no guarantee EnumValueName is still present in Enum, in which case Value will be set to the enum's max value.
-				// On save, it will then be serialized as NAME_None.
-				const int32 EnumIndex = Enum->GetIndexByName(EnumValueName, EGetByNameFlags::ErrorIfNotFound);
-				if (EnumIndex == INDEX_NONE)
-				{
-					NewEnumValue = Enum->GetMaxEnumValue();
-				}
-				else
-				{
-					NewEnumValue = Enum->GetValueByIndex(EnumIndex);
-				}
-			}
+		#endif
 		}
-
-		UnderlyingProp->SetIntPropertyValue(Value, NewEnumValue);
+		UnderlyingProp->SetIntPropertyValue(Value, EnumValue);
 	}
 	// Saving
 	else if (UnderlyingArchive.IsSaving())
@@ -470,7 +492,31 @@ bool FEnumProperty::SameType(const FProperty* Other) const
 EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot , uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {
 	const EName* TagType = Tag.Type.ToEName();
-	if (LIKELY(!TagType || *TagType == NAME_EnumProperty || Tag.Type.GetNumber() || !Enum || !UnderlyingProp))
+	if (!TagType || Tag.Type.GetNumber())
+	{
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	if (*TagType == NAME_EnumProperty)
+	{
+	#if WITH_EDITORONLY_DATA
+		FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+		if (UNLIKELY(SerializeContext->bTrackUnknownEnumNames && !CanSerializeFromTypeName(Tag.GetType())))
+		{
+			FName EnumValueName;
+			int64 EnumValue = 0;
+			TryLoadEnumValueByName(Slot, Slot.GetUnderlyingArchive(), Enum, EnumValueName, EnumValue);
+
+			check(UnderlyingProp);
+			UnderlyingProp->SetIntPropertyValue(ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex), EnumValue);
+
+			return EConvertFromTypeResult::Converted;
+		}
+	#endif
+		return EConvertFromTypeResult::UseSerializeItem;
+	}
+
+	if (!Enum || !UnderlyingProp)
 	{
 		return EConvertFromTypeResult::UseSerializeItem;
 	}
@@ -604,7 +650,12 @@ bool FEnumProperty::LoadTypeName(UE::FPropertyTypeName Type, const FPropertyTag*
 	UEnum* LocalEnum = FindFirstObject<UEnum>(*WriteToString<256>(EnumName), EFindFirstObjectOptions::NativeFirst);
 	if (!LocalEnum)
 	{
+	#if WITH_EDITORONLY_DATA
+		LocalEnum = StaticEnum<EFallbackEnum>();
+		SetMetaData(UE::NAME_OriginalType, *WriteToString<256>(Type.GetParameter(0)));
+	#else
 		return false;
+	#endif
 	}
 
 	const UE::FPropertyTypeName UnderlyingType = Type.GetParameter(1);

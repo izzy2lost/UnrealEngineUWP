@@ -570,7 +570,14 @@ void FPropertyBagRepository::AddUnknownEnumName(const UObject* Owner, const UEnu
 	TStringBuilder<128> EnumValueString(InPlace, EnumValueName);
 	if (String::FindFirstChar(EnumValueString, TEXT('|')) == INDEX_NONE)
 	{
-		Info.Names.Add(EnumValueName);
+		if (int32 ColonIndex = String::FindFirst(EnumValueString, TEXTVIEW("::")); ColonIndex != INDEX_NONE)
+		{
+			Info.Names.Emplace(EnumValueString.ToView().RightChop(ColonIndex + TEXTVIEW("::").Len()));
+		}
+		else
+		{
+			Info.Names.Add(EnumValueName);
+		}
 	}
 	else
 	{
@@ -825,7 +832,7 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 	// TODO: should we put the InstanceDataObject or it's class in a package?
 	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, Owner->GetClass(), GetTransientPackage());
 
-	BagData.bNeedsFixup = UE::StructContainsLooseProperties(InstanceDataObjectClass);
+	BagData.bNeedsFixup = StructContainsLooseProperties(InstanceDataObjectClass);
 
 	TObjectPtr<UObject>* OuterPtr = nullptr;
 	if (FPropertyBagAssociationData* OuterData = AssociatedData.Find(Owner->GetOuter()))
@@ -902,8 +909,8 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 	, PreSerializeOffset(InArchive.Tell())
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-	bool bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
-	
+	bool bHasIDOSupport = IsInstanceDataObjectSupportEnabled(Object);
+
 	bool bHasReinstancedClass = InObject->GetClass()->HasAnyClassFlags(CLASS_NewerVersionExists);
 	bCreateIDO = bHasIDOSupport && !SerializeContext->bImpersonateProperties && Archive->IsLoading() && !bHasReinstancedClass;
 
@@ -914,7 +921,8 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 			// Enable creation of a property path name tree to track any property that does not match the current class schema,
 			// except when impersonation is enabled because that implies we are deserializing an IDO.
 			ScopedTrackSerializedPropertyPath.Emplace(SerializeContext->bTrackSerializedPropertyPath, bCreateIDO);
-			ScopedSerializeUnknownProperty.Emplace(SerializeContext->bTrackUnknownProperties, bCreateIDO);
+			ScopedSerializeUnknownProperties.Emplace(SerializeContext->bTrackUnknownProperties, bCreateIDO);
+			ScopedSerializeUnknownEnumNames.Emplace(SerializeContext->bTrackUnknownEnumNames, bCreateIDO);
 			ScopedSerializedObject.Emplace(SerializeContext->SerializedObject, Object);
 
 			// Enable tracking of initialized properties when loading an IDO, which is implied by impersonation being enabled.
@@ -936,7 +944,7 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 	, PreSerializeOffset(0)
 {
 	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-	bool bHasIDOSupport = FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Object);
+	bool bHasIDOSupport = IsInstanceDataObjectSupportEnabled(Object);
 	if (bHasIDOSupport)
 	{
 		ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, bImpersonate);
@@ -1035,15 +1043,6 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
 	}
 	
 	return Private::bEnablePropertyBagPlaceholderObjectSupport || (IsInstanceDataObjectSupportEnabled() && !bForceDisabled);
-#else
-	return false;
-#endif
-}
-
-bool FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(UObject* InObject)
-{
-#if WITH_EDITOR
-	return UE::IsInstanceDataObjectSupportEnabled(InObject);
 #else
 	return false;
 #endif

@@ -47,11 +47,25 @@ namespace ETestInstanceDataObjectGrainAlternate
 }
 
 UENUM()
+enum class ETestInstanceDataObjectGrainAlternateEnumClass : uint8
+{
+	None = 0,
+	Corn,
+	Rice,
+	Rye,
+	Wheat,
+};
+
+static_assert((uint8)ETestInstanceDataObjectGrain::Corn != (uint8)ETestInstanceDataObjectGrainAlternate::Corn);
+static_assert((uint8)ETestInstanceDataObjectGrain::Corn != (uint8)ETestInstanceDataObjectGrainAlternateEnumClass::Corn);
+
+UENUM()
 enum class ETestInstanceDataObjectFruit : uint8
 {
 	None = 0,
 	Apple,
 	Banana,
+	Lemon,
 	Orange,
 };
 
@@ -64,6 +78,22 @@ enum class ETestInstanceDataObjectFruitAlternate : uint8
 	Orange,
 	Pear,
 };
+
+UENUM()
+namespace ETestInstanceDataObjectFruitAlternateNamespace
+{
+	enum Type : uint8
+	{
+		None = 0,
+		Apple,
+		Cherry,
+		Orange,
+		Pear,
+	};
+}
+
+static_assert((uint8)ETestInstanceDataObjectFruit::Orange != (uint8)ETestInstanceDataObjectFruitAlternate::Orange);
+static_assert((uint8)ETestInstanceDataObjectFruit::Orange != (uint8)ETestInstanceDataObjectFruitAlternateNamespace::Orange);
 
 UENUM(Flags)
 enum class ETestInstanceDataObjectDirection : uint16
@@ -157,6 +187,24 @@ public:
 	ETestInstanceDataObjectDirection Direction = ETestInstanceDataObjectDirection::None;
 
 	UPROPERTY()
+	TEnumAsByte<ETestInstanceDataObjectGrain::Type> GrainFromEnumClass = ETestInstanceDataObjectGrain::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectFruit FruitFromNamespace = ETestInstanceDataObjectFruit::None;
+
+	UPROPERTY()
+	TEnumAsByte<ETestInstanceDataObjectGrain::Type> GrainTypeChange = ETestInstanceDataObjectGrain::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectFruit FruitTypeChange = ETestInstanceDataObjectFruit::None;
+
+	UPROPERTY()
+	TEnumAsByte<ETestInstanceDataObjectGrain::Type> GrainTypeAndPropertyChange = ETestInstanceDataObjectGrain::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectFruit FruitTypeAndPropertyChange = ETestInstanceDataObjectFruit::None;
+
+	UPROPERTY()
 	FTestInstanceDataObjectPoint Point;
 };
 
@@ -189,6 +237,33 @@ public:
 
 	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectDirection(/Script/CoreUObject)"))
 	ETestInstanceDataObjectDirectionAlternate Direction = ETestInstanceDataObjectDirectionAlternate::None;
+
+	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectGrain(/Script/CoreUObject)"))
+	ETestInstanceDataObjectGrainAlternateEnumClass GrainFromEnumClass = ETestInstanceDataObjectGrainAlternateEnumClass::None;
+
+	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectFruit(/Script/CoreUObject)"))
+	TEnumAsByte<ETestInstanceDataObjectFruitAlternateNamespace::Type> FruitFromNamespace = ETestInstanceDataObjectFruitAlternateNamespace::None;
+
+	UPROPERTY()
+	TEnumAsByte<ETestInstanceDataObjectGrainAlternate::Type> GrainTypeChange = ETestInstanceDataObjectGrainAlternate::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectFruitAlternate FruitTypeChange = ETestInstanceDataObjectFruitAlternate::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectGrainAlternateEnumClass GrainTypeAndPropertyChange = ETestInstanceDataObjectGrainAlternateEnumClass::None;
+
+	UPROPERTY()
+	TEnumAsByte<ETestInstanceDataObjectFruitAlternateNamespace::Type> FruitTypeAndPropertyChange = ETestInstanceDataObjectFruitAlternateNamespace::None;
+
+	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectDeletedGrain(/Script/CoreUObject)"))
+	TEnumAsByte<ETestInstanceDataObjectGrainAlternate::Type> DeletedGrain = ETestInstanceDataObjectGrainAlternate::None;
+
+	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectDeletedFruit(/Script/CoreUObject)"))
+	ETestInstanceDataObjectFruitAlternate DeletedFruit = ETestInstanceDataObjectFruitAlternate::None;
+
+	UPROPERTY(meta=(OriginalType="ETestInstanceDataObjectDeletedDirection(/Script/CoreUObject)"))
+	ETestInstanceDataObjectDirectionAlternate DeletedDirection = ETestInstanceDataObjectDirectionAlternate::None;
 
 	UPROPERTY(meta=(OriginalType="TestInstanceDataObjectPoint(/Script/CoreUObject)"))
 	FTestInstanceDataObjectPointAlternate Point;

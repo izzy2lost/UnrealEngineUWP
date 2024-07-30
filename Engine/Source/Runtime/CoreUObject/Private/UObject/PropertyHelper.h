@@ -10,12 +10,20 @@
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/WeakObjectPtrFwd.h"
 
+#include "PropertyHelper.generated.h"
+
 class FProperty;
 class UField;
 class UFunction;
 class UObject;
 
+DECLARE_LOG_CATEGORY_EXTERN(LogEnum, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogProperty, Log, All);
+
+UENUM()
+enum class EFallbackEnum : uint8
+{
+};
 
 /**
  * Advances the character pointer past any spaces or tabs.

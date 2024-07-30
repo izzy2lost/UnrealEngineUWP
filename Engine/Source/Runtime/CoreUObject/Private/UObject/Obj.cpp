@@ -72,6 +72,7 @@
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Containers/VersePath.h"
 #include "Serialization/LoadTimeTracePrivate.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/PropertyBagRepository.h"
 #include "AutoRTFM/AutoRTFM.h"
 
@@ -1284,11 +1285,9 @@ void UObject::ConditionalPostLoad()
 
 #if WITH_EDITORONLY_DATA
 		// Object has been deserialized, if IDO is enabled, generate it
-		UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-		const FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
-		const bool bIDOEnabled = PropertyBagRepository.IsInstanceDataObjectSupportEnabled(this) && !LoadContext->bImpersonateProperties;
-		if (bIDOEnabled)
+		if (UE::IsInstanceDataObjectSupportEnabled(this) && !FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
 		{
+			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
 			PropertyBagRepository.PostLoadInstanceDataObject(this);
 		}
 #endif

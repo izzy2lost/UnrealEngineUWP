@@ -158,8 +158,6 @@ public:
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObject(const UObject* Object);
 	// query for whether or not creating property bag placeholder objects should be allowed
 	static COREUOBJECT_API bool IsPropertyBagPlaceholderObjectSupportEnabled();
-	// query whether an object supports IDO generation
-	static COREUOBJECT_API bool IsInstanceDataObjectSupportEnabled(UObject* InObject = nullptr);
 
 	/**
 	 * Create a new placeholder type object to swap in for a missing class/struct. An object of
@@ -217,7 +215,8 @@ struct FScopedIDOSerializationContext
 	UObject* const Object = nullptr;
 	const int64 PreSerializeOffset;
 	TOptional<TGuardValue<bool>> ScopedTrackSerializedPropertyPath;
-	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperty;
+	TOptional<TGuardValue<bool>> ScopedSerializeUnknownProperties;
+	TOptional<TGuardValue<bool>> ScopedSerializeUnknownEnumNames;
 	TOptional<TGuardValue<bool>> ScopedImpersonateProperties;
 	TOptional<TGuardValue<bool>> ScopedTrackInitializedProperties;
 	TOptional<TGuardValue<bool>> ScopedTrackSerializedProperties;

@@ -34,6 +34,7 @@
 #include "UObject/Class.h"
 #include "UObject/CoreRedirects.h"
 #include "UObject/FastReferenceCollector.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/OverridableManager.h"
 #include "UObject/UObjectIterator.h"
 #include "UObject/Package.h"
@@ -3253,9 +3254,9 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 
 #if WITH_EDITORONLY_DATA
 	// if Source has an IDO, make one for Dest and copy it
-	UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-	if (UE::FPropertyBagRepository::IsInstanceDataObjectSupportEnabled(Parameters.SourceObject))
+	if (UE::IsInstanceDataObjectSupportEnabled(Parameters.SourceObject))
 	{
+		UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
 		PropertyBagRepository.DuplicateInstanceDataObject(Parameters.SourceObject, DupRootObject);
 	}
 #endif

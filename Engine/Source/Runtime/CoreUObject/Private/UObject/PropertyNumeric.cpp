@@ -27,7 +27,11 @@ int64 FNumericProperty::ReadEnumAsInt64(FStructuredArchive::FSlot Slot, UStruct*
 
 	FName EnumTypeName = Tag.GetType().GetParameterName(0);
 
-	UEnum* Enum = FindUField<UEnum>(dynamic_cast<UClass*>(DefaultsStruct) ? static_cast<UClass*>(DefaultsStruct) : DefaultsStruct->GetTypedOuter<UClass>(), EnumTypeName);
+	UEnum* Enum = nullptr;
+	if (DefaultsStruct)
+	{
+		Enum = FindUField<UEnum>(DefaultsStruct->IsA<UClass>() ? (UClass*)DefaultsStruct : DefaultsStruct->GetTypedOuter<UClass>(), EnumTypeName);
+	}
 	if (!Enum)
 	{
 		// Enums (at least native) are stored as short names (for now) so find the Tag enum by name

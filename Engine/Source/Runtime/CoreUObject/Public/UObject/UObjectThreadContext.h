@@ -178,8 +178,10 @@ public:
 	UE_INTERNAL bool bTrackInitializedProperties;
 	/** True when serialized properties will be tracked for the serialized object. */
 	UE_INTERNAL bool bTrackSerializedProperties;
-	/** True when unknown properties will tracked for the serialized object. */
+	/** True when unknown properties will be tracked for the serialized object. */
 	UE_INTERNAL bool bTrackUnknownProperties;
+	/** True when unknown enum names will be tracked for the serialized object. */
+	UE_INTERNAL bool bTrackUnknownEnumNames;
 	/** True when the SerializedObject properties are being impersonated. */
 	UE_INTERNAL bool bImpersonateProperties;
 #endif

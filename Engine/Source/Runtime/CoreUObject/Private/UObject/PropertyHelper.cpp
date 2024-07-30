@@ -295,7 +295,7 @@ namespace UE
 #if WITH_EDITORONLY_DATA
 const FString* FindOriginalTypeName(const UField* Field)
 {
-	if (FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+	if (Field && FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
 	{
 		return Field->FindMetaData(NAME_OriginalType);
 	}
@@ -331,7 +331,7 @@ const FString* FindOriginalTypeName(const FProperty* Property)
 	{
 		return FindOriginalTypeName(EnumProperty->GetEnum());
 	}
-	if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property); ByteProperty && ByteProperty->Enum)
+	if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
 	{
 		return FindOriginalTypeName(ByteProperty->Enum);
 	}

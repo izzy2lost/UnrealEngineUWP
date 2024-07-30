@@ -49,6 +49,7 @@ FUObjectSerializeContext::FUObjectSerializeContext()
 	, bTrackInitializedProperties(false)
 	, bTrackSerializedProperties(false)
 	, bTrackUnknownProperties(false)
+	, bTrackUnknownEnumNames(false)
 	, bImpersonateProperties(false)
 #endif
 {
