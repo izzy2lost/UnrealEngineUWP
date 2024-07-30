@@ -3783,9 +3783,13 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 	}
 
 	const dtReal* orig = layer.header->bmin;
+
 	dtLinkBuilderConfig linkBuilderConfig;
 	linkBuilderConfig.jumpDownConfig = TileConfig.JumpDownConfig;
+	linkBuilderConfig.jumpDownConfig.init();
+	
 	linkBuilderConfig.jumpOverConfig = TileConfig.JumpOverConfig;
+	
 	linkBuilderConfig.agentRadius = TileConfig.walkableRadius * TileConfig.cs;
 	linkBuilderConfig.agentHeight = TileConfig.walkableHeight * TileConfig.ch;
 	linkBuilderConfig.agentClimb = TileConfig.walkableClimb * TileConfig.ch;

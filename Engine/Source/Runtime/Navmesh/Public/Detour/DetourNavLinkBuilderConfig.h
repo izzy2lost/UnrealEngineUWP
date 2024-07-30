@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "CoreTypes.h"
+
 /** Configuration for generated jump down links. */
 struct dtNavLinkBuilderJumpDownConfig
 {
@@ -16,6 +18,9 @@ struct dtNavLinkBuilderJumpDownConfig
 	/// How far below the starting height we want to look for landing ground. [Limit: > 0] [Units: wu]
 	float jumpMaxDepth = 150.f;
 
+	/// Peak height relative to the height of the starting point. [Limit: >= 0] [Units: wu]
+	float jumpHeight = 50.f;
+
 	/// Tolerance at both ends of the jump to find ground. [Limit: > 0] [Units: wu]
 	float jumpEndsHeightTolerance = 50.f;
 
@@ -27,8 +32,17 @@ struct dtNavLinkBuilderJumpDownConfig
 	/// Use greater distance for more filtering (0 to deactivate filtering). [Limit: > 0] [Units: wu]
 	float filterDistanceThreshold = 80.f;
 
+	/// Cached parabola constant fitting the configuration parameters. 
+	float cachedParabolaConstant = 0;
+
+	/// Cached value used when computing jump trajectory.
+	float cachedDownRatio = 0;
+	
 	/// User id used to handle links made from this configuration.
 	unsigned long long linkUserId = 0;
+
+	/// Initialize the configuration by computing cached values.
+	NAVMESH_API void init();
 };
 
 /** Configuration for generated jump over links. */

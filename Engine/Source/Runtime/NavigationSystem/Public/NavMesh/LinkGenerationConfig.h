@@ -35,6 +35,10 @@ struct FNavLinkGenerationJumpDownConfig
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpMaxDepth = 150.f;
 
+	/** Peak height relative to the height of the starting point. */
+	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
+	float JumpHeight = 50.f;
+
 	/** Tolerance at both ends of the jump to find ground. */
 	UPROPERTY(EditAnywhere, Config, Category = Settings, meta=(Units=cm, UIMin=0, ClampMin=0))
 	float JumpEndsHeightTolerance = 80.f;

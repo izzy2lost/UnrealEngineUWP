@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Detour/DetourNavLinkBuilder.h"
 
-#include "Detour/DetourAlloc.h"
 #include "Detour/DetourCommon.h"
 #include "DetourTileCache/DetourTileCacheBuilder.h"
 #include "Recast/Recast.h"
@@ -37,74 +36,6 @@ namespace UE::Detour::NavLink::Private
 			return 1.0;
 
 		return t/d;
-	}
-
-	static void closestPtSegSeg(const dtReal* ap, const dtReal* aq, const dtReal* bp, const dtReal* bq, dtReal& s, dtReal& t)
-	{
-		constexpr dtReal EPSILON = 1e-6;
-		dtReal d1[3], d2[3], r[3];
-		dtVsub(d1, aq, ap);
-		dtVsub(d2, bq, bp);
-		dtVsub(r, ap, bp);
-		const dtReal a = dtVdot(d1,d1); // Squared length of segment S1, always nonnegative
-		const dtReal e = dtVdot(d2,d2); // Squared length of segment S2, always nonnegative
-		const dtReal f = dtVdot(d2,r);
-	
-		// Check if either or both segments degenerate into points
-		if (a <= EPSILON && e <= EPSILON)
-		{
-			// Both segments degenerate into points
-			s = t = 0.0;
-			return;
-		}
-	
-		if (a <= EPSILON)
-		{
-			s = 0.0;
-			t = f / e;
-			t = dtClamp(t, 0.0, 1.0);
-		}
-		else
-		{
-			const dtReal c = dtVdot(d1,r);
-			if (e <= EPSILON)
-			{
-				// Second segment degenerates into a point
-				t = 0.0;
-				s = dtClamp(-c / a, 0.0, 1.0); // t = 0 => s = (b*t - c) / a = -c / a
-			}
-			else
-			{
-				// The general nondegenerate case starts here
-				const dtReal b = dtVdot(d1,d2);
-				const dtReal denom = a*e-b*b; // Always nonnegative
-			
-				// If segments not parallel, compute closest point on L1 to L2, and
-				// clamp to segment S1. Else pick arbitrary s (here 0)
-				if (denom != 0.0)
-					s = dtClamp((b*f - c*e) / denom, 0.0, 1.0);
-				else
-					s = 0.0;
-			
-				// Compute point on L2 closest to S1(s) using
-				// t = Dot((p.start+D1*s)-q.start,D2) / Dot(D2,D2) = (b*s + f) / e
-				t = (b*s + f) / e;
-			
-				// If t in [0,1] done. Else clamp t, recompute s for the new value
-				// of t using s = Dot((q.start+D2*t)-p.start,D1) / Dot(D1,D1)= (t*b - c) / a
-				// and clamp s to [0, 1]
-				if (t < 0.0)
-				{
-					t = 0.0;
-					s = dtClamp(-c / a, 0.0, 1.0);
-				}
-				else if (t > 1.0)
-				{
-					t = 1.0;
-					s = dtClamp((b - c) / a, 0.0, 1.0);
-				}
-			}
-		}
 	}
 
 	static bool isectSegAABB(const dtReal* sp, const dtReal* sq,
@@ -152,16 +83,6 @@ namespace UE::Detour::NavLink::Private
 		}
 	
 		return true;
-	}
-
-	static dtReal distSegSegSqr(const dtReal* ap, const dtReal* aq, const dtReal* bp, const dtReal* bq)
-	{
-		dtReal s, t;
-		closestPtSegSeg(ap, aq, bp, bq, s,t);
-		dtReal anp[3], bnp[3];
-		dtVlerp(anp, ap,aq, s);
-		dtVlerp(bnp, bp,bq, t);
-		return dtVdistSqr(anp, bnp);
 	}
 	
 	static float getHeight(const float x, const float* pts, const int npts)
@@ -890,8 +811,7 @@ int dtNavLinkBuilder::findPotentialJumpOverEdges(const dtReal* sp, const dtReal*
 	
 
 void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
-										const float jumpStartDist, const float jumpLength,
-										const float jumpDownDist, const float groundRange) const
+									   const dtNavLinkBuilderJumpDownConfig& config) const
 {
 	es->action = DT_LINK_ACTION_JUMP_DOWN;
 
@@ -917,6 +837,16 @@ void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const 
 		dtVcopy(es->rigp, sp);
 		dtVcopy(es->rigq, sq);
 	}
+
+	// Parabolic equation y(x) = ax^2 + (-d/l - al)x
+	// Where 'a' is constant
+	//       'l' is the jump length from the starting point
+	//       'd' is the distance below the starting point
+
+	const float jumpStartDist = config.jumpDistanceFromEdge;
+	const float jumpLength = config.jumpLength;
+	const float a = config.cachedParabolaConstant;
+	const float downRatio = config.cachedDownRatio;		// -d/l
 	
 	// Build action sampling spine.
 	es->trajectory.nspine = MAX_SPINE;
@@ -925,10 +855,13 @@ void dtNavLinkBuilder::initJumpDownRig(EdgeSampler* es, const dtReal* sp, const 
 		float* pt = &es->trajectory.spine[i*2];			// pt: [xy] (x is toward jump end, y is up)
 		const float u = (float)i/(float)(MAX_SPINE-1);
 		pt[0] = -jumpStartDist + (u*jumpLength);
-		pt[1] = u*u*u * jumpDownDist;
+
+		// Parabolic equation y(x) = ax^2 + (-d/l - al)x
+		//                    y(x) = x * (ax + (-d/l - al))
+		pt[1] = (u*jumpLength) * (a*(u*jumpLength) + (downRatio - a*jumpLength));
 	}
 
-	es->groundRange = groundRange;
+	es->groundRange = config.jumpEndsHeightTolerance;
 }
 
 void dtNavLinkBuilder::initJumpOverRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
@@ -972,12 +905,8 @@ bool dtNavLinkBuilder::sampleEdge(const dtLinkBuilderConfig& builderConfig, dtNa
 	if (desiredAction == DT_LINK_ACTION_JUMP_DOWN)
 	{
 		const dtNavLinkBuilderJumpDownConfig& config = builderConfig.jumpDownConfig;
-		const float jumpStartDist = config.jumpDistanceFromEdge;
-		const float jumpLength = config.jumpLength;
-		const float jumpDownDist = config.jumpMaxDepth;
-		const float groundRange = config.jumpEndsHeightTolerance;
 		samplingSeparationFactor = config.samplingSeparationFactor;
-		initJumpDownRig(es, sp, sq, jumpStartDist, jumpLength, -jumpDownDist, groundRange);
+		initJumpDownRig(es, sp, sq, config);
 	}
 	else if (desiredAction == DT_LINK_ACTION_JUMP_OVER)
 	{

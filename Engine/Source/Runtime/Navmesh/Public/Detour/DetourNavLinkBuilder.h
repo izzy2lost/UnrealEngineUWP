@@ -168,8 +168,7 @@ private:
 								   dtReal* outSegs, const int maxOutSegs) const;
 	
 	void initJumpDownRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
-						 const float jumpStartDist, const float jumpEndDist,
-						 const float jumpDownDist, const float groundRange) const;
+						 const dtNavLinkBuilderJumpDownConfig& config) const;
 
 	static void initJumpOverRig(EdgeSampler* es, const dtReal* sp, const dtReal* sq,
 						 const float jumpStartDist, const float jumpEndDist,
