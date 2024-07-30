@@ -14,8 +14,7 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
 					"StateTreeModule",
 					"Engine",
-					"WorkspaceEditor",
-					"StructUtils"
+					"WorkspaceEditor"
 				}
 			);
 		}
