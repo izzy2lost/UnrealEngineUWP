@@ -6,6 +6,7 @@
 #include "SkeletalMeshComponentInstanceData.generated.h"
 
 class USkeletalMeshComponent;
+class USkeletalMesh;
 
 /** Saves internal SkeletalMesh (transient) state that gets lost at reconstruction for Blueprint created components. */
 USTRUCT()
@@ -19,6 +20,7 @@ struct ENGINE_API FSkeletalMeshComponentInstanceData : public FSceneComponentIns
 	virtual bool ContainsData() const override;
 	virtual void ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) override;
 
+	USkeletalMesh* SkeletalMeshAsset;
 	uint8 bUpdateAnimationInEditor : 1;
 	uint8 bUpdateClothInEditor : 1;
 };
