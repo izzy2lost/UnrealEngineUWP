@@ -268,16 +268,6 @@ struct FMaterialCachedExpressionData
 		PropertyConnectedMask |= (1ull << (uint64)Property);
 	}
 
-	bool IsPropertyDefaultAltered(EMaterialProperty Property) const
-	{
-		return ((PropertyDefaultAltered >> (uint64)Property) & 0x1) != 0;
-	}
-
-	void SetPropertyDefaultAltered(EMaterialProperty Property)
-	{
-		PropertyDefaultAltered |= (1ull << (uint64)Property);
-	}
-
 	bool Serialize(FArchive& Ar);
 	void PostSerialize(const FArchive& Ar);
 
@@ -385,10 +375,6 @@ struct FMaterialCachedExpressionData
 	/** Each bit corresponds to EMaterialProperty connection status. */
 	UPROPERTY()
 	uint64 PropertyConnectedMask = 0;
-	
-	/** Each bit corresponds to EMaterialProperty default value status. */
-	UPROPERTY()
-	uint64 PropertyDefaultAltered = 0;
 
 #if WITH_EDITOR
 	/** Array of errors reporting a parameter being set multiple times to distinct values. */

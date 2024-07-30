@@ -1193,15 +1193,7 @@ bool FMaterial::MaterialMayModifyMeshPosition() const
 {
 	// Conservative estimate when called before material translation has occurred. 
 	// This function is only intended for use in deciding whether or not shader permutations are required.
-	const FMaterialCachedExpressionData& CachedData = GetCachedExpressionData();
-		// First check if the property is connected
-	return CachedData.IsPropertyConnected(MP_WorldPositionOffset)
-		|| CachedData.IsPropertyConnected(MP_PixelDepthOffset)
-		|| CachedData.IsPropertyConnected(MP_Displacement)
-		// If not, check that the default values have changed (ensures Depth pass shaders compile for WPO etc.)
-		|| CachedData.IsPropertyDefaultAltered(MP_WorldPositionOffset)
-		|| CachedData.IsPropertyDefaultAltered(MP_PixelDepthOffset)
-		|| CachedData.IsPropertyDefaultAltered(MP_Displacement);
+	return HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected();
 }
 
 bool FMaterial::MaterialUsesPixelDepthOffset_GameThread() const
