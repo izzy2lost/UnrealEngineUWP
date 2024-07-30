@@ -316,16 +316,28 @@ EObjectMark GetExcludedObjectMarksForTargetPlatform(const class ITargetPlatform*
 }
 
 /**
- * Find most likely culprit that caused the objects in the passed in array to be considered for saving.
+ * Find the most likely culprit that caused the objects in the passed in array to be considered illegal for saving.
  *
- * @param	BadObjects	array of objects that are considered "bad" (e.g. non- RF_Public, in different map package, ...)
- * @return	UObject that is considered the most likely culprit causing them to be referenced or NULL
+ * @param	BadObjects				Array of objects that are considered "bad" (e.g. non- RF_Public, in different map package, ...)
+ * @param	OutMostLikelyCulprit	UObject that is considered the most likely culprit causing the "bad" objects to be referenced or NULL
+ * @param	OutReferencer			UObject referencing the most likely culprit
+ * @param	OutReferencerProperty	Property (belonging to referencer) storing the offending reference
+ * @param	OutIsCulpritArchetype	Is the most likely culprit an archetype object
+ * @param	InOptionalSaveContext	Optional save context
  */
-void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLikelyCulprit, FString& OutReferencer, FSaveContext* InOptionalSaveContext)
+void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, 
+						   UObject*& OutMostLikelyCulprit, UObject*& OutReferencer, const FProperty*& OutReferencerProperty, bool& OutIsCulpritArchetype,
+						   FSaveContext* InOptionalSaveContext)
 {
 	UObject* ArchetypeCulprit = nullptr;
 	UObject* ReferencedCulprit = nullptr;
-	const FProperty* ReferencedCulpritReferencer = nullptr;
+	const FProperty* CulpritReferencerProperty = nullptr;
+	UObject* CulpritReferencer = nullptr;
+
+	OutMostLikelyCulprit = nullptr;
+	OutReferencer = nullptr;
+	OutReferencerProperty = nullptr;
+	OutIsCulpritArchetype = false;
 
 	auto IsObjectIncluded = [InOptionalSaveContext](UObject* InObject)
 	{
@@ -387,12 +399,14 @@ void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLik
 							continue;
 						}
 
+						CulpritReferencer = RefObj;
+
 						UE_LOG(LogSavePackage, Warning, TEXT("\t%s (%i refs)"), *RefObj->GetFullName(), Refs.ExternalReferences[i].TotalReferences);
 						for (int32 j = 0; j < Refs.ExternalReferences[i].ReferencingProperties.Num(); j++)
 						{
 							const FProperty* Prop = Refs.ExternalReferences[i].ReferencingProperties[j];
 							UE_LOG(LogSavePackage, Warning, TEXT("\t\t%i) %s"), j, *Prop->GetFullName());
-							ReferencedCulpritReferencer = Prop;
+							CulpritReferencerProperty = Prop;
 						}
 
 						// Later ReferencedCulprits are higher priority than earlier culprits. TODO: Not sure if this is an intentional behavior or if they choice was arbitrary.
@@ -406,30 +420,24 @@ void FindMostLikelyCulprit(const TArray<UObject*>& BadObjects, UObject*& MostLik
 	if (ArchetypeCulprit)
 	{
 		// ArchetypeCulprits are the most likely to be the problem; they are definitely a problem
-		MostLikelyCulprit = ArchetypeCulprit;
-		OutReferencer = TEXT("Referenced because it is an archetype object");
+		OutMostLikelyCulprit = ArchetypeCulprit;
+		OutIsCulpritArchetype = true;
 	}
 	else
 	{
-		MostLikelyCulprit = ReferencedCulprit; // Might be null, in which case we didn't find one
-		if (ReferencedCulpritReferencer)
-		{
-			OutReferencer = *ReferencedCulpritReferencer->GetName();
-		}
-		else
-		{
-			OutReferencer = TEXT("Unknown property");
-		}
+		OutMostLikelyCulprit = ReferencedCulprit; // Might be null, in which case we didn't find one
+		OutReferencer = CulpritReferencer;
+		OutReferencerProperty = CulpritReferencerProperty;
 	}
 
-	if (MostLikelyCulprit == nullptr)
+	if (OutMostLikelyCulprit == nullptr)
 	{
 		// Make sure we report something
 		for (UObject* BadObject : BadObjects)
 		{
 			if (BadObject)
 			{
-				MostLikelyCulprit = BadObject;
+				OutMostLikelyCulprit = BadObject;
 				break;
 			}
 		}

@@ -711,19 +711,59 @@ ESavePackageResult ValidateIllegalReferences(FSaveContext& SaveContext, TArray<U
 {
 	FFormatNamedArguments Args;
 
+	TArray<UObject*>* ObjectsToCheck = nullptr;
+	FString ErrorPrologue;
+	FString ErrorEpilogue;
+
 	// Illegal objects in other map warning
 	if (ObjectsInOtherMaps.Num() > 0)
 	{
+		ObjectsToCheck = &ObjectsInOtherMaps;
+		ErrorPrologue = FString::Printf(TEXT("Can't save '%s': Illegal reference to private object: "), SaveContext.GetFilename());
+		ErrorEpilogue = FString(TEXT(" (private object belongs to an external map)."));
+	}
+	else if (PrivateObjects.Num() > 0)
+	{
+		ObjectsToCheck = &PrivateObjects;
+		ErrorPrologue = FString::Printf(TEXT("Can't save '%s': Illegal reference to private object: "), SaveContext.GetFilename());
+		ErrorEpilogue = FString(TEXT("."));
+	}
+	else if (PrivateContentObjects.Num() > 0)
+	{
+		ObjectsToCheck = &PrivateContentObjects;
+		ErrorPrologue = FString::Printf(TEXT("Can't save package: PKG_NotExternallyReferenceable: Package '%s' imports object: "), SaveContext.GetFilename());
+		ErrorEpilogue = FString(TEXT(", which is in a different mount point and its package is marked as PKG_NotExternallyReferenceable."));
+	}
+
+	if (ObjectsToCheck)
+	{
 		UObject* MostLikelyCulprit = nullptr;
-		FString CulpritString = TEXT("Unknown");
-		FString Referencer;
-		UE::SavePackageUtilities::FindMostLikelyCulprit(ObjectsInOtherMaps, MostLikelyCulprit, Referencer, &SaveContext);
-		if (MostLikelyCulprit != nullptr)
+		UObject* Referencer = nullptr;
+		const FProperty* ReferencerProperty = nullptr;
+		bool IsCulpritArchetype;
+		UE::SavePackageUtilities::FindMostLikelyCulprit(*ObjectsToCheck, MostLikelyCulprit, Referencer, ReferencerProperty, IsCulpritArchetype, &SaveContext);
+
+		UObject* ReferencerOuter = Referencer ? Referencer->GetOuter() : nullptr;
+
+		FString ReferencerStr = Referencer ? Referencer->GetName() : TEXT("Unknown referencer");
+		FString ReferencerPropertyStr = ReferencerProperty ? *ReferencerProperty->GetName() : TEXT("Unknown property");
+		FString CulpritStr = MostLikelyCulprit ? *MostLikelyCulprit->GetFullName() : TEXT("Unknown");
+		FString ReferencerOuterStr = ReferencerOuter ? ReferencerOuter->GetPathName() : TEXT("Unknown owner");
+
+		FString ReferenceDescription;
+
+		if (IsCulpritArchetype)
 		{
-			CulpritString = FString::Printf(TEXT("%s (%s)"), *MostLikelyCulprit->GetFullName(), *Referencer);
+			ReferenceDescription = FString::Printf(TEXT("'%s' referenced because it is an archetype object"), *CulpritStr);
+		}
+		else
+		{
+			ReferenceDescription = FString::Printf(TEXT("'%s' referenced by '%s' (at '%s') in its '%s' property"), 
+				*CulpritStr, *ReferencerStr, *ReferencerOuterStr, *ReferencerPropertyStr);
 		}
 
-		FString ErrorMessage = FString::Printf(TEXT("Can't save %s: Graph is linked to object %s in external map"), SaveContext.GetFilename(), *CulpritString);
+		FString ErrorMessage = FString::Printf(TEXT("%s%s%s"), *ErrorPrologue, *ReferenceDescription, *ErrorEpilogue);
+
 		if (SaveContext.IsGenerateSaveError())
 		{
 			SaveContext.GetError()->Logf(ELogVerbosity::Warning, TEXT("%s"), *ErrorMessage);
@@ -734,43 +774,10 @@ ESavePackageResult ValidateIllegalReferences(FSaveContext& SaveContext, TArray<U
 		}
 		return ESavePackageResult::Error;
 	}
-
-	if (PrivateObjects.Num() > 0)
+	else
 	{
-		UObject* MostLikelyCulprit = nullptr;
-		FString CulpritString = TEXT("Unknown");
-		FString Referencer;
-		UE::SavePackageUtilities::FindMostLikelyCulprit(PrivateObjects, MostLikelyCulprit, Referencer, &SaveContext);
-		CulpritString = FString::Printf(TEXT("%s (%s)"),
-			(MostLikelyCulprit != nullptr) ? *MostLikelyCulprit->GetFullName() : TEXT("(unknown culprit)"),
-			*Referencer);
-
-		if (SaveContext.IsGenerateSaveError())
-		{
-			SaveContext.GetError()->Logf(ELogVerbosity::Warning, TEXT("Can't save %s: Graph is linked to external private object %s"), SaveContext.GetFilename(), *CulpritString);
-		}
-		return ESavePackageResult::Error;
+		return ReturnSuccessOrCancel();
 	}
-
-	if (PrivateContentObjects.Num() > 0)
-	{
-		UObject* MostLikelyCulprit = nullptr;
-		FString CulpritString = TEXT("Unknown");
-		FString Referencer;
-		UE::SavePackageUtilities::FindMostLikelyCulprit(PrivateContentObjects, MostLikelyCulprit, Referencer, &SaveContext);
-		CulpritString = FString::Printf(TEXT("%s (%s)"),
-			(MostLikelyCulprit != nullptr) ? *MostLikelyCulprit->GetFullName() : TEXT("(unknown culprit)"),
-			*Referencer);
-
-		if (SaveContext.IsGenerateSaveError())
-		{
-			SaveContext.GetError()->Logf(ELogVerbosity::Warning,
-				TEXT("Can't save package: PKG_NotExternallyReferenceable: Package %s imports object %s, which is in a different mount point and its package is marked as PKG_NotExternallyReferenceable."),
-				SaveContext.GetFilename(), *CulpritString);
-		}
-		return ESavePackageResult::Error;
-	}
-	return ReturnSuccessOrCancel();
 }
 
 ESavePackageResult ValidateImports(FSaveContext& SaveContext)
