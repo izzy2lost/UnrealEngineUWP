@@ -35,9 +35,16 @@ void FSkeletalMeshComponentInstanceData::ApplyToComponent(UActorComponent* Compo
 	Super::ApplyToComponent(Component, CacheApplyPhase);
 
 #if WITH_EDITOR
-	if (USkeletalMeshComponent * SkeletalMesh = Cast<USkeletalMeshComponent>(Component))
+	const bool bIsBlueprintCreatedComponent = Component->CreationMethod == EComponentCreationMethod::SimpleConstructionScript
+		|| Component->CreationMethod == EComponentCreationMethod::UserConstructionScript;
+	USkeletalMeshComponent* SkeletalMesh = Cast<USkeletalMeshComponent>(Component);
+
+	if (SkeletalMesh && bIsBlueprintCreatedComponent)
 	{
-		SkeletalMesh->SetSkeletalMeshAsset(SkeletalMeshAsset);
+		if (SkeletalMeshAsset)
+		{
+			SkeletalMesh->SetSkeletalMeshAsset(SkeletalMeshAsset);
+		}
 		SkeletalMesh->SetUpdateAnimationInEditor(bUpdateAnimationInEditor);
 		SkeletalMesh->SetUpdateClothInEditor(bUpdateClothInEditor);
 	}
