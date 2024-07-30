@@ -4,6 +4,8 @@
 
 #include "Components/SkeletalMeshComponent.h"
 #include "MuCO/CustomizableSkeletalComponent.h"
+#include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectSystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableSkeletalMeshActor)
 
@@ -53,7 +55,97 @@ void ACustomizableSkeletalMeshActor::AttachNewComponent()
 			}
 		}
 	}
+}
 
+
+UCustomizableObjectInstance* ACustomizableSkeletalMeshActor::GetComponentsCommonInstance()
+{
+	for (const UCustomizableSkeletalComponent* Component : CustomizableSkeletalComponents)
+	{
+		if (UCustomizableObjectInstance* COInstance = Component->CustomizableObjectInstance)
+		{
+			return COInstance;
+		}
+	}
+
+	return nullptr;
+}
+
+
+void ACustomizableSkeletalMeshActor::SetDebugMaterial(UMaterialInterface* InDebugMaterial)
+{
+	if (!InDebugMaterial)
+	{
+		return;
+	}
+
+	DebugMaterial = InDebugMaterial;
+}
+
+
+void ACustomizableSkeletalMeshActor::EnableDebugMaterial(bool bEnableDebugMaterial)
+{
+	bRemoveDebugMaterial = bDebugMaterialEnabled && !bEnableDebugMaterial;
+	bDebugMaterialEnabled = bEnableDebugMaterial;
+
+	if (UCustomizableObjectInstance* COInstance = GetComponentsCommonInstance())
+	{
+		//Bind Instance Update delegate to Actor
+		COInstance->UpdatedDelegate.AddUniqueDynamic(this, &ACustomizableSkeletalMeshActor::SwitchComponentsMaterials);
+		SwitchComponentsMaterials(COInstance);
+	}
+}
+
+
+void ACustomizableSkeletalMeshActor::SwitchComponentsMaterials(UCustomizableObjectInstance* Instance)
+{
+	if (!DebugMaterial)
+	{
+		return;
+	}
+
+	if (bDebugMaterialEnabled || bRemoveDebugMaterial)
+	{
+		UCustomizableObjectInstance* COInstance = GetComponentsCommonInstance();
+
+		if (!COInstance)
+		{
+			return;
+		}
+
+		for (int32 CompIndex = 0; CompIndex < SkeletalMeshComponents.Num(); ++CompIndex)
+		{
+			int32 NumMaterials = SkeletalMeshComponents[CompIndex]->GetNumMaterials();
+
+			if (bDebugMaterialEnabled)
+			{
+				for (int32 MatIndex = 0; MatIndex < NumMaterials; ++MatIndex)
+				{
+					SkeletalMeshComponents[CompIndex]->SetMaterial(MatIndex, DebugMaterial);
+				}
+			}
+			else // Remove debugmaterial
+			{
+				// check if original materials already overriden
+				const TArray<TObjectPtr<UMaterialInterface>>* OverrideMaterials = COInstance->GetOverrideMaterials(CompIndex);
+				const bool bUseOverrideMaterials = COInstance->GetCustomizableObject()->bEnableMeshCache && CVarEnableMeshCache.GetValueOnAnyThread();
+
+				if (bUseOverrideMaterials && OverrideMaterials->Num() > 0)
+				{
+					for (int32 MatIndex = 0; MatIndex < OverrideMaterials->Num(); ++MatIndex)
+					{
+						SkeletalMeshComponents[CompIndex]->SetMaterial(MatIndex, (*OverrideMaterials)[MatIndex]);
+					}
+				}
+				else
+				{
+					SkeletalMeshComponents[CompIndex]->EmptyOverrideMaterials();
+				}
+
+				bRemoveDebugMaterial = false;
+			}
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
