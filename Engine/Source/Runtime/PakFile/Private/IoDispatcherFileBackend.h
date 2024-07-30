@@ -7,7 +7,9 @@
 #include "IO/IoStore.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
+#include "Containers/SpscQueue.h"
 #include "Stats/Stats.h"
+#include "Tasks/Task.h"
 #include "HAL/Runnable.h"
 #include "Misc/AES.h"
 #include "GenericPlatform/GenericPlatformFile.h"
@@ -151,6 +153,7 @@ private:
 	mutable FRWLock IoStoreReadersLock;
 	TArray<TUniquePtr<FFileIoStoreReader>> IoStoreReaders;
 	TArray<TUniquePtr<FFileIoStoreCompressionContext>> CompressionContexts;
+	TSpscQueue<UE::Tasks::FTask> DecompressionTasks;
 	FFileIoStoreCompressionContext* FirstFreeCompressionContext = nullptr;
 	FFileIoStoreCompressedBlock* ReadyForDecompressionHead = nullptr;
 	FFileIoStoreCompressedBlock* ReadyForDecompressionTail = nullptr;
@@ -158,6 +161,7 @@ private:
 	FFileIoStoreCompressedBlock* FirstDecompressedBlock = nullptr;
 	FIoRequestImpl* CompletedRequestsHead = nullptr;
 	FIoRequestImpl* CompletedRequestsTail = nullptr;
+	FDelegateHandle OversubscriptionLimitReached;
 };
 
 TSharedRef<FFileIoStore> CreateIoDispatcherFileBackend();
