@@ -1101,6 +1101,16 @@ void UMovieSceneCompiledDataManager::CompileSubSequences(const FMovieSceneSequen
 					MetaData->TrailingFence = DiscreteExclusiveUpper(SubSequenceIt.Range());
 				}
 
+				// Add determinism fences for boundary conditions
+				if (!SubData->OuterToInnerTransform.IsLinear() && (SubEntry.CompiledFlags.bParentSequenceRequiresUpperFence || SubEntry.CompiledFlags.bParentSequenceRequiresLowerFence) )
+				{
+					SubData->OuterToInnerTransform.ExtractBoundariesWithinRange(SubSequenceIt.Range().GetLowerBoundValue(), SubSequenceIt.Range().GetUpperBoundValue(), [OutCompilerData](FFrameTime FrameTime)
+					{
+						OutCompilerData->DeterminismData.Fences.Add(FrameTime.FrameNumber);
+						return true;
+					});
+				}
+
 				MetaData->LastIterIndex = ItIndex;
 			}
 		}
@@ -1803,7 +1813,6 @@ void UMovieSceneCompiledDataManager::PopulateSubSequenceTree(UMovieSceneSubTrack
 
 				const ESectionEvaluationFlags SubEntryFlags = Entry.Flags | Params.Flags;
 
-				// The section isn't looping, so we can just add it to the tree.
 				InOutHierarchy->AddRange(FrameRange, SubSequenceID, SubEntryFlags);
 
 				// Recurse into the sub sequence
