@@ -164,6 +164,26 @@ namespace EpicGames.Redis
 
 		#endregion
 
+		#region SortedSetRandomMemberAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.SortedSetRandomMemberAsync(RedisKey, CommandFlags)"/>
+		public static Task<TElement> SortedSetRandomMemberAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, CommandFlags flags = CommandFlags.None)
+		{
+			return target.SortedSetRandomMemberAsync(key.Inner, flags).DeserializeAsync<TElement>();
+		}
+
+		#endregion
+
+		#region SortedSetRandomMembersAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.SortedSetRandomMemberAsync(RedisKey, CommandFlags)"/>
+		public static Task<TElement[]> SortedSetRandomMembersAsync<TElement>(this IDatabaseAsync target, RedisSortedSetKey<TElement> key, long count, CommandFlags flags = CommandFlags.None)
+		{
+			return target.SortedSetRandomMembersAsync(key.Inner, count, flags).DeserializeAsync<TElement>();
+		}
+
+		#endregion
+
 		#region SortedSetRangeByRankAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SortedSetRangeByRankAsync(RedisKey, Int64, Int64, Order, CommandFlags)"/>

@@ -117,6 +117,22 @@ namespace EpicGames.Redis
 
 		#endregion
 
+		#region SetRandomMemberAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.SetRandomMemberAsync(RedisKey, CommandFlags)"/>
+		public static Task<TElement> SetRandomMemberAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, CommandFlags flags = CommandFlags.None)
+			=> target.SetRandomMemberAsync(key, flags);
+
+		#endregion
+
+		#region SetRandomMembersAsync
+
+		/// <inheritdoc cref="IDatabaseAsync.SetRandomMembersAsync(RedisKey, long, CommandFlags)"/>
+		public static Task<TElement[]> SetRandomMembersAsync<TElement>(this IDatabaseAsync target, RedisSetKey<TElement> key, long count, CommandFlags flags = CommandFlags.None)
+			=> target.SetRandomMembersAsync(key, count, flags);
+
+		#endregion
+
 		#region SetRemoveAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.SetRemoveAsync(RedisKey, RedisValue, CommandFlags)"/>
