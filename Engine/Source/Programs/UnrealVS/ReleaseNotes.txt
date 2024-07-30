@@ -1,4 +1,7 @@
-1.84.6.0
+1.84.7.0
+* Fix exception for older VS versions
+
+1.84.7.0
 * Update NuGet packages
 * Remove VS2019 support
 
