@@ -45,7 +45,7 @@ void Gather(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 	}
 
 	// Split the output indices into data and indices indices 
-	int DataIndices[NUM_OUTPUT_DIMENSIONS];
+	int DataIndices[NUM_OUTPUT_DIMENSIONS + 1];
 	int IndicesIndices[NUM_OUTPUT_DIMENSIONS];
 	for (int i = 0; i < Axis; i++)
 	{
