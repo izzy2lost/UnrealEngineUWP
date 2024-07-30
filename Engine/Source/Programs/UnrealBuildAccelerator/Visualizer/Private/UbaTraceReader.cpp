@@ -348,21 +348,22 @@ namespace uba
 		{
 		case TraceType_SessionAdded:
 		{
-			StringBuffer<> sessionName;
+			StringBuffer<128> sessionName;
 			reader.ReadString(sessionName);
 			StringBuffer<> sessionInfo;
 			reader.ReadString(sessionInfo);
 			Guid clientUid = ReadClientId(out, reader);
 			u32 sessionIndex = reader.ReadU32();
 
-			sessionName.Append(L" (").Append(sessionInfo).Append(L")");
+			StringBuffer<> fullName;
+			fullName.Append(sessionName).Append(L" (").Append(sessionInfo).Append(L")");
 
 			// Check if we can re-use existing session (same machine was disconnected and then reconnected)
 			u32 virtualSessionIndex = sessionIndex;
 			for (u32 i = 0; i != out.sessions.size(); ++i)
 			{
 				auto& oldSession = out.sessions[i];
-				if (oldSession.name != sessionName.data)
+				if (oldSession.fullName != fullName.data)
 					continue;
 				if (oldSession.disconnectTime == ~u64(0))
 					break;
@@ -388,6 +389,7 @@ namespace uba
 
 			TraceView::Session& session = GetSession(out, sessionIndex);
 			session.name = sessionName.data;
+			session.fullName = fullName.data;
 			session.clientUid = clientUid;
 
 			++out.activeSessionCount;

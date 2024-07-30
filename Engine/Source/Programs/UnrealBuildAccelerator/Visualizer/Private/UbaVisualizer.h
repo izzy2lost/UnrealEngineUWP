@@ -32,7 +32,7 @@ namespace uba
 		UBA_VISUALIZER_FLAG(AutoSaveSettings, true, L"Auto save Position/Settings on close") \
 		UBA_VISUALIZER_FLAG(ShowAllTraces, true, L"Show all traces started on channel") \
 		UBA_VISUALIZER_FLAG(SortActiveRemoteSessions, true, L"Sort active sessions on top") \
-		UBA_VISUALIZER_FLAG(AutoScaleHorizontal, true, L"Automatically scale horizontal to fit processes") \
+		UBA_VISUALIZER_FLAG(AutoScaleHorizontal, true, L"Automatically scale horizontally to fit processes") \
 		UBA_VISUALIZER_FLAG(LockTimelineToBottom, true, L"Lock timeline to always paint at bottom") \
 
 	struct VisualizerConfig
@@ -84,6 +84,7 @@ namespace uba
 		void Reset();
 		void PaintClient(const Function<void(HDC hdc, HDC memDC, RECT& clientRect)>& paintFunc);
 		void PaintAll(HDC hdc, const RECT& clientRect);
+		void PaintActiveProcesses(int& posY, const RECT& clientRect, const Function<void(TraceView::ProcessLocation&, u32, bool)>& drawProcess);
 		void PaintProcessRect(TraceView::Process& process, HDC hdc, RECT rect, const RECT& progressRect, bool selected, bool writingBitmap);
 		void PaintTimeline(HDC hdc, const RECT& clientRect);
 		using DrawTextFunc = Function<void(const StringBufferBase& text, RECT& rect)>;
@@ -100,6 +101,7 @@ namespace uba
 		};
 		struct HitTestResult
 		{
+			u32 section = ~0u;
 			TraceView::ProcessLocation processLocation;
 			bool processSelected = false;
 			u32 sessionSelectedIndex = ~0u;
@@ -114,6 +116,7 @@ namespace uba
 			TString hyperLink;
 		};
 		u64 GetPlayTime();
+		int GetTimelineHeight();
 		int GetTimelineTop(const RECT& clientRect);
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
@@ -131,10 +134,20 @@ namespace uba
 		void StopDragToScroll();
 		void SaveSettings();
 		void DirtyBitmaps(bool full);
-		void UpdateFont();
+
+		struct Font
+		{
+			HFONT handle = 0;
+			HFONT handleUnderlined = 0;
+			int height = 0;
+		};
+
+		void UpdateFont(Font& font, int height, bool createUnderline);
+		void UpdateDefaultFont();
 		void UpdateProcessFont();
 		void ChangeFontSize(int offset);
 		void Redraw();
+		void SetActiveFont(const Font& font);
 
 		StringBuffer<256> m_namedTrace;
 		StringBuffer<256> m_fileName;
@@ -176,16 +189,22 @@ namespace uba
 		HPEN m_memPen = 0;
 		HPEN m_processUpdatePen = 0;
 		HPEN m_checkboxPen = 0;
-		HFONT m_font = 0;
-		HFONT m_fontUnderlined = 0;
-		HFONT m_processFont = 0;
-		int m_progressRectLeft = 30;
-		int m_processFontHeight = 0;
-		int m_fontHeight = 0;
 		int m_boxHeight = 0;
 		int m_sessionStepY = 0;
-		HFONT m_popupFont = 0;
-		int m_popupFontHeight = 0;
+
+		Font m_defaultFont;
+		Font m_processFont;
+		Font m_timelineFont;
+		Font m_popupFont;
+
+		Font m_activeProcessFont[32];
+		u32 m_activeProcessCountHistory[5];
+		u32 m_activeProcessCountHistoryIterator = 0;
+
+		HDC m_activeHdc = 0;
+		Font m_activeFont;
+
+		int m_progressRectLeft = 30;
 
 		Logger& m_logger;
 		VisualizerConfig m_config;
@@ -214,6 +233,7 @@ namespace uba
 		HBITMAP m_lastBitmap = 0;
 		int m_lastBitmapOffset = BitmapCacheHeight;
 
+		u32 m_activeSection = ~0u;
 		TraceView::ProcessLocation m_processSelectedLocation;
 		bool m_processSelected = false;
 		u32 m_sessionSelectedIndex = ~0u;

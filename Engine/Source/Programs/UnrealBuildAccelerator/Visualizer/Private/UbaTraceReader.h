@@ -82,6 +82,7 @@ namespace uba
 		struct Session
 		{
 			TString name;
+			TString fullName;
 			Guid clientUid;
 			Vector<Processor> processors;
 			Vector<SessionUpdate> updates;
