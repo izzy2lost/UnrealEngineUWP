@@ -15,6 +15,7 @@
 #include "SAssetEditorViewport.h"
 #include "Styling/StyleColors.h"
 
+class FPreviewProfileController;
 class IStaticMeshEditor;
 class SVerticalBox;
 class UStaticMesh;
@@ -210,6 +211,8 @@ private:
 
 	/** Editor viewport client */
 	TSharedPtr<class FStaticMeshEditorViewportClient> EditorViewportClient;
+
+	TSharedPtr<FPreviewProfileController> PreviewProfileController;
 
 	/** Static mesh being edited */
 	TObjectPtr<UStaticMesh> StaticMesh;

@@ -20,6 +20,7 @@
 #include "Engine/StaticMeshSocket.h"
 #include "SEditorViewportToolBarMenu.h"
 #include "Editor.h"
+#include "PreviewProfileController.h"
 #include "ToolMenus.h"
 #include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Text/SRichTextBlock.h"
@@ -865,10 +866,22 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::BuildViewportToolbar()
 				FToolMenuEntry ViewModesSubmenu = UE::UnrealEd::CreateViewportToolbarViewModesSubmenu();
 				ViewModesSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 				RightSection.AddEntry(ViewModesSubmenu);
+			}
 
+			// Add the "Performance and Scalability" sub menu.
+			{
 				FToolMenuEntry PerformanceAndScalabilitySubmenu = UE::UnrealEd::CreatePerformanceAndScalabilitySubmenu();
 				PerformanceAndScalabilitySubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
 				RightSection.AddEntry(PerformanceAndScalabilitySubmenu);
+			}
+
+			// Add the "Preview Profile" sub menu.
+			{
+				PreviewProfileController = MakeShared<FPreviewProfileController>();
+				FToolMenuEntry PreviewProfileSubmenu =
+					UE::UnrealEd::CreateViewportToolbarAssetViewerProfileSubmenu(PreviewProfileController);
+				PreviewProfileSubmenu.InsertPosition.Position = EToolMenuInsertType::Last;
+				RightSection.AddEntry(PreviewProfileSubmenu);
 			}
 		}
 	}

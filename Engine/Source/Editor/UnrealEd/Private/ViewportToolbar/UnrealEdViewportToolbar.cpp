@@ -15,6 +15,7 @@
 #include "PreviewProfileController.h"
 #include "RayTracingDebugVisualizationMenuCommands.h"
 #include "SAssetEditorViewport.h"
+#include "SCommonEditorViewportToolbarBase.h"
 #include "SEditorViewport.h"
 #include "Settings/EditorProjectSettings.h"
 #include "Settings/LevelEditorViewportSettings.h"
@@ -1771,6 +1772,97 @@ FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 						}
 					)
 				);
+			}
+		)
+	);
+}
+
+FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<IPreviewProfileController>& InPreviewProfileController
+)
+{
+	TWeakPtr<IPreviewProfileController> PreviewProfileControllerWeak = InPreviewProfileController;
+
+	return FToolMenuEntry::InitSubMenu(
+		"AssetViewerProfile",
+		TAttribute<FText>::CreateLambda(
+			[PreviewProfileControllerWeak]()
+			{
+				if (TSharedPtr<IPreviewProfileController> PreviewProfileController = PreviewProfileControllerWeak.Pin())
+				{
+					return FText::FromString(PreviewProfileController->GetActiveProfile());
+				}
+
+				return LOCTEXT("AssetViewerDefaultProfileLabel", "Profile");
+			}
+		),
+		LOCTEXT("AssetViewerProfileSelectionSectionTooltip", "Select the Preview Scene Profile for this viewport."),
+		FNewToolMenuDelegate::CreateLambda(
+			[PreviewProfileControllerWeak](UToolMenu* Submenu) -> void
+			{
+				TSharedPtr<IPreviewProfileController> PreviewProfileController = PreviewProfileControllerWeak.Pin();
+
+				if (!PreviewProfileController)
+				{
+					return;
+				}
+
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+
+				constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
+				FMenuBuilder PreviewProfilesSelectionMenuBuilder(bInShouldCloseWindowAfterMenuSelection, nullptr);
+				PreviewProfilesSelectionMenuBuilder.BeginSection(
+					"AssetViewerProfileSelectionSection",
+					LOCTEXT("AssetViewerProfileSelectionSectionLabel", "Preview Scene Profiles")
+				);
+
+				int32 CurrProfileIndex = 0;
+				const TArray<FString>& PreviewProfiles = PreviewProfileController->GetPreviewProfiles(CurrProfileIndex);
+
+				for (int32 ProfileIndex = 0; ProfileIndex < PreviewProfiles.Num(); ProfileIndex++)
+				{
+					const FString& ProfileName = PreviewProfiles[ProfileIndex];
+					PreviewProfilesSelectionMenuBuilder.AddMenuEntry(
+						FText::FromString(ProfileName),
+						LOCTEXT("", ""),
+						FSlateIcon(),
+						FUIAction(
+							FExecuteAction::CreateLambda(
+								[PreviewProfileControllerWeak, ProfileIndex, PreviewProfiles]()
+								{
+									if (TSharedPtr<IPreviewProfileController> PreviewProfileController =
+											PreviewProfileControllerWeak.Pin())
+									{
+										PreviewProfileController->SetActiveProfile(PreviewProfiles[ProfileIndex]);
+									}
+								}
+							),
+							FCanExecuteAction(),
+							FIsActionChecked::CreateLambda(
+								[PreviewProfileControllerWeak, ProfileIndex]()
+								{
+									if (TSharedPtr<IPreviewProfileController> PreviewProfileController =
+											PreviewProfileControllerWeak.Pin())
+									{
+										int32 CurrentlySelectedProfileIndex;
+										PreviewProfileController->GetPreviewProfiles(CurrentlySelectedProfileIndex);
+
+										return ProfileIndex == CurrentlySelectedProfileIndex;
+									}
+
+									return false;
+								}
+							)
+						),
+						NAME_None,
+						EUserInterfaceActionType::RadioButton
+					);
+				}
+
+				PreviewProfilesSelectionMenuBuilder.EndSection();
+
+				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
+					"AssetViewerProfile", PreviewProfilesSelectionMenuBuilder.MakeWidget(), FText(), true
+				));
 			}
 		)
 	);

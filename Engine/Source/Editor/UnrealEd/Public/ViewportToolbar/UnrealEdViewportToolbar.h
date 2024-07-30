@@ -11,6 +11,7 @@
 class IPreviewProfileController;
 class FEditorViewportClient;
 class FText;
+class IPreviewProfileController;
 class SEditorViewport;
 class UToolMenu;
 struct FNewToolMenuChoice;
@@ -116,6 +117,8 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 );
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarCameraSubmenu();
+
+UNREALED_API FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<IPreviewProfileController>& InPreviewProfileController);
 
 UNREALED_API void PopulateCameraMenu(UToolMenu* InMenu);
 
