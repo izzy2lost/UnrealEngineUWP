@@ -261,3 +261,5 @@ void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
 	Handler->AddData(DSI, Row, INDEX_NONE, CurveName, HierarchyTable);
 	*/
 }
+
+#undef LOCTEXT_NAMESPACE

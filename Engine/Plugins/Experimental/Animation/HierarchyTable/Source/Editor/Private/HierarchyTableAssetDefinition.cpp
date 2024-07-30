@@ -37,3 +37,5 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_HierarchyTable::GetAssetCat
 	static const auto Categories = { FAssetCategoryPath(EAssetCategoryPaths::Animation) };
 	return Categories;
 }
+
+#undef LOCTEXT_NAMESPACE
