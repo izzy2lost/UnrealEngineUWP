@@ -2,17 +2,19 @@
 
 #include "NNEDenoiserViewExtension.h"
 #include "NNE.h"
+#include "NNEDenoiserAsset.h"
 #include "NNEDenoiserAutoExposure.h"
 #include "NNEDenoiserGenericDenoiser.h"
+#include "NNEDenoiserIOMappingData.h"
 #include "NNEDenoiserIOProcessBase.h"
 #include "NNEDenoiserLog.h"
-#include "NNEDenoiserAsset.h"
 #include "NNEDenoiserModelInstanceCPU.h"
 #include "NNEDenoiserModelInstanceGPU.h"
 #include "NNEDenoiserModelInstanceRDG.h"
-#include "NNEDenoiserModelIOMappingData.h"
 #include "NNEDenoiserPathTracingDenoiser.h"
 #include "NNEDenoiserPathTracingSpatialTemporalDenoiser.h"
+#include "NNEDenoiserResourceMapping.h"
+#include "NNEDenoiserTemporalAsset.h"
 #include "NNEDenoiserTransferFunctionOidn.h"
 #include "NNEDenoiserUtils.h"
 #include "NNEModelData.h"
@@ -30,7 +32,7 @@ static TAutoConsoleVariable<bool> CVarNNEDenoiser(
 static TAutoConsoleVariable<int32> CVarNNEDenoiserAsset(
 	TEXT("NNEDenoiser.Asset"),
 	0,
-	TEXT("Defines asset to used to create the denoiser.\n")
+	TEXT("Defines denoiser asset to used to create the denoiser.\n")
 	TEXT("  0: Use denoiser asset defined by Project Settings\n")
 	TEXT("  1: OIDN Fast\n")
 	TEXT("  2: OIDN Balanced\n")
@@ -38,6 +40,15 @@ static TAutoConsoleVariable<int32> CVarNNEDenoiserAsset(
 	TEXT("  4: OIDN Fast | Alpha\n")
 	TEXT("  5: OIDN Balanced | Alpha\n")
 	TEXT("  6: OIDN High Quality | Alpha")
+);
+
+static TAutoConsoleVariable<int32> CVarNNEDenoiserTemporalAsset(
+	TEXT("NNEDenoiser.TemporalAsset"),
+	0,
+	TEXT("Defines temporal denoiser asset to used to create the temporal denoiser.\n")
+	TEXT("  0: Use temporal denoiser asset defined by Project Settings\n")
+	TEXT("  1: OIDN Balanced\n")
+	TEXT("  2: OIDN Balanced | Alpha")
 );
 
 static TAutoConsoleVariable<int32> CVarNNEDenoiserRuntimeType(
@@ -78,6 +89,22 @@ FString GetDenoiserAssetNameFromCVarAndSettings(const UNNEDenoiserSettings* Sett
 		case 4: return TEXT("/NNEDenoiser/NNED_Oidn2-3_Fast_Alpha.NNED_Oidn2-3_Fast_Alpha");
 		case 5: return TEXT("/NNEDenoiser/NNED_Oidn2-3_Balanced_Alpha.NNED_Oidn2-3_Balanced_Alpha");
 		case 6: return TEXT("/NNEDenoiser/NNED_Oidn2-3_HighQuality_Alpha.NNED_Oidn2-3_HighQuality_Alpha");
+	}
+	check(false);
+	return FString();
+}
+
+FString GetDenoiserTemporalAssetNameFromCVarAndSettings(const UNNEDenoiserSettings* Settings)
+{
+	const int32 Idx = FMath::Clamp(CVarNNEDenoiserTemporalAsset.GetValueOnGameThread(), 0, 6);
+	switch(Idx)
+	{
+		case 0: return !Settings->TemporalDenoiserAsset.IsNull() ? Settings->TemporalDenoiserAsset.ToString() : FString();
+
+		case 1: return TEXT("/NNEDenoiser/NNEDT_Oidn2-3_Balanced.NNEDT_Oidn2-3_Balanced");
+
+		// Alpha
+		case 2: return TEXT("/NNEDenoiser/NNEDT_Oidn2-3_Balanced_Alpha.NNEDT_Oidn2-3_Balanced_Alpha");
 	}
 	check(false);
 	return FString();
@@ -169,45 +196,8 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiser(
 		TransferFunction);
 }
 
-static FResourceMappingList MakeTensorLayout(UDataTable* DataTable)
-{
-	TMap<int32, TMap<int32, FResourceInfo>> Map;
-	DataTable->ForeachRow<FNNEDenoiserModelIOMappingData>("FResourceLayout", [&] (const FName &Key, const FNNEDenoiserModelIOMappingData &Value)
-	{
-		if (Value.TensorChannel < 0)
-		{
-			for (int32 I = 0; I < -Value.TensorChannel; I++)
-			{
-				Map.FindOrAdd(Value.TensorIndex).FindOrAdd(I) = FResourceInfo{Value.Resource, I, Value.FrameIndex};
-			}
-		}
-		else
-		{
-			Map.FindOrAdd(Value.TensorIndex).FindOrAdd(Value.TensorChannel) = FResourceInfo{Value.Resource, Value.ResourceChannel, Value.FrameIndex};
-		}
-	});
-
-	FResourceMappingList Result{};
-
-	for (int32 I = 0; I < Map.Num(); I++)
-	{
-		checkf(Map.Contains(I), TEXT("Missing intput/output %d, must be continuous!"), I);
-
-		const TMap<int32, FResourceInfo>& InnerMap = Map[I];
-		FResourceMapping& Mapping = Result.Add_GetRef({});
-
-		for (int32 J = 0; J < InnerMap.Num(); J++)
-		{
-			checkf(InnerMap.Contains(J), TEXT("Missing tensor info for channel %d, must be continuous!"), J);
-
-			Mapping.Add(InnerMap[J]);
-		}
-	}
-
-	return Result;
-}
-
-FParameters GetParametersValidated(const UNNEDenoiserAsset& DenoiserAsset)
+template<class AssetType>
+FParameters GetParametersValidated(const AssetType& DenoiserAsset)
 {
 	FParameters Parameters{
 		.TilingConfig =
@@ -258,6 +248,7 @@ FParameters GetParametersValidated(const UNNEDenoiserAsset& DenoiserAsset)
 	return Parameters;
 }
 
+template<class AssetType, class InputMappingType, class OutputMappingType>
 TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName, EDenoiserRuntimeType RuntimeType, const FString& RuntimeNameOverride)
 {
 	if (AssetName.IsEmpty())
@@ -266,7 +257,7 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 		return {};
 	}
 
-	UNNEDenoiserAsset *DenoiserAsset = LoadObject<UNNEDenoiserAsset>(nullptr, *AssetName);
+	AssetType *DenoiserAsset = LoadObject<AssetType>(nullptr, *AssetName);
 	if (!DenoiserAsset)
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not load denoiser model data asset!"));
@@ -293,23 +284,18 @@ TUniquePtr<FGenericDenoiser> CreateNNEDenoiserFromAsset(const FString& AssetName
 	FResourceMappingList InputLayout;
 	if (InputMappingTable)
 	{
-		InputLayout = MakeTensorLayout(InputMappingTable);
+		InputLayout = MakeTensorLayout<InputMappingType>(InputMappingTable);
 	}
 
 	FResourceMappingList OutputLayout;
 	if (OutputMappingTable)
 	{
-		OutputLayout = MakeTensorLayout(OutputMappingTable);
+		OutputLayout = MakeTensorLayout<OutputMappingType>(OutputMappingTable);
 	}
-
-	const bool bIsOidnModel = AssetName.Contains(TEXT("oidn2"));
-	const bool bIsInHouseModel = AssetName.Contains(TEXT("kpcn"));
-
-	check(!bIsOidnModel || !bIsInHouseModel);
 
 	TUniquePtr<FAutoExposure> AutoExposure;
 	TSharedPtr<ITransferFunction> TransferFunction;
-	if (bIsOidnModel)
+	if (AssetName.Contains(TEXT("oidn2")))
 	{
 		AutoExposure = MakeUnique<FAutoExposure>();
 		TransferFunction = MakeShared<Oidn::FTransferFunction>();
@@ -347,8 +333,7 @@ FViewExtension::~FViewExtension()
 	}
 #endif
 
-	UnregisterDenoiser(TEXT("NNE_OIDN"));
-	UnregisterDenoiser(TEXT("NNE_KPCN"));
+	UnregisterDenoiser(TEXT("NNEDenoiser"));
 }
 
 void FViewExtension::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
@@ -360,23 +345,23 @@ void FViewExtension::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder,
 {
 	if (!bDenoiserEnabled)
 	{
-		UnregisterDenoiser(TEXT("NNE_OIDN"));
-		UnregisterDenoiser(TEXT("NNE_KPCN"));
+		UnregisterDenoiser(TEXT("NNEDenoiser"));
 	}
 	else
 	{
+		if (DenoiserToSwap.IsValid() || SpatialTemporalDenoiserToSwap.IsValid())
+		{
+			UnregisterDenoiser(TEXT("NNEDenoiser"));
+		}
+
 		if (DenoiserToSwap.IsValid())
 		{
-			UnregisterDenoiser(TEXT("NNE_OIDN"));
-			UnregisterDenoiser(TEXT("NNE_KPCN"));
-			RegisterSpatialDenoiser(MoveTemp(DenoiserToSwap),TEXT("NNE_OIDN"));
+			RegisterSpatialDenoiser(MoveTemp(DenoiserToSwap),TEXT("NNEDenoiser"));
 		}
 
 		if (SpatialTemporalDenoiserToSwap.IsValid())
 		{
-			UnregisterDenoiser(TEXT("NNE_OIDN"));
-			UnregisterDenoiser(TEXT("NNE_KPCN"));
-			RegisterSpatialTemporalDenoiser(MoveTemp(SpatialTemporalDenoiserToSwap), TEXT("NNE_KPCN"));
+			RegisterSpatialTemporalDenoiser(MoveTemp(SpatialTemporalDenoiserToSwap), TEXT("NNEDenoiser"));
 		}
 	}
 }
@@ -388,7 +373,8 @@ void FViewExtension::ApplySettings(const UNNEDenoiserSettings* Settings)
 	bNeedsUpdate |= CVarNNEDenoiser.GetValueOnGameThread() != bDenoiserEnabled;
 	bNeedsUpdate |= GetDenoiserRuntimeTypeFromCVar() != RuntimeType;
 	bNeedsUpdate |= CVarNNEDenoiserRuntimeName.GetValueOnGameThread() != RuntimeName;
-	bNeedsUpdate |= GetDenoiserAssetNameFromCVarAndSettings(Settings) != ModelDataName;
+	bNeedsUpdate |= GetDenoiserAssetNameFromCVarAndSettings(Settings) != AssetName;
+	bNeedsUpdate |= GetDenoiserTemporalAssetNameFromCVarAndSettings(Settings) != TemporalAssetName;
 
 	if (!bNeedsUpdate)
 	{
@@ -406,25 +392,33 @@ void FViewExtension::ApplySettings(const UNNEDenoiserSettings* Settings)
 
 	RuntimeType = GetDenoiserRuntimeTypeFromCVar();
 	RuntimeName = CVarNNEDenoiserRuntimeName.GetValueOnGameThread();
-	ModelDataName = GetDenoiserAssetNameFromCVarAndSettings(Settings);
+	AssetName = GetDenoiserAssetNameFromCVarAndSettings(Settings);
+	TemporalAssetName = GetDenoiserTemporalAssetNameFromCVarAndSettings(Settings);
 
-	UE_LOG(LogNNEDenoiser, Log, TEXT("Create denoiser from asset %s..."), *ModelDataName);
+	// UE_LOG(LogNNEDenoiser, Log, TEXT("Create denoiser from asset %s..."), *AssetName);
 
-	TUniquePtr<FGenericDenoiser> Denoiser = CreateNNEDenoiserFromAsset(ModelDataName, RuntimeType, RuntimeName);
+	TUniquePtr<FGenericDenoiser> Denoiser = CreateNNEDenoiserFromAsset<UNNEDenoiserAsset, FNNEDenoiserInputMappingData, FNNEDenoiserOutputMappingData>(AssetName, RuntimeType, RuntimeName);
 	if (Denoiser.IsValid())
 	{
-		if (ModelDataName.Contains(TEXT("kpcn")))
-		{
-			SpatialTemporalDenoiserToSwap = MakeUnique<FPathTracingSpatialTemporalDenoiser>(MoveTemp(Denoiser));
-		}
-		else
-		{
-			DenoiserToSwap = MakeUnique<FPathTracingDenoiser>(MoveTemp(Denoiser));
-		}
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Create denoiser from asset %s..."), *AssetName);
+
+		DenoiserToSwap = MakeUnique<FPathTracingDenoiser>(MoveTemp(Denoiser));
 	}
 	else
 	{
-		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create denoiser!"));
+		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create denoiser from asset %d!"), *AssetName);
+	}
+
+	TUniquePtr<FGenericDenoiser> TemporalDenoiser = CreateNNEDenoiserFromAsset<UNNEDenoiserTemporalAsset, FNNEDenoiserTemporalInputMappingData, FNNEDenoiserTemporalOutputMappingData>(TemporalAssetName, RuntimeType, RuntimeName);
+	if (TemporalDenoiser.IsValid())
+	{
+		UE_LOG(LogNNEDenoiser, Log, TEXT("Create temporal denoiser from asset %s..."), *TemporalAssetName);
+
+		SpatialTemporalDenoiserToSwap = MakeUnique<FPathTracingSpatialTemporalDenoiser>(MoveTemp(TemporalDenoiser));
+	}
+	else
+	{
+		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not create temporal denoiser from asset %d!"), *TemporalAssetName);
 	}
 }
 

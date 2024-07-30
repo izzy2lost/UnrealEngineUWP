@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "NNEDenoiserLog.h"
-#include "NNEDenoiserModelIOMappingData.h"
+#include "NNEDenoiserResourceName.h"
 #include "PathTracingDenoiser.h"
 #include "RendererInterface.h"
 

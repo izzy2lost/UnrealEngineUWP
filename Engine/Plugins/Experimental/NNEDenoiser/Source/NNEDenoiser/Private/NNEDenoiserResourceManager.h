@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Containers/Map.h"
-#include "NNEDenoiserModelIOMappingData.h"
+#include "NNEDenoiserResourceName.h"
 #include "NNEDenoiserTiling.h"
 #include "RendererInterface.h"
 #include "RenderGraphFwd.h"

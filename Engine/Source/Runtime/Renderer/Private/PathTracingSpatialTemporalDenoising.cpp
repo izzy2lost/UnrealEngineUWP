@@ -185,7 +185,7 @@ namespace {
 
 	TAutoConsoleVariable<FString> CVarPathTracingDenoiserName(
 		TEXT("r.PathTracing.Denoiser.Name"),
-		"NNE_OIDN",
+		"NNEDenoiser",
 		TEXT("Set the spatial denoiser name. It is the corresponding name registered by a denoiser plugin\n")
 		TEXT("Any registered denoiser should be able to denoise a single frame spatially.\n")
 	);

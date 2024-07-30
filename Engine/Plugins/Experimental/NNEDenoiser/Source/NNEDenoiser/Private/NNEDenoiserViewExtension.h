@@ -41,7 +41,8 @@ class FViewExtension final : public FSceneViewExtensionBase
 		bool bDenoiserEnabled = true;
 		EDenoiserRuntimeType RuntimeType;
 		FString RuntimeName;
-		FString ModelDataName;
+		FString AssetName;
+		FString TemporalAssetName;
 	};
 
 } // namespace UE::NNEDenoiser::Private

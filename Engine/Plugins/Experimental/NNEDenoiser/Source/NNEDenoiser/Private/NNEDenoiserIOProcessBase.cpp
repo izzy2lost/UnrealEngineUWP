@@ -84,7 +84,7 @@ void AddReadInputPass(
 	FRDGBuilder& GraphBuilder,
 	FRDGTextureRef InputTexture,
 	FRDGBufferUAVRef OutputBufferUAV,
-	const TArray<FIntPoint>& ChannelMapping)
+	const TArray<FChannelMapping>& ChannelMapping)
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
 
@@ -109,7 +109,7 @@ void AddReadInputPass(
 	ReadInputParameters->OutputBuffer = OutputBufferUAV;
 	for (int32 Idx = 0; Idx < ChannelMapping.Num(); Idx++)
 	{
-		ReadInputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].X, ChannelMapping[Idx].Y, 0, 0 };
+		ReadInputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].TensorChannel, ChannelMapping[Idx].ResourceChannel, 0, 0 };
 	}
 
 	const EDataType InputDataType = GetDenoiserShaderDataType(InputTexture->Desc.Format);
@@ -146,7 +146,7 @@ void AddWriteOutputPass(
 	EPixelFormat BufferFormat,
 	FRDGTextureRef OutputTexture,
 	UE::NNEDenoiserShaders::Internal::EDataType DataType,
-	const TArray<FIntPoint>& ChannelMapping)
+	const TArray<FChannelMapping>& ChannelMapping)
 {
 	using namespace UE::NNEDenoiserShaders::Internal;
 
@@ -159,7 +159,7 @@ void AddWriteOutputPass(
 	WriteOutputParameters->OutputTexture = GraphBuilder.CreateUAV(FRDGTextureUAVDesc(OutputTexture));
 	for (int32 Idx = 0; Idx < ChannelMapping.Num(); Idx++)
 	{
-		WriteOutputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].Y, ChannelMapping[Idx].X, 0, 0 };
+		WriteOutputParameters->OutputChannel_InputChannel_Unused_Unused[Idx] = { ChannelMapping[Idx].ResourceChannel, ChannelMapping[Idx].TensorChannel, 0, 0 };
 	}
 
 	const EDataType InputDataType = GetDenoiserShaderDataType(BufferFormat);
@@ -197,7 +197,7 @@ void AddReadInputPassForKind(
 	const FResourceMapping& ResourceMapping,
 	FRDGBufferUAVRef BufferUAV)
 {
-	for (const TPair<int32, TArray<FIntPoint>>& ChannelMappingKeyValue : ResourceMapping.GetChannelMappingPerFrame(TensorName))
+	for (const TPair<int32, TArray<FChannelMapping>>& ChannelMappingKeyValue : ResourceMapping.GetChannelMappingPerFrame(TensorName))
 	{
 		const int32 FrameIdx = -ChannelMappingKeyValue.Key;
 		FRDGTextureRef InputTexture = ResourceAccess.GetTexture(TensorName, FrameIdx);
@@ -498,9 +498,9 @@ void FOutputProcessBase::ReadOutputBuffer(
 	const NNEDenoiserShaders::Internal::EDataType DataType = GetDenoiserShaderDataType(TensorDataType);
 	const FIntPoint BufferSize(TensorShape.GetData()[3], TensorShape.GetData()[2]);
 		
-	TMap<int32, TArray<FIntPoint>> ChannelMappingPerFrame = ResourceMapping.GetChannelMappingPerFrame(EResourceName::Output);
+	TMap<int32, TArray<FChannelMapping>> ChannelMappingPerFrame = ResourceMapping.GetChannelMappingPerFrame(EResourceName::Output);
 	checkf(ChannelMappingPerFrame.Num() == 1, TEXT("Invalid output mapping"));
-	const TArray<FIntPoint>& ChannelMapping = ChannelMappingPerFrame.CreateConstIterator().Value();
+	const TArray<FChannelMapping>& ChannelMapping = ChannelMappingPerFrame.CreateConstIterator().Value();
 
 	const EPixelFormat BufferFormat = GetBufferFormat(TensorDataType);
 

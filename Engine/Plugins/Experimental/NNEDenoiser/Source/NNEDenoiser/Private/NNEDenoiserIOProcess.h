@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "NNEDenoiserModelIOMappingData.h"
+#include "NNEDenoiserResourceName.h"
 #include "NNETypes.h"
 #include "RenderGraphFwd.h"
 

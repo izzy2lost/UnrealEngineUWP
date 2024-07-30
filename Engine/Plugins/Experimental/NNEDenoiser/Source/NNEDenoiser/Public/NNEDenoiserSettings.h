@@ -4,6 +4,7 @@
 
 #include "Engine/DeveloperSettingsBackedByCVars.h"
 #include "NNEDenoiserAsset.h"
+#include "NNEDenoiserTemporalAsset.h"
 
 #include "NNEDenoiserSettings.generated.h"
 
@@ -30,6 +31,10 @@ public:
 	/** Denoiser asset data used to create a NNE Denoiser */
 	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Denoiser Asset", ToolTip = "Select the denoiser asset"))
 	TSoftObjectPtr<UNNEDenoiserAsset> DenoiserAsset;
+
+	/** Temporal denoiser asset data used to create a NNE Denoiser */
+	UPROPERTY(Config, EditAnywhere, Category = "NNE Denoiser", meta = (DisplayName = "Temporal Denoiser Asset", ToolTip = "Select the temporal denoiser asset"))
+	TSoftObjectPtr<UNNEDenoiserTemporalAsset> TemporalDenoiserAsset;
 
 private:
 	/** Runtime type used to run the NNE Denoiser model. Backed by the console variable 'NNEDenoiser.Runtime.Type'. */

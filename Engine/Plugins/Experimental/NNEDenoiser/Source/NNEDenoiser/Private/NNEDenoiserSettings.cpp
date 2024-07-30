@@ -12,6 +12,7 @@ UNNEDenoiserSettings::UNNEDenoiserSettings()
 	SectionName = TEXT("NNE Denoiser");
 
 	DenoiserAsset = FSoftObjectPath(TEXT("/NNEDenoiser/NNED_Oidn2-3_Balanced.NNED_Oidn2-3_Balanced"));
+	TemporalDenoiserAsset = FSoftObjectPath(TEXT("/NNEDenoiser/NNEDT_Oidn2-3_Balanced.NNEDT_Oidn2-3_Balanced"));
 }
 
 void UNNEDenoiserSettings::PostInitProperties()

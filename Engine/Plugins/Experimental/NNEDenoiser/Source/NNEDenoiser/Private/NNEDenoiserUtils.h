@@ -3,7 +3,6 @@
 #pragma once
 
 #include "NNEDenoiserLog.h"
-#include "NNEDenoiserModelIOMappingData.h"
 #include "NNEDenoiserParameters.h"
 #include "NNEDenoiserShadersMappedCopyCS.h"
 #include "NNETypes.h"
