@@ -506,6 +506,10 @@ struct FFortniteMainBranchObjectVersion
 
 		// PCG changes around the ApplyOnActor node, where we collapsed the TargetActor to the input pin.
 		PCGApplyOnActorNodeMoveTargetActorEdgeToInput,
+
+		// Deprecation of the bPlaying flag on FTimeline struct types in favor of a better
+		// PlayingStateTracker type to improve replication reliability 
+		TimelinePlayingStateTrackerDeprecation,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
