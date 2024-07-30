@@ -4238,12 +4238,12 @@ void UWorld::BlockTillLevelStreamingCompleted()
 		if (IsVisibilityRequestPending() || HasAsyncLevelRequests())
 		{
 			WorkToDo = 2;
-		}
-
-		if (!bIsStreamingPaused && GEngine->GameViewport && GEngine->BeginStreamingPauseDelegate && GEngine->BeginStreamingPauseDelegate->IsBound())
-		{
-			GEngine->BeginStreamingPauseDelegate->Execute(GEngine->GameViewport->Viewport);
-			bIsStreamingPaused = true;
+			// Only call the streaming pause delegates if there is actually work to do.
+			if (!bIsStreamingPaused && GEngine->GameViewport && GEngine->BeginStreamingPauseDelegate && GEngine->BeginStreamingPauseDelegate->IsBound())
+			{
+				GEngine->BeginStreamingPauseDelegate->Execute(GEngine->GameViewport->Viewport);
+				bIsStreamingPaused = true;
+			}
 		}
 
 		// Flush level streaming requests, blocking till completion.
