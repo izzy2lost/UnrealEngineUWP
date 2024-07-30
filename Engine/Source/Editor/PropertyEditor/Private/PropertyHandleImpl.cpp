@@ -1047,8 +1047,10 @@ FText FPropertyValueImpl::GetResetToDefaultLabel() const
 	return FText::GetEmpty();
 }
 
-void FPropertyValueImpl::AddChild()
+int32 FPropertyValueImpl::AddChild()
 {
+	int32 ReturnLogicalIndex = INDEX_NONE;
+
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
 	if ( PropertyNodePin.IsValid() )
 	{
@@ -1135,10 +1137,11 @@ void FPropertyValueImpl::AddChild()
 
 						if (Array)
 						{
-							Array->PerformOperationWithSetter(Obj, Addr, [Obj, Array, &Index](void* DirectAddress)
-							{								
+							Array->PerformOperationWithSetter(Obj, Addr, [Obj, Array, &Index, &ReturnLogicalIndex](void* DirectAddress)
+							{
 								FScriptArrayHelper	ArrayHelper(Array, DirectAddress);
 								Index = ArrayHelper.AddValue();
+								ReturnLogicalIndex = Index;
 
 								// check whether the inner type is flagged as a non-nullable. if so, create it.
 								FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(Array->Inner);
@@ -1151,10 +1154,11 @@ void FPropertyValueImpl::AddChild()
 						}
 						else if (Set)
 						{
-							Set->PerformOperationWithSetter(Obj, Addr, [Obj, Set, &Index](void* DirectAddress)
+							Set->PerformOperationWithSetter(Obj, Addr, [Obj, Set, &Index, &ReturnLogicalIndex](void* DirectAddress)
 							{
 								FScriptSetHelper	SetHelper(Set, DirectAddress);
 								Index = SetHelper.AddDefaultValue_Invalid_NeedsRehash();
+								ReturnLogicalIndex = SetHelper.FindLogicalIndex(Index);
 
 								// check whether the element type is flagged as a non-nullable. if so, create it.
 								FObjectProperty* ElementObjectProperty = CastField<FObjectProperty>(Set->ElementProp);
@@ -1169,10 +1173,11 @@ void FPropertyValueImpl::AddChild()
 						}
 						else if (Map)
 						{
-							Map->PerformOperationWithSetter(Obj, Addr, [Obj, Map, &Index, &bAddedMapEntry](void* DirectAddress)
+							Map->PerformOperationWithSetter(Obj, Addr, [Obj, Map, &Index, &bAddedMapEntry, &ReturnLogicalIndex](void* DirectAddress)
 							{
 								FScriptMapHelper	MapHelper(Map, DirectAddress);
 								Index = MapHelper.AddDefaultValue_Invalid_NeedsRehash();
+								ReturnLogicalIndex = MapHelper.FindLogicalIndex(Index);
 
 								// check whether the key or value type is flagged as a non-nullable. if so, create it.
 								{
@@ -1222,6 +1227,8 @@ void FPropertyValueImpl::AddChild()
 			}
 		}
 	}
+
+	return ReturnLogicalIndex;
 }
 
 void FPropertyValueImpl::ClearChildren()
@@ -5585,11 +5592,8 @@ FPropertyAccess::Result FPropertyHandleSet::AddItem()
 							}
 
 							// If we don't have this element then add an entry and set it to this element value.
-							Implementation->AddChild();
+							const int32 ChildNodeIndex = Implementation->AddChild();
 							Implementation->GetPropertyNode()->RebuildChildren();
-
-							// Grab the last entry since we just added it.
-							const int32 ChildNodeIndex = PropNode->GetNumChildNodes() - 1;
 							if (ChildNodeIndex >= 0)
 							{
 								TSharedPtr<FPropertyNode> ChildNode = Implementation->GetChildNode(ChildNodeIndex);
@@ -5836,10 +5840,7 @@ FPropertyAccess::Result FPropertyHandleMap::AddItem()
 							}
 
 							// If we don't have this key then add an entry and set it to this key value.
-							Implementation->AddChild();
-
-							// Grab the last entry since we just added it.
-							const int32 ChildNodeIndex = PropNode->GetNumChildNodes() - 1;
+							const int32 ChildNodeIndex = Implementation->AddChild();
 							if (ChildNodeIndex >= 0)
 							{
 								TSharedPtr<FPropertyNode> ChildNode = Implementation->GetChildNode(ChildNodeIndex);

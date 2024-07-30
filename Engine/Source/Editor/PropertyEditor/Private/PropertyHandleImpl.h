@@ -287,8 +287,9 @@ public:
 
 	/**
 	 * Adds a child to the property node (container properties only)
+	 * @return The logical index of the added child.
 	 */
-	void AddChild();
+	int32 AddChild();
 
 	/**
 	 * Removes all children from the property node (container properties only)
