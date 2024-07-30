@@ -262,6 +262,7 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 #endif // WITH_TEXT_ARCHIVE_SUPPORT
 
 	LOG_SCOPE_VERBOSITY_OVERRIDE(LogClass, ELogVerbosity::Error);
+	LOG_SCOPE_VERBOSITY_OVERRIDE(LogEnum, ELogVerbosity::Error);
 
 	FTestInstanceDataObjectStruct StructData;
 
