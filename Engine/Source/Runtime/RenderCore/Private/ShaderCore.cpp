@@ -1689,6 +1689,8 @@ public:
 			if (Job.SecondaryOutput.IsValid())
 			{
 				Job.Output.bSucceeded = Job.Output.bSucceeded && Job.SecondaryOutput->bSucceeded;
+				// ensure the target field is set on the job output struct as we use it for validation during serialization
+				Job.SecondaryOutput->Target = Job.Input.Target;
 				if (Job.Output.bSucceeded)
 				{
 					Job.SecondaryOutput->GenerateOutputHash();
@@ -1701,6 +1703,8 @@ public:
 			Job.Output.bSucceeded = false;
 		}
 
+		// ensure the target field is set on the job output struct as we use it for validation during serialization
+		Job.Output.Target = Job.Input.Target;
 		if (Job.Output.bSucceeded)
 		{
 			Job.Output.GenerateOutputHash();
@@ -4010,6 +4014,7 @@ void FShaderCompileJob::SerializeOutput(FArchive& Ar)
 	Ar << Output;
 	// output hash is now serialized as part of the output, as the shader code is compressed in SCWs
 	checkf(!Output.bSucceeded || Output.OutputHash != FSHAHash(), TEXT("Successful compile job does not have an OutputHash generated."));
+	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
 
 	if (Ar.IsLoading())
 	{
@@ -4097,6 +4102,12 @@ void FShaderCompileJob::SerializeWorkerOutput(FArchive& Ar)
 	bool bSucceededTemp = (bool)bSucceeded;
 	Ar << bSucceededTemp;
 	bSucceeded = bSucceededTemp;
+
+	checkf(Output.Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
+	if (bSecondaryOutput)
+	{
+		checkf(SecondaryOutput->Target == Input.Target, TEXT("Output FShaderTarget does not match the input struct; incorrect results associated with job?"));
+	}
 }
 
 void FShaderCompileJob::SerializeWorkerInput(FArchive& Ar)
