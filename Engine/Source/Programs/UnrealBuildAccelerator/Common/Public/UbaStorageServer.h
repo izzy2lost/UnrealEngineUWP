@@ -46,7 +46,7 @@ namespace uba
 
 		void OnDisconnected(u32 clientId);
 		bool HandleMessage(const ConnectionInfo& connectionInfo, u8 messageType, BinaryReader& reader, BinaryWriter& writer);
-		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const tchar* hint);
+		bool WaitForWritten(CasEntry& casEntry, ScopedWriteLock& entryLock, const ConnectionInfo& connectionInfo, const tchar* hint);
 
 		u16 PopId();
 		void PushId(u16 id);
@@ -82,7 +82,6 @@ namespace uba
 			Atomic<u64> recvCasTime;
 			u64 fileSize = 0;
 			u64 actualSize = 0;
-			bool error = false;
 		};
 		ReaderWriterLock m_activeStoresLock;
 		UnorderedMap<u16, ActiveStore> m_activeStores;
