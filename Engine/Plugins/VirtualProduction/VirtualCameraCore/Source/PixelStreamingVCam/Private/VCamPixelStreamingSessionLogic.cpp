@@ -4,8 +4,9 @@
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
 #include "Output/VCamOutputComposure.h"
+#include "Media/PixelStreamingMediaOutput.h"
+#include "Networking/VCamPixelStreamingLiveLink.h"
 #include "VCamComponent.h"
-#include "VCamPixelStreamingLiveLink.h"
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "Async/Async.h"
@@ -19,7 +20,6 @@
 #include "PixelStreamingInputEnums.h"
 #include "PixelStreamingInputMessage.h"
 #include "PixelStreamingInputProtocol.h"
-#include "PixelStreamingMediaOutput.h"
 #include "PixelStreamingServers.h"
 #include "PixelStreamingVCamLog.h"
 #include "PixelStreamingVCamModule.h"

@@ -3,7 +3,7 @@
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
-#include "VCamPixelStreamingLiveLink.h"
+#include "Networking/VCamPixelStreamingLiveLink.h"
 
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"
