@@ -20,7 +20,7 @@
 
 void FLiveLinkTransformControllerData::ApplyTransform(USceneComponent* SceneComponent, const FTransform& Transform, const FLiveLinkTransformStaticData& StaticData) const
 {
-	if (SceneComponent)
+	if (SceneComponent && bEvaluateLiveLink)
 	{
 		if (bUseLocation && StaticData.bIsLocationSupported)
 		{

@@ -15,6 +15,10 @@ struct LIVELINKCOMPONENTS_API FLiveLinkTransformControllerData
 {
 	GENERATED_BODY()
 
+	/** Whether we should evaluate animation from Live Link */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LiveLink")
+	bool bEvaluateLiveLink = true;
+
 	/** Set the transform of the component in world space of in its local reference frame. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "LiveLink")
 	bool bWorldTransform = false;
