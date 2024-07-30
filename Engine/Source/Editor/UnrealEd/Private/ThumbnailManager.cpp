@@ -122,6 +122,13 @@ void UThumbnailManager::InitializeRenderTypeArray(TArray<FThumbnailRenderingInfo
 	}
 }
 
+void UThumbnailManager::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	SharedThumbnailPool.Reset();
+}
+
 FThumbnailRenderingInfo* UThumbnailManager::GetRenderingInfo(UObject* Object)
 {
 	// If something may have been GCed, empty the map so we don't crash

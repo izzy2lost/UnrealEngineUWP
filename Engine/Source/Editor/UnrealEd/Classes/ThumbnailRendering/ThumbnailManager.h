@@ -228,6 +228,8 @@ protected:
 	 */
 	void InitializeRenderTypeArray(TArray<struct FThumbnailRenderingInfo>& ThumbnailRendererTypes);
 
+	virtual void BeginDestroy() override;
+
 private:
 	/** Initialize the checkerboard texture for texture thumbnails */
 	void SetupCheckerboardTexture();
