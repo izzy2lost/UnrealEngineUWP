@@ -256,7 +256,7 @@ void SCustomizableObjectEditorPerformanceAnalyzer::Construct(const FArguments& I
 			SAssignNew(InstanceUpdatesListView,SListView<TSharedPtr<FInstanceUpdateDataElement>>)
 			.ListItemsSource(&InstanceUpdateElements)
 			.OnGenerateRow(this,&SCustomizableObjectEditorPerformanceAnalyzer::OnGenerateInstanceUpdateRow)
-			.OnMouseButtonClick(this, &SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowClick)
+			.OnMouseButtonDoubleClick(this, &SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowDoubleClick)
 			.SelectionMode(ESelectionMode::Single)
 			.IsFocusable(true)
 			.Orientation(Orient_Vertical)
@@ -607,7 +607,7 @@ TSharedRef<ITableRow> SCustomizableObjectEditorPerformanceAnalyzer::OnGenerateIn
 }
 
 
-void SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement)
+void SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowDoubleClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement)
 {
 	if (InstanceUpdateDataElement && InstanceUpdateDataElement->Instance)
 	{

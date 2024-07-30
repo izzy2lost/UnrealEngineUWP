@@ -111,7 +111,7 @@ private:
 	
 	/** ListView methods */
 	TSharedRef<ITableRow> OnGenerateInstanceUpdateRow(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement, const TSharedRef<STableViewBase>& TableViewBase);
-	void OnInstancesRowClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement);
+	void OnInstancesRowDoubleClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement);
 	void OnInstanceUpdateListViewSort(EColumnSortPriority::Type ColumnPriority, const FName& ColumnId, EColumnSortMode::Type NewSortMode);
 	EColumnSortMode::Type GetColumnSortMode(FName ColumnName) const;
 
