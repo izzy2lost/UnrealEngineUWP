@@ -261,6 +261,9 @@ private:
 
 	FOnlinePartyMemberConstPtr OssPartyMember;
 
+	UPROPERTY()
+	TObjectPtr<USocialUser> DefaultSocialUser = nullptr;
+
 	// Initializing status
 	enum class EInitializingFlags : uint8
 	{

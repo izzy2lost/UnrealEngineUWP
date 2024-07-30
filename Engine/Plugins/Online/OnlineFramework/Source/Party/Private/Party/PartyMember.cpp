@@ -172,6 +172,8 @@ void UPartyMember::InitializePartyMember(const FOnlinePartyMemberConstRef& InOss
 			DebugInitializer = MakeUnique<FDebugInitializer>(*this);
 		}
 
+		DefaultSocialUser = &GetDefaultSocialUser(*this);
+
 		// Local player already has all the data they need, everyone else we want to wait for
 		if (IsLocalPlayer())
 		{
@@ -205,7 +207,7 @@ void UPartyMember::InitializeLocalMemberRepData()
 	UE_LOG(LogParty, Verbose, TEXT("Initializing rep data for local member [%s]"), *ToDebugString());
 
 	MemberDataReplicator->SetPlatformDataPlatform(IOnlineSubsystem::GetLocalPlatformName());
-	MemberDataReplicator->SetPlatformDataUniqueId(GetDefaultSocialUser(*this).GetUserId(ESocialSubsystem::Platform));
+	MemberDataReplicator->SetPlatformDataUniqueId(DefaultSocialUser->GetUserId(ESocialSubsystem::Platform));
 	
 	const USocialParty& CurrentParty = GetParty();
 	
@@ -277,7 +279,7 @@ FUniqueNetIdRepl UPartyMember::GetPrimaryNetId() const
 
 USocialUser& UPartyMember::GetSocialUser() const
 {
-	return GetDefaultSocialUser(*this);
+	return *DefaultSocialUser;
 }
 
 USocialUser* UPartyMember::GetSocialUser(const FUniqueNetIdRepl& InLocalUserId) const
@@ -371,7 +373,7 @@ void UPartyMember::FinishInitializing()
 	check(InitializingFlags == EInitializingFlags::Done);
 	DebugInitializer.Reset();
 	//@todo DanH Party: The old UFortParty did this. Only used for Switch. Thing is, doesn't this need to be solved for all social users? Not just party members? #suggested
-	GetDefaultSocialUser(*this).SetUserLocalAttribute(ESocialSubsystem::Primary, USER_ATTR_PREFERRED_DISPLAYNAME, OssPartyMember->GetDisplayName());
+	DefaultSocialUser->SetUserLocalAttribute(ESocialSubsystem::Primary, USER_ATTR_PREFERRED_DISPLAYNAME, OssPartyMember->GetDisplayName());
 
 	if (IsLocalPlayer())
 	{
