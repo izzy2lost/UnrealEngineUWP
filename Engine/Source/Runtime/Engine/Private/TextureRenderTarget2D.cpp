@@ -39,6 +39,7 @@ UTextureRenderTarget2D::UTextureRenderTarget2D(const FObjectInitializer& ObjectI
 	SizeY = 1;
 	bHDR_DEPRECATED = true;
 	RenderTargetFormat = RTF_RGBA16f;
+	bSupportsUAV = false;
 	bAutoGenerateMips = false;
 	NumMips = 0;
 	ClearColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -86,7 +87,10 @@ bool UTextureRenderTarget2D::IsSRGB() const
 
 FTextureResource* UTextureRenderTarget2D::CreateResource()
 {
-	UWorld* World = GetWorld();
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
 
 	if (bAutoGenerateMips)
 	{

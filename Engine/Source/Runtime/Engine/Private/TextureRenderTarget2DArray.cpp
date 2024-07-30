@@ -29,6 +29,7 @@ UTextureRenderTarget2DArray::UTextureRenderTarget2DArray(const FObjectInitialize
 	bHDR = true;
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
+	bSupportsUAV = false;
 	bForceLinearGamma = true;
 }
 
@@ -120,6 +121,11 @@ void UTextureRenderTarget2DArray::GetResourceSizeEx(FResourceSizeEx& CumulativeR
 
 FTextureResource* UTextureRenderTarget2DArray::CreateResource()
 {
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
+
 	return new FTextureRenderTarget2DArrayResource(this);
 }
 

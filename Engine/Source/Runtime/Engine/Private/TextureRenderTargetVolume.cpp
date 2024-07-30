@@ -28,6 +28,7 @@ UTextureRenderTargetVolume::UTextureRenderTargetVolume(const FObjectInitializer&
 	bHDR = true;
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
+	bSupportsUAV = false;
 	bForceLinearGamma = true;
 }
 
@@ -123,6 +124,11 @@ void UTextureRenderTargetVolume::GetResourceSizeEx(FResourceSizeEx& CumulativeRe
 
 FTextureResource* UTextureRenderTargetVolume::CreateResource()
 {
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
+
 	return new FTextureRenderTargetVolumeResource(this);
 }
 

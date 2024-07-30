@@ -148,6 +148,10 @@ class UTextureRenderTarget2D : public UTextureRenderTarget
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=TextureRenderTarget2D, AssetRegistrySearchable)
 	TEnumAsByte<ETextureRenderTargetFormat> RenderTargetFormat;
 
+	/** Whether this render target can be used as an unordered access view */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = TextureRenderTarget2D, AssetRegistrySearchable)
+	uint8 bSupportsUAV : 1;
+
 	/** Whether to support Mip maps for this render target texture */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = TextureRenderTarget2D, AssetRegistrySearchable)
 	uint8 bAutoGenerateMips : 1;

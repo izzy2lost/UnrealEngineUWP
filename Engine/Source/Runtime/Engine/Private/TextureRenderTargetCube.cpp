@@ -35,6 +35,7 @@ UTextureRenderTargetCube::UTextureRenderTargetCube(const FObjectInitializer& Obj
 	bHDR = true;
 	ClearColor = FLinearColor(0.0f, 1.0f, 0.0f, 1.0f);
 	OverrideFormat = PF_Unknown;
+	bSupportsUAV = false;
 	bForceLinearGamma = true;
 	bAutoGenerateMips = false;
 	MipsSamplerFilter = Filter;
@@ -132,6 +133,11 @@ void UTextureRenderTargetCube::GetResourceSizeEx(FResourceSizeEx& CumulativeReso
 
 FTextureResource* UTextureRenderTargetCube::CreateResource()
 {
+	if (bSupportsUAV)
+	{
+		bCanCreateUAV = 1;
+	}
+
 	if (bAutoGenerateMips)
 	{
 		NumMips = FMath::FloorLog2(SizeX) + 1;
