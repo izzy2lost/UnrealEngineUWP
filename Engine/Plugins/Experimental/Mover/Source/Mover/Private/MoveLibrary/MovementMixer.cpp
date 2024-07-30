@@ -38,7 +38,7 @@ void UMovementMixer::MixLayeredMove(const FLayeredMoveBase& ActiveMove, const FP
 				UE_LOG(LogMover, Log, TEXT("Multiple LayeredMoves with Override mix mode are active simultaneously. Layered move with the highest priority will take effect."));
 			}
 
-			if (!MoveStep.PreferredMode.IsNone())
+			if (!MoveStep.PreferredMode.IsNone() && OutCumulativeMove.MixMode != EMoveMixMode::OverrideAll)
 			{
 				OutCumulativeMove.PreferredMode = MoveStep.PreferredMode;
 			}
