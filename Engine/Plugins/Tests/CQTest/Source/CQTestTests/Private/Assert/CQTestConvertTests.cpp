@@ -50,7 +50,8 @@ inline FString CQTestConvert::ToString(const TypeWithToStringAndOverride&)
 
 struct TypeWithToStringAndOStream
 {
-	FString ToString() const {
+	FString ToString() const 
+	{
 		return ToStringStr;
 	}
 	CQTestConvert::PrintStream& operator<<(CQTestConvert::PrintStream& stream)

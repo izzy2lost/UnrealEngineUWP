@@ -3,6 +3,7 @@
 #include "Components/PIENetworkComponent.h"
 
 #if ENABLE_PIE_NETWORK_TEST
+
 #include "LevelEditor.h"
 #include "Editor/UnrealEdEngine.h"
 #include "Settings/LevelEditorPlaySettings.h"
@@ -31,8 +32,10 @@ FBasePIENetworkComponent::FBasePIENetworkComponent(FAutomationTestBase* InTestRu
 		->Do(TEXT("Stop PIE"), [this]() { StopPie(); })
 		.Then(TEXT("Create New Map"), [this]() { FAutomationEditorCommonUtils::CreateNewMap(); })
 		.Then(TEXT("Start PIE"), [this]() { StartPie(); })
-		.Until(TEXT("Collect PIE Worlds"), [this]() { return CollectPieWorlds(); })
-		.Until(TEXT("Await Connections"), [this]() { return AwaitConnections(); })
+		.Until(TEXT("Set Worlds"), [this]() { return SetWorlds(); })
+		.Then(TEXT("Setup Packet Settings"), [this]() { SetPacketSettings(); })
+		.Then(TEXT("Connect Clients to Server"), [this]() { ConnectClientsToServer(); })
+		.Until(TEXT("Await Clients Ready"), [this]() { return AwaitClientsReady(); })
 		.OnTearDown(TEXT("Restore Editor State"), [this]() { RestoreState(); });
 }
 
@@ -64,7 +67,8 @@ FBasePIENetworkComponent& FBasePIENetworkComponent::Until(TFunction<bool()> Quer
 	CommandBuilder->Until(Query, Timeout);
 	return *this;
 }
-FBasePIENetworkComponent& FBasePIENetworkComponent::Until(TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout)
+
+FBasePIENetworkComponent& FBasePIENetworkComponent::Until(const TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout)
 {
 	CommandBuilder->Until(Description, Query, Timeout);
 	return *this;
@@ -75,7 +79,8 @@ FBasePIENetworkComponent& FBasePIENetworkComponent::StartWhen(TFunction<bool()> 
 	CommandBuilder->StartWhen(Query, Timeout);
 	return *this;
 }
-FBasePIENetworkComponent& FBasePIENetworkComponent::StartWhen(TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout)
+
+FBasePIENetworkComponent& FBasePIENetworkComponent::StartWhen(const TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout)
 {
 	CommandBuilder->StartWhen(Description, Query, Timeout);
 	return *this;
@@ -127,81 +132,125 @@ void FBasePIENetworkComponent::StartPie()
 	GUnrealEd->StartQueuedPlaySessionRequest();
 }
 
-bool FBasePIENetworkComponent::CollectPieWorlds()
+bool FBasePIENetworkComponent::SetWorlds() 
 {
-	const auto& WorldContexts = GEngine->GetWorldContexts();
-	UWorld* ServerWorld = nullptr;
-	TArray<UWorld*> ClientWorlds;
+	auto IsValidContext = [](const FWorldContext& Context) -> bool {
+		return Context.WorldType == EWorldType::PIE && 
+			IsValid(Context.World()) && 
+			IsValid(Context.World()->GetNetDriver());
+	};
 
-	for (const auto& WorldContext : WorldContexts)
+	auto IsValidServerWorld = [this](UWorld* World) -> bool {
+		const bool bIsDedicated = ServerState->bIsDedicatedServer;
+		const bool bExpectsDedicated = World->GetNetMode() == NM_DedicatedServer;
+		return bExpectsDedicated == bIsDedicated;
+	};
+
+	auto IsClientWorldClaimed = [this](UWorld* World) -> bool {
+		for (const auto& State : ClientStates) 
+		{
+			if (IsValid(State->World) && State->World == World) 
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
+	int32 ClientWorldCount = 0;
+	for (const auto& WorldContext : GEngine->GetWorldContexts())
 	{
-		if (WorldContext.WorldType != EWorldType::PIE || WorldContext.World() == nullptr || WorldContext.World()->GetNetDriver() == nullptr)
+		if (!IsValidContext(WorldContext))
 		{
 			continue;
 		}
+
 		UWorld* World = WorldContext.World();
 		if (World->GetNetDriver()->IsServer())
 		{
-			ServerWorld = World;
-			if (World->GetNetMode() == NM_DedicatedServer && !ServerState->bIsDedicatedServer)
+			if (ServerState->World == nullptr)
 			{
-				TestRunner->AddError(TEXT("Failed to set up dedicated server.  Does your game's editor module override the PIE settings?"));
+				if (!IsValidServerWorld(World)) 
+				{
+					TestRunner->AddError(TEXT("Failed to set up dedicated server. Does your game's editor module override the PIE settings?"));
+					return true;
+				}
 
-				return true;
-			}
-			else if (World->GetNetMode() == NM_ListenServer && ServerState->bIsDedicatedServer)
-			{
-				TestRunner->AddError(TEXT("Failed to set up dedicated server.  Does your game's editor module override the PIE settings?"));
-				return true;
+				ServerState->World = World;
 			}
 		}
 		else
 		{
-			ClientWorlds.Add(World);
+			if (!IsClientWorldClaimed(World))
+			{
+				bool bClaimed = false;
+				for (const auto& State : ClientStates)
+				{
+					if (State->World == nullptr)
+					{
+						State->World = World;
+						bClaimed = true;
+						break;
+					}
+				}
+				if (!bClaimed)
+				{
+					TestRunner->AddError(TEXT("Failed to claim client world. Network component was not able to be initialized."));
+					return true;
+				}
+
+			}
+			ClientWorldCount++;
 		}
 	}
-	if (ServerWorld == nullptr || ClientWorlds.Num() < ServerState->ClientCount)
-	{
-		return false;
-	}
 
-	if (PacketSimulationSettings)
-	{
-		ServerWorld->GetNetDriver()->SetPacketSimulationSettings(*PacketSimulationSettings);
-		for (auto& World : ClientWorlds)
-		{
-			World->GetNetDriver()->SetPacketSimulationSettings(*PacketSimulationSettings);
-		}
-	}
-
-	ServerState->World = ServerWorld;
-	for (int32 ClientIndex = 0; ClientIndex < ServerState->ClientCount; ClientIndex++)
-	{
-		UWorld* ClientWorld = ClientWorlds[ClientIndex];
-		ClientStates[ClientIndex]->World = ClientWorld;
-
-		const int32 ClientLocalPort = ClientWorld->GetNetDriver()->GetLocalAddr()->GetPort();
-		auto ServerConnection = ServerWorld->GetNetDriver()->ClientConnections.FindByPredicate([ClientLocalPort](UNetConnection* ClientConnection) {
-			return ClientConnection->GetRemoteAddr()->GetPort() == ClientLocalPort;
-			});
-		check(ServerConnection != nullptr);
-		ServerState->ClientConnections[ClientIndex] = *ServerConnection;
-	}
-
-	return true;
+	return IsValid(ServerState->World) && ClientWorldCount == ServerState->ClientCount;
 }
 
-bool FBasePIENetworkComponent::AwaitConnections()
+void FBasePIENetworkComponent::SetPacketSettings() const
 {
-	if (ServerState == nullptr || ServerState->World == nullptr)
+	if (PacketSimulationSettings)
 	{
-		return true; //Failed to get server state, test will fail
+		ServerState->World->GetNetDriver()->SetPacketSimulationSettings(*PacketSimulationSettings);
+		for (const auto& ClientState : ClientStates)
+		{
+			ClientState->World->GetNetDriver()->SetPacketSimulationSettings(*PacketSimulationSettings);
+		}
+	}
+}
+
+void FBasePIENetworkComponent::ConnectClientsToServer() 
+{
+	auto& ServerConnections = ServerState->World->GetNetDriver()->ClientConnections;
+	for(int32 ClientIndex = ServerState->ClientConnections.Num(); ClientIndex < ServerState->ClientCount; ClientIndex++)
+	{
+		const int32 ClientLocalPort = ClientStates[ClientIndex]->World->GetNetDriver()->GetLocalAddr()->GetPort();
+		TObjectPtr<UNetConnection>* ServerConnection = ServerConnections.FindByPredicate([ClientLocalPort](UNetConnection* ClientConnection) {
+			return ClientConnection->GetRemoteAddr()->GetPort() == ClientLocalPort;
+		});
+
+		if (ServerConnection == nullptr)
+		{
+			TestRunner->AddError(TEXT("Failed to find connection to server for client. Network component was not able to be initialized."));
+			return;
+		}
+
+		ServerState->ClientConnections[ClientIndex] = *ServerConnection;
+	}
+}
+
+bool FBasePIENetworkComponent::AwaitClientsReady() const
+{
+	if (ServerState == nullptr || !IsValid(ServerState->World))
+	{
+		TestRunner->AddError(TEXT("Failed to get server state. Network component was not able to be initialized."));
+		return true;
 	}
 	if (ServerState->World->GetNetDriver()->ClientConnections.Num() != ServerState->ClientCount)
 	{
 		return false;
 	}
-	for (UNetConnection* ClientConnection : ServerState->World->GetNetDriver()->ClientConnections)
+	for (const UNetConnection* ClientConnection : ServerState->World->GetNetDriver()->ClientConnections)
 	{
 		if (ClientConnection->ViewTarget == nullptr)
 		{
@@ -220,4 +269,4 @@ void FBasePIENetworkComponent::RestoreState()
 		StateRestorer.Restore();
 	}
 }
-#endif
+#endif // ENABLE_PIE_NETWORK_TEST

@@ -64,6 +64,18 @@ public:
 	template <typename TExpected, typename TActual>
 	[[nodiscard]] bool AreEqual(const TExpected& Expected, const TActual& Actual, const FString& FailureMessage);
 
+	template <>
+	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual);
+
+	template <>
+	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const char* FailureMessage);
+
+	template <>
+	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage);
+
+	template<>
+	[[nodiscard]] bool AreEqual(const FString& Expected, const FString& Actual, const FString& FailureMessage);
+
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual);
 
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage);
@@ -71,6 +83,14 @@ public:
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage);
 
 	[[nodiscard]] bool AreEqualIgnoreCase(const FString& Expected, const FString& Actual, const FString& FailureMessage);
+
+	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual);
+
+	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage);
+
+	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage);
+
+	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const FString& FailureMessage);
 
 	template <typename TExpected, typename TActual>
 	[[nodiscard]] bool AreNotEqual(const TExpected& Expected, const TActual& Actual);
@@ -83,14 +103,6 @@ public:
 
 	template <typename TExpected, typename TActual>
 	[[nodiscard]] bool AreNotEqual(const TExpected& Expected, const TActual& Actual, const FString& FailureMessage);
-
-	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual);
-
-	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const char* FailureMessage);
-
-	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const TCHAR* FailureMessage);
-
-	[[nodiscard]] bool AreNotEqualIgnoreCase(const FString& Expected, const FString& Actual, const FString& FailureMessage);
 
 	template <typename TExpected, typename TActual, typename TEpsilon>
 	[[nodiscard]] bool IsNear(TExpected Expected, TActual Actual, TEpsilon Epsilon);

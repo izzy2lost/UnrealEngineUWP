@@ -12,7 +12,7 @@ namespace CQTests
 
 	TEST_CLASS(NoDiscardAssert_Errors, "TestFramework.CQTest.Core")
 	{
-
+		FNoDiscardAsserter Asserter{ *TestRunner };
 		TEST_METHOD(AssertFail_WithMessage_AddsError)
 		{
 			Assert.ExpectError(AnyError);
@@ -30,55 +30,55 @@ namespace CQTests
 
 		TEST_METHOD(Assertions_Accept_RawStrings)
 		{
-			Assert.ExpectError("Hello World");
-			Assert.Fail("Hello World");
+			Asserter.ExpectError("Hello World");
+			Asserter.Fail("Hello World");
 		}
 
 		TEST_METHOD(Assertions_Accept_TCharArrays)
 		{
-			Assert.ExpectError(TEXT("Hello World"));
-			Assert.Fail(TEXT("Hello World"));
+			Asserter.ExpectError(TEXT("Hello World"));
+			Asserter.Fail(TEXT("Hello World"));
 		}
 
 		TEST_METHOD(Assertions_Accept_FStrings)
 		{
 			FString message = TEXT("Hello World");
-			Assert.ExpectError(message);
-			Assert.Fail(TEXT("Hello WorldA"));
+			Asserter.ExpectError(message);
+			Asserter.Fail(message);
 		}
 
 		TEST_METHOD(AssertExpectError_WithMultipleErrors_Succeeds)
 		{
-			Assert.ExpectError("", 3);
-			Assert.Fail("One");
-			Assert.Fail("Two");
-			Assert.Fail("Three");
+			Asserter.ExpectError(AnyError, 3);
+			Asserter.Fail("One");
+			Asserter.Fail("Two");
+			Asserter.Fail("Three");
 		}
 
 		TEST_METHOD(AsserterExpectError_WithZeroExpected_AcceptsAnyNumber)
 		{
-			Assert.ExpectError("", 0);
-			Assert.Fail("One");
-			Assert.Fail("Two");
-			Assert.Fail("Three");
+			Asserter.ExpectError(AnyError, 0);
+			Asserter.Fail("One");
+			Asserter.Fail("Two");
+			Asserter.Fail("Three");
 		}
 
 		TEST_METHOD(AssertExpectError_WithMatchingError_Succeeds)
 		{
-			Assert.ExpectError("Hello World");
-			Assert.Fail("Hello World");
+			Asserter.ExpectError("Hello World");
+			Asserter.Fail("Hello World");
 		}
 
 		TEST_METHOD(AssertExpectError_WithRegexSymbols_EscapesRegex)
 		{
-			Assert.ExpectError("[^abc]");
-			Assert.Fail("[^abc]");
+			Asserter.ExpectError("[^abc]");
+			Asserter.Fail("[^abc]");
 		}
 
 		TEST_METHOD(AssertExpectErrorRegex_WithRegex_Succeeds)
 		{
-			Assert.ExpectErrorRegex("\\w+");
-			Assert.Fail("abc");
+			Asserter.ExpectErrorRegex("\\w+");
+			Asserter.Fail("abc");
 		}
 	};
 

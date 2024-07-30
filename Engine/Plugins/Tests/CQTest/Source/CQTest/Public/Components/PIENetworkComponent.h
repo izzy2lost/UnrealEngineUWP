@@ -10,8 +10,10 @@
 #include "CQTest.h"
 #include "PIENetworkTestStateRestorer.h"
 
+#include "Editor.h"
 #include "Engine/NetDriver.h"
 #include "Engine/PackageMapClient.h"
+#include "UnrealEdGlobals.h"
 
 /*
 //Example boiler plate
@@ -77,6 +79,9 @@ struct FBasePIENetworkComponentState
 
 	/** Used by the server to create a PIE session as a dedicated or listen server. */
 	bool bIsDedicatedServer = true;
+
+	/** Used to track spawned and replicated actors across client and server PIE sessions. */
+	TSet<FNetworkGUID> LocallySpawnedActors{};
 };
 
 /**
@@ -158,7 +163,7 @@ public:
 	 *
 	 * @note Will continue to execute until the function provided evaluates to `true` or the duration exceeds the specified timeout.
 	 */
-	FBasePIENetworkComponent& Until(TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout = FTimespan::FromSeconds(10));
+	FBasePIENetworkComponent& Until(const TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout = FTimespan::FromSeconds(10));
 	
 	/**
 	 * Enqueues a function to the latent command manager for execution until completion or timeout.
@@ -183,7 +188,7 @@ public:
 	 *
 	 * @note Will continue to execute until the function provided evaluates to `true` or the duration exceeds the specified timeout.
 	 */
-	FBasePIENetworkComponent& StartWhen(TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout = FTimespan::FromSeconds(10));
+	FBasePIENetworkComponent& StartWhen(const TCHAR* Description, TFunction<bool()> Query, FTimespan Timeout = FTimespan::FromSeconds(10));
 
 protected:
 	/** Prepares the active PIE sessions to be stopped. */
@@ -191,7 +196,7 @@ protected:
 
 	/** Setup settings for a network session and start PIE sessions for both the server and client with the network settings applied. */
 	void StartPie();
-
+	
 	/**
 	 * Fetch all of the worlds that will be used for the networked session.
 	 *
@@ -199,7 +204,13 @@ protected:
 	 *
 	 * @note Method is expected to be used within the `Until` latent command to then wait until the worlds are ready for use.
 	 */
-	bool CollectPieWorlds();
+	bool SetWorlds();
+
+	/** Sets the packet settings used to simulate packet behavior over a network. */
+	void SetPacketSettings() const;
+
+	/** Connects all available clients to the server. */
+	void ConnectClientsToServer();
 
 	/**
 	 * Go through all of the client connections to make sure they are connected and ready.
@@ -208,7 +219,7 @@ protected:
 	 *
 	 * @note Method is expected to be used within the `Until` latent command to then wait until the worlds are ready for use.
 	 */
-	bool AwaitConnections();
+	bool AwaitClientsReady() const;
 
 	/** Restore back to the state prior to test execution. */
 	void RestoreState();
@@ -220,6 +231,7 @@ protected:
 	FPacketSimulationSettings* PacketSimulationSettings = nullptr;
 	TSubclassOf<AGameModeBase> GameMode = TSubclassOf<AGameModeBase>(nullptr);
 	FPIENetworkTestStateRestorer StateRestorer;
+	TMap<FNetworkGUID, int64> SpawnedActors{};
 };
 
 template <typename NetworkDataType>
@@ -370,6 +382,13 @@ public:
 	FPIENetworkComponent& UntilClient(const TCHAR* Description, int32 ClientIndex, TFunction<bool(NetworkDataType&)> Query, FTimespan Timeout = FTimespan::FromSeconds(10));
 
 	/**
+	 * Has a new client request a late join and syncs the server and other clients with the new client PIE session.
+	 *
+	 * @return a reference to this
+	 */
+	FPIENetworkComponent& ThenClientJoins();
+	
+	/**
 	 * Spawns an actor on the server and replicates to the clients.
 	 *
 	 * @return a reference to this
@@ -377,8 +396,21 @@ public:
 	template<typename ActorToSpawn, ActorToSpawn* NetworkDataType::*ResultStorage>
 	FPIENetworkComponent& SpawnAndReplicate();
 
+	template<typename ActorToSpawn, ActorToSpawn* NetworkDataType::*ResultStorage>
+	FPIENetworkComponent& SpawnAndReplicate(const FActorSpawnParameters& SpawnParameters);
+
+	template<typename ActorToSpawn, ActorToSpawn* NetworkDataType::* ResultStorage>
+	FPIENetworkComponent& SpawnAndReplicate(TFunction<void(ActorToSpawn&)> BeforeReplicate);
+
+	template<typename ActorToSpawn, ActorToSpawn* NetworkDataType::* ResultStorage>
+	FPIENetworkComponent& SpawnAndReplicate(const FActorSpawnParameters& SpawnParameters, TFunction<void(ActorToSpawn&)> BeforeReplicate);
+
 private:
 	friend class FNetworkComponentBuilder<NetworkDataType>;
+	template<typename ActorToSpawn, ActorToSpawn* NetworkDataType::* ResultStorage>
+	FPIENetworkComponent& SpawnOnServer(const FActorSpawnParameters& SpawnParameters, TFunction<void(ActorToSpawn&)> BeforeReplicate);
+
+	bool ReplicateToClients(NetworkDataType& ClientState);
 };
 
 
