@@ -41,6 +41,7 @@ public:
 	uint32 BaseHash;
 
 	virtual bool GetInitializer(FVertexDeclarationElementList& Init) override final;
+	virtual uint32 GetPrecachePSOHash() const override final { return BaseHash; }
 
 protected:
 	void GenerateLayout(const FVertexDeclarationElementList& Elements);

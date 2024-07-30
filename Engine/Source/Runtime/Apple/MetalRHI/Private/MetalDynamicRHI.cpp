@@ -198,39 +198,33 @@ bool FMetalDynamicRHI::RHIGetRenderQueryResult(FRHIRenderQuery* QueryRHI, uint64
 uint64 FMetalDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineStateInitializer& Initializer)
 {
 	// When compute precache PSO hash we assume a valid state precache PSO hash is already provided
-	checkf(Initializer.StatePrecachePSOHash != 0, TEXT("Initializer should have a valid state precache PSO hash set when computing the full initializer PSO hash"));
+	uint64 StatePrecachePSOHash = Initializer.StatePrecachePSOHash;
+	if (StatePrecachePSOHash == 0)
+	{
+		StatePrecachePSOHash = RHIComputeStatePrecachePSOHash(Initializer);
+	}
 
 	// All members which are not part of the state objects and influence the PSO on Metal
 	struct FNonStateHashKey
 	{
 		uint64							StatePrecachePSOHash;
 
-		EPrimitiveType					PrimitiveType;
 		uint32							RenderTargetsEnabled;
 		FGraphicsPipelineStateInitializer::TRenderTargetFormats RenderTargetFormats;
 		EPixelFormat					DepthStencilTargetFormat;
 		uint16							NumSamples;
 		EConservativeRasterization		ConservativeRasterization;
-		bool							bDepthBounds;
-		uint8							MultiViewCount;
-		bool							bHasFragmentDensityAttachment;
-		EVRSShadingRate					ShadingRate;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FNonStateHashKey));
 
-	HashKey.StatePrecachePSOHash			= Initializer.StatePrecachePSOHash;
+	HashKey.StatePrecachePSOHash			= StatePrecachePSOHash;
 
-	HashKey.PrimitiveType					= Initializer.PrimitiveType;
 	HashKey.RenderTargetsEnabled			= Initializer.RenderTargetsEnabled;
 	HashKey.RenderTargetFormats				= Initializer.RenderTargetFormats;
 	HashKey.DepthStencilTargetFormat		= Initializer.DepthStencilTargetFormat;
 	HashKey.NumSamples						= Initializer.NumSamples;
 	HashKey.ConservativeRasterization		= Initializer.ConservativeRasterization;
-	HashKey.bDepthBounds					= Initializer.bDepthBounds;
-	HashKey.MultiViewCount					= Initializer.MultiViewCount;
-	HashKey.bHasFragmentDensityAttachment	= Initializer.bHasFragmentDensityAttachment;
-	HashKey.ShadingRate						= Initializer.ShadingRate;
 
 	return CityHash64((const char*)&HashKey, sizeof(FNonStateHashKey));
 }
