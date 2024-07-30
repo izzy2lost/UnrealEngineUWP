@@ -423,7 +423,7 @@ template<> struct TStructOpsTypeTraits<FTimeline> : public TStructOpsTypeTraitsB
 {
 	enum
 	{
-		WithSerialize = true,
+		WithSerializer = true,
 		WithPostSerialize = true,
 	};
 };
