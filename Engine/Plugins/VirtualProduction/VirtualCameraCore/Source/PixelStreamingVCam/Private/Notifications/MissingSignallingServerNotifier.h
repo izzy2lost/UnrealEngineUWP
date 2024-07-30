@@ -3,10 +3,10 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include "Templates/UnrealTemplate.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 class UVCamPixelStreamingSubsystem;
-class UVCamPixelStreamingSession;
 
 namespace UE::PixelStreamingVCam
 {
@@ -18,9 +18,6 @@ namespace UE::PixelStreamingVCam
 
 		FMissingSignallingServerNotifier(UVCamPixelStreamingSubsystem& Subsystem UE_LIFETIMEBOUND);
 		~FMissingSignallingServerNotifier();
-
-		/** Called when the list of registered sessions changes. */
-		void NotifyRegisteredSessionsChanged() { DisplayNotificationIfNeeded(); }
 
 	private:
 
