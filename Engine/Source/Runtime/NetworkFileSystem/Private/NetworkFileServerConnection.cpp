@@ -839,6 +839,7 @@ static void AddDirectoriesToIgnore(const FString& RootDir, TArray<FString>& OutD
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Programs")));
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Platforms")));
 	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Build")));
+	OutDirectoriesToSkip.Add(FString(RootDir / TEXT("Restricted")));
 	OutDirectoriesToNotRecurse.Add(FString(RootDir / TEXT("DerivedDataCache")));
 }
 
