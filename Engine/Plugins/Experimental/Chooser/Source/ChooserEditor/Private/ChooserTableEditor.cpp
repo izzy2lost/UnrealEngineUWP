@@ -1180,7 +1180,7 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 					
 					if (Event.GetKey() == EKeys::Delete)
 					{
-						DeleteSelectedRows();
+						DeleteSelection();
 						return FReply::Handled();
 					}
 					return FReply::Unhandled();
