@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Redis.Converters;
 using EpicGames.Serialization;
+using Google.Protobuf;
 using ProtoBuf;
 using StackExchange.Redis;
 
@@ -221,11 +222,18 @@ namespace EpicGames.Redis
 				return (IRedisConverter<T>)nativeConverter;
 			}
 
+			// Check if the type is a protobuf message
+			if (type.IsAssignableTo(typeof(IMessage)))
+			{
+				Type converterType = typeof(RedisProtobufConverter<>).MakeGenericType(type);
+				return (IRedisConverter<T>)Activator.CreateInstance(converterType)!;
+			}
+
 			// Check if the type supports protobuf serialization
 			ProtoContractAttribute? protoAttribute = type.GetCustomAttribute<ProtoContractAttribute>();
 			if (protoAttribute != null)
 			{
-				return new RedisProtobufConverter<T>();
+				return new RedisProtobufNetConverter<T>();
 			}
 
 			// Check if there's a regular converter we can use to convert to/from a string
