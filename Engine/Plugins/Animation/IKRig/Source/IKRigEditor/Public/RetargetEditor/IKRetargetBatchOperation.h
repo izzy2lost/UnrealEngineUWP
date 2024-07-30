@@ -27,7 +27,7 @@ enum class ERetargetRootLockMode : uint8
 };
 
 /// Data needed to run a batch "duplicate and retarget" operation on a set of animation assets
-struct FIKRetargetBatchOperationContext
+struct IKRIGEDITOR_API FIKRetargetBatchOperationContext
 {
 	
 public:
