@@ -509,7 +509,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 					
 					FCustomizableObjectAssetUserData ResourceData;
 
-					TSoftObjectPtr<UAssetUserData> SoftAssetUserData(AssetUserDataPath);
+					TSoftObjectPtr<UAssetUserData> SoftAssetUserData = TSoftObjectPtr<UAssetUserData>(FSoftObjectPath(AssetUserDataPath));
 					ResourceData.AssetUserDataEditor = !SoftAssetUserData.IsNull() ? SoftAssetUserData.LoadSynchronous() : nullptr;
 
 					if (!ResourceData.AssetUserDataEditor)
@@ -2649,7 +2649,7 @@ FArchive& operator<<(FArchive& Ar, FAnimBpOverridePhysicsAssetsInfo& Info)
 		Ar << Info.PropertyIndex;
 
 		Info.AnimInstanceClass = TSoftClassPtr<UAnimInstance>(AnimInstanceClassPathString);
-		Info.SourceAsset = TSoftObjectPtr<UPhysicsAsset>(PhysicsAssetPathString);
+		Info.SourceAsset = TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(PhysicsAssetPathString));
 	}
 
 	if (Ar.IsSaving())
@@ -2803,23 +2803,23 @@ FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
 
 		FString SkeletalMeshLODSettingsAssetPath;
 		Ar << SkeletalMeshLODSettingsAssetPath;
-		Data.SkeletalMeshLODSettings = TSoftObjectPtr<USkeletalMeshLODSettings>(SkeletalMeshLODSettingsAssetPath).LoadSynchronous();
+		Data.SkeletalMeshLODSettings = TSoftObjectPtr<USkeletalMeshLODSettings>(FSoftObjectPath(SkeletalMeshLODSettingsAssetPath)).LoadSynchronous();
 
 		FString SkeletonAssetPath;
 		Ar << SkeletonAssetPath;
-		Data.Skeleton = TSoftObjectPtr<USkeleton>(SkeletonAssetPath).LoadSynchronous();
+		Data.Skeleton = TSoftObjectPtr<USkeleton>(FSoftObjectPath(SkeletonAssetPath)).LoadSynchronous();
 
 		FString PhysicsAssetPath;
 		Ar << PhysicsAssetPath;
-		Data.PhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(PhysicsAssetPath).LoadSynchronous();
+		Data.PhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(PhysicsAssetPath)).LoadSynchronous();
 
 		FString PostProcessAnimInstAssetPath;
 		Ar << PostProcessAnimInstAssetPath;
-		Data.PostProcessAnimInst = TSoftClassPtr<UAnimInstance>(PostProcessAnimInstAssetPath).LoadSynchronous();
+		Data.PostProcessAnimInst = TSoftClassPtr<UAnimInstance>(FSoftObjectPath(PostProcessAnimInstAssetPath)).LoadSynchronous();
 
 		FString ShadowPhysicsAssetPath;
 		Ar << ShadowPhysicsAssetPath;
-		Data.ShadowPhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(ShadowPhysicsAssetPath).LoadSynchronous();
+		Data.ShadowPhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(ShadowPhysicsAssetPath)).LoadSynchronous();
 	}
 
 	Ar << Data.AssetUserData;

@@ -1178,7 +1178,7 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 			for (const FName& ReferencingObjectName : ReferencingObjectNames)
 			{
-				const TSoftObjectPtr SoftObjectPtr(ReferencingObjectName.ToString());
+				const TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(ReferencingObjectName.ToString()));
 
 				if (const UObject* ReferencingObject = SoftObjectPtr.LoadSynchronous())
 				{

@@ -32,7 +32,7 @@ TSoftObjectPtr<URigVMFunctionReferenceNode> FRigVMReferenceNodeData::GetReferenc
 {
 	if(ReferenceNodePtr.IsNull())
 	{
-		ReferenceNodePtr = TSoftObjectPtr<URigVMFunctionReferenceNode>(ReferenceNodePath);
+		ReferenceNodePtr = TSoftObjectPtr<URigVMFunctionReferenceNode>(FSoftObjectPath(ReferenceNodePath));
 	}
 	return ReferenceNodePtr;
 }
@@ -41,7 +41,7 @@ URigVMFunctionReferenceNode* FRigVMReferenceNodeData::GetReferenceNode()
 {
 	if(ReferenceNodePtr.IsNull())
 	{
-		ReferenceNodePtr = TSoftObjectPtr<URigVMFunctionReferenceNode>(ReferenceNodePath);
+		ReferenceNodePtr = TSoftObjectPtr<URigVMFunctionReferenceNode>(FSoftObjectPath(ReferenceNodePath));
 	}
 	if(!ReferenceNodePtr.IsValid())
 	{
@@ -404,7 +404,7 @@ void URigVMBuildData::RegisterFunctionReference(FRigVMReferenceNodeData InRefere
 	check(InReferenceNodeData.ReferencedFunctionIdentifier.GetNodeSoftPath().IsValid());
 
 	FString LibraryNodePath = InReferenceNodeData.ReferencedFunctionIdentifier.GetLibraryNodePath();
-	TSoftObjectPtr<URigVMLibraryNode> LibraryNodePtr = TSoftObjectPtr<URigVMLibraryNode>(LibraryNodePath);
+	TSoftObjectPtr<URigVMLibraryNode> LibraryNodePtr = TSoftObjectPtr<URigVMLibraryNode>(FSoftObjectPath(LibraryNodePath));
 
 	// Try to find a FunctionIdentifier with the same LibraryNodePath
 	bool bFound = false;

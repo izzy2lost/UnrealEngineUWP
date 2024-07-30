@@ -62,7 +62,7 @@ void UPCGDataTableRowToParamDataSettings::PostLoad()
 #if WITH_EDITOR
 	if (!PathOverride_DEPRECATED.IsEmpty())
 	{
-		DataTable = TSoftObjectPtr<UDataTable>(PathOverride_DEPRECATED);
+		DataTable = TSoftObjectPtr<UDataTable>(FSoftObjectPath(PathOverride_DEPRECATED));
 		PathOverride_DEPRECATED.Empty();
 	}
 #endif // WITH_EDITOR

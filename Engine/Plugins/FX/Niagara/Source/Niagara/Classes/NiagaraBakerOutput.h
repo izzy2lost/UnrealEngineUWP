@@ -54,7 +54,7 @@ public:
 		const FString AssetFullName = GetAssetPath(PathFormat, FrameIndex);
 		const FString AssetName = FString(FPathViews::GetCleanFilename(AssetFullName));
 		const FString AssetPath = AssetFullName + "." + AssetName;
-		return TSoftObjectPtr<TObjectClass>(AssetPath).LoadSynchronous();
+		return TSoftObjectPtr<TObjectClass>(FSoftObjectPath(AssetPath)).LoadSynchronous();
 	}
 
 	static NIAGARA_API UObject* GetOrCreateAsset(const FString& PackagePath, UClass* ObjectClass, UClass* FactoryClass);

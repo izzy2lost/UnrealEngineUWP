@@ -512,7 +512,7 @@ void GetReferencingPackages(const UCustomizableObject& Object, TArray<FName>& Ob
 	TArray<FName> CustomizableObjectNames = ObjectNames;
 	for (const FName& CustomizableObjectName : CustomizableObjectNames)
 	{
-		const TSoftObjectPtr SoftObjectPtr(CustomizableObjectName.ToString());
+		const TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(CustomizableObjectName.ToString()));
 
 		const UCustomizableObject* ChildCustomizableObject = Cast<UCustomizableObject>(SoftObjectPtr.LoadSynchronous());
 		if (!ChildCustomizableObject)
@@ -560,7 +560,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 
 	for (const TTuple<FName, FGuid>& ParticipatingObject : Object.GetPrivate()->ParticipatingObjects)
 	{
-		TSoftObjectPtr SoftObjectPtr(ParticipatingObject.Key.ToString());
+		TSoftObjectPtr<UObject> SoftObjectPtr = TSoftObjectPtr<UObject>(FSoftObjectPath(ParticipatingObject.Key.ToString()));
 		if (SoftObjectPtr) // If loaded
 		{
 			PRAGMA_DISABLE_DEPRECATION_WARNINGS
@@ -619,7 +619,7 @@ bool FCustomizableObjectEditorModule::IsCompilationOutOfDate(const UCustomizable
 	
 	for (const FName& ObjectName : ReferencingObjectNames)
 	{
-		TSoftObjectPtr ReferencingObject(ObjectName.ToString()); 
+		TSoftObjectPtr<UObject> ReferencingObject = TSoftObjectPtr<UObject>(FSoftObjectPath(ObjectName.ToString())); 
 
 		if ((ReferencingObject && ReferencingObject->GetPackage()->IsDirty()) ||
 			!Object.GetPrivate()->ParticipatingObjects.Contains(ObjectName)) // Must be in the participating objects, if not it means it did not exist when compiling the object.
