@@ -72,6 +72,7 @@ void UMovementMixer::MixLayeredMove(const FLayeredMoveBase& ActiveMove, const FP
 			}
 				
 			OutCumulativeMove = MoveStep;
+			OutCumulativeMove.MixMode = EMoveMixMode::OverrideAll;
 		}
 	}
 	else
