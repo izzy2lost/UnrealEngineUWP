@@ -3,6 +3,7 @@
 #include "AssetDefinition_NiagaraEffectType.h"
 #include "NiagaraEditorStyle.h"
 #include "SDetailsDiff.h"
+#include "Toolkits/SimpleAssetEditor.h"
 
 #define LOCTEXT_NAMESPACE "AssetTypeActions_NiagaraEffectType"
 
@@ -25,6 +26,23 @@ EAssetCommandResult UAssetDefinition_NiagaraEffectType::PerformAssetDiff(const F
 		DetailsDiff->SetOutputObject(DiffArgs.NewAsset);
 	}
 	return EAssetCommandResult::Handled;
+}
+
+EAssetCommandResult UAssetDefinition_NiagaraEffectType::OpenAssets(const FAssetOpenArgs& OpenArgs) const
+{
+	if (OpenArgs.OpenMethod == EAssetOpenMethod::Edit || OpenArgs.OpenMethod == EAssetOpenMethod::View)
+	{
+		FSimpleAssetEditor::CreateEditor(EToolkitMode::Standalone, OpenArgs.ToolkitHost, OpenArgs.LoadObjects<UObject>());
+		return EAssetCommandResult::Handled;
+	}
+
+	return EAssetCommandResult::Unhandled;
+}
+
+FAssetOpenSupport UAssetDefinition_NiagaraEffectType::GetAssetOpenSupport(const FAssetOpenSupportArgs& OpenSupportArgs) const
+{
+	return FAssetOpenSupport(OpenSupportArgs.OpenMethod,OpenSupportArgs.OpenMethod == EAssetOpenMethod::Edit || OpenSupportArgs.OpenMethod == EAssetOpenMethod::View); 
+
 }
 
 #undef LOCTEXT_NAMESPACE
