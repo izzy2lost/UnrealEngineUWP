@@ -50,12 +50,14 @@ void ACaptureCharacter::SetRetargetAsset(UIKRetargeter* InRetargetAsset)
 {
 	RetargetAsset = InRetargetAsset;
 	RetargetComponent->SetRetargetAsset(InRetargetAsset);
+	RetargetComponent->InitiateAnimation();
 }
 
 void ACaptureCharacter::SetForceAllSkeletalMeshesToFollowLeader(bool InFollowLeader)
 {
 	bForceAllSkeletalMeshesToFollowLeader = InFollowLeader;
-	RetargetComponent->bForceOtherMeshesToFollowControlledMesh = bForceAllSkeletalMeshesToFollowLeader;
+	RetargetComponent->SetForceOtherMeshesToFollowControlledMesh(InFollowLeader);
+	RetargetComponent->InitiateAnimation();
 }
 
 void ACaptureCharacter::PostRegisterAllComponents()
