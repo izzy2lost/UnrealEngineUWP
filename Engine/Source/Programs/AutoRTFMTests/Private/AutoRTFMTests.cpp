@@ -44,8 +44,8 @@ int main(int ArgC, const char* ArgV[]) {
 	GEngineLoop.PreInit(0, nullptr);
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-	// Enable all Verse code to run under AutoRTFM (shouldn't affect our tests here, but better safe than sorry).
-	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse);
+	// Enable AutoRTFM.
+	AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled);
 
 	// We don't want to trigger ensure's on abort because we are going to test that.
 	AutoRTFM::ForTheRuntime::SetEnsureOnAbortByLanguage(false);

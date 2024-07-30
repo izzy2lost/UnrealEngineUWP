@@ -101,7 +101,10 @@ namespace AutoRTFM
 				return false;
 			case EAutoRTFMEnabledState::AutoRTFM_Enabled:
 			case EAutoRTFMEnabledState::AutoRTFM_ForcedEnabled:
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 			case EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse:
+#pragma clang diagnostic pop
 				return true;
 			}
 #else
@@ -111,18 +114,7 @@ namespace AutoRTFM
 
 		bool IsAutoRTFMRuntimeEnabledForAllVerse()
 		{
-			// #noop if AutoRTFM is not compiled in
-#if UE_AUTORTFM
-			switch (GAutoRTFMRuntimeEnabled)
-			{
-			default:
-				return false;
-			case EAutoRTFMEnabledState::AutoRTFM_EnabledForAllVerse:
-				return true;
-			}
-#else
-			return false;
-#endif
+			return IsAutoRTFMRuntimeEnabled();
 		}
 
 		void SetEnsureOnAbortByLanguage(bool bEnabled)

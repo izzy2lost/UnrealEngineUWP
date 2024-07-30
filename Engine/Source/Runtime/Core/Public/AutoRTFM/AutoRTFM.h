@@ -695,7 +695,7 @@ namespace ForTheRuntime
 		// Disable AutoRTFM.
 		AutoRTFM_Disabled = 0,
 
-		// Enable AutoRTFM.
+		// Enable AutoRTFM for *all* Verse code (not just failure contexts).
 		AutoRTFM_Enabled,
 
 		// Force disable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
@@ -704,8 +704,7 @@ namespace ForTheRuntime
 		// Force enable AutoRTFM - once set the AutoRTFM runtime cannot be re-enabled.
 		AutoRTFM_ForcedEnabled,
 
-		// Enable AutoRTFM for *all* Verse code (not just failure contexts).
-		AutoRTFM_EnabledForAllVerse,
+		AutoRTFM_EnabledForAllVerse [[deprecated("Use AutoRTFM_Enabled instead!")]],
 	};
 
 	// An enum to represent whether we should abort and retry transactions (for testing purposes).
@@ -732,6 +731,7 @@ namespace ForTheRuntime
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabled();
 
 	// Query whether the AutoRTFM runtime is enabled for *all* Verse code (not just failure contexts).
+	[[deprecated("Use IsAutoRTFMRuntimeEnabled instead!")]]
 	UE_AUTORTFM_API bool IsAutoRTFMRuntimeEnabledForAllVerse();
 
 	// Set whether we should trigger an ensure on an abort-by-language.
