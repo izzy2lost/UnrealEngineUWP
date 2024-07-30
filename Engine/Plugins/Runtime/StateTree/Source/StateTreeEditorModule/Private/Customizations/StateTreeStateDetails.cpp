@@ -295,9 +295,9 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 			ConsiderationsProperty,
 			UtilityCategoryName,
 			LOCTEXT("StateDetailsUtility", "Utility"),
-			FName("StateTreeEditor.Considerations"),
-			UE::StateTree::Colors::Yellow,
-			UE::StateTree::Colors::Yellow.WithAlpha(192),
+			FName("StateTreeEditor.Utility"),
+			UE::StateTree::Colors::Orange,
+			UE::StateTree::Colors::Orange.WithAlpha(192),
 			LOCTEXT("UtilityAddTooltip", "Add new Utility Consideration"),
 			/*SortOrder*/3);
 	}
