@@ -35,6 +35,7 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/STreeView.h"
+#include "MuCOE/Widgets/MutableExpanderArrow.h"
 
 
 #include "Widgets/Input/SSearchBox.h"
@@ -157,8 +158,7 @@ public:
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(SExpanderArrow, SharedThis(this))
-						.ShouldDrawWires(true)
+						SNew(SMutableExpanderArrow, SharedThis(this))
 					]
 					
 					+ SHorizontalBox::Slot()

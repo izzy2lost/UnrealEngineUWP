@@ -87,6 +87,7 @@
 #include "MuT/NodeImageInvertPrivate.h"
 #include "MuT/NodeImageSwizzlePrivate.h"
 #include "MuT/NodeImageMultiLayerPrivate.h"
+#include "Widgets/MutableExpanderArrow.h"
 
 class FExtender;
 class FReferenceCollector;
@@ -141,8 +142,7 @@ public:
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
-				SNew(SExpanderArrow, SharedThis(this))
-				.ShouldDrawWires(true)
+				SNew(SMutableExpanderArrow, SharedThis(this))
 			]
 
 			+ SHorizontalBox::Slot()
