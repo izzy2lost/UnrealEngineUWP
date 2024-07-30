@@ -66,16 +66,21 @@ void UCustomizableObjectNodeExtendMaterial::BackwardsCompatibleFixup()
 				{
 					if (ParentMaterial->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString() == Image.Name)
 					{
-						ImageId = ParentMaterial->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+						ImageId = ParentMaterial->GetParameterId(EMaterialParameterType::Texture, ImageIndex).ParameterId;
 						break;
 					}
 				}
-                
-				PinsParameter.Add(ImageId, FEdGraphPinReference(ImagePin));                
+
+				PinsParameter_DEPRECATED.Add(ImageId, FEdGraphPinReference(ImagePin));                
 			}
 		}
-		
+
 		Images_DEPRECATED.Empty();
+		ReconstructNode();
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
+	{
 		ReconstructNode();
 	}
 }
@@ -117,9 +122,9 @@ void UCustomizableObjectNodeExtendMaterial::AllocateDefaultPins(UCustomizableObj
 				UEdGraphPin* PinImage = CustomCreatePin(EGPD_Input, Schema->PC_Image, ImageName);
 				PinImage->bDefaultValueIsIgnored = true;
 
-				const FGuid ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+				const FNodeMaterialParameterId ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 				
-				PinsParameter.Add(ImageId, FEdGraphPinReference(PinImage));
+				PinsParameterMap.Add(ImageId, FEdGraphPinReference(PinImage));
 			}
 		}
 	}
@@ -243,9 +248,9 @@ UCustomizableObjectNode& UCustomizableObjectNodeExtendMaterial::GetNode()
 }
 
 
-TMap<FGuid, FEdGraphPinReference>& UCustomizableObjectNodeExtendMaterial::GetPinsParameter()
+TMap<FNodeMaterialParameterId, FEdGraphPinReference>& UCustomizableObjectNodeExtendMaterial::GetPinsParameter()
 {
-	return PinsParameter;
+	return PinsParameterMap;
 }
 
 

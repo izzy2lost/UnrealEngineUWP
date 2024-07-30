@@ -88,7 +88,7 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 				}
 				else
 				{
-					const FGuid ImageId = TypedNodeExt->GetParentMaterialNode()->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+					const FNodeMaterialParameterId ImageId = TypedNodeExt->GetParentMaterialNode()->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 					return TypedNodeExt->UsesImage(ImageId);
 				}
 			}();

@@ -12,6 +12,7 @@ class UCustomizableObjectNode;
 class UEdGraphPin;
 struct FEdGraphPinReference;
 struct FGuid;
+struct FNodeMaterialParameterId;
 
 /** Common functionalities from EditMaterial and ExtendMaterial.
  *
@@ -22,10 +23,10 @@ public:
 	virtual ~FCustomizableObjectNodeUseMaterial() = default;
 	
 	/** Returns true if this node uses the given Image. */
-	bool UsesImage(const FGuid& ImageId) const;
+	bool UsesImage(const FNodeMaterialParameterId& ImageId) const;
 
 	/** Given an Image id, returns its Image pin. Can nullptr if the Image is not used. */
-	const UEdGraphPin* GetUsedImagePin(const FGuid& ImageId) const;
+	const UEdGraphPin* GetUsedImagePin(const FNodeMaterialParameterId& ImageId) const;
 
 protected:
 	// Begin must call functions
@@ -52,8 +53,8 @@ protected:
 	virtual FCustomizableObjectNodeParentedMaterial& GetNodeParentedMaterial() = 0;
 	
 	/** Return the PinsParameter map which this interface belongs to. */
-	virtual TMap<FGuid, FEdGraphPinReference>& GetPinsParameter() = 0;
-	virtual const TMap<FGuid, FEdGraphPinReference>& GetPinsParameter() const;
+	virtual TMap<FNodeMaterialParameterId, FEdGraphPinReference>& GetPinsParameter() = 0;
+	virtual const TMap<FNodeMaterialParameterId, FEdGraphPinReference>& GetPinsParameter() const;
 
 	/** Get the output material pin. */
 	virtual UEdGraphPin* OutputPin() const = 0;

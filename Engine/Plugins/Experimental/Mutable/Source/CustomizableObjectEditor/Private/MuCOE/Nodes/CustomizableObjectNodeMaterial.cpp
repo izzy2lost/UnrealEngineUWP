@@ -45,7 +45,7 @@ bool UCustomizableObjectNodeMaterialRemapPinsByName::Equal(const UCustomizableOb
 	const UCustomizableObjectNodeMaterialPinDataParameter* PinDataNewPin = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(Node.GetPinData(NewPin));
 	if (PinDataOldPin && PinDataNewPin)
 	{
-		return PinDataOldPin->ParameterId == PinDataNewPin->ParameterId && (!OldPin.LinkedTo.Num() || OldPin.PinType == NewPin.PinType); // Pin type must match only if it was connected
+		return PinDataOldPin->MaterialParameterId == PinDataNewPin->MaterialParameterId && (!OldPin.LinkedTo.Num() || OldPin.PinType == NewPin.PinType); // Pin type must match only if it was connected
 	}
 	else
 	{
@@ -207,9 +207,9 @@ FName UCustomizableObjectNodeMaterial::GetImagePinMode(const UEdGraphPin& Pin) c
 
 int32 UCustomizableObjectNodeMaterial::GetImageUVLayoutFromMaterial(const int32 ImageIndex) const
 {
-	const FGuid ImageId = GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+	const FNodeMaterialParameterId ImageId = GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 
-	if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Material->GetMaterial(), ImageId);
+	if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Material->GetMaterial(), ImageId.ParameterId);
 		TextureCoordinate >= 0)
 	{
 		return TextureCoordinate;
@@ -227,7 +227,7 @@ int32 UCustomizableObjectNodeMaterial::GetImageUVLayoutFromMaterial(const int32 
 	{
 		for (const TObjectPtr<UMaterialFunctionInterface>& Layer : *MaterialFunctionInterface)
 		{
-			if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Layer->GetPreviewMaterial()->GetMaterial(), ImageId); TextureCoordinate >= 0)
+			if (const int32 TextureCoordinate = GetExpressionTextureCoordinate(Layer->GetPreviewMaterial()->GetMaterial(), ImageId.ParameterId); TextureCoordinate >= 0)
 			{
 				return TextureCoordinate;
 			}	
@@ -389,7 +389,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			}
 
 			UCustomizableObjectNodeMaterialPinDataImage* PinData = NewObject<UCustomizableObjectNodeMaterialPinDataImage>(this);
-			PinData->ParameterId = FGuid::NewGuid();
+			PinData->ParameterId_DEPRECATED = FGuid::NewGuid();
 			PinData->ReferenceTexture = Image.ReferenceTexture;
 
 			// Find referenced Material Parameter
@@ -398,7 +398,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			{
 				if (GetParameterName(EMaterialParameterType::Texture, ParameterIndex).ToString() == Image.Name)
 				{
-					PinData->ParameterId = GetParameterId(EMaterialParameterType::Texture, ParameterIndex);
+					PinData->ParameterId_DEPRECATED = GetParameterId(EMaterialParameterType::Texture, ParameterIndex).ParameterId;
 
 					if (Image.UVLayout == -1)
 					{
@@ -438,7 +438,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			}
 			
 			UCustomizableObjectNodeMaterialPinDataVector* PinData = NewObject<UCustomizableObjectNodeMaterialPinDataVector>(this);
-			PinData->ParameterId = FGuid::NewGuid();
+			PinData->ParameterId_DEPRECATED = FGuid::NewGuid();
 			
 			// Find referenced Material Parameter
 			const int32 NumParameters = GetNumParameters(EMaterialParameterType::Vector);
@@ -446,7 +446,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			{
 				if (GetParameterName(EMaterialParameterType::Vector, ParameterIndex).ToString() == Vector.Name)
 				{
-					PinData->ParameterId = GetParameterId(EMaterialParameterType::Vector, ParameterIndex);
+					PinData->ParameterId_DEPRECATED = GetParameterId(EMaterialParameterType::Vector, ParameterIndex).ParameterId;
 					break;
 				}
 			}
@@ -464,7 +464,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			}
 			
 			UCustomizableObjectNodeMaterialPinDataScalar* PinData = NewObject<UCustomizableObjectNodeMaterialPinDataScalar>(this);
-			PinData->ParameterId = FGuid::NewGuid();
+			PinData->ParameterId_DEPRECATED = FGuid::NewGuid();
 
 			// Find referenced Material Parameter
 			const int32 NumParameters = GetNumParameters(EMaterialParameterType::Scalar);
@@ -472,7 +472,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			{
 				if (GetParameterName(EMaterialParameterType::Scalar, ParameterIndex).ToString() == Scalar.Name)
 				{
-					PinData->ParameterId = GetParameterId(EMaterialParameterType::Scalar, ParameterIndex);
+					PinData->ParameterId_DEPRECATED = GetParameterId(EMaterialParameterType::Scalar, ParameterIndex).ParameterId;
 					break;
 				}
 			}
@@ -509,7 +509,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 					}
 				}(this);
 				
-				PinData->ParameterId = FGuid::NewGuid();
+				PinData->ParameterId_DEPRECATED = FGuid::NewGuid();
 				
 				AddPinData(*Pin, *PinData);
 			}
@@ -529,7 +529,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 		{
 			if (const UCustomizableObjectNodeMaterialPinDataParameter* PinData = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(GetPinData(*Pin)))
 			{
-				PinsParameter.Add(PinData->ParameterId, FEdGraphPinReference(Pin));
+				PinsParameter_DEPRECATED.Add(PinData->ParameterId_DEPRECATED, FEdGraphPinReference(Pin));
 			}
 		}
 	}
@@ -592,7 +592,7 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 			{
 				if (const UEdGraphPin* ImagePin = GetParameterPin(EMaterialParameterType::Texture, ImageIndex))
 				{
-					FGuid ParameterId = GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+					FGuid ParameterId = GetParameterId(EMaterialParameterType::Texture, ImageIndex).ParameterId;
 
 					TArray<FMaterialParameterInfo> TextureParameterInfo;
 					TArray<FGuid> TextureGuids;
@@ -674,6 +674,29 @@ void UCustomizableObjectNodeMaterial::BackwardsCompatibleFixup()
 				{
 					Pin->PinType.PinCategory = UEdGraphSchema_CustomizableObject::PC_PassThroughImage;
 				}				
+			}
+		}
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
+	{
+		if (Material->GetCachedExpressionData().bHasMaterialLayers)
+		{
+			// Needed since we can not get the layer index of repeated parameters
+			Super::ReconstructNode();
+		}
+		else
+		{
+			for (TMap<FGuid, FEdGraphPinReference>::TIterator It = PinsParameter_DEPRECATED.CreateIterator(); It; ++It)
+			{
+				PinsParameterMap.Add({ It.Key(), -1 }, It.Value());
+
+				// Move pin data id info to the new struct
+				if (UCustomizableObjectNodeMaterialPinDataParameter* PinData = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(GetPinData(*It.Value().Get())))
+				{
+					PinData->MaterialParameterId.LayerIndex = INDEX_NONE;
+					PinData->MaterialParameterId.ParameterId = PinData->ParameterId_DEPRECATED;
+				}
 			}
 		}
 	}
@@ -926,7 +949,7 @@ int32 UCustomizableObjectNodeMaterial::GetNumParameters(const EMaterialParameter
 }
 
 
-FGuid UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterType Type, const int32 ParameterIndex) const
+FNodeMaterialParameterId UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
 	const FMaterialCachedExpressionData& Data = Material->GetCachedExpressionData();
 
@@ -934,11 +957,14 @@ FGuid UCustomizableObjectNodeMaterial::GetParameterId(const EMaterialParameterTy
 	{
 		if (Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo.Num() != 0)
 		{
-			return Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[ParameterIndex].ExpressionGuid;
+			const FGuid ParameterId = Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[ParameterIndex].ExpressionGuid;
+			const int32 LayerIndex = GetParameterLayerIndex(Type, ParameterIndex);
+
+			return { ParameterId, LayerIndex };
 		}
 	}
 	
-	return FGuid();
+	return FNodeMaterialParameterId();
 }
 
 
@@ -1002,7 +1028,7 @@ FText UCustomizableObjectNodeMaterial::GetParameterLayerName(const EMaterialPara
 }
 
 
-bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) const
+bool UCustomizableObjectNodeMaterial::HasParameter(const FNodeMaterialParameterId& ParameterId) const
 {
 	if (!Material)
 	{
@@ -1022,9 +1048,12 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) con
 		for (TSet<FMaterialParameterInfo>::TConstIterator It(Entry.ParameterInfoSet); It; ++It)
 		{
 			const int32 IteratorIndex = It.GetId().AsInteger();
-			const FGuid& ParamGUid = Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[IteratorIndex].ExpressionGuid;
+			
+			const FGuid& ParamGuid = Data.EditorOnlyData->EditorEntries[(int32)Type].EditorInfo[IteratorIndex].ExpressionGuid;
+			const int32 LayerIndex = GetParameterLayerIndex(Type, IteratorIndex);
+			const FNodeMaterialParameterId ParamId = { ParamGuid, LayerIndex };
 
-			if (ParamGUid == ParameterId)
+			if (ParamId == ParameterId)
 			{
 				return true;
 			}
@@ -1037,15 +1066,15 @@ bool UCustomizableObjectNodeMaterial::HasParameter(const FGuid& ParameterId) con
 
 UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const EMaterialParameterType Type, const int32 ParameterIndex) const
 {
-	const FGuid ParameterId = GetParameterId(Type, ParameterIndex);
+	const FNodeMaterialParameterId ParameterId = GetParameterId(Type, ParameterIndex);
 	
 	return GetParameterPin(ParameterId);
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const FGuid& ParameterId) const
+UEdGraphPin* UCustomizableObjectNodeMaterial::GetParameterPin(const FNodeMaterialParameterId& ParameterId) const
 {
-	if (const FEdGraphPinReference* Result = PinsParameter.Find(ParameterId))
+	if (const FEdGraphPinReference* Result = PinsParameterMap.Find(ParameterId))
 	{
 		return Result->Get();
 	}
@@ -1101,7 +1130,7 @@ TSharedPtr<IDetailsView> UCustomizableObjectNodeMaterial::CustomizePinDetails(co
 
 bool UCustomizableObjectNodeMaterial::CustomRemovePin(UEdGraphPin& Pin)
 {
-	for (TMap<FGuid, FEdGraphPinReference>::TIterator Iterator = PinsParameter.CreateIterator(); Iterator; ++Iterator)
+	for (TMap<FNodeMaterialParameterId, FEdGraphPinReference>::TIterator Iterator = PinsParameterMap.CreateIterator(); Iterator; ++Iterator)
 	{
 		if (Iterator->Value.Get() == &Pin)
 		{
@@ -1171,7 +1200,7 @@ bool UCustomizableObjectNodeMaterial::RealMaterialDataHasChanged() const
 	{
 		if (const UCustomizableObjectNodeMaterialPinDataParameter* PinData = Cast<UCustomizableObjectNodeMaterialPinDataParameter>(GetPinData(*Pin)))
 		{
-			if (!HasParameter(PinData->ParameterId) &&
+			if (!HasParameter(PinData->MaterialParameterId) &&
 				(FollowInputPin(*Pin) || !PinData->IsDefault()))
 			{
 				return true;
@@ -1250,7 +1279,7 @@ UCustomizableObjectNodeMaterialPinDataParameter* UCustomizableObjectNodeMaterial
 		check(false); // Parameter type not contemplated.
 	}
 
-	PinData->ParameterId = GetParameterId(Type, ParameterIndex);
+	PinData->MaterialParameterId = GetParameterId(Type, ParameterIndex);
 
 	return PinData;
 }
@@ -1294,7 +1323,7 @@ void UCustomizableObjectNodeMaterial::AllocateDefaultParameterPins(const EMateri
 		Pin->bHidden = true;
 		Pin->bDefaultValueIsIgnored = true;
 
-		PinsParameter.Add(PinData->ParameterId, FEdGraphPinReference(Pin));
+		PinsParameterMap.Add(PinData->MaterialParameterId, FEdGraphPinReference(Pin));
 	}
 }
 

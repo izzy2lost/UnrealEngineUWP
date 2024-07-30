@@ -50,9 +50,14 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeMaterialPinDataParamet
 	GENERATED_BODY()
 
 public:
+
+	/** Parameter id + layer index */
+	UPROPERTY()
+	FNodeMaterialParameterId MaterialParameterId;
+
 	/** Texture Parameter Id. */
 	UPROPERTY()
-	FGuid ParameterId;
+	FGuid ParameterId_DEPRECATED;
 
 	/** Returns true if all properties are in its default state. */
 	virtual bool IsDefault() const;
@@ -138,13 +143,13 @@ public:
 	virtual FName GetMeshComponentName() const override;
 	virtual TArray<FString> GetTags() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
-	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
-	virtual bool HasParameter(const FGuid& ParameterId) const override;
+	virtual bool HasParameter(const FNodeMaterialParameterId& ParameterId) const override;
 	virtual UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
-	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const override;
+	virtual UEdGraphPin* GetParameterPin(const FNodeMaterialParameterId& ParameterId) const override;
 	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
 	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
 	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;
@@ -193,10 +198,10 @@ private:
 
 	static const TArray<EMaterialParameterType> ParameterTypes;
 
-	/** Relates a Parameter id (key) to a Pin (value). Only used to improve performance.
+	/** Relates a Parameter id (key) (and layer if is a layered material) to a Pin (value). Only used to improve performance.
 	  * If a deprecated pin and a non-deprecated pin have the same Parameter id, this the non-deprecated one prevails. */
 	UPROPERTY()
-	TMap<FGuid, FEdGraphPinReference> PinsParameter;
+	TMap<FNodeMaterialParameterId, FEdGraphPinReference> PinsParameterMap;
 	
 	/** Create the pin data of the given parameter type. */
 	UCustomizableObjectNodeMaterialPinDataParameter* CreatePinData(EMaterialParameterType Type, int32 ParameterIndex);
@@ -242,6 +247,9 @@ private:
 
 	UPROPERTY()
 	TArray<FCustomizableObjectNodeMaterialScalar> ScalarParams_DEPRECATED;
+
+	UPROPERTY()
+	TMap<FGuid, FEdGraphPinReference> PinsParameter_DEPRECATED;
 };
 
 

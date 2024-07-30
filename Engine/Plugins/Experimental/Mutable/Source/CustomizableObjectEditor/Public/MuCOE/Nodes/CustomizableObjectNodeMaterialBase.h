@@ -14,6 +14,33 @@ class UObject;
 
 DECLARE_MULTICAST_DELEGATE(FPostImagePinModeChangedDelegate)
 
+/** This struct helps us to identify a material parameter using its id and layer index in case of multimaterials
+* When a multilayer material has the same material in multiple layer the parameter Id is not enough to identify a parameter
+* we also need the its layer index.
+*/
+USTRUCT()
+struct FNodeMaterialParameterId
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FGuid ParameterId;
+
+	UPROPERTY()
+	int32 LayerIndex = INDEX_NONE;
+
+	bool operator==(const FNodeMaterialParameterId& Other) const = default;
+};
+
+
+inline uint32 GetTypeHash(const FNodeMaterialParameterId& Key)
+{
+	uint32 Hash = GetTypeHash(Key.ParameterId);
+	Hash = HashCombine(Hash, GetTypeHash(Key.LayerIndex));
+
+	return Hash;
+}
+
 
 /** Equivalent to mu::NodeSurface but with limitations. Currently only nodes that generate a mu::NodeSurfaceNew inherit this (NodeMaterial and NodeCopyMaterial).
  * Nodes that generate mu::NodeSurfaceEdit (NodeEditMaterial, NodeExtendMaterial), mu::NodeSurfaceSwitch (NodeSwitchMaterial)... are excluded.
@@ -55,7 +82,7 @@ public:
 	/** Returns the Material Parameter id.
 	 *
 	 * @param ParameterIndex Have to be valid. */
-	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterId, return {}; );
+	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterId, return {}; );
 	
 	/** Returns the Material Parameter name.
 	 *
@@ -74,7 +101,7 @@ public:
 	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterLayerName, return {}; );
 
 	/** Returns true if the Material contains the given Material Parameter. */
-	virtual bool HasParameter(const FGuid& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::HasParameter, return {}; );
+	virtual bool HasParameter(const FNodeMaterialParameterId& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::HasParameter, return {}; );
 	
 	/** Get the pin for the given Material Parameter.
 	 * Not all parameters have pins.
@@ -88,7 +115,7 @@ public:
 	 *
 	 * @param ParameterId Material Parameter id.
 	 * @return Can return nullptr. */
-	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterPin, return {}; );
+	virtual UEdGraphPin* GetParameterPin(const FNodeMaterialParameterId& ParameterId) const PURE_VIRTUAL(UCustomizableObjectNodeMaterial::GetParameterPin, return {}; );
 	
 	// --------------------
 	// IMAGES PARAMETERS

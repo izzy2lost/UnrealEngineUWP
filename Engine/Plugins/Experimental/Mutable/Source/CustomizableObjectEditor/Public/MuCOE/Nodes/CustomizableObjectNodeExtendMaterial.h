@@ -63,7 +63,7 @@ public:
 
 	// FCustomizableObjectNodeUseMaterial interface
 	virtual FCustomizableObjectNodeParentedMaterial& GetNodeParentedMaterial() override;
-	virtual TMap<FGuid, FEdGraphPinReference>& GetPinsParameter() override;
+	virtual TMap<FNodeMaterialParameterId, FEdGraphPinReference>& GetPinsParameter() override;
 	virtual UEdGraphPin* OutputPin() const override;
 
 	// Own interface
@@ -78,11 +78,14 @@ private:
 	UPROPERTY()
 	FGuid ParentMaterialNodeId;
 	
-	/** Relates a Parameter id to a Pin. Only used to improve performance. */
-   	UPROPERTY()
-   	TMap<FGuid, FEdGraphPinReference> PinsParameter;
+	/** Relates a Parameter id (and layer if is a layered material) to a Pin. Only used to improve performance. */
+	UPROPERTY()
+	TMap<FNodeMaterialParameterId, FEdGraphPinReference> PinsParameterMap;
 
 	// Deprecated properties
+	UPROPERTY()
+	TMap<FGuid, FEdGraphPinReference> PinsParameter_DEPRECATED;
+
 	UPROPERTY()
 	TArray<FCustomizableObjectNodeExtendMaterialImage> Images_DEPRECATED;
 };

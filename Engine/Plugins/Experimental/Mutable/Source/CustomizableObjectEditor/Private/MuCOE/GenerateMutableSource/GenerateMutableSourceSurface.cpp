@@ -512,7 +512,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				mu::NodeImagePtr GroupProjectionImg;
 				UTexture2D* GroupProjectionReferenceTexture = nullptr;
 				const FString ImageName = TypedNodeMat->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString();
-				const FGuid ImageId = TypedNodeMat->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+				const FNodeMaterialParameterId ImageId = TypedNodeMat->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 
 				FString MaterialImageId = FGroupProjectorImageInfo::GenerateId(TypedNodeMat, ImageIndex);
 				bool bShareProjectionTexturesBetweenLODs = false;
@@ -531,8 +531,9 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 						// Get the reference texture
 						UTexture2D* ReferenceTexture = nullptr;
 						{
+							//TODO(Max) UE-220247: Add support for multilayer materials
 							GenerationContext.CurrentMaterialTableParameter = ImageName;
-							GenerationContext.CurrentMaterialTableParameterId = ImageId.ToString();
+							GenerationContext.CurrentMaterialTableParameterId = ImageId.ParameterId.ToString();
 
 							ReferenceTexture = GroupProjectionImg.get() ? GroupProjectionReferenceTexture : nullptr;
 						
@@ -921,7 +922,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			bool bVectorPinConnected = VectorPin && FollowInputPin(*VectorPin);
 
 			FString VectorName = TypedNodeMat->GetParameterName(EMaterialParameterType::Vector, VectorIndex).ToString();
-			FGuid VectorId = TypedNodeMat->GetParameterId(EMaterialParameterType::Vector, VectorIndex);
+			FNodeMaterialParameterId VectorId = TypedNodeMat->GetParameterId(EMaterialParameterType::Vector, VectorIndex);
 
 			if (bVectorPinConnected)
 			{				
@@ -949,7 +950,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			bool bScalarPinConnected = ScalarPin && FollowInputPin(*ScalarPin);
 
 			FString ScalarName = TypedNodeMat->GetParameterName(EMaterialParameterType::Scalar, ScalarIndex).ToString();
-			FGuid ScalarId = TypedNodeMat->GetParameterId(EMaterialParameterType::Scalar, ScalarIndex);
+			FNodeMaterialParameterId ScalarId = TypedNodeMat->GetParameterId(EMaterialParameterType::Scalar, ScalarIndex);
 
 			if (bScalarPinConnected)
 			{
@@ -1190,7 +1191,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				
 				if (!ImageNode) // Else if
 				{
-					const FGuid ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+					const FNodeMaterialParameterId ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 					
 					if (TypedNodeExt->UsesImage(ImageId))
 					{
@@ -1359,7 +1360,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			SurfNode->Textures.SetNum(NumImages);
 			for (int32 ImageIndex = 0; ImageIndex < NumImages; ++ImageIndex)
 			{
-				const FGuid ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+				const FNodeMaterialParameterId ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 
 				if (TypedNodeEdit->UsesImage(ImageId))
 				{

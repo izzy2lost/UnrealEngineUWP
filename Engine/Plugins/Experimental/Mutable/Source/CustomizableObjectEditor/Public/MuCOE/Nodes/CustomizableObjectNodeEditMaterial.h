@@ -4,11 +4,13 @@
 
 #include "MuCOE/Nodes/CustomizableObjectNodeEditLayoutBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeUseMaterial.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 
 #include "CustomizableObjectNodeEditMaterial.generated.h"
 
 namespace ENodeTitleType { enum Type : int; }
 struct FCustomizableObjectNodeEditMaterialImage;
+struct FNodeMaterialParameterId;
 
 class FArchive;
 class FCustomizableObjectNodeParentedMaterial;
@@ -24,11 +26,16 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeEditMaterialPinEditIma
 	GENERATED_BODY()
 
 public:
+
+	/** Parameter FGuid + Layer Index */
 	UPROPERTY()
-	FGuid ImageId;
+	FNodeMaterialParameterId ImageParamId;
 
 	UPROPERTY();
 	FEdGraphPinReference PinMask;
+
+	UPROPERTY()
+	FGuid ImageId_DEPRECATED;
 };
 
 
@@ -69,23 +76,27 @@ public:
 	// FCustomizableObjectNodeUseMaterial interface
 	virtual UCustomizableObjectNode& GetNode() override;
 	virtual FCustomizableObjectNodeParentedMaterial& GetNodeParentedMaterial() override;
-	virtual TMap<FGuid, FEdGraphPinReference>& GetPinsParameter() override;
+	virtual TMap<FNodeMaterialParameterId, FEdGraphPinReference>& GetPinsParameter() override;
 	
 	
 	/** Returns the Image mask pin of the given Image that will be edited.
 	 *
 	 * @returns Always returns a valid pin if EditsImage(const FGuid&) returns true. */
-	const UEdGraphPin* GetUsedImageMaskPin(const FGuid& ImageId) const;
+	const UEdGraphPin* GetUsedImageMaskPin(const FNodeMaterialParameterId& ImageId) const;
 
 	// Function to select all the layout blocks. Called when a parameter is reset (ParentMaterial, ParentLayoutIndex)
 	void SelectAllLayoutBlocks();
 
 private:
-	/** Relates a Parameter id to a Pin. Only used to improve performance. */
+
+	/** Relates a Parameter id (and layer if is a layered material) to a Pin. Only used to improve performance. */
 	UPROPERTY()
-	TMap<FGuid, FEdGraphPinReference> PinsParameter;
-	
+	TMap<FNodeMaterialParameterId, FEdGraphPinReference> PinsParameterMap;
+
 	// Deprecated properties
+	UPROPERTY()
+	TMap<FGuid, FEdGraphPinReference> PinsParameter_DEPRECATED;
+	
 	UPROPERTY()
 	TArray<FCustomizableObjectNodeEditMaterialImage> Images_DEPRECATED;
 	

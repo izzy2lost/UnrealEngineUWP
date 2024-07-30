@@ -7,7 +7,6 @@
 #include "MuCOE/CustomizableObjectEditor_Deprecated.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
-#include "MuCOE/Nodes/CustomizableObjectNodeMaterial.h"
 
 class FCustomizableObjectNodeParentedMaterial;
 class UCustomizableObjectNodeRemapPins;
@@ -27,14 +26,14 @@ void UCustomizableObjectNodeEditMaterial::AllocateDefaultPins(UCustomizableObjec
 			if (ParentMaterialNode->IsImageMutableMode(ImageIndex))
 			{
 				UCustomizableObjectNodeEditMaterialPinEditImageData* PinEditImageData = NewObject<UCustomizableObjectNodeEditMaterialPinEditImageData>(this);
-				PinEditImageData->ImageId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+				PinEditImageData->ImageParamId = ParentMaterialNode->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
 			
 				const FName ImageName = ParentMaterialNode->GetParameterName(EMaterialParameterType::Texture, ImageIndex);
 				UEdGraphPin* PinImage = CustomCreatePin(EGPD_Input, Schema->PC_Image, ImageName, PinEditImageData);
 				PinImage->bHidden = true;
 				PinImage->bDefaultValueIsIgnored = true;
 
-				PinsParameter.Add(PinEditImageData->ImageId, FEdGraphPinReference(PinImage));
+				PinsParameterMap.Add(PinEditImageData->ImageParamId, FEdGraphPinReference(PinImage));
 
 				FString PinMaskName = ImageName.ToString() + " Mask";
 				UEdGraphPin* PinMask = CustomCreatePin(EGPD_Input, Schema->PC_Image, *PinMaskName);
@@ -50,7 +49,7 @@ void UCustomizableObjectNodeEditMaterial::AllocateDefaultPins(UCustomizableObjec
 }
 
 
-const UEdGraphPin* UCustomizableObjectNodeEditMaterial::GetUsedImageMaskPin(const FGuid& ImageId) const
+const UEdGraphPin* UCustomizableObjectNodeEditMaterial::GetUsedImageMaskPin(const FNodeMaterialParameterId& ImageId) const
 {
 	if (const UEdGraphPin* Pin = GetUsedImagePin(ImageId))
 	{
@@ -165,7 +164,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 				}
 				
 				UCustomizableObjectNodeEditMaterialPinEditImageData*  PinEditImageData = NewObject<UCustomizableObjectNodeEditMaterialPinEditImageData>(this);
-				PinEditImageData->ImageId = FGuid::NewGuid();
+				PinEditImageData->ImageId_DEPRECATED = FGuid::NewGuid();
 				PinEditImageData->PinMask = PinMask;
 				
 				// Search for the Image Id the Edit pin was referring to.
@@ -174,7 +173,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 				{
 					if (ParentMaterial->GetParameterName(EMaterialParameterType::Texture, ImageIndex).ToString() == Image.Name)
 					{
-						PinEditImageData->ImageId = ParentMaterial->GetParameterId(EMaterialParameterType::Texture, ImageIndex);
+						PinEditImageData->ImageId_DEPRECATED = ParentMaterial->GetParameterId(EMaterialParameterType::Texture, ImageIndex).ParameterId;
 						break;
 					}
 				}
@@ -194,7 +193,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 		{
 			if (const UCustomizableObjectNodeEditMaterialPinEditImageData* PinData = Cast<UCustomizableObjectNodeEditMaterialPinEditImageData>(GetPinData(*Pin)))
 			{
-				PinsParameter.Add(PinData->ImageId, FEdGraphPinReference(Pin));
+				PinsParameter_DEPRECATED.Add(PinData->ImageId_DEPRECATED, FEdGraphPinReference(Pin));
 			}
 		}
 	}
@@ -205,6 +204,11 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 	}
 
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::EditMaterialMaskPinDesync)
+	{
+		ReconstructNode();
+	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::FixedMultilayerMaterialIds)
 	{
 		ReconstructNode();
 	}
@@ -272,9 +276,9 @@ UCustomizableObjectNode& UCustomizableObjectNodeEditMaterial::GetNode()
 }
 
 
-TMap<FGuid, FEdGraphPinReference>& UCustomizableObjectNodeEditMaterial::GetPinsParameter()
+TMap<FNodeMaterialParameterId, FEdGraphPinReference>& UCustomizableObjectNodeEditMaterial::GetPinsParameter()
 {
-	return PinsParameter;	
+	return PinsParameterMap;	
 }
 
 

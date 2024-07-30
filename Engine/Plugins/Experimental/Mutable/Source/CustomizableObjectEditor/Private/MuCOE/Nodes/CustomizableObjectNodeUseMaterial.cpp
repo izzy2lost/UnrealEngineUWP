@@ -16,7 +16,7 @@ bool FCustomizableObjectNodeUseMaterial::IsNodeOutDatedAndNeedsRefreshWork()
 	UCustomizableObjectNode& Node = GetNode();
 	const FCustomizableObjectNodeParentedMaterial& NodeParentedMaterial = GetNodeParentedMaterial();
 
-	const TMap<FGuid, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
+	const TMap<FNodeMaterialParameterId, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
 	
 	const bool bOutdated = [&]()
 	{
@@ -27,7 +27,7 @@ bool FCustomizableObjectNodeUseMaterial::IsNodeOutDatedAndNeedsRefreshWork()
 				return true;
 			}
 
-			for (const TTuple<FGuid, FEdGraphPinReference> Pair : PinsParameter)
+			for (const TTuple<FNodeMaterialParameterId, FEdGraphPinReference> Pair : PinsParameter)
 			{
 				const UEdGraphPin& Pin = *Pair.Value.Get();
 				if (!IsPinOrphan(Pin))
@@ -111,9 +111,9 @@ void FCustomizableObjectNodeUseMaterial::PinConnectionListChangedWork(UEdGraphPi
 
 void FCustomizableObjectNodeUseMaterial::CustomRemovePinWork(UEdGraphPin& Pin)
 {
-	TMap<FGuid, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
+	TMap<FNodeMaterialParameterId, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
 	
-	for(TMap<FGuid, FEdGraphPinReference>::TIterator It = PinsParameter.CreateIterator(); It; ++It)
+	for(TMap<FNodeMaterialParameterId, FEdGraphPinReference>::TIterator It = PinsParameter.CreateIterator(); It; ++It)
 	{
 		if (It.Value().Get() == &Pin) // We could improve performance if FEdGraphPinReference exposed the pin id.
 		{
@@ -130,13 +130,13 @@ const UCustomizableObjectNode& FCustomizableObjectNodeUseMaterial::GetNode() con
 }
 
 
-const TMap<FGuid, FEdGraphPinReference>& FCustomizableObjectNodeUseMaterial::GetPinsParameter() const
+const TMap<FNodeMaterialParameterId, FEdGraphPinReference>& FCustomizableObjectNodeUseMaterial::GetPinsParameter() const
 {
 	return const_cast<FCustomizableObjectNodeUseMaterial*>(this)->GetPinsParameter();
 }
 
 
-bool FCustomizableObjectNodeUseMaterial::UsesImage(const FGuid& ImageId) const
+bool FCustomizableObjectNodeUseMaterial::UsesImage(const FNodeMaterialParameterId& ImageId) const
 {
 	if (const UEdGraphPin* Pin = GetUsedImagePin(ImageId))
 	{
@@ -149,9 +149,9 @@ bool FCustomizableObjectNodeUseMaterial::UsesImage(const FGuid& ImageId) const
 }
 
 
-const UEdGraphPin* FCustomizableObjectNodeUseMaterial::GetUsedImagePin(const FGuid& ImageId) const
+const UEdGraphPin* FCustomizableObjectNodeUseMaterial::GetUsedImagePin(const FNodeMaterialParameterId& ImageId) const
 {
-	const TMap<FGuid, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
+	const TMap<FNodeMaterialParameterId, FEdGraphPinReference>& PinsParameter = GetPinsParameter();
 
 	if (const FEdGraphPinReference* PinReference = PinsParameter.Find(ImageId))
 	{

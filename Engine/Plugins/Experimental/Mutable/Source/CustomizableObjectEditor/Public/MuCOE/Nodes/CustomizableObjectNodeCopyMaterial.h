@@ -39,13 +39,13 @@ public:
 	virtual TArray<FString> GetTags() const override;
 	virtual UEdGraphPin* GetMaterialAssetPin() const override;
 	virtual int32 GetNumParameters(EMaterialParameterType Type) const override;
-	virtual FGuid GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
+	virtual FNodeMaterialParameterId GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FName GetParameterName(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual int32 GetParameterLayerIndex(EMaterialParameterType Type, int32 ParameterIndex) const override;
 	virtual FText GetParameterLayerName(EMaterialParameterType Type, int32 ParameterIndex) const override;
-	virtual bool HasParameter(const FGuid& ParameterId) const override;
+	virtual bool HasParameter(const FNodeMaterialParameterId& ParameterId) const override;
 	virtual const UEdGraphPin* GetParameterPin(EMaterialParameterType Type, int32 ParameterIndex) const override;
-	virtual UEdGraphPin* GetParameterPin(const FGuid& ParameterId) const override;
+	virtual UEdGraphPin* GetParameterPin(const FNodeMaterialParameterId& ParameterId) const override;
 	virtual bool IsImageMutableMode(int32 ImageIndex) const override;
 	virtual bool IsImageMutableMode(const UEdGraphPin& Pin) const override;
 	virtual UTexture2D* GetImageReferenceTexture(int32 ImageIndex) const override;

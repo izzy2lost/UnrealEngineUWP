@@ -270,7 +270,7 @@ int32 UCustomizableObjectNodeCopyMaterial::GetNumParameters(EMaterialParameterTy
 }
 
 
-FGuid UCustomizableObjectNodeCopyMaterial::GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const
+FNodeMaterialParameterId UCustomizableObjectNodeCopyMaterial::GetParameterId(EMaterialParameterType Type, int32 ParameterIndex) const
 {
 	UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode();
 	check(NodeMaterial);
@@ -306,7 +306,7 @@ FText UCustomizableObjectNodeCopyMaterial::GetParameterLayerName(EMaterialParame
 }
 
 
-bool UCustomizableObjectNodeCopyMaterial::HasParameter(const FGuid& ParameterId) const
+bool UCustomizableObjectNodeCopyMaterial::HasParameter(const FNodeMaterialParameterId& ParameterId) const
 {
 	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
 	{
@@ -332,7 +332,7 @@ const UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(EMateria
 }
 
 
-UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(const FGuid& ParameterId) const
+UEdGraphPin* UCustomizableObjectNodeCopyMaterial::GetParameterPin(const FNodeMaterialParameterId& ParameterId) const
 {
 	if (UCustomizableObjectNodeMaterial* NodeMaterial = GetMaterialNode())
 	{
