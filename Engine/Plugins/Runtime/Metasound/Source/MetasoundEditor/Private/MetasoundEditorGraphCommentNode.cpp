@@ -67,7 +67,10 @@ void UMetasoundEditorGraphCommentNode::PostEditChangeProperty(FPropertyChangedEv
 
 	FMetaSoundFrontendGraphComment Comment;
 	ConvertToFrontendComment(*this, Comment);
-	GetBuilderChecked().FindOrAddGraphComment(CommentID) = MoveTemp(Comment);
+	if (FMetaSoundFrontendGraphComment* FrontendComment = GetBuilderChecked().FindGraphComment(CommentID))
+	{
+		*FrontendComment = MoveTemp(Comment);
+	}
 }
 
 void UMetasoundEditorGraphCommentNode::ResizeNode(const FVector2D& NewSize)
