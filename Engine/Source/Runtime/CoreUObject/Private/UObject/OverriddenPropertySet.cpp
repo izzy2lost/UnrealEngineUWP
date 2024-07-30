@@ -7,6 +7,7 @@
 #include "UObject/PropertyOptional.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/StructuredArchiveNameHelpers.h"
+#include "UObject/UObjectThreadContext.h"
 
 /*
  *************************************************************************************
@@ -98,7 +99,14 @@ FOverriddenPropertyNodeID::FOverriddenPropertyNodeID(const FProperty* Property)
 	{
 		// append typename to the end of the property ID
 		UE::FPropertyTypeNameBuilder TypeNameBuilder;
-		Property->SaveTypeName(TypeNameBuilder);
+#if WITH_EDITORONLY_DATA
+		{
+			// use property impersonation for SaveTypeName so that keys don't change when classes die
+			FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+            TGuardValue<bool> ScopedImpersonateProperties(SerializeContext->bImpersonateProperties, true);
+            Property->SaveTypeName(TypeNameBuilder);
+		}
+#endif
 		UE::FPropertyTypeName TypeName = TypeNameBuilder.Build();
 		TStringBuilder<256> StringBuilder;
 		StringBuilder << Property->GetFName();

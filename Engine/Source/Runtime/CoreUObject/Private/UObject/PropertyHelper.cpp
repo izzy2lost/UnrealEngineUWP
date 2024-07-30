@@ -304,6 +304,11 @@ const FString* FindOriginalTypeName(const UField* Field)
 
 const FString* FindOriginalTypeName(const FProperty* Property)
 {
+	if (!FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+	{
+		return nullptr;
+	}
+	
 	// Prioritize metadata on the property over metadata on the type.
 	if (const FString* OriginalType = Property->FindMetaData(NAME_OriginalType))
 	{
@@ -466,15 +471,12 @@ static bool FindRedirectForProperty(FPropertyTypeName OldType, FPropertyTypeName
 		// Compare against the original type of an impersonated struct.
 		if constexpr (std::is_same_v<PropertyType, FStructProperty>)
 		{
-			if (FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+			if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
 			{
-				if (const FPropertyTypeName OriginalType = FindOriginalType(Property); !OriginalType.IsEmpty())
+				FieldName = OriginalType.GetName();
+				if (FieldName == OldNameRedirect.ObjectName)
 				{
-					FieldName = OriginalType.GetName();
-					if (FieldName == OldNameRedirect.ObjectName)
-					{
-						return false;
-					}
+					return false;
 				}
 			}
 		}
