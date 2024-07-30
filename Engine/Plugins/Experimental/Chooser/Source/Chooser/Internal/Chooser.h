@@ -160,7 +160,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="Output")
 	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
 
-	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return ContextData; }
+	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return GetContextOwner()->ContextData; }
 
 	bool IsCookedData() const { return !CookedResults.IsEmpty(); }
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);

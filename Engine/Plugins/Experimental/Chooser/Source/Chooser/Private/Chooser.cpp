@@ -41,6 +41,7 @@ void UChooserTable::PostLoad()
 	// fix for broken outer object on nested chooser tables
 	if (ParentTable)
 	{
+		SetFlags(RF_Transactional); // also fix nested chooser objects not created with Transactional flag
 		if (GetOuter() != ParentTable)
 		{
 			Rename(nullptr, ParentTable);
