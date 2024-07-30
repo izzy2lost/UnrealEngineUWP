@@ -1700,6 +1700,19 @@ void SSceneOutliner::PasteFoldersBegin(TArray<FName> InFolders)
 
 void SSceneOutliner::PasteFoldersEnd()
 {
+	ON_SCOPE_EXIT
+	{
+		CacheFoldersEdit.Reset();
+		CacheFoldersEditRootObject = FFolder::GetInvalidRootObject();
+		CacheFolderMap.Reset();
+		CachePasteFolderExistingChildrenMap.Reset();
+	};
+
+	if (CacheFoldersEdit.IsEmpty())
+	{
+		return;
+	}
+
 	const FScopedTransaction Transaction(NSLOCTEXT("UnrealEd", "PasteItems", "Paste Items"));
 
 	// Create new folder
@@ -1745,10 +1758,6 @@ void SSceneOutliner::PasteFoldersEnd()
 		}
 	}
 
-	CacheFoldersEdit.Reset();
-	CacheFoldersEditRootObject = FFolder::GetInvalidRootObject();
-	CacheFolderMap.Reset();
-	CachePasteFolderExistingChildrenMap.Reset();
 	FullRefresh();
 }
 
