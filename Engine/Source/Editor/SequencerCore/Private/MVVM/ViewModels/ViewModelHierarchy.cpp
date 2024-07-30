@@ -354,7 +354,7 @@ void FViewModelChildren::Empty()
 {
 	if (ListHead->HeadLink.Next)
 	{
-		FViewModelHierarchyOperation Operation(Owner);
+		FViewModelHierarchyOperation Operation(Owner->GetSharedData());
 
 		for (const FViewModelPtr& Child : IterateSubList().ToArray())
 		{
@@ -365,13 +365,7 @@ void FViewModelChildren::Empty()
 	}
 }
 
-FViewModelHierarchyOperation::FViewModelHierarchyOperation(const TSharedPtr<FViewModel>& InAnyModel)
-	: SharedData(InAnyModel->SharedData)
-{
-	Construct();
-}
-
-FViewModelHierarchyOperation::FViewModelHierarchyOperation(const TSharedRef<FSharedViewModelData>& InSharedData)
+FViewModelHierarchyOperation::FViewModelHierarchyOperation(const TSharedPtr<FSharedViewModelData>& InSharedData)
 	: SharedData(InSharedData)
 {
 	Construct();

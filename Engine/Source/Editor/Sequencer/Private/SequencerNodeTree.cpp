@@ -116,7 +116,7 @@ void FSequencerNodeTree::Update()
 {
 	using namespace UE::Sequencer;
 
-	FViewModelHierarchyOperation UpdateOp(RootNode);
+	FViewModelHierarchyOperation UpdateOp(RootNode->GetSharedData());
 
 	FilteredNodes.Empty();
 

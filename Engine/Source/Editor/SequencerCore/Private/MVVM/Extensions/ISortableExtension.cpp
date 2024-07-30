@@ -58,7 +58,7 @@ void ISortableExtension::SortChildren(TSharedPtr<FViewModel> ParentModel, ESorti
 
 void ISortableExtension::SortChildren(FViewModelChildren& Children, ESortingMode SortingMode)
 {
-	FViewModelHierarchyOperation Operation(Children.GetParent());
+	FViewModelHierarchyOperation Operation(Children.GetParent()->GetSharedData());
 
 	struct FModelAndSortingKey
 	{

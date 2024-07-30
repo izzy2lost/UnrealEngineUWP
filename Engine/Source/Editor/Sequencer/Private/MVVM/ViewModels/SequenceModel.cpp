@@ -121,7 +121,7 @@ void FSequenceModel::SetSequence(UMovieSceneSequence* InSequence, FMovieSceneSeq
 void FSequenceModel::OnPostUndo()
 {
 	{
-		FViewModelHierarchyOperation HierarchyOp(AsShared());
+		FViewModelHierarchyOperation HierarchyOp(GetSharedData());
 
 		for (TSharedPtr<FViewModel> Child : GetChildren().ToArray())
 		{
