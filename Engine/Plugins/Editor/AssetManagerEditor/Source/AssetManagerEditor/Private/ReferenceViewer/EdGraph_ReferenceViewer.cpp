@@ -1455,10 +1455,43 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::CreateReferenceNode()
 	return Cast<UEdGraphNode_Reference>(CreateNode(UEdGraphNode_Reference::StaticClass(), bSelectNewNode));
 }
 
-UEdGraphNode_ReferencedProperties* UEdGraph_ReferenceViewer::CreateReferencedPropertiesNode()
+UEdGraphNode_ReferencedProperties* UEdGraph_ReferenceViewer::CreateReferencedPropertiesNode(
+	const TArray<FReferencingPropertyDescription>& InPropertiesDescriptionArray,
+	const TObjectPtr<UEdGraphNode_Reference>& InReferencingNode,
+	const TObjectPtr<UEdGraphNode_Reference>& InReferencedNode
+)
 {
-	constexpr  bool bSelectNewNode = false;
-	return Cast<UEdGraphNode_ReferencedProperties>(CreateNode(UEdGraphNode_ReferencedProperties::StaticClass(), bSelectNewNode));
+	uint32 NodesPairHash = GetTypeHash(InReferencingNode) ^ GetTypeHash(InReferencedNode);
+
+	UEdGraphNode_ReferencedProperties* PropertiesNode = nullptr;
+
+	if (ReferencedPropertiesNodes.Contains(NodesPairHash))
+	{
+		if (TWeakObjectPtr<UEdGraphNode_ReferencedProperties>* PropertiesNodePtr =
+			ReferencedPropertiesNodes.Find(NodesPairHash))
+		{
+			if (PropertiesNodePtr->IsValid())
+			{
+				PropertiesNode = PropertiesNodePtr->Get();
+			}
+		}
+	}
+	else
+	{
+		constexpr bool bSelectNewNode = false;
+		PropertiesNode = Cast<UEdGraphNode_ReferencedProperties>(
+			CreateNode(UEdGraphNode_ReferencedProperties::StaticClass(), bSelectNewNode)
+		);
+
+		ReferencedPropertiesNodes.Emplace(NodesPairHash, PropertiesNode);
+	}
+
+	if (PropertiesNode)
+	{
+		PropertiesNode->SetupReferencedPropertiesNode(InPropertiesDescriptionArray, InReferencingNode, InReferencedNode);
+	}
+
+	return PropertiesNode;
 }
 
 void UEdGraph_ReferenceViewer::RemoveAllNodes()

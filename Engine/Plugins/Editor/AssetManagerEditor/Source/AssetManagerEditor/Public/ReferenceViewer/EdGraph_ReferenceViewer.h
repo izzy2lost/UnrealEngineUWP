@@ -138,7 +138,8 @@ private:
 
 	UEdGraphNode_Reference* CreateReferenceNode();
 
-	UEdGraphNode_ReferencedProperties* CreateReferencedPropertiesNode();
+	UEdGraphNode_ReferencedProperties* CreateReferencedPropertiesNode(const TArray<FReferencingPropertyDescription>& InPropertiesDescriptionArray
+	, const TObjectPtr<UEdGraphNode_Reference>& InReferencingNode, const TObjectPtr<UEdGraphNode_Reference>& InReferencedNode);
 
 	/* Generates a NodeInfo structure then used to generate and layout the graph nodes */
 	void RecursivelyPopulateNodeInfos(bool bReferencers, const TArray<FAssetIdentifier>& Identifiers, TMap<FAssetIdentifier, FReferenceNodeInfo>& NodeInfos, int32 CurrentDepth, int32 MaxDepth);
@@ -232,6 +233,9 @@ private:
 	FSimpleMulticastDelegate OnAssetsChangedDelegate;
 
 	FAssetIdentifier TargetIdentifier;
+
+	/** Keeping track of existing Referencing Properties Nodes */
+	TMap<uint32, TWeakObjectPtr<UEdGraphNode_ReferencedProperties>> ReferencedPropertiesNodes;
 
 	friend SReferenceViewer;
 };

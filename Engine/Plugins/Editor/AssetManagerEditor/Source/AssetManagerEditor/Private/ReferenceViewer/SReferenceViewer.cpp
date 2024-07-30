@@ -2393,10 +2393,7 @@ void SReferenceViewer::ResolveReferencingProperties() const
 					continue;
 				}
 
-				if (UEdGraphNode_ReferencedProperties* PropertiesNode = GraphObj->CreateReferencedPropertiesNode())
-				{
-					PropertiesNode->SetupReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
-				}
+				GraphObj->CreateReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
 			}
 		}
 	}
