@@ -46,6 +46,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 			"UdpMessaging",
 			"CameraCalibrationCore",
 			"AppleARKitFaceSupport",
+			"XInputDevice"
 		});
 
 		if (bEnableCaptureManagerPlugin)
