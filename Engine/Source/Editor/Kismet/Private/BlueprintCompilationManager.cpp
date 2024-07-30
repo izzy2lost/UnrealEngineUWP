@@ -3588,7 +3588,7 @@ void FBlueprintCompilationManagerImpl::QueueOutOfDateDependencies( const TArray<
 			for(UBlueprint* DependentBlueprint : DependentBlueprints)
 			{
 				// if the macro is out of date, transitively dirty dependencies for dependents:
-				DependentBlueprint->bCachedDependenciesUpToDate &= bWasDependencyCacheOutOfDate;
+				DependentBlueprint->bCachedDependenciesUpToDate &= !bWasDependencyCacheOutOfDate;
 				FullCompilationRequests.Add(DependentBlueprint);
 			}
 		}
