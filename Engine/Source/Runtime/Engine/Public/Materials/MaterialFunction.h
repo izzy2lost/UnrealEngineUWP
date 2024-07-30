@@ -21,9 +21,14 @@ UCLASS(MinimalAPI, Optional)
 class UMaterialFunctionEditorOnlyData : public UMaterialFunctionInterfaceEditorOnlyData
 {
 	GENERATED_BODY()
+
 public:
 	UPROPERTY()
 	FMaterialExpressionCollection ExpressionCollection;
+
+	//~ Begin UObject Interface.
+	ENGINE_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	//~ End UObject Interface.
 };
 
 /**
@@ -115,6 +120,7 @@ public:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif // WITH_EDITOR
+	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA

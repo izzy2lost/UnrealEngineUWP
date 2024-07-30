@@ -15873,6 +15873,25 @@ UMaterialFunctionMaterialLayerBlendInstance::UMaterialFunctionMaterialLayerBlend
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// UMaterialFunctionEditorOnlyData
+///////////////////////////////////////////////////////////////////////////////
+void UMaterialFunctionEditorOnlyData::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+#if WITH_EDITORONLY_DATA
+	// If the collection of expressions got some null expressions remove them now, but warn the user about it.
+	if (ExpressionCollection.Expressions.Remove(nullptr))
+	{
+		UE_LOG(LogMaterial, Warning, TEXT(
+			"Material Function %s editor only data contained null expression and some expressions may be missing. "
+			"Please close and reopen this Material Function and verify it is still valid."),
+			*GetFullName());
+	}
+#endif
+
+	UMaterialFunctionInterfaceEditorOnlyData::PreSave(ObjectSaveContext);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // UMaterialFunction
 ///////////////////////////////////////////////////////////////////////////////
 UMaterialFunction::UMaterialFunction(const FObjectInitializer& ObjectInitializer)
@@ -15990,23 +16009,23 @@ void UMaterialFunction::ForceRecompileForRendering(FMaterialUpdateContext& Updat
 
 #endif // WITH_EDITOR
 
+void UMaterialFunction::PreSave(FObjectPreSaveContext ObjectSaveContext)
+{
+	#if WITH_EDITORONLY_DATA
+	if (DependentFunctionExpressionCandidates.Remove(nullptr))
+	{
+		UE_LOG(LogMaterial, Warning, TEXT(
+			"Material Function %s contained some null dependent function expression calls. "
+			"Please close and reopen this Material Function and verify it is still valid."),
+			   *GetFullName());
+	}
+	#endif
+
+	UMaterialFunctionInterface::PreSave(ObjectSaveContext);
+}
+
 void UMaterialFunction::Serialize(FArchive& Ar)
 {
-#if WITH_EDITORONLY_DATA
-	UMaterialFunctionEditorOnlyData* EditorOnly = GetEditorOnlyData();
-	if (EditorOnly && Ar.IsSaving() && !Ar.IsCooking())
-	{
-		// If the collection of expressions got some null expressions remove them now, but warn the user about it.
-		if (EditorOnly->ExpressionCollection.Expressions.Remove(nullptr))
-		{
-			FText Message = FText::Format(NSLOCTEXT("MaterialExpressions", "Error_NullExpressionsInMaterialFunction",
-				"Material Function {0} editor only data contained null expression and some expressions may be missing."
-				"\n\nPlease close and repoen this Material Function and verify it is still valid."), FText::FromString(GetFullName()));
-			FMessageDialog::Open(EAppMsgType::Ok, Message);
-		}
-	}
-#endif
-
 	Super::Serialize(Ar);
 
 #if WITH_EDITOR
