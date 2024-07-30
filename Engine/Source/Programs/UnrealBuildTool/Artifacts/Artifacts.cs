@@ -235,7 +235,7 @@ namespace UnrealBuildTool.Artifacts
 	/// </summary>
 	/// <param name="Success">Is set to true if succeeded in fetching artifacts</param>
 	/// <param name="LogLines">Contains log lines if any</param>
-	public record struct ActionArtifactResult(bool Success, List<string> LogLines);
+	public readonly record struct ActionArtifactResult(bool Success, List<string> LogLines);
 
 	/// <summary>
 	/// Interface for action specific support of artifacts.

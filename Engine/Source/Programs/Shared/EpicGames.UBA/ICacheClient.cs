@@ -39,7 +39,7 @@ namespace EpicGames.UBA
 	/// </summary>
 	/// <param name="Success">Is set to true if succeeded in fetching artifacts</param>
 	/// <param name="LogLines">Contains log lines if any</param>
-	public record struct FetchFromCacheResult(bool Success, List<string> LogLines);
+	public readonly record struct FetchFromCacheResult(bool Success, List<string> LogLines);
 
 	/// <summary>
 	/// Base interface for a cache client
