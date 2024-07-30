@@ -49,6 +49,7 @@ const FMaterialCachedExpressionData FMaterialCachedExpressionData::EmptyData{};
 const FMaterialCachedExpressionEditorOnlyData FMaterialCachedExpressionEditorOnlyData::EmptyData{};
 
 static_assert((uint64)(EMaterialProperty::MP_MaterialAttributes)-1 < (8 * sizeof(FMaterialCachedExpressionData::PropertyConnectedMask)), "PropertyConnectedMask cannot contain entire EMaterialProperty enumeration.");
+static_assert((uint64)(EMaterialProperty::MP_MaterialAttributes)-1 < (8 * sizeof(FMaterialCachedExpressionData::PropertyDefaultAltered)), "PropertyDefaultAltered cannot contain entire EMaterialProperty enumeration.");
 
 FMaterialCachedExpressionData::FMaterialCachedExpressionData()
 	: FunctionInfosStateCRC(0xffffffff)
@@ -560,10 +561,17 @@ void FMaterialCachedExpressionData::AnalyzeMaterial(UMaterial& Material)
 		for (int32 PropertyIndex = 0; PropertyIndex < MP_MAX; ++PropertyIndex)
 		{
 			const EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
-			const FExpressionInput* Input = Material.GetExpressionInputForProperty(Property);
-			if (Input && Input->IsConnected())
+			FMaterialInputDescription Description;
+			if (Material.GetExpressionInputDescription(Property, Description))
 			{
-				SetPropertyConnected(Property);
+				if (Description.Input && Description.Input->IsConnected())
+				{
+					SetPropertyConnected(Property);
+				}
+				else if (Description.ConstantValue.AsLinearColor() != FLinearColor(FMaterialAttributeDefinitionMap::GetDefaultValue(Property)))
+				{
+					SetPropertyDefaultAltered(Property);
+				}
 			}
 		}
 	}
