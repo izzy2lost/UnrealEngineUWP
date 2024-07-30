@@ -2315,7 +2315,7 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	float F1 = 1.f;
 	uint32 U1 = *(uint32*)&F1;
 	VectorRegister4Float V0, V1, V2, V3;
-	VectorRegister4Int VI0, VI1;
+	VectorRegister4Int VI0, VI1, VI2, VI3;
 	float Float0, Float1, Float2, Float3;
 
 	// Using a union as we need to do a bitwise cast of 0xFFFFFFFF into a float for NaN.
@@ -2606,8 +2606,7 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	V0 = MakeVectorRegister(1.0f, 3.0f, 2.0f, 4.0f);
 	LogTest<float>(TEXT("VectorCombineLow"), TestVectorsEqual(V0, V1));
 
-	// LoadByte4
-
+	// LoadByte4 and StoreByte4
 	uint8 Bytes[4] = { 25, 75, 125, 200 };
 	V0 = VectorLoadByte4(Bytes);
 	V1 = MakeVectorRegister(25.f, 75.f, 125.f, 200.f);
@@ -2622,6 +2621,38 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	VectorStoreByte4(V0, Bytes);
 	V1 = VectorLoadByte4(Bytes);
 	LogTest<float>(TEXT("VectorStoreByte4"), TestVectorsEqual(V0, V1));
+
+	// LoadSignedByte4 and StoreSignedByte4
+	int8 SignedBytes[4] = { 25, -75, 125, -50 };
+	V0 = VectorLoadSignedByte4(SignedBytes);
+	V1 = MakeVectorRegister(25.f, -75.f, 125.f, -50.f);
+	LogTest<float>(TEXT("VectorLoadSignedByte4"), TestVectorsEqual(V0, V1));
+
+	V0 = MakeVectorRegister(-4.0f, 3.0f, -2.0f, 1.0f);
+	VectorStoreSignedByte4(V0, SignedBytes);
+	V1 = VectorLoadSignedByte4(SignedBytes);
+	LogTest<float>(TEXT("VectorStoreSignedByte4"), TestVectorsEqual(V0, V1));
+
+	// LoadURGBA16N and StoreURGBA16N
+	// NOTE: StoreURGBA16N is _not_ symmetric with Load. Load just gives you the
+	// values as floats in [0,65535], but Load expects the values as floats in
+	// [0,1], clamps to that range first, then scales to write ints.
+	uint16 UInt16s[4] = { 1234, 2345, 3456, 64000 };
+	V0 = VectorLoadURGBA16N(UInt16s);
+	V1 = MakeVectorRegister(1234.f, 2345.f, 3456.f, 64000.f);
+	LogTest<float>(TEXT("VectorLoadURGBA16N"), TestVectorsEqual(V0, V1));
+
+	V0 = MakeVectorRegister(-200000.f, 123.f / 65535.f, 234.f / 65535.f, 1.5f);
+	VectorStoreURGBA16N(V0, UInt16s);
+	V0 = MakeVectorRegister(0.f, 123.f, 234.f, 65535.f);
+	V1 = VectorLoadURGBA16N(UInt16s);
+	LogTest<float>(TEXT("VectorStoreURGBA16N"), TestVectorsEqual(V0, V1));
+
+	// LoadSRGBA16N
+	int16 Int16s[4] = { 1234, -2345, 3456, -32500 };
+	V0 = VectorLoadSRGBA16N(Int16s);
+	V1 = MakeVectorRegister(1234.f, -2345.f, 3456.f, -32500.f);
+	LogTest<float>(TEXT("VectorLoadSRGBA16N"), TestVectorsEqual(V0, V1));
 
 	// Vector Any/All comparisons
 	V0 = MakeVectorRegister(2.0f, 4.0f, 6.0f, 8.0f);
@@ -2940,6 +2971,38 @@ TEST_CASE_NAMED(FVectorRegisterAbstractionTest, "System::Core::Math::Vector Regi
 	V0 = MakeVectorRegister(-1.0f, 2.0f, -3.0f, 4.0f);
 	MaskBits = VectorMaskBits(V0);
 	LogTest<float>(TEXT("VectorMaskBits"), MaskBits == 5);
+
+	// VectorIntSelect
+	VI0 = MakeVectorRegisterInt(1, 3, 2, 8);
+	VI1 = MakeVectorRegisterInt(2, 4, 2, 1);
+	VI2 = MakeVectorRegisterInt(-1, 0, 0, -1);
+	VI2 = VectorIntSelect(VI2, VI0, VI1);
+	VI3 = MakeVectorRegisterInt(1, 4, 2, 8);
+	LogTest<int32>(TEXT("VectorIntSelect"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	VI0 = MakeVectorRegisterInt(1, 3, 5, 7);
+	VI1 = MakeVectorRegisterInt(2, 4, 6, 8);
+	VI2 = MakeVectorRegisterInt(0, -1, -1, 0);
+	VI2 = VectorIntSelect(VI2, VI0, VI1);
+	VI3 = MakeVectorRegisterInt(2, 3, 5, 8);
+	LogTest<int32>(TEXT("VectorIntSelect"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	// VectorIntMin/VectorIntMax
+	VI0 = MakeVectorRegisterInt(10, 12, 30, 22);
+	VI1 = MakeVectorRegisterInt(5, 14, 32, -100);
+	VI2 = VectorIntMin(VI0, VI1);
+	VI3 = MakeVectorRegisterInt(5, 12, 30, -100);
+	LogTest<int32>(TEXT("VectorIntMin"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	VI2 = VectorIntMax(VI0, VI1);
+	VI3 = MakeVectorRegisterInt(10, 14, 32, 22);
+	LogTest<int32>(TEXT("VectorIntMax"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
+
+	// VectorIntAbs
+	VI0 = MakeVectorRegisterInt(1, -2, 3, -4);
+	VI2 = VectorIntAbs(VI0);
+	VI3 = MakeVectorRegisterInt(1, 2, 3, 4);
+	LogTest<int32>(TEXT("VectorIntAbs"), TestVectorsEqualBitwise(VectorCastIntToFloat(VI2), VectorCastIntToFloat(VI3)));
 
 	// Matrix multiplications and transformations
 	{
