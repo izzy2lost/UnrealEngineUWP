@@ -185,16 +185,16 @@ namespace UnrealBuildTool.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
+		public async Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
 		{
 			if (!EnableReads)
 			{
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			if (!action.ArtifactMode.HasFlag(ArtifactMode.Enabled))
 			{
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			ArtifactDirectoryMapping directoryMapping = GetDirectoryMapping(action);
@@ -215,7 +215,7 @@ namespace UnrealBuildTool.Artifacts
 				{
 					_logger.LogInformation("Artifact Cache Miss: No artifact actions found for {ActionDescription}", actionDescription);
 				}
-				return false;
+				return new ActionArtifactResult(false, new List<string>());
 			}
 
 			foreach (ArtifactAction artifactAction in artifactActions)
@@ -254,7 +254,7 @@ namespace UnrealBuildTool.Artifacts
 
 					if (readResults == null || readResults.Length == 0 || !readResults[0])
 					{
-						return false;
+						return new ActionArtifactResult(false, new List<string>());
 					}
 					else
 					{
@@ -265,11 +265,11 @@ namespace UnrealBuildTool.Artifacts
 							item.ResetCachedInfo(); // newly created outputs need refreshing
 							_fileHasher.SetDigest(item, output.ContentHash);
 						}
-						return true;
+						return new ActionArtifactResult(true, new List<string>());
 					}
 				}
 			}
-			return false;
+			return new ActionArtifactResult(false, new List<string>());
 		}
 
 		/// <inheritdoc/>

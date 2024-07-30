@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -229,6 +231,13 @@ namespace UnrealBuildTool.Artifacts
 	}
 
 	/// <summary>
+	/// Struct containing results from artifact fetch
+	/// </summary>
+	/// <param name="Success">Is set to true if succeeded in fetching artifacts</param>
+	/// <param name="LogLines">Contains log lines if any</param>
+	public record struct ActionArtifactResult(bool Success, List<string> LogLines);
+
+	/// <summary>
 	/// Interface for action specific support of artifacts.
 	/// </summary>
 	interface IActionArtifactCache
@@ -271,7 +280,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="action">Action to be completed</param>
 		/// <param name="cancellationToken">Token to be used to cancel operations</param>
 		/// <returns>True if it has been completed, false if not</returns>
-		public Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken);
+		public Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Save the output for a completed action

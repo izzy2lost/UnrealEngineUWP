@@ -237,7 +237,7 @@ namespace UnrealBuildTool
 			public bool LogCacheMisses { get => true; set { } }
 			public DirectoryReference? EngineRoot { get => null; set { } }
 			public DirectoryReference[]? DirectoryRoots { get => null; set { } }
-			public Task<bool> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
+			public Task<ActionArtifactResult> CompleteActionFromCacheAsync(LinkedAction action, CancellationToken cancellationToken)
 			{
 				return Task.Factory.StartNew(() =>
 				{
@@ -245,7 +245,8 @@ namespace UnrealBuildTool
 					uint bucket = UBAExecutor.GetActionCacheBucket(action);
 					using (IRootPaths rootPaths = _executor.GetActionRootPaths(action))
 					{
-						return _executor._cacheClient!.FetchFromCache(rootPaths, bucket, startInfo);
+						FetchFromCacheResult result = _executor._cacheClient!.FetchFromCache(rootPaths, bucket, startInfo);
+						return new ActionArtifactResult(result.Success, result.LogLines);
 					}
 				}, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.PreferFairness, TaskScheduler.Default);
 			}

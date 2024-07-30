@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
+
 namespace EpicGames.UBA
 {
 	/// <summary>
@@ -31,6 +33,13 @@ namespace EpicGames.UBA
 			return new RootPathsImpl(logger);
 		}
 	}
+
+	/// <summary>
+	/// Struct containing results from artifact fetch
+	/// </summary>
+	/// <param name="Success">Is set to true if succeeded in fetching artifacts</param>
+	/// <param name="LogLines">Contains log lines if any</param>
+	public record struct FetchFromCacheResult(bool Success, List<string> LogLines);
 
 	/// <summary>
 	/// Base interface for a cache client
@@ -65,7 +74,7 @@ namespace EpicGames.UBA
 		/// <param name="bucket">Bucket to search for cache entry</param>
 		/// <param name="info">Process start info</param>
 		/// <returns>True if successful</returns>
-		public abstract bool FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info);
+		public abstract FetchFromCacheResult FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info);
 
 		/// <summary>
 		/// Request the connected server to shutdown

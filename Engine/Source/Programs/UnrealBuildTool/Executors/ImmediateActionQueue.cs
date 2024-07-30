@@ -384,8 +384,6 @@ namespace UnrealBuildTool
 		/// </summary>
 		private readonly IActionArtifactCache? _actionArtifactCache;
 
-		static readonly ExecuteResults s_copiedFromCacheResults = new(new List<string>(), 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
-
 		/// <summary>
 		/// Construct a new instance of the action queue
 		/// </summary>
@@ -432,11 +430,12 @@ namespace UnrealBuildTool
 				{
 					return new Func<Task>(async () =>
 					{
-						bool success = await _actionArtifactCache!.CompleteActionFromCacheAsync(action, CancellationToken);
-						if (success)
+						ActionArtifactResult result = await _actionArtifactCache!.CompleteActionFromCacheAsync(action, CancellationToken);
+						if (result.Success)
 						{
+							ExecuteResults results = new(result.LogLines, 0, TimeSpan.Zero, TimeSpan.Zero, "[Cache]");
 							Interlocked.Increment(ref _cacheHitActions);
-							OnActionCompleted(action, success, s_copiedFromCacheResults);
+							OnActionCompleted(action, true, results);
 							OnArtifactsRead?.Invoke(action);
 						}
 						else

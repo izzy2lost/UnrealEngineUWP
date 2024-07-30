@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace EpicGames.UBA
@@ -90,7 +91,16 @@ namespace EpicGames.UBA
 		static extern bool CacheClient_WriteToCache(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info, byte[] inputs, uint inputsSize, byte[] outputs, uint outputsSize);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
-		static extern bool CacheClient_FetchFromCache(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info);
+		static extern IntPtr CacheClient_FetchFromCache2(IntPtr cacheClient, IntPtr rootPaths, uint bucket, IntPtr info);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern IntPtr CacheResult_GetLogLine(IntPtr result, uint index);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern uint CacheResult_GetLogLineType(IntPtr result, uint index);
+
+		[DllImport("UbaHost", CharSet = CharSet.Auto)]
+		static extern void CacheResult_Delete(IntPtr result);
 
 		[DllImport("UbaHost", CharSet = CharSet.Auto)]
 		static extern void CacheClient_RequestServerShutdown(IntPtr cacheClient, string reason);
@@ -138,12 +148,32 @@ namespace EpicGames.UBA
 			return CacheClient_WriteToCache(_handle, rootPaths.GetHandle(), bucket, process.GetHandle(), inputs, inputsSize, outputs, outputsSize);
 		}
 
-		public bool FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info)
+		public FetchFromCacheResult FetchFromCache(IRootPaths rootPaths, uint bucket, ProcessStartInfo info)
 		{
 			IntPtr si = ProcessStartInfo_Create(info.Application, info.Arguments, info.WorkingDirectory, info.Description, (uint)info.Priority, info.OutputStatsThresholdMs, info.TrackInputs, info.LogFile ?? String.Empty, null);
-			bool result = CacheClient_FetchFromCache(_handle, rootPaths.GetHandle(), bucket, si);
+			IntPtr result = CacheClient_FetchFromCache2(_handle, rootPaths.GetHandle(), bucket, si);
 			ProcessStartInfo_Destroy(si);
-			return result;
+
+			if (result == IntPtr.Zero)
+			{
+				return new FetchFromCacheResult(false, new List<string>());
+			}
+
+			string? line = Marshal.PtrToStringAuto(CacheResult_GetLogLine(result, 0));
+			if (line == null)
+			{
+				return new FetchFromCacheResult(true, new List<string>());
+			}
+
+			List<string> logLines = new();
+			while (line != null)
+			{
+				logLines.Add(line);
+				line = Marshal.PtrToStringAuto(CacheResult_GetLogLine(result, (uint)logLines.Count));
+			}
+
+
+			return new FetchFromCacheResult(true, logLines);
 		}
 
 		public void RequestServerShutdown(string reason)
