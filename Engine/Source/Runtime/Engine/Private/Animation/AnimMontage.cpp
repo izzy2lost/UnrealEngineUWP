@@ -2668,6 +2668,9 @@ void FAnimMontageInstance::HandleEvents(float PreviousTrackPos, float CurrentTra
 	{
 		FAnimTickRecord TickRecord;
 
+		// Used to ensure all gathered notifies know the current montage time at the point they were queued.
+		TickRecord.TimeAccumulator = &CurrentTrackPos;
+		
 		// Add instance ID to context to differentiate notifies between different instances of the same montage
 		TickRecord.MakeContextData<UE::Anim::FAnimNotifyMontageInstanceContext>(InstanceID);
 
