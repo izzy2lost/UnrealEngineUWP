@@ -139,7 +139,7 @@ JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, 
 			{
 				FTG_OutputSettings& OutputSetting = TargetExpression->OutputSettings;
 
-				if (OutputSetting.bExport || ExportAllOutputs)
+				if (TargetExpression->GetShouldExport() || ExportAllOutputs)
 				{
 					FTG_EvaluationContext EvaluationContext;
 					EvaluationContext.Cycle = Batch->GetCycle();

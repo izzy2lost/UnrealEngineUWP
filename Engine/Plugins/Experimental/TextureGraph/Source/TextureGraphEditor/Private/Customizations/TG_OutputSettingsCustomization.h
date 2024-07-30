@@ -255,12 +255,12 @@ public:
 		TAttribute<bool> OutputSettingsEditCondition = TAttribute<bool>::Create(
 			[this, OutputExpression]()
 			{
-				return OutputExpression->OutputSettings.bExport;
+				return OutputExpression->GetShouldExport();
 			});
 		
 		Row->EditCondition(OutputSettingsEditCondition, FOnBooleanValueChanged::CreateLambda([this, OutputExpression](bool NewValue)
 			{
-				OutputExpression->SetExport(NewValue);
+				OutputExpression->SetShouldExport(NewValue);
 			}));
 	}
 };

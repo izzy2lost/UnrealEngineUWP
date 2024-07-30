@@ -138,7 +138,7 @@ void STG_OutputSelectionDlg::AddExportItems()
 					.Name(FText::FromString(OutputName.ToString()))
 					.ThumbnailWidget(ThumbnailWidget)
 					.OnOutputSelectionChanged(this, &STG_OutputSelectionDlg::OnOutputSelectionChanged)
-					.bIsSelected(OutputSetting.bExport)
+					.bIsSelected(TargetExpression->GetShouldExport())
 				];
 				ScrollBox->AddSlot()
 				[
@@ -177,9 +177,13 @@ void STG_OutputSelectionDlg::OnOutputSelectionChanged(const FString ItemName, EC
 		UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
 		if (TargetExpression)
 		{
-			if (TargetExpression->OutputSettings.OutputName == ItemName)
+			UTG_Pin* Pin = Node->GetPin(GET_MEMBER_NAME_CHECKED(UTG_Expression_Output, Output));
+
+			FName OutputName = Pin->GetAliasName();
+
+			if (OutputName == ItemName)
 			{
-				TargetExpression->SetExport( NewState == ECheckBoxState::Checked);
+				TargetExpression->SetShouldExport( NewState == ECheckBoxState::Checked);
 			}
 		}
 	});

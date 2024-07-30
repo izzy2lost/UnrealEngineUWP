@@ -83,9 +83,6 @@ struct TEXTUREGRAPH_API FTG_OutputSettings
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Advanced", DisplayName = "sRGB", Meta = (NoResetToDefault, EditCondition = "TexturePresetType == ETG_TexturePresetType::None"))
 		bool bSRGB = false;
 
-	UPROPERTY()
-	bool bExport = true;
-
 	FString GetFullOutputName() { return  FString::Format(TEXT("{0}"), { BaseName.ToString()});}
 
 	bool operator==(const FTG_OutputSettings& Other) const

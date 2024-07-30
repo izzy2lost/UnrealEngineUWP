@@ -33,6 +33,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Input", CollapsableChildProperties,ShowOnlyInnerProperties, FullyExpand, NoResetToDefault, PinDisplayName = "Settings") )
 	FTG_OutputSettings OutputSettings;
 
+	UPROPERTY()
+	bool bShouldExport = true;
+
 	virtual FTG_Name GetDefaultName() const override { return TEXT("Output");}
 	virtual void SetTitleName(FName NewName) override;
 	virtual FName GetTitleName() const override;
@@ -41,6 +44,7 @@ public:
 	void UpdateBufferDescriptorValues();
 	void InitializeOutputSettings();
 
-	//Sets the Export bool in OutputSettings pin
-	void SetExport(bool bExport);
+	void SetShouldExport(bool InShouldExport);
+
+	bool GetShouldExport() const { return bShouldExport; }
 };
