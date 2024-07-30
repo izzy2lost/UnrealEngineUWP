@@ -184,13 +184,13 @@ public:
 	static COREUOBJECT_API bool SplitLongPackageName(const FString& InLongPackageName, FString& OutPackageRoot, FString& OutPackagePath, FString& OutPackageName, const bool bStripRootLeadingSlash = false);
 
 	/**
-	 * Split a full object path (Class /Path/To/A/Package.Object:SubObject) into its constituent pieces
+	 * Split a full object path (Class /Path/To/A/Package.Object:Subobject1.Subobject2) into its constituent pieces
 	 *  
 	 * @param InFullObjectPath  Full object path we want to split
 	 * @param OutClassName      The extracted class name (Class)
 	 * @param OutPackageName    The extracted package name (/Path/To/A/Package)
 	 * @param OutObjectName     The extracted object name (Object)
-	 * @param OutSubObjectName  The extracted subobject name (SubObject)
+	 * @param OutSubObjectName  The extracted subobject name (Subobject1.Subobject2) - Note: nested subobjects are not split
 	 * @param bDetectClassName  If true, the optional Class will be detected and separated based on a space.
 	 *                          If false, and there is a space, the space and text before it will be included in the
 	 *                          other names. Spaces in those names is invalid, but some code ignores the
@@ -200,6 +200,25 @@ public:
 		FString& OutPackageName, FString& OutObjectName, FString& OutSubObjectName, bool bDetectClassName = true);
 	static COREUOBJECT_API void SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
 		FStringView& OutPackageName, FStringView& OutObjectName, FStringView& OutSubObjectName, bool bDetectClassName=true);
+
+	/**
+	 * Split a full object path (Class /Path/To/A/Package.Object:Subobject1.Subobject2) into its constituent pieces.
+	 * All subobjects are split individually and stored in an array.
+	 *
+	 * @param InFullObjectPath  Full object path we want to split
+	 * @param OutClassName      The extracted class name (Class)
+	 * @param OutPackageName    The extracted package name (/Path/To/A/Package)
+	 * @param OutSubobjectNames The extracted object name (Object)
+	 * @param OutSubObjectName  The extracted subobject names (Subobject1 and Subobject2)
+	 * @param bDetectClassName  If true, the optional Class will be detected and separated based on a space.
+	 *                          If false, and there is a space, the space and text before it will be included in the
+	 *                          other names. Spaces in those names is invalid, but some code ignores the
+	 *                          invalidity in ObjectName if it only cares about packageName.
+	 */
+	static COREUOBJECT_API void SplitFullObjectPath(const FString& InFullObjectPath, FString& OutClassName,
+		FString& OutPackageName, FString& OutObjectName, TArray<FString>& OutSubobjectNames, bool bDetectClassName = true);
+	static COREUOBJECT_API void SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
+		FStringView& OutPackageName, FStringView& OutObjectName, TArray<FStringView>& OutSubobjectNames, bool bDetectClassName = true);
 
 	/** 
 	 * Returns true if the path starts with a valid root (i.e. /Game/, /Engine/, etc) and contains no illegal characters.

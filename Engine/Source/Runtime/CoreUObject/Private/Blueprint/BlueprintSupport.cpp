@@ -2541,14 +2541,24 @@ UObject* FLinkerLoad::RequestPlaceholderValue(const FProperty* Property, const U
 				}
 			}
 
-			const FString ObjectPathStr(ObjectPath);
+			const FStringView ObjectPathStr(ObjectPath);
 			// we don't need placeholders for native object references and for non-BP class objects (the 
 			// calling code should properly handle null return values)
 			if (!FPackageName::IsScriptPackage(ObjectPathStr) && ObjectType->HasAnyClassFlags(CLASS_NeedsDeferredDependencyLoading))
 			{
-				const FString ObjectName = FPackageName::ObjectPathToObjectName(ObjectPathStr);
-				Placeholder = MakeImportPlaceholder<ULinkerPlaceholderClass>(LinkerRoot, ObjectType, *ObjectName);
-				ImportPlaceholders.Add(ObjId, Placeholder);
+				FPackageIndex ImportIndex;
+
+				if (FindImport(ObjectPathStr, ImportIndex))
+				{
+					const FStringView ObjectName = FPackageName::ObjectPathToObjectName(ObjectPathStr);
+
+					Placeholder = MakeImportPlaceholder<ULinkerPlaceholderClass>(LinkerRoot, ObjectType, ObjectName.GetData(), ImportIndex.ToImport());
+					ImportPlaceholders.Add(ObjId, Placeholder);
+				}
+				else
+				{
+					UE_LOG(LogBlueprintSupport, Error, TEXT("'%s' was not found in the import table for package '%s'."), ObjectPathStr.GetData(), *LinkerRoot->GetFullName());
+				}
 			}
 		}
 	}

@@ -1146,6 +1146,65 @@ void FPackageName::SplitFullObjectPath(FStringView InFullObjectPath, FStringView
 	}
 }
 
+void FPackageName::SplitFullObjectPath(const FString& InFullObjectPath, FString& OutClassName,
+	FString& OutPackageName, FString& OutObjectName, TArray<FString>& OutSubobjectNames, bool bDetectClassName)
+{
+	FStringView ClassName;
+	FStringView PackageName;
+	FStringView ObjectName;
+	TArray<FStringView> SubObjectNames;
+	SplitFullObjectPath(InFullObjectPath, ClassName, PackageName, ObjectName, SubObjectNames, bDetectClassName);
+	OutClassName = ClassName;
+	OutPackageName = PackageName;
+	OutObjectName = ObjectName;
+	OutSubobjectNames.Empty();
+	OutSubobjectNames.Append(SubObjectNames);
+}
+
+void FPackageName::SplitFullObjectPath(FStringView InFullObjectPath, FStringView& OutClassName,
+	FStringView& OutPackageName, FStringView& OutObjectName, TArray<FStringView>& OutSubobjectNames, bool bDetectClassName)
+{
+	FStringView FullSubobjectString;
+	SplitFullObjectPath(InFullObjectPath, OutClassName, OutPackageName, OutObjectName, FullSubobjectString, bDetectClassName);
+
+	if (FullSubobjectString.Len() > 0)
+	{
+		OutSubobjectNames.Empty();
+
+		auto ExtractBeforeDotDelim = [&FullSubobjectString](FStringView& OutStringView)
+		{
+			int32 DelimIndex;
+			if (FullSubobjectString.FindChar(TCHAR('.'), DelimIndex))
+			{
+				OutStringView = FullSubobjectString.Left(DelimIndex);
+				FullSubobjectString.RightChopInline(DelimIndex + 1);
+				return true;
+			}
+			else
+			{
+				OutStringView.Reset();
+				return false;
+			}
+		};
+
+		bool bFoundDelim = false;
+		do
+		{
+			FStringView SubobjectName;
+			bFoundDelim = ExtractBeforeDotDelim(SubobjectName);
+			const bool bSubobjectNameIsNotEmpty = (SubobjectName.Len() > 0);
+			if (bFoundDelim && bSubobjectNameIsNotEmpty)
+			{
+				OutSubobjectNames.Add(SubobjectName);
+			}
+			else if (FullSubobjectString.Len() > 0)
+			{
+				OutSubobjectNames.Add(FullSubobjectString);
+			}
+		} while (bFoundDelim);
+	}
+}
+
 FString FPackageName::GetLongPackageAssetName(const FString& InLongPackageName)
 {
 	return GetShortName(InLongPackageName);

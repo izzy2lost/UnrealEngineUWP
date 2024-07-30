@@ -6389,6 +6389,76 @@ bool FLinkerLoad::FindImport(FPackageIndex OuterIndex, FName ObjectName, FPackag
 	return false;
 }
 
+bool FLinkerLoad::FindImport(FStringView FullObjectPath, FPackageIndex& OutObjectIndex)
+{
+	bool bIsValid = false;
+
+	FStringView ClassName;
+	FStringView PackageName;
+	FStringView ObjectName;
+	TArray<FStringView> SubobjectNames;
+
+	FPackageName::SplitFullObjectPath(FullObjectPath, ClassName, PackageName, ObjectName, SubobjectNames);
+
+	FName PackageFName(PackageName);
+	FName ObjectFName(ObjectName);
+
+	FPackageIndex PackageIndex;
+
+	bIsValid = FindImportPackage(PackageFName, PackageIndex);
+
+	if (bIsValid)
+	{
+		const bool bHasRootObject = !ObjectFName.IsNone();
+
+		if (bHasRootObject)
+		{
+			FPackageIndex ObjectIndex;
+
+			bIsValid = FindImport(PackageIndex, ObjectFName, ObjectIndex);
+
+			if (bIsValid)
+			{
+				const bool bHasSubobjects = (SubobjectNames.Num() > 0);
+
+				if (bHasSubobjects)
+				{
+					FPackageIndex CurrentOuterIndex = ObjectIndex;
+					FPackageIndex SubobjectIndex;
+
+					for (FStringView SubobjectName : SubobjectNames)
+					{
+						if (FindImport(CurrentOuterIndex, FName(SubobjectName), SubobjectIndex))
+						{
+							CurrentOuterIndex = SubobjectIndex;
+						}
+						else
+						{
+							bIsValid = false;
+							break;
+						}
+					}
+
+					if (bIsValid)
+					{
+						OutObjectIndex = SubobjectIndex;
+					}
+				}
+				else
+				{
+					OutObjectIndex = ObjectIndex;
+				}
+			}
+		}
+		else
+		{
+			OutObjectIndex = PackageIndex;
+		}
+	}
+
+	return bIsValid;
+}
+
 /**
  * Locates the class adjusted index and its package adjusted index for a given class name in the import map
  */

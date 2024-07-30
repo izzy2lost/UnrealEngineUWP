@@ -115,7 +115,7 @@ struct FScopedCreateImportCounter
 class FAsyncArchive;
 
 class FLinkerLoad 
-#if !WITH_EDITOR
+#if !WITH_EDITOR && !WITH_LOW_LEVEL_TESTS
 	final 
 #endif
 	: public FLinker, public FArchiveUObject
@@ -572,18 +572,28 @@ public:
 	 * Locates package index for a UPackage import
 	 */
 	COREUOBJECT_API bool FindImportPackage(FName PackageName, FPackageIndex& PackageIdx);
-	/* Locates package index for a given name in an outer. */
+
+	/** 
+	 * Locates package index for a given name in an outer.
+	 */
 	COREUOBJECT_API bool FindImport(FPackageIndex OuterIndex, FName ObjectName, FPackageIndex& OutObjectIndex);
+
+	/**
+	 * Finds an import given the full object path as a string.
+	 * 
+	 * Note: since imports are stored in an array, it needs to linearly search for _each_ import in the object path.
+	 */
+	COREUOBJECT_API bool FindImport(FStringView FullObjectPath, FPackageIndex& OutObjectIndex);
 
 	/**
 	 * Locates the class adjusted index and its package adjusted index for a given class name in the import map
 	 */
-	COREUOBJECT_API bool FindImportClassAndPackage( FName ClassName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx );
+	COREUOBJECT_API bool FindImportClassAndPackage(FName ClassName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx);
 	
 	/**
 	 * Attempts to find the index for the given class object in the import list and adds it + its package if it does not exist
 	 */
-	COREUOBJECT_API bool CreateImportClassAndPackage( FName ClassName, FName PackageName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx );
+	COREUOBJECT_API bool CreateImportClassAndPackage(FName ClassName, FName PackageName, FPackageIndex& ClassIdx, FPackageIndex& PackageIdx);
 
 	/**
 	 * Allows object instances to be converted to other classes upon loading a package
