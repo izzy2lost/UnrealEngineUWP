@@ -2178,7 +2178,7 @@ void FMacApplication::CloseQueuedWindows()
 		}
 	}
 
-	if (CocoaWindowsToClose.Num() > 0)
+	if (LocalCocoaWindowsToClose.Num() > 0)
 	{
 		MainThreadCall(^{
 			SCOPED_AUTORELEASE_POOL;
