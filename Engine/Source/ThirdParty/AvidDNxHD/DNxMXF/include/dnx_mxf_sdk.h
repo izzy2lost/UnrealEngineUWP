@@ -68,6 +68,16 @@ typedef enum DNXMXF_Essence_t
     DNXMXF_ESSENCE_DNXHR_HD        = 2,     ///< DNxHR/HD essence(see SMPTE ST 2019-1)
 } DNXMXF_Essence_t;
 
+/**
+Property to override
+*/
+typedef enum DNXMXF_OverrideProperty_t
+{
+    DNXMXF_OVERRIDEPROPERTY_INVALID    = 0,     ///< Invalid value
+    DNXMXF_OVERRIDEPROPERTY_COMP_DEPTH = 1,     ///< MXF componentDepth(see SMPTE ST 377-1 G.2.26), uint32_t value expected
+                                                ///< This property could be overriden only for DNxHR HQ, SQ, LB, valid values: 10, 12
+} DNXMXF_OverrideProperty_t;
+
 #pragma pack(push, 1)
 
 /**
@@ -92,6 +102,19 @@ typedef struct DNXMXF_ProductVer_t
 } DNXMXF_ProductVer_t;
 
 /**
+Timecode Component(SMPTE ST 377 Section B.17)
+note: rounded timecode base automatically calculated according to frame rate
+*/
+typedef struct DNXMXF_TimeCodeComponent_t
+{
+    uint8_t hours;
+    uint8_t minutes;
+    uint8_t seconds;
+    uint8_t frames;
+    bool    dropFrame;
+} DNXMXF_TimeCodeComponent_t;
+
+/**
 Type of client function to call when error occurs
 \param[in]  message               Error message
 \param[in]  userData              Pointer to the object from DNXMXF_Options_t userData field, might be useful if client wants to pass additional object into callback
@@ -113,23 +136,29 @@ Params of MXF file for writer
 */
 typedef struct DNXMXF_WriterParams_t
 {
-    size_t                     structSize;    ///< Size of struct in bytes
-    const wchar_t             *filePath;      ///< Path to mxf file to write
-    DNXMXF_OpPattern_t         op;            ///< Operational pattern to use
-    DNXMXF_Wrap_t              wrapType;      ///< MXF wrapping to use
-    DNXMXF_Rational_t          frameRate;     ///< Frame rate of mxf file
-    const wchar_t             *companyName;   ///< [required] Manufacturer of the equipment or application that created or modified the file(SMPTE ST 377 Section A.3)
-    const wchar_t             *productName;   ///< [required] Name of the application which created or modified this file(SMPTE ST 377 Section A.3)
-    const wchar_t             *verString;     ///< [required] Human readable name of this application version(SMPTE ST 377 Section A.3)
-    const wchar_t             *productUID;    ///< [required] An unique identification for the product which created this file(defined by the manufacturer)(SMPTE ST 377 Section A.3)
-                                              ///< 16 bytes in hex separated by dots e.g. 00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00
-    const DNXMXF_ProductVer_t *productVer;    ///< [optional] Version number of this application(SMPTE ST 377 Section A.3)
+    size_t                            structSize;              ///< Size of struct in bytes
+    const wchar_t                    *filePath;                ///< Path to mxf file to write
+    DNXMXF_OpPattern_t                op;                      ///< Operational pattern to use
+    DNXMXF_Wrap_t                     wrapType;                ///< MXF wrapping to use
+    DNXMXF_Rational_t                 frameRate;               ///< Frame rate of mxf file
+    const wchar_t                    *companyName;             ///< [required] Manufacturer of the equipment or application that created or modified the file(SMPTE ST 377 Section A.3)
+    const wchar_t                    *productName;             ///< [required] Name of the application which created or modified this file(SMPTE ST 377 Section A.3)
+    const wchar_t                    *verString;               ///< [required] Human readable name of this application version(SMPTE ST 377 Section A.3)
+    const wchar_t                    *productUID;              ///< [required] An unique identification for the product which created this file(defined by the manufacturer)(SMPTE ST 377 Section A.3)
+                                                               ///< 16 bytes in hex separated by dots e.g. 00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00
+    const DNXMXF_ProductVer_t        *productVer;              ///< [optional] Version number of this application(SMPTE ST 377 Section A.3)
     /* Without specifying aspectRatio, videoLineMap1, videoLineMap2 the library produces 'Closed/Incomplete' MXF                                           */
     /* Library is able to set videoLineMap1, videoLineMap2 for standard rasters itself, otherwise this is client's responsibility to provide proper values */
-    DNXMXF_Rational_t          aspectRatio;   ///< [best effort] Specifies the horizontal to vertical aspect ratio of the whole image(SMPTE ST 377 Section G.2.4)
-    uint32_t                   videoLineMap1; ///< [best effort] First active line in first field(SMPTE ST 377 Section G.2.12)
-    uint32_t                   videoLineMap2; ///< [best effort] First active line in second field(SMPTE ST 377 Section G.2.12)
-    DNXMXF_Essence_t           essence;       ///< [required] Type of essence to write
+    DNXMXF_Rational_t                 aspectRatio;             ///< [best effort] Specifies the horizontal to vertical aspect ratio of the whole image(SMPTE ST 377 Section G.2.4)
+    uint32_t                          videoLineMap1;           ///< [best effort] First active line in first field(SMPTE ST 377 Section G.2.12)
+    uint32_t                          videoLineMap2;           ///< [best effort] First active line in second field(SMPTE ST 377 Section G.2.12)
+    DNXMXF_Essence_t                  essence;                 ///< [required] Type of essence to write
+    const DNXMXF_TimeCodeComponent_t *initialTimeCode;         ///< [optional] Initial timecode of the timecode track(SMPTE ST 377 Section B.17). If NULL all values initialized to 0
+
+    // values below are 16 bytes in hex separated by dots e.g. 00.00.00.00.00.00.00.00.00.00.00.00.00.00.00.00
+    const wchar_t                    *transferCharacteristic;  ///< [optional] Specifies the opto-eletric transfer characteristic(SMPTE ST 377 Section F.4.1)
+    const wchar_t                    *codingEquations;         ///< [optional] Specifies the encoding equations to convert RGB image components to component color difference image components(SMPTE ST 377 Section F.4.1)
+    const wchar_t                    *colorPrimaries;          ///< [optional] Specifies the color primaries(SMPTE ST 377 Section F.4.1)
 } DNXMXF_WriterParams_t;
 
 /**
@@ -140,6 +169,18 @@ typedef struct DNXMXF_ReaderParams_t
     size_t                     structSize;  ///< Size of struct in bytes
     const wchar_t             *filePath;    ///< Path to mxf file to read
 } DNXMXF_ReaderParams_t;
+
+/**
+Values to read from MXF file
+*/
+typedef struct DNXMXF_ReaderMetadata_t
+{
+    size_t                      structSize;                  ///< Size of struct in bytes
+    wchar_t                     transferCharacteristic[48];  ///< Opto-eletric transfer characteristic(SMPTE ST 377 Section F.4.1)
+    wchar_t                     codingEquations[48];         ///< Encoding equations to convert RGB image components to component color difference image components(SMPTE ST 377 Section F.4.1)
+    wchar_t                     colorPrimaries[48];          ///< Color primaries(SMPTE ST 377 Section F.4.1)
+    DNXMXF_TimeCodeComponent_t  initialTimeCode;             ///< Initial timecode of the timecode track(SMPTE ST 377 Section B.17)
+} DNXMXF_ReaderMetadata_t;
 
 #pragma pack(pop)
 
@@ -178,6 +219,18 @@ Stop writing MXF file and flush all content
 \return                           Error code
 */
 DNXMXF_Err_t DNXMXF_FinishWrite(DNXMXF_Writer *writer);
+
+/**
+Overrides MXF property. Useful only in specific use-cases when client needs to override some default/autocalculated MXF properties
+\param[in]  writer                Pointer to writer object
+\param[in]  prop                  MXF property to override
+\param[in]  value                 Pointer to property value
+\param[in]  valueSize             Size of value in bytes(expected size depends on propetry)
+\return                           Error code
+*/
+DNXMXF_Err_t DNXMXF_SetOverrideProperty(DNXMXF_Writer *writer,
+                                        DNXMXF_OverrideProperty_t prop,
+                                        const void *value, size_t valueSize);
 
 typedef struct DNXMXF_Reader DNXMXF_Reader;
 
@@ -234,6 +287,14 @@ Reads essence frame from MXF container
 DNXMXF_Err_t DNXMXF_ReadFrame(DNXMXF_Reader *reader,
                               void *dst, unsigned int dstSize,
                               unsigned int *bytesWritten);
+
+/**
+Reads metadata values of MXF file
+\param[in]  reader                Pointer to reader object
+\param[out] metadata              Pointer to metadata values
+\return                           Error code
+*/
+DNXMXF_Err_t DNXMXF_ReadMetadata(DNXMXF_Reader *reader, DNXMXF_ReaderMetadata_t *metadata);
 
 #ifdef __cplusplus
 }
