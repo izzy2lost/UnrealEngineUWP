@@ -1142,6 +1142,15 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddAxisScaleGizmo(
 	}
 	ensure(Gizmo->InitializeAsScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
 
+	if (UGizmoAxisScaleParameterSource* ParameterSource = Cast<UGizmoAxisScaleParameterSource>(Gizmo->ParameterSource.GetObject()))
+	{
+		ParameterSource->ScaleAxisDeltaConstraintFunction = [this](const double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
+	}
+	else
+	{
+		ensure(false);
+	}
+	
 	NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
 	ActiveComponents.Add(Params.Component);
 	ActiveGizmos.Add(Gizmo);
@@ -1158,6 +1167,16 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneScaleGizmo(
 		return nullptr;
 	}
 	ensure(Gizmo->InitializeAsScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
+
+	if (UGizmoPlaneScaleParameterSource* ParameterSource = Cast<UGizmoPlaneScaleParameterSource>(Gizmo->ParameterSource.GetObject()))
+	{
+		ParameterSource->ScaleAxisXDeltaConstraintFunction = [this](double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
+		ParameterSource->ScaleAxisYDeltaConstraintFunction = [this](double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
+	}
+	else
+	{
+		ensure(false);
+	}
 
 	NonUniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
 	ActiveComponents.Add(Params.Component);
@@ -1176,6 +1195,15 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddUniformScaleGizmo(
 	}
 	ensure(Gizmo->InitializeAsUniformScaleGizmo(Params, bDisallowNegativeScaling, &SharedState));
 
+	if (UGizmoUniformScaleParameterSource* ParameterSource = Cast<UGizmoUniformScaleParameterSource>(Gizmo->ParameterSource.GetObject()))
+	{
+		ParameterSource->ScaleAxisDeltaConstraintFunction = [this](const double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
+	}
+	else
+	{
+		ensure(false);
+	}
+	
 	UniformScaleSubGizmos.Add(FSubGizmoInfo{ Params.Component, Gizmo });
 	ActiveComponents.Add(Params.Component);
 	ActiveGizmos.Add(Gizmo);
@@ -1322,6 +1350,7 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddAxisScaleGizmo(
 
 	// parameter source maps axis-parameter-change to translation of TransformSource's transform
 	UGizmoAxisScaleParameterSource* ParamSource = UGizmoAxisScaleParameterSource::Construct(ParameterAxisSource, TransformSource, this);
+	ParamSource->ScaleAxisDeltaConstraintFunction = [this](const double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
 	ParamSource->bClampToZero = bDisallowNegativeScaling;
 	ScaleGizmo->ParameterSource = ParamSource;
 
@@ -1354,6 +1383,8 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddPlaneScaleGizmo(
 
 	// parameter source maps axis-parameter-change to translation of TransformSource's transform
 	UGizmoPlaneScaleParameterSource* ParamSource = UGizmoPlaneScaleParameterSource::Construct(ParameterAxisSource, TransformSource, this);
+	ParamSource->ScaleAxisXDeltaConstraintFunction = [this](double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
+	ParamSource->ScaleAxisYDeltaConstraintFunction = [this](double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
 	ParamSource->bClampToZero = bDisallowNegativeScaling;
 	ParamSource->bUseEqualScaling = true;
 	ScaleGizmo->ParameterSource = ParamSource;
@@ -1386,7 +1417,7 @@ UInteractiveGizmo* UCombinedTransformGizmo::AddUniformScaleGizmo(
 
 	// parameter source maps axis-parameter-change to translation of TransformSource's transform
 	UGizmoUniformScaleParameterSource* ParamSource = UGizmoUniformScaleParameterSource::Construct(ParameterAxisSource, TransformSource, this);
-	//ParamSource->PositionConstraintFunction = [this](const FVector& Pos, FVector& Snapped) { return PositionSnapFunction(Pos, Snapped); };
+	ParamSource->ScaleAxisDeltaConstraintFunction = [this](const double ScaleAxisDelta, double& SnappedScaleAxisDelta) { return ScaleAxisDeltaSnapFunction(ScaleAxisDelta, SnappedScaleAxisDelta); };
 	ScaleGizmo->ParameterSource = ParamSource;
 
 	// sub-component provides hit target
@@ -1584,6 +1615,21 @@ bool UCombinedTransformGizmo::RotationAxisAngleSnapFunction(double AxisAngleDelt
 
 	return false;
 }
+
+bool UCombinedTransformGizmo::ScaleAxisDeltaSnapFunction(const double ScaleAxisDelta, double & SnappedAxisScaleDeltaOut) const
+{
+	if (!bSnapToScaleGrid) return false;
+
+	const FToolContextSnappingConfiguration SnappingConfig = GetGizmoManager()->GetContextQueriesAPI()->GetCurrentSnappingSettings();
+	if ( SnappingConfig.bEnableScaleGridSnapping )
+	{
+		const double SnapDelta = SnappingConfig.ScaleGridSize;
+		SnappedAxisScaleDeltaOut = UE::Geometry::SnapToIncrement(ScaleAxisDelta, SnapDelta);
+		return true;
+	}
+	return false;
+}
+
 
 #undef LOCTEXT_NAMESPACE
 

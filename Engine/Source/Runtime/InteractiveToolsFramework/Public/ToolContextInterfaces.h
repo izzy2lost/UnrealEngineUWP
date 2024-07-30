@@ -169,6 +169,11 @@ struct FToolContextSnappingConfiguration
 	/** Specify rotation snapping step size */
 	FRotator RotationGridAngles = FRotator::ZeroRotator;
 
+	/** Specify whether scale snapping should be applied */
+	bool bEnableScaleGridSnapping = false;
+	/** Specify scale factor */
+	float ScaleGridSize = 1.0f;
+
 	/** Specify whether Position snapping in World Coordinate System should be Absolute or Relative */
 	bool bEnableAbsoluteWorldSnapping = false;
 };

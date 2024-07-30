@@ -166,6 +166,8 @@ public:
 		Config.PositionGridDimensions = FVector(EditorGridSize, EditorGridSize, EditorGridSize);
 		Config.bEnableRotationGridSnapping = (GetDefault<ULevelEditorViewportSettings>()->RotGridEnabled != 0);
 		Config.RotationGridAngles = GEditor->GetRotGridSize();
+		Config.bEnableScaleGridSnapping = (GetDefault<ULevelEditorViewportSettings>()->SnapScaleEnabled != 0);
+		Config.ScaleGridSize = GEditor->GetScaleGridSize();
 		Config.bEnableAbsoluteWorldSnapping = ToolsContext->GetAbsoluteWorldSnappingEnabled();
 		return Config;
 	}

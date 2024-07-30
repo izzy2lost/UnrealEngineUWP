@@ -484,11 +484,16 @@ public:
 	FRotator ExplicitRotationGridSize;
 
 	/**
-	 * If true, then when using world frame, Axis and Plane translation snap to the world grid via the ContextQueriesAPI (in RotationSnapFunction)
+	 * If true, then when using world frame, Axis and Plane rotation snap to the world grid via the ContextQueriesAPI (in RotationSnapFunction)
 	 */
 	UPROPERTY()
 	bool bSnapToWorldRotGrid = true;
 
+	/**
+	 * If true, scaling snaps to the grid
+	 */
+	UPROPERTY()
+	bool bSnapToScaleGrid = true;
 
 
 	/**
@@ -717,6 +722,11 @@ protected:
 	INTERACTIVETOOLSFRAMEWORK_API bool PositionAxisDeltaSnapFunction(double AxisDelta, double& SnappedDeltaOut, int AxisIndex) const;
 	INTERACTIVETOOLSFRAMEWORK_API FQuat RotationSnapFunction(const FQuat& DeltaRotation) const;
 	INTERACTIVETOOLSFRAMEWORK_API bool RotationAxisAngleSnapFunction(double AxisAngleDelta, double& SnappedAxisAngleDeltaOut, int AxisIndex) const;
+	
+	// currently not implemented because WorldGridSnapping currently has no affect on scale/scale-snapping
+	INTERACTIVETOOLSFRAMEWORK_API bool ScaleSnapFunction(double DeltaScale) const;
+	// used to execute Plane, Axis, & Uniform scale snapping
+	INTERACTIVETOOLSFRAMEWORK_API bool ScaleAxisDeltaSnapFunction(double ScaleAxisDelta, double & SnappedAxisScaleDeltaOut) const;
 
 
 	UE_DEPRECATED(5.5, "Use FTransformSubGizmoCommonParams overload instead.")
