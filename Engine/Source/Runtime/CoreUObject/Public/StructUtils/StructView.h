@@ -154,12 +154,12 @@ public:
 
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
 	TStructView(TInstancedStruct<T>& InstancedStruct)
-		: TStructView(InstancedStruct.GetScriptStruct(), InstancedStruct.GetMutableMemory())
+		: FStructView(InstancedStruct.GetScriptStruct(), InstancedStruct.GetMutableMemory())
 	{}
 
 	template<typename T = BaseStructT, typename = std::enable_if_t<std::is_base_of_v<BaseStructT, std::decay_t<T>>>>
 	TStructView(const TSharedStruct<T>& SharedStruct)
-		: TStructView(SharedStruct.GetScriptStruct(), SharedStruct.GetMemory())
+		: FStructView(SharedStruct.GetScriptStruct(), SharedStruct.GetMemory())
 	{}
 
 	/** Returns mutable reference to the struct, this getter assumes that all data is valid. */
