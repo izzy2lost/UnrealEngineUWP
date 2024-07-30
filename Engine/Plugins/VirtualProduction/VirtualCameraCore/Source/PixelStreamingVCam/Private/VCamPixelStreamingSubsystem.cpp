@@ -10,14 +10,25 @@
 #include "ILiveLinkClient.h"
 #include "IPixelStreamingEditorModule.h"
 
+
+UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
+{
+	return GEngine ? GEngine->GetEngineSubsystem<UVCamPixelStreamingSubsystem>() : nullptr;
+}
+
 void UVCamPixelStreamingSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	MissingSignallingServerNotifier = MakeUnique<UE::PixelStreamingVCam::FMissingSignallingServerNotifier>(*this);
 }
 
 void UVCamPixelStreamingSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
+	
+	RegisteredSessions.Empty();
+	
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
 	if (LiveLinkSource && ModularFeatures.IsModularFeatureAvailable(ILiveLinkClient::ModularFeatureName))
 	{
@@ -25,16 +36,16 @@ void UVCamPixelStreamingSubsystem::Deinitialize()
 		LiveLinkClient->RemoveSource(LiveLinkSource);
 	}
 	LiveLinkSource.Reset();
-}
 
-UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
-{
-	return GEngine ? GEngine->GetEngineSubsystem<UVCamPixelStreamingSubsystem>() : nullptr;
+	MissingSignallingServerNotifier.Reset();
 }
 
 void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
 {
-	if (ensure(OutputProvider) && LiveLinkSource)
+	check(OutputProvider);
+	RegisteredSessions.AddUnique(OutputProvider);
+	
+	if (LiveLinkSource)
 	{
 		FName SubjectName = FName(OutputProvider->StreamerId);
 		LiveLinkSource->CreateSubject(SubjectName);
@@ -44,7 +55,10 @@ void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStream
 
 void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
 {
-	if (ensure(OutputProvider) && LiveLinkSource)
+	check(OutputProvider);
+	RegisteredSessions.RemoveSingle(OutputProvider);
+	
+	if (LiveLinkSource)
 	{
 		FName SubjectName = FName(OutputProvider->StreamerId);
 		LiveLinkSource->RemoveSubject(SubjectName);
