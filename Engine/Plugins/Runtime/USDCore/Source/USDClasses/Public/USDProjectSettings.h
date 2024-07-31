@@ -64,6 +64,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = USD)
 	TArray<FName> AdditionalMaterialPurposes;
 
+	// Whether to show on the output log messages, warnings and errors reported directly by the USD SDK
+	UPROPERTY(config, EditAnywhere, Category = USD)
+	bool bLogUsdSdkErrors = true;
+
 	/**
 	 * USD Asset Cache to use for USD Stage Actors that don't have any asset cache specified.
 	 * Leave this empty to have each stage actor generate it's on transient cache instead.

@@ -30,6 +30,16 @@ namespace UnrealBuildTool.Rules
 				}
 			);
 
+			if (Target.bBuildEditor)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[]
+					{
+						"DeveloperSettings", // So that we can un/register the diagnostic delegate when the project settings change
+					}
+				);
+			}
+
 			// Temporarily disabled runtime USD support until Mac and Linux dynamic linking issues are resolved
 			if (EnableUsdSdk(Target) && (Target.Type == TargetType.Editor || Target.Platform == UnrealTargetPlatform.Win64))
 			{
