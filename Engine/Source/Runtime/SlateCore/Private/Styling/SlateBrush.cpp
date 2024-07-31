@@ -8,9 +8,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SlateBrush)
 
 FSlateBrush::FSlateBrush()
-	: bIsDynamicallyLoaded(false)
-	, bHasUObject_DEPRECATED(false)
-	, bIsSet(true)
+	: TintColor(FLinearColor::White)
 	, DrawAs(ESlateBrushDrawType::Image)
 	, Tiling(ESlateBrushTileType::NoTile)
 	, Mirroring(ESlateBrushMirrorType::NoMirror)
@@ -20,10 +18,12 @@ FSlateBrush::FSlateBrush()
 #if WITH_EDITORONLY_DATA
 	, Tint_DEPRECATED(FLinearColor::White)
 #endif
-	, TintColor(FLinearColor::White)
 	, ResourceObject(nullptr)
-	, ResourceName(NAME_None)
 	, UVRegion(ForceInit)
+	, bIsDynamicallyLoaded(false)
+	, bHasUObject_DEPRECATED(false)
+	, bIsSet(true)
+	, ResourceName(NAME_None)
 {
 }
 
@@ -38,8 +38,7 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
 						  bool bInDynamicallyLoaded
 						)
 
-	: bIsDynamicallyLoaded(bInDynamicallyLoaded)
-	, bIsSet(true)
+	: TintColor( InTint )
 	, DrawAs(InDrawType)
 	, Tiling(InTiling)
 	, Mirroring(ESlateBrushMirrorType::NoMirror)
@@ -49,10 +48,11 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
 #if WITH_EDITORONLY_DATA
 	, Tint_DEPRECATED(FLinearColor::White)
 #endif
-	, TintColor( InTint )
 	, ResourceObject( InObjectResource )
-	, ResourceName( InResourceName )
 	, UVRegion( ForceInit )
+	, bIsDynamicallyLoaded(bInDynamicallyLoaded)
+	, bIsSet(true)
+	, ResourceName( InResourceName )
 {
 	bHasUObject_DEPRECATED = (InObjectResource != nullptr) || InResourceName.ToString().StartsWith(FSlateBrush::UTextureIdentifier());
 
@@ -74,8 +74,7 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
  						  bool bInDynamicallyLoaded
  						)
 
-	: bIsDynamicallyLoaded(bInDynamicallyLoaded)
-	, bIsSet(true)
+	: TintColor( InTint )
 	, DrawAs(InDrawType)
 	, Tiling(InTiling)
 	, Mirroring(ESlateBrushMirrorType::NoMirror)
@@ -85,10 +84,11 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
 #if WITH_EDITORONLY_DATA
 	, Tint_DEPRECATED(FLinearColor::White)
 #endif
-	, TintColor( InTint )
 	, ResourceObject( InObjectResource )
-	, ResourceName( InResourceName )
 	, UVRegion( ForceInit )
+	, bIsDynamicallyLoaded(bInDynamicallyLoaded)
+	, bIsSet(true)
+	, ResourceName( InResourceName )
 {
 	bHasUObject_DEPRECATED = (InObjectResource != nullptr) || InResourceName.ToString().StartsWith(FSlateBrush::UTextureIdentifier());
 
@@ -109,8 +109,7 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
 						  bool bInDynamicallyLoaded
  						)
 
-	: bIsDynamicallyLoaded(bInDynamicallyLoaded)
-	, bIsSet(true)
+	: TintColor(InTint)
 	, DrawAs(InDrawType)
 	, Tiling(InTiling)
 	, Mirroring(ESlateBrushMirrorType::NoMirror)
@@ -120,10 +119,11 @@ FSlateBrush::FSlateBrush( ESlateBrushDrawType::Type InDrawType,
 #if WITH_EDITORONLY_DATA
 	, Tint_DEPRECATED(FLinearColor::White)
 #endif
-	, TintColor(InTint)
 	, ResourceObject(InObjectResource)
-	, ResourceName(InResourceName)
 	, UVRegion(ForceInit)
+	, bIsDynamicallyLoaded(bInDynamicallyLoaded)
+	, bIsSet(true)
+	, ResourceName(InResourceName)
 {
 	bHasUObject_DEPRECATED = (InObjectResource != nullptr) || InResourceName.ToString().StartsWith(FSlateBrush::UTextureIdentifier());
 

@@ -225,29 +225,29 @@ namespace SlateBrushDefs
 	static const float DefaultImageSize = 32.0f;
 }
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FSlateBrushFixLayout
+{
+	virtual ~FSlateBrushFixLayout() = default;
+};
+
 /**
- * A brush which contains information about how to draw a Slate element
- */
+* A brush which contains information about how to draw a Slate element
+*/
 USTRUCT(BlueprintType) //, meta = (HasNativeMake = ""))
-struct FSlateBrush
+struct FSlateBrush 
+#if CPP 
+: public FSlateBrushFixLayout
+#endif
 {
 	GENERATED_USTRUCT_BODY()
 
 	friend class FSlateShaderResourceManager;
 
-protected:
-	/** Whether or not the brush path is a path to a UObject */
-	UPROPERTY()
-	uint8 bIsDynamicallyLoaded:1;
-
-	/** Whether or not the brush has a UTexture resource */
-	UPROPERTY()
-	uint8 bHasUObject_DEPRECATED:1;
-
-	/** This is true for all constructed brushes except for optional brushes */
-	uint8 bIsSet : 1;
-
 public:
+	/** Tinting applied to the image. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush, meta=( DisplayName="Tint", sRGB="true" ))
+	FSlateColor TintColor;
 
 	/** How to draw the image */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush)
@@ -279,15 +279,6 @@ public:
 	UPROPERTY(NotReplicated)
 	FLinearColor Tint_DEPRECATED;
 #endif
-
-	/** Tinting applied to the image. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush, meta=( DisplayName="Tint", sRGB="true" ))
-	FSlateColor TintColor;
-
-public:
-	/** How to draw the outline.  Currently only used for RoundedBox type brushes. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush)
-	FSlateBrushOutlineSettings OutlineSettings;
 
 public:
 
@@ -485,11 +476,12 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush, meta=( AllowPrivateAccess="true", DisplayThumbnail="true", DisplayName="Image", AllowedClasses="/Script/Engine.Texture,/Script/Engine.MaterialInterface,/Script/Engine.SlateTextureAtlasInterface", DisallowedClasses = "/Script/MediaAssets.MediaTexture"))
 	TObjectPtr<UObject> ResourceObject;
 
-protected:
-	/** The name of the rendering resource to use */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Brush)
-	FName ResourceName;
+public:
+	/** How to draw the outline.  Currently only used for RoundedBox type brushes. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Brush)
+	FSlateBrushOutlineSettings OutlineSettings;
 
+protected:
 	/** 
 	 *  Optional UV region for an image
 	 *  When valid - overrides UV region specified in resource proxy
@@ -497,11 +489,26 @@ protected:
 	UPROPERTY()
 	FBox2f UVRegion;
 
+	/** Whether or not the brush path is a path to a UObject */
+	UPROPERTY()
+	uint8 bIsDynamicallyLoaded:1;
+
+	/** Whether or not the brush has a UTexture resource */
+	UPROPERTY()
+	uint8 bHasUObject_DEPRECATED:1;
+
+	/** This is true for all constructed brushes except for optional brushes */
+	uint8 bIsSet : 1;
+
 public:
 
 	/** Rendering resource for this brush */
 	mutable FSlateResourceHandle ResourceHandle;
+
 protected:
+	/** The name of the rendering resource to use */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Brush)
+	FName ResourceName;
 
 	/** 
 	 * This constructor is protected; use one of the deriving classes instead.
