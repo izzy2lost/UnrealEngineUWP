@@ -897,11 +897,12 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 
 	// Color space different?
 	const UE::Color::FColorSpace& Working = OverrideColorSpace.IsValid() ? *OverrideColorSpace : UE::Color::FColorSpace::GetWorking();
-	const float Tollerance = 1.e-7f;
-	if (!Sample->GetDisplayPrimaryRed().Equals(Working.GetRedChromaticity(), Tollerance) ||
-		!Sample->GetDisplayPrimaryGreen().Equals(Working.GetGreenChromaticity(), Tollerance) ||
-		!Sample->GetDisplayPrimaryBlue().Equals(Working.GetBlueChromaticity(), Tollerance) ||
-		!Sample->GetWhitePoint().Equals(Working.GetWhiteChromaticity(), Tollerance))
+	const float Tolerance = 1.e-7f;
+	if (Sample->ShouldApplyColorConversion() &&
+		(!Sample->GetDisplayPrimaryRed().Equals(Working.GetRedChromaticity(), Tolerance) ||
+		!Sample->GetDisplayPrimaryGreen().Equals(Working.GetGreenChromaticity(), Tolerance) ||
+		!Sample->GetDisplayPrimaryBlue().Equals(Working.GetBlueChromaticity(), Tolerance) ||
+		!Sample->GetWhitePoint().Equals(Working.GetWhiteChromaticity(), Tolerance)))
 	{
 		// Yes! We need to convert...
 		return true;
@@ -938,7 +939,7 @@ bool FMediaTextureResource::RequiresConversion(const TSharedPtr<IMediaTextureSam
 				 Format == EMediaTextureSampleFormat::CharBGR10A2;
 
 	// RGBA and linear?
-	if (bRGBA && ColorEncoding == UE::Color::EEncoding::Linear)
+	if ((bRGBA && ColorEncoding == UE::Color::EEncoding::Linear ) || !Sample->ShouldApplyColorConversion())
 	{
 		return false;
 	}

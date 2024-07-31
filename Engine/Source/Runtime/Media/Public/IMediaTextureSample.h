@@ -248,6 +248,12 @@ public:
 	 */
 	virtual uint32 GetStride() const = 0;
 
+	/**
+	 * Whether samples should be converted based on a mismatch with the working color space.
+	 * If this is false, samples will not go through the conversion process even if their encoding or chromaticity doesn't match the working color space.
+	 */
+	virtual bool ShouldApplyColorConversion() const { return true; }
+
 #if WITH_ENGINE
 
 	/**
