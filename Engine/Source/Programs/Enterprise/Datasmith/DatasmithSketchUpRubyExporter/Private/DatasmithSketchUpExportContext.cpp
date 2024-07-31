@@ -468,6 +468,13 @@ FLayerIDType FLayerCollection::GetLayerId(SULayerRef LayerRef)
 	return DatasmithSketchUpUtils::GetEntityID(SULayerToEntity(LayerRef));
 }
 
+bool FLayerCollection::IsDefault(FLayerIDType LayerID)
+{
+	SULayerRef DefaultLayerRef = SU_INVALID;
+	SUModelGetDefaultLayer(Context.ModelRef, &DefaultLayerRef);
+	return LayerID == GetLayerId(DefaultLayerRef);
+}
+
 void FComponentDefinitionCollection::PopulateFromModel(SUModelRef InModelRef)
 {
 	// Get the number of normal component definitions in the SketchUp model.

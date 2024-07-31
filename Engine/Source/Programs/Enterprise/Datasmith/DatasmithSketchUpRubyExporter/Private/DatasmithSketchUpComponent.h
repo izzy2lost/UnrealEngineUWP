@@ -100,6 +100,8 @@ namespace DatasmithSketchUp
 		SUTransformation BakeTransform;
 
 		FMaterialIDType InheritedMaterialID;
+		// Resolved Layer/Tag on the node after considering own and parent's
+		// The rule: Default(Layer0 or Untagged in UI) layer/tag is overridden by parent's
 		SULayerRef EffectiveLayerRef = SU_INVALID;
 		bool bVisible = true; // Computed visibility for this occurrence(affecting descendants)
 
@@ -347,6 +349,7 @@ namespace DatasmithSketchUp
 		virtual void ApplyOverrideMaterialToNode(FNodeOccurence& Node, FMaterialOccurrence& Material) = 0;
 
 		virtual void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) = 0; // Update occurrence of this entity
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) = 0; // Resolve effective layer for the occurrence
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) = 0;  // Re-evaluate visibility of entity's occurrence
 		virtual void UpdateOccurrenceMeshActors(FExportContext& Context, FNodeOccurence& Node) = 0; // Rebuild datasmith actors of entity's occurrence
 		virtual void ResetOccurrenceActors(FExportContext& Context, FNodeOccurence& Node) = 0; // Remove datasmith actors of entity's occurrence from datasmith scene
@@ -437,6 +440,7 @@ namespace DatasmithSketchUp
 		virtual int64 GetPersistentId() override;
 		virtual FString GetEntityName() override;
 		virtual FString GetEntityLabel() override;
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateMetadata(FExportContext& Context) override;
 		virtual void UpdateEntityProperties(FExportContext& Context) override;
@@ -480,6 +484,7 @@ namespace DatasmithSketchUp
 		virtual void ApplyOverrideMaterialToNode(FNodeOccurence& Node, FMaterialOccurrence& Material) override;
 		virtual void UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node) override;
 		void RemoveImageFromDatasmithScene(FExportContext& Context);
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceMeshActors(FExportContext& Context, FNodeOccurence& Node) override;
 		virtual void ResetOccurrenceActors(FExportContext& Context, FNodeOccurence& Node) override;
@@ -532,6 +537,7 @@ namespace DatasmithSketchUp
 		virtual int64 GetPersistentId() override;
 		virtual FString GetEntityName() override;
 		virtual FString GetEntityLabel() override;
+		virtual void UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&) override;
 		virtual void UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence&) override;
 
 		virtual void UpdateMetadata(FExportContext& Context) override;

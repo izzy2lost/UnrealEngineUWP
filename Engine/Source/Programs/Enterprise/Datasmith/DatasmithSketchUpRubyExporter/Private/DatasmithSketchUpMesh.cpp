@@ -924,7 +924,19 @@ void CombineSketchUpEntitiesFaces(FExportContext& Context, SUEntitiesRef Entitie
 		bool bFaceHidden = false;
 		SUDrawingElementGetHidden(SUFaceToDrawingElement(FaceRef), &bFaceHidden);
 
-		if (!bFaceHidden && Context.Layers.IsLayerVisible(LayerRef))
+		// Check layer visibility without considering parent components
+		// Assume default layer is visible. As it's overriden by parent components/instances and will have visibility of those layers
+		// todo: more full support for layers visibility should consider occurrences where this mesh is used
+		// if there are layers that are visible/hidden which override default layer of this specific mesh
+		//
+		// E.g. when this mesh has faces with Default layer assigned. AND other faces, with other layers.
+		// This means these are faces of a free geometry within some component(or model itself).
+		// The component can be instantiated more than once.
+		// Let's say it has instance A with LayerA and instance B with LayerB. LayerA and LayerB override those
+		// faces with Default layer and as a consequence override faces visibility.
+		bool bLayerVisibility = Context.Layers.IsLayerVisible(LayerRef) || Context.Layers.IsDefault(LayerId);
+
+		if (!bFaceHidden && bLayerVisibility)
 		{
 			ExtractedMesh.AddFace(Context, FaceRef, LayerId);
 		}

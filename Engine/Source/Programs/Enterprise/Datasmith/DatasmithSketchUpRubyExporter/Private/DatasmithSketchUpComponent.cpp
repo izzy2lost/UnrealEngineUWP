@@ -129,7 +129,12 @@ void FEntityWithEntities::UpdateOccurrenceMeshActors(FExportContext& Context, FN
 
 void FNodeOccurence::UpdateVisibility(FExportContext& Context)
 {
-	if (bVisibilityInvalidated)
+	if (bPropertiesInvalidated)
+	{
+		Entity.UpdateOccurrenceLayer(Context, *this);
+	}
+
+	if (bVisibilityInvalidated || bPropertiesInvalidated)
 	{
 		Entity.UpdateOccurrenceVisibility(Context, *this);
 		bVisibilityInvalidated = false;
@@ -928,8 +933,6 @@ void FComponentInstance::UpdateOccurrenceTransformation(FExportContext& Context,
 
 void FComponentInstance::UpdateOccurrence(FExportContext& Context, FNodeOccurence& Node)
 {
-	Node.EffectiveLayerRef = DatasmithSketchUpUtils::GetEffectiveLayer(GetComponentInstanceRef(), Node.ParentNode->EffectiveLayerRef);
-
 	if (FDefinition* EntityDefinition = GetDefinition())
 	{
 		BuildNodeNames(Node);
@@ -1159,10 +1162,17 @@ void FImageCollection::LayerModified(FEntityIDType LayerId)
 	}
 }
 
+void FComponentInstance::UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence& Node)
+{
+	Node.EffectiveLayerRef = DatasmithSketchUpUtils::GetEffectiveLayer(GetComponentInstanceRef(), Node.ParentNode->EffectiveLayerRef);
+}
+
 void FComponentInstance::UpdateOccurrenceVisibility(FExportContext& Context, FNodeOccurence& Node)
 {
+	bool bEffectiveLayerVisible = Context.Layers.IsLayerVisible(Node.EffectiveLayerRef);
+
 	// Parent node, component instance and layer - all should be visible to have node visible
-	bool bVisibilityChanged = Node.SetVisibility(Node.ParentNode->bVisible && !bHidden && bLayerVisible);
+	bool bVisibilityChanged = Node.SetVisibility(Node.ParentNode->bVisible && !bHidden && bEffectiveLayerVisible);
 
 	EntityOccurrenceVisible(&Node, Node.bVisible);
 
@@ -1235,7 +1245,11 @@ FString FModel::GetEntityLabel()
 {
 	return "";
 }
-   
+
+void FModel::UpdateOccurrenceLayer(FExportContext& Context, FNodeOccurence&)
+{
+}
+
 void FModel::InvalidateOccurrencesGeometry(FExportContext& Context)
 {
 	Context.RootNode->InvalidateMeshActors();

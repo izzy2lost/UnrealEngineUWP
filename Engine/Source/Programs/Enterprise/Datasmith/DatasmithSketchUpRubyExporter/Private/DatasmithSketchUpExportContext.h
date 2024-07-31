@@ -316,6 +316,7 @@ namespace DatasmithSketchUp
 		SULayerRef GetLayer(FLayerIDType LayerID);
 
 		FLayerIDType GetLayerId(SULayerRef LayerRef);
+		bool IsDefault(FLayerIDType LayerID);
 
 		TMap<FLayerIDType, bool> LayerVisibility;
 	private:
