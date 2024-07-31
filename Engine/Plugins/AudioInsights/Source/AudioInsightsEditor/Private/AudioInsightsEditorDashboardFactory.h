@@ -44,10 +44,13 @@ namespace UE::Audio::Insights
 		TSharedRef<SWidget> MakeMainToolbarWidget();
 
 		void InitDelegates();
-		TSharedPtr<FTabManager::FLayout> GetDefaultTabLayout();
+		TSharedRef<FTabManager::FLayout> GetDefaultTabLayout();
 
 		void RegisterTabSpawners();
 		void UnregisterTabSpawners();
+
+		TSharedRef<FTabManager::FLayout> LoadLayoutFromConfig();
+		void SaveLayoutToConfig();
 
 		FDelegateHandle OnDeviceDestroyedHandle;
 		FDelegateHandle OnWorldRegisteredToAudioDeviceHandle;
@@ -62,7 +65,6 @@ namespace UE::Audio::Insights
 
 		TSharedPtr<FTabManager> DashboardTabManager;
 		TSharedPtr<FWorkspaceItem> DashboardWorkspace;
-		TSharedPtr<FTabManager::FLayout> TabLayout;
 
 		TArray<TSharedPtr<::Audio::FDeviceId>> AudioDeviceIds;
 		TSharedPtr<SComboBox<TSharedPtr<::Audio::FDeviceId>>> AudioDeviceComboBox;
