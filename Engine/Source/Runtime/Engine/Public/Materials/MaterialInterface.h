@@ -317,11 +317,11 @@ private:
 	/** Feature levels to force to compile. */
 	uint32 FeatureLevelsToForceCompile;
 
+public:
+
 	/** Whether this material interface is included in the base game (and not in a DLC) */
 	UPROPERTY(meta=(DisplayAfter="NeuralProfile"))
 	uint8 bIncludedInBaseGame : 1;
-
-public:
 
 	ENGINE_API UMaterialInterface();
 	ENGINE_API UMaterialInterface(FVTableHelper& Helper);
