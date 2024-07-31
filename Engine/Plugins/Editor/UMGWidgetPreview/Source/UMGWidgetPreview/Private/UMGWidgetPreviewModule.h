@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Modules/ModuleInterface.h"
+#include "UMGWidgetPreview/Public/IUMGWidgetPreviewModule.h"
 
 namespace UE::UMGWidgetPreview::Private
 {
 	class FUMGWidgetPreviewModule
-		: public IModuleInterface
+		: public IUMGWidgetPreviewModule
 	{
 	public:
 		//~ Begin IModuleInterface
@@ -15,7 +15,14 @@ namespace UE::UMGWidgetPreview::Private
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface
 
+		//~ Begin IUMGWidgetPreviewModule
+		virtual FOnRegisterTabs& OnRegisterTabsForEditor() override;
+		//~ End IUMGWidgetPreviewModule
+
 	private:
 		void RegisterMenus();
+
+	private:
+		FOnRegisterTabs RegisterTabsForEditorDelegate;
 	};
 }

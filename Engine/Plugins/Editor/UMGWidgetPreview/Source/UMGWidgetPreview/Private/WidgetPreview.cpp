@@ -3,9 +3,13 @@
 #include "WidgetPreview.h"
 
 #include "Blueprint/UserWidget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Engine/Engine.h"
+#include "UObject/Package.h"
 #include "WidgetBlueprint.h"
-#include "WidgetPreviewTypesPrivate.h"
 #include "WidgetPreviewLog.h"
+#include "WidgetPreviewTypesPrivate.h"
+#include "Widgets/SWidget.h"
 
 FPreviewableWidgetVariant::FPreviewableWidgetVariant(const TSubclassOf<UUserWidget>& InWidgetType)
 	: ObjectPath(InWidgetType)
@@ -21,7 +25,9 @@ FPreviewableWidgetVariant::FPreviewableWidgetVariant(const UWidgetPreview* InWid
 
 void FPreviewableWidgetVariant::UpdateCachedWidget()
 {
-	CachedWidgetCDO.Reset();
+	UE::UMGWidgetPreview::Private::FWidgetTypeTuple PreviewUserWidgetTuple;
+
+	const UUserWidget* PreviewUserWidgetCDO = nullptr;
 	CachedWidgetPreview.Reset();
 
 	if (UObject* ResolvedObject = ObjectPath.TryLoad())
@@ -29,20 +35,23 @@ void FPreviewableWidgetVariant::UpdateCachedWidget()
     	if (UWidgetPreview* WidgetPreview = Cast<UWidgetPreview>(ResolvedObject))
     	{
     		CachedWidgetPreview = WidgetPreview;
-    		CachedWidgetCDO = WidgetPreview->GetWidgetCDO();
+    		PreviewUserWidgetCDO = WidgetPreview->GetWidgetCDO();
+    		PreviewUserWidgetTuple.Set(WidgetPreview->GetWidgetCDO());
     	}
 		else if (const UWidgetBlueprint* AsBlueprint = Cast<UWidgetBlueprint>(ResolvedObject))
 		{
-			CachedWidgetCDO = Cast<UUserWidget>(AsBlueprint->GeneratedClass->GetDefaultObject<UUserWidget>());
+			PreviewUserWidgetCDO = AsBlueprint->GeneratedClass->GetDefaultObject<UUserWidget>();
 		}
 		else if (const UClass* AsClass = Cast<UClass>(ResolvedObject))
 		{
-			if (UUserWidget* UserWidget = AsClass->GetDefaultObject<UUserWidget>())
+			if (const UUserWidget* UserWidgetCDO = AsClass->GetDefaultObject<UUserWidget>())
 			{
-				CachedWidgetCDO = UserWidget;
+				PreviewUserWidgetCDO = UserWidgetCDO;
 			}
 		}
     }
+
+	CachedWidgetCDO = PreviewUserWidgetCDO;
 }
 
 const UUserWidget* FPreviewableWidgetVariant::AsUserWidgetCDO() const
@@ -72,7 +81,7 @@ const UUserWidget* FPreviewableWidgetVariant::AsUserWidgetCDO() const
 	return nullptr;
 }
 
-UWidgetPreview* FPreviewableWidgetVariant::AsWidgetPreview() const
+const UWidgetPreview* FPreviewableWidgetVariant::AsWidgetPreview() const
 {
 	if (ObjectPath.IsNull())
 	{
@@ -105,13 +114,18 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 {
 	if (bInForceRecreate)
 	{
-		WidgetInstance = nullptr;
+		ClearWidgetInstance();
 	}
 	else if (WidgetInstance)
 	{
 		return WidgetInstance;
 	}
 
+	return CreateWidgetInstance(InWorld);
+}
+
+UUserWidget* UWidgetPreview::CreateWidgetInstance(UWorld* InWorld)
+{
 	if (!ensure(InWorld))
 	{
 		return nullptr;
@@ -128,12 +142,12 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 	{
 		auto MakeWidget = [InWorld](UClass* InClass) -> UUserWidget*
 		{
+			ensureAlways(!InClass->GetName().StartsWith(TEXT("REINST_")));
+
 			UUserWidget* NewWidget = NewObject<UUserWidget>(InWorld, InClass);
 			NewWidget->ClearFlags(RF_Transactional);
 			return NewWidget;
 		};
-
-		// @todo: always wrap with a container UWidget to account for warning here: void UWidget::RemoveFromParent()
 
 		WidgetInstance = MakeWidget(Widget->GetClass());
 
@@ -157,6 +171,8 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 			WidgetInstance->SetPlayerContext(LocalPlayer);
 		}
 
+		SlateWidgetInstance = WidgetInstance->TakeWidget();
+
 		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Reinstanced);
 
 		return WidgetInstance;
@@ -168,6 +184,21 @@ UUserWidget* UWidgetPreview::GetOrCreateWidgetInstance(UWorld* InWorld, const bo
 UUserWidget* UWidgetPreview::GetWidgetInstance() const
 {
 	return WidgetInstance;
+}
+
+TSharedPtr<SWidget> UWidgetPreview::GetSlateWidgetInstance() const
+{
+	if (SlateWidgetInstance.IsValid())
+	{
+		return SlateWidgetInstance;
+	}
+
+	if (UUserWidget* Instance = GetWidgetInstance())
+	{
+		return Instance->TakeWidget();
+	}
+
+	return nullptr;
 }
 
 const UUserWidget* UWidgetPreview::GetWidgetCDO() const
@@ -299,7 +330,7 @@ void UWidgetPreview::SetWidgetType(const FPreviewableWidgetVariant& InWidget)
 	if (WidgetType != InWidget)
 	{
 		WidgetType = InWidget;
-		WidgetInstance = nullptr;
+		ClearWidgetInstance();
 		UpdateWidgets();
 
 		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Assignment);
@@ -316,7 +347,7 @@ void UWidgetPreview::SetSlotWidgetTypes(const TMap<FName, FPreviewableWidgetVari
 	if (!SlotWidgetTypes.OrderIndependentCompareEqual(InWidgets))
 	{
 		SlotWidgetTypes = InWidgets;
-		WidgetInstance = nullptr;
+		ClearWidgetInstance();
 		UpdateWidgets();
 
 		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Assignment);
@@ -339,22 +370,37 @@ void UWidgetPreview::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 		|| PropertyName == GET_MEMBER_NAME_CHECKED(UWidgetPreview, SlotWidgetTypes)
 		|| PropertyName.IsNone()) // None can be an Undo operation
 	{
-		WidgetInstance = nullptr;
+		ClearWidgetInstance();
 		UpdateWidgets();
 		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Assignment);
 	}
 }
 
-void UWidgetPreview::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
-{
-	UObject::PostEditChangeChainProperty(PropertyChangedEvent);
-}
-
+// Due to compilation, etc.
 void UWidgetPreview::OnWidgetBlueprintChanged(UBlueprint* InBlueprint)
 {
-	WidgetInstance = nullptr;
+	ClearWidgetInstance();
 	UpdateWidgets();
 	OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Structure);
+}
+
+void UWidgetPreview::ClearWidgetInstance()
+{
+	if (WidgetInstance)
+	{
+		if (SlateWidgetInstance.IsValid())
+		{
+			SlateWidgetInstance.Reset();
+		}
+
+		OnWidgetChanged().Broadcast(EWidgetPreviewWidgetChangeType::Destroyed);
+
+		WidgetInstance->OnNativeDestruct.RemoveAll(this);
+		WidgetInstance->MarkAsGarbage();
+		WidgetInstance = nullptr;
+
+		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	}
 }
 
 void UWidgetPreview::UpdateWidgets()

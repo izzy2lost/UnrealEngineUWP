@@ -52,9 +52,7 @@ namespace UE::UMGWidgetPreview::Private
 	private:
 		TSharedPtr<IPropertyUtilities> PropertyUtilities;
 		TWeakObjectPtr<UWidgetPreview> WeakOwningPreview;
-		TSharedPtr<IPropertyHandle> OwningPreviewHandle;
 		TSharedPtr<IPropertyHandle> PreviewVariantHandle;
-
 		TSharedPtr<IPropertyHandle> ObjectPathHandle;
 		TWeakObjectPtr<UUserWidget> WeakWidgetInstance;
 	};

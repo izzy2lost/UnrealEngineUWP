@@ -16,7 +16,7 @@
 #include "ToolMenuMisc.h"
 #include "ToolMenus.h"
 #include "ToolMenuSection.h"
-#include "WidgetBlueprintEditor.h"
+#include "UMGWidgetPreview/Public/IUMGWidgetPreviewModule.h"
 #include "WidgetPreview.h"
 #include "WidgetPreviewCommands.h"
 #include "WidgetPreviewEditor.h"
@@ -137,6 +137,11 @@ namespace UE::UMGWidgetPreview::Private
 		return PreviewScene.ToSharedRef();
 	}
 
+	FWidgetPreviewToolkitStateBase::FWidgetPreviewToolkitStateBase(const FName& Id)
+		: Id(Id)
+	{
+	}
+
 	FName FWidgetPreviewToolkitStateBase::GetId() const
 	{
 		return Id;
@@ -159,10 +164,12 @@ namespace UE::UMGWidgetPreview::Private
 
 	void FWidgetPreviewToolkitStateBase::OnEnter(const FWidgetPreviewToolkitStateBase* InFromState)
 	{
+		// Default, empty Implementation
 	}
 
 	void FWidgetPreviewToolkitStateBase::OnExit(const FWidgetPreviewToolkitStateBase* InToState)
 	{
+		// Default, empty Implementation
 	}
 
 	FWidgetPreviewToolkitPausedState::FWidgetPreviewToolkitPausedState(): FWidgetPreviewToolkitStateBase(TEXT("Paused"))
@@ -176,16 +183,6 @@ namespace UE::UMGWidgetPreview::Private
 	{
 		Id = TEXT("Background");
 		StatusMessage = FTokenizedMessage::Create(EMessageSeverity::Info, LOCTEXT("WidgetPreviewToolkitBackgroundState_Message", "The widget preview is paused while the window is in the background. Re-focus to unpause."));
-	}
-
-	void FWidgetPreviewToolkitBackgroundState::OnEnter(const FWidgetPreviewToolkitStateBase* InFromState)
-	{
-		FWidgetPreviewToolkitPausedState::OnEnter(InFromState);
-	}
-
-	void FWidgetPreviewToolkitBackgroundState::OnExit(const FWidgetPreviewToolkitStateBase* InToState)
-	{
-		FWidgetPreviewToolkitPausedState::OnExit(InToState);
 	}
 
 	FWidgetPreviewToolkitUnsupportedWidgetState::FWidgetPreviewToolkitUnsupportedWidgetState()
@@ -278,8 +275,14 @@ namespace UE::UMGWidgetPreview::Private
 
 	FWidgetPreviewToolkit::~FWidgetPreviewToolkit()
 	{
+		if (GEditor)
+		{
+			GEditor->OnBlueprintPreCompile().Remove(OnBlueprintPrecompileHandle);
+		}
+
 		if (Preview)
 		{
+			Preview->ClearWidgetInstance();
 			Preview->OnWidgetChanged().Remove(OnWidgetChangedHandle);
 		}
 
@@ -312,6 +315,11 @@ namespace UE::UMGWidgetPreview::Private
 			nullptr,
 			TArray<FAdvancedPreviewSceneModule::FDetailCustomizationInfo>(),  TArray<FAdvancedPreviewSceneModule::FPropertyTypeCustomizationInfo>(),
 			Delegates);
+
+		if (Preview)
+		{
+			Preview->GetOrCreateWidgetInstance(GetPreviewWorld(), true);
+		}
 	}
 
 	void FWidgetPreviewToolkit::RegisterToolbar()
@@ -338,7 +346,8 @@ namespace UE::UMGWidgetPreview::Private
 				InsertAfterAssetSection);
 
 			PreviewSection.AddEntry(
-				FToolMenuEntry::InitToolBarButton(Commands.ResetPreview,
+				FToolMenuEntry::InitToolBarButton(
+					Commands.ResetPreview,
 					FText::GetEmpty(),
 					{},
 					FSlateIcon(FWidgetPreviewStyle::Get().GetStyleSetName(), "WidgetPreview.Reset")));
@@ -367,6 +376,11 @@ namespace UE::UMGWidgetPreview::Private
 			.SetDisplayName(LOCTEXT("MessageLogTab", "Message Log"))
 			.SetGroup(AssetEditorTabsCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "MessageLog.TabIcon"));
+
+		const TSharedRef<IWidgetPreviewToolkit> ToolkitRef = SharedThis(this);
+
+		IUMGWidgetPreviewModule& UMGWidgetPreviewModule = FModuleManager::LoadModuleChecked<IUMGWidgetPreviewModule>("UMGWidgetPreview");
+		UMGWidgetPreviewModule.OnRegisterTabsForEditor().Broadcast(ToolkitRef, InTabManager);
 	}
 
 	void FWidgetPreviewToolkit::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -379,6 +393,11 @@ namespace UE::UMGWidgetPreview::Private
 
 	void FWidgetPreviewToolkit::PostInitAssetEditor()
 	{
+		if (GEditor)
+		{
+			OnBlueprintPrecompileHandle = GEditor->OnBlueprintPreCompile().AddRaw(this, &FWidgetPreviewToolkit::OnBlueprintPrecompile);
+		}
+
 		OnWidgetChangedHandle = Preview->OnWidgetChanged().AddSP(this, &FWidgetPreviewToolkit::OnWidgetChanged);
 
 		if (FSlateApplication::IsInitialized())
@@ -593,6 +612,38 @@ namespace UE::UMGWidgetPreview::Private
 		return TEXT("FWidgetPreviewToolkit");
 	}
 
+	TSharedPtr<FLayoutExtender> FWidgetPreviewToolkit::GetLayoutExtender() const
+	{
+		return LayoutExtender;
+	}
+
+	IWidgetPreviewToolkit::FOnSelectedObjectsChanged& FWidgetPreviewToolkit::OnSelectedObjectsChanged()
+	{
+		return SelectedObjectsChangedDelegate;
+	}
+
+	TConstArrayView<TWeakObjectPtr<UObject>> FWidgetPreviewToolkit::GetSelectedObjects() const
+	{
+		return SelectedObjects;
+	}
+
+	void FWidgetPreviewToolkit::SetSelectedObjects(const TArray<TWeakObjectPtr<UObject>>& InObjects)
+	{
+		if (InObjects.IsEmpty())
+		{
+			SelectedObjects = { Preview };
+		}
+		else
+		{
+			SelectedObjects = InObjects;
+		}
+
+		if (SelectedObjectsChangedDelegate.IsBound())
+		{
+			SelectedObjectsChangedDelegate.Broadcast(SelectedObjects);
+		}
+	}
+
 	UWidgetPreview* FWidgetPreviewToolkit::GetPreview() const
 	{
 		return Preview;
@@ -603,9 +654,19 @@ namespace UE::UMGWidgetPreview::Private
 		return CurrentState;
 	}
 
-	IWidgetPreviewToolkit::FOnStateChanged& FWidgetPreviewToolkit::OnStateChanged()
+	FWidgetPreviewToolkit::FOnStateChanged& FWidgetPreviewToolkit::OnStateChanged()
 	{
 		return OnStateChangedDelegate;
+	}
+
+	UWorld* FWidgetPreviewToolkit::GetPreviewWorld()
+	{
+		if (TSharedPtr<FWidgetPreviewScene> PreviewScenePtr = GetPreviewScene())
+		{
+			return PreviewScenePtr->GetWorld();
+		}
+
+		return nullptr;
 	}
 
 	TSharedPtr<FWidgetPreviewScene> FWidgetPreviewToolkit::GetPreviewScene()
@@ -619,16 +680,6 @@ namespace UE::UMGWidgetPreview::Private
 		return PreviewScene;
 	}
 
-	UWorld* FWidgetPreviewToolkit::GetPreviewWorld()
-	{
-		if (TSharedPtr<FWidgetPreviewScene> PreviewScenePtr = GetPreviewScene())
-		{
-			return PreviewScenePtr->GetWorld();
-		}
-
-		return nullptr;
-	}
-
 	bool FWidgetPreviewToolkit::ShouldUpdate() const
 	{
 		if (CurrentState)
@@ -637,6 +688,21 @@ namespace UE::UMGWidgetPreview::Private
 		}
 
 		return bIsFocused;
+	}
+
+	void FWidgetPreviewToolkit::OnBlueprintPrecompile(UBlueprint* InBlueprint)
+	{
+		if (Preview)
+		{
+			if (const UUserWidget* WidgetCDO = Preview->GetWidgetCDO())
+			{
+				if (InBlueprint && InBlueprint->GeneratedClass
+					&& WidgetCDO->IsA(InBlueprint->GeneratedClass))
+				{
+					Preview->ClearWidgetInstance();
+				}
+			}
+		}
 	}
 
 	void FWidgetPreviewToolkit::OnWidgetChanged(const EWidgetPreviewWidgetChangeType InChangeType)
@@ -771,15 +837,19 @@ namespace UE::UMGWidgetPreview::Private
 	TSharedRef<SDockTab> FWidgetPreviewToolkit::SpawnTab_Details(const FSpawnTabArgs& Args)
 	{
 		check(Args.GetTabId() == DetailsTabID);
+
+		const TSharedRef<FWidgetPreviewToolkit>& Self = SharedThis(this);
+
 		return SNew(SDockTab)
 		[
-			SNew(SWidgetPreviewDetails, Preview)
+			SNew(SWidgetPreviewDetails, Self)
 		];
 	}
 
 	TSharedRef<SDockTab> FWidgetPreviewToolkit::SpawnTab_PreviewSceneSettings(const FSpawnTabArgs& Args)
 	{
 		check(Args.GetTabId().TabType == PreviewSceneSettingsTabID);
+
 		return SNew(SDockTab)
 		.Label( LOCTEXT("StaticMeshPreviewScene_TabTitle", "Preview Scene Settings") )
 		[

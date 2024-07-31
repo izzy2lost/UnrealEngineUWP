@@ -42,7 +42,6 @@ namespace UE::UMGWidgetPreview::Private
 		IPropertyTypeCustomizationUtils& CustomizationUtils)
 	{
 		PropertyUtilities = CustomizationUtils.GetPropertyUtilities();
-		OwningPreviewHandle = PropertyHandle->GetParentHandle();
 		PreviewVariantHandle = PropertyHandle;
 		ObjectPathHandle = PreviewVariantHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FPreviewableWidgetVariant, ObjectPath));
 
@@ -93,7 +92,7 @@ namespace UE::UMGWidgetPreview::Private
 		auto CanDisplayAndCallFunction = [](const UFunction* TestFunction)
 		{
 			bool bCanCall = TestFunction->GetBoolMetaData(FBlueprintMetadata::MD_CallInEditor)
-						&& TestFunction->HasAnyFunctionFlags(FUNC_Private)
+						&& TestFunction->HasAnyFunctionFlags(FUNC_Public)
 						&& TestFunction->ParmsSize == 0; // Params not supported
 
 			return bCanCall;

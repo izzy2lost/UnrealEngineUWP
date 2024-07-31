@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UMGWidgetPreviewModule.h"
 
@@ -68,10 +68,17 @@ namespace UE::UMGWidgetPreview::Private
 			PropertyModule->UnregisterCustomPropertyTypeLayout(FPreviewableWidgetVariant::StaticStruct()->GetFName());
 		}
 
-		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-		MessageLogModule.UnregisterLogListing(MessageLogName);
+		if (FMessageLogModule* MessageLogModule = FModuleManager::GetModulePtr<FMessageLogModule>("MessageLog"))
+		{
+			MessageLogModule->UnregisterLogListing(MessageLogName);
+		}
 
 		FWidgetPreviewCommands::Unregister();
+	}
+
+	IUMGWidgetPreviewModule::FOnRegisterTabs& FUMGWidgetPreviewModule::OnRegisterTabsForEditor()
+	{
+		return RegisterTabsForEditorDelegate;
 	}
 
 	void FUMGWidgetPreviewModule::RegisterMenus()

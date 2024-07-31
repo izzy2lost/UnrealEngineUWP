@@ -5,13 +5,13 @@
 #include "AdvancedPreviewScene.h"
 #include "AdvancedPreviewSceneModule.h"
 #include "Framework/Docking/TabManager.h"
+#include "IWidgetPreviewToolkit.h"
 #include "Logging/TokenizedMessage.h"
 #include "Misc/DataValidation/Fixer.h"
 #include "Templates/SharedPointer.h"
 #include "Toolkits/BaseToolkit.h"
 #include "Tools/BaseAssetToolkit.h"
 #include "WidgetPreview.h"
-#include "WorkflowOrientedApp/WorkflowTabManager.h"
 
 class UWidgetPreviewEditor;
 class FWidgetBlueprintEditor;
@@ -58,10 +58,7 @@ namespace UE::UMGWidgetPreview::Private
 
 	struct FWidgetPreviewToolkitStateBase
 	{
-		explicit FWidgetPreviewToolkitStateBase(const FName& Id)
-			: Id(Id)
-		{
-		}
+		explicit FWidgetPreviewToolkitStateBase(const FName& Id);
 
 		virtual ~FWidgetPreviewToolkitStateBase() = default;
 
@@ -88,9 +85,6 @@ namespace UE::UMGWidgetPreview::Private
 	struct FWidgetPreviewToolkitBackgroundState : FWidgetPreviewToolkitPausedState
 	{
 		FWidgetPreviewToolkitBackgroundState();
-
-		virtual void OnEnter(const FWidgetPreviewToolkitStateBase* InFromState) override;
-		virtual void OnExit(const FWidgetPreviewToolkitStateBase* InToState) override;
 	};
 
 	struct FWidgetPreviewToolkitUnsupportedWidgetState : FWidgetPreviewToolkitPausedState
@@ -109,19 +103,6 @@ namespace UE::UMGWidgetPreview::Private
 	struct FWidgetPreviewToolkitRunningState : FWidgetPreviewToolkitStateBase
 	{
 		FWidgetPreviewToolkitRunningState();
-	};
-
-	class IWidgetPreviewToolkit
-	{
-	public:
-		virtual ~IWidgetPreviewToolkit() = default;
-
-		using FOnStateChanged = TMulticastDelegate<void(
-			FWidgetPreviewToolkitStateBase* InOldState, FWidgetPreviewToolkitStateBase* InNewState)>;
-
-		virtual UWidgetPreview* GetPreview() const = 0;
-		virtual FWidgetPreviewToolkitStateBase* GetState() const = 0;
-		virtual FOnStateChanged& OnStateChanged() = 0;
 	};
 
 	class FWidgetPreviewToolkit
@@ -163,13 +144,20 @@ namespace UE::UMGWidgetPreview::Private
 		//~ End FGCObject
 
 		//~ Begin IWidgetPreviewToolkit
+		virtual TSharedPtr<FLayoutExtender> GetLayoutExtender() const override;
+		virtual FOnSelectedObjectsChanged& OnSelectedObjectsChanged() override;
+		virtual TConstArrayView<TWeakObjectPtr<UObject>> GetSelectedObjects() const override;
+		virtual void SetSelectedObjects(const TArray<TWeakObjectPtr<UObject>>& InObjects) override;
 		virtual UWidgetPreview* GetPreview() const override;
-		virtual FWidgetPreviewToolkitStateBase* GetState() const override;
-		virtual FOnStateChanged& OnStateChanged() override;
+		virtual UWorld* GetPreviewWorld() override;
 		//~ End IWidgetPreviewToolkit
 
+		FWidgetPreviewToolkitStateBase* GetState() const;
+
+		using FOnStateChanged = TMulticastDelegate<void(FWidgetPreviewToolkitStateBase* InOldState, FWidgetPreviewToolkitStateBase* InNewState)>;
+		FOnStateChanged& OnStateChanged();
+
 		TSharedPtr<FWidgetPreviewScene> GetPreviewScene();
-		UWorld* GetPreviewWorld();
 
 	public:
 		static const FLazyName PreviewSceneSettingsTabID;
@@ -177,6 +165,8 @@ namespace UE::UMGWidgetPreview::Private
 
 	protected:
 		bool ShouldUpdate() const;
+
+		void OnBlueprintPrecompile(UBlueprint* InBlueprint);
 
 		void OnWidgetChanged(const EWidgetPreviewWidgetChangeType InChangeType);
 
@@ -191,6 +181,7 @@ namespace UE::UMGWidgetPreview::Private
 		/** Resolve and set the current state based on various conditions. */
 		void ResolveState();
 
+		/** Resets to the default state. */
 		void ResetPreview();
 
 		virtual TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args) override;
@@ -201,6 +192,9 @@ namespace UE::UMGWidgetPreview::Private
 	private:
 		TObjectPtr<UWidgetPreview> Preview;
 
+		FOnSelectedObjectsChanged SelectedObjectsChangedDelegate;
+		TArray<TWeakObjectPtr<UObject>> SelectedObjects;
+
 		TSharedPtr<FWidgetPreviewScene> PreviewScene;
 		FAdvancedPreviewSceneModule::FOnPreviewSceneChanged OnPreviewSceneChangedDelegate;
 		TSharedPtr<SWidget> PreviewSettingsWidget;
@@ -209,8 +203,8 @@ namespace UE::UMGWidgetPreview::Private
 		TSharedPtr<SWidget> MessageLogWidget;
 
 		bool bIsFocused = false;
-		FWorkflowAllowedTabSet TabFactories;
 
+		FDelegateHandle OnBlueprintPrecompileHandle;
 		FDelegateHandle OnWidgetChangedHandle;
 		FDelegateHandle OnFocusChangingHandle;
 		FOnStateChanged OnStateChangedDelegate;

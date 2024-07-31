@@ -26,7 +26,7 @@ namespace UE::UMGWidgetPreview::Private
 
 		ContainerWidget = SNew(SBorder)
 		[
-			CreatedSlateWidget.ToSharedRef()
+			GetCreatedSlateWidget()
 		];
 
 		OnWidgetChanged(EWidgetPreviewWidgetChangeType::Assignment);
@@ -48,6 +48,8 @@ namespace UE::UMGWidgetPreview::Private
 
 	SWidgetPreview::~SWidgetPreview()
 	{
+		ContainerWidget->ClearContent();
+
 		if (const TSharedPtr<FWidgetPreviewToolkit> Toolkit = WeakToolkit.Pin())
 		{
 			Toolkit->OnStateChanged().Remove(OnStateChangedHandle);
@@ -82,7 +84,7 @@ namespace UE::UMGWidgetPreview::Private
 			SWidgetPreview* MutableThis = const_cast<SWidgetPreview*>(this);
 
 			MutableThis->CreatedSlateWidget = SNullWidget::NullWidget;
-			ContainerWidget->SetContent(CreatedSlateWidget.ToSharedRef());
+			ContainerWidget->SetContent(GetCreatedSlateWidget());
 			MutableThis->bClearWidgetOnNextPaint = false;
 		}
 
@@ -111,22 +113,28 @@ namespace UE::UMGWidgetPreview::Private
 			return;
 		}
 
-		if (const TSharedPtr<FWidgetPreviewToolkit> Toolkit = WeakToolkit.Pin())
+		if (InChangeType != EWidgetPreviewWidgetChangeType::Destroyed)
 		{
-			if (UWidgetPreview* Preview = Toolkit->GetPreview())
+			if (const TSharedPtr<FWidgetPreviewToolkit> Toolkit = WeakToolkit.Pin())
 			{
-				UWorld* World = GetWorld();
-
-				if (UUserWidget* PreviewWidget = Preview->GetOrCreateWidgetInstance(World))
+				if (UWidgetPreview* Preview = Toolkit->GetPreview())
 				{
-					CreatedSlateWidget = PreviewWidget->TakeWidget();
-				}
-				else
-				{
-					CreatedSlateWidget = SNullWidget::NullWidget;
-				}
+					UWorld* World = GetWorld();
+					if (const TSharedPtr<SWidget> PreviewSlateWidget = Preview->GetSlateWidgetInstance())
+					{
+						CreatedSlateWidget = PreviewSlateWidget;
+					}
+					else if (UUserWidget* PreviewWidget = Preview->GetOrCreateWidgetInstance(World))
+					{
+						CreatedSlateWidget = PreviewWidget->TakeWidget();
+					}
+					else
+					{
+						CreatedSlateWidget = SNullWidget::NullWidget;
+					}
 
-				ContainerWidget->SetContent(CreatedSlateWidget.ToSharedRef());
+					ContainerWidget->SetContent(GetCreatedSlateWidget());
+				}
 			}
 		}
 	}
@@ -139,6 +147,16 @@ namespace UE::UMGWidgetPreview::Private
 		}
 
 		return nullptr;
+	}
+
+	TSharedRef<SWidget> SWidgetPreview::GetCreatedSlateWidget() const
+	{
+		if (TSharedPtr<SWidget> SlateWidget = CreatedSlateWidget.Pin())
+		{
+			return SlateWidget.ToSharedRef();
+		}
+
+		return SNullWidget::NullWidget;
 	}
 }
 

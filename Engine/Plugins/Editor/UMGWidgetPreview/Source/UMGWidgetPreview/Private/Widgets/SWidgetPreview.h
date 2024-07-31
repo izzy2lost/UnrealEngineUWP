@@ -39,12 +39,14 @@ namespace UE::UMGWidgetPreview::Private
 		/** Convenience method to get world from the associated viewport. */
 		UWorld* GetWorld() const;
 
+		TSharedRef<SWidget> GetCreatedSlateWidget() const;
+
 	private:
 		TWeakPtr<FWidgetPreviewToolkit> WeakToolkit;
 
 		TSharedPtr<SRetainerWidget> RetainerWidget;
 		TSharedPtr<SBorder> ContainerWidget;
-		TSharedPtr<SWidget> CreatedSlateWidget;
+		TWeakPtr<SWidget> CreatedSlateWidget;
 
 		bool bClearWidgetOnNextPaint = false;
 		bool bIsRetainedRender = false;

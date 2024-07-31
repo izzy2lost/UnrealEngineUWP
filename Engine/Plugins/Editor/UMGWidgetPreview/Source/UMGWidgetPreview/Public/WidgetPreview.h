@@ -6,6 +6,7 @@
 
 #include "WidgetPreview.generated.h"
 
+class SWidget;
 class UPanelWidget;
 class UUserWidget;
 class UWidget;
@@ -13,12 +14,13 @@ class UWidgetBlueprint;
 class UWidgetPreview;
 struct FImage;
 
-enum class EWidgetPreviewWidgetChangeType
+enum class EWidgetPreviewWidgetChangeType : uint8
 {
 	Assignment = 0,
 	Reinstanced = 1,
 	Structure = 2,
 	ChildReference = 3,
+	Destroyed = 4				// Just before the Slate widget is destroyed, etc.
 };
 
 USTRUCT(BlueprintType)
@@ -30,8 +32,8 @@ struct UMGWIDGETPREVIEW_API FPreviewableWidgetVariant
 	FSoftObjectPath ObjectPath;
 
 	FPreviewableWidgetVariant() = default;
-	FPreviewableWidgetVariant(const TSubclassOf<UUserWidget>& InWidgetType);
-	FPreviewableWidgetVariant(const UWidgetPreview* InWidgetPreview);
+	explicit FPreviewableWidgetVariant(const TSubclassOf<UUserWidget>& InWidgetType);
+	explicit FPreviewableWidgetVariant(const UWidgetPreview* InWidgetPreview);
 
 public:
 	/** Flushes cached widgets and re-resolves from the ObjectPath. */
@@ -41,7 +43,7 @@ public:
 	const UUserWidget* AsUserWidgetCDO() const;
 
 	/** Returns the referenced Object as a UWidgetPreview. Returns nullptr if not found, or not a UWidgetPreview. */
-	UWidgetPreview* AsWidgetPreview() const;
+	const UWidgetPreview* AsWidgetPreview() const;
 
 	friend bool operator==(const FPreviewableWidgetVariant& Left, const FPreviewableWidgetVariant& Right)
 	{
@@ -55,7 +57,7 @@ public:
 
 private:
 	UPROPERTY(Transient)
-	TWeakObjectPtr<const UUserWidget> CachedWidgetCDO;
+	TObjectPtr<const UUserWidget> CachedWidgetCDO;
 
 	UPROPERTY(Transient)
 	TWeakObjectPtr<UWidgetPreview> CachedWidgetPreview;
@@ -91,6 +93,12 @@ public:
 	/** Returns the current widget instance, if any. */
 	UUserWidget* GetWidgetInstance() const;
 
+	/** Returns the current underlying slate widget instance, if any. */
+	TSharedPtr<SWidget> GetSlateWidgetInstance() const;
+
+	/** Stores the current instance in PreviousWidgetInstance, and clears WidgetInstance. */
+	void ClearWidgetInstance();
+
 	const UUserWidget* GetWidgetCDO() const;
 	const UUserWidget* GetWidgetCDOForSlot(const FName InSlotName) const;
 
@@ -104,12 +112,14 @@ protected:
 	virtual void PostLoad() override;
 
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 
 	void OnWidgetBlueprintChanged(UBlueprint* InBlueprint);
 
 	/** Misc. functionality to perform after a widget assignment is changed. */
 	void UpdateWidgets();
+
+	/** Creates a new WidgetInstance, replacing the current one if it exists. */
+	UUserWidget* CreateWidgetInstance(UWorld* InWorld);
 
 	void CleanupReferences();
 
@@ -126,8 +136,10 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Widget", DisplayName = "Slot Widgets", meta = (AllowPrivateAccess = "true", GetKeyOptions = "GetAvailableWidgetSlotNames", ShowOnlyInnerProperties))
 	TMap<FName, FPreviewableWidgetVariant> SlotWidgetTypes;
 
-	UPROPERTY(Transient)
+	UPROPERTY(DuplicateTransient)
 	TObjectPtr<UUserWidget> WidgetInstance;
+
+	TSharedPtr<SWidget> SlateWidgetInstance;
 
 	/** Slot names available in WidgetType (if any). */
 	UPROPERTY(Transient)
