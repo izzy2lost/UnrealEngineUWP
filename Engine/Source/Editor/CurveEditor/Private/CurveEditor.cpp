@@ -91,7 +91,7 @@ FCurveEditor::FCurveEditor()
 
 FCurveEditor::~FCurveEditor()
 {
-	if (Settings)
+	if (!IsEngineExitRequested() && Settings)
 	{
 		Settings->GetOnCustomColorsChanged().RemoveAll(this);
 		Settings->GetOnAxisSnappingChanged().RemoveAll(this);
