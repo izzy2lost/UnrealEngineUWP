@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Online/PresenceCommon.h"
-
+#include "Online/OnlineUtils.h"
 
 namespace UE::Online {
 
@@ -9,6 +9,15 @@ FPresenceCommon::FPresenceCommon(FOnlineServicesCommon& InServices)
 	: TOnlineComponent(TEXT("Presence"), InServices)
 	, Services(InServices)
 {
+}
+
+void FPresenceCommon::RegisterCommands()
+{
+	RegisterCommand(&FPresenceCommon::QueryPresence);
+	RegisterCommand(&FPresenceCommon::BatchQueryPresence);
+	RegisterCommand(&FPresenceCommon::GetCachedPresence);
+	RegisterCommand(&FPresenceCommon::UpdatePresence);
+	RegisterCommand(&FPresenceCommon::PartialUpdatePresence);
 }
 
 TOnlineAsyncOpHandle<FQueryPresence> FPresenceCommon::QueryPresence(FQueryPresence::Params&& Params)
