@@ -30,7 +30,7 @@ struct FDaySequenceCollectionEntry
 	
 	/* The offset hierarchical bias assigned to this collection entry. */
 	UPROPERTY(EditAnywhere, Category="Day Sequence")
-	int BiasOffset;
+	int BiasOffset = 0;
 	
 	/* The set of conditions which must evaluate to their expected values for this entry to be active. */
 	UPROPERTY(EditAnywhere, Category="Day Sequence")

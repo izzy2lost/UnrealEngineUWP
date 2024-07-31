@@ -96,7 +96,7 @@ struct FDiskSizeColumn final : public FTypedElementDataStorageColumn
 
 	// Size on disk (in bytes)
 	UPROPERTY()
-	int64 DiskSize;
+	int64 DiskSize = 0;
 };
 
 // Column to store the verse path of an asset

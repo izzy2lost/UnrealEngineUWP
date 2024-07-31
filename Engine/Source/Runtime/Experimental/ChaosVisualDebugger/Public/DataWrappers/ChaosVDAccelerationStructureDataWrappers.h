@@ -44,7 +44,8 @@ struct FChaosVDBVCellElementDataWrapper : public FChaosVDWrapperDataBase
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, Category="Data")
-	FBox Bounds;
+	FBox Bounds = FBox(EForceInit::ForceInit);
+
 	UPROPERTY(VisibleAnywhere, Category="Data")
 	int32 ParticleIndex = INDEX_NONE;
 

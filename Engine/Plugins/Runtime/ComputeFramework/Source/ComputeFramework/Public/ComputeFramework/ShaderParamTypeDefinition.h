@@ -349,7 +349,7 @@ public:
 	EShaderResourceType	ResourceType = EShaderResourceType::None;
 
 	UPROPERTY()
-	EShaderParamModifier Modifier;
+	EShaderParamModifier Modifier = EShaderParamModifier::None;
 	
 	bool IsAnyBufferType() const
 	{
