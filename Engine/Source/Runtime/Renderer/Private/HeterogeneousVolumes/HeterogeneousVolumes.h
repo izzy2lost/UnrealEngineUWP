@@ -694,35 +694,6 @@ void GenerateSparseVoxels(
 	FRDGBufferRef& VoxelBuffer
 );
 
-#if RHI_RAYTRACING
-
-void GenerateRayTracingGeometryInstance(
-	FRDGBuilder& GraphBuilder,
-	// Scene data
-	const FScene* Scene,
-	const FViewInfo& View,
-	// Object data
-	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
-	// Sparse voxel data
-	FRDGBufferRef NumVoxelsBuffer,
-	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
-	// Output
-	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator>& RayTracingGeometries,
-	TArray<FMatrix>& RayTracingTransforms
-);
-
-void GenerateRayTracingScene(
-	FRDGBuilder& GraphBuilder,
-	// Scene data
-	const FScene* Scene,
-	const FViewInfo& View,
-	// Ray tracing data
-	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
-	TConstArrayView<FMatrix> RayTracingTransforms,
-	// Output
-	FRayTracingScene& RayTracingScene
-);
-
 void RenderExistenceMaskWithLiveShading(
 	FRDGBuilder& GraphBuilder,
 	// Scene data
@@ -764,6 +735,35 @@ void RenderAmbientOcclusionWithLiveShading(
 	const FBoxSphereBounds LocalBoxSphereBounds,
 	// Output
 	FRDGTextureRef& AmbientOcclusionTexture
+);
+
+#if RHI_RAYTRACING
+
+void GenerateRayTracingGeometryInstance(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	// Sparse voxel data
+	FRDGBufferRef NumVoxelsBuffer,
+	TRDGUniformBufferRef<FSparseVoxelUniformBufferParameters> SparseVoxelUniformBuffer,
+	// Output
+	TArray<FRayTracingGeometryRHIRef, SceneRenderingAllocator>& RayTracingGeometries,
+	TArray<FMatrix>& RayTracingTransforms
+);
+
+void GenerateRayTracingScene(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	// Ray tracing data
+	TConstArrayView<FRayTracingGeometryRHIRef> RayTracingGeometries,
+	TConstArrayView<FMatrix> RayTracingTransforms,
+	// Output
+	FRayTracingScene& RayTracingScene
 );
 
 void RenderLightingCacheWithPreshadingHardwareRayTracing(
