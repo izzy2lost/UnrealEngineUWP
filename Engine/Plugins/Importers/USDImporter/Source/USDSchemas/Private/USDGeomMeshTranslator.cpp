@@ -589,6 +589,8 @@ namespace UsdGeomMeshTranslatorImpl
 
 		FSHAHash AllLODHash;
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(CreateStaticMesh::HashingMeshDescription);
+
 			FSHA1 SHA1;
 
 			for (const FMeshDescription& MeshDescription : LODIndexToMeshDescription)
@@ -1922,15 +1924,22 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return Super::CreateAssets();
 	}
 
+	if (ShouldSkipInstance())
+	{
+		return;
+	}
+
+	UE::FUsdPrim Prim = GetPrim();
+
 	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
-	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
 	if (DrawMode != EUsdDrawMode::Default)
 	{
 		CreateAlternativeDrawModeAssets(DrawMode);
 		return;
 	}
 
-	if (UsdUtils::IsCollisionMesh(GetPrim()))
+	if (UsdUtils::IsCollisionMesh(Prim))
 	{
 		return;
 	}
@@ -1940,7 +1949,8 @@ void FUsdGeomMeshTranslator::CreateAssets()
 		return;
 	}
 
-	TSharedRef<FGeomMeshCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeomMeshCreateAssetsTaskChain>(Context, PrimPath);
+	UE::FSdfPath PrototypePrimPath = GetPrototypePrimPath();
+	TSharedRef<FGeomMeshCreateAssetsTaskChain> AssetsTaskChain = MakeShared<FGeomMeshCreateAssetsTaskChain>(Context, PrimPath, PrototypePrimPath);
 
 	Context->TranslatorTasks.Add(MoveTemp(AssetsTaskChain));
 }

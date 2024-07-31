@@ -181,6 +181,12 @@ struct FUsdInfoCache::FUsdInfoCacheImpl
 	TArray<FString> TempPointInstancerPaths;
 	mutable FRWLock TempPointInstancerPathsLock;
 
+	// This is used to keep track of which prototypes are already being translated within this "translation session",
+	// so that the schema translators can early out if they're trying to translate multiple instances of the same
+	// prototype
+	TSet<UE::FSdfPath> TranslatedPrototypes;
+	mutable FRWLock TranslatedPrototypesLock;
+
 	// Geometry cache can come from a reference or payload of these file types
 	TArray<FString> AllowedExtensionsForGeometryCacheSource;
 
@@ -247,6 +253,10 @@ bool FUsdInfoCache::Serialize(FArchive& Ar)
 			FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
 			Ar << ImplPtr->PrimPathToAssets;
 			Ar << ImplPtr->AssetToPrimPaths;
+		}
+		{
+			FWriteScopeLock ScopeLock(ImplPtr->TranslatedPrototypesLock);
+			Ar << ImplPtr->TranslatedPrototypes;
 		}
 	}
 
@@ -1803,6 +1813,35 @@ bool FUsdInfoCache::IsPotentialGeometryCacheRoot(const UE::FSdfPath& Path) const
 	return false;
 }
 
+void FUsdInfoCache::ResetTranslatedPrototypes()
+{
+	if (FUsdInfoCacheImpl* ImplPtr = Impl.Get())
+	{
+		FWriteScopeLock ScopeLock(ImplPtr->TranslatedPrototypesLock);
+		return ImplPtr->TranslatedPrototypes.Reset();
+	}
+}
+
+bool FUsdInfoCache::IsPrototypeTranslated(const UE::FSdfPath& PrototypePath)
+{
+	if (FUsdInfoCacheImpl* ImplPtr = Impl.Get())
+	{
+		FReadScopeLock ScopeLock(ImplPtr->TranslatedPrototypesLock);
+		return ImplPtr->TranslatedPrototypes.Contains(PrototypePath);
+	}
+
+	return false;
+}
+
+void FUsdInfoCache::MarkPrototypeAsTranslated(const UE::FSdfPath& PrototypePath)
+{
+	if (FUsdInfoCacheImpl* ImplPtr = Impl.Get())
+	{
+		FWriteScopeLock ScopeLock(ImplPtr->TranslatedPrototypesLock);
+		ImplPtr->TranslatedPrototypes.Add(PrototypePath);
+	}
+}
+
 TOptional<uint64> FUsdInfoCache::GetSubtreeVertexCount(const UE::FSdfPath& Path)
 {
 	if (FUsdInfoCacheImpl* ImplPtr = Impl.Get())
@@ -2113,6 +2152,8 @@ void FUsdInfoCache::Clear()
 			FWriteScopeLock PointInstancerLock(ImplPtr->TempPointInstancerPathsLock);
 			ImplPtr->TempPointInstancerPaths.Empty();
 		}
+
+		ResetTranslatedPrototypes();
 	}
 }
 

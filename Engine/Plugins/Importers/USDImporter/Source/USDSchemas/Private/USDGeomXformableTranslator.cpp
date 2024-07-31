@@ -207,8 +207,12 @@ namespace UE::UsdXformableTranslatorImpl::Private
 class FUsdGeomXformableCreateAssetsTaskChain : public FBuildStaticMeshTaskChain
 {
 public:
-	explicit FUsdGeomXformableCreateAssetsTaskChain(const TSharedRef<FUsdSchemaTranslationContext>& InContext, const UE::FSdfPath& InPrimPath)
-		: FBuildStaticMeshTaskChain(InContext, InPrimPath)
+	explicit FUsdGeomXformableCreateAssetsTaskChain(
+		const TSharedRef<FUsdSchemaTranslationContext>& InContext,
+		const UE::FSdfPath& InPrimPath,
+		const TOptional<UE::FSdfPath>& AlternativePrimToLinkAssetsTo = {}
+	)
+		: FBuildStaticMeshTaskChain(InContext, InPrimPath, AlternativePrimToLinkAssetsTo)
 	{
 		SetupTasks();
 	}
@@ -274,15 +278,23 @@ void FUsdGeomXformableTranslator::CreateAssets()
 		return;
 	}
 
+	if (ShouldSkipInstance())
+	{
+		return;
+	}
+
+	UE::FUsdPrim Prim = GetPrim();
+
 	// Don't bother generating assets if we're going to just draw some bounds for this prim instead
-	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(GetPrim());
+	EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
 	if (DrawMode != EUsdDrawMode::Default)
 	{
 		CreateAlternativeDrawModeAssets(DrawMode);
 		return;
 	}
 
-	Context->TranslatorTasks.Add(MakeShared<FUsdGeomXformableCreateAssetsTaskChain>(Context, PrimPath));
+	UE::FSdfPath PrototypePrimPath = GetPrototypePrimPath();
+	Context->TranslatorTasks.Add(MakeShared<FUsdGeomXformableCreateAssetsTaskChain>(Context, PrimPath, PrototypePrimPath));
 }
 
 FUsdGeomXformableTranslator::FUsdGeomXformableTranslator(
@@ -322,7 +334,8 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 	{
 		if (Context->InfoCache)
 		{
-			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath))
+			UE::FSdfPath PrototypePath = GetPrototypePrimPath();
+			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath))
 			{
 				TArray<UMaterialInterface*> ExistingAssignments;
 				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
@@ -669,7 +682,8 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 		bool bHasMultipleLODs = false;
 		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
 		{
-			UStaticMesh* PrimStaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath);
+			UE::FSdfPath PrototypePath = GetPrototypePrimPath();
+			UStaticMesh* PrimStaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath);
 
 			if (PrimStaticMesh)
 			{

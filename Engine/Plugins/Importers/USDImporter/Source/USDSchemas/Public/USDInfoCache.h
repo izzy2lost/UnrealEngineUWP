@@ -88,6 +88,14 @@ public:
 	bool IsPotentialGeometryCacheRoot(const UE::FSdfPath& Path) const;
 
 public:
+	// Marks/checks if the provided path to a prototype prim is already being translated.
+	// This is used during scene translation with instanceables, so that the schema translators can early out
+	// in case they have been created to translate multiple instances of the same prototype
+	void ResetTranslatedPrototypes();
+	bool IsPrototypeTranslated(const UE::FSdfPath& PrototypePath);
+	void MarkPrototypeAsTranslated(const UE::FSdfPath& PrototypePath);
+
+public:
 	void LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset);
 	void UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset);
 

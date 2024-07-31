@@ -404,6 +404,26 @@ public:
 		return false;
 	}
 
+	/**
+	 * This checks if the current prim is an instance, and if so, whether its
+	 * prototype is already being translated. Returns false otherwise.
+	 *
+	 * WARNING: In case this prim is an instance but the prototype is not being translated yet,
+	 * running this check will also mark that prototype as being currently translated on the info cache!
+	 *
+	 * The intent here is that the first schema translator that calls this for a prototype
+	 * will "own" the translation for that prototype, and any subsequent calls by other schema translators
+	 * with the same prototype will just return true so they can early out.
+	 */
+	bool ShouldSkipInstance() const;
+
+	/**
+	 * If this prim is a prototype or an instance proxy, returns the prototype path (or the path to the
+	 * analogue prim in the prototype's hierarchy).
+	 * If this prim is just a regular non-instance prim, this just returns our PrimPath member.
+	 */
+	UE::FSdfPath GetPrototypePrimPath() const;
+
 	UE::FUsdPrim GetPrim() const
 	{
 		return Context->Stage.GetPrimAtPath(PrimPath);

@@ -14,10 +14,6 @@
 #include "Misc/ScopedSlowTask.h"
 #include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "USDSchemaTranslator"
-
-int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
-
 #if USE_USD_SDK
 #include "USDIncludesStart.h"
 #include "pxr/base/tf/token.h"
@@ -25,8 +21,20 @@ int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
 #include "pxr/usd/usd/prim.h"
 #include "pxr/usd/usdShade/tokens.h"
 #include "USDIncludesEnd.h"
-
 #endif	  // #if USE_USD_SDK
+
+#define LOCTEXT_NAMESPACE "USDSchemaTranslator"
+
+int32 FRegisteredSchemaTranslatorHandle::CurrentSchemaTranslatorId = 0;
+
+static bool GInstancingAwareTranslation = true;
+static FAutoConsoleVariableRef CVarInstancingAwareTranslation(
+	TEXT("USD.InstancingAwareTranslation"),
+	GInstancingAwareTranslation,
+	TEXT(
+		"Enabling this lets the USDImporter skip some extra steps during translation when it encounters multiple instance prims of the same (static) Mesh prototype prim."
+	)
+);
 
 TSharedPtr<FUsdSchemaTranslator> FUsdSchemaTranslatorRegistry::CreateTranslatorForSchema(
 	TSharedRef<FUsdSchemaTranslationContext> InTranslationContext,
@@ -224,6 +232,12 @@ void FUsdSchemaTranslationContext::CompleteTasks()
 
 		bFinished = (TranslatorTasks.Num() == 0);
 	}
+
+	// These only make sense within an asset translation period
+	if (InfoCache)
+	{
+		InfoCache->ResetTranslatedPrototypes();
+	}
 }
 
 bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const
@@ -239,6 +253,50 @@ bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const
 	// This is merely a fallback, and we should never need this
 	return CanBeCollapsed(CollapsingType);
 #endif	  // #if USE_USD_SDK
+
+	return false;
+}
+
+UE::FSdfPath FUsdSchemaTranslator::GetPrototypePrimPath() const
+{
+	if (!GInstancingAwareTranslation)
+	{
+		return PrimPath;
+	}
+
+	UE::FUsdPrim Prim = GetPrim();
+	if (Prim)
+	{
+		if (Prim.IsInstance())
+		{
+			return Prim.GetPrototype().GetPrimPath();
+		}
+		else if (Prim.IsInstanceProxy())
+		{
+			return Prim.GetPrimInPrototype().GetPrimPath();
+		}
+	}
+
+	return PrimPath;
+}
+
+bool FUsdSchemaTranslator::ShouldSkipInstance() const
+{
+	if (!GInstancingAwareTranslation)
+	{
+		return false;
+	}
+
+	UE::FSdfPath PrototypePath = GetPrototypePrimPath();
+	if (!PrototypePath.IsEmpty())
+	{
+		if (Context->InfoCache->IsPrototypeTranslated(PrototypePath))
+		{
+			return true;
+		}
+
+		Context->InfoCache->MarkPrototypeAsTranslated(PrototypePath);
+	}
 
 	return false;
 }
