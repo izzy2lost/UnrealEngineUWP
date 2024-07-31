@@ -21,9 +21,32 @@ void FText3DGlyph::Build(UStaticMesh* StaticMesh, UMaterial* DefaultMaterial)
 {
 	check(StaticMesh);
 
+	auto AddMaterial = [](UStaticMesh* InMesh, UMaterial* InMaterial, int32 InIndex)
+	{
+		using namespace UE::Text3D::Materials;
+
+		check(SlotNames.IsValidIndex(InIndex))
+
+		FName MaterialName = SlotNames[InIndex];
+
+#if WITH_EDITORONLY_DATA
+		FStaticMaterial& StaticMaterial = InMesh->GetStaticMaterials().Emplace_GetRef(InMaterial, MaterialName, MaterialName);
+#else
+		FStaticMaterial& StaticMaterial = InMesh->GetStaticMaterials().Emplace_GetRef(InMaterial, MaterialName);
+#endif
+
+		StaticMaterial.UVChannelData = FMeshUVChannelInfo(1.0f);
+
+		return MaterialName;
+	};
+
 	for (int32 Index = 0; Index < Groups.Num(); Index++)
 	{
-		StaticMeshAttributes.GetPolygonGroupMaterialSlotNames()[FPolygonGroupID(Index)] = StaticMesh->AddMaterial(DefaultMaterial);
+		const FPolygonGroupID PolyGroup(Index);
+		if (MeshDescription.GetNumPolygonGroupTriangles(PolyGroup) != 0)
+		{
+			StaticMeshAttributes.GetPolygonGroupMaterialSlotNames()[PolyGroup] = AddMaterial(StaticMesh, DefaultMaterial, Index);
+		}
 	}
 
 	TArray<const FMeshDescription*> MeshDescriptions;

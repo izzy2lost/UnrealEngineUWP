@@ -1309,44 +1309,20 @@ float UText3DComponent::MaxBevel() const
 
 void UText3DComponent::OnMaterialChanged()
 {
-	// Material indices are affected by some options and can differ
-	auto GetMaterialTypeIndex = [this](EText3DGroupType InType)->int32
-	{
-		const bool bHasBevel = !bOutline && !FMath::IsNearlyZero(Bevel);
+	using namespace UE::Text3D::Materials;
 
-		int32 MaterialIndex = static_cast<int32>(InType);
-
-		if (InType >= EText3DGroupType::Extrude && !bHasBevel)
-		{
-			MaterialIndex -= 1;
-		}
-
-		return MaterialIndex;
-	};
-
-	/**
-	* GetNumMaterials should return 4 but the index of the material changes based on options used
-	* [Front, (Extrude|Bevel), Back] if no extrude or bevel
-	* [Front, Extrude, Back] if no bevel since bevel only works when there is extrude anyway
-	* [Front, Bevel, Extrude, Back] if extrude and bevel is set
-	 */
 	for (UStaticMeshComponent* StaticMeshComponent : CharacterMeshes)
 	{
-		const int32 MaterialCount = StaticMeshComponent->GetNumMaterials();
-
-		for (int32 MaterialIndex = 0; MaterialIndex < MaterialCount; MaterialIndex++)
+		for (int32 GroupIndex = 0; GroupIndex < static_cast<int32>(EText3DGroupType::TypeCount); GroupIndex++)
 		{
-			// Should not have any material slot above the back material slot but in case set them as nullptr
-			if (MaterialIndex >= static_cast<int32>(EText3DGroupType::TypeCount))
+			const int32 MaterialIndex = StaticMeshComponent->GetMaterialIndex(SlotNames[GroupIndex]);
+
+			if (MaterialIndex == INDEX_NONE)
 			{
-				StaticMeshComponent->SetMaterial(MaterialIndex, nullptr);
 				continue;
 			}
 
-			// Get the material type from the current index and based on text options adapt the index to assign proper material
-			const EText3DGroupType MaterialType = static_cast<EText3DGroupType>(MaterialIndex);
-			const int32 MaterialTypeIndex = GetMaterialTypeIndex(MaterialType);
-			StaticMeshComponent->SetMaterial(MaterialTypeIndex, GetMaterial(MaterialType));
+			StaticMeshComponent->SetMaterial(MaterialIndex, GetMaterial(static_cast<EText3DGroupType>(GroupIndex)));
 		}
 	}
 }

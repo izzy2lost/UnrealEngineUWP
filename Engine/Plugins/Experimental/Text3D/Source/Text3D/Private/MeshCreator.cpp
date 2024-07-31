@@ -78,13 +78,21 @@ void FMeshCreator::SetFrontAndBevelTextureCoordinates(const float Bevel)
 	};
 
 	SetTextureCoordinates(EText3DGroupType::Front);
-	SetTextureCoordinates(EText3DGroupType::Bevel);
+
+	if (!FMath::IsNearlyZero(Bevel))
+	{
+		SetTextureCoordinates(EText3DGroupType::Bevel);
+	}
 }
 
 void FMeshCreator::MirrorGroups(const float Extrude)
 {
-	MirrorGroup(EText3DGroupType::Front, EText3DGroupType::Back, Extrude);
-	MirrorGroup(EText3DGroupType::Bevel, EText3DGroupType::Bevel, Extrude);
+	// No bevels without extrude
+	if (!FMath::IsNearlyZero(Extrude))
+	{
+		MirrorGroup(EText3DGroupType::Front, EText3DGroupType::Back, Extrude);
+		MirrorGroup(EText3DGroupType::Bevel, EText3DGroupType::Bevel, Extrude);
+	}
 }
 
 void FMeshCreator::BuildMesh(UStaticMesh* StaticMesh, class UMaterial* DefaultMaterial)
@@ -176,8 +184,13 @@ void FMeshCreator::CreateBevelMesh(const float Bevel, const EText3DBevelType Typ
 
 void FMeshCreator::CreateExtrudeMesh(float Extrude, float Bevel, const EText3DBevelType Type, bool bFlipNormals)
 {
+	if (FMath::IsNearlyZero(Extrude))
+	{
+		return;
+	}
+
 	Bevel = FMath::Max(UE_SMALL_NUMBER, Bevel);
-	
+
 	if (Type != EText3DBevelType::HalfCircle)
 	{
 		Bevel = FMath::Clamp(Bevel, 0.0f, Extrude / 2.f);
