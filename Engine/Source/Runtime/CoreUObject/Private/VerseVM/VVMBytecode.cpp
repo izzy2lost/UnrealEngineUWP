@@ -30,6 +30,28 @@ void Verse::Visit(FAbstractVisitor& Visitor, FRegisterIndex& Value, const TCHAR*
 	Visitor.Visit(Value.Index, ElementName);
 }
 
+const Verse::FLocation* Verse::GetLocation(FOpLocation* First, FOpLocation* Last, uint32 OpOffset)
+{
+	if (First == Last)
+	{
+		return nullptr;
+	}
+	for (auto I = First + (Last - First) / 2;
+		 I != First;
+		 I = First + (Last - First) / 2)
+	{
+		if (I->Begin > OpOffset)
+		{
+			Last = I;
+		}
+		else
+		{
+			First = I;
+		}
+	}
+	return &First->Location;
+}
+
 template <>
 void Verse::Visit(FAbstractVisitor& Visitor, FOpLocation& Value, const TCHAR* ElementName)
 {

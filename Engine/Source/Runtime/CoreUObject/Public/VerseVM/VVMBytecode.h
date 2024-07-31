@@ -148,6 +148,8 @@ struct FOpLocation
 	FLocation Location;
 };
 
+const FLocation* GetLocation(FOpLocation* First, FOpLocation* Last, uint32 OpOffset);
+
 template <>
 void Visit(FAbstractVisitor&, FOpLocation&, const TCHAR* ElementName);
 

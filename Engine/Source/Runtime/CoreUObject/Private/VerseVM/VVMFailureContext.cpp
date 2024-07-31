@@ -2,11 +2,11 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMFailureContext.h"
-#include "VVMFrame.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
+#include "VerseVM/VVMFrame.h"
 #include "VerseVM/VVMTask.h"
 
 namespace Verse

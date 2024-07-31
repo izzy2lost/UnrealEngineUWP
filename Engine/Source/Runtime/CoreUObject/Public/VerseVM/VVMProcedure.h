@@ -52,7 +52,7 @@ struct VProcedure : VCell
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	TWriteBarrier<VUniqueString> Path;
+	TWriteBarrier<VUniqueString> FilePath;
 
 	uint32 NumRegisters;
 	uint32 NumPositionalParameters;
@@ -112,31 +112,9 @@ struct VProcedure : VCell
 		return GetLocation(BytecodeOffset(Op));
 	}
 
-	// Return the nearest location at or earlier than `OpOffset`, using the
-	// first location if `OpOffset` is before the earliest offset with location
-	// information.  Returns `nullptr` if there is no location information.
 	const FLocation* GetLocation(int32 OpOffset)
 	{
-		auto First = GetOpLocationsBegin();
-		auto Last = GetOpLocationsEnd();
-		if (First == Last)
-		{
-			return nullptr;
-		}
-		for (auto I = First + (Last - First) / 2;
-			 I != First;
-			 I = First + (Last - First) / 2)
-		{
-			if (I->Begin > OpOffset)
-			{
-				Last = I;
-			}
-			else
-			{
-				First = I;
-			}
-		}
-		return &First->Location;
+		return Verse::GetLocation(GetOpLocationsBegin(), GetOpLocationsEnd(), OpOffset);
 	}
 
 	void SetConstant(FAllocationContext Context, FConstantIndex ConstantIndex, VValue Value)
@@ -153,7 +131,7 @@ struct VProcedure : VCell
 
 	static VProcedure& NewUninitialized(
 		FAllocationContext Context,
-		VUniqueString& Path,
+		VUniqueString& FilePath,
 		uint32 NumRegisters,
 		uint32 NumPositionalParameters,
 		uint32 NumNamedParameters,
@@ -176,7 +154,7 @@ struct VProcedure : VCell
 							  + sizeof(FRegisterName) * NumRegisterNames;
 		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(
 			Context,
-			Path,
+			FilePath,
 			NumRegisters,
 			NumPositionalParameters,
 			NumNamedParameters,
@@ -194,7 +172,7 @@ struct VProcedure : VCell
 private:
 	VProcedure(
 		FAllocationContext Context,
-		VUniqueString& Path,
+		VUniqueString& FilePath,
 		uint32 InNumRegisters,
 		uint32 InNumPositionalParameters,
 		uint32 InNumNamedParameters,
@@ -206,7 +184,7 @@ private:
 		uint32 InNumOpLocations,
 		uint32 InNumRegisterNames)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
-		, Path(Context, Path)
+		, FilePath(Context, FilePath)
 		, NumRegisters(InNumRegisters)
 		, NumPositionalParameters(InNumPositionalParameters)
 		, NumNamedParameters(InNumNamedParameters)

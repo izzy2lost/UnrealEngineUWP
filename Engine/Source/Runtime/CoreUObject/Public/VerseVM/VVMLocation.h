@@ -30,9 +30,9 @@ struct FLocation
 		return Left.Line != Right.Line;
 	}
 
-private:
 	uint32 Line;
 
+private:
 	friend void Visit<FLocation>(FAbstractVisitor& Visitor, FLocation&, const TCHAR* ElementName);
 };
 

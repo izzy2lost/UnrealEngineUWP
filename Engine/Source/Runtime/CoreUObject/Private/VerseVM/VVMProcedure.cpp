@@ -197,7 +197,7 @@ void VProcedure::LoadOpCodes(FAbstractVisitor& Visitor)
 template <typename TVisitor>
 void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visit(Visitor, Path, TEXT("Path"));
+	Visit(Visitor, FilePath, TEXT("FilePath"));
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
 		uint64 ScratchNumNamedParams = NumNamedParameters;
@@ -276,7 +276,7 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint32 ScratchNumUnwindEdges = 0;
 		uint32 ScratchNumOpLocations = 0;
 		uint32 ScratchNumRegisterNames = 0;
-		Visitor.Visit(ScratchPath, TEXT("Path"));
+		Visitor.Visit(ScratchPath, TEXT("FilePath"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
@@ -341,7 +341,7 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 	}
 	else
 	{
-		FString ScratchPath(This->Path->AsStringView());
+		FString ScratchPath(This->FilePath->AsStringView());
 		uint32 ScratchNumRegisters = This->NumRegisters;
 		uint32 ScratchNumPositionalParameters = This->NumPositionalParameters;
 		uint32 ScratchNumNamedParameters = This->NumNamedParameters;
@@ -352,7 +352,7 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint32 ScratchNumUnwindEdges = This->NumUnwindEdges;
 		uint32 ScratchNumOpLocations = This->NumOpLocations;
 		uint32 ScratchNumRegisterNames = This->NumRegisterNames;
-		Visitor.Visit(ScratchPath, TEXT("Path"));
+		Visitor.Visit(ScratchPath, TEXT("FilePath"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));

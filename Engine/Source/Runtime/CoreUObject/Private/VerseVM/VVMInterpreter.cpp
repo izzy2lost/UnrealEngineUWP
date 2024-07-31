@@ -25,6 +25,7 @@
 #include "VerseVM/VVMBytecodeOps.h"
 #include "VerseVM/VVMBytecodesAndCaptures.h"
 #include "VerseVM/VVMCVars.h"
+#include "VerseVM/VVMDebugger.h"
 #include "VerseVM/VVMFailureContext.h"
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMFloat.h"
@@ -2085,6 +2086,11 @@ class FInterpreter
 
 			Context.CheckForHandshake();
 
+			if (FDebugger* Debugger = GetDebugger(); Debugger && State.PC != &StopInterpreterSentry)
+			{
+				Debugger->Notify(Context, *State.Frame, *State.PC);
+			}
+
 			switch (State.PC->Opcode)
 			{
 				OP_IMPL(Add)
@@ -2601,6 +2607,7 @@ class FInterpreter
 				else
 				{
 					VBytecodeSuspension& BytecodeSuspension = CurrentSuspension->StaticCast<VBytecodeSuspension>();
+
 					switch (BytecodeSuspension.PC->Opcode)
 					{
 						OP_IMPL(Add)
