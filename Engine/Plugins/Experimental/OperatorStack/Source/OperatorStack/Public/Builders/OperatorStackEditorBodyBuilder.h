@@ -14,12 +14,13 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorBodyBuilder
 {
 	/** Override the stack generated widget with a custom one */
 	FOperatorStackEditorBodyBuilder& SetCustomWidget(TSharedPtr<SWidget> InWidget);
-	
+
 	/** Show a details view for the current item */
 	FOperatorStackEditorBodyBuilder& SetShowDetailsView(bool bInShowDetailsView);
 
+	/** Set the item that needs to be displayed by the details view overriding current item */
 	FOperatorStackEditorBodyBuilder& SetDetailsViewItem(TSharedPtr<FOperatorStackEditorItem> InItem);
-	
+
 	/** Disallow specific property in the details view */
 	FOperatorStackEditorBodyBuilder& DisallowProperty(FProperty* InProperty);
 
@@ -31,6 +32,12 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorBodyBuilder
 
 	/** Allow specific category in the details view */
 	FOperatorStackEditorBodyBuilder& AllowCategory(const FName& InCategory);
+
+	/** Expand property state in the details view */
+	FOperatorStackEditorBodyBuilder& ExpandProperty(FProperty* InProperty);
+
+	/** Collapse property state in the details view */
+	FOperatorStackEditorBodyBuilder& CollapseProperty(FProperty* InProperty);
 
 	/** Set a text that will be displayed when it is empty */
 	FOperatorStackEditorBodyBuilder& SetEmptyBodyText(const FText& InText);
@@ -44,22 +51,32 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorBodyBuilder
 	{
 		return bShowDetailsView;
 	}
-	
+
 	TSharedPtr<FOperatorStackEditorItem> GetDetailsViewItem() const
 	{
-		return DetailsViewItem;	
+		return DetailsViewItem;
 	}
-	
-	const TArray<TSharedPtr<FCustomDetailsViewItemId>>& GetDisallowedDetailsViewItems() const
+
+	const TArray<TSharedRef<FCustomDetailsViewItemId>>& GetDisallowedDetailsViewItems() const
 	{
 		return DisallowedDetailsViewItems;
 	}
 
-	const TArray<TSharedPtr<FCustomDetailsViewItemId>>& GetAllowedDetailsViewItems() const
+	const TArray<TSharedRef<FCustomDetailsViewItemId>>& GetAllowedDetailsViewItems() const
 	{
 		return AllowedDetailsViewItems;
 	}
-	
+
+	const TArray<TSharedRef<FCustomDetailsViewItemId>>& GetCollapsedDetailsViewItems() const
+	{
+		return CollapsedDetailsViewItems;
+	}
+
+	const TArray<TSharedRef<FCustomDetailsViewItemId>>& GetExpandedDetailsViewItems() const
+	{
+		return ExpandedDetailsViewItems;
+	}
+
 	const FText& GetEmptyBodyText() const
 	{
 		return EmptyBodyText;
@@ -68,10 +85,10 @@ struct OPERATORSTACKEDITOR_API FOperatorStackEditorBodyBuilder
 protected:
 	/** Custom widget to replace content */
 	TSharedPtr<SWidget> CustomWidget = nullptr;
-	
+
 	/** Does this body contains a details view */
 	bool bShowDetailsView = false;
-	
+
 	/** Override actual item to display detail view */
 	TSharedPtr<FOperatorStackEditorItem> DetailsViewItem = nullptr;
 
@@ -79,8 +96,14 @@ protected:
 	FText EmptyBodyText;
 
 	/** Disallowed items inside details view */
-	TArray<TSharedPtr<FCustomDetailsViewItemId>> DisallowedDetailsViewItems;
-	
+	TArray<TSharedRef<FCustomDetailsViewItemId>> DisallowedDetailsViewItems;
+
 	/** Allowed items inside details view */
-	TArray<TSharedPtr<FCustomDetailsViewItemId>> AllowedDetailsViewItems;
+	TArray<TSharedRef<FCustomDetailsViewItemId>> AllowedDetailsViewItems;
+
+	/** Collapsed items inside details view */
+	TArray<TSharedRef<FCustomDetailsViewItemId>> CollapsedDetailsViewItems;
+
+	/** Expanded items inside details view */
+	TArray<TSharedRef<FCustomDetailsViewItemId>> ExpandedDetailsViewItems;
 };

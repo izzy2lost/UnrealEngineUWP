@@ -18,6 +18,13 @@ UPropertyAnimatorCoreBase::FOnAnimatorUpdated UPropertyAnimatorCoreBase::OnAnima
 UPropertyAnimatorCoreBase::FOnAnimatorPropertyUpdated UPropertyAnimatorCoreBase::OnAnimatorPropertyLinkedDelegate;
 UPropertyAnimatorCoreBase::FOnAnimatorPropertyUpdated UPropertyAnimatorCoreBase::OnAnimatorPropertyUnlinkedDelegate;
 
+#if WITH_EDITOR
+FName UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties);
+}
+#endif
+
 UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 {
 	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
@@ -38,16 +45,6 @@ UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 UPropertyAnimatorCoreComponent* UPropertyAnimatorCoreBase::GetAnimatorComponent() const
 {
 	return GetTypedOuter<UPropertyAnimatorCoreComponent>();
-}
-
-float UPropertyAnimatorCoreBase::GetAnimatorComponentMagnitude() const
-{
-	if (const UPropertyAnimatorCoreComponent* AnimatorComponent = GetAnimatorComponent())
-	{
-		return AnimatorComponent->GetAnimatorsMagnitude();
-	}
-
-	return 0.f;
 }
 
 void UPropertyAnimatorCoreBase::UpdateAnimatorDisplayName()

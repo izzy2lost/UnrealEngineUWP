@@ -335,7 +335,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 				bool bExpansionState = true;
 				SDMEditor::GetExpansionState(Component, DefaultCategoryName, bExpansionState);
 
-				DetailsView->SetItemExpansionState(DefaultCategoryItem->GetItemId(), bExpansionState);
+				DetailsView->SetItemExpansionState(DefaultCategoryItem->GetItemId(), bExpansionState ? ECustomDetailsViewExpansion::SelfExpanded : ECustomDetailsViewExpansion::Collapsed);
 				Categories.Add(DefaultCategoryName);
 			}
 
@@ -432,7 +432,7 @@ TSharedRef<SWidget> SDMComponentEdit::CreateEditWidget()
 				bool bExpansionState = true;
 				SDMEditor::GetExpansionState(Component, CategoryName, bExpansionState);
 
-				DetailsView->SetItemExpansionState(CategoryItem->GetItemId(), bExpansionState);
+				DetailsView->SetItemExpansionState(CategoryItem->GetItemId(), bExpansionState ? ECustomDetailsViewExpansion::SelfExpanded : ECustomDetailsViewExpansion::Collapsed);
 
 				Categories.Add(CategoryName);
 			}

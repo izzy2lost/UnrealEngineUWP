@@ -83,8 +83,8 @@ public:
 	virtual TSharedPtr<ICustomDetailsViewCustomCategoryItem> CreateCustomCategoryItem(FName InItemName, const FText& InLabel = FText::GetEmpty(), const FText& InToolTip = FText::GetEmpty()) override;
 	virtual TSharedPtr<ICustomDetailsViewItem> FindCustomItem(const FName& InItemName) const override;
 	virtual bool FilterItems(const TArray<FString>& InFilterStrings) override;
-	virtual bool GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool& bOutExpanded) const override;
-	virtual void SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool bInExpanded) override;
+	virtual bool GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion& OutExpansion) const override;
+	virtual void SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion InExpansion) override;
 	//~ End ICustomDetailsView
 
 private:

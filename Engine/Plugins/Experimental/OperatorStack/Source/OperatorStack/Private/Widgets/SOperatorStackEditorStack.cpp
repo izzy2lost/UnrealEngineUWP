@@ -481,21 +481,31 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateBodyWidget()
 			BodyCustomViewArgs.bAllowGlobalExtensions = true;
 			BodyCustomViewArgs.ColumnSizeData = MainPanel->GetDetailColumnSize();
 
-			for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetDisallowedDetailsViewItems())
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetDisallowedDetailsViewItems())
 			{
-				BodyCustomViewArgs.ItemAllowList.Disallow(*DetailsViewId.Get());
+				BodyCustomViewArgs.ItemAllowList.Disallow(DetailsViewId.Get());
 			}
 
-			for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetAllowedDetailsViewItems())
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetAllowedDetailsViewItems())
 			{
-				BodyCustomViewArgs.ItemAllowList.Allow(*DetailsViewId.Get());
+				BodyCustomViewArgs.ItemAllowList.Allow(DetailsViewId.Get());
+			}
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetCollapsedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::Collapsed);
+			}
+
+			for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : InItem.GetExpandedDetailsViewItems())
+			{
+				BodyCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::SelfAndChildrenExpanded);
 			}
 
 			const FOperatorStackEditorItem* DetailViewItem = InItem.GetDetailsViewItem().IsValid()
 				? InItem.GetDetailsViewItem().Get()
 				: CustomizeItem.Get();
 
-			BodyDetailsView = CreateDetailsView(BodyCustomViewArgs, *DetailViewItem); 
+			BodyDetailsView = CreateDetailsView(BodyCustomViewArgs, *DetailViewItem);
 
 			return BodyDetailsView;
 		}
@@ -642,14 +652,24 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateFooterWidget()
 		FooterCustomViewArgs.bAllowGlobalExtensions = true;
 		FooterCustomViewArgs.ColumnSizeData = MainPanel->GetDetailColumnSize();
 
-		for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetDisallowedDetailsViewItems())
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetDisallowedDetailsViewItems())
 		{
-			FooterCustomViewArgs.ItemAllowList.Disallow(*DetailsViewId.Get());
+			FooterCustomViewArgs.ItemAllowList.Disallow(DetailsViewId.Get());
 		}
 
-		for (const TSharedPtr<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetAllowedDetailsViewItems())
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetAllowedDetailsViewItems())
 		{
-			FooterCustomViewArgs.ItemAllowList.Allow(*DetailsViewId.Get());
+			FooterCustomViewArgs.ItemAllowList.Allow(DetailsViewId.Get());
+		}
+
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetCollapsedDetailsViewItems())
+		{
+			FooterCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::Collapsed);
+		}
+
+		for (const TSharedRef<FCustomDetailsViewItemId>& DetailsViewId : FooterBuilder.GetExpandedDetailsViewItems())
+		{
+			FooterCustomViewArgs.ExpansionState.Add(DetailsViewId.Get(), ECustomDetailsViewExpansion::SelfAndChildrenExpanded);
 		}
 
 		const FOperatorStackEditorItem* DetailViewItem = FooterBuilder.GetDetailsViewItem().IsValid()

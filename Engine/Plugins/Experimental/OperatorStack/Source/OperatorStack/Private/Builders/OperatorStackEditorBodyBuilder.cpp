@@ -45,6 +45,18 @@ FOperatorStackEditorBodyBuilder& FOperatorStackEditorBodyBuilder::AllowCategory(
 	return *this;
 }
 
+FOperatorStackEditorBodyBuilder& FOperatorStackEditorBodyBuilder::ExpandProperty(FProperty* InProperty)
+{
+	ExpandedDetailsViewItems.Add(MakeShared<FCustomDetailsViewItemId>(FCustomDetailsViewItemId::MakePropertyId(InProperty)));
+	return *this;
+}
+
+FOperatorStackEditorBodyBuilder& FOperatorStackEditorBodyBuilder::CollapseProperty(FProperty* InProperty)
+{
+	CollapsedDetailsViewItems.Add(MakeShared<FCustomDetailsViewItemId>(FCustomDetailsViewItemId::MakePropertyId(InProperty)));
+	return *this;
+}
+
 FOperatorStackEditorBodyBuilder& FOperatorStackEditorBodyBuilder::SetEmptyBodyText(const FText& InText)
 {
 	EmptyBodyText = InText;

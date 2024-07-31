@@ -13,6 +13,7 @@ class ICustomDetailsViewCustomItem;
 class IDetailTreeNode;
 class UObject;
 template<typename ItemType> class STreeView;
+enum class ECustomDetailsViewExpansion : uint8;
 
 enum class ECustomDetailsViewBuildType : uint8
 {
@@ -102,8 +103,8 @@ public:
 	virtual TSharedPtr<ICustomDetailsViewItem> FindCustomItem(const FName& InItemName) const = 0;
 
 	/** Returns the current expansion state of an item. Returns true if the item state was found. */
-	virtual bool GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool& bOutExpanded) const = 0;
+	virtual bool GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion& OutExpansion) const = 0;
 
 	/** Sets the current expansion state of an item. */
-	virtual void SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool bInExpanded) = 0;
+	virtual void SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion InExpansion) = 0;
 };

@@ -56,14 +56,15 @@ public:
 	static constexpr const TCHAR* FrequencyParameterName = TEXT("Frequency");
 	static constexpr const TCHAR* AlphaParameterName = TEXT("Alpha");
 
+#if WITH_EDITOR
+	PROPERTYANIMATORCORE_API static FName GetLinkedPropertiesPropertyName();
+#endif
+
 	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase();
 
 	PROPERTYANIMATORCORE_API AActor* GetAnimatorActor() const;
 
 	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreComponent* GetAnimatorComponent() const;
-
-	/** Get the global animators magnitude */
-	float GetAnimatorComponentMagnitude() const;
 
 	/** Set the state of this animator */
 	PROPERTYANIMATORCORE_API void SetAnimatorEnabled(bool bInIsEnabled);

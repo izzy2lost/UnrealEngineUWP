@@ -141,7 +141,25 @@ void SCustomDetailsView::OnExpansionChanged(TSharedPtr<ICustomDetailsViewItem> I
 	{
 		return;
 	}
-	ViewArgs.ExpansionState.Add(InItem->GetItemId(), bInExpanded);
+
+	if (const ECustomDetailsViewExpansion* Expansion = ViewArgs.ExpansionState.Find(InItem->GetItemId()))
+	{
+		const bool bExpanded = *Expansion != ECustomDetailsViewExpansion::Collapsed;
+
+		if (bExpanded)
+		{
+			ViewArgs.ExpansionState.Add(InItem->GetItemId(), bInExpanded ? *Expansion : ECustomDetailsViewExpansion::Collapsed);
+		}
+		else
+		{
+			ViewArgs.ExpansionState.Add(InItem->GetItemId(), bInExpanded ? ECustomDetailsViewExpansion::SelfExpanded : ECustomDetailsViewExpansion::Collapsed);
+		}
+	}
+	else
+	{
+		ViewArgs.ExpansionState.Add(InItem->GetItemId(), bInExpanded ? ECustomDetailsViewExpansion::SelfExpanded : ECustomDetailsViewExpansion::Collapsed);
+	}
+
 	ViewArgs.OnExpansionStateChanged.Broadcast(InItem.ToSharedRef(), bInExpanded);
 }
 
@@ -169,10 +187,33 @@ bool SCustomDetailsView::ShouldItemExpand(const TSharedPtr<ICustomDetailsViewIte
 		return false;
 	}
 
-	if (const bool* const FoundExpansionState = ViewArgs.ExpansionState.Find(InItem->GetItemId()))
+	TSharedPtr<ICustomDetailsViewItem> CheckItem = InItem;
+
+	do
 	{
-		return *FoundExpansionState;
+		if (const ECustomDetailsViewExpansion* const FoundExpansionState = ViewArgs.ExpansionState.Find(CheckItem->GetItemId()))
+		{
+			if (CheckItem.Get() == InItem.Get())
+			{
+				if (*FoundExpansionState == ECustomDetailsViewExpansion::Collapsed)
+				{
+					return false;
+				}
+
+				return true;
+			}
+
+			if (*FoundExpansionState == ECustomDetailsViewExpansion::SelfAndChildrenExpanded)
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		CheckItem = CheckItem->GetParent();
 	}
+	while (CheckItem.IsValid() && CheckItem->GetParent());
 
 	return ViewArgs.bDefaultItemsExpanded;
 }
@@ -324,20 +365,20 @@ bool SCustomDetailsView::FilterItems(const TArray<FString>& InFilterStrings)
 	return false;
 }
 
-bool SCustomDetailsView::GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool& bOutExpanded) const
+bool SCustomDetailsView::GetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion& OutExpansion) const
 {
-	if (const bool* State = ViewArgs.ExpansionState.Find(InItemId))
+	if (const ECustomDetailsViewExpansion* State = ViewArgs.ExpansionState.Find(InItemId))
 	{
-		bOutExpanded = *State;
+		OutExpansion = *State;
 		return true;
 	}
 
 	return false;
 }
 
-void SCustomDetailsView::SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, bool bInExpanded)
+void SCustomDetailsView::SetItemExpansionState(const FCustomDetailsViewItemId& InItemId, ECustomDetailsViewExpansion InExpansion)
 {
-	ViewArgs.ExpansionState.FindOrAdd(InItemId) = bInExpanded;
+	ViewArgs.ExpansionState.FindOrAdd(InItemId) = InExpansion;
 }
 
 bool SCustomDetailsView::ShouldRebuildImmediately(ECustomDetailsViewBuildType InBuildType) const

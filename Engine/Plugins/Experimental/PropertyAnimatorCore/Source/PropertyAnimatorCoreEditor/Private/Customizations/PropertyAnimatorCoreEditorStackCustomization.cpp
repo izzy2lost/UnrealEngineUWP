@@ -295,11 +295,13 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemBody(const FOpe
 	{
 		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
 		FProperty* TimeElapsedProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreTimeSourceBase::StaticClass(), UPropertyAnimatorCoreTimeSourceBase::GetTimeElapsedPropertyName());
+		FProperty* LinkedPropertiesProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName());
 
 		InBodyBuilder
 			.SetShowDetailsView(true)
 			.DisallowProperty(EnableProperty)
-			.DisallowProperty(TimeElapsedProperty);
+			.DisallowProperty(TimeElapsedProperty)
+			.ExpandProperty(LinkedPropertiesProperty);
 	}
 
 	Super::CustomizeItemBody(InItem, InItemTree, InBodyBuilder);
