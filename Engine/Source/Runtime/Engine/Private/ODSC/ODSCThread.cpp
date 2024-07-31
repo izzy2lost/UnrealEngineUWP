@@ -464,7 +464,14 @@ void FODSCThread::Process()
 		}
 	}
 
-	bIsConnectedToODSCServer = CheckODSCConnection();
+	if (bHasDefaultConnection)
+	{
+		bIsConnectedToODSCServer = true;
+	}
+	else
+	{
+		bIsConnectedToODSCServer = CheckODSCConnection();
+	}
 
 	ON_SCOPE_EXIT
 	{
