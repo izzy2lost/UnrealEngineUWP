@@ -8,6 +8,7 @@
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Helpers/PCGHelpers.h"
 #include "Metadata/Accessors/IPCGAttributeAccessorTpl.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 #include "Metadata/Accessors/PCGCustomAccessor.h"
@@ -228,10 +229,10 @@ namespace PCGAttributeFilterHelpers
 			return false;
 		}
 
-		// Check that if we have points as threshold, that the point data has the same number of point that the input data
+		// Check that if we have points as threshold, that the point data has the same number of point that the input data, or there is just a single point
 		if (InOutThresholdInfo.ThresholdSpatialData != nullptr && !InOutThresholdInfo.bUseSpatialQuery)
 		{
-			if (InOutThresholdInfo.ThresholdKeys->GetNum() != NumInput)
+			if (InOutThresholdInfo.ThresholdKeys->GetNum() != NumInput && InOutThresholdInfo.ThresholdKeys->GetNum() != 1)
 			{
 				PCGE_LOG_C(Warning, GraphAndLog, InContext, FText::Format(LOCTEXT("InvalidNumberOfThresholdPoints", "Threshold point data doesn't have the same number of elements ({0}) than the input data ({1})."), InOutThresholdInfo.ThresholdKeys->GetNum(), NumInput));
 				return false;
@@ -332,6 +333,12 @@ UPCGAttributeFilteringSettings::UPCGAttributeFilteringSettings()
 	// Recreate the same default
 	TargetAttribute.SetPointProperty(EPCGPointProperties::Density);
 	ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
+
+	// Change the default for spatial query to be false
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		bUseSpatialQuery = false;
+	}
 }
 
 #if WITH_EDITOR
@@ -439,6 +446,13 @@ UPCGAttributeFilteringRangeSettings::UPCGAttributeFilteringRangeSettings()
 	TargetAttribute.SetPointProperty(EPCGPointProperties::Density);
 	MinThreshold.ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
 	MaxThreshold.ThresholdAttribute.SetPointProperty(EPCGPointProperties::Density);
+
+	// Change the default for spatial query to be false
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		MinThreshold.bUseSpatialQuery = false;
+		MaxThreshold.bUseSpatialQuery = false;
+	}
 }
 
 
