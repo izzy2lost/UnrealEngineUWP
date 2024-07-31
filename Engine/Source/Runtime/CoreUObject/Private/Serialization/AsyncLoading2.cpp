@@ -888,7 +888,16 @@ private:
 			TArrayView<int32> Array;
 			int32 Pos;
 		public:
-			FValueIterator(const TArrayView<int32>& Data) : Array(Data), Pos(0) { }
+			FValueIterator(const TArrayView<int32>& Data) : Array(Data), Pos(0)
+			{ 
+				const int32 ArraySize = Array.Num();
+
+				// Move to the first valid element
+				while (Pos < ArraySize && Array[Pos] == FPublicExportMap::InvalidValue)
+				{
+					++Pos;
+				}
+			}
 
 			FORCEINLINE bool operator== (const FValueIterator& Other) const
 			{
@@ -911,7 +920,7 @@ private:
 				do
 				{
 					++Pos;
-				} while (Pos < ArraySize && Array[Pos] != FPublicExportMap::InvalidValue);
+				} while (Pos < ArraySize && Array[Pos] == FPublicExportMap::InvalidValue);
 				return *this;
 			}
 
