@@ -9,6 +9,7 @@
 #include "USDDuplicateType.h"
 #include "USDErrorUtils.h"
 #include "USDGeomMeshConversion.h"
+#include "USDIntegrationUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDObjectUtils.h"
@@ -1414,6 +1415,83 @@ bool UsdUtils::SetDefaultKind(pxr::UsdPrim& Prim, EUsdDefaultKind NewKind)
 	}
 
 	return IUsdPrim::SetKind(Prim, NewKindToken);
+}
+
+UsdUtils::ECollapsingPreference UsdUtils::GetCollapsingPreference(const pxr::UsdPrim& Prim)
+{
+	if (Prim)
+	{
+		if (UsdUtils::PrimHasSchema(Prim, UnrealIdentifiers::UnrealCollapsingAPI))
+		{
+			FScopedUsdAllocs UsdAllocs;
+
+			if (pxr::UsdAttribute Attr = Prim.GetAttribute(UnrealIdentifiers::UnrealCollapsingAttr))
+			{
+				pxr::TfToken Value;
+				if (Attr.Get(&Value))
+				{
+					if (Value == UnrealIdentifiers::CollapsingAllow)
+					{
+						return ECollapsingPreference::Allow;
+					}
+					else if (Value == UnrealIdentifiers::CollapsingNever)
+					{
+						return ECollapsingPreference::Never;
+					}
+				}
+			}
+		}
+	}
+
+	return ECollapsingPreference::ByKind;
+}
+
+bool UsdUtils::SetCollapsingPreference(const pxr::UsdPrim& Prim, UsdUtils::ECollapsingPreference NewPreference)
+{
+	if (!Prim)
+	{
+		return false;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::SdfChangeBlock ChangeBlock;
+
+	const bool bAppliedSchema = UsdUtils::ApplySchema(Prim, UnrealIdentifiers::UnrealCollapsingAPI);
+	if (!bAppliedSchema)
+	{
+		return false;
+	}
+
+	const pxr::SdfVariability Variability = pxr::SdfVariabilityUniform;
+	if (pxr::UsdAttribute Attr = Prim.CreateAttribute(UnrealIdentifiers::UnrealCollapsingAttr, pxr::SdfValueTypeNames->Token, Variability))
+	{
+		switch (NewPreference)
+		{
+			case ECollapsingPreference::Allow:
+			{
+				return Attr.Set(UnrealIdentifiers::CollapsingAllow);
+				break;
+			}
+			case ECollapsingPreference::ByKind:
+			{
+				return Attr.Set(UnrealIdentifiers::CollapsingByKind);
+				break;
+			}
+			case ECollapsingPreference::Never:
+			{
+				return Attr.Set(UnrealIdentifiers::CollapsingNever);
+				break;
+			}
+			default:
+			{
+				ensure(false);
+				break;
+			}
+		}
+	}
+
+	return false;
 }
 
 EUsdDrawMode UsdUtils::GetAppliedDrawMode(const pxr::UsdPrim& Prim)

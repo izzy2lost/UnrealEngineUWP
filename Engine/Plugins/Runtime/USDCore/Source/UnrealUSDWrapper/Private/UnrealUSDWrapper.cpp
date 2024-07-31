@@ -166,6 +166,12 @@ namespace UnrealIdentifiers
 	const TfToken UnrealAssetType = TfToken("unreal:assetType");
 	const TfToken UnrealExportTime = TfToken("unreal:exportTime");
 	const TfToken UnrealEngineVersion = TfToken("unreal:engineVersion");
+
+	const TfToken UnrealCollapsingAPI = TfToken("CollapsingAPI");
+	const TfToken UnrealCollapsingAttr = TfToken("unreal:collapsing");
+	const TfToken CollapsingAllow = TfToken("allow");
+	const TfToken CollapsingByKind = TfToken("byKind");
+	const TfToken CollapsingNever = TfToken("never");
 }	 // namespace UnrealIdentifiers
 
 bool IUsdPrim::IsValidPrimName(const FString& Name, FText& OutReason)

@@ -1029,6 +1029,45 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 	HandleCardFace(GeomModelAPI.GetModelCardTextureZNegAttr());
 }
 
+namespace UE::UsdXformableTranslatorImpl::Private
+{
+	bool PrimCollapses(const pxr::UsdPrim& Prim, EUsdDefaultKind KindsToCollapse)
+	{
+		UsdUtils::ECollapsingPreference Preference = UsdUtils::GetCollapsingPreference(Prim);
+		switch (Preference)
+		{
+			case UsdUtils::ECollapsingPreference::Allow:
+			{
+				return true;
+				break;
+			}
+			case UsdUtils::ECollapsingPreference::ByKind:
+			{
+				EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(Prim);
+
+				// Note that this is false if PrimKind is None
+				const bool bPrimKindCollapses = EnumHasAnyFlags(KindsToCollapse, PrimKind);
+				bool bCanBeCollapsed = bPrimKindCollapses || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind);
+
+				if (!bCanBeCollapsed)
+				{
+					pxr::UsdModelAPI Model{Prim};
+					bCanBeCollapsed = bCanBeCollapsed || Model.IsKind(pxr::TfToken("prop"), pxr::UsdModelAPI::KindValidationNone);
+				}
+
+				return bCanBeCollapsed;
+			}
+			case UsdUtils::ECollapsingPreference::Never:	// Fallthrough
+			default:
+			{
+				break;
+			}
+		}
+
+		return false;
+	}
+}	 // namespace UE::UsdXformableTranslatorImpl::Private
+
 bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingType) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomXformableTranslator::CollapsesChildren);
@@ -1062,20 +1101,7 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 
 	if (Model)
 	{
-		EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(Prim);
-
-		// Note that this is false if PrimKind is None
-		const bool bPrimKindShouldCollapse = EnumHasAnyFlags(Context->KindsToCollapse, PrimKind);
-
-		// This indicates whether we *want* to collapse
-		bCollapsesChildren = Context->KindsToCollapse != EUsdDefaultKind::None
-							 && (bPrimKindShouldCollapse || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind));
-
-		if (!bCollapsesChildren)
-		{
-			// Temp support for the prop kind
-			bCollapsesChildren = Model.IsKind(pxr::TfToken("prop"), pxr::UsdModelAPI::KindValidationNone);
-		}
+		bCollapsesChildren = UE::UsdXformableTranslatorImpl::Private::PrimCollapses(Prim, Context->KindsToCollapse);
 
 		if (bCollapsesChildren)
 		{
@@ -1107,10 +1133,7 @@ bool FUsdGeomXformableTranslator::CanBeCollapsed(ECollapsingType CollapsingType)
 		return false;
 	}
 
-	EUsdDefaultKind PrimKind = UsdUtils::GetDefaultKind(GetPrim());
-	// Note that this is false if PrimKind is None
-	const bool bThisPrimCanCollapse = EnumHasAnyFlags(Context->KindsToCollapse, PrimKind);
-	return bThisPrimCanCollapse || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind);
+	return UE::UsdXformableTranslatorImpl::Private::PrimCollapses(UsdPrim, Context->KindsToCollapse);
 }
 
 TSet<UE::FSdfPath> FUsdGeomXformableTranslator::CollectAuxiliaryPrims() const

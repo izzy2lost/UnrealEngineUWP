@@ -294,6 +294,23 @@ namespace UsdUtils
 	 */
 	USDUTILITIES_API bool SetDefaultKind(pxr::UsdPrim& Prim, EUsdDefaultKind NewKind);
 
+	enum class ECollapsingPreference : uint8
+	{
+		Allow,
+		ByKind,
+		Never
+	};
+
+	/**
+	 * Gets how this prim wants to be collapsed: Whether we should allow/never try to do it, or whether we should check its kind for that purpose
+	 */
+	USDUTILITIES_API ECollapsingPreference GetCollapsingPreference(const pxr::UsdPrim& Prim);
+
+	/**
+	 * Sets how this prim wants to be collapsed: Whether we should always/never try to do it, or whether we should check its kind for that purpose
+	 */
+	USDUTILITIES_API bool SetCollapsingPreference(const pxr::UsdPrim& Prim, ECollapsingPreference NewPreference);
+
 	/**
 	 * Returns whether the prim has the UsdGeomModelAPI schema and should be drawn with one of the alternative draw modes, such as cards or bounds.
 	 * Will return EUsdDrawMode::Default in case the prim should be drawn as usual instead, or in case of error.
@@ -407,7 +424,7 @@ namespace UsdUtils
 	 * Removes any numbered suffix, followed by any number of underscores (e.g. Asset_2, Asset__232_31 or Asset94 all become 'Asset'), making
 	 * sure the string is kept at least one character long. Returns true if it removed anything.
 	 */
-	 UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
+	UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
 	USDUTILITIES_API bool RemoveNumberedSuffix(FString& Prefix);
 
 	/**
@@ -417,7 +434,7 @@ namespace UsdUtils
 	 * @param UsedNames - Strings that cannot be used for the result
 	 * @return Modified Name so that it doesn't match anything in UsedNames (e.g. "MyName" again, or "MyName_0" or "MyName_423")
 	 */
-	 UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
+	UE_DEPRECATED(5.5, "This function has been moved to USDObjectUtils.h, within the USDClasses module")
 	USDUTILITIES_API FString GetUniqueName(FString Name, const TSet<FString>& UsedNames);
 
 #if USE_USD_SDK

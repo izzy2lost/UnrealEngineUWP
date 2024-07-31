@@ -30,27 +30,27 @@
 
 #if USE_USD_SDK
 PXR_NAMESPACE_OPEN_SCOPE
-    class GfMatrix4d;
-    class SdfPath;
-    class TfToken;
-    class UsdAttribute;
-    class UsdGeomMesh;
-    class UsdPrim;
-    class UsdStage;
-    class UsdStageCache;
+	class GfMatrix4d;
+	class SdfPath;
+	class TfToken;
+	class UsdAttribute;
+	class UsdGeomMesh;
+	class UsdPrim;
+	class UsdStage;
+	class UsdStageCache;
 
-    template<typename T>
-    class TfRefPtr;
-    template<typename T>
-    class TfWeakPtr;
+	template<typename T>
+	class TfRefPtr;
+	template<typename T>
+	class TfWeakPtr;
 
-    using UsdStageRefPtr = TfRefPtr<UsdStage>;
-    using UsdStageWeakPtr = TfWeakPtr<UsdStage>;
+	using UsdStageRefPtr = TfRefPtr<UsdStage>;
+	using UsdStageWeakPtr = TfWeakPtr<UsdStage>;
 
-    using SdfLayerRefPtr = TfRefPtr<SdfLayer>;
-    using SdfLayerWeakPtr = TfWeakPtr<SdfLayer>;
+	using SdfLayerRefPtr = TfRefPtr<SdfLayer>;
+	using SdfLayerWeakPtr = TfWeakPtr<SdfLayer>;
 PXR_NAMESPACE_CLOSE_SCOPE
-#endif      // #if USE_USD_SDK
+#endif	  // #if USE_USD_SDK
 
 class IUsdPrim;
 class FUsdDiagnosticDelegate;
@@ -469,6 +469,12 @@ namespace UnrealIdentifiers
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealAssetType;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealExportTime;
 	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealEngineVersion;
+
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealCollapsingAPI;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken UnrealCollapsingAttr;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingAllow;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingByKind;
+	extern UNREALUSDWRAPPER_API const pxr::TfToken CollapsingNever;
 #endif	  // #if USE_USD_SDK
 
 	extern UNREALUSDWRAPPER_API const TCHAR* LayerSavedComment;
@@ -539,4 +545,3 @@ struct UNREALUSDWRAPPER_API FUsdDelegates
 	static FUsdImportDelegate OnPreUsdImport;
 	static FUsdImportDelegate OnPostUsdImport;
 };
-

@@ -14,6 +14,10 @@ namespace UE
 {
 	class FUsdPrim;
 }
+namespace UsdUtils
+{
+	enum class ECollapsingPreference : uint8;
+}
 
 #if USE_USD_SDK
 
@@ -65,6 +69,7 @@ private:
 	void OnToggleAllPayloads(EPayloadsTrigger PayloadsTrigger);
 
 	void FillDuplicateSubmenu(FMenuBuilder& MenuBuilder);
+	void FillCollapsingSubmenu(FMenuBuilder& MenuBuilder);
 	void FillAddSchemaSubmenu(FMenuBuilder& MenuBuilder);
 	void FillRemoveSchemaSubmenu(FMenuBuilder& MenuBuilder);
 
@@ -75,6 +80,7 @@ private:
 	void OnDuplicatePrim(EUsdDuplicateType DuplicateType);
 	void OnDeletePrim();
 	void OnRenamePrim();
+	void OnSetCollapsingPreference(UsdUtils::ECollapsingPreference Preference);
 
 	void OnAddReference();
 	void OnClearReferences();
@@ -92,6 +98,7 @@ private:
 	bool DoesPrimExistOnStage() const;
 	bool DoesPrimExistOnEditTarget() const;
 	bool DoesPrimHaveSpecOnLocalLayerStack() const;
+	bool DoSelectedPrimsHaveCollapsingPreference(UsdUtils::ECollapsingPreference Preference) const;
 
 	void RequestExpansionStateRestore();
 	virtual void Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime ) override;

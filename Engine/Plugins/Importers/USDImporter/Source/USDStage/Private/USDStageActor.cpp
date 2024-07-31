@@ -1402,6 +1402,8 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 					// for the prim (as it may now need/stop needing an alternate draw mode component)
 					UnrealIdentifiers::ModelDrawMode,
 					UnrealIdentifiers::ModelApplyDrawMode,
+					// Collapsing changes need to resync to build the new collapsed/uncollapsed meshes
+					*UsdToUnreal::ConvertToken(UnrealIdentifiers::UnrealCollapsingAttr),
 					// Physics collision attribute change needs to rebuild the collision shape
 					*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->physicsCollisionEnabled),
 					*UsdToUnreal::ConvertToken(pxr::UsdPhysicsTokens->physicsApproximation)};

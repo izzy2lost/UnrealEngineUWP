@@ -798,6 +798,14 @@ TSharedPtr<SWidget> SUsdStageTreeView::ConstructPrimContextMenu()
 				}
 			))
 		);
+
+		PrimOptions.AddSubMenu(
+			LOCTEXT("Collapsing_Text", "Collapsing..."),
+			FText::GetEmpty(),
+			FNewMenuDelegate::CreateSP(this, &SUsdStageTreeView::FillCollapsingSubmenu),
+			bInOpenSubMenuOnClick,
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Merge")
+		);
 	}
 	PrimOptions.EndSection();
 
@@ -1105,6 +1113,30 @@ void SUsdStageTreeView::OnRenamePrim()
 		TreeItem->bIsRenamingExistingPrim = true;
 		PendingRenameItem = TreeItem;
 		RequestScrollIntoView(TreeItem);
+	}
+}
+
+void SUsdStageTreeView::OnSetCollapsingPreference(UsdUtils::ECollapsingPreference Preference)
+{
+	if (!UsdStage)
+	{
+		return;
+	}
+
+	TArray<FUsdPrimViewModelRef> MySelectedItems = GetSelectedItems();
+	for (FUsdPrimViewModelRef SelectedItem : MySelectedItems)
+	{
+		if (UsdUtils::NotifyIfInstanceProxy(SelectedItem->UsdPrim))
+		{
+			return;
+		}
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("SetCollapsingPreferenceTransaction", "Set collapsing preference"));
+
+	for (FUsdPrimViewModelRef SelectedItem : MySelectedItems)
+	{
+		UsdUtils::SetCollapsingPreference(SelectedItem->UsdPrim, Preference);
 	}
 }
 
@@ -1453,6 +1485,27 @@ bool SUsdStageTreeView::DoesPrimHaveSpecOnLocalLayerStack() const
 	return false;
 }
 
+bool SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference(UsdUtils::ECollapsingPreference TargetPreference) const
+{
+	TArray<FUsdPrimViewModelRef> MySelectedItems = GetSelectedItems();
+
+	if (MySelectedItems.Num() == 0)
+	{
+		return false;
+	}
+
+	for (FUsdPrimViewModelRef SelectedItem : MySelectedItems)
+	{
+		UsdUtils::ECollapsingPreference PrimPreference = UsdUtils::GetCollapsingPreference(SelectedItem->UsdPrim);
+		if (PrimPreference != TargetPreference)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 void SUsdStageTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	// Restore expansion states.
@@ -1636,6 +1689,48 @@ void SUsdStageTreeView::FillDuplicateSubmenu(FMenuBuilder& MenuBuilder)
 		),
 		NAME_None,
 		EUserInterfaceActionType::Button
+	);
+}
+
+void SUsdStageTreeView::FillCollapsingSubmenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("AllowCollapse", "Allow collapsing"),
+		LOCTEXT("AllowCollapse_ToolTip", "Allow this prim to be collapsed and to try collapsing its subtree, regardless of its kind"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::Allow),
+			FCanExecuteAction::CreateSP(this, &SUsdStageTreeView::DoesPrimExistOnStage),
+			FIsActionChecked::CreateSP(this, &SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference, UsdUtils::ECollapsingPreference::Allow)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CollapseOnKind", "Collapse according to kind"),
+		LOCTEXT("CollapseOnKind_ToolTip", "Collapse this prim only if its kind is allowed to collapse (default)"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::ByKind),
+			FCanExecuteAction::CreateSP(this, &SUsdStageTreeView::DoesPrimExistOnStage),
+			FIsActionChecked::CreateSP(this, &SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference, UsdUtils::ECollapsingPreference::ByKind)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("NeverCollapse", "Never collapse"),
+		LOCTEXT("NeverCollapse_ToolTip", "Never collapse this prim, regardless of its kind"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateSP(this, &SUsdStageTreeView::OnSetCollapsingPreference, UsdUtils::ECollapsingPreference::Never),
+			FCanExecuteAction::CreateSP(this, &SUsdStageTreeView::DoesPrimExistOnStage),
+			FIsActionChecked::CreateSP(this, &SUsdStageTreeView::DoSelectedPrimsHaveCollapsingPreference, UsdUtils::ECollapsingPreference::Never)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
 	);
 }
 
