@@ -48,14 +48,6 @@
 
 #define LOCTEXT_NAMESPACE "SUsdStage"
 
-static bool GDiscardUndoBufferOnStageOpenClose = false;
-static FAutoConsoleVariableRef CVarDiscardUndoBufferOnStageOpenClose(
-	TEXT("USD.DiscardUndoBufferOnStageOpenClose"),
-	GDiscardUndoBufferOnStageOpenClose,
-	TEXT("Enabling this will prevent the recording of open/close stage transactions, but also discard the undo buffer after they happen. Use this "
-		 "when memory-constrained, as sometimes recording all created assets and actors in the undo buffer can be expensive.")
-);
-
 #if USE_USD_SDK
 
 namespace SUSDStageConstants
@@ -2548,23 +2540,10 @@ void SUsdStage::FileClose()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(SUsdStage::FileClose);
 
-	TOptional<FScopedTransaction> Transaction;
-	if (!GDiscardUndoBufferOnStageOpenClose)
-	{
-		Transaction.Emplace(LOCTEXT("CloseTransaction", "Close USD stage"));
-	}
+	FScopedTransaction Transaction{LOCTEXT("CloseTransaction", "Close USD stage")};
 
 	ViewModel.CloseStage();
 	RequestFullRefresh();
-
-	if (GDiscardUndoBufferOnStageOpenClose && GEditor)
-	{
-		if (UTransactor* Transactor = GEditor->Trans)
-		{
-			const FText Reason = LOCTEXT("DiscardCloseTransactionReason", "Resetting because the cvar USD.DiscardUndoBufferOnStageOpenClose is true");
-			Transactor->Reset(Reason);
-		}
-	}
 }
 
 void SUsdStage::OnLayerIsolated(const UE::FSdfLayer& IsolatedLayer)
@@ -2648,13 +2627,9 @@ void SUsdStage::OnPrimSelectionChanged(const TArray<FString>& PrimPaths)
 
 void SUsdStage::OpenStage(const TCHAR* FilePath)
 {
-	TOptional<FScopedTransaction> Transaction;
-	if (!GDiscardUndoBufferOnStageOpenClose)
-	{
-		// Create the transaction before calling UsdStageModule.GetUsdStageActor as that may create the actor, and we want
-		// the actor spawning to be part of the transaction
-		Transaction.Emplace(FText::Format(LOCTEXT("OpenStageTransaction", "Open USD stage '{0}'"), FText::FromString(FilePath)));
-	}
+	// Create the transaction before calling UsdStageModule.GetUsdStageActor as that may create the actor, and we want
+	// the actor spawning to be part of the transaction
+	FScopedTransaction Transaction{FText::Format(LOCTEXT("OpenStageTransaction", "Open USD stage '{0}'"), FText::FromString(FilePath))};
 
 	if (!ViewModel.UsdStageActor.IsValid())
 	{
@@ -2663,15 +2638,6 @@ void SUsdStage::OpenStage(const TCHAR* FilePath)
 	}
 
 	ViewModel.OpenStage(FilePath);
-
-	if (GDiscardUndoBufferOnStageOpenClose && GEditor)
-	{
-		if (UTransactor* Transactor = GEditor->Trans)
-		{
-			const FText Reason = LOCTEXT("DiscardOpenTransactionReason", "Resetting because the cvar USD.DiscardUndoBufferOnStageOpenClose is true");
-			Transactor->Reset(Reason);
-		}
-	}
 }
 
 void SUsdStage::RequestLayersTreeViewRefresh()

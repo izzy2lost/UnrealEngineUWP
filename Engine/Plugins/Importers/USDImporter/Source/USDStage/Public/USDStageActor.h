@@ -395,6 +395,8 @@ protected:
 
 	void UpdateSpawnedObjectsTransientFlag(bool bTransient);
 
+	void RequestDelayedTransactorReset();
+
 #if WITH_EDITOR
 	void OnBeginPIE(bool bIsSimulating);
 	void OnPostPIEStarted(bool bIsSimulating);
@@ -481,6 +483,7 @@ protected:
 	bool bIsModifyingAProperty;
 	bool bIsUndoRedoing;
 	bool bIsAddingBinding = false;
+	bool bIsPendingTransactorReset = false;
 
 	FDelegateHandle OnRedoHandle;
 	FDelegateHandle OnSequencerCreatedHandle;
