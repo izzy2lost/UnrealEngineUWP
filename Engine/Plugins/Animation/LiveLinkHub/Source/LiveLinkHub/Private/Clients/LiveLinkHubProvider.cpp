@@ -11,6 +11,7 @@
 #include "Delegates/DelegateCombinations.h"
 #include "Editor.h"
 #include "HAL/CriticalSection.h"
+#include "INetworkMessagingExtension.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubMessages.h"
 #include "LiveLinkSettings.h"
@@ -24,6 +25,55 @@
 
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.LiveLinkHubProvider"
+
+namespace LiveLinkHubProviderUtils
+{
+	static INetworkMessagingExtension* GetMessagingStatistics()
+	{
+		IModularFeatures& ModularFeatures = IModularFeatures::Get();
+
+		if (IsInGameThread())
+		{
+			if (ModularFeatures.IsModularFeatureAvailable(INetworkMessagingExtension::ModularFeatureName))
+			{
+				return &ModularFeatures.GetModularFeature<INetworkMessagingExtension>(INetworkMessagingExtension::ModularFeatureName);
+			}
+		}
+		else
+		{
+			IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
+
+			if (ModularFeatures.IsModularFeatureAvailable(INetworkMessagingExtension::ModularFeatureName))
+			{
+				return &ModularFeatures.GetModularFeature<INetworkMessagingExtension>(INetworkMessagingExtension::ModularFeatureName);
+			}
+		}
+
+
+		ensureMsgf(false, TEXT("Feature %s is unavailable"), *INetworkMessagingExtension::ModularFeatureName.ToString());
+		return nullptr;
+	}
+
+	FString GetIPAddress(const FMessageAddress& ClientAddress)
+	{
+		FString IPAddress;
+		if (INetworkMessagingExtension* Statistics = GetMessagingStatistics())
+		{
+			const FGuid NodeId = Statistics->GetNodeIdFromAddress(ClientAddress);
+			IPAddress = NodeId.IsValid() ? Statistics->GetLatestNetworkStatistics(NodeId).IPv4AsString : FString();
+
+			int32 PortIndex = INDEX_NONE;
+			IPAddress.FindChar(TEXT(':'), PortIndex);
+
+			// Cut off the port from the end.
+			if (PortIndex != INDEX_NONE)
+			{
+				IPAddress.LeftInline(PortIndex);
+			}
+		}
+		return IPAddress;
+	}
+}
 
 
 FLiveLinkHubProvider::FLiveLinkHubProvider(const TSharedRef<ILiveLinkHubSessionManager>& InSessionManager)
@@ -177,6 +227,8 @@ void FLiveLinkHubProvider::HandleHubConnectMessage(const FLiveLinkHubConnectMess
 	{
 		// Actually added a new entry in the map.
 		FLiveLinkHubUEClientInfo NewClient{Message.ClientInfo};
+		NewClient.IPAddress = LiveLinkHubProviderUtils::GetIPAddress(ConnectionAddress);
+
 		const FLiveLinkHubClientId NewClientId = NewClient.Id;
 		{
 			FWriteScopeLock Locker(ClientsMapLock);

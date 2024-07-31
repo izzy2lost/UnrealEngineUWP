@@ -32,6 +32,7 @@ public class LiveLinkHub : ModuleRules
 				"LiveLinkHubMessaging",
 				"LiveLinkInterface",
 				"LiveLinkMessageBusFramework",
+				"Messaging",
 				"ProjectSettingsViewer",
 				"SharedSettingsWidgets",
 				"Settings",
