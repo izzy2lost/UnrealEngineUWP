@@ -6,8 +6,8 @@
 	"MinSoftwareVersion": "10.0.18362.0",
 
 	"PreferredClangVersions": [
-		"16.0.0-16.999",
-		"18.1.3-18.999"
+		"18.1.3-18.999",
+		"16.0.0-16.999"
 	],
 	"MinimumClangVersion": "16.0.0",
 
