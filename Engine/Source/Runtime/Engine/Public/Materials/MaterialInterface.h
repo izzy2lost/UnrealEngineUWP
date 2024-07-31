@@ -283,10 +283,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = PostProcessMaterial, meta = (DisplayName = "Neural Profile"))
 	TObjectPtr<class UNeuralProfile> NeuralProfile;
 
-	/** Whether this material interface is included in the base game (and not in a DLC) */
-	UPROPERTY()
-	uint8 bIncludedInBaseGame : 1;
-
 	/** Event triggered when the base material is set */
 	FOnBaseMaterialIsSet OnBaseMaterialSetEvent;
 
@@ -320,6 +316,10 @@ protected:
 private:
 	/** Feature levels to force to compile. */
 	uint32 FeatureLevelsToForceCompile;
+
+	/** Whether this material interface is included in the base game (and not in a DLC) */
+	UPROPERTY(meta=(DisplayAfter="NeuralProfile"))
+	uint8 bIncludedInBaseGame : 1;
 
 public:
 
@@ -1194,15 +1194,15 @@ protected:
 
 	void UpdateMaterialRenderProxy(FMaterialRenderProxy& Proxy);
 
+	/** Set if CachedExpressionData was loaded from disk, should typically be true when running with cooked data, and false in the editor */
+	bool bLoadedCachedExpressionData = false;
+	
 	/**
 	 * Cached data generated from the material's expressions, may be nullptr
 	 * UMaterials should always have cached data
 	 * UMaterialInstances will have cached data if they have overriden material layers (possibly for other reasons in the future)
 	 */
 	TUniquePtr<FMaterialCachedExpressionData> CachedExpressionData;
-
-	/** Set if CachedExpressionData was loaded from disk, should typically be true when running with cooked data, and false in the editor */
-	bool bLoadedCachedExpressionData = false;
 
 #if WITH_EDITOR
 	TUniquePtr<FMaterialCachedHLSLTree> CachedHLSLTree;
