@@ -2917,9 +2917,8 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAs
 
 	bOutRemovedAssetData = false;
 	bOutRemovedPackageData = false;
-	int32 NumRemoved = CachedAssets.Remove(Key);
-	check(NumRemoved <= 1);
-	if (NumRemoved == 0)
+
+	if (!CachedAssets.Find(Key))
 	{
 		return;
 	}
@@ -2951,6 +2950,10 @@ void FAssetRegistryState::RemoveAssetData(FAssetData* AssetData, const FCachedAs
 	// For CachedClassesByTag, we do not need to remove the asset's class from the entries
 	// for the old tags. The class is not changed and still has the possibility of containing the tags.
 #endif
+
+	// In the UE_ASSETREGISTRY_INDIRECT_ASSETDATA_POINTERS case the other containers hold an index into CachedAssets,
+	// so we can only remove from CachedAssets after removing from all other containers.
+	CachedAssets.Remove(Key);
 
 	// Only remove dependencies and package data if there are no other known assets in the package
 	if (bOldPackageAssetsEmpty)
