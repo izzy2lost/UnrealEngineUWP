@@ -602,6 +602,33 @@ void UTypedElementDatabase::AddColumns(TypedElementRowHandle Row, TConstArrayVie
 	}
 }
 
+void UTypedElementDatabase::AddColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag, const FName& InValue)
+{
+	if (ActiveEditorEntityManager)
+	{
+		const FConstSharedStruct SharedStruct = Environment->GenerateDynamicTag(Tag, InValue);
+
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
+		{
+			FTypedElementDatabaseCommandBuffer::Execute_AddSharedColumnCommand(*ActiveEditorEntityManager, Row, SharedStruct);
+		}
+	}
+}
+
+void UTypedElementDatabase::RemoveColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag)
+{
+	if (ActiveEditorEntityManager)
+	{
+		const UScriptStruct* DynamicTagType = Environment->GenerateColumnType(Tag);
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
+		{
+			FTypedElementDatabaseCommandBuffer::Execute_RemoveSharedColumnCommand(*ActiveEditorEntityManager, Row, *DynamicTagType);
+		}
+	}
+}
+
 void UTypedElementDatabase::RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);

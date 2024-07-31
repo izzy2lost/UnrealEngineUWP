@@ -104,10 +104,12 @@ public:
 	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
 
 	void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	void AddColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag, const FName& InValue) override;
 	void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
 		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
 		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) override;
 	void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	void RemoveColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag) override;
 	void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const override;
 	void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;

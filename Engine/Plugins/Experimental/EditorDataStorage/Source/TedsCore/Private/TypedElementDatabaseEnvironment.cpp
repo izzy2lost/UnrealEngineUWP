@@ -8,6 +8,7 @@ FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(UTypedElement
 	: DataStorage(InDataStorage)
 	, DirectDeferredCommands(*this)
 	, MementoSystem(InDataStorage)
+	, DynamicTagManager(DynamicColumnGenerator)
 	, MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
@@ -86,6 +87,17 @@ FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhaseManag
 const FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhaseManager() const
 {
 	return MassPhaseManager;
+}
+FConstSharedStruct GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
+const UScriptStruct* GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag);
+FConstSharedStruct FTypedElementDatabaseEnvironment::GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value)
+{
+	return DynamicTagManager.GenerateDynamicTag(Tag, Value);
+}
+
+const UScriptStruct* FTypedElementDatabaseEnvironment::GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag)
+{
+	return DynamicTagManager.GenerateColumnType(Tag);
 }
 
 void FTypedElementDatabaseEnvironment::NextUpdateCycle()

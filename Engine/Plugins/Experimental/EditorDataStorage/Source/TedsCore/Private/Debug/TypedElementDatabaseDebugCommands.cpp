@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "TypedElementDatabaseDebugTypes.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
+#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Framework/TypedElementTestColumns.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
@@ -206,3 +209,275 @@ FAutoConsoleCommandWithOutputDevice ListExtensionsConsoleCommand(
 		}
 	));
 
+
+
+static FAutoConsoleCommand CVarCreateRow(
+	TEXT("TEDS.Debug.CreateRow"),
+	TEXT("Argument: \n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		static TypedElementDataStorage::TableHandle Table = DataStorage->RegisterTable<FTestColumnA>(FName(TEXT("Debug.CreateRow Table")));
+
+		const TypedElementDataStorage::RowHandle RowHandle = DataStorage->AddRow(Table);
+
+		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Added Row %llu"), static_cast<uint64>(RowHandle));
+	}));
+
+static FAutoConsoleCommand CVarAddDynamicTag(
+	TEXT("TEDS.Debug.DynamicTag.AddColumn"),
+	TEXT("Argument: Row, Tag, Value\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace UE::EditorDataStorage;
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() != 3)
+		{
+			return;
+		}
+		
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+
+		
+		const FName Value(*Args[2]);
+
+		constexpr bool bUseTemplateSugar = true;
+		if constexpr (bUseTemplateSugar)
+		{
+			const FName Tag = *Args[1];
+			DataStorage->AddColumn<FDynamicTag>(Row, Tag, Value); 
+		}
+		else
+		{
+			const FDynamicTag Tag(*Args[1]);
+			DataStorage->AddColumn(Row, Tag, Value);
+		}
+		
+		
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarRemoveDynamicTag(
+	TEXT("TEDS.Debug.DynamicTag.RemoveColumn"),
+	TEXT("Argument: Row, Group\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() != 2)
+		{
+			return;
+		}
+		
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		
+		constexpr bool bUseTemplateSugar = true;
+		if constexpr (bUseTemplateSugar)
+		{
+			using namespace UE::EditorDataStorage;
+			const FName Tag = *Args[1];
+			DataStorage->RemoveColumn<FDynamicTag>(Row, Tag);
+		}
+		else
+		{
+			const UE::EditorDataStorage::FDynamicTag Tag(*Args[1]);
+			DataStorage->RemoveColumn(Row, Tag);
+		}		
+	}),
+	ECVF_Default);
+	
+static FAutoConsoleCommand CVarMatchDynamicTag(
+	TEXT("TEDS.Debug.DynamicTag.RunQuery"),
+	TEXT("Argument: Tag, [optional] Value\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::EditorDataStorage;
+		
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() < 1 || Args.Num() > 2)
+		{
+			return;
+		}			
+
+		const TypedElementQueryHandle Query = [&Args, DataStorage]() -> TypedElementQueryHandle
+		{
+			const FName Tag(*Args[0]);
+			if (Args.Num() == 1)
+			{
+				// Matches all rows with the 
+				return DataStorage->RegisterQuery(
+					Select().
+						Where().
+							// Match all rows with a dynamic tag of type Tag (ie. all rows with a dynamic tag of "Color")
+							All<FDynamicTag>(Tag).
+							All<FTestColumnA>().
+						Compile());
+			}
+			else
+			{
+				const FName MatchValue(*Args[1]);
+				return DataStorage->RegisterQuery(
+					Select().
+					Where().
+						// Match all rows with a dynamic tag of type Tag that has a MatchValue (ie. all rows with dynamic tag "Color" with value "Red")
+						All<FDynamicTag>(Tag, MatchValue).
+						All<FTestColumnA>().
+					Compile());
+			}
+		}();
+
+		uint64 Count = 0;
+		
+		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
+			[&Count](const DSI::IDirectQueryContext& Context, const TypedElementRowHandle*)
+			{
+				Count += Context.GetRowCount();
+			}));
+		DataStorage->UnregisterQuery(Query);
+
+		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarAddDynamicTagFromEnum(
+	TEXT("TEDS.Debug.DynamicTag.AddWithEnum"),
+	TEXT("Argument: Row, EnumValue\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() < 1 || Args.Num() > 2)
+		{
+			return;
+		}
+		
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+
+		if (Args.Num() == 1)
+		{
+			// Use of a enum value directly as a template parameter.  Only useful if enum value known at compile time
+			DataStorage->AddColumn<ETedsDebugEnum::Red>(Row);
+		}
+		else
+		{
+			// Use an enum value from a runtime source
+			// In this case, the argument is parsed and converted to an enum type
+			UEnum* Enum = StaticEnum<ETedsDebugEnum>();
+			int64 EnumValueAsI64 = Enum->GetValueByNameString(*Args[1]);
+			if (EnumValueAsI64 == INDEX_NONE)
+			{
+				return;
+			}
+			const ETedsDebugEnum EnumValue = static_cast<ETedsDebugEnum>(EnumValueAsI64);
+			
+			DataStorage->AddColumn(Row, EnumValue);
+		}
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarRemoveDynamicTagFromEnum(
+	TEXT("TEDS.Debug.DynamicTag.RemoveWithEnum"),
+	TEXT("Argument: Row\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() != 1)
+		{
+			return;
+		}
+		
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		
+		DataStorage->RemoveColumn<ETedsDebugEnum>(Row);
+	}),
+	ECVF_Default);
+
+
+static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
+	TEXT("TEDS.Debug.DynamicTag.RunQueryEnum"),
+	TEXT("Argument: [optional] EnumValue\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::EditorDataStorage;
+		
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+
+		if (Args.Num() > 1)
+		{
+			UE_LOG(LogTypedElementDataStorage, Error, TEXT("Invalid number of arguments"));
+			return;
+		}
+
+		if (Args.Num() == 1)
+		{
+			// Make sure that the given enum value is actually a value
+			UEnum* Enum = StaticEnum<ETedsDebugEnum>();
+			int64 EnumValue = Enum->GetValueByNameString(*Args[0]);
+			if (EnumValue == INDEX_NONE)
+			{
+				return;
+			}
+		}
+
+		const TypedElementQueryHandle Query = [&Args, DataStorage]() -> TypedElementQueryHandle
+		{
+			if (Args.Num() == 0)
+			{
+				// Matches all rows with the 
+				return DataStorage->RegisterQuery(
+					Select().
+						Where().
+							// Match all rows with an enum dynamic tag of the hardcoded enum type
+							All<ETedsDebugEnum>().
+						Compile());
+			}
+			else if (Args.Num() == 1)
+			{
+				UEnum* Enum = StaticEnum<ETedsDebugEnum>();
+				int64 EnumValue = Enum->GetValueByNameString(*Args[0]);
+				return DataStorage->RegisterQuery(
+					Select().
+					Where().
+						// Match all rows with a dynamic tag of the hardcoded enum type that has the given value
+						// Note, usually this would be written something like:
+						//   All(ETedsDebugEnum::Red).
+						// However it isn't possible to do that when getting the enum value from a string.  API is still exercised
+						// using the static_cast
+						All(static_cast<ETedsDebugEnum>(EnumValue)).
+					Compile());
+			}
+			else
+			{
+				return TypedElementDataStorage::InvalidQueryHandle;
+			}
+		}();
+		if (Query == TypedElementDataStorage::InvalidQueryHandle)
+		{
+			UE_LOG(LogTypedElementDataStorage, Error, TEXT("Invalid number of arguments"));
+			return;
+		}
+		
+		uint64 Count = 0;
+		
+		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
+			[&Count](const DSI::IDirectQueryContext& Context, const TypedElementRowHandle*)
+			{
+				Count += Context.GetRowCount();
+			}));
+		DataStorage->UnregisterQuery(Query);
+
+		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
+		
+	}),
+	ECVF_Default);

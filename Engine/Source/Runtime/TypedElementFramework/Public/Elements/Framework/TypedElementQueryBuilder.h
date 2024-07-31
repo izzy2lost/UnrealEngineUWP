@@ -156,6 +156,7 @@ namespace TypedElementQueryBuilder
 		FSimpleQuery& All();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(TConstArrayView<const UScriptStruct*> Targets);
+		
 		template<TypedElementDataStorage::TColumnType... TargetTypes>
 		FSimpleQuery& Any();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UScriptStruct* Target);
@@ -164,6 +165,41 @@ namespace TypedElementQueryBuilder
 		FSimpleQuery& None();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
+		
+		// Dynamic Tags
+		// ============
+		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::EditorDataStorage::FDynamicTag& Tag);
+		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
+		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
+		
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum, int64 Value);
+
+		// Disabled generic template for DynamicTags
+		template<typename... T>
+		FSimpleQuery& All(const FName&) = delete;
+		// Disabled generic template for DynamicTags
+		template<typename... T>
+		FSimpleQuery& All(const FName&, const FName&) = delete;
+
+		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
+		template<>
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag);
+		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
+		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
+		template<>
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag, const FName& Value);
+		
+		template<TypedElementDataStorage::TEnumType EnumT>
+		FSimpleQuery& All();
+		
+		template<TypedElementDataStorage::TEnumType EnumT>
+		FSimpleQuery& All(EnumT EnumValue);
+
+		template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+		FSimpleQuery& All();
 
 	private:
 		TYPEDELEMENTFRAMEWORK_API explicit FSimpleQuery(ITypedElementDataStorageInterface::FQueryDescription* Query);

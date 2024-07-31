@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DynamicColumnGenerator.h"
 #include "MassEntityManager.h"
 #include "MassProcessingPhaseManager.h"
 #include "TypedElementDatabaseCommandBuffer.h"
@@ -41,6 +42,9 @@ public:
 	FMassProcessingPhaseManager& GetMassPhaseManager();
 	const FMassProcessingPhaseManager& GetMassPhaseManager() const;
 
+	FConstSharedStruct GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
+	const UScriptStruct* GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag);
+
 	void NextUpdateCycle();
 	uint64 GetUpdateCycleId() const;
 
@@ -51,6 +55,8 @@ private:
 	FTypedElementDatabaseScratchBuffer ScratchBuffer;
 	FTypedElementExtendedQueryStore Queries;
 	UTypedElementMementoSystem MementoSystem;
+	UE::EditorDataStorage::FDynamicColumnGenerator DynamicColumnGenerator;
+	UE::EditorDataStorage::FDynamicTagManager DynamicTagManager;
 
 	FMassEntityManager& MassEntityManager;
 	FMassProcessingPhaseManager& MassPhaseManager;

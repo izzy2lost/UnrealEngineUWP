@@ -4,6 +4,8 @@
 
 #include "MassProcessingPhaseManager.h"
 #include "MassProcessor.h"
+#include "TypedElementDatabaseEnvironment.h"
+#include "Commands/EditorDataStorageCommandBuffer.h"
 #include "Misc/OutputDevice.h"
 #include "Processors/TypedElementProcessorAdaptors.h"
 
@@ -21,6 +23,7 @@ FTypedElementExtendedQueryStore::Handle FTypedElementExtendedQueryStore::Registe
 
 	FMassEntityQuery& NativeQuery =		SetupNativeQuery(StoredQuery.Description, StoredQuery);
 	bool bContinueSetup =				SetupSelectedColumns(StoredQuery.Description, NativeQuery);
+	bContinueSetup = bContinueSetup &&	SetupChunkFilters(Result, StoredQuery.Description, Environment, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupConditions(StoredQuery.Description, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupDependencies(StoredQuery.Description, NativeQuery);
 	bContinueSetup = bContinueSetup &&	SetupTickGroupDefaults(StoredQuery.Description);
@@ -578,6 +581,90 @@ bool FTypedElementExtendedQueryStore::SetupConditions(
 		return true;
 	}
 	return false;
+}
+
+static const FName DynamicTagDataParamName = TEXT("TagName");
+
+bool FTypedElementExtendedQueryStore::SetupChunkFilters(
+	Handle QueryHandle,
+	ITypedElementDataStorageInterface::FQueryDescription& Query,
+	FTypedElementDatabaseEnvironment& Environment,
+	FMassEntityQuery& NativeQuery)
+{
+	if (Query.DynamicTags.IsEmpty())
+	{
+		return true;
+	}
+
+	Algo::SortBy(Query.DynamicTags, [](const TypedElementDataStorage::FQueryDescription::FDynamicTagData& DynamicTagData)
+	{
+		return DynamicTagData.Tag.GetName();
+	}, FNameFastLess());
+	// Check if there are any duplicate groups. Not yet supported until we can match multiple MatchTags
+	UE::EditorDataStorage::FDynamicTag PreviousTag = Query.DynamicTags[0].Tag;
+	for (int32 Index = 1, End = Query.DynamicTags.Num(); Index < End; ++Index)
+	{
+		if (Query.DynamicTags[Index].Tag == PreviousTag)
+		{
+			return false;
+		}
+		PreviousTag = Query.DynamicTags[Index].Tag;
+	}
+	
+	struct FGroupTagPair
+	{
+		const UScriptStruct* ColumnType;
+		FName Value;
+	};
+
+	TArray<FGroupTagPair> GroupTagPairsTemp;
+	GroupTagPairsTemp.Reserve(Query.DynamicTags.Num());
+	for (int32 Index = 0, End = Query.DynamicTags.Num(); Index < End; ++Index)
+	{
+		const UScriptStruct* ColumnType = Environment.GenerateColumnType(Query.DynamicTags[Index].Tag);
+		GroupTagPairsTemp.Emplace(FGroupTagPair
+			{
+				.ColumnType = ColumnType,
+				.Value = Query.DynamicTags[Index].MatchValue
+			});
+	}
+
+	check(!GroupTagPairsTemp.IsEmpty());
+
+	for (const FGroupTagPair& Element : GroupTagPairsTemp)
+	{
+		NativeQuery.AddConstSharedRequirement(Element.ColumnType);
+	}
+	
+	auto ChunkFilterFunction = [GroupTagPairs = MoveTemp(GroupTagPairsTemp)](const FMassExecutionContext& MassContext) -> bool
+	{
+		for (const FGroupTagPair& GroupTagPair : GroupTagPairs)
+		{
+			const void* SharedFragmentData = MassContext.GetConstSharedFragmentPtr(*GroupTagPair.ColumnType);
+
+			if (SharedFragmentData)
+			{
+				// TODO: Use reflection / knowledge of key offset to read the tag and compare it
+				// For now... we know it is at offset 0
+				const FTypedElementDataStorageDynamicTagTemplate* TagOverlay = static_cast<const FTypedElementDataStorageDynamicTagTemplate*>(SharedFragmentData);
+				// NAME_None will match any presence of the shared fragment
+				// otherwise, match the specific tag only
+				if (GroupTagPair.Value != NAME_None && TagOverlay->Value != GroupTagPair.Value)
+				{
+					return false;
+				}
+			}
+			else
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	};
+	
+	NativeQuery.SetChunkFilter(ChunkFilterFunction);
+	return true;
 }
 
 bool FTypedElementExtendedQueryStore::SetupDependencies(

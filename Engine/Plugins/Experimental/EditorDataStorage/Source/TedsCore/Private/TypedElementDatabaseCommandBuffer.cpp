@@ -5,6 +5,7 @@
 #include "HAL/UnrealMemory.h"
 #include "MassEntityManager.h"
 #include "TypedElementDatabaseEnvironment.h"
+#include "TypedElementDataStorageSharedColumn.h"
 
 // 
 // Commands section
@@ -234,6 +235,24 @@ void FTypedElementDatabaseCommandBuffer::Execute_AddDataColumnCommand(
 		{
 			Relocator(*ColumnType, Column.GetMemory(), Data);
 		}
+	}
+}
+
+void FTypedElementDatabaseCommandBuffer::Execute_AddSharedColumnCommand(FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const FConstSharedStruct& SharedColumn)
+{
+	if (SharedColumn.IsValid())
+	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		MassEntityManager.AddConstSharedFragmentToEntity(Entity, SharedColumn);
+	}
+}
+
+void FTypedElementDatabaseCommandBuffer::Execute_RemoveSharedColumnCommand(FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct& ColumnType)
+{
+	if (ColumnType.IsChildOf(FTedsSharedColumn::StaticStruct()))
+	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		MassEntityManager.RemoveConstSharedFragmentFromEntity(Entity, ColumnType);
 	}
 }
 

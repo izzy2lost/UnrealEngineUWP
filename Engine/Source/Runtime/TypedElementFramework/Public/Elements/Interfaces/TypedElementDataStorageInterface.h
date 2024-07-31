@@ -185,6 +185,31 @@ public:
 	void AddColumn(TypedElementRowHandle Row, ColumnType&& Column);
 
 	/**
+	 * Adds a DynamicTag with the given value to a row
+	 * A row can have multiple DynamicTags, but only one of each tag type.
+	 * Example:
+	 *   AddColumn(Row, FDynamicTag(TEXT("Color"), TEXT("Red));     // Valid
+	 *   AddColumn(Row, FDynamicTag(TEXT("Direction"), TEXT("Up")); // Valid
+	 *   AddColumn(Row, FDynamicTag(TEXT("Color"), TEXT("Blue"));   // Will do nothing since there already exists a Color dynamic tag
+	 * Note: Current support for changing a dynamic tag from one value to another requires that the tag is removed before a new one
+	 *       is added.  This will likely change in the future to transparently replace the tag to have consistent behaviour with other usages
+	 *       of AddColumn
+	 */
+	virtual void AddColumn(TypedElementDataStorage::RowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value) = 0;
+
+	template<typename T>
+	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag, const FName& Value) = delete;
+	
+	template<>
+	void AddColumn<UE::EditorDataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag, const FName& Value);
+
+	template<TypedElementDataStorage::TEnumType EnumT>
+	void AddColumn(TypedElementDataStorage::RowHandle Row, EnumT Value);
+	
+	template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+	void AddColumn(TypedElementDataStorage::RowHandle Row);
+
+	/**
 	 * Adds multiple columns from a row. This is typically more efficient than adding columns one 
 	 * at a time.
 	 */
@@ -196,6 +221,22 @@ public:
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
 	template<TypedElementDataStorage::TColumnType Column>
 	void RemoveColumn(TypedElementRowHandle Row);
+
+	template<TypedElementDataStorage::TEnumType EnumT>
+	void RemoveColumn(TypedElementDataStorage::RowHandle Row);
+
+	/**
+	 * Removes a dynamic tag from the given row
+	 * If tag does not exist on row, operation will do nothing.
+	 */
+	virtual void RemoveColumn(TypedElementDataStorage::RowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag) = 0;
+
+	template<typename T>
+	void RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag) = delete;
+	
+	template<>
+	void RemoveColumn<UE::EditorDataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag);
+
 	/**
 	 * Removes multiple columns from a row. This is typically more efficient than adding columns one
 	 * at a time.
@@ -236,7 +277,6 @@ public:
 	/** Determines if the columns in the row match the query conditions. */
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
 	
-
 	/**
 	 * @section Query
 	 * @description
@@ -355,8 +395,6 @@ public:
 	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const = 0;
 };
 
-
-
 // Implementations
 
 template <typename FactoryT>
@@ -394,6 +432,43 @@ template<TypedElementDataStorage::TColumnType... Columns>
 void ITypedElementDataStorageInterface::AddColumns(TypedElementRowHandle Row)
 {
 	AddColumns(Row, { Columns::StaticStruct()...});
+}
+
+template <>
+inline void ITypedElementDataStorageInterface::AddColumn<UE::EditorDataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag, const FName& Value)
+{
+	AddColumn(Row, UE::EditorDataStorage::FDynamicTag(Tag), Value);
+}
+
+template <>
+inline void ITypedElementDataStorageInterface::RemoveColumn<UE::EditorDataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag)
+{
+	using namespace UE::EditorDataStorage;
+	RemoveColumn(Row, FDynamicTag(Tag));
+}
+
+template<TypedElementDataStorage::TEnumType EnumT>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, EnumT Value)
+{
+	const UEnum* Enum = StaticEnum<EnumT>();
+	const FName ValueAsFName = *Enum->GetNameStringByValue(static_cast<int64>(Value));
+	if (ValueAsFName != NAME_None)
+	{
+		AddColumn(Row, UE::EditorDataStorage::FDynamicTag(Enum->GetFName()), ValueAsFName);
+	}
+}
+
+template<auto Value, TypedElementDataStorage::TEnumType EnumT>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row)
+{
+	AddColumn<EnumT>(Row, Value);
+}
+
+template<TypedElementDataStorage::TEnumType EnumT>
+void ITypedElementDataStorageInterface::RemoveColumn(TypedElementDataStorage::RowHandle Row)
+{
+	const UEnum* Enum = StaticEnum<EnumT>();
+	RemoveColumn(Row, UE::EditorDataStorage::FDynamicTag(Enum->GetFName()));
 }
 
 template<TypedElementDataStorage::TColumnType... Columns>

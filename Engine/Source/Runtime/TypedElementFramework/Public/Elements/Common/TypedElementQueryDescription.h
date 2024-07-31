@@ -5,6 +5,7 @@
 #include "Containers/Array.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Elements/Common/TypedElementHandles.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Common/TypedElementQueryTypes.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 #include "Elements/Framework/TypedElementMetaData.h"
@@ -55,6 +56,16 @@ namespace TypedElementDataStorage
 			TWeakObjectPtr<const UScriptStruct> Type;
 		};
 
+		struct FDynamicTagData
+		{
+			// The Tag maps to a Mass ConstSharedFragment object
+			UE::EditorDataStorage::FDynamicTag Tag;
+
+			// The MatchValue specifies the value that the fragment must have to be matched
+			// If MatchValue is NAME_None, then TEDS will match all values
+			FName MatchValue;
+		};
+
 		struct FCallbackData
 		{
 			TArray<FName, TInlineAllocator<NumInlineGroups>> BeforeGroups;
@@ -85,6 +96,8 @@ namespace TypedElementDataStorage
 
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> ConditionTypes;
 		TArray<FOperator, TInlineAllocator<NumInlineConditions>> ConditionOperators;
+
+		TArray<FDynamicTagData> DynamicTags;
 
 		TArray<TWeakObjectPtr<const UClass>, TInlineAllocator<NumInlineDependencies>> DependencyTypes;
 		TArray<EQueryDependencyFlags, TInlineAllocator<NumInlineDependencies>> DependencyFlags;

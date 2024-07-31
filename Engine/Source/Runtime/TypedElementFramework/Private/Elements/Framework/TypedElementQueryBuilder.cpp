@@ -3,6 +3,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 
 #include "Algo/BinarySearch.h"
+#include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementMetaData.h"
 #include "GenericPlatform/GenericPlatformMath.h"
 
@@ -136,6 +137,52 @@ namespace TypedElementQueryBuilder
 			All(Target);
 		}
 		return *this;
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value)
+	{
+		Query->DynamicTags.Emplace(
+			TypedElementDataStorage::FQueryDescription::FDynamicTagData
+			{
+				.Tag = Tag,
+				.MatchValue = Value
+			});
+		return *this;
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum)
+	{
+		using namespace UE::EditorDataStorage;
+		return All(FDynamicTag(Enum.GetFName()));
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum, int64 Value)
+	{
+		const FName ValueName = Enum.GetNameByValue(Value);
+		if (ValueName == NAME_None)
+		{
+			UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Invalid value '%lld' for enum '%s'"), Value, *Enum.GetName());
+			return *this;
+		}
+		using namespace UE::EditorDataStorage;
+		return All(FDynamicTag(Enum.GetFName()), ValueName);
+	}
+
+	template <>
+	FSimpleQuery& FSimpleQuery::All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag)
+	{
+		return All(UE::EditorDataStorage::FDynamicTag(Tag));
+	}
+
+	template <>
+	FSimpleQuery& FSimpleQuery::All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag, const FName& Value)
+	{
+		return All(UE::EditorDataStorage::FDynamicTag(Tag), Value);
+	}
+
+	FSimpleQuery& FSimpleQuery::All(const UE::EditorDataStorage::FDynamicTag& Tag)
+	{
+		return All(Tag, NAME_None);
 	}
 
 	FSimpleQuery& FSimpleQuery::Any(const UScriptStruct* Target)

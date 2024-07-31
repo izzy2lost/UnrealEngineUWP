@@ -195,6 +195,12 @@ public:
 	}
 
 	/** Shared fragment related operations */
+	const void* GetConstSharedFragmentPtr(const UScriptStruct& SharedFragmentType) const
+	{
+		const FConstSharedFragmentView* FoundSharedFragmentData = ConstSharedFragmentViews.FindByPredicate([&SharedFragmentType](const FConstSharedFragmentView& Element) { return Element.Requirement.StructType == &SharedFragmentType; });
+		return FoundSharedFragmentData ? FoundSharedFragmentData->FragmentView.GetMemory() : nullptr;
+	}
+	
 	template<typename T>
 	const T* GetConstSharedFragmentPtr() const
 	{

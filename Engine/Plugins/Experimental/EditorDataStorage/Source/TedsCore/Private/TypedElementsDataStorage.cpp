@@ -13,6 +13,7 @@
 #include "TypedElementDatabase.h"
 #include "TypedElementDatabaseCompatibility.h"
 #include "TypedElementDatabaseUI.h"
+#include "TypedElementDataStorageSharedColumn.h"
 #include "UObject/UObjectGlobals.h"
 
 #define LOCTEXT_NAMESPACE "FTypedElementsDataStorageModule"
@@ -47,6 +48,8 @@ void ImpersonateMassTagsAndFragments()
 	static_assert(!TIsPolymorphic<FTypedElementDataStorageTag>::Value,
 		"In order to be able to use FTypedElementDataStorageTag to impersonate FMassTag it can't have any virtual functions.");
 	FTypedElementDataStorageTag::StaticStruct()->SetSuperStruct(FMassTag::StaticStruct());
+
+	FTedsSharedColumn::StaticStruct()->SetSuperStruct(FMassConstSharedFragment::StaticStruct());
 }
 
 void FTypedElementsDataStorageModule::StartupModule()

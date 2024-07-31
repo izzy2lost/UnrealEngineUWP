@@ -43,6 +43,51 @@ namespace UE
 	concept derived_from = std::is_base_of_v<Base, Derived> && std::is_convertible_v<const volatile Derived*, const volatile Base*>;
 }
 
+namespace UE
+{
+	namespace EditorDataStorage
+	{
+		/**
+		 * Defines a dynamic type for a dynamic tag
+		 * Example:
+		 *   FDynamicTag ColorTagType(TEXT("Color"));
+		 *   FDynamicTag DirectionTagType(TEXT("Direction"));
+		 * A dynamic tag can take on different values for each type.  This is set up when a tag is added to a row.
+		 */
+		class FDynamicTag
+		{
+		public:
+			explicit FDynamicTag(const FName& InName);
+			
+			const FName& GetName() const;
+			bool operator==(const FDynamicTag& Other) const;
+		private:
+			friend uint32 GetTypeHash(const FDynamicTag& InName)
+			{
+				return GetTypeHash(InName.Name);
+			}
+			FName Name;
+		};
+
+		inline FDynamicTag::FDynamicTag(const FName& InTypeName)
+			: Name(InTypeName)
+		{}
+
+		inline const FName& FDynamicTag::GetName() const
+		{
+			return Name;
+		}
+
+		inline bool FDynamicTag::operator==(const FDynamicTag& Other) const
+		{
+			return Other.Name == Name;
+		}
+
+	}
+}
+
+
+
 namespace TypedElementDataStorage
 {
 	// Standard callbacks.
@@ -63,5 +108,8 @@ namespace TypedElementDataStorage
 
 	template<typename T>
 	concept TColumnType = TDataColumnType<T> || TTagColumnType<T>;
+
+	template<typename T>
+	concept TEnumType = std::is_enum_v<T>;
 
 } // namespace TypedElementDataStorage

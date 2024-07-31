@@ -1163,8 +1163,24 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		None({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
+	
+	template <TypedElementDataStorage::TEnumType EnumT>
+    FSimpleQuery& FSimpleQuery::All()
+    {
+    	return All(static_cast<const UEnum&>(*StaticEnum<EnumT>()));
+    }
 
-
+    template <TypedElementDataStorage::TEnumType EnumT>
+    FSimpleQuery& FSimpleQuery::All(EnumT EnumValue)
+    {
+    	return All(static_cast<const UEnum&>(*StaticEnum<EnumT>()), static_cast<int64>(EnumValue));
+    }
+	
+	template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+	FSimpleQuery& All()
+	{
+		return All<EnumT>(Value);
+	}
 
 	//
 	// External query bindings

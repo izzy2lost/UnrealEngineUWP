@@ -50,6 +50,10 @@ public:
 	static void Execute_AddDataColumnCommand(
 		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
 		void* Data, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator);
+	static void Execute_AddSharedColumnCommand(
+		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const FConstSharedStruct& SharedColumn);
+	static void Execute_RemoveSharedColumnCommand(
+		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct& ColumnType);
 	static void Execute_AddColumnsCommand(
 		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row,
 		FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
