@@ -7,7 +7,7 @@ float3				{ParameterName}_SystemLWCTile;
 Texture2D<float4>	{ParameterName}_CloudVolumetricTexture;
 SamplerState		{ParameterName}_CloudVolumetricTextureSampler;
 
-void QueryOcclusionFactorWithRectangleGPU_{ParameterName}(in float3 In_SampleCenterWorldPos, in float In_SampleWindowWidthWorld, in float In_SampleWindowHeightWorld, in float In_SampleSteps, out float Out_VisibilityFraction, out float Out_SampleFraction)
+void QueryOcclusionFactorWithRectangle_{ParameterName}(in float3 In_SampleCenterWorldPos, in float In_SampleWindowWidthWorld, in float In_SampleWindowHeightWorld, in float In_SampleSteps, out float Out_VisibilityFraction, out float Out_SampleFraction)
 {
 	FLWCVector3 LwcSamplePos = MakeLWCVector3({ParameterName}_SystemLWCTile, In_SampleCenterWorldPos);
 	float3 ResolvedLwcSamplePos = DFFastToTranslatedWorld(DFFromTileOffset_Hack(LwcSamplePos), PrimaryView.PreViewTranslation);
@@ -59,6 +59,11 @@ void QueryOcclusionFactorWithRectangleGPU_{ParameterName}(in float3 In_SampleCen
 
 	Out_VisibilityFraction = TotalSamples > 0 ? 1 - OccludedSamples / TotalSamples : 0;
 	Out_SampleFraction = Steps == 0 ? 0 : (TotalSamples / (Steps * Steps));
+}
+
+void QueryOcclusionFactorWithRectangleGPU_{ParameterName}(in float3 In_SampleCenterWorldPos, in float In_SampleWindowWidthWorld, in float In_SampleWindowHeightWorld, in float In_SampleSteps, out float Out_VisibilityFraction, out float Out_SampleFraction)
+{
+	QueryOcclusionFactorWithRectangle_{ParameterName}(In_SampleCenterWorldPos, In_SampleWindowWidthWorld, In_SampleWindowHeightWorld, In_SampleSteps, Out_VisibilityFraction, Out_SampleFraction);
 }
 
 void QueryOcclusionFactorWithCircleGPU_{ParameterName}(in float3 In_SampleCenterWorldPos, in float In_SampleWindowDiameterWorld, in float In_SampleRays, in float In_SampleStepsPerRay, out float Out_VisibilityFraction, out float Out_SampleFraction)
