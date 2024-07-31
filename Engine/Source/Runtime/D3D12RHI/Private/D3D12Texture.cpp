@@ -980,6 +980,9 @@ FTextureRHIRef FD3D12DynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 Si
 
 		for (FD3D12Texture& CurrentTexture : *TextureOut)
 		{
+			// Need to get device from GPU specific copy of the texture
+			Device = CurrentTexture.GetParentDevice();
+
 			FD3D12Resource* Resource = CurrentTexture.GetResource();
 
 			FD3D12SyncPointRef SyncPoint;

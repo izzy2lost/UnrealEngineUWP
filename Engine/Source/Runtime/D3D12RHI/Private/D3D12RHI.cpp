@@ -565,7 +565,7 @@ void FD3D12DynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmd
 
 #if D3D12_RHI_RAYTRACING
 				// @todo dev-pr - explicit use of graphics context - nothing is synchronizing async compute - needs refactor
-				Device->GetRayTracingCompactionRequestHandler()->Update(*static_cast<FD3D12CommandContext*>(Contexts[ERHIPipeline::Graphics]));
+				Device->GetRayTracingCompactionRequestHandler()->Update(*Contexts[ERHIPipeline::Graphics]->GetSingleDeviceContext(Device->GetGPUIndex()));
 #endif // D3D12_RHI_RAYTRACING
 
 #if (RHI_NEW_GPU_PROFILER == 0)
