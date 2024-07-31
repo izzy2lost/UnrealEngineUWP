@@ -461,7 +461,23 @@ namespace CruncherSharp
             return string.Join(" AND ", filters);
         }
 
-        private void dataGridSymbols_SelectionChanged(object sender, EventArgs e)
+
+		private void UpdateFilter()
+		{
+			try
+			{
+				bindingSourceSymbols.Filter = GetFilterString();
+				textBoxFilter.BackColor = Color.Empty;
+				textBoxFilter.ForeColor = Color.Empty;
+			}
+			catch (EvaluateException)
+			{
+				textBoxFilter.BackColor = Color.Red;
+				textBoxFilter.ForeColor = Color.White;
+			}
+		}
+
+		private void dataGridSymbols_SelectionChanged(object sender, EventArgs e)
         {
 			if (_IgnoreSelectionChange)
 				return;
@@ -861,18 +877,8 @@ namespace CruncherSharp
 
         private void textBoxFilter_TextChanged(object sender, EventArgs e)
         {
-            try
-            {
-                bindingSourceSymbols.Filter = GetFilterString();
-                textBoxFilter.BackColor = Color.Empty;
-                textBoxFilter.ForeColor = Color.Empty;
-				UpdateBtnLoadText();
-			}
-            catch (EvaluateException)
-            {
-                textBoxFilter.BackColor = Color.Red;
-                textBoxFilter.ForeColor = Color.White;
-            }
+			UpdateFilter();
+			UpdateBtnLoadText();
         }
 
         private void textBoxFilter_KeyUp(object sender, KeyEventArgs e)
@@ -987,8 +993,8 @@ namespace CruncherSharp
 
         private void chkShowTemplates_CheckedChanged(object sender, EventArgs e)
         {
-            bindingSourceSymbols.Filter = GetFilterString();
-        }
+			UpdateFilter();
+		}
 
         private void chkSmartCacheLines_CheckedChanged(object sender, EventArgs e)
         {
@@ -999,8 +1005,8 @@ namespace CruncherSharp
         {
             this.BeginInvoke(new Action(() =>
             {
-                bindingSourceSymbols.Filter = GetFilterString();
-            }));
+				UpdateFilter();
+			}));
         }
 
         private void dataGridViewSymbolInfo_KeyDown(object sender, KeyEventArgs e)
@@ -1138,9 +1144,9 @@ namespace CruncherSharp
 
             // Restore the filter now that the table is populated
             textBoxFilter.Text = preExistingFilter;
-            bindingSourceSymbols.Filter = GetFilterString();
+			UpdateFilter();
 
-            ShowSelectedSymbolInfo();
+			ShowSelectedSymbolInfo();
 
             _NavigationStack.Clear();
         }
@@ -1242,7 +1248,10 @@ namespace CruncherSharp
 
         private void findUnusedVtablesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.UnusedVTables;
+			if (SearchCategory == SearchType.UnusedVTables)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.UnusedVTables;
 
             PopulateDataTable();
         }
@@ -1260,28 +1269,40 @@ namespace CruncherSharp
 
         private void findMSVCExtraPaddingToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.MSVCExtraPadding;
+			if (SearchCategory == SearchType.MSVCExtraPadding)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.MSVCExtraPadding;
 
             PopulateDataTable();
         }
 
         private void findMSVCEmptyBaseClassToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.MSVCEmptyBaseClass;
+			if (SearchCategory == SearchType.MSVCEmptyBaseClass)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.MSVCEmptyBaseClass;
 
             PopulateDataTable();
         }
 
         private void findUnusedInterfacesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.UnusedInterfaces;
+			if (SearchCategory == SearchType.UnusedInterfaces)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.UnusedInterfaces;
 
             PopulateDataTable();
         }
 
         private void findUnusedVirtualToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.UnusedVirtual;
+			if (SearchCategory == SearchType.UnusedVirtual)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.UnusedVirtual;
 
             PopulateDataTable();
         }
@@ -1327,7 +1348,10 @@ namespace CruncherSharp
 
         private void findMaskingFunctionsToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            SearchCategory = SearchType.MaskingFunction;
+			if (SearchCategory == SearchType.MaskingFunction)
+				SearchCategory = SearchType.None;
+			else
+				SearchCategory = SearchType.MaskingFunction;
 
             PopulateDataTable();
         }
@@ -1511,7 +1535,7 @@ namespace CruncherSharp
                             AddSymbolToTable(symbolInfo);
                         break;
                     case SearchType.MSVCExtraPadding:
-                        if (symbolInfo.HasMSVCExtraPadding) 
+                        if (symbolInfo.HasMSVCExtraPadding(CurrentSymbolAnalyzer)) 
 							AddSymbolToTable(symbolInfo);
                         break;
                     case SearchType.MSVCEmptyBaseClass:
@@ -1579,13 +1603,13 @@ namespace CruncherSharp
         private void checkBoxMatchCase_CheckedChanged(object sender, EventArgs e)
         {
             _Table.CaseSensitive = checkBoxMatchCase.Checked;
-            bindingSourceSymbols.Filter = GetFilterString();
-        }
+			UpdateFilter();
+		}
 
         private void checkBoxMatchWholeExpression_CheckedChanged(object sender, EventArgs e)
         {
-            bindingSourceSymbols.Filter = GetFilterString();
-        }
+			UpdateFilter();
+		}
 
         private void checkBoxRegularExpressions_CheckedChanged(object sender, EventArgs e)
         {
@@ -1599,8 +1623,8 @@ namespace CruncherSharp
                 checkBoxMatchWholeExpression.Enabled = true;
             }
 
-            bindingSourceSymbols.Filter = GetFilterString();
-        }
+			UpdateFilter();
+		}
 
         private void checkBoxPadding_CheckedChanged(object sender, EventArgs e)
         {

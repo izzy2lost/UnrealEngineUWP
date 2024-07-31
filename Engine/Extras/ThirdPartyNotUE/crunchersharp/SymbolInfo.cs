@@ -118,19 +118,34 @@ namespace CruncherSharp
             }
         }
 
+		public bool HasBaseClassWithVTable(SymbolAnalyzer symbolAnalyzer)
+		{
+			foreach (var member in Members)
+			{
+				if (member.Category == SymbolMemberInfo.MemberCategory.Base)
+				{
+					var referencedInfo = symbolAnalyzer.FindSymbolInfo(member.TypeName);
+					if (referencedInfo == null)
+					{
+						continue;
+					}
+					if (referencedInfo.HasVtable)
+						return true;
+				}
+			}
+			return false;
+		}
+
 		// https://randomascii.wordpress.com/2013/12/01/vc-2013-class-layout-change-and-wasted-space/
-		public bool HasMSVCExtraPadding
-        {
-            get
-            {
-                if (HasBaseClass)
-                    return false;
-                if (!HasVtable)
-                    return false;
-                if (Members.Count < 2)
-                    return false;
-                return Members[1].Size == 8 && Members[1].Offset == 16;
-            }
+		public bool HasMSVCExtraPadding(SymbolAnalyzer symbolAnalyzer)
+		{
+            if (HasBaseClassWithVTable(symbolAnalyzer))
+                return false;
+            if (!HasVtable)
+                return false;
+            if (Members.Count < 2)
+                return false;
+            return Members[1].Size < 16 && Members[1].Offset == 16;
         }
 
         public bool HasMSVCEmptyBaseClass

@@ -304,14 +304,14 @@
             // addMemPoolsToolStripMenuItem
             // 
             this.addMemPoolsToolStripMenuItem.Name = "addMemPoolsToolStripMenuItem";
-            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.addMemPoolsToolStripMenuItem.Text = "Set memory pools";
             this.addMemPoolsToolStripMenuItem.Click += new System.EventHandler(this.addMemPoolsToolStripMenuItem_Click);
             // 
             // restrictToUObjectsToolStripMenuItem
             // 
             this.restrictToUObjectsToolStripMenuItem.Name = "restrictToUObjectsToolStripMenuItem";
-            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.restrictToUObjectsToolStripMenuItem.Text = "Restrict to UObjects";
             this.restrictToUObjectsToolStripMenuItem.Click += new System.EventHandler(this.restrictToUObjectsToolStripMenuItem_Click);
             // 
@@ -342,6 +342,8 @@
             // chkShowTemplates
             // 
             this.chkShowTemplates.AutoSize = true;
+            this.chkShowTemplates.Checked = true;
+            this.chkShowTemplates.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkShowTemplates.Location = new System.Drawing.Point(476, 35);
             this.chkShowTemplates.Name = "chkShowTemplates";
             this.chkShowTemplates.Size = new System.Drawing.Size(101, 17);
@@ -757,7 +759,6 @@
             this.colFieldPadding});
             this.dataGridViewSymbolInfo.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewSymbolInfo.Location = new System.Drawing.Point(3, 3);
-            this.dataGridViewSymbolInfo.MultiSelect = false;
             this.dataGridViewSymbolInfo.Name = "dataGridViewSymbolInfo";
             this.dataGridViewSymbolInfo.ReadOnly = true;
             this.dataGridViewSymbolInfo.RowHeadersVisible = false;
@@ -940,9 +941,9 @@
             this.contextMenuStripClassInfo.Name = "contextMenuStripClassInfo";
             this.contextMenuStripClassInfo.Size = new System.Drawing.Size(154, 26);
             // 
-            // toolStripMenuItemParentClasses
+            // toolStripMenuItemDerivedClasses
             // 
-            this.toolStripMenuItemDerivedClasses.Name = "toolStripMenuItemParentClasses";
+            this.toolStripMenuItemDerivedClasses.Name = "toolStripMenuItemDerivedClasses";
             this.toolStripMenuItemDerivedClasses.Size = new System.Drawing.Size(153, 22);
             this.toolStripMenuItemDerivedClasses.Text = "Derived classes";
             // 
