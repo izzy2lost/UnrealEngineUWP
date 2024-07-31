@@ -12,7 +12,10 @@
 
 void FStateTreeSharedEvent::AddStructReferencedObjects(FReferenceCollector& Collector)
 {
-	Collector.AddPropertyReferencesWithStructARO(FStateTreeEvent::StaticStruct(), Event.Get());
+	if (IsValid())
+	{
+		Collector.AddPropertyReferencesWithStructARO(FStateTreeEvent::StaticStruct(), Event.Get());
+	}
 }
 
 

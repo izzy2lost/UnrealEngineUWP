@@ -3420,8 +3420,6 @@ bool FStateTreeExecutionContext::SelectState(const FStateTreeExecutionFrame& Cur
 											const FStateTreeSharedEvent* TransitionEvent,
 											const EStateTreeSelectionFallback Fallback)
 {
-	check(TransitionEvent == nullptr || TransitionEvent->IsValid());
-
 	const FStateTreeExecutionState& Exec = GetExecState();
 
 	if (Exec.ActiveFrames.IsEmpty())
