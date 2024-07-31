@@ -13,6 +13,8 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Modules/ModuleManager.h"
 #include "QueryEditor/TedsQueryEditorModel.h"
+#include "QueryStack/FQueryStackNode_RowView.h"
+#include "Widgets/STedsTableViewer.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "TedsDebuggerModule"
@@ -30,6 +32,8 @@ void SResultsView::Construct(const FArguments& InArgs, FTedsQueryEditorModel& In
 	ModelChangedDelegateHandle = Model->GetModelChangedDelegate().AddRaw(this, &SResultsView::OnModelChanged);
 	// RowQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
 
+	RowQueryStack = MakeShared<UE::EditorDataStorage::FQueryStackNode_RowView>(&TableViewerRows);
+
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -42,12 +46,8 @@ void SResultsView::Construct(const FArguments& InArgs, FTedsQueryEditorModel& In
 		]
 		+SVerticalBox::Slot()
 		[
-			SAssignNew(TableViewHolder, SHorizontalBox)
-			+SHorizontalBox::Slot()
-			[
-				// Placeholder for Table View
-				SNullWidget::NullWidget
-			]
+			SAssignNew(TableViewer, UE::EditorDataStorage::STedsTableViewer)
+			.QueryStack(RowQueryStack)
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()
@@ -77,106 +77,69 @@ void SResultsView::Tick(const FGeometry& AllottedGeometry, const double InCurren
 
 	ITypedElementDataStorageInterface& TedsInterface = Model->GetTedsInterface();
 
+	if(bModelDirty)
 	{
-		TypedElementDataStorage::FQueryDescription CountQueryDescription = Model->GenerateNoSelectQueryDescription();
-		
-		if (CountQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
 		{
-			TedsInterface.UnregisterQuery(CountQueryHandle);
-			CountQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
-		}
-		CountQueryHandle = TedsInterface.RegisterQuery(MoveTemp(CountQueryDescription));
-	}
-
-	{
-		// TODO: For now, destroy and re-create the table view
-		// This could be all that is required at some point
-		//
-		// FTypedElementSceneOutlinerQueryBinder::GetInstance().AssignQuery(SelectQueryHandle, TableView);
-		// TableView->FullRefresh();
+			TypedElementDataStorage::FQueryDescription CountQueryDescription = Model->GenerateNoSelectQueryDescription();
 		
-		TableViewHolder->ClearChildren();
-
-		FSceneOutlinerInitializationOptions InitOptions;
-		InitOptions.bShowHeaderRow = true;
-		InitOptions.bShowSearchBox = false;
-		InitOptions.FilterBarOptions.bHasFilterBar = false;
-		InitOptions.OutlinerIdentifier = "QueryEditorResultsView";
-		
-		// if (RowQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
-		// {
-		// 	TedsInterface.UnregisterQuery(RowQueryHandle);
-		// 	RowQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
-		// } 
-		RowQueryDescription = Model->GenerateNoSelectQueryDescription();
-		if (!RowQueryDescription.ConditionTypes.IsEmpty())
-		{
-			// Work around since query registration takes by RRef but later the
-			// FTypedElementOutlinerModeParams.QueryDescription needs a reference to it.
-			// We are just going to copy it for now...
-			// TypedElementDataStorage::FQueryDescription Copy = SelectQueryDescription;
-			RowQueryDescription.Action = TypedElementDataStorage::FQueryDescription::EActionType::Select;
-			//RowQueryHandle = TedsInterface.RegisterQuery(MoveTemp(RowQueryDescription));
-		}
-	
-		FTypedElementOutlinerModeParams Params(nullptr);
-		Params.QueryDescription = TAttribute<TypedElementDataStorage::FQueryDescription>::CreateLambda([WeakResultsView = AsWeak()]()
-		{
-			if (TSharedPtr<SWidget> Shared = WeakResultsView.Pin())
+			if (CountQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
 			{
-				SResultsView* This = static_cast<SResultsView*>(Shared.Get());
-				return This->RowQueryDescription;
+				TedsInterface.UnregisterQuery(CountQueryHandle);
+				CountQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
 			}
-			return TypedElementDataStorage::FQueryDescription();
-		});
-		Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies
-		Params.CellWidgetPurposes = TArray<FName>{TEXT("General.Cell")};
-
-		TypedElementDataStorage::FQueryDescription ColumnQueryDescription = Model->GenerateQueryDescription();
-		if (ColumnQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
-		{
-			TedsInterface.UnregisterQuery(ColumnQueryHandle);
-			ColumnQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
+			CountQueryHandle = TedsInterface.RegisterQuery(MoveTemp(CountQueryDescription));
 		}
 
-		if (!ColumnQueryDescription.ConditionTypes.IsEmpty() || !ColumnQueryDescription.SelectionTypes.IsEmpty())
 		{
-			// Work around since query registration takes by RRef but later the
-			// FTypedElementOutlinerModeParams.QueryDescription needs a reference to it.
-			// We are just going to copy it for now...
-			// TypedElementDataStorage::FQueryDescription Copy = SelectQueryDescription;
-			ColumnQueryDescription.Action = TypedElementDataStorage::FQueryDescription::EActionType::Select;
-			ColumnQueryHandle = TedsInterface.RegisterQuery(MoveTemp(ColumnQueryDescription));
-		}
+			TypedElementDataStorage::FQueryDescription TableViewerQueryDescription = Model->GenerateQueryDescription();
 
-		FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
-		if (ColumnQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
-		{
-			TSharedPtr<ISceneOutliner> TableView = TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, ColumnQueryHandle);
+			// Update the columns in the table viewer using the selection types from the query description
+			TableViewer->SetColumns(TArray<TWeakObjectPtr<const UScriptStruct>>(TableViewerQueryDescription.SelectionTypes));
+			
+			if (TableViewerQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
+			{
+				TedsInterface.UnregisterQuery(TableViewerQueryHandle);
+				TableViewerQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
+			}
 
-			TableViewHolder->AddSlot()
-			[
-				TableView.ToSharedRef()
-			];
+			// Mass doesn't like empty queries, so we only set it if there are actual conditions
+			if(TableViewerQueryDescription.ConditionTypes.Num())
+			{
+				TableViewerQueryHandle = TedsInterface.RegisterQuery(MoveTemp(TableViewerQueryDescription));
+			}
 		}
-		else
-		{
-			TableViewHolder->AddSlot()
-			[
-				// Placeholder for table view.  Mass doesn't like invalid/empty queries
-				SNullWidget::NullWidget
-			];
-		}
+		
+		bModelDirty = false;
 	}
 
-	SetCanTick(false);
+	// Every frame we re-run the query to update the rows the table viewer is showing
+	if(TableViewerQueryHandle != TypedElementDataStorage::InvalidQueryHandle)
+	{
+		TSet<TypedElementDataStorage::RowHandle> NewTableViewerRows_Set;
+		NewTableViewerRows_Set.Reserve(TableViewerRows_Set.Num());
+
+		TypedElementDataStorage::FQueryResult QueryResult = Model->GetTedsInterface().RunQuery(TableViewerQueryHandle,
+			CreateDirectQueryCallbackBinding([&NewTableViewerRows_Set](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle*)
+		{
+			NewTableViewerRows_Set.Append(Context.GetRowHandles());
+		}));
+
+		// Check if the two sets are equal, i.e not changes and no need to update the table viewer
+		const bool bSetsEqual = (TableViewerRows_Set.Num() == NewTableViewerRows_Set.Num()) && TableViewerRows_Set.Includes(NewTableViewerRows_Set);
+
+		if(!bSetsEqual)
+		{
+			Swap(TableViewerRows_Set, NewTableViewerRows_Set);
+			TableViewerRows = TableViewerRows_Set.Array();
+			RowQueryStack->MarkDirty();
+		}
+	}
 }
 
 void SResultsView::OnModelChanged()
 {
-	SetCanTick(true);
+	bModelDirty = true;
 	Invalidate(EInvalidateWidgetReason::Layout);
-	
 }
 
 #undef LOCTEXT_NAMESPACE

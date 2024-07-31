@@ -31,7 +31,9 @@ public class TedsDebugger : ModuleRules
 		            "Slate",
 		            "InputCore",
 		            "EditorWidgets",
-		            "ToolWidgets"
+		            "ToolWidgets",
+		            "EditorWidgets",
+		            "TedsTableViewer"
             	});
 			
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

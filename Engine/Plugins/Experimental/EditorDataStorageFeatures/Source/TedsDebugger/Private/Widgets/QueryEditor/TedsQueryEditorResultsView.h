@@ -8,6 +8,12 @@ class ISceneOutliner;
 class SSceneOutliner;
 class SHorizontalBox;
 
+namespace UE::EditorDataStorage
+{
+	class STedsTableViewer;
+	class FQueryStackNode_RowView;
+}
+
 namespace UE::EditorDataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
@@ -28,14 +34,17 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 		
 		FTedsQueryEditorModel* Model = nullptr;
 		FDelegateHandle ModelChangedDelegateHandle;
+		bool bModelDirty = true;
 
-		TypedElementDataStorage::FQueryDescription RowQueryDescription;
+
 		TypedElementQueryHandle CountQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
-		TypedElementQueryHandle ColumnQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
+		TypedElementQueryHandle TableViewerQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
 
-		TSharedPtr<SHorizontalBox> TableViewHolder;
-
-		
+		TArray<TypedElementDataStorage::RowHandle> TableViewerRows;
+		// We have to keep a TSet copy because queries return duplicate rows sometimes and to have some form of sorted order for the rows for now
+		TSet<TypedElementDataStorage::RowHandle> TableViewerRows_Set;
+		TSharedPtr<UE::EditorDataStorage::STedsTableViewer> TableViewer;
+		TSharedPtr<UE::EditorDataStorage::FQueryStackNode_RowView> RowQueryStack;
 	};
 
 	
