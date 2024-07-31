@@ -21,9 +21,9 @@
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
-#include "VerseVM/VVMUClass.h"
 #include "VerseVM/VVMValuePrinting.h"
 #include "VerseVM/VVMVerse.h"
+#include "VerseVM/VVMVerseClass.h"
 
 namespace Verse
 {
@@ -188,7 +188,7 @@ VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& Archet
 
 UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
 {
-	UVerseVMClass* ObjectUClass = GetOrCreateUStruct<UVerseVMClass>(Context);
+	UVerseClass* ObjectUClass = GetOrCreateUStruct<UVerseClass>(Context);
 
 	FStaticConstructObjectParameters Parameters(ObjectUClass);
 	// Note: Object will get a default name based on class name
@@ -357,7 +357,7 @@ bool VClass::SubsumesImpl(FAllocationContext Context, VValue Value)
 	}
 	else if (Value.IsUObject())
 	{
-		InputType = CastChecked<UVerseVMClass>(Value.AsUObject()->GetClass())->Class.Get();
+		InputType = CastChecked<UVerseClass>(Value.AsUObject()->GetClass())->Class.Get();
 	}
 	else
 	{

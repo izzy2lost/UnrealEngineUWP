@@ -55,6 +55,15 @@ public class CoreUObject : ModuleRules
 
 		AddVerseVMDependencies(this, Target);
 
+		if (Target.bBuildWithEditorOnlyData || Target.Type == TargetType.Server)
+		{
+			PublicDefinitions.Add("WITH_VERSE_COMPILER=1");
+		}
+		else
+		{
+			PublicDefinitions.Add("WITH_VERSE_COMPILER=0");
+		}
+
 		UnsafeTypeCastWarningLevel = WarningLevel.Error;
 
 		if (Target.bBuildWithEditorOnlyData)

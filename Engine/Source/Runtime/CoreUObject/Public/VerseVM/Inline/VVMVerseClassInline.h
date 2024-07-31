@@ -6,13 +6,13 @@
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMNativeFunction.h"
-#include "VerseVM/VVMUClass.h"
+#include "VerseVM/VVMVerseClass.h"
 
-FORCEINLINE_DEBUGGABLE Verse::VValue UVerseVMClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
+FORCEINLINE_DEBUGGABLE Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
 {
 	using namespace Verse;
 
-	const UVerseVMClass* Class = CastChecked<UVerseVMClass>(Object->GetClass());
+	const UVerseClass* Class = CastChecked<UVerseClass>(Object->GetClass());
 	const VShape::VEntry* Field = Class->Shape->GetField(FieldName);
 
 	switch (Field->Type)

@@ -14,11 +14,11 @@
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
-#include "VerseVM/Inline/VVMUClassInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/Inline/VVMVarInline.h"
+#include "VerseVM/Inline/VVMVerseClassInline.h"
 #include "VerseVM/VVMArray.h"
 #include "VerseVM/VVMArrayBase.h"
 #include "VerseVM/VVMBytecode.h"
@@ -1662,7 +1662,7 @@ class FInterpreter
 		}
 		else if (UObject* UeObject = ObjectOperand.ExtractUObject())
 		{
-			FieldValue = UVerseVMClass::LoadField(Context, UeObject, FieldName);
+			FieldValue = UVerseClass::LoadField(Context, UeObject, FieldName);
 		}
 		else
 		{
@@ -1709,7 +1709,7 @@ class FInterpreter
 		}
 		else if (UObject* UeObject = ObjectOperand.ExtractUObject())
 		{
-			UVerseVMClass* Class = CastChecked<UVerseVMClass>(UeObject->GetClass());
+			UVerseClass* Class = CastChecked<UVerseClass>(UeObject->GetClass());
 			VShape* Shape = Class->Shape.Get();
 			V_DIE_UNLESS(Shape != nullptr);
 			const VShape::VEntry* Field = Shape->GetField(FieldName);

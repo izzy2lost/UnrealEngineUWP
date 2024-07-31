@@ -2,12 +2,13 @@
 
 #pragma once
 
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "Containers/StringFwd.h"
+#include "VerseVM/VVMVerseClass.h"
 
 class FString;
 class UPackage;
 class UStruct;
+class UEnum;
 struct FTopLevelAssetPath;
 
 namespace uLang
@@ -28,6 +29,19 @@ enum class EPackageStage : uint8;
 class IEngineEnvironment
 {
 public:
+	// Bind a VNI structure
+	virtual void TryBindVniStruct(UStruct* Struct) = 0;
+
+	// Bind a VNT enumaration
+	virtual void TryBindVniEnum(UEnum* Enum) = 0;
+
+	// Add persistent vars
+	virtual void AddPersistentVars(UObject* Object, const TArray<FVersePersistentVar>& Vars) = 0;
+
+	// Add session vars
+	virtual void AddSessionVars(UObject* Object, const TArray<FVerseSessionVar>& Vars) = 0;
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	// Collect property information during code generation.
 	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type) = 0;
 
@@ -45,6 +59,6 @@ public:
 
 	// Create a new UClass/UScriptStruct from an existing VClass during native binding or for CVarUObjectProbability.
 	virtual UStruct* CreateUStruct(FAllocationContext Context, VClass* Class) = 0;
+#endif // WITH_VERSE_VM
 };
 } // namespace Verse
-#endif // WITH_VERSE_VM

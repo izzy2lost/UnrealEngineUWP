@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMVerse.h"
 #include "AutoRTFM/AutoRTFM.h"
 #include "UObject/VerseValueProperty.h"
@@ -18,6 +17,7 @@ namespace Private
 IEngineEnvironment* GEngineEnvironment = nullptr;
 }
 
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
 void VerseVM::Startup()
 {
 	Verse::FHeap::Initialize();
@@ -46,6 +46,7 @@ void VerseVM::Shutdown()
 {
 	FHeap::Deinitialize();
 }
+#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 IEngineEnvironment* VerseVM::GetEngineEnvironment()
 {
@@ -59,4 +60,3 @@ void VerseVM::SetEngineEnvironment(IEngineEnvironment* Environment)
 }
 
 } // namespace Verse
-#endif // WITH_VERSE_VM || defined(__INTELLISENSE__)
