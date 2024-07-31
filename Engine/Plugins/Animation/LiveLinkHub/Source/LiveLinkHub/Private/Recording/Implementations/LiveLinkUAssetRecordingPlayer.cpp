@@ -343,12 +343,12 @@ FFrameRate FLiveLinkPlaybackTracks::GetInitialFrameRate() const
 
 void FLiveLinkUAssetRecordingPlayer::PreparePlayback(ULiveLinkRecording* CurrentRecording)
 {
-	ULiveLinkUAssetRecording* UAssetRecording = CastChecked<ULiveLinkUAssetRecording>(CurrentRecording);
-	LoadedRecording = UAssetRecording;
-
 	// Ensure there nothing is playing and all settings are default. It's possible the CurrentRecording has settings that need to be cleared,
 	// such as if this was just recorded and is now being loaded.
 	ShutdownPlayback();
+
+	ULiveLinkUAssetRecording* UAssetRecording = CastChecked<ULiveLinkUAssetRecording>(CurrentRecording);
+	LoadedRecording = UAssetRecording;
 	
 	CurrentRecordingPlayback = FLiveLinkPlaybackTracks();
 
@@ -357,16 +357,16 @@ void FLiveLinkUAssetRecordingPlayer::PreparePlayback(ULiveLinkRecording* Current
 
 void FLiveLinkUAssetRecordingPlayer::ShutdownPlayback()
 {
-	if (LoadedRecording)
+	if (LoadedRecording.IsValid())
 	{
-		LoadedRecording->UnloadRecording();
+		LoadedRecording->UnloadRecordingData();
 	}
 }
 
 void FLiveLinkUAssetRecordingPlayer::StreamPlayback(int32 InFromFrame)
 {
 	const int32 InitialFramesToBuffer = GetNumFramesToBuffer();
-	LoadedRecording->LoadRecording(InFromFrame, InitialFramesToBuffer);
+	LoadedRecording->LoadRecordingData(InFromFrame, InitialFramesToBuffer);
 
 	// Make sure there are a few frames ready.
 	LoadedRecording->WaitForBufferedFrames(InFromFrame, InFromFrame + 2);
@@ -376,7 +376,7 @@ void FLiveLinkUAssetRecordingPlayer::StreamPlayback(int32 InFromFrame)
 	const int32 CurrentFramesToBuffer = GetNumFramesToBuffer();
 	if (CurrentFramesToBuffer != InitialFramesToBuffer)
 	{
-		LoadedRecording->LoadRecording(InFromFrame, CurrentFramesToBuffer);
+		LoadedRecording->LoadRecordingData(InFromFrame, CurrentFramesToBuffer);
 	}
 
 	// Take the available recording data.

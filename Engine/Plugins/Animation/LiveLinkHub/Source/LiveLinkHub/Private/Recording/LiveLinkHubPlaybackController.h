@@ -56,6 +56,25 @@ public:
 	/** Stop playback and restore the previous settings. */
 	void Eject(TFunction<void()> CompletionCallback = nullptr);
 
+	/**
+	 * Eject this recording and make sure it is unloaded.
+	 * @param EjectCompletionCallback Callback after ejection occurs.
+	 * @param InRecording The specific recording to eject and unload. If null, the RecordingToPlay is used. 
+	 */
+	void EjectAndUnload(TFunction<void()> EjectCompletionCallback = nullptr, const ULiveLinkRecording* InRecording = nullptr);
+
+	/**
+	 * Completely unload a recording package.
+	 *
+	 * Optionally allow the package to be unloaded on the next tick. This is to help with ensuring the package is fully unloaded, such as if
+	 * the unload was requested during a multistep operation, like renaming the asset. When the asset is saved, the bulk data file archive is
+	 * lost, and a reload is needed to reattach it.
+	 * 
+	 * @param InPackage The package of the recording.
+	 * @param bUnloadNextTick Whether the package should unload on the next tick or now.
+	 */
+	void UnloadRecordingPackage(const TWeakObjectPtr<UPackage>& InPackage, bool bUnloadNextTick = false);
+	
 	/** Go to a specific time. */
 	void GoToTime(FQualifiedFrameTime InTime);
 	
@@ -152,9 +171,6 @@ private:
 
 	/** Handler called when playback is finished on the playback thread. Is responsible for resetting the livelink state to what it was before we started playback. */
 	void OnPlaybackFinished_Internal();
-
-	/** When a source has been removed from Live Link Hub. */
-	void OnSourceRemoved(FGuid Guid);
 	
 	/**
 	 * Send data to the client.
@@ -224,9 +240,6 @@ private:
 	/** The playback selection end time. */
 	FQualifiedFrameTime SelectionEndTime;
 
-	/** Current framerate of the recording, sampled from the latest frame. */
-	FFrameRate CurrentFrameRate;
-
-	/** Delegate handle for when a source is removed. */
-	FDelegateHandle OnSourceRemovedHandle;
+	/** Packages in the process of unloading. */
+	TSet<TWeakObjectPtr<UPackage>> PackagesUnloading;
 };

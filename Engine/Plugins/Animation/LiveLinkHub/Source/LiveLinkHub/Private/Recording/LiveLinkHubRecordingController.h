@@ -27,6 +27,9 @@ public:
 	/** Returns whether we're currently recording. */
 	bool IsRecording() const;
 
+	/** Returns whether the recording is currently saving. */
+	bool IsSavingRecording(ULiveLinkRecording* InRecording) const;
+
 	/** Record static data in the current recording. */
 	void RecordStaticData(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<class ULiveLinkRole> Role, const FLiveLinkStaticDataStruct& StaticData);
 

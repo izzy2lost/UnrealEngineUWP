@@ -40,7 +40,7 @@ const FText SLiveLinkHubMainTabView::ClientDetailsTabName = LOCTEXT("ClientDetai
 
 void SLiveLinkHubMainTabView::Construct(const FArguments& InArgs)
 {
-	PanelController = MakeShared<FLiveLinkPanelController>();
+	PanelController = MakeShared<FLiveLinkPanelController>(TAttribute<bool>::CreateSP(this, &SLiveLinkHubMainTabView::IsSourcePanelReadOnly));
 	PanelController->OnSubjectSelectionChanged().AddSP(this, &SLiveLinkHubMainTabView::OnSubjectSelectionChanged);
 
 	SLiveLinkHubTabViewWithManagerBase::Construct(
@@ -189,7 +189,7 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesTab(const FSpawnTabArg
 				.IsEnabled_Lambda([this]()
 				{
 					const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
-					return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback();
+					return !LiveLinkHubModule.GetPlaybackController()->IsInPlayback() && !LiveLinkHubModule.GetRecordingController()->IsRecording();
 				})
 			]
 			+SVerticalBox::Slot()
@@ -288,6 +288,12 @@ void SLiveLinkHubMainTabView::OnSubjectSelectionChanged(const FLiveLinkSubjectKe
 {
 	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 	LiveLinkHubModule.GetSubjectController()->SetSubject(SubjectKey);
+}
+
+bool SLiveLinkHubMainTabView::IsSourcePanelReadOnly() const
+{
+	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	return LiveLinkHubModule.GetPlaybackController()->IsInPlayback() || LiveLinkHubModule.GetRecordingController()->IsRecording();
 }
 
 #undef LOCTEXT_NAMESPACE

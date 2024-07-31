@@ -5,6 +5,8 @@
 #include "LiveLinkRole.h"
 #include "LiveLinkTypes.h"
 
+class ULiveLinkRecording;
+
 /** Interface for handling serialization of livelink data. */
 class ILiveLinkRecorder
 {
@@ -21,4 +23,6 @@ public:
 	virtual void RecordFrameData(const FLiveLinkSubjectKey& SubjectKey, const FLiveLinkFrameDataStruct& FrameData) = 0;
 	/** Return whether we are currently recording livelink data. */
 	virtual bool IsRecording() const = 0;
+	/** Return whether the recording is in the process of being saved. */
+	virtual bool IsSavingRecording(ULiveLinkRecording* InRecording) const = 0;
 };

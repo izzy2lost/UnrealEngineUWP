@@ -2,60 +2,98 @@
 
 #include "LiveLinkUAssetRecording.h"
 
+#include "Engine/Engine.h"
+#include "Features/IModularFeatures.h"
 #include "HAL/IConsoleManager.h"
+#include "LiveLinkHubClient.h"
 #include "LiveLinkHubLog.h"
+#include "LiveLinkHubModule.h"
 #include "LiveLinkUAssetRecordingPlayer.h"
+#include "Misc/App.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
+#include "Recording/LiveLinkHubPlaybackController.h"
+#include "Recording/LiveLinkHubRecordingController.h"
 #include "Serialization/BufferArchive.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
+#include "UObject/Package.h"
 
 ULiveLinkUAssetRecording::~ULiveLinkUAssetRecording()
 {
-	UnloadRecording();
+	UnloadRecordingData();
 }
 
 void ULiveLinkUAssetRecording::Serialize(FArchive& Ar)
 {
 	Super::Serialize(Ar);
+	AnimationData.Serialize(Ar, this);
 }
 
-void ULiveLinkUAssetRecording::SaveRecording()
+void ULiveLinkUAssetRecording::PostDuplicate(EDuplicateMode::Type DuplicateMode)
 {
-	// Saving frame data to a custom file, so it can be streamed in later.
-	const FString FilePath = GetRecordingDataFilePath();
-	FArchive* FileWriter = IFileManager::Get().CreateFileWriter(*FilePath);
+	Super::PostDuplicate(DuplicateMode);
 
+	if (DuplicateMode == EDuplicateMode::Normal)
+	{
+		EjectAndUnload();
+	}
+}
+
+void ULiveLinkUAssetRecording::PostRename(UObject* OldOuter, const FName OldName)
+{
+	Super::PostRename(OldOuter, OldName);
+
+	EjectAndUnload();
+}
+
+void ULiveLinkUAssetRecording::SaveRecordingData()
+{
+	bIsSavingRecordingData = true;
+	
+	FBufferArchive Archive;
+	
 	int32 RecordingVersionToSave = RecordingVersion;
-	*FileWriter << RecordingVersionToSave;
+	Archive << RecordingVersionToSave;
 
 	// How much static data to expect.
 	int32 NumStaticData = RecordingData.StaticData.Num();
-	*FileWriter << NumStaticData;
+	Archive << NumStaticData;
 		
 	for (TTuple<FLiveLinkSubjectKey, FLiveLinkRecordingStaticDataContainer>& StaticData : RecordingData.StaticData)
 	{
-		SaveFrameData(FileWriter, StaticData.Key, StaticData.Value);
+		SaveFrameData(&Archive, StaticData.Key, StaticData.Value);
 	}
 	
 	// How much frame data to expect.
 	int32 NumFrameData = RecordingData.FrameData.Num();
-	*FileWriter << NumFrameData;
+	Archive << NumFrameData;
 		
 	for (TTuple<FLiveLinkSubjectKey, FLiveLinkRecordingBaseDataContainer>& FrameData : RecordingData.FrameData)
 	{
-		SaveFrameData(FileWriter, FrameData.Key, FrameData.Value);
+		SaveFrameData(&Archive, FrameData.Key, FrameData.Value);
 	}
-		
-	FileWriter->FlushCache();
-	FileWriter->Close();
-	delete FileWriter;
+
+	AnimationData.WriteBulkData(Archive);
+	
+	Archive.FlushCache();
+	Archive.Close();
+
+	bIsSavingRecordingData = false;
 }
 
-void ULiveLinkUAssetRecording::LoadRecording(int32 InInitialFrame, int32 InNumFramesToLoad)
+void ULiveLinkUAssetRecording::LoadRecordingData(int32 InInitialFrame, int32 InNumFramesToLoad)
 {
+	if (bIsFullyLoaded)
+	{
+		return;
+	}
+	
 	bCancelStream = false;
+	bPauseStream = false;
+	OnStreamPausedEvent->Reset();
+	OnStreamUnpausedEvent->Reset();
 	
 	int32 StartFrame = InInitialFrame - InNumFramesToLoad;
 	if (StartFrame < 0)
@@ -69,18 +107,7 @@ void ULiveLinkUAssetRecording::LoadRecording(int32 InInitialFrame, int32 InNumFr
 	// Perform initial setup of the file reader.
 	if (!AsyncStreamTask.IsValid())
 	{
-		check(RecordingFileReader == nullptr);
-
 		FrameFileData.Empty();
-		
-		const FString FilePath = GetRecordingDataFilePath();
-		RecordingFileReader = IFileManager::Get().CreateFileReader(*FilePath);
-
-		if (RecordingFileReader == nullptr)
-		{
-			UE_LOG(LogLiveLinkHub, Error, TEXT("Failed to open file %s for reading."), *FilePath);
-			return;
-		}
 	}
 
 	EarliestFrameToStream = StartFrame;
@@ -93,6 +120,16 @@ void ULiveLinkUAssetRecording::LoadRecording(int32 InInitialFrame, int32 InNumFr
 	InitialFrameToStream = InInitialFrame;
 	TotalFramesToStream = InNumFramesToLoad;
 
+	if (!OnPreGarbageCollectHandle.IsValid())
+	{
+		OnPreGarbageCollectHandle = FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &ULiveLinkUAssetRecording::OnPreGarbageCollect);
+	}
+
+	if (!OnPostGarbageCollectHandle.IsValid())
+	{
+		OnPostGarbageCollectHandle = FCoreUObjectDelegates::GetPostGarbageCollect().AddUObject(this, &ULiveLinkUAssetRecording::OnPostGarbageCollect);
+	}
+	
 	if (!AsyncStreamTask.IsValid())
 	{
 		AsyncStreamTask = MakeUnique<FAsyncTask<FLiveLinkStreamAsyncTask>>(this);
@@ -100,9 +137,17 @@ void ULiveLinkUAssetRecording::LoadRecording(int32 InInitialFrame, int32 InNumFr
 	}
 }
 
-void ULiveLinkUAssetRecording::UnloadRecording()
+void ULiveLinkUAssetRecording::UnloadRecordingData()
 {
+	if (IsSavingRecordingData() || GetPackage()->HasAnyPackageFlags(PKG_IsSaving))
+	{
+		UE_LOG(LogLiveLinkHub, Warning, TEXT("Attempted to unload %s while the package was still being saved"), *GetName());
+		return;
+	}
+	
 	bCancelStream = true;
+	UnpauseStream();
+	bIsFullyLoaded = false;
 
 	if (AsyncStreamTask.IsValid())
 	{
@@ -113,14 +158,21 @@ void ULiveLinkUAssetRecording::UnloadRecording()
 		AsyncStreamTask.Reset();
 	}
 
+	if (OnPreGarbageCollectHandle.IsValid())
+	{
+		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().Remove(OnPreGarbageCollectHandle);
+		OnPreGarbageCollectHandle.Reset();
+	}
+
+	if (OnPostGarbageCollectHandle.IsValid())
+	{
+		FCoreUObjectDelegates::GetPostGarbageCollect().Remove(OnPostGarbageCollectHandle);
+		OnPostGarbageCollectHandle.Reset();
+	}
+
 	bPerformedInitialLoad = false;
 
-	if (RecordingFileReader)
-	{
-		RecordingFileReader->Close();
-		delete RecordingFileReader;
-		RecordingFileReader = nullptr;
-	}
+	AnimationData.CloseFileReader();
 
 	FrameFileData.Empty();
 	RecordingMaxFrames = 0;
@@ -176,6 +228,11 @@ void ULiveLinkUAssetRecording::WaitForBufferedFrames(int32 InMinFrame, int32 InM
 
 TRange<int32> ULiveLinkUAssetRecording::GetBufferedFrames() const
 {
+	if (bIsFullyLoaded)
+	{
+		return TRange<int32>(0, RecordingMaxFrames);
+	}
+	
 	FScopeLock Lock(&BufferedFrameMutex);
 	if (FrameFileData.Num() > 0)
 	{
@@ -237,6 +294,27 @@ void ULiveLinkUAssetRecording::CopyRecordingData(FLiveLinkPlaybackTracks& InOutL
 	}
 }
 
+void ULiveLinkUAssetRecording::InitializeNewRecordingData(FLiveLinkUAssetRecordingData&& InRecordingData, double InRecordingLengthSeconds)
+{
+	RecordingData = MoveTemp(InRecordingData);
+	LengthInSeconds = InRecordingLengthSeconds;
+	FrameRate = FApp::GetTimecodeFrameRate();
+	RecordingPreset->BuildFromClient();
+
+	int32 MaxFrames = 0;
+	for (const TTuple<FLiveLinkSubjectKey, FLiveLinkRecordingBaseDataContainer>& FrameData : RecordingData.FrameData)
+	{
+		if (FrameData.Value.Timestamps.Num() > MaxFrames)
+		{
+			MaxFrames = FrameData.Value.Timestamps.Num();
+		}
+	}
+
+	RecordingMaxFrames = MaxFrames;
+	
+	bIsFullyLoaded = true;
+}
+
 void ULiveLinkUAssetRecording::SetBufferedFrames(FFrameFileData& InFrameData, const TRange<int32>& InNewRange)
 {
 	FScopeLock Lock(&BufferedFrameMutex);
@@ -245,72 +323,97 @@ void ULiveLinkUAssetRecording::SetBufferedFrames(FFrameFileData& InFrameData, co
 
 void ULiveLinkUAssetRecording::SaveFrameData(FArchive* InFileWriter, const FLiveLinkSubjectKey& InSubjectKey, FLiveLinkRecordingBaseDataContainer& InBaseDataContainer)
 {
-		// This will crash if it fails -- we don't want to save invalid data.
-		InBaseDataContainer.ValidateData();
+	// This will crash if it fails -- we don't want to save invalid data.
+	InBaseDataContainer.ValidateData();
 		
-		// Start block with map key.
-		FGuid Source = InSubjectKey.Source;
-		FString SubjectName = InSubjectKey.SubjectName.ToString();
-		int32 NumFrames = InBaseDataContainer.RecordedData.Num();
-		*InFileWriter << Source;
-		*InFileWriter << SubjectName;
-		*InFileWriter << NumFrames;
+	// Start block with map key.
+	FGuid Source = InSubjectKey.Source;
+	FString SubjectName = InSubjectKey.SubjectName.ToString();
+	int32 NumFrames = InBaseDataContainer.RecordedData.Num();
 
-		uint64 SerializedFrameSizePosition = 0;
-		int32 SerializedFrameSize = 0;
-		if (NumFrames > 0)
-		{
-			const UScriptStruct* ScriptStruct = InBaseDataContainer.RecordedData[0]->GetScriptStruct();
-			FString StructTypeName = ScriptStruct->GetPathName();
+	// We record the frame header size first, so later we can bulk load the entire block into memory, then feed it to a memory reader.
+	const uint64 FrameHeaderSizePosition = InFileWriter->Tell();
+	int32 FrameHeaderSize = 0;
+	*InFileWriter << FrameHeaderSize;
+	const int32 FrameHeaderSizeStart = InFileWriter->Tell();
+	
+	*InFileWriter << Source;
+	*InFileWriter << SubjectName;
+	*InFileWriter << NumFrames;
 
-			// Write the struct name and size so it can be loaded later.
-			*InFileWriter << StructTypeName;
+	if (NumFrames == 0)
+	{
+		UE_LOG(LogLiveLinkHub, Error, TEXT("No frames recorded."));
+		return;
+	}
+	
+	const UScriptStruct* ScriptStruct = InBaseDataContainer.RecordedData[0]->GetScriptStruct();
+	FString StructTypeName = ScriptStruct->GetPathName();
 
-			// Remember the position to write the frame size.
-			SerializedFrameSizePosition = InFileWriter->Tell();
-			*InFileWriter << SerializedFrameSize;
-		}
+	// Write the struct name and size so it can be loaded later.
+	*InFileWriter << StructTypeName;
+
+	// Write the frame header size.
+	{
+		const uint64 CurrentPosition = InFileWriter->Tell();
+		FrameHeaderSize = CurrentPosition - FrameHeaderSizeStart;
+
+		InFileWriter->Seek(FrameHeaderSizePosition);
+		*InFileWriter << FrameHeaderSize;
+		InFileWriter->Seek(CurrentPosition);
+	}
+
+	// Remember the position to write the frame size.
+	const uint64 SerializedFrameSizePosition = InFileWriter->Tell();
+	int32 SerializedFrameSize = 0;
+	*InFileWriter << SerializedFrameSize;
 			
-		for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
-		{
-			TSharedPtr<FInstancedStruct>& Frame = InBaseDataContainer.RecordedData[FrameIdx];
-			check(Frame.IsValid() && Frame->IsValid());
+	for (int32 FrameIdx = 0; FrameIdx < NumFrames; ++FrameIdx)
+	{
+		TSharedPtr<FInstancedStruct>& Frame = InBaseDataContainer.RecordedData[FrameIdx];
+		check(Frame.IsValid() && Frame->IsValid());
 			
-			// Write the frame index for streaming frames when loading.
-			*InFileWriter << FrameIdx;
+		// Write the frame index for streaming frames when loading.
+		*InFileWriter << FrameIdx;
 
-			// Write the frame's timestamp.
-			double Timestamp = InBaseDataContainer.Timestamps[FrameIdx];
-			*InFileWriter << Timestamp;
+		// Write the frame's timestamp.
+		double Timestamp = InBaseDataContainer.Timestamps[FrameIdx];
+		*InFileWriter << Timestamp;
 			
-			// Write the entire frame data.
-			uint64 SerializeDataStart = InFileWriter->Tell();
-			FObjectAndNameAsStringProxyArchive StructAr(*InFileWriter, false);
-			Frame->Serialize(StructAr);
+		// Write the entire frame data.
+		uint64 SerializeDataStart = InFileWriter->Tell();
+		FObjectAndNameAsStringProxyArchive StructAr(*InFileWriter, false);
+		Frame->Serialize(StructAr);
 
-			// Store the serialized frame size, so we can write it once later.
-			{
-				int32 CurrentSerializedFrameSize = InFileWriter->Tell() - SerializeDataStart;
-				// Sanity check that the serialized frame size is consistent.
-				ensure(CurrentSerializedFrameSize == SerializedFrameSize || SerializedFrameSize == 0);
-				SerializedFrameSize = CurrentSerializedFrameSize;
-			}
-		}
-
-		if (SerializedFrameSize > 0)
+		// Store the serialized frame size, so we can write it once later.
 		{
-			// Write the frame data offset at the beginning of the block.
-			const uint64 FinalOffset = InFileWriter->Tell();
-			InFileWriter->Seek(SerializedFrameSizePosition);
-			*InFileWriter << SerializedFrameSize;
-			InFileWriter->Seek(FinalOffset);
+			int32 CurrentSerializedFrameSize = InFileWriter->Tell() - SerializeDataStart;
+			// Sanity check that the serialized frame size is consistent.
+			ensure(CurrentSerializedFrameSize == SerializedFrameSize || SerializedFrameSize == 0);
+			SerializedFrameSize = CurrentSerializedFrameSize;
 		}
+	}
+
+	if (SerializedFrameSize > 0)
+	{
+		// Write the frame data offset at the beginning of the block.
+		const uint64 FinalOffset = InFileWriter->Tell();
+		InFileWriter->Seek(SerializedFrameSizePosition);
+		*InFileWriter << SerializedFrameSize;
+		InFileWriter->Seek(FinalOffset);
+	}
 }
 
 static TAutoConsoleVariable<float> CVarLiveLinkHubDebugFrameBufferDelay(
 	TEXT("LiveLinkHub.Debug.FrameBufferDelay"),
 	0.0f,
 	TEXT("The number of seconds to wait when buffering each frame.")
+);
+
+static TAutoConsoleVariable<int32> CVarFrameBufferUpdate(
+	TEXT("LiveLinkHub.Debug.FrameBufferUpdate"),
+	5,
+	TEXT("The number of frames before updating the buffer status.")
 );
 
 void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCurrentFrame, int32 InNumFramesToLoad)
@@ -334,15 +437,16 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 	}
 
 	DebugSleepTime = CVarLiveLinkHubDebugFrameBufferDelay.GetValueOnAnyThread();
+	ReportFrameBufferOnIteration = CVarFrameBufferUpdate.GetValueOnAnyThread();
 	
 	// Perform initial load and record entry frame file offsets.
 	const bool bInitialLoad = FrameFileData.Num() == 0;
 	if (bInitialLoad)
 	{
-		RecordingFileReader->Seek(0);
+		AnimationData.ResetBulkDataOffset();
 		
 		int32 LoadedRecordingVersion;
-		*RecordingFileReader << LoadedRecordingVersion;
+		AnimationData.ReadBulkDataPrimitive(LoadedRecordingVersion);
 
 		// If we modify the RecordingVersion we can perform import logic here.
 		ensure(LoadedRecordingVersion == RecordingVersion);
@@ -350,19 +454,13 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 		// Process static data.
 		
 		int32 NumStaticData = 0;
-		*RecordingFileReader << NumStaticData;
+		
+		AnimationData.ReadBulkDataPrimitive(NumStaticData);
 
 		for (int32 StaticIdx = 0; StaticIdx < NumStaticData; ++StaticIdx)
 		{
-			FGuid KeySource = FGuid();
-			FString KeyName;
-			
-			*RecordingFileReader << KeySource;
-			*RecordingFileReader << KeyName;
-
 			// Create framedata just to load initial static frame data. Static data doesn't require this afterward.
 			FFrameFileData TemporaryFrameData;
-			TemporaryFrameData.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
 			if (!LoadInitialFrameData(TemporaryFrameData))
 			{
 				return;
@@ -375,26 +473,18 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 		// Process frame data.
 		
 		int32 NumFrameData = 0;
-		*RecordingFileReader << NumFrameData;
+		AnimationData.ReadBulkDataPrimitive(NumFrameData);
 
 		for (int32 FrameIdx = 0; FrameIdx < NumFrameData; ++FrameIdx)
 		{
-			FGuid KeySource = FGuid();
-			FString KeyName;
-			
-			*RecordingFileReader << KeySource;
-			*RecordingFileReader << KeyName;
-
 			FFrameFileData KeyPosition;
-			KeyPosition.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
 			if (!LoadInitialFrameData(KeyPosition))
 			{
 				return;
 			}
 
 			// Offset to the end of this block if there is multiple NumFrameData.
-			const int64 EndBlockPosition = KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames);
-			RecordingFileReader->Seek(EndBlockPosition);
+			AnimationData.SetBulkDataOffset(KeyPosition.GetFrameFilePosition(KeyPosition.MaxFrames));
 			FrameFileData.Add(MoveTemp(KeyPosition));
 		}
 	}
@@ -416,8 +506,21 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 
 bool ULiveLinkUAssetRecording::LoadInitialFrameData(FFrameFileData& OutFrameData)
 {
+	int32 FrameHeaderSize = 0;
+	AnimationData.ReadBulkDataPrimitive(FrameHeaderSize);
+
+	const FLiveLinkHubBulkData::FScopedBulkDataMemoryReader Reader = AnimationData.CreateBulkDataMemoryReader(FrameHeaderSize);
+	
+	FGuid KeySource = FGuid();
+	FString KeyName;
+
+	Reader.GetMemoryReader() << KeySource;
+	Reader.GetMemoryReader() << KeyName;
+			
+	OutFrameData.FrameDataSubjectKey = MakeShared<FLiveLinkSubjectKey>(KeySource, *KeyName);
+	
 	int32 MaxFrames = 0;
-	(*RecordingFileReader) << MaxFrames;
+	Reader.GetMemoryReader() << MaxFrames;
 
 	if (MaxFrames > RecordingMaxFrames)
 	{
@@ -430,12 +533,13 @@ bool ULiveLinkUAssetRecording::LoadInitialFrameData(FFrameFileData& OutFrameData
 	{	
 		FString StructTypeName;
 		int32 SerializedStructureSize;
-			
-		*RecordingFileReader << StructTypeName;
-		*RecordingFileReader << SerializedStructureSize;
+
+		Reader.GetMemoryReader() << StructTypeName;
+
+		AnimationData.ReadBulkDataPrimitive(SerializedStructureSize);
 
 		OutFrameData.SerializedStructureSize = SerializedStructureSize;
-		OutFrameData.RecordingStartFrameFilePosition = RecordingFileReader->Tell();
+		OutFrameData.RecordingStartFrameFilePosition = AnimationData.GetBulkDataOffset();
 
 		OutFrameData.LoadedStruct = FindObject<UScriptStruct>(nullptr, *StructTypeName, true);
 		if (!OutFrameData.LoadedStruct.IsValid())
@@ -477,10 +581,6 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 			return;
 		}
 
-		// Seek to the requested start frame position in the file.
-		int64 NewPosition = InFrameData.GetFrameFilePosition(RequestedStartFrame);
-		RecordingFileReader->Seek(NewPosition);
-
 		// Arrays to store the newly loaded data.
 		TArray<double> NewTimestamps;
 		TArray<TSharedPtr<FInstancedStruct>> NewRecordedData;
@@ -504,9 +604,23 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 		{
 			bLoadRight = !bLoadRight;
 		};
+
+		int32 Iteration = 0;
 		
 		while (RightFrameIdx < MaxFrames || LeftFrameIdx >= RequestedStartFrame)
 		{
+			ON_SCOPE_EXIT
+			{
+				Iteration++;
+			};
+			
+			if (bCancelStream)
+			{
+				break;
+			}
+
+			WaitIfPaused_AsyncThread();
+			
 			int32 FrameToLoad;
     
 			if (bLoadRight)
@@ -529,20 +643,7 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 				FrameToLoad = LeftFrameIdx--;
 				LastLoadedLeftFrame = FrameToLoad;
 			}
-
-			int64 FramePosition = InFrameData.GetFrameFilePosition(FrameToLoad);
-			RecordingFileReader->Seek(FramePosition);
-
-			int32 ParsedFrameIdx = 0;
-			*RecordingFileReader << ParsedFrameIdx;
-
-			// Ensure the parsed frame index matches the expected frame
-			if (!ensure(ParsedFrameIdx == FrameToLoad))
-			{
-				UE_LOG(LogLiveLinkHub, Error, TEXT("Frame index mismatch: expected %d, got %d"), FrameToLoad, ParsedFrameIdx);
-				break;
-			}
-
+			
 			auto InsertFrame = [&](TSharedPtr<FInstancedStruct>& InFrame, double InTimestamp, bool bCopy)
 			{
 #if UE_BUILD_DEBUG
@@ -570,22 +671,36 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 #endif
 			};
 			
-			// Don't load a frame already in memory.
+			// Don't load a frame already in memory. Do this before reading any bulk data, so we don't continually read from disk.
 			double ExistingTimestamp = 0.f;
-			if (TSharedPtr<FInstancedStruct> ExistingFrame = InDataContainer.TryGetFrame(ParsedFrameIdx, ExistingTimestamp))
+			if (TSharedPtr<FInstancedStruct> ExistingFrame = InDataContainer.TryGetFrame(FrameToLoad, ExistingTimestamp))
 			{
-				check(RecordingFileReader->Tell() != 0);
 				constexpr bool bCopy = true; // Copy, as the data container could still be having its frame data pushed to animation.
 				InsertFrame(ExistingFrame, ExistingTimestamp, bCopy);
 				AlternateLoadDirection();
 				continue;
 			}
 
+			int64 FramePosition = InFrameData.GetFrameFilePosition(FrameToLoad);
+			AnimationData.SetBulkDataOffset(FramePosition);
+			
+			const FLiveLinkHubBulkData::FScopedBulkDataMemoryReader Reader = AnimationData.CreateBulkDataMemoryReader(InFrameData.FrameDiskSize);
+
+			int32 ParsedFrameIdx = 0;
+			Reader.GetMemoryReader() << ParsedFrameIdx;
+
+			// Ensure the parsed frame index matches the expected frame
+			if (!ensure(ParsedFrameIdx == FrameToLoad))
+			{
+				UE_LOG(LogLiveLinkHub, Error, TEXT("Frame index mismatch: expected %d, got %d"), FrameToLoad, ParsedFrameIdx);
+				break;
+			}
+			
 			double Timestamp = 0;
-			*RecordingFileReader << Timestamp;
+			Reader.GetMemoryReader() << Timestamp;
 
 			// Instantiate the animation frame.
-			FObjectAndNameAsStringProxyArchive StructAr(*RecordingFileReader, false);
+			FObjectAndNameAsStringProxyArchive StructAr(Reader.GetMemoryReader(), false);
 			TSharedPtr<FInstancedStruct> DataInstancedStruct = MakeShared<FInstancedStruct>(LoadedStruct);
 			DataInstancedStruct->Serialize(StructAr);
 
@@ -593,6 +708,13 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 		
 			ensure(NewTimestamps.Num() == NewRecordedData.Num());
 
+			// Update buffered frames so any tasks waiting for a certain buffer amount, as well as the UI, can update.
+			// Record every few frames to avoid constantly locking the mutex.
+			if (Iteration % ReportFrameBufferOnIteration == 0)
+			{
+				SetBufferedFrames(InFrameData, TRange<int32>(LastLoadedLeftFrame, LastLoadedRightFrame));
+			}
+			
 			AlternateLoadDirection();
 
 			// Test slow buffer.
@@ -609,7 +731,11 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 		}
 
 		// Record all the frames that have been buffered.
-		SetBufferedFrames(InFrameData, TRange<int32>(LastLoadedLeftFrame, LastLoadedRightFrame));
+		const TRange<int32> NewFrameRange(LastLoadedLeftFrame, LastLoadedRightFrame);
+		if (InFrameData.BufferedFrames != NewFrameRange)
+		{
+			SetBufferedFrames(InFrameData, NewFrameRange);
+		}
 
 		// Output the streamed data to the data container. This will unload unused frames.
 		{
@@ -636,6 +762,53 @@ FString ULiveLinkUAssetRecording::GetRecordingDataFilePath() const
 	return AbsoluteFilePath;
 }
 
+void ULiveLinkUAssetRecording::EjectAndUnload()
+{
+	const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+	if (const TSharedPtr<FLiveLinkHubPlaybackController> Controller = LiveLinkHubModule.GetPlaybackController())
+	{
+		Controller->EjectAndUnload(nullptr, this);
+	}
+}
+
+void ULiveLinkUAssetRecording::WaitIfPaused_AsyncThread()
+{
+	check(!IsInGameThread());
+	
+	if (bPauseStream)
+	{
+		OnStreamPausedEvent->Trigger();
+		OnStreamUnpausedEvent->Wait();
+	}
+}
+
+void ULiveLinkUAssetRecording::PauseStream()
+{
+	if (AsyncStreamTask.IsValid() && !AsyncStreamTask->IsDone())
+	{
+		OnStreamUnpausedEvent->Reset();
+		bPauseStream = true;
+		OnStreamPausedEvent->Wait();
+	}
+}
+
+void ULiveLinkUAssetRecording::UnpauseStream()
+{
+	bPauseStream = false;
+	OnStreamPausedEvent->Reset();
+	OnStreamUnpausedEvent->Trigger();
+}
+
+void ULiveLinkUAssetRecording::OnPreGarbageCollect()
+{
+	PauseStream();
+}
+
+void ULiveLinkUAssetRecording::OnPostGarbageCollect()
+{
+	UnpauseStream();
+}
+
 void ULiveLinkUAssetRecording::FLiveLinkStreamAsyncTask::DoWork()
 {
 	int32 LastStartFrame = -1;
@@ -643,6 +816,8 @@ void ULiveLinkUAssetRecording::FLiveLinkStreamAsyncTask::DoWork()
 	int32 LastInitialFrame = -1;
 	while (LiveLinkRecording && !LiveLinkRecording->bCancelStream)
 	{
+		LiveLinkRecording->WaitIfPaused_AsyncThread();
+		
 		if (LastStartFrame != LiveLinkRecording->EarliestFrameToStream
 			|| LastTotalFrames != LiveLinkRecording->TotalFramesToStream
 			|| LastInitialFrame != LiveLinkRecording->InitialFrameToStream)

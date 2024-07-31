@@ -21,12 +21,14 @@
 #include "Misc/FileHelper.h"
 #include "Misc/PackageName.h"
 #include "Recording/Implementations/LiveLinkUAssetRecording.h"
+#include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkRecording.h"
 #include "Settings/LiveLinkHubSettings.h"
 #include "StructUtils/InstancedStruct.h"
 #include "UI/Window/LiveLinkHubWindowController.h"
 #include "UObject/Object.h"
 #include "UObject/Package.h"
+#include "UObject/SavePackage.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Layout/SBox.h"
@@ -45,15 +47,16 @@ namespace UAssetRecorderUtils
 		
 		if (const FLiveLinkStaticDataStruct* StaticData = LiveLinkClient->GetSubjectStaticData_AnyThread(SubjectKey))
 		{
-			check(StaticData->IsValid());
-		
-			TSharedPtr<FInstancedStruct> StaticDataInstancedStruct = MakeShared<FInstancedStruct>();
-			StaticDataInstancedStruct->InitializeAs(StaticData->GetStruct(), (uint8*)StaticData->GetBaseData());
+			if (StaticData->IsValid())
+			{
+				TSharedPtr<FInstancedStruct> StaticDataInstancedStruct = MakeShared<FInstancedStruct>();
+				StaticDataInstancedStruct->InitializeAs(StaticData->GetStruct(), (uint8*)StaticData->GetBaseData());
 
-			StaticDataContainer = FLiveLinkRecordingStaticDataContainer();
-			StaticDataContainer->Role = LiveLinkRole;
-			StaticDataContainer->RecordedData.Insert(MoveTemp(StaticDataInstancedStruct), 0);
-			StaticDataContainer->Timestamps.Add(0.0);
+				StaticDataContainer = FLiveLinkRecordingStaticDataContainer();
+				StaticDataContainer->Role = LiveLinkRole;
+				StaticDataContainer->RecordedData.Insert(MoveTemp(StaticDataInstancedStruct), 0);
+				StaticDataContainer->Timestamps.Add(0.0);
+			}
 		}
 
 		return StaticDataContainer;
@@ -86,6 +89,11 @@ void FLiveLinkUAssetRecorder::StopRecording()
 bool FLiveLinkUAssetRecorder::IsRecording() const
 {
 	return bIsRecording;
+}
+
+bool FLiveLinkUAssetRecorder::IsSavingRecording(ULiveLinkRecording* InRecording) const
+{
+	return AsyncSaveTasks.Contains(InRecording);
 }
 
 void FLiveLinkUAssetRecorder::RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, TSharedPtr<FInstancedStruct>&& DataToRecord)
@@ -220,20 +228,19 @@ void FLiveLinkUAssetRecorder::SaveRecording()
 	const FString NewAssetName = FPackageName::GetLongPackageAssetName(PackageName);
 	UPackage* NewPackage = CreatePackage(*PackageName);
 
-	ULiveLinkUAssetRecording* NewRecording = NewObject<ULiveLinkUAssetRecording>(NewPackage, *NewAssetName, RF_Public | RF_Standalone);
-	if (NewRecording)
+	if (TObjectPtr<ULiveLinkUAssetRecording> NewRecording = NewObject<ULiveLinkUAssetRecording>(NewPackage, *NewAssetName, RF_Public | RF_Standalone))
 	{
-		NewRecording->LengthInSeconds = TimeRecordingEnded - TimeRecordingStarted;
-		NewRecording->RecordingPreset->BuildFromClient();
-		NewRecording->RecordingData = MoveTemp(*CurrentRecording);
+		const double RecordingLength = TimeRecordingEnded - TimeRecordingStarted;
+		NewRecording->InitializeNewRecordingData(MoveTemp(*CurrentRecording), RecordingLength);
 
-		// todo: async stream save and utilize bulk data within UAsset instead of a separate file.
-		NewRecording->SaveRecording();
-		
 		NewRecording->MarkPackageDirty();
 
-		//FAssetRegistryModule::AssetCreated(NewPreset);  Disabled for now since unsure if needed.
-		UEditorLoadingAndSavingUtils::SavePackages({ NewPackage }, false);
+		FAssetRegistryModule::AssetCreated(NewRecording);
+
+		// Create a task to run on a separate thread for saving all frame data and writing the final UAsset to disk.
+		// We use a container rather than just one task on the chance a save operation is still running when another recording is being saved.
+		FAsyncTask<FLiveLinkSaveRecordingAsyncTask>& AsyncTask = *AsyncSaveTasks.Add(NewRecording, MakeUnique<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>(NewRecording, this));
+		AsyncTask.StartBackgroundTask();
 	}
 
 	return;
@@ -251,6 +258,62 @@ void FLiveLinkUAssetRecorder::RecordInitialStaticData()
 		{
 			CurrentRecording->StaticData.Add(Subject, MoveTemp(*StaticDataContainer));
 		}
+	}
+}
+
+void FLiveLinkUAssetRecorder::OnRecordingSaved_GameThread(TWeakObjectPtr<ULiveLinkUAssetRecording> InRecording)
+{
+	if (InRecording.IsValid())
+	{
+		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+		const TStrongObjectPtr<ULiveLinkRecording> PlaybackRecording = LiveLinkHubModule.GetPlaybackController()->GetRecording();
+
+		UPackage* PackageToUnload = InRecording->GetPackage();
+		const bool bIsPlayingThisRecording = PlaybackRecording.Get() == InRecording.Get();
+
+		// Finish task first to make sure strong reference to the recording is cleared.
+		if (const TUniquePtr<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>* AsyncTask = AsyncSaveTasks.Find(InRecording))
+		{
+			AsyncTask->Get()->EnsureCompletion();
+			ensure(AsyncSaveTasks.Remove(InRecording) > 0);
+		}
+		
+		if (!bIsPlayingThisRecording)
+		{
+			// Unload as this is not used again until the user loads it, and allows the bulk animation data to obtain a file handle correctly.
+			LiveLinkHubModule.GetPlaybackController()->UnloadRecordingPackage(PackageToUnload);
+		}
+	}
+}
+
+void FLiveLinkUAssetRecorder::FLiveLinkSaveRecordingAsyncTask::DoWork()
+{
+	check(LiveLinkRecording.IsValid());
+
+	// Write to bulk data.
+	LiveLinkRecording->SaveRecordingData();
+		
+	FSavePackageArgs SavePackageArgs;
+	SavePackageArgs.TopLevelFlags = RF_Public | RF_Standalone;
+	SavePackageArgs.Error = GLog;
+	SavePackageArgs.SaveFlags = SAVE_Async;
+
+	const FString PackageFileName = FPackageName::LongPackageNameToFilename(LiveLinkRecording->GetPackage()->GetName(), FPackageName::GetAssetPackageExtension());
+	if (UPackage::SavePackage(LiveLinkRecording->GetPackage(), LiveLinkRecording.Get(), *PackageFileName, MoveTemp(SavePackageArgs)))
+	{
+		UPackage::WaitForAsyncFileWrites();
+
+		// Finish on the game thread for safety.
+		TWeakObjectPtr RecordingWeakPtr(LiveLinkRecording.Get());
+		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+			FSimpleDelegateGraphTask::FDelegate::CreateRaw(Recorder, &FLiveLinkUAssetRecorder::OnRecordingSaved_GameThread, RecordingWeakPtr),
+		TStatId(),
+		nullptr,
+		ENamedThreads::GameThread);
+	}
+	else
+	{
+		UE_LOG(LogLiveLinkHub, Error, TEXT("Package '%s' was not saved"), *PackageFileName);
 	}
 }
 

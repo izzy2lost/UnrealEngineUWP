@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include "Recording/LiveLinkRecorder.h"
-
+#include "Async/AsyncWork.h"
 #include "LiveLinkTypes.h"
+#include "LiveLinkUAssetRecording.h"
 #include "Misc/CoreMiscDefines.h"
+#include "Recording/LiveLinkRecorder.h"
 #include "Templates/PimplPtr.h"
 
 struct FLiveLinkRecordingBaseDataContainer;
@@ -23,6 +24,7 @@ public:
 	virtual void RecordStaticData(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, const FLiveLinkStaticDataStruct& StaticData) override;
 	virtual void RecordFrameData(const FLiveLinkSubjectKey& SubjectKey, const FLiveLinkFrameDataStruct& FrameData) override;
 	virtual bool IsRecording() const override;
+	virtual bool IsSavingRecording(ULiveLinkRecording* InRecording) const override;
 	//~ End ILiveLinkRecorder
 
 private:
@@ -36,8 +38,35 @@ private:
 	void RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, TSharedPtr<FInstancedStruct>&& DataToRecord);
 	/** Record initial data for all livelink subjects. (Useful when static data was sent before the recording started). */
 	void RecordInitialStaticData();
+	/** Called on the game thread after a recording has been saved. */
+	void OnRecordingSaved_GameThread(TWeakObjectPtr<ULiveLinkUAssetRecording> InRecording);
 
 private:
+	class FLiveLinkSaveRecordingAsyncTask : public FNonAbandonableTask
+	{
+	public:
+		FLiveLinkSaveRecordingAsyncTask(ULiveLinkUAssetRecording* InLiveLinkRecording, FLiveLinkUAssetRecorder* InRecorder)
+		{
+			LiveLinkRecording = TStrongObjectPtr(InLiveLinkRecording);
+			Recorder = InRecorder;
+		}
+
+		TStatId GetStatId() const
+		{
+			RETURN_QUICK_DECLARE_CYCLE_STAT(LiveLinkSaveRecordingAsyncTask, STATGROUP_ThreadPoolAsyncTasks);
+		}
+
+		void DoWork();
+
+	private:
+		/** The recording being saved. */
+		TStrongObjectPtr<ULiveLinkUAssetRecording> LiveLinkRecording;
+		/** The recorder owner. */
+		FLiveLinkUAssetRecorder* Recorder = nullptr;
+	};
+
+	/** Current async save tasks. */
+	TMap<TWeakObjectPtr<ULiveLinkRecording>, TUniquePtr<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>> AsyncSaveTasks;
 	/** Holds metadata and recording data. */
 	TPimplPtr<FLiveLinkUAssetRecordingData> CurrentRecording;
 	/** Whether we're currently recording livelink data. */

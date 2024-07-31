@@ -133,7 +133,7 @@ public:
 
 	virtual TRange<int32> GetBufferedFrames() override
 	{
-		return LoadedRecording ? LoadedRecording->GetBufferedFrames() : TRange<int32>(0, 0);
+		return LoadedRecording.IsValid() ? LoadedRecording->GetBufferedFrames() : TRange<int32>(0, 0);
 	}
 
 private:
@@ -148,5 +148,5 @@ private:
 	FLiveLinkPlaybackTracks CurrentRecordingPlayback;
 
 	/** The recording currently loaded. */
-	TObjectPtr<ULiveLinkUAssetRecording> LoadedRecording;
+	TWeakObjectPtr<ULiveLinkUAssetRecording> LoadedRecording;
 };

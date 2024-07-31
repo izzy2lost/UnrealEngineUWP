@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Async/AsyncWork.h"
+#include "Data/LiveLinkHubBulkData.h"
 #include "StructUtils/InstancedStruct.h"
 #include "LiveLinkPreset.h"
 #include "LiveLinkRole.h"
@@ -14,6 +15,7 @@
 
 #include "LiveLinkUAssetRecording.generated.h"
 
+class FMemoryReader;
 struct FLiveLinkPlaybackTracks;
 
 /** Base data container for a recording track. */
@@ -133,14 +135,20 @@ public:
 	
 	virtual void Serialize(FArchive& Ar) override;
 
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode) override;
+	virtual void PostRename(UObject* OldOuter, const FName OldName) override;
+
+	virtual bool IsFullyLoaded() const override { return bIsFullyLoaded; }
+	virtual bool IsSavingRecordingData() const override { return bIsSavingRecordingData; }
+	
 	/** Save recording data to disk. */
-	void SaveRecording();
+	void SaveRecordingData();
 
 	/** Load recording data from disk. */
-	void LoadRecording(int32 InInitialFrame, int32 InNumFramesToLoad);
+	void LoadRecordingData(int32 InInitialFrame, int32 InNumFramesToLoad);
 
 	/** Free memory and close file reader. */
-	void UnloadRecording();
+	void UnloadRecordingData();
 
 	/** Block until frames are loaded. */
 	void WaitForBufferedFrames(int32 InMinFrame, int32 InMaxFrame);
@@ -156,6 +164,9 @@ public:
 
 	/** Copy the asset's loaded recording data to a format suitable for playback in live link. */
 	void CopyRecordingData(FLiveLinkPlaybackTracks& InOutLiveLinkPlaybackTracks) const;
+
+	/** Initial setup of new recording data. */
+	void InitializeNewRecordingData(FLiveLinkUAssetRecordingData&& InRecordingData, double InRecordingLengthSeconds);
 	
 private:
 	/** Frame data file information when loading from a recording file. */
@@ -201,6 +212,24 @@ private:
 	
 	/** Retrieve the recording data file path for this asset. */
 	FString GetRecordingDataFilePath() const;
+
+	/** Eject this recording and make sure it is unloaded. */
+	void EjectAndUnload();
+
+	/** Make the thread wait if we are paused. */
+	void WaitIfPaused_AsyncThread();
+
+	/** Signal and wait for the stream to be paused. */
+	void PauseStream();
+
+	/** Signal the stream can be resumed. */
+	void UnpauseStream();
+	
+	/** Called before garbage collection. */
+	void OnPreGarbageCollect();
+
+	/** Called after garbage collection. */
+	void OnPostGarbageCollect();
 	
 public:
 	/** Recorded static and frame data. */
@@ -216,6 +245,15 @@ private:
 			LiveLinkRecording = InLiveLinkRecording;
 		}
 
+		~FLiveLinkStreamAsyncTask()
+		{
+			if (LiveLinkRecording)
+			{
+				// Make sure we aren't waiting for a pause.
+				LiveLinkRecording->OnStreamPausedEvent->Trigger();
+			}
+		}
+
 		TStatId GetStatId() const
 		{
 			RETURN_QUICK_DECLARE_CYCLE_STAT(LiveLinkStreamAsyncTask, STATGROUP_ThreadPoolAsyncTasks);
@@ -227,11 +265,9 @@ private:
 		TObjectPtr<ULiveLinkUAssetRecording> LiveLinkRecording;
 	};
 
-	friend class FLiveLinkStreamAsyncTask;
+	/** The animation data -- bulk data stored within this uasset. */
+	FLiveLinkHubBulkData AnimationData;
 	
-	/** The file reader for the recording data. */
-	FArchive* RecordingFileReader = nullptr;
-
 	/** The loaded frame data keys and position. */
 	TArray<FFrameFileData> FrameFileData;
 
@@ -253,8 +289,14 @@ private:
 	/** Signal that the stream should be canceled. */
 	std::atomic<bool> bCancelStream = false;
 
+	/** Signal that the stream should be paused. */
+	std::atomic<bool> bPauseStream = false;
+
 	/** True once a full initial load has been performed -- static + frame data. */
 	std::atomic<bool> bPerformedInitialLoad = false;
+
+	/** If we are currently saving recording frame data to disk. */
+	std::atomic<bool> bIsSavingRecordingData = false;
 
 	/** The maximum frame disk size across frame data. */
 	std::atomic<int32> MaxFrameDiskSize = 0;
@@ -268,8 +310,26 @@ private:
 	/** The thread streaming data from disk. */
 	TUniquePtr<FAsyncTask<FLiveLinkStreamAsyncTask>> AsyncStreamTask;
 
+	/** Handle for when gc is about to run. */
+	FDelegateHandle OnPreGarbageCollectHandle;
+
+	/** Handle for when gc has finished. */
+	FDelegateHandle OnPostGarbageCollectHandle;
+
+	/** Signalled when the stream is successfully paused. */
+	FEventRef OnStreamPausedEvent = FEventRef(EEventMode::ManualReset);
+	
+	/** Signalled when the stream has been unpaused. */
+	FEventRef OnStreamUnpausedEvent = FEventRef(EEventMode::ManualReset);
+	
 	/** Test slow frame buffering. */
 	float DebugSleepTime = 0.f;
+
+	/** Write the frame buffer size every n iterations. */
+	int32 ReportFrameBufferOnIteration = 5;
+
+	/** If the recording is fully loaded into memory. */
+	bool bIsFullyLoaded = false;
 	
 	/** The current version of the recording. */
 	const int32 RecordingVersion = 1;

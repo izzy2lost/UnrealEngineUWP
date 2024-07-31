@@ -45,6 +45,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category="LiveLink", meta = (Latent, LatentInfo = "LatentInfo", HidePin = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
 	void ApplyToClientLatent(UObject* WorldContextObject, FLatentActionInfo LatentInfo);
 	void ApplyToClientLatent(TFunction<void(bool)> CompletionCallback = nullptr);
+	
+	/** Cancels the current latent action and prevents the callback from firing. Only valid for C++ variant. */
+	void CancelLatentAction();
 
 	/**
 	 * Add the sources and subjects from this preset, but leave any existing sources and subjects connected.
