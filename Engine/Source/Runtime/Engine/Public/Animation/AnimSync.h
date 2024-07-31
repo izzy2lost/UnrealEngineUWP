@@ -16,15 +16,17 @@ namespace UE { namespace Anim {
 // Parameters for group/marker-based sync 
 struct FAnimSyncParams
 {
-	FAnimSyncParams(FName InGroupName = NAME_None, EAnimGroupRole::Type InRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod InMethod = EAnimSyncMethod::DoNotSync)
+	FAnimSyncParams(FName InGroupName = NAME_None, EAnimGroupRole::Type InRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod InMethod = EAnimSyncMethod::DoNotSync, bool InOverridePositionWhenJoiningSyncGroupAsLeader = false)
 		: GroupName(InGroupName)
 		, Role(InRole)
 		, Method(InMethod)
+		, bOverridePositionWhenJoiningSyncGroupAsLeader(InOverridePositionWhenJoiningSyncGroupAsLeader)
 	{}
-
+	
 	FName GroupName = NAME_None;
 	EAnimGroupRole::Type Role = EAnimGroupRole::CanBeLeader;
 	EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync;
+	bool bOverridePositionWhenJoiningSyncGroupAsLeader = false;
 };
 
 // Wraps up functionality for ticking and syncing animations according to group (via normalized time) or marker

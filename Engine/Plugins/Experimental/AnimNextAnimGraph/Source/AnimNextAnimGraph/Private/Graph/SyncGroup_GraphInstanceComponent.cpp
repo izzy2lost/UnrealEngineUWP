@@ -55,6 +55,7 @@ namespace UE::AnimNext
 					}
 					break;
 				case EAnimGroupRole::AlwaysLeader:
+				case EAnimGroupRole::ExclusiveAlwaysLeader:
 					// Always set the leader index
 					LeaderIndex = MemberIndex;
 					LeaderTotalWeight = 2.0f;		// Some high value

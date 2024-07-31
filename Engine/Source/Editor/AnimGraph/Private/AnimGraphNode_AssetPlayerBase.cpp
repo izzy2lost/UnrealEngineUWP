@@ -447,47 +447,52 @@ FText UAnimGraphNode_AssetPlayerBase::GetNodeTitleForAsset(ENodeTitleType::Type 
 		TitleArgs.Add(TEXT("AssetDesc"), InAssetDesc);
 		FText Title = FText::Format(LOCTEXT("AssetPlayerFullTitle", "{AssetName}\n{AssetDesc}"), TitleArgs);
 
-		if (InTitleType == ENodeTitleType::FullTitle)
+		AddSyncGroupToNodeTitle(InTitleType, Title);
+
+		return Title;
+	}
+}
+
+void UAnimGraphNode_AssetPlayerBase::AddSyncGroupToNodeTitle(ENodeTitleType::Type InTitleType, FText& InOutTitle) const
+{
+	if (InTitleType == ENodeTitleType::FullTitle)
+	{
+		FStructProperty* NodeProperty = GetFNodeProperty();
+		if(NodeProperty->Struct->IsChildOf(FAnimNode_AssetPlayerBase::StaticStruct()))
 		{
-			FStructProperty* NodeProperty = GetFNodeProperty();
-			if(NodeProperty->Struct->IsChildOf(FAnimNode_AssetPlayerBase::StaticStruct()))
-			{
-				const FAnimNode_AssetPlayerBase* Node = NodeProperty->ContainerPtrToValuePtr<FAnimNode_AssetPlayerBase>(this);
+			const FAnimNode_AssetPlayerBase* Node = NodeProperty->ContainerPtrToValuePtr<FAnimNode_AssetPlayerBase>(this);
 				
-				FFormatNamedArguments Args;
-				Args.Add(TEXT("Title"), Title);
+			FFormatNamedArguments Args;
+			Args.Add(TEXT("Title"), InOutTitle);
 
-				if(Node->GetGroupMethod() == EAnimSyncMethod::SyncGroup)
-				{
-					Args.Add(TEXT("SyncGroupName"), FText::FromName(Node->GetGroupName()));
-					static const FTextFormat FormatAssetPlayerNodeSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeSyncGroupSubtitle", "{Title}\nSync group {SyncGroupName}"));
-					Title = FText::Format(FormatAssetPlayerNodeSyncGroupSubtitle, Args);
-				}
-				else if(Node->GetGroupMethod() == EAnimSyncMethod::Graph)
-				{
-					static const FTextFormat FormatAssetPlayerNodeGraphSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeGraphSyncGroupSubtitle", "{Title}\nGraph sync group"));
-					Title = FText::Format(FormatAssetPlayerNodeGraphSyncGroupSubtitle, Args);
+			if(Node->GetGroupMethod() == EAnimSyncMethod::SyncGroup)
+			{
+				Args.Add(TEXT("SyncGroupName"), FText::FromName(Node->GetGroupName()));
+				static const FTextFormat FormatAssetPlayerNodeSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeSyncGroupSubtitle", "{Title}\nSync group {SyncGroupName}"));
+				InOutTitle = FText::Format(FormatAssetPlayerNodeSyncGroupSubtitle, Args);
+			}
+			else if(Node->GetGroupMethod() == EAnimSyncMethod::Graph)
+			{
+				static const FTextFormat FormatAssetPlayerNodeGraphSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeGraphSyncGroupSubtitle", "{Title}\nGraph sync group"));
+				InOutTitle = FText::Format(FormatAssetPlayerNodeGraphSyncGroupSubtitle, Args);
 
-					UObject* ObjectBeingDebugged = GetAnimBlueprint()->GetObjectBeingDebugged();
-					UAnimBlueprintGeneratedClass* GeneratedClass = GetAnimBlueprint()->GetAnimBlueprintGeneratedClass();
-					if (ObjectBeingDebugged && GeneratedClass)
+				UObject* ObjectBeingDebugged = GetAnimBlueprint()->GetObjectBeingDebugged();
+				UAnimBlueprintGeneratedClass* GeneratedClass = GetAnimBlueprint()->GetAnimBlueprintGeneratedClass();
+				if (ObjectBeingDebugged && GeneratedClass)
+				{
+					int32 NodeIndex = GeneratedClass->GetNodeIndexFromGuid(NodeGuid);
+					if(NodeIndex != INDEX_NONE)
 					{
-						int32 NodeIndex = GeneratedClass->GetNodeIndexFromGuid(NodeGuid);
-						if(NodeIndex != INDEX_NONE)
+						if(const FName* SyncGroupNamePtr = GeneratedClass->GetAnimBlueprintDebugData().NodeSyncsThisFrame.Find(NodeIndex))
 						{
-							if(const FName* SyncGroupNamePtr = GeneratedClass->GetAnimBlueprintDebugData().NodeSyncsThisFrame.Find(NodeIndex))
-							{
-								Args.Add(TEXT("SyncGroupName"), FText::FromName(*SyncGroupNamePtr));
-								static const FTextFormat FormatAssetPlayerNodeDynamicGraphSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeDynamicGraphSyncGroupSubtitle", "{Title}\nGraph sync group {SyncGroupName}"));
-								Title = FText::Format(FormatAssetPlayerNodeDynamicGraphSyncGroupSubtitle, Args);
-							}
+							Args.Add(TEXT("SyncGroupName"), FText::FromName(*SyncGroupNamePtr));
+							static const FTextFormat FormatAssetPlayerNodeDynamicGraphSyncGroupSubtitle(LOCTEXT("AssetPlayerNodeDynamicGraphSyncGroupSubtitle", "{Title}\nGraph sync group {SyncGroupName}"));
+							InOutTitle = FText::Format(FormatAssetPlayerNodeDynamicGraphSyncGroupSubtitle, Args);
 						}
 					}
 				}
 			}
 		}
-
-		return Title;
 	}
 }
 

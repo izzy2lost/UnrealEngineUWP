@@ -87,6 +87,7 @@ void FAnimGroupInstance::TestTickRecordForLeadership(EAnimGroupRole::Type Member
 			Candidate.LeaderScore = Candidate.EffectiveBlendWeight;
 			break;
 		case EAnimGroupRole::AlwaysLeader:
+		case EAnimGroupRole::ExclusiveAlwaysLeader:
 			// Always set the leader index
 			Candidate.LeaderScore = LEADERSCORE_ALWAYSLEADER;
 			break;

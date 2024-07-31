@@ -402,7 +402,9 @@ struct FAnimTickRecord
 	bool bLooping = false;
 	bool bIsEvaluator = false;
 	bool bRequestedInertialization = false;
-
+	bool bOverridePositionWhenJoiningSyncGroupAsLeader = false;
+	bool bIsExclusiveLeader = false;
+	
 	const UMirrorDataTable* MirrorDataTable = nullptr;
 
 	TSharedPtr<TArray<TUniquePtr<const UE::Anim::IAnimNotifyEventContextDataInterface>>> ContextData;
@@ -583,6 +585,9 @@ namespace EAnimGroupRole
 
 		/** This node will be excluded from the sync group while blending in. Once blended in it will be a follower until blended out*/
 		TransitionFollower,
+
+		/** This node will always be a leader. If it fails to be ticked as a leader it will be run as ungrouped asset player (EAnimSyncMethod::DoNotSync) .*/
+		ExclusiveAlwaysLeader,
 	};
 }
 
