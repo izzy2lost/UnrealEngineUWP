@@ -13,10 +13,8 @@ USTRUCT()
 struct FDaySequenceCollectionEntry
 {
 	GENERATED_BODY()
-
-	FDaySequenceCollectionEntry() = default;
-
-	FDaySequenceCollectionEntry(UDaySequence* InDaySequence)
+	
+	FDaySequenceCollectionEntry(UDaySequence* InDaySequence = nullptr)
 	: Sequence(InDaySequence)
 	, BiasOffset(0)
 	, Conditions(FDaySequenceConditionSet())
