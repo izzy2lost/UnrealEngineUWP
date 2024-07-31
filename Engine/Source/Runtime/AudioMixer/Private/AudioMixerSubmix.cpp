@@ -1655,6 +1655,7 @@ namespace Audio
 
 	void FMixerSubmix::UnregisterBufferListenerInternal(UPTRINT ListenerBufferPtr) 
 	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
 		BufferListenerPtrs.RemoveAll(
 			[=](const TWeakPtr<ISubmixBufferListener>& Listener)
 			{
@@ -1665,6 +1666,7 @@ namespace Audio
 
 	void FMixerSubmix::PruneSubmixBufferListeners()
 	{
+		FScopeLock Lock(&BufferListenerCriticalSection);
 		BufferListenerPtrs.RemoveAll(
 			[](const TWeakPtr<ISubmixBufferListener>& Listener)
 			{
