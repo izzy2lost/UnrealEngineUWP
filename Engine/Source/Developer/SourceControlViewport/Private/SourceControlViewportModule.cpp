@@ -70,7 +70,7 @@ void FSourceControlViewportModule::UpdateSettings()
 	ViewportMenu->SetEnabled(bEnabled);
 	ViewportToolTips->SetEnabled(bEnabled);
 
-	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("SourceControl.Overlays.Enable")); ensure(CVar))
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("RevisionControl.Overlays.Enable")); ensure(CVar))
 	{
 		CVar->Set(bEnabled);
 	}
