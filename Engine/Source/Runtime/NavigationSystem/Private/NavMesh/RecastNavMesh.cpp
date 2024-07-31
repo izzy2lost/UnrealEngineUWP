@@ -3647,6 +3647,18 @@ void ARecastNavMesh::PostEditChangeProperty(FPropertyChangedEvent& PropertyChang
 	}
 }
 
+void ARecastNavMesh::PostEditUndo()
+{
+	// ANavigationData will register again this navdata in Super::PostEditUndo(). 
+    // Since it was removed, we need to recreate it's RecastNavMeshImpl.
+	if (RecastNavMeshImpl == nullptr)
+	{
+		RecastNavMeshImpl = new FPImplRecastNavMesh(this);
+	}
+	
+	Super::PostEditUndo();
+}
+
 #endif // WITH_EDITOR
 
 bool ARecastNavMesh::NeedsRebuild() const

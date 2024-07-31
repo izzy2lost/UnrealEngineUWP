@@ -1080,6 +1080,7 @@ public:
 #if WITH_EDITOR
 	NAVIGATIONSYSTEM_API virtual void PostEditChangeChainProperty( struct FPropertyChangedChainEvent& PropertyChangedChainEvent) override;
 	NAVIGATIONSYSTEM_API virtual void PostEditChangeProperty( struct FPropertyChangedEvent& PropertyChangedEvent) override;
+	NAVIGATIONSYSTEM_API virtual void PostEditUndo() override;
 #endif // WITH_EDITOR
 	//~ End UObject Interface
 
