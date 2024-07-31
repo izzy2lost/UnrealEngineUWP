@@ -450,8 +450,15 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 
 #if WITH_EDITOR
 	{
+		// Default to AutoComputeLODScreenSizes in case the attribute is not set.
+		bool bAutoComputeLODScreenSize = true;
+		StaticMeshFactoryNode->GetCustomAutoComputeLODScreenSizes(bAutoComputeLODScreenSize);
+
+		TArray<float> LodScreenSizes;
+		StaticMeshFactoryNode->GetLODScreenSizes(LodScreenSizes);
+
 		const bool bIsAReimport = Arguments.ReimportObject != nullptr;
-		SetupSourceModelsSettings(*StaticMesh, LodMeshDescriptions, PrevLodCount, FinalLodCount, bIsAReimport);
+		SetupSourceModelsSettings(*StaticMesh, LodMeshDescriptions, bAutoComputeLODScreenSize, LodScreenSizes, PrevLodCount, FinalLodCount, bIsAReimport);
 
 		// SetupSourceModelsSettings can change the destination lightmap UV index
 		// Make sure the destination lightmap UV index on the factory node takes
@@ -804,11 +811,35 @@ void UInterchangeStaticMeshFactory::BuildFromMeshDescriptions(UStaticMesh& Stati
 }
 
 #if WITH_EDITORONLY_DATA
-void UInterchangeStaticMeshFactory::SetupSourceModelsSettings(UStaticMesh& StaticMesh, const TArray<FMeshDescription>& LodMeshDescriptions, int32 PreviousLodCount, int32 FinalLodCount, bool bIsAReimport)
+void UInterchangeStaticMeshFactory::SetupSourceModelsSettings(UStaticMesh& StaticMesh, const TArray<FMeshDescription>& LodMeshDescriptions, bool bAutoComputeLODScreenSizes, const TArray<float>& LodScreenSizes, int32 PreviousLodCount, int32 FinalLodCount, bool bIsAReimport)
 {
+	// Default LOD Screen Size
+	constexpr int32 LODIndex = 0;
+	float PreviousLODScreenSize = UStaticMesh::ComputeLODScreenSize(LODIndex);
+
+	// If no values are provided, then force AutoCompute
+	if (LodScreenSizes.IsEmpty())
+	{
+		bAutoComputeLODScreenSizes = true;
+	}
+	StaticMesh.bAutoComputeLODScreenSize = bAutoComputeLODScreenSizes;
+	
 	for (int32 LodIndex = 0; LodIndex < FinalLodCount; ++LodIndex)
 	{
 		FStaticMeshSourceModel& SrcModel = StaticMesh.GetSourceModel(LodIndex);
+
+		if (!bAutoComputeLODScreenSizes)
+		{
+			if (LodScreenSizes.IsValidIndex(LodIndex))
+			{
+				SrcModel.ScreenSize = LodScreenSizes[LodIndex]; 
+			}
+			else
+			{
+				SrcModel.ScreenSize = UStaticMesh::ComputeLODScreenSize(LodIndex, PreviousLODScreenSize);
+			}
+			PreviousLODScreenSize = SrcModel.ScreenSize.Default;
+		}
 
 		// Make sure that mesh descriptions for added LODs are kept as is when the mesh is built
 		if (LodIndex >= PreviousLodCount)

@@ -192,6 +192,19 @@ static void FillMaterialName(const TArray<FStaticMaterial>& StaticMaterials, TMa
 }
 #endif
 
+namespace UE::StaticMesh::Private::Constants
+{
+	// Default Highest LOD Screen Size
+	constexpr float LOD0ScreenSize = 2.0f;
+
+	// Arbitrary constant used as a base in Pow(K, LODIndex) that achieves much the same progression as a
+	// conversion of the old 1 / (MaxLODs * LODIndex) passed through the newer bounds computation.
+	// i.e. this achieves much the same results, but is still fairly arbitrary.
+	constexpr float AutoComputeLODPowerBase = 0.75f;
+
+	constexpr float Tolerance = 0.01f;
+}
+
 /*-----------------------------------------------------------------------------
 	FStaticMeshAsyncBuildWorker
 -----------------------------------------------------------------------------*/
@@ -2542,20 +2555,17 @@ void FStaticMeshRenderData::ResolveSectionInfo(UStaticMesh* Owner)
 			Section.bForceOpaque = Info.bForceOpaque;
 		}
 
-		// Arbitrary constant used as a base in Pow(K, LODIndex) that achieves much the same progression as a
-		// conversion of the old 1 / (MaxLODs * LODIndex) passed through the newer bounds computation.
-		// i.e. this achieves much the same results, but is still fairly arbitrary.
-		const float AutoComputeLODPowerBase = 0.75f;
-
 		if (Owner->bAutoComputeLODScreenSize)
 		{
+			using namespace UE::StaticMesh::Private;
+
 			if (LODIndex == 0)
 			{
-				ScreenSize[LODIndex].Default = 2.0f;
+				ScreenSize[LODIndex].Default = Constants::LOD0ScreenSize;
 			}
 			else if(LOD.MaxDeviation <= 0.0f)
 			{
-				ScreenSize[LODIndex].Default = FMath::Pow(AutoComputeLODPowerBase, LODIndex);
+				ScreenSize[LODIndex].Default = FMath::Pow(Constants::AutoComputeLODPowerBase, LODIndex);
 			}
 			else
 			{
@@ -2590,15 +2600,10 @@ void FStaticMeshRenderData::ResolveSectionInfo(UStaticMesh* Owner)
 		}
 		else
 		{
-			check(LODIndex > 0);
-
 			// No valid source model and we're not auto-generating. Auto-generate in this case
 			// because we have nothing else to go on.
-			const float Tolerance = 0.01f;
-			float AutoDisplayFactor = FMath::Pow(AutoComputeLODPowerBase, LODIndex);
-
-			// Make sure this fits in with the previous LOD
-			ScreenSize[LODIndex].Default = FMath::Clamp(AutoDisplayFactor, 0.0f, ScreenSize[LODIndex-1].Default - Tolerance);
+			check(LODIndex > 0);
+			ScreenSize[LODIndex].Default = UStaticMesh::ComputeLODScreenSize(LODIndex, ScreenSize[LODIndex - 1].Default);
 		}
 	}
 	for (; LODIndex < MAX_STATIC_MESH_LODS; ++LODIndex)
@@ -2899,6 +2904,26 @@ void FStaticMeshLODSettings::ReadEntry(FStaticMeshLODGroup& Group, FString Entry
 	{
 		Bias.ShadingImportance = (EMeshFeatureImportance::Type)FMath::Clamp<int32>(Importance, -EMeshFeatureImportance::Highest, EMeshFeatureImportance::Highest);
 	}
+}
+
+float UStaticMesh::ComputeLODScreenSize(int32 LODIndex, float PreviousLODScreenSize /*= -1.0f*/)
+{
+	using namespace UE::StaticMesh::Private;
+
+	if (PreviousLODScreenSize < 0.0f)
+	{
+		// Provides a good upper bound
+		PreviousLODScreenSize = Constants::LOD0ScreenSize;
+	}
+
+	if (LODIndex <= 0)
+	{
+		return Constants::LOD0ScreenSize;
+	}
+
+	const float AutoDisplayFactor = FMath::Pow(Constants::AutoComputeLODPowerBase, LODIndex);
+	// Make sure this fits in with the previous LOD
+	return FMath::Clamp(AutoDisplayFactor, 0.0f, PreviousLODScreenSize - Constants::Tolerance);
 }
 
 void FStaticMeshLODSettings::GetLODGroupNames(TArray<FName>& OutNames) const

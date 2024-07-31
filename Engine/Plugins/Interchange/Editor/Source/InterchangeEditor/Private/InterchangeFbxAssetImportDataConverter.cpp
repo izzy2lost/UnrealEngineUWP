@@ -8,6 +8,7 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/StaticMesh.h"
+#include "StaticMeshResources.h"
 #include "Factories/FbxAnimSequenceImportData.h"
 #include "Factories/FbxAssetImportData.h"
 #include "Factories/FbxImportUI.h"
@@ -275,6 +276,24 @@ namespace UE::Interchange::Private
 		{
 			GenericAssetPipeline->CommonMeshesProperties->bRecomputeNormals = true;
 			GenericAssetPipeline->CommonMeshesProperties->bRecomputeTangents = true;
+		}
+	}
+
+	void FillInterchangeGenericAssetsPipelineFromFbxStaticMesh(UInterchangeGenericAssetsPipeline* GenericAssetPipeline, const UStaticMesh* StaticMesh)
+	{
+		if (!StaticMesh || !GenericAssetPipeline)
+		{
+			return;
+		}
+
+		GenericAssetPipeline->MeshPipeline->bAutoComputeLODScreenSizes = StaticMesh->bAutoComputeLODScreenSize;
+		if (const FStaticMeshRenderData* RenderData = StaticMesh->GetRenderData())
+		{
+			GenericAssetPipeline->MeshPipeline->LODScreenSizes.Empty();
+			for (int32 LodIndex = 0; LodIndex < MAX_STATIC_MESH_LODS; ++LodIndex)
+			{
+				GenericAssetPipeline->MeshPipeline->LODScreenSizes.Add(RenderData->ScreenSize[LodIndex].Default);
+			}
 		}
 	}
 
@@ -588,6 +607,20 @@ namespace UE::Interchange::Private
 		FillFbxAnimSequenceImportData(GenericAssetPipeline, DestinationData->AnimSequenceImportData);
 
 		DestinationData->bOverrideFullName = GenericAssetPipeline->bUseSourceNameForAsset;
+		
+		// LOD Screen Sizes
+		{
+			UInterchangeGenericMeshPipeline* MeshPipeline = GenericAssetPipeline->MeshPipeline;
+			DestinationData->bAutoComputeLodDistances = MeshPipeline->bAutoComputeLODScreenSizes;
+			DestinationData->LodDistance0 = MeshPipeline->LODScreenSizes.IsValidIndex(0) ? MeshPipeline->LODScreenSizes[0] : 0.0f;
+			DestinationData->LodDistance1 = MeshPipeline->LODScreenSizes.IsValidIndex(1) ? MeshPipeline->LODScreenSizes[1] : 0.0f;
+			DestinationData->LodDistance2 = MeshPipeline->LODScreenSizes.IsValidIndex(2) ? MeshPipeline->LODScreenSizes[2] : 0.0f;
+			DestinationData->LodDistance3 = MeshPipeline->LODScreenSizes.IsValidIndex(3) ? MeshPipeline->LODScreenSizes[3] : 0.0f;
+			DestinationData->LodDistance4 = MeshPipeline->LODScreenSizes.IsValidIndex(4) ? MeshPipeline->LODScreenSizes[4] : 0.0f;
+			DestinationData->LodDistance5 = MeshPipeline->LODScreenSizes.IsValidIndex(5) ? MeshPipeline->LODScreenSizes[5] : 0.0f;
+			DestinationData->LodDistance6 = MeshPipeline->LODScreenSizes.IsValidIndex(6) ? MeshPipeline->LODScreenSizes[6] : 0.0f;
+			DestinationData->LodDistance7 = MeshPipeline->LODScreenSizes.IsValidIndex(7) ? MeshPipeline->LODScreenSizes[7] : 0.0f;
+		}
 
 		//Material Options
 		DestinationData->bImportMaterials = GenericAssetPipeline->MaterialPipeline->bImportMaterials;
@@ -696,6 +729,7 @@ namespace UE::Interchange::Private
 
 			GenericAssetPipeline->MeshPipeline->CommonMeshesProperties->ForceAllMeshAsType = EInterchangeForceMeshType::IFMT_StaticMesh;
 			check(Obj->IsA<UStaticMesh>());
+			FillInterchangeGenericAssetsPipelineFromFbxStaticMesh(GenericAssetPipeline, Cast<UStaticMesh>(Obj));
 			FillInterchangeGenericAssetsPipelineFromFbxStaticMeshImportData(GenericAssetPipeline
 				, LegacyStaticMeshImportData);
 		}

@@ -789,7 +789,10 @@ public:
 	ENGINE_API int32 GetMinLODIdx(bool bForceLowestLODIdx = false) const;
 	ENGINE_API int32 GetDefaultMinLOD() const;
 	ENGINE_API void SetMinLODIdx(int32 InMinLOD);
-
+	
+	/** Computes the LOD Screen Size based on the LODIndex while keeping it within tolerance from the previous LODScreenSize*/
+	ENGINE_API static float ComputeLODScreenSize(int32 LODIndex, float PreviousLODScreenSize = -1.0f);
+	
 	ENGINE_API static void OnLodStrippingQualityLevelChanged(IConsoleVariable* Variable);
 
 	/** Minimum LOD to use for rendering.  This is the default setting for the mesh and can be overridden by component settings. */

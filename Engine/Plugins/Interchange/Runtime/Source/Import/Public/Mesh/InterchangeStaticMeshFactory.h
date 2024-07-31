@@ -73,7 +73,7 @@ private:
 	void BuildFromMeshDescriptions(UStaticMesh& StaticMesh);
 
 #if WITH_EDITORONLY_DATA
-	void SetupSourceModelsSettings(UStaticMesh& StaticMesh, const TArray<FMeshDescription>& LodMeshDescriptions, int32 PreviousLodCount, int32 FinalLodCount, bool bIsAReimport);
+	void SetupSourceModelsSettings(UStaticMesh& StaticMesh, const TArray<FMeshDescription>& LodMeshDescriptions, bool bAutoComputeLODScreenSizes, const TArray<float>& LodScreenSizes, int32 PreviousLodCount, int32 FinalLodCount, bool bIsAReimport);
 #endif
 	struct FImportAssetObjectData
 	{

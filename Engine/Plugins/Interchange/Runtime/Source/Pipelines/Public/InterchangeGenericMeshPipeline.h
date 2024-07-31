@@ -53,8 +53,16 @@ public:
 	bool bCombineStaticMeshes = false;
 
 	/** The LOD group that will be assigned to this mesh. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(DisplayName="LOD Group"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(DisplayName = "LOD Group"))
 	FName LodGroup = NAME_None;
+
+	/** If enabled, LOD Screen Sizes would be auto-computed. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes")
+	bool bAutoComputeLODScreenSizes = true;
+
+	/** This setting is only used if the Auto Compute LOD Screen Sizes setting is disabled. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Static Meshes", meta=(EditCondition = "!bAutoComputeLODScreenSizes", DisplayName = "LOD Screen Sizes"))
+	TArray<float> LODScreenSizes;
 
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use Collision instead."))
 	bool bImportCollision_DEPRECATED = true;
