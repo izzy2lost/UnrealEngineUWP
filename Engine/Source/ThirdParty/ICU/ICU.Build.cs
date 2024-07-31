@@ -111,7 +111,10 @@ public class ICU : ModuleRules
 			{
 				LibraryPath = Path.Combine(LibraryPath, Target.Architecture.WindowsLibDir);
 			}
-
+			else if (Target.WindowsPlatform.Compiler.IsClang())
+			{
+				LibraryPath = Path.Combine(ICULibPath, "Clang");
+			}
 			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, UseDebugLibs ? "Debug" : "Release", "icu.lib"));
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Mac)
