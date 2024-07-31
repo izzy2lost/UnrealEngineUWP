@@ -188,7 +188,7 @@ void FMotionMatchingState::Reset(const FTransform& ComponentTransform)
 {
 	CurrentSearchResult.Reset();
 	// Set the elapsed time to INFINITY to trigger a search right away
-	ElapsedPoseSearchTime = INFINITY;
+	ElapsedPoseSearchTime = std::numeric_limits<float>::infinity();
 	WantedPlayRate = 1.f;
 	bJumpedToPose = false;
 	ComponentDeltaYaw = 0.f;

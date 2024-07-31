@@ -196,7 +196,7 @@ static float GetClobberValue()
 	case 2:
 		return NAN;
 	case 3:
-		return INFINITY;
+		return std::numeric_limits<float>::infinity();
 	}
 	return 0.0f;
 }

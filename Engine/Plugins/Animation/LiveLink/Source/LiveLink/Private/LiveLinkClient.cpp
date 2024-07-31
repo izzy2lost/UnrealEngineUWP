@@ -1901,7 +1901,7 @@ void FLiveLinkClient_Base_DEPRECATED::PushSubjectData(FGuid InSourceGuid, FName 
 	}
 	for (int32 i = MaxNumberOfProperties; i < NumberOfPropertyNames; ++i)
 	{
-		NewData.PropertyValues[i] = INFINITY;
+		NewData.PropertyValues[i] = std::numeric_limits<float>::infinity();
 	}
 	PushSubjectFrameData_AnyThread(SubjectKey, MoveTemp(AnimationStruct));
 }
