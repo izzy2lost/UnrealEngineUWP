@@ -400,7 +400,7 @@ struct CHAOSVDRUNTIME_API FChaosVDParticlePairMidPhase
 	int32 SolverID = INDEX_NONE;
 
 	UPROPERTY(VisibleAnywhere, Category=General)
-	EChaosVDMidPhaseType MidPhaseType;
+	EChaosVDMidPhaseType MidPhaseType = EChaosVDMidPhaseType::Unknown;
 
 	UPROPERTY(VisibleAnywhere, Category=Flags)
 	uint8 bIsActive:1 = false;

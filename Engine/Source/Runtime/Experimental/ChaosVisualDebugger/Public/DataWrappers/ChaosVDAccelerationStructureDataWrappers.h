@@ -46,7 +46,7 @@ struct FChaosVDBVCellElementDataWrapper : public FChaosVDWrapperDataBase
 	UPROPERTY(VisibleAnywhere, Category="Data")
 	FBox Bounds;
 	UPROPERTY(VisibleAnywhere, Category="Data")
-	int32 ParticleIndex;
+	int32 ParticleIndex = INDEX_NONE;
 
 	FIntVector3 StartIdx = FIntVector3::ZeroValue;
 	FIntVector3 EndIdx = FIntVector3::ZeroValue;
