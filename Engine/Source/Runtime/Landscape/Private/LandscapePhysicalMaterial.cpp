@@ -578,7 +578,7 @@ void FLandscapePhysicalMaterialRenderTask::Release()
 
 bool FLandscapePhysicalMaterialRenderTask::IsValid() const
 {
-	check(IsInGameThread());
+	check(IsInParallelGameThread() || IsInGameThread());
 	return PoolHandle != -1;
 }
 

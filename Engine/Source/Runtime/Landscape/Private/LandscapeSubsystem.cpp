@@ -41,6 +41,7 @@
 
 #if WITH_EDITOR
 #include "ActionableMessageSubsystem.h"
+#include "Async/ParallelFor.h"
 #include "FileHelpers.h"
 #include "Editor.h"
 #endif
@@ -588,13 +589,15 @@ void ULandscapeSubsystem::Tick(float DeltaTime)
 	NaniteMeshBuildEvents.RemoveAllSwap([](const FGraphEventRef& Ref) -> bool { return Ref->IsComplete(); });
 
 	LastTickFrameNumber = FrameNumber;
+
+	UActionableMessageSubsystem* ActionableMessageSubsystem = World->GetSubsystem<UActionableMessageSubsystem>();
 	
-	if (UActionableMessageSubsystem* ActionableMessageSubsystem = World->GetSubsystem<UActionableMessageSubsystem>())
+	if ((ActionableMessageSubsystem != nullptr) && GIsEditor)
 	{
 		FActionableMessage ActionableMessage;
 		const FName LandscapeMessageProvider = TEXT("Landscape");
 
-		if (GetActionableMessage(ActionableMessage))
+		if (!(GEditor->bIsSimulatingInEditor || (GEditor->PlayWorld != nullptr)) && GetActionableMessage(ActionableMessage))
 		{
 			ActionableMessageSubsystem->SetActionableMessage(LandscapeMessageProvider, ActionableMessage);
 		}
@@ -690,22 +693,24 @@ TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> ULandscapeSu
 	if (!World || World->IsGameWorld())
 	{
 		return {};
-}
+	}
 
 	TArray<TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>> OutdatedProxies;
-	OutdatedProxies.Reserve(Proxies.Num());
-	for (TObjectPtr<ALandscapeProxy> Proxy : Proxies)
+	
+	ParallelForWithTaskContext(OutdatedProxies, Proxies.Num(), [this, InMatchingOutdatedDataFlags, bInMustMatchAllFlags](TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>& Context, int32 Index)
 	{
-		ALandscapeProxy* ValidProxy = Proxy.Get();
-{
-			const UE::Landscape::EOutdatedDataFlags ProxyOutdatedDataFlags = ValidProxy->GetOutdatedDataFlags();
-			if ((bInMustMatchAllFlags && EnumHasAllFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags))
-				|| (!bInMustMatchAllFlags && EnumHasAnyFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags)))
-			{
-				OutdatedProxies.Add({ValidProxy, ProxyOutdatedDataFlags});
-			}
+		FTaskTagScope Scope(ETaskTag::EParallelGameThread);
+		ALandscapeProxy* ValidProxy = Proxies[Index].Get();
+		const UE::Landscape::EOutdatedDataFlags ProxyOutdatedDataFlags = ValidProxy->GetOutdatedDataFlags();
+
+		if ((bInMustMatchAllFlags && EnumHasAllFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags))
+			|| (!bInMustMatchAllFlags && EnumHasAnyFlags(ProxyOutdatedDataFlags, InMatchingOutdatedDataFlags)))
+		{
+			Context = {ValidProxy, ProxyOutdatedDataFlags};
 		}
-	}
+	});
+
+	OutdatedProxies.RemoveAllSwap([](const TTuple<ALandscapeProxy*, UE::Landscape::EOutdatedDataFlags>& OutdatedProxy){ return OutdatedProxy.Key == nullptr; });
 	return OutdatedProxies;
 }
 
