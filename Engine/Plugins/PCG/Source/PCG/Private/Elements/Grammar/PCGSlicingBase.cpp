@@ -128,13 +128,13 @@ PCGGrammar::FTokenizedGrammar FPCGSlicingBaseElement::GetTokenizedGrammar(FPCGCo
 		const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputData, Selector);
 		if (!Accessor)
 		{
-			PCGLog::Accessor::LogFailToCreate(Selector, InContext);
+			PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
 			return {};
 		}
 
 		if (!Accessor->Get(Grammar, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 		{
-			PCGLog::Accessor::LogFailToGet<FString>(Selector, Accessor.Get(), InContext);
+			PCGLog::Metadata::LogFailToGetAttribute<FString>(Selector, Accessor.Get(), InContext);
 			return {};
 		}
 	}
@@ -215,7 +215,7 @@ TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenize
 		const TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InputData, Selector);
 		if (!Accessor || !Keys)
 		{
-			PCGLog::Accessor::LogFailToCreate(Selector, InContext);
+			PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
 			return Result;
 		}
 
@@ -229,7 +229,7 @@ TMap<FString, PCGGrammar::FTokenizedGrammar> FPCGSlicingBaseElement::GetTokenize
 
 		if (!bSuccess)
 		{
-			PCGLog::Accessor::LogFailToGet<FString>(Selector, Accessor.Get(), InContext);
+			PCGLog::Metadata::LogFailToGetAttribute<FString>(Selector, Accessor.Get(), InContext);
 			return Result;
 		}
 	}
@@ -339,6 +339,12 @@ bool FPCGSlicingBaseElement::MatchAndSetAttributes(const TArray<FPCGTaggedData>&
 			for (const FPCGPoint& OutPoint : OutPointData->GetPoints())
 			{
 				const FName Symbol = OutSymbolAttribute->GetValueFromItemKey(OutPoint.MetadataEntry);
+
+				if (!SymbolToEntryKeyMapping.Contains(Symbol))
+				{
+					continue;
+				}
+
 				const PCGMetadataEntryKey InputEntryKey = SymbolToEntryKeyMapping[Symbol];
 
 				if (InputEntryKey == PCGInvalidEntryKey)

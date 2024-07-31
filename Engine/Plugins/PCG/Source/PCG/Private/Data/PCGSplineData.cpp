@@ -153,6 +153,16 @@ FVector::FReal UPCGSplineData::GetDistanceAtSegmentStart(int SegmentIndex) const
 	return SplineStruct.GetDistanceAlongSplineAtSplinePoint(SegmentIndex);
 }
 
+FVector UPCGSplineData::GetLocationAtAlpha(float Alpha) const
+{
+	return SplineStruct.GetLocationAtSplineInputKey(GetInputKeyAtAlpha(Alpha), ESplineCoordinateSpace::World);
+}
+
+FTransform UPCGSplineData::GetTransformAtAlpha(float Alpha) const
+{
+	return SplineStruct.GetTransformAtSplineInputKey(GetInputKeyAtAlpha(Alpha), ESplineCoordinateSpace::World);
+}
+
 const UPCGPointData* UPCGSplineData::CreatePointData(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(UPCGSplineData::CreatePointData);

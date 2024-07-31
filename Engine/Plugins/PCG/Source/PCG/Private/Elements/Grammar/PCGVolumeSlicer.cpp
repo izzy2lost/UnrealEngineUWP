@@ -93,13 +93,13 @@ bool FPCGVolumeSlicerElement::ExecuteInternal(FPCGContext* InContext) const
 			const TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InputSplineData, Selector);
 			if (!Accessor)
 			{
-				PCGLog::Accessor::LogFailToCreate(Selector, InContext);
+				PCGLog::Metadata::LogFailToCreateAccessor(Selector, InContext);
 				return false;
 			}
 
 			if (!Accessor->Get(OutValue, FPCGAttributeAccessorKeysEntries(PCGInvalidEntryKey), EPCGAttributeAccessorFlags::AllowBroadcastAndConstructible))
 			{
-				PCGLog::Accessor::LogFailToGet<T>(Selector, Accessor.Get(), InContext);
+				PCGLog::Metadata::LogFailToGetAttribute<T>(Selector, Accessor.Get(), InContext);
 				return false;
 			}
 

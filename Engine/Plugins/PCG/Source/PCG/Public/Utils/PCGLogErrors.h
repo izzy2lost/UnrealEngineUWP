@@ -28,21 +28,35 @@ namespace PCGLog
 		void LogFirstInputOnlyWarning(const FName PinLabel, const FPCGContext* InContext = nullptr);
 	}
 
-	namespace Accessor
+	namespace Metadata
 	{
 		namespace ErrorFormat
 		{
+			extern const FTextFormat CreateAttributeFailure;
 			extern const FTextFormat GetTypedAttributeFailure;
 			extern const FTextFormat GetTypedAttributeFailureNoAccessor;
 		}
 
-		void LogFailToCreate(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
-		void LogFailToGet(FName AttributeName, const FPCGContext* InContext = nullptr);
-		void LogFailToGet(FText AttributeName, const FPCGContext* InContext = nullptr);
-		void LogFailToGet(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
+		void LogFailToCreateAccessor(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
 
 		template <typename T>
-		void LogFailToGet(FText AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
+		void LogFailToCreateAttribute(FText AttributeName, const FPCGContext* InContext = nullptr)
+		{
+			PCGLog::LogErrorOnGraph(FText::Format(ErrorFormat::CreateAttributeFailure, AttributeName, PCG::Private::GetTypeNameText<T>()), InContext);
+		}
+
+		template <typename T>
+		void LogFailToCreateAttribute(FName AttributeName, const FPCGContext* InContext = nullptr)
+		{
+			LogFailToCreateAttribute<T>(FText::FromName(AttributeName), InContext);
+		}
+
+		void LogFailToGetAttribute(FText AttributeName, const FPCGContext* InContext = nullptr);
+		void LogFailToGetAttribute(FName AttributeName, const FPCGContext* InContext = nullptr);
+		void LogFailToGetAttribute(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext = nullptr);
+
+		template <typename T>
+		void LogFailToGetAttribute(FText AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
 		{
 			if (Accessor)
 			{
@@ -55,15 +69,15 @@ namespace PCGLog
 		}
 
 		template <typename T>
-		void LogFailToGet(FName AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
+		void LogFailToGetAttribute(FName AttributeName, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
 		{
-			LogFailToGet<T>(FText::FromName(AttributeName), Accessor, InContext);
+			LogFailToGetAttribute<T>(FText::FromName(AttributeName), Accessor, InContext);
 		}
 
 		template <typename T>
-		void LogFailToGet(const FPCGAttributePropertySelector& Selector, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
+		void LogFailToGetAttribute(const FPCGAttributePropertySelector& Selector, const IPCGAttributeAccessor* Accessor, const FPCGContext* InContext = nullptr)
 		{
-			return LogFailToGet<T>(Selector.GetDisplayText(), Accessor, InContext);
+			return LogFailToGetAttribute<T>(Selector.GetDisplayText(), Accessor, InContext);
 		}
 	}
 }

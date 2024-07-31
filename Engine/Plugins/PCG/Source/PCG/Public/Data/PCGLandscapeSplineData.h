@@ -35,6 +35,8 @@ public:
 	virtual float GetInputKeyAtDistance(int SegmentIndex, FVector::FReal Distance) const override;
 	virtual void GetTangentsAtSegmentStart(int SegmentIndex, FVector& OutArriveTangent, FVector& OutLeaveTangent) const override;
 	virtual FVector::FReal GetDistanceAtSegmentStart(int SegmentIndex) const override;
+	virtual FVector GetLocationAtAlpha(float Alpha) const override;
+	virtual FTransform GetTransformAtAlpha(float Alpha) const override;
 	//~End UPCGPolyLineData interface
 
 	//~Begin UPCGSpatialDataWithPointCache interface

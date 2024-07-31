@@ -246,6 +246,20 @@ FVector::FReal UPCGLandscapeSplineData::GetDistanceAtSegmentStart(int SegmentInd
 	return Distance;
 }
 
+FVector UPCGLandscapeSplineData::GetLocationAtAlpha(float Alpha) const
+{
+	const float InputKey = GetInputKeyAtAlpha(Alpha);
+	const int SegmentIndex = FMath::TruncToInt(InputKey);
+	return GetLocationAtDistance(SegmentIndex, FMath::Frac(Alpha) * GetSegmentLength(SegmentIndex));
+}
+
+FTransform UPCGLandscapeSplineData::GetTransformAtAlpha(float Alpha) const
+{
+	const float InputKey = GetInputKeyAtAlpha(Alpha);
+	const int SegmentIndex = FMath::TruncToInt(InputKey);
+	return GetTransformAtDistance(SegmentIndex, FMath::Frac(Alpha) * GetSegmentLength(SegmentIndex));
+}
+
 const UPCGPointData* UPCGLandscapeSplineData::CreatePointData(FPCGContext* Context) const
 {
 	check(Spline.IsValid());

@@ -25,32 +25,33 @@ namespace PCGLog::InputOutput
 	}
 }
 
-namespace PCGLog::Accessor
+namespace PCGLog::Metadata
 {
 	namespace ErrorFormat
 	{
-		const FTextFormat CreateAccessorFailure = LOCTEXT("CreateAccessorFailure", "Attribute {0} was not found.");
+		const FTextFormat CreateAccessorFailure = LOCTEXT("CreateAccessorFailure", "Couldn't create accessor. Attribute '{0}' was not found.");
+		const FTextFormat CreateAttributeFailure = LOCTEXT("CreateTypedAttributeFailure", "Couldn't create attribute '{0}' of type '{1}'.");
 		const FTextFormat GetAttributeFailure = LOCTEXT("GetAttributeFailure", "Couldn't retrieve attribute '{0}' value. Expected type: {1}, Actual Type: {2}.");
 		const FTextFormat GetTypedAttributeFailure = LOCTEXT("GetAttributeFailure", "Couldn't retrieve attribute '{0}' value. Expected type: {1}, Actual Type: {2}.");
 		const FTextFormat GetTypedAttributeFailureNoAccessor = LOCTEXT("GetAttributeFailureNoAccessor", "Couldn't retrieve attribute '{0}' value of type: '{1}.");
 	}
 
-	void LogFailToCreate(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
+	void LogFailToCreateAccessor(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
 	{
 		LogErrorOnGraph(FText::Format(ErrorFormat::CreateAccessorFailure, Selector.GetDisplayText()), InContext);
 	}
 
-	void LogFailToGet(FName AttributeName, const FPCGContext* InContext)
-	{
-		LogFailToGet(FText::FromName(AttributeName), InContext);
-	}
-
-	void LogFailToGet(FText AttributeName, const FPCGContext* InContext)
+	void LogFailToGetAttribute(FText AttributeName, const FPCGContext* InContext)
 	{
 		LogErrorOnGraph(FText::Format(ErrorFormat::GetAttributeFailure, std::move(AttributeName)), InContext);
 	}
 
-	void LogFailToGet(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
+	void LogFailToGetAttribute(FName AttributeName, const FPCGContext* InContext)
+	{
+		LogFailToGetAttribute(FText::FromName(AttributeName), InContext);
+	}
+
+	void LogFailToGetAttribute(const FPCGAttributePropertySelector& Selector, const FPCGContext* InContext)
 	{
 		LogErrorOnGraph(FText::Format(ErrorFormat::GetAttributeFailure, Selector.GetDisplayText()), InContext);
 	}
