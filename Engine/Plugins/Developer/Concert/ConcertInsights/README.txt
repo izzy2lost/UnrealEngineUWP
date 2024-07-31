@@ -27,6 +27,7 @@ To try this out, the minimum set-up is:
 - Either unshelf 33391924, or recreate the work in that CL:
 	- Engine/Programs/UnrealMultiUserSlateServerConfig/DefaultEngine.ini: Add +ProgramEnabledPlugins=ConcertInsightsServer
 	- Engine/Programs/UnrealInsights/DefaultEngine.ini: Add +ProgramEnabledPlugins=ConcertInsightsVisualizer
+- Launch Insights with the console variable "Insights.Concert.EnableGameThreadAggregation = true".
 	
 ========== Tutorial with VCam ==========
 To view example tracing, do the following:
