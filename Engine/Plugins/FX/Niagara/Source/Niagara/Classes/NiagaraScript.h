@@ -729,7 +729,7 @@ public:
 	bool bUsePythonScriptConversion = false;
 
 	/** Reference to a python script that is executed when the user updates from a previous version to this version. */
-	UPROPERTY(EditAnywhere, Category = Script, meta=(EditCondition="bUsePythonScriptConversion", EditConditionHides))
+	UPROPERTY(EditAnywhere, Category = Script, meta=(EditCondition="bUsePythonScriptConversion", EditConditionHides, SegmentedDisplay))
 	ENiagaraPythonUpdateScriptReference ConversionScriptExecution = ENiagaraPythonUpdateScriptReference::ScriptAsset;
 
 	/** Python script to run when converting this script to the recommended deprecation update script. */
@@ -761,7 +761,7 @@ public:
 	FText DebugDrawMessage;
 
 	/* Defines if this script is visible to the user when searching for modules to add to an emitter.  */
-	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)
+	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script, meta = (SegmentedDisplay))
 	ENiagaraScriptLibraryVisibility LibraryVisibility;
 
 	/** The mode to use when deducing the type of numeric output pins from the types of the input pins. */

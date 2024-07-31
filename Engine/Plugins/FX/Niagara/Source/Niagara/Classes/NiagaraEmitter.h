@@ -295,14 +295,14 @@ struct FVersionedNiagaraEmitterData
 	uint32 bGpuAlwaysRunParticleUpdateScript : 1;
 #endif
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Emitter")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Emitter", meta = (SegmentedDisplay))
 	ENiagaraSimTarget SimTarget = ENiagaraSimTarget::CPUSim;
 
 	/**
 	How should we calculate bounds for the emitter.
 	Note: If this is greyed out it means fixed bounds are enabled in the System Properties and these bounds are therefore ignored.
 	*/
-	UPROPERTY(EditAnywhere, Category = "Emitter")
+	UPROPERTY(EditAnywhere, Category = "Emitter", meta = (SegmentedDisplay))
 	ENiagaraEmitterCalculateBoundMode CalculateBoundsMode = ENiagaraEmitterCalculateBoundMode::Dynamic;
 	
 	/**
@@ -334,7 +334,7 @@ struct FVersionedNiagaraEmitterData
 	To prevent reallocations, the emitter should allocate as much memory as is needed for the max particle count.
 	This setting controls if the allocation size should be automatically determined or manually entered.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Emitter")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Emitter", meta = (SegmentedDisplay))
 	EParticleAllocationMode AllocationMode = EParticleAllocationMode::AutomaticEstimate;
 	
 	/** 
@@ -447,7 +447,7 @@ struct FVersionedNiagaraEmitterData
 	TArray<FString> AttributesToPreserve;
 
 	/** This determines how emitters will be added to a system by default. If summary view is setup, consider setting this to 'Summary'. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", meta = (SegmentedDisplay))
 	ENiagaraEmitterDefaultSummaryState AddEmitterDefaultViewState = ENiagaraEmitterDefaultSummaryState::Default;
 	
 	UPROPERTY()
