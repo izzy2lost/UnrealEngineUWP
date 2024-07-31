@@ -126,14 +126,6 @@ static TAutoConsoleVariable<float> CVarVSMDynamicResolutionMaxPagePoolLoadFactor
 	ECVF_RenderThreadSafe
 );
 
-int32 GVSMNewInvalidations = 1;
-FAutoConsoleVariableRef CVarVSMNewInvalidations(
-	TEXT("r.Shadow.Virtual.Cache.NewInvalidations"),
-	GVSMNewInvalidations,
-	TEXT("Use the new path for VSM invalidations that performs better and allows extended cache page residency. The old path will be removed in the future."),
-	ECVF_RenderThreadSafe
-);
-
 int32 GVSMLightRadiusInvalidationCulling = 1;
 FAutoConsoleVariableRef CVarVSMLightRadiusCulling(
 	TEXT("r.Shadow.Virtual.Cache.CPUCullInvalidationsOutsideLightRadius"),
@@ -445,8 +437,6 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInv
 {
 	const int32 PrimitiveID = PrimitiveSceneInfo->GetIndex();
 	const int32 InstanceSceneDataOffset = PrimitiveSceneInfo->GetInstanceSceneDataOffset();
-	const int32 NumInstanceSceneDataEntries = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
-
 	if (PrimitiveID < 0 || InstanceSceneDataOffset == INDEX_NONE)
 	{
 		return;
@@ -463,31 +453,18 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInv
 	if (InvalidationCause == EInvalidationCause::Removed)
 	{
 		RemovedPrimitives[PersistentPrimitiveIndex.Index] = true;
+		InvalidatedPrimitives[PersistentPrimitiveIndex.Index] = true;
 	}
-
-	// TODO: Early out on stuff that doesn't cast shadows on the CPU?
-
-	// Suppress invalidations from moved primitives that are marked to behave as if they were static.
-	if (InvalidationCause == EInvalidationCause::Updated && PrimitiveSceneInfo->Proxy->GetShadowCacheInvalidationBehavior() == EShadowCacheInvalidationBehavior::Static)
+	else if (InvalidationCause == EInvalidationCause::Updated)
 	{
-		return;
+		// Suppress invalidations from moved primitives that are marked to behave as if they were static.
+		if (PrimitiveSceneInfo->Proxy->GetShadowCacheInvalidationBehavior() == EShadowCacheInvalidationBehavior::Static)
+		{
+			return;
+		}
+		InvalidatedPrimitives[PersistentPrimitiveIndex.Index] = true;
 	}
-
-	// If it's "added" we can't invalidate pre-update since it will not be in GPUScene yet
-	// Similarly if it is removed, we can't invalidate post-update
-	// Otherwise we currently add it to both passes as we need to invalidate both the position it came from, and the position
-	// it moved *to* if transform/instances changed. Both pages may need to updated.
-	// TODO: Filter out one of the updates for things like WPO animation or other cases where the transform/bounds have not changed
-	// TODO: Should we be using AddedScenePrimitives now instead of this flag?
-	const EPrimitiveDirtyState DirtyState = Scene->GPUScene.GetPrimitiveDirtyState(PersistentPrimitiveIndex);
-	const bool bMarkedAsAddedPrimitive = EnumHasAnyFlags(DirtyState, EPrimitiveDirtyState::Added);
-	if (bMarkedAsAddedPrimitive && (GVSMNewInvalidations == 0))
-	{
-		return;
-	}
-
-	// Prevent transition to "dynamic" state if the primitive is static or forced to behave as such.
-	if (InvalidationCause == EInvalidationCause::Added)
+	else if (InvalidationCause == EInvalidationCause::Added)
 	{
 		// Skip marking as dynamic if it is a static mesh (mobility is static & no WPO) or it is forced to behave as static
 		// this avoids needing to re-cache all static meshes.
@@ -496,52 +473,27 @@ void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddInv
 			InvalidatedPrimitives[PersistentPrimitiveIndex.Index] = true;
 		}
 	}
-	else
-	{
-		InvalidatedPrimitives[PersistentPrimitiveIndex.Index] = true;
-	}
-	// Nanite meshes need special handling because they don't get culled on CPU, thus always process invalidations for those
-	const bool bIsNaniteMesh = PrimitiveFlagsCompact.bIsNaniteMesh;
-
+	
+	const int32 NumInstanceSceneDataEntries = PrimitiveSceneInfo->GetNumInstanceSceneDataEntries();
 	const FBoxSphereBounds PrimitiveBounds = PrimitiveSceneInfo->Proxy->GetBounds();
+
 	for (auto& CacheEntry : Manager.CacheEntries)
 	{
 		// We don't need explicit invalidations for force invalidated/uncached lights
 		if (!CacheEntry.Value->IsUncached())
 		{
-			bool bInvalidate = false;
-			if (GVSMNewInvalidations)
-			{
-				// Quick bounds overlap check to eliminate stuff that is too far away to affect a light
-				bInvalidate = GVSMLightRadiusInvalidationCulling == 0 || CacheEntry.Value->AffectsBounds(PrimitiveBounds);
-				if (!bInvalidate)
-				{
-					//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Skipped invalidation %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
-				}
-			}
-			else
-			{
-				TBitArray<>& CachedPrimitives = CacheEntry.Value->CachedPrimitives;
-				if (bIsNaniteMesh ||
-					(PersistentPrimitiveIndex.Index < CachedPrimitives.Num() && CachedPrimitives[PersistentPrimitiveIndex.Index]))
-				{
-					if (!bIsNaniteMesh)
-					{
-						// Clear the record as we're wiping it out.
-						CachedPrimitives[PersistentPrimitiveIndex.Index] = false;
-						//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Primitive invalidated %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
-					}
-					bInvalidate = true;
-				}
-			}
-
-			if (bInvalidate)
+			// Quick bounds overlap check to eliminate stuff that is too far away to affect a light
+			if (GVSMLightRadiusInvalidationCulling == 0 || CacheEntry.Value->AffectsBounds(PrimitiveBounds))
 			{
 				// Add item for each shadow map explicitly, inflates host data but improves load balancing,
 				for (const auto& SmCacheEntry : CacheEntry.Value->ShadowMapEntries)
 				{
 					Instances.Add(InstanceSceneDataOffset, NumInstanceSceneDataEntries, EncodeInstanceInvalidationPayload(SmCacheEntry.CurrentVirtualShadowMapId));
 				}
+			}
+			else
+			{
+				//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Skipped invalidation %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
 			}
 		}
 	}
@@ -624,10 +576,9 @@ bool FVirtualShadowMapArrayCacheManager::ShouldCreateExtension(FScene& Scene)
 
 ISceneExtensionUpdater* FVirtualShadowMapArrayCacheManager::CreateUpdater()
 {
-	if (GVSMNewInvalidations &&
-		// NOTE: We need this check because shader platform can change during scene destruction so we need to ensure we
-		// don't try and run shaders on a new platform that doesn't support VSMs...
-		UseVirtualShadowMaps(Scene->GetShaderPlatform(), Scene->GetFeatureLevel()))
+	// NOTE: We need this check because shader platform can change during scene destruction so we need to ensure we
+	// don't try and run shaders on a new platform that doesn't support VSMs...
+	if (UseVirtualShadowMaps(Scene->GetShaderPlatform(), Scene->GetFeatureLevel()))
 	{
 		return new FVirtualShadowMapInvalidationSceneUpdater(*this);
 	}
@@ -1022,10 +973,6 @@ TSharedPtr<FVirtualShadowMapPerLightCacheEntry> FVirtualShadowMapArrayCacheManag
 
 void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bPrimitiveRevealed)
 {
-	// Mark as (potentially present in a cached page somehwere, so we'd need to invalidate if it is removed/moved)
-	CachedPrimitives[PrimitiveSceneInfo->GetPersistentIndex().Index] = true;
-	//UE_LOG(LogRenderer, Display, TEXT("VirtualShadowMapCacheManager: Primitive cached %s!"), *PrimitiveSceneInfo->GetOwnerActorNameOrLabelForDebuggingOnly());
-
 	bool bInvalidate = false;
 	bool bMarkAsDynamic = true;
 
@@ -1039,7 +986,7 @@ void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSc
 	}
 	// With new invalidations on, we need to invalidate any time a (non-nanite) primitive is "revealed", i.e. stopped being culled.
 	// Note that this invalidation will be a frame late - similar to WPO starting - as it will get picked up by the next scene update.
-	else if (bPrimitiveRevealed && GVSMNewInvalidations != 0 && GVSMCacheDebugSkipRevealedPrimitivesInvalidate == 0)
+	else if (bPrimitiveRevealed && GVSMCacheDebugSkipRevealedPrimitivesInvalidate == 0)
 	{	
 		bInvalidate = true;
 		bMarkAsDynamic = false;		// Don't mark primitives as dynamic just because they were revealed
@@ -1181,13 +1128,6 @@ void FVirtualShadowMapArrayCacheManager::ExtractFrameData(
 			GraphBuilder.QueueBufferExtraction(VirtualShadowMapArray.PhysicalPageListsRDG, &PrevBuffers.PhysicalPageLists);
 			GraphBuilder.QueueBufferExtraction(VirtualShadowMapArray.PageRequestFlagsRDG, &PrevBuffers.PageRequestFlags);
 			
-			// Convenient during feature bringup
-			if (PrevUniformParameters.bNewInvalidations != VirtualShadowMapArray.UniformParameters.bNewInvalidations)
-			{
-				Invalidate(GraphBuilder);
-				UE_LOG(LogRenderer, Display, TEXT("Virtual shadow map cache invalidated due to NewInvalidations change"));
-			}
-
 			// Store but drop any temp references embedded in the uniform parameters this frame
 			PrevUniformParameters = VirtualShadowMapArray.UniformParameters;
 			PrevUniformParameters.ProjectionData = nullptr;
@@ -1375,7 +1315,6 @@ void FVirtualShadowMapArrayCacheManager::ReallocatePersistentPrimitiveIndices()
 
 	for (auto& CacheEntry : CacheEntries)
 	{
-		CacheEntry.Value->CachedPrimitives.SetNum(MaxPersistentPrimitiveIndex, false);
 		CacheEntry.Value->RenderedPrimitives.SetNum(MaxPersistentPrimitiveIndex, false);
 	}
 

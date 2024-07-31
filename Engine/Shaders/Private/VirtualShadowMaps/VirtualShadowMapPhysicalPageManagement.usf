@@ -276,11 +276,7 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 				OutPhysicalPageMetaData[PhysicalPageIndex].VirtualShadowMapId = VirtualShadowMapId;
 				OutPhysicalPageMetaData[PhysicalPageIndex].PageAddress = PageAddress;
 
-				bool bPageValidForRendering = false;
-				bool bPageValidForSampling = false;
-
-				if (Projection.bUnreferenced ||
-					(VirtualShadowMap.bNewInvalidations && !bRequestedThisFrame))
+				if (!bRequestedThisFrame || Projection.bUnreferenced)
 				{
 					// If the page is unrefereced (i.e. we are not going to render to it this frame) we want to leave the physical
 					// metadata alone, *specifically* the invalidation flags. Since an unreferenced page will not get
@@ -290,19 +286,11 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 					NextPhysicalFlags = PrevPhysicalFlags | VSM_EXTENDED_FLAG_UNREFERENCED;
 
 					// NOTE: This should be unused during this render, but may be used by invalidation between frames/renders
-					if (VirtualShadowMap.bNewInvalidations)
-					{
-						// We only want to set ALLOCATED so that it gets picked up by invalidation, but not by
-						// any rendering this frame. Any invalidation flags already on the physical page remain there,
-						// so this is just for new ones generated this frame to ensure we invalidate any cached-but-currently-unused
-						// pages still in the pool
-						OutPageFlags[GlobalPageOffset] = VSM_FLAG_ALLOCATED;
-					}
-					else
-					{
-						bPageValidForSampling = true;		// Previous behavior... not particularly safe though
-						OutPageFlags[GlobalPageOffset] = PrevPhysicalFlags & VSM_PAGE_FLAGS_BITS_MASK;
-					}
+					// We only want to set ALLOCATED so that it gets picked up by invalidation, but not by
+					// any rendering this frame. Any invalidation flags already on the physical page remain there,
+					// so this is just for new ones generated this frame to ensure we invalidate any cached-but-currently-unused
+					// pages still in the pool
+					OutPageFlags[GlobalPageOffset] = VSM_FLAG_ALLOCATED;
 				}
 				else
 				{
@@ -376,7 +364,7 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 					// see ShouldCacheInstanceAsStatic), but NOT on the physical page (which would indicate a real invalidation).
 					// This can get significantly cleaned up if/when we free up an additional hierarchical page flag bit.
 					// We do NOT want these details showing up in debug visualizations or cache stats though
-					bPageValidForRendering = !VirtualShadowMap.bNewInvalidations || (NextPageFlags & VSM_FLAG_ANY_UNCACHED) != 0;
+					bool bPageValidForRendering = (NextPageFlags & VSM_FLAG_ANY_UNCACHED) != 0;
 					if (PrevPhysicalFlags & VSM_EXTENDED_FLAG_FORCE_CACHED)
 					{
 						// NOTE: WPO can only ever be dynamic cached
@@ -384,20 +372,14 @@ void UpdatePhysicalPages(uint3 Index : SV_DispatchThreadID)
 						StatsBufferInterlockedInc(VSM_STAT_WPO_CONSIDERED_PAGES);
 					}
 
-					bPageValidForSampling = true;
-
-					checkStructuredBufferAccessSlow(OutPageFlags, GlobalPageOffset);
-					OutPageFlags[GlobalPageOffset] = NextPageFlags;
-				} // Unreferenced
-
-				// NOTE: This all gets cleaned up a lot when we remove the old path
-				if (!VirtualShadowMap.bNewInvalidations || bPageValidForSampling)
-				{
 					// Map the page to the physical page
 					// If we later allocate over top of this page (for one requested this frame), we will zero this out again. See AllocateNewPageMappings
 					checkStructuredBufferAccessSlow(OutPageTable, GlobalPageOffset);
 					OutPageTable[GlobalPageOffset] = ShadowEncodePageTable(VSMPhysicalIndexToPageAddress(PhysicalPageIndex), bPageValidForRendering);
-				}
+
+					checkStructuredBufferAccessSlow(OutPageFlags, GlobalPageOffset);
+					OutPageFlags[GlobalPageOffset] = NextPageFlags;
+				} // Unreferenced
 			}
 		}
 	}
@@ -956,19 +938,11 @@ void SelectPagesForHZBAndUpdateDirtyFlagsCS(uint PhysicalPageIndex : SV_Dispatch
 		const bool bNeedDynamicBuild = bHasSeparateDynamicHZB
 			&& (PhysicalPageFlags & VSM_FLAG_DYNAMIC_UNCACHED) != 0u;
 
-		if (VirtualShadowMap.bNewInvalidations)
-		{
-			// Skip it if it's not referenced; this is usually because we have already done
-			// the HZB rebuild but haven't yet cleared these flags, which happens the nexd time
-			// a page gets rendered.
-			// TODO: We should clear the relevant page flags immediately after doing HZB generation
-			bRebuildHZB = (bPageDirty || bStaticUncached || bNeedDynamicBuild) && !bUnreferenced;
-		}
-		else
-		{
-			// rebuild the HZB if the page is rendered to or it is freshly allocated/cleared, but only the first time for a given frame.
-			bRebuildHZB = bPageDirty || (bFirstBuildThisFrame != 0 && (bStaticUncached || bNeedDynamicBuild));
-		}
+		// Skip it if it's not referenced; this is usually because we have already done
+		// the HZB rebuild but haven't yet cleared these flags, which happens the nexd time
+		// a page gets rendered.
+		// TODO: We should clear the relevant page flags immediately after doing HZB generation
+		bRebuildHZB = (bPageDirty || bStaticUncached || bNeedDynamicBuild) && !bUnreferenced;
 
 		if (bForceFullHZBUpdate || bRebuildHZB)
 		{

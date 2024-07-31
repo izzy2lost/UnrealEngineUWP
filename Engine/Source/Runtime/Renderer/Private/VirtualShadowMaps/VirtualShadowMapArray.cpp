@@ -41,7 +41,6 @@ extern int32 GForceInvalidateDirectionalVSM;
 extern int32 GVSMMaxPageAgeSinceLastRequest;
 extern TAutoConsoleVariable<float> CVarNaniteMaxPixelsPerEdge;
 extern TAutoConsoleVariable<float> CVarNaniteMinPixelsPerEdgeHW;
-extern int32 GVSMNewInvalidations;
 
 int32 GVSMShowLightDrawEvents = 0;
 FAutoConsoleVariableRef CVarVSMShowLightDrawEvents(
@@ -450,7 +449,6 @@ void FVirtualShadowMapArray::Initialize(
 	UniformParameters.CoarsePagePixelThresholdStatic = CVarCoarsePagePixelThresholdStatic.GetValueOnRenderThread();
 	UniformParameters.CoarsePagePixelThresholdDynamicNanite = CVarCoarsePagePixelThresholdDynamicNanite.GetValueOnRenderThread();
 	UniformParameters.bClipmapGreedyLevelSelection = CVarClipmapGreedyLevelSelection.GetValueOnRenderThread();
-	UniformParameters.bNewInvalidations = GVSMNewInvalidations;
 
 	UniformParameters.SceneFrameNumber = Scene.GetFrameNumberRenderThread();
 
@@ -1726,13 +1724,6 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			PassParameters,
 			FComputeShaderUtils::GetGroupCount(GetMaxPhysicalPages(), FGenerateHierarchicalPageFlagsCS::DefaultCSGroupX)
 		);
-
-		// TEMP: If not using new invalidations, overwrite both page rect bounds with the allocated ones (as they were before)
-		if (GVSMNewInvalidations == 0)
-		{
-			// Do a copy since we may hold references in the UB, etc.
-			AddCopyBufferPass(GraphBuilder, UncachedPageRectBoundsRDG, AllocatedPageRectBoundsRDG);
-		}
 	}
 
 	// NOTE: We could skip this (in shader) for shadow maps that only have 1 mip (ex. clipmaps)
@@ -2178,8 +2169,6 @@ public:
 
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FSceneUniformParameters, Scene)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PrimitiveRevealedMask)
-		SHADER_PARAMETER(uint32, PrimitiveRevealedNum)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< uint >, OutDirtyPageFlags)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(FInstanceProcessingGPULoadBalancer::FShaderParameters, LoadBalancerParameters)
@@ -2331,8 +2320,7 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	const FCullPerPageDrawCommandsCs::FHZBShaderParameters &HZBShaderParameters,
 	FVirtualShadowMapArray &VirtualShadowMapArray,
 	FSceneUniformBuffer& SceneUniformBuffer,
-	ERHIFeatureLevel::Type FeatureLevel,
-	const TConstArrayView<uint32> PrimitiveRevealedMask)
+	ERHIFeatureLevel::Type FeatureLevel)
 {
 	const bool bUseBatchMode = !BatchInds.IsEmpty();
 
@@ -2371,25 +2359,12 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 	// not using structured buffer as we have to get at it as a vertex buffer 
 	CullingResult.InstanceIdOffsetBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), InstanceIdOffsets.Num()), TEXT("Shadow.Virtual.InstanceIdOffsetBuffer"));
 
-
-	FRDGBufferRef PrimitiveRevealedMaskRdg = GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 4);
-
-	if (!PrimitiveRevealedMask.IsEmpty())
-	{
-		PrimitiveRevealedMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.RevealedPrimitivesMask"), PrimitiveRevealedMask);
-	}
-
-
 	{
 		FCullPerPageDrawCommandsCs::FParameters* PassParameters = GraphBuilder.AllocParameters<FCullPerPageDrawCommandsCs::FParameters>();
 
 		PassParameters->VirtualShadowMap = VirtualShadowMapArray.GetUniformBuffer();
 		PassParameters->Scene = SceneUniformBuffer.GetBuffer(GraphBuilder);
 
-		// Make sure there is enough space in the buffer for all the primitive IDs that might be used to index, at least in the first batch...
-		check(PrimitiveRevealedMaskRdg->Desc.NumElements * 32u >= uint32(VSMCullingBatchInfos[0].PrimitiveRevealedNum));
-		PassParameters->PrimitiveRevealedMask = GraphBuilder.CreateSRV(PrimitiveRevealedMaskRdg);
-		PassParameters->PrimitiveRevealedNum = VSMCullingBatchInfos[0].PrimitiveRevealedNum;
 		PassParameters->OutDirtyPageFlags = GraphBuilder.CreateUAV(VirtualShadowMapArray.DirtyPageFlagsRDG, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		PassParameters->DynamicInstanceIdOffset = BatchInfos[0].DynamicInstanceIdOffset;
 		PassParameters->DynamicInstanceIdMax = BatchInfos[0].DynamicInstanceIdMax;
@@ -2767,8 +2742,6 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 
 	TArray<FProjectedShadowInfo*, SceneRenderingAllocator> ShadowsToAddRenderViews;
 
-	TArray<uint32, SceneRenderingAllocator> PrimitiveRevealedMask;
-
 	TArray<FVSMCullingBatchInfo, SceneRenderingAllocator> VSMCullingBatchInfos;
 	VSMCullingBatchInfos.Reserve(VirtualSmMeshCommandPasses.Num());
 
@@ -2800,16 +2773,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 		VSMCullingBatchInfo.FirstPrimaryView = TotalPrimaryViews;
 		VSMCullingBatchInfo.NumPrimaryViews = 0U;
 
-		VSMCullingBatchInfo.PrimitiveRevealedOffset = uint32(PrimitiveRevealedMask.Num());
-		VSMCullingBatchInfo.PrimitiveRevealedNum = 0U;
-
 		const TSharedPtr<FVirtualShadowMapClipmap>& Clipmap = ProjectedShadowInfo->VirtualShadowMapClipmap;
-		if (Clipmap.IsValid() && !Clipmap->GetRevealedPrimitivesMask().IsEmpty())
-		{
-			PrimitiveRevealedMask.Append(Clipmap->GetRevealedPrimitivesMask().GetData(), Clipmap->GetRevealedPrimitivesMask().Num());
-			VSMCullingBatchInfo.PrimitiveRevealedNum = Clipmap->GetNumRevealedPrimitives();
-		}
-
 		check(Clipmap.IsValid() || ProjectedShadowInfo->HasVirtualShadowMap());
 		{
 			FParallelMeshDrawCommandPass& MeshCommandPass = ProjectedShadowInfo->GetShadowDepthPass();
@@ -2954,8 +2918,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 			    HZBShaderParameters,
 			    *this,
 			    SceneUniformBuffer,
-			    GPUScene.GetFeatureLevel(),
-			    PrimitiveRevealedMask
+			    GPUScene.GetFeatureLevel()
 		    );
 		}
 
@@ -3088,8 +3051,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 				HZBShaderParameters,
 				*this,
 				SceneUniformBuffer,
-				GPUScene.GetFeatureLevel(),
-				Clipmap->GetRevealedPrimitivesMask()
+				GPUScene.GetFeatureLevel()
 			);
 
 			TRDGUniformBufferRef<FShadowDepthPassUniformParameters> ShadowDepthPassUniformBuffer = CreateShadowDepthPassUniformBuffer(ProjectedShadowInfo->ShouldClampToNearPlane());

@@ -99,12 +99,6 @@ public:
 	 */
 	void UpdateCachedFrameData();
 
-	/**
-	 * Return array with one bit per primitive, a set bit indicates that the primitive transitioned from not rendered to rendered this frame (see OnPrimitiveRendered above).
-	 */
-	TConstArrayView<uint32> GetRevealedPrimitivesMask() const { return RevealedPrimitivesMask.IsEmpty() ? MakeArrayView<uint32>(nullptr, 0) : MakeArrayView(RevealedPrimitivesMask.GetData(), FBitSet::CalculateNumWords(RevealedPrimitivesMask.Num())); }
-	int32 GetNumRevealedPrimitives() const { return RevealedPrimitivesMask.Num(); }
-
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry>& GetCacheEntry() { return PerLightCacheEntry; }
 
 private:
@@ -155,6 +149,4 @@ private:
 
 	// Rendered primitives are marked during culling (through OnPrimitiveRendered being called).
 	TBitArray<> RenderedPrimitives;
-	// Set to 1 for each primitives that went from not being rendered to being rendered this frame
-	TBitArray<> RevealedPrimitivesMask;
 };

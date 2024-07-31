@@ -130,7 +130,7 @@ void FSceneCullingRenderer::DebugRender(FRDGBuilder& GraphBuilder, TArrayView<FV
 		{
 			ValidCellsMask[Index] =  (SceneCulling.CellHeaders[Index].ItemChunksOffset & FSceneCulling::InvalidCellFlag) == 0; 
 		}
-		FRDGBuffer* ValidCellsMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("Shadow.Virtual.RevealedPrimitivesMask"), TConstArrayView<uint32>(ValidCellsMask.GetData(), FBitSet::CalculateNumWords(ValidCellsMask.Num())));
+		FRDGBuffer* ValidCellsMaskRdg = CreateStructuredBuffer(GraphBuilder, TEXT("ValidCellsMaskRdg"), TConstArrayView<uint32>(ValidCellsMask.GetData(), FBitSet::CalculateNumWords(ValidCellsMask.Num())));
 
 		for (auto &View : Views)
 		{

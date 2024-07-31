@@ -503,11 +503,7 @@ void FVirtualShadowMapClipmap::OnPrimitiveRendered(const FPrimitiveSceneInfo* Pr
 
 		// Check previous-frame state to detect transition from hidden->visible
 		const bool bPrimitiveRevealed = !PerLightCacheEntry->RenderedPrimitives[PersistentPrimitiveId.Index];
-		if (bPrimitiveRevealed)
-		{
-			LazyInitAndSetBitArray(RevealedPrimitivesMask, PersistentPrimitiveId.Index, true, RenderedPrimitivesMaxNum);
-		}
-
+		
 		// update current frame-state.
 		LazyInitAndSetBitArray(RenderedPrimitives, PersistentPrimitiveId.Index, true, RenderedPrimitivesMaxNum);
 

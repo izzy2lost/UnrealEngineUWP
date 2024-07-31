@@ -77,8 +77,6 @@ struct FVSMCullingBatchInfo
 {
 	uint FirstPrimaryView;
 	uint NumPrimaryViews;
-	uint PrimitiveRevealedOffset;
-	uint PrimitiveRevealedNum;
 };
 
 struct FNextVirtualShadowMapData

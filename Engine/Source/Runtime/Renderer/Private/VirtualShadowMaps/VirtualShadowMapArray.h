@@ -155,9 +155,6 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, bClipmapGreedyLevelSelection)
 	SHADER_PARAMETER(float, GlobalResolutionLodBias)
 
-	// Temporary for supporting old vs. new invalidation path
-	SHADER_PARAMETER(int32, bNewInvalidations)
-
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)

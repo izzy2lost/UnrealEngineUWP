@@ -163,7 +163,7 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
             if( Cull.bIsVisible )
             {
 #if VIRTUAL_TEXTURE_TARGET
-                Cull.PageFlagMask = VirtualShadowMap.bNewInvalidations ? VSM_FLAG_ANY_UNCACHED : VSM_FLAG_ALLOCATED;
+                Cull.PageFlagMask = VSM_FLAG_ANY_UNCACHED;
 				Cull.bUseStaticOcclusion = true;
 #endif
 				// Note: bClampToPageLevel == true means we might test rather large footprints in the HZB, leading to load imbalance

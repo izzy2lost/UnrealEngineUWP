@@ -201,17 +201,9 @@ bool IsVisibleMaskedHZB(uint PrevShadowMapID, uint MipLevel, FScreenRect Rect, b
 	return false;
 }
 
-uint GetPageFlagMaskForRendering(bool bCacheAsStatic, bool bHasMoved)
+uint GetPageFlagMaskForRendering(bool bCacheAsStatic)
 {	
 	uint PageFlagMask = (bCacheAsStatic ?  VSM_FLAG_STATIC_UNCACHED : VSM_FLAG_DYNAMIC_UNCACHED);
-
-	if (!VirtualShadowMap.bNewInvalidations && bHasMoved)
-	//if (bHasMoved)
-	{
-		// Old path renders any moved primitives over top of even cached pages
-		PageFlagMask = VSM_FLAG_ALLOCATED;
-	}
-
 	return PageFlagMask;
 }
 
@@ -286,7 +278,7 @@ bool VirtualShadowMapMarkPageDirty(
 			// Store invalidation flags after the dirty flags.
 			OutDirtyPageFlags[Offset + PhysPageIndex] = 1U;
 		}
-		else if (bWPOAllowed && VirtualShadowMap.bNewInvalidations)
+		else if (bWPOAllowed)
 		{
 			uint Offset = VirtualShadowMap.MaxPhysicalPages * 3U;
 			// If WPO is allowed in this page, we store a bit even if we are not currently animating/invalidating

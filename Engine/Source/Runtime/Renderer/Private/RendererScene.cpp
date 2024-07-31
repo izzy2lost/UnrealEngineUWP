@@ -150,9 +150,6 @@ static FAutoConsoleVariableRef CVarVisibilitySkipAlwaysVisible(
 	ECVF_RenderThreadSafe
 );
 
-// TODO: Temporary
-extern int32 GVSMNewInvalidations;
-
 DECLARE_CYCLE_STAT(TEXT("DeferredShadingSceneRenderer MotionBlurStartFrame"), STAT_FDeferredShadingSceneRenderer_MotionBlurStartFrame, STATGROUP_SceneRendering);
 
 IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FDistanceCullFadeUniformShaderParameters, "PrimitiveFade");
@@ -5472,46 +5469,7 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 
 	FSceneExtensionsUpdaters& SceneExtensionsUpdaters = *GraphBuilder.AllocObject<FSceneExtensionsUpdaters>(*this);
 	SceneExtensionsUpdaters.PreSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPreUpdateSet(), SceneUB);
-
-	// Don't queue VSM invalidations when being destroyed. This avoids issues on preview mode change when the new preview platform doesn't use VSM.
-	if (!GVSMNewInvalidations && !Parameters.bDestruction)
-	{
-		SCOPED_NAMED_EVENT(FScene_VirtualShadowCacheUpdate, FColor::Orange);
-		FVirtualShadowMapArrayCacheManager* CacheManager = GetVirtualShadowMapCache();
-
-		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(CacheManager);
-
-		// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
-		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ShadowScene->GetAlwaysInvalidatingPrimitives())
-		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(PrimitiveSceneInfo);
-		}
-
-		// All removed primitives must invalidate their footprints in the VSM before leaving
-		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : RemovedLocalPrimitiveSceneInfos)
-		{
-			InvalidatingPrimitiveCollector.Removed(PrimitiveSceneInfo);
-		}
-		// All updated instances must also before moving or re-allocating (TODO: filter out only those actually updated)
-		for (const auto& Instance : UpdatedInstances)
-		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(Instance.SceneInfo);
-		}
-		// As must all primitive updates, 
-		for (const auto& Transform : UpdatedTransforms)
-		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.SceneInfo);
-		}
-
-		for (const auto& CullDistance : UpdatedInstanceCullDistance)
-		{
-			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.SceneInfo);
-		}
-
-		TRACE_INT_VALUE(TEXT("Shadow.Virtual.Cache.PreInvalidationInstances"), InvalidatingPrimitiveCollector.Instances.GetTotalNumInstances());
-		CacheManager->ProcessInvalidations(GraphBuilder, SceneUB, InvalidatingPrimitiveCollector);
-	}
-
+	
 	AddedLocalPrimitiveSceneInfos.Sort(FPrimitiveArraySortKey());
 	TArray<int32> RemovedPrimitiveIndices;
 	RemovedPrimitiveIndices.SetNumUninitialized(RemovedLocalPrimitiveSceneInfos.Num());
@@ -6274,15 +6232,6 @@ void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Paramete
 		}
 	}
 #endif // !WITH_EDITOR
-
-	// handle scene changes (only for old invalidations path)
-	if (GVSMNewInvalidations == 0)
-	{
-		if (auto CacheManager = GetVirtualShadowMapCache())
-		{
-			CacheManager->ReallocatePersistentPrimitiveIndices();
-		}
-	}
 
 	// Allocate all instance slots. Needs to happen after the instance data is updated since that may change the counts.
 	FPrimitiveSceneInfo::AllocateGPUSceneInstances(this, PendingAllocateInstanceIds);

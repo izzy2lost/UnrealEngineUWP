@@ -34,9 +34,6 @@ StructuredBuffer<uint> DrawCommandDescs;
 
 RWBuffer<uint> DrawIndirectArgsBufferOut;
 
-StructuredBuffer<uint> PrimitiveRevealedMask;
-uint PrimitiveRevealedNum;
-
 #if USE_HZB_OCCLUSION
 // Mode 1 == previous frame HZB, 
 // Mode 2 == this frame HZB (Nanite only).
@@ -53,20 +50,6 @@ uint GetInclusiveRectArea(uint4 Rect)
 		return (Size.x + 1) * (Size.y + 1);
 	}
 	return 0;
-}
-
-bool WasPrimitiveRevealed(FVSMCullingBatchInfo VSMCullingBatchInfo, uint PersistentPrimitiveId)
-{
-	// Use to filter out transient primitives as well as opting out of the test (if e.g., caching is off)
-	if (PersistentPrimitiveId >= VSMCullingBatchInfo.PrimitiveRevealedNum)
-	{
-		return false;
-	}
-
-	uint PrimitiveIdWordOffset = VSMCullingBatchInfo.PrimitiveRevealedOffset + PersistentPrimitiveId / 32U;
-	uint PrimitiveIdWordMask = 1U << (PersistentPrimitiveId % 32U);
-
-	return (PrimitiveRevealedMask[PrimitiveIdWordOffset] & PrimitiveIdWordMask) != 0U;
 }
 
 void WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint CullingFlags, bool bStaticPage)
@@ -99,7 +82,6 @@ struct FSharedMarkingJob
 	uint MipLevel;
 	bool bMaterialInvalidates;
 	bool bShouldCacheAsStatic;
-	bool bHasMoved;
 	bool bIsViewUncached;
 	bool bAllowWPO;
 };
@@ -112,10 +94,9 @@ uint2 PackJob(FSharedMarkingJob Job)
 	uint2 Packed;
 	Packed.x = (Job.RectPages.x << 24U) | (Job.RectPages.y << 16U) | (Job.RectPages.z << 8U) | Job.RectPages.w;
 	Packed.y = (Job.VirtualShadowMapId << 8U) 
-		| (Job.MipLevel << 5U) 
-		| (Job.bAllowWPO ?            (1U << 4) : 0U)
-		| (Job.bIsViewUncached ?      (1U << 3) : 0U)
-		| (Job.bHasMoved ?            (1U << 2) : 0U) 
+		| (Job.MipLevel << 4U) 
+		| (Job.bAllowWPO ?            (1U << 3) : 0U)
+		| (Job.bIsViewUncached ?      (1U << 2) : 0U)
 		| (Job.bMaterialInvalidates ? (1U << 1) : 0U) 
 		| (Job.bShouldCacheAsStatic ?  1U : 0U);
 	return Packed;
@@ -130,10 +111,9 @@ FSharedMarkingJob UnpackJob(uint2 Packed)
 	Job.RectPages.w = Packed.x & 0xFF;
 
 	Job.VirtualShadowMapId = Packed.y >> 8U;
-	Job.MipLevel = (Packed.y >> 5U) & 0x7;
-	Job.bAllowWPO = (Packed.y & (1U << 4)) != 0U;
-	Job.bIsViewUncached = (Packed.y & (1U << 3)) != 0U;
-	Job.bHasMoved = (Packed.y & (1U << 2)) != 0U;
+	Job.MipLevel = (Packed.y >> 4) & 0x7;
+	Job.bAllowWPO = (Packed.y & (1U << 3)) != 0U;
+	Job.bIsViewUncached = (Packed.y & (1U << 2)) != 0U;
 	Job.bMaterialInvalidates = (Packed.y & (1U << 1)) != 0U;
 	Job.bShouldCacheAsStatic = (Packed.y & 0x1) != 0U;
 
@@ -197,8 +177,6 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 	FVSMCullingBatchInfo VSMCullingBatchInfo;
 	VSMCullingBatchInfo.FirstPrimaryView = FirstPrimaryView;
 	VSMCullingBatchInfo.NumPrimaryViews = NumPrimaryViews;
-	VSMCullingBatchInfo.PrimitiveRevealedOffset = 0U;
-	VSMCullingBatchInfo.PrimitiveRevealedNum = PrimitiveRevealedNum;
 
 #endif // ENABLE_BATCH_MODE
 
@@ -273,14 +251,6 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 			bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
 			
-			// A thing is considered to have moved (which causes it to render into cached pages) if:
-			// It was uploaded this frame, OR
-			const bool bHasMoved = GetGPUSceneFrameNumber() == InstanceData.LastUpdateSceneFrameNumber
-				// it has a material that uses WPO OR
-				|| bMaterialInvalidates
-				// the primitive was "revealed" this frame - i.e., transitioned from culled -> visible on CPU
-				|| WasPrimitiveRevealed(VSMCullingBatchInfo, PrimitiveData.PersistentPrimitiveIndex);
-
 			FFrustumCullData FrustumCull = (FFrustumCullData)0;
 			BRANCH
 			if( Cull.bIsVisible )
@@ -296,7 +266,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				// Compute estimated footprint in the VSM base level - note that we don't use the actual footprint because it changes under rotation and also with edge clipping which makes it unstable when used for culling.
 				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, Cull.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
 
-				uint FlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+				uint FlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 
 				// Loop over mip levels and count number of output visible instances
 				for (uint MipLevel = 0U; MipLevel < uint(NaniteView.TargetNumMipLevels); ++MipLevel)
@@ -376,7 +346,6 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 								Job.bMaterialInvalidates = bMaterialInvalidates;
 								Job.bShouldCacheAsStatic = bCacheAsStatic;
 								Job.bIsViewUncached = Cull.bIsViewUncached;
-								Job.bHasMoved = bHasMoved;
 								if (JobIndex < MARKING_JOB_QUEUE_SIZE)
 								{
 									SharedMarkingJobs[JobIndex] = PackJob(Job);
@@ -441,7 +410,7 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 		{
 			uint LocalPageY = uint(floor((float(Index) + 0.5f) * rcp(RectPagesSize.x)));
 			uint2 vPage = Job.RectPages.xy + uint2(Index - RectPagesSize.x * LocalPageY, LocalPageY);
-			uint FlagMask = GetPageFlagMaskForRendering(Job.bShouldCacheAsStatic, Job.bHasMoved);
+			uint FlagMask = GetPageFlagMaskForRendering(Job.bShouldCacheAsStatic);
 
 			// We don't need to add the correct flag mask here, as we don't look at the VSM_FLAG_DETAIL_GEOMETRY for invalidaiton processing
 			MarkPageDirty(PageTableLevelOffset, vPage, Job.MipLevel, Job.bMaterialInvalidates, Job.bShouldCacheAsStatic, Job.bIsViewUncached, Job.bAllowWPO, FlagMask);

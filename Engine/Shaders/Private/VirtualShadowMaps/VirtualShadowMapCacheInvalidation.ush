@@ -129,20 +129,10 @@ void InvalidateInstancePages(int VirtualShadowMapId, uint InstanceId, bool bForc
 									continue;
 								}
 #endif // USE_HZB_OCCLUSION
-								if (VirtualShadowMap.bNewInvalidations)
-								{
-									// We don't look up the page table here because pages that weren't requested this frame
-									// are not in the page table, but still need to be invalidated. Thus we mark a bit in
-									// the page request flags instead which will get picked up during the next page update pass.
-									InterlockedOr(OutPageRequestFlags[PageFlagOffset], InvalidationFlags);
-								}
-								else
-								{
-									// Accumulate static/dynamic invalidation flags
-									uint2 PhysicalAddress = ShadowGetPhysicalPage(PageFlagOffset).PhysicalAddress;
-									uint PhysicalPageIndex = VSMPhysicalPageAddressToIndex(PhysicalAddress);
-									InterlockedOr(PhysicalPageMetaDataOut[PhysicalPageIndex].Flags, InvalidationFlags);
-								}
+								// We don't look up the page table here because pages that weren't requested this frame
+								// are not in the page table, but still need to be invalidated. Thus we mark a bit in
+								// the page request flags instead which will get picked up during the next page update pass.
+								InterlockedOr(OutPageRequestFlags[PageFlagOffset], InvalidationFlags);
 							}
 						}
 					}

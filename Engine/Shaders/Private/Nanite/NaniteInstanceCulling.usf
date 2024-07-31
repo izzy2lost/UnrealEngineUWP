@@ -389,14 +389,13 @@ void InstanceCull(
 #if VIRTUAL_TEXTURE_TARGET
 				const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
 				Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
+				
 				bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
-
-				bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
-				bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
-				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
-				Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
+				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 				Cull.bUseStaticOcclusion = bCacheAsStatic;
+
+				float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
+				Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 #endif
 				Cull.FrustumHZB( false );
 			}
@@ -680,14 +679,13 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 	{
 		const bool bAllowWPO = VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex);
 		Cull.bEnableWPO = Cull.bEnableWPO && bAllowWPO;
-		bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
 
-		bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, Cull.bEnableWPO);
-		bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
-		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);
-		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
-		Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
+		bCacheAsStatic = ShouldCacheInstanceAsStatic(InstanceId, (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED), bAllowWPO);
+		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 		Cull.bUseStaticOcclusion = bCacheAsStatic;
+		
+		float PixelEstRadius = CalcClipSpaceRadiusEstimate(Cull.bIsOrtho, InstanceData, DynamicData.LocalToTranslatedWorld, NaniteView.ViewToClip) * float(VSM_VIRTUAL_MAX_RESOLUTION_XY);		
+		Cull.bDetailGeometry = IsDetailGeometry(bCacheAsStatic, true, PixelEstRadius);
 	}
 #endif
 

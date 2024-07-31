@@ -388,8 +388,6 @@ struct FNaniteTraversalClusterCullCallback
 			bool bExpandWPOBounds = bEnableWPO;
 
 #if VIRTUAL_TEXTURE_TARGET
-			// TODO: Do this more efficiently
-			if (VirtualShadowMap.bNewInvalidations)
 			{
 				// We always need to expand the bounds even if WPO is distance disabled because we still need to
 				// invalidate the whole region in case it starts animating next frame/in the future.
@@ -417,9 +415,7 @@ struct FNaniteTraversalClusterCullCallback
 			{
 			#if VIRTUAL_TEXTURE_TARGET
 				const bool bCacheAsStatic = (CandidateNode.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
-				const bool bMaterialInvalidates = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
-				const bool bHasMoved = DynamicData.bHasMoved || bMaterialInvalidates;
-				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+				Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 				Cull.bUseStaticOcclusion = bCacheAsStatic;
 			#endif
 
@@ -627,16 +623,11 @@ struct FNaniteTraversalClusterCullCallback
 		bool bExpandWPOBounds = bEnableWPO;
 
 #if VIRTUAL_TEXTURE_TARGET
-		// TODO: Do this more efficiently
 		bool bInvalidatePages = ShouldMaterialInvalidateShadowCache(PrimitiveData, bEnableWPO);
 		const bool bWPOAllowed = ShouldMaterialInvalidateShadowCache(PrimitiveData, VirtualShadowMapIsWPOAllowed(PrimitiveData, NaniteView.TargetLayerIndex));
-				
-		if (VirtualShadowMap.bNewInvalidations)
-		{
-			// We always need to expand the bounds even if WPO is distance disabled because we still need to
-			// mark the whole region in case it starts animating next frame/in the future.
-			bExpandWPOBounds = bWPOAllowed;
-		}
+		// We always need to expand the bounds even if WPO is distance disabled because we still need to
+		// mark the whole region in case it starts animating next frame/in the future.
+		bExpandWPOBounds = bWPOAllowed;
 #endif
 
 		TransformNodeCullingBounds(NaniteView, PrimitiveData, InstanceData, VisibleCluster.Flags, bExpandWPOBounds, ClusterBounds);
@@ -696,9 +687,8 @@ struct FNaniteTraversalClusterCullCallback
 		}
 
 #if VIRTUAL_TEXTURE_TARGET
-		const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;
-		const bool bHasMoved = DynamicData.bHasMoved || bInvalidatePages;
-		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic, bHasMoved);
+		const bool bCacheAsStatic = (VisibleCluster.Flags & NANITE_CULLING_FLAG_CACHE_AS_STATIC) != 0u;		
+		Cull.PageFlagMask = GetPageFlagMaskForRendering(bCacheAsStatic);
 		Cull.bUseStaticOcclusion = bCacheAsStatic;
 #endif
 
@@ -748,14 +738,11 @@ struct FNaniteTraversalClusterCullCallback
 								{
 									VirtualShadowMapMarkPageDirty(PageFlagOffset, bInvalidatePages, bCacheAsStatic, Cull.bIsViewUncached, bWPOAllowed);
 
-									if (VirtualShadowMap.bNewInvalidations)
+									FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(PageFlagOffset);
+									if (!PhysicalPageEntry.bThisLODValidForRendering)
 									{
-										FShadowPhysicalPage PhysicalPageEntry = ShadowGetPhysicalPage(PageFlagOffset);
-										if (!PhysicalPageEntry.bThisLODValidForRendering)
-										{
-											// Skip this page
-											continue;
-										}
+										// Skip this page
+										continue;
 									}
 
 									ClippedWindowRect.xy = min(ClippedWindowRect.xy, vPage);
