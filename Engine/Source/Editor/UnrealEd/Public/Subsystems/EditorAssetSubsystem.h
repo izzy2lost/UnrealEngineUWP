@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "AssetRegistry/AssetData.h"
 #include "EditorSubsystem.h"
-
 #include "EditorAssetSubsystem.generated.h"
 
 UENUM(BlueprintType, DisplayName = "Sort Order")
@@ -22,8 +21,6 @@ enum class EEditorAssetMetaDataSortType : uint8
 	Numeric,
 	DateTime
 };
-
-DECLARE_DYNAMIC_DELEGATE_RetVal_TwoParams(bool, FEditorAssetSortingPredicate, const FAssetData&, Left, const FAssetData&, Right);
 
 /**
 * UEditorAssetSubsystem
@@ -436,25 +433,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
 	UNREALED_API TArray<FAssetData> GetAllAssetsByMetaDataTags(const TSet<FName>& RequiredTags, const TSet<UClass*>& AllowedClasses);
-
-	/**
-	 * Sorts the assets based on a custom Blueprint delegate.
-	 * 
-	 * @param Assets The assets to sort
-	 * @param SortingPredicate Implements a Left <= Right relation
-	 * @param SortOrder Whether to sort ascending or descending
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-	UNREALED_API void SortByPredicate(UPARAM(Ref) TArray<FAssetData>& Assets, FEditorAssetSortingPredicate SortingPredicate, EEditorAssetSortOrder SortOrder);
-
-	/**
-	 * Sorts the assets by their asset name.
-	 *
-	 * @param Assets The assets to sort
-	 * @param SortOrder Whether to sort ascending or descending
-	 */
-	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
-	UNREALED_API void SortByName(UPARAM(Ref) TArray<FAssetData>& Assets, EEditorAssetSortOrder SortOrder);
 	
 	/**
 	 * Sorts the assets based on their meta data's type.
