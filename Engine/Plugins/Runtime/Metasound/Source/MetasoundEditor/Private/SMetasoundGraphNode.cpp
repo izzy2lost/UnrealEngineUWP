@@ -23,6 +23,7 @@
 #include "MetasoundEditorGraphInputNode.h"
 #include "MetasoundEditorGraphMemberDefaults.h"
 #include "MetasoundEditorGraphNode.h"
+#include "MetasoundEditorGraphNodeVisualization.h"
 #include "MetasoundEditorGraphSchema.h"
 #include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
@@ -397,6 +398,25 @@ namespace Metasound
 				}
 
 				AddPin(NewPin.ToSharedRef());
+			}
+		}
+
+		void SMetaSoundGraphNode::CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox)
+		{
+			if (MainBox.IsValid())
+			{
+				UMetasoundEditorGraphNode& MetaSoundNode = GetMetaSoundNode();
+
+				const FName NodeClassName = MetaSoundNode.GetBreadcrumb().ClassName.GetFullName();
+				const FCreateGraphNodeVisualizationWidgetParams CreateParams{ .MetaSoundNode = &MetaSoundNode };
+				if (TSharedPtr<SWidget> VisualizationWidget = FGraphNodeVisualizationRegistry::Get().CreateVisualizationWidget(NodeClassName, CreateParams))
+				{
+					MainBox->AddSlot()
+						.Padding(1.0f, 0.0f)
+						[
+							VisualizationWidget.ToSharedRef()
+						];
+				}
 			}
 		}
 

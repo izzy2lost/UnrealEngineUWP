@@ -18,6 +18,7 @@ class IDetailPropertyRow;
 class UEdGraphPin;
 class UMetasoundEditorGraph;
 class UMetasoundEditorGraphMemberDefaultLiteral;
+class UMetasoundEditorGraphNode;
 namespace Metasound::Engine 
 {
 	enum class EAssetScanStatus : uint8;
@@ -75,6 +76,15 @@ namespace Metasound
 			virtual TUniquePtr<FMetasoundDefaultLiteralCustomizationBase> CreateLiteralCustomization(IDetailCategoryBuilder& DefaultCategoryBuilder) const = 0;
 		};
 
+
+		struct FCreateGraphNodeVisualizationWidgetParams
+		{
+			UMetasoundEditorGraphNode* MetaSoundNode = nullptr;
+		};
+
+		DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FOnCreateGraphNodeVisualizationWidget, const FCreateGraphNodeVisualizationWidgetParams&);
+
+
 		class METASOUNDEDITOR_API IMetasoundEditorModule : public IModuleInterface
 		{
 		public:
@@ -111,6 +121,9 @@ namespace Metasound
 				const FSlateBrush* InPinConnectedIcon = nullptr, const FSlateBrush* InPinDisconnectedIcon = nullptr) = 0;
 			
 			virtual void RegisterCustomPinType(FName InDataTypeName, const FGraphPinParams& Params) = 0;
+
+			// For the given node class, register a delegate that can be used for creating in-graph node visualizations.
+			virtual void RegisterGraphNodeVisualization(FName InNodeClassName, FOnCreateGraphNodeVisualizationWidget OnCreateGraphNodeVisualizationWidget) = 0;
 		};
 	} // namespace Editor
 } // namespace Metasound

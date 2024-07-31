@@ -47,6 +47,7 @@ namespace Metasound::Editor
 		virtual void CreateOutputSideAddButton(TSharedPtr<SVerticalBox> OutputBox) override;
 		virtual TSharedPtr<SGraphPin> CreatePinWidget(UEdGraphPin* InPin) const override;
 		virtual void CreateStandardPinWidget(UEdGraphPin* InPin) override;
+		virtual void CreateBelowPinControls(TSharedPtr<SVerticalBox> MainBox) override;
 		virtual TSharedRef<SWidget> CreateNodeContentArea() override;
 		virtual TSharedRef<SWidget> CreateTitleWidget(TSharedPtr<SNodeTitle> NodeTitle) override;
 		virtual const FSlateBrush* GetNodeBodyBrush() const override;

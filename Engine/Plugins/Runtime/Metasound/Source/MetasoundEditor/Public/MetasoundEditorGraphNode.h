@@ -181,6 +181,34 @@ public:
 	// Returns whether or not the class interface, metadata, or style has been changed since the last node refresh
 	bool ContainsClassChange() const;
 
+	// Graph node visualization widgets can attempt to get the current value of the given named input pin. For connected input pins, a value may not be returned unless sound preview is active.
+	METASOUNDEDITOR_API bool TryGetPinVisualizationValue(FName InPinName, bool& OutValue) const;
+	METASOUNDEDITOR_API bool TryGetPinVisualizationValue(FName InPinName, int32& OutValue) const;
+	METASOUNDEDITOR_API bool TryGetPinVisualizationValue(FName InPinName, float& OutValue) const;
+
+	template<class T>
+	inline TOptional<T> GetPinVisualizationValue(FName InPinName) const
+	{
+		if constexpr (std::is_enum_v<T>)
+		{
+			int32 Result;
+			if (TryGetPinVisualizationValue(InPinName, Result))
+			{
+				return static_cast<T>(Result);
+			}
+			return NullOpt;
+		}
+		else
+		{
+			T Result;
+			if (TryGetPinVisualizationValue(InPinName, Result))
+			{
+				return Result;
+			}
+			return NullOpt;
+		}
+	}
+	
 protected:
 	FGuid InterfaceChangeID;
 	FGuid MetadataChangeID;

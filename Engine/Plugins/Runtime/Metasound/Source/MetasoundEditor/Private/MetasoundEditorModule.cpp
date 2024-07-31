@@ -24,6 +24,7 @@
 #include "MetasoundEditorGraphConnectionDrawingPolicy.h"
 #include "MetasoundEditorGraphMemberDefaults.h"
 #include "MetasoundEditorGraphNodeFactory.h"
+#include "MetasoundEditorGraphNodeVisualization.h"
 #include "MetasoundEditorSettings.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendDocument.h"
@@ -40,6 +41,7 @@
 #include "PackageMigrationContext.h"
 #include "PropertyEditorDelegates.h"
 #include "PropertyEditorModule.h"
+#include "SMetasoundFilterFrequencyResponsePlots.h"
 #include "Styling/AppStyle.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateStyle.h"
@@ -399,6 +401,11 @@ namespace Metasound
 
 			}
 
+			virtual void RegisterGraphNodeVisualization(FName InNodeClassName, FOnCreateGraphNodeVisualizationWidget OnCreateGraphNodeVisualizationWidget) override
+			{
+				FGraphNodeVisualizationRegistry::Get().RegisterVisualization(InNodeClassName, OnCreateGraphNodeVisualizationWidget);
+			}
+
 			void RegisterSettingsDelegates()
 			{
 				using namespace Engine;
@@ -615,6 +622,26 @@ namespace Metasound
 				GraphPanelPinFactory = MakeShared<FMetasoundGraphPanelPinFactory>();
 				FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
 
+				RegisterGraphNodeVisualization(
+					"UE.Biquad Filter.Audio",
+					FOnCreateGraphNodeVisualizationWidget::CreateStatic(&CreateMetaSoundBiquadFilterGraphNodeVisualizationWidget));
+
+				RegisterGraphNodeVisualization(
+					"UE.Ladder Filter.Audio",
+					FOnCreateGraphNodeVisualizationWidget::CreateStatic(&CreateMetaSoundLadderFilterGraphNodeVisualizationWidget));
+
+				RegisterGraphNodeVisualization(
+					"UE.One-Pole High Pass Filter.Audio",
+					FOnCreateGraphNodeVisualizationWidget::CreateStatic(&CreateMetaSoundOnePoleHighPassFilterGraphNodeVisualizationWidget));
+
+				RegisterGraphNodeVisualization(
+					"UE.One-Pole Low Pass Filter.Audio",
+					FOnCreateGraphNodeVisualizationWidget::CreateStatic(&CreateMetaSoundOnePoleLowPassFilterGraphNodeVisualizationWidget));
+
+				RegisterGraphNodeVisualization(
+					"UE.State Variable Filter.Audio",
+					FOnCreateGraphNodeVisualizationWidget::CreateStatic(&CreateMetaSoundStateVariableFilterGraphNodeVisualizationWidget));
+
 				ISettingsModule& SettingsModule = FModuleManager::LoadModuleChecked<ISettingsModule>("Settings");
 
 				SettingsModule.RegisterSettings("Editor", "ContentEditors", "MetaSound Editor",
@@ -688,6 +715,8 @@ namespace Metasound
 
 				AssetActions.Reset();
 				PinTypes.Reset();
+
+				FGraphNodeVisualizationRegistry::TearDown();
 			}
 
 			void OnPackageMigration(UE::AssetTools::FPackageMigrationContext& MigrationContext)
