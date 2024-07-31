@@ -4,7 +4,7 @@
 
 void UDaySequenceConditionTag::Initialize()
 {
-	SetupBroadcastBindings();
+	SetupOnConditionValueChanged();
 }
 
 bool UDaySequenceConditionTag::Evaluate_Implementation() const
@@ -12,9 +12,9 @@ bool UDaySequenceConditionTag::Evaluate_Implementation() const
 	return true;
 }
 
-FString UDaySequenceConditionTag::GetConditionName_Implementation() const
+FString UDaySequenceConditionTag::GetConditionName() const
 {
-	return GetClass()->GetName();
+	return ConditionName.IsEmpty() ? GetClass()->GetName() : ConditionName;
 }
 
 UWorld* UDaySequenceConditionTag::GetWorld() const
@@ -27,7 +27,7 @@ UWorld* UDaySequenceConditionTag::GetWorld() const
 	return GetOuter()->GetWorld();
 }
 
-void UDaySequenceConditionTag::SetupBroadcastBindings_Implementation() const
+void UDaySequenceConditionTag::SetupOnConditionValueChanged_Implementation() const
 {
 }
 

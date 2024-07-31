@@ -26,13 +26,8 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "General")
 	bool Evaluate() const;
 
-	/**
-	 * Derived classes should override this function to specify a friendly name which is used
-	 * when prompting users with a list of possible conditions to apply to a given sequence.
-	 */
-	UFUNCTION(BlueprintNativeEvent, Category = "General")
 	FString GetConditionName() const;
-
+	
 	DECLARE_MULTICAST_DELEGATE(FOnConditionValueChanged);
 	FOnConditionValueChanged& GetOnConditionValueChanged() { return OnConditionValueChanged; }
 	
@@ -46,7 +41,7 @@ protected:
 	 * can propagate those broadcasts to notify users of this condition that the condition needs reevaluating.
 	 */
 	UFUNCTION(BlueprintNativeEvent, Category = "General")
-	void SetupBroadcastBindings() const;
+	void SetupOnConditionValueChanged() const;
 	
 	/**
 	 * Derived classes should call this function to notify listeners that the underlying condition may have changed.
@@ -54,6 +49,14 @@ protected:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "General")
 	void BroadcastOnConditionValueChanged();
+
+protected:
+	/**
+	 * Derived classes should give this a meaningful default value which is displayed
+	 * when prompting users with a list of possible conditions to apply to a given sequence.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "General")
+	FString ConditionName;
 
 private:
 	FOnConditionValueChanged OnConditionValueChanged;
