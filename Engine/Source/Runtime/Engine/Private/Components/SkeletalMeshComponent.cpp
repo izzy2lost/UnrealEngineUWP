@@ -2691,6 +2691,9 @@ void USkeletalMeshComponent::DispatchParallelTickPose(FActorComponentTickFunctio
 				AnimEvaluationContext.bDuplicateToCacheCurve = false;
 				AnimEvaluationContext.bDuplicateToCachedAttributes = false;
 
+				// Ensure that internal objects are cached before we run any anim graph logic
+				DoInstancePreEvaluation();
+
 				if(bDoParallelUpdate)
 				{
 					DispatchParallelEvaluationTasks(TickFunction);
