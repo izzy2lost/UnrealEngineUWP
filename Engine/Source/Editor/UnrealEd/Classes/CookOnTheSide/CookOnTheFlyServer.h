@@ -1230,6 +1230,8 @@ private:
 		const ITargetPlatform* TargetPlatform) const;
 	/** Save the CurrentCookSettings into the output directory. */
 	void SaveCookSettings(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform);
+	/** Load the CookSettings written at beginning of cook and rewrite them with CookInProgress flag removed. */
+	void ClearCookInProgressFlagFromCookSettings(const ITargetPlatform* TargetPlatform) const;
 	/**
 	 * Populate a map suitable for saving as an ini with the current value of the Cook settings that need to be
 	 * tested for compatibility.

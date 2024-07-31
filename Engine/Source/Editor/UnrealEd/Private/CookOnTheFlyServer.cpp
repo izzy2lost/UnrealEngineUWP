@@ -8176,6 +8176,7 @@ bool UCookOnTheFlyServer::GetCookedIniVersionStrings(const ITargetPlatform* Targ
 }
 
 static const TCHAR* TEXT_CookSettings(TEXT("CookSettings"));
+static const TCHAR* TEXT_CookInProgress(TEXT("CookInProgress"));
 static FName ExecutableHashName(TEXT("ExecutableHash"));
 static FName ExecutableHashInvalidModuleName(TEXT("ExecutableHashInvalidModule"));
 
@@ -8252,13 +8253,14 @@ FString UCookOnTheFlyServer::GetCookSettingsFileName(const ITargetPlatform* Targ
 bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform) const
 {
 	FConfigFile ConfigFile;
-	ConfigFile.Read(GetCookSettingsFileName(TargetPlatform));
+	FString CookSettingsFileName = GetCookSettingsFileName(TargetPlatform);
+	ConfigFile.Read(CookSettingsFileName);
 
 	const FConfigSection* CookSettings = ConfigFile.FindSection(TEXT_CookSettings);
 	if (CookSettings == nullptr)
 	{
 		UE_LOG(LogCook, Display, TEXT("Cook invalidated for platform %s because CookSettings file %s is invalid. Clearing previously cooked packages."),
-			*TargetPlatform->PlatformName(), *GetCookSettingsFileName(TargetPlatform));
+			*TargetPlatform->PlatformName(), *CookSettingsFileName);
 		return false;
 	}
 
@@ -8279,6 +8281,18 @@ bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FS
 				*TargetPlatform->PlatformName(), *CurrentSetting.Key.ToString(),
 				PreviousSetting ? *PreviousSetting->GetValue() : TEXT(""),
 				*CurrentSetting.Value);
+			return false;
+		}
+	}
+
+	if (GIsBuildMachine)
+	{
+		bool bCookInProgress;
+		if (ConfigFile.GetBool(TEXT_CookSettings, TEXT_CookInProgress, bCookInProgress) && bCookInProgress)
+		{
+			UE_LOG(LogCook, Display, TEXT("Cook invalidated for platform %s because the previous cook crashed (or otherwise did not report completion).")
+				TEXT(" CookSettings file %s still has [%s]:%s=true. Clearing previously cooked packages."),
+				*TargetPlatform->PlatformName(), *CookSettingsFileName, TEXT_CookSettings, TEXT_CookInProgress);
 			return false;
 		}
 	}
@@ -8327,8 +8341,19 @@ void UCookOnTheFlyServer::SaveCookSettings(const TMap<FName, FString>& CurrentCo
 	{
 		ConfigFile.AddToSection(TEXT_CookSettings, CurrentSetting.Key, CurrentSetting.Value);
 	}
+	ConfigFile.AddToSection(TEXT_CookSettings, TEXT_CookInProgress, TEXT("true"));
 	ConfigFile.Dirty = true; // Writing to a section does not set the dirty flag, so set it manually to make Write work
 	ConfigFile.Write(GetCookSettingsFileName(TargetPlatform));
+}
+
+void UCookOnTheFlyServer::ClearCookInProgressFlagFromCookSettings(const ITargetPlatform* TargetPlatform) const
+{
+	FConfigFile ConfigFile;
+	FString Filename = GetCookSettingsFileName(TargetPlatform);
+	ConfigFile.Read(Filename);
+	ConfigFile.RemoveKeyFromSection(TEXT_CookSettings, TEXT_CookInProgress);
+	ConfigFile.Dirty = true; // Writing to a section does not set the dirty flag, so set it manually to make Write work
+	ConfigFile.Write(Filename);
 }
 
 bool UCookOnTheFlyServer::IniSettingsOutOfDate(const ITargetPlatform* TargetPlatform) const
@@ -10316,6 +10341,10 @@ void UCookOnTheFlyServer::CookByTheBookFinished()
 		CookByTheBookFinishedInternal();
 	}
 
+	for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms())
+	{
+		ClearCookInProgressFlagFromCookSettings(TargetPlatform);
+	}
 	ShutdownCookSession();
 	BroadcastCookByTheBookFinished();
 	UE_LOG(LogCook, Display, TEXT("Done!"));
