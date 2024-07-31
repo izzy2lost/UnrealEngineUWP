@@ -3,28 +3,29 @@
 #include "VCamPixelStreamingSessionLogic.h"
 
 #include "BuiltinProviders/VCamPixelStreamingSession.h"
-#include "Output/VCamOutputComposure.h"
+#include "IDecoupledOutputProviderModule.h"
 #include "Media/PixelStreamingMediaOutput.h"
 #include "Networking/VCamPixelStreamingLiveLink.h"
+#include "Output/VCamOutputComposure.h"
 #include "VCamComponent.h"
 #include "VCamPixelStreamingSubsystem.h"
 
 #include "Async/Async.h"
 #include "Containers/UnrealString.h"
 #include "Editor/EditorPerformanceSettings.h"
+#include "GameFramework/Actor.h"
 #include "IPixelStreamingStats.h"
 #include "IPixelStreamingModule.h"
 #include "IPixelStreamingInputModule.h"
-#include "IPixelStreamingEditorModule.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Math/Matrix.h"
+#include "Misc/CoreDelegates.h"
 #include "PixelStreamingDelegates.h"
 #include "PixelStreamingInputEnums.h"
 #include "PixelStreamingInputMessage.h"
 #include "PixelStreamingInputProtocol.h"
-#include "PixelStreamingServers.h"
 #include "PixelStreamingVCamLog.h"
 #include "PixelStreamingVCamModule.h"
-#include "Framework/Notifications/NotificationManager.h"
-#include "Math/Matrix.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -35,7 +36,6 @@
 
 #if WITH_EDITOR
 #include "Framework/Application/SlateApplication.h"
-#include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #endif
 
@@ -43,9 +43,20 @@
 
 namespace UE::PixelStreamingVCam
 {
+	FVCamPixelStreamingSessionLogic::FVCamPixelStreamingSessionLogic(const DecoupledOutputProvider::FOutputProviderLogicCreationArgs& Args)
+		: ManagedOutputProvider(Cast<UVCamPixelStreamingSession>(Args.Provider))
+	{
+#if WITH_EDITOR
+		FCoreDelegates::OnActorLabelChanged.AddRaw(this, &FVCamPixelStreamingSessionLogic::OnActorLabelChanged);
+#endif
+	}
+	
 	FVCamPixelStreamingSessionLogic::~FVCamPixelStreamingSessionLogic()
 	{
 		UnregisterPixelStreamingDelegates();
+#if WITH_EDITOR
+		FCoreDelegates::OnActorLabelChanged.RemoveAll(this);
+#endif
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnDeinitialize(DecoupledOutputProvider::IOutputProviderEvent& Args)
@@ -61,7 +72,7 @@ namespace UE::PixelStreamingVCam
 
 	void FVCamPixelStreamingSessionLogic::OnActivate(DecoupledOutputProvider::IOutputProviderEvent& Args)
 	{
-		UVCamPixelStreamingSession* This = Cast<UVCamPixelStreamingSession>(&Args.GetOutputProvider());
+		UVCamPixelStreamingSession* This = ManagedOutputProvider.Get();
 		AActor* OwningActor = This ? This->GetTypedOuter<AActor>() : nullptr;
 		if (!ensure(This && OwningActor))
 		{
@@ -71,7 +82,7 @@ namespace UE::PixelStreamingVCam
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 		if (This->StreamerId.IsEmpty())
 		{
-			This->StreamerId = VCamCore::GenerateUniqueOutputProviderName(*This);
+			RefreshStreamerName(This);
 		}
 
 		// Setup livelink source
@@ -301,7 +312,33 @@ namespace UE::PixelStreamingVCam
 			NotificationManager.AddNotification(Info);
 		}
 	}
+
+	void FVCamPixelStreamingSessionLogic::OnActorLabelChanged(AActor* Actor) const
+	{
+		UVCamPixelStreamingSession* Session = ManagedOutputProvider.Get();
+		if (Session
+			// User wants their name?
+			&& !Session->bOverrideStreamerName
+			// Cannot change while outputting.
+			&& !Session->IsOutputting()
+			// Did our owning actor's name change?
+			&& Session->GetTypedOuter<AActor>() == Actor)
+		{
+			Session->Modify();
+			RefreshStreamerName(Session);
+		}
+	}
 #endif
+	
+	void FVCamPixelStreamingSessionLogic::RefreshStreamerName(UVCamPixelStreamingSession* Session) const
+	{
+		using namespace VCamCore;
+		const bool bContainsOtherPixelStreamingOutput = Session->GetVCamComponent()->GetOutputProviders().ContainsByPredicate([Session](const TObjectPtr<UVCamOutputProviderBase>& OtherOutputProvider)
+		{
+			return OtherOutputProvider != Session && OtherOutputProvider->GetClass()->IsChildOf(Session->GetClass());
+		});
+		Session->StreamerId = GenerateUniqueOutputProviderName(*Session, bContainsOtherPixelStreamingOutput ? ENameGenerationFlags::None : ENameGenerationFlags::SkipAppendingIndex);
+	}
 
 	void FVCamPixelStreamingSessionLogic::SetupSignallingServer(UVCamPixelStreamingSession& Session)
 	{

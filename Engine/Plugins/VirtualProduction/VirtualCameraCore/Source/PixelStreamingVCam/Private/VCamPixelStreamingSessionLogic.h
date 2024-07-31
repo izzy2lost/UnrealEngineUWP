@@ -9,10 +9,13 @@
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
+class AActor;
 class UVCamPixelStreamingSession;
 class UPixelStreamingMediaIOCapture;
 class UPixelStreamingMediaOutput;
 class IPixelStreamingStreamer;
+
+namespace UE::DecoupledOutputProvider { struct FOutputProviderLogicCreationArgs; }
 
 namespace UE::PixelStreamingVCam
 {
@@ -20,7 +23,8 @@ namespace UE::PixelStreamingVCam
 	class FVCamPixelStreamingSessionLogic : public DecoupledOutputProvider::IOutputProviderLogic
 	{
 	public:
-
+		
+		FVCamPixelStreamingSessionLogic(const DecoupledOutputProvider::FOutputProviderLogicCreationArgs& Args);
 		virtual ~FVCamPixelStreamingSessionLogic();
 
 		//~ Begin IOutputProviderLogic Interface
@@ -41,6 +45,9 @@ namespace UE::PixelStreamingVCam
 		/** Used to generate unique streamer IDs */
 		static int NextDefaultStreamerId;
 
+		/** The output provider being managed by this logic object. */
+		TWeakObjectPtr<UVCamPixelStreamingSession> ManagedOutputProvider;
+
 		/** Last time viewport was touched. Updated every tick. */
 		FHitResult 	LastViewportTouchResult;
 		/** Whether we overwrote the widget class with the empty widget class; remember: PS needs a widget. */
@@ -50,10 +57,22 @@ namespace UE::PixelStreamingVCam
 
 		TObjectPtr<UPixelStreamingMediaOutput> MediaOutput = nullptr;
 		TObjectPtr<UPixelStreamingMediaIOCapture> MediaCapture = nullptr;
+		
+		/** Handle for ARKit stats timer */
+		FTimerHandle ARKitResponseTimer; 
+		size_t NumARKitEvents = 0;
+
+		/** The next ID to use for a string request */
+		int32 NextStringRequestId = 0;
+
+		/** A map from string request IDs to promises to fulfill when the corresponding request is completed */
+		TMap<int32, TPromise<FVCamStringPromptResponse>> StringPromptPromises;
 
 #if WITH_EDITOR
 		void OnEditStreamId(UVCamPixelStreamingSession& This);
+		void OnActorLabelChanged(AActor* Actor) const;
 #endif
+		void RefreshStreamerName(UVCamPixelStreamingSession* Session) const;
 		
 		void SetupSignallingServer(UVCamPixelStreamingSession& Session);
 		void StopSignallingServer(UVCamPixelStreamingSession& Session);
@@ -84,17 +103,6 @@ namespace UE::PixelStreamingVCam
 
 		/** Unregister any handlers for pixel streaming delegates */
 		void UnregisterPixelStreamingDelegates();
-
-private:
-		/** Handle for ARKit stats timer */
-		FTimerHandle ARKitResponseTimer; 
-		size_t NumARKitEvents = 0;
-
-		/** The next ID to use for a string request */
-		int32 NextStringRequestId = 0;
-
-		/** A map from string request IDs to promises to fulfill when the corresponding request is completed */
-		TMap<int32, TPromise<FVCamStringPromptResponse>> StringPromptPromises;
 	};
 }
 

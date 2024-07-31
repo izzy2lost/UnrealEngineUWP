@@ -33,7 +33,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output", meta = (DisplayPriority = "14"))
 	bool bAutoSetLiveLinkSubject = true;
 
-	/** The name of this streamer to be reported to the signalling server. If ids are not unique issues can occur. */
+	/** Whether to override StreamerId with a user provided name. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output", meta = (DisplayPriority = "15"))
+	bool bOverrideStreamerName = false;
+	
+	/**
+	 * The name of this streamer to be reported to the signalling server.
+	 * Defaults to the actor label if unique, and uses the soft object path if not.
+	 * If ids are not unique issues can occur.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Output", meta = (EditCondition = "bOverrideStreamerName", DisplayPriority = "16"))
 	FString StreamerId;
 };

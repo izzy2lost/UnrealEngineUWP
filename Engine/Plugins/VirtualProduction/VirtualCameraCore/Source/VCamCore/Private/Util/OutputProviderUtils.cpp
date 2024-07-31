@@ -32,7 +32,7 @@ namespace UE::VCamCore
 		return INDEX_NONE;
 	}
 
-	FString GenerateUniqueOutputProviderName(const UVCamOutputProviderBase& OutputProvider)
+	FString GenerateUniqueOutputProviderName(const UVCamOutputProviderBase& OutputProvider, ENameGenerationFlags Flags)
 	{
 		AActor* OwningActor = OutputProvider.GetTypedOuter<AActor>();
 		UWorld* World = OwningActor ? OwningActor->GetWorld() : nullptr;
@@ -41,25 +41,32 @@ namespace UE::VCamCore
 			return {};
 		}
 
-		const auto GenerateNameBasedOnFName = [OwningActor, &OutputProvider]()
+		const auto GenerateName = [&OutputProvider, Flags](const FString& BaseName)
 		{
-			return FString::Printf(TEXT("%s_%d"), *OwningActor->GetName(), OutputProvider.FindOwnIndexInOwner());
+			return EnumHasAnyFlags(Flags, ENameGenerationFlags::SkipAppendingIndex)
+				? *BaseName
+				: FString::Printf(TEXT("%s_%d"), *BaseName, OutputProvider.FindOwnIndexInOwner());
 		};
-		
+		const auto GenerateUsingFName = [OwningActor, &GenerateName](){ return GenerateName(OwningActor->GetName()); };
 #if WITH_EDITOR // There are no actor labels in non-editor builds
-		for (TActorIterator<AActor> ActorIt(World); ActorIt; ++ActorIt)
+		const auto GenerateNameUsingLabel = [OwningActor, &GenerateName](){ return GenerateName(OwningActor->GetActorLabel()); };
+
+		const bool bIsActorLabelUnique = [World, OwningActor]()
 		{
-			if (*ActorIt && *ActorIt != OwningActor
-				&& ActorIt->FindComponentByClass<UVCamComponent>()
-				&& ActorIt->GetActorLabel() == OwningActor->GetActorLabel())
+			for (TActorIterator<AActor> ActorIt(World); ActorIt; ++ActorIt)
 			{
-				return GenerateNameBasedOnFName();
+				if (*ActorIt && *ActorIt != OwningActor
+					&& ActorIt->FindComponentByClass<UVCamComponent>()
+					&& ActorIt->GetActorLabel() == OwningActor->GetActorLabel())
+				{
+					return false;
+				}
 			}
-		}
-		
-		return FString::Printf(TEXT("%s_%d"), *OwningActor->GetActorLabel(), OutputProvider.FindOwnIndexInOwner());
+			return true;
+		}();
+		return bIsActorLabelUnique ? GenerateNameUsingLabel() : GenerateUsingFName();
 #else
-		return GenerateNameBasedOnFName();
+		return GenerateUsingFName();
 #endif
 	}
 }

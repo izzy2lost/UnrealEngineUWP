@@ -49,7 +49,7 @@ namespace UE::PixelStreamingVCam
 			UVCamPixelStreamingSession::StaticClass(),
 			FOutputProviderLogicFactoryDelegate::CreateLambda([](const FOutputProviderLogicCreationArgs& Args)
 				{
-					return MakeShared<FVCamPixelStreamingSessionLogic>();
+					return MakeShared<FVCamPixelStreamingSessionLogic>(Args);
 				})
 		);
 
