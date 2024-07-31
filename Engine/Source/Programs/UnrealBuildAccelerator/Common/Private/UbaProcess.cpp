@@ -1224,6 +1224,7 @@ namespace uba
 		WrittenFile& tempFile = insres.first->second;
 		FileMappingHandle oldMapping = tempFile.mappingHandle;
 		tempFile.mappingHandle = newHandle;
+		tempFile.mappingWritten = mappingHandleSize;
 		tempLock.Leave();
 		CloseFileMapping(oldMapping);
 		return true;
@@ -1783,6 +1784,8 @@ namespace uba
 					UBA_ASSERTF(errno == ESRCH || errno == EPERM, TC("setpriority failed: %s. pid: %i prio: %i (%s)"), m_realApplication.c_str(), processID, prio + 2, strerror(errno));
 				}
 			}
+
+			m_processStats.startupTime = GetTime() - m_startTime;
 
 			m_nativeProcessHandle = (ProcHandle)1;
 			m_nativeProcessId = u32(processID);

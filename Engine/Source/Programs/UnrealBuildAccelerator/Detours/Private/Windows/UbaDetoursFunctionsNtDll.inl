@@ -1050,10 +1050,17 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	if (keepInMemory || info.memoryFile)
 	{
+		#if UBA_DEBUG_LOG_ENABLED
+		const wchar_t* memoryType = L"MEMORY";
+		#endif
+
 		if (!info.memoryFile)
 		{
 			if (NeedsSharedMemory(fileName.data))
 			{
+				#if UBA_DEBUG_LOG_ENABLED
+				memoryType = L"SHAREDMEMORY";
+				#endif
 				if (isWrite)
 				{
 					info.memoryFile = new MemoryFile(false, FileTypeMaxSize(fileName, isSystemOrTempFile));
@@ -1118,6 +1125,14 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			info.memoryFile->volumeSerial = 1;
 			info.memoryFile->fileIndex = InterlockedDecrement(&g_memoryFileIndexCounter);
 		}
+		else
+		{
+			#if UBA_DEBUG_LOG_ENABLED
+			if (!info.memoryFile->isLocalOnly)
+				memoryType = L"SHAREDMEMORY";
+			#endif
+		}
+
 		_.Leave();
 
 		auto fileObject = new FileObject();
@@ -1132,7 +1147,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 		TrackFileInput();
 
-		DEBUG_LOG_DETOURED(funcName, L"(MEMORY)%ls %llu (%ls) (%ls) -> Success", isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
+		DEBUG_LOG_DETOURED(funcName, L"(%s)%ls %llu (%ls) (%ls) -> Success", memoryType, isWriteStr, uintptr_t(*hFileHandle), lpFileName, (fileName.data != lpFileName ? fileName.data : L""));
 		return STATUS_SUCCESS;
 	}
 

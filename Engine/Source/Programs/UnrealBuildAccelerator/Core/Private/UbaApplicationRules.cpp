@@ -122,7 +122,8 @@ namespace uba
 		virtual bool NeedsSharedMemory(const tchar* file) const override
 		{
 			return Contains(file, TC("lnk{")) // This file is shared from link.exe to mt.exe and rc.exe so we need to put it shared memory
-			 	|| Contains(file, TC("\\_cl_")); // When link.exe is spawned by cl.exe we might use this which is in shared memory
+			 	|| Contains(file, TC("\\_cl_")) // When link.exe is spawned by cl.exe we might use this which is in shared memory
+			 	|| EndsWith(file, TStrlen(file), TC(".manifest")); // lld-link.exe is using a different name for files shared with child processes
 		}
 
 		virtual bool IsRarelyRead(const StringBufferBase& file) const override
@@ -471,6 +472,7 @@ namespace uba
 			{ TC("cvtres.exe"),					new ApplicationRulesLinkExe() },
 			{ TC("mt.exe"),						new ApplicationRulesLinkExe() },
 			{ TC("rc.exe"),						new ApplicationRulesLinkExe() },
+			{ TC("lld-link.exe"),				new ApplicationRulesLinkExe() },
 			{ TC("clang++.exe"),				new ApplicationRulesClangPlusPlusExe() },
 			{ TC("clang-cl.exe"),				new ApplicationRulesClangPlusPlusExe() },
 			{ TC("verse-clang-cl.exe"),			new ApplicationRulesClangPlusPlusExe() },
