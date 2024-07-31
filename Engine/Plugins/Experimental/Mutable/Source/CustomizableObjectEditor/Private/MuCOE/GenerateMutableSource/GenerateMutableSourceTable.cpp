@@ -279,7 +279,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 
 			//TODO: Add AnimBp physics to Tables.
 			constexpr bool bIsReference = false;
-			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TableNode, bIsReference);
+			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LODIndexConnected, SectionIndexConnected, 
+																LODIndex, SectionIndex, MeshUniqueTags, GenerationContext, TableNode, ReferenceSkeletalMesh, bIsReference);
 
 			if (MutableMesh)
 			{
@@ -386,7 +387,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 			}
 
 			constexpr bool bIsReference = false;
-			mu::MeshPtr MutableMesh = GenerateMutableMesh(StaticMesh, TSoftClassPtr<UAnimInstance>(), CurrentLOD, SectionIndex, CurrentLOD, SectionIndex, FString(), GenerationContext, TableNode, bIsReference);
+			mu::MeshPtr MutableMesh = GenerateMutableMesh(StaticMesh, TSoftClassPtr<UAnimInstance>(), CurrentLOD, SectionIndex, CurrentLOD, SectionIndex, 
+														  FString(), GenerationContext, TableNode, nullptr, bIsReference);
 
 			if (MutableMesh)
 			{

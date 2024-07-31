@@ -77,7 +77,8 @@ mu::Ptr<mu::NodeComponent> GenerateMutableSourceComponent(const UEdGraphPin * Pi
 			FString MeshUniqueTags;
 			constexpr bool bIsReference = true;
 			TSoftClassPtr<UAnimInstance> AnimInstance;
-			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(SkeletalMesh, AnimInstance, 0, 0, 0, 0, MeshUniqueTags, GenerationContext, TypedComponentMesh, bIsReference);
+			mu::Ptr<mu::Mesh> MutableMesh = GenerateMutableMesh(SkeletalMesh, AnimInstance, 0, 0, 0, 0, MeshUniqueTags, 
+																GenerationContext, TypedComponentMesh, nullptr, bIsReference);
 
 			MeshNode->SetValue(MutableMesh);
 		}
