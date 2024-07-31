@@ -172,8 +172,13 @@ void UVCamOutputProviderBase::RequestResolutionRefresh() const
 
 void UVCamOutputProviderBase::SetActiveInternal(const bool bInActive)
 {
-	bIsActive = bInActive;
+	if (!IsActivationChangeAllowed(bInActive))
+	{
+		return;
+	}
 	
+	bIsActive = bInActive;
+
 	// E.g. when you drag-drop an actor into the level
 	if (!UE::VCamCore::CanInitVCamOutputProvider(this))
 	{
@@ -582,6 +587,19 @@ TWeakPtr<SWindow> UVCamOutputProviderBase::GetTargetInputWindow() const
 		.GetInputWindow(
 			GetTargetViewport()
 			);
+}
+
+bool UVCamOutputProviderBase::IsActivationChangeAllowed(bool bRequestActiveState)
+{
+	// Deactivation is always allowed.
+	if (!bRequestActiveState)
+	{
+		return true;
+	}
+	
+	using namespace UE::VCamCore;
+	const TOptional<FVCamCoreChangeActivationResult> Result = ExecuteUntilFailure(IVCamCoreModule::Get().OnCanActivateOutputProvider(), { this });
+	return !Result;
 }
 
 #if WITH_EDITOR

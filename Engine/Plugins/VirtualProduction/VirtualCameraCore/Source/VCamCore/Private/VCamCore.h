@@ -4,6 +4,7 @@
 
 #include "IVCamCoreModule.h"
 #include "Modules/ModuleManager.h"
+#include "Util/UnifiedActivationDelegateContainer.h"
 #include "Util/Viewport/ViewportManager.h"
 
 namespace UE::VCamCore::WidgetSnapshotUtils
@@ -24,6 +25,11 @@ namespace UE::VCamCore
 		virtual void ShutdownModule() override;
 		//~ End IModuleInterface Interface
 
+		//~ Begin IVCamCoreModule Interface
+		virtual const FUnifiedActivationDelegateContainer& OnCanActivateOutputProvider() const override { return CanActivateDelegateContainer; }
+		virtual FUnifiedActivationDelegateContainer& OnCanActivateOutputProvider() override { return CanActivateDelegateContainer; }
+		//~ End IVCamCoreModule Interface
+
 		/** @return Gets the object that manages locking and adjusting resolution of viewports. Keeps track of viewport ownership. */
 		FViewportManager& GetViewportManager() { return ViewportManager; }
 		/** @return Gets the settings to use for snapshotting widgets in the VCam HUD. */
@@ -39,6 +45,9 @@ namespace UE::VCamCore
 		 * Hence, we are forced to use the service-locator pattern for accessing the FViewportManager.
 		 */
 		FViewportManager ViewportManager;
+		
+		/** The delegate container for determining whether an output provider can be activated. */
+		FUnifiedActivationDelegateContainer CanActivateDelegateContainer;
 		
 		/** Register the module's settings object. */
 		void RegisterSettings();

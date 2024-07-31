@@ -151,6 +151,13 @@ public:
 	TSharedPtr<FSceneViewport> GetSceneViewport(EVCamTargetViewportID InTargetViewport) const;
 	TWeakPtr<SWindow> GetTargetInputWindow() const;
 
+	/** @return Whether it is allowed to change the activation state into bRequestActiveState. */
+	bool IsActivationChangeAllowed(bool bRequestActiveState);
+	/** @return Whether it is allowed to toggle (true -> false, false -> true) the activation state of this output provider. */
+	UFUNCTION(BlueprintPure, Category = "Output")
+	bool CanToggleActivation() { return IsActivationChangeAllowed(!bIsActive); }
+	
+
 	/** @return Whether this output provider is currently outputting (initialized, active, and owning VCam is enabled). */
 	bool IsOutputting() const { return IsActive() && IsInitialized() && IsOuterComponentEnabledAndInitialized(); }
 	UGameplayViewTargetPolicy* GetGameplayViewTargetPolicy() const { return GameplayViewTargetPolicy; }
@@ -233,7 +240,7 @@ protected:
 private:
 	
 	/** If set, this output provider will execute every frame */
-	UPROPERTY(EditAnywhere, BlueprintGetter = "IsActive", BlueprintSetter = "SetActive", Category = "Output", meta = (DisplayPriority = "1"))
+	UPROPERTY(EditAnywhere, BlueprintGetter = "IsActive", BlueprintSetter = "SetActive", Category = "Output", meta = (EditCondition = "CanToggleActivation", DisplayPriority = "1"))
 	bool bIsActive = false;
 	
 	/**
