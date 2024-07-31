@@ -805,6 +805,8 @@ private:
 	FString ShaderCompileWorkerName;
 	/** Last value of GetNumRemainingAssets */
 	int32 LastNumRemainingAssets = 0;
+	/** If dumping crash logs for workers is enabled and an absolute path is used (i.e. -AbsLog), this contains the base directory path. */
+	FString WorkerCrashLogBaseDirectory;
 
 	/** 
 	 * Tracks the total time that shader compile workers have been busy since startup.  

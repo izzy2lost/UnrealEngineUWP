@@ -863,6 +863,30 @@ FShaderCompilingManager::FShaderCompilingManager() :
 
 	FAssetCompilingManager::Get().RegisterManager(this);
 
+	// Ensure directory for dumping worker crash log exits before launching workers
+	if (GDebugDumpWorkerCrashLog)
+	{
+		FString CustomCrashLogsDir;
+		if (FParse::Value(FCommandLine::Get(), TEXT("ShaderCompileWorkerCrashLogsDir="), CustomCrashLogsDir))
+		{
+			WorkerCrashLogBaseDirectory = MoveTemp(CustomCrashLogsDir);
+		}
+		else if (GIsBuildMachine)
+		{
+			WorkerCrashLogBaseDirectory = GetBuildMachineArtifactBasePath();
+		}
+
+		// If this is empty, fall back to relative paths and the default log directory
+		if (!WorkerCrashLogBaseDirectory.IsEmpty() && !IFileManager::Get().DirectoryExists(*WorkerCrashLogBaseDirectory))
+		{
+			if (!IFileManager::Get().MakeDirectory(*WorkerCrashLogBaseDirectory, true))
+			{
+				const uint32 ErrorCode = FPlatformMisc::GetLastError();
+				UE_LOG(LogShaderCompilers, Warning, TEXT("Failed to create directory for ShaderCompileWorker crash logs '%s' (Error Code: %u)"), *WorkerCrashLogBaseDirectory, ErrorCode);
+			}
+		}
+	}
+
 #if WITH_EDITOR
 	static const bool bAllowShaderRecompileOnSave = CVarRecompileShadersOnSave.GetValueOnAnyThread();
 	if (bAllowShaderRecompileOnSave)
@@ -1461,14 +1485,9 @@ FProcHandle FShaderCompilingManager::LaunchWorker(const FString& WorkingDirector
 		WorkerParameters += TEXT(" -LogToMemory -DumpLogOnExitCrashOnly ");
 
 		const FString WorkerLogFilename = FString::Printf(TEXT("ShaderCompileWorker-%d.log"), ThreadId);
-		FString CustomCrashLogsDir;
-		if (FParse::Value(FCommandLine::Get(), TEXT("ShaderCompileWorkerCrashLogsDir"), CustomCrashLogsDir))
+		if (!WorkerCrashLogBaseDirectory.IsEmpty())
 		{
-			WorkerParameters += FString::Printf(TEXT("-AbsLog=%s"), *FPaths::Combine(CustomCrashLogsDir, WorkerLogFilename));
-		}
-		else if (GIsBuildMachine)
-		{
-			WorkerParameters += FString::Printf(TEXT("-AbsLog=%s"), *FPaths::Combine(GetBuildMachineArtifactBasePath(), WorkerLogFilename));
+			WorkerParameters += FString::Printf(TEXT("-AbsLog=%s"), *FPaths::Combine(WorkerCrashLogBaseDirectory, WorkerLogFilename));
 		}
 		else
 		{
