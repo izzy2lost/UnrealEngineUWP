@@ -47,6 +47,12 @@ private:
 	/** Switch from floating window to edit window */
 	bool SwitchToEditWindow();
 
+	/** Toggle 3D viewport mouse turning */
+	void SetViewportMouseIgnoreLook(bool bLookIgnore);
+
+	/** Get world from editor or engine */
+	UWorld* GetWorld() const;
+
 	/** Input processor used to capture the 'Esc' key */
 	TSharedPtr<FTranslationPickerInputProcessor> InputProcessor;
 
@@ -63,6 +69,8 @@ private:
 	* The path widgets we were hovering over last tick
 	*/
 	FWeakWidgetPath LastTickHoveringWidgetPath;
+
+	bool bMouseLookInputIgnored = false;
 };
 
 #undef LOCTEXT_NAMESPACE
