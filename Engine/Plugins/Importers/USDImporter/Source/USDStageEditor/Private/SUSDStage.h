@@ -66,6 +66,7 @@ public:
 	void FileSave(const FString& OutputFileIfUnsaved = {});
 	void FileExportAllLayers(const FString& OutputDirectory = {});
 	void FileExportFlattenedStage(const FString& OutputLayer = {});
+	void FileExportFlattenedLayerStack(const FString& OutputLayer = {});
 	void FileReload();
 	void FileReset();
 	void FileClose();

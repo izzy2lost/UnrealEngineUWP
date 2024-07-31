@@ -33,6 +33,7 @@
 #include "pxr/usd/usd/primCompositionQuery.h"
 #include "pxr/usd/usd/stage.h"
 #include "pxr/usd/usdGeom/xform.h"
+#include "pxr/usd/usdUtils/flattenLayerStack.h"
 #include "USDIncludesEnd.h"
 
 #define LOCTEXT_NAMESPACE "USDLayerUtils"
@@ -823,6 +824,12 @@ bool UsdUtils::IsSessionLayerWithinStage(const pxr::SdfLayerRefPtr& Layer, const
 	}
 
 	return false;
+}
+
+UE::FSdfLayer UsdUtils::FlattenLayerStack(const pxr::UsdStageRefPtr& Stage)
+{
+	FScopedUsdAllocs Allocs;
+	return UE::FSdfLayer{pxr::UsdUtilsFlattenLayerStack(Stage)};
 }
 
 void UsdUtils::ConvertAssetRelativePathsToAbsolute(UE::FSdfLayer& LayerToConvert, const UE::FSdfLayer& AnchorLayer)

@@ -9,6 +9,7 @@
 #include "UnrealUSDWrapper.h"
 #include "USDClassesModule.h"
 #include "USDConversionUtils.h"
+#include "USDErrorUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLog.h"
 #include "USDProjectSettings.h"
@@ -1141,7 +1142,7 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 	const FString FilePath;
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ExportAll", "Export all layers..."),
+		LOCTEXT("ExportAll", "All layers..."),
 		LOCTEXT("ExportAll_ToolTip", "Exports copies of all file-based layers in the stage's layer stack to a new folder"),
 		FSlateIcon(),
 		FUIAction(
@@ -1171,7 +1172,7 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 	);
 
 	MenuBuilder.AddMenuEntry(
-		LOCTEXT("ExportFlattened", "Export flattened stage..."),
+		LOCTEXT("ExportFlattened", "Flattened stage..."),
 		LOCTEXT("ExportFlattened_ToolTip", "Flattens the current stage to a single USD layer and exports it as a new USD file"),
 		FSlateIcon(),
 		FUIAction(
@@ -1179,6 +1180,36 @@ void SUsdStage::FillExportSubMenu(FMenuBuilder& MenuBuilder)
 				[this]()
 				{
 					FileExportFlattenedStage();
+				}
+			),
+			FCanExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get())
+					{
+						if (UE::FUsdStage Stage = StageActor->GetUsdStage())
+						{
+							return true;
+						}
+					}
+
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::Button
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ExportStack", "Flattened layer stack..."),
+		LOCTEXT("ExportStack_ToolTip", "Flattens the current stage's local layer stack to a single layer, preserving most composition arcs"),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					FileExportFlattenedLayerStack();
 				}
 			),
 			FCanExecuteAction::CreateLambda(
@@ -2419,6 +2450,64 @@ void SUsdStage::FileExportFlattenedStage(const FString& OutputLayer)
 		IUsdClassesModule::SendAnalytics(
 			{},
 			TEXT("ExportStageFlattened"),
+			bAutomated,
+			ElapsedSeconds,
+			UsdUtils::GetUsdStageNumFrames(UsdStage),
+			Extension
+		);
+	}
+}
+
+void SUsdStage::FileExportFlattenedLayerStack(const FString& OutputLayer)
+{
+	const AUsdStageActor* StageActor = ViewModel.UsdStageActor.Get();
+	if (!StageActor)
+	{
+		return;
+	}
+
+	UE::FUsdStage UsdStage = StageActor->GetUsdStage();
+	if (!UsdStage)
+	{
+		return;
+	}
+
+	FString OutputLayerCopy = OutputLayer;
+	if (OutputLayerCopy.IsEmpty())
+	{
+		TOptional<FString> UsdFilePath = UsdUtils::BrowseUsdFile(UsdUtils::EBrowseFileMode::Save);
+		if (!UsdFilePath.IsSet())
+		{
+			return;
+		}
+
+		OutputLayerCopy = UsdFilePath.GetValue();
+	}
+
+	double StartTime = FPlatformTime::Cycles64();
+
+	UsdUtils::StartMonitoringErrors();
+	UE::FSdfLayer FlattenedLayer = UsdUtils::FlattenLayerStack(UsdStage);
+	if (UsdUtils::ShowErrorsAndStopMonitoring())
+	{
+		return;
+	}
+
+	const bool bResult = FlattenedLayer.Export(*OutputLayerCopy);
+	if (!bResult)
+	{
+		UE_LOG(LogUsd, Warning, TEXT("Failed to export flattened USD Stage to path '%s'!"), *OutputLayerCopy);
+	}
+
+	// Send analytics
+	if (FEngineAnalytics::IsAvailable())
+	{
+		bool bAutomated = false;
+		double ElapsedSeconds = FPlatformTime::ToSeconds64(FPlatformTime::Cycles64() - StartTime);
+		FString Extension = FPaths::GetExtension(OutputLayerCopy);
+		IUsdClassesModule::SendAnalytics(
+			{},
+			TEXT("ExportStageFlattenedLayerStack"),
 			bAutomated,
 			ElapsedSeconds,
 			UsdUtils::GetUsdStageNumFrames(UsdStage),

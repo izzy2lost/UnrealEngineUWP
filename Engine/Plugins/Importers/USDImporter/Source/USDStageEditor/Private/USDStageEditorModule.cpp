@@ -627,6 +627,16 @@ void IUsdStageEditorModule::FileExportFlattenedStage(const FString& OutputLayer)
 #endif	  // USE_USD_SDK
 }
 
+void IUsdStageEditorModule::FileExportFlattenedLayerStack(const FString& OutputLayer) const
+{
+#if USE_USD_SDK
+	if (TSharedPtr<SUsdStage> UsdStageEditor = UE::UsdStageEditorModule::Private::GetUsdStageEditor())
+	{
+		UsdStageEditor->FileExportFlattenedLayerStack(OutputLayer);
+	}
+#endif	  // USE_USD_SDK
+}
+
 void IUsdStageEditorModule::FileReload() const
 {
 #if USE_USD_SDK

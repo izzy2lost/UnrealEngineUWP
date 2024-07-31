@@ -147,6 +147,12 @@ namespace UsdUtils
 	USDUTILITIES_API bool IsSessionLayerWithinStage(const pxr::SdfLayerRefPtr& Layer, const pxr::UsdStageRefPtr& Stage);
 
 	/**
+	 * Uses the USD SDK's pxr::UsdUtilsFlattenLayerStack to essentially flatten all the sublayer composition into a single layer, preserving other
+	 * composition arcs like references and payloads
+	 */
+	USDUTILITIES_API UE::FSdfLayer FlattenLayerStack(const pxr::UsdStageRefPtr& Stage);
+
+	/**
 	 * Finds all fields that have asset paths as values (e.g. texture references) in LayerToConvert and (if they're relative paths)
 	 * updates them to be absolute with respect to AnchorLayer. LayerToConvert and AnchorLayer can be the same layer, but they don't have to
 	 */
