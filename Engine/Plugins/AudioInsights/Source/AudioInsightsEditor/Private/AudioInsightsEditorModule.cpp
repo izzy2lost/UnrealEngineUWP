@@ -4,6 +4,7 @@
 #include "AudioInsightsEditorLog.h"
 #include "AudioInsightsStyle.h"
 #include "Framework/Docking/TabManager.h"
+#include "IAudioInsightsModule.h"
 #include "Modules/ModuleManager.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
@@ -71,12 +72,12 @@ namespace UE::Audio::Insights
 
 	FAudioInsightsEditorModule& FAudioInsightsEditorModule::GetChecked()
 	{
-		return static_cast<FAudioInsightsEditorModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>(GetEditorName()));
+		return static_cast<FAudioInsightsEditorModule&>(FModuleManager::GetModuleChecked<IAudioInsightsEditorModule>("AudioInsightsEditor"));
 	}
 
 	IAudioInsightsTraceModule& FAudioInsightsEditorModule::GetTraceModule()
 	{
-		IAudioInsightsModule& InsightsModule = FModuleManager::LoadModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetName());
+		IAudioInsightsModule& InsightsModule = IAudioInsightsModule::GetChecked();
 		return InsightsModule.GetTraceModule();
 
 	}

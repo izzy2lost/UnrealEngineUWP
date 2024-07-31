@@ -5,7 +5,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AudioDefines.h"
 #include "AudioDeviceManager.h"
-#include "AudioInsightsModule.h"
+#include "IAudioInsightsEditorModule.h"
 #include "AudioInsightsStyle.h"
 #include "AudioInsightsTraceModule.h"
 #include "AudioInsightsTraceProviderBase.h"
@@ -30,7 +30,7 @@ namespace AudioModulationEditor
 
 	FControlBusDashboardViewFactory::FControlBusDashboardViewFactory()
 	{
-		IAudioInsightsModule& InsightsModule = FModuleManager::LoadModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+		IAudioInsightsEditorModule& InsightsModule = IAudioInsightsEditorModule::GetChecked();
 		IAudioInsightsTraceModule& InsightsTraceModule = InsightsModule.GetTraceModule();
 
 		TSharedPtr<FControlBusTraceProvider> ControlBusProvider = MakeShared<FControlBusTraceProvider>(InsightsTraceModule.GetChannelManager());

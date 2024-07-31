@@ -13,7 +13,7 @@
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/MultiBox/MultiBoxExtender.h"
-#include "IAudioInsightsModule.h"
+#include "IAudioInsightsEditorModule.h"
 #include "IAudioModulation.h"
 #include "ICurveEditorModule.h"
 #include "Insights/Views/ControlBusDashboardViewFactory.h"
@@ -61,7 +61,7 @@ namespace
 		if (!bIsModulationRegisteredInAudioInsights)
 		{
 
-			IAudioInsightsModule& InsightsModule = FModuleManager::LoadModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			IAudioInsightsEditorModule& InsightsModule = IAudioInsightsEditorModule::GetChecked();
 			InsightsModule.RegisterDashboardViewFactory(MakeShared<AudioModulationEditor::FControlBusDashboardViewFactory>());
 
 			bIsModulationRegisteredInAudioInsights = true;
@@ -72,7 +72,7 @@ namespace
 	{
 		if (bIsModulationRegisteredInAudioInsights)
 		{
-			IAudioInsightsModule& InsightsModule = FModuleManager::GetModuleChecked<IAudioInsightsModule>(IAudioInsightsModule::GetEditorName());
+			IAudioInsightsEditorModule& InsightsModule = IAudioInsightsEditorModule::GetChecked();
 			InsightsModule.UnregisterDashboardViewFactory("ControlBuses");
 			bIsModulationRegisteredInAudioInsights = false;
 		}

@@ -5,11 +5,18 @@
 
 IAudioInsightsTraceModule& IAudioInsightsModule::GetTraceModule()
 {
-	return GetChecked().GetTraceModule();
+	IAudioInsightsModule& AudioInsightsModule = static_cast<IAudioInsightsModule&>(UE::Audio::Insights::FAudioInsightsModule::GetChecked());
+	return AudioInsightsModule.GetTraceModule();
 }
 
-UE::Audio::Insights::FAudioInsightsModule& IAudioInsightsModule::GetChecked()
+IAudioInsightsModule& IAudioInsightsModule::GetChecked()
 {
-	using namespace UE::Audio::Insights;
-	return static_cast<FAudioInsightsModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>(FAudioInsightsModule::GetName()));
+	return static_cast<IAudioInsightsModule&>(UE::Audio::Insights::FAudioInsightsModule::GetChecked());
 }
+
+#ifdef WITH_EDITOR
+IAudioInsightsModule& IAudioInsightsModule::GetEditorChecked()
+{
+	return static_cast<IAudioInsightsModule&>(FModuleManager::GetModuleChecked<IAudioInsightsModule>("AudioInsightsEditor"));
+}
+#endif

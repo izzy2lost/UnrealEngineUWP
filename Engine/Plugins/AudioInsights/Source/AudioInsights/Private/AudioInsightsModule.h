@@ -26,12 +26,13 @@ namespace UE::Audio::Insights
 		virtual void UnregisterDashboardViewFactory(FName InName) override;
 		virtual ::Audio::FDeviceId GetDeviceId() const override;
 
-		AUDIOINSIGHTS_API virtual IAudioInsightsTraceModule& GetTraceModule() override;
+		static FAudioInsightsModule& GetChecked();
+		virtual IAudioInsightsTraceModule& GetTraceModule() override;
 
 		TSharedRef<FDashboardFactory> GetDashboardFactory();
 		const TSharedRef<FDashboardFactory> GetDashboardFactory() const;
 
-		TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args);
+		virtual TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args) override;
 
 	private:
 		TSharedPtr<FDashboardFactory> DashboardFactory;

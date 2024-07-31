@@ -4,7 +4,7 @@
 #include "AudioInsightsEditorDashboardFactory.h"
 #include "AudioInsightsTraceModule.h"
 #include "Framework/Docking/TabManager.h"
-#include "IAudioInsightsModule.h"
+#include "IAudioInsightsEditorModule.h"
 #include "Templates/SharedPointer.h"
 #include "Views/DashboardViewFactory.h"
 #include "Views/MixerSourceMuteSoloFilter.h"
@@ -13,7 +13,7 @@
 
 namespace UE::Audio::Insights
 {
-	class FAudioInsightsEditorModule final : public IAudioInsightsModule
+	class FAudioInsightsEditorModule final : public IAudioInsightsEditorModule
 	{
 	public:
 		FAudioInsightsEditorModule() = default;
@@ -30,7 +30,7 @@ namespace UE::Audio::Insights
 		const TSharedRef<FEditorDashboardFactory> GetDashboardFactory() const;
 
 		static FAudioInsightsEditorModule& GetChecked();
-		IAudioInsightsTraceModule& GetTraceModule() override;
+		virtual IAudioInsightsTraceModule& GetTraceModule() override;
 
 	private:
 		void RegisterMenus();

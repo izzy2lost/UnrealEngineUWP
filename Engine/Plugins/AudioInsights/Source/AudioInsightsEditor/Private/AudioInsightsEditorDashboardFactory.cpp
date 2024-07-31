@@ -3,8 +3,8 @@
 
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
+#include "AudioInsightsEditorModule.h"
 #include "AudioInsightsEditorSettings.h"
-#include "AudioInsightsModule.h"
 #include "AudioInsightsStyle.h"
 #include "Editor.h"
 #include "Engine/World.h"
@@ -63,7 +63,7 @@ namespace UE::Audio::Insights
 		{
 			if (bStartWithPIE)
 			{
-				const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+				const IAudioInsightsTraceModule& TraceModule = FAudioInsightsEditorModule::GetChecked().GetTraceModule();
 				TraceModule.StartTraceAnalysis();
 
 				const TObjectPtr<const UAudioInsightsEditorSettings> AudioInsightsEditorSettings = GetDefault<UAudioInsightsEditorSettings>();
@@ -85,7 +85,7 @@ namespace UE::Audio::Insights
 	{
 		if (bStartWithPIE)
 		{
-			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsEditorModule::GetChecked().GetTraceModule();
 			TraceModule.StartTraceAnalysis();
 		}
 	}
@@ -99,7 +99,7 @@ namespace UE::Audio::Insights
 	{
 		if (bStopWithPIE)
 		{
-			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsModule::GetChecked().GetTraceModule();
+			const IAudioInsightsTraceModule& TraceModule = FAudioInsightsEditorModule::GetChecked().GetTraceModule();
 			TraceModule.StopTraceAnalysis();
 		}
 
