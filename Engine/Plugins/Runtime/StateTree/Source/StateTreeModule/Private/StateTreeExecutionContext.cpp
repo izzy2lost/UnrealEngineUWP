@@ -3593,6 +3593,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 	}
 
 	FCurrentlyProcessedFrameScope FrameScope(*this, CurrentParentFrame, CurrentFrame);
+	FCurrentlyProcessedStateScope NextStateScope(*this, NextStateHandle);
 	FCurrentFrameStateSelectionEventsScope CapturedEventsScope(*this, OutSelectionResult.GetFramesStateSelectionEvents().Last());
 
 	const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
