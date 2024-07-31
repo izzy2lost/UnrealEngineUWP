@@ -52,7 +52,7 @@ public:
 	bool ContainsExactClient(const FConcertClientInfo& ClientInfo) const { return GetExactClientContent(ClientInfo) != nullptr; }
 	
 	/** Adds a client to the preset if it's not already present. */
-	UMultiUserReplicationClientContent* AddClientIfUnique(const FConcertClientInfo& ClientInfo);
+	UMultiUserReplicationClientContent* AddClientIfUnique(const FConcertClientInfo& ClientInfo, const FGuid& StreamId);
 	
 	const TArray<TObjectPtr<UMultiUserReplicationClientContent>>& GetClientPresets() const { return ClientPresets; }
 	

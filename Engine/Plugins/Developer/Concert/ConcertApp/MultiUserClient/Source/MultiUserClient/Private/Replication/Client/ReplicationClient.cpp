@@ -19,13 +19,13 @@ namespace UE::MultiUserClient
 		const FGuid& EndpointId,
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
-		UMultiUserReplicationClientContent& InSessionContent,
+		UMultiUserReplicationStream& InClientStreamContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 		TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
 		)
 		: EndpointId(EndpointId)
-		, ClientContentStorage(&InSessionContent)
+		, ClientStreamContent(&InClientStreamContent)
 		, StreamSynchronizer(MoveTemp(InStreamSynchronizer))
 		, AuthoritySynchronizer(MoveTemp(InAuthoritySynchronizer))
 		, SubmissionWorkflow(MoveTemp(InSubmissionWorkflow))
@@ -40,14 +40,14 @@ namespace UE::MultiUserClient
 			// Transact ClientContentStorage
 			ConcertClientSharedSlate::CreateTransactionalStreamModel(
 				// Read & write the stream data in ClientContentStorage
-				CreateBaseStreamModel(ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(), StreamExtender),
-				*ClientContentStorage->Stream
+				CreateBaseStreamModel(GetClientStreamObject()->MakeReplicationMapGetterAttribute(), StreamExtender),
+				*GetClientStreamObject()
 				)
 			)
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),
-			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ ClientContentStorage->Stream->Modify(); })
+			GetClientStreamObject()->MakeReplicationMapGetterAttribute(),
+			FStreamChangeTracker::FOnModifyReplicationMap::CreateLambda([this](){ GetClientStreamObject()->Modify(); })
 			)
 		, LocalAuthorityDiffer(EndpointId, *AuthoritySynchronizer, InAuthorityCache)
 		, LocalFrequencyChangeTracker(*StreamSynchronizer)
@@ -98,7 +98,7 @@ namespace UE::MultiUserClient
 
 		// The UI adds empty actors. However, we never send them to the server...
 		TSet<FSoftObjectPath> StagedObjects;
-		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : GetClientContent()->Stream->ReplicationMap.ReplicatedObjects)
+		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : GetClientStreamObject()->ReplicationMap.ReplicatedObjects)
 		{
 			if (Pair.Value.PropertySelection.ReplicatedProperties.IsEmpty())
 			{
@@ -107,13 +107,13 @@ namespace UE::MultiUserClient
 		}
 		
 		// ... if the user removes the last property from the entire actor-component hierarchy, we want the hierarchy to continue to displayed...
-		GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
+		GetClientStreamObject()->ReplicationMap = GetStreamSynchronizer().GetServerState();
 		// ... so add back the staged objects
 		for (const FSoftObjectPath& StagedObject : StagedObjects)
 		{
 			if (const UObject* Object = StagedObject.ResolveObject())
 			{
-				GetClientContent()->Stream->ReplicationMap.ReplicatedObjects.Add(StagedObject) = FConcertReplicatedObjectInfo::Make(*Object);
+				GetClientStreamObject()->ReplicationMap.ReplicatedObjects.Add(StagedObject) = FConcertReplicatedObjectInfo::Make(*Object);
 			}
 		}
 		// To remove the hierarchy, the user must click the actor and delete it explicitly, which will call IEditableReplicationStream::RemoveObjects on the staged objects.

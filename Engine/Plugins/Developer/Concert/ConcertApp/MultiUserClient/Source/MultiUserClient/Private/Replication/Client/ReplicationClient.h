@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
 #include "Replication/Editor/UnrealEditor/ModifyObjectInLevelHandler.h"
@@ -44,7 +45,7 @@ namespace UE::MultiUserClient
 		 * @param EndpointId The endpoint ID this instance corresponds to.
 		 * @param InDiscoveryContainer Used for auto-discovering properties added to this client's stream. The caller ensures it outlives the constructed instance.
 		 * @param InAuthorityCache Caches authority state of all clients. Passed to subsystems. The caller ensures it outlives the constructed instance.
-		 * @param InSessionContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
+		 * @param InClientStreamContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
 		 * @param InStreamSynchronizer Implementation for obtaining stream registered on server. The constructed instance takes ownership.
 		 * @param InAuthoritySynchronizer Implementation for obtaining the client's authority state on server. The constructed instance takes ownership.
 		 * @param InSubmissionWorkflow Implementation for for changing client streams and authority on the server. The constructed instance takes ownership.
@@ -53,14 +54,14 @@ namespace UE::MultiUserClient
 			const FGuid& EndpointId,
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
-			UMultiUserReplicationClientContent& InSessionContent UE_LIFETIMEBOUND,
+			UMultiUserReplicationStream& InClientStreamContent UE_LIFETIMEBOUND,
 			TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 			TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
 			);
 		~FReplicationClient();
 
-		UMultiUserReplicationClientContent* GetClientContent() const { return ClientContentStorage; }
+		UMultiUserReplicationStream* GetClientStreamObject() const { return ClientStreamContent; }
 		FMultiUserStreamExtender& GetStreamExtender() { return *StreamExtender; }
 		/**
 		 * This is used so the UI can construct the IReplicationStreamEditor.
@@ -114,7 +115,7 @@ namespace UE::MultiUserClient
 		const FGuid EndpointId;
 		
 		/** The state of the server is synched up with this object and displayed in the UI. */
-		TObjectPtr<UMultiUserReplicationClientContent> ClientContentStorage;
+		TObjectPtr<UMultiUserReplicationStream> ClientStreamContent;
 		
 		/** Keeps the client's stream state on the server in sync. */
 		TUniquePtr<IClientStreamSynchronizer> StreamSynchronizer;

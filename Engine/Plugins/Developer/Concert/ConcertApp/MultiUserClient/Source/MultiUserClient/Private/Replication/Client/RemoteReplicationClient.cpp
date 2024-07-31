@@ -15,14 +15,14 @@ namespace UE::MultiUserClient
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		UMultiUserReplicationClientContent& InSessionContent,
+		UMultiUserReplicationStream& InClientStreamContent,
 		FStreamAndAuthorityQueryService& QueryService
 		)
 		: FReplicationClient(
 			InConcertClientId,
 			InDiscoveryContainer,
 			InAuthorityCache,
-			InSessionContent,
+			InClientStreamContent,
 			MakeUnique<FStreamSynchronizer_RemoteClient>(InConcertClientId, QueryService),
 			MakeUnique<FAuthoritySynchronizer_RemoteClient>(InConcertClientId,QueryService),
 			MakeUnique<FSubmissionWorkflow_RemoteClient>(InClient->GetCurrentSession().ToSharedRef(), InConcertClientId))

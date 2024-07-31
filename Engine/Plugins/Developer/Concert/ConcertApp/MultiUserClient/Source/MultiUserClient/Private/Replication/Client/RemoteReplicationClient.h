@@ -22,7 +22,7 @@ namespace UE::MultiUserClient
 		 * @param InDiscoveryContainer Used for auto-discovering properties added to this client's stream. The caller ensures it outlives the constructed instance.
 		 * @param InClient The local editor's running client. Passed to subsystems so they can send messages to the current session. Keeps strong reference.
 		 * @param InAuthorityCache Caches authority state of all clients. Passed to subsystems. The caller ensures it outlives the constructed instance.
-		 * @param InSessionContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
+		 * @param InClientStreamContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
 		 * @param QueryService Service shared across remote clients which periodically asks the server about this client's state. The caller ensures it outlives the constructed instance.
 		 */
 		FRemoteReplicationClient(
@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			TSharedRef<IConcertClient> InClient,
 			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
-			UMultiUserReplicationClientContent& InSessionContent UE_LIFETIMEBOUND,
+			UMultiUserReplicationStream& InClientStreamContent UE_LIFETIMEBOUND,
 			FStreamAndAuthorityQueryService& QueryService UE_LIFETIMEBOUND
 			);
 	};

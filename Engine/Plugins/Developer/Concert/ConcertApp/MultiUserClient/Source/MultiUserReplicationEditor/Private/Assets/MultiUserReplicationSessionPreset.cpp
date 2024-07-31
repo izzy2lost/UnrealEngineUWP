@@ -44,7 +44,7 @@ UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::GetExact
 	return Result ? *Result : nullptr;
 }
 
-UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClientIfUnique(const FConcertClientInfo& ClientInfo)
+UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClientIfUnique(const FConcertClientInfo& ClientInfo, const FGuid& StreamId)
 {
 	if (ContainsExactClient(ClientInfo))
 	{
@@ -54,6 +54,7 @@ UMultiUserReplicationClientContent* UMultiUserReplicationSessionPreset::AddClien
 	UMultiUserReplicationClientContent* Result = NewObject<UMultiUserReplicationClientContent>(this);
 	Result->DisplayName = ClientInfo.DisplayName;
 	Result->DeviceName = ClientInfo.DeviceName;
+	Result->Stream->StreamId = StreamId;
 	ClientPresets.Add(Result);
 	return Result;
 }

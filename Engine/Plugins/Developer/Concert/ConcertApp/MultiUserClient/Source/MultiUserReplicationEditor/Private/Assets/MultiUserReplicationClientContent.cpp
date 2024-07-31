@@ -8,7 +8,6 @@
 UMultiUserReplicationClientContent::UMultiUserReplicationClientContent()
 {
 	Stream = CreateDefaultSubobject<UMultiUserReplicationStream>(TEXT("ReplicationList"));
-	Stream->StreamId = MultiUserStreamID;
 	Stream->SetFlags(RF_Transactional);
 }
 

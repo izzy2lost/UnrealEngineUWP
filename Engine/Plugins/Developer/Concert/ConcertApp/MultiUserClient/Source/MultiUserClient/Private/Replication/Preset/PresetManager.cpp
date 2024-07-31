@@ -2,16 +2,16 @@
 
 #include "PresetManager.h"
 
-#include "ConcertLogGlobal.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
-
-#include "FileHelpers.h"
+#include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
-#include "Misc/ObjectPathOuterIterator.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Misc/ReplicationStreamUtils.h"
 #include "Replication/Muting/MuteStateManager.h"
+#include "Replication/Stream/MultiUserStreamId.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+
+#include "FileHelpers.h"
 
 namespace UE::MultiUserClient
 {
@@ -303,9 +303,9 @@ namespace UE::MultiUserClient
 		for (const TPair<const FReplicationClient*, FConcertClientInfo>& ClientData : IncludedClients)
 		{
 			const auto[Client, ClientInfo] = ClientData;
-			UMultiUserReplicationClientContent* ClientContent_ToCopy = Client->GetClientContent();
-			UMultiUserReplicationClientContent* ClientContent_InPreset = Preset->AddClientIfUnique(ClientInfo);
-			if (!ClientContent_InPreset)
+			UMultiUserReplicationStream* CopiedClientStream = Client->GetClientStreamObject();
+			UMultiUserReplicationClientContent* TargetClientPreset = Preset->AddClientIfUnique(ClientInfo, MultiUserStreamID);
+			if (!TargetClientPreset)
 			{
 				UE_LOG(LogConcert, Warning,
 					TEXT("There are multiple clients with display name %s and device name %s in the session. Only the 1st encountered will be saved into the preset. Did you perhaps launch 2 editors on the same machine (if so you can use -CONCERTDISPLAYNAME)?"),
@@ -315,9 +315,9 @@ namespace UE::MultiUserClient
 				continue;
 			}
 
-			ClientContent_InPreset->Stream->Copy(*ClientContent_ToCopy->Stream);
+			TargetClientPreset->Stream->Copy(*CopiedClientStream);
 			// TODO UE-219834: Once UMultiUserReplicationStream::FrequencySettings reflect the server state, this can be removed.
-			ClientContent_InPreset->Stream->FrequencySettings = Client->GetStreamSynchronizer().GetFrequencySettings();
+			TargetClientPreset->Stream->FrequencySettings = Client->GetStreamSynchronizer().GetFrequencySettings();
 		}
 
 		Preset->SetMuteContent(

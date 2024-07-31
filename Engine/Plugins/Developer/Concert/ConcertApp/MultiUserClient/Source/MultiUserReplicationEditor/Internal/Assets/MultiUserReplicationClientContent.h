@@ -14,9 +14,6 @@ class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationClientContent : public
 	GENERATED_BODY()
 public:
 
-	/** The stream ID that is used by all Multi-User streams. */
-	static constexpr FGuid MultiUserStreamID { 0xAAAAAAAA, 0xBBBBBBBB, 0xCCCCCCCC, 0xDDDDDDDD };
-
 	/** The stream this client is managing */
 	UPROPERTY(Instanced)
 	TObjectPtr<UMultiUserReplicationStream> Stream;

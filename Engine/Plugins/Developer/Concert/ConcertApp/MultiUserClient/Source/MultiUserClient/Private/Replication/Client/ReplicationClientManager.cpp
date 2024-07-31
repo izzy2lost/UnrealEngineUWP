@@ -2,12 +2,12 @@
 
 #include "ReplicationClientManager.h"
 
+#include "Assets/MultiUserReplicationStream.h"
 #include "IConcertSyncClient.h"
 #include "LocalReplicationClient.h"
 #include "RemoteReplicationClient.h"
-#include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Stream/StreamSynchronizer_LocalClient.h"
-#include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
+#include "Replication/Stream/MultiUserStreamId.h"
 
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
@@ -16,9 +16,11 @@ namespace UE::MultiUserClient
 {
 	namespace Private
 	{
-		static UMultiUserReplicationClientContent* MakeClientContent()
+		static UMultiUserReplicationStream* MakeClientContent()
 		{
-			return NewObject<UMultiUserReplicationClientContent>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+			UMultiUserReplicationStream* Stream = NewObject<UMultiUserReplicationStream>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional);
+			Stream->StreamId = MultiUserStreamID;
+			return Stream;
 		}
 	}
 	
@@ -35,8 +37,8 @@ namespace UE::MultiUserClient
 		, AuthorityCache(*this)
 		, LocalClient([this, InClient]()
 		{
-			UMultiUserReplicationClientContent* ClientPreset = Private::MakeClientContent();
-			return FLocalReplicationClient(RegisteredExtenders, AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->Stream->StreamId), InClient);
+			UMultiUserReplicationStream* ClientPreset = Private::MakeClientContent();
+			return FLocalReplicationClient(RegisteredExtenders, AuthorityCache, *ClientPreset, MakeUnique<FStreamSynchronizer_LocalClient>(InClient, ClientPreset->StreamId), InClient);
 		}())
 		, ReassignmentLogic(*this)
 	{
@@ -129,9 +131,9 @@ namespace UE::MultiUserClient
 	{
 		ForEachClient([&Collector](const FReplicationClient& Client)
 		{
-			TObjectPtr<UMultiUserReplicationClientContent> Content = Client.GetClientContent();
+			TObjectPtr<UMultiUserReplicationStream> Content = Client.GetClientStreamObject();
 			Collector.AddReferencedObject(Content);
-			ensureMsgf(Content == Client.GetClientContent(), TEXT("Did not expect reference to be obliterated"));
+			ensureMsgf(Content == Client.GetClientStreamObject(), TEXT("Did not expect reference to be obliterated"));
 			return EBreakBehavior::Continue;
 		});
 	}
