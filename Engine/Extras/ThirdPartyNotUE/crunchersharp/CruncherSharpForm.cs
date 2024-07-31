@@ -1577,6 +1577,18 @@ namespace CruncherSharp
 			}
 		}
 
+		private void TryAddSubclassesToTable(SymbolInfo symbolInfo)
+		{
+			if (symbolInfo != null && symbolInfo.DerivedClasses != null)
+			{
+				foreach (SymbolInfo DerivedClassInfo in symbolInfo.DerivedClasses)
+				{
+					TryAddSymbolToTable(DerivedClassInfo);
+					TryAddSubclassesToTable(DerivedClassInfo);
+				}
+			}
+		}
+
 
 		private void PopulateDataTable()
         {
@@ -1588,14 +1600,7 @@ namespace CruncherSharp
 			{
 				if (textBoxFilter.Text.Length > 0)
 				{
-					SymbolInfo ClassInfo = CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text);
-					if (ClassInfo != null && ClassInfo.DerivedClasses != null)
-					{
-						foreach (SymbolInfo DerivedClassInfo in ClassInfo.DerivedClasses)
-						{
-							TryAddSymbolToTable(DerivedClassInfo);
-						}
-					}
+					TryAddSubclassesToTable(CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text));
 				}
 			}
 			else if (checkBoxMember.Checked)
