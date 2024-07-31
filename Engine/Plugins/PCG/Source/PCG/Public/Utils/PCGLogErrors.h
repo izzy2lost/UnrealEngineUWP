@@ -2,11 +2,12 @@
 
 #pragma once
 
-#include "Internationalization/Internationalization.h"
+#include "PCGCommon.h"
 #include "Metadata/PCGAttributePropertySelector.h"
 #include "Metadata/Accessors/IPCGAttributeAccessor.h"
 
-enum class EPCGDataType : uint32;
+#include "Internationalization/Internationalization.h"
+
 struct FPCGContext;
 
 namespace PCGLog
