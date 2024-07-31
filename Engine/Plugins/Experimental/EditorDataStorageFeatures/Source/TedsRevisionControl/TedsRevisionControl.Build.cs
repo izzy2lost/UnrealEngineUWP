@@ -19,18 +19,11 @@ public class TedsRevisionControl : ModuleRules
 					"Core",
 					"CoreUObject",
 					"Engine",
-					"EditorFramework",
-					"Slate",
-					"SlateCore",
 					"SourceControl",
 					"TypedElementFramework",
-					"EditorSubsystem",
-					"UnrealEd",
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});
-			
-			ShortName = "TElmntsDataStorRevCtrl";
 		}
 	}
 }

@@ -4,9 +4,10 @@
 
 #include "Elements/Common/TypedElementHandles.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "UObject/ObjectMacros.h"
 
-#include "TypedElementUObjectPackagePathToColumnQueries.generated.h"
+#include "ObjectPackagePathToColumnQueries.generated.h"
+
+class ITypedElementDataStorageInterface;
 
 UCLASS()
 class UTypedElementUObjectPackagePathFactory : public UTypedElementDataStorageFactory

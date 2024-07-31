@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Compatibility/TypedElementUObjectPackagePathToColumnQueries.h"
+#include "Queries/ObjectPackagePathToColumnQueries.h"
 
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementPackageColumns.h"
@@ -12,7 +12,7 @@
 #include "UObject/Package.h"
 
 static bool bAutoPopulateRevisionControlState = false;
-TEDSREVISIONCONTROL_API FAutoConsoleVariableRef CVarAutoPopulateState(
+FAutoConsoleVariableRef CVarAutoPopulateState(
 	TEXT("TEDS.RevisionControl.AutoPopulateState"),
 	bAutoPopulateRevisionControlState,
 	TEXT("Automatically query revision control provider and fill information into TEDS")

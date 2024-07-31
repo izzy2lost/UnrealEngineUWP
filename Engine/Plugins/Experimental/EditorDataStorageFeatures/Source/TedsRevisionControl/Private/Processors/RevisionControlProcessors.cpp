@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RevisionControlProcessors.h"
+#include "Processors/RevisionControlProcessors.h"
 
 #include "ISourceControlModule.h"
 #include "SourceControlFileStatusMonitor.h"
@@ -16,47 +16,48 @@
 #include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
+#include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
 
 extern FAutoConsoleVariableRef CVarAutoPopulateState;
 
 static bool gEnableOverlays = false;
 TAutoConsoleVariable<bool> CVarEnableOverlays(
-	TEXT("SourceControl.Overlays.Enable"),
+	TEXT("RevisionControl.Overlays.Enable"),
 	gEnableOverlays,
 	TEXT("Enables overlays."),
 	ECVF_Default);
 
 static bool gEnableOverlayCheckedOutByOtherUser = true;
 TAutoConsoleVariable<bool> CVarEnableOverlayCheckedOutByOtherUser(
-	TEXT("SourceControl.Overlays.CheckedOutByOtherUser.Enable"),
+	TEXT("RevisionControl.Overlays.CheckedOutByOtherUser.Enable"),
 	gEnableOverlayCheckedOutByOtherUser,
 	TEXT("Enables overlays for files that are checked out by another user."),
 	ECVF_Default);
 
 static bool gEnableOverlayNotAtHeadRevision = true;
 TAutoConsoleVariable<bool> CVarEnableOverlayNotAtHeadRevision(
-	TEXT("SourceControl.Overlays.NotAtHeadRevision.Enable"),
+	TEXT("RevisionControl.Overlays.NotAtHeadRevision.Enable"),
 	gEnableOverlayNotAtHeadRevision,
 	TEXT("Enables overlays for files that are not at the latest revision."),
 	ECVF_Default);
 
 static bool gEnableOverlayCheckedOut = false;
 TAutoConsoleVariable<bool> CVarEnableOverlayCheckedOut(
-	TEXT("SourceControl.Overlays.CheckedOut.Enable"),
+	TEXT("RevisionControl.Overlays.CheckedOut.Enable"),
 	gEnableOverlayCheckedOut,
 	TEXT("Enables overlays for files that are checked out by user."),
 	ECVF_Default);
 
 static bool gEnableOverlayOpenForAdd = false;
 TAutoConsoleVariable<bool> CVarEnableOverlayOpenForAdd(
-	TEXT("SourceControl.Overlays.OpenForAdd.Enable"),
+	TEXT("RevisionControl.Overlays.OpenForAdd.Enable"),
 	gEnableOverlayOpenForAdd,
 	TEXT("Enables overlays for files that are newly added."),
 	ECVF_Default);
 
 static int32 gOverlayAlpha = 20; // [0..100]
 TAutoConsoleVariable<int32> CVarOverlayAlpha(
-	TEXT("SourceControl.Overlays.Alpha"),
+	TEXT("RevisionControl.Overlays.Alpha"),
 	gOverlayAlpha,
 	TEXT("Configures overlay opacity."),
 	ECVF_Default);
@@ -70,7 +71,7 @@ TAutoConsoleVariable<int32> CVarOverlayAlpha(
 #if ENABLE_OVERLAY_DEBUG
 static int32 gDefaultDebugForceColorOnAllValue = false; // [0..100]
 TAutoConsoleVariable<int32> CVarDebugForceColorOnAll(
-	TEXT("SourceControl.Overlays.Debug.ForceColorOnAll"),
+	TEXT("RevisionControl.Overlays.Debug.ForceColorOnAll"),
 	gDefaultDebugForceColorOnAllValue,
 	TEXT("Debug to force overlay color on everything. 1 = Red, 2 = Green, 3 = Blue, 4 = White. 0 = off  ."),
 	ECVF_Default);
@@ -157,20 +158,16 @@ static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext
 	return FColor(ForceInitToZero);
 }
 
-void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
 			FTypedElementPackagePathColumn, FTypedElementPackageLoadedPathColumn,
 			FSCCRevisionIdColumn, FSCCExternalRevisionIdColumn>(),
 		FName("Editor_RevisionControlTable"));
-		
-	DataStorage.RegisterTable(
-		TTypedElementColumnTypeList<FTypedElementPackageUpdateColumn>(),
-		FName("Editor_PackageUpdateTable"));
 }
 
-void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
 		[this, &DataStorage](IConsoleVariable* AutoPopulate)
@@ -227,7 +224,7 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -258,126 +255,99 @@ void UTypedElementRevisionControlFactory::RegisterFetchUpdates(ITypedElementData
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
 
-	if (ApplyOverlaysObjectToSCC == InvalidQueryHandle)
+	if (ApplyOverlaysObjectToSCC == TypedElementInvalidQueryHandle)
 	{
 		ApplyOverlaysObjectToSCC = DataStorage.RegisterQuery(
 			Select()
 				.ReadOnly<FTypedElementPackagePathColumn>()
-				.ReadOnly<FSCCStatusColumn>(EOptional::Yes)
+				.ReadOnly<FSCCStatusColumn, FSCCExternallyLockedColumn, FTypedElementViewportOverlayColorColumn>(EOptional::Yes)
 			.Compile());
 		}
- 
-	if (ApplyNewOverlays == InvalidQueryHandle)
+
+	if (ApplyNewOverlays == TypedElementInvalidQueryHandle)
 	{
+		// Query:
+		// For all actors without an overlay color column AND having a package reference:
+		//   Determine if a color should be applied based on SCC status tags
+		//   If so, add the OverlayColorColumn to the actor row
 		ApplyNewOverlays = DataStorage.RegisterQuery(
-			Select()
-			.ReadOnly<FTypedElementUObjectColumn, FTypedElementPackageReference>()
+			Select(
+				TEXT("Poll to add selection overlay colors based on SCC status"),
+				// This is in PrePhysics because the overlay->actor query is in DuringPhysics and contexts don't flush changes between tick groups
+				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
+					.ForceToGameThread(true),
+				[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference)
+				{
+					Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
+						[&Context, &ObjectRow, &Actor](DSI::ISubqueryContext& SubQueryContext)
+						{
+							FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
+							if (Color.Bits != 0)
+							{
+								Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
+							}
+						})
+					);
+				}
+			)
 			.Where()
 				.All<FTypedElementActorTag>()
 				.None<FTypedElementViewportOverlayColorColumn>()
+			.DependsOn()
+				.SubQuery(ApplyOverlaysObjectToSCC)
 			.Compile()
 		);
 	}
- 
-	if (ChangeOverlay == InvalidQueryHandle)
+
+	if (ChangeOverlay == TypedElementInvalidQueryHandle)
 	{
+		// Query:
+		// For all actors WITH an overlay color column AND having a package reference:
+		//   Re-check the color that should be applied based on SCC status tags
+		//   If the color has changed, remove and re-add the OverlayColorColumn to the actor row
+		//
+		// Note: Remove and re-add will trigger observer in TypedElementActorViewportProcessors to SetOverlayColor on the primitive components
 		ChangeOverlay = DataStorage.RegisterQuery(
-			Select()
-			.ReadOnly<FTypedElementUObjectColumn, FTypedElementPackageReference, FTypedElementViewportOverlayColorColumn>()
-			.Where()
-				.All<FTypedElementActorTag>()
-			.Compile()
-		);
-	}
- 
-	if (FlushPackageUpdates == InvalidQueryHandle)
-	{
-		check(ApplyOverlaysObjectToSCC != InvalidQueryHandle && ApplyNewOverlays != InvalidQueryHandle && ChangeOverlay!= InvalidQueryHandle);
-		enum EFlushPackageUpdatesSubqueries
-		{
-			EApplyOverlaysObjectToSCC,
-			EApplyNewOverlays,
-			EChangeOverlay,
-			
-			Num
-		};
-		TArray<RowHandle> Subqueries;
-		Subqueries.AddUninitialized(EFlushPackageUpdatesSubqueries::Num);
-		Subqueries[EApplyOverlaysObjectToSCC] = ApplyOverlaysObjectToSCC;
-		Subqueries[EApplyNewOverlays] = ApplyNewOverlays;
-		Subqueries[EChangeOverlay] = ChangeOverlay;
-		
-		FlushPackageUpdates = DataStorage.RegisterQuery(
 			Select(
-				TEXT("Consume collected package updates"),
-				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Update))
-				.ForceToGameThread(true),
-				[](DSI::IQueryContext& Context, RowHandle Row, const FTypedElementPackageUpdateColumn& Update)
+				TEXT("Poll for changed selection overlay colors based on SCC status"),
+				// This is in PrePhysics because the overlay->actor query is in DuringPhysics and contexts don't flush changes between tick groups
+				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
+					.ForceToGameThread(true),
+				[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference, const FTypedElementViewportOverlayColorColumn& OverlayColorColumn)
 				{
-					// Query:
-					// For all actors without an overlay color column AND having a package reference:
-					//   Determine if a color should be applied based on SCC status tags
-					//   If so, add the OverlayColorColumn to the actor row
-					Context.RunSubquery(EApplyNewOverlays, Update.ObjectRow, CreateSubqueryCallbackBinding(
-						[&Context](RowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference)
+					Context.RunSubquery(0, PackageReference.Row, CreateSubqueryCallbackBinding(
+						[&Context, &ObjectRow, &Actor, &OverlayColorColumn](DSI::ISubqueryContext& SubQueryContext)
 						{
-							Context.RunSubquery(EApplyOverlaysObjectToSCC, PackageReference.Row, CreateSubqueryCallbackBinding(
-								[&Context, &ObjectRow, &Actor](DSI::ISubqueryContext& SubQueryContext)
-								{
-									FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
-									if (Color.Bits != 0)
-									{
-										Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
-									}
-								})
-							);
-						}
-					));
- 
-					// Query:
-					// For all actors WITH an overlay color column AND having a package reference:
-					//   Re-check the color that should be applied based on SCC status tags
-					//   If the color has changed, remove and re-add the OverlayColorColumn to the actor row
-					//
-					// Note: Remove and re-add will trigger observer in TypedElementActorViewportProcessors to SetOverlayColor on the primitive components
-					Context.RunSubquery(EChangeOverlay, Update.ObjectRow, CreateSubqueryCallbackBinding(
-						[&Context](TypedElementRowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference, const FTypedElementViewportOverlayColorColumn& OverlayColorColumn)
-						{
-							Context.RunSubquery(EApplyOverlaysObjectToSCC, PackageReference.Row, CreateSubqueryCallbackBinding(
-								[&Context, &ObjectRow, &Actor, &OverlayColorColumn](DSI::ISubqueryContext& SubQueryContext)
-								{
-									FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
-									if (Color.Bits == 0)
-									{
-										Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
-									}
-									else if (Color != OverlayColorColumn.OverlayColor)
-									{
-										// Remove and re-add to trigger the observer
-										Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
-										Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
-									}
-								})
-							);
-						}
-					));
-					Context.RemoveRow(Row);
+							FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
+							if (Color.Bits == 0)
+							{
+								Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
+							}
+							else if (Color != OverlayColorColumn.OverlayColor)
+							{
+								// Remove and re-add to trigger the observer
+								Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
+								Context.AddColumn<FTypedElementViewportOverlayColorColumn>(ObjectRow, { .OverlayColor = Color });
+							}
+						})
+					);
 				}
 			)
+			.Where()
+				.All<FTypedElementActorTag>()
 			.DependsOn()
-				.SubQuery(Subqueries)
+				.SubQuery(ApplyOverlaysObjectToSCC)
 			.Compile()
 		);
 	}
 }
 
-void UTypedElementRevisionControlFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
+void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
