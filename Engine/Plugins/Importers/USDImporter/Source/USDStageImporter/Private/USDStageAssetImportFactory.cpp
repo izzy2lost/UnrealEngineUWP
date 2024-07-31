@@ -84,6 +84,9 @@ UObject* UUsdStageAssetImportFactory::FactoryCreateFile(
 		GEditor->BroadcastLevelActorListChanged();
 
 		ImportedObject = ImportContext.ImportedAsset ? ToRawPtr(ImportContext.ImportedAsset) : Cast<UObject>(ImportContext.SceneActor);
+
+		ImportContext.ImportedAssets.Remove(ImportedObject);
+		AdditionalImportedObjects = ImportContext.ImportedAssets;
 	}
 	else
 	{

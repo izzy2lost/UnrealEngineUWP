@@ -764,6 +764,7 @@ namespace UE::USDStageImporter::Private
 		}
 
 		ImportContext.ImportedAsset = MovedAsset;
+		ImportContext.ImportedAssets.Add(MovedAsset);
 
 		return MovedAsset;
 	}

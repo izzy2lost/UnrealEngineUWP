@@ -91,6 +91,7 @@ void FUsdStageImportContext::Reset()
 	FilePath = FString{};
 	ImportOptions = NewObject<UUsdStageImportOptions>();
 	ImportedAsset = nullptr;
+	ImportedAssets.Reset();
 	LevelSequenceHelper.Clear();
 	UsdAssetCache = nullptr;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS

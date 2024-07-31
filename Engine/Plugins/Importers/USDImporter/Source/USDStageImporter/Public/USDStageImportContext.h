@@ -53,6 +53,9 @@ struct USDSTAGEIMPORTER_API FUsdStageImportContext
 	UPROPERTY()
 	TObjectPtr<UObject> ImportedAsset;
 
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> ImportedAssets;
+
 	/** Level sequence that will contain the animation data during the import process */
 	FUsdLevelSequenceHelper LevelSequenceHelper;
 
