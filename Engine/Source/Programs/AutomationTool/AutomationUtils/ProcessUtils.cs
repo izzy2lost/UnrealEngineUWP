@@ -358,18 +358,22 @@ namespace AutomationTool
 		{
 			if (e.Data != null)
 			{
-				if (SpewFilterCallback != null)
+				if (AllowSpew)
 				{
-					string FilteredSpew = SpewFilterCallback(e.Data);
-					if (FilteredSpew != null)
+					if (SpewFilterCallback != null)
 					{
-						LogOutput(SpewVerbosity, FilteredSpew);
+						string FilteredSpew = SpewFilterCallback(e.Data);
+						if (FilteredSpew != null)
+						{
+							LogOutput(SpewVerbosity, FilteredSpew);
+						}
+					}
+					else
+					{
+						LogOutput(SpewVerbosity, e.Data);
 					}
 				}
-				else
-				{
-					LogOutput(SpewVerbosity, e.Data);
-				}
+
 				if(ProcessOutput != null)
 				{
 					lock (ProcSyncObject)
