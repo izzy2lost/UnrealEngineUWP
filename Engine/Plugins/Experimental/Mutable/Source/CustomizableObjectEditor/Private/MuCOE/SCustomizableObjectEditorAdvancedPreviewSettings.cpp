@@ -492,7 +492,7 @@ void SCustomizableObjectEditorAdvancedPreviewSettings::LoadProfileEnvironment()
 				LoadedObject = Redirector->DestinationObject;
 			}
 
-			DefaultSettings->Profiles[i].EnvironmentCubeMap = LoadedObject;
+			DefaultSettings->Profiles[i].EnvironmentCubeMap = CastChecked<UTextureCube>(LoadedObject);
 		}
 	}
 }
