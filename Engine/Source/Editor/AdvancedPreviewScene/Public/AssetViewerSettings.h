@@ -148,9 +148,9 @@ struct FPreviewSceneProfile
 					LoadedObject = Redirector->DestinationObject;
 				}
 
-				EnvironmentCubeMap = LoadedObject;
+				EnvironmentCubeMap = Cast<UTextureCube>(LoadedObject);
 			}
-		}		
+		}
 	}
 
 	void SetShowFlags(FEngineShowFlags& ShowFlags) const
