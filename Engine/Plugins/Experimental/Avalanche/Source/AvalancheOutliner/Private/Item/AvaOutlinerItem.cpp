@@ -225,6 +225,12 @@ bool FAvaOutlinerItem::Rename(const FString& InName)
 	return false;
 }
 
+bool FAvaOutlinerItem::Delete()
+{
+	Outliner.GetProvider().NotifyOutlinerItemDeleted(SharedThis(this));
+	return false;
+}
+
 void FAvaOutlinerItem::SetLocked(bool bInIsLocked)
 {
 	Outliner.GetProvider().NotifyOutlinerItemLockChanged(SharedThis(this));

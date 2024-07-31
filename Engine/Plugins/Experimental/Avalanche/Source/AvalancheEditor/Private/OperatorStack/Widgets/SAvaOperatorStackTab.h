@@ -18,7 +18,7 @@ class SAvaOperatorStackTab : public SCompoundWidget
 {
 public:
 	static inline const FName PanelTag = TEXT("AvaOperatorStackTab");
-	
+
 	SLATE_BEGIN_ARGS(SAvaOperatorStackTab) {}
 	SLATE_END_ARGS()
 
@@ -29,9 +29,9 @@ public:
 private:
 	void RefreshSelection(UObject* InSelectionObject) const;
 	void OnModifierUpdated(UActorModifierCoreBase* InUpdatedItem) const;
-	void OnControllerUpdated(UPropertyAnimatorCoreBase* InController) const;
+	void OnAnimatorUpdated(UPropertyAnimatorCoreBase* InUpdatedItem) const;
 	void RefreshCurrentSelection(const UObject* InObject) const;
-	
+
 	TWeakPtr<IAvaDetailsProvider> DetailsProviderWeak;
 
 	TSharedPtr<SOperatorStackEditorWidget> OperatorStack;

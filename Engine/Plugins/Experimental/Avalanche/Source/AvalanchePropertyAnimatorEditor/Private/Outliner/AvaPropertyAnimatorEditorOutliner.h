@@ -29,6 +29,8 @@ public:
 	virtual bool ShowVisibility(EAvaOutlinerVisibilityType InVisibilityType) const override;
 	virtual bool GetVisibility(EAvaOutlinerVisibilityType InVisibilityType) const override;
 	virtual void OnVisibilityChanged(EAvaOutlinerVisibilityType InVisibilityType, bool bInNewVisibility) override;
+	virtual bool CanDelete() const override;
+	virtual bool Delete() override;
 	//~ End IAvaOutlinerItem
 
 protected:

@@ -89,8 +89,30 @@ FText FAvaOutlinerModifierProxy::GetIconTooltipText() const
 	return LOCTEXT("Tooltip", "Shows all the Modifiers found in the Root Stack of an Actor");
 }
 
-void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent
-	, TArray<FAvaOutlinerItemPtr>& OutChildren, bool bInRecursive)
+bool FAvaOutlinerModifierProxy::CanDelete() const
+{
+	return IsValid(GetModifierStack());
+}
+
+bool FAvaOutlinerModifierProxy::Delete()
+{
+	UActorModifierCoreStack* ModifierStack = GetModifierStack();
+	const UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get();
+
+	if (IsValid(ModifierStack) && ModifierSubsystem)
+	{
+		FText FailReason;
+		FActorModifierCoreStackRemoveOp RemoveOp;
+		RemoveOp.FailReason = &FailReason;
+		RemoveOp.bShouldTransact = false;
+
+		return ModifierSubsystem->RemoveModifiers(TSet<UActorModifierCoreBase*>{ModifierStack->GetModifiers()}, RemoveOp);
+	}
+
+	return false;
+}
+
+void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent, TArray<FAvaOutlinerItemPtr>& OutChildren, bool bInRecursive)
 {
 	if (const UActorModifierCoreStack* const ModifierStack = GetModifierStack())
 	{

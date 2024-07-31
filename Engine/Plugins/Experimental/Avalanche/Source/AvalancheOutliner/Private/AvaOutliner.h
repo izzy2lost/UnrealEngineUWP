@@ -128,7 +128,12 @@ public:
 	void DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
 		, FAvaOutlinerItemPtr InRelativeItem
 		, TOptional<EItemDropZone> InRelativeDropZone);
-	
+
+	/**
+	 * Delete a set of items in the outliner by calling their custom delete handler
+	 */
+	void DeleteItems(TArray<FAvaOutlinerItemPtr> InItems);
+
 	/** Unregisters the Outliner View bound to the given id */
 	void UnregisterOutlinerView(int32 InOutlinerViewId);
 

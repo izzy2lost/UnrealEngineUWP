@@ -9,6 +9,7 @@
 #include "Outliner/AvaPropertyAnimatorEditorOutliner.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Styling/SlateIconFinder.h"
+#include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "AvaPropertyAnimatorEditorOutlinerProxy"
 
@@ -77,6 +78,24 @@ FSlateIcon FAvaPropertyAnimatorEditorOutlinerProxy::GetIcon() const
 FText FAvaPropertyAnimatorEditorOutlinerProxy::GetIconTooltipText() const
 {
 	return LOCTEXT("Tooltip", "Shows all the animators found in the property animator component of an actor");
+}
+
+bool FAvaPropertyAnimatorEditorOutlinerProxy::CanDelete() const
+{
+	return IsValid(GetPropertyAnimatorComponent());
+}
+
+bool FAvaPropertyAnimatorEditorOutlinerProxy::Delete()
+{
+	const UPropertyAnimatorCoreComponent* AnimatorComponent = GetPropertyAnimatorComponent();
+	const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get();
+
+	if (IsValid(AnimatorComponent) && AnimatorSubsystem)
+	{
+		return AnimatorSubsystem->RemoveAnimators(TSet<UPropertyAnimatorCoreBase*>{AnimatorComponent->GetAnimators()}, /** Transact */false);
+	}
+
+	return false;
 }
 
 void FAvaPropertyAnimatorEditorOutlinerProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerItem>& InParent

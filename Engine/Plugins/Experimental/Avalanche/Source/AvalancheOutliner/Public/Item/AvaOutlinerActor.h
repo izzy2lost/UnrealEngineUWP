@@ -31,6 +31,8 @@ public:
 	virtual void OnVisibilityChanged(EAvaOutlinerVisibilityType VisibilityType, bool bNewVisibility) override;
 	virtual bool CanRename() const override { return Actor.IsValid(); }
 	virtual bool Rename(const FString& InName) override;
+	virtual bool CanDelete() const override { return Actor.IsValid(); }
+	virtual bool Delete() override { return !Actor.IsValid(); }
 	virtual bool CanLock() const override { return true; }
 	virtual void SetLocked(bool bInIsLocked) override;
 	virtual bool IsLocked() const override;

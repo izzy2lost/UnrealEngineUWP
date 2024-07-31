@@ -365,6 +365,9 @@ public:
 	void OnItemRenameAction(EAvaOutlinerRenameAction InRenameAction, const TSharedPtr<FAvaOutlinerView>& InOutlinerView);
 	bool CanRenameSelected() const;
 
+	void DeleteSelected();
+	bool CanDeleteSelected() const;
+
 	void DuplicateSelected();
 	bool CanDuplicateSelected() const;
 

@@ -45,6 +45,11 @@ public:
 	 */
 	virtual void OutlinerDuplicateActors(const TArray<AActor*>& InTemplateActors) = 0;
 
+	/**
+	 * Called when the Outliner requests the deletion of the given actors	
+	 */
+	virtual void OutlinerDeleteActors(const TArray<AActor*>& InDeleteActors) = 0;
+
 	/** Returns the Mode Tools used (e.g. for Selections) */
 	virtual FEditorModeTools* GetOutlinerModeTools() const = 0;
 
@@ -78,6 +83,9 @@ public:
 
 	/** Called when an Item has been Renamed */
 	virtual void NotifyOutlinerItemRenamed(const FAvaOutlinerItemPtr& InItem) {}
+
+	/** Called when an Item has been deleted */
+	virtual void NotifyOutlinerItemDeleted(const FAvaOutlinerItemPtr& InItem) {}
 
 	/** Called when an Item's Lock has Changed */
 	virtual void NotifyOutlinerItemLockChanged(const FAvaOutlinerItemPtr& InItem) {}

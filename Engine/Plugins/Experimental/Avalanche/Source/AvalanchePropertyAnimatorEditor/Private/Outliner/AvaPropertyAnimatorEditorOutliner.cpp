@@ -6,6 +6,7 @@
 #include "Components/PropertyAnimatorCoreComponent.h"
 #include "Selection/AvaOutlinerScopedSelection.h"
 #include "Styling/SlateIconFinder.h"
+#include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 FAvaPropertyAnimatorEditorOutliner::FAvaPropertyAnimatorEditorOutliner(IAvaOutliner& InOutliner, UPropertyAnimatorCoreBase* InAnimator)
 	: FAvaOutlinerObject(InOutliner, InAnimator)
@@ -66,6 +67,21 @@ void FAvaPropertyAnimatorEditorOutliner::OnVisibilityChanged(EAvaOutlinerVisibil
 	{
 		PropertyAnimator->SetAnimatorEnabled(bInNewVisibility);
 	}
+}
+
+bool FAvaPropertyAnimatorEditorOutliner::CanDelete() const
+{
+	return PropertyAnimator.IsValid();
+}
+
+bool FAvaPropertyAnimatorEditorOutliner::Delete()
+{
+	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	{
+		return AnimatorSubsystem->RemoveAnimator(PropertyAnimator.Get(), /** Transact */false);
+	}
+
+	return false;
 }
 
 void FAvaPropertyAnimatorEditorOutliner::SetObject_Impl(UObject* InObject)

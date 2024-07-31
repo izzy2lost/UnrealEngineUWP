@@ -46,6 +46,8 @@ public:
 	virtual bool CanAutoExpand() const override { return true; }
 	virtual bool CanRename() const override { return false; }
 	virtual bool Rename(const FString& InName) override;
+	virtual bool CanDelete() const override { return false; }
+	virtual bool Delete() override;
 	virtual bool CanLock() const override { return false; }
 	virtual void SetLocked(bool bInIsLocked) override;
 	virtual bool IsLocked() const override { return false; }

@@ -247,6 +247,15 @@ void FAvaOutlinerExtension::OutlinerDuplicateActors(const TArray<AActor*>& InTem
 	}
 }
 
+void FAvaOutlinerExtension::OutlinerDeleteActors(const TArray<AActor*>& InDeleteActors)
+{
+	if (const TSharedPtr<IAvaEditor> Editor = GetEditor())
+	{
+		// TODO: Set Selection to Delete Actors if different
+		Editor->EditDelete();
+	}
+}
+
 FEditorModeTools* FAvaOutlinerExtension::GetOutlinerModeTools() const
 {
 	return GetEditorModeTools();

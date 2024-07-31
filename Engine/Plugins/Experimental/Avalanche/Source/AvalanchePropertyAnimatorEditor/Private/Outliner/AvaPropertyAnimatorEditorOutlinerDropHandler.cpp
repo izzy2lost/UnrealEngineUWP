@@ -3,6 +3,7 @@
 #include "Outliner/AvaPropertyAnimatorEditorOutlinerDropHandler.h"
 
 #include "Components/PropertyAnimatorCoreComponent.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Item/AvaOutlinerActor.h"
 #include "Outliner/AvaPropertyAnimatorEditorOutliner.h"
@@ -193,10 +194,27 @@ bool FAvaPropertyAnimatorEditorOutlinerDropHandler::DropAnimatorsOnActor(AActor*
 
 	if (NewAnimators.Num() != CloneAnimators.Num())
 	{
+		UE_LOG(LogAvaPropertyAnimatorEditorOutlinerDropHandler, Warning, TEXT("%s : Could not clone all %i animators to target actor"), *InActor->GetActorNameOrLabel(), CloneAnimators.Num());
+
 		FNotificationInfo NotificationInfo(LOCTEXT("CloneAnimatorsFail", "An issue occured while cloning animators on an actor"));
 		NotificationInfo.ExpireDuration = 3.f;
 		NotificationInfo.bFireAndForget = true;
 		FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+	}
+
+	// When ALT is pressed : copy animators on target actor
+	// When ALT is not pressed : move animators on target actor (copy + delete)
+	if (!FSlateApplication::Get().GetModifierKeys().IsAltDown())
+	{
+		if (!AnimatorSubsystem->RemoveAnimators(CloneAnimators, /** Transact */true))
+		{
+			UE_LOG(LogAvaPropertyAnimatorEditorOutlinerDropHandler, Warning, TEXT("Could not remove the %i cloned animators on source actor"), CloneAnimators.Num());
+
+			FNotificationInfo NotificationInfo(LOCTEXT("RemoveAnimatorsFail", "An issue occured while removing animators on an actor"));
+			NotificationInfo.ExpireDuration = 3.f;
+			NotificationInfo.bFireAndForget = true;
+			FSlateNotificationManager::Get().AddNotification(NotificationInfo);
+		}
 	}
 
 	return NewAnimators.Num() > 0;

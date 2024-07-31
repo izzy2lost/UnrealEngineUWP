@@ -832,6 +832,55 @@ void FAvaOutliner::DuplicateItems(TArray<FAvaOutlinerItemPtr> InItems
 	OutlinerProvider.OutlinerDuplicateActors(TemplateActors);
 }
 
+void FAvaOutliner::DeleteItems(TArray<FAvaOutlinerItemPtr> InItems)
+{
+	SortItems(InItems);
+
+	TArray<AActor*> DeleteActors;
+	DeleteActors.Reserve(InItems.Num());
+
+	for (TArray<FAvaOutlinerItemPtr>::TIterator It(InItems); It; ++It)
+	{
+		FAvaOutlinerItemPtr Item = *It;
+
+		if (!Item.IsValid() || !Item->CanDelete())
+		{
+			It.RemoveCurrent();
+		}
+
+		if (const FAvaOutlinerActor* const ActorItem = Item->CastTo<FAvaOutlinerActor>())
+		{
+			DeleteActors.Add(ActorItem->GetActor());
+		}
+	}
+
+	if (InItems.IsEmpty())
+	{
+		return;
+	}
+
+	FScopedTransaction DeleteTransaction(LOCTEXT("OutlinerItemDeleteAction", "Outliner Delete Item(s)"), !GIsTransacting);
+
+	if (!DeleteActors.IsEmpty())
+	{
+		OutlinerProvider.OutlinerDeleteActors(DeleteActors);
+	}
+
+	bool bRequestRefresh = false;
+	for (FAvaOutlinerItemPtr& Item : InItems)
+	{
+		if (Item && Item->Delete())
+		{
+			bRequestRefresh = true;
+		}
+	}
+
+	if (bRequestRefresh)
+	{
+		RequestRefresh();
+	}
+}
+
 void FAvaOutliner::UnregisterOutlinerView(int32 InOutlinerViewId)
 {
 	OutlinerViews.Remove(InOutlinerViewId);

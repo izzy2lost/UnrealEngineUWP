@@ -28,6 +28,8 @@ public:
 	virtual FText GetDisplayName() const override;
 	virtual FSlateIcon GetIcon() const override;
 	virtual FText GetIconTooltipText() const override;
+	virtual bool CanDelete() const override;
+	virtual bool Delete() override;
 	//~ End IAvaOutlinerItem
 
 	//~ Begin FAvaOutlinerItemProxy

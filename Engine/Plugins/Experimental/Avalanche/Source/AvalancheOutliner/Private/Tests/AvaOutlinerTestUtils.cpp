@@ -11,8 +11,10 @@
 #include "Engine/SkyLight.h"
 #include "Engine/StaticMeshActor.h"
 #include "Engine/TriggerVolume.h"
+#include "Editor/UnrealEdEngine.h"
 #include "PackageTools.h"
 #include "Selection.h"
+#include "UnrealEdGlobals.h"
 
 void UE::AvaOutliner::Private::FAvaOutlinerEditorModeTools::Init(UWorld* InWorld)
 {
@@ -388,9 +390,39 @@ void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OutlinerDuplicateActors
 	Outliner->OnActorsDuplicated(DuplicateActorMap);
 }
 
-TOptional<EItemDropZone> UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemCanAcceptDrop(const FDragDropEvent& DragDropEvent
-	, EItemDropZone DropZone
-	, FAvaOutlinerItemPtr TargetItem) const
+void UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OutlinerDeleteActors(const TArray<AActor*>& InDeleteActors)
+{
+	if (InDeleteActors.IsEmpty())
+	{
+		return;
+	}
+
+	auto DestroyActor = [](AActor* InActor)
+	{
+		if (UWorld* ActorWorld = InActor->GetWorld())
+		{
+			if (GIsEditor && GUnrealEd)
+			{
+				GUnrealEd->DeleteActors({InActor}, ActorWorld, GUnrealEd->GetSelectedActors()->GetElementSelectionSet());
+			}
+			else
+			{
+				ActorWorld->DestroyActor(InActor);
+			}
+		}
+	};
+
+	for (AActor* Actor : InDeleteActors)
+	{
+		if (Actor)
+		{
+			Actor->Modify();
+			DestroyActor(Actor);
+		}
+	}
+}
+
+TOptional<EItemDropZone> UE::AvaOutliner::Private::FAvaOutlinerProviderTest::OnOutlinerItemCanAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDropZone DropZone, FAvaOutlinerItemPtr TargetItem) const
 {
 	return TOptional<EItemDropZone>();
 }

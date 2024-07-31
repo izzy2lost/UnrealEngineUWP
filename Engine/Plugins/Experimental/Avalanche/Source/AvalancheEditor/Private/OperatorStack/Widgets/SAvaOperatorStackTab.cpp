@@ -20,7 +20,7 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	, const TSharedPtr<IAvaDetailsProvider>& InProvider)
 {
 	DetailsProviderWeak = InProvider;
-	
+
 	UOperatorStackEditorSubsystem* OperatorStackSubsystem = UOperatorStackEditorSubsystem::Get();
 
 	check(InProvider.IsValid() && OperatorStackSubsystem);
@@ -33,16 +33,16 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	UActorModifierCoreStack::OnModifierRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
 
 	// Property controllers delegates
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.AddSP(this, &SAvaOperatorStackTab::OnControllerUpdated);
+	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
 
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InProvider->GetDetailsKeyframeHandler();
-	
+
 	OperatorStack = OperatorStackSubsystem->GenerateWidget();
 	OperatorStack->SetKeyframeHandler(KeyframeHandler);
 	OperatorStack->SetPanelTag(SAvaOperatorStackTab::PanelTag);
-	
+
 	ChildSlot
 	[
 		OperatorStack.ToSharedRef()
@@ -54,11 +54,11 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 SAvaOperatorStackTab::~SAvaOperatorStackTab()
 {
 	USelection::SelectionChangedEvent.RemoveAll(this);
-	
+
 	UActorModifierCoreStack::OnModifierAddedDelegate.RemoveAll(this);
 	UActorModifierCoreStack::OnModifierMovedDelegate.RemoveAll(this);
 	UActorModifierCoreStack::OnModifierRemovedDelegate.RemoveAll(this);
-	
+
 	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.RemoveAll(this);
 	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.RemoveAll(this);
 	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.RemoveAll(this);
@@ -71,7 +71,7 @@ void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
 	{
 		return;
 	}
-	
+
 	FEditorModeTools* ModeTools = DetailsProvider->GetDetailsModeTools();
 	if (!ModeTools)
 	{
@@ -98,12 +98,15 @@ void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
 
 void SAvaOperatorStackTab::OnModifierUpdated(UActorModifierCoreBase* InUpdatedItem) const
 {
-	RefreshCurrentSelection(InUpdatedItem);
+	if (InUpdatedItem)
+	{
+		RefreshCurrentSelection(InUpdatedItem->GetModifierStack());
+	}
 }
 
-void SAvaOperatorStackTab::OnControllerUpdated(UPropertyAnimatorCoreBase* InController) const
+void SAvaOperatorStackTab::OnAnimatorUpdated(UPropertyAnimatorCoreBase* InUpdatedItem) const
 {
-	RefreshCurrentSelection(InController);
+	RefreshCurrentSelection(InUpdatedItem);
 }
 
 void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) const
@@ -113,14 +116,14 @@ void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) cons
 	{
 		return;
 	}
-	
+
 	FEditorModeTools* ModeTools = DetailsProvider->GetDetailsModeTools();
 	if (!InObject || !OperatorStack.IsValid() || !ModeTools)
 	{
 		return;
 	}
 
-	const AActor* OwningActor = InObject->GetTypedOuter<AActor>();
+	AActor* OwningActor = InObject->GetTypedOuter<AActor>();
 	if (!OwningActor)
 	{
 		return;
@@ -138,8 +141,8 @@ void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) cons
 		return;
 	}
 
-	const TArray<AActor*> SelectedActors = EditorSelection.GetSelectedObjects<AActor, EAvaSelectionSource::All>();
-	if (!SelectedActors.Contains(OwningActor))
+	const TArray<UObject*> SelectedObjects = EditorSelection.GetSelectedObjects<UObject, EAvaSelectionSource::All>();
+	if (!SelectedObjects.Contains(OwningActor) && !SelectedObjects.Contains(InObject))
 	{
 		return;
 	}
