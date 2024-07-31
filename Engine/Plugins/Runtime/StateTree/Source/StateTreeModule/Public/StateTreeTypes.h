@@ -325,7 +325,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 
 	friend FORCEINLINE uint32 GetTypeHash(const FStateTreeDataHandle& Handle)
 	{
-		uint32 Hash = GetTypeHash(Handle.Source);
+		uint32 Hash = GetTypeHash(Handle.Index);
 		Hash = HashCombineFast(Hash, GetTypeHash(Handle.Source));
 		Hash = HashCombineFast(Hash, GetTypeHash(Handle.StateHandle));
 		return Hash;
