@@ -1230,6 +1230,8 @@ void FTextLocalizationManager::HandleLocalizationTargetsMounted(TArrayView<const
 	LocLoadFlags |= (WITH_EDITOR ? ELocalizationLoadFlags::Editor : ELocalizationLoadFlags::None);
 	LocLoadFlags |= (FApp::IsGame() ? ELocalizationLoadFlags::Game : ELocalizationLoadFlags::None);
 	LocLoadFlags |= ELocalizationLoadFlags::Engine;
+	// We don't allow dynamically loaded additional data to replace any existing data, as additional localization is lower priority when performing a full update, so this flag emulates that behavior
+	LocLoadFlags |= ELocalizationLoadFlags::SkipExisting;
 
 	const TArray<FString> PrioritizedCultureNames = FInternationalization::Get().GetPrioritizedCultureNames(FInternationalization::Get().GetCurrentLanguage()->GetName());
 
@@ -1382,14 +1384,18 @@ void FTextLocalizationManager::LoadLocalizationResourcesForPrioritizedCultures_S
 		LocalizedTextSource->LoadLocalizedResources(FinalLocLoadFlags, PrioritizedCultureNames, NativeResource, LocalizedResource);
 	}
 
+	FUpdateLiveTableOptions UpdateOptions;
+	UpdateOptions.bDirtyTextRevision = false;
+	UpdateOptions.bReplaceExisting = !EnumHasAnyFlags(FinalLocLoadFlags, ELocalizationLoadFlags::SkipExisting);
+
 	// Apply the new display string data
 	if (!NativeResource.IsEmpty())
 	{
-		UpdateFromNative(MoveTemp(NativeResource), /*bDirtyTextRevision*/false);
+		UpdateFromNative(MoveTemp(NativeResource), UpdateOptions);
 	}
 	if (!LocalizedResource.IsEmpty())
 	{
-		UpdateFromLocalizations(MoveTemp(LocalizedResource), /*bDirtyTextRevision*/false);
+		UpdateFromLocalizations(MoveTemp(LocalizedResource), UpdateOptions);
 	}
 
 	DirtyTextRevision();
@@ -1466,8 +1472,11 @@ void FTextLocalizationManager::LoadLocalizationTargetsForPrioritizedCultures_Syn
 	}
 	else
 	{
+		FUpdateLiveTableOptions UpdateOptions;
+		UpdateOptions.bReplaceExisting = !EnumHasAnyFlags(LocLoadFlags, ELocalizationLoadFlags::SkipExisting);
+
 		UE_LOG(LogTextLocalizationManager, Verbose, TEXT("Patching LocRes data for %d entries"), LocalizedResource.Entries.Num());
-		UpdateFromLocalizations(MoveTemp(LocalizedResource), /*bDirtyTextRevision*/true);
+		UpdateFromLocalizations(MoveTemp(LocalizedResource), UpdateOptions);
 	}
 }
 
@@ -1606,7 +1615,7 @@ void FTextLocalizationManager::QueueAsyncTask(TUniqueFunction<void()>&& Task)
 	}
 }
 
-void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& TextLocalizationResource, const bool bDirtyTextRevision)
+void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::UpdateFromNative);
 	LLM_SCOPE_BYNAME(TEXT("Localization/DisplayStrings"));
@@ -1631,7 +1640,20 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 			FTextLocalizationResource::FEntry& NewEntry = EntryPair.Value;
 
 			FDisplayStringEntry* LiveEntry = DisplayStringLookupTable.Find(TextId);
-			if (LiveEntry)
+			if (!LiveEntry)
+			{
+				// Add new entry
+				FDisplayStringEntry NewLiveEntry(
+					NewEntry.LocResID,						/*LocResID*/
+					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
+					NewEntry.SourceStringHash,				/*SourceStringHash*/
+					NewEntry.LocalizedString.ToSharedRef()	/*String*/
+				);
+
+				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
+				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
+			}
+			else if (UpdateOptions.bReplaceExisting)
 			{
 				// Update existing entry
 				// If the existing entry is empty, we just overwrite it 
@@ -1649,32 +1671,19 @@ void FTextLocalizationManager::UpdateFromNative(FTextLocalizationResource&& Text
 					LiveEntry->LocalizationTargetPathId = NewEntry.LocalizationTargetPathId;
 				}
 			}
-			else
-			{
-				// Add new entry
-				FDisplayStringEntry NewLiveEntry(
-					NewEntry.LocResID,						/*LocResID*/
-					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
-					NewEntry.SourceStringHash,				/*SourceStringHash*/
-					NewEntry.LocalizedString.ToSharedRef()	/*String*/
-				);
-
-				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
-				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
-			}
 		}
 
 		// Note: Do not use TextLocalizationResource after this point as we may have stolen some of its strings
 		TextLocalizationResource.Entries.Reset();
 	}
 
-	if (bDirtyTextRevision)
+	if (UpdateOptions.bDirtyTextRevision)
 	{
 		DirtyTextRevision();
 	}
 }
 
-void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource&& TextLocalizationResource, const bool bDirtyTextRevision)
+void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FTextLocalizationManager::UpdateFromLocalizations);
 	LLM_SCOPE_BYNAME(TEXT("Localization/DisplayStrings"));
@@ -1698,7 +1707,20 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 			FTextLocalizationResource::FEntry& NewEntry = EntryPair.Value;
 
 			FDisplayStringEntry* LiveEntry = DisplayStringLookupTable.Find(TextId);
-			if (LiveEntry)
+			if (!LiveEntry)
+			{
+				// Add new entry
+				FDisplayStringEntry NewLiveEntry(
+					NewEntry.LocResID,						/*LocResID*/
+					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
+					NewEntry.SourceStringHash,				/*SourceStringHash*/
+					NewEntry.LocalizedString.ToSharedRef()	/*String*/
+				);
+
+				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
+				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
+			}
+			else if (UpdateOptions.bReplaceExisting)
 			{
 				// Update existing entry
 				// If the source string hashes are are the same, we can replace the display string.
@@ -1715,26 +1737,13 @@ void FTextLocalizationManager::UpdateFromLocalizations(FTextLocalizationResource
 #endif	// WITH_EDITORONLY_DATA
 				}
 			}
-			else
-			{
-				// Add new entry
-				FDisplayStringEntry NewLiveEntry(
-					NewEntry.LocResID,						/*LocResID*/
-					NewEntry.LocalizationTargetPathId,		/*LocalizationTargetPathId*/
-					NewEntry.SourceStringHash,				/*SourceStringHash*/
-					NewEntry.LocalizedString.ToSharedRef()	/*String*/
-				);
-
-				DisplayStringLookupTable.Emplace(TextId, NewLiveEntry);
-				DisplayStringsByLocalizationTargetId.TrackTextId(INDEX_NONE, NewEntry.LocalizationTargetPathId, TextId);
-			}
 		}
 
 		// Note: Do not use TextLocalizationResource after this point as we may have stolen some of its strings
 		TextLocalizationResource.Entries.Reset();
 	}
 
-	if (bDirtyTextRevision)
+	if (UpdateOptions.bDirtyTextRevision)
 	{
 		DirtyTextRevision();
 	}

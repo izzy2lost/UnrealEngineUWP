@@ -59,6 +59,12 @@ enum class ELocalizationLoadFlags : uint8
 
 	/** Force localized game data to be loaded, even when running in the editor */
 	ForceLocalizedGame = 1<<5,
+
+	/**
+	 * Skip updating any entries that already exist in the live table
+	 * @note Not useful when performing a full update, but has utility when patching in new untrusted localization data (eg, loading UGC localization data over the base localization data)
+	 */
+	SkipExisting = 1<<6,
 };
 ENUM_CLASS_FLAGS(ELocalizationLoadFlags);
 

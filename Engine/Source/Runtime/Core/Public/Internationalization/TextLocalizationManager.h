@@ -372,11 +372,21 @@ private:
 	/** Queue the given task to run async (where possible), chained to any existing AsyncLocalizationTask */
 	CORE_API void QueueAsyncTask(TUniqueFunction<void()>&& Task);
 
+	struct FUpdateLiveTableOptions
+	{
+		FUpdateLiveTableOptions()
+		{
+		}
+
+		bool bDirtyTextRevision = true;
+		bool bReplaceExisting = true;
+	};
+
 	/** Updates display string entries and adds new display string entries based on provided native text. */
-	CORE_API void UpdateFromNative(FTextLocalizationResource&& TextLocalizationResource, const bool bDirtyTextRevision = true);
+	CORE_API void UpdateFromNative(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions = FUpdateLiveTableOptions());
 
 	/** Updates display string entries and adds new display string entries based on provided localizations. */
-	CORE_API void UpdateFromLocalizations(FTextLocalizationResource&& TextLocalizationResource, const bool bDirtyTextRevision = true);
+	CORE_API void UpdateFromLocalizations(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions = FUpdateLiveTableOptions());
 
 	/** Dirties the local revision counter for the given text ID by incrementing it (or adding it) */
 	CORE_API void DirtyLocalRevisionForTextId(const FTextId& InTextId);
