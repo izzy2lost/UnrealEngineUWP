@@ -1600,7 +1600,12 @@ namespace CruncherSharp
 			{
 				if (textBoxFilter.Text.Length > 0)
 				{
-					TryAddSubclassesToTable(CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text));
+					SymbolInfo ClassInfo = CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text);
+					if (ClassInfo != null)
+					{
+						TryAddSymbolToTable(ClassInfo);
+						TryAddSubclassesToTable(ClassInfo);
+					}
 				}
 			}
 			else if (checkBoxMember.Checked)
