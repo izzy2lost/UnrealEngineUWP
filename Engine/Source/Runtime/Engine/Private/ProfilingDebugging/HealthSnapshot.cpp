@@ -75,8 +75,8 @@ void FHealthSnapshot::CaptureMemoryStats()
 		SIZE_T Allocated = 0;
 
 		GMalloc->GetAllocatorStats(MallocStats);
-		SIZE_T *MallocTotalAllocated = nullptr;
-		if ((MallocTotalAllocated = MallocStats.Data.Find("TotalAllocated")) != nullptr)
+		const SIZE_T *MallocTotalAllocated = nullptr;
+		if ((MallocTotalAllocated = MallocStats.Find(TEXT("TotalAllocated"))) != nullptr)
 		{
 			Allocated = *MallocTotalAllocated;
 		}

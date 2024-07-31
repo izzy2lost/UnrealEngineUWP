@@ -5714,7 +5714,7 @@ void UCookOnTheFlyServer::EvaluateGarbageCollectionResults(bool bWasDueToOOM, bo
 		auto AllocatorStatsToString = [](const FGenericMemoryStats& AllocatorStats)
 		{
 			TStringBuilder<256> Writer;
-			for (const TPair<FString, SIZE_T>& Item : AllocatorStats.Data)
+			for (const TPair<FStringView, SIZE_T>& Item : AllocatorStats)
 			{
 				Writer << TEXT("\n\t\tItem ") << Item.Key << TEXT(" ") << (uint64)Item.Value;
 			}
