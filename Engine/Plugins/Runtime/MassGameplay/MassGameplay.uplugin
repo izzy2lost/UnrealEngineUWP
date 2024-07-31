@@ -99,6 +99,10 @@
 		{
 			"Name": "StateTree",
 			"Enabled": true
+		},
+		{
+			"Name": "DataValidation",
+			"Enabled": true
 		}
 	]
 }

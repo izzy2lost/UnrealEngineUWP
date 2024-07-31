@@ -31,6 +31,11 @@ namespace UnrealBuildTool.Rules
 						"Slate"
 					}
 				);
+
+				PublicDependencyModuleNames.Add("MassEntityEditor");
+				// here for communication with MassTraitRepository
+				PrivateIncludePathModuleNames.Add("MassGameplayEditor");
+				DynamicallyLoadedModuleNames.Add("MassGameplayEditor");
 			}
 		}
 	}
