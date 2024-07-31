@@ -8,8 +8,6 @@
 #include "Engine/Engine.h"
 #include "Features/IModularFeatures.h"
 #include "ILiveLinkClient.h"
-#include "IPixelStreamingEditorModule.h"
-
 
 UVCamPixelStreamingSubsystem* UVCamPixelStreamingSubsystem::Get()
 {
@@ -21,12 +19,12 @@ void UVCamPixelStreamingSubsystem::Initialize(FSubsystemCollectionBase& Collecti
 	Super::Initialize(Collection);
 
 	MissingSignallingServerNotifier = MakeUnique<UE::PixelStreamingVCam::FMissingSignallingServerNotifier>(*this);
+	SignalingServerLifecycle = MakeUnique<UE::PixelStreamingVCam::FSignalingServerLifecycle>(*this);
 }
 
 void UVCamPixelStreamingSubsystem::Deinitialize()
 {
 	Super::Deinitialize();
-	
 	RegisteredSessions.Empty();
 	
 	IModularFeatures& ModularFeatures = IModularFeatures::Get();
@@ -38,6 +36,7 @@ void UVCamPixelStreamingSubsystem::Deinitialize()
 	LiveLinkSource.Reset();
 
 	MissingSignallingServerNotifier.Reset();
+	SignalingServerLifecycle.Reset();
 }
 
 void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStreamingSession* OutputProvider)
@@ -91,12 +90,12 @@ TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLi
 	return LiveLinkSource;
 }
 
-void UVCamPixelStreamingSubsystem::LaunchSignallingServer()
+void UVCamPixelStreamingSubsystem::LaunchSignallingServerIfNeeded(UVCamPixelStreamingSession& Session)
 {
-	IPixelStreamingEditorModule::Get().StartSignalling();
+	SignalingServerLifecycle->LaunchSignallingServerIfNeeded(Session);
 }
 
-void UVCamPixelStreamingSubsystem::StopSignallingServer()
+void UVCamPixelStreamingSubsystem::StopSignallingServerIfNeeded(UVCamPixelStreamingSession& Session)
 {
-	IPixelStreamingEditorModule::Get().StopSignalling();
+	SignalingServerLifecycle->StopSignallingServerIfNeeded(Session);
 }

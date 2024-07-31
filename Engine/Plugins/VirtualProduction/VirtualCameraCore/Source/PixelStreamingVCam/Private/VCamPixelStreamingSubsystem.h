@@ -4,6 +4,7 @@
 
 #include "Subsystems/EngineSubsystem.h"
 
+#include "Networking/SignalingServerLifecycle.h"
 #include "Notifications/MissingSignallingServerNotifier.h"
 
 #include "VCamPixelStreamingSubsystem.generated.h"
@@ -11,6 +12,9 @@
 class FPixelStreamingLiveLinkSource;
 class UVCamPixelStreamingSession;
 
+/**
+ * Keeps track of which UVCamPixelStreamingSessions are active and manages systems related to the list of active sessions.
+ */
 UCLASS()
 class PIXELSTREAMINGVCAM_API UVCamPixelStreamingSubsystem : public UEngineSubsystem
 {
@@ -31,8 +35,8 @@ public:
 	/** Get the LiveLinkSource if it already exists or attempt to create one.*/
 	TSharedPtr<FPixelStreamingLiveLinkSource> TryGetLiveLinkSource(UVCamPixelStreamingSession* OutputProvider);
 
-	void LaunchSignallingServer();
-	void StopSignallingServer();
+	void LaunchSignallingServerIfNeeded(UVCamPixelStreamingSession& Session);
+	void StopSignallingServerIfNeeded(UVCamPixelStreamingSession& Session);
 
 	const TArray<TWeakObjectPtr<UVCamPixelStreamingSession>>& GetRegisteredSessions() const { return RegisteredSessions; }
 	
@@ -46,4 +50,6 @@ private:
 
 	/** Tells the user when the server needs manual launching. */
 	TUniquePtr<UE::PixelStreamingVCam::FMissingSignallingServerNotifier> MissingSignallingServerNotifier;
+	/** Manages the lifecycle of the signalling server. */
+	TUniquePtr<UE::PixelStreamingVCam::FSignalingServerLifecycle> SignalingServerLifecycle;
 };

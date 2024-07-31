@@ -55,8 +55,8 @@ namespace UE::PixelStreamingVCam
 		void OnEditStreamId(UVCamPixelStreamingSession& This);
 #endif
 		
-		void SetupSignallingServer();
-		void StopSignallingServer();
+		void SetupSignallingServer(UVCamPixelStreamingSession& Session);
+		void StopSignallingServer(UVCamPixelStreamingSession& Session);
 
 		void SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void StartCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
@@ -66,7 +66,7 @@ namespace UE::PixelStreamingVCam
 		void StopStreaming();
 		void OnStreamingStarted(IPixelStreamingStreamer* StartedStreamer, TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr);
 		void OnStreamingStopped(IPixelStreamingStreamer* StoppedStreamer);
-		void StopEverything();
+		void StopEverything(UVCamPixelStreamingSession& Session);
 
 		void SetupCustomInputHandling(UVCamPixelStreamingSession* This);
 

@@ -114,7 +114,7 @@ namespace UE::PixelStreamingVCam
 		// We setup custom handling of ARKit transforms coming from iOS devices here
 		SetupCustomInputHandling(This);
 		// We need signalling server to be up before we can start streaming
-		SetupSignallingServer();
+		SetupSignallingServer(*This);
 
 		if (MediaOutput)
 		{
@@ -140,7 +140,7 @@ namespace UE::PixelStreamingVCam
 			PixelStreamingSubsystem->UnregisterActiveOutputProvider(This);
 		}
 
-		StopEverything();
+		StopEverything(*This);
 
 		Args.ExecuteSuperFunction();
 		if (bUsingDummyUMG)
@@ -215,10 +215,10 @@ namespace UE::PixelStreamingVCam
 		StopCapture();
 	}
 
-	void FVCamPixelStreamingSessionLogic::StopEverything()
+	void FVCamPixelStreamingSessionLogic::StopEverything(UVCamPixelStreamingSession& Session)
 	{
 		StopStreaming();
-		StopSignallingServer();
+		StopSignallingServer(Session);
 		StopCapture();
 	}
 
@@ -303,52 +303,20 @@ namespace UE::PixelStreamingVCam
 	}
 #endif
 
-	void FVCamPixelStreamingSessionLogic::SetupSignallingServer()
+	void FVCamPixelStreamingSessionLogic::SetupSignallingServer(UVCamPixelStreamingSession& Session)
 	{
-		// Only start the signalling server if we aren't using an external signalling server
-		UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
-		if (PixelStreamingSubsystem && !IPixelStreamingEditorModule::Get().UseExternalSignallingServer())
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
-			PixelStreamingSubsystem->LaunchSignallingServer();
+			PixelStreamingSubsystem->LaunchSignallingServerIfNeeded(Session);
 		}
 	}
 
-	void FVCamPixelStreamingSessionLogic::StopSignallingServer()
+	void FVCamPixelStreamingSessionLogic::StopSignallingServer(UVCamPixelStreamingSession& Session)
 	{
-		IPixelStreamingEditorModule& PSEditorModule = IPixelStreamingEditorModule::Get();
-
-		if(PSEditorModule.UseExternalSignallingServer())
+		if (UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get())
 		{
-			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop an `external` signalling server from UE - skipping stopping signalling server."));
-			return;
+			PixelStreamingSubsystem->StopSignallingServerIfNeeded(Session);
 		}
-
-		TSharedPtr<UE::PixelStreamingServers::IServer> SignallingServer = PSEditorModule.GetSignallingServer();
-
-		if(!SignallingServer)
-		{
-			UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot stop internal signalling server because it is already null - skipping stopping signalling server."));
-			return;
-		}
-
-		// Asynchronously get the number of streamers and if it we have more than just this connect do not shut down the SS it might be used by something else
-		SignallingServer->GetNumStreamers([](uint16 NumStreamers){
-			if(NumStreamers > 1)
-			{
-				UE_LOG(LogPixelStreamingVCam, Log, TEXT("VCam cannot shutdown internal signalling server because there are still multiple streamers connected."));
-				return;
-			}
-
-			// Only stop the signalling server if we've been the ones to start it
-			UVCamPixelStreamingSubsystem* PixelStreamingSubsystem = UVCamPixelStreamingSubsystem::Get();
-
-			if(!PixelStreamingSubsystem)
-			{
-				return;
-			}
-
-			PixelStreamingSubsystem->StopSignallingServer();
-		});
 	}
 
 	void FVCamPixelStreamingSessionLogic::SetupCapture(TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr)
