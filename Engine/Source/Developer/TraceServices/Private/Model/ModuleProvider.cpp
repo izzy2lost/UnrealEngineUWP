@@ -23,6 +23,8 @@
 // If both are enabled and the RAD Syms library fails to initialize, it will fall back to DbgHelp (on Windows).
 #define USE_SYMSLIB 1
 #define USE_DBGHELP 1
+// Psym resolver supports symbols in the breakpad cross-platform text format
+#define USE_PSYMRESOLVER 1
 
 // Symbol files implementations
 #if USE_SYMSLIB
@@ -30,6 +32,9 @@
 #endif
 #if USE_DBGHELP
 #include "DbgHelpResolver.h"
+#endif
+#if USE_PSYMRESOLVER
+#include "PsymResolver.h"
 #endif
 
 namespace TraceServices
@@ -550,6 +555,12 @@ TSharedPtr<IModuleAnalysisProvider> CreateModuleProvider(IAnalysisSession& InSes
 		Provider = MakeShared<TModuleProvider<FDbgHelpResolver>>(InSession);
 	}
 #endif // PLATFORM_WINDOWS && USE_DBGHELP
+#if USE_PSYMRESOLVER
+	if (!Provider && InSymbolFormat.Equals("psym"))
+	{
+		Provider = MakeShared<TModuleProvider<FPsymResolver>>(InSession);
+	}
+#endif
 	return Provider;
 }
 
