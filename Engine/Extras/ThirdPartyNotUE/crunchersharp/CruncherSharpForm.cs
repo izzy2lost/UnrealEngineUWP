@@ -1615,6 +1615,10 @@ namespace CruncherSharp
 							bool foundMember = false;
 							foreach(SymbolMemberInfo member in symbolInfo.Members)
 							{
+								if (member.Category == SymbolMemberInfo.MemberCategory.Base)
+								{
+									continue;
+								}
 								if (member.TypeName != textBoxFilter.Text)
 								{
 									continue;
@@ -1762,6 +1766,10 @@ namespace CruncherSharp
 
 		private void checkBoxSubclasses_CheckedChanged(object sender, EventArgs e)
 		{
+			if (checkBoxSubclasses.Checked && _SelectedSymbol != null)
+			{
+				textBoxFilter.Text = _SelectedSymbol.Name;
+			}
 			checkBoxMember.Checked = false;
 			UpdateFilter();
 			PopulateDataTable();
@@ -1769,6 +1777,10 @@ namespace CruncherSharp
 
 		private void checkBoxMember_CheckedChanged(object sender, EventArgs e)
 		{
+			if (checkBoxMember.Checked && _SelectedSymbol != null)
+			{
+				textBoxFilter.Text = _SelectedSymbol.Name;
+			}
 			checkBoxSubclasses.Checked = false;
 			UpdateFilter();
 			PopulateDataTable();
