@@ -34,6 +34,10 @@
 		{
 			"Name": "TedsDebugger",
 			"Type": "Editor"
+		},
+		{
+			"Name": "TedsTableViewer",
+			"Type": "Editor"
 		}
 	],
 	"Plugins": [

@@ -9,13 +9,12 @@
 
 class ISceneOutliner;
 
-// Column used to store a reference to the table viewer owning a specific row
-// Currently only added to widget rows in a table viewer
+// Column used to store a reference to the Teds Outliner owning a specific row
+// Currently only added to widget rows in the Teds Outliner
 USTRUCT(meta = (DisplayName = "Owning Table Viewer"))
-struct FTableViewerColumn final : public FTypedElementDataStorageColumn
+struct FTedsOutlinerColumn final : public FTypedElementDataStorageColumn
 {
 	GENERATED_BODY()
 
-	// The table viewer is internally a scene outliner
 	TWeakPtr<ISceneOutliner> Outliner;
 };

@@ -49,7 +49,7 @@ namespace UE::TedsOutliner
 
 	// CVar to summon the TEDS-Outliner as a separate tab
 	static FAutoConsoleCommand OpenTableViewerConsoleCommand(
-		TEXT("TEDS.UI.OpenTableViewer"),
+		TEXT("TEDS.UI.OpenTedsOutliner"),
 		TEXT("Spawn the test TEDS-Outliner Integration."),
 		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 		{

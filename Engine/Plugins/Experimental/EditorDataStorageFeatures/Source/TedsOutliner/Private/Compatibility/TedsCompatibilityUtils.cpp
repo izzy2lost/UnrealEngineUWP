@@ -3,6 +3,7 @@
 #include "Compatibility/TedsCompatibilityUtils.h"
 
 #include "SSceneOutliner.h"
+#include "TedsTableViewerUtils.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
@@ -235,14 +236,14 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowH
 		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryDescription.SelectionTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor = QueryConstructorPair.Value;
 
-		TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
+		TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(UE::EditorDataStorage::TableViewerUtils::GetWidgetTableName()));
 
 		if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
 		{
 			RowReference->Row = InRowHandle;
 		}
 
-		Storage->AddColumn(UiRowHandle, FTableViewerColumn{.Outliner = StaticCastSharedRef<ISceneOutliner>(SceneOutliner->AsShared())});
+		Storage->AddColumn(UiRowHandle, FTedsOutlinerColumn{.Outliner = StaticCastSharedRef<ISceneOutliner>(SceneOutliner->AsShared())});
 		
 		return StorageUi->ConstructWidget(UiRowHandle, *CellWidgetConstructor, MetaDataArgs);
 	};
@@ -352,9 +353,9 @@ bool FTedsOutlinerImpl::CanDisplayRow(TypedElementDataStorage::RowHandle ItemRow
 	if (Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(ItemRowHandle))
 	{
 		// Check if this widget row belongs to the same table viewer it is being displayed in
-		if (const FTableViewerColumn* TableViewerColumn = Storage->GetColumn<FTableViewerColumn>(ItemRowHandle))
+		if (const FTedsOutlinerColumn* TedsOutlinerColumn = Storage->GetColumn<FTedsOutlinerColumn>(ItemRowHandle))
 		{
-			if (const TSharedPtr<ISceneOutliner> TableViewer = TableViewerColumn->Outliner.Pin())
+			if (const TSharedPtr<ISceneOutliner> TableViewer = TedsOutlinerColumn->Outliner.Pin())
 			{
 				return SceneOutliner != TableViewer.Get();
 			}
@@ -721,9 +722,9 @@ void FTedsOutlinerImpl::ClearSelection() const
 
 	// Query to remove the selection column from all rows that belong to this selection set
 	TypedElementDataStorage::DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
-	[this, &RowsToRemoveSelectionColumn](DSI::IDirectQueryContext& Context)
+	[this, &RowsToRemoveSelectionColumn](const DSI::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* RowHandles)
 	{
-		TConstArrayView<TypedElementDataStorage::RowHandle> Rows = Context.GetRowHandles();
+		const TConstArrayView<TypedElementDataStorage::RowHandle> Rows(RowHandles, Context.GetRowCount());
 
 		for(const TypedElementDataStorage::RowHandle RowHandle : Rows)
 		{

@@ -20,13 +20,10 @@
 #include "SceneOutlinerFwd.h"
 #include "SceneOutlinerModule.h"
 #include "SceneOutlinerPublicTypes.h"
+#include "TedsTableViewerColumn.h"
+#include "TedsTableViewerUtils.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "TypedElementOutlinerItem.h"
-#include "Columns/TedsOutlinerColumns.h"
-#include "Columns/UIPropertiesColumns.h"
-#include "Elements/Columns/TypedElementCompatibilityColumns.h"
-#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
-#include "Elements/Framework/TypedElementDataStorageWidget.h"
 #include "Modules/ModuleManager.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementsUI_SceneOutliner"
@@ -130,10 +127,7 @@ public:
 		FName InFallbackColumnName,
 		TWeakPtr<ISceneOutliner> InOwningOutliner,
 		const FTreeItemIDDealiaser& InDealiaser)
-		: ColumnTypes(MoveTemp(InColumnTypes))
-		, HeaderWidgetConstructor(MoveTemp(InHeaderWidgetConstructor))
-		, CellWidgetConstructor(MoveTemp(InCellWidgetConstructor))
-		, Storage(InStorage)
+		: Storage(InStorage)
 		, StorageUi(InStorageUi)
 		, StorageCompatibility(InStorageCompatibility)
 		, QueryHandle(InQuery)
@@ -142,20 +136,21 @@ public:
 		, Dealiaser(InDealiaser)
 	{
 		MetaData.AddOrSetMutableData(TEXT("Name"), NameId.ToString());
-		ColumnTypes.Shrink();
 
+		using namespace TypedElementDataStorage;
+
+		TableViewerColumnImpl = MakeUnique<UE::EditorDataStorage::FTedsTableViewerColumn>(NameId, InCellWidgetConstructor, InColumnTypes,
+			InHeaderWidgetConstructor, FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
+
+		TableViewerColumnImpl->SetIsRowVisibleDelegate(
+		UE::EditorDataStorage::FTedsTableViewerColumn::FIsRowVisible::CreateRaw(this, &FOutlinerColumn::IsRowVisible)
+		);
+		
 		// Try to find a fallback column from the regular item, for handling cases like folders which are not in TEDS but want to use TEDS columns
 		FSceneOutlinerModule& SceneOutlinerModule = FModuleManager::LoadModuleChecked<FSceneOutlinerModule>("SceneOutliner");
 		FallbackColumn = SceneOutlinerModule.FactoryColumn(InFallbackColumnName, *OwningOutliner.Pin());
-
-		RegisterQueries();
 	};
 	
-	~FOutlinerColumn() override
-	{
-		UnRegisterQueries();
-	}
-
 	FName GetColumnID() override
 	{
 		return NameId;
@@ -163,91 +158,7 @@ public:
 
 	virtual void Tick(double InCurrentTime, float InDeltaTime)
 	{
-		// Update any rows that could need widget updates
-		if(!RowsToUpdate.IsEmpty())
-		{
-			UpdateWidgets();
-			RowsToUpdate.Empty();
-		}
-	}
-
-	void RegisterQueries()
-	{
-		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
-
-		// For each TEDS column this column is matched with, we'll add observers to track addition/removal to update any widgets
-		for(const TWeakObjectPtr<const UScriptStruct>& ColumnType : ColumnTypes)
-		{
-			const FName ColumnAddObserverName = *(FString::Printf(TEXT("Column Add Monitor for %s Outliner Column, %s TEDS Column"), *NameId.ToString(), *ColumnType->GetName()));
-			FObserver AddObserver(FObserver::EEvent::Add, ColumnType.Get());
-			AddObserver.ForceToGameThread(true);
-
-			// TEDS-Outliner TODO: Long term if we move this into TypedElementOutlinerMode or similar we can get access to the exact
-			// types the Outliner is looking at and specify them on .Where() to cut down on the things we are observing
-			TypedElementDataStorage::QueryHandle AddQueryHandle = Storage.RegisterQuery(
-				Select(
-					ColumnAddObserverName,
-					AddObserver,
-					[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, true));
-						})
-				.Where()
-					.All(ColumnType.Get())
-				.Compile()
-				);
-			
-			InternalObserverQueries.Add(AddQueryHandle);
-
-			const FName ColumnRemoveObserverName = *(FString::Printf(TEXT("Column Remove Monitor for %s Outliner Column, %s TEDS Column"), *NameId.ToString(), *ColumnType->GetName()));
-			FObserver RemoveObserver(FObserver::EEvent::Remove, ColumnType.Get());
-			RemoveObserver.ForceToGameThread(true);
-
-			// TEDS-Outliner TODO: Long term if we move this into TypedElementOutlinerMode or similar we can get access to the exact
-			// types the Outliner is looking at and specify them on .Where() to cut down on the things we are observing
-			TypedElementDataStorage::QueryHandle RemoveQueryHandle = Storage.RegisterQuery(
-				Select(
-					ColumnRemoveObserverName,
-					RemoveObserver,
-					[this](IQueryContext& Context, TypedElementRowHandle Row)
-						{
-							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, false));
-						})
-				.Where()
-					.All(ColumnType.Get())
-				.Compile()
-			);
-			
-			InternalObserverQueries.Add(RemoveQueryHandle);
-		}
-
-		// We are looking for widgets that have a row reference
-		TArray<const UScriptStruct*> SelectionColumns({FTypedElementSlateWidgetReferenceColumn::StaticStruct(), FTypedElementRowReferenceColumn::StaticStruct()});
-
-		// We need to remove duplicates because TEDS/Mass does not handle having the same column in Select() and Where()
-		TArray<const UScriptStruct*> AdditionalWidgetColumns = CellWidgetConstructor->GetAdditionalColumnsList().FilterByPredicate([&SelectionColumns](const UScriptStruct* Column)
-		{
-			return !SelectionColumns.Contains(Column);
-		});
-		
-		// Query to get all widgets that were created by this column
-		WidgetQuery = Storage.RegisterQuery(
-				Select()
-					.ReadOnly(SelectionColumns)
-				.Where()
-					.All(AdditionalWidgetColumns)
-				.Compile());
-	}
-	
-	void UnRegisterQueries()
-	{
-		for(const TypedElementDataStorage::QueryHandle Query : InternalObserverQueries)
-		{
-			Storage.UnregisterQuery(Query);
-		}
-		
-		Storage.UnregisterQuery(WidgetQuery);
+		TableViewerColumnImpl->Tick();
 	}
 
 	bool IsRowVisible(const TypedElementDataStorage::RowHandle InRowHandle) const
@@ -280,145 +191,9 @@ public:
 		return OutlinerPinned->GetTree().IsItemVisible(Item);
 	}
 
-	void UpdateWidgets()
-	{
-		// Remove any widget rows that don't actually need an update
-		RowsToUpdate = RowsToUpdate.FilterByPredicate([this](const TPair<TypedElementDataStorage::RowHandle, bool>& Pair) -> bool
-		{
-			// We don't have a widget for this item visible, so there is nothing to update
-			if(!IsRowVisible(Pair.Key))
-			{
-				return false;
-			}
-			
-			// Check if the row now matches the query conditions for this widget
-			const bool bMatchesQueryConditions = CellWidgetConstructor->GetQueryConditions() && Storage.MatchesColumns(Pair.Key, *CellWidgetConstructor->GetQueryConditions());
-			
-			// If we are adding a column that we are monitoring and it now matches, or if we are removing a column that we are monitoring and it now
-			// stops matching, there is a potential need for widget update
-			return (bMatchesQueryConditions && Pair.Value) || (!bMatchesQueryConditions && !Pair.Value);
-		});
-		
-		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
-
-		// Query to find all widgets that belong to the row handles that need updates
-		DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
-		[this](const IDirectQueryContext& Context, const FTypedElementSlateWidgetReferenceColumn* ContainerWidgetReferenceColumns, const FTypedElementRowReferenceColumn* RowReferenceColumns)
-		{
-			const FTypedElementSlateWidgetReferenceColumn* WidgetsIt = ContainerWidgetReferenceColumns;
-			const FTypedElementRowReferenceColumn* RowRefsIt = RowReferenceColumns;
-			const TConstArrayView<TypedElementRowHandle> Rows = Context.GetRowHandles();
-
-			for(unsigned RowIndex = 0; RowIndex < Context.GetRowCount(); ++RowIndex, ++WidgetsIt, ++RowRefsIt)
-			{
-				// Check if this widgets owning row is in our rows to update
-				bool* bColumnAddedPtr = RowsToUpdate.Find(RowRefsIt->Row);
-				// If not, skip it
-				if(!bColumnAddedPtr)
-				{
-					continue;
-				}
-
-				// Check if the container TEDSWidget exists, if not we cannot update this widget
-				const TSharedPtr<STedsWidget> TedsWidget = WidgetsIt->TedsWidget.Pin();
-				if(!TedsWidget)
-				{
-					continue;
-				}
-
-				// A row has numerous widgets, make sure we only update the one that was created by our column by checking the constructor
-				if(WidgetsIt->WidgetConstructor != CellWidgetConstructor)
-				{
-					continue;
-				}
-
-				// If a column was added and we are here, we need to re-create the widget
-				// TEDS-Outliner TODO: Do we need to create the widget only if it doesn't exist? Or should we also update it to automatically respond
-				// to column changes even if it was already created
-				if(*bColumnAddedPtr)
-				{
-					const TSharedPtr<SWidget> RowWidget = CellWidgetConstructor->Construct(Rows[RowIndex], &Storage, &StorageUi,
-						FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
-
-					if(RowWidget)
-					{
-						TedsWidget->SetContent(RowWidget.ToSharedRef());
-					}
-				}
-				// If a column was removed (and we don't match anymore) delete the internal widget
-				else
-				{
-					TedsWidget->SetContent(SNullWidget::NullWidget);
-				}
-			}
-		});
-
-		Storage.RunQuery(WidgetQuery, RowCollector);
-	}
-
 	virtual SHeaderRow::FColumn::FArguments ConstructHeaderRowColumn() override
 	{
-		using namespace TypedElementDataStorage;
-
-		FString TooltipText = TEXT("Data Storage columns:");
-		for (const TWeakObjectPtr<const UScriptStruct>& ColumnType : ColumnTypes)
-		{
-			if (ColumnType.IsValid())
-			{
-				TooltipText += TEXT("\n    ");
-				ColumnType->AppendName(TooltipText);
-			}
-		}
-
-		TSharedPtr<SWidget> Widget;
-		RowHandle UiRowHandle = InvalidRowHandle;
-		if (HeaderWidgetConstructor)
-		{
-			UiRowHandle = Storage.AddRow(Storage.FindTable(FName(TEXT("Editor_WidgetTable"))));
-
-			// TEDS UI TODO: We can't do this from the Widget Constructor because it is a UStruct and does not have access to AsShared(), so we would
-			// be forced to store a raw pointer instead of a weak pointer which is unsafe. Once the widget construction pipleline is improved this can
-			// probably be moved to a better place
-			if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage.GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
-			{
-				WidgetReferenceColumn->WidgetConstructor = HeaderWidgetConstructor;
-			}
-			
-			Widget = StorageUi.ConstructWidget(UiRowHandle, *HeaderWidgetConstructor, 
-				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
-		}
-		if (!Widget.IsValid())
-		{
-			Widget = SNew(STextBlock)
-				.Text(FText::FromString(NameId.ToString()));
-		}
-		
-		SHeaderRow::FColumn::FArguments Column = SHeaderRow::Column(NameId)
-			.FillWidth(1)
-			.HeaderComboVisibility(EHeaderComboVisibility::OnHover)
-			.DefaultTooltip(FText::FromString(MoveTemp(TooltipText)))
-			.HeaderContent()
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				[
-					Widget.ToSharedRef()
-				]
-			];
-		if (const FUIHeaderPropertiesColumn* HeaderProperties = Storage.GetColumn<FUIHeaderPropertiesColumn>(UiRowHandle))
-		{
-			float Width = HeaderProperties->Width;
-			switch (HeaderProperties->ColumnSizeMode)
-			{
-				case EColumnSizeMode::Fill: Column.FillWidth(Width); break;
-				case EColumnSizeMode::Fixed: Column.FixedWidth(Width); break;
-				case EColumnSizeMode::Manual: Column.ManualWidth(Width); break;
-				case EColumnSizeMode::FillSized: Column.FillSized(Width); break;
-			}
-		}
-		return Column;
+		return TableViewerColumnImpl->ConstructHeaderRowColumn();
 	}
 
 	// TODO: Sorting is currently handled through the fallback column if it exists because we have no way to sort columns through TEDS
@@ -485,28 +260,7 @@ public:
 
 		if(Storage.IsRowAssigned(RowHandle))
 		{
-			TypedElementRowHandle UiRowHandle = Storage.AddRow(Storage.FindTable(FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName));
-
-			if (ColumnTypes.Num() == 1)
-			{
-				Storage.AddColumn<FTypedElementScriptStructTypeInfoColumn>(UiRowHandle, FTypedElementScriptStructTypeInfoColumn{.TypeInfo = *ColumnTypes.begin()});
-			}
-			
-			if (FTypedElementRowReferenceColumn* RowReference = Storage.GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
-			{
-				RowReference->Row = RowHandle;
-			}
-
-			Storage.AddColumn(UiRowHandle, FTableViewerColumn{.Outliner = OwningOutliner});
-			
-			if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage.GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
-			{
-				WidgetReferenceColumn->WidgetConstructor = CellWidgetConstructor;
-			}
-			
-			RowWidget = StorageUi.ConstructWidget(UiRowHandle, *CellWidgetConstructor, 
-							FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
-			
+			RowWidget = TableViewerColumnImpl->ConstructRowWidget(RowHandle);
 		}
 
 		if(RowWidget)
@@ -526,11 +280,10 @@ public:
 			FallbackColumn->PopulateSearchStrings(Item, OutSearchStrings);
 		}
 	}
-	
 
-	TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes;
-	TSharedPtr<FTypedElementWidgetConstructor> HeaderWidgetConstructor;
-	TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor;
+	// The table viewer implementation that we internally use to create our widgets
+	TUniquePtr<UE::EditorDataStorage::FTedsTableViewerColumn> TableViewerColumnImpl;
+	
 	ITypedElementDataStorageInterface& Storage;
 	ITypedElementDataStorageUiInterface& StorageUi;
 	ITypedElementDataStorageCompatibilityInterface& StorageCompatibility;
@@ -540,10 +293,6 @@ public:
 	TSharedPtr<ISceneOutlinerColumn> FallbackColumn;
 	TWeakPtr<ISceneOutliner> OwningOutliner;
 	FTreeItemIDDealiaser Dealiaser;
-	
-	TArray<TypedElementDataStorage::QueryHandle> InternalObserverQueries;
-	TypedElementDataStorage::QueryHandle WidgetQuery;
-	TMap<TypedElementDataStorage::RowHandle, bool> RowsToUpdate;
 };
 
 
@@ -552,19 +301,6 @@ public:
 //
 // UTypedElementSceneOutlinerFactory
 // 
-void UTypedElementSceneOutlinerFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
-{
-	TypedElementTableHandle BaseWidgetTable = DataStorage.FindTable(FName(TEXT("Editor_WidgetTable")));
-	if (BaseWidgetTable != TypedElementInvalidTableHandle)
-	{
-		DataStorage.RegisterTable(
-			BaseWidgetTable,
-			{
-				FTypedElementRowReferenceColumn::StaticStruct()
-			},
-			FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName);
-	}
-}
 
 void UTypedElementSceneOutlinerFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
@@ -705,82 +441,6 @@ void FTypedElementSceneOutliner::Initialize(
 	Outliner = InOutliner;
 }
 
-TArray<TWeakObjectPtr<const UScriptStruct>> FTypedElementSceneOutliner::CreateVerifiedColumnTypeAray(
-	TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes)
-{
-	TArray<TWeakObjectPtr<const UScriptStruct>> VerifiedColumnTypes;
-	VerifiedColumnTypes.Reserve(ColumnTypes.Num());
-	for (const TWeakObjectPtr<const UScriptStruct>& ColumnType : ColumnTypes)
-	{
-		if (ColumnType.IsValid())
-		{
-			VerifiedColumnTypes.Add(ColumnType.Get());
-		}
-	}
-	return VerifiedColumnTypes;
-}
-
-TSharedPtr<FTypedElementWidgetConstructor> FTypedElementSceneOutliner::CreateHeaderWidgetConstructor(
-	ITypedElementDataStorageInterface& Storage, ITypedElementDataStorageUiInterface& StorageUi, 
-	TypedElementQueryHandle Query, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
-	const TConstArrayView<FName> CellWidgetPurposes)
-{
-	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
-
-	const ITypedElementDataStorageInterface::FQueryDescription& Description = Storage.GetQueryDescription(Query);
-	TypedElementDataStorage::FQueryMetaDataView MetaDataView(Description);
-
-	TArray<TWeakObjectPtr<const UScriptStruct>> VerifiedColumnTypes = CreateVerifiedColumnTypeAray(ColumnTypes);
-	TSharedPtr<FTypedElementWidgetConstructor> Constructor;
-
-	for (const FName& Purpose : CellWidgetPurposes)
-	{
-		// Extract the header purpose from the cell purpose (e.g "SceneOutliner.ItemLabel.Cell" -> "SceneOutliner.ItemLabel.Header")
-		FString HeaderPurpose, CellPurpose;
-		Purpose.ToString().Split(TEXT(".Cell"), &HeaderPurpose, &CellPurpose);
-		HeaderPurpose.Append(TEXT(".Header"));
-		
-		StorageUi.CreateWidgetConstructors(FName(HeaderPurpose), MatchApproach::ExactMatch, VerifiedColumnTypes, MetaDataView,
-			[&Constructor, ColumnTypes](
-				TUniquePtr<FTypedElementWidgetConstructor> CreatedConstructor, 
-				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes)
-			{
-				if (ColumnTypes.Num() == MatchedColumnTypes.Num())
-				{
-					Constructor = TSharedPtr<FTypedElementWidgetConstructor>(CreatedConstructor.Release());
-				}
-				// Either this was the exact match so no need to search further or the longest possible chain didn't match so the next ones will 
-				// always be shorter in both cases just return.
-				return false;
-			});
-		if (Constructor)
-		{
-			return Constructor;
-		}
-	}
-	for (const FName& Purpose : CellWidgetPurposes)
-	{
-		// Extract the default header purpose from the cell purpose (e.g "SceneOutliner.ItemLabel.Cell" -> "SceneOutliner.ItemLabel.Header.Default")
-		FString HeaderPurpose, CellPurpose;
-		Purpose.ToString().Split(TEXT(".Cell"), &HeaderPurpose, &CellPurpose);
-		HeaderPurpose.Append(TEXT(".Header.Default"));
-
-		StorageUi.CreateWidgetConstructors(FName(HeaderPurpose), MetaDataView,
-			[&Constructor, ColumnTypes](
-				TUniquePtr<FTypedElementWidgetConstructor> CreatedConstructor,
-				TConstArrayView<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes)
-			{
-				Constructor = TSharedPtr<FTypedElementWidgetConstructor>(CreatedConstructor.Release());
-				return false;
-			});
-		if (Constructor)
-		{
-			return Constructor;
-		}
-	}
-	return nullptr;
-}
-
 void FTypedElementSceneOutliner::RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser)
 {
 	Dealiaser = InDealiaser;
@@ -792,6 +452,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 	constexpr int32 DefaultPriorityIndex = 100;
 	FTypedElementSceneOutlinerQueryBinder& Binder = FTypedElementSceneOutlinerQueryBinder::GetInstance();
 	CellWidgetPurposes = InCellWidgetPurposes;
+
 
 	if (TSharedPtr<ISceneOutliner> OutlinerPinned = Outliner.Pin())
 	{
@@ -805,10 +466,10 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 			int32 SelectionCount = Description.SelectionTypes.Num();
 			AddedColumns.Reset(SelectionCount);
 
-			TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = CreateVerifiedColumnTypeAray(Description.SelectionTypes);
+			TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = UE::EditorDataStorage::TableViewerUtils::CreateVerifiedColumnTypeArray(Description.SelectionTypes);
 
 			int32 IndexOffset = 0;
-			auto ColumnConstructor = [this, Query, &IndexOffset, &OutlinerPinned, Binder](
+			auto ColumnConstructor = [this, Query, MetaDataView, &IndexOffset, &OutlinerPinned, Binder](
 				TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes)
 				{
 					TSharedPtr<FTypedElementWidgetConstructor> CellConstructor(Constructor.Release());
@@ -823,15 +484,15 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 
 					OutlinerPinned->RemoveColumn(FallbackColumn);
 
-					FName NameId = FindLongestMatchingName(ColumnTypes, IndexOffset);
+					FName NameId = UE::EditorDataStorage::TableViewerUtils::FindLongestMatchingName(ColumnTypes, IndexOffset);
 					AddedColumns.Add(NameId);
 					OutlinerPinned->AddColumn(NameId,
 						FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, ColumnPriority,
 							FCreateSceneOutlinerColumn::CreateLambda(
-								[this, Query, NameId, &ColumnTypes, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
+								[this, Query, MetaDataView, NameId, &ColumnTypes, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
 								{
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor = 
-										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, ColumnTypes, CellWidgetPurposes);
+										UE::EditorDataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, ColumnTypes, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId,
 										TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnTypes.GetData(), ColumnTypes.Num()), 
@@ -854,7 +515,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 			{
 				FName FallbackColumn = Binder.FindOutlinerColumnFromTEDSColumns({ColumnType});
 
-				auto AssignWidgetToColumn = [this, Query, ColumnType, &IndexOffset, &OutlinerPinned, FallbackColumn](
+				auto AssignWidgetToColumn = [this, Query, MetaDataView, ColumnType, &IndexOffset, &OutlinerPinned, FallbackColumn](
 					TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)
 				{
 					TSharedPtr<FTypedElementWidgetConstructor> CellConstructor(Constructor.Release());
@@ -863,12 +524,12 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 					OutlinerPinned->AddColumn(NameId,
 						FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, DefaultPriorityIndex + IndexOffset,
 							FCreateSceneOutlinerColumn::CreateLambda(
-								[this, Query, NameId, ColumnType, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
+								[this, Query, MetaDataView, NameId, ColumnType, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
 								{
 									TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypesStored;
 									ColumnTypesStored.Add(ColumnType);
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor =
-										CreateHeaderWidgetConstructor(*Storage, *StorageUi, Query, { ColumnType }, CellWidgetPurposes);
+										UE::EditorDataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, { ColumnType }, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId, MoveTemp(ColumnTypesStored),
 										HeaderConstructor, CellConstructor, FallbackColumn, OutlinerPinned, Dealiaser);
@@ -900,58 +561,6 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 			}
 		}
 	}
-}
-
-// TEDS UI TODO: Maybe the widget can specify a user facing name derived from the matched columns instead of trying to find the longest matching name
-FName FTypedElementSceneOutliner::FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex)
-{
-	switch (ColumnTypes.Num())
-	{
-	case 0:
-		return FName(TEXT("Column"), DefaultNameIndex);
-	case 1:
-		return FName(ColumnTypes[0]->GetDisplayNameText().ToString());
-	default:
-	{
-		FText LongestMatchText = ColumnTypes[0]->GetDisplayNameText();
-		FStringView LongestMatch = LongestMatchText.ToString();
-		const TWeakObjectPtr<const UScriptStruct>* ItEnd = ColumnTypes.end();
-		const TWeakObjectPtr<const UScriptStruct>* It = ColumnTypes.begin();
-		++It; // Skip the first entry as that's already set.
-		for (; It != ItEnd; ++It)
-		{
-			FText NextMatchText = (*It)->GetDisplayNameText();
-			FStringView NextMatch = NextMatchText.ToString();
-
-			int32 MatchSize = 0;
-			auto ItLeft = LongestMatch.begin();
-			auto ItLeftEnd = LongestMatch.end();
-			auto ItRight = NextMatch.begin();
-			auto ItRightEnd = NextMatch.end();
-			while (
-				ItLeft != ItLeftEnd &&
-				ItRight != ItRightEnd &&
-				*ItLeft == *ItRight)
-			{
-				++MatchSize;
-				++ItLeft;
-				++ItRight;
-			}
-
-			// At least 3 letters have to match to avoid single or double letter names which typically mean nothing.
-			if (MatchSize > 2)
-			{
-				LongestMatch.LeftInline(MatchSize);
-			}
-			else
-			{
-				// There are not enough characters in the string that match. Just return the name of the first column
-				return FName(ColumnTypes[0]->GetDisplayNameText().ToString());
-			}
-		}
-		return FName(LongestMatch);
-	}
-	};
 }
 
 void FTypedElementSceneOutliner::ClearColumns(ISceneOutliner& InOutliner)

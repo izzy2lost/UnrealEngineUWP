@@ -165,6 +165,10 @@ public:
 	 * Register a widget purpose. Widget purposes indicates how widgets can be used and categorizes/organizes the available 
 	 * widget factories. If the same purpose is registered multiple times, only the first will be recorded and later registrations
 	 * will be silently ignored.
+	 * Widget purposes follow a specific naming convention currently:
+	 * "PurposeName.Cell" for widgets created for (row, columns) pairs
+	 * "PurposeName.Header" for widgets created for column headers
+	 * "PurposeName.Cell.Default" or "PurposeName.Header.Default" for generic widgets not registered against column(s)
 	 */
 	virtual void RegisterWidgetPurpose(FName Purpose, EPurposeType Type, FText Description) = 0;
 	/** 

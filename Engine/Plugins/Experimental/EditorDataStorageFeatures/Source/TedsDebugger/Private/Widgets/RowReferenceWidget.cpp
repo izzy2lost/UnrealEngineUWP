@@ -21,14 +21,14 @@ namespace UE::EditorDataStorage::Debug::Private
 {
 	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle TargetRowHandle, TypedElementDataStorage::RowHandle UiRowHandle)
 	{
-		const FTableViewerColumn* TableViewerColumn = DataStorage->GetColumn<FTableViewerColumn>(UiRowHandle);
+		const FTedsOutlinerColumn* TedsOutlinerColumn = DataStorage->GetColumn<FTedsOutlinerColumn>(UiRowHandle);
 
-		if(!TableViewerColumn)
+		if(!TedsOutlinerColumn)
 		{
 			return;
 		}
 		
-		TSharedPtr<ISceneOutliner> OwningTableViewer = TableViewerColumn->Outliner.Pin();
+		TSharedPtr<ISceneOutliner> OwningTableViewer = TedsOutlinerColumn->Outliner.Pin();
 		
 		if(!OwningTableViewer)
 		{

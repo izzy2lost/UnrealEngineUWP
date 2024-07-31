@@ -33,12 +33,6 @@ public:
 	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
 	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
 private:
-	static FName FindLongestMatchingName(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, int32 DefaultNameIndex);
-	static TArray<TWeakObjectPtr<const UScriptStruct>> CreateVerifiedColumnTypeAray(
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes);
-	static TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(ITypedElementDataStorageInterface& Storage,
-		ITypedElementDataStorageUiInterface& StorageUI, TypedElementQueryHandle Query,
-		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, const TConstArrayView<FName> CellWidgetPurposes);
 	void ClearColumns(ISceneOutliner& InOutliner);
 
 	TArray<FName> AddedColumns;
@@ -100,7 +94,5 @@ class UTypedElementSceneOutlinerFactory : public UTypedElementDataStorageFactory
 public:
 	~UTypedElementSceneOutlinerFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
-	
 	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
