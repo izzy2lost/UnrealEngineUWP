@@ -5,6 +5,7 @@
 #include "Components/BoxComponent.h"
 #include "DaySequence.h"
 #include "DaySequenceCollectionAsset.h"
+#include "DaySequenceModule.h"
 #include "DaySequenceTrack.h"
 
 #include "Engine/World.h"
@@ -406,7 +407,7 @@ void UDaySequenceModifierComponent::OnUnregister()
 
 void UDaySequenceModifierComponent::DaySequenceUpdate()
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_SequencePlayerUpdated);
+	CSV_SCOPED_TIMING_STAT(DaySequence, SequencePlayerUpdated);
 	
 	// Force expensive update
 	const float DistanceBlendFactor = UpdateBlendWeight();
@@ -589,8 +590,6 @@ void UDaySequenceModifierComponent::DisableComponent()
 
 void UDaySequenceModifierComponent::EnableModifier()
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifierComponent_EnableModifier);
-	
 	if (bIsEnabled || !CanBeEnabled())
 	{
 		return;
@@ -625,8 +624,6 @@ void UDaySequenceModifierComponent::EnableModifier()
 
 void UDaySequenceModifierComponent::DisableModifier()
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifierComponent_DisableModifier);
-	
 	if (!bIsEnabled)
 	{
 		return;
@@ -715,6 +712,8 @@ void UDaySequenceModifierComponent::SetInitialTimeOfDay()
 
 void UDaySequenceModifierComponent::ReinitializeSubSequence(ADaySequenceActor::FSubSectionPreserveMap* SectionsToPreserve)
 {
+	CSV_SCOPED_TIMING_STAT(DaySequence, ReinitializeSubSequence);
+	
 #if ROOT_SEQUENCE_RECONSTRUCTION_ENABLED
 	bool bReinit = true;
 
@@ -1336,7 +1335,7 @@ void UDaySequenceModifierComponent::SetUserDaySequence(UDaySequence* InDaySequen
 
 bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetBlendPosition);
+	CSV_SCOPED_TIMING_STAT(DaySequence, GetBlendPosition);
 	
 #if WITH_EDITOR
 	if (const UWorld* World = GetWorld(); World && !World->IsGameWorld())
@@ -1348,7 +1347,7 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 #endif
 	if (const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get())
 	{
-		CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetPlayerViewPointScope);
+		CSV_SCOPED_TIMING_STAT(DaySequence, GetPlayerViewPoint);
 		InPosition = BlendTarget->PlayerCameraManager->GetCameraLocation();
 		return true;
 	}
@@ -1364,7 +1363,7 @@ float UDaySequenceModifierComponent::GetDistanceBlendFactorForShape(const UShape
 
 float UDaySequenceModifierComponent::GetDistanceBlendFactor(const FVector& Position) const
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceModifier_GetDistanceBlendFactor);
+	CSV_SCOPED_TIMING_STAT(DaySequence, GetDistanceBlendFactor);
 	
 	CachedDistanceBlendFactor = 0.f;
 

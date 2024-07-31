@@ -538,7 +538,7 @@ void ADaySequenceActor::InitializePlayer()
 
 void ADaySequenceActor::InitializeRootSequence()
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceActor_InitializeRootSequence);
+	CSV_SCOPED_TIMING_STAT(DaySequence, InitializeRootSequence);
 
 	if (IsTemplate())
 	{
@@ -854,7 +854,7 @@ void ADaySequenceActor::UpdateSubSectionTimeScale(UMovieSceneSubSection* InSubSe
 
 void ADaySequenceActor::OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime)
 {
-	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(DaySequenceActor_OnSequencePlayerUpdate);
+	CSV_SCOPED_TIMING_STAT(DaySequence, OnSequencePlayerUpdate);
 	
 	auto FrameTimeToDayHours = [this](const FFrameTime& Time)
 	{

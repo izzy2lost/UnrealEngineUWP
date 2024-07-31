@@ -3,8 +3,10 @@
 #pragma once
 
 #include "IDaySequenceModule.h"
+#include "ProfilingDebugging/CsvProfiler.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDaySequence, Log, All);
+CSV_DECLARE_CATEGORY_EXTERN(DaySequence);
 
 class FDaySequenceModule : public IDaySequenceModule
 {

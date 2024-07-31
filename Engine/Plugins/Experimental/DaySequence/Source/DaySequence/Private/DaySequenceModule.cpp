@@ -11,6 +11,7 @@
 #define LOCTEXT_NAMESPACE "FDaySequenceModule"
 
 DEFINE_LOG_CATEGORY(LogDaySequence);
+CSV_DEFINE_CATEGORY(DaySequence, false);
 
 namespace UE::DaySequence
 {
