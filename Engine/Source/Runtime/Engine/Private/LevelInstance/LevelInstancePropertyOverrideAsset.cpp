@@ -118,7 +118,7 @@ TSoftObjectPtr<ULevelInstancePropertyOverrideAsset> ULevelInstancePropertyOverri
 		}
 	}
 
-	return TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>(this);
+	return TSoftObjectPtr<ULevelInstancePropertyOverrideAsset>(const_cast<ULevelInstancePropertyOverrideAsset*>(this));
 }
 
 FActorContainerPath ULevelInstancePropertyOverrideAsset::GetContainerPropertyOverridePath(ILevelInstanceInterface* InParent, ILevelInstanceInterface* InChild)

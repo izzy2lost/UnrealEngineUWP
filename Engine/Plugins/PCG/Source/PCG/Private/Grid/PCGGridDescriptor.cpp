@@ -75,7 +75,7 @@ FPCGGridDescriptor& FPCGGridDescriptor::SetDataLayerAssets(const TArray<TSoftObj
 FPCGGridDescriptor& FPCGGridDescriptor::SetDataLayerAssets(const TArray<const UDataLayerAsset*>& InDataLayerAssets)
 {
 	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayerAssetPtrs;
-	Algo::Transform(InDataLayerAssets, DataLayerAssetPtrs, [](const UDataLayerAsset* DataLayerAsset) { return TSoftObjectPtr<UDataLayerAsset>(DataLayerAsset); });
+	Algo::Transform(InDataLayerAssets, DataLayerAssetPtrs, [](const UDataLayerAsset* DataLayerAsset) { return TSoftObjectPtr<UDataLayerAsset>(const_cast<UDataLayerAsset*>(DataLayerAsset)); });
 	return SetDataLayerAssets(DataLayerAssetPtrs);
 }
 

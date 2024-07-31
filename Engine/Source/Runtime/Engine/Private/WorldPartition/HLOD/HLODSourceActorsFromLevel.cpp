@@ -46,7 +46,7 @@ uint32 UWorldPartitionHLODSourceActorsFromLevel::GetHLODHash() const
 
 void UWorldPartitionHLODSourceActorsFromLevel::SetSourceLevel(const UWorld* InSourceLevel)
 {
-	SourceLevel = InSourceLevel;
+	SourceLevel = const_cast<UWorld*>(InSourceLevel);
 }
 
 const TSoftObjectPtr<UWorld>& UWorldPartitionHLODSourceActorsFromLevel::GetSourceLevel() const

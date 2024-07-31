@@ -421,7 +421,7 @@ ULevel* FWorldPartitionLevelHelper::CreateEmptyLevelForRuntimeCell(const UWorldP
 	check(NewLevel->Model);
 	check(!NewLevel->bIsVisible);
 
-	NewLevel->WorldPartitionRuntimeCell = Cell;
+	NewLevel->WorldPartitionRuntimeCell = const_cast<UWorldPartitionRuntimeCell*>(Cell);
 	
 	// Mark the level package as fully loaded
 	CellPackage->MarkAsFullyLoaded();

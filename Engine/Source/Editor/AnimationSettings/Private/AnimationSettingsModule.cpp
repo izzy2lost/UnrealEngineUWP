@@ -19,7 +19,7 @@ DEFINE_LOG_CATEGORY(LogAnimationSettings);
 
 void FAnimationSettingsModule::OnAssetRenamed(const FAssetData& InAssetData, const FString& InOldName)
 {
-	if (const UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InAssetData.GetAsset()))
+	if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InAssetData.GetAsset()))
 	{
 		if (UAnimationSettings* Settings = UAnimationSettings::Get())
 		{

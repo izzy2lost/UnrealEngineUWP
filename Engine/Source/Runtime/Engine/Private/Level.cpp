@@ -3123,7 +3123,7 @@ void ULevel::OnLevelLoaded()
 	// Set level's associated WorldPartitionRuntimeCell for dynamically injected cells
 	if (LevelStreaming && !WorldPartitionRuntimeCell.GetUniqueID().IsValid())
 	{
-		WorldPartitionRuntimeCell = Cast<const UWorldPartitionRuntimeCell>(LevelStreaming->GetWorldPartitionCell());
+		WorldPartitionRuntimeCell = Cast<UWorldPartitionRuntimeCell>(const_cast<IWorldPartitionCell*>(LevelStreaming->GetWorldPartitionCell()));
 	}
 
 	if (ULevel* OwningLevel = ULevelInstanceSubsystem::GetOwningLevel(this, true))

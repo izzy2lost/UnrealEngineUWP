@@ -27,7 +27,7 @@ FOptimusFunctionNodeGraphHeader UOptimusFunctionNodeGraph::GetHeader() const
 {
 	FOptimusFunctionNodeGraphHeader Header;
 
-	Header.GraphPath = this; 
+	Header.GraphPath = const_cast<UOptimusFunctionNodeGraph*>(this);
 	Header.FunctionName = GetFName();
 	Header.Category = Category;
 

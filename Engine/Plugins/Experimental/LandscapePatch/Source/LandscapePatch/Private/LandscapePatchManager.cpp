@@ -365,7 +365,7 @@ bool ALandscapePatchManager::RemovePatch(ULandscapePatchComponent* Patch)
 
 int32 ALandscapePatchManager::GetIndexOfPatch(const ULandscapePatchComponent* Patch) const
 {
-	if (const int32* Index = PatchToIndex.Find(TSoftObjectPtr<ULandscapePatchComponent>(Patch)))
+	if (const int32* Index = PatchToIndex.Find(TSoftObjectPtr<ULandscapePatchComponent>(const_cast<ULandscapePatchComponent*>(Patch))))
 	{
 		return *Index;
 	}

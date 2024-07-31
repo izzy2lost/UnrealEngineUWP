@@ -2160,7 +2160,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			FOptimusGraphVariableDescription& ValueNodeDescription = ValueNodeDescriptions.AddDefaulted_GetRef();
 			ValueNodeDescription.Name = Optimus::MakeUniqueValueName(ValueProvider->GetValueName(), ValueNodeIndex);
 			ValueNodeDescription.ValueType = ValueProvider->GetValueType()->ShaderValueType;
-			ValueNodeDescription.SourceObject = ValueNode;
+			ValueNodeDescription.SourceObject = const_cast<UOptimusNode*>(ValueNode);
 
 			if (UOptimusNode_ConstantValue const* ConstantNode = Cast<const UOptimusNode_ConstantValue>(ValueNode))
 			{

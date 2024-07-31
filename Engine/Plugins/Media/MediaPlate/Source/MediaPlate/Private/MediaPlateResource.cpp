@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MediaPlateResource.h"
 #include "MediaPlaylist.h"
@@ -17,7 +17,7 @@ void FMediaPlateResource::SetResourceType(EMediaPlateResourceType InType)
 void FMediaPlateResource::SelectAsset(const UMediaSource* InMediaSource, UObject* InOuter)
 {
 	SetResourceType(EMediaPlateResourceType::Asset);
-	MediaAsset = InMediaSource;
+	MediaAsset = const_cast<UMediaSource*>(InMediaSource);
 	RefreshActivePlaylist(InOuter);
 }
 
@@ -32,7 +32,7 @@ void FMediaPlateResource::LoadExternalMedia(const FString& InFilePath, UObject* 
 void FMediaPlateResource::SelectPlaylist(const UMediaPlaylist* InPlaylist)
 {
 	SetResourceType(EMediaPlateResourceType::Playlist);
-	SourcePlaylist = InPlaylist;
+	SourcePlaylist = const_cast<UMediaPlaylist*>(InPlaylist);
 	ActivePlaylist = GetSourcePlaylist();
 }
 
@@ -53,12 +53,12 @@ void FMediaPlateResource::Init(const FMediaPlateResource& InOther)
 		ExternalMediaPath = FString(InOther.GetExternalMediaPath());
 	}
 
-	if (const UMediaSource* OtherMediaAsset = InOther.GetMediaAsset())
+	if (UMediaSource* OtherMediaAsset = InOther.GetMediaAsset())
 	{
 		MediaAsset = OtherMediaAsset;
 	}
 
-	if (const UMediaPlaylist* OtherMediaPlaylist = InOther.GetSourcePlaylist())
+	if (UMediaPlaylist* OtherMediaPlaylist = InOther.GetSourcePlaylist())
 	{
 		SourcePlaylist = OtherMediaPlaylist;
 	}

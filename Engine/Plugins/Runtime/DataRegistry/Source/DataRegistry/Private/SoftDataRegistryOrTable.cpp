@@ -24,7 +24,7 @@ FSoftDataRegistryOrTable::FSoftDataRegistryOrTable(const UDataTable* InDataTable
 	}
 	else
 	{ 
-		Table = InDataTable;
+		Table = const_cast<UDataTable*>(InDataTable);
 		bUseDataRegistry = false;
 	}
 }

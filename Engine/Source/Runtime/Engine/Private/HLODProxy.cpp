@@ -35,7 +35,7 @@
 
 void UHLODProxy::SetMap(const UWorld* InMap)
 {
-	OwningMap = InMap;
+	OwningMap = const_cast<UWorld*>(InMap);
 }
 
 TSoftObjectPtr<UWorld> UHLODProxy::GetMap() const

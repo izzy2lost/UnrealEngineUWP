@@ -932,13 +932,13 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 		ModelResources.Skeletons.Reserve(GenerationContext.ReferencedSkeletons.Num());
 		for (const USkeleton* Skeleton : GenerationContext.ReferencedSkeletons)
 		{
-			ModelResources.Skeletons.Emplace(Skeleton);
+			ModelResources.Skeletons.Emplace(const_cast<USkeleton*>(Skeleton));
 		}
 		
 		ModelResources.Materials.Reserve(GenerationContext.ReferencedMaterials.Num());
 		for (const UMaterialInterface* Material : GenerationContext.ReferencedMaterials)
 		{
-			ModelResources.Materials.Emplace(Material);
+			ModelResources.Materials.Emplace(const_cast<UMaterialInterface*>(Material));
 		}
 
 		for (const TPair<TSoftObjectPtr<USkeletalMesh>, FMutableGraphGenerationContext::FGeneratedReferencedMesh>& Pair : GenerationContext.PassthroughMeshMap)

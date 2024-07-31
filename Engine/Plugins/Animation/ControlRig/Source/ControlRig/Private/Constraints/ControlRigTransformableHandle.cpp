@@ -639,7 +639,7 @@ void UTransformableControlHandle::ResolveBoundObjects(FMovieSceneSequenceID Loca
 				if (InControlRig->GetObjectBinding() && InControlRig->GetObjectBinding()->GetBoundObject() == Bindable)
 				{
 					UnregisterDelegates();
-					ControlRig = InControlRig;
+					ControlRig = const_cast<UControlRig*>(InControlRig);
 					RegisterDelegates();
 				}
 				break; //just do one

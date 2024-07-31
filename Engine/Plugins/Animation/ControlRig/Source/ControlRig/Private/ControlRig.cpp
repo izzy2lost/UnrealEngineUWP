@@ -3531,7 +3531,7 @@ UTransformableControlHandle* UControlRig::CreateTransformableControlHandle(
 	
 	UTransformableControlHandle* CtrlHandle = NewObject<UTransformableControlHandle>(GetTransientPackage(), NAME_None, RF_Transactional);
 	check(CtrlHandle);
-	CtrlHandle->ControlRig = this;
+	CtrlHandle->ControlRig = const_cast<UControlRig*>(this);
 	CtrlHandle->ControlName = InControlName;
 	CtrlHandle->RegisterDelegates();
 	return CtrlHandle;

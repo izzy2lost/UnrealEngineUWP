@@ -316,7 +316,7 @@ void UMoviePipelineExecutorJob::SetGraphPreset(const UMovieGraphConfig* InGraphP
 	Modify();
 #endif
 	
-	GraphPreset = InGraphPreset;
+	GraphPreset = const_cast<UMovieGraphConfig*>(InGraphPreset);
 
 	// If the graph is being cleared out, also clear out all graphs on the job's shots. A shot cannot have a graph assigned to it while
 	// the parent job is using a legacy config.
@@ -411,7 +411,7 @@ void UMoviePipelineExecutorShot::SetGraphPreset(const UMovieGraphConfig* InGraph
 	Modify();
 #endif
 	
-	GraphPreset = InGraphPreset;
+	GraphPreset = const_cast<UMovieGraphConfig*>(InGraphPreset);
 
 	if (bUpdateVariableAssignments)
 	{

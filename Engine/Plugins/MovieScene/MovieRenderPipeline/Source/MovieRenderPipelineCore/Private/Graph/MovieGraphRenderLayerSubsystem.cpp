@@ -209,7 +209,7 @@ void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 		const TSet<AActor*> MatchingActors = Collection->Evaluate(World);
 		ModifiedActors.Reserve(MatchingActors.Num());
 
-		for (const AActor* Actor : MatchingActors)
+		for (AActor* Actor : MatchingActors)
 		{
 			NewVisibilityState.Actor = Actor;
 			
@@ -225,7 +225,7 @@ void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 			OriginalVisibilityState.Components.Reserve(Components.Num());
 			NewVisibilityState.Components.Empty(Components.Num());
 			
-			for (const USceneComponent* SceneComponent : Components)
+			for (USceneComponent* SceneComponent : Components)
 			{
 #if WITH_EDITORONLY_DATA
 				// Don't bother processing editor-only components (editor billboard icons, text, etc)
@@ -2284,7 +2284,7 @@ void UMovieGraphConditionGroupQuery_DataLayer::AddDataLayers(const TArray<const 
 		if (DataLayer && !DataLayers.Contains(DataLayer))
 		{
 			DataLayers.Add(const_cast<UDataLayerAsset*>(DataLayer));
-			ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(DataLayer));
+			ListDataSource.Add(MakeShared<TSoftObjectPtr<UDataLayerAsset>>(const_cast<UDataLayerAsset*>(DataLayer)));
 		}
 	}
 	

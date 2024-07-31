@@ -16,13 +16,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FString& InPath)
-: ModularRig(InModularRig)
+: ModularRig(const_cast<UModularRig*>(InModularRig))
 , Path(InPath)
 {
 }
 
 FModuleInstanceHandle::FModuleInstanceHandle(const UModularRig* InModularRig, const FRigModuleInstance* InModule)
-: ModularRig(InModularRig)
+: ModularRig(const_cast<UModularRig*>(InModularRig))
 , Path(InModule->GetPath())
 {
 }
