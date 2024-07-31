@@ -115,6 +115,8 @@
             this.contextMenuStripFunctions = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.ignoreFunctionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bindingSourceSymbols = new System.Windows.Forms.BindingSource(this.components);
+            this.checkBoxSubclasses = new System.Windows.Forms.CheckBox();
+            this.checkBoxMember = new System.Windows.Forms.CheckBox();
             this.mainMenu.SuspendLayout();
             this.statusStripBar.SuspendLayout();
             this.contextMenuStripMembers.SuspendLayout();
@@ -335,7 +337,7 @@
             this.checkedListBoxNamespaces.Location = new System.Drawing.Point(3, 16);
             this.checkedListBoxNamespaces.MultiColumn = true;
             this.checkedListBoxNamespaces.Name = "checkedListBoxNamespaces";
-            this.checkedListBoxNamespaces.Size = new System.Drawing.Size(1175, 85);
+            this.checkedListBoxNamespaces.Size = new System.Drawing.Size(1046, 85);
             this.checkedListBoxNamespaces.TabIndex = 10;
             this.checkedListBoxNamespaces.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.checkedListBoxNamespaces_ItemCheck);
             // 
@@ -344,7 +346,7 @@
             this.chkShowTemplates.AutoSize = true;
             this.chkShowTemplates.Checked = true;
             this.chkShowTemplates.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.chkShowTemplates.Location = new System.Drawing.Point(476, 35);
+            this.chkShowTemplates.Location = new System.Drawing.Point(424, 35);
             this.chkShowTemplates.Name = "chkShowTemplates";
             this.chkShowTemplates.Size = new System.Drawing.Size(101, 17);
             this.chkShowTemplates.TabIndex = 6;
@@ -475,6 +477,8 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.panel1.AutoSize = true;
+            this.panel1.Controls.Add(this.checkBoxMember);
+            this.panel1.Controls.Add(this.checkBoxSubclasses);
             this.panel1.Controls.Add(this.checkBoxNamespaces);
             this.panel1.Controls.Add(this.checkBoxFunctionAnalysis);
             this.panel1.Controls.Add(this.checkBoxShowOverlap);
@@ -570,7 +574,7 @@
             // checkBoxRegularExpressions
             // 
             this.checkBoxRegularExpressions.AutoSize = true;
-            this.checkBoxRegularExpressions.Location = new System.Drawing.Point(303, 35);
+            this.checkBoxRegularExpressions.Location = new System.Drawing.Point(268, 35);
             this.checkBoxRegularExpressions.Name = "checkBoxRegularExpressions";
             this.checkBoxRegularExpressions.Size = new System.Drawing.Size(138, 17);
             this.checkBoxRegularExpressions.TabIndex = 5;
@@ -583,7 +587,7 @@
             this.checkBoxMatchWholeExpression.AutoSize = true;
             this.checkBoxMatchWholeExpression.Checked = true;
             this.checkBoxMatchWholeExpression.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxMatchWholeExpression.Location = new System.Drawing.Point(128, 35);
+            this.checkBoxMatchWholeExpression.Location = new System.Drawing.Point(111, 35);
             this.checkBoxMatchWholeExpression.Name = "checkBoxMatchWholeExpression";
             this.checkBoxMatchWholeExpression.Size = new System.Drawing.Size(140, 17);
             this.checkBoxMatchWholeExpression.TabIndex = 4;
@@ -610,9 +614,9 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.groupBox1.Controls.Add(this.checkedListBoxNamespaces);
-            this.groupBox1.Location = new System.Drawing.Point(606, 0);
+            this.groupBox1.Location = new System.Drawing.Point(735, 0);
             this.groupBox1.Name = "groupBox1";
-            this.groupBox1.Size = new System.Drawing.Size(1181, 104);
+            this.groupBox1.Size = new System.Drawing.Size(1052, 104);
             this.groupBox1.TabIndex = 12;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Namespaces";
@@ -961,6 +965,28 @@
             this.ignoreFunctionToolStripMenuItem.Text = "Ignore function";
             this.ignoreFunctionToolStripMenuItem.Click += new System.EventHandler(this.ignoreFunctionToolStripMenuItem_Click);
             // 
+            // checkBoxSubclasses
+            // 
+            this.checkBoxSubclasses.AutoSize = true;
+            this.checkBoxSubclasses.Location = new System.Drawing.Point(537, 35);
+            this.checkBoxSubclasses.Name = "checkBoxSubclasses";
+            this.checkBoxSubclasses.Size = new System.Drawing.Size(80, 17);
+            this.checkBoxSubclasses.TabIndex = 12;
+            this.checkBoxSubclasses.Text = "Subclasses";
+            this.checkBoxSubclasses.UseVisualStyleBackColor = true;
+            this.checkBoxSubclasses.CheckedChanged += new System.EventHandler(this.checkBoxSubclasses_CheckedChanged);
+            // 
+            // checkBoxMember
+            // 
+            this.checkBoxMember.AutoSize = true;
+            this.checkBoxMember.Location = new System.Drawing.Point(637, 35);
+            this.checkBoxMember.Name = "checkBoxMember";
+            this.checkBoxMember.Size = new System.Drawing.Size(64, 17);
+            this.checkBoxMember.TabIndex = 19;
+            this.checkBoxMember.Text = "Member";
+            this.checkBoxMember.UseVisualStyleBackColor = true;
+            this.checkBoxMember.CheckedChanged += new System.EventHandler(this.checkBoxMember_CheckedChanged);
+            // 
             // CruncherSharpForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1090,6 +1116,8 @@
         private System.Windows.Forms.ToolStripMenuItem useRawPDBToolStripMenuItem;
 		private System.Windows.Forms.CheckBox checkBoxNamespaces;
 		private System.Windows.Forms.ToolStripMenuItem restrictToUObjectsToolStripMenuItem;
+		private System.Windows.Forms.CheckBox checkBoxSubclasses;
+		private System.Windows.Forms.CheckBox checkBoxMember;
 	}
 }
 

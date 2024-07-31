@@ -441,9 +441,12 @@ namespace CruncherSharp
 
         private string GetFilterString()
         {
-            var filters = new List<string>();
+			if (checkBoxSubclasses.Checked || checkBoxMember.Checked)
+				return null;
+
+			var filters = new List<string>();
             if (textBoxFilter.Text.Length > 0)
-                if (checkBoxMatchWholeExpression.Checked)
+				if (checkBoxMatchWholeExpression.Checked)
                     filters.Add($"Symbol = '{textBoxFilter.Text.Replace("'", string.Empty)}'");
                 else if (checkBoxRegularExpressions.Checked)
                     filters.Add($"Symbol LIKE '{textBoxFilter.Text.Replace("'", string.Empty)}'");
@@ -464,6 +467,7 @@ namespace CruncherSharp
 
 		private void UpdateFilter()
 		{
+			_Table.CaseSensitive = checkBoxMatchCase.Checked;
 			try
 			{
 				bindingSourceSymbols.Filter = GetFilterString();
@@ -1508,76 +1512,125 @@ namespace CruncherSharp
             findRemovedInlineToolStripMenuItem.Checked = SearchCategory == SearchType.RemovedInline;
         }
 
-        private void PopulateDataTable()
+		private void TryAddSymbolToTable(SymbolInfo symbolInfo)
+		{
+			if (restrictToSymbolsImportedFroCSVToolStripMenuItem.Checked && !symbolInfo.IsImportedFromCSV)
+			{
+				return;
+			}
+			if (restrictToUObjectsToolStripMenuItem.Checked && !symbolInfo.IsA("UObject", CurrentSymbolAnalyzer))
+			{
+				return;
+			}
+
+			switch (SearchCategory)
+			{
+				case SearchType.None:
+					AddSymbolToTable(symbolInfo);
+					break;
+				case SearchType.UnusedVTables:
+					if (symbolInfo.HasVtable && !symbolInfo.HasBaseClass && symbolInfo.DerivedClasses == null)
+						AddSymbolToTable(symbolInfo);
+					break;
+				case SearchType.MSVCExtraPadding:
+					if (symbolInfo.HasMSVCExtraPadding(CurrentSymbolAnalyzer))
+						AddSymbolToTable(symbolInfo);
+					break;
+				case SearchType.MSVCEmptyBaseClass:
+					if (symbolInfo.HasMSVCEmptyBaseClass)
+						AddSymbolToTable(symbolInfo);
+					break;
+				case SearchType.UnusedInterfaces:
+					if (symbolInfo.IsAbstract && symbolInfo.DerivedClasses == null)
+						AddSymbolToTable(symbolInfo);
+					break;
+				case SearchType.UnusedVirtual:
+					foreach (var function in symbolInfo.Functions)
+						if (function.UnusedVirtual)
+							if (!_FunctionsToIgnore.Contains(function.Name))
+							{
+								AddSymbolToTable(symbolInfo);
+								break;
+							}
+
+					break;
+				case SearchType.MaskingFunction:
+					foreach (var function in symbolInfo.Functions)
+						if (function.IsMasking)
+							if (!_FunctionsToIgnore.Contains(function.Name))
+							{
+								AddSymbolToTable(symbolInfo);
+								break;
+							}
+
+					break;
+				case SearchType.RemovedInline:
+					foreach (var function in symbolInfo.Functions)
+						if (function.WasInlineRemoved)
+							if (!_FunctionsToIgnore.Contains(function.Name))
+							{
+								AddSymbolToTable(symbolInfo);
+								break;
+							}
+
+					break;
+			}
+		}
+
+
+		private void PopulateDataTable()
         {
             _Table.Rows.Clear();
 
             _Table.BeginLoadData();
 
-            foreach (var symbolInfo in CurrentSymbolAnalyzer.Symbols.Values)
+			if (checkBoxSubclasses.Checked)
 			{
-				if (restrictToSymbolsImportedFroCSVToolStripMenuItem.Checked && ! symbolInfo.IsImportedFromCSV)
+				if (textBoxFilter.Text.Length > 0)
 				{
-					continue;
+					SymbolInfo ClassInfo = CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text);
+					if (ClassInfo != null && ClassInfo.DerivedClasses != null)
+					{
+						foreach (SymbolInfo DerivedClassInfo in ClassInfo.DerivedClasses)
+						{
+							TryAddSymbolToTable(DerivedClassInfo);
+						}
+					}
 				}
-				if (restrictToUObjectsToolStripMenuItem.Checked && ! symbolInfo.IsA("UObject", CurrentSymbolAnalyzer))
-				{
-					continue;
-				}
-
-				switch (SearchCategory)
-                {
-                    case SearchType.None:
-                        AddSymbolToTable(symbolInfo);
-                        break;
-                    case SearchType.UnusedVTables:
-                        if (symbolInfo.HasVtable && !symbolInfo.HasBaseClass && symbolInfo.DerivedClasses == null)
-                            AddSymbolToTable(symbolInfo);
-                        break;
-                    case SearchType.MSVCExtraPadding:
-                        if (symbolInfo.HasMSVCExtraPadding(CurrentSymbolAnalyzer)) 
-							AddSymbolToTable(symbolInfo);
-                        break;
-                    case SearchType.MSVCEmptyBaseClass:
-                        if (symbolInfo.HasMSVCEmptyBaseClass) 
-							AddSymbolToTable(symbolInfo);
-                        break;
-                    case SearchType.UnusedInterfaces:
-                        if (symbolInfo.IsAbstract && symbolInfo.DerivedClasses == null) 
-							AddSymbolToTable(symbolInfo);
-                        break;
-                    case SearchType.UnusedVirtual:
-                        foreach (var function in symbolInfo.Functions)
-                            if (function.UnusedVirtual)
-                                if (!_FunctionsToIgnore.Contains(function.Name))
-                                {
-                                    AddSymbolToTable(symbolInfo);
-                                    break;
-                                }
-
-                        break;
-                    case SearchType.MaskingFunction:
-                        foreach (var function in symbolInfo.Functions)
-                            if (function.IsMasking)
-                                if (!_FunctionsToIgnore.Contains(function.Name))
-                                {
-                                    AddSymbolToTable(symbolInfo);
-                                    break;
-                                }
-
-                        break;
-                    case SearchType.RemovedInline:
-                        foreach (var function in symbolInfo.Functions)
-                            if (function.WasInlineRemoved)
-                                if (!_FunctionsToIgnore.Contains(function.Name))
-                                {
-                                    AddSymbolToTable(symbolInfo);
-                                    break;
-                                }
-
-                        break;
-                }
 			}
+			else if (checkBoxMember.Checked)
+			{
+				if (textBoxFilter.Text.Length > 0)
+				{
+					SymbolInfo ClassInfo = CurrentSymbolAnalyzer.FindSymbolInfo(textBoxFilter.Text);
+					if (ClassInfo != null)
+					{
+						foreach (SymbolInfo symbolInfo in CurrentSymbolAnalyzer.Symbols.Values)
+						{
+							bool foundMember = false;
+							foreach(SymbolMemberInfo member in symbolInfo.Members)
+							{
+								if (member.TypeName != textBoxFilter.Text)
+								{
+									continue;
+								}
+								foundMember = true;
+								break;
+							}
+							if (foundMember)
+								TryAddSymbolToTable(symbolInfo);
+						}
+					}
+				}
+			}
+			else
+			{
+				foreach (var symbolInfo in CurrentSymbolAnalyzer.Symbols.Values)
+				{
+					TryAddSymbolToTable(symbolInfo);
+				}
+			}
+
 			_Table.EndLoadData();
         }
 
@@ -1602,7 +1655,6 @@ namespace CruncherSharp
 
         private void checkBoxMatchCase_CheckedChanged(object sender, EventArgs e)
         {
-            _Table.CaseSensitive = checkBoxMatchCase.Checked;
 			UpdateFilter();
 		}
 
@@ -1700,6 +1752,20 @@ namespace CruncherSharp
 		private void restrictToUObjectsToolStripMenuItem_Click(object sender, EventArgs e)
 		{
 			restrictToUObjectsToolStripMenuItem.Checked = !restrictToUObjectsToolStripMenuItem.Checked;
+			PopulateDataTable();
+		}
+
+		private void checkBoxSubclasses_CheckedChanged(object sender, EventArgs e)
+		{
+			checkBoxMember.Checked = false;
+			UpdateFilter();
+			PopulateDataTable();
+		}
+
+		private void checkBoxMember_CheckedChanged(object sender, EventArgs e)
+		{
+			checkBoxSubclasses.Checked = false;
+			UpdateFilter();
 			PopulateDataTable();
 		}
 	}
