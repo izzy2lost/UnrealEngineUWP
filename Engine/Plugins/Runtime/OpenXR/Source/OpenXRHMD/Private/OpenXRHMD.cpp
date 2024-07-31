@@ -3321,7 +3321,7 @@ void FOpenXRHMD::OnBeginSimulation_GameThread()
 {
 	FReadScopeLock Lock(SessionHandleMutex);
 
-	if (!bShouldWait || !RenderBridge)
+	if (!bShouldWait || (!RenderBridge && !bIsTrackingOnlySession))
 	{
 		return;
 	}
