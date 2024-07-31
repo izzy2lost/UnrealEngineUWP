@@ -250,19 +250,6 @@ namespace UE::LevelSequenceExporterUSD::Private
 					*Guid.ToString()
 				);
 
-				if (AActor* SpawnedActor = Cast<AActor>(Object))
-				{
-					// Rename the spawn to a unique name or else in case of name collisions they will overwrite each other when writing
-					// animation data. The level exporter will rename actors to unique prims by itself though.
-					FString NewLabel = UsdUnreal::ObjectUtils::GetUniqueName(SpawnedActor->GetActorLabel(), UsedActorLabels);
-					if (NewLabel != SpawnedActor->GetActorLabel())
-					{
-						const bool bMarkDirty = false;
-						SpawnedActor->SetActorLabel(NewLabel, bMarkDirty);
-					}
-					UsedActorLabels.Add(NewLabel);
-				}
-
 				ExistingInstancesForGuid.Add(Object);
 				SpawnableIndices.Add(InstanceKey, ExistingInstancesForGuid.Num() - 1);
 			}
@@ -894,7 +881,9 @@ namespace UE::LevelSequenceExporterUSD::Private
 
 				UObject* BoundObject = nullptr;
 
-				// We need to check for custom spawnables here as well
+				// We need to check for custom spawnables here as well.
+				// Note: Now all sequencer bindings are possessables, even the old spawnables. This is why we loop
+				// over all binding references here, and will attempt to use the SpawnRegister even for possessables
 				if (const FMovieSceneBindingReferences* BindingReferences = MovieSceneSequence.GetBindingReferences())
 				{
 					int32 BindingIndex = 0;
