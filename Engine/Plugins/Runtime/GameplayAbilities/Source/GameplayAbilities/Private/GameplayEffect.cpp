@@ -5840,6 +5840,8 @@ bool FGameplayEffectQuery::IsEmpty() const
 {
 	return 
 	(
+		!CustomMatchDelegate.IsBound() &&
+		!CustomMatchDelegate_BP.IsBound() &&
 		OwningTagQuery.IsEmpty() &&
 		EffectTagQuery.IsEmpty() &&
 		SourceAggregateTagQuery.IsEmpty() &&
