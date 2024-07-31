@@ -149,6 +149,21 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 				});
 			}
 		}
+
+		for (TWeakObjectPtr<const UPCGNode> Node : Graph->KernelToNode)
+		{
+			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
+
+			if (Settings)
+			{
+				const UPCGCustomHLSLSettings* KernelSettings = CastChecked<UPCGCustomHLSLSettings>(Settings);
+
+				if (!KernelSettings->IsKernelValid(Context))
+				{
+					return true;
+				}
+			}
+		}
 	}
 
 	check(Context->DataBinding && InContext->SourceComponent.Get());

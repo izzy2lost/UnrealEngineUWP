@@ -3,8 +3,10 @@
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 
 #include "PCGComponent.h"
+#include "PCGContext.h"
 #include "PCGModule.h"
 #include "PCGSettings.h"
+#include "PCGSubsystem.h"
 #include "Compute/PCGDataBinding.h"
 #include "Compute/Elements/PCGComputeGraphElement.h"
 
@@ -13,6 +15,8 @@
 #include "RenderGraphResources.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderParameterMetadataBuilder.h"
+
+#define LOCTEXT_NAMESPACE "PCGDataCollectionDataInterface"
 
 void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
@@ -428,10 +432,6 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddParam(EShaderFundamentalType::Uint); // ElementIndex
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteSinglePointDataCollectionHeader"))
-			.AddParam(EShaderFundamentalType::Uint);
-
-		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("InitializePoint"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
@@ -573,7 +573,35 @@ bool UPCGDataCollectionDataProvider::ProcessReadBackData(FPCGComputeGraphContext
 	}
 
 	FPCGDataCollection DataFromGPU;
-	PinDesc.UnpackDataCollection(RawReadbackData, OutputPinLabelAlias, DataFromGPU);
+	const EPCGUnpackDataCollectionResult Result = PinDesc.UnpackDataCollection(RawReadbackData, OutputPinLabelAlias, DataFromGPU);
+
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING
+	if (Result == EPCGUnpackDataCollectionResult::DataMismatch)
+	{
+		const FText DataMismatchWarningText = FText::Format(
+			LOCTEXT("UnpackDataCollectionDataMismatch", "Mismatch in expected data while unpacking GPU data collection on pin '{0}'. Static analysis does not match the received data. Data collection will be ignored."),
+			FText::FromName(OutputPinLabel));
+
+#if WITH_EDITOR
+		// InContext will be for the compute graph element (injected during compilation). The code below logs against the original
+		// node so that the log will be visible on the graph.
+		if (ensure(InContext->SourceComponent.IsValid() && InContext->SourceComponent.Get()))
+		{
+			if (UPCGSubsystem* Subsystem = InContext->SourceComponent->GetSubsystem())
+			{
+				FPCGStack StackWithNode = InContext->Stack ? *InContext->Stack : FPCGStack();
+				StackWithNode.PushFrame(ProducerSettings->GetOuter());
+				Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Warning, DataMismatchWarningText);
+			}
+		}
+		else
+#endif
+		{
+			PCGE_LOG_C(Warning, LogOnly, InContext, DataMismatchWarningText);
+		}
+	}
+#endif
+
 	RawReadbackData.Reset();
 
 	// Store data in output collection.
@@ -682,3 +710,5 @@ void FPCGDataCollectionDataProviderProxy::GetReadbackData(TArray<FReadbackData>&
 		OutReadbackData.Add(MoveTemp(Data));
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

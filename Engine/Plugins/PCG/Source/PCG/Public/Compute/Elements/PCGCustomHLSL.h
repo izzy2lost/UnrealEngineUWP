@@ -46,6 +46,10 @@ public:
 	UPROPERTY(Transient)
 	bool bDisplayBufferSizeSettings = true;
 #endif // WITH_EDITORONLY_DATA
+
+	/** Add entries to create new attributes on data emitted by this pin. */
+	UPROPERTY(EditAnywhere, DisplayName = "Attributes to Create", Category = Settings)
+	TArray<FPCGKernelAttributeKey> CreatedKernelAttributeKeys;
 };
 
 /** Type of kernel allows us to make decisions about execution automatically, streamlining authoring. */
@@ -94,7 +98,6 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::GPU; }
 #endif
 
-	virtual TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const override;
 	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
 
@@ -113,6 +116,7 @@ protected:
 #if WITH_EDITOR
 	void UpdateDeclarations();
 	void UpdatePinSettings();
+	void UpdateAttributeKeys();
 #endif
 
 public:
@@ -135,6 +139,9 @@ public:
 
 	int GetProcessingElemCountForInputPin(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
 	virtual const UPCGPin* GetExecutionPin() const { return GetPointProcessingInputPin(); }
+
+protected:
+	bool AreKernelAttributesValid(FPCGContext* InContext, FText* OutErrorText) const;
 
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")

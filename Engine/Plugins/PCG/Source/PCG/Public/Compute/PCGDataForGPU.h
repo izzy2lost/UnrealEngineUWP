@@ -11,6 +11,12 @@ class UPCGMetadata;
 class UPCGPin;
 class UPCGSettings;
 
+enum class EPCGUnpackDataCollectionResult
+{
+	Success,
+	DataMismatch
+};
+
 UENUM()
 enum class EPCGKernelAttributeType : uint8
 {
@@ -30,13 +36,13 @@ struct FPCGKernelAttributeKey
 {
 	GENERATED_BODY()
 
-	UPROPERTY(VisibleAnywhere, Category = "Settings")
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
 
-	UPROPERTY(VisibleAnywhere, Category = "Settings")
+	UPROPERTY(EditAnywhere, Category = "Settings")
 	FName Name = NAME_None;
 
-	bool operator==(const FPCGKernelAttributeKey& Other) const { return Type == Other.Type && Name == Other.Name; }
+	bool operator==(const FPCGKernelAttributeKey& Other) const;
 	friend uint32 GetTypeHash(const FPCGKernelAttributeKey& In);
 };
 
@@ -52,6 +58,8 @@ struct FPCGKernelAttributeDesc
 	int32 Index = INDEX_NONE;
 	EPCGKernelAttributeType Type = EPCGKernelAttributeType::Float;
 	FName Name = NAME_None;
+
+	bool operator==(const FPCGKernelAttributeDesc& Other) const;
 };
 
 struct FPCGDataDesc
@@ -86,7 +94,7 @@ struct FPCGDataCollectionDesc
 	void PrepareBufferForKernelOutput(TArray<uint32>& OutPackedDataCollection);
 
 	/** Unpack a buffer of 8-bit uints to a data collection. */
-	void UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const;
+	EPCGUnpackDataCollectionResult UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const;
 
 	/** Compute total number of processing elements of the given type. */
 	uint32 ComputeDataElementCount(EPCGDataType InDataType) const;

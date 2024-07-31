@@ -15,6 +15,9 @@
 
 struct FPCGComputeGraphContext : public FPCGContext
 {
+public:
+	virtual bool IsComputeContext() const override { return true; }
+
 protected:
 	virtual void AddExtraStructReferencedObjects(FReferenceCollector& Collector) override;
 

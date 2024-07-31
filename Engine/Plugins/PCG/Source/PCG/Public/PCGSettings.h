@@ -406,7 +406,7 @@ public:
 	const UPCGSettings* OriginalSettings = nullptr;
 
 	/** Get a list of the attributes read or written by this node. */
-	virtual TArray<FPCGKernelAttributeKey> GetKernelAttributeKeys() const { return {}; }
+	virtual const TArray<FPCGKernelAttributeKey>& GetKernelAttributeKeys() const { return KernelAttributeKeys; }
 
 	/** Compute a description of all data arriving on InputPin. */
 	FPCGDataCollectionDesc ComputeInputPinDataDesc(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
@@ -476,6 +476,12 @@ protected:
 	/** Methods to remove boilerplate code across settings */
 	TArray<FPCGPinProperties> DefaultPointInputPinProperties() const;
 	TArray<FPCGPinProperties> DefaultPointOutputPinProperties() const;
+
+	/** Attributes statically detected as being read, written, or created by this node. */
+	TArray<FPCGKernelAttributeKey> KernelAttributeKeys;
+
+	/** Maps pins to their attribute keys and whether or not they were created on the GPU. */
+	TMap<FName, TArray<TTuple<FPCGKernelAttributeKey, bool /*bCreatedOnGPU*/>>> PinToAttributeKeys;
 
 public:
 #if WITH_EDITORONLY_DATA

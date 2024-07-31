@@ -119,6 +119,9 @@ struct PCG_API FPCGContext
 	/** Time slicing is not enabled by default. */
 	virtual bool TimeSliceIsEnabled() const { return false; }
 
+	/** Is this a context for the compute graph element. */
+	virtual bool IsComputeContext() const { return false; }
+
 #if WITH_EDITOR
 	/** Log warnings and errors to be displayed on node in graph editor. */
 	void LogVisual(ELogVerbosity::Type InVerbosity, const FText& InMessage) const;

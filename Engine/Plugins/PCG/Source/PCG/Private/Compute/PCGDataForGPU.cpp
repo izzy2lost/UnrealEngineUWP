@@ -385,9 +385,19 @@ namespace PCGDataForGPUHelpers
 	}
 }
 
+bool FPCGKernelAttributeKey::operator==(const FPCGKernelAttributeKey& Other) const
+{
+	return Type == Other.Type && Name == Other.Name;
+}
+
 uint32 GetTypeHash(const FPCGKernelAttributeKey& In)
 {
 	return HashCombine(GetTypeHash(In.Type), GetTypeHash(In.Name));
+}
+
+bool FPCGKernelAttributeDesc::operator==(const FPCGKernelAttributeDesc& Other) const
+{
+	return Index == Other.Index && Type == Other.Type && Name == Other.Name;
 }
 
 FPCGDataDesc::FPCGDataDesc(EPCGDataType InType, int InElementCount)
@@ -760,7 +770,7 @@ void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPac
 	}
 }
 
-void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const
+EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedData, FName InPin, FPCGDataCollection& OutDataCollection) const
 {
 	const void* PackedData = InPackedData.GetData();
 	const float* DataAsFloat = static_cast<const float*>(PackedData);
@@ -770,9 +780,9 @@ void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedD
 	const uint32 NumPackedFloats = InPackedData.Num() / 4;
 	const uint32 NumData = DataAsUint[0];
 
-	if (!ensureAlwaysMsgf(NumData == DataDescs.Num(), TEXT("Mismatch in expected data from static analysis and actual received data.")))
+	if (NumData != DataDescs.Num())
 	{
-		return;
+		return EPCGUnpackDataCollectionResult::DataMismatch;
 	}
 
 	TArray<FPCGTaggedData>& OutData = OutDataCollection.TaggedData;
@@ -968,6 +978,8 @@ void FPCGDataCollectionDesc::UnpackDataCollection(const TArray<uint8>& InPackedD
 		}
 		else { /* TODO: Support non-point data. */ }
 	}
+
+	return EPCGUnpackDataCollectionResult::Success;
 }
 
 uint32 FPCGDataCollectionDesc::ComputeDataElementCount(EPCGDataType InDataType) const

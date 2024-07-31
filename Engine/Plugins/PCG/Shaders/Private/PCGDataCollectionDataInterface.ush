@@ -461,48 +461,6 @@ void RemovePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 	SetDensity_{DataInterfaceName}(InDataIndex, InElementIndex, INVALID_DENSITY);
 }
 
-// Write single point data collection header
-void WriteSinglePointDataCollectionHeader_{DataInterfaceName}(uint InPointCount)
-{
-    const uint NumData = 1;
-    WriteNumData_{DataInterfaceName}(NumData);
-    
-	// TODO code gen the various constants here and below rather than hardcoding them.
-    const static uint AttributeStrides[9] = { 3, 4, 3, 3, 3, 4, 1, 1, 1 };
-    
-    for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
-    {
-        const uint DataAddress = 8;
-        const uint Id = 0; // PCG_POINT_DATA_TYPE_ID
-        const uint NumAttributes = 9; // Number of point attributes
-        const uint PreambleSizeBytes = 16; // PCG_POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES
-        const uint NumElements = InPointCount;
-        
-        WriteDataAddress_{DataInterfaceName}(DataIndex, DataAddress);
-        WriteDataId_{DataInterfaceName}(DataAddress, Id);
-        WriteDataNumAttributes_{DataInterfaceName}(DataAddress, NumAttributes);
-        WriteDataPreambleSize_{DataInterfaceName}(DataAddress, PreambleSizeBytes);
-        WriteDataInfo_{DataInterfaceName}(DataAddress, NumElements);
-        
-        const uint AttributeHeadersAddress = DataAddress + PreambleSizeBytes;
-        // TODO: These magic numbers should be code gen'd using the constants in PCGComputeConstants
-        uint CurrentAttributeAddress = AttributeHeadersAddress + 128 * 8; // MAX_NUM_ATTRS * ATTR_HEADER_SIZE_BYTES
-        
-        for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
-        {
-            const uint AttributeHeaderAddress = AttributeHeadersAddress + 8 * AttributeIndex;
-            const uint AttributeId = AttributeIndex; // Point attributes are [0, 8)
-            const uint AttributeStrideBytes = AttributeStrides[AttributeIndex] * 4;
-            const uint AttributeIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
-            
-            WriteAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress, AttributeIdAndStride);
-            WriteAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress, CurrentAttributeAddress);
-            
-            CurrentAttributeAddress += NumElements * AttributeStrideBytes;
-        }
-    }
-}
-
 // Initialize a single point with default values.
 void InitializePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 {
@@ -515,4 +473,6 @@ void InitializePoint_{DataInterfaceName}(uint InDataIndex, uint InElementIndex)
 	SetDensity_{DataInterfaceName}(InDataIndex, InElementIndex, 1.0f);
 	SetSeed_{DataInterfaceName}(InDataIndex, InElementIndex, 42);
 	SetSteepness_{DataInterfaceName}(InDataIndex, InElementIndex, 0.5f);
+	
+	// TODO - code gen initialization of all attributes, or remove this function.
 }
