@@ -191,8 +191,9 @@ function doit(query)
 			$('.bots').html([...botNames].map(s => `<tt>${s.toLowerCase()}</tt>`).join(', '))
 			$('#success-panel').show();
 			$('#control-panel').show();
+			$('#controlpanel').show();
 		},
-		error: function(xhr, error, status) {
+		error: error => {
 			const $errorPanel = $('#error-panel');
 			const errorMsg = error.responseText
 				? error.responseText.replace(/\t/g, '    ')
