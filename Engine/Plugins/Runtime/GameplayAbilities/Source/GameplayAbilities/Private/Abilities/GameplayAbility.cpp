@@ -1830,7 +1830,7 @@ UObject* UGameplayAbility::GetSourceObject(FGameplayAbilitySpecHandle Handle, co
 		UAbilitySystemComponent* const AbilitySystemComponent = ActorInfo->AbilitySystemComponent.Get();
 		if (AbilitySystemComponent != nullptr)
 		{
-			FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);
+			FGameplayAbilitySpec* AbilitySpec = AbilitySystemComponent->FindAbilitySpecFromHandle(Handle, EConsiderPending::All);
 			if (AbilitySpec)
 			{
 				return AbilitySpec->SourceObject.Get();
