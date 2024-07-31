@@ -60,6 +60,7 @@ namespace HeterogeneousVolumes
 	// CVars
 	FIntVector GetVolumeResolution(const IHeterogeneousVolumeInterface*);
 	FIntVector GetLightingCacheResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
+	FIntVector GetAmbientOcclusionResolution(const IHeterogeneousVolumeInterface*, float LODFactor);
 
 	int32 GetDownsampleFactor();
 	FIntPoint GetScaledViewRect(FIntRect ViewRect);
@@ -108,6 +109,8 @@ namespace HeterogeneousVolumes
 	bool ShouldApplyHeightFog();
 	bool ShouldApplyVolumetricFog();
 	bool SupportsOverlappingVolumes();
+	bool EnableAmbientOcclusion();
+	bool UseExistenceMask();
 
 	enum class EFogMode
 	{
@@ -718,6 +721,49 @@ void GenerateRayTracingScene(
 	TConstArrayView<FMatrix> RayTracingTransforms,
 	// Output
 	FRayTracingScene& RayTracingScene
+);
+
+void RenderExistenceMaskWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	const FSceneTextures& SceneTextures,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
+	const FBoxSphereBounds LocalBoxSphereBounds,
+	FIntVector ExistenceMaskTextureResolution,
+	// Output
+	FRDGTextureRef& ExistenceMaskTexture
+);
+
+void DilateExistenceMask(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	// Existence texture data
+	FRDGTextureRef ExistenceMaskTexture,
+	FIntVector ExistenceMaskTextureResolution,
+	// Output
+	FRDGTextureRef& DilatedExistenceTexture
+);
+
+void RenderAmbientOcclusionWithLiveShading(
+	FRDGBuilder& GraphBuilder,
+	// Scene data
+	const FScene* Scene,
+	const FViewInfo& View,
+	const FSceneTextures& SceneTextures,
+	// Object data
+	const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface,
+	const FMaterialRenderProxy* DefaultMaterialRenderProxy,
+	FPersistentPrimitiveIndex PersistentPrimitiveIndex,
+	const FBoxSphereBounds LocalBoxSphereBounds,
+	// Output
+	FRDGTextureRef& AmbientOcclusionTexture
 );
 
 void RenderLightingCacheWithPreshadingHardwareRayTracing(

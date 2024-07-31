@@ -23,6 +23,10 @@
 #define REFERENCE_FAST_PATH 0
 #endif //
 
+#ifndef USE_EXISTENCE_MASK
+#define USE_EXISTENCE_MASK 0
+#endif //
+
 #define USE_CAMERA_AVSM (DIM_USE_ADAPTIVE_VOLUMETRIC_SHADOW_MAP && (SUPPORT_OVERLAPPING_VOLUMES != 0))
 
 #if SUPPORT_OVERLAPPING_VOLUMES
@@ -242,8 +246,26 @@ float3 SampleAlbedo(inout FVolumeSampleContext Context)
 	return Albedo;
 }
 
+int3 AmbientOcclusionResolution;
+Texture3D AmbientOcclusionTexture;
+
+float EvalAmbientOcclusion(float3 WorldPosition)
+{
+	float3 LocalPosition = mul(float4(WorldPosition, 1.0), GetWorldToLocal()).xyz;
+	float3 LocalBoundsMin = GetLocalBoundsOrigin() - GetLocalBoundsExtent();
+	float3 UVW = saturate((LocalPosition - LocalBoundsMin) / (2.0 * GetLocalBoundsExtent()));
+	float MipLevel = 0;
+
+	return Texture3DSampleLevel(
+		AmbientOcclusionTexture,
+		View.SharedTrilinearClampedSampler,
+		UVW,
+		MipLevel);
+}
+
 #include "HeterogeneousVolumesRayMarchingUtils.ush"
 
+Texture3D ExistenceMaskTexture;
 RWTexture3D<float3> RWLightingCacheTexture;
 
 [numthreads(THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D)]
@@ -275,10 +297,15 @@ void RenderLightingCacheWithLiveShadingCS(
 
 	// Existence culling
 	float MipLevel = 0.0f;
+#if USE_EXISTENCE_MASK
+	float Existence = ExistenceMaskTexture.SampleLevel(View.SharedBilinearClampedSampler, UVW, MipLevel).r;
+	if (Existence <= 0.0)
+#else
 	FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalRayOrigin, WorldRayOrigin, MipLevel);
 	float3 Extinction = SampleExtinction(SampleContext);
 	float Epsilon = 1.0e-7;
 	if (all(Extinction < Epsilon))
+#endif
 	{
 #if DIM_LIGHTING_CACHE_MODE == LIGHTING_CACHE_TRANSMITTANCE
 		RWLightingCacheTexture[VoxelIndex] = 1.0f;

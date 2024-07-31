@@ -368,9 +368,10 @@ void RayMarchSingleScattering(
 			float3 Extinction = SampleExtinction(SampleContext);
 			float3 Albedo = SampleAlbedo(SampleContext);
 			float3 ScatteringCoefficient = Albedo * Extinction;
+			float AmbientOcclusion = EvalAmbientOcclusion(WorldPosition);
 
 			// Note: Phase is accounted for in spherical hamonic calculation
-			Radiance += IndirectInscattering * ScatteringCoefficient * Transmittance * StepSize;
+			Radiance += IndirectInscattering * AmbientOcclusion * ScatteringCoefficient * Transmittance * StepSize;
 #endif // DIM_USE_LUMEN_GI
 		}
 

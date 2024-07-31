@@ -406,6 +406,11 @@ float3 ComputeTransmittanceHardwareRayTracing(
 	return Payload.GetTransmittance();
 }
 
+float EvalAmbientOcclusion(float3 WorldPosition)
+{
+	return 1.0;
+}
+
 #define HARDWARE_RAY_TRACING 1
 #include "HeterogeneousVolumesRayMarchingUtils.ush"
 

@@ -109,3 +109,41 @@ void ScreenTileClassificationCS(
 		}
 	}
 }
+
+uint3 TextureResolution;
+Texture3D<uint> UIntTexture3D;
+RWTexture3D<float> RWFloatTexture3D;
+
+[numthreads(THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D)]
+void ConvertTexture3DFixedPointToFloatCS(
+	uint3 DispatchThreadId : SV_DispatchThreadID
+)
+{
+	float Value = float(UIntTexture3D[DispatchThreadId]);
+	RWFloatTexture3D[DispatchThreadId] = Value / 65535.0;
+}
+
+Texture3D ExistenceTexture;
+SamplerState TextureSampler;
+RWTexture3D<float> RWDilatedExistenceTexture;
+
+[numthreads(THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D, THREADGROUP_SIZE_3D)]
+void DilateExistenceMaskCS(
+	uint3 DispatchThreadId : SV_DispatchThreadID
+)
+{
+	if (any(DispatchThreadId > TextureResolution))
+	{
+		return;
+	}
+
+	float3 UVW = DispatchThreadId / (float3)TextureResolution;
+	int MipLevel = 0;
+	float Sample = Texture3DSampleLevel(
+		ExistenceTexture,
+		TextureSampler,
+		UVW,
+		MipLevel);
+
+	RWDilatedExistenceTexture[DispatchThreadId] = Sample > 0.0 ? 1.0 : 0.0;
+}

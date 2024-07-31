@@ -426,6 +426,12 @@ FTraceVoxelResult TraceVoxels(float3 LocalRayOrigin, float3 LocalRayDirection, f
 	return TraceVoxelResult;
 }
 
+// TODO: Implement ambient occlusion for preshading pipeline
+float EvalAmbientOcclusion(float3 WorldPosition)
+{
+	return 1.0;
+}
+
 #include "HeterogeneousVolumesRayMarchingUtils.ush"
 
 RWTexture3D<float3> RWLightingCacheTexture;
