@@ -146,6 +146,15 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bOutputTriangleIds", EditConditionHides))
 	FName TriangleIdAttributeName = TEXT("TriangleId");
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex"))
+	bool bOutputMaterialInfo = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bOutputMaterialInfo", EditConditionHides))
+	FName MaterialIdAttributeName = TEXT("MaterialId");
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Extra", meta = (PCG_Overridable, EditCondition = "SamplingMethod != EPCGMeshSamplingMethod::OnePointPerVertex && bOutputMaterialInfo", EditConditionHides))
+	FName MaterialAttributeName = TEXT("Material");
+
 	/** Each PCG point represents a discretized, volumetric region of world space. The points' Steepness value [0.0 to
 	 * 1.0] establishes how "hard" or "soft" that volume will be represented. From 0, it will ramp up linearly
 	 * increasing its influence over the density from the point's center to up to two times the bounds. At 1, it will
@@ -178,7 +187,7 @@ public:
 
 	using SetPointDensityFunc = void(*)(const FLinearColor&, FPCGPoint&);
 
-	void SetUVValueAndTriangleId(int32 UVChannel, int32 TriangleId, const FVector& BarycentricCoord, FPCGPoint& OutPoint, int32 DataIndex);
+	void SetAttributeValues(int32 UVChannel, int32 TriangleId, const FVector& BarycentricCoord, FPCGPoint& OutPoint, int32 DataIndex);
 	void SetPointColorAndDensity(SetPointDensityFunc SetPointDensityFuncPtr, int32 TriangleId, const FVector& BarycentricCoord, FPCGPoint& OutPoint, int32 DataIndex);
 
 protected:
@@ -200,6 +209,12 @@ public:
 	// Optional attributes.
 	TArray<FPCGMetadataAttribute<FVector2D>*> UVAttributes;
 	TArray<FPCGMetadataAttribute<int32>*> TriangleIdAttributes;
+	TArray<FPCGMetadataAttribute<int32>*> MaterialIdAttributes;
+	TArray<FPCGMetadataAttribute<FSoftObjectPath>*> MaterialAttributes;
+
+	// Material Specific
+	TArray<TArray<UMaterialInterface*>> ComponentMaterialList;
+	TArray<TArray<UMaterialInterface*>> AssetMaterialList;
 
 	// For Poisson sampling, we are starting futures that are not framebound
 	// Store the futures and synchronisation items in the context

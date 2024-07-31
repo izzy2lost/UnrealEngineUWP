@@ -24,7 +24,8 @@ namespace UnrealBuildTool.Rules
 				new string[]
 				{
 					"GeometryCore",
-					"GeometryFramework"
+					"GeometryFramework",
+					"ModelingComponents"
 				}
 			);
 

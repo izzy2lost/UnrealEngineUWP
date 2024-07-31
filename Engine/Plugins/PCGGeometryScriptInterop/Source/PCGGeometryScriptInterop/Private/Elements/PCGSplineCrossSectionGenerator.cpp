@@ -2,6 +2,8 @@
 
 #include "Elements/PCGSplineCrossSectionGenerator.h"
 
+#include "Helpers/PCGGeometryHelpers.h"
+
 #include "PCGContext.h"
 #include "PCGComponent.h"
 #include "Data/PCGPrimitiveData.h"
@@ -313,10 +315,7 @@ bool FPCGSplineCrossSectionGeneratorElement::ExecuteInternal(FPCGContext* Contex
 
 #if WITH_EDITOR
 		// At this point, we're done with GeometryScript for this iteration. Print errors if they occur.
-		for (const FGeometryScriptDebugMessage& Message : DynamicMeshDebug->Messages)
-		{
-			PCGLog::LogWarningOnGraph(FText::Format(LOCTEXT("GeometryScriptError", "GeometryScript Error: {0}"), Message.Message), Context);
-		}
+		PCGGeometryHelpers::GeometryScriptDebugToPCGLog(Context, DynamicMeshDebug);
 #endif // WITH_EDITOR
 
 		if (NumLoops < 1 || PolyPaths.IsEmpty())
