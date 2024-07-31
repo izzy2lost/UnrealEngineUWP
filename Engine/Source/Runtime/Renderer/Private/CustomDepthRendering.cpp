@@ -60,7 +60,7 @@ bool IsCustomDepthPassWritingStencil()
 	return GetCustomDepthMode() == ECustomDepthMode::EnabledWithStencil;
 }
 
-FCustomDepthTextures FCustomDepthTextures::Create(FRDGBuilder& GraphBuilder, FIntPoint CustomDepthExtent, EShaderPlatform ShaderPlatform)
+FCustomDepthTextures FCustomDepthTextures::Create(FRDGBuilder& GraphBuilder, FIntPoint CustomDepthExtent, EShaderPlatform ShaderPlatform, bool bRequireMultiView)
 {
 	if (!IsCustomDepthPassEnabled())
 	{
@@ -82,8 +82,9 @@ FCustomDepthTextures FCustomDepthTextures::Create(FRDGBuilder& GraphBuilder, FIn
 	{
 		CreateFlags |= TexCreate_NoFastClear;
 	}
-
-	const FRDGTextureDesc CustomDepthDesc = FRDGTextureDesc::Create2D(CustomDepthExtent, PF_DepthStencil, FClearValueBinding::DepthFar, CreateFlags);
+	FRDGTextureDesc CustomDepthDesc(bRequireMultiView ?
+		FRDGTextureDesc::Create2DArray(CustomDepthExtent, PF_DepthStencil, FClearValueBinding::DepthFar, CreateFlags, 2) :
+		FRDGTextureDesc::Create2D(CustomDepthExtent, PF_DepthStencil, FClearValueBinding::DepthFar, CreateFlags));
 
 	CustomDepthTextures.Depth = GraphBuilder.CreateTexture(CustomDepthDesc, TEXT("CustomDepth"));
 
@@ -275,7 +276,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 				DepthLoadAction,
 				StencilLoadAction,
 				FExclusiveDepthStencil::DepthWrite_StencilWrite);
-
+			PassParameters->RenderTargets.MultiViewCount = (View.bIsMobileMultiViewEnabled) ? 2 : (View.Aspects.IsMobileMultiViewEnabled() ? 1 : 0);
 			View.ParallelMeshDrawCommandPasses[EMeshPass::CustomDepth].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
 			GraphBuilder.AddPass(

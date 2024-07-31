@@ -364,6 +364,9 @@ void Main(
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(Interpolants, SvPosition);
 	FPixelMaterialInputs PixelMaterialInputs;
 	{
+#if MOBILE_MULTI_VIEW
+		MaterialParameters.ViewId = BasePassInterpolants.MultiViewId;
+#endif
 		float4 ScreenPosition = SvPositionToResolvedScreenPosition(SvPosition);
 		float3 WorldPosition = BasePassInterpolants.PixelPosition.xyz;
 		float3 WorldPositionExcludingWPO = BasePassInterpolants.PixelPosition.xyz;

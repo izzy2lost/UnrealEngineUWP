@@ -46,8 +46,10 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileSceneTextureUniformParameters, ENGIN
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ScenePartialDepthTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, ScenePartialDepthTextureSampler)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, CustomDepthTexture)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, CustomDepthTextureArray)
 	SHADER_PARAMETER_SAMPLER(SamplerState, CustomDepthTextureSampler)
 	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D<uint2>, CustomStencilTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2DArray<uint2>, CustomStencilTextureArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneVelocityTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, SceneVelocityTextureSampler)
 	// GBuffer

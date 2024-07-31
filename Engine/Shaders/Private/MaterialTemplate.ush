@@ -505,6 +505,9 @@ struct FMaterialPixelParameters
 #if IS_NANITE_PASS
 	uint InstanceId;
 #endif
+#if MOBILE_MULTI_VIEW
+	uint ViewId;
+#endif
 
 #if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 	uint CustomDataOffset;
@@ -1044,6 +1047,15 @@ float4 GetScreenPosition(FMaterialVertexParameters Parameters)
 float4 GetScreenPosition(FMaterialPixelParameters Parameters)
 {
 	return Parameters.ScreenPosition;
+}
+
+uint GetViewId(FMaterialPixelParameters Parameters)
+{
+#if MOBILE_MULTI_VIEW
+	return Parameters.ViewId;
+#else
+	return 0;
+#endif
 }
 
 // Returns the pixel's depth, in world units. Works for both orthographic and perspective projections:
@@ -2922,7 +2934,7 @@ MaterialFloat4 MobileSceneTextureLookup(inout FMaterialPixelParameters Parameter
 	}
 #else
 	const float2 PixelPos = UV * View.BufferSizeAndInvSize.xy;
-	FGBufferData GBuffer = MobileFetchAndDecodeGBuffer(UV, PixelPos);
+	FGBufferData GBuffer = MobileFetchAndDecodeGBuffer(UV, PixelPos, GetViewId(Parameters));
 
 	switch(SceneTextureId)
 	{
