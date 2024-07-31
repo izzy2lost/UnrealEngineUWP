@@ -51,9 +51,28 @@ void UMetaHumanComponentUE::SetupCustomizableBodyPart(FMetaHumanCustomizableBody
 
 	BodyPart.SkeletalMeshComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered;
 
-	bool ShouldUsePostProcessAnimBP = (PostProcessAnimBP && (BodyPart.ControlRigClass || BodyPart.PhysicsAsset));
-	if (ShouldUsePostProcessAnimBP)
+	// Retrieve the physics asset as well as the control rig set by the skeletal mesh asset.
+	UPhysicsAsset* SkelMeshPhysicsAsset = nullptr;
+	TSubclassOf<UControlRig> SkelMeshControlRigClass = nullptr;
+	if (USkeletalMesh* SkeletalMeshAsset = BodyPart.SkeletalMeshComponent->GetSkeletalMeshAsset())
 	{
+		if (TSubclassOf<UAnimInstance> PostProcessAnimBPClass = SkeletalMeshAsset->GetPostProcessAnimBlueprint())
+		{
+			if (UAnimInstance* DefaultAnimBP = PostProcessAnimBPClass.GetDefaultObject())
+			{
+				static constexpr FStringView OverridePhysicsAssetPropertyName = TEXTVIEW("Override Physics Asset");
+				MetaHumanComponentHelpers::GetPropertyValue(DefaultAnimBP, OverridePhysicsAssetPropertyName, SkelMeshPhysicsAsset);
+
+				static constexpr FStringView ControlRigClassPropertyName = TEXTVIEW("Control Rig Class");
+				MetaHumanComponentHelpers::GetPropertyValue(DefaultAnimBP, ControlRigClassPropertyName, SkelMeshControlRigClass);
+			}
+		}
+	}
+
+	bool ShouldEvalInstancePostProcessAnimBP = (PostProcessAnimBP && (BodyPart.ControlRigClass || BodyPart.PhysicsAsset) && (BodyPart.PhysicsAsset != SkelMeshPhysicsAsset || BodyPart.ControlRigClass != SkelMeshControlRigClass));
+	if (ShouldEvalInstancePostProcessAnimBP)
+	{
+		// Run post-processing AnimBP on the skeletal mesh component (instance) and overwrite the post-processing AnimBP that might be possibly set on the skeletal mesh asset.
 		LoadAndRunAnimBP(PostProcessAnimBP, BodyPart.SkeletalMeshComponent, /*IsPostProcessingAnimBP*/true, /*RunAsOverridePostAnimBP*/true);
 
 		// Force nulling the leader pose component to disable following another skel mesh component's pose.
@@ -62,6 +81,12 @@ void UMetaHumanComponentUE::SetupCustomizableBodyPart(FMetaHumanCustomizableBody
 	}
 	else
 	{
+		if (SkelMeshPhysicsAsset || SkelMeshControlRigClass)
+		{
+			// Keep running the post-processing AnimBP from the skeletal mesh asset, hook into the variables so we can control its performance and LOD thresholds on the instance.
+			PostConnectAnimBPVariables(BodyPart, BodyPart.SkeletalMeshComponent, BodyPart.SkeletalMeshComponent->GetPostProcessInstance());
+		}
+
 		if (USkeletalMesh* SkeletalMesh = BodyPart.SkeletalMeshComponent->GetSkeletalMeshAsset(); IsValid(SkeletalMesh))
 		{
 			if (!SkeletalMesh->GetPostProcessAnimBlueprint() && !BodyPart.SkeletalMeshComponent->GetAnimInstance())

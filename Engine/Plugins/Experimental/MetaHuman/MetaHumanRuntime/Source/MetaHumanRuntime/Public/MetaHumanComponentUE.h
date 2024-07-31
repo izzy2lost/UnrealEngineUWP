@@ -23,6 +23,11 @@ private:
 	void SetupCustomizableBodyPart(FMetaHumanCustomizableBodyPart& BodyPart);
 	virtual void PostInitAnimBP(USkeletalMeshComponent* SkeletalMeshComponent, UAnimInstance* AnimInstance) const override final;
 
-	UPROPERTY(EditAnywhere, Category = BodyParts)
+	/**
+	 * The post-processing AnimBP to use for the body parts when either the physics asset or the control rig are set.
+	 * Use the ABP_Clothing_PostProcess shipped along with MetaHumans. The MetaHuman component will control given variables
+	 * to e.g. set the LOD thresholds.
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = BodyParts)
 	TSoftClassPtr<UAnimInstance> PostProcessAnimBP;
 };

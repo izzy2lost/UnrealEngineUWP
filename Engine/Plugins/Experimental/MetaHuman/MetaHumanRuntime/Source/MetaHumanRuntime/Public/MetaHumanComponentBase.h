@@ -28,6 +28,17 @@ namespace MetaHumanComponentHelpers
 			}
 		}
 	}
+
+	template<typename T>
+	static bool GetPropertyValue(UObject* InObject, FStringView InPropertyName, T& OutPropertyValue)
+	{
+		if (FProperty* Property = InObject->GetClass()->FindPropertyByName(FName{ InPropertyName }))
+		{
+			Property->GetValue_InContainer(InObject, &OutPropertyValue);
+			return true;
+		}
+		return false;
+	}
 }
 
 USTRUCT()
