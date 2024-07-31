@@ -91,6 +91,7 @@ namespace Jupiter
 			services.AddOptions<S3Settings>().Bind(Configuration.GetSection("S3")).ValidateDataAnnotations();
 			services.AddOptions<AzureSettings>().Bind(Configuration.GetSection("Azure")).ValidateDataAnnotations();
 			services.AddOptions<FilesystemSettings>().Bind(Configuration.GetSection("Filesystem")).ValidateDataAnnotations();
+			services.AddOptions<DebugSettings>().Bind(Configuration.GetSection("Debug")).ValidateDataAnnotations();
 
 			services.AddOptions<NginxSettings>().Bind(Configuration.GetSection("Nginx")).ValidateDataAnnotations();
 
