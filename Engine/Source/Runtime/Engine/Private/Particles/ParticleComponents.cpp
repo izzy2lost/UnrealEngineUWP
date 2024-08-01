@@ -163,6 +163,8 @@ void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecachePara
 		PrecachePSOsEvent = ReleasePrecachePSOsEventTask->GetCompletionEvent();
 		ReleasePrecachePSOsEventTask->Unlock();
 	}
+
+	PSOPrecachingLaunched = true;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -207,6 +209,17 @@ FAutoConsoleVariableRef CVarFXSkipZeroDeltaTime(
 	GFXSkipZeroDeltaTime,
 	TEXT("When enabled a delta tick time of nearly 0.0 will cause us to skip the component update.\n")
 	TEXT("This fixes issue like PSA_Velocity aligned sprites, but could cause issues with things that rely on accurate velocities (i.e. TSR)."),
+	ECVF_Default);
+
+int32 GCascadePSOPrecachingTime = 1;
+FAutoConsoleVariableRef CVarCascadePSOPrecachingTime(
+	TEXT("r.PSOPrecache.CascadePrecachingTime"),
+	GCascadePSOPrecachingTime,
+	TEXT("Controls when PSO precaching happens for Cascade systems:\n")
+	TEXT("	0: no precaching\n")
+	TEXT("	1: precaching at asset loading time (default)\n")
+	TEXT("	2: precaching at component loading time\n")
+	TEXT("	3: precaching at component proxy creation time"),
 	ECVF_Default);
 
 /** Whether to allow particle systems to perform work. */
@@ -2583,7 +2596,10 @@ void UParticleSystem::PostLoad()
 		}
 	}
 
-	PrecachePSOs();
+	if (GCascadePSOPrecachingTime == 1)
+	{
+		PrecachePSOs();
+	}
 
 #if WITH_EDITOR
 	// Due to there still being some ways that LODLevel counts get mismatched,
@@ -2687,8 +2703,7 @@ void UParticleSystem::PostLoad()
 
 void UParticleSystem::PrecachePSOs()
 {
-	// Only precache if asset precaching is enabled and at least one of component or resource precaching is enabled.
-	if (!IsAssetPSOPrecachingEnabled() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}
@@ -3541,7 +3556,7 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
 #if UE_WITH_PSO_PRECACHING
-	if (!FApp::CanEverRender() || !IsAssetPSOPrecachingEnabled() || FXSystemAsset == nullptr)
+	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || FXSystemAsset == nullptr)
 	{
 		return;
 	}
@@ -3949,6 +3964,12 @@ void UParticleSystemComponent::PostLoad()
 	if (ShouldBeTickManaged())
 	{
 		PrimaryComponentTick.bStartWithTickEnabled = false;
+	}
+
+	if (Template && GCascadePSOPrecachingTime == 2)
+	{
+		Template->ConditionalPostLoad();
+		Template->PrecachePSOs();
 	}
 }
 

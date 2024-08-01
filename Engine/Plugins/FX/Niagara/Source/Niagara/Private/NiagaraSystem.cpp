@@ -139,6 +139,13 @@ static FAutoConsoleVariableRef CVarNiagaraCompileWaitLoggingTerminationCap(
 	ECVF_Default
 );
 
+int32 GNiagaraPrecachePSOAtAssetLoadingTime = 1;
+FAutoConsoleVariableRef CVarNiagaraPrecachePSOAtAssetLoadingTime(
+	TEXT("r.PSOPrecache.NiagaraPrecachePSOAtAssetLoadingTime"),
+	GNiagaraPrecachePSOAtAssetLoadingTime,
+	TEXT("Controls whether Niagara systems start PSO precaching at asset loading time (1 = default) or only when activated (0)."),
+	ECVF_Default);
+
 #if WITH_EDITORONLY_DATA
 static int GNiagaraOnDemandCompileEnabled = 1;
 static FAutoConsoleVariableRef CVarNiagaraOnDemandCompileEnabled(
@@ -1291,7 +1298,10 @@ void UNiagaraSystem::PostLoad()
 	}
 #endif // WITH_EDITORONLY_DATA
 
-	PrecachePSOs();
+	if (GNiagaraPrecachePSOAtAssetLoadingTime)
+	{
+		PrecachePSOs();
+	}
 }
 
 void UNiagaraSystem::PostDuplicate(bool bDuplicateForPIE)
@@ -1347,8 +1357,7 @@ void UNiagaraSystem::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutCons
 
 void UNiagaraSystem::PrecachePSOs()
 {
-	// Only precache if asset precaching is enabled and at least one of component or resource precaching is enabled.
-	if (!IsAssetPSOPrecachingEnabled() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
+	if (HasLaunchedPSOPrecaching() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}

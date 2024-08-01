@@ -101,6 +101,9 @@ float GMinParticleDrawTimeToTrack = .0001f;
 /** Whether to do LOD calculation on GameThread in game */
 extern bool GbEnableGameThreadLODCalculation;
 
+/** When to precache Cascade systems' PSOs */
+extern int32 GCascadePSOPrecachingTime;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -6947,6 +6950,10 @@ FPrimitiveSceneProxy* UParticleSystemComponent::CreateSceneProxy()
 #if UE_WITH_PSO_PRECACHING
 		if (!bPSOPrecacheCalled)
 		{
+			if (GCascadePSOPrecachingTime == 3)
+			{
+				Template->PrecachePSOs();
+			}
 			PrecacheAssetPSOs(Template);
 		}
 

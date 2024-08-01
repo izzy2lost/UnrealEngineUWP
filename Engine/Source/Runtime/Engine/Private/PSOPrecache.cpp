@@ -31,14 +31,6 @@ static FAutoConsoleVariableRef CVarPSOPrecacheResources(
 	ECVF_ReadOnly
 );
 
-int32 GPSOPrecacheAssets = 1;
-static FAutoConsoleVariableRef CVarPSOPrecacheAssets(
-	TEXT("r.PSOPrecache.Assets"),
-	GPSOPrecacheAssets,
-	TEXT("Precache all possible used PSOs by assets during Postload (default 1 if PSOPrecaching is enabled). This affects Niagara and Cascade assets."),
-	ECVF_ReadOnly
-);
-
 int32 GPSOProxyCreationWhenPSOReady = 1;
 static FAutoConsoleVariableRef CVarPSOProxyCreationWhenPSOReady(
 	TEXT("r.PSOPrecache.ProxyCreationWhenPSOReady"),
@@ -68,11 +60,6 @@ static FAutoConsoleVariableRef CVarPSOComponentBoostStrategy(
 	TEXT("1 if the component has been rendered then increase the priority of it's PSO precache requests. (this requires r.PSOPrecache.ProxyCreationDelayStrategy == 1.)"),
 	ECVF_ReadOnly
 );
-
-bool IsAssetPSOPrecachingEnabled()
-{
-	return FApp::CanEverRender() && PipelineStateCache::IsPSOPrecachingEnabled() && GPSOPrecacheAssets && !GIsEditor;
-}
 
 bool IsComponentPSOPrecachingEnabled()
 {

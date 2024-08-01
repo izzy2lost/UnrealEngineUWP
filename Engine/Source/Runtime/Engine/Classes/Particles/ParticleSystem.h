@@ -137,6 +137,7 @@ public:
 	mutable FParticlePerfStats* ParticlePerfStats = nullptr;
 #endif
 
+	const bool HasLaunchedPSOPrecaching() const { return PSOPrecachingLaunched; }
 	const FGraphEventRef& GetPrecachePSOsEvent() const { return PrecachePSOsEvent; }
 	const TArray<FMaterialPSOPrecacheRequestID>& GetMaterialPSOPrecacheRequestIDs() const { return MaterialPSOPrecacheRequestIDs; }
 
@@ -144,6 +145,7 @@ protected:
 	
 	ENGINE_API void LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& VFsPerMaterials);
 
+	bool PSOPrecachingLaunched = false;
 	FGraphEventRef PrecachePSOsEvent;
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
 };
