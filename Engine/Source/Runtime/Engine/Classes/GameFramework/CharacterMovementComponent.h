@@ -2885,14 +2885,9 @@ FORCEINLINE uint32 UCharacterMovementComponent::PackYawAndPitchTo32(const float 
 	return Rotation32;
 }
 
-class FSavedMove_Character_FixLayout
-{
-public:
-	virtual ~FSavedMove_Character_FixLayout() = default;
-};
 
 /** FSavedMove_Character represents a saved move on the client that has been sent to the server and might need to be played back. */
-class FSavedMove_Character : public FSavedMove_Character_FixLayout
+class FSavedMove_Character
 {
 public:
 	ENGINE_API FSavedMove_Character();
@@ -2906,24 +2901,17 @@ public:
 
 	ACharacter* CharacterOwner;
 
-	uint8 bPressedJump:1;
-	uint8 bWantsToCrouch:1;
-	uint8 bForceMaxAccel:1;
+	uint32 bPressedJump:1;
+	uint32 bWantsToCrouch:1;
+	uint32 bForceMaxAccel:1;
 
 	/** If true, can't combine this move with another move. */
-	uint8 bForceNoCombine:1;
+	uint32 bForceNoCombine:1;
 
 	/** If true this move is using an old TimeStamp, before a reset occurred. */
-	uint8 bOldTimeStampBeforeReset:1;
+	uint32 bOldTimeStampBeforeReset:1;
 
-	uint8 bWasJumping:1;
-
-	UE_DEPRECATED_FORGAME(4.20, "This property is deprecated, use StartPackedMovementMode or EndPackedMovementMode instead.")
-	uint8 MovementMode;
-
-	// Information at the start of the move
-	uint8 StartPackedMovementMode;
-	uint8 EndPackedMovementMode;
+	uint32 bWasJumping:1;
 
 	float TimeStamp;    // Time of this move.
 	float DeltaTime;    // amount of time for this move
@@ -2933,6 +2921,11 @@ public:
 	int32 JumpMaxCount;
 	int32 JumpCurrentCount;
 	
+	UE_DEPRECATED_FORGAME(4.20, "This property is deprecated, use StartPackedMovementMode or EndPackedMovementMode instead.")
+	uint8 MovementMode;
+
+	// Information at the start of the move
+	uint8 StartPackedMovementMode;
 	FVector StartLocation;
 	FVector StartRelativeLocation;
 	FVector StartVelocity;
@@ -2952,6 +2945,7 @@ public:
 	FRotator StartAttachRelativeRotation;
 
 	// Information after the move has been performed
+	uint8 EndPackedMovementMode;
 	FVector SavedLocation;
 	FRotator SavedRotation;
 	FVector SavedVelocity;

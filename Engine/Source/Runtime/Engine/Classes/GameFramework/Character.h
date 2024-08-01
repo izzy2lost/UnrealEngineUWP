@@ -17,7 +17,6 @@
 #include "GameFramework/RootMotionSource.h"
 #include "Character.generated.h"
 
-class ACharacter;
 class AController;
 class FDebugDisplayInfo;
 class UAnimMontage;
@@ -33,8 +32,8 @@ struct FCharacterAsyncOutput;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMovementModeChangedSignature, class ACharacter*, Character, EMovementMode, PrevMovementMode, uint8, PreviousCustomMode);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FCharacterMovementUpdatedSignature, float, DeltaSeconds, FVector, OldLocation, FVector, OldVelocity);
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE(FCharacterReachedApexSignature, ACharacter, OnReachedJumpApex);
-DECLARE_DYNAMIC_MULTICAST_SPARSE_DELEGATE_OneParam(FLandedSignature, ACharacter, LandedDelegate, const FHitResult&, Hit);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FCharacterReachedApexSignature);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FLandedSignature, const FHitResult&, Hit);
 
 // CVars
 namespace CharacterCVars
@@ -48,6 +47,10 @@ struct FRepRootMotionMontage
 {
 	GENERATED_USTRUCT_BODY()
 
+	/** Whether this has useful/active data. */
+	UPROPERTY()
+	bool bIsActive = false;
+
 #if WITH_EDITORONLY_DATA
 	/** AnimMontage providing Root Motion */
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "Use the GetAnimMontage function instead"))
@@ -57,18 +60,6 @@ struct FRepRootMotionMontage
 	/** Animation providing Root Motion */
 	UPROPERTY()
 	TObjectPtr<UAnimSequenceBase> Animation = nullptr;
-
-	/** Whether this has useful/active data. */
-	UPROPERTY()
-	bool bIsActive = false;
-
-	/** Additional replicated flag, if MovementBase can't be resolved on the client. So we don't use wrong data. */
-	UPROPERTY()
-	bool bRelativePosition = false;
-
-	/** Whether rotation is relative or absolute. */
-	UPROPERTY()
-	bool bRelativeRotation = false;
 
 	/** Track position of Montage */
 	UPROPERTY()
@@ -89,6 +80,14 @@ struct FRepRootMotionMontage
 	/** Bone on the MovementBase, if a skeletal mesh. */
 	UPROPERTY()
 	FName MovementBaseBoneName;
+
+	/** Additional replicated flag, if MovementBase can't be resolved on the client. So we don't use wrong data. */
+	UPROPERTY()
+	bool bRelativePosition = false;
+
+	/** Whether rotation is relative or absolute. */
+	UPROPERTY()
+	bool bRelativeRotation = false;
 
 	/** State of Root Motion Sources on Authority */
 	UPROPERTY()
@@ -187,25 +186,13 @@ struct FBasedMovementInfo
 	UPROPERTY()
 	uint16 BaseID = 0;
 
-	/** Whether the server says that there is a base. On clients, the component may not have resolved yet. */
+	/** Component we are based on */
 	UPROPERTY()
-	uint8 bServerHasBaseComponent:1 = false;
-
-	/** Whether rotation is relative to the base or absolute. It can only be relative if location is also relative. */
-	UPROPERTY()
-	uint8 bRelativeRotation:1 = false;
-
-	/** Whether there is a velocity on the server. Used for forcing replication when velocity goes to zero. */
-	UPROPERTY()
-	uint8 bServerHasVelocity:1 = false;
+	TObjectPtr<UPrimitiveComponent> MovementBase = nullptr;
 
 	/** Bone name on component, for skeletal meshes. NAME_None if not a skeletal mesh or if bone is invalid. */
 	UPROPERTY()
 	FName BoneName;
-
-	/** Component we are based on */
-	UPROPERTY()
-	TObjectPtr<UPrimitiveComponent> MovementBase = nullptr;
 
 	/** Location relative to MovementBase. Only valid if HasRelativeLocation() is true. */
 	UPROPERTY()
@@ -214,6 +201,18 @@ struct FBasedMovementInfo
 	/** Rotation: relative to MovementBase if HasRelativeRotation() is true, absolute otherwise. */
 	UPROPERTY()
 	FRotator Rotation = FRotator(0.f);
+
+	/** Whether the server says that there is a base. On clients, the component may not have resolved yet. */
+	UPROPERTY()
+	bool bServerHasBaseComponent = false;
+
+	/** Whether rotation is relative to the base or absolute. It can only be relative if location is also relative. */
+	UPROPERTY()
+	bool bRelativeRotation = false;
+
+	/** Whether there is a velocity on the server. Used for forcing replication when velocity goes to zero. */
+	UPROPERTY()
+	bool bServerHasVelocity = false;
 
 	/** Is location relative? */
 	FORCEINLINE bool HasRelativeLocation() const
@@ -440,6 +439,10 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_ReplicatedBasedMovement)
 	struct FBasedMovementInfo ReplicatedBasedMovement;
 
+	/** Scale to apply to root motion translation on this Character */
+	UPROPERTY(Replicated)
+	float AnimRootMotionTranslationScale;
+
 public:
 	/** Rep notify for ReplicatedBasedMovement */
 	UFUNCTION()
@@ -452,6 +455,17 @@ protected:
 	/** Whether this Character should include acceleration data in its replicated movement */
 	ENGINE_API virtual bool ShouldReplicateAcceleration() const { return CharacterCVars::EnableCharacterAccelerationReplication != 0; }
 
+	/** Saved translation offset of mesh. */
+	UPROPERTY()
+	FVector BaseTranslationOffset;
+
+	/** Saved rotation offset of mesh. */
+	UPROPERTY()
+	FQuat BaseRotationOffset;
+
+	/** Event called after actor's base changes (if SetBase was requested to notify us with bNotifyPawn). */
+	ENGINE_API virtual void BaseChange();
+
 	/** CharacterMovement ServerLastTransformUpdateTimeStamp value, replicated to simulated proxies. */
 	UPROPERTY(Replicated)
 	float ReplicatedServerLastTransformUpdateTimeStamp;
@@ -459,28 +473,20 @@ protected:
 	UPROPERTY(ReplicatedUsing=OnRep_ReplayLastTransformUpdateTimeStamp)
 	float ReplayLastTransformUpdateTimeStamp;
 
-	/** Saved rotation offset of mesh. */
-	UPROPERTY()
-	FQuat BaseRotationOffset;
-
-	/** Saved translation offset of mesh. */
-	UPROPERTY()
-	FVector BaseTranslationOffset;
-
-	/** Event called after actor's base changes (if SetBase was requested to notify us with bNotifyPawn). */
-	ENGINE_API virtual void BaseChange();
+	/** CharacterMovement MovementMode (and custom mode) replicated for simulated proxies. Use CharacterMovementComponent::UnpackNetworkMovementMode() to translate it. */
+	UPROPERTY(Replicated)
+	uint8 ReplicatedMovementMode;
 
 	/** CharacterMovement Custom gravity direction replicated for simulated proxies. */
 	UPROPERTY(Replicated)
 	FVector_NetQuantizeNormal ReplicatedGravityDirection;
 
+	/** Flag that we are receiving replication of the based movement. */
+	UPROPERTY()
+	bool bInBaseReplication;
+
 	/** Cached version of the replicated gravity direction before replication. Used to compare if the value was changed as a result of replication. */
 	FVector_NetQuantizeNormal PreNetReceivedGravityDirection;
-
-	/** Scale to apply to root motion translation on this Character */
-	UPROPERTY(Replicated)
-	float AnimRootMotionTranslationScale;
-
 public:
 	UFUNCTION()
 	ENGINE_API void OnRep_ReplayLastTransformUpdateTimeStamp();
@@ -524,19 +530,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
 	float CrouchedEyeHeight;
 
-protected:
-	/** Flag that we are receiving replication of the based movement. */
-	UPROPERTY()
-	uint8 bInBaseReplication:1;
-
-public:
 	/** Set by character movement to specify that this Character is currently crouched. */
 	UPROPERTY(BlueprintReadOnly, replicatedUsing=OnRep_IsCrouched, Category=Character)
-	uint8 bIsCrouched:1;
+	uint32 bIsCrouched:1;
 
 	/** Set to indicate that this Character is currently under the force of a jump (if JumpMaxHoldTime is non-zero). IsJumpProvidingForce() handles this as well. */
 	UPROPERTY(Transient, Replicated)
-	uint8 bProxyIsJumpForceApplied : 1;
+	uint32 bProxyIsJumpForceApplied : 1;
 
 	/** Handle Crouching replicated from server */
 	UFUNCTION()
@@ -544,45 +544,39 @@ public:
 
 	/** When true, player wants to jump */
 	UPROPERTY(BlueprintReadOnly, Category=Character)
-	uint8 bPressedJump:1;
+	uint32 bPressedJump:1;
 
 	/** When true, applying updates to network client (replaying saved moves for a locally controlled character) */
 	UPROPERTY(Transient)
-	uint8 bClientUpdating:1;
+	uint32 bClientUpdating:1;
 
 	/** True if Pawn was initially falling when started to replay network moves. */
 	UPROPERTY(Transient)
-	uint8 bClientWasFalling:1; 
+	uint32 bClientWasFalling:1; 
 
 	/** If server disagrees with root motion track position, client has to resimulate root motion from last AckedMove. */
 	UPROPERTY(Transient)
-	uint8 bClientResimulateRootMotion:1;
+	uint32 bClientResimulateRootMotion:1;
 
 	/** If server disagrees with root motion state, client has to resimulate root motion from last AckedMove. */
 	UPROPERTY(Transient)
-	uint8 bClientResimulateRootMotionSources:1;
+	uint32 bClientResimulateRootMotionSources:1;
 
 	/** Disable simulated gravity (set when character encroaches geometry on client, to keep it from falling through floors) */
 	UPROPERTY()
-	uint8 bSimGravityDisabled:1;
+	uint32 bSimGravityDisabled:1;
 
 	UPROPERTY(Transient)
-	uint8 bClientCheckEncroachmentOnNetUpdate:1;
+	uint32 bClientCheckEncroachmentOnNetUpdate:1;
 
 	/** Disable root motion on the server. When receiving a DualServerMove, where the first move is not root motion and the second is. */
 	UPROPERTY(Transient)
-	uint8 bServerMoveIgnoreRootMotion:1;
+	uint32 bServerMoveIgnoreRootMotion:1;
 
 	/** Tracks whether or not the character was already jumping last frame. */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category=Character)
-	uint8 bWasJumping : 1;
+	uint32 bWasJumping : 1;
 
-protected:
-	/** CharacterMovement MovementMode (and custom mode) replicated for simulated proxies. Use CharacterMovementComponent::UnpackNetworkMovementMode() to translate it. */
-	UPROPERTY(Replicated)
-	uint8 ReplicatedMovementMode;
-
-public:
 	/** 
 	 * Jump key Held Time.
 	 * This is the time that the player has held the jump key, in seconds.

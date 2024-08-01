@@ -1225,7 +1225,7 @@ void ACharacter::OnRep_ReplicatedBasedMovement()
 	}
 
 	CharacterMovement->bNetworkUpdateReceived = true;
-	FGuardValue_Bitfield(bInBaseReplication, true);
+	TGuardValue<bool> bInBaseReplicationGuard(bInBaseReplication, true);
 
 	const bool bBaseChanged = (BasedMovement.MovementBase != ReplicatedBasedMovement.MovementBase || BasedMovement.BoneName != ReplicatedBasedMovement.BoneName);
 	if (bBaseChanged)
