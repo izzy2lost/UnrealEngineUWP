@@ -34,7 +34,17 @@ void FPreLoadScreenBase::InitSettingsFromConfig(const FString& ConfigFileName)
         float TimeToDisplayEachBackground = 5.0f;
         Config->GetFloat(*UIConfigSection, TEXT("TimeToDisplayEachBackground"), TimeToDisplayEachBackground);
         FPreLoadSettingsContainerBase::Get().TimeToDisplayEachBackground = TimeToDisplayEachBackground;
-
+    	
+        //Parse time to recheck notifications time
+        float TimeToRecheckNotificationsPermission = 1.0f;
+        Config->GetFloat(*UIConfigSection, TEXT("TimeToRecheckNotificationsPermission"), TimeToRecheckNotificationsPermission);
+    	FPreLoadSettingsContainerBase::Get().TimeToRecheckNotificationsPermission = TimeToRecheckNotificationsPermission;
+    	
+    	//Parse time to show the notifications permission modal
+    	float TimeToShowNotificationsPermissionModal = 2.0f;
+    	Config->GetFloat(*UIConfigSection, TEXT("TimeToShowNotificationsPermissionModal"), TimeToShowNotificationsPermissionModal);
+    	FPreLoadSettingsContainerBase::Get().TimeToShowNotificationsPermissionModal = TimeToShowNotificationsPermissionModal;
+        
 		//Parse LoadingGroups. You want to do this before ScreenGroupings and CustomImageBrushes
 		TArray<FString> LoadingGroups;
 		Config->GetArray(*UIConfigSection, TEXT("LoadingGroups"), LoadingGroups);

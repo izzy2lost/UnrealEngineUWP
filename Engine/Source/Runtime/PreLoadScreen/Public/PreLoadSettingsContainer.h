@@ -150,6 +150,8 @@ public:
 	PRELOADSCREEN_API virtual void SetShouldLoadBrushes(bool bInShouldLoadBrushes);
 
     float TimeToDisplayEachBackground;
+	float TimeToRecheckNotificationsPermission;
+	float TimeToShowNotificationsPermissionModal;
     
 	FName GetCurrentLoadGrouping() const { return CurrentLoadGroup; }
 	PRELOADSCREEN_API void LoadGrouping(FName Identifier);
