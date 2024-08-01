@@ -8,6 +8,7 @@
 #include "IDetailChildrenBuilder.h"
 #include "IPropertyUtilities.h"
 #include "ScopedTransaction.h"
+#include "StateTreeDescriptionHelpers.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
 #include "StateTreeEditorNodeUtils.h"
@@ -389,92 +390,14 @@ bool FStateTreeTransitionDetails::GetDelayTransition() const
 FText FStateTreeTransitionDetails::GetDescription() const
 {
 	check(StateProperty);
-	if (StateProperty->GetNumPerObjectValues() != 1)
+
+	const FStateTreeTransition* Transition = UE::StateTree::PropertyHelpers::GetStructPtr<FStateTreeTransition>(StructProperty);
+	if (!Transition)
 	{
 		return LOCTEXT("MultipleSelected", "Multiple Selected");
 	}
 
-	const EStateTreeTransitionTrigger Trigger = GetTrigger();
-
-	FText TriggerText;
-	if (Trigger == EStateTreeTransitionTrigger::OnStateCompleted)
-	{
-		TriggerText = LOCTEXT("TransitionOnStateCompleted", "<b>On State Completed</>");
-	}
-	else if (Trigger == EStateTreeTransitionTrigger::OnStateSucceeded)
-	{
-		TriggerText = LOCTEXT("TransitionOnStateSucceeded", "<b>On State Succeeded</>");
-	}
-	else if (Trigger == EStateTreeTransitionTrigger::OnStateFailed)
-	{
-		TriggerText = LOCTEXT("TransitionOnStateFailed", "<b>On State Failed</>");
-	}
-	else if (Trigger == EStateTreeTransitionTrigger::OnTick)
-	{
-		TriggerText = LOCTEXT("TransitionOnTick", "<b>On Tick</>");
-	}
-	else if (Trigger == EStateTreeTransitionTrigger::OnEvent)
-	{
-		FStateTreeEventDesc RequiredEvent;
-		UE::StateTree::PropertyHelpers::GetStructValue<FStateTreeEventDesc>(RequiredEventProperty, RequiredEvent);
-
-		TArray<FText> PayloadItems;
-		
-		if (RequiredEvent.IsValid())
-		{
-			if (RequiredEvent.Tag.IsValid())
-			{
-				PayloadItems.Add(FText::Format(LOCTEXT("TransitionEventTag", "<s>Tag:</> '{0}'"), FText::FromName(RequiredEvent.Tag.GetTagName())));
-			}
-			
-			if (RequiredEvent.PayloadStruct)
-			{
-				PayloadItems.Add(FText::Format(LOCTEXT("TransitionEventPayload", "<s>Payload:</> '{0}'"), RequiredEvent.PayloadStruct->GetDisplayNameText()));
-			}
-		}
-		else
-		{
-			PayloadItems.Add(LOCTEXT("TransitionInvalidEvent", "Invalid"));
-		}
-		
-		TriggerText = FText::Format(LOCTEXT("TransitionOnEvent", "<b>On Event</> ({0})"), FText::Join(INVTEXT(", "), PayloadItems));
-	}
-
-	
-	FText TargetText;
-	TArray<void*> RawData;
-	StateProperty->AccessRawData(RawData);
-	check(RawData.Num() > 0);
-	
-	const FStateTreeStateLink* State = static_cast<FStateTreeStateLink*>(RawData[0]);
-	if (State != nullptr)
-	{
-		switch (State->LinkType)
-		{
-		case EStateTreeTransitionType::None:
-			TargetText = LOCTEXT("TransitionNone", "<i>None</>");
-			break;
-		case EStateTreeTransitionType::Succeeded:
-			TargetText = LOCTEXT("TransitionTreeSucceeded", "<s>return</> <i>Tree Succeeded</>");
-			break;
-		case EStateTreeTransitionType::Failed:
-			TargetText = LOCTEXT("TransitionTreeFailed", "<s>return</> <i>Tree Failed</>");
-			break;
-		case EStateTreeTransitionType::NextState:
-			TargetText = LOCTEXT("TransitionNextState", "<s>go to</> <i>Next State</>");
-			break;
-		case EStateTreeTransitionType::NextSelectableState:
-			TargetText = LOCTEXT("TransitionNextSelectableState", "<s>go to</> <i>Next Selectable State</>");
-			break;
-		case EStateTreeTransitionType::GotoState:
-			{
-				TargetText = FText::Format(LOCTEXT("TransitionGotoState", "<s>go to</> {0}"), FText::FromName(State->Name));
-			}
-			break;
-		}
-	}
-
-	return FText::Format(LOCTEXT("TransitionDesc", "{0} {1}"), TriggerText, TargetText);
+	return UE::StateTree::Editor::GetTransitionDesc(GetEditorData(), *Transition, EStateTreeNodeFormatting::RichText);
 }
 
 void FStateTreeTransitionDetails::OnCopyTransition() const

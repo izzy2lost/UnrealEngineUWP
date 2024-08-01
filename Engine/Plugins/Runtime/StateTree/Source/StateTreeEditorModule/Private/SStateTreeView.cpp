@@ -64,7 +64,7 @@ void SStateTreeView::Construct(const FArguments& InArgs, TSharedRef<FStateTreeVi
 		.OnSelectionChanged(this, &SStateTreeView::HandleTreeSelectionChanged)
 		.OnExpansionChanged(this, &SStateTreeView::HandleTreeExpansionChanged)
 		.OnContextMenuOpening(this, &SStateTreeView::HandleContextMenuOpening)
-		.AllowOverscroll(EAllowOverscroll::No)
+		.AllowOverscroll(EAllowOverscroll::Yes)
 		.ExternalScrollbar(VerticalScrollBar);
 
 	ChildSlot
@@ -404,6 +404,14 @@ void SStateTreeView::HandleModelStatesChanged(const TSet<UStateTreeState*>& Affe
 	// The purpose of the rebuild below is to update the task visualization (number of widgets change).
 	// This method is called when anything in a state changes, make sure to only rebuild when needed.
 	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeState, Tasks))
+	{
+		bArraysChanged = true;
+	}
+	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeState, Transitions))
+	{
+		bArraysChanged = true;
+	}
+	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UStateTreeState, EnterConditions))
 	{
 		bArraysChanged = true;
 	}

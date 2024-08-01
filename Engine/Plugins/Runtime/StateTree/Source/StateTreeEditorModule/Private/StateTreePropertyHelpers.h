@@ -86,6 +86,32 @@ FPropertyAccess::Result GetStructValue(const TSharedPtr<const IPropertyHandle>& 
 }
 
 /**
+ * Returns const pointer to struct container in the property.
+ * @param ValueProperty Handle to property where value is got from.
+ * @return Pointer to the struct, or nullptr if type does not match or multiple values.
+ */
+template<typename T>
+const T* GetStructPtr(const TSharedPtr<const IPropertyHandle>& ValueProperty)
+{
+	if (!ValueProperty)
+	{
+		return nullptr;
+	}
+
+	FStructProperty* StructProperty = CastFieldChecked<FStructProperty>(ValueProperty->GetProperty());
+	check(StructProperty);
+	check(StructProperty->Struct == TBaseStructure<T>::Get());
+
+	TArray<const void*> RawData;
+	ValueProperty->AccessRawData(RawData);
+	if (RawData.Num() == 1)
+	{
+		return static_cast<const T*>(RawData[0]); 
+	}
+
+	return nullptr;
+}
+/**
  * Sets a struct property to specific value, checks type before access. Expects T is struct.
  * @param ValueProperty Handle to property where value is got from.
  * @return Requested value as optional, in case of multiple values the optional is unset.

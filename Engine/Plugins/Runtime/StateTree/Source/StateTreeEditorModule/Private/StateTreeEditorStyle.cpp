@@ -78,6 +78,8 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 			.SetEditableTextBoxStyle(StateTitleEditableText));
 
 		Set("StateTree.State.Border", new FSlateBorderBrush(NAME_None, FMargin(2.0f)));
+
+		Set("StateTree.State", new FSlateRoundedBoxBrush(FLinearColor::White, 2.0f));
 	}
 
 	// Details
@@ -101,17 +103,19 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 
 	// Task
 	{
+		const FLinearColor ForegroundCol =  FStyleColors::Foreground.GetSpecifiedColor();
+
 		Set("StateTree.Task.Title", FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Regular", 10))
-			.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 192))));
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.8f)));
 
 		Set("StateTree.Task.Title.Bold", FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Bold", 10))
-			.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 192))));
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.8f)));
 
 		Set("StateTree.Task.Title.Subdued", FTextBlockStyle(NormalText)
 			.SetFont(DEFAULT_FONT("Regular", 10))
-			.SetColorAndOpacity(FLinearColor(FColor(230, 230, 230, 96))));
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.4f)));
 
 		// Tasks to be show up a bit darker than the state
 		Set("StateTree.Task.Rect", new FSlateColorBrush(FLinearColor(FVector3f(0.67f))));
@@ -150,6 +154,26 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("Normal.Subdued", FTextBlockStyle(NormalText)
 			.SetColorAndOpacity(FSlateColor::UseSubduedForeground())
 			.SetFont(DEFAULT_FONT("Regular", 10)));
+	}
+
+	// Transition rich text
+	{
+		const FLinearColor ForegroundCol =  FStyleColors::White.GetSpecifiedColor();
+		Set("Transition.Normal", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Regular", 11)));
+
+		Set("Transition.Bold", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Bold", 11)));
+
+		Set("Transition.Italic", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.9f))
+			.SetFont(DEFAULT_FONT("Italic", 11)));
+
+		Set("Transition.Subdued", FTextBlockStyle(NormalText)
+			.SetColorAndOpacity(ForegroundCol.CopyWithNewOpacity(0.5f))
+			.SetFont(DEFAULT_FONT("Regular", 11)));
 	}
 
 	// Debugger
@@ -344,6 +368,7 @@ FStateTreeEditorStyle::FStateTreeEditorStyle()
 		Set("StateTreeEditor.StateSubtree", new IMAGE_BRUSH_SVG("Icons/State_Subtree", CoreStyleConstants::Icon16x16));
 		Set("StateTreeEditor.StateLinked", new IMAGE_BRUSH_SVG("Icons/State_Linked", CoreStyleConstants::Icon16x16));
 
+		Set("StateTreeEditor.Transition.Dash", new IMAGE_BRUSH_SVG("Icons/Transition_Dash", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Transition.Goto", new IMAGE_BRUSH_SVG("Icons/Transition_Goto", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Transition.Next", new IMAGE_BRUSH_SVG("Icons/Transition_Next", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));
 		Set("StateTreeEditor.Transition.Parent", new IMAGE_BRUSH_SVG("Icons/Transition_Parent", CoreStyleConstants::Icon16x16, FStyleColors::Foreground));

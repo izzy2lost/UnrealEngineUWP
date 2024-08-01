@@ -47,6 +47,13 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnGlobalDataChanged, const UStateTree& /*St
 extern STATETREEMODULE_API FOnGlobalDataChanged OnGlobalDataChanged;
 
 /**
+ * Called when the theme colors change.
+ * This should mainly used by the asset editor to maintain consistency in the UI for manipulations on the EditorData.
+ */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnVisualThemeChanged, const UStateTree& /*StateTree*/);
+extern STATETREEMODULE_API FOnVisualThemeChanged OnVisualThemeChanged;
+
+/**
  * Called when breakpoints of the StateTree EditorData changed.
  * This should mainly used by the asset editor to update the debugger.
  */

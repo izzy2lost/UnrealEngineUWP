@@ -15,27 +15,12 @@ class UStateTreeState;
 class SScrollBox;
 class FUICommandList;
 
-class FActionTreeViewDragDrop : public FDragDropOperation
+namespace UE::StateTree::Editor
 {
-public:
-	DRAG_DROP_OPERATOR_TYPE(FActionTreeViewDragDrop, FDragDropOperation);
+static constexpr float StateRowHeight = 32.0f;
+static constexpr float TaskRowHeight = 16.0f;
 
-	static TSharedRef<FActionTreeViewDragDrop> New(const UStateTreeState* InState)
-	{
-		return MakeShareable(new FActionTreeViewDragDrop(InState));
-	}
-
-	const UStateTreeState* GetDraggedState() const { return State; }
-
-private:
-	FActionTreeViewDragDrop(const UStateTreeState* InState)
-		: State(InState)
-	{
-	}
-
-	const UStateTreeState* State;
-};
-
+} // UE::StateTree::Editor
 
 class SStateTreeView : public SCompoundWidget
 {
@@ -73,6 +58,7 @@ private:
 	TSharedPtr<SWidget> HandleContextMenuOpening();
 
 	// Action handlers
+	// @todo: these are also defined in the outliner, figure out how to share code.
 	UStateTreeState* GetFirstSelectedState() const;
 	FReply HandleAddStateButton();
 	void HandleAddSiblingState();

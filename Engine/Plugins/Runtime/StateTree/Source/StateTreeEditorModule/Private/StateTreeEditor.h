@@ -68,9 +68,11 @@ private:
 
 	void HandleMessageTokenClicked(const TSharedRef<IMessageToken>& InMessageToken);
 	void HandleModelSelectionChanged(const TArray<TWeakObjectPtr<UStateTreeState>>& SelectedStates);
+	void HandleModelBringNodeToFocus(const UStateTreeState* State, const FGuid NodeID);
 
 	/** Spawns the tab with the update graph inside */
 	TSharedRef<SDockTab> SpawnTab_StateTreeView(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_StateTreeOutliner(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_SelectionDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_StateTreeStatistics(const FSpawnTabArgs& Args);
@@ -122,12 +124,17 @@ private:
 	/** Tree View */
 	TSharedPtr<class SStateTreeView> StateTreeView;
 
+	/** Tree Outliner */
+	TSharedPtr<class SStateTreeOutliner> StateTreeOutliner;
+
 	/** Compiler Results log */
 	TSharedPtr<class SWidget> CompilerResults;
 	TSharedPtr<class IMessageLogListing> CompilerResultsListing;
 	
 	TSharedPtr<FStateTreeViewModel> StateTreeViewModel;
 
+	FTimerHandle HighlighTimerHandle;
+	
 #if WITH_STATETREE_TRACE_DEBUGGER
 	TSharedRef<SDockTab> SpawnTab_Debugger(const FSpawnTabArgs& Args);
 
@@ -136,6 +143,7 @@ private:
 #endif // WITH_STATETREE_TRACE_DEBUGGER
 
 	static const FName StateTreeViewTabId;
+	static const FName StateTreeOutlinerTabId;
 	static const FName SelectionDetailsTabId;
 	static const FName AssetDetailsTabId;
 	static const FName StateTreeStatisticsTabId;

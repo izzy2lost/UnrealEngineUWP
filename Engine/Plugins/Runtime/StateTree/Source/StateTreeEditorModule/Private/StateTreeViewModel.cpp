@@ -275,6 +275,29 @@ const UStateTree* FStateTreeViewModel::GetStateTree() const
 	return nullptr;
 }
 
+const UStateTreeEditorData* FStateTreeViewModel::GetStateTreeEditorData() const
+{
+	return TreeDataWeak.Get();
+}
+
+const UStateTreeState* FStateTreeViewModel::GetStateByID(const FGuid StateID) const
+{
+	if (const UStateTreeEditorData* TreeData = TreeDataWeak.Get())
+	{
+		return const_cast<UStateTreeState*>(TreeData->GetStateByID(StateID));
+	}
+	return nullptr;
+}
+
+UStateTreeState* FStateTreeViewModel::GetMutableStateByID(const FGuid StateID) const
+{
+	if (UStateTreeEditorData* TreeData = TreeDataWeak.Get())
+	{
+		return TreeData->GetMutableStateByID(StateID);
+	}
+	return nullptr;
+}
+
 void FStateTreeViewModel::HandleIdentifierChanged(const UStateTree& StateTree) const
 {
 	if (GetStateTree() == &StateTree)
@@ -652,6 +675,12 @@ void FStateTreeViewModel::GetSelectedStates(TArray<TWeakObjectPtr<UStateTreeStat
 bool FStateTreeViewModel::HasSelection() const
 {
 	return SelectedStates.Num() > 0;
+}
+
+void FStateTreeViewModel::BringNodeToFocus(UStateTreeState* State, const FGuid NodeID)
+{
+	SetSelection(State);
+	OnBringNodeToFocus.Broadcast(State, NodeID);
 }
 
 void FStateTreeViewModel::GetPersistentExpandedStates(TSet<TWeakObjectPtr<UStateTreeState>>& OutExpandedStates)
@@ -1138,10 +1167,7 @@ void FStateTreeViewModel::MoveSelectedStates(UStateTreeState* TargetState, const
 			if (UStateTreeState* State = States[i])
 			{
 				State->Modify();
-				if (State->Parent)
-				{
-					AffectedParents.Add(State->Parent);
-				}
+				AffectedParents.Add(State->Parent);
 			}
 		}
 

@@ -286,6 +286,11 @@ void UStateTreeEditorData::PostEditChangeChainProperty(FPropertyChangedChainEven
 			UE::StateTree::Delegates::OnGlobalDataChanged.Broadcast(*StateTree);
 		}
 
+		// Notify that the color data has changed
+		if (MemberName == GET_MEMBER_NAME_CHECKED(UStateTreeEditorData, Colors))
+		{
+			UE::StateTree::Delegates::OnVisualThemeChanged.Broadcast(*StateTree);
+		}
 	}
 
 	UE::StateTree::PropertyHelpers::DispatchPostEditToNodes(*this, PropertyChangedEvent, *this);

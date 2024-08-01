@@ -10,6 +10,7 @@ FOnIdentifierChanged OnIdentifierChanged;
 FOnSchemaChanged OnSchemaChanged;
 FOnParametersChanged OnParametersChanged;
 FOnGlobalDataChanged OnGlobalDataChanged;
+FOnVisualThemeChanged OnVisualThemeChanged;
 FOnStateParametersChanged OnStateParametersChanged;
 FOnBreakpointsChanged OnBreakpointsChanged;
 FOnPostCompile OnPostCompile;

@@ -21,7 +21,6 @@
 #include "Misc/UObjectToken.h"
 #include "SStateTreeView.h"
 #include "StateTree.h"
-//#include "StateTreeSchema.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeCompilerLog.h"
 #include "StateTreeDelegates.h"
@@ -39,6 +38,8 @@
 #include "ToolMenuEntry.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "FileHelpers.h"
+#include "PropertyPath.h"
+#include "SStateTreeOutliner.h"
 #include "Debugger/SStateTreeDebuggerView.h"
 #include "StateTreeSettings.h"
 #include "ToolMenuSection.h"
@@ -50,6 +51,7 @@ const FName StateTreeEditorAppName(TEXT("StateTreeEditorApp"));
 const FName FStateTreeEditor::SelectionDetailsTabId(TEXT("StateTreeEditor_SelectionDetails"));
 const FName FStateTreeEditor::AssetDetailsTabId(TEXT("StateTreeEditor_AssetDetails"));
 const FName FStateTreeEditor::StateTreeViewTabId(TEXT("StateTreeEditor_StateTreeView"));
+const FName FStateTreeEditor::StateTreeOutlinerTabId(TEXT("StateTreeEditor_StateTreeOutliner"));
 const FName FStateTreeEditor::StateTreeStatisticsTabId(TEXT("StateTreeEditor_StateTreeStatistics"));
 const FName FStateTreeEditor::CompilerResultsTabId(TEXT("StateTreeEditor_CompilerResults"));
 #if WITH_STATETREE_TRACE_DEBUGGER
@@ -104,7 +106,12 @@ void FStateTreeEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>& 
 		.SetDisplayName(NSLOCTEXT("StateTreeEditor", "StateTreeViewTab", "States"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
-	
+
+	InTabManager->RegisterTabSpawner(StateTreeOutlinerTabId, FOnSpawnTab::CreateSP(this, &FStateTreeEditor::SpawnTab_StateTreeOutliner))
+		.SetDisplayName(NSLOCTEXT("StateTreeEditor", "StateTreeOutlinerTab", "Outliner"))
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
+
 	InTabManager->RegisterTabSpawner(StateTreeStatisticsTabId, FOnSpawnTab::CreateSP(this, &FStateTreeEditor::SpawnTab_StateTreeStatistics))
 		.SetDisplayName(NSLOCTEXT("StateTreeEditor", "StatisticsTab", "StateTree Statistics"))
 		.SetGroup(WorkspaceMenuCategoryRef)
@@ -131,6 +138,7 @@ void FStateTreeEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>
 	InTabManager->UnregisterTabSpawner(SelectionDetailsTabId);
 	InTabManager->UnregisterTabSpawner(AssetDetailsTabId);
 	InTabManager->UnregisterTabSpawner(StateTreeViewTabId);
+	InTabManager->UnregisterTabSpawner(StateTreeOutlinerTabId);
 	InTabManager->UnregisterTabSpawner(StateTreeStatisticsTabId);
 	InTabManager->UnregisterTabSpawner(CompilerResultsTabId);
 #if WITH_STATETREE_TRACE_DEBUGGER
@@ -184,6 +192,7 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 	StateTreeViewModel->GetOnStatesRemoved().AddSPLambda(this, [this](const TSet<UStateTreeState*>&){ UpdateAsset(); });
 	StateTreeViewModel->GetOnStatesMoved().AddSPLambda(this, [this](const TSet<UStateTreeState*>&, const TSet<UStateTreeState*>&){ UpdateAsset(); });
 	StateTreeViewModel->GetOnSelectionChanged().AddSP(this, &FStateTreeEditor::HandleModelSelectionChanged);
+	StateTreeViewModel->GetOnBringNodeToFocus().AddSP(this, &FStateTreeEditor::HandleModelBringNodeToFocus);
 
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	FMessageLogInitializationOptions LogOptions;
@@ -198,7 +207,7 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 	CompilerResultsListing->OnMessageTokenClicked().AddSP(this, &FStateTreeEditor::HandleMessageTokenClicked);
 
 	
-	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_StateTree_Layout_v3")
+	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_StateTree_Layout_v4")
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)
@@ -207,20 +216,12 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 			FTabManager::NewSplitter() ->SetOrientation(Orient_Horizontal)
 			->Split
 			(
-				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+				FTabManager::NewStack()
 				->SetSizeCoefficient(0.2f)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.65f)
-					->AddTab(AssetDetailsTabId, ETabState::OpenedTab)
-				)
-				->Split
-				(
-					FTabManager::NewStack()
-					->SetSizeCoefficient(0.35f)
-					->AddTab(StateTreeStatisticsTabId, ETabState::OpenedTab)
-				)
+				->AddTab(AssetDetailsTabId, ETabState::OpenedTab)
+				->AddTab(StateTreeStatisticsTabId, ETabState::OpenedTab)
+				->AddTab(StateTreeOutlinerTabId, ETabState::OpenedTab)
+				->SetForegroundTab(AssetDetailsTabId)
 			)
 			->Split
 			(
@@ -324,6 +325,17 @@ TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_StateTreeView(const FSpawnTabArg
 		];
 }
 
+TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_StateTreeOutliner(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId() == StateTreeOutlinerTabId);
+
+	return SNew(SDockTab)
+		.Label(NSLOCTEXT("StateTreeEditor", "StateTreeOutlinerTab", "Outliner"))
+		.TabColorScale(GetTabColorScale())
+		[
+			SAssignNew(StateTreeOutliner, SStateTreeOutliner, StateTreeViewModel.ToSharedRef(), TreeViewCommandList)
+		];
+}
 
 TSharedRef<SDockTab> FStateTreeEditor::SpawnTab_SelectionDetails(const FSpawnTabArgs& Args)
 {
@@ -472,6 +484,80 @@ void FStateTreeEditor::HandleModelSelectionChanged(const TArray<TWeakObjectPtr<U
 		}
 		SelectionDetailsView->SetObjects(Selected);
 	}
+}
+
+void FStateTreeEditor::HandleModelBringNodeToFocus(const UStateTreeState* State, const FGuid NodeID)
+{
+	if (SelectionDetailsView && State)
+	{
+		FPropertyPath HighlightPath;
+
+		if (!HighlightPath.IsValid())
+		{
+			FArrayProperty* TasksProperty = CastFieldChecked<FArrayProperty>(UStateTreeState::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UStateTreeState, Tasks)));
+			const int32 TaskIndex = State->Tasks.IndexOfByPredicate([&NodeID](const FStateTreeEditorNode& Node)
+			{
+				return Node.ID == NodeID;
+			});
+			if (TaskIndex != INDEX_NONE)
+			{
+				HighlightPath.AddProperty(FPropertyInfo(TasksProperty));
+				HighlightPath.AddProperty(FPropertyInfo(TasksProperty->Inner, TaskIndex));
+			}
+		}
+
+		if (!HighlightPath.IsValid())
+		{
+			FProperty* SingleTaskProperty = CastFieldChecked<FProperty>(UStateTreeState::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UStateTreeState, SingleTask)));
+			if (State->SingleTask.ID == NodeID)
+			{
+				HighlightPath.AddProperty(FPropertyInfo(SingleTaskProperty));
+			}
+		}
+
+		if (!HighlightPath.IsValid())
+		{
+			FArrayProperty* TransitionsProperty = CastFieldChecked<FArrayProperty>(UStateTreeState::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UStateTreeState, Transitions)));
+			const int32 TransitionIndex = State->Transitions.IndexOfByPredicate([&NodeID](const FStateTreeTransition& Transition)
+			{
+				return Transition.ID == NodeID;
+			});
+			if (TransitionIndex != INDEX_NONE)
+			{
+				HighlightPath.AddProperty(FPropertyInfo(TransitionsProperty));
+				HighlightPath.AddProperty(FPropertyInfo(TransitionsProperty->Inner, TransitionIndex));
+			}
+		}
+
+		if (!HighlightPath.IsValid())
+		{
+			FArrayProperty* EnterConditionsProperty = CastFieldChecked<FArrayProperty>(UStateTreeState::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UStateTreeState, EnterConditions)));
+			const int32 EnterConditionIndex = State->EnterConditions.IndexOfByPredicate([&NodeID](const FStateTreeEditorNode& Node)
+			{
+				return Node.ID == NodeID;
+			});
+			if (EnterConditionIndex != INDEX_NONE)
+			{
+				HighlightPath.AddProperty(FPropertyInfo(EnterConditionsProperty));
+				HighlightPath.AddProperty(FPropertyInfo(EnterConditionsProperty->Inner, EnterConditionIndex));
+			}
+		}
+
+		if (HighlightPath.IsValid())
+		{
+			SelectionDetailsView->ScrollPropertyIntoView(HighlightPath, /*bExpandProperty*/true);
+			SelectionDetailsView->HighlightProperty(HighlightPath);
+			
+			GEditor->GetTimerManager()->SetTimer(
+				HighlighTimerHandle,
+				FTimerDelegate::CreateLambda([SelectionDetailsView = SelectionDetailsView]()
+				{
+					SelectionDetailsView->HighlightProperty({});
+				}),
+				1.0f,
+				/*Loop*/false);
+		}
+	}	
 }
 
 void FStateTreeEditor::SaveAsset_Execute()

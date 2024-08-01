@@ -40,6 +40,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnStatesRemoved, const TSet<UStateTreeState*>& /*AffectedParents*/);
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStatesMoved, const TSet<UStateTreeState*>& /*AffectedParents*/, const TSet<UStateTreeState*>& /*MovedStates*/);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSelectionChanged, const TArray<TWeakObjectPtr<UStateTreeState>>& /*SelectedStates*/);
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnBringNodeToFocus, const UStateTreeState* /*State*/, const FGuid /*TaskID*/);
 
 	FStateTreeViewModel();
 	virtual ~FStateTreeViewModel() override;
@@ -60,8 +61,15 @@ public:
 	void GetSelectedStates(TArray<TWeakObjectPtr<UStateTreeState>>& OutSelectedStates) const;
 	bool HasSelection() const;
 
+	void BringNodeToFocus(UStateTreeState* State, const FGuid NodeID);
+	
 	// Returns associated state tree asset.
 	const UStateTree* GetStateTree() const;
+
+	const UStateTreeEditorData* GetStateTreeEditorData() const;
+
+	const UStateTreeState* GetStateByID(const FGuid StateID) const;
+	UStateTreeState* GetMutableStateByID(const FGuid StateID) const;
 	
 	// Returns array of subtrees to edit.
 	TArray<TObjectPtr<UStateTreeState>>* GetSubTrees() const;
@@ -126,6 +134,8 @@ public:
 	// Called each time the selection changes.
 	FOnSelectionChanged& GetOnSelectionChanged() { return OnSelectionChanged; }
 
+	FOnBringNodeToFocus& GetOnBringNodeToFocus() { return OnBringNodeToFocus; }
+	
 protected:
 	void GetExpandedStatesRecursive(UStateTreeState* State, TSet<TWeakObjectPtr<UStateTreeState>>& ExpandedStates);
 	void MoveSelectedStates(UStateTreeState* TargetState, const FStateTreeViewModelInsert RelativeLocation);
@@ -153,6 +163,7 @@ protected:
 	FOnStatesRemoved OnStatesRemoved;
 	FOnStatesMoved OnStatesMoved;
 	FOnSelectionChanged OnSelectionChanged;
+	FOnBringNodeToFocus OnBringNodeToFocus;
 };
 
 /** Helper class to allow to copy bindings into clipboard. */
