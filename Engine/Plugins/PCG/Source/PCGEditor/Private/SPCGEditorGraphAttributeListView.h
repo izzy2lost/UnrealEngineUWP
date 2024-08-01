@@ -280,5 +280,5 @@ private:
 	TSharedPtr<FPCGListViewUpdater> CurrentUpdateTask = nullptr;
 
 	/** Used to ensure data collapsed for inspection is kept alive. */
-	TStrongObjectPtr<const UPCGData> DataStrongPtr = nullptr;
+	TWeakObjectPtr<const UPCGData> DataPtr = nullptr;
 };
