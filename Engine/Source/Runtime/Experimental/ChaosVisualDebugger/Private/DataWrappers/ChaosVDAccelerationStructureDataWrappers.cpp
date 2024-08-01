@@ -4,6 +4,8 @@
 
 #include "DataWrappers/ChaosVDDataSerializationMacros.h"
 
+#include "UObject/FortniteSeasonBranchObjectVersion.h"
+
 
 bool FChaosVDBVCellElementDataWrapper::Serialize(FArchive& Ar)
 {
@@ -86,8 +88,11 @@ bool FChaosVDAABBTreePayloadBoundsElement::Serialize(FArchive& Ar)
 	Ar << ParticleIndex;
 	Ar << Bounds;
 
-	// TODO: This will be uncommented in the nex CL with the required object version bump
-	//Ar << ActualBounds;
+	Ar.UsingCustomVersion(FFortniteSeasonBranchObjectVersion::GUID);
+	if (Ar.CustomVer(FFortniteSeasonBranchObjectVersion::GUID) >= FFortniteSeasonBranchObjectVersion::CVDSerializationFixMissingSerializationProperties)
+	{
+		Ar << ActualBounds;
+	}
 
 	return !Ar.IsError();
 }
