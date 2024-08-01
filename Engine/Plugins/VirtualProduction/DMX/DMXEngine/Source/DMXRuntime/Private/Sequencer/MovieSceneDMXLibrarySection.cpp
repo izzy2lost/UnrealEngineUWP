@@ -767,7 +767,7 @@ void UMovieSceneDMXLibrarySection::UpdateChannelProxy(bool bResetDefaultChannelV
 	Algo::TransformIf(DMXLibraries, RelevantDMXLibraries,
 		[this](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
 		{
-			return DMXLibrary.IsValid() && Algo::FindBy(FixturePatchChannels, DMXLibrary, &FDMXFixturePatchChannel::DMXLibrary) != nullptr;
+			return DMXLibrary.IsValid() && Algo::FindBy(FixturePatchChannels, DMXLibrary, [](const FDMXFixturePatchChannel& Channel) { return Channel.DMXLibrary.Get(); }) != nullptr;
 		},
 		[](const TSoftObjectPtr<UDMXLibrary>& DMXLibrary)
 		{

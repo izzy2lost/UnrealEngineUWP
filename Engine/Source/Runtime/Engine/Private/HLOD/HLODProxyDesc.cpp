@@ -374,7 +374,7 @@ ALODActor* UHLODProxyDesc::SpawnLODActor(ULevel* InLevel) const
 	{
 		if (ALODActor* SubLODActor = Cast<ALODActor>(Actor))
 		{
-			if (SubLODActor->ProxyDesc && SubHLODDescs.Contains(SubLODActor->ProxyDesc))
+			if (SubLODActor->ProxyDesc && SubHLODDescs.Contains(TSoftObjectPtr<UHLODProxyDesc>(SubLODActor->ProxyDesc.Get())))
 			{
 				check(SubLODActor != LODActor);
 				SubActorsToAdd.Add(SubLODActor);
