@@ -258,7 +258,7 @@ class UMaterialInterface : public UObject, public IBlendableInterface, public II
 protected:
 	friend class UMaterialInterfaceEditorOnlyData;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, Instanced, Category = Material, meta = (AllowEditInlineCustomization, ShowInnerProperties))
 	TObjectPtr<UMaterialInterfaceEditorOnlyData> EditorOnlyData;
 
 	ENGINE_API virtual const UClass* GetEditorOnlyDataClass() const;

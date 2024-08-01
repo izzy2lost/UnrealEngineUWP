@@ -296,6 +296,11 @@ struct FParameterGroupData
 		GroupSortPriority(InSortPriority)
 	{
 	}
+
+	bool operator==(const FParameterGroupData& Other) const
+	{
+		return GroupName == Other.GroupName && GroupSortPriority == Other.GroupSortPriority;
+	}
 };
 
 UCLASS(MinimalAPI, Optional)

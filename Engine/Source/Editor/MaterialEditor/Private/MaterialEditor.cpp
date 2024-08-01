@@ -1123,7 +1123,7 @@ void FMaterialEditor::GetAllMaterialExpressionGroups(TArray<FString>* OutGroups)
 				{
 					return GroupName == DataElement.GroupName;
 				});
-				UpdatedGroups.Add(FParameterGroupData(GroupName, ParameterGroupDataElement->GroupSortPriority));
+				UpdatedGroups.AddUnique(FParameterGroupData(GroupName, ParameterGroupDataElement->GroupSortPriority));
 			}
 		}
 	}
