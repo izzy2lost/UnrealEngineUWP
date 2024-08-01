@@ -140,6 +140,13 @@ public:
 	void Init(FRHICommandListBase& RHICmdList, const FVertexBuffer* PositionBuffer, const FVertexBuffer* MotionBlurDataBuffer, const FVertexBuffer* TangentXBuffer, const FVertexBuffer* TangentZBuffer, const FVertexBuffer* TextureCoordinateBuffer, const FVertexBuffer* ColorBuffer);
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FGeomCacheTrackProxyFixLayout
+{
+public:
+	virtual ~FGeomCacheTrackProxyFixLayout() = default;
+};
+
 /**
  * This the track proxy has some "double double buffering" going on.
  * First we keep two mesh frames. The one just before the current time and the one just after the current time. This is the full mesh and
@@ -147,7 +154,7 @@ public:
  * Secondly we have two position buffers. The one for the current rendered frame and the one from the previous rendered frame (this is not the same as
  * the mesh frame, the mesh may be at say 10 fps then get interpolated to 60 fps rendered frames)
  */
-class GEOMETRYCACHE_API FGeomCacheTrackProxy
+class GEOMETRYCACHE_API FGeomCacheTrackProxy : FGeomCacheTrackProxyFixLayout
 {
 public:
 
@@ -241,6 +248,8 @@ public:
 	float PositionBufferFrameTimes[2]; // Exact time after interpolation of the positions in the position buffer.
 	uint32 CurrentPositionBufferIndex; // CurrentPositionBufferIndex%2  is the last updated position buffer
 
+	int32 UploadedSampleIndex;
+
 	FGeomCacheTangentBuffer TangentXBuffer;
 	FGeomCacheTangentBuffer TangentZBuffer;
 	FGeomCacheVertexBuffer TextureCoordinatesBuffer;
@@ -252,13 +261,11 @@ public:
 	/** Vertex factory for this Track */
 	FGeomCacheVertexFactory VertexFactory;
 
-	/** World Matrix for this Track */
-	FMatrix WorldMatrix;
-
 	/** The GeometryCacheTrack to which the proxy is associated */
 	UGeometryCacheTrack* Track;
 
-	int32 UploadedSampleIndex;
+	/** World Matrix for this Track */
+	FMatrix WorldMatrix;
 
 	/** Flag to indicate which frame mesh data was selected during the update */
 	bool bNextFrameMeshDataSelected;

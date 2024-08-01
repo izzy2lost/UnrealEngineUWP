@@ -19,7 +19,14 @@ namespace AudioModulation
 	class IGenerator;
 	using FGeneratorPtr = TUniquePtr<IGenerator>;
 
-	class AUDIOMODULATION_API IGenerator
+	// Hacky base class to avoid 8 bytes of padding after the vtable
+	class IGeneratorFixLayout
+	{
+	public:
+		virtual ~IGeneratorFixLayout() = default;
+	};
+
+	class AUDIOMODULATION_API IGenerator : public IGeneratorFixLayout
 	{
 	public:
 		virtual ~IGenerator() = default;

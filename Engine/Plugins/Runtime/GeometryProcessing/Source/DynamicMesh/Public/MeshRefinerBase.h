@@ -15,11 +15,18 @@ namespace Geometry
 
 class FDynamicMeshChangeTracker;
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FMeshRefinerBaseFixLayout
+{
+public:
+	virtual ~FMeshRefinerBaseFixLayout() = default;
+};
+
 /**
  * This is a base class that implements common functionality for various triangle mesh resampling strategies
  * (ie FRemesher and FReducer). You probably should not use this class directly.
  */
-class DYNAMICMESH_API FMeshRefinerBase
+class DYNAMICMESH_API FMeshRefinerBase : public FMeshRefinerBaseFixLayout
 {
 protected:
 	/** Mesh that will be refined */
@@ -30,6 +37,8 @@ protected:
 
 	/** Vertices can be projected onto this surface when they are modified */
 	IProjectionTarget* ProjTarget = nullptr;
+
+	FDynamicMeshChangeTracker* ActiveChangeTracker = nullptr;
 
 	FMeshRefinerBase(FDynamicMesh3* MeshIn)
 	{
@@ -43,14 +52,7 @@ protected:
 
 public:
 
-	/**
-	 * If true, then when two Fixed vertices have the same non-invalid SetID,
-	 * we treat them as not fixed and allow collapse
-	 */
-	bool AllowCollapseFixedVertsWithSameSetID = true;
-
-
-	enum class EVertexControl
+	enum class EVertexControl : uint8
 	{
 		AllowAll = 0,
 		NoSmooth = 1,
@@ -63,9 +65,14 @@ public:
 	 */
 	TFunction<EVertexControl(int)> VertexControlF = nullptr;
 
+	/** Set this to be able to cancel running Remesher/Reducer*/
+	FProgressCancel* Progress = nullptr;
+
+	/** This is a debugging aid, will break to debugger if these edges are touched, in debug builds */
+	TArray<int> DebugEdges;
 
 	/** Options for projecting vertices onto target surface */
-	enum class ETargetProjectionMode
+	enum class ETargetProjectionMode : uint8
 	{
 		NoProjection = 0,		// disable projection
 		AfterRefinement = 1,	// do all projection after the refine/smooth pass
@@ -78,14 +85,11 @@ public:
 	ETargetProjectionMode ProjectionMode = ETargetProjectionMode::NoProjection;
 
 
-
-	/** Set this to be able to cancel running Remesher/Reducer*/
-	FProgressCancel* Progress = nullptr;
-
-
-
-	/** This is a debugging aid, will break to debugger if these edges are touched, in debug builds */
-	TArray<int> DebugEdges;
+	/**
+	* If true, then when two Fixed vertices have the same non-invalid SetID,
+	* we treat them as not fixed and allow collapse
+	*/
+	bool AllowCollapseFixedVertsWithSameSetID = true;
 
 	/** Set to true to profile various passes @todo re-enable this! */
 	bool ENABLE_PROFILING = false;
@@ -289,7 +293,6 @@ public:
 	void SetMeshChangeTracker(FDynamicMeshChangeTracker* Tracker);
 
 protected:
-	FDynamicMeshChangeTracker* ActiveChangeTracker = nullptr;
 	virtual void SaveTriangleBeforeModify(int32 TriangleID);
 	virtual void SaveEdgeBeforeModify(int32 EdgeID);
 	virtual void SaveVertexTrianglesBeforeModify(int32 VertexID);

@@ -20,7 +20,14 @@ DECLARE_DWORD_ACCUMULATOR_STAT_EXTERN(TEXT("Num Async File Requests"), STAT_Asyn
 class IAsyncReadRequest;
 typedef TFunction<void(bool bWasCancelled, IAsyncReadRequest*)> FAsyncFileCallBack;
 
-class IAsyncReadRequest
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class IAsyncReadRequestFixLayout
+{
+public:
+	virtual ~IAsyncReadRequestFixLayout() = default;
+};
+
+class IAsyncReadRequest : public IAsyncReadRequestFixLayout
 {
 protected:
 	union

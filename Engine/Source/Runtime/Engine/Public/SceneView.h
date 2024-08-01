@@ -1287,10 +1287,17 @@ namespace EDrawDynamicFlags
 	};
 }
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FSceneViewFixLayout
+{
+public:
+	virtual ~FSceneViewFixLayout() = default;
+};
+
 /**
  * A projection from scene space into a 2D screen region.
  */
-class FSceneView
+class FSceneView : public FSceneViewFixLayout
 {
 public:
 	const FSceneViewFamily* Family;

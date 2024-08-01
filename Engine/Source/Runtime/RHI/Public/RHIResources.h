@@ -3099,7 +3099,7 @@ enum ERayTracingGeometryType
 };
 DECLARE_INTRINSIC_TYPE_LAYOUT(ERayTracingGeometryType);
 
-enum class ERayTracingGeometryInitializerType
+enum class ERayTracingGeometryInitializerType : uint8
 {
 	// Fully initializes the RayTracingGeometry object: creates underlying buffer and initializes shader parameters.
 	Rendering,
@@ -3158,6 +3158,11 @@ public:
 	// Total number of primitives in all segments of the geometry. Only used for validation.
 	uint32 TotalPrimitiveCount = 0;
 
+	bool bFastBuild = false;
+	bool bAllowUpdate = false;
+	bool bAllowCompaction = true;
+	ERayTracingGeometryInitializerType Type = ERayTracingGeometryInitializerType::Rendering;
+
 	// Partitions of geometry to allow different shader and resource bindings.
 	// All ray tracing geometries must have at least one segment.
 	TArray<FRayTracingGeometrySegment> Segments;
@@ -3167,11 +3172,6 @@ public:
 
 	// Pointer to an existing ray tracing geometry which the new geometry is built from.
 	FRHIRayTracingGeometry* SourceGeometry = nullptr;
-
-	bool bFastBuild = false;
-	bool bAllowUpdate = false;
-	bool bAllowCompaction = true;
-	ERayTracingGeometryInitializerType Type = ERayTracingGeometryInitializerType::Rendering;
 
 	// Use FDebugName for auto-generated debug names with numbered suffixes, it is a variation of FMemoryImageName with optional number postfix.
 	FDebugName DebugName;

@@ -18,6 +18,13 @@ class FDynamicMesh3;
 class FMeshNormals;
 class FDynamicMeshChangeTracker;
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FOffsetMeshRegionFixLayout
+{
+public:
+	virtual ~FOffsetMeshRegionFixLayout() = default;
+};
+
 /**
  * FOffsetMeshRegion implements local extrusion/offset of a mesh region. 
  * The selected triangles are separated and then stitched back together, creating
@@ -28,7 +35,7 @@ class FDynamicMeshChangeTracker;
  * 
  * Each quad of the border loop is assigned it's own normal and UVs (ie each is a separate UV-island)
  */
-class DYNAMICMESH_API FOffsetMeshRegion
+class DYNAMICMESH_API FOffsetMeshRegion : public FOffsetMeshRegionFixLayout
 {
 public:
 
@@ -124,6 +131,12 @@ public:
 	 */
 	bool bUVIslandPerGroup = true;
 
+	/** 
+	* If true, Material IDs around the border of the extrude area are propagated "down" the extrusion tube 
+	* This parameter is only supported in EVersion::Version1 and later
+	*/
+	bool bInferMaterialID = true;
+
 	/**
 	 * Split the extrude "tube" into separate groups based on the opening angle between quads.
 	 * This split is done relative to the above group options, so even if the tube would 
@@ -139,13 +152,6 @@ public:
 	 * This parameter is only supported in EVersion::Version1 and later
 	 */
 	int SetMaterialID = 0;
-
-	/** 
-	 * If true, Material IDs around the border of the extrude area are propagated "down" the extrusion tube 
-	 * This parameter is only supported in EVersion::Version1 and later
-	 */
-	bool bInferMaterialID = true;
-
 
 	/**
 	 * Support for different versions of the OffsetMeshRegion geometric operation.

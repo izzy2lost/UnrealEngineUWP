@@ -28,13 +28,6 @@ namespace FusionVoice
 const double FFusionVoice::kMaxPitchOffsetCents = 12 * HarmonixDsp::kCentsPerOctave;
 
 FFusionVoice::FFusionVoice()
-	: MySampler(nullptr)
-	, bWaitingForAttack(false)
-	, KeyZone(nullptr)
-	, PitchShifter(nullptr)
-	, OctaveShift(0.0f)
-	, MaxAudioLevel(0.0f)
-	, VoicePool(nullptr)
 {
 
 	ActiveRenderer = MakeShared<FStreamingAudioRendererV2>();

@@ -27,7 +27,14 @@ class FFusionVoicePool;
 struct FKeyzoneSettings;
 struct FLfoSettings;
 
-class HARMONIXDSP_API alignas(16) FFusionVoice
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FFusionVoiceFixLayout
+{
+public:
+	virtual ~FFusionVoiceFixLayout() = default;
+};
+
+class HARMONIXDSP_API alignas(16) FFusionVoice : FFusionVoiceFixLayout
 {
 public:
 
@@ -131,9 +138,9 @@ public:
 protected:
 
 	FMidiVoiceId VoiceID;
+	float TargetMidiNote = 0.0f;
 	FFusionSampler* MySampler = nullptr;
 	bool bIsRendererForAlias = false;
-	float TargetMidiNote = 0.0f;
 	uint8 TriggeredMidiNote = 0;
 
 private:
@@ -161,6 +168,7 @@ private:
 	uint32 DebugID;
 
 	float VelocityGain = 0.0f;
+	float MaxAudioLevel = 0.0f;
 
 	const FKeyzoneSettings* KeyZone = nullptr;
 
@@ -184,13 +192,12 @@ private:
 	// we would call this "frequency", but we want
 	// the units to be "octaves" so it can be linear.
 	// the actual frequency is  20*(2^octave)
-	Harmonix::Dsp::Modulators::FModulatorTarget FilterOctaveTarget;
 	float OctaveShift = 0.0f;
+	Harmonix::Dsp::Modulators::FModulatorTarget FilterOctaveTarget;
 
 	TLinearRamper<float> FilterGainRamper;
 
 	TAudioBuffer<float> OutputBuffer;
-	float MaxAudioLevel = 0.0f;
 
 	double FileToOutputSampleRatio = 0.0;
 

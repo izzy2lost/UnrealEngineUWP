@@ -271,7 +271,7 @@ public:
 	using TPayload = TPayloadType;
 
 	ISpatialAcceleration(SpatialAccelerationType InType = static_cast<SpatialAccelerationType>(ESpatialAcceleration::Unknown))
-		: Type(InType), SyncTimestamp(0), AsyncTimeSlicingComplete(true)
+		: SyncTimestamp(0), AsyncTimeSlicingComplete(true), Type(InType)
 	{}
 
 	ISpatialAcceleration(ESpatialAcceleration InType)
@@ -413,9 +413,9 @@ protected:
 	virtual void SetAsyncTimeSlicingComplete(bool InState) { AsyncTimeSlicingComplete = InState; }
 
 private:
-	SpatialAccelerationType Type;
 	int32 SyncTimestamp;	//The set of inputs the acceleration structure is in sync with. GT moves forward in time and enqueues inputs
 	bool AsyncTimeSlicingComplete;
+	SpatialAccelerationType Type;
 };
 
 template <typename TBase, typename TDerived>

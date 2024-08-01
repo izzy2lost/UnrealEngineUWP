@@ -28,10 +28,6 @@ public:
 	{
 	}
 
-	virtual ~TImplicitSolidify()
-	{
-	}
-
 	///
 	/// Inputs
 	///

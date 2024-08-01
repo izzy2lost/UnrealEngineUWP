@@ -16,7 +16,7 @@ namespace RayTracing
 	using GeometryGroupHandle = int32;
 }
 
-enum class ERTAccelerationStructureBuildPriority
+enum class ERTAccelerationStructureBuildPriority : uint8
 {
 	Immediate,
 	High,
@@ -157,9 +157,9 @@ protected:
 	RENDERCORE_API void RemoveBuildRequest();
 
 	friend class FRayTracingGeometryManager;
+	EGeometryStateFlags GeometryState = EGeometryStateFlags::Invalid;
 	int32 RayTracingBuildRequestIndex = INDEX_NONE;
 	int32 RayTracingGeometryHandle = INDEX_NONE; // Only valid when ray tracing is dynamic
-	EGeometryStateFlags GeometryState = EGeometryStateFlags::Invalid;
 #endif
 };
 

@@ -25,8 +25,8 @@ struct CONTROLRIG_API FRigControlCopy
 		FRigControlCopy()
 		: Name(NAME_None)
 		, ControlType(ERigControlType::Transform)
-		, Value()
 		, ParentKey()
+		, Value()
 		, OffsetTransform(FTransform::Identity)
 		, ParentTransform(FTransform::Identity)
 		, LocalTransform(FTransform::Identity)
@@ -47,7 +47,6 @@ struct CONTROLRIG_API FRigControlCopy
 		LocalTransform = InHierarchy->GetTransform(InControlElement, ERigTransformType::CurrentLocal);
 		GlobalTransform = InHierarchy->GetTransform(InControlElement, ERigTransformType::CurrentGlobal);
 	}
-	virtual ~FRigControlCopy() {}
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Names")
 	FName Name;
@@ -55,11 +54,11 @@ struct CONTROLRIG_API FRigControlCopy
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Type")
 	ERigControlType ControlType;
 
-	UPROPERTY()
-	FRigControlValue Value;
-
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Names")
 	FRigElementKey ParentKey;
+
+	UPROPERTY()
+	FRigControlValue Value;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Transforms")
 	FTransform OffsetTransform;

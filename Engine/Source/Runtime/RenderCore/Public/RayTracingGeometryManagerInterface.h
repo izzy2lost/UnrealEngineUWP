@@ -12,7 +12,7 @@
 class FRayTracingGeometry;
 class FRHIComputeCommandList;
 enum class EAccelerationStructureBuildMode;
-enum class ERTAccelerationStructureBuildPriority;
+enum class ERTAccelerationStructureBuildPriority : uint8;
 
 namespace RayTracing
 {

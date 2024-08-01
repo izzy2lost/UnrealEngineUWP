@@ -27,12 +27,19 @@ enum ELightShaderParameterFlags
 	RectAsSpotLight=1,
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FLightSceneProxyFixLayout
+{
+public:
+	virtual ~FLightSceneProxyFixLayout() = default;
+};
+
 /**
  * Encapsulates the data which is used to render a light by the rendering thread.
  * The constructor is called from the game thread, and after that the rendering thread owns the object.
  * FLightSceneProxy is in the engine module and is subclassed to implement various types of lights.
  */
-class FLightSceneProxy
+class FLightSceneProxy : public FLightSceneProxyFixLayout
 {
 public:
 
@@ -310,6 +317,9 @@ protected:
 	/** The scene the primitive is in. */
 	FSceneInterface* SceneInterface;
 
+	/** The light's scene info. */
+	class FLightSceneInfo* LightSceneInfo;
+
 	/** The homogeneous position of the light. */
 	FVector4 Position;
 
@@ -321,9 +331,6 @@ protected:
 
 	/** A transform from light space into world space. */
 	FMatrix LightToWorld;
-
-	/** The light's scene info. */
-	class FLightSceneInfo* LightSceneInfo;
 
 	/** Scale for indirect lighting from this light.  When 0, indirect lighting is disabled. */
 	float IndirectLightingScale;
@@ -452,6 +459,12 @@ protected:
     /** Is the light selected in the editor? */
 	uint8 bSelected : 1;
 
+	/**
+	* The light index in order to be able to read matrix and parameters when reading the light function atlas for that light.
+	* A value of 0 means this is the default identity light function and no light function sampling will be done in shader.
+	*/
+	uint8 LightFunctionAtlasLightIndex;
+
 	/** The index of the atmospheric light. Multiple lights can be considered when computing the sky/atmospheric scattering. */
 	const uint8 AtmosphereSunLightIndex;
 
@@ -496,12 +509,6 @@ protected:
 
 	/** IES texture atlas id. */
 	uint32 IESAtlasId;
-
-	/**
-	 * The light index in order to be able to read matrix and parameters when reading the light function atlas for that light.
-	 * A value of 0 means this is the default identity light function and no light function sampling will be done in shader.
-	 */
-	uint8 LightFunctionAtlasLightIndex;
 
 	/**
 	 * Updates the light proxy's cached transforms.

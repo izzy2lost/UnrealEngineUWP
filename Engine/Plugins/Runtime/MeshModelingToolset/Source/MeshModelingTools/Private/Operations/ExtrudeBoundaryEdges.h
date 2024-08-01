@@ -15,7 +15,14 @@ namespace UE::Geometry
 
 class FDynamicMesh3;
 
-class FExtrudeBoundaryEdges
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FExtrudeBoundaryEdgesFixLayout
+{
+public:
+	virtual ~FExtrudeBoundaryEdgesFixLayout() = default;
+};
+
+class FExtrudeBoundaryEdges : public FExtrudeBoundaryEdgesFixLayout
 {
 public:
 	using FFrame3d = UE::Geometry::FFrame3d;
@@ -56,6 +63,9 @@ public:
 	/** Whether to calculate local extrude frames and supply them to OffsetPositionFunc */
 	bool bUsePerVertexExtrudeFrames = true;
 
+	/** When generating extrude frames, whether to use unselected neighbors for setting the frame. */
+	bool bAssignAnyBoundaryNeighborToUnmatched = false;
+
 	/**
 	 * Function queried for new vertex positions. ExtrudeFrame origin is Position, unless it is not initialized
 	 *  due to bUsePerVertexExtrudeFrames being false.
@@ -66,9 +76,6 @@ public:
 	{
 		return ExtrudeFrame.Frame.FromFramePoint(FVector3d(this->DefaultOffsetDistance, 0, 0) * ExtrudeFrame.Scaling);
 	};
-
-	/** When generating extrude frames, whether to use unselected neighbors for setting the frame. */
-	bool bAssignAnyBoundaryNeighborToUnmatched = false;
 
 	/** 
 	 * If greater than 1, maximal amount by which a vertex can be moved in an attempt to keep edges parallel to

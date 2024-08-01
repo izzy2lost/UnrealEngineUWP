@@ -1888,7 +1888,7 @@ namespace mu
     public:
 
         Private( Ptr<Settings>, const TSharedPtr<ExtensionDataStreamer>& );
-        virtual ~Private();
+        ~Private();
 
         //-----------------------------------------------------------------------------------------
         //! Own interface
@@ -1919,14 +1919,21 @@ namespace mu
 
 		TSharedPtr<ExternalResourceProvider> ExternalResourceProvider;
 
+		/** Counter used to generate unique IDs for every new instance created in the system. */
+        Instance::ID LastInstanceID = 0;
+
+	private:
+		/** This flag is turned on when a streaming error or similar happens. Results are not usable.
+		* This should only happen in-editor.
+		*/
+		bool bUnrecoverableError = false;
+
+	public:
 		/** If this is set, it will be tried first instead of the internal formatting function. */
 		FImageOperator::FImagePixelFormatFunc ImagePixelFormatOverride;
 
 		/** */
 		FWorkingMemoryManager WorkingMemoryManager;
-
-		/** Counter used to generate unique IDs for every new instance created in the system. */
-        Instance::ID LastInstanceID = 0;
 
 		/** The pointer returned by this function is only valid for the duration of the current mutable operation. */
 		inline FLiveInstance* FindLiveInstance(Instance::ID id);
@@ -1944,12 +1951,6 @@ namespace mu
 
 		/** Owned by this system. */
 		TSharedPtr<ExtensionDataStreamer> ExtensionDataStreamer = nullptr;
-
-		/** This flag is turned on when a streaming error or similar happens. Results are not usable.
-		* This should only happen in-editor.
-		*/
-		bool bUnrecoverableError = false;
-
     };
 
 }

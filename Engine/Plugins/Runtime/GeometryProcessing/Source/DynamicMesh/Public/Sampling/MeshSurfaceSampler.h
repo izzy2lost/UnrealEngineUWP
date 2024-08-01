@@ -103,7 +103,7 @@ struct FMeshUVSampleInfo
 
 
 /** Types of query that FMeshSurfaceUVSampler/TMeshSurfaceUVSampler supports */
-enum class EMeshSurfaceSamplerQueryType
+enum class EMeshSurfaceSamplerQueryType : uint8
 {
 	/** Query with arbitrary UV value */
 	UVOnly,
@@ -111,6 +111,12 @@ enum class EMeshSurfaceSamplerQueryType
 	TriangleAndUV
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FMeshSurfaceUVSamplerFixLayout
+{
+public:
+	virtual ~FMeshSurfaceUVSamplerFixLayout() = default;
+};
 
 /**
  * FMeshSurfaceUVSampler computes FMeshUVSampleInfo's on a given mesh at given UV-space positions, this info can then
@@ -122,10 +128,9 @@ enum class EMeshSurfaceSamplerQueryType
  * signature and requires that the sample type is passed as a template parameter. Also the old class is more awkward to
  * use when sampling multiple things, see the documentation of TMeshSurfaceUVSampler for more details.
  */
-class FMeshSurfaceUVSampler
+class FMeshSurfaceUVSampler : public FMeshSurfaceUVSamplerFixLayout
 {
 public:
-	virtual ~FMeshSurfaceUVSampler() {}
 
 	/**
 	 * Initialize the sampler.
@@ -154,10 +159,11 @@ protected:
 	const FDynamicMeshUVOverlay* UVOverlay = nullptr;
 	EMeshSurfaceSamplerQueryType QueryType = EMeshSurfaceSamplerQueryType::TriangleAndUV;
 
+	bool bUVMeshSpatialInitialized = false;
+
 	// BV tree for finding triangle for a given UV. Not always initialized.
 	FDynamicMeshUVMesh UVMeshAdapter;
 	TMeshAABBTree3<FDynamicMeshUVMesh> UVMeshSpatial;
-	bool bUVMeshSpatialInitialized = false;
 	void InitializeUVMeshSpatial();
 };
 
@@ -178,10 +184,9 @@ protected:
  * and call CachedSampleUV(), to avoid expensive BVTree constructions and UV-to-3D recalculation.
  */
 template<typename SampleType>
-class TMeshSurfaceUVSampler
+class TMeshSurfaceUVSampler : public FMeshSurfaceUVSamplerFixLayout
 {
 public:
-	virtual ~TMeshSurfaceUVSampler() {}
 
 	/**
 	 * Configure the sampler.
@@ -230,9 +235,10 @@ public:
 	virtual bool CachedSampleUV(const FMeshUVSampleInfo& CachedSampleInfo, SampleType& ResultOut);
 
 protected:
+	EMeshSurfaceSamplerQueryType QueryType = EMeshSurfaceSamplerQueryType::TriangleAndUV;
+	bool bUVSpatialValid = false;
 	const FDynamicMesh3* Mesh = nullptr;
 	const FDynamicMeshUVOverlay* UVOverlay = nullptr;
-	EMeshSurfaceSamplerQueryType QueryType = EMeshSurfaceSamplerQueryType::TriangleAndUV;
 
 	TUniqueFunction<void(const FMeshUVSampleInfo& SampleInfo, SampleType& SampleValueOut)> ValueFunction;
 
@@ -241,7 +247,6 @@ protected:
 	// BV tree for finding triangle for a given UV. Not always initialized.
 	FDynamicMeshUVMesh UVMeshAdapter;
 	TMeshAABBTree3<FDynamicMeshUVMesh> UVBVTree;
-	bool bUVSpatialValid = false;
 	void InitializeBVTree();
 };
 

@@ -53,7 +53,13 @@ public:
 		Sequential
 	};
 
-	struct SIGNIFICANCEMANAGER_API FManagedObjectInfo
+	// Hacky base class to avoid 8 bytes of padding after the vtable
+	struct FManagedObjectInfoFixLayout
+	{
+		virtual ~FManagedObjectInfoFixLayout() = default;
+	};
+
+	struct SIGNIFICANCEMANAGER_API FManagedObjectInfo : public FManagedObjectInfoFixLayout
 	{
 		FManagedObjectInfo()
 			: Object(nullptr)
@@ -80,8 +86,6 @@ public:
 				PostSignificanceType = EPostSignificanceType::None;
 			}
 		}
-
-		virtual ~FManagedObjectInfo() { }
 
 		FORCEINLINE UObject* GetObject() const { return Object; }
 		FORCEINLINE FName GetTag() const { return Tag; }

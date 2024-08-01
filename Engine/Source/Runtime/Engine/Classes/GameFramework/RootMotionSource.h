@@ -159,19 +159,25 @@ struct FRootMotionFinishVelocitySettings
 	UPROPERTY()
 	ERootMotionFinishVelocityMode Mode;
 
-	// Set Velocity if Mode == SetVelocity
-	UPROPERTY()
-	FVector SetVelocity;
-
 	// Clamp Velocity if Move == ClampVelocity
 	UPROPERTY()
 	float ClampVelocity;
 
+	// Set Velocity if Mode == SetVelocity
+	UPROPERTY()
+	FVector SetVelocity;
+
 	FRootMotionFinishVelocitySettings()
 		: Mode(ERootMotionFinishVelocityMode::MaintainLastRootMotionVelocity)
-		, SetVelocity(FVector::ZeroVector)
 		, ClampVelocity(0.f)
+		, SetVelocity(FVector::ZeroVector)
 	{}
+};
+
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FRootMotionSourceFixLayout
+{
+	virtual ~FRootMotionSourceFixLayout() = default;
 };
 
 /** 
@@ -215,6 +221,9 @@ struct FRootMotionFinishVelocitySettings
 */
 USTRUCT()
 struct FRootMotionSource
+#if CPP
+	: public FRootMotionSourceFixLayout
+#endif
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -226,12 +235,6 @@ struct FRootMotionSource
 	 *  and allow a mapping between server LocalIDs and client LocalIDs for correction/comparison */
 	UPROPERTY()
 	uint16 LocalID;
-
-	/** 
-	 *  Accumulation mode for this source (whether or not to additively apply this root motion or override completely)
-	 **/
-	UPROPERTY()
-	ERootMotionAccumulateMode AccumulateMode;
 
 	/** 
 	 *	This name allows us to find the source later so that we can end it. 
@@ -266,6 +269,12 @@ struct FRootMotionSource
 	/** Settings of this source */
 	UPROPERTY(NotReplicated)
 	FRootMotionSourceSettings Settings;
+
+	/** 
+	*  Accumulation mode for this source (whether or not to additively apply this root motion or override completely)
+	**/
+	UPROPERTY()
+	ERootMotionAccumulateMode AccumulateMode;
 
 	/** True when this RootMotionSource is contributing local space accumulation (false for world space) */
 	UPROPERTY()

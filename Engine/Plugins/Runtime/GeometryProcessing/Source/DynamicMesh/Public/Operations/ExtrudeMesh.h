@@ -18,6 +18,13 @@ namespace Geometry
 class FDynamicMesh3;
 class FMeshNormals;
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+class FExtrudeMeshFixLayout
+{
+public:
+	virtual ~FExtrudeMeshFixLayout() = default;
+};
+
 /**
  * Note: FExtrudeMesh might someday be removed. Consider using FOffsetMeshRegion instead,
  * which can extrude all or part of a mesh.
@@ -29,7 +36,7 @@ class FMeshNormals;
  * 
  * Each quad of the border loop is assigned it's own normal and UVs (ie each is a separate UV-island)
  */
-class DYNAMICMESH_API FExtrudeMesh
+class DYNAMICMESH_API FExtrudeMesh : public FExtrudeMeshFixLayout
 {
 public:
 
@@ -49,12 +56,11 @@ public:
 	/** if Extrusion is "negative" (ie negative distance, inset, etc) then this value must be set to false or the output will have incorrect winding orientation */
 	bool IsPositiveOffset = true;
 
-	/** quads on the stitch loop are planar-projected and scaled by this amount */
-	float UVScaleFactor = 1.0f;
-
 	/** If true, skip closed components */
 	bool bSkipClosedComponents = false;
 
+	/** quads on the stitch loop are planar-projected and scaled by this amount */
+	float UVScaleFactor = 1.0f;
 
 	//
 	// Outputs

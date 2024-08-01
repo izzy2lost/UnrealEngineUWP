@@ -169,8 +169,14 @@ struct FD3D12BatchedPayloadObjects
 	}
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FD3D12PayloadBaseFixLayout
+{
+	virtual ~FD3D12PayloadBaseFixLayout() = default;
+};
+
 // A single unit of work (specific to a single GPU node and queue type) to be processed by the submission thread.
-struct FD3D12PayloadBase
+struct FD3D12PayloadBase : public FD3D12PayloadBaseFixLayout
 {
 	// Used to signal FD3D12ManualFence instances on the submission thread.
 	struct FManualFence
@@ -213,6 +219,10 @@ struct FD3D12PayloadBase
 	// UpdateReservedResources
 	TArray<FD3D12CommitReservedResourceDesc> ReservedResourcesToCommit;
 
+	// Flags.
+	bool bAlwaysSignal = false;
+	std::atomic<bool> bSubmitted { false };
+
 	// Used by RHIRunOnQueue
 	TFunction<void(ID3D12CommandQueue*)> PreExecuteCallback;
 
@@ -228,10 +238,6 @@ struct FD3D12PayloadBase
 	TOptional<uint64> SubmissionTime;
 
 	TOptional<FD3D12Timing*> Timing;
-
-	// Flags.
-	bool bAlwaysSignal = false;
-	std::atomic<bool> bSubmitted { false };
 
 	// Cleanup
 	TArray<FD3D12CommandAllocator*> AllocatorsToRelease;

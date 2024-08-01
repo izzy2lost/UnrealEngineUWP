@@ -104,13 +104,13 @@ static FAutoConsoleVariableRef CVarNiagaraAllowDeferredReset(
 
 FNiagaraSystemInstance::FNiagaraSystemInstance(UWorld& InWorld, UNiagaraSystem& InSystem, FNiagaraUserRedirectionParameterStore* InOverrideParameters,
                                                USceneComponent* InAttachComponent, ENiagaraTickBehavior InTickBehavior, bool bInPooled)
-	: SystemInstanceIndex(INDEX_NONE)
+	: TickBehavior(InTickBehavior)
+	  , SystemInstanceIndex(INDEX_NONE)
 	  , SignificanceIndex(INDEX_NONE)
 	  , World(&InWorld)
 	  , System(&InSystem)
 	  , OverrideParameters(InOverrideParameters)
 	  , AttachComponent(InAttachComponent)
-	  , TickBehavior(InTickBehavior)
 	  , Age(0.0f)
 	  , LastRenderTime(0.0f)
 	  , TickCount(0)

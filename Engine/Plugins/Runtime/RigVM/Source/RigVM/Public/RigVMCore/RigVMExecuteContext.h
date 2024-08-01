@@ -244,12 +244,21 @@ struct RIGVM_API FRigVMRuntimeSettings
 	}
 };
 
+// Hacky base class to avoid 8 bytes of padding after the vtable
+struct FRigVMExecuteContextFixLayout
+{
+	virtual ~FRigVMExecuteContextFixLayout() = default;
+};
+
 /**
  * The execute context is used for mutable nodes to
  * indicate execution order.
  */
 USTRUCT(BlueprintType, meta=(DisplayName="Execute Context"))
-struct FRigVMExecuteContext
+struct FRigVMExecuteContext 
+#if CPP
+	: public FRigVMExecuteContextFixLayout
+#endif
 {
 	GENERATED_BODY()
 
