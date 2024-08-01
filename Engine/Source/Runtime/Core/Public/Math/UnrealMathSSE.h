@@ -2174,6 +2174,23 @@ FORCEINLINE VectorRegister4Double VectorReciprocalEstimate(const VectorRegister4
 }
 
 /**
+ * Merges the XYZ components of one vector with the W component of another vector and returns the result.
+ *
+ * @param VecXYZ	Source vector for XYZ_
+ * @param VecW		Source register for ___W (note: the fourth component is used, not the first)
+ * @return			VectorRegister4Float(VecXYZ.x, VecXYZ.y, VecXYZ.z, VecW.w)
+ */
+FORCEINLINE VectorRegister4Float VectorMergeVecXYZ_VecW(const VectorRegister4Float& VecXYZ, const VectorRegister4Float& VecW)
+{
+	return _mm_blend_ps(VecXYZ, VecW, 0b1000);
+}
+
+FORCEINLINE VectorRegister4Double VectorMergeVecXYZ_VecW(const VectorRegister4Double& VecXYZ, const VectorRegister4Double& VecW)
+{
+	return VectorRegister4Double(VecXYZ.XY, _mm_move_sd(VecW.ZW, VecXYZ.ZW));
+}
+
+/**
 * Loads XYZ and sets W=0
 *
 * @param Vector	VectorRegister4Float
@@ -2204,7 +2221,7 @@ FORCEINLINE VectorRegister4Double VectorSet_W0(const VectorRegister4Double& Vec)
 */
 FORCEINLINE VectorRegister4Float VectorSet_W1( const VectorRegister4Float& Vec)
 {
-	return _mm_blend_ps(Vec, VectorOneFloat(), 0b1000);
+	return VectorMergeVecXYZ_VecW(Vec, VectorOneFloat());
 }
 
 FORCEINLINE VectorRegister4Double VectorSet_W1(const VectorRegister4Double& Vec)
@@ -2473,23 +2490,6 @@ FORCEINLINE int VectorMaskBits(const VectorRegister4Double& VecMask)
 #else
 	return _mm256_movemask_pd(VecMask);
 #endif
-}
-
-/**
- * Merges the XYZ components of one vector with the W component of another vector and returns the result.
- *
- * @param VecXYZ	Source vector for XYZ_
- * @param VecW		Source register for ___W (note: the fourth component is used, not the first)
- * @return			VectorRegister4Float(VecXYZ.x, VecXYZ.y, VecXYZ.z, VecW.w)
- */
-FORCEINLINE VectorRegister4Float VectorMergeVecXYZ_VecW(const VectorRegister4Float& VecXYZ, const VectorRegister4Float& VecW)
-{
-	return _mm_blend_ps(VecXYZ, VecW, 0b1000);
-}
-
-FORCEINLINE VectorRegister4Double VectorMergeVecXYZ_VecW(const VectorRegister4Double& VecXYZ, const VectorRegister4Double& VecW)
-{
-	return VectorRegister4Double(VecXYZ.XY, _mm_move_sd(VecW.ZW, VecXYZ.ZW));
 }
 
 /**
