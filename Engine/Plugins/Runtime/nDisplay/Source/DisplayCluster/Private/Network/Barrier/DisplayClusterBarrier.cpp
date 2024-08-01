@@ -284,8 +284,9 @@ void FDisplayClusterBarrier::HandleBarrierPreSyncStart()
 
 void FDisplayClusterBarrier::HandleBarrierPreSyncEnd()
 {
-	// Execute sync delegate with data requested
-	BarrierPreSyncEndDelegate.ExecuteIfBound(Name, ClientsRequestData, ClientsResponseData);
+	// Prepare callback data and call the handler
+	FDisplayClusterBarrierPreSyncEndDelegateData PreSyncEndCallbackData{ Name, ClientsRequestData, ClientsResponseData };
+	BarrierPreSyncEndDelegate.ExecuteIfBound(PreSyncEndCallbackData);
 
 	// We can clean request data now before next iteration
 	ClientsRequestData.Empty(CallersAllowed.Num());

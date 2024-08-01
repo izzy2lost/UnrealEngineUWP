@@ -63,6 +63,29 @@ TSharedPtr<IDisplayClusterBarrier, ESPMode::ThreadSafe> FDisplayClusterGenericBa
 	return BarrierFound ? *BarrierFound : nullptr;
 }
 
+TSharedPtr<FDisplayClusterGenericBarrierService::FBarrierInfo> FDisplayClusterGenericBarrierService::GetBarrierInfo(const FString& BarrierId) const
+{
+	FScopeLock Lock(&BarriersInfoCS);
+
+	const FBarrierInfoWrapper* BarrierInfoWrapper = BarriersInfo.Find(BarrierId);
+	checkSlow(BarrierInfoWrapper);
+
+	return BarrierInfoWrapper ? BarrierInfoWrapper->BarrierInfo : TSharedPtr<FDisplayClusterGenericBarrierService::FBarrierInfo>();
+}
+
+void FDisplayClusterGenericBarrierService::SetBarrierInfoUpdateLocked(const FString& BarrierId, bool bLocked)
+{
+	FScopeLock Lock(&BarriersInfoCS);
+
+	FBarrierInfoWrapper* BarrierInfoWrapper = BarriersInfo.Find(BarrierId);
+	checkSlow(BarrierInfoWrapper);
+
+	if (BarrierInfoWrapper)
+	{
+		BarrierInfoWrapper->bBarrierInfoLockedOut = bLocked;
+	}
+}
+
 TSharedPtr<IDisplayClusterSession> FDisplayClusterGenericBarrierService::CreateSession(FDisplayClusterSessionInfo& SessionInfo)
 {
 	SessionInfo.SessionName = FString::Printf(TEXT("%s_%lu_%s_%s"),
@@ -359,6 +382,12 @@ EDisplayClusterCommResult FDisplayClusterGenericBarrierService::ReleaseBarrier(c
 				FPlatformProcess::ReturnSynchEventToPool(*BarrierCreatedEvent);
 				BarrierCreationEvents.Remove(BarrierId);
 			}
+
+			// Remove clients info of this barrier
+			{
+				FScopeLock LockInfo(&BarriersInfoCS);
+				BarriersInfo.Remove(BarrierId);
+			}
 		}
 		else
 		{
@@ -406,6 +435,9 @@ EDisplayClusterCommResult FDisplayClusterGenericBarrierService::SyncOnBarrier(co
 		return EDisplayClusterCommResult::NotAllowed;
 	}
 
+	// Save info about this caller
+	UpdateBarrierInformation(BarrierId, GetSessionInfoCache().NodeId.Get(FString()), UniqueThreadMarker);
+
 	// Sync on the barrier
 	(*Barrier)->Wait(UniqueThreadMarker);
 
@@ -447,9 +479,30 @@ EDisplayClusterCommResult FDisplayClusterGenericBarrierService::SyncOnBarrierWit
 		return EDisplayClusterCommResult::NotAllowed;
 	}
 
+	// Save info about this caller
+	UpdateBarrierInformation(BarrierId, GetSessionInfoCache().NodeId.Get(FString()), UniqueThreadMarker);
+
 	// Sync on the barrier
 	(*Barrier)->WaitWithData(UniqueThreadMarker, RequestData, OutResponseData);
 
 	Result = EBarrierControlResult::SynchronizedSuccessfully;
 	return EDisplayClusterCommResult::Ok;
+}
+
+void FDisplayClusterGenericBarrierService::UpdateBarrierInformation(const FString& BarrierId, const FString& NodeId, const FString& ThreadMarker)
+{
+	FScopeLock Lock(&BarriersInfoCS);
+
+	FBarrierInfoWrapper& BarrierInfoWrapper = BarriersInfo.FindOrAdd(BarrierId);
+
+	// Update if allowed
+	if (!BarrierInfoWrapper.bBarrierInfoLockedOut)
+	{
+		// Update NodeToThread map
+		TSet<FString>& NodeInfo = BarrierInfoWrapper.BarrierInfo->NodeToThreadsMapping.FindOrAdd(NodeId);
+		NodeInfo.Add(ThreadMarker);
+
+		// Update ThreadToNode map
+		BarrierInfoWrapper.BarrierInfo->ThreadToNodeMapping.Emplace(ThreadMarker, NodeId);
+	}
 }

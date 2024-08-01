@@ -42,6 +42,7 @@ public:
 	// Remove specified caller from the sync pipeline
 	virtual void UnregisterSyncCaller(const FString& CallerId) override;
 
+	// Returns barrier PreSyncEnd delegate
 	virtual FDisplayClusterBarrierPreSyncEndDelegate& GetPreSyncEndDelegate() override
 	{
 		return BarrierPreSyncEndDelegate;
@@ -103,9 +104,9 @@ private:
 	FDisplayClusterBarrierTimeoutEvent BarrierTimeoutEvent;
 
 	// Request data from the callers
-	FClientsCommData ClientsRequestData;
+	TMap<FString, TArray<uint8>> ClientsRequestData;
 	// Response data for the callers
-	FClientsCommData ClientsResponseData;
+	TMap<FString, TArray<uint8>> ClientsResponseData;
 
 	// Diagnostics data
 	double BarrierWaitTimeStart   = 0;

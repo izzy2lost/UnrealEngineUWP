@@ -418,14 +418,26 @@ void FMediaOutputSynchronizationPolicyRivermaxHandler::HandleBarrierSync(FGeneri
 	const int32 PtpUnsyncFramesPerReport = UE::RivermaxSync::CVarRivermaxPtpUnsyncFramesPerReport.GetValueOnAnyThread();
 	bool bShouldReportPtpMismatches = (PtpUnsyncFramesPerReport >= 0) && !(PtpBaseNodeData->LastRenderedFrameNumber[0] % PtpUnsyncFramesPerReport);
 
-	// Iterate over the nodes and detect PTP de-syncs.
-	for (const TPair<FString, TArray<uint8>>& NodePresentedFrame : BarrierSyncData.RequestData)
+	// Iterate over the presentation requests and detect PTP de-syncs.
+	for (const TPair<FString, TArray<uint8>>& FramePresentedInfo : BarrierSyncData.RequestData)
 	{
+		const FString& ThreadPresentedFrame = FramePresentedInfo.Key;
+
+		// Find the corresponding cluster node based on the synchronization thread name from request
+		const FString* NodePresentedFrame = BarrierSyncData.ThreadToNodeMap.Find(ThreadPresentedFrame);
+		check(NodePresentedFrame);
+
+		// Don't leave nullptr just in case (this is not expected)
+		if (!NodePresentedFrame)
+		{
+			NodePresentedFrame = &ThreadPresentedFrame;
+		}
+
 		// Barrier data with unexpected sizes are a logical error.
-		check(NodePresentedFrame.Value.Num() == sizeof(FMediaSyncBarrierData));
+		check(FramePresentedInfo.Value.Num() == sizeof(FMediaSyncBarrierData));
 
 		// Get the node data in struct format.
-		const FMediaSyncBarrierData* const NodeData = reinterpret_cast<const FMediaSyncBarrierData* const>(NodePresentedFrame.Value.GetData());
+		const FMediaSyncBarrierData* const NodeData = reinterpret_cast<const FMediaSyncBarrierData* const>(FramePresentedInfo.Value.GetData());
 
 		// Skip base node comparing with itself
 		if (NodeData == PtpBaseNodeData)
@@ -448,7 +460,7 @@ void FMediaOutputSynchronizationPolicyRivermaxHandler::HandleBarrierSync(FGeneri
 				*PtpBaseNodeId,
 				*PtpBaseNodeData->LastRenderedFrameNumbersAsString(),
 				*PtpBaseNodeData->PresentedFrameBoundaryNumbersAsString(),
-				*NodePresentedFrame.Key,
+				**NodePresentedFrame,
 				*NodeData->LastRenderedFrameNumbersAsString(),
 				*NodeData->PresentedFrameBoundaryNumbersAsString());
 
@@ -461,7 +473,7 @@ void FMediaOutputSynchronizationPolicyRivermaxHandler::HandleBarrierSync(FGeneri
 				*PtpBaseNodeId,
 				*PtpBaseNodeData->LastRenderedFrameNumbersAsString(),
 				*PtpBaseNodeData->PresentedFrameBoundaryNumbersAsString(),
-				*NodePresentedFrame.Key,
+				**NodePresentedFrame,
 				*NodeData->LastRenderedFrameNumbersAsString(),
 				*NodeData->PresentedFrameBoundaryNumbersAsString());
 		}
@@ -469,7 +481,7 @@ void FMediaOutputSynchronizationPolicyRivermaxHandler::HandleBarrierSync(FGeneri
 		// Collect Vsync deltas for reporting purposes.
 		if (bShouldReportPtpMismatches && VsyncDelta)
 		{
-			PtpMismatchedNodes.Add(NodePresentedFrame.Key, VsyncDelta);
+			PtpMismatchedNodes.Add(*NodePresentedFrame, VsyncDelta);
 		}
 	}
 
