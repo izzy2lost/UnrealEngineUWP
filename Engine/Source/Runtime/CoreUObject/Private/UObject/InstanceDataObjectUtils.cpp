@@ -157,32 +157,29 @@ namespace UE
 		return TSet<FString>(Result);
 	}
 
-	bool IsInstanceDataObjectSupportEnabled()
-	{
-		return bEnableIDOSupport;
-	}
-
 	bool IsInstanceDataObjectSupportEnabled(const UObject* InObject)
 	{
-		if(!InObject)
+		// Note: NULL is a valid (default) input here; in that case we just return the enable flag.
+		bool bIsEnabled = bEnableIDOSupport;
+		if (bIsEnabled && InObject)
 		{
-			return false;
-		}
-		
-		// Property bag placeholder objects are always enabled for IDO support
-		if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(InObject))
-		{
-			return true;
+			// Property bag placeholder objects are always enabled for IDO support
+			if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(InObject))
+			{
+				return true;
+			}
+
+			//@todo FH: change to check trait when available or use config object
+			const UClass* ObjClass = InObject->GetClass();
+			while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
+			{
+				ObjClass = ObjClass->GetSuperClass();
+			}
+
+			bIsEnabled = !!ObjClass;
 		}
 
-		//@todo FH: change to check trait when available or use config object
-		const UClass* ObjClass = InObject->GetClass();
-		while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
-		{
-			ObjClass = ObjClass->GetSuperClass();
-		}
-
-		return !!ObjClass;
+		return bIsEnabled;
 	}
 
 
