@@ -192,6 +192,12 @@ void IDisplayClusterViewportManager::SetupEngineShowFlags(const EDisplayClusterV
 		InOutEngineShowFlags.SetDeferredLighting(0);
 		InOutEngineShowFlags.SetVirtualTexturePrimitives(0);
 		InOutEngineShowFlags.SetRectLights(0);
+
+		// Finish making it essentially Unlit
+		InOutEngineShowFlags.SetLightFunctions(0);
+		InOutEngineShowFlags.SetDynamicShadows(0);
+		InOutEngineShowFlags.SetLighting(0);
+
 		break;
 
 	default:

@@ -57,7 +57,7 @@ ADisplayClusterLightCardActor::ADisplayClusterLightCardActor(const FObjectInitia
 	, Pitch(0.f)
 	, Yaw(0.f)
 	, Scale(FVector2D(1.f))
-	, RadialOffset(-0.5)
+	, RadialOffset(-1)
 	, bAlwaysFlushToWall(true)
 	, Mask(EDisplayClusterLightCardMask::Circle)
 	, Texture(nullptr)
@@ -316,7 +316,7 @@ void ADisplayClusterLightCardActor::UpdateLightCardMaterialInstance()
 	if (UMaterialInstanceDynamic* LightCardMaterialInstance = Cast<UMaterialInstanceDynamic>(LightCardComponent->GetMaterial(0)))
 	{
 		// Showing proxy with low opacity to make it less distracting when it doesn't line up well with its projection in the Light Card Editor.
-		constexpr float ProxyOpacity = 0.25;
+		constexpr float ProxyOpacity = 0;
 
 		LightCardMaterialInstance->SetVectorParameterValue(TEXT("CardColor"), Color);
 		LightCardMaterialInstance->SetScalarParameterValue(TEXT("Temperature"), Temperature);
