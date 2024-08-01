@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+#include "Modules/ModuleManager.h"
+
 enum class EMarketplaceType : int32
 {
 	AppStore = 0,
