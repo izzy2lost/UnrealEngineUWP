@@ -5025,7 +5025,19 @@ URigVMCollapseNode* URigVMController::CollapseNodes(const TArray<URigVMNode*>& I
 	URigVMCollapseNode* CollapseNode = NewObject<URigVMCollapseNode>(Graph, *CollapseNodeName);
 #endif
 	FString ContainedGraphName = CollapseNodeName + TEXT("_ContainedGraph");
-	CollapseNode->ContainedGraph = NewObject<URigVMGraph>(CollapseNode, *ContainedGraphName);
+
+	if (IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>())
+	{
+		if (FRigVMClient* RigVMClient = ClientHost->GetRigVMClient())
+		{
+			CollapseNode->ContainedGraph = RigVMClient->CreateContainedGraphModel(CollapseNode, *ContainedGraphName);
+		}
+	}
+
+	if (CollapseNode->ContainedGraph == nullptr)
+	{
+		return nullptr;
+	}
 
 #if UE_RIGVM_AGGREGATE_NODES_ENABLED
 	if (bIsAggregate)
@@ -5431,7 +5443,12 @@ TArray<URigVMNode*> URigVMController::ExpandLibraryNode(URigVMLibraryNode* InNod
 			ReportError(TEXT("Cannot expand nodes from function reference because the source graph is not found."));
 			return TArray<URigVMNode*>();			
 		}
-	}	
+	}
+	else if(InnerGraph == nullptr)
+	{
+		ReportError(TEXT("Cannot expand nodes from collapse node because the source graph is not found."));
+		return TArray<URigVMNode*>();
+	}
 
 	TArray<URigVMNode*> ContainedNodes = InnerGraph->GetNodes();
 	TArray<URigVMLink*> ContainedLinks = InnerGraph->GetLinks();
@@ -6470,7 +6487,8 @@ void URigVMController::SetReferencedFunction(URigVMFunctionReferenceNode* InFunc
 	}
 	
 	FRigVMGraphFunctionHeader OldReferencedNode = InFunctionRefNode->GetReferencedFunctionHeader();
-	InFunctionRefNode->ReferencedFunctionHeader = InNewReferencedNode->GetFunctionHeader();
+	IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>();
+	InFunctionRefNode->ReferencedFunctionHeader = InNewReferencedNode->GetFunctionHeader(ClientHost ? ClientHost->GetRigVMGraphFunctionHost() : nullptr);
 	
 	if(!(OldReferencedNode == InFunctionRefNode->ReferencedFunctionHeader))
 	{
@@ -13113,7 +13131,20 @@ URigVMLibraryNode* URigVMController::AddFunctionToLibrary(const FName& InFunctio
 	FString FunctionName = GetSchema()->GetValidNodeName(Graph, InFunctionName.IsNone() ? FString(TEXT("Function")) : InFunctionName.ToString());
 	URigVMCollapseNode* CollapseNode = NewObject<URigVMCollapseNode>(Graph, *FunctionName);
 	FString ContainedGraphName = FunctionName + TEXT("_ContainedGraph");
-	CollapseNode->ContainedGraph = NewObject<URigVMGraph>(CollapseNode, *ContainedGraphName);
+
+	if (IRigVMClientHost* ClientHost = GetImplementingOuter<IRigVMClientHost>())
+	{
+		if (FRigVMClient* RigVMClient = ClientHost->GetRigVMClient())
+		{
+			CollapseNode->ContainedGraph = RigVMClient->CreateContainedGraphModel(CollapseNode, *ContainedGraphName);
+		}
+	}
+
+	if (CollapseNode->ContainedGraph == nullptr)
+	{
+		return nullptr;
+	}
+
 	CollapseNode->Position = InNodePosition;
 
 	if(!AddGraphNode(CollapseNode, true))

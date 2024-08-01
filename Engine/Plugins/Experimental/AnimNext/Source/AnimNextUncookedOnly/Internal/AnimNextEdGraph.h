@@ -22,6 +22,7 @@ class UAnimNextEdGraph : public URigVMEdGraph
 	GENERATED_BODY()
 	
 	friend class UAnimNextModule_EditorData;
+	friend class UAnimNextRigVMAssetEditorData;
 
 	// UObject interface
 	virtual void PostLoad() override;

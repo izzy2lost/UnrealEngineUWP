@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/AnimNextModule_AnimationGraph.h"
 
@@ -72,6 +72,11 @@ void UAnimNextModule_AnimationGraph::SetEntryName(FName InName, bool bSetupUndoR
 	}
 	
 	BroadcastModified();
+}
+
+const FName& UAnimNextModule_AnimationGraph::GetGraphName() const
+{
+	return GraphName;
 }
 
 URigVMGraph* UAnimNextModule_AnimationGraph::GetRigVMGraph() const

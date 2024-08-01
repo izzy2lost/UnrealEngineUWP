@@ -227,6 +227,9 @@ void FModule::StartupModule()
 	Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 	const TSharedPtr<FAnimNextGraphItemDetails> GraphItemDetails = MakeShareable<FAnimNextGraphItemDetails>(new FAnimNextGraphItemDetails());
 	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextCollapseGraphOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
+	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphFunctionOutlinerData::StaticStruct()->GetFName()), StaticCastSharedPtr<UE::Workspace::IWorkspaceOutlinerItemDetails>(GraphItemDetails));
+
 	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
 }
 
@@ -268,6 +271,8 @@ void FModule::ShutdownModule()
 	{
 		Workspace::IWorkspaceEditorModule& WorkspaceModule = FModuleManager::Get().LoadModuleChecked<Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
 		WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphOutlinerData::StaticStruct()->GetFName()));
+		WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextCollapseGraphOutlinerData::StaticStruct()->GetFName()));
+		WorkspaceModule.UnregisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextGraphFunctionOutlinerData::StaticStruct()->GetFName()));
 		FAnimNextGraphItemDetails::UnregisterToolMenuExtensions();
 	}
 
@@ -786,6 +791,40 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 
 		InContext.WorkspaceEditor->SetDetailsObjects(NewSelection.Array());
 	});
+	GraphArgs.OnNodeDoubleClicked = Workspace::FOnNodeDoubleClicked::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, const UEdGraphNode* InNode)
+	{
+		if (const URigVMEdGraphNode* RigVMEdGraphNode = Cast<URigVMEdGraphNode>(InNode))
+		{
+			const URigVMNode* ModelNode = RigVMEdGraphNode->GetModelNode();
+
+			if (const URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(ModelNode))
+			{
+				URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph();
+
+				if (const URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
+				{
+					if (URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
+					{
+						ContainedGraph = ReferencedNode->GetContainedGraph();
+					}
+				}
+
+				if (ContainedGraph)
+				{
+					if (TSharedPtr<Workspace::IWorkspaceEditor> WorkspaceEditor = InContext.WorkspaceEditor)
+					{
+						if (IRigVMClientHost* RigVMClientHost = ContainedGraph->GetImplementingOuter<IRigVMClientHost>())
+						{
+							if (UObject* EditorObject = RigVMClientHost->GetEditorObjectForRigVMGraph(ContainedGraph))
+							{
+								WorkspaceEditor->OpenObjects({ EditorObject });
+							}
+						}
+					}
+				}
+			}
+		}
+	});
 
 	Workspace::FObjectDocumentArgs GraphDocumentArgs = WorkspaceEditorModule.CreateGraphDocumentArgs(GraphArgs);
 	Workspace::FOnMakeDocumentWidget WorkspaceMakeDocumentWidgetDelegate = GraphDocumentArgs.OnMakeDocumentWidget;
@@ -831,66 +870,118 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 
 	GraphDocumentArgs.OnGetDocumentBreadcrumbTrail = Workspace::FOnGetDocumentBreadcrumbTrail::CreateLambda([](const Workspace::FWorkspaceEditorContext& InContext, TArray<TSharedPtr<Workspace::FWorkspaceBreadcrumb>>& OutBreadcrumbs)
 	{
-		if (const URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(InContext.Object))
+		if (URigVMEdGraph* EdGraph = Cast<URigVMEdGraph>(InContext.Object))
 		{
-			if (const UAnimNextRigVMAssetEntry* OuterAssetEntry = CastChecked<UAnimNextRigVMAssetEntry>(RigVMEdGraph->GetOuter()))
+			if (const UAnimNextModule_EditorData* GraphEditorData = EdGraph->GetTypedOuter<UAnimNextModule_EditorData>())
 			{
-				const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(OuterAssetEntry);
-				const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-
-				TWeakObjectPtr<const URigVMEdGraph> WeakGraph = RigVMEdGraph;
-				GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterAssetEntry->GetEntryName()]{ return FText::FromName(GraphName); });
-				GraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
-					[WeakGraph]
-					{
-						if (const URigVMEdGraph* Graph = WeakGraph.Get())
-						{
-							return Graph->GetPackage()->IsDirty();
-						}
-						return false;
-					}
-				);
-
-				GraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
-				[WeakGraph]
-					{
-						if (const URigVMEdGraph* Graph = WeakGraph.Get())
-						{
-							FEditorFileUtils::PromptForCheckoutAndSave({Graph->GetPackage()}, false, /*bPromptToSave=*/ false);
-						}
-					}
-				);
-	
-				if (UAnimNextModule_EditorData* OuterEditorData = CastChecked<UAnimNextModule_EditorData>(OuterAssetEntry->GetOuter()))
+				// Iterate model tree, so we display all graph parents until we reach the Entry
+				URigVMGraph* ModelGraph = EdGraph->GetModel();
+				while (ModelGraph != nullptr)
 				{
-					if(UAnimNextModule* OuterGraph = UncookedOnly::FUtils::GetGraph(OuterEditorData))
+					URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(GraphEditorData->GetEditorObjectForRigVMGraph(ModelGraph));
+
+					if (GraphEditorData && GraphEditorData->GetLocalFunctionLibrary() != RigVMEdGraph->GetModel())
 					{
-						const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& OuterGraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
-						TWeakObjectPtr<UAnimNextModule> WeakOuterGraph = OuterGraph;
+						const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+
+						TWeakObjectPtr<URigVMEdGraph> WeakEdGraph = RigVMEdGraph;
 						TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
-						OuterGraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterGraph->GetFName()]{ return FText::FromName(GraphName); });
-						OuterGraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
-							[WeakOuterGraph, WeakWorkspaceEditor]
+						TWeakObjectPtr<const UAnimNextModule_EditorData> WeakGraphEditorData = GraphEditorData;
+
+						FText GraphName;
+						if (WeakEdGraph.IsValid())
+						{
+							if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(WeakEdGraph->GetModel()->GetOuter()))
 							{
-								if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+								GraphName = FText::FromName(CollapseNode->GetFName());
+							}
+							else if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(WeakEdGraph->GetModel()->GetOuter()))
+							{
+								if (URigVMLibraryNode* ReferencedNode = Cast<URigVMLibraryNode>(FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().ResolveObject()))
 								{
-									SharedWorkspaceEditor->OpenObjects({WeakOuterGraph.Get()});
+									GraphName = FText::FromName(ReferencedNode->GetFName());
 								}
 							}
-						);
-						OuterGraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
-							[WeakOuterGraph]
-							{
-								if (UAnimNextModule* Module = WeakOuterGraph.Get())
-								{
-									return Module->GetPackage()->IsDirty();
-								}
 
+							if (GraphName.IsEmpty())
+							{
+								if (WeakGraphEditorData.IsValid() && WeakGraphEditorData->GetLocalFunctionLibrary() == WeakEdGraph->GetModel())
+								{
+									GraphName = UE::AnimNext::UncookedOnly::FUtils::GetFunctionLibraryDisplayName();
+								}
+								else
+								{
+									GraphName = FText::FromName(WeakEdGraph->GetFName());
+								}
+							}
+						}
+
+						GraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda(
+							[GraphName]
+							{
+								return GraphName;
+							});
+						GraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+							[WeakEdGraph]
+							{
+								if (const URigVMEdGraph* Graph = WeakEdGraph.Get())
+								{
+									return Graph->GetPackage()->IsDirty();
+								}
 								return false;
 							}
 						);
+						GraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
+							[WeakGraphEditorData, WeakEdGraph, WeakWorkspaceEditor]
+							{
+								if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+								{
+									SharedWorkspaceEditor->OpenObjects({ WeakEdGraph.Get() });
+								}
+							}
+						);
+						GraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+							[WeakEdGraph]
+							{
+								if (const URigVMEdGraph* Graph = WeakEdGraph.Get())
+								{
+									FEditorFileUtils::PromptForCheckoutAndSave({ Graph->GetPackage() }, false, /*bPromptToSave=*/ false);
+								}
+							}
+						);
+					}
 
-						OuterGraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
+					ModelGraph = ModelGraph->GetTypedOuter<URigVMGraph>();
+				}
+
+				// Display the Module
+				if(UAnimNextModule* OuterGraph = UncookedOnly::FUtils::GetGraph(GraphEditorData))
+				{
+					const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& OuterGraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
+					TWeakObjectPtr<UAnimNextModule> WeakOuterGraph = OuterGraph;
+					TWeakPtr<Workspace::IWorkspaceEditor> WeakWorkspaceEditor = InContext.WorkspaceEditor;
+					OuterGraphCrumb->OnGetLabel = Workspace::FWorkspaceBreadcrumb::FOnGetBreadcrumbLabel::CreateLambda([GraphName = OuterGraph->GetFName()]{ return FText::FromName(GraphName); });
+					OuterGraphCrumb->OnClicked = Workspace::FWorkspaceBreadcrumb::FOnBreadcrumbClicked::CreateLambda(
+						[WeakOuterGraph, WeakWorkspaceEditor]
+						{
+							if (const TSharedPtr<Workspace::IWorkspaceEditor> SharedWorkspaceEditor = WeakWorkspaceEditor.Pin())
+							{
+								SharedWorkspaceEditor->OpenObjects({WeakOuterGraph.Get()});
+							}
+						}
+					);
+					OuterGraphCrumb->CanSave = Workspace::FWorkspaceBreadcrumb::FCanSaveBreadcrumb::CreateLambda(
+						[WeakOuterGraph]
+						{
+							if (UAnimNextModule* Module = WeakOuterGraph.Get())
+							{
+								return Module->GetPackage()->IsDirty();
+							}
+
+							return false;
+						}
+					);
+					OuterGraphCrumb->OnSave = Workspace::FWorkspaceBreadcrumb::FOnSaveBreadcrumb::CreateLambda(
 						[WeakOuterGraph]
 							{
 								if (UAnimNextModule* Module = WeakOuterGraph.Get())
@@ -899,8 +990,6 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 								}
 							}
 						);
-						
-					}
 				}
 			}
 		}

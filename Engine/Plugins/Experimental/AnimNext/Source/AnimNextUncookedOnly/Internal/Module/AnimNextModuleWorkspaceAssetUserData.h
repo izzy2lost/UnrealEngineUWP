@@ -5,6 +5,7 @@
 #include "WorkspaceAssetRegistryInfo.h"
 #include "Param/ParamType.h"
 #include "IAnimNextRigVMGraphInterface.h"
+#include "RigVMModel/Nodes/RigVMFunctionReferenceNode.h"
 
 #include "AnimNextModuleWorkspaceAssetUserData.generated.h"
 
@@ -36,6 +37,28 @@ struct FAnimNextGraphOutlinerData : public FWorkspaceOutlinerItemData
 
 	UPROPERTY(VisibleAnywhere, Category=AnimNext)
 	TScriptInterface<IAnimNextRigVMGraphInterface> GraphInterface;
+};
+
+USTRUCT()
+struct FAnimNextCollapseGraphOutlinerData : public FWorkspaceOutlinerItemData
+{
+	GENERATED_BODY()
+	
+	FAnimNextCollapseGraphOutlinerData() = default;
+
+	UPROPERTY(VisibleAnywhere, Category=AnimNext)
+	TWeakObjectPtr<URigVMEdGraph> EditorObject;
+};
+
+USTRUCT()
+struct FAnimNextGraphFunctionOutlinerData : public FWorkspaceOutlinerItemData
+{
+	GENERATED_BODY()
+	
+	FAnimNextGraphFunctionOutlinerData() = default;
+
+	UPROPERTY(VisibleAnywhere, Category=AnimNext)
+	TWeakObjectPtr<URigVMEdGraph> EditorObject;
 };
 
 USTRUCT()

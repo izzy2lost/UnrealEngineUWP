@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Module/AnimNextModule_EventGraph.h"
 
@@ -26,6 +26,11 @@ void UAnimNextModule_EventGraph::SetEntryName(FName InName, bool bSetupUndoRedo)
 	GraphName = InName;
 
 	BroadcastModified();
+}
+
+const FName& UAnimNextModule_EventGraph::GetGraphName() const
+{
+	return GraphName;
 }
 
 URigVMGraph* UAnimNextModule_EventGraph::GetRigVMGraph() const

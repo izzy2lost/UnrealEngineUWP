@@ -65,7 +65,7 @@ class UAnimNextRigVMAssetLibrary : public UBlueprintFunctionLibrary
 
 /* Base class for all AnimNext editor data objects that use RigVM */
 UCLASS(MinimalAPI, Abstract)
-class UAnimNextRigVMAssetEditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost
+class UAnimNextRigVMAssetEditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost, public IRigVMClientExternalModelHost
 {
 	GENERATED_BODY()
 
@@ -82,6 +82,7 @@ protected:
 	friend class UE::AnimNext::Tests::FEditor_Graph;
 	friend class UE::AnimNext::Tests::FEditor_Parameters;
 	friend class UE::AnimNext::Editor::FParameterCustomization;
+	friend class UAnimNextModuleWorkspaceAssetUserData;
 
 	// UObject interface
 	virtual void Serialize(FArchive& Ar) override;
@@ -133,10 +134,15 @@ protected:
 	virtual URigVMController* GetController(const UEdGraph* InEdGraph) const override;
 	virtual URigVMController* GetOrCreateController(const UEdGraph* InGraph) override;
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
+	virtual void SetupPinRedirectorsForBackwardsCompatibility() override;
 
 	// IRigVMGraphFunctionHost interface
 	virtual FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() override;
 	virtual const FRigVMGraphFunctionStore* GetRigVMGraphFunctionStore() const override;
+
+	// IRigVMClientExternalModelHost interface
+	virtual const TArray<TObjectPtr<URigVMGraph>>& GetExternalModels() const override { return GraphModels; }
+	virtual TObjectPtr<URigVMGraph> CreateContainedGraphModel(URigVMCollapseNode* CollapseNode, const FName& Name) override;
 
 	// Override called during initialization to determine what RigVM controller class is used
 	virtual TSubclassOf<URigVMController> GetControllerClass() const { return URigVMController::StaticClass(); }
@@ -148,7 +154,10 @@ protected:
 	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::CreateEdGraph, return nullptr;)
 
 	// Create and store a UEdGraph that corresponds to a URigVMCollapseNode
-	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::CreateEdGraphForCollapseNode, )
+	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::CreateEdGraphForCollapseNode, )
+
+	// Destroy a UEdGraph that corresponds to a URigVMCollapseNode
+	virtual void RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::RemoveEdGraphForCollapseNode, )
 
 	// Remove the UEdGraph that corresponds to a URigVMGraph
 	virtual bool RemoveEdGraph(URigVMGraph* InModel) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::RemoveEdGraph, return false;)
@@ -197,15 +206,48 @@ protected:
 
 	// Returns all nodes in all graphs of the specified class
 	template<class T>
-	void GetAllNodesOfClass(TArray<T*>& OutNodes)
+	void GetAllNodesOfClass(TArray<T*>& OutNodes) const
 	{
 		ForEachEntryOfType<IAnimNextRigVMGraphInterface>([&OutNodes](IAnimNextRigVMGraphInterface* InGraphInterface)
 		{
+			URigVMEdGraph* RigVMEdGraph = InGraphInterface->GetEdGraph();
+			check(RigVMEdGraph)
+
 			TArray<T*> GraphNodes;
-			InGraphInterface->GetEdGraph()->GetNodesOfClass<T>(GraphNodes);
+			RigVMEdGraph->GetNodesOfClass<T>(GraphNodes);
+
+			TArray<UEdGraph*> SubGraphs;
+			RigVMEdGraph->GetAllChildrenGraphs(SubGraphs);
+			for (const TObjectPtr<UEdGraph>& SubGraph : SubGraphs)
+			{
+				if (SubGraph)
+				{
+					SubGraph->GetNodesOfClass<T>(GraphNodes);
+				}
+			}
+
 			OutNodes.Append(GraphNodes);
+
 			return true;
 		});
+
+		for (URigVMEdGraph* RigVMEdGraph : FunctionEdGraphs)
+		{
+			if (RigVMEdGraph)
+			{
+				RigVMEdGraph->GetNodesOfClass<T>(OutNodes);
+
+				TArray<UEdGraph*> SubGraphs;
+				RigVMEdGraph->GetAllChildrenGraphs(SubGraphs);
+				for (const TObjectPtr<UEdGraph>& SubGraph : SubGraphs)
+				{
+					if (SubGraph)
+					{
+						SubGraph->GetNodesOfClass<T>(OutNodes);
+					}
+				}
+			}
+		}
 	}
 	
 	// Find an entry by name
@@ -229,7 +271,13 @@ protected:
 	void PostLoadExternalPackages();
 
 	// Find an entry that corresponds to the specified RigVMGraph. This uses the name of the graph to match the entry 
-	UAnimNextRigVMAssetEntry* FindEntryForRigVMGraph(URigVMGraph* InRigVMGraph) const;
+	UAnimNextRigVMAssetEntry* FindEntryForRigVMGraph(const URigVMGraph* InRigVMGraph) const;
+
+	// Find an entry that corresponds to the specified RigVMGraph. This uses the name of the graph to match the entry 
+	UAnimNextRigVMAssetEntry* FindEntryForRigVMEdGraph(const URigVMEdGraph* InRigVMEdGraph) const;
+
+	// Refresh the 'external' models for the RigVM client to reference
+	void RefreshExternalModels();
 	
 	/** All entries in this asset - not saved, either serialized or discovered at load time */
 	UPROPERTY(transient)
@@ -277,6 +325,19 @@ protected:
 
 	// Cached exports, generated lazily or on compilation
 	mutable TOptional<FAnimNextParameterProviderAssetRegistryExports> CachedExports;
+	
+	// Collection of models gleaned from graphs
+	TArray<TObjectPtr<URigVMGraph>> GraphModels;
+
+
+	// Set of functions implemented for this graph
+	UPROPERTY()
+	TArray<TObjectPtr<URigVMEdGraph>> FunctionEdGraphs;
+
+	// Default FunctionLibrary EdGraph
+	UPROPERTY()
+	TObjectPtr<UAnimNextEdGraph> FunctionLibraryEdGraph;
+
 
 	bool bAutoRecompileVM = true;
 	bool bErrorsDuringCompilation = false;

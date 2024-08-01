@@ -20,6 +20,9 @@ class ANIMNEXTUNCOOKEDONLY_API IAnimNextRigVMGraphInterface
 	GENERATED_BODY()
 
 public:
+	// Get the AnimNext graph name
+	virtual const FName& GetGraphName() const = 0;
+
 	// Get the RigVM graph
 	virtual URigVMGraph* GetRigVMGraph() const = 0;
 

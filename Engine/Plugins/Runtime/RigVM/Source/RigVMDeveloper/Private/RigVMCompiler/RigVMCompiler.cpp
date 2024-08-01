@@ -611,7 +611,16 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 			}
 			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Nodes[i]))
 			{
-				Nodes.Append(CollapseNode->GetContainedGraph()->GetNodes());
+				if (CollapseNode->GetContainedGraph())
+				{
+					Nodes.Append(CollapseNode->GetContainedGraph()->GetNodes());
+				}
+				else
+				{
+					static const FString FunctionCompilationErrorMessage = TEXT("Could not find contained graph for collapse node @@.");
+					Settings.ASTSettings.Report(EMessageSeverity::Error, CollapseNode, FunctionCompilationErrorMessage);
+					bEncounteredGraphError = true;
+				}
 			}
 		}
 	}

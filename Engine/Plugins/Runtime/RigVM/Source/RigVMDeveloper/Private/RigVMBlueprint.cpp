@@ -1009,14 +1009,22 @@ void URigVMBlueprint::PostLoad()
 				bDirtyDuringLoad = true;
 			}
 			
-			PatchFunctionReferencesOnLoad();
+			GetRigVMClient()->PatchFunctionReferencesOnLoad();
+			FunctionReferenceNodeData = GetReferenceNodeData();
+
 			PatchVariableNodesOnLoad();
 			PatchVariableNodesWithIncorrectType();
 			PathDomainSpecificContentOnLoad();
 			PatchBoundVariables();
 			PatchParameterNodesOnLoad();
 			PatchLinksWithCast();
-			PatchFunctionsOnLoad();
+			
+			TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
+			// Backwards compatibility. Store public access in the model
+			TArray<FName> BackwardsCompatiblePublicFunctions;
+			GetBackwardsCompatibilityPublicFunctions(BackwardsCompatiblePublicFunctions, OldHeaders);
+
+			GetRigVMClient()->PatchFunctionsOnLoad(GetRigVMBlueprintGeneratedClass(), BackwardsCompatiblePublicFunctions, OldHeaders);
 
 			const FRigVMClientPatchResult PinDefaultValuePatchResult = GetRigVMClient()->PatchPinDefaultValues();
 			if(PinDefaultValuePatchResult.RequiresToMarkPackageDirty())
@@ -1402,161 +1410,9 @@ void URigVMBlueprint::DecrementVMRecompileBracket()
 
 void URigVMBlueprint::RefreshAllModels(ERigVMLoadType InLoadType)
 {
-	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
+	const bool bEnablePostLoadHashing = CVarRigVMEnablePostLoadHashing->GetBool();
 
-	// avoid any compute if the current structure hashes match with the serialized ones
-	if(CVarRigVMEnablePostLoadHashing->GetBool() && RigVMClient.GetStructureHash() == RigVMClient.GetSerializedStructureHash())
-	{
-		if(bIsPostLoad)
-		{
-			TArray<URigVMGraph*> ModelGraphs = RigVMClient.GetAllModels(true, true);
-			Algo::Reverse(ModelGraphs);
-			for (URigVMGraph* ModelGraph : ModelGraphs)
-			{
-				URigVMController* Controller = GetOrCreateController(ModelGraph);
-				URigVMController::FRestoreLinkedPathSettings Settings;
-				Settings.bFollowCoreRedirectors = true;
-				Settings.bRelayToOrphanPins = true;
-				Controller->ProcessDetachedLinks(Settings);
-			}
-		}
-		return;
-	}
-	
-	TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
-	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
-	
-	TArray<URigVMGraph*> AllModelsLeavesFirst = RigVMClient.GetAllModelsLeavesFirst(true);
-	TMap<const URigVMGraph*, TArray<URigVMController::FLinkedPath>> LinkedPaths;
-
-	if (ensure(IsInGameThread()))
-	{
-		TArray<URigVMController::FRepopulatePinsNodeData> RepopulatePinsNodesData;
-		constexpr int32 REPOPULATE_NODES_NUM_RESERVED = 800;
-		RepopulatePinsNodesData.Reserve(REPOPULATE_NODES_NUM_RESERVED);
-
-		for (URigVMGraph* Graph : AllModelsLeavesFirst)
-		{
-			URigVMController* Controller = GetOrCreateController(Graph);
-			// temporarily disable default value validation during load time, serialized values should always be accepted
-			TGuardValue<bool> PerGraphDisablePinDefaultValueValidation(Controller->bValidatePinDefaults, false);
-			TGuardValue<bool> GuardEditGraph(Graph->bEditable, true);
-			FRigVMControllerNotifGuard NotifGuard(Controller, true);
-			LinkedPaths.Add(Graph, Controller->GetLinkedPaths());
-
-			const TArray<URigVMNode*> Nodes = Graph->GetNodes();
-			if (Nodes.Num() > 0)
-			{
-				RepopulatePinsNodesData.Reset();
-
-				for (URigVMNode* Node : Nodes)
-				{
-					Controller->GenerateRepopulatePinsNodeData(RepopulatePinsNodesData, Node, true, true);
-				}
-
-#if UE_RIGVMCONTROLLER_VERBOSE_REPOPULATE
-				UE_LOG(LogRigVMDeveloper, Display, TEXT("--- Graph: [%s/%s]  - NumNodes : [%d]"), *Graph->GetOuter()->GetName(), *Graph->GetName(), RepopulatePinsNodesData.Num());
-#endif
-
-				Controller->OrphanPins(RepopulatePinsNodesData);
-				Controller->FastBreakLinkedPaths(LinkedPaths.FindChecked(Graph));
-				Controller->RepopulatePins(RepopulatePinsNodesData);
-			}
-		}
-		SetupPinRedirectorsForBackwardsCompatibility();
-	}
-
-	for (URigVMGraph* Graph : AllModelsLeavesFirst)
-	{
-		URigVMController* Controller = GetOrCreateController(Graph);
-		TGuardValue<bool> GuardEditGraph(Graph->bEditable, true);
-		FRigVMControllerNotifGuard NotifGuard(Controller, true);
-		{
-			URigVMController::FRestoreLinkedPathSettings Settings;
-			Settings.bFollowCoreRedirectors = true;
-			Settings.bRelayToOrphanPins = true;
-			Controller->RestoreLinkedPaths(LinkedPaths.FindChecked(Graph), Settings);
-		}
-
-		for(URigVMNode* ModelNode : Graph->GetNodes())
-		{
-			Controller->RemoveUnusedOrphanedPins(ModelNode);
-		}
-
-		if(bIsPostLoad)
-		{
-			for(URigVMNode* ModelNode : Graph->GetNodes())
-			{
-				if (URigVMTemplateNode* TemplateNode = Cast<URigVMTemplateNode>(ModelNode))
-				{
-					TemplateNode->InvalidateCache();
-					TemplateNode->PostLoad();
-				}
-			}
-		}
-
-#if WITH_EDITOR
-
-		if(bIsPostLoad)
-		{
-			for(URigVMNode* ModelNode : Graph->GetNodes())
-			{
-				if(URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(ModelNode))
-				{
-					if (!UnitNode->HasWildCardPin())
-					{
-						UScriptStruct* ScriptStruct = UnitNode->GetScriptStruct(); 
-						if(ScriptStruct == nullptr)
-						{
-							Controller->FullyResolveTemplateNode(UnitNode, INDEX_NONE, false);
-						}
-
-						// Try to find a deprecated template
-						if (UnitNode->GetScriptStruct() == nullptr && !UnitNode->TemplateNotation.IsNone())
-						{
-							const FRigVMTemplate* Template = FRigVMRegistry::Get().FindTemplate(UnitNode->TemplateNotation, true);
-							FRigVMTemplate::FTypeMap TypeMap = UnitNode->GetTemplatePinTypeMap();
-
-							int32 Permutation;
-							if (Template->FullyResolve(TypeMap, Permutation))
-							{
-								const FRigVMFunction* Function = Template->GetPermutation(Permutation);
-								UnitNode->ResolvedFunctionName = Function->GetName();
-							}
-						}
-
-						if (UnitNode->GetScriptStruct() == nullptr)
-						{
-							static const TCHAR UnresolvedUnitNodeMessage[] = TEXT("Node %s could not be resolved.");
-							Controller->ReportErrorf(UnresolvedUnitNodeMessage, *ModelNode->GetNodePath(true));
-						}
-					}
-				}
-				if (URigVMDispatchNode* DispatchNode = Cast<URigVMDispatchNode>(ModelNode))
-				{
-					if (DispatchNode->GetFactory() == nullptr)
-					{
-						static const TCHAR UnresolvedDispatchNodeMessage[] = TEXT("Dispatch node %s has no factory..");
-						Controller->ReportErrorf(UnresolvedDispatchNodeMessage, *ModelNode->GetNodePath(true));
-					}
-					else if (!DispatchNode->HasWildCardPin())
-					{
-						if (DispatchNode->GetResolvedFunction() == nullptr)
-						{
-							Controller->FullyResolveTemplateNode(DispatchNode, INDEX_NONE, false);
-						}
-						if (DispatchNode->GetResolvedFunction() == nullptr)
-						{
-							static const TCHAR UnresolvedDispatchNodeMessage[] = TEXT("Node %s could not be resolved.");
-							Controller->ReportErrorf(UnresolvedDispatchNodeMessage, *ModelNode->GetNodePath(true));
-						}
-					}
-				}
-			}
-		}
-#endif
-
-	}
+	RigVMClient.RefreshAllModels(InLoadType, bEnablePostLoadHashing, bIsCompiling);
 }
 
 void URigVMBlueprint::OnRigVMRegistryChanged()
@@ -3515,76 +3371,6 @@ FName URigVMBlueprint::AddHostMemberVariableFromExternal(FRigVMExternalVariable 
 	return NAME_None;
 }
 
-void URigVMBlueprint::PatchFunctionReferencesOnLoad()
-{
-	// If the asset was copied from one project to another, the function referenced might have a different
-	// path, even if the function is internal to the contorl rig. In that case, let's try to find the function
-	// in the local function library.
-
-	for(URigVMGraph* Model : RigVMClient)
-	{
-		TArray<URigVMNode*> Nodes = Model->GetNodes();
-		for (URigVMLibraryNode* Library : RigVMClient.GetFunctionLibrary()->GetFunctions())
-		{
-			Nodes.Append(Library->GetContainedNodes());
-		}
-		
-		for (int32 i=0; i<Nodes.Num(); ++i)
-		{
-			URigVMNode* Node = Nodes[i];
-			if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(Node))
-			{
-				if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsValid())
-				{
-					(void)FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.LoadSynchronous();
-				}
-				if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED)
-				{
-					if(URigVMFunctionLibrary* FunctionLibrary = RigVMClient.GetFunctionLibrary())
-					{
-						FString FunctionPath = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath().GetSubPathString();
-						
-						FString Left, Right;
-						if(FunctionPath.Split(TEXT("."), &Left, &Right))
-						{
-							FString LibraryNodePath = FunctionLibrary->GetNodePath();
-							if(Left == FunctionLibrary->GetName())
-							{
-								if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(FunctionLibrary->FindNode(Right)))
-								{
-									FunctionReferenceNode->ReferencedNodePtr_DEPRECATED = LibraryNode;
-								}
-							}
-						}
-					}
-				}
-
-				if (FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsValid())
-				{
-					FunctionReferenceNode->ReferencedFunctionHeader = FunctionReferenceNode->ReferencedNodePtr_DEPRECATED->GetFunctionHeader();
-				}
-				else if (!FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.IsNull())
-				{
-					// At least lets make sure we store the path in the header
-					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.SetLibraryNodePath(FunctionReferenceNode->ReferencedNodePtr_DEPRECATED.ToSoftObjectPath().ToString());
-				}
-
-				if (FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.IsValid())
-				{
-					FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.SetLibraryNodePath(FunctionReferenceNode->ReferencedFunctionHeader.LibraryPointer.LibraryNode_DEPRECATED.ToString());
-				}
-			}
-
-			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
-			{
-				Nodes.Append(CollapseNode->GetContainedNodes());
-			}
-			
-		}
-	}
-	FunctionReferenceNodeData = GetReferenceNodeData();
-}
-
 #endif
 
 void URigVMBlueprint::PatchVariableNodesOnLoad()
@@ -3734,71 +3520,6 @@ void URigVMBlueprint::PatchLinksWithCast()
 		}
 	}
 #endif
-}
-
-void URigVMBlueprint::PatchFunctionsOnLoad()
-{
-	URigVMBlueprintGeneratedClass* CRGeneratedClass = GetRigVMBlueprintGeneratedClass();
-	FRigVMGraphFunctionStore& Store = CRGeneratedClass->GraphFunctionStore;
-	URigVMFunctionLibrary* FunctionLibrary = GetLocalFunctionLibrary();
-
-	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
-
-	// Backwards compatibility. Store public access in the model
-	TArray<FName> BackwardsCompatiblePublicFunctions;
-	GetBackwardsCompatibilityPublicFunctions(BackwardsCompatiblePublicFunctions, OldHeaders);
-
-	// Lets rebuild the FunctionStore from the model
-	if (FunctionLibrary)
-	{
-		Store.PublicFunctions.Reset();
-		Store.PrivateFunctions.Reset();
-
-		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
-		{
-			bool bIsPublic = FunctionLibrary->IsFunctionPublic(LibraryNode->GetFName());
-			if (!bIsPublic)
-			{
-				bIsPublic = BackwardsCompatiblePublicFunctions.Contains(LibraryNode->GetFName());
-				if (bIsPublic)
-				{
-					FunctionLibrary->PublicFunctionNames.Add(LibraryNode->GetFName());
-				}
-			}
-
-			FRigVMGraphFunctionHeader Header = LibraryNode->GetFunctionHeader(CRGeneratedClass);
-			if (FRigVMGraphFunctionHeader* OldHeader = OldHeaders.Find(LibraryNode))
-			{				
-				Header.ExternalVariables = OldHeader->ExternalVariables;
-				Header.Dependencies = OldHeader->Dependencies;
-				Header.Layout = OldHeader->Layout;
-			}
-
-			const FRigVMVariant* Variant = FunctionLibrary->GetFunctionVariant(LibraryNode->GetFName());
-			if (!Variant)
-			{
-				Header.Variant.Guid = FRigVMVariant::GenerateGUID(Header.LibraryPointer.GetLibraryNodePath());
-				FunctionLibrary->FunctionToVariant.FindOrAdd(Header.Name) = Header.Variant;
-			}
-			else
-			{
-				Header.Variant = *Variant;
-			}
-			
-			Store.AddFunction(Header, bIsPublic);
-			if (bIsPublic)
-			{
-				GetRigVMClient()->UpdateGraphFunctionSerializedGraph(LibraryNode);
-			}
-		}
-
-		// Update dependencies and external variables if needed
-		for (URigVMLibraryNode* LibraryNode : FunctionLibrary->GetFunctions())
-		{
-			GetRigVMClient()->UpdateExternalVariablesForFunction(LibraryNode);
-			GetRigVMClient()->UpdateDependenciesForFunction(LibraryNode);
-		}
-	}
 }
 
 void URigVMBlueprint::GetBackwardsCompatibilityPublicFunctions(TArray<FName>& BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders)

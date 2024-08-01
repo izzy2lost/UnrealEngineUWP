@@ -11,6 +11,8 @@
 #include "IAnimNextRigVMGraphInterface.h"
 #include "IAnimNextRigVMParameterInterface.h"
 #include "UncookedOnlyUtils.h"
+#include "AnimNextEdGraph.h"
+#include "AnimNextEdGraphSchema.h"
 #include "Misc/TransactionObjectEvent.h"
 #include "Param/AnimNextTag.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
@@ -85,10 +87,15 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 	RigVMClient.SetDefaultSchemaClass(UAnimNextRigVMAssetSchema::StaticClass());
 	RigVMClient.SetControllerClass(GetControllerClass());
 	RigVMClient.SetOuterClientHost(this, GET_MEMBER_NAME_CHECKED(UAnimNextRigVMAssetEditorData, RigVMClient));
+	RigVMClient.SetExternalModelHost(this);
+
+	URigVMFunctionLibrary* RigVMFunctionLibrary = nullptr;
 	{
 		TGuardValue<bool> DisableClientNotifs(RigVMClient.bSuspendNotifications, true);
-		RigVMClient.GetOrCreateFunctionLibrary(false);
+		RigVMFunctionLibrary = RigVMClient.GetOrCreateFunctionLibrary(false);
 	}
+
+	ensure(RigVMFunctionLibrary->GetFunctionHostObjectPathDelegate.IsBound());
 
 	if (RigVMClient.GetController(0) == nullptr)
 	{
@@ -97,8 +104,21 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 			RigVMClient.GetOrCreateController(RigVMClient.GetDefaultModel());
 		}
 
-		check(RigVMClient.GetFunctionLibrary());
-		RigVMClient.GetOrCreateController(RigVMClient.GetFunctionLibrary());
+		check(RigVMFunctionLibrary);
+		RigVMClient.GetOrCreateController(RigVMFunctionLibrary);
+
+		if (!FunctionLibraryEdGraph)
+		{
+			FunctionLibraryEdGraph = NewObject<UAnimNextEdGraph>(CastChecked<UObject>(this), NAME_None, RF_Transactional);
+
+			FunctionLibraryEdGraph->Schema = UAnimNextEdGraphSchema::StaticClass();
+			FunctionLibraryEdGraph->bAllowRenaming = 0;
+			FunctionLibraryEdGraph->bEditable = 0;
+			FunctionLibraryEdGraph->bAllowDeletion = 0;
+			FunctionLibraryEdGraph->bIsFunctionDefinition = false;
+			FunctionLibraryEdGraph->ModelNodePath = RigVMClient.GetFunctionLibrary()->GetNodePath();
+			FunctionLibraryEdGraph->Initialize(this);
+		}
 
 		// Init function library controllers
 		for(URigVMLibraryNode* LibraryNode : RigVMClient.GetFunctionLibrary()->GetFunctions())
@@ -130,11 +150,18 @@ void UAnimNextRigVMAssetEditorData::PostLoad()
 {
 	Super::PostLoad();
 
-	Initialize(/*bRecompileVM*/false);
-
-	RefreshAllModels(ERigVMLoadType::PostLoad);
-
+	GraphModels.Reset();
+	
 	PostLoadExternalPackages();
+	RefreshExternalModels();
+	Initialize(/*bRecompileVM*/false);
+	
+	GetRigVMClient()->RefreshAllModels(ERigVMLoadType::PostLoad, false, bIsCompiling);
+
+	GetRigVMClient()->PatchFunctionReferencesOnLoad();
+	TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader> OldHeaders;
+	TArray<FName> BackwardsCompatiblePublicFunctions;
+	GetRigVMClient()->PatchFunctionsOnLoad(this, BackwardsCompatiblePublicFunctions, OldHeaders);
 
 	// delay compilation until the package has been loaded
 	FCoreUObjectDelegates::OnEndLoadPackage.AddUObject(this, &UAnimNextRigVMAssetEditorData::HandlePackageDone);
@@ -208,128 +235,17 @@ void UAnimNextRigVMAssetEditorData::HandlePackageDone()
 
 	RecompileVM();
 
-	ReconstructAllNodes();
+	ReconstructAllNodes(); // If this is not executed on a node for whatever reason, it will appear transparent in the editor
 }
 
 void UAnimNextRigVMAssetEditorData::RefreshAllModels(ERigVMLoadType InLoadType)
 {
-	const bool bIsPostLoad = InLoadType == ERigVMLoadType::PostLoad;
-
-	TGuardValue<bool> IsCompilingGuard(bIsCompiling, true);
-	TGuardValue<bool> ClientIgnoreModificationsGuard(RigVMClient.bIgnoreModelNotifications, true);
-
-	TArray<URigVMGraph*> GraphsToDetach = RigVMClient.GetAllModels(true, false);
-	TMap<const URigVMGraph*, TArray<URigVMController::FLinkedPath>> LinkedPaths;
-	
-	if (ensure(IsInGameThread()))
-	{
-		for (const URigVMGraph* GraphToDetach : GraphsToDetach)
-		{
-			URigVMController* Controller = RigVMClient.GetOrCreateController(GraphToDetach);
-			// temporarily disable default value validation during load time, serialized values should always be accepted
-			TGuardValue<bool> PerGraphDisablePinDefaultValueValidation(Controller->bValidatePinDefaults, false);
-			FRigVMControllerNotifGuard NotifGuard(Controller, true);
-			LinkedPaths.Add(GraphToDetach, Controller->GetLinkedPaths());
-			Controller->FastBreakLinkedPaths(LinkedPaths.FindChecked(GraphToDetach));
-			TArray<URigVMNode*> Nodes = GraphToDetach->GetNodes();
-			for (URigVMNode* Node : Nodes)
-			{
-				Controller->RepopulatePinsOnNode(Node, true, true);
-			}
-		}
-		//SetupPinRedirectorsForBackwardsCompatibility();
-	}
-
-	for (const URigVMGraph* GraphToDetach : GraphsToDetach)
-	{
-		URigVMController* Controller = RigVMClient.GetOrCreateController(GraphToDetach);
-		// at this stage, allow all links to be reattached,
-		// RecomputeAllTemplateFilteredPermutations() later should break any invalid links
-		FRigVMControllerNotifGuard NotifGuard(Controller, true);
-		Controller->RestoreLinkedPaths(LinkedPaths.FindChecked(GraphToDetach));
-	}
-
-	if (bIsPostLoad)
-	{
-		//PatchTemplateNodesWithPreferredPermutation();
-	}
-
-	TArray<URigVMGraph*> GraphsToClean = RigVMClient.GetAllModels(true, true);
-
-	// Sort from leaf graphs to root
-	TArray<URigVMGraph*> SortedGraphsToClean;
-	SortedGraphsToClean.Reserve(GraphsToClean.Num());
-	while (SortedGraphsToClean.Num() < GraphsToClean.Num())
-	{
-		bool bGraphAdded = false;
-		for (URigVMGraph* Graph : GraphsToClean)
-		{
-			if (SortedGraphsToClean.Contains(Graph))
-			{
-				continue;
-			}
-
-			TArray<URigVMGraph*> ContainedGraphs;
-			for (URigVMNode* Node : Graph->GetNodes())
-			{
-				if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Node))
-				{
-					if (URigVMFunctionReferenceNode* FunctionReferenceNode = Cast<URigVMFunctionReferenceNode>(LibraryNode))
-					{
-						if (FunctionReferenceNode->GetReferencedFunctionHeader().LibraryPointer.GetNodeSoftPath().GetLongPackageName() != GetPackage()->GetPathName())
-						{
-							continue;
-						}
-						if (URigVMLibraryNode* ReferencedNode = FunctionReferenceNode->LoadReferencedNode())
-						{
-							ContainedGraphs.Add(ReferencedNode->GetContainedGraph());
-							continue;
-						}
-					}
-
-					if (URigVMGraph* ContainedGraph = LibraryNode->GetContainedGraph())
-					{
-						ContainedGraphs.Add(ContainedGraph);
-					}
-				}
-			}
-
-			bool bAllContained = true;
-			for (URigVMGraph* Contained : ContainedGraphs)
-			{
-				if (!SortedGraphsToClean.Contains(Contained))
-				{
-					bAllContained = false;
-					break;
-				}
-			}
-			if (bAllContained)
-			{
-				SortedGraphsToClean.Add(Graph);
-				bGraphAdded = true;
-			}
-		}
-		ensure(bGraphAdded);
-	}
-
-	for (int32 GraphIndex = 0; GraphIndex < SortedGraphsToClean.Num(); GraphIndex++)
-	{
-		URigVMGraph* GraphToClean = SortedGraphsToClean[GraphIndex];
-		URigVMController* Controller = RigVMClient.GetOrCreateController(GraphToClean);
-		//TGuardValue<bool> GuardEditGraph(GraphToClean->bEditable, true);
-		FRigVMControllerNotifGuard NotifGuard(Controller, true);
-
-		for (URigVMNode* ModelNode : GraphToClean->GetNodes())
-		{
-			Controller->RemoveUnusedOrphanedPins(ModelNode);
-		}
-	}
 }
 
 void UAnimNextRigVMAssetEditorData::OnRigVMRegistryChanged()
 {
-	RefreshAllModels(ERigVMLoadType::PostLoad);
-	//RebuildGraphFromModel(); // TODO zzz : How we do this on AnimNext ?
+	GetRigVMClient()->RefreshAllModels(ERigVMLoadType::PostLoad, false, bIsCompiling);
+	//RebuildGraphFromModel(); // TODO zzz : Move from blueprint to client
 }
 
 void UAnimNextRigVMAssetEditorData::RequestRigVMInit()
@@ -417,6 +333,10 @@ URigVMController* UAnimNextRigVMAssetEditorData::GetOrCreateController(const UEd
 TArray<FString> UAnimNextRigVMAssetEditorData::GeneratePythonCommands(const FString InNewBlueprintName)
 {
 	return TArray<FString>();
+}
+
+void UAnimNextRigVMAssetEditorData::SetupPinRedirectorsForBackwardsCompatibility()
+{
 }
 
 FRigVMClient* UAnimNextRigVMAssetEditorData::GetRigVMClient()
@@ -516,15 +436,60 @@ UObject* UAnimNextRigVMAssetEditorData::GetEditorObjectForRigVMGraph(URigVMGraph
 {
 	if(InVMGraph)
 	{
+		if (InVMGraph->IsA<URigVMFunctionLibrary>())
+		{
+			return Cast<UObject>(FunctionLibraryEdGraph.Get());
+		}
+
+		const auto FindSubgraph = ([](const FString SearchGraphNodePath, URigVMEdGraph* EdGraph) -> URigVMEdGraph*
+		{
+			TArray<UEdGraph*> SubGraphs;
+			EdGraph->GetAllChildrenGraphs(SubGraphs);
+			for (const TObjectPtr<UEdGraph>& SubGraph : SubGraphs)
+			{
+				if (URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(SubGraph))
+				{
+					if (RigVMEdGraph->ModelNodePath == SearchGraphNodePath)
+					{
+						return RigVMEdGraph;
+					}
+				}
+			}
+			return nullptr;
+		});
+
+		const FString GraphNodePath = InVMGraph->GetNodePath();
 		for(UAnimNextRigVMAssetEntry* Entry : Entries)
 		{
 			if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 			{
 				URigVMEdGraph* EdGraph = GraphInterface->GetEdGraph();
-				if(EdGraph->ModelNodePath == InVMGraph->GetNodePath())
+
+				if (const URigVMGraph* RigVMGraph = GraphInterface->GetRigVMGraph())
 				{
-					return EdGraph;
+					if (RigVMGraph == InVMGraph)
+					{
+						return EdGraph;
+					}
 				}
+
+				if (URigVMEdGraph* RigVMEdGraph = FindSubgraph(GraphNodePath, EdGraph))
+				{
+					return RigVMEdGraph;
+				}
+			}
+		}
+
+		for (const TObjectPtr<URigVMEdGraph>& FunctionEdGraph : FunctionEdGraphs)
+		{
+			if (FunctionEdGraph->ModelNodePath == GraphNodePath)
+			{
+				return FunctionEdGraph;
+			}
+
+			if (URigVMEdGraph* RigVMEdGraph = FindSubgraph(GraphNodePath, FunctionEdGraph))
+			{
+				return RigVMEdGraph;
 			}
 		}
 	}
@@ -559,6 +524,25 @@ FRigVMGraphFunctionStore* UAnimNextRigVMAssetEditorData::GetRigVMGraphFunctionSt
 const FRigVMGraphFunctionStore* UAnimNextRigVMAssetEditorData::GetRigVMGraphFunctionStore() const
 {
 	return &GraphFunctionStore;
+}
+
+TObjectPtr<URigVMGraph> UAnimNextRigVMAssetEditorData::CreateContainedGraphModel(URigVMCollapseNode* CollapseNode, const FName& Name)
+{
+	check(CollapseNode);
+
+	TObjectPtr<URigVMGraph> Model = NewObject<URigVMGraph>(CollapseNode, Name);
+	Model->SetSchemaClass(RigVMClient.GetDefaultSchemaClass());
+
+	URigVMGraph* CollapseNodeModelRootGraph = CollapseNode->GetRootGraph();
+	check(CollapseNodeModelRootGraph);
+
+	// If we are a transient asset, dont use external packages
+	if (!CollapseNodeModelRootGraph->HasAnyFlags(RF_Transient))
+	{
+		Model->SetExternalPackage(CollapseNodeModelRootGraph->GetExternalPackage());
+	}
+
+	return Model;
 }
 
 void UAnimNextRigVMAssetEditorData::RecompileVMIfRequired()
@@ -635,11 +619,22 @@ void UAnimNextRigVMAssetEditorData::HandleModifiedEvent(ERigVMGraphNotifType InN
 		{
 			if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(InSubject))
 			{
-				CreateEdGraphForCollapseNode(CollapseNode);
+				CreateEdGraphForCollapseNode(CollapseNode, false);
 				break;
 			}
+			RequestAutoVMRecompilation();
+			break;
+	}
+	case ERigVMGraphNotifType::NodeRemoved:
+	{
+		if (URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(InSubject))
+		{
+			RemoveEdGraphForCollapseNode(CollapseNode, false);
+			break;
 		}
-		// Fall through to the next case
+		RequestAutoVMRecompilation();
+		break;
+	}
 	case ERigVMGraphNotifType::LinkAdded:
 	case ERigVMGraphNotifType::LinkRemoved:
 	case ERigVMGraphNotifType::PinArraySizeChanged:
@@ -691,6 +686,11 @@ TArray<UEdGraph*> UAnimNextRigVMAssetEditorData::GetAllEdGraphs() const
 			Graphs.Add(GraphInterface->GetEdGraph());
 		}
 	}
+	for (URigVMEdGraph* RigVMEdGraph : FunctionEdGraphs)
+	{
+		Graphs.Add(RigVMEdGraph);
+	}
+
 	return Graphs;
 }
 
@@ -743,6 +743,7 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntry(UAnimNextRigVMAssetEntry* InEntr
 	// Remove from internal array
 	UAnimNextRigVMAssetEntry* EntryToRemove = *EntryToRemovePtr;
 	Entries.Remove(EntryToRemove);
+	RefreshExternalModels();
 
 	if (bSetupUndoRedo)
 	{
@@ -804,13 +805,32 @@ UObject* UAnimNextRigVMAssetEditorData::CreateNewSubEntry(UAnimNextRigVMAssetEdi
 	return NewEntry;
 }
 
-UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMGraph(URigVMGraph* InRigVMGraph) const
+UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMGraph(const URigVMGraph* InRigVMGraph) const
 {
 	for(UAnimNextRigVMAssetEntry* Entry : Entries)
 	{
 		if(IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
 		{
-			if(GraphInterface->GetRigVMGraph() == InRigVMGraph)
+			if (const URigVMGraph* RigVMGraph = GraphInterface->GetRigVMGraph())
+			{
+				if(RigVMGraph == InRigVMGraph)
+				{
+					return Entry;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMEdGraph(const URigVMEdGraph* InRigVMEdGraph) const
+{
+	for (UAnimNextRigVMAssetEntry* Entry : Entries)
+	{
+		if (IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+		{
+			if (GraphInterface->GetEdGraph() == InRigVMEdGraph)
 			{
 				return Entry;
 			}
@@ -818,4 +838,21 @@ UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMGraph(
 	}
 
 	return nullptr;
+}
+
+void UAnimNextRigVMAssetEditorData::RefreshExternalModels()
+{
+	GraphModels.Reset();
+
+	for (UAnimNextRigVMAssetEntry* Entry : Entries)
+	{
+		if (IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+		{
+			if(URigVMGraph* Model = GraphInterface->GetRigVMGraph())
+			{
+				GraphModels.Add(Model);
+			}
+		}
+	}
+
 }

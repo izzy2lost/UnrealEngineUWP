@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -37,6 +37,7 @@ class UAnimNextModule_AnimationGraph : public UAnimNextRigVMAssetEntry, public I
 	virtual void SetEntryName(FName InName, bool bSetupUndoRedo = true) override;
 	
 	// IAnimNextRigVMGraphInterface interface
+	virtual const FName& GetGraphName() const override;
 	virtual URigVMGraph* GetRigVMGraph() const override;
 	virtual URigVMEdGraph* GetEdGraph() const override;
 	virtual void SetRigVMGraph(URigVMGraph* InGraph) override;

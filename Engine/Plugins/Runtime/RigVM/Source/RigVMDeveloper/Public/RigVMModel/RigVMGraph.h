@@ -226,7 +226,8 @@ private:
 	friend class URigVMBlueprint;
 	friend class FRigVMControllerCompileBracketScope;
 	friend class URigVMCompiler;
-	friend struct FRigVMControllerObjectFactory;
 	friend class URigVMSchema;
+	friend struct FRigVMClient;
+	friend struct FRigVMControllerObjectFactory;
 };
 

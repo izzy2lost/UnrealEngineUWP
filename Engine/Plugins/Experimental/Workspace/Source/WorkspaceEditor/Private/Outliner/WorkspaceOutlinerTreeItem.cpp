@@ -119,7 +119,8 @@ namespace UE::Workspace
 	{
 		if (const TSharedPtr<IWorkspaceOutlinerItemDetails> SharedFactory = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(Export)))
 		{
-			return SharedFactory->GetPackage(Export)->GetName();
+			const UPackage* Package = SharedFactory->GetPackage(Export);
+			return Package != nullptr ? Package->GetName() : FString();
 		}
 		else if (Export.GetParentIdentifier() == NAME_None && Export.GetAssetPath().IsValid())
 		{

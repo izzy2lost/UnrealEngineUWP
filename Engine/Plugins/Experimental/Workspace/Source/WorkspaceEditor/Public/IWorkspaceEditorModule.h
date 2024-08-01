@@ -130,6 +130,7 @@ using FOnDuplicateSelectedNodes = TDelegate<void(const FWorkspaceEditorContext&,
 
 using FOnGetWorkspaceDetailCustomizationInstance = TDelegate<TSharedRef<IDetailCustomization>(TWeakPtr<IWorkspaceEditor>)>;
 
+using FOnNodeDoubleClicked = TDelegate<void(const FWorkspaceEditorContext&, const UEdGraphNode* InNode)>;
 
 // Arguments used to make document widgets for graphs
 struct FGraphDocumentWidgetArgs
@@ -160,6 +161,8 @@ struct FGraphDocumentWidgetArgs
 	FOnPerformActionOnSelectedNodes OnSelectAllNodes;
 
 	FOnGraphSelectionChanged OnGraphSelectionChanged;
+
+	FOnNodeDoubleClicked OnNodeDoubleClicked;
 };
 
 // Enum describing how to open a workspace

@@ -12,6 +12,7 @@
 #include "AnimNextModule_EditorData.generated.h"
 
 class UAnimNextModule;
+class UAnimNextModule_FunctionGraph;
 enum class ERigVMGraphNotifType : uint8;
 class FAnimationAnimNextRuntimeTest_GraphAddTrait;
 class FAnimationAnimNextRuntimeTest_GraphExecute;
@@ -90,7 +91,8 @@ private:
 	virtual UScriptStruct* GetExecuteContextStruct() const override { return FAnimNextExecuteContext::StaticStruct(); }
 	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) override;
 	virtual bool RemoveEdGraph(URigVMGraph* InModel) override;
-	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode) override;
+	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce) override;
+	virtual void RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify) override;
 	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject) override;
 	virtual TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> GetEntryClasses() const override;
 

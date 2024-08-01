@@ -27,6 +27,7 @@ void SGraphDocument::Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEd
 	OnPasteNodes = InArgs._OnPasteNodes;
 	OnCanDuplicateSelectedNodes = InArgs._OnCanDuplicateSelectedNodes;
 	OnDuplicateSelectedNodes = InArgs._OnDuplicateSelectedNodes;
+	OnNodeDoubleClicked = InArgs._OnNodeDoubleClicked;
 
 	SGraphEditor::FGraphEditorEvents Events;
 	Events.OnCreateActionMenu = SGraphEditor::FOnCreateActionMenu::CreateLambda([this, OnCreateActionMenu = InArgs._OnCreateActionMenu](UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bInAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
@@ -49,6 +50,10 @@ void SGraphDocument::Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEd
 	Events.OnTextCommitted = ::FOnNodeTextCommitted::CreateLambda([this, OnNodeTextCommitted = InArgs._OnNodeTextCommitted](const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged)
 	{
 		OnNodeTextCommitted.ExecuteIfBound(FWorkspaceEditorContext(HostingAppPtr.Pin().ToSharedRef(), EdGraph), NewText, CommitInfo, NodeBeingChanged);
+	});
+	Events.OnNodeDoubleClicked = FSingleNodeEvent::CreateLambda([this, OnNodeDoubleClicked = InArgs._OnNodeDoubleClicked](UEdGraphNode* InNode)
+	{
+		OnNodeDoubleClicked.ExecuteIfBound(FWorkspaceEditorContext(HostingAppPtr.Pin().ToSharedRef(), EdGraph), InNode);
 	});
 
 	ChildSlot

@@ -169,6 +169,7 @@ protected:
 
 	friend class URigVMController;
 	friend class URigVMBlueprint;
+	friend struct FRigVMClient;
 	friend struct FRigVMSetTemplateFilteredPermutationsAction;
 	friend struct FRigVMSetPreferredTemplatePermutationsAction;
 	friend struct FRigVMRemoveNodeAction;

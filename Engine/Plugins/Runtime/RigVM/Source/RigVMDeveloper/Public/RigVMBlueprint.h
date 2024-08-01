@@ -401,6 +401,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual TArray<FString> GeneratePythonCommands(const FString InNewBlueprintName) override;
 
+	virtual void SetupPinRedirectorsForBackwardsCompatibility() override {};
+
 	//  --- IRigVMClientHost interface End ---
 
 	//  --- IRigVMExternalDependencyManager interface Start ---
@@ -528,7 +530,6 @@ public:
 	bool bSuspendModelNotificationsForOthers;
 	bool bSuspendAllNotifications;
 
-	virtual void SetupPinRedirectorsForBackwardsCompatibility() {};
 	void RebuildGraphFromModel();
 
 	FRigVMGraphModifiedEvent& OnModified();
@@ -614,13 +615,11 @@ private:
 
 	FOnRigVMCompiledEvent VMCompiledEvent;
 
-	virtual void PatchFunctionReferencesOnLoad();
 	virtual void PathDomainSpecificContentOnLoad() {}
 	virtual void PatchBoundVariables();
 	virtual void PatchVariableNodesWithIncorrectType();
 	virtual void PatchParameterNodesOnLoad() {}
 	virtual void PatchLinksWithCast();
-	virtual void PatchFunctionsOnLoad();
 	virtual void GetBackwardsCompatibilityPublicFunctions(TArray<FName> &BackwardsCompatiblePublicFunctions, TMap<URigVMLibraryNode*, FRigVMGraphFunctionHeader>& OldHeaders);
 
 protected:

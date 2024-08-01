@@ -15,6 +15,8 @@ struct FAnimNextEditorParam;
 struct FAnimNextParam;
 struct FEdGraphPinType;
 struct FWorkspaceOutlinerItemExports;
+struct FWorkspaceOutlinerItemExport;
+struct FRigVMGraphFunctionData;
 class UAnimNextSchedule;
 class UAnimNextModule;
 class UAnimNextModule_EditorData;
@@ -191,6 +193,9 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	// Gets the asset-registry information needed for representing the contained data into the Workspace Outliner
 	static void GetAssetOutlinerItems(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports);
+	static void CreateSubGraphsOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, URigVMEdGraph* RigVMEdGraph);
+	static void CreateFunctionLibraryOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, const TArray<FRigVMGraphFunctionData>& PublicFunctions, const TArray<FRigVMGraphFunctionData>& PrivateFunctions);
+	static void CreateFunctionsOutlinerItemsRecursive(const UAnimNextRigVMAssetEditorData* EditorData, FWorkspaceOutlinerItemExports& OutExports, FWorkspaceOutlinerItemExport& ParentExport, const TArray<FRigVMGraphFunctionData>& Functions, bool bPublicFunctions);
 
 	// Attempts to determine the type from a parameter name
 	// If the name cannot be found, the returned type will be invalid
@@ -202,6 +207,9 @@ struct ANIMNEXTUNCOOKEDONLY_API FUtils
 
 	// Sorts the incoming array of parameters, then generates a hash and returns it.
 	static uint64 SortAndHashParameters(TArray<FAnimNextParam>& InParameters);
+
+	// Returns an user friendly name for the Function Library
+	static const FText& GetFunctionLibraryDisplayName();
 };
 
 }

@@ -70,10 +70,13 @@ TArray<URigVMGraph*> URigVMGraph::GetContainedGraphs(bool bRecursive) const
 	{
 		if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
 		{
-			Graphs.AddUnique(CollapseNode->GetContainedGraph());
-			if (bRecursive)
+			if (ensure(CollapseNode->GetContainedGraph()))
 			{
-				Graphs.Append(CollapseNode->GetContainedGraph()->GetContainedGraphs(true));
+				Graphs.AddUnique(CollapseNode->GetContainedGraph());
+				if (bRecursive)
+				{
+					Graphs.Append(CollapseNode->GetContainedGraph()->GetContainedGraphs(true));
+				}
 			}
 		}
 	}

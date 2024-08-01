@@ -44,6 +44,8 @@ class SGraphDocument : public SCompoundWidget
 	SLATE_EVENT(FSimpleDelegate, OnNavigateHistoryBack)
 	SLATE_EVENT(FSimpleDelegate, OnNavigateHistoryForward)
 
+	SLATE_EVENT(FOnNodeDoubleClicked, OnNodeDoubleClicked)
+
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEditor> InHostingApp, UEdGraph* InGraph);
@@ -104,6 +106,9 @@ class SGraphDocument : public SCompoundWidget
 	// Duplicate delegates
 	FOnCanPerformActionOnSelectedNodes OnCanDuplicateSelectedNodes;
 	FOnDuplicateSelectedNodes OnDuplicateSelectedNodes;
+
+	// Node Double click
+	FOnNodeDoubleClicked OnNodeDoubleClicked;
 
 	friend class FWorkspaceEditorModule;
 };
