@@ -208,6 +208,12 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent, InComponent->GetAsset() ? InComponent->GetAsset()->GetFName() : FName())
 	, OcclusionQueryMode(InComponent->GetOcclusionQueryMode())
 {
+	// Prevent continuous VSM invalidation from the bounds of the primitive.
+	bHasDeformableMesh = false;
+
+	// Optionally enable GDME for Niagara, any caveats are covered below
+	bSupportsParallelGDME = GNiagaraParallelGDME;
+
 	FNiagaraSystemInstanceControllerConstPtr SystemInstanceController = InComponent->GetSystemInstanceController();
 	UNiagaraSystem* NiagaraSystem = InComponent->GetAsset();
 	if (SystemInstanceController && NiagaraSystem)
@@ -224,12 +230,15 @@ FNiagaraSceneProxy::FNiagaraSceneProxy(UNiagaraComponent* InComponent)
 #if NIAGARAPROXY_EVENTS_ENABLED
 		SystemStatString = NiagaraSystem->GetFName().ToString();
 #endif
-	}
 
-	// Prevent continuous VSM invalidation from the bounds of the primitive.
-	bHasDeformableMesh = false;
-	// Niagara renderers reference a lot of common contexts that aren't locked (and would otherwise introduce a lot of contention).
-	bSupportsParallelGDME = GNiagaraParallelGDME;
+		// Any GPU simulations that tick in PostInitView can not run parallel in GDME as GDME runs async over the top of this call
+		//-OPT: Would it be better to run these simulations in PreRender which is after we join from parallel GDME?
+		const ENiagaraGpuComputeTickStage::Type GpuComputeTickStage = SystemInstanceController->GetGpuComputeTickStage();
+		if (GpuComputeTickStage == ENiagaraGpuComputeTickStage::PostInitViews )
+		{
+			bSupportsParallelGDME = false;
+		}
+	}
 }
 
 SIZE_T FNiagaraSceneProxy::GetTypeHash() const

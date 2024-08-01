@@ -506,7 +506,7 @@ FORCEINLINE void FNiagaraDataBuffer::CheckUsage(bool bReadOnly)const
 	//For GPU sims we must be on the RT.
 	checkSlow(
 		(Owner->GetSimTarget() == ENiagaraSimTarget::CPUSim && (IsInGameThread() || bReadOnly || !GIsThreadedRendering || !IsInRenderingThread())) ||
-		(Owner->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim && IsInRenderingThread())
+		(Owner->GetSimTarget() == ENiagaraSimTarget::GPUComputeSim && IsInParallelRenderingThread())
 	);
 }
 
