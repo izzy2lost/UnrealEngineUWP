@@ -84,12 +84,16 @@ namespace CruncherSharp
 			uint addedSymbolsCount = 0;
 			if (task.SecondPDB)
 			{
-				allSymbols.AsParallel().ForAll(symBasicInfo =>
+				allSymbols.Reverse().AsParallel().ForAll(symBasicInfo =>
 				{
 					SymbolInfo info = FindSymbolInfo(symBasicInfo.Name);
 					if (info != null)
 					{
 						info.NewSize = symBasicInfo.Size;
+						if (MemPools != null)
+						{
+							info.SetNewMemPools(MemPools);
+						}
 						++addedSymbolsCount;
 					}
 				});

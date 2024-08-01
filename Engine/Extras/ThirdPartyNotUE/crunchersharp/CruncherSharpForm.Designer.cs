@@ -54,6 +54,9 @@
             this.restrictToSymbolsImportedFroCSVToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.unrealEngineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addMemPoolsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mB2ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mB3ToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.customMBToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.restrictToUObjectsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.openPdbDialog = new System.Windows.Forms.OpenFileDialog();
             this.openCsvDialog = new System.Windows.Forms.OpenFileDialog();
@@ -74,6 +77,8 @@
             this.loadCSVBackgroundWorker = new System.ComponentModel.BackgroundWorker();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.checkBoxMember = new System.Windows.Forms.CheckBox();
+            this.checkBoxSubclasses = new System.Windows.Forms.CheckBox();
             this.checkBoxNamespaces = new System.Windows.Forms.CheckBox();
             this.checkBoxFunctionAnalysis = new System.Windows.Forms.CheckBox();
             this.checkBoxShowOverlap = new System.Windows.Forms.CheckBox();
@@ -115,8 +120,6 @@
             this.contextMenuStripFunctions = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.ignoreFunctionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bindingSourceSymbols = new System.Windows.Forms.BindingSource(this.components);
-            this.checkBoxSubclasses = new System.Windows.Forms.CheckBox();
-            this.checkBoxMember = new System.Windows.Forms.CheckBox();
             this.mainMenu.SuspendLayout();
             this.statusStripBar.SuspendLayout();
             this.contextMenuStripMembers.SuspendLayout();
@@ -305,15 +308,39 @@
             // 
             // addMemPoolsToolStripMenuItem
             // 
+            this.addMemPoolsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.mB2ToolStripMenuItem,
+            this.mB3ToolStripMenuItem,
+            this.customMBToolStripMenuItem});
             this.addMemPoolsToolStripMenuItem.Name = "addMemPoolsToolStripMenuItem";
-            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
+            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.addMemPoolsToolStripMenuItem.Text = "Set memory pools";
-            this.addMemPoolsToolStripMenuItem.Click += new System.EventHandler(this.addMemPoolsToolStripMenuItem_Click);
+            // 
+            // mB2ToolStripMenuItem
+            // 
+            this.mB2ToolStripMenuItem.Name = "mB2ToolStripMenuItem";
+            this.mB2ToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.mB2ToolStripMenuItem.Text = "MB2";
+            this.mB2ToolStripMenuItem.Click += new System.EventHandler(this.mB2ToolStripMenuItem_Click);
+            // 
+            // mB3ToolStripMenuItem
+            // 
+            this.mB3ToolStripMenuItem.Name = "mB3ToolStripMenuItem";
+            this.mB3ToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.mB3ToolStripMenuItem.Text = "MB3";
+            this.mB3ToolStripMenuItem.Click += new System.EventHandler(this.mB3ToolStripMenuItem_Click);
+            // 
+            // customMBToolStripMenuItem
+            // 
+            this.customMBToolStripMenuItem.Name = "customMBToolStripMenuItem";
+            this.customMBToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.customMBToolStripMenuItem.Text = "Custom MB";
+            this.customMBToolStripMenuItem.Click += new System.EventHandler(this.customMBToolStripMenuItem_Click);
             // 
             // restrictToUObjectsToolStripMenuItem
             // 
             this.restrictToUObjectsToolStripMenuItem.Name = "restrictToUObjectsToolStripMenuItem";
-            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
+            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
             this.restrictToUObjectsToolStripMenuItem.Text = "Restrict to UObjects";
             this.restrictToUObjectsToolStripMenuItem.Click += new System.EventHandler(this.restrictToUObjectsToolStripMenuItem_Click);
             // 
@@ -501,6 +528,28 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(1791, 104);
             this.panel1.TabIndex = 4;
+            // 
+            // checkBoxMember
+            // 
+            this.checkBoxMember.AutoSize = true;
+            this.checkBoxMember.Location = new System.Drawing.Point(637, 35);
+            this.checkBoxMember.Name = "checkBoxMember";
+            this.checkBoxMember.Size = new System.Drawing.Size(64, 17);
+            this.checkBoxMember.TabIndex = 19;
+            this.checkBoxMember.Text = "Member";
+            this.checkBoxMember.UseVisualStyleBackColor = true;
+            this.checkBoxMember.CheckedChanged += new System.EventHandler(this.checkBoxMember_CheckedChanged);
+            // 
+            // checkBoxSubclasses
+            // 
+            this.checkBoxSubclasses.AutoSize = true;
+            this.checkBoxSubclasses.Location = new System.Drawing.Point(537, 35);
+            this.checkBoxSubclasses.Name = "checkBoxSubclasses";
+            this.checkBoxSubclasses.Size = new System.Drawing.Size(80, 17);
+            this.checkBoxSubclasses.TabIndex = 12;
+            this.checkBoxSubclasses.Text = "Subclasses";
+            this.checkBoxSubclasses.UseVisualStyleBackColor = true;
+            this.checkBoxSubclasses.CheckedChanged += new System.EventHandler(this.checkBoxSubclasses_CheckedChanged);
             // 
             // checkBoxNamespaces
             // 
@@ -964,28 +1013,7 @@
             this.ignoreFunctionToolStripMenuItem.Size = new System.Drawing.Size(156, 22);
             this.ignoreFunctionToolStripMenuItem.Text = "Ignore function";
             this.ignoreFunctionToolStripMenuItem.Click += new System.EventHandler(this.ignoreFunctionToolStripMenuItem_Click);
-            // 
-            // checkBoxSubclasses
-            // 
-            this.checkBoxSubclasses.AutoSize = true;
-            this.checkBoxSubclasses.Location = new System.Drawing.Point(537, 35);
-            this.checkBoxSubclasses.Name = "checkBoxSubclasses";
-            this.checkBoxSubclasses.Size = new System.Drawing.Size(80, 17);
-            this.checkBoxSubclasses.TabIndex = 12;
-            this.checkBoxSubclasses.Text = "Subclasses";
-            this.checkBoxSubclasses.UseVisualStyleBackColor = true;
-            this.checkBoxSubclasses.CheckedChanged += new System.EventHandler(this.checkBoxSubclasses_CheckedChanged);
-            // 
-            // checkBoxMember
-            // 
-            this.checkBoxMember.AutoSize = true;
-            this.checkBoxMember.Location = new System.Drawing.Point(637, 35);
-            this.checkBoxMember.Name = "checkBoxMember";
-            this.checkBoxMember.Size = new System.Drawing.Size(64, 17);
-            this.checkBoxMember.TabIndex = 19;
-            this.checkBoxMember.Text = "Member";
-            this.checkBoxMember.UseVisualStyleBackColor = true;
-            this.checkBoxMember.CheckedChanged += new System.EventHandler(this.checkBoxMember_CheckedChanged);
+
             // 
             // CruncherSharpForm
             // 
@@ -1118,6 +1146,9 @@
 		private System.Windows.Forms.ToolStripMenuItem restrictToUObjectsToolStripMenuItem;
 		private System.Windows.Forms.CheckBox checkBoxSubclasses;
 		private System.Windows.Forms.CheckBox checkBoxMember;
+		private System.Windows.Forms.ToolStripMenuItem mB2ToolStripMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem mB3ToolStripMenuItem;
+		private System.Windows.Forms.ToolStripMenuItem customMBToolStripMenuItem;
 	}
 }
 

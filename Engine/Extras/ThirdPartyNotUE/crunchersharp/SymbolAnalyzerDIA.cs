@@ -78,6 +78,10 @@ namespace CruncherSharp
 					if (info != null)
 					{
 						info.NewSize = sym.length;
+						if (MemPools != null)
+						{
+							info.SetNewMemPools(MemPools);
+						}
 					}
 				}
 				else

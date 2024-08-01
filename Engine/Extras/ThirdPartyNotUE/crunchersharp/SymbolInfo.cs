@@ -20,8 +20,9 @@ namespace CruncherSharp
         public ulong NumInstances { get; set; }
         public ulong TotalCount { get; set; }
 		public ulong LowerMemPool { get; set; }
-		public ulong UpperMemPool { get; set; }
+		public ulong CurrentMemPool { get; set; }
 
+		public ulong NewMemPool { get; set; }
 		public bool IsAbstract { get; set; }
         public bool IsTemplate { get; set; }
 		public bool IsImportedFromCSV { get; set; }
@@ -38,7 +39,8 @@ namespace CruncherSharp
             Size = size;
             EndPadding = 0;
 			LowerMemPool = 0;
-			UpperMemPool = 0;
+			CurrentMemPool = 0;
+			NewMemPool = 0;
 			TotalPadding = null;
             Members = new List<SymbolMemberInfo>();
             Functions = new List<SymbolFunctionInfo>();
@@ -75,15 +77,37 @@ namespace CruncherSharp
 					previousMemPool = memPool;
 					continue;
 				}
-				UpperMemPool = memPool;
+				CurrentMemPool = memPool;
 				LowerMemPool = previousMemPool;
+				break;
+			}
+			if (CurrentMemPool == 0)
+			{
+				CurrentMemPool = Size;
+			}
+
+			if (NewSize > 0)
+			{
+				SetNewMemPools(MemPools); 
+			}
+		}
+
+		public void SetNewMemPools(List<uint> MemPools)
+		{
+			foreach (var memPool in MemPools)
+			{
+				if (NewSize > memPool)
+				{
+					continue;
+				}
+				NewMemPool = memPool;
 				return;
 			}
-			UpperMemPool = LowerMemPool = Size;
+			NewMemPool = NewSize;
 		}
 
 
-        private bool ComputeOffsetCollision(int index)
+		private bool ComputeOffsetCollision(int index)
         {
             return index > 0 && Members[index].Offset == Members[index - 1].Offset;
         }
@@ -250,6 +274,19 @@ namespace CruncherSharp
             return TotalPadding.Value;
         }
 
+		public ulong ComputeTotalMempoolUsage()
+		{
+			ulong TotalUsage = CurrentMemPool * NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalMempoolUsage();
+				}
+			}
+			return TotalUsage;
+		}
+
 		public ulong ComputeTotalMempoolWin()
 		{
 			return ComputeTotalMempoolWin(Size - LowerMemPool);
@@ -259,7 +296,7 @@ namespace CruncherSharp
 		{
 			ulong TotalWin = 0;
 			if (LowerMemPool > 0 && (Size - Win) <= LowerMemPool)
-				TotalWin = (UpperMemPool - LowerMemPool) * NumInstances;
+				TotalWin = (CurrentMemPool - LowerMemPool) * NumInstances;
 
 			if (DerivedClasses != null)
 			{
@@ -270,6 +307,32 @@ namespace CruncherSharp
 			}
 
 			return TotalWin;
+		}
+
+		public long ComputeTotalDelta()
+		{
+			long TotalUsage = ((long)NewSize - (long)Size) * (long)NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalDelta();
+				}
+			}
+			return TotalUsage;
+		}
+
+		public long ComputeTotalMempoolDelta()
+		{
+			long TotalUsage = ((long)NewMemPool - (long)CurrentMemPool) * (long)NumInstances;
+			if (DerivedClasses != null)
+			{
+				foreach (var derivedClass in DerivedClasses)
+				{
+					TotalUsage += derivedClass.ComputeTotalMempoolDelta();
+				}
+			}
+			return TotalUsage;
 		}
 
 		private bool _BaseClassUpdated = false;

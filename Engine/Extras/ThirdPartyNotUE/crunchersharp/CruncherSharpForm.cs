@@ -86,24 +86,12 @@ namespace CruncherSharp
 
 			string SymbolAnalyzer = ConfigurationManager.AppSettings.Get("SymbolAnalyzer");
 			useRawPDBToolStripMenuItem.Checked = SymbolAnalyzer == "RawPDB";
-			string MemoryPoolsSettings = ConfigurationManager.AppSettings.Get("MemoryPools");
-			string[] MemoryPools = MemoryPoolsSettings.Split(',');
-			List<uint> MemoryPoolsSize = new List<uint>();
-			foreach (var memPool in MemoryPools)
+			if (ShowMemPool("MB2"))
 			{
-				MemoryPoolsSize.Add(UInt32.Parse(memPool));
-			}
-			if (MemoryPoolsSize.Count>0)
-			{
-				_HasMemPools = true;
-				_SymbolAnalyzerDia.MemPools = MemoryPoolsSize;
-#if RAWPDB
-				_SymbolAnalyzerRawPDB.MemPools = MemoryPoolsSize;
-#endif
-				AddMemPoolsColums();
+				mB2ToolStripMenuItem.Checked = true;
 			}
 
-
+			OpenPDB();
 		}
 
         public SearchType SearchCategory
@@ -150,8 +138,13 @@ namespace CruncherSharp
             if (loadPDBBackgroundWorker.IsBusy || loadCSVBackgroundWorker.IsBusy)
                 return;
 
-            if (openPdbDialog.ShowDialog() != DialogResult.OK)
-                return;
+			OpenPDB();
+		}
+
+		private void OpenPDB()
+		{
+			if (openPdbDialog.ShowDialog() != DialogResult.OK)
+				return;
 
 			Reset();
 
@@ -162,11 +155,11 @@ namespace CruncherSharp
 #endif
 			Text = "Cruncher# - " + openPdbDialog.FileName;
 
-            btnLoad.Enabled = true;
-            btnReset.Enabled = true;
+			btnLoad.Enabled = true;
+			btnReset.Enabled = true;
 			loadInstanceCountToolStripMenuItem.Enabled = true;
 			textBoxFilter.Focus();
-        }
+		}
 
         public void LoadPdb(string fileName, bool secondPDB)
         {
@@ -198,18 +191,19 @@ namespace CruncherSharp
 		private static string PaddingRowName = "Padding";
 		private static string PaddingZonesRowName = "Padding zones";
 		private static string TotalPaddingRowName = "Total padding";
-		private static string PaddingPercentRowName = "Padding %";
 		private static string TotalDeltaRowName = "Total delta";
 		private static string InstancesRowName = "Instances";
 		private static string TotalCountRowName = "Total count";
 		private static string TotalSizeRowName = "Total size";
 		private static string TotalWasteRowName = "Total waste";
-		private static string MempoolWasteRowName = "Mempool waste";
-		private static string MempoolDeltaRowName = "MemPool delta";
-		private static string MempoolTotalWasteRowName = "Mempool total waste";
-		private static string MempoolTotalWinRowName = "MemPool total win";
+		private static string MempoolUsageRowName = "Mempool usage";
+		private static string MempoolTotalUsageRowName = "Mempool total usage";
+		private static string MempoolRowName = "Current mempool";
+		private static string MempoolDeltaRowName = "Delta to lower mempool";
+		private static string MempoolTotalWinRowName = "Mem win with lower mempool";
 		private static string NewSizeRowName = "New size";
 		private static string DeltaRowName = "Delta";
+		private static string DeltaTotalSaving = "Delta total saving";
 
 		private DataTable CreateDataTable()
         {
@@ -239,13 +233,6 @@ namespace CruncherSharp
                 ReadOnly = true,
                 DataType = Type.GetType("System.UInt32")
             });
-            table.Columns.Add(new DataColumn
-            {
-                ColumnName = PaddingPercentRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.UInt32")
-            });
-
 
 			return table;
         }
@@ -264,6 +251,17 @@ namespace CruncherSharp
 					DataType = Type.GetType("System.Int32")
 				});
 				dataGridSymbols.Columns[TotalDeltaRowName].Width = 80;
+
+				if (_HasMemPools)
+				{
+					_Table.Columns.Add(new DataColumn
+					{
+						ColumnName = DeltaTotalSaving,
+						ReadOnly = true,
+						DataType = Type.GetType("System.Int32")
+					});
+					dataGridSymbols.Columns[DeltaTotalSaving].Width = 80;
+				}	
 			}
 
 
@@ -299,11 +297,20 @@ namespace CruncherSharp
 			{
 				_Table.Columns.Add(new DataColumn
 				{
-					ColumnName = MempoolTotalWasteRowName,
+					ColumnName = MempoolUsageRowName,
 					ReadOnly = true,
-					DataType = Type.GetType("System.UInt64")
+					DataType = Type.GetType("System.UInt32")
 				});
-				dataGridSymbols.Columns[MempoolTotalWasteRowName].Width = 80;
+				dataGridSymbols.Columns[MempoolUsageRowName].Width = 80;
+
+				_Table.Columns.Add(new DataColumn
+				{
+					ColumnName = MempoolTotalUsageRowName,
+					ReadOnly = true,
+					DataType = Type.GetType("System.UInt32")
+				});
+				dataGridSymbols.Columns[MempoolTotalUsageRowName].Width = 80;
+
 				_Table.Columns.Add(new DataColumn
 				{
 					ColumnName = MempoolTotalWinRowName,
@@ -334,15 +341,16 @@ namespace CruncherSharp
             });
 			dataGridSymbols.Columns[DeltaRowName].Width = 80;
 			if (_HasInstancesCount)
-                _Table.Columns.Add(new DataColumn
-                {
-                    ColumnName = TotalDeltaRowName,
-                    ReadOnly = true,
-                    DataType = Type.GetType("System.Int32")
-                });
-			dataGridSymbols.Columns[TotalDeltaRowName].Width = 80;
+			{
+				_Table.Columns.Add(new DataColumn
+				{
+					ColumnName = TotalDeltaRowName,
+					ReadOnly = true,
+					DataType = Type.GetType("System.Int64")
+				});
+				dataGridSymbols.Columns[TotalDeltaRowName].Width = 80;
+			}
 		}
-
 
 		private void AddMemPoolsColums()
 		{
@@ -351,20 +359,28 @@ namespace CruncherSharp
 
 			_Table.Columns.Add(new DataColumn
 			{
-				ColumnName = MempoolWasteRowName,
+				ColumnName = MempoolRowName,
 				ReadOnly = true,
 				DataType = Type.GetType("System.UInt32")
 			});
-			dataGridSymbols.Columns[MempoolWasteRowName].Width = 80;
+			dataGridSymbols.Columns[MempoolRowName].Width = 80;
 			if (_HasInstancesCount)
 			{
 				_Table.Columns.Add(new DataColumn
 				{
-					ColumnName = MempoolTotalWasteRowName,
+					ColumnName = MempoolUsageRowName,
 					ReadOnly = true,
-					DataType = Type.GetType("System.UInt64")
+					DataType = Type.GetType("System.UInt32")
 				});
-				dataGridSymbols.Columns[MempoolTotalWasteRowName].Width = 80;
+				dataGridSymbols.Columns[MempoolUsageRowName].Width = 80;
+
+				_Table.Columns.Add(new DataColumn
+				{
+					ColumnName = MempoolTotalUsageRowName,
+					ReadOnly = true,
+					DataType = Type.GetType("System.UInt32")
+				});
+				dataGridSymbols.Columns[MempoolTotalUsageRowName].Width = 80;
 
 				_Table.Columns.Add(new DataColumn
 				{
@@ -393,7 +409,6 @@ namespace CruncherSharp
             row[PaddingRowName] = symbolInfo.Padding;
             row[PaddingZonesRowName] = symbolInfo.PaddingZonesCount;
             row[TotalPaddingRowName] = symbolInfo.TotalPadding.Value;
-            row[PaddingPercentRowName] = (uint) ((double) symbolInfo.TotalPadding.Value / symbolInfo.Size * 100);
             if (_HasInstancesCount)
             {
                 row[InstancesRowName] = symbolInfo.NumInstances;
@@ -407,16 +422,30 @@ namespace CruncherSharp
                 row[NewSizeRowName] = symbolInfo.NewSize;
                 row[DeltaRowName] = (long) symbolInfo.NewSize - (long) symbolInfo.Size;
                 if (_HasInstancesCount && symbolInfo.NumInstances > 0)
-                    row[TotalDeltaRowName] = ((long) symbolInfo.NewSize - (long) symbolInfo.Size) *
-                                         (long) symbolInfo.NumInstances;
+				{
+					if (_HasMemPools)
+					{
+						row[TotalDeltaRowName] = symbolInfo.ComputeTotalMempoolDelta();
+					}
+					else
+					{
+						row[TotalDeltaRowName] = symbolInfo.ComputeTotalDelta();
+					}
+				}
+				else if (_HasInstancesCount)
+				{
+					row[TotalDeltaRowName] = 0;
+				}
+
             }
-			if (_HasMemPools && symbolInfo.UpperMemPool > 0)
+			if (_HasMemPools && symbolInfo.CurrentMemPool > 0)
 			{
-				row[MempoolWasteRowName] = symbolInfo.UpperMemPool - symbolInfo.Size;
+				row[MempoolRowName] = symbolInfo.CurrentMemPool;
 				row[MempoolDeltaRowName] = symbolInfo.Size - symbolInfo.LowerMemPool;
 				if (_HasInstancesCount)
 				{
-					row[MempoolTotalWasteRowName] = (long)(symbolInfo.UpperMemPool - symbolInfo.Size) * (long)symbolInfo.NumInstances;
+					row[MempoolUsageRowName] = (long)(symbolInfo.CurrentMemPool) * (long)symbolInfo.NumInstances;
+					row[MempoolTotalUsageRowName] = (long)(symbolInfo.ComputeTotalMempoolUsage());
 					row[MempoolTotalWinRowName] = (long)(symbolInfo.ComputeTotalMempoolWin());
 				}
 			}
@@ -1212,6 +1241,13 @@ namespace CruncherSharp
             {
                 AddSecondPDB();
                 LoadPdb(openPdbDialog.FileName, true);
+				if (_HasMemPools)
+				{
+					foreach (var symbolInfo in CurrentSymbolAnalyzer.Symbols.Values)
+					{
+						symbolInfo.SetNewMemPools(CurrentSymbolAnalyzer.MemPools);
+					}
+				}
             }
         }
 
@@ -1264,8 +1300,15 @@ namespace CruncherSharp
         {
             chkShowTemplates.Checked = false;
             chkSmartCacheLines.Checked = true;
-            for (var i = 0; i < checkedListBoxNamespaces.Items.Count; i++)
+			checkBoxSubclasses.Checked = false;
+			checkBoxMember.Checked = false;
+
+			restrictToSymbolsImportedFroCSVToolStripMenuItem.Checked = false;
+			restrictToUObjectsToolStripMenuItem.Checked = false;
+
+			for (var i = 0; i < checkedListBoxNamespaces.Items.Count; i++)
                 checkedListBoxNamespaces.SetItemChecked(i, false);
+
             textBoxFilter.Clear();
             SearchCategory = SearchType.None;
             PopulateDataTable();
@@ -1423,9 +1466,13 @@ namespace CruncherSharp
 			{
 				row.Cells[e.ColumnIndex].ToolTipText = "Memory padding in this class, including parent classes and aggregated objects";
 			}
-			else if (column.Name == MempoolWasteRowName)
+			else if (column.Name == MempoolUsageRowName)
 			{
-				row.Cells[e.ColumnIndex].ToolTipText = String.Format("Delta with the upper memory pool ({0})", CurrentSymbol.UpperMemPool);
+				row.Cells[e.ColumnIndex].ToolTipText = String.Format("Number of instances multiplied by current memory pool ({0})", CurrentSymbol.CurrentMemPool);
+			}
+			else if (column.Name == MempoolTotalUsageRowName)
+			{
+				row.Cells[e.ColumnIndex].ToolTipText = "Number of instances multiplied by current memory pool for current class and subclasses";
 			}
 			else if (column.Name == MempoolDeltaRowName)
 			{
@@ -1442,9 +1489,13 @@ namespace CruncherSharp
 					row.Cells[e.ColumnIndex].ToolTipText += "\nTotal padding is bigger than delta";
 				}
 			}
-			else if (column.Name == "MemPool total win")
+			else if (column.Name == MempoolTotalWinRowName)
 			{
 				row.Cells[e.ColumnIndex].ToolTipText = String.Format("Memory saving if the lower memory pool is reached");
+			}
+			else if (column.Name == NewSizeRowName)
+			{
+				row.Cells[e.ColumnIndex].ToolTipText = String.Format("New memory pool ({0})", CurrentSymbol.NewMemPool);
 			}
 		}
 
@@ -1529,7 +1580,7 @@ namespace CruncherSharp
 					AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.UnusedVTables:
-					if (symbolInfo.HasVtable && !symbolInfo.HasBaseClass && symbolInfo.DerivedClasses == null)
+					if (symbolInfo.HasVtable && !symbolInfo.HasBaseClassWithVTable(CurrentSymbolAnalyzer) && symbolInfo.DerivedClasses == null)
 						AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.MSVCExtraPadding:
@@ -1645,6 +1696,8 @@ namespace CruncherSharp
 				}
 			}
 
+			UpdateFilter();
+
 			_Table.EndLoadData();
         }
 
@@ -1731,21 +1784,6 @@ namespace CruncherSharp
 			PopulateDataTable();
 		}
 
-		private void addMemPoolsToolStripMenuItem_Click(object sender, EventArgs e)
-		{
-			var memPoolsForm = new AddMemPoolsForm();
-			memPoolsForm.SetMemPools(CurrentSymbolAnalyzer.MemPools);
-			memPoolsForm.ShowDialog();
-			CurrentSymbolAnalyzer.MemPools = memPoolsForm.GetMemPool();
-			if (!_HasMemPools && CurrentSymbolAnalyzer.MemPools.Count > 0)
-			{
-				_HasMemPools = true;
-				AddMemPoolsColums();
-			}
-			PopulateDataTable();
-		}
-
-
 		private void useRawPDBToolStripMenuItem_Click(object sender, EventArgs e)
 		{
 			useRawPDBToolStripMenuItem.Checked = !useRawPDBToolStripMenuItem.Checked;
@@ -1776,7 +1814,7 @@ namespace CruncherSharp
 				textBoxFilter.Text = _SelectedSymbol.Name;
 			}
 			checkBoxMember.Checked = false;
-			UpdateFilter();
+
 			PopulateDataTable();
 		}
 
@@ -1787,8 +1825,77 @@ namespace CruncherSharp
 				textBoxFilter.Text = _SelectedSymbol.Name;
 			}
 			checkBoxSubclasses.Checked = false;
-			UpdateFilter();
+
 			PopulateDataTable();
 		}
+
+		private void customMBToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			mB2ToolStripMenuItem.Checked = false;
+			mB3ToolStripMenuItem.Checked = false;
+			customMBToolStripMenuItem.Checked = true;
+
+			var memPoolsForm = new AddMemPoolsForm();
+			memPoolsForm.SetMemPools(CurrentSymbolAnalyzer.MemPools);
+			memPoolsForm.ShowDialog();
+			CurrentSymbolAnalyzer.MemPools = memPoolsForm.GetMemPool();
+			if (!_HasMemPools && CurrentSymbolAnalyzer.MemPools.Count > 0)
+			{
+				_HasMemPools = true;
+				AddMemPoolsColums();
+			}
+			PopulateDataTable();
+		}
+
+		private void mB2ToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			if (ShowMemPool("MB2"))
+			{
+				mB2ToolStripMenuItem.Checked = true;
+				mB3ToolStripMenuItem.Checked = false;
+				customMBToolStripMenuItem.Checked = false;
+			}
+		}
+
+		private void mB3ToolStripMenuItem_Click(object sender, EventArgs e)
+		{
+			if (ShowMemPool("MB3"))
+			{
+				mB2ToolStripMenuItem.Checked = false;
+				mB3ToolStripMenuItem.Checked = true;
+				customMBToolStripMenuItem.Checked = false;
+			}
+		}
+
+		private bool ShowMemPool(string memPoolName)
+		{
+			string MemoryPoolsSettings = ConfigurationManager.AppSettings.Get(memPoolName);
+			if (MemoryPoolsSettings == null)
+				return false;
+			string[] MemoryPools = MemoryPoolsSettings.Split(',');
+			List<uint> MemoryPoolsSize = new List<uint>();
+			foreach (var memPool in MemoryPools)
+			{
+				MemoryPoolsSize.Add(UInt32.Parse(memPool));
+			}
+			if (MemoryPoolsSize.Count > 0)
+			{
+				_SymbolAnalyzerDia.MemPools = MemoryPoolsSize;
+#if RAWPDB
+				_SymbolAnalyzerRawPDB.MemPools = MemoryPoolsSize;
+#endif
+				if (!_HasMemPools)
+				{
+					_HasMemPools = true;
+					AddMemPoolsColums();
+				}
+
+				PopulateDataTable();
+				return true;
+			}
+			return false;
+		}
+
+
 	}
 }
