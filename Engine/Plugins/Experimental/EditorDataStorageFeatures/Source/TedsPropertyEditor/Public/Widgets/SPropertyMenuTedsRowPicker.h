@@ -13,7 +13,7 @@ public:
 		, _ElementFilter()
 	{}
 		SLATE_ARGUMENT(bool, AllowClear)
-		SLATE_ARGUMENT(TypedElementDataStorage::FQueryDescription, TypedElementQueryFilter)
+		SLATE_ARGUMENT(TypedElementDataStorage::FQueryDescription, QueryFilter)
 		SLATE_ARGUMENT(FOnShouldFilterTedsRow, ElementFilter)
 		SLATE_EVENT(FOnTedsRowSelected, OnSet)
 		SLATE_EVENT(FSimpleDelegate, OnClose)
@@ -32,7 +32,7 @@ private:
 private:
 	bool bAllowClear;
 
-	TypedElementDataStorage::FQueryDescription TypedElementQueryFilter;
+	TypedElementDataStorage::FQueryDescription QueryFilter;
 
 	FOnShouldFilterTedsRow ElementFilter;
 

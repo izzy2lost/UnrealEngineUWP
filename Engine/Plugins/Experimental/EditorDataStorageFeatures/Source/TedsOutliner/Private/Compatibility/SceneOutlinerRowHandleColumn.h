@@ -12,15 +12,15 @@ namespace UE::EditorDataStorage
 }
 
 /**
- * This is a custom column for the TEDS Outliner/Table Viewer to display row handles for items. It is a special case-d column instead of going through
+ * This is a custom column for the TEDS Outliner/Table Viewer to display row handles for items. It is a special cased column instead of going through
  * the TEDS UI layer because row handles are not information stored in a TEDS column
  */
-class FTedsOutlinerRowHandleColumn : public ISceneOutlinerColumn
+class FSceneOutlinerRowHandleColumn : public ISceneOutlinerColumn
 {
 public:
-	FTedsOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner);
+	FSceneOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner);
 	
-	virtual ~FTedsOutlinerRowHandleColumn() {}
+	virtual ~FSceneOutlinerRowHandleColumn() {}
 
 	static FName GetID();
 	

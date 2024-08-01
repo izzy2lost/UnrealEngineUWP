@@ -13,7 +13,7 @@ struct FTypedElementWidgetConstructor;
 class SWidget;
 
 // Struct storing information on how hierarchies are handled in the TEDS Outliner
-struct FTypedElementOutlinerHierarchyData
+struct FTedsOutlinerHierarchyData
 {
 	/** A delegate used to get the parent row handle for a given row */
 	DECLARE_DELEGATE_RetVal_OneParam(TypedElementDataStorage::RowHandle, FGetParentRowHandle, void* /* InColumnData */);
@@ -21,7 +21,7 @@ struct FTypedElementOutlinerHierarchyData
 	/** A delegate used to set the parent row handle for a given row */
 	DECLARE_DELEGATE_TwoParams(FSetParentRowHandle, void* /* InColumnData */, TypedElementDataStorage::RowHandle /* InParentRowHandle */);
 
-	FTypedElementOutlinerHierarchyData(const UScriptStruct* InHierarchyColumn, const FGetParentRowHandle& InGetParent, const FSetParentRowHandle& InSetParent)
+	FTedsOutlinerHierarchyData(const UScriptStruct* InHierarchyColumn, const FGetParentRowHandle& InGetParent, const FSetParentRowHandle& InSetParent)
 		: HierarchyColumn(InHierarchyColumn)
 		, GetParent(InGetParent)
 		, SetParent(InSetParent)
@@ -38,12 +38,12 @@ struct FTypedElementOutlinerHierarchyData
 	// Function to set the parent row handle
 	FSetParentRowHandle SetParent;
 	
-	// Get the default hierarchy data for the TEDS Outliner that uses FTypedElementParentColumn to get the parent
-	static FTypedElementOutlinerHierarchyData GetDefaultHierarchyData()
+	// Get the default hierarchy data for the TEDS Outliner that uses FTableRowParentColumn to get the parent
+	static FTedsOutlinerHierarchyData GetDefaultHierarchyData()
 	{
 		const FGetParentRowHandle RowHandleGetter = FGetParentRowHandle::CreateLambda([](void* InColumnData)
 			{
-				if(const FTypedElementParentColumn* ParentColumn = static_cast<FTypedElementParentColumn *>(InColumnData))
+				if(const FTableRowParentColumn* ParentColumn = static_cast<FTableRowParentColumn *>(InColumnData))
 				{
 					return ParentColumn->Parent;
 				}
@@ -54,14 +54,14 @@ struct FTypedElementOutlinerHierarchyData
 		const FSetParentRowHandle RowHandleSetter = FSetParentRowHandle::CreateLambda([](void* InColumnData,
 			TypedElementDataStorage::RowHandle InRowHandle)
 			{
-				if(FTypedElementParentColumn* ParentColumn = static_cast<FTypedElementParentColumn *>(InColumnData))
+				if(FTableRowParentColumn* ParentColumn = static_cast<FTableRowParentColumn *>(InColumnData))
 				{
 					ParentColumn->Parent = InRowHandle;
 				}
 
 			});
 		
-		return FTypedElementOutlinerHierarchyData(FTypedElementParentColumn::StaticStruct(), RowHandleGetter, RowHandleSetter);
+		return FTedsOutlinerHierarchyData(FTableRowParentColumn::StaticStruct(), RowHandleGetter, RowHandleSetter);
 	}
 };
 
@@ -71,7 +71,7 @@ struct FTedsOutlinerParams
 	: SceneOutliner(InSceneOutliner)
 	, QueryDescription()
 	, bUseDefaultTedsFilters(false)
-	, HierarchyData(FTypedElementOutlinerHierarchyData::GetDefaultHierarchyData())
+	, HierarchyData(FTedsOutlinerHierarchyData::GetDefaultHierarchyData())
 	, CellWidgetPurposes{TEXT("SceneOutliner.Cell"), TEXT("General.Cell")}
 	{}
 
@@ -90,7 +90,7 @@ struct FTedsOutlinerParams
 
 	// If specified, this is how the TEDS Outliner will handle hierarchies. If not specified - there will be no hierarchies shown as a
 	// parent-child relation in the tree view
-	TOptional<FTypedElementOutlinerHierarchyData> HierarchyData;
+	TOptional<FTedsOutlinerHierarchyData> HierarchyData;
 
 	// The selection set to use for this Outliner, unset = don't propagate tree selection to the TEDS column
 	TOptional<FName> SelectionSetOverride;
@@ -138,7 +138,7 @@ public:
 	TSharedRef<SWidget> CreateLabelWidgetForItem(TypedElementRowHandle InRowHandle) const;
 
 	// Get the hierarchy data associated with this table viewer
-	const TOptional<FTypedElementOutlinerHierarchyData>& GetHierarchyData();
+	const TOptional<FTedsOutlinerHierarchyData>& GetHierarchyData();
 	
 	// Add an external query to the Outliner
 	void AddExternalQuery(FName QueryName, const TypedElementDataStorage::FQueryDescription& InQueryDescription);
@@ -201,7 +201,7 @@ protected:
 	TMap<FName, TypedElementDataStorage::FQueryDescription> ExternalQueries;
 
 	// Optional Hierarchy Data
-	TOptional<FTypedElementOutlinerHierarchyData> HierarchyData;
+	TOptional<FTedsOutlinerHierarchyData> HierarchyData;
 
 	// Querys to track row handle collection, addition and removal
 	TypedElementDataStorage::QueryHandle RowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;

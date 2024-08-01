@@ -6,15 +6,15 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
-#include "TypedElementAlertWidget.generated.h"
+#include "AlertWidget.generated.h"
 
 UCLASS()
-class UTypedElementAlertWidgetFactory : public UTypedElementDataStorageFactory
+class UAlertWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	TEDSOUTLINER_API ~UTypedElementAlertWidgetFactory() override = default;
+	TEDSOUTLINER_API ~UAlertWidgetFactory() override = default;
 
 	TEDSOUTLINER_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
@@ -26,7 +26,7 @@ private:
 };
 
 USTRUCT()
-struct FTypedElementAlertWidgetConstructor : public FTypedElementWidgetConstructor
+struct FAlertWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
@@ -40,8 +40,8 @@ public:
 	static constexpr float BadgeHorizontalOffset = 13.0f;
 	static constexpr float BadgeVerticalOffset = 1.0f;
 
-	TEDSOUTLINER_API FTypedElementAlertWidgetConstructor();
-	TEDSOUTLINER_API ~FTypedElementAlertWidgetConstructor() override = default;
+	TEDSOUTLINER_API FAlertWidgetConstructor();
+	TEDSOUTLINER_API ~FAlertWidgetConstructor() override = default;
 
 protected:
 	TEDSOUTLINER_API TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
@@ -51,19 +51,19 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "General purpose alert"))
-struct FTypedElementAlertWidgetTag : public FTypedElementDataStorageTag
+struct FAlertWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct FTypedElementAlertHeaderWidgetConstructor : public FTypedElementWidgetConstructor
+struct FAlertHeaderWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	TEDSOUTLINER_API FTypedElementAlertHeaderWidgetConstructor();
-	TEDSOUTLINER_API ~FTypedElementAlertHeaderWidgetConstructor() override = default;
+	TEDSOUTLINER_API FAlertHeaderWidgetConstructor();
+	TEDSOUTLINER_API ~FAlertHeaderWidgetConstructor() override = default;
 
 protected:
 	TEDSOUTLINER_API TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
@@ -73,13 +73,13 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "General purpose alert header"))
-struct FTypedElementAlertHeaderWidgetTag : public FTypedElementDataStorageTag
+struct FAlertHeaderWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Alert header active"))
-struct FTypedElementAlertHeaderActiveWidgetTag : public FTypedElementDataStorageTag
+struct FAlertHeaderActiveWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };

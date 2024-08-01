@@ -6,34 +6,34 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
-#include "TypedElementTypeInfoWidget.generated.h"
+#include "TypeInfoWidget.generated.h"
 
 struct FSlateBrush;
 struct FTypedElementClassTypeInfoColumn;
 
 UCLASS()
-class UTypedElementTypeInfoWidgetFactory : public UTypedElementDataStorageFactory
+class UTypeInfoWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementTypeInfoWidgetFactory() override = default;
+	~UTypeInfoWidgetFactory() override = default;
 
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
 
 USTRUCT()
-struct TEDSOUTLINER_API FTypedElementTypeInfoWidgetConstructor : public FTypedElementWidgetConstructor
+struct TEDSOUTLINER_API FTypeInfoWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementTypeInfoWidgetConstructor();
-	~FTypedElementTypeInfoWidgetConstructor() override = default;
+	FTypeInfoWidgetConstructor();
+	~FTypeInfoWidgetConstructor() override = default;
 
 protected:
-	explicit FTypedElementTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo);
+	explicit FTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo);
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;

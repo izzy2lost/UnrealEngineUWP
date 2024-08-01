@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOutlinerColumnIntegration.h"
+#include "Compatibility/SceneOutlinerTedsBridge.h"
 
 #include "ActorTreeItem.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
@@ -23,10 +23,10 @@
 #include "TedsTableViewerColumn.h"
 #include "TedsTableViewerUtils.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerItem.h"
 #include "Modules/ModuleManager.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementsUI_SceneOutliner"
+#define LOCTEXT_NAMESPACE "SceneOutlinerTedsBridge"
 
 FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 	TEXT("TEDS.UI.BindColumnsToSceneOutliner"),
@@ -59,7 +59,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 						.Compile())
 				};
 
-				FTypedElementSceneOutlinerQueryBinder& Binder = FTypedElementSceneOutlinerQueryBinder::GetInstance();
+				FSceneOutlinerTedsQueryBinder& Binder = FSceneOutlinerTedsQueryBinder::GetInstance();
 				const TWeakPtr<ILevelEditor> LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor")).GetLevelEditorInstance();
 				const TSharedPtr<ISceneOutliner> SceneOutliner = LevelEditor.IsValid() ? LevelEditor.Pin()->GetMostRecentlyUsedSceneOutliner() : nullptr;
 				if (SceneOutliner.IsValid())
@@ -111,6 +111,31 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 				}
 			}
 		}));
+
+class FSceneOutlinerTedsBridge
+{
+public:
+	~FSceneOutlinerTedsBridge();
+
+	void Initialize(
+		ITypedElementDataStorageInterface& InStorage,
+		ITypedElementDataStorageUiInterface& InStorageUi,
+		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
+		const TSharedPtr<ISceneOutliner>& InOutliner);
+
+	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
+	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
+private:
+	void ClearColumns(ISceneOutliner& InOutliner);
+
+	TArray<FName> AddedColumns;
+	TWeakPtr<ISceneOutliner> Outliner;
+	ITypedElementDataStorageInterface* Storage{ nullptr };
+	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
+	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
+	FTreeItemIDDealiaser Dealiaser;
+	TArray<FName> CellWidgetPurposes;
+};
 
 class FOutlinerColumn : public ISceneOutlinerColumn
 {
@@ -241,9 +266,9 @@ public:
 
 		TSharedPtr<SWidget> RowWidget;
 
-		if(const FTypedElementOutlinerTreeItem* TEDSItem = TreeItem->CastTo<FTypedElementOutlinerTreeItem>())
+		if(const FTedsOutlinerTreeItem* TedsItem = TreeItem->CastTo<FTedsOutlinerTreeItem>())
 		{
-			RowHandle = TEDSItem->GetRowHandle();
+			RowHandle = TedsItem->GetRowHandle();
 			
 		}
 		else if (const FActorTreeItem* ActorItem = TreeItem->CastTo<FActorTreeItem>())
@@ -299,26 +324,26 @@ public:
 
 
 //
-// UTypedElementSceneOutlinerFactory
+// USceneOutlinerTedsBridgeFactory
 // 
 
-void UTypedElementSceneOutlinerFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
+void USceneOutlinerTedsBridgeFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using PurposeType = ITypedElementDataStorageUiInterface::EPurposeType;
 
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::HeaderWidgetPurpose, PurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::HeaderWidgetPurpose, PurposeType::UniqueByNameAndColumn,
 		LOCTEXT("HeaderWidgetPurpose", "Widgets for headers in any Scene Outliner for specific columns or column combinations."));
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::DefaultHeaderWidgetPurpose, PurposeType::UniqueByName,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::DefaultHeaderWidgetPurpose, PurposeType::UniqueByName,
 		LOCTEXT("DefaultHeaderWidgetPurpose", "The default widget to use in headers for the Scene Outliner."));
 	
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::CellWidgetPurpose, PurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::CellWidgetPurpose, PurposeType::UniqueByNameAndColumn,
 		LOCTEXT("CellWidgetPurpose", "Widgets for cells in any Scene Outliner for specific columns or column combinations."));
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::DefaultCellWidgetPurpose, PurposeType::UniqueByName,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::DefaultCellWidgetPurpose, PurposeType::UniqueByName,
 		LOCTEXT("DefaultCellWidgetPurpose", "The default widget to use in cells for the Scene Outliner."));
 
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose, PurposeType::UniqueByNameAndColumn,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::ItemLabelCellWidgetPurpose, PurposeType::UniqueByNameAndColumn,
 		LOCTEXT("ItemCellWidgetPurpose", "Widgets for cells in any Scene Outliner that are specific to the Item label column."));
-	DataStorageUi.RegisterWidgetPurpose(FTypedElementSceneOutlinerQueryBinder::DefaultItemLabelCellWidgetPurpose, PurposeType::UniqueByName,
+	DataStorageUi.RegisterWidgetPurpose(FSceneOutlinerTedsQueryBinder::DefaultItemLabelCellWidgetPurpose, PurposeType::UniqueByName,
 		LOCTEXT("DefaultItemCellWidgetPurpose", "The default widget to use in cells for the Scene Outliner specific to the Item label column."));
 
 
@@ -327,18 +352,18 @@ void UTypedElementSceneOutlinerFactory::RegisterWidgetPurposes(ITypedElementData
 
 
 //
-// FTypedElementSceneOutlinerQueryBinder
+// FSceneOutlinerTedsQueryBinder
 // 
 
-const FName FTypedElementSceneOutlinerQueryBinder::CellWidgetTableName(TEXT("Editor_SceneOutlinerCellWidgetTable"));
-const FName FTypedElementSceneOutlinerQueryBinder::HeaderWidgetPurpose(TEXT("SceneOutliner.Header"));
-const FName FTypedElementSceneOutlinerQueryBinder::DefaultHeaderWidgetPurpose(TEXT("SceneOutliner.Header.Default"));
-const FName FTypedElementSceneOutlinerQueryBinder::CellWidgetPurpose(TEXT("SceneOutliner.Cell"));
-const FName FTypedElementSceneOutlinerQueryBinder::DefaultCellWidgetPurpose(TEXT("SceneOutliner.Cell.Default"));
-const FName FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell"));
-const FName FTypedElementSceneOutlinerQueryBinder::DefaultItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell.Default"));
+const FName FSceneOutlinerTedsQueryBinder::CellWidgetTableName(TEXT("Editor_SceneOutlinerCellWidgetTable"));
+const FName FSceneOutlinerTedsQueryBinder::HeaderWidgetPurpose(TEXT("SceneOutliner.Header"));
+const FName FSceneOutlinerTedsQueryBinder::DefaultHeaderWidgetPurpose(TEXT("SceneOutliner.Header.Default"));
+const FName FSceneOutlinerTedsQueryBinder::CellWidgetPurpose(TEXT("SceneOutliner.Cell"));
+const FName FSceneOutlinerTedsQueryBinder::DefaultCellWidgetPurpose(TEXT("SceneOutliner.Cell.Default"));
+const FName FSceneOutlinerTedsQueryBinder::ItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell"));
+const FName FSceneOutlinerTedsQueryBinder::DefaultItemLabelCellWidgetPurpose(TEXT("SceneOutliner.ItemLabel.Cell.Default"));
 
-FTypedElementSceneOutlinerQueryBinder::FTypedElementSceneOutlinerQueryBinder()
+FSceneOutlinerTedsQueryBinder::FSceneOutlinerTedsQueryBinder()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	checkf(Registry, TEXT("Unable to bind a Scene Outliner to a query before the Typed Elements are available."));
@@ -352,13 +377,13 @@ FTypedElementSceneOutlinerQueryBinder::FTypedElementSceneOutlinerQueryBinder()
 	SetupDefaultColumnMapping();
 }
 
-void FTypedElementSceneOutlinerQueryBinder::SetupDefaultColumnMapping()
+void FSceneOutlinerTedsQueryBinder::SetupDefaultColumnMapping()
 {
 	// Map the type column from the TEDS to the default Outliner type column, so we can show type info for objects not in TEDS
 	TEDSToOutlinerDefaultColumnMapping.Add(FTypedElementClassTypeInfoColumn::StaticStruct(), FSceneOutlinerBuiltInColumnTypes::ActorInfo());
 }
 
-FName FTypedElementSceneOutlinerQueryBinder::FindOutlinerColumnFromTEDSColumns(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> TEDSColumns) const
+FName FSceneOutlinerTedsQueryBinder::FindOutlinerColumnFromTEDSColumns(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> TEDSColumns) const
 {
 	// Currently, the algorithm naively looks through the mapping and returns the first match
 	for(const TWeakObjectPtr<const UScriptStruct>& Column : TEDSColumns)
@@ -372,41 +397,41 @@ FName FTypedElementSceneOutlinerQueryBinder::FindOutlinerColumnFromTEDSColumns(T
 	return FName();
 }
 
-FTypedElementSceneOutlinerQueryBinder& FTypedElementSceneOutlinerQueryBinder::GetInstance()
+FSceneOutlinerTedsQueryBinder& FSceneOutlinerTedsQueryBinder::GetInstance()
 {
-	static FTypedElementSceneOutlinerQueryBinder Binder;
+	static FSceneOutlinerTedsQueryBinder Binder;
 	return Binder;
 }
 
-TSharedPtr<FTypedElementSceneOutliner>* FTypedElementSceneOutlinerQueryBinder::FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Outliner)
+TSharedPtr<FSceneOutlinerTedsBridge>* FSceneOutlinerTedsQueryBinder::FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Outliner)
 {
-	TSharedPtr<FTypedElementSceneOutliner>* QueryMapping = SceneOutliners.Find(Outliner);
+	TSharedPtr<FSceneOutlinerTedsBridge>* QueryMapping = SceneOutliners.Find(Outliner);
 	if (QueryMapping == nullptr)
 	{
-		QueryMapping = &SceneOutliners.Add(Outliner, MakeShared<FTypedElementSceneOutliner>());
+		QueryMapping = &SceneOutliners.Add(Outliner, MakeShared<FSceneOutlinerTedsBridge>());
 		(*QueryMapping)->Initialize(*Storage, *StorageUi, *StorageCompatibility, Outliner);
 	}
 
 	return QueryMapping;
 }
 
-void FTypedElementSceneOutlinerQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
+void FSceneOutlinerTedsQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
 {
 	CleanupStaleOutliners();
 
-	TSharedPtr<FTypedElementSceneOutliner>* QueryMapping = FindOrAddQueryMapping(Outliner);
+	TSharedPtr<FSceneOutlinerTedsBridge>* QueryMapping = FindOrAddQueryMapping(Outliner);
 	(*QueryMapping)->AssignQuery(Query, CellWidgetPurposes);
 }
 
-void FTypedElementSceneOutlinerQueryBinder::RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Outliner, const FTreeItemIDDealiaser& InDealiaser)
+void FSceneOutlinerTedsQueryBinder::RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Outliner, const FTreeItemIDDealiaser& InDealiaser)
 {
-	TSharedPtr<FTypedElementSceneOutliner>* QueryMapping = FindOrAddQueryMapping(Outliner);
+	TSharedPtr<FSceneOutlinerTedsBridge>* QueryMapping = FindOrAddQueryMapping(Outliner);
 	(*QueryMapping)->RegisterDealiaser(InDealiaser);
 }
 
-void FTypedElementSceneOutlinerQueryBinder::CleanupStaleOutliners()
+void FSceneOutlinerTedsQueryBinder::CleanupStaleOutliners()
 {
-	for (TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FTypedElementSceneOutliner>>::TIterator It(SceneOutliners); It; ++It)
+	for (TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FSceneOutlinerTedsBridge>>::TIterator It(SceneOutliners); It; ++It)
 	{
 		// Remove any query mappings where the target Outliner doesn't exist anymore
 		if(!It.Key().IsValid())
@@ -417,10 +442,10 @@ void FTypedElementSceneOutlinerQueryBinder::CleanupStaleOutliners()
 }
 
 //
-// FTypedElementSceneOutliner
+// FSceneOutlinerTedsBridge
 //
 
-FTypedElementSceneOutliner::~FTypedElementSceneOutliner()
+FSceneOutlinerTedsBridge::~FSceneOutlinerTedsBridge()
 {
 	TSharedPtr<ISceneOutliner> OutlinerPinned = Outliner.Pin();
 	if (OutlinerPinned)
@@ -429,7 +454,7 @@ FTypedElementSceneOutliner::~FTypedElementSceneOutliner()
 	}
 }
 
-void FTypedElementSceneOutliner::Initialize(
+void FSceneOutlinerTedsBridge::Initialize(
 	ITypedElementDataStorageInterface& InStorage,
 	ITypedElementDataStorageUiInterface& InStorageUi,
 	ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
@@ -441,16 +466,16 @@ void FTypedElementSceneOutliner::Initialize(
 	Outliner = InOutliner;
 }
 
-void FTypedElementSceneOutliner::RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser)
+void FSceneOutlinerTedsBridge::RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser)
 {
 	Dealiaser = InDealiaser;
 }
 
-void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
+void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
 {
 	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
 	constexpr int32 DefaultPriorityIndex = 100;
-	FTypedElementSceneOutlinerQueryBinder& Binder = FTypedElementSceneOutlinerQueryBinder::GetInstance();
+	FSceneOutlinerTedsQueryBinder& Binder = FSceneOutlinerTedsQueryBinder::GetInstance();
 	CellWidgetPurposes = InCellWidgetPurposes;
 
 
@@ -563,7 +588,7 @@ void FTypedElementSceneOutliner::AssignQuery(TypedElementQueryHandle Query, cons
 	}
 }
 
-void FTypedElementSceneOutliner::ClearColumns(ISceneOutliner& InOutliner)
+void FSceneOutlinerTedsBridge::ClearColumns(ISceneOutliner& InOutliner)
 {
 	for (FName ColumnName : AddedColumns)
 	{

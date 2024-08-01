@@ -3,19 +3,17 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Compatibility/TedsCompatibilityUtils.h"
-#include "TypedElementOutlinerMode.h"
+#include "TedsOutlinerMode.h"
 
-class FBaseTEDSOutlinerMode;
+class FTedsOutlinerImpl;
 
 /*
  * A generic item in the TEDS driven Outliner, that uses a TypedElementRowHandle to uniquely identify the object it is
  * looking at. Functionality should be added through TEDS queries instead of having a different TreeItem type for each
- * type of object you are looking at (Actor vs Entity vs Folder), See CreateGenericTEDSOutliner() in
- * EntityEditorModule.cpp for example usage
+ * type of object you are looking at (i.e. Actor vs Folder)
  * Inherits from ISceneOutlinerItem - which determines what type of item you are looking at. E.G FActorTreeItem for actors
  */
-struct FTypedElementOutlinerTreeItem : ISceneOutlinerTreeItem
+struct FTedsOutlinerTreeItem : ISceneOutlinerTreeItem
 {
 public:
 	
@@ -26,7 +24,7 @@ public:
 		return Pred.Execute(RowHandle);
 	}
 
-	TEDSOUTLINER_API FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	TEDSOUTLINER_API FTedsOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
 	TEDSOUTLINER_API virtual bool IsValid() const override;

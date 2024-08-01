@@ -6,20 +6,20 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "UObject/OverridableManager.h"
-#include "Widgets/TypedElementTypeInfoWidget.h"
+#include "Widgets/TypeInfoWidget.h"
 
-#include "TypedElementOverrideWidget.generated.h"
+#include "OverrideWidget.generated.h"
 
 /*
  * Widget for the Outliner that shows the icon showing the type of the object alongside the override status as a badg
  */
 UCLASS()
-class UTypedElementOverrideWidgetFactory : public UTypedElementDataStorageFactory
+class UOverrideWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementOverrideWidgetFactory() override = default;
+	~UOverrideWidgetFactory() override = default;
 
 	TEDSOUTLINER_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
@@ -29,19 +29,19 @@ public:
 };
 
 USTRUCT(meta = (DisplayName = "Override Widget"))
-struct FTypedElementOverrideWidgetTag : public FTypedElementDataStorageTag
+struct FOverrideWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct FTypedElementOverrideWidgetConstructor : public FTypedElementTypeInfoWidgetConstructor
+struct FOverrideWidgetConstructor : public FTypeInfoWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementOverrideWidgetConstructor();
-	~FTypedElementOverrideWidgetConstructor() override = default;
+	FOverrideWidgetConstructor();
+	~FOverrideWidgetConstructor() override = default;
 
 	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 	

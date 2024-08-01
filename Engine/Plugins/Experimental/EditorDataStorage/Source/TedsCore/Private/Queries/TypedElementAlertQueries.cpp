@@ -168,7 +168,7 @@ void UTypedElementAlertQueriesFactory::RegisterSubQueries(ITypedElementDataStora
 
 	ParentReadOnlyQuery = DataStorage.RegisterQuery(
 		Select()
-			.ReadOnly<FTypedElementParentColumn>()
+			.ReadOnly<FTableRowParentColumn>()
 		.Compile());
 }
 
@@ -181,7 +181,7 @@ void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElemen
 		Select(
 			TEXT("Trigger alert update if alert's parent changed"),
 			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default)),
-			[](IQueryContext& Context, FTypedElementAlertColumn& Alert, const FTypedElementParentColumn& Parent)
+			[](IQueryContext& Context, FTypedElementAlertColumn& Alert, const FTableRowParentColumn& Parent)
 			{
 				if (Alert.CachedParent != Parent.Parent)
 				{
@@ -197,7 +197,7 @@ void UTypedElementAlertQueriesFactory::RegisterParentUpdatesQueries(ITypedElemen
 		Select(
 			TEXT("Trigger alert update if child alert's parent changed"),
 			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default)),
-			[](IQueryContext& Context, FTypedElementChildAlertColumn& ChildAlert, const FTypedElementParentColumn& Parent)
+			[](IQueryContext& Context, FTypedElementChildAlertColumn& ChildAlert, const FTableRowParentColumn& Parent)
 			{
 				if (ChildAlert.CachedParent != Parent.Parent)
 				{
@@ -220,7 +220,7 @@ void UTypedElementAlertQueriesFactory::RegisterChildAlertUpdatesQueries(ITypedEl
 			TEXT("Add missing child alerts"),
 			FPhaseAmble(FPhaseAmble::ELocation::Preamble, EQueryTickPhase::FrameEnd)
 				.MakeActivatable(AlertConditionName),
-			[](IQueryContext& Context, RowHandle Row, FTypedElementAlertColumn& Alert, const FTypedElementParentColumn& Parent)
+			[](IQueryContext& Context, RowHandle Row, FTypedElementAlertColumn& Alert, const FTableRowParentColumn& Parent)
 			{
 				AddChildAlertsToHierarchy(Context, Parent.Parent, 0);
 			})
@@ -285,13 +285,13 @@ void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataSto
 				Context.ActivateQueries(AlertConditionName);
 			})
 		.Where()
-			.All<FTypedElementParentColumn>() // Only need to do an update pass if there are parents.
+			.All<FTableRowParentColumn>() // Only need to do an update pass if there are parents.
 		.Compile());
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Register alert with parent on parent add"),
-			FObserver::OnAdd<FTypedElementParentColumn>(),
+			FObserver::OnAdd<FTableRowParentColumn>(),
 			[](IQueryContext& Context, RowHandle Row)
 			{
 				Context.ActivateQueries(AlertConditionName);
@@ -319,7 +319,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementData
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Update alert upon parent removal"),
-			FObserver::OnRemove<FTypedElementParentColumn>(),
+			FObserver::OnRemove<FTableRowParentColumn>(),
 			[](IQueryContext& Context, TypedElementDataStorage::RowHandle Row)
 			{
 				Context.ActivateQueries(AlertConditionName);
@@ -388,7 +388,7 @@ bool UTypedElementAlertQueriesFactory::MoveToNextParent(
 	using namespace TypedElementQueryBuilder;
 	
 	FQueryResult Result = Context.RunSubquery(SubQueryIndex, Parent, CreateSubqueryCallbackBinding(
-		[&Parent](const FTypedElementParentColumn& NextParent)
+		[&Parent](const FTableRowParentColumn& NextParent)
 		{
 			Parent = NextParent.Parent;
 		}));

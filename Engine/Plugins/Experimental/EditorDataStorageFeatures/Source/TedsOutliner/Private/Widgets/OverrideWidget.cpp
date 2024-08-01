@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOverrideWidget.h"
+#include "Widgets/OverrideWidget.h"
 
 #include "Editor.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
@@ -9,26 +9,26 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "TypedElementOutlinerColumnIntegration.h"
+#include "Compatibility/SceneOutlinerTedsBridge.h"
 #include "Widgets/Images/SLayeredImage.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementOverrideWidget"
+#define LOCTEXT_NAMESPACE "TedsOverrideWidget"
 
 //
-// UTypedElementOverrideWidgetFactory
+// UOverrideWidgetFactory
 //
 
-void UTypedElementOverrideWidgetFactory::RegisterWidgetConstructors(
+void UOverrideWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementDataStorage;
 
 	// The  widget is a specific widget for the Scene Outliner's item label column
-	DataStorageUi.RegisterWidgetFactory<FTypedElementOverrideWidgetConstructor>(FTypedElementSceneOutlinerQueryBinder::ItemLabelCellWidgetPurpose,
+	DataStorageUi.RegisterWidgetFactory<FOverrideWidgetConstructor>(FSceneOutlinerTedsQueryBinder::ItemLabelCellWidgetPurpose,
 		FColumn<FTypedElementClassTypeInfoColumn>() || FColumn<FObjectOverrideColumn>() );
 }
 
-void UTypedElementOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -50,10 +50,10 @@ void UTypedElementOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorag
 				const FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& Target)
 				{
-					FTypedElementOverrideWidgetConstructor::UpdateOverrideWidget(Widget.Widget, Target.Row);
+					FOverrideWidgetConstructor::UpdateOverrideWidget(Widget.Widget, Target.Row);
 				})
 		.Where()
-			.All<FTypedElementOverrideWidgetTag>()
+			.All<FOverrideWidgetTag>()
 		.DependsOn()
 			.SubQuery(UpdateWidget)
 		.Compile()
@@ -61,22 +61,22 @@ void UTypedElementOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorag
 }
 
 //
-// FTypedElementOverrideWidgetConstructor
+// FOverrideWidgetConstructor
 //
 
-FTypedElementOverrideWidgetConstructor::FTypedElementOverrideWidgetConstructor()
-: Super(FTypedElementOverrideWidgetConstructor::StaticStruct())
+FOverrideWidgetConstructor::FOverrideWidgetConstructor()
+: Super(FOverrideWidgetConstructor::StaticStruct())
 {
 }
 
-TSharedPtr<SWidget> FTypedElementOverrideWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FOverrideWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SLayeredImage)
 			.DesiredSizeOverride(FVector2D(16.f, 16.f))
 			.ColorAndOpacity(FSlateColor::UseForeground());
 }
 
-bool FTypedElementOverrideWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
+bool FOverrideWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	const TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
@@ -100,13 +100,13 @@ bool FTypedElementOverrideWidgetConstructor::FinalizeWidget(ITypedElementDataSto
 
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementOverrideWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FOverrideWidgetConstructor::GetAdditionalColumnsList() const
 {
-	static TTypedElementColumnTypeList<FTypedElementOverrideWidgetTag> Columns;
+	static TTypedElementColumnTypeList<FOverrideWidgetTag> Columns;
 	return Columns;
 }
 
-void FTypedElementOverrideWidgetConstructor::AddOverrideBadge(const TWeakPtr<SWidget>& Widget, EOverriddenState OverriddenState)
+void FOverrideWidgetConstructor::AddOverrideBadge(const TWeakPtr<SWidget>& Widget, EOverriddenState OverriddenState)
 {
 	if(const TSharedPtr<SWidget> WidgetPtr = Widget.Pin())
 	{
@@ -155,7 +155,7 @@ void FTypedElementOverrideWidgetConstructor::AddOverrideBadge(const TWeakPtr<SWi
 	}
 }
 
-void FTypedElementOverrideWidgetConstructor::RemoveOverrideBadge(const TWeakPtr<SWidget>& Widget)
+void FOverrideWidgetConstructor::RemoveOverrideBadge(const TWeakPtr<SWidget>& Widget)
 {
 	if(const TSharedPtr<SWidget> WidgetPtr = Widget.Pin())
 	{
@@ -165,7 +165,7 @@ void FTypedElementOverrideWidgetConstructor::RemoveOverrideBadge(const TWeakPtr<
 	}
 }
 
-void FTypedElementOverrideWidgetConstructor::UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const TypedElementRowHandle TargetRow)
+void FOverrideWidgetConstructor::UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const TypedElementRowHandle TargetRow)
 {
 	const ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetDataStorage();
 

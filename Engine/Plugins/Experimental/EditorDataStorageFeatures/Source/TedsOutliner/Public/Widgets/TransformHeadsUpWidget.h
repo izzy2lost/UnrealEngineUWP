@@ -8,7 +8,7 @@
 #include "Internationalization/Text.h"
 #include "UObject/ObjectMacros.h"
 
-#include "TypedElementTransformHeadsUpWidget.generated.h"
+#include "TransformHeadsUpWidget.generated.h"
 
 /**
  * The heads up transform display provides at a glance view in a scene outliner row of abnormal transform characteristics, including:
@@ -17,12 +17,12 @@
  *		3. Unnormalized rotation
  */
 UCLASS()
-class UTypedElementTransformHeadsUpWidgetFactory : public UTypedElementDataStorageFactory
+class UTransformHeadsUpWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementTransformHeadsUpWidgetFactory() override = default;
+	~UTransformHeadsUpWidgetFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
@@ -30,13 +30,13 @@ public:
 };
 
 USTRUCT()
-struct FTypedElementTransformHeadsUpWidgetConstructor : public FTypedElementWidgetConstructor
+struct FTransformHeadsUpWidgetConstructor : public FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	FTypedElementTransformHeadsUpWidgetConstructor();
-	~FTypedElementTransformHeadsUpWidgetConstructor() override = default;
+	FTransformHeadsUpWidgetConstructor();
+	~FTransformHeadsUpWidgetConstructor() override = default;
 
 	TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
@@ -50,7 +50,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Heads up display for transforms widget"))
-struct FTypedElementTransformHeadsUpWidgetTag : public FTypedElementDataStorageTag
+struct FTransformHeadsUpWidgetTag : public FTypedElementDataStorageTag
 {
 	GENERATED_BODY()
 };

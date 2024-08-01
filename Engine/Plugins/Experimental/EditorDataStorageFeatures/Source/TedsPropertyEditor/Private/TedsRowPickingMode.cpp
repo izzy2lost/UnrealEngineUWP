@@ -2,10 +2,10 @@
 
 #include "TedsRowPickingMode.h"
 
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerItem.h"
 
-FTedsRowPickingMode::FTedsRowPickingMode(const FTypedElementOutlinerModeParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate)
-	: FTypedElementOutlinerMode(Params)
+FTedsRowPickingMode::FTedsRowPickingMode(const FTedsOutlinerParams& Params, FOnSceneOutlinerItemPicked OnItemPickedDelegate)
+	: FTedsOutlinerMode(Params)
 	, OnItemPicked(OnItemPickedDelegate)
 {
 
@@ -32,11 +32,11 @@ void FTedsRowPickingMode::OnFilterTextCommited(FSceneOutlinerItemSelection& Sele
 	// In picking mode, we check to see if we have any Typed Element items, and if so, fire
 	// off the notification to whoever is listening. This may often cause the widget itself
 	// to be enqueued for destruction
-	TArray<FTypedElementOutlinerTreeItem*> TypedElements;
-	Selection.Get(TypedElements);
-	if (TypedElements.Num() == 1 && TypedElements[0])
+	TArray<FTedsOutlinerTreeItem*> OutlinerRows;
+	Selection.Get(OutlinerRows);
+	if (OutlinerRows.Num() == 1 && OutlinerRows[0])
 	{
 		// Signal that a Typed Element was selected. We assume it is valid as it won't have been added to Selection if not.
-		SceneOutliner->SetItemSelection(TypedElements[0]->AsShared(), true, ESelectInfo::OnKeyPress);
+		SceneOutliner->SetItemSelection(OutlinerRows[0]->AsShared(), true, ESelectInfo::OnKeyPress);
 	}
 }

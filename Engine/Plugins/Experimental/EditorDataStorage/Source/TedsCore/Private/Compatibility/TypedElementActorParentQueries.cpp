@@ -49,11 +49,11 @@ void UTypedElementActorParentFactory::RegisterAddParentColumn(ITypedElementDataS
 						RowHandle ParentRow = Context.FindIndexedRow(IdHash);
 						if (Context.IsRowAvailable(ParentRow))
 						{
-							Context.AddColumn(Row, FTypedElementParentColumn{ .Parent = ParentRow });
+							Context.AddColumn(Row, FTableRowParentColumn{ .Parent = ParentRow });
 						}
 						else
 						{
-							Context.AddColumn(Row, FTypedElementUnresolvedParentColumn{ .ParentIdHash = IdHash });
+							Context.AddColumn(Row, FUnresolvedTableRowParentColumn{ .ParentIdHash = IdHash });
 						}
 					}
 				}
@@ -61,7 +61,7 @@ void UTypedElementActorParentFactory::RegisterAddParentColumn(ITypedElementDataS
 		)
 		.Where()
 			.All<FTypedElementSyncFromWorldTag, FTypedElementActorTag>()
-			.None<FTypedElementParentColumn, FTypedElementUnresolvedParentColumn>()
+			.None<FTableRowParentColumn, FUnresolvedTableRowParentColumn>()
 		.Compile()
 	);
 }
@@ -76,7 +76,7 @@ void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedE
 			TEXT("Sync actor's parent to column"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.ForceToGameThread(true),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTypedElementParentColumn& Parent)
+			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTableRowParentColumn& Parent)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object))
 				{
@@ -93,14 +93,14 @@ void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedE
 							}
 							else
 							{
-								Context.RemoveColumns<FTypedElementParentColumn>(Row);
-								Context.AddColumn(Row, FTypedElementUnresolvedParentColumn{ .ParentIdHash = IdHash });
+								Context.RemoveColumns<FTableRowParentColumn>(Row);
+								Context.AddColumn(Row, FUnresolvedTableRowParentColumn{ .ParentIdHash = IdHash });
 							}
 						}
 						return;
 					}
 				}
-				Context.RemoveColumns<FTypedElementParentColumn>(Row);
+				Context.RemoveColumns<FTableRowParentColumn>(Row);
 			}
 		)
 		.Where()

@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOutlinerFilter.h"
+#include "TedsOutlinerFilter.h"
 
-#include "Compatibility/TedsCompatibilityUtils.h"
+#include "TedsOutlinerImpl.h"
 
-FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName,
+FTedsOutlinerFilter::FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName,
 	TSharedPtr<FFilterCategory> InCategory, TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl,
 	const TypedElementDataStorage::FQueryDescription& InFilterQuery)
 	: FFilterBase(InCategory)
@@ -16,37 +16,37 @@ FTEDSOutlinerFilter::FTEDSOutlinerFilter(const FName& InFilterName, const FText&
 	
 }
 
-FString FTEDSOutlinerFilter::GetName() const
+FString FTedsOutlinerFilter::GetName() const
 {
 	return FilterName.ToString();
 }
 
-FText FTEDSOutlinerFilter::GetDisplayName() const
+FText FTedsOutlinerFilter::GetDisplayName() const
 {
 	return FilterDisplayName;
 }
 
-FText FTEDSOutlinerFilter::GetToolTipText() const
+FText FTedsOutlinerFilter::GetToolTipText() const
 {
 	return FText::FromName(FilterName);
 }
 
-FLinearColor FTEDSOutlinerFilter::GetColor() const
+FLinearColor FTedsOutlinerFilter::GetColor() const
 {
 	return FLinearColor();	
 }
 
-FName FTEDSOutlinerFilter::GetIconName() const
+FName FTedsOutlinerFilter::GetIconName() const
 {
 	return FName();
 }
 
-bool FTEDSOutlinerFilter::IsInverseFilter() const
+bool FTedsOutlinerFilter::IsInverseFilter() const
 {
 	return false;
 }
 
-void FTEDSOutlinerFilter::ActiveStateChanged(bool bActive)
+void FTedsOutlinerFilter::ActiveStateChanged(bool bActive)
 {
 	if(bActive)
 	{
@@ -58,22 +58,22 @@ void FTEDSOutlinerFilter::ActiveStateChanged(bool bActive)
 	}
 }
 
-void FTEDSOutlinerFilter::ModifyContextMenu(FMenuBuilder& MenuBuilder)
+void FTedsOutlinerFilter::ModifyContextMenu(FMenuBuilder& MenuBuilder)
 {
 	
 }
 
-void FTEDSOutlinerFilter::SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const
+void FTedsOutlinerFilter::SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const
 {
 	
 }
 
-void FTEDSOutlinerFilter::LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString)
+void FTedsOutlinerFilter::LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString)
 {
 	
 }
 
-bool FTEDSOutlinerFilter::PassesFilter(SceneOutliner::FilterBarType InItem) const
+bool FTedsOutlinerFilter::PassesFilter(SceneOutliner::FilterBarType InItem) const
 {
 	// If this item is not compatible with the owning Table Viewer - it does not pass any filter queries
 	// If it is compatible, this is simply a dummy filter for the UI while the actual filter is applied through the TEDS query

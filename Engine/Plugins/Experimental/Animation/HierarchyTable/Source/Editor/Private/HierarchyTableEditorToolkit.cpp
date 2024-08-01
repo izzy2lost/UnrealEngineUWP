@@ -11,7 +11,7 @@
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "SceneOutlinerPublicTypes.h"
-#include "TypedElementOutlinerMode.h"
+#include "TedsOutlinerMode.h"
 #include "ReferenceSkeleton.h"
 #include "Animation/Skeleton.h"
 #include "HierarchyTable/Columns/OverrideColumn.h"
@@ -139,7 +139,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	InitOptions.FilterBarOptions.bHasFilterBar = true;
 	InitOptions.OutlinerIdentifier = "HierarchyTableTedsOutliner";
 
-	FTypedElementOutlinerModeParams Params(nullptr);
+	FTedsOutlinerParams Params(nullptr);
 	{
 		TypedElementDataStorage::FQueryDescription RowQueryDescription =
 			Select()
@@ -149,7 +149,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 		Params.QueryDescription = RowQueryDescription;
 		Params.CellWidgetPurposes = TArray<FName>{ TEXT("General.Cell") };
-		Params.HierarchyData = FTypedElementOutlinerHierarchyData::GetDefaultHierarchyData();
+		Params.HierarchyData = FTedsOutlinerHierarchyData::GetDefaultHierarchyData();
 	}
 
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
@@ -175,7 +175,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 		TypedElementRowHandle* ParentRow = EntryIndexToHandleMap.Find(Entry->Parent);
 		if (ParentRow)
 		{
-			DSI->AddColumn<FTypedElementParentColumn>(Row, { .Parent = *ParentRow });
+			DSI->AddColumn<FTableRowParentColumn>(Row, { .Parent = *ParentRow });
 		}
 
 		for (const UScriptStruct* Column : BaseHierarchyTableTypeColumns)

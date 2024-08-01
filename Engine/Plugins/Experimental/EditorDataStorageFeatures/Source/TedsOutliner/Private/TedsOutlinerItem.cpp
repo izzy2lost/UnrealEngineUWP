@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerItem.h"
 
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "TedsOutlinerImpl.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementOutlinerTreeItem"
+#define LOCTEXT_NAMESPACE "TedsOutliner"
 
-const FSceneOutlinerTreeItemType FTypedElementOutlinerTreeItem::Type(&ISceneOutlinerTreeItem::Type);
+const FSceneOutlinerTreeItemType FTedsOutlinerTreeItem::Type(&ISceneOutlinerTreeItem::Type);
 
-FTypedElementOutlinerTreeItem::FTypedElementOutlinerTreeItem(const TypedElementRowHandle& InRowHandle,
+FTedsOutlinerTreeItem::FTedsOutlinerTreeItem(const TypedElementRowHandle& InRowHandle,
 	const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerTreeItem(Type)
 	, RowHandle(InRowHandle)
@@ -18,33 +19,33 @@ FTypedElementOutlinerTreeItem::FTypedElementOutlinerTreeItem(const TypedElementR
 	
 }
 
-bool FTypedElementOutlinerTreeItem::IsValid() const
+bool FTedsOutlinerTreeItem::IsValid() const
 {
 	return true; // TEDS-Outliner TODO: check with TEDS if the item is valid?
 }
 
-FSceneOutlinerTreeItemID FTypedElementOutlinerTreeItem::GetID() const
+FSceneOutlinerTreeItemID FTedsOutlinerTreeItem::GetID() const
 {
 	return FSceneOutlinerTreeItemID(RowHandle);
 }
 
-FString FTypedElementOutlinerTreeItem::GetDisplayString() const
+FString FTedsOutlinerTreeItem::GetDisplayString() const
 {
 	return TEXT("TEDS Item"); // TEDS-Outliner TODO: Used for searching by name, how to get this from TEDS
 }
 
-bool FTypedElementOutlinerTreeItem::CanInteract() const
+bool FTedsOutlinerTreeItem::CanInteract() const
 {
 	return true; // TEDS-Outliner TODO: check item constness from TEDS maybe?
 }
 
-TSharedRef<SWidget> FTypedElementOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner,
+TSharedRef<SWidget> FTedsOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner,
 	const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
 {
 	return TedsOutlinerImpl->CreateLabelWidgetForItem(RowHandle);
 }
 
-void FTypedElementOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner)
+void FTedsOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner)
 {
 	FToolMenuSection& Section = Menu->AddSection("Copy", LOCTEXT("CopySection", "Copy"));
 
@@ -64,7 +65,7 @@ void FTypedElementOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneO
 	);
 }
 
-TypedElementRowHandle FTypedElementOutlinerTreeItem::GetRowHandle() const
+TypedElementRowHandle FTedsOutlinerTreeItem::GetRowHandle() const
 {
 	return RowHandle;
 }

@@ -9,7 +9,7 @@
 
 class ISceneOutliner;
 struct FSceneOutlinerInitializationOptions;
-struct FTypedElementOutlinerModeParams;
+struct FTedsOutlinerParams;
 class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
@@ -34,7 +34,7 @@ public:
 	 * @return	New scene outliner widget
 	 */
 	virtual TSharedRef<ISceneOutliner> CreateTedsOutliner(
-		const FSceneOutlinerInitializationOptions& InInitOptions, const FTypedElementOutlinerModeParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const;
+		const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const;
 
 	// IModuleInterface interface
 	virtual void StartupModule() override;

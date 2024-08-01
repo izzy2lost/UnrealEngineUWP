@@ -1,15 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TedsOutlinerRowHandleColumn.h"
+#include "Compatibility/SceneOutlinerRowHandleColumn.h"
 
 #include "SortHelper.h"
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerItem.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "TedsTableViewerColumn.h"
 
-#define LOCTEXT_NAMESPACE "TedsOutlinerRowHandleColumn"
+#define LOCTEXT_NAMESPACE "SceneOutlinerRowHandleColumn"
 
-FTedsOutlinerRowHandleColumn::FTedsOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner)
+FSceneOutlinerRowHandleColumn::FSceneOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner)
 	: WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared()))
 {
 	auto AssignWidgetToColumn = [this](TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)
@@ -28,30 +28,30 @@ FTedsOutlinerRowHandleColumn::FTedsOutlinerRowHandleColumn(ISceneOutliner& Scene
 }
 
 
-FName FTedsOutlinerRowHandleColumn::GetID()
+FName FSceneOutlinerRowHandleColumn::GetID()
 {
 	static const FName ID("Row Handle");
 	return ID;
 }
 
-FName FTedsOutlinerRowHandleColumn::GetColumnID()
+FName FSceneOutlinerRowHandleColumn::GetColumnID()
 {
 	return GetID();
 }
 
-SHeaderRow::FColumn::FArguments FTedsOutlinerRowHandleColumn::ConstructHeaderRowColumn()
+SHeaderRow::FColumn::FArguments FSceneOutlinerRowHandleColumn::ConstructHeaderRowColumn()
 {
 	return SHeaderRow::Column(GetID())
 	.FillWidth(2)
 	.HeaderComboVisibility(EHeaderComboVisibility::OnHover);
 }
 
-const TSharedRef<SWidget> FTedsOutlinerRowHandleColumn::ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
+const TSharedRef<SWidget> FSceneOutlinerRowHandleColumn::ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row)
 {
 	auto SceneOutliner = WeakSceneOutliner.Pin();
 	check(SceneOutliner.IsValid());
 
-	if (const FTypedElementOutlinerTreeItem* OutlinerTreeItem = TreeItem->CastTo<FTypedElementOutlinerTreeItem>())
+	if (const FTedsOutlinerTreeItem* OutlinerTreeItem = TreeItem->CastTo<FTedsOutlinerTreeItem>())
 	{
 		const TypedElementDataStorage::RowHandle RowHandle = OutlinerTreeItem->GetRowHandle();
 
@@ -63,22 +63,22 @@ const TSharedRef<SWidget> FTedsOutlinerRowHandleColumn::ConstructRowWidget(FScen
 	return SNullWidget::NullWidget;
 }
 
-void FTedsOutlinerRowHandleColumn::PopulateSearchStrings(const ISceneOutlinerTreeItem& Item, TArray<FString>& OutSearchStrings) const
+void FSceneOutlinerRowHandleColumn::PopulateSearchStrings(const ISceneOutlinerTreeItem& Item, TArray<FString>& OutSearchStrings) const
 {
-	if (const FTypedElementOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>())
+	if (const FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTedsOutlinerTreeItem>())
 	{
 		OutSearchStrings.Add(LexToString<FString>(OutlinerTreeItem->GetRowHandle()));
 	}
 
 }
 
-void FTedsOutlinerRowHandleColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems, const EColumnSortMode::Type SortMode) const
+void FSceneOutlinerRowHandleColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems, const EColumnSortMode::Type SortMode) const
 {
 	FSceneOutlinerSortHelper<TypedElementDataStorage::RowHandle>()
 		/** Sort by type first */
 		.Primary([this](const ISceneOutlinerTreeItem& Item)
 		{
-			if (const FTypedElementOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>())
+			if (const FTedsOutlinerTreeItem* OutlinerTreeItem = Item.CastTo<FTedsOutlinerTreeItem>())
 			{
 				return OutlinerTreeItem->GetRowHandle();
 			}

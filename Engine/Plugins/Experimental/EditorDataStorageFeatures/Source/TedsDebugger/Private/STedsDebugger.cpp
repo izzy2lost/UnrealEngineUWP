@@ -12,7 +12,7 @@
 #include "Modules/ModuleManager.h"
 #include "QueryEditor/TedsQueryEditor.h"
 #include "TedsOutlinerModule.h"
-#include "TypedElementOutlinerMode.h"
+#include "TedsOutlinerMode.h"
 
 #define LOCTEXT_NAMESPACE "STedsDebugger"
 
@@ -185,10 +185,10 @@ TSharedRef<SDockTab> STedsDebugger::SpawnTableViewerTab(const FSpawnTabArgs& Arg
 	InitOptions.FilterBarOptions.bHasFilterBar = true;
 	InitOptions.OutlinerIdentifier = "TedsDebugger.TableViewer";
 
-	FTypedElementOutlinerModeParams Params(nullptr);
+	FTedsOutlinerParams Params(nullptr);
 	Params.QueryDescription = RowQueryDescription;
 	Params.bUseDefaultTedsFilters = true;
-	Params.HierarchyData = TOptional<FTypedElementOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
+	Params.HierarchyData = TOptional<FTedsOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
 	Params.CellWidgetPurposes = TArray<FName>{TEXT("General.Cell")};
 	
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");

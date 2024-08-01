@@ -8,14 +8,12 @@
 #include "Elements/Framework/TypedElementMetaData.h"
 
 class FTedsOutlinerImpl;
-class FBaseTEDSOutlinerMode;
-class FTypedElementOutlinerMode;
 
 // TEDS-Outliner TODO: Lots of minor missing functionality for icon, tooltip, color etc
-class FTEDSOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
+class FTedsOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
 {
 public:
-	FTEDSOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory,
+	FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory,
 		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
 
 	/** Returns the system name for this filter */
@@ -47,7 +45,7 @@ public:
 	/** Can be overriden for custom FilterBar subclasses to save settings, currently not implemented in any generic Filter Bar */
 	virtual void SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const override;
 
-	/** Can be overriden for custom FilterBar subclasses to load settings, currently not implemented in any generic Filter Bar */
+	/** Can be overridden for custom FilterBar subclasses to load settings, currently not implemented in any generic Filter Bar */
 	virtual void LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) override;
 	
 	/** Returns whether the specified Item passes the Filter's restrictions */

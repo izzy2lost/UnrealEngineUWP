@@ -4,13 +4,14 @@
 
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "TedsRowPickingMode.h"
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerItem.h"
 
 #define LOCTEXT_NAMESPACE "TedsPropertyEditor"
+
 void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 {
 	bAllowClear = InArgs._AllowClear;
-	TypedElementQueryFilter = InArgs._TypedElementQueryFilter;
+	QueryFilter = InArgs._QueryFilter;
 	ElementFilter = InArgs._ElementFilter;
 	OnSet = InArgs._OnSet;
 
@@ -51,7 +52,7 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 			{
 				auto OnItemPicked = FOnSceneOutlinerItemPicked::CreateLambda([&](TSharedRef<ISceneOutlinerTreeItem> Item)
 					{
-						if (FTypedElementOutlinerTreeItem* ElementItem = Item->CastTo<FTypedElementOutlinerTreeItem>())
+						if (FTedsOutlinerTreeItem* ElementItem = Item->CastTo<FTedsOutlinerTreeItem>())
 						{
 							if (ElementItem->IsValid())
 							{
@@ -67,16 +68,16 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 
 				InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([&](SSceneOutliner* Outliner)
 					{
-						FTypedElementOutlinerModeParams Params(Outliner);
-						Params.QueryDescription = TypedElementQueryFilter;
+						FTedsOutlinerParams Params(Outliner);
+						Params.QueryDescription = QueryFilter;
 						return new FTedsRowPickingMode(Params, OnItemPicked);
 					});
 
 				TSharedPtr<SSceneOutliner> Outliner = SNew(SSceneOutliner, InitOptions);
 
 				Outliner->AddFilter(
-					MakeShared<TSceneOutlinerPredicateFilter<FTypedElementOutlinerTreeItem>>(
-						FTypedElementOutlinerTreeItem::FFilterPredicate::CreateLambda([this](const TypedElementDataStorage::RowHandle RowHandle) -> bool
+					MakeShared<TSceneOutlinerPredicateFilter<FTedsOutlinerTreeItem>>(
+						FTedsOutlinerTreeItem::FFilterPredicate::CreateLambda([this](const TypedElementDataStorage::RowHandle RowHandle) -> bool
 					{
 						if (ElementFilter.IsBound())
 						{

@@ -4,7 +4,9 @@
 
 #include "ISceneOutlinerHierarchy.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "TypedElementOutlinerMode.h"
+
+class FTedsOutlinerMode;
+class FTedsOutlinerImpl;
 
 /*
  * Class that keeps track of hierarchy data and creates items using the given TEDS queries.
@@ -12,11 +14,11 @@
  * Inherits from ISceneOutlinerHierarchy, which is responsible for creating the items you want to populate the Outliner
  * with and establishing hierarchical relationships between the items
  */
-class FTypedElementOutlinerHierarchy : public ISceneOutlinerHierarchy
+class FTedsOutlinerHierarchy : public ISceneOutlinerHierarchy
 {
 public:
-	FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode, const TSharedRef<FTedsOutlinerImpl>& InTedsOutlinerImpl);
-	virtual ~FTypedElementOutlinerHierarchy();
+	FTedsOutlinerHierarchy(FTedsOutlinerMode* InMode, const TSharedRef<FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	virtual ~FTedsOutlinerHierarchy();
 	
 	/** Create a linearization of all applicable items in the hierarchy */
 	virtual void CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const override;

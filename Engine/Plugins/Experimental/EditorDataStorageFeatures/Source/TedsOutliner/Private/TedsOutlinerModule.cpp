@@ -4,8 +4,7 @@
 
 #include "LevelEditor.h"
 #include "SceneOutlinerPublicTypes.h"
-#include "TypedElementOutlinerColumnIntegration.h"
-#include "TypedElementOutlinerMode.h"
+#include "TedsOutlinerMode.h"
 #include "WorkspaceMenuStructureModule.h"
 #include "WorkspaceMenuStructure.h"
 #include "Elements/Columns/TypedElementAlertColumns.h"
@@ -16,14 +15,15 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Modules/ModuleManager.h"
-#include "Widgets/TedsOutlinerRowHandleColumn.h"
+#include "Compatibility/SceneOutlinerTedsBridge.h"
+#include "Compatibility/SceneOutlinerRowHandleColumn.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerModule"
 
-namespace UE::TedsOutliner
+namespace UE::EditorDataStorage::Outliner::Private
 {
-	static bool bUseNewSCCWidgets = false;
+	static bool bUseNewRevisionControlWidgets = false;
 
 	void RefreshLevelEditorTedsOutliner(bool bAlwaysInvoke)
 	{
@@ -38,9 +38,9 @@ namespace UE::TedsOutliner
 		}
 	}
 	
-	static FAutoConsoleVariableRef CVarUseNewSCCWidgets(
-		TEXT("TEDS.UI.UseNewSCCWidgets"),
-		UE::TedsOutliner::bUseNewSCCWidgets,
+	static FAutoConsoleVariableRef CVarUseNewRevisionControlWidgets(
+		TEXT("TEDS.UI.UseNewRevisionControlWidgets"),
+		bUseNewRevisionControlWidgets,
 		TEXT("Use new TEDS-based source control widgets in the Outliner (requires TEDS-Outliner to be enabled)")
 		, FConsoleVariableDelegate::CreateLambda([](IConsoleVariable*)
 		{
@@ -61,29 +61,29 @@ FTedsOutlinerModule::FTedsOutlinerModule()
 {
 }
 
-TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTypedElementOutlinerModeParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const
+TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
 	ensureMsgf(Registry&& Registry->AreDataStorageInterfacesSet(), TEXT("Unable to initialize the Teds-Outliner before TEDS itself is initialized."));
 
 	FSceneOutlinerInitializationOptions InitOptions(InInitOptions);
-	FTypedElementOutlinerModeParams InitTedsOptions(InInitTedsOptions);
+	FTedsOutlinerParams InitTedsOptions(InInitTedsOptions);
 
 	InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([&InitTedsOptions](SSceneOutliner* Outliner)
 	{
 		using namespace TypedElementQueryBuilder;
 		InitTedsOptions.SceneOutliner = Outliner;
 		
-		return new FTypedElementOutlinerMode(InitTedsOptions);
+		return new FTedsOutlinerMode(InitTedsOptions);
 	});
 
 	// Add the custom column that displays row handles
-	InitOptions.ColumnMap.Add(FTedsOutlinerRowHandleColumn::GetID(),
+	InitOptions.ColumnMap.Add(FSceneOutlinerRowHandleColumn::GetID(),
 		FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 2,
 			FCreateSceneOutlinerColumn::CreateLambda([](ISceneOutliner& InSceneOutliner)
 			{
-				return MakeShareable(new FTedsOutlinerRowHandleColumn(InSceneOutliner));
+				return MakeShareable(new FSceneOutlinerRowHandleColumn(InSceneOutliner));
 			})));
 	
 	InitOptions.ColumnMap.Add(FSceneOutlinerBuiltInColumnTypes::Label(), FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, 10));
@@ -91,7 +91,7 @@ TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneO
 	
 	TSharedRef<ISceneOutliner> TedsOutlinerShared = SNew(SSceneOutliner, InitOptions);
 	
-	FTypedElementSceneOutlinerQueryBinder::GetInstance().AssignQuery(ColumnQuery, TedsOutlinerShared, InitTedsOptions.CellWidgetPurposes);
+	FSceneOutlinerTedsQueryBinder::GetInstance().AssignQuery(ColumnQuery, TedsOutlinerShared, InitTedsOptions.CellWidgetPurposes);
 	
 	return TedsOutlinerShared;
 }
@@ -122,13 +122,13 @@ TypedElementDataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutl
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
 		.Compile());
 
-	// Query to also include SCC info
-	static TypedElementDataStorage::QueryHandle SCCQuery = Storage->RegisterQuery(
+	// Query to also include revision control info
+	static TypedElementDataStorage::QueryHandle RevisionControlQuery = Storage->RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementPackageReference, FTypedElementAlertColumn>()
 		.Compile());
 
-	return UE::TedsOutliner::bUseNewSCCWidgets ? SCCQuery : ColumnQuery;
+	return UE::EditorDataStorage::Outliner::Private::bUseNewRevisionControlWidgets ? RevisionControlQuery : ColumnQuery;
 	
 }
 
@@ -158,7 +158,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 	InitOptions.bShowTransient = true;
 	InitOptions.OutlinerIdentifier = "TEDSOutliner";
 
-	FTypedElementOutlinerModeParams Params(nullptr);
+	FTedsOutlinerParams Params(nullptr);
 	Params.QueryDescription = OutlinerQueryDescription;
 	Params.bUseDefaultTedsFilters = true;
 

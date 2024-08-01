@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Compatibility/TedsCompatibilityUtils.h"
+#include "TedsOutlinerImpl.h"
 
 #include "SSceneOutliner.h"
 #include "TedsTableViewerUtils.h"
@@ -11,16 +11,16 @@
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "TypedElementOutlinerColumnIntegration.h"
-#include "TypedElementOutlinerFilter.h"
-#include "TypedElementOutlinerItem.h"
+#include "Compatibility/SceneOutlinerRowHandleColumn.h"
+#include "TedsOutlinerFilter.h"
+#include "TedsOutlinerItem.h"
 #include "Columns/TedsOutlinerColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Filters/FilterBase.h"
 #include "Widgets/SWidget.h"
 
-#define LOCTEXT_NAMESPACE "TEDSOutlinerCompat"
+#define LOCTEXT_NAMESPACE "TedsOutliner"
 
 FTedsOutlinerImpl::FTedsOutlinerImpl(const FTedsOutlinerParams& InParams, ISceneOutlinerMode* InMode)
 	: CreationParams(InParams)
@@ -123,8 +123,8 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 	if (CreationParams.bUseDefaultTedsFilters)
 	{
 		// Create separate categories for columns and tags
-		TSharedRef<FFilterCategory> TedsColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSColumnFilters", "TEDS Columns"), LOCTEXT("TEDSColumnFiltersTooltip", "Filter by TEDS columns"));
-		TSharedRef<FFilterCategory> TedsTagFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSTagFilters", "TEDS Tags"), LOCTEXT("TEDSTagFiltersTooltip", "Filter by TEDS Tags"));
+		TSharedRef<FFilterCategory> TedsColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsColumnFilters", "TEDS Columns"), LOCTEXT("TedsColumnFiltersTooltip", "Filter by TEDS columns"));
+		TSharedRef<FFilterCategory> TedsTagFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsTagFilters", "TEDS Tags"), LOCTEXT("TedsTagFiltersTooltip", "Filter by TEDS Tags"));
 
 		const UStruct* TedsColumn = FTypedElementDataStorageColumn::StaticStruct();
 		const UStruct* TedsTag = FTypedElementDataStorageTag::StaticStruct();
@@ -144,22 +144,22 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 					.Compile();
 
 					// Create the filter
-					TSharedRef<FTEDSOutlinerFilter> TEDSFilter = MakeShared<FTEDSOutlinerFilter>(Struct->GetFName(), Struct->GetDisplayNameText(),
+					TSharedRef<FTedsOutlinerFilter> TedsFilter = MakeShared<FTedsOutlinerFilter>(Struct->GetFName(), Struct->GetDisplayNameText(),
 						Struct->IsChildOf(TedsColumn) ? TedsColumnFilterCategory : TedsTagFilterCategory, AsShared(), FilterQueryDesc);
-					SceneOutliner->AddFilterToFilterBar(TEDSFilter);
+					SceneOutliner->AddFilterToFilterBar(TedsFilter);
 				}
 			}
 		});
 	}
 
 	// Custom filters input by the user
-	TSharedRef<FFilterCategory> CustomFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("TEDSFilters", "TEDS Custom Filters"), LOCTEXT("TEDSFiltersTooltip", "Filter by custom TEDS queries"));
+	TSharedRef<FFilterCategory> CustomFiltersCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsFilters", "TEDS Custom Filters"), LOCTEXT("TedsFiltersTooltip", "Filter by custom TEDS queries"));
 
 	for(const TPair<FName, const TypedElementDataStorage::FQueryDescription>& FilterQuery : CreationParams.FilterQueries)
 	{
 		// TEDS-Outliner TODO: Custom filters need a localizable display name instead of using the FName, but we need to change how they are added first
 		// to see if it can be consolidated with the SFilterBar API
-		TSharedRef<FTEDSOutlinerFilter> TedsFilter = MakeShared<FTEDSOutlinerFilter>(FilterQuery.Key, FText::FromName(FilterQuery.Key), CustomFiltersCategory, AsShared(), FilterQuery.Value);
+		TSharedRef<FTedsOutlinerFilter> TedsFilter = MakeShared<FTedsOutlinerFilter>(FilterQuery.Key, FText::FromName(FilterQuery.Key), CustomFiltersCategory, AsShared(), FilterQuery.Value);
 		SceneOutliner->AddFilterToFilterBar(TedsFilter);
 	
 	}
@@ -224,7 +224,7 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowH
 		
 		// Create a generic metadata view for the Type Widget
 		TypedElementDataStorage::FMetaData QueryWideMetaData;
-		QueryWideMetaData.AddImmutableData("TypedElementTypeInfoWidget_bUseIcon", true);
+		QueryWideMetaData.AddImmutableData("TypeInfoWidget_bUseIcon", true);
 		TypedElementDataStorage::FGenericMetaDataView GenericMetaDataView(QueryWideMetaData);
 
 		// Create metadata for the query itself
@@ -331,12 +331,12 @@ bool FTedsOutlinerImpl::HasItemParentChanged(TypedElementDataStorage::RowHandle 
 		return Storage->IsRowAvailable(ParentRowHandle);
 	}
 	
-	const FTypedElementOutlinerTreeItem* TEDSParentItem = ParentItem->CastTo<FTypedElementOutlinerTreeItem>();
+	const FTedsOutlinerTreeItem* TedsParentItem = ParentItem->CastTo<FTedsOutlinerTreeItem>();
 
-	if (TEDSParentItem)
+	if (TedsParentItem)
 	{
 		// return true if the row handle of the parent item doesn't match what we are given, i.e the parent has changed
-		return TEDSParentItem->GetRowHandle() != ParentRowHandle;
+		return TedsParentItem->GetRowHandle() != ParentRowHandle;
 	}
 
 	return false;
@@ -387,7 +387,7 @@ void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& 
 			continue;
 		}
 		
-		if (FSceneOutlinerTreeItemPtr TreeItem = InMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(Row, AsShared()), false))
+		if (FSceneOutlinerTreeItemPtr TreeItem = InMode->CreateItemFor<FTedsOutlinerTreeItem>(FTedsOutlinerTreeItem(Row, AsShared()), false))
 		{
 			OutItems.Add(TreeItem);
 		}
@@ -414,15 +414,15 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
 	
-	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item->CastTo<FTypedElementOutlinerTreeItem>();
+	const FTedsOutlinerTreeItem* TedsTreeItem = Item->CastTo<FTedsOutlinerTreeItem>();
 
 	// If this item is not a TEDS item, we are not handling it
-	if (!TEDSTreeItem)
+	if (!TedsTreeItem)
 	{
 		return;
 	}
 		
-	TypedElementRowHandle ItemRowHandle = TEDSTreeItem->GetRowHandle();
+	TypedElementRowHandle ItemRowHandle = TedsTreeItem->GetRowHandle();
 
 	if(!Storage->IsRowAssigned(ItemRowHandle))
 	{
@@ -480,7 +480,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 			continue;
 		}
 		
-		if (FSceneOutlinerTreeItemPtr ChildActorItem = SceneOutlinerMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ChildItemRowHandle, AsShared())))
+		if (FSceneOutlinerTreeItemPtr ChildActorItem = SceneOutlinerMode->CreateItemFor<FTedsOutlinerTreeItem>(FTedsOutlinerTreeItem(ChildItemRowHandle, AsShared())))
 		{
 			OutChildren.Add(ChildActorItem);
 		}
@@ -528,7 +528,7 @@ void FTedsOutlinerImpl::OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHa
 	
 	FSceneOutlinerHierarchyChangedData EventData;
 	EventData.Type = FSceneOutlinerHierarchyChangedData::Added;
-	EventData.Items.Add(SceneOutlinerMode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ItemRowHandle, AsShared())));
+	EventData.Items.Add(SceneOutlinerMode->CreateItemFor<FTedsOutlinerTreeItem>(FTedsOutlinerTreeItem(ItemRowHandle, AsShared())));
 	HierarchyChangedEvent.Broadcast(EventData);
 }
 
@@ -623,7 +623,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 			{
 				TypedElementDataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
 
-				if (const FTypedElementParentColumn* ParentColumn = Context.GetColumn<FTypedElementParentColumn>())
+				if (const FTableRowParentColumn* ParentColumn = Context.GetColumn<FTableRowParentColumn>())
 				{
 					ParentRowHandle = ParentColumn->Parent;
 				}
@@ -633,7 +633,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 					OnItemMoved(Row);
 				}
 			})
-			.ReadOnly<FTypedElementParentColumn>(EOptional::Yes)
+			.ReadOnly<FTableRowParentColumn>(EOptional::Yes)
 		.Where()
 			.All<FTypedElementSyncFromWorldTag>()
 		.Compile();
@@ -786,7 +786,7 @@ ISceneOutlinerHierarchy::FHierarchyChangedEvent& FTedsOutlinerImpl::OnHierarchyC
 	return HierarchyChangedEvent;
 }
 
-const TOptional<FTypedElementOutlinerHierarchyData>& FTedsOutlinerImpl::GetHierarchyData()
+const TOptional<FTedsOutlinerHierarchyData>& FTedsOutlinerImpl::GetHierarchyData()
 {
 	return HierarchyData;
 }

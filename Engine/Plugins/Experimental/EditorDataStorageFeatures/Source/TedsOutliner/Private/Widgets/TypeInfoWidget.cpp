@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/TypedElementTypeInfoWidget.h"
+#include "Widgets/TypeInfoWidget.h"
 
 #include "SceneOutlinerHelpers.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
@@ -12,36 +12,36 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
 
-void UTypedElementTypeInfoWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void UTypeInfoWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	DataStorageUi.RegisterWidgetFactory<FTypedElementTypeInfoWidgetConstructor>(FName(TEXT("General.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FTypeInfoWidgetConstructor>(FName(TEXT("General.Cell")),
 		TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>());
 
 }
 
-TMap<FName, const FSlateBrush*> FTypedElementTypeInfoWidgetConstructor::CachedIconMap;
+TMap<FName, const FSlateBrush*> FTypeInfoWidgetConstructor::CachedIconMap;
 
-FTypedElementTypeInfoWidgetConstructor::FTypedElementTypeInfoWidgetConstructor()
-	: Super(FTypedElementTypeInfoWidgetConstructor::StaticStruct())
+FTypeInfoWidgetConstructor::FTypeInfoWidgetConstructor()
+	: Super(FTypeInfoWidgetConstructor::StaticStruct())
 	, bUseIcon(false)
 {
 }
 
-FTypedElementTypeInfoWidgetConstructor::FTypedElementTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo)
+FTypeInfoWidgetConstructor::FTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo)
 	: Super(InTypeInfo)
 	, bUseIcon(false)
 {
 	
 }
 
-TSharedPtr<SWidget> FTypedElementTypeInfoWidgetConstructor::CreateWidget(
+TSharedPtr<SWidget> FTypeInfoWidgetConstructor::CreateWidget(
 	const TypedElementDataStorage::FMetaDataView& Arguments	)
 {
 	bUseIcon = false;
 	
 	// Check if the caller provided metadata to use an icon widget
-	TypedElementDataStorage::FMetaDataEntryView MetaDataEntryView = Arguments.FindGeneric("TypedElementTypeInfoWidget_bUseIcon");
+	TypedElementDataStorage::FMetaDataEntryView MetaDataEntryView = Arguments.FindGeneric("TypeInfoWidget_bUseIcon");
 	if(MetaDataEntryView.IsSet())
 	{
 		check(MetaDataEntryView.IsType<bool>());
@@ -61,7 +61,7 @@ TSharedPtr<SWidget> FTypedElementTypeInfoWidgetConstructor::CreateWidget(
 	}
 }
 
-bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
+bool FTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
@@ -124,7 +124,7 @@ bool FTypedElementTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataSto
 	return true;
 }
 
-const FSlateBrush* FTypedElementTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
+const FSlateBrush* FTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
 {
 	/* The logic here is very similar to SActorTreeLabel::GetIcon in ActorTreeItem.cpp which allows the actor to specify
 	 * an override for the icon, and has a fallback to the class icon if not.

@@ -3,17 +3,17 @@
 #pragma once
 
 #include "ISceneOutlinerMode.h"
+#include "TedsOutlinerImpl.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Compatibility/TedsCompatibilityUtils.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 
-#include "TypedElementOutlinerMode.generated.h"
+#include "TedsOutlinerMode.generated.h"
 
 // TEDS-Outliner TODO: This can probably be moved to a more generic location for all TEDS related drag drops?
-class FTEDSDragDropOp : public FDecoratedDragDropOp
+class FTedsRowDragDropOp : public FDecoratedDragDropOp
 {
 public:
-	DRAG_DROP_OPERATOR_TYPE(FTEDSDragDropOp, FDecoratedDragDropOp)
+	DRAG_DROP_OPERATOR_TYPE(FTedsRowDragDropOp, FDecoratedDragDropOp)
 
 	/** Rows we are dragging */
 	TArray<TypedElementDataStorage::RowHandle> DraggedRows;
@@ -23,9 +23,9 @@ public:
 		DraggedRows = InRowHandles;
 	}
 
-	static TSharedRef<FTEDSDragDropOp> New(const TArray<TypedElementDataStorage::RowHandle>& InRowHandles)
+	static TSharedRef<FTedsRowDragDropOp> New(const TArray<TypedElementDataStorage::RowHandle>& InRowHandles)
 	{
-		TSharedRef<FTEDSDragDropOp> Operation = MakeShareable(new FTEDSDragDropOp);
+		TSharedRef<FTedsRowDragDropOp> Operation = MakeShareable(new FTedsRowDragDropOp);
 		
 		Operation->Init(InRowHandles);
 		Operation->SetupDefaults();
@@ -35,18 +35,10 @@ public:
 	}
 };
 
-struct FTypedElementOutlinerModeParams : public FTedsOutlinerParams
-{
-	FTypedElementOutlinerModeParams(SSceneOutliner* InSceneOutliner)
-		: FTedsOutlinerParams(InSceneOutliner)
-	{}
-
-};
-
 // Class to hold the owning scene outliner for a menu
 // TEDS-Outliner TODO: Once menus go through TEDS UI this can be done using the FTableViewerColumn on the widget row instead
 UCLASS()
-class UTEDSOutlinerMenuContext : public UObject
+class UTedsOutlinerMenuContext : public UObject
 {
 	GENERATED_BODY()
 public:
@@ -58,11 +50,11 @@ public:
  * See CreateGenericTEDSOutliner() for example usage
  * Inherits from ISceneOutlinerMode - which contains all actions that depend on the type of item you are viewing in the Outliner
  */
-class TEDSOUTLINER_API FTypedElementOutlinerMode : public ISceneOutlinerMode
+class TEDSOUTLINER_API FTedsOutlinerMode : public ISceneOutlinerMode
 {
 public:
-	explicit FTypedElementOutlinerMode(const FTypedElementOutlinerModeParams& InParams);
-	virtual ~FTypedElementOutlinerMode() override;
+	explicit FTedsOutlinerMode(const FTedsOutlinerParams& InParams);
+	virtual ~FTedsOutlinerMode() override;
 
 	/* ISceneOutlinerMode interface */
 	virtual void Rebuild() override;

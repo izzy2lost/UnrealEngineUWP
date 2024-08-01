@@ -10,7 +10,7 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/ObjectMacros.h"
 
-#include "TypedElementOutlinerColumnIntegration.generated.h"
+#include "SceneOutlinerTedsBridge.generated.h"
 
 class ISceneOutliner;
 class ITypedElementDataStorageInterface;
@@ -19,36 +19,13 @@ class ITypedElementDataStorageCompatibilityInterface;
 
 DECLARE_DELEGATE_RetVal_OneParam(FSceneOutlinerTreeItemID, FTreeItemIDDealiaser, TypedElementDataStorage::RowHandle);
 
-class FTypedElementSceneOutliner
-{
-public:
-	~FTypedElementSceneOutliner();
-
-	void Initialize(
-		ITypedElementDataStorageInterface& InStorage,
-		ITypedElementDataStorageUiInterface& InStorageUi,
-		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
-		const TSharedPtr<ISceneOutliner>& InOutliner);
-
-	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
-	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
-private:
-	void ClearColumns(ISceneOutliner& InOutliner);
-
-	TArray<FName> AddedColumns;
-	TWeakPtr<ISceneOutliner> Outliner;
-	ITypedElementDataStorageInterface* Storage{ nullptr };
-	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
-	ITypedElementDataStorageCompatibilityInterface* StorageCompatibility{ nullptr };
-	FTreeItemIDDealiaser Dealiaser;
-	TArray<FName> CellWidgetPurposes;
-};
+class FSceneOutlinerTedsBridge;
 
 /**
  * Utility class to bind Typed Elements Data Storage queries to a Scene Outliner. The provided query is expected to be a select query
  * and will be used to populate the Scene Outliner in addition to already existing data.
  */
-class TEDSOUTLINER_API FTypedElementSceneOutlinerQueryBinder
+class TEDSOUTLINER_API FSceneOutlinerTedsQueryBinder
 {
 public:
 	static const FName CellWidgetTableName;
@@ -60,7 +37,7 @@ public:
 	static const FName DefaultItemLabelCellWidgetPurpose;
 
 
-	static FTypedElementSceneOutlinerQueryBinder& GetInstance();
+	static FSceneOutlinerTedsQueryBinder& GetInstance();
 
 	void AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Widget, TConstArrayView<FName> InCellWidgetPurposes);
 
@@ -71,13 +48,13 @@ public:
 	FName FindOutlinerColumnFromTEDSColumns(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> TEDSColumns) const;
 
 private:
-	FTypedElementSceneOutlinerQueryBinder();
+	FSceneOutlinerTedsQueryBinder();
 	void SetupDefaultColumnMapping();
 	void CleanupStaleOutliners();
 	
-	TSharedPtr<FTypedElementSceneOutliner>* FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Widget);
+	TSharedPtr<FSceneOutlinerTedsBridge>* FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Widget);
 	
-	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FTypedElementSceneOutliner>> SceneOutliners;
+	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FSceneOutlinerTedsBridge>> SceneOutliners;
 
 	ITypedElementDataStorageInterface* Storage{ nullptr };
 	ITypedElementDataStorageUiInterface* StorageUi{ nullptr };
@@ -87,12 +64,12 @@ private:
 };
 
 UCLASS()
-class UTypedElementSceneOutlinerFactory : public UTypedElementDataStorageFactory
+class USceneOutlinerTedsBridgeFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementSceneOutlinerFactory() override = default;
+	~USceneOutlinerTedsBridgeFactory() override = default;
 
 	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };

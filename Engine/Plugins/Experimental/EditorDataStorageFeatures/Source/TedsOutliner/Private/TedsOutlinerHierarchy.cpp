@@ -1,18 +1,20 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOutlinerHierarchy.h"
+#include "TedsOutlinerHierarchy.h"
 
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementQueryStorageInterfaces.h"
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerImpl.h"
+#include "TedsOutlinerItem.h"
+#include "TedsOutlinerMode.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 
-FTypedElementOutlinerHierarchy::FTypedElementOutlinerHierarchy(FTypedElementOutlinerMode* InMode,
+FTedsOutlinerHierarchy::FTedsOutlinerHierarchy(FTedsOutlinerMode* InMode,
 	const TSharedRef<FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerHierarchy(InMode)
 	, TedsOutlinerImpl(InTedsOutlinerImpl)
@@ -25,35 +27,35 @@ FTypedElementOutlinerHierarchy::FTypedElementOutlinerHierarchy(FTypedElementOutl
 	TedsOutlinerImpl->RecompileQueries();
 }
 
-FTypedElementOutlinerHierarchy::~FTypedElementOutlinerHierarchy()
+FTedsOutlinerHierarchy::~FTedsOutlinerHierarchy()
 {
 	TedsOutlinerImpl->OnHierarchyChanged().Remove(HierarchyChangedHandle);
 }
 
-void FTypedElementOutlinerHierarchy::CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const
+void FTedsOutlinerHierarchy::CreateItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems) const
 {
 	TedsOutlinerImpl->CreateItemsFromQuery(OutItems, Mode);
 }
 
-void FTypedElementOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItemPtr& Item,
+void FTedsOutlinerHierarchy::CreateChildren(const FSceneOutlinerTreeItemPtr& Item,
 	TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const
 {
 	TedsOutlinerImpl->CreateChildren(Item, OutChildren);
 }
 
-FSceneOutlinerTreeItemPtr FTypedElementOutlinerHierarchy::FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item,
+FSceneOutlinerTreeItemPtr FTedsOutlinerHierarchy::FindOrCreateParentItem(const ISceneOutlinerTreeItem& Item,
 	const TMap<FSceneOutlinerTreeItemID, FSceneOutlinerTreeItemPtr>& Items, bool bCreate)
 {
-	const FTypedElementOutlinerTreeItem* TEDSTreeItem = Item.CastTo<FTypedElementOutlinerTreeItem>();
+	const FTedsOutlinerTreeItem* TedsTreeItem = Item.CastTo<FTedsOutlinerTreeItem>();
 	const ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
 	
 	// If this item is not a TEDS item, we are not handling it
-	if(!TEDSTreeItem)
+	if(!TedsTreeItem)
 	{
 		return nullptr;
 	}
 	
-	const TypedElementRowHandle ParentRowHandle = TedsOutlinerImpl->GetParentRow(TEDSTreeItem->GetRowHandle());
+	const TypedElementRowHandle ParentRowHandle = TedsOutlinerImpl->GetParentRow(TedsTreeItem->GetRowHandle());
 
 	if(!Storage->IsRowAvailable(ParentRowHandle))
 	{
@@ -66,7 +68,7 @@ FSceneOutlinerTreeItemPtr FTypedElementOutlinerHierarchy::FindOrCreateParentItem
 	}
 	else if(bCreate)
 	{
-		return Mode->CreateItemFor<FTypedElementOutlinerTreeItem>(FTypedElementOutlinerTreeItem(ParentRowHandle, TedsOutlinerImpl), true);
+		return Mode->CreateItemFor<FTedsOutlinerTreeItem>(FTedsOutlinerTreeItem(ParentRowHandle, TedsOutlinerImpl), true);
 	}
 	
 	return nullptr;

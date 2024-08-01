@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/TypedElementTransformHeadsUpWidget.h"
+#include "Widgets/TransformHeadsUpWidget.h"
 
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
@@ -12,9 +12,9 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementUI_TransformHeadsUpWidget"
+#define LOCTEXT_NAMESPACE "TedsTransformHeadsUpWidget"
 
-namespace InternalTransformHelpers
+namespace UE::EditorDataStorage::Widgets::Private
 {
 	enum class EAbnormalTransformTypes : int32
 	{
@@ -55,7 +55,7 @@ namespace InternalTransformHelpers
 
 		return AbnormalTransformFlags;
 	}
-} // namespace InternalTransformHelpers
+} // namespace UE::EditorDataStorage::Widgets::Private
 
 class STransformQuickDisplay : public SHorizontalBox
 {
@@ -67,7 +67,7 @@ public:
 	void Construct(const FArguments& InArgs)
 	{
 		const static FMargin IconPadding(1, 1, 0, 0);
-		using namespace InternalTransformHelpers;
+		using namespace UE::EditorDataStorage::Widgets::Private;
 
 		AddSlot().AutoWidth().Padding(IconPadding)
 		[
@@ -116,7 +116,7 @@ public:
 		];
 	}
 
-	void UpdateFromTransform(InternalTransformHelpers::EAbnormalTransformTypes InAbnormalTransformFlags)
+	void UpdateFromTransform(UE::EditorDataStorage::Widgets::Private::EAbnormalTransformTypes InAbnormalTransformFlags)
 	{
 		if (AbnormalTransformFlags != InAbnormalTransformFlags)
 		{
@@ -126,20 +126,20 @@ public:
 	}
 
 private:
-	InternalTransformHelpers::EAbnormalTransformTypes AbnormalTransformFlags;
+	UE::EditorDataStorage::Widgets::Private::EAbnormalTransformTypes AbnormalTransformFlags;
 };
 
 SLATE_IMPLEMENT_WIDGET(STransformQuickDisplay)
 void STransformQuickDisplay::PrivateRegisterAttributes(FSlateAttributeInitializer&) {}
 
-static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColumn& Widget, InternalTransformHelpers::EAbnormalTransformTypes AbnormalTransformFlags)
+static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColumn& Widget, UE::EditorDataStorage::Widgets::Private::EAbnormalTransformTypes AbnormalTransformFlags)
 {
 	TSharedPtr<SWidget> WidgetPointer = Widget.Widget.Pin();
 	checkf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
 		"references."));
 	checkf(WidgetPointer->GetType() == STransformQuickDisplay::StaticWidgetClass().GetWidgetType(),
-		TEXT("Stored widget with FTypedElementTransformHeadsUpWidgetTag doesn't match type %s, but was a %s."),
+		TEXT("Stored widget with FTransformHeadsUpWidgetTag doesn't match type %s, but was a %s."),
 		*(STransformQuickDisplay::StaticWidgetClass().GetWidgetType().ToString()),
 		*(WidgetPointer->GetTypeAsString()));
 
@@ -148,10 +148,10 @@ static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColum
 }
 
 //
-// UTypedElementTransformHeadsUpWidgetFactory
+// UTransformHeadsUpWidgetFactory
 //
 
-void UTypedElementTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -175,51 +175,51 @@ void UTypedElementTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDa
 				Context.RunSubquery(0, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
 					[&Widget](const FTypedElementLocalTransformColumn& Transform)
 					{
-						UpdateTransformHeadsUpDisplay(Widget, InternalTransformHelpers::GetAbnormalTransformTypes(Transform.Transform));
+						UpdateTransformHeadsUpDisplay(Widget, UE::EditorDataStorage::Widgets::Private::GetAbnormalTransformTypes(Transform.Transform));
 					}));
 			}
 		)
 	.Where()
-		.All<FTypedElementTransformHeadsUpWidgetTag>()
+		.All<FTransformHeadsUpWidgetTag>()
 	.DependsOn()
 		.SubQuery(UpdateTransformWidget)
 	.Compile());
 
 }
 
-void UTypedElementTransformHeadsUpWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+void UTransformHeadsUpWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementDataStorage;
 
-	DataStorageUi.RegisterWidgetFactory<FTypedElementTransformHeadsUpWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FTransformHeadsUpWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
 		FColumn<FTypedElementLocalTransformColumn>());
 }
 
 
 
 //
-// FTypedElementTransformHeadsUpWidgetConstructor
+// FTransformHeadsUpWidgetConstructor
 //
 
-FTypedElementTransformHeadsUpWidgetConstructor::FTypedElementTransformHeadsUpWidgetConstructor()
-	: Super(FTypedElementTransformHeadsUpWidgetConstructor::StaticStruct())
+FTransformHeadsUpWidgetConstructor::FTransformHeadsUpWidgetConstructor()
+	: Super(FTransformHeadsUpWidgetConstructor::StaticStruct())
 {
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementTransformHeadsUpWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FTransformHeadsUpWidgetConstructor::GetAdditionalColumnsList() const
 {
 	static TTypedElementColumnTypeList<FTypedElementRowReferenceColumn,
-		FTypedElementTransformHeadsUpWidgetTag> Columns;
+		FTransformHeadsUpWidgetTag> Columns;
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTypedElementTransformHeadsUpWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FTransformHeadsUpWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STransformQuickDisplay);
 }
 
-bool FTypedElementTransformHeadsUpWidgetConstructor::FinalizeWidget(
+bool FTransformHeadsUpWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	TypedElementRowHandle Row,
@@ -229,7 +229,7 @@ bool FTypedElementTransformHeadsUpWidgetConstructor::FinalizeWidget(
 	if (const FTypedElementLocalTransformColumn* TransformColumn = DataStorage->GetColumn<FTypedElementLocalTransformColumn>(RefColumn.Row))
 	{
 		UpdateTransformHeadsUpDisplay(*DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row), 
-			InternalTransformHelpers::GetAbnormalTransformTypes(TransformColumn->Transform));
+			UE::EditorDataStorage::Widgets::Private::GetAbnormalTransformTypes(TransformColumn->Transform));
 	}
 
 	return true;

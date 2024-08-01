@@ -15,13 +15,13 @@ void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStora
 		Select(
 			TEXT("Resolve hierarchy rows"),
 			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-			[](DSI::IQueryContext& Context, RowHandle Row, const FTypedElementUnresolvedParentColumn& UnresolvedParent)
+			[](DSI::IQueryContext& Context, RowHandle Row, const FUnresolvedTableRowParentColumn& UnresolvedParent)
 			{
 				RowHandle ParentRow = Context.FindIndexedRow(UnresolvedParent.ParentIdHash);
 				if (Context.IsRowAvailable(ParentRow))
 				{
-					Context.RemoveColumns<FTypedElementUnresolvedParentColumn>(Row);
-					Context.AddColumn(Row, FTypedElementParentColumn{ .Parent = ParentRow });
+					Context.RemoveColumns<FUnresolvedTableRowParentColumn>(Row);
+					Context.AddColumn(Row, FTableRowParentColumn{ .Parent = ParentRow });
 				}
 			}
 		)

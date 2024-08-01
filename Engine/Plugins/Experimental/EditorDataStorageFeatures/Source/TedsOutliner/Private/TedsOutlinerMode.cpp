@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "TypedElementOutlinerMode.h"
+#include "TedsOutlinerMode.h"
 
-#include "TypedElementOutlinerFilter.h"
+#include "TedsOutlinerFilter.h"
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "TypedElementOutlinerHierarchy.h"
-#include "TypedElementOutlinerItem.h"
+#include "TedsOutlinerHierarchy.h"
+#include "TedsOutlinerItem.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
@@ -15,42 +15,42 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "ToolMenus.h"
 
-#define LOCTEXT_NAMESPACE "TEDSOutlinerMode"
+#define LOCTEXT_NAMESPACE "TedsOutlinerMode"
 
-namespace UE::TEDSOutliner::Local
+namespace UE::EditorDataStorage::Outliner::Private
 {
-	// Drag drop currently disabled as we are missing data marshalling for hierarchies from TEDS to the world
-	static bool TEDSOutlinerDragDropEnabled = false;
-	static FAutoConsoleVariableRef TEDSOutlinerDragDropEnabledCvar(TEXT("TEDS.UI.EnableTEDSOutlinerDragDrop"), TEDSOutlinerDragDropEnabled, TEXT("Enable drag/drop for the generic TEDS Outliner."));
-	static FName ContextMenuName("TEDSOutlinerContextMenu");
+	// Drag drop currently disabled as we are missing data marshaling for hierarchies from TEDS to the world
+	static bool TedsOutlinerDragDropEnabled = false;
+	static FAutoConsoleVariableRef TedsOutlinerDragDropEnabledCvar(TEXT("TEDS.UI.EnableTEDSOutlinerDragDrop"), TedsOutlinerDragDropEnabled, TEXT("Enable drag/drop for the generic TEDS Outliner."));
+	static FName ContextMenuName("TedsOutlinerContextMenu");
 }
 
-FTypedElementOutlinerMode::FTypedElementOutlinerMode(const FTypedElementOutlinerModeParams& InParams)
+FTedsOutlinerMode::FTedsOutlinerMode(const FTedsOutlinerParams& InParams)
 	: ISceneOutlinerMode(InParams.SceneOutliner)
 {
 	using namespace TypedElementQueryBuilder;
 	
 	TedsOutlinerImpl = MakeShared<FTedsOutlinerImpl>(InParams, this);
 	TedsOutlinerImpl->Init();
-	TedsOutlinerImpl->OnSelectionChanged().AddRaw(this, &FTypedElementOutlinerMode::OnSelectionChanged);
+	TedsOutlinerImpl->OnSelectionChanged().AddRaw(this, &FTedsOutlinerMode::OnSelectionChanged);
 	
 	TedsOutlinerImpl->IsItemCompatible().BindLambda([](const ISceneOutlinerTreeItem& Item)
 	{
-		return Item.IsA<FTypedElementOutlinerTreeItem>();
+		return Item.IsA<FTedsOutlinerTreeItem>();
 	});
 }
 
-FTypedElementOutlinerMode::~FTypedElementOutlinerMode()
+FTedsOutlinerMode::~FTedsOutlinerMode()
 {
 	
 }
 
-void FTypedElementOutlinerMode::Rebuild()
+void FTedsOutlinerMode::Rebuild()
 {
 	Hierarchy = CreateHierarchy();
 }
 
-void FTypedElementOutlinerMode::OnSelectionChanged()
+void FTedsOutlinerMode::OnSelectionChanged()
 {
 	TOptional<FName> SelectionSetName = TedsOutlinerImpl->GetSelectionSetName();
 	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
@@ -58,9 +58,9 @@ void FTypedElementOutlinerMode::OnSelectionChanged()
 	// The selection in TEDS was changed, update the outliner to respond
 	SceneOutliner->SetSelection([SelectionSetName, Storage](ISceneOutlinerTreeItem& InItem) -> bool
 	{
-		if(const FTypedElementOutlinerTreeItem* TEDSItem = InItem.CastTo<FTypedElementOutlinerTreeItem>())
+		if(const FTedsOutlinerTreeItem* TedsItem = InItem.CastTo<FTedsOutlinerTreeItem>())
 		{
-			const TypedElementDataStorage::RowHandle RowHandle = TEDSItem->GetRowHandle();
+			const TypedElementDataStorage::RowHandle RowHandle = TedsItem->GetRowHandle();
 
 			if(const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
 			{
@@ -71,12 +71,12 @@ void FTypedElementOutlinerMode::OnSelectionChanged()
 	});
 }
 
-void FTypedElementOutlinerMode::SynchronizeSelection()
+void FTedsOutlinerMode::SynchronizeSelection()
 {
 	OnSelectionChanged();
 }
 
-void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
+void FTedsOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection)
 {
 	if(SelectionType == ESelectInfo::Direct)
 	{
@@ -88,18 +88,18 @@ void FTypedElementOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr
 	// The selection in the Outliner changed, update TEDS
 	Selection.ForEachItem([&RowHandles](FSceneOutlinerTreeItemPtr& Item)
 	{
-		if(FTypedElementOutlinerTreeItem* TEDSItem = Item->CastTo<FTypedElementOutlinerTreeItem>())
+		if(FTedsOutlinerTreeItem* TedsItem = Item->CastTo<FTedsOutlinerTreeItem>())
 		{
-			RowHandles.Add(TEDSItem->GetRowHandle());
+			RowHandles.Add(TedsItem->GetRowHandle());
 		}
 	});
 
 	TedsOutlinerImpl->SetSelection(RowHandles);
 }
 
-TSharedPtr<FDragDropOperation> FTypedElementOutlinerMode::CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const
+TSharedPtr<FDragDropOperation> FTedsOutlinerMode::CreateDragDropOperation(const FPointerEvent& MouseEvent, const TArray<FSceneOutlinerTreeItemPtr>& InTreeItems) const
 {
-	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+	const TOptional<FTedsOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
 
 	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
 	if(!HierarchyData.IsSet())
@@ -111,23 +111,23 @@ TSharedPtr<FDragDropOperation> FTypedElementOutlinerMode::CreateDragDropOperatio
 
 	for(const FSceneOutlinerTreeItemPtr& Item :InTreeItems)
 	{
-		const FTypedElementOutlinerTreeItem* TEDSItem = Item->CastTo<FTypedElementOutlinerTreeItem>();
-		if(ensureMsgf(TEDSItem, TEXT("We should only have TEDS items in the TEDS Outliner")))
+		const FTedsOutlinerTreeItem* TedsItem = Item->CastTo<FTedsOutlinerTreeItem>();
+		if(ensureMsgf(TedsItem, TEXT("We should only have TEDS items in the TEDS Outliner")))
 		{
-			DraggedRowHandles.Add(TEDSItem->GetRowHandle());
+			DraggedRowHandles.Add(TedsItem->GetRowHandle());
 		}
 	}
 
-	return FTEDSDragDropOp::New(DraggedRowHandles);
+	return FTedsRowDragDropOp::New(DraggedRowHandles);
 }
 
-bool FTypedElementOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const
+bool FTedsOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload, const FDragDropOperation& Operation) const
 {
-	if (Operation.IsOfType<FTEDSDragDropOp>())
+	if (Operation.IsOfType<FTedsRowDragDropOp>())
 	{
-		const FTEDSDragDropOp& TEDSOp = static_cast<const FTEDSDragDropOp&>(Operation);
+		const FTedsRowDragDropOp& TedsOp = static_cast<const FTedsRowDragDropOp&>(Operation);
 
-		for(TypedElementDataStorage::RowHandle RowHandle : TEDSOp.DraggedRows)
+		for(TypedElementDataStorage::RowHandle RowHandle : TedsOp.DraggedRows)
 		{
 			OutPayload.DraggedItems.Add(SceneOutliner->GetTreeItem(RowHandle));
 		}
@@ -136,9 +136,9 @@ bool FTypedElementOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& Out
 	return false;
 }
 
-FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const
+FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload) const
 {
-	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+	const TOptional<FTedsOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
 	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
 
 	// We don't want drag/drop if this TEDS Outliner isn't showing any hierarchy data
@@ -150,16 +150,16 @@ FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const I
 	
 	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
 
-	Payload.ForEachItem<FTypedElementOutlinerTreeItem>([&DraggedRowHandles](FTypedElementOutlinerTreeItem& TEDSItem)
+	Payload.ForEachItem<FTedsOutlinerTreeItem>([&DraggedRowHandles](FTedsOutlinerTreeItem& TedsItem)
 		{
-			DraggedRowHandles.Add(TEDSItem.GetRowHandle());
+			DraggedRowHandles.Add(TedsItem.GetRowHandle());
 		});
 
 	// Dropping onto another item
 	// TEDS-Outliner TODO: Need better drag/drop validation and better place for this, TEDS-Outliner does not know about what types these rows are and all types that exist and what attachment is valid
-	if(const FTypedElementOutlinerTreeItem* TEDSItem = DropTarget.CastTo<FTypedElementOutlinerTreeItem>())
+	if(const FTedsOutlinerTreeItem* TedsItem = DropTarget.CastTo<FTedsOutlinerTreeItem>())
 	{
-		TypedElementDataStorage::RowHandle DropTargetRowHandle = TEDSItem->GetRowHandle();
+		TypedElementDataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
 
 		FTypedElementClassTypeInfoColumn* DropTargetTypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(DropTargetRowHandle);
 
@@ -217,21 +217,21 @@ FSceneOutlinerDragValidationInfo FTypedElementOutlinerMode::ValidateDrop(const I
 	return FSceneOutlinerDragValidationInfo(ESceneOutlinerDropCompatibility::IncompatibleGeneric, LOCTEXT("InvalidDrop", "Invalid Drop target"));
 }
 
-void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const
+void FTedsOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutlinerDragDropPayload& Payload, const FSceneOutlinerDragValidationInfo& ValidationInfo) const
 {
-	const TOptional<FTypedElementOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
+	const TOptional<FTedsOutlinerHierarchyData>& HierarchyData = TedsOutlinerImpl->GetHierarchyData();
 	ITypedElementDataStorageInterface* Storage = TedsOutlinerImpl->GetStorage();
 
-	if(!UE::TEDSOutliner::Local::TEDSOutlinerDragDropEnabledCvar->GetBool() || !HierarchyData.IsSet())
+	if(!UE::EditorDataStorage::Outliner::Private::TedsOutlinerDragDropEnabledCvar->GetBool() || !HierarchyData.IsSet())
 	{
 		return;
 	}
 	
 	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
 
-	Payload.ForEachItem<FTypedElementOutlinerTreeItem>([&DraggedRowHandles](FTypedElementOutlinerTreeItem& TEDSItem)
+	Payload.ForEachItem<FTedsOutlinerTreeItem>([&DraggedRowHandles](FTedsOutlinerTreeItem& TedsItem)
 	{
-		DraggedRowHandles.Add(TEDSItem.GetRowHandle());
+		DraggedRowHandles.Add(TedsItem.GetRowHandle());
 	});
 
 	if(ValidationInfo.CompatibilityType == ESceneOutlinerDropCompatibility::CompatibleDetach)
@@ -243,9 +243,9 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 		}
 	}
 	
-	if(const FTypedElementOutlinerTreeItem* TEDSItem = DropTarget.CastTo<FTypedElementOutlinerTreeItem>())
+	if(const FTedsOutlinerTreeItem* TedsItem = DropTarget.CastTo<FTedsOutlinerTreeItem>())
 	{
-		TypedElementDataStorage::RowHandle DropTargetRowHandle = TEDSItem->GetRowHandle();
+		TypedElementDataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
 		
 		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
@@ -260,18 +260,18 @@ void FTypedElementOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const
 	}
 }
 
-TSharedPtr<SWidget> FTypedElementOutlinerMode::CreateContextMenu()
+TSharedPtr<SWidget> FTedsOutlinerMode::CreateContextMenu()
 {
 	UToolMenus* ToolMenus = UToolMenus::Get();
 
-	if (!ToolMenus->IsMenuRegistered(UE::TEDSOutliner::Local::ContextMenuName))
+	if (!ToolMenus->IsMenuRegistered(UE::EditorDataStorage::Outliner::Private::ContextMenuName))
 	{
-		UToolMenu* Menu = ToolMenus->RegisterMenu((UE::TEDSOutliner::Local::ContextMenuName));
+		UToolMenu* Menu = ToolMenus->RegisterMenu((UE::EditorDataStorage::Outliner::Private::ContextMenuName));
 		Menu->AddDynamicSection("DynamicHierarchySection", FNewToolMenuDelegate::CreateLambda([](UToolMenu* InMenu)
 		{
-			if(UTEDSOutlinerMenuContext* TEDSOutlinerMenuContext = InMenu->FindContext<UTEDSOutlinerMenuContext>())
+			if(UTedsOutlinerMenuContext* TedsOutlinerMenuContext = InMenu->FindContext<UTedsOutlinerMenuContext>())
 			{
-				if(SSceneOutliner* SceneOutliner = TEDSOutlinerMenuContext->OwningSceneOutliner)
+				if(SSceneOutliner* SceneOutliner = TedsOutlinerMenuContext->OwningSceneOutliner)
 				{
 					TArray<FSceneOutlinerTreeItemPtr> Selection = SceneOutliner->GetTree().GetSelectedItems();
 
@@ -285,18 +285,18 @@ TSharedPtr<SWidget> FTypedElementOutlinerMode::CreateContextMenu()
 		}));
 	}
 
-	UTEDSOutlinerMenuContext* TEDSOutlinerMenuContext = NewObject<UTEDSOutlinerMenuContext>();
-	TEDSOutlinerMenuContext->OwningSceneOutliner = SceneOutliner;
+	UTedsOutlinerMenuContext* TedsOutlinerMenuContext = NewObject<UTedsOutlinerMenuContext>();
+	TedsOutlinerMenuContext->OwningSceneOutliner = SceneOutliner;
 	
 	FToolMenuContext MenuContext;
-	MenuContext.AddObject(TEDSOutlinerMenuContext);
+	MenuContext.AddObject(TedsOutlinerMenuContext);
 
-	return UToolMenus::Get()->GenerateWidget(UE::TEDSOutliner::Local::ContextMenuName, MenuContext);
+	return UToolMenus::Get()->GenerateWidget(UE::EditorDataStorage::Outliner::Private::ContextMenuName, MenuContext);
 }
 
-TUniquePtr<ISceneOutlinerHierarchy> FTypedElementOutlinerMode::CreateHierarchy()
+TUniquePtr<ISceneOutlinerHierarchy> FTedsOutlinerMode::CreateHierarchy()
 {
-	return MakeUnique<FTypedElementOutlinerHierarchy>(this, TedsOutlinerImpl.ToSharedRef());
+	return MakeUnique<FTedsOutlinerHierarchy>(this, TedsOutlinerImpl.ToSharedRef());
 }
 
 #undef LOCTEXT_NAMESPACE

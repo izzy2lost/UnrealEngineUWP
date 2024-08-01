@@ -29,7 +29,7 @@
 	],
 	"Plugins": [
 		{
-			"Name": "TypedElementDataStorageEditorUI",
+			"Name": "EditorDataStorageFeatures",
 			"Enabled": true
 		}
 	]

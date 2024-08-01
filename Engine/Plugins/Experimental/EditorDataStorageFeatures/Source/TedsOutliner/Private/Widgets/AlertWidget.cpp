@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets/TypedElementAlertWidget.h"
+#include "Widgets/AlertWidget.h"
 
 #include "Columns/UIPropertiesColumns.h"
 #include "Elements/Columns/TypedElementAlertColumns.h"
@@ -12,9 +12,9 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 
-#define LOCTEXT_NAMESPACE "TEDS"
+#define LOCTEXT_NAMESPACE "TedsAlertWidget"
 
-namespace AlertWidgetInternal
+namespace UE::EditorDataStorage::Widgets::Private
 {
 	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount,
 		TypedElementDataStorage::RowHandle RowWithAlertAction)
@@ -25,13 +25,13 @@ namespace AlertWidgetInternal
 			if (FChildren* Children = Widget->GetChildren())
 			{
 				SImage& Background = 
-					static_cast<SImage&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::IconBackgroundSlot).GetWidget());
+					static_cast<SImage&>(*Children->GetSlotAt(FAlertWidgetConstructor::IconBackgroundSlot).GetWidget());
 				SImage& Badge = 
-					static_cast<SImage&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::IconBadgeSlot).GetWidget());
+					static_cast<SImage&>(*Children->GetSlotAt(FAlertWidgetConstructor::IconBadgeSlot).GetWidget());
 				STextBlock& CounterText =
-					static_cast<STextBlock&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::CounterTextSlot).GetWidget());
+					static_cast<STextBlock&>(*Children->GetSlotAt(FAlertWidgetConstructor::CounterTextSlot).GetWidget());
 				SButton& ActionButton =
-					static_cast<SButton&>(*Children->GetSlotAt(FTypedElementAlertWidgetConstructor::ActionButtonSlot).GetWidget());
+					static_cast<SButton&>(*Children->GetSlotAt(FAlertWidgetConstructor::ActionButtonSlot).GetWidget());
 				
 				// Setup the background image
 				if (ChildCount > 0)
@@ -77,10 +77,10 @@ namespace AlertWidgetInternal
 						Badge.SetVisibility(EVisibility::HitTestInvisible);
 						CounterText.SetVisibility(EVisibility::HitTestInvisible);
 						CounterText.SetText(FText::AsNumber(TotalChildCount));
-						CounterText.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", FTypedElementAlertWidgetConstructor::BadgeFontSize));
+						CounterText.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", FAlertWidgetConstructor::BadgeFontSize));
 						CounterText.SetMargin(FMargin(
-							FTypedElementAlertWidgetConstructor::BadgeHorizontalOffset, 
-							FTypedElementAlertWidgetConstructor::BadgeVerticalOffset));
+							FAlertWidgetConstructor::BadgeHorizontalOffset, 
+							FAlertWidgetConstructor::BadgeVerticalOffset));
 					}
 					else
 					{
@@ -89,8 +89,8 @@ namespace AlertWidgetInternal
 						CounterText.SetText(FText::FromString(TEXT("*")));
 						CounterText.SetFont(FCoreStyle::GetDefaultFontStyle("Regular", 14));
 						CounterText.SetMargin(FMargin(
-							FTypedElementAlertWidgetConstructor::BadgeHorizontalOffset - 2.0f,
-							FTypedElementAlertWidgetConstructor::BadgeVerticalOffset - 6.5f));
+							FAlertWidgetConstructor::BadgeHorizontalOffset - 2.0f,
+							FAlertWidgetConstructor::BadgeVerticalOffset - 6.5f));
 					}
 				}
 
@@ -144,29 +144,29 @@ namespace AlertWidgetInternal
 }
 
 //
-// UTypedElementAlertWidgetFactory
+// UAlertWidgetFactory
 //
 
-void UTypedElementAlertWidgetFactory::RegisterWidgetConstructors(
+void UAlertWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
 	using namespace TypedElementDataStorage;
 
-	DataStorageUi.RegisterWidgetFactory<FTypedElementAlertWidgetConstructor>(FName(TEXT("General.Cell")),
+	DataStorageUi.RegisterWidgetFactory<FAlertWidgetConstructor>(FName(TEXT("General.Cell")),
 		FColumn<FTypedElementAlertColumn>() || FColumn<FTypedElementChildAlertColumn>());
 	
-	DataStorageUi.RegisterWidgetFactory<FTypedElementAlertHeaderWidgetConstructor>(FName(TEXT("General.Header")),
+	DataStorageUi.RegisterWidgetFactory<FAlertHeaderWidgetConstructor>(FName(TEXT("General.Header")),
 		FColumn<FTypedElementAlertColumn>() || FColumn<FTypedElementChildAlertColumn>());
 }
 
-void UTypedElementAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	RegisterAlertQueries(DataStorage);
 	RegisterAlertHeaderQueries(DataStorage);
 }
 
-void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
@@ -210,14 +210,14 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
 							Alert.AlertType == FTypedElementAlertColumnType::Error,
 							TEXT("Alert column has unsupported type %i"), static_cast<int>(Alert.AlertType));
-						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), Alert.Message, 
+						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
 							Alert.AlertType == FTypedElementAlertColumnType::Warning, 0, 0,
 							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
 					}));
 				Context.RunSubquery(1, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
 					[&Widget](ISubqueryContext& Context, RowHandle Row, const FTypedElementChildAlertColumn& ChildAlert)
 					{
-						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), FText::GetEmpty(), false,
+						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), FText::GetEmpty(), false,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
 							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
@@ -232,7 +232,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
 							Alert.AlertType == FTypedElementAlertColumnType::Error,
 							TEXT("Alert column has unsupported type %i"), static_cast<int>(Alert.AlertType));
-						AlertWidgetInternal::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
+						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
 							Alert.AlertType == FTypedElementAlertColumnType::Warning,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
@@ -241,7 +241,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 			}
 		)
 		.Where()
-			.All<FTypedElementAlertWidgetTag>()
+			.All<FAlertWidgetTag>()
 			.DependsOn()
 				.SubQuery(UpdateWidget_OnlyAlert)
 				.SubQuery(UpdateWidget_OnlyChildAlert)
@@ -249,7 +249,7 @@ void UTypedElementAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStor
 		.Compile());
 }
 
-void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInterface& DataStorage)
+void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
@@ -273,14 +273,14 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 					if (TSharedPtr<SWidget> WidgetPtr = Widget.Widget.Pin())
 					{
 						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.Warning.Solid"));
-						Context.AddColumns<FTypedElementAlertHeaderActiveWidgetTag>(Row);
+						Context.AddColumns<FAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
 			}
 		)
 		.Where()
-			.All<FTypedElementAlertHeaderWidgetTag>()
-			.None<FTypedElementAlertHeaderActiveWidgetTag>()
+			.All<FAlertHeaderWidgetTag>()
+			.None<FAlertHeaderActiveWidgetTag>()
 		.DependsOn()
 			.SubQuery(AlertCount)
 		.Compile());
@@ -297,13 +297,13 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 					if (TSharedPtr<SWidget> WidgetPtr = Widget.Widget.Pin())
 					{
 						static_cast<SImage*>(WidgetPtr.Get())->SetImage(FAppStyle::GetBrush("Icons.Alert"));
-						Context.RemoveColumns<FTypedElementAlertHeaderActiveWidgetTag>(Row);
+						Context.RemoveColumns<FAlertHeaderActiveWidgetTag>(Row);
 					}
 				}
 			}
 		)
 		.Where()
-			.All<FTypedElementAlertHeaderWidgetTag, FTypedElementAlertHeaderActiveWidgetTag>()
+			.All<FAlertHeaderWidgetTag, FAlertHeaderActiveWidgetTag>()
 		.DependsOn()
 			.SubQuery(AlertCount)
 		.Compile());
@@ -312,15 +312,15 @@ void UTypedElementAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDa
 
 
 //
-// FTypedElementAlertWidgetConstructor
+// FAlertWidgetConstructor
 //
 
-FTypedElementAlertWidgetConstructor::FTypedElementAlertWidgetConstructor()
+FAlertWidgetConstructor::FAlertWidgetConstructor()
 	: Super(StaticStruct())
 {
 }
 
-TSharedPtr<SWidget> FTypedElementAlertWidgetConstructor::CreateWidget(
+TSharedPtr<SWidget> FAlertWidgetConstructor::CreateWidget(
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SOverlay)
@@ -361,13 +361,13 @@ TSharedPtr<SWidget> FTypedElementAlertWidgetConstructor::CreateWidget(
 		];
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementAlertWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FAlertWidgetConstructor::GetAdditionalColumnsList() const
 {
-	static TTypedElementColumnTypeList<FTypedElementRowReferenceColumn, FTypedElementAlertWidgetTag> Columns;
+	static TTypedElementColumnTypeList<FTypedElementRowReferenceColumn, FAlertWidgetTag> Columns;
 	return Columns;
 }
 
-bool FTypedElementAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
+bool FAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	using namespace TypedElementDataStorage;
@@ -379,7 +379,7 @@ bool FTypedElementAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorag
 	uint16 ErrorCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)] : 0;
 	uint16 WarningCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)] : 0;
 
-	AlertWidgetInternal::UpdateWidget(
+	UE::EditorDataStorage::Widgets::Private::UpdateWidget(
 		Widget, 
 		Alert ? Alert->Message : FText::GetEmpty(), 
 		Alert ? (Alert->AlertType == FTypedElementAlertColumnType::Warning) : false, 
@@ -392,15 +392,15 @@ bool FTypedElementAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorag
 
 
 //
-// FTypedElementAlertHeaderWidgetConstructor
+// FAlertHeaderWidgetConstructor
 //
 
-FTypedElementAlertHeaderWidgetConstructor::FTypedElementAlertHeaderWidgetConstructor()
+FAlertHeaderWidgetConstructor::FAlertHeaderWidgetConstructor()
 	: Super(StaticStruct())
 {
 }
 
-TSharedPtr<SWidget> FTypedElementAlertHeaderWidgetConstructor::CreateWidget(
+TSharedPtr<SWidget> FAlertHeaderWidgetConstructor::CreateWidget(
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SImage)
@@ -410,13 +410,13 @@ TSharedPtr<SWidget> FTypedElementAlertHeaderWidgetConstructor::CreateWidget(
 		.ToolTipText(FText(LOCTEXT("AlertColumnHeader", "Alerts")));
 }
 
-TConstArrayView<const UScriptStruct*> FTypedElementAlertHeaderWidgetConstructor::GetAdditionalColumnsList() const
+TConstArrayView<const UScriptStruct*> FAlertHeaderWidgetConstructor::GetAdditionalColumnsList() const
 {
-	static TTypedElementColumnTypeList<FTypedElementAlertHeaderWidgetTag> Columns;
+	static TTypedElementColumnTypeList<FAlertHeaderWidgetTag> Columns;
 	return Columns;
 }
 
-bool FTypedElementAlertHeaderWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, 
+bool FAlertHeaderWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, 
 	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	DataStorage->AddColumn(Row, FUIHeaderPropertiesColumn
