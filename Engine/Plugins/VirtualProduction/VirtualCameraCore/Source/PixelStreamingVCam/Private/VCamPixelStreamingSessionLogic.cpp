@@ -17,7 +17,6 @@
 #include "IPixelStreamingStats.h"
 #include "IPixelStreamingModule.h"
 #include "IPixelStreamingInputModule.h"
-#include "Framework/Notifications/NotificationManager.h"
 #include "Math/Matrix.h"
 #include "Misc/CoreDelegates.h"
 #include "PixelStreamingDelegates.h"
@@ -36,13 +35,25 @@
 
 #if WITH_EDITOR
 #include "Framework/Application/SlateApplication.h"
-#include "Widgets/Notifications/SNotificationList.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "FVCamPixelStreamingSessionLogic"
 
 namespace UE::PixelStreamingVCam
 {
+	namespace Private
+	{
+		static FString GenerateDefaultStreamerName(const UVCamPixelStreamingSession& Session)
+		{
+			using namespace VCamCore;
+			const bool bContainsOtherPixelStreamingOutput = Session.GetVCamComponent()->GetOutputProviders().ContainsByPredicate([&Session](const TObjectPtr<UVCamOutputProviderBase>& OtherOutputProvider)
+			{
+				return OtherOutputProvider != &Session && OtherOutputProvider->GetClass()->IsChildOf(Session.GetClass());
+			});
+			return GenerateUniqueOutputProviderName(Session, bContainsOtherPixelStreamingOutput ? ENameGenerationFlags::None : ENameGenerationFlags::SkipAppendingIndex);
+		}
+	}
+	
 	FVCamPixelStreamingSessionLogic::FVCamPixelStreamingSessionLogic(const DecoupledOutputProvider::FOutputProviderLogicCreationArgs& Args)
 		: ManagedOutputProvider(Cast<UVCamPixelStreamingSession>(Args.Provider))
 	{
@@ -82,7 +93,7 @@ namespace UE::PixelStreamingVCam
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisUObjectPtr = This;
 		if (This->StreamerId.IsEmpty())
 		{
-			RefreshStreamerName(This);
+			RefreshStreamerName(*This);
 		}
 
 		// Setup livelink source
@@ -268,6 +279,13 @@ namespace UE::PixelStreamingVCam
 		return ResponsePromise.GetFuture();
 	}
 
+	void FVCamPixelStreamingSessionLogic::OnPreEditChange(DecoupledOutputProvider::IOutputProviderEvent& Args, FProperty* PropertyAboutToChange)
+	{
+		IOutputProviderLogic::OnPreEditChange(Args, PropertyAboutToChange);
+
+		StreamId_PreEditChange = ManagedOutputProvider->StreamerId;
+	}
+
 #if WITH_EDITOR
 
 	void FVCamPixelStreamingSessionLogic::OnPostEditChangeProperty(DecoupledOutputProvider::IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
@@ -286,58 +304,62 @@ namespace UE::PixelStreamingVCam
 			{
 				ConditionallySetLiveLinkSubjectToThis(This);
 			}
-			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, StreamerId))
+			else if (PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, StreamerId)
+					|| PropertyName == GET_MEMBER_NAME_CHECKED(UVCamPixelStreamingSession, bOverrideStreamerName))
 			{
-				OnEditStreamId(*This);
+				OnEditStreamId(*This, StreamId_PreEditChange);
 			}
 		}
 	}
 	
-	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This)
+	void FVCamPixelStreamingSessionLogic::OnEditStreamId(UVCamPixelStreamingSession& This, const FString& OldStreamerId) const
 	{
 		const TSharedPtr<IPixelStreamingStreamer> Streamer = MediaOutput && MediaOutput->GetStreamer() ? MediaOutput->GetStreamer() : nullptr;
 		if (!Streamer || !This.IsOutputting())
 		{
 			return;
 		}
-		
-		// No changing streamer ID while streaming
-		This.StreamerId = Streamer ? Streamer->GetId() : This.StreamerId;
 
-		if (FSlateApplication::IsInitialized())
+		if (!This.bOverrideStreamerName)
 		{
-			FSlateNotificationManager& NotificationManager = FSlateNotificationManager::Get();
-			FNotificationInfo Info(LOCTEXT("CannotEditStreamId.Label", "Cannot edit StreamerId"));
-			Info.SubText = LOCTEXT("CannotEditStreamId.SubText", "Deactivate the output provider first.");
-			NotificationManager.AddNotification(Info);
+			RefreshStreamerName(This);
+		}
+
+		if (OldStreamerId != This.StreamerId
+			&& This.IsActive())
+		{
+			This.SetActive(false);
+			This.SetActive(true);
 		}
 	}
 
 	void FVCamPixelStreamingSessionLogic::OnActorLabelChanged(AActor* Actor) const
 	{
 		UVCamPixelStreamingSession* Session = ManagedOutputProvider.Get();
-		if (Session
-			// User wants their name?
+		const bool bIsApplicable = Session
+			// User wants the StreamerId to be the actor label?
 			&& !Session->bOverrideStreamerName
-			// Cannot change while outputting.
-			&& !Session->IsOutputting()
 			// Did our owning actor's name change?
-			&& Session->GetTypedOuter<AActor>() == Actor)
+			&& Session->GetTypedOuter<AActor>() == Actor;
+		if (!bIsApplicable)
+		{
+			return;
+		}
+		
+		const FString OldStreamId = Session->StreamerId;
+		const FString NewStreamerName = Private::GenerateDefaultStreamerName(*Session);
+		if (OldStreamId != NewStreamerName)
 		{
 			Session->Modify();
-			RefreshStreamerName(Session);
+			Session->StreamerId = NewStreamerName;
+			OnEditStreamId(*ManagedOutputProvider, OldStreamId);
 		}
 	}
 #endif
-	
-	void FVCamPixelStreamingSessionLogic::RefreshStreamerName(UVCamPixelStreamingSession* Session) const
+
+	void FVCamPixelStreamingSessionLogic::RefreshStreamerName(UVCamPixelStreamingSession& Session) const
 	{
-		using namespace VCamCore;
-		const bool bContainsOtherPixelStreamingOutput = Session->GetVCamComponent()->GetOutputProviders().ContainsByPredicate([Session](const TObjectPtr<UVCamOutputProviderBase>& OtherOutputProvider)
-		{
-			return OtherOutputProvider != Session && OtherOutputProvider->GetClass()->IsChildOf(Session->GetClass());
-		});
-		Session->StreamerId = GenerateUniqueOutputProviderName(*Session, bContainsOtherPixelStreamingOutput ? ENameGenerationFlags::None : ENameGenerationFlags::SkipAppendingIndex);
+		Session.StreamerId = Private::GenerateDefaultStreamerName(Session);
 	}
 
 	void FVCamPixelStreamingSessionLogic::SetupSignallingServer(UVCamPixelStreamingSession& Session)
