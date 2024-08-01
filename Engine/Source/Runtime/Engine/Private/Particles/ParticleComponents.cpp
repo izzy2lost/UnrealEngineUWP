@@ -2687,7 +2687,8 @@ void UParticleSystem::PostLoad()
 
 void UParticleSystem::PrecachePSOs()
 {
-	if (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled())
+	// Only precache if asset precaching is enabled and at least one of component or resource precaching is enabled.
+	if (!IsAssetPSOPrecachingEnabled() || (!IsComponentPSOPrecachingEnabled() && !IsResourcePSOPrecachingEnabled()))
 	{
 		return;
 	}
@@ -3540,7 +3541,7 @@ bool UFXSystemComponent::RequiresLWCTileRecache(const FVector3f CurrentTile, con
 void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 {
 #if UE_WITH_PSO_PRECACHING
-	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled() || FXSystemAsset == nullptr)
+	if (!FApp::CanEverRender() || !IsAssetPSOPrecachingEnabled() || FXSystemAsset == nullptr)
 	{
 		return;
 	}

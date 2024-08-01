@@ -249,6 +249,11 @@ struct FMaterialPSOPrecacheParams
 };
 
 /**
+ * Precaching PSOs for assets?
+ */
+extern ENGINE_API bool IsAssetPSOPrecachingEnabled();
+
+/**
  * Precaching PSOs for components?
  */
 extern ENGINE_API bool IsComponentPSOPrecachingEnabled();

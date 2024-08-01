@@ -4854,7 +4854,7 @@ bool UPrimitiveComponent::ShouldRenderProxyFallbackToDefaultMaterial() const
 bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriority NewPSOPrecachePriority)
 {
 #if UE_WITH_PSO_PRECACHING
-	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
+	ensure(!IsAssetPSOPrecachingEnabled() || !IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
 	check(NewPSOPrecachePriority == EPSOPrecachePriority::High || NewPSOPrecachePriority == EPSOPrecachePriority::Highest);
 
 	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete())
