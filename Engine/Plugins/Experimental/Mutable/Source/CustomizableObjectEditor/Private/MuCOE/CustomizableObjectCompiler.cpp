@@ -167,10 +167,13 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 		return;
 	}
 
-	if (CurrentObject->VersionBridge && !CurrentObject->VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
+	UCustomizableObject* RootObject = GetRootObject(CurrentObject);
+	check(RootObject);
+
+	if (RootObject->VersionBridge && !RootObject->VersionBridge->GetClass()->ImplementsInterface(UCustomizableObjectVersionBridgeInterface::StaticClass()))
 	{
 		UE_LOG(LogMutable, Warning, TEXT("In Customizable Object [%s], the VersionBridge asset [%s] does not implement the required UCustomizableObjectVersionBridgeInterface."),
-			*CurrentObject->GetName(), *CurrentObject->VersionBridge.GetName());
+			*RootObject->GetName(), *RootObject->VersionBridge.GetName());
 		CompleteRequest(ECompilationStatePrivate::Completed, ECompilationResultPrivate::Errors);
 		return;
 	}
@@ -399,14 +402,14 @@ void FCustomizableObjectCompiler::ProcessChildObjectsRecursively(UCustomizableOb
 
 		if (ChildObject->VersionStruct.IsValid())
 		{
-			if (!GenerationContext.Object->VersionBridge)
+			if (!GenerationContext.RootVersionBridge)
 			{
 				UE_LOG(LogMutable, Warning, TEXT("The child Customizable Object [%s] defines its VersionStruct Property but its root CustomizableObject doesn't define the VersionBridge property. There's no way to verify the VersionStruct has to be included in this compilation, so the child CustomizableObject will be omitted."), 
 					*ChildObject->GetName());
 				continue;
 			}
 
-			ICustomizableObjectVersionBridgeInterface* CustomizableObjectVersionBridgeInterface = Cast<ICustomizableObjectVersionBridgeInterface>(GenerationContext.Object->VersionBridge);
+			ICustomizableObjectVersionBridgeInterface* CustomizableObjectVersionBridgeInterface = Cast<ICustomizableObjectVersionBridgeInterface>(GenerationContext.RootVersionBridge);
 
 			if (CustomizableObjectVersionBridgeInterface)
 			{
@@ -532,25 +535,40 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 	}
 
 	bool bMultipleBaseObjectsFound;
-	bOutIsRootObject = false;
 	UCustomizableObjectNodeObject* Root = GetRootNode(Object, bMultipleBaseObjectsFound);
 
 	if (bMultipleBaseObjectsFound)
 	{
-		ErrorMsg = LOCTEXT("MutlipleBase","Multiple base object nodes found. Only one will be used.");
+		ErrorMsg = LOCTEXT("MultipleBaseRoot","Multiple base object nodes found.");
 		return nullptr;
 	}
 
 	if (!Root)
 	{
-		ErrorMsg = LOCTEXT("NoBase","No base object node found. Object not built.");
+		ErrorMsg = LOCTEXT("NoRootBase","No base object node found. Object not built.");
 		return nullptr;
 	}
 
 	bOutIsRootObject = Root->ParentObject == nullptr;
 
-	UCustomizableObjectNodeObject* ActualRoot = Root;
-	UCustomizableObject* ActualRootObject = Object;
+	UCustomizableObject* ActualRootObject = GetRootObject(Object);
+	check(ActualRootObject);
+
+	GenerationContext.RootVersionBridge = ActualRootObject->VersionBridge;
+
+	UCustomizableObjectNodeObject* ActualRoot = GetRootNode(ActualRootObject, bMultipleBaseObjectsFound);
+
+	if (bMultipleBaseObjectsFound)
+	{
+		ErrorMsg = LOCTEXT("MultipleBaseActualRoot", "Multiple base object nodes found.");
+		return nullptr;
+	}
+
+	if (!ActualRoot)
+	{
+		ErrorMsg = LOCTEXT("NoActualRootBase", "No base object node found in root Customizable Object. Object not built.");
+		return nullptr;
+	}
 
 	ArrayAlreadyProcessedChild.Empty();
 
@@ -571,15 +589,6 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 		if (!GIsSavingPackage)
 		{
 			UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Begin search for children."), FPlatformTime::Seconds());
-
-			TArray<UCustomizableObject*> VisitedObjects;
-			ActualRootObject = Root->ParentObject ? GetFullGraphRootObject(Root, VisitedObjects) : Object;
-
-			if (Root->ParentObject != nullptr)
-			{
-				VisitedObjects.Empty();
-				ActualRoot = GetFullGraphRootNodeObject(ActualRoot, VisitedObjects);
-			}
 
 			// The object doesn't reference a root object but is a root object, look for all the objects that reference it and get their root nodes
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
@@ -638,16 +647,6 @@ mu::NodeObjectPtr FCustomizableObjectCompiler::GenerateMutableRoot(
 				GenerationContext.GroupIdToExternalNodeMap.Add(ArrayNodeObject[i]->ParentObjectGroupId, ArrayNodeObject[i]);
 			}
 		}
-
-		TArray<UCustomizableObject*> VisitedObjects;
-
-		if (Root->ParentObject != nullptr)
-		{
-			ActualRoot = GetFullGraphRootNodeObject(ActualRoot, VisitedObjects);
-		}
-
-		VisitedObjects.Empty();
-		ActualRootObject = Root->ParentObject ? GetFullGraphRootObject(Root, VisitedObjects) : Object;
 	}
 
 	// Ensure that the CO has a valid AutoLODStrategy on the ActualRoot.

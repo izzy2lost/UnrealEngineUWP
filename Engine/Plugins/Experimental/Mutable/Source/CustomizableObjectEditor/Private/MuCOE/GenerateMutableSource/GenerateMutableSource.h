@@ -899,6 +899,9 @@ struct FMutableGraphGenerationContext
 
 	/** Map to relate a Composite Data Table Row and its original DataTable */
 	TMap<UDataTable*,TMap<FName, TArray<UDataTable*>>> CompositeDataTableRowToOriginalDataTableMap;
+
+	/** Version Bridge of the root object */
+	TObjectPtr<UObject> RootVersionBridge;
 };
 
 /** Pin Data scope wrapper. Pops the pin data on scope exit. */
