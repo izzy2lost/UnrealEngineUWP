@@ -177,6 +177,9 @@ public:
 	// @see IA.CompactInstances console command
 	bool RemoveInstance(const FInstancedActorsInstanceHandle& InstanceToRemove);
 
+	// Iterates all ISMCs created in GetOrCreateActorInstanceData.
+	// @param InFunction						The function to call for each ISMC.
+	void ForEachEditorPreviewISMC(TFunctionRef<bool(UInstancedStaticMeshComponent& /*ISMComponent*/)> InFunction) const;
 #endif
 
 	// Removes RuntimeRemoveInstances as if they were never present i.e: these removals are not persisted as

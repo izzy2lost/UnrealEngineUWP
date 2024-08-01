@@ -634,6 +634,22 @@ bool UInstancedActorsData::SetInstanceTransform(const FInstancedActorsInstanceHa
 
 	return true;
 }
+
+void UInstancedActorsData::ForEachEditorPreviewISMC(TFunctionRef<bool(UInstancedStaticMeshComponent& /*ISMComponent*/)> InFunction) const
+{
+	// Iterate ISMComponents
+	for (UInstancedStaticMeshComponent* EditorPreviewISMComponent : EditorPreviewISMComponents)
+	{
+		if (IsValid(EditorPreviewISMComponent))
+		{
+			const bool bContinue = InFunction(*EditorPreviewISMComponent);
+			if (!bContinue)
+			{
+				break;
+			}
+		}
+	}
+}
 #endif // WITH_EDITOR
 
 FInstancedActorsInstanceIndex UInstancedActorsData::GetInstanceIndexForEntity(const FMassEntityHandle EntityHandle) const
