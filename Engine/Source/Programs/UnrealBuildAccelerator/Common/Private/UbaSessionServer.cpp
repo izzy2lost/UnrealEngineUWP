@@ -1257,7 +1257,7 @@ namespace uba
 		if (session.enabled)
 			++m_availableRemoteSlotCount;
 
-		m_logger.Detail(TC("Client %s returned process to queue (%s)"), session.name.c_str(), reason.data);
+		m_logger.Detail(TC("Client %s returned process %u to queue (%s)"), session.name.c_str(), processId, reason.data);
 		++m_returnedRemoteProcessCount;
 
 		process->m_executingHost.clear();

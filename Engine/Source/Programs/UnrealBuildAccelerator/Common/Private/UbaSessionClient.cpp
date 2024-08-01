@@ -1556,6 +1556,8 @@ namespace uba
 					if (rec.isKilled || rec.isDone)
 						continue;
 					SCOPED_WRITE_LOCK(rec.lock, lock);
+					if (rec.isDone)
+						continue;
 					rec.handle.Cancel(true);
 					rec.isKilled = true;
 					SendReturnProcess(rec.handle.GetId(), TC("Running out of memory"));
