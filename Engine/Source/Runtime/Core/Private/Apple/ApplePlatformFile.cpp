@@ -203,7 +203,7 @@ public:
 			int64 ThisSize = FMath::Min<int64>(READWRITE_SIZE, BytesToWrite);
 			check(Source);
 			int64 BytesWritten = write(FileHandle, Source, ThisSize);
-            if (BytesWritten < 0)
+            if (BytesWritten <= 0)
             {
                 if (errno == EINTR)
                 {
