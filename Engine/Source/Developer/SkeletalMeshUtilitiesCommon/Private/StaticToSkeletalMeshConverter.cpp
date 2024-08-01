@@ -261,6 +261,29 @@ static bool AddLODFromStaticMeshSourceModel(
 		FSkeletalMeshAttributes SkeletalMeshAttributes(SkeletalMeshGeometry);
 		SkeletalMeshAttributes.Register();
 		
+		// Fill Bones data.
+		const FReferenceSkeleton RefSkeleton = InSkeletalMesh->GetRefSkeleton();
+		const int32 NumRefBones = InSkeletalMesh->GetRefSkeleton().GetRawBoneNum();
+		
+		FSkeletalMeshAttributes::FBoneArray& Bones = SkeletalMeshAttributes.Bones();
+		Bones.Reset(NumRefBones);
+	
+		FSkeletalMeshAttributes::FBoneNameAttributesRef BoneNames = SkeletalMeshAttributes.GetBoneNames();
+		FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = SkeletalMeshAttributes.GetBoneParentIndices();
+		FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = SkeletalMeshAttributes.GetBonePoses();
+		
+		for (int Index = 0; Index < NumRefBones; ++Index)
+		{
+			const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Index];
+			const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Index];
+
+			const FBoneID BoneID = SkeletalMeshAttributes.CreateBone();
+
+			BoneNames.Set(BoneID, BoneInfo.Name);
+			BoneParentIndices.Set(BoneID, BoneInfo.ParentIndex);
+			BonePoses.Set(BoneID, BoneTransform);
+		}
+		
 		// Full binding to the root bone.
 		FSkinWeightsVertexAttributesRef SkinWeights = SkeletalMeshAttributes.GetVertexSkinWeights();
 		UE::AnimationCore::FBoneWeight RootInfluence(InBoneIndex, 1.0f);

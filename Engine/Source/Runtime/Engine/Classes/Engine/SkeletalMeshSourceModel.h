@@ -173,6 +173,12 @@ private:
 	 *  and then unloading the bulkd data, to conserve memory.
 	 */
 	void UpdateCachedMeshStatisticsFromBulkIfNeeded();
+	
+	/**
+	 *  Update the MeshDescription bones data if needed so that it matches the skeletal mesh ref skeleton.  
+     */
+	void UpdateBonesDataIfNeeded(FMeshDescription& InOutMeshDescription) const;
+    
 #endif
 	
 	UPROPERTY()

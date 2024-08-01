@@ -130,7 +130,9 @@ FMeshDescription* FSkeletalMeshSourceModel::GetMeshDescription() const
 	
 	if (MeshDescriptionBulkData->HasCachedMeshDescription())
 	{
-		return &MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription();
+		FMeshDescription& MeshDescription = MeshDescriptionBulkData->GetMeshDescription()->GetMeshDescription();
+		UpdateBonesDataIfNeeded(MeshDescription);
+		return &MeshDescription;
 	}
 
 	return nullptr;
@@ -421,5 +423,44 @@ void FSkeletalMeshSourceModel::UpdateCachedMeshStatisticsFromBulkIfNeeded()
 	}
 }
 
+void FSkeletalMeshSourceModel::UpdateBonesDataIfNeeded(FMeshDescription& InOutMeshDescription) const
+{
+	FSkeletalMeshAttributes MeshAttributes(InOutMeshDescription);
+	if (!MeshAttributes.HasBones())
+	{
+		MeshAttributes.Register(true);
+	}
+
+	const USkeletalMesh* SkeletalMesh = GetOwner();
+	if (!SkeletalMesh)
+	{
+		return;
+	}
+	
+	const int32 NumMeshDescBones = MeshAttributes.GetNumBones();
+	const FReferenceSkeleton RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const int32 NumRefBones = SkeletalMesh->GetRefSkeleton().GetRawBoneNum();
+	if (NumMeshDescBones != NumRefBones && NumRefBones > 0)
+	{
+		MeshAttributes.Bones().Reset(NumRefBones);
+	
+		FSkeletalMeshAttributes::FBoneNameAttributesRef BoneNames = MeshAttributes.GetBoneNames();
+		FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
+		FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = MeshAttributes.GetBonePoses();
+
+
+		for (int Index = 0; Index < NumRefBones; ++Index)
+		{
+			const FMeshBoneInfo& BoneInfo = RefSkeleton.GetRawRefBoneInfo()[Index];
+			const FTransform& BoneTransform = RefSkeleton.GetRawRefBonePose()[Index];
+
+			const FBoneID BoneID = MeshAttributes.CreateBone();
+
+			BoneNames.Set(BoneID, BoneInfo.Name);
+			BoneParentIndices.Set(BoneID, BoneInfo.ParentIndex);
+			BonePoses.Set(BoneID, BoneTransform);
+		}
+	}
+}
 
 #endif

@@ -2661,6 +2661,15 @@ void USkinWeightsPaintTool::TransferWeights()
 	{
 		TargetAttributes->CopyBoneAttributes(*SourceMesh.Attributes());
 	}
+	else
+	{
+		const USkeletalMeshComponent* Component = GetSkeletalMeshComponent(Target);
+		if (ensure(Component))
+		{
+			const FReferenceSkeleton& RefSkeleton = Component->GetSkeletalMeshAsset()->GetRefSkeleton();
+			ensure(TargetAttributes->GetNumBones() == RefSkeleton.GetRawBoneNum());
+		}
+	}
 
 	// NOTE should we expose all the options?
 	// 	TransferBoneWeights.NormalThreshold;
