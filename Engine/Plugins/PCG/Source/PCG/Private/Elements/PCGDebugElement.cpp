@@ -52,7 +52,10 @@ bool FPCGDebugElement::ExecuteInternal(FPCGContext* Context) const
 			continue;
 		}
 
-		AActor* TargetActor = Context->GetInputSettings<UPCGDebugSettings>()->TargetActor.Get();
+		const UPCGDebugSettings* Settings = Context->GetInputSettings<UPCGDebugSettings>();
+		check(Settings);
+
+		AActor* TargetActor = Settings->TargetActor.Get();
 
 		if (!TargetActor)
 		{
@@ -61,7 +64,7 @@ bool FPCGDebugElement::ExecuteInternal(FPCGContext* Context) const
 
 		if (const IPCGDataVisualization* DataVis = DataVisRegistry.GetDataVisualization(Input.Data->GetClass()))
 		{
-			DataVis->ExecuteDebugDisplay(Context, Input.Data, TargetActor);
+			DataVis->ExecuteDebugDisplay(Context, Settings, Input.Data, TargetActor);
 		}
 	}
 #endif

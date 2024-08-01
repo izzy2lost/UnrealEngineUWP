@@ -23,6 +23,8 @@ enum class EPCGReadbackMode : uint8
 	GraphOutput = 1 << 1,
 	/** Read back and store inspection data. */
 	Inspection = 1 << 2,
+	/** Read back and execute debug visualization. */
+	DebugVisualization = 1 << 3,
 };
 ENUM_CLASS_FLAGS(EPCGReadbackMode);
 

@@ -15,7 +15,7 @@ class PCGEDITOR_API IPCGSpatialDataVisualization : public IPCGDataVisualization
 {
 public:
 	// ~Begin IPCGDataVisualization interface
-	virtual void ExecuteDebugDisplay(FPCGContext* Context, const UPCGData* Data, AActor* TargetActor) const override;
+	virtual void ExecuteDebugDisplay(FPCGContext* Context, const UPCGSettingsInterface* SettingsInterface, const UPCGData* Data, AActor* TargetActor) const override;
 	virtual FPCGTableVisualizerInfo GetTableVisualizerInfo(const UPCGData* Data) const override;
 	// ~End IPCGDataVisualization interface
 

@@ -77,15 +77,13 @@ namespace PCGPointDataVisualizationConstants
 	const FText TEXT_MetadataEntryParent = LOCTEXT("MetadataEntryParent", "Parent Key");
 }
 
-void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, const UPCGData* Data, AActor* TargetActor) const
+void IPCGSpatialDataVisualization::ExecuteDebugDisplay(FPCGContext* Context, const UPCGSettingsInterface* SettingsInterface, const UPCGData* Data, AActor* TargetActor) const
 {
 	if (!TargetActor)
 	{
 		PCGE_LOG_C(Error, GraphAndLog, Context, LOCTEXT("NoTargetActor", "Cannot execute debug display for spatial data with no target actor."));
 		return;
 	}
-
-	const UPCGSettingsInterface* SettingsInterface = Context ? Context->GetInputSettingsInterface() : nullptr;
 
 	if (!SettingsInterface)
 	{

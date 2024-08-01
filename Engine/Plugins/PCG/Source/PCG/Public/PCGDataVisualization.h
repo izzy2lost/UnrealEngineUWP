@@ -7,6 +7,7 @@
 #if WITH_EDITOR
 class AActor;
 class UPCGData;
+class UPCGSettingsInterface;
 struct FPCGContext;
 
 enum class EPCGTableVisualizerColumnSortingMode
@@ -49,7 +50,7 @@ class IPCGDataVisualization
 {
 public:
 	virtual ~IPCGDataVisualization() = default;
-	virtual void ExecuteDebugDisplay(FPCGContext* Context, const UPCGData* Data, AActor* TargetActor) const = 0;
+	virtual void ExecuteDebugDisplay(FPCGContext* Context, const UPCGSettingsInterface* SettingsInterface, const UPCGData* Data, AActor* TargetActor) const = 0;
 	virtual FPCGTableVisualizerInfo GetTableVisualizerInfo(const UPCGData* Data) const = 0;
 };
 #endif

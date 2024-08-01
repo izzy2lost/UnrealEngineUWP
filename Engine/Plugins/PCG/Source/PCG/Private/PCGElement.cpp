@@ -364,7 +364,7 @@ void IPCGElement::DebugDisplay(FPCGContext* Context) const
 
 		if (const IPCGDataVisualization* DataVis = DataVisRegistry.GetDataVisualization(Input.Data->GetClass()))
 		{
-			DataVis->ExecuteDebugDisplay(Context, Input.Data, Context->GetTargetActor(nullptr));
+			DataVis->ExecuteDebugDisplay(Context, SettingsInterface, Input.Data, Context->GetTargetActor(nullptr));
 		}
 	}
 

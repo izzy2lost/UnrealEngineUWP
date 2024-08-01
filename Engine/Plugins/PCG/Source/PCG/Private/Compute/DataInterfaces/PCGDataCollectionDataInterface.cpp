@@ -484,10 +484,16 @@ UComputeDataProvider* UPCGDataCollectionDataInterface::CreateDataProvider(TObjec
 	Provider->PinDesc = ProducerSettings->ComputeOutputPinDataDesc(OutputPinLabel, Binding);
 
 	Provider->ReadbackMode = bRequiresReadback ? EPCGReadbackMode::GraphOutput : EPCGReadbackMode::None;
+
 #if WITH_EDITOR
 	if (Binding->SourceComponent->IsInspecting())
 	{
 		Provider->ReadbackMode |= EPCGReadbackMode::Inspection;
+	}
+
+	if (ProducerSettings->bDebug)
+	{
+		Provider->ReadbackMode |= EPCGReadbackMode::DebugVisualization;
 	}
 #endif
 
@@ -629,6 +635,24 @@ bool UPCGDataCollectionDataProvider::ProcessReadBackData(FPCGComputeGraphContext
 
 			// Input data not yet supported.
 			Component->StoreInspectionData(InContext->Stack, Node, /*InTimer=*/nullptr, /*InInputData=*/{}, DataFromGPU, /*bUsedCache*/false);
+		}
+	}
+
+	if (!!(ReadbackMode & EPCGReadbackMode::DebugVisualization))
+	{
+		const FPCGDataVisualizationRegistry& DataVisRegistry = FPCGModule::GetConstPCGDataVisualizationRegistry();
+
+		for (const FPCGTaggedData& Output : DataFromGPU.TaggedData)
+		{
+			if (!Output.Data)
+			{
+				continue;
+			}
+
+			if (const IPCGDataVisualization* DataVis = DataVisRegistry.GetDataVisualization(Output.Data->GetClass()))
+			{
+				DataVis->ExecuteDebugDisplay(InContext, ProducerSettings, Output.Data, InContext->GetTargetActor(nullptr));
+			}
 		}
 	}
 #endif // WITH_EDITOR
