@@ -77,7 +77,7 @@ void FConcertClientBasePresenceMode::SendEvents(IConcertClientSession& Session)
 
 	SetUpdateIndex(Session, FConcertClientPresenceDataUpdateEvent::StaticStruct()->GetFName(), PresenceDataUpdatedEvent);
 
-	Session.SendCustomEvent(PresenceDataUpdatedEvent, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+	Session.SendCustomEvent(PresenceDataUpdatedEvent, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 }
 
 FTransform FConcertClientBasePresenceMode::GetTransform()
@@ -195,7 +195,7 @@ void FConcertClientDesktopPresenceMode::SendEvents(IConcertClientSession& Sessio
 
 				SetUpdateIndex(Session, FConcertClientDesktopPresenceUpdateEvent::StaticStruct()->GetFName(), Event);
 
-				Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+				Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 			}
 		}
 	}
@@ -275,7 +275,7 @@ void FConcertClientVRPresenceMode::SendEvents(IConcertClientSession& Session)
 
 		SetUpdateIndex(Session, FConcertClientDesktopPresenceUpdateEvent::StaticStruct()->GetFName(), Event);
 
-		Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::UniqueId);
+		Session.SendCustomEvent(Event, Session.GetSessionClientEndpointIds(), EConcertMessageFlags::None);
 	}
 }
 

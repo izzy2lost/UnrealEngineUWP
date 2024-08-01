@@ -639,7 +639,7 @@ protected:
 			{
 				Settings->StaticEndpoints.AddUnique(CmdStaticEndpoint);
 			}
-
+			UE_LOG(LogUdpMessaging, Display, TEXT("Work queue size set to %d."), Settings->WorkQueueSize);
 			if (Settings->bShareKnownNodesWithActiveConnections)
 			{
 				UE_LOG(LogUdpMessaging, Display, TEXT("Sharing known nodes with endpoints is enabled."));
