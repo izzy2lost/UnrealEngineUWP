@@ -543,7 +543,7 @@ namespace uba
 		if (!view.handle.IsValid())
 			return;
 
-		auto unmap = [=](const tchar* hint)
+		auto unmap = [=, this](const tchar* hint)
 			{
 				u8 storageIndex = 255;
 				File& file = GetFile(view.handle, storageIndex);
