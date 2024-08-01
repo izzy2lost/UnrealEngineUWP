@@ -329,6 +329,8 @@ bool FCollisionResponse::operator==(const FCollisionResponse& Other) const
 FBodyInstance::FBodyInstance()
 	: InstanceBodyIndex(INDEX_NONE)
 	, InstanceBoneIndex(INDEX_NONE)
+	, PositionSolverIterationCount(8)
+	, VelocitySolverIterationCount(1)
 	, ObjectType(ECC_WorldStatic)
 	, MaskFilter(0)
 	, CollisionEnabled(ECollisionEnabled::QueryAndPhysics)
@@ -336,6 +338,8 @@ FBodyInstance::FBodyInstance()
 	, SleepFamily(ESleepFamily::Normal)
 	, DOFMode(0)
 	, bUseCCD(false)
+	, bShapeCollisionEnabledIsSet(false)
+	, bShapeCollisionResponsesIsSet(false)
 	, bUseMACD(false)
 	, bIgnoreAnalyticCollisions(false)
 	, bNotifyRigidBodyCollision(false)
@@ -358,10 +362,8 @@ FBodyInstance::FBodyInstance()
 	, bOneWayInteraction(false)
 	, bOverrideSolverAsyncDeltaTime(false)
 	, SolverAsyncDeltaTime(1.f / 60)
-	, Scale3D(1.0f)
 	, CollisionProfileName(UCollisionProfile::CustomCollisionProfileName)
-	, PositionSolverIterationCount(8)
-	, VelocitySolverIterationCount(1)
+	, Scale3D(1.0f)
 	, MaxDepenetrationVelocity(0.f)
 	, MassInKgOverride(100.f)
 	, ExternalCollisionProfileBodySetup(nullptr)
@@ -588,19 +590,18 @@ bool FBodyInstance::SetResponseToChannels(const FCollisionResponseContainer& New
 
 bool FBodyInstance::SetShapeResponseToChannels(const int32 ShapeIndex, const FCollisionResponseContainer& NewResponses)
 {
-	if (!ShapeCollisionResponses.IsSet())
+	if (!bShapeCollisionResponsesIsSet)
 	{
-		ShapeCollisionResponses = TArray<TPair<int32, FCollisionResponse>>();
+		ShapeCollisionResponses.Reset();
+		bShapeCollisionResponsesIsSet = true;
 	}
-
-	TArray<TPair<int32, FCollisionResponse>>& ShapeCollisionResponsesValue = ShapeCollisionResponses.GetValue();
 
 	bool bIndexExists = false;
 	int32 ResponseIndex = 0;
-	const int32 ResponseNum = ShapeCollisionResponsesValue.Num();
+	const int32 ResponseNum = ShapeCollisionResponses.Num();
 	for (; ResponseIndex < ResponseNum; ++ResponseIndex)
 	{
-		if (ShapeCollisionResponsesValue[ResponseIndex].Key == ShapeIndex)
+		if (ShapeCollisionResponses[ResponseIndex].Key == ShapeIndex)
 		{
 			break;
 		}
@@ -608,10 +609,10 @@ bool FBodyInstance::SetShapeResponseToChannels(const int32 ShapeIndex, const FCo
 
 	if (ResponseIndex == ResponseNum)
 	{
-		ShapeCollisionResponsesValue.Add(TPair<int32, FCollisionResponse>(ShapeIndex, FCollisionResponse()));
+		ShapeCollisionResponses.Add(TPair<int32, FCollisionResponse>(ShapeIndex, FCollisionResponse()));
 	}
 
-	if (ShapeCollisionResponsesValue[ResponseIndex].Value.SetCollisionResponseContainer(NewResponses))
+	if (ShapeCollisionResponses[ResponseIndex].Value.SetCollisionResponseContainer(NewResponses))
 	{
 		UpdatePhysicsFilterData();
 		return true;
@@ -628,13 +629,13 @@ const FCollisionResponseContainer& FBodyInstance::GetShapeResponseToChannels(con
 const FCollisionResponseContainer& FBodyInstance::GetShapeResponseToChannels(const int32 ShapeIndex, const FCollisionResponseContainer& DefaultResponseContainer) const
 {
 	// Return per-shape collision response override if there is one
-	if (ShapeCollisionResponses.IsSet())
+	if (bShapeCollisionResponsesIsSet)
 	{
-		for (int32 ResponseIndex = 0; ResponseIndex < ShapeCollisionResponses.GetValue().Num(); ++ResponseIndex)
+		for (int32 ResponseIndex = 0; ResponseIndex < ShapeCollisionResponses.Num(); ++ResponseIndex)
 		{
-			if (ShapeCollisionResponses.GetValue()[ResponseIndex].Key == ShapeIndex)
+			if (ShapeCollisionResponses[ResponseIndex].Key == ShapeIndex)
 			{
-				return ShapeCollisionResponses.GetValue()[ResponseIndex].Value.GetResponseContainer();
+				return ShapeCollisionResponses[ResponseIndex].Value.GetResponseContainer();
 			}
 		}
 	}
@@ -749,17 +750,18 @@ void FBodyInstance::SetShapeCollisionEnabled(const int32 ShapeIndex, ECollisionE
 		if (OldType != NewType)
 		{
 			// If ShapeCollisionEnabled wasn't set up yet, copy values from BodySetup into it
-			if (!ShapeCollisionEnabled.IsSet())
+			if (!bShapeCollisionEnabledIsSet)
 			{
 				const int32 ShapeCount = GetBodySetup()->AggGeom.GetElementCount();
-				ShapeCollisionEnabled = TArray<TEnumAsByte<ECollisionEnabled::Type>>();
-				ShapeCollisionEnabled.GetValue().SetNum(ShapeCount);
+				ShapeCollisionEnabled.Reset();
+				bShapeCollisionEnabledIsSet = true;
+				ShapeCollisionEnabled.SetNum(ShapeCount);
 				for (int32 OptionalShapeIndex = 0; OptionalShapeIndex < ShapeCount; ++OptionalShapeIndex)
 				{
-					ShapeCollisionEnabled.GetValue()[OptionalShapeIndex] = GetBodySetup()->AggGeom.GetElement(OptionalShapeIndex)->GetCollisionEnabled();
+					ShapeCollisionEnabled[OptionalShapeIndex] = GetBodySetup()->AggGeom.GetElement(OptionalShapeIndex)->GetCollisionEnabled();
 				}
 			}
-			ShapeCollisionEnabled.GetValue()[ShapeIndex] = NewType;
+			ShapeCollisionEnabled[ShapeIndex] = NewType;
 
 			if (bUpdatePhysicsFilterData)
 			{
@@ -918,11 +920,11 @@ ECollisionEnabled::Type FBodyInstance::GetShapeCollisionEnabled(const int32 Shap
 {
 	// If any runtime shape collision overrides have been set, return that.
 	// Otherwise, get it from the bodysetup.
-	if (ShapeCollisionEnabled.IsSet())
+	if (bShapeCollisionEnabledIsSet)
 	{
-		if (ensure(ShapeCollisionEnabled.GetValue().IsValidIndex(ShapeIndex)))
+		if (ensure(ShapeCollisionEnabled.IsValidIndex(ShapeIndex)))
 		{
-			return ShapeCollisionEnabled.GetValue()[ShapeIndex];
+			return ShapeCollisionEnabled[ShapeIndex];
 		}
 	}
 

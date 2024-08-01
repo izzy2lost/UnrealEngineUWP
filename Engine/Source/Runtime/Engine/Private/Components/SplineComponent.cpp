@@ -36,7 +36,9 @@ USplineMetadata::USplineMetadata(const FObjectInitializer& ObjectInitializer)
 
 USplineComponent::USplineComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+#if WITH_EDITORONLY_DATA
 	, bAllowSplineEditingPerInstance_DEPRECATED(true)
+#endif
 	, ReparamStepsPerSegment(10)
 	, Duration(1.0f)
 	, bStationaryEndpoints(false)
@@ -67,18 +69,19 @@ USplineComponent::USplineComponent(const FObjectInitializer& ObjectInitializer)
 
 	UpdateSpline();
 
+#if WITH_EDITORONLY_DATA
 	// Set these deprecated values up so that old assets with default values load correctly (and are subsequently upgraded during Serialize)
 	SplineInfo_DEPRECATED = SplineCurves.Position;
 	SplineRotInfo_DEPRECATED = SplineCurves.Rotation;
 	SplineScaleInfo_DEPRECATED = SplineCurves.Scale;
 	SplineReparamTable_DEPRECATED = SplineCurves.ReparamTable;
+#endif
 }
 
 void USplineComponent::ResetToDefault()
 {
 	SetDefaultSpline();
 
-	bAllowSplineEditingPerInstance_DEPRECATED = true;
 	ReparamStepsPerSegment = 10;
 	Duration = 1.0f;
 	bStationaryEndpoints = false;
@@ -89,6 +92,7 @@ void USplineComponent::ResetToDefault()
 	bClosedLoop = false;
 	DefaultUpVector = FVector::UpVector;
 #if WITH_EDITORONLY_DATA
+	bAllowSplineEditingPerInstance_DEPRECATED = true;
 	EditorUnselectedSplineSegmentColor = FStyleColors::White.GetSpecifiedColor();
 	EditorSelectedSplineSegmentColor = FStyleColors::AccentOrange.GetSpecifiedColor();
 	EditorTangentColor = FLinearColor(0.718f, 0.589f, 0.921f);
@@ -157,6 +161,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 
 	Ar.UsingCustomVersion(FEditorObjectVersion::GUID);
 
+#if WITH_EDITORONLY_DATA
 	// Move points to new properties
 	if (Ar.CustomVer(FEditorObjectVersion::GUID) < FEditorObjectVersion::SplineComponentCurvesInStruct &&
 		Ar.IsLoading())
@@ -166,6 +171,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 		SplineCurves.Scale = SplineScaleInfo_DEPRECATED;
 		SplineCurves.ReparamTable = SplineReparamTable_DEPRECATED;
 	}
+#endif
 
 	// Support old resources which don't have the rotation and scale splines present
 	const FPackageFileVersion ArchiveUEVersion = Ar.UEVer();

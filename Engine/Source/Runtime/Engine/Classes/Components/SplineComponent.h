@@ -76,8 +76,10 @@ struct FSplineCurves
 	UPROPERTY()
 	FInterpCurveFloat ReparamTable;
 
+#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TObjectPtr<USplineMetadata> Metadata_DEPRECATED = nullptr;
+#endif
 
 	UPROPERTY(transient)
 	uint32 Version = 0xffffffff;
@@ -198,6 +200,7 @@ class USplineComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, Replicated, Category=Points)
 	FSplineCurves SplineCurves;
 
+#if WITH_EDITORONLY_DATA
 	/** Deprecated - please use GetSplinePointsPosition() to fetch this FInterpCurve */
 	UPROPERTY()
 	FInterpCurveVector SplineInfo_DEPRECATED;
@@ -215,6 +218,7 @@ class USplineComponent : public UPrimitiveComponent
 
 	UPROPERTY()
 	bool bAllowSplineEditingPerInstance_DEPRECATED;
+#endif
 
 	/** Number of steps per spline segment to place in the reparameterization table */
 	UPROPERTY(EditAnywhere, Replicated, AdvancedDisplay, Category = Spline, meta=(ClampMin=4, UIMin=4, ClampMax=100, UIMax=100))

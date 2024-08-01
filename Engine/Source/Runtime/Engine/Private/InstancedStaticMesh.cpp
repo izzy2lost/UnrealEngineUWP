@@ -2057,6 +2057,7 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitia
 
 UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(FVTableHelper& Helper)
 	: Super(Helper)
+	, bIsInstanceDataApplyCompleted(true)
 	, PrimitiveInstanceDataManager(this)
 {
 }

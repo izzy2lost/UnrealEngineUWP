@@ -69,6 +69,8 @@ class ULandscapeHeightfieldCollisionComponent : public UPrimitiveComponent
 	UPROPERTY()
 	int32 SimpleCollisionSizeQuads;
 
+	bool bCookedCollisionDataWasDeleted = false;
+
 	/** The flags for each collision quad. See ECollisionQuadFlags. */
 	UPROPERTY()
 	TArray<uint8> CollisionQuadFlags;
@@ -165,7 +167,6 @@ public:
 	 *	Cooked HeightField data. Serialized only with cooked content 
 	 *	Stored as array instead of BulkData to take advantage of precaching during async loading
 	 */
-	bool bCookedCollisionDataWasDeleted = false;
 	TArray<uint8>								CookedCollisionData;
 	
 	/** This is a list of physical materials that is actually used by a cooked HeightField */

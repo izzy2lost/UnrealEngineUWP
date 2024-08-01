@@ -295,6 +295,14 @@ struct FBodyInstance : public FBodyInstanceCore
 	/** When we are a body within a SkeletalMeshComponent, we cache the index of the bone we represent, to speed up sync'ing physics to anim. */
 	int16 InstanceBoneIndex;
 
+	/** [PhysX Only] This physics body's solver iteration count for position. Increasing this will be more CPU intensive, but better stabilized.  */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics)
+	uint8 PositionSolverIterationCount;
+
+	/** [PhysX Only] This physics body's solver iteration count for velocity. Increasing this will be more CPU intensive, but better stabilized. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
+	uint8 VelocitySolverIterationCount;
+
 private:
 	/** Enum indicating what type of object this should be considered as when it moves */
 	UPROPERTY(EditAnywhere, Category=Custom)
@@ -316,14 +324,14 @@ private:
 	TEnumAsByte<ECollisionEnabled::Type> CollisionEnabled;
 
 	/** When per-shape collision is changed at runtime, state is stored in an optional array of per-shape collision state.
-	*	Before this array's IsSet state is true, collision values from the BodySetup's AggGeom are used in GetShapeCollisionEnabled.
+	*	Before bShapeCollisionEnabledIsSet state is true, collision values from the BodySetup's AggGeom are used in GetShapeCollisionEnabled.
 	*/
-	TOptional<TArray<TEnumAsByte<ECollisionEnabled::Type>>> ShapeCollisionEnabled;
+	TArray<TEnumAsByte<ECollisionEnabled::Type>> ShapeCollisionEnabled;
 
 	/** When per-shape collision responses are changed at runtime, state is stored in an optional array of per-shape
-	*	collision response settings. If this is not set, the base body instance's CollisionResponses member is used for all shapes.
+	*	collision response settings. If bShapeCollisionResponsesIsSet is false, the base body instance's CollisionResponses member is used for all shapes.
 	*/
-	TOptional<TArray<TPair<int32, FCollisionResponse>>> ShapeCollisionResponses;
+	TArray<TPair<int32, FCollisionResponse>> ShapeCollisionResponses;
 
 public:
 	// Current state of the physics body for tracking deferred addition and removal.
@@ -342,6 +350,10 @@ public:
 	uint8 bUseCCD : 1;
 
 private:
+
+	uint8 bShapeCollisionEnabledIsSet : 1;
+	uint8 bShapeCollisionResponsesIsSet : 1;
+
 	/** [EXPERIMENTAL] If true Motion-Aware Collision Detection (MACD) will be used for this component */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Collision)
 	uint8 bUseMACD : 1;
@@ -475,6 +487,10 @@ public:
 private:
 	void UpdateSolverAsyncDeltaTime();
 
+	/** Collision Profile Name **/
+	UPROPERTY(EditAnywhere, Category=Custom)
+	FName CollisionProfileName;
+
 public:
 	/** Current scale of physics - used to know when and how physics must be rescaled to match current transform of OwnerComponent. */
 	FVector Scale3D;
@@ -487,22 +503,6 @@ public:
 	UPROPERTY() 
 	struct FCollisionResponseContainer ResponseToChannels_DEPRECATED;
 #endif // WITH_EDITORONLY_DATA
-
-private:
-
-	/** Collision Profile Name **/
-	UPROPERTY(EditAnywhere, Category=Custom)
-	FName CollisionProfileName;
-
-public:
-
-	/** [PhysX Only] This physics body's solver iteration count for position. Increasing this will be more CPU intensive, but better stabilized.  */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Physics)
-	uint8 PositionSolverIterationCount;
-
-	/** [PhysX Only] This physics body's solver iteration count for velocity. Increasing this will be more CPU intensive, but better stabilized. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Physics)
-	uint8 VelocitySolverIterationCount;
 
 private:
 	/** Custom Channels for Responses*/

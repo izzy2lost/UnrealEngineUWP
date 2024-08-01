@@ -295,6 +295,10 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=HLOD, meta=(DisplayName="HLOD Batching Policy", DisplayAfter="bEnableAutoLODGeneration", EditConditionHides, EditCondition="bEnableAutoLODGeneration"))
 	EHLODBatchingPolicy HLODBatchingPolicy;
 
+	/** Control shadow invalidation behavior, in particular with respect to Virtual Shadow Maps and material effects like World Position Offset. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow"))
+	EShadowCacheInvalidationBehavior ShadowCacheInvalidationBehavior;
+
 	/** Whether to include this component in HLODs or not. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = HLOD, meta=(DisplayName="Include Component in HLOD"))
 	uint8 bEnableAutoLODGeneration : 1;
@@ -500,10 +504,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow", DisplayName = "Static Shadow"))
 	uint8 bCastStaticShadow:1;
 
-	/** Control shadow invalidation behavior, in particular with respect to Virtual Shadow Maps and material effects like World Position Offset. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, AdvancedDisplay, meta=(EditCondition="CastShadow"))
-	EShadowCacheInvalidationBehavior ShadowCacheInvalidationBehavior;
-
 	/** 
 	 * Whether the object should cast a volumetric translucent shadow.
 	 * Volumetric translucent shadows are useful for primitives with smoothly changing opacity like particles representing a volume, 
@@ -677,12 +677,6 @@ protected:
 	/** PSOs requested priority */
 	EPSOPrecachePriority PSOPrecacheRequestPriority : 2;
 	static_assert((int)EPSOPrecachePriority::Highest < 1 << 2);
-
-	/** Cached array of material PSO requests which can be used to boost the priority */
-	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
-
-	/** Graph event used to track all the PSO precache events */
-	FGraphEventRef PSOPrecacheCompileEvent;
 #endif
 
 	uint8 bIgnoreBoundsForEditorFocus : 1;
@@ -759,6 +753,14 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	FLightingChannels LightingChannels;
 
+#if UE_WITH_PSO_PRECACHING
+	/** Cached array of material PSO requests which can be used to boost the priority */
+	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
+
+	/** Graph event used to track all the PSO precache events */
+	FGraphEventRef PSOPrecacheCompileEvent;
+#endif
+
 	/**
 	 * Defines run-time groups of components. For example allows to assemble multiple parts of a building at runtime.
 	 * -1 means that component doesn't belong to any group.
@@ -774,7 +776,21 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering,  meta=(UIMin = "0", UIMax = "255", editcondition = "bRenderCustomDepth", DisplayName = "CustomDepth Stencil Value"))
 	int32 CustomDepthStencilValue;
 
+	/**
+	* Defines how quickly it should be culled. For example buildings should have a low priority, but small dressing should have a high priority.
+	*/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = RayTracing)
+	ERayTracingGroupCullingPriority RayTracingGroupCullingPriority;
+
+	/** Mask used for stencil buffer writes. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = "Rendering", meta = (editcondition = "bRenderCustomDepth"))
+	ERendererStencilMask CustomDepthStencilWriteMask;
+
 private:
+	/** Which specific HLOD levels this component should be excluded from */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD, meta = (Bitmask, BitmaskEnum = "/Script/Engine.EHLODLevelExclusion", DisplayName = "Exclude from HLOD Levels", DisplayAfter = "bEnableAutoLODGeneration", EditConditionHides, EditCondition = "AllowHLODLevelsExclusion()"))
+	uint8 ExcludeFromHLODLevels;
+
 	/** Optional user defined default values for the custom primitive data of this primitive */
 	UPROPERTY(EditAnywhere, Category=Rendering, meta = (DisplayName = "Custom Primitive Data Defaults"))
 	FCustomPrimitiveData CustomPrimitiveData;
@@ -1389,16 +1405,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category="Input|Touch Input")
 	FComponentEndTouchOverSignature OnInputTouchLeave;
 
-	/**
-	 * Defines how quickly it should be culled. For example buildings should have a low priority, but small dressing should have a high priority.
-	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = RayTracing)
-	ERayTracingGroupCullingPriority RayTracingGroupCullingPriority;
-
-	/** Mask used for stencil buffer writes. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = "Rendering", meta = (editcondition = "bRenderCustomDepth"))
-	ERendererStencilMask CustomDepthStencilWriteMask;
-
 	/** Scale the bounds of this object, used for frustum culling. Useful for features like WorldPositionOffset. */
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetBoundsScale(float NewBoundsScale=1.f);
@@ -1984,10 +1990,6 @@ public:
 	FRenderCommandFence DetachFence;
 
 private:
-	/** Which specific HLOD levels this component should be excluded from */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = HLOD, meta = (Bitmask, BitmaskEnum = "/Script/Engine.EHLODLevelExclusion", DisplayName = "Exclude from HLOD Levels", DisplayAfter = "bEnableAutoLODGeneration", EditConditionHides, EditCondition = "AllowHLODLevelsExclusion()"))
-	uint8 ExcludeFromHLODLevels;
-
 	/** LOD parent primitive to draw instead of this one (multiple UPrim's will point to the same LODParent ) */
 	UPROPERTY(NonPIEDuplicateTransient)
 	TObjectPtr<class UPrimitiveComponent> LODParentPrimitive;

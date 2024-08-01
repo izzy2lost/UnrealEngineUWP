@@ -105,10 +105,6 @@ class UStaticMeshComponent : public UMeshComponent
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=LOD)
 	int32 ForcedLodModel;
 
-	/** LOD that was desired for rendering this StaticMeshComponent last frame. */
-	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "This property is deprecated and no longer supported."))
-	int32 PreviousLODLevel_DEPRECATED;
-
 	/** 
 	 * Specifies the smallest LOD that will be used for this component.  
 	 * This is ignored if ForcedLodModel is enabled.
@@ -120,8 +116,12 @@ class UStaticMeshComponent : public UMeshComponent
 	UPROPERTY()
 	int32 SubDivisionStepSize;
 
-	/** The static mesh that this component uses to render */
+	/** Wireframe color to use if bOverrideWireframeColor is true */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering, meta=(editcondition = "bOverrideWireframeColor"))
+	FColor WireframeColorOverride;
+
 private:
+	/** The static mesh that this component uses to render */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=StaticMesh, ReplicatedUsing=OnRep_StaticMesh, meta=(AllowPrivateAccess="true"))
 	TObjectPtr<class UStaticMesh> StaticMesh;
 
@@ -140,9 +140,11 @@ public:
 	UFUNCTION()
 	ENGINE_API void OnRep_StaticMesh(class UStaticMesh *OldStaticMesh);
 
-	/** Wireframe color to use if bOverrideWireframeColor is true */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Rendering, meta=(editcondition = "bOverrideWireframeColor"))
-	FColor WireframeColorOverride;
+	/**
+	* Distance at which to disable World Position Offset for an entire instance (0 = Never disable WPO).
+	**/
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
+	int32 WorldPositionOffsetDisableDistance = 0;
 
 	/** Forces this component to always use Nanite for masked materials, even if FNaniteSettings::bAllowMaskedMaterials=false */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Rendering)
@@ -176,12 +178,6 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = RayTracing)
 	uint8 bEvaluateWorldPositionOffsetInRayTracing : 1;
-
-	/**
-	 * Distance at which to disable World Position Offset for an entire instance (0 = Never disable WPO).
-	 **/
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Rendering)
-	int32 WorldPositionOffsetDisableDistance = 0;
 
 protected:
 	/** Initial value of bEvaluateWorldPositionOffset when BeginPlay() was called. Can be useful if we want to reset to initial state. */
