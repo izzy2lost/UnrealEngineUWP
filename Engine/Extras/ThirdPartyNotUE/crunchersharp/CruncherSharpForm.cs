@@ -14,22 +14,22 @@ using static System.Windows.Forms.AxHost;
 namespace CruncherSharp
 {
 
-    public partial class CruncherSharpForm : Form
-    {
-        public enum SearchType
-        {
-            None,
-            UnusedVTables,
-            MSVCExtraPadding,
-            MSVCEmptyBaseClass,
-            UnusedInterfaces,
-            UnusedVirtual,
-            MaskingFunction,
-            RemovedInline,
-        }
+	public partial class CruncherSharpForm : Form
+	{
+		public enum SearchType
+		{
+			None,
+			UnusedVTables,
+			MSVCExtraPadding,
+			MSVCEmptyBaseClass,
+			UnusedInterfaces,
+			UnusedVirtual,
+			MaskingFunction,
+			RemovedInline,
+		}
 
-        private readonly List<string> _FunctionsToIgnore;
-        private readonly Stack<SymbolInfo> _NavigationStack;
+		private readonly List<string> _FunctionsToIgnore;
+		private readonly Stack<SymbolInfo> _NavigationStack;
 		private readonly Stack<SymbolInfo> _RedoNavigationStack;
 		private SymbolAnalyzer _SymbolAnalyzerDia;
 #if RAWPDB
@@ -37,15 +37,15 @@ namespace CruncherSharp
 #endif
 		private readonly DataTable _Table;
 		public bool _CloseRequested = false;
-        public bool _HasInstancesCount = false;
-        public bool _HasSecondPDB = false;
+		public bool _HasInstancesCount = false;
+		public bool _HasSecondPDB = false;
 		public bool _HasMemPools = false;
 		public bool _IgnoreSelectionChange = false;
 		public bool _RestrictToSymbolsImportedFromCSV = false;
 		private ulong _PrefetchStartOffset = 0;
-        private SearchType _SearchCategory = SearchType.None;
+		private SearchType _SearchCategory = SearchType.None;
 
-        private SymbolInfo _SelectedSymbol;
+		private SymbolInfo _SelectedSymbol;
 
 		private SymbolAnalyzer CurrentSymbolAnalyzer
 		{
@@ -59,22 +59,22 @@ namespace CruncherSharp
 			}
 		}
 
-        public CruncherSharpForm()
-        {
-            InitializeComponent();
+		public CruncherSharpForm()
+		{
+			InitializeComponent();
 
 			_SymbolAnalyzerDia = new SymbolAnalyzerDIA();
 #if RAWPDB
 			_SymbolAnalyzerRawPDB = new SymbolAnalyzerRawPDB();
 #endif
 			_Table = CreateDataTable();
-            _Table.CaseSensitive = checkBoxMatchCase.Checked;
-            _NavigationStack = new Stack<SymbolInfo>();
+			_Table.CaseSensitive = checkBoxMatchCase.Checked;
+			_NavigationStack = new Stack<SymbolInfo>();
 			_RedoNavigationStack = new Stack<SymbolInfo>();
 			_FunctionsToIgnore = new List<string>();
-            _SelectedSymbol = null;
-            bindingSourceSymbols.DataSource = _Table;
-            dataGridSymbols.DataSource = bindingSourceSymbols;
+			_SelectedSymbol = null;
+			bindingSourceSymbols.DataSource = _Table;
+			dataGridSymbols.DataSource = bindingSourceSymbols;
 
 			dataGridSymbols.Columns[0].Width = 271;
 			for (int i = 1; i < dataGridSymbols.Columns.Count; i++)
@@ -90,11 +90,11 @@ namespace CruncherSharp
 			{
 				mB2ToolStripMenuItem.Checked = true;
 			}
-
-			OpenPDB();
 		}
 
-        public SearchType SearchCategory
+		protected override void OnCreateControl() => OpenPDB();
+
+		public SearchType SearchCategory
         {
             get => _SearchCategory;
             private set
@@ -910,7 +910,11 @@ namespace CruncherSharp
 
         private void textBoxFilter_TextChanged(object sender, EventArgs e)
         {
-			UpdateFilter();
+			if (checkBoxMember.Checked || checkBoxSubclasses.Checked)
+				PopulateDataTable();
+			else
+				UpdateFilter();
+
 			UpdateBtnLoadText();
         }
 

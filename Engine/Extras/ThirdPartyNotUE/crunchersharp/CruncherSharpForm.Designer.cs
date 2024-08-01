@@ -95,7 +95,7 @@
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.dataGridSymbols = new System.Windows.Forms.DataGridView();
             this.splitContainer2 = new System.Windows.Forms.SplitContainer();
-            this.labelCurrentSymbol = new System.Windows.Forms.Label();
+            this.labelCurrentSymbol = new System.Windows.Forms.TextBox();
             this.Infos = new System.Windows.Forms.TabControl();
             this.tabMembers = new System.Windows.Forms.TabPage();
             this.dataGridViewSymbolInfo = new System.Windows.Forms.DataGridView();
@@ -313,34 +313,34 @@
             this.mB3ToolStripMenuItem,
             this.customMBToolStripMenuItem});
             this.addMemPoolsToolStripMenuItem.Name = "addMemPoolsToolStripMenuItem";
-            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.addMemPoolsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.addMemPoolsToolStripMenuItem.Text = "Set memory pools";
             // 
             // mB2ToolStripMenuItem
             // 
             this.mB2ToolStripMenuItem.Name = "mB2ToolStripMenuItem";
-            this.mB2ToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.mB2ToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
             this.mB2ToolStripMenuItem.Text = "MB2";
             this.mB2ToolStripMenuItem.Click += new System.EventHandler(this.mB2ToolStripMenuItem_Click);
             // 
             // mB3ToolStripMenuItem
             // 
             this.mB3ToolStripMenuItem.Name = "mB3ToolStripMenuItem";
-            this.mB3ToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.mB3ToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
             this.mB3ToolStripMenuItem.Text = "MB3";
             this.mB3ToolStripMenuItem.Click += new System.EventHandler(this.mB3ToolStripMenuItem_Click);
             // 
             // customMBToolStripMenuItem
             // 
             this.customMBToolStripMenuItem.Name = "customMBToolStripMenuItem";
-            this.customMBToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.customMBToolStripMenuItem.Size = new System.Drawing.Size(137, 22);
             this.customMBToolStripMenuItem.Text = "Custom MB";
             this.customMBToolStripMenuItem.Click += new System.EventHandler(this.customMBToolStripMenuItem_Click);
             // 
             // restrictToUObjectsToolStripMenuItem
             // 
             this.restrictToUObjectsToolStripMenuItem.Name = "restrictToUObjectsToolStripMenuItem";
-            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.restrictToUObjectsToolStripMenuItem.Size = new System.Drawing.Size(178, 22);
             this.restrictToUObjectsToolStripMenuItem.Text = "Restrict to UObjects";
             this.restrictToUObjectsToolStripMenuItem.Click += new System.EventHandler(this.restrictToUObjectsToolStripMenuItem_Click);
             // 
@@ -773,10 +773,12 @@
             this.labelCurrentSymbol.Name = "labelCurrentSymbol";
             this.labelCurrentSymbol.Size = new System.Drawing.Size(0, 13);
             this.labelCurrentSymbol.TabIndex = 17;
-            // 
-            // Infos
-            // 
-            this.Infos.Controls.Add(this.tabMembers);
+			this.labelCurrentSymbol.ReadOnly = true;
+			this.labelCurrentSymbol.BorderStyle = System.Windows.Forms.BorderStyle.None;
+			// 
+			// Infos
+			// 
+			this.Infos.Controls.Add(this.tabMembers);
             this.Infos.Controls.Add(this.tabFunctions);
             this.Infos.Dock = System.Windows.Forms.DockStyle.Fill;
             this.Infos.Location = new System.Drawing.Point(0, 0);
@@ -1013,7 +1015,6 @@
             this.ignoreFunctionToolStripMenuItem.Size = new System.Drawing.Size(156, 22);
             this.ignoreFunctionToolStripMenuItem.Text = "Ignore function";
             this.ignoreFunctionToolStripMenuItem.Click += new System.EventHandler(this.ignoreFunctionToolStripMenuItem_Click);
-
             // 
             // CruncherSharpForm
             // 
@@ -1104,7 +1105,7 @@
         private System.Windows.Forms.TabPage tabMembers;
         private System.Windows.Forms.DataGridView dataGridViewSymbolInfo;
         private System.Windows.Forms.TabPage tabFunctions;
-        private System.Windows.Forms.Label labelCurrentSymbol;
+        private System.Windows.Forms.TextBox labelCurrentSymbol;
         private System.Windows.Forms.Panel panel2;
         private System.Windows.Forms.DataGridView dataGridViewFunctionsInfo;
         private System.Windows.Forms.ToolStripMenuItem findToolStripMenuItem1;
