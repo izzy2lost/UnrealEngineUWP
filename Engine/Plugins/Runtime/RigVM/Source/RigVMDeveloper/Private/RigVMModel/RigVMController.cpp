@@ -10206,6 +10206,13 @@ URigVMPin* URigVMController::InsertArrayPin(URigVMPin* ArrayPin, int32 InIndex, 
 	{
 		URigVMPin* ExistingPin = ArrayPin->GetSubPins()[ExistingIndex];
 		RenameObject(ExistingPin, *FString::FormatAsNumber(ExistingIndex + 1));
+
+		// temporarily force a the index based display name
+		// so that the ed graph node can pick that up during handling the notify
+		// (the default is that it's based the index in the sub pin array,
+		// which at this point hasn't changed)
+		const TGuardValue<FName> ForcePinIndexDisplayName(ExistingPin->DisplayName, *FString::FromInt(ExistingIndex+1));
+		Notify(ERigVMGraphNotifType::PinRenamed, ExistingPin);
 	}
 
 	URigVMPin* Pin = NewObject<URigVMPin>(ArrayPin, *FString::FormatAsNumber(InIndex));
