@@ -49,6 +49,8 @@ namespace UE::DecoupledOutputProvider
 		void OnPostLoad(IOutputProviderEvent& Args);
 		TFuture<FVCamStringPromptResponse> PromptClientForString(IOutputProviderEvent& Args, const FVCamStringPromptRequest& Request);
 #if WITH_EDITOR
+		void PreEditChange(IOutputProviderEvent& Args, FProperty* PropertyAboutToChange);
+		void PreEditChange(IOutputProviderEvent& Args, FEditPropertyChain& PropertyAboutToChange);
 		void OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent);
 #endif
 

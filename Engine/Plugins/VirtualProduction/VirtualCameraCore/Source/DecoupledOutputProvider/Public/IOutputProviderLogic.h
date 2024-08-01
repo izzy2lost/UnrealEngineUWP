@@ -64,6 +64,10 @@ namespace UE::DecoupledOutputProvider
 		virtual void OnSerialize(IOutputProviderEvent& Args, FArchive& Ar) {}
 		virtual void OnPostLoad(IOutputProviderEvent& Args) {}
 #if WITH_EDITOR
+		/** Called when root property is changed. */
+		virtual void OnPreEditChange(IOutputProviderEvent& Args, FProperty* PropertyAboutToChange) {}
+		/** Called non-root property is changed. */
+		virtual void OnPreEditChange(IOutputProviderEvent& Args, FEditPropertyChain& PropertyAboutToChange) {}
 		virtual void OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent) {}
 #endif
 		

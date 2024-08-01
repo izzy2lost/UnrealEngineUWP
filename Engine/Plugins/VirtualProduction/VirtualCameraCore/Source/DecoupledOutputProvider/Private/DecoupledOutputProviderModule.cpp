@@ -149,6 +149,22 @@ namespace UE::DecoupledOutputProvider
 	}
 
 #if WITH_EDITOR
+	void FDecoupledOutputProviderModule::PreEditChange(IOutputProviderEvent& Args, FProperty* PropertyAboutToChange)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			Logic->OnPreEditChange(Args, PropertyAboutToChange);
+		}
+	}
+
+	void FDecoupledOutputProviderModule::PreEditChange(IOutputProviderEvent& Args, FEditPropertyChain& PropertyAboutToChange)
+	{
+		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))
+		{
+			Logic->OnPreEditChange(Args, PropertyAboutToChange);
+		}
+	}
+	
 	void FDecoupledOutputProviderModule::OnPostEditChangeProperty(IOutputProviderEvent& Args, FPropertyChangedEvent& PropertyChangedEvent)
 	{
 		if (const TSharedPtr<IOutputProviderLogic> Logic = GetOrCreateLogicFor(Args.GetOutputProvider()))

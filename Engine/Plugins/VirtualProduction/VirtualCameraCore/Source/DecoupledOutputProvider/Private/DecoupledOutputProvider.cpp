@@ -159,6 +159,23 @@ void UDecoupledOutputProvider::PostLoad()
 }
 
 #if WITH_EDITOR
+
+void UDecoupledOutputProvider::PreEditChange(FProperty* PropertyAboutToChange)
+{
+	using namespace UE::DecoupledOutputProvider;
+	const auto SuperFunc = [this, &PropertyAboutToChange](){ Super::PreEditChange(PropertyAboutToChange); };
+	FOutputProviderEvent EventScope(*this, SuperFunc);
+	SafeModuleCall([&](FDecoupledOutputProviderModule& Module){ Module.PreEditChange(EventScope, PropertyAboutToChange); });
+}
+
+void UDecoupledOutputProvider::PreEditChange(FEditPropertyChain& PropertyAboutToChange)
+{
+	using namespace UE::DecoupledOutputProvider;
+	const auto SuperFunc = [this, &PropertyAboutToChange](){ Super::PreEditChange(PropertyAboutToChange); };
+	FOutputProviderEvent EventScope(*this, SuperFunc);
+	SafeModuleCall([&](FDecoupledOutputProviderModule& Module){ Module.PreEditChange(EventScope, PropertyAboutToChange); });
+}
+
 void UDecoupledOutputProvider::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	using namespace UE::DecoupledOutputProvider;
