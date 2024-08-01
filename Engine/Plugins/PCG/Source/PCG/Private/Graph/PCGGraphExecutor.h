@@ -163,7 +163,7 @@ class FPCGGraphExecutor : public FGCObject
 {
 public:
 	// Default constructor used by unittests
-	FPCGGraphExecutor() = default;
+	FPCGGraphExecutor();
 	FPCGGraphExecutor(UWorld* InWorld);
 	~FPCGGraphExecutor();
 
@@ -405,6 +405,21 @@ private:
 	EExecuteVersion ExecuteVersion = EExecuteVersion::None;
 
 	EExecuteVersion GetExecuteVersion() const;
+
+	// Handler that we can use as a Weak ptr to determine if the Executor is still valid
+	class FGameThreadHandler : public TSharedFromThis<FGameThreadHandler>
+	{
+	public:
+		FGameThreadHandler(FPCGGraphExecutor* InExecutor)
+			: Executor(InExecutor) { }
+
+		FPCGGraphExecutor* GetExecutor() { return Executor; }
+
+	private:
+		FPCGGraphExecutor* Executor = nullptr;
+	};
+
+	TSharedPtr<FGameThreadHandler> GameThreadHandler;
 };
 
 class FPCGFetchInputElement : public IPCGElement
