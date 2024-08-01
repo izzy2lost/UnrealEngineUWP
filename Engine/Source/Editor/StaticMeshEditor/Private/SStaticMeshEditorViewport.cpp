@@ -892,28 +892,8 @@ TSharedPtr<SWidget> SStaticMeshEditorViewport::BuildViewportToolbar()
 
 		// Add the UnrealEd viewport toolbar context.
 		{
-			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
-			ContextObject->Viewport = SharedThis(this);
-
-			// Hook up our toolbar's filter for supported view modes.
-			ContextObject->IsViewModeSupported = UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
-				[](EViewModeIndex ViewModeIndex) -> bool
-				{
-					// This code is taken from SViewportToolBar::IsViewModeSupported
-					// SSCSEditorViewportToolBar does not override it, so we just take it as-is
-					// TODO: maybe create a private function for it, or move IsViewModeSupported to SEditorViewport
-
-					switch (ViewModeIndex)
-					{
-					case VMI_PrimitiveDistanceAccuracy:
-					case VMI_MaterialTextureScaleAccuracy:
-					case VMI_RequiredTextureResolution:
-						return false;
-					default:
-						return true;
-					}
-				}
-			);
+			UUnrealEdViewportToolbarContext* const ContextObject =
+				UE::UnrealEd::CreateViewportToolbarDefaultContext(SharedThis(this));
 
 			ViewportToolbarContext.AddObject(ContextObject);
 		}

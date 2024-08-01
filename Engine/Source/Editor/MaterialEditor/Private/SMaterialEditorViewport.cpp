@@ -1030,8 +1030,9 @@ TSharedPtr<SWidget> SMaterialEditor3DPreviewViewport::BuildViewportToolbar()
 
 		// Add the UnrealEd viewport toolbar context.
 		{
-			UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
-			ContextObject->Viewport = SharedThis(this);
+			UUnrealEdViewportToolbarContext* const ContextObject =
+				UE::UnrealEd::CreateViewportToolbarDefaultContext(SharedThis(this));
+
 			ViewportToolbarContext.AddObject(ContextObject);
 		}
 	}
