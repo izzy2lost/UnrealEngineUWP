@@ -106,6 +106,12 @@ private:
 	/** A flattened list of all the light card actors being displayed in the tree view */
 	TArray<TSharedPtr<FStageActorTreeItem>> StageActorTreeItems;
 
+	/**
+	 * Additional selected actors that aren't visible in the outliner hierarchy.
+	 * We store these to avoid trampling the light card editor's selection, which may include actors that aren't displayed in the outliner.
+	 */
+	TArray<TWeakObjectPtr<AActor>> NonOutlinerSelectedActors;
+
 	/** The active root actor whose light cards are being displayed */
 	TWeakObjectPtr<ADisplayClusterRootActor> RootActor;
 

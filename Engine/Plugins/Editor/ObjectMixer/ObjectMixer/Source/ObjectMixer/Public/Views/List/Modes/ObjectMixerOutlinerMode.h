@@ -331,8 +331,6 @@ protected:
 	void SynchronizeComponentAndActorSelection();
 	void SynchronizeSelectedActorDescs();
 
-	void SynchronizeCustomActorSelection();
-
 	void OnActorEditorContextSubsystemChanged();
 
 	/** Filter factories */

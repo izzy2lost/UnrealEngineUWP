@@ -1880,8 +1880,8 @@ void FObjectMixerOutlinerMode::OnItemAdded(FSceneOutlinerTreeItemPtr Item)
 		{
 			++FilteredActorCount;
 
-			// Synchronize selection with editor (or always select if sync is disabled)
-			if (!ShouldSyncSelectionFromEditor() || GetSelectedActorsInEditor().Contains(ActorItem->Actor.Get()))
+			// Synchronize selection with editor if enabled
+			if (ShouldSyncSelectionFromEditor() && GetSelectedActorsInEditor().Contains(ActorItem->Actor.Get()))
 			{
 				SceneOutliner->SetItemSelection(Item, true);
 			}
