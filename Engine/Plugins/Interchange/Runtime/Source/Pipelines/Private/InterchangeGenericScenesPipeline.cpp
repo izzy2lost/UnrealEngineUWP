@@ -267,13 +267,6 @@ void UInterchangeGenericLevelPipeline::ExecutePipeline(UInterchangeBaseNodeConta
 		ParentLevelFactoryNode->InitializeNode(ParentNodeUid, ParentDisplayLabel, EInterchangeNodeContainerType::FactoryData);
 		ParentLevelFactoryNode->SetCustomShouldCreateLevel(false);
 		ParentLevelFactoryNode->SetCustomReferenceObject(TargetWorld);
-		BaseNodeContainer->IterateNodesOfType<UInterchangeFactoryBaseNode>(
-			[&ParentLevelFactoryNode](const FString& NodeUid, UInterchangeFactoryBaseNode* Node)
-			{
-				// Add all assets (not actors) before calling the ParentLevelFactoryNode factory
-				ParentLevelFactoryNode->AddFactoryDependencyUid(NodeUid);
-			}
-		);
 		BaseNodeContainer->AddNode(ParentLevelFactoryNode);
 
 		UWorld* ReimportReferenceWorld = nullptr;
