@@ -218,7 +218,7 @@ protected:
 
 			TArray<UEdGraph*> SubGraphs;
 			RigVMEdGraph->GetAllChildrenGraphs(SubGraphs);
-			for (const TObjectPtr<UEdGraph>& SubGraph : SubGraphs)
+			for (const UEdGraph* SubGraph : SubGraphs)
 			{
 				if (SubGraph)
 				{
@@ -239,7 +239,7 @@ protected:
 
 				TArray<UEdGraph*> SubGraphs;
 				RigVMEdGraph->GetAllChildrenGraphs(SubGraphs);
-				for (const TObjectPtr<UEdGraph>& SubGraph : SubGraphs)
+				for (const UEdGraph* SubGraph : SubGraphs)
 				{
 					if (SubGraph)
 					{
