@@ -31,8 +31,10 @@ namespace UE::Chaos::ClothAsset
 		 * The resulting name won't contains spaces and any other special characters as listed in
 		 * INVALID_OBJECTNAME_CHARACTERS (currently "',/.:|&!~\n\r\t@#(){}[]=;^%$`).
 		 * It will also have all leading underscore removed, as these names are reserved for internal use.
+		 * @param InOutString The string to turn into a valid collection name.
+		 * @return Whether the InOutString was already a valid collection name.
 		 */
-		static void MakeCollectionName(FString& InOutString);
+		static bool MakeCollectionName(FString& InOutString);
 
 		static bool BuildSkeletalMeshModelFromMeshDescription(const FMeshDescription* const InMeshDescription, const FMeshBuildSettings& InBuildSettings, FSkeletalMeshLODModel& SkeletalMeshModel);
 

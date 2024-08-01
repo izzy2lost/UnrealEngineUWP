@@ -467,11 +467,13 @@ namespace UE::Chaos::ClothAsset
 		UE_LOG(LogChaosClothAssetDataflowNodes, Warning, TEXT("%s"), *Text.ToString());
 	}
 
-	void FClothDataflowTools::MakeCollectionName(FString& InOutString)
+	bool FClothDataflowTools::MakeCollectionName(FString& InOutString)
 	{
+		const FString SourceString = InOutString;
 		InOutString = SlugStringForValidName(InOutString, TEXT("_")).Replace(TEXT("\\"), TEXT("_"));
 		bool bCharsWereRemoved;
 		do { InOutString.TrimCharInline(TEXT('_'), &bCharsWereRemoved); } while (bCharsWereRemoved);
+		return InOutString.Equals(SourceString);
 	}
 
 	static void CopyBuildSettings(const FMeshBuildSettings& InStaticMeshBuildSettings, FSkeletalMeshBuildSettings& OutSkeletalMeshBuildSettings)

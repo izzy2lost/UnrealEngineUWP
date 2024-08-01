@@ -35,7 +35,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	  * Whether the property could import fabrics datas or not
 	  */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Value")
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Value", Meta = (EditCondition = "false", EditConditionHides))
 	bool bCouldUseFabrics = false;
 
 	UE_DEPRECATED(5.5, "Override properties are no longer used.")
@@ -47,6 +47,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */
 	UPROPERTY(EditAnywhere, Category = "Value", Meta = (EditCondition = "bCouldUseFabrics", EditConditionHides))
 	bool bBuildFabricMaps = false;
+};
+
+USTRUCT()
+struct FChaosClothAssetConnectableOStringValue
+{
+	GENERATED_BODY()
+
+	/** The value for this property. */
+	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowOutput))
+	FString StringValue;
 };
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS

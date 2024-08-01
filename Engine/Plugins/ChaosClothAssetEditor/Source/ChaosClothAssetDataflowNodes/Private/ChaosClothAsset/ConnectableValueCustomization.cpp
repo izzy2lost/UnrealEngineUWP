@@ -175,8 +175,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 					{
 						if (const TSharedPtr<IPropertyHandle> HandlePtr = HandleWeakPtr.Pin())
 						{
-							HandlePtr->SetValue(Text.ToString(), EPropertyValueSetFlags::DefaultFlags);
+							FString TextString = Text.ToString();
+							FClothDataflowTools::MakeCollectionName(TextString);
+							HandlePtr->SetValue(TextString, EPropertyValueSetFlags::DefaultFlags);
 						}
+					})
+				.OnVerifyTextChanged_Lambda([](const FText& Text, FText& OutErrorMessage) -> bool
+					{
+						bool bIsValidCollectionName = false;
+						FString TextString = Text.ToString();
+						bIsValidCollectionName = FClothDataflowTools::MakeCollectionName(TextString);
+						if (!bIsValidCollectionName)
+						{
+							OutErrorMessage =
+								LOCTEXT("NotValidCollectioName",
+									"To be a valid collection name, this text string musn't start by an underscore,\n"
+									"contain whitespaces, or any of the following character: \"',/.:|&!~@#(){}[]=;^%$`");
+						}
+						return bIsValidCollectionName;
 					})
 				.IsEnabled_Lambda([HandleWeakPtr, StructurePropertyHandle]() -> bool
 					{

@@ -71,7 +71,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Whether the property could import fabrics datas or not
 	 */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value", Meta = (EditCondition = "false", EditConditionHides))
 	bool bCouldUseFabrics = false;
 
 	UE_DEPRECATED(5.5, "Override properties are no longer used.")
@@ -127,7 +127,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/**
 	 * Whether the property could import fabrics datas or not
 	 */
-	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value")
+	UPROPERTY(VisibleAnywhere, Transient, Category = "Weighted Value", Meta = (EditCondition = "false", EditConditionHides))
 	bool bCouldUseFabrics = false;
 	
 	UE_DEPRECATED(5.5, "Override properties are no longer used.")
