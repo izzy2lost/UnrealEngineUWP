@@ -880,7 +880,7 @@ void FModule::RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& 
 				{
 					URigVMEdGraph* RigVMEdGraph = Cast<URigVMEdGraph>(GraphEditorData->GetEditorObjectForRigVMGraph(ModelGraph));
 
-					if (GraphEditorData && GraphEditorData->GetLocalFunctionLibrary() != RigVMEdGraph->GetModel())
+					if (RigVMEdGraph != nullptr && GraphEditorData->GetLocalFunctionLibrary() != RigVMEdGraph->GetModel())
 					{
 						const TSharedPtr<Workspace::FWorkspaceBreadcrumb>& GraphCrumb = OutBreadcrumbs.Add_GetRef(MakeShared<Workspace::FWorkspaceBreadcrumb>());
 

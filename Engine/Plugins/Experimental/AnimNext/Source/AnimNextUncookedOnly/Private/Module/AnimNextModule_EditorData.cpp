@@ -576,21 +576,22 @@ UAnimNextModule_AnimationGraph* UAnimNextModule_EditorData::AddAnimationGraph(FN
 
 		// Editor data has to be the graph outer, or RigVM unique name generator will not work
 		URigVMGraph* NewRigVMGraphModel = RigVMClient.CreateModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextAnimationGraphSchema::StaticClass(), bSetupUndoRedo, this);
-		// Then, to avoid the graph losing ref due to external package, set the same package as the Entry
-		if (!NewRigVMGraphModel->HasAnyFlags(RF_Transient))
+		if (ensure(NewRigVMGraphModel))
 		{
-			NewRigVMGraphModel->SetExternalPackage(CastChecked<UObject>(NewEntry)->GetExternalPackage());
-		}
+			// Then, to avoid the graph losing ref due to external package, set the same package as the Entry
+			if (!NewRigVMGraphModel->HasAnyFlags(RF_Transient))
+			{
+				NewRigVMGraphModel->SetExternalPackage(CastChecked<UObject>(NewEntry)->GetExternalPackage());
+			}
 
-		ensure(NewRigVMGraphModel);
-
-		NewEntry->Graph = NewRigVMGraphModel;
+			NewEntry->Graph = NewRigVMGraphModel;
 		
-		RefreshExternalModels();
-		RigVMClient.AddModel(NewRigVMGraphModel, true);
+			RefreshExternalModels();
+			RigVMClient.AddModel(NewRigVMGraphModel, true);
 
-		URigVMController* Controller = RigVMClient.GetController(NewRigVMGraphModel);
-		UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry, Controller);
+			URigVMController* Controller = RigVMClient.GetController(NewRigVMGraphModel);
+			UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry, Controller);
+		}
 	}
 
 	BroadcastModified();
