@@ -2189,7 +2189,8 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializers(const FSceneTexturesC
 {
 	// Early out if possible
 	if (!PreCacheParams.bDefaultMaterial && 
-		(!Material.ShouldCastDynamicShadows() ||
+		(GetShadowQuality() == 0 ||
+		!Material.ShouldCastDynamicShadows() ||
 		!ShouldIncludeDomainInMeshPass(Material.GetMaterialDomain()) ||
 		!ShouldIncludeMaterialInDefaultOpaquePass(Material) ||
 		!EnumHasAnyFlags(MeshSelectionMask, VertexFactoryData.VertexFactoryType->SupportsPrimitiveIdStream() ? EShadowMeshSelection::VSM : EShadowMeshSelection::SM)))
