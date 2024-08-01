@@ -497,6 +497,8 @@ void FInstancedStructNetSerializer::InternalFreeStructInstance(FNetSerialization
 		FNetFreeDynamicStateArgs FreeArgs;
 		FreeArgs.NetSerializerConfig = &StructConfig;
 		FreeArgs.Source = NetSerializerValuePointer(Value.StructData.GetData());
+
+		StructNetSerializer->FreeDynamicState(Context, FreeArgs);
 	}
 }
 
