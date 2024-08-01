@@ -148,12 +148,12 @@ namespace UnrealBuildTool
 			public bool bDataCryptoRequired { get; set; } = false;
 
 			/// <summary>
-			/// Config setting to enable pak signing
+			/// Config setting to enable pak encryption
 			/// </summary>
 			public bool PakEncryptionRequired { get; set; } = true;
 
 			/// <summary>
-			/// Config setting to enable pak encryption
+			/// Config setting to enable pak signing
 			/// </summary>
 			public bool PakSigningRequired { get; set; } = true;
 
