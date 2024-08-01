@@ -268,6 +268,7 @@ public:
 		float& MaxSize,
 		float& MaxSize_VisibleOnly,
 		int32& MaxNumForcedLODs,
+		const float MaxAssetSize,
 		const TCHAR* LogPrefix) const;
 
 	FORCEINLINE bool HasRenderAssetReferences(const UStreamableRenderAsset* InAsset) const

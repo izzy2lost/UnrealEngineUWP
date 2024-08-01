@@ -480,6 +480,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 	float& MaxSize,
 	float& MaxSize_VisibleOnly,
 	int32& MaxNumForcedLODs,
+	const float MaxAssetSize,
 	const TCHAR* LogPrefix) const
 {
 	// No need to iterate more if texture is already at maximum resolution.
@@ -501,7 +502,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 				const FRenderAssetInstanceView::FCompiledElement* CompiledElementData = CompiledElements->GetData();
 
 				int32 CompiledElementIndex = 0;
-				while (CompiledElementIndex < NumCompiledElements && MaxSize_VisibleOnly < MAX_TEXTURE_SIZE)
+				while (CompiledElementIndex < NumCompiledElements && MaxSize_VisibleOnly < MaxAssetSize)
 				{
 					const FRenderAssetInstanceView::FCompiledElement& CompiledElement = CompiledElementData[CompiledElementIndex];
 					if (ensure(BoundsViewInfo.IsValidIndex(CompiledElement.BoundsIndex)))
@@ -527,7 +528,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 					++CompiledElementIndex;
 				}
 
-				if (MaxSize_VisibleOnly >= MAX_TEXTURE_SIZE && CompiledElementIndex > 1)
+				if (MaxSize_VisibleOnly >= MaxAssetSize && CompiledElementIndex > 1)
 				{
 					// This does not realloc anything but moves the closest element at head, making the next update find it immediately and early exit.
 					FRenderAssetInstanceView::FCompiledElement* SwapElementData = const_cast<FRenderAssetInstanceView::FCompiledElement*>(CompiledElementData);
@@ -537,7 +538,7 @@ void FRenderAssetInstanceAsyncView::GetRenderAssetScreenSize(
 		}
 		else
 		{
-			for (auto It = View->GetElementIterator(InAsset); It && (AssetType != EStreamableRenderAssetType::Texture || MaxSize_VisibleOnly < MAX_TEXTURE_SIZE || LogPrefix); ++It)
+			for (auto It = View->GetElementIterator(InAsset); It && (AssetType != EStreamableRenderAssetType::Texture || MaxSize_VisibleOnly < MaxAssetSize || LogPrefix); ++It)
 			{
 				// Only handle elements that are in bounds.
 				if (ensure(BoundsViewInfo.IsValidIndex(It.GetBoundsIndex())))

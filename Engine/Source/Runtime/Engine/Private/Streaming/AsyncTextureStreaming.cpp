@@ -121,6 +121,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 	bool bLooksLowRes = false;
 
 	const float MaxAllowedSize = StreamingRenderAsset.GetMaxAllowedSize(MaxScreenSizeOverAllViews);
+	const float MaxAssetSize = StreamingRenderAsset.IsMesh() ? MAX_TEXTURE_SIZE : MaxAllowedSize;
 
 #if !UE_BUILD_SHIPPING
 	if (Settings.bStressTest)
@@ -149,7 +150,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 	else
 	{
 		const EStreamableRenderAssetType AssetType = StreamingRenderAsset.RenderAssetType;
-		DynamicInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, bOutputToLog ? TEXT("Dynamic") : nullptr);
+		DynamicInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Dynamic") : nullptr);
 
 		bool bCulled = false;
 		if (Settings.bMipCalculationEnablePerLevelList)
@@ -183,7 +184,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 				}
 
 				// No need to iterate more if render asset is already at maximum resolution.
-				if (MaxSize_VisibleOnly >= MAX_TEXTURE_SIZE || MaxNumForcedLODs >= StreamingRenderAsset.MaxAllowedMips)
+				if (MaxSize_VisibleOnly >= MaxAssetSize || MaxNumForcedLODs >= StreamingRenderAsset.MaxAllowedMips)
 				{
 					break;
 				}
@@ -192,7 +193,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 				float TmpMaxVisibleOnly = MaxSize_VisibleOnly;
 				int32 TmpMaxNumForcedLODs = MaxNumForcedLODs;
 				
-				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, TmpMaxSize, TmpMaxVisibleOnly, TmpMaxNumForcedLODs, bOutputToLog ? TEXT("Static") : nullptr);
+				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, TmpMaxSize, TmpMaxVisibleOnly, TmpMaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Static") : nullptr);
 
 				MaxSize = FMath::Max(TmpMaxSize, MaxSize);
 				MaxSize_VisibleOnly = FMath::Max(TmpMaxVisibleOnly, MaxSize_VisibleOnly);
@@ -214,7 +215,7 @@ void FAsyncRenderAssetStreamingData::UpdatePerfectWantedMips_Async(FStreamingRen
 					break;
 				}
 
-				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, bOutputToLog ? TEXT("Static") : nullptr);
+				StaticInstancesView.GetRenderAssetScreenSize(AssetType, RenderAsset, MaxSize, MaxSize_VisibleOnly, MaxNumForcedLODs, MaxAssetSize, bOutputToLog ? TEXT("Static") : nullptr);
 			}
 		}
 
