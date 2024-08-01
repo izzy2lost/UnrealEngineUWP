@@ -49,7 +49,7 @@ public:
 	/**
 	 * Current tracking state, 
 	 */
-	enum class ETrackingState : uint8
+	enum class ETrackingState
 	{
 		Initial, // In the initial state, there is no proxy and therefore changes do not need to be tracked, e.g., during initial setup of an ISM component.
 		Tracked,
@@ -57,7 +57,7 @@ public:
 		Optimized, // In the optimized state there's no need to track any delta changes, but if anything changes at all we must rebuild.
 	};
 
-	enum class EMode : uint8
+	enum class EMode
 	{
 		Default,
 		Legacy, // In this mode, we create a legacy supporting proxy.
@@ -206,32 +206,30 @@ private:
 	 */
 	static FISMPrecomputedSpatialHashData PrecomputeOptimizationData(FInstanceUpdateComponentDesc &&ComponentData, TStridedView<FMatrix> InstanceTransforms);
 #endif
-
-	// Change set.
-	FInstanceAttributeTracker InstanceUpdateTracker;
+	EMode Mode = EMode::Default;
+	ETrackingState TrackingState = ETrackingState::Initial;
 
 	// Id allocation tracking
 	TBitArray<> ValidInstanceIdMask;
 	int32 IdSearchStartIndex = 0;
 
-	EMode Mode = EMode::Default;
-	ETrackingState TrackingState = ETrackingState::Initial;
+	// Change set.
+	FInstanceAttributeTracker InstanceUpdateTracker;
 
-	uint8 bNumCustomDataChanged : 1;
-	uint8 bBakedLightingDataChanged : 1;
-	uint8 bTransformChangedAllInstances : 1;
+	bool bNumCustomDataChanged = false;
+	bool bBakedLightingDataChanged = false;
+	bool bTransformChangedAllInstances = false;
 #if WITH_EDITOR
-	uint8 bAnyEditorDataChanged : 1;
+	bool bAnyEditorDataChanged = false;
 #endif	
-	uint8 bPrimitiveTransformChanged : 1;
-	uint8 bAnyInstanceChange : 1;
-
-	uint8 bComponentMarkedDirty : 1;
-	uint8 bEnableTracking : 1;
-	uint8 bFirstFlush : 1;
+	bool bPrimitiveTransformChanged = false;
+	bool bAnyInstanceChange = false;
 
 	TSharedPtr<FISMCInstanceDataSceneProxy, ESPMode::ThreadSafe> Proxy;
 	TWeakObjectPtr<UPrimitiveComponent> PrimitiveComponent = nullptr;
+
+	bool bComponentMarkedDirty = false;
+	bool bEnableTracking = false;
 
 	TPimplPtr<struct FLegacyBuildData> LegacyBuildData;
 
@@ -246,4 +244,5 @@ private:
 	int32 NumCustomDataFloats = 0;
 	float AbsMaxDisplacement = 0.0f;
 	FRenderBounds StaticMeshBounds;
+	bool bFirstFlush = true;
 };

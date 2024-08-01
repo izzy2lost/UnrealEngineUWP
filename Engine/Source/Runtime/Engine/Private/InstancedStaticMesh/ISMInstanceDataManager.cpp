@@ -61,18 +61,7 @@ FArchive& operator<<(FArchive& Ar, FInstanceSceneDataBuffers::FCompressedSpatial
 }
 
 FPrimitiveInstanceDataManager::FPrimitiveInstanceDataManager(UPrimitiveComponent* InPrimitiveComponent) 
-	: bNumCustomDataChanged(false)
-	, bBakedLightingDataChanged(false)
-	, bTransformChangedAllInstances(false)
-#if WITH_EDITOR
-	, bAnyEditorDataChanged(false)
-#endif
-	, bPrimitiveTransformChanged(false)
-	, bAnyInstanceChange(false)
-	, bComponentMarkedDirty(false)
-	, bEnableTracking(false)
-	, bFirstFlush(true)
-	, PrimitiveComponent(InPrimitiveComponent) 
+	: PrimitiveComponent(InPrimitiveComponent) 
 {
 	// Don't do anything if this is not a "real" ISM being tracked (this logic shopuld move out).
 	if (PrimitiveComponent.IsValid() && PrimitiveComponent->HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject))
