@@ -1337,11 +1337,14 @@ void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& I
 	{
 		HandleAccumulatedNotices();
 	}
+#endif	  // USE_USD_SDK
 }
 
 void AUsdStageActor::HandleAccumulatedNotices()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::HandleAccumulatedNotices);
+
+#if USE_USD_SDK
 
 	if (AccumulatedInfoChanges.Num() == 0 && AccumulatedResyncChanges.Num() == 0)
 	{

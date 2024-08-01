@@ -408,7 +408,7 @@ protected:
 	void OnPreUsdImport(FString FilePath);
 	void OnPostUsdImport(FString FilePath);
 	void OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges);
-	USDSTAGE_API void HandleAccumulatedNotices();
+	void HandleAccumulatedNotices();
 	void OnUsdPrimTwinDestroyed(const UUsdPrimTwin& UsdPrimTwin);
 	void OnObjectPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent);
 	void HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyChangedEvent);
