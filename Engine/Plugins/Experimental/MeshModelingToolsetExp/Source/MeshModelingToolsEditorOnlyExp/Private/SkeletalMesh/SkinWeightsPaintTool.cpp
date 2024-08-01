@@ -177,7 +177,7 @@ public:
 	virtual int32 GetBoneIndex(const int32 VertexID, const int32 Index) override
 	{
 		const int32 SrcVertexId = GetSourceVertexId(VertexID);
-		return Weights->PreChangeWeights[SrcVertexId][Index].BoneIndex;
+		return Weights->PreChangeWeights[SrcVertexId][Index].BoneID;
 	}
 
 	virtual float GetBoneWeight(const int32 VertexID, const int32 Index) override
@@ -415,6 +415,13 @@ void FMultiBoneWeightEdits::GetEditedVertexIndices(TSet<int32>& OutVerticesToEdi
 	}
 }
 
+void FMultiBoneWeightEdits::AddPruneBoneEdit(
+	const VertexIndex VertexToPruneFrom,
+	const BoneIndex BoneToPrune)
+{
+	PrunedInfluences.Emplace(VertexToPruneFrom, BoneToPrune);
+}
+
 void FSkinToolDeformer::Initialize(const USkeletalMeshComponent* InSkelMeshComponent, const FMeshDescription* InMeshDescription)
 {
 	// get all bone transforms in the reference pose store a copy in component space
@@ -525,11 +532,11 @@ void FSkinToolDeformer::UpdateVertexDeformation(
 			const VertexWeights& VertexPerBoneData = CurrentWeights[VertexID];
 			for (const FVertexBoneWeight& VertexData : VertexPerBoneData)
 			{
-				if (VertexData.BoneIndex == INDEX_NONE)
+				if (VertexData.BoneID == INDEX_NONE)
 				{
 					continue;
 				}
-				const FTransform& CurrentTransform = PoseComponentSpace[VertexData.BoneIndex];
+				const FTransform& CurrentTransform = PoseComponentSpace[VertexData.BoneID];
 				VertexNewPosition += CurrentTransform.TransformPosition(VertexData.VertexInBoneSpace) * VertexData.Weight;
 			}
 			
@@ -671,7 +678,7 @@ void FSkinToolWeights::InitializeSkinWeights(
 		{
 			if (VertexBoneData.Weight > UE::AnimationCore::BoneWeightThreshold)
 			{
-				IsBoneWeighted[VertexBoneData.BoneIndex] = true;
+				IsBoneWeighted[VertexBoneData.BoneID] = true;
 			}
 		}
 	}
@@ -685,97 +692,121 @@ void FSkinToolWeights::EditVertexWeightAndNormalize(
 {
 	// clamp new weight
 	NewWeightValue = FMath::Clamp(NewWeightValue, 0.0f, 1.0f);
-	
+
 	// calculate the sum of all the weights on this vertex (not including the one we currently applied)
-	TArray<int32> BonesAffectingVertex;
+	TArray<int32> RecordedBonesOnVertex;
 	TArray<float> ValuesToNormalize;
 	float Total = 0.0f;
 	const VertexWeights& VertexData = PreChangeWeights[VertexID];
 	for (const FVertexBoneWeight& VertexBoneData : VertexData)
 	{
-		if (VertexBoneData.BoneIndex == BoneToHoldIndex)
+		if (VertexBoneData.BoneID == BoneToHoldIndex)
 		{
 			continue;
 		}
 		
-		if (VertexBoneData.Weight < MinimumWeightThreshold)
-		{
-			continue;
-		}
-		
-		BonesAffectingVertex.Add(VertexBoneData.BoneIndex);
+		RecordedBonesOnVertex.Add(VertexBoneData.BoneID);
 		ValuesToNormalize.Add(VertexBoneData.Weight);
 		Total += VertexBoneData.Weight;
 	}
 
-	// are there no OTHER influences on this vertex?
-	const bool bVertexHasNoOtherInfluences = Total <= MinimumWeightThreshold;
-	
-	// if user applied any weight to this vertex AND there's no other weights of any significance,
-	// then simply apply full weight to this vertex, set all other influences to zero and return
-	const bool bApplyWeightToThisVertex = NewWeightValue >= MinimumWeightThreshold;
-	if (bApplyWeightToThisVertex && bVertexHasNoOtherInfluences)
+	// assigning full weight to this vertex?
+	if (FMath::IsNearlyEqual(NewWeightValue, 1.f))
 	{
-		// set all other influences to 0.0f
-		for (int32 i=0; i<ValuesToNormalize.Num(); ++i)
-		{
-			const int32 BoneIndex = BonesAffectingVertex[i];
-			const float OldWeight = ValuesToNormalize[i];
-			constexpr float NewWeight = 0.0f;
-			WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
-		}
-
-		// set current bone value to 1.0f
+		// in this case normalization is trivial, just assign the full weight directly and zero all others
 		const float PrevWeight = GetWeightOfBoneOnVertex(BoneToHoldIndex, VertexID, PreChangeWeights);
+		constexpr float FullWeight = 1.0f;
 		WeightEdits.MergeSingleEdit(
 			BoneToHoldIndex,
 			VertexID,
 			PrevWeight,
-			1.0f);
-		
+			FullWeight);
+
+		// zero all others
+		for (int32 i=0; i<ValuesToNormalize.Num(); ++i)
+		{
+			const int32 BoneIndex = RecordedBonesOnVertex[i];
+			const float OldWeight = ValuesToNormalize[i];
+			constexpr float NewWeight = 0.f;
+			WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+		}
+
 		return;
 	}
 
-	// is the user trying to prune ALL weight from this vertex, AND all other weights are equal to zero?
-	// in this case, we have two options:
-	// 1. if there are other influences recorded for this vertex, then split remaining influence among them
-	// 2. if there are NO other influences recorded for this vertex, then move the weight to the parent as last ditch effort
-	const bool bApplyZeroWeightToThisVertex = NewWeightValue <= MinimumWeightThreshold;
-	if (bApplyZeroWeightToThisVertex && bVertexHasNoOtherInfluences)
+	// do any other influences have any weight on this vertex?
+	//
+	// In the case that:
+	// 1. user applied any weight < 1 to this vertex AND
+	// 2. there are NO other weights on this vertex
+	// then we need to decide where to put the remaining influence...
+	//
+	// the logic here attempts to find a reasonable and "least surprising" place to put the remaining weight based on artist feedback
+	const bool bVertexHasNoOtherWeightedInfluences = Total <= MinimumWeightThreshold;
+	if (bVertexHasNoOtherWeightedInfluences)
 	{
-		if (ValuesToNormalize.IsEmpty())
+		// does this vertex have any other recorded influences on it?
+		// a "recorded" influence here is one that used to have weight, but no longer does
+		if (!RecordedBonesOnVertex.IsEmpty())
 		{
-			// assign all weight to the parent
-			int32 BoneIndex = 0;
-			if (const USkeletalMesh* SkeletalMesh = Deformer.Component->GetSkeletalMeshAsset())
+			// this vertex:
+			// 1. was previously weighted to other influences
+			// 2. has subsequently had all other weight removed
+			// In this case, we evenly split the remaining weight among the recorded influences
+
+			// distribute remaining weight evenly over other recorded influences
+			const float WeightToDistribute = (1.0f - NewWeightValue) / RecordedBonesOnVertex.Num();
+			for (int32 i=0; i<ValuesToNormalize.Num(); ++i)
 			{
-				BoneIndex = SkeletalMesh->GetRefSkeleton().GetParentIndex(BoneToHoldIndex);
-				BoneIndex = BoneIndex == INDEX_NONE ? 0 : BoneIndex;
+				const int32 BoneIndex = RecordedBonesOnVertex[i];
+				const float OldWeight = ValuesToNormalize[i];
+				const float NewWeight = WeightToDistribute;
+				WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
 			}
-			
-			constexpr float OldWeight = 0.f;
-			constexpr float NewWeight = 1.f;
-			WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+
+			// set current bone value to user assigned weight
+			const float PrevWeight = GetWeightOfBoneOnVertex(BoneToHoldIndex, VertexID, PreChangeWeights);
+			WeightEdits.MergeSingleEdit(
+				BoneToHoldIndex,
+				VertexID,
+				PrevWeight,
+				NewWeightValue);
 		}
 		else
 		{
-			// evenly distribute weight among other influences
-			const float NewWeight = 1.f / ValuesToNormalize.Num();
-			for (int32 i=0; i<ValuesToNormalize.Num(); ++i)
+			// this vertex:
+			// 1. has no other recorded influences
+			// 2. user is assigning PARTIAL weight to it (less than 1.0)
+			// so in this case we push the remaining weight onto the PARENT bone
+				
+			// assign remaining weight to the parent
+			const int32 ParentBoneIndex = GetParentBoneToWeightTo(BoneToHoldIndex);
+			if (ParentBoneIndex == BoneToHoldIndex)
 			{
-				const int32 BoneIndex = BonesAffectingVertex[i];
-				const float OldWeight = ValuesToNormalize[i];
-				WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
+				// was unable to find parent OR child bone!
+				// this could only happen if user is trying to remove weight from the ONLY bone in the whole skeleton
+				// in this case just assign the full weight to the bone (there's no other valid configuration)
+				// this is a "do nothing" operation, but at least it generates an undo transaction to let user know the input was received
+				const float PrevWeight = GetWeightOfBoneOnVertex(BoneToHoldIndex, VertexID, PreChangeWeights);
+				constexpr float FullWeight = 1.0f;
+				WeightEdits.MergeSingleEdit(
+					BoneToHoldIndex,
+					VertexID,
+					PrevWeight,
+					FullWeight);
+			}
+			else
+			{
+				// assign remaining weight to parent
+				constexpr float OldParentWeight = 0.f;
+				const float NewParentWeight = 1.0f - NewWeightValue;
+				WeightEdits.MergeSingleEdit(ParentBoneIndex, VertexID, OldParentWeight, NewParentWeight);
+				// and assign user requested weight to the current bone
+				const float OldWeight = GetWeightOfBoneOnVertex(BoneToHoldIndex, VertexID, PreChangeWeights);
+				const float NewWeight = NewWeightValue;
+				WeightEdits.MergeSingleEdit(BoneToHoldIndex, VertexID, OldWeight, NewWeight);
 			}
 		}
-
-		// set current bone value to 0.0f
-		const float PrevWeight = GetWeightOfBoneOnVertex(BoneToHoldIndex, VertexID, PreChangeWeights);
-		WeightEdits.MergeSingleEdit(
-			BoneToHoldIndex,
-			VertexID,
-			PrevWeight,
-			0.f);
 		
 		return;
 	}
@@ -791,7 +822,7 @@ void FSkinToolWeights::EditVertexWeightAndNormalize(
 		{
 			NormalizedValue = (ValuesToNormalize[i] / Total) * AvailableTotal;	
 		}
-		const int32 BoneIndex = BonesAffectingVertex[i];
+		const int32 BoneIndex = RecordedBonesOnVertex[i];
 		const float OldWeight = ValuesToNormalize[i];
 		const float NewWeight = NormalizedValue;
 		WeightEdits.MergeSingleEdit(BoneIndex, VertexID, OldWeight, NewWeight);
@@ -831,7 +862,7 @@ void FSkinToolWeights::ApplyCurrentWeightsToMeshDescription(FMeshDescription* Me
 		const VertexWeights& VertexWeights = CurrentWeights[VertexIndex];
 		for (const FVertexBoneWeight& SingleBoneWeight : VertexWeights)
 		{
-			SourceBoneWeights.Add(UE::AnimationCore::FBoneWeight(SingleBoneWeight.BoneIndex, SingleBoneWeight.Weight));
+			SourceBoneWeights.Add(UE::AnimationCore::FBoneWeight(SingleBoneWeight.BoneID, SingleBoneWeight.Weight));
 		}
 
 		VertexSkinWeights.Set(FVertexID(VertexIndex), UE::AnimationCore::FBoneWeights::Create(SourceBoneWeights, Settings));
@@ -846,7 +877,7 @@ float FSkinToolWeights::GetWeightOfBoneOnVertex(
 	const VertexWeights& VertexWeights = InVertexWeights[VertexID];
 	for (const FVertexBoneWeight& BoneWeight : VertexWeights)
 	{
-		if (BoneWeight.BoneIndex == BoneIndex)
+		if (BoneWeight.BoneID == BoneIndex)
 		{
 			return BoneWeight.Weight;
 		}
@@ -867,7 +898,7 @@ void FSkinToolWeights::SetWeightOfBoneOnVertex(
 	VertexWeights& VertexWeights = InOutVertexWeights[VertexID];
 	for (FVertexBoneWeight& BoneWeight : VertexWeights)
 	{
-		if (BoneWeight.BoneIndex == BoneIndex)
+		if (BoneWeight.BoneID == BoneIndex)
 		{
 			BoneWeight.Weight = Weight;
 			return;
@@ -876,12 +907,18 @@ void FSkinToolWeights::SetWeightOfBoneOnVertex(
 
 	// bone not already an influence on this vertex, so we need to add it..
 
+	// if the weight was pruned, it won't be recorded in the VertexWeights array,
+	// but we also don't want to add it back
+	if (FMath::IsNearlyEqual(Weight, 0.f))
+	{
+		return;
+	}
+
 	// if vertex has room for more influences, then simply add it
 	if (VertexWeights.Num() < UE::AnimationCore::MaxInlineBoneWeightCount)
 	{
 		// add a new influence to this vertex
-		const FVector PosLocalToBone = Deformer.InvCSRefPoseTransforms[BoneIndex].TransformPosition(Deformer.RefPoseVertexPositions[VertexID]);
-		VertexWeights.Emplace(BoneIndex, PosLocalToBone, Weight);
+		AddNewInfluenceToVertex(VertexID, BoneIndex, Weight,InOutVertexWeights);
 		return;
 	}
 
@@ -905,7 +942,7 @@ void FSkinToolWeights::SetWeightOfBoneOnVertex(
 	// replace smallest influence
 	FVertexBoneWeight& BoneWeightToReplace = VertexWeights[SmallestInfluenceIndex];
 	BoneWeightToReplace.Weight = Weight;
-	BoneWeightToReplace.BoneIndex = BoneIndex;
+	BoneWeightToReplace.BoneID = BoneIndex;
 	BoneWeightToReplace.VertexInBoneSpace = Deformer.InvCSRefPoseTransforms[BoneIndex].TransformPosition(Deformer.RefPoseVertexPositions[VertexID]);
 
 	// now we need to re-normalize because the stamp does not handle maximum influences
@@ -918,6 +955,75 @@ void FSkinToolWeights::SetWeightOfBoneOnVertex(
 	{
 		BoneWeight.Weight /= TotalWeight;
 	}
+}
+
+void FSkinToolWeights::RemoveInfluenceFromVertex(
+	const VertexIndex InVertexID,
+	const BoneIndex InBoneID,
+	TArray<VertexWeights>& InOutVertexWeights)
+{
+	// should never be pruning a vertex that doesn't exist
+	if (!ensure(InOutVertexWeights.IsValidIndex(InVertexID)))
+	{
+		return;
+	}
+	
+	VertexWeights& SingleVertexWeights = InOutVertexWeights[InVertexID];
+	const int32 IndexOfBoneInVertex = SingleVertexWeights.IndexOfByPredicate([&InBoneID](const FVertexBoneWeight& CurrentVertexWeight)
+	{
+		return CurrentVertexWeight.BoneID == InBoneID;
+	});
+	// can't prune an influence that doesn't exist on a vertex
+	// this may happen if the calling code already pruned the influence to avoid normalization weights
+	if (IndexOfBoneInVertex == INDEX_NONE)
+	{
+		return;
+	}
+	
+	SingleVertexWeights.RemoveAt(IndexOfBoneInVertex);
+}
+
+void FSkinToolWeights::AddNewInfluenceToVertex(
+	const VertexIndex InVertexID,
+	const BoneIndex InBoneID,
+	const float Weight,
+	TArray<VertexWeights>& InOutVertexWeights)
+{		
+	// should never be adding an influence to a vertex that doesn't exist
+	if (!ensure(InOutVertexWeights.IsValidIndex(InVertexID)))
+	{
+		return;
+	}
+
+	// get list of weights on this single vertex
+	VertexWeights& SingleVertexWeights = InOutVertexWeights[InVertexID];
+
+	// should never be trying to add more influences beyond the max per-vertex limit
+	if (!ensure(SingleVertexWeights.Num() < UE::AnimationCore::MaxInlineBoneWeightCount))
+	{
+		return;
+	}
+
+	const int32 IndexOfBoneInVertex = SingleVertexWeights.IndexOfByPredicate([&InBoneID](const FVertexBoneWeight& CurrentVertexWeight)
+	{
+		return CurrentVertexWeight.BoneID == InBoneID;
+	});
+
+	// should never be adding an influence that already exists on a vertex
+	if (!ensure(IndexOfBoneInVertex == INDEX_NONE))
+	{
+		return;
+	}
+
+	// should never be adding an influence that doesn't exist in the skeleton
+	if (!ensure(Deformer.InvCSRefPoseTransforms.IsValidIndex(InBoneID)))
+	{
+		return;
+	}
+
+	// add a new influence to this vertex
+	const FVector PosLocalToBone = Deformer.InvCSRefPoseTransforms[InBoneID].TransformPosition(Deformer.RefPoseVertexPositions[InVertexID]);
+	SingleVertexWeights.Emplace(InBoneID, PosLocalToBone, Weight);
 }
 
 void FSkinToolWeights::SwapAfterChange()
@@ -970,7 +1076,7 @@ void FSkinToolWeights::UpdateIsBoneWeighted(BoneIndex BoneToUpdate)
 	{
 		for (const FVertexBoneWeight& VertexBoneData : VertexData)
 		{
-			if (VertexBoneData.BoneIndex == BoneToUpdate && VertexBoneData.Weight > UE::AnimationCore::BoneWeightThreshold)
+			if (VertexBoneData.BoneID == BoneToUpdate && VertexBoneData.Weight > UE::AnimationCore::BoneWeightThreshold)
 			{
 				IsBoneWeighted[BoneToUpdate] = true;
 				break;
@@ -983,22 +1089,63 @@ void FSkinToolWeights::UpdateIsBoneWeighted(BoneIndex BoneToUpdate)
 	}
 }
 
+BoneIndex FSkinToolWeights::GetParentBoneToWeightTo(BoneIndex ChildBone)
+{
+	int32 ParentBoneIndex = 0;
+	if (const USkeletalMesh* SkeletalMesh = Deformer.Component->GetSkeletalMeshAsset())
+	{
+		ParentBoneIndex = SkeletalMesh->GetRefSkeleton().GetParentIndex(ChildBone);
+		
+	}
+
+	// are we at the root? (no parent)
+	if (ParentBoneIndex == INDEX_NONE)
+	{
+		ParentBoneIndex = 0; // fallback to root
+		
+		// in this case return the first child bone, if there is one
+		// NOTE: this allows the user to forcibly remove all weight on the root bone, without having another recorded influence on it
+		if (const USkeletalMesh* SkeletalMesh = Deformer.Component->GetSkeletalMeshAsset())
+		{
+			TArray<int32> RootsChildren;
+			SkeletalMesh->GetRefSkeleton().GetDirectChildBones(0, RootsChildren);
+			if (!RootsChildren.IsEmpty())
+			{
+				ParentBoneIndex = RootsChildren[0];
+			}
+		}
+		
+	}
+
+	return ParentBoneIndex;
+}
+
 void FMeshSkinWeightsChange::Apply(UObject* Object)
 {
 	USkinWeightsPaintTool* Tool = CastChecked<USkinWeightsPaintTool>(Object);
 
+	// apply weight edits
 	Tool->ExternalUpdateSkinWeightLayer(LOD, SkinWeightProfile);
 	for (TTuple<int32, FSingleBoneWeightEdits>& Pair : AllWeightEdits.PerBoneWeightEdits)
 	{
 		Tool->ExternalUpdateWeights(Pair.Key, Pair.Value.NewWeights);
 	}
+
+	// remove pruned influences (if there are any)
+	Tool->ExternalRemoveInfluences(AllWeightEdits.PrunedInfluences);
 }
 
 void FMeshSkinWeightsChange::Revert(UObject* Object)
 {
 	USkinWeightsPaintTool* Tool = CastChecked<USkinWeightsPaintTool>(Object);
 
+	// update the skin weight profile
 	Tool->ExternalUpdateSkinWeightLayer(LOD, SkinWeightProfile);
+
+	// apply prune edits (restores pruned influences if there are any)
+	Tool->ExternalAddInfluences(AllWeightEdits.PrunedInfluences);
+	
+	// apply weight edits
 	for (TTuple<int32, FSingleBoneWeightEdits>& Pair : AllWeightEdits.PerBoneWeightEdits)
 	{
 		Tool->ExternalUpdateWeights(Pair.Key, Pair.Value.OldWeights);
@@ -1011,6 +1158,11 @@ void FMeshSkinWeightsChange::Revert(UObject* Object)
 void FMeshSkinWeightsChange::AddBoneWeightEdit(const FSingleBoneWeightEdits& BoneWeightEdit)
 {
 	AllWeightEdits.MergeEdits(BoneWeightEdit);
+}
+
+void FMeshSkinWeightsChange::AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune)
+{
+	AllWeightEdits.PrunedInfluences.Emplace(VertexToPruneFrom, BoneToPrune);
 }
 
 /*
@@ -1738,10 +1890,10 @@ FVector4f USkinWeightsPaintTool::GetColorOfVertex(VertexIndex InVertexIndex, Bon
 					continue;
 				}
 				
-				const float Value = InCurrentBoneIndex == BoneWeight.BoneIndex ? 1.0f: 0.6f;
+				const float Value = InCurrentBoneIndex == BoneWeight.BoneID ? 1.0f: 0.6f;
 				constexpr float Saturation = 0.75f;
-				const FLinearColor BoneColor = SkeletalDebugRendering::GetSemiRandomColorForBone(BoneWeight.BoneIndex, Value, Saturation);
-				Color = FLinearColor::LerpUsingHSV(Color, BoneColor, BoneWeight.Weight);
+				const FLinearColor BoneColor = SkeletalDebugRendering::GetSemiRandomColorForBone(BoneWeight.BoneID, Value, Saturation);
+				Color = FMath::Lerp(Color, BoneColor, BoneWeight.Weight);
 			}
 			return Color;
 		}
@@ -1846,7 +1998,7 @@ void USkinWeightsPaintTool::ApplyStamp(const FBrushStampData& Stamp)
 			// use mesh topology to iteratively smooth weights across neighboring vertices
 			const float UseStrength = CalculateBrushStrengthToUse(EWeightEditOperation::Relax);
 			constexpr int32 RelaxIterationsPerStamp = 3;
-			RelaxWeightOnVertices(VerticesInStamp, VertexFalloffs, RelaxIterationsPerStamp, UseStrength, WeightEditsFromStamp);
+			RelaxWeightOnVertices(VerticesInStamp, VertexFalloffs, UseStrength, RelaxIterationsPerStamp, WeightEditsFromStamp);
 		}
 		else
 		{
@@ -1906,7 +2058,7 @@ void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 	const BoneIndex Bone,
 	const TArray<int32>& VertexIndices,
 	const TArray<float>& VertexFalloffs,
-	const float UseStrength,
+	const float InValue,
 	FMultiBoneWeightEdits& InOutWeightEdits)
 {
 	// spin through the vertices in the stamp and store new weight values in NewValuesFromStamp
@@ -1924,18 +2076,31 @@ void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 		{
 		case EWeightEditOperation::Add:
 			{
-				NewValueAfterStamp = ValueBeforeStroke + (UseStrength * UseFalloff);
+				NewValueAfterStamp = ValueBeforeStroke + (InValue * UseFalloff);
 				break;
 			}
 		case EWeightEditOperation::Replace:
 			{
-				NewValueAfterStamp = FMath::Lerp(ValueBeforeStroke, UseStrength, UseFalloff);
+				NewValueAfterStamp = FMath::Lerp(ValueBeforeStroke, InValue, UseFalloff);
 				break;
 			}
 		case EWeightEditOperation::Multiply:
 			{
-				const float DeltaFromThisStamp = ((ValueBeforeStroke * UseStrength) - ValueBeforeStroke) * UseFalloff;
+				const float DeltaFromThisStamp = ((ValueBeforeStroke * InValue) - ValueBeforeStroke) * UseFalloff;
 				NewValueAfterStamp = ValueBeforeStroke + DeltaFromThisStamp;
+				break;
+			}
+		case EWeightEditOperation::RelativeScale:
+			{
+				// LERP the weight from it's current value towards 1 (for positive values) or towards 0 (for negative values)
+				if (InValue >= 0.f)
+				{
+					NewValueAfterStamp = FMath::Lerp(ValueBeforeStroke, 1.0f, FMath::Abs(InValue) * UseFalloff);
+				}
+				else
+				{
+					NewValueAfterStamp = FMath::Lerp(ValueBeforeStroke, 0.0f, FMath::Abs(InValue) * UseFalloff);
+				}
 				break;
 			}
 		default:
@@ -1956,8 +2121,8 @@ void USkinWeightsPaintTool::EditWeightOfBoneOnVertices(
 void USkinWeightsPaintTool::RelaxWeightOnVertices(
 	TArray<int32> VertexIndices,
 	TArray<float> VertexFalloffs,
-	int32 Iterations,
-	const float UseStrength,
+	const float Strength,
+	const int32 Iterations,
 	FMultiBoneWeightEdits& InOutWeightEdits)
 {
 	if (!ensure(SmoothWeightsOp))
@@ -1965,13 +2130,13 @@ void USkinWeightsPaintTool::RelaxWeightOnVertices(
 		return;
 	}
 	
-	constexpr float PercentPerIteration = 0.95f;
-	for (int32 Iteration=0; Iteration<Iterations; ++Iteration)
+	for (int32 Iteration=0; Iteration < Iterations; ++Iteration)
 	{
 		for (int32 VertexIndex = 0; VertexIndex < VertexIndices.Num(); ++VertexIndex)
 		{
 			const int32 VertexID = VertexIndices[VertexIndex];
-			const float UseFalloff = (VertexFalloffs.IsValidIndex(VertexIndex) ? VertexFalloffs[VertexIndex] * UseStrength : UseStrength) * PercentPerIteration;
+			constexpr float PercentPerIteration = 0.95f;
+			const float UseFalloff = (VertexFalloffs.IsValidIndex(VertexIndex) ? VertexFalloffs[VertexIndex] * Strength : Strength) * PercentPerIteration;
 
 			TMap<int32, float> FinalWeights;
 			const bool bSmoothSuccess = SmoothWeightsOp->SmoothWeightsAtVertex(VertexID, UseFalloff, FinalWeights);
@@ -2087,6 +2252,12 @@ void USkinWeightsPaintTool::ApplyWeightEditsAsTransaction(const SkinPaintTool::F
 	for (const TTuple<BoneIndex, FSingleBoneWeightEdits>& BoneWeightEdits : WeightEdits.PerBoneWeightEdits)
 	{
 		ActiveChange->AddBoneWeightEdit(BoneWeightEdits.Value);
+	}
+
+	// store pruned influences
+	for (const TPair<VertexIndex, BoneIndex>& PrunedInfluence : WeightEdits.PrunedInfluences)
+	{
+		ActiveChange->AddPruneBoneEdit(PrunedInfluence.Key, PrunedInfluence.Value);
 	}
 	
 	// apply the weight edits of the active change to the actual mesh
@@ -2246,6 +2417,25 @@ void USkinWeightsPaintTool::ExternalUpdateSkinWeightLayer(const EMeshLODIdentifi
 	}
 }
 
+void USkinWeightsPaintTool::ExternalAddInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToAdd)
+{
+	for (const TPair<VertexIndex, BoneIndex>& ToAdd : InfluencesToAdd)
+	{
+		constexpr float DefaultWeight = 0.f;
+		Weights.AddNewInfluenceToVertex(ToAdd.Key, ToAdd.Value, DefaultWeight, Weights.CurrentWeights);
+		Weights.AddNewInfluenceToVertex(ToAdd.Key, ToAdd.Value, DefaultWeight, Weights.PreChangeWeights);
+	}
+}
+
+void USkinWeightsPaintTool::ExternalRemoveInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToRemove)
+{
+	for (const TPair<VertexIndex, BoneIndex>& ToRemove : InfluencesToRemove)
+	{
+		Weights.RemoveInfluenceFromVertex(ToRemove.Key, ToRemove.Value, Weights.CurrentWeights);
+		Weights.RemoveInfluenceFromVertex(ToRemove.Key, ToRemove.Value, Weights.PreChangeWeights);
+	}
+}
+
 void FSkinMirrorData::RegenerateMirrorData(
     const TArray<FName>& BoneNames,
     const TMap<FName, BoneIndex>& BoneNameToIndexMap,
@@ -2386,7 +2576,7 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 	const TMap<VertexIndex, VertexIndex>& VertexMirrorMap = MirrorData.GetVertexMap(); // <Target, Source>
 
 	// get set of vertices to mirror
-	TArray<VertexIndex> AllVerticesToEdit = GetVerticesToEdit();
+	TArray<VertexIndex> AllVerticesToEdit = GetSelectedVertices();
 
 	// convert all vertex indices to the target side of the mirror plane
 	TSet<VertexIndex> VerticesToMirror;
@@ -2425,13 +2615,13 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 		{
 			const float OldWeight = TargetBoneWeight.Weight;
 			constexpr float NewWeight = 0.f;
-			WeightEditsFromMirroring.MergeSingleEdit(TargetBoneWeight.BoneIndex, TargetVertexID, OldWeight, NewWeight);
+			WeightEditsFromMirroring.MergeSingleEdit(TargetBoneWeight.BoneID, TargetVertexID, OldWeight, NewWeight);
 		}
 
 		// copy source weights, but with mirrored bones
 		for (const FVertexBoneWeight& SourceBoneWeight : Weights.PreChangeWeights[SourceVertexID])
 		{
-			const BoneIndex MirroredBoneIndex = BoneMap[SourceBoneWeight.BoneIndex];
+			const BoneIndex MirroredBoneIndex = BoneMap[SourceBoneWeight.BoneID];
 			const float OldWeight = Weights.GetWeightOfBoneOnVertex(MirroredBoneIndex, TargetVertexID, Weights.PreChangeWeights);
 			const float NewWeight = SourceBoneWeight.Weight;
 			WeightEditsFromMirroring.MergeSingleEdit(MirroredBoneIndex, TargetVertexID, OldWeight, NewWeight);
@@ -2452,6 +2642,7 @@ void USkinWeightsPaintTool::MirrorWeights(EAxis::Type Axis, EMirrorDirection Dir
 void USkinWeightsPaintTool::EditWeightsOnVertices(
 	BoneIndex Bone,
 	const float Value,
+	const int32 Iterations,
 	EWeightEditOperation EditOperation,
 	const TArray<VertexIndex>& VertexIndices,
 	const bool bShouldTransact)
@@ -2462,9 +2653,7 @@ void USkinWeightsPaintTool::EditWeightsOnVertices(
 
 	if (EditOperation == EWeightEditOperation::Relax)
 	{
-		const int32 Iterations = static_cast<int32>(Value);
-		constexpr float Strength = 1.0f; // always use max strength, and interpret value as iterations for relaxation
-		RelaxWeightOnVertices(GetVerticesToEdit(), VertexFalloffs, Iterations, Strength, DirectWeightEdits);
+		RelaxWeightOnVertices(GetSelectedVertices(), VertexFalloffs, Value, Iterations, DirectWeightEdits);
 	}
 	else
 	{
@@ -2489,32 +2678,65 @@ void USkinWeightsPaintTool::EditWeightsOnVertices(
 	}
 }
 
-void USkinWeightsPaintTool::PruneWeights(float Threshold)
+void USkinWeightsPaintTool::PruneWeights(float Threshold, const TArray<BoneIndex>& BonesToPrune)
 {
-	// set weights below the given threshold to zero
+	// set weights below the given threshold to zero AND remove them as a recorded influence on that vertex
 	FMultiBoneWeightEdits WeightEditsFromPrune;
-	const TArray<VertexIndex>& VerticesToPrune = GetVerticesToEdit();
-	const bool bPruningAllBones = SelectedBoneIndices.IsEmpty();
+	const TArray<VertexIndex>& VerticesToPrune = GetSelectedVertices();
 	for (const VertexIndex VertexID : VerticesToPrune)
 	{
+		TArray<BoneIndex> InfluencesToPrune;
 		const VertexWeights& VertexWeights = Weights.CurrentWeights[VertexID];
 		for (const FVertexBoneWeight& BoneWeight : VertexWeights)
 		{
-			// are we pruning weights only on selected bones?
-			if (!bPruningAllBones && !SelectedBoneIndices.Contains(BoneWeight.BoneIndex))
+			if (BoneWeight.Weight < Threshold || BonesToPrune.Contains(BoneWeight.BoneID))
 			{
-				// not the bone we're pruning...
-				continue;
+				InfluencesToPrune.Add(BoneWeight.BoneID);
+
+				// store a weight edit to remove this weight
+				WeightEditsFromPrune.MergeSingleEdit(BoneWeight.BoneID, VertexID, BoneWeight.Weight, 0.f);
 			}
+		}
+
+		// actually prune the influences from the vert
+		for (const BoneIndex InfluenceToPrune : InfluencesToPrune)
+		{
+			// store this in the transaction
+			WeightEditsFromPrune.AddPruneBoneEdit(VertexID, InfluenceToPrune);
 			
-			if (BoneWeight.Weight > Threshold)
+			// remove the influence from the vertex to prevent subsequent weight editing from normalizing weight back onto it
+			Weights.RemoveInfluenceFromVertex(VertexID, InfluenceToPrune, Weights.CurrentWeights);
+		}
+
+		// at this point, influences are pruned but this may leave the vertex non-normalized
+		if (VertexWeights.IsEmpty())
+		{
+			// we pruned ALL influences from a vertex, so dump all weight on root
+			constexpr BoneIndex RootBoneIndex = 0;
+			const float OldWeight = Weights.GetWeightOfBoneOnVertex(RootBoneIndex, VertexID, Weights.PreChangeWeights);
+			constexpr float NewWeight = 1.f;
+			WeightEditsFromPrune.MergeSingleEdit(RootBoneIndex, VertexID, OldWeight, NewWeight);
+		}
+		else
+		{
+			// re-normalize all existing weights
+			float TotalWeight = 0.f;
+			for (const FVertexBoneWeight& BoneWeight : VertexWeights)
 			{
-				continue;
+				TotalWeight += BoneWeight.Weight;
 			}
 
-			// note: removing ALL weight from a vertex disqualifies it as a candidate to receive weight during normalization
-			// so there is no need to remove the influence from the per-vertex influence array to "prune" it.
-			Weights.EditVertexWeightAndNormalize(BoneWeight.BoneIndex, VertexID,0.f,WeightEditsFromPrune);
+			// if there were no other weights to normalize (all zero), then simply evenly distribute the weight on the recorded influences
+			const bool bNoOtherWeights = FMath::IsNearlyEqual(TotalWeight, 0.f);
+			const float EvenlySplitWeight = 1.0f / VertexWeights.Num();
+
+			// record weight edits to normalize the weight across the remaining influences
+			for (const FVertexBoneWeight& BoneWeight : VertexWeights)
+			{
+				const float OldWeight = BoneWeight.Weight;
+				const float NewWeight = bNoOtherWeights ? EvenlySplitWeight : BoneWeight.Weight / TotalWeight;
+				WeightEditsFromPrune.MergeSingleEdit(BoneWeight.BoneID, VertexID, OldWeight, NewWeight);
+			}
 		}
 	}
 
@@ -2523,75 +2745,146 @@ void USkinWeightsPaintTool::PruneWeights(float Threshold)
 	ApplyWeightEditsAsTransaction(WeightEditsFromPrune, TransactionLabel);
 }
 
-void USkinWeightsPaintTool::AverageWeights()
+void USkinWeightsPaintTool::AverageWeights(const float Strength)
 {
-	// get vertices to edit weights on
-	const TArray<VertexIndex>& VerticesToAverage = GetVerticesToEdit();
-
-	// accumulate ALL the weights on the vertices
-	TMap<BoneIndex, float> AccumulatedWeightMap;
-	for (const VertexIndex VertexID : VerticesToAverage)
+	// if strength is zero, don't do anything
+	if (FMath::IsNearlyEqual(Strength, 0.0f))
 	{
-		for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
-		{
-			float& AccumulatedWeight = AccumulatedWeightMap.FindOrAdd(BoneWeight.BoneIndex);
-			AccumulatedWeight += BoneWeight.Weight;
-		}
+		return;
 	}
-
-	// sort influences by total weight
-	AccumulatedWeightMap.ValueSort([](const float& A, const float& B)
+	
+	// remove smallest weights values from a weight map to fit in MAX_TOTAL_INFLUENCES
+	auto TruncateWeights = [](TMap<BoneIndex, float>& InOutWeights)
 	{
-		return A > B;
-	});
-
-	// truncate to MaxInfluences
-	int32 Index = 0;
-	for (TMap<BoneIndex, float>::TIterator It(AccumulatedWeightMap); It; ++It)
-	{
-		if (Index >= MAX_TOTAL_INFLUENCES)
+		// sort influences by total weight
+		InOutWeights.ValueSort([](const float& A, const float& B)
 		{
-			It.RemoveCurrent();
-		}
-		else
-		{
-			++Index;
-		}
-	}
+			return A > B;
+		});
 
-	// normalize remaining influences
-	float TotalWeight = 0.f;
-	for (const TTuple<BoneIndex, float>& AccumulatedWeight : AccumulatedWeightMap)
-	{
-		TotalWeight += AccumulatedWeight.Value;
-	}
-	for (TTuple<BoneIndex, float>& AccumulatedWeight : AccumulatedWeightMap)
-	{
-		AccumulatedWeight.Value /= TotalWeight;
-	}
-
-	// apply averaged weights to vertices
-	FMultiBoneWeightEdits WeightEditsFromAveraging;
-	for (const VertexIndex VertexID : VerticesToAverage)
-	{
-		// remove influences not a part of the average results
-		for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
+		// truncate to MaxInfluences
+		int32 Index = 0;
+		for (TMap<BoneIndex, float>::TIterator It(InOutWeights); It; ++It)
 		{
-			if (!AccumulatedWeightMap.Contains(BoneWeight.BoneIndex))
+			if (Index >= MAX_TOTAL_INFLUENCES)
 			{
-				const float OldWeight = BoneWeight.Weight;
-				constexpr float NewWeight = 0.f;
-				WeightEditsFromAveraging.MergeSingleEdit(BoneWeight.BoneIndex, VertexID, OldWeight, NewWeight);
+				It.RemoveCurrent();
+			}
+			else
+			{
+				++Index;
 			}
 		}
+	};
 
-		// add influences from the averaging results
-		for (const TTuple<BoneIndex, float>& AccumulatedWeight : AccumulatedWeightMap)
+	// normalize weights values to sum to 1.0
+	auto NormalizeWeights = [](TMap<BoneIndex, float>& InOutWeights)
+	{
+		// normalize remaining influences
+		float TotalWeight = 0.f;
+		for (const TTuple<BoneIndex, float>& Weight : InOutWeights)
 		{
-			const BoneIndex IndexOfBone = AccumulatedWeight.Key;
-			const float OldWeight = Weights.GetWeightOfBoneOnVertex(IndexOfBone, VertexID, Weights.PreChangeWeights);
-			const float NewWeight = AccumulatedWeight.Value;
-			WeightEditsFromAveraging.MergeSingleEdit(IndexOfBone, VertexID, OldWeight, NewWeight);
+			TotalWeight += Weight.Value;
+		}
+		for (TTuple<BoneIndex, float>& Weight : InOutWeights)
+		{
+			Weight.Value /= TotalWeight > SMALL_NUMBER ? TotalWeight : 1.f;
+		}
+	};
+
+	// sum up all weight on the given vertices
+	auto AccumulateWeights = [](
+		TMap<BoneIndex, float>& OutWeights,
+		TArray<VertexWeights>& AllWeights,
+		const TArray<VertexIndex>& VerticesToAccumulate)
+	{
+		for (const VertexIndex VertexID : VerticesToAccumulate)
+		{
+			for (const FVertexBoneWeight& BoneWeight : AllWeights[VertexID])
+			{
+				float& AccumulatedWeight = OutWeights.FindOrAdd(BoneWeight.BoneID);
+				AccumulatedWeight += BoneWeight.Weight;
+			}
+		}
+	};
+	
+	// get vertices to edit weights on
+	const TArray<VertexIndex>& VerticesToAverage = GetSelectedVertices();
+	TMap<BoneIndex, float> AveragedWeights;
+	AccumulateWeights(AveragedWeights, Weights.PreChangeWeights, VerticesToAverage);
+	TruncateWeights(AveragedWeights);
+	NormalizeWeights(AveragedWeights);
+
+	// store weight edits to apply averaging to selected vertices
+	FMultiBoneWeightEdits WeightEditsFromAveraging;
+	
+	// FULLY apply averaged weights to vertices if strength is 1.0
+	if (FMath::IsNearlyEqual(Strength, 1.0f))
+	{
+		for (const VertexIndex VertexID : VerticesToAverage)
+		{
+			// remove influences not a part of the average results
+			for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
+			{
+				if (!AveragedWeights.Contains(BoneWeight.BoneID))
+				{
+					const float OldWeight = BoneWeight.Weight;
+					constexpr float NewWeight = 0.f;
+					WeightEditsFromAveraging.MergeSingleEdit(BoneWeight.BoneID, VertexID, OldWeight, NewWeight);
+				}
+			}
+
+			// add influences from the averaging results
+			for (const TTuple<BoneIndex, float>& AveragedWeight : AveragedWeights)
+			{
+				const BoneIndex IndexOfBone = AveragedWeight.Key;
+				const float OldWeight = Weights.GetWeightOfBoneOnVertex(IndexOfBone, VertexID, Weights.PreChangeWeights);
+				const float NewWeight = AveragedWeight.Value;
+				WeightEditsFromAveraging.MergeSingleEdit(IndexOfBone, VertexID, OldWeight, NewWeight);
+			}
+		}
+	}
+	else
+	{
+		// blend averaged weight with the existing weight based on the strength value
+		const float OldWeightStrength = 1.0f - Strength;
+		const float NewWeightStrength = Strength;
+		for (const VertexIndex VertexID : VerticesToAverage)
+		{
+			// storage for final blended weights on this vertex
+			TMap<BoneIndex, float> BlendedWeights;
+
+			// scale the existing weights by OldWeightStrength
+			for (const FVertexBoneWeight& BoneWeight : Weights.PreChangeWeights[VertexID])
+			{
+				BlendedWeights.Add(BoneWeight.BoneID, BoneWeight.Weight * OldWeightStrength);
+			}
+			
+			// accumulate existing weights with the scaled averaged weights
+			for (const TTuple<BoneIndex, float>& AveragedWeight : AveragedWeights)
+			{
+				if (BlendedWeights.Contains(AveragedWeight.Key))
+				{
+					BlendedWeights[AveragedWeight.Key] += AveragedWeight.Value * NewWeightStrength;
+				}
+				else
+				{
+					BlendedWeights.Add(AveragedWeight.Key, AveragedWeight.Value * NewWeightStrength);
+				}
+			}
+
+			// enforce max influences and normalize
+			TruncateWeights(BlendedWeights);
+			NormalizeWeights(BlendedWeights);
+			
+			// apply blended weights to this vertex
+			for (const TTuple<BoneIndex, float>& BlendedWeight : BlendedWeights)
+			{
+				const BoneIndex BoneID = BlendedWeight.Key;
+				const float OldWeight = Weights.GetWeightOfBoneOnVertex(BoneID, VertexID, Weights.PreChangeWeights);
+				const float NewWeight = BlendedWeight.Value;
+				WeightEditsFromAveraging.MergeSingleEdit(BoneID, VertexID, OldWeight, NewWeight);
+			}
 		}
 	}
 
@@ -2604,14 +2897,22 @@ void USkinWeightsPaintTool::NormalizeWeights()
 {
 	// re-set a weight on each vertex to force normalization
 	FMultiBoneWeightEdits WeightEditsFromNormalization;
-	const TArray<VertexIndex> VerticesToNormalize = GetVerticesToEdit();
+	const TArray<VertexIndex> VerticesToNormalize = GetSelectedVertices();
 	for (const VertexIndex VertexID : VerticesToNormalize)
 	{
 		const VertexWeights& VertexWeights = Weights.CurrentWeights[VertexID];
-		for (const FVertexBoneWeight& BoneWeight : VertexWeights)
+		if (VertexWeights.IsEmpty())
 		{
-			// set weight to current value, just to force re-normalization
-			Weights.EditVertexWeightAndNormalize(BoneWeight.BoneIndex, VertexID, BoneWeight.Weight,WeightEditsFromNormalization);
+			// ALL influences have been pruned from vertex, so assign it to the root
+			constexpr BoneIndex RootBoneIndex = 0;
+			constexpr float FullWeight = 1.f;
+			Weights.EditVertexWeightAndNormalize(RootBoneIndex, VertexID, FullWeight,WeightEditsFromNormalization);
+		}
+		else
+		{
+			// set first weight to current value, just to force re-normalization
+			const FVertexBoneWeight& BoneWeight = VertexWeights[0];
+			Weights.EditVertexWeightAndNormalize(BoneWeight.BoneID, VertexID, BoneWeight.Weight,WeightEditsFromNormalization);
 		}
 	}
 
@@ -2719,7 +3020,7 @@ void USkinWeightsPaintTool::TransferWeights()
 					for (const FVertexBoneWeight& BoneWeight : VertexBoneWeights)
 					{
 						const float OldWeight = BoneWeight.Weight;
-						WeightEdits.MergeSingleEdit(BoneWeight.BoneIndex, SrcVertexID, OldWeight, ZeroWeight);
+						WeightEdits.MergeSingleEdit(BoneWeight.BoneID, SrcVertexID, OldWeight, ZeroWeight);
 					}
 				}
 				else
@@ -2965,6 +3266,81 @@ void USkinWeightsPaintTool::FloodSelection() const
 	PolygonSelectionMechanic->FloodSelection();
 }
 
+void USkinWeightsPaintTool::SelectAffected() const
+{
+	GetToolManager()->BeginUndoTransaction(LOCTEXT("AffectedSelectionChange", "Select Affected"));
+	PolygonSelectionMechanic->BeginChange();
+	
+	// get all vertices affected by all selected bones
+	TSet<int32> AffectedVertices;
+	for (const BoneIndex SelectedBone : SelectedBoneIndices)
+	{
+		GetVerticesAffectedByBone(SelectedBone, AffectedVertices);
+	}
+	
+	// create selection set
+	FGroupTopologySelection Selection;
+
+	// optionally add/remove/replace selection based on modifier key state
+	const FGroupTopologySelection& CurrentSelection = PolygonSelectionMechanic->GetActiveSelection();
+	if (bShiftToggle)
+	{
+		// ADD to selection
+		Selection.SelectedCornerIDs.Append(CurrentSelection.SelectedCornerIDs);
+		Selection.SelectedCornerIDs.Append(AffectedVertices);
+	}
+	else if (bCtrlToggle)
+	{
+		// REMOVE from selection
+		Selection.SelectedCornerIDs = CurrentSelection.SelectedCornerIDs.Difference(AffectedVertices);
+	}
+	else
+	{
+		// REPLACE selection
+		Selection.SelectedCornerIDs.Append(AffectedVertices);
+	}
+	
+	// select vertices
+	constexpr bool bBroadcast = true;
+	PolygonSelectionMechanic->SetSelection(Selection, bBroadcast);
+	PolygonSelectionMechanic->EndChangeAndEmitIfModified();
+	GetToolManager()->EndUndoTransaction();
+}
+
+void USkinWeightsPaintTool::SelectBorder() const
+{
+	const FDynamicMesh3* Mesh = PreviewMesh->GetMesh();
+
+	const FGroupTopologySelection& CurrentSelection = PolygonSelectionMechanic->GetActiveSelection();
+	
+	// find all border vertices
+	// a "border" vertex is one that has a 1-ring neighbor that is not in the selection set
+	TSet<int32> BorderVertices;
+	for (const int32 SelectedVertex : CurrentSelection.SelectedCornerIDs)
+	{
+		for (const int32 NeighborIndex : Mesh->VtxVerticesItr(SelectedVertex))
+		{
+			if (!CurrentSelection.SelectedCornerIDs.Contains(NeighborIndex))
+			{
+				BorderVertices.Add(SelectedVertex);
+			}
+		}
+	}
+
+	GetToolManager()->BeginUndoTransaction(LOCTEXT("BorderSelectionChange", "Select Border"));
+	PolygonSelectionMechanic->BeginChange();
+
+	// create selection set
+	FGroupTopologySelection Selection;
+	Selection.SelectedCornerIDs.Append(BorderVertices);
+	
+	// select vertices
+	constexpr bool bBroadcast = true;
+	PolygonSelectionMechanic->SetSelection(Selection, bBroadcast);
+	PolygonSelectionMechanic->EndChangeAndEmitIfModified();
+	GetToolManager()->EndUndoTransaction();
+}
+
 bool USkinWeightsPaintTool::IsAnyComponentSelected() const
 {
 	if (!PolygonSelectionMechanic)
@@ -3094,9 +3470,9 @@ void USkinWeightsPaintTool::FinishIsolatedSelection()
 		{
 			const UE::AnimationCore::FBoneWeight& SingleBoneWeight = VertexWeightsPartial[InfluenceIndex];
 			FVertexBoneWeight& VertexBoneWeight = Weights.CurrentWeights[VertexIndexFull][InfluenceIndex];
-			VertexBoneWeight.BoneIndex = SingleBoneWeight.GetBoneIndex();
+			VertexBoneWeight.BoneID = SingleBoneWeight.GetBoneIndex();
 			VertexBoneWeight.Weight = SingleBoneWeight.GetWeight();
-			VertexBoneWeight.VertexInBoneSpace = Weights.Deformer.InvCSRefPoseTransforms[VertexBoneWeight.BoneIndex].TransformPosition(Weights.Deformer.RefPoseVertexPositions[VertexIndexFull]);
+			VertexBoneWeight.VertexInBoneSpace = Weights.Deformer.InvCSRefPoseTransforms[VertexBoneWeight.BoneID].TransformPosition(Weights.Deformer.RefPoseVertexPositions[VertexIndexFull]);
 		}
 	}
 	// sync both weight buffers
@@ -3172,33 +3548,28 @@ const TArray<int32>& USkinWeightsPaintTool::GetSelectedVertices() const
 	return SelectedVertices;
 }
 
-const TArray<int32>& USkinWeightsPaintTool::GetVerticesToEdit()
+void USkinWeightsPaintTool::GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const
 {
-	// prioritize re-using selected vertices array (if there are any)
-	if (!SelectedVertices.IsEmpty())
+	VertexIndex VertexID = 0;
+	for (const VertexWeights& VertWeights : Weights.PreChangeWeights)
 	{
-		return SelectedVertices;
-	}
-	
-	// fallback on vertices weighted to selected bones
-	VerticesToEdit.Reset();
-	if (!SelectedBoneIndices.IsEmpty())
-	{
-		VertexIndex VertexID = 0;
-		for (const VertexWeights& VertWeights : Weights.PreChangeWeights)
+		for (const FVertexBoneWeight& BoneWeight : VertWeights)
 		{
-			for (const FVertexBoneWeight& BoneWeight : VertWeights)
+			if (BoneWeight.BoneID != IndexOfBone)
 			{
-				if (SelectedBoneIndices.Contains(BoneWeight.BoneIndex) && BoneWeight.Weight > MinimumWeightThreshold)
-				{
-					VerticesToEdit.Add(VertexID);	
-				}
+				continue;
 			}
-			++VertexID;
-		}
-	}
 
-	return VerticesToEdit;
+			if (BoneWeight.Weight < MinimumWeightThreshold)
+			{
+				continue;
+			}
+			
+			OutVertexIndices.Add(VertexID);
+		}
+		
+		++VertexID;
+	}
 }
 
 void USkinWeightsPaintTool::GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const
@@ -3243,10 +3614,7 @@ void USkinWeightsPaintTool::GetInfluences(const TArray<int32>& VertexIndices, TA
 	{
 		for (const FVertexBoneWeight& VertexBoneData : Weights.CurrentWeights[SelectedVertex])
 		{
-			if (VertexBoneData.Weight >= MinimumWeightThreshold)
-			{
-				OutBoneIndices.AddUnique(VertexBoneData.BoneIndex);
-			}
+			OutBoneIndices.AddUnique(VertexBoneData.BoneID);
 		}
 	}
 	
@@ -3270,7 +3638,7 @@ float USkinWeightsPaintTool::GetAverageWeightOnBone(
 		
 		for (const FVertexBoneWeight& VertexBoneData : Weights.CurrentWeights[SelectedVertex])
 		{
-			if (VertexBoneData.BoneIndex == InBoneIndex)
+			if (VertexBoneData.BoneID == InBoneIndex)
 			{
 				++NumVerticesInfluencedByBone;
 				TotalWeight += VertexBoneData.Weight;

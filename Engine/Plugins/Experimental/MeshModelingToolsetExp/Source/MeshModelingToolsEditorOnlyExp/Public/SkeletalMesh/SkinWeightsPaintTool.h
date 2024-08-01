@@ -80,7 +80,8 @@ enum class EWeightEditOperation : uint8
 	Add,
 	Replace,
 	Multiply,
-	Relax
+	Relax,
+	RelativeScale
 };
 
 // mirror direction mode
@@ -97,11 +98,11 @@ namespace SkinPaintTool
 
 	struct FVertexBoneWeight
 	{
-		FVertexBoneWeight() : BoneIndex(INDEX_NONE), VertexInBoneSpace(FVector::ZeroVector), Weight(0.0f) {}
+		FVertexBoneWeight() : BoneID(INDEX_NONE), VertexInBoneSpace(FVector::ZeroVector), Weight(0.0f) {}
 		FVertexBoneWeight(BoneIndex InBoneIndex, const FVector& InPosInRefPose, float InWeight) :
-			BoneIndex(InBoneIndex), VertexInBoneSpace(InPosInRefPose), Weight(InWeight){}
+			BoneID(InBoneIndex), VertexInBoneSpace(InPosInRefPose), Weight(InWeight){}
 		
-		BoneIndex BoneIndex;
+		BoneIndex BoneID;
 		FVector VertexInBoneSpace;
 		float Weight;
 	};
@@ -154,11 +155,15 @@ namespace SkinPaintTool
 		void MergeEdits(const FSingleBoneWeightEdits& BoneWeightEdits);
 		float GetVertexDeltaFromEdits(const int32 BoneIndex, const int32 VertexIndex);
 		void GetEditedVertexIndices(TSet<int32>& OutVerticesToEdit) const;
+		void AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
 
 		// map of bone indices to weight edits made to that bone
 		TMap<BoneIndex, FSingleBoneWeightEdits> PerBoneWeightEdits;
-	};
 
+		// influences to prune as part of these edits
+		TArray<TPair<VertexIndex, BoneIndex>> PrunedInfluences;
+	};
+	
 	class FMeshSkinWeightsChange : public FToolCommandChange
 	{
 	public:
@@ -170,7 +175,7 @@ namespace SkinPaintTool
 
 		virtual FString ToString() const override
 		{
-			return FString(TEXT("Paint Skin Weights"));
+			return FString(TEXT("Edit Skin Weights"));
 		}
 
 		virtual void Apply(UObject* Object) override;
@@ -178,6 +183,8 @@ namespace SkinPaintTool
 		virtual void Revert(UObject* Object) override;
 
 		void AddBoneWeightEdit(const FSingleBoneWeightEdits& BoneWeightEdit);
+
+		void AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
 
 	private:
 		FMultiBoneWeightEdits AllWeightEdits;
@@ -214,6 +221,17 @@ namespace SkinPaintTool
 			const float Weight,
 			TArray<VertexWeights>& InOutVertexData);
 
+		void RemoveInfluenceFromVertex(
+			const VertexIndex VertexID,
+			const BoneIndex BoneID,
+			TArray<VertexWeights>& InOutVertexWeights);
+
+		void AddNewInfluenceToVertex(
+			const VertexIndex VertexID,
+			const BoneIndex BoneIndex,
+			const float Weight,
+			TArray<VertexWeights>& InOutVertexWeights);
+
 		void SwapAfterChange();
 
 		float SetCurrentFalloffAndGetMaxFalloffThisStroke(int32 VertexID, float CurrentStrength);
@@ -221,6 +239,8 @@ namespace SkinPaintTool
 		void ApplyEditsToCurrentWeights(const FMultiBoneWeightEdits& Edits);
 
 		void UpdateIsBoneWeighted(BoneIndex BoneToUpdate);
+
+		BoneIndex GetParentBoneToWeightTo(BoneIndex ChildBone);
 		
 		// double-buffer of the entire weight matrix (stored sparsely for fast deformation)
 		// "Pre" is state of weights at stroke start
@@ -350,9 +370,13 @@ public:
 	UPROPERTY(Config)
 	float PruneValue = 0.01;
 	UPROPERTY(Config)
+	float AddStrength = 1.0;
+	UPROPERTY(Config)
 	float ReplaceValue = 1.0;
 	UPROPERTY(Config)
-	int32 RelaxIterations = 5;
+	float RelaxStrength = 0.5;
+	UPROPERTY(Config)
+	float AverageStrength = 1.0;
 	// the state of the direct weight editing tools (mode buttons + slider)
 	FDirectEditWeightState DirectEditState;
 
@@ -457,11 +481,13 @@ public:
 	// using when ToolChange is applied via Undo/Redo
 	void ExternalUpdateWeights(const int32 BoneIndex, const TMap<int32, float>& IndexValues);
 	void ExternalUpdateSkinWeightLayer(const EMeshLODIdentifier InLOD, const FName InSkinWeightProfile);
+	void ExternalAddInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToAdd);
+	void ExternalRemoveInfluences(const TArray<TPair<VertexIndex, BoneIndex>>& InfluencesToRemove);
 
 	// weight editing operations (selection based)
 	void MirrorWeights(EAxis::Type Axis, EMirrorDirection Direction);
-	void PruneWeights(const float Threshold);
-	void AverageWeights();
+	void PruneWeights(const float Threshold, const TArray<BoneIndex>& BonesToPrune);
+	void AverageWeights(const float Strength);
 	void NormalizeWeights();
 	void TransferWeights();
 	
@@ -469,6 +495,7 @@ public:
 	void EditWeightsOnVertices(
 		BoneIndex Bone,
 		const float Value,
+		const int32 Iterations,
 		EWeightEditOperation EditOperation,
 		const TArray<VertexIndex>& VerticesToEdit,
 		const bool bShouldTransact);
@@ -481,6 +508,8 @@ public:
 	void GrowSelection() const;
 	void ShrinkSelection() const;
 	void FloodSelection() const;
+	void SelectAffected() const;
+	void SelectBorder() const;
 	// isolate selection
 	bool IsAnyComponentSelected() const;
 	bool IsSelectionIsolated() const;
@@ -488,7 +517,7 @@ public:
 
 	// get a list of currently selected vertices (converting edges and faces to vertices)
 	const TArray<int32>& GetSelectedVertices() const;
-	const TArray<int32>& GetVerticesToEdit();
+	void GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const;
 	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
 
 	// get the average weight value of each influence on the given vertices
@@ -568,14 +597,14 @@ protected:
 		const BoneIndex Bone,
 		const TArray<int32>& VerticesToEdit,
 		const TArray<float>& VertexFalloffs,
-		const float UseStrength,
+		const float InValue,
 		SkinPaintTool::FMultiBoneWeightEdits& InOutWeightEdits);
 	// same as EditWeightOfVertices() but specific to relaxation (topology aware operation)
 	void RelaxWeightOnVertices(
 		TArray<int32> VerticesToEdit,
 		TArray<float> VertexFalloffs,
-		int32 Iterations,
-		const float UseStrength,
+		const float Strength,
+		const int32 Iterations,
 		SkinPaintTool::FMultiBoneWeightEdits& InOutWeightEdits);
 
 	// used to accelerate mesh queries
@@ -649,7 +678,6 @@ protected:
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
 	void InitializeSelectionMechanic();
 	TArray<VertexIndex> SelectedVertices;
-	TArray<VertexIndex> VerticesToEdit;
 
 	// isolate selection sub-meshes
 	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
