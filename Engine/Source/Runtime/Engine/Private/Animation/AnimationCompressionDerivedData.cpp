@@ -111,7 +111,7 @@ void FAnimationSequenceAsyncCacheTask::BeginCache(const FIoHash& KeyHash)
 
 		check(BuildTask == nullptr);
 		BuildTask = MakeUnique<FAnimationSequenceAsyncBuildTask>(this, KeyHash);
-		BuildTask->StartBackgroundTask(ThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, RequiredMemory);
+		BuildTask->StartBackgroundTask(ThreadPool, BasePriority, EQueuedWorkFlags::DoNotRunInsideBusyWait, RequiredMemory, TEXT("AnimationCompression"));
 	}
 }
 	
