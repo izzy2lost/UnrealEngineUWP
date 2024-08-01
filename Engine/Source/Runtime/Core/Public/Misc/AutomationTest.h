@@ -3495,6 +3495,9 @@ protected:
 		RootDefinitionScope.Reset();
 		DefinitionScopeStack.Empty();
 		bHasBeenDefined = false;
+
+		RootDefinitionScope = MakeShareable(new FSpecDefinitionScope());
+		DefinitionScopeStack.Push(RootDefinitionScope.ToSharedRef());
 	}
 
 private:
