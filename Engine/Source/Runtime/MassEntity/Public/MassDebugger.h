@@ -191,7 +191,7 @@ struct MASSENTITY_API FMassDebugger
 	static void DebugEvent(TArgs&&... InArgs)
 	{
 		DebugEvent(TMessage::StaticStruct()->GetFName()
-			, FInstancedStruct::Make<TMessage>(Forward<TArgs>(InArgs)...));
+			, FConstStructView::Make(TMessage(Forward<TArgs>(InArgs)...)));
 	}
 
 	static void RegisterEntityManager(FMassEntityManager& EntityManager);

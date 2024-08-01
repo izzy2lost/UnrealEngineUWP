@@ -162,7 +162,7 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 		{
 			++ErrorCount;
 			IF_MESSAGES(
-				FMassDebugger::DebugEvent(UE::Mass::Debug::TraitFailedValidation, FInstancedStruct::Make<FMassGenericDebugEvent>(TraitData.Trait));
+				FMassDebugger::DebugEvent(UE::Mass::Debug::TraitFailedValidation, FConstStructView::Make(FMassGenericDebugEvent(TraitData.Trait)));
 			);
 		}
 	}
@@ -189,7 +189,7 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 				}
 				IF_MESSAGES(
 					FMassDebugger::DebugEvent(FMassDuplicateElementsMessage::StaticStruct()->GetFName()
-						, FInstancedStruct::Make<FMassDuplicateElementsMessage>(TraitData.Trait, SourceTrait, TypeAdded)
+						, FConstStructView::Make(FMassDuplicateElementsMessage(TraitData.Trait, SourceTrait, TypeAdded))
 						, UE::Mass::Debug::bReportDuplicatedFragmentsAsWarnings ? EMassDebugMessageSeverity::Warning : EMassDebugMessageSeverity::Info);
 				);
 			}
@@ -221,7 +221,7 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 	for (const UMassEntityTraitBase* IgnoredTrait : IgnoredTraits)
 	{
 		IF_MESSAGES(
-			FMassDebugger::DebugEvent(UE::Mass::Debug::TraitIgnored, FInstancedStruct::Make<FMassGenericDebugEvent>(IgnoredTrait));
+			FMassDebugger::DebugEvent(UE::Mass::Debug::TraitIgnored, FConstStructView::Make(FMassGenericDebugEvent(IgnoredTrait)));
 		);
 		++WarningCount;
 	}
