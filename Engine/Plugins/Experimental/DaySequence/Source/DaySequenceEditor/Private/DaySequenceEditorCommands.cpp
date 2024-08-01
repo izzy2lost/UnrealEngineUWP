@@ -9,7 +9,6 @@ void FDaySequenceEditorCommands::RegisterCommands()
 	UI_COMMAND(OverrideInitialTimeOfDay, "Override Initial Time of Day", "Use the current preview time as the initial time of day in PIE", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(OverrideRunDayCycle, "Freeze Time in PIE", "Pauses the day cycle when starting PIE", EUserInterfaceActionType::ToggleButton, FInputChord());
 	
-	UI_COMMAND(OpenDaySequenceEditor, "DaySequence", "Opens the Day Sequence Editor", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(SelectDaySequenceActor, "Select Day Sequence Actor", "Selects the Day Sequence Actor", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RefreshDaySequenceActor, "Refresh Day Sequence Actor", "Refreshes the Main Sequence in the Day Sequence Actor", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(OpenDaySequenceActor, "Open Day Sequence Actor", "Opens the Day Sequence Actor blueprint", EUserInterfaceActionType::Button, FInputChord());

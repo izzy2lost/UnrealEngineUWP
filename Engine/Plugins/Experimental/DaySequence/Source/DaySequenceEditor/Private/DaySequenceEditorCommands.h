@@ -21,7 +21,6 @@ public:
 	TSharedPtr<FUICommandInfo> OverrideInitialTimeOfDay;
 	TSharedPtr<FUICommandInfo> OverrideRunDayCycle;
 	
-	TSharedPtr<FUICommandInfo> OpenDaySequenceEditor;
 	TSharedPtr<FUICommandInfo> SelectDaySequenceActor;
 	TSharedPtr<FUICommandInfo> RefreshDaySequenceActor;
 	TSharedPtr<FUICommandInfo> OpenDaySequenceActor;
