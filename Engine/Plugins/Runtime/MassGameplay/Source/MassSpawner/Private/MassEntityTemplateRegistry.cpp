@@ -145,7 +145,7 @@ bool FMassEntityTemplateBuildContext::SetTraitBeingProcessed(const UMassEntityTr
 
 bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 {
-#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR && WITH_EDITORONLY_DATA
+#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR && WITH_EDITORONLY_DATA && WITH_MASSENTITY_DEBUG
 #define IF_MESSAGES(Message) if (GEditor) { Message }
 #else
 #define IF_MESSAGES(_)

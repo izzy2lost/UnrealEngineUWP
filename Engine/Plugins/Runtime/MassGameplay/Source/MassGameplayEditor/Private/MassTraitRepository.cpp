@@ -96,6 +96,8 @@ void UMassTraitRepository::Initialize(FSubsystemCollectionBase& Collection)
 // the way certain events are handled. 
 void UMassTraitRepository::OnDebugEvent(const FName EventName, FConstStructView Payload, EMassDebugMessageSeverity SeverityOverride)
 {
+#if WITH_MASSENTITY_DEBUG
+
 	static const FName MissingTraitMessageName = FMassMissingTraitMessage::StaticStruct()->GetFName();
 	static const FName DuplicateElementsMessageName = FMassDuplicateElementsMessage::StaticStruct()->GetFName();
 
@@ -234,6 +236,7 @@ void UMassTraitRepository::OnDebugEvent(const FName EventName, FConstStructView 
 	}
 
 #undef OVERRIDABLE_SEVERITY
+#endif // WITH_MASSENTITY_DEBUG
 }
 
 TConstArrayView<FName> UMassTraitRepository::GetTraitsNameAddingElements(const FName ElementName)
