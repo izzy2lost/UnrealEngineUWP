@@ -84,10 +84,6 @@ void FPackageLocalizationManager::InitializeFromCache(const TSharedRef<IPackageL
 	if (!GIsEditor)
 	{
 		ActiveCache->ConditionalUpdateCache();
-
-		// Allow the plugin manager to update the package localization cache by exposing access through a delegate.
-		// PluginManager is a Core class, but package localization functionality is added at the CoreUObject level.
-		IPluginManager::Get().SetUpdatePackageLocalizationCacheDelegate(IPluginManager::FUpdatePackageLocalizationCacheDelegate::CreateRaw(this, &FPackageLocalizationManager::ConditionalUpdateCache));
 	}
 }
 

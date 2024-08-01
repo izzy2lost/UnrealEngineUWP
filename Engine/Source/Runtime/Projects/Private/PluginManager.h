@@ -159,7 +159,6 @@ public:
 	virtual void GetLocalizationPathsForEnabledPlugins( TArray<FString>& OutLocResPaths ) override;
 	virtual void SetRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate ) override;
 	virtual void SetUnRegisterMountPointDelegate( const FRegisterMountPointDelegate& Delegate ) override;
-	virtual void SetUpdatePackageLocalizationCacheDelegate( const FUpdatePackageLocalizationCacheDelegate& Delegate ) override;
 	virtual bool AreRequiredPluginsAvailable() override;
 	virtual FGetExplanationForUnavailablePackageWithPluginInfoDelegate& GetExplanationForUnavailablePackageWithPluginInfoDelegate() override;
 
@@ -349,10 +348,6 @@ private:
 	/** Delegate for unmounting content paths.  Bound by FPackageName code in CoreUObject, so that we can access
 	    content path unmounting functionality from Core. */
 	FRegisterMountPointDelegate UnRegisterMountPointDelegate;
-
-	/** Delegate for updating the package localization cache.  Bound by FPackageLocalizationManager code in 
-		CoreUObject, so that we can access localization cache functionality from Core. */
-	FUpdatePackageLocalizationCacheDelegate UpdatePackageLocalizationCacheDelegate;
 
 	/** Set if all the required plugins are available */
 	bool bHaveAllRequiredPlugins = false;

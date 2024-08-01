@@ -28,12 +28,6 @@ void FPackageLocalizationCultureCache::ConditionalUpdateCache_NoLock()
 		return;
 	}
 
-	if (!IsInGameThread())
-	{
-		UE_LOG(LogPackageLocalizationCache, Warning, TEXT("Skipping the cache update for %d pending package path(s) due to a cache request from a non-game thread. Some localized packages may be missed for this query."), PendingSourceRootPathsToSearch.Num());
-		return;
-	}
-
 	SCOPED_BOOT_TIMING("FPackageLocalizationCultureCache::ConditionalUpdateCache_NoLock");
 	const double CacheStartTime = FPlatformTime::Seconds();
 
@@ -333,12 +327,6 @@ void FPackageLocalizationCache::ConditionalUpdatePackageNameToAssetGroupCache_No
 		return;
 	}
 
-	if (!IsInGameThread())
-	{
-		UE_LOG(LogPackageLocalizationCache, Warning, TEXT("Skipping the cache update for the package asset groups due to a cache request from a non-game thread. Some localized packages may be missed for this query."));
-		return;
-	}
-
 	PackageNameToAssetGroup.Reset();
 	for (const auto& AssetClassGroupPair : AssetClassesToAssetGroups)
 	{
@@ -383,16 +371,18 @@ void FPackageLocalizationCache::HandleCultureChanged()
 	const FString CurrentCultureName = FInternationalization::Get().GetCurrentLanguage()->GetName();
 	CurrentCultureCache = FindOrAddCacheForCulture_NoLock(CurrentCultureName);
 
-	// We expect culture changes to happen on the game thread, so update the cache now while it is likely safe to do so
-	// (ConditionalUpdateCache will internally check that this is currently the game thread before allowing the update)
-	const TArray<FCultureRef> CurrentCultures = FInternationalization::Get().GetCurrentCultures(/*bIncludeLanguage*/true, /*bIncludeLocale*/false, /*bIncludeAssetGroups*/true);
-	for (const FCultureRef& CurrentCulture : CurrentCultures)
+	if (!GIsEditor)
 	{
-		if (TSharedPtr<FPackageLocalizationCultureCache> CultureCache = FindOrAddCacheForCulture_NoLock(CurrentCulture->GetName()))
+		// Preemptively update the cache outside of the editor
+		const TArray<FCultureRef> CurrentCultures = FInternationalization::Get().GetCurrentCultures(/*bIncludeLanguage*/true, /*bIncludeLocale*/false, /*bIncludeAssetGroups*/true);
+		for (const FCultureRef& CurrentCulture : CurrentCultures)
 		{
-			CultureCache->ConditionalUpdateCache();
+			if (TSharedPtr<FPackageLocalizationCultureCache> CultureCache = FindOrAddCacheForCulture_NoLock(CurrentCulture->GetName()))
+			{
+				CultureCache->ConditionalUpdateCache();
+			}
 		}
-	}
 
-	ConditionalUpdatePackageNameToAssetGroupCache_NoLock();
+		ConditionalUpdatePackageNameToAssetGroupCache_NoLock();
+	}
 }

@@ -2932,11 +2932,6 @@ void FPluginManager::SetUnRegisterMountPointDelegate( const FRegisterMountPointD
 	UnRegisterMountPointDelegate = Delegate;
 }
 
-void FPluginManager::SetUpdatePackageLocalizationCacheDelegate( const FUpdatePackageLocalizationCacheDelegate& Delegate )
-{
-	UpdatePackageLocalizationCacheDelegate = Delegate;
-}
-
 bool FPluginManager::AreRequiredPluginsAvailable()
 {
 	return ConfigureEnabledPlugins();
@@ -3423,9 +3418,6 @@ void FPluginManager::MountPluginFromExternalSource(const TSharedRef<FPlugin>& Pl
 			{
 				EngineConfigFile->AddUniqueToSection(TEXT("Core.System"), "Paths", MoveTemp(ContentDir));
 			}
-
-			// Update the localization cache for the newly added content directory
-			UpdatePackageLocalizationCacheDelegate.ExecuteIfBound();
 		}
 	}
 

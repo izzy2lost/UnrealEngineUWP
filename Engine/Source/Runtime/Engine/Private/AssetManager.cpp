@@ -2627,7 +2627,21 @@ bool UAssetManager::OnAssetRegistryAvailableAfterInitialization(FName InName, FA
 		if (bLoaded)
 		{
 			LocalAssetRegistry.AppendState(OutNewState);
-			FPackageLocalizationManager::Get().ConditionalUpdateCache();
+
+			// Invalidate the package localization cache for any updated mount roots
+			{
+				TArray<FString> RootPathsToInvalidate;
+				OutNewState.EnumerateAllPaths([&RootPathsToInvalidate](const FName PackagePath)
+				{
+					FString RootPath = FPackageName::SplitPackageNameRoot(PackagePath, nullptr);
+					RootPath.InsertAt(0, TEXT('/'));
+					RootPathsToInvalidate.AddUnique(MoveTemp(RootPath));
+				});
+				for (const FString& RootPathToInvalidate : RootPathsToInvalidate)
+				{
+					FPackageLocalizationManager::Get().InvalidateRootSourcePath(RootPathToInvalidate);
+				}
+			}
 
 			TArray<FAssetData> NewAssetData;
 			bool bRebuildReferenceList = false;

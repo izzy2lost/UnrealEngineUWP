@@ -251,9 +251,6 @@ FORCEINLINE void EnsurePackageLocalization(UPackage* InPackage)
 		TextNamespaceUtil::EnsurePackageNamespace(InPackage);
 	}
 #endif // USE_STABLE_LOCALIZATION_KEYS
-
-	// Also make sure the localization cache is up to date, since updating it during the GIsSavingPackage won't allow object resolving
-	FPackageLocalizationManager::Get().ConditionalUpdateCache();
 }
 
 void PreSavePackage(FSaveContext& SaveContext)

@@ -1883,7 +1883,6 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 	UE::GameFeatures::FResult Result;
 	ESubState StartedSubStates = ESubState::None;
 	ESubState CompletedSubStates = ESubState::None;
-	bool bLoadedAssetRegistryState = false;
 	bool bCheckedRealtimeMode = false;
 	bool bForceMonolithicShaderLibrary = true;	// use monolithic unless a DLC plugin is chunked
 
@@ -1966,7 +1965,6 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		Result = MakeValue();
 		StartedSubStates = ESubState::None;
 		CompletedSubStates = ESubState::None;
-		bLoadedAssetRegistryState = false;
 		bCheckedRealtimeMode = false;
 		bForceMonolithicShaderLibrary = false;
 
@@ -2189,6 +2187,16 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			}
 		}
 
+		auto RefreshPackageLocalizationCacheForPlugin = [NewlyMountedPlugin]()
+		{
+			// We need to refresh the package localization cache for a GFP if it loaded cooked asset registry state, 
+			// as we need the asset registry data to correctly build the package localization cache for the GFP
+			if (NewlyMountedPlugin && NewlyMountedPlugin->CanContainContent())
+			{
+				FPackageLocalizationManager::Get().InvalidateRootSourcePath(NewlyMountedPlugin->GetMountedAssetPath());
+			}
+		};
+
 		if (!UseAsyncLoading())
 		{
 			FAssetRegistryState PluginAssetRegistryState;
@@ -2196,19 +2204,19 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 			{
 				IAssetRegistry& AssetRegistry = UAssetManager::Get().GetAssetRegistry();
 				AssetRegistry.AppendState(PluginAssetRegistryState);
+				RefreshPackageLocalizationCacheForPlugin();
 			}
 			else
 			{
 				Result = GetErrorResult(TEXT("Failed_To_Load_Plugin_AssetRegistry"));
 			}
 
-			bLoadedAssetRegistryState = true;
 			CompletedSubStates |= ESubState::LoadAssetRegistry;
 			return;
 		}
 
 		const bool bForceSyncAssetRegistryAppend = UE::GameFeatures::CVarForceSyncAssetRegistryAppend.GetValueOnGameThread();
-		UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginAssetRegistry=MoveTemp(PluginAssetRegistry), bForceSyncAssetRegistryAppend]
+		UE::Tasks::Launch(UE_SOURCE_LOCATION, [this, PluginAssetRegistry=MoveTemp(PluginAssetRegistry), bForceSyncAssetRegistryAppend, RefreshPackageLocalizationCacheForPlugin]
 		{
 			bool bSuccess = false;
 			TSharedPtr<FAssetRegistryState> PluginAssetRegistryState = MakeShared<FAssetRegistryState>();
@@ -2218,11 +2226,12 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 				if (!bForceSyncAssetRegistryAppend)
 				{
 					AssetRegistry.AppendState(*PluginAssetRegistryState);
+					RefreshPackageLocalizationCacheForPlugin();
 				}
 				bSuccess = true;
 			}
 
-			ExecuteOnGameThread(UE_SOURCE_LOCATION, [this, PluginAssetRegistryState, bSuccess, bForceSyncAssetRegistryAppend]
+			ExecuteOnGameThread(UE_SOURCE_LOCATION, [this, PluginAssetRegistryState, bSuccess, bForceSyncAssetRegistryAppend, RefreshPackageLocalizationCacheForPlugin]
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(GFP_Mounting_ARComplete);
 
@@ -2234,9 +2243,9 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 				{
 					IAssetRegistry& AssetRegistry = UAssetManager::Get().GetAssetRegistry();
 					AssetRegistry.AppendState(*PluginAssetRegistryState);
+					RefreshPackageLocalizationCacheForPlugin();
 				}
 
-				bLoadedAssetRegistryState = true;
 				CompletedSubStates |= ESubState::LoadAssetRegistry;
 				UpdateStateMachineImmediate();
 			});
@@ -2284,18 +2293,6 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		// Post-mount
 		if (bComplete)
 		{
-			if (bLoadedAssetRegistryState)
-			{
-				// We need to refresh the package localization cache for a GFP if it loaded cooked asset registry state, 
-				// as we need the asset registry data to correctly build the package localization cache for the GFP
-				if (TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(StateProperties.PluginName);
-					Plugin && Plugin->CanContainContent())
-				{
-					FPackageLocalizationManager::Get().InvalidateRootSourcePath(Plugin->GetMountedAssetPath());
-					FPackageLocalizationManager::Get().ConditionalUpdateCache();
-				}
-			}
-
 			FGameFeaturePostMountingContext Context(StateProperties.PluginName, [this](FStringView InPauserTag) { OnPostMountPauserCompleted(InPauserTag); });
 			NumExpectedPostMountPausers = INDEX_NONE;
 			UGameFeaturesSubsystem::Get().OnGameFeaturePostMounting(StateProperties.PluginName, StateProperties.PluginIdentifier, Context);
