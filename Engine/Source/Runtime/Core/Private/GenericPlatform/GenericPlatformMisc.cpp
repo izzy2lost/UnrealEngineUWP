@@ -2028,12 +2028,8 @@ bool FGenericPlatformMisc::IsPGIActive()
 
 int FGenericPlatformMisc::GetMobilePropagateAlphaSetting()
 {
-	static int PropagateAlpha = -1;
-	if (PropagateAlpha < 0)
-	{
-		GConfig->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.Mobile.PropagateAlpha"), PropagateAlpha, GEngineIni);
-	}
-	return PropagateAlpha;
+	static auto* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.PropagateAlpha"));
+	return PropagateAlphaCVar ? PropagateAlphaCVar->GetInt() : 0;
 }
 
 void FGenericPlatformMisc::ShowConsoleWindow()

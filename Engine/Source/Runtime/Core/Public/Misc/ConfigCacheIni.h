@@ -1116,8 +1116,9 @@ public:
 	 * Frees up the static layer memory, which can be useful if a branch is loaded from, cached, and never used again. However,
 	 * if something does try to access it, it will reload in-place (can hitch your game, so be aware)
 	 */
-	CORE_API bool SafeUnload();
-	
+	CORE_API void SafeUnload();
+	CORE_API void SafeReload();
+
 	/**
 	  * Removes the section completely from all layers of this branch 
 	  * This is destructive! It will not reload on demand (like SafeUnload does). Use this only when you know you will _never_ need
@@ -1145,6 +1146,9 @@ private:
 	void RemoveTagFromHierarchy(FName Tag, FConfigModificationTracker* ModificationTracker);
 	
 	friend class FConfigCacheIni;
+	
+	// when we last Found the branch to pull data from it, this is used to unload after it's been unused for some time
+	double InactiveTimer;
 };
 
 
@@ -1188,6 +1192,11 @@ public:
 	{
 		return bGloballyRegistered;
 	}
+
+	/**
+	 * Allow for periodic cleanup or other tasks
+	 */
+	CORE_API void Tick(float DeltaSeconds);
 
 	/**
 	* Prases apart an ini section that contains a list of 1-to-N mappings of strings in the following format
@@ -1269,11 +1278,8 @@ public:
     /** Create a new branch for FIlename, and return it */
 	CORE_API FConfigBranch& AddNewBranch(const FString& Filename);
 	
-	int32 Remove(const FString& Filename)
-	{
-		delete OtherFiles.FindRef(Filename);
-		return OtherFiles.Remove(Filename);
-	}
+	CORE_API int32 Remove(const FString& Filename);
+	
 	CORE_API TArray<FString> GetFilenames();
 
 
@@ -1911,6 +1917,9 @@ private:
 	FKnownConfigFiles KnownFiles;
 
 	TMap<FString, FConfigBranch*> OtherFiles;
+	
+	/** Parallel array to OtherFiles */
+	TArray<FString> OtherFileNames;
 
 	struct FPluginInfo
 	{

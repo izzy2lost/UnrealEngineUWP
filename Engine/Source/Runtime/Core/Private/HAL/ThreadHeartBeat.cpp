@@ -977,15 +977,17 @@ void FGameThreadHitchHeartBeatThreaded::InitSettings()
 	}
 	else
 	{
-		float Config_Duration = -1.0f;
-		bool Config_StackWalk = false;
+		static float Config_Duration = -1.0f;
+		static bool Config_StackWalk = false;
 
 		// Read from config files
 		bool bReadFromConfig = false;
 		if (GConfig)
 		{
-			bReadFromConfig |= GConfig->GetFloat(TEXT("Core.System"), TEXT("GameThreadHeartBeatHitchDuration"), Config_Duration, GEngineIni);
-			bReadFromConfig |= GConfig->GetBool(TEXT("Core.System"), TEXT("GameThreadHeartBeatStackWalk"), Config_StackWalk, GEngineIni);
+			static bool bLocalReadFromConfig = 
+				GConfig->GetFloat(TEXT("Core.System"), TEXT("GameThreadHeartBeatHitchDuration"), Config_Duration, GEngineIni) ||
+				GConfig->GetBool(TEXT("Core.System"), TEXT("GameThreadHeartBeatStackWalk"), Config_StackWalk, GEngineIni);
+			bReadFromConfig = bLocalReadFromConfig;
 		}
 
 		if (bReadFromConfig)

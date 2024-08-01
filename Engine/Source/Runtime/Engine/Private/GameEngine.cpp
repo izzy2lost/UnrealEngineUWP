@@ -1739,6 +1739,8 @@ void UGameEngine::Tick( float DeltaSeconds, bool bIdleMode )
 		FEngineAnalytics::Tick(DeltaSeconds);
 	}
 
+	GConfig->Tick(DeltaSeconds);
+
 	// -----------------------------------------------------
 	// Begin ticking worlds
 	// -----------------------------------------------------
