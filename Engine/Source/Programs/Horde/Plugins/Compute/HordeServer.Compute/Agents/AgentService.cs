@@ -491,8 +491,8 @@ namespace HordeServer.Agents
 		/// <returns>True if a lease was assigned, false otherwise</returns>
 		public async Task<IAgent?> WaitForLeaseAsync(IAgent? agent, IList<HordeCommon.Rpc.Messages.RpcLease> newLeases, CancellationToken cancellationToken = default)
 		{
-			HashSet<string> knownLeases = new HashSet<string>(newLeases.Select(x => x.Id), StringComparer.OrdinalIgnoreCase);
-			while (agent != null && agent.Leases.All(x => knownLeases.Contains(x.Id.ToString())))
+			HashSet<LeaseId> knownLeases = new HashSet<LeaseId>(newLeases.Select(x => x.Id));
+			while (agent != null && agent.Leases.All(x => knownLeases.Contains(x.Id)))
 			{
 				if (!agent.SessionExpiresAt.HasValue)
 				{
@@ -755,7 +755,7 @@ namespace HordeServer.Agents
 				List<AgentLease> leases = new List<AgentLease>(agent.Leases);
 
 				// Remove any completed leases from the agent
-				Dictionary<LeaseId, RpcLease> leaseIdToNewState = newLeases.ToDictionary(x => LeaseId.Parse(x.Id), x => x);
+				Dictionary<LeaseId, RpcLease> leaseIdToNewState = newLeases.ToDictionary(x => x.Id, x => x);
 				for (int idx = 0; idx < leases.Count; idx++)
 				{
 					AgentLease lease = leases[idx];

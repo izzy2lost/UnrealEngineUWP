@@ -914,7 +914,7 @@ namespace HordeServer.Agents
 		public RpcLease ToRpcMessage()
 		{
 			RpcLease lease = new RpcLease();
-			lease.Id = Id.ToString();
+			lease.Id = Id;
 			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload);
 			lease.State = (RpcLeaseState)State;
 			return lease;

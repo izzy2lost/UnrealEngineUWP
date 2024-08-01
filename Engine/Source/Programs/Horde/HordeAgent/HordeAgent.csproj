@@ -109,16 +109,19 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\HordeServer\Protos\horde\*.proto">
+    <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\*.proto">
       <Link>Protos\%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\HordeServer\Protos\horde\common\**\*.proto">
+    <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\common\**\*.proto">
       <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\HordeServer\Protos\horde\messages\**\*.proto">
+    <Compile Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\**\*.cs">
+      <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Compile>
+    <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\**\*.proto">
       <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Content Include="..\HordeServer\Protos\horde\tasks\**\*.proto">
+    <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\tasks\**\*.proto">
       <Link>Protos\horde\tasks\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
 <!--    
@@ -126,7 +129,9 @@
       <Link>Protos\horde\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Compile>
     -->
-    <Compile Include="$(IntermediateOutputPath)VersionInfo.cs" />
+    <Compile Include="$(IntermediateOutputPath)VersionInfo.cs">
+      <Link>Properties/VersionInfo.cs</Link>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

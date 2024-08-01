@@ -59,7 +59,7 @@ namespace HordeAgent.Leases
 		/// </summary>
 		protected LeaseHandler(RpcLease rpcLease)
 		{
-			Id = LeaseId.Parse(rpcLease.Id);
+			Id = rpcLease.Id;
 			RpcLease = rpcLease;
 			RpcPayload = rpcLease.Payload;
 			Result = Task.FromException<LeaseResult>(new InvalidOperationException("Lease has not been started"));
@@ -105,8 +105,8 @@ namespace HordeAgent.Leases
 		/// </summary>
 		async Task<LeaseResult> HandleLeaseAsync(ISession session, ILogger logger, LeaseLoggerFactory leaseLoggerFactory)
 		{
-			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(RpcLease.Id).StartActive();
-			scope.Span.SetTag("LeaseId", RpcLease.Id);
+			using IScope scope = GlobalTracer.Instance.BuildSpan("HandleLease").WithResourceName(RpcLease.Id.ToString()).StartActive();
+			scope.Span.SetTag("LeaseId", RpcLease.Id.ToString());
 			scope.Span.SetTag("AgentId", session.AgentId.ToString());
 			//			using IDisposable TraceProperty = LogContext.PushProperty("dd.trace_id", CorrelationIdentifier.TraceId.ToString());
 			//			using IDisposable SpanProperty = LogContext.PushProperty("dd.span_id", CorrelationIdentifier.SpanId.ToString());
