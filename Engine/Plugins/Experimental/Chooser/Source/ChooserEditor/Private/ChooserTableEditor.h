@@ -6,6 +6,7 @@
 #include "Chooser.h"
 #include "EditorUndoClient.h"
 #include "PropertyEditorDelegates.h"
+#include "Containers/RingBuffer.h"
 #include "Misc/NotifyHook.h"
 #include "Toolkits/AssetEditorToolkit.h"
 #include "Toolkits/IToolkitHost.h"
@@ -44,7 +45,6 @@ namespace UE::ChooserEditor
 		virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 		virtual void UnregisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 
-
 		/**
 		* Edits the specified asset object
 		*
@@ -54,6 +54,8 @@ namespace UE::ChooserEditor
 		* @param	GetDetailsViewObjects	If bound, a delegate to get the array of objects to use in the details view; uses ObjectsToEdit if not bound
 		*/
 		void InitEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FGetDetailsViewObjects GetDetailsViewObjects );
+
+		virtual void FocusWindow(UObject* ObjectToFocusOn) override;
 
 		/** Destructor */
 		virtual ~FChooserTableEditor();
@@ -72,6 +74,7 @@ namespace UE::ChooserEditor
 		virtual void InitToolMenuContext(FToolMenuContext& MenuContext) override;
 
 		/** FEditorUndoClient Interface */
+		virtual bool MatchesContext( const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts ) const override;
 		virtual void PostUndo(bool bSuccess) override;
 		virtual void PostRedo(bool bSuccess) override;
 		
@@ -108,6 +111,8 @@ namespace UE::ChooserEditor
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
 		void RefreshRowSelectionDetails();
+		TSharedRef<SWidget> MakeChoosersMenu(UObject* RootObject);
+		void MakeChoosersMenuRecursive(UObject* Outer, FMenuBuilder& MenuBuilder, const FString& Indent);
 		void DeleteSelectedRows();
 		int MoveRow(int SourceRowIndex, int TargetIndex);
 		void SelectRow(int32 RowIndex, bool bClear = true);
@@ -153,14 +158,25 @@ namespace UE::ChooserEditor
 		static const FName PropertiesTabId;
 		static const FName FindReplaceTabId;
 		static const FName TableTabId;
+		
+		void AddHistory();
+		bool CanNavigateBack() const;
+		void NavigateBack();
+		bool CanNavigateForward() const;
+		void NavigateForward();
+		void SetChooserTableToEdit(UChooserTable* Chooser, bool bApplyToHistory = true);
 
 		/** The objects open within this editor */
 		TArray<UObject*> EditingObjects;
+
+		mutable UChooserTable* UndoChooser = nullptr;
 
 		UChooserColumnDetails* SelectedColumn = nullptr;
 		TArray<TObjectPtr<UChooserRowDetails>> SelectedRows;
 
 		TSharedPtr<SBreadcrumbTrail<UChooserTable*>> BreadcrumbTrail;
+		TRingBuffer<UChooserTable*> History;
+		int32 HistoryIndex = 0;
 		
 		void UpdateTableColumns();
 		TArray<TSharedPtr<FChooserTableRow>> TableRows;

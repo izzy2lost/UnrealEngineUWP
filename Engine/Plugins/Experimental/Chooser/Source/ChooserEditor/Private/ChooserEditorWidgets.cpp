@@ -252,7 +252,7 @@ TSharedRef<SWidget> CreateNestedChooserWidget(bool bReadOnly, UObject* Transacti
 				if (NestedChooser->Chooser)
 				{
 					UObject* RootChooser = TransactionObject->GetPackage()->FindAssetInPackage();
-					IAssetEditorInstance* Editor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(RootChooser, true);
+					IAssetEditorInstance* Editor = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorForAsset(RootChooser, false);
 					if (Editor && Editor->GetEditorName() == FChooserTableEditor::EditorName)
 					{
 						// currently nested tables are only editable in the Chooser Table Editor
