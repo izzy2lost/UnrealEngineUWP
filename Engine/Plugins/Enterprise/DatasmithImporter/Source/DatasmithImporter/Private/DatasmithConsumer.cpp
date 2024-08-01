@@ -178,7 +178,7 @@ namespace DatasmithConsumerUtils
 
 		for(TPair<FName, TSoftObjectPtr< AssetClass >>& Entry : AssetMap)
 		{
-			if(UObject* Asset = Entry.Value.Get())
+			if(AssetClass* Asset = Entry.Value.Get())
 			{
 				const FString& OutputFolder = GetMarker(Asset, UDataprepContentConsumer::RelativeOutput);
 				if(OutputFolder.Len() > 0)
