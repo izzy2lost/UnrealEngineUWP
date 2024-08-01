@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
 #include "RigVMCore/RigVMVariant.h"
 #include "Widgets/SRigVMVariantTagWidget.h"
@@ -11,18 +12,31 @@ DECLARE_DELEGATE_OneParam(FRigVMVariantWidget_OnVariantChanged, const FRigVMVari
 DECLARE_DELEGATE_RetVal_OneParam(TSharedPtr<SWidget>, FRigVMVariantWidget_OnCreateVariantRefRow, const FRigVMVariantRef&);
 DECLARE_DELEGATE_OneParam(FRigVMVariantWidget_OnBrowseVariantRef, const FRigVMVariantRef&);
 
-class SRigVMVariantWidget : public SBox
+struct RIGVMEDITOR_API FRigVMVariantWidgetContext
+{
+	FRigVMVariantWidgetContext()
+		: ParentPath()
+	{
+	}
+	
+	// the path the current context is in
+	FString ParentPath;
+};
+
+class RIGVMEDITOR_API SRigVMVariantWidget : public SBox
 {
 public:
 	
 	SLATE_BEGIN_ARGS(SRigVMVariantWidget)
-		: _MaxVariantRefListHeight(200.f)
+		: _Context(FRigVMVariantWidgetContext())
+		, _MaxVariantRefListHeight(200.f)
 		, _CanAddTags(false)
 		, _EnableTagContextMenu(false)
 	{
 	}
 	SLATE_ATTRIBUTE(FRigVMVariant, Variant)
 	SLATE_ATTRIBUTE(TArray<FRigVMVariantRef>, VariantRefs)
+	SLATE_ATTRIBUTE(FRigVMVariantWidgetContext, Context)
 	SLATE_EVENT(FRigVMVariantWidget_OnVariantChanged, OnVariantChanged)
 	SLATE_EVENT(FRigVMVariantWidget_OnCreateVariantRefRow, OnCreateVariantRefRow);
 	SLATE_EVENT(FRigVMVariantWidget_OnBrowseVariantRef, OnBrowseVariantRef)
@@ -46,6 +60,7 @@ private:
 	EVisibility GetVariantRefListVisibility() const;
 	TSharedPtr<SWidget> CreateDefaultVariantRefRow(const FRigVMVariantRef& InVariantRef) const;
 	void RebuildVariantRefList();
+	const FSlateBrush* GetThumbnailBorder(TSharedRef<SBorder> InThumbnailBorder) const;
 
 	TAttribute<FRigVMVariant> VariantAttribute;
 	FRigVMVariantWidget_OnVariantChanged OnVariantChanged;
@@ -58,4 +73,5 @@ private:
 	TArray<FRigVMVariantRef> VariantRefs;
 	uint32 VariantRefHash;
 	TSharedPtr<SVerticalBox> VariantRefListBox;
+	TAttribute<FRigVMVariantWidgetContext> ContextAttribute;
 };

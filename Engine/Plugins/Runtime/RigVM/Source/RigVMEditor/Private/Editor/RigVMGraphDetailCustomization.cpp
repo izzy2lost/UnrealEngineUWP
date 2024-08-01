@@ -963,6 +963,12 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
         ];
 
 		// variant
+		FRigVMVariantWidgetContext VariantContext;
+		if(const URigVMFunctionLibrary* FunctionLbirary = Model->GetTypedOuter<URigVMFunctionLibrary>())
+		{
+			VariantContext.ParentPath = FunctionLbirary->GetPathName();
+		}
+			
 		SettingsCategory.AddCustomRow(FText::GetEmpty())
 		.OverrideResetToDefault(FResetToDefaultOverride::Hide())
 		.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
@@ -978,6 +984,7 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		.ValueContent()
 		[
 			SNew(SRigVMVariantWidget)
+			.Context(VariantContext)
 			.Variant(this, &FRigVMGraphDetailCustomization::GetVariant)
 			.VariantRefs(this, &FRigVMGraphDetailCustomization::GetVariantRefs)
 			.OnVariantChanged(this, &FRigVMGraphDetailCustomization::OnVariantChanged)

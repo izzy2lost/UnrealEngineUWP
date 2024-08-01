@@ -116,12 +116,14 @@ void FRigVMEditorModule::StartupModule()
 									return;
 								}
 
-								FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+								const FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 								FString PathName = SoftObjectPath.GetLongPackageName();
 								FString ObjectName = SelectedObject->GetName();
 								FString PackageName;
-								FString BasePackageName = PathName + "/" + ObjectName;
-								AssetToolsModule.Get().CreateUniqueAssetName(BasePackageName, TEXT(""), PackageName, ObjectName);
+								AssetToolsModule.Get().CreateUniqueAssetName(PathName, TEXT(""), PackageName, ObjectName);
+
+								FString Extension;
+								FPaths::Split(PackageName, PathName, ObjectName, Extension);
 
 								UObject* DuplicateAsset = AssetToolsModule.Get().DuplicateAsset(ObjectName, PathName, SelectedObject);
 								if (URigVMBlueprint* DuplicateBlueprint = Cast<URigVMBlueprint>(DuplicateAsset))

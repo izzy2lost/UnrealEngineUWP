@@ -33,6 +33,12 @@ void FRigVMVariantDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 		}
 	}
 
+	FRigVMVariantWidgetContext VariantContext;
+	if(BlueprintBeingCustomized)
+	{
+		VariantContext.ParentPath = BlueprintBeingCustomized->GetPathName();
+	}
+
 	HeaderRow
 	.OverrideResetToDefault(FResetToDefaultOverride::Hide())
 	.NameContent()
@@ -42,6 +48,7 @@ void FRigVMVariantDetailCustomization::CustomizeHeader(TSharedRef<IPropertyHandl
 	.ValueContent()
 	[
 		SNew(SRigVMVariantWidget)
+		.Context(VariantContext)
 		.Variant(this, &FRigVMVariantDetailCustomization::GetVariant)
 		.VariantRefs(this, &FRigVMVariantDetailCustomization::GetVariantRefs)
 		.OnVariantChanged(this, &FRigVMVariantDetailCustomization::OnVariantChanged)
