@@ -139,12 +139,16 @@ private:
 	{
 		FScopeLock ScopeLock(&SynchronizationObject);
 #if UE_TEXTKEY_USE_SLAB_ALLOCATOR
-		const TCHAR* StrPtr = KeysTable.FindRef(KeyData);
+		const TCHAR* StrPtr = nullptr;
+		if (const FKeyData* FoundKeyData = KeysTable.Find(KeyData))
+		{
+			StrPtr = FoundKeyData->Str;
+		}
 		if (!StrPtr)
 		{
 			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
 			StrPtr = StringAllocations.Add(KeyData.ToView());
-			KeysTable.Add(FKeyData(StrPtr, KeyData), StrPtr);
+			KeysTable.Add(FKeyData(StrPtr, KeyData));
 		}
 		return StrPtr;
 #else
@@ -256,7 +260,7 @@ private:
 	FCriticalSection SynchronizationObject;
 #if UE_TEXTKEY_USE_SLAB_ALLOCATOR
 	FStringSlabAllocator StringAllocations;
-	TMap<FKeyData, const TCHAR*> KeysTable;
+	TSet<FKeyData> KeysTable;
 #else
 	TMap<FKeyData, FString> KeysTable;
 #endif
