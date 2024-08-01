@@ -369,6 +369,30 @@ namespace Metasound
 			/**Show pins without connection*/
 			void ShowUnconnectedPins();
 
+			/** Checks if pin can be promoted */
+			bool CanPromoteToInput();
+			
+			/** Promotes pin to graph input */
+			void PromoteToInput();
+
+			/** Checks if pin can be promoted */
+			bool CanPromoteToOutput();
+
+			/** Promotes pin to graph output */
+			void PromoteToOutput();
+
+			/** Checks if pin can be promoted */
+			bool CanPromoteToVariable();
+
+			/** Promotes pin to graph variable */
+			void PromoteToVariable();
+
+			/** Checks if pin can be promoted */
+			bool CanPromoteToDeferredVariable();
+
+			/** Promotes pin to graph deferred variable */
+			void PromoteToDeferredVariable();
+
 		private:
 			/** Forces refresh of pages view. */
 			void RefreshPagesView();

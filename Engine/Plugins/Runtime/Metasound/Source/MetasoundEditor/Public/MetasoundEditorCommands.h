@@ -61,6 +61,18 @@ namespace Metasound
 			// Show the Find in MetaSound window. 
 			TSharedPtr<FUICommandInfo> FindInMetaSound;
 
+			/** Promotes pin to graph input */
+			TSharedPtr<FUICommandInfo> PromoteToInput;
+
+			/** Promotes pin to graph output */
+			TSharedPtr<FUICommandInfo> PromoteToOutput;
+
+			/** Promotes pin to graph variable */
+			TSharedPtr<FUICommandInfo> PromoteToVariable;
+
+			/** Promotes pin to deferred graph variable */
+			TSharedPtr<FUICommandInfo> PromoteToDeferredVariable;
+
 			/** Initialize commands */
 			virtual void RegisterCommands() override;
 		};

@@ -2744,6 +2744,22 @@ namespace Metasound
 					FExecuteAction::CreateLambda([this] { RenameSelectedNode(); }),
 					FCanExecuteAction::CreateLambda([this]() { return CanRenameSelectedNodes(); }));
 
+				GraphEditorCommands->MapAction(FEditorCommands::Get().PromoteToInput,
+					FExecuteAction::CreateLambda([this] { PromoteToInput(); }),
+					FCanExecuteAction::CreateLambda([this]() { return CanPromoteToInput(); }));
+
+				GraphEditorCommands->MapAction(FEditorCommands::Get().PromoteToOutput,
+					FExecuteAction::CreateLambda([this] { PromoteToOutput(); }),
+					FCanExecuteAction::CreateLambda([this]() { return CanPromoteToOutput(); }));
+
+				GraphEditorCommands->MapAction(FEditorCommands::Get().PromoteToVariable,
+					FExecuteAction::CreateLambda([this] { PromoteToVariable(); }),
+					FCanExecuteAction::CreateLambda([this]() { return CanPromoteToVariable(); }));
+
+				GraphEditorCommands->MapAction(FEditorCommands::Get().PromoteToDeferredVariable,
+					FExecuteAction::CreateLambda([this] { PromoteToDeferredVariable(); }),
+					FCanExecuteAction::CreateLambda([this]() { return CanPromoteToDeferredVariable(); }));
+
 				GraphEditorCommands->MapAction(FGraphEditorCommands::Get().HideNoConnectionPins,
 					FExecuteAction::CreateSP(this, &FEditor::HideUnconnectedPins));				
 				
@@ -4599,7 +4615,139 @@ namespace Metasound
 				ParentPtr->bRefreshGraph = true;
 			}
 		}
+
+		bool FEditor::CanPromoteToInput()
+		{
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				if (TargetPin->Direction == EGPD_Input)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void FEditor::PromoteToInput()
+		{
+			using namespace Metasound::Frontend;
+
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				UEdGraphNode* OwningNode = TargetPin->GetOwningNode();
+				FVector2D Location = FVector2D(OwningNode->NodePosX, OwningNode->NodePosY);
+				Metasound::SchemaUtils::PromoteToInput(&Graph, TargetPin, Location - DisplayStyle::NodeLayout::DefaultOffsetX, false);
+			}
+		}
+
+		bool FEditor::CanPromoteToOutput()
+		{
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				if (TargetPin->Direction == EGPD_Output)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void FEditor::PromoteToOutput()
+		{
+			using namespace Metasound::Frontend;
+
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				UEdGraphNode* OwningNode = TargetPin->GetOwningNode();
+				FVector2D Location = FVector2D(OwningNode->NodePosX, OwningNode->NodePosY);
+				Metasound::SchemaUtils::PromoteToOutput(&Graph, TargetPin, Location + DisplayStyle::NodeLayout::DefaultOffsetX * 2.f, false);
+			}
+		}
+
+		bool FEditor::CanPromoteToVariable()
+		{
+			return true;
+		}
+
+		void FEditor::PromoteToVariable()
+		{
+			using namespace Metasound::Frontend;
+
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				UEdGraphNode* OwningNode = TargetPin->GetOwningNode();
+				FVector2D Location = FVector2D(OwningNode->NodePosX, OwningNode->NodePosY);
+				if (TargetPin->Direction == EGPD_Input)
+				{
+					Metasound::SchemaUtils::PromoteToVariable(&Graph, TargetPin, Location - DisplayStyle::NodeLayout::DefaultOffsetX, false);
+				}
+				else
+				{
+					Metasound::SchemaUtils::PromoteToMutatorVariable(&Graph, TargetPin, Location + DisplayStyle::NodeLayout::DefaultOffsetX * 2.f, false);
+				}
+			}
+		}
+
+		bool FEditor::CanPromoteToDeferredVariable()
+		{
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				if (TargetPin->Direction == EGPD_Input)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		void FEditor::PromoteToDeferredVariable()
+		{
+			using namespace Metasound::Frontend;
+
+			if (MetasoundGraphEditor.IsValid())
+			{
+				UMetasoundEditorGraph& Graph = GetMetaSoundGraphChecked();
+
+				UEdGraphPin* TargetPin = MetasoundGraphEditor->GetGraphPinForMenu();
+				check(TargetPin);
+
+				UEdGraphNode* OwningNode = TargetPin->GetOwningNode();
+				FVector2D Location = FVector2D(OwningNode->NodePosX, OwningNode->NodePosY);
+				Metasound::SchemaUtils::PromoteToDeferredVariable(&Graph, TargetPin, Location - DisplayStyle::NodeLayout::DefaultOffsetX, false);
+			}
+		}
 	}
 }
+
 #undef LOCTEXT_NAMESPACE
 
