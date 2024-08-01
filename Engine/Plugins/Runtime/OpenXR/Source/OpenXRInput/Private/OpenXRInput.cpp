@@ -391,16 +391,38 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	Profiles.Add("ValveIndex", FInteractionProfile(FOpenXRPath("/interaction_profiles/valve/index_controller"), true));
 
 	// Query extension plugins for interaction profiles
-	for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
 	{
-		FString KeyPrefix;
-		XrPath Path = XR_NULL_PATH;
-		bool HasHaptics = false;
-		if (Plugin->GetInteractionProfile(Instance, KeyPrefix, Path, HasHaptics) && Path != XR_NULL_PATH)
+		TArray<FString> KeyPrefixes;
+		TArray<XrPath> Paths;
+		TArray<bool> Haptics;
+		for (IOpenXRExtensionPlugin* Plugin : OpenXRHMD->GetExtensionPlugins())
 		{
-			Profiles.Add(KeyPrefix, FInteractionProfile(Path, HasHaptics));
+			FString KeyPrefix;
+			XrPath Path = XR_NULL_PATH;
+			bool HasHaptics = false;
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			if (Plugin->GetInteractionProfile(Instance, KeyPrefix, Path, HasHaptics) && Path != XR_NULL_PATH)
+			{
+				Profiles.Add(KeyPrefix, FInteractionProfile(Path, HasHaptics));
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
+			KeyPrefixes.Reset();
+			Paths.Reset();
+			Haptics.Reset();
+			if (Plugin->GetInteractionProfiles(Instance, KeyPrefixes, Paths, Haptics) && Paths.Num() != 0)
+			{
+				for (int i = 0; i < Paths.Num(); i++)
+				{
+					if (Paths[i] != XR_NULL_PATH)
+					{
+						Profiles.Add(KeyPrefixes[i], FInteractionProfile(Paths[i], Haptics[i]));
+					}
+				}
+			}
 		}
 	}
+
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Attempt to load the default input config from the OpenXR input settings.

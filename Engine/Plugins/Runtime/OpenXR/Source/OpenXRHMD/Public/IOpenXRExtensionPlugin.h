@@ -209,7 +209,16 @@ public:
 	/**
 	* Set the output parameters to add an interaction profile to OpenXR Input
 	*/
+	UE_DEPRECATED(5.5, "Deprecated in favor of the same-name function which allows the addition of multiple interaction profiles.")
 	virtual bool GetInteractionProfile(XrInstance InInstance, FString& OutKeyPrefix, XrPath& OutPath, bool& OutHasHaptics)
+	{
+		return false;
+	}
+
+	/**
+	* Set the output parameters to add multiple interaction profiles to OpenXR Input
+	*/
+	virtual bool GetInteractionProfiles(XrInstance InInstance, TArray<FString>& OutKeyPrefixes, TArray<XrPath>& OutPaths, TArray<bool>& OutHasHaptics)
 	{
 		return false;
 	}
