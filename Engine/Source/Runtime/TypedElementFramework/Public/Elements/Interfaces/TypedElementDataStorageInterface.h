@@ -274,6 +274,15 @@ public:
 	template<TypedElementDataStorage::TColumnType... ColumnTypes>
 	bool HasColumns(TypedElementRowHandle Row) const;
 
+	/** Lists the columns on a row. This includes data and tag columns. */
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const = 0;
+
+	/** 
+	 * Lists the column type and data on a row. This includes data and tag columns. Not all columns may have data so the data pointer in 
+	 * the callback can be null.
+	 */
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback) = 0;
+
 	/** Determines if the columns in the row match the query conditions. */
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
 	

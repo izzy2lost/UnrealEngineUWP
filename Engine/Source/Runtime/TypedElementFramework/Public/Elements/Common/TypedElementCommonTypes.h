@@ -94,6 +94,8 @@ namespace TypedElementDataStorage
 
 	using RowCreationCallbackRef = TFunctionRef<void(TypedElementDataStorage::RowHandle Row)>;
 	using ColumnCreationCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
+	using ColumnListCallbackRef = TFunctionRef<void(const UScriptStruct& ColumnType)>;
+	using ColumnListWithDataCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
 	using ColumnCopyOrMoveCallback = void (*)(const UScriptStruct& ColumnType, void* Destination, void* Source);
 
 

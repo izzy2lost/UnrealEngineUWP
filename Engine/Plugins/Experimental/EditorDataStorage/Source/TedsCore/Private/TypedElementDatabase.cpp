@@ -852,6 +852,64 @@ bool UTypedElementDatabase::HasColumns(TypedElementRowHandle Row, TConstArrayVie
 	return false;
 }
 
+void UTypedElementDatabase::ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const
+{
+	if (ActiveEditorEntityManager)
+	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
+		{
+			FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+			const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+			
+			auto CallbackWrapper = [&Callback](const UScriptStruct* ColumnType)
+				{
+					if (ColumnType)
+					{
+						Callback(*ColumnType);
+					}
+					return true;
+				};
+			Composition.Fragments.ExportTypes(CallbackWrapper);
+			Composition.Tags.ExportTypes(CallbackWrapper);
+
+		}
+	}
+}
+
+void UTypedElementDatabase::ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback)
+{
+	if (ActiveEditorEntityManager)
+	{
+		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
+		if (ActiveEditorEntityManager->IsEntityActive(Entity))
+		{
+			FMassArchetypeHandle Archetype = ActiveEditorEntityManager->GetArchetypeForEntity(Entity);
+			const FMassArchetypeCompositionDescriptor& Composition = ActiveEditorEntityManager->GetArchetypeComposition(Archetype);
+
+			Composition.Fragments.ExportTypes(
+				[this, &Callback, Entity](const UScriptStruct* ColumnType)
+				{
+					if (ColumnType)
+					{
+						Callback(ActiveEditorEntityManager->GetFragmentDataStruct(Entity, ColumnType).GetMemory(), *ColumnType);
+					}
+					return true;
+				});
+			Composition.Tags.ExportTypes(
+				[&Callback](const UScriptStruct* ColumnType)
+				{
+					if (ColumnType)
+					{
+						Callback(nullptr, *ColumnType);
+					}
+					return true;
+				});
+
+		}
+	}
+}
+
 bool UTypedElementDatabase::MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
 {
 	if (ActiveEditorEntityManager)
