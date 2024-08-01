@@ -47,7 +47,10 @@ struct MASSSPAWNER_API FMassEntityConfig
 	TConstArrayView<UMassEntityTraitBase*> GetTraits() const { return Traits; }
 
 	/** Looks for a trait of the indicated type, accepting all child classes as well, unless bExactMatch == true */
-	const UMassEntityTraitBase* FindTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch = false) const;
+	const UMassEntityTraitBase* FindTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch = false) const
+	{
+		return FindTraitInternal(TraitClass, bExactMatch);
+	}
 
 	/** Adds Trait to the collection of traits hosted by this FMassEntityConfig instance */
 	void AddTrait(UMassEntityTraitBase& Trait);
@@ -76,11 +79,16 @@ struct MASSSPAWNER_API FMassEntityConfig
 #if WITH_EDITOR
 	/** Needs to be called when the given config is being duplicated - ensured the ConfigGuid remains unique */
 	void PostDuplicate(bool bDuplicateForPIE);
+
+	UMassEntityTraitBase* FindMutableTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch = false);
 #endif // WITH_EDITOR
 	
 protected:
 	/** Combines traits based on the config hierarchy and returns list of unique traits */
 	void GetCombinedTraits(TArray<UMassEntityTraitBase*>& OutTraits) const;
+
+	/** Looks for a trait of the indicated type, accepting all child classes as well, unless bExactMatch == true */
+	UMassEntityTraitBase* FindTraitInternal(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch = false) const;
 
 	/** Combines traits based on the config hierarchy and returns list of unique traits */
 	UE_DEPRECATED(5.3, "This flavor of GetCombinedTraits is deprecated. Use the one without the ConfigOwner parameter (now a property of the FMassEntityConfig itself)")
@@ -149,6 +157,12 @@ public:
 	UFUNCTION(CallInEditor, Category = "Entity Config")
 	void ValidateEntityConfig();
 
+	/**
+	 * Returns a mutable instance of given trait class. If an instance of the given class can be found in
+	 * the hosted FMassEntityConfig then that instance is returned. Otherwise one will be created, added to
+	 * the FMassEntityConfig and returned.
+	 */
+	UMassEntityTraitBase* AddTrait(TSubclassOf<UMassEntityTraitBase> TraitClass);
 #endif // WITH_EDITOR
 
 protected:

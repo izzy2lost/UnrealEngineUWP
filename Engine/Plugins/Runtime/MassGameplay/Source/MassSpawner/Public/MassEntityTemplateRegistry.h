@@ -15,6 +15,35 @@
 class UWorld;
 class UMassEntityTraitBase;
 
+USTRUCT()
+struct MASSSPAWNER_API FMassMissingTraitMessage
+{
+	GENERATED_BODY()
+#if WITH_EDITORONLY_DATA
+	const UMassEntityTraitBase* RequestingTrait = nullptr;
+	const UStruct* MissingType = nullptr;
+#endif // WITH_EDITORONLY_DATA
+};
+
+USTRUCT()
+struct MASSSPAWNER_API FMassDuplicateElementsMessage
+{
+	GENERATED_BODY()
+#if WITH_EDITORONLY_DATA
+	const UMassEntityTraitBase* DuplicatingTrait = nullptr;
+	const UMassEntityTraitBase* OriginalTrait = nullptr;
+	const UStruct* Element = nullptr;
+#endif // WITH_EDITORONLY_DATA
+};
+
+#if WITH_EDITORONLY_DATA
+namespace UE::Mass::Debug
+{
+	extern MASSSPAWNER_API const FName TraitFailedValidation;
+	extern MASSSPAWNER_API const FName TraitIgnored;
+}
+#endif // WITH_EDITORONLY_DATA
+
 enum class EFragmentInitialization : uint8
 {
 	DefaultInitializer,
@@ -167,12 +196,14 @@ struct FMassEntityTemplateBuildContext
 	template<typename T>
 	void RequireFragment()
 	{
+		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived == false, "Given struct type is a valid fragment type.");
 		AddDependency(T::StaticStruct());
 	}
 
 	template<typename T>
 	void RequireTag()
 	{
+		static_assert(TIsDerivedFrom<T, FMassTag>::IsDerived, "Given struct type is not a valid tag type.");
 		AddDependency(T::StaticStruct());
 	}
 
@@ -199,6 +230,36 @@ struct FMassEntityTemplateBuildContext
 	 */
 	bool BuildFromTraits(TConstArrayView<UMassEntityTraitBase*> Traits, const UWorld& World);
 
+	/** 
+	 * The method that allows to distinguish between regular context use (using traits to build templates) and 
+	 * the "data investigation" mode (used for debugging and authoring purposes). Utilize this function to 
+	 * avoid UWorld-specific operations (like getting subsystems). This method should also be used when a trait 
+	 * contains conditional logic - in that case it's required for the trait to add all the types that are potentially
+	 * added at runtime (even if seemingly conflicting information will be added). 
+	 * 
+	 * @return whether this context is in data inspection mode.
+	 */
+#if WITH_EDITORONLY_DATA
+	bool IsInspectingData() const
+	{
+		return bIsInspectingData;
+	}
+#else
+	constexpr bool IsInspectingData() const
+	{
+		return false;
+	}
+#endif
+
+#if WITH_EDITORONLY_DATA
+	void EnableDataInvestigationMode()
+	{
+		checkf(TemplateData.IsEmpty(), TEXT("Marking a FMassEntityTemplateBuildContext as being in 'investigation mode` is only supported before the context is first used."));
+		bIsInspectingData = true;
+	}
+#endif // WITH_EDITORONLY_DATA
+
+
 protected:
 
 	/**
@@ -221,7 +282,7 @@ protected:
 	 * in nature and are not associated with any traits. In that case it's ok to have multiple SetTraitBeingProcessed(nullptr)
 	 * calls.
 	 */
-	bool SetTraitBeingProcessed(const UMassEntityTraitBase* Trait);
+	MASSSPAWNER_API bool SetTraitBeingProcessed(const UMassEntityTraitBase* Trait);
 
 	void ResetBuildTimeData()
 	{
@@ -244,9 +305,20 @@ protected:
 
 	FMassEntityTemplateData& TemplateData;
 	FMassEntityTemplateID TemplateID;
+
+#if WITH_EDITORONLY_DATA
+private:
+	/**
+	 * This being set to `true` indicates that the context is being used to gather information, not to create actual
+	 * entity templates.
+	 */
+	bool bIsInspectingData = false;
+#endif // WITH_EDITORONLY_DATA
 };
 
-/** @todo document 
+/** 
+ * Represents a repository storing all the FMassEntityTemplate that have been created and registered as part of FMassEntityConfig
+ * processing or via custom code (like we do in InstancedActors plugin).
  */
 struct MASSSPAWNER_API FMassEntityTemplateRegistry
 {
@@ -301,13 +373,6 @@ protected:
 	TSharedPtr<FMassEntityManager> EntityManager;
 
 	TWeakObjectPtr<UObject> Owner;
-};
-
-
-UCLASS(deprecated, meta = (DeprecationMessage = "UMassEntityTemplateRegistry is deprecated starting UE5.2. Use FMassEntityTemplateRegistry instead"))
-class MASSSPAWNER_API UDEPRECATED_MassEntityTemplateRegistry : public UObject
-{
-	GENERATED_BODY()
 };
 
 #undef ENSURE_SUPPORTED_TRAIT_OPERATION

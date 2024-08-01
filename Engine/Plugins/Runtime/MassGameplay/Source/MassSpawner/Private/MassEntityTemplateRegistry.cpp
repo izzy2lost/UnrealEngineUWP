@@ -5,19 +5,36 @@
 #include "MassEntityManager.h"
 #include "Engine/World.h"
 #include "VisualLogger/VisualLogger.h"
-#include "HAL/IConsoleManager.h"
 #include "MassSpawnerSubsystem.h"
 #include "MassEntityTypes.h"
 #include "MassEntityTraitBase.h"
-#include "Logging/MessageLog.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
-#include "Misc/UObjectToken.h"
-#include "Framework/Docking/TabManager.h"
+#include "MassDebugger.h"
+#include "MassEntityEditor.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "Mass"
+
+namespace UE::Mass::Debug
+{
+	const FName TraitFailedValidation(TEXT("TraitFailedValidation"));
+	const FName TraitIgnored(TEXT("TraitIgnored"));
+
+	static bool bReportDuplicatedFragmentsAsWarnings = false;
+	// anonymous namespace to force CVars's uniqueness - we use the same name in many places, sometimes withing same namespaces
+	namespace 
+	{
+		FAutoConsoleVariableRef CVars[] =
+		{
+			{ TEXT("mass.template.DuplicateElementsAsWarnings")
+				, bReportDuplicatedFragmentsAsWarnings
+				, TEXT("Whether to report a detection of a given element type being added by multiple traits as a Warning. Otherise we print the information out as `Info`")
+				, ECVF_Cheat}
+		};
+	}
+}
 
 //----------------------------------------------------------------------//
 // FMassEntityTemplateRegistry 
@@ -128,17 +145,27 @@ bool FMassEntityTemplateBuildContext::SetTraitBeingProcessed(const UMassEntityTr
 
 bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 {
-#define WITH_MESSAGES (WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR)
-#if WITH_MESSAGES
-	TArray<TSharedRef<FTokenizedMessage>> Messages;
+#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
 #define IF_MESSAGES(Message) if (GEditor) { Message }
 #else
 #define IF_MESSAGES(_)
-#endif // WITH_MESSAGES
+#endif
 
 	int32 ErrorCount = 0;
 	int32 WarningCount = 0;
 
+	// Doing the trait-specific validation first since it can add required elements to the build context
+	for (FTraitData& TraitData : TraitsData)
+	{
+		UMassEntityTraitBase::FAdditionalTraitRequirements TraitRequirementsWrapper(TraitData.TypesRequired);
+		if (LIKELY(TraitData.Trait) && TraitData.Trait->ValidateTemplate(*this, World, TraitRequirementsWrapper) == false)
+		{
+			++ErrorCount;
+			IF_MESSAGES(
+				FMassDebugger::DebugEvent(UE::Mass::Debug::TraitFailedValidation, FInstancedStruct::Make<FMassGenericDebugEvent>(TraitData.Trait));
+			);
+		}
+	}
 
 	TMap<const UStruct*, const UMassEntityTraitBase*> TypesAlreadyAdded;
 
@@ -152,19 +179,18 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 			const UMassEntityTraitBase*& SourceTrait = TypesAlreadyAdded.FindOrAdd(TypeAdded);
 			if (SourceTrait != nullptr)
 			{
-				// we report this only if it wasn't added twice by the same trait, the one we're processing right now
-				UE_CLOG(SourceTrait != TraitData.Trait
-					, LogMass, Warning, TEXT("%s: Fragment %s already added by %s")
-					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeAdded), *SourceTrait->GetName());
-				++WarningCount;
-
+				if (UE::Mass::Debug::bReportDuplicatedFragmentsAsWarnings)
+				{
+					// we report this only if it wasn't added twice by the same trait, the one we're processing right now
+					UE_CLOG(SourceTrait != TraitData.Trait
+						, LogMass, Warning, TEXT("%s: Fragment %s already added by %s. Check the entity config for conflicting traits")
+						, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeAdded), *SourceTrait->GetName());
+					++WarningCount;
+				}
 				IF_MESSAGES(
-					Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Warning))
-						->AddToken(FUObjectToken::Create(TraitData.Trait))
-						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFragmentDuplicationWarning1", "trying to add fragment of type")))
-						->AddToken(FUObjectToken::Create(TypeAdded))
-						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFragmentDuplicationWarning2", "while it has already been added by")))
-						->AddToken(FUObjectToken::Create(SourceTrait));
+					FMassDebugger::DebugEvent(FMassDuplicateElementsMessage::StaticStruct()->GetFName()
+						, FInstancedStruct::Make<FMassDuplicateElementsMessage>(TraitData.Trait, SourceTrait, TypeAdded)
+						, UE::Mass::Debug::bReportDuplicatedFragmentsAsWarnings ? EMassDebugMessageSeverity::Warning : EMassDebugMessageSeverity::Info);
 				);
 			}
 			else
@@ -185,34 +211,17 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 					, *GetNameSafe(TraitData.Trait), *GetNameSafe(TypeRequired));
 				++ErrorCount;
 				IF_MESSAGES(
-					Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Error))
-						->AddToken(FUObjectToken::Create(TraitData.Trait))
-						->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitMissingDependencies", "unsatisfied dependency, missing")))
-						->AddToken(FUObjectToken::Create(TypeRequired));
-				);
+				{
+					FMassDebugger::DebugEvent<FMassMissingTraitMessage>(TraitData.Trait, TypeRequired);
+				});
 			}
-		}
-	}
-
-	for (const FTraitData& TraitData : TraitsData)
-	{
-		if (TraitData.Trait && TraitData.Trait->ValidateTemplate(*this, World) == false)
-		{
-			++ErrorCount;
-			IF_MESSAGES(
-				Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Error))
-					->AddToken(FUObjectToken::Create(TraitData.Trait))
-					->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitFailedValidation", "trait-specific validation failed")));
-			);
 		}
 	}
 
 	for (const UMassEntityTraitBase* IgnoredTrait : IgnoredTraits)
 	{
 		IF_MESSAGES(
-			Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Warning))
-				->AddToken(FUObjectToken::Create(IgnoredTrait))
-				->AddToken(FTextToken::Create(LOCTEXT("MassEntityTraitIgnoredTrait", "trait was ignored. Check if it's not a duplicate.")));
+			FMassDebugger::DebugEvent(UE::Mass::Debug::TraitIgnored, FInstancedStruct::Make<FMassGenericDebugEvent>(IgnoredTrait));
 		);
 		++WarningCount;
 	}
@@ -222,30 +231,18 @@ bool FMassEntityTemplateBuildContext::ValidateBuildContext(const UWorld& World)
 	// Could be done with a complex requirements system (similar to entity queries - "all of X", "any of Y", etc) - probably 
 	// not worth it since we don't even have a use case for it right now.
 
-#if WITH_MESSAGES
-	if (GEditor && Messages.Num())
+#if WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
+	if (GEditor && (ErrorCount || WarningCount))
 	{
-		TSharedRef<FTokenizedMessage> SummaryMessage = Messages.Add_GetRef(
-			FTokenizedMessage::Create(ErrorCount ? EMessageSeverity::Error : EMessageSeverity::Warning))
-			->AddToken(FTextToken::Create(FText::FormatOrdered(LOCTEXT("MassEntityTraitResult", "Mass Entity Template validation:\n{0} errors and {1} warnings found"), ErrorCount, WarningCount)));
-
-		Messages.Add_GetRef(FTokenizedMessage::Create(EMessageSeverity::Info))
-			->AddToken(FActionToken::Create(LOCTEXT("MassSeeLogForDetails", "See the log for more details.")
-				, LOCTEXT("MassSeeLogForDetailsTooltip", "Open the Output Log tab.")
-				, FOnActionTokenExecuted::CreateLambda([]()
-					{
-						FGlobalTabmanager::Get()->TryInvokeTab(FName("OutputLog"));
-					}))
-				);
-
-		FMessageLog EditorErrors("MassEntity");
-		EditorErrors.AddMessages(Messages);
-		EditorErrors.Notify(SummaryMessage->ToText());
+		FMassEditorNotification Notification;
+		Notification.Message = FText::FormatOrdered(LOCTEXT("TraitResult", "Mass Entity Template validation:\n{0} errors and {1} warnings found"), ErrorCount, WarningCount);
+		Notification.Severity = ErrorCount ? EMessageSeverity::Error : EMessageSeverity::Warning;
+		Notification.bIncludeSeeOutputLogForDetails = true;
+		Notification.Show();
 	}
-#endif // WITH_MESSAGES
+#endif // WITH_UNREAL_DEVELOPER_TOOLS && WITH_EDITOR
 
 #undef IF_MESSAGES
-#undef WITH_MESSAGES
 
 	// only the Errors render the template invalid, Warnings just warn about stuff not being set up quite right, but we can recover.
 	return (ErrorCount == 0);

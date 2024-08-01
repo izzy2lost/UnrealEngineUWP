@@ -15,19 +15,22 @@ void UMassDebugVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext
 	const UStaticMesh* const DebugMesh = nullptr;
 #endif
 	
-	if (DebugMesh)
+	if (DebugMesh || BuildContext.IsInspectingData())
 	{
 #if WITH_EDITORONLY_DATA
 		FSimDebugVisFragment& DebugVisFragment = BuildContext.AddFragment_GetRef<FSimDebugVisFragment>();
-		UMassDebuggerSubsystem* Debugger = World.GetSubsystem<UMassDebuggerSubsystem>();
-		if (ensure(Debugger))
+		if (!BuildContext.IsInspectingData())
 		{
-			UMassDebugVisualizationComponent* DebugVisComponent = Debugger->GetVisualizationComponent();
-			if (ensure(DebugVisComponent))
+			UMassDebuggerSubsystem* Debugger = World.GetSubsystem<UMassDebuggerSubsystem>();
+			if (ensure(Debugger))
 			{
-				DebugVisFragment.VisualType = DebugVisComponent->AddDebugVisType(DebugShape);
+				UMassDebugVisualizationComponent* DebugVisComponent = Debugger->GetVisualizationComponent();
+				if (ensure(DebugVisComponent))
+				{
+					DebugVisFragment.VisualType = DebugVisComponent->AddDebugVisType(DebugShape);
+				}
+				// @todo this path requires a fragment destructor that will remove the mesh from the debugger.
 			}
-			// @todo this path requires a fragment destructor that will remove the mesh from the debugger.
 		}
 #endif // WITH_EDITORONLY_DATA
 	}

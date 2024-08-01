@@ -26,7 +26,7 @@ UMassCrowdServerRepresentationTrait::UMassCrowdServerRepresentationTrait()
 void UMassCrowdServerRepresentationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
 	// This should only be ran on NM_DedicatedServer network mode
-	if (!World.IsNetMode(NM_DedicatedServer))
+	if (!World.IsNetMode(NM_DedicatedServer) && !BuildContext.IsInspectingData())
 	{
 		return;
 	}
@@ -38,7 +38,7 @@ void UMassCrowdServerRepresentationTrait::BuildTemplate(FMassEntityTemplateBuild
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
 	UMassCrowdRepresentationSubsystem* RepresentationSubsystem = World.GetSubsystem<UMassCrowdRepresentationSubsystem>();
-	check(RepresentationSubsystem);
+	check(RepresentationSubsystem || BuildContext.IsInspectingData());
 
 	FMassRepresentationSubsystemSharedFragment SubsystemSharedFragment;
 	SubsystemSharedFragment.RepresentationSubsystem = RepresentationSubsystem;
@@ -52,7 +52,10 @@ void UMassCrowdServerRepresentationTrait::BuildTemplate(FMassEntityTemplateBuild
 
 	FMassRepresentationFragment& RepresentationFragment = BuildContext.AddFragment_GetRef<FMassRepresentationFragment>();
 	RepresentationFragment.StaticMeshDescHandle = FStaticMeshInstanceVisualizationDescHandle();
-	RepresentationFragment.HighResTemplateActorIndex = TemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(TemplateActor.Get()) : INDEX_NONE;
+	if (!BuildContext.IsInspectingData())
+	{
+		RepresentationFragment.HighResTemplateActorIndex = TemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(TemplateActor.Get()) : INDEX_NONE;
+	}
 	RepresentationFragment.LowResTemplateActorIndex = INDEX_NONE;
 
 	BuildContext.AddFragment<FMassRepresentationLODFragment>();

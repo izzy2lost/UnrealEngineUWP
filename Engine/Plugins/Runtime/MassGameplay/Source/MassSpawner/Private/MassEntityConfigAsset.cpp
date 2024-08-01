@@ -13,6 +13,7 @@
 #include "Editor.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "MassEntityEditor.h"
 #endif // WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "Mass"
@@ -32,7 +33,7 @@ FMassEntityConfig::FMassEntityConfig(UObject& InOwner)
 	ConfigGuid = FGuid::NewGuid();
 }
 
-const UMassEntityTraitBase* FMassEntityConfig::FindTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch) const
+UMassEntityTraitBase* FMassEntityConfig::FindTraitInternal(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch) const
 {
 	for (const TObjectPtr<UMassEntityTraitBase>& Trait : Traits)
 	{
@@ -42,7 +43,7 @@ const UMassEntityTraitBase* FMassEntityConfig::FindTrait(TSubclassOf<UMassEntity
 		}
 	}
 
-	return Parent ? Parent->FindTrait(TraitClass, bExactMatch) :  nullptr;
+	return Parent ? Parent->GetConfig().FindTraitInternal(TraitClass, bExactMatch) : nullptr;
 }
 
 const FMassEntityTemplate& FMassEntityConfig::GetOrCreateEntityTemplate(const UWorld& World) const
@@ -222,6 +223,11 @@ void FMassEntityConfig::PostDuplicate(const bool bDuplicateForPIE)
 		ConfigGuid = FGuid::NewGuid();
 	}
 }
+
+UMassEntityTraitBase* FMassEntityConfig::FindMutableTrait(TSubclassOf<UMassEntityTraitBase> TraitClass, const bool bExactMatch)
+{
+	return FindTraitInternal(TraitClass, bExactMatch);
+}
 #endif // WITH_EDITOR
 
 //-----------------------------------------------------------------------------
@@ -239,24 +245,33 @@ void UMassEntityConfigAsset::ValidateEntityConfig()
 {
 	if (UWorld* EditorWorld = GEditor->GetEditorWorldContext().World())
 	{
+		FMessageLog MessageLog(UE::Mass::Editor::MessageLogPageName);
+		MessageLog.NewPage(FText::FromName(UE::Mass::Editor::MessageLogPageName));
+
 		if (Config.ValidateEntityTemplate(*EditorWorld))
 		{
-			const FText InfoText = LOCTEXT("MassEntityConfigAssetNoErrorsDetected", "There were no errors nor warnings detected during validation of the EntityConfigAsset");
-
-			FMessageLog EditorInfo("MassEntity");
-			EditorInfo.Info(InfoText);
-
-			FNotificationInfo Info(InfoText);
-			Info.bFireAndForget = true;
-			Info.bUseThrobber = false;
-			Info.FadeOutDuration = 0.5f;
-			Info.ExpireDuration = 5.0f;
-			if (TSharedPtr<SNotificationItem> Notification = FSlateNotificationManager::Get().AddNotification(Info))
-			{
-				Notification->SetCompletionState(SNotificationItem::CS_Success);
-			}
+			FMassEditorNotification Notification;
+			Notification.Message = FText::FormatOrdered(LOCTEXT("MassEntityConfigAssetNoErrorsDetected", "There were no errors detected during validation of {0}")
+				, FText::FromName(GetFName()));
+			Notification.Severity = EMessageSeverity::Info;
+			Notification.Show();
 		}
 	}
+}
+
+UMassEntityTraitBase* UMassEntityConfigAsset::AddTrait(TSubclassOf<UMassEntityTraitBase> TraitClass)
+{
+	check(TraitClass);
+
+	UMassEntityTraitBase* TraitInstance = Config.FindMutableTrait(TraitClass, /*bExactMatch=*/true);
+	if (TraitInstance == nullptr)
+	{
+		TraitInstance = NewObject<UMassEntityTraitBase>(this, TraitClass);
+		check(TraitInstance);
+		Config.AddTrait(*TraitInstance);
+		Modify();
+	}
+	return TraitInstance;
 }
 #endif // WITH_EDITOR
 

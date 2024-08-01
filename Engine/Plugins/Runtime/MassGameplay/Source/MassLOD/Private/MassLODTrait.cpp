@@ -39,7 +39,7 @@ void UMassSimulationLODTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	FMassSimulationLODFragment& LODFragment = BuildContext.AddFragment_GetRef<FMassSimulationLODFragment>();
 
 	// Start all simulation LOD in the Off 
-	if (Params.bSetLODTags || bEnableVariableTicking)
+	if (Params.bSetLODTags || bEnableVariableTicking || BuildContext.IsInspectingData())
 	{
 		LODFragment.LOD = EMassLOD::Off;
 		BuildContext.AddTag<FMassOffLODTag>();
@@ -55,7 +55,7 @@ void UMassSimulationLODTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	BuildContext.AddSharedFragment(SharedFragment);
 
 	// Variable ticking from simulation LOD
-	if (bEnableVariableTicking)
+	if (bEnableVariableTicking || BuildContext.IsInspectingData())
 	{
 		BuildContext.AddFragment<FMassSimulationVariableTickFragment>();
 		BuildContext.AddChunkFragment<FMassSimulationVariableTickChunkFragment>();

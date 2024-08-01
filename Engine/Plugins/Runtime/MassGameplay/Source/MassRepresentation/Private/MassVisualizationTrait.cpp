@@ -56,7 +56,8 @@ UMassVisualizationTrait::UMassVisualizationTrait()
 void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
 	// This should not be ran on NM_Server network mode
-	if (World.IsNetMode(NM_DedicatedServer) && !bAllowServerSideVisualization)
+	if (World.IsNetMode(NM_DedicatedServer) && !bAllowServerSideVisualization 
+		&& !BuildContext.IsInspectingData())
 	{
 		return;
 	}
@@ -68,7 +69,7 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	FMassEntityManager& EntityManager = UE::Mass::Utils::GetEntityManagerChecked(World);
 
 	UMassRepresentationSubsystem* RepresentationSubsystem = Cast<UMassRepresentationSubsystem>(World.GetSubsystemBase(RepresentationSubsystemClass));
-	if (RepresentationSubsystem == nullptr)
+	if (RepresentationSubsystem == nullptr && !BuildContext.IsInspectingData())
 	{
 		UE_LOG(LogMassRepresentation, Error, TEXT("Expecting a valid class for the representation subsystem"));
 		RepresentationSubsystem = UWorld::GetSubsystem<UMassRepresentationSubsystem>(&World);
@@ -87,13 +88,16 @@ void UMassVisualizationTrait::BuildTemplate(FMassEntityTemplateBuildContext& Bui
 	}
 
 	FMassRepresentationFragment& RepresentationFragment = BuildContext.AddFragment_GetRef<FMassRepresentationFragment>();
-	RepresentationFragment.HighResTemplateActorIndex = HighResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(HighResTemplateActor.Get()) : INDEX_NONE;
-	RepresentationFragment.LowResTemplateActorIndex = LowResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(LowResTemplateActor.Get()) : INDEX_NONE;
+	if (LIKELY(BuildContext.IsInspectingData() == false))
+	{
+		RepresentationFragment.HighResTemplateActorIndex = HighResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(HighResTemplateActor.Get()) : INDEX_NONE;
+		RepresentationFragment.LowResTemplateActorIndex = LowResTemplateActor.Get() ? RepresentationSubsystem->FindOrAddTemplateActor(LowResTemplateActor.Get()) : INDEX_NONE;
+	}
 
 	bool bStaticMeshDescriptionValid = StaticMeshInstanceDesc.IsValid();
 	if (bStaticMeshDescriptionValid)
 	{
-		if (bRegisterStaticMeshDesc)
+		if (bRegisterStaticMeshDesc && !BuildContext.IsInspectingData())
 		{
 			RepresentationFragment.StaticMeshDescHandle = RepresentationSubsystem->FindOrAddStaticMeshDesc(StaticMeshInstanceDesc);
 			ensureMsgf(RepresentationFragment.StaticMeshDescHandle.IsValid()
@@ -159,9 +163,9 @@ void UMassVisualizationTrait::Serialize(FArchive& Ar)
 #endif // WITH_EDITOR
 }
 
-bool UMassVisualizationTrait::ValidateTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
+bool UMassVisualizationTrait::ValidateTemplate(const FMassEntityTemplateBuildContext& BuildContext, const UWorld& World, FAdditionalTraitRequirements& OutTraitRequirements) const
 {
-	Super::ValidateTemplate(BuildContext, World);
+	Super::ValidateTemplate(BuildContext, World, OutTraitRequirements);
 
 #if WITH_EDITOR
 	return ValidateParams();
