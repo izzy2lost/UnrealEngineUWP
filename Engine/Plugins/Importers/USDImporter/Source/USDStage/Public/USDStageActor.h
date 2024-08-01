@@ -408,6 +408,7 @@ protected:
 	void OnPreUsdImport(FString FilePath);
 	void OnPostUsdImport(FString FilePath);
 	void OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges);
+	void HandleAccumulatedNotices();
 	void OnUsdPrimTwinDestroyed(const UUsdPrimTwin& UsdPrimTwin);
 	void OnObjectPropertyChanged(UObject* ObjectBeingModified, FPropertyChangedEvent& PropertyChangedEvent);
 	void HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyChangedEvent);
@@ -444,6 +445,13 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UUsdTransactor> Transactor;
+
+	/**
+	 * USD can emit multiple notices within the same UE transaction. We accumulate these in here, and respond
+	 * to them only once, when the transaction is about to finish
+	 */
+	UsdUtils::FObjectChangesByPath AccumulatedInfoChanges;
+	UsdUtils::FObjectChangesByPath AccumulatedResyncChanges;
 
 	/** Caches various information about prims that are expensive to query */
 	TSharedPtr<FUsdInfoCache> InfoCache;

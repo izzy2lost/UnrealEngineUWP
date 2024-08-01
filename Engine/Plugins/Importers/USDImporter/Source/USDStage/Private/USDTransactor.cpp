@@ -703,7 +703,7 @@ namespace UsdUtils
 	}
 
 	/** Applies the field value pairs to all prims on the stage, and returns a list of prim paths for modified prims */
-	TArray<FString> ApplyFieldMapToStage(
+	TSet<FString> ApplyFieldMapToStage(
 		const FTransactorEditStorage& EditStorage,
 		EApplicationDirection Direction,
 		UE::FUsdStage& Stage,
@@ -715,7 +715,7 @@ namespace UsdUtils
 			return {};
 		}
 
-		TArray<FString> PrimsChanged;
+		TSet<FString> PrimsChanged;
 
 		int32 Start = 0;
 		int32 End = 0;
@@ -992,7 +992,7 @@ namespace UsdUtils
 
 			UE::FUsdStage& Stage = StageActor->GetOrOpenUsdStage();
 
-			TArray<FString>
+			TSet<FString>
 				PrimsChanged = UsdUtils::ApplyFieldMapToStage(Values, UsdUtils::EApplicationDirection::Reverse, Stage, StageActor->GetTime());
 
 			if (PrimsChanged.Num() > 0)
@@ -1039,7 +1039,7 @@ namespace UsdUtils
 
 			UE::FUsdStage& Stage = StageActor->GetOrOpenUsdStage();
 
-			TArray<FString> PrimsChanged;
+			TSet<FString> PrimsChanged;
 			if (bIsApplyingConcertSync && ReceivedValuesBeforeUndo.IsSet())
 			{
 				// If we're applying a received ConcertSync transaction that actually is an undo on the source client then we want to use it's
@@ -1172,6 +1172,8 @@ void UUsdTransactor::Initialize(AUsdStageActor* InStageActor)
 
 void UUsdTransactor::Update(const UsdUtils::FObjectChangesByPath& NewInfoChanges, const UsdUtils::FObjectChangesByPath& NewResyncChanges)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UUsdTransactor::Update);
+
 	// We always send notices even when we're undoing/redoing changes (so that multi-user can broadcast them).
 	// Make sure that we only ever update our OldValues/NewValues when we receive *new* updates though
 	if (Impl.IsValid() && (Impl->IsTransactionUndoing() || Impl->IsTransactionRedoing() || Impl->IsApplyingConcertSyncTransaction()))
