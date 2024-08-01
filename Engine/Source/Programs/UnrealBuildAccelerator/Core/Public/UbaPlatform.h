@@ -47,7 +47,6 @@
 	#endif
 
 	#define ANALYSIS_NORETURN // __attribute__((analyzer_noreturn))
-    #define ERROR_SUCCESS 0
 #endif
 
 #define UBA_EXPERIMENTAL 0
@@ -124,6 +123,7 @@ namespace uba
 	#define TStrcpy_s wcscpy_s
 	#define TStrcat_s wcscat_s
 	#define TStrdup _wcsdup
+	#define UBA_NOINLINE __declspec(noinline)
 #else
 	inline constexpr tchar PathSeparator = '/';
 	inline constexpr tchar NonPathSeparator = '\\';
@@ -147,6 +147,9 @@ namespace uba
 	#define st_mtimespec st_mtim
 	#else
 	inline constexpr bool CaseInsensitiveFs = true;
-#endif
+	#endif
+	#define UBA_NOINLINE
+    #define ERROR_SUCCESS 0
+	#define DUPLICATE_SAME_ACCESS 0
 #endif // PLATFORM_WINDOWS
 }

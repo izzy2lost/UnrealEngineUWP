@@ -128,7 +128,7 @@ namespace uba
 		#endif
 	}
 
-	void WriteAssertInfo(StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack = 0)
+	UBA_NOINLINE void WriteAssertInfo(StringBufferBase& out, const tchar* text, const char* file, u32 line, const char* expr, u32 skipCallstack = 0)
 	{
 #if PLATFORM_WINDOWS
 		if (text)
@@ -164,7 +164,7 @@ namespace uba
 				if (file)
 					out.Appendf(L"\n\n");
 				out.Appendf(L"  Callstack:");
-				for (u32 i = 0; i < count; i++)
+				for (u32 i = skipCallstack; i < count; i++)
 				{
 					tchar str[1024];
 					auto addr = u64(callers[i]);

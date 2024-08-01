@@ -4,6 +4,10 @@
 #include "UbaDirectoryTable.h"
 #include "UbaPathUtils.h"
 
+#if PLATFORM_WINDOWS
+#include "Windows/UbaDetoursUtilsWin.h"
+#endif
+
 namespace uba
 {
 	MappedFileTable::MappedFileTable(MemoryBlock& memoryBlock) : m_memoryBlock(memoryBlock), m_lookup(&memoryBlock)
@@ -153,18 +157,45 @@ namespace uba
 
 	void Rpc_UpdateTables()
 	{
-		TimerScope ts(g_stats.updateTables);
-		SCOPED_WRITE_LOCK(g_communicationLock, pcs);
-		BinaryWriter writer;
-		writer.WriteByte(MessageType_UpdateTables);
-		writer.Flush();
-		BinaryReader reader;
-		u32 directoryTableSize = reader.ReadU32();
-		u32 fileMappingTableSize = reader.ReadU32();
-		pcs.Leave();
+		u32 directoryTableSize;
+		u32 fileMappingTableSize;
+		{
+			TimerScope ts(g_stats.updateTables);
+			SCOPED_WRITE_LOCK(g_communicationLock, pcs);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_UpdateTables);
+			writer.Flush();
+			BinaryReader reader;
+			directoryTableSize = reader.ReadU32();
+			fileMappingTableSize = reader.ReadU32();
+
+#if PLATFORM_WINDOWS
+			if (u32 tempFileCount = reader.ReadU32())
+			{
+				SCOPED_WRITE_LOCK(g_mappedFileTable.m_lookupLock, _);
+				while (tempFileCount--)
+				{
+					StringKey fileNameKey = reader.ReadStringKey();
+					u64 fileSize = reader.ReadU64();
+					auto findIt = g_mappedFileTable.m_lookup.find(fileNameKey);
+					if (findIt == g_mappedFileTable.m_lookup.end())
+						continue;
+					FileInfo& info = findIt->second;
+					UBA_ASSERT(info.memoryFile);
+					if (!info.memoryFile)
+						continue;
+					info.memoryFile->writtenSize = fileSize;
+					if (fileSize <= info.memoryFile->committedSize)
+						continue;
+					UBA_ASSERT(info.memoryFile->committedSize == 0);
+					info.memoryFile->EnsureCommitted(DetouredHandle(HandleType_File), fileSize);
+				}
+			}
+#endif
+			DEBUG_LOG_PIPE(L"UpdateTables", L"");
+		}
 		g_directoryTable.ParseDirectoryTable(directoryTableSize);
 		g_mappedFileTable.Parse(fileMappingTableSize);
-		DEBUG_LOG_PIPE(L"UpdateTables", L"");
 	}
 
 	u32 Rpc_GetEntryOffset(const StringKey& entryNameKey, const tchar* entryName, u64 entryNameLen, bool checkIfDir)

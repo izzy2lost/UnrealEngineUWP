@@ -407,6 +407,7 @@ errno_t Detoured_getenv_s(size_t* pReturnValue, char* buffer, size_t numberOfEle
 
 errno_t Detoured__wmakepath_s(wchar_t* path, size_t sizeInWords, const wchar_t* drive, const wchar_t* dir, const wchar_t* fname, const wchar_t* ext)
 {
+	DETOURED_CALL(_wmakepath_s);
 	auto res = True__wmakepath_s(path, sizeInWords, drive, dir, fname, ext);
 	DEBUG_LOG_TRUE(L"_wmakepath_s", L"%ls %ls %ls %ls %ls", path, drive, dir, fname, ext);
 	return res;
@@ -414,8 +415,9 @@ errno_t Detoured__wmakepath_s(wchar_t* path, size_t sizeInWords, const wchar_t* 
 char* Detoured__getcwd(char* buffer, int maxlen)
 {
 	DETOURED_CALL(_getcwd);
-	UBA_ASSERT(!g_virtualCommandLineA);
-	return True__getcwd(buffer, maxlen);
+	auto res = True__getcwd(buffer, maxlen); // We know this calls GetCommandLine for both wine and windows
+	DEBUG_LOG_TRUE(L"_getcwd", L"%hs", res);
+	return res;
 }
 
 #endif // defined(DETOURED_INCLUDE_DEBUG)

@@ -234,7 +234,7 @@ struct SuppressCreateFileDetourScope
 	~SuppressCreateFileDetourScope() { --t_disallowCreateFileDetour; }
 };
 
-const wchar_t* HandleToName(DetouredHandle& dh)
+const wchar_t* HandleToName(const DetouredHandle& dh)
 {
 	if (dh.fileObject)
 		if (const wchar_t* name = dh.fileObject->fileInfo->name)
@@ -242,11 +242,12 @@ const wchar_t* HandleToName(DetouredHandle& dh)
 	return L"Unknown";
 }
 
+BlockAllocator<FileObject> g_fileObjectAllocator(g_memoryBlock);
 
 void MemoryFile::Write(DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBytesToWrite)
 {
 	u64 newPos = handle.pos + nNumberOfBytesToWrite;
-	EnsureCommited(handle, newPos);
+	EnsureCommitted(handle, newPos);
 	memcpy(baseAddress + handle.pos, lpBuffer, nNumberOfBytesToWrite);
 	handle.pos += nNumberOfBytesToWrite;
 	if (writtenSize < newPos)
@@ -256,7 +257,7 @@ void MemoryFile::Write(DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBy
 	}
 }
 
-void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
+void MemoryFile::EnsureCommitted(const DetouredHandle& handle, u64 size)
 {
 	if (committedSize >= size)
 		return;
@@ -279,20 +280,23 @@ void MemoryFile::EnsureCommited(DetouredHandle& handle, u64 size)
 		}
 
 		if (shouldRemap)
-		{
-			True_UnmapViewOfFile(baseAddress);
-			mappedSize = Min(reserveSize, AlignUp(Max(size, mappedSize * 4), g_pageSize));
-			TimerScope ts(g_kernelStats.mapViewOfFile);
-			baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
-			if (!baseAddress)
-				FatalError(1347, L"MapViewOfFile failed trying to map %llu for %ls. ReservedSize: %llu (Error code: %u)", mappedSize, HandleToName(handle), reserveSize, GetLastError());
-		}
+			Remap(handle, size);
 	}
 
 	u64 toCommit = Min(reserveSize, AlignUp(size - committedSize, g_pageSize));
 	if (!VirtualAlloc(baseAddress + committedSize, toCommit, MEM_COMMIT, PAGE_READWRITE))
 		FatalError(1347, L"Failed to ensure virtual memory for %ls. MappedSize: %llu, CommittedSize: %llu RequestedSize: %llu. (%u)", HandleToName(handle), mappedSize, committedSize, size, GetLastError());
 	committedSize += toCommit;
+}
+
+void MemoryFile::Remap(const DetouredHandle& handle, u64 size)
+{
+	True_UnmapViewOfFile(baseAddress);
+	mappedSize = Min(reserveSize, AlignUp(Max(size, mappedSize * 4), g_pageSize));
+	TimerScope ts(g_kernelStats.mapViewOfFile);
+	baseAddress = (u8*)True_MapViewOfFile(mappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, 0, 0, mappedSize);
+	if (!baseAddress)
+		FatalError(1347, L"MapViewOfFile failed trying to map %llu for %ls. ReservedSize: %llu (Error code: %u)", mappedSize, HandleToName(handle), reserveSize, GetLastError());
 }
 
 void ToInvestigate(const wchar_t* format, ...)
@@ -309,12 +313,12 @@ void ToInvestigate(const wchar_t* format, ...)
 #endif
 }
 
-void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr, u32 terminateCode, bool allowTerminate)
+UBA_NOINLINE void UbaAssert(const wchar_t* text, const char* file, u32 line, const char* expr, u32 terminateCode, bool allowTerminate)
 {
 	SuppressDetourScope _;
 	
 	StringBuffer<32*1024> b;
-	WriteAssertInfo(b, text, file, line, expr, 1);
+	WriteAssertInfo(b, text, file, line, expr, 3);
 	Rpc_WriteLog(b.data, b.count, true, true);
 	#if UBA_DEBUG_LOG_ENABLED
 	FlushDebugLog();
@@ -803,9 +807,9 @@ void Init(const DetoursPayload& payload, u64 startTime)
 
 	if (g_isDetachedProcess)
 	{
-		g_stdHandle[0] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_ERR
-		g_stdHandle[1] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_OUT
-		g_stdHandle[2] = makeDetouredHandle(new DetouredHandle(HandleType_Std)); // STD_IN
+		g_stdHandle[0] = makeDetouredHandle(new DetouredHandle(HandleType_StdErr)); // STD_ERR
+		g_stdHandle[1] = makeDetouredHandle(new DetouredHandle(HandleType_StdOut)); // STD_OUT
+		g_stdHandle[2] = makeDetouredHandle(new DetouredHandle(HandleType_StdIn)); // STD_IN
 	}
 
 	if (payload.trackInputs)

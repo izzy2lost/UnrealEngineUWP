@@ -905,6 +905,16 @@ namespace uba
 		}
 		auto cg = MakeGuard([&]() { coordinator.Destroy(); });
 
+#if 0	// Annoying that link.exe/lld-link.exe needs path to windows folder.. 
+		if (!useScheduler)
+		{
+			StringBuffer<2048> temp;
+			temp.count = GetEnvironmentVariableW(TC("PATH"), temp.data, temp.capacity);
+			temp.Append(TC("c:\\sdk\\AutoSDK\\HostWin64\\Win64\\Windows Kits\\10\\bin\\10.0.19041.0\\x64;"));
+			SetEnvironmentVariableW(TC("PATH"), temp.data);
+
+		}
+#endif
 
 		for (u32 i=0; i!=loopCount; ++i)
 		{

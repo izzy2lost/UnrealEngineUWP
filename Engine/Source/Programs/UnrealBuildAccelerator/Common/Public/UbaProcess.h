@@ -171,6 +171,7 @@ namespace uba
 		UnorderedMap<TString, WrittenFile>& m_writtenFiles;
 		ReaderWriterLock& m_tempFilesLock;
 		UnorderedMap<StringKey, WrittenFile>& m_tempFiles;
+		Atomic<u32> m_tempFilesModified;
 		SessionStats m_sessionStats;
 		StorageStats m_storageStats;
 		ProcessStats m_processStats;

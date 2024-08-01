@@ -364,7 +364,7 @@ BOOL Detoured_ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead
 	{
 		auto& dh = asDetouredHandle(hFile);
 
-		if (dh.type == HandleType_Std) // HACK HACK
+		if (dh.type == HandleType_StdIn) // HACK HACK
 		{
 			UBA_ASSERTF(false, L"Trying to read input from stdin while application is running in a way console can not be accessed");
 			memcpy(lpBuffer, "Y\r\n", 3);
@@ -635,14 +635,18 @@ BOOL Detoured_WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWr
 		auto& dh = asDetouredHandle(hFile);
 		auto& fo = *dh.fileObject;
 
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
 		{
-			//DEBUG_LOG_DETOURED(L"WriteStdFile1", L"%llu", uintptr_t(hFile));
-			WriteStdFile(lpBuffer, nNumberOfBytesToWrite, hFile == g_stdHandle[0]);
+			if (dh.type != HandleType_StdIn)
+			{
+				//DEBUG_LOG_DETOURED(L"WriteStdFile1", L"%llu", uintptr_t(hFile));
+				WriteStdFile(lpBuffer, nNumberOfBytesToWrite, dh.type == HandleType_StdErr);
+			}
 			*lpNumberOfBytesWritten = nNumberOfBytesToWrite;
 			SetLastError(ERROR_SUCCESS);
 			return true;
 		}
+
 		auto& fi = *fo.fileInfo;
 		if (MemoryFile* mf = fi.memoryFile)
 		{
@@ -833,7 +837,7 @@ DWORD Detoured_SetFilePointerEx(HANDLE hFile, LARGE_INTEGER liDistanceToMove, PL
 	if (isDetouredHandle(hFile))
 	{
 		DetouredHandle& dh = asDetouredHandle(hFile);
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
 		{
 			if (lpNewFilePointer)
 				*lpNewFilePointer = ToLargeInteger(0);
@@ -887,7 +891,7 @@ BOOL Detoured_SetEndOfFile(HANDLE hFile)
 			DEBUG_LOG_DETOURED(L"SetEndOfFile (MEMORY)", L"%llu (%ls) -> Success", uintptr_t(hFile), HandleToName(hFile));
 			mf->writtenSize = dh.pos;
 			mf->isReported = false;
-			mf->EnsureCommited(dh, mf->writtenSize);
+			mf->EnsureCommitted(dh, mf->writtenSize);
 			SetLastError(ERROR_SUCCESS);
 			return true;
 		}
@@ -955,12 +959,12 @@ DWORD Detoured_GetFileType(HANDLE hFile)
 	{
 		DetouredHandle& dh = asDetouredHandle(hFile);
 		SetLastError(ERROR_SUCCESS);
-		if (dh.type == HandleType_Std)
+		if (dh.type >= HandleType_StdErr)
 		{
 			DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_CHAR", uintptr_t(hFile), HandleToName(hFile));
 			return FILE_TYPE_CHAR;
 		}
-		UBA_ASSERT(dh.type == HandleType_File);
+		UBA_ASSERTF(dh.type == HandleType_File, L"HandleType: %u", dh.type);
 		DEBUG_LOG_DETOURED(L"GetFileType", L"%llu (%ls) -> FILE_TYPE_DISK", uintptr_t(hFile), HandleToName(hFile));
 		return FILE_TYPE_DISK;
 	}
@@ -1989,7 +1993,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 
 		if (MemoryFile* mf = fi.memoryFile)
 		{
-			DEBUG_LOG_DETOURED(L"GetFileInformationByHandle", L"(memoryfile) %llu (%ls) -> Success", uintptr_t(hFile), HandleToName(hFile));
+			DEBUG_LOG_DETOURED(L"GetFileInformationByHandle", L"(memoryfile) %llu (%ls) -> Success (Size: %llu)", uintptr_t(hFile), HandleToName(hFile), mf->writtenSize);
 			lpFileInformation->dwFileAttributes = FILE_ATTRIBUTE_NORMAL;
 			(u64&)lpFileInformation->ftCreationTime = mf->fileTime;
 			(u64&)lpFileInformation->ftLastAccessTime = mf->fileTime;
@@ -1999,7 +2003,7 @@ BOOL Detoured_GetFileInformationByHandle(HANDLE hFile, LPBY_HANDLE_FILE_INFORMAT
 			lpFileInformation->nFileIndexHigh = li.HighPart;
 			lpFileInformation->nFileIndexLow = li.LowPart;
 			lpFileInformation->nNumberOfLinks = 1;//~u32(0); // TODO
-			li = ToLargeInteger(fi.memoryFile->writtenSize);
+			li = ToLargeInteger(mf->writtenSize);
 			lpFileInformation->nFileSizeHigh = li.HighPart;
 			lpFileInformation->nFileSizeLow = li.LowPart;
 			return TRUE;
@@ -2151,7 +2155,7 @@ HANDLE Detoured_CreateFileMappingW(HANDLE hFile, LPSECURITY_ATTRIBUTES lpFileMap
 				li.LowPart = dwMaximumSizeLow;
 				if (!(flProtect & MEM_RESERVE) && li.QuadPart)
 				{
-					mf->EnsureCommited(*mdh, li.QuadPart);
+					mf->EnsureCommitted(*mdh, li.QuadPart);
 					if (!mf->writtenSize && (flProtect & PAGE_READWRITE)) // TODO: Maybe we should always set writtenSize?
 						mf->writtenSize = li.QuadPart;
 				}
@@ -2723,7 +2727,9 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		writer.Flush();
 		BinaryReader reader;
 		processId = reader.ReadU32();
-		UBA_ASSERT(processId > 0);
+		UBA_ASSERTF(processId > 0, L"Failed to create process %s", originalCmd);
+		if (!processId)
+			return FALSE;
 
 		reader.Skip(sizeof(u32)); // Rules index
 
@@ -2738,18 +2744,30 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 
 	LPCSTR dlls[] = { dll };
 
-	UBA_ASSERT(!isDetouredHandle(lpStartupInfo->hStdInput));
-
-	if (g_isDetachedProcess)
+	if (isDetouredHandle(lpStartupInfo->hStdError))
 	{
-		if (lpStartupInfo->hStdError == g_stdHandle[0])
-			lpStartupInfo->hStdError = 0;
-		if (lpStartupInfo->hStdOutput == g_stdHandle[1])
-			lpStartupInfo->hStdOutput = 0;
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdError);
+		if (dh.type == HandleType_StdErr)
+			lpStartupInfo->hStdError = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_ERROR_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdError is detoured (%s)", lpApplicationName);
 	}
-
-	UBA_ASSERT(!isDetouredHandle(lpStartupInfo->hStdOutput));
-	UBA_ASSERTF(!isDetouredHandle(lpStartupInfo->hStdError), L"Got detoured handle for stderror: %llu", lpStartupInfo->hStdError);
+	if (isDetouredHandle(lpStartupInfo->hStdOutput))
+	{
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdOutput);
+		if (dh.type == HandleType_StdOut)
+			lpStartupInfo->hStdOutput = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_OUTPUT_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdOutput is detoured (%s)", lpApplicationName);
+	}
+	if (isDetouredHandle(lpStartupInfo->hStdInput))
+	{
+		DetouredHandle& dh = asDetouredHandle(lpStartupInfo->hStdInput);
+		if (dh.type == HandleType_StdIn)
+			lpStartupInfo->hStdInput = g_isDetachedProcess ? 0 : True_GetStdHandle(STD_INPUT_HANDLE);
+		else
+			UBA_ASSERTF(false, L"hStdInput is detoured (%s)", lpApplicationName);
+	}
 
 	lpStartupInfo->dwFlags |= STARTF_USESHOWWINDOW;
 	lpStartupInfo->wShowWindow = SW_HIDE;
@@ -2785,7 +2803,6 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		continue;
 	}
 	--t_disallowDetour;
-	UBA_ASSERTF(res, L"Failed to spawn process %ls (Error code: %u)", commandLine.c_str(), lastError);
 
 	if (isChild)
 	{
@@ -2802,6 +2819,8 @@ BOOL Detoured_CreateProcessW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LP
 		writer.Flush();
 		DEBUG_LOG_PIPE(L"StartProcess", L"%ls %ls", lpApplicationName, originalCmd);
 	}
+
+	UBA_ASSERTF(res, L"Failed to spawn process %ls (Error code: %u)", commandLine.c_str(), lastError);
 
 	HANDLE trueHandle = lpProcessInformation->hProcess;
 

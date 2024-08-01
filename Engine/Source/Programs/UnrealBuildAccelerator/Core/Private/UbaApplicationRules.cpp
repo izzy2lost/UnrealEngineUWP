@@ -160,6 +160,23 @@ namespace uba
 		}
 	};
 
+	class ApplicationRulesLldLinkExe : public ApplicationRulesLinkExe
+	{
+		using Super = ApplicationRulesLinkExe;
+
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
+		{
+			return fileName.EndsWith(TC(".manifest"));
+		}
+
+		virtual bool IsOutputFile(const StringView& fileName) const override
+		{
+			return false//Super::IsOutputFile(fileName)
+				|| fileName.Contains(TC(".exe.tmp"))
+				|| fileName.Contains(TC(".pdb.tmp"));
+		}
+	};
+
 	// ==== Clang tool chain ====
 
 	class ApplicationRulesClang : public ApplicationRules
@@ -375,7 +392,8 @@ namespace uba
 			return fileName.Contains(TC(".generated.dummy"))
 				|| fileName.EndsWith(TC(".ispc.bc"))
 				|| fileName.EndsWith(TC(".ispc.txt"))
-				|| fileName.EndsWith(TC(".obj"));
+				|| fileName.EndsWith(TC(".obj"))
+				|| fileName.EndsWith(TC(".o")); // Used when compiling for linux
 		}
 
 		virtual bool IsCacheable() const override
@@ -472,7 +490,7 @@ namespace uba
 			{ TC("cvtres.exe"),					new ApplicationRulesLinkExe() },
 			{ TC("mt.exe"),						new ApplicationRulesLinkExe() },
 			{ TC("rc.exe"),						new ApplicationRulesLinkExe() },
-			{ TC("lld-link.exe"),				new ApplicationRulesLinkExe() },
+			{ TC("lld-link.exe"),				new ApplicationRulesLldLinkExe() },
 			{ TC("clang++.exe"),				new ApplicationRulesClangPlusPlusExe() },
 			{ TC("clang-cl.exe"),				new ApplicationRulesClangPlusPlusExe() },
 			{ TC("verse-clang-cl.exe"),			new ApplicationRulesClangPlusPlusExe() },

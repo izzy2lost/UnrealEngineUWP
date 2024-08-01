@@ -2758,6 +2758,9 @@ namespace uba
 
 	bool Session::ExtractSymbolsFromObjectFile(const CloseFileMessage& msg, const tchar* fileName, u64 fileSize)
 	{
+		if (!msg.mappingHandle)
+			return m_logger.Error(TC("Can't extract symbols from obj file that is written directly to disk (%s writing %s)"), msg.process.m_startInfo.application, fileName);
+
 		FileMappingHandle source;
 		source.FromU64(msg.mappingHandle);
 		FileMappingHandle objectFileMappingHandle;

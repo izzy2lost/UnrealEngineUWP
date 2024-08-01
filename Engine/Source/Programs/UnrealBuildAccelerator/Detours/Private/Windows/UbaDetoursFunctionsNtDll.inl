@@ -688,7 +688,8 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 
 	bool useContent = IsContentUse(DesiredAccess, CreateDisposition);
 	bool isWrite = IsWrite(DesiredAccess, CreateDisposition);
-	bool keepInMemory = (KeepInMemory(fileName) && useContent) || IsOutputFile(fileName, isWrite, isDeleteOnClose);
+	//bool keepInMemory = (KeepInMemory(fileName) && (useContent || NeedsSharedMemory(fileName.data))) || IsOutputFile(fileName, isWrite, isDeleteOnClose);
+	bool keepInMemory = KeepInMemory(fileName) || IsOutputFile(fileName, isWrite, isDeleteOnClose);
 
 #if UBA_DEBUG_LOG_ENABLED
 	const wchar_t* isWriteStr = isWrite ? L" WRITE" : L""; (void)isWriteStr;
@@ -1061,11 +1062,6 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 				#if UBA_DEBUG_LOG_ENABLED
 				memoryType = L"SHAREDMEMORY";
 				#endif
-				if (isWrite)
-				{
-					info.memoryFile = new MemoryFile(false, FileTypeMaxSize(fileName, isSystemOrTempFile));
-				}
-				else
 				{
 					TimerScope ts(g_stats.openTempFile);
 					SCOPED_WRITE_LOCK(g_communicationLock, pcs);
@@ -1080,16 +1076,20 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 					pcs.Leave();
 					if (mappingHandle)
 					{
-						info.memoryFile = new MemoryFile();
+						info.memoryFile = new MemoryFile(nullptr, false);
 						MemoryFile& mf = *info.memoryFile;
 						True_DuplicateHandle(g_hostProcess, (HANDLE)mappingHandle, GetCurrentProcess(), &mf.mappingHandle, 0, FALSE, DUPLICATE_SAME_ACCESS);
 						UBA_ASSERTF(mf.mappingHandle, L"DuplicateHandle failed when opening temp file %ls (%u)", fileName.data, GetLastError());
 						mf.writtenSize = mappingHandleSize;
-
 						TimerScope ts2(g_kernelStats.mapViewOfFile);
-						mf.baseAddress = (u8*)True_MapViewOfFile(mf.mappingHandle, FILE_MAP_READ, 0, 0, mappingHandleSize);
+						mf.baseAddress = (u8*)True_MapViewOfFile(mf.mappingHandle, FILE_MAP_READ | FILE_MAP_ALL_ACCESS, 0, 0, mappingHandleSize);
 						UBA_ASSERTF(mf.baseAddress, L"MapViewOfFile failed when opening temp file %ls (%u)", fileName.data, GetLastError());
-						mf.committedSize = mappingHandleSize;
+						//mf.committedSize = mappingHandleSize;
+						mf.reserveSize = FileTypeMaxSize(fileName, isSystemOrTempFile);
+					}
+					else if (isWrite)
+					{
+						info.memoryFile = new MemoryFile(false, FileTypeMaxSize(fileName, isSystemOrTempFile));
 					}
 					else
 					{
@@ -1311,9 +1311,6 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 
 	DetouredHandle& dh = asDetouredHandle(handle);
 
-	if (dh.type == HandleType_Std)
-		return STATUS_SUCCESS;
-
 	NTSTATUS res = STATUS_SUCCESS;
 
 	if (dh.trueHandle != INVALID_HANDLE_VALUE)
@@ -1325,6 +1322,8 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 	FileObject* fo = dh.fileObject;
 	if (!fo)
 	{
+		if (dh.type >= HandleType_StdErr) // TODO: This might leak if handle is duplicated.. but ignore for now
+			return res;
 		DEBUG_LOG_TRUE(L"NtClose", L"%llu (%ls) -> %ls", uintptr_t(handle), HandleToName(handle), ToString(res));
 		delete& dh;
 		return res;
@@ -1421,6 +1420,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 		}
 		else if (NeedsSharedMemory(fi.originalName) && IsWrite(fo->desiredAccess, 0))
 		{
+			UBA_ASSERT(!fi.memoryFile->isLocalOnly);
 			StringBuffer<> fixedName;
 			FixPath(fixedName, path);
 

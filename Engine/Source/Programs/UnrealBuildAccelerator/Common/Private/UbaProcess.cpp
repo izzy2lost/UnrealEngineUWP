@@ -835,6 +835,23 @@ namespace uba
 	{
 		writer.WriteU32(m_session.GetDirectoryTableSize());
 		writer.WriteU32(m_session.GetFileMappingSize());
+
+#if PLATFORM_WINDOWS
+		if (!m_tempFilesModified)
+		{
+			writer.WriteU32(0);
+			return true;
+		}
+
+		// This should be very rare (lld-link.exe uses it for mt.exe).. if we get too many temp files we'll need to rethink this design
+		SCOPED_READ_LOCK(m_tempFilesLock, l);
+		writer.WriteU32(u32(m_tempFiles.size()));
+		for (auto& kv : m_tempFiles)
+		{
+			writer.WriteStringKey(kv.first);
+			writer.WriteU64(kv.second.mappingWritten);
+		}
+#endif
 		return true;
 	}
 
@@ -1210,7 +1227,7 @@ namespace uba
 		FileMappingHandle source;
 		source.FromU64(mappingHandle);
 		FileMappingHandle newHandle;
-		if (!DuplicateFileMapping(nativeProcessHandle, source, GetCurrentProcessHandle(), &newHandle, FILE_MAP_READ, false, 0))
+		if (!DuplicateFileMapping(nativeProcessHandle, source, GetCurrentProcessHandle(), &newHandle, 0, false, DUPLICATE_SAME_ACCESS))
 		{
 			m_session.m_logger.Error(TC("Failed to duplicate handle for temp file (%s)"), fileName.data);
 			return true;
@@ -1221,6 +1238,7 @@ namespace uba
 		if (insres.second)
 			return true;
 
+		++m_tempFilesModified;
 		WrittenFile& tempFile = insres.first->second;
 		FileMappingHandle oldMapping = tempFile.mappingHandle;
 		tempFile.mappingHandle = newHandle;

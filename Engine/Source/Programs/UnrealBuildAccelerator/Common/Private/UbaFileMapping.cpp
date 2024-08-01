@@ -395,12 +395,12 @@ namespace uba
 		}
 
 		u64 committedBefore = AlignUp(offset, m_pageSize);
-		u64 commitedAfter = AlignUp(newOffset, m_pageSize);
+		u64 committedAfter = AlignUp(newOffset, m_pageSize);
 
-		if (f.commitOnAlloc && committedBefore != commitedAfter)
+		if (f.commitOnAlloc && committedBefore != committedAfter)
 		{
 			u64 commitStart = committedBefore - alignedOffsetStart;
-			u64 commitSize = commitedAfter - committedBefore;
+			u64 commitSize = committedAfter - committedBefore;
 			if (!MapViewCommit(data + commitStart, commitSize))
 			{
 				UnmapViewOfFile(data, mapSize, hint);

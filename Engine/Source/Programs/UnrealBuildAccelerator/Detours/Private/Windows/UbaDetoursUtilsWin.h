@@ -19,9 +19,9 @@ namespace uba
 		bool ownsFileInfo = false;
 		TString newName;
 	};
-	BlockAllocator<FileObject> g_fileObjectAllocator(g_memoryBlock);
-	void* FileObject::operator new(size_t size) { return g_fileObjectAllocator.Allocate(); }
-	void FileObject::operator delete(void* p) { g_fileObjectAllocator.Free(p); }
+	extern BlockAllocator<FileObject> g_fileObjectAllocator;
+	inline void* FileObject::operator new(size_t size) { return g_fileObjectAllocator.Allocate(); }
+	inline void FileObject::operator delete(void* p) { g_fileObjectAllocator.Free(p); }
 
 
 	enum HandleType
@@ -29,7 +29,10 @@ namespace uba
 		HandleType_File,
 		HandleType_FileMapping,
 		HandleType_Process,
-		HandleType_Std,
+		HandleType_StdErr,
+		HandleType_StdOut,
+		HandleType_StdIn,
+		// Std handle types must be last
 	};
 
 
@@ -101,7 +104,8 @@ namespace uba
 		}
 
 		void Write(struct DetouredHandle& handle, LPCVOID lpBuffer, u64 nNumberOfBytesToWrite);
-		void EnsureCommited(struct DetouredHandle& handle, u64 size);
+		void EnsureCommitted(const struct DetouredHandle& handle, u64 size);
+		void Remap(const struct DetouredHandle& handle, u64 size);
 
 		u64 fileIndex = ~u64(0);
 		u64 fileTime = ~u64(0);
