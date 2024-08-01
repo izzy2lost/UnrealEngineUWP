@@ -880,7 +880,7 @@ bool FAvaEditor::PasteFromString(FString& InPastedData) const
 			// Pop the Temporary Tag added on Copy, which would be the Actor Path of Source Actor
 			const FName CopiedTag = InPastedActor->Tags.Pop();
 
-			TSoftObjectPtr<AActor> SourceActor(CopiedTag.ToString());
+			TSoftObjectPtr<AActor> SourceActor = TSoftObjectPtr<AActor>(FSoftObjectPath(CopiedTag.ToString()));
 
 			PastedActors.Emplace(InPastedActor, MoveTemp(SourceActor));
 		}
