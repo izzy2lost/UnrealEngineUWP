@@ -41,6 +41,9 @@ struct MOVER_API FNetworkPhysicsMoverInputs : public FNetworkPhysicsData
 
 	/** Check input data is valid - Input is send from client to server, no need to make sure it's reasonable */
 	virtual void ValidateData(const UActorComponent* NetworkComponent) override;
+
+	/** Return string with debug information */
+	virtual const FString DebugData() override;
 };
 
 template<>
@@ -71,6 +74,9 @@ struct MOVER_API FNetworkPhysicsMoverState : public FNetworkPhysicsData
 
 	/** Interpolate the data in between two inputs data */
 	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override;
+
+	/** Return string with debug information */
+	virtual const FString DebugData() override;
 };
 
 template<>

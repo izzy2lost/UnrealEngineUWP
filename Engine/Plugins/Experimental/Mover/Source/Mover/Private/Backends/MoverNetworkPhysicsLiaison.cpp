@@ -124,6 +124,15 @@ void FNetworkPhysicsMoverInputs::ValidateData(const UActorComponent* NetworkComp
 	}
 }
 
+const FString FNetworkPhysicsMoverInputs::DebugData()
+{
+	const FCharacterDefaultInputs Input = InputCmdContext.InputCollection.FindOrAddDataByType<FCharacterDefaultInputs>();
+
+	return FString::Printf(TEXT("FNetworkPhysicsMoverInputs | MoveInput = %s OrientationInput = %s"),
+			*Input.GetMoveInput_WorldSpace().ToString(),
+			*Input.GetOrientationIntentDir_WorldSpace().ToString());
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FNetworkPhysicsMoverState
 
@@ -174,6 +183,16 @@ void FNetworkPhysicsMoverState::InterpolateData(const FNetworkPhysicsData& MinDa
 
 	const float LerpFactor = (LocalFrame - MinState.LocalFrame) / (MaxState.LocalFrame - MinState.LocalFrame);
 	SyncStateContext.Interpolate(&MinState.SyncStateContext, &MaxState.SyncStateContext, LerpFactor);
+}
+
+const FString FNetworkPhysicsMoverState::DebugData()
+{
+	const FMoverDefaultSyncState SyncState = SyncStateContext.SyncStateCollection.FindOrAddDataByType<FMoverDefaultSyncState>();
+
+	return FString::Printf(TEXT("FNetworkPhysicsMoverState | Location = %s Velocity = %s MovementBase = %s"),
+			*SyncState.GetLocation_WorldSpace().ToString(),
+			*SyncState.GetVelocity_WorldSpace().ToString(),
+			*SyncState.GetMovementBase()->GetName());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -637,6 +656,11 @@ void UMoverNetworkPhysicsLiaisonComponent::ProduceInput_External(float DeltaSeco
 		// If in a networked game only produce input for the locally controlled character
 		APawn* PawnOwner = Cast<APawn>(GetOwner());
 		bool bProduceInput = PawnOwner ? PawnOwner->IsLocallyControlled() : false;
+
+		if (PawnOwner && !PawnOwner->IsPlayerControlled() && !NetworkPhysicsComponent->GetIsRelayingLocalInputs() && NetworkPhysicsComponent->HasServerWorld())
+		{
+			NetworkPhysicsComponent->SetIsRelayingLocalInputs(true);
+		}
 
 		if (bProduceInput)
 		{
