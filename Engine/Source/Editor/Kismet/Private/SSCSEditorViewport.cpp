@@ -155,6 +155,25 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName, TSharedPtr<FSCSEditor
 	);
 }
 
+bool IsViewModeSupported(EViewModeIndex InViewModeIndex)
+{
+	switch (InViewModeIndex)
+	{
+	case VMI_Unlit:
+	case VMI_Lit:
+	case VMI_BrushWireframe:
+	case VMI_CollisionVisibility:
+		return true;
+	default:
+		return false;
+	}
+}
+
+bool DoesViewModeMenuShowSection(UE::UnrealEd::EHidableViewModeMenuSections)
+{
+	return false;
+}
+
 } // namespace UE::SCSEditor::Private
 
 /*-----------------------------------------------------------------------------
@@ -575,23 +594,12 @@ TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
 			ContextObject->Viewport = SharedThis(this);
 
 			// Setup the callback to filter available view modes
-			ContextObject->IsViewModeSupported = UE::UnrealEd::IsViewModeSupportedDelegate::CreateLambda(
-				[](EViewModeIndex ViewModeIndex) -> bool
-				{
-					// This code is taken from SViewportToolBar::IsViewModeSupported
-					// SSCSEditorViewportToolBar does not override it, so we just take it as-is
-					// TODO: maybe create a private function for it, or move IsViewModeSupported to SEditorViewport
+			ContextObject->IsViewModeSupported =
+				UE::UnrealEd::IsViewModeSupportedDelegate::CreateStatic(&UE::SCSEditor::Private::IsViewModeSupported);
 
-					switch (ViewModeIndex)
-					{
-					case VMI_PrimitiveDistanceAccuracy:
-					case VMI_MaterialTextureScaleAccuracy:
-					case VMI_RequiredTextureResolution:
-						return false;
-					default:
-						return true;
-					}
-				}
+			// Setup the callback to hide/show specific sections
+			ContextObject->DoesViewModeMenuShowSection = UE::UnrealEd::DoesViewModeMenuShowSectionDelegate::CreateStatic(
+				&UE::SCSEditor::Private::DoesViewModeMenuShowSection
 			);
 
 			ViewportToolbarContext.AddObject(ContextObject);

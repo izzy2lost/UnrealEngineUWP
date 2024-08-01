@@ -21,6 +21,14 @@ enum ERotationGridMode : int;
 namespace UE::UnrealEd
 {
 
+/** Lists View Mode Menu Sections which can be shown/hidden based on specific menu requirements */
+enum EHidableViewModeMenuSections : uint8
+{
+	Exposure = 0,
+	GPUSkinCache = 1,
+	RayTracingDebug = 2
+};
+
 /** The value of this function is controlled by the CVAR "ToolMenusViewportToolbars". */
 UNREALED_API bool ShowOldViewportToolbars();
 
@@ -38,13 +46,13 @@ UNREALED_API FText GetViewModesSubmenuLabel(TWeakPtr<SEditorViewport> InViewport
 /**
  * Populate a given UToolMenu with entries for a View Modes viewport toolbar submenu.
  *
- * @param InMenu The menu to poulate with entries.
- * @param InViewport The viewport associated with this viewport toolbar.
- * @param InIsViewModeSupported Optional delegate to filter which view modes are added to the list.
+ * @param InMenu The menu to populate with entries.
  */
-UNREALED_API void PopulateViewModesMenu(UToolMenu* InMenu,
-	TSharedRef<SEditorViewport> InViewport,
-	IsViewModeSupportedDelegate InIsViewModeSupported = IsViewModeSupportedDelegate());
+UNREALED_API void PopulateViewModesMenu(UToolMenu* InMenu);
+
+/** Create a Viewport Toolbar Context with common values (many Asset Editors have the same settings) */
+UNREALED_API UUnrealEdViewportToolbarContext* CreateViewportToolbarDefaultContext(const TWeakPtr<SEditorViewport>& InViewport
+);
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarViewModesSubmenu();
 

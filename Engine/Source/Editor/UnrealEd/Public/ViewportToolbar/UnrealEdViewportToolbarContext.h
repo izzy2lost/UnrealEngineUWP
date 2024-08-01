@@ -13,6 +13,9 @@ namespace UE::UnrealEd
 
 DECLARE_DELEGATE_RetVal_OneParam(bool, IsViewModeSupportedDelegate, EViewModeIndex);
 
+enum EHidableViewModeMenuSections : uint8;
+DECLARE_DELEGATE_RetVal_OneParam(bool, DoesViewModeMenuShowSectionDelegate, EHidableViewModeMenuSections);
+
 }
 
 class SEditorViewport;
@@ -25,4 +28,5 @@ class UNREALED_API UUnrealEdViewportToolbarContext : public UObject
 public:
 	TWeakPtr<SEditorViewport> Viewport;
 	UE::UnrealEd::IsViewModeSupportedDelegate IsViewModeSupported;
+	UE::UnrealEd::DoesViewModeMenuShowSectionDelegate DoesViewModeMenuShowSection;
 };

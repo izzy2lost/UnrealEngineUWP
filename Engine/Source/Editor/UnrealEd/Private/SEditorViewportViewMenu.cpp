@@ -98,7 +98,14 @@ void SEditorViewportViewMenu::FillViewMenu(UToolMenu* Menu) const
 			return true;
 		});
 
-	UE::UnrealEd::PopulateViewModesMenu(Menu, Viewport.Pin().ToSharedRef(), IsViewModeSupported);
+	// Add the UnrealEd viewport toolbar context.
+	{
+		UUnrealEdViewportToolbarContext* const ContextObject = NewObject<UUnrealEdViewportToolbarContext>();
+		ContextObject->Viewport = Viewport;
+		Menu->Context.AddObject(ContextObject);
+	}
+
+	UE::UnrealEd::PopulateViewModesMenu(Menu);
 }
 
 #undef LOCTEXT_NAMESPACE
