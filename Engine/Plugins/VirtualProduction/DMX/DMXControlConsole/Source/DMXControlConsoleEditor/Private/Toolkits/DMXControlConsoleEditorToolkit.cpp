@@ -238,22 +238,26 @@ namespace UE::DMX::Private
 
 		const FScopedTransaction ClearAllTransaction(LOCTEXT("ClearAllTransaction", "Clear All"));
 		ActiveLayout->PreEditChange(nullptr);
-		ActiveLayout->ClearAll();
+
+		constexpr bool bClearPatchedControllers = true;
+		bool bClearUnpatchedControllers = true;
+		ActiveLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
 		if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
-			constexpr bool bClearOnlyPatchedControllers = true;
+			bClearUnpatchedControllers = false;
 			const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 			for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 			{
 				UserLayout->PreEditChange(nullptr);
-				UserLayout->ClearAll(bClearOnlyPatchedControllers);
+				UserLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
 				UserLayout->PostEditChange();
 			}
 
 			if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
 			{
 				ControlConsoleData->PreEditChange(nullptr);
-				ControlConsoleData->Clear(bClearOnlyPatchedControllers);
+				constexpr bool bClearPatchedFaderGroups = true;
+				ControlConsoleData->Clear(bClearPatchedFaderGroups);
 				ControlConsoleData->PostEditChange();
 			}
 		}

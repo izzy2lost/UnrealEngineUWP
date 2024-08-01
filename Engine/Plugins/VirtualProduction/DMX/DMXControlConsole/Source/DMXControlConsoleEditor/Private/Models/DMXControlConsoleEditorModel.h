@@ -12,6 +12,7 @@ class FDMXControlConsoleEditorSelection;
 class UDMXControlConsole;
 class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
+class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFaderGroupController;
 
 namespace UE::DMX::Private { class FDMXControlConsoleEditorToolkit; }
@@ -90,6 +91,9 @@ private:
 
 	/** Called when the DMX Library of the current Control Console has been changed */
 	void OnDMXLibraryChanged();
+
+	/** Called when a new Fader Group is added to the Control Console Data */
+	void OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup);
 
 	/** Called before the engine is shut down */
 	void OnEnginePreExit();

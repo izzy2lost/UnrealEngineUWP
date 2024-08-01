@@ -695,15 +695,11 @@ namespace UE::DMX::Private
 					continue;
 				}
 
-				FaderGroupController->PreEditChange(nullptr);
 				FaderGroupController->UnPossess(FaderGroup.Get());
 
-				ActiveLayout->PreEditChange(nullptr);
 				UDMXControlConsoleFaderGroupController* NewController = ActiveLayout->AddToLayout(FaderGroup.Get(), FaderGroup->GetFaderGroupName(), RowIndex, ColumIndex);
-				ActiveLayout->PostEditChange();
 				if (NewController)
 				{
-					NewController->Modify();
 					NewController->SetIsActive(FaderGroupController->IsActive());
 					NewController->SetIsExpanded(FaderGroupController->IsExpanded());
 				}
@@ -716,11 +712,13 @@ namespace UE::DMX::Private
 				ColumIndex++;
 			}
 
+			ActiveLayout->RemoveFromActiveFaderGroupControllers(FaderGroupController);
 			FaderGroupController->Destroy();
-			FaderGroupController->PostEditChange();
 		}
 
 		SelectionHandler->AddToSelection(FaderGroupControllersToSelect);
+
+		ActiveLayout->ClearEmptyLayoutRows();
 	}
 
 	void SDMXControlConsoleFixturePatchList::HandleAutoGroupMultiPatchSelection() const
@@ -784,6 +782,8 @@ namespace UE::DMX::Private
 						});
 
 					FaderGroupsToGroup.Append(Result);
+
+					ActiveLayout->RemoveFromActiveFaderGroupControllers(FaderGroupController);
 					FaderGroupController->Destroy();
 				}
 				else
@@ -843,6 +843,7 @@ namespace UE::DMX::Private
 					ColumIndex++;
 				}
 
+				ActiveLayout->RemoveFromActiveFaderGroupControllers(FaderGroupController);
 				FaderGroupController->Destroy();
 			}
 		}
@@ -855,6 +856,8 @@ namespace UE::DMX::Private
 			FirstSelectedFaderGroupController->SetUserName(UserName);
 			FirstSelectedFaderGroupController->Group();
 		}
+
+		ActiveLayout->ClearEmptyLayoutRows();
 	}
 
 	void SDMXControlConsoleFixturePatchList::OnRowClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ClickedItem)

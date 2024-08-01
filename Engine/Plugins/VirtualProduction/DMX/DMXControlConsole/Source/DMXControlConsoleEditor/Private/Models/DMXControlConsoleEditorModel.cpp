@@ -114,18 +114,38 @@ void UDMXControlConsoleEditorModel::UpdateEditorModel()
 void UDMXControlConsoleEditorModel::BindToDMXLibraryChanges()
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-	if (ControlConsoleData && !ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	if (!ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
 	{
 		ControlConsoleData->GetOnDMXLibraryChanged().AddUObject(this, &UDMXControlConsoleEditorModel::OnDMXLibraryChanged);
+	}
+
+	if (!ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	{
+		ControlConsoleData->GetOnFaderGroupAdded().AddUObject(this, &UDMXControlConsoleEditorModel::OnFaderGroupAddedToData);
 	}
 }
 
 void UDMXControlConsoleEditorModel::UnbindFromDMXLibraryChanges()
 {
 	UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-	if (ControlConsoleData && ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
+	if (!ControlConsoleData)
+	{
+		return;
+	}
+
+	if (ControlConsoleData->GetOnDMXLibraryChanged().IsBoundToObject(this))
 	{
 		ControlConsoleData->GetOnDMXLibraryChanged().RemoveAll(this);
+	}
+
+	if (ControlConsoleData->GetOnFaderGroupAdded().IsBoundToObject(this))
+	{
+		ControlConsoleData->GetOnFaderGroupAdded().RemoveAll(this);
 	}
 }
 
@@ -207,7 +227,7 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		return;
 	}
 
-	// Clear all the user layouts from patched fader groups
+	// Clear all the user layouts from patched fader group controllers
 	const TArray<UDMXControlConsoleEditorGlobalLayoutBase*>& UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 	{
@@ -217,8 +237,11 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		}
 
 		UserLayout->PreEditChange(nullptr);
-		constexpr bool bClearOnlyPatchedFaderGroupControllers = true;
-		UserLayout->ClearAll(bClearOnlyPatchedFaderGroupControllers);
+
+		constexpr bool bClearPatchedControllers = true;
+		constexpr bool bClearUnpatchedControllers = false;
+		UserLayout->ClearAll(bClearPatchedControllers, bClearUnpatchedControllers);
+
 		UserLayout->PostEditChange();
 	}
 
@@ -237,6 +260,11 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 	ControlConsoleLayouts->UpdateDefaultLayout();
 	ControlConsoleLayouts->PostEditChange();
 
+	RequestUpdateEditorModel();
+}
+
+void UDMXControlConsoleEditorModel::OnFaderGroupAddedToData(const UDMXControlConsoleFaderGroup* FaderGroup)
+{
 	RequestUpdateEditorModel();
 }
 
