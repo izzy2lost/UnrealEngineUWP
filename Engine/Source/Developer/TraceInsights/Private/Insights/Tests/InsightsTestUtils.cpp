@@ -288,6 +288,7 @@ bool FInsightsTestUtils::KillUTS(double Timeout) const
 
 void FInsightsTestUtils::ResetSession() const
 {
+	using namespace UE::Insights;
 	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
 	if (InsightsManager.IsValid())
 	{

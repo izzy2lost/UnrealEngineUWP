@@ -5,11 +5,9 @@
 // TraceInsights
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "Insights::SSessionTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SSessionTableTreeView"
 
-namespace UE
-{
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +59,6 @@ void SSessionTableTreeView::InsightsManager_OnSessionChanged()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
-} // namespace UE
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

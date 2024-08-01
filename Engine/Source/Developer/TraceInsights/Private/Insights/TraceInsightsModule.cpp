@@ -37,11 +37,13 @@
 #include "Insights/TaskGraphProfiler/TaskGraphProfilerManager.h"
 #include "Insights/Tests/InsightsTestRunner.h"
 #include "Insights/TimingProfiler/TimingProfilerManager.h"
-#include "Insights/Widgets/SStartPageWindow.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_LOG_CATEGORY(TraceInsights);
+
+namespace UE::Insights
+{
 
 IMPLEMENT_MODULE(FTraceInsightsModule, TraceInsights);
 
@@ -182,7 +184,7 @@ void FTraceInsightsModule::UnregisterComponent(TSharedPtr<IInsightsComponent> Co
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-TSharedPtr<Insights::IInsightsManager> FTraceInsightsModule::GetInsightsManager()
+TSharedPtr<::Insights::IInsightsManager> FTraceInsightsModule::GetInsightsManager()
 {
 	return FInsightsManager::Get();
 }
@@ -251,97 +253,6 @@ void FTraceInsightsModule::UnregisterTabSpawners()
 	for (int32 ComponentIndex = Components.Num() - 1; ComponentIndex >= 0; --ComponentIndex)
 	{
 		Components[ComponentIndex]->UnregisterMajorTabs();
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FTraceInsightsModule::CreateSessionBrowser(const FCreateSessionBrowserParams& Params)
-{
-	RegisterTabSpawners();
-
-	//////////////////////////////////////////////////
-	// Create the main window.
-
-	const bool bEmbedTitleAreaContent = false;
-
-	// Get desktop metrics. It also ensures the correct metrics will be used later in SWindow.
-	FDisplayMetrics DisplayMetrics;
-	FSlateApplication::Get().GetDisplayMetrics(DisplayMetrics);
-	const float DPIScaleFactor = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(
-		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Left),
-		static_cast<float>(DisplayMetrics.PrimaryDisplayWorkAreaRect.Top));
-
-	const FVector2D ClientSize(1280.0f * DPIScaleFactor, 720.0f * DPIScaleFactor);
-
-	TSharedRef<SWindow> RootWindow = SNew(SWindow)
-		.Title(NSLOCTEXT("TraceInsightsModule", "UnrealInsightsBrowserAppName", "Unreal Insights Frontend"))
-		.CreateTitleBar(!bEmbedTitleAreaContent)
-		.SupportsMaximize(true)
-		.SupportsMinimize(true)
-		.IsInitiallyMaximized(false)
-		.IsInitiallyMinimized(false)
-		.SizingRule(ESizingRule::UserSized)
-		.AutoCenter(EAutoCenter::PreferredWorkArea)
-		.ClientSize(ClientSize)
-		.AdjustInitialSizeAndPositionForDPIScale(false);
-
-	//RootWindow->GetTitleBar()->SetAllowMenuBar(true);
-
-	const bool bShowRootWindowImmediately = false;
-	FSlateApplication::Get().AddWindow(RootWindow, bShowRootWindowImmediately);
-
-	FGlobalTabmanager::Get()->SetRootWindow(RootWindow);
-	FGlobalTabmanager::Get()->SetAllowWindowMenuBar(true);
-
-	FSlateNotificationManager::Get().SetRootWindow(RootWindow);
-
-	//////////////////////////////////////////////////
-	// Setup the window's content.
-
-	TSharedRef<FTabManager::FLayout> DefaultLayout = FTabManager::NewLayout("TraceSessionBrowserLayout_v1.1");
-	DefaultLayout->AddArea
-	(
-		FTabManager::NewPrimaryArea()
-		->Split
-		(
-			FTabManager::NewStack()
-			->AddTab(FInsightsManagerTabs::TraceStoreTabId, ETabState::OpenedTab)
-			->AddTab(FInsightsManagerTabs::ConnectionTabId, ETabState::OpenedTab)
-			->AddTab(FName("SessionFrontend"), ETabState::OpenedTab)
-			//->AddTab(FInsightsManagerTabs::LauncherTabId, ETabState::ClosedTab)
-			->SetForegroundTab(FInsightsManagerTabs::TraceStoreTabId)
-		)
-	);
-
-	AddAreaForWidgetReflector(DefaultLayout, Params.bAllowDebugTools);
-
-	// Load layout from ini file.
-	PersistentLayout = FLayoutSaveRestore::LoadFromConfig(UnrealInsightsLayoutIni, DefaultLayout);
-
-	// Restore application layout.
-	const EOutputCanBeNullptr OutputCanBeNullptr = EOutputCanBeNullptr::Never;
-	TSharedPtr<SWidget> Content = FGlobalTabmanager::Get()->RestoreFrom(PersistentLayout.ToSharedRef(), RootWindow, bEmbedTitleAreaContent, OutputCanBeNullptr);
-	RootWindow->SetContent(Content.ToSharedRef());
-	RootWindow->GetOnWindowClosedEvent().AddRaw(this, &FTraceInsightsModule::OnWindowClosedEvent);
-
-	//////////////////////////////////////////////////
-	// Show the window.
-
-	RootWindow->ShowWindow();
-	const bool bForceWindowToFront = true;
-	RootWindow->BringToFront(bForceWindowToFront);
-
-	//////////////////////////////////////////////////
-	// Set up command line parameter forwarding.
-
-	TSharedPtr<STraceStoreWindow> TraceStoreWnd = FInsightsManager::Get()->GetTraceStoreWindow();
-	if (TraceStoreWnd.IsValid())
-	{
-		TraceStoreWnd->SetEnableAutomaticTesting(Params.bInitializeTesting);
-		TraceStoreWnd->SetEnableDebugTools(Params.bAllowDebugTools);
-		TraceStoreWnd->SetStartProcessWithStompMalloc(Params.bStartProcessWithStompMalloc);
-		TraceStoreWnd->SetDisableFramerateThrottle(Params.bDisableFramerateThrottle);
 	}
 }
 
@@ -629,24 +540,6 @@ void FTraceInsightsModule::ScheduleCommand(const FString& InCmd)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FTraceInsightsModule::RunAutomationTest(const FString& InCmd)
-{
-#if !UE_BUILD_SHIPPING && !WITH_EDITOR
-	FString ActualCmd = InCmd;
-	ActualCmd.TrimCharInline(TEXT('\"'), nullptr);
-	ActualCmd.TrimCharInline(TEXT('\''), nullptr);
-
-	if (ActualCmd.StartsWith(TEXT("Automation RunTests")))
-	{
-		FInsightsTestRunner::Get()->ScheduleCommand(ActualCmd);
-		FInsightsTestRunner::Get()->RunTests();
-		return;
-	}
-#endif
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 bool FTraceInsightsModule::Exec(const TCHAR* Cmd, FOutputDevice& Ar)
 {
 	for (TSharedRef<IInsightsComponent>& Component : Components)
@@ -679,3 +572,5 @@ void FTraceInsightsModule::HandleCodeAccessorOpenFileFailed(const FString& Filen
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

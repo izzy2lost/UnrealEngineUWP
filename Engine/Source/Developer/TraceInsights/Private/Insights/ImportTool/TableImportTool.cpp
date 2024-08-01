@@ -26,9 +26,9 @@
 #include "Insights/Table/Widgets/SUntypedDiffTableTreeView.h"
 #include "Insights/Table/Widgets/SUntypedTableTreeView.h"
 
-#define LOCTEXT_NAMESPACE "ImportTableTool"
+#define LOCTEXT_NAMESPACE "UE::Insights::TableImportTool"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -330,7 +330,7 @@ TSharedRef<SDockTab> FTableImportTool::SpawnTab_TableImportTreeView(const FSpawn
 	UntypedTable->Reset();
 	UntypedTable->SetDisplayName(InDisplayName);
 
-	TSharedPtr<Insights::SUntypedTableTreeView> TableTreeView;
+	TSharedPtr<SUntypedTableTreeView> TableTreeView;
 
 	const TSharedRef<SDockTab> DockTab = SNew(SDockTab)
 		.ShouldAutosize(false)
@@ -434,6 +434,6 @@ void FTableImportTool::CloseAllOpenTabs()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

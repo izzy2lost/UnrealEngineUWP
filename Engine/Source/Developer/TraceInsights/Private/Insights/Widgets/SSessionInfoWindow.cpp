@@ -24,16 +24,19 @@
 
 // TraceInsightsCore
 #include "InsightsCore/Common/TimeUtils.h"
+#include "InsightsCore/Version.h"
 
 // TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
-#include "Insights/Version.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SSessionInfoWindow"
+#define LOCTEXT_NAMESPACE "UE::Insights::SSessionInfoWindow"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -615,5 +618,7 @@ FText SSessionInfoWindow::GetModulesText() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

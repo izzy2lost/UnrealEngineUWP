@@ -11,6 +11,9 @@ class FMenuBuilder;
 
 struct FUIAction;
 
+namespace UE::Insights
+{
+
 class FInsightsMenuBuilder : public TSharedFromThis<FInsightsMenuBuilder>
 {
 public:
@@ -37,3 +40,5 @@ private:
 	TSharedRef<FWorkspaceItem> WindowsGroup;
 #endif
 };
+
+} // namespace UE::Insights

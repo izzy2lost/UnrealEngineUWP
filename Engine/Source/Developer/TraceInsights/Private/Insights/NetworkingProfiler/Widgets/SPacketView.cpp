@@ -763,7 +763,7 @@ int32 SPacketView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 	FSlateFontInfo SummaryFont = FAppStyle::Get().GetFontStyle("SmallFont");
 	const float FontScale = AllottedGeometry.Scale;
 
-	const FSlateBrush* WhiteBrush = FInsightsStyle::Get().GetBrush("WhiteBrush");
+	const FSlateBrush* WhiteBrush = FAppStyle::Get().GetBrush("WhiteBrush");
 
 	const float ViewWidth = static_cast<float>(AllottedGeometry.Size.X);
 	const float ViewHeight = static_cast<float>(AllottedGeometry.Size.Y);

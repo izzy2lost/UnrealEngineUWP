@@ -11,9 +11,9 @@
 // TraceInsights
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "SUntypedDiffTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SUntypedDiffTableTreeView"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -117,6 +117,6 @@ void SUntypedDiffTableTreeView::RequestMergeTables()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

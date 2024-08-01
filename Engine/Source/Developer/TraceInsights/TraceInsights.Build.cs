@@ -10,7 +10,7 @@ public class TraceInsights : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(
 			new string[] {
-				"AppFramework", // for SColorPicker
+				"AppFramework", // for SColorPicker, RestoreStarshipSuite()
 				"ApplicationCore",
 				"AutomationDriver",
 				"Cbor",
@@ -32,7 +32,7 @@ public class TraceInsights : ModuleRules
 			}
 		);
 
-		//Modules required for running automation in stand alone Insights
+		// Modules required for running automation in stand alone Insights
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping && !Target.bBuildEditor)
 		{
 			PrivateDependencyModuleNames.AddRange(

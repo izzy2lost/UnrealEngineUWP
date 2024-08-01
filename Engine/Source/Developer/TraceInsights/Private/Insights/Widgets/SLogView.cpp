@@ -41,7 +41,10 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#define LOCTEXT_NAMESPACE "SLogView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SLogView"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FLogViewCommands
@@ -262,7 +265,7 @@ public:
 				FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
 				const double Time = CacheEntry.GetTime();
 
-				TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+				TSharedPtr<TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
 				if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
 				{
 					return FSlateColor(FLinearColor(0.25f, 0.5f, 1.0f, 0.25f));
@@ -300,7 +303,7 @@ public:
 				}
 			}
 
-			TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
+			TSharedPtr<TimingProfiler::STimingView> TimingView = ParentWidgetPin->GetTimingView();
 			if (TimingView && TimingView->IsTimeSelectedInclusive(Time))
 			{
 				if (IsSelected)
@@ -379,7 +382,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
+			return FSlateColor(TimingProfiler::FTimeMarkerTrackBuilder::GetColorByVerbosity(CacheEntry.GetVerbosity()));
 		}
 		else
 		{
@@ -412,7 +415,7 @@ public:
 		if (ParentWidgetPin.IsValid() && LogMessagePin.IsValid())
 		{
 			FLogMessageRecord& CacheEntry = ParentWidgetPin->GetCache().Get(LogMessagePin->GetIndex());
-			return FSlateColor(UE::Insights::TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
+			return FSlateColor(TimingProfiler::FTimeMarkerTrackBuilder::GetColorByCategory(CacheEntry.GetCategory()));
 		}
 		else
 		{
@@ -518,13 +521,6 @@ SLogView::SLogView()
 
 SLogView::~SLogView()
 {
-	// Remove ourselves from the profiler manager.
-	//using namespace UE::Insights::TimingProfiler;
-	//if (FTimingProfilerManager::Get().IsValid())
-	//{
-	//	//TODO: FTimimgProfilerManager::Get()->OnRequestLogViewUpdate().RemoveAll(this);
-	//}
-
 	Reset();
 }
 
@@ -2069,5 +2065,7 @@ TSharedPtr<UE::Insights::TimingProfiler::STimingView> SLogView::GetTimingView() 
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

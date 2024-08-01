@@ -99,7 +99,7 @@ TSharedRef<SWidget> SMemTagTreeViewTableCell::GenerateWidgetForNameColumn(const 
 			.HeightOverride(14.0f)
 			[
 				SNew(SBorder)
-				.BorderImage(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+				.BorderImage(FAppStyle::Get().GetBrush("WhiteBrush"))
 				.BorderBackgroundColor(this, &SMemTagTreeViewTableCell::GetBoxColorAndOpacity)
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Fill)

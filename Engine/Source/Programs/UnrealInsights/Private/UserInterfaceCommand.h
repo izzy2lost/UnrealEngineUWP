@@ -8,23 +8,16 @@ class FUserInterfaceCommand
 {
 public:
 	/** Executes the command. */
-	static void Run();
+	static void Run(bool bFrontendMode, const FString& TraceFileToOpen);
 
 protected:
 	/**
 	 * Initializes the Slate application.
 	 */
-	static void InitializeSlateApplication(bool bOpenTraceFile, const TCHAR* TraceFile);
+	static void InitializeSlateApplication(bool bFrontendMode, const FString& TraceFileToOpen);
 
 	/**
 	 * Shuts down the Slate application.
 	 */
 	static void ShutdownSlateApplication();
-
-private:
-	/**
-	* Attempts to get a utrace file path from the command line.
-	* Returns true if a path was found and false otherwise.
-	*/
-	static bool GetTraceFileFromCmdLine(TCHAR* OutTraceFile, uint32 MaxPath);
 };

@@ -2,11 +2,19 @@
 
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
+#include "Misc/AutomationTest.h"
+#include "Misc/FileHelper.h"
+
+// TraceAnalysis
+#include "Trace/StoreClient.h"
+
+// TraceInsightsCore
+#include "InsightsCore/Common/MiscUtils.h"
+
+// TraceInsights
 #include "Insights/InsightsManager.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Insights/Tests/InsightsTestUtils.h"
-#include "Misc/AutomationTest.h"
-#include "Misc/FileHelper.h"
 
 void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogPath, const FString& Elements, FInsightsTestUtils Utils, FAutomationTestBase* Test, double Timeout)
 {
@@ -50,9 +58,11 @@ void VerifyExportedLines(const FString& ExportReportPath, const FString& CmdLogP
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FСommandsExportWindowsTest, "System.Insights.Trace.Analysis.ExecCmd.CommandsExport(Windows)", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 {
-	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+
 	FInsightsTestUtils Utils(this);
+
+	TSharedPtr<UE::Insights::FInsightsManager> InsightsManager = UE::Insights::FInsightsManager::Get();
 
 	const FString StoreDir = InsightsManager->GetStoreDir();
 	const FString SourceTracePath = FPaths::RootDir() / TEXT("EngineTest/SourceAssets/Utrace/CommandsExportTest_5.4.utrace");
@@ -106,13 +116,13 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 
 	// ExportThreads
 	FString InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdThreadLogPath, *ExportThreadsTask);
-	InsightsManager->OpenUnrealInsights(*InsightsParameters);
+	UE::Insights::FMiscUtils::OpenUnrealInsights(*InsightsParameters);
 
 	VerifyExportedLines(ExportThreadsReportPath, CmdThreadLogPath, TEXT("threads"), Utils, this, Timeout);
 
 	// ExportTimers
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimersLogPath, *ExportTimersTask);
-	InsightsManager->OpenUnrealInsights(*InsightsParameters);
+	UE::Insights::FMiscUtils::OpenUnrealInsights(*InsightsParameters);
 
 	VerifyExportedLines(ExportTimersReportPath, CmdTimersLogPath, TEXT("timers"), Utils, this, Timeout);
 
@@ -120,13 +130,13 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 
 	// ExportTimingEvents
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimingEventsLogPath, *ExportTimingEventsTask);
-	InsightsManager->OpenUnrealInsights(*InsightsParameters);
+	UE::Insights::FMiscUtils::OpenUnrealInsights(*InsightsParameters);
 
 	VerifyExportedLines(ExportTimingEventsReportPath, CmdTimingEventsLogPath, TEXT("timing events"), Utils, this, Timeout);
 
 	// ExportTimingEventsNonDefault
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"%s\" -log"), *StoreTracePath, *CmdTimingEventsNonDefaultLogPath, *ExportTimingEventsBorderedTask);
-	InsightsManager->OpenUnrealInsights(*InsightsParameters);
+	UE::Insights::FMiscUtils::OpenUnrealInsights(*InsightsParameters);
 
 	const TArray<FString> ExpectedTimingEventsBorderedElements =
 	{
@@ -154,7 +164,7 @@ bool FСommandsExportWindowsTest::RunTest(const FString& Parameters)
 	TestTrue("Rsp in log directory should exists after copy", PlatformFile.FileExists(*LogResultExportPath));
 
 	InsightsParameters = FString::Printf(TEXT("-OpenTraceFile=\"%s\" -ABSLOG=\"%s\" -AutoQuit -NoUI  -ExecOnAnalysisCompleteCmd=\"@=/TestResults/export.rsp\" -log"), *StoreTracePath, *CmdExportLogPath);
-	InsightsManager->OpenUnrealInsights(*InsightsParameters);
+	UE::Insights::FMiscUtils::OpenUnrealInsights(*InsightsParameters);
 
 	const TArray<FString> ExpectedThreadsElementsRsp =
 	{

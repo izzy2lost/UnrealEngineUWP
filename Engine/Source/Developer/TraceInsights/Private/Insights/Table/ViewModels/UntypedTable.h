@@ -16,12 +16,12 @@ namespace TraceServices
 	class IUntypedTableReader;
 }
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FUntypedTable : public UE::Insights::FTable
+class FUntypedTable : public FTable
 {
 public:
 	FUntypedTable();
@@ -45,4 +45,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights

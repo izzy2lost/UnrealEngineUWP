@@ -8,11 +8,19 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
+// TraceInsightsCore
+#include "InsightsCore/Common/InsightsCoreStyle.h"
+#include "InsightsCore/Common/MiscUtils.h"
+
+// TraceInsights
 #include "Insights/ImportTool/TableImportTool.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/InsightsManager.h"
 
-#define LOCTEXT_NAMESPACE "InsightsMenuBuilder"
+#define LOCTEXT_NAMESPACE "UE::Insights::MenuBuilder"
+
+namespace UE::Insights
+{
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FInsightsMenuBuilder
@@ -64,7 +72,7 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		LOCTEXT("OpenSessionBrowser", "Session Browser"),
 		LOCTEXT("OpenSessionBrowser_ToolTip", "Opens the Unreal Insights Session Browser window."),
 		FSlateIcon(FInsightsStyle::GetStyleSetName(), "AppIcon.Small"),
-		FUIAction(FExecuteAction::CreateLambda([] { FInsightsManager::Get()->OpenUnrealInsights(); })));
+		FUIAction(FExecuteAction::CreateLambda([] { FMiscUtils::OpenUnrealInsights(); })));
 	MenuBuilder.AddSubMenu(
 		LOCTEXT("OpenTraceFile_SubMenu", "Open Trace File"),
 		LOCTEXT("OpenTraceFile_SubMenu_Desc", "Starts analysis for a specified trace file."),
@@ -112,7 +120,7 @@ void FInsightsMenuBuilder::PopulateMenu(FMenuBuilder& MenuBuilder)
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("OpenStarshipSuite", "Starship Test Suite"),
 			LOCTEXT("OpenStarshipSuite_ToolTip", "Opens the Starship UX test suite."),
-			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Test"),
+			FSlateIcon(FInsightsCoreStyle::GetStyleSetName(), "Icons.Test"),
 			OpenStarshipSuiteAction,
 			NAME_None,
 			EUserInterfaceActionType::Button
@@ -182,5 +190,7 @@ void FInsightsMenuBuilder::AddMenuEntry(
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

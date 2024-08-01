@@ -23,6 +23,9 @@ class FMenuBuilder;
 
 namespace UE::Insights::TimingProfiler { class STimingView; }
 
+namespace UE::Insights
+{
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace LogViewColumns
@@ -83,7 +86,7 @@ public:
 
 	bool IsFilteringAsyncTaskCancelRequested() const { return bIsFilteringAsyncTaskCancelRequested; }
 
-	TSharedPtr<UE::Insights::TimingProfiler::STimingView> GetTimingView() const;
+	TSharedPtr<TimingProfiler::STimingView> GetTimingView() const;
 
 protected:
 	/** Generate a new list view row. */
@@ -177,7 +180,7 @@ protected:
 	mutable volatile bool bIsFilteringAsyncTaskCancelRequested; // true if we want the async task to finish asap
 
 	/** Stopwatch used to measure how long it takes to filter the message list. */
-	mutable UE::Insights::FStopwatch FilteringStopwatch;
+	mutable FStopwatch FilteringStopwatch;
 
 	/**
 	 * Total number of log categories (including duplicates; last value read from LogProvider).
@@ -201,7 +204,7 @@ protected:
 	bool bIsDirty;
 
 	/** Stopwatch used to measure the time since the list of messages has become dirty. */
-	mutable UE::Insights::FStopwatch DirtyStopwatch;
+	mutable FStopwatch DirtyStopwatch;
 
 	/** Stats */
 	FText StatsText;
@@ -214,3 +217,5 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

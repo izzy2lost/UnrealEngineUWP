@@ -8,6 +8,9 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Input/DragAndDrop.h"
 
+// TraceAnalysis
+#include "Trace/StoreConnection.h"
+
 // TraceInsightsCore
 #include "InsightsCore/Common/AvailabilityCheck.h"
 #include "InsightsCore/Common/Stopwatch.h"
@@ -16,7 +19,6 @@
 #include "Insights/IInsightsManager.h"
 #include "Insights/InsightsCommands.h"
 #include "Insights/InsightsSettings.h"
-#include "Insights/InsightsSessionBrowserSettings.h"
 #include "Insights/IUnrealInsightsModule.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,11 +34,12 @@ namespace TraceServices
 	class IModuleService;
 }
 
-class STraceStoreWindow;
-class SConnectionWindow;
-class SLauncherWindow;
-class SSessionInfoWindow;
 class FInsightsTestRunner;
+
+namespace UE::Insights
+{
+
+class SSessionInfoWindow;
 class FInsightsMenuBuilder;
 
 /**
@@ -97,22 +100,26 @@ public:
 	TSharedRef<TraceServices::IAnalysisService> GetAnalysisService() const { return AnalysisService; }
 	TSharedRef<TraceServices::IModuleService> GetModuleService() const { return ModuleService; }
 
-	FString GetStoreDir();
+	//////////////////////////////////////////////////
+	// Trace Store Connection wrapper
 
-	bool ConnectToStore(const TCHAR* Host, uint32 Port=0);
+	bool ConnectToStore(const TCHAR* Host, uint32 Port = 0) { return TraceStoreConnection.ConnectToStore(Host, Port); }
+	bool ReconnectToStore() { return TraceStoreConnection.ReconnectToStore(); }
 
-	/**
-	 * Attempt to reconnect to the store if the connection was severed, without recreating the store client.
-	 * @return True on success, false on failure
-	 */
-	bool ReconnectToStore() const;
+	UE::Trace::FStoreClient* GetStoreClient() const { return TraceStoreConnection.GetStoreClient(); }
+	FCriticalSection& GetStoreClientCriticalSection() const { return TraceStoreConnection.GetStoreClientCriticalSection(); }
 
-	const FString& GetLastStoreHost() const { return LastStoreHost; }
+	bool GetStoreAddressAndPort(uint32& OutStoreAddress, uint32& OutStorePort) const { return TraceStoreConnection.GetStoreAddressAndPort(OutStoreAddress, OutStorePort); }
+	FString GetStoreDir() const { return TraceStoreConnection.GetStoreDir(); }
 
-	const bool CanChangeStoreSettings() const { return bCanChangeStoreSettings; }
-	
-	UE::Trace::FStoreClient* GetStoreClient() const { return StoreClient.Get(); }
-	FCriticalSection& GetStoreClientCriticalSection() const { return StoreClientCriticalSection; }
+	const FString& GetLastStoreHost() const { return TraceStoreConnection.GetLastStoreHost(); }
+	uint32 GetLastStorePort() const { return TraceStoreConnection.GetLastStorePort(); }
+
+	const bool IsLocalHost() const { return TraceStoreConnection.IsLocalHost(); }
+	const bool CanChangeStoreSettings() const { return TraceStoreConnection.CanChangeStoreSettings(); }
+
+	//////////////////////////////////////////////////
+	// Trace Session
 
 	/** @return an instance of the trace analysis session. */
 	TSharedPtr<const TraceServices::IAnalysisSession> GetSession() const;
@@ -122,6 +129,8 @@ public:
 
 	/** @return the filename of the trace being analyzed. */
 	const FString& GetTraceFilename() const { return CurrentTraceFilename; }
+
+	//////////////////////////////////////////////////
 
 	/** @return UI command list for the main manager. */
 	const TSharedRef<FUICommandList> GetCommandList() const;
@@ -134,75 +143,6 @@ public:
 
 	/** @return an instance of the main settings. */
 	static FInsightsSettings& GetSettings();
-
-	/** @return an instance of the session browser settings. */
-	static FInsightsSessionBrowserSettings& GetSessionBrowserSettings();
-
-	//////////////////////////////////////////////////
-	// Trace Store
-
-	void AssignTraceStoreWindow(const TSharedRef<STraceStoreWindow>& InTraceStoreWindow)
-	{
-		TraceStoreWindow = InTraceStoreWindow;
-	}
-
-	void RemoveTraceStoreWindow()
-	{
-		TraceStoreWindow.Reset();
-	}
-
-	/**
-	 * Converts Trace Store window weak pointer to a shared pointer and returns it.
-	 * Make sure the returned pointer is valid before trying to dereference it.
-	 */
-	TSharedPtr<class STraceStoreWindow> GetTraceStoreWindow() const
-	{
-		return TraceStoreWindow.Pin();
-	}
-
-	//////////////////////////////////////////////////
-	// Connection
-
-	void AssignConnectionWindow(const TSharedRef<SConnectionWindow>& InConnectionWindow)
-	{
-		ConnectionWindow = InConnectionWindow;
-	}
-
-	void RemoveConnectionWindow()
-	{
-		ConnectionWindow.Reset();
-	}
-
-	/**
-	 * Converts Connection window weak pointer to a shared pointer and returns it.
-	 * Make sure the returned pointer is valid before trying to dereference it.
-	 */
-	TSharedPtr<class SConnectionWindow> GetConnectionWindow() const
-	{
-		return ConnectionWindow.Pin();
-	}
-
-	//////////////////////////////////////////////////
-	// Launcher
-
-	void AssignLauncherWindow(const TSharedRef<SLauncherWindow>& InLauncherWindow)
-	{
-		LauncherWindow = InLauncherWindow;
-	}
-
-	void RemoveLauncherWindow()
-	{
-		LauncherWindow.Reset();
-	}
-
-	/**
-	 * Converts Launcher window weak pointer to a shared pointer and returns it.
-	 * Make sure the returned pointer is valid before trying to dereference it.
-	 */
-	TSharedPtr<class SLauncherWindow> GetLauncherWindow() const
-	{
-		return LauncherWindow.Pin();
-	}
 
 	//////////////////////////////////////////////////
 	// Session Info
@@ -241,12 +181,6 @@ public:
 	 * @return True, if successful.
 	 */
 	bool ShowOpenTraceFileDialog(FString& OutTraceFile) const;
-
-	/**
-	 * Starts a new Unreal Insights instance.
-	 * @param CmdLine - The command line passed to the new UnrealInsights.exe process
-	 */
-	void OpenUnrealInsights(const TCHAR* CmdLine = nullptr) const;
 
 	/**
 	 * Shows the open file dialog and starts analysis session for the chosen trace file, in a new Unreal Insights instance.
@@ -343,26 +277,6 @@ private:
 	/** Binds our UI commands to delegates. */
 	void BindCommands();
 
-	/** Called to spawn the Trace Store major tab. */
-	TSharedRef<SDockTab> SpawnTraceStoreTab(const FSpawnTabArgs& Args);
-
-	/** Callback called when the Trace Store major tab is closed. */
-	void OnTraceStoreTabClosed(TSharedRef<SDockTab> TabBeingClosed);
-
-	/** Called to spawn the Connection major tab. */
-	TSharedRef<SDockTab> SpawnConnectionTab(const FSpawnTabArgs& Args);
-
-	/** Callback called when the Connection major tab is closed. */
-	void OnConnectionTabClosed(TSharedRef<SDockTab> TabBeingClosed);
-
-	/** Called to spawn the Launcher major tab. */
-	TSharedRef<SDockTab> SpawnLauncherTab(const FSpawnTabArgs& Args);
-
-	TSharedRef<SDockTab> SpawnSessionBrowserAutomationWindowTab(const FSpawnTabArgs& Args);
-
-	/** Callback called when the Launcher major tab is closed. */
-	void OnLauncherTabClosed(TSharedRef<SDockTab> TabBeingClosed);
-
 	/** Called to spawn the Session Info major tab. */
 	TSharedRef<SDockTab> SpawnSessionInfoTab(const FSpawnTabArgs& Args);
 
@@ -408,12 +322,6 @@ private:
 	TSharedRef<TraceServices::IAnalysisService> AnalysisService;
 	TSharedRef<TraceServices::IModuleService> ModuleService;
 
-	/** The client used to connect to the trace store. It is not thread safe! */
-	TUniquePtr<UE::Trace::FStoreClient> StoreClient;
-
-	/** CriticalSection for using the store client's API. */
-	mutable FCriticalSection StoreClientCriticalSection;
-
 	/** The trace analysis session. */
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
 
@@ -431,18 +339,6 @@ private:
 
 	/** An instance of the main settings. */
 	FInsightsSettings Settings;
-
-	/** An instance of the session browser settings. */
-	FInsightsSessionBrowserSettings SessionBrowserSettings;
-
-	/** A weak pointer to the Trace Store window. */
-	TWeakPtr<class STraceStoreWindow> TraceStoreWindow;
-
-	/** A weak pointer to the Connection window. */
-	TWeakPtr<class SConnectionWindow> ConnectionWindow;
-
-	/** A weak pointer to the Launcher window. */
-	TWeakPtr<class SLauncherWindow> LauncherWindow;
 
 	/** A weak pointer to the Session Info window. */
 	TWeakPtr<class SSessionInfoWindow> SessionInfoWindow;
@@ -478,7 +374,8 @@ private:
 	/** A shared pointer to the global instance of the main manager. */
 	static TSharedPtr<FInsightsManager> Instance;
 
-	FString LastStoreHost;
-	uint32 LastStorePort = 0;
-	bool bCanChangeStoreSettings = false;
+	/** The Trace Store connection */
+	UE::Trace::FStoreConnection TraceStoreConnection;
 };
+
+} // namespace UE::Insights

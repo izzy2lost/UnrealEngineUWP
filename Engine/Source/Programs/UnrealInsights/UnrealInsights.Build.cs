@@ -24,6 +24,7 @@ public class UnrealInsights : ModuleRules
 				"TargetPlatform",
 				"TraceInsights",
 				"TraceInsightsCore",
+				"TraceInsightsFrontend",
 			}
 		);
 

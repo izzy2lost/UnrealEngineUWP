@@ -19,7 +19,7 @@ namespace TraceServices
 	struct FTableImportCallbackParams;
 }
 
-namespace Insights
+namespace UE::Insights
 {
 
 class SUntypedTableTreeView;
@@ -42,15 +42,10 @@ struct FOpenImportedTableTabData
 class FTableImportTool : public TSharedFromThis<FTableImportTool>, public IInsightsComponent
 {
 public:
-	/** Default constructor. */
 	FTableImportTool();
-
-	/** Destructor. */
 	virtual ~FTableImportTool();
 
-	/** Creates an instance of the Table Import Tool. */
 	static TSharedPtr<FTableImportTool> CreateInstance();
-
 	static TSharedPtr<FTableImportTool> Get();
 
 	// IInsightsComponent
@@ -62,6 +57,7 @@ public:
 
 	void StartImportProcess();
 	void ImportFile(const FString& Filename);
+
 	void StartDiffProcess();
 	void DiffFiles(const FString& FilenameA, const FString& FilenameB);
 
@@ -77,7 +73,10 @@ private:
 	void TableImportServiceCallback(TSharedPtr<TraceServices::FTableImportCallbackParams> Params);
 
 	FName GetTableID(const FString& Path);
+
+private:
 	static TSharedPtr<FTableImportTool> Instance;
+
 	TMap<FName, FOpenImportedTableTabData> OpenTablesMap;
 };
 

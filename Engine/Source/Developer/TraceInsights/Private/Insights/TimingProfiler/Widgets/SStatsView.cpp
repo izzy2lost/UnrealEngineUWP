@@ -339,7 +339,7 @@ void SStatsView::Construct(const FArguments& InArgs)
 		.Padding(0.0f)
 		[
 			SNew(SBorder)
-			.BorderImage(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+			.BorderImage(FAppStyle::Get().GetBrush("WhiteBrush"))
 			.BorderBackgroundColor(FLinearColor(0.05f, 0.1f, 0.2f, 1.0f))
 			.HAlign(HAlign_Center)
 			[

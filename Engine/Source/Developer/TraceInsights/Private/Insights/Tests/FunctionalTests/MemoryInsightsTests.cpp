@@ -27,126 +27,11 @@
 #include "Insights/MemoryProfiler/Widgets/SMemAllocTableTreeView.h"
 #include "Insights/MemoryProfiler/Widgets/SMemoryProfilerWindow.h"
 #include "Insights/Tests/InsightsTestUtils.h"
-#include "Insights/Widgets/SStartPageWindow.h"
 #include "Insights/Widgets/STimingView.h"
-
 
 DECLARE_LOG_CATEGORY_EXTERN(MemoryInsightsTests, Log, All);
 
 #if WITH_AUTOMATION_TESTS
-
-BEGIN_DEFINE_SPEC(FAutomationDriverUnrealInsightsHubMemoryInsightsTest, "System.Insights.Hub.MemoryInsights", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
-FAutomationDriverPtr Driver;
-TSharedPtr<SWindow> AutomationWindow;
-END_DEFINE_SPEC(FAutomationDriverUnrealInsightsHubMemoryInsightsTest)
-void FAutomationDriverUnrealInsightsHubMemoryInsightsTest::Define()
-{
-	BeforeEach([this]() {
-		AutomationWindow = FSlateApplication::Get().GetActiveTopLevelWindow();
-		const FString AutomationWindowName = TEXT("Automation");
-		if (AutomationWindow->GetTitle().ToString().Contains(AutomationWindowName))
-		{
-			AutomationWindow->Minimize();
-		}
-
-		IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
-		if (IAutomationDriverModule::Get().IsEnabled())
-		{
-			IAutomationDriverModule::Get().Disable();
-		}
-		IAutomationDriverModule::Get().Enable();
-
-		Driver = IAutomationDriverModule::Get().CreateDriver();
-		});
-
-	Describe("XMLReportsUpload", [this]()
-		{
-			It("should verify that user can upload xml reports in Memory Insights tab", EAsyncExecution::ThreadPool, FTimespan::FromSeconds(120), [this]()
-				{
-					FInsightsTestUtils Utils(this);
-					IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-					TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
-					if (!InsightsManager.IsValid())
-					{
-						AddError("Insights manager should not be null");
-						return;
-					}
-
-					// Start tracing editor instance, not Lyra. There is no difference between them in this test.
-					FString UEPath = FPlatformProcess::GenerateApplicationPath("UnrealEditor", EBuildConfiguration::Development);
-					FString Parameters = TEXT("-trace=Bookmark,Memory -tracehost=127.0.0.1");
-					constexpr bool bLaunchDetached = true;
-					constexpr bool bLaunchHidden = false;
-					constexpr bool bLaunchReallyHidden = false;
-					uint32 ProcessID = 0;
-					const int32 PriorityModifier = 0;
-					const TCHAR* OptionalWorkingDirectory = nullptr;
-					void* PipeWriteChild = nullptr;
-					void* PipeReadChild = nullptr;
-					FProcHandle EditorHandle = FPlatformProcess::CreateProc(*UEPath, *Parameters, bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, &ProcessID, PriorityModifier, OptionalWorkingDirectory, PipeWriteChild, PipeReadChild);
-					if (!EditorHandle.IsValid())
-					{
-						AddError("Editor should be started");
-						return;
-					}
-
-					// Verify that LIVE trace appeared
-					int Index = 0;
-					auto TraceWaiter = [Driver = Driver, &Index](void) -> bool
-					{
-						auto Elements = Driver->FindElements(By::Id("TraceStatusColumnList"))->GetElements();
-						for (int i = 0; i < Elements.Num(); ++i) {
-							if (Elements[i]->GetText().ToString() == TEXT("LIVE")) {
-								Index = i;
-								return true;
-							}
-						}
-						return false;
-					};
-
-					if (!Driver->Wait(Until::Condition(TraceWaiter, FWaitTimeout::InSeconds(10))))
-					{
-						AddError("Live trace should appear");
-						FPlatformProcess::TerminateProc(EditorHandle);
-						return;
-					}
-
-					FDriverElementRef TraceElement = Driver->FindElements(By::Id("TraceList"))->GetElements()[Index];
-					const FString TraceName = TraceElement->GetText().ToString();
-
-					const FString StoreDir = InsightsManager->GetStoreDir();
-					const FString ProjectDir = FPaths::ProjectDir();
-					const FString StoreTracePath = StoreDir / FString::Printf(TEXT("%s.utrace"), *TraceName);
-					const FString StoreCachePath = StoreDir / FString::Printf(TEXT("%s.ucache"), *TraceName);
-					const FString LogDirPath = ProjectDir / TEXT("TestResults");
-					const FString TestLogPath = ProjectDir / TEXT("TestResults/Log.txt");
-					const FString SuccessTestResult = TEXT("Test Completed. Result={Success}");
-
-					// Test live trace
-					FString TraceParameters = FString::Printf(TEXT("-InsightsTest -ABSLOG=\"%s\" -AutoQuit -ExecOnAnalysisCompleteCmd=\"Automation RunTests System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace\" -OpenTraceFile=\"%s\""), *TestLogPath, *StoreTracePath);
-					InsightsManager->OpenUnrealInsights(*TraceParameters);
-					bool bLineFound = Utils.FileContainsString(TestLogPath, SuccessTestResult, 60.0f);
-					TestTrue("Test for live trace should pass", bLineFound);
-
-					IFileManager::Get().DeleteDirectory(*LogDirPath, false, true);
-					FPlatformProcess::TerminateProc(EditorHandle);
-
-					// Test stopped trace 
-					InsightsManager->OpenUnrealInsights(*TraceParameters);
-					bLineFound = Utils.FileContainsString(TestLogPath, SuccessTestResult, 60.0f);
-					TestTrue("Test for stopped trace should pass", bLineFound);
-
-					IFileManager::Get().DeleteDirectory(*LogDirPath, false, true);
-					IFileManager::Get().Delete(*StoreTracePath);
-					IFileManager::Get().Delete(*StoreCachePath);
-				});
-		});
-	AfterEach([this]() {
-		Driver.Reset();
-		IAutomationDriverModule::Get().Disable();
-		AutomationWindow->Restore();
-		});
-}
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FMemoryInsightsUploadLLMXMLReportsTraceTest, "System.Insights.Trace.Analysis.MemoryInsights.UploadMemoryInsightsLLMXMLReportsTrace", EAutomationTestFlags::ProgramContext | EAutomationTestFlags::EngineFilter)
 bool FMemoryInsightsUploadLLMXMLReportsTraceTest::RunTest(const FString& Parameters)
@@ -291,7 +176,7 @@ bool MemoryInsightsAllocationsQueryTableTest(const FString& Parameters, const TM
 	double Timeout = 30.0;
 	FInsightsTestUtils InsightsTestUtils(Test);
 	TSharedPtr<SMemoryProfilerWindow> ProfilerWindow = FMemoryProfilerManager::Get()->GetProfilerWindow();
-	TSharedPtr<FInsightsManager> InsightsManager = FInsightsManager::Get();
+	TSharedPtr<UE::Insights::FInsightsManager> InsightsManager = UE::Insights::FInsightsManager::Get();
 	FMemorySharedState& SharedState = ProfilerWindow->GetSharedState();
 
 	TSharedPtr<FMemoryRuleSpec> MemoryRule = *Algo::FindByPredicate(SharedState.GetMemoryRules(),
@@ -389,4 +274,4 @@ void FMemoryInsightsAllocationsQueryTableStandaloneTest::GetTests(TArray<FString
 	}
 }
 
-#endif //WITH_AUTOMATION_TESTS
+#endif // WITH_AUTOMATION_TESTS

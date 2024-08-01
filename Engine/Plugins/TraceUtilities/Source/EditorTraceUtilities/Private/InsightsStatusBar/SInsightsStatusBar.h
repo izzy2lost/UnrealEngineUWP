@@ -11,7 +11,7 @@
 class FLiveSessionTracker;
 class FMenuBuilder;
 class FUICommandList;
-class STraceServerControl;
+namespace UE::Insights { class FTraceServerControl; }
 
 TSharedRef<SWidget> CreateInsightsStatusBarWidget();
 
@@ -154,7 +154,7 @@ private:
 
 	TSharedPtr<FUICommandList> CommandList;
 	
-	TArray<STraceServerControl> ServerControls;
+	TArray<UE::Insights::FTraceServerControl> ServerControls;
 
 	TArray<TSharedPtr<FTraceFileInfo>> Traces;
 	FName LogListingName;

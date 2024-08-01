@@ -37,7 +37,7 @@ INSIGHTS_IMPLEMENT_RTTI(FTimeRulerTrack)
 
 FTimeRulerTrack::FTimeRulerTrack()
 	: FBaseTimingTrack(TEXT("Time Ruler"))
-	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+	, WhiteBrush(FAppStyle::Get().GetBrush("WhiteBrush"))
 	, Font(FAppStyle::Get().GetFontStyle("SmallFont"))
 	, CrtMousePosTime(0.0)
 	, CrtMousePosTextWidth(0.0f)

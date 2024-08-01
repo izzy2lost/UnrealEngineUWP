@@ -5,10 +5,10 @@
 #include "CoreMinimal.h"
 
 // TraceInsights
-#include "SUntypedTableTreeView.h"
 #include "Insights/Table/ViewModels/UntypedTable.h"
+#include "Insights/Table/Widgets/SUntypedTableTreeView.h"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,4 +36,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights

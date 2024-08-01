@@ -12,24 +12,22 @@
 #include "InsightsCore/Table/ViewModels/TableColumn.h"
 #include "InsightsCore/Table/ViewModels/TableTreeNode.h"
 
-#define LOCTEXT_NAMESPACE "Insights::FUntypedTable"
+#define LOCTEXT_NAMESPACE "UE::Insights::FUntypedTable"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // FUntypedTableTreeNodeValueGetter
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class FUntypedTableTreeNodeValueGetter : public UE::Insights::FTableCellValueGetter
+class FUntypedTableTreeNodeValueGetter : public FTableCellValueGetter
 {
 public:
-	FUntypedTableTreeNodeValueGetter(UE::Insights::ETableCellDataType InDataType) : UE::Insights::FTableCellValueGetter(), DataType(InDataType) {}
+	FUntypedTableTreeNodeValueGetter(ETableCellDataType InDataType) : FTableCellValueGetter(), DataType(InDataType) {}
 
-	virtual const TOptional<UE::Insights::FTableCellValue> GetValue(const UE::Insights::FTableColumn& Column, const UE::Insights::FBaseTreeNode& Node) const
+	virtual const TOptional<FTableCellValue> GetValue(const FTableColumn& Column, const FBaseTreeNode& Node) const
 	{
-		using namespace UE::Insights;
-
 		ensure(Node.Is<FTableTreeNode>());
 		const FTableTreeNode& TableTreeNode = static_cast<const FTableTreeNode&>(Node);
 
@@ -72,7 +70,7 @@ public:
 	}
 
 private:
-	UE::Insights::ETableCellDataType DataType;
+	ETableCellDataType DataType;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -162,8 +160,6 @@ bool FUntypedTable::UpdateSourceTable(TSharedPtr<TraceServices::IUntypedTable> I
 
 void FUntypedTable::CreateColumns(const TraceServices::ITableLayout& TableLayout)
 {
-	using namespace UE::Insights;
-
 	ensure(GetColumnCount() == 0);
 	const int32 ColumnCount = static_cast<int32>(TableLayout.GetColumnCount());
 
@@ -331,6 +327,6 @@ void FUntypedTable::CreateColumns(const TraceServices::ITableLayout& TableLayout
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

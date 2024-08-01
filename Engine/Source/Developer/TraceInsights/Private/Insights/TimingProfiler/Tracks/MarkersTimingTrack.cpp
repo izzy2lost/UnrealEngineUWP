@@ -54,7 +54,7 @@ FMarkersTimingTrack::FMarkersTimingTrack()
 	, NumLogMessages(0)
 	, NumDrawBoxes(0)
 	, NumDrawTexts(0)
-	, WhiteBrush(FInsightsStyle::Get().GetBrush("WhiteBrush"))
+	, WhiteBrush(FAppStyle::Get().GetBrush("WhiteBrush"))
 	, Font(FAppStyle::Get().GetFontStyle("SmallFont"))
 {
 	SetValidLocations(ETimingTrackLocation::TopDocked | ETimingTrackLocation::BottomDocked);

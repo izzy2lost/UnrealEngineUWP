@@ -608,7 +608,7 @@ int32 SFrameTrack::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
 	FSlateFontInfo SummaryFont = FAppStyle::Get().GetFontStyle("SmallFont");
 
-	const FSlateBrush* WhiteBrush = FInsightsStyle::Get().GetBrush("WhiteBrush");
+	const FSlateBrush* WhiteBrush = FAppStyle::Get().GetBrush("WhiteBrush");
 
 	const float ViewWidth = static_cast<float>(AllottedGeometry.Size.X);
 	const float ViewHeight = static_cast<float>(AllottedGeometry.Size.Y);

@@ -25,6 +25,9 @@ class SDockTab;
 class FSpawnTabArgs;
 class SWindow;
 
+namespace UE::Insights
+{
+
 /**
  * Implements the Trace Insights module.
  */
@@ -44,13 +47,11 @@ public:
 	}
 
 	virtual void CreateDefaultStore() override;
-
 	FString GetDefaultStoreDir();
 
 	virtual UE::Trace::FStoreClient* GetStoreClient() override;
 	virtual bool ConnectToStore(const TCHAR* InStoreHost, uint32 InStorePort=0) override;
 
-	virtual void CreateSessionBrowser(const FCreateSessionBrowserParams& Params) override;
 	virtual void CreateSessionViewer(bool bAllowDebugTools = false) override;
 
 	virtual TSharedPtr<const TraceServices::IAnalysisSession> GetAnalysisSession() const override;
@@ -63,7 +64,7 @@ public:
 	virtual void RegisterComponent(TSharedPtr<IInsightsComponent> Component) override;
 	virtual void UnregisterComponent(TSharedPtr<IInsightsComponent> Component) override;
 
-	virtual TSharedPtr<Insights::IInsightsManager> GetInsightsManager() override;
+	virtual TSharedPtr<::Insights::IInsightsManager> GetInsightsManager() override;
 
 	virtual void RegisterMajorTabConfig(const FName& InMajorTabId, const FInsightsMajorTabConfig& InConfig) override;
 	virtual void UnregisterMajorTabConfig(const FName& InMajorTabId) override;
@@ -82,29 +83,14 @@ public:
 
 	virtual void InitializeTesting(bool InInitAutomationModules, bool InAutoQuit) override;
 	virtual void ScheduleCommand(const FString& InCmd) override;
-	virtual void RunAutomationTest(const FString& InCmd) override;
 	virtual bool Exec(const TCHAR* Cmd, FOutputDevice& Ar) override;
 
-protected:
-	void InitTraceStore();
-
+private:
 	void RegisterTabSpawners();
 	void UnregisterTabSpawners();
 
 	void AddAreaForSessionViewer(TSharedRef<FTabManager::FLayout> Layout);
 	void AddAreaForWidgetReflector(TSharedRef<FTabManager::FLayout> Layout, bool bAllowDebugTools);
-
-	/** Callback called when a major tab is closed. */
-	void OnTabBeingClosed(TSharedRef<SDockTab> TabBeingClosed);
-
-	/** Trace Store */
-	TSharedRef<SDockTab> SpawnTraceStoreTab(const FSpawnTabArgs& Args);
-
-	/** Connection */
-	TSharedRef<SDockTab> SpawnConnectionTab(const FSpawnTabArgs& Args);
-
-	/** Launcher */
-	TSharedRef<SDockTab> SpawnLauncherTab(const FSpawnTabArgs& Args);
 
 	/** Session Info */
 	TSharedRef<SDockTab> SpawnSessionInfoTab(const FSpawnTabArgs& Args);
@@ -115,6 +101,7 @@ protected:
 
 	void HandleCodeAccessorOpenFileFailed(const FString& Filename);
 
+private:
 	TSharedPtr<TraceServices::IAnalysisService> TraceAnalysisService;
 	TSharedPtr<TraceServices::IModuleService> TraceModuleService;
 
@@ -128,3 +115,5 @@ protected:
 
 	TArray<TSharedRef<IInsightsComponent>> Components;
 };
+
+} // namespace UE::Insights

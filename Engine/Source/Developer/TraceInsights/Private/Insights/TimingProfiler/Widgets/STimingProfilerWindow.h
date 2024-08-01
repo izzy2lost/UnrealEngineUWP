@@ -8,7 +8,7 @@
 #include "Insights/ITimingViewSession.h" // for ETimeChangedFlags
 #include "Insights/Widgets/SMajorTabWindow.h"
 
-class SLogView;
+namespace UE::Insights { class SLogView; }
 
 namespace UE::Insights::TimingProfiler
 {

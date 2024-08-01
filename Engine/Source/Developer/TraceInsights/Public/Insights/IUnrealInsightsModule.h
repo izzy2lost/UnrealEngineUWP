@@ -26,14 +26,16 @@ namespace Insights { class IInsightsManager; }
 struct TRACEINSIGHTS_API FInsightsManagerTabs
 {
 	static const FName StartPageTabId; // DEPRECATED
-	static const FName TraceStoreTabId;
-	static const FName ConnectionTabId;
-	static const FName LauncherTabId;
+	static const FName TraceStoreTabId; // DEPRECATED: see FInsightsFrontendTabs::TraceStoreTabId
+	static const FName ConnectionTabId; // DEPRECATED: see FInsightsFrontendTabs::ConnectionTabId
+	static const FName LauncherTabId; // DEPRECATED
+
 	static const FName SessionInfoTabId;
 	static const FName TimingProfilerTabId;
 	static const FName LoadingProfilerTabId;
-	static const FName NetworkingProfilerTabId;
 	static const FName MemoryProfilerTabId;
+	static const FName NetworkingProfilerTabId;
+
 	static const FName AutomationWindowTabId;
 	static const FName MessageLogTabId;
 };
@@ -130,17 +132,6 @@ protected:
 	TSharedPtr<FTabManager> TabManager;
 
 	TSharedRef<FWorkspaceItem> WorkspaceGroup;
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-/** Contains parameters that are passed to the CreateSessionBrowser function to control specific behaviors. */
-struct TRACEINSIGHTS_API FCreateSessionBrowserParams
-{
-	bool bAllowDebugTools = false;
-	bool bInitializeTesting = false;
-	bool bStartProcessWithStompMalloc = false;
-	bool bDisableFramerateThrottle = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -271,11 +262,6 @@ public:
 	virtual void SetUnrealInsightsLayoutIni(const FString& InIniPath) = 0;
 
 	/**
-	 * Called when the application starts in "Browser" mode.
-	 */
-	virtual void CreateSessionBrowser(const FCreateSessionBrowserParams& Params) = 0;
-
-	/**
 	 * Called when the application starts in "Viewer" mode.
 	 */
 	virtual void CreateSessionViewer(bool bAllowDebugTools = false) = 0;
@@ -289,11 +275,6 @@ public:
 	* Called to schedule a command to run after session analysis is complete. Intended for running Automation RunTests commands.
 	*/
 	virtual void ScheduleCommand(const FString& InCmd) = 0;
-
-	/**
-	* Called to run automation test in Insights.
-	*/
-	virtual void RunAutomationTest(const FString& InCmd) = 0;
 
 	/**
 	* Called to initialize testing in stand alone Insights.

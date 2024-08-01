@@ -7,6 +7,11 @@
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UIAction.h"
 
+namespace UE::Insights
+{
+
+class FInsightsManager;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Class that holds all profiler commands.
@@ -87,5 +92,9 @@ protected:
 
 protected:
 	/** Reference to the global instance of the Insights manager. */
-	class FInsightsManager* This;
+	FInsightsManager* This;
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+} // namespace UE::Insights

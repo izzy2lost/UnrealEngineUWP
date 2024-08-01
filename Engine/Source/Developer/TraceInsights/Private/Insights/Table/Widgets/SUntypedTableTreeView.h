@@ -11,18 +11,15 @@
 // TraceInsights
 #include "Insights/Table/ViewModels/UntypedTable.h"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class SUntypedTableTreeView : public UE::Insights::STableTreeView
+class SUntypedTableTreeView : public STableTreeView
 {
 public:
-	/** Default constructor. */
 	SUntypedTableTreeView();
-
-	/** Virtual destructor. */
 	virtual ~SUntypedTableTreeView();
 
 	SLATE_BEGIN_ARGS(SUntypedTableTreeView)
@@ -35,16 +32,16 @@ public:
 	 * Construct this widget
 	 * @param InArgs - The declaration data for this widget
 	 */
-	void Construct(const FArguments& InArgs, TSharedPtr<Insights::FUntypedTable> InTablePtr);
+	void Construct(const FArguments& InArgs, TSharedPtr<FUntypedTable> InTablePtr);
 
-	TSharedPtr<Insights::FUntypedTable> GetUntypedTable() const { return StaticCastSharedPtr<Insights::FUntypedTable>(GetTable()); }
+	TSharedPtr<FUntypedTable> GetUntypedTable() const { return StaticCastSharedPtr<FUntypedTable>(GetTable()); }
 
 	void UpdateSourceTable(TSharedPtr<TraceServices::IUntypedTable> SourceTable);
 
 	virtual void Reset();
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////
-	// IAsyncOperationStatusProvider implementation
+	//////////////////////////////////////////////////
+	// IAsyncOperationStatusProvider
 
 	virtual bool IsRunning() const override;
 	virtual double GetAllOperationsDuration() override;
@@ -52,7 +49,8 @@ public:
 	virtual uint32 GetOperationCount() const override { return 1; }
 	virtual FText GetCurrentOperationName() const override;
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////
+
 	void SetCurrentOperationNameOverride(const FText& InOperationName);
 	void ClearCurrentOperationNameOverride();
 
@@ -63,10 +61,10 @@ public:
 	virtual void RebuildTree(bool bResync);
 
 private:
-	UE::Insights::FStopwatch CurrentOperationStopwatch;
+	FStopwatch CurrentOperationStopwatch;
 	FText CurrentOperationNameOverride;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights

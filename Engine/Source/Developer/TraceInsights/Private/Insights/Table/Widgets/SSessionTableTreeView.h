@@ -12,9 +12,7 @@ namespace TraceServices
 	class IAnalysisSession;
 }
 
-namespace UE
-{
-namespace Insights
+namespace UE::Insights
 {
 
 class FTable;
@@ -30,9 +28,9 @@ protected:
 	/** Called when the analysis session has changed. */
 	void InsightsManager_OnSessionChanged();
 
+protected:
 	/** The analysis session used to populate this widget. */
 	TSharedPtr<const TraceServices::IAnalysisSession> Session;
 };
 
-} // namespace Insights
-} // namespace UE
+} // namespace UE::Insights

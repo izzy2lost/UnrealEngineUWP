@@ -3,8 +3,6 @@
 #include "SInsightsStatusBar.h"
 
 #include "CoreGlobals.h"
-#include "EditorTraceUtilitiesStyle.h"
-#include "EditorTraceUtilities.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/Commands.h"
 #include "Framework/Commands/UICommandList.h"
@@ -21,28 +19,37 @@
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/MiscTrace.h"
-#include "ProfilingDebugging/TraceScreenshot.h"
 #include "ProfilingDebugging/PlatformEvents.h"
-#include "SRecentTracesList.h"
+#include "ProfilingDebugging/TraceScreenshot.h"
 #include "Styling/StyleColors.h"
 #include "ToolMenus.h"
-#include "TraceTools/Interfaces/ITraceToolsModule.h"
-#include "TraceTools/Widgets/SToggleTraceButton.h"
 #include "Trace/Detail/Channel.h"
 #include "Trace/StoreClient.h"
 #include "Trace/Trace.h"
-#include "UnrealInsightsLauncher.h"
-#include "Insights/Widgets/STraceServerControl.h"
-#include "Widgets/SBoxPanel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Notifications/SNotificationList.h"
+#include "Widgets/SBoxPanel.h"
+
+// TraceTools
+#include "TraceTools/Interfaces/ITraceToolsModule.h"
+#include "TraceTools/Widgets/SToggleTraceButton.h"
+
+// TraceInsightsFrontend
+#include "InsightsFrontend/StoreService/TraceServerControl.h"
+
+// EditorTraceUtilities
+#include "EditorTraceUtilities.h"
+#include "EditorTraceUtilitiesStyle.h"
+#include "SRecentTracesList.h"
+#include "UnrealInsightsLauncher.h"
 
 #define LOCTEXT_NAMESPACE "InsightsEditor"
 
 namespace UE::EditorTraceUtilities
 {
+
 FStatusBarTraceSettings SInsightsStatusBarWidget::StatusBarTraceSettings;
 
 const TCHAR* SInsightsStatusBarWidget::DefaultPreset = TEXT("default");
@@ -1048,6 +1055,7 @@ void SInsightsStatusBarWidget::OpenTrace(int32 Index)
 		FUnrealInsightsLauncher::Get()->TryOpenTraceFromDestination(Traces[Index]->FilePath);
 	}
 }
+
 } // namespace UE::EditorTraceUtilities
 
 #undef LOCTEXT_NAMESPACE

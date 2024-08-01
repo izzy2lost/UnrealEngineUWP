@@ -22,13 +22,15 @@
 	#include "Interfaces/IAnalyticsProvider.h"
 #endif // WITH_EDITOR
 
+// TraceInsightsCore
+#include "InsightsCore/Version.h"
+
 // TraceInsights
 #include "Insights/Common/InsightsMenuBuilder.h"
 #include "Insights/InsightsManager.h"
 #include "Insights/InsightsStyle.h"
 #include "Insights/Log.h"
 #include "Insights/TraceInsightsModule.h"
-#include "Insights/Version.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -153,6 +155,8 @@ void SMajorTabWindow::RegisterTabSpawners()
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void SMajorTabWindow::Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow)
 {
+	using namespace UE::Insights;
+
 	//////////////////////////////////////////////////
 	// Create & initialize tab manager.
 
@@ -343,7 +347,7 @@ void SMajorTabWindow::FillMenu(FMenuBuilder& MenuBuilder, const TSharedPtr<FTabM
 		return;
 	}
 
-	FInsightsManager::Get()->GetInsightsMenuBuilder()->PopulateMenu(MenuBuilder);
+	UE::Insights::FInsightsManager::Get()->GetInsightsMenuBuilder()->PopulateMenu(MenuBuilder);
 
 	TabManager->PopulateLocalTabSpawnerMenu(MenuBuilder);
 }
@@ -352,7 +356,7 @@ void SMajorTabWindow::FillMenu(FMenuBuilder& MenuBuilder, const TSharedPtr<FTabM
 
 bool SMajorTabWindow::IsValidSession() const
 {
-	return FInsightsManager::Get()->GetSession().IsValid();
+	return UE::Insights::FInsightsManager::Get()->GetSession().IsValid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -408,7 +412,7 @@ FReply SMajorTabWindow::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& 
 
 FReply SMajorTabWindow::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
-	if (FInsightsManager::Get()->OnDragOver(DragDropEvent))
+	if (UE::Insights::FInsightsManager::Get()->OnDragOver(DragDropEvent))
 	{
 		return FReply::Handled();
 	}
@@ -420,7 +424,7 @@ FReply SMajorTabWindow::OnDragOver(const FGeometry& MyGeometry, const FDragDropE
 
 FReply SMajorTabWindow::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
-	if (FInsightsManager::Get()->OnDrop(DragDropEvent))
+	if (UE::Insights::FInsightsManager::Get()->OnDrop(DragDropEvent))
 	{
 		return FReply::Handled();
 	}

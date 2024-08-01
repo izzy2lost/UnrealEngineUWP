@@ -13,9 +13,9 @@
 #include "Insights/Log.h"
 #include "Insights/Table/ViewModels/UntypedTable.h"
 
-#define LOCTEXT_NAMESPACE "SUntypedTableTreeView"
+#define LOCTEXT_NAMESPACE "UE::Insights::SUntypedTableTreeView"
 
-namespace Insights
+namespace UE::Insights
 {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +32,7 @@ SUntypedTableTreeView::~SUntypedTableTreeView()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void SUntypedTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<Insights::FUntypedTable> InTablePtr)
+void SUntypedTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<FUntypedTable> InTablePtr)
 {
 	bRunInAsyncMode = InArgs._RunInAsyncMode;
 	ConstructWidget(InTablePtr);
@@ -42,7 +42,6 @@ void SUntypedTableTreeView::Construct(const FArguments& InArgs, TSharedPtr<Insig
 
 void SUntypedTableTreeView::Reset()
 {
-	//...
 	STableTreeView::Reset();
 }
 
@@ -50,8 +49,8 @@ void SUntypedTableTreeView::Reset()
 
 void SUntypedTableTreeView::UpdateSourceTable(TSharedPtr<TraceServices::IUntypedTable> SourceTable)
 {
-	//check(Table->Is<Insights::FUntypedTable>());
-	TSharedPtr<Insights::FUntypedTable> UntypedTable = StaticCastSharedPtr<Insights::FUntypedTable>(Table);
+	//check(Table->Is<FUntypedTable>());
+	TSharedPtr<FUntypedTable> UntypedTable = StaticCastSharedPtr<FUntypedTable>(Table);
 
 	if (UntypedTable->UpdateSourceTable(SourceTable))
 	{
@@ -65,10 +64,10 @@ void SUntypedTableTreeView::UpdateSourceTable(TSharedPtr<TraceServices::IUntyped
 
 void SUntypedTableTreeView::RebuildTree(bool bResync)
 {
-	UE::Insights::FStopwatch Stopwatch;
+	FStopwatch Stopwatch;
 	Stopwatch.Start();
 
-	UE::Insights::FStopwatch SyncStopwatch;
+	FStopwatch SyncStopwatch;
 	SyncStopwatch.Start();
 
 	if (bResync)
@@ -78,8 +77,8 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 
 	const int32 PreviousNodeCount = TableRowNodes.Num();
 
-	//check(Table->Is<Insights::FUntypedTable>());
-	TSharedPtr<Insights::FUntypedTable> UntypedTable = StaticCastSharedPtr<Insights::FUntypedTable>(Table);
+	//check(Table->Is<FUntypedTable>());
+	TSharedPtr<FUntypedTable> UntypedTable = StaticCastSharedPtr<FUntypedTable>(Table);
 
 	TSharedPtr<TraceServices::IUntypedTable> SourceTable = UntypedTable->GetSourceTable();
 	TSharedPtr<TraceServices::IUntypedTableReader> TableReader = UntypedTable->GetTableReader();
@@ -95,7 +94,7 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 			{
 				TableReader->SetRowIndex(RowIndex);
 				FName NodeName(BaseNodeName, RowIndex + 1);
-				UE::Insights::FTableTreeNodePtr NodePtr = MakeShared<UE::Insights::FTableTreeNode>(NodeName, Table, RowIndex);
+				FTableTreeNodePtr NodePtr = MakeShared<FTableTreeNode>(NodeName, Table, RowIndex);
 				NodePtr->SetDefaultSortOrder(RowIndex + 1);
 				TableRowNodes.Add(NodePtr);
 			}
@@ -108,7 +107,7 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 	if (bResync || TableRowNodes.Num() != PreviousNodeCount)
 	{
 		// Save selection.
-		TArray<UE::Insights::FTableTreeNodePtr> SelectedItems;
+		TArray<FTableTreeNodePtr> SelectedItems;
 		TreeView->GetSelectedItems(SelectedItems);
 
 		UpdateTree();
@@ -119,11 +118,11 @@ void SUntypedTableTreeView::RebuildTree(bool bResync)
 		if (SelectedItems.Num() > 0)
 		{
 			TreeView->ClearSelection();
-			for (UE::Insights::FTableTreeNodePtr& NodePtr : SelectedItems)
+			for (FTableTreeNodePtr& NodePtr : SelectedItems)
 			{
 				NodePtr = GetNodeByTableRowIndex(NodePtr->GetRowIndex());
 			}
-			SelectedItems.RemoveAll([](const UE::Insights::FTableTreeNodePtr& NodePtr) { return !NodePtr.IsValid(); });
+			SelectedItems.RemoveAll([](const FTableTreeNodePtr& NodePtr) { return !NodePtr.IsValid(); });
 			if (SelectedItems.Num() > 0)
 			{
 				TreeView->SetItemSelection(SelectedItems, true);
@@ -194,6 +193,6 @@ void SUntypedTableTreeView::ClearCurrentOperationNameOverride()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-} // namespace Insights
+} // namespace UE::Insights
 
 #undef LOCTEXT_NAMESPACE

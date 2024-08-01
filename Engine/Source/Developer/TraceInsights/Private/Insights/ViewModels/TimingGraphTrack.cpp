@@ -310,7 +310,7 @@ void FTimingGraphTrack::Update(const ITimingTrackUpdateContext& Context)
 
 void FTimingGraphTrack::AddDefaultFrameSeries()
 {
-	const FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+	const FInsightsSettings& Settings = UE::Insights::FInsightsManager::Get()->GetSettings();
 	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingViewPtr = TimingView.Pin();
 
 	TSharedRef<FTimingGraphSeries> GameFramesSeries = MakeShared<FTimingGraphSeries>(FTimingGraphSeries::ESeriesType::Frame);
@@ -326,7 +326,7 @@ void FTimingGraphTrack::AddDefaultFrameSeries()
 		GameFramesSeries->SetVisibility(Settings.GetTimingViewMainGraphShowGameFrames());
 		GameFrameSeriesVisibilityHandle = GameFramesSeries->VisibilityChangedDelegate.AddLambda([](bool bOnOff)
 			{
-				FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+				FInsightsSettings& Settings = UE::Insights::FInsightsManager::Get()->GetSettings();
 				Settings.SetAndSaveTimingViewMainGraphShowGameFrames(bOnOff);
 			});
 	}
@@ -345,7 +345,7 @@ void FTimingGraphTrack::AddDefaultFrameSeries()
 		RenderingFramesSeries->SetVisibility(Settings.GetTimingViewMainGraphShowRenderingFrames());
 		RenderingFrameSeriesVisibilityHandle = RenderingFramesSeries->VisibilityChangedDelegate.AddLambda([](bool bOnOff)
 			{
-				FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+				FInsightsSettings& Settings = UE::Insights::FInsightsManager::Get()->GetSettings();
 				Settings.SetAndSaveTimingViewMainGraphShowRenderingFrames(bOnOff);
 			});
 	}
@@ -369,7 +369,7 @@ TSharedPtr<FTimingGraphSeries> FTimingGraphTrack::GetFrameSeries(ETraceFrameType
 void FTimingGraphTrack::UpdateFrameSeries(FTimingGraphSeries& Series, const FTimingTrackViewport& Viewport)
 {
 	FGraphTrackBuilder Builder(*this, Series, Viewport);
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -449,7 +449,7 @@ void FTimingGraphTrack::RemoveTimerSeries(uint32 TimerId)
 void FTimingGraphTrack::UpdateTimerSeries(FTimingGraphSeries& Series, const FTimingTrackViewport& Viewport)
 {
 	FGraphTrackBuilder Builder(*this, Series, Viewport);
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -604,7 +604,7 @@ void FTimingGraphTrack::UpdateFrameStatsTimerSeries(FTimingGraphSeries& Series, 
 	using namespace UE::Insights::TimingProfiler;
 
 	FGraphTrackBuilder Builder(*this, Series, Viewport);
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -681,7 +681,7 @@ TSharedPtr<FTimingGraphSeries> FTimingGraphTrack::AddStatsCounterSeries(uint32 C
 	bool bIsMemory = false;
 	bool bIsFloatingPoint = false;
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -735,7 +735,7 @@ void FTimingGraphTrack::UpdateStatsCounterSeries(FTimingGraphSeries& Series, con
 {
 	FGraphTrackBuilder Builder(*this, Series, Viewport);
 
-	TSharedPtr<const TraceServices::IAnalysisSession> Session = FInsightsManager::Get()->GetSession();
+	TSharedPtr<const TraceServices::IAnalysisSession> Session = UE::Insights::FInsightsManager::Get()->GetSession();
 	if (Session.IsValid())
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
@@ -833,7 +833,7 @@ void FTimingGraphTrack::ContextMenu_ToggleOption_Execute(EGraphOptions Option)
 		return;
 	}
 
-	FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+	FInsightsSettings& Settings = UE::Insights::FInsightsManager::Get()->GetSettings();
 	if (EnumHasAnyFlags(Option, EGraphOptions::ShowPoints))
 	{
 		Settings.SetAndSaveTimingViewMainGraphShowPoints(EnumHasAnyFlags(EnabledOptions, EGraphOptions::ShowPoints));
@@ -867,7 +867,7 @@ void FTimingGraphTrack::LoadDefaultSettings()
 	TSharedPtr<UE::Insights::TimingProfiler::STimingView> TimingViewPtr = TimingView.Pin();
 	if (TimingViewPtr.IsValid() && TimingViewPtr->GetName() == FInsightsManagerTabs::TimingProfilerTabId)
 	{
-		const FInsightsSettings& Settings = FInsightsManager::Get()->GetSettings();
+		const FInsightsSettings& Settings = UE::Insights::FInsightsManager::Get()->GetSettings();
 		if (Settings.GetTimingViewMainGraphShowPoints())
 		{
 			EnabledOptions |= EGraphOptions::ShowPoints;

@@ -28,6 +28,9 @@ class FActiveTimerHandle;
 class SVerticalBox;
 class SEditableTextBox;
 
+namespace UE::Insights
+{
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 struct FSessionInfoTabs
@@ -194,3 +197,5 @@ private:
 	TSharedPtr<const TraceServices::IAnalysisSession> AnalysisSession;
 	bool bIsSessionInfoSet = false;
 };
+
+} // namespace UE::Insights

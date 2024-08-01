@@ -8,8 +8,8 @@
 #include "Insights/ITimingViewSession.h" // for ETimeChangedFlags
 #include "Insights/Widgets/SMajorTabWindow.h"
 
+namespace UE::Insights { class SUntypedTableTreeView; }
 namespace UE::Insights::TimingProfiler { class STimingView; }
-namespace Insights { class SUntypedTableTreeView; }
 
 namespace UE::Insights::LoadingProfiler
 {
@@ -55,11 +55,11 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
 
 	TSharedPtr<TimingProfiler::STimingView> GetTimingView() const { return TimingView; }
-	TSharedPtr<::Insights::SUntypedTableTreeView> GetEventAggregationTreeView() const { return EventAggregationTreeView; }
-	TSharedPtr<::Insights::SUntypedTableTreeView> GetObjectTypeAggregationTreeView() const { return ObjectTypeAggregationTreeView; }
-	TSharedPtr<::Insights::SUntypedTableTreeView> GetPackageDetailsTreeView() const { return PackageDetailsTreeView; }
-	TSharedPtr<::Insights::SUntypedTableTreeView> GetExportDetailsTreeView() const { return ExportDetailsTreeView; }
-	TSharedPtr<::Insights::SUntypedTableTreeView> GetRequestsTreeView() const { return RequestsTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetEventAggregationTreeView() const { return EventAggregationTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetObjectTypeAggregationTreeView() const { return ObjectTypeAggregationTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetPackageDetailsTreeView() const { return PackageDetailsTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetExportDetailsTreeView() const { return ExportDetailsTreeView; }
+	TSharedPtr<SUntypedTableTreeView> GetRequestsTreeView() const { return RequestsTreeView; }
 
 protected:
 	virtual const TCHAR* GetAnalyticsEventName() const override;
@@ -94,19 +94,19 @@ private:
 	TSharedPtr<TimingProfiler::STimingView> TimingView;
 
 	/** The Event Aggregation tree view widget */
-	TSharedPtr<::Insights::SUntypedTableTreeView> EventAggregationTreeView;
+	TSharedPtr<SUntypedTableTreeView> EventAggregationTreeView;
 
 	/** The Object Type Aggregation tree view widget */
-	TSharedPtr<::Insights::SUntypedTableTreeView> ObjectTypeAggregationTreeView;
+	TSharedPtr<SUntypedTableTreeView> ObjectTypeAggregationTreeView;
 
 	/** The Package Details tree view widget */
-	TSharedPtr<::Insights::SUntypedTableTreeView> PackageDetailsTreeView;
+	TSharedPtr<SUntypedTableTreeView> PackageDetailsTreeView;
 
 	/** The Export Details tree view widget */
-	TSharedPtr<::Insights::SUntypedTableTreeView> ExportDetailsTreeView;
+	TSharedPtr<SUntypedTableTreeView> ExportDetailsTreeView;
 
 	/** The Requests tree view widget */
-	TSharedPtr<::Insights::SUntypedTableTreeView> RequestsTreeView;
+	TSharedPtr<SUntypedTableTreeView> RequestsTreeView;
 
 	double SelectionStartTime;
 	double SelectionEndTime;

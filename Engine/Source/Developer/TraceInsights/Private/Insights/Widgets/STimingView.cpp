@@ -76,7 +76,6 @@
 #include "Insights/TimingProfilerCommon.h"
 #include "Insights/ViewModels/BaseTimingTrack.h"
 #include "Insights/ViewModels/DrawHelpers.h"
-#include "Insights/ViewModels/EventNameFilterValueConverter.h"
 #include "Insights/ViewModels/GraphSeries.h"
 #include "Insights/ViewModels/GraphTrack.h"
 #include "Insights/ViewModels/QuickFind.h"
