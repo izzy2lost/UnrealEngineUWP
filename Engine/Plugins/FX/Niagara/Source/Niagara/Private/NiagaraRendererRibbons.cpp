@@ -2368,12 +2368,14 @@ void FNiagaraRendererRibbons::InitializeVertexBuffersResources(FRHICommandListBa
 		RenderingResources->ParticleIntDataStride = RenderingResources->ParticleData.IntStride / sizeof(int32);
 	}
 
-	
 	// If the data was generated sync it here, otherwise we rely on the generation step later to populate it
 	if (DynamicDataRibbon->GenerationOutput.IsValid() && DynamicDataRibbon->GenerationOutput->SegmentData.Num() > 0)
 	{
-		const auto& GeneratedGeometryData = *DynamicDataRibbon->GenerationOutput;
-		
+		//-OPT: We only need to update this data once for all GDME passes
+		UE::TScopeLock VertexBuffersLock(VertexBuffersGuard);
+
+		const FNiagaraRibbonCPUGeneratedVertexData& GeneratedGeometryData = *DynamicDataRibbon->GenerationOutput;
+
 		void *IndexPtr = RHICmdList.LockBuffer(VertexBuffers.SortedIndicesBuffer.Buffer, 0, GeneratedGeometryData.SortedIndices.Num() * sizeof(int32), RLM_WriteOnly);
 		FMemory::Memcpy(IndexPtr, GeneratedGeometryData.SortedIndices.GetData(), GeneratedGeometryData.SortedIndices.Num() * sizeof(int32));
 		RHICmdList.UnlockBuffer(VertexBuffers.SortedIndicesBuffer.Buffer);

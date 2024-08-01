@@ -395,6 +395,7 @@ protected:
 	bool bGpuRibbonLinkIsFloat = false;
 	uint32 GpuRibbonLinkOrderOffset = INDEX_NONE;
 
+	mutable UE::FMutex VertexBuffersGuard;
 	mutable FNiagaraRibbonVertexBuffers VertexBuffers;
 	
 	mutable FNiagaraRibbonTessellationSmoothingData TessellationSmoothingData;

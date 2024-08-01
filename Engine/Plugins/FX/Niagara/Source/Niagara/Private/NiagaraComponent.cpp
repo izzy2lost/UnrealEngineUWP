@@ -373,6 +373,7 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 		KeyHash = HashCombine(KeyHash, CustomFloatHash);
 	}
 
+	UE::TScopeLock LockGuard(CustomUniformBuffersGuard);
 	TUniformBuffer<FPrimitiveUniformShaderParameters>*& CustomUBRef = CustomUniformBuffers.FindOrAdd(KeyHash);
 	if (CustomUBRef == nullptr)
 	{
@@ -419,11 +420,6 @@ TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustom
 	return CustomUBRef;
 }
 
-TUniformBuffer<FPrimitiveUniformShaderParameters>* FNiagaraSceneProxy::GetCustomUniformBufferResource(bool bHasVelocity, const FBox& InstanceBounds) const
-{
-	return GetCustomUniformBufferResource(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
-}
-
 FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(FRHICommandListBase& RHICmdList, bool bHasVelocity, const FBox& InstanceBounds) const
 {
 	// Default UB we create for the primitive
@@ -433,11 +429,6 @@ FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(FRHICommandListBas
 	}
 
 	return GetCustomUniformBufferResource(RHICmdList, bHasVelocity, InstanceBounds)->GetUniformBufferRHI();
-}
-
-FRHIUniformBuffer* FNiagaraSceneProxy::GetCustomUniformBuffer(bool bHasVelocity, const FBox& InstanceBounds) const
-{
-	return GetCustomUniformBuffer(FRHICommandListImmediate::Get(), bHasVelocity, InstanceBounds);
 }
 
 uint32 FNiagaraSceneProxy::GetMemoryFootprint() const
