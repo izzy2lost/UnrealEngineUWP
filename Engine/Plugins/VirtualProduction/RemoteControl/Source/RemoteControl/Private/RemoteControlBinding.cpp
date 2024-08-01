@@ -200,8 +200,8 @@ void URemoteControlLevelDependantBinding::SetBoundObject(const TSoftObjectPtr<UO
 {
 	if (ensure(InObject))
 	{
-		const UObject* EditorObject = FindObjectInEditorWorld(InObject.Get());
-		const ULevel* OuterLevel = EditorObject->GetTypedOuter<ULevel>();
+		UObject* EditorObject = FindObjectInEditorWorld(InObject.Get());
+		ULevel* OuterLevel = EditorObject->GetTypedOuter<ULevel>();
 		BoundObjectMapByPath.FindOrAdd(OuterLevel) = EditorObject;
 		SubLevelSelectionMapByPath.FindOrAdd(OuterLevel->GetWorld()) = OuterLevel;
 		

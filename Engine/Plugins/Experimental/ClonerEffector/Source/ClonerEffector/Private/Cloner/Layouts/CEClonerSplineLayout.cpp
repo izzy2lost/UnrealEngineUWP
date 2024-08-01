@@ -159,7 +159,7 @@ void UCEClonerSplineLayout::OnLayoutParametersChanged(UCEClonerComponent* InComp
 	SplineComponentWeak = nullptr;
 
 	// bind
-	if (const AActor* SplineActor = SplineActorWeak.Get())
+	if (AActor* SplineActor = SplineActorWeak.Get())
 	{
 		if (USplineComponent* SplineComponent = SplineActor->FindComponentByClass<USplineComponent>())
 		{

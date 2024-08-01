@@ -388,7 +388,7 @@ UAvaPlaybackGraph* FAvaPlaybackManager::LoadPlaybackObject(const FSoftObjectPath
 		return AvaPlayback;
 	}
 
-	if (const UWorld* const World = Cast<UWorld>(LoadedAsset))
+	if (UWorld* const World = Cast<UWorld>(LoadedAsset))
 	{
 		UAvaPlaybackGraph* const AvaPlayback = BuildPlaybackFromWorld(World, InChannelName);
 		check(AvaPlayback);

@@ -5,7 +5,7 @@
 #include "AvaTagHandle.h"
 
 FAvaTagSoftHandle::FAvaTagSoftHandle(const FAvaTagHandle& InTagHandle)
-	: FAvaTagSoftHandle(InTagHandle.Source, InTagHandle.TagId)
+	: FAvaTagSoftHandle(const_cast<UAvaTagCollection*>(InTagHandle.Source.Get()), InTagHandle.TagId)
 {
 }
 

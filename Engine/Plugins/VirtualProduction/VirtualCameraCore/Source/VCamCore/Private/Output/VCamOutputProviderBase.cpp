@@ -408,7 +408,7 @@ void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTa
 {
 	if (InTargetCamera != TargetCamera)
 	{
-		TargetCamera = InTargetCamera;
+		TargetCamera = const_cast<UCineCameraComponent*>(InTargetCamera);
 		NotifyAboutComponentChange();
 	}
 }

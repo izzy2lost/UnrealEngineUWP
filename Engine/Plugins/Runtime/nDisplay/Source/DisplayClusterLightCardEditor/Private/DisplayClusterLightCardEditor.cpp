@@ -256,7 +256,7 @@ AActor* FDisplayClusterLightCardEditor::SpawnActor(TSubclassOf<AActor> InActorCl
 		{
 			// Only template recent items need to be handled, new actor spawning is handled from caller otherwise.
 			FDisplayClusterLightCardEditorRecentItem RecentlyPlacedItem;
-			RecentlyPlacedItem.ObjectPath = InTemplate;
+			RecentlyPlacedItem.ObjectPath = const_cast<UDisplayClusterLightCardTemplate*>(InTemplate);
 			RecentlyPlacedItem.ItemType = FDisplayClusterLightCardEditorRecentItem::Type_LightCardTemplate;
 		
 			AddRecentlyPlacedItem(MoveTemp(RecentlyPlacedItem));

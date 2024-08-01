@@ -34,7 +34,7 @@ namespace UE::ConcertClientSharedSlate
 					return;
 				}
 
-				for (const UActorComponent* Component : TInlineComponentArray<UActorComponent*>(AsActor))
+				for (UActorComponent* Component : TInlineComponentArray<UActorComponent*>(AsActor))
 				{
 					if (IsValid(Component)
 						&& IsValidComponent(*Component)
@@ -51,7 +51,7 @@ namespace UE::ConcertClientSharedSlate
 			{
 				for (int32 i = 0; i < SceneComponent->GetNumChildrenComponents(); ++i)
 				{
-					const USceneComponent* ChildComponent = SceneComponent->GetChildComponent(i);
+					USceneComponent* ChildComponent = SceneComponent->GetChildComponent(i);
 					if (IsValid(ChildComponent) // GetChildComponent can return nullptr sometimes...
 						&& IsValidComponent(*ChildComponent)
 						&& Callback(ChildComponent, EChildRelationship::Component) == EBreakBehavior::Break)

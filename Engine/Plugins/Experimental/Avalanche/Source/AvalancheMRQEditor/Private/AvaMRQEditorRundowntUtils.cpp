@@ -132,7 +132,7 @@ namespace UE::AvaMRQEditor::Private
 
 		UAvaMRQRundownPageSetting* RundownPageSetting;
 		CreatePipelineSetting(RundownPageSetting);
-		RundownPageSetting->RundownPage.Rundown = &InRundown;
+		RundownPageSetting->RundownPage.Rundown = const_cast<UAvaRundown*>(&InRundown);
 		RundownPageSetting->RundownPage.PageId  = InPage.GetPageId();
 
 		UE_LOG(LogAvaMRQEditorRundown, Log

@@ -25,7 +25,7 @@ public:
 	TSoftObjectPtr<UCinePrestreamingData> GetPrestreamingAsset() const { return PrestreamingAsset; }
 
 	UFUNCTION(BlueprintCallable, Category = "Cinematic Prestreaming")
-	void SetPrestreamingAsset(const UCinePrestreamingData* InData) { PrestreamingAsset = TSoftObjectPtr<UCinePrestreamingData>(InData); }
+	void SetPrestreamingAsset(const UCinePrestreamingData* InData) { PrestreamingAsset = TSoftObjectPtr<UCinePrestreamingData>(const_cast<UCinePrestreamingData*>(InData)); }
 
 	/** If MovieScene.PreStream.QualityLevel is less than this then discard this section at runtime. */
 	UFUNCTION(BlueprintPure, Category = "Cinematic Prestreaming")

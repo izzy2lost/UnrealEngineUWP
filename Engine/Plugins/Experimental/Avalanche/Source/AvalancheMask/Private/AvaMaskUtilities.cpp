@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaMaskUtilities.h"
 
@@ -26,7 +26,7 @@ namespace UE::AvaMask::Internal
 	{
 		FSoftComponentReference ComponentReference;
 
-		const AActor* ComponentOwner = InComponent->GetOwner();
+		AActor* ComponentOwner = InComponent->GetOwner();
 		ComponentReference.OtherActor = ComponentOwner == InOwner ? nullptr : ComponentOwner;
 		ComponentReference.PathToComponent = InComponent->GetPathName(ComponentOwner);
 	
