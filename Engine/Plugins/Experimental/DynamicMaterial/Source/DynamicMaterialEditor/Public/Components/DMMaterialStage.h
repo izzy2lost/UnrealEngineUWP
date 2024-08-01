@@ -3,9 +3,11 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+
 #include "Components/DMMaterialStageSource.h"
 #include "DMEDefs.h"
 #include "Templates/SubclassOf.h"
+
 #include "DMMaterialStage.generated.h"
 
 class FAssetThumbnailPool;
@@ -121,12 +123,6 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void ResetInputConnectionMap();
 
 	DYNAMICMATERIALEDITOR_API void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
-
-	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	bool IsBeingEdited() const { return bIsBeingEdited; }
-
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	bool SetBeingEdited(bool bInBeingEdited);
 
 	/** Get the last layer for each property type from the previous stages. */
 	DYNAMICMATERIALEDITOR_API TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> GetPreviousStagesPropertyMap();
@@ -264,9 +260,6 @@ protected:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bCanChangeSource;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, TextExportTransient, Category = "Material Designer")
-	bool bIsBeingEdited;
 
 	//~ Begin UDMMaterialComponent
 	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;

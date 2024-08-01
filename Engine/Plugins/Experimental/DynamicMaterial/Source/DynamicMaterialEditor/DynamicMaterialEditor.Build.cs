@@ -14,13 +14,15 @@ public class DynamicMaterialEditor : ModuleRules
 				"Core",
 				"CoreUObject",
 				"DynamicMaterial",
-				"Engine"
+				"Engine",
+				"MaterialEditor"
 			}
 		);
 
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AdvancedPreviewScene",
 				"AppFramework",
 				"ApplicationCore",
 				"AssetDefinition",

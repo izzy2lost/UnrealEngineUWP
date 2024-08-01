@@ -1,13 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMLevelEditorIntegration.h"
-#include "DMLevelEditorIntegrationInstance.h"
+#include "LevelEditor/DMLevelEditorIntegration.h"
+
 #include "DynamicMaterialEditorModule.h"
 #include "LevelEditor.h"
-#include "Model/DynamicMaterialModel.h"
+#include "LevelEditor/DMLevelEditorIntegrationInstance.h"
+#include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Modules/ModuleManager.h"
-#include "Slate/SDMEditor.h"
+#include "Templates/SharedPointer.h"
+#include "UI/Widgets/SDMMaterialDesigner.h"
 
 namespace UE::DynamicMaterialEditor::Private
 {
@@ -27,93 +29,7 @@ namespace UE::DynamicMaterialEditor::Private
 	FLevelEditorModule& LoadLevelEditorModuleChecked()
 	{
 		return FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
-	}
-
-	void OnMapTearDown(UWorld* InWorld)
-	{
-		FDynamicMaterialEditorModule::Get().RemoveBuildRequestForOuter(InWorld);
-
-		FDMLevelEditorIntegrationInstance* Instance = FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(InWorld);
-
-		if (!Instance)
-		{
-			return;
-		}
-
-		Instance->SetLastAssetOpenPartialPath("");
-
-		TSharedPtr<SDMEditor> Editor = Instance->GetEditor();
-
-		if (!Editor.IsValid())
-		{
-			return;
-		}
-
-		UDynamicMaterialModelBase* MaterialModelBase = Editor->GetMaterialModelBase();
-
-		if (!MaterialModelBase)
-		{
-			return;
-		}
-
-		Editor->ResetEditor();
-
-		const FString WorldPath = InWorld->GetPathName();
-		const int WorldPathLength = WorldPath.Len();
-		const FString ModelPath = MaterialModelBase->GetPathName();
-
-		if (ModelPath.Len() > WorldPathLength && ModelPath.StartsWith(WorldPath))
-		{
-			switch (ModelPath[WorldPathLength])
-			{
-				case '.':
-				case '/':
-				case ':':
-					Instance->SetLastAssetOpenPartialPath(ModelPath.RightChop(WorldPath.Len()));
-					break;
-			}
-		}
-	}
-
-	void OnMapLoad(UWorld* InWorld)
-	{
-		FDMLevelEditorIntegrationInstance* Instance = FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(InWorld);
-
-		if (!Instance)
-		{
-			return;
-		}
-
-		const FString PartialAssetPath = Instance->GetLastOpenAssetPartialPath();
-		Instance->SetLastAssetOpenPartialPath("");
-
-		if (PartialAssetPath.IsEmpty())
-		{
-			return;
-		}
-
-		TSharedPtr<SDMEditor> Editor = Instance->GetEditor();
-
-		if (!Editor.IsValid())
-		{
-			return;
-		}
-
-		const FString ModelPath = InWorld->GetPathName() + PartialAssetPath;
-
-		if (UObject* Object = FindObject<UObject>(nullptr, *ModelPath, false))
-		{
-			if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(Object))
-			{
-				Editor->SetMaterialModelBase(MaterialModel);
-
-				if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
-				{
-					FDynamicMaterialEditorModule::Get().AddBuildRequest(EditorOnlyData, false);
-				}
-			}
-		}
-	}
+	}	
 }
 
 void FDMLevelEditorIntegration::Initialize()
@@ -168,7 +84,7 @@ void FDMLevelEditorIntegration::Shutdown()
 	FDMLevelEditorIntegrationInstance::RemoveIntegrations();
 }
 
-TSharedPtr<SDMEditor> FDMLevelEditorIntegration::GetEditorForWorld(UWorld* InWorld)
+TSharedPtr<SDMMaterialDesigner> FDMLevelEditorIntegration::GetMaterialDesignerForWorld(UWorld* InWorld)
 {
 	// If we have an invalid world, return the first level editor integration (for assets)... if possible
 	if (!IsValid(InWorld))
@@ -188,7 +104,7 @@ TSharedPtr<SDMEditor> FDMLevelEditorIntegration::GetEditorForWorld(UWorld* InWor
 
 	if (const FDMLevelEditorIntegrationInstance* Integration = FDMLevelEditorIntegrationInstance::GetIntegrationForWorld(InWorld))
 	{
-		return Integration->GetEditor();
+		return Integration->GetMaterialDesigner();
 	}
 
 	return nullptr;
@@ -218,4 +134,87 @@ TSharedPtr<SDockTab> FDMLevelEditorIntegration::InvokeTabForWorld(UWorld* InWorl
 	}
 
 	return nullptr;
+}
+
+void FDMLevelEditorIntegration::OnMapTearDown(UWorld* InWorld)
+{
+	FDynamicMaterialEditorModule::Get().RemoveBuildRequestForOuter(InWorld);
+
+	FDMLevelEditorIntegrationInstance* Instance = FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(InWorld);
+
+	if (!Instance)
+	{
+		return;
+	}
+
+	Instance->SetLastAssetOpenPartialPath("");
+
+	TSharedPtr<SDMMaterialDesigner> Designer = Instance->GetMaterialDesigner();
+
+	if (!Designer.IsValid())
+	{
+		return;
+	}
+
+	UDynamicMaterialModelBase* MaterialModelBase = Designer->GetMaterialModelBase();
+	Designer->Empty();
+
+	if (MaterialModelBase)
+	{
+		const FString WorldPath = InWorld->GetPathName();
+		const int32 WorldPathLength = WorldPath.Len();
+		const FString ModelPath = MaterialModelBase->GetPathName();
+
+		if (ModelPath.Len() > WorldPathLength && ModelPath.StartsWith(WorldPath))
+		{
+			switch (ModelPath[WorldPathLength])
+			{
+				case '.':
+				case '/':
+				case ':':
+					Instance->SetLastAssetOpenPartialPath(ModelPath.RightChop(WorldPath.Len()));
+					break;
+			}
+		}
+	}
+}
+
+void FDMLevelEditorIntegration::OnMapLoad(UWorld* InWorld)
+{
+	FDMLevelEditorIntegrationInstance* Instance = FDMLevelEditorIntegrationInstance::GetMutableIntegrationForWorld(InWorld);
+
+	if (!Instance)
+	{
+		return;
+	}
+
+	const FString PartialAssetPath = Instance->GetLastOpenAssetPartialPath();
+	Instance->SetLastAssetOpenPartialPath("");
+
+	if (PartialAssetPath.IsEmpty())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialDesigner> Designer = Instance->GetMaterialDesigner();
+
+	if (!Designer.IsValid())
+	{
+		return;
+	}
+
+	const FString ModelPath = InWorld->GetPathName() + PartialAssetPath;
+
+	if (UObject* Object = FindObject<UObject>(nullptr, *ModelPath, /* Exact Class */ false))
+	{
+		if (UDynamicMaterialModelBase* MaterialModel = Cast<UDynamicMaterialModelBase>(Object))
+		{
+			Designer->OpenMaterialModelBase(MaterialModel);
+
+			if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+			{
+				FDynamicMaterialEditorModule::Get().AddBuildRequest(EditorOnlyData, /* Dirty Assets */ false);
+			}
+		}
+	}
 }

@@ -1,12 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStageExpression.h"
+
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
 #include "EditorClassUtils.h"
 #include "Materials/MaterialExpression.h"
-#include "Materials/MaterialExpressionComponentMask.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Utils/DMUtils.h"
@@ -175,8 +175,8 @@ UDMMaterialStageExpression::UDMMaterialStageExpression(const FText& InName, TSub
 	bInputRequired = false;
 	bAllowNestedInputs = false;
 
-	ensureAlwaysMsgf(!InName.IsEmpty(), TEXT("Material Designer MSE Class with invalid Name: %s"),             *StaticClass()->GetName());
-	ensureAlwaysMsgf(InClass,           TEXT("Material Designer MSE Class with invalid Expression Class: %s"), *StaticClass()->GetName());
+	ensureAlwaysMsgf(!InName.IsEmpty(), TEXT("MSE Class with invalid Name: %s"),             *StaticClass()->GetName());
+	ensureAlwaysMsgf(InClass,           TEXT("MSE Class with invalid Expression Class: %s"), *StaticClass()->GetName());
 }
 
 void UDMMaterialStageExpression::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const

@@ -562,17 +562,20 @@ void UDynamicMaterialModel::PostEditImport()
 	}
 }
 
-void UDynamicMaterialModel::PostDuplicate(bool bDuplicateForPIE)
+void UDynamicMaterialModel::PostDuplicate(bool bInDuplicateForPIE)
 {
-	Super::PostDuplicate(bDuplicateForPIE);
+	Super::PostDuplicate(bInDuplicateForPIE);
 
-	FixGlobalVars();
-	PostEditorDuplicate();
-	ReinitComponents();
-
-	if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
+	if (!bInDuplicateForPIE)
 	{
-		ModelEditorOnlyData->RequestMaterialBuild();
+		FixGlobalVars();
+		PostEditorDuplicate();
+		ReinitComponents();
+
+		if (IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData())
+		{
+			ModelEditorOnlyData->RequestMaterialBuild();
+		}
 	}
 }
 

@@ -2,10 +2,12 @@
 
 #pragma once
 
-#include "DMEDefs.h"
 #include "Components/DMMaterialComponent.h"
+
+#include "DMEDefs.h"
 #include "Math/MathFwd.h"
 #include "Templates/SharedPointerFwd.h"
+
 #include "DMMaterialProperty.generated.h"
 
 class FText;
@@ -46,6 +48,12 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	EDMMaterialPropertyType GetMaterialProperty() const { return MaterialProperty; }
+
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	bool IsEnabled() const { return bEnabled; }
+
+	UFUNCTION(BlueprintCallable, Category = "Material Designer")
+	void SetEnabled(bool bInEnabled);
 
 	/**
 	 * The description of this property based on the EDMMaterialPropertyType enum.
@@ -209,6 +217,12 @@ protected:
 	 */
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	EDMMaterialPropertyType MaterialProperty;
+
+	/**
+	 * Whether this property is enabled. If it is not enabled, it will generate no expressions.
+	 */
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	bool bEnabled;
 
 	/**
 	 * The value type used to connect to this property. Will be either VT_Float1, VT_Float3_RGB or VT_Float3_XYZ.

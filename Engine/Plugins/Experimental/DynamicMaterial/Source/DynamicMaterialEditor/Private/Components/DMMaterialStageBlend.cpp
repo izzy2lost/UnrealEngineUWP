@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
  
 #include "Components/DMMaterialStageBlend.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
@@ -456,7 +457,7 @@ void UDMMaterialStageBlend::AddDefaultInput(int32 InInputIndex) const
 			EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 			check(StageProperty != EDMMaterialPropertyType::None);
  
-			const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
+			UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
  
 			if (PreviousLayer)
 			{

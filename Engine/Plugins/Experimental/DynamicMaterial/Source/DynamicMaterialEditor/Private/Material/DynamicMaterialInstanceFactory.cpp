@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Material/DynamicMaterialInstanceFactory.h"
+
 #include "AssetToolsModule.h"
+#include "DMDefs.h"
 #include "EngineAnalytics.h"
 #include "GameFramework/Actor.h"
 #include "IAssetTools.h"
@@ -10,7 +12,6 @@
 #include "Model/DynamicMaterialModelFactory.h"
 #include "Model/IDynamicMaterialModelEditorOnlyDataInterface.h"
 #include "Modules/ModuleManager.h"
-#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "MaterialDesignerInstanceFactory"
 

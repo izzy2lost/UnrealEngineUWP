@@ -251,18 +251,10 @@ void UDynamicMaterialEditorSettings::PostEditChangeProperty(FPropertyChangedEven
 
 	const FName PropertyName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SpinBoxValueMultiplier_Default)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SpinBoxValueMultiplier_Shift)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SpinBoxValueMultiplier_AltShift)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SpinBoxValueMultiplier_Cmd)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SpinBoxValueMultiplier_AltCmd)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SplitterLocation)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, LayerPreviewSize)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SlotPreviewSize)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, DetailsPreviewSize)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bShowTooltipPreview)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, TooltipTextureSize)
-		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bPreviewImagesUseTextureUVs))
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, SplitterLocation)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bPreviewImagesUseTextureUVs)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, PreviewMesh)
+		|| PropertyName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, bShowPreviewBackground))
 	{
 		OnSettingsChanged.Broadcast(InPropertyChangedEvent);
 	}
@@ -289,39 +281,11 @@ void UDynamicMaterialEditorSettings::OpenEditorSettingsWindow() const
 
 void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 {
-	SpinBoxValueMultiplier_AltShift = 1.0f; // Normal Sensitivity
-	SpinBoxValueMultiplier_Shift = 0.25f;   //   5x Default
-	SpinBoxValueMultiplier_Default = 0.05f; //  20x Sensitivity
-	SpinBoxValueMultiplier_Cmd = 0.01f;		//  1/5 Default
-	SpinBoxValueMultiplier_AltCmd = 0.001f; // 1/50 Default, 1/10 Cmd
 	SplitterLocation = 240;
-	LayerPreviewSize = 40;
-	SlotPreviewSize = 96;
-	DetailsPreviewSize = 96;
-	bShowTooltipPreview = false;
-	TooltipTextureSize = 512;
-	MaxFloatSliderWidth = 200.f;
+	PreviewMesh = EDMMaterialPreviewMesh::Plane;
+	bShowPreviewBackground = true;
 	bPreviewImagesUseTextureUVs = true;
 	bUVVisualizerVisible = true;
-}
-
-float UDynamicMaterialEditorSettings::GetSpinboxValueChangeMultiplier(const FModifierKeysState& InModifierKeys) const
-{
-	const bool bIsShiftDown = InModifierKeys.IsLeftShiftDown() || InModifierKeys.IsRightShiftDown();
-	const bool bIsAltDown = InModifierKeys.IsLeftAltDown() || InModifierKeys.IsRightAltDown();
-	const bool bIsCmdDown = InModifierKeys.IsLeftControlDown() || InModifierKeys.IsLeftCommandDown() || InModifierKeys.IsRightControlDown() || InModifierKeys.IsRightCommandDown();
-	
-	if (InModifierKeys.IsShiftDown())
-	{
-		return InModifierKeys.IsAltDown() ? SpinBoxValueMultiplier_AltShift : SpinBoxValueMultiplier_Shift;
-	}
-
-	if (InModifierKeys.IsCommandDown() || InModifierKeys.IsControlDown())
-	{
-		return InModifierKeys.IsAltDown() ? SpinBoxValueMultiplier_AltCmd : SpinBoxValueMultiplier_Cmd;
-	}
-
-	return SpinBoxValueMultiplier_Default;
 }
 
 TArray<FDMMaterialEffectList> UDynamicMaterialEditorSettings::GetEffectList() const
@@ -484,6 +448,11 @@ const FDMMaterialChannelListPreset* UDynamicMaterialEditorSettings::GetPresetByN
 	}
 
 	return nullptr;
+}
+
+FOnFinishedChangingProperties::RegistrationType& UDynamicMaterialEditorSettings::GetOnSettingsChanged()
+{
+	return OnSettingsChanged;
 }
 
 void UDynamicMaterialEditorSettings::EnsureUniqueChannelPresetNames()

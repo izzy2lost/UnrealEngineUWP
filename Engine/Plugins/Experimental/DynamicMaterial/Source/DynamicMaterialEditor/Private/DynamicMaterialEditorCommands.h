@@ -20,4 +20,6 @@ public:
 	TSharedPtr<FUICommandInfo> SelectLayerMaskStage;
 	TSharedPtr<FUICommandInfo> MoveLayerUp;
 	TSharedPtr<FUICommandInfo> MoveLayerDown;
+
+	TSharedPtr<FUICommandInfo> SetShaderBallPreview;
 };

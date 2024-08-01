@@ -3,7 +3,9 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
+
 #include "DMEDefs.h"
+
 #include "DMMaterialSlot.generated.h"
 
 class FScopedTransaction;
@@ -26,7 +28,7 @@ UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer", Meta = (Disp
 class UDMMaterialSlot : public UDMMaterialComponent
 {
 	friend class SDMMaterialSlot;
-	friend class SDMSlot;
+	friend class SDMMaterialSlotEditor;
 
 	GENERATED_BODY()
 
@@ -84,7 +86,7 @@ public:
 
 	/** Can't be removed if it is the last remaining layer. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API bool CanRemoveLayer(const UDMMaterialLayerObject* InLayer) const;
+	DYNAMICMATERIALEDITOR_API bool CanRemoveLayer(UDMMaterialLayerObject* InLayer) const;
 
 	/** Removes the layer, if possible. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -134,10 +136,6 @@ public:
 	/** Returns true if all associations have been removed */
 	bool UnreferencedBySlot(UDMMaterialSlot* InOtherSlot);
 
-	bool IsEditingLayers() const { return bIsEditingLayers; }
-
-	void SetEditingLayers(bool bInIsEditing) { bIsEditingLayers = bInIsEditing; }
-
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API void GeneralPreviewMaterial(UMaterial* InPreviewMaterial, EDMMaterialLayerStage InLayerStage);
 
@@ -175,9 +173,6 @@ protected:
 
 	UPROPERTY()
 	TMap<TWeakObjectPtr<UDMMaterialSlot>, int32> SlotsReferencedBy;
-
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, TextExportTransient, Category = "Material Designer")
-	bool bIsEditingLayers;
 
 	FDMOnMaterialSlotConnectorsUpdated OnConnectorsUpdateDelegate;
 	FDMOnMaterialSlotPropertiesUpdated OnPropertiesUpdateDelegate;

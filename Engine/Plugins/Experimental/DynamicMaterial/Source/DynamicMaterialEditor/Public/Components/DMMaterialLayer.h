@@ -3,8 +3,10 @@
 #pragma once
 
 #include "Components/DMMaterialComponent.h"
-#include "DMDefs.h"
+
 #include "Components/DMMaterialStage.h"
+#include "DMDefs.h"
+
 #include "DMMaterialLayer.generated.h"
 
 class UDMMaterialEffectStack;
@@ -127,10 +129,6 @@ public:
 	/** Checks if both stages are enabled and valid */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API bool AreAllStagesEnabled(EDMMaterialLayerStage InStageScope) const;
-
-	bool IsStageBeingEdited(EDMMaterialLayerStage InStageScope = EDMMaterialLayerStage::All) const;
-
-	UDMMaterialStage* GetFirstStageBeingEdited(EDMMaterialLayerStage InStageScope) const;
 
 	/** Iterate over all the valid stages, whether they are enabled or not. */
 	DYNAMICMATERIALEDITOR_API void ForEachValidStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const;

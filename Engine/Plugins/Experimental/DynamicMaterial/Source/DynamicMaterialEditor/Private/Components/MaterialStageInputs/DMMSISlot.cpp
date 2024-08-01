@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageInputs/DMMSISlot.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialSlot.h"
@@ -9,9 +10,7 @@
 #include "DMComponentPath.h"
 #include "DMValueDefinition.h"
 #include "Model/DMMaterialBuildState.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
-#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputSlot"
 
@@ -361,7 +360,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	check(Layer);
 
 	UDMMaterialSlot* StageSlot = Layer->GetSlot();
@@ -379,7 +378,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 		EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 		check(StageProperty != EDMMaterialPropertyType::None);
 
-		if (const UDMMaterialLayerObject* NextLayer = Layer->GetNextLayer(StageProperty, EDMMaterialLayerStage::Base))
+		if (UDMMaterialLayerObject* NextLayer = Layer->GetNextLayer(StageProperty, EDMMaterialLayerStage::Base))
 		{
 			NextLayer->GetStage(EDMMaterialLayerStage::Base)->ResetInputConnectionMap();
 		}

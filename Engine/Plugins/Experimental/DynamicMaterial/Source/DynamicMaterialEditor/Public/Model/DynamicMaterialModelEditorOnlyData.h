@@ -9,8 +9,8 @@
 
 #include "Engine/EngineTypes.h"
 #include "MaterialDomain.h"
+#include "MaterialEditingLibrary.h"
 #include "UObject/WeakObjectPtrFwd.h"
-#include "UObject/WeakObjectPtrTemplatesFwd.h"
 
 #include "DynamicMaterialModelEditorOnlyData.generated.h"
 
@@ -48,7 +48,7 @@ class UDynamicMaterialModelEditorOnlyData : public UObject, public IDynamicMater
 	GENERATED_BODY()
 
 	friend class UDynamicMaterialModelFactory;
-	friend class SDMComponentEdit;
+	friend class FDMMaterialModelPropertyRowGenerator;
 
 public:
 	DYNAMICMATERIALEDITOR_API static const FString SlotsPathToken;
@@ -151,6 +151,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API void SetChannelListPreset(FName InPresetName);
 
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	const FMaterialStatistics& GetMaterialStats() const;
+
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API void OpenMaterialEditor() const;
 
@@ -226,7 +229,7 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void PostLoad() override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
-	DYNAMICMATERIALEDITOR_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	DYNAMICMATERIALEDITOR_API virtual void Serialize(FArchive& Ar) override;
 	//~ End UObject
@@ -311,6 +314,9 @@ protected:
 
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
 	bool bCreateMaterialPackage;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
+	FMaterialStatistics MaterialStats;
 
 	FDMOnMaterialBuilt OnMaterialBuiltDelegate;
 	FDMOnValueListUpdated OnValueListUpdateDelegate;

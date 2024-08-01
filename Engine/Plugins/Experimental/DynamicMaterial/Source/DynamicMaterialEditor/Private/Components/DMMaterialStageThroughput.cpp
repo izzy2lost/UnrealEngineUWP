@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStageThroughput.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
@@ -166,7 +167,7 @@ bool UDMMaterialStageThroughput::ShouldKeepInput(int32 InThroughputInputIndex)
 
 			case FDMMaterialStageConnectorChannel::PREVIOUS_STAGE:
 			{
-				if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
+				if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
 				{
 					if (UDMMaterialStage* MaskStage = PreviousLayer->GetStage(EDMMaterialLayerStage::Mask))
 					{
@@ -474,7 +475,7 @@ void UDMMaterialStageThroughput::AddDefaultInput(int32 InInputIndex) const
 
 		case EDMValueType::VT_ColorAtlas:
 		{
-			if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+			if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 			{
 				if (Layer->GetStageType(Stage) == EDMMaterialLayerStage::Mask)
 				{
@@ -514,7 +515,7 @@ int32 UDMMaterialStageThroughput::ResolveInput(const TSharedRef<FDMMaterialBuild
 		ParentMostStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+	UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 	check(Layer);
 
 	if (Layer->IsTextureUVLinkEnabled() 
@@ -628,7 +629,7 @@ int32 UDMMaterialStageThroughput::ResolveLayerMaskTextureUVLinkInput(const TShar
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	check(Layer);
 	check(Layer->GetStage(EDMMaterialLayerStage::Base));
 
@@ -709,10 +710,10 @@ int32 UDMMaterialStageThroughput::ResolveInputChannel(const TSharedRef<FDMMateri
 
 	if (OutChannel.SourceIndex == FDMMaterialStageConnectorChannel::PREVIOUS_STAGE)
 	{
-		const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+		UDMMaterialLayerObject* Layer = Stage->GetLayer();
 		check(Layer);
 
-		if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(OutChannel.MaterialProperty, EDMMaterialLayerStage::Base))
+		if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(OutChannel.MaterialProperty, EDMMaterialLayerStage::Base))
 		{
 			PreviousLayer->GenerateExpressions(InBuildState);
 

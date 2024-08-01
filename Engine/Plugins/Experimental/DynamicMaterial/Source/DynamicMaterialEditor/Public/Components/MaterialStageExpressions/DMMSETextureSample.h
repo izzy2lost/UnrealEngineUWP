@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Components/MaterialStageExpressions/DMMSETextureSampleBase.h"
+
 #include "DMMSETextureSample.generated.h"
 
 UCLASS(MinimalAPI, BlueprintType, ClassGroup = "Material Designer")
@@ -10,7 +11,7 @@ class UDMMaterialStageExpressionTextureSample : public UDMMaterialStageExpressio
 {
 	GENERATED_BODY()
 
-	friend class SDMComponentEdit;
+	friend class SDMMaterialComponentEditor;
 
 public:
 	UDMMaterialStageExpressionTextureSample();

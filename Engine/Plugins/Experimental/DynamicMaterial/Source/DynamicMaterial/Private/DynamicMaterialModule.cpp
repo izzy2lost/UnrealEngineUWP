@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMaterialModule.h"
+
+#include "CoreGlobals.h"
 #include "HAL/IConsoleManager.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/UObjectBase.h"
 
 DEFINE_LOG_CATEGORY(LogDynamicMaterial);
-
-bool FDynamicMaterialModule::bIsEngineExiting = false;
 
 #if WITH_EDITOR
 FDMCreateEditorOnlyDataDelegate FDynamicMaterialModule::CreateEditorOnlyDataDelegate;
@@ -27,30 +27,12 @@ bool FDynamicMaterialModule::IsMaterialExportEnabled()
 
 bool FDynamicMaterialModule::AreUObjectsSafe()
 {
-	return UObjectInitialized() && !bIsEngineExiting;
+	return UObjectInitialized() && !IsEngineExitRequested();
 }
 
 FDynamicMaterialModule& FDynamicMaterialModule::Get()
 {
 	return FModuleManager::LoadModuleChecked<FDynamicMaterialModule>("DynamicMaterial");
-}
-
-void FDynamicMaterialModule::StartupModule()
-{
-	EnginePreExitHandle = FCoreDelegates::OnEnginePreExit.AddStatic(&FDynamicMaterialModule::HandleEnginePreExit);
-}
-
-void FDynamicMaterialModule::ShutdownModule()
-{
-	if (EnginePreExitHandle.IsValid())
-	{
-		FCoreDelegates::OnEnginePreExit.Remove(EnginePreExitHandle);
-	}
-}
-
-void FDynamicMaterialModule::HandleEnginePreExit()
-{
-	bIsEngineExiting = true;
 }
 
 #if WITH_EDITOR

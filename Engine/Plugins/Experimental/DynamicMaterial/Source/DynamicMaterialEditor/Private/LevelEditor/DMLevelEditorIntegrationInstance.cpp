@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DMLevelEditorIntegrationInstance.h"
+#include "LevelEditor/DMLevelEditorIntegrationInstance.h"
+
 #include "Components/PrimitiveComponent.h"
-#include "DMWorldSubsystem.h"
 #include "DynamicMaterialEditorModule.h"
 #include "EditorModeManager.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
@@ -11,10 +11,10 @@
 #include "ILevelEditor.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Materials/Material.h"
-#include "Model/DynamicMaterialModel.h"
+#include "Model/DynamicMaterialModelBase.h"
 #include "Selection.h"
-#include "Slate/SDMEditor.h"
 #include "Styling/SlateIconFinder.h"
+#include "UI/Widgets/SDMMaterialDesigner.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
@@ -57,9 +57,9 @@ FDMLevelEditorIntegrationInstance::~FDMLevelEditorIntegrationInstance()
 	UnregisterWithTabManager();
 }
 
-const TSharedPtr<SDMEditor>& FDMLevelEditorIntegrationInstance::GetEditor() const
+const TSharedPtr<SDMMaterialDesigner>& FDMLevelEditorIntegrationInstance::GetMaterialDesigner() const
 {
-	return Editor;
+	return MaterialDesigner;
 }
 
 TSharedPtr<SDockTab> FDMLevelEditorIntegrationInstance::InvokeTab() const
@@ -149,7 +149,7 @@ FDMLevelEditorIntegrationInstance::FDMLevelEditorIntegrationInstance(const TShar
 {
 	LevelEditorWeak = InLevelEditor;
 
-	Editor = StaticCastSharedRef<SDMEditor>(
+	MaterialDesigner = StaticCastSharedRef<SDMMaterialDesigner>(
 		FDynamicMaterialEditorModule::CreateEditor(nullptr, nullptr)
 	);
 
@@ -229,7 +229,7 @@ void FDMLevelEditorIntegrationInstance::RegisterWithTabManager()
 					.TabRole(ETabRole::PanelTab)
 					.Content()
 					[
-						Editor.ToSharedRef()
+						MaterialDesigner.ToSharedRef()
 					];
 			}
 		)
@@ -287,27 +287,27 @@ void FDMLevelEditorIntegrationInstance::OnActorSelected(AActor* InActor)
 		return;
 	}
 
-	Editor->OnActorSelected(InActor);
+	MaterialDesigner->OnActorSelected(InActor);
 }
 
 void FDMLevelEditorIntegrationInstance::OnObjectSelectionChanged(const UTypedElementSelectionSet* InSelectionSet)
 {
-	UDynamicMaterialModel* NewSelectedMaterialModel = nullptr;
+	UDynamicMaterialModelBase* NewSelectedMaterialModelBase = nullptr;
 
-	for (UDynamicMaterialModel* MaterialModel : InSelectionSet->GetSelectedObjects<UDynamicMaterialModel>())
+	for (UDynamicMaterialModelBase* MaterialModelBase : InSelectionSet->GetSelectedObjects<UDynamicMaterialModelBase>())
 	{
 		// Only do this if we have a single selected instance.
-		if (NewSelectedMaterialModel != nullptr)
+		if (NewSelectedMaterialModelBase != nullptr)
 		{
 			return;
 		}
 
-		NewSelectedMaterialModel = MaterialModel;
+		NewSelectedMaterialModelBase = MaterialModelBase;
 	}
 
-	if (NewSelectedMaterialModel)
+	if (NewSelectedMaterialModelBase)
 	{
-		Editor->OnMaterialModelSelected(NewSelectedMaterialModel);
+		MaterialDesigner->OnMaterialModelBaseSelected(NewSelectedMaterialModelBase);
 		return;
 	}
 
@@ -323,10 +323,10 @@ void FDMLevelEditorIntegrationInstance::OnObjectSelectionChanged(const UTypedEle
 
 		NewSelectedMaterialInstance = MaterialInstance;
 	}
-
+	
 	if (NewSelectedMaterialInstance)
 	{
-		Editor->OnMaterialModelSelected(NewSelectedMaterialInstance->GetMaterialModel());
+		MaterialDesigner->OnMaterialModelBaseSelected(NewSelectedMaterialInstance->GetMaterialModelBase());
 	}
 }
 

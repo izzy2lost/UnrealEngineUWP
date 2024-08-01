@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "UObject/WeakObjectPtr.h"
-#include "UObject/WeakObjectPtrTemplates.h"
 #include "UObject/NameTypes.h"
 #include "UObject/Object.h"
+#include "UObject/WeakObjectPtr.h"
+
 #include "DMObjectMaterialProperty.generated.h"
 
 class FProperty;
@@ -18,7 +18,7 @@ class UPrimitiveComponent;
 /**
  * Defines a material property slot that can be a Material Designer Instance.
  */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct FDMObjectMaterialProperty
 {
 	GENERATED_BODY()
@@ -31,19 +31,11 @@ struct FDMObjectMaterialProperty
 	/** Class Property (including potential array index) */
 	DYNAMICMATERIALEDITOR_API FDMObjectMaterialProperty(UObject* InOuter, FProperty* InProperty, int32 InIndex = INDEX_NONE);
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material")
-	TWeakObjectPtr<UObject> OuterWeak;
+	DYNAMICMATERIALEDITOR_API UObject* GetOuter() const;
 
-	/** C++ version of property */
-	FProperty* Property;
+	DYNAMICMATERIALEDITOR_API FProperty* GetProperty() const;
 
-	/** Blueprint version of property */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material")
-	FName PropertyName;
-
-	/** Component or array property index. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material")
-	int32 Index;
+	DYNAMICMATERIALEDITOR_API int32 GetIndex() const;
 
 	DYNAMICMATERIALEDITOR_API UDynamicMaterialModelBase* GetMaterialModelBase() const;
 
@@ -56,6 +48,12 @@ struct FDMObjectMaterialProperty
 	DYNAMICMATERIALEDITOR_API FText GetPropertyName(bool bInIgnoreNewStatus) const;
 
 	DYNAMICMATERIALEDITOR_API void Reset();
+
+	/** Whether this is a property on the object. */
+	DYNAMICMATERIALEDITOR_API bool IsProperty() const;
+
+	/** Whether this is an element of a primitive component's material override array. */
+	DYNAMICMATERIALEDITOR_API bool IsElement() const;
 
 	template<typename InClass>
 	InClass* GetTypedOuter() const
@@ -72,4 +70,14 @@ struct FDMObjectMaterialProperty
 
 		return nullptr;
 	}
+
+protected:
+	UPROPERTY()
+	TWeakObjectPtr<UObject> OuterWeak = nullptr;
+
+	/** C++ version of property */
+	FProperty* Property = nullptr;
+
+	/** Component or array property index. */
+	int32 Index = INDEX_NONE;
 };

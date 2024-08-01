@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialSlot.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialLayer_Deprecated.h"
 #include "Components/DMMaterialProperty.h"
@@ -363,7 +364,6 @@ void UDMMaterialSlot::UpdateMaterialProperties()
 
 UDMMaterialSlot::UDMMaterialSlot()
 	: Index(INDEX_NONE)
-	, bIsEditingLayers(true)
 {
 }
 
@@ -619,7 +619,7 @@ bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)
 	return true;
 }
 
-bool UDMMaterialSlot::CanRemoveLayer(const UDMMaterialLayerObject* InLayer) const
+bool UDMMaterialSlot::CanRemoveLayer(UDMMaterialLayerObject* InLayer) const
 {
 	if (!IsComponentValid())
 	{

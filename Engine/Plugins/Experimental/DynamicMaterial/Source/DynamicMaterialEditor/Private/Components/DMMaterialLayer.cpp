@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialLayer.h"
+
 #include "Components/DMMaterialEffect.h"
 #include "Components/DMMaterialEffectStack.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
 #include "DMComponentPath.h"
 #include "Dom/JsonObject.h"
-#include "DynamicMaterialEditorModule.h"
 #include "Factories.h"
 #include "JsonObjectConverter.h"
 #include "Misc/ReverseIterate.h"
@@ -379,19 +379,6 @@ bool UDMMaterialLayerObject::SetStage(EDMMaterialLayerStage InStageType, UDMMate
 	return true;
 }
 
-UDMMaterialStage* UDMMaterialLayerObject::GetFirstStageBeingEdited(EDMMaterialLayerStage InStageScope) const
-{
-	for (UDMMaterialStage* Stage : GetStages(InStageScope))
-	{
-		if (IsValid(Stage) && Stage->IsBeingEdited())
-		{
-			return Stage;
-		}
-	}
-
-	return nullptr;
-}
-
 void UDMMaterialLayerObject::ForEachValidStage(EDMMaterialLayerStage InStageScope, FStageCallbackFunc InCallback) const
 {
 	for (UDMMaterialStage* Stage : GetStages(InStageScope))
@@ -502,16 +489,6 @@ bool UDMMaterialLayerObject::IsStageEnabled(EDMMaterialLayerStage InStageType) c
 	if (UDMMaterialStage* Stage = GetStage(InStageType))
 	{
 		return Stage->IsEnabled();
-	}
-
-	return false;
-}
-
-bool UDMMaterialLayerObject::IsStageBeingEdited(EDMMaterialLayerStage InStageType) const
-{
-	if (UDMMaterialStage* Stage = GetStage(InStageType))
-	{
-		return Stage->IsBeingEdited();
 	}
 
 	return false;

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/DMMaterialStage.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStageInput.h"
@@ -34,7 +35,6 @@ UDMMaterialStage::UDMMaterialStage()
 	: Source(nullptr)
 	, bEnabled(true)
 	, bCanChangeSource(true)
-	, bIsBeingEdited(false)
 {
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStage, Source));
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStage, Inputs));
@@ -308,7 +308,7 @@ EDMValueType UDMMaterialStage::GetSourceType(const FDMMaterialStageConnectorChan
 		EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 		check(StageProperty != EDMMaterialPropertyType::None && StageProperty != EDMMaterialPropertyType::Any);
 
-		const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
+		UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
 		check(PreviousLayer);
 		check(PreviousLayer->GetStage(EDMMaterialLayerStage::Mask));
 		check(PreviousLayer->GetStage(EDMMaterialLayerStage::Mask)->GetSource());
@@ -530,18 +530,6 @@ void UDMMaterialStage::GenerateExpressions(const TSharedRef<FDMMaterialBuildStat
 	InBuildState->AddStageExpressions(this, StageExpressions);
 }
 
-bool UDMMaterialStage::SetBeingEdited(bool bInBeingEdited)
-{ 
-	if (bIsBeingEdited == bInBeingEdited)
-	{
-		return false;
-	}
-
-	bIsBeingEdited = bInBeingEdited; 
-
-	return true;
-}
-
 TMap<EDMMaterialPropertyType, UDMMaterialLayerObject*> UDMMaterialStage::GetPreviousStagesPropertyMap()
 {
 	UDMMaterialLayerObject* Layer = GetLayer();
@@ -724,7 +712,7 @@ UDMMaterialStageSource* UDMMaterialStage::ChangeInput_PreviousStage(int32 InInpu
 	EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 	check(StageProperty != EDMMaterialPropertyType::None);
 
-	const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
+	UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
 	UDMMaterialStageSource* PreviousSource = nullptr;
 	
 	if (PreviousLayer)
@@ -789,7 +777,7 @@ void UDMMaterialStage::UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int
 		UDMMaterialLayerObject* Layer = GetLayer();
 		check(Layer);
 
-		const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(InStageProperty, EDMMaterialLayerStage::Base);
+		UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(InStageProperty, EDMMaterialLayerStage::Base);
 		UDMMaterialStageSource* PreviousSource = nullptr;
 
 		if (PreviousLayer)
@@ -1044,7 +1032,7 @@ bool UDMMaterialStage::VerifyInputMap(int32 InInputIdx)
 		// Check previous stage
 		if (Channel.SourceIndex == FDMMaterialStageConnectorChannel::PREVIOUS_STAGE)
 		{
-			if (const UDMMaterialLayerObject* PreviousLayerAndStage = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
+			if (UDMMaterialLayerObject* PreviousLayerAndStage = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
 			{
 				check(PreviousLayerAndStage->GetStage(EDMMaterialLayerStage::Mask));
 

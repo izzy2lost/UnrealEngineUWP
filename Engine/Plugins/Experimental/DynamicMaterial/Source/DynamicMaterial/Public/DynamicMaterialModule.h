@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include "Modules/ModuleInterface.h"
+
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
-#include "Modules/ModuleInterface.h"
 
 #if WITH_EDITOR
 #include "UObject/ScriptInterface.h"
@@ -40,19 +41,9 @@ public:
 	static FDMCreateEditorOnlyDataDelegate::RegistrationType& GetCreateEditorOnlyDataDelegate() { return CreateEditorOnlyDataDelegate; }
 #endif
 
-	//~ Begin IDynamicMaterialModule
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-	//~ End IDynamicMaterialModule
-
 protected:
-	static bool bIsEngineExiting;
-
 #if WITH_EDITOR
 	DYNAMICMATERIAL_API static FDMCreateEditorOnlyDataDelegate CreateEditorOnlyDataDelegate;
 #endif
-	
-	static void HandleEnginePreExit();
 
-	FDelegateHandle EnginePreExitHandle;
 };

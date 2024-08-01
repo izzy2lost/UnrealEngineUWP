@@ -12,7 +12,6 @@
 #include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueFloat3XYZ.h"
 #include "Components/MaterialValues/DMMaterialValueFloat4.h"
-#include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionFunctionOutput.h"
@@ -139,7 +138,7 @@ void UDMMaterialStageFunction::AddDefaultInput(int32 InInputIndex) const
 	EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 	check(StageProperty != EDMMaterialPropertyType::None);
 
-	const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
+	UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base);
 
 	if (PreviousLayer)
 	{

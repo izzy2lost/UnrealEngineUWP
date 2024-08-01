@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageExpressions/DMMSEMathBase.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
@@ -68,10 +69,10 @@ bool UDMMaterialStageExpressionMathBase::CanInputAcceptType(int32 InInputIndex, 
 
 				case FDMMaterialStageConnectorChannel::PREVIOUS_STAGE:
 				{
-					const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+					UDMMaterialLayerObject* Layer = Stage->GetLayer();
 					check(Layer);
 
-					if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(Channel.MaterialProperty, EDMMaterialLayerStage::Base))
+					if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(Channel.MaterialProperty, EDMMaterialLayerStage::Base))
 					{
 						UDMMaterialStage* PreviousStage = PreviousLayer->GetLastEnabledStage(EDMMaterialLayerStage::All);
 						check(PreviousStage);

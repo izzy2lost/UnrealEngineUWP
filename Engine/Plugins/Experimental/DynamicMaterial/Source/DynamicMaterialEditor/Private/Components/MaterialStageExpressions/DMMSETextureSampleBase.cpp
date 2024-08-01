@@ -103,7 +103,7 @@ bool UDMMaterialStageExpressionTextureSampleBase::IsPropertyVisible(FName Proper
 			ParentMostStage = SubStage->GetParentMostStage();
 		}
 
-		const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+		UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 		check(Layer);
 
 		if (UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base, /* Enabled Only */ true))
@@ -152,7 +152,7 @@ void UDMMaterialStageExpressionTextureSampleBase::AddExpressionProperties(const 
 		ParentMostStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+	UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 	check(Layer);
 
 	bool bClampTextureActual = IsClampTextureEnabled();
@@ -276,7 +276,7 @@ void UDMMaterialStageExpressionTextureSampleBase::UpdateMask()
 		ParentMostStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
+	UDMMaterialLayerObject* Layer = ParentMostStage->GetLayer();
 	check(Layer);
 
 	const UDMMaterialSlot* Slot = Layer->GetSlot();

@@ -55,9 +55,9 @@ void UDynamicMaterialInstance::InitializeMIDPublic()
 	UpdateCachedData();
 }
 
-void UDynamicMaterialInstance::PostDuplicate(bool bDuplicateForPIE)
+void UDynamicMaterialInstance::PostDuplicate(bool bInDuplicateForPIE)
 {
-	Super::PostDuplicate(bDuplicateForPIE);
+	Super::PostDuplicate(bInDuplicateForPIE);
 
 	if (MaterialModelBase)
 	{

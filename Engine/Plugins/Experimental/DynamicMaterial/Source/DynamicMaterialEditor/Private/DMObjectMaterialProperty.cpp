@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DMObjectMaterialProperty.h"
+
 #include "Components/PrimitiveComponent.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -14,17 +15,11 @@
 #define LOCTEXT_NAMESPACE "DMObjectMaterialProperty"
 
 FDMObjectMaterialProperty::FDMObjectMaterialProperty()
-	: OuterWeak(nullptr)
-	, Property(nullptr)
-	, PropertyName(NAME_None)
-	, Index(INDEX_NONE)
 {
 }
 
 FDMObjectMaterialProperty::FDMObjectMaterialProperty(UPrimitiveComponent* InOuter, int32 InIndex)
 	: OuterWeak(InOuter)
-	, Property(nullptr)
-	, PropertyName(NAME_None)
 	, Index(InIndex)
 {
 }
@@ -32,9 +27,23 @@ FDMObjectMaterialProperty::FDMObjectMaterialProperty(UPrimitiveComponent* InOute
 FDMObjectMaterialProperty::FDMObjectMaterialProperty(UObject* InOuter, FProperty* InProperty, int32 InIndex)
 	: OuterWeak(InOuter)
 	, Property(InProperty)
-	, PropertyName(InProperty ? InProperty->GetFName() : NAME_None)
 	, Index(InIndex)
 {
+}
+
+UObject* FDMObjectMaterialProperty::GetOuter() const
+{
+	return OuterWeak.Get();
+}
+
+FProperty* FDMObjectMaterialProperty::GetProperty() const
+{
+	return Property;
+}
+
+int32 FDMObjectMaterialProperty::GetIndex() const
+{
+	return Index;
 }
 
 UDynamicMaterialModelBase* FDMObjectMaterialProperty::GetMaterialModelBase() const
@@ -71,7 +80,7 @@ UDynamicMaterialInstance* FDMObjectMaterialProperty::GetMaterial() const
 				if (ArrayHelper.IsValidIndex(Index))
 				{
 					void* Value = ArrayHelper.GetRawPtr(Index);
-					Material = *reinterpret_cast<UMaterialInterface**>(Value);
+					Material = *static_cast<UMaterialInterface**>(Value);
 				}
 			}
 		}
@@ -219,7 +228,7 @@ FText FDMObjectMaterialProperty::GetPropertyName(bool bInIgnoreNewStatus) const
 	{
 		FText PropertyNameText = Property->GetDisplayNameText();
 
-		if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
+		if (CastField<FArrayProperty>(Property))
 		{
 			PropertyNameText = FText::Format(
 				LOCTEXT("PropertyNameFormatArray", "{0} [{1}]"),
@@ -276,8 +285,17 @@ void FDMObjectMaterialProperty::Reset()
 {
 	OuterWeak = nullptr;
 	Property = nullptr;
-	PropertyName = NAME_None;
 	Index = INDEX_NONE;
+}
+
+bool FDMObjectMaterialProperty::IsProperty() const
+{
+	return !!Property;
+}
+
+bool FDMObjectMaterialProperty::IsElement() const
+{
+	return !Property;
 }
 
 #undef LOCTEXT_NAMESPACE

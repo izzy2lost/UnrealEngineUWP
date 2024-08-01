@@ -1,10 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MaterialDesigner/AvaMaterialDesignerExtension.h"
+
 #include "AvaShapeActor.h"
+#include "DetailView/AvaDetailsExtension.h"
 #include "DMObjectMaterialProperty.h"
 #include "DMWorldSubsystem.h"
-#include "DetailView/AvaDetailsExtension.h"
 #include "DynamicMeshes/AvaShapeDynMeshBase.h"
 #include "Engine/World.h"
 #include "IDynamicMaterialEditorModule.h"
@@ -81,19 +82,19 @@ bool FAvaMaterialDesignerExtension::SetDynamicMaterialValue(const FDMObjectMater
 		return false;
 	}
 
-	if (const UActorComponent* const ActorComponent = Cast<UActorComponent>(InObjectMaterialProperty.OuterWeak.Get()))
+	if (const UActorComponent* const ActorComponent = Cast<UActorComponent>(InObjectMaterialProperty.GetOuter()))
 	{
 		if (const AAvaShapeActor* const ShapeActor = Cast<AAvaShapeActor>(ActorComponent->GetOwner()))
 		{
 			UAvaShapeDynamicMeshBase* const DynamicMesh = ShapeActor->GetDynamicMesh();
-			if (DynamicMesh && DynamicMesh->GetMeshesIndexes().Contains(InObjectMaterialProperty.Index))
+			if (DynamicMesh && DynamicMesh->GetMeshesIndexes().Contains(InObjectMaterialProperty.GetIndex()))
 			{
 				if (!InMaterial->IsAsset())
 				{
 					InMaterial->Rename(nullptr, DynamicMesh);
 				}
 
-				DynamicMesh->SetMaterial(InObjectMaterialProperty.Index, InMaterial);
+				DynamicMesh->SetMaterial(InObjectMaterialProperty.GetIndex(), InMaterial);
 				return true;
 			}
 		}

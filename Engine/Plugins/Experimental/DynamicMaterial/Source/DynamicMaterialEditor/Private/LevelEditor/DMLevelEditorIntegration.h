@@ -4,8 +4,7 @@
 
 #include "Templates/SharedPointerFwd.h"
 
-class ILevelEditor;
-class SDMEditor;
+class SDMMaterialDesigner;
 class SDockTab;
 class UWorld;
 
@@ -16,7 +15,12 @@ public:
 
 	static void Shutdown();
 
-	static TSharedPtr<SDMEditor> GetEditorForWorld(UWorld* InWorld);
+	static TSharedPtr<SDMMaterialDesigner> GetMaterialDesignerForWorld(UWorld* InWorld);
 
 	static TSharedPtr<SDockTab> InvokeTabForWorld(UWorld* InWorld);
+
+private:
+	static void OnMapTearDown(UWorld* InWorld);
+
+	static void OnMapLoad(UWorld* InWorld);
 };

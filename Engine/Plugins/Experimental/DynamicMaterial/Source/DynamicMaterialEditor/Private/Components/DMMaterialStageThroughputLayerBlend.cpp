@@ -109,7 +109,7 @@ void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) c
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
  
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	check(Layer);
  
 	switch (InInputIndex)
@@ -202,7 +202,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
 		InputConnectors[1].Type = EDMValueType::VT_Float_Any;
 		OutputConnectors[0].Type = EDMValueType::VT_Float_Any;
  
-		if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
 			if (const UDMMaterialStageSource* LayerSource = Layer->GetStage(EDMMaterialLayerStage::Base)->GetSource())
 			{
@@ -233,13 +233,13 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveInput(const TSharedRef<FDMMat
 			const UDMMaterialStage* Stage = GetStage();
 			check(Stage);
 
-			const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+			UDMMaterialLayerObject* Layer = Stage->GetLayer();
 			check(Layer);
 
 			EDMMaterialPropertyType StageProperty = Layer->GetMaterialProperty();
 			check(StageProperty != EDMMaterialPropertyType::None);
 
-			if (const UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
+			if (UDMMaterialLayerObject* PreviousLayer = Layer->GetPreviousLayer(StageProperty, EDMMaterialLayerStage::Base))
 			{
 				PreviousLayer->GenerateExpressions(InBuildState);
 				OutExpressions.Append(InBuildState->GetLayerExpressions(PreviousLayer));
@@ -261,7 +261,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveInput(const TSharedRef<FDMMat
 			const UDMMaterialStage* Stage = GetStage();
 			check(Stage);
  
-			const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+			UDMMaterialLayerObject* Layer = Stage->GetLayer();
 			check(Layer);
 
 			UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base, /* Enabled Only */ true);
@@ -347,7 +347,7 @@ void UDMMaterialStageThroughputLayerBlend::GenerateMainExpressions(const TShared
 
 	if (UDMMaterialStage* Stage = GetStage())
 	{
-		if (const UDMMaterialLayerObject* Layer = Stage->GetLayer())
+		if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
 		{
 			switch (Layer->GetMaterialProperty())
 			{
@@ -475,7 +475,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateLinkedInputStage(EDMUpdateType 
 		MaskStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = MaskStage->GetLayer();
+	UDMMaterialLayerObject* Layer = MaskStage->GetLayer();
 
 	if (!Layer)
 	{
@@ -802,7 +802,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 	UDMMaterialStage* ThisStage = GetStage();
 	check(ThisStage);
  
-	const UDMMaterialLayerObject* ThisLayer = ThisStage->GetLayer();
+	UDMMaterialLayerObject* ThisLayer = ThisStage->GetLayer();
 	check(ThisLayer);
 	check(ThisLayer->GetStage(EDMMaterialLayerStage::Mask));
 
@@ -814,7 +814,7 @@ int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FD
 		OutChannel.OutputIndex
 	);
 		
-	while (const UDMMaterialLayerObject* NextLayer = ThisLayer->GetNextLayer(ThisLayer->GetMaterialProperty(), EDMMaterialLayerStage::Mask))
+	while (UDMMaterialLayerObject* NextLayer = ThisLayer->GetNextLayer(ThisLayer->GetMaterialProperty(), EDMMaterialLayerStage::Mask))
 	{
 		UDMMaterialStage* NextMaskStage = NextLayer->GetStage(EDMMaterialLayerStage::Mask, /* Enabled Only */ true);
 
@@ -971,7 +971,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMaskStatus()
 		return;
 	}
  
-	const UDMMaterialLayerObject* Layer = Stage->GetLayer();
+	UDMMaterialLayerObject* Layer = Stage->GetLayer();
 	
 	if (!Layer)
 	{
@@ -1019,7 +1019,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		return;
 	}
  
-	const UDMMaterialLayerObject* CurrentLayer = Stage->GetLayer();
+	UDMMaterialLayerObject* CurrentLayer = Stage->GetLayer();
 	
 	if (!CurrentLayer)
 	{
@@ -1033,7 +1033,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		return;
 	}
  
-	const UDMMaterialLayerObject* PreviousLayer = nullptr;
+	UDMMaterialLayerObject* PreviousLayer = nullptr;
  
 	while (true)
 	{

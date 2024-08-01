@@ -3,12 +3,8 @@
 #pragma once
 
 #include "IPropertyTypeCustomization.h"
-#include "Templates/SharedPointer.h"
 
-class FDetailWidgetRow;
-class IDetailChildrenBuilder;
-class IPropertyHandle;
-class IPropertyTypeCustomizationUtils;
+#include "Templates/SharedPointer.h"
 
 class FDMPropertyTypeCustomizer : public IPropertyTypeCustomization
 {

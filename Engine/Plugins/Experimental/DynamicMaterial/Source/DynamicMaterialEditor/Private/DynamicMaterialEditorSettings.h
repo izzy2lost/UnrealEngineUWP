@@ -119,6 +119,16 @@ struct FDMMaterialChannelListPreset
 	bool IsPropertyEnabled(EDMMaterialPropertyType InProperty) const;
 };
 
+UENUM(BlueprintType)
+enum class EDMMaterialPreviewMesh : uint8
+{
+	Plane,
+	Cube,
+	Sphere,
+	Cylinder,
+	ShaderBall
+};
+
 /**
  * Material Designer Settings
  */
@@ -134,73 +144,25 @@ public:
 	static UDynamicMaterialEditorSettings* Get();
 
 	/** Changes the currently active material in the designer following actor/object selection. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Editor")
 	bool bFollowSelection;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Default;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Shift;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_AltShift;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_Cmd;
-
-	/** Adjusts the the spin box value sensitivity. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Layout", meta = (
-		ClampMin = "0.01", UIMin = "0.01", ClampMax = "1.0", UIMax = "1.0"))
-	float SpinBoxValueMultiplier_AltCmd;
 
 	/** Adjusts the vertical size of the material layer view. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (
 		ClampMin = "0.05", UIMin = "0.05", ClampMax = "0.95", UIMax = "0.95"))
 	float SplitterLocation;
 
-	/** Sets the maximum width for float-based sliders in the editor */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWRite, Category = "Layout", meta = (
-		ClampMin = "100", UIMin = "100", ClampMax = "1000", UIMax = "1000"))
-	float MaxFloatSliderWidth;
-
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
 	bool bUVVisualizerVisible;
 
-	/** The size of the material layer preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "32", UIMin = "32", ClampMax = "128", UIMax = "128"))
-	int32 LayerPreviewSize;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	EDMMaterialPreviewMesh PreviewMesh;
 
-	/** The size of the material slot preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "40", UIMin = "40", ClampMax = "128", UIMax = "128"))
-	int32 SlotPreviewSize;
-
-	/** The size of the material layer details preview images. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview", meta = (ClampMin = "32", UIMin = "32", ClampMax = "128", UIMax = "128"))
-	int32 DetailsPreviewSize;
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
+	bool bShowPreviewBackground;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	bool bPreviewImagesUseTextureUVs;
-
-	/**
-	 * If true, will display the hovered preview image in an enlarged format inside the tooltip.
-	 * 
-	 * NOTE: The Material Designer must be re-opened for changes to take effect.
-	 */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips")
-	bool bShowTooltipPreview;
-
-	/** The size of the preview image when displayed in the tooltip. */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "ToolTips", meta = (EditCondition = "bShowTooltipPreview", ClampMin = "128", UIMin = "128", ClampMax = "2048", UIMax = "2048"))
-	int32 TooltipTextureSize;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	TSoftObjectPtr<UTexture> DefaultMask;
@@ -240,19 +202,9 @@ public:
 	/** This variable is accessed in multiple places, so this is a quick accessor. */
 	static bool IsUseLinearColorForVectorsEnabled();
 
-	FOnFinishedChangingProperties OnSettingsChanged;
-
-	//~ Begin UObject
-	virtual void PostInitProperties() override;
-	virtual void PreEditChange(FEditPropertyChain& InPropertyAboutToChange) override;
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
-	//~ End UObject
-
 	void OpenEditorSettingsWindow() const;
 
 	void ResetAllLayoutSettings();
-
-	float GetSpinboxValueChangeMultiplier(const FModifierKeysState& InModifierKeys) const;
 
 	TArray<FDMMaterialEffectList> GetEffectList() const;
 
@@ -260,8 +212,17 @@ public:
 
 	const FDMMaterialChannelListPreset* GetPresetByName(FName InName) const;
 
+	FOnFinishedChangingProperties::RegistrationType& GetOnSettingsChanged();
+
+	//~ Begin UObject
+	virtual void PostInitProperties() override;
+	virtual void PreEditChange(FEditPropertyChain& InPropertyAboutToChange) override;
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+	//~ End UObject
+
 private:
 	TArray<FName> PreEditPresetNames;
+	FOnFinishedChangingProperties OnSettingsChanged;
 
 	void EnsureUniqueChannelPresetNames();
 };

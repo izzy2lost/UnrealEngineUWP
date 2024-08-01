@@ -6,7 +6,6 @@
 #include "TickableEditorObject.h"
 
 #include "DMEDefs.h"
-#include "DMObjectMaterialProperty.h"
 #include "Templates/SharedPointer.h"
 
 class AActor;
@@ -14,8 +13,8 @@ class FDMMaterialFunctionLibrary;
 class FUICommandList;
 class IAssetTypeActions;
 class ILevelEditor;
-class SDMComponentEdit;
-class SDMEditor;
+class SDMMaterialComponentEditor;
+class SDMMaterialEditor;
 class SDockTab;
 class SWidget;
 class UDMMaterialComponent;
@@ -36,10 +35,10 @@ namespace UE::DynamicMaterialEditor
 DECLARE_MULTICAST_DELEGATE(FDMOnUIValueUpdate);
 
 /** Takes a UMaterialValue and returns the widget used to edit it. */
-DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FDMCreateValueEditWidgetDelegate, const TSharedPtr<SDMComponentEdit>&, UDMMaterialValue*);
+DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FDMCreateValueEditWidgetDelegate, const TSharedPtr<SDMMaterialComponentEditor>&, UDMMaterialValue*);
 
 /** Creates property rows in the edit widget. */
-DECLARE_DELEGATE_FourParams(FDMComponentPropertyRowGeneratorDelegate, const TSharedRef<SDMComponentEdit>&, UDMMaterialComponent*,
+DECLARE_DELEGATE_FourParams(FDMComponentPropertyRowGeneratorDelegate, const TSharedRef<SDMMaterialComponentEditor>&, UDMMaterialComponent*,
 	TArray<FDMPropertyHandle>&, TSet<UDMMaterialComponent*>&)
 
 struct FDMBuildRequestEntry
@@ -69,22 +68,16 @@ public:
 
 	static FDynamicMaterialEditorModule& Get();
 
-	static void RegisterValueEditWidgetDelegate(UClass* InClass, FDMCreateValueEditWidgetDelegate InValueEditBodyDelegate);
-	template<class InValClass, class InEditClass> static void RegisterValueEditWidgetDelegate();
-	static FDMCreateValueEditWidgetDelegate GetValueEditWidgetDelegate(UClass* InClass);
-	static TSharedPtr<SWidget> CreateEditWidgetForValue(const TSharedPtr<SDMComponentEdit>& InComponentEditWidget, UDMMaterialValue* InValue);
-
 	static void RegisterComponentPropertyRowGeneratorDelegate(UClass* InClass, FDMComponentPropertyRowGeneratorDelegate InComponentPropertyRowGeneratorDelegate);
 	template<class InObjClass, class InGenClass> static void RegisterComponentPropertyRowGeneratorDelegate();
 	static FDMComponentPropertyRowGeneratorDelegate GetComponentPropertyRowGeneratorDelegate(UClass* InClass);
-	static void GeneratorComponentPropertyRows(const TSharedRef<SDMComponentEdit>& InComponentEditWidget, UDMMaterialComponent* InComponent, 
+	static void GeneratorComponentPropertyRows(const TSharedRef<SDMMaterialComponentEditor>& InComponentEditorWidget, UDMMaterialComponent* InComponent, 
 		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects);
 
 	static FDMGetObjectMaterialPropertiesDelegate GetCustomMaterialPropertyGenerator(UClass* InClass);
 
 	/** With a provided world, the editor will bind to the MD world subsystem to receive model changes. */
 	static TSharedRef<SWidget> CreateEditor(UDynamicMaterialModelBase* InMaterialModelBase, UWorld* InAssetEditorWorld);
-	static TSharedRef<SWidget> CreateEmptyTabContent();
 
 	FDynamicMaterialEditorModule();
 
@@ -123,7 +116,6 @@ public:
 	void OnWizardComplete(UDynamicMaterialModel* InModel);
 
 protected:
-	static TMap<UClass*, FDMCreateValueEditWidgetDelegate> ValueEditWidgetDelegates;
 	static TMap<UClass*, FDMComponentPropertyRowGeneratorDelegate> ComponentPropertyRowGenerators;
 	static TMap<UClass*, FDMGetObjectMaterialPropertiesDelegate> CustomMaterialPropertyGenerators;
 	static FDMOnUIValueUpdate OnUIValueUpdate;
@@ -137,17 +129,6 @@ protected:
 	void MapCommands();
 	void UnmapCommands();
 };
-
-template <class InValClass, class InEditClass>
-void FDynamicMaterialEditorModule::RegisterValueEditWidgetDelegate()
-{
-	RegisterValueEditWidgetDelegate(
-		InValClass::StaticClass(),
-		FDMCreateValueEditWidgetDelegate::CreateStatic(
-			&InEditClass::CreateEditWidget
-		)
-	);
-}
 
 template <class InObjClass, class InGenClass>
 void FDynamicMaterialEditorModule::RegisterComponentPropertyRowGeneratorDelegate()

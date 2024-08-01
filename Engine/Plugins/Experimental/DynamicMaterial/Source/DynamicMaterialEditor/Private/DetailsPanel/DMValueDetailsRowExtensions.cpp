@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsPanel/DMValueDetailsRowExtensions.h"
-#include "Components/DMMaterialParameter.h"
+
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
 #include "Delegates/IDelegateInstance.h"
@@ -402,7 +402,7 @@ void FDMValueDetailsRowExtensions::SetValueParameterName(TWeakObjectPtr<UDMMater
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Material Designer Set Parameter Name"));
+	FScopedTransaction Transaction(LOCTEXT("SetParameterName", "Set Parameter Name"));
 	Value->Modify();
 	Value->SetParameterName(InName);
 

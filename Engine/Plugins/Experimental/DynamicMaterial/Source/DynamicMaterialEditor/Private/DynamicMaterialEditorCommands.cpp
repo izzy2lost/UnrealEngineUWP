@@ -57,6 +57,12 @@ void FDynamicMaterialEditorCommands::RegisterCommands()
 		, "Moves a layer down in the order, moving it closer to the bottom of the layer stack."
 		, EUserInterfaceActionType::Button
 		, FInputChord(EKeys::RightBracket, EModifierKey::Alt));
+
+	UI_COMMAND(SetShaderBallPreview
+		, "Shader Ball"
+		, "Sets the preview mesh to the Shader Ball."
+		, EUserInterfaceActionType::ToggleButton
+		, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE

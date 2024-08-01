@@ -3,7 +3,9 @@
 #pragma once
 
 #include "Components/DMMaterialStageInput.h"
+
 #include "Templates/SubclassOf.h"
+
 #include "DMMSIValue.generated.h"
 
 class UDMMaterialLayerObject;

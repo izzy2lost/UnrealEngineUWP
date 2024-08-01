@@ -587,6 +587,8 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		Pair.Value->AddOutputProcessor(BuildState);
 	}
 
+	MaterialStats = UMaterialEditingLibrary::GetStatistics(MaterialModel->DynamicMaterial);
+
 	State = EDMState::Idle;
 
 	if (IsValid(MaterialModel) && IsValid(MaterialModel->DynamicMaterialInstance))
@@ -935,6 +937,11 @@ void UDynamicMaterialModelEditorOnlyData::SetChannelListPreset(FName InPresetNam
 	ChannelListPreset = InPresetName;
 
 	OnChannelListPresetChanged();
+}
+
+const FMaterialStatistics& UDynamicMaterialModelEditorOnlyData::GetMaterialStats() const
+{
+	return MaterialStats;
 }
 
 UDMMaterialComponent* UDynamicMaterialModelEditorOnlyData::GetSubComponentByPath(FDMComponentPath& InPath,
@@ -1506,13 +1513,16 @@ void UDynamicMaterialModelEditorOnlyData::PostEditImport()
 	RequestMaterialBuild();
 }
 
-void UDynamicMaterialModelEditorOnlyData::PostDuplicate(bool bDuplicateForPIE)
+void UDynamicMaterialModelEditorOnlyData::PostDuplicate(bool bInDuplicateForPIE)
 {
-	Super::PostDuplicate(bDuplicateForPIE);
+	Super::PostDuplicate(bInDuplicateForPIE);
 
-	PostEditorDuplicate();
-	ReinitComponents();
-	RequestMaterialBuild();
+	if (!bInDuplicateForPIE)
+	{
+		PostEditorDuplicate();
+		ReinitComponents();
+		RequestMaterialBuild();
+	}
 }
 
 void UDynamicMaterialModelEditorOnlyData::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)

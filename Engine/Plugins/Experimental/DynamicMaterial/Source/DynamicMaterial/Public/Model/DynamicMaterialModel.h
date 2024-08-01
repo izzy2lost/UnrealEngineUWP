@@ -189,7 +189,7 @@ public:
 #if WITH_EDITOR
 	DYNAMICMATERIAL_API virtual void PostEditUndo() override;
 	DYNAMICMATERIAL_API virtual void PostEditImport() override;
-	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	//~ End UObject
 
 	/** Called to ensure that the object hierarchy is correct. */

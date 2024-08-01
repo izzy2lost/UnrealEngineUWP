@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicMaterialEditorStyle.h"
+
 #include "Brushes/SlateImageBrush.h"
 #include "DetailLayoutBuilder.h"
 #include "DynamicMaterialEditorModule.h"
@@ -230,40 +231,45 @@ TSharedRef<FSlateStyleSet> FDynamicMaterialEditorStyle::Create()
 
 void FDynamicMaterialEditorStyle::SetupStageStyles(const TSharedRef<FSlateStyleSet>& Style)
 {
-	constexpr FLinearColor StageEnabledColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.7f);
-	constexpr FLinearColor StageDisabledColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.7f);
+	constexpr float StageCornerRadius = 6.0f;
+	constexpr float StageBorderWidth = 2.0f;
+	constexpr float NonHoverAlpha = 1.f;
+	constexpr float HoverAlpha = 0.75f;
 
-	Style->Set("Color.Stage.Enabled", StageEnabledColor);
-	Style->Set("Color.Stage.Disabled", StageDisabledColor);
-
-	const float StageCornerRadius = 6.0f;
-	const float StageBorderWidth = 2.0f;
+	const FLinearColor EnabledColor = FStyleColors::Foreground.GetSpecifiedColor();
+	const FLinearColor EnabledSelectedColor = FStyleColors::Primary.GetSpecifiedColor();
+	const FLinearColor DisabledColor = FStyleColors::AccentPurple.GetSpecifiedColor();
+	const FLinearColor DisabledSelectedColor = FStyleColors::AccentRed.GetSpecifiedColor();
 
 	Style->Set("Stage.Inactive", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		FStyleColors::Panel.GetSpecifiedColor(), 1.0f));
-	Style->Set("Stage.Inactive.Hover", new FSlateRoundedBoxBrush(
+		FStyleColors::Panel.GetSpecifiedColor(), StageBorderWidth));
+
+	Style->Set("Stage.Enabled", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		ReplaceColorAlpha(FStyleColors::Foreground.GetSpecifiedColor(), 0.2f), 1.0f));
-	Style->Set("Stage.Inactive.Select", new FSlateRoundedBoxBrush(
+		ReplaceColorAlpha(EnabledColor, NonHoverAlpha), StageBorderWidth));
+	Style->Set("Stage.Enabled.Hover", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		Style->GetColor("Color.Select"), 2.0f));
-	Style->Set("Stage.Inactive.Select.Hover", new FSlateRoundedBoxBrush(
+		ReplaceColorAlpha(EnabledColor, HoverAlpha), StageBorderWidth));
+	Style->Set("Stage.Enabled.Select", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		Style->GetColor("Color.Select.Hover"), 2.0f));
+		ReplaceColorAlpha(EnabledSelectedColor, NonHoverAlpha), StageBorderWidth));
+	Style->Set("Stage.Enabled.Select.Hover", new FSlateRoundedBoxBrush(
+		FLinearColor::Transparent, StageCornerRadius,
+		ReplaceColorAlpha(EnabledSelectedColor, HoverAlpha), StageBorderWidth));
 
 	Style->Set("Stage.Disabled", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		ReplaceColorAlpha(StageDisabledColor, 0.8f), 1.0f));
+		ReplaceColorAlpha(DisabledColor, NonHoverAlpha), StageBorderWidth));
 	Style->Set("Stage.Disabled.Hover", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		StageDisabledColor, 1.0f));
+		ReplaceColorAlpha(DisabledColor, HoverAlpha), StageBorderWidth));
 	Style->Set("Stage.Disabled.Select", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		ReplaceColorAlpha(FStyleColors::Select.GetSpecifiedColor(), 0.9f), 2.0f));
+		ReplaceColorAlpha(DisabledSelectedColor, NonHoverAlpha), StageBorderWidth));
 	Style->Set("Stage.Disabled.Select.Hover", new FSlateRoundedBoxBrush(
 		FLinearColor::Transparent, StageCornerRadius,
-		FStyleColors::Select.GetSpecifiedColor(), 2.0f));
+		ReplaceColorAlpha(DisabledSelectedColor, HoverAlpha), StageBorderWidth));
 
 	Style->Set("Stage.Outline", new FSlateRoundedBoxBrush(
 		FStyleColors::InputOutline.GetSpecifiedColor(), 1.0f));
@@ -288,7 +294,7 @@ void FDynamicMaterialEditorStyle::SetupLayerViewStyles(const TSharedRef<FSlateSt
 
 	/**
 	 * SListView and and FTableViewStyle have no support for adding padding between the background brush
-	 * and the SListView widget, so we are not using this style for the SDMSlotLayerView. Instead, we add a
+	 * and the SListView widget, so we are not using this style for the SDMMaterialSlotLayerView. Instead, we add a
 	 * SBorder around the SDMBLayerView and style that.
 	 */
 	Style->Set("LayerView", FTableViewStyle()

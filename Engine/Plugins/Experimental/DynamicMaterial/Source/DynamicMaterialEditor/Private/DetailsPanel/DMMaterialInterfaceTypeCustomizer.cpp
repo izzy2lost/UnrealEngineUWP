@@ -1,11 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DetailsPanel/DMMaterialInterfaceTypeCustomizer.h"
+
+#include "DetailsPanel/Widgets/SDMDetailsPanelMaterialInterfaceWidget.h"
 #include "DetailWidgetRow.h"
-#include "DetailsPanel/Slate/SDMDetailsPanelMaterialInterfaceWidget.h"
-#include "IDetailChildrenBuilder.h"
 #include "IPropertyTypeCustomization.h"
 #include "PropertyHandle.h"
+
+bool FDMMaterialInterfaceTypeIdentifier::IsPropertyTypeCustomized(const IPropertyHandle& InPropertyHandle) const
+{
+	return InPropertyHandle.GetNumOuterObjects() > 0;
+}
 
 TSharedRef<IPropertyTypeCustomization> FDMMaterialInterfaceTypeCustomizer::MakeInstance()
 {

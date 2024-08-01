@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Components/MaterialStageInputs/DMMSIValue.h"
+
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialParameter.h"
 #include "Components/DMMaterialSlot.h"
@@ -631,7 +632,7 @@ bool UDMMaterialStageInputValue::IsSharedStageValue() const
 		MyStage = SubStage->GetParentMostStage();
 	}
 
-	const UDMMaterialLayerObject* Layer = MyStage->GetLayer();
+	UDMMaterialLayerObject* Layer = MyStage->GetLayer();
 
 	if (!Layer)
 	{

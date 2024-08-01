@@ -3,14 +3,14 @@
 #pragma once
 
 #include "Containers/Array.h"
-#include "Containers/ArrayView.h"
 #include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
 class AActor;
+class FString;
 class ILevelEditor;
-class SDMEditor;
+class SDMMaterialDesigner;
 class SDockTab;
 class UTypedElementSelectionSet;
 class UWorld;
@@ -28,7 +28,7 @@ public:
 
 	~FDMLevelEditorIntegrationInstance();
 
-	const TSharedPtr<SDMEditor>& GetEditor() const;
+	const TSharedPtr<SDMMaterialDesigner>& GetMaterialDesigner() const;
 
 	TSharedPtr<SDockTab> InvokeTab() const;
 
@@ -44,7 +44,7 @@ private:
 	TWeakPtr<ILevelEditor> LevelEditorWeak;
 	TWeakObjectPtr<UTypedElementSelectionSet> ActorSelectionSetWeak;
 	TWeakObjectPtr<UTypedElementSelectionSet> ObjectSelectionSetWeak;
-	TSharedPtr<SDMEditor> Editor;
+	TSharedPtr<SDMMaterialDesigner> MaterialDesigner;
 	FString LastOpenAssetPartialPath;
 
 	FDMLevelEditorIntegrationInstance(const TSharedRef<ILevelEditor>& InLevelEditor);

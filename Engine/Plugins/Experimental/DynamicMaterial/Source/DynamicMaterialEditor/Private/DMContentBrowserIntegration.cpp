@@ -203,7 +203,7 @@ void FDMContentBrowserIntegration::OnUpdateMaterialDesignerInstanceFromTextureSe
 		return;
 	}
 
-	FScopedTransaction Transaction(LOCTEXT("AddTextureSet", "Material Designer Add Texture Set"));
+	FScopedTransaction Transaction(LOCTEXT("AddTextureSet", "Add Texture Set"));
 	EditorOnlyData->Modify();
 
 	const bool bSuccess = EditorOnlyData->AddTextureSet(InTextureSet, bInReplace);

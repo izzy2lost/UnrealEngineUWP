@@ -2,19 +2,21 @@
 
 #pragma once
 
+#include "UObject/Interface.h"
+
 #include "DMDefs.h"
 #include "DMValueDefinition.h"
 #include "IDetailPropertyRow.h"
 #include "Misc/Optional.h"
 #include "Templates/SharedPointer.h"
-#include "UObject/Interface.h"
+
 #include "DMEDefs.generated.h"
 
 class FAssetThumbnailPool;
 class FProperty;
 class IDetailTreeNode;
+class SDMMaterialComponentEditor;
 class SDMMaterialStageEdit;
-class SDMComponentEdit;
 class SVerticalBox;
 class SWidget;
 class UDMMaterialStageInput;
@@ -118,6 +120,13 @@ struct FDMMaterialSlotOutputConnectorTypes
 	TArray<EDMValueType> ConnectorTypes;
 };
 
+enum class EDMPropertyHandlePriority : uint8
+{
+	Low,
+	Normal,
+	High
+};
+
 struct FDMPropertyHandle
 {
 	TSharedPtr<IPropertyRowGenerator> PropertyRowGenerator;
@@ -131,6 +140,8 @@ struct FDMPropertyHandle
 	FName CategoryOverrideName = NAME_None;
 	TOptional<float> MaxWidth;
 	bool bEnabled = true;
+	EDMPropertyHandlePriority Priority = EDMPropertyHandlePriority::Normal;
+	bool bKeyframeable = true;
 };
 
 UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))

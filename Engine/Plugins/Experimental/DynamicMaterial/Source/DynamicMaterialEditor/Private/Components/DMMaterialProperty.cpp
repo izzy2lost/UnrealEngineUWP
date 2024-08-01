@@ -13,7 +13,6 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueFloat1.h"
-#include "Components/MaterialValues/DMMaterialValueFloat3RGB.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMComponentPath.h"
 #include "DMValueDefinition.h"
@@ -31,7 +30,6 @@
 #include "Math/Vector4.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
-#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "Utils/DMMaterialFunctionLibrary.h"
 #include "Utils/DMMaterialUtils.h"
@@ -49,6 +47,7 @@ UDMMaterialProperty::UDMMaterialProperty()
 
 UDMMaterialProperty::UDMMaterialProperty(EDMMaterialPropertyType InMaterialProperty, EDMValueType InInputConnectorType)
 	: MaterialProperty(InMaterialProperty)
+	, bEnabled(true)
 	, InputConnectorType(InInputConnectorType)
 {
 }
@@ -74,6 +73,18 @@ UDMMaterialProperty* UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSub
 UDynamicMaterialModelEditorOnlyData* UDMMaterialProperty::GetMaterialModelEditorOnlyData() const
 {
 	return Cast<UDynamicMaterialModelEditorOnlyData>(GetOuterSafe());
+}
+
+void UDMMaterialProperty::SetEnabled(bool bInEnabled)
+{
+	if (bEnabled == bInEnabled)
+	{
+		return;
+	}
+
+	bEnabled = bInEnabled;
+
+	Update(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 FText UDMMaterialProperty::GetDescription() const

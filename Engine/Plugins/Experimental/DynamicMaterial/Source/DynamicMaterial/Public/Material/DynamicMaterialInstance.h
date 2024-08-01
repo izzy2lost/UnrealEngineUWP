@@ -41,7 +41,7 @@ public:
 	DYNAMICMATERIAL_API void InitializeMIDPublic();
 
 	//~ Begin UObject
-	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bDuplicateForPIE) override;
+	DYNAMICMATERIAL_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
 	DYNAMICMATERIAL_API virtual void PostEditImport() override;
 	//~ End UObject
 #endif

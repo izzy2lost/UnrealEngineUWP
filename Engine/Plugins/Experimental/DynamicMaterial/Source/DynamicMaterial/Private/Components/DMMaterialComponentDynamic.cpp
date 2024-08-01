@@ -3,6 +3,7 @@
 #include "Components/DMMaterialComponentDynamic.h"
 
 #include "DMComponentPath.h"
+#include "DynamicMaterialModule.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelDynamic.h"
 
@@ -49,7 +50,7 @@ void UDMMaterialComponentDynamic::BeginDestroy()
 {
 	Super::BeginDestroy();
 
-	if (!UObjectInitialized())
+	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
 		return;
 	}

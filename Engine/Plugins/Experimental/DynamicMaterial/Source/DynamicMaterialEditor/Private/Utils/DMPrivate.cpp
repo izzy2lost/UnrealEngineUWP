@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Utils/DMPrivate.h"
+
 #include "Components/DMMaterialLayer.h"
-#include "Components/DMMaterialStage.h"
 #include "DMDefs.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Framework/Notifications/NotificationManager.h"
@@ -66,6 +66,11 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
+	{
+		return InMaterialProperty >= EDMMaterialPropertyType::Custom1 && InMaterialProperty <= EDMMaterialPropertyType::Custom4;
+	}
+
 	static bool bAllowUIFeedback = false;
 	static FText LogErrorObjectFormat = LOCTEXT("LogErrorObjectFormat", "%s (Source: %s)");
 
@@ -105,41 +110,11 @@ UDMMaterialLayerObject* FDMMaterialLayerReference::GetLayer() const
 	return LayerWeak.Get();
 }
 
-bool FDMMaterialLayerReference::IsBaseEnabled() const
+bool FDMMaterialLayerReference::IsValid() const
 {
-	if (const UDMMaterialLayerObject* Layer = GetLayer())
+	if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		return Layer->IsStageEnabled(EDMMaterialLayerStage::Base);
-	}
-
-	return false;
-}
-
-bool FDMMaterialLayerReference::IsBaseBeingEdited() const
-{
-	if (const UDMMaterialLayerObject* Layer = GetLayer())
-	{
-		return Layer->IsStageBeingEdited(EDMMaterialLayerStage::Base);
-	}
-
-	return false;
-}
-
-bool FDMMaterialLayerReference::IsMaskEnabled() const
-{
-	if (const UDMMaterialLayerObject* Layer = GetLayer())
-	{
-		return Layer->IsStageEnabled(EDMMaterialLayerStage::Mask);
-	}
-
-	return false;
-}
-
-bool FDMMaterialLayerReference::IsMaskBeingEdited() const
-{
-	if (const UDMMaterialLayerObject* Layer = GetLayer())
-	{
-		return Layer->IsStageBeingEdited(EDMMaterialLayerStage::Mask);
+		return Layer->FindIndex() != INDEX_NONE;
 	}
 
 	return false;

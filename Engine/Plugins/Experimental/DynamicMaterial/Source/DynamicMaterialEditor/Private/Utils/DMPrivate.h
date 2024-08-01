@@ -5,13 +5,14 @@
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "ScopedTransaction.h"
-#include "Slate/SDMSlot.h"
+#include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "UObject/WeakObjectPtr.h"
 
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
 class UDMMaterialStage;
 class UDMMaterialStageInput;
+enum class EDMMaterialPropertyType : uint8;
 struct FExpressionInput;
 struct FExpressionOutput;
 
@@ -42,10 +43,7 @@ struct FDMMaterialLayerReference
 
 	UDMMaterialLayerObject* GetLayer() const;
 
-	bool IsBaseEnabled() const;
-	bool IsBaseBeingEdited() const;
-	bool IsMaskEnabled() const;
-	bool IsMaskBeingEdited() const;
+	bool IsValid() const;
 };
 
 struct FDMScopedUITransaction
