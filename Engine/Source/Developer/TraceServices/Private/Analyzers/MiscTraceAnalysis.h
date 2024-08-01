@@ -53,7 +53,9 @@ private:
 		RouteId_ScreenshotHeader,
 		RouteId_ScreenshotChunk,
 		RouteId_RegionBegin,
-		RouteId_RegionEnd
+		RouteId_RegionBeginWithId,
+		RouteId_RegionEnd,
+		RouteId_RegionEndWithId
 	};
 
 	struct FThreadState

@@ -4,6 +4,7 @@
 #include "Model/RegionsPrivate.h"
 
 #include "AnalysisServicePrivate.h"
+#include "Algo/ForEach.h"
 #include "Common/FormatArgs.h"
 #include "Common/Utils.h"
 #include "Internationalization/Internationalization.h"
@@ -42,80 +43,81 @@ const FRegionLane* FRegionProvider::GetLane(int32 index) const
 	}
 	return nullptr;
 }
-
+	
 void FRegionProvider::AppendRegionBegin(const TCHAR* Name, double Time)
 {
 	EditAccessCheck();
 
-	FTimeRegion** OpenRegion = OpenRegions.Find(Name);
+	check(Name)
+
+	FTimeRegion** OpenRegion = OpenRegionsByName.Find(Name);
+	
 	if (OpenRegion)
 	{
-		if (FCString::Strcmp(Name, TEXT("<SlowTask>")) != 0)
+		++NumWarnings;
+		if (NumWarnings <= MaxWarningMessages)
 		{
-			++NumWarnings;
-			if (NumWarnings <= MaxWarningMessages)
-			{
-				UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region begin event (BeginTime=%f, Name=\"%s\") was encountered while a region with same name is already open."), Time, Name)
-			}
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region begin event (BeginTime=%f, Name=\"%s\") was encountered while a region with same name is already open."), Time, Name)
 		}
 
 		// Automatically end the previous region.
 		AppendRegionEnd(Name, Time);
 	}
 
-	{
-		FTimeRegion Region;
-		Region.BeginTime = Time;
-		Region.Text = Session.StoreString(Name);
-		Region.Depth = CalculateRegionDepth(Region);
-
-		if (Region.Depth == Lanes.Num())
-		{
-			Lanes.Emplace(Session.GetLinearAllocator());
-		}
-
-		Lanes[Region.Depth].Regions.EmplaceBack(Region);
-		FTimeRegion* NewOpenRegion = &(Lanes[Region.Depth].Regions.Last());
-
-		OpenRegions.Add(Region.Text, NewOpenRegion);
-		UpdateCounter++;
-	}
-
-	// Update session time
-	{
-		FAnalysisSessionEditScope _(Session);
-		Session.UpdateDurationSeconds(Time);
-	}
+	FTimeRegion* NewRegion = InsertNewRegion(Time, Name, 0);
+	OpenRegionsByName.Add(NewRegion->Text, NewRegion);
 }
 
+void FRegionProvider::AppendRegionBeginWithId(const TCHAR* Name, uint64_t Id, double Time)
+{
+	EditAccessCheck();
+
+	check(Name && Id)
+	FTimeRegion** OpenRegion = OpenRegionsById.Find(Id);
+	
+	if (OpenRegion)
+	{
+		++NumWarnings;
+		if (NumWarnings <= MaxWarningMessages)
+		{
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region begin event (BeginTime=%f, Name=\"%s\", Id=\"%llu\") was encountered while a region with same name is already open."), Time, Name, Id)
+		}
+
+		// Automatically end the previous region.
+		AppendRegionEndWithId(Id, Time);
+	}
+
+	FTimeRegion* NewRegion = InsertNewRegion(Time, Name, Id);
+	OpenRegionsById.Add(Id, NewRegion);
+}
+	
 void FRegionProvider::AppendRegionEnd(const TCHAR* Name, double Time)
 {
 	EditAccessCheck();
 
-	FTimeRegion** OpenRegion = OpenRegions.Find(Name);
-	if (!OpenRegion)
+	check(Name)
+	FTimeRegion** OpenRegionPos = OpenRegionsByName.Find(Name);
+	
+	if (!OpenRegionPos)
 	{
-		if (FCString::Strcmp(Name, TEXT("<SlowTask>")) != 0)
+		++NumWarnings;
+		if (NumWarnings <= MaxWarningMessages)
 		{
-			++NumWarnings;
-			if (NumWarnings <= MaxWarningMessages)
-			{
-				UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Name=\"%s\") was encountered without having seen a matching region begin event first."), Time, Name)
-			}
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Name=\"%s\") was encountered without having seen a matching region begin event first."), Time, Name)
 		}
-
-		// Automatically create a new region.
+		
 		AppendRegionBegin(Name, Time);
-		OpenRegion = OpenRegions.Find(Name);
-		check(OpenRegion);
+		OpenRegionPos = OpenRegionsByName.Find(Name);
+		check(OpenRegionPos);
 	}
+	
+	FTimeRegion* OpenRegion = *OpenRegionPos;
+	check(OpenRegion);
+	
+	OpenRegion->EndTime = Time;
 
-	{
-		(*OpenRegion)->EndTime = Time;
-
-		OpenRegions.Remove(Name);
-		UpdateCounter++;
-	}
+	OpenRegionsByName.Remove(OpenRegion->Text);
+	UpdateCounter++;
 
 	// Update session time
 	{
@@ -124,23 +126,60 @@ void FRegionProvider::AppendRegionEnd(const TCHAR* Name, double Time)
 	}
 }
 
+void FRegionProvider::AppendRegionEndWithId(uint64_t Id, double Time)
+{
+	EditAccessCheck();
+
+	check(Id)
+	FTimeRegion** OpenRegionPos = OpenRegionsById.Find(Id);
+	
+	if (!OpenRegionPos)
+	{
+		++NumWarnings;
+		if (NumWarnings <= MaxWarningMessages)
+		{
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region end event (EndTime=%f, Id=\"%llu\") was encountered without having seen a matching region begin event first."), Time, Id)
+		}
+
+		// Automatically create a new region.
+		// Generates a display name if we're missing a begin and are closing by ID
+		FString GeneratedName = FString::Printf(TEXT("Unknown Region (missing begin, Id=\"%llu\")"), Id);
+		AppendRegionBeginWithId(*GeneratedName, Id, Time);
+		OpenRegionPos = OpenRegionsById.Find(Id);
+		check(OpenRegionPos);
+	}
+	
+	FTimeRegion* OpenRegion = *OpenRegionPos;
+	check(OpenRegion);
+	
+	OpenRegion->EndTime = Time;
+
+	OpenRegionsById.Remove(OpenRegion->Id);
+	UpdateCounter++;
+
+	// Update session time
+	{
+		FAnalysisSessionEditScope _(Session);
+		Session.UpdateDurationSeconds(Time);
+	}
+}
+	
 void FRegionProvider::OnAnalysisSessionEnded()
 {
 	EditAccessCheck();
 
-	for (const auto& KV : OpenRegions)
+	auto printOpenRegionMessage = [this](const auto& KV)
 	{
 		const FTimeRegion* Region = KV.Value;
 
-		if (FCString::Strcmp(Region->Text, TEXT("<SlowTask>")) != 0)
+		++NumWarnings;
+		if (NumWarnings <= MaxWarningMessages)
 		{
-			++NumWarnings;
-			if (NumWarnings <= MaxWarningMessages)
-			{
-				UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region (BeginTime=%f, Name=\"%s\") was never closed."), Region->BeginTime, Region->Text)
-			}
+			UE_LOG(LogTraceServices, Warning, TEXT("[Regions] A region (BeginTime=%f, Name=\"%s\", Id=\"%llu\") was never closed."), Region->BeginTime, Region->Text, Region->Id)
 		}
-	}
+	};
+	Algo::ForEach(OpenRegionsById, printOpenRegionMessage);
+	Algo::ForEach(OpenRegionsByName, printOpenRegionMessage);
 
 	if (NumWarnings > 0 || NumErrors > 0)
 	{
@@ -176,6 +215,31 @@ int32 FRegionProvider::CalculateRegionDepth(const FTimeRegion& Region) const
 	ensureMsgf(NewDepth < DepthLimit, TEXT("Regions are nested too deep."));
 
 	return NewDepth;
+}
+
+FTimeRegion* FRegionProvider::InsertNewRegion(double BeginTime, const TCHAR* Name, uint64_t Id)
+{
+	FTimeRegion Region;
+	Region.BeginTime = BeginTime;
+	Region.Text = Session.StoreString(Name);
+	Region.Id = Id;
+	Region.Depth = CalculateRegionDepth(Region);
+
+	if (Region.Depth == Lanes.Num())
+	{
+		Lanes.Emplace(Session.GetLinearAllocator());
+	}
+
+	Lanes[Region.Depth].Regions.EmplaceBack(Region);
+	FTimeRegion* NewOpenRegion = &(Lanes[Region.Depth].Regions.Last());
+	UpdateCounter++;
+
+	// Update session time
+	{
+		FAnalysisSessionEditScope _(Session);
+		Session.UpdateDurationSeconds(BeginTime);
+	}
+	return NewOpenRegion;
 }
 
 void FRegionProvider::EnumerateLanes(TFunctionRef<void(const FRegionLane&, int32)> Callback) const

@@ -31,9 +31,19 @@ UE_TRACE_EVENT_BEGIN(Misc, RegionBegin)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
 UE_TRACE_EVENT_END()
 
+UE_TRACE_EVENT_BEGIN(Misc, RegionBeginWithId)
+	UE_TRACE_EVENT_FIELD(uint64, CycleAndId)
+	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
+UE_TRACE_EVENT_END()
+
 UE_TRACE_EVENT_BEGIN(Misc, RegionEnd)
 	UE_TRACE_EVENT_FIELD(uint64, Cycle)
 	UE_TRACE_EVENT_FIELD(UE::Trace::WideString, RegionName)
+UE_TRACE_EVENT_END()
+
+UE_TRACE_EVENT_BEGIN(Misc, RegionEndWithId)
+	UE_TRACE_EVENT_FIELD(uint64, Cycle)
+	UE_TRACE_EVENT_FIELD(uint64, RegionId)
 UE_TRACE_EVENT_END()
 
 UE_TRACE_EVENT_BEGIN(Misc, BeginFrame)
@@ -83,11 +93,27 @@ void FMiscTrace::OutputBeginRegion(const TCHAR* RegionName)
 		<< RegionBegin.RegionName(RegionName);
 }
 
+uint64_t FMiscTrace::OutputBeginRegionWithId(const TCHAR* RegionName)
+{
+	const uint64_t CycleAndId = FPlatformTime::Cycles64();
+	UE_TRACE_LOG(Misc, RegionBeginWithId, RegionChannel)
+		<< RegionBeginWithId.CycleAndId(CycleAndId)
+		<< RegionBeginWithId.RegionName(RegionName);
+	return CycleAndId;
+}
+
 void FMiscTrace::OutputEndRegion(const TCHAR* RegionName)
 {
 	UE_TRACE_LOG(Misc, RegionEnd, RegionChannel)
 		<< RegionEnd.Cycle(FPlatformTime::Cycles64())
 		<< RegionEnd.RegionName(RegionName);
+}
+
+void FMiscTrace::OutputEndRegionWithId(uint64_t RegionId)
+{
+	UE_TRACE_LOG(Misc, RegionEndWithId, RegionChannel)
+		<< RegionEndWithId.Cycle(FPlatformTime::Cycles64())
+		<< RegionEndWithId.RegionId(RegionId);	
 }
 
 void FMiscTrace::OutputBookmarkInternal(const void* BookmarkPoint, uint16 EncodedFormatArgsSize, uint8* EncodedFormatArgs)

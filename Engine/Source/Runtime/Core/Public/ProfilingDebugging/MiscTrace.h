@@ -74,8 +74,10 @@ struct FMiscTrace
 	}
 
 	CORE_API static void OutputBeginRegion(const TCHAR* RegionName);
+	[[nodiscard]] CORE_API static uint64_t OutputBeginRegionWithId(const TCHAR* RegionName);
 	CORE_API static void OutputEndRegion(const TCHAR* RegionName);
-
+	CORE_API static void OutputEndRegionWithId(uint64_t RegionId);
+	
 	CORE_API static void OutputBeginFrame(ETraceFrameType FrameType);
 	CORE_API static void OutputEndFrame(ETraceFrameType FrameType);
 
@@ -115,8 +117,14 @@ private:
 #define TRACE_BEGIN_REGION(RegionName) \
 	FMiscTrace::OutputBeginRegion(RegionName);
 
+#define TRACE_BEGIN_REGION_WITH_ID(RegionName) \
+	FMiscTrace::OutputBeginRegionWithId(RegionName);
+
 #define TRACE_END_REGION(RegionName) \
 	FMiscTrace::OutputEndRegion(RegionName);
+
+#define TRACE_END_REGION_WITH_ID(RegionId) \
+	FMiscTrace::OutputEndRegionWithId(RegionId);
 
 #define TRACE_BEGIN_FRAME(FrameType) \
 	FMiscTrace::OutputBeginFrame(FrameType);
@@ -138,7 +146,9 @@ private:
 #define TRACE_BOOKMARK(...)
 #define TRACE_BOOKMARK_CYCLES(...)
 #define TRACE_BEGIN_REGION(...)
+#define TRACE_BEGIN_REGION_WITH_ID(...) 0;
 #define TRACE_END_REGION(...)
+#define TRACE_END_REGION_WITH_ID(...)
 #define TRACE_BEGIN_FRAME(...)
 #define TRACE_END_FRAME(...)
 #define TRACE_SCREENSHOT(...)

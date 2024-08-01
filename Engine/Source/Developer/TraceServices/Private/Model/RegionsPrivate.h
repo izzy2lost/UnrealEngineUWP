@@ -48,23 +48,28 @@ public:
 	virtual void EditAccessCheck() const override { Lock.WriteAccessCheck(GRegionsProviderLockState); }
 
 	virtual void AppendRegionBegin(const TCHAR* Name, double Time) override;
+	virtual void AppendRegionBeginWithId(const TCHAR* Name, uint64_t Id, double Time) override;
 	virtual void AppendRegionEnd(const TCHAR* Name, double Time) override;
+	virtual void AppendRegionEndWithId(uint64_t Id, double Time) override;
 
 	virtual void OnAnalysisSessionEnded() override;
 
 	//////////////////////////////////////////////////
 
 private:
-	// Update the depth member of a region to allow overlapping regions to be displayed on separate lanes.
+	/// Update the depth member of a region to allow overlapping regions to be displayed on separate lanes.
 	int32 CalculateRegionDepth(const FTimeRegion& Item) const;
-
+	/// Calculates depth, inserts a new region into the correct lane and updates session time.
+	FTimeRegion* InsertNewRegion(double BeginTime, const TCHAR* Name, uint64_t Id);
+	
 private:
 	mutable FProviderLock Lock;
 
 	IAnalysisSession& Session;
 
 	// Open regions inside lanes
-	TMap<FStringView, FTimeRegion*> OpenRegions;
+	TMap<FStringView, FTimeRegion*> OpenRegionsByName;
+	TMap<uint64_t, FTimeRegion*> OpenRegionsById;
 
 	// Closed regions
 	TArray<FRegionLane> Lanes;
