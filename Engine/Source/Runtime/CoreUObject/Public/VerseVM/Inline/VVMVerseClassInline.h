@@ -5,10 +5,11 @@
 
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMFunction.h"
+#include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMVerseClass.h"
 
-FORCEINLINE_DEBUGGABLE Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
+inline Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
 {
 	using namespace Verse;
 
