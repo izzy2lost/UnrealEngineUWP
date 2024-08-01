@@ -1496,3 +1496,18 @@ TEST_CASE("UECore.FTextFormatPatternDefinition")
 	REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
 	REQUIRE(Ptr.IsValid());
 }
+
+TEST_CASE("UECore.FString")
+{
+	SECTION("Printf")
+	{
+		FString String;
+
+		AutoRTFM::Commit([&]
+			{
+				String = FString::Printf(TEXT("Foo '%s' Bar"), TEXT("Stuff"));
+			});
+
+		REQUIRE(String == "Foo 'Stuff' BAR");
+	}
+}

@@ -447,3 +447,29 @@ TEST_CASE("Tests.AVXMaskedStore")
 	}
 }
 #endif // PLATFORM_CPU_X86_FAMILY
+
+TEST_CASE("Tests.__local_stdio_printf_options")
+{
+	unsigned __int64* NonTransactional = __local_stdio_printf_options();
+	unsigned __int64* Transactional = nullptr;
+
+	AutoRTFM::Commit([&]
+		{
+			Transactional = __local_stdio_printf_options();
+		});
+
+	REQUIRE(NonTransactional == Transactional);
+}
+
+TEST_CASE("Tests.__local_stdio_scanf_options")
+{
+	unsigned __int64* NonTransactional = __local_stdio_scanf_options();
+	unsigned __int64* Transactional = nullptr;
+
+	AutoRTFM::Commit([&]
+		{
+			Transactional = __local_stdio_scanf_options();
+		});
+
+	REQUIRE(NonTransactional == Transactional);
+}
