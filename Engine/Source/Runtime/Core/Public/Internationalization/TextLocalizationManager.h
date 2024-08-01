@@ -66,14 +66,6 @@ private:
 			, SourceStringHash(InSourceStringHash)
 		{
 		}
-
-		/** 
-		* Returns true if the display string entry contains invalid display string data. 
-		*/
-		bool IsEmpty() const
-		{
-			return SourceStringHash == 0 && DisplayString->IsEmpty();
-		}
 	};
 
 	/** Manages the currently loaded or registered text localizations. */
@@ -157,7 +149,7 @@ public:
 	 * @note Calling this function with no filters specified will dump the entire live table.
 	 */
 private:
-	CORE_API void DumpLiveTableImpl(const FString* NamespaceFilter, const FString* KeyFilter, const FString* DisplayStringFilter, TFunctionRef<void(const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)> Callback) const;
+	void DumpLiveTableImpl(const FString* NamespaceFilter, const FString* KeyFilter, const FString* DisplayStringFilter, TFunctionRef<void(const FTextId& Id, const FTextConstDisplayStringRef& DisplayString)> Callback) const;
 public:
 	CORE_API void DumpLiveTable(const FString* NamespaceFilter = nullptr, const FString* KeyFilter = nullptr, const FString* DisplayStringFilter = nullptr, const FLogCategoryBase* CategoryOverride = nullptr) const;
 	CORE_API void DumpLiveTable(const FString& OutputFilename, const FString* NamespaceFilter = nullptr, const FString* KeyFilter = nullptr, const FString* DisplayStringFilter = nullptr) const;
@@ -348,29 +340,29 @@ public:
 
 private:
 	/** Callback for when a PAK file is loaded. Async loads any chunk specific localization resources. */
-	CORE_API void OnPakFileMounted(const IPakFile& PakFile);
+	void OnPakFileMounted(const IPakFile& PakFile);
 
 	/** Callback for changes in culture. Async loads the new culture's localization resources. */
-	CORE_API void OnCultureChanged();
+	void OnCultureChanged();
 
 	/** Loads localization resources for the specified culture, optionally loading localization resources that are editor-specific or game-specific. */
-	CORE_API void LoadLocalizationResourcesForCulture_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, const FString& CultureName, const ELocalizationLoadFlags LocLoadFlags);
-	CORE_API void LoadLocalizationResourcesForCulture_Async(const FString& CultureName, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationResourcesForCulture_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, const FString& CultureName, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationResourcesForCulture_Async(const FString& CultureName, const ELocalizationLoadFlags LocLoadFlags);
 
 	/** Loads localization resources for the specified prioritized cultures, optionally loading localization resources that are editor-specific or game-specific. */
-	CORE_API void LoadLocalizationResourcesForPrioritizedCultures_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
-	CORE_API void LoadLocalizationResourcesForPrioritizedCultures_Async(TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationResourcesForPrioritizedCultures_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationResourcesForPrioritizedCultures_Async(TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
 
 	/** Loads the specified localization targets for the specified prioritized cultures, optionally loading localization resources that are editor-specific or game-specific. */
-	CORE_API void LoadLocalizationTargetsForPrioritizedCultures_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, TArrayView<const FString> LocalizationTargetPaths, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
-	CORE_API void LoadLocalizationTargetsForPrioritizedCultures_Async(TArrayView<const FString> LocalizationTargetPaths, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationTargetsForPrioritizedCultures_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, TArrayView<const FString> LocalizationTargetPaths, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
+	void LoadLocalizationTargetsForPrioritizedCultures_Async(TArrayView<const FString> LocalizationTargetPaths, TArrayView<const FString> PrioritizedCultureNames, const ELocalizationLoadFlags LocLoadFlags);
 
 	/** Loads the chunked localization resource data for the specified chunk */
-	CORE_API void LoadChunkedLocalizationResources_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, const int32 ChunkId, const FString& PakFilename);
-	CORE_API void LoadChunkedLocalizationResources_Async(const int32 ChunkId, const FString& PakFilename);
+	void LoadChunkedLocalizationResources_Sync(TArrayView<const TSharedPtr<ILocalizedTextSource>> AvailableTextSources, const int32 ChunkId, const FString& PakFilename);
+	void LoadChunkedLocalizationResources_Async(const int32 ChunkId, const FString& PakFilename);
 
 	/** Queue the given task to run async (where possible), chained to any existing AsyncLocalizationTask */
-	CORE_API void QueueAsyncTask(TUniqueFunction<void()>&& Task);
+	void QueueAsyncTask(TUniqueFunction<void()>&& Task);
 
 	struct FUpdateLiveTableOptions
 	{
@@ -382,20 +374,17 @@ private:
 		bool bReplaceExisting = true;
 	};
 
-	/** Updates display string entries and adds new display string entries based on provided native text. */
-	CORE_API void UpdateFromNative(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions = FUpdateLiveTableOptions());
-
-	/** Updates display string entries and adds new display string entries based on provided localizations. */
-	CORE_API void UpdateFromLocalizations(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions = FUpdateLiveTableOptions());
+	/** Updates display string entries and adds new display string entries. */
+	void UpdateLiveTable(FTextLocalizationResource&& TextLocalizationResource, const FUpdateLiveTableOptions& UpdateOptions = FUpdateLiveTableOptions());
 
 	/** Dirties the local revision counter for the given text ID by incrementing it (or adding it) */
-	CORE_API void DirtyLocalRevisionForTextId(const FTextId& InTextId);
+	void DirtyLocalRevisionForTextId(const FTextId& InTextId);
 
 	/** Internal version of FindDisplayString, shared between FindDisplayString and GetDisplayString */
 	FTextConstDisplayStringPtr FindDisplayString_Internal(const FTextId& TextId, const FString& SourceString) const;
 
 	/** Dirties the text revision counter by incrementing it, causing a revision mismatch for any information cached before this happens.  */
-	CORE_API void DirtyTextRevision();
+	void DirtyTextRevision();
 
 	/** Array of registered localized text sources, sorted by priority (@see RegisterTextSource) */
 	TArray<TSharedPtr<ILocalizedTextSource>> LocalizedTextSources;

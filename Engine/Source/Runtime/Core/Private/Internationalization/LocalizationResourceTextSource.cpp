@@ -181,7 +181,7 @@ void FLocalizationResourceTextSource::LoadLocalizedResourcesFromPaths(TArrayView
 	};
 
 	// Load the native texts first to ensure we always apply translations to a consistent base
-	if (InPrioritizedNativePaths.Num() > 0)
+	if (ShouldLoadNative(InLoadFlags) && InPrioritizedNativePaths.Num() > 0)
 	{
 		for (const FString& LocalizationPath : InPrioritizedNativePaths)
 		{
