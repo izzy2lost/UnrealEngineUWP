@@ -197,7 +197,7 @@ void FModularVehicleAsyncInput::OnContactModification(Chaos::FCollisionContactMo
 
 void FModularVehicleAsyncInput::ApplyDeferredForces() const
 {
-	if (Vehicle && Proxy)
+	if (Vehicle && Proxy && Vehicle->VehicleSimulationPT)
 	{
 		if (Proxy->GetType() == EPhysicsProxyType::ClusterUnionProxy)
 		{

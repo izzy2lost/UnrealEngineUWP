@@ -150,7 +150,10 @@ struct CHAOSMODULARVEHICLEENGINE_API FPhysicsVehicleOutput
 	{
 		for (Chaos::FSimOutputData* Data : SimTreeOutputData)
 		{
-			delete Data;
+			if(Data)
+			{
+				delete Data;
+			}
 		}
 		SimTreeOutputData.Empty();
 	}

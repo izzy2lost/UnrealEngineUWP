@@ -749,7 +749,7 @@ void UModularVehicleBaseComponent::ActionTreeUpdates(Chaos::FSimTreeUpdates* Nex
 			{
 	Solver->EnqueueCommandImmediate([Proxy, this, NextTreeUpdates = *NextTreeUpdates]() mutable
 		{
-			if (VehicleSimulationPT)
+			if (IsValid(this) && bPhysicsStateCreated && VehicleSimulationPT)
 			{
 				TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
 				if(SimModuleTree.IsValid())
@@ -915,7 +915,7 @@ void UModularVehicleBaseComponent::RemoveComponentFromSimulation(UPrimitiveCompo
 		Chaos::FPBDRigidsSolver* Solver = Proxy->GetSolver<Chaos::FPBDRigidsSolver>();
 		Solver->EnqueueCommandImmediate([Proxy, this, LatestTreeUpdates = LatestTreeUpdates]() mutable
 			{
-				if (VehicleSimulationPT)
+				if (IsValid(this) && bPhysicsStateCreated && VehicleSimulationPT)
 				{
 					TUniquePtr<Chaos::FSimModuleTree>& SimModuleTree = VehicleSimulationPT->AccessSimComponentTree();
 					if(SimModuleTree.IsValid())
@@ -1024,19 +1024,16 @@ void UModularVehicleBaseComponent::DestroyVehicleSim()
 				SimManager->RemoveVehicle(this);
 			}
 
-			LocalSolver->EnqueueCommandImmediate([this, PhysScene = PhysScene]() mutable
-				{
-					if (PVehicleOutput.IsValid())
-					{
-						PVehicleOutput.Reset(nullptr);
-					}
+			if (PVehicleOutput.IsValid())
+			{
+				PVehicleOutput.Reset(nullptr);
+			}
 
-					if (VehicleSimulationPT)
-					{
-						VehicleSimulationPT->Terminate();
-						VehicleSimulationPT.Reset(nullptr);
-					}
-				});
+			if (VehicleSimulationPT)
+			{
+				VehicleSimulationPT->Terminate();
+				VehicleSimulationPT.Reset(nullptr);
+			}
 		}
 
 	}
