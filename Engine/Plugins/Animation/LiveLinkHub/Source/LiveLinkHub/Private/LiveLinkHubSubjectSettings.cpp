@@ -63,6 +63,10 @@ void ULiveLinkHubSubjectSettings::PostEditChangeProperty(FPropertyChangedEvent& 
 	{
 		if (PreviousOutboundName != *OutboundName)
 		{
+			if (OutboundName.IsEmpty())
+			{
+				OutboundName = PreviousOutboundName.ToString();
+			}
 			NotifyRename();
 		}
 	}
