@@ -4,8 +4,29 @@
 
 #include "SortHelper.h"
 #include "TypedElementOutlinerItem.h"
+#include "Elements/Framework/TypedElementRegistry.h"
+#include "TedsTableViewerColumn.h"
 
 #define LOCTEXT_NAMESPACE "TedsOutlinerRowHandleColumn"
+
+FTedsOutlinerRowHandleColumn::FTedsOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner)
+	: WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared()))
+{
+	auto AssignWidgetToColumn = [this](TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)
+	{
+		TSharedPtr<FTypedElementWidgetConstructor> WidgetConstructor(Constructor.Release());
+		TableViewerColumn = MakeShared<UE::EditorDataStorage::FTedsTableViewerColumn>(TEXT("Row Handle"), WidgetConstructor);
+		return false;
+	};
+	
+	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
+	checkf(Registry, TEXT("FTedsOutlinerRowHandleColumn created before UTypedElementRegistry is available."));
+	ITypedElementDataStorageUiInterface* StorageUi = Registry->GetMutableDataStorageUi();
+	checkf(StorageUi, TEXT("FTedsOutlinerRowHandleColumn created before data storage interfaces were initialized."))
+
+	StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), TypedElementDataStorage::FMetaDataView(), AssignWidgetToColumn);
+}
+
 
 FName FTedsOutlinerRowHandleColumn::GetID()
 {
@@ -34,21 +55,10 @@ const TSharedRef<SWidget> FTedsOutlinerRowHandleColumn::ConstructRowWidget(FScen
 	{
 		const TypedElementDataStorage::RowHandle RowHandle = OutlinerTreeItem->GetRowHandle();
 
-		FNumberFormattingOptions NumberFormattingOptions;
-		NumberFormattingOptions.SetUseGrouping(false);
-		const FText Text = FText::AsNumber(RowHandle, &NumberFormattingOptions);
-		
-		return SNew(SBox)
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(8, 0, 0, 0)
-			.Content()
-			[
-				SNew(STextBlock)
-					.Text(Text)
-					.HighlightText(SceneOutliner->GetFilterHighlightText())
-					.ColorAndOpacity(FSlateColor::UseForeground())
-			];
+		if(TSharedPtr<SWidget> Widget = TableViewerColumn->ConstructRowWidget(RowHandle))
+		{
+			return Widget.ToSharedRef();
+		}
 	}
 	return SNullWidget::NullWidget;
 }

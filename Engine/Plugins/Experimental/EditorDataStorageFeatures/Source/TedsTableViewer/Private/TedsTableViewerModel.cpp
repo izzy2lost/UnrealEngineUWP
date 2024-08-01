@@ -61,9 +61,9 @@ namespace UE::EditorDataStorage
 		}
 
 		// Tick all the individual column views
-		for(const auto& ColumnPair : ColumnsView)
+		for(const TSharedRef<FTedsTableViewerColumn>&Column : ColumnsView)
 		{
-			ColumnPair.Value->Tick();
+			Column->Tick();
 		}
 		
 		return true;
@@ -74,9 +74,25 @@ namespace UE::EditorDataStorage
 		return Items;
 	}
 
+	uint64 FTedsTableViewerModel::GetRowCount() const
+	{
+		return Items.Num();
+	}
+
+	uint64 FTedsTableViewerModel::GetColumnCount() const
+	{
+		return ColumnsView.Num();
+	}
+
 	TSharedPtr<FTedsTableViewerColumn> FTedsTableViewerModel::GetColumn(const FName& ColumnName) const
 	{
-		if(const TSharedRef<FTedsTableViewerColumn>* Column = ColumnsView.Find(ColumnName))
+		const TSharedRef<FTedsTableViewerColumn>* Column = ColumnsView.FindByPredicate([ColumnName]
+			(const TSharedRef<FTedsTableViewerColumn>& InColumn)
+		{
+			return InColumn->GetColumnName() == ColumnName;
+		});
+		
+		if(Column)
 		{
 			return *Column;
 		}
@@ -86,9 +102,9 @@ namespace UE::EditorDataStorage
 
 	void FTedsTableViewerModel::ForEachColumn(const TFunctionRef<void(const TSharedRef<FTedsTableViewerColumn>&)>& Delegate) const
 	{
-		for(const TPair<FName, TSharedRef<FTedsTableViewerColumn>>& ColumnPair : ColumnsView)
+		for(const TSharedRef<FTedsTableViewerColumn>& Column : ColumnsView)
 		{
-			Delegate(ColumnPair.Value);
+			Delegate(Column);
 		}
 	}
 
@@ -101,6 +117,13 @@ namespace UE::EditorDataStorage
 	{
 		RequestedTedsColumns = InColumns;
 		GenerateColumns();
+	}
+
+	void FTedsTableViewerModel::AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn)
+	{
+		// Table Viewer TODO: We should allow users to specify sort order using a TEDS column on the UI row, but for now we put any custom
+		// columns on the front
+		ColumnsView.Insert(InColumn, 0);
 	}
 
 	void FTedsTableViewerModel::GenerateColumns()
@@ -195,13 +218,13 @@ namespace UE::EditorDataStorage
 		// Add the actual UI columns in the order the Teds Columns were specified
 		for (const TWeakObjectPtr<const UScriptStruct>& ColumnType : RequestedTedsColumns)
 		{
-			if(TSharedRef<FTedsTableViewerColumn>* FoundColumn = NewColumnMap.Find(ColumnType))
+			if(const TSharedRef<FTedsTableViewerColumn>* FoundColumn = NewColumnMap.Find(ColumnType))
 			{
 				// If the column already exists, a widget matched it and a previously encountered column together and was already added
 				// so we can safely ignore it here
 				if(!GetColumn((*FoundColumn)->GetColumnName()))
 				{
-					ColumnsView.Emplace((*FoundColumn)->GetColumnName(), *FoundColumn);
+					ColumnsView.Add(*FoundColumn);
 				}
 			}
 		}

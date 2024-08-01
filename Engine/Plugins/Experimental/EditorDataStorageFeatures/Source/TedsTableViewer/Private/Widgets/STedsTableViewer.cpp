@@ -5,6 +5,9 @@
 #include "TedsTableViewerColumn.h"
 #include "Widgets/STedsTableViewerRow.h"
 #include "Widgets/Views/SListView.h"
+#include "Widgets/Text/STextBlock.h"
+
+#define LOCTEXT_NAMESPACE "STedsTableViewer"
 
 namespace UE::EditorDataStorage
 {
@@ -16,14 +19,13 @@ namespace UE::EditorDataStorage
 		HeaderRowWidget = SNew( SHeaderRow )
 							.CanSelectGeneratedColumn(true);
 
-		ChildSlot
-		[
-			SAssignNew(ListView, SListView<TableViewerItemPtr>)
+		ListView = SNew(SListView<TableViewerItemPtr>)
 			.HeaderRow(HeaderRowWidget)
 			.ListItemsSource(&Model->GetItems())
-			.OnGenerateRow(this, &STedsTableViewer::MakeTableRowWidget)
-		];
-
+			.OnGenerateRow(this, &STedsTableViewer::MakeTableRowWidget);
+		
+		AssignChildSlot();
+		
 		// Add each Teds column from the model to our header row widget
 		Model->ForEachColumn([this](const TSharedRef<FTedsTableViewerColumn>& Column)
 		{
@@ -34,18 +36,68 @@ namespace UE::EditorDataStorage
 		Model->GetOnModelChanged().AddLambda([this]()
 		{
 			ListView->RequestListRefresh();
+			AssignChildSlot();
 		});
 	}
 
-	void STedsTableViewer::SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& Columns) const
+	void STedsTableViewer::AssignChildSlot()
 	{
-		Model->SetColumns(Columns);
-		
+		if(Model->GetRowCount() == 0)
+		{
+			ChildSlot
+			[
+				SNew(SBox)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+							.Text(LOCTEXT("EmptyTableViewerText", "The input query has no results"))
+					]
+			];
+		}
+		else if(Model->GetColumnCount() == 0)
+		{
+			ChildSlot
+			[
+				SNew(SBox)
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+							.Text(LOCTEXT("EmptyTableViewerText", "There were no columns specified to display"))
+					]
+			];
+		}
+		else
+		{
+			ChildSlot
+			[
+				ListView.ToSharedRef()	
+			];
+		}
+	}
+
+	void STedsTableViewer::RefreshColumnWidgets()
+	{
 		HeaderRowWidget->ClearColumns();
 		Model->ForEachColumn([this](const TSharedRef<FTedsTableViewerColumn>& Column)
 		{
 			HeaderRowWidget->AddColumn(Column->ConstructHeaderRowColumn());
 		});
+
+		AssignChildSlot();
+	}
+
+	void STedsTableViewer::SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& Columns)
+	{
+		Model->SetColumns(Columns);
+		RefreshColumnWidgets();
+	}
+
+	void STedsTableViewer::AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn)
+	{
+		Model->AddCustomColumn(InColumn);
+		RefreshColumnWidgets();
 	}
 
 	bool STedsTableViewer::IsItemVisible(TableViewerItemPtr InItem) const
@@ -58,7 +110,7 @@ namespace UE::EditorDataStorage
 		return SNew(STedsTableViewerRow, OwnerTable, Model.ToSharedRef())
 				.Item(InItem);
 	}
-
-	
 }
+
+#undef LOCTEXT_NAMESPACE //"STedsTableViewer"
 

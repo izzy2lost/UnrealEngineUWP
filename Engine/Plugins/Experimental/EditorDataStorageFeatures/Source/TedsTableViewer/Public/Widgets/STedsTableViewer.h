@@ -12,7 +12,6 @@ class ITableRow;
 class STableViewBase;
 class SHeaderRow;
 
-
 namespace UE::EditorDataStorage
 {
 	class FTedsTableViewerColumn;
@@ -52,13 +51,21 @@ namespace UE::EditorDataStorage
 		TEDSTABLEVIEWER_API void Construct(const FArguments& InArgs);
 
 		// Clear the current list of columns being displayed and set it to the given list
-		TEDSTABLEVIEWER_API void SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& Columns) const;
+		TEDSTABLEVIEWER_API void SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& Columns);
+
+		// Add a custom column to display in the table viewer, that doesn't necessarily map to a Teds column
+		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
+
 
 	protected:
 		
 		TSharedRef<ITableRow> MakeTableRowWidget(TableViewerItemPtr InItem, const TSharedRef<STableViewBase>& OwnerTable) const;
 
 		bool IsItemVisible(TableViewerItemPtr InItem) const;
+
+		void AssignChildSlot();
+
+		void RefreshColumnWidgets();
 
 	private:
 

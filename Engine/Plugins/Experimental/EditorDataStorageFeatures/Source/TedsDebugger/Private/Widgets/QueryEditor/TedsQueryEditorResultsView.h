@@ -7,11 +7,13 @@
 class ISceneOutliner;
 class SSceneOutliner;
 class SHorizontalBox;
+struct FTypedElementWidgetConstructor;
 
 namespace UE::EditorDataStorage
 {
 	class STedsTableViewer;
 	class FQueryStackNode_RowView;
+	class FTedsTableViewerColumn;
 }
 
 namespace UE::EditorDataStorage::Debug::QueryEditor
@@ -31,6 +33,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 	private:
 
 		void OnModelChanged();
+		void CreateRowHandleColumn();
 		
 		FTedsQueryEditorModel* Model = nullptr;
 		FDelegateHandle ModelChangedDelegateHandle;
@@ -45,6 +48,9 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 		TSet<TypedElementDataStorage::RowHandle> TableViewerRows_Set;
 		TSharedPtr<UE::EditorDataStorage::STedsTableViewer> TableViewer;
 		TSharedPtr<UE::EditorDataStorage::FQueryStackNode_RowView> RowQueryStack;
+
+		// Custom column for the table viewer to display row handles
+		TSharedPtr<UE::EditorDataStorage::FTedsTableViewerColumn> RowHandleColumn;
 	};
 
 	

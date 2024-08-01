@@ -6,6 +6,11 @@
 #include "ISceneOutliner.h"
 #include "ISceneOutlinerColumn.h"
 
+namespace UE::EditorDataStorage
+{
+	class FTedsTableViewerColumn;
+}
+
 /**
  * This is a custom column for the TEDS Outliner/Table Viewer to display row handles for items. It is a special case-d column instead of going through
  * the TEDS UI layer because row handles are not information stored in a TEDS column
@@ -13,10 +18,7 @@
 class FTedsOutlinerRowHandleColumn : public ISceneOutlinerColumn
 {
 public:
-	FTedsOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner) : WeakSceneOutliner(StaticCastSharedRef<ISceneOutliner>(SceneOutliner.AsShared()))
-	{
-		
-	}
+	FTedsOutlinerRowHandleColumn(ISceneOutliner& SceneOutliner);
 	
 	virtual ~FTedsOutlinerRowHandleColumn() {}
 
@@ -35,4 +37,7 @@ public:
 
 private:
 	TWeakPtr<ISceneOutliner> WeakSceneOutliner;
+
+	// The Table Viewer column we are going to use internally to create the widget
+	TSharedPtr<UE::EditorDataStorage::FTedsTableViewerColumn> TableViewerColumn;
 };

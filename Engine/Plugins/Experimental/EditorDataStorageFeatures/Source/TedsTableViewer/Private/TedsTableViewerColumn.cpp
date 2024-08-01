@@ -114,6 +114,7 @@ namespace UE::EditorDataStorage
 			.FillWidth(1)
 			.HeaderComboVisibility(EHeaderComboVisibility::OnHover)
 			.DefaultTooltip(FText::FromString(MoveTemp(TooltipText)))
+			.DefaultLabel(FText::FromName(ColumnName))
 			.HeaderContent()
 			[
 				SNew(SBox)

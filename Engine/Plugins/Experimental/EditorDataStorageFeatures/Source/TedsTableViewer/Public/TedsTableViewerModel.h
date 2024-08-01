@@ -48,6 +48,12 @@ namespace UE::EditorDataStorage
 
 		// Get the items this table viewer is viewing
 		TEDSTABLEVIEWER_API const TArray<TableViewerItemPtr>& GetItems() const;
+
+		// Get the number of rows currently being observed
+		TEDSTABLEVIEWER_API uint64 GetRowCount() const;
+		
+		// Get the number of columns being displayed
+		TEDSTABLEVIEWER_API uint64 GetColumnCount() const;
 		
 		// Get a specific column that the table viewer is displaying by name
 		TEDSTABLEVIEWER_API TSharedPtr<FTedsTableViewerColumn> GetColumn(const FName& ColumnName) const;
@@ -60,6 +66,9 @@ namespace UE::EditorDataStorage
 		
 		// Clear the current list of columns being displayed and set it to the given list
 		TEDSTABLEVIEWER_API void SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& InColumns);
+
+		// Add a custom column to display in the table viewer, that doesn't necessarily map to a Teds column
+		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
 
 	protected:
 
@@ -82,7 +91,7 @@ namespace UE::EditorDataStorage
 		TArray<TableViewerItemPtr> Items;
 
 		// List of columns the table viewer is currently displaying
-		TMap<FName, TSharedRef<FTedsTableViewerColumn>> ColumnsView;
+		TArray<TSharedRef<FTedsTableViewerColumn>> ColumnsView;
 
 		// The initial TEDS columns the widget was requested to display
 		TArray<TWeakObjectPtr<const UScriptStruct>> RequestedTedsColumns;
