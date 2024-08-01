@@ -6,17 +6,13 @@
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
 #include "VerseVM/Inline/VVMNativeStructInline.h"
-#include "VerseVM/VVMCVars.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMShape.h"
-#include "VerseVM/VVMTypeCreator.h"
 
 namespace Verse
 {
-struct VShape;
-
 inline bool FEmergentTypesCacheKeyFuncs::Matches(FEmergentTypesCacheKeyFuncs::KeyInitType A, FEmergentTypesCacheKeyFuncs::KeyInitType B)
 {
 	return A == B;
@@ -37,6 +33,72 @@ inline uint32 FEmergentTypesCacheKeyFuncs::GetKeyHash(const VUniqueStringSet& Ke
 	return GetTypeHash(Key);
 }
 
+inline VConstructor::VEntry VConstructor::VEntry::Constant(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue)
+{
+	return Constant(Context, VUniqueString::New(Context, InField), bInNative, InPropertyType, InValue);
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::Constant(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue)
+{
+	return VEntry{
+		{Context,        InField},
+		bInNative,
+		{Context, InPropertyType},
+		{Context,        InValue},
+		false
+    };
+}
+
+inline VFunction* VConstructor::VEntry::Initializer() const
+{
+	if (bDynamic && Value.Get())
+	{
+		return &Value.Get().StaticCast<VFunction>();
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::Field(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType)
+{
+	return {
+		{Context, InField},
+		bInNative,
+		{Context, InType},
+		{},
+		true  // bDynamic
+	};
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::FieldInitializer(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode)
+{
+	return FieldInitializer(Context, VUniqueString::New(Context, InField), bInNative, InPropertyType, InCode);
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::FieldInitializer(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode)
+{
+	return {
+		{Context,        InField},
+		bInNative,
+		{Context, InPropertyType},
+		{Context,         InCode},
+		true
+    };
+}
+
+inline VConstructor::VEntry VConstructor::VEntry::Block(FAllocationContext Context, VProcedure& Code)
+{
+	return {
+		{},
+		false,
+		{},
+		{Context, Code},
+		true
+    };
+}
+
 inline UScriptStruct::ICppStructOps& VClass::GetCppStructOps() const
 {
 	return *CastChecked<UScriptStruct>(AssociatedUStruct.Get().AsUObject())->GetCppStructOps();
@@ -52,49 +114,15 @@ inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStr
 	return VNativeStruct::New(Context, NewEmergentType, MoveTemp(Struct));
 }
 
+inline VConstructor& VClass::GetConstructor() const
+{
+	return *Constructor.Get();
+}
+
 inline VClass& VClass::New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor)
 {
 	const size_t NumBytes = offsetof(VClass, Inherited) + Inherited.Num() * sizeof(Inherited[0]);
 	return *new (Context.AllocateFastCell(NumBytes)) VClass(Context, Scope, Name, UEMangledName, ImportClass, bNative, Kind, Inherited, Constructor);
-}
-
-inline VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
-	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
-	, Scope(Context, InScope)
-	, ClassName(Context, InName)
-	, UEMangledName(Context, InUEMangledName)
-	, bNative(bInNative)
-	, Kind(InKind)
-	, NumInherited(InInherited.Num())
-{
-	if (InImportClass != nullptr)
-	{
-		AssociatedUStruct.Set(Context, InImportClass);
-	}
-
-	if (InInherited.IsEmpty())
-	{
-		Constructor.Set(Context, InConstructor);
-	}
-	else
-	{
-		// Elements of this class override later superclasses, which override earlier superclasses.
-		TSet<VUniqueString*> Fields;
-		TArray<VConstructor::VEntry> Entries;
-		Entries.Reserve(InConstructor.NumEntries);
-		Extend(Fields, Entries, InConstructor);
-		for (int32 Index = 0; Index < InInherited.Num(); ++Index)
-		{
-			V_DIE_IF(Index != 0 && InInherited[Index]->Kind == EKind::Class);
-			Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());
-		}
-		Constructor.Set(Context, VConstructor::New(Context, Entries));
-	}
-
-	for (uint32 Index = 0; Index < NumInherited; ++Index)
-	{
-		new (&Inherited[Index]) TWriteBarrier<VClass>(Context, InInherited[Index]);
-	}
 }
 
 } // namespace Verse

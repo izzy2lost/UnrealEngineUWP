@@ -50,6 +50,11 @@ struct FRegisterIndex
 {
 	static constexpr uint32 UNINITIALIZED = INT32_MAX;
 
+	/// These are hardcoded register indices that we will always place the operands in by convention.
+	static constexpr uint32 SELF = 0;  // for `Self`.
+	static constexpr uint32 SCOPE = 1; // for `(super:)` and other generic captures in the future.
+	static constexpr uint32 PARAMETER_START = 2;
+
 	// Unsigned, but must be less than INT32_MAX
 	uint32 Index;
 

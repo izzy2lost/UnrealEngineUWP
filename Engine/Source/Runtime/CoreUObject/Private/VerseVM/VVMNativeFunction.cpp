@@ -14,7 +14,12 @@ TGlobalTrivialEmergentTypePtr<&VNativeFunction::StaticCppClassInfo> VNativeFunct
 template <typename TVisitor>
 void VNativeFunction::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(ParentScope, TEXT("ParentScope"));
+	Visitor.Visit(Self, TEXT("Self"));
+}
+
+bool VNativeFunction::HasSelf() const
+{
+	return !!Self;
 }
 
 } // namespace Verse

@@ -983,6 +983,14 @@ namespace UnrealBuildTool
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
 				.Suspends();
 
+			Inst("LoadFieldFromSuper")
+				.Arg("Dest", Role.UnifyDef)
+				// This is used to store `(super:)` and in the future, anything else that a generic lambda capture would encompass.
+				.Arg("Scope", Role.Use)
+				.Arg("Self", Role.Use)
+				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")
+				.Suspends();
+
 			Inst("UnifyField")
 				.Arg("Object", Role.Use)
 				.Arg("Name", Role.Immediate, Arity.Fixed, "VUniqueString")

@@ -155,7 +155,19 @@ private:
 
 	void PrintRegister(FRegisterIndex Register)
 	{
-		String += FString::Printf(TEXT("r%u"), Register.Index);
+		if (Register.Index == FRegisterIndex::UNINITIALIZED)
+		{
+			String += FString::Printf(TEXT("r(UNINITIALIZED)"));
+		}
+		else
+		{
+			String += FString::Printf(TEXT("r%u"), Register.Index);
+		}
+	}
+
+	void PrintValueOperand(FRegisterIndex Operand)
+	{
+		PrintRegister(Operand);
 	}
 
 	void PrintValueOperand(FValueOperand ValueOperand)
@@ -259,6 +271,7 @@ private:
 		// Right now we just assume that Defs come before Uses, but we could rework this
 		// if this ever breaks printing.
 		Op.ForEachOperand([&](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+			// NOTE: (yiliang.siew) Account for optional operands.
 			switch (Role)
 			{
 				case EOperandRole::ClobberDef:

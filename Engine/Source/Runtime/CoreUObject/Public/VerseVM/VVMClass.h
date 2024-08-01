@@ -23,7 +23,7 @@ struct VObject;
 struct VNativeStruct;
 struct VProcedure;
 struct VPackage;
-struct VUniqueString;
+struct VFunction;
 
 /// This provides a custom comparison that allows us to do pointer-based compares of each unique string set, rather than hash-based comparisons.
 struct FEmergentTypesCacheKeyFuncs : TDefaultMapKeyFuncs<TWriteBarrier<VUniqueStringSet>, TWriteBarrier<VEmergentType>, /*bInAllowDuplicateKeys*/ false>
@@ -46,72 +46,31 @@ struct VConstructor : VCell
 	{
 		/// When non-null, the name of this field. When null, this entry represents a block.
 		TWriteBarrier<VUniqueString> Name;
+
+		/// If the entry represents something defined in C++.
 		bool bNative;
 
 		/// For data members, the declared type.
 		/// TODO: Can we just use VType for this?
 		TWriteBarrier<VPropertyType> Type;
 
-		/// When bDynamic, a VProcedure for a default initializer or block, or nothing for an uninitialized field.
-		/// Otherwise, a constant VValue for a default field value (which may be a VProcedure for functions, which bind Self lazily).
+		/// When `bDynamic` is `true`, `Value` should be a `VFunction` for a default initializer or block, or nothing for an
+		/// uninitialized field. Otherwise, `Value` should be a constant `VValue` representing a default field value.
+		/// (This may be a `VFunction` without the `Self` member for methods, since they bind `Self` lazily).
 		TWriteBarrier<VValue> Value;
 		bool bDynamic;
 
-		static VEntry Constant(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType, VValue InValue)
-		{
-			return VEntry{
-				{Context, InField},
-				bInNative,
-				{Context,  InType},
-				{Context, InValue},
-				false
-            };
-		}
+		static VEntry Constant(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue);
+		static VEntry Constant(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VValue InValue);
+		static VEntry Field(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType = nullptr);
+		static VEntry FieldInitializer(FAllocationContext Context, FUtf8StringView InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode);
+		static VEntry FieldInitializer(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InPropertyType, VProcedure& InCode);
+		static VEntry Block(FAllocationContext Context, VProcedure& Code);
 
-		static VEntry Field(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType)
-		{
-			return {
-				{Context, InField},
-				bInNative,
-				{Context, InType},
-				{},
-				true
-            };
-		}
+		/// Checks if the entry refers to a method that is unbound (i.e. has no `Self`), or if the entry is referring to a function at all.
+		bool IsMethod() const;
 
-		static VEntry FieldInitializer(FAllocationContext Context, VUniqueString& InField, bool bInNative, VPropertyType* InType, VProcedure& InCode)
-		{
-			return {
-				{Context,        InField},
-				bInNative,
-				{Context,         InType},
-				{Context, VValue(InCode)},
-				true
-            };
-		}
-
-		static VEntry Block(FAllocationContext Context, VProcedure& Code)
-		{
-			return {
-				{},
-				false,
-				{},
-				{Context, VValue(Code)},
-				true
-            };
-		}
-
-		VProcedure* Initializer() const
-		{
-			if (bDynamic && Value.Get())
-			{
-				return &Value.Get().StaticCast<VProcedure>();
-			}
-			else
-			{
-				return nullptr;
-			}
-		}
+		VFunction* Initializer() const;
 	};
 
 	const uint32 NumEntries;
@@ -126,6 +85,9 @@ struct VConstructor : VCell
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
 	static void SerializeImpl(VConstructor*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
+	/// This loads the method that matches the given name. If it does not exist, returns `nullptr`.
+	COREUOBJECT_API VFunction* LoadFunction(FAllocationContext Context, VUniqueString& FieldName, VValue SelfObject);
 
 private:
 	static VConstructor& NewUninitialized(FAllocationContext Context, uint32 InNumEntries)
@@ -175,7 +137,7 @@ struct VClass : VType
 
 	/// Allocate a new VObject (either VValueObject or VNativeStruct). Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
-	COREUOBJECT_API VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+	COREUOBJECT_API VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
 
 	/// Allocate a new VNativeStruct and move an existing struct into it
 	template <class CppStructType>
@@ -183,11 +145,11 @@ struct VClass : VType
 
 	/// Allocate a new UObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
-	COREUOBJECT_API UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers);
+	COREUOBJECT_API UObject* NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
 
 private:
 	// Helper to find initializer procedures after archetype fields have been set on an object
-	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);
+	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VFunction*>& OutInitializers);
 
 public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
@@ -199,14 +161,19 @@ public:
 	template <class SubTypeOfUStruct>
 	COREUOBJECT_API SubTypeOfUStruct* GetOrCreateUStruct(FAllocationContext Context);
 
+	/// Returns the constructor for the class.
+	COREUOBJECT_API VConstructor& GetConstructor() const;
+
 	/**
 	 * Creates a new class.
 	 *
 	 * @param Scope         Containing package or null.
 	 * @param Name          Name or null.
 	 * @param UEMangledName Name to be used when creating the UE version of the class or the UE package.  Can be null.
+	 * @param ImportClass   The Unreal class/struct that is being reflected by this Verse VM type.
+	 * @param bNative       `true` if this represents a native class (i.e. defined in C++).
 	 * @param Kind          Class, Struct or Interface.
-	 * @param Inherited     An array of base classes in order of inheritance.
+	 * @param Inherited     An array of base classes, in order of inheritance.
 	 * @param Constructor   The sequence of fields and blocks in the class body.
 	 */
 	COREUOBJECT_API static VClass& New(FAllocationContext Context, VPackage* Scope, VArray* Name, VArray* UEMangledName, UClass* ImportClass, bool bNative, EKind Kind, const TArray<VClass*>& Inherited, VConstructor& Constructor);

@@ -40,6 +40,9 @@ struct VValue
 
 	VValue(UObject* Object);
 
+	/// Instead of using this constructor, consider `GlobalFalse()` instead.
+	VValue(std::nullptr_t) = delete;
+
 	static VValue FromInt32(int32 Int32)
 	{
 		VValue Result;

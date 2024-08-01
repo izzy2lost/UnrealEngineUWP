@@ -7,6 +7,7 @@
 #include "Containers/ArrayView.h"
 #include "VVMFalse.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
+#include "VVMScope.h"
 #include "VVMType.h"
 
 namespace Verse
@@ -31,24 +32,32 @@ struct VNativeFunction : VHeapValue
 	// The C++ function to call
 	FThunkFn Thunk;
 
-	TWriteBarrier<VValue> ParentScope;
+	TWriteBarrier<VValue> Self;
 
-	static VNativeFunction& New(FAllocationContext Context, uint32 NumParameters, FThunkFn Thunk)
+	static VNativeFunction& New(FAllocationContext Context, uint32 NumParameters, FThunkFn Thunk, VValue InSelf)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, GlobalFalse());
+		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, InSelf);
 	}
 
-	VNativeFunction& Bind(FAllocationContext Context, VValue InParentScope)
+	static VNativeFunction& NewUnbound(FAllocationContext Context, uint32 NumParameters, FThunkFn Thunk)
 	{
-		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, InParentScope);
+		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, VValue());
 	}
+
+	VNativeFunction& Bind(FAllocationContext Context, VValue InSelf)
+	{
+		checkf(!HasSelf(), TEXT("Attempting to bind `Self` to a `VNativeFunction` that already has it set; this is probably a mistake in the code generation."));
+		return *new (Context.AllocateFastCell(sizeof(VNativeFunction))) VNativeFunction(Context, NumParameters, Thunk, InSelf);
+	}
+
+	bool HasSelf() const;
 
 private:
-	VNativeFunction(FAllocationContext Context, uint32 InNumParameters, FThunkFn InThunk, VValue InParentScope)
+	VNativeFunction(FAllocationContext Context, uint32 InNumParameters, FThunkFn InThunk, VValue InSelf)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))
 		, NumParameters(InNumParameters)
 		, Thunk(InThunk)
-		, ParentScope(Context, InParentScope)
+		, Self(Context, InSelf)
 	{
 	}
 };

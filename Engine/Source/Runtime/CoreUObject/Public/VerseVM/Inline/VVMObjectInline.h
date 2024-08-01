@@ -29,13 +29,17 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo
 		case EFieldType::Constant:
 		{
 			VValue FieldValue = Field->Value.Get();
-			if (FieldValue.IsCellOfType<VProcedure>())
+			V_DIE_IF(FieldValue.IsCellOfType<VProcedure>());
+			if (VFunction* Function = FieldValue.DynamicCast<VFunction>(); Function && !Function->HasSelf())
 			{
-				return VFunction::New(Context, FieldValue.StaticCast<VProcedure>(), *this);
+				// NOTE: (yiliang.siew) Update the function-without-`Self` to point to the current object instance.
+				// We only do this if the function doesn't already have a `Self` bound - in the case of fields that
+				// are pointing to functions, we don't want to overwrite that `Self` which was already previously-bound.
+				return Function->Bind(Context, *this);
 			}
-			else if (FieldValue.IsCellOfType<VNativeFunction>())
+			else if (VNativeFunction* NativeFunction = FieldValue.DynamicCast<VNativeFunction>(); NativeFunction && !NativeFunction->HasSelf())
 			{
-				return FieldValue.StaticCast<VNativeFunction>().Bind(Context, *this);
+				return NativeFunction->Bind(Context, *this);
 			}
 			else
 			{

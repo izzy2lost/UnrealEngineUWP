@@ -12,10 +12,12 @@
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMNativeStructInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
+#include "VerseVM/Inline/VVMScopeInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMEngineEnvironment.h"
+#include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMGlobalTrivialEmergentTypePtr.h"
 #include "VerseVM/VVMNativeStruct.h"
 #include "VerseVM/VVMPackage.h"
@@ -27,6 +29,21 @@
 
 namespace Verse
 {
+
+bool VConstructor::VEntry::IsMethod() const
+{
+	VValue EntryValue = Value.Get();
+	if (VFunction* EntryFunction = EntryValue.DynamicCast<VFunction>())
+	{
+		return !EntryFunction->HasSelf();
+	}
+	else if (VNativeFunction* EntryNativeFunction = EntryValue.DynamicCast<VNativeFunction>())
+	{
+		return !EntryNativeFunction->HasSelf();
+	}
+	return false;
+}
+
 DEFINE_DERIVED_VCPPCLASSINFO(VConstructor);
 TGlobalTrivialEmergentTypePtr<&VConstructor::StaticCppClassInfo> VConstructor::GlobalTrivialEmergentType;
 
@@ -101,6 +118,27 @@ void VConstructor::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext 
 	}
 }
 
+VFunction* VConstructor::LoadFunction(FAllocationContext Context, VUniqueString& FieldName, VValue SelfObject)
+{
+	// TODO: (yiliang.siew) This should probably be improved with inline caching or a hashtable instead for constructors
+	// with lots of entries.
+	for (uint32 Index = 0; Index < NumEntries; ++Index)
+	{
+		VEntry& CurrentEntry = Entries[Index];
+		if (*CurrentEntry.Name.Get() != FieldName)
+		{
+			continue;
+		}
+		if (VFunction* Procedure = Entries[Index].Value.Get().DynamicCast<VFunction>(); Procedure && !Procedure->HasSelf())
+		{
+			// At this point (super:)/scope should already be filled in.
+			VFunction& NewFunction = Procedure->Bind(Context, SelfObject);
+			return &NewFunction;
+		}
+	}
+	return nullptr;
+}
+
 DEFINE_DERIVED_VCPPCLASSINFO(VClass)
 TGlobalTrivialEmergentTypePtr<&VClass::StaticCppClassInfo> VClass::GlobalTrivialEmergentType;
 
@@ -133,6 +171,78 @@ void VClass::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(EmergentTypesCache, TEXT("EmergentTypesCache"));
 }
 
+VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)
+	: VType(Context, &GlobalTrivialEmergentType.Get(Context))
+	, Scope(Context, InScope)
+	, ClassName(Context, InName)
+	, UEMangledName(Context, InUEMangledName)
+	, bNative(bInNative)
+	, Kind(InKind)
+	, NumInherited(InInherited.Num())
+{
+	if (InImportClass != nullptr)
+	{
+		AssociatedUStruct.Set(Context, InImportClass);
+	}
+
+	// NOTE: (yiliang.siew) If a class has no base class, we still want to set the scope accordingly for lambda captures,
+	// which may capture other variables but not necessitate having a superclass.
+	// We only need to create one scope, since all methods of this class should share the same one.
+	VScope& NewFunctionScope = VScope::New(Context, nullptr);
+	for (VClass* CurrentInheritedType : InInherited)
+	{
+		// NOTE: (yiliang.siew) We're not interested in structs/interfaces, since they can't have methods anyway.
+		if (CurrentInheritedType->GetKind() == VClass::EKind::Class)
+		{
+			NewFunctionScope.SuperClass.Set(Context, CurrentInheritedType);
+			// `(super:)` only refers to the first superclass in the inheritance hierarchy - `(super:)` can't be chained.
+			break;
+		}
+	}
+
+	// We flatten the entries here from the base class and all its superclasses - the values of the base class's entries
+	// stomp that of its immediate superclass and so on.
+	TSet<VUniqueString*> Fields;
+	Fields.Reserve(InConstructor.NumEntries);
+	TArray<VConstructor::VEntry> Entries;
+	Entries.Reserve(InConstructor.NumEntries);
+	Extend(Fields, Entries, InConstructor);
+
+	// NOTE: (yiliang.siew) We stuff the `(super:)` information into the constant functions for this class pointing
+	// directly to the superclass, since that is the same for all instances. We're doing it here since this is the first
+	// occurrence where the function entries first gets associated with the class by virtue of the constructor being
+	// passed here. Additionally, we only run this for the entries of the current constructor being passed in since
+	// the base classes don't need to have their entries updated. (They should be updated when they themselves are
+	// being constructed.)
+	for (VConstructor::VEntry& CurrentEntry : Entries)
+	{
+		// If we get a procedure, we wrap it in a function that can store the given scope - we differentiate
+		// between _actual_ functions that are in entries (e.g. if a field points to a free function, for example),
+		// whose scopes we _don't_ want to modify (since they already presumably capture whatever their lexical scope is
+		// outside of the fact that this class field is pointing to said function.)
+		if (VProcedure* CurrentProcedure = CurrentEntry.Value.Get().DynamicCast<VProcedure>())
+		{
+			// The constructor being passed in shouldn't be responsible for filling in the `(super:)` since
+			// it doesn't know what class it's creating it for - it's here, when we construct the class that we know that.
+			VFunction& NewFunction = VFunction::NewUnbound(Context, *CurrentProcedure, NewFunctionScope);
+			CurrentEntry.Value.Set(Context, NewFunction);
+		}
+	}
+
+	// Now add the entries for the superclasses, which don't need the scopes (containing `(super:)`) updated.
+	for (int32 Index = 0; Index < InInherited.Num(); ++Index)
+	{
+		V_DIE_IF(Index != 0 && InInherited[Index]->Kind == EKind::Class);
+		Extend(Fields, Entries, *InInherited[Index]->Constructor.Get());
+	}
+	Constructor.Set(Context, VConstructor::New(Context, Entries));
+
+	for (uint32 Index = 0; Index < NumInherited; ++Index)
+	{
+		new (&Inherited[Index]) TWriteBarrier<VClass>(Context, InInherited[Index]);
+	}
+}
+
 void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base)
 {
 	for (uint32 Index = 0; Index < Base.NumEntries; ++Index)
@@ -151,7 +261,7 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 	}
 }
 
-VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
+VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
 {
 	VObject* NewObject;
 	if (IsNativeStruct())
@@ -186,7 +296,7 @@ VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& Archet
 	return *NewObject;
 }
 
-UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VProcedure*>& OutInitializers)
+UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
 {
 	UVerseClass* ObjectUClass = GetOrCreateUStruct<UVerseClass>(Context);
 
@@ -212,7 +322,7 @@ UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& Archet
 	return NewObject;
 }
 
-void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers)
+void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VFunction*>& OutInitializers)
 {
 	// Build the sequence of VProcedures to finish object construction.
 	V_DIE_UNLESS(OutInitializers.IsEmpty());
@@ -232,7 +342,7 @@ void VClass::GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProce
 		}
 
 		// Record procedures for default initializers and blocks.
-		if (VProcedure* Initializer = Entry.Initializer())
+		if (VFunction* Initializer = Entry.Initializer())
 		{
 			OutInitializers.Add(Initializer);
 		}
@@ -338,7 +448,9 @@ void VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data)
 		VConstructor::VEntry& Entry = Constructor->Entries[Index];
 		if (const VUniqueString* FieldName = Entry.Name.Get())
 		{
-			if (!Entry.bDynamic && !(Entry.Value.Get().IsCellOfType<VProcedure>() || Entry.Value.Get().IsCellOfType<VNativeFunction>()))
+			// NOTE: (yiliang.siew) Methods which are already-bound (i.e. with `Self` initialized) are stored in the object,
+			// while unbound methods/functions stay in the shape (since they don't change).
+			if (!Entry.bDynamic && !Entry.IsMethod())
 			{
 				VObject::SetField(Context, Shape, *FieldName, Data, Entry.Value.Get());
 			}
