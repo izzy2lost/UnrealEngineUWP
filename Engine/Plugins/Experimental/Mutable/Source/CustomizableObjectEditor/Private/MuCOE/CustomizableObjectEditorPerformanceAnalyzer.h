@@ -23,7 +23,7 @@ class UCustomizableObjectSystem;
 enum class ECustomizableObjectTextureCompression : uint8;
 
 /**
- * Backend object that represents the update of one instance. Currently only representes the data for the initial geneation of the instance update
+ * Backend object that represents the update of one instance. Currently only represents the data for the initial generation of the instance update
  */
 class FInstanceUpdateDataElement 
 {
@@ -32,7 +32,7 @@ public:
 	TStrongObjectPtr<UCustomizableObjectInstance> Instance = nullptr;
 
 	/** Index to aid in the sorting of the FInstanceUpdateDataElement in the SListView that contains them */
-	uint16 UpdateIndex = 0;
+	uint32 UpdateIndex = 0;
 	
 	/** Container with all the perf data in relation to the instance this object represents */
 	FInstanceUpdateStats UpdateStats;
@@ -52,6 +52,9 @@ private:
 	
 	/** Backend object whose data we are drawing */
 	TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateElement;
+
+	/** Method invoked when the hyperlink showing the name of the instance is clicked */
+	void OnInstanceNameNavigation() const;
 	
 	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& InColumnName) override;
 };
@@ -111,7 +114,6 @@ private:
 	
 	/** ListView methods */
 	TSharedRef<ITableRow> OnGenerateInstanceUpdateRow(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement, const TSharedRef<STableViewBase>& TableViewBase);
-	void OnInstancesRowDoubleClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement);
 	void OnInstanceUpdateListViewSort(EColumnSortPriority::Type ColumnPriority, const FName& ColumnId, EColumnSortMode::Type NewSortMode);
 	EColumnSortMode::Type GetColumnSortMode(FName ColumnName) const;
 

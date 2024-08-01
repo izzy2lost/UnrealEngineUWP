@@ -21,6 +21,7 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SHyperlink.h"
 
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditorPerformanceAnalyzer"
@@ -33,6 +34,8 @@ namespace InstanceUpdatesMainDataColumns
 	static const FName InstanceNameColumnID(TEXT("InstanceName"));
 	static const FName InstanceDescriptorColumnID(TEXT("Descriptor"));
 	static const FName InstanceUpdateResultColumnID(TEXT("UpdateResult"));
+
+	static const FName InstanceTriangleCount(TEXT("TriangleCount"));
 
 	// Initial Gen
 	static const FName QueueTimeColumnID (TEXT("QueueTime"));
@@ -61,6 +64,16 @@ void SInstanceUpdateDataRow::Construct(const FArguments& InArgs, const TSharedRe
 	);
 }
 
+
+void SInstanceUpdateDataRow::OnInstanceNameNavigation() const
+{
+	if (InstanceUpdateElement && InstanceUpdateElement->Instance)
+	{
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(InstanceUpdateElement->Instance.Get());
+	}
+}
+
+
 TSharedRef<SWidget> SInstanceUpdateDataRow::GenerateWidgetForColumn(const FName& InColumnName)
 {
 	if (!InstanceUpdateElement)
@@ -70,13 +83,20 @@ TSharedRef<SWidget> SInstanceUpdateDataRow::GenerateWidgetForColumn(const FName&
 	
 	if (InColumnName == InstanceUpdatesMainDataColumns::InstanceNameColumnID)
 	{
-		return SNew(STextBlock)
-			.Text(FText::FromString(InstanceUpdateElement->Instance->GetName()));
+		return SNew(SHyperlink)
+			.Style(FAppStyle::Get(), TEXT("NavigationHyperlink"))
+			.Text(FText::FromString(InstanceUpdateElement->Instance->GetName()))
+			.OnNavigate(this, &SInstanceUpdateDataRow::OnInstanceNameNavigation);
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceUpdateTypeID)
 	{
 		return SNew(STextBlock)
 			.Text(FText::FromString(InstanceUpdateElement->UpdateStats.UpdateType));
+	}
+	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceTriangleCount)
+	{
+		return SNew(STextBlock)
+			.Text(FText::FromString(FString::Printf(TEXT("%u"),InstanceUpdateElement->UpdateStats.TriangleCount)));
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceDescriptorColumnID)
 	{
@@ -85,8 +105,28 @@ TSharedRef<SWidget> SInstanceUpdateDataRow::GenerateWidgetForColumn(const FName&
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceUpdateResultColumnID)
 	{
+		FSlateColor TextColor;
+		switch (InstanceUpdateElement->UpdateStats.UpdateResult)
+		{
+		case EUpdateResult::Success:
+			TextColor = FSlateColor(FColor(70,207,120));
+			break;
+		case EUpdateResult::Warning:
+			TextColor = FSlateColor(FColor(250,226,7));
+			break;
+		case EUpdateResult::Error:
+		case EUpdateResult::ErrorOptimized:
+		case EUpdateResult::ErrorReplaced:
+		case EUpdateResult::ErrorDiscarded:
+		case EUpdateResult::Error16BitBoneIndex:
+			TextColor = FSlateColor(FColor(197,0,7));
+			break;
+		}
+		
 		return SNew(STextBlock)
-			.Text(UEnum::GetDisplayValueAsText( InstanceUpdateElement->UpdateStats.UpdateResult));
+			  .Text(UEnum::GetDisplayValueAsText( InstanceUpdateElement->UpdateStats.UpdateResult))
+			  .ColorAndOpacity(TextColor);
+		
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::QueueTimeColumnID)
 	{
@@ -256,7 +296,6 @@ void SCustomizableObjectEditorPerformanceAnalyzer::Construct(const FArguments& I
 			SAssignNew(InstanceUpdatesListView,SListView<TSharedPtr<FInstanceUpdateDataElement>>)
 			.ListItemsSource(&InstanceUpdateElements)
 			.OnGenerateRow(this,&SCustomizableObjectEditorPerformanceAnalyzer::OnGenerateInstanceUpdateRow)
-			.OnMouseButtonDoubleClick(this, &SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowDoubleClick)
 			.SelectionMode(ESelectionMode::Single)
 			.IsFocusable(true)
 			.Orientation(Orient_Vertical)
@@ -282,6 +321,15 @@ void SCustomizableObjectEditorPerformanceAnalyzer::Construct(const FArguments& I
 				.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
 				.FillWidth(1)
 
+				+ SHeaderRow::Column(InstanceUpdatesMainDataColumns::InstanceTriangleCount)
+				.DefaultLabel(FText(LOCTEXT("InstanceTriangleCountColumnLabel","Triangle Count")))
+				.DefaultTooltip(FText(LOCTEXT("InstanceTriangleCountColumnToolTip","Customizable Object Instance amount of triangles generated for all Components and all Lods")))
+				.OnSort(this, &SCustomizableObjectEditorPerformanceAnalyzer::OnInstanceUpdateListViewSort)
+				.SortMode(this, &SCustomizableObjectEditorPerformanceAnalyzer::GetColumnSortMode, InstanceUpdatesMainDataColumns::InstanceTriangleCount)
+				.HAlignCell(EHorizontalAlignment::HAlign_Right)
+				.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+				.FillWidth(1)
+				
 				+ SHeaderRow::Column(InstanceUpdatesMainDataColumns::QueueTimeColumnID)
 				.DefaultLabel(FText(LOCTEXT("QueueTimeColumnLabel", "Queue (ms)")))
 				.DefaultTooltip(FText(LOCTEXT("QueueTimeColumnToolTip", "Time spent before starting the update")))
@@ -607,15 +655,6 @@ TSharedRef<ITableRow> SCustomizableObjectEditorPerformanceAnalyzer::OnGenerateIn
 }
 
 
-void SCustomizableObjectEditorPerformanceAnalyzer::OnInstancesRowDoubleClick(TSharedPtr<FInstanceUpdateDataElement> InstanceUpdateDataElement)
-{
-	if (InstanceUpdateDataElement && InstanceUpdateDataElement->Instance)
-	{
-		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(InstanceUpdateDataElement->Instance.Get());
-	}
-}
-
-
 void SCustomizableObjectEditorPerformanceAnalyzer::OnInstanceUpdateListViewSort(EColumnSortPriority::Type ColumnPriority, const FName& ColumnId, EColumnSortMode::Type NewSortMode)
 {
 	CurrentSortColumn = ColumnId;
@@ -656,6 +695,21 @@ void SCustomizableObjectEditorPerformanceAnalyzer::OnInstanceUpdateListViewSort(
 			{
 				const double ValA = ElementA->UpdateStats.QueueTime;
 				const double ValB =  ElementB->UpdateStats.QueueTime;
+
+				return NewSortMode == EColumnSortMode::Ascending ? ValA < ValB : ValA > ValB;
+			}
+
+			return ElementA.IsValid();
+		});
+	}
+	else if (ColumnId == InstanceUpdatesMainDataColumns::InstanceTriangleCount)
+	{
+		InstanceUpdateElements.StableSort([&](const TSharedPtr<FInstanceUpdateDataElement>& ElementA, const TSharedPtr<FInstanceUpdateDataElement>& ElementB)
+		{
+			if (ElementA.IsValid() && ElementB.IsValid())
+			{
+				const uint32 ValA = ElementA->UpdateStats.TriangleCount;
+				const uint32 ValB =  ElementB->UpdateStats.TriangleCount;
 
 				return NewSortMode == EColumnSortMode::Ascending ? ValA < ValB : ValA > ValB;
 			}

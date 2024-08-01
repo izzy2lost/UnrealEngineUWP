@@ -57,7 +57,7 @@ TSharedPtr<FArchive> CreateFile()
 
 	const FString HeaderRow = TEXT(
 		"ID_CO;ID_COI;ID_UpdateType;ID_Descriptor;ID_UpdateResult;"											// Basic identifying data
-		"Context_LevelBegunPlay;"																	// The context of the update
+		"Context_LevelBegunPlay;TriangleCount;"															// The context of the update
 		"Time_Queue;Time_Update;Time_TaskGetMesh;Time_TaskLockCache;"										// Time and memory data ...
 		"Time_TaskGetImages;Time_TaskConvertResources;Time_TaskCallbacks;Memory_Update;Memory_Update_Real;"
 		"Time_TaskUpdateImage;Memory_TaskUpdateImage;Memory_TaskUpdateImage_Real");
@@ -311,6 +311,28 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 	{
 		Archive = CreateFile();
 	}
+
+	// Cache the amount of triangles of this instance
+	uint32 TriangleCount = 0;
+	for (int32 ComponentIndex = 0; ComponentIndex < Instance->GetNumComponents(); ComponentIndex++)
+	{
+		// Process the generated components (not null)
+		if (const USkeletalMesh* InstanceSkeletalMesh = Instance->GetSkeletalMesh(ComponentIndex))
+		{
+			const FSkeletalMeshRenderData* RenderData = InstanceSkeletalMesh->GetResourceForRendering();
+			check(RenderData);
+
+			// Add the amount of triangles for all LODs and all sections
+			for (const FSkeletalMeshLODRenderData& RenderDataObject : RenderData->LODRenderData)
+			{
+				for	(const FSkelMeshRenderSection& Section : RenderDataObject.RenderSections)
+				{
+					TriangleCount += Section.NumTriangles;
+				}
+			}
+		}
+	}
+
 	
 	// Identifying data
 	FInstanceUpdateStats UpdateData;
@@ -320,6 +342,7 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 	UpdateData.Descriptor = Context->GetCapturedDescriptor().ToString();
 	UpdateData.UpdateResult = Context->UpdateResult;
 	UpdateData.bLevelBegunPlay = Context->bLevelBegunPlay;
+	UpdateData.TriangleCount = TriangleCount;
 	UpdateData.QueueTime = Context->QueueTime * 1000;
 	UpdateData.UpdateTime = Context->UpdateTime * 1000;
 	UpdateData.TaskGetMeshTime = Context->TaskGetMeshTime * 1000;
@@ -329,15 +352,16 @@ void FLogBenchmarkUtil::FinishUpdateMesh(const TSharedRef<FUpdateContextPrivate>
 	UpdateData.TaskCallbacksTime = Context->TaskCallbacksTime * 1000;
 	UpdateData.UpdatePeakMemory = (Context->UpdateEndPeakBytes / 1024.0) / 1024.0;
 	UpdateData.UpdateRealPeakMemory = (Context->UpdateEndRealPeakBytes / 1024.0) / 1024.0;
-
+	
 	// todo: Find a better way of handling the construction of this string so we know the symmetry with the header row will not get lost when adding new elements
-	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;%s;%s;%f;%f;%f;%f;%f;%f;%f;%f;%f"),
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;%s;%s;%u;%f;%f;%f;%f;%f;%f;%f;%f;%f"),
 		*UpdateData.CustomizableObjectPathName,
 		*UpdateData.CustomizableObjectInstancePathName,
 		*UpdateData.UpdateType,
 		*UpdateData.Descriptor,
 		*StaticEnum<EUpdateResult>()->GetValueAsString(UpdateData.UpdateResult),
 		(UpdateData.bLevelBegunPlay ? TEXT("true") : TEXT("false")),
+		UpdateData.TriangleCount,
 		UpdateData.QueueTime,
 		UpdateData.UpdateTime,
 		UpdateData.TaskGetMeshTime,
@@ -375,7 +399,7 @@ void FLogBenchmarkUtil::FinishUpdateImage(const FString& CustomizableObjectPathN
 	
 
 	// todo: Find a better way of handling the construction of this string so we know the symmetry with the header row will not get lost when adding new elements
-	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;;%s;;;;;;;;;;%f;%f;%f"),
+	const FString UpdateString = FString::Printf(TEXT("%s;%s;%s;%s;;%s;;;;;;;;;;;%f;%f;%f"),
 		*MipsUpdateData.CustomizableObjectPathName,
 		*MipsUpdateData.CustomizableObjectInstancePathName,
 		*MipsUpdateData.UpdateType,

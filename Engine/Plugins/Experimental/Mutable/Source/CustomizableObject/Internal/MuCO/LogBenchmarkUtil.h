@@ -81,6 +81,8 @@ struct FInstanceUpdateStats
 	EUpdateResult UpdateResult = EUpdateResult::Error;
 
 	bool bLevelBegunPlay = false;
+
+	uint32 TriangleCount = 0;
 	
 	double QueueTime = 0.0;
 	double UpdateTime = 0.0;
