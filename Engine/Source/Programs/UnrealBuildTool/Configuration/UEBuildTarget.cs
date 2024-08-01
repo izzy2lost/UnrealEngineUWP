@@ -3044,7 +3044,7 @@ namespace UnrealBuildTool
 				arguments.AddRange(toStrip.Select(path => $"/S:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
 				arguments.AddRange(otherObjects.Select(path => $"/D:{path.Location.ChangeExtension(".exi")}").OrderBy(x => x));
 
-				FileReference extraObj = FileReference.Combine(IntermediateDirectory, $"{Name}.extra.obj");
+				FileReference extraObj = FileReference.Combine(IntermediateDirectory, $"{Name}.extra.{(CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Microsoft) ? "obj" : "o")}");
 				arguments.Add($"/O:{extraObj}");
 
 				MakefileBuilder.CreateIntermediateTextFile(stripRsp, arguments);
