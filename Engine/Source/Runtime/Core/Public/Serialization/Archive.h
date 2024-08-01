@@ -1583,6 +1583,13 @@ public:
 #endif
 	}
 
+#define SerializeBitfield(Ar, BitField) \
+	{ \
+		bool PREPROCESSOR_JOIN(TempBitfield, __LINE__) = BitField; \
+		Ar.SerializeBits(&PREPROCESSOR_JOIN(TempBitfield, __LINE__), 1); \
+		BitField = PREPROCESSOR_JOIN(TempBitfield, __LINE__); \
+	}
+
 	virtual void SerializeBits(void* V, int64 LengthBits)
 	{
 		Serialize(V, (LengthBits + 7) / 8);
