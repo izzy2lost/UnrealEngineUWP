@@ -148,7 +148,10 @@ namespace UE::VCamCore
 			const FVCamViewportLocker& LockState = VCam->GetViewportLockState();
 			for (UVCamOutputProviderBase* OutputProvider : VCam->GetOutputProviders())
 			{
-				UpdateOwnershipFor(LockState, *OutputProvider);
+				if (OutputProvider)
+				{
+					UpdateOwnershipFor(LockState, *OutputProvider);
+				}
 			}
 		}
 	}
