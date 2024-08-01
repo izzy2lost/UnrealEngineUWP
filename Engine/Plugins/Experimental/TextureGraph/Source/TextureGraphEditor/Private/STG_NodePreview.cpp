@@ -313,53 +313,43 @@ void STG_NodePreviewWidget::NodeDeleted(const UTG_Node* Node)
 
 void STG_NodePreviewWidget::Update() const
 {
-	const UTG_Node* PreviewNode = LockedNode ? LockedNode : SelectedNode;
-	BlobPtr Blob;
-	
-	// Get the Variant if preview node is valid or assign a nullptr if not.
-	const FTG_Variant* Variant = nullptr;
-	TArray<FTG_Variant> OutVariants;
-	TArray<FName>* OutNames = nullptr;
-
-	if(PreviewNode)
-	{
-		PreviewNode->GetAllOutputValues(OutVariants, OutNames);
-
-		if (!OutVariants.IsEmpty())
-		{
-			Variant = &OutVariants[0];
-		}	
-	}
-
 	// Lambda for actually updating the preview.
-	auto UpdatePreview = [this, Variant]
+	auto UpdatePreview = [this]
 	{
-		if(Variant)
+		FTG_Variant Variant;
+		GetOutputVariantFromNode(Variant);
+
+		if(Variant.IsTexture())
 		{
-			if(Variant->IsTexture())
+			if(Variant.GetTexture() && Variant.GetTexture()->IsValid())
 			{
-				NodeViewer->SetTexture(Variant->GetTexture().RasterBlob);
-			}
-			else if(Variant->IsColor())
-			{
-				NodeViewer->SetTexture(nullptr, Variant->GetColor());
+				NodeViewer->SetTexture(Variant.GetTexture().RasterBlob);
 			}
 			else
 			{
-				NodeViewer->SetTexture(nullptr);	
+				NodeViewer->SetTexture(nullptr);
 			}
+		}
+		else if(Variant.IsColor())
+		{
+			NodeViewer->SetTexture(nullptr, Variant.GetColor());
 		}
 		else
 		{
-			NodeViewer->SetTexture(nullptr);
+			NodeViewer->SetTexture(nullptr);	
 		}
 		
 		Viewport->ResetZoom(NodeViewer->GetCurrentImageInfo().Size);
 	};
 
-	if(Variant && Variant->IsTexture())
+	FTG_Variant Variant;
+
+	GetOutputVariantFromNode(Variant);
+	BlobPtr Blob;
+	
+	if(Variant && Variant.IsTexture() && Variant.GetTexture())
 	{
-		Blob = Variant->GetTexture().RasterBlob;
+		Blob = Variant.GetTexture().RasterBlob;
 
 		if(Blob)
 		{
@@ -391,6 +381,28 @@ void STG_NodePreviewWidget::Update() const
 
 	// Update preview blob and trigger related external updates.
 	[[maybe_unused]] bool Result = OnNodeBlobChanged.ExecuteIfBound(Blob);
+}
+
+bool STG_NodePreviewWidget::GetOutputVariantFromNode(FTG_Variant& OutVariant) const
+{
+	const UTG_Node* PreviewNode = LockedNode ? LockedNode : SelectedNode;
+	
+	// Get the Variant if preview node is valid or assign a nullptr if not.
+	TArray<FTG_Variant> OutVariants;
+	TArray<FName>* OutNames = nullptr;
+
+	if(PreviewNode)
+	{
+		PreviewNode->GetAllOutputValues(OutVariants, OutNames);
+
+		if (!OutVariants.IsEmpty())
+		{
+			OutVariant = OutVariants[0];
+			return true;
+		}	
+	}
+
+	return false;
 }
 
 FReply STG_NodePreviewWidget::OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)

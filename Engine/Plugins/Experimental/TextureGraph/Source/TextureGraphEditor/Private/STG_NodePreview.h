@@ -7,6 +7,8 @@
 #include "Data/Blob.h"
 #include "Widgets/SCompoundWidget.h"
 
+struct FTG_Variant;
+
 namespace UE::ImageWidgets
 {
 	class SImageViewport;
@@ -111,6 +113,8 @@ public:
 
 	/** Trigger an update of the node preview after the displayed contents changed. */
 	void Update() const;
+
+	bool GetOutputVariantFromNode(FTG_Variant& OutVariant) const; 
 
 	// SWidget overrides - begin
 	virtual FReply OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;

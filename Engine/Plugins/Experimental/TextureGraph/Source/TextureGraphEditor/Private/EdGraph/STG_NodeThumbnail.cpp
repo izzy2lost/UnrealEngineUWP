@@ -54,8 +54,9 @@ UTexture* STG_NodeThumbnail::GetTextureFromBlob(TiledBlobPtr InBlob)
 	{
 		check(InBlob->IsFinalised());
 		DeviceBufferPtr Buffer = InBlob->GetBufferRef().GetPtr();
-		check(Buffer);
 
+		checkSlow(Buffer);
+		
 		auto FXBuffer = std::static_pointer_cast<DeviceBuffer_FX>(Buffer);
 		// Got the description, now need to retreive the true live buffer and the texture
 		{
