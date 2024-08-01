@@ -199,7 +199,7 @@ void TestMeshSelectorByAttribute(
 		UStaticMesh* StaticMesh = ISMC->GetStaticMesh();
 
 		const FPCGByAttributeValidationData* Entry = ValidationDataEntries.FindByPredicate([StaticMesh](const FPCGByAttributeValidationData& Entry) {
-			return Entry.Mesh == StaticMesh.Get();
+			return Entry.Mesh == StaticMesh;
 			});
 
 		if (Test->TestNotNull("Validate instanced mesh exists in MeshEntries", Entry))
