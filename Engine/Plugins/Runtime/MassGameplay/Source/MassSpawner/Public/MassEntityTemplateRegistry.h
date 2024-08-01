@@ -19,7 +19,12 @@ USTRUCT()
 struct MASSSPAWNER_API FMassMissingTraitMessage
 {
 	GENERATED_BODY()
+
 #if WITH_EDITORONLY_DATA
+	explicit FMassMissingTraitMessage(const UMassEntityTraitBase* InRequestingTrait = nullptr, const UStruct* InMissingType = nullptr)
+		: RequestingTrait(InRequestingTrait), MissingType(InMissingType)
+	{}
+
 	const UMassEntityTraitBase* RequestingTrait = nullptr;
 	const UStruct* MissingType = nullptr;
 #endif // WITH_EDITORONLY_DATA
