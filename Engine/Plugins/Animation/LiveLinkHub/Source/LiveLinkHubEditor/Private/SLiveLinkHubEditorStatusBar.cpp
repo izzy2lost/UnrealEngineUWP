@@ -33,6 +33,16 @@ void SLiveLinkHubEditorStatusBar::Construct(const FArguments& InArgs)
 	LiveLinkClient->OnLiveLinkSourcesChanged().AddRaw(this, &SLiveLinkHubEditorStatusBar::RefreshSubjects);
 	LiveLinkClient->OnLiveLinkSubjectsChanged().AddRaw(this, &SLiveLinkHubEditorStatusBar::RefreshSubjects);
 
+	IModularFeatures::Get().OnModularFeatureUnregistered().AddSPLambda(this,
+		[this](const FName& InFeatureName, IModularFeature* InFeature)
+		{
+			if (InFeature == this->LiveLinkClient)
+			{
+				this->LiveLinkClient = nullptr;
+			}
+		}
+	);
+
 	constexpr bool bLoop = true;
 	if (GEditor && GEditor->IsTimerManagerValid())
 	{
@@ -112,7 +122,7 @@ SLiveLinkHubEditorStatusBar::~SLiveLinkHubEditorStatusBar()
 		HubMessagingModule->OnConnectionEstablished().RemoveAll(this);
 	}
 
-	IModularFeatures::Get().OnModularFeatureRegistered().RemoveAll(this);
+	IModularFeatures::Get().OnModularFeatureUnregistered().RemoveAll(this);
 
 	if (GEditor && GEditor->IsTimerManagerValid())
 	{
@@ -177,7 +187,7 @@ void SLiveLinkHubEditorStatusBar::CheckHubConnection()
 		return;
 	}
 
-	if (LiveLinkClient->IsSourceStillValid(HubSourceId))
+	if (LiveLinkClient && LiveLinkClient->IsSourceStillValid(HubSourceId))
 	{
 		ConnectionState = EHubConnectionState::Valid;
 		return;

@@ -17,7 +17,7 @@
  * @param nShowCmd Specifies how the window is to be shown.
  * @return Application's exit value.
  */
-int32 WINAPI WinMain( HINSTANCE hInInstance, HINSTANCE hPrevInstance, char* lpCmdLine, int32 nShowCmd )
+int32 WINAPI WinMain(_In_ HINSTANCE hInInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ char* lpCmdLine, _In_ int32 nShowCmd)
 {
 	hInstance = hInInstance;
 
@@ -60,5 +60,8 @@ int32 WINAPI WinMain( HINSTANCE hInInstance, HINSTANCE hPrevInstance, char* lpCm
 		}
 #endif
 	}
+
+	FEngineLoop::AppExit();
+
 	return ErrorLevel;
 }

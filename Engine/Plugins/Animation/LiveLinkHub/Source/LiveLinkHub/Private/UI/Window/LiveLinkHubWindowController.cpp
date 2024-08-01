@@ -25,7 +25,15 @@ FLiveLinkHubWindowController::FLiveLinkHubWindowController(const FLiveLinkHubWin
 FLiveLinkHubWindowController::~FLiveLinkHubWindowController()
 {
 	FGlobalTabmanager::Get()->SaveAllVisualState();
+
+	if (RootWindow)
+	{
+		RootWindow->SetOnWindowClosed(nullptr);
+	}
+
+#if IS_PROGRAM
 	FSlateApplication::Shutdown();
+#endif
 }
 
 TSharedRef<SWindow> FLiveLinkHubWindowController::CreateWindow()
@@ -96,7 +104,9 @@ void FLiveLinkHubWindowController::RestoreLayout()
 
 TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApplication()
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeAsStandaloneApplication);
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeSlateApplication);
+
+#if IS_PROGRAM
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
 
 	// @hack This call will silently fail since we're running a commandlet, so pretend like we aren't one for it.
@@ -105,6 +115,7 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 	PRIVATE_GIsRunningCommandlet = false;
 	FSlateApplication::InitHighDPI(true);
 	PRIVATE_GIsRunningCommandlet = bIsRunningCommandlet;
+#endif
 
 	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");
 	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
@@ -128,6 +139,10 @@ void FLiveLinkHubWindowController::OnWindowClosed(const TSharedRef<SWindow>& Win
 {
 	SaveLayout();
 	RootWindow.Reset();
+
+#if !IS_PROGRAM
+	RequestEngineExit(TEXT("FLiveLinkHubWindowController::OnWindowClosed"));
+#endif
 }
 
 void FLiveLinkHubWindowController::SaveLayout() const

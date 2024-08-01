@@ -38,7 +38,11 @@ public:
 		FModuleManager::Get().LoadModule("ProjectSettingsViewer");
 
 		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkEditor");
-		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkHub").StartLiveLinkHub();
+
+		ILiveLinkHubModule& HubModule = FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkHub");
+		HubModule.PreinitializeLiveLinkHub();
+		HubModule.StartLiveLinkHub();
+		HubModule.ShutdownLiveLinkHub();
 
 		return 0;
 	}

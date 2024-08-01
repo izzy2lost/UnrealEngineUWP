@@ -49,6 +49,8 @@ public:
 	//~ End ILiveLinkHub interface
 
 public:
+	/** First phase initialization; must precede FEngineLoop::Init(). */
+	void Preinitialize();
 	/** Launch the slate application and initialize its components. */
 	void Initialize();
 	/** Tick the hub. */

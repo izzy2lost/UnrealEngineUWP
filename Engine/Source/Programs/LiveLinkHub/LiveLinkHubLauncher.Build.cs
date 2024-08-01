@@ -20,6 +20,7 @@ public class LiveLinkHubLauncher : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"ApplicationCore",
+				"AssetRegistry",
 				"Core",
 				"CoreUObject",
 				"DesktopPlatform",
@@ -30,6 +31,8 @@ public class LiveLinkHubLauncher : ModuleRules
 				"Messaging",
 				"MoviePlayer",
 				"MoviePlayerProxy",
+				"ProfileVisualizer",
+				"ProfilerService",
 				"Projects",
 				"PreLoadScreen",
 				"PIEPreviewDeviceProfileSelector",
@@ -52,8 +55,6 @@ public class LiveLinkHubLauncher : ModuleRules
 				"DerivedDataCache",
 				"HeadMountedDisplay", 
 				"MRMesh", 
-				"ProfileVisualizer", 
-				"ProfilerService", 
 				"SlateRHIRenderer", 
 				"SlateNullRenderer",
 			}

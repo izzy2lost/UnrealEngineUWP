@@ -43,6 +43,16 @@ namespace AutomationTool
 			Context.Apply(SC);
 
 			string PlatName = SC.StageTargetPlatform.PlatformType.ToString();
+			string ExeExtension = Platform.GetExeExtension(SC.StageTargetPlatform.PlatformType);
+
+			// Copy Zen binaries
+			SC.FilesToStage.NonUFSFiles.Add(
+				new StagedFileReference($"Engine/Binaries/{PlatName}/zen{ExeExtension}"),
+				new FileReference($"Engine/Binaries/{PlatName}/zen{ExeExtension}"));
+
+			SC.FilesToStage.NonUFSFiles.Add(
+				new StagedFileReference($"Engine/Binaries/{PlatName}/zenserver{ExeExtension}"),
+				new FileReference($"Engine/Binaries/{PlatName}/zenserver{ExeExtension}"));
 
 			// Copy .target receipt to project and engine bin
 			SC.FilesToStage.NonUFSFiles.Add(

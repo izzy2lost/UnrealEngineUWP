@@ -20,16 +20,27 @@
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubModule"
 
+void FLiveLinkHubModule::PreinitializeLiveLinkHub()
+{
+	check(!LiveLinkHub);
+	LiveLinkHub = MakeShared<FLiveLinkHub>();
+	LiveLinkHub->Preinitialize();
+}
+
 void FLiveLinkHubModule::StartLiveLinkHub()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StartLiveLinkHub);
-	// Nothing will get executed after this, so put everything before.
-	LiveLinkHub = MakeShared<FLiveLinkHub>();
+	checkf(LiveLinkHub, TEXT("Ensure PreinitializeLiveLinkHub was called first"));
+
 	LiveLinkHub->Initialize();
 
+#if IS_PROGRAM
 	LiveLinkHubLoop(LiveLinkHub);
+#endif
+}
 
-	// If we got to this point, the app is shutdown so we should release our references.
+void FLiveLinkHubModule::ShutdownLiveLinkHub()
+{
 	LiveLinkHub.Reset();
 }
 
