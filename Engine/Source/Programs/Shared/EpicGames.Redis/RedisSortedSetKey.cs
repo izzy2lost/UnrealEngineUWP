@@ -12,19 +12,13 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis sorted set with a given key
 	/// </summary>
 	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public record struct RedisSortedSetKey<TElement>(RedisKey Inner)
+	public record struct RedisSortedSetKey<TElement>(RedisKey Inner) : IRedisTypedKey
 	{
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
 		/// <param name="key">Key to convert</param>
 		public static implicit operator RedisSortedSetKey<TElement>(string key) => new RedisSortedSetKey<TElement>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to untyped redis keys.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator TypedRedisKey(RedisSortedSetKey<TElement> key) => key.Inner;
 	}
 
 	/// <summary>
@@ -91,39 +85,39 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.SortedSetContains(RedisKey, RedisValue)"/>
-		public static Condition Contains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
+		public static Condition SortedSetContains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
 			=> Condition.SortedSetContains(key.Inner, RedisSerializer.Serialize(value));
 
 		/// <inheritdoc cref="Condition.SortedSetEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
+		public static Condition SortedSetEqual<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
 			=> Condition.SortedSetEqual(key.Inner, RedisSerializer.Serialize(value), score);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisSortedSetKey<TElement> key, long length)
+		public static Condition SortedSetLengthEqual<TElement>(this RedisSortedSetKey<TElement> key, long length)
 			=> Condition.SortedSetLengthEqual(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
+		public static Condition SortedSetLengthGreaterThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
 			=> Condition.SortedSetLengthGreaterThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
+		public static Condition SortedSetLengthLessThan<TElement>(this RedisSortedSetKey<TElement> key, long length)
 			=> Condition.SortedSetLengthLessThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SortedSetNotContains(RedisKey, RedisValue)"/>
-		public static Condition NotContains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
+		public static Condition SortedSetNotContains<TElement>(this RedisSortedSetKey<TElement> key, TElement value)
 			=> Condition.SortedSetNotContains(key.Inner, RedisSerializer.Serialize(value));
 
 		/// <inheritdoc cref="Condition.SortedSetNotEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
+		public static Condition SortedSetNotEqual<TElement>(this RedisSortedSetKey<TElement> key, TElement value, RedisValue score)
 			=> Condition.SortedSetNotEqual(key.Inner, RedisSerializer.Serialize(value), score);
 
 		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue)"/>
-		public static Condition ScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score)
+		public static Condition SortedSetScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score)
 			=> Condition.SortedSetScoreExists(key.Inner, score);
 
 		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition ScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score, RedisValue count)
+		public static Condition SortedSetScoreExists<TElement>(this RedisSortedSetKey<TElement> key, RedisValue score, RedisValue count)
 			=> Condition.SortedSetScoreExists(key.Inner, score, count);
 
 		#endregion

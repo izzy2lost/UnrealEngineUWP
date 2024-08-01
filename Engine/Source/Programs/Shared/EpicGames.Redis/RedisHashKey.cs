@@ -13,19 +13,13 @@ namespace EpicGames.Redis
 	/// Represents a redis hash key, with members corresponding to the property names of a type
 	/// </summary>
 	/// <typeparam name="T">Type of the hash fields</typeparam>
-	public record struct RedisHashKey<T>(RedisKey Inner)
+	public record struct RedisHashKey<T>(RedisKey Inner) : IRedisTypedKey
 	{
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
 		/// <param name="key">Key to convert</param>
 		public static implicit operator RedisHashKey<T>(string key) => new RedisHashKey<T>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to untyped redis keys.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator TypedRedisKey(RedisHashKey<T> key) => new TypedRedisKey(key.Inner);
 	}
 
 	/// <summary>
@@ -33,19 +27,13 @@ namespace EpicGames.Redis
 	/// </summary>
 	/// <typeparam name="TName">Type of the hash key</typeparam>
 	/// <typeparam name="TValue">Type of the hash value</typeparam>
-	public record struct RedisHashKey<TName, TValue>(RedisKey Inner)
+	public record struct RedisHashKey<TName, TValue>(RedisKey Inner) : IRedisTypedKey
 	{
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
 		/// <param name="key">Key to convert</param>
 		public static implicit operator RedisHashKey<TName, TValue>(string key) => new RedisHashKey<TName, TValue>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to untyped redis keys.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator TypedRedisKey(RedisHashKey<TName, TValue> key) => new TypedRedisKey(key.Inner);
 	}
 
 	/// <inheritdoc cref="HashEntry"/>
@@ -107,59 +95,59 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
+		public static Condition HashEqual<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return Condition.HashEqual(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value));
 		}
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
+		public static Condition HashEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
 			=> Condition.HashEqual(key.Inner, RedisSerializer.Serialize(name), RedisSerializer.Serialize(value));
 
 		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
-		public static Condition Exists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
+		public static Condition HashExists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return Condition.HashExists(key.Inner, memberExpression.Member.Name);
 		}
 
 		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
-		public static Condition Exists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
+		public static Condition HashExists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
 			=> Condition.HashExists(key.Inner, RedisSerializer.Serialize(name));
 
 		/// <inheritdoc cref="Condition.HashLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+		public static Condition HashLengthEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
 			=> Condition.HashLengthEqual(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.HashLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+		public static Condition HashLengthGreaterThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
 			=> Condition.HashLengthGreaterThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.HashLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
+		public static Condition HashLengthLessThan<TName, TValue>(this RedisHashKey<TName, TValue> key, long length)
 			=> Condition.HashLengthLessThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
-		public static Condition NotExists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
+		public static Condition HashNotExists<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return Condition.HashNotExists(key.Inner, memberExpression.Member.Name);
 		}
 
 		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
-		public static Condition NotExists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
+		public static Condition HashNotExists<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name)
 			=> Condition.HashNotExists(key.Inner, RedisSerializer.Serialize(name));
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
+		public static Condition HashNotEqual<TRecord, TValue>(this RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return Condition.HashNotEqual(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value));
 		}
 
 		/// <inheritdoc cref="Condition.HashNotEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
+		public static Condition HashNotEqual<TName, TValue>(this RedisHashKey<TName, TValue> key, TName name, TValue value)
 			=> Condition.HashNotEqual(key.Inner, RedisSerializer.Serialize(name), RedisSerializer.Serialize(value));
 
 		#endregion
@@ -304,7 +292,7 @@ namespace EpicGames.Redis
 		#region HashLengthAsync
 
 		/// <inheritdoc cref="IDatabaseAsync.HashLengthAsync(RedisKey, CommandFlags)"/>
-		public static Task<long> HashLengthAsync(this IDatabaseAsync target, TypedRedisKey key, CommandFlags flags = CommandFlags.None)
+		public static Task<long> HashLengthAsync<TName, TValue>(this IDatabaseAsync target, RedisHashKey<TName, TValue> key, CommandFlags flags = CommandFlags.None)
 		{
 			return target.HashLengthAsync(key, flags);
 		}

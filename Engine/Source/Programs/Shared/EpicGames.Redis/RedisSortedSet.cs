@@ -20,40 +20,40 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.SortedSetContains(RedisKey, RedisValue)"/>
-		public static Condition Contains<TElement>(this RedisSortedSet<TElement> target, TElement value)
-			=> target.Key.Contains(value);
+		public static Condition SortedSetContains<TElement>(this RedisSortedSet<TElement> target, TElement value)
+			=> target.Key.SortedSetContains(value);
 
 		/// <inheritdoc cref="Condition.SortedSetEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TElement>(this RedisSortedSet<TElement> target, TElement value, RedisValue score)
-			=> target.Key.Equal(value, score);
+		public static Condition SortedSetEqual<TElement>(this RedisSortedSet<TElement> target, TElement value, RedisValue score)
+			=> target.Key.SortedSetEqual(value, score);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisSortedSet<TElement> target, long length)
-			=> target.Key.LengthLessThan(length);
+		public static Condition SortedSetLengthEqual<TElement>(this RedisSortedSet<TElement> target, long length)
+			=> target.Key.SortedSetLengthLessThan(length);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisSortedSet<TElement> target, long length)
-			=> target.Key.LengthGreaterThan(length);
+		public static Condition SortedSetLengthGreaterThan<TElement>(this RedisSortedSet<TElement> target, long length)
+			=> target.Key.SortedSetLengthGreaterThan(length);
 
 		/// <inheritdoc cref="Condition.SortedSetLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisSortedSet<TElement> target, long length)
-			=> target.Key.LengthLessThan(length);
+		public static Condition SortedSetLengthLessThan<TElement>(this RedisSortedSet<TElement> target, long length)
+			=> target.Key.SortedSetLengthLessThan(length);
 
 		/// <inheritdoc cref="Condition.SortedSetNotContains(RedisKey, RedisValue)"/>
-		public static Condition NotContains<TElement>(this RedisSortedSet<TElement> target, TElement value)
-			=> target.Key.NotContains(value);
+		public static Condition SortedSetNotContains<TElement>(this RedisSortedSet<TElement> target, TElement value)
+			=> target.Key.SortedSetNotContains(value);
 
 		/// <inheritdoc cref="Condition.SortedSetNotEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TElement>(this RedisSortedSet<TElement> target, TElement value, RedisValue score)
-			=> target.Key.NotEqual(value, score);
+		public static Condition SortedSetNotEqual<TElement>(this RedisSortedSet<TElement> target, TElement value, RedisValue score)
+			=> target.Key.SortedSetNotEqual(value, score);
 
 		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue)"/>
-		public static Condition ScoreExists<TElement>(this RedisSortedSet<TElement> target, RedisValue score)
-			=> target.Key.ScoreExists(score);
+		public static Condition SortedSetScoreExists<TElement>(this RedisSortedSet<TElement> target, RedisValue score)
+			=> target.Key.SortedSetScoreExists(score);
 
 		/// <inheritdoc cref="Condition.SortedSetScoreExists(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition ScoreExists<TElement>(this RedisSortedSet<TElement> target, RedisValue score, RedisValue count)
-			=> target.Key.ScoreExists(score, count);
+		public static Condition SortedSetScoreExists<TElement>(this RedisSortedSet<TElement> target, RedisValue score, RedisValue count)
+			=> target.Key.SortedSetScoreExists(score, count);
 
 		#endregion
 

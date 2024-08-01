@@ -21,24 +21,24 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
-		public static Condition Contains<TElement>(this RedisSet<TElement> target, TElement value)
-			=> target.Key.Contains(value);
+		public static Condition SetContains<TElement>(this RedisSet<TElement> target, TElement value)
+			=> target.Key.SetContains(value);
 
 		/// <inheritdoc cref="Condition.SetLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisSet<TElement> target, long length)
-			=> target.Key.LengthEqual(length);
+		public static Condition SetLengthEqual<TElement>(this RedisSet<TElement> target, long length)
+			=> target.Key.SetLengthEqual(length);
 
 		/// <inheritdoc cref="Condition.SetLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisSet<TElement> target, long length)
-			=> target.Key.LengthGreaterThan(length);
+		public static Condition SetLengthGreaterThan<TElement>(this RedisSet<TElement> target, long length)
+			=> target.Key.SetLengthGreaterThan(length);
 
 		/// <inheritdoc cref="Condition.SetLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisSet<TElement> target, long length)
-			=> target.LengthLessThan(length);
+		public static Condition SetLengthLessThan<TElement>(this RedisSet<TElement> target, long length)
+			=> target.Key.SetLengthLessThan(length);
 
-		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
-		public static Condition NotContains<TElement>(this RedisSet<TElement> target, TElement value)
-			=> target.NotContains(value);
+		/// <inheritdoc cref="Condition.SetNotContains(RedisKey, RedisValue)"/>
+		public static Condition SetNotContains<TElement>(this RedisSet<TElement> target, TElement value)
+			=> target.Key.SetNotContains(value);
 
 		#endregion
 

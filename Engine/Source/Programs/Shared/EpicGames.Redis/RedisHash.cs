@@ -26,48 +26,48 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector, TValue value)
-			=> target.Key.Equal(selector, value);
+		public static Condition HashEqual<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector, TValue value)
+			=> target.Key.HashEqual(selector, value);
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition Equal<TName, TValue>(this RedisHash<TName, TValue> target, TName name, TValue value)
-			=> target.Key.Equal(name, value);
+		public static Condition HashEqual<TName, TValue>(this RedisHash<TName, TValue> target, TName name, TValue value)
+			=> target.Key.HashEqual(name, value);
 
 		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
-		public static Condition Exists<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector)
-			=> target.Key.Exists(selector);
+		public static Condition HashExists<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector)
+			=> target.Key.HashExists(selector);
 
 		/// <inheritdoc cref="Condition.HashExists(RedisKey, RedisValue)"/>
-		public static Condition Exists<TName, TValue>(this RedisHash<TName, TValue> target, TName name)
-			=> target.Key.Exists(name);
+		public static Condition HashExists<TName, TValue>(this RedisHash<TName, TValue> target, TName name)
+			=> target.Key.HashExists(name);
 
 		/// <inheritdoc cref="Condition.HashLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TName, TValue>(this RedisHash<TName, TValue> target, long length)
-			=> target.Key.LengthEqual(length);
+		public static Condition HashLengthEqual<TName, TValue>(this RedisHash<TName, TValue> target, long length)
+			=> target.Key.HashLengthEqual(length);
 
 		/// <inheritdoc cref="Condition.HashLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TName, TValue>(this RedisHash<TName, TValue> target, long length)
-			=> target.Key.LengthGreaterThan(length);
+		public static Condition HashLengthGreaterThan<TName, TValue>(this RedisHash<TName, TValue> target, long length)
+			=> target.Key.HashLengthGreaterThan(length);
 
 		/// <inheritdoc cref="Condition.HashLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TName, TValue>(this RedisHash<TName, TValue> target, long length)
-			=> target.Key.LengthLessThan(length);
+		public static Condition HashLengthLessThan<TName, TValue>(this RedisHash<TName, TValue> target, long length)
+			=> target.Key.HashLengthLessThan(length);
 
 		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
-		public static Condition NotExists<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector)
-			=> target.Key.NotExists(selector);
+		public static Condition HashNotExists<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector)
+			=> target.Key.HashNotExists(selector);
 
 		/// <inheritdoc cref="Condition.HashNotExists(RedisKey, RedisValue)"/>
-		public static Condition NotExists<TName, TValue>(this RedisHash<TName, TValue> target, TName name)
-			=> target.Key.NotExists(name);
+		public static Condition HashNotExists<TName, TValue>(this RedisHash<TName, TValue> target, TName name)
+			=> target.Key.HashNotExists(name);
 
 		/// <inheritdoc cref="Condition.HashEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector, TValue value)
-			=> target.Key.NotEqual(selector, value);
+		public static Condition HashNotEqual<TRecord, TValue>(this RedisHash<TRecord> target, Expression<Func<TRecord, TValue>> selector, TValue value)
+			=> target.Key.HashNotEqual(selector, value);
 
 		/// <inheritdoc cref="Condition.HashNotEqual(RedisKey, RedisValue, RedisValue)"/>
-		public static Condition NotEqual<TName, TValue>(this RedisHash<TName, TValue> target, TName name, TValue value)
-			=> target.Key.NotEqual(name, value);
+		public static Condition HashNotEqual<TName, TValue>(this RedisHash<TName, TValue> target, TName name, TValue value)
+			=> target.Key.HashNotEqual(name, value);
 
 		#endregion
 

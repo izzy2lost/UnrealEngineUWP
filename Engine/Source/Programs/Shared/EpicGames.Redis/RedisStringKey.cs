@@ -12,19 +12,13 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis string with a given value type
 	/// </summary>
 	/// <typeparam name="TValue">The type of element stored in the list</typeparam>
-	public record struct RedisStringKey<TValue>(RedisKey Inner)
+	public record struct RedisStringKey<TValue>(RedisKey Inner) : IRedisTypedKey
 	{
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
 		/// <param name="key">Key to convert</param>
 		public static implicit operator RedisStringKey<TValue>(string key) => new RedisStringKey<TValue>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to a regular RedisKey
-		/// </summary>
-		/// <param name="key">The key to convert</param>
-		public static implicit operator TypedRedisKey(RedisStringKey<TValue> key) => key.Inner;
 	}
 
 	/// <summary>
@@ -35,23 +29,23 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.StringEqual(RedisKey, RedisValue)"/>
-		public static Condition Equal<TElement>(this RedisStringKey<TElement> key, TElement value)
+		public static Condition StringEqual<TElement>(this RedisStringKey<TElement> key, TElement value)
 			=> Condition.StringEqual(key.Inner, RedisSerializer.Serialize(value));
 
 		/// <inheritdoc cref="Condition.StringLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisStringKey<TElement> key, long length)
+		public static Condition StringLengthEqual<TElement>(this RedisStringKey<TElement> key, long length)
 			=> Condition.StringLengthEqual(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.StringLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisStringKey<TElement> key, long length)
+		public static Condition StringLengthGreaterThan<TElement>(this RedisStringKey<TElement> key, long length)
 			=> Condition.StringLengthGreaterThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.StringLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisStringKey<TElement> key, long length)
+		public static Condition StringLengthLessThan<TElement>(this RedisStringKey<TElement> key, long length)
 			=> Condition.StringLengthLessThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.StringNotEqual(RedisKey, RedisValue)"/>
-		public static Condition NotEqual<TElement>(this RedisStringKey<TElement> key, TElement value)
+		public static Condition StringNotEqual<TElement>(this RedisStringKey<TElement> key, TElement value)
 			=> Condition.StringNotEqual(key.Inner, RedisSerializer.Serialize(value));
 
 		#endregion

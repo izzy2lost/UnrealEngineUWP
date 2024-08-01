@@ -20,32 +20,32 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.ListIndexEqual(RedisKey, Int64, RedisValue)"/>
-		public static Condition IndexEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
-			=> target.Key.IndexEqual(index, value);
+		public static Condition ListIndexEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
+			=> target.Key.ListIndexEqual(index, value);
 
 		/// <inheritdoc cref="Condition.ListIndexExists(RedisKey, Int64)"/>
-		public static Condition IndexExists<TElement>(this RedisList<TElement> target, long index)
-			=> target.Key.IndexExists(index);
+		public static Condition ListIndexExists<TElement>(this RedisList<TElement> target, long index)
+			=> target.Key.ListIndexExists(index);
 
 		/// <inheritdoc cref="Condition.ListIndexNotEqual(RedisKey, Int64, RedisValue)"/>
-		public static Condition IndexNotEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
-			=> target.Key.IndexNotEqual(index, value);
+		public static Condition ListIndexNotEqual<TElement>(this RedisList<TElement> target, long index, TElement value)
+			=> target.Key.ListIndexNotEqual(index, value);
 
 		/// <inheritdoc cref="Condition.ListIndexNotExists(RedisKey, Int64)"/>
-		public static Condition IndexNotExists<TElement>(this RedisList<TElement> target, long index)
-			=> target.Key.IndexNotExists(index);
+		public static Condition ListIndexNotExists<TElement>(this RedisList<TElement> target, long index)
+			=> target.Key.ListIndexNotExists(index);
 
 		/// <inheritdoc cref="Condition.ListLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisList<TElement> target, long length)
-			=> target.LengthEqual(length);
+		public static Condition ListLengthEqual<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthEqual(length);
 
 		/// <inheritdoc cref="Condition.ListLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisList<TElement> target, long length)
-			=> target.LengthGreaterThan(length);
+		public static Condition ListLengthGreaterThan<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthGreaterThan(length);
 
 		/// <inheritdoc cref="Condition.ListLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisList<TElement> target, long length)
-			=> target.LengthLessThan(length);
+		public static Condition ListLengthLessThan<TElement>(this RedisList<TElement> target, long length)
+			=> target.Key.ListLengthLessThan(length);
 
 		#endregion
 

@@ -11,19 +11,13 @@ namespace EpicGames.Redis
 	/// Represents a typed Redis set with a given key
 	/// </summary>
 	/// <typeparam name="TElement">The type of element stored in the set</typeparam>
-	public record struct RedisSetKey<TElement>(RedisKey Inner)
+	public record struct RedisSetKey<TElement>(RedisKey Inner) : IRedisTypedKey
 	{
 		/// <summary>
 		/// Implicit conversion to typed redis key.
 		/// </summary>
 		/// <param name="key">Key to convert</param>
 		public static implicit operator RedisSetKey<TElement>(string key) => new RedisSetKey<TElement>(new RedisKey(key));
-
-		/// <summary>
-		/// Implicit conversion to untyped redis keys.
-		/// </summary>
-		/// <param name="key">Key to convert</param>
-		public static implicit operator TypedRedisKey(RedisSetKey<TElement> key) => key.Inner;
 	}
 
 	/// <summary>
@@ -34,23 +28,23 @@ namespace EpicGames.Redis
 		#region Conditions
 
 		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
-		public static Condition Contains<TElement>(this RedisSetKey<TElement> key, TElement value)
+		public static Condition SetContains<TElement>(this RedisSetKey<TElement> key, TElement value)
 			=> Condition.SetContains(key.Inner, RedisSerializer.Serialize(value));
 
 		/// <inheritdoc cref="Condition.SetLengthEqual(RedisKey, Int64)"/>
-		public static Condition LengthEqual<TElement>(this RedisSetKey<TElement> key, long length)
+		public static Condition SetLengthEqual<TElement>(this RedisSetKey<TElement> key, long length)
 			=> Condition.SetLengthEqual(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SetLengthGreaterThan(RedisKey, Int64)"/>
-		public static Condition LengthGreaterThan<TElement>(this RedisSetKey<TElement> key, long length)
+		public static Condition SetLengthGreaterThan<TElement>(this RedisSetKey<TElement> key, long length)
 			=> Condition.SetLengthGreaterThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SetLengthLessThan(RedisKey, Int64)"/>
-		public static Condition LengthLessThan<TElement>(this RedisSetKey<TElement> key, long length)
+		public static Condition SetLengthLessThan<TElement>(this RedisSetKey<TElement> key, long length)
 			=> Condition.SetLengthLessThan(key.Inner, length);
 
 		/// <inheritdoc cref="Condition.SetContains(RedisKey, RedisValue)"/>
-		public static Condition NotContains<TElement>(this RedisSetKey<TElement> key, TElement value)
+		public static Condition SetNotContains<TElement>(this RedisSetKey<TElement> key, TElement value)
 			=> Condition.SetNotContains(key.Inner, RedisSerializer.Serialize(value));
 
 		#endregion
