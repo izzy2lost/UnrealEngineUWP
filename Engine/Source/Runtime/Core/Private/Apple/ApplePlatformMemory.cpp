@@ -471,6 +471,7 @@ const FPlatformMemoryConstants& FApplePlatformMemory::GetConstants()
 		// actual physical memory. To work around this, we add 1Gb - 1b so it will be truncated 
 		// correctly and will not affect macOS
 		MemoryConstants.TotalPhysicalGB = ([NSProcessInfo processInfo].physicalMemory + (1024*1024*1024 - 1)) / 1024 / 1024 / 1024;
+		MemoryConstants.AddressLimit = FPlatformMath::RoundUpToPowerOfTwo64(MemoryConstants.TotalPhysical);
 
 		// Calculate total and available Virtual Memory
 		mach_port_t HostPort = mach_host_self();
