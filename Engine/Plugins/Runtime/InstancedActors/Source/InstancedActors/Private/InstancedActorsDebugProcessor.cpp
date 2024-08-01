@@ -312,4 +312,8 @@ void UInstancedActorsDebugProcessor::ConfigureQueries()
 {
 }
 
+void UInstancedActorsDebugProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
+{
+}
+
 #endif // WITH_INSTANCEDACTORS_DEBUG

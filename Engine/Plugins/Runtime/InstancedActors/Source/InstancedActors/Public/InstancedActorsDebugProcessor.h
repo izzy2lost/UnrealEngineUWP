@@ -5,8 +5,8 @@
 #include "InstancedActorsDebug.h"
 #if WITH_INSTANCEDACTORS_DEBUG
 #include "MassEntityQuery.h"
-#include "MassProcessor.h"
 #endif // WITH_INSTANCEDACTORS_DEBUG
+#include "MassProcessor.h"
 #include "InstancedActorsDebugProcessor.generated.h"
 
 
@@ -20,9 +20,9 @@ protected:
 
 	virtual void ConfigureQueries() override;
 
-#if WITH_INSTANCEDACTORS_DEBUG
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
+#if WITH_INSTANCEDACTORS_DEBUG
 	/**
 	 *  The query used when drawing instanced actors at Detailed batch LOD 
 	 *  (see UE::InstancedActors::Debug::bDebugDrawDetailedCurrentRepresentation)
