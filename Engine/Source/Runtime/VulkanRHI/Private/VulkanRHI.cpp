@@ -1603,7 +1603,7 @@ uint64 FVulkanDynamicRHI::RHIGetMinimumAlignmentForBufferBackedSRV(EPixelFormat 
 	return Limits.minTexelBufferOffsetAlignment;
 }
 
-FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
+FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding, const FVulkanRHIExternalImageDeleteCallbackInfo& ExternalImageDeleteCallbackInfo)
 {
 	const FRHITextureCreateDesc Desc =
 		FRHITextureCreateDesc::Create2D(TEXT("VulkanTexture2DFromResource"), SizeX, SizeY, Format)
@@ -1613,7 +1613,7 @@ FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DFromResource(EPixelFormat Fo
 		.SetNumSamples(NumSamples)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, ExternalImageDeleteCallbackInfo);
 }
 
 FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPixelFormat Format, uint32 SizeX, uint32 SizeY, uint32 ArraySize, uint32 NumMips, uint32 NumSamples, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
@@ -1626,7 +1626,7 @@ FTextureRHIRef FVulkanDynamicRHI::RHICreateTexture2DArrayFromResource(EPixelForm
 		.SetNumSamples(NumSamples)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, {});
 }
 
 FTextureRHIRef FVulkanDynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat Format, uint32 Size, bool bArray, uint32 ArraySize, uint32 NumMips, VkImage Resource, ETextureCreateFlags Flags, const FClearValueBinding& ClearValueBinding)
@@ -1641,7 +1641,7 @@ FTextureRHIRef FVulkanDynamicRHI::RHICreateTextureCubeFromResource(EPixelFormat 
 		.SetNumMips(NumMips)
 		.DetermineInititialState();
 
-	return new FVulkanTexture(*Device, Desc, Resource, false);
+	return new FVulkanTexture(*Device, Desc, Resource, {});
 }
 
 void FVulkanDynamicRHI::RHIAliasTextureResources(FTextureRHIRef& DestTextureRHI, FTextureRHIRef& SrcTextureRHI)

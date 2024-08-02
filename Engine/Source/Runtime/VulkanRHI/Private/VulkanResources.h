@@ -15,6 +15,7 @@
 #include "VulkanShaderResources.h"
 #include "VulkanMemory.h"
 #include "Misc/ScopeRWLock.h"
+#include "IVulkanDynamicRHI.h"
 
 class FVulkanDevice;
 class FVulkanQueue;
@@ -563,7 +564,7 @@ public:
 
 	// Construct from external resource.
 	// FIXME: HUGE HACK: the bUnused argument is there to disambiguate this overload from the one above when passing nullptr, since nullptr is a valid VkImage. Get rid of this code smell when unifying FVulkanSurface and FVulkanTexture.
-	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, VkImage InImage, bool bUnused);
+	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, VkImage InImage, const FVulkanRHIExternalImageDeleteCallbackInfo& InExternalImageDeleteCallbackInfo);
 
 	// Aliasing constructor.
 	FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, FTextureRHIRef& SrcTextureRHI);
@@ -730,6 +731,8 @@ public:
 	VkFormat ViewFormat;  // Format for SRVs, render targets
 	VkMemoryPropertyFlags MemProps;
 	VkMemoryRequirements MemoryRequirements;
+
+	FVulkanRHIExternalImageDeleteCallbackInfo ExternalImageDeleteCallbackInfo;
 
 private:
 	void SetInitialImageState(FVulkanCommandListContext& Context, VkImageLayout InitialLayout, bool bClear, const FClearValueBinding& ClearValueBinding, bool bIsTransientResource);

@@ -734,6 +734,10 @@ void FVulkanTexture::DestroySurface()
 		else
 		{
 			Image = VK_NULL_HANDLE;
+			if (ExternalImageDeleteCallbackInfo.Function)
+			{
+				ExternalImageDeleteCallbackInfo.Function(ExternalImageDeleteCallbackInfo.UserData);
+			}
 		}
 
 		ImageOwnerType = EImageOwnerType::None;
@@ -1755,7 +1759,7 @@ FVulkanTexture::FVulkanTexture(FRHICommandListBase* RHICmdList, FVulkanDevice& I
 	}
 }
 
-FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, VkImage InImage, bool /*bUnused*/)
+FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateDesc& InCreateDesc, VkImage InImage, const FVulkanRHIExternalImageDeleteCallbackInfo& InExternalImageDeleteCallbackInfo)
 	: FRHITexture(InCreateDesc)
 	, Device(&InDevice)
 	, Image(InImage)
@@ -1763,6 +1767,7 @@ FVulkanTexture::FVulkanTexture(FVulkanDevice& InDevice, const FRHITextureCreateD
 	, StorageFormat(VK_FORMAT_UNDEFINED)
 	, ViewFormat(VK_FORMAT_UNDEFINED)
 	, MemProps(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+	, ExternalImageDeleteCallbackInfo(InExternalImageDeleteCallbackInfo)
 	, Tiling(VK_IMAGE_TILING_MAX_ENUM)	// Can be expanded to a per-platform definition
 	, FullAspectMask(0)
 	, PartialAspectMask(0)
