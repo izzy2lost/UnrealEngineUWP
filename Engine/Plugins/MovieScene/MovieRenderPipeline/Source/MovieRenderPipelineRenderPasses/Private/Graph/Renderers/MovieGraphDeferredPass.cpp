@@ -77,11 +77,10 @@ void FMovieGraphDeferredPass::GatherOutputPasses(UMovieGraphEvaluatedConfig* InC
 		{
 			if (AdditionalPass.bEnabled)
 			{
-				UMaterialInterface* Material = AdditionalPass.Material.LoadSynchronous();
-				if (Material)
+				if (const UMaterialInterface* Material = AdditionalPass.Material.LoadSynchronous())
 				{
 					FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
-					Identifier.SubResourceName = Material->GetName();
+					Identifier.SubResourceName = AdditionalPass.Name.IsEmpty() ? Material->GetName() : AdditionalPass.Name;
 					OutExpectedPasses.Add(Identifier);
 				}
 			}
@@ -279,41 +278,34 @@ void FMovieGraphDeferredPass::Render(const FMovieGraphTraversalContext& InFrameT
 
 			for (const FMoviePipelinePostProcessPass& PostProcessPass : ParentNode->GetAdditionalPostProcessMaterials())
 			{
-				if (PostProcessPass.bEnabled)
+				UMaterialInterface* Material = PostProcessPass.Material.LoadSynchronous();
+				
+				if (!PostProcessPass.bEnabled || !Material)
 				{
-					UMaterialInterface* Material = PostProcessPass.Material.LoadSynchronous();
-					if (Material)
-					{
-						NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
-						
-						if (PostProcessPass.bHighPrecisionOutput)
-						{
-							HighPrecisionMaterials.Add(Material);
-						}
-					}
+					continue;
 				}
-			}
-
-			for (UMaterialInterface* VisMaterial : NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials)
-			{
+				
 				auto BufferPipe = MakeShared<FImagePixelPipe, ESPMode::ThreadSafe>();
-
-				if (HighPrecisionMaterials.Contains(VisMaterial))
+				
+				NewView->FinalPostProcessSettings.BufferVisualizationOverviewMaterials.Add(Material);
+				
+				if (PostProcessPass.bHighPrecisionOutput)
 				{
+					HighPrecisionMaterials.Add(Material);
 					BufferPipe->bIsExpecting32BitPixelData = true;
 				}
 				
 				FMovieGraphRenderDataIdentifier Identifier = RenderDataIdentifier;
-				Identifier.SubResourceName = VisMaterial->GetName();
+				Identifier.SubResourceName = PostProcessPass.Name.IsEmpty() ? Material->GetName() : PostProcessPass.Name;
 				
-				UE::MovieGraph::FMovieGraphSampleState PassSampleState = SampleState;
+				FMovieGraphSampleState PassSampleState = SampleState;
 				PassSampleState.TraversalContext.RenderDataIdentifier = Identifier;
 				
 				// Give a lower priority to materials so they show up after the main pass in multi-layer exrs.
 				PassSampleState.CompositingSortOrder = SampleState.CompositingSortOrder + 1;
 				BufferPipe->AddEndpoint(MakeForwardingEndpoint(PassSampleState, InTimeData));
 
-				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(VisMaterial->GetFName(), BufferPipe);
+				NewView->FinalPostProcessSettings.BufferVisualizationPipes.Add(Material->GetFName(), BufferPipe);
 			}
 		}
 

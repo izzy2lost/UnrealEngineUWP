@@ -22,6 +22,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
 	bool bEnabled = false;
 
+	/**
+	 * An optional name which which will be used as the {renderer_sub_name} file name format token for this material. If a name is not specified here,
+	 * the name of the material will be used for {renderer_sub_name}.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+	FString Name;
+
 	/** 
 	* Material should be set to Post Process domain, and Blendable Location = After Tonemapping. 
 	* This will need bDisableMultisampleEffects enabled for pixels to line up(ie : no DoF, MotionBlur, TAA)
