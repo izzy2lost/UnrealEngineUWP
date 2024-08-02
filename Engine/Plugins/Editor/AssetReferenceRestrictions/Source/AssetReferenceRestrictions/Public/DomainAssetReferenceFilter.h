@@ -23,7 +23,10 @@ public:
 	// Update any cached information for all filters
 	static void UpdateAllFilters();
 private:
+	using FAssetDataInfo = TTuple<FAssetData, TSharedPtr<FDomainData>>;
+
 	bool PassesFilterImpl(const FAssetData& AssetData, FText& OutOptionalFailureReason) const;
+	bool IsCrossPluginReferenceAllowed(const FAssetDataInfo& ReferencingAssetDataInfo, const FAssetDataInfo& ReferencedAssetDataInfo) const;
 
 	void DetermineReferencingDomain();
 
@@ -36,7 +39,7 @@ private:
 	TSharedPtr<FDomainDatabase> DomainDB;
 
 	TArray<FAssetReferenceFilterReferencerInfo> OriginalReferencingAssets;
-	TSet<TSharedPtr<FDomainData>> ReferencingDomains;
+	TSet<FAssetDataInfo> ReferencingAssetDataInfos;
 
 	FText Failure_CouldNotDetermineDomain;
 };

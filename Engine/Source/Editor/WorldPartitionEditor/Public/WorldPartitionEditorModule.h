@@ -9,6 +9,7 @@ class FLayoutExtender;
 class SDockTab;
 class FSpawnTabArgs;
 class SContentBundleBrowser;
+struct FAssetData;
 
 
 /**
@@ -158,6 +159,7 @@ private:
 private:
 	void RunCommandletAsExternalProcess(const FString& InCommandletArgs, const FText& InOperationDescription, int32& OutResult, bool& bOutCancelled);
 	void OnConvertMap();
+	bool OnIsCrossPluginReferenceAllowed(const FAssetData& ReferencingAssetData, const FAssetData& ReferencedAssetData);
 
 	FDelegateHandle EditorInitializedHandle;
 	FDelegateHandle LevelEditorExtenderDelegateHandle;

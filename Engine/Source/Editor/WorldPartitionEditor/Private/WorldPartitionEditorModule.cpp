@@ -22,12 +22,15 @@
 #include "WorldPartition/HLOD/SWorldPartitionBuildHLODsDialog.h"
 #include "WorldPartition/HLOD/HLODEditorSubsystem.h"
 #include "WorldPartition/WorldPartitionClassDescRegistry.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerUID.h"
+#include "WorldPartition/DataLayer/ExternalDataLayerHelper.h"
 
 #include "LevelEditor.h"
 #include "LevelEditorViewport.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
+#include "Editor/AssetReferenceFilter.h"
 #include "Engine/Level.h"
 
 #include "Misc/FileHelper.h"
@@ -248,12 +251,16 @@ void FWorldPartitionEditorModule::StartupModule()
 			}
 		}
 	});
+
+	IAssetReferenceFilter::OnIsCrossPluginReferenceAllowed().BindRaw(this, &FWorldPartitionEditorModule::OnIsCrossPluginReferenceAllowed);
 }
 
 void FWorldPartitionEditorModule::ShutdownModule()
 {
 	FWorldPartitionClassDescRegistry().Get().Uninitialize();
 	FWorldPartitionClassDescRegistry().Get().TearDown();
+
+	IAssetReferenceFilter::OnIsCrossPluginReferenceAllowed().Unbind();
 
 	if (!IsRunningGame())
 	{
@@ -282,6 +289,25 @@ void FWorldPartitionEditorModule::ShutdownModule()
 	}
 
 	FEditorDelegates::OnEditorInitialized.Remove(EditorInitializedHandle);
+}
+
+bool FWorldPartitionEditorModule::OnIsCrossPluginReferenceAllowed(const FAssetData& ReferencingAssetData, const FAssetData& ReferencedAssetData)
+{
+	// Allow External Data Layer Actor (ReferencingAssetData) from a plugin X to reference its world (ReferencedAssetData) from a plugin Y
+	const UClass* ReferencedAssetDataClass = ReferencedAssetData.GetClass();
+	if (ReferencedAssetDataClass && ReferencedAssetDataClass->IsChildOf<UWorld>())
+	{
+		const FString ReferencingAssetPath = ReferencingAssetData.PackagePath.ToString();
+		FExternalDataLayerUID ReferencingExternalDataLayerUID;
+		if (FExternalDataLayerHelper::IsExternalDataLayerPath(ReferencingAssetPath, &ReferencingExternalDataLayerUID); ReferencingExternalDataLayerUID.IsValid())
+		{
+			// Use referencing asset's optional outer path name (if any) to build its package name and compare it with the referenced package name
+			const FString ReferencingOptionalOuterPackageName = FSoftObjectPath(ReferencingAssetData.GetOptionalOuterPathName().ToString()).GetLongPackageName();
+			return ReferencingOptionalOuterPackageName == ReferencedAssetData.PackageName.ToString();
+		}
+	}
+
+	return false;
 }
 
 void FWorldPartitionEditorModule::RegisterMenus()
