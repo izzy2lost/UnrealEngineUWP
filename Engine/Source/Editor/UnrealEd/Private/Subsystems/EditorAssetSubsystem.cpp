@@ -1145,6 +1145,27 @@ bool UEditorAssetSubsystem::RenameDirectory(const FString& SourceDirectoryPath, 
 	return true;
 }
 
+bool UEditorAssetSubsystem::SetDirtyFlag(UObject* Object, const bool bDirtyState)
+{
+	if (!IsValid(Object) || !Object->IsAsset())
+	{
+		return false;
+	}
+	UPackage* Pkg = Object->GetOutermost();
+	if (!Pkg || Pkg == GetTransientPackage() || Pkg->ContainsMap())
+	{
+		return false;
+	}
+	bool bOldDirtyValue = Pkg->IsDirty();
+	if (bOldDirtyValue != bDirtyState)
+	{
+		//If we need to change the state, return true if the state has change to the one specified
+		Pkg->SetDirtyFlag(bDirtyState);
+		return bDirtyState == Pkg->IsDirty();
+	}
+	return true;
+}
+
 // Checkout operations
  
  namespace UE::EditorAssetUtils

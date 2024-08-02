@@ -225,6 +225,15 @@ public:
 	UNREALED_API bool RenameDirectory(const FString& SourceDirectoryPath, const FString& DestinationDirectoryPath);
 	
 	/**
+	 * Set the package dirty flag for an asset
+	 * @param	Object			Object we want to set the package dirty state.
+	 * @param	bDirtyState		The dirty state, true mean the asset package need to be save.
+	 * @return	True if the operation succeeds.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset")
+	UNREALED_API bool SetDirtyFlag(UObject* Object, const bool bDirtyState);
+
+	/**
 	 * Checkout the asset corresponding to an object.
 	 * @param	AssetToCheckout		Asset to checkout.
 	 * @return	True if the operation succeeds.
