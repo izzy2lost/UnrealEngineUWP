@@ -2127,7 +2127,7 @@ namespace Verse
 
         TSRef<Module> Package::FindOrAddModule(const CUTF8StringView& ModuleName, const CUTF8StringView& ParentModuleName)
         {
-            TOptional<TSRef<Module>> FoundModule = FindModule(*this, ModuleName);
+            uLang::TOptional<TSRef<Module>> FoundModule = FindModule(*this, ModuleName);
             if (FoundModule)
             {
                 return *FoundModule;
@@ -2137,7 +2137,7 @@ namespace Verse
             Node* ModuleContainer = this;
             if (!ParentModuleName.IsEmpty())
             {
-                TOptional<TSRef<Module>> FoundParent = FindModule(*this, ParentModuleName);
+                uLang::TOptional<TSRef<Module>> FoundParent = FindModule(*this, ParentModuleName);
                 if (ULANG_ENSUREF(FoundParent, "Parent module does not exist!"))
                 {
                     ModuleContainer = &**FoundParent;
@@ -2146,7 +2146,7 @@ namespace Verse
             return ModuleContainer->AppendChild(NewModule).As<Module>();
         }
 
-        TOptional<TSRef<Module>> Package::FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName)
+        uLang::TOptional<TSRef<Module>> Package::FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName)
         {
             for (const TSRef<Verse::Vst::Node>& Child : ModuleContainer.GetChildren())
             {
@@ -2158,7 +2158,7 @@ namespace Verse
                         return FoundModule;
                     }
 
-                    TOptional<TSRef<Module>> FoundSubmodule = FindModule(*FoundModule, ModuleName);
+                    uLang::TOptional<TSRef<Module>> FoundSubmodule = FindModule(*FoundModule, ModuleName);
                     if (FoundSubmodule)
                     {
                         return *FoundSubmodule;

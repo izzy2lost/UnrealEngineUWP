@@ -59,9 +59,6 @@ using TSRef = uLang::TSRef<T>;
 template<typename T>
 using LArray = uLang::TArray<T>;
 
-template<typename T>
-using TOptional = uLang::TOptional<T>;
-
 using EResult = uLang::EResult;
 using CSharedMix = uLang::CSharedMix;
 using SLocus = uLang::STextRange;
@@ -907,7 +904,7 @@ namespace Vst
         LArray<CUTF8String> _DependencyPackages;
 
         // Destination directory for VNI generated C++ code (fully qualified)
-        TOptional<CUTF8String> _VniDestDir;
+        uLang::TOptional<CUTF8String> _VniDestDir;
 
         // The role this package plays in the project.
         uLang::EPackageRole _Role = uLang::EPackageRole::Source;
@@ -916,7 +913,7 @@ namespace Vst
         EVerseScope _VerseScope = EVerseScope::PublicUser;
 
         // The language version targetted by the Verse code in this package.
-        TOptional<uint32_t> _VerseVersion;
+        uLang::TOptional<uint32_t> _VerseVersion;
 
         /// This allows us to determine when a package was uploaded for a given Fortnite release version.
         /// It is a HACK that conditionally enables/disables behaviour in the compiler in order to
@@ -933,7 +930,7 @@ namespace Vst
         bool _bAllowExperimental = false;
 
         VERSECOMPILER_API TSRef<Module> FindOrAddModule(const CUTF8StringView& ModuleName, const CUTF8StringView& ParentModuleName = CUTF8StringView());
-        VERSECOMPILER_API static TOptional<TSRef<Module>> FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName);
+        VERSECOMPILER_API static uLang::TOptional<TSRef<Module>> FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName);
     };
 
     // A collection of Package nodes
@@ -950,7 +947,7 @@ namespace Vst
         CUTF8String _FilePath;
 
         VERSECOMPILER_API const TSRef<Module>& FindOrAddModule(const CUTF8StringView& ModuleName, const CUTF8StringView& FilePath, const CUTF8StringView& ParentModuleName = CUTF8StringView());
-        VERSECOMPILER_API static TOptional<TSRef<Module>> FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName);
+        VERSECOMPILER_API static uLang::TOptional<TSRef<Module>> FindModule(const Node& ModuleContainer, const CUTF8StringView& ModuleName);
 
         /**
          * Removes any packages from the project that have the given name.
