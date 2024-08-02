@@ -8,7 +8,6 @@
 #include "MetalResources.h"
 #include "MetalViewport.h"
 #include "RHICore.h"
-#include "BoundShaderStateHistory.h"
 
 class FMetalDeviceContext;
 class FMetalCommandBufferFence;
@@ -186,7 +185,6 @@ public:
         return GlobalUniformBuffers;
     }
 protected:
-	static TGlobalResource<TBoundShaderStateHistory<10000>> BoundShaderStateHistory;
 	
 	/** Context implementation details. */
 	FMetalDeviceContext* Context = nullptr;

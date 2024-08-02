@@ -6,8 +6,6 @@
 #include "MetalRHIRenderQuery.h"
 #include "MetalRHIVisionOSBridge.h"
 
-TGlobalResource<TBoundShaderStateHistory<10000>> FMetalRHICommandContext::BoundShaderStateHistory;
-
 FMetalDeviceContext& GetMetalDeviceContext()
 {
 	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
