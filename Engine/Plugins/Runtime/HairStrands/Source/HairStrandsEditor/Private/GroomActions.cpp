@@ -18,6 +18,7 @@
 #include "GroomCreateFollicleMaskOptionsWindow.h"
 #include "GroomCreateStrandsTexturesOptions.h"
 #include "GroomCreateStrandsTexturesOptionsWindow.h"
+#include "AssetCompilingManager.h"
 #include "HairStrandsImporter.h"
 #include "HairStrandsTranslator.h"
 #include "ToolMenuSection.h"
@@ -223,6 +224,9 @@ void ExecuteCreateBindingAsset(const FToolMenuContext& InContext)
 				if (BindingAsset)
 				{
 					BindingAsset->Build();
+#if WITH_EDITOR
+					FAssetCompilingManager::Get().FinishCompilationForObjects({BindingAsset});
+#endif
 					if (BindingAsset->IsValid())
 					{
 						TArray<UObject*> CreatedObjects;
