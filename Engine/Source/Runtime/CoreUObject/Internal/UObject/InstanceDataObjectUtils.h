@@ -19,12 +19,10 @@ namespace UE { class FPropertyPathNameTree; }
 namespace UE
 {
 
-/**
- * Query if InstanceDataObject support is enabled for a specific object.
- *
- * Pass nullptr to query if the system is enabled.
- */
-bool IsInstanceDataObjectSupportEnabled(const UObject* Object = nullptr);
+/** Query if InstanceDataObject support is available generally. */
+bool IsInstanceDataObjectSupportEnabled();
+/** Query if InstanceDataObject support is enabled for a specific object. */
+bool IsInstanceDataObjectSupportEnabled(const UObject* Object);
 bool StructContainsLooseProperties(const UStruct* Struct);
 
 /** Helper to check if a class is an IDO class. */
