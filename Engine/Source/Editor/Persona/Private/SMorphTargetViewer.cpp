@@ -13,11 +13,13 @@
 #include "IPersonaPreviewScene.h"
 #include "InterchangeMeshUtilities.h"
 #include "InterchangeManager.h"
+#include "Misc/App.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 #include "ScopedTransaction.h"
 #include "SkeletalMeshAttributes.h"
 #include "SkeletalRenderPublic.h"
 #include "SkinnedAssetCompiler.h"
+#include "SRenameMorphTargetDialog.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -598,6 +600,15 @@ TSharedPtr<SWidget> SMorphTargetViewer::OnGetContextMenuContent() const
 			{
 				FUIAction Action;
 
+				//Rename morph target
+				{
+					Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnRenameMorphTargets);
+					Action.CanExecuteAction = nullptr;
+					const FText Label = LOCTEXT("RenameMorphTargetLabel", "Rename");
+					const FText ToolTipText = LOCTEXT("RenameMorphTargetTooltip", "Rename the selected morph targets");
+					MenuBuilder.AddMenuEntry(Label, ToolTipText, FSlateIcon(), Action);
+				}
+
 				//Delete morph target
 				{
 					Action.ExecuteAction = FExecuteAction::CreateSP(const_cast<SMorphTargetViewer*>(this), &SMorphTargetViewer::OnDeleteMorphTargets);
@@ -681,6 +692,50 @@ bool SMorphTargetViewer::CanPerformDelete() const
 {
 	TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
 	return SelectedRows.Num() > 0;
+}
+
+void SMorphTargetViewer::OnRenameMorphTargets()
+{
+	auto RenameMorphTarget = [this](UMorphTarget* SelectMorphTarget)
+		{
+			TSharedRef <SRenameMorphTargetDialog> RenameWidgetDialog = SNew(SRenameMorphTargetDialog)
+				.SkeletalMesh(SkeletalMesh)
+				.MorphTarget(SelectMorphTarget);
+
+			TSharedRef<SWindow> RenameWindowDialog =
+				SNew(SWindow)
+				.Title(LOCTEXT("RenameMorphTargetWindowTitle", "Rename Morph target"))
+				.SizingRule(ESizingRule::Autosized)
+				.SupportsMaximize(false)
+				.SupportsMinimize(false);
+
+			RenameWindowDialog->SetContent(SNew(SBox)
+				.MinDesiredWidth(320.0f)
+				[
+					RenameWidgetDialog
+				]);
+			TSharedPtr<SWindow> CurrentWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
+			FSlateApplication::Get().AddModalWindow(RenameWindowDialog, CurrentWindow);
+		};
+
+	{
+		FScopedSkeletalMeshPostEditChange PostEditChangeScope(SkeletalMesh);
+		TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
+
+		for (int32 RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
+		{
+			UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
+			if (MorphTarget)
+			{
+				RenameMorphTarget(MorphTarget);
+			}
+		}
+	}
+
+	//Wait until the skeletal mesh compilation is done
+	FSkinnedAssetCompilingManager::Get().FinishCompilation({ SkeletalMesh });
+
+	CreateMorphTargetList(NameFilterBox->GetText().ToString());
 }
 
 void SMorphTargetViewer::OnDeleteMorphTargets()

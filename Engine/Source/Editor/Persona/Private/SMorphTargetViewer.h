@@ -136,6 +136,11 @@ public:
 	bool CanPerformDelete() const;
 
 	/**
+	* Handler for the rename morph targets button
+	*/
+	void OnRenameMorphTargets();
+
+	/**
 	* Handler for the delete morph targets button
 	*/
 	void OnDeleteMorphTargets();

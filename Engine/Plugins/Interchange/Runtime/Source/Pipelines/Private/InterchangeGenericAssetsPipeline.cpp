@@ -165,7 +165,7 @@ void UInterchangeGenericAssetsPipeline::AdjustSettingsForContext(const FIntercha
 	else if (ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetImport
 		|| ContextParams.ContextType == EInterchangePipelineContext::AssetCustomMorphTargetReImport)
 	{
-		bUseSourceNameForAsset = false;
+		bUseSourceNameForAsset = true;
 	}
 
 	if (MaterialPipeline)
