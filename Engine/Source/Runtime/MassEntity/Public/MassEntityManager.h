@@ -32,13 +32,7 @@ namespace UE::Mass::Private
 	struct FEntityStorageInitializer;
 }
 
-// Only Editor builds enable Mass to use the concurrent entity reservation implementation
-// Non-editor builds will devirtualize to a single threaded implementation only
-#if UE_EDITOR
 #define MASS_CONCURRENT_RESERVE 1
-#else
-#define MASS_CONCURRENT_RESERVE 0
-#endif
 
 /** 
  * The type responsible for hosting Entities managing Archetypes.
