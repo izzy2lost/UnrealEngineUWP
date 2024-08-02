@@ -47,7 +47,7 @@ class FNiagaraStatelessEmitterInstance final : public FNiagaraEmitterInstance
 	struct FActiveSpawnRate
 	{
 		float	Rate = 0.0f;
-		float	SpawnTime = 0.0f;
+		float	ResidualSpawnTime = 0.0f;
 	};
 
 public:

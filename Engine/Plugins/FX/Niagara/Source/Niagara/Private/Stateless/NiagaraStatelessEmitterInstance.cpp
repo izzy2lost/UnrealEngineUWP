@@ -550,50 +550,49 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float Initializatio
 	}
 
 	// Add the next chunk for any active spawn rates
-	for (const FActiveSpawnRate& SpawnInfo : ActiveSpawnRates)
+	for (FActiveSpawnRate& SpawnInfo : ActiveSpawnRates)
 	{
-		float SpawnTime = FMath::Max(InitializationAge - SpawnInfo.SpawnTime, 0.0f);
-		SpawnTime = FMath::CeilToFloat(SpawnTime * SpawnInfo.Rate) / SpawnInfo.Rate;
-		SpawnTime += SpawnInfo.SpawnTime + CurrentLoopDelay;
-		if (SpawnTime >= CurrentLoopAgeEnd)
-		{
-			continue;
-		}
+		const float SpawnAgeStart	= FMath::Min(InitializationAge + CurrentLoopDelay - SpawnInfo.ResidualSpawnTime, CurrentLoopAgeEnd);
+		const float ActiveDuration	= CurrentLoopAgeEnd - SpawnAgeStart;
+		const int32 NumSpawned		= FMath::FloorToInt(ActiveDuration * SpawnInfo.Rate);
+		const float SpawnAgeEnd		= SpawnAgeStart + (float(NumSpawned) / SpawnInfo.Rate);
 
-		// Try and append to the last info in the list if it's a rate type
-		// We do this to reduce the number of spawn infos in the common case of having a single rate info
-		bool bDidAppend = false;
-		if ( SpawnInfos.Num() > 0 )
+		if ( NumSpawned > 0 )
 		{
-			FNiagaraStatelessRuntimeSpawnInfo& ExistingInfo = SpawnInfos.Last();
-			//-TODO: Validate time start better in the case of active / deactivate
-			if ( (ExistingInfo.Type == ENiagaraStatelessSpawnInfoType::Rate) && (ExistingInfo.Rate == SpawnInfo.Rate) && (ExistingInfo.SpawnTimeStart == SpawnInfo.SpawnTime))
+			// Try and append to the last info in the list if it's a rate type
+			// We do this to reduce the number of spawn infos in the common case of having a single rate info
+			bool bDidAppend = false;
+			if ( SpawnInfos.Num() > 0 )
 			{
-				const float ActiveDuration = ExistingInfo.SpawnTimeEnd - ExistingInfo.SpawnTimeStart;
-				const int32 NumSpawned = FMath::FloorToInt(ActiveDuration * ExistingInfo.Rate);
-				if (ExistingInfo.UniqueOffset + NumSpawned == UniqueIndexOffset)
+				FNiagaraStatelessRuntimeSpawnInfo& ExistingInfo = SpawnInfos.Last();
+				if ( (ExistingInfo.Type == ENiagaraStatelessSpawnInfoType::Rate) && (ExistingInfo.Rate == SpawnInfo.Rate) && (ExistingInfo.SpawnTimeEnd == SpawnAgeStart))
 				{
-					ExistingInfo.SpawnTimeEnd = CurrentLoopAgeEnd;
-					bDidAppend = true;
+					if (ExistingInfo.UniqueOffset + ExistingInfo.Amount == UniqueIndexOffset)
+					{
+						ExistingInfo.SpawnTimeEnd = SpawnAgeEnd;
+						ExistingInfo.Amount += NumSpawned;
+						bDidAppend = true;
+					}
 				}
 			}
+
+			//-TODO: We need to add a spawn info as we have something to spawn
+			if (!bDidAppend)
+			{
+				FNiagaraStatelessRuntimeSpawnInfo& NewSpawnInfo = SpawnInfos.AddDefaulted_GetRef();
+				NewSpawnInfo.Type			= ENiagaraStatelessSpawnInfoType::Rate;
+				NewSpawnInfo.UniqueOffset	= UniqueIndexOffset;
+				NewSpawnInfo.SpawnTimeStart	= SpawnAgeStart;
+				NewSpawnInfo.SpawnTimeEnd	= SpawnAgeEnd;
+				NewSpawnInfo.Rate			= SpawnInfo.Rate;
+				NewSpawnInfo.Amount			= NumSpawned;
+			}
+
+			UniqueIndexOffset += NumSpawned;
+			bSpawnInfosDirty = true;
 		}
 
-		if (!bDidAppend)
-		{
-			FNiagaraStatelessRuntimeSpawnInfo& NewSpawnInfo = SpawnInfos.AddDefaulted_GetRef();
-			NewSpawnInfo.Type			= ENiagaraStatelessSpawnInfoType::Rate;
-			NewSpawnInfo.UniqueOffset	= UniqueIndexOffset;
-			NewSpawnInfo.SpawnTimeStart	= SpawnTime;
-			NewSpawnInfo.SpawnTimeEnd	= CurrentLoopAgeEnd;
-			NewSpawnInfo.Rate			= SpawnInfo.Rate;
-		}
-
-		const float ActiveDuration	= CurrentLoopAgeEnd - SpawnTime;
-		const int32 NumSpawned		= FMath::FloorToInt(ActiveDuration * SpawnInfo.Rate);
-
-		UniqueIndexOffset += NumSpawned;
-		bSpawnInfosDirty = true;
+		SpawnInfo.ResidualSpawnTime = CurrentLoopAgeEnd - SpawnAgeEnd;
 	}
 
 	// Add bursts that fit within the loop duration (due to loop random they might not)
@@ -682,6 +681,7 @@ void FNiagaraStatelessEmitterInstance::CropSpawnInfos()
 		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 		{
 			SpawnInfo.SpawnTimeEnd = FMath::Min(SpawnInfo.SpawnTimeEnd, Age);
+			SpawnInfo.Amount = FMath::FloorToInt((SpawnInfo.SpawnTimeEnd - SpawnInfo.SpawnTimeStart) * SpawnInfo.Rate);
 		}
 		if (Age < SpawnInfo.SpawnTimeStart || Age >= SpawnInfo.SpawnTimeEnd + MaxLifetime)
 		{

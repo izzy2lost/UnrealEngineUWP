@@ -55,5 +55,5 @@ struct FNiagaraStatelessRuntimeSpawnInfo
 	float	SpawnTimeStart	= 0.0f;
 	float	SpawnTimeEnd	= 0.0f;
 	float	Rate			= 0.0f;
-	int32	Amount			= 0;
+	int32	Amount			= 0;		// Note: When a burst this is the absolute amount burst, when rate this is the amount over the spawn duration
 };
