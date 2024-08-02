@@ -41,7 +41,7 @@ class FAudioFormatRad : public IAudioFormat
 	enum
 	{
 		/** Version for RAD Audio format, this becomes part of the DDC key. */
-		UE_AUDIO_RAD_VER = 3,
+		UE_AUDIO_RAD_VER = 4,
 	};
 
 public:
