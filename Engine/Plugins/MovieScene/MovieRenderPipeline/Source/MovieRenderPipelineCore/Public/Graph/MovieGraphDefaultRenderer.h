@@ -84,17 +84,22 @@ namespace UE::MovieGraph::DefaultRenderer
 		FRenderTargetInitParams()
 			: Size(FIntPoint(0, 0))
 			, TargetGamma(0.f)
+			, bForceLinearGamma(false)
 			, PixelFormat(EPixelFormat::PF_Unknown)
 		{
 		}
 
 		FIntPoint Size;
 		float TargetGamma;
+		bool bForceLinearGamma;
 		EPixelFormat PixelFormat;
 
 		bool operator == (const FRenderTargetInitParams& InRHS) const
 		{
-			return Size == InRHS.Size && TargetGamma == InRHS.TargetGamma && PixelFormat == InRHS.PixelFormat;
+			return Size == InRHS.Size
+				&& TargetGamma == InRHS.TargetGamma
+				&& bForceLinearGamma == InRHS.bForceLinearGamma
+				&& PixelFormat == InRHS.PixelFormat;
 		}
 
 		bool operator != (const FRenderTargetInitParams& InRHS) const
@@ -104,7 +109,7 @@ namespace UE::MovieGraph::DefaultRenderer
 
 		friend uint32 GetTypeHash(FRenderTargetInitParams Params)
 		{
-			return HashCombineFast(GetTypeHash(Params.Size), HashCombineFast(GetTypeHash(Params.TargetGamma), GetTypeHash(Params.PixelFormat)));
+			return HashCombineFast(GetTypeHash(Params.Size), HashCombineFast(GetTypeHash(Params.TargetGamma), HashCombineFast(GetTypeHash(Params.bForceLinearGamma), GetTypeHash(Params.PixelFormat))));
 		}
 	};
 

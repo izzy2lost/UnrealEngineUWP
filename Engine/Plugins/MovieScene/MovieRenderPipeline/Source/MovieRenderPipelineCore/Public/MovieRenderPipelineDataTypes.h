@@ -1194,7 +1194,17 @@ public:
 
 namespace MoviePipeline
 {
-	struct MOVIERENDERPIPELINECORE_API IMoviePipelineOverlappedAccumulator : public TSharedFromThis<IMoviePipelineOverlappedAccumulator>
+	/** The interface that all accumulators should derive from. */
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineAccumulator
+	{
+	};
+
+	/** The interface that all accumulation args should derive from. */
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineAccumulationArgs
+	{
+	};
+	
+	struct MOVIERENDERPIPELINECORE_API IMoviePipelineOverlappedAccumulator : IMoviePipelineAccumulator, TSharedFromThis<IMoviePipelineOverlappedAccumulator>
 	{
 	};
 

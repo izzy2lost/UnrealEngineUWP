@@ -62,6 +62,9 @@ public:
 	/** Which AA Method should be used? */
 	virtual EAntiAliasingMethod GetAntiAliasingMethod() const { return EAntiAliasingMethod::AAM_None; }
 
+	/** Whether this node allows changing the Show Flags in the details panel. */
+	virtual bool GetAllowsShowFlagsCustomization() const { return true; }
+
 protected:
 	// Note: Since *individual* show flags are overridden instead of the entire ShowFlags property, manually set to
 	// overridden so the traversal picks the changes up (otherwise they will be ignored).

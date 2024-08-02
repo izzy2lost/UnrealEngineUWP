@@ -344,6 +344,11 @@ namespace UE::MovieGraph
 			, bAllowOCIO(true)
 		{}
 
+		virtual TSharedRef<FMovieGraphSampleState> Copy() const
+		{
+			return MakeShared<FMovieGraphSampleState>(*this);
+		}
+
 		/** The traversal context used to read graph values at the time of submission. */
 		FMovieGraphTraversalContext TraversalContext;
 
@@ -391,6 +396,19 @@ namespace UE::MovieGraph
 
 		/** Render scene capture source used for tracking the output color space (without OpenColorIO). */
 		ESceneCaptureSource SceneCaptureSource;
+
+		/**
+		 * Additional metadata that should be added to the output. In most cases, the node's GetFormatResolveArgs() should be used to provide
+		 * metadata unless the metadata is generated at a point in the pipeline where GetFormatResolveArgs() cannot be used.
+		 */
+		TMap<FString, FString> AdditionalFileMetadata;
+
+		/**
+		 * For multi-layer output formats, setting this allows the layer name to be explicitly specified. Normally the layer name will be
+		 * procedurally generated from multiple data sources to avoid collision with other layer names, but there are scenarios where specifying an
+		 * exact layer name may be needed.
+		 */
+		FString LayerNameOverride;
 	};
 
 	/**

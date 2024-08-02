@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 
 #include "ImagePixelData.h"
+#include "MovieRenderPipelineDataTypes.h"
 
 /* Types
  *****************************************************************************/
@@ -72,7 +73,7 @@ public:
 /**
  * Contains all the image planes for the tiles.
  */
-struct MOVIERENDERPIPELINECORE_API FImageTileAccumulator
+struct MOVIERENDERPIPELINECORE_API FImageTileAccumulator : MoviePipeline::IMoviePipelineAccumulator
 {
 public:
 	/**

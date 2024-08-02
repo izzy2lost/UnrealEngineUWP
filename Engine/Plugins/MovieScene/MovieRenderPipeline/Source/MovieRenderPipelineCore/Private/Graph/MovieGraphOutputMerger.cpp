@@ -94,6 +94,12 @@ namespace UE::MovieGraph
 		
 		if (FinishedPasses == TotalPasses)
 		{
+			// Merge in any metadata produced by the render
+			for (const TPair<FString, FString>& Metadata : Payload->AdditionalFileMetadata)
+			{
+				OutputFrame->FileMetadata.Add(Metadata);
+			}
+			
 			// Sort the output frames. This is only really important for multi-channel formats like EXR, but it lets passes
 			// specify which one should be the thumbnail/default rgba channels instead of a first-come-first-serve.
 			OutputFrame->ImageOutputData.ValueStableSort([](const TUniquePtr<FImagePixelData>& First, const TUniquePtr<FImagePixelData>& Second) -> bool

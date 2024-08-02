@@ -457,9 +457,12 @@ void UMovieGraphImageSequenceOutputNode_MultiLayerEXR::OnReceiveImageDataImpl(UM
 			const UE::MovieGraph::FMovieGraphSampleState* Payload = ImageData->GetPayload<UE::MovieGraph::FMovieGraphSampleState>();
 			ShotIndex = Payload->TraversalContext.ShotIndex;
 
-			FString LayerName = {};
+			// The first layer doesn't get an explicit name. However, subsequent layers may have an explicit name specified for them. Normally layer
+			// names are procedurally generated though (below).
+			FString LayerName = (LayerIndex != 0) ? Payload->LayerNameOverride : FString();
 
-			if (LayerIndex != 0)
+			// Generate a procedural layer name if an explicit name wasn't specified.
+			if ((LayerIndex != 0) && LayerName.IsEmpty())
 			{
 				// If there is more than one layer, then we will prefix the layer. The first layer is not prefixed (and gets inserted as RGBA)
 				// as most programs that handle EXRs expect the main image data to be in an unnamed layer. We only postfix with cameraname

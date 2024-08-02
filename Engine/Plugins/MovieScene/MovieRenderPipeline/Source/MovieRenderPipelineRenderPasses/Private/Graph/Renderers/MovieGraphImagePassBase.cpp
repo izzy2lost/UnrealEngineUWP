@@ -9,6 +9,7 @@
 #include "MoviePipelineSurfaceReader.h"
 #include "CanvasTypes.h"
 #include "MovieRenderOverlappedImage.h"
+#include "OpenColorIORendering.h"
 #include "Engine/RendererSettings.h"
 #include "UnrealClient.h"
 #include "SceneViewExtensionContext.h"
@@ -78,6 +79,21 @@ FSceneView* FMovieGraphImagePassBase::CreateSceneView(const FSceneViewInitOption
 	View->EndFinalPostprocessSettings(InInitOptions);
 
 	return View;
+}
+
+DefaultRenderer::FRenderTargetInitParams FMovieGraphImagePassBase::GetRenderTargetInitParams(const FMovieGraphTimeStepData& InTimeData, const FIntPoint& InResolution)
+{
+	DefaultRenderer::FRenderTargetInitParams InitParams;
+
+	InitParams.Size = InResolution;
+
+	// OCIO: Since this is a manually created Render target we don't need Gamma to be applied.
+	// We use this render target to render to via a display extension that utilizes Display Gamma
+	// which has a default value of 2.2 (DefaultDisplayGamma), therefore we need to set Gamma on this render target to 2.2 to cancel out any unwanted effects.
+	InitParams.TargetGamma = FOpenColorIORendering::DefaultDisplayGamma;
+	InitParams.PixelFormat = PF_FloatRGBA;
+
+	return InitParams;
 }
 
 void FMovieGraphImagePassBase::ApplyCameraManagerPostProcessBlends(FSceneView* InView) const
@@ -399,37 +415,31 @@ void FMovieGraphImagePassBase::PostRendererSubmission(
 		return;
 	}
 
-	FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
-	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
-	
 	FMoviePipelineSurfaceQueuePtr LocalSurfaceQueue = GraphRenderer->GetOrCreateSurfaceQueue(InRenderTargetInitParams);
 	LocalSurfaceQueue->BlockUntilAnyAvailable();
 
-	FMovieGraphRenderDataAccumulationArgs AccumulationArgs;
-	{
-		AccumulationArgs.OutputMerger = GraphRenderer->GetOwningGraph()->GetOutputMerger();
-		AccumulationArgs.ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
-		AccumulationArgs.bIsFirstSample = InSampleState.TraversalContext.Time.bIsFirstTemporalSampleForFrame;
-		AccumulationArgs.bIsLastSample = InSampleState.TraversalContext.Time.bIsLastTemporalSampleForFrame;
-	}
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs =
+		StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(GetOrCreateAccumulator(GraphRenderer, InSampleState));
 
-	auto OnSurfaceReadbackFinished = [this, InSampleState, AccumulationArgs, AccumulatorInstance](TUniquePtr<FImagePixelData>&& InPixelData)
+	auto OnSurfaceReadbackFinished = [this, InSampleState, AccumulationArgs](TUniquePtr<FImagePixelData>&& InPixelData)
 	{
-		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(InPixelData), InSampleState, AccumulationArgs, AccumulatorInstance]() mutable
+		FAccumulatorSampleFunc AccumulateFunction = GetAccumulateSampleFunction();
+		
+		const UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(InPixelData), InSampleState, AccumulationArgs, AccumulateFunction]() mutable
 		{
 			// Enqueue a encode for this frame onto our worker thread.
-			AccumulateSample_TaskThread(MoveTemp(PixelData), InSampleState, AccumulationArgs);
+			AccumulateFunction(MoveTemp(PixelData), InSampleState, AccumulationArgs);
 
 			// We have to defer clearing the accumulator until after sample accumulation has finished
-			if (AccumulationArgs.bIsLastSample)
+			if (AccumulationArgs->bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->SetIsActive(false);
+				AccumulationArgs->AccumulatorInstance->SetIsActive(false);
 			}
-		}, AccumulatorInstance->TaskPrereq);
+		}, AccumulationArgs->AccumulatorInstance->TaskPrereq);
 
 		// Make the next accumulation task that uses this accumulator use the task we just created as a pre-req.
-		AccumulatorInstance->TaskPrereq = Task;
+		AccumulationArgs->AccumulatorInstance->TaskPrereq = Task;
 
 		// Because we're run on a separate thread, we need to check validity differently. The standard
 		// TWeakObjectPtr will report non-valid during GC (even if the object it's pointing to isn't being
@@ -469,24 +479,15 @@ TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeFor
 	{
 		return nullptr;
 	}
-	
-	FMoviePipelineAccumulatorPoolPtr SampleAccumulator = GraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
-	UE::MovieGraph::DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance =
-		SampleAccumulator->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(
-			InTimeData.RenderedFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
-	
-	FMovieGraphRenderDataAccumulationArgs AccumulationArgs;
-	{
-		AccumulationArgs.OutputMerger = GraphRenderer->GetOwningGraph()->GetOutputMerger();
-		AccumulationArgs.ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
-		AccumulationArgs.bIsFirstSample = InTimeData.bIsFirstTemporalSampleForFrame;
-		AccumulationArgs.bIsLastSample = InTimeData.bIsLastTemporalSampleForFrame;
-	}
+		
+	// TODO: Is this correct? The prior code is *slightly* different.
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs =
+		StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(GetOrCreateAccumulator(GraphRenderer, InSampleState));
 
 	// The legacy surface reader takes the payload just so it can shuffle it into our callback, but we can just include the data
 	// directly in the callback, so this is just a dummy payload.
 	TSharedRef<FImagePixelDataPayload, ESPMode::ThreadSafe> FramePayload = MakeShared<FImagePixelDataPayload, ESPMode::ThreadSafe>();
-	auto Callback = [this, InSampleState, FramePayload, AccumulationArgs, AccumulatorInstance](TUniquePtr<FImagePixelData>&& InPixelData)
+	auto Callback = [this, InSampleState, FramePayload, AccumulationArgs](TUniquePtr<FImagePixelData>&& InPixelData)
 	{
 		// Transfer the framePayload to the returned data
 		TUniquePtr<FImagePixelData> PixelDataWithPayload = nullptr;
@@ -514,27 +515,49 @@ TFunction<void(TUniquePtr<FImagePixelData>&&)> FMovieGraphImagePassBase::MakeFor
 			checkNoEntry();
 		}
 
-		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(PixelDataWithPayload), InSampleState, AccumulationArgs, AccumulatorInstance]() mutable
+		FAccumulatorSampleFunc AccumulateFunction = GetAccumulateSampleFunction();
+
+		UE::Tasks::TTask<void> Task = UE::Tasks::Launch(UE_SOURCE_LOCATION, [PixelData = MoveTemp(PixelDataWithPayload), InSampleState, AccumulationArgs, AccumulateFunction]() mutable
 		{
 			// Enqueue a encode for this frame onto our worker thread.
-			AccumulateSample_TaskThread(MoveTemp(PixelData), InSampleState, AccumulationArgs);
+			AccumulateFunction(MoveTemp(PixelData), InSampleState, AccumulationArgs);
 
 			// We have to defer clearing the accumulator until after sample accumulation has finished
-			if (AccumulationArgs.bIsLastSample)
+			if (AccumulationArgs->bIsLastSample)
 			{
 				// Final sample has now been executed, free the accumulator for reuse.
-				AccumulatorInstance->SetIsActive(false);
+				AccumulationArgs->AccumulatorInstance->SetIsActive(false);
 			}
-		}, AccumulatorInstance->TaskPrereq);
+		}, AccumulationArgs->AccumulatorInstance->TaskPrereq);
 
 		// Make the next accumulation task that uses this accumulator use the task we just created as a pre-req.
-		AccumulatorInstance->TaskPrereq = Task;
+		AccumulationArgs->AccumulatorInstance->TaskPrereq = Task;
 	};
 
 	return Callback;
 }
 
-void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const FMovieGraphRenderDataAccumulationArgs& InAccumulationParams)
+TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> FMovieGraphImagePassBase::GetOrCreateAccumulator(const TObjectPtr<UMovieGraphDefaultRenderer> InGraphRenderer, const FMovieGraphSampleState& InSampleState) const
+{
+	const FMoviePipelineAccumulatorPoolPtr SampleAccumulatorPool = InGraphRenderer->GetOrCreateAccumulatorPool<FImageOverlappedAccumulator>();
+	const DefaultRenderer::FSurfaceAccumulatorPool::FInstancePtr AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+
+	TSharedRef<FMovieGraphRenderDataAccumulationArgs> AccumulationArgs = MakeShared<FMovieGraphRenderDataAccumulationArgs>();
+	AccumulationArgs->OutputMerger = InGraphRenderer->GetOwningGraph()->GetOutputMerger();
+	AccumulationArgs->ImageAccumulator = StaticCastSharedPtr<FImageOverlappedAccumulator>(AccumulatorInstance->Accumulator);
+	AccumulationArgs->AccumulatorInstance = SampleAccumulatorPool->GetAccumulatorInstance_GameThread<FImageOverlappedAccumulator>(InSampleState.TraversalContext.Time.OutputFrameNumber, InSampleState.TraversalContext.RenderDataIdentifier);
+	AccumulationArgs->bIsFirstSample = InSampleState.TraversalContext.Time.bIsFirstTemporalSampleForFrame;
+	AccumulationArgs->bIsLastSample = InSampleState.TraversalContext.Time.bIsLastTemporalSampleForFrame;
+
+	return AccumulationArgs;
+}
+
+FMovieGraphImagePassBase::FAccumulatorSampleFunc FMovieGraphImagePassBase::GetAccumulateSampleFunction() const
+{
+	return AccumulateSample_TaskThread;
+}
+
+void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, const ::UE::MovieGraph::FMovieGraphSampleState InSampleState, const TSharedRef<::MoviePipeline::IMoviePipelineAccumulationArgs> InAccumulatorArgs)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(MoviePipeline_AccumulateSample);
 		
@@ -545,7 +568,9 @@ void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, cons
 	TSharedPtr<FMovieGraphSampleState> SampleStatePayload = MakeShared<FMovieGraphSampleState>(InSampleState);
 	SamplePixelData->SetPayload(StaticCastSharedPtr<IImagePixelDataPayload>(SampleStatePayload));
 
-	TSharedPtr<IMovieGraphOutputMerger, ESPMode::ThreadSafe> OutputMergerPin = InAccumulationParams.OutputMerger.Pin();
+	const TSharedRef<FMovieGraphRenderDataAccumulationArgs, ESPMode::ThreadSafe> AccumulatorArgs = StaticCastSharedRef<FMovieGraphRenderDataAccumulationArgs>(InAccumulatorArgs);
+
+	const TSharedPtr<IMovieGraphOutputMerger, ESPMode::ThreadSafe> OutputMergerPin = AccumulatorArgs->OutputMerger.Pin();
 	if (!OutputMergerPin.IsValid())
 	{
 		return;
@@ -570,7 +595,7 @@ void AccumulateSample_TaskThread(TUniquePtr<FImagePixelData>&& InPixelData, cons
 		return;
 	}
 
-	TSharedPtr<FImageOverlappedAccumulator> AccumulatorPin = InAccumulationParams.ImageAccumulator.Pin();
+	const TSharedPtr<FImageOverlappedAccumulator> AccumulatorPin = StaticCastWeakPtr<FImageOverlappedAccumulator>(AccumulatorArgs->ImageAccumulator).Pin();
 	if (AccumulatorPin->NumChannels == 0)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MoviePipeline/ImageAccumulatorInitMemory"));

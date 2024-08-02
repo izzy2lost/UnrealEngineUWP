@@ -4,6 +4,7 @@
 
 #include "DetailWidgetRow.h"
 #include "EditorShowFlags.h"
+#include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
 #include "Graph/Renderers/MovieGraphShowFlags.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
@@ -43,10 +44,19 @@ protected:
 			{SFG_Advanced, LOCTEXT("GraphAdvancedSF", "Advanced")}
 		};
 
+		check(PropertyHandle->IsValidHandle());
+
 		TArray<UObject*> OuterObjects;
 		PropertyHandle->GetOuterObjects(OuterObjects);
-		
-		check(PropertyHandle->IsValidHandle());
+
+		// Some renderer nodes don't allow Show Flags customization
+		if (UMovieGraphImagePassBaseNode* ImagePassBaseNode = Cast<UMovieGraphImagePassBaseNode>(OuterObjects[0]))
+		{
+			if (!ImagePassBaseNode->GetAllowsShowFlagsCustomization())
+			{
+				return;
+			}
+		}
 
 		const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(PropertyHandle->GetProperty());
 		UMovieGraphShowFlags* ShowFlagObject = Cast<UMovieGraphShowFlags>(
