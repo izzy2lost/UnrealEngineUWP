@@ -17,6 +17,10 @@
 #define GBUFFER_REFACTOR 0
 #endif
 
+#ifndef ALLOW_SSS_MATERIAL_OVERRIDE
+#define ALLOW_SSS_MATERIAL_OVERRIDE 1
+#endif
+
 #if SHADING_PATH_DEFERRED
 
 #if !SUPPORTS_INDEPENDENT_SAMPLERS
@@ -926,7 +930,7 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 {
 // If this function is called in translucent pass, we should not modify the BaseColor, instead directly read the base color as it is. 
 // The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
-#if MATERIALBLENDING_TRANSLUCENT
+#if MATERIALBLENDING_TRANSLUCENT || !ALLOW_SSS_MATERIAL_OVERRIDE
 	return;
 #endif
 

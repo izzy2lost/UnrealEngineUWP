@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+// When loading SSS checkerboard pixel, do not adjust DiffuseColor/SpecularColor to preserve specular and diffuse lighting values for each pixel
+#define ALLOW_SSS_MATERIAL_OVERRIDE 0
+
 #include "../Common.ush"
 #include "ManyLights.ush"
 

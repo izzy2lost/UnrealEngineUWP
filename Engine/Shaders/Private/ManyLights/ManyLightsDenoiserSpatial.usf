@@ -4,6 +4,10 @@
 #include "ManyLights.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
+// Spatial denoise is the last pass writing to the SceneColor buffer. We allow SSS checkerboard pixel to adjust 
+// DiffuseColor/SpecularColor to write specular & diffuse lighting in checkerboard pattern
+#define ALLOW_SSS_MATERIAL_OVERRIDE 1
+
 Texture2D<float4> DiffuseLightingAndSecondMomentTexture;
 Texture2D<float4> SpecularLightingAndSecondMomentTexture;
 Texture2D<UNORM float> NumFramesAccumulatedTexture;

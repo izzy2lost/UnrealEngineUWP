@@ -10,6 +10,9 @@
 	#define NUM_SAMPLES_PER_PIXEL_2D_Y 1
 #endif
 
+// When loading SSS checkerboard pixel, do not adjust DiffuseColor/SpecularColor to preserve specular and diffuse lighting values for each pixel
+#define ALLOW_SSS_MATERIAL_OVERRIDE 0
+
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "ManyLights.ush"
