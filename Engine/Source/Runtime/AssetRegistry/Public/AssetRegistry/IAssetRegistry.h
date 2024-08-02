@@ -517,6 +517,9 @@ public:
 	/** Finds Package data for a package name. This data is only updated on save and can only be accessed for valid packages */
 	virtual TOptional<FAssetPackageData> GetAssetPackageDataCopy(FName PackageName) const = 0;
 
+	/** Find Package Data for the packages name. This data is only updated on save and can only be accessed for valid packages */
+	virtual TArray<TOptional<FAssetPackageData>> GetAssetPackageDatasCopy(TArrayView<FName> PackageNames) const = 0;
+
 	/**
 	 * Enumerate all PackageDatas in the AssetRegistry. The callback is called from within the AssetRegistry's lock, so it must not call
 	 * arbitrary code that could call back into the AssetRegistry; doing so would deadlock.

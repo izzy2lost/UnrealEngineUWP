@@ -3089,6 +3089,27 @@ TOptional<FAssetPackageData> UAssetRegistryImpl::GetAssetPackageDataCopy(FName P
 	return AssetPackageData ? *AssetPackageData : TOptional<FAssetPackageData>();
 }
 
+TArray<TOptional<FAssetPackageData>> UAssetRegistryImpl::GetAssetPackageDatasCopy(TArrayView<FName> PackageNames) const
+{
+	TArray<TOptional<FAssetPackageData>> OutAssetPackagesData;
+	OutAssetPackagesData.Reserve(PackageNames.Num());
+
+	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
+	for (FName PackageName : PackageNames)
+	{
+		if (const FAssetPackageData* AssetPackageData = GuardedData.GetState().GetAssetPackageData(PackageName))
+		{
+			OutAssetPackagesData.Emplace(*AssetPackageData);
+		}
+		else
+		{
+			OutAssetPackagesData.Add(TOptional<FAssetPackageData>());
+		}
+	}
+
+	return OutAssetPackagesData;
+}
+
 void UAssetRegistryImpl::EnumerateAllPackages(TFunctionRef<void(FName PackageName, const FAssetPackageData& PackageData)> Callback) const
 {
 	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
