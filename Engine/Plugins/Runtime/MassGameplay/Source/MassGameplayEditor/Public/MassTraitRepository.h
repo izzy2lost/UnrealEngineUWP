@@ -58,8 +58,9 @@ protected:
 	 */
 	void OnNewTraitType(UMassEntityTraitBase& Trait);
 
+#if WITH_MASSENTITY_DEBUG
 	void OnDebugEvent(const FName EventName, FConstStructView Payload, EMassDebugMessageSeverity SeverityOverride);
-
+#endif // WITH_MASSENTITY_DEBUG
 	/** 
 	 * The method gathers all existing trait classes and processed them. We don't do that on subsystem's init since
 	 * very often the data won't be needed during the given editor run. We call the function lazily the first time 

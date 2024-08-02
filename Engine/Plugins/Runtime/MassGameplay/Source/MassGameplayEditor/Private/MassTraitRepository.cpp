@@ -94,10 +94,9 @@ void UMassTraitRepository::Initialize(FSubsystemCollectionBase& Collection)
 // @todo we have an opportunity here to make it really flexible. Every message name could be associated with a 
 // dedicated TFunction (via some map) that would handle the given message type. This way users could extend or override
 // the way certain events are handled. 
+#if WITH_MASSENTITY_DEBUG
 void UMassTraitRepository::OnDebugEvent(const FName EventName, FConstStructView Payload, EMassDebugMessageSeverity SeverityOverride)
 {
-#if WITH_MASSENTITY_DEBUG
-
 	static const FName MissingTraitMessageName = FMassMissingTraitMessage::StaticStruct()->GetFName();
 	static const FName DuplicateElementsMessageName = FMassDuplicateElementsMessage::StaticStruct()->GetFName();
 
@@ -236,8 +235,8 @@ void UMassTraitRepository::OnDebugEvent(const FName EventName, FConstStructView 
 	}
 
 #undef OVERRIDABLE_SEVERITY
-#endif // WITH_MASSENTITY_DEBUG
 }
+#endif // WITH_MASSENTITY_DEBUG
 
 TConstArrayView<FName> UMassTraitRepository::GetTraitsNameAddingElements(const FName ElementName)
 {
