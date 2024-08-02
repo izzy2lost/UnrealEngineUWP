@@ -820,6 +820,19 @@ bool FStateTreeCompiler::CreateStateTransitions()
 			return false;
 		}
 
+		// Check if any of the enter conditions require state completion events, and cache that.
+		for (int32 ConditionIndex = (int32)CompactState.EnterConditionsBegin; ConditionIndex < Nodes.Num(); ConditionIndex++)
+		{
+			if (const FStateTreeConditionBase* Cond = Nodes[ConditionIndex].GetPtr<const FStateTreeConditionBase>())
+			{
+				if (Cond->bHasShouldCallStateChangeEvents)
+				{
+					CompactState.bHasStateChangeConditions = true;
+					break;
+				}
+			}
+		}
+		
 		// Linked state
 		if (SourceState->Type == EStateTreeStateType::Linked)
 		{

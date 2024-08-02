@@ -749,6 +749,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	UPROPERTY()
 	uint8 bHasTransitionTasks : 1 = false;
 
+	/** True if the state contains conditions which require call to enter/completed/exit state. */
+	UPROPERTY()
+	uint8 bHasStateChangeConditions : 1 = false;
+
 	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
 	UPROPERTY()
 	uint8 bCheckPrerequisitesWhenActivatingChildDirectly : 1 = false;

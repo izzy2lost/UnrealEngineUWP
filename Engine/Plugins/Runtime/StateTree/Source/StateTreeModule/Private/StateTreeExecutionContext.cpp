@@ -1641,6 +1641,40 @@ EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionR
 					*UEnum::GetDisplayValueAsText(CurrentTransition.ChangeType).ToString());
 			}
 
+			// Call state change events on conditions if needed.
+			if (bIsEnteringState && State.bHasStateChangeConditions)
+			{
+				for (int32 ConditionIndex = State.EnterConditionsBegin; ConditionIndex < (State.EnterConditionsBegin + State.EnterConditionsNum); ConditionIndex++)
+				{
+					const FStateTreeConditionBase& Cond = CurrentFrame.StateTree->Nodes[ConditionIndex].Get<const FStateTreeConditionBase>();
+					if (Cond.bHasShouldCallStateChangeEvents)
+					{
+						const bool bShouldCallStateChange = CurrentTransition.ChangeType == EStateTreeStateChangeType::Changed
+															|| (CurrentTransition.ChangeType == EStateTreeStateChangeType::Sustained && Cond.bShouldStateChangeOnReselect);
+
+						if (bShouldCallStateChange)
+						{
+							const FStateTreeDataView ConditionInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Cond.InstanceDataHandle);
+							FNodeInstanceDataScope DataScope(*this, Cond.InstanceDataHandle, ConditionInstanceView);
+
+							if (Cond.BindingsBatch.IsValid())
+							{
+								// Use validated copy, since we test in situations where the sources are not always valid (e.g. enter conditions may try to access inactive parent state).
+								CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, ConditionInstanceView, Cond.BindingsBatch);
+							}
+								
+							Cond.EnterState(*this, Transition);
+
+							// Reset copied properties that might contain object references.
+							if (Cond.BindingsBatch.IsValid())
+							{
+								CurrentFrame.StateTree->PropertyBindings.ResetObjects(Cond.BindingsBatch, ConditionInstanceView);
+							}
+						}
+					}
+				}
+			}
+
 			// Activate tasks on current state.
 			for (int32 TaskIndex = State.TasksBegin; TaskIndex < (State.TasksBegin + State.TasksNum); TaskIndex++)
 			{
@@ -1909,6 +1943,40 @@ void FStateTreeExecutionContext::ExitState(const FStateTreeTransitionResult& Tra
 						}
 					}
 				}
+
+				// Call state change events on conditions if needed.
+				if (State.bHasStateChangeConditions)
+				{
+					for (int32 ConditionIndex = (State.EnterConditionsBegin + State.EnterConditionsNum) - 1; ConditionIndex >= State.EnterConditionsBegin; ConditionIndex--)
+					{
+						const FStateTreeConditionBase& Cond = CurrentFrame.StateTree->Nodes[ConditionIndex].Get<const FStateTreeConditionBase>();
+						if (Cond.bHasShouldCallStateChangeEvents)
+						{
+							const bool bShouldCallStateChange = CurrentTransition.ChangeType == EStateTreeStateChangeType::Changed
+										|| (CurrentTransition.ChangeType == EStateTreeStateChangeType::Sustained && Cond.bShouldStateChangeOnReselect);
+
+							if (bShouldCallStateChange)
+							{
+								const FStateTreeDataView ConditionInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Cond.InstanceDataHandle);
+								FNodeInstanceDataScope DataScope(*this, Cond.InstanceDataHandle, ConditionInstanceView);
+
+								if (Cond.BindingsBatch.IsValid())
+								{
+									// Use validated copy, since we test in situations where the sources are not always valid (e.g. enter conditions may try to access inactive parent state).
+									CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, ConditionInstanceView, Cond.BindingsBatch);
+								}
+								
+								Cond.ExitState(*this, Transition);
+
+								// Reset copied properties that might contain object references.
+								if (Cond.BindingsBatch.IsValid())
+								{
+									CurrentFrame.StateTree->PropertyBindings.ResetObjects(Cond.BindingsBatch, ConditionInstanceView);
+								}
+							}
+						}
+					}
+				}
 			}
 
 			STATETREE_TRACE_STATE_EVENT(CurrentHandle, EStateTreeTraceEventType::OnExited);
@@ -1985,6 +2053,34 @@ void FStateTreeExecutionContext::StateCompleted()
 						
 						STATETREE_LOG(Verbose, TEXT("%*s  Task '%s'"), Index*UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
 						Task.StateCompleted(*this, Exec.LastTickStatus, CurrentFrame.ActiveStates);
+					}
+				}
+				
+				// Call state change events on conditions if needed.
+				if (State.bHasStateChangeConditions)
+				{
+					for (int32 ConditionIndex = (State.EnterConditionsBegin + State.EnterConditionsNum) - 1; ConditionIndex >= State.EnterConditionsBegin; ConditionIndex--)
+					{
+						const FStateTreeConditionBase& Cond = CurrentFrame.StateTree->Nodes[ConditionIndex].Get<const FStateTreeConditionBase>();
+						if (Cond.bHasShouldCallStateChangeEvents)
+						{
+							const FStateTreeDataView ConditionInstanceView = GetDataView(CurrentParentFrame, CurrentFrame, Cond.InstanceDataHandle);
+							FNodeInstanceDataScope DataScope(*this, Cond.InstanceDataHandle, ConditionInstanceView);
+
+							if (Cond.BindingsBatch.IsValid())
+							{
+								// Use validated copy, since we test in situations where the sources are not always valid (e.g. enter conditions may try to access inactive parent state).
+								CopyBatchOnActiveInstances(CurrentParentFrame, CurrentFrame, ConditionInstanceView, Cond.BindingsBatch);
+							}
+							
+							Cond.StateCompleted(*this, Exec.LastTickStatus, CurrentFrame.ActiveStates);
+
+							// Reset copied properties that might contain object references.
+							if (Cond.BindingsBatch.IsValid())
+							{
+								CurrentFrame.StateTree->PropertyBindings.ResetObjects(Cond.BindingsBatch, ConditionInstanceView);
+							}
+						}
 					}
 				}
 			}
