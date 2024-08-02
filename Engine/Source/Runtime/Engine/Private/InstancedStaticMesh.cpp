@@ -2032,6 +2032,7 @@ void FInstancedStaticMeshSceneProxy::SetInstanceCullDistance_RenderThread(float 
 
 UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bIsInstanceDataApplyCompleted(true)
 	, PrimitiveInstanceDataManager(this)
 {
 	Mobility = EComponentMobility::Movable;
@@ -2057,6 +2058,7 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitia
 
 UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(FVTableHelper& Helper)
 	: Super(Helper)
+	, bIsInstanceDataApplyCompleted(true)
 	, PrimitiveInstanceDataManager(this)
 {
 }
