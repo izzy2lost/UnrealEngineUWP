@@ -59,9 +59,6 @@ class LEARNINGAGENTS_API ULearningAgentsPolicy : public ULearningAgentsManagerLi
 
 public:
 
-	friend class ULearningAgentsCritic;
-	friend class ULearningAgentsTrainer;
-
 	// These constructors/destructors are needed to make forward declarations happy
 	ULearningAgentsPolicy();
 	ULearningAgentsPolicy(FVTableHelper& Helper);
@@ -228,6 +225,12 @@ public:
 
 	/** Get a const view to this policy's memory state. */
 	TLearningArrayView<2, const float> GetMemoryState() const;
+
+	/** Get a const view to this policy's encoded observation vectors. */
+	TLearningArrayView<2, const float> GetObservationVectorsEncoded() const;
+
+	/** Returns true if this policy has encoded observations for the given agent id. Otherwise, false. */
+	bool HasEncodedObservationsForAgent(const int32 AgentId) const;
 
 // ----- Private Data -----
 private:

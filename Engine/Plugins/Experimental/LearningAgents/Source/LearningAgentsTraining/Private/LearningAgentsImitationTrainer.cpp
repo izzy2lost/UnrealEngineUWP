@@ -262,10 +262,10 @@ void ULearningAgentsImitationTrainer::BeginTraining(
 		*Policy->GetPolicyNetworkAsset()->NeuralNetworkData,
 		*Policy->GetEncoderNetworkAsset()->NeuralNetworkData,
 		*Policy->GetDecoderNetworkAsset()->NeuralNetworkData,
-		Interactor->GetObservationSchema(),
-		Interactor->GetObservationSchemaElement(),
-		Interactor->GetActionSchema(),
-		Interactor->GetActionSchemaElement(),
+		Interactor->GetObservationSchema()->ObservationSchema,
+		Interactor->GetObservationSchemaElement().SchemaElement,
+		Interactor->GetActionSchema()->ActionSchema,
+		Interactor->GetActionSchemaElement().SchemaElement,
 		ImitationTrainingSettings);
 
 	UE_LOG(LogLearning, Display, TEXT("%s: Sending / Receiving initial policy..."), *GetName());

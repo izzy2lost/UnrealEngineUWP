@@ -149,8 +149,8 @@ void ULearningAgentsPolicy::SetupPolicy(
 	const int32 ActionEncodedVectorSize = Interactor->GetActionEncodedVectorSize();
 	const int32 ActionDistributionVectorSize = Interactor->GetActionDistributionVectorSize();
 
-	const int32 ObservationCompatibilityHash = UE::Learning::Observation::GetSchemaObjectsCompatibilityHash(Interactor->GetObservationSchema(), Interactor->GetObservationSchemaElement());
-	const int32 ActionCompatibilityHash = UE::Learning::Action::GetSchemaObjectsCompatibilityHash(Interactor->GetActionSchema(), Interactor->GetActionSchemaElement());
+	const int32 ObservationCompatibilityHash = UE::Learning::Observation::GetSchemaObjectsCompatibilityHash(Interactor->GetObservationSchema()->ObservationSchema, Interactor->GetObservationSchemaElement().SchemaElement);
+	const int32 ActionCompatibilityHash = UE::Learning::Action::GetSchemaObjectsCompatibilityHash(Interactor->GetActionSchema()->ActionSchema, Interactor->GetActionSchemaElement().SchemaElement);
 	
 	const int32 PolicyHashData[3] = { MemoryStateSize, ObservationEncodedVectorSize, ActionEncodedVectorSize };
 	const int32 PolicyCompatibilityHash = CityHash32((const char*)PolicyHashData, 3 * sizeof(int32));
@@ -201,8 +201,8 @@ void ULearningAgentsPolicy::SetupPolicy(
 			FileData,
 			EncoderInputSize,
 			EncoderOutputSize,
-			Interactor->GetObservationSchema(),
-			Interactor->GetObservationSchemaElement(),
+			Interactor->GetObservationSchema()->ObservationSchema,
+			Interactor->GetObservationSchemaElement().SchemaElement,
 			UE::Learning::Observation::FNetworkSettings(),
 			UE::Learning::Random::Int(Seed ^ 0x658868dd));
 
@@ -344,8 +344,8 @@ void ULearningAgentsPolicy::SetupPolicy(
 			FileData,
 			DecoderInputSize,
 			DecoderOutputSize,
-			Interactor->GetActionSchema(),
-			Interactor->GetActionSchemaElement(),
+			Interactor->GetActionSchema()->ActionSchema,
+			Interactor->GetActionSchemaElement().SchemaElement,
 			UE::Learning::Action::FNetworkSettings(),
 			UE::Learning::Random::Int(Seed ^ 0xfa88bb7f));
 
@@ -488,6 +488,16 @@ TLearningArrayView<2, const float> ULearningAgentsPolicy::GetMemoryState() const
 	return MemoryState;
 }
 
+TLearningArrayView<2, const float> ULearningAgentsPolicy::GetObservationVectorsEncoded() const
+{
+	return ObservationVectorsEncoded;
+}
+
+bool ULearningAgentsPolicy::HasEncodedObservationsForAgent(const int32 AgentId) const
+{
+	return ObservationVectorEncodedIteration[AgentId] > 0;
+}
+
 ULearningAgentsNeuralNetwork* ULearningAgentsPolicy::GetEncoderNetworkAsset()
 {
 	if (!IsSetup())
@@ -541,7 +551,7 @@ void ULearningAgentsPolicy::EncodeObservations()
 	ValidAgentIds.Empty(Manager->GetMaxAgentNum());
 	for (const int32 AgentId : Manager->GetAllAgentSet())
 	{
-		if (Interactor->ObservationVectorIteration[AgentId] == 0)
+		if (Interactor->GetObservationIteration(AgentId) == 0)
 		{
 			UE_LOG(LogLearning, Warning, TEXT("%s: Agent with id %i does not have an observation vector ready be encoded. Was GatherObservations run without error?"), *GetName(), AgentId);
 			continue;
@@ -555,10 +565,10 @@ void ULearningAgentsPolicy::EncodeObservations()
 
 	// Encode Observations
 
-	if (EncoderObject->GetNeuralNetwork()->GetInputSize() != Interactor->ObservationVectors.Num<1>())
+	if (EncoderObject->GetNeuralNetwork()->GetInputSize() != Interactor->GetObservationVectorArrayView().Num<1>())
 	{
 		UE_LOG(LogLearning, Error, TEXT("%s: Encoder Network Input size doesn't match. Network input size is %i but Encoder expects %i."), *GetName(),
-			EncoderObject->GetNeuralNetwork()->GetInputSize(), Interactor->ObservationVectors.Num<1>());
+			EncoderObject->GetNeuralNetwork()->GetInputSize(), Interactor->GetObservationVectorArrayView().Num<1>());
 		return;
 	}
 
@@ -569,7 +579,7 @@ void ULearningAgentsPolicy::EncodeObservations()
 		return;
 	}
 
-	EncoderObject->Evaluate(ObservationVectorsEncoded, Interactor->ObservationVectors, ValidAgentSet);
+	EncoderObject->Evaluate(ObservationVectorsEncoded, Interactor->GetObservationVectorArrayView(), ValidAgentSet);
 
 	for (const int32 AgentId : ValidAgentSet)
 	{
@@ -703,16 +713,16 @@ void ULearningAgentsPolicy::DecodeAndSampleActions(const float ActionNoiseScale)
 	{
 		UE::Learning::Action::SampleVectorFromDistributionVector(
 			Seeds[AgentId],
-			Interactor->ActionVectors[AgentId],
+			Interactor->GetActionVectorsArrayView()[AgentId],
 			ActionDistributionVectors[AgentId],
-			Interactor->ActionSchema->ActionSchema,
-			Interactor->ActionSchemaElement.SchemaElement,
+			Interactor->GetActionSchema()->ActionSchema,
+			Interactor->GetActionSchemaElement().SchemaElement,
 			ActionNoiseScale);
 	}
 
 	for (const int32 AgentId : ValidAgentSet)
 	{
-		Interactor->ActionVectorIteration[AgentId]++;
+		Interactor->GetActionVectorIterationArrayView()[AgentId]++;
 	}
 }
 

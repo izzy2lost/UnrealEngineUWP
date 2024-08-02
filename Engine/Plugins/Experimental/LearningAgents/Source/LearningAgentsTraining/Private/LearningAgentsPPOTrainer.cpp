@@ -400,9 +400,11 @@ void ULearningAgentsPPOTrainer::SendConfig(const FLearningAgentsPPOTrainingSetti
 	ConfigObject->SetStringField(TEXT("TimeStamp"), *FDateTime::Now().ToFormattedString(TEXT("%Y-%m-%d_%H-%M-%S")));
 
 	ConfigObject->SetObjectField(TEXT("ObservationSchema"),
-		UE::Learning::Trainer::ConvertObservationSchemaToJSON(Interactor->GetObservationSchema(), Interactor->GetObservationSchemaElement()));
+		UE::Learning::Trainer::ConvertObservationSchemaToJSON(Interactor->GetObservationSchema()->ObservationSchema,
+		Interactor->GetObservationSchemaElement().SchemaElement));
 	ConfigObject->SetObjectField(TEXT("ActionSchema"),
-		UE::Learning::Trainer::ConvertActionSchemaToJSON(Interactor->GetActionSchema(), Interactor->GetActionSchemaElement()));
+		UE::Learning::Trainer::ConvertActionSchemaToJSON(Interactor->GetActionSchema()->ActionSchema,
+		Interactor->GetActionSchemaElement().SchemaElement));
 	ConfigObject->SetNumberField(TEXT("ObservationVectorDimensionNum"), ReplayBuffer->GetObservations().Num<1>());
 	ConfigObject->SetNumberField(TEXT("ActionVectorDimensionNum"), ReplayBuffer->GetActions().Num<1>());
 	ConfigObject->SetNumberField(TEXT("MemoryStateVectorDimensionNum"), ReplayBuffer->GetMemoryStates().Num<1>());

@@ -33,11 +33,6 @@ class LEARNINGAGENTS_API ULearningAgentsInteractor : public ULearningAgentsManag
 
 public:
 
-	friend class ULearningAgentsController;
-	friend class ULearningAgentsPolicy;
-	friend class ULearningAgentsRecorder;
-	friend class ULearningAgentsTrainer;
-
 	// These constructors/destructors are needed to make forward declarations happy
 	ULearningAgentsInteractor();
 	ULearningAgentsInteractor(FVTableHelper& Helper);
@@ -236,17 +231,17 @@ public:
 	/** Perform Actions for a specific set of agents */
 	void PerformActions(const UE::Learning::FIndexSet AgentSet);
 
-	/** Gets the internal observation schema object */
-	const UE::Learning::Observation::FSchema& GetObservationSchema() const;
+	/** Gets the observation schema object */
+	const ULearningAgentsObservationSchema* GetObservationSchema() const;
 
-	/** Gets the internal observation schema element */
-	UE::Learning::Observation::FSchemaElement GetObservationSchemaElement() const;
+	/** Gets the observation schema element */
+	const FLearningAgentsObservationSchemaElement GetObservationSchemaElement() const;
 
-	/** Gets the internal action schema object */
-	const UE::Learning::Action::FSchema& GetActionSchema() const;
+	/** Gets the action schema object */
+	const ULearningAgentsActionSchema* GetActionSchema() const;
 
-	/** Gets the internal action schema element */
-	UE::Learning::Action::FSchemaElement GetActionSchemaElement() const;
+	/** Gets the action schema element */
+	const FLearningAgentsActionSchemaElement GetActionSchemaElement() const;
 
 	/** Gets the observation vectors as a const array view. */
 	TLearningArrayView<2, const float> GetObservationVectorArrayView() const;
@@ -259,6 +254,24 @@ public:
 
 	/** Gets the action iteration value for the given agent id. */
 	uint64 GetActionIteration(const int32 AgentId) const;
+
+	/** Gets the observation object. */
+	const ULearningAgentsObservationObject* GetObservationObject() const;
+
+	/** Gets the observation object elements. */
+	const TArray<FLearningAgentsObservationObjectElement>& GetObservationObjectElements() const;
+
+	/** Gets the action object. */
+	ULearningAgentsActionObject* GetActionObject();
+
+	/** Gets the action object elements. */
+	TArray<FLearningAgentsActionObjectElement>& GetActionObjectElements();
+
+	/** Gets the action vectors as a mutable array view. */
+	TLearningArrayView<2, float> GetActionVectorsArrayView();
+
+	/** Gets the action vector iterations as a mutable array view. */
+	TLearningArrayView<1, uint64> GetActionVectorIterationArrayView();
 
 private:
 

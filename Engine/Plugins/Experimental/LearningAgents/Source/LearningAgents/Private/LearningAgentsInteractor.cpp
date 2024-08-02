@@ -572,24 +572,24 @@ int32 ULearningAgentsInteractor::GetActionEncodedVectorSize() const
 	return ActionSchema->ActionSchema.GetEncodedVectorSize(ActionSchemaElement.SchemaElement);
 }
 
-const UE::Learning::Observation::FSchema& ULearningAgentsInteractor::GetObservationSchema() const
+const ULearningAgentsObservationSchema* ULearningAgentsInteractor::GetObservationSchema() const
 {
-	return ObservationSchema->ObservationSchema;
+	return ObservationSchema;
 }
 
-UE::Learning::Observation::FSchemaElement ULearningAgentsInteractor::GetObservationSchemaElement() const
+const FLearningAgentsObservationSchemaElement ULearningAgentsInteractor::GetObservationSchemaElement() const
 {
-	return ObservationSchemaElement.SchemaElement;
+	return ObservationSchemaElement;
 }
 
-const UE::Learning::Action::FSchema& ULearningAgentsInteractor::GetActionSchema() const
+const ULearningAgentsActionSchema* ULearningAgentsInteractor::GetActionSchema() const
 {
-	return ActionSchema->ActionSchema;
+	return ActionSchema;
 }
 
-UE::Learning::Action::FSchemaElement ULearningAgentsInteractor::GetActionSchemaElement() const
+const FLearningAgentsActionSchemaElement ULearningAgentsInteractor::GetActionSchemaElement() const
 {
-	return ActionSchemaElement.SchemaElement;
+	return ActionSchemaElement;
 }
 
 TLearningArrayView<2, const float> ULearningAgentsInteractor::GetObservationVectorArrayView() const
@@ -610,4 +610,34 @@ TLearningArrayView<2, const float> ULearningAgentsInteractor::GetActionVectorArr
 uint64 ULearningAgentsInteractor::GetActionIteration(const int32 AgentId) const
 {
 	return ActionVectorIteration[AgentId];
+}
+
+const ULearningAgentsObservationObject* ULearningAgentsInteractor::GetObservationObject() const
+{
+	return ObservationObject;
+}
+
+const TArray<FLearningAgentsObservationObjectElement>& ULearningAgentsInteractor::GetObservationObjectElements() const
+{
+	return ObservationObjectElements;
+}
+
+ULearningAgentsActionObject* ULearningAgentsInteractor::GetActionObject()
+{
+	return ActionObject;
+}
+
+TArray<FLearningAgentsActionObjectElement>& ULearningAgentsInteractor::GetActionObjectElements()
+{
+	return ActionObjectElements;
+}
+
+TLearningArrayView<2, float> ULearningAgentsInteractor::GetActionVectorsArrayView()
+{
+	return ActionVectors;
+}
+
+TLearningArrayView<1, uint64> ULearningAgentsInteractor::GetActionVectorIterationArrayView()
+{
+	return ActionVectorIteration;
 }
