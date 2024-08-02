@@ -3,6 +3,7 @@
 #pragma once
 
 #include "IAnimNextEditorModule.h"
+#include "UObject/TopLevelAssetPath.h"
 
 class FAnimNextGraphPanelNodeFactory;
 
