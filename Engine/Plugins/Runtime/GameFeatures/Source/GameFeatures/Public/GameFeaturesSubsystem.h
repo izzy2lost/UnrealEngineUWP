@@ -610,7 +610,14 @@ public:
 	bool GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
 
 	/** Gets relevant properties out of a uplugin file. Should only be used for built-in GFPs */
+	UE_DEPRECATED(5.5, "Use non-PluginURL version of GetBuiltInGameFeaturePluginDetails and GetBuiltInGameFeaturePluginPath instead")
 	bool GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets relevant properties out of a uplugin file. Should only be used for built-in GFPs */
+	bool GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, struct FGameFeaturePluginDetails& OutPluginDetails) const;
+
+	/** Gets the URL for the given plugin, applying game-specific policies where appropriate. Should only be used for built-in GFPs */
+	bool GetBuiltInGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const;
 
 	/** Gets relevant properties out of a uplugin file if it's installed */
 	bool GetGameFeaturePluginDetails(FString PluginURL, struct FGameFeaturePluginDetails& OutPluginDetails) const;

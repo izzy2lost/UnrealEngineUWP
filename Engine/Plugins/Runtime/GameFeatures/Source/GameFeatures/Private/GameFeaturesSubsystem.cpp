@@ -1781,7 +1781,7 @@ void UGameFeaturesSubsystem::LoadBuiltInGameFeaturePlugin(const TSharedRef<IPlug
 
 	FString PluginURL;
 	FGameFeaturePluginDetails PluginDetails;
-	if (GetBuiltInGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
+	if (GetBuiltInGameFeaturePluginDetails(Plugin, PluginDetails) && GetBuiltInGameFeaturePluginURL(Plugin, PluginURL))
 	{
 		if (IsPluginAllowed(PluginURL))
 		{
@@ -2102,10 +2102,31 @@ EGameFeaturePluginState UGameFeaturesSubsystem::GetPluginState(FGameFeaturePlugi
 
 bool UGameFeaturesSubsystem::GetGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
 {
-	return GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginURL, OutPluginDetails);
+	return GetBuiltInGameFeaturePluginURL(Plugin, OutPluginURL) && GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginDetails);
 }
 
 bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL, FGameFeaturePluginDetails& OutPluginDetails) const
+{
+	return GetBuiltInGameFeaturePluginURL(Plugin, OutPluginURL) && GetBuiltInGameFeaturePluginDetails(Plugin, OutPluginDetails);
+}
+
+bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef<IPlugin>& Plugin, struct FGameFeaturePluginDetails& OutPluginDetails) const
+{
+	// @TODO: this problematic because it assumes file protocol.
+	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
+
+	const FString& PluginDescriptorFilename = Plugin->GetDescriptorFileName();
+	// Make sure you are in a game feature plugins folder. All GameFeaturePlugins are rooted in a GameFeatures folder.
+	if (!PluginDescriptorFilename.IsEmpty() && GetDefault<UGameFeaturesSubsystemSettings>()->IsValidGameFeaturePlugin(FPaths::ConvertRelativePathToFull(PluginDescriptorFilename)) && FPaths::FileExists(PluginDescriptorFilename))
+	{
+		return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
+	}
+
+	return false;
+}
+
+
+bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginURL(const TSharedRef<IPlugin>& Plugin, FString& OutPluginURL) const
 {
 	// @TODO: this problematic because it assumes file protocol.
 	// Ideally this would work with any protocol, but for current uses cases the exact protocol doesn't seem to matter.
@@ -2120,7 +2141,7 @@ bool UGameFeaturesSubsystem::GetBuiltInGameFeaturePluginDetails(const TSharedRef
 		{
 			GameSpecificPolicies->GetGameFeaturePluginURL(Plugin, OutPluginURL);
 		}
-		return GetGameFeaturePluginDetailsInternal(PluginDescriptorFilename, OutPluginDetails);
+		return true;
 	}
 
 	return false;

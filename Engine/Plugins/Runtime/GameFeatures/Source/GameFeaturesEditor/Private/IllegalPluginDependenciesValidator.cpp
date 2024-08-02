@@ -60,9 +60,8 @@ EDataValidationResult UIllegalPluginDependenciesValidator::ValidateLoadedAsset_I
 	GFPs.Reserve(AllPlugins.Num());
 	for (const TSharedRef<IPlugin>& Plugin : AllPlugins)
 	{
-		FString PluginURL;
 		FGameFeaturePluginDetails PluginDetails;
-		if (UGameFeaturesSubsystem::Get().GetBuiltInGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
+		if (UGameFeaturesSubsystem::Get().GetBuiltInGameFeaturePluginDetails(Plugin, PluginDetails))
 		{
 			GFPs.Add(Plugin->GetName());
 		}

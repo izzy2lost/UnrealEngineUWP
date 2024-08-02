@@ -159,9 +159,8 @@ void SPluginAuditBrowser::BuildPluginList()
 	ExcludedGameFeaturePlugins.Reset();
 	for (const TSharedRef<IPlugin>& Plugin : AllPlugins)
 	{
-		FString PluginURL;
 		FGameFeaturePluginDetails PluginDetails;
-		if (GameFeaturesSubsystem.GetBuiltInGameFeaturePluginDetails(Plugin, PluginURL, PluginDetails))
+		if (GameFeaturesSubsystem.GetBuiltInGameFeaturePluginDetails(Plugin, PluginDetails))
 		{
 			if (Policy.WillPluginBeCooked(Plugin->GetDescriptorFileName(), PluginDetails))
 			{
