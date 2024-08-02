@@ -1411,11 +1411,13 @@ void UWorld::Tick( ELevelTick TickType, float DeltaSeconds )
 		{
 			// Reset Async Trace before Tick starts 
 			SCOPE_CYCLE_COUNTER(STAT_ResetAsyncTraceTickTime);
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(ResetAsyncTraceTickTime);
 			ResetAsyncTrace();
 		}
 		{
 			// Run pre-actor tick delegates that want clamped/dilated time
 			SCOPE_CYCLE_COUNTER(STAT_TickTime);
+			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(WorldPreActorTick);
 			FWorldDelegates::OnWorldPreActorTick.Broadcast(this, TickType, DeltaSeconds);
 		}
 	}
