@@ -515,7 +515,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponentsEx(TOptional<TSubc
 	}
 	else
 	{
-		ComponentOuter = Context->ParentComponent;
+		ComponentOuter = Context->ParentComponent->GetOwner();
 	}
 
 	if (!ComponentOuter)
