@@ -21,25 +21,25 @@ UPoseSearchFeatureChannel_Trajectory::UPoseSearchFeatureChannel_Trajectory()
 
 	Samples.Add(FPoseSearchTrajectorySample({ -0.4f, int32(EPoseSearchTrajectoryFlags::PositionXY)
 #if WITH_EDITORONLY_DATA
-		, 0.4f, FLinearColor::Red
+		, 0.4f, FName(), FLinearColor::Red
 #endif // WITH_EDITORONLY_DATA
 		}));
 
 	Samples.Add(FPoseSearchTrajectorySample({ 0.f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
 #if WITH_EDITORONLY_DATA
-		, 2.f, FLinearColor::Blue
+		, 2.f, FName(), FLinearColor::Blue
 #endif // WITH_EDITORONLY_DATA
 		}));
 
 	Samples.Add(FPoseSearchTrajectorySample({ 0.35f, int32(EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
 #if WITH_EDITORONLY_DATA
-		, 0.7f, FLinearColor::Blue
+		, 0.7f, FName(), FLinearColor::Blue
 #endif // WITH_EDITORONLY_DATA
 		}));
 
 	Samples.Add(FPoseSearchTrajectorySample({ 0.7f, int32(EPoseSearchTrajectoryFlags::VelocityXY | EPoseSearchTrajectoryFlags::PositionXY | EPoseSearchTrajectoryFlags::FacingDirectionXY)
 #if WITH_EDITORONLY_DATA
-		, 0.5f, FLinearColor::Blue
+		, 0.5f, FName(), FLinearColor::Blue
 #endif // WITH_EDITORONLY_DATA
 		}));
 }
@@ -57,6 +57,7 @@ bool UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 			Position->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Position->Weight = Sample.Weight * Weight;
+			Position->NormalizationGroup = Sample.NormalizationGroup;
 			Position->DebugColor = Sample.DebugColor;
 #endif // WITH_EDITORONLY_DATA
 			Position->SampleTimeOffset = Sample.Offset;
@@ -76,6 +77,7 @@ bool UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
+			Velocity->NormalizationGroup = Sample.NormalizationGroup;
 			Velocity->DebugColor = Sample.DebugColor;
 #endif // WITH_EDITORONLY_DATA
 			Velocity->SampleTimeOffset = Sample.Offset;
@@ -95,6 +97,7 @@ bool UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 			Velocity->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Velocity->Weight = Sample.Weight * Weight;
+			Velocity->NormalizationGroup = Sample.NormalizationGroup;
 			Velocity->DebugColor = Sample.DebugColor;
 #endif // WITH_EDITORONLY_DATA
 			Velocity->SampleTimeOffset = Sample.Offset;
@@ -115,6 +118,7 @@ bool UPoseSearchFeatureChannel_Trajectory::Finalize(UPoseSearchSchema* Schema)
 			Heading->OriginRole = SampleRole;
 #if WITH_EDITORONLY_DATA
 			Heading->Weight = Sample.Weight * Weight;
+			Heading->NormalizationGroup = Sample.NormalizationGroup;
 			Heading->DebugColor = Sample.DebugColor;
 #endif // WITH_EDITORONLY_DATA
 			Heading->SampleTimeOffset = Sample.Offset;

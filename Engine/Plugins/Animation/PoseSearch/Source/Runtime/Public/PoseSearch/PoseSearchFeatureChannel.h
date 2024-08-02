@@ -157,7 +157,7 @@ public:
 
 	// if this channel GetNormalizationGroup returns a valid FName, all the channels of the same class with the same cardinality, and the same NormalizationGroup, 
 	// will make CanBeNormalizedWith return true and will be normalized together.
-	// for example in a locomotion database of a character holding a weapon, containing non mirrorable animations, you'd still want to normalize togeter 
+	// for example in a locomotion database of a character holding a weapon, containing non mirrorable animations, you'd still want to normalize together 
 	// left foot and right foot position and velocity, so you'd want those channels returning the same GetNormalizationGroup value
 	virtual FName GetNormalizationGroup() const { return FName(); }
 
