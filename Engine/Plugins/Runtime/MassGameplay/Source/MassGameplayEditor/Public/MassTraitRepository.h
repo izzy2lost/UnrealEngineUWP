@@ -52,13 +52,13 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
 
+#if WITH_MASSENTITY_DEBUG
 	/** 
 	 * Note that the function does nothing until InitRepository is called. This is done to avoid collecting trait
 	 * data until it's actually necessary.
 	 */
 	void OnNewTraitType(UMassEntityTraitBase& Trait);
 
-#if WITH_MASSENTITY_DEBUG
 	void OnDebugEvent(const FName EventName, FConstStructView Payload, EMassDebugMessageSeverity SeverityOverride);
 #endif // WITH_MASSENTITY_DEBUG
 	/** 
