@@ -110,8 +110,8 @@
 
 #if PLATFORM_COMPILER_CLANG
 	#include "Clang/ClangPlatformCodeAnalysis.h"
-#elif PLATFORM_WINDOWS
-	#include "Windows/WindowsPlatformCodeAnalysis.h"
+#elif PLATFORM_MICROSOFT
+	#include "Microsoft/MicrosoftPlatformCodeAnalysis.h"
 #endif
 
 #ifndef USING_ADDRESS_SANITISER
