@@ -194,7 +194,13 @@ struct FDelayedPacket
 	FOutPacketTraits Traits;
 
 	/** The time at which to send the packet */
-	double SendTime;
+	double SendTime = 0.0;
+
+	/** The number of frames we delay sending the packet */
+	uint32 DelayFrameCount = 0;
+
+	/** Flag telling the packet was sent and can be cleaned up */
+	bool bSent = false;
 
 public:
 
@@ -202,7 +208,6 @@ public:
 		: Data()
 		, SizeBits(InSizeBits)
 		, Traits(InTraits)
-		, SendTime(0.0)
 	{
 		int32 SizeBytes = FMath::DivideAndRoundUp(SizeBits, 8);
 
@@ -222,6 +227,9 @@ struct FDelayedIncomingPacket
 
 	/** Time at which the packet should be reinjected into the connection */
 	double ReinjectionTime = 0.0;
+
+	/** Number of frames until we can reinject the incoming packet */
+	uint32 ReinjectionFrameCount = 0;
 
 	void CountBytes(FArchive& Ar) const
 	{
@@ -430,6 +438,7 @@ public:
 	int32			PacketOverhead;			// Bytes overhead per packet sent.
 	FString			Challenge;				// Server-generated challenge.
 	FString			ClientResponse;			// Client-generated response.
+
 	int32			ResponseId;				// Id assigned by the server for linking responses to connections upon authentication
 	FString			RequestURL;				// URL requested by client
 
@@ -491,7 +500,7 @@ public:
 	float			StatPeriod;
 
 	/** Average lag seen during the last StatPeriod */
-	float AvgLag;
+	float 			AvgLag;
 
 	/** Total accumulated lag values during the current StatPeriod */
 	double			LagAcc;
@@ -866,6 +875,9 @@ private:
 
 	/** Process incoming packets that have been delayed for long enough */
 	void ReinjectDelayedPackets();
+
+	/** Update local packets we queued to add latency and send those that are due */
+	void UpdateDelayedPackets(const double CurrentRealtimeSeconds);
 
 #endif //#if DO_ENABLE_NET_TEST
 

@@ -89,4 +89,4 @@ inline const TCHAR* LexToString(EDependentObjectSchedulingHint SchedulingHint)
 	}
 }
 
-}
+} // end namespace UE::Net

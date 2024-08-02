@@ -317,8 +317,7 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,	Handler()
 ,	StatelessConnectComponent()
 ,	PacketOverhead		( 0 )
-,	ResponseId			( 0 )
-
+,	ResponseId			( 0 ) // variable is unused and will be deleted
 ,	QueuedBits			( 0 )
 ,	TickCount			( 0 )
 ,	LastProcessedFrame	( 0 )
@@ -2180,9 +2179,17 @@ void UNetConnection::ReinjectDelayedPackets()
 		TGuardValue<bool> ReinjectingGuard(bIsReinjectingDelayedPackets, true);
 
 		uint32 NbReinjected(0);
-		for (const FDelayedIncomingPacket& DelayedPacket : DelayedIncomingPackets)
+		for (FDelayedIncomingPacket& DelayedPacket : DelayedIncomingPackets)
 		{
-			if (DelayedPacket.ReinjectionTime > CurrentTime)
+			if (DelayedPacket.ReinjectionFrameCount > 0)
+			{
+				if (DelayedPacket.ReinjectionFrameCount > 1)
+				{
+					DelayedPacket.ReinjectionFrameCount--;
+					break;
+				}
+			}			
+			else if (DelayedPacket.ReinjectionTime > CurrentTime)
 			{
 				break;
 			}
@@ -2455,6 +2462,13 @@ bool UNetConnection::CheckOutgoingPacketEmulation(FOutPacketTraits& Traits)
 		const double LagVariance = FMath::FRand() * double(PacketSimulationSettings.PktLagMax - PacketSimulationSettings.PktLagMin);
 		const double ExtraLag = (double(PacketSimulationSettings.PktLagMin) + LagVariance) / 1000.f;
 		B.SendTime = FPlatformTime::Seconds() + ExtraLag;
+		
+		return true;
+	}
+	else if (PacketSimulationSettings.PktFrameDelay > 0)
+	{
+		FDelayedPacket& B = *(new(Delayed)FDelayedPacket(SendBuffer.GetData(), SendBuffer.GetNumBits(), Traits));
+		B.DelayFrameCount = PacketSimulationSettings.PktFrameDelay;
 		
 		return true;
 	}
@@ -2914,6 +2928,17 @@ void UNetConnection::ReceivedPacket( FBitReader& Reader, bool bIsReinjectedPacke
 			DelayedIncomingPackets.Emplace(MoveTemp(DelayedPacket));
 
 			UE_LOG(LogNet, VeryVerbose, TEXT("Delaying incoming packet for %f seconds"), ExtraLagInSec);
+			return;
+		}
+		else if (PacketSimulationSettings.PktIncomingFrameDelay)
+		{
+			FDelayedIncomingPacket DelayedPacket;
+			DelayedPacket.PacketData = MakeUnique<FBitReader>(Reader);
+			DelayedPacket.ReinjectionFrameCount = PacketSimulationSettings.PktIncomingFrameDelay;
+
+			DelayedIncomingPackets.Emplace(MoveTemp(DelayedPacket));
+
+			UE_LOG(LogNet, VeryVerbose, TEXT("Delaying incoming packet for %u frames"), PacketSimulationSettings.PktIncomingFrameDelay);
 			return;
 		}
 	}
@@ -4404,43 +4429,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 
 	// Lag simulation.
 #if DO_ENABLE_NET_TEST
-	if (Delayed.Num() > 0)
-	{
-		if (bSendDelayedPacketsOutofOrder)
-		{
-			for (int Idx=0; Idx < Delayed.Num(); ++Idx)
-			{
-				if (CurrentRealtimeSeconds > Delayed[Idx].SendTime)
-				{
-					LowLevelSend((char*)&(Delayed[Idx].Data[0]), Delayed[Idx].SizeBits, Delayed[Idx].Traits);
-				}
-			}
-
-			Delayed.RemoveAll([&CurrentRealtimeSeconds](const FDelayedPacket& rhs)
-			{
-				return CurrentRealtimeSeconds > rhs.SendTime;
-			});
-		}
-		else
-		{
-			uint32 NbPacketsSent(0);
-			for (FDelayedPacket& DelayedPacket : Delayed)
-			{
-				if (CurrentRealtimeSeconds > DelayedPacket.SendTime)
-				{
-					LowLevelSend((char*)&DelayedPacket.Data[0], DelayedPacket.SizeBits, DelayedPacket.Traits);
-					++NbPacketsSent;
-				}
-				else
-				{
-					// Break now instead of continuing to iterate through the list. Otherwise may cause out of order sends
-					break;
-				}
-			}
-
-			Delayed.RemoveAt(0, NbPacketsSent, EAllowShrinking::No);
-		}
-	}
+	UpdateDelayedPackets(CurrentRealtimeSeconds);
 #endif
 
 	// if this is 0 it's our first tick since init, so start our real-time tracking from here
@@ -4795,6 +4784,49 @@ void UNetConnection::Tick(float DeltaSeconds)
 		NetPing->TickRealtime(CurrentRealtimeSeconds);
 	}
 }
+
+#if DO_ENABLE_NET_TEST
+void UNetConnection::UpdateDelayedPackets(const double CurrentRealtimeSeconds)
+{
+	for (int32 Index = 0; Index < Delayed.Num(); ++Index)
+	{
+		FDelayedPacket& Packet = Delayed[Index];
+		bool bSendPacket = false;
+
+		if (Packet.DelayFrameCount > 0)
+		{
+			if (Packet.DelayFrameCount == 1)
+			{
+				bSendPacket = true;
+			}
+			else
+			{
+				Packet.DelayFrameCount--;
+			}
+		}
+		else if (CurrentRealtimeSeconds > Packet.SendTime)
+		{
+			bSendPacket = true;
+		}
+
+		if (bSendPacket)
+		{
+			LowLevelSend((char*)&(Packet.Data[0]), Packet.SizeBits, Packet.Traits);
+			Packet.bSent = true;
+		}
+		else if (!bSendDelayedPacketsOutofOrder)
+		{
+			// Break now instead of continuing to iterate through the list. Otherwise it causes out of order packets due to the random variance added to each latency
+			break;
+		}
+	}
+
+	Delayed.RemoveAll([](const FDelayedPacket& Packet)
+	{
+		return Packet.bSent;
+	});
+}
+#endif // DO_ENABLE_NET_TEST
 
 void UNetConnection::HandleConnectionTimeout(const FString& Error)
 {

@@ -555,6 +555,18 @@ struct FPacketSimulationSettings
 	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
 	int32	PktJitter = 0;
 
+	/**
+	 * Delays sending packets for a specific number of ticks
+	 */
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	int32	PktFrameDelay = 0;
+
+	/**
+	 * Delays processing received packets for a specific number of ticks
+	 */
+	UPROPERTY(EditAnywhere, Category = "Simulation Settings")
+	int32	PktIncomingFrameDelay = 0;
+
 	/** reads in settings from the .ini file 
 	 * @note: overwrites all previous settings
 	 */
@@ -1381,7 +1393,7 @@ public:
 	 */
 	ENGINE_API void SetPacketSimulationSettings(const FPacketSimulationSettings& NewSettings);
 
-	void OnPacketSimulationSettingsChanged();
+	ENGINE_API void OnPacketSimulationSettingsChanged();
 #endif
 
 	// Constructors.
@@ -1660,7 +1672,7 @@ public:
 	bool HandlePropertyConditionsMemCommand(const TCHAR* Cmd, FOutputDevice& Ar);
 #endif
 
-	void HandlePacketLossBurstCommand( int32 DurationInMilliseconds );
+	ENGINE_API void HandlePacketLossBurstCommand( int32 DurationInMilliseconds );
 
 	// ---------------------------------------------------------------
 	//	Game code API for updating server Actor Replication State
