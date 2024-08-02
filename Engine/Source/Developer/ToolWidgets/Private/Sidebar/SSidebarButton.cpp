@@ -237,24 +237,30 @@ void SSidebarButton::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 	UpdateAppearance(nullptr);
 }
 
-void SSidebarButton::UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InOpenedDrawer)
+void SSidebarButton::UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InLastDrawerOpen)
 {
+	const TSharedPtr<FSidebarDrawer> ThisDrawer = DrawerWeak.Pin();
+	if (!ThisDrawer.IsValid())
+	{
+		return;
+	}
+
 	float LabelRotation;
-	FName OpenBorderBrushName;
+	FName FocusBorderBrushName;
 
 	switch (TabLocation)
 	{
 	case ESidebarTabLocation::Left:
 		LabelRotation = -90.f;
-		OpenBorderBrushName = TEXT("Docking.Sidebar.Border_SquareRight");
+		FocusBorderBrushName = TEXT("Docking.Sidebar.Border_SquareRight");
 		break;
 	case ESidebarTabLocation::Right:
 		LabelRotation = 90.f;
-		OpenBorderBrushName = TEXT("Docking.Sidebar.Border_SquareLeft");
+		FocusBorderBrushName = TEXT("Docking.Sidebar.Border_SquareLeft");
 		break;
 	default:
 		LabelRotation = 0.f;
-		OpenBorderBrushName = TEXT("None");
+		FocusBorderBrushName = TEXT("None");
 		break;
 	}
 
@@ -263,17 +269,25 @@ void SSidebarButton::UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InOpened
 		Label->SetRotation(LabelRotation);
 	}
 
-	if (InOpenedDrawer == DrawerWeak)
+	// Border when open/docked
+	if (InLastDrawerOpen == ThisDrawer && (!ThisDrawer->bIsDocked && ThisDrawer->bIsOpen))
 	{
-		// this button is the one with the tab that is actually opened so show the tab border
 		OpenBorder->SetVisibility(EVisibility::HitTestInvisible);
-		MainButton->SetButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Docking.SidebarButton.Opened")));
-
-		OpenBorder->SetBorderImage(FAppStyle::Get().GetBrush(OpenBorderBrushName));
+		OpenBorder->SetBorderImage(FAppStyle::Get().GetBrush(FocusBorderBrushName));
 	}
 	else
 	{
 		OpenBorder->SetVisibility(EVisibility::Collapsed);
+	}
+
+	// Button style
+	if (InLastDrawerOpen == ThisDrawer || ThisDrawer->bIsDocked)
+	{
+		// this button is the one with the tab that is actually opened so show the tab border
+		MainButton->SetButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Docking.SidebarButton.Opened")));
+	}
+	else
+	{
 		MainButton->SetButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Docking.SidebarButton.Closed")));
 	}
 }

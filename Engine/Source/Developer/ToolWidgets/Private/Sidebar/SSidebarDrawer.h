@@ -45,8 +45,10 @@ public:
 		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnDrawerFocused)
 		/** Called when the drawer loses focus */
 		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnDrawerFocusLost)
+		/** Called when the drawer is completely opened (i.e will be called once the open animation completes */
+		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnOpenAnimationFinish)
 		/** Called when the drawer is completely closed (i.e will be called once the close animation completes */
-		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnDrawerClosed)
+		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnCloseAnimationFinish)
 	SLATE_END_ARGS()
 
 	~SSidebarDrawer();
@@ -116,7 +118,8 @@ protected:
 	FOnSidebarDrawerTargetSizeChanged OnDrawerTargetSizeChanged;
 	FGenericSidebarDrawerWidgetDelegate OnDrawerFocused;
 	FGenericSidebarDrawerWidgetDelegate OnDrawerFocusLost;
-	FGenericSidebarDrawerWidgetDelegate OnDrawerClosed;
+	FGenericSidebarDrawerWidgetDelegate OnCloseAnimationFinish;
+	FGenericSidebarDrawerWidgetDelegate OnOpenAnimationFinish;
 
 	FCurveSequence OpenCloseAnimation;
 	TSharedPtr<FActiveTimerHandle> OpenCloseTimer;

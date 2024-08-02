@@ -153,7 +153,7 @@ public:
 	bool TryOpenDrawer(const FName InDrawerId);
 
 	/** Closes any drawers that are open. */
-	void CloseAllDrawers();
+	void CloseAllDrawers(const bool bInAnimate = true);
 
 	/** @return True if the sidebar has any drawer that is opened. */
 	bool HasDrawerOpened() const;
@@ -230,7 +230,8 @@ private:
 	void OnDrawerTabPinToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsPinned);
 	void OnDrawerTabDockToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsDocked);
 	void OnTabDrawerFocusLost(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
-	void OnTabDrawerClosed(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
+	void OnOpenAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
+	void OnCloseAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
 	void OnDrawerTargetSizeChanged(const TSharedRef<SSidebarDrawer>& InDrawerWidget, const float InNewSize);
 	TSharedRef<SWidget> OnGetTabDrawerContextMenuWidget(TSharedRef<FSidebarDrawer> InDrawer);
 	void BuildOptionsMenu(UToolMenu* const InMenu);
@@ -241,10 +242,10 @@ private:
 	/** Removes all drawers instantly (including drawers for pinned tabs). */
 	void RemoveAllDrawers();
 
-	EActiveTimerReturnType OnOpenPendingDrawerTimer(const double CurrentTime, const float DeltaTime);
-	void OpenDrawerNextFrame(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bAnimateOpen);
-	void OpenDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bAnimateOpen);
-	void CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer);
+	EActiveTimerReturnType OnOpenPendingDrawerTimer(const double InCurrentTime, const float InDeltaTime);
+	void OpenDrawerNextFrame(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
+	void OpenDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
+	void CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
 
 	/** Reopens the pinned tab only if there are no other open drawers. This should be used to bring pinned tabs back after other tabs lose focus/are closed. */
 	void SummonPinnedTabIfNothingOpened();
@@ -261,7 +262,7 @@ private:
 	TSharedPtr<FSidebarDrawer> GetForegroundTab() const;
 
 	/** Returns the drawer for the given tab if it's open. */
-	TSharedPtr<SSidebarDrawer> FindOpenedDrawer(const TSharedRef<FSidebarDrawer>& InDrawer) const;
+	TSharedPtr<SSidebarDrawer> FindOpenDrawerWidget(const TSharedRef<FSidebarDrawer>& InDrawer) const;
 
 	TWeakPtr<SOverlay> DrawersOverlayWeak;
 	TWeakPtr<SBox> DockLocationWeak;
@@ -273,12 +274,16 @@ private:
 	bool bDisableDock = false;
 	FOnSidebarDrawerDockStateChanged OnDockStateChanged;
 
-	TSharedPtr<SScrollBox> TabContainer;
+	TSharedPtr<SScrollBox> TabButtonContainer;
 
-	TArray<TSharedRef<FSidebarDrawer>> DrawerTabs;
+	TArray<TSharedRef<FSidebarDrawer>> Drawers;
 
-	/** Generally speaking one drawer is only ever open at once but we animate any previous drawer closing so there could be more than one while an animation is playing. */
-	TArray<TSharedRef<SSidebarDrawer>> OpenedDrawers;
+	/** Generally speaking one drawer is only ever open at once but we animate any previous drawer
+	 * closing so there could be more than one while an animation is playing. A docked drawer is
+	 * also considered open, along with any user opened/pinned drawers. */
+	TArray<TSharedRef<SSidebarDrawer>> OpenDrawerWidgets;
+
+	TArray<TSharedRef<SSidebarDrawer>> ClosingDrawerWidgets;
 
 	TWeakPtr<FSidebarDrawer> PendingTabToOpen;
 	bool bAnimatePendingTabOpen = false;

@@ -31,7 +31,8 @@ void SSidebarDrawer::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 	OnDrawerTargetSizeChanged = InArgs._OnDrawerTargetSizeChanged;
 	OnDrawerFocused = InArgs._OnDrawerFocused;
 	OnDrawerFocusLost = InArgs._OnDrawerFocusLost;
-	OnDrawerClosed = InArgs._OnDrawerClosed;
+	OnCloseAnimationFinish = InArgs._OnCloseAnimationFinish;
+	OnOpenAnimationFinish = InArgs._OnOpenAnimationFinish;
 
 	OpenCloseAnimation = FCurveSequence(0.f, AnimationLength, ECurveEaseFunction::QuadOut);
 
@@ -61,8 +62,12 @@ void SSidebarDrawer::Open(const bool bInAnimateOpen)
 		return;
 	}
 
-	const float StartTime = OpenCloseAnimation.IsPlaying() ? OpenCloseAnimation.GetSequenceTime() : 0.f;
-	OpenCloseAnimation.Play(AsShared(), false, StartTime, false);
+	if (OpenCloseAnimation.IsInReverse())
+	{
+		OpenCloseAnimation.Reverse();
+	}
+
+	OpenCloseAnimation.Play(AsShared(), false, OpenCloseAnimation.GetSequenceTime(), false);
 
 	if (!OpenCloseTimer.IsValid())
 	{
@@ -80,8 +85,10 @@ void SSidebarDrawer::Close(const bool bInAnimateOpen)
 		return;
 	}
 
-	const float StartTime = OpenCloseAnimation.IsPlaying() ? OpenCloseAnimation.GetSequenceTime() : AnimationLength;
-	OpenCloseAnimation.PlayReverse(AsShared(), false, StartTime, true);
+	if (OpenCloseAnimation.IsForward())
+	{
+		OpenCloseAnimation.Reverse();
+	}
 
 	if (!OpenCloseTimer.IsValid())
 	{
@@ -497,7 +504,11 @@ EActiveTimerReturnType SSidebarDrawer::UpdateAnimation(const double InCurrentTim
 	{
 		if (OpenCloseAnimation.IsAtStart())
 		{
-			OnDrawerClosed.ExecuteIfBound(SharedThis(this));
+			OnCloseAnimationFinish.ExecuteIfBound(SharedThis(this));
+		}
+		else if (OpenCloseAnimation.IsAtEnd())
+		{
+			OnOpenAnimationFinish.ExecuteIfBound(SharedThis(this));
 		}
 
 		FSlateThrottleManager::Get().LeaveResponsiveMode(AnimationThrottle);
@@ -576,7 +587,7 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 
 				// See if the menu being opened is owned by the drawer contents and if so the menu should not be dismissed
 				FSlateApplication::Get().GeneratePathToWidgetUnchecked(MenuHost.ToSharedRef(), MenuHostPath);
-				
+
 				if (!MenuHostPath.ContainsWidget(&ChildSlot.GetWidget().Get()))
 				{
 					bShouldLoseFocus = true;

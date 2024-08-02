@@ -42,7 +42,7 @@ public:
 
 	void Construct(const FArguments& InArgs, const TSharedRef<FSidebarDrawer>& InDrawer, const ESidebarTabLocation InTabLocation);
 
-	void UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InOpenedDrawer);
+	void UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InLastDrawerOpen);
 
 	void OnTabRenamed(const TWeakPtr<FSidebarDrawer>& InDrawer);
 	
