@@ -18,11 +18,17 @@ namespace AutomatedPerfTest
 		public string ProjectName = "";
 
 		/// <summary>
+		/// Name of the project (TODO: parse from the build metadata? What about github builds?)
+		/// </summary>
+		[AutoParamWithNames("AutomatedPerfTest.DataSourceName")]
+		public string DataSourceName = "";
+
+		/// <summary>
 		/// If we're running on the build machine
 		/// </summary>
 		[AutoParamWithNames(false, "AutomatedPerfTest.IsBuildMachine")]
 		public bool IsBuildMachine;
-		
+
 		/// <summary>
 		/// Name of the test, useful for identifying it later
 		/// </summary>
