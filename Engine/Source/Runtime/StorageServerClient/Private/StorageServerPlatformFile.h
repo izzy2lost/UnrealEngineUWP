@@ -109,6 +109,7 @@ private:
 	friend class FStorageServerFileHandle;
 
 	bool IsNonServerFilenameAllowed(FStringView InFilename);
+	bool IsAssumedImmutableTimeStampFilename(FStringView InFilename) const;
 	bool MakeStorageServerPath(const TCHAR* LocalFilenameOrDirectory, FStringBuilderBase& OutPath) const;
 	bool MakeLocalPath(const TCHAR* ServerFilenameOrDirectory, FStringBuilderBase& OutPath) const;
 	IFileHandle* InternalOpenFile(const FIoChunkId& FileChunkId, int64 RawSize, const TCHAR* LocalFilename);
@@ -122,6 +123,7 @@ private:
 	FAnsiString MakeBaseURI();
 
 	TSet<FName> ExcludedNonServerExtensions;
+	TSet<FName> AssumedImmutableTimeStampExtensions;
 	IPlatformFile* LowerLevel = nullptr;
 	FStringView ServerEngineDirView = FStringView(TEXT("/{engine}/"));
 	FStringView ServerProjectDirView = FStringView(TEXT("/{project}/"));
