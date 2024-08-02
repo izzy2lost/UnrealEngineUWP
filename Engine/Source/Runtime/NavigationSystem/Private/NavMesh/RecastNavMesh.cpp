@@ -423,69 +423,6 @@ namespace FNavMeshConfig
 
 #endif // WITH_RECAST
 
-// Deprecated
-FRecastNavMeshGenerationProperties::FRecastNavMeshGenerationProperties()
-{
-	TilePoolSize = 1024;
-	TileSizeUU = 988.f;
-	CellSize = 19;
-	CellHeight = 10;
-	AgentRadius = 34.f;
-	AgentHeight = 144.f;
-	AgentMaxSlope = 44.f;
-	AgentMaxStepHeight = 35.f;
-	MinRegionArea = 0.f;
-	MergeRegionSize = 400.f;
-	MaxSimplificationError = 1.3f;	// from RecastDemo
-	TileNumberHardLimit = 1 << 20;
-	RegionPartitioning = ERecastPartitioning::Watershed;
-	LayerPartitioning = ERecastPartitioning::Watershed;
-	RegionChunkSplits = 2;
-	LayerChunkSplits = 2;
-	bSortNavigationAreasByCost = true;
-	bPerformVoxelFiltering = true;
-	bMarkLowHeightAreas = false;
-	bUseExtraTopCellWhenMarkingAreas = true;
-	bFilterLowSpanSequences = false;
-	bFilterLowSpanFromTileCache = false;
-	bFixedTilePoolSize = false;
-	bIsWorldPartitioned = false;
-}
-
-#if WITH_RECAST
-
-// Deprecated
-FRecastNavMeshGenerationProperties::FRecastNavMeshGenerationProperties(const ARecastNavMesh& RecastNavMesh)
-{
-	TilePoolSize = RecastNavMesh.TilePoolSize;
-	TileSizeUU = RecastNavMesh.TileSizeUU;
-	
-	CellSize = RecastNavMesh.GetCellSize(ENavigationDataResolution::Default);
-	CellHeight = RecastNavMesh.GetCellHeight(ENavigationDataResolution::Default);
-	AgentRadius = RecastNavMesh.AgentRadius;
-	AgentHeight = RecastNavMesh.AgentHeight;
-	AgentMaxSlope = RecastNavMesh.AgentMaxSlope;
-	AgentMaxStepHeight = RecastNavMesh.GetAgentMaxStepHeight(ENavigationDataResolution::Default); //FRecastNavMeshGenerationProperties is getting deprecated 
-	MinRegionArea = RecastNavMesh.MinRegionArea;
-	MergeRegionSize = RecastNavMesh.MergeRegionSize;
-	MaxSimplificationError = RecastNavMesh.MaxSimplificationError;
-	TileNumberHardLimit = RecastNavMesh.TileNumberHardLimit;
-	RegionPartitioning = RecastNavMesh.RegionPartitioning;
-	LayerPartitioning = RecastNavMesh.LayerPartitioning;
-	RegionChunkSplits = RecastNavMesh.RegionChunkSplits;
-	LayerChunkSplits = RecastNavMesh.LayerChunkSplits;
-	bSortNavigationAreasByCost = RecastNavMesh.bSortNavigationAreasByCost;
-	bPerformVoxelFiltering = RecastNavMesh.bPerformVoxelFiltering;
-	bMarkLowHeightAreas = RecastNavMesh.bMarkLowHeightAreas;
-	bUseExtraTopCellWhenMarkingAreas = RecastNavMesh.bUseExtraTopCellWhenMarkingAreas;
-	bFilterLowSpanSequences = RecastNavMesh.bFilterLowSpanSequences;
-	bFilterLowSpanFromTileCache = RecastNavMesh.bFilterLowSpanFromTileCache;
-	bFixedTilePoolSize = RecastNavMesh.bFixedTilePoolSize;
-	bIsWorldPartitioned = RecastNavMesh.bIsWorldPartitioned;
-}
-
-#endif // WITH_RECAST
-
 FRecastNavMeshTileGenerationDebug::FRecastNavMeshTileGenerationDebug()
 {
 	bEnabled = false;
