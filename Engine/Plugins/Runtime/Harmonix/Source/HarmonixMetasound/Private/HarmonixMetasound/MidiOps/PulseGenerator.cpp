@@ -86,6 +86,18 @@ namespace Harmonix::Midi::Ops
 				NextPulseTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(AsLoop->FirstTickInLoop);
 				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
 			}
+			else if (const FSeek* AsSeek = ClockEvent.TryGet<FSeek>())
+			{
+				// When we seek, reset the pulse phase to the current bar
+				const FMusicTimestamp ClockCurrentTimestamp = PinnedClock->GetSongMapEvaluator().TickToMusicTimestamp(AsSeek->NewNextTick);
+				NextPulseTimestamp.Bar = ClockCurrentTimestamp.Bar;
+				NextPulseTimestamp.Beat = 1;
+				IncrementTimestampByOffset(NextPulseTimestamp, Interval, CurrentTimeSignature);
+				while (NextPulseTimestamp < ClockCurrentTimestamp)
+				{
+					IncrementTimestampByInterval(NextPulseTimestamp, Interval, CurrentTimeSignature);
+				}
+			}
 		}
 	}
 
