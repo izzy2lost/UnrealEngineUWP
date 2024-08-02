@@ -18,7 +18,7 @@
 #include "HAL/FileManager.h"
 #include "Editor.h"
 
-static FAutoConsoleCommand DumpActorDesc(
+static FAutoConsoleCommand GenerateStreamingDescriptorCmd(
 	TEXT("wp.editor.GenerateStreamingDescriptor"),
 	TEXT("Generate the streaming descriptor for the current world in the speficied file."),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
