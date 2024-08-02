@@ -1571,6 +1571,7 @@ void SInterchangePipelineConfigurationDialog::UpdatePreviewContainer(bool bUpdat
 		//Duplicate the pipeline because ScriptedExecutePipeline is not const
 		if (UInterchangePipelineBase* DuplicatedPipeline = DuplicateObject<UInterchangePipelineBase>(PipelineItem->Pipeline, GetTransientPackage()))
 		{
+			DuplicatedPipeline->TransferAdjustSettings(PipelineItem->Pipeline);
 			DuplicatedPipeline->SetResultsContainer(Results);
 			DuplicatedPipeline->ScriptedExecutePipeline(PreviewNodeContainer, SourceDatas, FString());
 			ClearObjectFlags(DuplicatedPipeline);

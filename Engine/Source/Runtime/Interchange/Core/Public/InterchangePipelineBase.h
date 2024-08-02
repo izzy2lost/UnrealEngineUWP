@@ -332,7 +332,7 @@ public:
 	INTERCHANGECORE_API virtual void AdjustSettingsFromCache();
 
 	/** Transfer the source pipeline adjust settings to this pipeline. */
-	INTERCHANGECORE_API void TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline);
+	INTERCHANGECORE_API void TransferAdjustSettings(const UInterchangePipelineBase* SourcePipeline);
 
 	INTERCHANGECORE_API void SetShowEssentialsMode(bool bShowEssentialsModeValue)
 	{

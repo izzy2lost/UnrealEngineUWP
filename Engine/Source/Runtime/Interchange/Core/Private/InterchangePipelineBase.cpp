@@ -63,7 +63,7 @@ void UInterchangePipelineBase::AdjustSettingsFromCache()
 	AdjustSettingsForContext(CacheContextParam);
 }
 
-void UInterchangePipelineBase::TransferAdjustSettings(UInterchangePipelineBase* SourcePipeline)
+void UInterchangePipelineBase::TransferAdjustSettings(const UInterchangePipelineBase* SourcePipeline)
 {
 	CacheContextParam = SourcePipeline->CacheContextParam;
 	CachePropertiesStates = SourcePipeline->CachePropertiesStates;
