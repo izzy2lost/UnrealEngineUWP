@@ -25,5 +25,5 @@ protected:
 	UNREALED_API static bool IsCrossPluginReferenceAllowed(const FAssetData& ReferencingAssetData, const FAssetData& ReferencedAssetData);
 
 private:
-	static FOnIsCrossPluginReferenceAllowed OnIsCrossPluginReferenceAllowedDelegate;
+	UNREALED_API static FOnIsCrossPluginReferenceAllowed OnIsCrossPluginReferenceAllowedDelegate;
 };
