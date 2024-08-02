@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AnimNextWorkspaceSchema.h"
+
+#include "AnimNextEditorModule.h"
 #include "Module/AnimNextModule.h"
 #include "Scheduler/AnimNextSchedule.h"
 
@@ -13,13 +15,9 @@ FText UAnimNextWorkspaceSchema::GetDisplayName() const
 
 TConstArrayView<FTopLevelAssetPath> UAnimNextWorkspaceSchema::GetSupportedAssetClassPaths() const
 {
-	static const FTopLevelAssetPath Assets[] =
-	{
-		UAnimNextSchedule::StaticClass()->GetClassPathName(),
-		UAnimNextModule::StaticClass()->GetClassPathName(),
-	};
-	
-	return Assets;
+	const UE::AnimNext::Editor::FAnimNextEditorModule& Module = FModuleManager::Get().LoadModuleChecked<UE::AnimNext::Editor::FAnimNextEditorModule>("AnimNextEditor");
+
+	return Module.SupportedAssetClasses;
 }
 
 #undef LOCTEXT_NAMESPACE

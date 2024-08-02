@@ -21,9 +21,9 @@ namespace UE::Workspace
 namespace UE::AnimNext::Editor
 {
 
-class FModule : public IModule
+class FAnimNextEditorModule : public IAnimNextEditorModule
 {
-
+	friend class UAnimNextWorkspaceSchema;
 private:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
@@ -32,6 +32,7 @@ private:
 	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override;
 	virtual void RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
 	virtual void UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
+	virtual void AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) override;
 
 private:
 	void RegisterWorkspaceDocumentTypes(Workspace::IWorkspaceEditorModule& WorkspaceEditorModule);
@@ -49,6 +50,8 @@ private:
 
 	/** Registered names for locator fragments */
 	TSet<FName> LocatorFragmentEditorNames;
+
+	TArray<FTopLevelAssetPath> SupportedAssetClasses;
 
 	friend class FLocatorContext;
 };
