@@ -17,6 +17,11 @@ using FStaticSpatialIndexType = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartit
 using FStaticSpatialIndexSorter2D = FStaticSpatialIndex::TNodeSorterHilbert<FStaticSpatialIndex::FSpatialIndexProfile2D, 65536>;
 using FStaticSpatialIndexType2D = TStaticSpatialIndexRTree<TObjectPtr<UWorldPartitionRuntimeCell>, FStaticSpatialIndexSorter2D, FStaticSpatialIndex::FSpatialIndexProfile2D>;
 
+namespace UE::Private::WorldPartition
+{
+	struct FStreamingDescriptor;
+};
+
 /** Holds an HLOD setup for a particular partition class. */
 USTRUCT()
 struct FRuntimePartitionHLODSetup
@@ -77,7 +82,7 @@ struct FRuntimePartitionStreamingData
 
 	friend class UWorldPartitionRuntimeHashSet;
 	friend class URuntimeHashSetExternalStreamingObject;
-	friend struct FFortWorldPartitionUtils;
+	friend UE::Private::WorldPartition::FStreamingDescriptor;
 
 	void CreatePartitionsSpatialIndex() const;
 	void DestroyPartitionsSpatialIndex() const;
@@ -137,7 +142,7 @@ class UWorldPartitionRuntimeHashSet final : public UWorldPartitionRuntimeHash
 {
 	GENERATED_UCLASS_BODY()
 
-	friend struct FFortWorldPartitionUtils;
+	friend UE::Private::WorldPartition::FStreamingDescriptor;
 	friend class ULevelPackageDiskSizeMetric;
 	friend class UWorldPartitionRuntimeSpatialHash;
 

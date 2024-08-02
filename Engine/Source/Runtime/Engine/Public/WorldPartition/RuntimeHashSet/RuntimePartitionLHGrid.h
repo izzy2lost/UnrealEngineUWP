@@ -6,6 +6,11 @@
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
 #include "RuntimePartitionLHGrid.generated.h"
 
+namespace UE::Private::WorldPartition
+{
+	struct FStreamingDescriptor;
+};
+
 UCLASS()
 class ENGINE_API URuntimePartitionLHGrid : public URuntimePartition
 {
@@ -13,7 +18,7 @@ class ENGINE_API URuntimePartitionLHGrid : public URuntimePartition
 
 	friend class UWorldPartitionRuntimeHashSet;
 	friend class UWorldPartitionRuntimeSpatialHash;
-	friend struct FFortWorldPartitionUtils;
+	friend struct UE::Private::WorldPartition::FStreamingDescriptor;
 
 public:
 #if WITH_EDITOR

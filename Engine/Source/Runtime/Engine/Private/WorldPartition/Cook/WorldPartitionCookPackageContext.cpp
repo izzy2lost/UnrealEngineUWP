@@ -118,9 +118,10 @@ const FWorldPartitionCookPackage* FWorldPartitionCookPackageContext::AddPackageT
 	return nullptr;
 }
 
-bool FWorldPartitionCookPackageContext::GatherPackagesToCook()
+bool FWorldPartitionCookPackageContext::GatherPackagesToCook(const FWorldPartitionCookPackageContextParams& InParams)
 {
 	bool bIsSuccess = true;
+	Params = InParams;
 
 	for (IWorldPartitionCookPackageGenerator* CookPackageGenerator : CookPackageGenerators)
 	{
@@ -144,6 +145,11 @@ bool FWorldPartitionCookPackageContext::GatherPackagesToCook()
 	}
 
 	return bIsSuccess;
+}
+
+const FWorldPartitionCookPackageContextParams& FWorldPartitionCookPackageContext::GetParams() const
+{
+	return Params;
 }
 
 #endif

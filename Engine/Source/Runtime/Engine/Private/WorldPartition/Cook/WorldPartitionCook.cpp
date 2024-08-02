@@ -37,7 +37,8 @@ bool UWorldPartition::GatherPackagesToCook(IWorldPartitionCookPackageContext& Co
 
 	// Generate streaming
 	FGenerateStreamingParams Params = FGenerateStreamingParams()
-		.SetContainerInstanceCollection(*this, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs);
+		.SetContainerInstanceCollection(*this, FStreamingGenerationContainerInstanceCollection::ECollectionType::BaseAndEDLs)
+		.SetFilteredClasses(CookContext.GetParams().FilteredClasses);
 
 	// Only dump streaming generation logs when cooking
 	if (!IsRunningCookCommandlet())

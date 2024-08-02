@@ -1936,6 +1936,7 @@ bool UWorldPartition::GenerateContainerStreaming(const FGenerateStreamingParams&
 		.SetIsValidHLODLayer([this](FName GridName, const FSoftObjectPath& HLODLayerPath) { return RuntimeHash->IsValidHLODLayer(GridName, HLODLayerPath); })
 		.SetErrorHandler(ErrorHandlerSelector.Get())
 		.SetEnableStreaming(IsStreamingEnabled())
+		.SetFilteredClasses(InParams.FilteredClasses)
 		.SetCreateContainerResolver(FEditorPathHelper::IsEnabled());
 
 	FWorldPartitionStreamingGenerator StreamingGenerator(StreamingGeneratorParams);

@@ -251,6 +251,7 @@ public:
 		}
 		FGenerateStreamingParams& SetErrorHandler(IStreamingGenerationErrorHandler* InErrorHandler) { ErrorHandler = InErrorHandler; return *this; }
 		FGenerateStreamingParams& SetOutputLogType(const FString& InOutputLogType) { OutputLogType = InOutputLogType; return *this; }
+		FGenerateStreamingParams& SetFilteredClasses(const TArray<TSubclassOf<AActor>>& InFilteredClasses) { FilteredClasses = InFilteredClasses; return *this; }
 
 		UE_DEPRECATED(5.4, "Use constructor receiving a ContainerInstanceCollection instead")
 		FGenerateStreamingParams& SetActorDescContainer(const UActorDescContainer* InActorDescContainer) { return *this; }
@@ -260,6 +261,7 @@ public:
 		
 	private:
 
+		TArray<TSubclassOf<AActor>> FilteredClasses;
 		FStreamingGenerationContainerInstanceCollection ContainerInstanceCollection;
 		TOptional<const FString> OutputLogType;
 		IStreamingGenerationErrorHandler* ErrorHandler;

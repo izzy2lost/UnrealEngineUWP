@@ -21,7 +21,8 @@ public:
 	virtual void UnregisterPackageCookPackageGenerator(IWorldPartitionCookPackageGenerator* CookPackageGenerator) override;
 	virtual const FWorldPartitionCookPackage* AddPackageToGenerate(IWorldPartitionCookPackageGenerator* Generator, IWorldPartitionCookPackageObject* InCookPackageObject, const FString& Root, const FString& RelativePath) override;
 	virtual FString GetGeneratedPackagePath(IWorldPartitionCookPackageObject* InCookPackageObject) const override;
-	virtual bool GatherPackagesToCook() override;
+	virtual bool GatherPackagesToCook(const FWorldPartitionCookPackageContextParams& Params = FWorldPartitionCookPackageContextParams()) override;
+	virtual const FWorldPartitionCookPackageContextParams& GetParams() const override;
 	//~ End IWorldPartitionCookPackageContext Interface 
 
 	const TArray<FWorldPartitionCookPackage*>* GetCookPackages(const IWorldPartitionCookPackageGenerator* CookPackageGenerator) const { return PackagesToCookByGenerator.Find(CookPackageGenerator); }
@@ -44,6 +45,7 @@ private:
 	TMap<FWorldPartitionCookPackage::IDType, IWorldPartitionCookPackageGenerator*> CookGeneratorByPackageId;
 	TMap<IWorldPartitionCookPackageGenerator*, TArray<FWorldPartitionCookPackage*>> PackagesToCookByGenerator;
 	TMap<FObjectKey, FWorldPartitionCookPackage::IDType> PackageObjectToPackageId;
+	FWorldPartitionCookPackageContextParams Params;
 };
 
 #endif

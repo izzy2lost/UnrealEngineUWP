@@ -5,19 +5,27 @@
 #if WITH_EDITOR
 
 #include "UObject/WeakObjectPtr.h"
+#include "Templates/SubclassOf.h"
 
 class UWorld;
 class UWorldPartition;
 class IWorldPartitionCell;
 class FWorldPartitionCookPackageContext;
 struct FWorldPartitionStreamingQuerySource;
+class AActor;
 
 struct FWorldPartitionUtils
 {
+	struct FSimulateCookSessionParams
+	{
+		TArray<TSubclassOf<AActor>> FilteredClasses;
+	};
+
 	class ENGINE_API FSimulateCookedSession
 	{
 	public:
-		FSimulateCookedSession(UWorld* InWorld);
+
+		FSimulateCookedSession(UWorld* InWorld, const FSimulateCookSessionParams& Params = FSimulateCookSessionParams());
 		~FSimulateCookedSession();
 
 		bool IsValid() const { return !!CookContext; }
@@ -25,7 +33,7 @@ struct FWorldPartitionUtils
 		bool GetIntersectingCells(const TArray<FWorldPartitionStreamingQuerySource>& InSources, TArray<const IWorldPartitionCell*>& OutCells);
 
 	private:
-		bool SimulateCook();
+		bool SimulateCook(const FSimulateCookSessionParams& Params);
 
 		FWorldPartitionCookPackageContext* CookContext;
 		TWeakObjectPtr<UWorldPartition> WorldPartition;
