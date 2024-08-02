@@ -415,7 +415,7 @@ void USocialDebugTools::LeaveParty(const FString& Instance, const FLeavePartyCom
 				TSharedPtr<const FOnlineParty> ExistingParty = OnlineParty->GetParty(*UserId, IOnlinePartySystem::GetPrimaryPartyTypeId());
 				if (ExistingParty.IsValid())
 				{
-					OnlineParty->LeaveParty(*UserId, *ExistingParty->PartyId, FOnLeavePartyComplete::CreateLambda([this, Instance, OnComplete](const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const ELeavePartyCompletionResult Result)
+					OnlineParty->LeaveParty(*UserId, *ExistingParty->PartyId, true, FOnLeavePartyComplete::CreateLambda([this, Instance, OnComplete](const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const ELeavePartyCompletionResult Result)
 					{
 						OnComplete.ExecuteIfBound(Result == ELeavePartyCompletionResult::Succeeded);
 					}));

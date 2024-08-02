@@ -206,10 +206,12 @@ FPartyJoinApproval USocialParty::EvaluateJoinRequest(const TArray<IOnlinePartyUs
 	return JoinApproval;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool USocialParty::ShouldCacheForRejoinOnDisconnect() const
 {
 	return bEnableAutomaticPartyRejoin && GetNumPartyMembers() > 1;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool USocialParty::IsCurrentlyLeaving() const
 {
@@ -1337,7 +1339,7 @@ void USocialParty::LeaveParty(const FOnLeavePartyAttemptComplete& OnLeaveAttempt
 			// All local players will be removed as a consequence of leaving the party with the primary player
 			const IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
 			FOnLeavePartyComplete OnLeaveComplete = FOnLeavePartyComplete::CreateUObject(this, &USocialParty::HandleLeavePartyComplete, OnLeaveAttemptComplete);
-			PartyInterface->LeaveParty(*OwningLocalUserId, PartyId, OnLeaveComplete);
+			PartyInterface->LeaveParty(*OwningLocalUserId, PartyId, true, OnLeaveComplete);
 		}
 		else
 		{
@@ -1362,7 +1364,7 @@ void USocialParty::RemoveLocalMember(const FUniqueNetIdRepl& LocalUserId, const 
 		{
 			const IOnlinePartyPtr PartyInterface = Online::GetPartyInterfaceChecked(GetWorld());
 			FOnLeavePartyComplete OnLeaveComplete = FOnLeavePartyComplete::CreateUObject(this, &USocialParty::HandleRemoveLocalPlayerComplete, OnLeaveAttemptComplete);
-			PartyInterface->LeaveParty(*LocalUserId, PartyId, OnLeaveComplete);
+			PartyInterface->LeaveParty(*LocalUserId, PartyId, true, OnLeaveComplete);
 		}
 		else
 		{

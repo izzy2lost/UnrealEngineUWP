@@ -228,6 +228,7 @@ protected:
 	bool IsInitialized() const;
 	void TryFinishInitialization();
 
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
 	bool ShouldCacheForRejoinOnDisconnect() const;
 
 	void SetIsMissingPlatformSession(bool bInIsMissingPlatformSession);
@@ -398,8 +399,9 @@ private:
 	UPROPERTY()
 	TMap<FUniqueNetIdRepl, TObjectPtr<UPartyMember>> PartyMembersById;
 
+	UE_DEPRECATED(5.5, "Rejoinable Parties is deprecated and will be removed")
 	UPROPERTY(config)
-	bool bEnableAutomaticPartyRejoin = true;
+	bool bEnableAutomaticPartyRejoin = false;
 
 	TMap<FUniqueNetIdRepl, double> LastInviteSentById;
 

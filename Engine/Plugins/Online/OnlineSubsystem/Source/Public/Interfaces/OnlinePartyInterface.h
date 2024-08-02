@@ -621,7 +621,7 @@ enum class EPartyState : uint8
 	None,
 	CreatePending,
 	JoinPending,
-	RejoinPending, 
+	RejoinPending UE_DEPRECATED(5.5, "RejoinParty is deprecated. Implement this feature via JoinParty."), 
 	LeavePending,
 	Active,
 	Disconnected,
@@ -1158,13 +1158,13 @@ PARTY_DECLARE_DELEGATETYPE(OnPartyRequestToJoinRemoved);
  * Interface definition for the online party services 
  * Allows for forming a party and communicating with party members
  */
-class ONLINESUBSYSTEM_API IOnlinePartySystem
+class IOnlinePartySystem
 {
 protected:
-	IOnlinePartySystem() {};
+	IOnlinePartySystem() = default;
 
 public:
-	virtual ~IOnlinePartySystem() {};
+	virtual ~IOnlinePartySystem() = default;
 
 	/**
 	 * Restore party memberships. Intended to be called once during login to restore state from other running instances.
@@ -1256,7 +1256,7 @@ public:
 	virtual void QueryPartyJoinability(const FUniqueNetId& LocalUserId, const IOnlinePartyJoinInfo& OnlinePartyJoinInfo, const FOnQueryPartyJoinabilityCompleteEx& Delegate) = 0;
 
 	/**
-	 * Attempt to rejoin a former party
+	 * DEPRECATED! Attempt to rejoin a former party. Deprecated: Implement this feature with JoinParty instead.
 	 *
 	 * @param LocalUserId - user making the request
 	 * @param PartyId - id of the party you want to rejoin
@@ -1266,7 +1266,8 @@ public:
 	 *
 	 * @return true if task was started
 	 */
-	virtual bool RejoinParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnlinePartyTypeId& PartyTypeId, const TArray<FUniqueNetIdRef>& FormerMembers, const FOnJoinPartyComplete& Delegate = FOnJoinPartyComplete()) = 0;
+	UE_DEPRECATED(5.5, "RejoinParty is deprecated. Implement this feature via JoinParty.")
+	virtual bool ONLINESUBSYSTEM_API RejoinParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnlinePartyTypeId& PartyTypeId, const TArray<FUniqueNetIdRef>& FormerMembers, const FOnJoinPartyComplete& Delegate = FOnJoinPartyComplete());
 
 	/**
 	 * Leave an existing party
@@ -1278,7 +1279,8 @@ public:
 	 *
 	 * @return true if task was started
 	 */
-	virtual bool LeaveParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnLeavePartyComplete& Delegate = FOnLeavePartyComplete()) = 0;
+	UE_DEPRECATED(5.5, "Use LeaveParty that takes bSynchronizeLeave")
+	virtual bool ONLINESUBSYSTEM_API LeaveParty(const FUniqueNetId& LocalUserId, const FOnlinePartyId& PartyId, const FOnLeavePartyComplete& Delegate = FOnLeavePartyComplete());
 
 	/**
 	 * Leave an existing party
@@ -1885,7 +1887,7 @@ enum class EJoinPartyCompletionResult : int8
 	/** You were logged out while attempting to join the party */
 	LoggedOut,
 	/** You were unable to rejoin the party */
-	UnableToRejoin,
+	UnableToRejoin UE_DEPRECATED(5.5, "RejoinParty is deprecated. Implement this feature via JoinParty."),
 	/** Your platform is not compatible with the party */
 	IncompatiblePlatform,
 
