@@ -1243,6 +1243,10 @@ namespace Metasound
 			{
 				MetasoundDetails->SetObjects(SelectedObjects);
 				MetasoundDetails->HideFilterArea(false);
+				if (TabManager.IsValid())
+				{
+					TabManager->TryInvokeTab(TabFactory::Names::Details);
+				}
 			}
 		}
 
