@@ -60,7 +60,7 @@ void FDMMaterialStageFunctionPropertyRowGenerator::ApplyMetaData(const FFunction
 
 		for (int32 Index = 0; Index < MetaDataValue.Len(); ++Index)
 		{
-			if (MetaDataValue[Index] != '.'	&& MetaDataValue[Index] != '-' && MetaDataValue[Index] < '0' && MetaDataValue[Index] > '9')
+			if (MetaDataValue[Index] != '.'	&& MetaDataValue[Index] != '-' && (MetaDataValue[Index] < '0' || MetaDataValue[Index] > '9'))
 			{
 				bValidValue = false;
 				break;
