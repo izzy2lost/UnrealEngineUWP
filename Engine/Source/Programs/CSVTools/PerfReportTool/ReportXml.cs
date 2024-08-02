@@ -269,6 +269,19 @@ namespace PerfReportTool
 				columnFormatInfoList = new SummaryTableColumnFormatInfoCollection(summaryTableColumnInfoListEl);
 			}
 
+			// Read any metadata proxies
+			metadataProxyInfo = new Dictionary<string, string>();
+			XElement metadataProxiesMappingsElement = rootElement.Element("csvMetadataProxies");
+			if (metadataProxiesMappingsElement != null)
+			{
+				foreach (XElement proxy in metadataProxiesMappingsElement.Elements("csvMetadata"))
+				{
+					string key = proxy.FirstAttribute.Value.ToString().ToLower();
+					string value = proxy.Value.ToString().ToLower();
+					metadataProxyInfo[key] = value;
+				}
+			}
+
 			// Read the derived metadata mappings
 			derivedMetadataMappings = new DerivedMetadataMappings();
 			XElement derivedMetadataMappingsElement = rootElement.Element("derivedMetadataMappings");
@@ -587,6 +600,16 @@ namespace PerfReportTool
 			return summaryTables.Keys.ToList();
 		}
 
+		public string GetMetadataProxyInfo(string key)
+		{
+			string lowerKey = key.ToLower();
+			if (metadataProxyInfo.ContainsKey(lowerKey))
+			{
+				return metadataProxyInfo[lowerKey];
+			}
+			return "";
+		}
+
 		Dictionary<string, SummaryTableInfo> summaryTables;
 
 		XElement reportTypesElement;
@@ -599,6 +622,7 @@ namespace PerfReportTool
 		Dictionary<string, XElement> sharedSummaries;
 		Dictionary<string, GraphSettings> graphs;
 		Dictionary<string, string> statDisplayNameMapping;
+		Dictionary<string, string> metadataProxyInfo;
 		public SummaryTableColumnFormatInfoCollection columnFormatInfoList;
 		string baseXmlDirectory;
 
