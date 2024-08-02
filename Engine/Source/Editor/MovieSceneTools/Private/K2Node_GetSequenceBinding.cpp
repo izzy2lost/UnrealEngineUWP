@@ -36,9 +36,9 @@ void EnsureFullyPreloaded(UObject* Object)
 		return;
 	}
 
+	FLinkerLoad* Linker = Object->GetLinker();
 	if (Object->HasAnyFlags(RF_NeedLoad))
 	{
-		FLinkerLoad* Linker = Object->GetLinker();
 		if (ensure(Linker))
 		{
 			Linker->Preload(Object);
@@ -46,7 +46,12 @@ void EnsureFullyPreloaded(UObject* Object)
 		}
 	}
 
-	check(Object->HasAnyFlags(RF_LoadCompleted));
+	// We only want to ensure that _loaded_ objects have RF_LoadCompleted set.
+	// Some objects can be created during postload, so we don't need to verify RF_LoadCompleted in those cases.
+	if (Linker)
+	{
+		check(Object->HasAnyFlags(RF_LoadCompleted));
+	}
 
 	TArray<UObject*> ObjectReferences;
 	FReferenceFinder(ObjectReferences, nullptr, false, true, false, true).FindReferences(Object);
