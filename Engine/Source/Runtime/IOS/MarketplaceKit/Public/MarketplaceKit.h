@@ -21,6 +21,15 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	virtual bool SupportsDynamicReloading() override;
-	
-	void GetCurrentType(TFunction<void(EMarketplaceType Type, const FString& Name)> Callback);
+
+	void GetCurrentTypeAsync(TFunction<void(EMarketplaceType Type, const FString& Name)> Callback);
+	void GetCurrentType(EMarketplaceType& OutType, FString& OutName);
+	FString GetCurrentTypeAsString();
+
+private:
+	bool bCachedTypeValid = false;
+	EMarketplaceType CachedType = EMarketplaceType::NotAvailable;
+	FString CachedName;
+
+	void CacheValue();
 };
