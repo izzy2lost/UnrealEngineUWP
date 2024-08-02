@@ -2190,7 +2190,7 @@ public:
 	 * @param OverlappingActors		[out] Returned list of overlapping actors
 	 * @param ClassFilter			[optional] If set, only returns actors of this class or subclasses
 	 */
-	UFUNCTION(BlueprintCallable, Category="Collision", meta=(UnsafeDuringActorConstruction="true"))
+	UFUNCTION(BlueprintCallable, Category="Collision", meta=(UnsafeDuringActorConstruction="true", DeterminesOutputType="ClassFilter",  DynamicOutputParam="OverlappingActors"))
 	ENGINE_API void GetOverlappingActors(TArray<AActor*>& OverlappingActors, TSubclassOf<AActor> ClassFilter=nullptr) const;
 
 	/** 
