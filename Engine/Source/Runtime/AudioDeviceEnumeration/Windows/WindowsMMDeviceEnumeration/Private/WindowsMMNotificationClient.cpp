@@ -302,7 +302,7 @@ namespace Audio
 	{
 		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceStateChanged: %s, %d"), *GetFriendlyName(pwstrDeviceId), dwNewState);
 
-		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldIgnoreDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -326,7 +326,7 @@ namespace Audio
 	{
 		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceRemoved: %s"), *GetFriendlyName(pwstrDeviceId));
 
-		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldIgnoreDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -345,7 +345,7 @@ namespace Audio
 	{
 		UE_CLOG(WindowsMMCvarUtils::ShouldLogDeviceSwaps(), LogAudioEnumeration, Display, TEXT("FWindowsMMNotificationClient: OnDeviceAdded: %s"), *GetFriendlyName(pwstrDeviceId));
 
-		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldIgnoreDeviceSwaps())
 		{
 			return S_OK;
 		}
@@ -385,7 +385,7 @@ namespace Audio
 
 		Audio::EAudioDeviceRole AudioDeviceRole;
 
-		if (WindowsMMCvarUtils::ShouldLogDeviceSwaps())
+		if (WindowsMMCvarUtils::ShouldIgnoreDeviceSwaps())
 		{
 			return S_OK;
 		}

@@ -63,14 +63,6 @@ FAutoConsoleVariableRef CVarRenderThreadAffinity(
 	TEXT("0: Disabled (Default), otherwise overriden thread affinity."),
 	ECVF_Default);
 
-static int32 DisableDeviceSwapCVar = 0;
-FAutoConsoleVariableRef CVarDisableDeviceSwap(
-	TEXT("au.DisableDeviceSwap"),
-	DisableDeviceSwapCVar,
-	TEXT("Disable device swap handling code for Audio Mixer on Windows.\n")
-	TEXT("0: Not Enabled, 1: Enabled"),
-	ECVF_Default);
-
 static int32 bUseThreadedDeviceSwapCVar = 1;
 FAutoConsoleVariableRef CVarUseThreadedDeviceSwap(
 	TEXT("au.UseThreadedDeviceSwap"),
@@ -880,11 +872,6 @@ namespace Audio
 			return true;
 		}
 		return false;
-	}
-
-	bool IAudioMixer::ShouldIgnoreDeviceSwaps()
-	{
-		return DisableDeviceSwapCVar != 0;
 	}
 
 	bool IAudioMixer::ShouldUseThreadedDeviceSwap()

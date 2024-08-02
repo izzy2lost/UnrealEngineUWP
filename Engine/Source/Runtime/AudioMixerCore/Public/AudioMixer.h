@@ -203,12 +203,6 @@ namespace Audio
 
 		bool IsMainAudioMixer() const { return bIsMainAudioMixer; }
 
-		/** Called by FWindowsMMNotificationClient to bypass notifications for audio device changes: */
-		AUDIOMIXERCORE_API static bool ShouldIgnoreDeviceSwaps();
-
-		/** Called by FWindowsMMNotificationClient to toggle logging for audio device changes: */
-		AUDIOMIXERCORE_API static bool ShouldLogDeviceSwaps();
-		
 		/** Called by AudioMixer to see if we should do a multithreaded device swap */
 		AUDIOMIXERCORE_API static bool ShouldUseThreadedDeviceSwap();
 
