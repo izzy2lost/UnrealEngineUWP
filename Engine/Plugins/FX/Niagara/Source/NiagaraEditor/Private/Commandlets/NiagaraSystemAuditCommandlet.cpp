@@ -236,7 +236,7 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 	UPackage* CurrentPackage = nullptr;
 
 	const bool bColledGarbage = NiagaraValidationIssues.IsValid();
-	const int32 CollectGarbageFrequency = 1024;
+	const int32 CollectGarbageFrequency = 256;
 	int32 CollectGarabageCounter = 0;
 
 	for (const FAssetData& AssetIt : AssetList)
@@ -317,9 +317,12 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 		bool bHasEvents = false;
 		bool bHasGPUEmitters = false;
 		bool bHasCPUEmitters = false;
+		bool bHasStatelessEmitters = false;
 
 		for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem->GetEmitterHandles())
 		{
+			bHasStatelessEmitters |= (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless) && EmitterHandle.GetStatelessEmitter();
+
 			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData();
 			if (EmitterData == nullptr)
 			{
@@ -474,6 +477,11 @@ bool UNiagaraSystemAuditCommandlet::ProcessNiagaraSystems()
 			NiagaraSystemsWithEvents.Add(NiagaraSystem->GetPathName());
 		}
 
+		if (bHasStatelessEmitters)
+		{
+			NiagaraSystemsWithStatelessEmitters.Add(NiagaraSystem->GetPathName());
+		}
+
 		if (SystemDataInterfacesWihPrereqs.Num() > 0)
 		{
 			FString DataInterfaceNames;
@@ -585,6 +593,7 @@ void UNiagaraSystemAuditCommandlet::DumpResults()
 	}
 	DumpSimpleSet(NiagaraSystemsWithSimulationStages, TEXT("NiagaraSystemsWithSimulationStages"), TEXT("System,Emitters"));
 	DumpSimpleSet(NiagaraSystemsWithCompression, TEXT("NiagaraSystemsWithCompression"), TEXT("System,ExecutionTypes"));
+	DumpSimpleSet(NiagaraSystemsWithStatelessEmitters, TEXT("NiagaraSystemsWithStatelessEmitters"), TEXT("System"));
 
 	if (NiagaraDataInterfaceUsage.Num() > 0)
 	{
