@@ -542,6 +542,12 @@ void FVorbisAudioInfo::SeekToTime( const float SeekTime )
 		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to not parsing header first."));
 		return;
 	}
+	
+	if (!VFWrapper->vf.seekable)
+	{
+		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to vorbis file not being seekable"));
+		return;
+	}
 
 	const float TargetTime = FMath::Min(SeekTime, (float)ov_time_total(&VFWrapper->vf, -1));
 	ov_time_seek( &VFWrapper->vf, TargetTime );
@@ -560,6 +566,12 @@ void FVorbisAudioInfo::SeekToFrame(const uint32 SeekFrames)
 	if (!bHeaderParsed)
 	{
 		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to not parsing header first."));
+		return;
+	}
+
+	if (!VFWrapper->vf.seekable)
+	{
+		UE_LOG(LogAudio, Error, TEXT("FVorbisAudioInfo::SeekToTime failed due to vorbis file not being seekable"));
 		return;
 	}
 
