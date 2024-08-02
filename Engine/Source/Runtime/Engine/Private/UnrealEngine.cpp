@@ -6844,7 +6844,7 @@ bool UEngine::HandleListSkeletalMeshesCommand(const TCHAR* Cmd, FOutputDevice& A
 		USkeletalMesh* Mesh = *It;
 
 		bool bUnknownRef = false;
-		bool bIsStreaming = (Mesh != nullptr ? Mesh->GetStreamingIndex() != INDEX_NONE : false);
+		bool bIsStreaming = Mesh->GetStreamingIndex() != INDEX_NONE;
 		
 		if (Streamer)
 		{

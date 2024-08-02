@@ -1718,8 +1718,7 @@ TArray<UControlRig*> UControlRig::FindControlRigs(UObject* Outer, TSubclassOf<UC
 	for (TObjectIterator<UControlRig> Itr; Itr; ++Itr)
 	{
 		UControlRig* RigInstance = *Itr;
-		const UClass* RigInstanceClass = RigInstance ? RigInstance->GetClass() : nullptr;
-		if (OptionalClass == nullptr || (RigInstanceClass && RigInstanceClass->IsChildOf(OptionalClass)))
+		if (OptionalClass == nullptr || RigInstance->GetClass()->IsChildOf(OptionalClass))
 		{
 			if(RigInstance->IsInOuter(Outer))
 			{

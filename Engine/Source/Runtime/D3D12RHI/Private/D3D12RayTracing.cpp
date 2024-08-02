@@ -86,6 +86,16 @@ static FAutoConsoleVariableRef CVarD3D12RayTracingGPUValidation(
 	TEXT("Whether to perform validation of ray tracing geometry and other structures on the GPU. Requires Shader Model 6. (default = 0)")
 );
 
+// This is required to avoid redundent code static analysis warnings
+// If the static_assert fires the assumptions it is predicated on have been
+// violated and the code should be revisited
+#if WITH_MGPU
+#define FOREACH_GPU(Condition, Function) for (uint32 GPUIndex = 0; Condition; ++GPUIndex) Function
+#else
+static_assert(MAX_NUM_GPUS == 1 && GNumExplicitGPUsForRendering == 1);
+#define FOREACH_GPU(Condition, Function) { constexpr uint32 GPUIndex = 0; Function }
+#endif
+
 // Ray tracing stat counters
 
 DECLARE_STATS_GROUP(TEXT("D3D12RHI: Ray Tracing"), STATGROUP_D3D12RayTracing, STATCAT_Advanced);
@@ -2832,7 +2842,7 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 	}
 
 	// Allocate acceleration structure buffer
-	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 	{
 		AccelerationStructureBuffers[GPUIndex] = CreateRayTracingBuffer(Adapter, GPUIndex, SizeInfo.ResultSize, ERayTracingBufferType::AccelerationStructure, DebugName);
 		AccelerationStructureBuffers[GPUIndex]->SetOwnerName(OwnerName);
@@ -2847,7 +2857,7 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 		{
 			INC_MEMORY_STAT_BY(STAT_D3D12RayTracingStaticBLASMemory, AccelerationStructureBuffers[GPUIndex]->GetSize());
 		}
-	}
+	});
 
 	INC_DWORD_STAT_BY(STAT_D3D12RayTracingTrianglesBLAS, Initializer.TotalPrimitiveCount);
 
@@ -2865,7 +2875,7 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 
 		RHICmdList.EnqueueLambda([this, SrcResourceLoc = MoveTemp(SrcResourceLoc), bForRendering](FRHICommandListBase& ExecutingCmdList)
 		{
-			for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+			FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 			{
 				FD3D12CommandContext& Context = FD3D12CommandContext::Get(ExecutingCmdList, GPUIndex);
 
@@ -2885,7 +2895,7 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 					RegisterAsRenameListener(GPUIndex);
 					SetupHitGroupSystemParameters(GPUIndex);
 				}
-			}
+			});
 
 			SetDirty(FRHIGPUMask::All(), false);
 		});
@@ -2895,20 +2905,20 @@ FD3D12RayTracingGeometry::FD3D12RayTracingGeometry(FRHICommandListBase& RHICmdLi
 	else
 	{
 		// Offline data already registered via FD3D12RHICommandInitializeRayTracingGeometry
-		for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+		FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 		{
 			RegisterAsRenameListener(GPUIndex);
-		}
+		});
 	}
 }
 
 void FD3D12RayTracingGeometry::Swap(FD3D12RayTracingGeometry& Other)
 {
-	for (uint32 i = 0; i < MAX_NUM_GPUS; i++)
+	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS,
 	{
-		::Swap(AccelerationStructureBuffers[i], Other.AccelerationStructureBuffers[i]);
-		::Swap(bIsAccelerationStructureDirty[i], Other.bIsAccelerationStructureDirty[i]);
-	}
+		::Swap(AccelerationStructureBuffers[GPUIndex], Other.AccelerationStructureBuffers[GPUIndex]);
+		::Swap(bIsAccelerationStructureDirty[GPUIndex], Other.bIsAccelerationStructureDirty[GPUIndex]);
+	});
 	::Swap(AccelerationStructureCompactedSize, Other.AccelerationStructureCompactedSize);
 
 	// The rest of the members should be updated using SetInitializer()
@@ -2919,7 +2929,7 @@ void FD3D12RayTracingGeometry::ReleaseUnderlyingResource()
 	UnregisterD3D12RayTracingGeometry(this);
 
 	// Remove compaction request if still pending
-	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS; ++GPUIndex)
+	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS,
 	{
 		if (bHasPendingCompactionRequests[GPUIndex])
 		{
@@ -2929,13 +2939,13 @@ void FD3D12RayTracingGeometry::ReleaseUnderlyingResource()
 			check(bRequestFound);
 			bHasPendingCompactionRequests[GPUIndex] = false;
 		}
-	}
+	});
 
 	// Unregister as dependent resource on vertex and index buffers
-	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS; ++GPUIndex)
+	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS,
 	{
 		UnregisterAsRenameListener(GPUIndex);
-	}
+	});
 
 	for (TRefCountPtr<FD3D12Buffer>& Buffer : AccelerationStructureBuffers)
 	{
@@ -3129,10 +3139,10 @@ void FD3D12RayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, c
 {
 	Initializer = InInitializer;
 
-	for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+	FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 	{
 		UnregisterAsRenameListener(GPUIndex);
-	}	
+	});
 
 	DebugName = !Initializer.DebugName.IsNone() ? Initializer.DebugName : FName(TEXT("BLAS"));
 
@@ -3143,11 +3153,11 @@ void FD3D12RayTracingGeometry::SetInitializer(FRHICommandListBase& RHICmdList, c
 	
 	RHICmdList.EnqueueLambda([this](FRHICommandListBase&)
 	{
-		for (uint32 GPUIndex = 0; GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering; ++GPUIndex)
+		FOREACH_GPU(GPUIndex < MAX_NUM_GPUS && GPUIndex < GNumExplicitGPUsForRendering,
 		{				
 			RegisterAsRenameListener(GPUIndex);
 			SetupHitGroupSystemParameters(GPUIndex);		
-		}
+		});
 	});
 	RHICmdList.RHIThreadFence(true);
 }

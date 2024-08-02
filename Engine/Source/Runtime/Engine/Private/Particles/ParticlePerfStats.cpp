@@ -1233,7 +1233,7 @@ bool FParticlePerfStatsListener_CSVProfiler::Tick()
 			for (TObjectIterator<UFXSystemComponent> It; It; ++It)
 			{
 				UFXSystemComponent* FXComponent = *It;
-				UFXSystemAsset* FXAsset = FXComponent ? FXComponent->GetFXSystemAsset() : nullptr;
+				UFXSystemAsset* FXAsset = FXComponent->GetFXSystemAsset();
 				if (!IsValidChecked(FXComponent) || !IsValid(FXAsset) || FXComponent->IsUnreachable() || FXComponent->HasAnyFlags(EObjectFlags::RF_ClassDefaultObject))
 				{
 					continue;

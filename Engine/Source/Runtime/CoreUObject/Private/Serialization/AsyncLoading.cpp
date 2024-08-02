@@ -380,6 +380,7 @@ struct FEDLBootNotificationManager
 
 				if (!bAnyParentOnStack)
 				{
+					checkSlow(Class);
 					CDORecursiveStack.Push(Class);
 					//FPlatformMisc::LowLevelOutputDebugStringf(TEXT("Create CDO %s\r\n"), *BootObject->GetName());
 					Class->GetDefaultObject();

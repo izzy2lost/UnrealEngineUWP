@@ -161,6 +161,7 @@ public:
 				TArray<uint8> DecodeBuffer;
 				DecodeBuffer.AddZeroed(ByteSize);
 
+#if PLATFORM_NUM_AUDIODECOMPRESSION_PRECACHE_BUFFERS
 				// skip the first buffers if we've already decoded them during Precache:
 				if (DecodeTaskData.bSkipFirstBuffer)
 				{
@@ -181,6 +182,7 @@ public:
 						}
 					}
 				}
+#endif
 
 				const int32 kPCMBufferSize = NumChannels * DecodeTaskData.NumFramesToDecode * sizeof(int16);
 				int32 NumBytesStreamed = kPCMBufferSize;
