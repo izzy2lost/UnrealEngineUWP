@@ -45,6 +45,7 @@ cti::continuable<int32> Job_ExportAsUAsset::PreExecAsync(ENamedThreads::Type exe
 	{
 		bIsCulled = true;
 		bIsDone = true;
+		MarkJobDone();
 
 		return cti::make_ready_continuable(0);
 	}
