@@ -33,6 +33,7 @@ struct FConservativeStackExitFrame;
 struct FHandshakeContext;
 struct FHardHandshakeContext;
 struct FIOContext;
+struct FIOContextScope;
 struct FRunningContext;
 struct FStoppedWorld;
 struct FThreadLocalContextHolder;
@@ -377,6 +378,7 @@ private:
 	friend struct FAccessContext;
 	friend struct FAllocationContext;
 	friend struct FIOContext;
+	friend struct FIOContextScope;
 	friend class FHeap;
 	friend struct FRunningContext;
 	friend struct FScopedThreadContext;

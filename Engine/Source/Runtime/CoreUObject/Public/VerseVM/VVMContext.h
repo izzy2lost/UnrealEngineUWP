@@ -187,12 +187,7 @@ struct FIOContext : FContext
 	// Create the context for this thread and run some code in it without heap access. You can only have one
 	// context created per thread.
 	template <typename TFunc>
-	static void Create(const TFunc& Func, EContextHeapRole HeapRole = EContextHeapRole::Mutator)
-	{
-		FIOContext Context(FContextImpl::ClaimOrAllocateContext(HeapRole), EIsInHandshake::No);
-		Func(Context);
-		Context.GetImpl()->ReleaseContext();
-	}
+	static decltype(auto) Create(const TFunc& Func, EContextHeapRole HeapRole = EContextHeapRole::Mutator);
 
 	template <typename TFunc>
 	void AcquireAccess(const TFunc& Func) const;
@@ -287,9 +282,34 @@ protected:
 	}
 
 private:
+	friend struct FIOContextScope;
+
 	friend struct FRunningContext;
 
 	FIOContext(const FRunningContext& Other);
+};
+
+struct FIOContextScope
+{
+	explicit FIOContextScope(EContextHeapRole HeapRole = EContextHeapRole::Mutator)
+		: Context{FContextImpl::ClaimOrAllocateContext(HeapRole), EIsInHandshake::No}
+	{
+	}
+
+	FIOContextScope(const FIOContext&) = delete;
+
+	FIOContextScope& operator=(const FIOContextScope&) = delete;
+
+	FIOContextScope(FIOContextScope&&) = delete;
+
+	FIOContextScope& operator=(FIOContextScope&&) = delete;
+
+	~FIOContextScope()
+	{
+		Context.GetImpl()->ReleaseContext();
+	}
+
+	FIOContext Context;
 };
 
 // Our barriers need to be able to run without being passed an FAccessContext in some cases, like copy constructors and operator=.
@@ -659,6 +679,13 @@ inline FIOContext::FIOContext(const FRunningContext& Other)
 	: FContext(Other)
 {
 	checkSlow(!GetImpl()->HasAccess());
+}
+
+template <typename TFunc>
+decltype(auto) FIOContext::Create(const TFunc& Func, EContextHeapRole HeapRole)
+{
+	FIOContextScope Scope{HeapRole};
+	return Func(Scope.Context);
 }
 
 template <typename TFunc>
