@@ -1283,9 +1283,9 @@ void FNiagaraRendererMeshes::CreateMeshBatchForSection(
 	MeshBatch.VertexFactory = &VertexFactory;
 	MeshBatch.LCI = NULL;
 	MeshBatch.ReverseCulling = SceneProxy.IsLocalToWorldDeterminantNegative();
-	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
+	MeshBatch.CastShadow = SceneProxy.CastsDynamicShadow() && bCastShadows && Section.bCastShadow;
 #if RHI_RAYTRACING
-	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow() && bCastShadows;
+	MeshBatch.CastRayTracedShadow = SceneProxy.CastsDynamicShadow() && bCastShadows && Section.bCastShadow;
 #endif
 	MeshBatch.DepthPriorityGroup = (ESceneDepthPriorityGroup)SceneProxy.GetDepthPriorityGroup(&View);
 
@@ -1674,7 +1674,7 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 		const FMeshData& MeshData = Meshes[MeshIndex];
 
 		INiagaraRenderableMesh::FLODModelData LODModel;
-		MeshData.RenderableMesh->GetLODModelData(LODModel, MeshData.LODLevel);
+		MeshData.RenderableMesh->GetRayTraceLODModelData(LODModel, MeshData.LODLevel);
 		if (LODModel.LODIndex == INDEX_NONE || LODModel.RayTracingGeometry == nullptr)
 		{
 			continue;

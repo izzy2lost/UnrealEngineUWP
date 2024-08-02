@@ -63,7 +63,7 @@ public:
 		return LocalBounds;
 	}
 
-	void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
+	virtual void GetLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
 	{
 		LODLevel = FMath::Max(MinLOD, LODLevel);
 		OutLODModelData.LODIndex = RenderData->GetCurrentFirstLODIdx(LODLevel);
@@ -80,12 +80,34 @@ public:
 		OutLODModelData.Sections = MakeArrayView(LODResources.Sections);
 		OutLODModelData.IndexBuffer = &LODResources.IndexBuffer;
 		OutLODModelData.VertexFactoryUserData = RenderData->LODVertexFactories.IsValidIndex(OutLODModelData.LODIndex) ? RenderData->LODVertexFactories[OutLODModelData.LODIndex].VertexFactory.GetUniformBuffer() : nullptr;
-		OutLODModelData.RayTracingGeometry = LODResources.RayTracingGeometry;
+		OutLODModelData.RayTracingGeometry = nullptr;
 
 		if (LODResources.AdditionalIndexBuffers != nullptr && LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.IsInitialized())
 		{
 			OutLODModelData.WireframeNumIndices = LODResources.AdditionalIndexBuffers->WireframeIndexBuffer.GetNumIndices();
 			OutLODModelData.WireframeIndexBuffer = &LODResources.AdditionalIndexBuffers->WireframeIndexBuffer;
+		}
+	}
+
+	virtual void GetRayTraceLODModelData(FLODModelData& OutLODModelData, int32 LODLevel) const override
+	{
+		GetLODModelData(OutLODModelData, LODLevel);
+		if (OutLODModelData.LODIndex == INDEX_NONE)
+		{
+			return;
+		}
+
+		const FStaticMeshLODResources& LODResources = RenderData->LODResources[OutLODModelData.LODIndex];
+		OutLODModelData.RayTracingGeometry = LODResources.RayTracingGeometry;
+
+		if (FStaticMeshRayTracingProxy* RayTracingProxy = RenderData->RayTracingProxy)
+		{
+			const int32 RayTracingLOD = RayTracingProxy->bUsingRenderingLODs ? OutLODModelData.LODIndex : 0;
+
+			if (RayTracingProxy->LODs.IsValidIndex(RayTracingLOD))
+			{
+				OutLODModelData.RayTracingGeometry = RayTracingProxy->LODs[RayTracingLOD].RayTracingGeometry;
+			}
 		}
 	}
 
