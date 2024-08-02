@@ -5,6 +5,8 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/Views/STreeView.h"
+#include "Widgets/SToolTip.h"
 #include "RigVMCore/RigVMVariant.h"
 #include "Widgets/SRigVMVariantTagWidget.h"
 
@@ -21,6 +23,26 @@ struct RIGVMEDITOR_API FRigVMVariantWidgetContext
 	
 	// the path the current context is in
 	FString ParentPath;
+};
+
+class SRigVMVariantToolTipWithTags : public SToolTip
+{
+public:
+	SLATE_BEGIN_ARGS(SRigVMVariantToolTipWithTags) {}
+		SLATE_ATTRIBUTE(FText, ToolTipText)
+		SLATE_EVENT(FRigVMVariant_OnGetTags, OnGetTags)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs);
+
+	// IToolTip interface
+	virtual bool IsEmpty() const override;
+	virtual void OnOpening() override;
+	virtual void OnClosed() override;
+
+private:
+	FRigVMVariant_OnGetTags GetTagsDelegate;
+	SToolTip::FArguments SuperClassArgs;
 };
 
 class RIGVMEDITOR_API SRigVMVariantWidget : public SBox
@@ -57,7 +79,30 @@ public:
 
 private:
 
+	struct FVariantTreeRowInfo
+	{
+		FRigVMVariantRef VariantRef;
+		TArray<TSharedPtr<FVariantTreeRowInfo>> NestedInfos;
+	};
+
+	class RIGVMEDITOR_API SRigVMVariantRefTreeRow
+	: public STableRow<TSharedPtr<FVariantTreeRowInfo>>
+	{
+	public:
+	
+		SLATE_BEGIN_ARGS(SRigVMVariantRefTreeRow)
+		{}
+		SLATE_ARGUMENT(TSharedPtr<SWidget>, Content)
+		SLATE_END_ARGS()
+
+		virtual ~SRigVMVariantRefTreeRow() override;
+		void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView);
+	};
+
+	const FRigVMVariantWidgetContext& GetVariantContext() const;
 	EVisibility GetVariantRefListVisibility() const;
+	TSharedRef<ITableRow> GenerateVariantTreeRow(TSharedPtr<FVariantTreeRowInfo> InRowInfo, const TSharedRef<STableViewBase>& OwnerTable);
+	void GetChildrenForVariantInfo(TSharedPtr<FVariantTreeRowInfo> InInfo, TArray<TSharedPtr<FVariantTreeRowInfo>>& OutChildren);
 	TSharedPtr<SWidget> CreateDefaultVariantRefRow(const FRigVMVariantRef& InVariantRef) const;
 	void RebuildVariantRefList();
 	const FSlateBrush* GetThumbnailBorder(TSharedRef<SBorder> InThumbnailBorder) const;
@@ -71,7 +116,9 @@ private:
 	FRigVMVariantWidget_OnCreateVariantRefRow OnCreateVariantRefRow;
 	FRigVMVariantWidget_OnBrowseVariantRef OnBrowseVariantRef;
 	TArray<FRigVMVariantRef> VariantRefs;
+	TArray<TSharedPtr<FVariantTreeRowInfo>> VariantTreeRowInfos;
 	uint32 VariantRefHash;
 	TSharedPtr<SVerticalBox> VariantRefListBox;
+	TSharedPtr<STreeView<TSharedPtr<FVariantTreeRowInfo>>> VariantRefTreeView;
 	TAttribute<FRigVMVariantWidgetContext> ContextAttribute;
 };
