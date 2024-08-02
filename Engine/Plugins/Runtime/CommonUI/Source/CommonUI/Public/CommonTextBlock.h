@@ -185,14 +185,6 @@ protected:
 #endif // WITH_EDITOR
 
 private:
-	/** References the text style to use */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
-	TSubclassOf<UCommonTextStyle> Style;
-
-	/** References the scroll style asset to use, no reference disables scrolling*/
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
-	TSubclassOf<UCommonTextScrollStyle> ScrollStyle;
-
 	/** If scrolling is enabled/disabled initially, this can be updated in blueprint */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
 	bool bIsScrollingEnabled = true;
@@ -204,6 +196,14 @@ private:
 	/** True to automatically collapse this text block when set to display an empty string. Conversely, will be SelfHitTestInvisible when showing a non-empty string. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (AllowPrivateAccess = true))
 	bool bAutoCollapseWithEmptyText = false;
+	
+	/** References the text style to use */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
+	TSubclassOf<UCommonTextStyle> Style;
+
+	/** References the scroll style asset to use, no reference disables scrolling*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = CommonText, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
+	TSubclassOf<UCommonTextScrollStyle> ScrollStyle;
 
 #if WITH_EDITORONLY_DATA
 	/** Used to track widgets that were created before changing the default style pointer to null */

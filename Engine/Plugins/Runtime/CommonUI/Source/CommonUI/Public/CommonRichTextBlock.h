@@ -72,12 +72,12 @@ private:
 	void ApplyTextBlockScale() const;
 
 private:
-	UPROPERTY(EditAnywhere, Category = Appearance, meta = (EditCondition = bOverrideDefaultStyle))
-	TSubclassOf<UCommonTextStyle> DefaultTextStyleOverrideClass;
-
 	/** Mobile font size multiplier. Activated by default on mobile. See CVar Mobile_PreviewFontSize */
 	UPROPERTY(EditAnywhere, Category = "Mobile", meta = (ClampMin = "0.01", ClampMax = "5"))
 	float MobileTextBlockScale = 1.0f;
+	
+	UPROPERTY(EditAnywhere, Category = Appearance, meta = (EditCondition = bOverrideDefaultStyle))
+	TSubclassOf<UCommonTextStyle> DefaultTextStyleOverrideClass;
 
 	/** References the scroll style asset to use, no reference disables scrolling*/
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Appearance, meta = (ExposeOnSpawn = true, AllowPrivateAccess = true))
