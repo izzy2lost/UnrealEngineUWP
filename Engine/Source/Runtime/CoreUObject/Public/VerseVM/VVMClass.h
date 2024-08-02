@@ -68,7 +68,7 @@ struct VConstructor : VCell
 		static VEntry Block(FAllocationContext Context, VProcedure& Code);
 
 		/// Checks if the entry refers to a method that is unbound (i.e. has no `Self`), or if the entry is referring to a function at all.
-		bool IsMethod() const;
+		COREUOBJECT_API bool IsMethod() const;
 
 		VFunction* Initializer() const;
 	};
