@@ -70,7 +70,7 @@ protected:
 COREUOBJECT_API FString ToString(const VInt& Int);
 
 template <typename T>
-COREUOBJECT_API FString ToString(FAllocationContext Context, T&& Arg)
+FString ToString(FAllocationContext Context, T&& Arg)
 {
 	return ToString(Context, FDefaultCellFormatter{}, ::Forward<T>(Arg));
 }
@@ -80,7 +80,7 @@ COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatte
 COREUOBJECT_API FString ToString(FAllocationContext Context, const FCellFormatter& Formatter, const VRestValue& Value);
 
 template <typename T>
-COREUOBJECT_API void ToString(FStringBuilderBase& Builder, FAllocationContext Context, T&& Arg)
+void ToString(FStringBuilderBase& Builder, FAllocationContext Context, T&& Arg)
 {
 	ToString(Builder, Context, FDefaultCellFormatter{}, ::Forward<T>(Arg));
 }
