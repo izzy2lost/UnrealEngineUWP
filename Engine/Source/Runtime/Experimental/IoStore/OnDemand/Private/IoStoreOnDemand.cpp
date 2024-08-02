@@ -1107,6 +1107,16 @@ TIoStatusOr<uint64> FIoStoreOnDemandModule::GetInstallSize(const FOnDemandGetIns
 	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
 }
 
+FIoStatus FIoStoreOnDemandModule::GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const
+{
+	if (IoStore)
+	{
+		return IoStore->GetInstallSizesByMountId(Args, OutSizesByMountId);
+	}
+
+	return FIoStatus(EIoErrorCode::InvalidCode, NotInitializedError);
+}
+
 void FIoStoreOnDemandModule::InitializeInternal()
 {
 	LLM_SCOPE_BYTAG(Ias);

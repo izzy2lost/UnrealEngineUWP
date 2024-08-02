@@ -772,6 +772,36 @@ TIoStatusOr<uint64> FOnDemandIoStore::GetInstallSize(const FOnDemandGetInstallSi
 	return RetSize;
 }
 
+FIoStatus FOnDemandIoStore::GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FOnDemandIoStore::GetInstallSizesByMountId);
+
+	TSet<FSharedOnDemandContainer> ContainersForInstallation;
+	TSet<FPackageId> PackageIdsToInstall;
+	FIoStatus GetContainersStatus = const_cast<FOnDemandIoStore*>(this)->GetContainersAndPackagesForInstall(
+		Args, ContainersForInstallation, PackageIdsToInstall);
+	if (!GetContainersStatus.IsOk())
+	{
+		return GetContainersStatus;
+	}
+
+	Private::FInstallData InstallData;
+	TSet<FPackageId> Missing;
+
+	FIoStatus Status = BuildInstallData(ContainersForInstallation, PackageIdsToInstall, InstallData, Missing);
+	if (Status.IsOk() == false)
+	{
+		return Status;
+	}
+
+	for (const TPair<FSharedOnDemandContainer, Private::FContainerInstallData>& Pair : InstallData)
+	{
+		OutSizesByMountId.FindOrAdd(Pair.Key->MountId, 0) += Pair.Value.TotalSize;
+	}
+
+	return EIoErrorCode::Ok;
+}
+
 FOnDemandChunkInfo FOnDemandIoStore::GetStreamingChunkInfo(const FIoChunkId& ChunkId)
 {
 	return GetChunkInfo(ChunkId, EOnDemandContainerFlags::Mounted | EOnDemandContainerFlags::StreamOnDemand);

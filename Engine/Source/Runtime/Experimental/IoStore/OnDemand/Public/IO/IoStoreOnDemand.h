@@ -393,6 +393,8 @@ public:
 
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 
+	UE_API FIoStatus GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const;
+
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 	
