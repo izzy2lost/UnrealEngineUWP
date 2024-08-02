@@ -262,13 +262,13 @@ uint32 GetShadowQuality()
 {
 	static const auto ICVarQuality = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ShadowQuality"));
 
-	int Ret = ICVarQuality->GetValueOnRenderThread();
+	int Ret = ICVarQuality->GetValueOnAnyThread();
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	static const auto ICVarLimit = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.LimitRenderingFeatures"));
 	if(ICVarLimit)
 	{
-		int32 Limit = ICVarLimit->GetValueOnRenderThread();
+		int32 Limit = ICVarLimit->GetValueOnAnyThread();
 
 		if(Limit > 2)
 		{
