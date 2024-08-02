@@ -121,9 +121,9 @@
 #include "EditorModeManager.h"
 #include "UnrealWidget.h"
 
-// Enabling the Stylus implementation to test for possible issues
-// This implementation is likely to be updated
-#define ENABLE_STYLUS_SUPPORT 1
+// Stylus support is currently disabled due to issues with the stylus plugin
+// We are leaving the code in this cpp file, defined out, so that it is easier to bring back if/when the stylus plugin is improved.
+#define ENABLE_STYLUS_SUPPORT 0
 
 #if ENABLE_STYLUS_SUPPORT 
 #include "IStylusState.h"

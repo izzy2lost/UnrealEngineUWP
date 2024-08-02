@@ -40,11 +40,6 @@
 			"Name": "ToolPresets",
 			"Enabled": true,
 			"TargetAllowList": [ "Editor" ]
-		},
-		{
-			"Name": "StylusInput",
-			"Enabled": true,
-			"TargetAllowList": [ "Editor" ]
 		}
 	]
 }
