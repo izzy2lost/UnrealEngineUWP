@@ -6,54 +6,38 @@
 #include "RHIResources.h"
 #include "Containers/ResourceArray.h"
 
-struct FRHIResourceCreateInfoUploadArray : public FRHIResourceCreateInfo
-{
-	FResourceArrayUploadArrayView UploadView;
-
-	FRHIResourceCreateInfoUploadArray(const TCHAR* InDebugName, const void* InData, uint32 InSizeInBytes)
-		: FRHIResourceCreateInfo(InDebugName, &UploadView)
-		, UploadView(InData, InSizeInBytes)
-	{
-	}
-
-	template<typename ElementType>
-	FRHIResourceCreateInfoUploadArray(const TCHAR* InDebugName, TConstArrayView<ElementType> InView)
-		: FRHIResourceCreateInfo(InDebugName, &UploadView)
-		, UploadView(InView)
-	{
-	}
-
-	template<typename ElementType>
-	FRHIResourceCreateInfoUploadArray(const TCHAR* InDebugName, TArrayView<ElementType> InView)
-	: FRHIResourceCreateInfoUploadArray(InDebugName, TConstArrayView<ElementType>(InView))
-	{
-	}
-
-	template<typename ElementType, typename AllocatorType>
-	FRHIResourceCreateInfoUploadArray(const TCHAR* InDebugName, const TArray<ElementType, AllocatorType>& InArray)
-	: FRHIResourceCreateInfoUploadArray(InDebugName, TConstArrayView<ElementType>(InArray))
-	{
-	}
-
-	uint32 GetResourceDataSize() const
-	{
-		return UploadView.GetResourceDataSize();
-	}
-};
-
 namespace UE::RHIResourceUtils
 {
-	template <typename TElementType>
-	static FBufferRHIRef CreateBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags UsageFlags, ERHIAccess ResourceState, TConstArrayView<TElementType> Array)
+	static FBufferRHIRef CreateBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags UsageFlags, uint32 InStride, const void* InData, uint32 InSizeInBytes)
 	{
-		FRHIResourceCreateInfoUploadArray CreateInfo(Name, Array);
-		return RHICmdList.CreateBuffer(CreateInfo.GetResourceDataSize(), UsageFlags, Array.GetTypeSize(), ResourceState, CreateInfo);
+		const ERHIAccess InitialState = RHIGetDefaultResourceState(UsageFlags, false);
+		FResourceArrayUploadArrayView UploadView(InData, InSizeInBytes);
+
+		FRHIResourceCreateInfo CreateInfo(Name, &UploadView);
+		return RHICmdList.CreateBuffer(InSizeInBytes, UsageFlags, InStride, InitialState, CreateInfo);
+	}
+
+	template<typename TElementType>
+	static FBufferRHIRef CreateBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags UsageFlags, uint32 InStride, ERHIAccess InitialState, TConstArrayView<TElementType> Array)
+	{
+		FResourceArrayUploadArrayView UploadView(Array);
+
+		FRHIResourceCreateInfo CreateInfo(Name, &UploadView);
+		return RHICmdList.CreateBuffer(UploadView.GetResourceDataSize(), UsageFlags, InStride, InitialState, CreateInfo);
+	}
+
+	template<typename TElementType>
+	static FBufferRHIRef CreateBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags UsageFlags, ERHIAccess InitialState, TConstArrayView<TElementType> Array)
+	{
+		return CreateBufferFromArray(RHICmdList, Name, UsageFlags, Array.GetTypeSize(), InitialState, Array);
 	}
 
 	template<typename TElementType>
 	static FBufferRHIRef CreateVertexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags ExtraFlags, TConstArrayView<TElementType> Array)
 	{
-		return CreateBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::VertexBuffer | ExtraFlags, ERHIAccess::VertexOrIndexBuffer, Array);
+		const EBufferUsageFlags Usage = EBufferUsageFlags::VertexBuffer | ExtraFlags;
+		const ERHIAccess InitialState = RHIGetDefaultResourceState(Usage, false);
+		return CreateBufferFromArray<TElementType>(RHICmdList, Name, Usage, 0, InitialState, Array);
 	}
 
 	template<typename TElementType>
@@ -65,7 +49,9 @@ namespace UE::RHIResourceUtils
 	template<typename TElementType>
 	static FBufferRHIRef CreateIndexBufferFromArray(FRHICommandListBase& RHICmdList, const TCHAR* Name, EBufferUsageFlags ExtraFlags, TConstArrayView<TElementType> Array)
 	{
-		return CreateBufferFromArray<TElementType>(RHICmdList, Name, EBufferUsageFlags::IndexBuffer | ExtraFlags, ERHIAccess::VertexOrIndexBuffer, Array);
+		const EBufferUsageFlags Usage = EBufferUsageFlags::IndexBuffer | ExtraFlags;
+		const ERHIAccess InitialState = RHIGetDefaultResourceState(Usage, false);
+		return CreateBufferFromArray<TElementType>(RHICmdList, Name, Usage, InitialState, Array);
 	}
 
 	template<typename TElementType>

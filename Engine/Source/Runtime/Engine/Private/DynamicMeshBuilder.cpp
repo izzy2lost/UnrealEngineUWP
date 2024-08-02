@@ -199,14 +199,12 @@ TGlobalResource<FGlobalDynamicMeshVertexPool> GDynamicMeshVertexPool;
 
 void FDynamicMeshIndexBuffer32::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FDynamicMeshIndexBuffer32"), MakeArrayView(Indices));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint32), CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
+	IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FDynamicMeshIndexBuffer32"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 }
 
 void FDynamicMeshIndexBuffer16::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FDynamicMeshIndexBuffer16"), MakeArrayView(Indices));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
+	IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FDynamicMeshIndexBuffer16"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 }
 
 /** FDynamicMeshBufferAllocator's base implementation. It always reallocates new buffers. */

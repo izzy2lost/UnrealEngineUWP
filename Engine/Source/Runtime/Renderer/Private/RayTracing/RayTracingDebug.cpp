@@ -18,6 +18,7 @@
 #include "RayTracing/RayTracing.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "RayTracing/RayTracingTraversalStatistics.h"
+#include "RHIResourceUtils.h"
 #include "Nanite/NaniteRayTracing.h"
 #include "PixelShaderUtils.h"
 #include "SystemTextures.h"
@@ -509,8 +510,6 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
-
 		static const uint16 LineIndices[12 * 2] =
 		{
 			0, 1,
@@ -527,16 +526,8 @@ public:
 			4, 5
 		};
 
-		int32 NumIndices = UE_ARRAY_COUNT(LineIndices);
-		Indices.AddUninitialized(NumIndices);
-		FMemory::Memcpy(Indices.GetData(), LineIndices, NumIndices * sizeof(uint16));
-
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FRayTracingDebugLineAABBIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FRayTracingDebugLineAABBIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(LineIndices));
 	}
 };
 

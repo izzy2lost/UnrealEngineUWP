@@ -17,6 +17,7 @@
 #include "PipelineStateCache.h"
 #include "RHIUtilities.h"
 #include "DataDrivenShaderPlatformInfo.h"
+#include "RHIResourceUtils.h"
 #include "RHIStaticStates.h"
 #include "EngineModule.h"
 #include "SceneUtils.h"
@@ -302,26 +303,15 @@ void FAppleARKitVideoOverlay::RenderVideoOverlayWithMaterial(FRHICommandList& RH
 	if (!OverlayVertexBufferRHI)
 	{
 		// Setup vertex buffer
-		const FVector4f Positions[] =
+		const FFilterVertex Vertices[] =
 		{
-			FVector4f(0.0f, 1.0f, 0.0f, 1.0f),
-			FVector4f(0.0f, 0.0f, 0.0f, 1.0f),
-			FVector4f(1.0f, 1.0f, 0.0f, 1.0f),
-			FVector4f(1.0f, 0.0f, 0.0f, 1.0f)
+			{ FVector4f(0.0f, 1.0f, 0.0f, 1.0f), FVector2f(0.0f, 1.0f) },
+			{ FVector4f(0.0f, 0.0f, 0.0f, 1.0f), FVector2f(0.0f, 0.0f) },
+			{ FVector4f(1.0f, 1.0f, 0.0f, 1.0f), FVector2f(1.0f, 1.0f) },
+			{ FVector4f(1.0f, 0.0f, 0.0f, 1.0f), FVector2f(1.0f, 0.0f) },
 		};
-		
-		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
-		Vertices.SetNumUninitialized(4);
-		
-		for (auto Index = 0; Index < UE_ARRAY_COUNT(Positions); ++Index)
-		{
-			const auto& Position = Positions[Index];
-			Vertices[Index].Position = Position;
-			Vertices[Index].UV = FVector2f(Position.X, Position.Y);
-		}
-		
-		FRHIResourceCreateInfo CreateInfoVB(TEXT("VideoOverlayVertexBuffer"), &Vertices);
-		OverlayVertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfoVB);
+
+		OverlayVertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("VideoOverlayVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 		
 		// Cache UVOffsets
 		const FVector2D ViewSize(InView.UnconstrainedViewRect.Max.X, InView.UnconstrainedViewRect.Max.Y);
@@ -350,13 +340,7 @@ void FAppleARKitVideoOverlay::RenderVideoOverlayWithMaterial(FRHICommandList& RH
 		// Setup index buffer
 		const uint16 Indices[] = { 0, 1, 2, 2, 1, 3 };
 
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
-		const uint32 NumIndices = UE_ARRAY_COUNT(Indices);
-		IndexBuffer.AddUninitialized(NumIndices);
-		FMemory::Memcpy(IndexBuffer.GetData(), Indices, NumIndices * sizeof(uint16));
-
-		FRHIResourceCreateInfo CreateInfoIB(TEXT("VideoOverlayIndexBuffer"), &IndexBuffer);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfoIB);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("VideoOverlayIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	const auto FeatureLevel = InView.GetFeatureLevel();

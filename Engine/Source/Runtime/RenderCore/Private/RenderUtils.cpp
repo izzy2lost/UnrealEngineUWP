@@ -11,6 +11,7 @@
 #include "PipelineStateCache.h"
 #include "RenderResource.h"
 #include "RHI.h"
+#include "RHIResourceUtils.h"
 #include "Shader.h"
 #include "ShaderPlatformCachedIniValue.h"
 #include "DataDrivenShaderPlatformInfo.h"
@@ -1002,7 +1003,7 @@ public:
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
 		const int32 NumVerts = 8;
-		TResourceArray<FVector4f, VERTEXBUFFER_ALIGNMENT> Verts;
+		TArray<FVector4f> Verts;
 		Verts.SetNumUninitialized(NumVerts);
 
 		for (uint32 Z = 0; Z < 2; Z++)
@@ -1023,11 +1024,8 @@ public:
 			}
 		}
 
-		uint32 Size = Verts.GetResourceDataSize();
-
 		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FUnitCubeVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 	}
 };
 
@@ -1039,18 +1037,8 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
-		
-		int32 NumIndices = UE_ARRAY_COUNT(GCubeIndices);
-		Indices.AddUninitialized(NumIndices);
-		FMemory::Memcpy(Indices.GetData(), GCubeIndices, NumIndices * sizeof(uint16));
-
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FUnitCubeIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(GCubeIndices));
 	}
 };
 
@@ -1064,17 +1052,14 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		const int32 NumVerts = 2;
-		TResourceArray<FVector3f, VERTEXBUFFER_ALIGNMENT> Verts;
-		Verts.SetNumUninitialized(NumVerts);
-		Verts[0] = FVector3f(-0.5f, -0.5f, -0.5f);
-		Verts[1] = FVector3f(0.5f, 0.5f, 0.5f);
-
-		uint32 Size = Verts.GetResourceDataSize();
+		const FVector3f Vertices[] =
+		{
+			FVector3f(-0.5f, -0.5f, -0.5f),
+			FVector3f( 0.5f,  0.5f,  0.5f),
+		};
 
 		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FUnitCubeAABBVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FUnitCubeAABBVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 	}
 };
 #endif // RHI_RAYTRACING

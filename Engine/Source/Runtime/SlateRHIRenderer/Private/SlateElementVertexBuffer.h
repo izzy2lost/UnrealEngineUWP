@@ -8,6 +8,7 @@
 #include "SlateGlobals.h"
 #include "RHI.h"
 #include "RHICommandList.h"
+#include "RHIResourceUtils.h"
 #include "RenderResource.h"
 #include "Containers/ResourceArray.h"
 
@@ -172,11 +173,9 @@ public:
 	{
 		if (!IsValidRef(VertexBufferRHI))
 		{
-			static FStencilBufferResourceArray ResourceArray;
+			const uint32 Verts[] = { 0, 1, 2, 3 };
 
-			FRHIResourceCreateInfo CreateInfo(TEXT("SlateStencilClipVertexBuffer"));
-			CreateInfo.ResourceArray = &ResourceArray;
-			VertexBufferRHI = RHICmdList.CreateVertexBuffer(ResourceArray.GetResourceDataSize(), BUF_Static, CreateInfo);
+			VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("SlateStencilClipVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 
 			// Ensure the vertex buffer could be created
 			check(IsValidRef(VertexBufferRHI));
@@ -191,24 +190,4 @@ public:
 
 	/** Returns a friendly name for this buffer. */
 	virtual FString GetFriendlyName() const { return TEXT("SlateElementVertices"); }
-
-private:
-	struct FStencilBufferResourceArray : FResourceArrayInterface
-	{
-		virtual const void* GetResourceData() const override
-		{
-			static uint32 Verts[] = { 0, 1, 2, 3};
-			return Verts;
-		}
-
-		virtual uint32 GetResourceDataSize() const override
-		{
-			return sizeof(uint32) * 4;
-		}
-
-		virtual void Discard() override {}
-		virtual bool IsStatic() const override { return true; }
-		virtual bool GetAllowCPUAccess() const override { return false; }
-		virtual void SetAllowCPUAccess(bool bInNeedsCPUAccess) override { }
-	};
 };

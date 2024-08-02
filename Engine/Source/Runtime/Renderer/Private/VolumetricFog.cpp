@@ -30,6 +30,7 @@ VolumetricFog.cpp
 #include "LightFunctionAtlas.h"
 #include "Math/UnrealMathUtility.h"
 #include "RayTracing/RayTracing.h"
+#include "RHIResourceUtils.h"
 
 using namespace LightFunctionAtlas;
 
@@ -677,7 +678,7 @@ public:
 	{
 		const int32 NumTriangles = FCircleRasterizeVertexBuffer::NumVertices - 2;
 
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<uint16> Indices;
 		Indices.Empty(NumTriangles * 3);
 
 		for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; TriangleIndex++)
@@ -688,12 +689,8 @@ public:
 			Indices.Add(LeadingVertexIndex);
 		}
 
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FCircleRasterizeIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FCircleRasterizeIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 };
 

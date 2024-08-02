@@ -5,6 +5,7 @@
 #include "VertexFactory.h"
 #include "Containers/DynamicRHIResourceArray.h"
 #include "WaterInstanceDataBuffer.h"
+#include "RHIResourceUtils.h"
 
 class FShaderParameterMap;
 struct FShaderCompilerEnvironment;
@@ -59,7 +60,7 @@ private:
 	template <typename IndexType>
 	FBufferRHIRef CreateIndexBuffer(FRHICommandListBase& RHICmdList)
 	{
-		TResourceArray<IndexType, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<IndexType> Indices;
 
 		// Allocate room for indices
 		Indices.Reserve(NumQuadsPerSide * NumQuadsPerSide * 6);
@@ -95,12 +96,9 @@ private:
 		}
 
 		NumIndices = Indices.Num();
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(IndexType);
 
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FWaterMeshIndexBuffer"), &Indices);
-		return RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		return UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FWaterMeshIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	int32 NumIndices = 0;

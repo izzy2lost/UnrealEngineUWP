@@ -34,6 +34,7 @@
 #include "LightFunctionAtlas.h"
 #include "HeterogeneousVolumes/HeterogeneousVolumes.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "RHIResourceUtils.h"
 
 using namespace LightFunctionAtlas;
 
@@ -291,7 +292,7 @@ public:
 
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
+		TArray<uint16> Indices;
 
 		Indices.Empty((NumSlices - 1) * NumSides * 12);
 		// Generate triangles for the vertices of the cone shape
@@ -334,14 +335,10 @@ public:
 			}
 		}
 
-		const uint32 Size = Indices.GetResourceDataSize();
-		const uint32 Stride = sizeof(uint16);
-
 		NumIndices = Indices.Num();
 
 		// Create index buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FStencilConeIndexBuffer"), &Indices);
-		IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+		IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FStencilConeIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 	}
 
 	int32 GetIndexCount() const { return NumIndices; }
@@ -366,18 +363,14 @@ public:
 	*/
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<FVector4f, VERTEXBUFFER_ALIGNMENT> Verts;
+		TArray<FVector4f> Verts;
 		Verts.Empty(NumVerts);
 		for (int32 s = 0; s < NumVerts; s++)
 		{
-			Verts.Add(FVector4f(0, 0, 0, 0));
+			Verts.Emplace(0, 0, 0, 0);
 		}
 
-		uint32 Size = Verts.GetResourceDataSize();
-
-		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FStencilConeVertexBuffer"), &Verts);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size, BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FStencilConeVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 	}
 
 	int32 GetVertexCount() const { return NumVerts; }

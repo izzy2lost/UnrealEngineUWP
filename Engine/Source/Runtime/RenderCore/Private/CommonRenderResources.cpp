@@ -50,8 +50,12 @@ static const FFilterVertex GScreenRectangleVertexBufferData[] =
 void FScreenRectangleVertexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	// Create vertex buffer. Fill buffer with initial data upon creation
-	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FScreenRectangleVertexBuffer"), MakeArrayView(GScreenRectangleVertexBufferData));
-	VertexBufferRHI = RHICmdList.CreateVertexBuffer(CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
+	VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(
+		RHICmdList,
+		TEXT("FScreenRectangleVertexBuffer"),
+		EBufferUsageFlags::Static,
+		MakeConstArrayView(GScreenRectangleVertexBufferData)
+	);
 }
 
 static const uint16 GScreenRectangleIndexBufferData[] =
@@ -64,6 +68,10 @@ static const uint16 GScreenRectangleIndexBufferData[] =
 void FScreenRectangleIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	// Create index buffer. Fill buffer with initial data upon creation
-	FRHIResourceCreateInfoUploadArray CreateInfo(TEXT("FScreenRectangleIndexBuffer"), MakeArrayView(GScreenRectangleIndexBufferData));
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), CreateInfo.GetResourceDataSize(), BUF_Static, CreateInfo);
+	IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(
+		RHICmdList,
+		TEXT("FScreenRectangleIndexBuffer"),
+		EBufferUsageFlags::Static,
+		MakeConstArrayView(GScreenRectangleIndexBufferData)
+	);
 }

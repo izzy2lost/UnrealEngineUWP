@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "RHI.h"
+#include "RHIResourceUtils.h"
 #include "Misc/AutomationTest.h"
 #include "Math/DoubleFloat.h"
 
@@ -65,31 +66,25 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 
 	{
-		TResourceArray<FVector3f> PositionData;
-		PositionData.SetNumUninitialized(3);
-		PositionData[0] = FVector3f( 1, -1, 0);
-		PositionData[1] = FVector3f( 1,  1, 0);
-		PositionData[2] = FVector3f(-1, -1, 0);
+		const FVector3f PositionData[] =
+		{
+			FVector3f( 1, -1, 0),
+			FVector3f( 1,  1, 0),
+			FVector3f(-1, -1, 0),
+		};
 
-		FRHIResourceCreateInfo CreateInfo(TEXT("RayTracingTestbedVB"));
-		CreateInfo.ResourceArray = &PositionData;
-
-		VertexBuffer = RHICmdList.CreateVertexBuffer(PositionData.GetResourceDataSize(), BUF_Static, CreateInfo);
+		VertexBuffer = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("RayTracingTestbedVB"), EBufferUsageFlags::Static, MakeConstArrayView(PositionData));
 	}
 
 	FBufferRHIRef IndexBuffer;
 
 	{
-		TResourceArray<uint16> IndexData;
-		IndexData.SetNumUninitialized(3);
-		IndexData[0] = 0;
-		IndexData[1] = 1;
-		IndexData[2] = 2;
+		const uint16 IndexData[] =
+		{
+			0, 1, 2
+		};
 
-		FRHIResourceCreateInfo CreateInfo(TEXT("RayTracingTestbedIB"));
-		CreateInfo.ResourceArray = &IndexData;
-
-		IndexBuffer = RHICmdList.CreateIndexBuffer(2, IndexData.GetResourceDataSize(), BUF_Static, CreateInfo);
+		IndexBuffer = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("RayTracingTestbedIB"), EBufferUsageFlags::Static, MakeConstArrayView(IndexData));
 	}
 
 	static constexpr uint32 NumRays = 4;
@@ -98,22 +93,22 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	FShaderResourceViewRHIRef RayBufferView;
 
 	{
-		TResourceArray<FBasicRayTracingRay> RayData;
-		RayData.SetNumUninitialized(NumRays);
-		RayData[0] = FBasicRayTracingRay{ { 0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f}, 100000.0f }; // expected to hit
-		RayData[1] = FBasicRayTracingRay{ { 0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f},      0.5f }; // expected to miss (short ray)
-		RayData[2] = FBasicRayTracingRay{ { 0.75f, 0.0f,  1.0f}, 0xFFFFFFFF, {0.0f, 0.0f, -1.0f}, 100000.0f }; // expected to hit  (should hit back face)
-		RayData[3] = FBasicRayTracingRay{ {-0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f}, 100000.0f }; // expected to miss (doesn't intersect)
+		const FBasicRayTracingRay RayData[] =
+		{
+			FBasicRayTracingRay{ { 0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f}, 100000.0f }, // expected to hit
+			FBasicRayTracingRay{ { 0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f},      0.5f }, // expected to miss (short ray)
+			FBasicRayTracingRay{ { 0.75f, 0.0f,  1.0f}, 0xFFFFFFFF, {0.0f, 0.0f, -1.0f}, 100000.0f }, // expected to hit  (should hit back face)
+			FBasicRayTracingRay{ {-0.75f, 0.0f, -1.0f}, 0xFFFFFFFF, {0.0f, 0.0f,  1.0f}, 100000.0f }, // expected to miss (doesn't intersect)
+		};
 
-		FRHIResourceCreateInfo CreateInfo(TEXT("RayBuffer"));
-		CreateInfo.ResourceArray = &RayData;
-
-		RayBuffer = RHICmdList.CreateBuffer(RayData.GetResourceDataSize(), 
-			BUF_Static | BUF_ShaderResource | BUF_StructuredBuffer, 
-			sizeof(FBasicRayTracingRay),
+		RayBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+			RHICmdList,
+			TEXT("RayBuffer"), 
+			BUF_Static | BUF_ShaderResource | BUF_StructuredBuffer,
 			ERHIAccess::SRVMask,
-			CreateInfo
+			MakeConstArrayView(RayData)
 		);
+
 		RayBufferView = RHICmdList.CreateShaderResourceView(RayBuffer, 
 			FRHIViewDesc::CreateBufferSRV()
 			.SetType(FRHIViewDesc::EBufferType::Structured)

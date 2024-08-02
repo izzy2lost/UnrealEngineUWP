@@ -42,6 +42,7 @@ LandscapeEditLayers.cpp: Landscape editing layers mode
 #include "MaterialCachedData.h"
 #include "ContentStreaming.h"
 #include "Templates/TypeHash.h"
+#include "RHIResourceUtils.h"
 
 #if WITH_EDITOR
 #include "AssetCompilingManager.h"
@@ -579,7 +580,7 @@ private:
 	/** Initialize the RHI for this rendering resource */
 	void InitRHI(FRHICommandListBase& RHICmdList) override
 	{
-		TResourceArray<FLandscapeLayersVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
+		TArray<FLandscapeLayersVertex> Vertices;
 		Vertices.SetNumUninitialized(TriangleList.Num() * 3);
 
 		for (int32 i = 0; i < TriangleList.Num(); ++i)
@@ -590,8 +591,7 @@ private:
 		}
 
 		// Create vertex buffer. Fill buffer with initial data upon creation
-		FRHIResourceCreateInfo CreateInfo(TEXT("FLandscapeLayersVertexBuffer"), &Vertices);
-		VertexBufferRHI = RHICmdList.CreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfo);
+		VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("FLandscapeLayersVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Vertices));
 	}
 
 	TArray<FLandscapeLayersTriangle> TriangleList;

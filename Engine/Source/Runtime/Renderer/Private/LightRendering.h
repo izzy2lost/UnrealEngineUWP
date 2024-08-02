@@ -8,6 +8,7 @@
 
 #include "CoreMinimal.h"
 #include "RHI.h"
+#include "RHIResourceUtils.h"
 #include "RenderResource.h"
 #include "UniformBuffer.h"
 #include "ShaderParameters.h"
@@ -136,7 +137,7 @@ namespace StencilingGeometry
 				ArcVerts.Add(FVector3f(0.0f, FMath::Sin(Angle), FMath::Cos(Angle)));
 			}
 
-			TResourceArray<VectorType, VERTEXBUFFER_ALIGNMENT> Verts;
+			TArray<VectorType> Verts;
 			Verts.Empty(NumVerts);
 			// Then rotate this arc NumSides + 1 times.
 			const FVector3f Center = FVector3f(0,0,0);
@@ -153,11 +154,9 @@ namespace StencilingGeometry
 			}
 
 			NumSphereVerts = Verts.Num();
-			uint32 Size = Verts.GetResourceDataSize();
 
 			// Create vertex buffer. Fill buffer with initial data upon creation
-			FRHIResourceCreateInfo CreateInfo(TEXT("TStencilSphereVertexBuffer"), &Verts);
-			VertexBufferRHI = RHICmdList.CreateVertexBuffer(Size,BUF_Static,CreateInfo);
+			VertexBufferRHI = UE::RHIResourceUtils::CreateVertexBufferFromArray(RHICmdList, TEXT("TStencilSphereVertexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Verts));
 		}
 
 		int32 GetVertexCount() const { return NumSphereVerts; }
@@ -204,7 +203,8 @@ namespace StencilingGeometry
 		{
 			const int32 NumSides = NumSphereSides;
 			const int32 NumRings = NumSphereRings;
-			TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> Indices;
+			TArray<uint16> Indices;
+			Indices.Reserve(NumSides * NumRings * 6);
 
 			// Add triangles for all the vertices generated
 			for (int32 s = 0; s < NumSides; s++)
@@ -224,12 +224,9 @@ namespace StencilingGeometry
 			}
 
 			NumIndices = Indices.Num();
-			const uint32 Size = Indices.GetResourceDataSize();
-			const uint32 Stride = sizeof(uint16);
 
 			// Create index buffer. Fill buffer with initial data upon creation
-			FRHIResourceCreateInfo CreateInfo(TEXT("TStencilSphereIndexBuffer"), &Indices);
-			IndexBufferRHI = RHICmdList.CreateIndexBuffer(Stride, Size, BUF_Static, CreateInfo);
+			IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("TStencilSphereIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(Indices));
 		}
 
 		int32 GetIndexCount() const { return NumIndices; }; 

@@ -14,10 +14,11 @@
 #include "CommonRenderResources.h"
 #include "PostProcess/DrawRectangle.h"
 #include "ScenePrivate.h"
+#include "RHIResourceUtils.h"
 
 void FTesselatedScreenRectangleIndexBuffer::InitRHI(FRHICommandListBase& RHICmdList)
 {
-	TResourceArray<uint16, INDEXBUFFER_ALIGNMENT> IndexBuffer;
+	TArray<uint16> IndexBuffer;
 
 	uint32 NumIndices = NumPrimitives() * 3;
 	IndexBuffer.AddUninitialized(NumIndices);
@@ -45,8 +46,7 @@ void FTesselatedScreenRectangleIndexBuffer::InitRHI(FRHICommandListBase& RHICmdL
 	}
 
 	// Create index buffer. Fill buffer with initial data upon creation
-	FRHIResourceCreateInfo CreateInfo(TEXT("FTesselatedScreenRectangleIndexBuffer"), &IndexBuffer);
-	IndexBufferRHI = RHICmdList.CreateIndexBuffer(sizeof(uint16), IndexBuffer.GetResourceDataSize(), BUF_Static, CreateInfo);
+	IndexBufferRHI = UE::RHIResourceUtils::CreateIndexBufferFromArray(RHICmdList, TEXT("FTesselatedScreenRectangleIndexBuffer"), EBufferUsageFlags::Static, MakeConstArrayView(IndexBuffer));
 }
 
 uint32 FTesselatedScreenRectangleIndexBuffer::NumVertices() const

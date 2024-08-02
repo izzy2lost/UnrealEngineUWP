@@ -9,7 +9,7 @@
 #include "GerstnerWaterWaveSubsystem.h"
 #include "WaterBodyManager.h"
 #include "WaterSubsystem.h"
-#include "Containers/DynamicRHIResourceArray.h"
+#include "RHIResourceUtils.h"
 
 static TAutoConsoleVariable<bool> CVarLocalTessellationFreeze(
 	TEXT("r.Water.WaterMesh.LocalTessellation.Freeze"),
@@ -223,8 +223,8 @@ void FWaterViewExtension::UpdateGPUBuffers()
 			});
 		}
 
-		TResourceArray<FVector4f> WaterBodyDataBuffer;
-		TResourceArray<FVector4f> WaterAuxDataBuffer;
+		TArray<FVector4f> WaterBodyDataBuffer;
+		TArray<FVector4f> WaterAuxDataBuffer;
 
 		// The first element of the WaterDataBuffer contains the offsets to each of the sub-buffers.
 		// X = WaterZoneDataOffset
@@ -236,7 +236,7 @@ void FWaterViewExtension::UpdateGPUBuffers()
 		// Transform the individual arrays into the single buffer:
 		{
 			/** Copy a buffer of arbitrary PoD into a float4 resource array. Returns the starting offset of the source buffer in the dest buffer. */
-			auto AppendDataToFloat4Buffer = []<typename T>(TResourceArray<FVector4f>& Dest, const TArray<T>& Source)
+			auto AppendDataToFloat4Buffer = []<typename T>(TArray<FVector4f>& Dest, const TArray<T>& Source)
 			{
 				constexpr int32 NumFloat4PerElement = (sizeof(T) / sizeof(FVector4f));
 				const int32 StartOffset = Dest.Num();
@@ -271,12 +271,22 @@ void FWaterViewExtension::UpdateGPUBuffers()
 		(
 			[WaterGPUData=WaterGPUData, WaterAuxDataBuffer, WaterBodyDataBuffer](FRHICommandListImmediate& RHICmdList) mutable
 			{
-				FRHIResourceCreateInfo AuxDataCreateInfo(TEXT("WaterAuxDataBuffer"), &WaterAuxDataBuffer);
-				WaterGPUData->AuxDataBuffer = RHICmdList.CreateBuffer(WaterAuxDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, AuxDataCreateInfo);
+				WaterGPUData->AuxDataBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+					RHICmdList,
+					TEXT("WaterAuxDataBuffer"),
+					EBufferUsageFlags::VertexBuffer | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::Static,
+					ERHIAccess::SRVMask,
+					MakeConstArrayView(WaterAuxDataBuffer)
+				);
 				WaterGPUData->AuxDataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->AuxDataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
-
-				FRHIResourceCreateInfo WaterBodyDataCreateInfo(TEXT("WaterBodyDataBuffer"), &WaterBodyDataBuffer);
-				WaterGPUData->WaterBodyDataBuffer = RHICmdList.CreateBuffer(WaterBodyDataBuffer.GetResourceDataSize(), BUF_VertexBuffer | BUF_ShaderResource | BUF_Static, sizeof(FVector4f), ERHIAccess::SRVMask, WaterBodyDataCreateInfo);
+				
+				WaterGPUData->WaterBodyDataBuffer = UE::RHIResourceUtils::CreateBufferFromArray(
+					RHICmdList,
+					TEXT("WaterBodyDataBuffer"),
+					EBufferUsageFlags::VertexBuffer | EBufferUsageFlags::ShaderResource | EBufferUsageFlags::Static,
+					ERHIAccess::SRVMask,
+					MakeConstArrayView(WaterBodyDataBuffer)
+				);
 				WaterGPUData->WaterBodyDataSRV = RHICmdList.CreateShaderResourceView(WaterGPUData->WaterBodyDataBuffer, sizeof(FVector4f), PF_A32B32G32R32F);
 			}
 		);
