@@ -816,11 +816,6 @@ void BuildMetalShaderOutput(
 					ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
 				}
 			}
-			else if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive))
-			{
-				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::SourceCode, TCHAR_TO_UTF8(*MetalCode));
-				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
-			}
 			
 			ShaderOutput.NumTextureSamplers = Header.Bindings.NumSamplers;
 		}
