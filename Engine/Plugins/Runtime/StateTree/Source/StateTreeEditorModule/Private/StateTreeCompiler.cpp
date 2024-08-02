@@ -1432,6 +1432,13 @@ bool FStateTreeCompiler::ResolveTransitionState(const UStateTreeState* SourceSta
 		OutTransitionHandle = FStateTreeStateHandle::Invalid;
 		return true;
 	}
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	else if (Link.LinkType == EStateTreeTransitionType::NotSet)
+	{
+		OutTransitionHandle = FStateTreeStateHandle::Invalid;
+		return false;
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	return true;
 }

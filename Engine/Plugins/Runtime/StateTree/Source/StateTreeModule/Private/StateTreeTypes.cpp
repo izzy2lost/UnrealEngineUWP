@@ -109,6 +109,10 @@ void FStateTreeStateLink::PostSerialize(const FArchive& Ar)
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LinkType = Type_DEPRECATED;
+		if (LinkType == EStateTreeTransitionType::NotSet)
+		{
+			LinkType = EStateTreeTransitionType::None;
+		}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 #endif // WITH_EDITORONLY_DAT
