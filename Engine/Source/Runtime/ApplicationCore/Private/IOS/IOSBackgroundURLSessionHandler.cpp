@@ -362,7 +362,7 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 	double TimeoutIntervalForResource = 60.0 * 60.0;
 	_RetryResumeDataLimit = 3;
 	_CDNReorderingTimeout = 400;
-	_bCDNReorderByPingTime = true;
+	_bCDNReorderByPingTime = false;
 	_CheckForForegroundStaleDownloadsWithInterval = 1.0; // how often to check for stale downloads, <=0.0 to disable
 	_ForegroundStaleDownloadTimeout = 30.0; // If download hasn't received any bytes for this duration, cancel and retry if possible
 
