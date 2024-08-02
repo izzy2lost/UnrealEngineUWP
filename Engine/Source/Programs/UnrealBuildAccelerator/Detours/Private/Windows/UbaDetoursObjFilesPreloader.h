@@ -191,6 +191,10 @@ namespace uba
 				preload.objWriteOffset = 0;
 				preload.objLeft = preload.objDecompressedSize;
 				CloseHandle(objFileMappingHandle);
+
+				if (ToView(preload.fileInfo->originalName).EndsWith(TC(".h.obj"))) // TODO: Copied this from UbaSession align code
+					totalMemSize = AlignUp(totalMemSize, 4 * 1024);
+
 				totalMemSize += preload.objDecompressedSize;
 			}
 
@@ -235,6 +239,9 @@ namespace uba
 
 				if (preload.objWriteOffset == 0)
 				{
+					if (ToView(info.originalName).EndsWith(TC(".h.obj"))) // TODO: Copied this from UbaSession align code
+						m_totalMemOffset = AlignUp(m_totalMemOffset, 4 * 1024);
+
 					info.fileMapMem = m_totalMem + m_totalMemOffset;
 					m_totalMemOffset += preload.objDecompressedSize;
 				}
@@ -253,7 +260,10 @@ namespace uba
 
 				OO_SINTa decompLen = OodleLZ_Decompress(reader.GetPositionData(), (OO_SINTa)compressedBlockSize, destMem, (OO_SINTa)decompressedBlockSize,
 					OodleLZ_FuzzSafe_Yes, OodleLZ_CheckCRC_No, OodleLZ_Verbosity_None, NULL, 0, NULL, NULL, decoderMem, decoredMemSize);
-				UBA_ASSERTF(decompLen == decompressedBlockSize, TC("Failed to decompress .obj file %s (%s)"), info.name, info.originalName);(void)decompLen;
+				if (decompLen != decompressedBlockSize)
+				{
+					FatalError(1356, TC("Failed to decompress .obj file %s (%s)"), info.name, info.originalName);
+				}
 
 				bool isDone = preload.objLeft.fetch_sub(decompressedBlockSize) == decompressedBlockSize;
 				if (!isDone)
