@@ -522,7 +522,7 @@ bool UAvaMask2DBaseModifier::TryResolveParentChannel()
 		const IGeometryMaskReadInterface* ReadComponent = nullptr;
 		while (ReadComponent == nullptr && Parent)
 		{
-			ReadComponent = Cast<IGeometryMaskReadInterface>(Parent->FindComponentByInterface<UGeometryMaskReadInterface>());
+			ReadComponent = Parent->FindComponentByInterface<IGeometryMaskReadInterface>();
 			Parent = Parent->GetAttachParentActor();
 		}
 

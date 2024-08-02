@@ -1483,7 +1483,7 @@ bool UPathFollowingComponent::UpdateMovementComponent(bool bForce)
 		{
 			MyPawn->OnActorHit.AddUniqueDynamic(this, &UPathFollowingComponent::OnActorBump);
 
-			SetNavMovementInterface(Cast<INavMovementInterface>(MyPawn->FindComponentByInterface<UNavMovementInterface>()));
+			SetNavMovementInterface(MyPawn->FindComponentByInterface<INavMovementInterface>());
 		}
 	}
 

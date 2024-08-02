@@ -7,6 +7,7 @@
 #include "UObject/UObjectBaseUtility.h"
 #include "UObject/Object.h"
 #include "InputCoreTypes.h"
+#include "Templates/Requires.h"
 #include "Templates/SubclassOf.h"
 #include "Engine/EngineTypes.h"
 #include "Engine/EngineBaseTypes.h"
@@ -3709,12 +3710,18 @@ public:
 	}
 
 	/** Templatized version of FindComponentByInterface that handles casting for you */
-	template<class T>
+	template<class T UE_REQUIRES(TPointerIsConvertibleFromTo<T, UInterface>::Value)>
+	UE_DEPRECATED(5.5, "This version incorrectly casts to the UInterface type used for reflection. Use FindComponentByInterface<IMyInterface>() instead")
 	T* FindComponentByInterface() const
 	{
-		static_assert(TPointerIsConvertibleFromTo<T, const UInterface>::Value, "'T' template parameter to FindComponentByInterface must be derived from UInterface");
-
 		return (T*)FindComponentByInterface(T::StaticClass());
+	}
+
+	/** Templatized version of FindComponentByInterface that handles casting for you */
+	template<class T UE_REQUIRES(TIsIInterface<T>::Value)>
+	T* FindComponentByInterface() const
+	{
+		return Cast<T>(FindComponentByInterface(T::UClassType::StaticClass()));
 	}
 
 private:

@@ -62,7 +62,7 @@ void UAvaMaskEditorMode::Enter()
 
 	for (AActor* Actor : TActorRange<AActor>(GetWorld()))
 	{
-		if (Actor->FindComponentByInterface<UGeometryMaskWriteInterface>())
+		if (Actor->FindComponentByInterface(UGeometryMaskWriteInterface::StaticClass()))
 		{
 			WeakMaskWriterActors.Add(Actor);
 			if (UAvaGizmoComponent* GizmoComponent = Actor->GetComponentByClass<UAvaGizmoComponent>())
@@ -287,7 +287,7 @@ void UAvaMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InS
 					{
 						if (const AActor* WriterActor = WeakWriterActor.Get())
 						{
-							if (const IGeometryMaskWriteInterface* WriterObject = Cast<IGeometryMaskWriteInterface>(WriterActor->FindComponentByInterface<UGeometryMaskWriteInterface>()))
+							if (const IGeometryMaskWriteInterface* WriterObject = WriterActor->FindComponentByInterface<IGeometryMaskWriteInterface>())
 							{
 								if (UAvaGizmoComponent* GizmoComponent = WriterActor->GetComponentByClass<UAvaGizmoComponent>())
 								{
@@ -318,12 +318,12 @@ void UAvaMaskEditorMode::OnSelectionChanged(const UTypedElementSelectionSet* InS
 UGeometryMaskCanvas* UAvaMaskEditorMode::GetCanvasReferencedByActor(const AActor* InActor)
 {
 	FName CanvasName = NAME_None;
-	if (const IGeometryMaskWriteInterface* WriteComponent = Cast<IGeometryMaskWriteInterface>(InActor->FindComponentByInterface<UGeometryMaskWriteInterface>()))
+	if (const IGeometryMaskWriteInterface* WriteComponent = InActor->FindComponentByInterface<IGeometryMaskWriteInterface>())
 	{
 		const FGeometryMaskWriteParameters WriteComponentParameters = WriteComponent->GetParameters();
 		CanvasName = WriteComponentParameters.CanvasName;
 	}
-	else if (const IGeometryMaskReadInterface* ReadComponent = Cast<IGeometryMaskReadInterface>(InActor->FindComponentByInterface<UGeometryMaskReadInterface>()))
+	else if (const IGeometryMaskReadInterface* ReadComponent = InActor->FindComponentByInterface<IGeometryMaskReadInterface>())
 	{
 		const FGeometryMaskReadParameters ReadComponentParameters = ReadComponent->GetParameters();
 		CanvasName = ReadComponentParameters.CanvasName;
