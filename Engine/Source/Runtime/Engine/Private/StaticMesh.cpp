@@ -7050,7 +7050,7 @@ void UStaticMesh::ExecutePostLoadInternal(FStaticMeshPostLoadContext& Context)
 		{
 			for (const FText& MinLODError : MinLODErrors)
 			{
-				UE_LOG(LogStaticMesh, Warning, TEXT("%s %s"), *GetNameSafe(this), *MinLODError.ToString());
+				UE_ASSET_LOG(LogStaticMesh, Warning, this, TEXT("%s"), *MinLODError.ToString());
 			}
 		}
 		else
