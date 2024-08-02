@@ -83,7 +83,17 @@ namespace Metasound::Editor
 				const FMetasoundFrontendNode* InputTemplateNode = FInputNodeTemplate::CreateNode(Builder, Input->GetMemberName());
 				if (ensure(InputTemplateNode))
 				{
-					InputNode->NodeID = InputTemplateNode->GetID();
+					FGuid TemplateNodeID = InputTemplateNode->GetID();
+					InputNode->NodeID = TemplateNodeID;
+
+					// Remove default node location from input node. 
+					// Correct node location from the ed graph node will be set subsequently in ProcessPastedNodePositions
+					TArray<FGuid> NodeLocationGuids;
+					InputTemplateNode->Style.Display.Locations.GetKeys(NodeLocationGuids);
+					if (!NodeLocationGuids.IsEmpty())
+					{
+						Builder.RemoveNodeLocation(TemplateNodeID);
+					}
 				}
 			}
 			else
@@ -218,6 +228,7 @@ namespace Metasound::Editor
 
 	void FDocumentClipboardUtils::ProcessPastedExternalNodes(FMetasoundAssetBase& OutAsset, TArray<UMetasoundEditorGraphNode*>& OutPastedNodes, FDocumentPasteNotifications& OutNotifications)
 	{
+		using namespace Engine;
 		using namespace Frontend;
 
 		OutNotifications.bPastedNodesCreateLoop = false;
@@ -268,12 +279,16 @@ namespace Metasound::Editor
 			}
 			else
 			{
-				FMetasoundFrontendClass FrontendClass;
 				if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Breadcrumb.ClassName))
 				{
-					FNodeHandle NodeHandle = FGraphBuilder::AddExternalNodeHandle(MetaSound, Breadcrumb.ClassName);
-					ExternalNode->NodeID = NodeHandle->GetID();
-					if (!NodeHandle->IsValid())
+					FMetaSoundFrontendDocumentBuilder& Builder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(OutAsset.GetOwningAsset());
+					const FNodeTemplateGenerateInterfaceParams TemplateParams = Breadcrumb.TemplateParams.IsSet() ? *Breadcrumb.TemplateParams : FNodeTemplateGenerateInterfaceParams();
+					const FMetasoundFrontendNode* TemplateNode = Builder.AddNodeByTemplate(*Template, TemplateParams);
+					if (TemplateNode)
+					{
+						ExternalNode->NodeID = TemplateNode->GetID();
+					}
+					else
 					{
 						OutPastedNodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 						Graph.RemoveNode(ExternalNode);

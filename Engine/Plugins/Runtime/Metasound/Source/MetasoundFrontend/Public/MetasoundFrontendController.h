@@ -38,6 +38,9 @@
  * General note- these apis are NOT thread safe. 
  * Make sure that any FDocumentHandle, FGraphHandle, FNodeHandle, FInputHandle and FOutputHandle that access similar data are called on the same thread.
  */
+
+struct FNodeTemplateGenerateInterfaceParams;
+
 namespace Metasound
 {
 	namespace Frontend
@@ -50,8 +53,6 @@ namespace Metasound
 		class INodeController;
 		class IOutputController;
 		class IVariableController;
-
-		struct FNodeTemplateGenerateInterfaceParams;
 
 		// Metasound Frontend Handles are all TSharedRefs of various Metasound Frontend Controllers.
 		using FInputHandle = TSharedRef<IInputController>;

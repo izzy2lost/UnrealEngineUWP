@@ -10,10 +10,26 @@
 #include "UObject/NoExportTypes.h"
 #include "UObject/ScriptInterface.h"
 
+#include "MetasoundFrontendNodeTemplateRegistry.generated.h"
+
 // Forward Declarations
 class IMetaSoundDocumentInterface;
 struct FMetaSoundFrontendDocumentBuilder;
 
+USTRUCT()
+struct METASOUNDFRONTEND_API FNodeTemplateGenerateInterfaceParams
+{
+	GENERATED_BODY()
+
+	// TODO: Currently just DataType FName. Subsequent change will replace this with a VertexHandle
+	// and will add builder reference to once builder supports template nodes and controllers
+	// are no longer used to add template nodes from editor code.
+	UPROPERTY()
+	TArray<FName> InputsToConnect;
+	
+	UPROPERTY()
+	TArray<FName> OutputsToConnect;
+};
 
 namespace Metasound::Frontend
 {
@@ -26,15 +42,6 @@ namespace Metasound::Frontend
 
 	using FConstNodeHandle = TSharedRef<const INodeController>;
 #endif // WITH_EDITOR
-
-	struct METASOUNDFRONTEND_API FNodeTemplateGenerateInterfaceParams
-	{
-		// TODO: Currently just DataType FName. Subsequent change will replace this with a VertexHandle
-		// and will add builder reference to once builder supports template nodes and controllers
-		// are no longer used to add template nodes from editor code.
-		TArray<FName> InputsToConnect;
-		TArray<FName> OutputsToConnect;
-	};
 
 	class METASOUNDFRONTEND_API INodeTemplateTransform
 	{

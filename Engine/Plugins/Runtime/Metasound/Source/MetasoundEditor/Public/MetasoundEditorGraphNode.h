@@ -7,6 +7,7 @@
 #include "MetasoundFrontendController.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundFrontendLiteral.h"
+#include "MetasoundFrontendNodeTemplateRegistry.h"
 #include "MetasoundFrontendRegistries.h"
 #include "Misc/Guid.h"
 #include "Sound/SoundWave.h"
@@ -48,6 +49,10 @@ struct FMetasoundEditorGraphNodeBreadcrumb
 
 	UPROPERTY()
 	bool bIsClassNative = true;
+
+	// For use with template nodes only
+	UPROPERTY()
+	TOptional<FNodeTemplateGenerateInterfaceParams> TemplateParams;
 };
 
 USTRUCT()

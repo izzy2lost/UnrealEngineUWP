@@ -1082,10 +1082,41 @@ bool UMetasoundEditorGraphExternalNode::CanAutoUpdate() const
 void UMetasoundEditorGraphExternalNode::CacheBreadcrumb()
 {
 	using namespace Metasound::Frontend;
+	using namespace Metasound::Editor;
 	FConstNodeHandle NodeHandle = GetConstNodeHandle();
 	const FNodeRegistryKey RegistryKey(NodeHandle->GetClassMetadata());
 	Breadcrumb.bIsClassNative = FMetasoundFrontendRegistryContainer::Get()->IsNodeNative(RegistryKey);
 	Breadcrumb.ClassName = NodeHandle->GetClassMetadata().GetClassName();
+
+	// Cache template node generation parameters
+	if (const INodeTemplate* Template = INodeTemplateRegistry::Get().FindTemplate(Breadcrumb.ClassName))
+	{
+		if (!Breadcrumb.TemplateParams.IsSet())
+		{
+			Breadcrumb.TemplateParams = FNodeTemplateGenerateInterfaceParams();
+		}
+		Breadcrumb.TemplateParams->InputsToConnect.Reset();
+		Breadcrumb.TemplateParams->OutputsToConnect.Reset();
+
+		for (UEdGraphPin* Pin : Pins)
+		{
+			if (Pin)
+			{
+				const FName DataType = FGraphBuilder::GetPinDataType(Pin);
+				if (!DataType.IsNone())
+				{
+					if (Pin->Direction == EGPD_Input)
+					{
+						Breadcrumb.TemplateParams->InputsToConnect.Add(DataType);
+					}
+					else
+					{
+						Breadcrumb.TemplateParams->OutputsToConnect.Add(DataType);
+					}
+				}
+			}
+		}
+	}
 }
 
 void UMetasoundEditorGraphExternalNode::CacheTitle()
