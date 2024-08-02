@@ -6,6 +6,7 @@
 #include "Modules/ModuleManager.h"
 
 class SWidget;
+struct FTopLevelAssetPath;
 
 namespace UE::AnimNext::Editor
 {
