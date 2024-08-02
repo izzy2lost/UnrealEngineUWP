@@ -424,10 +424,42 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 	}
 	
 	bool bSetOutputs = false;
-	if (IndicesOut->IsEmpty())
+	
+	// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
+	for (FChooserIndexArray::FIndexData& SelectedIndexData : *IndicesOut)
 	{
-		// if no rows passed the filter columns then return the FallbackResult and output the FallbackValue from each output column
-		
+		if (ResultsArray->IsValidIndex(SelectedIndexData.Index))
+		{
+			const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndexData.Index].Get<FObjectChooserBase>();
+			FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
+			if (Status != FObjectChooserBase::EIteratorStatus::Continue)
+			{
+				bSetOutputs = true;
+				// trigger all output columns
+				for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+				{
+					const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
+					Column.SetOutputs(Context, SelectedIndexData.Index);
+				}
+				#if WITH_EDITOR
+				if (Context.DebuggingInfo.bCurrentDebugTarget)
+				{
+					Chooser->SetDebugSelectedRow(SelectedIndexData.Index);
+				}
+				#endif
+				TRACE_CHOOSER_EVALUATION(Chooser, Context, SelectedIndexData.Index);
+			}
+			if (Status == FObjectChooserBase::EIteratorStatus::Stop)
+			{
+				return FObjectChooserBase::EIteratorStatus::Stop;
+			}
+		}
+	}
+
+	// if no rows passed, or the ones which passed contained nested choosers which failed,
+	// then return the FallbackResult and output the FallbackValue from each output column
+	if (!bSetOutputs)
+	{
 		#if WITH_EDITOR
 		if (Context.DebuggingInfo.bCurrentDebugTarget)
 		{
@@ -453,39 +485,6 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 			if (Status == FObjectChooserBase::EIteratorStatus::Stop)
 			{
 				return FObjectChooserBase::EIteratorStatus::Stop;
-			}
-		}
-	}
-	else
-	{
-		// of the rows that passed all column filters, iterate through them calling the callback until it returns Stop
-		for (FChooserIndexArray::FIndexData& SelectedIndexData : *IndicesOut)
-		{
-			if (ResultsArray->IsValidIndex(SelectedIndexData.Index))
-			{
-				const FObjectChooserBase& SelectedResult = (*ResultsArray)[SelectedIndexData.Index].Get<FObjectChooserBase>();
-				FObjectChooserBase::EIteratorStatus Status = SelectedResult.ChooseMulti(Context, Callback);
-				if (Status != FObjectChooserBase::EIteratorStatus::Continue)
-				{
-					bSetOutputs = true;
-					// trigger all output columns
-					for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
-					{
-						const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
-						Column.SetOutputs(Context, SelectedIndexData.Index);
-					}
-					#if WITH_EDITOR
-					if (Context.DebuggingInfo.bCurrentDebugTarget)
-					{
-						Chooser->SetDebugSelectedRow(SelectedIndexData.Index);
-					}
-					#endif
-					TRACE_CHOOSER_EVALUATION(Chooser, Context, SelectedIndexData.Index);
-				}
-				if (Status == FObjectChooserBase::EIteratorStatus::Stop)
-				{
-					return FObjectChooserBase::EIteratorStatus::Stop;
-				}
 			}
 		}
 	}
