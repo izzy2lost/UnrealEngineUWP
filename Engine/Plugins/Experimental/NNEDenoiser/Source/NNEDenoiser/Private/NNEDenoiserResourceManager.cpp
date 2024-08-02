@@ -68,7 +68,7 @@ void FResourceManager::AddTexture(EResourceName Name, FRDGTextureRef Current, in
 		for (int32 I = 0; I < IntermediateTextures.Num(); I++)
 		{
 #if UE_BUILD_DEBUG
-			const FString ResourceName = UEnum::GetValueAsName<EResourceName>(Name).ToString();
+			const FString ResourceName = UEnum::GetValueAsName(Name).ToString();
 			const FString FrameNumberText = FString::FromInt(I);
 			const FString TextureDebugName = FString(TEXT("NNEDenoiser.IntermediateTexture_")) + ResourceName + FrameNumberText;
 

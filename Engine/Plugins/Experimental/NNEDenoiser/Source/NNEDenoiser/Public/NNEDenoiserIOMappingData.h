@@ -9,37 +9,37 @@
 
 /** An enum to represent resource names used for denoiser input mapping */
 UENUM()
-enum EInputResourceName : uint8
+enum class EInputResourceName : uint8
 {
-	I_Color UMETA(DisplayName="Color"),
-	I_Albedo UMETA(DisplayName="Albedo"),
-	I_Normal UMETA(DisplayName="Normal"),
-	I_Output UMETA(DisplayName="Output")
+	Color,
+	Albedo,
+	Normal,
+	Output
 };
 
 /** An enum to represent resource names used for denoiser output mapping */
 UENUM()
-enum EOutputResourceName : uint8
+enum class EOutputResourceName : uint8
 {
-	O_Output UMETA(DisplayName="Output")
+	Output
 };
 
 /** An enum to represent resource names used for temporal denoiser input mapping */
 UENUM()
-enum ETemporalInputResourceName : uint8
+enum class ETemporalInputResourceName : uint8
 {
-	TI_Color UMETA(DisplayName="Color"),
-	TI_Albedo UMETA(DisplayName="Albedo"),
-	TI_Normal UMETA(DisplayName="Normal"),
-	TI_Flow UMETA(DisplayName="Flow"),
-	TI_Output UMETA(DisplayName="Output")
+	Color,
+	Albedo,
+	Normal,
+	Flow,
+	Output
 };
 
 /** An enum to represent resource names used for temporal denoiser output mapping */
 UENUM()
-enum ETemporalOutputResourceName : uint8
+enum class ETemporalOutputResourceName : uint8
 {
-	TO_Output UMETA(DisplayName="Output")
+	Output
 };
 
 /** Table row base for denoiser basic input and output mapping */
@@ -70,7 +70,7 @@ struct FNNEDenoiserInputMappingData : public FNNEDenoiserBaseMappingData
 
 	/** Mapped resource name */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
-	TEnumAsByte<EInputResourceName> Resource = EInputResourceName::I_Color;
+	EInputResourceName Resource = EInputResourceName::Color;
 };
 
 /** Table row base for denoiser output mapping */
@@ -81,7 +81,7 @@ struct FNNEDenoiserOutputMappingData : public FNNEDenoiserBaseMappingData
 
 	/** Mapped resource name */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
-	TEnumAsByte<EOutputResourceName> Resource = EOutputResourceName::O_Output;
+	EOutputResourceName Resource = EOutputResourceName::Output;
 };
 
 /** Table row base for temporal denoiser input mapping */
@@ -93,7 +93,7 @@ struct FNNEDenoiserTemporalInputMappingData : public FNNEDenoiserBaseMappingData
 public:
 	/** Mapped resource name */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
-	TEnumAsByte<ETemporalInputResourceName> Resource = ETemporalInputResourceName::TI_Color;
+	ETemporalInputResourceName Resource = ETemporalInputResourceName::Color;
 
 	/** Resource frame index */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
@@ -108,7 +108,7 @@ struct FNNEDenoiserTemporalOutputMappingData : public FNNEDenoiserBaseMappingDat
 
 	/** Mapped resource name */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=NNEDenoiser)
-	TEnumAsByte<ETemporalOutputResourceName> Resource = ETemporalOutputResourceName::TO_Output;
+	ETemporalOutputResourceName Resource = ETemporalOutputResourceName::Output;
 };
 
 namespace UE::NNEDenoiser

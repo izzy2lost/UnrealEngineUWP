@@ -6,7 +6,7 @@
 
 /** An enum to represent resource names used for input and output mapping */
 UENUM()
-enum EResourceName : uint8
+enum class EResourceName : uint8
 {
 	Color,
 	Albedo,
