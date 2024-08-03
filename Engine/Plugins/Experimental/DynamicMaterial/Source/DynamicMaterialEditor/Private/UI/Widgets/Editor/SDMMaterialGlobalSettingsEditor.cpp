@@ -13,6 +13,8 @@ void SDMMaterialGlobalSettingsEditor::PrivateRegisterAttributes(FSlateAttributeD
 
 void SDMMaterialGlobalSettingsEditor::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, UDynamicMaterialModelBase* InMaterialModelBase)
 {
+	SetCanTick(false);
+
 	SDMObjectEditorWidgetBase::Construct(
 		SDMObjectEditorWidgetBase::FArguments(), 
 		InEditorWidget, 

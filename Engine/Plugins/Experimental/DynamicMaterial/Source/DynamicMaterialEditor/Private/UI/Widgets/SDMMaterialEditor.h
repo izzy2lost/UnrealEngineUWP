@@ -79,6 +79,8 @@ public:
 
 	void EditGlobalSettings(bool bInForceRefresh = false);
 
+	void Validate();
+
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEditedSlotChanged, const TSharedRef<SDMMaterialSlotEditor>&, UDMMaterialSlot*);
 	FOnEditedSlotChanged::RegistrationType& GetOnEditedSlotChanged();
 
@@ -87,7 +89,6 @@ public:
 
 	//~ Begin SWidget
 	virtual bool SupportsKeyboardFocus() const override;
-	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual FReply OnKeyDown(const FGeometry& InMyGeometry, const FKeyEvent& InKeyEvent) override;
 	//~ End SWidget
 
@@ -99,17 +100,17 @@ public:
 protected:
 	TWeakPtr<SDMMaterialDesigner> DesignerWidgetWeak;
 
-	TDMWidgetSlot<SWidget> Container;
-	TDMWidgetSlot<SDMToolBar> ToolBar;
-	TDMWidgetSlot<SWidget> Main;
-	TDMWidgetSlot<SWidget> Left;
-	TDMWidgetSlot<SWidget> Right;
-	TDMWidgetSlot<SDMMaterialPreview> Preview;
-	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelector;
-	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditor;
-	TDMWidgetSlot<SDMMaterialSlotEditor> SlotEditor;
-	TDMWidgetSlot<SDMMaterialComponentEditor> ComponentEditor;
-	TDMWidgetSlot<SDMStatusBar> StatusBar;
+	TDMWidgetSlot<SWidget> ContentSlot;
+	TDMWidgetSlot<SDMToolBar> ToolBarSlot;
+	TDMWidgetSlot<SWidget> MainSlot;
+	TDMWidgetSlot<SWidget> LeftSlot;
+	TDMWidgetSlot<SWidget> RightSlot;
+	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
+	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
+	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
+	TDMWidgetSlot<SDMMaterialSlotEditor> SlotEditorSlot;
+	TDMWidgetSlot<SDMMaterialComponentEditor> ComponentEditorSlot;
+	TDMWidgetSlot<SDMStatusBar> StatusBarSlot;
 
 	TWeakObjectPtr<UDynamicMaterialModelBase> MaterialModelBaseWeak;
 	TOptional<FDMObjectMaterialProperty> ObjectMaterialPropertyOpt;

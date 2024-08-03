@@ -25,7 +25,7 @@ protected:
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
 	TWeakObjectPtr<UDynamicMaterialModelBase> MaterialModelBaseWeak;
 
-	TDMWidgetSlot<SWidget> Content;
+	TDMWidgetSlot<SWidget> ContentSlot;
 
 	int32 CachedSlotCount = 0;
 	int32 CachedCurrentLayerCount = 0;

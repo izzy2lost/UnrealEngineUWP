@@ -60,6 +60,8 @@ void SDMMaterialWizard::Construct(const FArguments& InArgs, const TSharedRef<SDM
 	MaterialModelWeak = InArgs._MaterialModel;
 	MaterialObjectProperty = InArgs._MaterialProperty;
 
+	SetCanTick(false);
+
 	if (MaterialObjectProperty.IsSet())
 	{
 		if (UDynamicMaterialModelBase* MaterialModelBase = MaterialObjectProperty.GetValue().GetMaterialModelBase())

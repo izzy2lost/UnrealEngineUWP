@@ -144,6 +144,8 @@ void SDMMaterialLayerBlendMode::Construct(const FArguments& InArgs, const TShare
 	SlotEditorWidgetWeak = InSlotEditor;
 	SelectedItem = InArgs._SelectedItem;
 
+	SetCanTick(false);
+
 	EnsureBlendMap();
 	EnsureMenuRegistered();
 

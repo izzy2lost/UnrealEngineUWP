@@ -15,6 +15,8 @@ void SDMMaterialSelectPrompt::PrivateRegisterAttributes(FSlateAttributeDescripto
 
 void SDMMaterialSelectPrompt::Construct(const FArguments& InArgs)
 {
+	SetCanTick(false);
+
 	ChildSlot
 	[
 		SNew(SBox)

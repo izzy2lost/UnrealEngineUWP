@@ -42,6 +42,8 @@ SDMMaterialComponentEditor::~SDMMaterialComponentEditor()
 void SDMMaterialComponentEditor::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, 
 	UDMMaterialComponent* InMaterialComponent)
 {
+	SetCanTick(false);
+
 	SDMObjectEditorWidgetBase::Construct(
 		SDMObjectEditorWidgetBase::FArguments(), 
 		InEditorWidget, 

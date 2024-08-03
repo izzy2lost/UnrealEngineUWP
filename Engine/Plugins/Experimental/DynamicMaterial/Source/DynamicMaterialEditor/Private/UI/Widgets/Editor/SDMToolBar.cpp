@@ -48,6 +48,8 @@ void SDMToolBar::Construct(const FArguments& InArgs, const TSharedRef<SDMMateria
 	MaterialActorWeak = InActor;
 	SelectedMaterialElementIndex = INDEX_NONE;
 
+	SetCanTick(false);
+
 	if (IsValid(InActor))
 	{
 		TArray<FDMObjectMaterialProperty> ActorProperties = UDMMaterialModelFunctionLibrary::GetActorMaterialProperties(InActor);

@@ -57,8 +57,13 @@ public:
 	/** Getters */
 	UDynamicMaterialModelBase* GetMaterialModelBase() const;
 
+	//~ Begin SWidget
+	virtual void Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+	//~ End SWidget
+
 protected:
-	TDMWidgetSlot<SWidget> Content;
+	TDMWidgetSlot<SWidget> ContentSlot;
+	TSharedPtr<SWidget> Content;
 
 	/** Opens assets in specific widget modes. */
 	void OpenMaterialModelBase_Internal(UDynamicMaterialModelBase* InMaterialModelBase);

@@ -56,27 +56,27 @@ void SDMObjectEditorWidgetBase::Construct(const FArguments& InArgs, const TShare
 		}
 	}
 
-	SScrollBox::FSlot* WidgetSlot = nullptr;
+	SScrollBox::FSlot* ContentSlotPtr = nullptr;
 
 	ChildSlot
 	[
 		SNew(SScrollBox)
 		+ SScrollBox::Slot()
-		.Expose(WidgetSlot)
+		.Expose(ContentSlotPtr)
 		.VAlign(EVerticalAlignment::VAlign_Fill)
 		[
 			SNullWidget::NullWidget
 		]		
 	];
 
-	Container = TDMWidgetSlot<SWidget>(WidgetSlot, CreateWidget());
+	ContentSlot = TDMWidgetSlot<SWidget>(ContentSlotPtr, CreateWidget());
 }
 
 void SDMObjectEditorWidgetBase::Validate()
 {
 	if (!ObjectWeak.IsValid())
 	{
-		Container.ClearWidget();
+		ContentSlot.ClearWidget();
 	}
 }
 

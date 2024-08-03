@@ -77,9 +77,11 @@ void SDMMaterialSlotEditor::Construct(const FArguments& InArgs, const TSharedRef
 	EditorWidgetWeak = InEditorWidget;
 	MaterialSlotWeak = InSlot;
 
+	SetCanTick(false);
+
 	bIsDynamic = !Cast<UDynamicMaterialModel>(InEditorWidget->GetMaterialModelBase());
 
-	Container = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
+	ContentSlot = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
 
 	if (!IsValid(InSlot))
 	{
@@ -89,40 +91,40 @@ void SDMMaterialSlotEditor::Construct(const FArguments& InArgs, const TSharedRef
 	InSlot->GetOnPropertiesUpdateDelegate().AddSP(this, &SDMMaterialSlotEditor::OnSlotPropertiesUpdated);
 	InSlot->GetOnLayersUpdateDelegate().AddSP(this, &SDMMaterialSlotEditor::OnSlotLayersUpdated);
 
-	Container << CreateSlot_Container();
+	ContentSlot << CreateSlot_Container();
 }
 
 void SDMMaterialSlotEditor::ValidateSlots()
 {
 	if (!MaterialSlotWeak.IsValid())
 	{
-		if (Container.HasWidget())
+		if (ContentSlot.HasWidget())
 		{
-			Container.ClearWidget();
+			ContentSlot.ClearWidget();
 		}
 
 		return;
 	}
 
-	if (Container.HasBeenInvalidated())
+	if (ContentSlot.HasBeenInvalidated())
 	{
-		Container << CreateSlot_Container();
+		ContentSlot << CreateSlot_Container();
 	}
 	else
 	{
-		if (SlotSettings.HasBeenInvalidated())
+		if (SlotSettingsSlot.HasBeenInvalidated())
 		{
-			SlotSettings << CreateSlot_SlotSettings();
+			SlotSettingsSlot << CreateSlot_SlotSettings();
 		}
 
-		if (LayerView.HasBeenInvalidated())
+		if (LayerViewSlot.HasBeenInvalidated())
 		{
-			LayerView << CreateSlot_LayerView();
+			LayerViewSlot << CreateSlot_LayerView();
 		}
 
-		if (LayerSettings.HasBeenInvalidated())
+		if (LayerSettingsSlot.HasBeenInvalidated())
 		{
-			LayerSettings << CreateSlot_LayerSettings();
+			LayerSettingsSlot << CreateSlot_LayerSettings();
 		}
 	}
 }
@@ -139,7 +141,7 @@ UDMMaterialSlot* SDMMaterialSlotEditor::GetSlot() const
 
 void SDMMaterialSlotEditor::ClearSelection()
 {
-	LayerView->ClearSelection();
+	LayerViewSlot->ClearSelection();
 }
 
 bool SDMMaterialSlotEditor::CanAddNewLayer() const
@@ -196,12 +198,12 @@ void SDMMaterialSlotEditor::AddNewLayer()
 
 bool SDMMaterialSlotEditor::CanInsertNewLayer() const
 {
-	return !!LayerView->GetSelectedLayer();
+	return !!LayerViewSlot->GetSelectedLayer();
 }
 
 void SDMMaterialSlotEditor::InsertNewLayer()
 {
-	UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer();
+	UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer();
 
 	if (!SelectedLayer)
 	{
@@ -241,12 +243,12 @@ void SDMMaterialSlotEditor::InsertNewLayer()
 
 bool SDMMaterialSlotEditor::CanCopySelectedLayer() const
 {
-	return !!LayerView->GetSelectedLayer();
+	return !!LayerViewSlot->GetSelectedLayer();
 }
 
 void SDMMaterialSlotEditor::CopySelectedLayer()
 {
-	UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer();
+	UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer();
 
 	FPlatformApplicationMisc::ClipboardCopy(*SelectedLayer->SerializeToString());
 }
@@ -336,7 +338,7 @@ bool SDMMaterialSlotEditor::CanDeleteSelectedLayer() const
 		return false;
 	}
 
-	UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer();
+	UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer();
 
 	if (!SelectedLayer)
 	{
@@ -349,7 +351,7 @@ bool SDMMaterialSlotEditor::CanDeleteSelectedLayer() const
 void SDMMaterialSlotEditor::DeleteSelectedLayer()
 {
 	UDMMaterialSlot* Slot = GetSlot();
-	UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer();
+	UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer();
 
 	FDMScopedUITransaction Transaction(LOCTEXT("DeleteLayer", "Delete Layer"));
 	Slot->Modify();
@@ -360,29 +362,29 @@ void SDMMaterialSlotEditor::DeleteSelectedLayer()
 
 TSharedRef<SDMMaterialSlotLayerView> SDMMaterialSlotEditor::GetLayerView() const
 {
-	return *LayerView;
+	return *LayerViewSlot;
 }
 
 void SDMMaterialSlotEditor::InvalidateSlotSettings()
 {
-	SlotSettings.Invalidate();
+	SlotSettingsSlot.Invalidate();
 }
 
 void SDMMaterialSlotEditor::InvalidateLayerView()
 {
-	LayerView.Invalidate();
+	LayerViewSlot.Invalidate();
 }
 
 void SDMMaterialSlotEditor::InvalidateLayerSettings()
 {
-	LayerSettings.Invalidate();
+	LayerSettingsSlot.Invalidate();
 }
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 {
-	SVerticalBox::FSlot* SettingsSlot = nullptr;
-	SScrollBox::FSlot* LayerViewSlot = nullptr;
-	SVerticalBox::FSlot* LayerSettingsSlot = nullptr;
+	SVerticalBox::FSlot* SettingsSlotPtr = nullptr;
+	SScrollBox::FSlot* LayerViewSlotPtr = nullptr;
+	SVerticalBox::FSlot* LayerSettingsSlotPtr = nullptr;
 
 	TSharedPtr<SAssetDropTarget> DropTarget;
 
@@ -405,7 +407,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot()
-				.Expose(SettingsSlot)
+				.Expose(SettingsSlotPtr)
 				.AutoHeight()
 				[
 					SNullWidget::NullWidget
@@ -448,7 +450,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 									.Orientation(EOrientation::Orient_Vertical)
 									.ExternalScrollbar(VerticalScrollBar)
 									+ SScrollBox::Slot()
-									.Expose(LayerViewSlot)
+									.Expose(LayerViewSlotPtr)
 									.VAlign(EVerticalAlignment::VAlign_Fill)
 									.Padding(0.f, 0.f, 0.f, 20.f)
 									[
@@ -485,15 +487,15 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 		]
 
 		+ SVerticalBox::Slot()
-		.Expose(LayerSettingsSlot)
+		.Expose(LayerSettingsSlotPtr)
 		.AutoHeight()
 		[
 			SNullWidget::NullWidget
 		];
 
-	SlotSettings = TDMWidgetSlot<SWidget>(SettingsSlot, CreateSlot_SlotSettings());
-	LayerView = TDMWidgetSlot<SDMMaterialSlotLayerView>(LayerViewSlot, CreateSlot_LayerView());
-	LayerSettings = TDMWidgetSlot<SWidget>(LayerSettingsSlot, CreateSlot_LayerSettings());
+	SlotSettingsSlot = TDMWidgetSlot<SWidget>(SettingsSlotPtr, CreateSlot_SlotSettings());
+	LayerViewSlot = TDMWidgetSlot<SDMMaterialSlotLayerView>(LayerViewSlotPtr, CreateSlot_LayerView());
+	LayerSettingsSlot = TDMWidgetSlot<SWidget>(LayerSettingsSlotPtr, CreateSlot_LayerSettings());
 
 	if (UDMMaterialSlot* Slot = GetSlot())
 	{
@@ -501,7 +503,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_Container()
 
 		if (!Layers.IsEmpty())
 		{
-			LayerView->SetSelectedLayer(Layers[0]);
+			LayerViewSlot->SetSelectedLayer(Layers[0]);
 		}
 	}
 
@@ -548,9 +550,9 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerBlendMode()
 {
 	TSubclassOf<UDMMaterialStageBlend> SelectedBlendMode = nullptr;
 
-	if (LayerView.IsValid())
+	if (LayerViewSlot.IsValid())
 	{
-		if (const UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer())
+		if (const UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer())
 		{
 			if (UDMMaterialStage* BaseStage = SelectedLayer->GetFirstEnabledStage(EDMMaterialLayerStage::Base))
 			{
@@ -604,9 +606,9 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerOpacity()
 {
 	LayerOpacityItem = nullptr;
 
-	if (LayerView.IsValid())
+	if (LayerViewSlot.IsValid())
 	{
-		if (const UDMMaterialLayerObject* SelectedLayer = LayerView->GetSelectedLayer())
+		if (const UDMMaterialLayerObject* SelectedLayer = LayerViewSlot->GetSelectedLayer())
 		{
 			if (UDMMaterialStage* ValidStage = SelectedLayer->GetFirstValidStage(EDMMaterialLayerStage::All))
 			{
@@ -857,7 +859,7 @@ void SDMMaterialSlotEditor::OnSlotPropertiesUpdated(UDMMaterialSlot* InSlot)
 void SDMMaterialSlotEditor::OnLayerSelected(const TSharedRef<SDMMaterialSlotLayerView>& InLayerView, 
 	const TSharedPtr<FDMMaterialLayerReference>& InLayerReference)
 {
-	SlotSettings.Invalidate();
+	SlotSettingsSlot.Invalidate();
 }
 
 FText SDMMaterialSlotEditor::GetLayerButtonsDescription() const
@@ -878,7 +880,7 @@ FText SDMMaterialSlotEditor::GetLayerButtonsDescription() const
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::GetLayerButtonsMenuContent()
 {
-	if (UDMMaterialLayerObject* LayerObject = LayerView->GetSelectedLayer())
+	if (UDMMaterialLayerObject* LayerObject = LayerViewSlot->GetSelectedLayer())
 	{
 		UToolMenu* ContextMenu = FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SharedThis(this), LayerObject);
 		return UToolMenus::Get()->GenerateWidget(ContextMenu);
@@ -889,12 +891,12 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::GetLayerButtonsMenuContent()
 
 bool SDMMaterialSlotEditor::GetLayerCanAddEffect() const
 {
-	return !!LayerView->GetSelectedLayer();
+	return !!LayerViewSlot->GetSelectedLayer();
 }
 
 TSharedRef<SWidget> SDMMaterialSlotEditor::GetLayerEffectsMenuContent()
 {
-	if (UDMMaterialLayerObject* LayerObject = LayerView->GetSelectedLayer())
+	if (UDMMaterialLayerObject* LayerObject = LayerViewSlot->GetSelectedLayer())
 	{
 		return FDMMaterialSlotLayerAddEffectMenus::OpenAddEffectMenu(EditorWidgetWeak.Pin(), LayerObject);
 	}

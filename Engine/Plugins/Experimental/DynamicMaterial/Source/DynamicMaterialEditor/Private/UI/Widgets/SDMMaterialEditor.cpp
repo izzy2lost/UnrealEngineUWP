@@ -81,7 +81,9 @@ void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDM
 	bGlobalSettingsMode = true;
 	PropertyToSelect.Reset();
 
-	Container = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
+	SetCanTick(false);
+
+	ContentSlot = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
 
 	if (InArgs._MaterialProperty.IsSet())
 	{
@@ -186,31 +188,31 @@ void SDMMaterialEditor::SetMaterialActor(AActor* InActor)
 
 	TSharedRef<SDMToolBar> NewToolBar = SNew(SDMToolBar, SharedThis(this), InActor);
 
-	ToolBar << NewToolBar;
+	ToolBarSlot << NewToolBar;
 }
 
 TSharedPtr<SDMMaterialSlotEditor> SDMMaterialEditor::GetSlotEditorWidget() const
 {
-	return &SlotEditor;
+	return &SlotEditorSlot;
 }
 
 TSharedPtr<SDMMaterialComponentEditor> SDMMaterialEditor::GetComponentEditorWidget() const
 {
-	return &ComponentEditor;
+	return &ComponentEditorSlot;
 }
 
 void SDMMaterialEditor::SelectProperty(EDMMaterialPropertyType InProperty, bool bInForceRefresh)
 {
-	if (bInForceRefresh || !PropertySelector.IsValid())
+	if (bInForceRefresh || !PropertySelectorSlot.IsValid())
 	{
 		PropertyToSelect = InProperty;
-		PropertySelector.Invalidate();
+		PropertySelectorSlot.Invalidate();
 		return;
 	}
 
-	if (PropertySelector->GetSelectedProperty() != InProperty)
+	if (PropertySelectorSlot->GetSelectedProperty() != InProperty)
 	{
-		PropertySelector->SetSelectedProperty(InProperty);
+		PropertySelectorSlot->SetSelectedProperty(InProperty);
 	}
 	
 	PropertyToSelect.Reset();
@@ -228,17 +230,17 @@ TSharedRef<FDMPreviewMaterialManager> SDMMaterialEditor::GetPreviewMaterialManag
 
 void SDMMaterialEditor::EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh)
 {
-	if (!bInForceRefresh && SlotEditor.IsValid() && SlotEditor->GetSlot() == InSlot)
+	if (!bInForceRefresh && SlotEditorSlot.IsValid() && SlotEditorSlot->GetSlot() == InSlot)
 	{
 		return;
 	}
 
-	Right.Invalidate();
+	RightSlot.Invalidate();
 
-	SlotEditor.Invalidate();
+	SlotEditorSlot.Invalidate();
 	SlotToEdit = InSlot;
 
-	ComponentEditor.Invalidate();
+	ComponentEditorSlot.Invalidate();
 	ComponentToEdit.Reset();
 
 	bGlobalSettingsMode = !InSlot;
@@ -258,20 +260,20 @@ void SDMMaterialEditor::EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh)
 
 void SDMMaterialEditor::EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh)
 {
-	if (!bInForceRefresh && ComponentEditor.IsValid() && ComponentEditor->GetComponent() == InComponent)
+	if (!bInForceRefresh && ComponentEditorSlot.IsValid() && ComponentEditorSlot->GetComponent() == InComponent)
 	{
 		return;
 	}
 
 	if (bGlobalSettingsMode)
 	{
-		Right.Invalidate();
-		SlotEditor.Invalidate();
+		RightSlot.Invalidate();
+		SlotEditorSlot.Invalidate();
 	}
 
 	bGlobalSettingsMode = false;
 
-	ComponentEditor.Invalidate();
+	ComponentEditorSlot.Invalidate();
 	ComponentToEdit = InComponent;
 }
 
@@ -284,35 +286,18 @@ void SDMMaterialEditor::EditGlobalSettings(bool bInForceRefresh)
 
 	if (!bGlobalSettingsMode)
 	{
-		Right.Invalidate();
-		SlotEditor.Invalidate();
-		ComponentEditor.Invalidate();
+		RightSlot.Invalidate();
+		SlotEditorSlot.Invalidate();
+		ComponentEditorSlot.Invalidate();
 	}
 
 	bGlobalSettingsMode = true;
 
-	GlobalSettingsEditor.Invalidate();
+	GlobalSettingsEditorSlot.Invalidate();
 }
 
-SDMMaterialEditor::FOnEditedSlotChanged::RegistrationType& SDMMaterialEditor::GetOnEditedSlotChanged()
+void SDMMaterialEditor::Validate()
 {
-	return OnEditedSlotChanged;
-}
-
-SDMMaterialEditor::FOnEditedComponentChanged::RegistrationType& SDMMaterialEditor::GetOnEditedComponentChanged()
-{
-	return OnEditedComponentChanged;
-}
-
-bool SDMMaterialEditor::SupportsKeyboardFocus() const
-{
-	return true;
-}
-
-void SDMMaterialEditor::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
-{
-	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
-
 	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
 		return;
@@ -352,6 +337,21 @@ void SDMMaterialEditor::Tick(const FGeometry& InAllottedGeometry, const double I
 	}
 
 	ValidateSlots();
+}
+
+SDMMaterialEditor::FOnEditedSlotChanged::RegistrationType& SDMMaterialEditor::GetOnEditedSlotChanged()
+{
+	return OnEditedSlotChanged;
+}
+
+SDMMaterialEditor::FOnEditedComponentChanged::RegistrationType& SDMMaterialEditor::GetOnEditedComponentChanged()
+{
+	return OnEditedComponentChanged;
+}
+
+bool SDMMaterialEditor::SupportsKeyboardFocus() const
+{
+	return true;
 }
 
 FReply SDMMaterialEditor::OnKeyDown(const FGeometry& InMyGeometry, const FKeyEvent& InKeyEvent)
@@ -476,133 +476,133 @@ void SDMMaterialEditor::Close()
 
 void SDMMaterialEditor::ValidateSlots()
 {
-	if (Container.HasBeenInvalidated())
+	if (ContentSlot.HasBeenInvalidated())
 	{
 		CreateLayout();
 		return;
 	}
 
-	if (ToolBar.HasBeenInvalidated())
+	if (ToolBarSlot.HasBeenInvalidated())
 	{
-		ToolBar << CreateSlot_ToolBar();
+		ToolBarSlot << CreateSlot_ToolBar();
 	}
 
-	if (Main.HasBeenInvalidated())
+	if (MainSlot.HasBeenInvalidated())
 	{
-		Main << CreateSlot_Main();
+		MainSlot << CreateSlot_Main();
 	}
 	else
 	{
-		if (Left.HasBeenInvalidated())
+		if (LeftSlot.HasBeenInvalidated())
 		{
-			Left << CreateSlot_Left();
+			LeftSlot << CreateSlot_Left();
 		}
 		else
 		{
-			if (Preview.HasBeenInvalidated())
+			if (MaterialPreviewSlot.HasBeenInvalidated())
 			{
-				Preview << CreateSlot_Preview();
+				MaterialPreviewSlot << CreateSlot_Preview();
 			}
 
-			if (PropertySelector.HasBeenInvalidated())
+			if (PropertySelectorSlot.HasBeenInvalidated())
 			{
-				PropertySelector << CreateSlot_PropertySelector();
+				PropertySelectorSlot << CreateSlot_PropertySelector();
 			}
 		}
 
-		if (Right.HasBeenInvalidated())
+		if (RightSlot.HasBeenInvalidated())
 		{
-			Right << CreateSlot_Right();
+			RightSlot << CreateSlot_Right();
 		}
 		else if (bGlobalSettingsMode)
 		{
-			if (GlobalSettingsEditor.HasBeenInvalidated())
+			if (GlobalSettingsEditorSlot.HasBeenInvalidated())
 			{
-				GlobalSettingsEditor << CreateSlot_GlobalSettingsEditor();
+				GlobalSettingsEditorSlot << CreateSlot_GlobalSettingsEditor();
 			}
 			else
 			{
-				GlobalSettingsEditor->Validate();
+				GlobalSettingsEditorSlot->Validate();
 			}
 		}
 		else
 		{
-			if (SlotEditor.HasBeenInvalidated())
+			if (SlotEditorSlot.HasBeenInvalidated())
 			{
-				SlotEditor << CreateSlot_SlotEditor();
+				SlotEditorSlot << CreateSlot_SlotEditor();
 			}
 			else
 			{
-				SlotEditor->ValidateSlots();
+				SlotEditorSlot->ValidateSlots();
 			}
 
-			if (ComponentEditor.HasBeenInvalidated())
+			if (ComponentEditorSlot.HasBeenInvalidated())
 			{
-				ComponentEditor << CreateSlot_ComponentEditor();
+				ComponentEditorSlot << CreateSlot_ComponentEditor();
 			}
 			else
 			{
-				ComponentEditor->Validate();
+				ComponentEditorSlot->Validate();
 			}
 		}
 	}
 
-	if (StatusBar.HasBeenInvalidated())
+	if (StatusBarSlot.HasBeenInvalidated())
 	{
-		StatusBar << CreateSlot_StatusBar();
+		StatusBarSlot << CreateSlot_StatusBar();
 	}
 }
 
 void SDMMaterialEditor::ClearSlots()
 {
-	Container.ClearWidget();
-	ToolBar.ClearWidget();
-	Main.ClearWidget();
-	Left.ClearWidget();
-	Right.ClearWidget();
-	Preview.ClearWidget();
-	PropertySelector.ClearWidget();
-	SlotEditor.ClearWidget();
-	ComponentEditor.ClearWidget();
-	StatusBar.ClearWidget();
+	ContentSlot.ClearWidget();
+	ToolBarSlot.ClearWidget();
+	MainSlot.ClearWidget();
+	LeftSlot.ClearWidget();
+	RightSlot.ClearWidget();
+	MaterialPreviewSlot.ClearWidget();
+	PropertySelectorSlot.ClearWidget();
+	SlotEditorSlot.ClearWidget();
+	ComponentEditorSlot.ClearWidget();
+	StatusBarSlot.ClearWidget();
 }
 
 void SDMMaterialEditor::CreateLayout()
 {
-	Container << CreateSlot_Container();
+	ContentSlot << CreateSlot_Container();
 }
 
 TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Container()
 {
-	SVerticalBox::FSlot* ToolBarSlot = nullptr;
-	SVerticalBox::FSlot* MainSlot = nullptr;
-	SVerticalBox::FSlot* StatusBarSlot = nullptr;
+	SVerticalBox::FSlot* ToolBarSlotPtr = nullptr;
+	SVerticalBox::FSlot* MainSlotPtr = nullptr;
+	SVerticalBox::FSlot* StatusBarSlotPtr = nullptr;
 
 	TSharedRef<SVerticalBox> NewContainer = SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
-		.Expose(ToolBarSlot)
+		.Expose(ToolBarSlotPtr)
 		.AutoHeight()
 		[
 			SNullWidget::NullWidget
 		]
 
 		+ SVerticalBox::Slot()
-		.Expose(MainSlot)
+		.Expose(MainSlotPtr)
 		.FillHeight(1.0f)
 		[
 			SNullWidget::NullWidget
 		]
 
 		+ SVerticalBox::Slot()
-		.Expose(StatusBarSlot)
+		.Expose(StatusBarSlotPtr)
 		.AutoHeight()
 		[
 			SNullWidget::NullWidget
 		];
 
-	ToolBar = TDMWidgetSlot<SDMToolBar>(ToolBarSlot, CreateSlot_ToolBar());
-	Main = TDMWidgetSlot<SWidget>(MainSlot, CreateSlot_Main());
-	StatusBar = TDMWidgetSlot<SDMStatusBar>(StatusBarSlot, CreateSlot_StatusBar());
+	ToolBarSlot = TDMWidgetSlot<SDMToolBar>(ToolBarSlotPtr, CreateSlot_ToolBar());
+	MainSlot = TDMWidgetSlot<SWidget>(MainSlotPtr, CreateSlot_Main());
+	StatusBarSlot = TDMWidgetSlot<SDMStatusBar>(StatusBarSlotPtr, CreateSlot_StatusBar());
 
 	return NewContainer;
 }
@@ -620,38 +620,38 @@ TSharedRef<SDMToolBar> SDMMaterialEditor::CreateSlot_ToolBar()
 
 TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Main()
 {
-	SHorizontalBox::FSlot* LeftSlot = nullptr;
-	SHorizontalBox::FSlot* RightSlot = nullptr;
+	SHorizontalBox::FSlot* LeftSlotPtr = nullptr;
+	SHorizontalBox::FSlot* RightSlotPtr = nullptr;
 
 	TSharedRef<SHorizontalBox> NewMain = SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
-		.Expose(LeftSlot)
+		.Expose(LeftSlotPtr)
 		.AutoWidth()
 		[
 			SNullWidget::NullWidget
 		]
 
 		+ SHorizontalBox::Slot()
-		.Expose(RightSlot)
+		.Expose(RightSlotPtr)
 		.FillWidth(1.0f)
 		[
 			SNullWidget::NullWidget
 		];
 
-	Left = TDMWidgetSlot<SWidget>(LeftSlot, CreateSlot_Left());
-	Right = TDMWidgetSlot<SWidget>(RightSlot, CreateSlot_Right());
+	LeftSlot = TDMWidgetSlot<SWidget>(LeftSlotPtr, CreateSlot_Left());
+	RightSlot = TDMWidgetSlot<SWidget>(RightSlotPtr, CreateSlot_Right());
 
 	return NewMain;
 }
 
 TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Left()
 {
-	SVerticalBox::FSlot* PreviewSlot = nullptr;
-	SVerticalBox::FSlot* PropertySelectorSlot = nullptr;
+	SVerticalBox::FSlot* MaterialPreviewSlotPtr = nullptr;
+	SVerticalBox::FSlot* PropertySelectorSlotPtr = nullptr;
 
 	TSharedRef<SVerticalBox> NewLeft = SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
-		.Expose(PreviewSlot)
+		.Expose(MaterialPreviewSlotPtr)
 		.AutoHeight()
 		.Padding(5.f)
 		[
@@ -659,15 +659,15 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Left()
 		]
 
 		+ SVerticalBox::Slot()
-		.Expose(PropertySelectorSlot)
+		.Expose(PropertySelectorSlotPtr)
 		.FillHeight(1.0f)
 		.Padding(5.f, 0.f, 5.f, 5.f)
 		[
 			SNullWidget::NullWidget
 		];
 
-	Preview = TDMWidgetSlot<SDMMaterialPreview>(PreviewSlot, CreateSlot_Preview());
-	PropertySelector = TDMWidgetSlot<SDMMaterialPropertySelector>(PropertySelectorSlot, CreateSlot_PropertySelector());
+	MaterialPreviewSlot = TDMWidgetSlot<SDMMaterialPreview>(MaterialPreviewSlotPtr, CreateSlot_Preview());
+	PropertySelectorSlot = TDMWidgetSlot<SDMMaterialPropertySelector>(PropertySelectorSlotPtr, CreateSlot_PropertySelector());
 
 	return NewLeft;
 }
@@ -692,17 +692,17 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right()
 
 TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right_GlobalSettings()
 {
-	SVerticalBox::FSlot* GlobalSettingsSlot = nullptr;
+	SVerticalBox::FSlot* GlobalSettingsSlotPtr = nullptr;
 
 	TSharedRef<SVerticalBox> NewRight = SNew(SVerticalBox)
 		+ SVerticalBox::Slot()
-		.Expose(GlobalSettingsSlot)
+		.Expose(GlobalSettingsSlotPtr)
 		.AutoHeight()
 		[
 			SNullWidget::NullWidget
 		];
 
-	GlobalSettingsEditor = TDMWidgetSlot<SDMMaterialGlobalSettingsEditor>(GlobalSettingsSlot, CreateSlot_GlobalSettingsEditor());
+	GlobalSettingsEditorSlot = TDMWidgetSlot<SDMMaterialGlobalSettingsEditor>(GlobalSettingsSlotPtr, CreateSlot_GlobalSettingsEditor());
 
 	return NewRight;
 }
@@ -721,8 +721,8 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right_Slot()
 		SplitterValue = Settings->SplitterLocation;
 	}
 
-	SSplitter::FSlot* SlotEditorSlot = nullptr;
-	SSplitter::FSlot* ComponentEditorSlot = nullptr;
+	SSplitter::FSlot* SlotEditorSlotPtr = nullptr;
+	SSplitter::FSlot* ComponentEditorSlotPtr = nullptr;
 
 	TSharedRef<SSplitter> NewRight = SNew(SSplitter)
 		.Style(FAppStyle::Get(), "DetailsView.Splitter")
@@ -733,7 +733,7 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right_Slot()
 		.OnSplitterFinishedResizing(this, &SDMMaterialEditor::OnRightSlotSplitterResized)
 
 		+ SSplitter::Slot()
-		.Expose(SlotEditorSlot)
+		.Expose(SlotEditorSlotPtr)
 		.Resizable(true)
 		.SizeRule(SSplitter::ESizeRule::FractionOfParent)
 		.MinSize(50)
@@ -743,7 +743,7 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right_Slot()
 		]
 
 		+ SSplitter::Slot()
-		.Expose(ComponentEditorSlot)
+		.Expose(ComponentEditorSlotPtr)
 		.Resizable(true)
 		.SizeRule(SSplitter::ESizeRule::FractionOfParent)
 		.MinSize(50)
@@ -752,8 +752,8 @@ TSharedRef<SWidget> SDMMaterialEditor::CreateSlot_Right_Slot()
 			SNullWidget::NullWidget
 		];
 
-	SlotEditor = TDMWidgetSlot<SDMMaterialSlotEditor>(SlotEditorSlot, CreateSlot_SlotEditor());
-	ComponentEditor = TDMWidgetSlot<SDMMaterialComponentEditor>(ComponentEditorSlot, CreateSlot_ComponentEditor());
+	SlotEditorSlot = TDMWidgetSlot<SDMMaterialSlotEditor>(SlotEditorSlotPtr, CreateSlot_SlotEditor());
+	ComponentEditorSlot = TDMWidgetSlot<SDMMaterialComponentEditor>(ComponentEditorSlotPtr, CreateSlot_ComponentEditor());
 
 	return NewRight;
 }
@@ -841,7 +841,7 @@ void SDMMaterialEditor::OnUndo()
 		{
 			if (PropertyPair.Value->IsEnabled())
 			{
-				PropertySelector->SetSelectedProperty(PropertyPair.Key);
+				PropertySelectorSlot->SetSelectedProperty(PropertyPair.Key);
 			}
 		}
 	}
@@ -849,16 +849,16 @@ void SDMMaterialEditor::OnUndo()
 
 void SDMMaterialEditor::OnEnginePreExit()
 {
-	Preview.ClearWidget();
+	MaterialPreviewSlot.ClearWidget();
 }
 
 void SDMMaterialEditor::OnRightSlotSplitterResized()
 {
 	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
 
-	if (SlotEditor.GetSlot())
+	if (SlotEditorSlot.GetSlot())
 	{
-		Settings->SplitterLocation = static_cast<SSplitter::FSlot*>(SlotEditor.GetSlot())->GetSizeValue();
+		Settings->SplitterLocation = static_cast<SSplitter::FSlot*>(SlotEditorSlot.GetSlot())->GetSizeValue();
 		Settings->SaveConfig();
 	}
 }

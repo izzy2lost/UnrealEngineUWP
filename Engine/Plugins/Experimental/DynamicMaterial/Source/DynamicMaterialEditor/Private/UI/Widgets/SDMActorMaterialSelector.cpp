@@ -33,6 +33,8 @@ void SDMActorMaterialSelector::Construct(const FArguments& InArgs, const TShared
 	ActorWeak = InActor;
 	ActorProperties = MoveTemp(InActorProperties);
 
+	SetCanTick(false);
+
 	ChildSlot
 	[
 		SNew(SBox)

@@ -22,6 +22,8 @@ void SDMTextureUVVisualizerProperty::Construct(const FArguments& InArgs, const T
 	check(InMaterialStage);
 	check(InArgs._TextureUV || InArgs._TextureUVDynamic);
 
+	SetCanTick(false);
+
 	ChildSlot
 	[
 		SNew(SVerticalBox)

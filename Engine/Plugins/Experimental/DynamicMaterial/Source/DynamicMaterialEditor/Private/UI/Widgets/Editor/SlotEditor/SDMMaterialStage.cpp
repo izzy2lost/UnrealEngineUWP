@@ -36,6 +36,8 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 	SlotLayerItemWeak = InSlotLayerItem;
 	StageWeak = InStage;
 
+	SetCanTick(false);
+
 	if (!IsValid(InStage))
 	{
 		return;

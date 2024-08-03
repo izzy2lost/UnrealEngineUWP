@@ -48,7 +48,7 @@ protected:
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
 	TWeakObjectPtr<UObject> ObjectWeak;
 
-	TDMWidgetSlot<SWidget> Container;
+	TDMWidgetSlot<SWidget> ContentSlot;
 
 	TSharedPtr<IDetailKeyframeHandler> KeyframeHandler;
 	bool bConstructing;

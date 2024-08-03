@@ -75,10 +75,10 @@ protected:
 	TWeakObjectPtr<UDMMaterialSlot> MaterialSlotWeak;
 	bool bIsDynamic;
 
-	TDMWidgetSlot<SWidget> Container;
-	TDMWidgetSlot<SWidget> SlotSettings;
-	TDMWidgetSlot<SDMMaterialSlotLayerView> LayerView;
-	TDMWidgetSlot<SWidget> LayerSettings;
+	TDMWidgetSlot<SWidget> ContentSlot;
+	TDMWidgetSlot<SWidget> SlotSettingsSlot;
+	TDMWidgetSlot<SDMMaterialSlotLayerView> LayerViewSlot;
+	TDMWidgetSlot<SWidget> LayerSettingsSlot;
 
 	TSharedPtr<ICustomDetailsViewItem> LayerOpacityItem;
 

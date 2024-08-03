@@ -101,6 +101,8 @@ void SDMTextureUVVisualizerPopout::Construct(const FArguments& InArgs, const TSh
 	check(InMaterialStage);
 	check(InArgs._TextureUV || InArgs._TextureUVDynamic);
 
+	SetCanTick(false);
+
 	ChildSlot
 	[
 		SNew(SHorizontalBox)

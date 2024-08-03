@@ -49,6 +49,8 @@ void SDMStatusBar::Construct(const FArguments& InArgs, const TSharedRef<SDMMater
 	MaterialModelBaseWeak = InMaterialModelBase;
 	EditorWidgetWeak = InEditorWidget;
 
+	SetCanTick(false);
+
 	UDynamicMaterialModel* MaterialModel = InEditorWidget->GetMaterialModel();
 
 	if (!MaterialModel)
@@ -67,12 +69,12 @@ void SDMStatusBar::Construct(const FArguments& InArgs, const TSharedRef<SDMMater
 
 	EditorOnlyData->GetOnMaterialBuiltDelegate().AddSP(this, &SDMStatusBar::OnMaterialBuilt);
 
-	Content = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
+	ContentSlot = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
 
 	// No stats!
 	if (CachedMaterialStats.NumPixelShaderInstructions > 0)
 	{
-		Content << CreateContent();
+		ContentSlot << CreateContent();
 	}
 }
 
@@ -164,7 +166,7 @@ void SDMStatusBar::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModelBas
 
 	CachedMaterialStats = EditorOnlyData->GetMaterialStats();
 
-	Content << CreateContent();
+	ContentSlot << CreateContent();
 }
 
 #undef LOCTEXT_NAMESPACE

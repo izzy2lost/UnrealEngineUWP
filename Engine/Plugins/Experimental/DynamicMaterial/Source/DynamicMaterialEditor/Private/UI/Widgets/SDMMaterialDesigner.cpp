@@ -24,7 +24,9 @@ void SDMMaterialDesigner::PrivateRegisterAttributes(FSlateAttributeDescriptor::F
 
 void SDMMaterialDesigner::Construct(const FArguments& InArgs)
 {
-	Content = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
+	SetCanTick(true);
+
+	ContentSlot = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
 
 	SetSelectPromptView();
 }
@@ -120,22 +122,32 @@ void SDMMaterialDesigner::OnActorSelected(AActor* InActor)
 
 UDynamicMaterialModelBase* SDMMaterialDesigner::GetMaterialModelBase() const
 {
-	if (!Content.HasWidget())
+	if (!Content.IsValid())
 	{
 		return nullptr;
 	}
 
 	if (Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
 	{
-		return StaticCastSharedRef<SDMMaterialEditor>(*Content)->GetMaterialModelBase();
+		return StaticCastSharedPtr<SDMMaterialEditor>(Content)->GetMaterialModelBase();
 	}
 
 	if (Content->GetWidgetClass().GetWidgetType() == SDMMaterialWizard::StaticWidgetClass().GetWidgetType())
 	{
-		return StaticCastSharedRef<SDMMaterialWizard>(*Content)->GetMaterialModel();
+		return StaticCastSharedPtr<SDMMaterialWizard>(Content)->GetMaterialModel();
 	}
 
 	return nullptr;
+}
+
+void SDMMaterialDesigner::Tick(const FGeometry& InAllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	if (Content.IsValid() && Content->GetWidgetClass().GetWidgetType() == SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
+	{
+		StaticCastSharedPtr<SDMMaterialEditor>(Content)->Validate();
+	}
+
+	SCompoundWidget::Tick(InAllottedGeometry, InCurrentTime, InDeltaTime);
 }
 
 void SDMMaterialDesigner::OpenMaterialModelBase_Internal(UDynamicMaterialModelBase* InMaterialModelBase)
@@ -255,9 +267,11 @@ void SDMMaterialDesigner::SetEditorView(const FDMObjectMaterialProperty& InObjec
 
 void SDMMaterialDesigner::SetWidget(const TSharedRef<SWidget>& InWidget, bool bInIncludeAssetDropTarget)
 {
+	Content = InWidget;
+
 	if (!bInIncludeAssetDropTarget)
 	{
-		Content << InWidget;
+		ContentSlot << InWidget;
 	}
 	else
 	{
@@ -271,7 +285,7 @@ void SDMMaterialDesigner::SetWidget(const TSharedRef<SWidget>& InWidget, bool bI
 		using namespace UE::DynamicMaterialEditor::Private;
 		DropTarget::SetInvalidColor(&DropTarget.Get(), FStyleColors::Transparent);
 
-		Content << DropTarget;
+		ContentSlot << DropTarget;
 	}
 }
 

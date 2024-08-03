@@ -87,6 +87,8 @@ void SDMMaterialPreview::Construct(const FArguments& InArgs, const TSharedRef<SD
 	PreviewMeshComponent = nullptr;
 	PostProcessVolumeActor = nullptr;
 
+	SetCanTick(false);
+
 	SEditorViewport::Construct(SEditorViewport::FArguments().ViewportSize(FVector2D(135.f)));
 
 	// restore last used feature level

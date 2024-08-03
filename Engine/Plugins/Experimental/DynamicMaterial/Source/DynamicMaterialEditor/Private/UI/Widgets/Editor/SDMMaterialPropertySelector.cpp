@@ -30,6 +30,8 @@ void SDMMaterialPropertySelector::Construct(const FArguments& InArgs, const TSha
 	EditorWidgetWeak = InEditorWidget;
 	SelectedProperty = EDMMaterialPropertyType::None;
 
+	SetCanTick(false);
+
 	ChildSlot
 	[
 		SNew(SScrollBox)
