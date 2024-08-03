@@ -212,11 +212,10 @@ FReply SDMActorMaterialSelector::OnCreateMaterialButtonClicked(int32 InActorProp
 
 	if (NewMaterialModel)
 	{
-		DesignerWidget->OnMaterialModelBaseSelected(NewMaterialModel);
+		DesignerWidget->OnObjectMaterialPropertySelected(ActorProperties[InActorPropertyIndex]);
 	}
 
 	return FReply::Handled();
-
 }
 
 #undef LOCTEXT_NAMESPACE
