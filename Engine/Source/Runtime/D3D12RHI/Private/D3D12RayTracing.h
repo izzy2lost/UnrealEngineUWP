@@ -99,7 +99,6 @@ public:
 	~FD3D12RayTracingScene();
 
 	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
-	uint32 GetLayerBufferOffset(uint32 LayerIndex) const override final { return Layers[LayerIndex].BufferOffset; }
 
 	void BindBuffer(FRHIBuffer* Buffer, uint32 BufferOffset);
 	void ReleaseBuffer();
@@ -110,16 +109,7 @@ public:
 		EAccelerationStructureBuildMode BuildMode
 	);
 
-	struct FLayerData
-	{
-		D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS BuildInputs = {};
-		FRayTracingAccelerationStructureSize SizeInfo = {};
-		uint32 BufferOffset;
-		uint32 BuildScratchOffset;
-		uint32 UpdateScratchOffset;
-	};
-
-	TArray<FLayerData> Layers;
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS BuildInputs = {};
 
 	TRefCountPtr<FD3D12Buffer> AccelerationStructureBuffers[MAX_NUM_GPUS];
 	uint32 BufferOffset = 0;

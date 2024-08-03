@@ -1456,10 +1456,9 @@ FORCEINLINE FRayTracingAccelerationStructureSize RHICalcRayTracingSceneSize(uint
 FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInitializer2 Initializer)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	if(Initializer.NumNativeInstances > 0 || Initializer.NumNativeInstancesPerLayer.IsEmpty())
+	if (Initializer.NumNativeInstancesPerLayer.Num() >= 1)
 	{
-		checkf(Initializer.NumNativeInstancesPerLayer.IsEmpty(), TEXT("Can't specify NumNativeInstances and NumNativeInstancesPerLayer simultaneously."));
-		Initializer.NumNativeInstancesPerLayer.Add(Initializer.NumNativeInstances);
+		Initializer.NumNativeInstances = Initializer.NumNativeInstancesPerLayer[0];
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return GDynamicRHI->RHICreateRayTracingScene(MoveTemp(Initializer));

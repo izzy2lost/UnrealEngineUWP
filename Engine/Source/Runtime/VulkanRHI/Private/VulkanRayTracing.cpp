@@ -676,30 +676,7 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 {
 	INC_DWORD_STAT(STAT_VulkanRayTracingAllocatedTLAS);
 
-	SizeInfo = {};
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	check(NumLayers > 0);
-
-	Layers.SetNum(NumLayers);
-
-	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
-	{
-		FLayerData& Layer = Layers[LayerIndex];
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Layer.SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstancesPerLayer[LayerIndex], Initializer.BuildFlags);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		Layer.BufferOffset = Align(SizeInfo.ResultSize, GRHIRayTracingAccelerationStructureAlignment);
-		Layer.BuildScratchOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
-		Layer.UpdateScratchOffset = Align(SizeInfo.UpdateScratchSize, GRHIRayTracingScratchBufferAlignment);
-
-		SizeInfo.ResultSize = Layer.BufferOffset + Layer.SizeInfo.ResultSize;
-		SizeInfo.BuildScratchSize = Layer.BuildScratchOffset + Layer.SizeInfo.BuildScratchSize;
-		SizeInfo.UpdateScratchSize = Layer.UpdateScratchOffset + Layer.SizeInfo.UpdateScratchSize;
-	}
+	SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstances, Initializer.BuildFlags);
 
 	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
 	FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
@@ -739,20 +716,18 @@ void FVulkanRayTracingScene::BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOff
 	INC_MEMORY_STAT_BY(STAT_VulkanRayTracingUsedVideoMemory, AccelerationStructureBuffer->GetSize());
 	INC_MEMORY_STAT_BY(STAT_VulkanRayTracingTLASMemory, AccelerationStructureBuffer->GetSize());
 
-	for (auto& Layer : Layers)
 	{
-		checkf(!Layer.View.IsValid(), TEXT("Binding multiple buffers is not currently supported."));
+		checkf(!View.IsValid(), TEXT("Binding multiple buffers is not currently supported."));
 
-		const uint32 LayerOffset = InBufferOffset + Layer.BufferOffset;
-		check(LayerOffset % GRHIRayTracingAccelerationStructureAlignment == 0);
+		check(InBufferOffset % GRHIRayTracingAccelerationStructureAlignment == 0);
 
-		Layer.View = MakeUnique<FVulkanView>(*Device, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-		VkAccelerationStructureKHR NativeAccelerationStructureHandle = Layer.View->InitAsAccelerationStructureView(
+		View = MakeUnique<FVulkanView>(*Device, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+		VkAccelerationStructureKHR NativeAccelerationStructureHandle = View->InitAsAccelerationStructureView(
 			AccelerationStructureBuffer
-			, LayerOffset
-			//, Layer.SizeInfo.ResultSize
-			// TODO: Using whole remaining size instead of Layer.SizeInfo.ResultSize reintruduces a validation error but use of Layer.SizeInfo.ResultSize broke RT on Adreno.
-			, InBuffer->GetSize() - LayerOffset 
+			, InBufferOffset
+			//, SizeInfo.ResultSize
+			// TODO: Using whole remaining size instead of SizeInfo.ResultSize reintroduces a validation error but use of SizeInfo.ResultSize broke RT on Adreno.
+			, InBuffer->GetSize() - InBufferOffset
 		)->GetAccelerationStructureView().Handle;
 
 		FString DebugNameString = Initializer.DebugName.ToString();
@@ -792,52 +767,27 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		}
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	FVkRtTLASBuildData BuildData;
 
-	TArray<FVkRtTLASBuildData> BuildDatas;
-	BuildDatas.SetNum(NumLayers);
-
-	TArray<VkAccelerationStructureBuildGeometryInfoKHR> GeometryInfos;
-	GeometryInfos.SetNum(NumLayers);
-
-	TArray<VkAccelerationStructureBuildRangeInfoKHR> BuildRanges;
-	BuildRanges.SetNum(NumLayers);
-
-	TArray<VkAccelerationStructureBuildRangeInfoKHR*> pBuildRanges;
-	pBuildRanges.SetNum(NumLayers);
+	VkAccelerationStructureBuildRangeInfoKHR BuildRangeInfo;
+	VkAccelerationStructureBuildRangeInfoKHR* pBuildRangeInfos;
 
 	const VkDeviceAddress InstanceBufferAddress = InInstanceBuffer->GetDeviceAddress() + InInstanceOffset;
 
-	uint32 InstanceBaseOffset = 0;
-	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
-		const FLayerData& Layer = Layers[LayerIndex];
+		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstances, InstanceBufferAddress, Initializer.BuildFlags, BuildMode, BuildData);
 
-		FVkRtTLASBuildData& BuildData = BuildDatas[LayerIndex];
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstancesPerLayer[LayerIndex], InstanceBufferAddress, Initializer.BuildFlags, BuildMode, BuildData);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		checkf(View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
+		BuildData.GeometryInfo.dstAccelerationStructure = View->GetAccelerationStructureView().Handle;
+		BuildData.GeometryInfo.srcAccelerationStructure = bIsUpdate ? View->GetAccelerationStructureView().Handle : nullptr;
+		BuildData.GeometryInfo.scratchData.deviceAddress = InScratchBuffer->GetDeviceAddress() + InScratchOffset;
 
-		const uint64 LayerScratchOffset = bIsUpdate ? Layer.UpdateScratchOffset : Layer.BuildScratchOffset;
+		BuildRangeInfo.primitiveCount = Initializer.NumNativeInstances;
+		BuildRangeInfo.primitiveOffset = 0;
+		BuildRangeInfo.transformOffset = 0;
+		BuildRangeInfo.firstVertex = 0;
 
-		checkf(Layer.View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
-		BuildData.GeometryInfo.dstAccelerationStructure = Layer.View->GetAccelerationStructureView().Handle;
-		BuildData.GeometryInfo.srcAccelerationStructure = bIsUpdate ? Layer.View->GetAccelerationStructureView().Handle : nullptr;
-		BuildData.GeometryInfo.scratchData.deviceAddress = InScratchBuffer->GetDeviceAddress() + InScratchOffset + LayerScratchOffset;
-
-		GeometryInfos[LayerIndex] = BuildData.GeometryInfo;
-
-		VkAccelerationStructureBuildRangeInfoKHR& TLASBuildRangeInfo = BuildRanges[LayerIndex];
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		TLASBuildRangeInfo.primitiveCount = Initializer.NumNativeInstancesPerLayer[LayerIndex];
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		TLASBuildRangeInfo.primitiveOffset = InstanceBaseOffset;
-		TLASBuildRangeInfo.transformOffset = 0;
-		TLASBuildRangeInfo.firstVertex = 0;
-
-		pBuildRanges[LayerIndex] = &TLASBuildRangeInfo;
+		pBuildRangeInfos = &BuildRangeInfo;
 
 		if (bIsUpdate)
 		{
@@ -847,10 +797,6 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 		{
 			INC_DWORD_STAT(STAT_VulkanRayTracingBuiltTLAS);
 		}
-
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		InstanceBaseOffset += Initializer.NumNativeInstancesPerLayer[LayerIndex];
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	FVulkanCommandBufferManager& CommandBufferManager = *CommandContext.GetCommandBufferManager();
@@ -859,7 +805,7 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 	// Force a memory barrier to make sure all previous builds ops are finished before building the TLAS
 	AddAccelerationStructureBuildBarrier(CmdBuffer->GetHandle());
 
-	VulkanDynamicAPI::vkCmdBuildAccelerationStructuresKHR(CmdBuffer->GetHandle(), NumLayers, GeometryInfos.GetData(), pBuildRanges.GetData());
+	VulkanDynamicAPI::vkCmdBuildAccelerationStructuresKHR(CmdBuffer->GetHandle(), 1, &BuildData.GeometryInfo, &pBuildRangeInfos);
 
 	// Acceleration structure build barrier is used here to ensure that the acceleration structure build is complete before any rays are traced
 	AddAccelerationStructureBuildBarrier(CmdBuffer->GetHandle());

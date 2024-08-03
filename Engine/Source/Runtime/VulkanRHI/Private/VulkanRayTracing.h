@@ -202,7 +202,6 @@ public:
 	~FVulkanRayTracingScene();
 
 	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
-	uint32 GetLayerBufferOffset(uint32 LayerIndex) const override final { return Layers[LayerIndex].BufferOffset; }
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
 	void BuildAccelerationStructure(
@@ -253,16 +252,7 @@ private:
 	// the lifetime of the scene object may be different from the lifetime of the buffer.
 	// Many VkAccelerationStructureKHR-s may be created, pointing at the same buffer.
 
-	struct FLayerData
-	{
-		TUniquePtr<FVulkanView> View;
-		FRayTracingAccelerationStructureSize SizeInfo;
-		uint32 BufferOffset;
-		uint32 BuildScratchOffset;
-		uint32 UpdateScratchOffset;
-	};
-
-	TArray<FLayerData> Layers;
+	TUniquePtr<FVulkanView> View;
 	
 	TRefCountPtr<FVulkanResourceMultiBuffer> AccelerationStructureBuffer;
 

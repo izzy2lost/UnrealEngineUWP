@@ -433,32 +433,10 @@ void FMetalRayTracingGeometry::RebuildDescriptors()
 FMetalRayTracingScene::FMetalRayTracingScene(FRayTracingSceneInitializer2 InInitializer)
 	: Initializer(MoveTemp(InInitializer))
 {
-	SizeInfo = {};
+	MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor;
+	InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstances);
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	check(NumLayers > 0);
-
-	Layers.SetNum(NumLayers);
-
-	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
-	{
-		FLayerData& Layer = Layers[LayerIndex];
-
-		MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor;
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstancesPerLayer[LayerIndex]);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-		Layer.SizeInfo = CalcRayTracingGeometrySize(InstanceDescriptor);
-
-		Layer.BufferOffset = Align(SizeInfo.ResultSize, GRHIRayTracingAccelerationStructureAlignment);
-		Layer.ScratchBufferOffset = Align(SizeInfo.BuildScratchSize, GRHIRayTracingScratchBufferAlignment);
-
-		SizeInfo.ResultSize = Layer.BufferOffset + Layer.SizeInfo.ResultSize;
-		SizeInfo.BuildScratchSize = Layer.BufferOffset + Layer.SizeInfo.BuildScratchSize;
-	}
+	SizeInfo = CalcRayTracingGeometrySize(InstanceDescriptor);
 
 	MutableAccelerationStructures = [[NSMutableArray<id<MTLAccelerationStructure>> new] init];
 
@@ -492,17 +470,13 @@ void FMetalRayTracingScene::BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffs
 	FMetalDeviceContext& Context = GetMetalDeviceContext();
 	MTL::Device* Device = Context.GetDevice();
 
-	for (auto& Layer : Layers)
 	{
-		checkf(Layer.ShaderResourceView == nullptr, TEXT("Binding multiple buffers is not currently supported."));
-
-		const uint32 LayerOffset = InBufferOffset + Layer.BufferOffset;
-		check(LayerOffset % GRHIRayTracingAccelerationStructureAlignment == 0);
-
+		checkf(ShaderResourceView == nullptr, TEXT("Binding multiple buffers is not currently supported."));
+		check(InBufferOffset % GRHIRayTracingAccelerationStructureAlignment == 0);
 		check(AccelerationStructureBuffer->IsAccelerationStructure());
 
-		FShaderResourceViewInitializer ViewInitializer(AccelerationStructureBuffer, LayerOffset, 0);
-		Layer.ShaderResourceView = new FMetalShaderResourceView(ViewInitializer);
+		FShaderResourceViewInitializer ViewInitializer(AccelerationStructureBuffer, InBufferOffset, 0);
+		ShaderResourceView = new FMetalShaderResourceView(ViewInitializer);
 
 		FString DebugNameString = Initializer.DebugName.ToString();
 		DebugNameString = (DebugNameString.IsEmpty()) ? TEXT("TLAS") : DebugNameString;
@@ -624,29 +598,19 @@ void FMetalRayTracingScene::BuildAccelerationStructure(
 	MTL::AccelerationStructureCommandEncoder* CommandEncoder = Encoder.GetAccelerationStructureCommandEncoder();
 	check(CommandEncoder.GetPtr());
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const uint32 NumLayers = Initializer.NumNativeInstancesPerLayer.Num();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	FMetalBuffer CurScratchBuffer = InScratchBuffer->GetCurrentBuffer();
 	check(CurScratchBuffer);
 
-	check(Layers.Num() && NumLayers > 0);
-	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
-		FLayerData& Layer = Layers[LayerIndex];
-
 		MTL::InstanceAccelerationStructureDescriptor* InstanceDescriptor = MTL::InstanceAccelerationStructureDescriptor();
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstancesPerLayer[LayerIndex]);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		InstanceDescriptor.SetInstanceCount(Initializer.NumNativeInstances);
 		InstanceDescriptor.SetInstanceDescriptorBuffer(CurInstanceBuffer);
 		InstanceDescriptor.SetInstanceDescriptorBufferOffset(InstanceBufferOffset);
 		InstanceDescriptor.SetInstancedAccelerationStructures((__bridge NSArray*)MutableAccelerationStructures);
 		InstanceDescriptor.SetInstanceDescriptorStride(GRHIRayTracingInstanceDescriptorSize);
 		InstanceDescriptor.SetInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorType::UserID);
 
-		MTL::AccelerationStructure* AS = ResourceCast(Layer.ShaderResourceView->GetBuffer())->AccelerationStructureHandle;
+		MTL::AccelerationStructure* AS = ResourceCast(ShaderResourceView->GetBuffer())->AccelerationStructureHandle;
 		CommandEncoder.BuildAccelerationStructure(AS, InstanceDescriptor, CurScratchBuffer, ScratchOffset);
 	}
 

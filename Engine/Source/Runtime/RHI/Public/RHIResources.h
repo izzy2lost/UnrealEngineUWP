@@ -3407,7 +3407,11 @@ public:
 	}
 
 	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Create one FRHIRayTracingScene per layer instead.")
-	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const = 0;
+	virtual uint32 GetLayerBufferOffset(uint32 LayerIndex) const
+	{
+		checkf(LayerIndex == 0, TEXT("FRHIRayTracingScene layers are deprecated. Create one FRHIRayTracingScene per layer instead."));
+		return 0;
+	}
 
 	UE_DEPRECATED(5.5, "Create standalone FRHIShaderBindingTable instead.")
 	virtual FRHIShaderBindingTable* FindOrCreateShaderBindingTable(const FRHIRayTracingPipelineState* Pipeline) = 0;

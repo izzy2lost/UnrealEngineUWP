@@ -38,7 +38,6 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	// All buffers are vector-aligned to allow efficient loading into GPU memory and subsequent GPU access.
 	// Serialized scene data is expected to be loaded all at once from disk and copied into a single GPU buffer.
 	static constexpr uint32 AlignmentRequirement = 16;
-	static constexpr uint32 MaxNumLayers = 64;
 
 	// Serialized types
 
@@ -58,13 +57,10 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 			uint32 Strings = 0;
 		} Offsets;
 
-		uint32 NumLayers = 0;
-		uint32 PerLayerNumInstances[MaxNumLayers] = {};
 		uint32 NumInstances = 0;
 		uint32 NumGeometries = 0;
 		uint32 NumBuffers = 0;
 		uint32 NumStrings = 0;
-		uint32 Padding[2] = {};
 	};
 	static_assert(sizeof(FSceneHeader) % AlignmentRequirement == 0, "Serialized scene data must be vector-aligned");
 
@@ -159,17 +155,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	}
 
 	{
-		// Per-layer number of instances
-
-		SceneHeader.NumLayers = FMath::Min<uint32>(MaxNumLayers, Scene.Layers.Num());
-
-		for (uint32 LayerIndex = 0; LayerIndex < SceneHeader.NumLayers; ++LayerIndex)
-		{
-			const FD3D12RayTracingScene::FLayerData& Layer = Scene.Layers[LayerIndex];
-			uint32 NumInstances = Layer.BuildInputs.NumDescs;
-			SceneHeader.PerLayerNumInstances[LayerIndex] = NumInstances;
-			SceneHeader.NumInstances += NumInstances;
-		}
+		SceneHeader.NumInstances = Scene.BuildInputs.NumDescs;
 
 		// Instance buffer
 

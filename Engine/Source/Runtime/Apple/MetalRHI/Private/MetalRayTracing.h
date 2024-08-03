@@ -88,18 +88,10 @@ public:
 	void BuildPerInstanceGeometryParameterBuffer();
 
 	inline const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
-	inline uint32 GetLayerBufferOffset(uint32 LayerIndex) const override final { return Layers[LayerIndex].BufferOffset; }
 
 	TRefCountPtr<FMetalShaderResourceView> InstanceBufferSRV;
 
-	struct FLayerData
-	{
-		TRefCountPtr<FMetalShaderResourceView> ShaderResourceView;
-		uint32 BufferOffset;
-		uint32 ScratchBufferOffset;
-		FRayTracingAccelerationStructureSize SizeInfo;
-	};
-	TArray<FLayerData> Layers;
+	TRefCountPtr<FMetalShaderResourceView> ShaderResourceView;
 
 private:
 	friend class FMetalRHICommandContext;
@@ -108,7 +100,7 @@ private:
 	/** The initializer provided to build the scene. Contains all the free standing stuff that used to be owned by the RT implementation. */
 	const FRayTracingSceneInitializer2 Initializer;
 
-	/** Acceleration Structure for the whole scene (shared between each layer). */
+	/** Acceleration Structure for the whole scene. */
 	TRefCountPtr<FMetalRHIBuffer> AccelerationStructureBuffer;
 
 	/** Root Constants for geometry evaluation in HitGroup/Miss (emulates D3D12 RootConstants with a global scope). */

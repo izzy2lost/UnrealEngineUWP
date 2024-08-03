@@ -163,19 +163,6 @@ void FillRayTracingInstanceUploadBuffer(
 
 	const FRayTracingSceneInitializer2& SceneInitializer = RayTracingSceneRHI->GetInitializer();
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const uint32 NumLayers = SceneInitializer.NumNativeInstancesPerLayer.Num();
-
-	TArray<uint32> LayerBaseIndices;
-	LayerBaseIndices.SetNumUninitialized(NumLayers);
-	LayerBaseIndices[0] = 0;
-
-	for (uint32 LayerIndex = 1; LayerIndex < NumLayers; ++LayerIndex)
-	{
-		LayerBaseIndices[LayerIndex] = LayerBaseIndices[LayerIndex - 1] + SceneInitializer.NumNativeInstancesPerLayer[LayerIndex - 1];
-	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	const int32 NumSceneInstances = Instances.Num();
 	const int32 MinBatchSize = 128;
 	ParallelFor(
@@ -191,7 +178,6 @@ void FillRayTracingInstanceUploadBuffer(
 			InstanceGeometryIndices,
 			BaseUploadBufferOffsets,
 			BaseInstancePrefixSum,
-			LayerBaseIndices,
 			PreViewTranslation,
 			&SceneInitializer
 		](int32 SceneInstanceIndex)
@@ -211,9 +197,6 @@ void FillRayTracingInstanceUploadBuffer(
 			checkf(bGpuSceneInstance + bCpuInstance == 1, TEXT("Instance can only get transforms from one of GPUScene, or Transforms array."));
 
 			const uint32 AccelerationStructureIndex = InstanceGeometryIndices[SceneInstanceIndex];
-			PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			const uint32 LayerBaseIndex = LayerBaseIndices[SceneInstance.LayerIndex];
-			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const uint32 BaseInstanceIndex = BaseInstancePrefixSum[SceneInstanceIndex];
 			const uint32 BaseTransformIndex = bCpuInstance ? BaseUploadBufferOffsets[SceneInstanceIndex] : 0;
 
@@ -261,7 +244,7 @@ void FillRayTracingInstanceUploadBuffer(
 					}
 				}
 
-				InstanceDesc.OutputDescriptorIndex = LayerBaseIndex + BaseInstanceIndex + TransformIndex;
+				InstanceDesc.OutputDescriptorIndex = BaseInstanceIndex + TransformIndex;
 				InstanceDesc.AccelerationStructureIndex = AccelerationStructureIndex;
 				InstanceDesc.InstanceId = UserData;
 				InstanceDesc.InstanceMaskAndFlags = SceneInstance.Mask | ((uint32)SceneInstance.Flags << 8);
