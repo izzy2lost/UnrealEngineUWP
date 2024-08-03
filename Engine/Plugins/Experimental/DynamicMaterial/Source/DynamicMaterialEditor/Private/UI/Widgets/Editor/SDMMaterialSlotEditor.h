@@ -113,11 +113,13 @@ protected:
 	FReply OnLayerRowButtonsRemoveClicked();
 
 	/** Drag and drop. */
-	bool OnAssetDraggedOver(TArrayView<FAssetData> InAssets);
+	bool OnAreAssetsAcceptableForDrop(TArrayView<FAssetData> InAssets);
 
 	void OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets);
 
 	void HandleDrop_Texture(UTexture* InTexture);
+
+	void HandleDrop_CreateTextureSet(const TArray<FAssetData>& InTextureAssets);
 
 	void HandleDrop_TextureSet(UDMTextureSet* InTextureSet);
 
