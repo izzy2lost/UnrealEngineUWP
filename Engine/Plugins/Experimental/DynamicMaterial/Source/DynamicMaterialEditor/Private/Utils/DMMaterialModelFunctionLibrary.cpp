@@ -493,6 +493,11 @@ UDynamicMaterialInstance* UDMMaterialModelFunctionLibrary::ExportToTemplateMater
 
 bool UDMMaterialModelFunctionLibrary::IsModelValid(UDynamicMaterialModelBase* InMaterialModelBase)
 {
+	if (!IsValid(InMaterialModelBase))
+	{
+		return false;
+	}
+
 	if (UWorld* World = InMaterialModelBase->GetWorld())
 	{
 		if (UDMWorldSubsystem* WorldSubsystem = World->GetSubsystem<UDMWorldSubsystem>())
