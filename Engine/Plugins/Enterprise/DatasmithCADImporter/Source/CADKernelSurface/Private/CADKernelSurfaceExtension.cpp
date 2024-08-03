@@ -8,7 +8,7 @@
 #include "DatasmithPayload.h"
 #include "Engine/StaticMesh.h"
 #include "MeshDescription.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Misc/FileHelper.h"
 #include "StaticMeshAttributes.h"
 #include "UObject/EnterpriseObjectVersion.h"

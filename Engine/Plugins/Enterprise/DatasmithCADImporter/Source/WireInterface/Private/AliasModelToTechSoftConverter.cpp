@@ -7,7 +7,7 @@
 
 #include "Hal/PlatformMemory.h"
 #include "Math/Color.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "TechSoftInterface.h"
 #include "TechSoftUtils.h"
 #include "TUniqueTechSoftObj.h"

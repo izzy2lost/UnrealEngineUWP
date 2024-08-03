@@ -10,7 +10,7 @@
 #include "CADKernelTools.h"
 #include "HAL/ConsoleManager.h"
 #include "Hal/PlatformMemory.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 
 #include "Core/Session.h"
 #include "Geo/Curves/NURBSCurveData.h"

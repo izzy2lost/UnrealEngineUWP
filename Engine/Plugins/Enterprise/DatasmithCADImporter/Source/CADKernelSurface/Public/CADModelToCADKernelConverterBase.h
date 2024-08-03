@@ -10,7 +10,7 @@
 #include "CADModelConverter.h"
 #include "CADOptions.h"
 #include "IDatasmithSceneElements.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 
 #include "Core/Session.h"
 #include "Topo/Model.h"

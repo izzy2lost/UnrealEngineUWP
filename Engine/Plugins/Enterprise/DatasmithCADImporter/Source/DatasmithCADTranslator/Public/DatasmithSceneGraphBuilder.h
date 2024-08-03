@@ -6,7 +6,7 @@
 #include "CADData.h"
 #include "CADSceneGraph.h"
 #include "DatasmithImportOptions.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 
 #include "Containers/Map.h"
 #include "Containers/Queue.h"

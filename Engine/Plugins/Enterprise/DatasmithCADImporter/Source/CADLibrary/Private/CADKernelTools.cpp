@@ -5,7 +5,7 @@
 #include "CADData.h"
 #include "CADOptions.h"
 #include "MeshDescription.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 

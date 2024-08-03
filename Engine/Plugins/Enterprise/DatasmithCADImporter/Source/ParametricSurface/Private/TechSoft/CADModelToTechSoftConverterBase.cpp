@@ -4,7 +4,7 @@
 
 
 #include "CADData.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "ParametricSurfaceTranslator.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"

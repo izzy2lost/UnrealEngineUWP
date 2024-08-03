@@ -7,7 +7,7 @@
 #include "DatasmithSceneSource.h"
 #include "DatasmithUtils.h"
 #include "IDatasmithSceneElements.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Misc/FileHelper.h"
 
 namespace DatasmithSceneGraphBuilderImpl

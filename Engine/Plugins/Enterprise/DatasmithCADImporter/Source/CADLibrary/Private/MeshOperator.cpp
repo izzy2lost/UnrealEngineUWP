@@ -11,7 +11,7 @@
 #include "DynamicMesh/Operations/MergeCoincidentMeshEdges.h"
 #include "DynamicMeshToMeshDescription.h"
 #include "MeshAttributes.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "MeshDescriptionToDynamicMesh.h"
 #include "MeshElementArray.h"
 #include "Operations/MeshResolveTJunctions.h"

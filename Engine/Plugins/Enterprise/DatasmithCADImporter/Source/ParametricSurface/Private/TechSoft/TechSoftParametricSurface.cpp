@@ -12,7 +12,7 @@
 #include "Engine/StaticMesh.h"
 #include "HAL/PlatformFileManager.h"
 #include "IDatasmithSceneElements.h"
-#include "MeshDescriptionHelper.h"
+#include "CADMeshDescriptionHelper.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "StaticMeshAttributes.h"
