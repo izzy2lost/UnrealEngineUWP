@@ -43,8 +43,8 @@
 #endif
 #include "Nanite/Nanite.h"
 #include "Lumen/LumenViewState.h"
-#include "ManyLights/ManyLightsViewState.h"
-#include "RayTracedLighting/RayTracedLightingViewState.h"
+#include "MegaLights/MegaLightsViewState.h"
+#include "StochasticLighting/StochasticLightingViewState.h"
 #include "VolumetricRenderTargetViewStateData.h"
 #include "GPUScene.h"
 #include "DynamicBVH.h"
@@ -995,10 +995,10 @@ public:
 	TRefCountPtr<IPooledRenderTarget> SubsurfaceScatteringQualityHistoryRT;
 
 	FLumenViewState Lumen;
-	FManyLightsViewState ManyLights;
+	FMegaLightsViewState MegaLights;
 
-	// Shared by Lumen and Many Lights
-	FRayTracedLightingViewState RayTracedLighting;
+	// Shared by Lumen and Mega Lights
+	FStochasticLightingViewState StochasticLighting;
 
 	// Heterogeneous Volumes cached data stores
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoVoxelGridUniformBuffer = nullptr;

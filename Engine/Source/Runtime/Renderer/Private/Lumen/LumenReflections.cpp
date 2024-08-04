@@ -1216,7 +1216,7 @@ FRDGTextureRef FDeferredShadingSceneRenderer::RenderLumenReflections(
 			}
 		}
 
-		FRDGTextureRef SceneDepthHistory = View.ViewState->RayTracedLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->RayTracedLighting.SceneDepthHistory) : nullptr;
+		FRDGTextureRef SceneDepthHistory = View.ViewState->StochasticLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->StochasticLighting.SceneDepthHistory) : nullptr;
 
 		FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
 			FRDGTextureDesc::Create2DArray(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV, ClosureCount),

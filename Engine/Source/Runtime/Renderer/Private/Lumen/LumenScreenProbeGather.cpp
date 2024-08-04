@@ -1475,7 +1475,7 @@ void UpdateHistoryScreenProbeGather(
 		TRefCountPtr<IPooledRenderTarget>* HistoryNumFramesAccumulated = &ScreenProbeGatherState.NumFramesAccumulatedRT;
 		TRefCountPtr<IPooledRenderTarget>* FastUpdateModeHistoryState = &ScreenProbeGatherState.FastUpdateModeHistoryRT;
 
-		FRDGTextureRef OldNormalHistory = View.ViewState->RayTracedLighting.SceneNormalHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->RayTracedLighting.SceneNormalHistory) : nullptr;
+		FRDGTextureRef OldNormalHistory = View.ViewState->StochasticLighting.SceneNormalHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->StochasticLighting.SceneNormalHistory) : nullptr;
 
 		const uint32 ClosureCount = Substrate::GetSubstrateMaxClosureCount(View);
 		const bool bRejectBasedOnNormal = LumenScreenProbeGather::UseRejectBasedOnNormal() && OldNormalHistory;
@@ -1519,7 +1519,7 @@ void UpdateHistoryScreenProbeGather(
 
 			{
 				FRDGTextureRef OldRoughSpecularIndirectHistory = GraphBuilder.RegisterExternalTexture(*RoughSpecularIndirectHistoryState);
-				FRDGTextureRef OldDepthHistory = View.ViewState->RayTracedLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->RayTracedLighting.SceneDepthHistory) : SceneTextures.Depth.Target;
+				FRDGTextureRef OldDepthHistory = View.ViewState->StochasticLighting.SceneDepthHistory ? GraphBuilder.RegisterExternalTexture(View.ViewState->StochasticLighting.SceneDepthHistory) : SceneTextures.Depth.Target;
 				FRDGTextureRef OldHistoryNumFramesAccumulated = GraphBuilder.RegisterExternalTexture(*HistoryNumFramesAccumulated);
 				FRDGTextureRef OldFastUpdateModeHistory = GraphBuilder.RegisterExternalTexture(*FastUpdateModeHistoryState);
 

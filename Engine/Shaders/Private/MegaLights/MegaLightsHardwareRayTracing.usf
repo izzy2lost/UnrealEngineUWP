@@ -5,8 +5,8 @@
 #include "../BlueNoise.ush"
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../SceneTexturesCommon.ush"
-#include "ManyLights.ush"
-#include "ManyLightsRayTracing.ush"
+#include "MegaLights.ush"
+#include "MegaLightsRayTracing.ush"
 #include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
 #include "../Lumen/LumenHardwareRayTracingCommon.ush"
 #if HAIR_VOXEL_TRACES
@@ -117,7 +117,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		{
 			// #ml_todo: replace with spatiotemporal blue noise
 			RandomSequence RandSequence;
-			RandomSequence_Initialize(RandSequence, SampleCoord, 0, ManyLightsStateFrameIndex, 1);
+			RandomSequence_Initialize(RandSequence, SampleCoord, 0, MegaLightsStateFrameIndex, 1);
 			TraceResult.HitT = TraverseHair(ScreenCoord, RandSequence, Ray.Origin, Ray.Direction, TraceResult.HitT, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
 			TraceResult.bHit = TraceResult.HitT > 0;
 		}

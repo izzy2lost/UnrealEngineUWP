@@ -2,12 +2,12 @@
 
 #include "RendererPrivate.h"
 #include "Lumen/LumenScreenProbeGather.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 
-class FRayTracedLightingStoreSceneHistoryCS : public FGlobalShader
+class FStochasticLightingStoreSceneHistoryCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FRayTracedLightingStoreSceneHistoryCS)
-	SHADER_USE_PARAMETER_STRUCT(FRayTracedLightingStoreSceneHistoryCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FStochasticLightingStoreSceneHistoryCS)
+	SHADER_USE_PARAMETER_STRUCT(FStochasticLightingStoreSceneHistoryCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -22,7 +22,7 @@ class FRayTracedLightingStoreSceneHistoryCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return DoesPlatformSupportLumenGI(Parameters.Platform) || ManyLights::ShouldCompileShaders(Parameters);
+		return DoesPlatformSupportLumenGI(Parameters.Platform) || MegaLights::ShouldCompileShaders(Parameters);
 	}
 
 	static int32 GetGroupSize()
@@ -37,12 +37,12 @@ class FRayTracedLightingStoreSceneHistoryCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FRayTracedLightingStoreSceneHistoryCS, "/Engine/Private/RayTracedLighting/RayTracedLightingDenoising.usf", "StoreSceneHistoryCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FStochasticLightingStoreSceneHistoryCS, "/Engine/Private/StochasticLighting/StochasticLightingDenoising.usf", "StoreSceneHistoryCS", SF_Compute);
 
 /**
  * Copy depth and normal for opaque before it gets possibly overwritten by water or other translucency writing depth
  */
-void FDeferredShadingSceneRenderer::StoreRayTracedLightingSceneHistory(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneTextures& SceneTextures)
+void FDeferredShadingSceneRenderer::StoreStochasticLightingSceneHistory(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries, const FSceneTextures& SceneTextures)
 {
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
@@ -52,7 +52,7 @@ void FDeferredShadingSceneRenderer::StoreRayTracedLightingSceneHistory(FRDGBuild
 		{
 			const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
 			const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
-			const bool bStoreDepth = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen || ManyLights::IsEnabled();
+			const bool bStoreDepth = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen || MegaLights::IsEnabled();
 			const bool bStoreNormal = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && LumenScreenProbeGather::UseRejectBasedOnNormal();
 
 			if (bStoreDepth)
@@ -60,18 +60,18 @@ void FDeferredShadingSceneRenderer::StoreRayTracedLightingSceneHistory(FRDGBuild
 				FRDGTextureRef DepthHistory = FrameTemporaries.DepthHistory.CreateSharedRT(GraphBuilder,
 					FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 					FrameTemporaries.ViewExtent,
-					TEXT("RayTracedLighting.DepthHistory"));
+					TEXT("StochasticLighting.DepthHistory"));
 
 				FRDGTextureRef NormalHistory = bStoreNormal ? FrameTemporaries.NormalHistory.CreateSharedRT(GraphBuilder,
 					FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 					FrameTemporaries.ViewExtent,
-					TEXT("RayTracedLighting.NormalHistory")) : nullptr;
+					TEXT("StochasticLighting.NormalHistory")) : nullptr;
 
-				FRayTracedLightingStoreSceneHistoryCS::FPermutationDomain PermutationVector;
-				PermutationVector.Set<FRayTracedLightingStoreSceneHistoryCS::FStoreNormal>(bStoreNormal);
-				auto ComputeShader = View.ShaderMap->GetShader<FRayTracedLightingStoreSceneHistoryCS>(PermutationVector);
+				FStochasticLightingStoreSceneHistoryCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FStochasticLightingStoreSceneHistoryCS::FStoreNormal>(bStoreNormal);
+				auto ComputeShader = View.ShaderMap->GetShader<FStochasticLightingStoreSceneHistoryCS>(PermutationVector);
 
-				FRayTracedLightingStoreSceneHistoryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FRayTracedLightingStoreSceneHistoryCS::FParameters>();
+				FStochasticLightingStoreSceneHistoryCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FStochasticLightingStoreSceneHistoryCS::FParameters>();
 				PassParameters->View = View.ViewUniformBuffer;
 				PassParameters->SceneTexturesStruct = SceneTextures.UniformBuffer;
 				PassParameters->Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
@@ -80,16 +80,16 @@ void FDeferredShadingSceneRenderer::StoreRayTracedLightingSceneHistory(FRDGBuild
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
-					RDG_EVENT_NAME("RayTracedLightingStoreSceneHistory Normal:%d", bStoreNormal ? 1 : 0),
+					RDG_EVENT_NAME("StochasticLightingStoreSceneHistory Normal:%d", bStoreNormal ? 1 : 0),
 					ComputeShader,
 					PassParameters,
-					FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FRayTracedLightingStoreSceneHistoryCS::GetGroupSize()));
+					FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FStochasticLightingStoreSceneHistoryCS::GetGroupSize()));
 			}
 		}
 	}
 }
 
-void FDeferredShadingSceneRenderer::QueueExtractRayTracedLighting(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries)
+void FDeferredShadingSceneRenderer::QueueExtractStochasticLighting(FRDGBuilder& GraphBuilder, FLumenSceneFrameTemporaries& FrameTemporaries)
 {
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
@@ -99,20 +99,20 @@ void FDeferredShadingSceneRenderer::QueueExtractRayTracedLighting(FRDGBuilder& G
 		{
 			if (FrameTemporaries.DepthHistory.GetRenderTarget())
 			{
-				GraphBuilder.QueueTextureExtraction(FrameTemporaries.DepthHistory.GetRenderTarget(), &View.ViewState->RayTracedLighting.SceneDepthHistory);
+				GraphBuilder.QueueTextureExtraction(FrameTemporaries.DepthHistory.GetRenderTarget(), &View.ViewState->StochasticLighting.SceneDepthHistory);
 			}
 			else
 			{
-				View.ViewState->RayTracedLighting.SceneDepthHistory = nullptr;
+				View.ViewState->StochasticLighting.SceneDepthHistory = nullptr;
 			}
 
 			if (FrameTemporaries.NormalHistory.GetRenderTarget())
 			{
-				GraphBuilder.QueueTextureExtraction(FrameTemporaries.NormalHistory.GetRenderTarget(), &View.ViewState->RayTracedLighting.SceneNormalHistory);
+				GraphBuilder.QueueTextureExtraction(FrameTemporaries.NormalHistory.GetRenderTarget(), &View.ViewState->StochasticLighting.SceneNormalHistory);
 			}
 			else
 			{
-				View.ViewState->RayTracedLighting.SceneNormalHistory = nullptr;
+				View.ViewState->StochasticLighting.SceneNormalHistory = nullptr;
 			}
 		}
 	}

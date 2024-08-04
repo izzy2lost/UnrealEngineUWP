@@ -16,8 +16,8 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "../ManyLights/ManyLights.ush"
-#include "../ManyLights/ManyLightsRayTracing.ush"
+#include "../MegaLights/MegaLights.ush"
+#include "../MegaLights/MegaLightsRayTracing.ush"
 #include "../DeferredLightingCommon.ush"
 #include "../IntersectionUtils.ush"
 #include "../ShaderPrint.ush"

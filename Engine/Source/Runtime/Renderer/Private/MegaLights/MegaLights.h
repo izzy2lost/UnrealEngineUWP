@@ -12,8 +12,8 @@ namespace ECastRayTracedShadow
 	enum Type : int;
 };
 
-// Public ManyLights interface
-namespace ManyLights
+// Public MegaLights interface
+namespace MegaLights
 {
 	bool IsEnabled();
 

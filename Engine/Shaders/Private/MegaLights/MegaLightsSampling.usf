@@ -15,8 +15,8 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "ManyLights.ush"
-#include "ManyLightsRayTracing.ush"
+#include "MegaLights.ush"
+#include "MegaLightsRayTracing.ush"
 #include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 
 struct FDebug
@@ -56,7 +56,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 
 	LightData.ShadowedBits = 0;
 
-	FDeferredLightingSplit SplitLighting = GetManyLightSplitLighting(
+	FDeferredLightingSplit SplitLighting = GetMegaLightsSplitLighting(
 		TranslatedWorldPosition, CameraVector, Material, AmbientOcclusion, 
 		LightData, LightAttenuation, Dither, ScreenCoord, 
 		SurfaceShadow);
@@ -149,7 +149,7 @@ void GenerateLightSamplesCS(
 				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 
-				if (LocalLightData.bManyLightsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+				if (LocalLightData.bMegaLightsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
@@ -209,7 +209,7 @@ void GenerateLightSamplesCS(
 				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
 				{
 					float GoldenRatioConjugate = 0.6180339887f;
-					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, ManyLightsStateFrameIndex);
+					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, MegaLightsStateFrameIndex);
 
 					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 					{

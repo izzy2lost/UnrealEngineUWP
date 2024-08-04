@@ -82,13 +82,13 @@ struct FLocalLightData
 	// Derived terms after unpacking
 	/** Flag is true if clustered deferred is supported for this light. They are always first / together.*/
 	bool bClusteredDeferredSupported;
-	// True if Many Lights is supported for this light.
-	bool bManyLightsSupported;
+	// True if Mega Lights is supported for this light.
+	bool bMegaLightsSupported;
 	/** Flag is true if it is a simple light. They are always first / together.*/
 	bool bIsSimpleLight;
-	/** Virtual shadow map ID or INDEX_NONE if not present. Only valid if MANY_LIGHTS is NOT defined. */
+	/** Virtual shadow map ID or INDEX_NONE if not present.*/
 	int  VirtualShadowMapId;
-	/** Previous frame LocalLightIndex or INDEX_NONE if not present. Only valid if MANY_LIGHTS is defined. */
+	/** Previous frame LocalLightIndex or INDEX_NONE if not present.*/
 	int  PrevLocalLightIndex;
 	/** Index into GPUScene lights */
 	int LightSceneId;

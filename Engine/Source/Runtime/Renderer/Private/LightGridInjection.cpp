@@ -32,7 +32,7 @@ LightGridInjection.cpp
 #include "ShaderPrint.h"
 #include "ShaderPrintParameters.h"
 #include "RenderUtils.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 
 int32 GLightGridPixelSize = 64;
 FAutoConsoleVariableRef CVarLightGridPixelSize(
@@ -488,7 +488,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		// Track the end markers for different types
 		int32 SimpleLightsEnd = 0;
 		int32 ClusteredSupportedEnd = 0;
-		int32 ManyLightsSupportedStart = 0;
+		int32 MegaLightsSupportedStart = 0;
 
 		const float Exposure = View.GetLastEyeAdaptationExposure();
 
@@ -548,7 +548,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			int32 SelectedForwardDirectionalLightPriority = -1;
 			const TArray<FSortedLightSceneInfo, SceneRenderingAllocator>& SortedLights = SortedLightSet.SortedLights;
 			ClusteredSupportedEnd = SimpleLightsEnd;
-			ManyLightsSupportedStart = MAX_int32;
+			MegaLightsSupportedStart = MAX_int32;
 			// Next add all the other lights, track the end index for clustered supporting lights
 			for (int32 SortedIndex = SimpleLightsEnd; SortedIndex < SortedLights.Num(); ++SortedIndex)
 			{
@@ -598,9 +598,9 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 							ClusteredSupportedEnd = FMath::Max(ClusteredSupportedEnd, ForwardLocalLightData.Num());
 						}
 
-						if (SortedLightInfo.SortKey.Fields.bHandledByManyLights && ManyLightsSupportedStart == MAX_int32)
+						if (SortedLightInfo.SortKey.Fields.bHandledByMegaLights && MegaLightsSupportedStart == MAX_int32)
 						{
-							ManyLightsSupportedStart = ForwardLocalLightData.Num() - 1;
+							MegaLightsSupportedStart = ForwardLocalLightData.Num() - 1;
 						}
 						const float LightFade = GetLightFadeFactor(View, LightProxy);
 						LightParameters.Color *= LightFade;
@@ -783,7 +783,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 		ForwardLightData->LightGridPixelSizeShift = FMath::FloorLog2(GLightGridPixelSize);
 		ForwardLightData->SimpleLightsEndIndex = SimpleLightsEnd;
 		ForwardLightData->ClusteredDeferredSupportedEndIndex = ClusteredSupportedEnd;
-		ForwardLightData->ManyLightsSupportedStartIndex = FMath::Min<int32>(ManyLightsSupportedStart, NumLocalLightsFinal);
+		ForwardLightData->MegaLightsSupportedStartIndex = FMath::Min<int32>(MegaLightsSupportedStart, NumLocalLightsFinal);
 		ForwardLightData->DirectLightingShowFlag = ViewFamily.EngineShowFlags.DirectLighting ? 1 : 0;
 
 		// Clamp far plane to something reasonable
@@ -994,7 +994,7 @@ FComputeLightGridOutput FDeferredShadingSceneRenderer::GatherLightsAndComputeLig
 	
 	const bool bCullLightsToGrid = GLightCullingQuality 
 		&& (IsForwardShadingEnabled(ShaderPlatform) || bAnyViewUsesForwardLighting || IsRayTracingEnabled() || ShouldUseClusteredDeferredShading() ||
-			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || ManyLights::IsEnabled());
+			bAnyViewUsesLumen || ViewFamily.EngineShowFlags.VisualizeMeshDistanceFields || VirtualShadowMapArray.IsEnabled() || MegaLights::IsEnabled());
 
 	// Store this flag if lights are injected in the grids, check with 'AreLightsInLightGrid()'
 	bAreLightsInLightGrid = bCullLightsToGrid;

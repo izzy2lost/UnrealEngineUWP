@@ -16,7 +16,7 @@
 #include "VisualizeTexture.h"
 #include "RayTracing/RaytracingOptions.h"
 #include "Lumen/Lumen.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "ScenePrivate.h"
 #include "Substrate/Substrate.h"
 
@@ -779,12 +779,12 @@ bool FSceneRenderer::ShouldPrepareGlobalDistanceField() const
 
 	const bool bShouldPrepareForLumen = IsLumenEnabled(Views[0]) && Lumen::UseGlobalSDFObjectGrid(ViewFamily);
 
-	// TODO: Should check any light actually uses Many Lights
-	const bool bShouldPrepareForManyLights = ManyLights::IsUsingGlobalSDF(ViewFamily);
+	// TODO: Should check any light actually uses Mega Lights
+	const bool bShouldPrepareForMegaLights = MegaLights::IsUsingGlobalSDF(ViewFamily);
 
 	const bool bShouldPrepareForVisualization = ViewFamily.EngineShowFlags.VisualizeGlobalDistanceField;
 
-	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForManyLights || bShouldPrepareForVisualization);
+	return (bShouldPrepareForAO || bShouldPrepareForLumen || bShouldPrepareForMegaLights || bShouldPrepareForVisualization);
 }
 
 void FDeferredShadingSceneRenderer::RenderDFAOAsIndirectShadowing(

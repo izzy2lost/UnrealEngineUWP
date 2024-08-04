@@ -5,7 +5,7 @@
 #include "Math/Vector4.h"
 #include "RendererInterface.h"
 
-class FManyLightsViewState
+class FMegaLightsViewState
 {
 public:
 	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistory;

@@ -4,7 +4,7 @@
 
 #include "RendererInterface.h"
 
-class FRayTracedLightingViewState
+class FStochasticLightingViewState
 {
 public:
 	TRefCountPtr<IPooledRenderTarget> SceneDepthHistory;

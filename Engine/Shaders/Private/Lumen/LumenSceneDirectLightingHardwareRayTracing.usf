@@ -7,8 +7,8 @@
 #include "../SceneTextureParameters.ush"
 #if USE_STOCHASTIC
 #include "../BlueNoise.ush"
-#include "../ManyLights/ManyLights.ush"
-#include "../ManyLights/ManyLightsRayTracing.ush"
+#include "../MegaLights/MegaLights.ush"
+#include "../MegaLights/MegaLightsRayTracing.ush"
 #endif
 #include "LumenCardCommon.ush"
 #include "LumenTracingCommon.ush"
@@ -112,7 +112,7 @@ FLumenLight GetLumenLightData(uint LightIndex, uint ViewIndex)
 #if USE_STOCHASTIC 
 FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord, uint ViewIndex)
 {
-	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, ManyLightsStateFrameIndex);
+	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, MegaLightsStateFrameIndex);
 
 	FLightSampleTrace LightSampleTrace;
 	LightSampleTrace.Direction = 0.0f;

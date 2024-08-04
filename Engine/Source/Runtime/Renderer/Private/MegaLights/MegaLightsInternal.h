@@ -6,7 +6,7 @@
 #include "RendererPrivate.h"
 #include "BlueNoise.h"
 
-BEGIN_SHADER_PARAMETER_STRUCT(FManyLightsParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FMegaLightsParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -26,7 +26,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FManyLightsParameters, )
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixelDivideShift)
 	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
 	SHADER_PARAMETER(uint32, DownsampleFactor)
-	SHADER_PARAMETER(uint32, ManyLightsStateFrameIndex)
+	SHADER_PARAMETER(uint32, MegaLightsStateFrameIndex)
 	SHADER_PARAMETER(float, SamplingMinWeight)
 	SHADER_PARAMETER(int32, TileDataStride)
 	SHADER_PARAMETER(int32, DownsampledTileDataStride)
@@ -40,8 +40,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FManyLightsParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float3>, DownsampledSceneWorldNormal)
 END_SHADER_PARAMETER_STRUCT()
 
-// Internal functions, don't use outside of the ManyLights
-namespace ManyLights
+// Internal functions, don't use outside of the MegaLights
+namespace MegaLights
 {
 	void RayTraceLightSamples(
 		const FSceneViewFamily& ViewFamily,
@@ -51,7 +51,7 @@ namespace ManyLights
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
-		const FManyLightsParameters& ManyLightsParameters
+		const FMegaLightsParameters& MegaLightsParameters
 	);
 
 	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);

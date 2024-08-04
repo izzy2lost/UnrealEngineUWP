@@ -15,7 +15,7 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "ManyLights.ush"
+#include "MegaLights.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
 RWTexture2D<float3> RWResolvedDiffuseLighting;
@@ -222,7 +222,7 @@ void ShadeLightSamplesCS(
 							float AmbientOcclusion = ScreenSpaceAO;
 							LightData.ShadowedBits = 0;
 
-							FDeferredLightingSplit SplitLighting = GetManyLightSplitLighting(
+							FDeferredLightingSplit SplitLighting = GetMegaLightsSplitLighting(
 								TranslatedWorldPosition, CameraVector, Material, AmbientOcclusion, 
 								LightData, LightAttenuation, Dither, ScreenCoord, 
 								SurfaceShadow);

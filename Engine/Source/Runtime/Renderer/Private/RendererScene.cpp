@@ -947,7 +947,7 @@ uint64 FLumenSceneData::GetGPUSizeBytes(bool bLogSizes) const
 		PageTableUploadBuffer.GetNumBytes();
 }
 
-uint64 FManyLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
+uint64 FMegaLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
 {
 	return
 		GetRenderTargetGPUSizeBytes(DiffuseLightingAndSecondMomentHistory, bLogSizes) +
@@ -955,7 +955,7 @@ uint64 FManyLightsViewState::GetGPUSizeBytes(bool bLogSizes) const
 		GetRenderTargetGPUSizeBytes(NumFramesAccumulatedHistory, bLogSizes);
 }
 
-uint64 FRayTracedLightingViewState::GetGPUSizeBytes(bool bLogSizes) const
+uint64 FStochasticLightingViewState::GetGPUSizeBytes(bool bLogSizes) const
 {
 	return
 		GetRenderTargetGPUSizeBytes(SceneDepthHistory, bLogSizes) +
@@ -1066,7 +1066,7 @@ uint64 FSceneViewState::GetGPUSizeBytes(bool bLogSizes) const
 	TotalSize += GetRenderTargetGPUSizeBytes(DistanceFieldIrradianceHistoryRT, bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(SubsurfaceScatteringQualityHistoryRT, bLogSizes);
 	TotalSize += Lumen.GetGPUSizeBytes(bLogSizes);
-	TotalSize += ManyLights.GetGPUSizeBytes(bLogSizes);
+	TotalSize += MegaLights.GetGPUSizeBytes(bLogSizes);
 	TotalSize += GetRenderTargetGPUSizeBytes(BloomFFTKernel.Spectral, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(BloomFFTKernel.ConstantsBuffer, bLogSizes);
 	TotalSize += GetBufferGPUSizeBytes(FilmGrainCache.ConstantsBuffer, bLogSizes);

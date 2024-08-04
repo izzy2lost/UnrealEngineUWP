@@ -98,7 +98,7 @@
 #include "SparseVolumeTexture/ISparseVolumeTextureStreamingManager.h"
 #include "WaterInfoTextureRendering.h"
 #include "PostProcess/DebugAlphaChannel.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "Rendering/CustomRenderPass.h"
 #include "EnvironmentComponentsFlags.h"
 #include "GenerateMips.h"
@@ -667,7 +667,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 						PrepareLumenHardwareRayTracingVisualize(View, RayGenShaders);
 					}
 
-					PrepareManyLightsHardwareRayTracing(View, RayGenShaders);
+					PrepareMegaLightsHardwareRayTracing(View, RayGenShaders);
 				}
 			}
 			DeduplicateRayGenerationShaders(RayGenShaders);
@@ -717,7 +717,7 @@ bool FDeferredShadingSceneRenderer::SetupRayTracingPipelineStates(FRDGBuilder& G
 
 		for (const FViewInfo& View : Views)
 		{
-			PrepareManyLightsHardwareRayTracingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
+			PrepareMegaLightsHardwareRayTracingLumenMaterial(View, LumenHardwareRayTracingRayGenShaders);
 		}
 
 		DeduplicateRayGenerationShaders(LumenHardwareRayTracingRayGenShaders);
@@ -916,7 +916,7 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	for (const FViewInfo& View : Views)
 	{
 		if (Lumen::AnyLumenHardwareInlineRayTracingPassEnabled(Scene, View) 
-			|| ManyLights::UseInlineHardwareRayTracing(ViewFamily))
+			|| MegaLights::UseInlineHardwareRayTracing(ViewFamily))
 		{
 			bAnyLumenHardwareInlineRayTracingPassEnabled = true;
 		}
@@ -1081,7 +1081,7 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 				bHasSSGI || bUseLumen);
 
 			ViewPipelineState.Set(&FPerViewPipelineState::bClosestHZB, 
-				bHasSSGI || bUseLumen || ManyLights::IsUsingClosestHZB());
+				bHasSSGI || bUseLumen || MegaLights::IsUsingClosestHZB());
 		}
 	}
 
@@ -2770,15 +2770,15 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			RenderLights(GraphBuilder, SceneTextures, TranslucencyLightingVolumeTextures, LightingChannelsTexture, SortedLightSet);
 
-			if (SortedLightSet.ManyLightsLightStart < SortedLightSet.SortedLights.Num())
+			if (SortedLightSet.MegaLightsLightStart < SortedLightSet.SortedLights.Num())
 			{
-				RenderManyLights(
+				RenderMegaLights(
 					GraphBuilder,
 					SceneTextures);
 			}
 
 			// Copy depth history without water and translucency for ray traced lighting denoising
-			StoreRayTracedLightingSceneHistory(GraphBuilder, LumenFrameTemporaries, SceneTextures);
+			StoreStochasticLightingSceneHistory(GraphBuilder, LumenFrameTemporaries, SceneTextures);
 
 			InjectTranslucencyLightingVolumeAmbientCubemap(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
 			FilterTranslucencyLightingVolume(GraphBuilder, Views, TranslucencyLightingVolumeTextures);
@@ -3463,7 +3463,7 @@ bool AnyRayTracingPassEnabled(const FScene* Scene, const FViewInfo& View)
 		|| Scene->bHasLightsWithRayTracedShadows
 		|| ShouldRenderPluginRayTracingGlobalIllumination(View)
         || Lumen::AnyLumenHardwareRayTracingPassEnabled(Scene, View)
-		|| ManyLights::UseHardwareRayTracing(*View.Family)
+		|| MegaLights::UseHardwareRayTracing(*View.Family)
 		|| HasRayTracedOverlay(*View.Family);
 }
 

@@ -30,7 +30,7 @@
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenSceneLighting.h"
 #include "Lumen/LumenReflections.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 
 // This is the project default dynamic global illumination, NOT the scalability setting (see r.Lumen.DiffuseIndirect.Allow for scalability)
 // Must match EDynamicGlobalIlluminationMethod
@@ -1154,21 +1154,21 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 		{
 			const bool bLumen = View.ViewState
 				&& (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen);
-			const bool bManyLights = View.ViewState && ManyLights::IsEnabled();
+			const bool bMegaLights = View.ViewState && MegaLights::IsEnabled();
 
 			if (!bLumen)
 			{
 				View.ViewState->Lumen.SafeRelease();
 			}
 
-			if (!bManyLights)
+			if (!bMegaLights)
 			{
-				View.ViewState->ManyLights.SafeRelease();
+				View.ViewState->MegaLights.SafeRelease();
 			}
 
-			if (!bLumen && !bManyLights)
+			if (!bLumen && !bMegaLights)
 			{
-				View.ViewState->RayTracedLighting.SafeRelease();
+				View.ViewState->StochasticLighting.SafeRelease();
 			}
 		}
 

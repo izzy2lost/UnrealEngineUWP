@@ -83,7 +83,7 @@ struct FLightSampleTrace
  */
 FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord)
 {
-	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, ManyLightsStateFrameIndex);
+	const float2 LightSampleRandom = BlueNoiseVec2(SampleCoord, MegaLightsStateFrameIndex);
 
 	FLightSampleTrace LightSampleTrace;
 	LightSampleTrace.Direction = 0.0f;

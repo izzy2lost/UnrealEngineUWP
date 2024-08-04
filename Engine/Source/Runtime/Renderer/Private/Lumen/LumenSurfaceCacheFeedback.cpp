@@ -574,5 +574,5 @@ void FDeferredShadingSceneRenderer::FinishGatheringLumenSurfaceCacheFeedback(FRD
 		}
 	}
 
-	QueueExtractRayTracedLighting(GraphBuilder, FrameTemporaries);
+	QueueExtractStochasticLighting(GraphBuilder, FrameTemporaries);
 }

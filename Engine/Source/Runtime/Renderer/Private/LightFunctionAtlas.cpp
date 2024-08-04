@@ -13,7 +13,7 @@
 #include "SystemTextures.h"
 #include "PostProcess/PostProcessing.h"
 #include "PostProcess/SceneFilterRendering.h"
-#include "ManyLights/ManyLights.h"
+#include "MegaLights/MegaLights.h"
 #include "ShadowRendering.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
@@ -285,19 +285,19 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	// But only really enable the atlas generation if a system asks for it
 	bool bVolumetricFogRequestsLF = false;
 	bool bDeferredlightingRequestsLF = false;
-	bool bManyLightsRequestsLF = false;
+	bool bMegaLightsRequestsLF = false;
 	bool bLumenRequestsLF = false;
 	if (bLightFunctionAtlasEnabled)
 	{
 		bVolumetricFogRequestsLF 	= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
 		bDeferredlightingRequestsLF	= GDeferredUsesLightFunctionAtlas > 0;
-		bManyLightsRequestsLF		= ManyLights::IsUsingLightFunctions();
+		bMegaLightsRequestsLF		= MegaLights::IsUsingLightFunctions();
 		bLumenRequestsLF 			= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 
 			(bVolumetricFogRequestsLF || 
 			bDeferredlightingRequestsLF || 
-			bManyLightsRequestsLF ||
+			bMegaLightsRequestsLF ||
 			bLumenRequestsLF ||
 			GetSingleLayerWaterUsesLightFunctionAtlas() || 
 			GetTranslucentUsesLightFunctionAtlas()); 
@@ -309,7 +309,7 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	{
 		if (bVolumetricFogRequestsLF) 		{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::VolumetricFog); }
 		if (bDeferredlightingRequestsLF)	{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::DeferredLighting); }
-		if (bManyLightsRequestsLF)			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::ManyLights); }
+		if (bMegaLightsRequestsLF)			{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::MegaLights); }
 		if (bLumenRequestsLF) 				{ LightFunctionAtlasSceneData.AddSystem(ELightFunctionAtlasSystem::Lumen); }
 	}
 

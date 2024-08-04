@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "ManyLights.ush"
+#include "MegaLights.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
 // Spatial denoise is the last pass writing to the SceneColor buffer. We allow SSS checkerboard pixel to adjust 
@@ -58,7 +58,7 @@ void DenoiserSpatialCS(
 			float DiffuseLightingWeightSum = 1.0f;
 			float SpecularLightingWeightSum = 1.0f;
 
-			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, ManyLightsStateFrameIndex)).xy;
+			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, MegaLightsStateFrameIndex)).xy;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 			float4 ScenePlane = float4(Material.WorldNormal, dot(TranslatedWorldPosition, Material.WorldNormal));

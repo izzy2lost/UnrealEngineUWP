@@ -4,7 +4,7 @@
 #define ALLOW_SSS_MATERIAL_OVERRIDE 0
 
 #include "../Common.ush"
-#include "ManyLights.ush"
+#include "MegaLights.ush"
 
 groupshared uint SharedTileMode[THREADGROUP_SIZE * THREADGROUP_SIZE];
 
@@ -118,21 +118,21 @@ void TileClassificationCS(
 
 		if (SharedTileMode[0] & 0x4)
 		{
-			uint ManyLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, ManyLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + ManyLightsTileIndex] = PackTile(TileCoord);
+			uint MegaLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, MegaLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + MegaLightsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] & 0x2)
 		{
-			uint ManyLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, ManyLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + ManyLightsTileIndex] = PackTile(TileCoord);
+			uint MegaLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, MegaLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + MegaLightsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] == 0x1)
 		{
-			uint ManyLightsTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, ManyLightsTileIndex);
-			RWTileData[DataStride * TILE_MODE_EMPTY + ManyLightsTileIndex] = PackTile(TileCoord);
+			uint MegaLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, MegaLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_EMPTY + MegaLightsTileIndex] = PackTile(TileCoord);
 		}
 	}
 }

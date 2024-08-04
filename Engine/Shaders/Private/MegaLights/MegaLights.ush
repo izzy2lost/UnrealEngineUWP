@@ -2,10 +2,9 @@
 
 #pragma once
 
-// Change this to force recompilation of all Many Lights shaders
+// Change this to force recompilation of all Mega Lights shaders
 #pragma message("UESHADERMETADATA_VERSION 79F169FE-4FCA-47EA-8539-1ED66DAF713E")
 
-#define MANY_LIGHTS 1
 #include "../LightGridCommon.ush"
 
 #define SUPPORT_CONTACT_SHADOWS 0
@@ -27,14 +26,14 @@
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
-// Keep in sync with ManyLights.cpp
+// Keep in sync with MegaLights.cpp
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
 // Limited by PackLightSample and SharedCandidateLightHiMask
 #define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
-// Keep in sync with ManyLights::ETileType
+// Keep in sync with MegaLights::ETileType
 #define TILE_MODE_SIMPLE_SHADING	0
 #define TILE_MODE_COMPLEX_SHADING	1
 #define TILE_MODE_EMPTY				2
@@ -87,7 +86,7 @@ FLightSample UnpackLightSample(uint PackedLightSample)
 	return LightSample;
 }
 
-uint ManyLightsStateFrameIndex;
+uint MegaLightsStateFrameIndex;
 
 /** 
  * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
@@ -96,7 +95,7 @@ uint2 GetSampleScreenCoordJitter(uint2 DownsampledScreenCoord)
 {
 	uint2 CellIndex = DownsampledScreenCoord % 2;
 	uint LinearIndex = CellIndex.x + CellIndex.y * 2;
-	LinearIndex = (LinearIndex + ManyLightsStateFrameIndex) % 4;
+	LinearIndex = (LinearIndex + MegaLightsStateFrameIndex) % 4;
 
 	// 4 rooks sampling pattern
 	uint2 Jitter;
@@ -251,7 +250,7 @@ void ModulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPositio
 	SpecularLighting = SpecularLighting * max(SpecularEnv, 0.001f);
 }
 
-FDeferredLightingSplit GetManyLightSplitLighting(
+FDeferredLightingSplit GetMegaLightsSplitLighting(
 	float3 TranslatedWorldPosition, 
 	float3 CameraVector, 
 	FManyLightMaterial Material, 
