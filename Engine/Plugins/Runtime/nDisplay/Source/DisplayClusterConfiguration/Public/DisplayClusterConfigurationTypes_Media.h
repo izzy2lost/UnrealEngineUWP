@@ -70,7 +70,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaNodeBack
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Enable Media"))
 	bool bEnable = false;
 
 	/** Media outputs to use */
@@ -96,7 +96,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaViewport
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta=(DisplayName="Enable Media"))
 	bool bEnable = false;
 
 	/** Media source to use */
@@ -261,7 +261,7 @@ struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationMediaICVFX
 
 public:
 	/** Enable/disable media */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Media", meta = (DisplayName = "Enable Media"))
 	bool bEnable = false;
 
 	/** Media frame split type */
