@@ -18,7 +18,6 @@ namespace UE::MultiUserClient
 
 		//~ Begin IClientSelectionModel Interface
 		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient) const override;
-		virtual bool ContainsClient(const FGuid& ClientId) const override { return true; }
 		virtual FOnSelectionChanged& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
 		//~ End IClientSelectionModel Interface
 

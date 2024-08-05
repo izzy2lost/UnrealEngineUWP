@@ -196,14 +196,10 @@ namespace UE::MultiUserClient
 	{
 		CleanClientSubscriptions();
 
-		ClientManager->ForEachClient([this](FReplicationClient& Client)
+		SelectionModel->ForEachSelectedClient([this](FReplicationClient& Client)
 		{
-			if (SelectionModel->ContainsClient(Client.GetEndpointId()))
-			{
-				Client.OnModelChanged().AddSP(this, &SMultiClientView::RefreshUI);
-				Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);
-			}
-			
+			Client.OnModelChanged().AddSP(this, &SMultiClientView::RefreshUI);
+			Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);
 			return EBreakBehavior::Continue;
 		});
 	}
