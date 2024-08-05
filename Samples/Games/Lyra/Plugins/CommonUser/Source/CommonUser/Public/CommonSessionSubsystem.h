@@ -8,8 +8,12 @@
 #include "UObject/StrongObjectPtr.h"
 #include "UObject/PrimaryAssetId.h"
 #include "UObject/WeakObjectPtr.h"
+#include "PartyBeaconClient.h"
+#include "PartyBeaconHost.h"
+#include "PartyBeaconState.h"
 
 class APlayerController;
+class AOnlineBeaconHost;
 class ULocalPlayer;
 namespace ETravelFailure { enum Type : int; }
 struct FOnlineResultInformation;
@@ -401,6 +405,10 @@ protected:
 	UE::Online::FOnlineEventDelegateHandle LobbyJoinRequestedHandle;
 #endif // COMMONUSER_OSSV1
 
+	void CreateHostReservationBeacon();
+	void ConnectToHostReservationBeacon();
+	void DestroyHostReservationBeacon();
+
 protected:
 	/** The travel URL that will be used after session operations are complete */
 	FString PendingTravelURL;
@@ -419,4 +427,27 @@ protected:
 
 	/** Settings for the current host request */
 	TSharedPtr<FCommonSession_OnlineSessionSettings> HostSettings;
+
+	/** General beacon listener for registering beacons with */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<AOnlineBeaconHost> BeaconHostListener;
+	/** State of the beacon host */
+	UPROPERTY(Transient)
+	TObjectPtr<UPartyBeaconState> ReservationBeaconHostState;
+	/** Beacon controlling access to this game. */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<APartyBeaconHost> ReservationBeaconHost;
+	/** Common class object for beacon communication */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<APartyBeaconClient> ReservationBeaconClient;
+
+	/** Number of teams for beacon reservation */
+	UPROPERTY(Config)
+	int32 BeaconTeamCount = 2;
+	/** Size of a team for beacon reservation */
+	UPROPERTY(Config)
+	int32 BeaconTeamSize = 8;
+	/** Max number of beacon reservations */
+	UPROPERTY(Config)
+	int32 BeaconMaxReservations = 16;
 };

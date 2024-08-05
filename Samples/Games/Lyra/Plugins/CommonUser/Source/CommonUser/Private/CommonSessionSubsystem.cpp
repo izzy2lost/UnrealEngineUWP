@@ -10,6 +10,7 @@
 #include "Interfaces/OnlineSessionDelegates.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Online/OnlineSessionNames.h"
+#include "OnlineBeaconHost.h"
 #include "OnlineSessionSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CommonSessionSubsystem)
@@ -655,6 +656,8 @@ void UCommonSessionSubsystem::FinishSessionCreation(bool bWasSuccessful)
 		CreateSessionResult = FOnlineResultInformation();
 		CreateSessionResult.bWasSuccessful = true;
 
+		CreateHostReservationBeacon();
+
 		NotifyCreateSessionComplete(CreateSessionResult);
 
 		// Travel to the specified match URL
@@ -933,6 +936,9 @@ void UCommonSessionSubsystem::CleanUpSessions()
 {
 	bWantToDestroyPendingSession = true;
 	HostSettings.Reset();
+
+	DestroyHostReservationBeacon();
+
 	NotifySessionInformationUpdated(ECommonSessionInformationState::OutOfGame);
 #if COMMONUSER_OSSV1
 	CleanUpSessionsOSSv1();
@@ -1023,7 +1029,11 @@ void UCommonSessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 
 		for (const FOnlineSessionSearchResult& Result : SearchSettingsV1.SearchResults)
 		{
-			check(Result.IsValid());
+			// TODO: The check should exist, but we'll comment it for now as it will always be hit for EOS sessions.
+			// The reason for this is the way in which EOS sessions stores and retrieves search results vs joined sessions.
+			// We'll un-comment the check after the corresponding EOS fix.
+
+			//check(Result.IsValid());
 
 			UCommonSession_SearchResult* Entry = NewObject<UCommonSession_SearchResult>(SearchSettingsV1.SearchRequest);
 			Entry->Result = Result;
@@ -1143,16 +1153,82 @@ void UCommonSessionSubsystem::OnRegisterJoiningLocalPlayerComplete(const FUnique
 	FinishJoinSession(Result);
 }
 
+void UCommonSessionSubsystem::ConnectToHostReservationBeacon()
+{
+	UWorld* const World = GetWorld();
+	check(World);
+	ReservationBeaconClient = World->SpawnActor<APartyBeaconClient>(APartyBeaconClient::StaticClass());
+	check(ReservationBeaconClient.IsValid());
+
+	IOnlineSubsystem* OnlineSub = Online::GetSubsystem(World);
+	check(OnlineSub);
+	IOnlineSessionPtr Sessions = OnlineSub->GetSessionInterface();
+	check(Sessions);
+	FNamedOnlineSession* Session = Sessions->GetNamedSession(NAME_GameSession);
+	check(Session);
+	FString SessionIdStr = Session->GetSessionIdStr();
+
+	FString ConnectInfo;
+	Sessions->GetResolvedConnectString(NAME_GameSession, ConnectInfo, NAME_BeaconPort);
+
+	IOnlineIdentityPtr Identity = OnlineSub->GetIdentityInterface();
+	check(Identity);
+	FUniqueNetIdWrapper DefaultNetId = Identity->GetUniquePlayerId(0);
+	check(DefaultNetId.IsValid());
+
+	FPlayerReservation PlayerReservation;
+	PlayerReservation.UniqueId = *DefaultNetId;
+	PlayerReservation.Platform = OnlineSub->GetLocalPlatformName();
+
+	ReservationBeaconClient->OnHostConnectionFailure().BindWeakLambda(this, [this]()
+		{
+			// We only want to react to failure calls while the connection is active, not when it closes
+			if(ReservationBeaconClient->GetNetDriver())
+			{
+				FOnlineResultInformation JoinSessionResult;
+				JoinSessionResult.bWasSuccessful = false;
+				JoinSessionResult.ErrorId = TEXT("UnknownError");
+
+				NotifyJoinSessionComplete(JoinSessionResult);
+				NotifySessionInformationUpdated(ECommonSessionInformationState::OutOfGame);
+
+				CleanUpSessions();
+			}
+		});
+
+	ReservationBeaconClient->OnReservationRequestComplete().BindWeakLambda(this, [this](EPartyReservationResult::Type ReservationResponse)
+		{
+			if (ReservationResponse == EPartyReservationResult::ReservationAccepted)
+			{
+				//@TODO Synchronize timing of this with create callbacks, modify both places and the comments if plan changes
+				FOnlineResultInformation JoinSessionResult;
+				JoinSessionResult.bWasSuccessful = true;
+				NotifyJoinSessionComplete(JoinSessionResult);
+
+				InternalTravelToSession(NAME_GameSession);
+			}
+			else
+			{
+				FOnlineResultInformation JoinSessionResult;
+				JoinSessionResult.bWasSuccessful = false;
+				JoinSessionResult.ErrorId = TEXT("UnknownError");
+
+				NotifyJoinSessionComplete(JoinSessionResult);
+				NotifySessionInformationUpdated(ECommonSessionInformationState::OutOfGame);
+
+				CleanUpSessions();
+			}
+		});
+
+	ReservationBeaconClient->RequestReservation(ConnectInfo, SessionIdStr, *DefaultNetId, { PlayerReservation });
+}
+
 void UCommonSessionSubsystem::FinishJoinSession(EOnJoinSessionCompleteResult::Type Result)
 {
 	if (Result == EOnJoinSessionCompleteResult::Success)
 	{
-		//@TODO Synchronize timing of this with create callbacks, modify both places and the comments if plan changes
-		FOnlineResultInformation JoinSessionResult;
-		JoinSessionResult.bWasSuccessful = true;
-		NotifyJoinSessionComplete(JoinSessionResult);
-
-		InternalTravelToSession(NAME_GameSession);
+		// InternalTravelToSession and the notification will be called by the beacon after a successful reservation. The beacon will be destroyed during travel.
+		ConnectToHostReservationBeacon();
 	}
 	else
 	{
@@ -1180,6 +1256,9 @@ void UCommonSessionSubsystem::FinishJoinSession(EOnJoinSessionCompleteResult::Ty
 		JoinSessionResult.ErrorText = ReturnReason;
 		NotifyJoinSessionComplete(JoinSessionResult);
 		NotifySessionInformationUpdated(ECommonSessionInformationState::OutOfGame);
+
+		// If the session join failed, we'll clean up the session
+		CleanUpSessions();
 	}
 }
 
@@ -1363,6 +1442,52 @@ void UCommonSessionSubsystem::SetCreateSessionError(const FText& ErrorText)
 	CreateSessionResult.ErrorText = ErrorText;
 }
 
+void UCommonSessionSubsystem::CreateHostReservationBeacon()
+{
+	check(!BeaconHostListener.IsValid());
+	check(!ReservationBeaconHost.IsValid());
+
+	UWorld* const World = GetWorld();
+	BeaconHostListener = World->SpawnActor<AOnlineBeaconHost>(AOnlineBeaconHost::StaticClass());
+	check(BeaconHostListener.IsValid());
+	verify(BeaconHostListener->InitHost());
+
+	ReservationBeaconHost = World->SpawnActor<APartyBeaconHost>(APartyBeaconHost::StaticClass());
+	check(ReservationBeaconHost.IsValid());
+
+	if (ReservationBeaconHostState)
+	{
+		ReservationBeaconHost->InitFromBeaconState(&*ReservationBeaconHostState);
+	}
+	else
+	{
+		// TODO: We are using the default hard-coded values for the parameters for now, but they are configurable
+		ReservationBeaconHost->InitHostBeacon(BeaconTeamCount, BeaconTeamSize, BeaconMaxReservations, NAME_GameSession);
+		ReservationBeaconHostState = ReservationBeaconHost->GetState();
+	}
+
+	BeaconHostListener->RegisterHost(ReservationBeaconHost.Get());
+	BeaconHostListener->PauseBeaconRequests(false);
+}
+
+void UCommonSessionSubsystem::DestroyHostReservationBeacon()
+{
+	if (BeaconHostListener.IsValid() && ReservationBeaconHost.IsValid())
+	{
+		BeaconHostListener->UnregisterHost(ReservationBeaconHost->GetBeaconType());
+	}
+	if (BeaconHostListener.IsValid())
+	{
+		BeaconHostListener->Destroy();
+		BeaconHostListener = nullptr;
+	}
+	if (ReservationBeaconHost.IsValid())
+	{
+		ReservationBeaconHost->Destroy();
+		ReservationBeaconHost = nullptr;
+	}
+}
+
 #if COMMONUSER_OSSV1
 void UCommonSessionSubsystem::HandleSessionFailure(const FUniqueNetId& NetId, ESessionFailure::Type FailureType)
 {
@@ -1452,6 +1577,8 @@ void UCommonSessionSubsystem::HandlePostLoadMap(UWorld* World)
 
 		const FName SessionName(NAME_GameSession);
 		SessionInterface->UpdateSession(SessionName, *HostSettings, true);
+
+		CreateHostReservationBeacon();
 	}
 #endif // COMMONUSER_OSSV1
 }
