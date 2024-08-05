@@ -96,6 +96,12 @@ float elu(float x)
 //see https://github.com/onnx/onnx/blob/main/docs/Operators.md#erf
 float erf(float x)
 {
+	// On some platforms tanh() gives NaN for large inputs, 
+	// thus better directly return the asymptotic value (+1 or -1) for abs(x) >= 4
+	if(abs(x) >= 4.0f)
+	{
+		return asfloat((asuint(x) & 0x80000000) ^ asuint(1.0f));
+	}
 	//https://aapt.scitation.org/doi/abs/10.1119/1.15018?journalCode=ajp
 	float a = 167.0f/148.0f;
 	float b = 11.0f/109.0f;
