@@ -1194,7 +1194,7 @@ static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStage
 bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
 {
 	VkPipeline* Pipeline = &PSO->VulkanPipeline;
-	FGfxPipelineDesc* GfxEntry = &PSO->Desc;
+	const FGfxPipelineDesc* GfxEntry = &PSO->Desc;
 	if (Shaders[ShaderStage::Pixel] == nullptr && !FVulkanPlatform::SupportsNullPixelShader())
 	{
 		Shaders[ShaderStage::Pixel] = ResourceCast(TShaderMapRef<FNULLPS>(GetGlobalShaderMap(GMaxRHIFeatureLevel)).GetPixelShader());
@@ -1408,7 +1408,7 @@ static VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FGraphicsPip
 	size_t AfterSize = 0;
 
 	VkPipelineCache LocalPipelineCache = VK_NULL_HANDLE;
-	FGfxPipelineDesc* GfxEntry = &PSO->Desc;
+	const FGfxPipelineDesc* GfxEntry = &PSO->Desc;
 
 	TArray<uint8> InitialCacheData;
 	bool bSupplyDestPSOCacheData = false; // this can be an optimization, but only if the PSO compile is able to use content from an existing cache.
@@ -1509,7 +1509,7 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 	VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
 	uint32 PSOSize = 0;
 	bool bWantPSOSize = false;
-	FGfxPipelineDesc* GfxEntry = &PSO->Desc;
+	const FGfxPipelineDesc* GfxEntry = &PSO->Desc;
 	uint64 ShaderHash = 0;
 	bool bValidateServicePSO = false;
 	if (bUseLRU)
@@ -1918,12 +1918,12 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 
 
 
-FVulkanRHIGraphicsPipelineState::FVulkanRHIGraphicsPipelineState(FVulkanDevice* Device, const FGraphicsPipelineStateInitializer& PSOInitializer_, FGfxPipelineDesc& Desc, FVulkanPSOKey* VulkanKey)
+FVulkanRHIGraphicsPipelineState::FVulkanRHIGraphicsPipelineState(FVulkanDevice* InDevice, const FGraphicsPipelineStateInitializer& PSOInitializer_, const FGfxPipelineDesc& InDesc, FVulkanPSOKey* VulkanKey)
 	: bIsRegistered(false)
 	, PrimitiveType(PSOInitializer_.PrimitiveType)
 	, VulkanPipeline(0)
-	, Device(Device)
-	, Desc(Desc)
+	, Device(InDevice)
+	, Desc(InDesc)
 	, VulkanKey(VulkanKey->CopyDeep())
 {
 #if !UE_BUILD_SHIPPING
@@ -2080,7 +2080,6 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 		SCOPE_CYCLE_COUNTER(STAT_VulkanPSOCreationTime);
 		NewPSO = new FVulkanRHIGraphicsPipelineState(Device, Initializer, Desc, &Key);
 		{
-
 			FVulkanLayout* Layout = FindOrAddLayout(DescriptorSetLayoutInfo, true);
 			NewPSO->Layout = Layout;
 			NewPSO->bHasInputAttachments = Layout->GetDescriptorSetsLayout().HasInputAttachments();

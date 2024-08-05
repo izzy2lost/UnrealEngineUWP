@@ -693,7 +693,7 @@ public:
 class FVulkanRHIGraphicsPipelineState : public FRHIGraphicsPipelineState
 {
 public:
-	FVulkanRHIGraphicsPipelineState(FVulkanDevice* Device, const FGraphicsPipelineStateInitializer& PSOInitializer, FGfxPipelineDesc& Desc, FVulkanPSOKey* Key);
+	FVulkanRHIGraphicsPipelineState(FVulkanDevice* Device, const FGraphicsPipelineStateInitializer& PSOInitializer, const FGfxPipelineDesc& Desc, FVulkanPSOKey* Key);
 	~FVulkanRHIGraphicsPipelineState();
 
 	inline const FVulkanVertexInputStateInfo& GetVertexInputState() const
@@ -758,7 +758,7 @@ public:
 	FVulkanVertexInputStateInfo VertexInputState;
 	FVulkanLayout* Layout;
 	FVulkanDevice* Device;
-	FGfxPipelineDesc Desc;
+	const FGfxPipelineDesc Desc;
 	FVulkanShader* VulkanShaders[ShaderStage::NumStages];
 	const FVulkanRenderPass* RenderPass;
 

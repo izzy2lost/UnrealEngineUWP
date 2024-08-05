@@ -953,7 +953,7 @@ void HandleDepthStencilAttachmentPNext(const VkAttachmentReference2* Attachment,
 	check(HandledCount == VkStructs.Num());
 }
 
-void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo* PipelineInfo, FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArray<char>& MemoryStream)
+void PipelineToBinary(FVulkanDevice* Device, const VkGraphicsPipelineCreateInfo* PipelineInfo, const FGfxPipelineDesc* GfxEntry, const FVulkanRenderTargetLayout* RTLayout, TArray<char>& MemoryStream)
 {
 	static const unsigned int INITIAL_PSO_STREAM_SIZE = 64 * 1024;
 	MemoryStream.Reserve(INITIAL_PSO_STREAM_SIZE);
@@ -1520,7 +1520,7 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
 		const TArrayView<uint8> OptionalPSOCacheData, 
 		FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType,
 		const VkGraphicsPipelineCreateInfo* PipelineInfo, 
-		FGfxPipelineDesc* GfxEntry, 
+		const FGfxPipelineDesc* GfxEntry, 
 		const FVulkanRenderTargetLayout* RTLayout, 
 		TArrayView<uint32_t> VS, 
 		TArrayView<uint32_t> PS, 
