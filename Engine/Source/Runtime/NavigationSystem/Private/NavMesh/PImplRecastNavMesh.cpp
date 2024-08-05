@@ -512,7 +512,7 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 	int32 NumTiles = 0;
 	TArray<FNavTileRef> TilesToSave;
 
-	if (Ar.IsSaving())
+	if (Ar.IsSaving() && !Ar.IsTransacting()) // Do not save tiles during transactions(i.e. undo/redo)
 	{
 		TilesToSave.Reserve(DetourNavMesh->getMaxTiles());
 		
