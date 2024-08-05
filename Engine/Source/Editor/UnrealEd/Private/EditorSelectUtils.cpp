@@ -379,6 +379,12 @@ void UUnrealEdEngine::OnEditorElementSelectionChanged(const UTypedElementSelecti
 				bDidSetVizThisTick = true;
 				break;
 			}
+
+			if (ComponentVisManager.IsActive() && VisualizerForSelection.ComponentVisualizer.Visualizer->GetEditedComponent() == ComponentVisManager.GetActiveComponentVis()->GetEditedComponent())
+			{
+				bDidSetVizThisTick = true;
+				break;
+			}
 		}
 	}
 
