@@ -79,11 +79,7 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 		return;
 	}
 
-	PreviewSize = InArgs._PreviewSize;
-
 	SetCanTick(true);
-
-	Brush.SetImageSize(PreviewSize.Get());
 
 	if (ensure(IsValid(InComponent)))
 	{
@@ -95,7 +91,7 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 	[
 		SNew(SImage)
 		.Image(&Brush)
-		.DesiredSizeOverride(this, &SDMMaterialComponentPreview::GetPreviewSize)
+		.DesiredSizeOverride(InArgs._PreviewSize)
 	];
 }
 
@@ -147,11 +143,6 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 			}
 		}
 	}
-}
-
-TOptional<FVector2D> SDMMaterialComponentPreview::GetPreviewSize() const
-{
-	return PreviewSize.Get();
 }
 
 void SDMMaterialComponentPreview::OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue)

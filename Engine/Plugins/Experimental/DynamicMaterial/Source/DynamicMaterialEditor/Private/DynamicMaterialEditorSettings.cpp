@@ -282,6 +282,7 @@ void UDynamicMaterialEditorSettings::OpenEditorSettingsWindow() const
 void UDynamicMaterialEditorSettings::ResetAllLayoutSettings()
 {
 	SplitterLocation = 240;
+	ThumbnailSize = 256.f;
 	PreviewMesh = EDMMaterialPreviewMesh::Plane;
 	bShowPreviewBackground = true;
 	bPreviewImagesUseTextureUVs = true;

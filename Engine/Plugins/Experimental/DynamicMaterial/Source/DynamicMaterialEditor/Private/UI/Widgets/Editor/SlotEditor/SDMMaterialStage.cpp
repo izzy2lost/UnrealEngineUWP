@@ -11,6 +11,7 @@
 #include "Components/MaterialStageInputs/DMMSIExpression.h"
 #include "Components/MaterialStageInputs/DMMSIValue.h"
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
+#include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/Texture.h"
 #include "SAssetDropTarget.h"
@@ -104,13 +105,21 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 		]
 	];
 
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
 	SetToolTip(
 		SNew(SToolTip)
 		.IsInteractive(false)
 		.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.Background"))
 		[
 			SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InStage)
-			.PreviewSize(FVector2D(256.f))
+			.PreviewSize(TAttribute<TOptional<FVector2D>>::CreateWeakLambda(
+				Settings,
+				[Settings]()
+				{
+					return FVector2D(Settings->ThumbnailSize, Settings->ThumbnailSize);
+				}
+			))
 		]
 	);
 }

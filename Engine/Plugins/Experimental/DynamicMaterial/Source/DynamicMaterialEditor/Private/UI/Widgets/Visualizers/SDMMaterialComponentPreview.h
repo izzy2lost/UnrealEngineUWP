@@ -23,7 +23,7 @@ public:
 	SLATE_BEGIN_ARGS(SDMMaterialComponentPreview)
 		: _PreviewSize(FVector2D(48.f, 48.f))
 		{}
-		SLATE_ATTRIBUTE(FVector2D, PreviewSize)
+		SLATE_ATTRIBUTE(TOptional<FVector2D>, PreviewSize)
 	SLATE_END_ARGS()
 
 	SDMMaterialComponentPreview();
@@ -45,11 +45,8 @@ protected:
 	TWeakObjectPtr<UMaterial> PreviewMaterialBaseWeak;
 	TWeakObjectPtr<UMaterialInstanceDynamic> PreviewMaterialDynamicWeak;
 	FSlateMaterialBrush Brush;
-	TAttribute<FVector2D> PreviewSize;
 
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
-
-	TOptional<FVector2D> GetPreviewSize() const;
 
 	void OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue);
 

@@ -6,7 +6,6 @@
 #include "DMDefs.h"
 #include "Engine/DeveloperSettings.h"
 #include "Engine/Texture.h"
-#include "MaterialDomain.h"
 #include "PropertyEditorDelegates.h"
 #include "UObject/SoftObjectPtr.h"
 #include "DynamicMaterialEditorSettings.generated.h"
@@ -154,6 +153,9 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
 	bool bUVVisualizerVisible;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Thumnnails")
+	double ThumbnailSize;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Preview")
 	EDMMaterialPreviewMesh PreviewMesh;
