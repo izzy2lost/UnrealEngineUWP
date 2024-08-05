@@ -12,7 +12,8 @@ public class PropertyAnimatorCore : ModuleRules
 			new string[]
 			{
 				"Core",
-				"CoreUObject"
+				"CoreUObject",
+				"MovieScene"
 			});
 
 		PrivateDependencyModuleNames.AddRange(
@@ -20,7 +21,7 @@ public class PropertyAnimatorCore : ModuleRules
 			{
 				"ApplicationCore",
 				"CoreUObject",
-				"Engine",
+				"Engine"
 			});
 
 		if (Target.Type == TargetRules.TargetType.Editor)

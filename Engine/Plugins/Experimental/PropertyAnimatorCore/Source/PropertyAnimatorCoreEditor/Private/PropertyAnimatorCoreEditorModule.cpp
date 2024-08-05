@@ -5,15 +5,20 @@
 #include "Animators/PropertyAnimatorCoreBase.h"
 #include "Customizations/PropertyAnimatorCoreEditorDetailCustomization.h"
 #include "Customizations/PropertyAnimatorCoreEditorContextTypeCustomization.h"
+#include "ISequencerModule.h"
 #include "Modules/ModuleManager.h"
 #include "Properties/PropertyAnimatorCoreContext.h"
 #include "PropertyEditorModule.h"
+#include "Sequencer/MovieSceneAnimatorTrackEditor.h"
 
 void FPropertyAnimatorCoreEditorModule::StartupModule()
 {
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.RegisterCustomPropertyTypeLayout(UPropertyAnimatorCoreContext::StaticClass()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPropertyAnimatorCoreEditorContextTypeCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UPropertyAnimatorCoreBase::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FPropertyAnimatorCoreEditorDetailCustomization::MakeInstance));
+
+	ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>("Sequencer");
+	AnimatorTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FMovieSceneAnimatorTrackEditor::CreateTrackEditor));
 }
 
 void FPropertyAnimatorCoreEditorModule::ShutdownModule()
@@ -23,6 +28,13 @@ void FPropertyAnimatorCoreEditorModule::ShutdownModule()
 		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		PropertyModule.UnregisterCustomPropertyTypeLayout(UPropertyAnimatorCoreContext::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UPropertyAnimatorCoreBase::StaticClass()->GetFName());
+	}
+
+	if (FModuleManager::Get().IsModuleLoaded("Sequencer"))
+	{
+		ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>("Sequencer");
+		SequencerModule.UnRegisterTrackEditor(AnimatorTrackCreateEditorHandle);
+		AnimatorTrackCreateEditorHandle.Reset();
 	}
 }
 

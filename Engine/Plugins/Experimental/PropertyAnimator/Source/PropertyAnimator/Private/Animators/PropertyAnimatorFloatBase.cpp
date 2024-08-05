@@ -117,7 +117,7 @@ EPropertyAnimatorPropertySupport UPropertyAnimatorFloatBase::IsPropertySupported
 {
 	const FName TypeName = InPropertyData.GetLeafPropertyTypeName();
 
-	if (InPropertyData.IsA<FFloatProperty>())
+	if (InPropertyData.IsA<FFloatProperty>() || InPropertyData.IsA<FDoubleProperty>())
 	{
 		return EPropertyAnimatorPropertySupport::Complete;
 	}
@@ -182,7 +182,7 @@ void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InPar
 		{
 			if (FMath::Abs(PropertyTimeElapsed) > CycleDuration)
 			{
-				return false;
+				PropertyTimeElapsed = CycleDuration - UE_KINDA_SMALL_NUMBER;
 			}
 		}
 		else if (CycleMode == EPropertyAnimatorCycleMode::Loop)
