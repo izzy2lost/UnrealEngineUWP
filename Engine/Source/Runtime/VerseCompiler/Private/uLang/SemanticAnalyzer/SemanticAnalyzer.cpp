@@ -3037,17 +3037,6 @@ public:
                 });
             });
         }
-        else
-        {
-            // Warn about Epic packages target language versions prior than the latest stable version.
-            if (AstPackage._EffectiveVerseVersion < Verse::Version::LatestStable) //-V547
-            {
-                AppendGlitch(
-                    AstPackage,
-                    EDiagnostic::WarnSemantic_EpicPackageTargetingOldVersion,
-                    CUTF8String("Epic package %s must target Latest or newer Verse language versions.", AstPackage._Name.AsCString()));
-            }
-        }
     }
 
     //-------------------------------------------------------------------------------------------------

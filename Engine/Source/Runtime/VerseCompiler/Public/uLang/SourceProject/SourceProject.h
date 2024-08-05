@@ -115,6 +115,12 @@ public:
         }
     };
 
+    struct SVersionedDigest
+    {
+        TSRef<ISourceSnippet> _Snippet;
+        uint32_t _EffectiveVerseVersion;
+    };
+
     /// Where the source code of this package originates
     enum EOrigin : uint8_t
     {
@@ -128,10 +134,10 @@ public:
     TSRef<CSourceModule> _RootModule;
 
     /// Optional digest to be used instead of source if desired
-    TSPtr<ISourceSnippet> _Digest;
+    TOptional<SVersionedDigest> _Digest;
 
     /// The public-only digest, if it exists.
-    TSPtr<ISourceSnippet> _PublicDigest;
+    TOptional<SVersionedDigest> _PublicDigest;
 
     /// Construct from name
     CSourcePackage(const CUTF8StringView& Name, const TSRef<CSourceModule>& RootModule) : _RootModule(RootModule), _Name(Name) {}

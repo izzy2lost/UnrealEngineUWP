@@ -6,6 +6,7 @@
 #include "uLang/Common/Templates/Storage.h"
 #include "uLang/JSON/JSON.h"
 #include "uLang/SourceProject/SourceProjectUtils.h"
+#include "uLang/SourceProject/VerseVersion.h"
 
 // #SUPPORT_LEGACY_VMODULES
 // Temporary switch allowing legacy named vmodule files
@@ -222,14 +223,14 @@ TOptional<TSRef<CSourceFileSnippet>> CSourceFilePackage::FindSnippetByFilePath(c
         return Result;
     }
 
-    if (_Digest && _Digest.As<CSourceFileSnippet>()->GetFilePath().IsEqualCaseIndependent(FilePath))
+    if (_Digest.IsSet() && _Digest->_Snippet.As<CSourceFileSnippet>()->GetFilePath().IsEqualCaseIndependent(FilePath))
     {
-        return _Digest.AsRef().As<CSourceFileSnippet>();
+        return _Digest->_Snippet.As<CSourceFileSnippet>();
     }
 
-    if (_PublicDigest && _PublicDigest.As<CSourceFileSnippet>()->GetFilePath().IsEqualCaseIndependent(FilePath))
+    if (_PublicDigest.IsSet() && _PublicDigest->_Snippet.As<CSourceFileSnippet>()->GetFilePath().IsEqualCaseIndependent(FilePath))
     {
-        return _PublicDigest.AsRef().As<CSourceFileSnippet>();
+        return _PublicDigest->_Snippet.As<CSourceFileSnippet>();
     }
 
     return EResult::Unspecified;
@@ -365,15 +366,15 @@ void CSourceFilePackage::GatherPackageSourceFiles(const CUTF8String& PackageFile
                 TSRef<CSourceFileSnippet> Snippet = TSRef<CSourceFileSnippet>::New(Move(NormalizedFilePath), FileSystem);
                 if (Snippet->GetFilePath().EndsWith(".digest.verse"))
                 {
-                    if (_Digest.IsValid())
+                    if (_Digest.IsSet())
                     {
                         Diagnostics->AppendGlitch({
                             EDiagnostic::ErrSystem_DuplicateDigestFile,
-                            CUTF8String("Found duplicate digest `%s` for package `%s` when digest `%s` already exists.", *Snippet->GetPath(), *GetName(), *_Digest->GetPath())});
+                            CUTF8String("Found duplicate digest `%s` for package `%s` when digest `%s` already exists.", *Snippet->GetPath(), *GetName(), *_Digest->_Snippet->GetPath())});
                     }
                     else
                     {
-                        _Digest = Move(Snippet);
+                        _Digest.Emplace(SVersionedDigest{Move(Snippet), _Settings._VerseVersion.Get(Verse::Version::Default)});
                     }
                 }
                 else

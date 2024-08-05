@@ -74,8 +74,14 @@ template <typename TVisitor>
 void VPackage::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Map.Visit(Visitor, TEXT("DefinitionMap"));
-	Visitor.Visit(DigestCode[(int)EDigestVariant::PublicAndEpicInternal], TEXT("PublicAndEpicInternalDigest"));
-	Visitor.Visit(DigestCode[(int)EDigestVariant::PublicOnly], TEXT("PublicOnlyDigest"));
+	if (FVersionedDigest* DigestVariant = DigestVariants[(int)EDigestVariant::PublicAndEpicInternal].GetPtrOrNull())
+	{
+		Visitor.Visit(DigestVariant->Code, TEXT("PublicAndEpicInternalDigest.Code"));
+	}
+	if (FVersionedDigest* DigestVariant = DigestVariants[(int)EDigestVariant::PublicOnly].GetPtrOrNull())
+	{
+		Visitor.Visit(DigestVariant->Code, TEXT("PublicOnlyDigest.Code"));
+	}
 	Visitor.Visit(PackageName, TEXT("PackageName"));
 	UPackageMap.Visit(Visitor, TEXT("UPackageMap"));
 }

@@ -340,7 +340,7 @@ public:
 
 	EArrayType GetArrayType() const { return Buffer.Get().GetArrayType(); }
 
-	size_t ByteLength()
+	size_t ByteLength() const
 	{
 		return Num() * ::Verse::ByteLength(GetArrayType());
 	}

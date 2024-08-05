@@ -254,10 +254,14 @@ SBuildResults CToolchain::BuildProject(const CSourceProject& SourceProject, cons
         };
 
         // Determine if to process source or digest
-        if (VstPackage->_Role == ExternalPackageRole && Package._Package->_Digest)
+        if (VstPackage->_Role == ExternalPackageRole && Package._Package->_Digest.IsSet())
         {
             // Just parse the digest of this package
-            ProcessSnippet(Package._Package->_Digest.AsRef(), VstPackage);
+            ProcessSnippet(Package._Package->_Digest->_Snippet, VstPackage);
+
+            // Use the digest's version instead of the source version.
+            // This can differ when the digest comes from e.g. cooked content that wasn't created from the local source files.
+            VstPackage->_VerseVersion.Emplace(Package._Package->_Digest->_EffectiveVerseVersion);
         }
         else
         {

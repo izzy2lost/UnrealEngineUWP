@@ -221,10 +221,10 @@ bool CSourceProjectWriter::WritePackage(const CSourcePackage& Package, const CUT
     }
 
     // Write digest if present and no source exists
-    bool bIsDigestPackage = Package._Digest && Package.GetNumSnippets() == 0;
+    bool bIsDigestPackage = Package._Digest.IsSet() && Package.GetNumSnippets() == 0;
     if (bIsDigestPackage)
     {
-        if (!WriteSnippet(Package._Digest.AsRef(), NewPackageDir))
+        if (!WriteSnippet(Package._Digest->_Snippet, NewPackageDir))
         {
             return false;
         }

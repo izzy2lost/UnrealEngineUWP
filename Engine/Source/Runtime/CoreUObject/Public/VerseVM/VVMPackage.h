@@ -4,6 +4,7 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
+#include "Misc/Optional.h"
 #include "VVMCell.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMNameValueMap.h"
@@ -27,12 +28,18 @@ enum class EDigestVariant : uint8
 	PublicOnly = 1,
 };
 
+struct FVersionedDigest
+{
+	TWriteBarrier<VArray> Code;
+	uint32 EffectiveVerseVersion;
+};
+
 struct VPackage : VCell
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
-	TWriteBarrier<VArray> DigestCode[2]; // One for each variant
+	TOptional<FVersionedDigest> DigestVariants[2]; // One for each variant
 
 	VArray& GetName() const { return *PackageName; }
 
