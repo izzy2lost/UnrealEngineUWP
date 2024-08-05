@@ -94,6 +94,8 @@ public:
 
 	void OnSequencerCreated(TSharedRef<ISequencer> InSequencer);
 
+	void OnSequencerClosed(TSharedRef<ISequencer> InSequencer);
+
 	/** Retrieve the scripting layer */
 	UFUNCTION(BlueprintPure, Category = "Level Sequence Editor")
 	USequencerModuleScriptingLayer* GetScriptingLayer();
