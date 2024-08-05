@@ -8,7 +8,7 @@
 struct FConcertStreamFrequencySettings;
 struct FConcertObjectReplicationMap;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Keeps track of a client's registered streams.

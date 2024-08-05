@@ -2,7 +2,7 @@
 
 #pragma once
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	enum class EChangeUploadability
 	{

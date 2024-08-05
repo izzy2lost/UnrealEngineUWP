@@ -11,7 +11,7 @@ class SWidgetSwitcher;
 
 namespace UE::ConcertSharedSlate { class IReplicationStreamEditor; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMultiUserReplicationManager;
 	class SReplicationClientView;

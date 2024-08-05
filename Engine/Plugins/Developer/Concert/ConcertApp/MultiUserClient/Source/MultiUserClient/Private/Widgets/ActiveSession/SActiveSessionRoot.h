@@ -13,10 +13,10 @@ class SDockTab;
 class SWidgetSwitcher;
 class SWindow;
 
+namespace UE::MultiUserClient::Replication { class FMultiUserReplicationManager; }
+
 namespace UE::MultiUserClient
 {
-	class FMultiUserReplicationManager;
-	
 	/**
 	 * Displayed when the client is connected to an active session.
 	 * Manages the child content in tabs.
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 		{}
 		SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<FMultiUserReplicationManager> InReplicationManager);
+		void Construct(const FArguments& InArgs, TSharedPtr<IConcertSyncClient> InConcertSyncClient, TSharedRef<Replication::FMultiUserReplicationManager> InReplicationManager);
 
 	private:
 

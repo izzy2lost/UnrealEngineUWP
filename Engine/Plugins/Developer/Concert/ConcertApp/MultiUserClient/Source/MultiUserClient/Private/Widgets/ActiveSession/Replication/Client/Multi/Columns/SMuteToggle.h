@@ -11,7 +11,7 @@ class FText;
 enum class ECheckBoxState : uint8;
 struct EVisibility;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMuteChangeTracker;
 	

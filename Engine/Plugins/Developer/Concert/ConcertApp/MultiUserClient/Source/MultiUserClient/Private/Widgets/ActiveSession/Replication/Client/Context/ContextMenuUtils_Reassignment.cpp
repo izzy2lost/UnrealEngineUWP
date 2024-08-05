@@ -16,7 +16,7 @@
 
 #define LOCTEXT_NAMESPACE "ReassignmentContextMenuUtils"
 
-namespace UE::MultiUserClient::ContextMenuUtils
+namespace UE::MultiUserClient::Replication::ContextMenuUtils
 {
 	namespace Private
 	{

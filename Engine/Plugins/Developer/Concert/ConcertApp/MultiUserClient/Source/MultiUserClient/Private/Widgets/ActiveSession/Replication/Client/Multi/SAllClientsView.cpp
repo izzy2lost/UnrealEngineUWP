@@ -9,7 +9,7 @@
 #include "Algo/Transform.h"
 #include "Replication/MultiUserReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SAllClientsView::Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{

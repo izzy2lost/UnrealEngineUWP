@@ -10,7 +10,7 @@
 #include "Replication/Muting/MuteStateManager.h"
 #include "UObject/SoftObjectPath.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "ReplicationToggle"
 
-namespace UE::MultiUserClient::MultiStreamColumns
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	const FName MuteToggleColumnId(TEXT("MuteToggleColumnId"));
 	

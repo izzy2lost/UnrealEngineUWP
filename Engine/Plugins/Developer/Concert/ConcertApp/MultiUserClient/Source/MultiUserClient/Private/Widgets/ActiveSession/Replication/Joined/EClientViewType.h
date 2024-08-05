@@ -2,7 +2,7 @@
 
 #pragma once
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Describes a type of view that is being displayed in SReplicationJoinedView and can get selected by the combo button. */
 	enum class EClientViewType 

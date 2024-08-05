@@ -23,9 +23,9 @@ class IConcertSyncClient;
 enum class EConcertConnectionStatus : uint8;
 
 namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
-namespace UE::ConcertSyncClient::Replication { struct FJoinReplicatedSessionResult; }
+namespace UE::ConcertSyncClient { struct FJoinReplicatedSessionResult; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClient;
 	

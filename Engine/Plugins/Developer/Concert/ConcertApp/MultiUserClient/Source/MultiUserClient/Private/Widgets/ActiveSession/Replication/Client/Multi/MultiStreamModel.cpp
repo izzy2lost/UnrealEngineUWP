@@ -7,7 +7,7 @@
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMultiStreamModel::FMultiStreamModel(IClientSelectionModel& InClientSelectionModel, FReplicationClientManager& InClientManager)
 		: ClientSelectionModel(InClientSelectionModel)

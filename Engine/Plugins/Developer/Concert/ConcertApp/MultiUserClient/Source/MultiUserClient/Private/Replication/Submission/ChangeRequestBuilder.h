@@ -8,7 +8,7 @@
 struct FConcertReplication_ChangeAuthority_Request;
 struct FConcertReplication_ChangeStream_Request;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IClientStreamSynchronizer;
 	class FAuthorityChangeTracker;

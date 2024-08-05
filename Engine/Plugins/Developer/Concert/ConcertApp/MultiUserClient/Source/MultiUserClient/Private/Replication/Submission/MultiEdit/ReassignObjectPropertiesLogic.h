@@ -13,7 +13,7 @@
 enum class EBreakBehavior : uint8;
 struct FConcertPropertyChain;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClientManager;
 	class IParallelSubmissionOperation;

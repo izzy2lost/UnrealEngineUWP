@@ -12,7 +12,7 @@
 class IConcertSyncClient;
 struct FConcertReplication_QueryMuteState_Response;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMuteStateQueried, const FConcertReplication_QueryMuteState_Response& NewMuteState);
 	

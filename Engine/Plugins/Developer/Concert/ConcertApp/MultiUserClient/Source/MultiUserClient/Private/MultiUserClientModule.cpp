@@ -624,7 +624,7 @@ public:
 
 		// Boot the client instance
 		MultiUserClient->Startup(ClientConfig, EConcertSyncSessionFlags::Default_MultiUserSession);
-		ReplicationManager = MakeShared<UE::MultiUserClient::FMultiUserReplicationManager>(MultiUserClient.ToSharedRef());
+		ReplicationManager = MakeShared<UE::MultiUserClient::Replication::FMultiUserReplicationManager>(MultiUserClient.ToSharedRef());
 
 		// Hook UI elements in the tool bar (and setup commands).
 		RegisterUI();
@@ -1409,7 +1409,7 @@ private:
 
 	TSharedPtr<IConcertSyncClient> MultiUserClient;
 	/** Interacts with the replication system on behalf of Multi-User. */
-	TSharedPtr<UE::MultiUserClient::FMultiUserReplicationManager> ReplicationManager;
+	TSharedPtr<UE::MultiUserClient::Replication::FMultiUserReplicationManager> ReplicationManager;
 
 	/** True if the tab spawners have been registered for this module */
 	bool bHasRegisteredTabSpawners = false;

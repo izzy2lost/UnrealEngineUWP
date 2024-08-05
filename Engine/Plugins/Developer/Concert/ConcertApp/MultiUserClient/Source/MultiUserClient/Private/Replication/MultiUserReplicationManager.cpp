@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "FMultiUserReplicationManager"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMultiUserReplicationManager::FMultiUserReplicationManager(TSharedRef<IConcertSyncClient> InClient)
 		: Client(MoveTemp(InClient))

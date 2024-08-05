@@ -9,7 +9,7 @@
 
 namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClientManager;
 	

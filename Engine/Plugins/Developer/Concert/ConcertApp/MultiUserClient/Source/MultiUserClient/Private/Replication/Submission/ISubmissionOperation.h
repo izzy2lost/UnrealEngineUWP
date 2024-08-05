@@ -6,7 +6,7 @@
 #include "Data/AuthoritySubmission.h"
 #include "Data/StreamSubmission.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	enum class ESubmissionOperationCompletedCode
 	{

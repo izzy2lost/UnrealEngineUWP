@@ -8,7 +8,7 @@ class IConcertClientSession;
 
 struct FConcertReplication_ChangeStream_Request;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Describes changes that MU clients make to the objects in a stream. */
 	struct FStreamChangelist
@@ -28,7 +28,7 @@ namespace UE::MultiUserClient
 	};
 }
 
-namespace UE::MultiUserClient::StreamRequestUtils
+namespace UE::MultiUserClient::Replication::StreamRequestUtils
 {
 	/**
 	 * Builds a request for creating a new stream.

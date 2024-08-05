@@ -14,13 +14,13 @@ namespace UE::ConcertSharedSlate
 	class IMultiReplicationStreamEditor;
 	class IObjectHierarchyModel;
 }
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReassignObjectPropertiesLogic;
 	class FReplicationClientManager;
 }
 
-namespace UE::MultiUserClient::ContextMenuUtils
+namespace UE::MultiUserClient::Replication::ContextMenuUtils
 {
 	/** Adds menu entries for reassigning the object to another client. */
 	void AddReassignmentOptions(

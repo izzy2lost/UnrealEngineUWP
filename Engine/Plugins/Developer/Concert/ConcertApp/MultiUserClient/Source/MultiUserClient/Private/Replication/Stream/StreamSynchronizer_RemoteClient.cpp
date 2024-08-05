@@ -6,7 +6,7 @@
 #include "MultiUserStreamId.h"
 #include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	constexpr float QueryTimeInterval = 1.f;
 	

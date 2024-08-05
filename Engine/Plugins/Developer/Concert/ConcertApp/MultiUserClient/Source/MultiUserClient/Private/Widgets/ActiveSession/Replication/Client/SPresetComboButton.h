@@ -6,16 +6,16 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Disconnected/ConcertClientSessionBrowserController.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	struct FSavePresetOptions;
 }
 
 class FMenuBuilder;
 class IConcertClient;
-namespace UE::MultiUserClient { enum class EApplyPresetFlags : uint8; }
+namespace UE::MultiUserClient::Replication { enum class EApplyPresetFlags : uint8; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FPresetManager;
 

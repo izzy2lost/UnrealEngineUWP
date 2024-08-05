@@ -7,7 +7,7 @@
 
 #define LOCTEXT_NAMESPACE "FLocalClientStreamDiffer"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FStreamSynchronizer_LocalClient::FStreamSynchronizer_LocalClient(
 		TSharedRef<IConcertSyncClient> InLocalClient,

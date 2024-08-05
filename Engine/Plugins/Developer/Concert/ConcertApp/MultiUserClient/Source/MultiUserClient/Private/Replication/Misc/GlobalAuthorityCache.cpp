@@ -7,7 +7,7 @@
 #include "Replication/Client/RemoteReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FGlobalAuthorityCache::FGlobalAuthorityCache(FReplicationClientManager& InClientManager)
 		: ClientManager(InClientManager)

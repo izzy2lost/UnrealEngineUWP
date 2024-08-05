@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "FMutingNotifier"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMutingNotifier::FMutingNotifier(FMuteStateManager& InMuteManager)
 		: MuteManager(InMuteManager)

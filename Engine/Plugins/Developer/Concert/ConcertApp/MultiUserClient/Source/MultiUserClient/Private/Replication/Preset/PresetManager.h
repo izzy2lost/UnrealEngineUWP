@@ -18,7 +18,7 @@ enum class EMultiUserClientPresetLoadMode : uint8;
 
 namespace UE::ConcertSyncClient::Replication { struct FRemoteEditEvent; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMuteStateSynchronizer;
 	class FReplicationClientManager;

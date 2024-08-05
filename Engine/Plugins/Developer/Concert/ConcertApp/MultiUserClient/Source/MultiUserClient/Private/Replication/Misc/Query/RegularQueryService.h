@@ -12,7 +12,7 @@
 
 class IConcertSyncClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * This service manages multiple sub-services that query the server state, e.g. stream, authority, etc.

@@ -13,12 +13,12 @@
 
 #include <type_traits>
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IParallelSubmissionOperation;
 }
 
-namespace UE::MultiUserClient::FrequencyUtils
+namespace UE::MultiUserClient::Replication::FrequencyUtils
 {
 	// Low effort optimization to minimize heap allocations
 	using FInlineClientArray = TArray<FGuid, TInlineAllocator<8>>;
@@ -94,7 +94,7 @@ namespace UE::MultiUserClient::FrequencyUtils
 	}
 }
 
-namespace UE::MultiUserClient::FrequencyUtils
+namespace UE::MultiUserClient::Replication::FrequencyUtils
 {
 	template<typename TSubSetting, typename TSelectSubSetting>
 	TOptional<TSubSetting> FindSharedFrequencySetting(

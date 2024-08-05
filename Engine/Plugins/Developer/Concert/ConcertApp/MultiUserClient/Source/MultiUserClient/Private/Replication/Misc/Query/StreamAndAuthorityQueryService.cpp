@@ -7,7 +7,7 @@
 
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FStreamAndAuthorityQueryService::FStreamAndAuthorityQueryService(TWeakPtr<FToken> InToken, const IConcertSyncClient& InOwningClient)
 		: Token(MoveTemp(InToken))

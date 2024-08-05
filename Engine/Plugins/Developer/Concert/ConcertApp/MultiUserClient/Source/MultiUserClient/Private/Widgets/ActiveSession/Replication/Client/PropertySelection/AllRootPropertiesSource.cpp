@@ -2,7 +2,7 @@
 
 #include "AllRootPropertiesSource.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

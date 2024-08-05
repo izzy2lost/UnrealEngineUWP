@@ -12,7 +12,7 @@
 #include "Containers/UnrealString.h"
 #include <atomic>
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace ParallelSubmission::Private
 	{

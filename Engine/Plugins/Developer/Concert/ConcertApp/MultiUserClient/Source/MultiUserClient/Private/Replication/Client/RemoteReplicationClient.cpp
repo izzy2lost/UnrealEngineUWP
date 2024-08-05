@@ -8,7 +8,7 @@
 #include "Replication/Stream/StreamSynchronizer_RemoteClient.h"
 #include "Replication/Submission/Remote/SubmissionWorkflow_RemoteClient.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FRemoteReplicationClient::FRemoteReplicationClient(
 		const FGuid& InConcertClientId,

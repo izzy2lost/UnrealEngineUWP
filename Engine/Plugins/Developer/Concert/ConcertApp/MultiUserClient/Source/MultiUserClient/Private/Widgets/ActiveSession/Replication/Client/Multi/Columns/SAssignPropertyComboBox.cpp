@@ -26,7 +26,7 @@
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace AssignPropertyComboBox
 	{

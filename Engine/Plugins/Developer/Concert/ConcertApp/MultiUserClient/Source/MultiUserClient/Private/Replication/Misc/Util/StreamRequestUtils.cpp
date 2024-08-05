@@ -9,7 +9,7 @@
 
 #include "Containers/UnrealString.h"
 
-namespace UE::MultiUserClient::StreamRequestUtils
+namespace UE::MultiUserClient::Replication::StreamRequestUtils
 {
 	FConcertReplication_ChangeStream_Request BuildChangeRequest_CreateNewStream(
 		const FGuid& StreamId,

@@ -19,7 +19,7 @@
 
 #define LOCTEXT_NAMESPACE "FrequencyContextMenuUtils"
 
-namespace UE::MultiUserClient::ContextMenuUtils
+namespace UE::MultiUserClient::Replication::ContextMenuUtils
 {
 	namespace Private
 	{

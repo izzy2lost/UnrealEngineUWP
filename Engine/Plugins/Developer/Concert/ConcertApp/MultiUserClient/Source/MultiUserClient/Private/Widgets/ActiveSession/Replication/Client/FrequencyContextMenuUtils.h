@@ -8,12 +8,12 @@
 class FMenuBuilder;
 struct FGuid;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClientManager;
 }
 
-namespace UE::MultiUserClient::FrequencyContextMenuUtils
+namespace UE::MultiUserClient::Replication::FrequencyContextMenuUtils
 {
 	/** Adds an edit box for changing the selected object's frequencies. */
 	void AddFrequencyOptionsForSingleClient(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObjects, const FGuid& ClientId, FReplicationClientManager& InClientManager);

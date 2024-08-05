@@ -11,7 +11,7 @@ class IConcertSyncClient;
 enum class ETransactionFilterResult : uint8;
 struct FConcertTransactionFilterArgs;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMuteStateManager;
 	class FReplicationClientManager;

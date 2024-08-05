@@ -9,7 +9,7 @@
 
 struct FConcertReplication_ChangeMuteState_Request;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 	class FMuteStateSynchronizer;

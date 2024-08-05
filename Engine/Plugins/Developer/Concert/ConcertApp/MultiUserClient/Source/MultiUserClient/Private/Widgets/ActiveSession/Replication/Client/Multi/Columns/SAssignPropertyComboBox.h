@@ -16,7 +16,7 @@ struct FGuid;
 namespace UE::ConcertClientSharedSlate { class SHorizontalClientList; }
 namespace UE::ConcertSharedSlate { class IMultiReplicationStreamEditor; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClient;
 	class FReplicationClientManager;

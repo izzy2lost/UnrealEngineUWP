@@ -5,7 +5,7 @@
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMuteStateQueryService::FMuteStateQueryService(TWeakPtr<FToken> InToken, const IConcertSyncClient& InOwningClient)
 		: Token(MoveTemp(InToken))

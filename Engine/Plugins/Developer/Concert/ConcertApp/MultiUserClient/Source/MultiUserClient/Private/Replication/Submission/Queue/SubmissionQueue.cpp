@@ -7,7 +7,7 @@
 
 #include "Stats/Stats2.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FSubmissionQueue::FSubmissionQueue(ISubmissionWorkflow& InWorkflow)
 		: Workflow(InWorkflow)

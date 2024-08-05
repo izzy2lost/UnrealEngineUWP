@@ -7,7 +7,7 @@
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Widgets/Client/SClientName.h"
 
-namespace UE::MultiUserClient::ClientUtils
+namespace UE::MultiUserClient::Replication::ClientUtils
 {
 	FString GetClientDisplayName(const IConcertClient& InLocalClientInstance, const FGuid& InClientEndpointId)
 	{

@@ -6,7 +6,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Replication/MultiUserReplicationManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMuteStateManager::FMuteStateManager(const IConcertSyncClient& InClient, FMuteStateQueryService& InMuteQueryService, const FGlobalAuthorityCache& InAuthorityCache)
 		: Client(InClient)

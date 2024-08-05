@@ -5,7 +5,7 @@
 #include "SubmissionQueue.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class ISubmissionWorkflow;
 	

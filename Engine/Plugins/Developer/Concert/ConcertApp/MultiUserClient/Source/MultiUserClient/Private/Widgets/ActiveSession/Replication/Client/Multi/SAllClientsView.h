@@ -10,7 +10,7 @@
 
 class IConcertClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMultiUserReplicationManager;
 	class FReplicationClient;

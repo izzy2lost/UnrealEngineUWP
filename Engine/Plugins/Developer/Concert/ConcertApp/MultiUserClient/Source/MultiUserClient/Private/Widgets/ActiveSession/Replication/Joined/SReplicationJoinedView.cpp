@@ -6,7 +6,7 @@
 #include "Replication/MultiUserReplicationManager.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/SAllClientsView.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SReplicationJoinedView::Construct(
 		const FArguments& InArgs,

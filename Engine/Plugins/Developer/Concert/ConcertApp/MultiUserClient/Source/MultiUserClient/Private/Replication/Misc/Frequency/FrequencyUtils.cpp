@@ -2,7 +2,7 @@
 
 #include "FrequencyUtils.h"
 
-namespace UE::MultiUserClient::FrequencyUtils
+namespace UE::MultiUserClient::Replication::FrequencyUtils
 {
 	TSharedPtr<IParallelSubmissionOperation> SetFrequencySettingForClients(
 		const FSoftObjectPath& ContextObject,

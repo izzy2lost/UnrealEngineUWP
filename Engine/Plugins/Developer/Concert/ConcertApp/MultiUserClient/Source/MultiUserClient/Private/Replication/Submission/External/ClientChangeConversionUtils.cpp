@@ -10,7 +10,7 @@
 #include "Algo/RemoveIf.h"
 #include "Misc/Guid.h"
 
-namespace UE::MultiUserClient::ClientChangeConversionUtils
+namespace UE::MultiUserClient::Replication::ClientChangeConversionUtils
 {
 	namespace Private
 	{

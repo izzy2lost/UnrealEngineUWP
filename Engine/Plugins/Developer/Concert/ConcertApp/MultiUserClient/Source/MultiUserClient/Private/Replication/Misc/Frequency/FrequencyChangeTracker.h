@@ -10,7 +10,7 @@
 struct FConcertObjectReplicationSettings;
 struct FSoftObjectPath;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IClientStreamSynchronizer;
 	class FStreamChangeTracker;

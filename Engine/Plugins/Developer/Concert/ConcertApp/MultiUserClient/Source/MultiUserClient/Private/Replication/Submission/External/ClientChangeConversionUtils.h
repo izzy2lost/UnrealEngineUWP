@@ -14,10 +14,14 @@ struct FGuid;
 
 namespace UE::MultiUserClient
 {
-	enum class EAuthoritySubmissionResponseErrorCode : uint8;
-	
 	struct FChangeClientAuthorityResponse;
 	struct FChangeClientStreamResponse;
+}
+
+namespace UE::MultiUserClient::Replication
+{
+	enum class EAuthoritySubmissionResponseErrorCode : uint8;
+	
 	struct FSubmitAuthorityChangesResponse;
 	struct FSubmitStreamChangesResponse;
 }
@@ -25,7 +29,7 @@ namespace UE::MultiUserClient
 /**
  * Utils for transforming the simplified params in ChangeOperationTypes.h to the ones used by ConcertSyncCore.
  */
-namespace UE::MultiUserClient::ClientChangeConversionUtils
+namespace UE::MultiUserClient::Replication::ClientChangeConversionUtils
 {
 	/** Transforms FChangeStreamRequest to FConcertReplication_ChangeStream_Request, if the request is correctly formatted. */
 	TOptional<FConcertReplication_ChangeStream_Request> Transform(

@@ -18,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "SPresetComboButton"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

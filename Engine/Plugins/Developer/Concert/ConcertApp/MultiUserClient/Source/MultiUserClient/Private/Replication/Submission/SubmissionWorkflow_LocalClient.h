@@ -12,7 +12,7 @@
 
 class IConcertSyncClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IClientAuthoritySynchronizer;
 	class IClientStreamSynchronizer;

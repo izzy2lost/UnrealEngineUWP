@@ -17,7 +17,7 @@
 
 #define LOCTEXT_NAMESPACE "AssignPropertyColumn"
 
-namespace UE::MultiUserClient::MultiStreamColumns
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	const FName AssignPropertyColumnId(TEXT("AssignPropertyColumn"));
 

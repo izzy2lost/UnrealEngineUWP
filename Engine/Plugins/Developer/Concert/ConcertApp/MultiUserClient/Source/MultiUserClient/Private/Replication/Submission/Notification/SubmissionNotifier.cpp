@@ -14,7 +14,7 @@
 #include "Stats/Stats2.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FSubmissionNotifier::FSubmissionNotifier(FReplicationClientManager& InReplicationClientManager)
 		: ReplicationClientManager(InReplicationClientManager)

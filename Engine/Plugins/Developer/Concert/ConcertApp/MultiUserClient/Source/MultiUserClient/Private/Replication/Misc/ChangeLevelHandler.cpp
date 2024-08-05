@@ -7,7 +7,7 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FChangeLevelHandler::FChangeLevelHandler(ConcertSharedSlate::IEditableReplicationStreamModel& UpdatedModel)
 		: UpdatedModel(UpdatedModel)

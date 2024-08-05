@@ -11,7 +11,7 @@
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FRemoteSubmissionListener::FRemoteSubmissionListener(
 		TSharedRef<IConcertClientSession> InConcertSession,

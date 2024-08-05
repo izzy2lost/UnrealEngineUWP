@@ -27,7 +27,7 @@ namespace UE::ConcertSharedSlate
 	enum class EReplicatedObjectChangeReason : uint8;
 }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMultiUserStreamExtender;
 	class FReplicationDiscoveryContainer;

@@ -2,7 +2,7 @@
 
 #include "RegularQueryService.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FRegularQueryService::FRegularQueryService(const IConcertSyncClient& InOwningClient, float InInterval)
 		: OwningClient(InOwningClient)

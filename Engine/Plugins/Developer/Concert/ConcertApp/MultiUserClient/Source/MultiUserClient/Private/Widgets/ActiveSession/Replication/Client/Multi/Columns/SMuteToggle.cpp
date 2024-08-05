@@ -10,7 +10,7 @@
 
 #define LOCTEXT_NAMESPACE "SMuteToggle"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SMuteToggle::Construct(const FArguments& InArgs, FSoftObjectPath InObjectPath, FMuteChangeTracker& InMuteChangeTracker)
 	{

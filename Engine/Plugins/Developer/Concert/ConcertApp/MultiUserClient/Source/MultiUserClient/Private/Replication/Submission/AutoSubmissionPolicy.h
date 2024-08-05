@@ -6,7 +6,7 @@
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FFrequencyChangeTracker;
 }
@@ -16,7 +16,7 @@ namespace UE::ConcertSharedSlate
 	class IEditableReplicationStreamModel;
 }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FChangeRequestBuilder;
 	class IClientStreamSynchronizer;

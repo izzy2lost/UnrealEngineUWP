@@ -7,7 +7,7 @@
 
 enum class EBreakBehavior : uint8;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClient;
 	

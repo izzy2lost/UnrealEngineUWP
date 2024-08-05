@@ -20,7 +20,7 @@ namespace UE::ConcertSharedSlate
 	class IPropertySourceProcessor;
 }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FUserPropertySelectionSource;
 	class FReplicationClientManager;

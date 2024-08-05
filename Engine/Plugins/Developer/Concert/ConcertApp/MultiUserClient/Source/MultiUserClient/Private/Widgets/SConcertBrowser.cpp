@@ -20,7 +20,7 @@
 void SConcertBrowser::Construct(
 	const FArguments& InArgs,
 	TSharedRef<IConcertSyncClient> InSyncClient,
-	TSharedRef<UE::MultiUserClient::FMultiUserReplicationManager> InReplicationManager)
+	TSharedRef<UE::MultiUserClient::Replication::FMultiUserReplicationManager> InReplicationManager)
 {
 	if (!MultiUserClientUtils::HasServerCompatibleCommunicationPluginEnabled())
 	{
@@ -62,7 +62,7 @@ void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatu
 	{
 		if (ConnectionStatus == EConcertConnectionStatus::Connected)
 		{
-			if (const TSharedPtr<UE::MultiUserClient::FMultiUserReplicationManager> ReplicationManager = WeakReplicationManager.Pin()
+			if (const TSharedPtr<UE::MultiUserClient::Replication::FMultiUserReplicationManager> ReplicationManager = WeakReplicationManager.Pin()
 				; ensure(ReplicationManager))
 			{
 				ChildSlot.AttachWidget(

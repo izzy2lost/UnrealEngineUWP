@@ -13,7 +13,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Replication/ClientReplicationWidgetFactories.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FReplicationClient::FReplicationClient(
 		const FGuid& EndpointId,

@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "FLocalClientStreamDiffer"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FStreamChangeTracker::FStreamChangeTracker(
 		IClientStreamSynchronizer& InStreamSynchronizer,

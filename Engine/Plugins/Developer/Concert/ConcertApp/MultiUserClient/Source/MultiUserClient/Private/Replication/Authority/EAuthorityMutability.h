@@ -4,7 +4,7 @@
 
 #include "CoreTypes.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Various reasons in which an object can be when considering changing its authority */
 	enum class EAuthorityMutability : uint8

@@ -17,7 +17,7 @@ class IConcertSyncClient;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_ChangeStream_Request;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Knows of the local client's registered replication streams and builds a changelist. The changelist tracks the

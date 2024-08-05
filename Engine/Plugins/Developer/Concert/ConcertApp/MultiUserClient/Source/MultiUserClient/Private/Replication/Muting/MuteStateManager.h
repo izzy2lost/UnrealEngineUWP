@@ -12,7 +12,7 @@ class IConcertSyncClient;
 struct FConcertReplication_ChangeMuteState_Request;
 struct FConcertReplication_ChangeMuteState_Response;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 	class FMuteStateQueryService;

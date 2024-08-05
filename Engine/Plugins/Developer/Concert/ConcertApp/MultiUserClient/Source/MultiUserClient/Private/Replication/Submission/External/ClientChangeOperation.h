@@ -10,7 +10,7 @@
 #include "Misc/Attribute.h"
 #include "Misc/Optional.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class ISubmissionOperation;
 	

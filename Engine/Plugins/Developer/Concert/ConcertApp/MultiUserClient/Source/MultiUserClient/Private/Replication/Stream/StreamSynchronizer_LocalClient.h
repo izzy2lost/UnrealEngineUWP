@@ -9,7 +9,7 @@
 
 class IConcertSyncClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Asks the local client's IConcertClientReplicationManager about the current state of the streams. */
 	class FStreamSynchronizer_LocalClient : public IClientStreamSynchronizer, public FNoncopyable

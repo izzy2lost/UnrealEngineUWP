@@ -11,7 +11,7 @@
 class SNotificationItem;
 class FReply;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FRemoteReplicationClient;
 	class FReplicationClient;

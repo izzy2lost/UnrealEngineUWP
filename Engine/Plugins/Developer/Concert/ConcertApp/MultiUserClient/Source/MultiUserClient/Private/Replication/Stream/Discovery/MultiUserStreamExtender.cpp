@@ -8,7 +8,7 @@
 #include "Replication/Editor/Model/Extension/IStreamExtensionContext.h"
 #include "Settings/MultiUserReplicationSettings.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMultiUserStreamExtender::FMultiUserStreamExtender(const FGuid& InClientId, FReplicationDiscoveryContainer& InRegisteredExtenders)
 		: ClientId(InClientId)

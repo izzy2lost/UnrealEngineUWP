@@ -8,7 +8,7 @@
 
 #include "Containers/Array.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	struct FUserSelectableProperty
 	{

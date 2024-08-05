@@ -7,7 +7,7 @@
 
 struct FSoftObjectPath;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Synchronizes the a client's authority state with the server. */
 	class IClientAuthoritySynchronizer

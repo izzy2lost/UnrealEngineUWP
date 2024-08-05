@@ -12,7 +12,7 @@
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

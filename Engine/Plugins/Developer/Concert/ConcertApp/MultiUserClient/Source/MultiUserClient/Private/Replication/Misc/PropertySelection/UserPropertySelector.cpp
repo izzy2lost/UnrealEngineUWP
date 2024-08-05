@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "FUserPropertySelector"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FUserPropertySelector::FUserPropertySelector(FReplicationClientManager& InClientManager)
 		: ClientManager(InClientManager)

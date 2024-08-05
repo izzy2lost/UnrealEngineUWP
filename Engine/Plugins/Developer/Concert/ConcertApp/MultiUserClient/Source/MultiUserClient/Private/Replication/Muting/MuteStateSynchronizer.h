@@ -14,7 +14,7 @@
 struct FConcertReplication_ChangeMuteState_Request;
 struct FConcertReplication_QueryMuteState_Response;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMuteStateQueryService;
 

@@ -6,7 +6,7 @@
 
 #include "UObject/SoftObjectPath.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FMuteChangeTracker::FMuteChangeTracker(FMuteStateSynchronizer& InMuteStateSynchronizer, const FGlobalAuthorityCache& InAuthorityCache)
 		: MuteStateSynchronizer(InMuteStateSynchronizer)

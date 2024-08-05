@@ -8,7 +8,7 @@
 
 class IConcertClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FStreamAndAuthorityQueryService;
 	

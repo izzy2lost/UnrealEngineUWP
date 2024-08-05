@@ -11,7 +11,7 @@
 
 namespace UE::ConcertSharedSlate { struct FObjectGroup; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * This model is used to build the combo button to the left of the search bar in the bottom half of the replication UI.

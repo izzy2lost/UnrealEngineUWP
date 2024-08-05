@@ -9,7 +9,7 @@
 #include "HAL/Platform.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FStreamAndAuthorityQueryService;
 	

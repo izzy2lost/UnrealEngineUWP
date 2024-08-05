@@ -8,7 +8,7 @@
 #include "Replication/Submission/Queue/SubmissionQueue.h"
 #include "Replication/Submission/ISubmissionOperation.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	TSharedRef<FClientChangeOperation> FClientChangeOperation::StartOperation(
 		const FGuid& InStreamId,

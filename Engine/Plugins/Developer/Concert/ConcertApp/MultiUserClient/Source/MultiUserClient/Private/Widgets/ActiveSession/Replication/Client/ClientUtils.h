@@ -11,13 +11,13 @@ class IConcertClientSession;
 struct FConcertClientInfo;
 struct FGuid;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FReplicationClient;
 	class FReplicationClientManager;
 }
 
-namespace UE::MultiUserClient::ClientUtils
+namespace UE::MultiUserClient::Replication::ClientUtils
 {
 	/**
 	 * Gets the display name for a client. Appends (me) if the client is local.

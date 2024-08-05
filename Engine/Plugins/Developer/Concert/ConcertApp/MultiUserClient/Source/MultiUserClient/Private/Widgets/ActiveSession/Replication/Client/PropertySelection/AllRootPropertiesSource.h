@@ -11,7 +11,7 @@
 
 class UClass;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/** Adapts FReplicatablePropertySource. */
 	class FAllRootPropertiesSource

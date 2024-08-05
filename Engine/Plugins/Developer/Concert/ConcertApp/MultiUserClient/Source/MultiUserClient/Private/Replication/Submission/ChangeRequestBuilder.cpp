@@ -7,7 +7,7 @@
 #include "Replication/Misc/GlobalAuthorityCache.h"
 #include "Replication/Misc/Util/StreamRequestUtils.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FChangeRequestBuilder::FChangeRequestBuilder(
 		const FGuid& InLocalClientId,

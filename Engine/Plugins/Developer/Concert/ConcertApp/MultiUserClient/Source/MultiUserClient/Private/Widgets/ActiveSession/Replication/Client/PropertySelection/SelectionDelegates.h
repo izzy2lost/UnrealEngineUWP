@@ -7,7 +7,7 @@
 
 class FText;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	DECLARE_DELEGATE_RetVal_OneParam(FText, FGetObjectDisplayString, const TSoftObjectPtr<>&)
 }

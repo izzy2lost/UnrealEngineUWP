@@ -13,7 +13,7 @@
 
 #define LOCTEXT_NAMESPACE "FReassignObjectPropertiesLogic"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace ReassignObjectProperties::Private
 	{

@@ -19,7 +19,7 @@ namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
 enum class EConcertClientStatus : uint8;
 struct FConcertSessionClientInfo;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FRemoteReplicationClient;
 	class FReplicationDiscoveryContainer;

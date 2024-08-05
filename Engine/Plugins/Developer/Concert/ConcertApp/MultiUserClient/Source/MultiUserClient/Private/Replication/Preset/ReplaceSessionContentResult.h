@@ -4,7 +4,7 @@
 
 #include "HAL/Platform.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	enum class EReplaceSessionContentErrorCode : uint8
 	{

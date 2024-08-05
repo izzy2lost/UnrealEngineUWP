@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "FRootPropertySourceModel"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FRootPropertySourceModel::FRootPropertySourceModel(FGetObjectDisplayString InGetObjectDisplayStringDelegate)
 		: GetObjectDisplayStringDelegate(MoveTemp(InGetObjectDisplayStringDelegate))

@@ -12,7 +12,7 @@
 
 namespace UE::ConcertSharedSlate { struct FObjectGroup; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FRootPropertySourceModel;
 	class FUserPropertySelector;

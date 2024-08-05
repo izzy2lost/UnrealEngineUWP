@@ -5,7 +5,7 @@
 #include "ReplicationClient.h"
 #include "Replication/Submission/Remote/RemoteSubmissionListener.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 

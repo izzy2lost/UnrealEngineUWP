@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "SPropertySelectionComboButton"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

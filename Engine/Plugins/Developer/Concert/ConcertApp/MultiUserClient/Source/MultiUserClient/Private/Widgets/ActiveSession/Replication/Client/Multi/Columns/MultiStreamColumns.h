@@ -11,7 +11,7 @@
 
 class IConcertClient;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FMuteChangeTracker;
 	class FReassignObjectPropertiesLogic;
@@ -26,7 +26,7 @@ namespace UE::ConcertSharedSlate
 	class IReplicationStreamViewer;
 }
 
-namespace UE::MultiUserClient::MultiStreamColumns
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	const extern FName MuteToggleColumnId;
 	const extern FName AssignedClientsColumnId;

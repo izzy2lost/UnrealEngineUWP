@@ -5,7 +5,7 @@
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Settings/MultiUserReplicationSettings.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FFrequencyChangeTracker::FFrequencyChangeTracker(
 		IClientStreamSynchronizer& InStreamSynchronizer

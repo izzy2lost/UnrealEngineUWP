@@ -8,7 +8,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/ActiveSession/Replication/Client/PropertySelection/RootPropertySourceModel.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FUserPropertySelector;
 }
@@ -24,7 +24,7 @@ namespace UE::ConcertSharedSlate
 	class IEditableReplicationStreamModel;
 }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 	class FMultiStreamModel;

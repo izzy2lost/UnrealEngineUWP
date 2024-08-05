@@ -4,7 +4,7 @@
 
 #include "SBaseRejectionNotification.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	struct FAccumulatedAuthorityErrors;
 	

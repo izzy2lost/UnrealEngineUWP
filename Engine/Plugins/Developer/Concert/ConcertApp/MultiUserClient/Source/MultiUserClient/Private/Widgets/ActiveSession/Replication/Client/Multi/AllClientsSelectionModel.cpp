@@ -4,7 +4,7 @@
 
 #include "Replication/Client/ReplicationClientManager.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FAllClientsSelectionModel::FAllClientsSelectionModel(FReplicationClientManager& InClientManager)
 		: ClientManager(InClientManager)

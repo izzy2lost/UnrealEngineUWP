@@ -9,7 +9,7 @@
 #include "Replication/Misc/Frequency/FrequencyChangeTracker.h"
 #include "Replication/Submission/Queue/SubmissionQueue.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
 		FSubmissionQueue& InSubmissionQueue,

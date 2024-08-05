@@ -28,7 +28,7 @@
 
 #define LOCTEXT_NAMESPACE "SMultiClientView"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SMultiClientView::Construct(
 		const FArguments&,

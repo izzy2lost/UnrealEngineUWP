@@ -6,7 +6,7 @@
 #include "Replication/Authority/AuthoritySynchronizer_LocalClient.h"
 #include "Replication/Submission/SubmissionWorkflow_LocalClient.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FLocalReplicationClient::FLocalReplicationClient(
 		FReplicationDiscoveryContainer& InDiscoveryContainer,

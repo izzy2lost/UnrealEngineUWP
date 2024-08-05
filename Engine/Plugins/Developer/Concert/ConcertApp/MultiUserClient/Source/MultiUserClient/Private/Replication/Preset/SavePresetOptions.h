@@ -8,7 +8,7 @@
 
 struct FConcertClientInfo;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	enum class EApplyPresetFlags : uint8
 	{

@@ -12,14 +12,14 @@
 
 struct FConcertPropertyChain;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FRemoteReplicationClient;
 	class FReplicationClient;
 	class FReplicationClientManager;
 }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Allows efficient look-up of which objects and properties are owned by which clients.

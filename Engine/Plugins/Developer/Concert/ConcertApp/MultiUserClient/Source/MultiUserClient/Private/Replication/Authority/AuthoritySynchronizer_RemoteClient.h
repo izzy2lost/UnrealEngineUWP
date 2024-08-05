@@ -11,7 +11,7 @@
 struct FGuid;
 struct FConcertAuthorityClientInfo;
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FStreamAndAuthorityQueryService;
 

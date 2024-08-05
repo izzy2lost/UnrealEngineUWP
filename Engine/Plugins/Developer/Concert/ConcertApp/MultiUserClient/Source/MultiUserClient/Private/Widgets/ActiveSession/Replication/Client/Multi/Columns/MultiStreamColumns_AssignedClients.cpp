@@ -15,7 +15,7 @@
 
 #define LOCTEXT_NAMESPACE "AssignedClientsColumnId"
 
-namespace UE::MultiUserClient::MultiStreamColumns
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	const FName AssignedClientsColumnId(TEXT("AssignedClientsColumn"));
 

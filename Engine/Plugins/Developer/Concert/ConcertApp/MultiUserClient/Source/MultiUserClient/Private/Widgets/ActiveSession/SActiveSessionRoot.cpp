@@ -24,7 +24,7 @@ namespace UE::MultiUserClient
 	void SActiveSessionRoot::Construct(
 		const FArguments& InArgs,
 		TSharedPtr<IConcertSyncClient> InConcertSyncClient,
-		TSharedRef<FMultiUserReplicationManager> InReplicationManager
+		TSharedRef<Replication::FMultiUserReplicationManager> InReplicationManager
 		)
 	{
 		ChildSlot
@@ -61,7 +61,7 @@ namespace UE::MultiUserClient
 				]
 				+SWidgetSwitcher::Slot()
 				[
-					SNew(SReplicationRootWidget, InReplicationManager, InConcertSyncClient.ToSharedRef())
+					SNew(Replication::SReplicationRootWidget, InReplicationManager, InConcertSyncClient.ToSharedRef())
 				]
 			]
 		];

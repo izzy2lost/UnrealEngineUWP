@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "SReplicationStatus"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	namespace Private
 	{

@@ -10,7 +10,7 @@ class SVerticalBox;
 
 namespace UE::ConcertSharedSlate { class IReplicationStreamModel; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class FGlobalAuthorityCache;
 

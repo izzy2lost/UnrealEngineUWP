@@ -4,7 +4,7 @@
 
 #include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	FAuthoritySynchronizer_RemoteClient::FAuthoritySynchronizer_RemoteClient(const FGuid& RemoteEndpointId, FStreamAndAuthorityQueryService& InQueryService)
 		: QueryService(InQueryService)

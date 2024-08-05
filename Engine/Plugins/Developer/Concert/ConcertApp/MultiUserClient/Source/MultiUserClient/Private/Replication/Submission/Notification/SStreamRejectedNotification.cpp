@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "SStreamRejectedNotification"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SStreamRejectedNotification::Construct(const FArguments& InArgs)
 	{

@@ -6,7 +6,7 @@
 #include "Templates/UnrealTemplate.h"
 #include "TickableEditorObject.h"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	class IDeferredSubmitter;
 	class ISubmissionWorkflow;

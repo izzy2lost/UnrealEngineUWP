@@ -18,7 +18,7 @@
 
 #define LOCTEXT_NAMESPACE "SReplicationRootWidget"
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	void SReplicationRootWidget::Construct(
 		const FArguments& InArgs,

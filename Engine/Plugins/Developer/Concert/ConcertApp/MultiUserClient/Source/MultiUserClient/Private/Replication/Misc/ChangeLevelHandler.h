@@ -10,7 +10,7 @@ class UWorld;
 
 namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
 
-namespace UE::MultiUserClient
+namespace UE::MultiUserClient::Replication
 {
 	/**
 	 * Handles a client opening a new level.
