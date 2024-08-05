@@ -156,5 +156,58 @@ namespace HordeServer.Telemetry
 
 			return NoContent();
 		}
+
+		/// <summary>
+		/// Get telemetry views
+		/// </summary>
+		/// <returns>List of telemetry views</returns>
+		[HttpGet]
+		[Authorize]
+		[Route("/api/v1/telemetry/views")]
+		public ActionResult<List<GetTelemetryViewResponse>> GetDashboardViews()
+		{
+			if (!_analyticsConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
+			{
+				return Forbid(TelemetryAclAction.QueryMetrics);
+			}
+
+			List<GetTelemetryViewResponse> responses = new List<GetTelemetryViewResponse>();
+
+			foreach (TelemetryViewConfig telemetry in _analyticsConfig.Value.Stores.SelectMany(store => store.Views))
+			{
+				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
+				rview.Id = telemetry.Id.ToString();
+				rview.Name = telemetry.Name;
+				rview.TelemetryStoreId = telemetry.TelemetryStoreId.ToString();
+
+				foreach (TelemetryVariableConfig variable in telemetry.Variables)
+				{
+					rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group, Defaults = variable.Defaults });
+				}
+
+				foreach (TelemetryCategoryConfig category in telemetry.Categories)
+				{
+					GetTelemetryCategoryResponse rcategory = new GetTelemetryCategoryResponse { Name = category.Name };
+
+					foreach (TelemetryChartConfig chart in category.Charts)
+					{
+						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
+
+						foreach (TelemetryChartMetricConfig metric in chart.Metrics)
+						{
+							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
+						}
+
+						rcategory.Charts.Add(rchart);
+					}
+
+					rview.Categories.Add(rcategory);
+				}
+
+				responses.Add(rview);
+			}
+
+			return responses;
+		}
 	}
 }

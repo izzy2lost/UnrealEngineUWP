@@ -64,11 +64,6 @@ namespace HordeServer.Dashboard
 		public List<DashboardPoolCategoryConfig> PoolCategories { get; set; } = new List<DashboardPoolCategoryConfig>();
 
 		/// <summary>
-		/// Configuration for telemetry views
-		/// </summary>
-		public List<TelemetryViewConfig> Analytics { get; set; } = new List<TelemetryViewConfig>();
-
-		/// <summary>
 		/// Includes for other configuration files
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();

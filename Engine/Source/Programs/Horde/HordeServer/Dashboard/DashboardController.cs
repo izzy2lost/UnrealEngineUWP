@@ -12,7 +12,6 @@ using EpicGames.Horde.Server;
 using HordeServer.Accounts;
 using HordeServer.Plugins;
 using HordeServer.Server;
-using HordeServer.Telemetry;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -157,43 +156,6 @@ namespace HordeServer.Dashboard
 			foreach (DashboardPoolCategoryConfig category in _globalConfig.Value.Dashboard.PoolCategories)
 			{
 				dashboardConfigResponse.PoolCategories.Add(new GetDashboardPoolCategoryResponse { Name = category.Name, Condition = category.Condition });
-			}
-
-			if (_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
-			{
-				foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
-				{
-					GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
-					rview.Id = telemetry.Id.ToString();
-					rview.Name = telemetry.Name;
-					rview.TelemetryStoreId = telemetry.TelemetryStoreId.ToString();
-
-					foreach (TelemetryVariableConfig variable in telemetry.Variables)
-					{
-						rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group, Defaults = variable.Defaults });
-					}
-
-					foreach (TelemetryCategoryConfig category in telemetry.Categories)
-					{
-						GetTelemetryCategoryResponse rcategory = new GetTelemetryCategoryResponse { Name = category.Name };
-
-						foreach (TelemetryChartConfig chart in category.Charts)
-						{
-							GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Min = chart.Min, Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
-
-							foreach (TelemetryChartMetricConfig metric in chart.Metrics)
-							{
-								rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
-							}
-
-							rcategory.Charts.Add(rchart);
-						}
-
-						rview.Categories.Add(rcategory);
-					}
-
-					dashboardConfigResponse.TelemetryViews.Add(rview);
-				}
 			}
 
 			foreach (IPluginResponseFilter responseFilter in _responseFilters)

@@ -146,6 +146,11 @@ namespace HordeServer.Telemetry.Metrics
 		public List<MetricConfig> Metrics { get; set; } = new List<MetricConfig>();
 
 		/// <summary>
+		/// Configuration for telemetry views
+		/// </summary>
+		public List<TelemetryViewConfig> Views { get; set; } = new List<TelemetryViewConfig>();
+
+		/// <summary>
 		/// Includes for other configuration files
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
