@@ -517,10 +517,6 @@ namespace mu
 
 			FinalOp = conditionalAd;
 		}
-		else
-		{
-			FinalOp = FinalOp;
-		}
 
 		return FinalOp;
 	}

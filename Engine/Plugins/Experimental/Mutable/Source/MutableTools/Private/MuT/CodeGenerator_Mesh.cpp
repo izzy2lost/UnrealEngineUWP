@@ -944,7 +944,7 @@ namespace mu
 				// Generate the layout with blocks to extract
 				Ptr<const Layout> Layout = GenerateLayout(Node->Layout, 0);
 				BaseOptions.OverrideLayouts.Empty();
-				BaseOptions.OverrideLayouts.Emplace(Layout, Node->Layout);
+				BaseOptions.OverrideLayouts.Add({ Layout, Node->Layout });
 			}
 
             GenerateMesh( BaseOptions, BaseResult, Node->SourceMesh);
