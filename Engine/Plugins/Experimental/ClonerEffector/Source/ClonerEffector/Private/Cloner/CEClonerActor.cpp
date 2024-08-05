@@ -70,8 +70,6 @@ ACEClonerActor::ACEClonerActor()
 			GEditor->GetSelectedActors()->SelectionChangedEvent.AddUObject(this, &ACEClonerActor::OnEditorSelectionChanged);
 		}
 #endif
-
-		UCEClonerComponent::OnClonerInitialized().AddUObject(this, &ACEClonerActor::OnClonerInitialized);
 	}
 }
 
@@ -109,18 +107,12 @@ void ACEClonerActor::PostActorCreated()
 
 #if WITH_EDITOR
 	bSpawnDefaultActorAttached = true;
-#endif
-}
 
-void ACEClonerActor::OnClonerInitialized(UCEClonerComponent* InClonerComponent)
-{
-	if (ClonerComponent == InClonerComponent)
+	if (ClonerComponent->bClonerInitialized)
 	{
-#if WITH_EDITOR
-		// PostActorCreated is sometimes called after the cloner is initialized
-		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ACEClonerActor::SpawnDefaultActorAttached));
-#endif
+		SpawnDefaultActorAttached();
 	}
+#endif
 }
 
 void ACEClonerActor::MigrateDeprecatedProperties()
@@ -369,15 +361,13 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 }
 
 #if WITH_EDITOR
-bool ACEClonerActor::SpawnDefaultActorAttached(float)
+void ACEClonerActor::SpawnDefaultActorAttached()
 {
 	if (bSpawnDefaultActorAttached)
 	{
 		bSpawnDefaultActorAttached = false;
 		ClonerComponent->CreateDefaultActorAttached();
 	}
-
-	return false;
 }
 
 void ACEClonerActor::OnEditorSelectionChanged(UObject* InSelection)

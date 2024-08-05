@@ -26,6 +26,7 @@
 #include "Materials/Material.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/ScopedSlowTask.h"
+#include "ScopedTransaction.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #endif
 
@@ -1229,10 +1230,14 @@ void UCEClonerComponent::CreateDefaultActorAttached()
 		return;
 	}
 
+	FScopedTransaction Transaction(LOCTEXT("CreateDefaultActorAttached", "Create cloner default actor attached"), !GIsTransacting);
+
+	Modify();
+
 	// Spawn attached actor with same flags as this actor
 	FActorSpawnParameters SpawnParameters;
 	SpawnParameters.Owner = Owner;
-	SpawnParameters.ObjectFlags = GetFlags();
+	SpawnParameters.ObjectFlags = GetFlags() | RF_Transactional;
 	SpawnParameters.bTemporaryEditorActor = false;
 
 	const FVector ClonerLocation = GetComponentLocation();

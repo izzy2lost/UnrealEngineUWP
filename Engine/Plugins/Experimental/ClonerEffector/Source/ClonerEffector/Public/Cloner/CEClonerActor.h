@@ -50,12 +50,10 @@ protected:
 	//~ End AActor
 
 private:
-	void OnClonerInitialized(UCEClonerComponent* InClonerComponent);
-
 	void MigrateDeprecatedProperties();
 
 #if WITH_EDITOR
-	bool SpawnDefaultActorAttached(float);
+	void SpawnDefaultActorAttached();
 
 	/** Hide outline selection when this cloner only is selected in viewport */
 	void OnEditorSelectionChanged(UObject* InSelection);
