@@ -11,6 +11,11 @@
 
 /**
  * Class template aiming to override ResetToDefault methods by comparing properties with an internal static DefaultObject.
+ * 
+ * This behavior was originally written for settings UI and does not properly support inheritance (resetting a parent class's
+ * struct member to default and have it propagate to loaded children). If a struct wants to override ResetToDefault behavior
+ * using this class and must support the outer-object being a parent class, OnResetToDefault should be revisited to properly
+ * reset archetype instances as well.
  */
 template<typename UStructType>
 class TOverrideResetToDefaultWithStaticUStruct 
@@ -66,7 +71,11 @@ void TOverrideResetToDefaultWithStaticUStruct<UStructType>::OnResetToDefault(TSh
 
 	if ((DefaultValuePtr != nullptr) && (ValuePtr != nullptr))
 	{
-		PropertyAccessUtil::SetPropertyValue_DirectSingle(Property, DefaultValuePtr, Property, ValuePtr, 0, Property->HasAnyFlags(RF_ArchetypeObject), []() { return nullptr; });
+		// SetPropertyValue_DirectSingle when called on an archetype can propagate to instances. 
+		// See class comments: this ResetToDefault override was not written for contexts involving 
+		// inheritance, so pass in empty archetype instances list.
+		TArray<void*> NoArchetypeInsts;
+		PropertyAccessUtil::SetPropertyValue_DirectSingle(Property, DefaultValuePtr, Property, ValuePtr, NoArchetypeInsts, 0, Property->HasAnyFlags(RF_ArchetypeObject), []() { return nullptr; });
 	}
 }
 

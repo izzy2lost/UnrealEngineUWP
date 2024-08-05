@@ -3280,17 +3280,28 @@ bool UKismetSystemLibrary::Generic_SetEditorProperty(UObject* Object, const FNam
 			{
 				void* SparseDest = Object->GetClass()->GetOrCreateSparseClassData();
 
+				// If the object is a template, instances of it may need to be updated as well depending on whether they are inheriting their
+				// current value. Detect those instances which haven't overwritten the value. In the case of sparse data, this applies to
+				// subclass CDOs.
+				TArray<void*> ArchetypeInstances;
+				const bool bObjectIsTemplate = PropertyAccessUtil::IsObjectTemplate(Object);
+				if (bObjectIsTemplate)
+				{
+					PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(SparseProp, Object, ArchetypeInstances);
+				}
+
 				SparseDataAccessResult = PropertyAccessUtil::SetPropertyValue_InContainer(
 					SparseProp,
 					SparseDest,
+					ArchetypeInstances,
 					ValueProp,
 					ValuePtr,
 					INDEX_NONE,
 					PropertyAccessUtil::EditorReadOnlyFlags,
-					PropertyAccessUtil::IsObjectTemplate(Object),
+					bObjectIsTemplate,
 					[SparseProp, Object, ChangeNotifyMode]()
 					{
-						return PropertyAccessUtil::BuildBasicChangeNotify(SparseProp, Object, ChangeNotifyMode);
+						return PropertyAccessUtil::BuildBasicChangeNotify(SparseProp, Object, ChangeNotifyMode, EPropertyChangeType::ValueSet);
 					});
 				if (*SparseDataAccessResult == EPropertyAccessResultFlags::Success)
 				{

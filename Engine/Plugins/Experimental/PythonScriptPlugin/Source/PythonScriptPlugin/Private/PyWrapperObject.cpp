@@ -137,7 +137,17 @@ int FPyWrapperObject::SetPropertyValue(FPyWrapperObject* InSelf, PyObject* InVal
 	}
 
 	const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, InPropDef.Prop).BuildChangeNotify(InNotifyMode);
-	return PyGenUtil::SetPropertyValue(InSelf->ObjectInstance->GetClass(), InSelf->ObjectInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+
+	// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+	// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+	TArray<void*> ArchetypeInsts;
+	const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
+	if (bIsObjectTemplate)
+	{
+		PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(InPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+	}
+
+	return PyGenUtil::SetPropertyValue(InSelf->ObjectInstance->GetClass(), InSelf->ObjectInstance, InValue, InPropDef, InPythonAttrName, ChangeNotify.Get(), InReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 }
 
 PyObject* FPyWrapperObject::CallGetterFunction(FPyWrapperObject* InSelf, const PyGenUtil::FGeneratedWrappedFunction& InFuncDef)
@@ -878,13 +888,22 @@ PyTypeObject InitializePyWrapperObjectType()
 				return nullptr;
 			}
 
+			// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+			// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+			TArray<void*> ArchetypeInsts;
+			const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
+			if (bIsObjectTemplate)
+			{
+				PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(WrappedPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+			}
+
 			// If the owner class is set then this property is from 'self', otherwise it's from the sparse class data
 			const bool bPropertyIsOwnedBySelf = WrappedPropDef.Prop->GetOwnerClass() != nullptr;
 			UClass* Class = InSelf->ObjectInstance->GetClass();
 			if (bPropertyIsOwnedBySelf)
 			{
 				const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, WrappedPropDef.Prop).BuildChangeNotify(NotifyMode);
-				const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+				const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 				if (Result != 0)
 				{
 					return nullptr;
@@ -897,7 +916,7 @@ PyTypeObject InitializePyWrapperObjectType()
 				if (SparseDataStruct && SparseData)
 				{
 					const TUniquePtr<FPropertyAccessChangeNotify> ChangeNotify = FPyWrapperOwnerContext((PyObject*)InSelf, WrappedPropDef.Prop).BuildChangeNotify(NotifyMode);
-					const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+					const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), ChangeNotify.Get(), PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 					if (Result != 0)
 					{
 						return nullptr;
@@ -980,17 +999,27 @@ PyTypeObject InitializePyWrapperObjectType()
 
 			// Try and set the value of each property
 			UClass* Class = InSelf->ObjectInstance->GetClass();
+			const bool bIsObjectTemplate = PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance);
 			for (const FPropertyInfoPair& PropertyInfo : PropertyInfos)
 			{
 				const FName Name = PropertyInfo.Get<0>();
 				const PyGenUtil::FGeneratedWrappedProperty& WrappedPropDef = PropertyInfo.Get<1>();
 				PyObject* PyValueObj = PropertyInfo.Get<2>().GetPtr();
 
+				// If the object is a template, gather instances (including subclass CDOs) inheriting their property value from this template.
+				// Those instances are passed into PyGenUtil::SetPropertyValue so that they will receive the value change as well.
+				// Each property can have a different set of archetype instances that are inheriting the value.
+				TArray<void*> ArchetypeInsts;
+				if (bIsObjectTemplate)
+				{
+					PropertyAccessUtil::GetArchetypeInstancesInheritingPropertyValue_AsContainerData(WrappedPropDef.Prop, InSelf->ObjectInstance, ArchetypeInsts);
+				}
+
 				// If the owner class is set then this property is from 'self', otherwise it's from the sparse class data
 				const bool bPropertyIsOwnedBySelf = WrappedPropDef.Prop->GetOwnerClass() != nullptr;
 				if (bPropertyIsOwnedBySelf)
 				{
-					const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+					const int Result = PyGenUtil::SetPropertyValue(Class, InSelf->ObjectInstance, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 					if (Result != 0)
 					{
 						return nullptr;
@@ -1002,7 +1031,7 @@ PyTypeObject InitializePyWrapperObjectType()
 					void* SparseData = Class->GetOrCreateSparseClassData();
 					if (SparseDataStruct && SparseData)
 					{
-						const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, PropertyAccessUtil::IsObjectTemplate(InSelf->ObjectInstance), *PyUtil::GetErrorContext(InSelf));
+						const int Result = PyGenUtil::SetPropertyValue(SparseDataStruct, SparseData, PyValueObj, WrappedPropDef, TCHAR_TO_UTF8(*Name.ToString()), nullptr, PropertyAccessUtil::EditorReadOnlyFlags, bIsObjectTemplate, *PyUtil::GetErrorContext(InSelf), ArchetypeInsts);
 						if (Result != 0)
 						{
 							return nullptr;

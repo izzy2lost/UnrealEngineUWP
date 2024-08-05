@@ -168,7 +168,29 @@ namespace PropertyAccessUtil
 	COREUOBJECT_API EPropertyAccessResultFlags CanGetPropertyValue(const FProperty* InProp);
 
 	/**
-	 * High-level function for setting the value of a property on an object.
+	 * Finds all instances of an archetype object which are inheriting the given property's value from the archetype, then returns those instance UObjects.
+	 *
+	 * @param InObjectProp Property to compare the value of.
+	 * @param InObject Archetype object containing the property.
+	 * @param OutArchetypeInstances Array to store results in.
+	 *
+	 * @return True if archetype instances were searched and regardless of whether any instances were returned.
+	 */
+	COREUOBJECT_API bool GetArchetypeInstancesInheritingPropertyValue(const FProperty* InObjectProp, UObject* InObject, TArray<UObject*>& OutArchetypeInstances);
+
+	/**
+	 * Finds all instances of an archetype object which are inheriting the given property's value from the archetype, then returns the containers for the given property which is either the UObject's address or the sparse data struct.
+	 *
+	 * @param InObjectProp Property to compare the value of.
+	 * @param InObject Archetype object containing the property.
+	 * @param OutArchetypeInstContainers Array to store results in. These are pointers to the container containing the given property value. If the property is sparse class data, these will point to the sparse data struct.
+	 *
+	 * @return True if archetype instances were searched and regardless of whether any instances were returned.
+	 */
+	COREUOBJECT_API bool GetArchetypeInstancesInheritingPropertyValue_AsContainerData(const FProperty* InObjectProp, UObject* InObject, TArray<void*>& OutArchetypeInstContainers);
+
+	/**
+	 * High-level function for setting the value of a property on an object. If the object is an archetype, value will be propagated to instances that haven't modified the value.
 	 * @note This function calls CanSetPropertyValue internally, and will emit property change notifications for the object.
 	 *
 	 * @param InObjectProp Property to set the value of.
@@ -189,6 +211,7 @@ namespace PropertyAccessUtil
 	 *
 	 * @param InContainerProp Property to set the value of.
 	 * @param InContainerData The instance data containing the property.
+	 * @param InArchetypeInstContainerData When the object is an archetype: container addresses of instances of the archetype to evaluate. Those with currently the same value as archetype will also have their property updates.
 	 * @param InSrcProp Property of the value to set (must be compatible with the dest property).
 	 * @param InSrcValue The value to set on the property.
 	 * @param InArrayIndex For fixed-size array properties denotes which index of the array to set, or INDEX_NONE to set the entire property.
@@ -198,7 +221,7 @@ namespace PropertyAccessUtil
 	 *
 	 * @return Flags describing whether the set was successful.
 	 */
-	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_InContainer(const FProperty* InContainerProp, void* InContainerData, const FProperty* InSrcProp, const void* InSrcValue, const int32 InArrayIndex, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
+	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_InContainer(const FProperty* InContainerProp, void* InContainerData, const TArray<void*>& InArchetypeInstContainerData, const FProperty* InSrcProp, const void* InSrcValue, const int32 InArrayIndex, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
 	
 	/**
 	 * High-level function for setting the single-element value of a property in memory.
@@ -208,13 +231,14 @@ namespace PropertyAccessUtil
 	 * @param InSrcValue The value to set on the property.
 	 * @param InDestProp Property to get the value from (must be compatible with the source property).
 	 * @param InDestValue Instance to fill with the property value (must be a valid and constructed block of memory that is compatible with the property).
+	 * @param InArchetypeInstDestValues When the object is an archetype: direct value addresses of instances of the archetype to evaluate. Those with currently the same value as archetype will also have their property updates.
 	 * @param InReadOnlyFlags Flags controlling which properties are considered read-only.
 	 * @param InOwnerIsTemplate True if the owner object is considered a template (see IsObjectTemplate).
 	 * @param InBuildChangeNotifyFunc Logic for building the information needed to emit property change notifications when setting a property value (can return nullptr if no notifications are needed or possible).
 	 *
 	 * @return Flags describing whether the set was successful.
 	 */
-	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_DirectSingle(const FProperty* InSrcProp, const void* InSrcValue, const FProperty* InDestProp, void* InDestValue, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
+	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_DirectSingle(const FProperty* InSrcProp, const void* InSrcValue, const FProperty* InDestProp, void* InDestValue, const TArray<void*>& InArchetypeInstDestValues, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
 
 	/**
 	 * High-level function for setting the multi-element value of a property in memory.
@@ -224,13 +248,14 @@ namespace PropertyAccessUtil
 	 * @param InSrcValue The value to set on the property.
 	 * @param InDestProp Property to get the value from (must be compatible with the source property).
 	 * @param InDestValue Instance to fill with the property value (must be a valid and constructed block of memory that is compatible with the property).
+	 * @param InArchetypeInstDestValues When the object is an archetype: direct value addresses of instances of the archetype to evaluate. Those with currently the same value as archetype will also have their property updates.
 	 * @param InReadOnlyFlags Flags controlling which properties are considered read-only.
 	 * @param InOwnerIsTemplate True if the owner object is considered a template (see IsObjectTemplate).
 	 * @param InBuildChangeNotifyFunc Logic for building the information needed to emit property change notifications when setting a property value (can return nullptr if no notifications are needed or possible).
 	 *
 	 * @return Flags describing whether the set was successful.
 	 */
-	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_DirectComplete(const FProperty* InSrcProp, const void* InSrcValue, const FProperty* InDestProp, void* InDestValue, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
+	COREUOBJECT_API EPropertyAccessResultFlags SetPropertyValue_DirectComplete(const FProperty* InSrcProp, const void* InSrcValue, const FProperty* InDestProp, void* InDestValue, const TArray<void*>& InArchetypeInstDestValues, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const FPropertyAccessBuildChangeNotifyFunc& InBuildChangeNotifyFunc);
 
 	/**
 	 * Low-level function for setting the value of a property.
@@ -278,7 +303,7 @@ namespace PropertyAccessUtil
 	 *
 	 * @return The information needed to emit property change notifications.
 	 */
-	COREUOBJECT_API TUniquePtr<FPropertyAccessChangeNotify> BuildBasicChangeNotify(const FProperty* InProp, const UObject* InObject, const EPropertyAccessChangeNotifyMode InNotifyMode);
+	COREUOBJECT_API TUniquePtr<FPropertyAccessChangeNotify> BuildBasicChangeNotify(const FProperty* InProp, const UObject* InObject, const EPropertyAccessChangeNotifyMode InNotifyMode, const EPropertyChangeType::Type ChangeType);
 
 	/**
 	 * Low-level function for checking whether the given object instance is considered a template for property access.

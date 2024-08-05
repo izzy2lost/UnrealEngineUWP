@@ -825,7 +825,7 @@ PyObject* GetPropertyValue(const UStruct* InStruct, const void* InStructData, co
 	Py_RETURN_NONE;
 }
 
-int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt)
+int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InValue, const FProperty* InProp, const char *InAttributeName, const FPropertyAccessChangeNotify* InChangeNotify, const uint64 InReadOnlyFlags, const bool InOwnerIsTemplate, const TCHAR* InErrorCtxt, const TConstArrayView<void*>& InArchetypeInstStructData)
 {
 	if (!InValue)
 	{
@@ -866,7 +866,7 @@ int SetPropertyValue(const UStruct* InStruct, void* InStructData, PyObject* InVa
 			return -1;
 		}
 
-		if (!PyConversion::NativizeProperty_InContainer(InValue, InProp, InStructData, 0, InChangeNotify))
+		if (!PyConversion::NativizeProperty_InContainer(InValue, InProp, InStructData, 0, InArchetypeInstStructData, InChangeNotify))
 		{
 			SetPythonError(PyExc_TypeError, InErrorCtxt, *FString::Printf(TEXT("Failed to convert type '%s' to property '%s' (%s) for attribute '%s' on '%s'"), *GetFriendlyTypename(InValue), *InProp->GetName(), *InProp->GetClass()->GetName(), UTF8_TO_TCHAR(InAttributeName), *InStruct->GetName()));
 			return -1;
