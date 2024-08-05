@@ -4,7 +4,7 @@
 
 RWByteAddressBuffer {DataInterfaceName}_DataCollectionBuffer;
 
-// TODO: These defines could be code-gen'd to stay in sync with our PCGComputeConstants
+// TODO: These defines could be code-gen'd to stay in sync with our PCGComputeConstants, see UComputeDataInterface::GetDefines()
 #define POINT_POSITION_ID 0
 #define POINT_ROTATION_ID 1
 #define POINT_SCALE_ID 2
@@ -18,6 +18,18 @@ RWByteAddressBuffer {DataInterfaceName}_DataCollectionBuffer;
 
 #define INVALID_DENSITY 1.#INF
 
+// #################### DIRECT BUFFER OPERATIONS ##########################
+
+uint LoadBufferInternal_{DataInterfaceName}(uint Address)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Load(Address);
+}
+
+void StoreBufferInternal_{DataInterfaceName}(uint Address, uint Value)
+{
+	return {DataInterfaceName}_DataCollectionBuffer.Store(Address, Value);
+}
+
 // #################### HEADER READERS ##########################
 
 uint GetNumData_{DataInterfaceName}()
@@ -25,28 +37,28 @@ uint GetNumData_{DataInterfaceName}()
 	return {DataInterfaceName}_DataCollectionBuffer.Load(0);
 }
 
-uint ReadDataAddress_{DataInterfaceName}(uint DataIndex)
+uint GetDataAddress_{DataInterfaceName}(uint DataIndex)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load((DataIndex + 1) * 4);
 }
 
-uint ReadDataId_{DataInterfaceName}(uint DataAddress)
+uint GetDataId_{DataInterfaceName}(uint DataAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 0);
 }
 
-uint ReadDataNumAttributes_{DataInterfaceName}(uint DataAddress)
+uint GetDataNumAttributes_{DataInterfaceName}(uint DataAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 4);
 }
 
-uint ReadDataPreambleSize_{DataInterfaceName}(uint DataAddress)
+uint GetDataPreambleSize_{DataInterfaceName}(uint DataAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 8);
 }
 
 // For PointData, this is just NumPoints
-uint ReadDataInfo_{DataInterfaceName}(uint DataAddress)
+uint GetDataInfo_{DataInterfaceName}(uint DataAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(DataAddress + 12);
 }
@@ -58,8 +70,8 @@ bool GetThreadData_{DataInterfaceName}(uint InThreadIndex, out uint OutDataIndex
 	const uint NumData = GetNumData_{DataInterfaceName}();
 	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
 	{
-		const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
-		const uint ElemCount = ReadDataInfo_{DataInterfaceName}(DataAddress);
+		const uint DataAddress = GetDataAddress_{DataInterfaceName}(DataIndex);
+		const uint ElemCount = GetDataInfo_{DataInterfaceName}(DataAddress);
 
 		if (ElementIndex < ElemCount)
 		{
@@ -93,55 +105,55 @@ uint GetNumElements_{DataInterfaceName}()
 	const uint NumData = GetNumData_{DataInterfaceName}();
 	for (uint DataIndex = 0; DataIndex < NumData; ++DataIndex)
 	{
-		const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
-		NumElements += ReadDataInfo_{DataInterfaceName}(DataAddress);
+		const uint DataAddress = GetDataAddress_{DataInterfaceName}(DataIndex);
+		NumElements += GetDataInfo_{DataInterfaceName}(DataAddress);
 	}
 
 	return NumElements;
 }
 
-uint ReadDataAttributeHeadersAddress_{DataInterfaceName}(uint DataAddress)
+uint GetDataAttributeHeadersAddress_{DataInterfaceName}(uint DataAddress)
 {
-	return DataAddress + ReadDataPreambleSize_{DataInterfaceName}(DataAddress);
+	return DataAddress + GetDataPreambleSize_{DataInterfaceName}(DataAddress);
 }
 
-uint ReadAttributeHeaderAddress_{DataInterfaceName}(uint AttributeHeadersAddress, uint AttributeId)
+uint GetAttributeHeaderAddress_{DataInterfaceName}(uint AttributeHeadersAddress, uint AttributeId)
 {
 	return AttributeHeadersAddress + AttributeId * 8;
 }
 
-uint ReadAttributeIdAndStride_{DataInterfaceName}(uint AttributeHeaderAddress)
+uint GetAttributeIdAndStride_{DataInterfaceName}(uint AttributeHeaderAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeHeaderAddress);
 }
 
-uint ReadAttributeId_{DataInterfaceName}(uint AttributeHeaderAddress)
+uint GetAttributeId_{DataInterfaceName}(uint AttributeHeaderAddress)
 {
-	return ReadAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) >> 8;
+	return GetAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) >> 8;
 }
 
-uint ReadAttributeStride_{DataInterfaceName}(uint AttributeHeaderAddress)
+uint GetAttributeStride_{DataInterfaceName}(uint AttributeHeaderAddress)
 {
-	return ReadAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) & (0xFFFFFFFF >> 24);
+	return GetAttributeIdAndStride_{DataInterfaceName}(AttributeHeaderAddress) & (0xFFFFFFFF >> 24);
 }
 
-uint ReadAttributeAddress_{DataInterfaceName}(uint AttributeHeaderAddress)
+uint GetAttributeAddress_{DataInterfaceName}(uint AttributeHeaderAddress)
 {
 	return {DataInterfaceName}_DataCollectionBuffer.Load(AttributeHeaderAddress + 4);
 }
 
-uint ReadAttributeAddress_{DataInterfaceName}(uint InDataAddress, uint InAttributeId)
+uint GetAttributeAddress_{DataInterfaceName}(uint InDataAddress, uint InAttributeId)
 {
-	const uint AttributeHeadersAddress = ReadDataAttributeHeadersAddress_{DataInterfaceName}(InDataAddress);
-	const uint NumAttributes = ReadDataNumAttributes_{DataInterfaceName}(InDataAddress);
+	const uint AttributeHeadersAddress = GetDataAttributeHeadersAddress_{DataInterfaceName}(InDataAddress);
+	const uint NumAttributes = GetDataNumAttributes_{DataInterfaceName}(InDataAddress);
 
 	for (uint AttributeIndex = 0; AttributeIndex < NumAttributes; ++AttributeIndex)
 	{
-		const uint AttributeHeaderAddress = ReadAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeIndex);
+		const uint AttributeHeaderAddress = GetAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeIndex);
 
-		if (ReadAttributeId_{DataInterfaceName}(AttributeHeaderAddress) == InAttributeId)
+		if (GetAttributeId_{DataInterfaceName}(AttributeHeaderAddress) == InAttributeId)
 		{
-			return ReadAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
+			return GetAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
 		}
 	}
 
@@ -150,65 +162,55 @@ uint ReadAttributeAddress_{DataInterfaceName}(uint InDataAddress, uint InAttribu
 
 // #################### HEADER WRITERS ##########################
 
-void WriteNumData_{DataInterfaceName}(uint NumData)
+void SetNumDataInternal_{DataInterfaceName}(uint NumData)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(0, NumData);
 }
 
-void WriteDataAddress_{DataInterfaceName}(uint DataIndex, uint DataAddress)
+void SetDataAddressInternal_{DataInterfaceName}(uint DataIndex, uint DataAddress)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store((DataIndex + 1) * 4, DataAddress);
 }
 
-void WriteDataId_{DataInterfaceName}(uint DataAddress, uint Id)
+void SetDataIdInternal_{DataInterfaceName}(uint DataAddress, uint Id)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 0, Id);
 }
 
-void WriteDataNumAttributes_{DataInterfaceName}(uint DataAddress, uint NumAttributes)
+void SetDataNumAttributesInternal_{DataInterfaceName}(uint DataAddress, uint NumAttributes)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 4, NumAttributes);
 }
 
-void WriteDataPreambleSize_{DataInterfaceName}(uint DataAddress, uint PreambleSize)
+void SetDataPreambleSizeInternal_{DataInterfaceName}(uint DataAddress, uint PreambleSize)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 8, PreambleSize);
 }
 
 // For PointData, this is just NumPoints
-void WriteDataInfo_{DataInterfaceName}(uint DataAddress, uint Info)
+void SetDataInfoInternal_{DataInterfaceName}(uint DataAddress, uint Info)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(DataAddress + 12, Info);
 }
 
-void WriteAttributeIdAndStride_{DataInterfaceName}(uint AttributeHeaderAddress, uint IdAndStride)
+void SetAttributeIdAndStrideInternal_{DataInterfaceName}(uint AttributeHeaderAddress, uint IdAndStride)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeHeaderAddress, IdAndStride);
 }
 
-void WriteAttributeAddress_{DataInterfaceName}(uint AttributeHeaderAddress, uint AttributeAddress)
+void SetAttributeAddressInternal_{DataInterfaceName}(uint AttributeHeaderAddress, uint AttributeAddress)
 {
 	{DataInterfaceName}_DataCollectionBuffer.Store(AttributeHeaderAddress + 4, AttributeAddress);
-}
-
-uint LoadBuffer_{DataInterfaceName}(uint Address)
-{
-	return {DataInterfaceName}_DataCollectionBuffer.Load(Address);
-}
-
-void StoreBuffer_{DataInterfaceName}(uint Address, uint Value)
-{
-	return {DataInterfaceName}_DataCollectionBuffer.Store(Address, Value);
 }
 
 // #################### ATTRIBUTE GETTERS ##########################
 
 uint ComputeAddressHelper_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)
 {
-	const uint DataAddress = ReadDataAddress_{DataInterfaceName}(DataIndex);
-	const uint AttributeHeadersAddress = ReadDataAttributeHeadersAddress_{DataInterfaceName}(DataAddress);
-	const uint AttributeHeaderAddress = ReadAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeId);
-	return ReadAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
+	const uint DataAddress = GetDataAddress_{DataInterfaceName}(DataIndex);
+	const uint AttributeHeadersAddress = GetDataAttributeHeadersAddress_{DataInterfaceName}(DataAddress);
+	const uint AttributeHeaderAddress = GetAttributeHeaderAddress_{DataInterfaceName}(AttributeHeadersAddress, AttributeId);
+	return GetAttributeAddress_{DataInterfaceName}(AttributeHeaderAddress);
 }
 
 bool GetBool_{DataInterfaceName}(uint DataIndex, uint ElementIndex, uint AttributeId)

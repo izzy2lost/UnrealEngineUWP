@@ -158,7 +158,7 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 			{
 				const UPCGCustomHLSLSettings* KernelSettings = CastChecked<UPCGCustomHLSLSettings>(Settings);
 
-				if (!KernelSettings->IsKernelValid(Context))
+				if (!KernelSettings->IsKernelValid(Context, /*bQuiet=*/false))
 				{
 					return true;
 				}

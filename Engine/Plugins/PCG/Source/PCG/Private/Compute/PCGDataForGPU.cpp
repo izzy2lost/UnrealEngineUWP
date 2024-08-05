@@ -3,6 +3,7 @@
 #include "Compute/PCGDataForGPU.h"
 
 #include "PCGData.h"
+#include "PCGParamData.h"
 #include "PCGPoint.h"
 #include "Compute/PCGComputeCommon.h"
 #include "Data/PCGPointData.h"
@@ -412,13 +413,7 @@ FPCGDataDesc::FPCGDataDesc(const UPCGData* Data, const TMap<FPCGKernelAttributeK
 	check(Data);
 
 	Type = Data->GetDataType();
-
-	if (Type == EPCGDataType::Point)
-	{
-		const UPCGPointData* PointData = CastChecked<UPCGPointData>(Data);
-		ElementCount = PointData->GetPoints().Num();
-	}
-	else { /* TODO: More types! */ }
+	ElementCount = PCGComputeHelpers::GetElementCount(Data);
 
 	InitializeAttributeDescs(Data->ConstMetadata(), GlobalAttributeLookupTable);
 }
@@ -430,6 +425,10 @@ uint32 FPCGDataDesc::ComputePackedSize() const
 	if (Type == EPCGDataType::Point)
 	{
 		DataSizeBytes += POINT_DATA_HEADER_SIZE_BYTES;
+	}
+	else if (Type == EPCGDataType::Param)
+	{
+		DataSizeBytes += PARAM_DATA_HEADER_SIZE_BYTES;
 	}
 	else
 	{
@@ -508,13 +507,11 @@ FPCGDataCollectionDesc FPCGDataCollectionDesc::BuildFromInputDataCollectionAndIn
 	const TMap<FPCGKernelAttributeKey, int32>& InAttributeLookupTable)
 {
 	FPCGDataCollectionDesc Desc;
-
 	TArray<FPCGTaggedData> DataForPin = InDataCollection.GetInputsByPin(InputPinLabel);
 
 	for (const FPCGTaggedData& Data : DataForPin)
 	{
-		// Only support Point data right now
-		if (!Data.Data || Data.Data->GetDataType() != EPCGDataType::Point)
+		if (!Data.Data || !PCGComputeHelpers::IsTypeAllowedInDataCollection(Data.Data->GetDataType()))
 		{
 			continue;
 		}
@@ -709,6 +706,54 @@ void FPCGDataCollectionDesc::PackDataCollection(const FPCGDataCollection& InData
 				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
 			}
 		}
+		else if (const UPCGParamData* ParamData = Cast<UPCGParamData>(InputData[DataIndex].Data))
+		{
+			const UPCGMetadata* Metadata = ParamData->ConstMetadata();
+
+			const FPCGDataDesc& DataDesc = DataDescs[DataIndex];
+			const uint32 NumElements = DataDesc.ElementCount;
+
+			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDesc.AttributeDescs;
+			const uint32 NumAttributes = AttributeDescs.Num();
+
+			OutPackedDataCollection[CurrentDataIndex + 0] = /*ParamDataTypeId=*/PARAM_DATA_TYPE_ID;
+			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
+			OutPackedDataCollection[CurrentDataIndex + 2] = PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for ParamData is # of elements
+
+			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			uint32 CurrentAttributeAddress = CurrentDataAddress + PARAM_DATA_HEADER_SIZE_BYTES;
+
+			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			{
+				const uint32 AttributeId = AttributeDesc.Index;
+				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
+				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
+
+				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
+				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
+				const uint32 AttributeIndex = CurrentAttributeAddress / sizeof(uint32);
+
+				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
+				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
+				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
+
+				const FPCGMetadataAttributeBase* AttributeBase = Metadata->GetConstAttribute(AttributeDesc.Name);
+
+				for (uint32 ElementIndex = 0; ElementIndex < NumElements; ++ElementIndex)
+				{
+					const uint32 PackedDataElementIndex = AttributeIndex + (ElementIndex * AttributeNumComponents);
+					const int64 MetadataKey = ElementIndex;
+
+					if (AttributeBase) // Pack attribute
+					{
+						ensure(PCGDataForGPUHelpers::PackAttributeHelper(AttributeBase, AttributeDesc, MetadataKey, OutPackedDataCollection, PackedDataElementIndex));
+					}
+				}
+
+				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
+			}
+		}
 		else { /* TODO: Support non-point data. */ }
 	}
 }
@@ -750,6 +795,36 @@ void FPCGDataCollectionDesc::PrepareBufferForKernelOutput(TArray<uint32>& OutPac
 
 			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + POINT_DATA_HEADER_PREAMBLE_SIZE_BYTES;
 			uint32 CurrentAttributeAddress = CurrentDataAddress + POINT_DATA_HEADER_SIZE_BYTES;
+
+			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			{
+				const uint32 AttributeId = AttributeDesc.Index;
+				const uint32 AttributeStrideBytes = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type);
+				const uint32 AttributeNumComponents = AttributeStrideBytes / sizeof(uint32); // E.g. float3 has 3 components
+				const uint32 AttributeHeaderIndex = (BaseAttributeHeaderAddress + AttributeId * ATTRIBUTE_HEADER_SIZE_BYTES) / sizeof(uint32);
+
+				// Pack Position (24 bits for AttributeId, 8 bits for Stride)
+				const uint32 PackedIdAndStride = (AttributeId << 8) + AttributeStrideBytes;
+				OutPackedDataCollection[AttributeHeaderIndex + 0] = PackedIdAndStride;
+
+				OutPackedDataCollection[AttributeHeaderIndex + 1] = CurrentAttributeAddress;
+				CurrentAttributeAddress += NumElements * AttributeNumComponents * 4;
+			}
+		}
+		if (DataDescs[DataIndex].Type == EPCGDataType::Param)
+		{
+			const uint32 NumElements = DataDescs[DataIndex].ElementCount;
+
+			const TArray<FPCGKernelAttributeDesc>& AttributeDescs = DataDescs[DataIndex].AttributeDescs;
+			const uint32 NumAttributes = AttributeDescs.Num();
+
+			OutPackedDataCollection[CurrentDataIndex + 0] = /*ParamDataTypeId=*/PARAM_DATA_TYPE_ID;
+			OutPackedDataCollection[CurrentDataIndex + 1] = NumAttributes;
+			OutPackedDataCollection[CurrentDataIndex + 2] = PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			OutPackedDataCollection[CurrentDataIndex + 3] = NumElements; // TypeInfo for ParamData is # of elems
+
+			const uint32 BaseAttributeHeaderAddress = CurrentDataAddress + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES;
+			uint32 CurrentAttributeAddress = CurrentDataAddress + PARAM_DATA_HEADER_SIZE_BYTES;
 
 			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
 			{
@@ -974,7 +1049,50 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 			};
 
 			FPCGAsync::AsyncPointProcessing(/*Context=*/nullptr, OutPoints.Num(), OutPoints, DiscardInvalidPoints);
+		}
+		else if (TypeId == PARAM_DATA_TYPE_ID)
+		{
+			UPCGParamData* OutParamData = NewObject<UPCGParamData>();
+			UPCGMetadata* Metadata = OutParamData->MutableMetadata();
 
+			FPCGTaggedData& OutTaggedData = OutData.Emplace_GetRef();
+			OutTaggedData.Data = OutParamData;
+			OutTaggedData.Pin = InPin;
+
+			const uint32 AttributeHeadersIndex = CurrentDataIndex + PARAM_DATA_HEADER_PREAMBLE_SIZE_BYTES / sizeof(uint32);
+
+			TArray<TTuple</*EntryKey=*/int64, /*ParentEntryKey=*/int64>> AllMetadataEntries;
+			AllMetadataEntries.SetNumUninitialized(NumElements);
+
+			ParallelFor(NumElements, [&](int32 ElementIndex)
+			{
+				AllMetadataEntries[ElementIndex] = MakeTuple(Metadata->AddEntryPlaceholder(), PCGInvalidEntryKey);
+			});
+
+			Metadata->AddDelayedEntries(AllMetadataEntries);
+
+			// Loop over attributes.
+			for (const FPCGKernelAttributeDesc& AttributeDesc : AttributeDescs)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(WriteAttribute);
+
+				const uint32 AttributeNumComponents = PCGDataForGPUHelpers::GetAttributeTypeStrideBytes(AttributeDesc.Type) / sizeof(uint32);
+				const uint32 AttributeHeaderIndex = AttributeHeadersIndex + AttributeDesc.Index * ATTRIBUTE_HEADER_SIZE_BYTES / sizeof(uint32);
+				const uint32 AttributeIndex = DataAsUint[AttributeHeaderIndex + 1] / sizeof(uint32);
+
+				FPCGMetadataAttributeBase* AttributeBase = PCGDataForGPUHelpers::CreateAttributeFromAttributeDesc(Metadata, AttributeDesc);
+
+				ParallelFor(NumElements, [&](int32 ElementIndex)
+				{
+					if (AttributeBase)
+					{
+						const uint32 PackedDataElementIndex = AttributeIndex + ElementIndex * AttributeNumComponents;
+						check(PackedDataElementIndex + AttributeNumComponents <= NumPackedFloats);
+
+						ensure(PCGDataForGPUHelpers::UnpackAttributeHelper(PackedData, PackedDataElementIndex, AttributeBase, AttributeDesc, ElementIndex));
+					}
+				});
+			}
 		}
 		else { /* TODO: Support non-point data. */ }
 	}

@@ -507,7 +507,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 		switch (PinType)
 		{
 		case EPCGDataType::Point:
-		case EPCGDataType::PointOrParam:
+		case EPCGDataType::Param:
 		{
 			UPCGDataCollectionDataInterface* DataInterfacePCGData = nullptr;
 

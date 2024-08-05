@@ -31,25 +31,45 @@ public:
 	{
 	}
 
+#if WITH_EDITOR
+	bool CanEditChange(const FEditPropertyChain& PropertyChain) const;
+#endif
+
 public:
 	/** Compute graphs use this to calculate the buffer size of output pins. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings", EditConditionHides, HideEditConditionToggle))
 	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "(bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount) || AllowedTypes == EPCGDataType::Param", EditConditionHides))
 	int FixedBufferElementCount = 4;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins", EditConditionHides))
 	TArray<FName> BufferSizeInputPinLabels;
 
+	/** Select an input pin to copy attributes from. If left as 'None', this will be ignored. Note, this will copy attribute names only, not their values. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bAllowEditInitializationPin", EditConditionHides, HideEditConditionToggle))
+	FName InitializeFromPin = NAME_None;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
 	bool bDisplayBufferSizeSettings = true;
+
+	UPROPERTY(Transient)
+	bool bAllowEditInitializationPin = false;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Add entries to create new attributes on data emitted by this pin. */
 	UPROPERTY(EditAnywhere, DisplayName = "Attributes to Create", Category = Settings)
 	TArray<FPCGKernelAttributeKey> CreatedKernelAttributeKeys;
+};
+
+template<>
+struct TStructOpsTypeTraits<FPCGPinPropertiesGPU> : public TStructOpsTypeTraitsBase2<FPCGPinPropertiesGPU>
+{
+	enum
+	{
+		WithCanEditChange = true,
+	};
 };
 
 /** Type of kernel allows us to make decisions about execution automatically, streamlining authoring. */
@@ -120,7 +140,7 @@ protected:
 #endif
 
 public:
-	bool IsKernelValid(FPCGContext* InContext = nullptr) const;
+	bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
 	
 	FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const;
 	FString GetKernelEntryPoint() const { return TEXT("Main"); }
@@ -133,7 +153,6 @@ public:
 	const UPCGPin* GetOutputPin(FName Label) const;
 	const UPCGPin* GetFirstInputPin() const;
 	const UPCGPin* GetPointProcessingInputPin() const;
-	const UPCGPin* GetSecondPointProcessingInputPin() const;
 	const UPCGPin* GetFirstOutputPin() const;
 	const UPCGPin* GetFirstPointOutputPin() const;
 

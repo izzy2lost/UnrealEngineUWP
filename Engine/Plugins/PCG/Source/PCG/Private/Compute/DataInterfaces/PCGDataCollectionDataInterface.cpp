@@ -21,12 +21,12 @@
 void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const
 {
 	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("LoadBuffer"))
+		.SetName(TEXT("LoadBufferInternal"))
 		.AddReturnType(EShaderFundamentalType::Uint)
 		.AddParam(EShaderFundamentalType::Uint);
 
 	OutFunctions.AddDefaulted_GetRef()
-		.SetName(TEXT("StoreBuffer"))
+		.SetName(TEXT("StoreBufferInternal"))
 		.AddParam(EShaderFundamentalType::Uint)
 		.AddParam(EShaderFundamentalType::Uint);
 
@@ -37,32 +37,32 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddReturnType(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataAddress"))
+			.SetName(TEXT("GetDataAddress"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataId"))
+			.SetName(TEXT("GetDataId"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataNumAttributes"))
+			.SetName(TEXT("GetDataNumAttributes"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataPreambleSize"))
+			.SetName(TEXT("GetDataPreambleSize"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataInfo"))
+			.SetName(TEXT("GetDataInfo"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadDataAttributeHeadersAddress"))
+			.SetName(TEXT("GetDataAttributeHeadersAddress"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
@@ -86,33 +86,33 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.AddReturnType(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeHeaderAddress"))
+			.SetName(TEXT("GetAttributeHeaderAddress"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeIdAndStride"))
+			.SetName(TEXT("GetAttributeIdAndStride"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeId"))
+			.SetName(TEXT("GetAttributeId"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeStride"))
+			.SetName(TEXT("GetAttributeStride"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeAddress"))
+			.SetName(TEXT("GetAttributeAddress"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("ReadAttributeAddress"))
+			.SetName(TEXT("GetAttributeAddress"))
 			.AddReturnType(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
@@ -121,41 +121,41 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 	// Header Writers
 	{
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteNumData"))
+			.SetName(TEXT("SetNumDataInternal"))
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteDataAddress"))
+			.SetName(TEXT("SetDataAddressInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteDataId"))
+			.SetName(TEXT("SetDataIdInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteDataNumAttributes"))
+			.SetName(TEXT("SetDataNumAttributesInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteDataPreambleSize"))
+			.SetName(TEXT("SetDataPreambleSizeInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteDataInfo"))
+			.SetName(TEXT("SetDataInfoInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteAttributeIdAndStride"))
+			.SetName(TEXT("SetAttributeIdAndStrideInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 
 		OutFunctions.AddDefaulted_GetRef()
-			.SetName(TEXT("WriteAttributeAddress"))
+			.SetName(TEXT("SetAttributeAddressInternal"))
 			.AddParam(EShaderFundamentalType::Uint)
 			.AddParam(EShaderFundamentalType::Uint);
 

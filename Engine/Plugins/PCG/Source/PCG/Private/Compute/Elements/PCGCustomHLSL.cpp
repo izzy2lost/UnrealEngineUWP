@@ -21,6 +21,12 @@
 #define LOCTEXT_NAMESPACE "PCGCustomHLSLElement"
 #define PCG_LOGGING_ENABLED (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING)
 
+#if PCG_LOGGING_ENABLED
+#define PCG_LOG_VALIDATION(ValidationMessage) LogGraphError(ValidationMessage);
+#else
+#define PCG_LOG_VALIDATION(ValidationMessage) // Log removed
+#endif
+
 namespace PCGHLSLElement
 {
 	/** First capture: Pin name (supports a - z, A - Z, and 0 - 9) */
@@ -50,28 +56,34 @@ namespace PCGHLSLElement
 		InOutPath.ReplaceCharInline(TEXT(':'), TEXT('@'));
 	}
 
-	int GetElementCount(const UPCGData* InData)
-	{
-		if (const UPCGPointData* PointData = Cast<UPCGPointData>(InData))
-		{
-			return PointData->GetPoints().Num();
-		}
-		else if (InData)
-		{
-			// TODO - spline points, other things with multiple elements?
-			return 1;
-		}
-		else
-		{
-			return 0;
-		}
-	}
-
 	FString GetKernelAttributeKeyAsString(const FPCGKernelAttributeKey& Key)
 	{
 		return FString::Format(TEXT("'{0}'"), { Key.Name.ToString() });
 	}
+
+	FString GetDataTypeString(EPCGDataType Type)
+	{
+		const UEnum* DataTypeEnum = StaticEnum<EPCGDataType>();
+		check(DataTypeEnum);
+
+		return DataTypeEnum->GetValueOrBitfieldAsString(static_cast<int64>(Type));
+	}
 }
+
+#if WITH_EDITOR
+bool FPCGPinPropertiesGPU::CanEditChange(const FEditPropertyChain& PropertyChain) const
+{
+	if (FProperty* Property = PropertyChain.GetActiveNode()->GetValue())
+	{
+		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FPCGPinProperties, bAllowMultipleData))
+		{
+			return bAllowEditMultipleData;
+		}
+	}
+
+	return true;
+}
+#endif // WITH_EDITOR
 
 UPCGCustomHLSLSettings::UPCGCustomHLSLSettings()
 {
@@ -142,7 +154,7 @@ int UPCGCustomHLSLSettings::GetProcessingElemCountForInputPin(const UPCGPin* Inp
 		TArray<FPCGTaggedData> DataForPin = DataForGPU.InputDataCollection.GetInputsByPin(PinLabel);
 		for (const FPCGTaggedData& Data : DataForPin)
 		{
-			ProcessingElemCount += PCGHLSLElement::GetElementCount(Data.Data);
+			ProcessingElemCount += PCGComputeHelpers::GetElementCount(Data.Data);
 		}
 	}
 	else
@@ -161,9 +173,7 @@ int UPCGCustomHLSLSettings::GetProcessingElemCountForInputPin(const UPCGPin* Inp
 			check(UpstreamSettings);
 
 			const FPCGDataCollectionDesc PinDesc = UpstreamSettings->ComputeOutputPinDataDesc(UpstreamOutputPin, Binding);
-
-			// Only support Point data right now.
-			ProcessingElemCount += PinDesc.ComputeDataElementCount(EPCGDataType::Point);
+			ProcessingElemCount += PinDesc.ComputeDataElementCount(InputPin->Properties.AllowedTypes);
 		}
 	}
 
@@ -245,64 +255,69 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 	FPCGDataCollectionDesc PinDesc;
 
 	const FPCGPinPropertiesGPU* PropertiesGPU = GetOutputPinPropertiesGPU(OutputPin->Properties.Label);
-	const bool bNeedsPointPin = KernelType == EPCGKernelType::PointProcessor || KernelType == EPCGKernelType::PointGenerator;
+	const UPCGPin* FirstOutputPin = GetFirstOutputPin();
 
 	// The primary output pin follows any rules prescribed by kernel type.
-	if (OutputPin == GetFirstOutputPin() && bNeedsPointPin)
+	if (OutputPin == FirstOutputPin && KernelType == EPCGKernelType::PointProcessor)
 	{
-		if (KernelType == EPCGKernelType::PointProcessor)
+		// First output pin passes through first input pin.
+		if (const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin())
 		{
-			// First output pin passes through first input pin.
-			if (const UPCGPin* PointProcessingInputPin = GetPointProcessingInputPin())
-			{
-				PinDesc = ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
-			}
+			PinDesc = ComputeInputPinDataDesc(PointProcessingInputPin, Binding);
 		}
-		else if (KernelType == EPCGKernelType::PointGenerator)
-		{
-			// Generators always produce a single point data with known point count.
-			PinDesc.DataDescs.Emplace(EPCGDataType::Point, PointCount);
-		}
+	}
+	else if (OutputPin == FirstOutputPin && KernelType == EPCGKernelType::PointGenerator)
+	{
+		// Generators always produce a single point data with known point count.
+		PinDesc.DataDescs.Emplace(EPCGDataType::Point, PointCount);
 	}
 	else if (ensure(PropertiesGPU))
 	{
 		// No size set by kernel, fall back to pin settings.
 		if (PropertiesGPU->BufferSizeMode == EPCGPinBufferSizeMode::FromFirstPin)
 		{
-			if (const UPCGPin* InputPin = bNeedsPointPin ? GetPointProcessingInputPin() : GetFirstInputPin())
+			if (const UPCGPin* InputPin = GetFirstInputPin())
 			{
 				PinDesc = ComputeInputPinDataDesc(InputPin, Binding);
 			}
 		}
 		else if (PropertiesGPU->BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins)
 		{
-			// TODO for now we only support point. Needs extended logic for other data types.
-			const EPCGDataType DataType = EPCGDataType::Point;
-
 			int TotalElementCount = 0;
 
 			for (const FName& PinLabel : PropertiesGPU->BufferSizeInputPinLabels)
 			{
 				if (const UPCGPin* InputPin = GetInputPin(PinLabel))
 				{
-					const int ElementCount = ComputeInputPinDataDesc(InputPin, Binding).ComputeDataElementCount(DataType);
+					const int ElementCount = ComputeInputPinDataDesc(InputPin, Binding).ComputeDataElementCount(PropertiesGPU->AllowedTypes);
 					TotalElementCount = FMath::Max(TotalElementCount, 1) * ElementCount;
 				}
 			}
 
 			if (TotalElementCount > 0)
 			{
-				PinDesc.DataDescs.Emplace(DataType, TotalElementCount);
+				PinDesc.DataDescs.Emplace(PropertiesGPU->AllowedTypes, TotalElementCount);
 			}
 		}
 		else if (PropertiesGPU->BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount)
 		{
 			if (ensure(PropertiesGPU->FixedBufferElementCount > 0))
 			{
-				// TODO for now we only support point. Needs extended logic for other data types.
-				const EPCGDataType DataType = EPCGDataType::Point;
-				PinDesc.DataDescs.Emplace(DataType, PropertiesGPU->FixedBufferElementCount);
+				const UPCGPin* InitializeFromPin = (PropertiesGPU->AllowedTypes == EPCGDataType::Param) ? GetInputPin(PropertiesGPU->InitializeFromPin) : nullptr;
+
+				if (InitializeFromPin)
+				{
+					PinDesc = ComputeInputPinDataDesc(InitializeFromPin, Binding);
+				}
+				else
+				{
+					PinDesc.DataDescs.Emplace(PropertiesGPU->AllowedTypes, PropertiesGPU->FixedBufferElementCount);
+				}
 			}
+		}
+		else
+		{
+			checkNoEntry();
 		}
 	}
 
@@ -696,10 +711,13 @@ void UPCGCustomHLSLSettings::UpdatePinSettings()
 		}
 
 		if (!!(Properties.AllowedTypes & EPCGDataType::Landscape)
-			|| !!(Properties.AllowedTypes & EPCGDataType::Texture))
+			|| !!(Properties.AllowedTypes & EPCGDataType::Texture)
+			|| !!(Properties.AllowedTypes & EPCGDataType::Param))
 		{
 			// Don't allow multiple data on this pin because we do not support a dynamic number of textures/landscapes bound to a
 			// compute kernel.
+			// Also disallow multi-data for Attribute Sets, since we require attributes to be uniform on a pin, thus having different
+			// attribute sets wouldn't work as expected.
 			Properties.bAllowMultipleData = false;
 			Properties.bAllowEditMultipleData = false;
 		}
@@ -734,8 +752,18 @@ void UPCGCustomHLSLSettings::UpdatePinSettings()
 		// TODO this could be hoisted up somewhere in the future.
 		Properties.bAllowEditMultipleConnections = false;
 
-		// Node is free to output any number of data.
-		Properties.bAllowEditMultipleData = false;
+		if (!!(Properties.AllowedTypes & EPCGDataType::Param))
+		{
+			Properties.bAllowMultipleData = false;
+			Properties.bAllowEditMultipleData = false;
+			Properties.bAllowEditInitializationPin = true;
+			Properties.BufferSizeMode = EPCGPinBufferSizeMode::FixedElementCount;
+		}
+		else
+		{
+			Properties.bAllowEditMultipleData = true;
+			Properties.bAllowEditInitializationPin = false;
+		}
 	}
 }
 
@@ -816,122 +844,187 @@ void UPCGCustomHLSLSettings::UpdateAttributeKeys()
 }
 #endif
 
-bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
+bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 {
-	auto LogGraphError = [InContext, This=this](const FText& InText)
+	auto LogGraphError = [InContext, bQuiet, This=this](const FText& InText)
 	{
-#if WITH_EDITOR
-		if (InContext && ensure(InContext->SourceComponent.IsValid() && InContext->SourceComponent.Get()))
+		if (!bQuiet)
 		{
-			if (UPCGSubsystem* Subsystem = InContext->SourceComponent->GetSubsystem())
+#if WITH_EDITOR
+			if (InContext && ensure(InContext->SourceComponent.IsValid() && InContext->SourceComponent.Get()))
 			{
-				FPCGStack StackWithNode = InContext->Stack ? *InContext->Stack : FPCGStack();
-				StackWithNode.PushFrame(This->GetOuter());
+				if (UPCGSubsystem* Subsystem = InContext->SourceComponent->GetSubsystem())
+				{
+					FPCGStack StackWithNode = InContext->Stack ? *InContext->Stack : FPCGStack();
+					StackWithNode.PushFrame(This->GetOuter());
 
-				Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Error, InText);
+					Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Error, InText);
+				}
 			}
-		}
 #endif
 
-		PCGE_LOG_C(Error, LogOnly, InContext, InText);
+			PCGE_LOG_C(Error, LogOnly, InContext, InText);
+		}
 	};
 
 	if (OutputPins.IsEmpty())
 	{
-#if PCG_LOGGING_ENABLED
-		if (InContext)
-		{
-			LogGraphError(LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
-		}
-#endif
-
+		PCG_LOG_VALIDATION(LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
 		return false;
 	}
 
+	auto CheckPinLabel = [InContext, &InPins = InputPins, OutPins = OutputPinProperties(), &LogGraphError](FName PinLabel)
+	{
+		if (PinLabel == NAME_None)
+		{
+			PCG_LOG_VALIDATION(LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
+			return false;
+		}
+
+		bool bFoundPinLabel = false;
+
+		auto IsAlreadyFound = [InContext, &LogGraphError, PinLabel, &bFoundPinLabel](const FPCGPinProperties PinProps)
+		{
+			if (PinProps.Label == PinLabel)
+			{
+				if (bFoundPinLabel)
+				{
+					PCG_LOG_VALIDATION(FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(PinLabel)));
+					return true;
+				}
+
+				bFoundPinLabel = true;
+			}
+
+			return false;
+		};
+
+		for (const FPCGPinProperties& PinProps : InPins)
+		{
+			if (IsAlreadyFound(PinProps))
+			{
+				return false;
+			}
+		}
+
+		for (const FPCGPinProperties& PinProps : OutPins)
+		{
+			if (IsAlreadyFound(PinProps))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	};
+
+	// Validate input pins
+	bool bIsFirstInputPin = true;
 	for (const FPCGPinProperties& Properties : InputPins)
 	{
-		if (Properties.AllowedTypes == EPCGDataType::Any)
+		if (!CheckPinLabel(Properties.Label))
 		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
+			return false;
+		}
+
+		if (bIsFirstInputPin && KernelType == EPCGKernelType::PointProcessor)
+		{
+			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				LogGraphError(FText::Format(LOCTEXT("InvalidAnyInput", "Custom HLSL nodes do not support inputs of type Any, found on pin '{0}'."), FText::FromName(Properties.Label)));
+				PCG_LOG_VALIDATION(FText::Format(
+					LOCTEXT("InvalidNonPointPrimaryInput", "'Point Processor' nodes require primary input pin to be of type 'Point', but found '{0}'."),
+					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
+
+				return false;
 			}
-#endif
+		}
+
+		if (!PCGComputeHelpers::IsTypeAllowedAsInput(Properties.AllowedTypes))
+		{
+			PCG_LOG_VALIDATION(FText::Format(
+				LOCTEXT("InvalidInputType", "Unsupported input type '{0}', found on pin '{1}'."),
+				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
+				FText::FromName(Properties.Label)));
 
 			return false;
 		}
+
+		bIsFirstInputPin = false;
 	}
 
+	// Validate output pins
 	bool bIsFirstOutputPin = true;
 	for (const FPCGPinPropertiesGPU& Properties : OutputPins)
 	{
-		if (Properties.AllowedTypes == EPCGDataType::Any)
+		if (!CheckPinLabel(Properties.Label))
 		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
+			return false;
+		}
+
+		const bool bPinIsDefinedByKernel = bIsFirstOutputPin && (KernelType == EPCGKernelType::PointGenerator || KernelType == EPCGKernelType::PointProcessor);
+
+		if (bPinIsDefinedByKernel)
+		{
+			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				LogGraphError(FText::Format(LOCTEXT("InvalidAnyOutput", "Custom HLSL nodes do not support outputs of type Any, found on pin '{0}'."), FText::FromName(Properties.Label)));
+				PCG_LOG_VALIDATION(FText::Format(
+					LOCTEXT("InvalidNonPointPrimaryOutput", "'Point Processor' and 'Point Generator' nodes require primary output pin to be of type 'Point', but found '{0}'."),
+					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
+
+				return false;
 			}
-#endif
+		}
+
+		if (!PCGComputeHelpers::IsTypeAllowedAsOutput(Properties.AllowedTypes))
+		{
+			PCG_LOG_VALIDATION(FText::Format(
+				LOCTEXT("InvalidOutputType", "Unsupported output type '{0}', found on pin '{1}'."),
+				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
+				FText::FromName(Properties.Label)));
 
 			return false;
 		}
 
-		if (!!(Properties.AllowedTypes & EPCGDataType::Landscape))
-		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(FText::Format(LOCTEXT("InvalidLSOutput", "Custom HLSL nodes do not support outputs of type Landscape, found on pin '{0}'."), FText::FromName(Properties.Label)));
-			}
-#endif
-
-			return false;
-		}
-
-		if (!!(Properties.AllowedTypes & EPCGDataType::Texture))
-		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(FText::Format(LOCTEXT("InvalidTextureOutput", "Custom HLSL nodes do not support outputs of type Texture, found on pin '{0}'."), FText::FromName(Properties.Label)));
-			}
-#endif
-
-			return false;
-		}
-
-		// First output pin of point generator and point processor has fixed settings.
-		if ((KernelType != EPCGKernelType::PointGenerator && KernelType != EPCGKernelType::PointProcessor) || !bIsFirstOutputPin)
+		if (!bPinIsDefinedByKernel)
 		{
 			if (Properties.BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount)
 			{
 				if (Properties.FixedBufferElementCount <= 0)
 				{
-#if PCG_LOGGING_ENABLED
-					if (InContext)
-					{
-						LogGraphError(FText::Format(
-							LOCTEXT("InvalidFixedBufferSize", "Fixed GPU buffer size on '{0}' was invalid (%d)."),
-							FText::FromName(Properties.Label),
-							Properties.FixedBufferElementCount));
-					}
-#endif
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("InvalidFixedBufferSize", "Fixed GPU buffer size on '{0}' was invalid (%d)."),
+						FText::FromName(Properties.Label),
+						Properties.FixedBufferElementCount));
+
+					return false;
+				}
+
+				if (Properties.AllowedTypes == EPCGDataType::Param && Properties.InitializeFromPin != NAME_None && !GetInputPin(Properties.InitializeFromPin))
+				{
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("InvalidInitFromPin", "Tried to initialize attribute set pin '{0}' from non-existent pin '{1}'. Must reference a valid input pin or be 'None'."),
+						FText::FromName(Properties.Label),
+						FText::FromName(Properties.InitializeFromPin)));
+
+					return false;
 				}
 			}
 			else if (Properties.BufferSizeMode == EPCGPinBufferSizeMode::FromFirstPin)
 			{
 				if (InputPins.IsEmpty())
 				{
-#if PCG_LOGGING_ENABLED
-					if (InContext)
-					{
-						LogGraphError(FText::Format(
-							LOCTEXT("InvalidBufferSizeNoInputPin", "GPU buffer size for pin '{0}' could not be computed as there are no input pins."),
-							FText::FromName(Properties.Label)));
-					}
-#endif
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("InvalidBufferSizeNoInputPin", "GPU buffer size for pin '{0}' could not be computed as there are no input pins."),
+						FText::FromName(Properties.Label)));
+
+					return false;
+				}
+
+				if (!GetFirstInputPin())
+				{
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("MissingPrimaryInputPin", "GPU buffer size for pin '{0}' could not be computed, because it refers to the primary input pin, which does not exist."),
+						FText::FromName(Properties.Label)));
 
 					return false;
 				}
@@ -940,28 +1033,18 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
 			{
 				if (InputPins.IsEmpty())
 				{
-#if PCG_LOGGING_ENABLED
-					if (InContext)
-					{
-						LogGraphError(FText::Format(
-							LOCTEXT("InvalidBufferSizeNoInputPins", "GPU buffer size for pin '{0}' could not be computed as there are no input pins on this node."),
-							FText::FromName(Properties.Label)));
-					}
-#endif
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("InvalidBufferSizeNoInputPins", "GPU buffer size for pin '{0}' could not be computed as there are no input pins on this node."),
+						FText::FromName(Properties.Label)));
 
 					return false;
 				}
 
 				if (Properties.BufferSizeInputPinLabels.IsEmpty())
 				{
-#if PCG_LOGGING_ENABLED
-					if (InContext)
-					{
-						LogGraphError(FText::Format(
-							LOCTEXT("InvalidBufferSizeNoBufferPins", "GPU buffer size for pin '{0}' could not be computed as input pins are specified in the pin settings."),
-							FText::FromName(Properties.Label)));
-					}
-#endif
+					PCG_LOG_VALIDATION(FText::Format(
+						LOCTEXT("InvalidBufferSizeNoBufferPins", "GPU buffer size for pin '{0}' could not be computed as input pins are specified in the pin settings."),
+						FText::FromName(Properties.Label)));
 
 					return false;
 				}
@@ -970,15 +1053,10 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
 				{
 					if (!GetInputPin(Label))
 					{
-#if PCG_LOGGING_ENABLED
-						if (InContext)
-						{
-							LogGraphError(FText::Format(
-								LOCTEXT("MissingBufferSizePin", "GPU buffer size for pin '{0}' could not be computed. Invalid pin specified in Input Pins array: '{1}'."),
-								FText::FromName(Properties.Label),
-								FText::FromName(Label)));
-						}
-#endif
+						PCG_LOG_VALIDATION(FText::Format(
+							LOCTEXT("MissingBufferSizePin", "GPU buffer size for pin '{0}' could not be computed. Invalid pin specified in Input Pins array: '{1}'."),
+							FText::FromName(Properties.Label),
+							FText::FromName(Label)));
 
 						return false;
 					}
@@ -989,81 +1067,11 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
 		bIsFirstOutputPin = false;
 	}
 
-	if (KernelType == EPCGKernelType::PointProcessor)
-	{
-		if (!GetPointProcessingInputPin())
-		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(LOCTEXT("InvalidPPInput", "Point processing kernel requires a first input pin of type point."));
-			}
-#endif
-
-			return false;
-		}
-
-		if (!GetFirstPointOutputPin())
-		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(LOCTEXT("InvalidPPOutput", "Point processing kernel requires a first output pin of type point."));
-			}
-#endif
-
-			return false;
-		}
-	}
-
-	auto CheckPinLabels = [InContext, &LogGraphError](const TArray<FPCGPinProperties>& Pins)
-	{
-		TSet<FName> EncounteredLabels;
-		for (const FPCGPinProperties& Pin : Pins)
-		{
-			if (EncounteredLabels.Contains(Pin.Label))
-			{
-#if PCG_LOGGING_ENABLED
-				if (InContext)
-				{
-					LogGraphError(FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(Pin.Label)));
-				}
-#endif
-
-				return false;
-			}
-			else if (Pin.Label == NAME_None)
-			{
-#if PCG_LOGGING_ENABLED
-				if (InContext)
-				{
-					LogGraphError(LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
-				}
-#endif
-
-				return false;
-			}
-		}
-
-		return true;
-	};
-
-	if (!CheckPinLabels(InputPins) || !CheckPinLabels(OutputPinProperties()))
-	{
-		return false;
-	}
-
 	if (KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins)
 	{
 		if (ThreadCountInputPinLabels.IsEmpty())
 		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
-			}
-#endif
-
+			PCG_LOG_VALIDATION(LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
 			return false;
 		}
 
@@ -1071,29 +1079,18 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
 		{
 			if (!GetInputPin(Label))
 			{
-#if PCG_LOGGING_ENABLED
-				if (InContext)
-				{
-					LogGraphError(FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
-				}
-#endif
-
+				PCG_LOG_VALIDATION(FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
 				return false;
 			}
 		}
 	}
 
+	// Validate attributes
 	for (const FPCGKernelAttributeKey& AttributeKey : KernelAttributeKeys)
 	{
 		if (AttributeKey.Name == NAME_None)
 		{
-#if PCG_LOGGING_ENABLED
-			if (InContext)
-			{
-				LogGraphError(LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
-			}
-#endif
-
+			PCG_LOG_VALIDATION(LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
 			return false;
 		}
 	}
@@ -1110,7 +1107,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext) const
 		{
 			if (ErrorTextPtr)
 			{
-				LogGraphError(*ErrorTextPtr);
+				PCG_LOG_VALIDATION(*ErrorTextPtr);
 			}
 			return false;
 		}
@@ -1336,16 +1333,17 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 	{
 		HeaderWriters += FString::Format(TEXT(
 			"    // Signal kernel executed by setting data count from first thread. Rest of header was already set up by the CPU.\n"
-			"    if (GroupIndex == 0) {0}_WriteNumData(1);\n"
+			"    if (GroupIndex == 0) {0}_SetNumDataInternal(1);\n"
 			"    AllMemoryBarrier();\n"),
 			{ InOutputPinProps.Label.ToString() });
 	};
 
 	auto EmitHeaderWriterFromInputPin = [&HeaderWriters](const FPCGPinProperties& InOutputPinProps, const UPCGPin* InFromPin)
 	{
+		check(InFromPin);
 		HeaderWriters += FString::Format(TEXT(
 			"    // Signal kernel executed by copying data count from pin {0} to pin {1} from first thread. Rest of header was already set up by the CPU.\n"
-			"    if (GroupIndex == 0) {1}_WriteNumData({0}_GetNumData());\n"
+			"    if (GroupIndex == 0) {1}_SetNumDataInternal({0}_GetNumData());\n"
 			"    AllMemoryBarrier();\n"),
 			{ InFromPin->Properties.Label.ToString(), InOutputPinProps.Label.ToString() });
 	};
@@ -1359,20 +1357,22 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 		// Initialize all output headers.
 		for (const FPCGPinPropertiesGPU& PinProps : OutputPins)
 		{
-			// Only support Point pins for now.
-			if (PinProps.AllowedTypes != EPCGDataType::Point)
-			{
-				continue;
-			}
-
 			if (PinProps.BufferSizeMode == EPCGPinBufferSizeMode::FromFirstPin && FirstPin)
 			{
 				EmitHeaderWriterFromInputPin(PinProps, FirstPin);
 			}
 			else if (PinProps.BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount)
 			{
-				// FixedElementCount always produces a single point data.
-				EmitHeaderWriterSingleData(PinProps);
+				const UPCGPin* InitFromPin = (PinProps.AllowedTypes == EPCGDataType::Param) ? GetInputPin(PinProps.InitializeFromPin) : nullptr;
+
+				if (InitFromPin)
+				{
+					EmitHeaderWriterFromInputPin(PinProps, InitFromPin);
+				}
+				else
+				{
+					EmitHeaderWriterSingleData(PinProps);
+				}
 			}
 			else if (PinProps.BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins)
 			{
@@ -1387,12 +1387,11 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 		{
 			const UPCGPin* FirstPin = Node->GetPassThroughInputPin();
 			const UPCGPin* PrimaryOutputPin = GetFirstPointOutputPin();
-			
+
 			for (const UPCGPin* OutputPin : Node->GetOutputPins())
 			{
-				if (!OutputPin || OutputPin->Properties.AllowedTypes != EPCGDataType::Point)
+				if (!OutputPin || !PCGComputeHelpers::IsTypeAllowedInDataCollection(OutputPin->Properties.AllowedTypes))
 				{
-					// Point only for now.
 					continue;
 				}
 
@@ -1411,6 +1410,17 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 				else if (PinPropsGPU->BufferSizeMode == EPCGPinBufferSizeMode::FromFirstPin && FirstPin)
 				{
 					EmitHeaderWriterFromInputPin(PinProps, FirstPin);
+				}
+				else if (PinPropsGPU->AllowedTypes == EPCGDataType::Param)
+				{
+					if (const UPCGPin* InitFromPin = GetInputPin(PinPropsGPU->InitializeFromPin))
+					{
+						EmitHeaderWriterFromInputPin(PinProps, InitFromPin);
+					}
+					else
+					{
+						EmitHeaderWriterSingleData(PinProps);
+					}
 				}
 			}
 		}
@@ -1458,15 +1468,15 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 				"\n"
 				"    // Loop over all attribute headers, if the address is non-zero, then copy it from pin {0} to pin {1}.\n"
 				"    {\n"
-				"        const uint HeadersAddress = {0}_ReadDataAttributeHeadersAddress({0}_DataAddress);\n"
-				"        const uint NumAttributes = {0}_ReadDataNumAttributes({0}_DataAddress);\n"
+				"        const uint HeadersAddress = {0}_GetDataAttributeHeadersAddress({0}_DataAddress);\n"
+				"        const uint NumAttributes = {0}_GetDataNumAttributes({0}_DataAddress);\n"
 				"        uint NumAttributesProcessed = 0;\n"
 				"\n"
 				"        for (int AttributeIndex = 0; AttributeIndex < 128; ++AttributeIndex)\n"
 				"        {\n"
-				"            const uint HeaderAddress = {0}_ReadAttributeHeaderAddress(HeadersAddress, AttributeIndex);\n"
-				"            const uint Stride = {0}_ReadAttributeStride(HeaderAddress);\n"
-				"            const uint Address = {0}_ReadAttributeAddress(HeaderAddress);\n"
+				"            const uint HeaderAddress = {0}_GetAttributeHeaderAddress(HeadersAddress, AttributeIndex);\n"
+				"            const uint Stride = {0}_GetAttributeStride(HeaderAddress);\n"
+				"            const uint Address = {0}_GetAttributeAddress(HeaderAddress);\n"
 				"\n"
 				"            if (Address != 0)\n"
 				"            {\n"
@@ -1475,7 +1485,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 				"                for (int I = 0; I < Stride; I += 4)\n"
 				"                {\n"
 				"                    const uint ElementAddress = BaseElementAddress + I;\n"
-				"                    {1}_StoreBuffer(ElementAddress, {0}_LoadBuffer(ElementAddress));\n"
+				"                    {1}_StoreBufferInternal(ElementAddress, {0}_LoadBufferInternal(ElementAddress));\n"
 				"                }\n"
 				"\n"
 				"                if (++NumAttributesProcessed >= NumAttributes) break; // We can early-out when we've looked at all the possible attributes\n"
@@ -1549,11 +1559,11 @@ bool FPCGCustomHLSLElement::ExecuteInternal(FPCGContext* Context) const
 	const UPCGCustomHLSLSettings* Settings = Context->GetInputSettings<UPCGCustomHLSLSettings>();
 	check(Settings);
 
-	// Calling IsKernelValid with the Context will emit warnings/errors on the node.
-	Settings->IsKernelValid(Context);
+	Settings->IsKernelValid(Context, /*bQuiet=*/false);
 
 	return true;
 }
 
+#undef PCG_LOG_VALIDATION
 #undef PCG_LOGGING_ENABLED
 #undef LOCTEXT_NAMESPACE
