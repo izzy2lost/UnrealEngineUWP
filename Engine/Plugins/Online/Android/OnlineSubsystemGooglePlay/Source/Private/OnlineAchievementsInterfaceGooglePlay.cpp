@@ -88,7 +88,7 @@ void FOnlineAchievementsGooglePlay::FinishAchievementWrite(
 	for (auto& [Key, Stat] : WriteObject->Properties)
 	{
 		// Create an achievement object which should be reported to the server.
-		const FOnlineAchievementGooglePlay* Achievement = Achievements.FindByPredicate([Key](const FOnlineAchievement& Achievement) { return Achievement.Id == Key;} );
+		const FOnlineAchievementGooglePlay* Achievement = Achievements.FindByPredicate([Key = Key](const FOnlineAchievement& Achievement) { return Achievement.Id == Key;} );
 		
 		if (!Achievement)
 		{
