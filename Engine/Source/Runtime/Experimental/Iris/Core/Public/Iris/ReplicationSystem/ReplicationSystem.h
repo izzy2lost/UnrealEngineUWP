@@ -289,13 +289,26 @@ public:
 
 	/**
 	 * Multicast an RPC targeting a object/subobject. 
-	 * @param Object A valid Owner/Actor. If no SubObject is specified the function will be called in this instance on the remote side.
-	 * @param SubObject Optional SubObject that the function will be called in on the remote side.
+	 * @param RootObject A valid Owner/Actor. If no subobject is specified the function is called on the root object on the remote side.
+	 * @param SubObject Optional subobject on whom the function is called on the remote side.
 	 * @param Function The function to call.
 	 * @param Parameters The function parameters.
+	 * 
 	 * @return Whether the RPC was successfully queued for replication or not.
 	 */
-	IRISCORE_API bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
+	IRISCORE_API bool SendRPC(const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters);
+
+	/**
+	 * Unicast an RPC targeting a object/subobject.
+	 * @param ConnectionId A valid connection ID. Only this connection will receive the RPC.
+	 * @param RootObject A valid Owner/Actor. If no subobject is specified the function is called on the root object on the remote side.
+	 * @param SubObject Optional subobject on whom the function is called on the remote side.
+	 * @param Function The function to call.
+	 * @param Parameters The function parameters.
+	 * 
+	 * @return Whether the RPC was successfully queued for replication or not.
+	 */
+	IRISCORE_API bool SendRPC(uint32 ConnectionId, const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters);
 
 	/**
 	 * Set the policy flags for an RPC identified by its function
@@ -307,17 +320,6 @@ public:
 
 	/** Resets all set RPCSendPolicy flags */
 	IRISCORE_API void ResetRPCSendPolicyFlags();
-	
-	/**
-	 * Unicast an RPC targeting a object/subobject.
-	 * @param ConnectionId A valid connection ID. Only this connection will replicate the RPC.
-	 * @param Object A valid Owner/Actor. If no SubObject is specified the function will be called in this instance on the remote side.
-	 * @param SubObject Optional SubObject that the function will be called in on the remote side.
-	 * @param Function The function to call.
-	 * @param Parameters The function parameters.
-	 * @return Whether the RPC was successfully queued for replication or not.
-	 */
-	IRISCORE_API bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters);
 
 	/** @return The UReplicationBridge that was passed with the system creation parameters. */
 	IRISCORE_API UReplicationBridge* GetReplicationBridge() const;
@@ -775,5 +777,5 @@ inline UReplicationSystem* GetReplicationSystem(uint32 Id)
 	return Id >= FReplicationSystemFactory::MaxReplicationSystemCount ? nullptr : FReplicationSystemFactory::ReplicationSystems[Id];
 }
 
-}
+} // end namespace UE::Net
 

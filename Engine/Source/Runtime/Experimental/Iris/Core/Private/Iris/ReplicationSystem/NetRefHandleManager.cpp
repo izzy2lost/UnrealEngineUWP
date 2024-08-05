@@ -72,6 +72,7 @@ void FNetRefHandleManager::Init(const FInitParams& InitParams)
 		InitNetBitArray(&DestroyedStartupObjectInternalIndices);
 		InitNetBitArray(&WantToBeDormantInternalIndices);
 		InitNetBitArray(&ObjectsWithPreUpdate);
+		InitNetBitArray(&DormantObjectsPendingFlushNet);
 	}
 
 	// Mark the invalid index as used
@@ -397,9 +398,9 @@ FNetRefHandle FNetRefHandleManager::CreateNetObjectFromRemote(FNetRefHandle Want
 
 void FNetRefHandleManager::InternalDestroyNetObject(FInternalNetRefIndex InternalIndex)
 {
-	FReplicatedObjectData& Data = ReplicatedObjectData[InternalIndex];
+	UE_LOG(LogIris, Verbose, TEXT("FNetRefHandleManager::InternalDestroyNetObject: %s"), *PrintObjectFromIndex(InternalIndex));
 
-	UE_LOG(LogIris, Verbose, TEXT("FNetRefHandleManager::InternalDestroyNetObject: (InternalIndex: %u) (%s)"), InternalIndex, *Data.RefHandle.ToString());
+	FReplicatedObjectData& Data = ReplicatedObjectData[InternalIndex];
 
 	uint8* StateBuffer = ReplicatedObjectStateBuffers[InternalIndex];
 	// Free any allocated resources
@@ -466,9 +467,7 @@ void FNetRefHandleManager::InternalDestroyNetObject(FInternalNetRefIndex Interna
 	AssignedInternalIndices.ClearBit(InternalIndex);
 
 	// Restore internal state
-	SubObjectInternalIndices.ClearBit(InternalIndex);
-	WantToBeDormantInternalIndices.ClearBit(InternalIndex);
-	ObjectsWithDependentObjectsInternalIndices.ClearBit(InternalIndex);
+	ClearStateForFreedInternalIndex(InternalIndex);
 
 	// Cleanup cross reference to destruction info
 	if (DestroyedStartupObjectInternalIndices.GetBit(InternalIndex))
@@ -482,6 +481,16 @@ void FNetRefHandleManager::InternalDestroyNetObject(FInternalNetRefIndex Interna
 	}
 
 	--ActiveObjectCount;
+}
+
+void FNetRefHandleManager::ClearStateForFreedInternalIndex(FInternalNetRefIndex FreedInternalIndex)
+{
+	GlobalScopableInternalIndices.ClearBit(FreedInternalIndex);
+	ObjectsWithPreUpdate.ClearBit(FreedInternalIndex);
+	SubObjectInternalIndices.ClearBit(FreedInternalIndex);
+	ObjectsWithDependentObjectsInternalIndices.ClearBit(FreedInternalIndex);
+	WantToBeDormantInternalIndices.ClearBit(FreedInternalIndex);
+	DormantObjectsPendingFlushNet.ClearBit(FreedInternalIndex);
 }
 
 FNetRefHandle FNetRefHandleManager::CreateHandleForDestructionInfo(FNetRefHandle Handle, const FReplicationProtocol* DestroyedObjectProtocol)

@@ -1038,19 +1038,32 @@ bool UReplicationSystem::QueueNetObjectAttachment(uint32 ConnectionId, const UE:
 	return NetBlobManager.QueueNetObjectAttachment(ConnectionId, TargetRef, Attachment);
 }
 
-bool UReplicationSystem::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+bool UReplicationSystem::SendRPC(const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters)
 {
-	UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags = UE::Net::ENetObjectAttachmentSendPolicyFlags::None;
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None;
 	if (ReplicationSystemCVars::bAllowAttachmentSendPolicyFlags)
 	{
-		if (UE::Net::ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
+		if (ENetObjectAttachmentSendPolicyFlags* Flags = Impl->AttachmentSendPolicyFlags.Find(FObjectKey(Function)))
 		{
 			SendFlags = *Flags;
 		}
 	}
 
-	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(Object, SubObject, Function, Parameters, SendFlags);
+	FNetBlobManager::FSendRPCContext RPCContext = { .RootObject = RootObject, .SubObject = SubObject, .Function = Function };
+
+	FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
+	return NetBlobManager.SendMulticastRPC(RPCContext, Parameters, SendFlags);
+}
+
+bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* RootObject, const UObject* SubObject, const UFunction* Function, const void* Parameters)
+{
+	using namespace UE::Net::Private;
+	FNetBlobManager::FSendRPCContext RPCContext = { .RootObject = RootObject, .SubObject = SubObject, .Function = Function };
+	FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
+	return NetBlobManager.SendUnicastRPC(ConnectionId, RPCContext, Parameters);
 }
 
 bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
@@ -1075,12 +1088,6 @@ bool UReplicationSystem::SetRPCSendPolicyFlags(const UFunction* Function, UE::Ne
 void UReplicationSystem::ResetRPCSendPolicyFlags()
 {
 	Impl->AttachmentSendPolicyFlags.Reset();
-}
-
-bool UReplicationSystem::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters)
-{
-	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();
-	return NetBlobManager.SendRPC(ConnectionId, Object, SubObject, Function, Parameters);
 }
 
 void UReplicationSystem::InitDataStreams(uint32 ConnectionId, UDataStreamManager* DataStreamManager)

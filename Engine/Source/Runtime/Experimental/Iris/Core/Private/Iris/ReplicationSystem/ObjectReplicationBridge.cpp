@@ -515,12 +515,25 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle 
 		SetPollWithObject(OwnerRefHandle, SubObjectRefHandle);
 
 		// Copy pending dormancy from owner
-		SetObjectWantsToBeDormant(SubObjectRefHandle, GetObjectWantsToBeDormant(OwnerRefHandle));
+		SetSubObjectDormancyStatus(SubObjectRefHandle, OwnerRefHandle);
 	
 		return SubObjectRefHandle;
 	}
 
 	return FNetRefHandle::GetInvalid();
+}
+
+void UObjectReplicationBridge::SetSubObjectDormancyStatus(FNetRefHandle SubObjectRefHandle, FNetRefHandle OwnerRefHandle)
+{
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
+
+	const FNetRefHandleManager& LocalNetRefHandleManager = *NetRefHandleManager;
+	const FInternalNetRefIndex SubObjectInternalIndex = LocalNetRefHandleManager.GetInternalIndex(SubObjectRefHandle);
+	const FInternalNetRefIndex OwnerInternalIndex = LocalNetRefHandleManager.GetInternalIndex(OwnerRefHandle);
+	
+	FNetBitArrayView DormantObjects = LocalNetRefHandleManager.GetWantToBeDormantInternalIndices();
+	DormantObjects.SetBitValue(SubObjectInternalIndex, DormantObjects.GetBit(OwnerInternalIndex));
 }
 
 void UObjectReplicationBridge::SetSubObjectNetCondition(FNetRefHandle SubObjectRefHandle, ELifetimeCondition Condition)
@@ -1003,35 +1016,35 @@ void UObjectReplicationBridge::BuildPollList(UE::Net::FNetBitArrayView ObjectsCo
 		ObjectsConsideredForPolling.Copy(RelevantObjects);
 	}
 
-	// Mask off objects pending dormancy as we do not want to poll/pre-update them unless they are marked for flush or are dirty
+	// Mask off objects pending dormancy as we do not want to poll/pre-update them unless they are marked for flush
 	if (bUseDormancyToFilterPolling)
 	{
 		IRIS_PROFILER_SCOPE(BuildPollList_Dormancy);
 
-		// Mask off objects pending dormancy that are not dirty
-		const FNetBitArrayView AccumulatedDirtyObjects = DirtyNetObjectTracker.GetAccumulatedDirtyNetObjects();
-		ObjectsConsideredForPolling.CombineMultiple(FNetBitArrayView::AndNotOp, WantToBeDormantObjects, FNetBitArrayView::AndNotOp, AccumulatedDirtyObjects);
+		// Mask off all dormant objects
+		ObjectsConsideredForPolling.Combine(WantToBeDormantObjects, FNetBitArrayView::AndNotOp);
 
+		// Force a poll on objects that requested a FlushNet
+		FNetBitArrayView DormantObjectsPendingFlushNet = LocalNetRefHandleManager.GetDormantObjectsPendingFlushNet();
 		FNetBitArrayView ForceNetUpdateObjects = ReplicationSystemInternal->GetDirtyNetObjectTracker().GetForceNetUpdateObjects();
-
-		// Force poll objects that have requested to flush dormancy
-		for (FNetRefHandle HandlePendingFlush : MakeArrayView(DormantHandlesPendingFlush))
+		
+		uint32 FlushNetCount = 0;		
+		auto FlushNetDormancyForRelevantObjects = [&](uint32 DormantObjectIndex)
 		{
-			if (const uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(HandlePendingFlush))
-			{
-				// If HandlePendingFlush is relevant, poll it this frame, and treat it as a forcenetupdate in order to also schedule subobjects correctly
-				// Out of scope dormant objects will be Marked Dirty to ensure that they are scheduled for polling once relevant
-				if (RelevantObjects.IsBitSet(InternalObjectIndex))
-				{
-					ObjectsConsideredForPolling.SetBit(InternalObjectIndex);
-					ForceNetUpdateObjects.SetBit(InternalObjectIndex);
-				}
-			}
-		}
+			// Poll the dormant object this frame and treat it as a forcenetupdate in order to also schedule subobjects correctly
+			ObjectsConsideredForPolling.SetBit(DormantObjectIndex);
+			ForceNetUpdateObjects.SetBit(DormantObjectIndex);
+			++FlushNetCount;
+		};
 
-		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), FlushDormancyObjectCount, DormantHandlesPendingFlush.Num(), ENetTraceVerbosity::Trace);
+		FNetBitArrayView::ForAllSetBits(DormantObjectsPendingFlushNet, RelevantObjects, FNetBitArrayView::AndOp, FlushNetDormancyForRelevantObjects);
+		
+		// Remove FlushNetDormancy request for the objects that were relevant
+		DormantObjectsPendingFlushNet.Combine(RelevantObjects, FNetBitArrayView::AndNotOp);
+
+		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), FlushDormancyObjectCount, FlushNetCount, ENetTraceVerbosity::Trace);
 	}
-	DormantHandlesPendingFlush.Reset();
+	
 
 	/**
 	* Make sure to propagate polling for owners to subobjects and vice versa. If an actor is not due to update due to
@@ -1279,44 +1292,57 @@ void UObjectReplicationBridge::SetObjectWantsToBeDormant(FNetRefHandle Handle, b
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
 
-	FReplicationSystemInternal* ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
-	FNetRefHandleManager& LocalNetRefHandleManager = ReplicationSystemInternal->GetNetRefHandleManager();
+	FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
 
-	if (const FInternalNetRefIndex InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
+	const FInternalNetRefIndex InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle);
+	if (InternalObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
-		FNetBitArrayView WantToBeDormantObjects = LocalNetRefHandleManager.GetWantToBeDormantInternalIndices();
-
-		// Update pending dormancy status
-		WantToBeDormantObjects.SetBitValue(InternalObjectIndex, bWantsToBeDormant);
-
-		UE_LOG_OBJECTREPLICATIONBRIDGE(VeryVerbose, TEXT("SetObjectWantsToBeDormant for %s ( InternalIndex: %u ) %d "), *Handle.ToString(), InternalObjectIndex, bWantsToBeDormant ? 1 : 0);
-
-		// If we want to be dormant we want to make sure we poll the object one more time
-		if (bWantsToBeDormant)
-		{
-			// Note: this will override update frequency forcing a last poll/pre-replication-update if necessary
-			// No need to do this for subobjects as they always are handled with owner
-			DormantHandlesPendingFlush.Add(Handle);
-		}
-
-		// Since we use this as a mask when updating objects we must include subobjects as well
-		// Subobjects added later will copy status from owner when they are added
-		for (const FInternalNetRefIndex SubObjectInternalIndex : LocalNetRefHandleManager.GetSubObjects(InternalObjectIndex))
-		{
-			WantToBeDormantObjects.SetBitValue(SubObjectInternalIndex, bWantsToBeDormant);
-		}
-
-		// Request frequent world location updates for non-dormant spatially filtered objects.
-		OptionallySetObjectRequiresFrequentWorldLocationUpdate(Handle, !bWantsToBeDormant);
+		return;
 	}
+
+	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("SetObjectWantsToBeDormant: %s wants to be %s "), *LocalNetRefHandleManager.PrintObjectFromIndex(InternalObjectIndex), bWantsToBeDormant ? TEXT("Dormant"):TEXT("Awake"));
+
+	// Only RootObjects can trigger dormancy changes
+	ensureMsgf(!LocalNetRefHandleManager.GetSubObjectInternalIndices().IsBitSet(InternalObjectIndex), TEXT("Only root objects can become dormant: %s "), *LocalNetRefHandleManager.PrintObjectFromIndex(InternalObjectIndex));
+	
+	FNetBitArrayView WantToBeDormantObjects = LocalNetRefHandleManager.GetWantToBeDormantInternalIndices();
+
+	// Update pending dormancy status
+	WantToBeDormantObjects.SetBitValue(InternalObjectIndex, bWantsToBeDormant);
+
+	// If we want to be dormant we want to make sure we poll the object immediately
+	LocalNetRefHandleManager.GetDormantObjectsPendingFlushNet().SetBitValue(InternalObjectIndex, bWantsToBeDormant);
+
+	// Since we use this as a mask when updating objects we must include subobjects as well
+	// Subobjects added later will copy status from owner when they are added
+	for (const FInternalNetRefIndex SubObjectInternalIndex : LocalNetRefHandleManager.GetSubObjects(InternalObjectIndex))
+	{
+		WantToBeDormantObjects.SetBitValue(SubObjectInternalIndex, bWantsToBeDormant);
+	}
+
+	// Request frequent world location updates for non-dormant spatially filtered objects.
+	OptionallySetObjectRequiresFrequentWorldLocationUpdate(Handle, !bWantsToBeDormant);
 }
 
-void UObjectReplicationBridge::ForceUpdateWantsToBeDormantObject(FNetRefHandle Handle)
+void UObjectReplicationBridge::NetFlushDormantObject(FNetRefHandle Handle)
 {
-	UE_LOG_OBJECTREPLICATIONBRIDGE(VeryVerbose, TEXT("ForceUpdateWantsToBeDormantObject for %s"), *Handle.ToString());
+	using namespace UE::Net;
+	using namespace UE::Net::Private;
 
+	FNetRefHandleManager& LocalNetRefHandleManager = GetReplicationSystem()->GetReplicationSystemInternal()->GetNetRefHandleManager();
+
+	const FInternalNetRefIndex InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle);
+	if (InternalObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
+	{
+		return;
+	}
+
+	UE_LOG_OBJECTREPLICATIONBRIDGE(Verbose, TEXT("NetFlushDormantObject: %s"), *LocalNetRefHandleManager.PrintObjectFromIndex(InternalObjectIndex));
+
+	LocalNetRefHandleManager.GetDormantObjectsPendingFlushNet().SetBit(InternalObjectIndex);
+
+	// Mark the object dirty in order to trigger an update of its WorldLocation and to accumulate dirty flags for when he comes back out of dormancy.
 	ReplicationSystem->MarkDirty(Handle);
-	DormantHandlesPendingFlush.Add(Handle);
 }
 
 void UObjectReplicationBridge::SetNetPushIdOnInstance(UE::Net::FReplicationInstanceProtocol* InstanceProtocol, FNetHandle NetHandle)

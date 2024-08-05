@@ -9,6 +9,7 @@
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/ReplicationWriter.h"
+#include "Iris/ReplicationSystem/ObjectReplicationBridge.h"
 #include "Iris/Core/NetObjectReference.h"
 #include "Iris/Core/IrisLog.h"
 #include "Net/Core/Trace/NetDebugName.h"
@@ -21,10 +22,16 @@ static TAutoConsoleVariable<int32> CVarEnableIrisRPCs(TEXT("net.Iris.EnableRPCs"
 static bool bThrottleRPCWarnings = true;
 static FAutoConsoleVariableRef CVarThrottleRPCWarnings(TEXT("net.Iris.ThrottleRPCWarnings"), bThrottleRPCWarnings, TEXT("Only log send failure warnings once per RPC type."));
 
+static bool bAllowRPCsOnDormantObjects = true;
+static FAutoConsoleVariableRef CVarAllowRPCsOnDormantObjects(TEXT("net.Iris.RPC.AllowOnDormantObjects"), bAllowRPCsOnDormantObjects, TEXT("When true allow RPCs to be sent on dormant objects. When false block all RPCs from the moment the dormant change is requested."));
+
+static bool bAutoNetFlushOnDormantRPC = true;
+static FAutoConsoleVariableRef CVarAutoNetFlushOnDormantRPC(TEXT("net.Iris.RPC.AutoNetFlushOnDormantObjects"), bAutoNetFlushOnDormantRPC, TEXT("When true we will make an implicit NetFlush request when an RPC is sent on a dormant object. When false no replicated properties would be sent along with the RPC."));
+
 FNetBlobManager::FNetBlobManager()
 {
 }
-	
+
 void FNetBlobManager::Init(FNetBlobManagerInitParams& InitParams)
 {
 	BlobHandlerManager.Init();
@@ -97,7 +104,7 @@ bool FNetBlobManager::QueueNetObjectAttachment(uint32 ConnectionId, const FNetOb
 	return true;
 }
 
-bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
+bool FNetBlobManager::SendMulticastRPC(const FSendRPCContext& Context, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (CVarEnableIrisRPCs.GetValueOnGameThread() <= 0)
 	{
@@ -111,9 +118,9 @@ bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, c
 	}
 
 	// May the RPC be sent?
-	if ((Function->FunctionFlags & (bIsServer ? (FUNC_NetClient | FUNC_NetMulticast) : FUNC_NetServer)) == 0)
+	if ((Context.Function->FunctionFlags & (bIsServer ? (FUNC_NetClient | FUNC_NetMulticast) : FUNC_NetServer)) == 0)
 	{
-		checkf(false, TEXT("Trying to call RPC %s in the wrong direction."), ToCStr(Function->GetName()));
+		checkf(false, TEXT("Trying to call RPC %s in the wrong direction."), ToCStr(Context.Function->GetName()));
 		return true;
 	}
 
@@ -125,23 +132,44 @@ bool FNetBlobManager::SendRPC(const UObject* Object, const UObject* SubObject, c
 	}
 
 	FRPCOwner OwnerInfo;
-	if (!GetRPCOwner(OwnerInfo, Object, SubObject, Function))
+	if (!GetRPCOwner(OwnerInfo, Context))
 	{
 		return false;
 	}
+	
+	// If we prevent RPCs on dormant objects (allowed by default)
+	const bool bIsObjectDormant = NetRefHandleManager->GetWantToBeDormantInternalIndices().IsBitSet(OwnerInfo.RootObjectIndex);
+	if (!bAllowRPCsOnDormantObjects && bIsObjectDormant)
+	{
+		// If the object is dormant but requested a FlushNet we still allow him to send RPCs
+		// This also means objects that went dormant on the current frame can also send RPCs.
+		if (!NetRefHandleManager->GetDormantObjectsPendingFlushNet().IsBitSet(OwnerInfo.RootObjectIndex))
+		{
+			return false;
+		}
+	}
 
-	const TRefCountPtr<FNetRPC>& RPC = Handler->CreateRPC(OwnerInfo.CallerRef, Function, Parameters);
+	const TRefCountPtr<FNetRPC>& RPC = Handler->CreateRPC(OwnerInfo.CallerRef, Context.Function, Parameters);
 	if (!RPC.IsValid())
 	{
+		UE_LOG(LogIris, Warning, TEXT("Unable to create RPC for function %s."), ToCStr(Context.Function->GetName()));
 		return true;
+	}
+
+	// Force a NetFlush when sending an RPC on a dormant object
+	if (bAutoNetFlushOnDormantRPC && bIsObjectDormant)
+	{
+		UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>();
+		Bridge->NetFlushDormantObject(ObjectReferenceCache->GetObjectReferenceHandleFromObject(Context.RootObject));
 	}
 
 	RPC->SetNetObjectReference(OwnerInfo.CallerRef, OwnerInfo.TargetRef);
 	AttachmentSendQueue.Enqueue(OwnerInfo.RootObjectIndex, OwnerInfo.SubObjectIndex, reinterpret_cast<const TRefCountPtr<FNetObjectAttachment>&>(RPC), SendFlags, Connections->GetOpenConnections());
+
 	return true;
 }
 
-bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
+bool FNetBlobManager::SendUnicastRPC(uint32 ConnectionId, const FSendRPCContext& Context, const void* Parameters, UE::Net::ENetObjectAttachmentSendPolicyFlags SendFlags)
 {
 	if (CVarEnableIrisRPCs.GetValueOnGameThread() <= 0)
 	{
@@ -154,9 +182,9 @@ bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const 
 		return false;
 	}
 
-	if ((Function->FunctionFlags & (bIsServer ? (FUNC_NetClient | FUNC_NetMulticast) : FUNC_NetServer)) == 0)
+	if ((Context.Function->FunctionFlags & (bIsServer ? (FUNC_NetClient | FUNC_NetMulticast) : FUNC_NetServer)) == 0)
 	{
-		checkf(false, TEXT("Trying to call RPC %s in the wrong direction."), ToCStr(Function->GetName()));
+		checkf(false, TEXT("Trying to call RPC %s in the wrong direction."), ToCStr(Context.Function->GetName()));
 		return true;
 	}
 
@@ -173,16 +201,35 @@ bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const 
 	}
 
 	FRPCOwner OwnerInfo;
-	if (!GetRPCOwner(OwnerInfo, Object, SubObject, Function))
+	if (!GetRPCOwner(OwnerInfo, Context))
 	{
 		return false;
 	}
 
-	const TRefCountPtr<FNetRPC>& RPC = Handler->CreateRPC(OwnerInfo.CallerRef, Function, Parameters);
+	// If we prevent RPCs on dormant objects (allowed by default)
+	const bool bIsObjectDormant = NetRefHandleManager->GetWantToBeDormantInternalIndices().IsBitSet(OwnerInfo.RootObjectIndex);
+	if (!bAllowRPCsOnDormantObjects && bIsObjectDormant)
+	{
+		// If the object is dormant but requested a FlushNet we still allow him to send RPCs
+		// This also means objects that went dormant on the current frame can also send RPCs.
+		if (!NetRefHandleManager->GetDormantObjectsPendingFlushNet().IsBitSet(OwnerInfo.RootObjectIndex))
+		{
+			return false;
+		}
+	}
+
+	const TRefCountPtr<FNetRPC>& RPC = Handler->CreateRPC(OwnerInfo.CallerRef, Context.Function, Parameters);
 	if (!RPC.IsValid())
 	{
-		UE_LOG(LogIris, Warning, TEXT("Unable to create RPC for function %s."), ToCStr(Function->GetName()));
+		UE_LOG(LogIris, Warning, TEXT("Unable to create RPC for function %s."), ToCStr(Context.Function->GetName()));
 		return true;
+	}
+
+	// Force a NetFlush when sending an RPC on a dormant object
+	if (bAutoNetFlushOnDormantRPC && bIsObjectDormant)
+	{
+		UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>();
+		Bridge->NetFlushDormantObject(ObjectReferenceCache->GetObjectReferenceHandleFromObject(Context.RootObject));
 	}
 
 	RPC->SetNetObjectReference(OwnerInfo.CallerRef, OwnerInfo.TargetRef);
@@ -190,14 +237,14 @@ bool FNetBlobManager::SendRPC(uint32 ConnectionId, const UObject* Object, const 
 	return true;
 }
 
-bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootObject, const UObject* SubObject, const UFunction* Function) const
+bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const FSendRPCContext& Context) const
 {
 	bool bCanSendRpc = false;
 
 	// If a root object is sending an RPC
-	if (SubObject == nullptr)
+	if (Context.SubObject == nullptr)
 	{
-		OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(RootObject);
+		OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(Context.RootObject);
 		OutOwnerInfo.CallerRef = OutOwnerInfo.TargetRef;
 
 		bCanSendRpc = GetRootObjectIndicesFromHandle(OutOwnerInfo.TargetRef.GetRefHandle(), OutOwnerInfo.RootObjectIndex);
@@ -207,23 +254,23 @@ bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootOb
 			bool bLogRPCFailed = true;
 			if (UE::Net::Private::bThrottleRPCWarnings)
 			{
-				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Function->GetFName(), false);
+				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Context.Function->GetFName(), false);
 				bLogRPCFailed = !bWasAlreadyLogged;
 				bWasAlreadyLogged = true;
 			}
 			UE_CLOG(bLogRPCFailed, LogIris, Warning, TEXT("SendRPC %s for %s Failed. This rootobject is not yet replicated (RefHandle: %s Index: %u)."),
-				ToCStr(Function->GetName()), *GetNameSafe(RootObject), ToCStr(OutOwnerInfo.CallerRef.GetRefHandle().ToString()), OutOwnerInfo.RootObjectIndex);
+					ToCStr(Context.Function->GetName()), *GetNameSafe(Context.RootObject), ToCStr(OutOwnerInfo.CallerRef.GetRefHandle().ToString()), OutOwnerInfo.RootObjectIndex);
 		}
 	}
 	// If a subobject is sending an RPC
 	else
 	{
-		const FNetRefHandle SubObjectNetRef = ObjectReferenceCache->GetObjectReferenceHandleFromObject(SubObject);
+		const FNetRefHandle SubObjectNetRef = ObjectReferenceCache->GetObjectReferenceHandleFromObject(Context.SubObject);
 
 		// If the subobject can be referenced
 		if (SubObjectNetRef.IsValid())
 		{
-			OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(SubObject);
+			OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(Context.SubObject);
 			OutOwnerInfo.CallerRef = OutOwnerInfo.TargetRef;
 
 			check(OutOwnerInfo.TargetRef.GetRefHandle() == SubObjectNetRef);
@@ -234,8 +281,8 @@ bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootOb
 		// Send the RPC via the Root object if the subobject is not capable
 		if (!bCanSendRpc)
 		{
-			OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(SubObject);
-			OutOwnerInfo.CallerRef = ObjectReferenceCache->GetOrCreateObjectReference(RootObject);
+			OutOwnerInfo.TargetRef = ObjectReferenceCache->GetOrCreateObjectReference(Context.SubObject);
+			OutOwnerInfo.CallerRef = ObjectReferenceCache->GetOrCreateObjectReference(Context.RootObject);
 
 			bCanSendRpc = GetRootObjectIndicesFromHandle(OutOwnerInfo.CallerRef.GetRefHandle(), OutOwnerInfo.RootObjectIndex);
 		}
@@ -245,13 +292,13 @@ bool FNetBlobManager::GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootOb
 			bool bLogRPCFailed = true;
 			if (UE::Net::Private::bThrottleRPCWarnings)
 			{
-				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Function->GetFName(), false);
+				bool& bWasAlreadyLogged = RPCWarningThrottler.FindOrAdd(Context.Function->GetFName(), false);
 				bLogRPCFailed = !bWasAlreadyLogged;
 				bWasAlreadyLogged = true;
 			}
 
 			UE_CLOG(bLogRPCFailed, LogIris, Warning, TEXT("SendRPC %s for %s::%s Failed. The root object (RefHandle: %s Index: %u) and subobject (RefHandle: %s Index: %u) is not yet replicated."),
-				ToCStr(Function->GetName()), *GetNameSafe(RootObject), *GetNameSafe(SubObject), ToCStr(OutOwnerInfo.CallerRef.ToString()), OutOwnerInfo.RootObjectIndex, ToCStr(OutOwnerInfo.TargetRef.ToString()), OutOwnerInfo.SubObjectIndex);
+					ToCStr(Context.Function->GetName()), *GetNameSafe(Context.RootObject), *GetNameSafe(Context.SubObject), ToCStr(OutOwnerInfo.CallerRef.ToString()), OutOwnerInfo.RootObjectIndex, ToCStr(OutOwnerInfo.TargetRef.ToString()), OutOwnerInfo.SubObjectIndex);
 		}
 	}
 

@@ -478,23 +478,18 @@ void FReplicationSystemUtil::FlushNetDormancy(UReplicationSystem* ReplicationSys
 
 	if (!Actor->IsActorInitialized())
 	{
-		UE_LOG(LogIris, Verbose, TEXT("FReplicationSystemUtil::FlushNetDormancy called on %s that isn't fully initialized yet. Ingoring."), ToCStr(GetFullNameSafe(Actor)));
+		UE_LOG(LogIris, Verbose, TEXT("FReplicationSystemUtil::FlushNetDormancy called on %s that isn't fully initialized yet. Ignoring."), ToCStr(GetFullNameSafe(Actor)));
 		return;
 	}
 
-	FNetHandle ActorHandle = GetNetHandle(Actor);
-	if (ActorHandle.IsValid())
+	if (!Actor->GetIsReplicated())
 	{
-		if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
-		{
-			const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
-			if (ActorRefHandle.IsValid())
-			{
-				Bridge->ForceUpdateWantsToBeDormantObject(ActorRefHandle);
-			}
-		}
+		ensureMsgf(Actor->GetIsReplicated(), TEXT("FReplicationSystemUtil::FlushNetDormancy Actor: %s is not replicated"), ToCStr(GetFullNameSafe(Actor)));
+		return;
 	}
-	else if (Actor->HasActorBegunPlay() || Actor->IsActorBeginningPlay())
+
+	// Handle DormInitial actors
+	if (bWasDormInitial && (Actor->HasActorBegunPlay() || Actor->IsActorBeginningPlay()))
 	{
 		// Call BeginReplication for DORM_Initial actors the first time their dormancy is flushed
 		// (since it's not called when they BeginPlay).
@@ -503,12 +498,19 @@ void FReplicationSystemUtil::FlushNetDormancy(UReplicationSystem* ReplicationSys
 		// -The actor and its components/subobjects may not be completely set up for replication yet
 		// -If the actor is DormInitial, and is flushed before BeginPlay, its dormancy state will change to DormantAll and it will BeginReplication normally
 
-		UE_CLOG(!Actor->GetIsReplicated(), LogIris, Warning, TEXT("FReplicationSystemUtil::FlushNetDormancy Actor %s that is not replicated"), ToCStr(Actor->GetName()));
-		UE_CLOG(!bWasDormInitial, LogIris, Display, TEXT("FReplicationSystemUtil::FlushNetDormancy For not replicated Actor %s is not initially dormant"), ToCStr(Actor->GetName()));
+		Actor->BeginReplication();
+	}
 
-		if (Actor->GetIsReplicated())
+	const FNetHandle ActorHandle = GetNetHandle(Actor);
+	if (ActorHandle.IsValid())
+	{
+		if (UObjectReplicationBridge* Bridge = ReplicationSystem->GetReplicationBridgeAs<UObjectReplicationBridge>())
 		{
- 			Actor->BeginReplication();
+			const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
+			if (ActorRefHandle.IsValid())
+			{
+				Bridge->NetFlushDormantObject(ActorRefHandle);
+			}
 		}
 	}
 }

@@ -51,7 +51,7 @@ UE_NET_TEST_FIXTURE(FReplicationSystemServerClientTestFixture, TestDormancyWithP
 	UE_NET_ASSERT_NE(ClientObject->GetIntA(), 3);
 
 	// Flush dormancy on the object
-	Server->GetReplicationBridge()->ForceUpdateWantsToBeDormantObject(ServerObject->NetRefHandle);
+	Server->GetReplicationBridge()->NetFlushDormantObject(ServerObject->NetRefHandle);
 
 	// The property on the client should now be received
 	Server->UpdateAndSend({ Client });

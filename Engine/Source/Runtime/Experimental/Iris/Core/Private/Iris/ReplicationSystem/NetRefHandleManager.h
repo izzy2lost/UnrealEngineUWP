@@ -302,9 +302,20 @@ public:
 	const FNetBitArrayView GetWantToBeDormantInternalIndices() const { return MakeNetBitArrayView(WantToBeDormantInternalIndices); }
 	FNetBitArrayView GetWantToBeDormantInternalIndices() { return MakeNetBitArrayView(WantToBeDormantInternalIndices); }
 
+	/** List of dormant objects that requested a FlushNet */
+	const FNetBitArrayView GetDormantObjectsPendingFlushNet() const { return MakeNetBitArrayView(DormantObjectsPendingFlushNet); }
+	FNetBitArrayView GetDormantObjectsPendingFlushNet() { return MakeNetBitArrayView(DormantObjectsPendingFlushNet); }
+
+	/** Get Objects that are flagged for PreUpdate (aka PreReplication) */
+	FNetBitArrayView GetObjectsWithPreUpdate() const { return MakeNetBitArrayView(ObjectsWithPreUpdate); }
+
+public:
+
 	/** Return a string to identify the object linked to an index in logs */
 	[[nodiscard]] FString PrintObjectFromIndex(FInternalNetRefIndex ObjectIndex) const;
 	[[nodiscard]] FString PrintObjectFromNetRefHandle(FNetRefHandle ObjectHandle) const;
+
+public:
 
 	/** Delegate that will notify when the highest NetChunkedArray internal index has increased (Highest = Max-1)*/
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnNetChunkedArrayIncrease, FInternalNetRefIndex HighestInternalIndex);
@@ -316,9 +327,6 @@ public:
 	/** Delegate that will notify when the NetObjectLists (eg. NetBitArray and TArray indexed via FInternalNetRefIndex) have a new maximum index to support */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnMaxInternalNetRefIndexIncreased, FInternalNetRefIndex MaxInternalIndex);
 	FOnMaxInternalNetRefIndexIncreased& GetOnMaxInternalNetRefIndexIncreasedDelegate() const { return OnMaxInternalNetRefIndexIncreased; };
-
-	/** Get Objects that is flagged for PreUpdate (aka PreReplication) */
-	FNetBitArrayView GetObjectsWithPreUpdate() const { return MakeNetBitArrayView(ObjectsWithPreUpdate); }
 
 public:
 
@@ -343,6 +351,9 @@ private:
 
 	FInternalNetRefIndex InternalCreateNetObject(const FNetRefHandle NetRefHandle, const FNetHandle GlobalHandle, const FReplicationProtocol* ReplicationProtocol);
 	void InternalDestroyNetObject(FInternalNetRefIndex InternalIndex);
+
+	/** Clear the status of all internal bit arrays when an internal index is put back in the free list */
+	void ClearStateForFreedInternalIndex(FInternalNetRefIndex FreedInternalIndex);
 
 	static uint64 MakeNetRefHandleId(uint64 Seed, bool bIsStatic);
 	uint64 GetNextNetRefHandleId(uint64 HandleIndex) const;
@@ -439,6 +450,9 @@ private:
 
 	// Bitset marking internal indices that wants to be dormant
 	FNetBitArray WantToBeDormantInternalIndices;
+
+	// Set of dormant objects that have requested a NetFlushDormancy
+	FNetBitArray DormantObjectsPendingFlushNet;
 
 	// Bitset marking internal indices that is flagged as requiring PreUpdate
 	FNetBitArray ObjectsWithPreUpdate;

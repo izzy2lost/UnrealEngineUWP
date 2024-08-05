@@ -46,8 +46,19 @@ public:
 	bool AllowObjectReplication() const { return bAllowObjectReplication; }
 
 	bool QueueNetObjectAttachment(uint32 ConnectionId, const FNetObjectReference& TargetRef, const TRefCountPtr<FNetObjectAttachment>& Attachment, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
-	bool SendRPC(const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
-	bool SendRPC(uint32 ConnectionId, const UObject* Object, const UObject* SubObject, const UFunction* Function, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+
+	struct FSendRPCContext
+	{
+		const UObject* RootObject = nullptr;
+		const UObject* SubObject = nullptr;
+		const UFunction* Function = nullptr;
+	};
+
+	// Multicast RPC
+	bool SendMulticastRPC(const FSendRPCContext& Context, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
+
+	// Unicast RPC
+	bool SendUnicastRPC(uint32 ConnectionId, const FSendRPCContext& Context, const void* Parameters, ENetObjectAttachmentSendPolicyFlags SendFlags = ENetObjectAttachmentSendPolicyFlags::None);
 
 	bool HasUnprocessedReliableAttachments(FInternalNetRefIndex InternalIndex) const;
 	bool HasAnyUnprocessedReliableAttachments() const;
@@ -75,6 +86,7 @@ public:
 	void RemoveConnection(uint32 ConnectionId);
 
 private:
+
 	void RegisterDefaultHandlers();
 
 	struct FRPCOwner
@@ -88,7 +100,7 @@ private:
 		FInternalNetRefIndex RootObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
 		FInternalNetRefIndex SubObjectIndex = FNetRefHandleManager::InvalidInternalIndex;
 	};
-	bool GetRPCOwner(FRPCOwner& OutOwnerInfo, const UObject* RootObject, const UObject* SubObject, const UFunction* Function) const;
+	bool GetRPCOwner(FRPCOwner& OutOwnerInfo, const FSendRPCContext& Context) const;
 
 	/** 
 	* Validates that RootObjectRefHandle is a true root object and return it's index

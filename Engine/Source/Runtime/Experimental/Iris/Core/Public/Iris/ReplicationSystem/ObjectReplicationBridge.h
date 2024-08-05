@@ -173,8 +173,8 @@ public:
 	/** Returns whether the object wants to be dormant. */
 	IRISCORE_API bool GetObjectWantsToBeDormant(FNetRefHandle Handle) const;
 
-	/** Trigger replication of dirty state for object wanting to be dormant. */
-	IRISCORE_API void ForceUpdateWantsToBeDormantObject(FNetRefHandle Handle);	
+	/** Trigger a single poll to refresh the dirty values of a dormant object. */
+	IRISCORE_API void NetFlushDormantObject(FNetRefHandle Handle);	
 
 	/** Set poll frequency on root object and its subobjects. They will be polled on the same frame. */
 	IRISCORE_API void SetPollFrequency(FNetRefHandle RootHandle, float PollFrequency);
@@ -390,6 +390,9 @@ private:
 	/** Returns true if instances of this class should be delta compressed */
 	bool ShouldClassBeDeltaCompressed(const UClass* Class);
 
+	/** Set the initial dormancy status of a subobject */
+	void SetSubObjectDormancyStatus(FNetRefHandle SubObjectRefHandle, FNetRefHandle OwnerRefHandle);
+
 	/** Marks a spatially filtered object as requiring or not requiring frequent world location updates independent of it having dirty replicated properties */
 	void OptionallySetObjectRequiresFrequentWorldLocationUpdate(FNetRefHandle RefHandle, bool bDesiresFrequentWorldLocationUpdate);
 
@@ -464,9 +467,6 @@ private:
 
 	// Type stats
 	TMap<FName, FName> ClassesWithTypeStats;
-
-	// Array of dormant objects that has requested a flush
-	TArray<FNetRefHandle> DormantHandlesPendingFlush;
 
 	// When we flush objects, we might need to defer sending creation info.
 	TMap<FNetRefHandle, TUniquePtr<const FCreationHeader>> CachedCreationHeaders;
