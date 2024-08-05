@@ -5,11 +5,14 @@
 #if WITH_AUTOMATION_TESTS
 #include "Commands/TestCommands.h"
 #include "Tests/AutomationCommon.h"
+#include "GameDelegates.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogMapTest, Log, All);
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -20,8 +23,6 @@
 #include "Modules/ModuleManager.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealEdGlobals.h"
-
-DEFINE_LOG_CATEGORY_STATIC(LogMapTest, Log, All);
 
 namespace {
 
@@ -52,6 +53,17 @@ void CleanupTempResources()
 } //anonymous
 #endif // WITH_EDITOR
 
+FMapTestSpawner::~FMapTestSpawner()
+{
+	// Only explicitly removing the 'EndPlayMapHandle' handle as either the `OnEndPlayMap` gets triggered and the Game/PIE Worlds are no longer valid
+	// Or we are ending the test and the `FSpawnHelper` will handle cleaning up of the GameWorld
+	if (EndPlayMapHandle.IsValid())
+	{
+		FGameDelegates::Get().GetEndPlayMapDelegate().Remove(EndPlayMapHandle);
+		EndPlayMapHandle.Reset();
+	}
+}
+
 TUniquePtr<FMapTestSpawner> FMapTestSpawner::CreateFromTempLevel(FTestCommandBuilder& InCommandBuilder)
 {
 #if WITH_EDITOR
@@ -75,7 +87,7 @@ TUniquePtr<FMapTestSpawner> FMapTestSpawner::CreateFromTempLevel(FTestCommandBui
 	FLevelEditorModule& LevelEditor = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 	Spawner->MapChangedHandle = LevelEditor.OnMapChanged().AddRaw(Spawner.Get(), &FMapTestSpawner::OnMapChanged);
 
-	InCommandBuilder.OnTearDown([&]() {
+	InCommandBuilder.OnTearDown([]() {
 		// Create a new map to free up the reference to the map used during testing before cleaning up all temporary resources
 		FAutomationEditorCommonUtils::CreateNewMap();
 		CleanupTempResources();
@@ -104,8 +116,8 @@ void FMapTestSpawner::AddWaitUntilLoadedCommand(FAutomationTestBase* TestRunner)
 	bool bOpened = AutomationOpenMap(LongPackageName, true);
 	check(bOpened);
 
-	ADD_LATENT_AUTOMATION_COMMAND(FWaitUntil(*TestRunner, [&]() -> bool {
-		for (const auto& Context : GEngine->GetWorldContexts())
+	ADD_LATENT_AUTOMATION_COMMAND(FWaitUntil(*TestRunner, [this]() -> bool {
+		for (const FWorldContext& Context : GEngine->GetWorldContexts())
 		{
 			UWorld* World = Context.World();
 			if (!IsValid(World))
@@ -119,6 +131,8 @@ void FMapTestSpawner::AddWaitUntilLoadedCommand(FAutomationTestBase* TestRunner)
 			if (((Context.WorldType == EWorldType::PIE) || (Context.WorldType == EWorldType::Game)) && (WorldMapName.Equals(MapName)))
 			{
 				PieWorld = Context.World();
+				EndPlayMapHandle = FGameDelegates::Get().GetEndPlayMapDelegate().AddRaw(this, &FMapTestSpawner::OnEndPlayMap);
+
 				return true;
 			}
 		}
@@ -144,6 +158,19 @@ APawn* FMapTestSpawner::FindFirstPlayerPawn()
 	}
 
 	return PlayerController->GetPawn();
+}
+
+void FMapTestSpawner::OnEndPlayMap()
+{
+	if (EndPlayMapHandle.IsValid())
+	{
+		UE_LOG(LogMapTest, Verbose, TEXT("Play session has ended."));
+		GameWorld = nullptr;
+		PieWorld = nullptr;
+
+		FGameDelegates::Get().GetEndPlayMapDelegate().Remove(EndPlayMapHandle);
+		EndPlayMapHandle.Reset();
+	}
 }
 
 #if WITH_EDITOR

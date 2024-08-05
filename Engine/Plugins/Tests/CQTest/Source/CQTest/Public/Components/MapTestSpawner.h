@@ -57,6 +57,9 @@ struct CQTEST_API FMapTestSpawner : public FSpawnHelper
 	FMapTestSpawner(const FString& MapDirectory, const FString& MapName)
 		: MapDirectory(MapDirectory), MapName(MapName) {}
 
+	/** Destructor */
+	~FMapTestSpawner();
+
 	/**
 	 * Creates an instance of the MapTestSpawner with a temporary level ready for use.
 	 * 
@@ -70,6 +73,8 @@ struct CQTEST_API FMapTestSpawner : public FSpawnHelper
 	 * Loads the map specified from the MapDirectory and MapName to be prepared for the test.
 	 *
 	 * @param TestRunner - TestRunner used to send the latent command needed for map preparations.
+	 * 
+	 * @note Must be called outside of a latent action. Preferably within BEFORE_TEST.
 	 */
 	void AddWaitUntilLoadedCommand(FAutomationTestBase* TestRunner);
 
@@ -83,6 +88,11 @@ protected:
     virtual UWorld* CreateWorld() override;
 
 private:
+	/**
+	 * Handler called when the PIE session ends.
+	 */
+	void OnEndPlayMap();
+
 #if WITH_EDITOR
 	/**
 	 * Handler called on map changed.
@@ -95,6 +105,7 @@ private:
 	FString MapDirectory;
 	FString MapName;
 	UWorld* PieWorld{ nullptr };
+	FDelegateHandle EndPlayMapHandle;
 };
 
 #endif // WITH_AUTOMATION_TESTS
