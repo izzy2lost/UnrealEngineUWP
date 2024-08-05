@@ -279,6 +279,8 @@ private:
 	TSet<UPCGComponent*> Cancel(TFunctionRef<bool(TWeakObjectPtr<UPCGComponent>)> CancelFilter);
 	void ClearAllTasks();
 	void QueueNextTasks(FPCGTaskId FinishedTask);
+	TArray<FCachedResult*> QueueNextTasksInternal(FPCGTaskId FinishedTask);
+
 	bool CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGComponent*>& OutCancelledComponents);
 	void RemoveTaskFromInputSuccessors(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
 	void RemoveTaskFromInputSuccessorsNoLock(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
@@ -293,7 +295,8 @@ private:
 	void PrepareForExecute(FPCGGraphTask& Task, FCachedResult*& OutCachedResult, bool bLiveTasksLockAlreadyLocked);
 
 	/** Store cache results and Queue next tasks */
-	void ProcessCachedResults(const TArray<FCachedResult*>& CachedResults);
+	void ProcessCachedResults(TArray<FCachedResult*> CachedResults);
+	TArray<FPCGTaskId> ProcessCachedResultsInternal(TArray<FCachedResult*> CachedResults);
 
 	/** Combine all param data into one on the Params pin, if any.*/
 	void CombineParams(FPCGGraphTask& Task);
@@ -355,8 +358,7 @@ private:
 	bool bNeedToCheckSleepingTasks = false;
 
 	// Used to keep GC references to in flight caching results (not yet stored to output and might not be in cache anymore)
-	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CachingResults;
-	int32 NumWorkerTasks = 0;
+	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CollectGCCachingResults;
 
 	/** Lock level 3 */
 	UE::FSpinLock CollectGCReferenceTasksLock;
