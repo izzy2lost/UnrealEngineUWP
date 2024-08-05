@@ -33,7 +33,7 @@ namespace UE::Chaos::ClothAsset::Private
 		TArrayView<TArray<float>> RenderDeformerWeight;
 		TArrayView<float> RenderDeformerSkinningBlend;
 
-		int32 Generate(bool bUseSmoothTransition, bool bUseMultipleInfluences, float InfluenceRadius)
+		int32 Generate(bool bUseSmoothTransition, bool bUseMultipleInfluences, float InfluenceRadius, bool bDoSkinningBlend)
 		{
 			check(RenderPositions.Num() == RenderNormals.Num());
 			check(RenderPositions.Num() == RenderDeformerPositionBaryCoordsAndDist.Num());
@@ -84,6 +84,18 @@ namespace UE::Chaos::ClothAsset::Private
 			check(MeshToMeshVertData.Num() == RenderPositions.Num() * NumInfluences);  // Check modulo
 			check((!bUseMultipleInfluences && NumInfluences == 1) || (bUseMultipleInfluences && NumInfluences > 1));
 
+			auto IsRenderVertexInFilterSets = [this](int32 Index) -> bool
+				{
+					for (const ClothingMeshUtils::FMeshToMeshFilterSet& Set : MeshToMeshFilterSet)
+					{
+						if (Set.TargetVertices.Contains(Index))
+						{
+							return true;
+						}
+					}
+					return false;
+				};
+
 			for (int32 Index = 0; Index < RenderPositions.Num(); ++Index)
 			{
 				RenderDeformerPositionBaryCoordsAndDist[Index].SetNum(NumInfluences);
@@ -92,7 +104,7 @@ namespace UE::Chaos::ClothAsset::Private
 				RenderDeformerSimIndices3D[Index].SetNum(NumInfluences);
 				RenderDeformerWeight[Index].SetNum(NumInfluences);
 
-				RenderDeformerSkinningBlend[Index] = 0.f;
+				RenderDeformerSkinningBlend[Index] = bDoSkinningBlend || IsRenderVertexInFilterSets(Index) ? 0.f : 1.f;
 
 				for (int32 Influence = 0; Influence < NumInfluences; ++Influence)
 				{
@@ -107,7 +119,10 @@ namespace UE::Chaos::ClothAsset::Private
 						MeshToMeshVertDatum.SourceMeshVertIndices[2]);
 					RenderDeformerWeight[Index][Influence] = MeshToMeshVertDatum.Weight;
 
-					RenderDeformerSkinningBlend[Index] += MeshToMeshVertDatum.Weight * (float)MeshToMeshVertDatum.SourceMeshVertIndices[3] / (float)TNumericLimits<uint16>::Max();
+					if (bDoSkinningBlend)
+					{
+						RenderDeformerSkinningBlend[Index] += MeshToMeshVertDatum.Weight * (float)MeshToMeshVertDatum.SourceMeshVertIndices[3] / (float)TNumericLimits<uint16>::Max();
+					}
 				}
 			}
 			return NumInfluences;
@@ -239,23 +254,20 @@ namespace UE::Chaos::ClothAsset::Private
 				{
 					if (const TSet<int32>* SimSelectionSet = SelectionFacade.FindSelectionSet(SelectionName.Get<1>()))
 					{
-						if (RenderSelectionSet->Num() && SimSelectionSet->Num())
+						if (RenderSelectionSet->Num() || SimSelectionSet->Num())
 						{
 							const FName RenderSelectionGroup = SelectionFacade.GetSelectionGroup(SelectionName.Get<0>());
 							const FName SimSelectionGroup = SelectionFacade.GetSelectionGroup(SelectionName.Get<1>());
 
 							// Retrieve the sim face selection
 							TSet<int32> SimFaceSelection = GetSimFaceSelection(SimSelectionGroup, *SimSelectionSet);
-							if (!SimFaceSelection.Num())
-							{
-								continue;  // Nothing selected on the simulation side
-							}
 
 							// Retrieve the render vertex selection
 							TSet<int32> RenderVertexSelection = GetRenderVertexSelection(RenderSelectionGroup, *RenderSelectionSet);
-							if (!RenderVertexSelection.Num())
+
+							if (!SimFaceSelection.Num() && !RenderVertexSelection.Num())
 							{
-								continue;  // Nothing selected on the render side
+								continue;  // Nothing selected
 							}
 
 							ClothingMeshUtils::FMeshToMeshFilterSet& MeshToMeshFilterSet = MeshToMeshFilterSets.AddDefaulted_GetRef();
@@ -395,15 +407,9 @@ namespace UE::Chaos::ClothAsset::Private
 FChaosClothAssetProxyDeformerNode_v2::FChaosClothAssetProxyDeformerNode_v2(const Dataflow::FNodeParameters& InParam, FGuid InGuid)
 	: FDataflowNode(InParam, InGuid)
 {
-	using namespace UE::Chaos::ClothAsset;
-	SimVertexSelection.StringValue = FString();  // An empty selection is an accepted input, but a non existing one isn't
-	SkinningBlendName = ClothCollectionAttribute::RenderDeformerSkinningBlend.ToString();
-
 	RegisterInputConnection(&Collection);
-	RegisterInputConnection(&SimVertexSelection.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 	RegisterOutputConnection(&Collection)
 		.SetPassthroughInput(&Collection);
-	RegisterOutputConnection(&SkinningBlendName);
 
 	// Start with one set of option pins.
 	for (int32 Index = 0; Index < NumInitialSelectionFilterSets; ++Index)
@@ -411,7 +417,7 @@ FChaosClothAssetProxyDeformerNode_v2::FChaosClothAssetProxyDeformerNode_v2(const
 		AddPins();
 	}
 
-	//check(GetNumInputs() == NumRequiredInputs + NumInitialSelectionFilterSets); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
+	check(GetNumInputs() == NumRequiredInputs + NumInitialSelectionFilterSets * 2); // Update NumRequiredInputs if you add more Inputs. This is used by Serialize.
 }
 
 void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const
@@ -419,7 +425,6 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 	if (Out->IsA<FManagedArrayCollection>(&Collection))
 	{
 		using namespace UE::Chaos::ClothAsset;
-
 
 		// Evaluate in collection
 		FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);
@@ -430,16 +435,6 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 		if (ClothFacade.IsValid() && ClothFacade.HasValidData())
 		{
 			FCollectionClothSelectionFacade SelectionFacade(ClothCollection);
-
-			// Retrieve the SimVertexSelection name
-			FName SimVertexSelectionName = FName(*GetValue<FString>(Context, &SimVertexSelection.StringValue));
-			if (SimVertexSelectionName != NAME_None && (!SelectionFacade.IsValid() || !SelectionFacade.FindSelectionSet(SimVertexSelectionName)))
-			{
-				FClothDataflowTools::LogAndToastWarning(*this,
-					LOCTEXT("HasSimVertexSelectionHeadline", "Unknown SimVertexSelection."),
-					LOCTEXT("HasSimVertexSelectionDetails", "The specified SimVertexSelection does't exist within the input Cloth Collection."));
-				SimVertexSelectionName = NAME_None;
-			}
 
 			// Add the optional render deformer schema
 			if (!ClothFacade.IsValid(EClothCollectionOptionalSchemas::RenderDeformer))
@@ -454,7 +449,7 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 			DeformerMappingDataGenerator.RenderPositions = ClothFacade.GetRenderPosition();
 			DeformerMappingDataGenerator.RenderNormals = ClothFacade.GetRenderNormal();
 			DeformerMappingDataGenerator.RenderIndices = ClothFacade.GetRenderIndices();
-			DeformerMappingDataGenerator.PointWeightMap = Private::SelectionToPointWeightMap(ClothFacade, SelectionFacade, SimVertexSelectionName);
+			DeformerMappingDataGenerator.PointWeightMap = FPointWeightMap(); // _v2 no longer compute SkinningBlend transitions
 			DeformerMappingDataGenerator.MeshToMeshFilterSet = Private::SelectionsToMeshToMeshFilterSets_v2(ClothFacade, SelectionFacade, GetSelectionFilterNames(Context));
 			DeformerMappingDataGenerator.RenderDeformerPositionBaryCoordsAndDist = ClothFacade.GetRenderDeformerPositionBaryCoordsAndDist();
 			DeformerMappingDataGenerator.RenderDeformerNormalBaryCoordsAndDist = ClothFacade.GetRenderDeformerNormalBaryCoordsAndDist();
@@ -463,7 +458,9 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 			DeformerMappingDataGenerator.RenderDeformerWeight = ClothFacade.GetRenderDeformerWeight();
 			DeformerMappingDataGenerator.RenderDeformerSkinningBlend = ClothFacade.GetRenderDeformerSkinningBlend();
 
-			const int32 NumInfluences = DeformerMappingDataGenerator.Generate(bUseSmoothTransition, bUseMultipleInfluences, InfluenceRadius);
+			constexpr bool bUseSmoothTransition = false;  // _v2 no longer compute SkinningBlend transitions
+			constexpr bool bDoSkinningBlend = false;  // _v2 no longer compute SkinningBlend transitions
+			const int32 NumInfluences = DeformerMappingDataGenerator.Generate(bUseSmoothTransition, bUseMultipleInfluences, InfluenceRadius, bDoSkinningBlend);
 
 			for (int32 RenderPatternIndex = 0; RenderPatternIndex < ClothFacade.GetNumRenderPatterns(); ++RenderPatternIndex)
 			{
@@ -473,10 +470,6 @@ void FChaosClothAssetProxyDeformerNode_v2::Evaluate(Dataflow::FContext& Context,
 		}
 
 		SetValue(Context, MoveTemp(*ClothCollection), &Collection);
-	}
-	else if (Out->IsA<FString>(&SkinningBlendName))
-	{
-		SetValue(Context, SkinningBlendName, &SkinningBlendName);
 	}
 }
 
@@ -672,7 +665,8 @@ void FChaosClothAssetProxyDeformerNode::Evaluate(Dataflow::FContext& Context, co
 			DeformerMappingDataGenerator.RenderDeformerWeight = ClothFacade.GetRenderDeformerWeight();
 			DeformerMappingDataGenerator.RenderDeformerSkinningBlend = ClothFacade.GetRenderDeformerSkinningBlend();
 
-			const int32 NumInfluences = DeformerMappingDataGenerator.Generate(bUseSmoothTransition, bUseMultipleInfluences, InfluenceRadius);
+			constexpr bool bDoSkinningBlend = true;  // Compute SkinningBlend (legacy behavior)
+			const int32 NumInfluences = DeformerMappingDataGenerator.Generate(bUseSmoothTransition, bUseMultipleInfluences, InfluenceRadius, bDoSkinningBlend);
 
 			for (int32 RenderPatternIndex = 0; RenderPatternIndex < ClothFacade.GetNumRenderPatterns(); ++RenderPatternIndex)
 			{
