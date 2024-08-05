@@ -85,6 +85,7 @@ protected:
 	virtual bool AcquireItem(FDataRegistrySourceAcquireRequest&& Request) override;
 	virtual void TimerUpdate(float CurrentTime, float TimerUpdateFrequency) override;
 	virtual FString GetDebugString() const override;
+	virtual FSoftObjectPath GetSourceAssetPath() const override;
 	virtual bool Initialize() override;
 
 	// Object interface

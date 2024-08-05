@@ -66,6 +66,9 @@ public:
 	/** Return a useful debug name for this source */
 	virtual FString GetDebugString() const;
 
+	/** Returns the path to the underlying source asset (data table, curve table, etc.) if there is one */
+	virtual FSoftObjectPath GetSourceAssetPath() const;
+
 	/** Returns true if this is a runtime-only source */
 	virtual bool IsTransientSource() const;
 

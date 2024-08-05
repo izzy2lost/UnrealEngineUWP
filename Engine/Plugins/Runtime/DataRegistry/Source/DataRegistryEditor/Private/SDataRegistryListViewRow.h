@@ -11,6 +11,7 @@ class STableViewBase;
 
 class FDataRegistryEditorToolkit;
 class SDataRegistryListViewRow;
+struct FDataRegistrySourceItemId;
 
 /**
  * A widget to represent a row in a Data Table Editor widget. This widget allows us to do things like right-click
@@ -42,7 +43,9 @@ public:
 
 private:
 
-	void OnSearchForReferences();	
+	const FDataRegistrySourceItemId* FindSource() const;
+	void OnSearchForReferences();
+	void OnOpenSourceAsset();
 
 	TSharedRef<SWidget> MakeCellWidget(const int32 InRowIndex, const FName& InColumnId);
 

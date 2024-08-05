@@ -3,6 +3,7 @@
 #include "SDataRegistryListViewRow.h"
 #include "AssetRegistry/AssetIdentifier.h"
 #include "DataRegistryEditorToolkit.h"
+#include "DataRegistrySource.h"
 
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -30,6 +31,7 @@ FReply SDataRegistryListViewRow::OnMouseButtonUp(const FGeometry& MyGeometry, co
 {
 	if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton && RowDataPtr.IsValid() && FEditorDelegates::OnOpenReferenceViewer.IsBound() && DataRegistryEditor.IsValid())
 	{
+		DataRegistryEditor.Pin().Get()->SetHighlightedRow(RowDataPtr->RowId);
 
 		TSharedRef<SWidget> MenuWidget = MakeRowActionsMenu();
 
@@ -41,26 +43,41 @@ FReply SDataRegistryListViewRow::OnMouseButtonUp(const FGeometry& MyGeometry, co
 	return STableRow::OnMouseButtonUp(MyGeometry, MouseEvent);
 }
 
-void SDataRegistryListViewRow::OnSearchForReferences()
+const FDataRegistrySourceItemId* SDataRegistryListViewRow::FindSource() const
 {
 	if (DataRegistryEditor.IsValid() && RowDataPtr.IsValid())
 	{
-		if (FDataRegistryEditorToolkit* DataRegistryEditorPtr = DataRegistryEditor.Pin().Get())
+		if (const FDataRegistryEditorToolkit* DataRegistryEditorPtr = DataRegistryEditor.Pin().Get())
 		{
-			const FDataRegistrySourceItemId* FoundSource = DataRegistryEditorPtr->GetSourceItemForName(RowDataPtr->RowId);
-
-			if (FoundSource)
-			{
-				// TODO Either properly export this in serialize or disable this menu option, similar code in customization
-				TArray<FAssetIdentifier> AssetIdentifiers;
-				AssetIdentifiers.Add(FAssetIdentifier(FoundSource->ItemId.RegistryType, FoundSource->ItemId.ItemName));
-
-				FEditorDelegates::OnOpenReferenceViewer.Broadcast(AssetIdentifiers, FReferenceViewerParams());
-			}
+			return DataRegistryEditorPtr->GetSourceItemForName(RowDataPtr->RowId);
 		}
+	}
+
+	return nullptr;
+}
+
+void SDataRegistryListViewRow::OnSearchForReferences()
+{
+	if (const FDataRegistrySourceItemId* FoundSource = FindSource())
+	{
+		// TODO Either properly export this in serialize or disable this menu option, similar code in customization
+		TArray<FAssetIdentifier> AssetIdentifiers;
+		AssetIdentifiers.Add(FAssetIdentifier(FoundSource->ItemId.RegistryType, FoundSource->ItemId.ItemName));
+
+		FEditorDelegates::OnOpenReferenceViewer.Broadcast(AssetIdentifiers, FReferenceViewerParams());
 	}
 }
 
+
+void SDataRegistryListViewRow::OnOpenSourceAsset()
+{
+	const FDataRegistrySourceItemId* FoundSource = FindSource();
+	const UDataRegistrySource* SourceObject = FoundSource ? FoundSource->CachedSource.Get() : nullptr;
+	if (SourceObject)
+	{
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(SourceObject->GetSourceAssetPath());
+	}
+}
 
 TSharedRef<SWidget> SDataRegistryListViewRow::GenerateWidgetForColumn(const FName& ColumnName)
 {
@@ -165,6 +182,18 @@ TSharedRef<SWidget> SDataRegistryListViewRow::MakeRowActionsMenu()
 		FSlateIcon(), 
 		FUIAction(FExecuteAction::CreateSP(this, &SDataRegistryListViewRow::OnSearchForReferences))
 	);
+
+	const FDataRegistrySourceItemId* FoundSource = FindSource();
+	const UDataRegistrySource* SourceObject = FoundSource ? FoundSource->CachedSource.Get() : nullptr;
+	if (SourceObject && !SourceObject->GetSourceAssetPath().IsNull())
+	{
+		MenuBuilder.AddMenuEntry(
+			NSLOCTEXT("FDataRegistryRowUtils", "FDataRegistryRowUtils_OpenSourceAsset", "Open Source Asset"),
+			NSLOCTEXT("FDataRegistryRowUtils", "FDataRegistryRowUtils_OpenSourceAssetTooltip", "Open the asset editor for the source asset of this Row"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateSP(this, &SDataRegistryListViewRow::OnOpenSourceAsset))
+		);
+	}
 
 	return MenuBuilder.MakeWidget();
 }

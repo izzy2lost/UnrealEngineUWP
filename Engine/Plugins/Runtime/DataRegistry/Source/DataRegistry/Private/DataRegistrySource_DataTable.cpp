@@ -236,6 +236,11 @@ FString UDataRegistrySource_DataTable::GetDebugString() const
 	return Super::GetDebugString();
 }
 
+FSoftObjectPath UDataRegistrySource_DataTable::GetSourceAssetPath() const
+{
+	return SourceTable.ToSoftObjectPath();
+}
+
 bool UDataRegistrySource_DataTable::Initialize()
 {
 	if (Super::Initialize())
