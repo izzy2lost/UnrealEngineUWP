@@ -11,6 +11,11 @@
 #include "Misc/AsciiSet.h"
 #include "Misc/Guid.h"
 #include "Misc/StringBuilder.h"
+#include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
+#include "Misc/QualifiedFrameTime.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/Timecode.h"
 #include "Serialization/TestUndeclaredScriptStructObjectReferences.h"
 #include "Templates/Casts.h"
 #include "UObject/Class.h"
@@ -525,12 +530,58 @@ struct TStructOpsTypeTraits<FFrameNumber> : public TStructOpsTypeTraitsBase2<FFr
 {
 	enum
 	{
+		WithZeroConstructor = true,
 		WithSerializer = true,
 		WithIdenticalViaEquality = true
 	};
 	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
 };
 UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameNumber);
+
+template<>
+struct TStructOpsTypeTraits<FFrameRate> : public TStructOpsTypeTraitsBase2<FFrameRate>
+{
+	enum
+	{
+		// The native function has a custom serializer but assets have already been created with the generic UPROPERTY serializer,
+		// so we can't switch them to use a custom serializer without breaking assets (creates mismatched sizes in data).
+		// WithSerializer = true, 
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameRate);
+
+template<>
+struct TStructOpsTypeTraits<FFrameTime> : public TStructOpsTypeTraitsBase2<FFrameTime>
+{
+	enum
+	{
+		WithZeroConstructor = true,
+		// The native function has a custom serializer but assets have already been created with the generic UPROPERTY serializer,
+		// so we can't switch them to use a custom serializer without breaking assets (creates mismatched sizes in data).
+		// WithSerializer = true, 
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", FrameTime);
+
+// Qualified Frame Times can't be zero-initialized because they contain FrameRates,
+// and have no equality operator.
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", QualifiedFrameTime);
+
+template<>
+struct TStructOpsTypeTraits<FTimecode> : public TStructOpsTypeTraitsBase2<FTimecode>
+{
+	enum
+	{
+		WithZeroConstructor = true,
+		WithIdenticalViaEquality = true
+	};
+	static constexpr EPropertyObjectReferenceType WithSerializerObjectReferences = EPropertyObjectReferenceType::None;
+};
+UE_IMPLEMENT_STRUCT("/Script/CoreUObject", Timecode);
 
 template<>
 struct TStructOpsTypeTraits<FSoftObjectPath> : public TStructOpsTypeTraitsBase2<FSoftObjectPath>

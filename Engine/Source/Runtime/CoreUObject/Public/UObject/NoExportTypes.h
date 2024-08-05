@@ -21,6 +21,11 @@
 #include "Misc/Guid.h"
 #include "Misc/DateTime.h"
 #include "Misc/Timespan.h"
+#include "Misc/FrameRate.h"
+#include "Misc/FrameTime.h"
+#include "Misc/QualifiedFrameTime.h"
+#include "Misc/FrameNumber.h"
+#include "Misc/Timecode.h"
 
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/SoftObjectPath.h"
