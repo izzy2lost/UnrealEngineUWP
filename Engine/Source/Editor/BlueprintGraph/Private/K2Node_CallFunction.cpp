@@ -2085,9 +2085,24 @@ void UK2Node_CallFunction::FixupSelfMemberContext()
 
 bool UK2Node_CallFunction::CanToggleNodePurity() const
 {
-	// Only functions with outputs can be toggled.
+	// If the underlying function defaults to pure, then we can always toggle it.
+	// If not, then we only allow it if enabled in the project settings.
+	// Additionally, only functions with ouputs can be toggled.
 	// Otherwise, you can end up with a pure node with no outputs that's never evaluated.
-	return FunctionHasOutputs();
+
+	const bool bFunctionHasOutputs = FunctionHasOutputs();
+
+	if (bDefaultsToPureFunc)
+	{
+		return bFunctionHasOutputs;
+	}
+	else
+	{
+		const UBlueprintEditorProjectSettings* EditorProjectSettings = GetDefault<UBlueprintEditorProjectSettings>();
+		check(EditorProjectSettings);
+
+		return bFunctionHasOutputs && EditorProjectSettings->bAllowImpureToPureNodeConversion;
+	}
 }
 
 void UK2Node_CallFunction::SuppressDeprecationWarning() const
@@ -2204,7 +2219,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 
 	const UBlueprint* Blueprint = GetBlueprint();
 	UFunction *Function = GetTargetFunction();
-	if (Function == NULL)
+	if (Function == nullptr)
 	{
 		FString OwnerName;
 
@@ -2291,7 +2306,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 				}
 			}
 
-			if ( bNodeIsInConstructionScript )
+			if (bNodeIsInConstructionScript)
 			{
 				MessageLog.Warning(*LOCTEXT("FunctionUnsafeDuringConstruction", "Function '@@' is unsafe to call in a construction script.").ToString(), this);
 			}
@@ -2323,7 +2338,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 			}
 		}
 
-		if(Blueprint && !FBlueprintEditorUtils::IsNativeSignature(Function))
+		if (Blueprint && !FBlueprintEditorUtils::IsNativeSignature(Function))
 		{
 			// enforce protected function restriction
 			const bool bCanTreatAsError = Blueprint->GetLinkerCustomVersion(FFrameworkObjectVersion::GUID) >= FFrameworkObjectVersion::EnforceBlueprintFunctionVisibility;
@@ -2347,7 +2362,7 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 			const bool bFuncBelongsToClass = bFuncBelongsToSubClass && (Blueprint->SkeletonGeneratedClass == Function->GetOuterUClass());
 			if (bIsPrivate && !bFuncBelongsToClass)
 			{
-				if(bCanTreatAsError)
+				if (bCanTreatAsError)
 				{
 					MessageLog.Error(*LOCTEXT("FunctionPrivateAccessed", "Function '@@' is private and can't be accessed outside of its defined class '@@'.").ToString(), this, Function->GetOuterUClass());
 				}
@@ -2356,6 +2371,20 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 					MessageLog.Note(*LOCTEXT("FunctionPrivateAccessedNote", "Function '@@' is private and can't be accessed outside of its defined class '@@' - this will be an error if the asset is resaved.").ToString(), this, Function->GetOuterUClass());
 				}
 			}
+		}
+
+		const UBlueprintEditorProjectSettings* EditorProjectSettings = GetDefault<UBlueprintEditorProjectSettings>();
+		check(EditorProjectSettings);
+
+		const bool bHasIllegalPureOverride =
+			!bDefaultsToPureFunc &&
+			(NodePurityOverride == ENodePurityOverride::Pure) &&
+			(!EditorProjectSettings->bAllowImpureToPureNodeConversion)
+		;
+
+		if (bHasIllegalPureOverride)
+		{
+			MessageLog.Warning(*LOCTEXT("IllegalPureNodeOverride", "Function '@@' is not pure and conversions to pure nodes are illegal in this project. Either replace the node or enable pure node conversions in the project settings.").ToString(), this);
 		}
 	}
 
