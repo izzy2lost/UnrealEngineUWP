@@ -39,7 +39,7 @@ static FLegacyFOptionPropertyCustomVersion LegacyFOptionPropertyCustomVersion;
 static const FString InitString = TEXT("__INIT__");
 
 FOptionalProperty::FOptionalProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
 

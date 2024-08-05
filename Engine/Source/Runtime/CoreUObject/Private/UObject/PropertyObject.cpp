@@ -15,10 +15,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FObjectProperty)
 
-FObjectProperty::FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FObjectProperty::FObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
+
+FObjectProperty::FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FObjectProperty::FObjectProperty(UField* InField)
+	: TFObjectPropertyBase(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerNativeTypeName)  const
 {

@@ -215,7 +215,7 @@ bool TryLoadEnumValueByName(FStructuredArchive::FSlot Slot, FArchive& Underlying
 IMPLEMENT_FIELD(FEnumProperty)
 
 FEnumProperty::FEnumProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)	
+	: Super(InOwner, InName, InObjectFlags)	
 	, UnderlyingProp(nullptr)
 	, Enum(nullptr)
 {
@@ -223,7 +223,7 @@ FEnumProperty::FEnumProperty(FFieldVariant InOwner, const FName& InName, EObject
 }
 
 FEnumProperty::FEnumProperty(FFieldVariant InOwner, const UECodeGen_Private::FEnumPropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, CPF_HasGetValueTypeHash)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, CPF_HasGetValueTypeHash)
 {
 	Enum = Prop.EnumFunc ? Prop.EnumFunc() : nullptr;
 
@@ -233,7 +233,7 @@ FEnumProperty::FEnumProperty(FFieldVariant InOwner, const UECodeGen_Private::FEn
 
 #if WITH_EDITORONLY_DATA
 FEnumProperty::FEnumProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UEnumProperty* SourceProperty = CastChecked<UEnumProperty>(InField);
 	Enum = SourceProperty->Enum;

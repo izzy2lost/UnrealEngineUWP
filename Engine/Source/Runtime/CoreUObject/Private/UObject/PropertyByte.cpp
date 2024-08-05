@@ -21,15 +21,21 @@ bool TryLoadEnumValueByName(FStructuredArchive::FSlot Slot, FArchive& Underlying
 
 IMPLEMENT_FIELD(FByteProperty)
 
+FByteProperty::FByteProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, Enum(nullptr)
+{
+}
+
 FByteProperty::FByteProperty(FFieldVariant InOwner, const UECodeGen_Private::FBytePropertyParams& Prop)
-	: TProperty_Numeric(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 	this->Enum = Prop.EnumFunc ? Prop.EnumFunc() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
 FByteProperty::FByteProperty(UField* InField)
-	: TProperty_Numeric(InField)
+	: Super(InField)
 {
 	UByteProperty* SourceProperty = CastChecked<UByteProperty>(InField);
 	Enum = SourceProperty->Enum;

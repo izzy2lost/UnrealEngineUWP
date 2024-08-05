@@ -11,10 +11,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FWeakObjectProperty)
 
-FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FWeakObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
+
+FWeakObjectProperty::FWeakObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FWeakObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FWeakObjectProperty::FWeakObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FWeakObjectProperty::GetCPPType( FString* ExtendedTypeText/*=NULL*/, uint32 CPPExportFlags/*=0*/ ) const
 {

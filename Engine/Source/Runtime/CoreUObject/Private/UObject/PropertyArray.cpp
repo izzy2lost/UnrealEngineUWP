@@ -14,6 +14,14 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FArrayProperty)
 
+FArrayProperty::FArrayProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EArrayPropertyFlags InArrayPropertyFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, Inner(nullptr)
+{
+	ArrayFlags = InArrayPropertyFlags;
+	SetElementSize();
+}
+
 FArrayProperty::FArrayProperty(FFieldVariant InOwner, const UECodeGen_Private::FArrayPropertyParams& Prop)
 	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 	, Inner(nullptr)

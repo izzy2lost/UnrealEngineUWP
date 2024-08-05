@@ -13,7 +13,7 @@
 IMPLEMENT_FIELD(FBoolProperty)
 
 FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, FieldSize(0)
 	, ByteOffset(0)
 	, ByteMask(1)
@@ -23,7 +23,7 @@ FBoolProperty::FBoolProperty(FFieldVariant InOwner, const FName& InName, EObject
 }
 
 FBoolProperty::FBoolProperty(FFieldVariant InOwner, const UECodeGen_Private::FBoolPropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithoutOffset&)Prop, CPF_HasGetValueTypeHash)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithoutOffset&)Prop, CPF_HasGetValueTypeHash)
 	, FieldSize(0)
 	, ByteOffset(0)
 	, ByteMask(1)
@@ -64,7 +64,7 @@ FBoolProperty::FBoolProperty(FFieldVariant InOwner, const UECodeGen_Private::FBo
 
 #if WITH_EDITORONLY_DATA
 FBoolProperty::FBoolProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UBoolProperty* SourceProperty = CastChecked<UBoolProperty>(InField);
 	FieldSize = SourceProperty->FieldSize;

@@ -13,15 +13,27 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FSoftObjectProperty)
 
+FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
 FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FSoftObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+	: Super(InOwner, Prop)
 {
 }
 
 FSoftObjectProperty::FSoftObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParamsWithoutClass& Prop, UClass* InClass)
-	: TFObjectPropertyBase(InOwner, Prop, InClass)
+	: Super(InOwner, Prop, InClass)
 {
 }
+
+#if WITH_EDITORONLY_DATA
+FSoftObjectProperty::FSoftObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FSoftObjectProperty::GetCPPTypeCustom(FString* ExtendedTypeText, uint32 CPPExportFlags, const FString& InnerNativeTypeName) const
 {

@@ -728,7 +728,7 @@ IMPLEMENT_FIELD(FProperty)
 // Constructors.
 //
 FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FField(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(CPF_None)
@@ -743,7 +743,7 @@ FProperty::FProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags In
 }
 
 FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FField(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
+	: Super(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(Prop.PropertyFlags | AdditionalPropertyFlags)
@@ -761,7 +761,7 @@ FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyPa
 }
 
 FProperty::FProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithoutOffset& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FField(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
+	: Super(InOwner, UTF8_TO_TCHAR(Prop.NameUTF8), Prop.ObjectFlags)
 	, ArrayDim(1)
 	, ElementSize(0)
 	, PropertyFlags(Prop.PropertyFlags | AdditionalPropertyFlags)

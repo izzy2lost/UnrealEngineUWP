@@ -26,10 +26,22 @@
 
 IMPLEMENT_FIELD(UE_STRPROPERTY_CLASS)
 
+UE_STRPROPERTY_CLASS::UE_STRPROPERTY_CLASS(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
 UE_STRPROPERTY_CLASS::UE_STRPROPERTY_CLASS(FFieldVariant InOwner, const UECodeGen_Private::UE_STRPROPERTY_PROPERTYPARAMSSTRUCT& Prop)
 	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {
 }
+
+#if WITH_EDITORONLY_DATA
+UE_STRPROPERTY_CLASS::UE_STRPROPERTY_CLASS(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 EConvertFromTypeResult UE_STRPROPERTY_CLASS::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {

@@ -1679,10 +1679,7 @@ class COREUOBJECT_API FNumericProperty : public FProperty
 {
 	DECLARE_FIELD(FNumericProperty, FProperty, CASTCLASS_FNumericProperty)
 
-	FNumericProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FProperty(InOwner, InName, InObjectFlags)
-	{
-	}
+	FNumericProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -1692,10 +1689,7 @@ class COREUOBJECT_API FNumericProperty : public FProperty
 	FNumericProperty(FFieldVariant InOwner, const UECodeGen_Private::FPropertyParamsBaseWithOffset& Prop, EPropertyFlags AdditionalPropertyFlags = CPF_None);
 
 #if WITH_EDITORONLY_DATA
-	explicit FNumericProperty(UField* InField)
-		: Super(InField)
-	{
-	}
+	explicit FNumericProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// FProperty interface.
@@ -2079,11 +2073,7 @@ class COREUOBJECT_API FByteProperty : public TProperty_Numeric<uint8>
 	// Variables.
 	TObjectPtr<UEnum> Enum;
 
-	FByteProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-		, Enum(nullptr)
-	{
-	}
+	FByteProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2144,10 +2134,7 @@ class COREUOBJECT_API FInt8Property : public TProperty_Numeric<int8>
 {
 	DECLARE_FIELD(FInt8Property, TProperty_Numeric<int8>, CASTCLASS_FInt8Property)
 
-	FInt8Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FInt8Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2157,10 +2144,7 @@ class COREUOBJECT_API FInt8Property : public TProperty_Numeric<int8>
 	FInt8Property(FFieldVariant InOwner, const UECodeGen_Private::FInt8PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FInt8Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FInt8Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2175,10 +2159,7 @@ class COREUOBJECT_API FInt16Property : public TProperty_Numeric<int16>
 {
 	DECLARE_FIELD(FInt16Property, TProperty_Numeric<int16>, CASTCLASS_FInt16Property)
 
-	FInt16Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FInt16Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2188,10 +2169,7 @@ class COREUOBJECT_API FInt16Property : public TProperty_Numeric<int16>
 	FInt16Property(FFieldVariant InOwner, const UECodeGen_Private::FInt16PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FInt16Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FInt16Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2207,10 +2185,7 @@ class COREUOBJECT_API FIntProperty : public TProperty_Numeric<int32>
 {
 	DECLARE_FIELD(FIntProperty, TProperty_Numeric<int32>, CASTCLASS_FIntProperty)
 
-	FIntProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FIntProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2220,10 +2195,7 @@ class COREUOBJECT_API FIntProperty : public TProperty_Numeric<int32>
 	FIntProperty(FFieldVariant InOwner, const UECodeGen_Private::FIntPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FIntProperty(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FIntProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2238,10 +2210,7 @@ class COREUOBJECT_API FInt64Property : public TProperty_Numeric<int64>
 {
 	DECLARE_FIELD(FInt64Property, TProperty_Numeric<int64>, CASTCLASS_FInt64Property)
 
-	FInt64Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FInt64Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2251,10 +2220,7 @@ class COREUOBJECT_API FInt64Property : public TProperty_Numeric<int64>
 	FInt64Property(FFieldVariant InOwner, const UECodeGen_Private::FInt64PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FInt64Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FInt64Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2269,10 +2235,7 @@ class COREUOBJECT_API FUInt16Property : public TProperty_Numeric<uint16>
 {
 	DECLARE_FIELD(FUInt16Property, TProperty_Numeric<uint16>, CASTCLASS_FUInt16Property)
 
-	FUInt16Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FUInt16Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2282,10 +2245,7 @@ class COREUOBJECT_API FUInt16Property : public TProperty_Numeric<uint16>
 	FUInt16Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt16PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FUInt16Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FUInt16Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2300,10 +2260,7 @@ class COREUOBJECT_API FUInt32Property : public TProperty_Numeric<uint32>
 {
 	DECLARE_FIELD(FUInt32Property, TProperty_Numeric<uint32>, CASTCLASS_FUInt32Property)
 
-	FUInt32Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FUInt32Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2313,10 +2270,7 @@ class COREUOBJECT_API FUInt32Property : public TProperty_Numeric<uint32>
 	FUInt32Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt32PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FUInt32Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FUInt32Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2331,10 +2285,7 @@ class COREUOBJECT_API FUInt64Property : public TProperty_Numeric<uint64>
 {
 	DECLARE_FIELD(FUInt64Property, TProperty_Numeric<uint64>, CASTCLASS_FUInt64Property)
 
-	FUInt64Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-	}
+	FUInt64Property(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2344,10 +2295,7 @@ class COREUOBJECT_API FUInt64Property : public TProperty_Numeric<uint64>
 	FUInt64Property(FFieldVariant InOwner, const UECodeGen_Private::FUInt64PropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FUInt64Property(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FUInt64Property(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -2363,11 +2311,7 @@ class COREUOBJECT_API FFloatProperty : public TProperty_Numeric<float>
 {
 	DECLARE_FIELD(FFloatProperty, TProperty_Numeric<float>, CASTCLASS_FFloatProperty)
 
-	FFloatProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-		PropertyFlags |= CPF_HasGetValueTypeHash;
-	}
+	FFloatProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2377,10 +2321,7 @@ class COREUOBJECT_API FFloatProperty : public TProperty_Numeric<float>
 	FFloatProperty(FFieldVariant InOwner, const UECodeGen_Private::FFloatPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FFloatProperty(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-	}
+	explicit FFloatProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
@@ -2401,11 +2342,7 @@ class COREUOBJECT_API FDoubleProperty : public TProperty_Numeric<double>
 {
 	DECLARE_FIELD(FDoubleProperty, TProperty_Numeric<double>, CASTCLASS_FDoubleProperty)
 
-	FDoubleProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Numeric(InOwner, InName, InObjectFlags)
-	{
-		PropertyFlags |= CPF_HasGetValueTypeHash;
-	}
+	FDoubleProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2415,11 +2352,7 @@ class COREUOBJECT_API FDoubleProperty : public TProperty_Numeric<double>
 	FDoubleProperty(FFieldVariant InOwner, const UECodeGen_Private::FDoublePropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FDoubleProperty(UField* InField)
-		: TProperty_Numeric(InField)
-	{
-		PropertyFlags |= CPF_HasGetValueTypeHash;
-	}
+	explicit FDoubleProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	virtual bool Identical(const void* A, const void* B, uint32 PortFlags) const override;
@@ -2601,10 +2534,7 @@ public:
 	// Variables.
 	TObjectPtr<class UClass> PropertyClass;
 
-	FObjectPropertyBase(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FProperty(InOwner, InName, InObjectFlags)
-		, PropertyClass(nullptr)
-	{}
+	FObjectPropertyBase(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled-in properties
@@ -2927,10 +2857,7 @@ class COREUOBJECT_API FObjectProperty : public TFObjectPropertyBase<TObjectPtr<U
 {
 	DECLARE_FIELD(FObjectProperty, TFObjectPropertyBase<TObjectPtr<UObject>>, CASTCLASS_FObjectProperty)
 
-	FObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
-	{
-	}
+	FObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -2940,10 +2867,7 @@ class COREUOBJECT_API FObjectProperty : public TFObjectPropertyBase<TObjectPtr<U
 	FObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FObjectProperty(UField* InField)
-		: TFObjectPropertyBase(InField)
-	{
-	}
+	explicit FObjectProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// UHT interface
@@ -3037,10 +2961,7 @@ class COREUOBJECT_API FWeakObjectProperty : public TFObjectPropertyBase<FWeakObj
 {
 	DECLARE_FIELD(FWeakObjectProperty, TFObjectPropertyBase<FWeakObjectPtr>, CASTCLASS_FWeakObjectProperty)
 
-	FWeakObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
-	{
-	}
+	FWeakObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3050,10 +2971,7 @@ class COREUOBJECT_API FWeakObjectProperty : public TFObjectPropertyBase<FWeakObj
 	FWeakObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FWeakObjectPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FWeakObjectProperty(UField* InField)
-		: TFObjectPropertyBase(InField)
-	{
-	}
+	explicit FWeakObjectProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// UHT interface
@@ -3095,10 +3013,7 @@ class COREUOBJECT_API FLazyObjectProperty : public TFObjectPropertyBase<FLazyObj
 {
 	DECLARE_FIELD(FLazyObjectProperty, TFObjectPropertyBase<FLazyObjectPtr>, CASTCLASS_FLazyObjectProperty)
 
-	FLazyObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
-	{
-	}
+	FLazyObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3108,10 +3023,7 @@ class COREUOBJECT_API FLazyObjectProperty : public TFObjectPropertyBase<FLazyObj
 	FLazyObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FLazyObjectPropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FLazyObjectProperty(UField* InField)
-		: TFObjectPropertyBase(InField)
-	{
-	}
+	explicit FLazyObjectProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// UHT interface
@@ -3155,10 +3067,7 @@ class COREUOBJECT_API FSoftObjectProperty : public TFObjectPropertyBase<FSoftObj
 {
 	DECLARE_FIELD(FSoftObjectProperty, TFObjectPropertyBase<FSoftObjectPtr>, CASTCLASS_FSoftObjectProperty)
 
-	FSoftObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
-	{
-	}
+	FSoftObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled-in properties
@@ -3176,10 +3085,7 @@ class COREUOBJECT_API FSoftObjectProperty : public TFObjectPropertyBase<FSoftObj
 	FSoftObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParamsWithoutClass& Prop, UClass* InClass);
 
 #if WITH_EDITORONLY_DATA
-	explicit FSoftObjectProperty(UField* InField)
-		: TFObjectPropertyBase(InField)
-	{
-	}
+	explicit FSoftObjectProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// UHT interface
@@ -3235,11 +3141,7 @@ class COREUOBJECT_API FClassProperty : public FObjectProperty
 	TObjectPtr<class UClass> MetaClass;
 public:
 
-	FClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FObjectProperty(InOwner, InName, InObjectFlags)
-		, MetaClass(nullptr)
-	{
-	}
+	FClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3311,10 +3213,7 @@ class COREUOBJECT_API FSoftClassProperty : public FSoftObjectProperty
 	TObjectPtr<class UClass> MetaClass;
 public:
 
-	FSoftClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: Super(InOwner, InName, InObjectFlags)
-		, MetaClass(nullptr)
-	{}
+	FSoftClassProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3374,25 +3273,18 @@ public:
  * script header files as a TScriptInterface.
  */
 
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty<FScriptInterface, FProperty> FInterfaceProperty_Super;
-
-class COREUOBJECT_API FInterfaceProperty : public FInterfaceProperty_Super
+class COREUOBJECT_API FInterfaceProperty : public TProperty<FScriptInterface, FProperty>
 {
-	DECLARE_FIELD(FInterfaceProperty, FInterfaceProperty_Super, CASTCLASS_FInterfaceProperty)
+	DECLARE_FIELD(FInterfaceProperty, (TProperty<FScriptInterface, FProperty>), CASTCLASS_FInterfaceProperty)
 
 	/** The native interface class that this interface property refers to */
 	TObjectPtr<class	UClass>		InterfaceClass;
 	
 public:
-	typedef FInterfaceProperty_Super::TTypeFundamentals TTypeFundamentals;
+	typedef Super::TTypeFundamentals TTypeFundamentals;
 	typedef TTypeFundamentals::TCppType TCppType;
 
-	FInterfaceProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FInterfaceProperty_Super(InOwner, InName, InObjectFlags)
-		, InterfaceClass(nullptr)
-	{
-	}
+	FInterfaceProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3463,20 +3355,14 @@ public:
 // Describes a name variable pointing into the global name table.
 //
 
-// need to break this out a different type so that the DECLARE_CASTED_CLASS_INTRINSIC macro can digest the comma
-typedef TProperty_WithEqualityAndSerializer<FName, FProperty> FNameProperty_Super;
-
-class COREUOBJECT_API FNameProperty : public FNameProperty_Super
+class COREUOBJECT_API FNameProperty : public TProperty_WithEqualityAndSerializer<FName, FProperty>
 {
-	DECLARE_FIELD(FNameProperty, FNameProperty_Super, CASTCLASS_FNameProperty)
+	DECLARE_FIELD(FNameProperty, (TProperty_WithEqualityAndSerializer<FName, FProperty>), CASTCLASS_FNameProperty)
 public:
-	typedef FNameProperty_Super::TTypeFundamentals TTypeFundamentals;
+	typedef Super::TTypeFundamentals TTypeFundamentals;
 	typedef TTypeFundamentals::TCppType TCppType;
 
-	FNameProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FNameProperty_Super(InOwner, InName, InObjectFlags)
-	{
-	}
+	FNameProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -3486,10 +3372,7 @@ public:
 	FNameProperty(FFieldVariant InOwner, const UECodeGen_Private::FNamePropertyParams& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit FNameProperty(UField* InField)
-		: FNameProperty_Super(InField)
-	{
-	}
+	explicit FNameProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// FProperty interface
@@ -3540,13 +3423,7 @@ public:
 	using TTypeFundamentals = Super::TTypeFundamentals;
 	using TCppType = TTypeFundamentals::TCppType;
 
-	FArrayProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EArrayPropertyFlags InArrayPropertyFlags=EArrayPropertyFlags::None)
-		: Super(InOwner, InName, InObjectFlags)
-		, Inner(nullptr)
-	{
-		ArrayFlags = InArrayPropertyFlags;
-		SetElementSize();
-	}
+	FArrayProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags, EArrayPropertyFlags InArrayPropertyFlags=EArrayPropertyFlags::None);
 
 	/** 
 	 * Constructor used for constructing compiled in properties
@@ -6083,11 +5960,7 @@ public:
 	using TTypeFundamentals = Super::TTypeFundamentals;
 	using TCppType = TTypeFundamentals::TCppType;
 
-	FDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: Super(InOwner, InName, InObjectFlags)
-		, SignatureFunction(nullptr)
-	{
-	}
+	FDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -6146,11 +6019,7 @@ class COREUOBJECT_API FMulticastDelegateProperty : public FProperty
 
 public:
 
-	FMulticastDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: FProperty(InOwner, InName, InObjectFlags)
-		, SignatureFunction(nullptr)
-	{
-	}
+	FMulticastDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties

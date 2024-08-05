@@ -31,10 +31,7 @@ public:
 	using TTypeFundamentals = Super::TTypeFundamentals;
 	using TCppType = TTypeFundamentals::TCppType;
 
-	UE_STRPROPERTY_CLASS(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: Super(InOwner, InName, InObjectFlags)
-	{
-	}
+	UE_STRPROPERTY_CLASS(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
@@ -44,10 +41,7 @@ public:
 	UE_STRPROPERTY_CLASS(FFieldVariant InOwner, const UECodeGen_Private::UE_STRPROPERTY_PROPERTYPARAMSSTRUCT& Prop);
 
 #if WITH_EDITORONLY_DATA
-	explicit UE_STRPROPERTY_CLASS(UField* InField)
-		: Super(InField)
-	{
-	}
+	explicit UE_STRPROPERTY_CLASS(UField* InField);
 #endif // WITH_EDITORONLY_DATA
 
 	// FProperty interface

@@ -12,10 +12,22 @@
 
 IMPLEMENT_FIELD(FTextProperty)
 
-FTextProperty::FTextProperty(FFieldVariant InOwner, const UECodeGen_Private::FTextPropertyParams& Prop)
-	: FTextProperty_Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+FTextProperty::FTextProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 {
 }
+
+FTextProperty::FTextProperty(FFieldVariant InOwner, const UECodeGen_Private::FTextPropertyParams& Prop)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FTextProperty::FTextProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 EConvertFromTypeResult FTextProperty::ConvertFromType(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot, uint8* Data, UStruct* DefaultsStruct, const uint8* Defaults)
 {

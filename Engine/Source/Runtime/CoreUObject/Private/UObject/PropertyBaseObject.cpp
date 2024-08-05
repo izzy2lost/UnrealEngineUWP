@@ -21,20 +21,26 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FObjectPropertyBase)
 
+FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, PropertyClass(nullptr)
+{
+}
+
 FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParams& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
 {
 	PropertyClass = Prop.ClassFunc ? Prop.ClassFunc() : nullptr;
 }
 FObjectPropertyBase::FObjectPropertyBase(FFieldVariant InOwner, const UECodeGen_Private::FObjectPropertyParamsWithoutClass& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
 	, PropertyClass(nullptr)
 {
 }
 
 #if WITH_EDITORONLY_DATA
 FObjectPropertyBase::FObjectPropertyBase(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UObjectPropertyBase* SourceProperty = CastChecked<UObjectPropertyBase>(InField);
 	PropertyClass = SourceProperty->PropertyClass;

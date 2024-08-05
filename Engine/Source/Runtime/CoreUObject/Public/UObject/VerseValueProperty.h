@@ -89,20 +89,14 @@ class FVValueProperty : public TProperty_Verse<Verse::TWriteBarrier<Verse::VValu
 	DECLARE_FIELD_API(FVValueProperty, TProperty_Verse<Verse::TWriteBarrier<Verse::VValue>>, CASTCLASS_FVValueProperty, COREUOBJECT_API)
 
 public:
-	COREUOBJECT_API FVValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Verse(InOwner, InName, InObjectFlags)
-	{
-	}
+	COREUOBJECT_API FVValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
 	 * @param InOwner Owner of the property
 	 * @param Prop Pointer to the compiled in structure describing the property
 	 **/
-	COREUOBJECT_API FVValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
-		: TProperty_Verse(InOwner, Prop)
-	{
-	}
+	COREUOBJECT_API FVValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop);
 };
 
 //
@@ -113,21 +107,14 @@ class FVRestValueProperty : public TProperty_Verse<Verse::VRestValue>
 	DECLARE_FIELD_API(FVRestValueProperty, TProperty_Verse<Verse::VRestValue>, CASTCLASS_FVRestValueProperty, COREUOBJECT_API)
 
 public:
-	COREUOBJECT_API FVRestValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-		: TProperty_Verse(InOwner, InName, InObjectFlags)
-	{
-
-	}
+	COREUOBJECT_API FVRestValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags);
 
 	/**
 	 * Constructor used for constructing compiled in properties
 	 * @param InOwner Owner of the property
 	 * @param Prop Pointer to the compiled in structure describing the property
 	 **/
-	COREUOBJECT_API FVRestValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
-		: TProperty_Verse(InOwner, Prop)
-	{
-	}
+	COREUOBJECT_API FVRestValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop);
 };
 
 #endif // WITH_VERSE_VM

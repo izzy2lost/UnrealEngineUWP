@@ -44,7 +44,7 @@ static inline void PreloadInnerStructMembers(FStructProperty* StructProperty)
 IMPLEMENT_FIELD(FStructProperty)
 
 FStructProperty::FStructProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
-	: FProperty(InOwner, InName, InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
 	, Struct(nullptr)
 {
 	ElementSize = 0;
@@ -62,14 +62,14 @@ static EPropertyFlags GetStructComputedPropertyFlags(const UECodeGen_Private::FS
 }
 
 FStructProperty::FStructProperty(FFieldVariant InOwner, const UECodeGen_Private::FStructPropertyParams& Prop)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, GetStructComputedPropertyFlags(Prop))
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, GetStructComputedPropertyFlags(Prop))
 {
 	Struct = Prop.ScriptStructFunc ? Prop.ScriptStructFunc() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
 FStructProperty::FStructProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UStructProperty* SourceProperty = CastChecked<UStructProperty>(InField);
 	Struct = SourceProperty->Struct;

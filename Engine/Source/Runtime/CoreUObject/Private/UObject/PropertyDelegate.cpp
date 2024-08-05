@@ -15,6 +15,12 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FDelegateProperty)
 
+FDelegateProperty::FDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, SignatureFunction(nullptr)
+{
+}
+
 FDelegateProperty::FDelegateProperty(FFieldVariant InOwner, const UECodeGen_Private::FDelegatePropertyParams& Prop)
 	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop)
 {

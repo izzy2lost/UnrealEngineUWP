@@ -11,10 +11,22 @@
 -----------------------------------------------------------------------------*/
 IMPLEMENT_FIELD(FLazyObjectProperty)
 
-FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FLazyObjectPropertyParams& Prop)
-	: TFObjectPropertyBase(InOwner, Prop)
+FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: TFObjectPropertyBase(InOwner, InName, InObjectFlags)
 {
 }
+
+FLazyObjectProperty::FLazyObjectProperty(FFieldVariant InOwner, const UECodeGen_Private::FLazyObjectPropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+#if WITH_EDITORONLY_DATA
+FLazyObjectProperty::FLazyObjectProperty(UField* InField)
+	: Super(InField)
+{
+}
+#endif // WITH_EDITORONLY_DATA
 
 FString FLazyObjectProperty::GetCPPType(FString* ExtendedTypeText/*=NULL*/, uint32 CPPExportFlags/*=0*/) const
 {

@@ -61,6 +61,26 @@ namespace UE::Private
 	};
 }
 
+FVValueProperty::FVValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
+FVValueProperty::FVValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
+FVRestValueProperty::FVRestValueProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+{
+}
+
+FVRestValueProperty::FVRestValueProperty(FFieldVariant InOwner, const UECodeGen_Private::FVerseValuePropertyParams& Prop)
+	: Super(InOwner, Prop)
+{
+}
+
 template <typename T>
 FString TProperty_Verse<T>::GetCPPMacroType(FString& ExtendedTypeText) const
 {

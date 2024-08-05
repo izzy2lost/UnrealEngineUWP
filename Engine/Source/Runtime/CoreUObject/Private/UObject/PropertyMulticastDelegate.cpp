@@ -10,15 +10,21 @@
 
 FMulticastScriptDelegate FMulticastDelegateProperty::EmptyDelegate;
 
+FMulticastDelegateProperty::FMulticastDelegateProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
+	: Super(InOwner, InName, InObjectFlags)
+	, SignatureFunction(nullptr)
+{
+}
+
 FMulticastDelegateProperty::FMulticastDelegateProperty(FFieldVariant InOwner, const UECodeGen_Private::FMulticastDelegatePropertyParams& Prop, EPropertyFlags AdditionalPropertyFlags /*= CPF_None*/)
-	: FProperty(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
+	: Super(InOwner, (const UECodeGen_Private::FPropertyParamsBaseWithOffset&)Prop, AdditionalPropertyFlags)
 {
 	SignatureFunction = Prop.SignatureFunctionFunc ? Prop.SignatureFunctionFunc() : nullptr;
 }
 
 #if WITH_EDITORONLY_DATA
 FMulticastDelegateProperty::FMulticastDelegateProperty(UField* InField)
-	: FProperty(InField)
+	: Super(InField)
 {
 	UMulticastDelegateProperty* SourceProperty = CastChecked<UMulticastDelegateProperty>(InField);
 	SignatureFunction = SourceProperty->SignatureFunction;
