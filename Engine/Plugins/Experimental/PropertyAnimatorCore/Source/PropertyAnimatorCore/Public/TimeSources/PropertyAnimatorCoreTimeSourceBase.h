@@ -18,10 +18,6 @@ class UPropertyAnimatorCoreTimeSourceBase : public UObject
 	friend class UPropertyAnimatorCoreSubsystem;
 
 public:
-#if WITH_EDITOR
-	PROPERTYANIMATORCORE_API static FName GetTimeElapsedPropertyName();
-#endif
-
 	UPropertyAnimatorCoreTimeSourceBase()
 		: UPropertyAnimatorCoreTimeSourceBase(NAME_None)
 	{}
@@ -48,6 +44,18 @@ public:
 		return TimeSourceName;
 	}
 
+	void SetFrameRate(float InFrameRate);
+	float GetFrameRate() const
+	{
+		return FrameRate;
+	}
+
+	void SetUseFrameRate(bool bInUseFrameRate);
+	bool GetUseFrameRate() const
+	{
+		return bUseFrameRate;
+	}
+
 protected:
 	/** Returns the time elapsed for animators */
 	virtual double GetTimeElapsed()
@@ -62,10 +70,7 @@ protected:
 	}
 
 	/** Check if the time elapsed is valid based on the context */
-	virtual bool IsValidTimeElapsed(double InTimeElapsed) const
-	{
-		return true;
-	}
+	PROPERTYANIMATORCORE_API virtual bool IsValidTimeElapsed(double InTimeElapsed) const;
 
 	/** Time source CDO is registered by subsystem */
 	virtual void OnTimeSourceRegistered() {}
@@ -80,13 +85,21 @@ protected:
 	virtual void OnTimeSourceInactive() {}
 
 private:
-	/** Only used to display time elapsed */
-	UPROPERTY(Transient, VisibleInstanceOnly, Category="Animator", meta=(NoResetToDefault))
-	double TimeElapsed = 0;
+	/** Use a specific framerate */
+	UPROPERTY(EditInstanceOnly, Setter="SetUseFrameRate", Getter="GetUseFrameRate", Category="Animator", meta=(InlineEditConditionToggle))
+	bool bUseFrameRate = false;
+
+	/** The frame rate to target for the animator effect */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(ClampMin="0", EditCondition="bUseFrameRate"))
+	float FrameRate = 30.f;
 
 	/** Name used to display this time source to the user */
 	UPROPERTY(Transient)
 	FName TimeSourceName;
 
+	/** Cached time elapsed */
+	double LastTimeElapsed = 0;
+
+	/** Is this time source active on the animator */
 	bool bTimeSourceActive = false;
 };

@@ -4,13 +4,6 @@
 
 #include "Animators/PropertyAnimatorCoreBase.h"
 
-#if WITH_EDITOR
-FName UPropertyAnimatorCoreTimeSourceBase::GetTimeElapsedPropertyName()
-{
-	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreTimeSourceBase, TimeElapsed);
-}
-#endif
-
 void UPropertyAnimatorCoreTimeSourceBase::ActivateTimeSource()
 {
 	if (IsTimeSourceActive())
@@ -40,17 +33,34 @@ TOptional<double> UPropertyAnimatorCoreTimeSourceBase::GetConditionalTimeElapsed
 		return TOptional<double>();
 	}
 
-	TimeElapsed = GetTimeElapsed();
+	double NewTimeElapsed = GetTimeElapsed();
 
-	if (!IsValidTimeElapsed(TimeElapsed))
+	if (!IsValidTimeElapsed(NewTimeElapsed))
 	{
 		return TOptional<double>();
 	}
 
-	return TimeElapsed;
+	LastTimeElapsed = NewTimeElapsed;
+
+	return LastTimeElapsed;
 }
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreTimeSourceBase::GetAnimator() const
 {
 	return GetTypedOuter<UPropertyAnimatorCoreBase>();
+}
+
+void UPropertyAnimatorCoreTimeSourceBase::SetFrameRate(float InFrameRate)
+{
+	FrameRate = FMath::Max(UE_KINDA_SMALL_NUMBER, InFrameRate);
+}
+
+void UPropertyAnimatorCoreTimeSourceBase::SetUseFrameRate(bool bInUseFrameRate)
+{
+	bUseFrameRate = bInUseFrameRate;
+}
+
+bool UPropertyAnimatorCoreTimeSourceBase::IsValidTimeElapsed(double InTimeElapsed) const
+{
+	return !bUseFrameRate || FMath::IsNearlyZero(FrameRate) || FMath::Abs(InTimeElapsed - LastTimeElapsed) > FMath::Abs(1.f / FrameRate);
 }
