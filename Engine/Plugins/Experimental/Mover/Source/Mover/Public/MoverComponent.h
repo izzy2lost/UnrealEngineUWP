@@ -263,8 +263,13 @@ public:	// Queries
 	FRotator GetTargetOrientation() const;
 
 	/** Get a sampling of where the actor is projected to be in the future, based on a current state. Note that this is projecting ideal movement without doing full simulation and collision. */
+	UE_DEPRECATED(5.5, "Use GetPredictedTrajectory instead.")
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
-	TArray<FTrajectorySampleInfo> GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const;
+	TArray<FTrajectorySampleInfo> GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond);
+
+	/** Get a sampling of where the actor is projected to be in the future, based on a current state. Note that this is projecting ideal movement without doing full simulation and collision. */
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = Mover)
+	TArray<FTrajectorySampleInfo> GetPredictedTrajectory(FMoverPredictTrajectoryParams PredictionParams);	
 
 	// Get the current movement mode name
 	UFUNCTION(BlueprintPure, Category = Mover)

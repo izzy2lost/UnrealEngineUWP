@@ -36,8 +36,12 @@
 			"Enabled": true
 		},
 		{
-			"Name": "Water",
+			"Name": "PoseSearch",
 			"Enabled": true
 		},
+		{
+			"Name": "Water",
+			"Enabled": true
+		}
 	]
 }

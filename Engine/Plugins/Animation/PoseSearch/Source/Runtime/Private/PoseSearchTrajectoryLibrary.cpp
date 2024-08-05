@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PoseSearch/PoseSearchTrajectoryLibrary.h"
+#include "PoseSearch/PoseSearchTrajectoryPredictor.h"
 #include "Animation/AnimInstanceProxy.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/Character.h"
@@ -166,6 +167,21 @@ void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
 	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
 	float DeltaTime)
 {
+	InitTrajectorySamples(
+		Trajectory,
+		TrajectoryData,
+		TrajectoryDataDerived.Position, TrajectoryDataDerived.Facing,
+		TrajectoryDataSampling, 
+		DeltaTime );
+}
+
+void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
+	FPoseSearchQueryTrajectory& Trajectory,
+	const FPoseSearchTrajectoryData& TrajectoryData,
+	FVector DefaultPosition, FQuat DefaultFacing,
+	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
+	float DeltaTime)
+{
 	const int32 NumHistorySamples = TrajectoryDataSampling.NumHistorySamples;
 	const int32 NumPredictionSamples = TrajectoryDataSampling.NumPredictionSamples;
 
@@ -180,8 +196,8 @@ void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
 		const float SecondsPerHistorySample = FMath::Max(TrajectoryDataSampling.SecondsPerHistorySample, 0.f);
 		for (int32 i = 0; i < NumHistorySamples; ++i)
 		{
-			Trajectory.Samples[i].Position = TrajectoryDataDerived.Position;
-			Trajectory.Samples[i].Facing = TrajectoryDataDerived.Facing;
+			Trajectory.Samples[i].Position = DefaultPosition;
+			Trajectory.Samples[i].Facing = DefaultFacing;
 			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerHistorySample * (i - NumHistorySamples - 1);
 		}
 
@@ -189,8 +205,8 @@ void UPoseSearchTrajectoryLibrary::InitTrajectorySamples(
 		const float SecondsPerPredictionSample = FMath::Max(TrajectoryDataSampling.SecondsPerPredictionSample, 0.f);
 		for (int32 i = NumHistorySamples; i < Trajectory.Samples.Num(); ++i)
 		{
-			Trajectory.Samples[i].Position = TrajectoryDataDerived.Position;
-			Trajectory.Samples[i].Facing = TrajectoryDataDerived.Facing;
+			Trajectory.Samples[i].Position = DefaultPosition;
+			Trajectory.Samples[i].Facing = DefaultFacing;
 			Trajectory.Samples[i].AccumulatedSeconds = SecondsPerPredictionSample * (i - NumHistorySamples) + DeltaTime;
 		}
 	}
@@ -200,6 +216,22 @@ void UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(
 	FPoseSearchQueryTrajectory& Trajectory,
 	const FPoseSearchTrajectoryData& TrajectoryData,
 	const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived,
+	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
+	float DeltaTime)
+{
+	UpdateHistory_TransformHistory(
+		Trajectory,
+		TrajectoryData,
+		TrajectoryDataDerived.Position, TrajectoryDataDerived.Velocity,
+		TrajectoryDataSampling,
+		DeltaTime);
+}
+
+void UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(
+	FPoseSearchQueryTrajectory& Trajectory,
+	const FPoseSearchTrajectoryData& TrajectoryData,
+	FVector CurrentPosition,
+	FVector CurrentVelocity, 
 	const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling,
 	float DeltaTime)
 {
@@ -216,7 +248,7 @@ void UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(
 			Trajectory.Samples[Index].Position = Trajectory.Samples[NumHistorySamples].Position - Trajectory.Samples[Index].Position;
 		}
 
-		FVector CurrentTranslation = TrajectoryDataDerived.Velocity * DeltaTime;
+		FVector CurrentTranslation = CurrentVelocity * DeltaTime;
 
 		// Shift history Samples when it's time to record a new one.
 		if (SecondsPerHistorySample <= 0.f || FMath::Abs(Trajectory.Samples[NumHistorySamples - 1].AccumulatedSeconds) >= SecondsPerHistorySample)
@@ -244,7 +276,7 @@ void UPoseSearchTrajectoryLibrary::UpdateHistory_TransformHistory(
 		// converting the history sample positions in world space by applying the current world position.
 		for (int32 Index = 0; Index < NumHistorySamples; ++Index)
 		{
-			Trajectory.Samples[Index].Position = TrajectoryDataDerived.Position - Trajectory.Samples[Index].Position;
+			Trajectory.Samples[Index].Position = CurrentPosition - Trajectory.Samples[Index].Position;
 		}
 	}
 }
@@ -349,8 +381,8 @@ void UPoseSearchTrajectoryLibrary::UpdatePrediction_SimulateCharacterMovement(
 }
 
 void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
-	const UAnimInstance* InAnimInstance, UPARAM(ref)
-	const FPoseSearchTrajectoryData& InTrajectoryData,
+	const UAnimInstance* InAnimInstance, 
+	UPARAM(ref)	const FPoseSearchTrajectoryData& InTrajectoryData,
 	float InDeltaTime,
 	UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory,
 	UPARAM(ref) float& InOutDesiredControllerYawLastUpdate,
@@ -371,8 +403,8 @@ void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
 
 	FPoseSearchTrajectoryData::FDerived TrajectoryDataDerived;
 	InTrajectoryData.UpdateData(InDeltaTime, InAnimInstance, TrajectoryDataDerived, TrajectoryDataState);
-	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);
-	UpdateHistory_TransformHistory(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);
+	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived.Position, TrajectoryDataDerived.Facing, TrajectoryDataSampling, InDeltaTime);
+	UpdateHistory_TransformHistory(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived.Position, TrajectoryDataDerived.Velocity, TrajectoryDataSampling, InDeltaTime);
 	UpdatePrediction_SimulateCharacterMovement(InOutTrajectory, InTrajectoryData, TrajectoryDataDerived, TrajectoryDataSampling, InDeltaTime);
 
 	InOutDesiredControllerYawLastUpdate = TrajectoryDataState.DesiredControllerYawLastUpdate;
@@ -380,7 +412,77 @@ void UPoseSearchTrajectoryLibrary::PoseSearchGenerateTrajectory(
 	OutTrajectory = InOutTrajectory;
 }
 
+
+void UPoseSearchTrajectoryLibrary::PoseSearchGeneratePredictorTrajectory(
+	UObject* InPredictor,	// must implement IPoseSearchTrajectoryPredictorInterface
+	UPARAM(ref)	const FPoseSearchTrajectoryData& InTrajectoryData,
+	float InDeltaTime,
+	UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory,
+	UPARAM(ref) float& InOutDesiredControllerYawLastUpdate,
+	FPoseSearchQueryTrajectory& OutTrajectory,
+	float InHistorySamplingInterval,
+	int32 InTrajectoryHistoryCount,
+	float InPredictionSamplingInterval,
+	int32 InTrajectoryPredictionCount)
+{
+	FPoseSearchTrajectoryData::FSampling TrajectoryDataSampling;
+	TrajectoryDataSampling.NumHistorySamples = InTrajectoryHistoryCount;
+	TrajectoryDataSampling.SecondsPerHistorySample = InHistorySamplingInterval;
+	TrajectoryDataSampling.NumPredictionSamples = InTrajectoryPredictionCount;
+	TrajectoryDataSampling.SecondsPerPredictionSample = InPredictionSamplingInterval;
+
+	// TODO: handle controller yaw
+	//TrajectoryDataState.DesiredControllerYawLastUpdate = InOutDesiredControllerYawLastUpdate;
+
+	FVector CurrentPosition = FVector::ZeroVector;
+	FVector CurrentVelocity = FVector::ZeroVector;
+	FQuat CurrentFacing = FQuat::Identity;
+
+	if (InPredictor)
+	{
+		IPoseSearchTrajectoryPredictorInterface::Execute_GetCurrentState(InPredictor, CurrentPosition, CurrentFacing, CurrentVelocity);
+	}
+
+	InitTrajectorySamples(InOutTrajectory, InTrajectoryData, CurrentPosition, CurrentFacing, TrajectoryDataSampling, InDeltaTime);
+	UpdateHistory_TransformHistory(InOutTrajectory, InTrajectoryData, CurrentPosition, CurrentVelocity, TrajectoryDataSampling, InDeltaTime);
+
+	if (InPredictor)
+	{
+		IPoseSearchTrajectoryPredictorInterface::Execute_Predict(InPredictor, InOutTrajectory,
+			InTrajectoryPredictionCount + 1, InPredictionSamplingInterval, InTrajectoryHistoryCount);
+	}
+
+	//InOutDesiredControllerYawLastUpdate = TrajectoryDataState.DesiredControllerYawLastUpdate;
+
+	OutTrajectory = InOutTrajectory;
+}
+
+
 void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, const UAnimInstance* AnimInstance, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, bool bApplyGravity, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory, FPoseSearchTrajectory_WorldCollisionResults& CollisionResult,
+	ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, bool bIgnoreSelf, float MaxObstacleHeight, FLinearColor TraceColor, FLinearColor TraceHitColor, float DrawTime)
+{
+	FVector StartingVelocity = FVector::ZeroVector;
+	FVector GravityAccel = FVector::ZeroVector;
+	if (bApplyGravity && AnimInstance)
+	{
+		if (const ACharacter* Character = Cast<ACharacter>(AnimInstance->GetOwningActor()))
+		{
+			if (const UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
+			{
+				GravityAccel = MoveComp->GetGravityDirection() * -MoveComp->GetGravityZ();
+				StartingVelocity = Character->GetVelocity();
+			}
+		}
+	}
+
+	HandleTrajectoryWorldCollisionsWithGravity(WorldContextObject, InTrajectory, StartingVelocity, bApplyGravity, GravityAccel, 
+		FloorCollisionsOffset, OutTrajectory, CollisionResult, TraceChannel, bTraceComplex, ActorsToIgnore, 
+		DrawDebugType, bIgnoreSelf, MaxObstacleHeight, TraceColor, TraceHitColor, DrawTime);
+}
+
+
+void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisionsWithGravity(const UObject* WorldContextObject,
+	UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, FVector StartingVelocity, bool bApplyGravity, FVector GravityAccel, float FloorCollisionsOffset, FPoseSearchQueryTrajectory& OutTrajectory, FPoseSearchTrajectory_WorldCollisionResults& CollisionResult,
 	ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, bool bIgnoreSelf, float MaxObstacleHeight, FLinearColor TraceColor, FLinearColor TraceHitColor, float DrawTime)
 {
 	OutTrajectory = InTrajectory;
@@ -390,19 +492,17 @@ void UPoseSearchTrajectoryLibrary::HandleTrajectoryWorldCollisions(const UObject
 
 	FVector GravityDirection = FVector::ZeroVector;
 	float GravityZ = 0.f;
-	float InitialVelocityZ = 0.0f;
-	if (bApplyGravity && AnimInstance)
+	float InitialVelocityZ = StartingVelocity.Z;
+
+	if (bApplyGravity && !GravityAccel.IsNearlyZero())
 	{
-		if (const ACharacter* Character = Cast<ACharacter>(AnimInstance->GetOwningActor()))
-		{
-			if (const UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
-			{
-				GravityZ = MoveComp->GetGravityZ();
-				GravityDirection = MoveComp->GetGravityDirection();
-				InitialVelocityZ = Character->GetVelocity().Z;
-			}
-		}
+		GravityAccel.ToDirectionAndLength(GravityDirection, GravityZ);
+		GravityZ = -GravityZ;
+		const FVector VelocityOnGravityAxis = StartingVelocity.ProjectOnTo(GravityDirection);
+		
+		InitialVelocityZ = VelocityOnGravityAxis.Length() * FMath::Sign(GravityDirection.Dot(VelocityOnGravityAxis));
 	}
+
 	CollisionResult.TimeToLand = OutTrajectory.Samples.Last().AccumulatedSeconds;
 
 	if (!FMath::IsNearlyZero(GravityZ))

@@ -82,6 +82,32 @@ struct MOVER_API FMoverTimeStep
 };
 
 
+USTRUCT(BlueprintType)
+struct MOVER_API FMoverPredictTrajectoryParams
+{
+	GENERATED_BODY()
+
+	/** How many samples to predict into the future, including the first sample, which is always a snapshot of the
+	 *  starting state with 0 accumulated time. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover, meta=(ClampMin=1))
+	int32 NumPredictionSamples = 1;
+
+	/* How much time between predicted samples */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover, meta=(ClampMin=0.00001))
+	float SecondsPerSample = 0.333f;
+
+	/** If true, samples are based on the visual component transform, rather than the 'updated' movement root. 
+	 *  Typically, this is a mesh with its component location at the bottom of the collision primitive.
+	 *  If false, samples are from the movement root. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	bool bUseVisualComponentRoot = false;
+
+	/** If true, gravity will not taken into account during prediction */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
+	bool bDisableGravity = false;
+
+};
+
 
 // Base type for all data structs used to compose Mover simulation model definition dynamically (input cmd, sync state, aux state)
 // NOTE: for simulation state data (sync/aux), derive from FMoverStateData instead 

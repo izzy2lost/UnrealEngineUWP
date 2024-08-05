@@ -1164,7 +1164,7 @@ FTransform UMoverComponent::ConvertLocalRootMotionToWorld(const FTransform& Loca
 
 FTransform UMoverComponent::GetUpdatedComponentTransform() const
 {
-	if (ensure(UpdatedComponent))
+	if (UpdatedComponent)
 	{
 		return UpdatedComponent->GetComponentTransform();
 	}
@@ -1289,73 +1289,112 @@ void UMoverComponent::SetPlanarConstraint(const FPlanarConstraint& InConstraint)
 	PlanarConstraint = InConstraint;
 }
 
-TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond) const
+TArray<FTrajectorySampleInfo> UMoverComponent::GetFutureTrajectory(float FutureSeconds, float SamplesPerSecond)
 {
-	FMoverTickStartData StartingState;
+	FMoverPredictTrajectoryParams PredictionParams;
+	PredictionParams.NumPredictionSamples = FMath::Max(1, FutureSeconds * SamplesPerSecond);
+	PredictionParams.SecondsPerSample = FutureSeconds / (float)PredictionParams.NumPredictionSamples;
 
-	StartingState.InputCmd = GetLastInputCmd();
-	StartingState.SyncState = CachedLastSyncState;
-	StartingState.AuxState = CachedLastAuxState;
+	return GetPredictedTrajectory(PredictionParams);
+}
 
-	FMoverTickStartData StepState = StartingState;
-
-	const int32 NumSamples = FMath::Max(1, FutureSeconds * SamplesPerSecond);
-	const float StepDeltaSeconds = FutureSeconds / (float)NumSamples;
-
-	FMoverTimeStep FutureTimeStep;
-	FutureTimeStep.StepMs = (FutureSeconds * 1000.f) / NumSamples;
-	FutureTimeStep.BaseSimTimeMs = CachedLastSimTickTimeStep.BaseSimTimeMs;
-	FutureTimeStep.ServerFrame = 0;
-
-	if (const UBaseMovementMode* CurrentMovementMode = ModeFSM->GetCurrentMode())
+TArray<FTrajectorySampleInfo> UMoverComponent::GetPredictedTrajectory(FMoverPredictTrajectoryParams PredictionParams)
+{
+	if (ModeFSM)
 	{
-		TArray<FTrajectorySampleInfo> OutSamples;
-		OutSamples.AddDefaulted(NumSamples);
+		FMoverTickStartData StartingState;
 
-		if (FMoverDefaultSyncState* StepSyncState = StepState.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+		StartingState.InputCmd = GetLastInputCmd();
+		StartingState.SyncState = CachedLastSyncState;
+		StartingState.AuxState = CachedLastAuxState;
+
+		FMoverTickStartData StepState = StartingState;
+
+		FMoverTimeStep FutureTimeStep;
+		FutureTimeStep.StepMs = (PredictionParams.SecondsPerSample * 1000.f);
+		FutureTimeStep.BaseSimTimeMs = CachedLastSimTickTimeStep.BaseSimTimeMs;
+		FutureTimeStep.ServerFrame = 0;
+
+		if (const UBaseMovementMode* CurrentMovementMode = ModeFSM->GetCurrentMode())
 		{
-			FVector PriorLocation = StepSyncState->GetLocation_WorldSpace();
-			FRotator PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
-			FVector PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+			const bool bOrigHasGravityOverride = bHasGravityOverride;
+			const FVector OrigGravityAccelOverride = GravityAccelOverride;
 
-			for (int32 i = 0; i < NumSamples; ++i)
+			if (PredictionParams.bDisableGravity)
 			{
-				// Capture sample from current step state
-				FTrajectorySampleInfo& Sample = OutSamples[i];
-
-				Sample.Transform.SetLocation(StepSyncState->GetLocation_WorldSpace());
-				Sample.Transform.SetRotation(StepSyncState->GetOrientation_WorldSpace().Quaternion());
-				Sample.LinearVelocity = StepSyncState->GetVelocity_WorldSpace();
-				Sample.InstantaneousAcceleration = (StepSyncState->GetVelocity_WorldSpace() - PriorVelocity) / StepDeltaSeconds;
-				Sample.AngularVelocity = (StepSyncState->GetOrientation_WorldSpace() - PriorOrientation) * (1.f / StepDeltaSeconds);
-
-				Sample.SimTimeMs = FutureTimeStep.BaseSimTimeMs;
-
-				// Cache prior values
-				PriorLocation = StepSyncState->GetLocation_WorldSpace();
-				PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
-				PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
-
-				// Generate next move from current step state
-				FProposedMove StepMove;
-				CurrentMovementMode->DoGenerateMove(StepState, FutureTimeStep, StepMove);
-
-				// Advance state based on move
-				StepSyncState->SetTransforms_WorldSpace(StepSyncState->GetLocation_WorldSpace() + (StepMove.LinearVelocity * StepDeltaSeconds),
-					StepSyncState->GetOrientation_WorldSpace() + (StepMove.AngularVelocity * StepDeltaSeconds),
-					StepMove.LinearVelocity,
-					StepSyncState->GetMovementBase(),
-					StepSyncState->GetMovementBaseBoneName());
-
-				FutureTimeStep.BaseSimTimeMs += FutureTimeStep.StepMs;
-				++FutureTimeStep.ServerFrame;
+				SetGravityOverride(true, FVector::ZeroVector);
 			}
-		}
 
-		return OutSamples;
+			TArray<FTrajectorySampleInfo> OutSamples;
+			OutSamples.AddDefaulted(PredictionParams.NumPredictionSamples);
+
+			if (FMoverDefaultSyncState* StepSyncState = StepState.SyncState.SyncStateCollection.FindMutableDataByType<FMoverDefaultSyncState>())
+			{
+				FVector PriorLocation = StepSyncState->GetLocation_WorldSpace();
+				FRotator PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
+				FVector PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+
+				for (int32 i = 0; i < PredictionParams.NumPredictionSamples; ++i)
+				{
+					// Capture sample from current step state
+					FTrajectorySampleInfo& Sample = OutSamples[i];
+
+					Sample.Transform.SetLocation(StepSyncState->GetLocation_WorldSpace());
+					Sample.Transform.SetRotation(StepSyncState->GetOrientation_WorldSpace().Quaternion());
+					Sample.LinearVelocity = StepSyncState->GetVelocity_WorldSpace();
+					Sample.InstantaneousAcceleration = (StepSyncState->GetVelocity_WorldSpace() - PriorVelocity) / PredictionParams.SecondsPerSample;
+					Sample.AngularVelocity = (StepSyncState->GetOrientation_WorldSpace() - PriorOrientation) * (1.f / PredictionParams.SecondsPerSample);
+
+					Sample.SimTimeMs = FutureTimeStep.BaseSimTimeMs;
+
+					// Cache prior values
+					PriorLocation = StepSyncState->GetLocation_WorldSpace();
+					PriorOrientation = StepSyncState->GetOrientation_WorldSpace();
+					PriorVelocity = StepSyncState->GetVelocity_WorldSpace();
+
+					// Generate next move from current step state
+					FProposedMove StepMove;
+					CurrentMovementMode->DoGenerateMove(StepState, FutureTimeStep, StepMove);
+
+					// Advance state based on move
+					StepSyncState->SetTransforms_WorldSpace(StepSyncState->GetLocation_WorldSpace() + (StepMove.LinearVelocity * PredictionParams.SecondsPerSample),
+						StepSyncState->GetOrientation_WorldSpace() + (StepMove.AngularVelocity * PredictionParams.SecondsPerSample),
+						StepMove.LinearVelocity,
+						StepSyncState->GetMovementBase(),
+						StepSyncState->GetMovementBaseBoneName());
+
+					FutureTimeStep.BaseSimTimeMs += FutureTimeStep.StepMs;
+					++FutureTimeStep.ServerFrame;
+				}
+
+				// Put sample locations at visual root location if requested
+				if (PredictionParams.bUseVisualComponentRoot)
+				{
+					if (const USceneComponent* VisualComp = GetPrimaryVisualComponent())
+					{
+						const FVector VisualCompOffset = VisualComp->GetRelativeLocation();
+						const FTransform VisualCompRelativeTransform = VisualComp->GetRelativeTransform();
+
+						for (int32 i=0; i < PredictionParams.NumPredictionSamples; ++i)
+						{
+							OutSamples[i].Transform = VisualCompRelativeTransform * OutSamples[i].Transform;
+						}
+					}
+				}
+			}
+
+			if (PredictionParams.bDisableGravity)
+			{
+				SetGravityOverride(bOrigHasGravityOverride, OrigGravityAccelOverride);
+			}
+
+			return OutSamples;
+		}
 	}
 
-	return TArray<FTrajectorySampleInfo>();
+	TArray<FTrajectorySampleInfo> BlankDefaultSamples;
+	BlankDefaultSamples.AddDefaulted(PredictionParams.NumPredictionSamples);
+	return BlankDefaultSamples;
 }
 
 
