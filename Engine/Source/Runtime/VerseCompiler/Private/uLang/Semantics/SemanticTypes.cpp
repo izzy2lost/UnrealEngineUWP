@@ -2907,31 +2907,30 @@ const CTypeBase* SemanticTypeUtils::Join(const CTypeBase* Type1, const CTypeBase
             CollectAllInterfaces(Interfaces2, &Class2);
             TInterfaceSet CommonInterfaces = FindCommonInterfaces(Interfaces1, Interfaces2);
 
-            // If there is exactly one class or interfaces in common between both classes, use it as
-            // the join. Otherwise, the join is any.
+            // If there is a join of the two classes ignoring interfaces and it
+            // is a subtype of the joins of the interfaces, use it.
             if (CommonClass)
             {
-                TInterfaceSet CommonClassInterfaces;
-                CollectAllInterfaces(CommonClassInterfaces, CommonClass);
-
-                if (ArraysHaveSameElementsInAnyOrder(CommonInterfaces, CommonClassInterfaces))
+                if (AllOf(CommonInterfaces, [=](const CInterface* CommonInterface) { return IsSubtype(CommonClass, CommonInterface); }))
                 {
                     return CommonClass;
                 }
             }
-
-            if (!CommonClass && CommonInterfaces.Num() == 1)
+            // If there is no join of the two classes ignoring interfaces, if
+            // there is a single interface join, use it.  Note if there is a
+            // join of the two classes ignoring interfaces and a single
+            // interface join, but the class join is not a subtype of the
+            // interface join, neither should be used.
+            else if (CommonInterfaces.Num() == 1)
             {
                 return CommonInterfaces[0];
             }
-            else if (Class1.GetComparability() != EComparability::Incomparable && Class2.GetComparability() != EComparability::Incomparable)
+
+            if (Class1.GetComparability() != EComparability::Incomparable && Class2.GetComparability() != EComparability::Incomparable)
             {
                 return &Program._comparableType;
             }
-            else
-            {
-                return &Program._anyType;
-            }
+            return &Program._anyType;
         }
         case ETypeKind::Type:
         {
