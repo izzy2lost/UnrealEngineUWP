@@ -905,6 +905,13 @@ bool UGatherTextFromAssetsCommandlet::ParseCommandLineHelper(const FString& InCo
 			return false;
 		}
 	}
+
+	// Preload modules that register custom gather callbacks
+	if (!FModuleManager::LoadModulePtr<IModuleInterface>("StructUtilsEditor"))
+	{
+		UE_LOG(LogGatherTextFromAssetsCommandlet, Warning, TEXT("Failed to preload StructUtilsEditor. FInstancedStruct gathering may be incomplete."));
+	}
+
 	return true;
 }
 
