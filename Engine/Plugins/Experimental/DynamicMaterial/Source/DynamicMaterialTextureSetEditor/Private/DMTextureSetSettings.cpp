@@ -76,6 +76,11 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	SubsurfaceColor.MaterialProperties = {{EDMTextureSetMaterialProperty::SubsurfaceColor, EDMTextureChannelMask::RGBA}};
 	++FilterCount;
 
+	FDMTextureSetFilter SurfaceThickness;
+	SubsurfaceColor.FilterStrings = {TEXT("SurfaceThickness"), TEXT("Surface_Thickness"), TEXT("_ST")};
+	SubsurfaceColor.MaterialProperties = {{EDMTextureSetMaterialProperty::SurfaceThickness, EDMTextureChannelMask::Red}};
+	++FilterCount;
+
 	FDMTextureSetFilter Anisotropy;
 	Anisotropy.FilterStrings = {TEXT("Anisotropy"), TEXT("_Ani")};
 	Anisotropy.MaterialProperties = {{EDMTextureSetMaterialProperty::Anisotropy, EDMTextureChannelMask::RGBA}};
@@ -141,6 +146,7 @@ UDMTextureSetSettings::UDMTextureSetSettings()
 	Filters.Add(MoveTemp(WorldPositionOffset));
 	Filters.Add(MoveTemp(PixelDepthOffset));
 	Filters.Add(MoveTemp(SubsurfaceColor));
+	Filters.Add(MoveTemp(SurfaceThickness));
 	Filters.Add(MoveTemp(Anisotropy));
 	Filters.Add(MoveTemp(Refraction));
 	Filters.Add(MoveTemp(Tangent));

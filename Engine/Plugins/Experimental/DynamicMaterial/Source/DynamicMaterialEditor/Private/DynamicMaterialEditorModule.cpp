@@ -243,11 +243,6 @@ void FDynamicMaterialEditorModule::StartupModule()
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialEffectFunction,       FDMMaterialEffectFunctionPropertyRowGenerator>();
 	RegisterComponentPropertyRowGeneratorDelegate<UDMMaterialStageInputFunction,   FDMMaterialStageFunctionPropertyRowGenerator>();
 
-	FDynamicMaterialModule::GetCreateEditorOnlyDataDelegate().BindLambda([](UDynamicMaterialModel* InMaterialModel) -> TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>
-		{
-			return TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface>(NewObject<UDynamicMaterialModelEditorOnlyData>(InMaterialModel));
-		});
-
 	BuildRequestList.Empty();
 
 	UDMMaterialValueTexture::GetDefaultRGBTexture.BindLambda([]()

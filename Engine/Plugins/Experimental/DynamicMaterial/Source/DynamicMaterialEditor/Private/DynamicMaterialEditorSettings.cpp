@@ -33,6 +33,9 @@ namespace UE::DynamicMaterialEditor::Private
 				FLinearColor(0.f, 0.f, 1.f, 1.f)
 			}},
 		{EDMMaterialPropertyType::AmbientOcclusion,    TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_AmbientOcclusion.T_MD_AmbientOcclusion'")))},
+		{EDMMaterialPropertyType::Displacement,        TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/DynamicMaterial/Textures/SlotDefaults/T_MD_Displacement.T_MD_Displacement'")))},
+		{EDMMaterialPropertyType::SubsurfaceColor,     TSoftObjectPtr<UTexture>(FSoftObjectPath(TEXT("/Script/Engine.Texture2D'/Engine/EngineResources/T_MD_SubsurfaceColor.T_MD_SubsurfaceColor'")))},
+		{EDMMaterialPropertyType::SurfaceThickness,    FLinearColor(0.0f, 0.0f, 0.0f, 1.f)},
 	};
 }
 
@@ -107,6 +110,15 @@ bool FDMMaterialChannelListPreset::IsPropertyEnabled(EDMMaterialPropertyType InP
 		case EDMMaterialPropertyType::Tangent:
 			return bTangent;
 
+		case EDMMaterialPropertyType::Displacement:
+			return bDisplacement;
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return bSubsurfaceColor;
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return bSurfaceThickness;
+
 		default:
 			return false;
 	}
@@ -160,6 +172,7 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	PBR.bRoughness = true;
 	PBR.bNormal = true;
 	PBR.bAmbientOcclusion = true;
+	PBR.bDisplacement = true;
 	PBR.DefaultBlendMode = BLEND_Opaque;
 	PBR.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
 	PBR.bDefaultAnimated = false;
@@ -180,6 +193,9 @@ UDynamicMaterialEditorSettings::UDynamicMaterialEditorSettings()
 	All.bRefraction = true;
 	All.bTangent = true;
 	All.bWorldPositionOffset = true;
+	All.bDisplacement = true;
+	All.bSubsurfaceColor = true;
+	All.bSurfaceThickness = true;
 	All.DefaultBlendMode = BLEND_Opaque;
 	All.DefaultShadingModel = EDMMaterialShadingModel::DefaultLit;
 	All.bDefaultAnimated = false;

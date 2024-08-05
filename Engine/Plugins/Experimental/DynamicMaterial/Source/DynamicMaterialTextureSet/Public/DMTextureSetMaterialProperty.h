@@ -32,5 +32,7 @@ enum class EDMTextureSetMaterialProperty : uint8
 	WorldPositionOffset = EMaterialProperty::MP_WorldPositionOffset,
 	PixelDepthOffset = EMaterialProperty::MP_PixelDepthOffset,
 
+	SurfaceThickness = EMaterialProperty::MP_SurfaceThickness,
+
 	None = EMaterialProperty::MP_MAX UMETA(Hidden)
 };

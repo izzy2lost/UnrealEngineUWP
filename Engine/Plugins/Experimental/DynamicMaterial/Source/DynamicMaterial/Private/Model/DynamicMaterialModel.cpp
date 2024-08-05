@@ -39,6 +39,12 @@ const FLazyName UDynamicMaterialModel::GlobalRefractionValueName = FLazyName(TEX
 const FLazyName UDynamicMaterialModel::GlobalRefractionParameterName = FLazyName(TEXT("GlobalRefraction"));
 const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetValueName = FLazyName(TEXT("GlobalPixelDepthOffsetValue"));
 const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetParameterName = FLazyName(TEXT("GlobalPixelDepthOffset"));
+const FLazyName UDynamicMaterialModel::GlobalDisplacementValueName = FLazyName(TEXT("GlobalDisplacementValue"));
+const FLazyName UDynamicMaterialModel::GlobalDisplacementParameterName = FLazyName(TEXT("GlobalDisplacement"));
+const FLazyName UDynamicMaterialModel::GlobalSubsurfaceColorValueName = FLazyName(TEXT("GlobalSubsurfaceColorValue"));
+const FLazyName UDynamicMaterialModel::GlobalSubsurfaceColorParameterName = FLazyName(TEXT("GlobalSubsurfaceColor"));
+const FLazyName UDynamicMaterialModel::GlobalSurfaceThicknessValueName = FLazyName(TEXT("GlobalSurfaceThicknessValue"));
+const FLazyName UDynamicMaterialModel::GlobalSurfaceThicknessParameterName = FLazyName(TEXT("GlobalSurfaceThickness"));
 const FLazyName UDynamicMaterialModel::GlobalOffsetValueName = FLazyName(TEXT("GlobalOffsetValue"));
 const FLazyName UDynamicMaterialModel::GlobalOffsetParameterName = FLazyName(TEXT("GlobalOffset"));
 const FLazyName UDynamicMaterialModel::GlobalTilingValueName = FLazyName(TEXT("GlobalTilingValue"));
@@ -101,6 +107,7 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	AddFloatParameter(GlobalAmbientOcclusionValueName, GlobalAmbientOcclusionParameterName);
 	AddFloatParameter(GlobalRefractionValueName, GlobalRefractionParameterName);
 	AddFloatParameter(GlobalPixelDepthOffsetValueName, GlobalPixelDepthOffsetParameterName);
+	AddFloatParameter(GlobalDisplacementValueName, GlobalDisplacementParameterName);
 
 	AddVector2Parameter(GlobalOffsetValueName, GlobalOffsetParameterName, FVector2D::ZeroVector);
 	AddVector2Parameter(GlobalTilingValueName, GlobalTilingParameterName, FVector2D::UnitVector);
@@ -525,14 +532,6 @@ void UDynamicMaterialModel::PostLoad()
 
 	SetFlags(RF_Transactional);
 
-	IDynamicMaterialModelEditorOnlyDataInterface* ModelEditorOnlyData = GetEditorOnlyData();
-
-	if (!ModelEditorOnlyData)
-	{
-		EditorOnlyDataSI = FDynamicMaterialModule::CreateEditorOnlyData(this);
-		EditorOnlyDataSI->LoadDeprecatedModelData(this);
-	}
-
 	ReinitComponents();
 #endif
 }
@@ -728,6 +727,7 @@ void UDynamicMaterialModel::FixGlobalVars()
 	FixGlobalVar(GlobalAmbientOcclusionValueName, GlobalAmbientOcclusionParameterName);
 	FixGlobalVar(GlobalRefractionValueName, GlobalRefractionParameterName);
 	FixGlobalVar(GlobalPixelDepthOffsetValueName, GlobalPixelDepthOffsetParameterName);
+	FixGlobalVar(GlobalDisplacementValueName, GlobalDisplacementParameterName);
 	FixGlobalVar(GlobalOffsetValueName, GlobalOffsetParameterName);
 	FixGlobalVar(GlobalTilingValueName, GlobalTilingParameterName);
 	FixGlobalVar(GlobalRotationValueName, GlobalRotationParameterName);

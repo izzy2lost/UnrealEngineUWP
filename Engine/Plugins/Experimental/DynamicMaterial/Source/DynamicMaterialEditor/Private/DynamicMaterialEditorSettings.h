@@ -104,6 +104,15 @@ struct FDMMaterialChannelListPreset
 	bool bTangent = false;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bDisplacement = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSubsurfaceColor = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
+	bool bSurfaceThickness = false;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")
 	TEnumAsByte<EBlendMode> DefaultBlendMode = BLEND_Opaque;
 
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Channel")

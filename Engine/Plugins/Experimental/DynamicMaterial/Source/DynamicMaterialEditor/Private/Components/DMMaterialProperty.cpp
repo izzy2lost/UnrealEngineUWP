@@ -94,7 +94,19 @@ FText UDMMaterialProperty::GetDescription() const
 
 bool UDMMaterialProperty::IsMaterialPin() const
 {
-	return MaterialProperty > EDMMaterialPropertyType::None && MaterialProperty < EDMMaterialPropertyType::Custom1;
+	switch (MaterialProperty)
+	{
+		case EDMMaterialPropertyType::None:
+		case EDMMaterialPropertyType::Any:
+		case EDMMaterialPropertyType::Custom1:
+		case EDMMaterialPropertyType::Custom2:
+		case EDMMaterialPropertyType::Custom3:
+		case EDMMaterialPropertyType::Custom4:
+				return false;
+
+		default:
+			return true;
+	}
 }
 
 void UDMMaterialProperty::ResetInputConnectionMap()
@@ -672,13 +684,13 @@ bool UDMMaterialProperty::IsValidForModel(UDynamicMaterialModelEditorOnlyData& I
 		InMaterialModel.GetBlendMode(),
 		InMaterialModel.GetShadingModel() == EDMMaterialShadingModel::DefaultLit ? EMaterialShadingModel::MSM_DefaultLit : EMaterialShadingModel::MSM_Unlit,
 		TLM_Surface,
-		/* Tesselation enabled */ false,
+		/* Tesselation enabled */ InMaterialModel.IsNaniteTessellationEnabled(),
 		/* BlendableOutputAlpha (Post Process Alpha) */ false,
 		/* Uses Distortion */ false,
 		/* Shading model from master material */ false,
 		/* Outputting translucency velocity */ InMaterialModel.GetBlendMode() != BLEND_Opaque,
 		/* Thin surface */ false,
-		/* Is supported (substate check) */ true
+		/* Is supported (substrate check) */ true
 	});
 }
 

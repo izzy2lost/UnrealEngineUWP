@@ -73,6 +73,15 @@ EDMTextureSetMaterialProperty FDMUtils::MaterialPropertyTypeToTextureSetMaterial
 		case EDMMaterialPropertyType::Tangent:
 			return EDMTextureSetMaterialProperty::Tangent;
 
+		case EDMMaterialPropertyType::Displacement:
+			return EDMTextureSetMaterialProperty::Displacement;
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return EDMTextureSetMaterialProperty::SubsurfaceColor;
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return EDMTextureSetMaterialProperty::SurfaceThickness;
+
 		default:
 			return EDMTextureSetMaterialProperty::None;
 	}
@@ -123,6 +132,15 @@ EDMMaterialPropertyType FDMUtils::TextureSetMaterialPropertyToMaterialPropertyTy
 
 		case EDMTextureSetMaterialProperty::Tangent:
 			return EDMMaterialPropertyType::Tangent;
+
+		case EDMTextureSetMaterialProperty::Displacement:
+			return EDMMaterialPropertyType::Displacement;
+
+		case EDMTextureSetMaterialProperty::SubsurfaceColor:
+			return EDMMaterialPropertyType::SubsurfaceColor;
+
+		case EDMTextureSetMaterialProperty::SurfaceThickness:
+			return EDMMaterialPropertyType::SurfaceThickness;
 
 		default:
 			return EDMMaterialPropertyType::None;
@@ -175,6 +193,15 @@ EMaterialProperty FDMUtils::MaterialPropertyTypeToMaterialProperty(EDMMaterialPr
 		case EDMMaterialPropertyType::Tangent:
 			return EMaterialProperty::MP_Tangent;
 
+		case EDMMaterialPropertyType::Displacement:
+			return EMaterialProperty::MP_Displacement;
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return EMaterialProperty::MP_SubsurfaceColor;
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return EMaterialProperty::MP_SurfaceThickness;
+
 		default:
 			return EMaterialProperty::MP_MAX;
 	}
@@ -225,6 +252,15 @@ EDMMaterialPropertyType FDMUtils::MaterialPropertyToMaterialPropertyType(EMateri
 
 		case EMaterialProperty::MP_Tangent:
 			return EDMMaterialPropertyType::Tangent;
+
+		case EMaterialProperty::MP_Displacement:
+			return EDMMaterialPropertyType::Displacement;
+
+		case EMaterialProperty::MP_SubsurfaceColor:
+			return EDMMaterialPropertyType::SubsurfaceColor;
+
+		case EMaterialProperty::MP_SurfaceThickness:
+			return EDMMaterialPropertyType::SurfaceThickness;
 
 		default:
 			return EDMMaterialPropertyType::None;

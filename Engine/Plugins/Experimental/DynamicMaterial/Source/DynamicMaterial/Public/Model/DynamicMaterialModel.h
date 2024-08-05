@@ -65,6 +65,12 @@ public:
 	DYNAMICMATERIAL_API static const FLazyName GlobalRefractionParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetValueName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalDisplacementValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalDisplacementParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSubsurfaceColorValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSubsurfaceColorParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSurfaceThicknessValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalSurfaceThicknessParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalOffsetValueName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalOffsetParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalTilingValueName;

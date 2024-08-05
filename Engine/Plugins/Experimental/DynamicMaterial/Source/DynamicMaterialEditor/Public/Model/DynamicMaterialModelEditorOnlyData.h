@@ -65,6 +65,9 @@ public:
 	DYNAMICMATERIALEDITOR_API static const FString AnisotropyPathToken;
 	DYNAMICMATERIALEDITOR_API static const FString RefractionPathToken;
 	DYNAMICMATERIALEDITOR_API static const FString TangentPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString DisplacementPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString SubsurfaceColorPathToken;
+	DYNAMICMATERIALEDITOR_API static const FString SurfaceThicknessPathToken;
 	DYNAMICMATERIALEDITOR_API static const FString Custom1PathToken;
 	DYNAMICMATERIALEDITOR_API static const FString Custom2PathToken;
 	DYNAMICMATERIALEDITOR_API static const FString Custom3PathToken;
@@ -161,7 +164,7 @@ public:
 	DYNAMICMATERIALEDITOR_API TMap<EDMMaterialPropertyType, UDMMaterialProperty*> GetMaterialProperties() const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API UDMMaterialProperty* GetMaterialProperty(EDMMaterialPropertyType MaterialProperty) const;
+	DYNAMICMATERIALEDITOR_API UDMMaterialProperty* GetMaterialProperty(EDMMaterialPropertyType InMaterialProperty) const;
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	const TArray<UDMMaterialSlot*>& GetSlots() const { return Slots; }
@@ -188,13 +191,13 @@ public:
 	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* RemoveSlotForMaterialProperty(EDMMaterialPropertyType InType);
 
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API TArray<EDMMaterialPropertyType> GetMaterialPropertiesForSlot(const UDMMaterialSlot* Slot) const;
+	DYNAMICMATERIALEDITOR_API TArray<EDMMaterialPropertyType> GetMaterialPropertiesForSlot(const UDMMaterialSlot* InSlot) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API void AssignMaterialPropertyToSlot(EDMMaterialPropertyType Property, UDMMaterialSlot* Slot);
+	DYNAMICMATERIALEDITOR_API void AssignMaterialPropertyToSlot(EDMMaterialPropertyType InProperty, UDMMaterialSlot* InSlot);
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API void UnassignMaterialProperty(EDMMaterialPropertyType Property);
+	DYNAMICMATERIALEDITOR_API void UnassignMaterialProperty(EDMMaterialPropertyType InProperty);
 	
 	FDMOnMaterialBuilt::RegistrationType& GetOnMaterialBuiltDelegate() { return OnMaterialBuiltDelegate; }
 	FDMOnValueListUpdated::RegistrationType& GetOnValueListUpdateDelegate() { return OnValueListUpdateDelegate; }
@@ -219,10 +222,14 @@ public:
 		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
 		EDMMaterialPropertyType InEnd = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::Any) - 1));
 
+	DYNAMICMATERIALEDITOR_API void ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
+		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
+		EDMMaterialPropertyType InEnd = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::Any) - 1)) const;
+
 	void SaveEditor();
 
 	//~ Begin FNotifyHook
-	DYNAMICMATERIALEDITOR_API virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* PropertyThatChanged);
+	DYNAMICMATERIALEDITOR_API virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged);
 	//~ End FNotifyHook
 
 	//~ Begin UObject
@@ -230,8 +237,8 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void PostEditUndo() override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditImport() override;
 	DYNAMICMATERIALEDITOR_API virtual void PostDuplicate(bool bInDuplicateForPIE) override;
-	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
-	DYNAMICMATERIALEDITOR_API virtual void Serialize(FArchive& Ar) override;
+	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& InPropertyChangedEvent) override;
+	DYNAMICMATERIALEDITOR_API virtual void Serialize(FArchive& InAr) override;
 	//~ End UObject
 
 	//~ Begin IDMBuildable
@@ -244,7 +251,6 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void OnValueListUpdate() override;
 	DYNAMICMATERIALEDITOR_API virtual void OnValueUpdated(UDMMaterialValue* InValue, EDMUpdateType InUpdateType) override;
 	DYNAMICMATERIALEDITOR_API virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV) override;
-	DYNAMICMATERIALEDITOR_API virtual void LoadDeprecatedModelData(UDynamicMaterialModel* InMaterialModel) override;
 	DYNAMICMATERIALEDITOR_API virtual TSharedRef<IDMMaterialBuildStateInterface> CreateBuildStateInterface(UMaterial* InMaterialToBuild) const override;
 	DYNAMICMATERIALEDITOR_API virtual void SetPropertyComponent(EDMMaterialPropertyType InPropertyType, FName InComponentName, UDMMaterialComponent* InComponent) override;
 	DYNAMICMATERIALEDITOR_API virtual UDMMaterialComponent* GetSubComponentByPath(FDMComponentPath& InPath) const override;
@@ -300,9 +306,6 @@ protected:
 		meta = (GetOptions = GetPresetOptions, NoResetToDefault, DisplayName = "Material Type Preset"))
 	FName ChannelListPreset;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
-	TMap<EDMMaterialPropertyType, TObjectPtr<UDMMaterialProperty>> Properties;
-
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, TextExportTransient, Category = "Material Designer")
 	TMap<EDMMaterialPropertyType, TObjectPtr<UDMMaterialSlot>> PropertySlotMap;
 
@@ -322,6 +325,69 @@ protected:
 	FDMOnValueListUpdated OnValueListUpdateDelegate;
 	FDMOnSlotListUpdated OnSlotListUpdateDelegate;
 
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> BaseColor;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> EmissiveColor;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Opacity;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> OpacityMask;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Roughness;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Specular;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Metallic;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Normal;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> PixelDepthOffset;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> WorldPositionOffset;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> AmbientOcclusion;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Anisotropy;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Refraction;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Tangent;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Displacement;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> SubsurfaceColor;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> SurfaceThickness;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Custom1;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Custom2;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Custom3;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialProperty> Custom4;
+
 	void CreateMaterial();
 
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -329,9 +395,9 @@ protected:
 
 	FString GetMaterialAssetPath() const;
 	FString GetMaterialAssetName() const;
-	FString GetMaterialPackageName(const FString& MaterialBaseName) const;
+	FString GetMaterialPackageName(const FString& InMaterialBaseName) const;
 
-	void OnSlotConnectorsUpdated(UDMMaterialSlot* Slot);
+	void OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot);
 
 	/** Swaps the material properties from one slot to another, unless both slots exist and/or are the same. */
 	void SwapSlotMaterialProperty(EDMMaterialPropertyType InPropertyFrom, EDMMaterialPropertyType InPropertyTo);
@@ -357,10 +423,4 @@ protected:
 	//~ Begin IDynamicMaterialModelEditorOnlyDataInterface
 	virtual void ReinitComponents() override;
 	//~ End IDynamicMaterialModelEditorOnlyDataInterface
-
-	void LoadDeprecatedModelData_Base(bool bInCreateMaterialPackage, EBlendMode InBlendMode, EDMMaterialShadingModel InShadingModel);
-	void LoadDeprecatedModelData_Expressions(TArray<TObjectPtr<UMaterialExpression>>& InExpressions);
-	void LoadDeprecatedModelData_Properties(TMap<EDMMaterialPropertyType, TObjectPtr<UObject>>& InProperties);
-	void LoadDeprecatedModelData_Slots(TArray<TObjectPtr<UObject>>& InSlots);
-	void LoadDeprecatedModelData_PropertySlotMap(TMap<EDMMaterialPropertyType, TObjectPtr<UObject>>& InPropertySlotMap);
 };

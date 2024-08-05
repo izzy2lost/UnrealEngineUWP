@@ -39,6 +39,9 @@ enum class EDMMaterialPropertyType : uint8
 	Custom2,
 	Custom3,
 	Custom4,
+	Displacement,
+	SubsurfaceColor,
+	SurfaceThickness,
 	Any
 };
 

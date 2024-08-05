@@ -93,49 +93,65 @@ IDMMaterialBuildUtilsInterface& FDMMaterialBuildState::GetBuildUtils() const
 
 FExpressionInput* FDMMaterialBuildState::GetMaterialProperty(EDMMaterialPropertyType InProperty) const
 {
+	UMaterialEditorOnlyData* EditorOnlyData = DynamicMaterial->GetEditorOnlyData();
+
+	if (!EditorOnlyData)
+	{
+		return nullptr;
+	}
+
 	switch (InProperty)
 	{
 		case EDMMaterialPropertyType::AmbientOcclusion:
-			return &(DynamicMaterial->GetEditorOnlyData()->AmbientOcclusion);
+			return &(EditorOnlyData->AmbientOcclusion);
 
 		case EDMMaterialPropertyType::Anisotropy:
-			return &(DynamicMaterial->GetEditorOnlyData()->Anisotropy);
+			return &(EditorOnlyData->Anisotropy);
 
 		case EDMMaterialPropertyType::BaseColor:
-			return &(DynamicMaterial->GetEditorOnlyData()->BaseColor);
+			return &(EditorOnlyData->BaseColor);
 
 		case EDMMaterialPropertyType::EmissiveColor:
-			return &(DynamicMaterial->GetEditorOnlyData()->EmissiveColor);
+			return &(EditorOnlyData->EmissiveColor);
 
 		case EDMMaterialPropertyType::Metallic:
-			return &(DynamicMaterial->GetEditorOnlyData()->Metallic);
+			return &(EditorOnlyData->Metallic);
 
 		case EDMMaterialPropertyType::Normal:
-			return &(DynamicMaterial->GetEditorOnlyData()->Normal);
+			return &(EditorOnlyData->Normal);
 
 		case EDMMaterialPropertyType::Opacity:
-			return &(DynamicMaterial->GetEditorOnlyData()->Opacity);
+			return &(EditorOnlyData->Opacity);
 
 		case EDMMaterialPropertyType::OpacityMask:
-			return &(DynamicMaterial->GetEditorOnlyData()->OpacityMask);
+			return &(EditorOnlyData->OpacityMask);
 
 		case EDMMaterialPropertyType::PixelDepthOffset:
-			return &(DynamicMaterial->GetEditorOnlyData()->PixelDepthOffset);
+			return &(EditorOnlyData->PixelDepthOffset);
 
 		case EDMMaterialPropertyType::Refraction:
-			return &(DynamicMaterial->GetEditorOnlyData()->Refraction);
+			return &(EditorOnlyData->Refraction);
 
 		case EDMMaterialPropertyType::Roughness:
-			return &(DynamicMaterial->GetEditorOnlyData()->Roughness);
+			return &(EditorOnlyData->Roughness);
 
 		case EDMMaterialPropertyType::Specular:
-			return &(DynamicMaterial->GetEditorOnlyData()->Specular);
+			return &(EditorOnlyData->Specular);
 
 		case EDMMaterialPropertyType::Tangent:
-			return &(DynamicMaterial->GetEditorOnlyData()->Tangent);
+			return &(EditorOnlyData->Tangent);
 
 		case EDMMaterialPropertyType::WorldPositionOffset:
-			return &(DynamicMaterial->GetEditorOnlyData()->WorldPositionOffset);
+			return &(EditorOnlyData->WorldPositionOffset);
+
+		case EDMMaterialPropertyType::Displacement:
+			return &(EditorOnlyData->Displacement);
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return &(EditorOnlyData->SubsurfaceColor);
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return &(EditorOnlyData->SurfaceThickness);
 
 		default:
 			return nullptr;

@@ -35,15 +35,4 @@ public:
 
 	/** Returns true if the material export flag has been enabled. @See DM.ExportMaterials */
 	DYNAMICMATERIAL_API static bool IsMaterialExportEnabled();
-
-#if WITH_EDITOR
-	DYNAMICMATERIAL_API static TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> CreateEditorOnlyData(UDynamicMaterialModel* InMaterialModel);
-	static FDMCreateEditorOnlyDataDelegate::RegistrationType& GetCreateEditorOnlyDataDelegate() { return CreateEditorOnlyDataDelegate; }
-#endif
-
-protected:
-#if WITH_EDITOR
-	DYNAMICMATERIAL_API static FDMCreateEditorOnlyDataDelegate CreateEditorOnlyDataDelegate;
-#endif
-
 };

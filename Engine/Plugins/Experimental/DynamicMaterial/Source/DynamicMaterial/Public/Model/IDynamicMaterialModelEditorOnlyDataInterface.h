@@ -47,9 +47,6 @@ public:
 	/** Called when a texture uv is updated. */
 	virtual void OnTextureUVUpdated(UDMTextureUV* InTextureUV) = 0;
 
-	/** Called to load deprecated model data from 5.2 to 5.3 materials. */
-	virtual void LoadDeprecatedModelData(UDynamicMaterialModel* InMaterialModel) = 0;
-
 #if WITH_EDITOR
 	/** Called when the model needs to have the material rebuild. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
