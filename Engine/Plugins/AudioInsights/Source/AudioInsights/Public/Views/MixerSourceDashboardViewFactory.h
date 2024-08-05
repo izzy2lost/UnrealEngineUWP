@@ -126,6 +126,8 @@ namespace UE::Audio::Insights
 		TArray<FName> SelectedPlotColumnNames;
 		TArray<TSharedPtr<SAudioCurveView>> PlotWidgets;
 
+		TSharedPtr<SWidget> PlotsWidget;
+
 		TSharedPtr<FTabManager> MixerSourcesTabManager;
 		TSharedPtr<FWorkspaceItem> MixerSourcesWorkspace;
 

@@ -390,7 +390,10 @@ namespace UE::Audio::Insights
 			PointDataPerCurveMap->Empty();
 		}
 
-		PlotWidgetMetadataPerCurve->Empty();
+		if (PlotWidgetMetadataPerCurve.IsValid())
+		{
+			PlotWidgetMetadataPerCurve->Empty();
+		}
 
 		BeginTimestamp = TNumericLimits<double>::Max();
 		CurrentTimestamp = 0;
@@ -948,7 +951,7 @@ namespace UE::Audio::Insights
 		return SNew(SDockTab)
 			.Clipping(EWidgetClipping::ClipToBounds)
 			[
-				MakePlotsWidget()
+				PlotsWidget ? PlotsWidget.ToSharedRef() : SNullWidget::NullWidget
 			];
 	}
 
@@ -1032,6 +1035,8 @@ namespace UE::Audio::Insights
 #else
 		FAudioInsightsComponent::OnTabSpawn.AddSP(this, &FMixerSourceDashboardViewFactory::OnAudioInsightsComponentTabSpawn);
 #endif // WITH_EDITOR
+
+		PlotsWidget = MakePlotsWidget();
 
 		const TSharedRef<SDockTab> DockTab = SNew(SDockTab);
 		MixerSourcesTabManager = FGlobalTabmanager::Get()->NewTabManager(DockTab);
