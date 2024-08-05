@@ -9,6 +9,7 @@
 #include "CurveDrawInfo.h"
 #include "CurveEditor.h"
 #include "CurveEditorTypes.h"
+#include "WidgetFocusUtils.h"
 #include "Curves/RealCurve.h"
 #include "Curves/RichCurve.h"
 #include "HAL/Platform.h"
@@ -175,6 +176,9 @@ class CURVEEDITOR_API SCurveEditorPanel : public SCompoundWidget
 	FSimpleDelegate OnFilterClassChanged;
 	void FilterClassChanged();
 
+	/** Enable/disable pending focus */
+	void EnablePendingFocusOnHovering(const bool InEnabled);
+	
 private:
 	// SWidget Interface
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
@@ -183,6 +187,8 @@ private:
 	/*~ Keyboard interaction */
 	virtual bool SupportsKeyboardFocus() const override { return true; }
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
+	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+    virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 
 	TSharedRef<SWidget> MakeTimeSnapMenu();
 	FText GetTimeSnapMenuTooltip() const;
@@ -384,6 +390,9 @@ private:
 
 private:
 
+	/** Pending focus handler */
+	FPendingWidgetFocus PendingFocus;
+	
 	/** Whether to explicitly refresh the views for this panel */
 	bool bNeedsRefresh;
 

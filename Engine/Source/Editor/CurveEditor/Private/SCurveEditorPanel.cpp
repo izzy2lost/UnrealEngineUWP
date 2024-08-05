@@ -1005,6 +1005,23 @@ FReply SCurveEditorPanel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent
 	return FReply::Unhandled();
 }
 
+void SCurveEditorPanel::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseEnter(MyGeometry, MouseEvent);
+	PendingFocus.SetPendingFocusIfNeeded(AsWeak());
+}
+
+void SCurveEditorPanel::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseLeave(MouseEvent);
+	PendingFocus.ResetPendingFocus();
+}
+
+void SCurveEditorPanel::EnablePendingFocusOnHovering(const bool InEnabled)
+{
+	PendingFocus.Enable(InEnabled);
+}
+
 TSharedRef<SWidget> SCurveEditorPanel::MakeCurveEditorCurveViewOptionsMenu()
 {
 	// This builds the dropdown menu when looking at the Curve View Options combobox.

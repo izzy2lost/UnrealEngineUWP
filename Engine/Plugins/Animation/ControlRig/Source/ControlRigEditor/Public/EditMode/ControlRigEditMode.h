@@ -17,6 +17,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "IDetailKeyframeHandler.h"
+#include "WidgetFocusUtils.h"
 #include "ControlRigEditMode.generated.h"
 
 class FEditorViewportClient;
@@ -175,6 +176,7 @@ public:
 	virtual bool ShouldDrawWidget() const override;
 	virtual bool IsCompatibleWith(FEditorModeID OtherModeID) const override;
 	virtual bool MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y) override;
+	virtual bool MouseEnter( FEditorViewportClient* ViewportClient,FViewport* Viewport,int32 x, int32 y ) override;
 	virtual bool MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport) override;
 	virtual void PostUndo() override;
 
@@ -318,6 +320,14 @@ private:
 	/** Reset Shape Size */
 	void ResetControlShapeSize();
 
+	/** Pending focus handler */
+	FPendingWidgetFocus PendingFocus;
+
+	/** Pending focus cvar binding functions to enable/disable pending focus mode */
+	void RegisterPendingFocusMode();
+	void UnregisterPendingFocusMode();
+	FDelegateHandle PendingFocusHandle;
+	
 public:
 	
 	/** Toggle Shape Transform Edit*/

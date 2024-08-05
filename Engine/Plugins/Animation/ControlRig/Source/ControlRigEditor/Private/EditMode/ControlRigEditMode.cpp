@@ -75,11 +75,32 @@
 #include "AnimationEditorViewportClient.h"
 #include "EditorInteractiveGizmoManager.h"
 #include "Editor/ControlRigViewportToolbarExtensions.h"
+#include "Editor/Sequencer/Private/SSequencer.h"
+#include "Slate/SceneViewport.h"
 #include "Tools/BakingHelper.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigEditMode)
 
 TAutoConsoleVariable<bool> CVarClickSelectThroughGizmo(TEXT("ControlRig.Sequencer.ClickSelectThroughGizmo"), false, TEXT("When false you can't click through a gizmo and change selection if you will select the gizmo when in Animation Mode, default to false."));
+
+namespace CRModeLocals
+{
+
+	const TCHAR* FocusModeName = TEXT("AnimMode.PendingFocusMode");
+
+static bool bFocusMode = false;
+static FAutoConsoleVariableRef CVarSetFocusOnHover(
+   FocusModeName,
+   bFocusMode,
+   TEXT("Force setting focus on the hovered viewport when entering a key.")
+   );
+
+IConsoleVariable* GetFocusModeVariable()
+{
+	return IConsoleManager::Get().FindConsoleVariable(FocusModeName);
+}
+	
+}
 
 void UControlRigEditModeDelegateHelper::OnPoseInitialized()
 {
@@ -214,6 +235,14 @@ bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 {
 	if (InSequencer != WeakSequencer)
 	{
+		if (WeakSequencer.IsValid())
+		{
+			static constexpr bool bDisable = false;
+			TSharedPtr<ISequencer> PreviousSequencer = WeakSequencer.Pin();
+			TSharedRef<SSequencer> PreviousSequencerWidget = StaticCastSharedRef<SSequencer>(PreviousSequencer->GetSequencerWidget());
+			PreviousSequencerWidget->EnablePendingFocusOnHovering(bDisable);
+		}
+		
 		WeakSequencer = InSequencer;
 
 		DetailKeyFrameCache->UnsetDelegates();
@@ -245,6 +274,11 @@ bool FControlRigEditMode::SetSequencer(TWeakPtr<ISequencer> InSequencer)
 			LastMovieSceneSig = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetSignature();
 			DetailKeyFrameCache->SetDelegates(WeakSequencer, this);
 			ControlProxy->SetSequencer(WeakSequencer);
+
+			{
+				TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(Sequencer->GetSequencerWidget());
+				SequencerWidget->EnablePendingFocusOnHovering(CRModeLocals::bFocusMode);
+			}
 		}
 		SetObjects_Internal();
 		if (FControlRigEditModeToolkit::Details.IsValid())
@@ -448,6 +482,8 @@ void FControlRigEditMode::Enter()
 	UE::ControlRig::PopulateControlRigViewportToolbarShowSubmenu(
 		"LevelEditor.ViewportToolbar.Show", GetToolkit()->GetToolkitCommands()
 	);
+
+	RegisterPendingFocusMode();
 }
 
 //todo get working with Persona
@@ -472,6 +508,8 @@ void FControlRigEditMode::Exit()
 {
 	UE::ControlRig::RemoveControlRigViewportToolbarExtensions();
 
+	UnregisterPendingFocusMode();
+	
 	ClearOutAnyActiveTools();
 	OnControlRigAddedOrRemovedDelegate.Clear();
 	OnControlRigSelectedDelegate.Clear();
@@ -3596,19 +3634,44 @@ void FControlRigEditMode::InvertInputPose(bool bSelectionOnly)
 	}
 }
 
-bool FControlRigEditMode::MouseMove(FEditorViewportClient* ViewportClient, FViewport* Viewport, int32 x, int32 y)
+bool FControlRigEditMode::MouseMove(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY)
 {
-	// Inform units of hover state
-	HActor* ActorHitProxy = HitProxyCast<HActor>(Viewport->GetHitProxy(x, y));
-	if(ActorHitProxy && ActorHitProxy->Actor)
+	// avoid hit proxy cast as much as possible
+	// NOTE: with synthesized mouse moves, this is being called a lot sadly so playing in sequencer with the mouse over the viewport leads to fps drop
+	auto HasAnyHoverableShapeActor = [this, InViewportClient]()
 	{
-		if (ActorHitProxy->Actor->IsA<AControlRigShapeActor>())
+		if (!InViewportClient || InViewportClient->IsInGameView())
 		{
-			for (auto& ShapeActors : ControlRigShapeActors)
+			return false;
+		}
+		
+		for (auto&[ControlRig, ShapeActors]: ControlRigShapeActors)
+		{
+			for (const AControlRigShapeActor* ShapeActor : ShapeActors)
 			{
-				for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
+				if (ShapeActor && ShapeActor->IsSelectable() && !ShapeActor->IsTemporarilyHiddenInEditor())
 				{
-					ShapeActor->SetHovered(ShapeActor == ActorHitProxy->Actor);
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	
+	if (HasAnyHoverableShapeActor())
+	{	
+		HActor* ActorHitProxy = HitProxyCast<HActor>(InViewport->GetHitProxy(InX, InY));
+		if (ActorHitProxy && ActorHitProxy->Actor)
+		{
+			if (ActorHitProxy->Actor->IsA<AControlRigShapeActor>())
+			{
+				for (auto& ShapeActors : ControlRigShapeActors)
+				{
+					for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
+					{
+						ShapeActor->SetHovered(ShapeActor == ActorHitProxy->Actor);
+						return false;
+					}
 				}
 			}
 		}
@@ -3617,8 +3680,32 @@ bool FControlRigEditMode::MouseMove(FEditorViewportClient* ViewportClient, FView
 	return false;
 }
 
-bool FControlRigEditMode::MouseLeave(FEditorViewportClient* ViewportClient, FViewport* Viewport)
+bool FControlRigEditMode::MouseEnter(FEditorViewportClient* InViewportClient, FViewport* InViewport, int32 InX, int32 InY)
 {
+	if (PendingFocus.IsEnabled() && InViewportClient)
+	{
+		const FEditorModeTools* ModeTools = GetModeManager();  
+		if (ModeTools && ModeTools == &GLevelEditorModeTools())
+		{
+			FEditorViewportClient* HoveredVPC = ModeTools->GetHoveredViewportClient();
+			if (HoveredVPC == InViewportClient)
+			{
+				const TWeakPtr<SViewport> ViewportWidget = InViewportClient->GetEditorViewportWidget()->GetSceneViewport()->GetViewportWidget();
+				if (ViewportWidget.IsValid())
+				{
+					PendingFocus.SetPendingFocusIfNeeded(ViewportWidget.Pin()->GetContent());
+				}
+			}
+		}
+	}
+
+	return IPersonaEditMode::MouseEnter(InViewportClient, InViewport, InX, InY);
+}
+
+bool FControlRigEditMode::MouseLeave(FEditorViewportClient* /*InViewportClient*/, FViewport* /*InViewport*/)
+{
+	PendingFocus.ResetPendingFocus();
+	
 	for (auto& ShapeActors : ControlRigShapeActors)
 	{
 		for (AControlRigShapeActor* ShapeActor : ShapeActors.Value)
@@ -3628,6 +3715,56 @@ bool FControlRigEditMode::MouseLeave(FEditorViewportClient* ViewportClient, FVie
 	}
 
 	return false;
+}
+
+void FControlRigEditMode::RegisterPendingFocusMode()
+{
+	if (!IsInLevelEditor())
+	{
+		return;
+	}
+	
+	static IConsoleVariable* UseFocusMode = CRModeLocals::GetFocusModeVariable();
+	if (ensure(UseFocusMode))
+	{
+		auto OnFocusModeChanged = [this](IConsoleVariable*)
+		{
+			PendingFocus.Enable(CRModeLocals::bFocusMode);
+			if (WeakSequencer.IsValid())
+			{
+				TSharedPtr<ISequencer> PreviousSequencer = WeakSequencer.Pin();
+				TSharedRef<SSequencer> PreviousSequencerWidget = StaticCastSharedRef<SSequencer>(PreviousSequencer->GetSequencerWidget());
+				PreviousSequencerWidget->EnablePendingFocusOnHovering(CRModeLocals::bFocusMode);
+			}
+		};
+		if (!PendingFocusHandle.IsValid())
+		{
+			PendingFocusHandle = UseFocusMode->OnChangedDelegate().AddLambda(OnFocusModeChanged);
+		}		
+		OnFocusModeChanged(UseFocusMode);
+	}
+}
+
+void FControlRigEditMode::UnregisterPendingFocusMode()
+{
+	static constexpr bool bDisable = false;
+	if (WeakSequencer.IsValid())
+	{
+		TSharedRef<SSequencer> SequencerWidget = StaticCastSharedRef<SSequencer>(WeakSequencer.Pin()->GetSequencerWidget());
+		SequencerWidget->EnablePendingFocusOnHovering(bDisable);
+	}
+
+	PendingFocus.Enable(bDisable);
+	
+	if (PendingFocusHandle.IsValid())
+	{
+		static IConsoleVariable* UseFocusMode = CRModeLocals::GetFocusModeVariable();
+		if (ensure(UseFocusMode))
+		{
+			UseFocusMode->OnChangedDelegate().Remove(PendingFocusHandle);
+		}
+		PendingFocusHandle.Reset();
+	}
 }
 
 bool FControlRigEditMode::CheckMovieSceneSig()

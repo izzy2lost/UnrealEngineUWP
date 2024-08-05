@@ -3378,6 +3378,18 @@ void SSequencer::OnFocusChanging( const FWeakWidgetPath& PreviousFocusPath, cons
 	}
 }
 
+void SSequencer::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseEnter(MyGeometry, MouseEvent);
+	PendingFocus.SetPendingFocusIfNeeded(AsWeak());
+}
+
+void SSequencer::OnMouseLeave(const FPointerEvent& MouseEvent)
+{
+	SCompoundWidget::OnMouseLeave(MouseEvent);
+	PendingFocus.ResetPendingFocus();
+}
+
 void SSequencer::OnAssetsDropped( const FAssetDragDropOp& DragDropOp )
 {
 	using namespace UE::Sequencer;
@@ -4308,6 +4320,38 @@ void SSequencer::ToggleSidebarDrawerDock()
 	{
 		DetailsSidebar->UndockAllDrawers();
 	}
+}
+
+void SSequencer::EnablePendingFocusOnHovering(const bool InEnabled)
+{
+	PendingFocus.Enable(InEnabled);
+	EnableCurveEditorPendingFocusOnHovering(InEnabled);
+}
+
+void SSequencer::EnableCurveEditorPendingFocusOnHovering(const bool InEnabled) const
+{
+	using namespace UE::Sequencer;
+
+	TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	if (!Sequencer->GetHostCapabilities().bSupportsCurveEditor)
+	{
+		return;
+	}
+
+	const FCurveEditorExtension* CurveEditorExtension = Sequencer->GetViewModel()->CastDynamic<FCurveEditorExtension>();
+	const TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension ? CurveEditorExtension->GetCurveEditor() : nullptr;
+	const TSharedPtr<SCurveEditorPanel> CurveEditorPanel = CurveEditor.IsValid() ? CurveEditor->GetPanel() : nullptr;
+	if (!CurveEditorPanel)
+	{
+		return;
+	}
+	
+	CurveEditorPanel->EnablePendingFocusOnHovering(InEnabled);
 }
 
 #undef LOCTEXT_NAMESPACE

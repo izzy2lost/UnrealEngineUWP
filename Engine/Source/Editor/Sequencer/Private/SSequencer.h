@@ -22,6 +22,7 @@
 #include "Sequencer.h"
 #include "SequencerWidgetsDelegates.h"
 #include "STemporarilyFocusedSpinBox.h"
+#include "WidgetFocusUtils.h"
 
 class FActorDragDropOp;
 class FFolderDragDropOp;
@@ -384,6 +385,8 @@ protected:
 	virtual FReply OnDrop( const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent ) override;
 	virtual FReply OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent ) override;
 	virtual void OnFocusChanging( const FWeakWidgetPath& PreviousFocusPath, const FWidgetPath& NewWidgetPath, const FFocusEvent& InFocusEvent ) override;
+	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 
 private:
 	
@@ -700,7 +703,17 @@ public:
 	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
 	void ToggleSidebarDrawerDock();
 
+	/** Enable/disable pending focus in sequencer */
+	SEQUENCER_API void EnablePendingFocusOnHovering(const bool InEnabled);
+	
 private:
+
+	/** Pending focus handler */
+	FPendingWidgetFocus PendingFocus;
+
+	/** Enable/disable pending focus in the curve editor */
+	void EnableCurveEditorPendingFocusOnHovering(const bool InEnabled) const;
+	
 	/** Applies a single customization. */
 	void ApplySequencerCustomization(const FSequencerCustomizationInfo& Customization);
 
