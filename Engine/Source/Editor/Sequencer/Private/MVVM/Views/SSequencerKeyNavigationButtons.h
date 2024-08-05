@@ -96,7 +96,7 @@ public:
 		if (InModel && Sequencer)
 		{
 			FScopedTransaction Transaction(LOCTEXT("AddKeys", "Add Keys at Current Time"));
-			FAddKeyOperation::FromNode(InModel).Commit(Time.FrameNumber, *Sequencer);
+			FAddKeyOperation::FromNode(InModel).Commit(Time.RoundToFrame(), *Sequencer);
 		}
 	}
 
