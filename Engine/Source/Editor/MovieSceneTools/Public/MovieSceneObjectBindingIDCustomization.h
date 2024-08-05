@@ -57,5 +57,7 @@ private:
 
 	FReply OnDrop(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent);
 
+	void OnResetToDefault();
+
 	TSharedPtr<IPropertyHandle> StructProperty;
 };

@@ -63,6 +63,8 @@ void FMovieSceneObjectBindingIDCustomization::CustomizeHeader(TSharedRef<IProper
 	using namespace UE::Sequencer;
 
 	StructProperty = PropertyHandle;
+	StructProperty->SetOnPropertyResetToDefault(
+		FSimpleDelegate::CreateSP(this, &FMovieSceneObjectBindingIDCustomization::OnResetToDefault));
 
 	const FString& MetaClassName = PropertyHandle->GetMetaData("MetaClass");
 	const FString& MustImplementName = PropertyHandle->GetMetaData("MustImplement");
@@ -221,6 +223,11 @@ void FMovieSceneObjectBindingIDCustomization::SetCurrentValue(const FMovieSceneO
 	
 	StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
 	StructProperty->NotifyFinishedChangingProperties();
+}
+
+void FMovieSceneObjectBindingIDCustomization::OnResetToDefault()
+{
+	StructProperty->RequestRebuildChildren();
 }
 
 #undef LOCTEXT_NAMESPACE
