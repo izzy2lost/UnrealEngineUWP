@@ -981,8 +981,11 @@ private:
 	 */
 	float ZoomScale = 0.0f;
 
-	/** Vertical and Horizontal padding for the TileViewItem */
-	const int32 TileViewWidthHeightPadding = 9;
+	/** Vertical padding for the TileViewItem */
+	static constexpr int32 TileViewHeightPadding = 9;
+
+	/** Horizontal padding for the TileViewItem */
+	static constexpr int32 TileViewWidthPadding = 8;
 
 	TAttribute<bool> bShowRedirectors;
 	bool bLastShowRedirectors;

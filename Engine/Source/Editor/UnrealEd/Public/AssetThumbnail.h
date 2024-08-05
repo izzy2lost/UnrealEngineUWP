@@ -64,6 +64,10 @@ struct FAssetThumbnailConfig
 		, HintColorAndOpacity( FLinearColor( 0.0f, 0.0f, 0.0f, 0.0f ) )
 		, AssetTypeColorOverride()
 		, Padding(0)
+#if UE_CONTENTBROWSER_NEW_STYLE
+		, bShowAssetChip(false)
+		, AssetChipBorderImageOverride()
+#endif
 	{
 	}
 
@@ -80,6 +84,10 @@ struct FAssetThumbnailConfig
 	FMargin Padding;
 	TAttribute<int32> GenericThumbnailSize = 64;
 	EThumbnailColorStripOrientation ColorStripOrientation = EThumbnailColorStripOrientation::HorizontalBottomEdge;
+#if UE_CONTENTBROWSER_NEW_STYLE
+	bool bShowAssetChip;
+	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
+#endif
 };
 
 

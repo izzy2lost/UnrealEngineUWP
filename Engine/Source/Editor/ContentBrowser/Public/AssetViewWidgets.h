@@ -728,6 +728,8 @@ protected:
 	const FSlateBrush* GetFolderBackgroundShadowImage() const;
 
 	const FSlateBrush* GetNameAreaBackgroundImage() const;
+	const FSlateBrush* GetAssetAreaOverlayBackgroundImage() const;
+	FSlateColor GetChipBackgroundColor() const;
 	FSlateColor GetNameAreaTextColor() const;
 
 	FOptionalSize GetNameAreaMaxDesiredHeight() const;

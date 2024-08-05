@@ -85,7 +85,13 @@ TSharedPtr<SWidget> FAssetDragDropOp::GetDefaultDecorator() const
 	}
 	else if (AssetThumbnail.IsValid())
 	{
+#if UE_CONTENTBROWSER_NEW_STYLE
+		FAssetThumbnailConfig AssetThumbnailConfig;
+		AssetThumbnailConfig.bShowAssetChip = true;
+		ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget(AssetThumbnailConfig);
+#else
 		ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
+#endif
 	}
 	else if (HasFolders())
 	{

@@ -2439,7 +2439,7 @@ FReply SAssetView::OnMouseWheel( const FGeometry& MyGeometry, const FPointerEven
 	{
 #if UE_CONTENTBROWSER_NEW_STYLE
 		const float NewDelta = MouseEvent.GetWheelDelta() * 0.4f;
-		if (ZoomScale == 1.f && NewDelta > 0 || ZoomScale == 0.f && NewDelta < 0)
+		if ((ZoomScale == 1.f && NewDelta > 0) || (ZoomScale == 0.f && NewDelta < 0))
 		{
 			int32 Step = (int32)FMath::Sign(NewDelta);
 			EThumbnailSize OldSize = ThumbnailSize;
@@ -5619,7 +5619,7 @@ float SAssetView::GetListViewItemHeight() const
 float SAssetView::GetTileViewItemHeight() const
 {
 #if UE_CONTENTBROWSER_NEW_STYLE
-	return GetTileViewItemBaseWidth() + GetTileViewTypeNameHeight() + TileViewWidthHeightPadding;
+	return GetTileViewItemBaseWidth() + GetTileViewTypeNameHeight() + TileViewHeightPadding;
 #else
 	return (((float)TileViewNameHeight + GetTileViewTypeNameHeight()) * FMath::Lerp(MinThumbnailScale, MaxThumbnailScale, GetThumbnailScale())) + GetTileViewItemBaseHeight() * FillScale + GetSourceControlIconHeight();
 #endif
@@ -5637,7 +5637,7 @@ float SAssetView::GetTileViewItemBaseHeight() const
 float SAssetView::GetTileViewItemWidth() const
 {
 #if UE_CONTENTBROWSER_NEW_STYLE
-	return GetTileViewItemBaseWidth() + TileViewWidthHeightPadding;
+	return GetTileViewItemBaseWidth() + TileViewWidthPadding;
 #else
 	return GetTileViewItemBaseWidth() * FillScale;
 #endif

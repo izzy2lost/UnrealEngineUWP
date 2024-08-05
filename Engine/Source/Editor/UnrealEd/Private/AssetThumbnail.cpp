@@ -40,6 +40,7 @@
 #include "ClassIconFinder.h"
 #include "IVREditorModule.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Widgets/Images/SLayeredImage.h"
 
 namespace AssetThumbnailPool
 {
@@ -79,6 +80,10 @@ public:
 		, _AssetTypeColorOverride()
 		, _Padding(0)
 		, _GenericThumbnailSize(64)
+#if UE_CONTENTBROWSER_NEW_STYLE
+		, _ShowAssetChip(false)
+		, _AssetChipBorderImageOverride()
+#endif
 		, _ColorStripOrientation(EThumbnailColorStripOrientation::HorizontalBottomEdge)
 		{}
 
@@ -97,6 +102,10 @@ public:
 		SLATE_ARGUMENT(TOptional<FLinearColor>, AssetTypeColorOverride)
 		SLATE_ARGUMENT(FMargin, Padding)
 		SLATE_ATTRIBUTE(int32, GenericThumbnailSize)
+#if UE_CONTENTBROWSER_NEW_STYLE
+		SLATE_ARGUMENT(bool, ShowAssetChip)
+		SLATE_ARGUMENT(TAttribute<const FSlateBrush*>, AssetChipBorderImageOverride)
+#endif
 		SLATE_ARGUMENT(EThumbnailColorStripOrientation, ColorStripOrientation)
 
 	SLATE_END_ARGS()
@@ -118,7 +127,10 @@ public:
 		GenericThumbnailBorderPadding = 2.f;
 		GenericThumbnailSize = InArgs._GenericThumbnailSize;
 		ColorStripOrientation = InArgs._ColorStripOrientation;
-
+#if UE_CONTENTBROWSER_NEW_STYLE
+		bShowAssetChip = InArgs._ShowAssetChip;
+		AssetChipBorderImageOverride = InArgs._AssetChipBorderImageOverride;
+#endif
 		AssetThumbnail->OnAssetDataChanged().AddSP(this, &SAssetThumbnail::OnAssetDataChanged);
 
 		const FAssetData& AssetData = AssetThumbnail->GetAssetData();
@@ -262,6 +274,48 @@ public:
 				];
 		}
 
+#if UE_CONTENTBROWSER_NEW_STYLE
+		TSharedRef<SWidget> ContentWidget = OverlayWidget;
+
+		if (bShowAssetChip)
+		{
+			// The asset color chip
+			LayeredImage = SNew(SLayeredImage)
+				.Image(FAppStyle::GetBrush("ContentBrowser.AssetTileViewWhiteChipBorder"))
+				.ColorAndOpacity(FStyleColors::Secondary);
+			LayeredImage->AddLayer(FAppStyle::GetBrush("ContentBrowser.AssetTileViewWhiteChip"), AssetColor);
+
+			OverlayWidget->AddSlot()
+				.HAlign(HAlign_Right)
+				.VAlign(VAlign_Top)
+				[
+					LayeredImage.ToSharedRef()
+				];
+
+			TSharedRef<SImage> OverlayBorder = SNew(SImage)
+				.Image(FAppStyle::GetBrush("ContentBrowser.AssetTileItem.AssetBorder"))
+				.Visibility(EVisibility::HitTestInvisible);
+			
+			OverlayWidget->AddSlot()
+			[
+				OverlayBorder
+			];
+
+			if (AssetChipBorderImageOverride.IsSet())
+			{
+				TSharedRef<SBorder> ThumbnailWidgetBorder = SNew(SBorder)
+					.Padding(0)
+					.BorderImage(FAppStyle::GetBrush("ContentBrowser.AssetTileItem.AssetBorder"))
+					[
+						OverlayWidget
+					];
+
+				OverlayBorder->SetImage(AssetChipBorderImageOverride);
+				ThumbnailWidgetBorder->SetBorderImage(AssetChipBorderImageOverride);
+				ContentWidget = ThumbnailWidgetBorder;
+			}
+		}
+#else
 		// The asset color strip
 		OverlayWidget->AddSlot()
 		.HAlign(ColorStripOrientation == EThumbnailColorStripOrientation::HorizontalBottomEdge ? HAlign_Fill : HAlign_Right)
@@ -272,6 +326,7 @@ public:
 			.BorderBackgroundColor(AssetColor)
 			.Padding(this, &SAssetThumbnail::GetAssetColorStripPadding)
 		];
+#endif
 
 		if( InArgs._AllowAssetSpecificThumbnailOverlay && AssetTypeActions.IsValid() )
 		{
@@ -288,7 +343,11 @@ public:
 
 		ChildSlot
 		[
+#if UE_CONTENTBROWSER_NEW_STYLE
+			ContentWidget
+#else
 			OverlayWidget
+#endif
 		];
 
 		UpdateThumbnailVisibilities();
@@ -432,7 +491,15 @@ private:
 		}
 
 		//AssetBackgroundWidget->SetBorderBackgroundColor(AssetColor.CopyWithNewOpacity(0.3f));
+#if UE_CONTENTBROWSER_NEW_STYLE
+		if (LayeredImage.IsValid())
+		{
+			constexpr int32 ColoredChipLayerIndex = 1;
+			LayeredImage->SetLayerColor(ColoredChipLayerIndex, AssetColor);
+		}
+#else
 		AssetColorStripWidget->SetBorderBackgroundColor(AssetColor);
+#endif
 
 		UpdateThumbnailVisibilities();
 	}
@@ -770,6 +837,7 @@ private:
 	FCurveSequence ViewportFadeAnimation;
 	FCurveHandle ViewportFadeCurve;
 
+	TSharedPtr<SLayeredImage> LayeredImage;
 	FLinearColor AssetColor;
 	TOptional<FLinearColor> AssetTypeColorOverride;
 
@@ -783,6 +851,10 @@ private:
 	TAttribute< FLinearColor > HintColorAndOpacity;
 	TAttribute<int32> GenericThumbnailSize;
 	EThumbnailColorStripOrientation ColorStripOrientation;
+#if UE_CONTENTBROWSER_NEW_STYLE
+	bool bShowAssetChip;
+	TAttribute<const FSlateBrush*> AssetChipBorderImageOverride;
+#endif
 
 	bool bAllowHintText;
 	bool bAllowRealTimeOnHovered;
@@ -921,6 +993,10 @@ TSharedRef<SWidget> FAssetThumbnail::MakeThumbnailWidget( const FAssetThumbnailC
 		.AssetTypeColorOverride(InConfig.AssetTypeColorOverride)
 		.Padding(InConfig.Padding)
 		.GenericThumbnailSize(InConfig.GenericThumbnailSize)
+#if UE_CONTENTBROWSER_NEW_STYLE
+		.ShowAssetChip(InConfig.bShowAssetChip)
+		.AssetChipBorderImageOverride(InConfig.AssetChipBorderImageOverride)
+#endif
 		.ColorStripOrientation(InConfig.ColorStripOrientation);
 }
 
