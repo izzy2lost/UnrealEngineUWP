@@ -155,7 +155,7 @@ void DilateExistenceMaskCS(
 		ExistenceTexture,
 		TextureSampler,
 		UVW,
-		MipLevel);
+		MipLevel).r;
 
 	RWDilatedExistenceTexture[DispatchThreadId] = Sample > 0.0 ? 1.0 : 0.0;
 }
