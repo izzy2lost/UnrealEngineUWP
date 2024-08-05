@@ -2139,10 +2139,10 @@ namespace UnrealBuildTool
 					int NumTargets = Targets.Count;
 					int NumTasks = NumTargets;
 					int TasksFinished = 0;
-					foreach (Tuple<ProjectFile, ProjectTarget> Item in Targets)
+					System.Threading.Tasks.Parallel.For(0, NumTargets, TargetIndex =>
 					{
-						ProjectFile TargetProjectFile = Item.Item1;
-						ProjectTarget CurTarget = Item.Item2;
+						ProjectFile TargetProjectFile = Targets[TargetIndex].Item1;
+						ProjectTarget CurTarget = Targets[TargetIndex].Item2;
 
 						// Ignore projects for platforms we can't build for
 						if (!CurTarget.SupportedPlatforms.Any(x => GetIntelliSensePlatforms().Contains(x)))
@@ -2166,8 +2166,11 @@ namespace UnrealBuildTool
 
 						try
 						{
-							foreach (UnrealTargetPlatform IntellisensePlatform in GetIntelliSensePlatforms().Where(x => CurTarget.SupportedPlatforms.Contains(x)))
+							foreach (UnrealTargetPlatform IntellisensePlatform in GetIntelliSensePlatforms())
 							{
+								if (!CurTarget.SupportedPlatforms.Contains(IntellisensePlatform))
+									continue;
+
 								// Get the architecture from the target platform
 								UnrealArchitectures DefaultArchitecture = UnrealArchitectureConfig.ForPlatform(IntellisensePlatform).ActiveArchitectures(CurTarget.UnrealProjectFilePath, CurTarget.Name);
 
@@ -2223,7 +2226,7 @@ namespace UnrealBuildTool
 							Interlocked.Increment(ref TasksFinished);
 							Progress.Write(TasksFinished, NumTasks);
 						}
-					}
+					});
 				}
 			}
 		}
