@@ -25,6 +25,11 @@ public:
 
 	void Initialize(const UInputAction* Action);
 
+protected:
+	//~ Begin UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction interface
+
 private:
 	UPROPERTY()
 	TObjectPtr<const UInputAction> InputAction;

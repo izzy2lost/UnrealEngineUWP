@@ -137,4 +137,8 @@ protected:
 
 	/** Generates a title for the node based on its function and the context it is in */
 	static FText GenerateTitle(UFunction* Getter, UAnimStateNodeBase* SourceStateNode, UAnimGraphNode_Base* SourceNode);
+
+	// UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	// End of UK2Node_CallFunction interface
 };

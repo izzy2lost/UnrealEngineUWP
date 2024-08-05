@@ -857,6 +857,11 @@ void UK2Node_CallFunction::ReallocatePinsDuringReconstruction(TArray<UEdGraphPin
 	ReconnectPureExecPins(OldPins);
 }
 
+bool UK2Node_CallFunction::IsNodePure() const
+{
+	return !AreExecPinsVisible();
+}
+
 UEdGraphPin* UK2Node_CallFunction::CreateSelfPin(const UFunction* Function)
 {
 	return FBlueprintNodeStatics::CreateSelfPin(this, Function);
@@ -870,7 +875,7 @@ void UK2Node_CallFunction::CreateExecPinsForFunctionCall(const UFunction* Functi
 	ExpandAsEnumPins.Reset();
 
 	// If not pure, create exec pins
-	if (!bIsPureFunc)
+	if (!IsNodePure())
 	{
 		// If we want enum->exec expansion, and it is not disabled, do it now
 		if (bWantsEnumToExecExpansion)
@@ -1127,7 +1132,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 
 	UClass* FunctionOwnerClass = Function->GetOuterUClass();
 
-	bIsPureFunc = (Function->HasAnyFunctionFlags(FUNC_BlueprintPure) != false);
+	bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 	DetermineWantsEnumToExecExpansion(Function);
 
 	// Create input pins
@@ -1173,7 +1178,7 @@ bool UK2Node_CallFunction::CreatePinsForFunctionCall(const UFunction* Function)
 
 				// Non-const pure functions are generally compact looking, so we take advantage of that by hiding the self pin if we can.
 				// In this case, if the function belongs to our current class, then "self" is implied.
-				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && bIsPureFunc && !bLocalIsConstFunc);
+				SelfPin->bHidden = (bIsFunctionCompatibleWithSelf && IsNodePure() && !bLocalIsConstFunc);
 			}
 		}
 	}
@@ -1320,6 +1325,18 @@ void UK2Node_CallFunction::PostReconstructNode()
 	{
 		// Remove the breakpoint
 		FKismetDebugUtilities::RemoveBreakpointFromNode(this, GetBlueprint());
+	}
+
+	// If the user marked the override as pure, but the underlying function changed to have no outputs,
+	// then we need to reset the override. Nodes can only be pure if they have outputs.
+	const bool bNeedsPurityOverrideReset =
+		(NodePurityOverride == ENodePurityOverride::Pure) &&
+		!FunctionHasOutputs()
+	;
+	
+	if (bNeedsPurityOverrideReset)
+	{
+		NodePurityOverride = ENodePurityOverride::Unset;
 	}
 }
 
@@ -1879,7 +1896,7 @@ void UK2Node_CallFunction::SetFromFunction(const UFunction* Function)
 {
 	if (Function != NULL)
 	{
-		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
+		bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 		DetermineWantsEnumToExecExpansion(Function);
 
 		FunctionReference.SetFromField<UFunction>(Function, GetBlueprintClassFromNode());
@@ -2064,6 +2081,13 @@ void UK2Node_CallFunction::FixupSelfMemberContext()
 			FunctionReference.SetSelfMember(FunctionReference.GetMemberName());
 		}
 	}
+}
+
+bool UK2Node_CallFunction::CanToggleNodePurity() const
+{
+	// Only functions with outputs can be toggled.
+	// Otherwise, you can end up with a pure node with no outputs that's never evaluated.
+	return FunctionHasOutputs();
 }
 
 void UK2Node_CallFunction::SuppressDeprecationWarning() const
@@ -3255,7 +3279,7 @@ void UK2Node_CallFunction::ConformContainerPins()
 	const FString& MapKeyPinMetaData = TargetFunction->GetMetaData(FBlueprintMetadata::MD_MapKeyParam);
 	const FString& MapValuePinMetaData = TargetFunction->GetMetaData(FBlueprintMetadata::MD_MapValueParam);
 
-	if(!MapPinMetaData.IsEmpty() || !MapKeyPinMetaData.IsEmpty() || !MapValuePinMetaData.IsEmpty() )
+	if (!MapPinMetaData.IsEmpty() || !MapKeyPinMetaData.IsEmpty() || !MapValuePinMetaData.IsEmpty())
 	{
 		// if the map pin has a connection infer from that, otherwise use the information on the key param and value param:
 		bool bReadyToPropagateKeyType = false;
@@ -3278,6 +3302,68 @@ void UK2Node_CallFunction::ConformContainerPins()
 		TryPropagateValueType(MapPin, ValueTypeToPropagate, bReadyToPropagateValueType);
 		TryPropagateType(MapValuePin, ValueTypeToPropagate, bReadyToPropagateValueType);
 	}
+}
+
+bool UK2Node_CallFunction::AreExecPinsVisible() const
+{
+	const bool bAreExecPinsVisible =
+		(NodePurityOverride == ENodePurityOverride::Impure) ||
+		(!bDefaultsToPureFunc && NodePurityOverride != ENodePurityOverride::Pure)
+	;
+
+	return bAreExecPinsVisible;
+}
+
+bool UK2Node_CallFunction::FunctionHasOutputs() const
+{
+	bool bCanToggle = false;
+
+	const UFunction* Function = GetTargetFunction();
+	if (ensure(Function))
+	{
+		for (TFieldIterator<FProperty> PropIt(Function); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+		{
+			bCanToggle =
+				PropIt->HasAnyPropertyFlags(CPF_ReturnParm) ||
+				PropIt->HasAnyPropertyFlags(CPF_OutParm)
+				;
+
+			if (bCanToggle)
+			{
+				break;
+			}
+		}
+	}
+
+	return bCanToggle;
+}
+
+void UK2Node_CallFunction::ToggleNodePurityOverride()
+{
+	const FText TransactionTitle = AreExecPinsVisible() ? LOCTEXT("HideExecPins", "Hide Exec pins") : LOCTEXT("ShowExecPins", "Show Exec pins");
+	
+	FScopedTransaction Transaction(TransactionTitle);
+	Modify();
+
+	switch (NodePurityOverride)
+	{
+	case ENodePurityOverride::Unset:
+		NodePurityOverride = bDefaultsToPureFunc ? ENodePurityOverride::Impure : ENodePurityOverride::Pure;
+		break;
+
+	case ENodePurityOverride::Pure:
+		NodePurityOverride = ENodePurityOverride::Impure;
+		break;
+
+	case ENodePurityOverride::Impure:
+		NodePurityOverride = ENodePurityOverride::Pure;
+		break;
+
+	default:
+		checkNoEntry();
+	}
+	
+	ReconstructNode();
 }
 
 FText UK2Node_CallFunction::GetToolTipHeading() const
@@ -3617,12 +3703,13 @@ void UK2Node_CallFunction::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 {
 	Super::GetNodeContextMenuActions(Menu, Context);
 
+	FToolMenuSection& Section = Menu->AddSection("K2NodeCallFunction", LOCTEXT("FunctionHeader", "Function"));
+
 	if (HasDeprecatedReference())
 	{
-		FText MenuEntryTitle = LOCTEXT("SuppressFunctionDeprecationWarningTitle", "Suppress Deprecation Warning");
-		FText MenuEntryTooltip = LOCTEXT("SuppressFunctionDeprecationWarningTooltip", "Adds this function to the suppressed deprecation warnings list in the Bluperint Editor Project Settings for this project.");
+		const FText MenuEntryTitle = LOCTEXT("SuppressFunctionDeprecationWarningTitle", "Suppress Deprecation Warning");
+		const FText MenuEntryTooltip = LOCTEXT("SuppressFunctionDeprecationWarningTooltip", "Adds this function to the suppressed deprecation warnings list in the Bluperint Editor Project Settings for this project.");
 
-		FToolMenuSection& Section = Menu->AddSection("K2NodeCallFunction", LOCTEXT("FunctionHeader", "Function"));
 		Section.AddMenuEntry(
 			"SuppressDeprecationWarning",
 			MenuEntryTitle,
@@ -3631,6 +3718,30 @@ void UK2Node_CallFunction::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 			FUIAction(
 				FExecuteAction::CreateUObject(this, &UK2Node_CallFunction::SuppressDeprecationWarning),
 				FCanExecuteAction::CreateUObject(this, &UK2Node_CallFunction::HasDeprecatedReference),
+				FIsActionChecked()
+			)
+		);
+	}
+
+	if (CanToggleNodePurity())
+	{
+		const FText HideExecPinsTitle = LOCTEXT("HideExecPins", "Hide Exec pins");
+		const FText ShowExecPinsTitle = LOCTEXT("ShowExecPins", "Show Exec pins");
+		const FText HideExecPinsTooltip = LOCTEXT("HideExecPinsTooltip", "Hide the node's Exec pins. The node will be Pure and will execute once for each node connected to an output pin.");
+		const FText ShowExecPinsTooltip = LOCTEXT("ShowExecPinsTooltip", "Show the node's Exec pins. The node will not be Pure and will have execution pins that must be connected to the graph. The outputs may also be cached for later use.");
+
+		const bool bAreExecPinsVisible = AreExecPinsVisible();
+		const FText& MenuEntryTitle = bAreExecPinsVisible ? HideExecPinsTitle : ShowExecPinsTitle;
+		const FText& MenuEntryTooltip = bAreExecPinsVisible ? HideExecPinsTooltip : ShowExecPinsTooltip;
+
+		Section.AddMenuEntry(
+			TEXT("ToggleExecPins"),
+			MenuEntryTitle,
+			MenuEntryTooltip,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateUObject(const_cast<UK2Node_CallFunction*>(this), &UK2Node_CallFunction::ToggleNodePurityOverride),
+				FCanExecuteAction(),
 				FIsActionChecked()
 			)
 		);

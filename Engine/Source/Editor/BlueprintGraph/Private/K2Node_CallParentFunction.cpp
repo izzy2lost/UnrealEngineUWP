@@ -66,9 +66,9 @@ void UK2Node_CallParentFunction::AllocateDefaultPins()
 
 void UK2Node_CallParentFunction::SetFromFunction(const UFunction* Function)
 {
-	if (Function != NULL)
+	if (Function != nullptr)
 	{
-		bIsPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
+		bDefaultsToPureFunc = Function->HasAnyFunctionFlags(FUNC_BlueprintPure);
 
 		UClass* OwnerClass = Function->GetOwnerClass();
 
@@ -79,7 +79,8 @@ void UK2Node_CallParentFunction::SetFromFunction(const UFunction* Function)
 			UBlueprint::GetGuidFromClassByFieldName<UFunction>(OwnerClass, Function->GetFName(), FunctionGuid);
 		}
 
-		FunctionReference.SetDirect(Function->GetFName(), FunctionGuid, OwnerClass, /*bIsConsideredSelfContext =*/false);
+		const bool bIsConsideredSelfContext = false;
+		FunctionReference.SetDirect(Function->GetFName(), FunctionGuid, OwnerClass, bIsConsideredSelfContext);
 	}
 }
 

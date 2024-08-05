@@ -25,7 +25,7 @@ class UK2Node_CallFunctionOnMember : public UK2Node_CallFunction
 
 	/** Reference to member variable to call function on */
 	UPROPERTY()
-	FMemberReference				MemberVariableToCallOn;
+	FMemberReference MemberVariableToCallOn;
 
 	virtual bool HasExternalDependencies(TArray<class UStruct*>* OptionalOutput) const override;
 
@@ -34,7 +34,9 @@ class UK2Node_CallFunctionOnMember : public UK2Node_CallFunction
 	virtual FText GetFunctionContextString() const override;
 	virtual class FNodeHandlingFunctor* CreateNodeHandler(class FKismetCompilerContext& CompilerContext) const override;
 	virtual void ExpandNode(class FKismetCompilerContext& CompilerContext, UEdGraph* SourceGraph) override;
-	//~ End UK2Node_CallFunction Interface
 
+protected:
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction Interface
 };
 

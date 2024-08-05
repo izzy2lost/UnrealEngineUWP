@@ -71,6 +71,11 @@ public:
 	/** Recombines all split pins and sets the node to have default values (all wildcard pins) */
 	BLUEPRINTGRAPH_API void ResetNodeToWildcard();
 	
+protected:
+	// UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	// End of UK2Node_CallFunction interface
+
 private:
 
 	/**

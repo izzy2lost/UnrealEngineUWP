@@ -100,6 +100,11 @@ class UK2Node_AddComponent : public UK2Node_CallFunction
 	/** Static name of function to call */
 	static BLUEPRINTGRAPH_API FName GetAddComponentFunctionName();
 
+protected:
+	//~ UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction interface
+
 private: 
 	UEdGraphPin* GetTemplateNamePin() const
 	{

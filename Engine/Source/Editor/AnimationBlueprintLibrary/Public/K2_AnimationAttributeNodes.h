@@ -38,6 +38,10 @@ public:
 	//~ End UK2Node Interface
 
 protected:
+	//~ Begin UK2Node_CallFunction interface
+	virtual bool CanToggleNodePurity() const override { return false; }
+	//~ End UK2Node_CallFunction interface
+
 	FName AttributeValuePinName = NAME_None;
 	FText AttributeActionFormat;
 	

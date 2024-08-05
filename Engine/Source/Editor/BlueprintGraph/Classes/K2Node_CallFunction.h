@@ -34,13 +34,24 @@ class UFunction;
 class UObject;
 template <typename KeyType, typename ValueType> struct TKeyValuePair;
 
+UENUM()
+enum class ENodePurityOverride : int8
+{
+	Unset = 0,
+	Pure,
+	Impure
+};
+
 UCLASS()
 class BLUEPRINTGRAPH_API UK2Node_CallFunction : public UK2Node
 {
 	GENERATED_UCLASS_BODY()
 
-	/** Indicates that this is a call to a pure function */
+	/** Indicates that the bound function defaults to a pure state */
 	UPROPERTY()
+	uint32 bDefaultsToPureFunc:1;
+	
+	UE_DEPRECATED(5.5, "bIsPureFunc is deprecated. Use bDefaultsToPureFunc or IsNodePure instead.")
 	uint32 bIsPureFunc:1;
 
 	/** Indicates that during compile we want to create multiple exec pins from an enum param */
@@ -118,7 +129,7 @@ public:
 
 	// UK2Node interface
 	virtual void ReallocatePinsDuringReconstruction(TArray<UEdGraphPin*>& OldPins) override;
-	virtual bool IsNodePure() const override { return bIsPureFunc; }
+	virtual bool IsNodePure() const override;
 	virtual void PostReconstructNode() override;
 	virtual bool ShouldDrawCompact() const override;
 	UE_DEPRECATED(5.4, "ShouldDrawAsBead is deprecated")
@@ -251,6 +262,13 @@ private:
 	/** Conforms container pins */
 	void ConformContainerPins();
 
+	UPROPERTY()
+	ENodePurityOverride NodePurityOverride;
+
+	bool AreExecPinsVisible() const;
+	bool FunctionHasOutputs() const;
+	void ToggleNodePurityOverride();
+
 protected:
 
 	/** Invalidates current pin tool tips, so that they will be refreshed before being displayed: */
@@ -258,6 +276,9 @@ protected:
 
 	/** Helper function to ensure function is called in our context */
 	virtual void FixupSelfMemberContext();
+
+	/** By default, pure nodes can be toggled. Return false if you don't want your node to support toggling. */
+	virtual bool CanToggleNodePurity() const;
 
 	/** Adds this function to the suppressed deprecation warnings list for this project */
 	void SuppressDeprecationWarning() const;

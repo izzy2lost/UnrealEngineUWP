@@ -52,7 +52,7 @@ const FName UK2Node_AddComponent::NAME_ManualAttachment(TEXT("bManualAttachment"
 UK2Node_AddComponent::UK2Node_AddComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	bIsPureFunc = false;
+	bDefaultsToPureFunc = false;
 }
 
 // We add this prefix to template object names.
