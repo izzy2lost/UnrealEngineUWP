@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
+#include "Framework/Docking/TabManager.h"
 #include "Messages/MixerSourceTraceMessages.h"
 #include "Views/SAudioCurveView.h"
 #include "Views/TableDashboardViewFactory.h"
@@ -69,10 +70,24 @@ namespace UE::Audio::Insights
 
 #if WITH_EDITOR
 		TSharedRef<SWidget> MakeMuteSoloWidget();
+		TSharedRef<SWidget> MakePlotsButtonWidget();
 
 		void ToggleMuteForAllItems(ECheckBoxState NewState);
 		void ToggleSoloForAllItems(ECheckBoxState NewState);
+
+		TSharedRef<FTabManager::FLayout> LoadLayoutFromConfig();
+		void SaveLayoutToConfig();
+
+		void TogglePlotsTabVisibility(ECheckBoxState InCheckboxState);
 #endif // WITH EDITOR
+
+		TSharedRef<SDockTab> CreateMixerSourcesTab(const FSpawnTabArgs& Args);
+		TSharedRef<SDockTab> CreatePlotsTab(const FSpawnTabArgs& Args);
+
+		void RegisterTabSpawners();
+		void UnregisterTabSpawners();
+
+		TSharedRef<FTabManager::FLayout> GetDefaultTabLayout();
 
 		using FPlotCurvePoint = SAudioCurveView::FCurvePoint;
 		// Map of source id to data point array 
@@ -84,6 +99,8 @@ namespace UE::Audio::Insights
 
 		TSharedPtr<SCheckBox> MuteToggleButton;
 		TSharedPtr<SCheckBox> SoloToggleButton;
+
+		TSharedPtr<SCheckBox> PlotsButton;
 
 		// Curve points per timestamp per source id per column name 
 		TMap<FName, TSharedPtr<FPointDataPerCurveMap>> PlotWidgetCurveIdToPointDataMapPerColumn;
@@ -108,6 +125,9 @@ namespace UE::Audio::Insights
 		const static int32 NumPlotWidgets = 1;
 		TArray<FName> SelectedPlotColumnNames;
 		TArray<TSharedPtr<SAudioCurveView>> PlotWidgets;
+
+		TSharedPtr<FTabManager> MixerSourcesTabManager;
+		TSharedPtr<FWorkspaceItem> MixerSourcesWorkspace;
 
 #if WITH_EDITOR
 		// State of the mute and solo buttons
