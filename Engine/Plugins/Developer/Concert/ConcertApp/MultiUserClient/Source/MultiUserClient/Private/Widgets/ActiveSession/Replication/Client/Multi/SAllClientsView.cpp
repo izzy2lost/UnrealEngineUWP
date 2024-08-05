@@ -2,7 +2,7 @@
 
 #include "SAllClientsView.h"
 
-#include "Selection/AllClientsSelectionModel.h"
+#include "Selection/AllOnlineClientsSelectionModel.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "SMultiClientView.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
@@ -15,7 +15,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		ClientManager = InMultiUserReplicationManager.GetClientManager();
 		check(ClientManager);
-		AllClientsModel = MakeUnique<FAllClientsSelectionModel>(*ClientManager);
+		AllClientsModel = MakeUnique<FAllOnlineClientsSelectionModel>(*ClientManager);
 		
 		ChildSlot
 		[

@@ -5,22 +5,24 @@
 #include "ISelectionModel.h"
 #include "SelectionModelFwd.h"
 
+#include "HAL/Platform.h"
+
 namespace UE::MultiUserClient::Replication
 {
 	class FOnlineClientManager;
 	
 	/** Exposes all clients and detects when clients disconnect. */
-	class FAllClientsSelectionModel : public IOnlineClientSelectionModel
+	class FAllOnlineClientsSelectionModel : public IOnlineClientSelectionModel
 	{
 	public:
 		
-		FAllClientsSelectionModel(FOnlineClientManager& InClientManager);
-		virtual ~FAllClientsSelectionModel() override;
+		FAllOnlineClientsSelectionModel(FOnlineClientManager& InClientManager UE_LIFETIMEBOUND);
+		virtual ~FAllOnlineClientsSelectionModel() override;
 
-		//~ Begin IClientSelectionModel Interface
+		//~ Begin IOnlineClientSelectionModel Interface
 		virtual void ForEachItem(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const override;
 		virtual FOnSelectionChanged& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
-		//~ End IClientSelectionModel Interface
+		//~ End IOnlineClientSelectionModel Interface
 
 	private:
 

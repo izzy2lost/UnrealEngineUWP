@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Selection/AllClientsSelectionModel.h"
+#include "Selection/AllOnlineClientsSelectionModel.h"
 
 #include "HAL/Platform.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
@@ -30,7 +30,7 @@ namespace UE::MultiUserClient::Replication
 		FOnlineClientManager* ClientManager = nullptr;
 
 		/** Keeps the SMultiClientView updated of any changes to clients (e.g. disconnects, etc.) */
-		TUniquePtr<FAllClientsSelectionModel> AllClientsModel;
+		TUniquePtr<FAllOnlineClientsSelectionModel> AllClientsModel;
 
 		/** Gets all the clients to display */
 		TSet<const FOnlineClient*> GetAllClients() const;
