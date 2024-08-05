@@ -1319,6 +1319,9 @@ public:
 	float TranslucencyVolumeVoxelSize[TVC_MAX];
 	FVector TranslucencyLightingVolumeSize[TVC_MAX];
 
+	/** Optional source view for temporal AA, to handle custom render passes and scene captures sharing the main view's camera (jitter needs to match) */
+	FViewInfo* TemporalSourceView;
+
 	/** Number of samples in the temporal AA sequqnce */
 	int32 TemporalJitterSequenceLength;
 
@@ -1368,6 +1371,12 @@ public:
 	 * The first stage depth buffer is usually used for depth buffer collision and projection of Niagara's particles.
 	 */
 	uint32 bUsesSecondStageDepthPass : 1;
+
+	/**
+	 * Set to true if this is a scene capture sharing temporal AA jitter with the main view camera.  Needed to force temporal jitter
+	 * logic to run when post processing is disabled for the scene capture, which otherwise disables jitter.
+	 */
+	uint32 bSceneCaptureMainViewJitter : 1;
 
 	/** Whether post DOF translucency should be rendered before DOF if primitive bounds behind DOF's focus distance. */
 	float AutoBeforeDOFTranslucencyBoundary;
@@ -1687,6 +1696,9 @@ public:
 	/** Returns view rect for all views in the family (usable for atlased views only). Normally a union of their view rects */
 	FIntRect GetFamilyViewRect() const;
 
+	/** Similar to above, but returns the unscaled rect, ignoring dynamic resolution scaling */
+	FIntRect GetUnscaledFamilyViewRect() const;
+
 	/** Prepares the view shader parameters for rendering and calls the persistent uniform buffer hooks. */
 	void BeginRenderView() const;
 
@@ -1883,6 +1895,9 @@ public:
 	virtual ~FViewFamilyInfo();
 
 	FSceneTexturesConfig SceneTexturesConfig;
+
+	/** Set to true if this is a scene capture sized to scene texture size */
+	bool bIsSceneTextureSizedCapture = false;
 
 	/** Get scene textures associated with this view family -- asserts or checks that they have been initialized */
 	inline FSceneTextures& GetSceneTextures()

@@ -522,7 +522,22 @@ protected:
 	 */
 	friend class UTextureRenderTarget2D;
 	virtual void UpdateDeferredResource(FRHICommandListImmediate& RHICmdList, bool bClearRenderTarget=true) override;
-	void Resize(int32 NewSizeX, int32 NewSizeY);
+	void Resize(int32 NewSizeX, int32 NewSizeY, int32 NewNumMips);
+
+	/** Utility function used for resizing of scene texture sized scene capture render targets in the render thread */
+	friend class FScene;
+	friend class FSceneCapturePass;
+	FORCEINLINE void Resize(FRHICommandListBase& RHICmdList, int32 NewSizeX, int32 NewSizeY, bool bAutoGenerateMips)
+	{
+		int32 NewNumMips = bAutoGenerateMips ? FMath::FloorLog2(FMath::Max(NewSizeX, NewSizeY)) + 1 : 1;
+		if (TargetSizeX != NewSizeX || TargetSizeY != NewSizeY || TargetNumMips != NewNumMips)
+		{
+			TargetSizeX = NewSizeX;
+			TargetSizeY = NewSizeY;
+			TargetNumMips = NewNumMips;
+			UpdateRHI(RHICmdList);
+		}
+	}
 
 private:
 	/** The UTextureRenderTarget2D which this resource represents. */
@@ -536,6 +551,7 @@ private:
 	FLinearColor ClearColor;
 	EPixelFormat Format;
 	int32 TargetSizeX,TargetSizeY;
+	int32 TargetNumMips;
 	TRefCountPtr<IPooledRenderTarget> MipGenerationCache;
 };
 

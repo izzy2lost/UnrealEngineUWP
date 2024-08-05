@@ -190,9 +190,9 @@ void UTextureRenderTarget2D::ResizeTarget(uint32 InSizeX, uint32 InSizeY)
 			int32 NewSizeX = SizeX;
 			int32 NewSizeY = SizeY;
 			ENQUEUE_RENDER_COMMAND(ResizeRenderTarget)(
-				[InResource, NewSizeX, NewSizeY](FRHICommandListImmediate& RHICmdList)
+				[InResource, NewSizeX, NewSizeY, LocalNumMips = NumMips](FRHICommandListImmediate& RHICmdList)
 				{
-					InResource->Resize(NewSizeX, NewSizeY);
+					InResource->Resize(NewSizeX, NewSizeY, LocalNumMips);
 					InResource->UpdateDeferredResource(RHICmdList, true);
 				}
 			);
@@ -458,6 +458,7 @@ FTextureRenderTarget2DResource::FTextureRenderTarget2DResource(const class UText
 	,	Format(InOwner->GetFormat())
 	,	TargetSizeX(Owner->SizeX)
 	,	TargetSizeY(Owner->SizeY)
+	,	TargetNumMips(Owner->GetNumMips())
 {
 	// note: Resource has a bSRGB field which is not set or checked in the RenderTarget code
 }
@@ -534,9 +535,9 @@ void FTextureRenderTarget2DResource::InitRHI(FRHICommandListBase& RHICmdList)
 
 		FRHITextureCreateDesc Desc =
 			FRHITextureCreateDesc::Create2D(*ResourceName)
-			.SetExtent(Owner->SizeX, Owner->SizeY)
+			.SetExtent(TargetSizeX, TargetSizeY)
 			.SetFormat(Format)
-			.SetNumMips(Owner->GetNumMips())
+			.SetNumMips(TargetNumMips)
 			.SetNumSamples(NumSamples)
 			.SetFlags(TexCreateFlags)
 			.SetInitialState(ERHIAccess::SRVMask)
@@ -659,12 +660,13 @@ void FTextureRenderTarget2DResource::UpdateDeferredResource( FRHICommandListImme
 	GraphBuilder.Execute();
 }
 
-void FTextureRenderTarget2DResource::Resize(int32 NewSizeX, int32 NewSizeY)
+void FTextureRenderTarget2DResource::Resize(int32 NewSizeX, int32 NewSizeY, int32 NewNumMips)
 {
-	if (TargetSizeX != NewSizeX || TargetSizeY != NewSizeY)
+	if (TargetSizeX != NewSizeX || TargetSizeY != NewSizeY || TargetNumMips != NewNumMips)
 	{
 		TargetSizeX = NewSizeX;
 		TargetSizeY = NewSizeY;
+		TargetNumMips = NewNumMips;
 		UpdateRHI(FRHICommandListImmediate::Get());
 	}
 }

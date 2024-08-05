@@ -46,6 +46,7 @@
 #include "DumpGPU.h"
 #include "IRenderCaptureProvider.h"
 #include "RenderCaptureInterface.h"
+#include "CustomRenderPassSceneCapture.h"
 
 bool GSceneCaptureAllowRenderInMainRenderer = true;
 static FAutoConsoleVariableRef CVarSceneCaptureAllowRenderInMainRenderer(
@@ -282,9 +283,19 @@ void CopySceneCaptureComponentToTarget(
 		GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 		GraphicsPSOInit.PrimitiveType = PT_TriangleList;
 
-		// Need to use the extent from the actual target texture for cube captures.  Although perhaps we should use the actual texture
-		// extent across the board?  Would it ever be incorrect to do so?
-		FIntPoint TargetSize = View.bIsSceneCaptureCube && NumViews == 6 ? ViewFamilyTexture->Desc.Extent : View.UnconstrainedViewRect.Size();
+		FIntPoint TargetSize;
+		if (((const FViewFamilyInfo*)View.Family)->bIsSceneTextureSizedCapture)
+		{
+			// Scene texture sized target, use actual target extent for copy, and set correct extent for visualization debug feature
+			TargetSize = ViewFamilyTexture->Desc.Extent;
+			ViewFamilyTexture->EncloseVisualizeExtent(View.UnconstrainedViewRect.Max);
+		}
+		else
+		{
+			// Need to use the extent from the actual target texture for cube captures.  Although perhaps we should use the actual texture
+			// extent across the board?  Would it ever be incorrect to do so?
+			TargetSize = (View.bIsSceneCaptureCube && NumViews == 6) ? ViewFamilyTexture->Desc.Extent : View.UnconstrainedViewRect.Size();
+		}
 
 		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("View(%d)", ViewIndex),
@@ -903,12 +914,19 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	SceneCaptureViewInfo.ViewRect = FIntRect(0, 0, RenderTargetSize.X, RenderTargetSize.Y);
 	SceneCaptureViewInfo.FOV = InFOV;
 
+	bool bInheritMainViewScreenPercentage = false;
+
 	// Use camera position correction for ortho scene captures
 	if(USceneCaptureComponent2D * SceneCaptureComponent2D = Cast<USceneCaptureComponent2D>(SceneCaptureComponent))
 	{
 		if (!SceneCaptureViewInfo.IsPerspectiveProjection() && SceneCaptureComponent2D->bUpdateOrthoPlanes)
 		{
 			SceneCaptureViewInfo.UpdateOrthoPlanes(SceneCaptureComponent2D->bUseCameraHeightAsViewTarget);
+		}
+
+		if (SceneCaptureComponent2D->ShouldRenderWithMainViewResolution() && SceneCaptureComponent2D->MainViewFamily && !SceneCaptureComponent2D->ShouldIgnoreScreenPercentage())
+		{
+			bInheritMainViewScreenPercentage = true;
 		}
 	}
 
@@ -937,26 +955,57 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	// Scene capture source is used to determine whether to disable occlusion queries inside FSceneRenderer constructor
 	ViewFamily.SceneCaptureSource = SceneCaptureComponent->CaptureSource;
 
-	// Screen percentage is still not supported in scene capture.
-	ViewFamily.EngineShowFlags.ScreenPercentage = false;
-	ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
-		ViewFamily, /* GlobalResolutionFraction = */ 1.0f));
+	if (bInheritMainViewScreenPercentage)
+	{
+		USceneCaptureComponent2D* SceneCaptureComponent2D = Cast<USceneCaptureComponent2D>(SceneCaptureComponent);
+		ViewFamily.EngineShowFlags.ScreenPercentage = SceneCaptureComponent2D->MainViewFamily->EngineShowFlags.ScreenPercentage;
+		ViewFamily.SetScreenPercentageInterface(SceneCaptureComponent2D->MainViewFamily->GetScreenPercentageInterface()->Fork_GameThread(ViewFamily));
+	}
+	else
+	{
+		// Screen percentage is still not supported in scene capture.
+		ViewFamily.EngineShowFlags.ScreenPercentage = false;
+		ViewFamily.SetScreenPercentageInterface(new FLegacyScreenPercentageDriver(
+			ViewFamily, /* GlobalResolutionFraction = */ 1.0f));
+	}
 
 	return FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 }
+
+FSceneCaptureCustomRenderPassUserData FSceneCaptureCustomRenderPassUserData::GDefaultData;
 
 class FSceneCapturePass final : public FCustomRenderPassBase
 {
 public:
 	IMPLEMENT_CUSTOM_RENDER_PASS(FSceneCapturePass);
 
-	FSceneCapturePass(const FString& InDebugName, ERenderMode InRenderMode, ERenderOutput InRenderOutput, UTextureRenderTarget2D* InRenderTarget)
-		: FCustomRenderPassBase(InDebugName, InRenderMode, InRenderOutput, FIntPoint(InRenderTarget->GetSurfaceWidth(), InRenderTarget->GetSurfaceHeight()))
+	FSceneCapturePass(const FString& InDebugName, ERenderMode InRenderMode, ERenderOutput InRenderOutput, UTextureRenderTarget2D* InRenderTarget, USceneCaptureComponent2D* CaptureComponent, FIntPoint InRenderTargetSize)
+		: FCustomRenderPassBase(InDebugName, InRenderMode, InRenderOutput, InRenderTargetSize)
 		, SceneCaptureRenderTarget(InRenderTarget->GameThread_GetRenderTargetResource())
-	{}
+		, bAutoGenerateMips(InRenderTarget->bAutoGenerateMips)
+	{
+		FSceneCaptureCustomRenderPassUserData* UserData = new FSceneCaptureCustomRenderPassUserData();
+		UserData->bMainViewFamily = CaptureComponent->ShouldRenderWithMainViewFamily();
+		UserData->bMainViewResolution = CaptureComponent->ShouldRenderWithMainViewResolution();
+		UserData->bMainViewCamera = CaptureComponent->ShouldRenderWithMainViewCamera();
+		UserData->bIgnoreScreenPercentage = CaptureComponent->ShouldIgnoreScreenPercentage();
+		UserData->SceneTextureDivisor = CaptureComponent->MainViewResolutionDivisor.ComponentMax(FIntPoint(1,1));
+		UserData->UserSceneTextureBaseColor = CaptureComponent->UserSceneTextureBaseColor;
+		UserData->UserSceneTextureNormal = CaptureComponent->UserSceneTextureNormal;
+		UserData->UserSceneTextureSceneColor = CaptureComponent->UserSceneTextureSceneColor;
+#if !UE_BUILD_SHIPPING
+		CaptureComponent->GetOuter()->GetName(UserData->CaptureActorName);
+#endif
+
+		SetUserData(TUniquePtr<FSceneCaptureCustomRenderPassUserData>(UserData));
+	}
 
 	virtual void OnPreRender(FRDGBuilder& GraphBuilder) override
 	{
+		// Resize the render resource if necessary -- render target size may have been overridden to the main view resolution, or later be changed back
+		// to the resource resolution.  The resize call does nothing if the size already matches.
+		((FTextureRenderTarget2DResource*)SceneCaptureRenderTarget)->Resize(GraphBuilder.RHICmdList, RenderTargetSize.X, RenderTargetSize.Y, bAutoGenerateMips);
+
 		RenderTargetTexture = SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder);
 	}
 
@@ -968,6 +1017,7 @@ public:
 	}
 	
 	FRenderTarget* SceneCaptureRenderTarget = nullptr;
+	bool bAutoGenerateMips = false;
 };
 
 static void BeginGpuCaptureOrDump(USceneCaptureComponent* CaptureComponent, bool& bCapturingGPU, bool& bDumpingGPU)
@@ -1040,57 +1090,87 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 
 	if (UTextureRenderTarget2D* TextureRenderTarget = CaptureComponent->TextureTarget)
 	{
-		FTransform Transform = CaptureComponent->GetComponentToWorld();
-		FVector ViewLocation = Transform.GetTranslation();
-
-		// Remove the translation from Transform because we only need rotation.
-		Transform.SetTranslation(FVector::ZeroVector);
-		Transform.SetScale3D(FVector::OneVector);
-		FMatrix ViewRotationMatrix = Transform.ToInverseMatrixWithScale();
-
-		// swap axis st. x=z,y=x,z=y (unreal coord space) so that z is up
-		ViewRotationMatrix = ViewRotationMatrix * FMatrix(
-			FPlane(0, 0, 1, 0),
-			FPlane(1, 0, 0, 0),
-			FPlane(0, 1, 0, 0),
-			FPlane(0, 0, 0, 1));
-		const float UnscaledFOV = CaptureComponent->FOVAngle * (float)PI / 360.0f;
-		const float FOV = FMath::Atan((1.0f + CaptureComponent->Overscan) * FMath::Tan(UnscaledFOV));
-		FIntPoint CaptureSize(TextureRenderTarget->GetSurfaceWidth(), TextureRenderTarget->GetSurfaceHeight());
+		FIntPoint CaptureSize;
+		FVector ViewLocation;
+		FMatrix ViewRotationMatrix;
+		FMatrix ProjectionMatrix;
+		bool bEnableOrthographicTiling;
 
 		const bool bUseSceneColorTexture = CaptureNeedsSceneColor(CaptureComponent->CaptureSource);
-		const bool bEnableOrthographicTiling = (CaptureComponent->GetEnableOrthographicTiling() && CaptureComponent->ProjectionType == ECameraProjectionMode::Orthographic && bUseSceneColorTexture);
-		if (CaptureComponent->GetEnableOrthographicTiling() && CaptureComponent->ProjectionType == ECameraProjectionMode::Orthographic && !bUseSceneColorTexture)
-		{
-			UE_LOG(LogRenderer, Warning, TEXT("SceneCapture - Orthographic and tiling with CaptureSource not using SceneColor (i.e FinalColor) not compatible. SceneCapture render will not be tiled"));
-		}
-		
+
 		const int32 TileID = CaptureComponent->TileID;
 		const int32 NumXTiles = CaptureComponent->GetNumXTiles();
 		const int32 NumYTiles = CaptureComponent->GetNumYTiles();
 
-		FMatrix ProjectionMatrix;
-		if (CaptureComponent->bUseCustomProjectionMatrix)
+		if (CaptureComponent->ShouldRenderWithMainViewResolution() && CaptureComponent->MainViewFamily)
 		{
-			ProjectionMatrix = CaptureComponent->CustomProjectionMatrix;
+			CaptureSize = CaptureComponent->MainViewFamily->Views[0]->UnscaledViewRect.Size();
+			CaptureSize = FIntPoint::DivideAndRoundUp(CaptureSize, CaptureComponent->MainViewResolutionDivisor.ComponentMax(FIntPoint(1,1)));
+
+			// Main view resolution rendering doesn't support orthographic tiling
+			bEnableOrthographicTiling = false;
 		}
 		else
 		{
-			if (CaptureComponent->ProjectionType == ECameraProjectionMode::Perspective)
+			CaptureSize = FIntPoint(TextureRenderTarget->GetSurfaceWidth(), TextureRenderTarget->GetSurfaceHeight());
+
+			bEnableOrthographicTiling = (CaptureComponent->GetEnableOrthographicTiling() && CaptureComponent->ProjectionType == ECameraProjectionMode::Orthographic && bUseSceneColorTexture);
+
+			if (CaptureComponent->GetEnableOrthographicTiling() && CaptureComponent->ProjectionType == ECameraProjectionMode::Orthographic && !bUseSceneColorTexture)
 			{
-				const float ClippingPlane = (CaptureComponent->bOverride_CustomNearClippingPlane) ? CaptureComponent->CustomNearClippingPlane : GNearClippingPlane;
-				BuildProjectionMatrix(CaptureSize, FOV, ClippingPlane, ProjectionMatrix);
+				UE_LOG(LogRenderer, Warning, TEXT("SceneCapture - Orthographic and tiling with CaptureSource not using SceneColor (i.e FinalColor) not compatible. SceneCapture render will not be tiled"));
+			}
+		}
+
+		if (CaptureComponent->ShouldRenderWithMainViewCamera() && CaptureComponent->MainViewFamily)
+		{
+			const FSceneView* MainView = CaptureComponent->MainViewFamily->Views[0];
+
+			ViewLocation = MainView->ViewMatrices.GetViewOrigin();
+			ViewRotationMatrix = MainView->ViewMatrices.GetViewMatrix().RemoveTranslation();
+			ProjectionMatrix = MainView->ViewMatrices.GetProjectionMatrix();
+		}
+		else
+		{
+			FTransform Transform = CaptureComponent->GetComponentToWorld();
+			ViewLocation = Transform.GetTranslation();
+
+			// Remove the translation from Transform because we only need rotation.
+			Transform.SetTranslation(FVector::ZeroVector);
+			Transform.SetScale3D(FVector::OneVector);
+			ViewRotationMatrix = Transform.ToInverseMatrixWithScale();
+
+			// swap axis st. x=z,y=x,z=y (unreal coord space) so that z is up
+			ViewRotationMatrix = ViewRotationMatrix * FMatrix(
+				FPlane(0, 0, 1, 0),
+				FPlane(1, 0, 0, 0),
+				FPlane(0, 1, 0, 0),
+				FPlane(0, 0, 0, 1));
+			const float UnscaledFOV = CaptureComponent->FOVAngle * (float)PI / 360.0f;
+			const float FOV = FMath::Atan((1.0f + CaptureComponent->Overscan) * FMath::Tan(UnscaledFOV));
+
+			if (CaptureComponent->bUseCustomProjectionMatrix)
+			{
+				ProjectionMatrix = CaptureComponent->CustomProjectionMatrix;
 			}
 			else
 			{
-				if (bEnableOrthographicTiling)
+				if (CaptureComponent->ProjectionType == ECameraProjectionMode::Perspective)
 				{
-					BuildOrthoMatrix(CaptureSize, CaptureComponent->OrthoWidth, CaptureComponent->TileID, NumXTiles, NumYTiles, ProjectionMatrix);
-					CaptureSize /= FIntPoint(NumXTiles, NumYTiles);
+					const float ClippingPlane = (CaptureComponent->bOverride_CustomNearClippingPlane) ? CaptureComponent->CustomNearClippingPlane : GNearClippingPlane;
+					BuildProjectionMatrix(CaptureSize, FOV, ClippingPlane, ProjectionMatrix);
 				}
 				else
 				{
-					BuildOrthoMatrix(CaptureSize, CaptureComponent->OrthoWidth, -1, 0, 0, ProjectionMatrix);
+					if (bEnableOrthographicTiling)
+					{
+						BuildOrthoMatrix(CaptureSize, CaptureComponent->OrthoWidth, CaptureComponent->TileID, NumXTiles, NumYTiles, ProjectionMatrix);
+						CaptureSize /= FIntPoint(NumXTiles, NumYTiles);
+					}
+					else
+					{
+						BuildOrthoMatrix(CaptureSize, CaptureComponent->OrthoWidth, -1, 0, 0, ProjectionMatrix);
+					}
 				}
 			}
 		}
@@ -1113,15 +1193,32 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			FCustomRenderPassBase::ERenderOutput RenderOutput;
 			const TCHAR* DebugName;
 
+			bool bHasUserSceneTextureOutput = !CaptureComponent->UserSceneTextureBaseColor.IsNone() || !CaptureComponent->UserSceneTextureNormal.IsNone() || !CaptureComponent->UserSceneTextureSceneColor.IsNone();
+
 			switch (CaptureComponent->CaptureSource)
 			{
 			case ESceneCaptureSource::SCS_SceneDepth:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
+				if (bHasUserSceneTextureOutput)
+				{
+					// If a UserSceneTexture output is specified, the base pass needs to run to generate it.
+					RenderMode = FCustomRenderPassBase::ERenderMode::DepthAndBasePass;
+				}
+				else
+				{
+					RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
+				}
 				RenderOutput = FCustomRenderPassBase::ERenderOutput::SceneDepth;
 				DebugName = TEXT("SceneCapturePass_SceneDepth");
 				break;
 			case ESceneCaptureSource::SCS_DeviceDepth:
-				RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
+				if (bHasUserSceneTextureOutput)
+				{
+					RenderMode = FCustomRenderPassBase::ERenderMode::DepthAndBasePass;
+				}
+				else
+				{
+					RenderMode = FCustomRenderPassBase::ERenderMode::DepthPass;
+				}
 				RenderOutput = FCustomRenderPassBase::ERenderOutput::DeviceDepth;
 				DebugName = TEXT("SceneCapturePass_DeviceDepth");
 				break;
@@ -1138,7 +1235,7 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 				break;
 			}
 
-			FSceneCapturePass* CustomPass = new FSceneCapturePass(DebugName, RenderMode, RenderOutput, TextureRenderTarget);
+			FSceneCapturePass* CustomPass = new FSceneCapturePass(DebugName, RenderMode, RenderOutput, TextureRenderTarget, CaptureComponent, CaptureSize);
 			PassInput.CustomRenderPass = CustomPass;
 
 			GetShowOnlyAndHiddenComponents(CaptureComponent, PassInput.HiddenPrimitives, PassInput.ShowOnlyPrimitives);
@@ -1173,6 +1270,31 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			CaptureComponent->GetViewOwner());
 
 		check(SceneRenderer != nullptr);
+
+		// Copy temporal AA related settings for main view camera scene capture, to match jitter.  Don't match if the resolution divisor is set,
+		// if it's set to ignore screen percentage, or if it's final color, which will run its own AA.  For custom render passes (handled above),
+		// computed jitter results are copied from the main view later in FSceneRenderer::PrepareViewStateForVisibility, but this doesn't work
+		// for regular scene captures, because they run in a separate scene renderer before the main view, where the main view's results haven't
+		// been computed yet.
+		if (CaptureComponent->ShouldRenderWithMainViewCamera() && CaptureComponent->MainViewFamily && SceneRenderer->Views[0].ViewState && CaptureComponent->MainViewFamily->Views[0]->State &&
+			CaptureComponent->MainViewResolutionDivisor.X <= 1 && CaptureComponent->MainViewResolutionDivisor.Y <= 1 && !CaptureComponent->ShouldIgnoreScreenPercentage() &&
+			CaptureComponent->CaptureSource != ESceneCaptureSource::SCS_FinalColorLDR &&
+			CaptureComponent->CaptureSource != ESceneCaptureSource::SCS_FinalColorHDR &&
+			CaptureComponent->CaptureSource != ESceneCaptureSource::SCS_FinalToneCurveHDR)
+		{
+			const FSceneViewFamily* MainViewFamily = CaptureComponent->MainViewFamily;
+			const FSceneView& SourceView = *MainViewFamily->Views[0];
+			const FSceneViewState& SourceViewState = *(const FSceneViewState*)SourceView.State;
+
+			FViewInfo& DestView = SceneRenderer->Views[0];
+
+			DestView.AntiAliasingMethod = SourceView.AntiAliasingMethod;
+			DestView.PrimaryScreenPercentageMethod = SourceView.PrimaryScreenPercentageMethod;
+			DestView.ViewState->TemporalAASampleIndex = SourceViewState.TemporalAASampleIndex;
+			DestView.bSceneCaptureMainViewJitter = true;
+
+			CaptureComponent->bCameraCutThisFrame = SourceView.bCameraCut;
+		}
 
 		// When bIsMultipleSceneCapture is true, set bIsFirstSceneRenderer to false, which tells the scene renderer it can skip RHI resource flush, saving performance
 		bool bIsMultipleSceneCapture = CaptureComponent->SetFrameUpdated();
@@ -1319,8 +1441,12 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 		UE::RenderCommandPipe::FSyncScope SyncScope;
 
 		ENQUEUE_RENDER_COMMAND(CaptureCommand)(
-			[SceneRenderer, TextureRenderTargetResource, TexturePtrNotDeferenced, EventName, TargetName, bGenerateMips, GenerateMipsParams, GameViewportRT, bEnableOrthographicTiling, bIsCompositing, bOrthographicCamera, NumXTiles, NumYTiles, TileID, CaptureMemorySize, bCapturingGPU](FRHICommandListImmediate& RHICmdList)
+			[SceneRenderer, TextureRenderTargetResource, TexturePtrNotDeferenced, EventName, TargetName, bGenerateMips, GenerateMipsParams, GameViewportRT, bEnableOrthographicTiling, bIsCompositing, bOrthographicCamera, NumXTiles, NumYTiles, TileID, CaptureMemorySize, bCapturingGPU, CaptureSize](FRHICommandListImmediate& RHICmdList)
 			{
+				// Resize the render resource if necessary, either to the main viewport size overridden above (see ShouldRenderWithMainViewResolution()),
+				// or the original size if we are changing back to that (the resize call does nothing if the size already matches).
+				TextureRenderTargetResource->GetTextureRenderTarget2DResource()->Resize(RHICmdList, CaptureSize.X, CaptureSize.Y, bGenerateMips);
+
 				RenderCaptureInterface::FScopedCapture RenderCapture(bCapturingGPU, &RHICmdList, *FString::Format(TEXT("Scene Capture : {0}"), { EventName }));
 
 				if (GameViewportRT != nullptr)

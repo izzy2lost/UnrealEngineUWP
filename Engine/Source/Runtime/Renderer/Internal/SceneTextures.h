@@ -32,16 +32,17 @@ enum class EUserSceneTextureEvent
 	CollidingInput,		// Input matches the output, and has been unbound as a result
 	FoundInput,
 	Output,
-	Pass				// Marker for the end of events for a given material pass with UserSceneTexture inputs or outputs
+	Pass,				// Marker for the end of events for a given material pass with UserSceneTexture inputs or outputs
+	CustomRenderPass	// Marker for a custom render pass that writes to a UserSceneTexture -- AllocationOrder contains ERenderOutput enum, MaterialInterface contains CustomRenderPassBase pointer
 };
 
 struct FUserSceneTextureEventData
 {
 	EUserSceneTextureEvent Event;
 	FName Name;
-	uint16 AllocationOrder;
+	uint16 AllocationOrder;							// ERenderOutput stored here for EUserSceneTextureEvent::CustomRenderPass
 	uint16 ViewIndex;								// Necessary to differentiate events from multiple views in split screen
-	const UMaterialInterface* MaterialInterface;
+	const UMaterialInterface* MaterialInterface;	// FCustomRenderPassBase stored here for EUserSceneTextureEvent::CustomRenderPass
 	FIntPoint RectSize;								// Only filled in for EUserSceneTextureEvent::Output
 };
 #endif

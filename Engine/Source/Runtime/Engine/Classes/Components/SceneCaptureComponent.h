@@ -234,11 +234,16 @@ public:
 
 	static ENGINE_API void UpdateDeferredCaptures(FSceneInterface* Scene);
 
+	/** Whether this component is a USceneCaptureComponent2D */
+	virtual bool Is2D() const { return false; }
+
 	/** Whether this component is a USceneCaptureComponentCube */
 	virtual bool IsCube() const { return false; }
 
 	/** Updates "FrameUpdated" field, returns "true" if this is one of multiple scene captures this frame.  Called from FScene::UpdateSceneCaptureContents. */
 	ENGINE_API bool SetFrameUpdated();
+
+	virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) {};
 
 protected:
 	/** Update the show flags from our show flags settings (ideally, you'd be able to set this more directly, but currently unable to make FEngineShowFlags a UStruct to use it as a FProperty...) */
@@ -249,8 +254,6 @@ protected:
 	ENGINE_API void ReleaseGarbageReferences();
 
 	ENGINE_API bool IsCulledByDetailMode() const;
-
-	virtual void UpdateSceneCaptureContents(FSceneInterface* Scene) {};
 
 	/**
 	 * The view state holds persistent scene rendering state and enables occlusion culling in scene captures.

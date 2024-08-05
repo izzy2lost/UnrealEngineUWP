@@ -4996,14 +4996,18 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 		int32 CVarTemporalAASamplesValue = CVarTemporalAASamples.GetValueOnRenderThread();
 		const bool bShouldScaleTemporalAASampleCount = (CVarTemporalAAScaleSamples.GetValueOnRenderThread() != 0);
 
-		EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(View);
+		// Custom render passes support sharing temporal state with the main view
+		FViewInfo& TemporalSourceView = View.TemporalSourceView ? *View.TemporalSourceView : View;
+		FSceneViewState* TemporalViewState = TemporalSourceView.ViewState;
 
-		bool bTemporalUpsampling = View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale;
+		EMainTAAPassConfig TAAConfig = GetMainTAAPassConfig(TemporalSourceView);
+
+		bool bTemporalUpsampling = TemporalSourceView.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale;
 		
 		// Apply a sub pixel offset to the view.
-		if (IsTemporalAccumulationBasedMethod(View.AntiAliasingMethod) && ViewState && (CVarTemporalAASamplesValue > 0 || bTemporalUpsampling) && View.bAllowTemporalJitter)
+		if (IsTemporalAccumulationBasedMethod(TemporalSourceView.AntiAliasingMethod) && TemporalViewState && (CVarTemporalAASamplesValue > 0 || bTemporalUpsampling) && TemporalSourceView.bAllowTemporalJitter)
 		{
-			float EffectivePrimaryResolutionFraction = float(View.ViewRect.Width()) / float(View.GetSecondaryViewRectSize().X);
+			float EffectivePrimaryResolutionFraction = float(View.ViewRect.Width()) / float(TemporalSourceView.GetSecondaryViewRectSize().X);
 
 			// Compute number of TAA samples.
 			int32 TemporalAASamples;
@@ -5052,28 +5056,38 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 			}
 
 			// Compute the new sample index in the temporal sequence.
-			int32 TemporalSampleIndex = ViewState->TemporalAASampleIndex + 1;
-			if (TemporalSampleIndex >= TemporalAASamples || View.bCameraCut)
+			int32 TemporalSampleIndex;
+			if (View.TemporalSourceView)
 			{
-				TemporalSampleIndex = 0;
+				// Where a TemporalSourceView is specified, the temporal sample index is pulled directly from the source view's state, and not incremented,
+				// assuming the	source view already will have updated that.
+				TemporalSampleIndex = TemporalViewState->TemporalAASampleIndex;
 			}
-
-			#if !UE_BUILD_SHIPPING
-			if (CVarTAADebugOverrideTemporalIndex.GetValueOnRenderThread() >= 0)
+			else
 			{
-				TemporalSampleIndex = CVarTAADebugOverrideTemporalIndex.GetValueOnRenderThread();
-			}
-			#endif
+				TemporalSampleIndex = TemporalViewState->TemporalAASampleIndex + 1;
+				if (TemporalSampleIndex >= TemporalAASamples || View.bCameraCut)
+				{
+					TemporalSampleIndex = 0;
+				}
 
-			// Updates view state.
-			if (!View.bStatePrevViewInfoIsReadOnly && !bFreezeTemporalSequences)
-			{
-				ViewState->TemporalAASampleIndex = TemporalSampleIndex;
+				#if !UE_BUILD_SHIPPING
+				if (CVarTAADebugOverrideTemporalIndex.GetValueOnRenderThread() >= 0)
+				{
+					TemporalSampleIndex = CVarTAADebugOverrideTemporalIndex.GetValueOnRenderThread();
+				}
+				#endif
+
+				// Updates view state.
+				if (!View.bStatePrevViewInfoIsReadOnly && !bFreezeTemporalSequences)
+				{
+					TemporalViewState->TemporalAASampleIndex = TemporalSampleIndex;
+				}
 			}
 
 			// Choose sub pixel sample coordinate in the temporal sequence.
 			float SampleX = 0.0f, SampleY = 0.0f;
-			if (View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
+			if (TemporalSourceView.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::TemporalUpscale)
 			{
 				// Uniformly distribute temporal jittering in [-.5; .5], because there is no longer any alignement of input and output pixels.
 				SampleX = Halton(TemporalSampleIndex + 1, 2) - 0.5f;

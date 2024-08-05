@@ -2227,6 +2227,12 @@ public:
 	bool bSplitScreenDebugAllowed = false;
 
 	/**
+	 * Whether this is the "main" view family.  Should be set to true for the view family of the main editor or game viewport.  Affects
+	 * where rendering occurs for Scene Captures with the "bRenderWithMainViewFamily" flag set.
+	 */
+	bool bIsMainViewFamily = false;
+
+	/**
 	 * Which component of the scene rendering should be output to the final render target.
 	 * If SCS_FinalColorLDR this indicates do nothing.
 	 */

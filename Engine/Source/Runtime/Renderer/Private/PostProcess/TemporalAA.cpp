@@ -1122,7 +1122,7 @@ FDefaultTemporalUpscaler::FOutputs AddGen4MainTemporalAAPasses(
 
 EMainTAAPassConfig GetMainTAAPassConfig(const FViewInfo& View)
 {
-	if (!IsPostProcessingEnabled(View))
+	if (!IsPostProcessingEnabled(View) && !View.bSceneCaptureMainViewJitter)
 	{
 		return EMainTAAPassConfig::Disabled;
 	}

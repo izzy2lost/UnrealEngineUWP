@@ -24,6 +24,7 @@
 #include "Components/SceneCaptureComponent2D.h"
 #include "Engine/SceneCaptureCube.h"
 #include "Components/SceneCaptureComponentCube.h"
+#include "SceneCapture/SceneCaptureInternal.h"
 #include "Components/DrawFrustumComponent.h"
 #include "Engine/PlanarReflection.h"
 #include "Components/PlanarReflectionComponent.h"
@@ -518,6 +519,12 @@ void USceneCaptureComponent::Serialize(FArchive& Ar)
 
 void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 {
+	TArray<const FSceneViewFamily*> EmptyViewFamilies;
+	SceneCaptureUpdateDeferredCapturesInternal(Scene, EmptyViewFamilies);
+}
+
+void SceneCaptureUpdateDeferredCapturesInternal(FSceneInterface* Scene, TArray<const FSceneViewFamily*>& InOutViewFamilies)
+{
 	FScopeLock ScopeLock(&SceneCapturesToUpdateMapCS);
 	UWorld* World = Scene->GetWorld();
 	if (!World || SceneCapturesToUpdateMap.Num() == 0)
@@ -529,6 +536,37 @@ void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 	// Updating others not associated with the scene would cause invalid data to be rendered into the target
 	TArray< TWeakObjectPtr<USceneCaptureComponent> > SceneCapturesToUpdate;
 	SceneCapturesToUpdateMap.MultiFind(World, SceneCapturesToUpdate);
+
+	const FSceneViewFamily* MainViewFamily = nullptr;
+	for (const FSceneViewFamily* Family : InOutViewFamilies)
+	{
+		if (Family->bIsMainViewFamily)
+		{
+			MainViewFamily = Family;
+			break;
+		}
+	}
+
+	int32 IncrementIfNotRemoved;
+	for (int32 CaptureIndex = 0; CaptureIndex < SceneCapturesToUpdate.Num(); CaptureIndex += IncrementIfNotRemoved)
+	{
+		IncrementIfNotRemoved = 1;
+
+		if (SceneCapturesToUpdate[CaptureIndex].IsValid())
+		{
+			if (USceneCaptureComponent2D* Component = Cast<USceneCaptureComponent2D>(SceneCapturesToUpdate[CaptureIndex].Get()))
+			{
+				// If this is intended to render with the main view family, and we don't have a main view family,
+				// remove it from the array so it can render with the main view family later.
+				if (Component->ShouldRenderWithMainViewFamily() && !MainViewFamily)
+				{
+					SceneCapturesToUpdate.RemoveAtSwap(CaptureIndex);
+					IncrementIfNotRemoved = 0;
+				}
+			}
+		}
+	}
+
 	SceneCapturesToUpdate.Sort([](const TWeakObjectPtr<USceneCaptureComponent>& A, const TWeakObjectPtr<USceneCaptureComponent>& B)
 	{
 		if (!A.IsValid())
@@ -546,7 +584,18 @@ void USceneCaptureComponent::UpdateDeferredCaptures(FSceneInterface* Scene)
 	{
 		if (Component.IsValid())
 		{
+			bool bIsCaptureComponent2D = Component->Is2D();
+			if (bIsCaptureComponent2D)
+			{
+				((USceneCaptureComponent2D*)Component.Get())->MainViewFamily = MainViewFamily;
+			}
+
 			Component->UpdateSceneCaptureContents(Scene);
+
+			if (bIsCaptureComponent2D)
+			{
+				((USceneCaptureComponent2D*)Component.Get())->MainViewFamily = nullptr;
+			}
 		}
 	}
 
@@ -612,6 +661,11 @@ USceneCaptureComponent2D::USceneCaptureComponent2D(const FObjectInitializer& Obj
 	ClipPlaneNormal = FVector(0, 0, 1);
 	bCameraCutThisFrame = false;
 	bConsiderUnrenderedOpaquePixelAsFullyTranslucent = false;
+
+	bMainViewFamily = false;
+	bMainViewResolution = false;
+	bMainViewCamera = false;
+	bIgnoreScreenPercentage = false;
 	
 	TileID = 0;
 

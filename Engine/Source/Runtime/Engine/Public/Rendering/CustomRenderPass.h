@@ -50,6 +50,7 @@ class FCustomRenderPassBase : public ICustomRenderPass
 {
 public:
 	friend class FSceneRenderer;
+	friend class FDeferredShadingSceneRenderer;
 
 	/** Which render passes are needed for the custom render pass. */
 	enum class ERenderMode
@@ -71,7 +72,8 @@ public:
 		SceneColorAndAlpha, // The alpha is inverted opacity (throughput).
 		SceneColorNoAlpha,
 		BaseColor,
-		Normal
+		Normal,
+		MAX
 	};
 
 	enum class ERenderCaptureType
@@ -131,6 +133,12 @@ protected:
 	virtual void OnPreRender(FRDGBuilder& GraphBuilder) {}
 	virtual void OnPostRender(FRDGBuilder& GraphBuilder) {}
 	virtual void OnEndPass(FRDGBuilder& GraphBuilder) {}
+
+	/** Used internally during scene render to generate multiple outputs from a single custom render pass */
+	void OverrideRenderOutput(ERenderOutput InRenderOutput)
+	{
+		RenderOutput = InRenderOutput;
+	}
 
 protected:
 	FString DebugName;

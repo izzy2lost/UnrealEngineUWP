@@ -4324,6 +4324,7 @@ void FEditorViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 	}
 
 	ViewFamily.bSplitScreenDebugAllowed = true;
+	ViewFamily.bIsMainViewFamily = !ViewFamily.EngineShowFlags.Wireframe;			// Prefer non-wireframe views as "main" view family
 
 	// Draw the 3D scene
 	GetRendererModule().BeginRenderingViewFamily(Canvas,&ViewFamily);

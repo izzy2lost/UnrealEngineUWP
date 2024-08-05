@@ -14,6 +14,7 @@
 #include "Components/ReflectionCaptureComponent.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include "Components/SceneCaptureComponentCube.h"
+#include "SceneCapture/SceneCaptureInternal.h"
 #include "DeferredShadingRenderer.h"
 #include "DumpGPU.h"
 #include "DynamicPrimitiveDrawing.h"
@@ -98,6 +99,7 @@
 #include "LocalFogVolumeRendering.h"
 #include "OIT/OIT.h"
 #include "Rendering/CustomRenderPass.h"
+#include "CustomRenderPassSceneCapture.h"
 #include "LightFunctionAtlas.h"
 #include "EnvironmentComponentsFlags.h"
 #include "Math/RotationMatrix.h"
@@ -946,6 +948,7 @@ void FViewInfo::Init()
 	bHasSingleLayerWaterMaterial = 0;
 	AutoBeforeDOFTranslucencyBoundary = 0.0f;
 	bUsesSecondStageDepthPass = 0;
+	bSceneCaptureMainViewJitter = 0;
 
 	NumVisibleStaticMeshElements = 0;
 	PrecomputedVisibilityData = 0;
@@ -1020,6 +1023,7 @@ void FViewInfo::Init()
 	NumSphereReflectionCaptures = 0;
 	FurthestReflectionCaptureDistance = 0;
 
+	TemporalSourceView = nullptr;
 	TemporalJitterSequenceLength = 1;
 	TemporalJitterIndex = 0;
 	TemporalJitterPixels = FVector2D::ZeroVector;
@@ -1715,7 +1719,7 @@ void FViewInfo::SetupUniformBufferParameters(
 	}
 
 	{
-		ensureMsgf(TemporalJitterSequenceLength == 1 || IsTemporalAccumulationBasedMethod(AntiAliasingMethod),
+		ensureMsgf(TemporalJitterSequenceLength == 1 || IsTemporalAccumulationBasedMethod(AntiAliasingMethod) || (CustomRenderPass && FSceneCaptureCustomRenderPassUserData::Get(CustomRenderPass).bMainViewResolution),
 			TEXT("TemporalJitterSequenceLength = %i is invalid"), TemporalJitterSequenceLength);
 		ensureMsgf(TemporalJitterIndex >= 0 && TemporalJitterIndex < TemporalJitterSequenceLength,
 			TEXT("TemporalJitterIndex = %i is invalid (TemporalJitterSequenceLength = %i)"), TemporalJitterIndex, TemporalJitterSequenceLength);
@@ -2247,6 +2251,25 @@ FIntRect FViewInfo::GetFamilyViewRect() const
 	for (uint64 ViewIdx = 0, NumViews = (uint64)Family->Views.Num(); ViewIdx < NumViews; ++ViewIdx)
 	{
 		FamilyRect.Union(static_cast<const FViewInfo*>(Family->Views[ViewIdx])->ViewRect);
+	}
+	return FamilyRect;
+}
+
+FIntRect FViewInfo::GetUnscaledFamilyViewRect() const
+{
+	FIntRect FamilyRect = {};
+	for (uint64 ViewIdx = 0, NumViews = (uint64)Family->Views.Num(); ViewIdx < NumViews; ++ViewIdx)
+	{
+		FamilyRect.Union(static_cast<const FViewInfo*>(Family->Views[ViewIdx])->UnscaledViewRect);
+
+		if (bIsMultiViewportEnabled)
+		{
+			for (const FSceneView* SecondaryView : GetSecondaryViews())
+			{
+				const FViewInfo& InstancedView = static_cast<const FViewInfo&>(*SecondaryView);
+				FamilyRect.Union(InstancedView.UnscaledViewRect);
+			}
+		}
 	}
 	return FamilyRect;
 }
@@ -2936,11 +2959,25 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	CustomRenderPassInfos.Empty(Scene->CustomRenderPassRendererInputs.Num());
 
 	int32 NumAdditionalViews = 0;
-	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i++)
+	int32 IncrementIfNotRemoved = 1;
+	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i+=IncrementIfNotRemoved)
 	{
 		const FScene::FCustomRenderPassRendererInput& PassInput = Scene->CustomRenderPassRendererInputs[i];
 		FCustomRenderPassBase* CustomRenderPass = PassInput.CustomRenderPass;
 		check(CustomRenderPass);
+
+		const FSceneCaptureCustomRenderPassUserData& SceneCaptureUserData = FSceneCaptureCustomRenderPassUserData::Get(CustomRenderPass);
+
+		if (SceneCaptureUserData.bMainViewFamily && !ViewFamily.bIsMainViewFamily)
+		{
+			// If the custom render pass is flagged as rendering with the main view family, and this isn't the main view family, skip it.
+			IncrementIfNotRemoved = 1;
+			continue;
+		}
+		else
+		{
+			IncrementIfNotRemoved = 0;
+		}
 
 		// We construct from scratch, rather than copying, as we don't want to copy interfaces attached to the view family
 		// (ScreenPercentageInterface, TemporalUpscalerInterface, etc), which can assert or double free if copied.  Those aren't
@@ -2960,6 +2997,7 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		CustomRenderPassInfo.CustomRenderPass = CustomRenderPass;
 		CustomRenderPassInfo.ViewFamily.Time = ViewFamily.Time;
 		CustomRenderPassInfo.ViewFamily.SetSceneRenderer(this);
+		CustomRenderPassInfo.ViewFamily.bIsSceneTextureSizedCapture = SceneCaptureUserData.bMainViewResolution;
 
 		FSceneViewInitOptions ViewInitOptions;
 		ViewInitOptions.SceneViewStateInterface = PassInput.ViewStateInterface;
@@ -2995,6 +3033,8 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 		CustomRenderPass->Views.Add(ViewInfo);
 
 		NumAdditionalViews++;
+
+		Scene->CustomRenderPassRendererInputs.RemoveAt(i, EAllowShrinking::No);
 	}
 
 	AllViews.Empty(Views.Num() + NumAdditionalViews);
@@ -3065,8 +3105,6 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	{
 		PassInfo.ViewFamily.AllViews = ViewFamily.AllViews;
 	}
-
-	Scene->CustomRenderPassRendererInputs.Reset();
 
 	FeatureLevel = Scene->GetFeatureLevel();
 	ShaderPlatform = Scene->GetShaderPlatform();
@@ -3262,7 +3300,7 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 
 		// Fallback to no anti aliasing.
 		{
-			const bool bWillApplyTemporalAA = (IsPostProcessingEnabled(View) || View.bIsPlanarReflection)
+			const bool bWillApplyTemporalAA = (IsPostProcessingEnabled(View) || View.bIsPlanarReflection || View.bSceneCaptureMainViewJitter)
 #if RHI_RAYTRACING
 				// path tracer does its own anti-aliasing
 				&& (!ViewFamily.EngineShowFlags.PathTracing)
@@ -3432,7 +3470,30 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 	{
 		for (FViewInfo& View : PassInfo.Views)
 		{
-			View.ViewRect = View.UnscaledViewRect;
+			const FSceneCaptureCustomRenderPassUserData& SceneCaptureUserData = FSceneCaptureCustomRenderPassUserData::Get(PassInfo.CustomRenderPass);
+
+			if (SceneCaptureUserData.bMainViewResolution)
+			{
+				if (SceneCaptureUserData.bIgnoreScreenPercentage)
+				{
+					View.ViewRect = GetDownscaledViewRect(Views[0].UnscaledViewRect, Views[0].GetUnscaledFamilyViewRect().Max, SceneCaptureUserData.SceneTextureDivisor);
+				}
+				else
+				{
+					View.ViewRect = GetDownscaledViewRect(Views[0].ViewRect, Views[0].GetFamilyViewRect().Max, SceneCaptureUserData.SceneTextureDivisor);
+
+					// Share temporal AA offset if this is coincident with main view camera
+					if (SceneCaptureUserData.bMainViewCamera && SceneCaptureUserData.SceneTextureDivisor == FIntPoint(1,1))
+					{
+						View.TemporalSourceView = &Views[0];
+					}
+				}
+				View.UnconstrainedViewRect = View.ViewRect;
+			}
+			else
+			{
+				View.ViewRect = View.UnscaledViewRect;
+			}
 		}	
 	}
 }
@@ -5485,7 +5546,7 @@ void FRendererModule::BeginRenderingViewFamilies(FCanvas* Canvas, TArrayView<FSc
 		bool bShowHitProxies = (Canvas->GetHitProxyConsumer() != nullptr);
 		if (!bShowHitProxies)
 		{
-			USceneCaptureComponent::UpdateDeferredCaptures(Scene);
+			SceneCaptureUpdateDeferredCapturesInternal(Scene, ViewFamiliesConst);
 		}
 
 		FSceneRenderer::CreateSceneRenderers(ViewFamiliesConst, Canvas->GetHitProxyConsumer(), SceneRenderers);
