@@ -556,6 +556,40 @@ void FLiveLinkClient::RemoveAllSources()
 	});
 }
 
+bool FLiveLinkClient::RemoveAllSourcesWithTimeout(float InTimeout)
+{
+	RemoveAllSources();
+
+	const double MaxTime = FPlatformTime::Seconds() + InTimeout;
+
+	auto GetNumNonDefaultSources = [this]()
+	{
+		int32 NumNonDefaultSources = 0;
+		Collection->ForEachSource([&NumNonDefaultSources] (const FLiveLinkCollectionSourceItem& SourceItem)
+		{
+			if (SourceItem.Guid != FLiveLinkSourceCollection::DefaultVirtualSubjectGuid)
+			{
+				NumNonDefaultSources++;
+			}
+		});
+
+		return NumNonDefaultSources;
+	};
+	
+	while (GetNumNonDefaultSources() > 0)
+	{
+		const double CurrentTime = FPlatformTime::Seconds();
+		if (CurrentTime >= MaxTime)
+		{
+			return false;
+		}
+
+		FPlatformProcess::Sleep(0.002f);
+	}
+
+	return true;
+}
+
 bool FLiveLinkClient::HasSourceBeenAdded(TSharedPtr<ILiveLinkSource> InSource) const
 {
 	check(Collection);

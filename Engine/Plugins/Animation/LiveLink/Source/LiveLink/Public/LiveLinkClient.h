@@ -150,6 +150,13 @@ public:
 	/** Remove all sources from the live link client */
 	void RemoveAllSources();
 
+	/**
+	 * Remove all sources and wait for them to be removed. This is a blocking operation.
+	 * @param InTimeout The timeout in seconds to wait.
+	 * @return Whether all sources were removed successfully.
+	 */
+	bool RemoveAllSourcesWithTimeout(float InTimeout);
+
 #if WITH_EDITOR
 	/** Call initialize again on an existing virtual subject. Used for when a Blueprint Virtual Subject is compiled */
 	void ReinitializeVirtualSubject(const FLiveLinkSubjectKey& SubjectKey);

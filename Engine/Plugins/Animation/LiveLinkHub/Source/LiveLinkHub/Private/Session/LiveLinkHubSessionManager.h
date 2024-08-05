@@ -10,6 +10,8 @@
 #include "HAL/CriticalSection.h"
 #include "IDesktopPlatform.h"
 #include "LiveLinkHubClient.h"
+#include "LiveLinkHubLog.h"
+#include "Settings/LiveLinkHubSettings.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.SessionManager"
 
@@ -138,11 +140,14 @@ public:
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{
 			FScopeLock Lock(&CurrentSessionCS);
-			CurrentSessionPtr =  CurrentSession;
+			CurrentSessionPtr = CurrentSession;
 		}
 
-		ULiveLinkHubSessionData* LiveLinkHubSessionData = Cast<ULiveLinkHubSessionData>(StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData.Get());
+		ULiveLinkHubSessionData* LiveLinkHubSessionData = CastChecked<ULiveLinkHubSessionData>(StaticCastSharedPtr<FLiveLinkHubSession>(CurrentSessionPtr)->SessionData.Get());
 
+		LiveLinkHubSessionData->Sources.Empty();
+		LiveLinkHubSessionData->Subjects.Empty();
+		
 		TArray<FGuid> SourceGuids = LiveLinkHubClient->GetSources();
 		for (const FGuid& SourceGuid : SourceGuids)
 		{
@@ -182,8 +187,6 @@ public:
 
 		const FString DefaultFile = UE::LiveLinkHub::FileUtilities::Private::ConfigDefaultFileName;
 
-		ClearSession();
-
 		TArray<FString> OpenFileNames;
 
 		IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
@@ -199,6 +202,10 @@ public:
 
 		if (bFileSelected && OpenFileNames.Num() > 0)
 		{
+			// Certain sources may take time to clean up. If they don't complete in time then the new config being loaded may not create
+			// duplicate sources correctly. There should be errors in the logs of the sources that failed to remove or were unable to be added.
+			constexpr bool bWaitForSourceRemoval = true;
+			ClearSession(bWaitForSourceRemoval);
 			RestoreSession(OpenFileNames[0]);
 		}
 	}
@@ -263,16 +270,19 @@ private:
 	}
 
 	/** Clear the hub data contained in the current session, resetting the hub to its default state. */
-	void ClearSession()
+	void ClearSession(bool bWaitForSourceRemoval = false)
 	{
 		FLiveLinkHubClient* LiveLinkHubClient = static_cast<FLiveLinkHubClient*>(&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName));
 		check(LiveLinkHubClient);
-
-		LiveLinkHubClient->RemoveAllSources();
-
-		// Removing sources only sets bPendingKill to true, need to tick to make sure they are removed.
-		LiveLinkHubClient->ForceTick();
-
+		
+		const float TimeToWaitForRemoval = bWaitForSourceRemoval ? GetDefault<ULiveLinkHubSettings>()->SourceMaxCleanupTime : 0.f;
+		const bool bRemovedAllSources = LiveLinkHubClient->RemoveAllSourcesWithTimeout(TimeToWaitForRemoval);
+		
+		if (!bRemovedAllSources && bWaitForSourceRemoval)
+		{
+			UE_LOG(LogLiveLinkHub, Warning, TEXT("Could not remove all existing sources in time. Sources may still be getting cleaned up."));
+		}
+		
 		TSharedPtr<FLiveLinkHubSession> CurrentSessionPtr;
 		{
 			FScopeLock Lock(&CurrentSessionCS);

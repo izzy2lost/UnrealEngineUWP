@@ -50,6 +50,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="LiveLinkHub", meta = (ConfigRestartRequired = true, ClampMin="15.0"))
 	float TargetFrameRate = 60.0f;
 
+	/** Maximum time in seconds to wait for sources to clean up. */
+	UPROPERTY(config, EditAnywhere, AdvancedDisplay, Category="LiveLinkHub", meta = (ClampMin="0.0"))
+	float SourceMaxCleanupTime = 0.25f;
+	
 	/** The filename template to use when creating recordings. */
 	UPROPERTY(config, EditAnywhere, Category="Templates")
 	FString FilenameTemplate = TEXT("NewLiveLinkRecording");
