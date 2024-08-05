@@ -86,6 +86,6 @@ struct TStructOpsTypeTraits<FInstancedStructNetSerializerConfig> : public TStruc
 namespace UE::Net
 {
 
-UE_NET_DECLARE_SERIALIZER(FInstancedStructNetSerializer, STRUCTUTILS_API);
+UE_NET_DECLARE_SERIALIZER(FInstancedStructNetSerializer, IRISCORE_API);
 
 }

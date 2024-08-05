@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "InstancedStructNetSerializer.h"
+#include "Iris/Serialization/InstancedStructNetSerializer.h"
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InstancedStructNetSerializer)
 
 #if UE_WITH_IRIS

@@ -6,6 +6,7 @@
 #include "EnumNetSerializers.h"
 #include "FloatNetSerializers.h"
 #include "GuidNetSerializer.h"
+#include "InstancedStructNetSerializer.h"
 #include "IntNetSerializers.h"
 #include "IntRangeNetSerializers.h"
 #include "IntNetSerializers.h"

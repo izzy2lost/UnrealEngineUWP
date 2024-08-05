@@ -9,7 +9,6 @@
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetReferenceCollector.h"
 #include "Iris/Serialization/NetSerializers.h"
-#include "InstancedStructNetSerializer.h"
 #include "Net/UnrealNetwork.h"
 
 namespace UE::Net
