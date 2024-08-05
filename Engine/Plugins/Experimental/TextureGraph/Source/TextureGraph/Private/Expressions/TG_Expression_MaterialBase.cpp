@@ -142,8 +142,7 @@ void UTG_Expression_MaterialBase::Evaluate(FTG_EvaluationContext* InContext)
 	if (GetMaterial() && MaterialInstance)
 	{
 		FString AssetName = GetMaterial()->GetName();
-
-		const auto RenderMaterial = std::make_shared<RenderMaterial_BP>(AssetName, MaterialInstance->GetMaterial(), MaterialInstance);
+		const auto RenderMaterial = std::make_shared<RenderMaterial_BP>(AssetName, GetMaterial(), nullptr);
 		Result = CreateRenderMaterialJob(InContext, RenderMaterial, Output.GetBufferDescriptor(), GetRenderedAttributeId());
 	}
 
@@ -199,7 +198,7 @@ TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_Evaluation
 
 	Desc.DefaultValue = FLinearColor::Black;
 
-	LinkMaterialParameters(InContext, MaterialJob, InRenderMaterial->GetMaterial(), Desc);
+	LinkMaterialParameters(InContext, MaterialJob, GetMaterial(), Desc);
 
 	const TiledBlob_PromisePtr MaterialResult = std::static_pointer_cast<TiledBlob_Promise>(MaterialJob->InitResult(InRenderMaterial->GetName(), &Desc));
 	MaterialJob->AddArg(WithUnbounded(ARG_BOOL(TiledMode, "TiledMode")));
@@ -220,7 +219,7 @@ TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_Evaluation
 
 }
 
-void UTG_Expression_MaterialBase::LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterial* InMaterial, BufferDescriptor InDescriptor)
+void UTG_Expression_MaterialBase::LinkMaterialParameters(FTG_EvaluationContext* InContext, JobUPtr& InMaterialJob, const UMaterialInterface* InMaterial, BufferDescriptor InDescriptor)
 {
 	if (InMaterialJob)
 	{	

@@ -17,7 +17,7 @@ private:
 	ERHIFeatureLevel::Type FeatureLevel;
 
 public:
-	RenderMaterial_Thumbnail(FString InName, UMaterial* InMaterial, UMaterialInstanceDynamic* instance = nullptr);
+	RenderMaterial_Thumbnail(FString InName, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* instance = nullptr);
 
 	virtual void BlitTo(FRHICommandListImmediate& RHI, UTextureRenderTarget2D* DstRT, const RenderMesh* MeshObj, int32 TargetId) const override;
 	virtual bool CanHandleTiles() const override { return true; };

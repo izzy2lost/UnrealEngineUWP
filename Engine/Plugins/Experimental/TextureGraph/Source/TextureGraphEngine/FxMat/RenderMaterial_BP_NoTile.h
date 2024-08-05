@@ -11,7 +11,7 @@ class TEXTUREGRAPHENGINE_API RenderMaterial_BP_NoTile : public RenderMaterial_BP
 {
 
 public:
-	RenderMaterial_BP_NoTile(FString InName, UMaterial* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr) : RenderMaterial_BP(InName, InMaterial, InMaterialInstance) {}
+	RenderMaterial_BP_NoTile(FString InName, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr) : RenderMaterial_BP(InName, InMaterial, InMaterialInstance) {}
 	virtual bool					CanHandleTiles() const override { return false; };
 };
 
@@ -23,7 +23,7 @@ private:
 	FName							MemberName = "TileInfo";
 
 public:
-	RenderMaterial_BP_TileArgs(FString InName, UMaterial* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr) : RenderMaterial_BP(InName, InMaterial, InMaterialInstance) {}
+	RenderMaterial_BP_TileArgs(FString InName, UMaterialInterface* InMaterial, UMaterialInstanceDynamic* InMaterialInstance = nullptr) : RenderMaterial_BP(InName, InMaterial, InMaterialInstance) {}
 	void							AddTileArgs(TransformArgs& Args);
 	virtual AsyncPrepareResult		PrepareResources(const TransformArgs& Args) override;
 	virtual bool					CanHandleTiles() const override { return true; };
