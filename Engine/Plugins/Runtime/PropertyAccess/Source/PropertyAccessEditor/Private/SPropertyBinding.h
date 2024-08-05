@@ -46,8 +46,17 @@ protected:
 		UFunction* Function;
 	};
 
+	struct FBindingContextStructCategory
+	{
+		FText Name;
+		TArray<FBindingContextStructCategory> SubCategories;
+		TArray<int32> BindingContextStructIndices;
+	};
+
+
 	TSharedRef<SWidget> OnGenerateDelegateMenu();
 	void FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOwnerStruct, TArray<TSharedPtr<FBindingChainElement>> InBindingChain);
+	void FillCategoryMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory* Category);
 
 	const FSlateBrush* GetCurrentBindingImage() const;
 	FText GetCurrentBindingText() const;
@@ -77,6 +86,7 @@ protected:
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 
 private:
+
 	bool IsClassDenied(UClass* OwnerClass) const;
 	bool IsFieldFromDeniedClass(FFieldVariant Field) const;
 	bool HasBindableProperties(UStruct* InStruct, TArray<TSharedPtr<FBindingChainElement>>& BindingChain) const;
@@ -92,8 +102,16 @@ private:
 	template <typename Predicate>
 	void ForEachBindableFunction(UClass* FromClass, Predicate Pred) const;
 
+	void AddCategoryToMenu(FMenuBuilder& MenuBuilder, const FBindingContextStructCategory& Category);
+	void BuildContextStructCategoryRecursive(TConstArrayView<FString> CategoryNames, TArray<FBindingContextStructCategory>& ParentSubCategories, int32 ContextStructIndex);
+	bool HasCategorySomethingToDisplayRecursive(const FBindingContextStructCategory& Category) const;
+
+	TSharedRef<SWidget> MakeContextStructWidget(const FBindingContextStruct& ContextStruct) const;
+
 	UBlueprint* Blueprint = nullptr;
 	TArray<FBindingContextStruct> BindingContextStructs;
+	// Top level sections of the binding ContextStructs
+	TArray<FBindingContextStructCategory> BindingContextStructSections;
 	FPropertyBindingWidgetArgs Args;
 	FName PropertyName;
 };

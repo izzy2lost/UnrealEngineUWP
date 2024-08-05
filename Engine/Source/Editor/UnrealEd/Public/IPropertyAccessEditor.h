@@ -96,6 +96,9 @@ struct FBindingContextStruct
 
 	/** Name of the section to put the struct to. If left empty, no section will be created. */
 	FText Section;
+
+	/** Category separated by | of the struct. Will display as submenus. Not part of the section to avoid converting Text to string and back. */
+	FString Category;
 };
 
 
