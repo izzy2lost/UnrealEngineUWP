@@ -3312,7 +3312,7 @@ bool FStateTreeExecutionContext::TriggerTransitions()
 							if (!bIsDelayedTransitionExisting)
 							{
 								// Initialize new delayed transition.
-								const float DelayDuration = Transition.Delay.GetRandomDuration();
+								const float DelayDuration = Transition.Delay.GetRandomDuration(Exec.RandomStream);
 								if (DelayDuration > 0.0f)
 								{
 									FStateTreeTransitionDelayedState& DelayedState = Exec.DelayedTransitions.AddDefaulted_GetRef();

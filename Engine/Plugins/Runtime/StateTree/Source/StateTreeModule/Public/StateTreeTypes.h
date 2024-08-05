@@ -501,13 +501,20 @@ struct STATETREEMODULE_API FStateTreeRandomTimeDuration
 	bool IsEmpty() const { return Duration == 0 && RandomVariance == 0; }
 	
 	/** @return Returns random duration around Duration, varied by +-RandomVariation. */
-	float GetRandomDuration() const
+	float GetRandomDuration(const FRandomStream& RandomStream) const
 	{
 		const int32 MinVal = FMath::Max(0, static_cast<int32>(Duration) - static_cast<int32>(RandomVariance));
 		const int32 MaxVal = static_cast<int32>(Duration) + static_cast<int32>(RandomVariance);
-		return static_cast<decltype(Scale)>(FMath::RandRange(MinVal, MaxVal)) / Scale;
+		return static_cast<decltype(Scale)>(RandomStream.RandRange(MinVal, MaxVal)) / Scale;
 	}
-	
+
+	UE_DEPRECATED(5.5, "Use the version with random stream instead.")
+	float GetRandomDuration() const
+	{
+		const FRandomStream RandomStream((int32)FPlatformTime::Cycles());
+		return GetRandomDuration(RandomStream);
+	}
+
 protected:
 
 	static constexpr float Scale = 100.0f;
