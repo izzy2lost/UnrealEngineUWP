@@ -21,7 +21,7 @@ namespace UE::ConcertSyncClient::Replication { struct FRemoteEditEvent; }
 namespace UE::MultiUserClient::Replication
 {
 	class FMuteStateSynchronizer;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	
 	/**
 	 * Implements all logic for managing presets in the MU session: saving and loading presets.
@@ -33,7 +33,7 @@ namespace UE::MultiUserClient::Replication
 		
 		FPresetManager(
 			const IConcertSyncClient& SyncClient UE_LIFETIMEBOUND,
-			const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
+			const FOnlineClientManager& ClientManager UE_LIFETIMEBOUND,
 			const FMuteStateSynchronizer& MuteStateSynchronizer UE_LIFETIMEBOUND
 			);
 		~FPresetManager();
@@ -57,7 +57,7 @@ namespace UE::MultiUserClient::Replication
 		/** Used to get display information of clients in the session. */
 		const IConcertSyncClient& SyncClient;
 		/** Used to get the clients' replication content. */
-		const FReplicationClientManager& ClientManager;
+		const FOnlineClientManager& ClientManager;
 		/** Used to get the mute state when saving. */
 		const FMuteStateSynchronizer& MuteStateSynchronizer;
 

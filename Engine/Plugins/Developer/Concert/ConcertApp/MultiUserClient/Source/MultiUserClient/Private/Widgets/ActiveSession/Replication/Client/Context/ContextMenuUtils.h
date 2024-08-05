@@ -17,7 +17,7 @@ namespace UE::ConcertSharedSlate
 namespace UE::MultiUserClient::Replication
 {
 	class FReassignObjectPropertiesLogic;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 }
 
 namespace UE::MultiUserClient::Replication::ContextMenuUtils
@@ -27,16 +27,16 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 		FMenuBuilder& MenuBuilder,
 		const TSoftObjectPtr<>& ContextObject,
 		const IConcertClient& ConcertClient,
-		const FReplicationClientManager& ReplicationManager,
+		const FOnlineClientManager& ReplicationManager,
 		ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		ConcertSharedSlate::IMultiReplicationStreamEditor& MultiStreamEditor
 		);
 	
 	/** Adds an edit box for batch reassigning the select object's frequencies for all replicating clients. */
-	void AddFrequencyOptionsForMultipleClients(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObjects, FReplicationClientManager& InClientManager);
+	void AddFrequencyOptionsForMultipleClients(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObjects, FOnlineClientManager& InClientManager);
 	/** Adds an edit box for batch reassigning the select object's frequencies for all replicating clients. */
-	inline void AddFrequencyOptionsIfOneContextObject_MultiClient(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects, FReplicationClientManager& InClientManager)
+	inline void AddFrequencyOptionsIfOneContextObject_MultiClient(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects, FOnlineClientManager& InClientManager)
 	{
 		if (ContextObjects.Num() == 1)
 		{

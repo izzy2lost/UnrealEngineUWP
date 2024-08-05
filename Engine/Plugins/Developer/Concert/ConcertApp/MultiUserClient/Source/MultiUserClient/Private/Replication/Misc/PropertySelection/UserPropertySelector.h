@@ -4,8 +4,9 @@
 
 #include "Assets/MultiUserReplicationStream.h"
 
+#include "Replication/Client/Online/RemoteClient.h"
+
 #include "HAL/Platform.h"
-#include "Replication/Client/RemoteReplicationClient.h"
 #include "Templates/UnrealTemplate.h"
 #include "UObject/GCObject.h"
 #include "UObject/ObjectPtr.h"
@@ -23,7 +24,7 @@ namespace UE::ConcertSharedSlate
 namespace UE::MultiUserClient::Replication
 {
 	class FUserPropertySelectionSource;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	
 	/**
 	 * Manages the properties the user is iterating on in the replication session.
@@ -38,7 +39,7 @@ namespace UE::MultiUserClient::Replication
 	{
 	public:
 		
-		FUserPropertySelector(FReplicationClientManager& InClientManager UE_LIFETIMEBOUND);
+		FUserPropertySelector(FOnlineClientManager& InClientManager UE_LIFETIMEBOUND);
 		~FUserPropertySelector();
 
 		/** Add Properties from the user's selection for Object. */
@@ -62,7 +63,7 @@ namespace UE::MultiUserClient::Replication
 	private:
 
 		/** Used to remove deselected properties from local client's stream. */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 
 		/** This underlying object saves the properties that user has selected. It allows for transactions. */
 		TObjectPtr<UMultiUserReplicationStream> PropertySelection;
@@ -76,9 +77,9 @@ namespace UE::MultiUserClient::Replication
 		FOnPropertySelectionChanged OnPropertySelectionChangedDelegate;
 
 		/** Called when a remote client joins. */
-		void OnClientAdded(FRemoteReplicationClient& Client) { RegisterClient(Client); }
+		void OnClientAdded(FRemoteClient& Client) { RegisterClient(Client); }
 		/** Ensures that whenever the client's server state changes, its properties are tracked as user selected. */
-		void RegisterClient(FReplicationClient& Client);
+		void RegisterClient(FOnlineClient& Client);
 
 		/** Tracks all properties of the client as user selected. */
 		void OnServerStateChanged(const FGuid ClientId);

@@ -117,7 +117,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
-		const FReplicationClientManager& ClientManager,
+		const FOnlineClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
 	{
@@ -130,7 +130,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 				TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 				const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
 				FReassignObjectPropertiesLogic& ReassignmentLogic UE_LIFETIMEBOUND,
-				const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND
+				const FOnlineClientManager& ClientManager UE_LIFETIMEBOUND
 				)
 				: ConcertClient(MoveTemp(ConcertClient))
 				, MultiStreamModelAttribute(MoveTemp(MultiStreamModelAttribute))
@@ -181,7 +181,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			const TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute;
 			const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy;
 			FReassignObjectPropertiesLogic& ReassignmentLogic;
-			const FReplicationClientManager& ClientManager;
+			const FOnlineClientManager& ClientManager;
 			
 			TOptional<FString> GetDisplayString(const FSoftObjectPath& ManagedObject) const
 			{

@@ -21,7 +21,7 @@ namespace UE::MultiUserClient
 namespace UE::MultiUserClient::Replication
 {
 	class FClientChangeOperation;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	class FSubmissionQueue;
 	
 	/**

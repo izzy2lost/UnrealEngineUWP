@@ -4,12 +4,12 @@
 
 #include "Replication/AuthorityConflictSharedUtils.h"
 #include "Replication/Authority/EAuthorityMutability.h"
-#include "Replication/Client/RemoteReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/RemoteClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 
 namespace UE::MultiUserClient::Replication
 {
-	FGlobalAuthorityCache::FGlobalAuthorityCache(FReplicationClientManager& InClientManager)
+	FGlobalAuthorityCache::FGlobalAuthorityCache(FOnlineClientManager& InClientManager)
 		: ClientManager(InClientManager)
 	{}
 
@@ -92,7 +92,7 @@ namespace UE::MultiUserClient::Replication
 
 	EAuthorityMutability FGlobalAuthorityCache::CanClientTakeAuthorityAfterSubmission(const FSoftObjectPath& Object, const FGuid& ClientId, FProcessPropertyConflict ProcessConflict) const
 	{
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (!ensure(Client))
 		{
 			return EAuthorityMutability::NotApplicable;
@@ -121,7 +121,7 @@ namespace UE::MultiUserClient::Replication
 
 	bool FGlobalAuthorityCache::CanClientAddProperty(const FSoftObjectPath& Object, const FGuid& ClientId, const FConcertPropertyChain& Chain) const
 	{
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (!ensure(Client))
 		{
 			return false;
@@ -147,7 +147,7 @@ namespace UE::MultiUserClient::Replication
 
 		for (const FGuid& ClientId : *ClientsWithStreams)
 		{
-			const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+			const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 			if (!ensure(Client))
 			{
 				continue;
@@ -181,7 +181,7 @@ namespace UE::MultiUserClient::Replication
 		
 		ForEachClientWithAuthorityOverObject(Object, [this, &Object, &PropertyChain, &Result, Hash](const FGuid& ClientId)
 		{
-			const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+			const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 			if (!ensureMsgf(Client, TEXT("OnPreRemoteClientRemoved should have updated OwnedObjectsToClients")))
 			{
 				return EBreakBehavior::Continue;
@@ -211,14 +211,14 @@ namespace UE::MultiUserClient::Replication
 		ConcertSyncCore::Replication::AuthorityConflictUtils::CleanseConflictsFromStreamRequest(Request, SendingClient, *this);
 	}
 
-	void FGlobalAuthorityCache::RegisterForClientEvents(const FReplicationClient& Client)
+	void FGlobalAuthorityCache::RegisterForClientEvents(const FOnlineClient& Client)
 	{
 		const FGuid& ClientEndpointId = Client.GetEndpointId();
 		Client.GetAuthoritySynchronizer().OnServerStateChanged().AddRaw(this, &FGlobalAuthorityCache::OnPostAuthorityChanged, ClientEndpointId);
 		Client.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FGlobalAuthorityCache::OnStreamChanged, ClientEndpointId);
 	}
 
-	void FGlobalAuthorityCache::UnregisterFromClientEvents(const FReplicationClient& Client) const
+	void FGlobalAuthorityCache::UnregisterFromClientEvents(const FOnlineClient& Client) const
 	{
 		Client.GetAuthoritySynchronizer().OnServerStateChanged().RemoveAll(this);
 		Client.GetStreamSynchronizer().OnServerStateChanged().RemoveAll(this);
@@ -226,7 +226,7 @@ namespace UE::MultiUserClient::Replication
 
 	void FGlobalAuthorityCache::AddClient(const FGuid& ClientId)
 	{
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (!ensure(Client))
 		{
 			return;
@@ -271,7 +271,7 @@ namespace UE::MultiUserClient::Replication
 	
 	void FGlobalAuthorityCache::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const
 	{
-		const FReplicationClient* Client = ClientManager.FindClient(ClientEndpointId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientEndpointId);
 		if (!ensure(Client))
 		{
 			return;
@@ -283,7 +283,7 @@ namespace UE::MultiUserClient::Replication
 
 	void FGlobalAuthorityCache::ForEachClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const
 	{
-		auto ProcessClient = [&Callback](const FReplicationClient& Client)
+		auto ProcessClient = [&Callback](const FOnlineClient& Client)
 		{
 			return Client.GetAuthoritySynchronizer().HasAnyAuthority()
 				? Callback(Client.GetEndpointId())
@@ -294,7 +294,7 @@ namespace UE::MultiUserClient::Replication
 		{
 			return;
 		}
-		for (const TNonNullPtr<FRemoteReplicationClient>& RemoteClient : ClientManager.GetRemoteClients())
+		for (const TNonNullPtr<FRemoteClient>& RemoteClient : ClientManager.GetRemoteClients())
 		{
 			if (ProcessClient(*RemoteClient) == EBreakBehavior::Break)
 			{

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ReplicationClient.h"
+#include "OnlineClient.h"
 
 #include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
@@ -15,7 +15,7 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FReplicationClient::FReplicationClient(
+	FOnlineClient::FOnlineClient(
 		const FGuid& EndpointId,
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
@@ -55,12 +55,12 @@ namespace UE::MultiUserClient::Replication
 		, AutoSubmissionPolicy(SubmissionQueue, ChangeRequestBuilder, LocalClientEditModel.Get(), LocalAuthorityDiffer, LocalFrequencyChangeTracker)
 		, LevelModificationHandler(GetClientEditModel().Get())
 	{
-		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
-		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
-		LocalAuthorityDiffer.OnChangedOwnedObjects().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
+		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FOnlineClient::OnObjectsChanged);
+		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FOnlineClient::OnPropertiesChanged);
+		LocalAuthorityDiffer.OnChangedOwnedObjects().AddRaw(this, &FOnlineClient::DeferOnModelChanged);
 
-		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
-		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::OnServerStateChanged);
+		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FOnlineClient::OnAuthoritySubmissionCompleted);
+		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FOnlineClient::OnServerStateChanged);
 
 		LevelModificationHandler.OnHierarchyNeedsRefresh().AddLambda([this]()
 		{
@@ -68,17 +68,17 @@ namespace UE::MultiUserClient::Replication
 		});
 	}
 
-	FReplicationClient::~FReplicationClient()
+	FOnlineClient::~FOnlineClient()
 	{
 		FCoreDelegates::OnEndFrame.RemoveAll(this);
 	}
 
-	bool FReplicationClient::AllowsEditing() const
+	bool FOnlineClient::AllowsEditing() const
 	{
 		return CanEverSubmit(SubmissionWorkflow->GetUploadability()); 
 	}
 
-	void FReplicationClient::OnObjectsChanged(
+	void FOnlineClient::OnObjectsChanged(
 		TConstArrayView<UObject*> AddedObjects,
 		TConstArrayView<FSoftObjectPath> RemovedObjects,
 		ConcertSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
@@ -87,12 +87,12 @@ namespace UE::MultiUserClient::Replication
 		DeferOnModelChanged(AddedObjects);
 	}
 
-	void FReplicationClient::OnPropertiesChanged()
+	void FOnlineClient::OnPropertiesChanged()
 	{
 		DeferOnModelChanged();
 	}
 
-	void FReplicationClient::OnServerStateChanged()
+	void FOnlineClient::OnServerStateChanged()
 	{
 		// Whenever this client's server state changes, the UI must be refreshed.
 
@@ -121,12 +121,12 @@ namespace UE::MultiUserClient::Replication
 		DeferOnModelChanged();
 	}
 
-	void FReplicationClient::DeferOnModelChanged(TConstArrayView<UObject*> AddedObjects)
+	void FOnlineClient::DeferOnModelChanged(TConstArrayView<UObject*> AddedObjects)
 	{
 		if (!DeferredOnModelChangedData)
 		{
 			DeferredOnModelChangedData.Emplace();
-			FCoreDelegates::OnEndFrame.AddRaw(this, &FReplicationClient::ProcessOnModelChanged);
+			FCoreDelegates::OnEndFrame.AddRaw(this, &FOnlineClient::ProcessOnModelChanged);
 		}
 
 		Algo::Transform(AddedObjects, DeferredOnModelChangedData->AccumulatedAddedObjects, [](UObject* Object)
@@ -135,7 +135,7 @@ namespace UE::MultiUserClient::Replication
 		});
 	}
 
-	void FReplicationClient::ProcessOnModelChanged()
+	void FOnlineClient::ProcessOnModelChanged()
 	{
 		check(DeferredOnModelChangedData);
 		const FDeferredOnModelChangedData ChangeData = MoveTemp(*DeferredOnModelChangedData);
@@ -158,7 +158,7 @@ namespace UE::MultiUserClient::Replication
 		AutoSubmissionPolicy.ProcessAccumulatedChangesAndSubmit();
 	}
 	
-	void FReplicationClient::TakeAuthorityOverNewlyAddedObjects(const FDeferredOnModelChangedData& ChangeData)
+	void FOnlineClient::TakeAuthorityOverNewlyAddedObjects(const FDeferredOnModelChangedData& ChangeData)
 	{
 		TArray<FSoftObjectPath> ObjectPaths;
 		Algo::TransformIf(ChangeData.AccumulatedAddedObjects, ObjectPaths,
@@ -174,7 +174,7 @@ namespace UE::MultiUserClient::Replication
 		LocalAuthorityDiffer.SetAuthorityIfAllowed(ObjectPaths, true);
 	}
 
-	void FReplicationClient::ApplyDefaultFrequencySettings(const FDeferredOnModelChangedData& ChangeData)
+	void FOnlineClient::ApplyDefaultFrequencySettings(const FDeferredOnModelChangedData& ChangeData)
 	{
 		UMultiUserReplicationSettings* Settings = UMultiUserReplicationSettings::Get();
 		for (const TWeakObjectPtr<UObject>& AddedObject : ChangeData.AccumulatedAddedObjects)
@@ -192,7 +192,7 @@ namespace UE::MultiUserClient::Replication
 		}
 	}
 
-	void FReplicationClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
+	void FOnlineClient::OnAuthoritySubmissionCompleted(const FSubmitAuthorityChangesRequest& Request, const FSubmitAuthorityChangesResponse& Response)
 	{
 		if (!Response.Response)
 		{

@@ -142,8 +142,8 @@ namespace UE::MultiUserClient::Replication
 
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
 	{
-		FReplicationClientManager& ClientManager = ConnectedState->ClientManager;
-		ClientManager.ForEachClient([this](FReplicationClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
+		FOnlineClientManager& ClientManager = ConnectedState->ClientManager;
+		ClientManager.ForEachClient([this](FOnlineClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
 		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
 	}
 
@@ -159,7 +159,7 @@ namespace UE::MultiUserClient::Replication
 		OnAuthorityServerStateChangedDelegate.Broadcast(EndpointId);
 	}
 
-	void FMultiUserReplicationManager::SetupClientDelegates(FReplicationClient& InClient) const
+	void FMultiUserReplicationManager::SetupClientDelegates(FOnlineClient& InClient) const
 	{
 		InClient.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
 		InClient.GetAuthoritySynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientAuthorityServerStateChanged, InClient.GetEndpointId());
@@ -169,7 +169,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? &ReplicationClient->GetStreamSynchronizer().GetServerState()
 				: nullptr;
@@ -181,7 +181,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? &ReplicationClient->GetStreamSynchronizer().GetFrequencySettings()
 				: nullptr;
@@ -193,7 +193,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient && ReplicationClient->GetAuthoritySynchronizer().HasAuthorityOver(ObjectPath);
 		}
 		return false;
@@ -224,7 +224,7 @@ namespace UE::MultiUserClient::Replication
 		
 		if (ConnectedState)
 		{
-			FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? ReplicationClient->GetExternalRequestHandler().HandleRequest(MoveTemp(SubmissionParams))
 				: FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::UnknownClient, EChangeAuthorityOperationResult::UnknownClient);

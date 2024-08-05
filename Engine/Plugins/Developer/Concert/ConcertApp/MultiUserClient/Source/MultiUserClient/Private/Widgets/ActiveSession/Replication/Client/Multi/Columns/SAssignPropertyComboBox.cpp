@@ -4,8 +4,8 @@
 
 #include "ConcertLogGlobal.h"
 #include "IConcertClient.h"
-#include "Replication/Client/ReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
@@ -30,10 +30,10 @@ namespace UE::MultiUserClient::Replication
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FReplicationClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<TSoftObjectPtr<>>& EditedObjects)
+		TArray<FGuid> GetDisplayedClients(const FOnlineClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<TSoftObjectPtr<>>& EditedObjects)
 		{
 			TArray<FGuid> Clients;
-			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FReplicationClient& Client)
+			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FOnlineClient& Client)
 			{
 				const TMap<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectInfoMap = Client.GetStreamSynchronizer().GetServerState().ReplicatedObjects;
 				for (const TSoftObjectPtr<>& ObjectPath : EditedObjects)
@@ -53,7 +53,7 @@ namespace UE::MultiUserClient::Replication
 	
 	TOptional<FString> SAssignPropertyComboBox::GetDisplayString(
 		const TSharedRef<IConcertClient>& LocalConcertClient,
-		const FReplicationClientManager& ClientManager,
+		const FOnlineClientManager& ClientManager,
 		const FConcertPropertyChain& DisplayedProperty,
 		const TArray<TSoftObjectPtr<>>& EditedObjects)
 	{
@@ -71,7 +71,7 @@ namespace UE::MultiUserClient::Replication
 	void SAssignPropertyComboBox::Construct(const FArguments& InArgs,
 	    TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
 	    TSharedRef<IConcertClient> InConcertClient,
-	    FReplicationClientManager& InClientManager
+	    FOnlineClientManager& InClientManager
 	)
 	{
 		Editor = MoveTemp(InEditor);
@@ -147,7 +147,7 @@ namespace UE::MultiUserClient::Replication
 		);
 		
 		MenuBuilder.BeginSection(TEXT("AssignTo"), LOCTEXT("AssignTo", "Assign to"));
-		for (const FReplicationClient* Client : ClientUtils::GetSortedClientList(*ConcertClient, *ClientManager))
+		for (const FOnlineClient* Client : ClientUtils::GetSortedClientList(*ConcertClient, *ClientManager))
 		{
 			TAttribute<FText> Tooltip = TAttribute<FText>::CreateLambda([this, EndpointId = Client->GetEndpointId()]()
 			{
@@ -187,7 +187,7 @@ namespace UE::MultiUserClient::Replication
 	void SAssignPropertyComboBox::OnClickOption(const FGuid EndpointId) const
 	{
 		// Remote clients can disconnect after the combo-box is opened.
-		const FReplicationClient* Client = ClientManager->FindClient(EndpointId);
+		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
 		if (!Client)
 		{
 			return;
@@ -203,12 +203,12 @@ namespace UE::MultiUserClient::Replication
 		if (bRemovePropertyFromEditedClient)
 		{
 			// ... remove property from all clients
-			UnassignPropertyFromClients([](const FReplicationClient& ClientToRemoveFrom){ return true; });
+			UnassignPropertyFromClients([](const FOnlineClient& ClientToRemoveFrom){ return true; });
 		}
 		else
 		{
 			// ... remove the property from all clients but the one we'll assign to ...
-			UnassignPropertyFromClients([Client](const FReplicationClient& ClientToRemoveFrom){ return *Client != ClientToRemoveFrom; });
+			UnassignPropertyFromClients([Client](const FOnlineClient& ClientToRemoveFrom){ return *Client != ClientToRemoveFrom; });
 
 			// ... and then assign the property
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
@@ -233,7 +233,7 @@ namespace UE::MultiUserClient::Replication
 #define SET_REASON(Text) if (Reason) { *Reason = Text; }
 	bool SAssignPropertyComboBox::CanClickOptionWithReason(const FGuid& EndpointId, FText* Reason) const
 	{
-		const FReplicationClient* Client = ClientManager->FindClient(EndpointId);
+		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
 		// Remote clients can disconnect after the combo-box is opened.
 		if (!Client)
 		{
@@ -243,7 +243,7 @@ namespace UE::MultiUserClient::Replication
 
 		// The combo box assigns the property to the clicked client and removes from the others... check that the currently assigned clients allow it.
 		bool bCanRemoveFromOwners = true;
-		ClientManager->ForEachClient([this, &EndpointId, &Reason, Client, &bCanRemoveFromOwners](const FReplicationClient& ClientToRemoveFrom)
+		ClientManager->ForEachClient([this, &EndpointId, &Reason, Client, &bCanRemoveFromOwners](const FOnlineClient& ClientToRemoveFrom)
 		{
 			if (*Client != ClientToRemoveFrom && !ClientToRemoveFrom.AllowsEditing())
 			{
@@ -281,7 +281,7 @@ namespace UE::MultiUserClient::Replication
 	
 	ECheckBoxState SAssignPropertyComboBox::GetOptionCheckState(const FGuid EndpointId) const
 	{
-		const FReplicationClient* Client = ClientManager->FindClient(EndpointId);
+		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
 		// Remote clients can disconnect after the combo-box is opened.
 		if (!Client)
 		{
@@ -322,14 +322,14 @@ namespace UE::MultiUserClient::Replication
 		const FText TransactionText = FText::Format(LOCTEXT("ClearAllClientsFmt", "Clear {0} property"), FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty)));
 		FScopedTransaction Transaction(TransactionText);
 
-		UnassignPropertyFromClients([](const FReplicationClient& ClientToRemoveFrom){ return true; });
+		UnassignPropertyFromClients([](const FOnlineClient& ClientToRemoveFrom){ return true; });
 		OnOptionClickedDelegate.ExecuteIfBound();
 	}
 
 	bool SAssignPropertyComboBox::CanClickClear() const
 	{
 		bool bIsAssignedToAnyClient = false;
-		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FReplicationClient& Client)
+		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FOnlineClient& Client)
 		{
 			for (const TSoftObjectPtr<>& EditedObject : EditedObjects)
 			{
@@ -348,9 +348,9 @@ namespace UE::MultiUserClient::Replication
 		return bIsAssignedToAnyClient;
 	}
 
-	void SAssignPropertyComboBox::UnassignPropertyFromClients(TFunctionRef<bool(const FReplicationClient& Client)> ShouldRemoveFromClient) const
+	void SAssignPropertyComboBox::UnassignPropertyFromClients(TFunctionRef<bool(const FOnlineClient& Client)> ShouldRemoveFromClient) const
 	{
-		ClientManager->ForEachClient([this, &ShouldRemoveFromClient](const FReplicationClient& ClientToRemoveFrom)
+		ClientManager->ForEachClient([this, &ShouldRemoveFromClient](const FOnlineClient& ClientToRemoveFrom)
 		{
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
 			if (ClientToRemoveFrom.AllowsEditing() && ShouldRemoveFromClient(ClientToRemoveFrom))
@@ -386,7 +386,7 @@ namespace UE::MultiUserClient::Replication
 
 	void SAssignPropertyComboBox::RebuildSubscriptions()
 	{
-		ClientManager->ForEachClient([this](FReplicationClient& Client)
+		ClientManager->ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().RemoveAll(this);
 			Client.OnModelChanged().AddSP(this, &SAssignPropertyComboBox::RefreshContentBoxContent);

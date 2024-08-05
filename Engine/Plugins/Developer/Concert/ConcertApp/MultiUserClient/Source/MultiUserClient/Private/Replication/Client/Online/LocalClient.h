@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ReplicationClient.h"
+#include "OnlineClient.h"
 #include "Replication/Submission/Remote/RemoteSubmissionListener.h"
 
 namespace UE::MultiUserClient::Replication
@@ -10,7 +10,7 @@ namespace UE::MultiUserClient::Replication
 	class FGlobalAuthorityCache;
 
 	/** Holds extra information about a local replication client. */
-	class FLocalReplicationClient : public FReplicationClient
+	class FLocalClient : public FOnlineClient
 	{
 	public:
 		
@@ -21,7 +21,7 @@ namespace UE::MultiUserClient::Replication
 		 * @param InStreamSynchronizer Implementation for obtaining stream registered on server. The constructed instance takes ownership.
 		 * @param InClient The local editor's running client. Passed to subsystems so they can send messages to the current session. Keeps strong reference.
 		 */
-		FLocalReplicationClient(
+		FLocalClient(
 			FReplicationDiscoveryContainer& InDiscoveryContainer,
 			FGlobalAuthorityCache& InAuthorityCache,
 			UMultiUserReplicationStream& InClientStreamContent,

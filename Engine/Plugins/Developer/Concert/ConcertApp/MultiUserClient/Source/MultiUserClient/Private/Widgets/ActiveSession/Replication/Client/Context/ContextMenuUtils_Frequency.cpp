@@ -2,7 +2,7 @@
 
 #include "ContextMenuUtils.h"
 
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Misc/Frequency/FrequencyUtils.h"
 #include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 
@@ -40,7 +40,7 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 				SLATE_ATTRIBUTE(FInlineClientArray, Clients)
 			SLATE_END_ARGS()
 			
-			void Construct(const FArguments& InArgs, FReplicationClientManager& InClientManager)
+			void Construct(const FArguments& InArgs, FOnlineClientManager& InClientManager)
 			{
 				ContextObject = InArgs._SelectedObject;
 				ClientsAttribute = InArgs._Clients;
@@ -82,7 +82,7 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 
 			FSoftObjectPath ContextObject;
 			TAttribute<FInlineClientArray> ClientsAttribute;
-			FReplicationClientManager* ClientManager = nullptr;
+			FOnlineClientManager* ClientManager = nullptr;
 
 			struct FChangeOperation
 			{
@@ -182,7 +182,7 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 			}
 		};
 
-		static void AddReplicationModeSubMenu(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> Clients, FReplicationClientManager& InClientManager)
+		static void AddReplicationModeSubMenu(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, TAttribute<FInlineClientArray> Clients, FOnlineClientManager& InClientManager)
 		{
 			const auto SetReplicationMode = [ContextObject, Clients, &InClientManager](const EConcertObjectReplicationMode ModeToSet)
 			{
@@ -242,7 +242,7 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 			FMenuBuilder& MenuBuilder,
 			const FSoftObjectPath& ContextObject,
 			TAttribute<FInlineClientArray> GetClientsAttribute,
-			FReplicationClientManager& InClientManager
+			FOnlineClientManager& InClientManager
 			)
 		{
 			// Change to Realtime / Specified Rate
@@ -270,7 +270,7 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 			FMenuBuilder& MenuBuilder,
 			const FSoftObjectPath& ContextObject,
 			TFunction<FInlineClientArray(const FSoftObjectPath& Object)> GetClientsForObjectFunc,
-			FReplicationClientManager& InClientManager
+			FOnlineClientManager& InClientManager
 			)
 		{
 			bool bAddedSubmenu = false;
@@ -318,13 +318,13 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 		}
 	}
 
-	void AddFrequencyOptionsForMultipleClients(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, FReplicationClientManager& InClientManager)
+	void AddFrequencyOptionsForMultipleClients(FMenuBuilder& MenuBuilder, const FSoftObjectPath& ContextObject, FOnlineClientManager& InClientManager)
 	{
 		using namespace Private;
 		const auto GetClientsForObject = [&InClientManager](const FSoftObjectPath& Object)
 		{
 			FInlineClientArray Result;
-			InClientManager.ForEachClient([&Object, &Result](const FReplicationClient& Client)
+			InClientManager.ForEachClient([&Object, &Result](const FOnlineClient& Client)
 			{
 				// Only clients that have the object registered should be considered
 				if (Client.GetStreamSynchronizer().GetServerState().HasProperties(Object))

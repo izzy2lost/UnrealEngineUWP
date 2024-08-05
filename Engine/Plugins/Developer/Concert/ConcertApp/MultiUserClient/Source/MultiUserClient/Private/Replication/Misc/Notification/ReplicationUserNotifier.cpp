@@ -4,7 +4,7 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FReplicationUserNotifier::FReplicationUserNotifier(FReplicationClientManager& InReplicationClientManager, FMuteStateManager& InMuteManager)
+	FReplicationUserNotifier::FReplicationUserNotifier(FOnlineClientManager& InReplicationClientManager, FMuteStateManager& InMuteManager)
 		: SubmissionNotifier(InReplicationClientManager)
 		, MutingNotifier(InMuteManager)
 	{}

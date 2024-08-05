@@ -37,7 +37,7 @@ namespace UE::MultiUserClient::Replication
 	 * Initializes systems that are common for local or remote clients.
 	 * This class' responsibility is to initialize all systems that exist for the life time of a client in a session.
 	 */
-	class FReplicationClient : public FNoncopyable
+	class FOnlineClient : public FNoncopyable
 	{
 	public:
 		
@@ -50,7 +50,7 @@ namespace UE::MultiUserClient::Replication
 		 * @param InAuthoritySynchronizer Implementation for obtaining the client's authority state on server. The constructed instance takes ownership.
 		 * @param InSubmissionWorkflow Implementation for for changing client streams and authority on the server. The constructed instance takes ownership.
 		 */
-		FReplicationClient(
+		FOnlineClient(
 			const FGuid& EndpointId,
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			FGlobalAuthorityCache& InAuthorityCache UE_LIFETIMEBOUND,
@@ -59,7 +59,7 @@ namespace UE::MultiUserClient::Replication
 			TUniquePtr<IClientAuthoritySynchronizer> InAuthoritySynchronizer,
 			TUniquePtr<ISubmissionWorkflow> InSubmissionWorkflow
 			);
-		~FReplicationClient();
+		~FOnlineClient();
 
 		UMultiUserReplicationStream* GetClientStreamObject() const { return ClientStreamContent; }
 		FMultiUserStreamExtender& GetStreamExtender() { return *StreamExtender; }
@@ -94,7 +94,7 @@ namespace UE::MultiUserClient::Replication
 		/** @return Whether it is allowed to edit the stream and authority for this client. */
 		bool AllowsEditing() const;
 		
-		bool operator==(const FReplicationClient& Client) const { return GetEndpointId() == Client.GetEndpointId(); }
+		bool operator==(const FOnlineClient& Client) const { return GetEndpointId() == Client.GetEndpointId(); }
 
 		DECLARE_MULTICAST_DELEGATE(FOnModelExternallyChanged);
 		/**

@@ -9,7 +9,7 @@ enum class EBreakBehavior : uint8;
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClient;
+	class FOnlineClient;
 	
 	/** Abstracts the concept of a client selection. */
 	class IClientSelectionModel
@@ -17,7 +17,7 @@ namespace UE::MultiUserClient::Replication
 	public:
 
 		/** Iterates through every client in the selection. */
-		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient) const = 0;
+		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const = 0;
 
 		DECLARE_MULTICAST_DELEGATE(FOnSelectionChanged);
 		/** Called when the clients ForEachSelectedClient enumerates has changed. */

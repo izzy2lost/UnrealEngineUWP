@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "RemoteReplicationClient.h"
+#include "RemoteClient.h"
 
 #include "IConcertClient.h"
 #include "Assets/MultiUserReplicationClientContent.h"
@@ -10,7 +10,7 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FRemoteReplicationClient::FRemoteReplicationClient(
+	FRemoteClient::FRemoteClient(
 		const FGuid& InConcertClientId,
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		TSharedRef<IConcertClient> InClient,
@@ -18,7 +18,7 @@ namespace UE::MultiUserClient::Replication
 		UMultiUserReplicationStream& InClientStreamContent,
 		FStreamAndAuthorityQueryService& QueryService
 		)
-		: FReplicationClient(
+		: FOnlineClient(
 			InConcertClientId,
 			InDiscoveryContainer,
 			InAuthorityCache,

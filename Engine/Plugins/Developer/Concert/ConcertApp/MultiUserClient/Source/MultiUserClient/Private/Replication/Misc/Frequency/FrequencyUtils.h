@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Data/ReplicationFrequencySettings.h"
 
 #include "Algo/AllOf.h"
@@ -28,7 +28,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	TOptional<TSubSetting> FindSharedFrequencySetting(
 		const FSoftObjectPath& ContextObject,
 		const FInlineClientArray& Clients,
-		const FReplicationClientManager& InClientManager,
+		const FOnlineClientManager& InClientManager,
 		TSelectSubSetting&& Transform
 		)
 	requires std::is_invocable_r_v<TSubSetting, TSelectSubSetting, const FConcertObjectReplicationSettings&>;
@@ -41,12 +41,12 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	TSharedPtr<IParallelSubmissionOperation> SetFrequencySettingForClients(
 		const FSoftObjectPath& ContextObject,
 		const FInlineClientArray& Clients,
-		FReplicationClientManager& InClientManager,
+		FOnlineClientManager& InClientManager,
 		TFunctionRef<void(FConcertObjectReplicationSettings&)> ApplySettingChange
 		);
 
 	/** Gets the replication rate of all clients, if they share the same value. */
-	inline TOptional<uint8> FindSharedFrequencyRate(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FReplicationClientManager& InClientManager)
+	inline TOptional<uint8> FindSharedFrequencyRate(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FOnlineClientManager& InClientManager)
 	{
 		bool bHasRightMode = false;
 		const TOptional<uint8> SharedMode = FindSharedFrequencySetting<uint8>(ContextObject, Clients, InClientManager,
@@ -59,7 +59,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	}
 
 	/** @return The replication mode that all clients are using, if they share the same value. */
-	inline TOptional<EConcertObjectReplicationMode> FindSharedReplicationMode(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FReplicationClientManager& InClientManager)
+	inline TOptional<EConcertObjectReplicationMode> FindSharedReplicationMode(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FOnlineClientManager& InClientManager)
 	{
 		return FindSharedFrequencySetting<EConcertObjectReplicationMode>(ContextObject, Clients, InClientManager,
 			[](const FConcertObjectReplicationSettings& Setting)
@@ -69,13 +69,13 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	}
 	
 	/** @return Whether all clients have the given replication mode */
-	inline bool AllClientsHaveMode(const EConcertObjectReplicationMode SearchedMode, const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FReplicationClientManager& InClientManager) 
+	inline bool AllClientsHaveMode(const EConcertObjectReplicationMode SearchedMode, const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FOnlineClientManager& InClientManager) 
 	{
 		return SearchedMode == FindSharedReplicationMode(ContextObject, Clients, InClientManager);
 	}
 
 	/** @return Whether ContextObject's frequency settings can be changed for Client. */
-	inline bool CanChangeFrequencySettings(const FSoftObjectPath& ContextObject, const FReplicationClient& Client)
+	inline bool CanChangeFrequencySettings(const FSoftObjectPath& ContextObject, const FOnlineClient& Client)
 	{
 		const bool bHasProperties = Client.GetStreamSynchronizer().GetServerState().HasProperties(ContextObject);
 		const bool bAllowsEditing = Client.AllowsEditing();
@@ -84,11 +84,11 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	}
 
 	/** @return Whether ContextObject's frequency settings can be changed for all given Clients. */
-	inline bool CanChangeFrequencySettings(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FReplicationClientManager& InClientManager)
+	inline bool CanChangeFrequencySettings(const FSoftObjectPath& ContextObject, const FInlineClientArray& Clients, const FOnlineClientManager& InClientManager)
 	{
 		return Algo::AllOf(Clients, [ContextObject, &InClientManager](const FGuid& ClientId)
 		{
-			const FReplicationClient* Client = InClientManager.FindClient(ClientId);
+			const FOnlineClient* Client = InClientManager.FindClient(ClientId);
 			return Client && CanChangeFrequencySettings(ContextObject, *Client);
 		});
 	}
@@ -100,7 +100,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	TOptional<TSubSetting> FindSharedFrequencySetting(
 		const FSoftObjectPath& ContextObject,
 		const FInlineClientArray& Clients,
-		const FReplicationClientManager& InClientManager,
+		const FOnlineClientManager& InClientManager,
 		TSelectSubSetting&& Transform
 		)
 	requires std::is_invocable_r_v<TSubSetting, TSelectSubSetting, const FConcertObjectReplicationSettings&>
@@ -108,7 +108,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 		TOptional<TSubSetting> SharedSetting;
 		for (const FGuid& ClientId : Clients)
 		{
-			const FReplicationClient* Client = InClientManager.FindClient(ClientId);
+			const FOnlineClient* Client = InClientManager.FindClient(ClientId);
 			if (!Client)
 			{
 				continue;

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "LocalReplicationClient.h"
+#include "LocalClient.h"
 
 #include "IConcertSyncClient.h"
 #include "Replication/Authority/AuthoritySynchronizer_LocalClient.h"
@@ -8,14 +8,14 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FLocalReplicationClient::FLocalReplicationClient(
+	FLocalClient::FLocalClient(
 		FReplicationDiscoveryContainer& InDiscoveryContainer,
 		FGlobalAuthorityCache& InAuthorityCache,
 		UMultiUserReplicationStream& InClientStreamContent,
 		TUniquePtr<IClientStreamSynchronizer> InStreamSynchronizer,
 		TSharedRef<IConcertSyncClient> InClient
 		)
-		: FReplicationClient(
+		: FOnlineClient(
 			InClient->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId(),
 			InDiscoveryContainer,
 			InAuthorityCache,

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "ReplicationClient.h"
+#include "OnlineClient.h"
 
 #include "HAL/Platform.h"
 
@@ -13,7 +13,7 @@ namespace UE::MultiUserClient::Replication
 	class FStreamAndAuthorityQueryService;
 	
 	/** Holds extra information about a remote replication client. */
-	class FRemoteReplicationClient : public FReplicationClient
+	class FRemoteClient : public FOnlineClient
 	{
 	public:
 		
@@ -25,7 +25,7 @@ namespace UE::MultiUserClient::Replication
 		 * @param InClientStreamContent Object that this client's stream changes are to be written into. The caller ensures it outlives the constructed instance.
 		 * @param QueryService Service shared across remote clients which periodically asks the server about this client's state. The caller ensures it outlives the constructed instance.
 		 */
-		FRemoteReplicationClient(
+		FRemoteClient(
 			const FGuid& InConcertClientId,
 			FReplicationDiscoveryContainer& InDiscoveryContainer UE_LIFETIMEBOUND,
 			TSharedRef<IConcertClient> InClient,

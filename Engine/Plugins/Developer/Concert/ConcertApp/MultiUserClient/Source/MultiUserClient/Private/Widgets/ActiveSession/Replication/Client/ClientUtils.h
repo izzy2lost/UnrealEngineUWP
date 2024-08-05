@@ -13,8 +13,8 @@ struct FGuid;
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FOnlineClient;
+	class FOnlineClientManager;
 }
 
 namespace UE::MultiUserClient::Replication::ClientUtils
@@ -46,6 +46,6 @@ namespace UE::MultiUserClient::Replication::ClientUtils
 	 * @param InReplicationManager Used to obtain all clients
 	 * @return Sorted client array
 	 */
-	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FReplicationClientManager& InReplicationManager);
-	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClientSession& InSession, const FReplicationClientManager& InReplicationManager);
+	TArray<const FOnlineClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FOnlineClientManager& InReplicationManager);
+	TArray<const FOnlineClient*> GetSortedClientList(const IConcertClientSession& InSession, const FOnlineClientManager& InReplicationManager);
 }

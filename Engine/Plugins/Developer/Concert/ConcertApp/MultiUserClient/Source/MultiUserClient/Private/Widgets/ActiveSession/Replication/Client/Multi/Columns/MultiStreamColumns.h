@@ -15,7 +15,7 @@ namespace UE::MultiUserClient::Replication
 {
 	class FMuteChangeTracker;
 	class FReassignObjectPropertiesLogic;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 }
 
 namespace UE::ConcertSharedSlate
@@ -66,7 +66,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
 		FReassignObjectPropertiesLogic& ReassignmentLogic UE_LIFETIMEBOUND,
-		const FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
+		const FOnlineClientManager& ClientManager UE_LIFETIMEBOUND,
 		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
 		);
 	
@@ -83,7 +83,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
-		FReplicationClientManager& ClientManager UE_LIFETIMEBOUND,
+		FOnlineClientManager& ClientManager UE_LIFETIMEBOUND,
 		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::AssignPropertyColumn)
 		);
 }

@@ -2,11 +2,11 @@
 
 #include "AllClientsSelectionModel.h"
 
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 
 namespace UE::MultiUserClient::Replication
 {
-	FAllClientsSelectionModel::FAllClientsSelectionModel(FReplicationClientManager& InClientManager)
+	FAllClientsSelectionModel::FAllClientsSelectionModel(FOnlineClientManager& InClientManager)
 		: ClientManager(InClientManager)
 	{
 		ClientManager.OnRemoteClientsChanged().AddRaw(this, &FAllClientsSelectionModel::OnRemoteClientsChanged);
@@ -17,7 +17,7 @@ namespace UE::MultiUserClient::Replication
 		ClientManager.OnRemoteClientsChanged().RemoveAll(this);
 	}
 
-	void FAllClientsSelectionModel::ForEachSelectedClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient) const
+	void FAllClientsSelectionModel::ForEachSelectedClient(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const
 	{
 		ClientManager.ForEachClient(ProcessClient);
 	}

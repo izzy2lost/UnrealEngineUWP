@@ -13,8 +13,8 @@ class IConcertClient;
 namespace UE::MultiUserClient::Replication
 {
 	class FMultiUserReplicationManager;
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FOnlineClient;
+	class FOnlineClientManager;
 
 	/** Leverages SMultiClientView to display all replication clients. */
 	class SAllClientsView : public SCompoundWidget
@@ -27,12 +27,12 @@ namespace UE::MultiUserClient::Replication
 	private:
 
 		/** Used to get all the replication clients and listen for client changes. */
-		FReplicationClientManager* ClientManager = nullptr;
+		FOnlineClientManager* ClientManager = nullptr;
 
 		/** Keeps the SMultiClientView updated of any changes to clients (e.g. disconnects, etc.) */
 		TUniquePtr<FAllClientsSelectionModel> AllClientsModel;
 
 		/** Gets all the clients to display */
-		TSet<const FReplicationClient*> GetAllClients() const;
+		TSet<const FOnlineClient*> GetAllClients() const;
 	};
 }

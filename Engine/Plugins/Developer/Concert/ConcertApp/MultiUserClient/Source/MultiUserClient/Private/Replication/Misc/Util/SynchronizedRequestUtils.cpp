@@ -3,7 +3,7 @@
 #include "SynchronizedRequestUtils.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
 #include "Replication/Submission/Data/StreamSubmission.h"
 #include "Replication/Submission/ISubmissionOperation.h"
@@ -16,7 +16,7 @@ namespace UE::MultiUserClient::Replication
 {
 	namespace ParallelSubmission::Private
 	{
-		static void RemoveInvalidClientEntries(const FReplicationClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations)
+		static void RemoveInvalidClientEntries(const FOnlineClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations)
 		{
 			for (auto It = ParallelOperations.CreateIterator(); It; ++It)
 			{
@@ -36,7 +36,7 @@ namespace UE::MultiUserClient::Replication
 			, public IDeferredSubmitter
 		{
 			FSyncOperation& Owner;
-			FReplicationClientManager& ClientManager;
+			FOnlineClientManager& ClientManager;
 			FSubmissionQueue& SubmissionQueue;
 			const FGuid ClientId;
 			const FSubmissionParams SubmissionParams;
@@ -45,7 +45,7 @@ namespace UE::MultiUserClient::Replication
 
 			FDeferredSubmitter(
 				FSyncOperation& InOwner,
-				FReplicationClientManager& InClientManager,
+				FOnlineClientManager& InClientManager,
 				FSubmissionQueue& InSubmissionQueue,
 				const FGuid& InClientId,
 				FSubmissionParams&& InSubmissionParams
@@ -60,7 +60,7 @@ namespace UE::MultiUserClient::Replication
 			virtual ~FDeferredSubmitter() override
 			{
 				checkf(IsInGameThread(), TEXT("You must destroy IParallelSubmissionOperation on the game thread"));
-				if (FReplicationClient* Client = ClientManager.FindClient(ClientId))
+				if (FOnlineClient* Client = ClientManager.FindClient(ClientId))
 				{
 					Client->GetSubmissionQueue().Dequeue_GameThread(*this);
 				}
@@ -81,7 +81,7 @@ namespace UE::MultiUserClient::Replication
 		{
 		public:
 			
-			FSyncOperation(FReplicationClientManager& ClientManager, TMap<FGuid, FSubmissionParams>&& Operations)
+			FSyncOperation(FOnlineClientManager& ClientManager, TMap<FGuid, FSubmissionParams>&& Operations)
 			{
 				const int32 NumOperations = Operations.Num();
 				IntermediateResults.StreamResponses.Reserve(NumOperations);
@@ -96,7 +96,7 @@ namespace UE::MultiUserClient::Replication
 					IntermediateResults.StreamResponses.Add(ClientId);
 					IntermediateResults.AuthorityResponses.Add(ClientId);
 
-					FReplicationClient* Client = ClientManager.FindClient(ClientId);
+					FOnlineClient* Client = ClientManager.FindClient(ClientId);
 					checkf(Client, TEXT("Was supposed to have been validated ExecuteParallelStreamChanges."))
 					SubOperations.Emplace(*this, ClientManager, ClientId, MoveTemp(Pair.Value), Client->GetSubmissionQueue());
 				}
@@ -180,7 +180,7 @@ namespace UE::MultiUserClient::Replication
 				
 				FPendingOperation(
 					FSyncOperation& InOwner,
-					FReplicationClientManager& InClientManager,
+					FOnlineClientManager& InClientManager,
 					const FGuid& InClientId,
 					FSubmissionParams&& InSubmissionParams,
 					FSubmissionQueue& InSubmissionQueue
@@ -257,7 +257,7 @@ namespace UE::MultiUserClient::Replication
 		}
 	}
 	
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations)
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FOnlineClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations)
 	{
 		ParallelSubmission::Private::RemoveInvalidClientEntries(ClientManager, ParallelOperations);
 		if (!ensure(!ParallelOperations.IsEmpty()))
@@ -271,7 +271,7 @@ namespace UE::MultiUserClient::Replication
 		return Operation;
 	}
 
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations)
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FOnlineClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations)
 	{
 		if (!ensure(!ParallelOperations.IsEmpty()))
 		{

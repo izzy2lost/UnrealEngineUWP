@@ -4,7 +4,7 @@
 
 #include "AllClientsSelectionModel.h"
 #include "SMultiClientView.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 
 #include "Algo/Transform.h"
 #include "Replication/MultiUserReplicationManager.h"
@@ -23,10 +23,10 @@ namespace UE::MultiUserClient::Replication
 		];
 	}
 
-	TSet<const FReplicationClient*> SAllClientsView::GetAllClients() const
+	TSet<const FOnlineClient*> SAllClientsView::GetAllClients() const
 	{
-		TSet<const FReplicationClient*> Result;
-		Algo::Transform(ClientManager->GetRemoteClients(), Result, [](const TNonNullPtr<FRemoteReplicationClient>& Client)
+		TSet<const FOnlineClient*> Result;
+		Algo::Transform(ClientManager->GetRemoteClients(), Result, [](const TNonNullPtr<FRemoteClient>& Client)
 		{
 			return Client.Get();
 		});

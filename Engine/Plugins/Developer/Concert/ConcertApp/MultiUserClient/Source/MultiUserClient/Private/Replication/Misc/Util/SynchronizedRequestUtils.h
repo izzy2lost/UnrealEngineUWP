@@ -12,7 +12,7 @@ struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	struct FSubmissionParams;
 
 	struct FParallelExecutionResult
@@ -51,8 +51,8 @@ namespace UE::MultiUserClient::Replication
 	 * @return Object you can get future through. This object also handles correct unregistering from other systems when you destroy it.
 	 * @note The returned object MUST be destroyed on the game thread.
 	 */
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations);
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FOnlineClientManager& ClientManager, TMap<FGuid, FSubmissionParams> ParallelOperations);
 	/** Util for transforming into FSubmissionParams */
-	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FReplicationClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations);
+	TSharedPtr<IParallelSubmissionOperation> ExecuteParallelStreamChanges(FOnlineClientManager& ClientManager, TMap<FGuid, FConcertReplication_ChangeStream_Request> ParallelOperations);
 }
 

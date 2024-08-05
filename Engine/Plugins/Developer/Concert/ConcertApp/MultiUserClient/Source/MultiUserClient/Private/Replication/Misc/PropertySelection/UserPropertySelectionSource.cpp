@@ -2,7 +2,7 @@
 
 #include "UserPropertySelectionSource.h"
 
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/Property/IPropertySource.h"
 
@@ -19,7 +19,7 @@ namespace UE::MultiUserClient::Replication
 			FUserPropertySource(
 				FSoftObjectPath Object,
 				const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
-				const FReplicationClientManager& InClientManager UE_LIFETIMEBOUND
+				const FOnlineClientManager& InClientManager UE_LIFETIMEBOUND
 				)
 				: Object(MoveTemp(Object))
 				, UserSelection(InUserSelection)
@@ -48,7 +48,7 @@ namespace UE::MultiUserClient::Replication
 				using FPropertyPtrArray = TArray<const FConcertPropertyChain*, TInlineAllocator<4>>;
 				TMap<FHash, FPropertyPtrArray, TInlineSetAllocator<512>> VisitedProperties;
 				
-				ClientManager.ForEachClient([this, &Delegate, &VisitedProperties](const FReplicationClient& Client)
+				ClientManager.ForEachClient([this, &Delegate, &VisitedProperties](const FOnlineClient& Client)
 				{
 					const FConcertReplicatedObjectInfo* ObjectInfo = Client.GetStreamSynchronizer()
 						.GetServerState()
@@ -91,13 +91,13 @@ namespace UE::MultiUserClient::Replication
 			/** Used to get the properties the user has selected. */
 			const ConcertSharedSlate::IEditableReplicationStreamModel& UserSelection;
 			/** Used to get client stream content. */
-			const FReplicationClientManager& ClientManager;
+			const FOnlineClientManager& ClientManager;
 		};
 	}
 	
 	FUserPropertySelectionSource::FUserPropertySelectionSource(
 		const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection,
-		const FReplicationClientManager& InClientManager
+		const FOnlineClientManager& InClientManager
 		)
 		: UserSelection(InUserSelection)
 		, ClientManager(InClientManager)

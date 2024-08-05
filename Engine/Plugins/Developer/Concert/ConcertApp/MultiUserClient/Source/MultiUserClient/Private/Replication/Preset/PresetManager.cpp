@@ -5,7 +5,7 @@
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Misc/ReplicationStreamUtils.h"
 #include "Replication/Muting/MuteStateManager.h"
 #include "Replication/Stream/MultiUserStreamId.h"
@@ -168,14 +168,14 @@ namespace UE::MultiUserClient::Replication
 			EditModel.RemoveObjects(EmptyObjects);
 		}
 
-		static TArray<TPair<const FReplicationClient*, FConcertClientInfo>> DetermineSavedClients(
-			const FReplicationClientManager& ClientManager,
+		static TArray<TPair<const FOnlineClient*, FConcertClientInfo>> DetermineSavedClients(
+			const FOnlineClientManager& ClientManager,
 			const IConcertClientSession& Session,
 			const FSavePresetOptions& Options
 			)
 		{
-			TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients;
-			ClientManager.ForEachClient([&Session, &IncludedClients, &Options](const FReplicationClient& Client)
+			TArray<TPair<const FOnlineClient*, FConcertClientInfo>> IncludedClients;
+			ClientManager.ForEachClient([&Session, &IncludedClients, &Options](const FOnlineClient& Client)
 			{
 				FConcertClientInfo ClientInfo;
 				const bool bGotClientInfo = ClientUtils::GetClientDisplayInfo(Session, Client.GetEndpointId(), ClientInfo);
@@ -199,7 +199,7 @@ namespace UE::MultiUserClient::Replication
 	
 	FPresetManager::FPresetManager(
 		const IConcertSyncClient& SyncClient,
-		const FReplicationClientManager& ClientManager,
+		const FOnlineClientManager& ClientManager,
 		const FMuteStateSynchronizer& MuteStateSynchronizer
 		)
 		: SyncClient(SyncClient)
@@ -266,7 +266,7 @@ namespace UE::MultiUserClient::Replication
 		const TSharedPtr<IConcertClientSession> Session = SyncClient.GetConcertClient()->GetCurrentSession();
 		checkf(Session, TEXT("FPresetManager is only supposed to exist while in a session"));
 		
-		const TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
+		const TArray<TPair<const FOnlineClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
 		return IncludedClients.IsEmpty()
 			? ECanSaveResult::NoClients
 			: ECanSaveResult::Yes;
@@ -288,7 +288,7 @@ namespace UE::MultiUserClient::Replication
 		const TSharedPtr<IConcertClientSession> Session = SyncClient.GetConcertClient()->GetCurrentSession();
 		checkf(Session, TEXT("FPresetManager is only supposed to exist while in a session"));
 
-		const TArray<TPair<const FReplicationClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
+		const TArray<TPair<const FOnlineClient*, FConcertClientInfo>> IncludedClients = Private::DetermineSavedClients(ClientManager, *Session, Options);
 		if (IncludedClients.IsEmpty())
 		{
 			return nullptr;
@@ -300,7 +300,7 @@ namespace UE::MultiUserClient::Replication
 			// Mark as transient so FEditorFileUtils::SaveAssetsAs creates a new package for the object.
 			RF_Transient
 			);
-		for (const TPair<const FReplicationClient*, FConcertClientInfo>& ClientData : IncludedClients)
+		for (const TPair<const FOnlineClient*, FConcertClientInfo>& ClientData : IncludedClients)
 		{
 			const auto[Client, ClientInfo] = ClientData;
 			UMultiUserReplicationStream* CopiedClientStream = Client->GetClientStreamObject();

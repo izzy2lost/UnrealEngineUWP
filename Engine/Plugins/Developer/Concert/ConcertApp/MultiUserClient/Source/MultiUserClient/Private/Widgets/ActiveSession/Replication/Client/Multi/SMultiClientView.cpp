@@ -7,8 +7,8 @@
 #include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "Replication/ReplicationWidgetFactories.h"
-#include "Replication/Client/ReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/Object/IObjectNameModel.h"
 #include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiObjectPropertyAssignmentView.h"
@@ -171,7 +171,7 @@ namespace UE::MultiUserClient::Replication
 	TSet<FGuid> SMultiClientView::GetReplicatableClientIds() const
 	{
 		TSet<FGuid> ClientIds;
-		StreamModel->ForEachClient([&ClientIds](const FReplicationClient* Client)
+		StreamModel->ForEachClient([&ClientIds](const FOnlineClient* Client)
 		{
 			ClientIds.Add(Client->GetEndpointId());
 			return EBreakBehavior::Continue;
@@ -181,7 +181,7 @@ namespace UE::MultiUserClient::Replication
 
 	void SMultiClientView::EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const
 	{
-		StreamModel->ForEachClient([&Consumer](const FReplicationClient* Client)
+		StreamModel->ForEachClient([&Consumer](const FOnlineClient* Client)
 		{
 			Client->GetClientEditModel()->ForEachReplicatedObject([&Consumer](const FSoftObjectPath& Object)
 			{
@@ -196,7 +196,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		CleanClientSubscriptions();
 
-		SelectionModel->ForEachSelectedClient([this](FReplicationClient& Client)
+		SelectionModel->ForEachSelectedClient([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().AddSP(this, &SMultiClientView::RefreshUI);
 			Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);
@@ -206,7 +206,7 @@ namespace UE::MultiUserClient::Replication
 
 	void SMultiClientView::CleanClientSubscriptions() const
 	{
-		ClientManager->ForEachClient([this](FReplicationClient& Client)
+		ClientManager->ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().RemoveAll(this);
 			Client.OnHierarchyNeedsRefresh().RemoveAll(this);

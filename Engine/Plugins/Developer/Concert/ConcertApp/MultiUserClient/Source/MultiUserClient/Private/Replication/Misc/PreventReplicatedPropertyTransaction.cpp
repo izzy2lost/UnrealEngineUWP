@@ -3,7 +3,7 @@
 #include "PreventReplicatedPropertyTransaction.h"
 
 #include "IConcertSyncClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Misc/GlobalAuthorityCache.h"
 
 #include "Algo/AnyOf.h"
@@ -19,7 +19,7 @@ namespace UE::MultiUserClient::Replication
 	
 	FPreventReplicatedPropertyTransaction::FPreventReplicatedPropertyTransaction(
 		IConcertSyncClient& InSyncClient,
-		FReplicationClientManager& InClientManager,
+		FOnlineClientManager& InClientManager,
 		FMuteStateManager& InMuteManager
 		)
 		: SyncClient(InSyncClient)

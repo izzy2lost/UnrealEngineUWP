@@ -3,13 +3,13 @@
 #include "MultiStreamModel.h"
 
 #include "IClientSelectionModel.h"
-#include "Replication/Client/ReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
 namespace UE::MultiUserClient::Replication
 {
-	FMultiStreamModel::FMultiStreamModel(IClientSelectionModel& InClientSelectionModel, FReplicationClientManager& InClientManager)
+	FMultiStreamModel::FMultiStreamModel(IClientSelectionModel& InClientSelectionModel, FOnlineClientManager& InClientManager)
 		: ClientSelectionModel(InClientSelectionModel)
 		, ClientManager(InClientManager)
 	{
@@ -17,16 +17,16 @@ namespace UE::MultiUserClient::Replication
 		RebuildStreamsSets();
 	}
 
-	void FMultiStreamModel::ForEachClient(TFunctionRef<EBreakBehavior(const FReplicationClient*)> ProcessClient) const
+	void FMultiStreamModel::ForEachClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const
 	{
-		for (const FReplicationClient* ReadOnlyClient : GetCachedReadOnlyClients())
+		for (const FOnlineClient* ReadOnlyClient : GetCachedReadOnlyClients())
 		{
 			if (ProcessClient(ReadOnlyClient) == EBreakBehavior::Break)
 			{
 				return;
 			}
 		}
-		for (const FReplicationClient* WritableClient : GetCachedWritableClients())
+		for (const FOnlineClient* WritableClient : GetCachedWritableClients())
 		{
 			if (ProcessClient(WritableClient) == EBreakBehavior::Break)
 			{
@@ -38,29 +38,29 @@ namespace UE::MultiUserClient::Replication
 	TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> FMultiStreamModel::GetReadOnlyStreams() const
 	{
 		TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> Result;
-		Algo::Transform(CachedReadOnlyClients, Result, [](const FReplicationClient* Client){ return Client->GetClientEditModel(); });
+		Algo::Transform(CachedReadOnlyClients, Result, [](const FOnlineClient* Client){ return Client->GetClientEditModel(); });
 		return Result;
 	}
 
 	TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> FMultiStreamModel::GetEditableStreams() const
 	{
 		TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> Result;
-		Algo::Transform(CachedWritableClients, Result, [](const FReplicationClient* Client){ return Client->GetClientEditModel(); });
+		Algo::Transform(CachedWritableClients, Result, [](const FOnlineClient* Client){ return Client->GetClientEditModel(); });
 		return Result;
 	}
 
 	void FMultiStreamModel::RebuildStreamsSets()
 	{
 		// Cannot just iterate through CachedReadOnlyClients because it may contain stale clients that were just removed
-		ClientManager.ForEachClient([this](FReplicationClient& Client)
+		ClientManager.ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().RemoveAll(this);
 			return EBreakBehavior::Continue;
 		});
 		
-		TSet<const FReplicationClient*> ReadOnlyClients;
-		TSet<const FReplicationClient*> WritableClients;
-		ClientSelectionModel.ForEachSelectedClient([this, &ReadOnlyClients, &WritableClients](FReplicationClient& Client)
+		TSet<const FOnlineClient*> ReadOnlyClients;
+		TSet<const FOnlineClient*> WritableClients;
+		ClientSelectionModel.ForEachSelectedClient([this, &ReadOnlyClients, &WritableClients](FOnlineClient& Client)
 		{
 			const bool bIsUploadable = CanEverSubmit(Client.GetSubmissionWorkflow().GetUploadability());
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();

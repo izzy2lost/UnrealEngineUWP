@@ -29,8 +29,8 @@ namespace UE::MultiUserClient::Replication
 	class FGlobalAuthorityCache;
 	class FMultiStreamModel;
 	class FMultiUserReplicationManager;
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FOnlineClient;
+	class FOnlineClientManager;
 	class IClientSelectionModel;
 	class SPropertySelectionComboButton;
 
@@ -52,7 +52,7 @@ namespace UE::MultiUserClient::Replication
 	private:
 
 		TSharedPtr<IConcertClient> ConcertClient;
-		FReplicationClientManager* ClientManager = nullptr;
+		FOnlineClientManager* ClientManager = nullptr;
 		FUserPropertySelector* UserSelectedProperties = nullptr;
 		IClientSelectionModel* SelectionModel = nullptr;
 		

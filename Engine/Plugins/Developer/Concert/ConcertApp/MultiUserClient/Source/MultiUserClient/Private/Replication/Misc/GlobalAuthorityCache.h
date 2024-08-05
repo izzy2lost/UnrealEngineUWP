@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Client/RemoteReplicationClient.h"
+#include "Replication/Client/Online/RemoteClient.h"
 
 #include "Replication/AuthorityConflictSharedUtils.h"
 
@@ -14,9 +14,9 @@ struct FConcertPropertyChain;
 
 namespace UE::MultiUserClient::Replication
 {
-	class FRemoteReplicationClient;
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FRemoteClient;
+	class FOnlineClient;
+	class FOnlineClientManager;
 }
 
 namespace UE::MultiUserClient::Replication
@@ -33,7 +33,7 @@ namespace UE::MultiUserClient::Replication
 
 		using FProcessPropertyConflict = TFunctionRef<EBreakBehavior(const FGuid& ConflictingClientId, const FConcertPropertyChain& Property)>;
 		
-		FGlobalAuthorityCache(FReplicationClientManager& InClientManager);
+		FGlobalAuthorityCache(FOnlineClientManager& InClientManager);
 		/** Called when the local client has been created and it is safe to register client events with FReplicationClientManager. */
 		void RegisterEvents();
 		
@@ -90,7 +90,7 @@ namespace UE::MultiUserClient::Replication
 	private:
 
 		/** Used to obtain the clients and their states */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 		
 		/** Maps objects that are owned to the clients that have them in the stream */
 		TMap<FSoftObjectPath, TSet<FGuid>> StreamObjectsToClients;
@@ -103,20 +103,20 @@ namespace UE::MultiUserClient::Replication
 		FOnCacheChanged OnCacheChangedDelegate;
 
 		/** Registers for authority and stream changes */
-		void RegisterForClientEvents(const FReplicationClient& Client);
-		void UnregisterFromClientEvents(const FReplicationClient& Client) const;
+		void RegisterForClientEvents(const FOnlineClient& Client);
+		void UnregisterFromClientEvents(const FOnlineClient& Client) const;
 
 		/** Adds the client to OwnedObjectsToClients */
 		void AddClient(const FGuid& ClientId);
 		void RemoveClient(const FGuid& ClientId);
 
 		// Respond to remote client registration
-		void OnPostRemoteClientAdded(FRemoteReplicationClient& RemoteClient)
+		void OnPostRemoteClientAdded(FRemoteClient& RemoteClient)
 		{
 			RebuildClient(RemoteClient.GetEndpointId());
 			RegisterForClientEvents(RemoteClient);
 		}
-		void OnPreRemoteClientRemoved(FRemoteReplicationClient& RemoteClient)
+		void OnPreRemoteClientRemoved(FRemoteClient& RemoteClient)
 		{
 			RemoveClient(RemoteClient.GetEndpointId());
 			UnregisterFromClientEvents(RemoteClient);

@@ -4,7 +4,7 @@
 
 #include "UserPropertySelectionSource.h"
 #include "Replication/ClientReplicationWidgetFactories.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
 #include "ScopedTransaction.h"
@@ -15,7 +15,7 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FUserPropertySelector::FUserPropertySelector(FReplicationClientManager& InClientManager)
+	FUserPropertySelector::FUserPropertySelector(FOnlineClientManager& InClientManager)
 		: ClientManager(InClientManager)
 		, PropertySelection(NewObject<UMultiUserReplicationStream>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional))
 		, SelectionEditModel(ConcertSharedSlate::CreateBaseStreamModel(PropertySelection->MakeReplicationMapGetterAttribute()))
@@ -29,7 +29,7 @@ namespace UE::MultiUserClient::Replication
 	FUserPropertySelector::~FUserPropertySelector()
 	{
 		ClientManager.OnPostRemoteClientAdded().RemoveAll(this);
-		ClientManager.ForEachClient([this](FReplicationClient& Client)
+		ClientManager.ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.GetStreamSynchronizer().OnServerStateChanged().RemoveAll(this);
 			return EBreakBehavior::Continue;
@@ -69,7 +69,7 @@ namespace UE::MultiUserClient::Replication
 		Collector.AddReferencedObject(PropertySelection);
 	}
 
-	void FUserPropertySelector::RegisterClient(FReplicationClient& Client)
+	void FUserPropertySelector::RegisterClient(FOnlineClient& Client)
 	{
 		IClientStreamSynchronizer& StreamSynchronizer = Client.GetStreamSynchronizer();
 		TrackProperties(StreamSynchronizer.GetServerState());
@@ -78,7 +78,7 @@ namespace UE::MultiUserClient::Replication
 
 	void FUserPropertySelector::OnServerStateChanged(const FGuid ClientId)
 	{
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (ensure(Client))
 		{
 			TrackProperties(Client->GetStreamSynchronizer().GetServerState());

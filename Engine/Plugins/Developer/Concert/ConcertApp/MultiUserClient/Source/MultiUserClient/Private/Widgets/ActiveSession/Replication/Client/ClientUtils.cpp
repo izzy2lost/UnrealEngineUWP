@@ -4,7 +4,7 @@
 
 #include "ConcertMessageData.h"
 #include "IConcertClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Widgets/Client/SClientName.h"
 
 namespace UE::MultiUserClient::Replication::ClientUtils
@@ -58,16 +58,16 @@ namespace UE::MultiUserClient::Replication::ClientUtils
 		return false;
 	}
 	
-	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FReplicationClientManager& InReplicationManager)
+	TArray<const FOnlineClient*> GetSortedClientList(const IConcertClient& InLocalClientInstance, const FOnlineClientManager& InReplicationManager)
 	{
 		return GetSortedClientList(*InLocalClientInstance.GetCurrentSession(), InReplicationManager);
 	}
 
-	TArray<const FReplicationClient*> GetSortedClientList(const IConcertClientSession& InSession, const FReplicationClientManager& InReplicationManager)
+	TArray<const FOnlineClient*> GetSortedClientList(const IConcertClientSession& InSession, const FOnlineClientManager& InReplicationManager)
 	{
-		TArray<const FReplicationClient*> Result;
-		TMap<const FReplicationClient*, FConcertClientInfo> ClientToDisplayInfo;
-		for (const TNonNullPtr<const FRemoteReplicationClient> RemoteClient : InReplicationManager.GetRemoteClients())
+		TArray<const FOnlineClient*> Result;
+		TMap<const FOnlineClient*, FConcertClientInfo> ClientToDisplayInfo;
+		for (const TNonNullPtr<const FRemoteClient> RemoteClient : InReplicationManager.GetRemoteClients())
 		{
 			FConcertClientInfo Info;
 			if (GetClientDisplayInfo(InSession, RemoteClient->GetEndpointId(), Info))
@@ -77,7 +77,7 @@ namespace UE::MultiUserClient::Replication::ClientUtils
 			}
 		}
 
-		Result.Sort([&ClientToDisplayInfo](const FReplicationClient& Left, const FReplicationClient& Right)
+		Result.Sort([&ClientToDisplayInfo](const FOnlineClient& Left, const FOnlineClient& Right)
 		{
 			const FConcertClientInfo& LeftInfo = ClientToDisplayInfo[&Left];
 			const FConcertClientInfo& RightInfo = ClientToDisplayInfo[&Right];

@@ -18,8 +18,8 @@ namespace UE::ConcertSharedSlate { class IMultiReplicationStreamEditor; }
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClient;
-	class FReplicationClientManager;
+	class FOnlineClient;
+	class FOnlineClientManager;
 	
 	/**
 	 * Placed in every property row column to assign properties to clients.
@@ -36,7 +36,7 @@ namespace UE::MultiUserClient::Replication
 		/** @return The display string this widget would have with the given state. If unset, no clients are displayed in the combobox.*/
 		static TOptional<FString> GetDisplayString(
 			const TSharedRef<IConcertClient>& LocalConcertClient,
-			const FReplicationClientManager& ClientManager,
+			const FOnlineClientManager& ClientManager,
 			const FConcertPropertyChain& DisplayedProperty,
 			const TArray<TSoftObjectPtr<>>& EditedObjects
 			);
@@ -53,12 +53,12 @@ namespace UE::MultiUserClient::Replication
 		void Construct(const FArguments& InArgs,
            TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
            TSharedRef<IConcertClient> InConcertClient,
-           FReplicationClientManager& InClientManager
+           FOnlineClientManager& InClientManager
 		);
 
 	private:
 
-		FReplicationClientManager* ClientManager = nullptr;
+		FOnlineClientManager* ClientManager = nullptr;
 		
 		/** Used to obtain info about the streams */
 		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor;
@@ -97,7 +97,7 @@ namespace UE::MultiUserClient::Replication
 		bool CanClickClear() const;
 
 		/** Unassigns this widget's property from all clients passing the predicate and removes the object from the model if it is a subobject. */
-		void UnassignPropertyFromClients(TFunctionRef<bool(const FReplicationClient& Client)> ShouldRemoveFromClient) const;
+		void UnassignPropertyFromClients(TFunctionRef<bool(const FOnlineClient& Client)> ShouldRemoveFromClient) const;
 
 		/** Resubscribes to all clients changing. */
 		void RebuildSubscriptions();

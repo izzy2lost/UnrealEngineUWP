@@ -6,25 +6,25 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	
 	/** Exposes all clients and detects when clients disconnect. */
 	class FAllClientsSelectionModel : public IClientSelectionModel
 	{
 	public:
 		
-		FAllClientsSelectionModel(FReplicationClientManager& InClientManager);
+		FAllClientsSelectionModel(FOnlineClientManager& InClientManager);
 		virtual ~FAllClientsSelectionModel() override;
 
 		//~ Begin IClientSelectionModel Interface
-		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FReplicationClient&)> ProcessClient) const override;
+		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const override;
 		virtual FOnSelectionChanged& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
 		//~ End IClientSelectionModel Interface
 
 	private:
 
 		/** Informs us when the list of clients changes */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 		
 		/** Called when the clients ForEachSelectedClient enumerates has changed. */
 		FOnSelectionChanged OnSelectionChangedDelegate;

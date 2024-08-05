@@ -15,7 +15,7 @@ struct FConcertPropertyChain;
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	class IParallelSubmissionOperation;
 	
 	/**
@@ -41,7 +41,7 @@ namespace UE::MultiUserClient::Replication
 		};
 		using FProcessClientOwnership = TFunctionRef<EBreakBehavior(const FGuid& ClientId, EOwnershipState Ownership)>;
 		
-		FReassignObjectPropertiesLogic(FReplicationClientManager& InClientManager);
+		FReassignObjectPropertiesLogic(FOnlineClientManager& InClientManager);
 		virtual ~FReassignObjectPropertiesLogic() override;
 
 		/** Enumerates every client that has registered properties to this object. */
@@ -70,7 +70,7 @@ namespace UE::MultiUserClient::Replication
 		const TSharedRef<FToken> DestructionToken = FToken::Make();
 
 		/** Used to get info about clients and register to client list changing. */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 
 		struct FOperationData
 		{

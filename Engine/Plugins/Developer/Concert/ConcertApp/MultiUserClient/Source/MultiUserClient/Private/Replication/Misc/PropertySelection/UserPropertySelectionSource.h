@@ -11,7 +11,7 @@ namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	
 	/**
 	 * Injected into UI causing it to only display the properties that
@@ -26,7 +26,7 @@ namespace UE::MultiUserClient::Replication
 
 		FUserPropertySelectionSource(
 			const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
-			const FReplicationClientManager& InClientManager UE_LIFETIMEBOUND
+			const FOnlineClientManager& InClientManager UE_LIFETIMEBOUND
 			);
 
 		//~ Begin IPropertySourceProcessor Interface
@@ -41,6 +41,6 @@ namespace UE::MultiUserClient::Replication
 		/** Used to get the properties the user has selected. */
 		const ConcertSharedSlate::IEditableReplicationStreamModel& UserSelection;
 		/** Used to get client stream content and subscribe to changes. */
-		const FReplicationClientManager& ClientManager;
+		const FOnlineClientManager& ClientManager;
 	};
 }

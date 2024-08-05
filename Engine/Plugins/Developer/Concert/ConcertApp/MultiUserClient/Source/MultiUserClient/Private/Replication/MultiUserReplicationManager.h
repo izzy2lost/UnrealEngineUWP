@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Client/ReplicationClientManager.h"
+#include "Client/Online/OnlineClientManager.h"
 #include "IConcertSession.h"
 #include "Misc/ChangeLevelHandler.h"
 #include "Misc/Notification/ReplicationUserNotifier.h"
@@ -27,7 +27,7 @@ namespace UE::ConcertSyncClient { struct FJoinReplicatedSessionResult; }
 
 namespace UE::MultiUserClient::Replication
 {
-	class FReplicationClient;
+	class FOnlineClient;
 	
 	enum class EMultiUserReplicationConnectionState : uint8
 	{
@@ -62,8 +62,8 @@ namespace UE::MultiUserClient::Replication
 		void JoinReplicationSession();
 
 		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
-		FReplicationClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
-		const FReplicationClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		FOnlineClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		const FOnlineClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 		
 		/** @note You're not supposed to keep any reference to the MuteManager since it can become invalid depending on connection state. */
 		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
@@ -121,7 +121,7 @@ namespace UE::MultiUserClient::Replication
 			 *
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
-			FReplicationClientManager ClientManager;
+			FOnlineClientManager ClientManager;
 			/** Interacts with the mute global server mute system. */
 			FMuteStateManager MuteManager;
 			/** Saves and loads presets for the session. Accessed by UI. */
@@ -171,8 +171,8 @@ namespace UE::MultiUserClient::Replication
 		void SetupClientConnectionEvents();
 		void OnClientStreamServerStateChanged(const FGuid EndpointId) const;
 		void OnClientAuthorityServerStateChanged(const FGuid EndpointId) const;
-		void OnReplicationClientConnected(FRemoteReplicationClient& RemoteClient) const { SetupClientDelegates(RemoteClient); }
-		void SetupClientDelegates(FReplicationClient& InClient) const;
+		void OnReplicationClientConnected(FRemoteClient& RemoteClient) const { SetupClientDelegates(RemoteClient); }
+		void SetupClientDelegates(FOnlineClient& InClient) const;
 	};
 }
 

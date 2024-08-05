@@ -4,8 +4,8 @@
 
 #include "IConcertClient.h"
 #include "MultiUserReplicationStyle.h"
-#include "Replication/Client/ReplicationClient.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClient.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
@@ -46,14 +46,14 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			}
 		}
 
-		const FReplicationClient* FindClientByStream(const FReplicationClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
+		const FOnlineClient* FindClientByStream(const FOnlineClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
 		{
 			if (&ClientManager.GetLocalClient().GetClientEditModel().Get() == &StreamModel)
 			{
 				return &ClientManager.GetLocalClient();
 			}
 
-			for (const TNonNullPtr<const FRemoteReplicationClient> Client : ClientManager.GetRemoteClients())
+			for (const TNonNullPtr<const FRemoteClient> Client : ClientManager.GetRemoteClients())
 			{
 				if (&Client->GetClientEditModel().Get() == &StreamModel)
 				{
@@ -64,9 +64,9 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			return nullptr;
 		}
 		
-		static FString GetClientDisplayText(const IConcertClient& InConcertClient, const FReplicationClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
+		static FString GetClientDisplayText(const IConcertClient& InConcertClient, const FOnlineClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
 		{
-			if (const FReplicationClient* Client = FindClientByStream(ClientManager, StreamModel))
+			if (const FOnlineClient* Client = FindClientByStream(ClientManager, StreamModel))
 			{
 				return ClientUtils::GetClientDisplayName(InConcertClient, Client->GetEndpointId());
 			}
@@ -79,7 +79,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
-		FReplicationClientManager& ClientManager,
+		FOnlineClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
 	{
@@ -91,7 +91,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			FPropertyColumn_AssignPropertyColumn(
 				TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor,
 				TSharedRef<IConcertClient> ConcertClient,
-				FReplicationClientManager& ClientManager
+				FOnlineClientManager& ClientManager
 				)
 				: MultiStreamEditor(MoveTemp(MultiStreamEditor))
 				, ConcertClient(MoveTemp(ConcertClient))
@@ -152,7 +152,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 			const TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor;
 			const TSharedRef<IConcertClient> ConcertClient;
-			FReplicationClientManager& ClientManager;
+			FOnlineClientManager& ClientManager;
 		};
 		
 		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());

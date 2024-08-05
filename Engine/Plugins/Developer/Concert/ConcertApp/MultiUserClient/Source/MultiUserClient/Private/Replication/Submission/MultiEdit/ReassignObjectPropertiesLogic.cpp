@@ -3,7 +3,7 @@
 #include "ReassignObjectPropertiesLogic.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Client/ReplicationClientManager.h"
+#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Submission/ISubmissionOperation.h"
 #include "Replication/Misc/Util/SynchronizedRequestUtils.h"
 
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient::Replication
 		};
 		
 		/** Builds all the changes that must be made to the clients we are transferring from.  */
-		static FObjectReassignment BuildChangesForTransferal(const FReplicationClientManager& ClientManager, TConstArrayView<FSoftObjectPath> ObjectsToReassign, const FGuid& StreamId)
+		static FObjectReassignment BuildChangesForTransferal(const FOnlineClientManager& ClientManager, TConstArrayView<FSoftObjectPath> ObjectsToReassign, const FGuid& StreamId)
 		{
 			FObjectReassignment Result;
 			TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
@@ -49,7 +49,7 @@ namespace UE::MultiUserClient::Replication
 					[&ClientManager, &OldRegisteredObjects, &OldFrequencies, &ReassignedClientRequests, &ReassignedAuthority, &ObjectPath, &ObjectId, &AuthorityCache](const FGuid& ClientId)
 					{
 						// Get the property assignments of the client being reassigned from
-						const FReplicationClient* ClientToReassignFrom = ClientManager.FindClient(ClientId);
+						const FOnlineClient* ClientToReassignFrom = ClientManager.FindClient(ClientId);
 						if (!ensureMsgf(ClientToReassignFrom, TEXT("Authority cache out of sync"))
 							|| !ClientToReassignFrom->AllowsEditing())
 						{
@@ -87,7 +87,7 @@ namespace UE::MultiUserClient::Replication
 			// Need to set Defaults of the OldFrequencies because that's not been done, yet.
 			for (TPair<FGuid, FConcertStreamFrequencySettings>& OldFrequency : OldFrequencies)
 			{
-				const FReplicationClient* ClientToReassignFrom = ClientManager.FindClient(OldFrequency.Key);
+				const FOnlineClient* ClientToReassignFrom = ClientManager.FindClient(OldFrequency.Key);
 				check(ClientToReassignFrom);
 				OldFrequency.Value.Defaults = ClientToReassignFrom->GetStreamSynchronizer().GetFrequencySettings().Defaults;
 			}
@@ -204,12 +204,12 @@ namespace UE::MultiUserClient::Replication
 		/** @return Whether TargetClientObjects includes all properties ClientsToConsider have registered for ObjectToCheck. */
 		static bool DoesTargetIncludeOthers_SingleObject(
 			const FConcertObjectReplicationMap& TargetClientObjects,
-			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider,
+			const TArray<TNonNullPtr<const FOnlineClient>> ClientsToConsider,
 			const FSoftObjectPath& ObjectToCheck)
 		{
 			const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
 				
-			for (const FReplicationClient* OtherClient : ClientsToConsider)
+			for (const FOnlineClient* OtherClient : ClientsToConsider)
 			{
 				const FConcertObjectReplicationMap& OtherClientObjects = OtherClient->GetStreamSynchronizer().GetServerState();
 				const FConcertReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
@@ -233,18 +233,18 @@ namespace UE::MultiUserClient::Replication
 		static bool DoesTargetIncludeOthers(
 			const FGuid& TargetClientId,
 			TConstArrayView<FSoftObjectPath> ObjectsToCheck,
-			const FReplicationClientManager& ClientManager,
-			TFunctionRef<bool(const FReplicationClient& Client)> ShouldConsiderClientPredicate
+			const FOnlineClientManager& ClientManager,
+			TFunctionRef<bool(const FOnlineClient& Client)> ShouldConsiderClientPredicate
 			)
 		{
-			const FReplicationClient* TargetClient = ClientManager.FindClient(TargetClientId);
+			const FOnlineClient* TargetClient = ClientManager.FindClient(TargetClientId);
 			if (!ensure(TargetClient))
 			{
 				return false;
 			}
 
 			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
-			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider = ClientManager.GetClients(ShouldConsiderClientPredicate);
+			const TArray<TNonNullPtr<const FOnlineClient>> ClientsToConsider = ClientManager.GetClients(ShouldConsiderClientPredicate);
 			return Algo::AllOf(ObjectsToCheck, [&TargetClientObjects, &ClientsToConsider](const FSoftObjectPath& ObjectToCheck)
 			{
 				return DoesTargetIncludeOthers_SingleObject(TargetClientObjects, ClientsToConsider, ObjectToCheck);
@@ -252,9 +252,9 @@ namespace UE::MultiUserClient::Replication
 		}
 
 		/** @return Whether ClientId has any properties assigned to any of the objects in ObjectsToCheck. */
-		static bool HasAnyProperties(const FGuid& ClientId, TConstArrayView<FSoftObjectPath> ObjectsToCheck, const FReplicationClientManager& ClientManager)
+		static bool HasAnyProperties(const FGuid& ClientId, TConstArrayView<FSoftObjectPath> ObjectsToCheck, const FOnlineClientManager& ClientManager)
 		{
-			const FReplicationClient* TargetClient = ClientManager.FindClient(ClientId);
+			const FOnlineClient* TargetClient = ClientManager.FindClient(ClientId);
 			if (!ensure(TargetClient))
 			{
 				return false;
@@ -269,7 +269,7 @@ namespace UE::MultiUserClient::Replication
 		}
 	}
 	
-	FReassignObjectPropertiesLogic::FReassignObjectPropertiesLogic(FReplicationClientManager& InClientManager)
+	FReassignObjectPropertiesLogic::FReassignObjectPropertiesLogic(FOnlineClientManager& InClientManager)
 		: ClientManager(InClientManager)
 	{
 		ClientManager.OnRemoteClientsChanged().AddRaw(this, &FReassignObjectPropertiesLogic::OnRemoteClientsChanged);
@@ -291,7 +291,7 @@ namespace UE::MultiUserClient::Replication
 
 	void FReassignObjectPropertiesLogic::EnumerateClientOwnershipState(const FSoftObjectPath& ObjectPath, FProcessClientOwnership Callback) const
 	{
-		ClientManager.ForEachClient([&ObjectPath, &Callback](const FReplicationClient& ReplicationClient)
+		ClientManager.ForEachClient([&ObjectPath, &Callback](const FOnlineClient& ReplicationClient)
 		{
 			const bool bHasProperties = ReplicationClient.GetStreamSynchronizer().GetServerState().HasProperties(ObjectPath);
 			const EOwnershipState Ownership = bHasProperties ? EOwnershipState::HasObjectRegistered : EOwnershipState::NoOwnership;
@@ -337,7 +337,7 @@ namespace UE::MultiUserClient::Replication
 			return false;
 		}
 		
-		const FReplicationClient* Client = ClientManager.FindClient(ClientId);
+		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
 		if (!Client)
 		{
 			SET_REASON(LOCTEXT("Reason.ClientDisconnected", "Client disconnected"));
@@ -351,7 +351,7 @@ namespace UE::MultiUserClient::Replication
 		}
 
 		// Relevant after user has re-assigned all properties to a given client
-		auto ShouldConsiderClient = [this](const FReplicationClient& Client) { return Client.AllowsEditing(); };
+		auto ShouldConsiderClient = [this](const FOnlineClient& Client) { return Client.AllowsEditing(); };
 		if (ReassignObjectProperties::Private::DoesTargetIncludeOthers(ClientId, ObjectsToReassign, ClientManager, ShouldConsiderClient))
 		{
 			const bool bHasAnyProperties = ReassignObjectProperties::Private::HasAnyProperties(ClientId, ObjectsToReassign, ClientManager);
@@ -372,7 +372,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		using namespace ConcertSyncClient::Replication;
 		
-		const FReplicationClient* ClientToAssignTo = ClientManager.FindClient(ClientId);
+		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(ClientId);
 		if (!ensure(ClientToAssignTo && ClientToAssignTo->AllowsEditing()))
 		{
 			UE_LOG(LogConcert, Error, TEXT("Property Reassignment: The target client is not editable."));
@@ -462,7 +462,7 @@ namespace UE::MultiUserClient::Replication
 
 	FSubmissionQueue* FReassignObjectPropertiesLogic::FindSubmissionQueueForTargetClient() const
 	{
-		FReplicationClient* Client = InProgressOperation.IsSet()
+		FOnlineClient* Client = InProgressOperation.IsSet()
 			? ClientManager.FindClient(InProgressOperation->AssignedToClient)
 			: nullptr;
 		return Client ? &Client->GetSubmissionQueue() : nullptr;
@@ -476,7 +476,7 @@ namespace UE::MultiUserClient::Replication
 			return;
 		}
 		
-		const FReplicationClient* ClientToAssignTo = ClientManager.FindClient(InProgressOperation->AssignedToClient);
+		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(InProgressOperation->AssignedToClient);
 		if (!ensureMsgf(ClientToAssignTo, TEXT("FReassignObjectPropertiesLogic should have cancelled the change upon disconnect"))
 			|| !ClientToAssignTo->AllowsEditing())
 		{

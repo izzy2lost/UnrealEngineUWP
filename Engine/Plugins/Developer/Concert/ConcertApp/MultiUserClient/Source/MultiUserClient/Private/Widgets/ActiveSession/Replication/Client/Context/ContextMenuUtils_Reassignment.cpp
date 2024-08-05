@@ -2,7 +2,7 @@
 
 #include "ContextMenuUtils.h"
 
-#include "Replication/Client/ReplicationClient.h"
+#include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
@@ -35,14 +35,14 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 		
 		static void AddReassignSection(
 			FMenuBuilder& MenuBuilder,
-			const TArray<const FReplicationClient*>& SortedClients,
+			const TArray<const FOnlineClient*>& SortedClients,
 			TAttribute<FInlineObjectPathArray> ObjectsToAssign,
 			const IConcertClient& ConcertClient,
 			FReassignObjectPropertiesLogic& ReassignmentLogic,
 			ConcertSharedSlate::IMultiReplicationStreamEditor& MultiStreamEditor
 			)
 		{
-			for (const FReplicationClient* Client : SortedClients)
+			for (const FOnlineClient* Client : SortedClients)
 			{
 				const FGuid& ClientId = Client->GetEndpointId();
 				MenuBuilder.AddMenuEntry(
@@ -76,13 +76,13 @@ namespace UE::MultiUserClient::Replication::ContextMenuUtils
 		FMenuBuilder& MenuBuilder,
 		const TSoftObjectPtr<>& ContextObject,
 		const IConcertClient& ConcertClient,
-		const FReplicationClientManager& ReplicationManager,
+		const FOnlineClientManager& ReplicationManager,
 		ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		ConcertSharedSlate::IMultiReplicationStreamEditor& MultiStreamEditor
 		)
 	{
-		const TArray<const FReplicationClient*> SortedClients = ClientUtils::GetSortedClientList(ConcertClient, ReplicationManager);
+		const TArray<const FOnlineClient*> SortedClients = ClientUtils::GetSortedClientList(ConcertClient, ReplicationManager);
 		
 		MenuBuilder.BeginSection(TEXT("Reassign.This"), LOCTEXT("Reassign.This", "Reassign this to"));
 		Private::AddReassignSection(MenuBuilder, SortedClients, Private::FInlineObjectPathArray{ ContextObject.GetUniqueID() }, ConcertClient, ReassignmentLogic, MultiStreamEditor);

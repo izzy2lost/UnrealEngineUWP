@@ -17,7 +17,7 @@ namespace UE::MultiUserClient::Replication
 	{
 	public:
 
-		FReplicationUserNotifier(FReplicationClientManager& InReplicationClientManager UE_LIFETIMEBOUND, FMuteStateManager& InMuteManager UE_LIFETIMEBOUND);
+		FReplicationUserNotifier(FOnlineClientManager& InReplicationClientManager UE_LIFETIMEBOUND, FMuteStateManager& InMuteManager UE_LIFETIMEBOUND);
 
 	private:
 		

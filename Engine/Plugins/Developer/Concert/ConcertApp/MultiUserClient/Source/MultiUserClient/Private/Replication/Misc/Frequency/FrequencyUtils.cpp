@@ -7,7 +7,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	TSharedPtr<IParallelSubmissionOperation> SetFrequencySettingForClients(
 		const FSoftObjectPath& ContextObject,
 		const FInlineClientArray& Clients,
-		FReplicationClientManager& InClientManager,
+		FOnlineClientManager& InClientManager,
 		TFunctionRef<void(FConcertObjectReplicationSettings&)> ApplySettingChange
 		)
 	{
@@ -15,7 +15,7 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 		
 		for (const FGuid& ClientId : Clients)
 		{
-			FReplicationClient* Client = InClientManager.FindClient(ClientId);
+			FOnlineClient* Client = InClientManager.FindClient(ClientId);
 			if (Client && CanChangeFrequencySettings(ContextObject, *Client))
 			{
 				const FGuid StreamId = Client->GetStreamSynchronizer().GetStreamId();

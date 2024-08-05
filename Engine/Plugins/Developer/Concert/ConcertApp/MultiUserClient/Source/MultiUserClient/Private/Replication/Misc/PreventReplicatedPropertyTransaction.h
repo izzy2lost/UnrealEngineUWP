@@ -14,7 +14,7 @@ struct FConcertTransactionFilterArgs;
 namespace UE::MultiUserClient::Replication
 {
 	class FMuteStateManager;
-	class FReplicationClientManager;
+	class FOnlineClientManager;
 	
 	/** Prevents generating transactions with properties that are being replicated by any other client. */
 	class FPreventReplicatedPropertyTransaction : public FNoncopyable
@@ -23,7 +23,7 @@ namespace UE::MultiUserClient::Replication
 		
 		FPreventReplicatedPropertyTransaction(
 			IConcertSyncClient& InSyncClient UE_LIFETIMEBOUND,
-			FReplicationClientManager& InClientManager UE_LIFETIMEBOUND,
+			FOnlineClientManager& InClientManager UE_LIFETIMEBOUND,
 			FMuteStateManager& InMuteManager UE_LIFETIMEBOUND
 			);
 		~FPreventReplicatedPropertyTransaction();
@@ -34,7 +34,7 @@ namespace UE::MultiUserClient::Replication
 		IConcertSyncClient& SyncClient;
 
 		/** Used to obtain up-to-date registered properties from all clients. */
-		FReplicationClientManager& ClientManager;
+		FOnlineClientManager& ClientManager;
 		/** Used to approximate whether remote clients may have sync control */
 		FMuteStateManager& MuteManager;
 		
