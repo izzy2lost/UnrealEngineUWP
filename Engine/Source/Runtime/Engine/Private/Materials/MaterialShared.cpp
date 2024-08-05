@@ -2811,12 +2811,6 @@ void FMaterial::SetupMaterialEnvironment(
 		SET_SHADER_DEFINE(OutEnvironment, USE_STENCIL_LOD_DITHER_DEFAULT, CVar->GetValueOnAnyThread() != 0 ? 1 : 0);
 	}
 
-	if (FDataDrivenShaderPlatformInfo::GetSupportsVariableRateShading(Platform) && IsVariableRateShadingAllowed())
-	{
-		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.VRS.Support"));
-		OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), CVar->GetValueOnAnyThread() != 0 ? 1 : 0);
-	}
-
 	{
 		switch (GetMaterialDomain())
 		{
@@ -5706,6 +5700,7 @@ FMaterialShaderParameters::FMaterialShaderParameters(const FMaterial* InMaterial
 	bIsMobileSeparateTranslucencyEnabled = InMaterial->IsMobileSeparateTranslucencyEnabled();
 	bAlwaysEvaluateWorldPositionOffset = InMaterial->ShouldAlwaysEvaluateWorldPositionOffset();
 	bDisablePreExposureScale = InMaterial->GetDisablePreExposureScale();
+	bAllowVariableRateShading = InMaterial->IsVariableRateShadingAllowed();
 }
 
 #if WITH_EDITOR

@@ -1057,6 +1057,7 @@ struct FMaterialShaderParameters
 			uint64 bIsMobileSeparateTranslucencyEnabled : 1;
 			uint64 bAlwaysEvaluateWorldPositionOffset : 1;
 			uint64 bDisablePreExposureScale : 1;
+			uint64 bAllowVariableRateShading : 1;
 		};
 	};
 

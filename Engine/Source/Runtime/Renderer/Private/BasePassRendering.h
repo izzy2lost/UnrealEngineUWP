@@ -274,6 +274,11 @@ public:
 	{
 		LightMapPolicyType::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		Super::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+
+		if (HardwareVariableRateShadingSupportedByPlatform(Parameters.Platform) && Parameters.MaterialParameters.bAllowVariableRateShading)
+		{
+			OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
+		}
 	}
 };
 
@@ -515,6 +520,11 @@ public:
 	{
 		FMeshMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		FForwardLightingParameters::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+
+		if (HardwareVariableRateShadingSupportedByPlatform(Parameters.Platform) && Parameters.MaterialParameters.bAllowVariableRateShading)
+		{
+			OutEnvironment.SetCompileArgument(TEXT("USING_VARIABLE_RATE_SHADING"), true);
+		}
 	}
 
 	static bool ValidateCompiledResult(EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutError)
