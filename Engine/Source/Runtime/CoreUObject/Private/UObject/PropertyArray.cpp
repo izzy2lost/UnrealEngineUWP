@@ -251,7 +251,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			else
 			{
 				// Only Array of Instanced subobject are handled here as sort of a set where the matching key is done using the archetype
-				const FObjectProperty* InnerObjectProperty = CastFieldChecked<FObjectProperty>(Inner);
+				const FObjectPropertyBase* InnerObjectProperty = CastFieldChecked<FObjectPropertyBase>(Inner);
 				checkf(InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Only supported code path here is the instanced subobjects"));
 
 				FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
@@ -352,6 +352,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 					}
 				}
 
+				// @Todo can be removed with an engine version, not being saved anymore on new objects
 				int32 NumModified = 0;
 				FStructuredArchive::FArray ModifiedArray = Record.EnterArray(TEXT("Modified"), NumModified);
 				if (NumModified != 0)
@@ -424,7 +425,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 		{
 			// Container for temporarily tracking some indices
 			TArray<int32> RemovedIndices;
-			TArray<int32> ModifiedIndices;
 			TArray<int32> AddedIndices;
 
 			bool bReplaceArray = false;
@@ -434,7 +434,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 			}
 			else
 			{
-				const FObjectProperty* InnerObjectProperty = CastField<FObjectProperty>(Inner);
+				const FObjectPropertyBase* InnerObjectProperty = CastField<FObjectPropertyBase>(Inner);
 				EOverriddenPropertyOperation ArrayOverrideOp = EOverriddenPropertyOperation::None;
 				FOverriddenPropertySet* OverriddenProperties = FOverridableSerializationLogic::GetOverriddenProperties();
 				if (OverriddenProperties)
@@ -451,13 +451,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				{
 					// Only array of instanced subobjects are handled here as sort of a set where the matching key is done using the archetype
 					checkf(InnerObjectProperty&& InnerObjectProperty->HasAnyPropertyFlags(CPF_PersistentInstance), TEXT("Expecting only arrays of instanced subobjects"));
-
-					// We need to always serialize instanced subobjects to know if they have overridden values.
-					const int32 ArrayNum = ArrayHelper.Num();
-					for (int i = 0; i < ArrayNum; i++)
-					{
-						ModifiedIndices.Add(i);
-					}
 
 					if (OverriddenProperties && ArrayOverrideOp != EOverriddenPropertyOperation::None)
 					{
@@ -527,7 +520,6 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 										if (Index != INDEX_NONE)
 										{
 											AddedIndices.Add(Index);
-											ModifiedIndices.Remove(Index);
 										}
 										else
 										{
@@ -567,12 +559,9 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 					SerializeContainerItem(RemovedArray.EnterElement(), DefaultsArrayHelper.GetRawPtr(i));
 				}
 
-				int32 NumModified = ModifiedIndices.Num();
+				// @Todo can be removed with an engine version, not being saved anymore on new objects
+				int32 NumModified = 0;
 				FStructuredArchive::FArray ModifiedArray = Record.EnterArray(TEXT("Modified"), NumModified);
-				for (int32 i : ModifiedIndices)
-				{
-					SerializeContainerItem(ModifiedArray.EnterElement(), ArrayHelper.GetRawPtr(i));
-				}
 
 				int32 NumAdded = AddedIndices.Num();
 				FStructuredArchive::FArray AddedArray = Record.EnterArray(TEXT("Added"), NumAdded);

@@ -121,7 +121,10 @@ struct FOverriddenPropertyNodeID
 	}
 
 	static COREUOBJECT_API FOverriddenPropertyNodeID RootNodeId();
-	static COREUOBJECT_API FOverriddenPropertyNodeID ForMapKey(const FProperty* KeyProperty, const void* KeyData);
+
+	// Overridden property node map helpers
+	static COREUOBJECT_API FOverriddenPropertyNodeID FromMapKey(const FProperty* KeyProperty, const void* KeyData);
+	int32 ToMapInternalIndex(FScriptMapHelper& MapHelper) const;
 
 	bool operator==(const FOverriddenPropertyNodeID& Other) const
 	{
