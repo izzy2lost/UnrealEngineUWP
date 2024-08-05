@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Misc/Guid.h"
 #include "UObject/NameTypes.h"
+#include "UObject/ObjectMacros.h"
 #include "Templates/SharedPointer.h"
 
 class ITransactionObjectAnnotation;
@@ -142,6 +143,9 @@ struct FTransactionObjectChange
 	/** Original ID of the object that changed */
 	FTransactionObjectId OriginalId;
 
+	/** Original flags of the object that changed */
+	EObjectFlags OriginalObjectFlags = RF_NoFlags;
+
 	/** Information about how the object changed */
 	FTransactionObjectDeltaChange DeltaChange;
 };
@@ -190,14 +194,6 @@ public:
 		check(OperationId.IsValid());
 	}
 
-	UE_DEPRECATED(5.1, "Use the constructor that takes a FTransactionObjectChange.")
-	FTransactionObjectEvent(const FGuid& InTransactionId, const FGuid& InOperationId, const ETransactionObjectEventType InEventType, const FTransactionObjectDeltaChange& InDeltaChange, const TSharedPtr<ITransactionObjectAnnotation>& InAnnotation
-		, const FName InOriginalObjectPackageName, const FName InOriginalObjectName, const FName InOriginalObjectPathName, const FName InOriginalObjectOuterPathName, const FName InOriginalObjectExternalPackageName, const FName InOriginalObjectClassPathName)
-		: FTransactionObjectEvent(InTransactionId, InOperationId, InEventType, ETransactionObjectChangeCreatedBy::TransactionRecord, 
-			FTransactionObjectChange{ FTransactionObjectId(InOriginalObjectPackageName, InOriginalObjectName, InOriginalObjectPathName, InOriginalObjectOuterPathName, InOriginalObjectExternalPackageName, InOriginalObjectClassPathName), InDeltaChange }, InAnnotation)
-	{
-	}
-
 	/** The unique identifier of the transaction this event belongs to */
 	const FGuid& GetTransactionId() const
 	{
@@ -238,6 +234,12 @@ public:
 	const FTransactionObjectId& GetOriginalObjectId() const
 	{
 		return ObjectChange.OriginalId;
+	}
+
+	/** Get the original flags of this object */
+	EObjectFlags GetOriginalObjectFlags() const
+	{
+		return ObjectChange.OriginalObjectFlags;
 	}
 
 	/** Get the original package name of this object */

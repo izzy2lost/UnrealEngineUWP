@@ -629,7 +629,7 @@ void FActorTransactionAnnotation::ComputeAdditionalObjectChanges(const ITransact
 				}
 				else
 				{
-					OutAdditionalObjectChanges.Add(CurrentComponent, FTransactionObjectChange{ OldDiffableComponent.ObjectInfo, MoveTemp(ComponentDeltaChange) });
+					OutAdditionalObjectChanges.Add(CurrentComponent, FTransactionObjectChange{ OldDiffableComponent.ObjectInfo, OldDiffableComponent.ObjectFlags, MoveTemp(ComponentDeltaChange) });
 				}
 			}
 		};

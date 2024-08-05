@@ -865,7 +865,7 @@ void SConcertSessionActivities::DisplayTransactionDetails(const FConcertSessionA
 
 		FTransactionObjectId TransactionObjectId = ExportedObject.ObjectId.ToTransactionObjectId();
 		TSharedPtr<FTransactionObjectEvent> Event = MakeShared<FTransactionObjectEvent>(InTransaction.TransactionId, InTransaction.OperationId, ETransactionObjectEventType::Finalized, ETransactionObjectChangeCreatedBy::TransactionRecord, 
-			FTransactionObjectChange{ TransactionObjectId, MoveTemp(DeltaChange) }, nullptr);
+			FTransactionObjectChange{ TransactionObjectId, (EObjectFlags)ExportedObject.ObjectId.ObjectPersistentFlags, MoveTemp(DeltaChange) }, nullptr);
 
 		TransactionDiff.DiffMap.Emplace(TransactionObjectId.ObjectPathName, MoveTemp(Event));
 	}

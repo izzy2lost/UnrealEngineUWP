@@ -156,13 +156,33 @@ ETransactionFilterResult ApplyTransactionFilters(const TMap<FName, FOnFilterTran
 		return true;
 	};
 
+	auto WasObjectPersistent = [&IsObjectPersistent](const EObjectFlags OriginalFlags, const FName OriginalOuterPathName)
+	{
+		if (!EnumHasAnyFlags(OriginalFlags, RF_Transient))
+		{
+			if (UObject* OriginalOuter = FSoftObjectPath(FNameBuilder(OriginalOuterPathName).ToView()).ResolveObject();
+				OriginalOuter && IsObjectPersistent(OriginalOuter))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+
 	const ETransactionFilterResult FilterResult = ConcertClientTransactionBridgeUtil::ApplyCustomFilter(CustomFilters, InObject, InChangedPackage, InTransactionEvent);
 	if (FilterResult != ETransactionFilterResult::UseDefault)
 	{
 		return FilterResult;
 	}
-	// Ignore transient packages and objects, compiled in package are not considered Multi-user content.
-	if (!InChangedPackage || InChangedPackage == GetTransientPackage() || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn) || !IsObjectPersistent(InObject))
+
+	// Ignore compiled in package, as they are not considered Multi-user content.
+	if (!InChangedPackage || InChangedPackage->HasAnyPackageFlags(PKG_CompiledIn))
+	{
+		return ETransactionFilterResult::ExcludeObject;
+	}
+
+	// Ignore transient packages and objects, unless the object was previously persistent
+	if ((InChangedPackage == GetTransientPackage() || !IsObjectPersistent(InObject)) && !WasObjectPersistent(InTransactionEvent.GetOriginalObjectFlags(), InTransactionEvent.GetOriginalObjectOuterPathName()))
 	{
 		return ETransactionFilterResult::ExcludeObject;
 	}
@@ -278,7 +298,7 @@ struct FEditorTransactionNotification
 					DeltaChange.ChangedProperties.Add(PropertyData.PropertyName);
 				}
 				TransactionObjectEvent = FTransactionObjectEvent(TransactionContext.TransactionId, TransactionContext.OperationId, ETransactionObjectEventType::UndoRedo, ETransactionObjectChangeCreatedBy::TransactionRecord,
-					FTransactionObjectChange{ InObjectUpdate.ObjectId.ToTransactionObjectId(), MoveTemp(DeltaChange) }, InTransactionAnnotation);
+					FTransactionObjectChange{ InObjectUpdate.ObjectId.ToTransactionObjectId(), (EObjectFlags)InObjectUpdate.ObjectId.ObjectPersistentFlags, MoveTemp(DeltaChange) }, InTransactionAnnotation);
 			}
 			GUnrealEd->HandleObjectTransacted(InTransactionObject, TransactionObjectEvent);
 		}
