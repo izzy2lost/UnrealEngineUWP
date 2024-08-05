@@ -757,6 +757,24 @@ FString UGameFeatureData::GetInstallBundleName(FStringView PluginName, bool bEve
 	}
 }
 
+FString UGameFeatureData::GetOptionalInstallBundleName(FStringView PluginName, bool bEvenIfDoesntExist /*= false*/)
+{
+	const FString OptionalBundleName = FString::Printf(TEXT("GFP_%.*sOptional"), PluginName.Len(), PluginName.GetData());
+	if (bEvenIfDoesntExist)
+	{
+		return OptionalBundleName;
+	}
+
+	if (InstallBundleUtil::HasInstallBundleInConfig(OptionalBundleName))
+	{
+		return OptionalBundleName;
+	}
+	else
+	{
+		return TEXT("");
+	}
+}
+
 void UGameFeatureData::GetPluginName(FString& PluginName) const
 {
 	UGameFeatureData::GetPluginName(this, PluginName);
