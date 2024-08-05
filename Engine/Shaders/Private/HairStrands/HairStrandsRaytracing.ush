@@ -68,7 +68,7 @@ float InternalTraverseHair(uint2 PixelCoord, float3 RayOrigin, float3 RayDirecti
 
 		if (Result.HitT >= 0)
 		{
-			const float WorldHitT = DistanceThreshold * Result.HitT;
+			const float WorldHitT = Result.HitT;
 			HitT = HitT >= 0 ? min(HitT, WorldHitT) : WorldHitT;
 		}
 	}
