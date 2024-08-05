@@ -2401,7 +2401,12 @@ namespace NFORDenoise
 		FRDGBufferRef CombinedRadiances = GraphBuilder.CreateBuffer(CombinedRadianceDesc, TEXT("NFOR.CombinedRadiances"));
 
 		FRDGTextureDesc FilteredRadianceDesc = Radiances[SourceIndex].Data.Image->Desc;
-		FilteredRadianceDesc.Flags |= TexCreate_RenderTargetable;
+		{
+			FilteredRadianceDesc.Flags |= TexCreate_RenderTargetable;
+		
+			check(FilteredRadianceDesc.Format == EPixelFormat::PF_FloatRGBA);
+			FilteredRadianceDesc.Format = EPixelFormat::PF_A32B32G32R32F;// The accumulation can run more than 2^16.
+		}
 		FRDGTextureRef FilteredRadiance = GraphBuilder.CreateTexture(FilteredRadianceDesc, TEXT("NFOR.FilteredRadiance"));
 
 		FRDGTextureDesc RadianceTileDesc = FilteredRadianceDesc;
@@ -2559,6 +2564,15 @@ namespace NFORDenoise
 
 		// Normalize the image by weights stored in alpha channel.
 		AddNormalizeTexturePass(GraphBuilder, FilteredRadiance);
+
+		// Copy back with the original format.
+		{
+			FRDGTextureDesc FilteredRadianceOutputDesc = Radiances[SourceIndex].Data.Image->Desc;
+
+			FRDGTextureRef FilteredRadianceOutputTexture = GraphBuilder.CreateTexture(FilteredRadianceOutputDesc, TEXT("NFOR.FilteredRadiance.Output"));
+			AddCopyMirroredTexturePass(GraphBuilder, FilteredRadiance, FilteredRadianceOutputTexture);
+			FilteredRadiance = FilteredRadianceOutputTexture;
+		}
 
 		return FilteredRadiance;
 	}

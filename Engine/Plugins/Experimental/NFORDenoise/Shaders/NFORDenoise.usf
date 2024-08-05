@@ -1465,8 +1465,9 @@ float4 DecodeFloat4(uint4 Value)
 
 void SaveFloat4ToBufferOrTexture(uint2 Position, float4 Value, uint NumOfScattering)
 {
+	Value = max(Value, 0);
 #if COMPILER_SUPPORTS_UINT64_IMAGE_ATOMICS
-	float4 XBWFraction = frac(max(Value, 0));
+	float4 XBWFraction = frac(Value);
 	uint4 XBWInteger = Value - XBWFraction;
 	XBWInteger = min(XBWInteger, 0xffffffff / NumOfScattering); // Avoid overflow.
 
@@ -1635,7 +1636,7 @@ float4 DecodeFloat4FromBufferOrTexture(uint2 Position)
 
 	// There would be cases where a is 0 due to w being too small and encoded as 0.
 	// Without rejecting this sample, could see borders artifacts around each tile.
-	DecodedValue = lerp(0, DecodedValue, DecodedValue.a != 0);
+	DecodedValue = lerp(0, DecodedValue, DecodedValue.a > 0);
 
 	return DecodedValue;
 }
