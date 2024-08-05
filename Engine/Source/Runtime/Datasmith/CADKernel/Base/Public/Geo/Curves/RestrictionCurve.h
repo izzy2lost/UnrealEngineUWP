@@ -169,6 +169,13 @@ public:
 	 */
 	void CheckIfDegenerated(const FLinearBoundary& InBoundary, bool& bDegeneration2D, bool& bDegeneration3D, double& Length3D) const
 	{
+		if (!ensure(Polyline.Coordinates.Num() > 1))
+		{
+			bDegeneration2D = true;
+			bDegeneration3D = true;
+			Length3D = 0.;
+			return;
+		}
 		double Tolerance = GetCarrierSurface()->Get3DTolerance();
 		const FSurfacicTolerance& Tolerances2D = GetCarrierSurface()->GetIsoTolerances();
 		Polyline.CheckIfDegenerated(Tolerance, Tolerances2D, InBoundary, bDegeneration2D, bDegeneration3D, Length3D);

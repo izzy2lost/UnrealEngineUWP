@@ -12,6 +12,7 @@
 #include "Misc/CoreDelegates.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Misc/OutputDeviceRedirector.h"
 #include "SocketSubsystem.h"
 #include "Sockets.h"
 #include "Tasks/Task.h"
@@ -28,10 +29,6 @@ FDatasmithCADWorkerImpl::FDatasmithCADWorkerImpl(int32 InServerPID, int32 InServ
 	, CachePath(InCachePath)
 	, PingStartCycle(0)
 {
-}
-
-bool FDatasmithCADWorkerImpl::Run()
-{
 	UE_LOG(LogDatasmithCADWorker, Verbose, TEXT("connect to %d..."), ServerPort);
 	bool bConnected = NetworkInterface.Connect(TEXT("Datasmith CAD Worker"), ServerPort, Config::ConnectTimeout_s);
 	UE_LOG(LogDatasmithCADWorker, Verbose, TEXT("connected to %d %s"), ServerPort, bConnected ? TEXT("OK") : TEXT("FAIL"));
@@ -42,10 +39,18 @@ bool FDatasmithCADWorkerImpl::Run()
 	else
 	{
 		UE_LOG(LogDatasmithCADWorker, Error, TEXT("Server connection failure. exit"));
-		return false;
+		return;
 	}
 
 	InitiatePing();
+}
+
+bool FDatasmithCADWorkerImpl::Run()
+{
+	if (!CommandIO.IsValid())
+	{
+		return false;
+	}
 
 	bool bIsRunning = true;
 	while (bIsRunning)
@@ -98,6 +103,7 @@ bool FDatasmithCADWorkerImpl::Run()
 void FDatasmithCADWorkerImpl::InitiatePing()
 {
 	PingStartCycle = FPlatformTime::Cycles64();
+	UE_LOG(LogDatasmithCADWorker, Verbose, TEXT("InitiatePing..."));
 	FPingCommand Ping;
 	CommandIO.SendCommand(Ping, Config::SendCommandTimeout_s);
 }

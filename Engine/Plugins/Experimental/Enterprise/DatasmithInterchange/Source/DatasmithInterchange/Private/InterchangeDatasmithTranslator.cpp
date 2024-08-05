@@ -890,6 +890,10 @@ void UInterchangeDatasmithTranslator::ImportFinish()
 
 	UE_LOG(LogInterchangeDatasmith, Log, TEXT("Imported %s in [%d min %.3f s]"), *FileName, ElapsedMin, ElapsedSeconds);
 
+	// Remove dependency on created static meshes
+	StaticMeshDataNode->AdditionalDataMap.Reset();
+	StaticMeshDataNode = nullptr;
+
 	if (LoadedExternalSource.IsValid())
 	{
 		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
@@ -945,6 +949,8 @@ UInterchangeTranslatorSettings* UInterchangeDatasmithTranslator::GetSettings() c
 
 void UInterchangeDatasmithTranslator::SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings)
 {
+	using namespace UE::DatasmithImporter;
+
 	if (CachedSettings)
 	{
 		CachedSettings->ClearFlags(RF_Standalone);
@@ -961,8 +967,19 @@ void UInterchangeDatasmithTranslator::SetSettings(const UInterchangeTranslatorSe
 
 		CachedSettings->DatasmithOption->SaveConfig();
 
-		const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
-		DatasmithTranslator->SetSceneImportOptions({ CachedSettings->DatasmithOption });
+		if (!LoadedExternalSource.IsValid())
+		{
+			FString FilePath = FPaths::ConvertRelativePathToFull(SourceData->GetFilename());
+			FileName = FPaths::GetCleanFilename(FilePath);
+			const FSourceUri FileNameUri = FSourceUri::FromFilePath(FilePath);
+			LoadedExternalSource = IExternalSourceModule::GetOrCreateExternalSource(FileNameUri);
+		}
+
+		if (LoadedExternalSource.IsValid() && LoadedExternalSource->IsAvailable())
+		{
+			const TSharedPtr<IDatasmithTranslator>& DatasmithTranslator = LoadedExternalSource->GetAssetTranslator();
+			DatasmithTranslator->SetSceneImportOptions({ CachedSettings->DatasmithOption });
+		}
 	}
 }
 

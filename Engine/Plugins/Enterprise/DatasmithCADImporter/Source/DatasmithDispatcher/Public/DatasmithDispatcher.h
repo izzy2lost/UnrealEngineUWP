@@ -38,7 +38,6 @@ public:
 private:
 	void SpawnHandlers();
 	int32 GetNextWorkerId();
-	int32 GetAliveHandlerCount();
 	void CloseHandlers();
 
 	void ProcessLocal();
