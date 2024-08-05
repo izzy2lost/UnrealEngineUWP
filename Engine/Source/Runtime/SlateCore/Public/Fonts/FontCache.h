@@ -354,7 +354,6 @@ public:
 		, SequenceWidth(0)
 		, GlyphFontFaces()
 		, SourceIndicesToGlyphData(FSourceTextRange(0, 0))
-		, SdfSettings()
 		, CachedFontSkew(0.f)
 	{ }
 
@@ -363,8 +362,6 @@ public:
 						 const uint16 InMaxTextHeight,
 						 const UObject* InFontMaterial,
 						 const FFontOutlineSettings& InOutlineSettings,
-						 const EFontRasterizationMode InRasterizationMode,
-						 const FFontSdfSettings& InSdfSettings,
 						 const FSourceTextRange& InSourceTextRange);
 	SLATECORE_API ~FShapedGlyphSequence();
 
@@ -399,18 +396,6 @@ public:
 	const FFontOutlineSettings& GetFontOutlineSettings() const
 	{
 		return OutlineSettings;
-	}
-
-	/** Returns true if the rasterization mode is signed distance field-based (and the feature is enabled) */
-	bool IsSdfFont() const;
-
-	/** Get the font rasterization mode to be used when rendering these glyphs */
-	EFontRasterizationMode GetRasterizationMode() const;
-
-	/** Get the signed distance field settings to be used when rendering these glyphs in distance field mode */
-	const FFontSdfSettings& GetFontSdfSettings() const
-	{
-		return SdfSettings;
 	}
 
 	/** Check to see whether this glyph sequence is dirty (ie, contains glyphs with invalid font pointers) */
@@ -604,10 +589,6 @@ private:
 	TArray<TWeakPtr<FFreeTypeFace>> GlyphFontFaces;
 	/** A map of source indices to their shaped glyph data indices - used to perform efficient reverse look-up */
 	FSourceIndicesToGlyphData SourceIndicesToGlyphData;
-	/** Rasterization mode to use when rendering these glyphs */
-	EFontRasterizationMode RasterizationMode;
-	/** Sdf settings to use when rendering these glyphs */
-	FFontSdfSettings SdfSettings;
 	/** The Font Skew parameter of the FontInfo applied to the this Shaped glype sequence */
 	float CachedFontSkew;
 
@@ -836,7 +817,7 @@ public:
 	/**
 	 * Get the atlas information and the scaled metrics of a given shaped sdf glyph. This information will be cached if required.
 	 */
-	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, EFontRasterizationMode InRasterizationMode, const FFontSdfSettings& InSdfSettings);
+	SLATECORE_API FSdfGlyphFontAtlasData GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings);
 
 	/**
 	 * Gets the overflow glyph sequence for a given font. The overflow sequence is used to replace characters that are clipped

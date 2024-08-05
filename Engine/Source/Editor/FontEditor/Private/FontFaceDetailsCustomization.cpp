@@ -10,6 +10,7 @@
 #include "EditorFontGlyphs.h"
 #include "Engine/FontFace.h"
 #include "Fonts/CompositeFont.h"
+#include "Fonts/FontCache.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/Platform.h"
@@ -91,6 +92,16 @@ void FFontFaceDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Detai
 					]
 				]
 			];
+	}
+
+	// Hide distance field settings if disabled by CVar
+	if (!IsSlateSdfTextFeatureEnabled())
+	{
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, bEnableDistanceFieldRendering))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MinDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MidDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MaxDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, PlatformRasterizationModeOverrides))->MarkHiddenByCustomization();
 	}
 }
 

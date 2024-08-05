@@ -192,6 +192,16 @@ const UObject* FFontData::GetFontFaceAsset() const
 	return FontFaceAsset;
 }
 
+FFontRasterizationSettings FFontData::GetFontRasterizationSettings() const
+{
+	if (FontFaceAsset)
+	{
+		const IFontFaceInterface* FontFace = CastChecked<const IFontFaceInterface>(FontFaceAsset);
+		return FontFace->GetRasterizationSettings();
+	}
+	return FFontRasterizationSettings();
+}
+
 #if WITH_EDITORONLY_DATA
 bool FFontData::HasLegacyData() const
 {

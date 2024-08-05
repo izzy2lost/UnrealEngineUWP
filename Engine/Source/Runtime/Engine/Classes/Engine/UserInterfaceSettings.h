@@ -266,6 +266,14 @@ private:
 	bool bUseCustomFontDPI;
 #endif
 
+	UFUNCTION()
+	static bool ShouldDisplayDistanceFieldFontSettings();
+
+public:
+	UPROPERTY(config, EditAnywhere, Category = "UMG Fonts", meta = (EditCondition = "ShouldDisplayDistanceFieldFontSettings()", EditConditionHides))
+	bool bEnableDistanceFieldFontRasterization;
+
+private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> CursorClasses;
 

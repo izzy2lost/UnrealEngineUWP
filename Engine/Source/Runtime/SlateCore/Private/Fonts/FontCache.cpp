@@ -173,7 +173,7 @@ FSdfGlyphTaskKey::FSdfGlyphTaskKey(const FSdfGlyphEntryKey& InSdfGlyphEntryKey, 
 * 
 */
 
-FShapedGlyphSequence::FShapedGlyphSequence(TArray<FShapedGlyphEntry> InGlyphsToRender, const int16 InTextBaseline, const uint16 InMaxTextHeight, const UObject* InFontMaterial, const FFontOutlineSettings& InOutlineSettings, const EFontRasterizationMode InRasterizationMode, const FFontSdfSettings& InSdfSettings, const FSourceTextRange& InSourceTextRange)
+FShapedGlyphSequence::FShapedGlyphSequence(TArray<FShapedGlyphEntry> InGlyphsToRender, const int16 InTextBaseline, const uint16 InMaxTextHeight, const UObject* InFontMaterial, const FFontOutlineSettings& InOutlineSettings, const FSourceTextRange& InSourceTextRange)
 	: GlyphsToRender(MoveTemp(InGlyphsToRender))
 	, TextBaseline(InTextBaseline)
 	, MaxTextHeight(InMaxTextHeight)
@@ -182,8 +182,6 @@ FShapedGlyphSequence::FShapedGlyphSequence(TArray<FShapedGlyphEntry> InGlyphsToR
 	, SequenceWidth(0)
 	, GlyphFontFaces()
 	, SourceIndicesToGlyphData(InSourceTextRange)
-	, RasterizationMode(InRasterizationMode)
-	, SdfSettings(InSdfSettings)
 	, CachedFontSkew(GlyphsToRender.Num() > 0 ? GlyphsToRender[0].FontFaceData->FontSkew : 0.f)
 {
 	const int32 NumGlyphsToRender = GlyphsToRender.Num();
@@ -274,20 +272,6 @@ FShapedGlyphSequence::~FShapedGlyphSequence()
 SIZE_T FShapedGlyphSequence::GetAllocatedSize() const
 {
 	return GlyphsToRender.GetAllocatedSize() + GlyphFontFaces.GetAllocatedSize() + SourceIndicesToGlyphData.GetAllocatedSize();
-}
-
-bool FShapedGlyphSequence::IsSdfFont() const
-{
-	return IsSdfFontRasterizationMode(RasterizationMode) && IsSlateSdfTextFeatureEnabled();
-}
-
-EFontRasterizationMode FShapedGlyphSequence::GetRasterizationMode() const
-{
-	if (IsSdfFontRasterizationMode(RasterizationMode) && !IsSlateSdfTextFeatureEnabled())
-	{
-		return EFontRasterizationMode::Bitmap;
-	}
-	return RasterizationMode;
 }
 
 bool FShapedGlyphSequence::IsDirty() const
@@ -522,7 +506,7 @@ FShapedGlyphSequencePtr FShapedGlyphSequence::GetSubSequence(const int32 InStart
 
 	if (EnumerateVisualGlyphsInSourceRange(InStartIndex, InEndIndex, GlyphCallback) == EEnumerateGlyphsResult::EnumerationComplete)
 	{
-		return MakeShared<FShapedGlyphSequence>(MoveTemp(SubGlyphsToRender), TextBaseline, MaxTextHeight, FontMaterial, OutlineSettings, RasterizationMode, SdfSettings, SubSequenceRange);
+		return MakeShared<FShapedGlyphSequence>(MoveTemp(SubGlyphsToRender), TextBaseline, MaxTextHeight, FontMaterial, OutlineSettings, SubSequenceRange);
 	}
 
 	return nullptr;
@@ -849,11 +833,14 @@ const FCharacterEntry* FCharacterList::CacheCharacter(TCHAR Character)
 			}
 
 			FShapedGlyphEntry ShapedGlyphEntry;
+			const FFontRasterizationSettings FontRasterizationSettings = FontDataPtr->GetFontRasterizationSettings();
 			ShapedGlyphEntry.FontFaceData = MakeShared<FShapedGlyphFaceData>(FaceGlyphData.FaceAndMemory, 
 																			 GlyphFlags, 
 																			 FontInfo.Size, 
 																			 FinalFontScale, 
-																			 0.f);
+																			 0.f,
+																			 FontRasterizationSettings.Mode,
+																			 FontRasterizationSettings.DistanceFieldPpem);
 			ShapedGlyphEntry.GlyphIndex = GlyphIndex;
 			ShapedGlyphEntry.XAdvance = XAdvance;
 			ShapedGlyphEntry.bIsVisible = !bIsWhitespace;
@@ -1193,25 +1180,25 @@ static float CeilSdfHalfSpread(float InEmSpread, float Ppem)
 	return PixelSpread/Ppem;
 }
 
-FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings, EFontRasterizationMode InRasterizationMode, const FFontSdfSettings& InSdfSettings)
+FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGlyphEntry& InShapedGlyph, const FFontOutlineSettings& InOutlineSettings)
 {
-	if (!IsSlateSdfTextFeatureEnabled()
-		|| !InShapedGlyph.FontFaceData->bSupportsSdf
-		|| !InShapedGlyph.bIsVisible)
+	if (!InShapedGlyph.bIsVisible
+		|| InShapedGlyph.FontFaceData->RasterizationMode == EFontRasterizationMode::Bitmap
+		|| !IsSlateSdfTextFeatureEnabled())
 	{
 		return { /* EarlyCheckIfCannotUseSdf */ };
 	}
 	const int32 CachedAtlasDataThreadIndex = static_cast<int32>(OwningThread);
 	check(CachedAtlasDataThreadIndex >= 0 && CachedAtlasDataThreadIndex < 2);
 
-	const bool bPlaceholderOnly = InRasterizationMode == EFontRasterizationMode::SdfApproximation;
+	const bool bPlaceholderOnly = InShapedGlyph.FontFaceData->RasterizationMode == EFontRasterizationMode::SdfApproximation;
 #if WITH_FREETYPE
 	const float TargetPpem = FMath::Max(1.f, static_cast<float>(FreeTypeUtils::ComputeFontPixelSize(InShapedGlyph.FontFaceData->FontSize, InShapedGlyph.FontFaceData->FontScale)));
 #else
 	const float TargetPpem = FMath::Max(1.f, 1.f/72.f*static_cast<float>(FontConstants::RenderDPI)*InShapedGlyph.FontFaceData->FontSize*InShapedGlyph.FontFaceData->FontScale);
 #endif
-	const float SdfPpem = static_cast<float>(InSdfSettings.GetClampedPpem());
-	const float Scale = TargetPpem/SdfPpem;
+	const int32 SdfPpem = InShapedGlyph.FontFaceData->SdfPpem;
+	const float Scale = TargetPpem/float(SdfPpem);
 	const float EmOutlineSize = FMath::RoundToFloat(InOutlineSettings.OutlineSize * InShapedGlyph.FontFaceData->FontScale)/TargetPpem;
 
 	float EmInnerSpread = FMath::Clamp(2.f/TargetPpem, 0.05f, 0.25f);
@@ -1220,7 +1207,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	FSlateSdfGenerator::ESdfType SdfType = FSlateSdfGenerator::ESdfType::MultichannelAndSimple;
 	ESlateFontAtlasContentType AtlasType = ESlateFontAtlasContentType::Msdf;
 	TArray<uint8>* FontAtlasIndicesPtr = &MsdfFontAtlasIndices;
-	switch (InRasterizationMode)
+	switch (InShapedGlyph.FontFaceData->RasterizationMode)
 	{
 		case EFontRasterizationMode::Bitmap:
 		default:
@@ -1239,8 +1226,9 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 			break;
 	}
 
-	auto TryRespawn = [&](const FSdfGlyphFontAtlasData& GlyphAtlasData) -> bool {
-		const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, InSdfSettings.GetClampedPpem(), GlyphAtlasData.EmOuterSpread, GlyphAtlasData.EmInnerSpread);
+	auto TryRespawn = [&](const FSdfGlyphFontAtlasData& GlyphAtlasData) -> bool
+	{
+		const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, SdfPpem, GlyphAtlasData.EmOuterSpread, GlyphAtlasData.EmInnerSpread);
 		FSlateSdfGenerator::FRequestDescriptor SdfRequestDescriptor = { 
 			GlyphKey.FontFace,
 			GlyphKey.GlyphIndex,
@@ -1286,8 +1274,8 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 		}
 	}
 
-	EmOuterSpread = CeilSdfHalfSpread(EmOuterSpread, SdfPpem);
-	EmInnerSpread = CeilSdfHalfSpread(EmInnerSpread, SdfPpem);
+	EmOuterSpread = CeilSdfHalfSpread(EmOuterSpread, float(SdfPpem));
+	EmInnerSpread = CeilSdfHalfSpread(EmInnerSpread, float(SdfPpem));
 
 	auto FinalizeEntry = [&](const TSharedRef<FSdfGlyphFontAtlasData>& InFontData) -> FSdfGlyphFontAtlasData
 	{
@@ -1308,7 +1296,7 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	};
 	// Not cached on the glyph, so create a key for to look up this glyph, as it may
 	// have already been cached by another shaped text sequence
-	const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, InSdfSettings.GetClampedPpem(), EmOuterSpread, EmInnerSpread);
+	const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, AtlasType, SdfPpem, EmOuterSpread, EmInnerSpread);
 
 	{
 		// Has the atlas data already been cached by another shaped text sequence?

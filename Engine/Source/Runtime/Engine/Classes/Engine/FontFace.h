@@ -6,10 +6,30 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/Object.h"
 #include "Fonts/FontFaceInterface.h"
+#include "Fonts/FontRasterizationMode.h"
 #include "FontFace.generated.h"
 
 class ITargetPlatform;
 struct FPropertyChangedEvent;
+
+/** Remapping of rasterization modes */
+USTRUCT(BlueprintType)
+struct FFontFacePlatformRasterizationOverrides
+{
+	GENERATED_BODY()
+
+	/** Rasterization mode to be used instead of Sharp (Multi-Channel SDF) */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(DisplayName="Override for Sharp"))
+	EFontRasterizationMode MsdfOverride = EFontRasterizationMode::Msdf;
+
+	/** Rasterization mode to be used instead of Smooth (Plain SDF) */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(DisplayName="Override for Smooth"))
+	EFontRasterizationMode SdfOverride = EFontRasterizationMode::Sdf;
+
+	/** Rasterization mode to be used instead of Fast (Approximate SDF) */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(DisplayName="Override for Fast"))
+	EFontRasterizationMode SdfApproximationOverride = EFontRasterizationMode::SdfApproximation;
+};
 
 /**
  * A font face asset contains the raw payload data for a source TTF/OTF file as used by FreeType.
@@ -27,6 +47,7 @@ public:
 	//~ Begin UObject Interface
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) override;
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
@@ -54,10 +75,12 @@ public:
 	virtual int32 GetDescendOverriddenValue() const override;
 	virtual int32 GetStrikeBrushHeightPercentage() const override;
 	virtual FFontFaceDataConstRef GetFontFaceData() const override;
+	virtual FFontRasterizationSettings GetRasterizationSettings() const override;
 	//~ End IFontFaceInterface interface
 
 private:
 	FString GetCookedFilename() const;
+	void UpdateDeviceRasterizationSettings();
 	//~ Begin UObject Interface
 #if WITH_EDITOR
 	virtual void CookAdditionalFilesOverride(const TCHAR* PackageFilename, const ITargetPlatform* TargetPlatform,
@@ -116,4 +139,29 @@ public:
 	UPROPERTY(VisibleAnywhere, Transient, Category=FontFace, AdvancedDisplay)
 	TArray<FString> SubFaces;
 #endif // WITH_EDITORONLY_DATA
+
+	/** Enables distance field rendering for this face (otherwise only Bitmap rendering is used) */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode)
+	bool bEnableDistanceFieldRendering = false;
+	
+	/** Distance field px/em resolution "low" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Low SDF resolution (px/em)"))
+	int32 MinDistanceFieldPpem = 32;
+
+	/** Distance field px/em resolution "medium" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Medium SDF resolution (px/em)"))
+	int32 MidDistanceFieldPpem = 48;
+
+	/** Distance field px/em resolution "high" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="High SDF resolution (px/em)"))
+	int32 MaxDistanceFieldPpem = 64;
+
+	/** If set, allows to override distance field modes set in device profiles */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Override platform rasterization mode"))
+	TOptional<FFontFacePlatformRasterizationOverrides> PlatformRasterizationModeOverrides;
+
+private:
+	/** Cached rasterization settings for the active device profile */
+	FFontRasterizationSettings DeviceRasterizationSettings;
+
 };

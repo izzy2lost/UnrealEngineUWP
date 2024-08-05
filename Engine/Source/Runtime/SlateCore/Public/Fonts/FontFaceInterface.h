@@ -58,4 +58,7 @@ class IFontFaceInterface
 
 	/** Get the data buffer containing the data for the current font face. */
 	virtual FFontFaceDataConstRef GetFontFaceData() const = 0;
+
+	/** Returns the font face's rasterization settings. */
+	virtual FFontRasterizationSettings GetRasterizationSettings() const = 0;
 };

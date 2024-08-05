@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Fonts/FontRasterizationMode.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/GCObject.h"
 #include "UObject/Class.h"
@@ -131,6 +132,15 @@ private:
 	TArray<uint8> Data;
 };
 
+/** Font face rasterization settings */
+struct FFontRasterizationSettings
+{
+	/** Rasterization mode (bitmap / distance field) */
+	EFontRasterizationMode Mode = EFontRasterizationMode::Bitmap;
+	/** Distance field px/em resolution, not used if Mode is Bitmap */
+	int32 DistanceFieldPpem = 0;
+};
+
 /** Payload data describing an individual font in a typeface. Keep this lean as it's also used as a key! */
 USTRUCT()
 struct FFontData
@@ -187,6 +197,9 @@ struct FFontData
 
 	/** Get the font face asset used by this data (if any). */
 	SLATECORE_API const UObject* GetFontFaceAsset() const;
+
+	/** Get the font face rasterization settings. */
+	SLATECORE_API FFontRasterizationSettings GetFontRasterizationSettings() const;
 
 #if WITH_EDITORONLY_DATA
 	/** True if this object contains any legacy data that needs to be upgraded PostLoad by calling the functions below (in order). */

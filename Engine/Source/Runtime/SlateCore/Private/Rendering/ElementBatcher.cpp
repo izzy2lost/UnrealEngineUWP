@@ -27,7 +27,6 @@ DEFINE_STAT(STAT_SlateElements_Box);
 DEFINE_STAT(STAT_SlateElements_Border);
 DEFINE_STAT(STAT_SlateElements_Text);
 DEFINE_STAT(STAT_SlateElements_ShapedText);
-DEFINE_STAT(STAT_SlateElements_ShapedTextSdf);
 DEFINE_STAT(STAT_SlateElements_Line);
 DEFINE_STAT(STAT_SlateElements_Other);
 DEFINE_STAT(STAT_SlateInvalidation_RecachedElements);
@@ -325,7 +324,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 	ElementStat_Borders = 0;
 	ElementStat_Text = 0;
 	ElementStat_ShapedText = 0;
-	ElementStat_ShapedTextSdf = 0;
 	ElementStat_Line = 0;
 	ElementStat_RecachedElements = 0;
 #endif
@@ -369,7 +367,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 		ElementStat_Borders +
 		ElementStat_Text +
 		ElementStat_ShapedText +
-		ElementStat_ShapedTextSdf +
 		ElementStat_Line +
 		ElementStat_Other;
 
@@ -378,7 +375,6 @@ void FSlateElementBatcher::AddElements(FSlateWindowElementList& WindowElementLis
 	INC_DWORD_STAT_BY(STAT_SlateElements_Border, ElementStat_Borders);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Text, ElementStat_Text);
 	INC_DWORD_STAT_BY(STAT_SlateElements_ShapedText, ElementStat_ShapedText);
-	INC_DWORD_STAT_BY(STAT_SlateElements_ShapedTextSdf, ElementStat_ShapedTextSdf);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Line, ElementStat_Line);
 	INC_DWORD_STAT_BY(STAT_SlateElements_Other, ElementStat_Other);
 	INC_DWORD_STAT_BY(STAT_SlateInvalidation_RecachedElements, ElementStat_RecachedElements);
@@ -432,8 +428,7 @@ void FSlateElementBatcher::AddElementsInternal(const FSlateDrawElementMap& DrawE
 		// ElementStat_ShapedText/Sdf incremented in AddShapedTextElement
 		for (const FSlateShapedTextElement& DrawElement : ShapedTextElements)
 		{
-			bool bSdfFont = DrawElement.GetShapedGlyphSequence() && DrawElement.GetShapedGlyphSequence()->IsSdfFont();
-			DrawElement.IsPixelSnapped() && !bSdfFont ? AddShapedTextElement<ESlateVertexRounding::Enabled>(DrawElement) : AddShapedTextElement<ESlateVertexRounding::Disabled>(DrawElement);
+			DrawElement.IsPixelSnapped() ? AddShapedTextElement<ESlateVertexRounding::Enabled>(DrawElement) : AddShapedTextElement<ESlateVertexRounding::Disabled>(DrawElement);
 		}
 	}
 
@@ -1582,7 +1577,6 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 	checkSlow(ShapedGlyphSequence);
 
 	const FFontOutlineSettings& OutlineSettings = ShapedGlyphSequence->GetFontOutlineSettings();
-	const bool bSdfFont = ShapedGlyphSequence->IsSdfFont();
 
 	ensure(ShapedGlyphSequence->GetGlyphsToRender().Num() > 0);
 
@@ -1681,7 +1675,7 @@ void FSlateElementBatcher::AddShapedTextElement( const FSlateShapedTextElement& 
 		return BuildShapedTextSequence<Rounding>(BuildContext);
 	};
 
-	STAT((bSdfFont ? ElementStat_ShapedTextSdf : ElementStat_ShapedText)++);
+	STAT(ElementStat_ShapedText++);
 
 	const UObject* BaseFontMaterial = ShapedGlyphSequence->GetFontMaterial();
 	const bool bOutlineFont = OutlineSettings.OutlineSize > 0;
@@ -3267,8 +3261,8 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 	float EllipsisLineY = 0;
 	bool bNeedEllipsis = false;
 	bool bNeedSpaceForEllipsis = false;
-	bool bIsSdfFont = GlyphSequenceToRender->IsSdfFont();
-	bool bRequiresManualSkewing = bIsSdfFont && !FMath::IsNearlyEqual(GlyphSequenceToRender->GetFontSkew(), 0.f);
+	const bool bNonZeroSkew = !FMath::IsNearlyEqual(GlyphSequenceToRender->GetFontSkew(), 0.f);
+	bool bPrevSdfGlyph = false;
 	float SdfPixelSpread = 0;
 	float SdfBias = 0;
 	// For left to right overflow direction - Sum of total whitespace we're currently advancing through. Once a non-whitespace glyph is detected this will return to 0
@@ -3289,6 +3283,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 
 		const float BitmapRenderScale = GlyphToRender.GetBitmapRenderScale();
 		const float InvBitmapRenderScale = 1.0f / BitmapRenderScale;
+		const bool bIsSdfGlyph = GlyphToRender.FontFaceData->RasterizationMode != EFontRasterizationMode::Bitmap;
 
 		float X = 0;
 		float SizeX = 0;
@@ -3313,12 +3308,10 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 			int8 NextAtlasDataTextureIndex = -1;
 			float NextSdfPixelSpread = 0;
 			float NextSdfBias = 0;
-			const bool bIsSdfGlyph = bIsSdfFont && GlyphToRender.FontFaceData && GlyphToRender.FontFaceData->bSupportsSdf;
 
 			if (bIsSdfGlyph)
 			{
-				const FFontSdfSettings& FontSdfSettings = GlyphSequenceToRender->GetFontSdfSettings();
-				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings, GlyphSequenceToRender->GetRasterizationMode(), FontSdfSettings);
+				const FSdfGlyphFontAtlasData SdfGlyphAtlasData = Context.FontCache->GetSdfGlyphFontAtlasData(GlyphToRender, *Context.OutlineSettings);
 				bCanRenderGlyph = (SdfGlyphAtlasData.Valid && SdfGlyphAtlasData.bSupportsSdf);
 				if (bCanRenderGlyph)
 				{
@@ -3337,7 +3330,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 					// SdfGlyphAtlasData.Metrics values assume this operation, so QuadMeshSize already accounts for this
 					SpriteSize = FVector2f(SdfGlyphAtlasData.USize-1, SdfGlyphAtlasData.VSize-1);
 					SpriteOffset = FVector2f(SdfGlyphAtlasData.StartU+.5f, SdfGlyphAtlasData.StartV+.5f);
-					NextSdfPixelSpread = (SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread)*static_cast<float>(FontSdfSettings.GetClampedPpem());
+					NextSdfPixelSpread = (SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread)*float(GlyphToRender.FontFaceData->SdfPpem);
 					// Value representing zero distance
 					NextSdfBias = (SdfGlyphAtlasData.EmOuterSpread-EmOutlineSize)/(SdfGlyphAtlasData.EmInnerSpread+SdfGlyphAtlasData.EmOuterSpread);
 				}
@@ -3375,8 +3368,9 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 					}
 				}
 
+				// Initiate new render batch for first glyph and whenever texture / shader / shader parameters change between previous and current glyph
 				check(NextAtlasDataTextureIndex >= 0);
-				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || (bIsSdfGlyph && (NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
+				if (FontAtlasTexture == nullptr || NextAtlasDataTextureIndex != FontTextureIndex || bIsSdfGlyph != bPrevSdfGlyph || (bIsSdfGlyph && (NextSdfPixelSpread != SdfPixelSpread || NextSdfBias != SdfBias)))
 				{
 					// Font has a new texture for this glyph or shader parameters changed. Refresh the batch we use and the index we are currently using
 					FontTextureIndex = NextAtlasDataTextureIndex;
@@ -3431,7 +3425,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 							// Signed distance sample bias, the color value (between 0 to 1) representing zero distance
 							SdfBias,
 							// The last parameter needs to be 0 for alpha texture single-channel SDF, 1 for BGRA/RGBA MTSDF
-							1.f
+							ContentType == ESlateFontAtlasContentType::Msdf ? 1.f : 0.f
 						));
 					}
 
@@ -3479,6 +3473,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 					{
 						RenderBatch->ReserveIndices(GlyphsLeft * 6);
 					}
+					bPrevSdfGlyph = bIsSdfGlyph;
 				}
 				U = SpriteOffset.X * InvTextureSizeX;
 				V = SpriteOffset.Y * InvTextureSizeY;
@@ -3604,7 +3599,7 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 				VtMax = FMath::Lerp(0.0f, 1.0f, LowerLeft.Y / Context.MaxHeight);
 			}
 
-			if (bRequiresManualSkewing)
+			if (bNonZeroSkew && bIsSdfGlyph)
 			{
 				FTransform2f ShearTransform(FShear2f(GlyphSequenceToRender->GetFontSkew(), 0.f));
 				FVector2f DeltaTopLeft(0, QuadMeshOffsets.Y);
@@ -3615,10 +3610,21 @@ int32 FSlateElementBatcher::BuildShapedTextSequence(const FShapedTextBuildContex
 				LowerLeft.X += DeltaBottomLeft.X;	LowerRight.X += DeltaBottomLeft.X;
 			}
 			// Add four vertices to the list of verts to be added to the vertex buffer
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
-			RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			if (bIsSdfGlyph)
+			{
+				// Vertex rounding has no benefit for distance field rendering but makes positioning worse, so disable it
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<ESlateVertexRounding::Disabled>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			}
+			else
+			{
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperLeft), FVector4f(U, V, Ut, Vt), FVector2f(0.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(UpperRight), FVector4f(U + SizeU, V, UtMax, Vt), FVector2f(1.0f, 0.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerLeft), FVector4f(U, V + SizeV, Ut, VtMax), FVector2f(0.0f, 1.0f), Tint));
+				RenderBatch->AddVertex(FSlateVertex::Make<Rounding>(RenderTransform, FVector2f(LowerRight), FVector4f(U + SizeU, V + SizeV, UtMax, VtMax), FVector2f(1.0f, 1.0f), Tint));
+			}
 
 			if (bUseStaticIndicies)
 			{

@@ -26,10 +26,4 @@ class IFontProviderInterface
 
 	virtual const FCompositeFont* GetCompositeFont() const = 0;
 
-	virtual bool IsSdfFont() const = 0;
-
-	virtual EFontRasterizationMode GetFontRasterizationMode() const = 0;
-
-	virtual const FFontSdfSettings& GetSdfSettings() const = 0;
-
 };
