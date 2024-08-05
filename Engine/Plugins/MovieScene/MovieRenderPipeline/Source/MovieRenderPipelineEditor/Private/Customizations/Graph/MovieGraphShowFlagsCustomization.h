@@ -5,6 +5,7 @@
 #include "DetailWidgetRow.h"
 #include "EditorShowFlags.h"
 #include "Graph/Nodes/MovieGraphImagePassBaseNode.h"
+#include "Graph/Nodes/MovieGraphPathTracerPassNode.h"
 #include "Graph/Renderers/MovieGraphShowFlags.h"
 #include "IDetailChildrenBuilder.h"
 #include "IDetailGroup.h"
@@ -62,10 +63,19 @@ protected:
 		UMovieGraphShowFlags* ShowFlagObject = Cast<UMovieGraphShowFlags>(
 			ObjectProperty->GetObjectPropertyValue(ObjectProperty->ContainerPtrToValuePtr<void>(OuterObjects[0])));
 
+		const UClass* NodeClass = OuterObjects[0]->GetClass();
+
 		// Group together the show flags with the groups they show up under in the UI
 		TMap<EShowFlagGroup, TArray<FShowFlagData>> GroupedShowFlags;
 		for (FShowFlagData& ShowFlag : GetShowFlagMenuItems())
 		{
+			// Path Traced Renderer nodes don't show the Lighting Components group because these show flags have no effect on PT renders. Instead,
+			// these are controlled by the dedicated Lighting Components settings for the path tracer.
+			if ((NodeClass == UMovieGraphPathTracerRenderPassNode::StaticClass()) && (ShowFlag.Group == SFG_LightingComponents))
+			{
+				continue;
+			}
+			
 			TArray<FShowFlagData>& GroupShowFlags = GroupedShowFlags.FindOrAdd(ShowFlag.Group);
 			GroupShowFlags.Add(MoveTemp(ShowFlag));
 		}

@@ -74,7 +74,28 @@ void FMovieGraphPathTracerPass::ApplyMovieGraphOverridesToSceneView(TSharedRef<F
 		View->FinalPostProcessSettings.bOverride_PathTracingEnableReferenceDOF = true;
 		View->FinalPostProcessSettings.PathTracingEnableReferenceDOF = true;
 	}
+
+	// Update the post processing settings if the node has overridden any of them
+	if (const UMovieGraphPathTracerRenderPassNode* PathTracerNode = Cast<UMovieGraphPathTracerRenderPassNode>(GetParentNode(InInitData.TimeData.EvaluatedConfig)))
+	{
+#define OVERRIDE_COMPONENT(ComponentName) \
+		if (PathTracerNode->bOverride_bLightingComponents_Include##ComponentName) \
+		{ \
+			View->FinalPostProcessSettings.bOverride_PathTracingInclude##ComponentName = true; \
+			View->FinalPostProcessSettings.PathTracingInclude##ComponentName = PathTracerNode->bLightingComponents_Include##ComponentName; \
+		} \
 		
+		OVERRIDE_COMPONENT(Emissive);
+		OVERRIDE_COMPONENT(Diffuse);
+		OVERRIDE_COMPONENT(IndirectDiffuse);
+		OVERRIDE_COMPONENT(Specular);
+		OVERRIDE_COMPONENT(IndirectSpecular);
+		OVERRIDE_COMPONENT(Volume);
+		OVERRIDE_COMPONENT(IndirectVolume);
+		
+#undef OVERRIDE_COMPONENT
+	}
+	
 	// reset path tracer's accumulation at the start of each sample
 	View->bForcePathTracerReset = SampleIndex == 0;
 }

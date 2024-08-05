@@ -93,13 +93,13 @@ public:
 	* and can optionally be combined with OCIO profiles on the file output nodes to convert from Linear Values in Working Color Space
 	* (which is sRGB  (Rec. 709) by default, unless changed in the project settings).
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bDisableToneCurve"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing", meta = (EditCondition = "bOverride_bDisableToneCurve"))
 	bool bDisableToneCurve;
 
 	/**
 	* Allow the output file OpenColorIO transform to be used on this render.
 	*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (EditCondition = "bOverride_bAllowOCIO"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Post Processing", meta = (EditCondition = "bOverride_bAllowOCIO"))
 	bool bAllowOCIO;
 	
 	/** 
