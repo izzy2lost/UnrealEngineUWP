@@ -1254,6 +1254,9 @@ void FVirtualTextureSystem::LoadPendingTiles(FRDGBuilder& GraphBuilder, ERHIFeat
 		AllocateResources(GraphBuilder);
 		SubmitRequests(GraphBuilder.RHICmdList, FeatureLevel, Allocator, Settings, RequestList, false);
 		FinalizeRequests(GraphBuilder);
+
+		// Swap any failed tile locks to be picked up by next BeginUpdate()
+		TilesToLock = MoveTemp(TilesToLockForNextFrame);
 	}
 }
 
