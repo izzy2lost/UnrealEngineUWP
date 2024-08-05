@@ -21,6 +21,7 @@
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DMMaterialBuildUtils.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMMaterialFunctionFunctionLibrary.h"
 #include "Utils/DMPrivate.h"
 #include "Utils/DMUtils.h"
 
@@ -379,42 +380,12 @@ bool UDMMaterialStageFunction::NeedsFunctionInit() const
 			continue;
 		}
 
-		EDMValueType ValueType = EDMValueType::VT_None;
+		const EDMValueType ValueType = UDMMaterialFunctionFunctionLibrary::GetInputValueType(FunctionInput);
 
-		switch (FunctionInput->InputType)
+		if (ValueType == EDMValueType::VT_None)
 		{
-			case EFunctionInputType::FunctionInput_Scalar:
-				ValueType = EDMValueType::VT_Float1;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector2:
-				ValueType = EDMValueType::VT_Float2;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector3:
-				if (UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled())
-				{
-					ValueType = EDMValueType::VT_Float3_RGB;
-				}
-				else
-				{
-					ValueType = EDMValueType::VT_Float3_XYZ;
-				}
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector4:
-				ValueType = EDMValueType::VT_Float4_RGBA;
-				break;
-
-			case EFunctionInputType::FunctionInput_Texture2D:
-			case EFunctionInputType::FunctionInput_TextureCube:
-			case EFunctionInputType::FunctionInput_VolumeTexture:
-				ValueType = EDMValueType::VT_Texture;
-				break;
-
-			default:
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
-				return false;
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
+			return false;
 		}
 
 		if (ValueType != InputValues[InputIndex]->GetType())
@@ -533,44 +504,14 @@ void UDMMaterialStageFunction::InitFunction()
 			continue;
 		}
 
-		EDMValueType ValueType = EDMValueType::VT_None;
+		const EDMValueType ValueType = UDMMaterialFunctionFunctionLibrary::GetInputValueType(FunctionInput);
 
-		switch (FunctionInput->InputType)
+		if (ValueType == EDMValueType::VT_None)
 		{
-			case EFunctionInputType::FunctionInput_Scalar:
-				ValueType = EDMValueType::VT_Float1;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector2:
-				ValueType = EDMValueType::VT_Float2;
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector3:
-				if (UDynamicMaterialEditorSettings::IsUseLinearColorForVectorsEnabled())
-				{
-					ValueType = EDMValueType::VT_Float3_RGB;
-				}
-				else
-				{
-					ValueType = EDMValueType::VT_Float3_XYZ;
-				}
-				break;
-
-			case EFunctionInputType::FunctionInput_Vector4:
-				ValueType = EDMValueType::VT_Float4_RGBA;
-				break;
-
-			case EFunctionInputType::FunctionInput_Texture2D:
-			case EFunctionInputType::FunctionInput_TextureCube:
-			case EFunctionInputType::FunctionInput_VolumeTexture:
-				ValueType = EDMValueType::VT_Texture;
-				break;
-
-			default:
-				UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
-				InputConnectors.SetNum(1);
-				MaterialFunction = nullptr;
-				return;
+			UE::DynamicMaterialEditor::Private::LogError(TEXT("Function has invalid input type - must be a scalar, vector or texture."), true, this);
+			InputConnectors.SetNum(1);
+			MaterialFunction = nullptr;
+			return;
 		}
 
 		InputConnectors[InputIndex].Index = InputIndex;
@@ -599,52 +540,7 @@ void UDMMaterialStageFunction::InitFunction()
 		UDMMaterialValue* Value = InputValue->GetValue();
 		check(Value);
 
-		if (FunctionInput->bUsePreviewValueAsDefault)
-		{
-			switch (FunctionInput->InputType)
-			{
-				case EFunctionInputType::FunctionInput_Scalar:
-					if (UDMMaterialValueFloat1* Float1Value = Cast<UDMMaterialValueFloat1>(Value))
-					{
-						Float1Value->SetDefaultValue(FunctionInput->PreviewValue.X);
-						Float1Value->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector2:
-					if (UDMMaterialValueFloat2* Float2Value = Cast<UDMMaterialValueFloat2>(Value))
-					{
-						Float2Value->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y});
-						Float2Value->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector3:
-					if (UDMMaterialValueFloat3XYZ* Float3XYZ = Cast<UDMMaterialValueFloat3XYZ>(Value))
-					{
-						Float3XYZ->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
-						Float3XYZ->ApplyDefaultValue();
-					}
-					else if (UDMMaterialValueFloat3RGB* Float3RGB = Cast<UDMMaterialValueFloat3RGB>(Value))
-					{
-						Float3RGB->SetDefaultValue({FunctionInput->PreviewValue.X, FunctionInput->PreviewValue.Y, FunctionInput->PreviewValue.Z});
-						Float3RGB->ApplyDefaultValue();
-					}
-					break;
-
-				case EFunctionInputType::FunctionInput_Vector4:
-					if (UDMMaterialValueFloat4* Float4Value = Cast<UDMMaterialValueFloat4>(Value))
-					{
-						Float4Value->SetDefaultValue(FunctionInput->PreviewValue);
-						Float4Value->ApplyDefaultValue();
-					}
-					break;
-
-				default:
-					// Not possible
-					break;
-			}
-		}
+		UDMMaterialFunctionFunctionLibrary::SetInputDefault(FunctionInput, Value);
 	}
 }
 

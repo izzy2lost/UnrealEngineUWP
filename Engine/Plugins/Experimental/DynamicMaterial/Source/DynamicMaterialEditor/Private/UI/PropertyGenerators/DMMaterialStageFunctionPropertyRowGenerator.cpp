@@ -11,6 +11,7 @@
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
+#include "Utils/DMMaterialFunctionFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageFunctionPropertyRowGenerator"
 
@@ -18,62 +19,6 @@ const TSharedRef<FDMMaterialStageFunctionPropertyRowGenerator>& FDMMaterialStage
 {
 	static TSharedRef<FDMMaterialStageFunctionPropertyRowGenerator> Generator = MakeShared<FDMMaterialStageFunctionPropertyRowGenerator>();
 	return Generator;
-}
-
-void FDMMaterialStageFunctionPropertyRowGenerator::ApplyMetaData(const FFunctionExpressionInput& InFunctionInput, 
-	const TSharedRef<IPropertyHandle>& InPropertyHandle)
-{
-	const TArray<FString> MetaNames = {TEXT("UIMin"), TEXT("UIMax"), TEXT("ClampMin"), TEXT("ClampMax")};
-
-	TArray<FString> MetaDatas;
-	InFunctionInput.ExpressionInput->Desc.ParseIntoArray(MetaDatas, TEXT(","));
-
-	for (FString& MetaData : MetaDatas)
-	{
-		const int32 EqualsPosition = MetaData.Find(TEXT("="));
-
-		if (EqualsPosition == INDEX_NONE)
-		{
-			continue;
-		}
-
-		const FString MetaDataName = MetaData.Left(EqualsPosition).TrimStartAndEnd();
-
-		bool bValidName = false;
-
-		for (const FString& Name : MetaNames)
-		{
-			if (MetaDataName.Equals(Name, ESearchCase::IgnoreCase))
-			{
-				bValidName = true;
-				break;
-			}
-		}
-
-		if (!bValidName)
-		{
-			continue;
-		}
-
-		const FString MetaDataValue = MetaData.Mid(EqualsPosition + 1).TrimStartAndEnd();
-		bool bValidValue = true;
-
-		for (int32 Index = 0; Index < MetaDataValue.Len(); ++Index)
-		{
-			if (MetaDataValue[Index] != '.'	&& MetaDataValue[Index] != '-' && (MetaDataValue[Index] < '0' || MetaDataValue[Index] > '9'))
-			{
-				bValidValue = false;
-				break;
-			}			
-		}
-
-		if (!bValidValue)
-		{
-			continue;
-		}
-
-		InPropertyHandle->SetInstanceMetaData(*MetaDataName, MetaDataValue);
-	}
 }
 
 void FDMMaterialStageFunctionPropertyRowGenerator::AddComponentProperties(const TSharedRef<SDMMaterialComponentEditor>& InComponentEditorWidget, UDMMaterialComponent* InComponent,
@@ -177,7 +122,10 @@ void FDMMaterialStageFunctionPropertyRowGenerator::AddComponentProperties(const 
 						if (ValuePropertyRow.PropertyHandle.IsValid())
 						{
 							// The first input is the previous layer, so it does not have a value.
-							ApplyMetaData(Inputs[InputIndex + 1], ValuePropertyRow.PropertyHandle.ToSharedRef());
+							UDMMaterialFunctionFunctionLibrary::ApplyMetaData(
+								Inputs[InputIndex + 1],
+								ValuePropertyRow.PropertyHandle.ToSharedRef()
+							);
 						}
 					}
 

@@ -9,8 +9,8 @@
 #include "Materials/MaterialExpressionFunctionInput.h"
 #include "Materials/MaterialExpressionMaterialFunctionCall.h"
 #include "Materials/MaterialFunctionInterface.h"
-#include "UI/PropertyGenerators/DMMaterialStageFunctionPropertyRowGenerator.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
+#include "Utils/DMMaterialFunctionFunctionLibrary.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialEffectFunctionPropertyRowGenerator"
 
@@ -108,7 +108,7 @@ void FDMMaterialEffectFunctionPropertyRowGenerator::AddComponentProperties(const
 
 			if (ValuePropertyRow.PropertyHandle.IsValid())
 			{
-				FDMMaterialStageFunctionPropertyRowGenerator::ApplyMetaData(
+				UDMMaterialFunctionFunctionLibrary::ApplyMetaData(
 					Inputs[InputIndex],
 					ValuePropertyRow.PropertyHandle.ToSharedRef()
 				);
