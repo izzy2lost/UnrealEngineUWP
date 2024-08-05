@@ -1878,7 +1878,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 			.IsSelected(InArgs._IsSelectedExclusively)
 			.IsReadOnly(this, &SAssetTileItem::IsNameReadOnly)
 			.LineBreakPolicy(FBreakIterator::CreateCamelCaseBreakIterator())
-			.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+			.OverflowPolicy(ETextOverflowPolicy::MultilineEllipsis)
 			.ColorAndOpacity(this, &SAssetTileItem::GetNameAreaTextColor);
 	}
 	else
@@ -1892,7 +1892,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 			.HighlightText(InArgs._HighlightText)
 			.IsSelected(InArgs._IsSelectedExclusively)
 			.IsReadOnly(this, &SAssetTileItem::IsNameReadOnly)
-			.OverflowPolicy(ETextOverflowPolicy::Ellipsis)
+			.OverflowPolicy(ETextOverflowPolicy::MultilineEllipsis)
 			.ColorAndOpacity(this, &SAssetTileItem::GetNameAreaTextColor);
 	}
 
@@ -2036,7 +2036,7 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 							+ SVerticalBox::Slot()
 							.VAlign(VAlign_Bottom)
 							.AutoHeight()
-							.Padding(AssetViewWidgetsClassTextPadding, 0.0f, 0.0f, AssetViewWidgetsClassTextPadding)
+							.Padding(0.0f, 0.0f, 0.0f, 0.0f)
 							[
 								SNew(SHorizontalBox)
 								+SHorizontalBox::Slot()
@@ -2055,8 +2055,8 @@ void SAssetTileItem::Construct( const FArguments& InArgs )
 								.HAlign(HAlign_Right)
 								[
 									SNew(SBox)
-									.WidthOverride(AssetViewWidgetSourceControlSize)
-									.HeightOverride(AssetViewWidgetSourceControlSize)
+									.WidthOverride(this, &SAssetTileItem::GetSourceControlIconSize)
+									.HeightOverride(this, &SAssetTileItem::GetSourceControlIconSize)
 									.Visibility(this, &SAssetTileItem::GetSCCIconVisibility)
 									[
 										GenerateSourceControlIconWidget()
@@ -2399,6 +2399,10 @@ EVisibility SAssetTileItem::GetNameAreaVisibility() const
 	return CurrentThumbnailSize.Get() == EThumbnailSize::Tiny ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
+FOptionalSize SAssetTileItem::GetSourceControlIconSize() const
+{
+	return CurrentThumbnailSize.Get() == EThumbnailSize::Small ? 11.f : 16.0f;
+}
 
 void SAssetTileItem::InitializeAssetNameHeights()
 {

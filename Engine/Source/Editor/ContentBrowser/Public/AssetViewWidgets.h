@@ -742,6 +742,9 @@ protected:
 	/** Get the visibility for the name area, collapsed if Tiny */
 	EVisibility GetNameAreaVisibility() const;
 
+	/** Return the size of the class text at the bottom, based on the current ThumbnailSize */
+	FOptionalSize GetSourceControlIconSize() const;
+
 private:
 	/** If false, the tooltip will not be displayed */
 	bool bShowType;
