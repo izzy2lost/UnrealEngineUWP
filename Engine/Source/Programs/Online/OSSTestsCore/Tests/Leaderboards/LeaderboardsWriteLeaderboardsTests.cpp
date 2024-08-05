@@ -18,7 +18,7 @@ LEADERBOARDS_TEST_CASE("SubsystemNull. Verify calling WriteLeaderboards with val
 	FUniqueNetIdPtr LocalUserId = nullptr;
 
 	FName LocalSessionName = TEXT("FakeSessionName");
-	FName LocalNameForLeaderboard = TEXT("Name1");
+	const FString LocalNameForLeaderboard = TEXT("Name1");
 	FOnlineLeaderboardWrite WriteObject;
 
 	WriteObject.LeaderboardNames = { LocalNameForLeaderboard };

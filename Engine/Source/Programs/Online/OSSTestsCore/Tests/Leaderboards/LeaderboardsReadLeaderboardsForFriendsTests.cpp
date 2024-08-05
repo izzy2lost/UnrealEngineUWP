@@ -23,7 +23,7 @@ EG_LEADERBOARDS_TEST_CASE("Verify calling ReadLeaderboardsForFriends with valid 
 	FUniqueNetIdPtr LocalUserId = nullptr;
 
 	FName LocalSessionName = TEXT("FakeSessionName");
-	FName LocalNameForLeaderboard = TEXT("Name1");
+	const FString LocalNameForLeaderboard = TEXT("Name1");
 	FOnlineLeaderboardWrite WriteObject;
 
 	WriteObject.LeaderboardNames = { LocalNameForLeaderboard };

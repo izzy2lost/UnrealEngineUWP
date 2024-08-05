@@ -240,8 +240,8 @@ TOptional<FOnlineError> FLeaderboardsOSSAdapter::PrepareLeaderboardReadObject(co
 	else
 	{
 		ReadObject = MakeShareable(new FOnlineLeaderboardRead());
-		ReadObject->SortedColumn = *BoardName;
-		ReadObject->LeaderboardName = *BoardName;
+		ReadObject->SortedColumn = BoardName;
+		ReadObject->LeaderboardName = BoardName;
 	}
 
 	return OnlineError;

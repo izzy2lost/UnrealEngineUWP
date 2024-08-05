@@ -145,16 +145,16 @@ void FTestAchievementsInterface::WriteAchievements()
 	if (PlayerAchievements.Num() >= 3)
 	{
 		// report progress on first, last and median achievements
-		WriteObject->SetFloatStat(*PlayerAchievements[ 0 ].Id, 1.0f);
-		WriteObject->SetFloatStat(*PlayerAchievements[ PlayerAchievements.Num() - 1 ].Id, 50.0f);
-		WriteObject->SetFloatStat(*PlayerAchievements[ PlayerAchievements.Num() / 2 ].Id, 100.0f);
+		WriteObject->SetFloatStat(PlayerAchievements[ 0 ].Id, 1.0f);
+		WriteObject->SetFloatStat(PlayerAchievements[ PlayerAchievements.Num() - 1 ].Id, 50.0f);
+		WriteObject->SetFloatStat(PlayerAchievements[ PlayerAchievements.Num() / 2 ].Id, 100.0f);
 	}
 	else
 	{
 		// report progress on all achievements
 		for (int32 IdxAch = 0; IdxAch < PlayerAchievements.Num(); ++IdxAch)
 		{
-			WriteObject->SetFloatStat(*PlayerAchievements[ IdxAch ].Id, 50.0f);
+			WriteObject->SetFloatStat(PlayerAchievements[ IdxAch ].Id, 50.0f);
 		}
 	}
 

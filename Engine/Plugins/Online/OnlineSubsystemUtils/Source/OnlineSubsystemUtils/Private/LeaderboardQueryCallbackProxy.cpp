@@ -17,7 +17,7 @@ ULeaderboardQueryCallbackProxy::ULeaderboardQueryCallbackProxy(const FObjectInit
 {
 }
 
-void ULeaderboardQueryCallbackProxy::TriggerQuery(APlayerController* PlayerController, FName InStatName, EOnlineKeyValuePairDataType::Type StatType)
+void ULeaderboardQueryCallbackProxy::TriggerQuery(APlayerController* PlayerController, const FString& InStatName, EOnlineKeyValuePairDataType::Type StatType)
 {
 	bFailedToEvenSubmit = true;
 
@@ -36,9 +36,9 @@ void ULeaderboardQueryCallbackProxy::TriggerQuery(APlayerController* PlayerContr
 
 					StatName = InStatName;
 					ReadObject = MakeShareable(new FOnlineLeaderboardRead());
-					ReadObject->LeaderboardName = StatName;
-					ReadObject->SortedColumn = StatName;
-					new (ReadObject->ColumnMetadata) FColumnMetaData(StatName, StatType);
+					ReadObject->LeaderboardName = InStatName;
+					ReadObject->SortedColumn = InStatName;
+					new (ReadObject->ColumnMetadata) FColumnMetaData(InStatName, StatType);
 
 					// Register the completion callback
 					LeaderboardReadCompleteDelegate       = FOnLeaderboardReadCompleteDelegate::CreateUObject(this, &ULeaderboardQueryCallbackProxy::OnStatsRead);
@@ -155,7 +155,7 @@ void ULeaderboardQueryCallbackProxy::BeginDestroy()
 	Super::BeginDestroy();
 }
 
-ULeaderboardQueryCallbackProxy* ULeaderboardQueryCallbackProxy::CreateProxyObjectForIntQuery(class APlayerController* PlayerController, FName StatName)
+ULeaderboardQueryCallbackProxy* ULeaderboardQueryCallbackProxy::CreateProxyObjectForIntQuery(class APlayerController* PlayerController, const FString& StatName)
 {
 	ULeaderboardQueryCallbackProxy* Proxy = NewObject<ULeaderboardQueryCallbackProxy>();
 	Proxy->SetFlags(RF_StrongRefOnFrame);

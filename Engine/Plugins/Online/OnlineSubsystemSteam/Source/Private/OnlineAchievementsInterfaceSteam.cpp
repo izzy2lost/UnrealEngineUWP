@@ -67,7 +67,7 @@ void FOnlineAchievementsSteam::WriteAchievements(const FUniqueNetId& PlayerId, F
 	const int32 AchNum = PlayerAch->Num();
 	for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 	{
-		const FString AchievementId = It.Key().ToString();
+		const FString AchievementId = It.Key();
 		UE_LOG_ONLINE_ACHIEVEMENTS(Verbose, TEXT("WriteObject AchievementId: '%s'"), *AchievementId);
 		for (int32 AchIdx = 0; AchIdx < AchNum; ++AchIdx)
 		{
@@ -117,7 +117,7 @@ void FOnlineAchievementsSteam::OnWriteAchievementsComplete(const FUniqueNetIdSte
 			const int32 AchNum = PlayerAch->Num();
 			for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 			{
-				const FString AchievementId = It.Key().ToString();
+				const FString AchievementId = It.Key();
 				for (int32 AchIdx = 0; AchIdx < AchNum; ++AchIdx)
 				{
 					if ((*PlayerAch)[ AchIdx ].Id == AchievementId)

@@ -72,7 +72,7 @@ PACKAGE_SCOPE:
 	 * @param LeaderboardName name of leaderboard to get information for
 	 * @return leaderboard metadata if it exists, else NULL
 	 */
-	FLeaderboardMetadataSteam* GetLeaderboardMetadata(const FName& LeaderboardName);
+	FLeaderboardMetadataSteam* GetLeaderboardMetadata(const FString& LeaderboardName);
 
 	/**
 	 *	Start an async task to create a leaderboard with the Steam backend
@@ -81,14 +81,14 @@ PACKAGE_SCOPE:
 	 * @param SortMethod method the leaderboard scores will be sorted, ignored if leaderboard exists
 	 * @param DisplayFormat type of data the leaderboard represents, ignored if leaderboard exists
 	 */
-	void CreateLeaderboard(const FName& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat);
+	void CreateLeaderboard(const FString& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat);
 
 	/**
 	 *	Start an async task to find a leaderboard with the Steam backend
 	 * If the leaderboard doesn't exist, a warning will be generated
 	 * @param LeaderboardName name of leaderboard to create
 	 */
-	void FindLeaderboard(const FName& LeaderboardName);
+	void FindLeaderboard(const FString& LeaderboardName);
 
 	/**
 	 *	Request the logged in user's stats from Steam

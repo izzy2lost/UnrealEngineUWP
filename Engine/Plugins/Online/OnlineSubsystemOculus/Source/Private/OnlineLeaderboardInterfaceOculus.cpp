@@ -66,7 +66,7 @@ bool FOnlineLeaderboardOculus::ReadOculusLeaderboards(bool bOnlyFriends, bool bO
 	ReadObject->ReadState = EOnlineAsyncTaskState::InProgress;
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	OculusSubsystem.AddRequestDelegate(
-		ovr_Leaderboard_GetEntries(TCHAR_TO_ANSI(*ReadObject->LeaderboardName.ToString()), Limit, FilterType, StartAt),
+		ovr_Leaderboard_GetEntries(TCHAR_TO_ANSI(*ReadObject->LeaderboardName), Limit, FilterType, StartAt),
 		FOculusMessageOnCompleteDelegate::CreateLambda([this, ReadObject](ovrMessageHandle Message, bool bIsError)
 	{
 		OnReadLeaderboardsComplete(Message, bIsError, ReadObject);
@@ -192,7 +192,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	if (StatData == nullptr)
 	{
-		UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("Could not find RatedStat: %s"), *WriteObject.RatedStat.ToString());
+		UE_LOG_ONLINE_LEADERBOARD(Error, TEXT("Could not find RatedStat: %s"), *WriteObject.RatedStat);
 		return false;
 	}
 
@@ -235,7 +235,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		OculusSubsystem.AddRequestDelegate(
-			ovr_Leaderboard_WriteEntry(TCHAR_TO_ANSI(*LeaderboardName.ToString()), Score, /* extra_data */ nullptr, 0, (WriteObject.UpdateMethod == ELeaderboardUpdateMethod::Force)),
+			ovr_Leaderboard_WriteEntry(TCHAR_TO_ANSI(*LeaderboardName), Score, /* extra_data */ nullptr, 0, (WriteObject.UpdateMethod == ELeaderboardUpdateMethod::Force)),
 			FOculusMessageOnCompleteDelegate::CreateLambda([this](ovrMessageHandle Message, bool bIsError)
 		{
 			if (bIsError) 

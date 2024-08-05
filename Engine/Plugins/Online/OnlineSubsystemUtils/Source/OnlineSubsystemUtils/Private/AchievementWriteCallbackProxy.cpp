@@ -17,7 +17,7 @@ UAchievementWriteCallbackProxy::UAchievementWriteCallbackProxy(const FObjectInit
 {
 }
 
-UAchievementWriteCallbackProxy* UAchievementWriteCallbackProxy::WriteAchievementProgress(UObject* WorldContextObject, class APlayerController* PlayerController, FName AchievementName, float Progress, int32 UserTag)
+UAchievementWriteCallbackProxy* UAchievementWriteCallbackProxy::WriteProgress(UObject* WorldContextObject, class APlayerController* PlayerController, FString AchievementName, float Progress, int32 UserTag)
 {
 	UAchievementWriteCallbackProxy* Proxy = NewObject<UAchievementWriteCallbackProxy>();
 
@@ -56,7 +56,12 @@ void UAchievementWriteCallbackProxy::Activate()
 	}
 
 	// Fail immediately
-	OnFailure.Broadcast(AchievementName, AchievementProgress, UserTag);
+	OnWriteFailure.Broadcast(AchievementName, AchievementProgress, UserTag);
+	
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	OnFailure.Broadcast(FName(AchievementName), AchievementProgress, UserTag);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	WriteObject.Reset();
 }
 
@@ -64,11 +69,19 @@ void UAchievementWriteCallbackProxy::OnAchievementWritten(const FUniqueNetId& Us
 {
 	if (bSuccess)
 	{
-		OnSuccess.Broadcast(AchievementName, AchievementProgress, UserTag);
+		OnWriteSuccess.Broadcast(AchievementName, AchievementProgress, UserTag);
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		OnSuccess.Broadcast(FName(AchievementName), AchievementProgress, UserTag);	
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	else
 	{
-		OnFailure.Broadcast(AchievementName, AchievementProgress, UserTag);
+		OnWriteFailure.Broadcast(AchievementName, AchievementProgress, UserTag);
+		
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		OnFailure.Broadcast(FName(AchievementName), AchievementProgress, UserTag);	
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	WriteObject.Reset();

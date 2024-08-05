@@ -103,7 +103,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// treat each achievement as unlocked
 	for (FStatPropertyArray::TConstIterator It(WriteObject->Properties); It; ++It)
 	{
-		const FString AchievementId = It.Key().ToString();
+		const FString AchievementId = It.Key();
 		auto VariantData = It.Value();
 
 		auto AchievementDesc = AchievementDescriptions.Find(AchievementId);

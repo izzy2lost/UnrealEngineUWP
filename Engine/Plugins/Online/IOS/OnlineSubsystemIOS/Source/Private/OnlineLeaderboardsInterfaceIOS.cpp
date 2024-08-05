@@ -241,7 +241,7 @@ bool FOnlineLeaderboardsIOS::WriteLeaderboards(const FName& SessionName, const F
 		// Access the stat and the value.
 		const FVariantData& Stat = It.Value();
 
-		FString LeaderboardName(It.Key().ToString());
+		FString LeaderboardName(It.Key());
 		NSString* Category = [NSString stringWithFString:LeaderboardName];
 
 		bool bIsValidScore = false;

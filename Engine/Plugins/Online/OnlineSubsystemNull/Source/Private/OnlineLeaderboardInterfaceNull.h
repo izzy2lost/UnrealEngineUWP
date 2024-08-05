@@ -43,7 +43,7 @@ private:
 	class FOnlineSubsystemNull* NullSubsystem;
 
 	/** Leaderboards maintained by the subsystem */
-	TMap<FName, FLeaderboardNull> Leaderboards;
+	TMap<FString, FLeaderboardNull> Leaderboards;
 
 	FOnlineLeaderboardsNull() : 
 		NullSubsystem(NULL)
@@ -58,7 +58,7 @@ private:
 	 * @param SortMethod method the leaderboard scores will be sorted, ignored if leaderboard exists
 	 * @param DisplayFormat type of data the leaderboard represents, ignored if leaderboard exists
 	 */
-	FLeaderboardNull* FindOrCreateLeaderboard(const FName& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat);
+	FLeaderboardNull* FindOrCreateLeaderboard(const FString& LeaderboardName, ELeaderboardSort::Type SortMethod, ELeaderboardFormat::Type DisplayFormat);
 
 PACKAGE_SCOPE:
 

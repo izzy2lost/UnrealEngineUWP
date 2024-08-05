@@ -526,14 +526,14 @@ void FOnlineTestCommon::AddAchievementToTestAccount(IOnlineIdentityPtr OI, IOnli
 
 				if (PlayerAchievements.Num() > 0)
 				{
-					FString TestAchievement = PlayerAchievements[0].Id;
+					const FString TestAchievement = PlayerAchievements[0].Id;
 
 					FOnlineAchievement SomeAchievement;
 					OnlineAchievements->GetCachedAchievement(*TestAccountId, TestAchievement, SomeAchievement);
 
 					FOnlineAchievementsWritePtr AchievementWriteObject = MakeShareable(new FOnlineAchievementsWrite());
 					FOnlineAchievementsWriteRef AchievementWriter = AchievementWriteObject.ToSharedRef();
-					AchievementWriteObject->SetFloatStat(FName(*TestAchievement), 1.0f);
+					AchievementWriteObject->SetFloatStat(TestAchievement, 1.0f);
 
 					OnlineAchievements->WriteAchievements(*TestAccountId, AchievementWriter, FOnAchievementsWrittenDelegate::CreateLambda([this, AchievementWriteObject, TestAccountId, TestAchievement, TestDone](const FUniqueNetId& WriteAchievements, bool bWriteAchievementsWasSuccessful)
 					{

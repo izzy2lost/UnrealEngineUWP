@@ -15,8 +15,8 @@ public:
 	TestLeaderboardWrite()
 	{
 		// Default properties
-		new (LeaderboardNames) FName(TEXT("TestLeaderboard"));
-		RatedStat = "TestIntStat1";
+		new (LeaderboardNames) FString("TestLeaderboard");
+		RatedStat = FString("TestIntStat1");
 		DisplayFormat = ELeaderboardFormat::Number;
 		SortMethod = ELeaderboardSort::Descending;
 		UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
@@ -31,12 +31,12 @@ class TestLeaderboardRead : public FOnlineLeaderboardRead
 public:
 	TestLeaderboardRead(const FString& InLeaderboardName, const FString& InSortedColumn, const TMap<FString, EOnlineKeyValuePairDataType::Type>& InColumns)
 	{
-		LeaderboardName = FName(InLeaderboardName);
-		SortedColumn = FName(InSortedColumn);
+		LeaderboardName = InLeaderboardName;
+		SortedColumn = InSortedColumn;
 
 		for (TPair<FString, EOnlineKeyValuePairDataType::Type> Column : InColumns)
 		{
-			new (ColumnMetadata) FColumnMetaData(FName(Column.Key), Column.Value);
+			new (ColumnMetadata) FColumnMetaData(Column.Key, Column.Value);
 		}
 	}
 };
@@ -198,8 +198,8 @@ void FTestLeaderboardInterface::WriteLeaderboards()
 	TestLeaderboardWrite WriteObject;
 	
 	// Set some data
-	WriteObject.SetIntStat("TestIntStat1", 50);
-	WriteObject.SetFloatStat("TestFloatStat1", 99.5f);
+	WriteObject.SetIntStat(FString("TestIntStat1"), 50);
+	WriteObject.SetFloatStat(FString("TestFloatStat1"), 99.5f);
 
 	// Write it to the buffers
 	Leaderboards->WriteLeaderboards(TEXT("TEST"), *UserId, WriteObject);
@@ -230,7 +230,7 @@ void FTestLeaderboardInterface::PrintLeaderboards()
 
 		for (FStatsColumnArray::TConstIterator It(StatsRow.Columns); It; ++It)
 		{
-			UE_LOG_ONLINE_LEADERBOARD(Log, TEXT("     %s = %s"), *It.Key().ToString(), *It.Value().ToString());
+			UE_LOG_ONLINE_LEADERBOARD(Log, TEXT("     %s = %s"), *It.Key(), *It.Value().ToString());
 		}
 	}
 }

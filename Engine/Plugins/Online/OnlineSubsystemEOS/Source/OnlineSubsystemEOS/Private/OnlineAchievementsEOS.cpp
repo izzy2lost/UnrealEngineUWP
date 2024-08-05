@@ -34,15 +34,15 @@ void FOnlineAchievementsEOS::UnlockAchievements(const FUniqueNetId& PlayerId, FO
 		return;
 	}
 
-	TArray<FName> InAchievementIds;
+	TArray<FString> InAchievementIds;
 	WriteObject->Properties.GenerateKeyArray(InAchievementIds);
 	TArray<FTCHARToUTF8> AchievementIdConverters; // We can't use StringCast<UTF8CHAR> because it's non-copyable, and the array will make a copy
 	AchievementIdConverters.Reserve(InAchievementIds.Num());
 	TArray<const char*> AchievementIdPtrs;
 	AchievementIdPtrs.Reserve(InAchievementIds.Num());
-	for (const FName& AchievementId : InAchievementIds)
+	for (const FString& AchievementId : InAchievementIds)
 	{
-		const FTCHARToUTF8& Converter = AchievementIdConverters.Emplace_GetRef(*AchievementId.ToString());
+		const FTCHARToUTF8& Converter = AchievementIdConverters.Emplace_GetRef(*AchievementId);
 		AchievementIdPtrs.Emplace(Converter.Get());
 	}
 
@@ -63,14 +63,14 @@ void FOnlineAchievementsEOS::UnlockAchievements(const FUniqueNetId& PlayerId, FO
 			{
 				UE_LOG_ONLINE_ACHIEVEMENTS(Verbose, TEXT("(%d) achievements unlocked. Caching achievements for user (%s)"), (uint32)Data->AchievementsCount, *LambdaPlayerId->ToString());
 
-				for (const FName& AchievementId : InAchievementIds)
+				for (const FString& AchievementId : InAchievementIds)
 				{
 					for (FOnlineAchievement& Achievement : Achievements->Get())
 					{
-						if (Achievement.Id == AchievementId.ToString())
+						if (Achievement.Id == AchievementId)
 						{
 							Achievement.Progress = 1.0f;
-							TriggerOnAchievementUnlockedDelegates(*LambdaPlayerId, AchievementId.ToString());
+							TriggerOnAchievementUnlockedDelegates(*LambdaPlayerId, AchievementId);
 							break;
 						}
 					}
