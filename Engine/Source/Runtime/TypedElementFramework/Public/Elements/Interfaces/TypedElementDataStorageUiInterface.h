@@ -44,6 +44,15 @@ public:
 
 	/** Returns a list of additional columns the widget requires to be added to its rows. */
 	TYPEDELEMENTFRAMEWORK_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const;
+
+	/** 
+	 * Returns a friendly name for the data the created widget represents.
+	 * By default the associated column is used. If there are multiple columns associated with the constructor
+	 * the default implementation will attempt to find the longest common starting string for all the columns.
+	 * Individual widget constructors can override this function with a name specific to them.
+	 */
+	TYPEDELEMENTFRAMEWORK_API virtual FString CreateWidgetDisplayName(
+		ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle Row) const;
 	
 	/**
 	 *	Calls Construct() to create the internal widget, and then stores it in a container before returning.
@@ -80,6 +89,9 @@ protected:
 	
 	/** Get a user facing label for the widget used in table views. */
 	TYPEDELEMENTFRAMEWORK_API virtual FString GetWidgetLabel(const TSharedPtr<SWidget>& Widget);
+
+	/** Creates a (friendly) name for the provided column type. */
+	TYPEDELEMENTFRAMEWORK_API virtual FString DescribeColumnType(const UScriptStruct* ColumnType) const;
 
 	/** 
 	 * Last opportunity to configure anything in the widget or the row. This step can be needed to initialize widgets with data stored

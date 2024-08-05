@@ -109,11 +109,11 @@ namespace TypedElementDataStorage
 					}
 					return false;
 				});
-				if (Result)
-				{
-					ConvertColumnBitToArray(MatchedColumns, Matches);
-				}
-				return Result;
+		if (Result)
+		{
+			ConvertColumnBitToArray(MatchedColumns, Matches);
+		}
+		return Result;
 	}
 
 	bool FQueryConditions::Verify(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
@@ -138,7 +138,7 @@ namespace TypedElementDataStorage
 	bool FQueryConditions::Verify(TArray<TWeakObjectPtr<const UScriptStruct>>& MatchedColumns,
 		TConstArrayView<TWeakObjectPtr<const UScriptStruct>> AvailableColumns, bool AvailableColumnsAreSorted) const
 	{
-		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount can be larger than 64.");
+		static_assert(MaxColumnCount < 64, "Query conditions use a bit mask to locate matches. As a result MaxColumnCount cannot be larger than 64.");
 		uint64 Matches = 0;
 		bool Result = AvailableColumnsAreSorted
 			? VerifyBootstrap(
@@ -160,11 +160,11 @@ namespace TypedElementDataStorage
 				{
 					return AvailableColumns.Find(Column) != INDEX_NONE;
 				});
-				if (Result)
-				{
-					ConvertColumnBitToArray(MatchedColumns, Matches);
-				}
-				return Result;
+		if (Result)
+		{
+			ConvertColumnBitToArray(MatchedColumns, Matches);
+		}
+		return Result;
 	}
 
 	bool FQueryConditions::Verify(TSet<TWeakObjectPtr<const UScriptStruct>> AvailableColumns) const

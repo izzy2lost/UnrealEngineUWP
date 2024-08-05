@@ -41,6 +41,58 @@ TConstArrayView<const UScriptStruct*> FTypedElementWidgetConstructor::GetAdditio
 	return {};
 }
 
+FString FTypedElementWidgetConstructor::CreateWidgetDisplayName(
+	ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle Row) const
+{
+	switch (MatchedColumnTypes.Num())
+	{
+	case 0:
+		return FString(TEXT("TEDS Column"));
+	case 1:
+		return DescribeColumnType(MatchedColumnTypes[0].Get());
+	default:
+	{
+		FString LongestMatchString = DescribeColumnType(MatchedColumnTypes[0].Get());
+		FStringView LongestMatch = LongestMatchString;
+		const TWeakObjectPtr<const UScriptStruct>* It = MatchedColumnTypes.GetData();
+		const TWeakObjectPtr<const UScriptStruct>* ItEnd = It + MatchedColumnTypes.Num();
+		++It; // Skip the first entry as that's already set.
+		for (; It != ItEnd; ++It)
+		{
+			FString NextMatchText = DescribeColumnType(It->Get());
+			FStringView NextMatch = NextMatchText;
+
+			int32 MatchSize = 0;
+			auto ItLeft = LongestMatch.begin();
+			auto ItLeftEnd = LongestMatch.end();
+			auto ItRight = NextMatch.begin();
+			auto ItRightEnd = NextMatch.end();
+			while (
+				ItLeft != ItLeftEnd &&
+				ItRight != ItRightEnd &&
+				*ItLeft == *ItRight)
+			{
+				++MatchSize;
+				++ItLeft;
+				++ItRight;
+			}
+
+			// At least 3 letters have to match to avoid single or double letter names which typically mean nothing.
+			if (MatchSize > 2)
+			{
+				LongestMatch.LeftInline(MatchSize);
+			}
+			else
+			{
+				// There are not enough characters in the string that match. Just return the name of the first column
+				return LongestMatchString;
+			}
+		}
+		return FString(LongestMatch);
+	}
+	};
+}
+
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 	TypedElementRowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
@@ -120,6 +172,23 @@ FString FTypedElementWidgetConstructor::GetWidgetLabel(const TSharedPtr<SWidget>
 {
 	// The default widget label is simply the type of the widget
 	return Widget->GetType().ToString();
+}
+
+FString FTypedElementWidgetConstructor::DescribeColumnType(const UScriptStruct* ColumnType) const
+{
+	static const FName DisplayNameName(TEXT("DisplayName"));
+
+#if WITH_EDITOR
+	if (ColumnType)
+	{
+		const FString* Name = ColumnType->FindMetaData(DisplayNameName);
+		return Name ? *Name : ColumnType->GetDisplayNameText().ToString();
+	}
+	else
+#endif
+	{
+		return FString(TEXT("<Invalid>"));
+	}
 }
 
 bool FTypedElementWidgetConstructor::FinalizeWidget(

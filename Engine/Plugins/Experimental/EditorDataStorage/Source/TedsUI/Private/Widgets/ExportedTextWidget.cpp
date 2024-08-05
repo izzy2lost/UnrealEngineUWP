@@ -14,8 +14,7 @@
 // UExportedTextWidgetFactory
 //
 
-static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetReferenceColumn& Widget, 
-	const UScriptStruct* StructType)
+static void UpdateExportedTextWidget(FText Text, FTypedElementSlateWidgetReferenceColumn& Widget)
 {
 	TSharedPtr<SWidget> WidgetPointer = Widget.Widget.Pin();
 	checkf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
@@ -26,12 +25,17 @@ static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetR
 		*(STextBlock::StaticWidgetClass().GetWidgetType().ToString()),
 		*(WidgetPointer->GetTypeAsString()));
 
-	FString Label;
-	StructType->ExportText(Label, Data, Data, nullptr, PPF_None, nullptr);
 	STextBlock* TextWidget = static_cast<STextBlock*>(WidgetPointer.Get());
-	FText Text = FText::FromString(MoveTemp(Label));
 	TextWidget->SetToolTipText(Text);
 	TextWidget->SetText(MoveTemp(Text));
+}
+
+static void UpdateExportedTextWidget(const void* Data, FTypedElementSlateWidgetReferenceColumn& Widget, 
+	const UScriptStruct* StructType)
+{
+	FString Label;
+	StructType->ExportText(Label, Data, Data, nullptr, PPF_None, nullptr);
+	UpdateExportedTextWidget(FText::FromString(MoveTemp(Label)), Widget);
 }
 
 static void UpdateExportedTextWidget(ITypedElementDataStorageInterface& DataStorage, FTypedElementSlateWidgetReferenceColumn& Widget,
@@ -136,6 +140,19 @@ const TypedElementDataStorage::FQueryConditions* FExportedTextWidgetConstructor:
 	return &MatchedColumn;
 }
 
+FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(ITypedElementDataStorageInterface* DataStorage,
+	TypedElementDataStorage::RowHandle Row) const
+{
+	if (FTypedElementScriptStructTypeInfoColumn* TypeInfoColumn = DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row))
+	{
+		return DescribeColumnType(TypeInfoColumn->TypeInfo.Get());
+	}
+	else
+	{
+		return DescribeColumnType(nullptr);
+	}
+}
+
 TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock);
@@ -154,18 +171,27 @@ bool FExportedTextWidgetConstructor::FinalizeWidget(
 	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
 	MatchedColumn = TypedElementDataStorage::FQueryConditions(TypedElementDataStorage::FColumn(TypeInfoColumn.TypeInfo));
 
-	UpdateExportedTextWidget(
-		*DataStorage,
-		*DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row),
-		TypeInfoColumn,
-		*DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row));
-	
-	UExportedTextWidgetFactory* Factory = 
-		UExportedTextWidgetFactory::StaticClass()->GetDefaultObject<UExportedTextWidgetFactory>();
-	if (Factory && !Factory->RegisteredTypes.Contains(TypeInfoColumn.TypeInfo))
+	if (TypeInfoColumn.TypeInfo->IsChildOf(FTypedElementDataStorageTag::StaticStruct()))
 	{
-		RegisterUpdateCallback(*DataStorage, TypeInfoColumn.TypeInfo.Get());
-		Factory->RegisteredTypes.Add(TypeInfoColumn.TypeInfo);
+		UpdateExportedTextWidget(
+			LOCTEXT("ExportedTextWidgetTag", "<Tag>"),
+			*DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row));
+	}
+	else
+	{
+		UpdateExportedTextWidget(
+			*DataStorage,
+			*DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row),
+			TypeInfoColumn,
+			*DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row));
+
+		UExportedTextWidgetFactory* Factory =
+			UExportedTextWidgetFactory::StaticClass()->GetDefaultObject<UExportedTextWidgetFactory>();
+		if (Factory && !Factory->RegisteredTypes.Contains(TypeInfoColumn.TypeInfo))
+		{
+			RegisterUpdateCallback(*DataStorage, TypeInfoColumn.TypeInfo.Get());
+			Factory->RegisteredTypes.Add(TypeInfoColumn.TypeInfo);
+		}
 	}
 	
 	return true;
