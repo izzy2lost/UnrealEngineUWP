@@ -342,7 +342,9 @@ TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorCoreBase::GetProperty
 
 void UPropertyAnimatorCoreBase::OnAnimatorEnabledChanged()
 {
-	if (bAnimatorEnabled)
+	const UPropertyAnimatorCoreComponent* AnimatorComponent = GetAnimatorComponent();
+
+	if (bAnimatorEnabled && AnimatorComponent->ShouldAnimate())
 	{
 		OnAnimatorEnabled();
 	}
@@ -427,7 +429,7 @@ void UPropertyAnimatorCoreBase::EvaluateAnimator(FInstancedPropertyBag& InParame
 
 	EvaluatedPropertyValues.Reset();
 	InParameters.AddProperty(TimeElapsedParameterName, EPropertyBagPropertyType::Double);
-	InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed.GetValue());
+    InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed.GetValue());
 
 	bEvaluatingProperties = true;
 	EvaluateProperties(InParameters);

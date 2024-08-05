@@ -34,29 +34,29 @@ public:
 	virtual void Deinitialize() override;
 	//~ End USubsystem
 
-	/** Register the property controller class to allow its usage */
-	PROPERTYANIMATORCORE_API bool RegisterAnimatorClass(const UClass* InPropertyControllerClass);
+	/** Register the property animator class to allow its usage */
+	PROPERTYANIMATORCORE_API bool RegisterAnimatorClass(const UClass* InAnimatorClass);
 
-	/** Unregister the property controller class to disallow its usage */
-	PROPERTYANIMATORCORE_API bool UnregisterAnimatorClass(const UClass* InPropertyControllerClass);
+	/** Unregister the property animator class to disallow its usage */
+	PROPERTYANIMATORCORE_API bool UnregisterAnimatorClass(const UClass* InAnimatorClass);
 
-	/** Checks if the property controller class is already registered */
-	PROPERTYANIMATORCORE_API bool IsAnimatorClassRegistered(const UClass* InPropertyControllerClass) const;
+	/** Checks if the property animator class is already registered */
+	PROPERTYANIMATORCORE_API bool IsAnimatorClassRegistered(const UClass* InAnimatorClass) const;
 
 	/** Gets the animator CDO registered from the class */
 	UPropertyAnimatorCoreBase* GetAnimatorRegistered(const UClass* InAnimatorClass) const;
 
-	/** Returns true if any controller is able to control that property or nested otherwise false */
+	/** Returns true if any animator is able to control that property or nested otherwise false */
 	PROPERTYANIMATORCORE_API bool IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData, bool bInCheckNestedProperties = true) const;
 
 	/** Find all animators linked to the property */
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreBase*> GetPropertyLinkedAnimators(const FPropertyAnimatorCoreData& InPropertyData) const;
 
-	/** Returns a set of existing property controller objects in owner that supports that property */
+	/** Returns a set of existing property animator objects in owner that supports that property */
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreBase*> GetExistingAnimators(const FPropertyAnimatorCoreData& InPropertyData) const;
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreBase*> GetExistingAnimators(const AActor* InActor) const;
 
-	/** Returns a set of property controller CDO that supports that property */
+	/** Returns a set of property animator CDO that supports that property */
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreBase*> GetAvailableAnimators(const FPropertyAnimatorCoreData* InPropertyData) const;
 	PROPERTYANIMATORCORE_API TSet<UPropertyAnimatorCoreBase*> GetAvailableAnimators() const;
 

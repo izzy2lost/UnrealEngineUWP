@@ -10,6 +10,8 @@
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogPropertyAnimatorCoreContext, Log, All);
+
 TArray<FPropertyAnimatorCoreData> UPropertyAnimatorCoreContext::ResolveProperty(bool bInForEvaluation) const
 {
 	TArray<FPropertyAnimatorCoreData> ResolvedProperties;
@@ -227,6 +229,9 @@ bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 	bool bFound = IsValid(NewOwner);
 	const TArray<UObject*> OtherOuters = AnimatedProperty.GetOuters(AnimatedProperty.GetOwningActor());
 
+	const FProperty* MemberProperty = AnimatedProperty.GetMemberProperty();
+	UClass* PropertyOwningClass = MemberProperty->GetOwnerClass();
+
 	if (!OtherOuters.IsEmpty())
 	{
 		// Resolve using outers
@@ -236,6 +241,7 @@ bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 			TArray<UObject*> ThisOwnedObjects;
 			GetObjectsWithOuter(NewOwner, ThisOwnedObjects, false);
 
+			// Search for the same class and same name
 			for (UObject* ThisOuter : ThisOwnedObjects)
 			{
 				if (ThisOuter->GetClass() == OtherOuter->GetClass()
@@ -243,6 +249,27 @@ bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 				{
 					bFound = true;
 					NewOwner = ThisOuter;
+					break;
+				}
+			}
+
+			// Search for the property owning class
+			if (!bFound)
+			{
+				for (UObject* ThisOuter : ThisOwnedObjects)
+				{
+					if (ThisOuter->GetClass() == OtherOuter->GetClass()
+						|| ThisOuter->IsA(PropertyOwningClass))
+					{
+						bFound = true;
+						NewOwner = ThisOuter;
+						break;
+					}
+				}
+
+				// Nothing found, stop searching
+				if (!bFound)
+				{
 					break;
 				}
 			}
@@ -261,27 +288,32 @@ bool UPropertyAnimatorCoreContext::ResolvePropertyOwner(AActor* InNewOwner)
 
 			for (UObject* ThisOuter : ThisOwnedObjects)
 			{
-				if (ThisOuter
-					&& ThisOuter->GetName().StartsWith(PathSegment))
+				if (ThisOuter && ThisOuter->GetName().StartsWith(PathSegment))
 				{
 					bFound = true;
 					NewOwner = ThisOuter;
 					break;
 				}
 			}
+
+			// Nothing found, stop searching
+			if (!bFound)
+			{
+				break;
+			}
 		}
 	}
 
-	const UObject* PreviousPropertyOwner = AnimatedProperty.GetOwner();
-
 	if (bFound
 		&& IsValid(NewOwner)
-		&& (!PreviousPropertyOwner || NewOwner->GetClass() == PreviousPropertyOwner->GetClass())
+		&& NewOwner->GetClass()->IsChildOf(PropertyOwningClass)
 		&& FindFProperty<FProperty>(NewOwner->GetClass(), AnimatedProperty.GetMemberPropertyName()))
 	{
 		SetAnimatedPropertyOwner(NewOwner);
 		return true;
 	}
+
+	UE_LOG(LogPropertyAnimatorCoreContext, Warning, TEXT("Could not resolve property owner %s on %s"), *AnimatedProperty.GetPathHash(), NewOwner ? *NewOwner->GetName() : TEXT("Invalid"))
 
 	return false;
 }

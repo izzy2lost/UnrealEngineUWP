@@ -49,12 +49,16 @@ public:
 	/** Process a function for each controller, stops when false is returned otherwise continue until the end */
 	PROPERTYANIMATORCORE_API void ForEachAnimator(TFunctionRef<bool(UPropertyAnimatorCoreBase*)> InFunction) const;
 
+	/** Checks if this component animators should be active */
+	bool ShouldAnimate() const;
+
 protected:
 	static FName GetAnimatorName(const UPropertyAnimatorCoreBase* InAnimator);
 
 	//~ Begin UActorComponent
 	virtual void OnComponentCreated() override;
 	virtual void DestroyComponent(bool bPromoteChildren) override;
+	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InTickFunction) override;
 	//~ End UActorComponent
 
 	//~ Begin UObject
@@ -86,12 +90,14 @@ protected:
 	/** Change global state for animators */
 	void OnAnimatorsSetEnabled(const UWorld* InWorld, bool bInEnabled, bool bInTransact);
 
+	/** Callback when PropertyAnimators changed */
 	void OnAnimatorsChanged();
 
+	/** Callback when global enabled state is changed */
 	void OnAnimatorsEnabledChanged();
 
-	/** Checks if this component animators should tick */
-	bool ShouldAnimatorsTick() const;
+	/** Evaluate only specified animators */
+	bool EvaluateAnimators();
 
 	/** Animators linked to this actor, they contain only properties within this actor */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, NoClear, Export, Instanced, Setter="SetAnimators", Category="Animator", meta=(TitleProperty="AnimatorDisplayName"))
@@ -106,9 +112,8 @@ protected:
 	float AnimatorsMagnitude = 1.f;
 
 private:
-	virtual void TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction) override;
-
 	/** Deprecated property set, will be migrated to PropertyAnimators property on load */
+	UE_DEPRECATED(5.5, "Moved to PropertyAnimators")
 	UPROPERTY()
 	TSet<TObjectPtr<UPropertyAnimatorCoreBase>> Animators;
 

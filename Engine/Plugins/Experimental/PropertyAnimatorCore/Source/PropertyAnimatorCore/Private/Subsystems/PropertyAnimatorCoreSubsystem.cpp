@@ -66,25 +66,25 @@ UPropertyAnimatorCoreSubsystem* UPropertyAnimatorCoreSubsystem::Get()
 	return nullptr;
 }
 
-bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InPropertyControllerClass)
+bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InAnimatorClass)
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
-	if (!InPropertyControllerClass->IsChildOf(UPropertyAnimatorCoreBase::StaticClass())
-		|| InPropertyControllerClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
+	if (!InAnimatorClass->IsChildOf(UPropertyAnimatorCoreBase::StaticClass())
+		|| InAnimatorClass->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists))
 	{
 		return false;
 	}
 
-	if (IsAnimatorClassRegistered(InPropertyControllerClass))
+	if (IsAnimatorClassRegistered(InAnimatorClass))
 	{
 		return false;
 	}
 
-	if (UPropertyAnimatorCoreBase* CDO = InPropertyControllerClass->GetDefaultObject<UPropertyAnimatorCoreBase>())
+	if (UPropertyAnimatorCoreBase* CDO = InAnimatorClass->GetDefaultObject<UPropertyAnimatorCoreBase>())
 	{
 		AnimatorsWeak.Add(CDO);
 
@@ -94,16 +94,16 @@ bool UPropertyAnimatorCoreSubsystem::RegisterAnimatorClass(const UClass* InPrope
 	return false;
 }
 
-bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InPropertyControllerClass)
+bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InAnimatorClass)
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
 	for (TSet<TWeakObjectPtr<UPropertyAnimatorCoreBase>>::TIterator It(AnimatorsWeak); It; ++It)
 	{
-		if ((*It)->GetClass() == InPropertyControllerClass)
+		if ((*It)->GetClass() == InAnimatorClass)
 		{
 			It.RemoveCurrent();
 			return true;
@@ -113,16 +113,16 @@ bool UPropertyAnimatorCoreSubsystem::UnregisterAnimatorClass(const UClass* InPro
 	return false;
 }
 
-bool UPropertyAnimatorCoreSubsystem::IsAnimatorClassRegistered(const UClass* InPropertyControllerClass) const
+bool UPropertyAnimatorCoreSubsystem::IsAnimatorClassRegistered(const UClass* InAnimatorClass) const
 {
-	if (!IsValid(InPropertyControllerClass))
+	if (!IsValid(InAnimatorClass))
 	{
 		return false;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
-		if (Controller->GetClass() == InPropertyControllerClass)
+		if (Animator->GetClass() == InAnimatorClass)
 		{
 			return true;
 		}
@@ -187,9 +187,9 @@ bool UPropertyAnimatorCoreSubsystem::IsPropertySupported(const FPropertyAnimator
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetPropertyLinkedAnimators(const FPropertyAnimatorCoreData& InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingControllers = GetExistingAnimators(InPropertyData);
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators = GetExistingAnimators(InPropertyData);
 
-	for (TSet<UPropertyAnimatorCoreBase*>::TIterator It(ExistingControllers); It; ++It)
+	for (TSet<UPropertyAnimatorCoreBase*>::TIterator It(ExistingAnimators); It; ++It)
 	{
 		if (!(*It)->IsPropertyLinked(InPropertyData))
 		{
@@ -197,69 +197,69 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetPropertyLink
 		}
 	}
 
-	return ExistingControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetExistingAnimators(const FPropertyAnimatorCoreData& InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingPropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators;
 
 	if (!InPropertyData.IsResolved())
 	{
-		return ExistingPropertyControllers;
+		return ExistingAnimators;
 	}
 
 	const AActor* Actor = InPropertyData.GetOwningActor();
 
-	for (UPropertyAnimatorCoreBase* Controller : GetExistingAnimators(Actor))
+	for (UPropertyAnimatorCoreBase* Animator : GetExistingAnimators(Actor))
 	{
 		TSet<FPropertyAnimatorCoreData> OutProperties;
-		if (Controller->GetPropertiesSupported(InPropertyData, OutProperties))
+		if (Animator->GetPropertiesSupported(InPropertyData, OutProperties, /** SearchDepth */3))
 		{
-			ExistingPropertyControllers.Add(Controller);
+			ExistingAnimators.Add(Animator);
 		}
 	}
 
-	return ExistingPropertyControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetExistingAnimators(const AActor* InActor) const
 {
-	TSet<UPropertyAnimatorCoreBase*> ExistingPropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> ExistingAnimators;
 
 	if (!IsValid(InActor))
 	{
-		return ExistingPropertyControllers;
+		return ExistingAnimators;
 	}
 
 	if (const UPropertyAnimatorCoreComponent* PropertyComponent = InActor->FindComponentByClass<UPropertyAnimatorCoreComponent>())
 	{
-		PropertyComponent->ForEachAnimator([&ExistingPropertyControllers](UPropertyAnimatorCoreBase* InController)->bool
+		PropertyComponent->ForEachAnimator([&ExistingAnimators](UPropertyAnimatorCoreBase* InAnimator)->bool
 		{
-			ExistingPropertyControllers.Add(InController);
+			ExistingAnimators.Add(InAnimator);
 			return true;
 		});
 	}
 
-	return ExistingPropertyControllers;
+	return ExistingAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAnimators(const FPropertyAnimatorCoreData* InPropertyData) const
 {
-	TSet<UPropertyAnimatorCoreBase*> AvailablePropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> AvailableAnimators;
 
 	if (InPropertyData && !InPropertyData->IsResolved())
 	{
-		return AvailablePropertyControllers;
+		return AvailableAnimators;
 	}
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
 		bool bIsPropertySupported = true;
 		if (InPropertyData)
 		{
 			TSet<FPropertyAnimatorCoreData> OutProperties;
-			if (!Controller->GetPropertiesSupported(*InPropertyData, OutProperties))
+			if (!Animator->GetPropertiesSupported(*InPropertyData, OutProperties, /** SearchDepth */3))
 			{
 				bIsPropertySupported = false;
 			}
@@ -267,23 +267,23 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAni
 
 		if (bIsPropertySupported)
 		{
-			AvailablePropertyControllers.Add(Controller.Get());
+			AvailableAnimators.Add(Animator.Get());
 		}
 	}
 
-	return AvailablePropertyControllers;
+	return AvailableAnimators;
 }
 
 TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::GetAvailableAnimators() const
 {
-	TSet<UPropertyAnimatorCoreBase*> AvailablePropertyControllers;
+	TSet<UPropertyAnimatorCoreBase*> AvailableAnimators;
 
-	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Controller : AnimatorsWeak)
+	for (const TWeakObjectPtr<UPropertyAnimatorCoreBase>& Animator : AnimatorsWeak)
 	{
-		AvailablePropertyControllers.Add(Controller.Get());
+		AvailableAnimators.Add(Animator.Get());
 	}
 
-	return AvailablePropertyControllers;
+	return AvailableAnimators;
 }
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreSubsystem::CreateAnimator(AActor* InActor, const UClass* InAnimatorClass, UPropertyAnimatorCorePresetBase* InPreset, bool bInTransact) const

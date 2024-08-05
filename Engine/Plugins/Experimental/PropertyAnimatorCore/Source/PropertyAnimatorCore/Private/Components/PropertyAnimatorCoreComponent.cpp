@@ -98,7 +98,6 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsChanged()
 		}
 	}
 
-	const bool bShouldAnimatorsTick = ShouldAnimatorsTick();
 	for (const TObjectPtr<UPropertyAnimatorCoreBase>& AddedAnimator : AddedAnimators)
 	{
 		if (AddedAnimator)
@@ -106,11 +105,6 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsChanged()
 			AddedAnimator->SetAnimatorDisplayName(GetAnimatorName(AddedAnimator));
 			AddedAnimator->OnAnimatorAdded();
 			AddedAnimator->SetAnimatorEnabled(true);
-
-			if (!bShouldAnimatorsTick)
-			{
-				AddedAnimator->SetAnimatorEnabled(false);
-			}
 		}
 	}
 
@@ -119,12 +113,7 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsChanged()
 
 void UPropertyAnimatorCoreComponent::OnAnimatorsEnabledChanged()
 {
-	const bool bEnableAnimators = ShouldAnimatorsTick();
-
-	if (IsComponentTickEnabled() == bEnableAnimators)
-	{
-		return;
-	}
+	const bool bEnableAnimators = ShouldAnimate();
 
 	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
 	{
@@ -133,20 +122,25 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsEnabledChanged()
 			continue;
 		}
 
-		if (bEnableAnimators)
+		// When enabling all animators, if animator is disabled then skip
+		if (bEnableAnimators && !Animator->GetAnimatorEnabled())
 		{
-			Animator->OnAnimatorEnabled();
+			continue;
 		}
-		else
+
+		// When disabling all animators : if animator is disabled then skip
+		if (!bEnableAnimators && !Animator->GetAnimatorEnabled())
 		{
-			Animator->OnAnimatorDisabled();
+			continue;
 		}
+
+		Animator->OnAnimatorEnabledChanged();
 	}
 
 	SetComponentTickEnabled(bEnableAnimators);
 }
 
-bool UPropertyAnimatorCoreComponent::ShouldAnimatorsTick() const
+bool UPropertyAnimatorCoreComponent::ShouldAnimate() const
 {
 	return bAnimatorsEnabled
 		&& !PropertyAnimators.IsEmpty()
@@ -188,40 +182,6 @@ void UPropertyAnimatorCoreComponent::OnComponentCreated()
 				Animator->ResolvePropertiesOwner(OwningActor);
 			}
 		}
-	}
-}
-
-void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InThisTickFunction)
-{
-	Super::TickComponent(InDeltaTime, InTickType, InThisTickFunction);
-
-	if (!ShouldAnimatorsTick())
-	{
-		return;
-	}
-
-	const UWorld* World = GetWorld();
-	const bool bIsSupportedWorld = IsValid(World) && (World->IsGameWorld() || World->IsEditorWorld());
-
-	if (!bIsSupportedWorld)
-	{
-		return;
-	}
-
-	FInstancedPropertyBag Parameters;
-
-	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
-	{
-		if (!IsValid(Animator))
-		{
-			continue;
-		}
-
-		Parameters.Reset();
-		Parameters.AddProperty(UPropertyAnimatorCoreBase::MagnitudeParameterName, EPropertyBagPropertyType::Float);
-		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude);
-
-		Animator->EvaluateAnimator(Parameters);
 	}
 }
 
@@ -268,7 +228,6 @@ UPropertyAnimatorCoreComponent::UPropertyAnimatorCoreComponent()
 	{
 		bTickInEditor = true;
 		PrimaryComponentTick.bCanEverTick = true;
-		PrimaryComponentTick.bHighPriority = true;
 
 		// Used to toggle animators state in world
 		UPropertyAnimatorCoreSubsystem::OnAnimatorsSetEnabledDelegate.AddUObject(this, &UPropertyAnimatorCoreComponent::OnAnimatorsSetEnabled);
@@ -309,9 +268,21 @@ void UPropertyAnimatorCoreComponent::DestroyComponent(bool bPromoteChildren)
 	Super::DestroyComponent(bPromoteChildren);
 }
 
+void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InTickFunction)
+{
+	Super::TickComponent(InDeltaTime, InTickType, InTickFunction);
+
+	if (!EvaluateAnimators())
+	{
+		SetComponentTickEnabled(false);
+	}
+}
+
 void UPropertyAnimatorCoreComponent::PostLoad()
 {
 	Super::PostLoad();
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 
 	// Migrate animators to new array property
 	if (!Animators.IsEmpty() && PropertyAnimators.IsEmpty())
@@ -319,6 +290,8 @@ void UPropertyAnimatorCoreComponent::PostLoad()
 		PropertyAnimators = Animators.Array();
 		Animators.Empty();
 	}
+
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -378,4 +351,39 @@ void UPropertyAnimatorCoreComponent::ForEachAnimator(const TFunctionRef<bool(UPr
 			}
 		}
 	}
+}
+
+bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
+{
+	if (!ShouldAnimate())
+	{
+		return false;
+	}
+
+	const UWorld* World = GetWorld();
+	const bool bIsSupportedWorld = IsValid(World) && (World->IsGameWorld() || World->IsEditorWorld());
+
+	if (!bIsSupportedWorld)
+	{
+		return false;
+	}
+
+	FInstancedPropertyBag Parameters;
+
+	for (const TObjectPtr<UPropertyAnimatorCoreBase>& Animator : PropertyAnimators)
+	{
+		if (!IsValid(Animator) || !Animator->GetAnimatorEnabled())
+		{
+			continue;
+		}
+
+		// Reset in case animator change values to avoid affecting following animators
+		Parameters.Reset();
+		Parameters.AddProperty(UPropertyAnimatorCoreBase::MagnitudeParameterName, EPropertyBagPropertyType::Float);
+		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude);
+
+		Animator->EvaluateAnimator(Parameters);
+	}
+
+	return true;
 }
