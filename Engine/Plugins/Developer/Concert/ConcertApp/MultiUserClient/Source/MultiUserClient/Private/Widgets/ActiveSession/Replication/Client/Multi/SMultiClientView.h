@@ -79,7 +79,9 @@ namespace UE::MultiUserClient
 		TSharedRef<SWidget> CreateNoPropertiesWarning() const;
 
 		// SClientToolbar attributes
-		TSet<FGuid> GetDisplayClientIds() const;
+		/** @return Gets the clients that may be replicating */
+		TSet<FGuid> GetReplicatableClientIds() const;
+		/** Calls Consumer for each object path that is in a stream - independent of whether it is being replicated or not. */
 		void EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;
 		
 		void RebuildClientSubscriptions();

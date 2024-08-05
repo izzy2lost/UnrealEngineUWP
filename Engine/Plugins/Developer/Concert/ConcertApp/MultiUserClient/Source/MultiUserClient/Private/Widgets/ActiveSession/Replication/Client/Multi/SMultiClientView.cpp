@@ -62,8 +62,8 @@ namespace UE::MultiUserClient
 		
 		SReplicationStatus::AppendReplicationStatus(*Content, ClientManager->GetAuthorityCache(),
 			SReplicationStatus::FArguments()
-			.DisplayedClients(this, &SMultiClientView::GetDisplayClientIds)
-			.ForEachReplicatedObject(this, &SMultiClientView::EnumerateObjectsInStreams)
+			.ReplicatableClients(this, &SMultiClientView::GetReplicatableClientIds)
+			.ForEachObjectInStream(this, &SMultiClientView::EnumerateObjectsInStreams)
 			);
 
 		RebuildClientSubscriptions();
@@ -168,7 +168,7 @@ namespace UE::MultiUserClient
 			];
 	}
 
-	TSet<FGuid> SMultiClientView::GetDisplayClientIds() const
+	TSet<FGuid> SMultiClientView::GetReplicatableClientIds() const
 	{
 		TSet<FGuid> ClientIds;
 		StreamModel->ForEachClient([&ClientIds](const FReplicationClient* Client)
