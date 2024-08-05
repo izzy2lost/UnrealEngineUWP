@@ -176,7 +176,7 @@ struct FLandscapeLayer
 	//~ End UE::Landscape::EditLayers::IEditLayerRendererProvider implementation
 #endif // WITH_EDITOR
 
-	// TODO [jonathan.bard] : make those private, FLandscapeLayer is not LANDSCAPE_API so it can be done without deprecation
+	// TODO [jonathan.bard] : make those private
 public:
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FGuid Guid;
@@ -381,6 +381,7 @@ public:
 	* @Param InLayer edit layer to copy from
 	* @return the index of the newly-created layer
 	*/
+	UE_DEPRECATED(5.5, "Use DuplicateLayerAndMoveBrushes")
 	LANDSCAPE_API int32 CreateLayerFrom(const FLandscapeLayer& InLayer);
 	LANDSCAPE_API void CreateDefaultLayer();
 

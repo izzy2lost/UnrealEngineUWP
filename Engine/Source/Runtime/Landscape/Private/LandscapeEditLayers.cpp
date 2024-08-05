@@ -12906,6 +12906,12 @@ FLandscapeLayer* ALandscape::DuplicateLayerAndMoveBrushes(const FLandscapeLayer&
 		return nullptr;
 	}
 
+	if (IsMaxLayersReached())
+	{
+		UE_LOG(LogLandscape, Warning, TEXT("Cannot duplicate layer : %s as the max number of layers (%i) has been reached"), *InOtherLayer.Name.ToString(), GetDefault<ULandscapeSettings>()->MaxNumberOfLayers);
+		return nullptr;
+	}
+
 	Modify();
 
 	FLandscapeLayer NewLayer(InOtherLayer);
@@ -12922,13 +12928,7 @@ FLandscapeLayer* ALandscape::DuplicateLayerAndMoveBrushes(const FLandscapeLayer&
 	}
 
 	int32 AddedIndex = LandscapeEditLayers.Add(NewLayer);
-
-	// Create associated layer data in each landscape proxy
-	LandscapeInfo->ForEachLandscapeProxy([&NewLayer](ALandscapeProxy* Proxy)
-	{
-		Proxy->AddLayer(NewLayer.Guid);
-		return true;
-	});
+	OnLayerCreatedInternal(NewLayer);
 
 	return &LandscapeEditLayers[AddedIndex];
 }
@@ -12951,6 +12951,7 @@ int32 ALandscape::CreateLayer(FName InName, const TSubclassOf<ULandscapeEditLaye
 	return LayerIndex;
 }
 
+// Deprecated : use DuplicateLayerAndMoveBrushes 
 int32 ALandscape::CreateLayerFrom(const FLandscapeLayer& InLayer)
 {
 	if (IsMaxLayersReached() || !CanHaveLayersContent())

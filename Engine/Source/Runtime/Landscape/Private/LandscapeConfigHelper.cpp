@@ -575,8 +575,8 @@ ULandscapeInfo* FLandscapeConfigHelper::ChangeConfiguration(ULandscapeInfo* InLa
 		NewLandscape->bCanHaveLayersContent = true;
 		for (const FLandscapeLayer& OldLayer : OldLandscape->GetLayers())
 		{
-			FLandscapeLayer* NewLayer = NewLandscape->DuplicateLayerAndMoveBrushes(OldLayer);
-			check((NewLayer != nullptr) && (NewLayer->EditLayer != nullptr));
+			const FLandscapeLayer* NewLayer = NewLandscape->DuplicateLayerAndMoveBrushes(OldLayer);
+			check((NewLayer == nullptr) || (NewLayer->EditLayer != nullptr)); // it's possible DuplicateLayerAndMoveBrushes fails (e.g. max number of layers reached), but if not, we should always have an EditLayer
 		}
 	}
 		

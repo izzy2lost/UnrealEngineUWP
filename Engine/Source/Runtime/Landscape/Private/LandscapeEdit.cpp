@@ -3748,13 +3748,16 @@ void ALandscapeProxy::Import(const FGuid& InGuid, int32 InMinX, int32 InMinY, in
 		{
 			for (const FLandscapeLayer& OldLayer : InImportLayers)
 			{
-				FLandscapeLayer* NewLayer = LandscapeActor->DuplicateLayerAndMoveBrushes(OldLayer);
-				check(NewLayer != nullptr);
+				const FLandscapeLayer* NewLayer = LandscapeActor->DuplicateLayerAndMoveBrushes(OldLayer);
+				if (NewLayer != nullptr)
+				{
+					check(NewLayer->EditLayer != nullptr); // it's possible DuplicateLayerAndMoveBrushes fails (e.g. max number of layers reached), but if not, we should always have an EditLayer
 
-				FLayerImportSettings ImportSettings;
-				ImportSettings.SourceLayerGuid = OldLayer.Guid;
-				ImportSettings.DestinationLayerGuid = NewLayer->Guid;
-				LayerImportSettings.Add(ImportSettings);
+					FLayerImportSettings ImportSettings;
+					ImportSettings.SourceLayerGuid = OldLayer.Guid;
+					ImportSettings.DestinationLayerGuid = NewLayer->Guid;
+					LayerImportSettings.Add(ImportSettings);
+				}
 			}
 
 			LandscapeInfo->GetComponentsInRegion(InMinX, InMinY, InMaxX, InMaxY, ComponentsToProcess);
