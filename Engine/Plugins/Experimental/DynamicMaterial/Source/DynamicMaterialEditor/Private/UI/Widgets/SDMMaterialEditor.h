@@ -10,6 +10,7 @@
 #include "UI/Utils/DMWidgetSlot.h"
 
 class FDMPreviewMaterialManager;
+class FSlotBase;
 class FUICommandList;
 class SDMMaterialComponentEditor;
 class SDMMaterialDesigner;
@@ -108,6 +109,7 @@ protected:
 	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
 	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
 	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
+	FSlotBase* SplitterSlot;
 	TDMWidgetSlot<SDMMaterialSlotEditor> SlotEditorSlot;
 	TDMWidgetSlot<SDMMaterialComponentEditor> ComponentEditorSlot;
 	TDMWidgetSlot<SDMStatusBar> StatusBarSlot;
