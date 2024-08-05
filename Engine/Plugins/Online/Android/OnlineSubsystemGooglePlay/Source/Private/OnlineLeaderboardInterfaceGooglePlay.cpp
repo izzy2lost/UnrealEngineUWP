@@ -53,7 +53,7 @@ bool FOnlineLeaderboardsGooglePlay::ReadLeaderboards(const TArray< FUniqueNetIdR
 	ReadObject->Rows.Empty();
 
 	auto Settings = GetDefault<UAndroidRuntimeSettings>();
-	if(TOptional<FString> PlatformLeaderboardId = LeaderboardsGooglePlayDetail::GetGooglePlayLeaderboardId(Settings, ReadObject->LeaderboardName.ToString()))
+	if(TOptional<FString> PlatformLeaderboardId = LeaderboardsGooglePlayDetail::GetGooglePlayLeaderboardId(Settings, ReadObject->LeaderboardName))
 	{
 		Subsystem->QueueAsyncTask(new FOnlineAsyncTaskGooglePlayReadLeaderboard( Subsystem, ReadObject, *PlatformLeaderboardId));
 		return true;
@@ -86,7 +86,7 @@ bool FOnlineLeaderboardsGooglePlay::WriteLeaderboards(const FName& SessionName, 
 
 	for(int32 LeaderboardIdx = 0; LeaderboardIdx < WriteObject.LeaderboardNames.Num(); ++LeaderboardIdx)
 	{
-		FString LeaderboardName = WriteObject.LeaderboardNames[LeaderboardIdx].ToString();
+		FString LeaderboardName = WriteObject.LeaderboardNames[LeaderboardIdx];
 		UE_LOG_ONLINE_LEADERBOARD(Display, TEXT("Going through stats for leaderboard :  %s "), *LeaderboardName);
 		
 		for(auto &[Key, Stat]: WriteObject.Properties)

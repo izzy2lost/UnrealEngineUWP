@@ -68,7 +68,7 @@ void FOnlineAsyncTaskGooglePlayReadLeaderboard::AddScore(const FString& DisplayN
 
 				default:
 				{
-					UE_LOG_ONLINE(Warning, TEXT("Unsupported key value pair during retrieval from Google Play %s"), *ColumnMeta.ColumnName.ToString());
+					UE_LOG_ONLINE(Warning, TEXT("Unsupported key value pair during retrieval from Google Play %s"), *ColumnMeta.ColumnName);
 					break;
 				}
 			}
