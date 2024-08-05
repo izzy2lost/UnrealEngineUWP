@@ -27,7 +27,8 @@ void FSimpleAssetEditor::RegisterTabSpawners(const TSharedRef<class FTabManager>
 	InTabManager->RegisterTabSpawner( PropertiesTabId, FOnSpawnTab::CreateSP(this, &FSimpleAssetEditor::SpawnPropertiesTab) )
 		.SetDisplayName( LOCTEXT("PropertiesTab", "Details") )
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"))
+		.SetReadOnlyBehavior(ETabReadOnlyBehavior::Custom);
 }
 
 void FSimpleAssetEditor::UnregisterTabSpawners(const TSharedRef<class FTabManager>& InTabManager)
@@ -58,6 +59,7 @@ void FSimpleAssetEditor::InitEditor( const EToolkitMode::Type Mode, const TShare
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsView = PropertyEditorModule.CreateDetailView( DetailsViewArgs );
+
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_SimpleAssetEditor_Layout_v4" )
 	->AddArea
 	(
@@ -98,6 +100,8 @@ void FSimpleAssetEditor::InitEditor( const EToolkitMode::Type Mode, const TShare
 
 	if( DetailsView.IsValid() )
 	{
+		DetailsView->SetIsPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled::CreateSP(this, &FSimpleAssetEditor::IsPropertyEditingEnabled));
+
 		// Make sure details window is pointing to our object
 		DetailsView->SetObjects( ObjectsToEditInDetailsView );
 	}
@@ -228,7 +232,7 @@ void FSimpleAssetEditor::SetPropertyVisibilityDelegate(FIsPropertyVisible InVisi
 
 void FSimpleAssetEditor::SetPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled InPropertyEditingDelegate)
 {
-	DetailsView->SetIsPropertyEditingEnabledDelegate(InPropertyEditingDelegate);
+	IsPropertyEditingEnabledDelegate = InPropertyEditingDelegate;
 	DetailsView->ForceRefresh();
 }
 
@@ -319,6 +323,22 @@ FReply FSimpleAssetEditor::OnEditParentClassClicked(TObjectPtr<UObject> EditClas
 	}
 
 	return FReply::Handled();
+}
+
+bool FSimpleAssetEditor::IsPropertyEditingEnabled() const
+{
+	bool bIsPropertyEditingEnabled = true;
+
+	// First check any user provided delegate
+	if (IsPropertyEditingEnabledDelegate.IsBound())
+	{
+		bIsPropertyEditingEnabled &= IsPropertyEditingEnabledDelegate.Execute();
+	}
+
+	// Also make sure we are opened in Edit mode
+	bIsPropertyEditingEnabled &= (GetOpenMethod() == EAssetOpenMethod::Edit);
+
+	return bIsPropertyEditingEnabled;
 }
 
 void FSimpleAssetEditor::PostRegenerateMenusAndToolbars()

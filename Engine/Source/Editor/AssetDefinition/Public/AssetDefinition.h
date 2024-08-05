@@ -248,7 +248,13 @@ struct FAssetDiffArgs
 
 struct FAssetOpenSupportArgs
 {
-	EAssetOpenMethod OpenMethod = EAssetOpenMethod::Edit;
+	FAssetOpenSupportArgs(EAssetOpenMethod InOpenMethod = EAssetOpenMethod::Edit)
+		: OpenMethod(InOpenMethod)
+	{
+		
+	}
+	
+	EAssetOpenMethod OpenMethod;
 };
 
 
