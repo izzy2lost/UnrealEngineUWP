@@ -30,7 +30,9 @@
 #include "Widgets/SRigVMGraphPinEnumPicker.h"
 #include "Widgets/SRigVMVariantWidget.h"
 #include "ScopedTransaction.h"
-#include "Misc/UObjectToken.h"
+#include "Editor/RigVMEditorTools.h"
+#include "ContentBrowserModule.h"
+#include "IContentBrowserSingleton.h"
 
 #define LOCTEXT_NAMESPACE "RigVMGraphDetailCustomization"
 
@@ -1423,6 +1425,15 @@ void FRigVMGraphDetailCustomization::OnBrowseVariantRef(const FRigVMVariantRef& 
 					}
 				}
 			}
+		}
+	}
+	else
+	{
+		const FAssetData AssetData = UE::RigVM::Editor::Tools::FindAssetFromAnyPath(InVariantRef.ObjectPath.ToString(), true);
+		if(AssetData.IsValid())
+		{
+			const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+			ContentBrowserModule.Get().SyncBrowserToAssets({AssetData});
 		}
 	}
 }
