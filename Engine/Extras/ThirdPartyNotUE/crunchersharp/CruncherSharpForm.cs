@@ -10,6 +10,7 @@ using System.Configuration;
 using System.Collections.Specialized;
 using static System.Int32;
 using static System.Windows.Forms.AxHost;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 
 namespace CruncherSharp
 {
@@ -76,11 +77,12 @@ namespace CruncherSharp
 			bindingSourceSymbols.DataSource = _Table;
 			dataGridSymbols.DataSource = bindingSourceSymbols;
 
-			dataGridSymbols.Columns[0].Width = 271;
+			dataGridSymbols.Columns[0].Width = 275;
 			for (int i = 1; i < dataGridSymbols.Columns.Count; i++)
 			{
-				dataGridSymbols.Columns[i].Width = 80;
+				dataGridSymbols.Columns[i].Width = 75;
 			}
+			UpdateColumnVisibility();
 
 			WindowState = FormWindowState.Maximized;
 
@@ -89,6 +91,18 @@ namespace CruncherSharp
 			if (ShowMemPool("MB2"))
 			{
 				mB2ToolStripMenuItem.Checked = true;
+			}
+
+			string Alignment = ConfigurationManager.AppSettings.Get("Alignment");
+			if (Alignment.Length > 0)
+			{
+				var values = Alignment.Split(',');
+				for (int i = 0; i < values.Length; i+=2)
+				{
+					var key = values[i];
+					var align = uint.Parse(values[i+1]);
+					CurrentSymbolAnalyzer.ConfigAlignment.Add(key, align);
+				}
 			}
 		}
 
@@ -188,9 +202,11 @@ namespace CruncherSharp
 
 		private static string SymbolRowName = "Symbol";
 		private static string SizeRowName = "Size";
+		private static string MinAlignmentRowName = "Min alignment";
 		private static string PaddingRowName = "Padding";
 		private static string PaddingZonesRowName = "Padding zones";
 		private static string TotalPaddingRowName = "Total padding";
+		private static string PotentialSavingRowName = "Potential saving";
 		private static string TotalDeltaRowName = "Total delta";
 		private static string InstancesRowName = "Instances";
 		private static string TotalCountRowName = "Total count";
@@ -200,10 +216,9 @@ namespace CruncherSharp
 		private static string MempoolTotalUsageRowName = "Mempool total usage";
 		private static string MempoolRowName = "Current mempool";
 		private static string MempoolDeltaRowName = "Delta to lower mempool";
-		private static string MempoolTotalWinRowName = "Mem win with lower mempool";
+		private static string PotentialWinRowName = "Potential total saving";
 		private static string NewSizeRowName = "New size";
 		private static string DeltaRowName = "Delta";
-		private static string DeltaTotalSaving = "Delta total saving";
 
 		private DataTable CreateDataTable()
         {
@@ -215,7 +230,13 @@ namespace CruncherSharp
                 ReadOnly = true,
                 DataType = Type.GetType("System.UInt32")
             });
-            table.Columns.Add(new DataColumn
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = MinAlignmentRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt32")
+			});
+			table.Columns.Add(new DataColumn
             {
                 ColumnName = PaddingRowName,
                 ReadOnly = true,
@@ -233,171 +254,125 @@ namespace CruncherSharp
                 ReadOnly = true,
                 DataType = Type.GetType("System.UInt32")
             });
-
-			return table;
-        }
-
-        private void AddInstancesCount()
-        {
-            if (_HasInstancesCount)
-                return;
-            _HasInstancesCount = true;
-            if (_HasSecondPDB)
+			table.Columns.Add(new DataColumn
 			{
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = TotalDeltaRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.Int32")
-				});
-				dataGridSymbols.Columns[TotalDeltaRowName].Width = 80;
-
-				if (_HasMemPools)
-				{
-					_Table.Columns.Add(new DataColumn
-					{
-						ColumnName = DeltaTotalSaving,
-						ReadOnly = true,
-						DataType = Type.GetType("System.Int32")
-					});
-					dataGridSymbols.Columns[DeltaTotalSaving].Width = 80;
-				}	
-			}
-
-
-            _Table.Columns.Add(new DataColumn
-            {
-                ColumnName = InstancesRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.UInt64")
-            });
-			dataGridSymbols.Columns[InstancesRowName].Width = 80;
-			_Table.Columns.Add(new DataColumn
-            {
-                ColumnName = TotalCountRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.UInt64")
-            });
-			dataGridSymbols.Columns[TotalCountRowName].Width = 80;
-			_Table.Columns.Add(new DataColumn
-            {
-                ColumnName = TotalSizeRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.UInt64")
-            });
-			dataGridSymbols.Columns[TotalSizeRowName].Width = 80;
-			_Table.Columns.Add(new DataColumn
-            {
-                ColumnName = TotalWasteRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.UInt64")
-            });
-			dataGridSymbols.Columns[TotalWasteRowName].Width = 80;
-			if (_HasMemPools)
-			{
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolUsageRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt32")
-				});
-				dataGridSymbols.Columns[MempoolUsageRowName].Width = 80;
-
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolTotalUsageRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt32")
-				});
-				dataGridSymbols.Columns[MempoolTotalUsageRowName].Width = 80;
-
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolTotalWinRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt64")
-				});
-				dataGridSymbols.Columns[MempoolTotalWinRowName].Width = 80;
-			}
-		}
-
-        private void AddSecondPDB()
-        {
-            if (_HasSecondPDB)
-                return;
-            _HasSecondPDB = true;
-            _Table.Columns.Add(new DataColumn
-            {
-                ColumnName = NewSizeRowName,
+				ColumnName = PotentialSavingRowName,
 				ReadOnly = true,
-                DataType = Type.GetType("System.UInt32")
-            });
-			dataGridSymbols.Columns[NewSizeRowName].Width = 80;
-			_Table.Columns.Add(new DataColumn
-            {
-                ColumnName = DeltaRowName,
-                ReadOnly = true,
-                DataType = Type.GetType("System.Int32")
-            });
-			dataGridSymbols.Columns[DeltaRowName].Width = 80;
-			if (_HasInstancesCount)
-			{
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = TotalDeltaRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.Int64")
-				});
-				dataGridSymbols.Columns[TotalDeltaRowName].Width = 80;
-			}
-		}
+				DataType = Type.GetType("System.UInt32")
+			});
 
-		private void AddMemPoolsColums()
-		{
-			if (_HasMemPools == false)
-				return;
-
-			_Table.Columns.Add(new DataColumn
+			table.Columns.Add(new DataColumn
 			{
 				ColumnName = MempoolRowName,
 				ReadOnly = true,
 				DataType = Type.GetType("System.UInt32")
 			});
-			dataGridSymbols.Columns[MempoolRowName].Width = 80;
-			if (_HasInstancesCount)
-			{
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolUsageRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt32")
-				});
-				dataGridSymbols.Columns[MempoolUsageRowName].Width = 80;
-
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolTotalUsageRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt32")
-				});
-				dataGridSymbols.Columns[MempoolTotalUsageRowName].Width = 80;
-
-				_Table.Columns.Add(new DataColumn
-				{
-					ColumnName = MempoolTotalWinRowName,
-					ReadOnly = true,
-					DataType = Type.GetType("System.UInt64")
-				});
-				dataGridSymbols.Columns[MempoolTotalWinRowName].Width = 80;
-			}
-
-			_Table.Columns.Add(new DataColumn
+			table.Columns.Add(new DataColumn
 			{
 				ColumnName = MempoolDeltaRowName,
 				ReadOnly = true,
 				DataType = Type.GetType("System.UInt32")
 			});
-			dataGridSymbols.Columns[MempoolDeltaRowName].Width = 80;
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = InstancesRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt64")
+			});
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = TotalCountRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt64")
+			});
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = TotalSizeRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt64")
+			});
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = TotalWasteRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt64")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = MempoolUsageRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt32")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = MempoolTotalUsageRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt32")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = PotentialWinRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt64")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = NewSizeRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.UInt32")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = DeltaRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.Int32")
+			});
+
+			table.Columns.Add(new DataColumn
+			{
+				ColumnName = TotalDeltaRowName,
+				ReadOnly = true,
+				DataType = Type.GetType("System.Int64")
+			});
+
+
+			return table;
+        }
+
+		void UpdateColumnVisibility()
+		{
+			dataGridSymbols.Columns[NewSizeRowName].Visible = _HasSecondPDB;
+			dataGridSymbols.Columns[DeltaRowName].Visible = _HasSecondPDB;
+			dataGridSymbols.Columns[TotalDeltaRowName].Visible = _HasSecondPDB;
+
+			dataGridSymbols.Columns[InstancesRowName].Visible = _HasInstancesCount;
+			dataGridSymbols.Columns[TotalCountRowName].Visible = _HasInstancesCount;
+			dataGridSymbols.Columns[TotalSizeRowName].Visible = _HasInstancesCount && !_HasMemPools;
+			dataGridSymbols.Columns[TotalWasteRowName].Visible =  _HasInstancesCount && !_HasMemPools;
+			dataGridSymbols.Columns[MempoolUsageRowName].Visible = _HasInstancesCount && _HasMemPools;
+			dataGridSymbols.Columns[MempoolTotalUsageRowName].Visible = _HasInstancesCount && _HasMemPools;
+
+			dataGridSymbols.Columns[PotentialWinRowName].Visible = _HasInstancesCount && _HasMemPools;
+		}
+
+        private void AddInstancesCount()
+        {
+            _HasInstancesCount = true;
+			UpdateColumnVisibility();
+
+		}
+
+        private void AddSecondPDB()
+        {
+
+            _HasSecondPDB = true;
+			UpdateColumnVisibility();
 		}
 
 		private void AddSymbolToTable(SymbolInfo symbolInfo)
@@ -407,47 +382,40 @@ namespace CruncherSharp
             row[SymbolRowName] = symbolInfo.Name;
             row[SizeRowName] = symbolInfo.Size;
             row[PaddingRowName] = symbolInfo.Padding;
+			row[MinAlignmentRowName] = symbolInfo.MinAlignment.Value;
             row[PaddingZonesRowName] = symbolInfo.PaddingZonesCount;
             row[TotalPaddingRowName] = symbolInfo.TotalPadding.Value;
-            if (_HasInstancesCount)
-            {
-                row[InstancesRowName] = symbolInfo.NumInstances;
-                row[TotalCountRowName] = symbolInfo.TotalCount;
-                row[TotalSizeRowName] = symbolInfo.TotalCount * symbolInfo.Size;
-                row[TotalWasteRowName] = symbolInfo.TotalCount * symbolInfo.Padding;
-            }
-
-            if (_HasSecondPDB)
-            {
-                row[NewSizeRowName] = symbolInfo.NewSize;
-                row[DeltaRowName] = (long) symbolInfo.NewSize - (long) symbolInfo.Size;
-                if (_HasInstancesCount && symbolInfo.NumInstances > 0)
+            row[PotentialSavingRowName] = symbolInfo.PotentialSaving.Value;
+            row[InstancesRowName] = symbolInfo.NumInstances;
+            row[TotalCountRowName] = symbolInfo.TotalCount;
+            row[TotalSizeRowName] = symbolInfo.TotalCount * symbolInfo.Size;
+            row[TotalWasteRowName] = symbolInfo.TotalCount * symbolInfo.PotentialSaving;
+			row[NewSizeRowName] = symbolInfo.NewSize;
+			row[DeltaRowName] = (long)symbolInfo.NewSize - (long)symbolInfo.Size;
+			if (_HasInstancesCount && symbolInfo.NumInstances > 0)
+			{
+				if (_HasMemPools)
 				{
-					if (_HasMemPools)
-					{
-						row[TotalDeltaRowName] = symbolInfo.ComputeTotalMempoolDelta();
-					}
-					else
-					{
-						row[TotalDeltaRowName] = symbolInfo.ComputeTotalDelta();
-					}
+					row[TotalDeltaRowName] = symbolInfo.ComputeTotalMempoolDelta();
 				}
-				else if (_HasInstancesCount)
+				else
 				{
-					row[TotalDeltaRowName] = 0;
+					row[TotalDeltaRowName] = symbolInfo.ComputeTotalDelta();
 				}
+			}
+			else if (_HasInstancesCount)
+			{
+				row[TotalDeltaRowName] = 0;
+			}
 
-            }
 			if (_HasMemPools && symbolInfo.CurrentMemPool > 0)
 			{
 				row[MempoolRowName] = symbolInfo.CurrentMemPool;
 				row[MempoolDeltaRowName] = symbolInfo.Size - symbolInfo.LowerMemPool;
-				if (_HasInstancesCount)
-				{
-					row[MempoolUsageRowName] = (long)(symbolInfo.CurrentMemPool) * (long)symbolInfo.NumInstances;
-					row[MempoolTotalUsageRowName] = (long)(symbolInfo.ComputeTotalMempoolUsage());
-					row[MempoolTotalWinRowName] = (long)(symbolInfo.ComputeTotalMempoolWin());
-				}
+
+				row[MempoolUsageRowName] = (long)(symbolInfo.CurrentMemPool) * (long)symbolInfo.NumInstances;
+				row[MempoolTotalUsageRowName] = (long)(symbolInfo.ComputeTotalMempoolUsage());
+				row[PotentialWinRowName] = (long)(symbolInfo.ComputePotentialTotalSaving());
 			}
 
             _Table.Rows.Add(row);
@@ -556,7 +524,7 @@ namespace CruncherSharp
                 if (_HasInstancesCount)
                 {
                     totalMemory += symbolInfo.NumInstances * symbolInfo.Size;
-                    totalWaste += symbolInfo.NumInstances * symbolInfo.TotalPadding.Value;
+                    totalWaste += symbolInfo.NumInstances * symbolInfo.PotentialSaving.Value;
                     if (_HasSecondPDB)
                         totalDiff += ((long) symbolInfo.NewSize - (long) symbolInfo.Size) *
                                      (long) symbolInfo.NumInstances;
@@ -564,7 +532,7 @@ namespace CruncherSharp
                 else
                 {
                     totalMemory += symbolInfo.Size;
-                    totalWaste += symbolInfo.TotalPadding.Value;
+                    totalWaste += symbolInfo.PotentialSaving.Value;
                 }
             }
 
@@ -696,12 +664,12 @@ namespace CruncherSharp
                 incrementTextEmpty += "   |    ";
             }
 
-            foreach (var member in symbol.Members)
+			foreach (var member in symbol.Members)
             {
                 var currentOffset = previousOffset + member.Offset;
                 if (member.PaddingBefore > 0 && checkBoxPadding.Checked)
                 {
-                    var paddingOffset = member.Offset - member.PaddingBefore;
+					var paddingOffset = member.Offset - member.PaddingBefore;
                     string[] paddingRow =
                     {
                         string.Empty,
@@ -709,9 +677,8 @@ namespace CruncherSharp
 						PaddingRowName,
                         paddingOffset.ToString(),
                         string.Empty,
-                        member.PaddingBefore.ToString(),
-                        string.Empty
-                    };
+                        member.PaddingBefore.ToString()
+					};
                     dataGridViewSymbolInfo.Rows.Add(paddingRow);
                 }
 
@@ -756,23 +723,34 @@ namespace CruncherSharp
                                 string.Empty,
                                 incrementTextEmpty,
                                 "Cacheline boundary",
-                                offset.ToString(),
-                                string.Empty,
-                                string.Empty
+                                offset.ToString()
                             };
                             dataGridViewSymbolInfo.Rows.Add(boundaryRow);
                         });
                     }
                 }
 
-                var baseInfo = CurrentSymbolAnalyzer.FindSymbolInfo(member.TypeName);
                 var expand = "";
                 if (member.Expanded)
                     expand = whitespaceIncrementText + "- ";
                 else if (member.IsExapandable)
                     expand = whitespaceIncrementText + "+ ";
 
-                object[] row =
+				string PotentialSaving = string.Empty;
+				if (member.TypeName.StartsWith("enum ") && member.Size == 4)
+				{
+					PotentialSaving = "3";
+				}
+				else if (member.Category == SymbolMemberInfo.MemberCategory.VTable && symbol.HasUnusedVTable())
+				{
+					PotentialSaving = "8";
+				}
+				else if (member.TypeInfo != null && member.TypeInfo.PotentialSaving != null && member.TypeInfo.PotentialSaving.Value > 0)
+				{
+					PotentialSaving = member.TypeInfo.PotentialSaving.Value.ToString();
+				}
+
+				object[] row =
                 {
                     expand,
                     incrementText + member.DisplayName,
@@ -780,13 +758,15 @@ namespace CruncherSharp
                     currentOffset.ToString(),
                     (member.BitField ? member.BitPosition.ToString() : string.Empty),
                     member.BitField ? (member.BitSize.ToString() + (member.BitSize == 1 ? " bit" : " bits")) : (member.Size.ToString() + (member.Size == 1 ? " byte" : " bytes")),
-                    baseInfo?.TotalPadding.ToString() ?? string.Empty
-                };
+					member.MinAlignment.ToString(),
+					member.TypeInfo?.TotalPadding.ToString() ?? "0",
+					PotentialSaving
+				};
                 dataGridViewSymbolInfo.Rows.Add(row);
                 dataGridViewSymbolInfo.Rows[dataGridViewSymbolInfo.Rows.Count - 1].Tag = member;
 
-                if (member.Expanded && baseInfo != null)
-                    AddSymbolToGrid(baseInfo, ref prevCacheBoundaryOffset, ref numCacheLines, currentOffset,
+                if (member.Expanded && member.TypeInfo != null)
+                    AddSymbolToGrid(member.TypeInfo, ref prevCacheBoundaryOffset, ref numCacheLines, currentOffset,
                         increment + 1);
 
                 if (member.BitField && member.BitPaddingAfter > 0 && checkBoxBitPadding.Checked)
@@ -799,8 +779,7 @@ namespace CruncherSharp
                         "Bitfield padding",
                         currentOffset.ToString(),
                         (member.BitPosition + member.BitSize).ToString(),
-                        paddingOffset,
-                        string.Empty
+                        paddingOffset
                     };
                     dataGridViewSymbolInfo.Rows.Add(paddingRow);
                 }
@@ -812,8 +791,11 @@ namespace CruncherSharp
                 var endPaddingOffset = symbol.Size - symbol.EndPadding;
                 string[] paddingRow =
                 {
-                    string.Empty, string.Empty, PaddingRowName, endPaddingOffset.ToString(), symbol.EndPadding.ToString(),
-                    symbol.EndPadding.ToString()
+                    string.Empty, 
+					string.Empty, 
+					PaddingRowName, 
+					endPaddingOffset.ToString(), 
+					symbol.EndPadding.ToString()
                 };
                 dataGridViewSymbolInfo.Rows.Add(paddingRow);
             }
@@ -1139,7 +1121,7 @@ namespace CruncherSharp
 
 			foreach (var symbol in CurrentSymbolAnalyzer.Symbols.Values)
 				if (symbol.NumInstances > 0)
-					symbol.UpdateTotalCount(CurrentSymbolAnalyzer, symbol.NumInstances);
+					symbol.UpdateTotalCount(symbol.NumInstances);
 
 			AddInstancesCount();
 			OnPDBLoaded();
@@ -1487,15 +1469,15 @@ namespace CruncherSharp
 					row.Cells[e.ColumnIndex].ToolTipText += "\nPadding is bigger than delta";
 
 				}
-				else if (CurrentSymbol.TotalPadding >= (CurrentSymbol.Size - CurrentSymbol.LowerMemPool))
+				else if (CurrentSymbol.PotentialSaving >= (CurrentSymbol.Size - CurrentSymbol.LowerMemPool))
 				{
 					row.Cells[e.ColumnIndex].Style.BackColor = Color.LightGreen;
 					row.Cells[e.ColumnIndex].ToolTipText += "\nTotal padding is bigger than delta";
 				}
 			}
-			else if (column.Name == MempoolTotalWinRowName)
+			else if (column.Name == PotentialWinRowName)
 			{
-				row.Cells[e.ColumnIndex].ToolTipText = String.Format("Memory saving if the lower memory pool is reached");
+				row.Cells[e.ColumnIndex].ToolTipText = String.Format("Memory saving with potential saving");
 			}
 			else if (column.Name == NewSizeRowName)
 			{
@@ -1584,11 +1566,11 @@ namespace CruncherSharp
 					AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.UnusedVTables:
-					if (symbolInfo.HasVtable && !symbolInfo.HasBaseClassWithVTable(CurrentSymbolAnalyzer) && symbolInfo.DerivedClasses == null)
+					if (symbolInfo.HasUnusedVTable())
 						AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.MSVCExtraPadding:
-					if (symbolInfo.HasMSVCExtraPadding(CurrentSymbolAnalyzer))
+					if (symbolInfo.HasMSVCExtraPadding())
 						AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.MSVCEmptyBaseClass:
@@ -1846,7 +1828,6 @@ namespace CruncherSharp
 			if (!_HasMemPools && CurrentSymbolAnalyzer.MemPools.Count > 0)
 			{
 				_HasMemPools = true;
-				AddMemPoolsColums();
 			}
 			PopulateDataTable();
 		}
@@ -1888,11 +1869,8 @@ namespace CruncherSharp
 #if RAWPDB
 				_SymbolAnalyzerRawPDB.MemPools = MemoryPoolsSize;
 #endif
-				if (!_HasMemPools)
-				{
-					_HasMemPools = true;
-					AddMemPoolsColums();
-				}
+
+				_HasMemPools = true;
 
 				PopulateDataTable();
 				return true;

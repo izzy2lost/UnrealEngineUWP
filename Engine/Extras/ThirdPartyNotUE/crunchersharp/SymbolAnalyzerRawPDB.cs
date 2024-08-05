@@ -285,7 +285,7 @@ namespace CruncherSharp
 					typeName,
 					typeSymbol.Size, 
 					dataMember.BitSize, 
-					(ulong)dataMember.Offset,
+					dataMember.Offset,
 					dataMember.BitPosition 
 				);
 				info.BitField = dataMember.IsBitfield;

@@ -99,13 +99,6 @@
             this.Infos = new System.Windows.Forms.TabControl();
             this.tabMembers = new System.Windows.Forms.TabPage();
             this.dataGridViewSymbolInfo = new System.Windows.Forms.DataGridView();
-            this.Expand = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colField = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFieldType = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFieldOffset = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colBitPosition = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFieldSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colFieldPadding = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.tabFunctions = new System.Windows.Forms.TabPage();
             this.panel2 = new System.Windows.Forms.Panel();
             this.dataGridViewFunctionsInfo = new System.Windows.Forms.DataGridView();
@@ -120,6 +113,15 @@
             this.contextMenuStripFunctions = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.ignoreFunctionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bindingSourceSymbols = new System.Windows.Forms.BindingSource(this.components);
+            this.Expand = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colField = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldType = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldOffset = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colBitPosition = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldSize = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.ColumnAlignment = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldPadding = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colFieldSaving = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.mainMenu.SuspendLayout();
             this.statusStripBar.SuspendLayout();
             this.contextMenuStripMembers.SuspendLayout();
@@ -767,18 +769,17 @@
             // 
             // labelCurrentSymbol
             // 
-            this.labelCurrentSymbol.AutoSize = true;
+            this.labelCurrentSymbol.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.labelCurrentSymbol.Dock = System.Windows.Forms.DockStyle.Fill;
             this.labelCurrentSymbol.Location = new System.Drawing.Point(0, 0);
             this.labelCurrentSymbol.Name = "labelCurrentSymbol";
-            this.labelCurrentSymbol.Size = new System.Drawing.Size(0, 13);
+            this.labelCurrentSymbol.ReadOnly = true;
+            this.labelCurrentSymbol.Size = new System.Drawing.Size(787, 13);
             this.labelCurrentSymbol.TabIndex = 17;
-			this.labelCurrentSymbol.ReadOnly = true;
-			this.labelCurrentSymbol.BorderStyle = System.Windows.Forms.BorderStyle.None;
-			// 
-			// Infos
-			// 
-			this.Infos.Controls.Add(this.tabMembers);
+            // 
+            // Infos
+            // 
+            this.Infos.Controls.Add(this.tabMembers);
             this.Infos.Controls.Add(this.tabFunctions);
             this.Infos.Dock = System.Windows.Forms.DockStyle.Fill;
             this.Infos.Location = new System.Drawing.Point(0, 0);
@@ -811,7 +812,9 @@
             this.colFieldOffset,
             this.colBitPosition,
             this.colFieldSize,
-            this.colFieldPadding});
+            this.ColumnAlignment,
+            this.colFieldPadding,
+            this.colFieldSaving});
             this.dataGridViewSymbolInfo.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dataGridViewSymbolInfo.Location = new System.Drawing.Point(3, 3);
             this.dataGridViewSymbolInfo.Name = "dataGridViewSymbolInfo";
@@ -825,75 +828,6 @@
             this.dataGridViewSymbolInfo.SortCompare += new System.Windows.Forms.DataGridViewSortCompareEventHandler(this.dataGridSymbols_SortCompare);
             this.dataGridViewSymbolInfo.KeyDown += new System.Windows.Forms.KeyEventHandler(this.dataGridViewSymbolInfo_KeyDown);
             this.dataGridViewSymbolInfo.MouseClick += new System.Windows.Forms.MouseEventHandler(this.dataGridViewSymbolInfo_MouseClick);
-            // 
-            // Expand
-            // 
-            this.Expand.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            this.Expand.FillWeight = 10F;
-            this.Expand.HeaderText = "";
-            this.Expand.Name = "Expand";
-            this.Expand.ReadOnly = true;
-            this.Expand.Resizable = System.Windows.Forms.DataGridViewTriState.False;
-            this.Expand.Width = 19;
-            // 
-            // colField
-            // 
-            this.colField.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            this.colField.HeaderText = "Field";
-            this.colField.Name = "colField";
-            this.colField.ReadOnly = true;
-            this.colField.Width = 54;
-            // 
-            // colFieldType
-            // 
-            this.colFieldType.HeaderText = "Type";
-            this.colFieldType.Name = "colFieldType";
-            this.colFieldType.ReadOnly = true;
-            this.colFieldType.Width = 210;
-            // 
-            // colFieldOffset
-            // 
-            this.colFieldOffset.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            dataGridViewCellStyle2.Format = "N0";
-            dataGridViewCellStyle2.NullValue = null;
-            this.colFieldOffset.DefaultCellStyle = dataGridViewCellStyle2;
-            this.colFieldOffset.HeaderText = "Offset";
-            this.colFieldOffset.Name = "colFieldOffset";
-            this.colFieldOffset.ReadOnly = true;
-            this.colFieldOffset.Width = 60;
-            // 
-            // colBitPosition
-            // 
-            this.colBitPosition.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            dataGridViewCellStyle3.Format = "N0";
-            dataGridViewCellStyle3.NullValue = null;
-            this.colBitPosition.DefaultCellStyle = dataGridViewCellStyle3;
-            this.colBitPosition.HeaderText = "Bit offset";
-            this.colBitPosition.Name = "colBitPosition";
-            this.colBitPosition.ReadOnly = true;
-            this.colBitPosition.Width = 73;
-            // 
-            // colFieldSize
-            // 
-            this.colFieldSize.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            dataGridViewCellStyle4.Format = "N0";
-            dataGridViewCellStyle4.NullValue = null;
-            this.colFieldSize.DefaultCellStyle = dataGridViewCellStyle4;
-            this.colFieldSize.HeaderText = "Size";
-            this.colFieldSize.Name = "colFieldSize";
-            this.colFieldSize.ReadOnly = true;
-            this.colFieldSize.Width = 52;
-            // 
-            // colFieldPadding
-            // 
-            this.colFieldPadding.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
-            dataGridViewCellStyle5.Format = "N0";
-            dataGridViewCellStyle5.NullValue = null;
-            this.colFieldPadding.DefaultCellStyle = dataGridViewCellStyle5;
-            this.colFieldPadding.HeaderText = "Padding";
-            this.colFieldPadding.Name = "colFieldPadding";
-            this.colFieldPadding.ReadOnly = true;
-            this.colFieldPadding.Width = 71;
             // 
             // tabFunctions
             // 
@@ -1016,6 +950,89 @@
             this.ignoreFunctionToolStripMenuItem.Text = "Ignore function";
             this.ignoreFunctionToolStripMenuItem.Click += new System.EventHandler(this.ignoreFunctionToolStripMenuItem_Click);
             // 
+            // Expand
+            // 
+            this.Expand.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            this.Expand.FillWeight = 10F;
+            this.Expand.HeaderText = "";
+            this.Expand.Name = "Expand";
+            this.Expand.ReadOnly = true;
+            this.Expand.Resizable = System.Windows.Forms.DataGridViewTriState.False;
+            this.Expand.Width = 19;
+            // 
+            // colField
+            // 
+            this.colField.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            this.colField.HeaderText = "Field";
+            this.colField.Name = "colField";
+            this.colField.ReadOnly = true;
+            this.colField.Width = 54;
+            // 
+            // colFieldType
+            // 
+            this.colFieldType.HeaderText = "Type";
+            this.colFieldType.Name = "colFieldType";
+            this.colFieldType.ReadOnly = true;
+            this.colFieldType.Width = 210;
+            // 
+            // colFieldOffset
+            // 
+            this.colFieldOffset.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            dataGridViewCellStyle2.Format = "N0";
+            dataGridViewCellStyle2.NullValue = null;
+            this.colFieldOffset.DefaultCellStyle = dataGridViewCellStyle2;
+            this.colFieldOffset.HeaderText = "Offset";
+            this.colFieldOffset.Name = "colFieldOffset";
+            this.colFieldOffset.ReadOnly = true;
+            this.colFieldOffset.Width = 60;
+            // 
+            // colBitPosition
+            // 
+            this.colBitPosition.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            dataGridViewCellStyle3.Format = "N0";
+            dataGridViewCellStyle3.NullValue = null;
+            this.colBitPosition.DefaultCellStyle = dataGridViewCellStyle3;
+            this.colBitPosition.HeaderText = "Bit offset";
+            this.colBitPosition.Name = "colBitPosition";
+            this.colBitPosition.ReadOnly = true;
+            this.colBitPosition.Width = 73;
+            // 
+            // colFieldSize
+            // 
+            this.colFieldSize.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            dataGridViewCellStyle4.Format = "N0";
+            dataGridViewCellStyle4.NullValue = null;
+            this.colFieldSize.DefaultCellStyle = dataGridViewCellStyle4;
+            this.colFieldSize.HeaderText = "Size";
+            this.colFieldSize.Name = "colFieldSize";
+            this.colFieldSize.ReadOnly = true;
+            this.colFieldSize.Width = 52;
+            // 
+            // ColumnAlignment
+            // 
+            this.ColumnAlignment.HeaderText = "Min alignment";
+            this.ColumnAlignment.Name = "ColumnAlignment";
+            this.ColumnAlignment.ReadOnly = true;
+            // 
+            // colFieldPadding
+            // 
+            this.colFieldPadding.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            dataGridViewCellStyle5.Format = "N0";
+            dataGridViewCellStyle5.NullValue = null;
+            this.colFieldPadding.DefaultCellStyle = dataGridViewCellStyle5;
+            this.colFieldPadding.HeaderText = "Padding";
+            this.colFieldPadding.Name = "colFieldPadding";
+            this.colFieldPadding.ReadOnly = true;
+            this.colFieldPadding.Width = 71;
+            // 
+            // colFieldSaving
+            // 
+            this.colFieldSaving.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.AllCells;
+            this.colFieldSaving.HeaderText = "Potential aving";
+            this.colFieldSaving.Name = "colFieldSaving";
+            this.colFieldSaving.ReadOnly = true;
+            this.colFieldSaving.Width = 102;
+            // 
             // CruncherSharpForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -1126,13 +1143,6 @@
         private System.Windows.Forms.CheckBox checkBoxMatchCase;
         private System.Windows.Forms.CheckBox checkBoxRegularExpressions;
         private System.Windows.Forms.CheckBox checkBoxCacheLines;
-        private System.Windows.Forms.DataGridViewTextBoxColumn Expand;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colField;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldType;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldOffset;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colBitPosition;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSize;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colFieldPadding;
         private System.Windows.Forms.CheckBox checkBoxPadding;
         private System.Windows.Forms.CheckBox checkBoxBitPadding;
 		private System.Windows.Forms.CheckBox checkBoxShowOverlap;
@@ -1150,6 +1160,15 @@
 		private System.Windows.Forms.ToolStripMenuItem mB2ToolStripMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem mB3ToolStripMenuItem;
 		private System.Windows.Forms.ToolStripMenuItem customMBToolStripMenuItem;
+		private System.Windows.Forms.DataGridViewTextBoxColumn Expand;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colField;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldType;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldOffset;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colBitPosition;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSize;
+		private System.Windows.Forms.DataGridViewTextBoxColumn ColumnAlignment;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldPadding;
+		private System.Windows.Forms.DataGridViewTextBoxColumn colFieldSaving;
 	}
 }
 
