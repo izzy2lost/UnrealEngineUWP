@@ -286,11 +286,10 @@ void ALandscapeBlueprintBrushBase::RenderLayer(ILandscapeEditLayerRenderer::FRen
 		CurrentLayerReadRT->TransitionTo(ERHIAccess::CopySrc);
 	}
 
-	TArray<FName> TargetLayerNames = InRenderParams.MergeRenderContext->ConvertTargetLayerBitIndicesToNamesChecked(InRenderParams.RenderGroupBitIndices);
-	const int32 NumTargetLayers = TargetLayerNames.Num();
+	const int32 NumTargetLayers = InRenderParams.RenderGroupTargetLayerNames.Num();
 	for (int32 TargetLayerIndex = 0; TargetLayerIndex < NumTargetLayers; ++TargetLayerIndex)
 	{
-		const FName TargetLayerName = TargetLayerNames[TargetLayerIndex];
+		const FName TargetLayerName = InRenderParams.RenderGroupTargetLayerNames[TargetLayerIndex];
 		SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Render %s"), TargetLayerName);
 
 		// If necessary, copy from the texture array's slice to the scratch render target 2D : 

@@ -394,15 +394,19 @@ public:
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetWrite() const;
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetRead() const;
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetBlendRenderTargetReadPrevious() const;
-	// TODO [jonathan.bard] : pass a target layer index instead of a name here?
 	LANDSCAPE_API ULandscapeScratchRenderTarget* GetValidityRenderTarget(const FName& InTargetLayerName) const;
 	
 	struct FOnRenderBatchTargetGroupDoneParams
 	{
-		FOnRenderBatchTargetGroupDoneParams(FMergeRenderContext* InMergeRenderContext, const FMergeRenderBatch& InRenderBatch, const TBitArray<>& InRenderGroupBitIndices, const TArrayView<FComponentMergeRenderInfo>& InSortedComponentMergeRenderInfos)
+		FOnRenderBatchTargetGroupDoneParams(FMergeRenderContext* InMergeRenderContext, 
+			const FMergeRenderBatch& InRenderBatch, 
+			const TArrayView<FName>& InRenderGroupTargetLayerNames,
+			const TArrayView<ULandscapeLayerInfoObject*>& InRenderGroupTargetLayerInfos, 
+			const TArrayView<FComponentMergeRenderInfo>& InSortedComponentMergeRenderInfos)
 			: MergeRenderContext(InMergeRenderContext)
 			, RenderBatch(&InRenderBatch)
-			, RenderGroupBitIndices(InRenderGroupBitIndices)
+			, RenderGroupTargetLayerNames(InRenderGroupTargetLayerNames)
+			, RenderGroupTargetLayerInfos(InRenderGroupTargetLayerInfos)
 			, SortedComponentMergeRenderInfos(InSortedComponentMergeRenderInfos)
 		{}
 
@@ -412,8 +416,11 @@ public:
 		/** Batch to that was just rendered for this render group */
 		const FMergeRenderBatch* RenderBatch = nullptr;
 
-		/** Render group that was just rendered for this batch. Each bit in that bit array corresponds to an entry in FMergeRenderContext's AllTargetLayerNames  */
-		const TBitArray<> RenderGroupBitIndices;
+		/** List of target layers being involved in this step */
+		TArray<FName> RenderGroupTargetLayerNames;
+
+		/** List of target layer info objects being involved in this step (same size as RenderGroupTargetLayerNames) */
+		TArray<ULandscapeLayerInfoObject*> RenderGroupTargetLayerInfos;
 
 		/** Additional info about the components that have been processed in this batch render */
 		const TArray<FComponentMergeRenderInfo> SortedComponentMergeRenderInfos;
@@ -739,6 +746,7 @@ class ULandscapeEditLayerRenderer :
 	public UInterface
 {
 	GENERATED_BODY()
+
 };
 
 /** 
@@ -755,12 +763,14 @@ public:
 	struct FRenderParams
 	{
 		FRenderParams(UE::Landscape::EditLayers::FMergeRenderContext* InMergeRenderContext, 
-			const TBitArray<>& InRenderGroupBitIndices,
+			const TArrayView<FName>& InRenderGroupTargetLayerNames,
+			const TArrayView<ULandscapeLayerInfoObject*>& InRenderGroupTargetLayerInfos,
 			const UE::Landscape::EditLayers::FEditLayerRendererState& InRendererState, 
 			const TArrayView<UE::Landscape::EditLayers::FComponentMergeRenderInfo>& InSortedComponentMergeRenderInfos, 
 			const FTransform& InRenderAreaWorldTransform, const FIntRect& InRenderAreaSectionRect)
 			: MergeRenderContext(InMergeRenderContext)
-			, RenderGroupBitIndices(InRenderGroupBitIndices)
+			, RenderGroupTargetLayerNames(InRenderGroupTargetLayerNames)
+			, RenderGroupTargetLayerInfos(InRenderGroupTargetLayerInfos)
 			, RendererState(InRendererState)
 			, SortedComponentMergeRenderInfos(InSortedComponentMergeRenderInfos)
 			, RenderAreaWorldTransform(InRenderAreaWorldTransform)
@@ -770,8 +780,11 @@ public:
 		/** Merge context */
 		UE::Landscape::EditLayers::FMergeRenderContext* MergeRenderContext = nullptr;
 
-		/** List of target layers being involved in this step. Each bit in that bit array corresponds to an entry in FMergeRenderContext's AllTargetLayerNames  */
-		TBitArray<> RenderGroupBitIndices;
+		/** List of target layers being involved in this step */
+		TArray<FName> RenderGroupTargetLayerNames;
+
+		/** List of target layer info objects being involved in this step (same size as RenderGroupTargetLayerNames) */
+		TArray<ULandscapeLayerInfoObject*> RenderGroupTargetLayerInfos;
 
 		/** Full state for the renderer involved in this step. This allows to retrieve the exact state of this renderer (e.g. enabled weightmaps, which can be different than the render group, in that 
 		 target layers A, B and C might belong to the same group but this renderer actually only has A enabled). This is therefore the renderer's responsibility to check that a given target layer from the 

@@ -774,10 +774,8 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 
 	const FTransform& LandscapeTransform = Landscape->GetTransform();
 	// For visual logging, start at the top of the landscape's bounding box :
-	FTransform LandscapeWorldTransformForVisLog = LandscapeTransform;
 	FVector LandscapeTopPosition(0.0, 0.0, MaxLocalHeight);
-	LandscapeWorldTransformForVisLog.SetTranslation(LandscapeWorldTransformForVisLog.GetLocation() + LandscapeTransform.TransformVector(LandscapeTopPosition));
-	// TODO [jonathan.bard] : this should simply be: FTransform LandscapeWorldTransformForVisLog = FTransform(LandscapeTopPosition).ToMatrixNoScale() * LandscapeTransform.ToMatrixWithScale()
+	FTransform LandscapeWorldTransformForVisLog = FTransform(LandscapeTopPosition) * LandscapeTransform;
 
 	AllocateResources();
 
@@ -816,7 +814,8 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 		for (int32 RenderStepIndex = 0; RenderStepIndex < NumRenderSteps; ++RenderStepIndex)
 		{
 			const FMergeRenderStep& RenderStep = RenderBatch.RenderSteps[RenderStepIndex];
-			const TArray<FName> TargetLayerNames = ConvertTargetLayerBitIndicesToNamesChecked(RenderStep.RenderGroupBitIndices);
+			TArray<FName> RenderGroupTargetLayerNames = ConvertTargetLayerBitIndicesToNamesChecked(RenderStep.RenderGroupBitIndices);
+			TArray<ULandscapeLayerInfoObject*> RenderGroupTargetLayerInfos = bIsHeightmapMerge ? TArray<ULandscapeLayerInfoObject*> { nullptr } : ConvertTargetLayerBitIndicesToLayerInfosChecked(RenderStep.RenderGroupBitIndices);
 
 			// Compute all necessary info about the components affected by this renderer at this step
 			TArray<FComponentMergeRenderInfo> SortedComponentMergeRenderInfos;
@@ -849,7 +848,7 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 					// TODO[jonathan.bard] offset the world transform to account for the half-pixel offset?
 					//RenderParams.RenderAreaWorldTransform = FTransform(LandscapeTransform.GetRotation(), LandscapeTransform.GetTranslation() + FVector(RenderBatch.SectionRect.Min) /** (double)ComponentSizeQuads - FVector(0.5, 0.5, 0)*/, LandscapeTransform.GetScale3D());
 
-					FString RenderStepProfilingEventName = FString::Format(TEXT("Step [{0}] ({1}): Render {2}"), { RenderStepIndex, *ConvertTargetLayerNamesToString(TargetLayerNames), *Renderer->GetEditLayerRendererDebugName() });
+					FString RenderStepProfilingEventName = FString::Format(TEXT("Step [{0}] ({1}): Render {2}"), { RenderStepIndex, *ConvertTargetLayerNamesToString(RenderGroupTargetLayerNames), *Renderer->GetEditLayerRendererDebugName() });
 					SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("%s"), RenderStepProfilingEventName);
 
 					// TODO [jonathan.bard] : this is more of a Batch world transform/section rect at the moment. Shall we have a RenderAreaWorldTransform/RenderAreaSectionRect in FRenderParams and a BatchRenderAreaWorldTransform in FMergeRenderBatch?
@@ -876,17 +875,17 @@ void FMergeRenderContext::Render(TFunction<void(const FOnRenderBatchTargetGroupD
 							}
 						});
 			
-					ILandscapeEditLayerRenderer::FRenderParams RenderParams(this, RenderStep.RenderGroupBitIndices, RenderStep.RendererState, SortedComponentMergeRenderInfos, RenderAreaWorldTransform, RenderAreaSectionRect);
+					ILandscapeEditLayerRenderer::FRenderParams RenderParams(this, RenderGroupTargetLayerNames, RenderGroupTargetLayerInfos, RenderStep.RendererState, SortedComponentMergeRenderInfos, RenderAreaWorldTransform, RenderAreaSectionRect);
 					Renderer->RenderLayer(RenderParams);
 				}
 			}
 			else if ((RenderStep.Type == FMergeRenderStep::EType::SignalBatchMergeGroupDone))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(MergeGroupDone);
-				SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Step [%i] (%s) : Render Group Done"), RenderStepIndex, ConvertTargetLayerNamesToString(TargetLayerNames));
+				SCOPED_DRAW_EVENTF_GAMETHREAD(LandscapeLayers, TEXT("Step [%i] (%s) : Render Group Done"), RenderStepIndex, ConvertTargetLayerNamesToString(RenderGroupTargetLayerNames));
 
 				// The last render target we wrote to is the one containing the batch group's merge result : 
-				FOnRenderBatchTargetGroupDoneParams Params(this, RenderBatch, RenderStep.RenderGroupBitIndices, SortedComponentMergeRenderInfos);
+				FOnRenderBatchTargetGroupDoneParams Params(this, RenderBatch, RenderGroupTargetLayerNames, RenderGroupTargetLayerInfos, SortedComponentMergeRenderInfos);
 				OnBatchTargetGroupDone(Params);
 			}
 			else

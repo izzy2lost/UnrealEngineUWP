@@ -5530,8 +5530,7 @@ void ULandscapeEditLayerPersistent::RenderLayer(ILandscapeEditLayerRenderer::FRe
 		}
 	};
 
-	TArray<FName> TargetLayerNames = InRenderParams.MergeRenderContext->ConvertTargetLayerBitIndicesToNamesChecked(InRenderParams.RenderGroupBitIndices);
-	const int32 NumTargetLayers = TargetLayerNames.Num();
+	const int32 NumTargetLayers = InRenderParams.RenderGroupTargetLayerNames.Num();
 
 	// The first step is to copy all of the necessary components' textures to WriteRT and remove the duplicate borders when doing so (subsection by subsection). This is done with a 
 	//  "copy from multiple sources" shader instead of several texture copies, in order to reduce the amount of copy texture commands, which can have a big impact on render-thread performance
@@ -5565,7 +5564,7 @@ void ULandscapeEditLayerPersistent::RenderLayer(ILandscapeEditLayerRenderer::FRe
 	{
 		for (int32 TargetLayerIndex = 0; TargetLayerIndex < NumTargetLayers; ++TargetLayerIndex)
 		{
-			const FName TargetLayerName = TargetLayerNames[TargetLayerIndex];
+			const FName TargetLayerName = InRenderParams.RenderGroupTargetLayerNames[TargetLayerIndex];
 			UTexture2D* SourceTexture = nullptr;
 			FVector2D SourceTextureBias(ForceInit);
 			// Copy all channels by default :
@@ -5814,7 +5813,7 @@ void ULandscapeEditLayerPersistent::RenderLayer(ILandscapeEditLayerRenderer::FRe
 		if (InRenderParams.MergeRenderContext->IsHeightmapMerge())
 		{
 			ENQUEUE_RENDER_COMMAND(LandscapeLayers_Cmd_HeightmapsMergeEditLayer)(
-				[ TargetLayerName = TargetLayerNames[0]
+				[ TargetLayerName = InRenderParams.RenderGroupTargetLayerNames[0]
 				, OutputResource = WriteRT->GetRenderTarget2D()->GetResource()
 				, OutputResourceName = WriteRT->GetDebugName()
 				, CurrentEditLayerResource = CurrentLayerReadRT->GetRenderTarget2D()->GetResource()
@@ -5857,7 +5856,7 @@ void ULandscapeEditLayerPersistent::RenderLayer(ILandscapeEditLayerRenderer::FRe
 			// Prepare a list of all paint layers to merge and do it all in 1 command :
 			TArray<FMergePaintLayerParams> MergePaintLayersParams;
 			MergePaintLayersParams.Reserve(NumTargetLayers);
-			for (const FName& TargetLayerName : TargetLayerNames)
+			for (const FName& TargetLayerName : InRenderParams.RenderGroupTargetLayerNames)
 			{
 				FMergePaintLayerParams& MergePaintLayerParams = MergePaintLayersParams.Emplace_GetRef(TargetLayerName);
 
@@ -6388,13 +6387,12 @@ void ULandscapeHeightmapNormalsEditLayerRenderer::RenderLayer(FRenderParams& InR
 	const FMergeRenderBatch* RenderBatch = RenderContext->GetCurrentRenderBatch();
 	ALandscape* Landscape = RenderContext->GetLandscape();
 
-	TArray<FName> TargetLayerNames = InRenderParams.MergeRenderContext->ConvertTargetLayerBitIndicesToNamesChecked(InRenderParams.RenderGroupBitIndices);
-	checkf(TargetLayerNames.Num() == 1, TEXT("Normals should only be generated on heightmap merge, which should have 1 and only target layer"));
+	checkf(InRenderParams.RenderGroupTargetLayerNames.Num() == 1, TEXT("Normals should only be generated on heightmap merge, which should have 1 and only target layer"));
 
 	RenderContext->CycleBlendRenderTargets(/*InDesiredWriteAccess = */ERHIAccess::RTV);
 	ULandscapeScratchRenderTarget* WriteRT = RenderContext->GetBlendRenderTargetWrite();
 	ULandscapeScratchRenderTarget* ReadRT = RenderContext->GetBlendRenderTargetRead();
-	ULandscapeScratchRenderTarget* ValidityRT = RenderContext->GetValidityRenderTarget(TargetLayerNames[0]);
+	ULandscapeScratchRenderTarget* ValidityRT = RenderContext->GetValidityRenderTarget(InRenderParams.RenderGroupTargetLayerNames[0]);
 	check((WriteRT != nullptr) && (ReadRT != nullptr) && (ValidityRT != nullptr));
 
 	ValidityRT->TransitionTo(ERHIAccess::SRVMask);
@@ -6445,11 +6443,9 @@ void ULandscapeWeightmapWeightBlendedLayersRenderer::RenderLayer(FRenderParams& 
 	ULandscapeScratchRenderTarget* WriteRT = InRenderParams.MergeRenderContext->GetBlendRenderTargetWrite();
 	ULandscapeScratchRenderTarget* ReadRT = InRenderParams.MergeRenderContext->GetBlendRenderTargetRead();
 
-	TArray<FName> TargetLayerNames = InRenderParams.MergeRenderContext->ConvertTargetLayerBitIndicesToNamesChecked(InRenderParams.RenderGroupBitIndices);
-	TArray<ULandscapeLayerInfoObject*> LayerInfos = InRenderParams.MergeRenderContext->ConvertTargetLayerBitIndicesToLayerInfosChecked(InRenderParams.RenderGroupBitIndices);
 	TArray<FWeightmapPaintLayerInfo> WeightmapPaintLayerInfos;
-	WeightmapPaintLayerInfos.Reserve(LayerInfos.Num());
-	Algo::Transform(LayerInfos, WeightmapPaintLayerInfos, [](ULandscapeLayerInfoObject* InLayerInfo) 
+	WeightmapPaintLayerInfos.Reserve(InRenderParams.RenderGroupTargetLayerInfos.Num());
+	Algo::Transform(InRenderParams.RenderGroupTargetLayerInfos, WeightmapPaintLayerInfos, [](ULandscapeLayerInfoObject* InLayerInfo)
 		{
 			check(InLayerInfo != nullptr); // There should only be valid layer infos at this point
 			FWeightmapPaintLayerInfo WeightmapPaintLayerInfo;
@@ -6465,7 +6461,7 @@ void ULandscapeWeightmapWeightBlendedLayersRenderer::RenderLayer(FRenderParams& 
 		});
 
 	ENQUEUE_RENDER_COMMAND(LandscapeLayers_Cmd_WeightmapsPerformLegacyWeightBlending)(
-		[TargetLayerNames
+		[TargetLayerNames = InRenderParams.RenderGroupTargetLayerNames
 		, WeightmapPaintLayerInfos
 		, OutputResource = WriteRT->GetRenderTarget2DArray()->GetResource()
 		, OutputResourceName = WriteRT->GetDebugName()
@@ -10347,7 +10343,6 @@ int32 ALandscape::PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContex
 		const int32 TotalNumSubsections = Landscape->NumSubsections * Landscape->NumSubsections;
 		FIntPoint MinWeightmapResolution(MAX_int32, MAX_int32);
 		FIntPoint MaxWeightmapResolution(MIN_int32, MIN_int32);
-		TArray<FName> TargetLayerNames = InParams.MergeRenderContext->ConvertTargetLayerBitIndicesToNamesChecked(InParams.RenderGroupBitIndices);
 
 		struct FWeightmapResolveInfo
 		{
@@ -10440,7 +10435,7 @@ int32 ALandscape::PerformLayersWeightmapsBatchedMerge(FUpdateLayersContentContex
 						{
 							check((AllocationInfo.WeightmapTextureChannel >= 0) && (AllocationInfo.WeightmapTextureChannel < 4));
 							checkf(((WeightmapResolveInfo->ChannelMask & (1 << AllocationInfo.WeightmapTextureChannel)) == 0), TEXT("This channel has already been resolved, it shouldn't happen, it would mean that 2 allocations are using the same channel"));
-							int32 SliceIndex = TargetLayerNames.IndexOfByKey(AllocationInfo.GetLayerName());
+							int32 SliceIndex = InParams.RenderGroupTargetLayerNames.IndexOfByKey(AllocationInfo.GetLayerName());
 							checkf(SliceIndex != INDEX_NONE, TEXT("Couldn't find %s in the list of weightmaps that have been produced"), *AllocationInfo.GetLayerName().ToString());
 							WeightmapResolveInfo->SourceSliceIndexPerChannel[AllocationInfo.WeightmapTextureChannel] = SliceIndex;
 							WeightmapResolveInfo->SourceSubsectionRectsPerChannel[AllocationInfo.WeightmapTextureChannel] = SourceSubsectionRects;
