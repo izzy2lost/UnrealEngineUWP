@@ -11,7 +11,13 @@ FMovieSceneSequenceTransform FMovieSceneSectionTimingParametersSeconds::MakeTran
 	FMovieSceneSequenceTransform Result;
 
 	check(OuterRange.HasLowerBound());
-	check(SourceDuration > 0.0);
+
+	if (SourceDuration <= 0)
+	{
+		// Zero source duration is handled by zero play rate (always evaluate time zero)
+		Result.Add(0, FMovieSceneTimeWarpVariant(0.0));
+		return Result;
+	}
 
 	// ----------------------------------------------------------------------------
 	// First things first, subtract the section start bound
