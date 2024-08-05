@@ -94,8 +94,6 @@ void UCustomizableObjectNodeEditMaterial::SetParentNode(UCustomizableObject* Obj
 	Super::SetParentNode(Object, NodeId);
 	
 	PostSetParentNodeWork(Object, NodeId);
-
-	SelectAllLayoutBlocks();
 }
 
 
@@ -107,7 +105,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 
 	// Convert deprecated node index list to the node id list.
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
-		&& BlockIds.Num() < Blocks_DEPRECATED.Num())
+		&& BlockIds_DEPRECATED.Num() < Blocks_DEPRECATED.Num())
 	{
 		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode();
 
@@ -120,19 +118,19 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 		}
 		else
 		{
-			UCustomizableObjectLayout* Layout = Layouts[ParentLayoutIndex];
+			UCustomizableObjectLayout* ParentLayout = Layouts[ParentLayoutIndex];
 
 			if (Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
 			{
-				for (int IndexIndex = BlockIds.Num(); IndexIndex < Blocks_DEPRECATED.Num(); ++IndexIndex)
+				for (int32 IndexIndex = BlockIds_DEPRECATED.Num(); IndexIndex < Blocks_DEPRECATED.Num(); ++IndexIndex)
 				{
-					int BlockIndex = Blocks_DEPRECATED[IndexIndex];
-					if (Layout->Blocks.IsValidIndex(BlockIndex) )
+					int32 BlockIndex = Blocks_DEPRECATED[IndexIndex];
+					if (ParentLayout->Blocks.IsValidIndex(BlockIndex) )
 					{
-						const FGuid Id = Layout->Blocks[BlockIndex].Id;
+						const FGuid Id = ParentLayout->Blocks[BlockIndex].Id;
 						if (Id.IsValid())
 						{
-							BlockIds.Add(Id);
+							BlockIds_DEPRECATED.Add(Id);
 						}
 						else
 						{
@@ -143,13 +141,65 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 					else
 					{
 						UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeEditMaterial refers to an invalid layout block index %d. Parent node has %d blocks."),
-							*GetOutermost()->GetName(), BlockIndex, Layout->Blocks.Num());
+							*GetOutermost()->GetName(), BlockIndex, ParentLayout->Blocks.Num());
 					}
 				}
 			}
 		}
 	}
 	
+	// Convert deprecated node id list to absolute rect list.
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::UseUVRects)
+	{
+		// If we are here, it means this node was loaded from a version that didn't have it's own layout.
+		check(Layout->Blocks.IsEmpty());
+
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode();
+
+		TArray<UCustomizableObjectLayout*> ParentLayouts = ParentMaterialNode->GetLayouts();
+
+		if (!ParentLayouts.IsValidIndex(ParentLayoutIndex))
+		{
+			UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid texture layout index %d. Parent node has %d layouts."),
+				*GetOutermost()->GetName(), ParentLayoutIndex, ParentLayouts.Num());
+		}
+		else
+		{
+			UCustomizableObjectLayout* ParentLayout = ParentLayouts[ParentLayoutIndex];
+			FIntPoint GridSize = ParentLayout->GetGridSize();
+
+			Layout->SetGridSize(GridSize);
+
+			if (Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
+			{
+				for (const FGuid& BlockId : BlockIds_DEPRECATED)
+				{
+					for (const FCustomizableObjectLayoutBlock& ParentBlock : ParentLayout->Blocks)
+					{
+						if (ParentBlock.Id == BlockId)
+						{
+							FCustomizableObjectLayoutBlock NewBlock;
+							NewBlock = ParentBlock;
+
+							// Clear some unnecessary data.
+							NewBlock.bReduceBothAxes = false;
+							NewBlock.bReduceByTwo = false;
+							NewBlock.Priority = 0;
+
+							Layout->Blocks.Add(NewBlock);
+						}
+					}
+				}
+
+				if (Layout->Blocks.Num() != BlockIds_DEPRECATED.Num())
+				{
+					UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to %d invalid layout block. It has been ignored during version upgrade."),
+						*GetOutermost()->GetName(), int32(BlockIds_DEPRECATED.Num() - Layout->Blocks.Num()));
+				}
+			}
+		}
+	}
+
 	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AutomaticNodeMaterial)
 	{
 		if (const UCustomizableObjectNodeMaterialBase* ParentMaterial = GetParentMaterialNode())
@@ -291,31 +341,7 @@ FCustomizableObjectNodeParentedMaterial& UCustomizableObjectNodeEditMaterial::Ge
 void UCustomizableObjectNodeEditMaterial::SetLayoutIndex(const int32 LayoutIndex)
 {
 	ParentLayoutIndex = LayoutIndex;
-	SelectAllLayoutBlocks();
 }
-
-
-void UCustomizableObjectNodeEditMaterial::SelectAllLayoutBlocks()
-{
-	BlockIds.Empty();
-
-	// On reset parent material we want to select all nodes 
-	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode())
-	{
-		TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
-
-		if (Layouts.IsValidIndex(ParentLayoutIndex))
-		{
-			UCustomizableObjectLayout* Layout = Layouts[ParentLayoutIndex];
-
-			for (const FCustomizableObjectLayoutBlock& Block : Layout->Blocks)
-			{
-				BlockIds.AddUnique(Block.Id);
-			}
-		}
-	}
-}
-
 
 
 #undef LOCTEXT_NAMESPACE

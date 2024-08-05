@@ -267,7 +267,6 @@ public:
 	void GetUVChannelForPin(const UEdGraphPin* Pin, TArray<FVector2f>& OutSegments, int32 UVChannel = 0) const;
 
 	// Methods to provide the Layouts to the Layout block editors
-	void SetLayoutInLayoutEditor(UCustomizableObjectLayout* CurrentLayout);
 	TArray<UCustomizableObjectLayout*> GetLayouts(const UEdGraphPin* Pin) const;
 
 	// Returns the name of the table column related to a pin

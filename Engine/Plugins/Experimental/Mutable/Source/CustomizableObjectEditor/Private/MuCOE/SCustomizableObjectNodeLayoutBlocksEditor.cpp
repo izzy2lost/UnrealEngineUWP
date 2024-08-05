@@ -66,9 +66,11 @@ void SCustomizableObjectNodeLayoutBlocksEditor::Construct(const FArguments& InAr
 }
 
 
-void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout(UCustomizableObjectLayout* Layout )
+void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableObjectLayout* Layout, UCustomizableObjectLayout* UVOverrideLayout )
 {
 	CurrentLayout = Layout;
+
+	UCustomizableObjectLayout* LayoutForUVs = UVOverrideLayout ? UVOverrideLayout : Layout;
 
 	// Try to locate the source mesh
 	TArray<FVector2f> UVs;
@@ -76,13 +78,13 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout(UCustomizableOb
 
 	if (CurrentLayout)
 	{
-		CurrentLayout->GetUVChannel(UVs, CurrentLayout->GetUVChannel());
+		LayoutForUVs->GetUVChannel(UVs, LayoutForUVs->GetUVChannel());
 
 		UnassignedUVs = TArray<FVector2f>();
 		
 		if (CurrentLayout->UnassignedUVs.Num())
 		{
-			UnassignedUVs = CurrentLayout->UnassignedUVs[0];
+			UnassignedUVs = LayoutForUVs->UnassignedUVs[0];
 		}
 	}
 

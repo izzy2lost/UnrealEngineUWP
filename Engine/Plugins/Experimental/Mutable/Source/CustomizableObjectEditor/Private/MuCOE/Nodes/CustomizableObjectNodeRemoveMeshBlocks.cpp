@@ -18,9 +18,11 @@ void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
 {
 	Super::BackwardsCompatibleFixup();
 	
+	int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
+
 	// Convert deprecated node index list to the node id list.
-	if (GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID) < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
-		&& BlockIds.Num() < Blocks_DEPRECATED.Num())
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::PostLoadToCustomVersion
+		&& BlockIds_DEPRECATED.Num() < Blocks_DEPRECATED.Num())
 	{
 		if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode())
 		{
@@ -33,20 +35,20 @@ void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
 			}
 			else if (UCustomizableObjectNodeMaterial* ParentMaterial = Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
 			{
-				UCustomizableObjectLayout* Layout = Layouts[ParentLayoutIndex];
+				UCustomizableObjectLayout* ParentLayout = Layouts[ParentLayoutIndex];
 
-				for (int IndexIndex = BlockIds.Num(); IndexIndex < Blocks_DEPRECATED.Num(); ++IndexIndex)
+				for (int IndexIndex = BlockIds_DEPRECATED.Num(); IndexIndex < Blocks_DEPRECATED.Num(); ++IndexIndex)
 				{
 					const int BlockIndex = Blocks_DEPRECATED[IndexIndex];
-					if (!Layout->Blocks.IsValidIndex(BlockIndex))
+					if (!ParentLayout->Blocks.IsValidIndex(BlockIndex))
 					{
 						UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid layout block index %d. Parent node has %d blocks."),
-							*GetOutermost()->GetName(), BlockIndex, Layout->Blocks.Num());
+							*GetOutermost()->GetName(), BlockIndex, ParentLayout->Blocks.Num());
 
 						continue;
 					}
 					
-					const FGuid Id = Layout->Blocks[BlockIndex].Id;
+					const FGuid Id = ParentLayout->Blocks[BlockIndex].Id;
 					if (!Id.IsValid())
 					{
 						UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an valid layout block %d but that block doesn't have an id."),
@@ -55,7 +57,59 @@ void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
 						continue;
 					}
 
-					BlockIds.Add(Id);
+					BlockIds_DEPRECATED.Add(Id);
+				}
+			}
+		}
+	}
+
+	// Convert deprecated node id list to absolute rect list.
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::UseUVRects)
+	{
+		// If we are here, it means this node was loaded from a version that didn't have it's own layout.
+		check(Layout->Blocks.IsEmpty());
+
+		UCustomizableObjectNodeMaterialBase* ParentMaterialNode = GetParentMaterialNode();
+
+		TArray<UCustomizableObjectLayout*> ParentLayouts = ParentMaterialNode->GetLayouts();
+
+		if (!ParentLayouts.IsValidIndex(ParentLayoutIndex))
+		{
+			UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid texture layout index %d. Parent node has %d layouts."),
+				*GetOutermost()->GetName(), ParentLayoutIndex, ParentLayouts.Num());
+		}
+		else
+		{
+			UCustomizableObjectLayout* ParentLayout = ParentLayouts[ParentLayoutIndex];
+			FIntPoint GridSize = ParentLayout->GetGridSize();
+
+			Layout->SetGridSize(GridSize);
+
+			if (Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
+			{
+				for (const FGuid& BlockId : BlockIds_DEPRECATED)
+				{
+					for (const FCustomizableObjectLayoutBlock& ParentBlock : ParentLayout->Blocks)
+					{
+						if (ParentBlock.Id == BlockId)
+						{
+							FCustomizableObjectLayoutBlock NewBlock;
+							NewBlock = ParentBlock;
+
+							// Clear some unnecessary data.
+							NewBlock.bReduceBothAxes = false;
+							NewBlock.bReduceByTwo = false;
+							NewBlock.Priority = 0;
+
+							Layout->Blocks.Add(NewBlock);
+						}
+					}
+				}
+
+				if (Layout->Blocks.Num() != BlockIds_DEPRECATED.Num())
+				{
+					UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to %d invalid layout block. It has been ignored during version upgrade."),
+						*GetOutermost()->GetName(), int32(BlockIds_DEPRECATED.Num() - Layout->Blocks.Num()));
 				}
 			}
 		}
@@ -77,9 +131,6 @@ void UCustomizableObjectNodeRemoveMeshBlocks::PostEditChangeProperty(FPropertyCh
 	if (PropertyThatChanged 
 		&& (PropertyThatChanged->GetName() == TEXT("ParentMaterialObject") || PropertyThatChanged->GetName() == TEXT("ParentLayoutIndex")))
 	{
-		// Reset selected blocks
-		BlockIds.Empty();
-		
 		TSharedPtr<ICustomizableObjectEditor> Editor = GetGraphEditor();
 
 		if (Editor.IsValid())
@@ -139,15 +190,6 @@ bool UCustomizableObjectNodeRemoveMeshBlocks::IsNodeOutDatedAndNeedsRefresh()
 		if (!Layouts.IsValidIndex(ParentLayoutIndex))
 		{
 			Result = true;
-		}
-		else
-		{
-			UCustomizableObjectLayout* Layout = Layouts[ParentLayoutIndex];
-				
-			if (BlockIds.Num() > Layout->Blocks.Num())
-			{
-				Result = true;
-			}
 		}
 	}
 

@@ -24,9 +24,9 @@ namespace mu
 		ASTChild Source;
 
 		/** Layout to use to select the blocks. */
-		uint16 Layout = 0;
+		uint16 LayoutIndex = 0;
 
-		/** Block Ids to include in the resulting mesh. */
+		/** Block Ids to include in the resulting mesh. If this is empty all vertices with any valid block assigned will be included. */
 		TArray<uint64> Blocks;
 
 	public:

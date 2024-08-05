@@ -1449,7 +1449,7 @@ namespace mu
                 {
                     Ptr<ASTOpMeshExtractLayoutBlocks> eop = new ASTOpMeshExtractLayoutBlocks();
                     eop->Source = CurrentMeshToProjectOp;
-                    eop->Layout = node.m_layout;
+                    eop->LayoutIndex = node.m_layout;
 
                     eop->Blocks.Add(GeneratedLayoutBlockId);
 

@@ -47,8 +47,10 @@ public:
 	/** Binds commands associated with the viewport client. */
 	void BindCommands();
 
-	/**  */
-	void SetCurrentLayout( class UCustomizableObjectLayout* Layout );
+	/**  
+	* The optional UVOverrideLayout parameter can be speicifed to show different UVs in the widget instead of the ones in Layout.
+	*/
+	void SetCurrentLayout( class UCustomizableObjectLayout* Layout, UCustomizableObjectLayout* UVOverrideLayout=nullptr );
 
 private:
 

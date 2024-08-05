@@ -896,20 +896,6 @@ bool UCustomizableObjectNodeTable::IsPinRelevant(const UEdGraphPin* Pin) const
 }
 
 
-void UCustomizableObjectNodeTable::SetLayoutInLayoutEditor(UCustomizableObjectLayout* CurrentLayout)
-{
-	TSharedPtr<ICustomizableObjectEditor> Editor = GetGraphEditor();
-
-	if (TSharedPtr<FCustomizableObjectEditor> GraphEditor = StaticCastSharedPtr<FCustomizableObjectEditor>(GetGraphEditor()))
-	{
-		if (GraphEditor->GetLayoutBlocksEditor().IsValid())
-		{
-			GraphEditor->GetLayoutBlocksEditor()->SetCurrentLayout(CurrentLayout);
-		}
-	}
-}
-
-
 UTexture2D* UCustomizableObjectNodeTable::FindReferenceTextureParameter(const UEdGraphPin* Pin, FString ParameterImageName) const
 {
 	UMaterialInterface* Material = GetColumnDefaultAssetByType<UMaterialInterface>(Pin);

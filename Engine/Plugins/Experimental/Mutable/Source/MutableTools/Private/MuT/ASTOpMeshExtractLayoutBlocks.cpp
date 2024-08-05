@@ -37,7 +37,7 @@ namespace mu
 		if (otherUntyped.GetOpType() == GetOpType())
 		{
 			const ASTOpMeshExtractLayoutBlocks* other = static_cast<const ASTOpMeshExtractLayoutBlocks*>(&otherUntyped);
-			return Source == other->Source && Layout == other->Layout && Blocks == other->Blocks;
+			return Source == other->Source && LayoutIndex == other->LayoutIndex && Blocks == other->Blocks;
 		}
 		return false;
 	}
@@ -47,7 +47,7 @@ namespace mu
 	{
 		Ptr<ASTOpMeshExtractLayoutBlocks> n = new ASTOpMeshExtractLayoutBlocks();
 		n->Source = mapChild(Source.child());
-		n->Layout = Layout;
+		n->LayoutIndex = LayoutIndex;
 		n->Blocks = Blocks;
 		return n;
 	}
@@ -84,7 +84,7 @@ namespace mu
 			AppendCode(program.m_byteCode, OP_TYPE::ME_EXTRACTLAYOUTBLOCK);
 			OP::ADDRESS sourceAt = Source ? Source->linkedAddress : 0;
 			AppendCode(program.m_byteCode, sourceAt);
-			AppendCode(program.m_byteCode, (uint16)Layout);
+			AppendCode(program.m_byteCode, (uint16)LayoutIndex);
 			AppendCode(program.m_byteCode, (uint16)Blocks.Num());
 
 			for (uint64 Id : Blocks)

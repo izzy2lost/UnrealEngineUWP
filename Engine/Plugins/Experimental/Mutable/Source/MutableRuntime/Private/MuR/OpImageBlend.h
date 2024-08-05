@@ -135,14 +135,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	inline uint32 MultiplyChannelMasked(uint32 base, uint32 blended, uint32 mask)
 	{
-		uint32 multiply = (base * blended) >> 8;
-		uint32 masked = (((255 - mask) * base) + (mask * multiply)) >> 8;
+		uint32 multiply = (base * blended) / 255;
+		uint32 masked = (((255 - mask) * base) + (mask * multiply)) / 255;
 		return masked;
 	}
 
 	inline uint32 MultiplyChannel(uint32 base, uint32 blended)
 	{
-		uint32 multiply = (base * blended) >> 8;
+		uint32 multiply = (base * blended) / 255;
 		return multiply;
 	}
 

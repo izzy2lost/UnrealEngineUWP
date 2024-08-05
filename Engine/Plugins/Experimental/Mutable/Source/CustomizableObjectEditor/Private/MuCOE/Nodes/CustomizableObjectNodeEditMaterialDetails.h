@@ -9,7 +9,7 @@
 class FString;
 class IDetailLayoutBuilder;
 class UCustomizableObjectNodeEditMaterial;
-class SCustomizableObjectNodeLayoutBlocksSelector;
+class SCustomizableObjectNodeLayoutBlocksEditor;
 
 
 class FCustomizableObjectNodeEditMaterialDetails : public FCustomizableObjectNodeEditMaterialBaseDetails
@@ -25,5 +25,5 @@ private:
 	UCustomizableObjectNodeEditMaterial* Node;
 
 	// Layout block editor widget
-	TSharedPtr<SCustomizableObjectNodeLayoutBlocksSelector> LayoutBlocksSelector;
+	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
 };

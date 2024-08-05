@@ -84,9 +84,6 @@ public:
 	 * @returns Always returns a valid pin if EditsImage(const FGuid&) returns true. */
 	const UEdGraphPin* GetUsedImageMaskPin(const FNodeMaterialParameterId& ImageId) const;
 
-	// Function to select all the layout blocks. Called when a parameter is reset (ParentMaterial, ParentLayoutIndex)
-	void SelectAllLayoutBlocks();
-
 private:
 
 	/** Relates a Parameter id (and layer if is a layered material) to a Pin. Only used to improve performance. */
@@ -104,8 +101,3 @@ private:
 	UPROPERTY()
 	TArray<int32> Blocks_DEPRECATED;
 };
-
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "MuCOE/CustomizableObjectEditor_Deprecated.h"
-#endif

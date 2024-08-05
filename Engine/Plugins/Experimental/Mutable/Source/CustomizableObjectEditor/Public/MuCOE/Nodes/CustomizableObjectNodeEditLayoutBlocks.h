@@ -3,6 +3,7 @@
 #pragma once
 
 #include "MuCOE/Nodes/CustomizableObjectNodeEditMaterialBase.h"
+#include "MuCOE/CustomizableObjectLayout.h"
 
 #include "CustomizableObjectNodeEditLayoutBlocks.generated.h"
 
@@ -13,9 +14,20 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeEditLayoutBlocks : pub
 public:
 	GENERATED_BODY()
 
-	// Selected blocks
+	UCustomizableObjectNodeEditLayoutBlocks();
+
+public:
+
+	/** Deprecated data from the time this node referred to other layout node blocks. Info is now in the Layout attribute. */
 	UPROPERTY()
-	TArray<FGuid> BlockIds;
+	TArray<FGuid> BlockIds_DEPRECATED;
+
+	/** Layout defining the blocks to edit. It is a standalone layout, unrelated to whatever is connected
+	 * to the UV channels of the mesh being edited.
+	 * Some properties in the UCustomizableObjectLayout, like shrinking strategy or priorities will not be relevant.
+	 */
+	UPROPERTY()
+	TObjectPtr<UCustomizableObjectLayout> Layout = nullptr;
 
 };
 

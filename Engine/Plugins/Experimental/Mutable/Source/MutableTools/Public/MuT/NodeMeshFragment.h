@@ -3,81 +3,43 @@
 #pragma once
 
 #include "MuR/Ptr.h"
-#include "MuR/RefCounted.h"
-#include "MuT/Node.h"
 #include "MuT/NodeMesh.h"
-
+#include "MuT/NodeLayout.h"
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeMeshFragment;
-	typedef Ptr<NodeMeshFragment> NodeMeshFragmentPtr;
-	typedef Ptr<const NodeMeshFragment> NodeMeshFragmentPtrConst;
-
-
-	//! This node selects a fragment of a mesh, by selecting some of its layout blocks.
-	//! \ingroup model
+	/** This node extracts a fragment of a mesh by some selection on a texture layout space. */
 	class MUTABLETOOLS_API NodeMeshFragment : public NodeMesh
 	{
 	public:
 
-		NodeMeshFragment();
+		/** Mesh from which a fragment will be extracted. */
+		Ptr<NodeMesh> SourceMesh;
 
+		/** Layout defining the blocks of mesh to extract by texture space. 
+		* If no layout is specified, all the blocks in the layout in the SourceMesh subgraph will be extracted.
+		*/
+		Ptr<NodeLayout> Layout;
 
-		//-----------------------------------------------------------------------------------------
+		/** Index of the UV channel in the source mesh to apply the Layout to decide what to extract. */
+		int32 LayoutIndex = 0;
+
+	public:
+
 		// Node Interface
-		//-----------------------------------------------------------------------------------------
-
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-        typedef enum {
-            FT_LAYOUT_BLOCKS = 0,
-            FT_FACE_GROUP_DEPRECATED
-        } FRAGMENT_TYPE;
-
-        //! Get the type of mesh fragment to extract.
-        FRAGMENT_TYPE GetFragmentType() const;
-        void SetFragmentType( FRAGMENT_TYPE type );
-
-		//!
-		NodeMeshPtr GetMesh() const;
-		void SetMesh( NodeMeshPtr );
-
-		//! Get the index of the layout to use to extract blocks.
-        int GetLayoutOrGroup() const;
-        void SetLayoutOrGroup( int layoutIndex );
-
-		//! Set the number of layout blocks to extract.
-		void SetBlockCount( int );
-
-		//! Get one of the layout block indices
-		int GetBlock( int i ) const;
-		void SetBlock( int i, int blockIndex );
-
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		virtual const FNodeType* GetType() const override { return GetStaticType(); }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeMeshFragment();
+		~NodeMeshFragment() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
-
 
 }

@@ -261,8 +261,6 @@ public:
 	/** Getter of CustomizableObjectEditorAdvancedPreviewSettings */
 	TSharedPtr<class SCustomizableObjectEditorAdvancedPreviewSettings> GetCustomizableObjectEditorAdvancedPreviewSettings();
 
-	TSharedPtr<class SCustomizableObjectNodeLayoutBlocksEditor> GetLayoutBlocksEditor() { return LayoutBlocksEditor; }
-
 	/** Debug the object as a raw mutable data in the internal tools. */
 	void DebugObject() const;
 
@@ -423,10 +421,6 @@ private:
 	/** */
 	TSharedPtr<SGraphEditor> GraphEditor;
 	TSharedPtr<class IDetailsView> GraphNodeDetailsView;
-
-	/** This widget shows the layout blocks and they can be edited. It is kept alive for some problems re-registering toolbar commands.*/
-	TSharedPtr<class SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
-	TSharedPtr<class SCustomizableObjectNodeLayoutBlocksSelector> LayoutBlocksSelector;
 
 	/** Widget to select which node pins are visible. */
 	TSharedPtr<class SCustomizableObjectNodePinViewer> NodePinViewer;

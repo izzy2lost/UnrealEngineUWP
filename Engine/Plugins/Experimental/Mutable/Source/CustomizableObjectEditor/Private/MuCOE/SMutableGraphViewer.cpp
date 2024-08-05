@@ -62,7 +62,7 @@
 #include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeMeshFormatPrivate.h"
-#include "MuT/NodePatchImagePrivate.h"
+#include "MuT/NodePatchImage.h"
 #include "MuT/NodeMeshConstantPrivate.h"
 #include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
 #include "MuT/NodePatchMeshPrivate.h"
@@ -77,7 +77,6 @@
 #include "MuT/NodeImageInterpolatePrivate.h"
 #include "MuT/NodeImagePlainColourPrivate.h"
 #include "MuT/NodeImageProjectPrivate.h"
-#include "MuT/NodeMeshFragmentPrivate.h"
 #include "MuT/NodeMeshMorphPrivate.h"
 #include "MuT/NodeScalarEnumParameterPrivate.h"
 #include "MuT/NodeScalarParameterPrivate.h"
@@ -476,9 +475,8 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodePatchImage::GetStaticType())
 	{
 		mu::NodePatchImage* PatchImageVar = StaticCast<mu::NodePatchImage*>(ParentNode);
-		mu::NodePatchImage::Private* Private = PatchImageVar->GetPrivate();
-		AddChildFunc(Private->m_pImage.get(), FString::Printf(TEXT("IMAGE")));
-		AddChildFunc(Private->m_pMask.get(), FString::Printf(TEXT("MASK")));
+		AddChildFunc(PatchImageVar->Image.get(), FString::Printf(TEXT("IMAGE")));
+		AddChildFunc(PatchImageVar->Mask.get(), FString::Printf(TEXT("MASK")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeModifierMeshClipMorphPlane::GetStaticType())
@@ -605,8 +603,7 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeMeshFragment::GetStaticType())
 	{
 		mu::NodeMeshFragment* MeshFragmentVar = StaticCast<mu::NodeMeshFragment*>(ParentNode);
-		mu::NodeMeshFragment::Private* Private = MeshFragmentVar->GetPrivate();
-		AddChildFunc(Private->m_pMesh.get(), FString::Printf(TEXT("MESH")));
+		AddChildFunc(MeshFragmentVar->SourceMesh.get(), FString::Printf(TEXT("MESH")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeColourSampleImage::GetStaticType())

@@ -512,8 +512,11 @@ namespace mu
 		/** Evaluate if the image to generate is big enough to be split in separate operations and tiled afterwards. */
 		Ptr<ASTOp> ApplyTiling(Ptr<ASTOp> Source, UE::Math::TIntVector2<int32> Size, EImageFormat Format);
 
-		//!
-		Ptr<ASTOp> GenerateImageBlockPatch(Ptr<ASTOp> blockAd, const NodePatchImage* pPatch, Ptr<ASTOp> conditionAd, const FImageGenerationOptions& ImageOptions);
+		/** Generate a layout block-sized image with a mask including all pixels in the blocks defined in the patch node. */
+		Ptr<Image> GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<UE::Math::TIntVector2<uint16>> RectInCells);
+
+		/** Generate all the operations to apply the block patching on top of the BlockOp, and masking with PatchMask. */
+		Ptr<ASTOp> GenerateImageBlockPatch(Ptr<ASTOp> BlockOp, const NodePatchImage*, Ptr<Image> PatchMask, Ptr<ASTOp> ConditionOp, const FImageGenerationOptions&);
 
         //-----------------------------------------------------------------------------------------
         // Meshes
@@ -547,6 +550,9 @@ namespace mu
 			/** If true, UVs will be normalized. Normalize UVs should be done in cases where we operate with Images and Layouts */
 			bool bNormalizeUVs = false;
 
+			/** If true, assign vertices without layout to the first block. */
+			bool bEnsureAllVerticesHaveLayoutBlock = true;
+
 			/** If this has something the layouts in constant meshes will be ignored, because
 			* they are supposed to match some other set of layouts. If the array is empty, layouts
 			* are generated normally.
@@ -572,6 +578,7 @@ namespace mu
 				return State==Other.State 
 					&& bLayouts==Other.bLayouts 
 					&& bClampUVIslands == Other.bClampUVIslands && bNormalizeUVs == Other.bNormalizeUVs
+					&& bEnsureAllVerticesHaveLayoutBlock == Other.bEnsureAllVerticesHaveLayoutBlock
 					&& ActiveTags==Other.ActiveTags
 					&& OverrideLayouts ==Other.OverrideLayouts;
 			}
@@ -630,7 +637,21 @@ namespace mu
 
 		//! Map of layouts found in the code already generated. The map is from the source layout
 		//! node to the generated layout.
-		TMap<Ptr<const NodeLayout>, Ptr<const Layout>> GeneratedLayouts;
+		struct FGeneratedLayoutKey
+		{
+			Ptr<const NodeLayout> SourceLayout;
+			uint32 MeshIdPrefix;
+
+			friend FORCEINLINE uint32 GetTypeHash(const FGeneratedLayoutKey& InKey)
+			{
+				uint32 KeyHash = ::GetTypeHash(InKey.SourceLayout.get());
+				KeyHash = HashCombineFast(KeyHash, GetTypeHash(InKey.MeshIdPrefix));
+				return KeyHash;
+			}
+
+			FORCEINLINE bool operator==(const FGeneratedLayoutKey& Other) const = default;
+		};
+		TMap<FGeneratedLayoutKey, Ptr<const Layout>> GeneratedLayouts;
 
         void GenerateMesh(const FMeshGenerationOptions&, FMeshGenerationResult& result, const NodeMeshPtrConst&);
         void GenerateMesh_Constant(const FMeshGenerationOptions&, FMeshGenerationResult&, const NodeMeshConstant* );
@@ -658,7 +679,7 @@ namespace mu
 			bool bUseAbsoluteBlockIds);
 
 		//!
-		Ptr<const Layout> AddLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix);
+		Ptr<const Layout> GenerateLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix);
 
 		struct FExtensionDataGenerationResult
 		{

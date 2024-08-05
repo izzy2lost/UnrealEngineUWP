@@ -249,7 +249,7 @@ namespace mu
         //! Change the mesh format to match the format of another one.
         ME_FORMAT,
 
-        //! Extract a fragment of a mesh containing a specific layout block.
+        //! Extract a fragment of a mesh containing specific layout blocks.
         ME_EXTRACTLAYOUTBLOCK,
 
         //! Apply a transform in a 4x4 matrix to the geometry channels of the mesh

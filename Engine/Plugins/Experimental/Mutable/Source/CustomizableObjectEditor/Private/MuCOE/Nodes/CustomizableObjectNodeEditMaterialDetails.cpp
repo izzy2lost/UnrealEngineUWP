@@ -6,10 +6,12 @@
 #include "DetailWidgetRow.h"
 #include "IDetailsView.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeEditMaterial.h"
-#include "MuCOE/SCustomizableObjectNodeLayoutBlocksSelector.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
+#include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
 #include "MuCOE/PinViewer/SPinViewer.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
+#include "UObject/Package.h"
 
 class FString;
 
@@ -37,24 +39,37 @@ void FCustomizableObjectNodeEditMaterialDetails::CustomizeDetails( IDetailLayout
 
 	if (Node)
 	{
-		UCustomizableObjectNodeEditLayoutBlocks* NodeEditLayout = Cast<UCustomizableObjectNodeEditLayoutBlocks>(Node);
-		if (NodeEditLayout)
-		{
-			// Add blocks selector
-			LayoutBlocksSelector = SNew(SCustomizableObjectNodeLayoutBlocksSelector);
+		// Add blocks selector
+		LayoutBlocksEditor = SNew(SCustomizableObjectNodeLayoutBlocksEditor);
 
-			BlocksCategory.AddCustomRow(LOCTEXT("BlocksDetails_BlockInstructions", "BlockInstructions"))
+		BlocksCategory.AddCustomRow(LOCTEXT("BlocksDetails_BlockInstructions", "BlockInstructions"))
+		[
+			SNew(SBox)
+			.HeightOverride(700.0f)
+			.WidthOverride(700.0f)
 			[
-				SNew(SBox)
-				.HeightOverride(700.0f)
-				.WidthOverride(700.0f)
-				[
-					LayoutBlocksSelector.ToSharedRef()
-				]
-			];
+				LayoutBlocksEditor.ToSharedRef()
+			]
+		];
 
-			LayoutBlocksSelector->SetSelectedNode(NodeEditLayout);
+		// Try to find the parent layout, because we want to show its UVs in the widget
+		UCustomizableObjectLayout* ParentLayout = nullptr;
+		if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = Node->GetParentMaterialNode())
+		{
+			TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
+
+			if (!Layouts.IsValidIndex(Node->ParentLayoutIndex))
+			{
+				UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeEditMaterial refers to an invalid texture layout index %d. Parent node has %d layouts."),
+					*Node->GetOutermost()->GetName(), Node->ParentLayoutIndex, Layouts.Num());
+			}
+			else
+			{
+				ParentLayout = Layouts[Node->ParentLayoutIndex];
+			}
 		}
+
+		LayoutBlocksEditor->SetCurrentLayout(Node->Layout, ParentLayout);
 	}
 	else
 	{

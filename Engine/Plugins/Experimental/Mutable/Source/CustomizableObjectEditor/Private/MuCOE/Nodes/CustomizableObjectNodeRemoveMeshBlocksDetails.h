@@ -10,7 +10,7 @@
 class FString;
 class IDetailLayoutBuilder;
 class UCustomizableObjectNodeRemoveMeshBlocks;
-class SCustomizableObjectNodeLayoutBlocksSelector;
+class SCustomizableObjectNodeLayoutBlocksEditor;
 
 
 class FCustomizableObjectNodeRemoveMeshBlocksDetails : public FCustomizableObjectNodeEditMaterialBaseDetails
@@ -26,5 +26,5 @@ private:
 	UCustomizableObjectNodeRemoveMeshBlocks* Node;
 
 	// Layout block editor widget
-	TSharedPtr<SCustomizableObjectNodeLayoutBlocksSelector> LayoutBlocksSelector;
+	TSharedPtr<SCustomizableObjectNodeLayoutBlocksEditor> LayoutBlocksEditor;
 };

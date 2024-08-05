@@ -54,7 +54,6 @@
 #include "MuT/NodeMeshFormat.h"
 #include "MuT/NodeMeshFormatPrivate.h"
 #include "MuT/NodeMeshFragment.h"
-#include "MuT/NodeMeshFragmentPrivate.h"
 #include "MuT/NodeMeshGeometryOperation.h"
 #include "MuT/NodeMeshGeometryOperationPrivate.h"
 #include "MuT/NodeMeshInterpolate.h"
@@ -684,16 +683,16 @@ namespace mu
 				}
 				else
 				{
-					// Map vertices without block to the first block.
+					// Map vertices without block
 					if (bUseAbsoluteBlockIds)
 					{
 						uint64* Ptr = reinterpret_cast<uint64*>(LayoutBufferPtr) + VertexIndex;
-						*Ptr = 0;
+						*Ptr = MeshOptions.bEnsureAllVerticesHaveLayoutBlock ? 0 : std::numeric_limits<uint64>::max();
 					}
 					else
 					{
 						uint16* Ptr = reinterpret_cast<uint16*>(LayoutBufferPtr) + VertexIndex;
-						*Ptr = 0;
+						*Ptr = MeshOptions.bEnsureAllVerticesHaveLayoutBlock ? 0 : std::numeric_limits<uint16>::max();
 					}
 				}
 
@@ -925,66 +924,36 @@ namespace mu
 	}
 
     //---------------------------------------------------------------------------------------------
-    void CodeGenerator::GenerateMesh_Fragment(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
-		const NodeMeshFragment* FragmentNode )
+    void CodeGenerator::GenerateMesh_Fragment(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult, const NodeMeshFragment* Node )
     {
-        NodeMeshFragment::Private& node = *FragmentNode->GetPrivate();
-
         FMeshGenerationResult BaseResult;
-        if ( node.m_pMesh )
+        if ( Node->SourceMesh )
         {
+			Ptr<ASTOpMeshExtractLayoutBlocks> op = new ASTOpMeshExtractLayoutBlocks();
+			OutResult.MeshOp = op;
+
+			op->LayoutIndex = (uint16)Node->LayoutIndex;
+
+			// Generate the source mesh
 			FMeshGenerationOptions BaseOptions = InOptions;
-			if (node.m_fragmentType == NodeMeshFragment::FT_LAYOUT_BLOCKS)
+			BaseOptions.bLayouts = true;
+			BaseOptions.bEnsureAllVerticesHaveLayoutBlock = false;
+
+			if (Node->Layout)
 			{
-				BaseOptions.bLayouts = true;
+				// Generate the layout with blocks to extract
+				Ptr<const Layout> Layout = GenerateLayout(Node->Layout, 0);
+				BaseOptions.OverrideLayouts.Empty();
+				BaseOptions.OverrideLayouts.Emplace(Layout, Node->Layout);
 			}
-            GenerateMesh( BaseOptions, BaseResult, node.m_pMesh );
 
-            if ( node.m_fragmentType==NodeMeshFragment::FT_LAYOUT_BLOCKS )
-            {
-                Ptr<ASTOpMeshExtractLayoutBlocks> op = new ASTOpMeshExtractLayoutBlocks();
-                OutResult.MeshOp = op;
-
-                op->Source = BaseResult.MeshOp;
-
-                if (BaseResult.GeneratedLayouts.Num()>node.LayoutOrGroup )
-                {
-                    const Layout* pLayout = BaseResult.GeneratedLayouts[node.LayoutOrGroup].Layout.get();
-                    op->Layout = (uint16)node.LayoutOrGroup;
-
-                    for ( int32 i=0; i<node.Blocks.Num(); ++i )
-                    {
-                        if (node.Blocks[i]>=0 && node.Blocks[i]<pLayout->Blocks.Num() )
-                        {
-                            uint64 bid = pLayout->Blocks[ node.Blocks[i] ].Id;
-                            op->Blocks.Add(bid);
-                        }
-                        else
-                        {
-                            ErrorLog->GetPrivate()->Add( "Internal layout block index error.",
-                                                            ELMT_ERROR, FragmentNode->GetMessageContext());
-                        }
-                    }
-                }
-                else
-                {
-                    // This argument is required
-                    ErrorLog->GetPrivate()->Add( "Missing layout in mesh fragment source.",
-                                                    ELMT_ERROR, FragmentNode->GetMessageContext());
-                }
-            }
-
-            else
-            {
-				check(false);
-            }
-
+            GenerateMesh( BaseOptions, BaseResult, Node->SourceMesh);
+            op->Source = BaseResult.MeshOp;
         }
         else
         {
             // This argument is required
-            ErrorLog->GetPrivate()->Add( "Mesh fragment source is not set.",
-                                            ELMT_ERROR, FragmentNode->GetMessageContext());
+            ErrorLog->GetPrivate()->Add( "Mesh fragment source is not set.", ELMT_ERROR, Node->GetMessageContext());
         }
 
         OutResult.BaseMeshOp = BaseResult.BaseMeshOp;
@@ -1375,11 +1344,7 @@ namespace mu
 			{
 				if (bIsOverridingLayouts)
 				{
-					for (int32 l = 0; l < DuplicateOf.Mesh->GetLayoutCount(); ++l)
-					{
-						FGeneratedLayout OverridingLayout = InOptions.OverrideLayouts[l];
-						OutResult.GeneratedLayouts.Add(OverridingLayout);
-					}
+					OutResult.GeneratedLayouts = InOptions.OverrideLayouts;
 				}
 				else
 				{
@@ -1442,7 +1407,7 @@ namespace mu
 
 						FGeneratedLayout GeneratedData;
 						GeneratedData.Source = LayoutNode;
-						GeneratedData.Layout = AddLayout(LayoutNode, MeshIDPrefix);
+						GeneratedData.Layout = GenerateLayout(LayoutNode, MeshIDPrefix);
 						const void* Context = InOptions.OverrideContext.Get(InNode->GetMessageContext());
 
 						bool bUseAbsoluteBlockIds = false;

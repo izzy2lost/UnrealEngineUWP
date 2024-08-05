@@ -122,6 +122,7 @@ namespace mu
     }
 
 
+	/** Extract all vertices that have a layout block from the passed list on the given channel. */
     inline void MeshExtractLayoutBlock(Mesh* Result, const Mesh* Source,
                                            uint32 LayoutIndex,
                                            uint16 BlockCount,
@@ -199,6 +200,64 @@ namespace mu
 
             MeshExtractFromVertices(Source, Result, OldToNew, NewToOld);
         }
+	}
+
+	/** Extract all vertices that have a valid layout block on the given channel. */
+	inline void MeshExtractLayoutBlock(Mesh* Result, const Mesh* Source, uint32 LayoutIndex, bool& bOutSuccess)
+	{
+		check(Source);
+		bOutSuccess = true;
+
+		// TODO: Optimise
+		Result->CopyFrom(*Source);
+
+		UntypedMeshBufferIteratorConst itBlocks(Source->GetVertexBuffers(), MBS_LAYOUTBLOCK, LayoutIndex);
+
+		if (itBlocks.GetFormat() != MBF_NONE)
+		{
+			int32 ResultVertices = 0;
+			TArray<int32> OldToNew;
+			OldToNew.Init(-1, Source->GetVertexCount());
+			TArray<int32> NewToOld;
+			NewToOld.Reserve(Source->GetVertexCount());
+
+			if (itBlocks.GetFormat() == MBF_UINT16)
+			{
+				const uint16* pBlocks = reinterpret_cast<const uint16*>(itBlocks.ptr());
+				for (int32 i = 0; i < Source->GetVertexCount(); ++i)
+				{
+					uint16 VertexBlockRelative = pBlocks[i];
+
+					bool bFound = VertexBlockRelative != std::numeric_limits<uint16>::max();
+					if (bFound)
+					{
+						OldToNew[i] = ResultVertices++;
+						NewToOld.Add(i);
+					}
+				}
+			}
+			else if (itBlocks.GetFormat() == MBF_UINT64)
+			{
+				const uint64* pBlocks = reinterpret_cast<const uint64*>(itBlocks.ptr());
+				for (int32 i = 0; i < Source->GetVertexCount(); ++i)
+				{
+					uint64 VertexBlockId = pBlocks[i];
+
+					bool bFound = VertexBlockId != std::numeric_limits<uint64>::max();
+					if (bFound)
+					{
+						OldToNew[i] = ResultVertices++;
+						NewToOld.Add(i);
+					}
+				}
+			}
+			else
+			{
+				check(false);
+			}
+
+			MeshExtractFromVertices(Source, Result, OldToNew, NewToOld);
+		}
 	}
 
 }

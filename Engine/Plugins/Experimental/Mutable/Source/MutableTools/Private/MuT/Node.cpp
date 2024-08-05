@@ -28,6 +28,8 @@
 #include "MuT/NodeColourFromScalars.h"
 #include "MuT/NodeColourTable.h"
 #include "MuT/NodeScalarSwitch.h"
+#include "MuT/NodeMeshFragment.h"
+#include "MuT/NodePatchImage.h"
 
 namespace mu
 {
@@ -62,6 +64,10 @@ namespace mu
 	FNodeType NodeColourArithmeticOperation::StaticType = FNodeType(Node::EType::ColorArithmeticOperation, NodeColour::GetStaticType());
 	FNodeType NodeColourSampleImage::StaticType = FNodeType(Node::EType::ColorSampleImage, NodeColour::GetStaticType());
 	FNodeType NodeColourFromScalars::StaticType = FNodeType(Node::EType::ColorFromScalars, NodeColour::GetStaticType());
+
+	FNodeType NodeMeshFragment::StaticType = FNodeType(Node::EType::MeshFragment, NodeMesh::GetStaticType());
+
+	FNodeType NodePatchImage::StaticType = FNodeType(Node::EType::PatchImage, Node::GetStaticType());
 
 
 	FNodeType::FNodeType()

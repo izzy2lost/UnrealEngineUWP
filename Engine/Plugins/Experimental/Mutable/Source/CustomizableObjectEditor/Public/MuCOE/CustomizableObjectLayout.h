@@ -26,7 +26,7 @@ enum class ECustomizableObjectLayoutBlockReductionMethod : uint8
 {
 	// Layout blocks will be reduced by halves
 	Halve = 0 UMETA(DisplayName = "Reduce by Half"),
-	// LAyout blocks will be reduced by a grid unit
+	// Layout blocks will be reduced by a grid unit
 	Unitary = 1 UMETA(DisplayName = "Reduce by Unit")
 };
 

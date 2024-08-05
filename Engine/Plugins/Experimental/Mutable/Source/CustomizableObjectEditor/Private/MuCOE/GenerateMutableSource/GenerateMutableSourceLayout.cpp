@@ -11,7 +11,7 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
 
-mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableGraphGenerationContext& GenerationContext, bool bLinkedToExtendMaterial)
+mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMutableGraphGenerationContext& GenerationContext, bool bIgnoreLayoutWarning)
 {
 	check(Pin)
 	RETURN_ON_CYCLE(*Pin, GenerationContext)
@@ -53,7 +53,7 @@ mu::Ptr<mu::NodeLayout> GenerateMutableSourceLayout(const UEdGraphPin * Pin, FMu
 		}
 
 		bool bWasEmpty = false;
-		Result = CreateMutableLayoutNode(GenerationContext, TypedNodeBlocks->Layout, bLinkedToExtendMaterial,bWasEmpty);
+		Result = CreateMutableLayoutNode(GenerationContext, TypedNodeBlocks->Layout, bIgnoreLayoutWarning,bWasEmpty);
 		if (bWasEmpty)
 		{
 			FString msg = "Layout without any block found. A grid sized block will be used instead.";

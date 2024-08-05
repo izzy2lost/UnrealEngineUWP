@@ -128,6 +128,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		FixedMultilayerMaterialIds,
 
+		UseUVRects, // Instead of pointing at layout blocks in the edited parent, define custom absolute UV layout rects.
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

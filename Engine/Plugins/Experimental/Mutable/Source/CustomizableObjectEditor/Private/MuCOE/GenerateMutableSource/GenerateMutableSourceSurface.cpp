@@ -26,6 +26,7 @@
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceImage.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceTable.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/MutableUtils.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeCopyMaterial.h"
@@ -1101,10 +1102,10 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			}
 
 			// Parent, probably generated, will be retrieved from the cache
-			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
+			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
 			SurfNode->Parent = ParentNode;
 
-			mu::NodeMeshPtr AddMeshNode;
+			mu::Ptr<mu::NodeMesh> AddMeshNode;
 			FMutableGraphMeshGenerationData MeshData;
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->AddMeshPin()))
 			{
@@ -1113,24 +1114,22 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 			if (AddMeshNode)
 			{
-				mu::NodeMeshPtr MeshPtr = AddMeshNode;
+				mu::Ptr<mu::NodeMesh> MeshPtr = AddMeshNode;
 
 				const TArray<UCustomizableObjectLayout*> Layouts = TypedNodeExt->GetLayouts();
 				
 				if (Layouts.Num())
 				{
+					mu::Ptr<mu::NodeMeshFragment> MeshFrag = new mu::NodeMeshFragment();
+				
+					MeshFrag->SourceMesh = MeshPtr;
 					//TODO: Implement support for multiple UV channels (e.g. Add warning for vertices which have a block in a layout but not in the other)
-					mu::NodeMeshFragmentPtr MeshFrag = new mu::NodeMeshFragment();
-				
-					MeshFrag->SetMesh(MeshPtr);
-					MeshFrag->SetLayoutOrGroup(0);
-					MeshFrag->SetFragmentType(mu::NodeMeshFragment::FT_LAYOUT_BLOCKS);
-					MeshFrag->SetBlockCount(Layouts[0]->Blocks.Num());
-				
-					for (int i = 0; i < Layouts[0]->Blocks.Num(); ++i)
-					{
-						MeshFrag->SetBlock(i, i);
-					}
+					MeshFrag->LayoutIndex = 0;
+
+					// For this case we don't want to create another layout: we will use the one defined in the mesh to be added since we want to add
+					// any block defined there.
+					//bool bWasEmpty = false;
+					//MeshFrag->Layout = CreateMutableLayoutNode(GenerationContext, Layouts[MeshFrag->LayoutIndex], true, bWasEmpty);
 				
 					MeshPtr = MeshFrag;
 				}
@@ -1270,9 +1269,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		}
 		else
 		{
-			// Parent, probably generated, will be retrieved from the cache
-			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
-			SurfNode->Parent = ParentNode.get();
+			SurfNode->Parent = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
 
 			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
 
@@ -1283,57 +1280,20 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			else
 			{
 				FMutableGraphMeshGenerationData DummyMeshData;
-				mu::NodeMeshPtr BaseSourceMesh = GenerateMutableSourceMesh(BaseSourcePin, GenerationContext, DummyMeshData, false, false);
+				mu::Ptr<mu::NodeMesh> SourceMesh = GenerateMutableSourceMesh(BaseSourcePin, GenerationContext, DummyMeshData, false, false);
+				bool bWasEmpty = false;
+				mu::Ptr<mu::NodeLayout> SourceLayout = CreateMutableLayoutNode(GenerationContext, TypedNodeRemBlocks->Layout, true, bWasEmpty);
 
-				mu::NodeMeshFragmentPtr MeshFrag = new mu::NodeMeshFragment();
-				MeshFrag->SetMesh(BaseSourceMesh);
-				MeshFrag->SetLayoutOrGroup(TypedNodeRemBlocks->ParentLayoutIndex);
-				MeshFrag->SetFragmentType(mu::NodeMeshFragment::FT_LAYOUT_BLOCKS);
+				mu::Ptr<mu::NodeMeshFragment> MeshFrag = new mu::NodeMeshFragment();
+				MeshFrag->SourceMesh = SourceMesh;
+				MeshFrag->Layout = SourceLayout;
+				MeshFrag->LayoutIndex = TypedNodeRemBlocks->ParentLayoutIndex;
 				MeshFrag->SetMessageContext(TypedNodeRemBlocks);
 
-				// Add the block indices
-				TArray<int> FoundBlockIndices;
-				const TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
-
-				if (!Layouts.IsValidIndex(TypedNodeRemBlocks->ParentLayoutIndex))
-				{
-					GenerationContext.Compiler->CompilerLog(LOCTEXT("RemoveMeshNode Invalid layout", "Node refers to an invalid texture layout. Add a layout to the selected parent material, then select some block(s)."), Node);
-					UE_LOG(LogMutable, Warning, TEXT("In object [%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid texture layout index %d. Parent node has %d layouts."),
-						*GenerationContext.Object->GetName(), TypedNodeRemBlocks->ParentLayoutIndex, Layouts.Num());
-				}
-				else
-				{
-					const UCustomizableObjectLayout* Layout = Layouts[TypedNodeRemBlocks->ParentLayoutIndex];
-
-					if (Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
-					{
-						for (const FGuid& Id : TypedNodeRemBlocks->BlockIds)
-						{
-							int BlockIndex = Layout->FindBlock(Id);
-							if (Layout->Blocks.IsValidIndex(BlockIndex))
-							{
-								FoundBlockIndices.Add(BlockIndex);
-							}
-							else
-							{
-								GenerationContext.Compiler->CompilerLog(LOCTEXT("RemoveMeshNode InvalidLayoutBlock", "Node refers to an invalid layout block."), Node);
-								UE_LOG(LogMutable, Warning, TEXT("In object [%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid layout block id %s. Parent node has %d blocks."),
-									*GenerationContext.Object->GetName(), *Id.ToString(), Layout->Blocks.Num());
-							}
-						}
-					}
-				}
-
-				MeshFrag->SetBlockCount(FoundBlockIndices.Num());
-				for (int i = 0; i < FoundBlockIndices.Num(); ++i)
-				{
-					MeshFrag->SetBlock(i, FoundBlockIndices[i]);
-				}
-
-				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
+				mu::Ptr<mu::NodePatchMesh> MeshPatch = new mu::NodePatchMesh();
 				MeshPatch->SetRemove(MeshFrag.get());
-				SurfNode->Mesh = MeshPatch.get();
 				MeshPatch->SetMessageContext(Node);
+				SurfNode->Mesh = MeshPatch;
 			}
 
 			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRemBlocks);
@@ -1353,7 +1313,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		else
 		{
 			// Parent, probably generated, will be retrieved from the cache
-			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
+			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
 			SurfNode->Parent = ParentNode;
 
 			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
@@ -1372,68 +1332,32 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					ImagePatchNode->SetMessageContext(Node);
 
 					// \todo: expose these two options?
-					ImagePatchNode->SetBlendType(mu::EBlendType::BT_BLEND);
-					ImagePatchNode->SetApplyToAlphaChannel(true);
+					ImagePatchNode->BlendType = mu::EBlendType::BT_BLEND;
+					ImagePatchNode->bApplyToAlpha=true;
 
 					// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
 					const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
 
-					mu::NodeImagePtr ImageNode = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
-					ImagePatchNode->SetImage(ImageNode);
+					ImagePatchNode->Image = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
 
 					const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
 					check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
 					
 					if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
 					{
-						mu::NodeImagePtr MaskNode = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
-						ImagePatchNode->SetMask(MaskNode);
+						ImagePatchNode->Mask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
 					}
 
-					// Add the block indices
-					TArray<int> FoundBlockIndices;
-					const TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
-
-					if (!Layouts.IsValidIndex(TypedNodeEdit->ParentLayoutIndex))
+					// Add the blocks to patch
+					FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
+					FVector2f GridSizeF = FVector2f(GridSize);
+					ImagePatchNode->Blocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
+					for (const FCustomizableObjectLayoutBlock& LayoutBlock: TypedNodeEdit->Layout->Blocks)
 					{
-						GenerationContext.Compiler->CompilerLog(LOCTEXT("EditNode Invalid layout", "Node refers to an invalid texture layout."), Node);
-						UE_LOG(LogMutable, Warning, TEXT("In object [%s] UCustomizableObjectNodeEditMaterial refers to an invalid texture layout index %d. Parent node has %d layouts."),
-							*GenerationContext.Object->GetName(), TypedNodeEdit->ParentLayoutIndex, Layouts.Num());
-					}
-					else
-					{
-						if (const UCustomizableObjectNodeMaterial* ParentMaterial = Cast<UCustomizableObjectNodeMaterial>(ParentMaterialNode))
-						{
-							if (TypedNodeEdit->ParentLayoutIndex == ParentMaterial->GetImageUVLayout(ImageIndex))
-							{
-								const UCustomizableObjectLayout* Layout = Layouts[TypedNodeEdit->ParentLayoutIndex];
-
-								for (const FGuid& Id : TypedNodeEdit->BlockIds)
-								{
-									int BlockIndex = Layout->FindBlock(Id);
-									if (Layout->Blocks.IsValidIndex(BlockIndex))
-									{
-										FoundBlockIndices.Add(BlockIndex);
-									}
-									else
-									{
-										GenerationContext.Compiler->CompilerLog(LOCTEXT("EditNode InvalidLayoutBlock", "Node refers to an invalid layout block."), Node);
-										UE_LOG(LogMutable, Warning, TEXT("In object [%s] UCustomizableObjectNodeEditMaterial refers to an invalid layout block id %s. Parent node has %d blocks."),
-											*GenerationContext.Object->GetName(), *Id.ToString(), Layout->Blocks.Num());
-									}
-								}
-							}
-							else
-							{
-								GenerationContext.Compiler->CompilerLog(LOCTEXT("InvalidLayoutTexture", "Texture layout does not match the layout of Edit Material node or parent material changed."), Cast<UCustomizableObjectNode>(ConnectedImagePin->GetOwningNode()));
-							}
-						}
-					}
-
-					ImagePatchNode->SetBlockCount(FoundBlockIndices.Num());
-					for (int BlockIndex = 0; BlockIndex < FoundBlockIndices.Num(); ++BlockIndex)
-					{
-						ImagePatchNode->SetBlock(BlockIndex, FoundBlockIndices[BlockIndex]);
+						FBox2f Rect;
+						Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
+						Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
+						ImagePatchNode->Blocks.Add(Rect);
 					}
 
 					SurfNode->Textures[ImageIndex].Patch = ImagePatchNode;

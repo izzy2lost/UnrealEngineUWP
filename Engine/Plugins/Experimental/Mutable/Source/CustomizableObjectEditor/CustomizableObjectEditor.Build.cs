@@ -11,6 +11,7 @@ public class CustomizableObjectEditor : ModuleRules
 		ShortName = "MuCOE";
 
 		DefaultBuildSettings = BuildSettingsVersion.V2;
+		//bUseUnity = false;
 
 		PrivateIncludePathModuleNames.AddRange(
 			new string[] { 

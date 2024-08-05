@@ -75,7 +75,7 @@
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectNew.h"
-#include "MuT/NodePatchImagePrivate.h"
+#include "MuT/NodePatchImage.h"
 #include "MuT/NodePatchMesh.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeRange.h"
@@ -389,9 +389,9 @@ namespace mu
 	}
 
 
-	Ptr<const Layout> CodeGenerator::AddLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix)
+	Ptr<const Layout> CodeGenerator::GenerateLayout(Ptr<const NodeLayout> SourceLayout, uint32 MeshIDPrefix)
 	{
-		Ptr<const Layout>* it = GeneratedLayouts.Find(SourceLayout.get());
+		Ptr<const Layout>* it = GeneratedLayouts.Find({ SourceLayout,MeshIDPrefix });
 
 		if (it)
 		{
@@ -422,69 +422,84 @@ namespace mu
 		}
 
 		check(GeneratedLayout->Blocks.IsEmpty() || GeneratedLayout->Blocks[0].Id != FLayoutBlock::InvalidBlockId);
-		GeneratedLayouts.Add(SourceLayout.get(), GeneratedLayout);
+		GeneratedLayouts.Add({ SourceLayout,MeshIDPrefix }, GeneratedLayout);
 
 		return GeneratedLayout;
 	}
 
 
-	Ptr<ASTOp> CodeGenerator::GenerateImageBlockPatch(Ptr<ASTOp> blockAd,
+	Ptr<ASTOp> CodeGenerator::GenerateImageBlockPatch(Ptr<ASTOp> InBlockOp,
 		const NodePatchImage* pPatch,
+		Ptr<Image> PatchMask,
 		Ptr<ASTOp> conditionAd,
 		const FImageGenerationOptions& ImageOptions )
 	{
 		// Blend operation
-		Ptr<ASTOp> blendAd;
+		Ptr<ASTOp> FinalOp;
 		{
 			MUTABLE_CPUPROFILER_SCOPE(PatchBlend);
 
-			Ptr<ASTOpImageLayer> op = new ASTOpImageLayer();
-			op->blendType = pPatch->GetPrivate()->m_blendType;
-			op->base = blockAd;
+			Ptr<ASTOpImageLayer> LayerOp = new ASTOpImageLayer();
+			LayerOp->blendType = pPatch->BlendType;
+			LayerOp->base = InBlockOp;
 
 			// When we patch from edit nodes, we want to apply it to all the channels.
-			// \todo: since we can choose the patch function, maybe we want to be able to
-			// select this as well.
-			op->Flags = pPatch->GetPrivate()->m_applyToAlpha
-				? OP::ImageLayerArgs::F_APPLY_TO_ALPHA
-				: 0;
+			// \todo: since we can choose the patch function, maybe we want to be able to select this as well.
+			LayerOp->Flags = pPatch->bApplyToAlpha ? OP::ImageLayerArgs::F_APPLY_TO_ALPHA : 0;
 
-			NodeImage* pImage = pPatch->GetPrivate()->m_pImage.get();
-			Ptr<ASTOp> blend;
-			if (pImage)
+			NodeImage* ImageNode = pPatch->Image.get();
+			Ptr<ASTOp> BlendOp;
+			if (ImageNode)
 			{
 				FImageGenerationResult BlendResult;
-				GenerateImage(ImageOptions, BlendResult, pImage);
-				blend = BlendResult.op;
+				GenerateImage(ImageOptions, BlendResult, ImageNode);
+				BlendOp = BlendResult.op;
 			}
 			else
 			{
-				blend = GenerateMissingImageCode(TEXT("Blend top image"), EImageFormat::IF_RGB_UBYTE, pPatch->GetMessageContext(), ImageOptions);
+				BlendOp = GenerateMissingImageCode(TEXT("Patch top image"), EImageFormat::IF_RGB_UBYTE, pPatch->GetMessageContext(), ImageOptions);
 			}
-			blend = GenerateImageFormat(blend, blockAd->GetImageDesc().m_format);
-			blend = GenerateImageSize(blend, ImageOptions.RectSize);
-			op->blend = blend;
+			BlendOp = GenerateImageFormat(BlendOp, InBlockOp->GetImageDesc().m_format);
+			BlendOp = GenerateImageSize(BlendOp, ImageOptions.RectSize);
+			LayerOp->blend = BlendOp;
 
-			NodeImage* pMask = pPatch->GetPrivate()->m_pMask.get();
-			Ptr<ASTOp> mask;
-			if (pMask)
+			// Create the rect mask constant
+			Ptr<ASTOp> RectConstantOp;
 			{
+				Ptr<NodeImageConstant> pNode = new NodeImageConstant();
+				pNode->SetValue(PatchMask.get());
+
+				FImageGenerationOptions ConstantOptions;
+				FImageGenerationResult ConstantResult;
+				GenerateImage(ConstantOptions, ConstantResult, pNode);
+				RectConstantOp = ConstantResult.op;
+			}
+
+			NodeImage* MaskNode = pPatch->Mask.get();
+			Ptr<ASTOp> MaskOp;
+			if (MaskNode)
+			{
+				// Combine the block rect mask with the user provided mask.
+
 				FImageGenerationResult MaskResult;
-				GenerateImage(ImageOptions, MaskResult, pMask);
-				mask = MaskResult.op;
+				GenerateImage(ImageOptions, MaskResult, MaskNode);
+				MaskOp = MaskResult.op;
+
+				Ptr<ASTOpImageLayer> PatchCombineOp = new ASTOpImageLayer;
+				PatchCombineOp->base = MaskOp;
+				PatchCombineOp->blend = RectConstantOp;
+				PatchCombineOp->blendType = EBlendType::BT_MULTIPLY;
+				MaskOp = PatchCombineOp;
 			}
 			else
 			{
-				// Set the argument default value: affect all pixels.
-				// TODO: Special operation code without mask
-				FImageGenerationOptions MissingMaskOptions;
-				mask = GeneratePlainImageCode(FVector4f(1,1,1,1), MissingMaskOptions);
+				MaskOp = RectConstantOp;
 			}
-			mask = GenerateImageFormat(mask, EImageFormat::IF_L_UBYTE);
-			mask = GenerateImageSize(mask, ImageOptions.RectSize);
-			op->mask = mask;
+			MaskOp = GenerateImageFormat(MaskOp, EImageFormat::IF_L_UBYTE);
+			MaskOp = GenerateImageSize(MaskOp, ImageOptions.RectSize);
+			LayerOp->mask = MaskOp;
 
-			blendAd = op;
+			FinalOp = LayerOp;
 		}
 
 		// Condition to enable this patch
@@ -494,20 +509,20 @@ namespace mu
 			{
 				Ptr<ASTOpConditional> op = new ASTOpConditional();
 				op->type = OP_TYPE::IM_CONDITIONAL;
-				op->no = blockAd;
-				op->yes = blendAd;
+				op->no = InBlockOp;
+				op->yes = FinalOp;
 				op->condition = conditionAd;
 				conditionalAd = op;
 			}
 
-			blockAd = conditionalAd;
+			FinalOp = conditionalAd;
 		}
 		else
 		{
-			blockAd = blendAd;
+			FinalOp = FinalOp;
 		}
 
-		return blockAd;
+		return FinalOp;
 	}
 
 
@@ -780,6 +795,50 @@ namespace mu
 		}
 
 		return CurrentImage;
+	}
+
+
+	Ptr<Image> CodeGenerator::GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<UE::Math::TIntVector2<uint16>> RectInCells )
+	{
+		// Create a patching mask for the block
+		Ptr<Image> PatchMask;
+
+		FIntVector2 SourceTextureSize = { GridSize[0] * BlockPixelsX, GridSize[1] * BlockPixelsY };
+
+		FInt32Rect BlockRectInPixels;
+		BlockRectInPixels.Min = { RectInCells.min[0] * BlockPixelsX, RectInCells.min[1] * BlockPixelsY };
+		BlockRectInPixels.Max = { (RectInCells.min[0] + RectInCells.size[0]) * BlockPixelsX, (RectInCells.min[1] + RectInCells.size[1]) * BlockPixelsY };
+
+		for (const FBox2f& PatchRect : Patch->Blocks)
+		{
+			// Does the patch rect intersects the current block at all?
+			FInt32Rect PatchRectInPixels;
+			PatchRectInPixels.Min = { int32(PatchRect.Min[0] * SourceTextureSize[0]), int32(PatchRect.Min[1] * SourceTextureSize[1]) };
+			PatchRectInPixels.Max = { int32(PatchRect.Max[0] * SourceTextureSize[0]), int32(PatchRect.Max[1] * SourceTextureSize[1]) };
+
+			FInt32Rect BlockPatchRect = PatchRectInPixels;
+			BlockPatchRect.Clip(BlockRectInPixels);
+
+			if (BlockPatchRect.Area() > 0)
+			{
+				FInt32Point BlockSize = BlockRectInPixels.Size();
+				if (!PatchMask)
+				{
+					PatchMask = new mu::Image(BlockSize[0], BlockSize[1], 1, mu::EImageFormat::IF_L_UBYTE, mu::EInitializationType::Black);
+				}
+
+				uint8* Pixels = PatchMask->GetMipData(0);
+				FInt32Point BlockPatchOffset = BlockPatchRect.Min - BlockRectInPixels.Min;
+				FInt32Point BlockPatchSize = BlockPatchRect.Size();
+				for (int32 RowIndex = BlockPatchOffset[1]; RowIndex < BlockPatchOffset[1]+BlockPatchSize[1]; ++RowIndex)
+				{
+					uint8* RowPixels = Pixels + RowIndex * BlockSize[0] + BlockPatchOffset[0];
+					FMemory::Memset(RowPixels, 255, BlockPatchSize[0]);
+				}
+			}
+		}
+
+		return PatchMask;
 	}
 
 
@@ -1302,11 +1361,30 @@ namespace mu
 						for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
 						{
 							const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
-							if (t < e.Node->Textures.Num())
+							if (t >= e.Node->Textures.Num())
 							{
-								if (const NodePatchImage* pPatch = e.Node->Textures[t].Patch.get())
+								continue;
+							}
+
+							if (const NodePatchImage* Patch = e.Node->Textures[t].Patch.get())
+							{
+								// Does the current block need to be patched?
+
+								// Ideally this should be the actual image size
+								constexpr int32 FakeLayoutSize = 256;
+
+								FIntPoint GridSize(FakeLayoutSize, FakeLayoutSize);
+								int32 BlockPixelsX = 1;
+								int32 BlockPixelsY = 1;
+								box< UE::Math::TIntVector2<uint16> > RectInCells;
+								RectInCells.min = { 0,0 };
+								RectInCells.size = { FakeLayoutSize ,FakeLayoutSize };
+
+								Ptr<Image> PatchMask = GenerateImageBlockPatchMask(Patch, GridSize, BlockPixelsX, BlockPixelsY, RectInCells);
+
+								if (PatchMask)
 								{
-									imageAd = GenerateImageBlockPatch(imageAd, pPatch, e.Condition, ImageOptions);
+									imageAd = GenerateImageBlockPatch(imageAd, Patch, PatchMask, e.Condition, ImageOptions);
 								}
 							}
 
@@ -1381,7 +1459,7 @@ namespace mu
 							//-------------------------------------
 
 							// Size of a layout block in pixels
-							FIntPoint grid = pLayout->GetGridSize();
+							FIntPoint GridSize = pLayout->GetGridSize();
 
 							EImageFormat FinalFormat = EImageFormat::IF_NONE;
 							int32 BlockPixelsX = 0;
@@ -1473,29 +1551,33 @@ namespace mu
 								FImageDesc BlockDesc = blockAd->GetImageDesc(bReturnBestOption, nullptr);
 
 								// Block in layout grid units (cells)
-								box< UE::Math::TIntVector2<uint16> > rectInCells;
-								rectInCells.min = pLayout->Blocks[BlockIndex].Min;
-								rectInCells.size = pLayout->Blocks[BlockIndex].Size;
+								box< UE::Math::TIntVector2<uint16> > RectInCells;
+								RectInCells.min = pLayout->Blocks[BlockIndex].Min;
+								RectInCells.size = pLayout->Blocks[BlockIndex].Size;
 
 								// If we don't know the size of a layout block in pixels, calculate it
-								UpdateBlockSize(BlockDesc, rectInCells.size);
+								UpdateBlockSize(BlockDesc, RectInCells.size);
 
 								// Even if we force the size afterwards, we need some size hint in some cases, like image projections.
 								ImageOptions.RectSize = UE::Math::TIntVector2<int32>(BlockDesc.m_size);
 
 								// Look for patches to this block
-								for (int32 editIndex = 0; editIndex < edits.Num(); ++editIndex)
+								for (const FirstPassGenerator::FSurface::FEdit& Edit : edits)
 								{
-									const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
-									if (t < e.Node->Textures.Num())
+									if (t >= Edit.Node->Textures.Num())
 									{
-										if (const NodePatchImage* pPatch = e.Node->Textures[t].Patch.get())
+										continue;
+									}
+
+									if (const NodePatchImage* Patch = Edit.Node->Textures[t].Patch.get())
+									{
+										// Is the current block to be patched?
+										Ptr<Image> PatchMask = GenerateImageBlockPatchMask( Patch, GridSize, BlockPixelsX, BlockPixelsY, RectInCells );
+
+										// If there was any edit affecting this block
+										if (PatchMask)
 										{
-											// Is the current block to be patched?
-											if (pPatch->GetPrivate()->BlockIndices.Contains(BlockIndex))
-											{
-												blockAd = GenerateImageBlockPatch(blockAd, pPatch, e.Condition, ImageOptions);
-											}
+											blockAd = GenerateImageBlockPatch(blockAd, Patch, PatchMask, Edit.Condition, ImageOptions);
 										}
 									}
 								}

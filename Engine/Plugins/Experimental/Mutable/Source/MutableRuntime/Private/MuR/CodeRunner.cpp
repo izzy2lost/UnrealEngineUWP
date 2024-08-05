@@ -1896,7 +1896,7 @@ namespace mu
 
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(source, item));
 
-                // Access with memcpy necessary for unaligned arm issues.
+                // Access with memcpy necessary for unaligned memory access issues.
                 uint64 blocks[512];
 				check(blockCount< 512);
 				FMemory::Memcpy(blocks, data, sizeof(uint64)*FMath::Min(512,int32(blockCount)));
@@ -1905,7 +1905,15 @@ namespace mu
 				{
 					Ptr<Mesh> Result = CreateMesh();
 					bool bOutSuccess;
-					MeshExtractLayoutBlock(Result.get(), Source.get(), layout, blockCount, blocks, bOutSuccess);
+
+					if (blockCount > 0)
+					{
+						MeshExtractLayoutBlock(Result.get(), Source.get(), layout, blockCount, blocks, bOutSuccess);
+					}
+					else
+					{
+						MeshExtractLayoutBlock(Result.get(), Source.get(), layout, bOutSuccess);
+					}
 
 					if (!bOutSuccess)
 					{
