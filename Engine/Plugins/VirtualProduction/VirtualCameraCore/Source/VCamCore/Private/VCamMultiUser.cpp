@@ -29,7 +29,7 @@ FCameraFocusSettings FMultiUserVCamCameraFocusData::ToCameraFocusSettings() cons
 	Result.FocusSmoothingInterpSpeed = FocusSmoothingInterpSpeed;
 	Result.FocusOffset = 0.f;
 
-	Result.TrackingFocusSettings.ActorToTrack = FSoftObjectPath(ActorToTrack).ResolveObject();
+	Result.TrackingFocusSettings.ActorToTrack = Cast<AActor>(FSoftObjectPath(ActorToTrack).ResolveObject());
 	Result.TrackingFocusSettings.RelativeOffset = RelativeOffset;
 
 #if WITH_EDITORONLY_DATA
