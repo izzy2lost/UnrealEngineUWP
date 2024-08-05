@@ -169,8 +169,8 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 			.SetName(TEXT("GetBool"))
 			.AddReturnType(EShaderFundamentalType::Bool)
 			.AddParam(EShaderFundamentalType::Uint) // DataIndex
-			.AddParam(EShaderFundamentalType::Uint) // AttributeId
-			.AddParam(EShaderFundamentalType::Uint); // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint); // AttributeId
 
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("GetInt"))
@@ -234,8 +234,8 @@ void UPCGDataCollectionDataInterface::GetSupportedInputs(TArray<FShaderFunctionD
 		OutFunctions.AddDefaulted_GetRef()
 			.SetName(TEXT("SetBool"))
 			.AddParam(EShaderFundamentalType::Uint) // DataIndex
-			.AddParam(EShaderFundamentalType::Uint) // AttributeId
 			.AddParam(EShaderFundamentalType::Uint) // ElementIndex
+			.AddParam(EShaderFundamentalType::Uint) // AttributeId
 			.AddParam(EShaderFundamentalType::Bool); // Value
 
 		OutFunctions.AddDefaulted_GetRef()

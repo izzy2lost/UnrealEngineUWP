@@ -23,13 +23,13 @@
 
 namespace PCGHLSLElement
 {
-	/** First capture: Pin name(supports a - z, A - Z, and 0 - 9) */
+	/** First capture: Pin name (supports a - z, A - Z, and 0 - 9) */
 	constexpr int AttributePinCaptureGroup = 1;
 
-	/** Second capture: Function name(Get, Set, or Create) */
+	/** Second capture: Function name (Get or Set) */
 	constexpr int AttributeFunctionCaptureGroup = 2;
 
-	/** Third capture: Attribute type(e.g.Int, Float, Rotator, etc.) */
+	/** Third capture: Attribute type (e.g.Int, Float, Rotator, etc.) */
 	constexpr int AttributeTypeCaptureGroup = 3;
 
 	/** Fourth capture: Attribute name (supports a-z, A-Z, 0-9, ' ', '-', '_', and '/') */
@@ -564,8 +564,8 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 
 			InputDeclarations += TEXT("\nuint <pin>_GetNumData();\n");
 			InputDeclarations += TEXT("uint <pin>_GetNumElements();\n");
-			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, uint AttributeId, uint ElementIndex);\n");
-			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, 'AttributeName', uint ElementIndex);\n");
+			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, uint ElementIndex, uint AttributeId);\n");
+			InputDeclarations += TEXT("<type> <pin>_Get<type>(uint DataIndex, uint ElementIndex, 'AttributeName');\n");
 		}
 
 		if (!PointDataPins.IsEmpty())
@@ -643,8 +643,8 @@ void UPCGCustomHLSLSettings::UpdateDeclarations()
 			OutputDeclarations += TEXT("\n// Valid pins: ") + FString::Join(DataPins, TEXT(", ")) + TEXT("\n");
 			OutputDeclarations += TEXT("// Valid types: bool, int, float, float2, float3, float4, Rotator (float3), Quat (float4), Transform (float4x4)\n");
 
-			OutputDeclarations += TEXT("\nvoid <pin>_Set<type>(uint DataIndex, uint AttributeId, uint ElementIndex, <type> Value);\n");
-			OutputDeclarations += TEXT("void <pin>_Set<type>(uint DataIndex, 'AttributeName', uint ElementIndex, <type> Value);\n");
+			OutputDeclarations += TEXT("\nvoid <pin>_Set<type>(uint DataIndex, uint ElementIndex, uint AttributeId, <type> Value);\n");
+			OutputDeclarations += TEXT("void <pin>_Set<type>(uint DataIndex, uint ElementIndex, 'AttributeName', <type> Value);\n");
 		}
 
 		if (!PointDataPins.IsEmpty())
@@ -1166,9 +1166,9 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 			const FPCGDataCollectionDesc* PinDesc = nullptr;
 
 			auto ConstructFunctionText = [&PinStr, &FuncStr, &TypeStr]()
-				{
-					return FText::FromString(PinStr + TEXT("_") + FuncStr + TypeStr);
-				};
+			{
+				return FText::FromString(PinStr + TEXT("_") + FuncStr + TypeStr);
+			};
 
 			if (FuncStr == PCGHLSLElement::AttributeFunctionSet)
 			{
