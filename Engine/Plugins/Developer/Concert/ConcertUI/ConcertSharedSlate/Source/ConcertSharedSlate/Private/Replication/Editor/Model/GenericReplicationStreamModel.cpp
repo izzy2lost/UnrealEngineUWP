@@ -3,6 +3,7 @@
 #include "GenericReplicationStreamModel.h"
 
 #include "ConcertLogGlobal.h"
+#include "SharedReplicationStreamModelGetters.h"
 #include "Replication/PropertyChainUtils.h"
 #include "Replication/Data/ObjectReplicationMap.h"
 #include "Replication/Editor/Model/Extension/IStreamExtender.h"
@@ -76,91 +77,32 @@ namespace UE::ConcertSharedSlate
 
 	FSoftClassPath FGenericReplicationStreamModel::GetObjectClass(const FSoftObjectPath& Object) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return {};
-		}
-		
-		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		return AssignedProperties
-			? AssignedProperties->ClassPath
-			: FSoftClassPath{};
+		return SharedStreamGetters::GetObjectClass(ReplicationMapAttribute.Get(), Object);
 	}
 
 	bool FGenericReplicationStreamModel::ContainsObjects(const TSet<FSoftObjectPath>& Objects) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		return ensure(ReplicationMap)
-			&& Algo::AllOf(Objects, [this, ReplicationMap](const FSoftObjectPath& ObjectPath){ return ReplicationMap->ReplicatedObjects.Contains(ObjectPath); });
+		return SharedStreamGetters::ContainsObjects(ReplicationMapAttribute.Get(), Objects);
 	}
 
 	bool FGenericReplicationStreamModel::ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		const FConcertReplicatedObjectInfo* ObjectInfo = ReplicationMap->ReplicatedObjects.Find(Object);
-		return ObjectInfo
-			&& Algo::AllOf(Properties, [ObjectInfo](const FConcertPropertyChain& Property){ return ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property); });
+		return SharedStreamGetters::ContainsProperties(ReplicationMapAttribute.Get(), Object, Properties);
 	}
 
 	bool FGenericReplicationStreamModel::ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectMap: ReplicationMap->ReplicatedObjects)
-		{
-			if (Delegate(ObjectMap.Key) == EBreakBehavior::Break)
-			{
-				return true;
-			}
-		}
-
-		return !ReplicationMap->ReplicatedObjects.IsEmpty();
+		return SharedStreamGetters::ForEachReplicatedObject(ReplicationMapAttribute.Get(), Delegate);
 	}
 
 	bool FGenericReplicationStreamModel::ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Parent)> Delegate) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return false;
-		}
-
-		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		if (!AssignedProperties)
-		{
-			return false;
-		}
-
-		for (const FConcertPropertyChain& ReplicatedPropertyInfo : AssignedProperties->PropertySelection.ReplicatedProperties)
-		{
-			if (Delegate(ReplicatedPropertyInfo) == EBreakBehavior::Break)
-			{
-				return true;
-			}
-		}
-		return !AssignedProperties->PropertySelection.ReplicatedProperties.IsEmpty();
+		return SharedStreamGetters::ForEachProperty(ReplicationMapAttribute.Get(), Object, Delegate);
 	}
 
 	uint32 FGenericReplicationStreamModel::GetNumProperties(const FSoftObjectPath& Object) const
 	{
-		const FConcertObjectReplicationMap* ReplicationMap = ReplicationMapAttribute.Get();
-		if (!ensure(ReplicationMap))
-		{
-			return 0;
-		}
-		
-		const FConcertReplicatedObjectInfo* AssignedProperties = ReplicationMap->ReplicatedObjects.Find(Object);
-		return AssignedProperties ? AssignedProperties->PropertySelection.ReplicatedProperties.Num() : 0;
+		return SharedStreamGetters::GetNumProperties(ReplicationMapAttribute.Get(), Object);
 	}
 
 	void FGenericReplicationStreamModel::AddObjects(TConstArrayView<UObject*> Objects)

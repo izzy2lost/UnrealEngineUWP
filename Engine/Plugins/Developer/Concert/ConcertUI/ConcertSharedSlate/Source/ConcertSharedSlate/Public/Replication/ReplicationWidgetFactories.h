@@ -33,6 +33,11 @@ namespace UE::ConcertSharedSlate
 	class IStreamExtender;
 	class IObjectHierarchyModel;
 	class IPropertySourceProcessor;
+
+	/** Creates a stream model that will only read from ReplicationMapAttribute. */
+	CONCERTSHAREDSLATE_API TSharedRef<IReplicationStreamModel> CreateReadOnlyStreamModel(
+		TAttribute<const FConcertObjectReplicationMap*> ReplicationMapAttribute
+		);
 	
 	/**
 	 * Creates a model that can be passed to CreateEditor.

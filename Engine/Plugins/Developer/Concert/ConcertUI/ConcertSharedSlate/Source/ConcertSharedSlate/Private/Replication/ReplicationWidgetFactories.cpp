@@ -3,6 +3,7 @@
 #include "Replication/ReplicationWidgetFactories.h"
 
 #include "Editor/Model/GenericReplicationStreamModel.h"
+#include "Editor/Model/ReadableReplicationStreamModel.h"
 #include "Editor/View/MultiEditor/SMultiReplicationStreamEditor.h"
 #include "Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Editor/View/Property/SMultiObjectAssignment.h"
@@ -16,6 +17,11 @@
 
 namespace UE::ConcertSharedSlate
 {
+	TSharedRef<IReplicationStreamModel> CreateReadOnlyStreamModel(TAttribute<const FConcertObjectReplicationMap*> ReplicationMapAttribute)
+	{
+		return MakeShared<FReadableReplicationStreamModel>(MoveTemp(ReplicationMapAttribute));
+	}
+
 	TSharedRef<IEditableReplicationStreamModel> CreateBaseStreamModel(
 		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> Extender
