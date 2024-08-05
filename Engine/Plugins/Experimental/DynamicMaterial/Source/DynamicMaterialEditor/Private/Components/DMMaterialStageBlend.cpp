@@ -575,53 +575,82 @@ FText UDMMaterialStageBlend::GetStageDescription() const
 	return Super::GetStageDescription();
 }
 
+bool UDMMaterialStageBlend::SupportsLayerMaskTextureUVLink() const
+{
+	UDMMaterialStageInput* StageInputB = GetInputB();
+
+	if (!StageInputB)
+	{
+		return false;
+	}
+
+	UDMMaterialStageInputThroughput* InputThroughput = Cast<UDMMaterialStageInputThroughput>(StageInputB);
+
+	if (!InputThroughput)
+	{
+		return false;
+	}
+
+	UDMMaterialStageThroughput* Throughput = InputThroughput->GetMaterialStageThroughput();
+
+	if (!Throughput)
+	{
+		return false;
+	}
+
+	return Throughput->SupportsLayerMaskTextureUVLink();
+}
+
 FDMExpressionInput UDMMaterialStageBlend::GetLayerMaskLinkTextureUVInputExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
 {
 	FDMExpressionInput ExpressionInput = {};
- 
-	if (!SupportsLayerMaskTextureUVLink())
+
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
 	{
 		return ExpressionInput;
 	}
- 
-	UDMMaterialStage* Stage = GetStage();
-	check(Stage);
- 
-	const TArray<FDMMaterialStageConnection>& InputConnections = Stage->GetInputConnectionMap();
-	const TArray<UDMMaterialStageInput*>& StageInputs = Stage->GetInputs();
- 
-	FDMMaterialStageConnectorChannel Channel;
- 
-	for (int32 InputIdx = InputA; InputIdx <= InputB; ++InputIdx)
+
+	UDMMaterialStageInput* StageInputB = GetInputB();
+
+	if (!StageInputB)
 	{
-		if (!InputConnections.IsValidIndex(InputIdx)
-			|| InputConnections[InputIdx].Channels.Num() != 1
-			|| InputConnections[InputIdx].Channels[0].SourceIndex < FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT)
-		{
-			continue;
-		}
- 
-		int32 StageInputIdx = InputConnections[InputIdx].Channels[0].SourceIndex - FDMMaterialStageConnectorChannel::FIRST_STAGE_INPUT;
- 
-		ExpressionInput.OutputIndex = ResolveLayerMaskTextureUVLinkInputImpl(
-			InBuildState, 
-			StageInputs[StageInputIdx], 
-			Channel, 
-			ExpressionInput.OutputExpressions
-		);
-		
-		ExpressionInput.OutputChannel = Channel.OutputChannel;
-		
-		if (ExpressionInput.IsValid())
-		{
-			break;
-		}
-		else
-		{
-			ExpressionInput = {};
-		}
+		return ExpressionInput;
 	}
- 
+
+	UDMMaterialStageInputThroughput* InputThroughput = Cast<UDMMaterialStageInputThroughput>(StageInputB);
+
+	if (!InputThroughput)
+	{
+		return ExpressionInput;
+	}
+
+	UDMMaterialStageThroughput* Throughput = InputThroughput->GetMaterialStageThroughput();
+
+	if (!Throughput)
+	{
+		return ExpressionInput;
+	}
+
+	const TArray<FDMMaterialStageConnection>& InputConnections = Stage->GetInputConnectionMap();
+
+	if (!InputConnections.IsValidIndex(InputB) || InputConnections[InputB].Channels.Num() != 1)
+	{
+		return ExpressionInput;
+	}
+
+	FDMMaterialStageConnectorChannel Channel = InputConnections[InputB].Channels[0];
+
+	ExpressionInput.OutputIndex = ResolveLayerMaskTextureUVLinkInputImpl(
+		InBuildState,
+		StageInputB,
+		Channel,
+		ExpressionInput.OutputExpressions
+	);
+
+	ExpressionInput.OutputChannel = Channel.OutputChannel;
+
 	return ExpressionInput;
 }
  

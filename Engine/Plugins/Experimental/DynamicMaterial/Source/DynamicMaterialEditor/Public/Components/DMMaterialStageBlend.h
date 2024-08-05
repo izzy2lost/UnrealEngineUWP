@@ -54,7 +54,7 @@ public:
 
 	//~ Begin UDMMaterialStageSource
 	DYNAMICMATERIALEDITOR_API virtual FText GetStageDescription() const override;
-	virtual bool SupportsLayerMaskTextureUVLink() const override { return true; }
+	DYNAMICMATERIALEDITOR_API virtual bool SupportsLayerMaskTextureUVLink() const override;
 	DYNAMICMATERIALEDITOR_API virtual FDMExpressionInput GetLayerMaskLinkTextureUVInputExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	DYNAMICMATERIALEDITOR_API virtual void GetMaskAlphaBlendNode(const TSharedRef<FDMMaterialBuildState>& InBuildState, 
 		UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const override;

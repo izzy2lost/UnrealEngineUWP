@@ -17,6 +17,7 @@
 #include "Styling/StyleColors.h"
 #include "UI/DragDrop/DMSlotLayerDragDropOperation.h"
 #include "UI/Utils/DMWidgetStatics.h"
+#include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerEffectView.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
@@ -738,6 +739,29 @@ FReply SDMMaterialSlotLayerItem::OnLayerLinkToggleButton()
 		FDMScopedUITransaction Transaction(LOCTEXT("UVLayerLinkToggle", "Toggle Layer UV Link"));
 		Layer->Modify();
 		Layer->ToggleTextureUVLinkEnabled();
+
+		if (MaskStageWidget.IsValid())
+		{
+			if (UDMMaterialStage* MaskStage = MaskStageWidget->GetStage())
+			{
+				if (TSharedPtr<SDMMaterialSlotLayerView> LayerView = GetSlotLayerView())
+				{
+					if (TSharedPtr<SDMMaterialSlotEditor> SlotEditor = LayerView->GetSlotEditorWidget())
+					{
+						if (TSharedPtr<SDMMaterialEditor> EditorWidget = SlotEditor->GetEditorWidget())
+						{
+							if (TSharedPtr<SDMMaterialComponentEditor> ComponentEditor = EditorWidget->GetComponentEditorWidget())
+							{
+								if (ComponentEditor->GetObject() == MaskStage)
+								{
+									EditorWidget->EditComponent(MaskStage, /* Force Refresh */ true);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return FReply::Handled();
