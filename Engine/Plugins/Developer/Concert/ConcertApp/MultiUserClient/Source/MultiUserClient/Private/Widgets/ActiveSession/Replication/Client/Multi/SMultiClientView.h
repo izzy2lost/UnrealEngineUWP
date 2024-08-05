@@ -4,9 +4,9 @@
 
 #include "Replication/Editor/Model/ObjectSource/IObjectSourceModel.h"
 #include "Replication/Editor/UnrealEditor/HideObjectsNotInWorldLogic.h"
+#include "Selection/SelectionModelFwd.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/ActiveSession/Replication/Client/PropertySelection/RootPropertySourceModel.h"
 
 namespace UE::MultiUserClient::Replication
 {
@@ -31,7 +31,6 @@ namespace UE::MultiUserClient::Replication
 	class FMultiUserReplicationManager;
 	class FOnlineClient;
 	class FOnlineClientManager;
-	class IClientSelectionModel;
 	class SPropertySelectionComboButton;
 
 	/** Displays a selection of clients. */
@@ -45,7 +44,7 @@ namespace UE::MultiUserClient::Replication
 			const FArguments& InArgs,
 			TSharedRef<IConcertClient> InConcertClient,
 			FMultiUserReplicationManager& InMultiUserReplicationManager UE_LIFETIMEBOUND,
-			IClientSelectionModel& InDisplayClientsModel UE_LIFETIMEBOUND
+			IOnlineClientSelectionModel& InOnlineClientSelectionModel UE_LIFETIMEBOUND
 			);
 		virtual ~SMultiClientView() override;
 
@@ -54,7 +53,7 @@ namespace UE::MultiUserClient::Replication
 		TSharedPtr<IConcertClient> ConcertClient;
 		FOnlineClientManager* ClientManager = nullptr;
 		FUserPropertySelector* UserSelectedProperties = nullptr;
-		IClientSelectionModel* SelectionModel = nullptr;
+		IOnlineClientSelectionModel* OnlineClientSelectionModel = nullptr;
 		
 		/** Combines the clients */
 		TSharedPtr<FMultiStreamModel> StreamModel;

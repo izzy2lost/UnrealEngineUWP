@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "RootPropertySourceModel.h"
 #include "Model/Item/SourceModelBuilders.h"
 #include "SelectionDelegates.h"
 
@@ -14,7 +15,6 @@ namespace UE::ConcertSharedSlate { struct FObjectGroup; }
 
 namespace UE::MultiUserClient::Replication
 {
-	class FRootPropertySourceModel;
 	class FUserPropertySelector;
 	struct FUserSelectableProperty;
 	

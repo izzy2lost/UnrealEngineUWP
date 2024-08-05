@@ -2,14 +2,15 @@
 
 #pragma once
 
-#include "IClientSelectionModel.h"
+#include "ISelectionModel.h"
+#include "SelectionModelFwd.h"
 
 namespace UE::MultiUserClient::Replication
 {
 	class FOnlineClientManager;
 	
 	/** Exposes all clients and detects when clients disconnect. */
-	class FAllClientsSelectionModel : public IClientSelectionModel
+	class FAllClientsSelectionModel : public IOnlineClientSelectionModel
 	{
 	public:
 		
@@ -17,7 +18,7 @@ namespace UE::MultiUserClient::Replication
 		virtual ~FAllClientsSelectionModel() override;
 
 		//~ Begin IClientSelectionModel Interface
-		virtual void ForEachSelectedClient(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const override;
+		virtual void ForEachItem(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const override;
 		virtual FOnSelectionChanged& OnSelectionChanged() override { return OnSelectionChangedDelegate; }
 		//~ End IClientSelectionModel Interface
 

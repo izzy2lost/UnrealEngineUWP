@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "AllClientsSelectionModel.h"
+#include "Selection/AllClientsSelectionModel.h"
 
 #include "HAL/Platform.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"

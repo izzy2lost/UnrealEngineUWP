@@ -17,7 +17,7 @@ namespace UE::MultiUserClient::Replication
 		ClientManager.OnRemoteClientsChanged().RemoveAll(this);
 	}
 
-	void FAllClientsSelectionModel::ForEachSelectedClient(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const
+	void FAllClientsSelectionModel::ForEachItem(TFunctionRef<EBreakBehavior(FOnlineClient&)> ProcessClient) const
 	{
 		ClientManager.ForEachClient(ProcessClient);
 	}

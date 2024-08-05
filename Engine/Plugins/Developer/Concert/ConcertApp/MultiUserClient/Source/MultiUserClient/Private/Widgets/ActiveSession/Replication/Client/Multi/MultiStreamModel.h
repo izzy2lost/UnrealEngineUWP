@@ -5,6 +5,8 @@
 #include "Containers/Set.h"
 #include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Selection/SelectionModelFwd.h"
+
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
@@ -14,14 +16,13 @@ namespace UE::MultiUserClient::Replication
 {
 	class FOnlineClient;
 	class FOnlineClientManager;
-	class IClientSelectionModel;
 
 	/** Checks whether clients accept remote changes and categorizes them into read-only and writable. */
 	class FMultiStreamModel : public ConcertSharedSlate::IEditableMultiReplicationStreamModel
 	{
 	public:
 		
-		FMultiStreamModel(IClientSelectionModel& InClientSelectionModel, FOnlineClientManager& InClientManager);
+		FMultiStreamModel(IOnlineClientSelectionModel& InOnlineClientSelectionModel, FOnlineClientManager& InClientManager);
 		
 		const TSet<const FOnlineClient*>& GetCachedReadOnlyClients() const { return CachedReadOnlyClients; }
 		const TSet<const FOnlineClient*>& GetCachedWritableClients() const { return CachedWritableClients; }
@@ -36,9 +37,9 @@ namespace UE::MultiUserClient::Replication
 
 	private:
 		
-		/** Gets all clients to display and informs when they change. */
-		IClientSelectionModel& ClientSelectionModel;
-		/** Used to obtain a list of clients for unsubscribing */
+		/** Gets all online clients that are supposed to be displayed. */
+		IOnlineClientSelectionModel& OnlineClientSelectionModel;
+		/** Used to obtain a list of clients for unsubscribing. */
 		FOnlineClientManager& ClientManager;
 
 		TSet<const FOnlineClient*> CachedReadOnlyClients;

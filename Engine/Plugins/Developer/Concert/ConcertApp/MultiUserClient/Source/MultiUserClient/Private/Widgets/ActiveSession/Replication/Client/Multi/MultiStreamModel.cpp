@@ -2,18 +2,18 @@
 
 #include "MultiStreamModel.h"
 
-#include "IClientSelectionModel.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Selection/ISelectionModel.h"
 
 namespace UE::MultiUserClient::Replication
 {
-	FMultiStreamModel::FMultiStreamModel(IClientSelectionModel& InClientSelectionModel, FOnlineClientManager& InClientManager)
-		: ClientSelectionModel(InClientSelectionModel)
+	FMultiStreamModel::FMultiStreamModel(IOnlineClientSelectionModel& InOnlineClientSelectionModel, FOnlineClientManager& InClientManager)
+		: OnlineClientSelectionModel(InOnlineClientSelectionModel)
 		, ClientManager(InClientManager)
 	{
-		ClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildStreamsSets);
+		OnlineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildStreamsSets);
 		RebuildStreamsSets();
 	}
 
@@ -58,35 +58,28 @@ namespace UE::MultiUserClient::Replication
 			return EBreakBehavior::Continue;
 		});
 		
-		TSet<const FOnlineClient*> ReadOnlyClients;
-		TSet<const FOnlineClient*> WritableClients;
-		ClientSelectionModel.ForEachSelectedClient([this, &ReadOnlyClients, &WritableClients](FOnlineClient& Client)
+		TSet<const FOnlineClient*> ReadOnlyStreams;
+		TSet<const FOnlineClient*> WritableStreams;
+		OnlineClientSelectionModel.ForEachItem([this, &ReadOnlyStreams, &WritableStreams](FOnlineClient& Client)
 		{
 			const bool bIsUploadable = CanEverSubmit(Client.GetSubmissionWorkflow().GetUploadability());
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
 			Client.OnModelChanged().AddRaw(this, &FMultiStreamModel::OnStreamExternallyChanged, Stream.ToWeakPtr());
 			
-			if (bIsUploadable)
-			{
-				WritableClients.Add(&Client);
-			}
-			else
-			{
-				ReadOnlyClients.Add(&Client);
-			}
-			
+			TSet<const FOnlineClient*>& StreamToAddTo = Client.AllowsEditing() ? WritableStreams : ReadOnlyStreams;
+			StreamToAddTo.Add(&Client);
 			return EBreakBehavior::Continue;
 		});
 
-		const bool bReadOnlyStayedSame = CachedReadOnlyClients.Num() == ReadOnlyClients.Num() && CachedReadOnlyClients.Includes(ReadOnlyClients);
+		const bool bReadOnlyStayedSame = CachedReadOnlyClients.Num() == ReadOnlyStreams.Num() && CachedReadOnlyClients.Includes(ReadOnlyStreams);
 		if (!bReadOnlyStayedSame)
 		{
-			CachedReadOnlyClients = MoveTemp(ReadOnlyClients);
+			CachedReadOnlyClients = MoveTemp(ReadOnlyStreams);
 		}
-		const bool bWritableStayedSame = CachedWritableClients.Num() == WritableClients.Num() && CachedWritableClients.Includes(WritableClients);
+		const bool bWritableStayedSame = CachedWritableClients.Num() == WritableStreams.Num() && CachedWritableClients.Includes(WritableStreams);
 		if (!bWritableStayedSame)
 		{
-			CachedWritableClients = MoveTemp(WritableClients);
+			CachedWritableClients = MoveTemp(WritableStreams);
 		}
 
 		if (!bReadOnlyStayedSame || !bWritableStayedSame)

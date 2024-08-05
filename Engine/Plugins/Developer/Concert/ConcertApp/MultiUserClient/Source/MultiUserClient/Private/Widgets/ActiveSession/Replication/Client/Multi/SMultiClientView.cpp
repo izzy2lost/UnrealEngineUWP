@@ -2,7 +2,7 @@
 
 #include "SMultiClientView.h"
 
-#include "IClientSelectionModel.h"
+#include "Selection/ISelectionModel.h"
 #include "MultiStreamModel.h"
 #include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/MultiUserReplicationManager.h"
@@ -34,17 +34,17 @@ namespace UE::MultiUserClient::Replication
 		const FArguments&,
 		TSharedRef<IConcertClient> InConcertClient,
 		FMultiUserReplicationManager& InMultiUserReplicationManager,
-		IClientSelectionModel& InDisplayClientsModel
+		IOnlineClientSelectionModel& InOnlineClientSelectionModel
 		)
 	{
 		ClientManager = InMultiUserReplicationManager.GetClientManager();
 		UserSelectedProperties = InMultiUserReplicationManager.GetUserPropertySelector();
-		StreamModel = MakeShared<FMultiStreamModel>(InDisplayClientsModel, *ClientManager);
-		SelectionModel = &InDisplayClientsModel;
+		StreamModel = MakeShared<FMultiStreamModel>(InOnlineClientSelectionModel, *ClientManager);
+		OnlineClientSelectionModel = &InOnlineClientSelectionModel;
 		ConcertClient = MoveTemp(InConcertClient);
 		
 		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
-		SelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
+		OnlineClientSelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		UserSelectedProperties->OnPropertySelectionChanged().AddRaw(this, &SMultiClientView::RefreshUI);
 
 		TSharedPtr<SVerticalBox> Content;
@@ -196,7 +196,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		CleanClientSubscriptions();
 
-		SelectionModel->ForEachSelectedClient([this](FOnlineClient& Client)
+		OnlineClientSelectionModel->ForEachItem([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().AddSP(this, &SMultiClientView::RefreshUI);
 			Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);

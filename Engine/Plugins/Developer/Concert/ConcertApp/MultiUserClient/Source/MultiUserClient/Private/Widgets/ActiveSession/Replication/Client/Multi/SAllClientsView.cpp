@@ -2,12 +2,12 @@
 
 #include "SAllClientsView.h"
 
-#include "AllClientsSelectionModel.h"
+#include "Selection/AllClientsSelectionModel.h"
+#include "Replication/MultiUserReplicationManager.h"
 #include "SMultiClientView.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 
 #include "Algo/Transform.h"
-#include "Replication/MultiUserReplicationManager.h"
 
 namespace UE::MultiUserClient::Replication
 {
