@@ -112,7 +112,7 @@ export const ErrorPane: React.FC<{ jobDetails: JobDetails; stepId: string; showE
          return <div>???</div>;
       }
 
-      const url = `/log/${item.logId}?lineindex=${item.lineIndex}`;
+      const url = `/log/${item.logId}?lineIndex=${item.lineIndex + 1}`;
 
       const lines = item.lines.filter(line => line.message?.trim().length).map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link className="log-link" to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 
@@ -206,7 +206,7 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
       const logId = step.logId!;
       const event = item.event!;
 
-      const url = `/log/${logId}?lineindex=${event.lineIndex}`;
+      const url = `/log/${logId}?lineIndex=${event.lineIndex + 1}`;
 
       const lines = event.lines.map(line => <Stack styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "anywhere", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> {renderLine(navigate, line, undefined, {})}</Stack>);
       return (

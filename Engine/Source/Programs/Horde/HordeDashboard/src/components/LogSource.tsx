@@ -291,13 +291,13 @@ export abstract class LogSource {
       return new Promise<LogSource>(async (resolve, reject) => {
 
          let data: GetLogFileResponse | undefined;
-         
+
          try {
             data = await backend.getLogData(logId);
          } catch (reason) {
             reject(reason)
             return;
-         }         
+         }
 
          const value = Number(`0x${data.jobId}`);
 
@@ -317,8 +317,11 @@ export abstract class LogSource {
          }
 
          let line: number | undefined;
-         if (query.get("lineindex")) {
-            line = parseInt(query.get("lineindex")!);
+
+         if (query.get("lineIndex")) {
+            line = parseInt(query.get("lineIndex")!);
+         } else if (query.get("lineindex")) {
+            line = parseInt(query.get("lineindex")!) + 1;
          }
 
          source.startLine = line;
@@ -424,8 +427,7 @@ export class JobLogSource extends LogSource {
       return undefined;
    }
 
-   get agentTelemetry(): AgentTelemetryHandler | undefined 
-   {
+   get agentTelemetry(): AgentTelemetryHandler | undefined {
       return this._agentTelemety;
    }
 
@@ -516,8 +518,8 @@ export class JobLogSource extends LogSource {
       if (this.batch) {
          this.jobName = `Batch-${this.batch.id}`;
       }
-      
-      this.agentTelemetry?.set(this.agentId ?? "", new Date(this.startTime as any), this.step?.finishTime ? new Date(this.step.finishTime) : undefined);      
+
+      this.agentTelemetry?.set(this.agentId ?? "", new Date(this.startTime as any), this.step?.finishTime ? new Date(this.step.finishTime) : undefined);
 
    }
 
@@ -607,7 +609,7 @@ export class JobLogSource extends LogSource {
    agentId?: string;
    batch?: BatchData;
    step?: StepData;
-   
+
    artifactsV2?: GetArtifactResponse[];
 
    _agentTelemety: AgentTelemetryHandler = new AgentTelemetryHandler();
@@ -660,7 +662,7 @@ class LeaseLogSource extends LogSource {
                      name: "Missing Agent"
                   } as any;
                }
-               
+
 
                this.leaseUpdated();
                this.initComplete();

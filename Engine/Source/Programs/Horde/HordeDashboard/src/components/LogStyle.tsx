@@ -84,7 +84,7 @@ export const getLogStyles = () => {
          }
       },
       errorButtonDisabled: {         
-         color: dashboard.darktheme ? "#909398" : undefined,
+         color: dashboard.darktheme ? "#909398" : "#616E85 !important",
          backgroundColor: dashboard.darktheme ? "#1F2223" : "#f3f2f1"
       },
       warningButton: {

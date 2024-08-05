@@ -1430,7 +1430,7 @@ export const ErrorPane: React.FC<{ events?: GetLogEventResponse[]; onClose?: () 
          return <div>???</div>;
       }
 
-      const url = `/log/${item.logId}?lineindex=${item.lineIndex}`;
+      const url = `/log/${item.logId}?lineIndex=${item.lineIndex + 1}`;
 
       const lines = item.lines.filter(line => line.message?.trim().length).map(line => <Stack key={`errorpane_line_${item.lineIndex}_${lineKey++}`} styles={{ root: { paddingLeft: 8, paddingRight: 8, lineBreak: "normal", whiteSpace: "pre-wrap", lineHeight: 18, fontSize: 10, fontFamily: "Horde Cousine Regular, monospace, monospace" } }}> <Link style={{ color: modeColors.text }} to={url}>{renderLine(navigate, line, undefined, {})}</Link></Stack>);
 
@@ -1539,7 +1539,7 @@ const StepPanel: React.FC<{ streamId: string, hstep: GetIssueStepResponse }> = o
 
       let viewLogURL = `/log/${hstep.logId}`;
       if (logEvents?.length) {
-         viewLogURL += `?lineindex=${logEvents[0].lineIndex}`;
+         viewLogURL += `?lineIndex=${logEvents[0].lineIndex + 1}`;
       }
 
       return <div style={{ paddingTop: 8, height: "100%" }}>
