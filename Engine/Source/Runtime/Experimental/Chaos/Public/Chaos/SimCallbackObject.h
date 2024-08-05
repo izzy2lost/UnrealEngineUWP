@@ -185,9 +185,15 @@ public:
 		return Solver; 
 	}
 
-	// Rewind API
+	UE_DEPRECATED(5.5, "This callback was never called. Instead look at either ISimCallbackObject::ProcessInputs_External or FNetworkPhysicsCallback::InjectInputsExternal.")
 	virtual void InjectInputs_External(int32 PhysicsStep, int32 NumSteps) {}
+
+	/** Called before any sim callbacks are triggered but after async inputs has marshaled over
+	* Register with ESimCallbackOptions::Rewind to get callback */
 	virtual void ProcessInputs_Internal(int32 PhysicsStep) {}
+
+	/** Called before async inputs are marshaled over to the physics thread, only called if an async input is produced to get marshaled 
+	* Register with ESimCallbackOptions::Rewind to get callback */
 	virtual void ProcessInputs_External(int32 PhysicsStep) {}
 	
 	virtual int32 TriggerRewindIfNeeded_Internal(int32 LastCompletedStep)
@@ -570,6 +576,15 @@ public:
 		TOutputType* Output = CurrentOutput_External;
 		CurrentOutput_External = nullptr;
 		return TSimCallbackOutputHandle<TOutputType>(Output, this);
+	}
+
+	/**
+	* Check if the output queue is empty of data
+	* Can be used while iterating the queue through PopOutputData_External and PopFutureOutputData_External to check if the current data is the last data.
+	*/
+	bool IsOutputQueueEmpty_External()
+	{
+		return OutputQueue.IsEmpty();
 	}
 
 	/**

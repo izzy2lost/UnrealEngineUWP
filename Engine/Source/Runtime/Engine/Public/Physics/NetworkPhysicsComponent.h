@@ -463,9 +463,7 @@ struct TStructOpsTypeTraits<FNetworkPhysicsRewindDataImportantStateProxy> : publ
 struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 {
 	FNetworkPhysicsCallback(UWorld* InWorld) : World(InWorld) 
-	{
-		UpdateNetMode();
-	}
+	{ }
 
 	// Delegate on the internal inputs process
 	FOnPreProcessInputsInternal PreProcessInputsInternal;
@@ -477,7 +475,6 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 	virtual void InjectInputs_External(int32 PhysicsStep, int32 NumSteps) override;
 	virtual void ProcessInputs_External(int32 PhysicsStep, const TArray<Chaos::FSimCallbackInputAndObject>& SimCallbackInputs);
 	virtual void ProcessInputs_Internal(int32 PhysicsStep, const TArray<Chaos::FSimCallbackInputAndObject>& SimCallbackInputs) override;
-	virtual void ApplyCallbacks_Internal(int32 PhysicsStep, const TArray<Chaos::ISimCallbackObject*>& SimCallbackObjects) override;
 	virtual void PreResimStep_Internal(int32 PhysicsStep, bool bFirst) override;
 	virtual void PostResimStep_Internal(int32 PhysicsStep) override;
 	virtual int32 TriggerRewindIfNeeded_Internal(int32 LatestStepCompleted) override;
@@ -502,17 +499,8 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 	UE_DEPRECATED(5.4, "Physics frame offset is handled by the PlayerController automatically, it's recommended to use APlayerController::GetAsyncPhysicsTimestamp() to get the ServerFrame and LocalFrame on both client and server. Also disable the deprecated flow by setting p.net.CmdOffsetEnabled = 0")
 	void UpdateServerPlayer_External(int32 PhysicsStep);
 
-	// Cache the current netmode for use in PT
-	void UpdateNetMode()
-	{
-		NetMode = World ? World->GetNetMode() : ENetMode::NM_Client;
-	}
-
 	// World owning that callback
 	UWorld* World = nullptr;
-
-	// Current NetMode
-	ENetMode NetMode;
 
 	// List of rewindable sim callback objects
 	TArray<Chaos::ISimCallbackObject*> RewindableCallbackObjects;

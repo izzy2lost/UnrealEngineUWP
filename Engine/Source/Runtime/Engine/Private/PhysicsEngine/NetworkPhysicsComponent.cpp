@@ -176,22 +176,6 @@ bool FNetworkPhysicsRewindDataImportantStateProxy::NetSerialize(FArchive& Ar, cl
 
 // --------------------------- Network Physics Callback ---------------------------
 
-/** After physics has solved and output is created
-* NOTE: GameThread is frozen during this callback */
-void FNetworkPhysicsCallback::ApplyCallbacks_Internal(int32 PhysicsStep, const TArray<Chaos::ISimCallbackObject*>& SimCallbackObjects)
-{
-	QUICK_SCOPE_CYCLE_COUNTER(NetworkPhysicsComponent_ApplyCallbacks_Internal);
-	UpdateNetMode();
-
-	if ((NetMode == NM_ListenServer) || (NetMode == NM_DedicatedServer))
-	{
-		if (FPhysScene_Chaos* Scene = static_cast<FPhysScene_Chaos*>(World->GetPhysicsScene()))
-		{
-			Scene->PopulateReplicationCache(PhysicsStep);
-		}
-	}
-}
-
 // Before PreSimulate_Internal
 void FNetworkPhysicsCallback::ProcessInputs_Internal(int32 PhysicsStep, const TArray<Chaos::FSimCallbackInputAndObject>& SimCallbacks)
 {
@@ -230,11 +214,8 @@ int32 FNetworkPhysicsCallback::TriggerRewindIfNeeded_Internal(int32 LatestStepCo
 
 	if (RewindData)
 	{
-		if (NetMode == NM_Client)
-		{
-			const int32 ReplicationFrame = RewindData->GetResimFrame();
-			ResimFrame = (ResimFrame == INDEX_NONE) ? ReplicationFrame : (ReplicationFrame == INDEX_NONE) ? ResimFrame : FMath::Min(ReplicationFrame, ResimFrame);
-		}
+		const int32 ReplicationFrame = RewindData->GetResimFrame();
+		ResimFrame = (ResimFrame == INDEX_NONE) ? ReplicationFrame : (ReplicationFrame == INDEX_NONE) ? ResimFrame : FMath::Min(ReplicationFrame, ResimFrame);
 
 		if (ResimFrame != INDEX_NONE)
 		{
@@ -359,7 +340,7 @@ void FNetworkPhysicsCallback::ProcessInputs_External(int32 PhysicsStep, const TA
 	if (InputCmdCVars::bCmdOffsetEnabled)
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (NetMode == NM_Client)
+		if (World && World->GetNetMode() == NM_Client)
 		{
 			UpdateClientPlayer_External(PhysicsStep);
 		}

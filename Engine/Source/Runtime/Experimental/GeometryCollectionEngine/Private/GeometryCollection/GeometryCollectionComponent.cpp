@@ -2332,10 +2332,8 @@ void UGeometryCollectionComponent::UpdateRepData()
 
 		if (LocalRepData.HasChanged(RepData))
 		{
-			if (Owner->GetWorld() && Owner->GetWorld()->GetPhysicsScene())
-			{
-				LocalRepData.ServerFrame = Owner->GetWorld()->GetPhysicsScene()->ReplicationCache.ServerFrame;
-			}
+			LocalRepData.ServerFrame = Solver->GetMarshallingManager().GetInternalStep_External();
+
 			INC_DWORD_STAT_BY(STAT_GCReplicatedClusters, LocalRepData.Clusters.Num());
 
 			FlushNetDormancyIfNeeded();
