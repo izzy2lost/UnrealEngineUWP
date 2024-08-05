@@ -46,6 +46,8 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_PropertyList();
 
+	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
+
 	TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty);
 
 	bool IsPropertyEnabled(EDMMaterialPropertyType InMaterialProperty) const;
@@ -54,12 +56,14 @@ protected:
 
 	bool DoesPropertySlotExist(EDMMaterialPropertyType InMaterialProperty) const;
 
+	bool GetPropertyEnabledEnabled(EDMMaterialPropertyType InMaterialProperty) const;
+	ECheckBoxState GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const;
+	void OnPropertyEnabledStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
+
 	bool GetPropertySelectEnabled(EDMMaterialPropertyType InMaterialProperty) const;
 	ECheckBoxState GetPropertySelectState(EDMMaterialPropertyType InMaterialProperty) const;
 	void OnPropertySelectStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
 	FSlateColor GetPropertySelectButtonChipColor(EDMMaterialPropertyType InMaterialProperty) const;
-
-	FReply OnPropertySelectMouseDown(const FGeometry& InGeometry, const FPointerEvent& InEvent, EDMMaterialPropertyType InMaterialProperty);
 
 	void OnSelectedPropertyChanged();
 };
