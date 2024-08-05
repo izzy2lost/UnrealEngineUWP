@@ -2382,6 +2382,16 @@ bool UMaterialExpression::IsUsingNewHLSLGenerator() const
 	return false;
 }
 
+bool UMaterialExpression::ForceSubstrateExpressionRecompile(FMaterialCompiler* Compiler, int32 OutputIndex)
+{	
+	//Currently this is only needed for FM compilation for Static Bool resolutions, legacy compilation is unaffected.
+	if(Compiler->GetMaterialAttribute() == FMaterialAttributeDefinitionMap::GetID(MP_FrontMaterial))
+	{
+		return GetOutputType(OutputIndex) == MCT_StaticBool;
+	}
+	return false;
+}
+
 FSubstrateOperator* UMaterialExpression::SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex)
 {
 	Compiler->Errorf(TEXT("Missing SubstrateGenerateMaterialTopologyTree implementation for node %s."), *GetClass()->GetName());
@@ -19673,7 +19683,12 @@ FSubstrateOperator* UMaterialExpressionMaterialFunctionCall::SubstrateGenerateMa
 	if (OutputIndex >= 0 && OutputIndex < FunctionOutputs.Num() && FunctionOutputs[OutputIndex].ExpressionOutput)
 	{
 		this->LinkFunctionIntoCaller(nullptr);
+		FMaterialFunctionCompileState LocalState(this);
+		Compiler->PushFunction(SharedCompileState ? SharedCompileState : &LocalState);
+
 		FSubstrateOperator* ResultingOperator = FunctionOutputs[OutputIndex].ExpressionOutput->SubstrateGenerateMaterialTopologyTree(Compiler, Parent, 0);
+
+		Compiler->PopFunction();
 		this->UnlinkFunctionFromCaller(nullptr);
 		return ResultingOperator;
 	}
