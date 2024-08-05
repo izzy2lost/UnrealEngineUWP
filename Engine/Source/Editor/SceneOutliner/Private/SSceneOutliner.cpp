@@ -937,6 +937,11 @@ FSceneOutlinerTreeItemPtr SSceneOutliner::GetTreeItem(FSceneOutlinerTreeItemID I
 	return Result;
 }
 
+void SSceneOutliner::SetNextUIRefreshDelay(float InDelay)
+{
+	UIRefreshDelay = InDelay;
+}
+
 void SSceneOutliner::RemoveItemFromTree(FSceneOutlinerTreeItemRef ReferenceItem)
 {
 	if (const FSceneOutlinerTreeItemPtr* ItemInTree = TreeItemMap.Find(ReferenceItem->GetID()))
@@ -2366,8 +2371,22 @@ void SSceneOutliner::Tick(const FGeometry& AllottedGeometry, const double InCurr
 			Pair.Value->Flags.bChildrenRequireSort = true;
 		}
 
-		OutlinerTreeView->RequestTreeRefresh();
+		bNeedsUIRefresh = true;
 		bSortDirty = false;
+	}
+
+	// If we are pending a UI refresh
+	if(bNeedsUIRefresh)
+	{
+		UIRefreshDelay -= InDeltaTime;
+
+		// if we are currently pending a sort, don't refresh until that is completed
+		if(UIRefreshDelay <= 0.0f && !bSortDirty)
+		{
+			OutlinerTreeView->RequestTreeRefresh();
+			bNeedsUIRefresh = false;
+			UIRefreshDelay = 0.0f;
+		}
 	}
 
 	if (SortOutlinerTimer <= 0)

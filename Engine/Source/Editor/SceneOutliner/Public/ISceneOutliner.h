@@ -188,6 +188,10 @@ public:
 
 	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
 	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) = 0;
+
+	/** Set a delay (in seconds) before the the next requested UI refresh executes. Note: This only applies until the next refresh that executes
+	 * and any subsequent ones will be immediate. */
+	virtual void SetNextUIRefreshDelay(float InDelay) = 0;
 protected:
 	ISceneOutlinerMode* Mode;
 };

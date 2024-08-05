@@ -28,6 +28,7 @@ public:
 	// ~IPCGEditorModule implementation
 	virtual TWeakPtr<IPCGEditorProgressNotification> CreateProgressNotification(const FTextFormat& TextFormat, bool bCanCancel) override;
 	virtual void ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNotification> InNotification) override;
+	virtual void SetOutlinerUIRefreshDelay(float InDelay) override;
 	// ~End IPCGEditorModule implementation
 
 protected:

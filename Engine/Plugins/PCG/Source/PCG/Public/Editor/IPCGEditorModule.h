@@ -12,4 +12,5 @@ class IPCGEditorModule : public IModuleInterface
 public:
 	virtual TWeakPtr<IPCGEditorProgressNotification> CreateProgressNotification(const FTextFormat& TextFormat, bool bCanCancel) = 0;
 	virtual void ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNotification> InNotification) = 0;
+	virtual void SetOutlinerUIRefreshDelay(float InDelay) = 0;
 };

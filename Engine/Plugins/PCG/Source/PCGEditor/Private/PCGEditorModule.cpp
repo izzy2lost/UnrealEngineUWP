@@ -44,6 +44,7 @@
 #include "Details/PCGVolumeDetails.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "LevelEditor.h"
+#include "Editor/SceneOutliner/Public/ISceneOutliner.h"
 #include "Framework/Notifications/NotificationManager.h"
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
@@ -171,6 +172,23 @@ void FPCGEditorModule::ReleaseProgressNotification(TWeakPtr<IPCGEditorProgressNo
 		if (TSharedPtr<IPCGEditorProgressNotification> SharedPtr = InNotification.Pin(); ActiveNotifications.Contains(SharedPtr))
 		{
 			ActiveNotifications.Remove(SharedPtr);
+		}
+	}
+}
+
+void FPCGEditorModule::SetOutlinerUIRefreshDelay(float InDelay)
+{
+	TWeakPtr<class ILevelEditor> LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor")).GetLevelEditorInstance();
+	if (LevelEditor.IsValid())
+	{
+		TArray<TWeakPtr<class ISceneOutliner>> SceneOutlinerPtrs = LevelEditor.Pin()->GetAllSceneOutliners();
+
+		for (TWeakPtr<class ISceneOutliner> SceneOutlinerPtr : SceneOutlinerPtrs)
+		{
+			if (TSharedPtr<class ISceneOutliner> SceneOutlinerPin = SceneOutlinerPtr.Pin())
+			{
+				SceneOutlinerPin->SetNextUIRefreshDelay(InDelay);
+			}
 		}
 	}
 }

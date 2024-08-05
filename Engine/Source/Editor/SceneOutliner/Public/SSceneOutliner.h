@@ -410,6 +410,11 @@ public:
 
 	/** Retrieve an ISceneOutlinerTreeItem by its ID if it exists in the tree */
 	virtual FSceneOutlinerTreeItemPtr GetTreeItem(FSceneOutlinerTreeItemID, bool bIncludePending = false) override;
+	
+	/** Set a delay (in seconds) before the the next requested UI refresh executes. Note: This only applies until the next refresh that executes
+	 * and any subsequent ones will be immediate. */
+	virtual void SetNextUIRefreshDelay(float InDelay) override;
+
 public:
 	/** Event to react to a user double click on a item */
 	SceneOutliner::FTreeItemPtrEvent& GetDoubleClickEvent() { return OnDoubleClickOnTreeEvent; }
@@ -955,6 +960,12 @@ private:
 
 	/** Reentrancy guard */
 	bool bIsReentrant;
+
+	/** The delay (in seconds) before a UI refresh is executed after being requested. 0 means the next refresh will be immediate */
+	float UIRefreshDelay = 0.0f;
+
+	/** If true, the TreeView UI is pending a refresh */
+	bool bNeedsUIRefresh = false;
 
 	/* Widget containing the filtering text box */
 	TSharedPtr< SFilterSearchBox > FilterTextBoxWidget;

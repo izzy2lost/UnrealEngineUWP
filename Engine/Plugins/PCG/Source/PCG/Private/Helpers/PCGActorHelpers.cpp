@@ -19,11 +19,26 @@
 #if WITH_EDITOR
 #include "Editor.h"
 #include "Engine/Level.h"
+#include "Editor/IPCGEditorModule.h"
+#include "Modules/ModuleManager.h"
 #include "ScopedTransaction.h"
 #include "Subsystems/ActorEditorContextSubsystem.h"
 #include "WorldPartition/DataLayer/DataLayerInstance.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerAsset.h"
 #include "WorldPartition/DataLayer/ExternalDataLayerInstance.h"
+
+namespace UE::PCGActorHelpers::Local
+{
+	static float OutlinerUIRefreshDelay = 1.0f;
+	static FAutoConsoleVariableRef CvarOutlinerUIRefreshDelay
+	(
+		TEXT("PCG.Editor.OutlinerRefreshDelay"),
+		OutlinerUIRefreshDelay,
+		TEXT("The delay (in seconds) before refreshing the Outliner after executing PCG tasks."),
+		ECVF_Default
+	);
+}
+
 #endif
 
 UInstancedStaticMeshComponent* UPCGActorHelpers::GetOrCreateISMC(AActor* InTargetActor, UPCGComponent* InSourceComponent, uint64 SettingsUID, const FPCGISMCBuilderParameters& InParams)
@@ -348,6 +363,12 @@ bool UPCGActorHelpers::DeleteActors(UWorld* World, const TArray<TSoftObjectPtr<A
 #endif
 	{
 #if WITH_EDITOR
+
+		if (IPCGEditorModule* EditorModule = FModuleManager::GetModulePtr<IPCGEditorModule>("PCGEditor"))
+		{
+			EditorModule->SetOutlinerUIRefreshDelay(UE::PCGActorHelpers::Local::OutlinerUIRefreshDelay);
+		}
+
 		// Create TX so that dirty actor packages are tracked
 		// 
 		// Without tracking deleted actor packages will get unloaded on the next GC with no chance to save them first 
@@ -496,6 +517,11 @@ AActor* UPCGActorHelpers::SpawnDefaultActor(const FSpawnDefaultActorParams& Para
 
 	// Specify EDL we want to use if any for spawning this actor
 	FScopedOverrideSpawningLevelMountPointObject EDLScope(ExternalDataLayerInstance ? ExternalDataLayerInstance->GetExternalDataLayerAsset() : nullptr);
+
+	if (IPCGEditorModule* EditorModule = FModuleManager::GetModulePtr<IPCGEditorModule>("PCGEditor"))
+	{
+		EditorModule->SetOutlinerUIRefreshDelay(UE::PCGActorHelpers::Local::OutlinerUIRefreshDelay);
+	}
 #endif
 
 	AActor* NewActor = Params.World->SpawnActor(*Params.ActorClass, &Params.Transform, SpawnParams);
