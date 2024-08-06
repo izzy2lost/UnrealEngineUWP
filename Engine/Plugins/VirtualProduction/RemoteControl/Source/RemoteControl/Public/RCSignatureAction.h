@@ -62,7 +62,7 @@ struct FRCSignatureAction
 	virtual ~FRCSignatureAction() = default;
 
 	/**
-	 * Called only once when the Signature Action is first added to the action list
+	 * Called when the Signature Action is first added to the action list or loaded
 	 * @param InField the owner of the action list
 	 */
 	virtual void Initialize(const FRCSignatureField& InField)

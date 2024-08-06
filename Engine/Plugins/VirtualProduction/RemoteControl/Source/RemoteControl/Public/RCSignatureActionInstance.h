@@ -29,6 +29,8 @@ struct FRCSignatureActionInstance
 
 	REMOTECONTROL_API TSharedRef<FStructOnScope> MakeStructOnScope();
 
+	void PostLoad(const FRCSignatureField& InFieldOwner);
+
 	bool Execute(const FRCSignatureActionContext& InContext) const;
 
 #if WITH_EDITOR

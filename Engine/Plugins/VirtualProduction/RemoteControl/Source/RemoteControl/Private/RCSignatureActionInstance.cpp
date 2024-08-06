@@ -25,6 +25,14 @@ TSharedRef<FStructOnScope> FRCSignatureActionInstance::MakeStructOnScope()
 	return MakeShared<FStructOnScope>(ActionInstance.GetScriptStruct(), ActionInstance.GetMutableMemory());
 }
 
+void FRCSignatureActionInstance::PostLoad(const FRCSignatureField& InFieldOwner)
+{
+	if (FRCSignatureAction* Action = ActionInstance.GetMutablePtr())
+	{
+		return Action->Initialize(InFieldOwner);
+	}
+}
+
 bool FRCSignatureActionInstance::Execute(const FRCSignatureActionContext& InContext) const
 {
 	if (const FRCSignatureAction* Action = ActionInstance.GetPtr())

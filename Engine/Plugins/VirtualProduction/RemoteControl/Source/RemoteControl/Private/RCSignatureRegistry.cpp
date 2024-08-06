@@ -35,4 +35,14 @@ void URCSignatureRegistry::EmptySignatures()
 	Signatures.Empty();
 }
 
+void URCSignatureRegistry::PostLoad()
+{
+	Super::PostLoad();
+
+	for (FRCSignature& Signature : Signatures)
+	{
+		Signature.PostLoad();
+	}
+}
+
 #undef LOCTEXT_NAMESPACE

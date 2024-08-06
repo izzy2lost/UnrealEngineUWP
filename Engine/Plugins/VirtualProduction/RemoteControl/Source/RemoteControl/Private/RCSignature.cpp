@@ -91,6 +91,22 @@ FRCSignatureField FRCSignatureField::CreateField(const FRCFieldPathInfo& InField
 	return Field;
 }
 
+void FRCSignatureField::PostLoad()
+{
+	for (FRCSignatureActionInstance& Action : Actions)
+	{
+		Action.PostLoad(*this);
+	}
+}
+
+void FRCSignature::PostLoad()
+{
+	for (FRCSignatureField& Field : Fields)
+	{
+		Field.PostLoad();
+	}
+}
+
 int32 FRCSignature::AddFields(TConstArrayView<FRCSignatureField> InFields)
 {
 	const int32 PreviousNum = Fields.Num();

@@ -20,6 +20,8 @@ struct FRCSignatureField
 
 	REMOTECONTROL_API static FRCSignatureField CreateField(const FRCFieldPathInfo& InFieldPathInfo, const UObject* InOwnerObject, const FProperty* InProperty);
 
+	void PostLoad();
+
 	bool operator==(const FRCSignatureField& InOtherField) const
 	{
 		return FieldPath == InOtherField.FieldPath
@@ -61,6 +63,8 @@ struct FRCSignature
 	{
 		return Id == InSignatureId;
 	}
+
+	void PostLoad();
 
 	/**
 	 * Adds the given fields to this signature and ensuring no repeated field is present

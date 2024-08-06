@@ -44,6 +44,10 @@ public:
 	/** Removes all the Signature in this registry */
 	REMOTECONTROL_API void EmptySignatures();
 
+	//~ Begin UObject
+	virtual void PostLoad() override;
+	//~ End UObject
+
 private:
 	/** Holds all the Signatures in this Registry */
 	UPROPERTY()
