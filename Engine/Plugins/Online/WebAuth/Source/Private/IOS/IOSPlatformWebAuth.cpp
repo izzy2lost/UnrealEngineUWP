@@ -8,6 +8,7 @@
 
 #import <WebKit/WebKit.h>
 
+#include "IOS/IOSAsyncTask.h"
 #include "IOS/IOSAppDelegate.h"
 
 @interface PresentationContext : NSObject <ASWebAuthenticationPresentationContextProviding>
@@ -31,7 +32,6 @@
 static NSMutableDictionary* MakeSearchDictionary(NSString *EnvironmentName);
 static PresentationContext* PresentationContextProvider = nullptr;
 
-
 // Returns true if the request is made
 bool FIOSWebAuth::AuthSessionWithURL(const FString &UrlStr, const FString &SchemeStr, const FWebAuthSessionCompleteDelegate& Delegate)
 {
@@ -48,27 +48,50 @@ bool FIOSWebAuth::AuthSessionWithURL(const FString &UrlStr, const FString &Schem
 
     bSessionInProgress = true;
     AuthSessionCompleteDelegate = Delegate;
+	FIOSCoreDelegates::OnOpenURL.Remove(OpenUrlHandle);
 
-    id SavedAuthSession = [[ASWebAuthenticationSession alloc] initWithURL:Url callbackURLScheme:Scheme completionHandler:^(NSURL * _Nullable callbackURL, NSError * _Nullable error)
+	ASWebAuthenticationSession* SavedAuthSession = [[ASWebAuthenticationSession alloc] initWithURL:Url callbackURLScheme:Scheme completionHandler:^(NSURL * _Nullable callbackURL, NSError * _Nullable error)
     {
-        // Response received
-        if (callbackURL != nil)
-        {
-            const char *StrCallbackURL = [callbackURL.absoluteString UTF8String];
-            AuthSessionCompleteDelegate.ExecuteIfBound(FString(StrCallbackURL), true);
-        }
-        // Empty response
-        else
-        {
-            AuthSessionCompleteDelegate.ExecuteIfBound(FString(), false);
-        }
-        AuthSessionCompleteDelegate = nullptr;
+		[FIOSAsyncTask CreateTaskWithBlock : ^ bool(void)
+		{
+			FIOSCoreDelegates::OnOpenURL.Remove(OpenUrlHandle);
+			// Response received
+			if (callbackURL != nil)
+			{
+				const char *StrCallbackURL = [callbackURL.absoluteString UTF8String];
+				AuthSessionCompleteDelegate.ExecuteIfBound(UTF8_TO_TCHAR(StrCallbackURL), true);
+			}
+			// Empty response
+			else
+			{
+				AuthSessionCompleteDelegate.ExecuteIfBound(FString(), false);
+			}
+			AuthSessionCompleteDelegate = nullptr;
+			return true;
+		}];
     }];
 
     check(PresentationContextProvider);
-    ((ASWebAuthenticationSession*)SavedAuthSession).presentationContextProvider = PresentationContextProvider;
+    SavedAuthSession.presentationContextProvider = PresentationContextProvider;
 
-    [(ASWebAuthenticationSession*)SavedAuthSession start];
+	OpenUrlHandle = FIOSCoreDelegates::OnOpenURL.AddLambda([this, SchemeStr, SavedAuthSession](UIApplication* application, NSURL* url, NSString* sourceApplication, id annotation)
+	{
+		if (FString(url.scheme) == SchemeStr)
+		{
+			[SavedAuthSession cancel];
+
+			[FIOSAsyncTask CreateTaskWithBlock : ^ bool(void)
+			{
+				FIOSCoreDelegates::OnOpenURL.Remove(OpenUrlHandle);
+				const char* StrCallbackURL = [url.absoluteString UTF8String];
+				AuthSessionCompleteDelegate.ExecuteIfBound(UTF8_TO_TCHAR(StrCallbackURL), true);
+				AuthSessionCompleteDelegate = nullptr;
+				return true;
+			}];
+		}
+	});
+
+	[SavedAuthSession start];
 
 	return bSessionInProgress;
 }
@@ -212,6 +235,7 @@ FIOSWebAuth::FIOSWebAuth()
 
 FIOSWebAuth::~FIOSWebAuth()
 {
+	FIOSCoreDelegates::OnOpenURL.Remove(OpenUrlHandle);
 	if (PresentationContextProvider != nil)
 	{
 		[PresentationContextProvider release];
