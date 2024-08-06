@@ -1817,10 +1817,13 @@ void UNiagaraScript::GenerateDefaultFunctionBindings()
 			for (int32 DataInterfaceIt = 0; DataInterfaceIt < DataInterfaceCount; ++DataInterfaceIt)
 			{
 				const FNiagaraScriptDataInterfaceCompileInfo& ScriptInfo = CachedScriptVM.DataInterfaceInfo[DataInterfaceIt];
-
 				if (ScriptInfo.UserPtrIdx == INDEX_NONE && ScriptInfo.Name == BindingInfo.OwnerName)
 				{
-					ScriptDataInterfaces[DataInterfaceIt]->GetVMExternalFunction(BindingInfo, nullptr, FuncBind);
+					UNiagaraDataInterface* ScriptDataInterface = ScriptDataInterfaces[DataInterfaceIt];
+					if ( ensureMsgf(ScriptDataInterface, TEXT("Script(%s) Data Interface Slot %d is nullptr"), *GetFullNameSafe(this), DataInterfaceIt) )
+					{
+						ScriptDataInterfaces[DataInterfaceIt]->GetVMExternalFunction(BindingInfo, nullptr, FuncBind);
+					}
 				}
 			}
 		}
