@@ -60,6 +60,8 @@ protected:
 	TSharedPtr<SVerticalBox> NotConnectableInputPinBox;
 	/** The area where Param pins and settings pins reside*/
 	TSharedPtr<SVerticalBox> ParametersBox;
+	/** The area where Param pins and settings pins reside for Low detail*/
+	TSharedPtr<SVerticalBox>  LowDetailParametersBox;
 	/** The area where non connectable Param pins and settings pins reside*/
 	TSharedPtr<SVerticalBox> NotConnectableParametersBox;
 	/** The area where node specific settings pins reside alyaws show in advance view */
@@ -102,4 +104,5 @@ private:
 	TArray<FString> GetTitleDetailTextLines() const;
 	FText GetLeftTitleText() const;
 	FText GetRightTitleText() const;
+	bool UseLowDetailParameters() const;
 };
