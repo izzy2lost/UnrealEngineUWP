@@ -2293,6 +2293,11 @@ struct FGameFeaturePluginState_Mounting : public FGameFeaturePluginState
 		// Post-mount
 		if (bComplete)
 		{
+			if (AllowIniLoading())
+			{
+				StateProperties.GameFeatureData->InitializeBasePluginIniFile(StateProperties.PluginInstalledFilename);
+			}
+
 			FGameFeaturePostMountingContext Context(StateProperties.PluginName, [this](FStringView InPauserTag) { OnPostMountPauserCompleted(InPauserTag); });
 			NumExpectedPostMountPausers = INDEX_NONE;
 			UGameFeaturesSubsystem::Get().OnGameFeaturePostMounting(StateProperties.PluginName, StateProperties.PluginIdentifier, Context);
@@ -2729,11 +2734,6 @@ struct FGameFeaturePluginState_Registering : public FGameFeaturePluginState
 		if (StateProperties.GameFeatureData)
 		{
 			check(LoadGFDState == ELoadGFDState::Success);
-
-			if (AllowIniLoading())
-			{
-				StateProperties.GameFeatureData->InitializeBasePluginIniFile(StateProperties.PluginInstalledFilename);
-			}
 
 			StateStatus.SetTransition(EGameFeaturePluginState::Registered);
 
