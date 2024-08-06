@@ -6,7 +6,6 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyBagDetails.h"
 #include "PropertyEditorModule.h"
-#include "Serialization/PropertyLocalizationDataGathering.h"
 #include "StructUtils/InstancedStruct.h"
 #include "StructUtils/InstancedStructContainer.h"
 #include "StructUtils/UserDefinedStruct.h"
@@ -20,36 +19,6 @@
 
 IMPLEMENT_MODULE(FStructUtilsEditorModule, StructUtilsEditor)
 
-namespace UE::StructUtils::Private
-{
-
-void GatherForLocalization(const FString& PathToParent, const UScriptStruct* Struct, const void* StructData, const void* DefaultStructData,
-	                       FPropertyLocalizationDataGatherer& PropertyLocalizationDataGatherer, const EPropertyLocalizationGathererTextFlags GatherTextFlags)
-{
-	const FInstancedStruct* ThisInstance = static_cast<const FInstancedStruct*>(StructData);
-	const FInstancedStruct* DefaultInstance = static_cast<const FInstancedStruct*>(DefaultStructData);
-
-	PropertyLocalizationDataGatherer.GatherLocalizationDataFromStruct(PathToParent, Struct, StructData, DefaultStructData, GatherTextFlags);
-
-	if (const UScriptStruct* StructTypePtr = ThisInstance->GetScriptStruct())
-	{
-		const uint8* DefaultInstanceMemory = nullptr;
-		if (DefaultInstance)
-		{
-			// Types must match
-			if (StructTypePtr == DefaultInstance->GetScriptStruct())
-			{
-				DefaultInstanceMemory = DefaultInstance->GetMemory();
-			}
-		}
-
-		PropertyLocalizationDataGatherer.GatherLocalizationDataFromStructWithCallbacks(PathToParent + TEXT(".StructInstance"), StructTypePtr, ThisInstance->GetMemory(),
-			                                                                           DefaultInstanceMemory, GatherTextFlags);
-	}
-}
-
-} // UE::StructUtils::Private
-
 void FStructUtilsEditorModule::StartupModule()
 {
 	// Register the details customizer
@@ -57,13 +26,6 @@ void FStructUtilsEditorModule::StartupModule()
 	PropertyModule.RegisterCustomPropertyTypeLayout("InstancedStruct", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FInstancedStructDetails::MakeInstance));
 	PropertyModule.RegisterCustomPropertyTypeLayout("InstancedPropertyBag", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPropertyBagDetails::MakeInstance));
 	PropertyModule.NotifyCustomizationModuleChanged();
-
-	// Register for localization
-	{
-		static const FAutoRegisterLocalizationDataGatheringCallback AutomaticRegistrationOfLocalizationGatherer(
-			TBaseStructure<FInstancedStruct>::Get(),
-			&UE::StructUtils::Private::GatherForLocalization);
-	}
 }
 
 void FStructUtilsEditorModule::ShutdownModule()
