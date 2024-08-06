@@ -415,6 +415,7 @@ private:
 
 namespace DiffUtil
 {
+ENGINE_API bool IsGeneratingDiffableObject(const FArchive& Ar);
 
 enum class EGetDiffableObjectMode : uint8
 {

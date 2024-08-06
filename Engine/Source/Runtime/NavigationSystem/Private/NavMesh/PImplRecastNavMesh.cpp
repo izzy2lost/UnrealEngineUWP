@@ -2,6 +2,7 @@
 
 #include "NavMesh/PImplRecastNavMesh.h"
 #include "NavigationSystem.h"
+#include "TransactionCommon.h"
 
 #if WITH_RECAST
 
@@ -512,7 +513,7 @@ void FPImplRecastNavMesh::Serialize( FArchive& Ar, int32 NavMeshVersion )
 	int32 NumTiles = 0;
 	TArray<FNavTileRef> TilesToSave;
 
-	if (Ar.IsSaving() && !Ar.IsTransacting()) // Do not save tiles during transactions(i.e. undo/redo)
+	if (Ar.IsSaving() && !Ar.IsTransacting() && !UE::Transaction::DiffUtil::IsGeneratingDiffableObject(Ar)) // Do not save tiles during transactions (i.e. undo/redo)
 	{
 		TilesToSave.Reserve(DetourNavMesh->getMaxTiles());
 		
