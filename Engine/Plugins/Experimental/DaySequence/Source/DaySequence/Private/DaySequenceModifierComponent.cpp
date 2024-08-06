@@ -129,6 +129,7 @@ namespace UE::DaySequence
 	}
 
 	FVector GVolumePreviewLocation = FVector::ZeroVector;
+	bool bIsSimulating = false;
 
 	float ComputeBoxSignedDistance(const UBoxComponent* BoxComponent, const FVector& InWorldPosition)
 	{
@@ -288,6 +289,11 @@ UDaySequenceModifierComponent::UDaySequenceModifierComponent(const FObjectInitia
 void UDaySequenceModifierComponent::SetVolumePreviewLocation(const FVector& Location)
 {
 	UE::DaySequence::GVolumePreviewLocation = Location;
+}
+
+void UDaySequenceModifierComponent::SetIsSimulating(bool bInIsSimulating)
+{
+	UE::DaySequence::bIsSimulating = bInIsSimulating;
 }
 
 void UDaySequenceModifierComponent::UpdateEditorPreview(float DeltaTime)
@@ -1338,7 +1344,7 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 	CSV_SCOPED_TIMING_STAT(DaySequence, GetBlendPosition);
 	
 #if WITH_EDITOR
-	if (const UWorld* World = GetWorld(); World && !World->IsGameWorld())
+	if (const UWorld* World = GetWorld(); World && (!World->IsGameWorld() || UE::DaySequence::bIsSimulating))
 	{
 		InPosition = UE::DaySequence::GVolumePreviewLocation;
 		return true;

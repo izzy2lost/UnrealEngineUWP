@@ -131,6 +131,12 @@ private:
 
 	FDelegateHandle OnEditorCameraMovedHandle;
 
+	FDelegateHandle OnBeginPIEHandle;
+	
+	FDelegateHandle OnEndPIEHandle;
+
+	FDelegateHandle OnSwitchPIEAndSIEHandle;
+
 	int32 LastAllowThrottling = 1;
 };
 
@@ -145,6 +151,21 @@ void FDaySequenceEditorModule::StartupModule()
 
 	OnEditorCameraMovedHandle = FEditorDelegates::OnEditorCameraMoved.AddRaw(this, &FDaySequenceEditorModule::OnEditorCameraMoved);
 
+	OnBeginPIEHandle = FEditorDelegates::BeginPIE.AddLambda([](bool bIsSimulating)
+	{
+		UDaySequenceModifierComponent::SetIsSimulating(bIsSimulating);
+	});
+	
+	OnEndPIEHandle = FEditorDelegates::EndPIE.AddLambda([](bool)
+	{
+		UDaySequenceModifierComponent::SetIsSimulating(false);
+	});
+
+	OnSwitchPIEAndSIEHandle = FEditorDelegates::OnSwitchBeginPIEAndSIE.AddLambda([](bool bIsSimulating)
+	{
+		UDaySequenceModifierComponent::SetIsSimulating(bIsSimulating);
+	});
+	
 	PluginCommands = MakeShareable(new FUICommandList);
 
 	PluginCommands->MapAction(
@@ -233,6 +254,12 @@ void FDaySequenceEditorModule::ShutdownModule()
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
 	FEditorDelegates::OnEditorCameraMoved.Remove(OnEditorCameraMovedHandle);
+
+	FEditorDelegates::BeginPIE.Remove(OnBeginPIEHandle);
+	
+	FEditorDelegates::EndPIE.Remove(OnEndPIEHandle);
+
+	FEditorDelegates::OnSwitchBeginPIEAndSIE.Remove(OnSwitchPIEAndSIEHandle);
 
 	if (FPropertyEditorModule* PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>(PropertyEditorModuleName))
 	{

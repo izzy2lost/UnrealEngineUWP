@@ -117,6 +117,7 @@ public:
 
 #if WITH_EDITOR
 	DAYSEQUENCE_API static void SetVolumePreviewLocation(const FVector& Location);
+	DAYSEQUENCE_API static void SetIsSimulating(bool bInIsSimulating);
 #endif
 
 	/**
