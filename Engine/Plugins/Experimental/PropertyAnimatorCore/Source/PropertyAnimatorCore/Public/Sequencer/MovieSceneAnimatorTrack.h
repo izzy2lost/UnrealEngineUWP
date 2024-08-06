@@ -15,6 +15,9 @@ class UMovieSceneAnimatorTrack : public UMovieSceneNameableTrack, public IMovieS
 public:
 	UMovieSceneAnimatorTrack();
 
+	/** Get the number of section using the channel under this track */
+	PROPERTYANIMATORCORE_API int32 GetChannelCount(uint8 InChannel) const;
+
 	//~ Begin UMovieSceneTrack
 	virtual bool SupportsType(TSubclassOf<UMovieSceneSection> InSectionClass) const override;
 	virtual UMovieSceneSection* CreateNewSection() override;

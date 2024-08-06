@@ -5,6 +5,15 @@
 #include "PropertyAnimatorCoreTimeSourceBase.h"
 #include "PropertyAnimatorCoreSequencerTimeSource.generated.h"
 
+USTRUCT()
+struct FPropertyAnimatorCoreSequencerTimeSourceChannel
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditInstanceOnly, Category="Animator")
+	uint8 Channel = 0;
+};
+
 /** Sequencer time source that sync with animator track channel */
 UCLASS(MinimalAPI)
 class UPropertyAnimatorCoreSequencerTimeSource : public UPropertyAnimatorCoreTimeSourceBase
@@ -29,15 +38,15 @@ public:
 	void SetChannel(uint8 InChannel);
 	uint8 GetChannel() const
 	{
-		return Channel;
+		return ChannelData.Channel;
 	}
 
 protected:
 	void OnSequencerTimeEvaluated(uint8 InChannel, double InTimeEval);
 
 	/** Channel to sample time from */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
-	uint8 Channel = 0;
+	UPROPERTY(EditInstanceOnly, DisplayName="Channel", Category="Animator")
+	FPropertyAnimatorCoreSequencerTimeSourceChannel ChannelData;
 
 	/** Last evaluated time received */
 	TOptional<double> EvalTime;

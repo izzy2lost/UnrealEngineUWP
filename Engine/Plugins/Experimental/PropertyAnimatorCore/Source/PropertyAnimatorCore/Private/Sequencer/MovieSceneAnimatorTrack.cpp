@@ -16,6 +16,24 @@ UMovieSceneAnimatorTrack::UMovieSceneAnimatorTrack()
 	SupportedBlendTypes = FMovieSceneBlendTypeField::None();
 }
 
+int32 UMovieSceneAnimatorTrack::GetChannelCount(uint8 InChannel) const
+{
+	int32 Count = 0;
+
+	for (UMovieSceneSection* Section : GetAllSections())
+	{
+		if (const UMovieSceneAnimatorSection* AnimatorSection = Cast<UMovieSceneAnimatorSection>(Section))
+		{
+			if (AnimatorSection->GetChannel() == InChannel)
+			{
+				Count++;
+			}
+		}
+	}
+
+	return Count;
+}
+
 bool UMovieSceneAnimatorTrack::SupportsType(TSubclassOf<UMovieSceneSection> InSectionClass) const
 {
 	return InSectionClass == UMovieSceneAnimatorSection::StaticClass();

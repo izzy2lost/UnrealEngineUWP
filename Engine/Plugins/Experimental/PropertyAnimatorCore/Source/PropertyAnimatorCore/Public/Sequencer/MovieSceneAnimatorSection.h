@@ -14,6 +14,7 @@ class UMovieSceneAnimatorSection : public UMovieSceneSection
 public:
 	UMovieSceneAnimatorSection();
 
+	PROPERTYANIMATORCORE_API void SetChannel(uint8 InChannel);
 	uint8 GetChannel() const
 	{
 		return Channel;

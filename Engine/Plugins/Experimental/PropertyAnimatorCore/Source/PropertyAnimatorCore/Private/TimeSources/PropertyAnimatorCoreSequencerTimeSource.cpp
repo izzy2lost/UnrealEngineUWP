@@ -30,12 +30,12 @@ void UPropertyAnimatorCoreSequencerTimeSource::OnTimeSourceInactive()
 
 void UPropertyAnimatorCoreSequencerTimeSource::SetChannel(uint8 InChannel)
 {
-	Channel = InChannel;
+	ChannelData.Channel = InChannel;
 }
 
 void UPropertyAnimatorCoreSequencerTimeSource::OnSequencerTimeEvaluated(uint8 InChannel, double InTimeEval)
 {
-	if (Channel == InChannel)
+	if (ChannelData.Channel == InChannel)
 	{
 		EvalTime = InTimeEval;
 	}
