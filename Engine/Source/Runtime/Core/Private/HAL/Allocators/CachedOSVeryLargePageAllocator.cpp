@@ -74,7 +74,7 @@ static volatile int32 GLargePageAllocatorDecommitCount = 0;
 
 void FCachedOSVeryLargePageAllocator::Init()
 {
-	Block = FPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(AddressSpaceToReserve);
+	Block = FPlatformMemory::FPlatformVirtualMemoryBlock::AllocateVirtual(AddressSpaceToReserve, SizeOfLargePage);
 	AddressSpaceReserved = (uintptr_t)Block.GetVirtualPointer();
 	AddressSpaceReservedEnd = AddressSpaceReserved + AddressSpaceToReserve;
 	AddressSpaceReservedEndSmallPool = AddressSpaceReserved + (AddressSpaceToReserve / 2);
@@ -276,6 +276,7 @@ FCachedOSVeryLargePageAllocator::FLargePage* FCachedOSVeryLargePageAllocator::Al
 				bOutCommitFailure = true;
 				return nullptr;
 			}
+			LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelAlloc(ELLMTracker::Platform, (void*)LargePage->BaseAddress, SizeOfLargePage));
 			// A new large page has been created. Add it to CachedFree counter
 			CachedFree += SizeOfLargePage;
 			CommittedLargePagesCount[AllocationHint] += 1;
@@ -317,6 +318,7 @@ void FCachedOSVeryLargePageAllocator::Free(void* Ptr, SIZE_T Size, FCriticalSect
 					FScopeUnlock ScopeUnlock(Mutex);
 #endif
 					Block.Decommit(LargePage->BaseAddress - AddressSpaceReserved, SizeOfLargePage);
+					LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, (void*)LargePage->BaseAddress));
 				}
 
 				CommittedLargePagesCount[LargePage->AllocationHint] -= 1;
@@ -369,7 +371,7 @@ void FCachedOSVeryLargePageAllocator::ShrinkEmptyBackStore(int32 NewEmptyBackSto
 		}
 		LargePage->Unlink();
 		Block.Decommit(LargePage->BaseAddress - AddressSpaceReserved, SizeOfLargePage);
-
+		LLM_IF_ENABLED(FLowLevelMemTracker::Get().OnLowLevelFree(ELLMTracker::Platform, (void*)LargePage->BaseAddress));
 		LargePage->LinkHead(FreeLargePagesHead[LargePage->AllocationHint]);
 		CachedFree -= SizeOfLargePage;
 		EmptyBackStoreCount[AllocationHint] -= 1;
