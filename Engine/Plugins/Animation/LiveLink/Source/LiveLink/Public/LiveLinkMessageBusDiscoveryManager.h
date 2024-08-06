@@ -46,7 +46,7 @@ private:
 	double LastPingRequestTime;
 
 	// Ping request timeout
-	double PingRequestFrequency;
+	FTimespan PingRequestFrequency;
 
 	// Result from the last ping request
 	TArray<FProviderPollResultPtr> LastProviderPoolResults;
@@ -58,6 +58,9 @@ private:
 
 	// Thread the heartbeats are sent on
 	FRunnableThread* Thread;
+
+	// Event used to poll the discovery results.
+	class FEvent* PollEvent = nullptr;
 
 	// Critical section for accessing the Source Set
 	mutable FCriticalSection SourcesCriticalSection;
