@@ -790,15 +790,8 @@ FStreamingManagerCollection::FStreamingManagerCollection()
 
 	if (FApp::CanEverRenderAudio())
 	{
-		if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-		{
-			FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
-			AudioStreamingManager = new FCachedAudioStreamingManager(Params);
-		}
-		else
-		{
-			AudioStreamingManager = new FLegacyAudioStreamingManager();
-		}
+		FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
+		AudioStreamingManager = new FCachedAudioStreamingManager(Params);
 	}
 	else
 	{
@@ -1281,17 +1274,8 @@ void FStreamingManagerCollection::OnAudioStreamingParamsChanged()
 	FPlatformCompressionUtilities::RecacheCookOverrides();
 
 	// Finally, reinitialize the streaming manager.
-	if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
-		AudioStreamingManager = new FCachedAudioStreamingManager(Params);
-	}
-	else
-	{
-		AudioStreamingManager = new FLegacyAudioStreamingManager();
-	}
-
-	AddStreamingManager(AudioStreamingManager);
+	FCachedAudioStreamingManagerParams Params = FPlatformCompressionUtilities::BuildCachedStreamingManagerParams();
+	AddStreamingManager(new FCachedAudioStreamingManager(Params));
 }
 #endif
 
@@ -1610,4 +1594,9 @@ FAudioChunkHandle IAudioStreamingManager::BuildChunkHandle(const uint8* InData, 
 	}
 
 	return {};
+}
+
+void IAudioStreamingManager::LogWarning()
+{
+	UE_LOG(LogContentStreaming, Warning, TEXT("This function is now deprecated on IAudioStreamingManager and no-ops."));
 }

@@ -1349,14 +1349,7 @@ int32 FStreamedAudioPlatformData::DeserializeChunkFromDDC(TArray<uint8> TempData
 		Ar.Serialize(*OutChunkData, ChunkSize);
 	}
 
-	if (FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		return AudioDataSize;
-	}
-	else
-	{
-		return ChunkSize;
-	}
+	return AudioDataSize;
 }
 
 int32 FStreamedAudioPlatformData::GetChunkFromDDC(int32 ChunkIndex, uint8** OutChunkData, bool bMakeSureChunkIsLoaded /* = false */)

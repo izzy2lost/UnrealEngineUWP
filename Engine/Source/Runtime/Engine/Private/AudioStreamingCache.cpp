@@ -351,7 +351,6 @@ bool FAudioChunkCache::FCacheElement::IsSoundWaveRetainingAudio() const
 FCachedAudioStreamingManager::FCachedAudioStreamingManager(const FCachedAudioStreamingManagerParams& InitParams)
 {
 	LLM_SCOPE(ELLMTag::AudioStreamCache);
-	check(FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching());
 	checkf(InitParams.Caches.Num() > 0, TEXT("FCachedAudioStreamingManager should be initialized with dimensions for at least one cache."));
 
 	// const FAudioStreamCachingSettings& CacheSettings = FPlatformCompressionUtilities::GetStreamCachingSettingsForCurrentPlatform();
@@ -416,16 +415,6 @@ void FCachedAudioStreamingManager::NotifyLevelOffset(class ULevel* Level, const 
 	// Unused.
 }
 
-void FCachedAudioStreamingManager::AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave)
-{
-	// Unused.
-}
-
 void FCachedAudioStreamingManager::AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave)
 {
 	// add the sound wave to the first cache
@@ -460,60 +449,6 @@ void FCachedAudioStreamingManager::RemoveMemoryCountedFeature(const FAudioStream
 	{
 		CacheArray[0].RemoveMemoryCountedFeature(Feature);
 	}
-}
-
-void FCachedAudioStreamingManager::AddDecoder(ICompressedAudioInfo* InCompressedAudioInfo)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveDecoder(ICompressedAudioInfo* InCompressedAudioInfo)
-{
-	//Unused.
-}
-
-bool FCachedAudioStreamingManager::IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const
-{
-	// Unused. The concept of a sound wave being "managed" doesn't apply here.
-	checkf(false, TEXT("Not Implemented!"));
-	return true;
-}
-
-bool FCachedAudioStreamingManager::IsStreamingInProgress(const FSoundWaveProxyPtr&  SoundWave)
-{
-	// This function is used in USoundWave cleanup.
-	// Since this manager owns the binary data we are streaming off of,
-	// It's safe to delete the USoundWave as long as
-	// There are NO sound sources playing with this Sound Wave.
-	//
-	// This is because a playing sound source might kick off a load for a new chunk,
-	// which dereferences the corresponding USoundWave
-	//
-	// As of right now, this is handled by USoundWave::FreeResources(), called
-	// by USoundWave::IsReadyForFinishDestroy.
-	return false;
-}
-
-bool FCachedAudioStreamingManager::CanCreateSoundSource(const FWaveInstance* WaveInstance) const
-{
-	return true;
-}
-
-void FCachedAudioStreamingManager::AddStreamingSoundSource(FSoundSource* SoundSource)
-{
-	// Unused.
-}
-
-void FCachedAudioStreamingManager::RemoveStreamingSoundSource(FSoundSource* SoundSource)
-{
-	// Unused.
-}
-
-bool FCachedAudioStreamingManager::IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const
-{
-	// Unused. The concept of a sound wave being "managed" doesn't apply here.
-	checkf(false, TEXT("Not Implemented!"));
-	return true;
 }
 
 FAudioChunkHandle FCachedAudioStreamingManager::GetLoadedChunk(const FSoundWaveProxyPtr& SoundWave, uint32 ChunkIndex, bool bBlockForLoad, bool bForImmediatePlayback) const

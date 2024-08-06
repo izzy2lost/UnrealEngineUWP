@@ -533,22 +533,9 @@ public:
 	virtual void NotifyLevelOffset( class ULevel* Level, const FVector& Offset ) override;
 	// End IStreamingManager interface
 
-	// IAudioStreamingManager interface (unused functions)
-	virtual void AddStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
-	virtual void RemoveStreamingSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
+	// IAudioStreamingManager interface
 	virtual void AddForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
 	virtual void RemoveForceInlineSoundWave(const FSoundWaveProxyPtr& SoundWave) override;
-	virtual void AddDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
-	virtual void RemoveDecoder(ICompressedAudioInfo* CompressedAudioInfo) override;
-	virtual bool IsManagedStreamingSoundWave(const FSoundWaveProxyPtr&  SoundWave) const override;
-	virtual bool IsStreamingInProgress(const FSoundWaveProxyPtr&  SoundWave) override;
-	virtual bool CanCreateSoundSource(const FWaveInstance* WaveInstance) const override;
-	virtual void AddStreamingSoundSource(FSoundSource* SoundSource) override;
-	virtual void RemoveStreamingSoundSource(FSoundSource* SoundSource) override;
-	virtual bool IsManagedStreamingSoundSource(const FSoundSource* SoundSource) const override;
-	// End IAudioStreamingManager interface (unused)
-
-	// IAudioStreamingManager interface (used functions)
 	virtual bool RequestChunk(const FSoundWaveProxyPtr& SoundWave, uint32 ChunkIndex, TFunction<void(EAudioChunkLoadResult)> OnLoadCompleted, ENamedThreads::Type ThreadToCallOnLoadCompletedOn, bool bForImmediatePlayback = false) override;
 	virtual FAudioChunkHandle GetLoadedChunk(const FSoundWaveProxyPtr&  SoundWave, uint32 ChunkIndex, bool bBlockForLoad = false, bool bForImmediatePlayback = false) const override;
 	virtual uint64 TrimMemory(uint64 NumBytesToFree) override;

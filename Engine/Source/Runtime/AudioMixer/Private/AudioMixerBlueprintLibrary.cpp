@@ -608,12 +608,6 @@ void UAudioMixerBlueprintLibrary::PrimeSoundForPlayback(USoundWave* SoundWave, c
 	{
 		UE_LOG(LogAudioMixer, Warning, TEXT("Prime Sound For Playback called with a null SoundWave pointer."));
 	}
-	else if (!FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching())
-	{
-		UE_LOG(LogAudioMixer, Warning, TEXT("Prime Sound For Playback doesn't do anything unless Audio Load On Demand is enabled."));
-		
-		OnLoadCompletion.ExecuteIfBound(SoundWave, false);
-	}
 	else
 	{
 		IStreamingManager::Get().GetAudioStreamingManager().RequestChunk(SoundWave->CreateSoundWaveProxy(), 1, [OnLoadCompletion, SoundWave](EAudioChunkLoadResult InResult)

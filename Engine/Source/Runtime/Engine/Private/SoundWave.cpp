@@ -959,7 +959,6 @@ USoundWave::USoundWave(const FObjectInitializer& ObjectInitializer)
 	CompressionQuality = 80;
 
 #if WITH_EDITOR
-	bWasStreamCachingEnabledOnLastCook = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
 	bLoadedFromCookedData = false;
 
 	SoundWaveDataPtr->ResourceData.Empty();
@@ -2128,11 +2127,6 @@ void USoundWave::PostLoad()
 	// Only add this streaming sound if the platform supports streaming
 	if (FApp::CanEverRenderAudio() && IsStreaming(nullptr) && FPlatformProperties::SupportsAudioStreaming())
 	{
-		if (!ShouldUseStreamCaching())
-		{
-			IStreamingManager::Get().GetAudioStreamingManager().AddStreamingSoundWave(Proxy);
-		}
-
 		// Only request loading the zeroth chunk when streaming is supported and we can render audio.
 		// Especially important to avoid computing unneeded running platform related data during cook.
 		LoadZerothChunk();
@@ -2380,20 +2374,6 @@ void USoundWave::InvalidateSoundWaveIfNeccessary()
 	{
 		InvalidateCompressedData(true);
 		SampleRate = SampleRateOverride;
-	}
-	
-	// if stream caching was enabled since the last time we invalidated the compressed audio, force a re-cook.
-	const bool bIsStreamCachingEnabled = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
-	if (bWasStreamCachingEnabledOnLastCook != bIsStreamCachingEnabled)
-	{
-		InvalidateCompressedData(true);
-		bWasStreamCachingEnabledOnLastCook = bIsStreamCachingEnabled;
-
-		// If stream caching is now turned on, recook the streaming audio if necessary.
-		if (bIsStreamCachingEnabled && IsStreaming(nullptr))
-		{
-			LoadZerothChunk();
-		}
 	}
 }
 
@@ -3211,22 +3191,10 @@ bool USoundWave::IsReadyForFinishDestroy()
 		}
 	}
 
-	// Only checking to see if it is set to ForceInline. ForceInline is not supported on 
-	// USoundClasses, so it is safe to ignore USoundClasses when calling `GetLoadingBehavior(...)`
-	const ESoundWaveLoadingBehavior CurrentLoadingBehavior = GetLoadingBehavior(false /* bCheckSoundClasses */);
-	bool bIsStreamingInProgress = false;
-	if (CurrentLoadingBehavior != ESoundWaveLoadingBehavior::ForceInline)
-	{
-		if (Proxy.IsValid())
-		{
-			bIsStreamingInProgress = IStreamingManager::Get().GetAudioStreamingManager().IsStreamingInProgress(Proxy);
-		}
-	}
-
 	check(GetPrecacheState() != ESoundWavePrecacheState::InProgress);
 
 	// Wait till streaming and decompression finishes before deleting resource.
-	if (!bIsStreamingInProgress && ResourceState == ESoundWaveResourceState::NeedsFree)
+	if (ResourceState == ESoundWaveResourceState::NeedsFree)
 	{
 		DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.FreeResources"), STAT_AudioFreeResources, STATGROUP_AudioThreadCommands);
 
@@ -3719,13 +3687,11 @@ bool USoundWave::IsStreaming(const FPlatformAudioCookOverrides& Overrides) const
 bool USoundWave::ShouldUseStreamCaching() const
 {
 	check(SoundWaveDataPtr);
-	const bool bPlatformUsingStreamCaching = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
+
 	const bool bIsStreaming = IsStreaming(nullptr);
-	const bool Result = bPlatformUsingStreamCaching && bIsStreaming;
+	SoundWaveDataPtr->bShouldUseStreamCaching = bIsStreaming;
 
-	SoundWaveDataPtr->bShouldUseStreamCaching = Result;
-
-	return Result;
+	return bIsStreaming;
 }
 
 TArrayView<const uint8> USoundWave::GetZerothChunk(bool bForImmediatePlayback)
@@ -3874,27 +3840,10 @@ void USoundWave::UpdatePlatformData()
 			Proxy = CreateSoundWaveProxy();
 		}
 
-		// Make sure there are no pending requests in flight.
-		while (IStreamingManager::Get().GetAudioStreamingManager().IsStreamingInProgress(Proxy))
-		{
-			// Give up timeslice.
-			FPlatformProcess::Sleep(0);
-		}
-
 #if WITH_EDITORONLY_DATA
-		// Temporarily remove from streaming manager to release currently used data chunks
-		IStreamingManager::Get().GetAudioStreamingManager().RemoveStreamingSoundWave(Proxy);
-
 		// Recache platform data if the source has changed.
 		CachePlatformData(true /* bAsyncCache */);
-
-		// Add back to the streaming manager to reload first chunk
-		IStreamingManager::Get().GetAudioStreamingManager().AddStreamingSoundWave(Proxy);
 #endif
-	}
-	else if (Proxy.IsValid())
-	{
-		IStreamingManager::Get().GetAudioStreamingManager().RemoveStreamingSoundWave(Proxy);
 	}
 }
 

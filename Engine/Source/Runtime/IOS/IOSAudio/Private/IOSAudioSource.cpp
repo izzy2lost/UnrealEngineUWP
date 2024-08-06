@@ -318,8 +318,6 @@ void FIOSAudioSoundSource::Stop(void)
 		FPlatformProcess::Sleep(0.0f);
 	}
 
-	IStreamingManager::Get().GetAudioStreamingManager().RemoveStreamingSoundSource(this);
-
 	if (WaveInstance)
 	{
 		Pause();

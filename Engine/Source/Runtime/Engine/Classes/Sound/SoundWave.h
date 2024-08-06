@@ -720,8 +720,6 @@ private:
 	// Whether or not the thumbnail supports generation
 	uint8 bNeedsThumbnailGeneration : 1;
 
-	// Whether this was previously cooked with stream caching enabled.
-	uint8 bWasStreamCachingEnabledOnLastCook : 1;
 	// Whether this asset is loaded from cooked data.
 	uint8 bLoadedFromCookedData : 1;
 #endif // !WITH_EDITOR

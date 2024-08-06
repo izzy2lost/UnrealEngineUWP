@@ -1234,11 +1234,6 @@ namespace Audio
 							check(MixerSourceBuffer.IsValid());
 
 							ICompressedAudioInfo* Decoder = MixerBuffer->GetDecompressionState(false);
-							if (BufferType == EBufferType::Streaming)
-							{
-								IStreamingManager::Get().GetAudioStreamingManager().AddDecoder(Decoder);
-							}
-
 							MixerSourceBuffer->ReadMoreRealtimeData(Decoder, 0, EBufferReadMode::Asynchronous);
 
 							// not ready
@@ -1384,8 +1379,6 @@ namespace Audio
 		// Immediately stop the sound source
 
 		InitializationState = EMixerSourceInitializationState::NotInitialized;
-
-		IStreamingManager::Get().GetAudioStreamingManager().RemoveStreamingSoundSource(this);
 
 		bIsStopping = false;
 

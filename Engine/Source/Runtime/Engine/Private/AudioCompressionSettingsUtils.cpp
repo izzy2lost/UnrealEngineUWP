@@ -320,11 +320,6 @@ const FPlatformAudioCookOverrides* FPlatformCompressionUtilities::GetCookOverrid
 	return &Overrides;
 }
 
-bool FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching()
-{
-	return true;
-}
-
 const FAudioStreamCachingSettings& FPlatformCompressionUtilities::GetStreamCachingSettingsForCurrentPlatform()
 {
 	const FPlatformAudioCookOverrides* Settings = GetCookOverrides();

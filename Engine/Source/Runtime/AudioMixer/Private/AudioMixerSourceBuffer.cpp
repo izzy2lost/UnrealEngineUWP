@@ -152,10 +152,6 @@ namespace Audio
 		if (DecompressionState == nullptr)
 		{
 			DecompressionState = InCompressedAudioInfo;
-			if (BufferType == EBufferType::Streaming)
-			{
-				IStreamingManager::Get().GetAudioStreamingManager().AddDecoder(DecompressionState);
-			}
 		}
 	}
 
@@ -544,11 +540,6 @@ namespace Audio
 		// Clean up decompression state after things have been finished using it
 		if (DecompressionState)
 		{
-			if (BufferType == EBufferType::Streaming)
-			{
-				IStreamingManager::Get().GetAudioStreamingManager().RemoveDecoder(DecompressionState);
-			}
-
 			delete DecompressionState;
 			DecompressionState = nullptr;
 		}

@@ -722,11 +722,10 @@ UObject* USoundFactory::CreateObject
 		}
 				
 		// Compressed data is now out of date.
-		const bool bRebuildStreamingChunks = FPlatformCompressionUtilities::IsCurrentPlatformUsingStreamCaching();
-		Sound->InvalidateCompressedData(true /* bFreeResources */, bRebuildStreamingChunks);
+		Sound->InvalidateCompressedData(true /* bFreeResources */);
 
 		// If stream caching is enabled, we need to make sure this asset is ready for playback.
-		if (bRebuildStreamingChunks && Sound->IsStreaming(nullptr))
+		if (Sound->IsStreaming(nullptr))
 		{
 			Sound->LoadZerothChunk();
 		}

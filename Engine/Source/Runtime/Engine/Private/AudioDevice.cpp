@@ -4468,9 +4468,7 @@ void FAudioDevice::StartSources(TArray<FWaveInstance*>& WaveInstances, int32 Fir
 		if (!WaveInstance->ShouldStopDueToMaxConcurrency() && (bGameTicking || WaveInstance->bIsUISound))
 		{
 			FSoundSource* Source = WaveInstanceSourceMap.FindRef(WaveInstance);
-			if (!Source &&
-				(!WaveInstance->IsStreaming() ||
-				IStreamingManager::Get().GetAudioStreamingManager().CanCreateSoundSource(WaveInstance)))
+			if (!Source)
 			{
 				// Check for full sources and stop the oldest stopping source
 				if (!FreeSources.Num())
@@ -4523,7 +4521,6 @@ void FAudioDevice::StartSources(TArray<FWaveInstance*>& WaveInstances, int32 Fir
 				// If we succeeded above then we need to map the wave instance to the source
 				if (bSuccess)
 				{
-					IStreamingManager::Get().GetAudioStreamingManager().AddStreamingSoundSource(Source);
 					// Associate wave instance with it which is used earlier in this function.
 					WaveInstanceSourceMap.Add(WaveInstance, Source);
 				}
@@ -4540,7 +4537,7 @@ void FAudioDevice::StartSources(TArray<FWaveInstance*>& WaveInstances, int32 Fir
 					WaveInstanceSourceMap.Remove(WaveInstance);
 				}
 			}
-			else if (Source)
+			else // Source is valid
 			{
 				if (!Source->IsInitialized() && Source->IsPreparedToInit())
 				{
@@ -4568,12 +4565,6 @@ void FAudioDevice::StartSources(TArray<FWaveInstance*>& WaveInstances, int32 Fir
 						FreeSources.Add(Source);
 					}
 				}
-			}
-			else
-			{
-				// This can happen if the streaming manager determines that this sound should not be started.
-				// We stop the wave instance to prevent it from attempting to initialize every frame
-				WaveInstance->StopWithoutNotification();
 			}
 		}
 	}
