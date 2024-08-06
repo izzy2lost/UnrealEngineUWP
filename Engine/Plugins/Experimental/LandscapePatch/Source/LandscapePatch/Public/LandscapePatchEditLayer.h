@@ -21,6 +21,7 @@ class ULandscapePatchEditLayer : public ULandscapeEditLayerProcedural
 	GENERATED_BODY()
 
 public:
+
 #if WITH_EDITOR
 	/**
 	 * Must be called by patches on this layer to let the layer know that the patch is pointing
@@ -60,14 +61,11 @@ public:
 	virtual void OnLayerCreated(FLandscapeLayer& Layer);
 
 #if WITH_EDITOR
-	// TODO [jonathan.bard] : The following implementation is completely bogus, for now, until this supports batched merge : 
-	//~ Begin ILandscapeEditLayerRenderer implementation
-	virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
-		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutSupportedTargetTypeState, UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutEnabledTargetTypeState, TArray<TSet<FName>>& OutRenderGroups) const override {}
-	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override { return {}; }
-	virtual FString GetEditLayerRendererDebugName() const override { return TEXT("LandscapePatchEditLayer"); }
-	//~ End ILandscapeEditLayerRenderer implementation
-	
+	using FEditLayerRendererState = UE::Landscape::EditLayers::FEditLayerRendererState;
+
+	// IEditLayerRendererProvider
+	virtual TArray<FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
+
 	// UObject
 	virtual void PostLoad() override;
 	virtual void PostEditUndo() override;

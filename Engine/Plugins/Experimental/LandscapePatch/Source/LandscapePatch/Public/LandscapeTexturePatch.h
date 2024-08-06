@@ -220,6 +220,17 @@ class LANDSCAPEPATCH_API ULandscapeTexturePatch : public ULandscapePatchComponen
 public:
 
 #if WITH_EDITOR
+	using FEditLayerTargetTypeState = UE::Landscape::EditLayers::FEditLayerTargetTypeState;
+	using FEditLayerRenderItem = UE::Landscape::EditLayers::FEditLayerRenderItem;
+
+	// ILandscapeEditLayerRenderer, via ULandscapePatchComponent
+	virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
+		FEditLayerTargetTypeState& OutSupportedTargetTypeState,
+		FEditLayerTargetTypeState& OutEnabledTargetTypeState,
+		TArray<TSet<FName>>& OutRenderGroups) const override;
+	virtual FString GetEditLayerRendererDebugName() const override;
+	virtual TArray<FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
+	virtual void RenderLayer(FRenderParams& InRenderParams) override;
 
 	// ULandscapePatchComponent
 	UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters, const FTransform& HeightmapToWorld) override;
@@ -634,8 +645,9 @@ private:
 	void TransitionHeightSourceModeInternal(ELandscapeTexturePatchSourceMode OldMode, ELandscapeTexturePatchSourceMode NewMode);
 	FLandscapeHeightPatchConvertToNativeParams GetHeightConvertToNativeParams() const;
 	UTextureRenderTarget2D* ApplyToHeightmap(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
-	UTextureRenderTarget2D* ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo, 
-		UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
+	void ApplyToWeightmap(ULandscapeWeightPatchTextureInfo* PatchInfo,
+		TFunction<FRHITexture* ()> RenderThreadLandscapeTextureGetter, int32 LandscapeTextureSliceIndex,
+		const FIntPoint& LandscapeTextureResolution, const FTransform& LandscapeHeightmapToWorld);
 
 	void GetCommonShaderParams(const FTransform& LandscapeHeightmapToWorldIn, 
 		const FIntPoint& SourceResolutionIn, const FIntPoint& DestinationResolutionIn,
@@ -649,8 +661,14 @@ private:
 		UE::Landscape::FApplyLandscapeTextureWeightPatchPS::FParameters& ParamsOut, FIntRect& DestinationBoundsOut) const;
 	FMatrix44f GetPatchToHeightmapUVs(const FTransform& LandscapeHeightmapToWorld, int32 PatchSizeX, int32 PatchSizeY, int32 HeightmapSizeX, int32 HeightmapSizeY) const;
 	void ReinitializeHeight(UTextureRenderTarget2D* InCombinedResult, const FTransform& LandscapeHeightmapToWorld);
-	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo, UTextureRenderTarget2D* InCombinedResult, 
+	/**
+	 * @param SliceIndex set to a negative value when not using a Texture2DArray
+	 */
+	void ReinitializeWeightPatch(ULandscapeWeightPatchTextureInfo* PatchInfo,
+		FTextureResource* InputResource, FIntPoint ResourceSize, int32 SliceIndex,
 		const FTransform& LandscapeHeightmapToWorld);
+
+	bool WeightPatchCanRender(const ULandscapeWeightPatchTextureInfo& InWeightPatch) const;
 
 	void ResetHeightRenderTargetFormat();
 #endif // WITH_EDITOR

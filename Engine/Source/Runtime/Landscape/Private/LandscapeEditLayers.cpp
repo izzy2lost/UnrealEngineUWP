@@ -5382,9 +5382,15 @@ TArray<UE::Landscape::EditLayers::FEditLayerRendererState> FLandscapeLayer::GetE
 	TArray<FEditLayerRendererState> RendererStates;
 	RendererStates.Reserve(1 + Brushes.Num());
 
-	// The edit layer itself is a renderer : 
 	check(EditLayer != nullptr);
-	RendererStates.Emplace(EditLayer, InLandscapeInfo);
+	// The edit layer itself might be a renderer:
+	if (ILandscapeEditLayerRenderer* AsRenderer = Cast<ILandscapeEditLayerRenderer>(EditLayer))
+	{
+		RendererStates.Emplace(AsRenderer, InLandscapeInfo);
+	}
+
+	// The layer can also be a renderer provider
+	RendererStates.Append(EditLayer->GetEditLayerRendererStates(InLandscapeInfo, bInSkipBrush));
 
 	for (FLandscapeLayerBrush& Brush : Brushes)
 	{
@@ -9793,13 +9799,18 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 							FLandscapeLayerBrush& Brush = Layer.Brushes[i];
 							TOptional<int32> LayerInfoSettingsAllocatedIndex;
 
-							if (Brush.AffectsWeightmapLayer(InfoLayerSettings.GetLayerName()) && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
+							// Note that we need to check visibility before we check by name, or else a name match could
+							//  cause us to allocate the visibility layer at the wrong index.
+							if (UE::Landscape::IsVisibilityLayer(InfoLayerSettings.LayerInfoObj))
+							{
+								if (Brush.AffectsVisibilityLayer() && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
+								{
+									LayerInfoSettingsAllocatedIndex = GetVisibilityLayerAllocationIndex();
+								}
+							}
+							else if (Brush.AffectsWeightmapLayer(InfoLayerSettings.GetLayerName()) && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
 							{
 								LayerInfoSettingsAllocatedIndex = LayerInfoSettingsIndex + 1; // due to visibility layer that is at 0
-							}
-							else if (Brush.AffectsVisibilityLayer() && UE::Landscape::IsVisibilityLayer(InfoLayerSettings.LayerInfoObj) && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
-							{
-								LayerInfoSettingsAllocatedIndex = GetVisibilityLayerAllocationIndex();
 							}
 
 							if (LayerInfoSettingsAllocatedIndex.IsSet())
@@ -9814,13 +9825,16 @@ int32 ALandscape::PerformLayersWeightmapsGlobalMerge(FUpdateLayersContentContext
 						if (RenderCallAdapter && !LayerInfoObjects.Contains(InfoLayerSettings.LayerInfoObj))
 						{
 							TOptional<int32> LayerInfoSettingsAllocatedIndex;
-							if (RenderCallAdapter->AffectsWeightmapLayerAsBlueprintBrush(InfoLayerSettings.GetLayerName()))
+							if (UE::Landscape::IsVisibilityLayer(InfoLayerSettings.LayerInfoObj))
+							{
+								if (RenderCallAdapter->AffectsVisibilityLayerAsBlueprintBrush())
+								{
+									LayerInfoSettingsAllocatedIndex = GetVisibilityLayerAllocationIndex();
+								}
+							}
+							else if (RenderCallAdapter->AffectsWeightmapLayerAsBlueprintBrush(InfoLayerSettings.GetLayerName()))
 							{
 								LayerInfoSettingsAllocatedIndex = LayerInfoSettingsIndex + 1; // due to visibility layer that is at 0
-							}
-							else if (RenderCallAdapter->AffectsVisibilityLayerAsBlueprintBrush() && UE::Landscape::IsVisibilityLayer(InfoLayerSettings.LayerInfoObj))
-							{
-								LayerInfoSettingsAllocatedIndex = GetVisibilityLayerAllocationIndex();
 							}
 
 							if (LayerInfoSettingsAllocatedIndex.IsSet())

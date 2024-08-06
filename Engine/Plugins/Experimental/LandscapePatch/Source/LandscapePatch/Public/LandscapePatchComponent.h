@@ -5,6 +5,7 @@
 
 #include "Components/SceneComponent.h"
 #include "LandscapeBlueprintBrushBase.h"
+#include "LandscapeEditLayerRenderer.h"
 #include "LandscapeEditTypes.h"
 #include "LandscapePatchEditLayer.h" // PATCH_PRIORITY_BASE
 #include "UObject/WeakInterfacePtr.h"
@@ -45,6 +46,7 @@ enum class ELandscapePatchPriorityInitialization : uint8
 //~ so that we can use render proxies for passing along data to the render thread or perhaps for visualization.
 UCLASS(Blueprintable, BlueprintType, Abstract)
 class LANDSCAPEPATCH_API ULandscapePatchComponent : public USceneComponent
+	, public ILandscapeEditLayerRenderer
 {
 	GENERATED_BODY()
 
@@ -54,6 +56,12 @@ public:
 	// Called from global merge path
 	virtual UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters, 
 		const FTransform& HeightmapToWorld) { return InParameters.CombinedResult; }
+
+#if WITH_EDITOR
+	// ILandscapeEditLayerRenderer
+	virtual bool CanRender() const override { return CanAffectLandscape(); }
+	// Subclasses are expected to implement GetEditLayerRendererDebugName, GetRendererStateInfo, GetRenderItems, and RenderLayer
+#endif
 
 	// These determine whether the patch is configured correctly to affect height/weightmaps,
 	// ignoring whether it is currently enabled or not.

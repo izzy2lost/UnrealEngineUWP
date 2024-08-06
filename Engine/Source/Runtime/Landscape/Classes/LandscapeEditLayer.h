@@ -17,7 +17,7 @@ class ALandscape;
 UCLASS(MinimalAPI, Abstract)
 class ULandscapeEditLayerBase : public UObject
 #if CPP && WITH_EDITOR
-	, public ILandscapeEditLayerRenderer
+	, public UE::Landscape::EditLayers::IEditLayerRendererProvider
 #endif // CPP && WITH_EDITOR
 {
 	GENERATED_BODY()
@@ -152,6 +152,18 @@ public:
 	// TODO: Should this be protected and then we friend ALandscape?
 	virtual void OnLayerRemoved() {}
 
+#if WITH_EDITOR
+	//~ Begin IEditLayerRendererProvider implementation
+	// By default this does nothing in a landscape edit layer, but subclasses can override it if 
+	//  they would like to provide additional renderers.
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRendererState> GetEditLayerRendererStates(
+		const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) 
+	{ 
+		return {};
+	};
+	//~ End IEditLayerRendererProvider implementation
+#endif
+
 	// UObject
 	LANDSCAPE_API virtual void PostLoad() override;
 
@@ -172,6 +184,7 @@ protected:
 */
 UCLASS(MinimalAPI, Abstract)
 class ULandscapeEditLayerPersistent : public ULandscapeEditLayerBase
+	, public ILandscapeEditLayerRenderer
 {
 	GENERATED_BODY()
 

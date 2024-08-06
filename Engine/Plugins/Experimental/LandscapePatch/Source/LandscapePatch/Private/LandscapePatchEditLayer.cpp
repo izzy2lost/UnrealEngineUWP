@@ -296,6 +296,30 @@ bool ULandscapePatchEditLayer::SupportsTargetType(ELandscapeToolTargetType InTyp
 }
 
 #if WITH_EDITOR
+// Called in batched merge path to apply the patches
+TArray<UE::Landscape::EditLayers::FEditLayerRendererState> ULandscapePatchEditLayer::GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush)
+{
+	UpdatePatchListIfDirty();
+
+	TArray<FEditLayerRendererState> RendererStates;
+	RendererStates.Reserve(RegisteredPatches.Num());
+	for (TSoftObjectPtr<ULandscapePatchComponent>& PatchSoft : RegisteredPatches)
+	{
+		ULandscapePatchComponent* Patch = PatchSoft.Get();
+		if (!Patch)
+		{
+			continue;
+		}
+
+		FEditLayerRendererState& RendererState = RendererStates.Emplace_GetRef(Patch, InLandscapeInfo);
+		if (bInSkipBrush || !Patch->IsEnabled())
+		{
+			RendererState.DisableTargetTypeMask(ELandscapeToolTargetTypeFlags::All);
+		}
+	}
+
+	return RendererStates;
+}
 
 void ULandscapePatchEditLayer::PostLoad()
 {
@@ -381,6 +405,7 @@ void ULandscapePatchEditLayer::InitializeAsBlueprintBrush(const FTransform& InLa
 	HeightmapCoordsToWorld = UE::Landscape::PatchUtil::GetHeightmapToWorld(InLandscapeTransform);
 }
 
+// Called in global merge (legacy) mode to apply the patches
 UTextureRenderTarget2D* ULandscapePatchEditLayer::RenderLayerAsBlueprintBrush(const FLandscapeBrushParameters& InParameters)
 {
 	UpdatePatchListIfDirty();

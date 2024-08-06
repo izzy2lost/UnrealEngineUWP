@@ -81,28 +81,28 @@ public:
 	ULandscapeScratchRenderTarget();
 
 	/** @return a debug name while this render target is in use. This helps track things down, since the underlying resource can be recycled */
-	const FString& GetDebugName() const;
+	LANDSCAPE_API const FString& GetDebugName() const;
 	/** @return Getter for the internal UTextureRenderTarget */
 	UTextureRenderTarget* GetRenderTarget() const { return RenderTarget; }
 	/** @return Getter for the internal UTextureRenderTarget2D (only when CurrentRenderTargetParams.NumSlices == 0, asserts if CurrentRenderTargetParams.NumSlices > 0) */
-	UTextureRenderTarget2D* GetRenderTarget2D() const;
+	LANDSCAPE_API UTextureRenderTarget2D* GetRenderTarget2D() const;
 	/** @return the internal UTextureRenderTarget2D (only when CurrentRenderTargetParams.NumSlices == 0, returns nullptr if CurrentRenderTargetParams.NumSlices > 0) */
-	UTextureRenderTarget2D* TryGetRenderTarget2D() const;
+	LANDSCAPE_API UTextureRenderTarget2D* TryGetRenderTarget2D() const;
 	/**  @return the internal UTextureRenderTarget2DArray (only when CurrentRenderTargetParams.NumSlices > 0, asserts if CurrentRenderTargetParams.NumSlices == 0)  */
-	UTextureRenderTarget2DArray* GetRenderTarget2DArray() const;
+	LANDSCAPE_API UTextureRenderTarget2DArray* GetRenderTarget2DArray() const;
 	/** @return the internal UTextureRenderTarget2DArray (only when CurrentRenderTargetParams.NumSlices > 0, returns nullptr if CurrentRenderTargetParams.NumSlices == 0) */
-	UTextureRenderTarget2DArray* TryGetRenderTarget2DArray() const;
+	LANDSCAPE_API UTextureRenderTarget2DArray* TryGetRenderTarget2DArray() const;
 	/** @return the internal render target's true resolution (can be different than the effective resolution if CurrentRenderTargetParams.bExactDimensions is false) */
-	FIntPoint GetResolution() const;
+	LANDSCAPE_API FIntPoint GetResolution() const;
 	/**@return the internal render target's effective resolution (can be different than the actual resolution if CurrentRenderTargetParams.bExactDimensions is false) while this render target is in use */
-	FIntPoint GetEffectiveResolution() const; 
+	LANDSCAPE_API FIntPoint GetEffectiveResolution() const;
 	/** @return the internal render target's number of slices (can be different than the actual number of slices if CurrentRenderTargetParams.bExactDimensions is false) */
-	int32 GetNumSlices() const;
+	LANDSCAPE_API int32 GetNumSlices() const;
 	/** @return the internal render target's effective number of slices (can be different than the actual number of slices if CurrentRenderTargetParams.bExactDimensions is false) while this render target is in use */
-	int32 GetEffectiveNumSlices() const;
+	LANDSCAPE_API int32 GetEffectiveNumSlices() const;
 	bool IsTexture2DArray() const { return (TryGetRenderTarget2DArray() != nullptr); }
-	ETextureRenderTargetFormat GetFormat() const;
-	FLinearColor GetClearColor() const;
+	LANDSCAPE_API ETextureRenderTargetFormat GetFormat() const;
+	LANDSCAPE_API FLinearColor GetClearColor() const;
 	ERHIAccess GetCurrentState() const { return CurrentState; }
 	const UE::Landscape::FScratchRenderTargetParams& GetCurrentRenderTargetParams() { return CurrentRenderTargetParams; }
 
@@ -169,13 +169,13 @@ public:
 	};
 
 	/** Copies the content of the texture in parameter to the scratch texture (assuming the input texture is in CopySrc state already). Transitions the scratch texture's RHIAccess */
-	void CopyFrom(const FCopyFromTextureParams& InCopyParams);
+	LANDSCAPE_API void CopyFrom(const FCopyFromTextureParams& InCopyParams);
 	/** Copies the content of the scratch texture in parameter to the scratch texture. Transitions both scratch texture's RHIAccess */
-	void CopyFrom(const FCopyFromScratchRenderTargetParams& InCopyParams);
+	LANDSCAPE_API void CopyFrom(const FCopyFromScratchRenderTargetParams& InCopyParams);
 	/** Perform a transition of the scratch texture's RHIAccess */
-	void TransitionTo(ERHIAccess InStateAfter);
+	LANDSCAPE_API void TransitionTo(ERHIAccess InStateAfter);
 	/** Perform a clear of the scratch texture */
-	void Clear();
+	LANDSCAPE_API void Clear();
 	/** @return true if this scratch texture is compatible (and can therefore be used) with the requested render target params */
 	bool IsCompatibleWith(const UE::Landscape::FScratchRenderTargetParams& InParams) const;
 	/** @return true if the scratch texture is currently in use (it has been requested but not released) */

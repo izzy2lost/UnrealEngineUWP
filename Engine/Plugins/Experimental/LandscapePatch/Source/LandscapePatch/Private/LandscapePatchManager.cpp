@@ -225,18 +225,33 @@ UTextureRenderTarget2D* ALandscapePatchManager::RenderLayer_Native(const FLandsc
 }
 
 #if WITH_EDITOR
-TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> ALandscapePatchManager::GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const
+// Called in batched merge path to apply the patches
+TArray<UE::Landscape::EditLayers::FEditLayerRendererState> ALandscapePatchManager::GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush)
 {
-	using namespace UE::Landscape::EditLayers;
+	using namespace LandscapePatchManagerLocals;
 
-	TArray<FEditLayerRenderItem> RenderItems = Super::GetRenderItems(InLandscapeInfo);
-	check(RenderItems.Num() == 1);
+	FilterLegacyRegisteredPatches(PatchComponents, PatchToIndex, this);
 
-	// For now, this brush requires the entire landscape to be loaded to work deterministically, so we force the input area to be "infinite" : 
-	RenderItems[0].SetInputWorldArea(FInputWorldArea::CreateInfinite());
+	TArray<FEditLayerRendererState> RendererStates;
+	RendererStates.Reserve(PatchComponents.Num());
+	for (TSoftObjectPtr<ULandscapePatchComponent>& PatchSoft : PatchComponents)
+	{
+		ULandscapePatchComponent* Patch = PatchSoft.Get();
+		if (!Patch)
+		{
+			continue;
+		}
 
-	return RenderItems;
+		FEditLayerRendererState& RendererState = RendererStates.Emplace_GetRef(Patch, InLandscapeInfo);
+		if (bInSkipBrush || !Patch->IsEnabled())
+		{
+			RendererState.DisableTargetTypeMask(ELandscapeToolTargetTypeFlags::All);
+		}
+	}
+
+	return RendererStates;
 }
+
 #endif // WITH_EDITOR
 
 void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)

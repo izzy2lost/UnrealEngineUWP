@@ -33,9 +33,25 @@ public:
 	virtual UTextureRenderTarget2D* RenderLayer_Native(const FLandscapeBrushParameters& InParameters) override;
 
 #if WITH_EDITOR
-	//~ Begin ILandscapeEditLayerRenderer implementation
-	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override;
-	//~ End ILandscapeEditLayerRenderer implementation
+	using FEditLayerRendererState = UE::Landscape::EditLayers::FEditLayerRendererState;
+
+	// IEditLayerRendererProvider
+	// Called by the batched-merge application path.
+	virtual TArray<FEditLayerRendererState> GetEditLayerRendererStates(const ULandscapeInfo* InLandscapeInfo, bool bInSkipBrush) override;
+
+	// ILandscapeEditLayerRenderer
+	//~ In batched merge, the manager relies on being a renderer provider. It does not need to have its 
+	//~  RenderLayer_Native method called, so we override the implementations of ILandscapeEditLayerRenderer
+	//~  inherited from ALandscapeBlueprintBrushBase to do nothing.
+	virtual void GetRendererStateInfo(const ULandscapeInfo* InLandscapeInfo,
+		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutSupportedTargetTypeState,
+		UE::Landscape::EditLayers::FEditLayerTargetTypeState& OutEnabledTargetTypeState,
+		TArray<TSet<FName>>& OutRenderGroups) const override {}
+	virtual TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const override
+	{
+		return {};
+	}
+	virtual void RenderLayer(ILandscapeEditLayerRenderer::FRenderParams& InRenderParams) override { };
 #endif // WITH_EDITOR
 
 	// Adds the brush to the given landscape, removing it from any previous one. This differs from SetOwningLandscape
