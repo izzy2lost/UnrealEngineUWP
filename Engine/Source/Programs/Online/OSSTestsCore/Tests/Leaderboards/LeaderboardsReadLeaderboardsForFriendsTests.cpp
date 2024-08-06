@@ -29,7 +29,7 @@ EG_LEADERBOARDS_TEST_CASE("Verify calling ReadLeaderboardsForFriends with valid 
 	WriteObject.LeaderboardNames = { LocalNameForLeaderboard };
 	WriteObject.SortMethod = ELeaderboardSort::Ascending;
 	WriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
-	WriteObject.RatedStat = TEXT("Scores");
+	WriteObject.RatedStat = FString(TEXT("Scores"));
 
 	TArray<FUniqueNetIdRef> LocalPlayers;
 	FOnlineLeaderboardReadRef LocalReadObject = MakeShared<FOnlineLeaderboardRead>();

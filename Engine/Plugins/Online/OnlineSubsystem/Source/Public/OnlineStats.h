@@ -129,6 +129,11 @@ public:
 	FORCEINLINE FNameArrayDeprecationWrapper& operator=(FNameArrayDeprecationWrapper&& Other) { Super::operator=(MoveTemp(Other)); return *this; }
 	FORCEINLINE FNameArrayDeprecationWrapper& operator=(const FNameArrayDeprecationWrapper& Other) { Super::operator=(Other); return *this; }
 
+	FORCEINLINE FNameArrayDeprecationWrapper(TArray<FString>&& Other) : Super(MoveTemp(Other)) {}
+	FORCEINLINE FNameArrayDeprecationWrapper(const TArray<FString>& Other) : Super(Other) {}
+	FORCEINLINE FNameArrayDeprecationWrapper& operator=(TArray<FString>&& Other) { Super::operator=(MoveTemp(Other)); return *this; }
+	FORCEINLINE FNameArrayDeprecationWrapper& operator=(const TArray<FString>& Other) { Super::operator=(Other); return *this; }
+
 	using Super::Add;
 	UE_DEPRECATED(5.5, "This variable is now a TArray<FString> instead of a TArray<FName>. Please update your code accordingly")
 		int32 Add(const FName& InElement)

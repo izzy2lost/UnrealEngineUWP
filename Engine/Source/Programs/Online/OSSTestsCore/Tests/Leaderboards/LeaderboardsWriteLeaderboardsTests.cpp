@@ -24,7 +24,7 @@ LEADERBOARDS_TEST_CASE("SubsystemNull. Verify calling WriteLeaderboards with val
 	WriteObject.LeaderboardNames = { LocalNameForLeaderboard };
 	WriteObject.SortMethod = ELeaderboardSort::Ascending;
 	WriteObject.UpdateMethod = ELeaderboardUpdateMethod::KeepBest;
-	WriteObject.RatedStat = TEXT("Scores");
+	WriteObject.RatedStat = FString(TEXT("Scores"));
 	int32 NumUsersToImplicitLogin = 1;
 
 	GetLoginPipeline(NumUsersToImplicitLogin)
