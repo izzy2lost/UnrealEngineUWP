@@ -11,7 +11,7 @@
 #include "Kismet2/SClassPickerDialog.h"
 #include "StructViewerFilter.h"
 #include "StructViewerModule.h"
-#include "HierarchyTableTypeRegistry.h"
+#include "HierarchyTableEditorModule.h"
 
 UHierarchyTableFactory::UHierarchyTableFactory()
 {
@@ -26,7 +26,8 @@ UObject* UHierarchyTableFactory::FactoryCreateNew(UClass* Class, UObject* InPare
 	HierarchyTable->Skeleton = Skeleton.Get();
 	HierarchyTable->TableType = TableType;
 
-	const UHierarchyTableTypeHandler_Base* Handler = GetDefault<UHierarchyTableTypeRegistry>()->FindHandler(TableType);
+	FHierarchyTableEditorModule& HierarchyTableModule = FModuleManager::GetModuleChecked<FHierarchyTableEditorModule>("HierarchyTableEditor");
+	const UHierarchyTableTypeHandler_Base* Handler = HierarchyTableModule.FindHandler(TableType);
 	check(Handler);
 
 	FInstancedStruct DefaultEntry = Handler->GetDefaultEntry();

@@ -2,7 +2,8 @@
 
 #pragma once
 
-#include "Templates/SharedPointer.h"
+#include "HierarchyTableTypeHandler.h"
+#include "HierarchyTableType.h"
 #include "Modules/ModuleInterface.h"
 
 class FHierarchyTableEditorModule : public IModuleInterface
@@ -12,6 +13,12 @@ public:
 	
 	virtual void ShutdownModule() override;
 
+	void HIERARCHYTABLEEDITOR_API RegisterTableType(const UScriptStruct* HierarchyTableType, const UHierarchyTableTypeHandler_Base* Handler);
+
+	void HIERARCHYTABLEEDITOR_API UnregisterTableType(const UScriptStruct* HierarchyTableType);
+
+	const UHierarchyTableTypeHandler_Base* FindHandler(const UScriptStruct* HierarchyTableType) const;
+
 private:
-	TSharedPtr<class FHierarchyTableAssetTypeActions> HierarchyTableAssetTypeActions;
+	TMap<const UScriptStruct*, const UHierarchyTableTypeHandler_Base*> Handlers;
 };

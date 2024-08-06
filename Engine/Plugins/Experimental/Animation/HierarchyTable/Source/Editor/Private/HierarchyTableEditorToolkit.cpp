@@ -15,10 +15,10 @@
 #include "ReferenceSkeleton.h"
 #include "Animation/Skeleton.h"
 #include "HierarchyTable/Columns/OverrideColumn.h"
-#include "HierarchyTableTypeRegistry.h"
 #include "HierarchyTableType.h"
 #include "ToolMenus.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HierarchyTableEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "HierarchyTableEditorToolkit"
 
@@ -118,7 +118,8 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 		return SNullWidget::NullWidget;
 	}
 
-	const UHierarchyTableTypeHandler_Base* Handler = GetDefault<UHierarchyTableTypeRegistry>()->FindHandler(HierarchyTable->TableType);
+	FHierarchyTableEditorModule& HierarchyTableModule = FModuleManager::GetModuleChecked<FHierarchyTableEditorModule>("HierarchyTableEditor");
+	const UHierarchyTableTypeHandler_Base* Handler = HierarchyTableModule.FindHandler(HierarchyTable->TableType);
 	if (!ensureMsgf(Handler, TEXT("Could not find handler for %s, have you forgotten to register it?"), *HierarchyTable->TableType->GetName()))
 	{
 		return SNullWidget::NullWidget;

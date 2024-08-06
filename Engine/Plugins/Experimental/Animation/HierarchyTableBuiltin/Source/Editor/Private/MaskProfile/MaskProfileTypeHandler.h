@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "HierarchyTableTypeRegistry.h"
+#include "HierarchyTableTypeHandler.h"
 
 #include "MaskProfileTypeHandler.generated.h"
 
