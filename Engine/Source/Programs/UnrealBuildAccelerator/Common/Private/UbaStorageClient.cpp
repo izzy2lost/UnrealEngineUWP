@@ -314,7 +314,7 @@ namespace uba
 				{
 					if (proxy)
 						continue;
-					return m_logger.Error(TC("Failed to send fetch begin message for cas %s (%s)"), casFile.data, hint);
+					return m_logger.Error(TC("Failed to send fetch begin message for cas %s (%s). Error: %u"), casFile.data, hint, msg.GetError());
 				}
 				sizeOfFirstMessage = u32(reader.GetLeft());
 				fetchId = reader.ReadU16();
@@ -347,7 +347,6 @@ namespace uba
 					{
 						reader.ReadString(proxyHost);
 						proxyPort = reader.ReadU16();
-						// TODO: Check if self, then use loopback.. this could be received before local proxy is started due to network ordering
 					}
 
 					SCOPED_WRITE_LOCK(m_proxyClientLock, proxyLock2);

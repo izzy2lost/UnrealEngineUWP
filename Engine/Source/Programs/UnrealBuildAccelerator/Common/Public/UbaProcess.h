@@ -64,6 +64,7 @@ namespace uba
 
 		bool IsActive();
 		bool IsCancelled();
+		bool HasFailedMessage();
 
 		bool WaitForRead(PipeReader& outReader, PipeReader& errReader);
 		void SetWritten();

@@ -1713,6 +1713,13 @@ namespace uba
 									session.SendReturnProcess(rec->handle.GetId(), session.m_terminationReason);
 								return;
 							}
+
+							if (process.HasFailedMessage()) // If there are failure caused by failed messages we send back for retry
+							{
+								if (session.m_loop)
+									session.SendReturnProcess(rec->handle.GetId(), TC("Failed message"));
+								return;
+							}
 						}
 
 						if (exitCode == 0 || startInfo.writeOutputFilesOnFail)
@@ -2006,8 +2013,10 @@ namespace uba
 
 	bool SessionClient::LogLine(ProcessImpl& process, const tchar* line, LogEntryType logType)
 	{
-		// TODO: Remove this once we have figured out a bug that seems to exist for remote execution
-#if PLATFORM_WINDOWS
+		// Remove this once we have figured out a bug that seems to exist for remote execution
+		// Update: Bug has been found for macos... for windows we believe the bug is related to uninformed shutdown and having multiple tcp connections..
+		// ... one tcp connection is disconnected, causing file not found while another connection manages to send "process finished"
+#if 0 // PLATFORM_WINDOWS
 
 		auto rules = process.m_startInfo.rules;
 		if (!rules)

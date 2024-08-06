@@ -368,6 +368,11 @@ namespace uba
 		#endif
 	}
 
+	bool ProcessImpl::HasFailedMessage()
+	{
+		return !m_messageSuccess;
+	}
+
 	bool ProcessImpl::WaitForExit(u32 millisecondsTimeout)
 	{
 		return m_messageThread.Wait(millisecondsTimeout);
