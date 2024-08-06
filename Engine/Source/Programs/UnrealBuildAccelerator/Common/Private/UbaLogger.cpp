@@ -320,6 +320,20 @@ namespace uba
 			TSprintf_s(str, 32, TC("%.1ftb"), double(bytes) / (1000ull * 1000 * 1000 * 1000));
 	}
 
+	CountToText::CountToText(u64 count)
+	{
+		if (count < 1000)
+			TSprintf_s(str, 32, TC("%u"), u32(count));
+		else if (count < 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fk"), double(count) / 1000ull);
+		else if (count < 1000ull * 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fm"), double(count) / (1000ull * 1000));
+		else if (count < 1000ull * 1000 * 1000 * 1000)
+			TSprintf_s(str, 32, TC("%.1fg"), double(count) / (1000ull * 1000 * 1000));
+		else
+			TSprintf_s(str, 32, TC("%.1ft"), double(count) / (1000ull * 1000 * 1000 * 1000));
+	}
+
 #if UBA_DEBUG_LOGGER
 	thread_local u32 t_debugLogScopeCount = 0;
 

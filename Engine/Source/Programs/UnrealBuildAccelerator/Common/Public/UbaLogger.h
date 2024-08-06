@@ -73,6 +73,13 @@ namespace uba
 		tchar str[32];
 	};
 
+	struct CountToText
+	{
+		CountToText(u64 count);
+		operator const tchar* () const { return str; };
+		tchar str[32];
+	};
+
 
 	#if UBA_DEBUG_LOGGER
 	bool StartDebugLogger(Logger& outerLogger, const tchar* fileName);
