@@ -47,7 +47,6 @@ static FAutoConsoleVariableRef CVarEnableDetailedMemoryBudgetExceededLogging (
 	ECVF_Default);
 }
 
-
 namespace mu
 {
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(ETextureCompressionStrategy);
@@ -1129,7 +1128,7 @@ namespace mu
 		const SSIZE_T ImageAllocBytes	 = MemoryCounters::FImageMemoryCounter::Counter.load(std::memory_order_relaxed);
 		const SSIZE_T MeshAllocBytes     = MemoryCounters::FMeshMemoryCounter::Counter.load(std::memory_order_relaxed);
 		const SSIZE_T StreamAllocBytes   = MemoryCounters::FStreamingMemoryCounter::Counter.load(std::memory_order_relaxed);
-		const SSIZE_T InternalAllocBytes = MemoryCounters::FMemoryTrackerInternalMemoryCounter::Counter.load(std::memory_order_relaxed);
+		const SSIZE_T InternalAllocBytes = MemoryCounters::FInternalMemoryCounter::Counter.load(std::memory_order_relaxed);
 
 		SSIZE_T TotalBytes = ImageAllocBytes + MeshAllocBytes + StreamAllocBytes + InternalAllocBytes;
 
@@ -1217,7 +1216,7 @@ namespace mu
 		SSIZE_T TotalBytes = MemoryCounters::FImageMemoryCounter::Counter.load(std::memory_order_relaxed) + 
 						     MemoryCounters::FMeshMemoryCounter::Counter.load(std::memory_order_relaxed) +
 							 MemoryCounters::FStreamingMemoryCounter::Counter.load(std::memory_order_relaxed) +
-							 MemoryCounters::FMemoryTrackerInternalMemoryCounter::Counter.load(std::memory_order_relaxed);
+							 MemoryCounters::FInternalMemoryCounter::Counter.load(std::memory_order_relaxed);
 
 		return TotalBytes;
 	}
