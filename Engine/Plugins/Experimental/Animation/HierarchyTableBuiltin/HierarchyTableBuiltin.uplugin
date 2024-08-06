@@ -33,7 +33,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "TypedElementDataStorageEditorUI",
+			"Name": "EditorDataStorageFeatures",
 			"Enabled": true
 		}
 	]

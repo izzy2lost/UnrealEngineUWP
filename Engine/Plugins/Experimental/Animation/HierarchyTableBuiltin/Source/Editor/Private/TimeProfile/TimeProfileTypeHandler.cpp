@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "TimeProfile/TimeProfileTypeHandler.h"
 #include "TimeProfile/HierarchyTableTypeTime.h"
 #include "TimeProfile/TimeProfileProxyColumn.h"
