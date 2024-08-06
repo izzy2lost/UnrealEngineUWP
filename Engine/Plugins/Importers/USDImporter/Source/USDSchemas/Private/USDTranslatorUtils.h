@@ -6,10 +6,10 @@
 #include "UObject/ObjectMacros.h"
 
 class UUsdAssetCache3;
-class FUsdInfoCache;
+class UUsdPrimLinkCache;
 
 namespace UsdUnreal::TranslatorUtils
 {
 	// Properly deletes the asset and removes it from the asset and info caches, if provided
-	void AbandonFailedAsset(UObject* Asset, UUsdAssetCache3* AssetCache, FUsdInfoCache* InfoCache);
+	void AbandonFailedAsset(UObject* Asset, UUsdAssetCache3* AssetCache, UUsdPrimLinkCache* PrimLinkCache);
 }

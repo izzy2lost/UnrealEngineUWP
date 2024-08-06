@@ -15,6 +15,7 @@
 #include "USDGeomMeshConversion.h"
 #include "USDGeomXformableTranslator.h"
 #include "USDInfoCache.h"
+#include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLightConversion.h"
@@ -22,6 +23,7 @@
 #include "USDLog.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
+#include "USDPrimLinkCache.h"
 #include "USDPrimTwin.h"
 #include "USDProjectSettings.h"
 #include "USDSchemasModule.h"
@@ -165,7 +167,8 @@ struct FUsdStageActorImpl
 		TranslationContext->SubdivisionLevel = StageActor->SubdivisionLevel;
 		TranslationContext->MetadataOptions = StageActor->MetadataOptions;
 		TranslationContext->BlendShapesByPath = &StageActor->BlendShapesByPath;
-		TranslationContext->InfoCache = StageActor->InfoCache;
+		TranslationContext->UsdInfoCache.Reset(StageActor->UsdInfoCache);
+		TranslationContext->PrimLinkCache.Reset(StageActor->PrimLinkCache);
 		TranslationContext->BBoxCache = StageActor->BBoxCache;
 		TranslationContext->bTranslateOnlyUsedMaterials = GTranslateOnlyUsedMaterialsWhenOpeningStage;
 
@@ -1266,7 +1269,7 @@ void AUsdStageActor::IsolateLayer(const UE::FSdfLayer& Layer)
 void AUsdStageActor::OnUsdObjectsChanged(const UsdUtils::FObjectChangesByPath& InfoChanges, const UsdUtils::FObjectChangesByPath& ResyncChanges)
 {
 #if USE_USD_SDK
-	if (!IsListeningToUsdNotices() || !InfoCache.IsValid())
+	if (!IsListeningToUsdNotices() || !UsdInfoCache)
 	{
 		return;
 	}
@@ -1532,14 +1535,20 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 	FScopedUsdMessageLog ScopedMessageLog;
 
-	TSharedPtr<FUsdInfoCache> OldInfoCache = InfoCache;
-	if (InfoCache.IsValid() && bHasResync)
+	TStrongObjectPtr<UUsdInfoCache> OldInfoCache{UsdInfoCache};
+	if (UsdInfoCache && bHasResync)
 	{
 		// Take a copy of the info cache here: We want to keep the old one for this function call as it helps us cleanup the old assets and components
 		// For now we don't need to do this for info changes, only for resync changes
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(CopyingOldInfoCache);
-			InfoCache = MakeShared<FUsdInfoCache>(*OldInfoCache);
+			UObject* OwnerObject = this;
+			UsdInfoCache = NewObject<UUsdInfoCache>(OwnerObject, NAME_None, UsdInfoCache->GetFlags());
+
+			// Use this instead of DuplicateObject as this is a single Serialize() call (due to the Modify()), while the DuplicateObject means 3
+			// Serialize() calls
+			UsdInfoCache->CopyImpl(*OldInfoCache);
+
 		}
 
 		// TODO: Selective rebuild of only the required parts of the cache.
@@ -1549,11 +1558,11 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		// subtree at all, or sibling subtrees. Note that whenver we do a selective rebuild of the info cache we'll need to be very careful when
 		// to update certain info cache maps: For example whenever we delete a prim we need to make sure it's removed from MaterialUsers, etc.
 		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
-		InfoCache->RebuildCacheForSubtree(Stage.GetPseudoRoot(), TranslationContext.Get());
+		UsdInfoCache->RebuildCacheForSubtree(Stage.GetPseudoRoot(), TranslationContext.Get());
 
 		// Need to update the LevelSequenceHelper with our new cache too, as it will need the new cache to find any
 		// assets we end up creating in this update (e.g. USoundWave assets)
-		LevelSequenceHelper.SetInfoCache(InfoCache);
+		LevelSequenceHelper.SetPrimLinkCache(PrimLinkCache);
 	}
 
 	if (BBoxCache.IsValid() && bHasResync)
@@ -1649,7 +1658,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		// both X and Y will be on the notice change list, even though X doesn't exist on the stage anymore.
 		// It's easy to just ignore those here by doing this, but we could also pay attention to the flags
 		// on the notice and try to guess if a rename took place, if needed
-		if (InfoCache->ContainsInfoAboutPrim(PrimPath))
+		if (UsdInfoCache->ContainsInfoAboutPrim(PrimPath))
 		{
 			// We always want the unwound path here. We'll take care to only ever register main prims that are
 			// themselves uncollapsed or collapsed roots, but there's nothing stopping the user from manually
@@ -1657,7 +1666,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			// parent prim of a point instancer prototype). If we retrieved a main prim for a prim like that,
 			// we'd only get that prim itself, and assume we need to spawn assets/components for it (which we
 			// really don't if it's collapsed)
-			UE::FSdfPath UnwoundPath = InfoCache->UnwindToNonCollapsedPath(PrimPath, ECollapsingType::Assets);
+			UE::FSdfPath UnwoundPath = UsdInfoCache->UnwindToNonCollapsedPath(PrimPath, ECollapsingType::Assets);
 			OutPrimsToUpdate.FindOrAdd(UnwoundPath) |= bIsResync;
 		}
 
@@ -1715,7 +1724,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			}
 		}
 
-		TSet<UE::FSdfPath> NewMainPrims = InfoCache->GetMainPrims(PrimPath);
+		TSet<UE::FSdfPath> NewMainPrims = UsdInfoCache->GetMainPrims(PrimPath);
 		TSet<UE::FSdfPath> OldMainPrims = OldInfoCache->GetMainPrims(PrimPath);
 		OutPrimsToUpdate.Reserve(OutPrimsToUpdate.Num() + NewMainPrims.Num() + OldMainPrims.Num());
 		for (const UE::FSdfPath& NewPrimPath : NewMainPrims)
@@ -1802,7 +1811,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 			// It's OK to not have info about a prim if it's an old prim that only exists on the old info cache.
 			// If the new info cache has info about this prim then it must exist on the stage right now
-			if (!InfoCache->ContainsInfoAboutPrim(PrimPath))
+			if (!UsdInfoCache->ContainsInfoAboutPrim(PrimPath))
 			{
 				ensure(!PrimToUpdate);
 				continue;
@@ -1833,10 +1842,10 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			// Note that even after UE-157644 this is still useful: Material prims are not marked as a dependency
 			// of Mesh prims, otherwise we'd have to regenerate the StaticMesh itself when material info changed.
 			// Ideally we'd just set a new material override on the component, which is what this does
-			const bool bPrimGeneratesMaterials = InfoCache->GetSingleAssetForPrim<UMaterialInterface>(PrimPath) != nullptr;
+			const bool bPrimGeneratesMaterials = PrimLinkCache->GetSingleAssetForPrim<UMaterialInterface>(PrimPath) != nullptr;
 			if (bThisPrimLoadedAssets && bPrimGeneratesMaterials)
 			{
-				MaterialUserPrims.Append(InfoCache->GetMaterialUsers(PrimPath));
+				MaterialUserPrims.Append(UsdInfoCache->GetMaterialUsers(PrimPath));
 			}
 		}
 	}
@@ -1907,7 +1916,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
 			const bool bIsResync = PrimChangedInfo.Value;
 
-			if (!InfoCache->ContainsInfoAboutPrim(PrimPath))
+			if (!UsdInfoCache->ContainsInfoAboutPrim(PrimPath))
 			{
 				continue;
 			}
@@ -2898,7 +2907,7 @@ USceneComponent* AUsdStageActor::GetGeneratedComponent(const FString& PrimPath) 
 		return nullptr;
 	}
 
-	// We can't query our InfoCache with invalid paths, as we're using ensures to track when we miss the cache (which shouldn't ever happen)
+	// We can't query our UsdInfoCache with invalid paths, as we're using ensures to track when we miss the cache (which shouldn't ever happen)
 	UE::FSdfPath UsdPath{*PrimPath};
 	if (!CurrentStage.GetPrimAtPath(UsdPath))
 	{
@@ -2906,9 +2915,9 @@ USceneComponent* AUsdStageActor::GetGeneratedComponent(const FString& PrimPath) 
 	}
 
 	FString UncollapsedPath = PrimPath;
-	if (InfoCache.IsValid())
+	if (UsdInfoCache)
 	{
-		UncollapsedPath = InfoCache->UnwindToNonCollapsedPath(UsdPath, ECollapsingType::Components).GetString();
+		UncollapsedPath = UsdInfoCache->UnwindToNonCollapsedPath(UsdPath, ECollapsingType::Components).GetString();
 	}
 
 	if (UUsdPrimTwin* UsdPrimTwin = GetRootPrimTwin()->Find(UncollapsedPath))
@@ -2927,24 +2936,24 @@ TArray<UObject*> AUsdStageActor::GetGeneratedAssets(const FString& PrimPath) con
 		return {};
 	}
 
-	// We can't query our InfoCache with invalid paths, as we're using ensures to track when we miss the cache (which shouldn't ever happen)
+	// We can't query our UsdInfoCache with invalid paths, as we're using ensures to track when we miss the cache (which shouldn't ever happen)
 	UE::FSdfPath UsdPath{*PrimPath};
 	if (!CurrentStage.GetPrimAtPath(UsdPath))
 	{
 		return {};
 	}
 
-	if (!InfoCache)
+	if (!PrimLinkCache || !UsdInfoCache)
 	{
 		return {};
 	}
 
 	// Prefer checking the prim directly, but also check its collapsed root if it is collapsed.
-	TArray<TWeakObjectPtr<UObject>> AssetsPtrs = InfoCache->GetAllAssetsForPrim(UsdPath);
-	if (AssetsPtrs.Num() == 0 && InfoCache->IsPathCollapsed(UsdPath, ECollapsingType::Assets))
+	TArray<TWeakObjectPtr<UObject>> AssetsPtrs = PrimLinkCache->GetAllAssetsForPrim(UsdPath);
+	if (AssetsPtrs.Num() == 0 && UsdInfoCache->IsPathCollapsed(UsdPath, ECollapsingType::Assets))
 	{
-		UsdPath = InfoCache->UnwindToNonCollapsedPath(UsdPath, ECollapsingType::Assets);
-		AssetsPtrs = InfoCache->GetAllAssetsForPrim(UsdPath);
+		UsdPath = UsdInfoCache->UnwindToNonCollapsedPath(UsdPath, ECollapsingType::Assets);
+		AssetsPtrs = PrimLinkCache->GetAllAssetsForPrim(UsdPath);
 	}
 
 	TArray<UObject*> Assets;
@@ -2978,9 +2987,9 @@ FString AUsdStageActor::GetSourcePrimPath(const UObject* Object) const
 			return UsdPrimTwin->PrimPath;
 		}
 	}
-	else if (InfoCache)
+	else if (PrimLinkCache)
 	{
-		const TArray<UE::FSdfPath> FoundPaths = InfoCache->GetPrimsForAsset(Object);
+		const TArray<UE::FSdfPath> FoundPaths = PrimLinkCache->GetPrimsForAsset(Object);
 		if (FoundPaths.Num() > 0)
 		{
 			return FoundPaths[0].GetString();
@@ -3196,9 +3205,8 @@ void AUsdStageActor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ObjectRep
 			NewActor->OnPrimChanged = OnPrimChanged;
 
 			NewActor->AssetCache = AssetCache;
-
-			NewActor->InfoCache = InfoCache;
-			InfoCache = nullptr;
+			NewActor->UsdInfoCache = UsdInfoCache;
+			NewActor->PrimLinkCache = PrimLinkCache;
 
 			NewActor->BBoxCache = BBoxCache;
 			BBoxCache = nullptr;
@@ -3297,9 +3305,16 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 
 	// Create Info and BBoxCache before calling ReloadAnimations as that is when the LevelSequenceHelper will also take
 	// a reference to them
-	if (!InfoCache.IsValid())
+	if (!UsdInfoCache)
 	{
-		InfoCache = MakeShared<FUsdInfoCache>();
+		UObject* Outer = this;
+		UsdInfoCache = NewObject<UUsdInfoCache>(Outer, NAME_None, EObjectFlags::RF_Transient | EObjectFlags::RF_Transactional);
+	}
+
+	if (!PrimLinkCache)
+	{
+		UObject* Outer = this;
+		PrimLinkCache = NewObject<UUsdPrimLinkCache>(Outer, NAME_None, EObjectFlags::RF_Transient | EObjectFlags::RF_Transactional);
 	}
 
 	RegenerateLevelSequence();
@@ -3307,8 +3322,8 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, RootTwin->PrimPath);
 
 	SlowTask.EnterProgressFrame(0.1f);
-	InfoCache->RemoveAllAssetPrimLinks();	 // These are usually not reset when rebuilding the cache so we must call manually
-	InfoCache->RebuildCacheForSubtree(StageToLoad.GetPseudoRoot(), TranslationContext.Get());
+	PrimLinkCache->RemoveAllAssetPrimLinks();
+	UsdInfoCache->RebuildCacheForSubtree(StageToLoad.GetPseudoRoot(), TranslationContext.Get());
 
 	SlowTask.EnterProgressFrame(0.7f);
 	const bool bLoadedOrAbandonedAssets = LoadAssets(*TranslationContext, StageToLoad.GetPseudoRoot());
@@ -3468,9 +3483,14 @@ void AUsdStageActor::UnloadUsdStage()
 		AssetCache->RequestDelayedAssetAutoCleanup();
 	}
 
-	if (InfoCache)
+	if (PrimLinkCache)
 	{
-		InfoCache->Clear();
+		PrimLinkCache->Clear();
+	}
+
+	if (UsdInfoCache)
+	{
+		UsdInfoCache->Clear();
 	}
 
 	if (BBoxCache)
@@ -3598,10 +3618,12 @@ void AUsdStageActor::RepopulateLevelSequence()
 	UpdatePrim(UE::FSdfPath::AbsoluteRootPath(), bIsResync, *TranslationContext);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TSharedPtr<FUsdInfoCache> AUsdStageActor::GetInfoCache()
 {
 	return InfoCache;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 TSharedPtr<UE::FUsdGeomBBoxCache> AUsdStageActor::GetBBoxCache()
 {
@@ -3944,12 +3966,6 @@ void AUsdStageActor::Serialize(FArchive& Ar)
 
 	if ((Ar.GetPortFlags() & PPF_DuplicateForPIE) || Ar.IsTransacting())
 	{
-		if (!InfoCache.IsValid())
-		{
-			InfoCache = MakeShared<FUsdInfoCache>();
-		}
-
-		InfoCache->Serialize(Ar);
 		LevelSequenceHelper.Serialize(Ar);
 	}
 }
@@ -4818,7 +4834,7 @@ bool AUsdStageActor::UnloadAssets(const UE::FSdfPath& StartPrimPath, bool bForEn
 	// be tracked via the info cache asset prim links, so if at any time they resync the old assets will still be
 	// found below when iterating the prim links, and we will discard them either way.
 
-	if (!AssetCache || !InfoCache)
+	if (!AssetCache || !PrimLinkCache)
 	{
 		return false;
 	}
@@ -4828,7 +4844,7 @@ bool AUsdStageActor::UnloadAssets(const UE::FSdfPath& StartPrimPath, bool bForEn
 	TSet<UE::FSdfPath> PrimPathsToRemove;
 	if (bForEntireSubtree)
 	{
-		for (const TPair<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>>& PrimPathToAssetIt : InfoCache->GetAllAssetPrimLinks())
+		for (const TPair<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>>& PrimPathToAssetIt : PrimLinkCache->GetAllAssetPrimLinks())
 		{
 			const UE::FSdfPath& LinkPrimPath = PrimPathToAssetIt.Key;
 			if (LinkPrimPath.HasPrefix(StartPrimPath) || LinkPrimPath == StartPrimPath)
@@ -4844,13 +4860,13 @@ bool AUsdStageActor::UnloadAssets(const UE::FSdfPath& StartPrimPath, bool bForEn
 
 	for (const UE::FSdfPath& PrimPathToRemove : PrimPathsToRemove)
 	{
-		TArray<TWeakObjectPtr<UObject>> OldAssets = InfoCache->RemoveAllAssetPrimLinks(PrimPathToRemove);
+		TArray<TWeakObjectPtr<UObject>> OldAssets = PrimLinkCache->RemoveAllAssetPrimLinks(PrimPathToRemove);
 		for (const TWeakObjectPtr<UObject>& OldAsset : OldAssets)
 		{
 			// If there are any other prim paths linked to this asset that we *won't* be removing/reparsing
 			// in here, it means our stage actor as a whole is still "referencing" that asset
 			bool bAssetStillReferenced = false;
-			for (const UE::FSdfPath& LinkedPrim : InfoCache->GetPrimsForAsset(OldAsset.Get()))
+			for (const UE::FSdfPath& LinkedPrim : PrimLinkCache->GetPrimsForAsset(OldAsset.Get()))
 			{
 				if (!PrimPathsToRemove.Contains(LinkedPrim))
 				{
@@ -4880,18 +4896,17 @@ bool AUsdStageActor::LoadAsset(FUsdSchemaTranslationContext& TranslationContext,
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::LoadAsset);
 
-	if (!AssetCache || !InfoCache)
+	if (!AssetCache)
 	{
 		return false;
 	}
 
 	int32 StartNumAssets = AssetCache->GetNumAssets();
 
-	// Suppress transaction while we're creating assets.
-	// c.f. the big comment on the analogous position within AUsdStageActor::LoadAssets
-	Modify();
 	AssetCache->Modify();
 	{
+		// Suppress transaction while we're creating assets.
+		// c.f. the big comment on the analogous position within AUsdStageActor::LoadAssets
 		TGuardValue<ITransaction*> SuppressTransaction{GUndo, nullptr};
 
 		IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
@@ -4914,7 +4929,7 @@ bool AUsdStageActor::LoadAssets(FUsdSchemaTranslationContext& TranslationContext
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::LoadAssets);
 
-	if (!AssetCache || !InfoCache)
+	if (!AssetCache)
 	{
 		return false;
 	}
@@ -4955,20 +4970,18 @@ bool AUsdStageActor::LoadAssets(FUsdSchemaTranslationContext& TranslationContext
 		return false;
 	};
 
-	// Suppress current transaction, as we never want assets to be put into the transaction buffer. This because these
-	// will be exposed to the content browser now, so that "opening the stage" essentially acts as a full import.
-	// We don't want to rip these assets up when pressing undo after they've been created. The engine should act
-	// essentially as if they've always been there.
-	//
-	// Note that we have tried achieving that by just creating these assets without the RF_Transactional flag, but that is not enough:
-	// Some assets create subobjects that are transactional anyway (StaticMeshes), and some other assets have much
-	// more complicated logic that can even spawn some transient Worlds, actors and components, and can put them all
-	// into the transaction buffer (Skeletal assets), causing havoc if we try to make sense of object referencers
-	// when it's time to clean up the asset.
-	//
-	Modify();	 // Mainly to dirty the info cache
 	AssetCache->Modify();
 	{
+		// Suppress current transaction, as we never want assets to be put into the transaction buffer. This because these
+		// will be exposed to the content browser now, so that "opening the stage" essentially acts as a full import.
+		// We don't want to rip these assets up when pressing undo after they've been created. The engine should act
+		// essentially as if they've always been there.
+		//
+		// Note that we have tried achieving that by just creating these assets without the RF_Transactional flag, but that is not enough:
+		// Some assets create subobjects that are transactional anyway (StaticMeshes), and some other assets have much
+		// more complicated logic that can even spawn some transient Worlds, actors and components, and can put them all
+		// into the transaction buffer (Skeletal assets), causing havoc if we try to make sense of object referencers
+		// when it's time to clean up the asset.
 		TGuardValue<ITransaction*> SuppressTransaction{GUndo, nullptr};
 
 		// Load materials first since meshes are referencing them

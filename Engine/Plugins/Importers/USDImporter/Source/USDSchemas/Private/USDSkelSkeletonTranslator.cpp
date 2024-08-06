@@ -19,6 +19,7 @@
 #include "USDMemory.h"
 #include "USDObjectUtils.h"
 #include "USDPrimConversion.h"
+#include "USDPrimLinkCache.h"
 #include "USDSkeletalDataConversion.h"
 #include "USDTranslatorUtils.h"
 #include "USDTypesConversion.h"
@@ -82,7 +83,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 		TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		USkeletalMesh* SkeletalMesh,
 		UUsdAssetCache3& AssetCache,
-		FUsdInfoCache& InfoCache,
+		UUsdPrimLinkCache& PrimLinkCache,
 		float Time,
 		EObjectFlags Flags,
 		bool bSkeletalMeshHasMorphTargets,
@@ -114,7 +115,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 			UsdPrim,
 			LODIndexToMaterialInfo,
 			AssetCache,
-			InfoCache,
+			PrimLinkCache,
 			Flags,
 			bShareAssetsForIdenticalPrims
 		);
@@ -705,7 +706,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 		const TArray<UMaterialInterface*>& ExistingAssignments,
 		UMeshComponent& MeshComponent,
 		UUsdAssetCache3& AssetCache,
-		FUsdInfoCache& InfoCache,
+		UUsdPrimLinkCache& PrimLinkCache,
 		float Time,
 		EObjectFlags Flags,
 		bool bInterpretLODs,
@@ -863,7 +864,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 			ValidSkeletonPrim,
 			LODIndexToAssignments,
 			AssetCache,
-			InfoCache,
+			PrimLinkCache,
 			Flags,
 			bShareAssetsForIdenticalPrims
 		);
@@ -932,14 +933,14 @@ namespace UsdSkelSkeletonTranslatorImpl
 		bool* bOutNeedsRecompile = nullptr	  // Whether this function wants the returned AnimBP to be recompiled
 	)
 	{
-		if (!SkeletonPrim || !Context.InfoCache || !Context.UsdAssetCache)
+		if (!SkeletonPrim || !Context.PrimLinkCache || !Context.UsdAssetCache)
 		{
 			return nullptr;
 		}
 
 		FString PrimName = UsdToUnreal::ConvertString(SkeletonPrim.GetName());
 
-		USkeletalMesh* SkeletalMesh = Context.InfoCache->GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{SkeletonPrim.GetPath()});
+		USkeletalMesh* SkeletalMesh = Context.PrimLinkCache->GetSingleAssetForPrim<USkeletalMesh>(UE::FSdfPath{SkeletonPrim.GetPath()});
 		if (!SkeletalMesh)
 		{
 			return nullptr;
@@ -1002,7 +1003,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 			FSHAHash Hash;
 			FSHA1 SHA1;
 			// Each stage actor has a separate info cache that is assigned to the context
-			SHA1.Update(reinterpret_cast<const uint8*>(Context.InfoCache.Get()), sizeof(Context.InfoCache.Get()));
+			SHA1.Update(reinterpret_cast<const uint8*>(Context.UsdInfoCache.Get()), sizeof(Context.UsdInfoCache.Get()));
 			SHA1.UpdateWithString(*PrimPath, PrimPath.Len());
 			SHA1.Final();
 			SHA1.GetHash(&Hash.Hash[0]);
@@ -1459,7 +1460,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 			ESchemaTranslationLaunchPolicy::Sync,
 			[this]()
 			{
-				if (!Context->InfoCache || !Context->UsdAssetCache)
+				if (!Context->PrimLinkCache || !Context->UsdAssetCache)
 				{
 					return false;
 				}
@@ -1528,7 +1529,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 							TEXT("Failed to create SkeletalMesh for prim '%s'"),
 							*UsdToUnreal::ConvertPath(ClosestParentSkelRoot.Get().GetPrim().GetPrimPath())
 						);
-						UsdUnreal::TranslatorUtils::AbandonFailedAsset(SkeletalMesh, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
+						UsdUnreal::TranslatorUtils::AbandonFailedAsset(SkeletalMesh, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
 
 						if (bSkeletonIsNew)
 						{
@@ -1539,7 +1540,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 								*SkeletonName.ToString(),
 								*UsdToUnreal::ConvertPath(ClosestParentSkelRoot.Get().GetPrim().GetPrimPath())
 							);
-							UsdUnreal::TranslatorUtils::AbandonFailedAsset(Skeleton, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
+							UsdUnreal::TranslatorUtils::AbandonFailedAsset(Skeleton, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
 						}
 					}
 				}
@@ -1609,7 +1610,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 							LODIndexToMaterialInfo,
 							SkeletalMesh,
 							*Context->UsdAssetCache.Get(),
-							*Context->InfoCache.Get(),
+							*Context->PrimLinkCache.Get(),
 							Context->Time,
 							Context->ObjectFlags,
 							NewBlendShapes.Num() > 0,
@@ -1666,7 +1667,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 									UsdUnreal::TranslatorUtils::AbandonFailedAsset(
 										PhysicsAsset,
 										Context->UsdAssetCache.Get(),
-										Context->InfoCache.Get()
+										Context->PrimLinkCache.Get()
 									);
 								}
 							}
@@ -1675,7 +1676,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 
 						if (PhysicsAsset)
 						{
-							Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, PhysicsAsset);
+							Context->PrimLinkCache->LinkAssetToPrim(SkeletonPrimPath, PhysicsAsset);
 							Context->UsdAssetCache->TouchAssetPath(PhysicsAsset);
 						}
 					}
@@ -1685,12 +1686,12 @@ namespace UsdSkelSkeletonTranslatorImpl
 						SkeletalMesh->SetPhysicsAsset(nullptr);
 					}
 
-					Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, SkeletalMesh);
+					Context->PrimLinkCache->LinkAssetToPrim(SkeletonPrimPath, SkeletalMesh);
 
 					// Track our Skeleton by the source skeleton prim path
 					if (USkeleton* Skeleton = SkeletalMesh->GetSkeleton())
 					{
-						Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, Skeleton);
+						Context->PrimLinkCache->LinkAssetToPrim(SkeletonPrimPath, Skeleton);
 						Context->UsdAssetCache->TouchAssetPath(Skeleton);
 					}
 
@@ -1764,12 +1765,12 @@ namespace UsdSkelSkeletonTranslatorImpl
 			ESchemaTranslationLaunchPolicy::Sync,
 			[this]()
 			{
-				if (!Context->bAllowParsingSkeletalAnimations || !Context->InfoCache)
+				if (!Context->bAllowParsingSkeletalAnimations || !Context->PrimLinkCache)
 				{
 					return false;
 				}
 
-				USkeletalMesh* SkeletalMesh = Context->InfoCache->GetSingleAssetForPrim<USkeletalMesh>(SkeletonPrimPath);
+				USkeletalMesh* SkeletalMesh = Context->PrimLinkCache->GetSingleAssetForPrim<USkeletalMesh>(SkeletonPrimPath);
 				if (!SkeletalMesh)
 				{
 					return false;
@@ -1863,7 +1864,7 @@ namespace UsdSkelSkeletonTranslatorImpl
 						|| (AnimSequence->GetDataModel()->GetNumBoneTracks() == 0 && AnimSequence->GetDataModel()->GetNumberOfFloatCurves() == 0))
 					{
 						UE_LOG(LogUsd, Warning, TEXT("Failed to create AnimSequence for prim '%s'"), *SkelAnimationPrimPath);
-						UsdUnreal::TranslatorUtils::AbandonFailedAsset(AnimSequence, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
+						UsdUnreal::TranslatorUtils::AbandonFailedAsset(AnimSequence, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
 						AnimSequence = nullptr;
 					}
 				}
@@ -1908,9 +1909,9 @@ namespace UsdSkelSkeletonTranslatorImpl
 					}
 				}
 
-				if (AnimSequence && Context->InfoCache)
+				if (AnimSequence && Context->PrimLinkCache)
 				{
-					Context->InfoCache->LinkAssetToPrim(SkeletonPrimPath, AnimSequence);
+					Context->PrimLinkCache->LinkAssetToPrim(SkeletonPrimPath, AnimSequence);
 				}
 
 				return true;
@@ -1960,7 +1961,7 @@ USceneComponent* FUsdSkelSkeletonTranslator::CreateComponents()
 	}
 
 	// Check if the prim has the GroomBinding schema and setup the component and assets necessary to bind the groom to the SkeletalMesh
-	if (Context->bAllowParsingGroomAssets && Context->UsdAssetCache && Context->InfoCache)
+	if (Context->bAllowParsingGroomAssets && Context->UsdAssetCache && Context->PrimLinkCache)
 	{
 		UE::FUsdPrim PrimWithSchema;
 		if (UsdUtils::PrimHasSchema(SkeletonPrim, UnrealIdentifiers::GroomBindingAPI))
@@ -1978,7 +1979,7 @@ USceneComponent* FUsdSkelSkeletonTranslator::CreateComponents()
 			UsdGroomTranslatorUtils::CreateGroomBindingAsset(
 				PrimWithSchema,
 				*Context->UsdAssetCache,
-				*Context->InfoCache,
+				*Context->PrimLinkCache,
 				Context->ObjectFlags,
 				Context->bShareAssetsForIdenticalPrims
 			);
@@ -2004,7 +2005,7 @@ USceneComponent* FUsdSkelSkeletonTranslator::CreateComponents()
 void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponent)
 {
 	USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(SceneComponent);
-	if (!SkeletalMeshComponent || !Context->InfoCache)
+	if (!SkeletalMeshComponent || !Context->PrimLinkCache)
 	{
 		return;
 	}
@@ -2085,7 +2086,7 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 
 	if (SkelAnimPrim)
 	{
-		UAnimSequence* TargetAnimSequence = Context->InfoCache->GetSingleAssetForPrim<UAnimSequence>(PrimPath);
+		UAnimSequence* TargetAnimSequence = Context->PrimLinkCache->GetSingleAssetForPrim<UAnimSequence>(PrimPath);
 		if (TargetAnimSequence != SkeletalMeshComponent->AnimationData.AnimToPlay)
 		{
 			SkeletalMeshComponent->AnimationData.AnimToPlay = TargetAnimSequence;
@@ -2103,7 +2104,7 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 
 #if WITH_EDITOR
 	// Re-set the skeletal mesh if we created a new one (maybe the hash changed, a skinned UsdGeomMesh was hidden, etc.)
-	USkeletalMesh* TargetSkeletalMesh = Context->InfoCache->GetSingleAssetForPrim<USkeletalMesh>(PrimPath);
+	USkeletalMesh* TargetSkeletalMesh = Context->PrimLinkCache->GetSingleAssetForPrim<USkeletalMesh>(PrimPath);
 	if (SkeletalMeshComponent->GetSkeletalMeshAsset() != TargetSkeletalMesh)
 	{
 		SkeletalMeshComponent->SetSkeletalMesh(TargetSkeletalMesh);
@@ -2121,8 +2122,8 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 				SkeletonBindingForPrim.Get(),
 				ExistingAssignments,
 				*SkeletalMeshComponent,
-				*Context->UsdAssetCache.Get(),
-				*Context->InfoCache.Get(),
+				*Context->UsdAssetCache,
+				*Context->PrimLinkCache,
 				Context->Time,
 				Context->ObjectFlags,
 				Context->bAllowInterpretingLODs,
@@ -2212,11 +2213,10 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 	}
 
 	// If the prim has a GroomBinding schema, apply the target groom to its associated GroomComponent
-	if (Context->InfoCache)
 	{
 		if (UsdUtils::PrimHasSchema(SkeletonPrim, UnrealIdentifiers::GroomBindingAPI))
 		{
-			UsdGroomTranslatorUtils::SetGroomFromPrim(SkeletonPrim, *Context->InfoCache, SceneComponent);
+			UsdGroomTranslatorUtils::SetGroomFromPrim(SkeletonPrim, *Context->PrimLinkCache, SceneComponent);
 		}
 		else if (UsdUtils::PrimHasSchema(ClosestSkelRootPrim, UnrealIdentifiers::GroomBindingAPI))
 		{
@@ -2230,7 +2230,7 @@ void FUsdSkelSkeletonTranslator::UpdateComponents(USceneComponent* SceneComponen
 					 "prims instead!"),
 				*ClosestSkelRootPrim.GetPrimPath().GetString()
 			);
-			UsdGroomTranslatorUtils::SetGroomFromPrim(ClosestSkelRootPrim, *Context->InfoCache, SceneComponent);
+			UsdGroomTranslatorUtils::SetGroomFromPrim(ClosestSkelRootPrim, *Context->PrimLinkCache, SceneComponent);
 		}
 	}
 #endif	  // WITH_EDITOR
@@ -2256,7 +2256,7 @@ TSet<UE::FSdfPath> FUsdSkelSkeletonTranslator::CollectAuxiliaryPrims() const
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	TSet<UE::FSdfPath> Result;

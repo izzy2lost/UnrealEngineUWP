@@ -234,9 +234,9 @@ void FUsdSchemaTranslationContext::CompleteTasks()
 	}
 
 	// These only make sense within an asset translation period
-	if (InfoCache)
+	if (UsdInfoCache)
 	{
-		InfoCache->ResetTranslatedPrototypes();
+		UsdInfoCache->ResetTranslatedPrototypes();
 	}
 }
 
@@ -247,7 +247,7 @@ bool FUsdSchemaTranslator::IsCollapsed(ECollapsingType CollapsingType) const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->InfoCache->IsPathCollapsed(PrimPath, CollapsingType);
+		return Context->UsdInfoCache->IsPathCollapsed(PrimPath, CollapsingType);
 	}
 
 	// This is merely a fallback, and we should never need this
@@ -290,12 +290,12 @@ bool FUsdSchemaTranslator::ShouldSkipInstance() const
 	UE::FSdfPath PrototypePath = GetPrototypePrimPath();
 	if (!PrototypePath.IsEmpty())
 	{
-		if (Context->InfoCache->IsPrototypeTranslated(PrototypePath))
+		if (Context->UsdInfoCache->IsPrototypeTranslated(PrototypePath))
 		{
 			return true;
 		}
 
-		Context->InfoCache->MarkPrototypeAsTranslated(PrototypePath);
+		Context->UsdInfoCache->MarkPrototypeAsTranslated(PrototypePath);
 	}
 
 	return false;
