@@ -552,6 +552,23 @@ public:
 	TArray<TSoftObjectPtr<UDataLayerAsset>> DataLayers;
 };
 
+/** Query type which filters actors by their spawnable status. */
+UCLASS(BlueprintType)
+class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroupQuery_IsSpawnable final : public UMovieGraphConditionGroupQueryBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const override;
+	virtual const FSlateIcon& GetIcon() const override;
+	virtual const FText& GetDisplayName() const override;
+
+public:
+	/** Whether the actor is a spawnable or not. */
+	UPROPERTY(EditAnywhere, Category="General")
+	bool bIsSpawnable;
+};
+
 /** A group of queries which can be added to a collection. */
 UCLASS(BlueprintType)
 class MOVIERENDERPIPELINECORE_API UMovieGraphConditionGroup : public UObject

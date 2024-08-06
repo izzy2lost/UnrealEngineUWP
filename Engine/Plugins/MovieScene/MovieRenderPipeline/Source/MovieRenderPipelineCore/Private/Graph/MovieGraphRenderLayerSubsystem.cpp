@@ -12,6 +12,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Modules/ModuleManager.h"
 #include "MovieRenderPipelineCoreModule.h"
+#include "MovieSceneSpawnableAnnotation.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateIconFinder.h"
 #include "UObject/Package.h"
@@ -2297,6 +2298,30 @@ void UMovieGraphConditionGroupQuery_DataLayer::AddDataLayers(const TArray<const 
 	RefreshDataLayerPicker.ExecuteIfBound(bUpdateSources);
 }
 #endif	// WITH_EDITOR
+
+void UMovieGraphConditionGroupQuery_IsSpawnable::Evaluate(const TArray<AActor*>& InActorsToQuery, const UWorld* InWorld, TSet<AActor*>& OutMatchingActors) const
+{
+	for (AActor* InActor : InActorsToQuery)
+	{
+		TOptional<FMovieSceneSpawnableAnnotation> Spawnable = FMovieSceneSpawnableAnnotation::Find(InActor);
+		if (Spawnable.IsSet())
+		{
+			OutMatchingActors.Add(InActor);
+		}
+	}
+}
+
+const FSlateIcon& UMovieGraphConditionGroupQuery_IsSpawnable::GetIcon() const
+{
+	static const FSlateIcon SpawnableIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "GraphEditor.SpawnActor_16x");
+	return SpawnableIcon;
+}
+
+const FText& UMovieGraphConditionGroupQuery_IsSpawnable::GetDisplayName() const
+{
+	static const FText DisplayName = LOCTEXT("ConditionGroupQueryDisplayName_IsSpawnable", "Is Spawnable");
+	return DisplayName;
+}
 
 UMovieGraphConditionGroup::UMovieGraphConditionGroup()
 	: OpType(EMovieGraphConditionGroupOpType::Add)
