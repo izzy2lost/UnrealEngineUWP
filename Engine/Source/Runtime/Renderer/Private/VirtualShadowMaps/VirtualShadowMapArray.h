@@ -155,6 +155,24 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER(uint32, bClipmapGreedyLevelSelection)
 	SHADER_PARAMETER(float, GlobalResolutionLodBias)
 
+	// SMRT parameters that are sometimes used globally
+	SHADER_PARAMETER(float, ScreenRayLength)
+	SHADER_PARAMETER(uint32, SMRTAdaptiveRayCount)
+	SHADER_PARAMETER(int32, SMRTRayCountLocal)
+	SHADER_PARAMETER(int32, SMRTSamplesPerRayLocal)
+	SHADER_PARAMETER(float, SMRTExtrapolateMaxSlopeLocal)
+	SHADER_PARAMETER(float, SMRTTexelDitherScaleLocal)
+	SHADER_PARAMETER(float, SMRTMaxSlopeBiasLocal)
+	SHADER_PARAMETER(float, SMRTCotMaxRayAngleFromLight)
+
+	SHADER_PARAMETER(int32, SMRTRayCountDirectional)
+	SHADER_PARAMETER(int32, SMRTSamplesPerRayDirectional)
+	SHADER_PARAMETER(float, SMRTExtrapolateMaxSlopeDirectional)
+	SHADER_PARAMETER(float, SMRTTexelDitherScaleDirectional)
+	SHADER_PARAMETER(float, SMRTRayLengthScale)
+		
+	SHADER_PARAMETER(uint32, SMRTHairRayCount)
+
 	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ProjectionData)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageTable)
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, PageFlags)

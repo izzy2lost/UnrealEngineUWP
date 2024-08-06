@@ -320,16 +320,9 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 	const float SceneDepth,
 	float3 TranslatedWorldPosition,
 	float RayStartOffset,
-	uint MaxRayCount,
-	uint SamplesPerRay,
-	float CotMaxRayAngleFromLight,
 	const float Noise,
 	const bool bCullBackface,
-	float3 WorldNormal,
-	float TexelDitherScale,
-	float ExtrapolateSlope,
-	float MaxSlopeBias,
-	uint SMRTAdaptiveRayCount)
+	float3 WorldNormal)
 {
 	const uint LightType = Light.SpotAngles.x > -2.0f ? LIGHT_TYPE_SPOT : LIGHT_TYPE_POINT;
 	const float3 ToLight = Light.TranslatedWorldPosition - TranslatedWorldPosition;
@@ -368,9 +361,9 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		// We use a radially symmetric mapping here instead of the true function to minimize issues crossing cubemap faces.
 		const float ShadowDepthFunctionScale = abs(ProjectionData.ShadowViewToClipMatrix._43 / length2(ToLight));
 
-		const float DitherScale = (TexelDitherScale * ProjectionData.TexelDitherScale) * ShadowResolutionScale;
-		const float MaxDitherSlope = MaxSlopeBias * DitherScale;
-		const float MaxDepthBias = MaxSlopeBias * ShadowResolutionScale * ShadowDepthFunctionScale;
+		const float DitherScale = (VirtualShadowMap.SMRTTexelDitherScaleLocal * ProjectionData.TexelDitherScale) * ShadowResolutionScale;
+		const float MaxDitherSlope = VirtualShadowMap.SMRTMaxSlopeBiasLocal * DitherScale;
+		const float MaxDepthBias = VirtualShadowMap.SMRTMaxSlopeBiasLocal * ShadowResolutionScale * ShadowDepthFunctionScale;
 
 		// Moving the ray origin means we need to attempt to account for local receiver geometry to avoid
 		// incorrect self-shadowing. To this end we move the point on a plane aligned with the shading normal.
@@ -381,6 +374,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		const float2 DepthSlopeTangent = -NormalPlaneTangent.xy / NormalPlaneTangent.z;
 
 		// If source angle = 0, we don't need multiple samples on the same ray
+		uint SamplesPerRay = VirtualShadowMap.SMRTSamplesPerRayLocal;
 		if (ConeSin == 0.0f)
 		{
 			SamplesPerRay = 0;
@@ -390,6 +384,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		uint RayMissCount = 0;
 		float OccluderDistanceSum = 0.0f;
 		float MaxOccluderDistance = -1.0f;
+		const uint MaxRayCount = VirtualShadowMap.SMRTRayCountLocal;
 		for( ; i < MaxRayCount; i++ )
 		{
 			float4 RandSample = VirtualShadowMapGetRandomSample(PixelPos, View.StateFrameIndex, i, MaxRayCount);
@@ -418,7 +413,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 			// where the projection becomes extreme.
 
 			// Clip ray to max angle to limit penumbra sizes
-			float ClampedEnd = DistToLight * 0.75 * saturate( 1.5 / ( CosTheta + CotMaxRayAngleFromLight * SinTheta ) );
+			float ClampedEnd = DistToLight * 0.75 * saturate( 1.5 / ( CosTheta + VirtualShadowMap.SMRTCotMaxRayAngleFromLight * SinTheta ) );
 			float Start = min(RayStartOffset, ClampedEnd - 1e-6f);
 
 			float3 RayStart = RayStartWithDither + Dir * Start;
@@ -442,7 +437,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 					DepthBias,
 					SamplesPerRay,
 					StepOffset,
-					ExtrapolateSlope,
+					VirtualShadowMap.SMRTExtrapolateMaxSlopeLocal,
 					RayState);
 			}
 			else
@@ -454,7 +449,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 					DepthBias,
 					SamplesPerRay,
 					StepOffset,
-					ExtrapolateSlope,
+					VirtualShadowMap.SMRTExtrapolateMaxSlopeLocal,
 					RayState);
 			}
 
@@ -482,7 +477,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 			Result.VirtualTexelAddress = RayState.VirtualTexelAddress;
 			Result.PhysicalTexelAddress = RayState.PhysicalTexelAddress;
 
-			if (SMRTAdaptiveRayCount > 0)
+			if (VirtualShadowMap.SMRTAdaptiveRayCount > 0)
 			{
 				// TODO: Adapt this heuristic based on SMRTAdaptiveRayCount as well?
 				if( i == 0 )
@@ -496,7 +491,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 						break;
 					}
 				}
-				else if( i >= SMRTAdaptiveRayCount )
+				else if( i >= VirtualShadowMap.SMRTAdaptiveRayCount )
 				{
 					// After N iterations and all have hit, assume umbra
 					bool bAllLanesHit = WaveActiveAllTrue( RayMissCount == 0 );

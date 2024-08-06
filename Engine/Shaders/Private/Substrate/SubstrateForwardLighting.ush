@@ -119,10 +119,9 @@ float3 SubstrateForwardLighting(
 		#if SUPPORT_VSM_FOWARD_QUALITY == 1
 		{
 			const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(DirLightData);
-			FVirtualShadowMapSMRTSettings SMRTSettings = GetDirectionalLightSMRTSettings();
 
 			const bool bBackfaceCull = true; // SUBSTRATE_TODO: this needs to be fixed but require to extract hair/SSS/diffusebackface prior to BSDF looping
-			const float ScreenRayLengthWorld = SMRTSettings.ScreenRayLength * View.ClipToView[1][1] * SceneDepth;
+			const float ScreenRayLengthWorld = VirtualShadowMap.ScreenRayLength * View.ClipToView[1][1] * SceneDepth;
 			float SMRTRayOffset = ScreenRayLengthWorld;
 
 			// Use the surface normal instead of the layer's normal, for a single evaluation before runing throught the SubstrateTree
@@ -135,15 +134,9 @@ float3 SubstrateForwardLighting(
 				SceneDepth,
 				TranslatedWorldPosition,
 				SMRTRayOffset,
-				SMRTSettings.RayCount,
-				SMRTSettings.SamplesPerRay,
-				SMRTSettings.RayLengthScale,
 				Dither,
 				bBackfaceCull,
-				WorldNormal,
-				SMRTSettings.TexelDitherScale,
-				SMRTSettings.ExtrapolateSlope,
-				SMRTSettings.AdaptiveRayCount);
+				WorldNormal);
 
 			FilterVirtualShadowMapSampleResult(PixelPos, VirtualShadowMapSample);
 

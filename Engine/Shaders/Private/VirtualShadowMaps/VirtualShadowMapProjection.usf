@@ -80,6 +80,14 @@ FProjectionShadingInfo GetProjectionShadingInfo(uint2 PixelPos)
 	return Out;
 }
 
+int GetSMRTRayCount()
+{
+#if DIRECTIONAL_LIGHT
+	return VirtualShadowMap.SMRTRayCountDirectional;
+#else
+	return VirtualShadowMap.SMRTRayCountLocal;
+#endif
+}
 
 SCHEDULER_MIN_PRESSURE
 MAX_OCCUPANCY
@@ -173,18 +181,8 @@ float4 ComputeRandom4(uint2 PixelPosition)
 }
 
 int4 ProjectionRect;
-float ScreenRayLength;
 float NormalBias;
 float SubsurfaceMinSourceRadius;
-int SMRTRayCount;					// 0 = off
-int SMRTSamplesPerRay;
-float SMRTRayLengthScale;			// Directional lights
-float SMRTCotMaxRayAngleFromLight;	// Spot/point lights
-float SMRTTexelDitherScale;			// Currently only directional lights
-float SMRTExtrapolateSlope;
-float SMRTMaxSlopeBias;				// Currently only local lights
-uint SMRTAdaptiveRayCount;
-uint SMRTHairRayCount;
 
 // One pass projection
 #if ONE_PASS_PROJECTION
@@ -284,7 +282,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 		}
 
 		#if DIRECTIONAL_LIGHT
-		if (SMRTRayCount > 0)
+		if (GetSMRTRayCount() > 0)
 		{
 			Result = TraceDirectional(
 				VirtualShadowMapId,
@@ -293,15 +291,9 @@ FVirtualShadowMapSampleResult ProjectLight(
 				SceneDepth,
 				TranslatedWorldPosition,
 				SMRTRayOffset,
-				SMRTRayCount,
-				SMRTSamplesPerRay,
-				SMRTRayLengthScale,
 				Noise,
 				bBackfaceCull,
-				WorldNormal,
-				SMRTTexelDitherScale,
-				SMRTExtrapolateSlope,
-				SMRTAdaptiveRayCount);
+				WorldNormal);
 		}
 		else
 		{
@@ -312,7 +304,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 				WorldNormal);
 		}
 		#else // !DIRECTIONAL_LIGHT
-		if (SMRTRayCount > 0)
+		if (GetSMRTRayCount() > 0)
 		{
 			Result = TraceLocalLight(
 				VirtualShadowMapId,
@@ -321,16 +313,9 @@ FVirtualShadowMapSampleResult ProjectLight(
 				SceneDepth,
 				TranslatedWorldPosition,
 				SMRTRayOffset,
-				SMRTRayCount,
-				SMRTSamplesPerRay,
-				SMRTCotMaxRayAngleFromLight,
 				Noise,
 				bBackfaceCull,
-				WorldNormal,
-				SMRTTexelDitherScale,
-				SMRTExtrapolateSlope,
-				SMRTMaxSlopeBias,
-				SMRTAdaptiveRayCount);
+				WorldNormal);
 		}
 		else
 		{
@@ -364,7 +349,8 @@ FVirtualShadowMapSampleResult ProjectLight(
 		if (!bIsHairInput && Result.ShadowFactor > 0)
 		{
 			float AccShadowFactor = 0;
-			uint HairRayCount = min(SMRTHairRayCount, uint(SMRTRayCount));
+			// TODO: Maybe do this min() in the uniform buffer parameter itself?
+			uint HairRayCount = min(VirtualShadowMap.SMRTHairRayCount, uint(GetSMRTRayCount()));
 			uint RayIndex = 0; 
 			for (; RayIndex < HairRayCount; RayIndex++ )
 			{
@@ -382,7 +368,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 					Light,
 					PixelPos,
 					TranslatedWorldPosition,
-					SMRTRayLengthScale * 100,
+					VirtualShadowMap.SMRTRayLengthScale * 100,
 					RayIndex,
 					HairRayCount,
 					RayStart,
@@ -393,7 +379,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 					PixelPos,
 					TranslatedWorldPosition,
 					WorldNormal,
-					SMRTCotMaxRayAngleFromLight,
+					VirtualShadowMap.SMRTCotMaxRayAngleFromLight,
 					RayIndex,
 					HairRayCount,
 					RayStart,
@@ -451,7 +437,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 
 					#define USE_ADAPTATIVE 1
 					#if COMPUTESHADER && USE_ADAPTATIVE
-					if (SMRTAdaptiveRayCount > 0)
+					if (VirtualShadowMap.SMRTAdaptiveRayCount > 0)
 					{
 						// TODO: Adapt this heuristic based on SMRTAdaptiveRayCount as well?
 						if( RayIndex == 0 )
@@ -465,7 +451,7 @@ FVirtualShadowMapSampleResult ProjectLight(
 								break;
 							}
 						}
-						else if( RayIndex >= SMRTAdaptiveRayCount )
+						else if( RayIndex >= VirtualShadowMap.SMRTAdaptiveRayCount )
 						{
 							bool bHit = IterationShadowFactor == 0;
 
@@ -539,7 +525,7 @@ void OutputVisualize(
 		}		
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_SMRT_RAY_COUNT )
 		{
-			Output = GreenToRedTurbo( float( Result.RayCount ) / float( SMRTRayCount ) );
+			Output = GreenToRedTurbo(float(Result.RayCount) / float(GetSMRTRayCount()));
 		}
 		else if ( VisualizeModeId == VIRTUAL_SHADOW_MAP_VISUALIZE_CACHED_PAGE && bValidPageAddress )
 		{
@@ -678,7 +664,7 @@ void VirtualShadowMapProjection(
 	const float4 SvPosition = float4( float2( PixelPos ) + 0.5, DeviceZ, 1.0f );
 	const float3 TranslatedWorldPosition = SvPositionToTranslatedWorld( SvPosition );
 
-	const float ScreenRayLengthWorld = GetScreenRayLengthMultiplierForProjectionType(ScreenRayLength * SceneDepth).y;
+	const float ScreenRayLengthWorld = GetScreenRayLengthMultiplierForProjectionType(VirtualShadowMap.ScreenRayLength * SceneDepth).y;
 	const float Noise = BlueNoiseScalar(SvPosition.xy, View.StateFrameIndex);
 
 	const FProjectionShadingInfo ShadingInfo = GetProjectionShadingInfo(PixelPos);

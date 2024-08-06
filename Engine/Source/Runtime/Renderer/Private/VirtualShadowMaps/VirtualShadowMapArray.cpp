@@ -367,6 +367,115 @@ static TAutoConsoleVariable<int32> CVarVirtualShadowMapPageMarkingPixelStrideY(
 	TEXT("Same as PageMarkingPixelStrideX, but on the vertical axis of the screen."),
 	ECVF_RenderThreadSafe);
 
+
+static TAutoConsoleVariable<float> CVarScreenRayLength(
+	TEXT("r.Shadow.Virtual.ScreenRayLength"),
+	0.015f,
+	TEXT("Length of the screen space shadow trace away from receiver surface (smart shadow bias) before the VSM / SMRT lookup."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTAdaptiveRayCount(
+	TEXT("r.Shadow.Virtual.SMRT.AdaptiveRayCount"),
+	1,
+	TEXT("Shoot fewer rays in fully shadowed and unshadowed regions. Currently only supported with OnePassProjection. "),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountLocal(
+	TEXT("r.Shadow.Virtual.SMRT.RayCountLocal"),
+	7,
+	TEXT("Ray count for shadow map tracing of local lights. 0 = disabled."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayLocal(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayLocal"),
+	8,
+	TEXT("Shadow map samples per ray for local lights"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTMaxRayAngleFromLight(
+	TEXT("r.Shadow.Virtual.SMRT.MaxRayAngleFromLight"),
+	0.03f,
+	TEXT("Max angle (in radians) a ray is allowed to span from the light's perspective for local lights.")
+	TEXT("Smaller angles limit the screen space size of shadow penumbra. ")
+	TEXT("Larger angles lead to more noise. "),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeLocal(
+	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeLocal"),
+	0.05f,
+	TEXT("Maximum depth slope when extrapolating behind occluders for local lights.\n")
+	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
+	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleLocal(
+	TEXT("r.Shadow.Virtual.SMRT.TexelDitherScaleLocal"),
+	2.0f,
+	TEXT("Applies a dither to the shadow map ray casts for local lights to help hide aliasing due to insufficient shadow resolution.\n")
+	TEXT("Setting this too high can cause shadows light leaks near occluders."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTMaxSlopeBiasLocal(
+	TEXT("r.Shadow.Virtual.SMRT.MaxSlopeBiasLocal"),
+	50.0f,
+	TEXT("Maximum depth slope. Low values produce artifacts if shadow resolution is insufficient. High values can worsen light leaks near occluders and sparkly pixels in shadowed areas."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.RayCountDirectional"),
+	7,
+	TEXT("Ray count for shadow map tracing of directional lights. 0 = disabled."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTSamplesPerRayDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayDirectional"),
+	8,
+	TEXT("Shadow map samples per ray for directional lights"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<float> CVarSMRTExtrapolateMaxSlopeDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.ExtrapolateMaxSlopeDirectional"),
+	5.0f,
+	TEXT("Maximum depth slope when extrapolating behind occluders for directional lights.\n")
+	TEXT("Higher values allow softer penumbra edges but can introduce light leaks behind second occluders.\n")
+	TEXT("Setting to 0 will disable slope extrapolation slightly improving projection performance, at the cost of reduced penumbra quality."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTTexelDitherScaleDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.TexelDitherScaleDirectional"),
+	2.0f,
+	TEXT("Applies a dither to the shadow map ray casts for directional lights to help hide aliasing due to insufficient shadow resolution.\n")
+	TEXT("Setting this too high can cause shadows light leaks near occluders."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<float> CVarSMRTRayLengthScaleDirectional(
+	TEXT("r.Shadow.Virtual.SMRT.RayLengthScaleDirectional"),
+	1.5f,
+	TEXT("Length of ray to shoot for directional lights, scaled by distance to camera.")
+	TEXT("Shorter rays limit the screen space size of shadow penumbra. ")
+	TEXT("Longer rays require more samples to avoid shadows disconnecting from contact points. "),
+	ECVF_RenderThreadSafe
+);
+
+static TAutoConsoleVariable<int32> CVarSMRTRayCountHair(
+	TEXT("r.Shadow.Virtual.SMRT.SamplesPerRayHair"),
+	1,
+	TEXT("Shadow map samples per ray for hair"),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 namespace Nanite
 {
 	extern bool IsStatFilterActive(const FString& FilterName);
@@ -459,6 +568,25 @@ void FVirtualShadowMapArray::Initialize(
 	UniformParameters.bClipmapGreedyLevelSelection = CVarClipmapGreedyLevelSelection.GetValueOnRenderThread();
 
 	UniformParameters.SceneFrameNumber = Scene.GetFrameNumberRenderThread();
+	
+	// Global SMRT settings so they can be shared between different passes that call into them
+	UniformParameters.ScreenRayLength = CVarScreenRayLength.GetValueOnRenderThread();
+	UniformParameters.SMRTAdaptiveRayCount = CVarSMRTAdaptiveRayCount.GetValueOnRenderThread();
+
+	UniformParameters.SMRTRayCountLocal = CVarSMRTRayCountLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTSamplesPerRayLocal = CVarSMRTSamplesPerRayLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTExtrapolateMaxSlopeLocal = CVarSMRTExtrapolateMaxSlopeLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTTexelDitherScaleLocal = CVarSMRTTexelDitherScaleLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTMaxSlopeBiasLocal = CVarSMRTMaxSlopeBiasLocal.GetValueOnRenderThread();
+	UniformParameters.SMRTCotMaxRayAngleFromLight = 1.0f / FMath::Tan(CVarSMRTMaxRayAngleFromLight.GetValueOnRenderThread());
+	
+	UniformParameters.SMRTRayCountDirectional = CVarSMRTRayCountDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTSamplesPerRayDirectional = CVarSMRTSamplesPerRayDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTExtrapolateMaxSlopeDirectional = CVarSMRTExtrapolateMaxSlopeDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTTexelDitherScaleDirectional = CVarSMRTTexelDitherScaleDirectional.GetValueOnRenderThread();
+	UniformParameters.SMRTRayLengthScale = CVarSMRTRayLengthScaleDirectional.GetValueOnRenderThread();
+
+	UniformParameters.SMRTHairRayCount = CVarSMRTRayCountHair.GetValueOnRenderThread();
 
 	// Reference dummy data in the UB initially
 	const uint32 DummyPageTableElement = 0xFFFFFFFF;

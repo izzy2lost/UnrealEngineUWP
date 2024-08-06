@@ -179,17 +179,10 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	const float SceneDepth,
 	float3 TranslatedWorldPosition,
 	float RayStartOffset,
-	uint MaxRayCount,
-	uint SamplesPerRay,
-	float RayLengthScale,
 	const float Noise,
 	bool bCullBackface,
-	float3 WorldNormal,
-	float TexelDitherScale,
-	float ExtrapolateSlope,
-	uint SMRTAdaptiveRayCount)
+	float3 WorldNormal)
 {
-
 	float3 ViewPosition = mul(float4(TranslatedWorldPosition, 1.0f), View.TranslatedWorldToView).xyz;
 	float DistanceFromViewOrigin = length(ViewPosition);
 
@@ -223,7 +216,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	// in some different way.
 	//
 	// 0.5 is arbitrary but makes it consistent with the previous dither scale cvar
-	float PerLightTexelDitherScale = TexelDitherScale * ProjectionData.TexelDitherScale;
+	float PerLightTexelDitherScale = VirtualShadowMap.SMRTTexelDitherScaleDirectional * ProjectionData.TexelDitherScale;
 	float DitherScale = 0.0f;
 	if (PerLightTexelDitherScale > 0.0f)
 	{
@@ -239,7 +232,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	// and the maximum size a penumbra can be.
 	// Too high values will cause shadows to detach from their contact points (unless more samples are used).
 	// Too low values will greatly restrict how large penumbras can be in screen space.
-	float RayLength = RayLengthScale * DistanceFromViewOrigin;
+	float RayLength = VirtualShadowMap.SMRTRayLengthScale * DistanceFromViewOrigin;
 
 	// Clipmap origin should be near shaded samples, so shadow translated world should be regular range
 	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
@@ -249,6 +242,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	uint i = 0;
 	float OccluderDistanceSum = 0.0f;
 	float MaxOccluderDistance = -1.0f;
+	const uint MaxRayCount = VirtualShadowMap.SMRTRayCountDirectional;
 	for ( ; i < MaxRayCount; i++)
 	{
 		// One sample for ray, one for texel dither
@@ -264,8 +258,8 @@ FVirtualShadowMapSampleResult TraceDirectional(
 			RayStartOffset,
 			DepthSlopeUV,
 			TexelOffset,
-			ExtrapolateSlope);
-		FSMRTResult SMRTResult = SMRTRayCast(RayState, SamplesPerRay, Noise);
+			VirtualShadowMap.SMRTExtrapolateMaxSlopeDirectional);
+		FSMRTResult SMRTResult = SMRTRayCast(RayState, VirtualShadowMap.SMRTSamplesPerRayDirectional, Noise);
 
 		// Debug output (DCE'd if not used)
 		Result.ClipmapOrMipLevel = GetVirtualShadowMapProjectionData(RayState.SampledClipmapId).ClipmapLevel;
@@ -289,7 +283,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 		}
 
 		#if COMPUTESHADER
-		if (SMRTAdaptiveRayCount > 0)
+		if (VirtualShadowMap.SMRTAdaptiveRayCount > 0)
 		{
 			// TODO: Adapt this heuristic based on SMRTAdaptiveRayCount as well?
 			if( i == 0 )
@@ -303,7 +297,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 					break;
 				}
 			}
-			else if( i >= SMRTAdaptiveRayCount )
+			else if( i >= VirtualShadowMap.SMRTAdaptiveRayCount )
 			{
 				// After 2 iterations and all have hit, assume umbra
 				bool bAllLanesHit = WaveActiveAllTrue( RayMissCount == 0 );
