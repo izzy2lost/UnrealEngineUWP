@@ -290,19 +290,19 @@ public:
 	//~ End UObject Interface
 
 	// Find the index of the physics bone that is controlling this graphics bone.
-	ENGINE_API int32		FindControllingBodyIndex(class USkeletalMesh* skelMesh, int32 BoneIndex);
-	ENGINE_API int32		FindParentBodyIndex(class USkeletalMesh * skelMesh, int32 StartBoneIndex) const;
+	ENGINE_API int32		FindControllingBodyIndex(const class USkeletalMesh* skelMesh, int32 BoneIndex) const;
+	ENGINE_API int32		FindParentBodyIndex(const class USkeletalMesh * skelMesh, int32 StartBoneIndex) const;
 	ENGINE_API int32		FindParentBodyIndex(const FReferenceSkeleton& RefSkeleton, const int32 StartBoneIndex) const;
-	ENGINE_API int32		FindConstraintIndex(FName ConstraintName);
-	ENGINE_API int32		FindConstraintIndex(FName Bone1Name, FName Bone2Name);
-	FName					FindConstraintBoneName(int32 ConstraintIndex);
-	ENGINE_API int32		FindMirroredBone(class USkeletalMesh* skelMesh, int32 BoneIndex);
+	ENGINE_API int32		FindConstraintIndex(FName ConstraintName) const;
+	ENGINE_API int32		FindConstraintIndex(FName Bone1Name, FName Bone2Name) const;
+	FName					FindConstraintBoneName(int32 ConstraintIndex) const;
+	ENGINE_API int32		FindMirroredBone(const class USkeletalMesh* skelMesh, int32 BoneIndex) const;
 
 	/** Utility for getting indices of all bodies below (and including) the one with the supplied name. */
-	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, FName InBoneName, USkeletalMesh* InSkelMesh, bool bIncludeParent = true);
-	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, const FName InBoneName, const FReferenceSkeleton& RefSkeleton, const bool bIncludeParent = true);
+	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, FName InBoneName, const USkeletalMesh* InSkelMesh, bool bIncludeParent = true) const;
+	ENGINE_API void			GetBodyIndicesBelow(TArray<int32>& OutBodyIndices, const FName InBoneName, const FReferenceSkeleton& RefSkeleton, const bool bIncludeParent = true) const;
 
-	ENGINE_API void			GetNearestBodyIndicesBelow(TArray<int32> & OutBodyIndices, FName InBoneName, USkeletalMesh * InSkelMesh);
+	ENGINE_API void			GetNearestBodyIndicesBelow(TArray<int32> & OutBodyIndices, FName InBoneName, const USkeletalMesh* InSkelMesh) const;
 
 	ENGINE_API FBox			CalcAABB(const class USkinnedMeshComponent* MeshComponent, const FTransform& LocalToWorld) const;
 
