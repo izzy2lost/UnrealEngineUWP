@@ -11,9 +11,12 @@ namespace UnrealVS
 	{
 		string LastSolutionPath = "Uninitialized";
 		string DefaultText = "Starts when opening solution that contains Engine path";
+		internal UbaVisualizerWindow Window;
 
 		public UbaVisualizerWindowControl(UbaVisualizerWindow window)
 		{
+			Window = window;
+
 			InitializeComponent();
 
 
@@ -29,7 +32,7 @@ namespace UnrealVS
 
 			if (visualizerPath != null)
 			{
-				ControlHostElement.Child = new UbaVisualizerHost(visualizerPath);
+				ControlHostElement.Child = new UbaVisualizerHost(Window, visualizerPath);
 			}
 			else if (ControlHostElement.Child is TextBlock textBlock)
 			{
@@ -68,6 +71,7 @@ namespace UnrealVS
 			if (path == string.Empty)
 			{
 				SetChild(null, DefaultText);
+				return;
 			}
 
 			string engineStr = @"\Engine\";

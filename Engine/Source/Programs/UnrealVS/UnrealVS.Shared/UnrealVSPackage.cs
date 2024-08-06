@@ -1213,11 +1213,17 @@ namespace UnrealVS
 		[DllImport("user32.dll", EntryPoint = "SetWindowPos", CharSet = CharSet.Unicode)]
 		internal static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+		[DllImport("user32.dll", EntryPoint = "UpdateWindow", CharSet = CharSet.Unicode)]
+		internal static extern bool UpdateWindow(IntPtr hWnd);
+
 		[DllImport("user32.dll", EntryPoint = "IsWindow", CharSet = CharSet.Unicode)]
 		internal static extern bool IsWindow(IntPtr hWnd);
 
 		[DllImport("user32.dll", EntryPoint = "PostMessageW", CharSet = CharSet.Unicode)]
 		internal static extern bool PostMessageW(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
+
+		[DllImport("user32.dll", CharSet = CharSet.Unicode)]
+		internal static extern IntPtr SetFocus(IntPtr hWnd);
 
 		[DllImport("user32.dll")]
 		internal static extern IntPtr LoadCursorW(IntPtr hInstance, IntPtr lpCursorName);
