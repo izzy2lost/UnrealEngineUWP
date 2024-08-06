@@ -792,7 +792,7 @@ FD3D12TransientHeapCache& FD3D12Adapter::GetOrCreateTransientHeapCache()
 {
 	if (!TransientMemoryCache)
 	{
-		TransientMemoryCache = FD3D12TransientHeapCache::Create(this, FRHIGPUMask::All());
+		TransientMemoryCache = FD3D12TransientHeapCache::Create(this);
 	}
 
 	return static_cast<FD3D12TransientHeapCache&>(*TransientMemoryCache);

@@ -1409,6 +1409,10 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 	FD3D12Device* Device = GetParentDevice();
 	FD3D12ResourceInitConfig InitConfig = FD3D12BufferPool::GetResourceAllocatorInitConfig(InHeapType, InResourceFlags, InBufferUsage);
 
+	// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.  Note that in single GPU mode, GetVisibilityMask() will
+	// be the same as GPU0(), so no extra heap fragmentation occurs in that case.
+	FRHIGPUMask VisibleNodes = EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) ? FRHIGPUMask::GPU0() : GetVisibilityMask();
+
 #if USE_BUFFER_POOL_ALLOCATOR
 
 	const FString Name(L"D3D12 Pool Allocator");
@@ -1435,7 +1439,7 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 	}
 #endif // D3D12_RHI_RAYTRACING
 
-	FD3D12BufferPool* NewPool = new FD3D12PoolAllocator(Device, GetVisibilityMask(), InitConfig, Name, AllocationStrategy, PoolSize, PoolAlignment, MaxAllocationSize, FreeListOrder, bDefragEnabled, TraceHeapId);
+	FD3D12BufferPool* NewPool = new FD3D12PoolAllocator(Device, VisibleNodes, InitConfig, Name, AllocationStrategy, PoolSize, PoolAlignment, MaxAllocationSize, FreeListOrder, bDefragEnabled, TraceHeapId);
 
 #else // USE_BUFFER_POOL_ALLOCATOR
 
@@ -1446,7 +1450,7 @@ FD3D12BufferPool* FD3D12DefaultBufferAllocator::CreateBufferPool(D3D12_HEAP_TYPE
 
 	const FString Name(L"Default Buffer Multi Buddy Allocator");
 	FD3D12MultiBuddyAllocator* Allocator = new FD3D12MultiBuddyAllocator(Device,
-		GetVisibilityMask(),
+		VisibleNodes,
 		InitConfig,
 		Name,
 		AllocationStrategy,
@@ -1512,8 +1516,9 @@ void FD3D12DefaultBufferAllocator::AllocDefaultResource(D3D12_HEAP_TYPE InHeapTy
 	{
 		ResourceLocation.Clear();
 
+		// NNE resources must be in heaps visible on GPU0 only.  Required by DirectML.
 		FD3D12Resource* NewResource = nullptr;
-		const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InHeapType, GetGPUMask().GetNative(), GetVisibilityMask().GetNative());
+		const D3D12_HEAP_PROPERTIES HeapProps = CD3DX12_HEAP_PROPERTIES(InHeapType, GetGPUMask().GetNative(), EnumHasAnyFlags(InBufferUsage, EBufferUsageFlags::NNE) ? FRHIGPUMask::GPU0().GetNative() : GetVisibilityMask().GetNative());
 		D3D12_RESOURCE_DESC Desc = InResourceDesc;
 		Desc.Alignment = 0;
 		VERIFYD3D12RESULT(Adapter->CreateCommittedResource(Desc, GetGPUMask(), HeapProps, InCreateState, InResourceStateMode, InCreateState, nullptr, &NewResource, Name, false));

@@ -557,7 +557,18 @@ FRHITransientHeap* FRHITransientHeapCache::Acquire(uint64 FirstAllocationSize, E
 	FRHITransientHeap::FInitializer HeapInitializer;
 	HeapInitializer.Size = GetHeapSize(FirstAllocationSize);
 	HeapInitializer.Alignment = Initializer.HeapAlignment;
-	HeapInitializer.Flags = (Initializer.bSupportsAllHeapFlags ? ERHITransientHeapFlags::AllowAll : FirstAllocationHeapFlags);
+	if (GNumExplicitGPUsForRendering > 1)
+	{
+		// With multi-GPU, we need separate GPU0 only heaps for NNE accessible buffers.  Required by DirectML.  Note that the calling
+		// code only sets one flag for a given allocation, so if the flag is NNE, create a heap with that flag alone, otherwise create
+		// a heap with the rest of the flags (or if bSupportsAllHeapFlags is false, that also forces a single flag per heap).
+		HeapInitializer.Flags = Initializer.bSupportsAllHeapFlags && FirstAllocationHeapFlags != ERHITransientHeapFlags::AllowNNEBuffers ?
+			ERHITransientHeapFlags::AllowBuffers | ERHITransientHeapFlags::AllowTextures | ERHITransientHeapFlags::AllowRenderTargets : FirstAllocationHeapFlags;
+	}
+	else
+	{
+		HeapInitializer.Flags = Initializer.bSupportsAllHeapFlags ? ERHITransientHeapFlags::AllowAll : FirstAllocationHeapFlags;
+	}
 	HeapInitializer.TextureCacheSize = Initializer.TextureCacheSize;
 	HeapInitializer.BufferCacheSize = Initializer.BufferCacheSize;
 
@@ -671,9 +682,11 @@ FRHITransientBuffer* FRHITransientResourceHeapAllocator::CreateBufferInternal(
 {
 	FRHITransientBuffer* Buffer = nullptr;
 
+	ERHITransientHeapFlags BufferHeapFlag = (GNumExplicitGPUsForRendering > 1) && EnumHasAnyFlags(CreateInfo.Usage, EBufferUsageFlags::NNE) ? ERHITransientHeapFlags::AllowNNEBuffers : ERHITransientHeapFlags::AllowBuffers;
+
 	for (FRHITransientHeap* Heap : Heaps)
 	{
-		if (!Heap->IsAllocationSupported(BufferSize, ERHITransientHeapFlags::AllowBuffers))
+		if (!Heap->IsAllocationSupported(BufferSize, BufferHeapFlag))
 		{
 			continue;
 		}
@@ -688,7 +701,7 @@ FRHITransientBuffer* FRHITransientResourceHeapAllocator::CreateBufferInternal(
 
 	if (!Buffer)
 	{
-		FRHITransientHeap* Heap = HeapCache.Acquire(BufferSize, ERHITransientHeapFlags::AllowBuffers);
+		FRHITransientHeap* Heap = HeapCache.Acquire(BufferSize, BufferHeapFlag);
 		Heaps.Emplace(Heap);
 
 		Buffer = Heap->CreateBuffer(CreateInfo, DebugName, Fences, CurrentCycle, BufferSize, BufferAlignment, CreateBufferFunction);

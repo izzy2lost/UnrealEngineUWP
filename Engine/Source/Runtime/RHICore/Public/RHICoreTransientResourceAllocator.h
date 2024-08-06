@@ -442,8 +442,11 @@ enum class ERHITransientHeapFlags : uint8
 	// Supports placing render targets onto the heap.
 	AllowRenderTargets = 1 << 2,
 
+	// Supports placing NNE accessible buffers onto the heap.  Differentiation is required for DirectML with multi-GPU.
+	AllowNNEBuffers = 1 << 3,
+
 	// Supports all resource types.
-	AllowAll = AllowBuffers | AllowTextures | AllowRenderTargets
+	AllowAll = AllowBuffers | AllowTextures | AllowRenderTargets | AllowNNEBuffers
 };
 
 ENUM_CLASS_FLAGS(ERHITransientHeapFlags);

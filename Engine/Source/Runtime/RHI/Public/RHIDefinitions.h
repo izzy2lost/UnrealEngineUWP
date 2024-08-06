@@ -846,6 +846,9 @@ enum class EBufferUsageFlags : uint32
 	/** Buffer should go in fast vram (hint only). Requires BUF_Transient */
 	FastVRAM                = 1 << 10,
 
+	/** Buffer is used by NNE.  DirectML requires NNE resources to be in single device memory heaps when multi-GPU is active. */
+	NNE						= 1 << 11,
+
 	/** Create a buffer that can be shared with an external RHI or process. */
 	Shared                  = 1 << 12,
 

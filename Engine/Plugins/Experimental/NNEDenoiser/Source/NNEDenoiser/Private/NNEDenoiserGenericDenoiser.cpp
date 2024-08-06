@@ -39,7 +39,10 @@ FRDGBufferRef CreateBufferRDG(FRDGBuilder& GraphBuilder, const NNE::FTensorDesc&
 	const uint32 BytesPerElement = TensorDesc.GetElementByteSize();
 	const uint32 NumElements = TensorShape.Volume();
 
-	return GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(BytesPerElement, NumElements), *TensorDesc.GetName());
+	FRDGBufferDesc Desc = FRDGBufferDesc::CreateBufferDesc(BytesPerElement, NumElements);
+	Desc.Usage |= EBufferUsageFlags::NNE;
+
+	return GraphBuilder.CreateBuffer(Desc, *TensorDesc.GetName());
 }
 
 TArray<FRDGBufferRef> CreateBuffersRDG(FRDGBuilder& GraphBuilder, TConstArrayView<NNE::FTensorDesc> TensorDescs, TConstArrayView<NNE::FTensorShape> TensorShapes)
@@ -244,6 +247,8 @@ TUniquePtr<FHistory> FGenericDenoiser::AddPasses(
 	if (TransferFunction.IsValid() && AutoExposure.IsValid())
 	{
 		FRDGBufferDesc InputBufferDesc = FRDGBufferDesc::CreateBufferDesc(sizeof(float), 2);
+		InputBufferDesc.Usage |= EBufferUsageFlags::NNE;
+
 		FRDGBufferRef InputScaleBuffer = GraphBuilder.CreateBuffer(InputBufferDesc, TEXT("AutoExposureOutputBuffer"));
 
 		AutoExposure->EnqueueRDG(GraphBuilder, ColorTex, InputScaleBuffer);
