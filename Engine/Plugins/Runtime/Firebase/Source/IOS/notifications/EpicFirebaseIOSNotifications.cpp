@@ -15,20 +15,26 @@ THIRD_PARTY_INCLUDES_END
 #include "IOS/IOSAppDelegate.h"
 
 bool FFirebaseIOSNotifications::bIsInitialized = false;
+bool FFirebaseIOSNotifications::bIsConfigured = false;
 FString FFirebaseIOSNotifications::IOSFirebaseToken;
+NSString* KEY_FIREBASE_TOKEN = @"firebasetoken";
 
 @interface IOSAppDelegate (FirebaseHandling) <FIRMessagingDelegate>
 
--(void)SetupFirebase;
+-(void)SetupFirebase : (Boolean) enableAnalytics;
 -(void)UpdateFirebaseToken : (UInt64) Timeout;
 
 @end
 
 @implementation IOSAppDelegate (FirebaseHandling)
 
--(void)SetupFirebase
+-(void)SetupFirebase  : (Boolean) enableAnalytics
 {
-    [FIRApp configure];
+    [FIRMessaging messaging].autoInitEnabled = YES;
+    if (enableAnalytics)
+    {
+        [FIRAnalytics setAnalyticsCollectionEnabled:YES];
+    }
     [FIRMessaging messaging].delegate = self;
     [UNUserNotificationCenter currentNotificationCenter].delegate = self;
     
@@ -46,7 +52,12 @@ FString FFirebaseIOSNotifications::IOSFirebaseToken;
         }
     }];
 
-    [[UIApplication sharedApplication] registerForRemoteNotifications];
+   [[UIApplication sharedApplication] registerForRemoteNotifications];
+}
+
+-(void)ConfigureFirebase
+{
+    [FIRApp configure];
 }
 
 -(void)messaging:(FIRMessaging *)messaging didReceiveRegistrationToken:(NSString *)fcmToken 
@@ -60,10 +71,23 @@ FString FFirebaseIOSNotifications::IOSFirebaseToken;
 #if !UE_BUILD_SHIPPING
     UE_LOG(LogFirebase, Log, TEXT("Firebase Token : %s"), *Token);
 #endif
+    [[NSUserDefaults standardUserDefaults] setObject:fcmToken forKey:KEY_FIREBASE_TOKEN];
+    [[NSUserDefaults standardUserDefaults] synchronize];
 }
 
 - (void)UpdateFirebaseToken : (UInt64) Timeout
 {
+    NSUserDefaults* UserDefaults = [NSUserDefaults standardUserDefaults];
+    if ([UserDefaults objectForKey:KEY_FIREBASE_TOKEN] != nil)
+    {
+        FString Token = FString([UserDefaults stringForKey:KEY_FIREBASE_TOKEN]);
+        FFirebaseIOSNotifications::SetFirebaseToken(Token);
+#if !UE_BUILD_SHIPPING
+        UE_LOG(LogFirebase, Log, TEXT("Retrieved Firebase Token from cache : %s"), *Token);
+#endif
+        return;
+    }
+    
     dispatch_semaphore_t updateTokenSemaphore = dispatch_semaphore_create(0);
     // wrapped in dispatch_async to avoid locking up if we're on the main thread
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(void)
@@ -77,6 +101,9 @@ FString FFirebaseIOSNotifications::IOSFirebaseToken;
 #if !UE_BUILD_SHIPPING
                 UE_LOG(LogFirebase, Log, TEXT("Firebase Token : %s"), *Token);
 #endif
+                [[NSUserDefaults standardUserDefaults] setObject:firebaseToken forKey:KEY_FIREBASE_TOKEN];
+                [[NSUserDefaults standardUserDefaults] synchronize];
+                
                 dispatch_semaphore_signal(updateTokenSemaphore);
             }
         }];
@@ -85,11 +112,25 @@ FString FFirebaseIOSNotifications::IOSFirebaseToken;
 }
 @end
 
-void FFirebaseIOSNotifications::Initialize(uint64 TokenQueryTimeoutNanoseconds)
+void FFirebaseIOSNotifications::ConfigureFirebase()
 {
+    if (!bIsConfigured)
+    {
+        bIsConfigured = true;
+        [[IOSAppDelegate GetDelegate] ConfigureFirebase];
+    }
+}
+
+void FFirebaseIOSNotifications::Initialize(uint64 TokenQueryTimeoutNanoseconds, bool bEnableAnalytics)
+{
+    if (!bIsConfigured)
+    {
+        ConfigureFirebase();
+    }
+    
     if (!bIsInitialized)
     {
-        [[IOSAppDelegate GetDelegate] SetupFirebase];
+        [[IOSAppDelegate GetDelegate] SetupFirebase:bEnableAnalytics];
         [[IOSAppDelegate GetDelegate] UpdateFirebaseToken:TokenQueryTimeoutNanoseconds];
         bIsInitialized = true;
     }

@@ -12,10 +12,12 @@ struct FIREBASE_API FFirebaseIOSNotifications
 {
 private:
     static bool bIsInitialized;
+    static bool bIsConfigured;
     static FString IOSFirebaseToken;
     
 public:
-    static void Initialize(uint64 TokenQueryTimeoutNanoseconds);
+    static void ConfigureFirebase();
+    static void Initialize(uint64 TokenQueryTimeoutNanoseconds, bool bEnableAnalytics);
     static void SetFirebaseToken(FString Token);
     static FString GetFirebaseToken();
 };

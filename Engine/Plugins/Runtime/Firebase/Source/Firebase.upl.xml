@@ -6,6 +6,7 @@
 		<log text="Firebase init"/>
 
 		<setBoolFromProperty result="bEnabled" ini="Engine" section="Firebase" property="FirebaseEnabled" default="false"/>
+		<setBoolFromProperty result="bDisableAutoInit" ini="Engine" section="Firebase" property="FirebaseDisableAutoInit" default="false"/>
 		<setStringFromProperty result="FirebaseService" ini="Engine" section="Firebase" property="FirebaseService" default="com.epicgames.unreal.notifications.EpicFirebaseMessagingService"/>
 		<if condition="bEnabled">
 			<true>
@@ -28,6 +29,14 @@
 							<action android:name="com.google.firebase.MESSAGING_EVENT"/>
 						</intent-filter>
 				</addElements>
+				<if condition="bDisableAutoInit">
+					<true>
+						<addElements tag="$ServiceElement">
+							<meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+							<meta-data android:name="firebase_analytics_collection_enabled" android:value="false" />
+						</addElements>
+					</true>
+				</if>
 				<addElement tag="application" name="ServiceElement" />
 			</true>
 		</if>

@@ -23,6 +23,7 @@ import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
+import com.google.firebase.analytics.FirebaseAnalytics;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -354,4 +355,10 @@ public class EpicFirebaseMessagingService extends FirebaseMessagingService {
 		return token;
 	}
 
+	public static void enableFirebaseAutoInit(@NonNull Context context, boolean enableAnalytics) {
+		FirebaseMessaging.getInstance().setAutoInitEnabled(true);
+		if (enableAnalytics) {
+			FirebaseAnalytics.getInstance(context).setAnalyticsCollectionEnabled(true);
+		}
+	}
 }
