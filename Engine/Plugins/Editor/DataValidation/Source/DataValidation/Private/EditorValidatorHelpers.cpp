@@ -102,10 +102,8 @@ struct FLogMessageGathererImpl : public FOutputDevice
     
     ~FLogMessageGathererImpl()
     {
-        // Lock the impl, remove it as an output device, and delete it 
-        // There should be no problems with anyone waiting for the lock as access is controlled by the FScopedLogMessageGatherer
-        // and we are deleted when that goes out of scope
-        CS.Lock();
+        // Remove this as an output device, internally this handles synchronization with Serialize for us so we don't need to protect against Serialize and ~FLogMessageGathererImpl running concurrently 
+        // we deliberately don't lock the Critical Section (CS), as this would invert the locking order between FLogMessageGathererImpl & FOutputDeviceRedirector leading to potential a deadlock 
         GLog->RemoveOutputDevice(this);
     }
    
