@@ -505,8 +505,6 @@ uint64 FD3D12DynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineStateI
 		uint16							NumSamples;
 		EConservativeRasterization		ConservativeRasterization;
 		bool							bDepthBounds;
-		uint8							MultiViewCount;
-		bool							bHasFragmentDensityAttachment;
 		EVRSShadingRate					ShadingRate;
 	} HashKey;
 
@@ -521,8 +519,6 @@ uint64 FD3D12DynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineStateI
 	HashKey.NumSamples						= Initializer.NumSamples;
 	HashKey.ConservativeRasterization		= Initializer.ConservativeRasterization;
 	HashKey.bDepthBounds					= Initializer.bDepthBounds;
-	HashKey.MultiViewCount					= Initializer.MultiViewCount;
-	HashKey.bHasFragmentDensityAttachment	= Initializer.bHasFragmentDensityAttachment;
 	HashKey.ShadingRate						= Initializer.ShadingRate;
 
 	return CityHash64((const char*)&HashKey, sizeof(FNonStateHashKey));

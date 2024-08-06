@@ -14,6 +14,8 @@
 #include "MeshPassProcessor.inl"
 #include "Engine/TextureCube.h"
 #include "ShaderPlatformCachedIniValue.h"
+#include "StereoRenderUtils.h"
+#include "VariableRateShadingImageManager.h"
 
 bool MobileLocalLightsBufferEnabled(const FStaticShaderPlatform Platform)
 {
@@ -999,7 +1001,7 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 
 	// subpass info set during the submission of the draws in mobile deferred renderer.
 	uint8 SubpassIndex = bTranslucentBasePass ? (bDeferredShading ? 2 : 1) : 0;
-	ESubpassHint SubpassHint = bDeferredShading ? ESubpassHint::DeferredShadingSubpass : ESubpassHint::DepthReadSubpass;
+	ESubpassHint SubpassHint = GetSubpassHint(GMaxRHIShaderPlatform, bDeferredShading, RenderTargetsInfo.NumSamples);
 
 	AddGraphicsPipelineStateInitializer(
 		VertexFactoryData,
@@ -1016,6 +1018,15 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializersForLMPolicy(
 		true /*bRequired*/,
 		PSOCollectorIndex,
 		PSOInitializers);
+}
+
+static void SetupMultiViewInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
+{
+	const static UE::StereoRenderUtils::FStereoShaderAspects Aspects(GMaxRHIShaderPlatform);
+	// If mobile multiview is enabled we expect it will be used with a native MMV, no pre-caching for fallbacks 
+	RenderTargetsInfo.MultiViewCount = Aspects.IsMobileMultiViewEnabled() ? (GSupportsMobileMultiView ? 2 : 1) : 0;
+	// FIXME: Need to figure out if renderer will use shading rate texture or not
+	RenderTargetsInfo.bHasFragmentDensityAttachment = GVRSImageManager.IsAttachmentVRSEnabled();
 }
 
 void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesConfig& SceneTexturesConfig, const FMaterial& Material, const FPSOPrecacheVertexFactoryData& VertexFactoryData, const FPSOPrecacheParams& PreCacheParams, TArray<FPSOPrecacheData>& PSOInitializers)
@@ -1059,26 +1070,20 @@ void FMobileBasePassMeshProcessor::CollectPSOInitializers(const FSceneTexturesCo
 		PreCacheParams.Mobility == EComponentMobility::Stationary || 
 		PreCacheParams.bUsesIndirectLightingCache; // ILC uses movable path
 
-	bool bDitheredLODTransition = !bMovable && Material.IsDitheredLODTransition() && !PreCacheParams.bForceLODModel;
-
 	// Setup the draw state
-	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	RenderTargetsInfo.NumSamples = SceneTexturesConfig.NumSamples;
-
 	FMeshPassProcessorRenderState DrawRenderState(PassDrawRenderState);
-	EPixelFormat SceneColorFormat = SceneTexturesConfig.ColorFormat;
-	ETextureCreateFlags SceneColorCreateFlags = SceneTexturesConfig.ColorCreateFlags;
-
+	
 	const bool bMaskedInEarlyPass = MaskedInEarlyPass(ShaderPlatform);
-
 	FExclusiveDepthStencil ExclusiveDepthStencil = (bTranslucentBasePass || bMaskedInEarlyPass) ? 
 		FExclusiveDepthStencil::DepthRead_StencilRead : 
 		FExclusiveDepthStencil::DepthWrite_StencilWrite;
 
+	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
 	SetupGBufferRenderTargetInfo(SceneTexturesConfig, RenderTargetsInfo, false /*bSetupDepthStencil*/);
 	SetupDepthStencilInfo(PF_DepthStencil, SceneTexturesConfig.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
 		ERenderTargetLoadAction::ELoad, ExclusiveDepthStencil, RenderTargetsInfo);
-
+	SetupMultiViewInfo(RenderTargetsInfo);
+					
 	if (bTranslucentBasePass)
 	{
 		MobileBasePass::SetTranslucentRenderState(DrawRenderState, Material, ShadingModels);

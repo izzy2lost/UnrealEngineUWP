@@ -114,7 +114,6 @@ FDeferredDecalPassTextures GetDeferredDecalPassTextures(
 
 void GetDeferredDecalRenderTargetsInfo(
 	const FSceneTexturesConfig& Config,
-	EShaderPlatform ShaderPlatform,
 	EDecalRenderTargetMode RenderTargetMode,
 	FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo)
 {
@@ -138,7 +137,7 @@ void GetDeferredDecalRenderTargetsInfo(
 
 	case EDecalRenderTargetMode::DBuffer:
 	{
-		const FDBufferTexturesDesc DBufferTexturesDesc = GetDBufferTexturesDesc(Config.Extent, ShaderPlatform);
+		const FDBufferTexturesDesc DBufferTexturesDesc = GetDBufferTexturesDesc(Config.Extent, Config.ShaderPlatform);
 
 		AddRenderTargetInfo(DBufferTexturesDesc.DBufferADesc.Format, DBufferTexturesDesc.DBufferADesc.Flags, RenderTargetsInfo);
 		AddRenderTargetInfo(DBufferTexturesDesc.DBufferBDesc.Format, DBufferTexturesDesc.DBufferBDesc.Flags, RenderTargetsInfo);
@@ -171,6 +170,13 @@ void GetDeferredDecalRenderTargetsInfo(
 			AddRenderTargetInfo(Config.bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F, TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead, RenderTargetsInfo);	
 		};
 	}
+	if (Config.bCustomResolveSubpass)
+	{
+		// resolve target as an additional color attachment
+		AddRenderTargetInfo(IsAndroidPlatform(Config.ShaderPlatform) ? PF_R8G8B8A8 : PF_B8G8R8A8, TexCreate_RenderTargetable | TexCreate_ShaderResource, RenderTargetsInfo);
+	}
+
+	RenderTargetsInfo.NumSamples = Config.NumSamples;
 
 	SetupDepthStencilInfo(PF_DepthStencil, Config.DepthCreateFlags, ERenderTargetLoadAction::ELoad,
 		ERenderTargetLoadAction::ELoad, FExclusiveDepthStencil::DepthRead_StencilWrite, RenderTargetsInfo);
@@ -537,21 +543,15 @@ void CollectDeferredDecalPassPSOInitializers(
 	}
 
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	RenderTargetsInfo.NumSamples = 1;
+	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, DecalRenderTargetMode, RenderTargetsInfo);
+	ApplyTargetsInfo(GraphicsPSOInit, RenderTargetsInfo);
 
 	if (FeatureLevel == ERHIFeatureLevel::ES3_1)
 	{
 		// subpass info set during the submission of the draws in a mobile renderer
 		GraphicsPSOInit.SubpassIndex = 1; // all decals use second sub-pass on mobile
-		GraphicsPSOInit.SubpassHint = SceneTexturesConfig.bIsUsingGBuffers ? ESubpassHint::DeferredShadingSubpass : ESubpassHint::DepthReadSubpass;
-		if (DecalRenderTargetMode == EDecalRenderTargetMode::SceneColor)
-		{
-			RenderTargetsInfo.NumSamples = SceneTexturesConfig.NumSamples;
-		}
+		GraphicsPSOInit.SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.NumSamples);
 	}
-
-	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, DecalRenderTargetMode, RenderTargetsInfo);
-	ApplyTargetsInfo(GraphicsPSOInit, RenderTargetsInfo);
 		
 	const auto AddDeferredDecalPSO = [&](bool bInsideDecal,	bool bReverseHanded, bool bReverseCulling, bool bDecalUsesStencil)
 	{

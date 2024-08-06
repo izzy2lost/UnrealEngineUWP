@@ -101,15 +101,6 @@ static TAutoConsoleVariable<int32> CVarMobileCustomDepthForTranslucency(
 	TEXT(" 1 = On [default]"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarMobileTonemapSubpass(
-	TEXT("r.Mobile.TonemapSubpass"),
-	0,
-	TEXT(" Whether to enable mobile tonemap subpass \n")
-	TEXT(" 0 = Off [default]\n")
-	TEXT(" 1 = On"),
-	ECVF_Scalability | ECVF_RenderThreadSafe);
-
-
 static TAutoConsoleVariable<int32> CVarMobileXRMSAAMode(
 	TEXT("r.Mobile.XRMSAAMode"),
 	0,
@@ -118,13 +109,6 @@ static TAutoConsoleVariable<int32> CVarMobileXRMSAAMode(
 	TEXT(" 1 = Perform a copy of depth to the depth resolve target")
 	TEXT(" 2 = Make the depth swap chain be MSAA and use it directly as scene depth"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
-
-
-static bool IsMobileTonemapSubpassEnabled(const FStaticShaderPlatform Platform)
-{
-	static auto* MobileTonemapSubpassPathCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.TonemapSubpass"));
-	return (MobileTonemapSubpassPathCvar && (MobileTonemapSubpassPathCvar->GetValueOnAnyThread() == 1)) && IsMobileHDR() && !IsMobileDeferredShadingEnabled(Platform);
-}
 
 DECLARE_GPU_STAT_NAMED(MobileSceneRender, TEXT("Mobile Scene Render"));
 
@@ -321,7 +305,7 @@ FMobileSceneRenderer::FMobileSceneRenderer(const FSceneViewFamily* InViewFamily,
 	NumMSAASamples = GetDefaultMSAACount(ERHIFeatureLevel::ES3_1);
 	// As of UE 5.4 only vulkan supports inline (single pass) tonemap
 	bTonemapSubpass = IsMobileTonemapSubpassEnabled(ShaderPlatform) && ViewFamily.bResolveScene && GetRendererOutput() != FSceneRenderer::ERendererOutput::DepthPrepassOnly;
-	bTonemapSubpassInline = bTonemapSubpass && IsVulkanPlatform(ShaderPlatform) && (GRHISupportsMSAAShaderResolve || NumMSAASamples == 1);
+	bTonemapSubpassInline = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, NumMSAASamples) && bTonemapSubpass;
 	bRequiresSceneDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !bTonemapSubpass;
 }
 

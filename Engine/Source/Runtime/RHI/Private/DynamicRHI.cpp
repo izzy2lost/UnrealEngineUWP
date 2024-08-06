@@ -588,12 +588,10 @@ uint64 FDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateI
 		uint32 DepthStencilState;
 		uint32 ImmutableSamplerState;
 
-		uint32 MultiViewCount : 8;
 		uint32 DrawShadingRate : 8;
 		uint32 PrimitiveType : 8;
 		uint32 bDepthBounds : 1;
-		uint32 bHasFragmentDensityAttachment : 1;
-		uint32 Unused : 6;
+		uint32 Unused : 15;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FHashKey));
@@ -627,11 +625,9 @@ uint64 FDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipelineStateI
 	// Ignore immutable samplers for now
 	//HashKey.ImmutableSamplerState = GetTypeHash(ImmutableSamplerState);
 
-	HashKey.MultiViewCount = Initializer.MultiViewCount;
 	HashKey.DrawShadingRate = Initializer.ShadingRate;
 	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
-	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
 
 	uint64 PrecachePSOHash = CityHash64((const char*)&HashKey, sizeof(FHashKey));
 

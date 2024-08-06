@@ -7,6 +7,7 @@
 #include "RenderUtils.h"
 #include "SceneInterface.h"
 #include "StereoRenderTargetManager.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 FSceneTexturesConfig FSceneTexturesConfig::GlobalInstance;
 
@@ -336,8 +337,9 @@ void FSceneTexturesConfig::Init(const FSceneTexturesConfigInitSettings& InitSett
 
 	if (ShadingPath == EShadingPath::Mobile)
 	{
-		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform);
+		bRequiresDepthAux = MobileRequiresSceneDepthAux(ShaderPlatform) && !IsMobileTonemapSubpassEnabled(ShaderPlatform);
 		bPreciseDepthAux = bPreciseDepthAux || MobileRequiresPreciseSceneDepthAux(ShaderPlatform);
+		bCustomResolveSubpass = IsMobileTonemapSubpassEnabledInline(ShaderPlatform, NumSamples);
 	}
 }
 
@@ -354,8 +356,7 @@ void FSceneTexturesConfig::BuildSceneColorAndDepthFlags()
 
 uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, EGBufferLayout Layout) const 
 {
-	// Assume 1 sample for now
-	RenderTargetsInfo.NumSamples = 1;
+	RenderTargetsInfo.NumSamples = NumSamples;
 
 	uint32 RenderTargetCount = 0;
 
@@ -396,6 +397,14 @@ uint32 FSceneTexturesConfig::GetGBufferRenderTargetsInfo(FGraphicsPipelineRender
 	{
 		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = bPreciseDepthAux ? PF_R32_FLOAT : PF_R16F;
 		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = TexCreate_RenderTargetable | TexCreate_ShaderResource | TexCreate_InputAttachmentRead;
+	}
+	
+	if (bCustomResolveSubpass)
+	{
+		// resolve target as an additional color attachment
+		// this is supposed to be be a swapchain pixel format, but atm there is no way to query it
+		RenderTargetsInfo.RenderTargetFormats[RenderTargetCount] = IsAndroidPlatform(ShaderPlatform) ? PF_R8G8B8A8 : PF_B8G8R8A8;
+		RenderTargetsInfo.RenderTargetFlags[RenderTargetCount++] = TexCreate_RenderTargetable | TexCreate_ShaderResource;
 	}
 
 	// Store final number of render targets

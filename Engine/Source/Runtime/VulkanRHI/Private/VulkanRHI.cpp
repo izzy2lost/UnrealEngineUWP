@@ -2066,7 +2066,7 @@ IRHITransientResourceAllocator* FVulkanDynamicRHI::RHICreateTransientResourceAll
 
 uint32 FVulkanDynamicRHI::GetPrecachePSOHashVersion()
 {
-	static const uint32 PrecacheHashVersion = 2;
+	static const uint32 PrecacheHashVersion = 3;
 	return PrecacheHashVersion;
 }
 
@@ -2090,13 +2090,11 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 		uint32 DepthStencilState;
 		uint32 ImmutableSamplerState;
 
-		uint32 MultiViewCount : 8;
 		uint32 DrawShadingRate : 8;
 		uint32 PrimitiveType : 8;
 		uint32 bDepthBounds : 1;
-		uint32 bHasFragmentDensityAttachment : 1;
 		uint32 bAllowVariableRateShading : 1;
-		uint32 Unused : 5;
+		uint32 Unused : 14;
 	} HashKey;
 
 	FMemory::Memzero(&HashKey, sizeof(FHashKey));
@@ -2135,11 +2133,9 @@ uint64 FVulkanDynamicRHI::RHIComputeStatePrecachePSOHash(const FGraphicsPipeline
 	// Ignore immutable samplers for now
 	//HashKey.ImmutableSamplerState = GetTypeHash(ImmutableSamplerState);
 
-	HashKey.MultiViewCount = Initializer.MultiViewCount;
 	HashKey.DrawShadingRate = Initializer.ShadingRate;
 	HashKey.PrimitiveType = Initializer.PrimitiveType;
 	HashKey.bDepthBounds = Initializer.bDepthBounds;
-	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
 	HashKey.bAllowVariableRateShading = Initializer.bAllowVariableRateShading;
 
 	uint64 PrecachePSOHash = CityHash64((const char*)&HashKey, sizeof(FHashKey));
@@ -2173,6 +2169,8 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 		uint16							NumSamples;
 		ESubpassHint					SubpassHint;
 		uint8							SubpassIndex;
+		uint8							MultiViewCount;
+		bool							bHasFragmentDensityAttachment;
 		EConservativeRasterization		ConservativeRasterization;
 	} HashKey;
 
@@ -2188,6 +2186,8 @@ uint64 FVulkanDynamicRHI::RHIComputePrecachePSOHash(const FGraphicsPipelineState
 	HashKey.NumSamples = Initializer.NumSamples;
 	HashKey.SubpassHint = Initializer.SubpassHint;
 	HashKey.SubpassIndex = Initializer.SubpassIndex;
+	HashKey.MultiViewCount = Initializer.MultiViewCount;
+	HashKey.bHasFragmentDensityAttachment = Initializer.bHasFragmentDensityAttachment;
 	HashKey.ConservativeRasterization = Initializer.ConservativeRasterization;
 	
 	// TODO: check if any RT flags actually affect PSO in VK

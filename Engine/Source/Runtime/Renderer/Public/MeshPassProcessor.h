@@ -366,8 +366,8 @@ public:
 			, EConservativeRasterization::Disabled
 			, 0
 			, bDepthBounds
-			, MultiViewCount
-			, bHasFragmentDensityAttachment
+			, 0
+			, false
 			, bAllowVariableRateShading
 			, DrawShadingRate
 		);
@@ -397,8 +397,6 @@ public:
 			DepthStencilState != rhs.DepthStencilState ||
 			ImmutableSamplerState != rhs.ImmutableSamplerState ||
 			bDepthBounds != rhs.bDepthBounds ||
-			MultiViewCount != rhs.MultiViewCount ||
-			bHasFragmentDensityAttachment != rhs.bHasFragmentDensityAttachment ||
 			bAllowVariableRateShading != rhs.bAllowVariableRateShading ||
 			DrawShadingRate != rhs.DrawShadingRate ||
 			PrimitiveType != rhs.PrimitiveType)
@@ -460,8 +458,6 @@ public:
 			COMPARE_FIELD(RasterizerState)
 			COMPARE_FIELD(DepthStencilState)
 			COMPARE_FIELD(bDepthBounds)
-			COMPARE_FIELD(MultiViewCount)
-			COMPARE_FIELD(bHasFragmentDensityAttachment)
 			COMPARE_FIELD(bAllowVariableRateShading)
 			COMPARE_FIELD(DrawShadingRate)
 			COMPARE_FIELD(PrimitiveType)
@@ -487,8 +483,6 @@ public:
 			COMPARE_FIELD(RasterizerState)
 			COMPARE_FIELD(DepthStencilState)
 			COMPARE_FIELD(bDepthBounds)
-			COMPARE_FIELD(MultiViewCount)
-			COMPARE_FIELD(bHasFragmentDensityAttachment)
 			COMPARE_FIELD(bAllowVariableRateShading)
 			COMPARE_FIELD(DrawShadingRate)
 			COMPARE_FIELD(PrimitiveType)
@@ -513,8 +507,6 @@ public:
 	// as it is sometimes hashed and compared as raw bytes. Explicit padding is therefore required between
 	// all data members and at the end of the structure.
 	bool							bDepthBounds = false;
-	uint8							MultiViewCount = 0;
-	bool							bHasFragmentDensityAttachment = false;
 	bool							bAllowVariableRateShading = true;
 	EVRSShadingRate					DrawShadingRate  = EVRSShadingRate::VRSSR_1x1;
 
@@ -2362,6 +2354,7 @@ RENDERER_API extern void AddRenderTargetInfo(EPixelFormat PixelFormat, ETextureC
 RENDERER_API extern void SetupDepthStencilInfo(EPixelFormat DepthStencilFormat, ETextureCreateFlags DepthStencilCreateFlags, ERenderTargetLoadAction DepthTargetLoadAction, ERenderTargetLoadAction StencilTargetLoadAction, FExclusiveDepthStencil DepthStencilAccess, FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo);
 RENDERER_API extern void SetupGBufferRenderTargetInfo(const FSceneTexturesConfig& SceneTexturesConfig, FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo, bool bSetupDepthStencil);
 RENDERER_API extern void ApplyTargetsInfo(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo);
+RENDERER_API extern ESubpassHint GetSubpassHint(const FStaticShaderPlatform Platform, bool bIsUsingGBuffers, uint32 NumSamples);
 
 inline FMeshDrawCommandSortKey CalculateMeshStaticSortKey(const TShaderRef<FMeshMaterialShader>& VertexShader, const TShaderRef<FMeshMaterialShader>& PixelShader)
 {

@@ -1588,6 +1588,25 @@ void ApplyTargetsInfo(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const 
 	GraphicsPSOInit.bHasFragmentDensityAttachment = RenderTargetsInfo.bHasFragmentDensityAttachment;
 }
 
+ESubpassHint GetSubpassHint(const FStaticShaderPlatform Platform, bool bIsUsingGBuffers, uint32 NumSamples)
+{
+	ESubpassHint SubpassHint = ESubpassHint::None;
+	
+	if (IsMobilePlatform(Platform))
+	{
+		if (bIsUsingGBuffers)
+		{
+			SubpassHint = ESubpassHint::DeferredShadingSubpass;
+		}
+		else
+		{
+			SubpassHint = IsMobileTonemapSubpassEnabledInline(Platform, NumSamples) ? ESubpassHint::CustomResolveSubpass : ESubpassHint::DepthReadSubpass;
+		}
+	}
+
+	return SubpassHint;
+}
+
 uint64 FMeshDrawCommand::GetPipelineStateSortingKey(FRHICommandList& RHICmdList, const FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo) const
 {
 	// Default fallback sort key

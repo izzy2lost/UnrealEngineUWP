@@ -56,6 +56,13 @@ static TAutoConsoleVariable<int32> CVarMobilePropagateAlpha(
 	TEXT("1: Propagate Full Alpha Propagate"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMobileTonemapSubpass(
+	TEXT("r.Mobile.TonemapSubpass"),
+	0,
+	TEXT(" Whether to enable mobile tonemap subpass \n")
+	TEXT(" 0 = Off [default]\n")
+	TEXT(" 1 = On"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FMobileBasePassUniformParameters, "MobileBasePass", SceneTextures);
 

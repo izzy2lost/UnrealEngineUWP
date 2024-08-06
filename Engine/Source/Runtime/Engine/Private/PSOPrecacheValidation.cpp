@@ -822,8 +822,6 @@ void LogMinimalPSOStateMissInfo(
 			CompareRHIRasterizerStateAndLogChanges(PSOPrecacheData.GraphicsPSOInitializer.RasterizerState, Initializer.RasterizerState, StringBuilder);
 
 			CompareStateAndLogChanges(TEXT("DepthBounds"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bDepthBounds), uint32(Initializer.bDepthBounds), StringBuilder);
-			CompareStateAndLogChanges(TEXT("MultiViewCount"), uint32(PSOPrecacheData.GraphicsPSOInitializer.MultiViewCount), uint32(Initializer.MultiViewCount), StringBuilder);
-			CompareStateAndLogChanges(TEXT("HasFragmentDensityAttachment"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bHasFragmentDensityAttachment), uint32(Initializer.bHasFragmentDensityAttachment), StringBuilder);
 			CompareStateAndLogChanges(TEXT("DrawShadingRate"), uint32(PSOPrecacheData.GraphicsPSOInitializer.ShadingRate), uint32(Initializer.ShadingRate), StringBuilder);
 			CompareStateAndLogChanges(TEXT("PrimitiveType"), uint32(PSOPrecacheData.GraphicsPSOInitializer.PrimitiveType), uint32(Initializer.PrimitiveType), StringBuilder);
 
@@ -887,6 +885,8 @@ void LogFullPSOStateMissInfo(
 					CompareStateAndLogChanges(TEXT("NumSamples"), uint32(PSOPrecacheData.GraphicsPSOInitializer.NumSamples), uint32(Initializer.NumSamples), StringBuilder);
 					CompareStateAndLogChanges(TEXT("SubpassHint"), uint32(PSOPrecacheData.GraphicsPSOInitializer.SubpassHint), uint32(Initializer.SubpassHint), StringBuilder);
 					CompareStateAndLogChanges(TEXT("SubpassIndex"), uint32(PSOPrecacheData.GraphicsPSOInitializer.SubpassIndex), uint32(Initializer.SubpassIndex), StringBuilder);
+					CompareStateAndLogChanges(TEXT("MultiViewCount"), uint32(PSOPrecacheData.GraphicsPSOInitializer.MultiViewCount), uint32(Initializer.MultiViewCount), StringBuilder);
+					CompareStateAndLogChanges(TEXT("HasFragmentDensityAttachment"), uint32(PSOPrecacheData.GraphicsPSOInitializer.bHasFragmentDensityAttachment), uint32(Initializer.bHasFragmentDensityAttachment), StringBuilder);
 					CompareStateAndLogChanges(TEXT("ConservativeRasterization"), uint32(PSOPrecacheData.GraphicsPSOInitializer.ConservativeRasterization), uint32(Initializer.ConservativeRasterization), StringBuilder);										
 				}
 			}

@@ -49,6 +49,18 @@ bool IsMobilePropagateAlphaEnabled(EShaderPlatform Platform)
 	return IsMobilePlatform(Platform) && (FPlatformMisc::GetMobilePropagateAlphaSetting() > 0);
 }
 
+ENGINE_API bool IsMobileTonemapSubpassEnabled(EShaderPlatform Platform)
+{
+	static auto* MobileTonemapSubpassPathCvar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.TonemapSubpass"));
+	return (MobileTonemapSubpassPathCvar && (MobileTonemapSubpassPathCvar->GetValueOnAnyThread() == 1)) && IsMobileHDR() && !IsMobileDeferredShadingEnabled(Platform);
+}
+
+ENGINE_API bool IsMobileTonemapSubpassEnabledInline(EShaderPlatform Platform, uint32 NumMSAASamples)
+{
+	// As of UE 5.4 only vulkan supports inline (single pass) tonemap
+	return IsMobileTonemapSubpassEnabled(Platform) && IsVulkanPlatform(Platform) && (GRHISupportsMSAAShaderResolve || NumMSAASamples <= 1u);
+}
+
 ENGINE_API bool IsMobileColorsRGB()
 {
 	static auto* MobileUseHWsRGBEncodingCVAR = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.UseHWsRGBEncoding"));

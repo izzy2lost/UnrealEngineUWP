@@ -129,6 +129,7 @@ struct FSceneTexturesConfig
 		, bKeepDepthContent{ 1 }
 		, bRequiresDepthAux{}
 		, bPreciseDepthAux{}
+		, bCustomResolveSubpass{}
 		, bSamplesCustomStencil{}
 		, bMemorylessMSAA{}
 		, bSupportsXRTargetManagerDepthAlloc{}
@@ -203,6 +204,9 @@ struct FSceneTexturesConfig
 	
 	// (Mobile) True if SceneDepthAux should use a precise pixel format
 	uint32 bPreciseDepthAux : 1;
+	
+	// (Mobile) True if Custom MSAA resolve subpass is enabled
+	uint32 bCustomResolveSubpass : 1;
 
 	// (Mobile) True if CustomStencil are sampled in a shader
 	uint32 bSamplesCustomStencil : 1;

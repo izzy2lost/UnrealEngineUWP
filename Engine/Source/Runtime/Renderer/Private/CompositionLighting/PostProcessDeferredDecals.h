@@ -76,7 +76,6 @@ END_SHADER_PARAMETER_STRUCT()
 
 void GetDeferredDecalRenderTargetsInfo(
 	const FSceneTexturesConfig& Config,
-	EShaderPlatform ShaderPlatform,
 	EDecalRenderTargetMode RenderTargetMode,
 	FGraphicsPipelineRenderTargetsInfo& RenderTargetsInfo);
 

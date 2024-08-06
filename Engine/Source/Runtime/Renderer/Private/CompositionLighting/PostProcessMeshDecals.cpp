@@ -384,10 +384,8 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	Shaders.TryGetVertexShader(MeshDecalPassShaders.VertexShader);
 	Shaders.TryGetPixelShader(MeshDecalPassShaders.PixelShader);
 
-	const EShaderPlatform ShaderPlatform = GetFeatureLevelShaderPlatform(FeatureLevel);
 	FGraphicsPipelineRenderTargetsInfo RenderTargetsInfo;
-	RenderTargetsInfo.NumSamples = 1;
-	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, ShaderPlatform, LocalRenderTargetMode, RenderTargetsInfo);
+	GetDeferredDecalRenderTargetsInfo(SceneTexturesConfig, LocalRenderTargetMode, RenderTargetsInfo);
 
 	uint8 SubpassIndex = 0;
 	ESubpassHint SubpassHint = ESubpassHint::None;
@@ -395,7 +393,7 @@ void FMeshDecalMeshProcessor::CollectDeferredDecalMeshPSOInitializers(
 	{
 		// subpass info set during the submission of the draws in a mobile renderer
 		SubpassIndex = 1; // all decals use second sub-pass on mobile
-		SubpassHint = SceneTexturesConfig.bIsUsingGBuffers ? ESubpassHint::DeferredShadingSubpass : ESubpassHint::DepthReadSubpass;
+		SubpassHint = GetSubpassHint(SceneTexturesConfig.ShaderPlatform, SceneTexturesConfig.bIsUsingGBuffers, SceneTexturesConfig.NumSamples);
 	}
 
 	AddGraphicsPipelineStateInitializer(
