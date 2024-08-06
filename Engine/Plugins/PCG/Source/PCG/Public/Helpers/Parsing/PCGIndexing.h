@@ -62,7 +62,8 @@ namespace PCGIndexing
 		bool operator==(const FPCGIndexCollection& Other) const;
 
 	private:
-		int32 AdjustIndex(int32 Index) const;
+		/** Adjusts indices into a positive range, including offsetting the EndIndex if they are equal. */
+		FPCGIndexRange AdjustIndicesAndCreateRange(int32 StartIndex, int32 EndIndex) const;
 
 		/** Checks two ranges for an overlap and returns true if they overlap. */
 		bool CheckOverlap(const FPCGIndexRange& FirstRange, const FPCGIndexRange& SecondRange) const;

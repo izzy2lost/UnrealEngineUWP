@@ -31,7 +31,7 @@ namespace PCGIndexing
 
 	bool FPCGIndexCollection::AddRange(const int32 StartIndex, const int32 EndIndex)
 	{
-		const FPCGIndexRange NewRange(AdjustIndex(StartIndex), AdjustIndex(EndIndex));
+		const FPCGIndexRange NewRange = AdjustIndicesAndCreateRange(StartIndex, EndIndex);
 
 		if (!RangeIsValid(NewRange))
 		{
@@ -125,14 +125,13 @@ namespace PCGIndexing
 		return (ArraySize == Other.ArraySize) && (IndexRanges == Other.IndexRanges);
 	}
 
-	int32 FPCGIndexCollection::AdjustIndex(const int32 Index) const
+	FPCGIndexRange FPCGIndexCollection::AdjustIndicesAndCreateRange(int32 StartIndex, int32 EndIndex) const
 	{
-		if (Index >= 0)
-		{
-			return FMath::Min(Index, ArraySize);
-		}
+		// Convert both indices to a positive range
+		StartIndex = (StartIndex >= 0) ? FMath::Min(StartIndex, ArraySize) : FMath::Min(ArraySize + StartIndex, ArraySize);
+		EndIndex = (EndIndex >= 0) ? FMath::Min(EndIndex, ArraySize) : FMath::Min(ArraySize + EndIndex, ArraySize);
 
-		return FMath::Max(ArraySize + Index, 0);
+		return FPCGIndexRange(StartIndex, (EndIndex == StartIndex) ? EndIndex + 1 : EndIndex);
 	}
 
 	bool FPCGIndexCollection::CheckOverlap(const FPCGIndexRange& FirstRange, const FPCGIndexRange& SecondRange) const

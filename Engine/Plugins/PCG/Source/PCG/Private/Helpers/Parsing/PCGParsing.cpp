@@ -69,7 +69,8 @@ namespace PCGParser
 				}
 
 				const int32 Index = FCString::Atoi(*ElementSubstring);
-				if (!OutIndexCollection.AddRange(Index, Index + 1))
+				// Adding the same index twice will adjust the end index appropriately
+				if (!OutIndexCollection.AddRange(Index, Index))
 				{
 					return EPCGParserResult::InvalidExpression;
 				}
