@@ -86,7 +86,6 @@ int DebugMode;
 
 RWTexture2D<float> RWDownsampledSceneDepth;
 RWTexture2D<UNORM float3> RWDownsampledSceneWorldNormal;
-RWTexture2D<float2> RWSampleLuminanceSum;
 RWTexture2D<uint> RWLightSamples;
 
 float4 HistoryScreenPositionScaleBias;
@@ -191,8 +190,6 @@ void GenerateLightSamplesCS(
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
-			float3 DiffuseSum = 0.0f;
-			float3 SpecularSum = 0.0f;
 			float WeightSum = 0.0f;
 
 			if (SceneDepth > 0)
@@ -288,9 +285,6 @@ void GenerateLightSamplesCS(
 							float Tau = WeightSum / (WeightSum + LightTargetPDF.Weight);
 							WeightSum += LightTargetPDF.Weight;
 
-							DiffuseSum += LightTargetPDF.Diffuse;
-							SpecularSum += LightTargetPDF.Specular;
-
 							for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 							{
 								if (LightIndexRandom[LightSampleIndex] < Tau)
@@ -310,8 +304,6 @@ void GenerateLightSamplesCS(
 						}
 					}
 				}
-
-				DemodulateLighting(Material, TranslatedWorldPosition, DiffuseSum, SpecularSum);
 
 				#if DEBUG_MODE
 				if (Debug.bActive)
@@ -341,20 +333,12 @@ void GenerateLightSamplesCS(
 							AddLineTWS(Debug.Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LocalLightData.LightColorAndIdAndFalloffExponent.xyz / Luminance(LocalLightData.LightColorAndIdAndFalloffExponent.xyz), 1.0f));
 						}
 					}
-
-					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Diffuse sum:  "));
-					Print(Debug.Context, DiffuseSum);
-					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("Specular sum: "));
-					Print(Debug.Context, SpecularSum);
 				}
 				#endif
 			}
 
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
 			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(Material.WorldNormal);
-			RWSampleLuminanceSum[DownsampledScreenCoord] = float2(Luminance(DiffuseSum), Luminance(SpecularSum));
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{

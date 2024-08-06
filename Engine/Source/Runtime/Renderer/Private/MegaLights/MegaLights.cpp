@@ -323,7 +323,6 @@ class FGenerateLightSamplesCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWSampleLuminanceSum)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
@@ -577,8 +576,6 @@ class FDenoiserTemporalCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, CompositeUpsampleWeights)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float2>, SampleLuminanceSumTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedSpecularLighting)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingAndSecondMomentHistoryTexture)
@@ -907,13 +904,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				FIntVector(1, 1, 1));
 		}
 
-		FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
-			FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-			TEXT("MegaLights.SampleLuminanceSum"));
-
 		// Generate new candidate light samples
 		{
-			FRDGTextureUAVRef SampleLuminanceSumUAV = GraphBuilder.CreateUAV(SampleLuminanceSum, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef DownsampledSceneDepthUAV = GraphBuilder.CreateUAV(DownsampledSceneDepth, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef DownsampledSceneWorldNormalUAV = GraphBuilder.CreateUAV(DownsampledSceneWorldNormal, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef LightSamplesUAV = GraphBuilder.CreateUAV(LightSamples, ERDGUnorderedAccessViewFlags::SkipBarrier);
@@ -947,7 +939,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
 				PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
-				PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
 				PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 				PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 				PassParameters->RWLightSamples = LightSamplesUAV;
@@ -1089,8 +1080,6 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 		{
 			FDenoiserTemporalCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserTemporalCS::FParameters>();
 			PassParameters->MegaLightsParameters = MegaLightsParameters;
-			PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
-			PassParameters->SampleLuminanceSumTexture = SampleLuminanceSum;
 			PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
 			PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
 			PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;

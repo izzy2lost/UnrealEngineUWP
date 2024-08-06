@@ -12,8 +12,6 @@
 	MAX_OCCUPANCY
 #endif
 
-Texture2D<float4> CompositeUpsampleWeights;
-Texture2D<float2> SampleLuminanceSumTexture;
 Texture2D ResolvedDiffuseLighting;
 Texture2D ResolvedSpecularLighting;
 Texture2D MegaLightsDepthHistory;
@@ -28,8 +26,6 @@ float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
 uint TemporalAdvanceFrame;
-uint2 DownsampledViewMin;
-uint2 DownsampledViewSize;
 
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
@@ -146,14 +142,6 @@ void GetNeighborhood(uint2 LocalCoord, float3 DiffuseCenterSample, float3 Specul
 	SpecularNeighborhood.Extent = TemporalNeighborhoodClampScale * StdDev;
 }
 
-void AccumulateSampleLuminanceSum(uint2 DownsampledScreenCoord, float UpsampleWeight, inout float2 SampleLuminanceSum)
-{
-	if (all(DownsampledScreenCoord < DownsampledViewMin + DownsampledViewSize))
-	{
-		SampleLuminanceSum += SampleLuminanceSumTexture[DownsampledScreenCoord] * UpsampleWeight;
-	}
-}
-
 float3 ClampLuminance(float3 Lighting, float LuminanceClamp)
 {
 	if (Luminance(Lighting) > LuminanceClamp)
@@ -250,16 +238,6 @@ void DenoiserTemporalCS(
 
 		if (IsLightingValid(DiffuseLighting))
 		{
-			float2 SampleLuminanceSum = 0.0f;
-			{
-				uint2 DownsampledScreenCoord = floor(ScreenUV * View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR - 0.5f);
-				float4 DownsampledScreenWeights = CompositeUpsampleWeights[ScreenCoord];
-				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(0, 0), DownsampledScreenWeights.x, SampleLuminanceSum);
-				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(1, 0), DownsampledScreenWeights.y, SampleLuminanceSum);
-				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(0, 1), DownsampledScreenWeights.z, SampleLuminanceSum);
-				AccumulateSampleLuminanceSum(DownsampledScreenCoord + uint2(1, 1), DownsampledScreenWeights.w, SampleLuminanceSum);
-			}
-
 			if (IsLightingValid(DiffuseLighting))
 			{
 				DiffuseLighting = LumenYCoCgToRGB(DiffuseLighting);
@@ -367,11 +345,9 @@ void DenoiserTemporalCS(
 						float3 ClampedHistorySpecularLighting = clamp(HistorySpecularLighting, SpecularNeighborhood.Center - SpecularNeighborhood.Extent, SpecularNeighborhood.Center + SpecularNeighborhood.Extent);
 						ClampedHistorySpecularLighting = LumenYCoCgToRGB(ClampedHistorySpecularLighting);
 
-						// Clamp history to max sample luminance
-						ClampedHistoryDiffuseLighting = ClampLuminance(ClampedHistoryDiffuseLighting, SampleLuminanceSum.x);
-						float ClampedHistoryDiffuseSecondMoment = clamp(HistoryDiffuseSecondMoment, 0, Pow2(SampleLuminanceSum.x));
-						ClampedHistorySpecularLighting = ClampLuminance(ClampedHistorySpecularLighting, SampleLuminanceSum.y);
-						float ClampedHistorySpecularSecondMoment = clamp(HistorySpecularSecondMoment, 0, Pow2(SampleLuminanceSum.y));
+						// #ml_todo: clamp also the second moment
+						float ClampedHistoryDiffuseSecondMoment = max(HistoryDiffuseSecondMoment, 0.0f);
+						float ClampedHistorySpecularSecondMoment = max(HistorySpecularSecondMoment, 0.0f);
 
 						// Blend history with new samples
 						float Alpha = 1.0f / NumFramesAccumulated;
@@ -407,9 +383,6 @@ void DenoiserTemporalCS(
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Specular: "));
 							Print(Debug.Context, SpecularLighting);
-							Newline(Debug.Context);
-							Print(Debug.Context, TEXT("SampleLuminanceSum: "));
-							Print(Debug.Context, SampleLuminanceSum);
 							Newline(Debug.Context);
 							Print(Debug.Context, TEXT("Luminance:          "));
 							Print(Debug.Context, Luminance(DiffuseLighting));
