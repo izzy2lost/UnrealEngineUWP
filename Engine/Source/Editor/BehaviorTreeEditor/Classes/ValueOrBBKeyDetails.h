@@ -67,6 +67,7 @@ protected:
 	void OnBaseClassChanged();
 	void OnSetClass(const UClass* NewClass);
 	const UClass* OnGetSelectedClass() const;
+	void BrowseToClass() const;
 };
 
 class FValueOrBBKeyDetails_Enum : public FValueOrBBKeyDetails
@@ -110,6 +111,7 @@ protected:
 	void OnBaseClassChanged();
 	void OnObjectChanged(const FAssetData& AssetData);
 	FString OnGetObjectPath() const;
+	void BrowseToObject() const;
 };
 
 class FValueOrBBKeyDetails_Struct : public FValueOrBBKeyDetails

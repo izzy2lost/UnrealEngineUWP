@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "Editor.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -157,12 +158,24 @@ TSharedRef<SWidget> FValueOrBBKeyDetails_Class::CreateDefaultValueWidget()
 	{
 		if (const UClass* BaseClass = static_cast<const FValueOrBBKey_Class*>(DataPtr)->BaseClass)
 		{
-			return SNew(SClassPropertyEntryBox)
-				.MetaClass(BaseClass)
-				.AllowNone(true)
-				.AllowAbstract(true)
-				.OnSetClass(this, &FValueOrBBKeyDetails_Class::OnSetClass)
-				.SelectedClass(this, &FValueOrBBKeyDetails_Class::OnGetSelectedClass);
+			return SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				[
+					SNew(SClassPropertyEntryBox)
+					.MetaClass(BaseClass)
+					.AllowNone(true)
+					.AllowAbstract(true)
+					.OnSetClass(this, &FValueOrBBKeyDetails_Class::OnSetClass)
+					.SelectedClass(this, &FValueOrBBKeyDetails_Class::OnGetSelectedClass)
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.Padding(2.0f, 1.0f)
+				[
+					PropertyCustomizationHelpers::MakeBrowseButton(FSimpleDelegate::CreateSP(this, &FValueOrBBKeyDetails_Class::BrowseToClass))
+				];
 		}
 	}
 
@@ -235,11 +248,23 @@ TSharedRef<SWidget> FValueOrBBKeyDetails_Object::CreateDefaultValueWidget()
 	{
 		if (UClass* BaseClass = static_cast<const FValueOrBBKey_Object*>(DataPtr)->BaseClass)
 		{
-			return SNew(SObjectPropertyEntryBox)
-				.AllowedClass(BaseClass)
-				.AllowClear(true)
-				.OnObjectChanged(this, &FValueOrBBKeyDetails_Object::OnObjectChanged)
-				.ObjectPath(this, &FValueOrBBKeyDetails_Object::OnGetObjectPath);
+			return SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					[
+						SNew(SObjectPropertyEntryBox)
+						.AllowedClass(BaseClass)
+						.AllowClear(true)
+						.OnObjectChanged(this, &FValueOrBBKeyDetails_Object::OnObjectChanged)
+						.ObjectPath(this, &FValueOrBBKeyDetails_Object::OnGetObjectPath)
+					]
+					+ SHorizontalBox::Slot()
+					 .AutoWidth()
+					 .HAlign(HAlign_Center)
+					 .VAlign(VAlign_Center)
+					 .Padding(2.0f, 1.0f)
+					[
+						PropertyCustomizationHelpers::MakeBrowseButton(FSimpleDelegate::CreateSP(this, &FValueOrBBKeyDetails_Object::BrowseToObject))
+					];
 		}
 	}
 	return FValueOrBBKeyDetails::CreateDefaultValueWidget();
@@ -456,6 +481,16 @@ const UClass* FValueOrBBKeyDetails_Class::OnGetSelectedClass() const
 	return Cast<UClass>(DefaultValue);
 }
 
+void FValueOrBBKeyDetails_Class::BrowseToClass() const
+{
+	UObject* DefaultValue = nullptr;
+	DefaultValueProperty->GetValue(DefaultValue);
+	if (DefaultValue)
+	{
+		GEditor->SyncBrowserToObject(DefaultValue);
+	}
+}
+
 void FValueOrBBKeyDetails_Enum::OnEnumTypeChanged()
 {
 	ValidateData();
@@ -514,5 +549,15 @@ FString FValueOrBBKeyDetails_Object::OnGetObjectPath() const
 	UObject* DefaultValue = nullptr;
 	DefaultValueProperty->GetValue(DefaultValue);
 	return DefaultValue ? DefaultValue->GetPathName() : FString();
+}
+
+void FValueOrBBKeyDetails_Object::BrowseToObject() const
+{
+	UObject* DefaultValue = nullptr;
+	DefaultValueProperty->GetValue(DefaultValue);
+	if (DefaultValue)
+	{
+		GEditor->SyncBrowserToObject(DefaultValue);
+	}
 }
 #undef LOCTEXT_NAMESPACE
