@@ -2933,14 +2933,6 @@ static bool CompileToGlslWithShaderConductor(
 
 		switch (Version)
 		{
-		case GLSL_SWITCH_FORWARD:
-			TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Essl;
-			TargetDesc.Version = 320;
-			break;
-		case GLSL_SWITCH:
-			TargetDesc.Language = CrossCompiler::EShaderConductorLanguage::Glsl;
-			TargetDesc.Version = 430;
-			break;
 		case GLSL_150_ES3_1:
 		case GLSL_ES3_1_ANDROID:
 		default:

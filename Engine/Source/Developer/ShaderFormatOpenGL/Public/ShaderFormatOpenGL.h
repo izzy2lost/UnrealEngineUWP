@@ -33,8 +33,8 @@ enum GLSLVersion
 	GLSL_ES2_IOS_REMOVED,
 	GLSL_310_ES_EXT_REMOVED,
 	GLSL_ES3_1_ANDROID,
-	GLSL_SWITCH,
-	GLSL_SWITCH_FORWARD,
+	GLSL_SWITCH UE_DEPRECATED(5.5, "no longer supported in this shader backend"),
+	GLSL_SWITCH_FORWARD UE_DEPRECATED(5.5, "no longer supported in this shader backend"),
 
 	GLSL_MAX
 };
