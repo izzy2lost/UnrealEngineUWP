@@ -809,12 +809,7 @@ void FCompressibleAnimData::FetchData(const ITargetPlatform* InPlatform)
 
 	FAnimationUtils::BuildSkeletonMetaData(Skeleton, BoneData);
 
-	const FFrameRate DefaultSamplingFrameRate = AnimSequence->GetSamplingFrameRate();
-	const FFrameRate PlatformSamplingFrameRate = InPlatform ? AnimSequence->GetTargetSamplingFrameRate(InPlatform) : FFrameRate(0,0);
-	
-	const bool bValidTargetSampleRate = PlatformSamplingFrameRate.IsValid() && (PlatformSamplingFrameRate.IsMultipleOf(DefaultSamplingFrameRate) || PlatformSamplingFrameRate.IsFactorOf(DefaultSamplingFrameRate));
-	
-	const FFrameRate& FrameRateToSampleWith = (DefaultSamplingFrameRate != PlatformSamplingFrameRate && bValidTargetSampleRate) ? PlatformSamplingFrameRate : DefaultSamplingFrameRate;	
+	const FFrameRate FrameRateToSampleWith = UE::Anim::Compression::GetCompressionFrameRate(*AnimSequence, InPlatform);
 	
 	const FFrameTime SampleFrameTime = FrameRateToSampleWith.AsFrameTime(SequenceLength);
 	check(FMath::IsNearlyZero(SampleFrameTime.GetSubFrame()));	
@@ -1651,6 +1646,19 @@ UE::Anim::Compression::FAnimDDCKeyArgs::FAnimDDCKeyArgs(const UAnimSequenceBase&
 	, TargetPlatform(TargetPlatform)
 	{
 			}
+
+namespace UE::Anim::Compression
+{
+	FFrameRate GetCompressionFrameRate(const UAnimSequence& AnimSequence, const ITargetPlatform* TargetPlatform)
+	{
+		const FFrameRate DefaultSamplingFrameRate = AnimSequence.GetSamplingFrameRate();
+		const FFrameRate PlatformSamplingFrameRate = TargetPlatform ? AnimSequence.GetTargetSamplingFrameRate(TargetPlatform) : FFrameRate(0, 0);
+
+		const bool bValidTargetSampleRate = PlatformSamplingFrameRate.IsValid() && (PlatformSamplingFrameRate.IsMultipleOf(DefaultSamplingFrameRate) || PlatformSamplingFrameRate.IsFactorOf(DefaultSamplingFrameRate));
+
+		return DefaultSamplingFrameRate != PlatformSamplingFrameRate && bValidTargetSampleRate ? PlatformSamplingFrameRate : DefaultSamplingFrameRate;
+	}
+}
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR

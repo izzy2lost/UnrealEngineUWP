@@ -19,6 +19,7 @@
 #include "Animation/MirrorDataTable.h"
 #include "UObject/UObjectIterator.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/SkeletalMeshSocket.h"
 #include "EngineUtils.h"
 #include "AnimationUtils.h"
 #include "BonePose.h"
@@ -4622,15 +4623,22 @@ FString UAnimSequence::CreateDerivedDataKeyString(const ITargetPlatform* TargetP
 		}
 	}
 
-	const FFrameRate FrameRate = PlatformTargetFrameRate.GetValueForPlatform(TargetPlatform->GetPlatformInfo().IniPlatformName);
+	// Include sockets since they can impact precision requirements
+	for (const USkeletalMeshSocket* Socket : CurrentSkeleton->Sockets)
+	{
+		FName BoneName = Socket->BoneName;
+		ArcToHexString.Ar << BoneName;
+	}
+
+	const FFrameRate FrameRate = UE::Anim::Compression::GetCompressionFrameRate(*this, TargetPlatform);
 
 	FString Ret = FString::Printf(TEXT("%i_%s%s%s_%c%c%i_%s_%s_%i_%i_%s"),
 		CompressCommandletVersion,
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		*GetDataModel()->GenerateGuid().ToString(),
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		*GetSkeleton()->GetGuid().ToString(),
-		*GetSkeleton()->GetVirtualBoneGuid().ToString(),
+		*CurrentSkeleton->GetGuid().ToString(),
+		*CurrentSkeleton->GetVirtualBoneGuid().ToString(),
 		AdditiveType,
 		RefType,
 		RefFrameIndex,

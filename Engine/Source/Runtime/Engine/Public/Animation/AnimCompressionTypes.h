@@ -896,7 +896,7 @@ struct FRootMotionReset
 	}
 };
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 namespace UE::Anim::Compression {
 	struct FAnimDDCKeyArgs
 	{
@@ -906,8 +906,10 @@ namespace UE::Anim::Compression {
 		const UAnimSequenceBase& AnimSequence;
 		const ITargetPlatform* TargetPlatform;
 	};
+
+	ENGINE_API FFrameRate GetCompressionFrameRate(const UAnimSequence& AnimSequence, const ITargetPlatform* TargetPlatform);
 }
-#endif // WITH_EDITOR
+#endif // WITH_EDITORONLY_DATA
 
 UE_DEPRECATED(5.1, "Signature of DecompressPose has been deprecated, use UE::Anim::Decompression::DecompressPose instead")
 extern void DecompressPose(FCompactPose& OutPose,
