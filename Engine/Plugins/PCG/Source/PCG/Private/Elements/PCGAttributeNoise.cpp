@@ -230,11 +230,6 @@ EPCGDataType UPCGAttributeNoiseSettings::GetCurrentPinTypes(const UPCGPin* InPin
 	}
 }
 
-FPCGContext* FPCGAttributeNoiseElement::CreateContext()
-{
-	return new FPCGAttributeNoiseContext();
-}
-
 bool FPCGAttributeNoiseElement::ExecuteInternal(FPCGContext* InContext) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeNoiseElement::Execute);

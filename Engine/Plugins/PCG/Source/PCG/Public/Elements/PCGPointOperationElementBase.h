@@ -35,6 +35,7 @@ protected:
 	//~Begin IPCGElement interface
 	/** Conveniently calls PreparePointOperationData to prepare the time sliced element for execution. May be overridden, but PreparePointOperationData must be called. */
 	virtual bool PrepareDataInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 	//~End IPCGElement interface
 
 	/** Executes the PointFunction function/lambda for every point copied from PreparePointOperationData */

@@ -16,10 +16,11 @@ TArray<FPCGPinProperties> UPCGSampleTextureSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
 
-	PinProperties.Emplace(PCGSampleTextureConstants::InputPointLabel,
+	FPCGPinProperties& InputPin = PinProperties.Emplace_GetRef(PCGSampleTextureConstants::InputPointLabel,
 		EPCGDataType::Point,
 		/*bAllowMultipleConnections=*/true,
 		/*bAllowMultipleData=*/true);
+	InputPin.SetRequiredPin();
 
 	PinProperties.Emplace(PCGSampleTextureConstants::InputTextureLabel,
 		EPCGDataType::BaseTexture,

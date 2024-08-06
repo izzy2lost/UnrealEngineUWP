@@ -1556,8 +1556,7 @@ bool FPCGSplineSamplerElement::ExecuteInternal(FPCGContext* Context) const
 			ProjectionParams = SplineProjection->GetProjectionParams();
 		}
 
-		FPCGTaggedData& Output = Outputs.Emplace_GetRef();
-		Output = Input;
+		FPCGTaggedData& Output = Outputs.Emplace_GetRef(Input);
 
 		UPCGPointData* SampledPointData = FPCGContext::NewObject_AnyThread<UPCGPointData>(Context);
 		SampledPointData->InitializeFromData(SpatialData);

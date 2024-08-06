@@ -442,8 +442,6 @@ namespace PCGSelfPruningElement
 			return;
 		}
 
-		TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
-
 		TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
 		for (const FPCGTaggedData& Input : Inputs)
 		{

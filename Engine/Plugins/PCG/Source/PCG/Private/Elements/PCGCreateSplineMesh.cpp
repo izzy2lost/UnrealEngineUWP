@@ -111,7 +111,6 @@ bool FPCGCreateSplineMeshElement::ExecuteInternal(FPCGContext* Context) const
 	SMCBuilderParams.SplineMeshParams = Settings->SplineMeshParams;
 
 	TArray<FPCGTaggedData> Inputs = Context->InputData.GetInputs();
-	TArray<FPCGTaggedData>& Outputs = Context->OutputData.TaggedData;
 
 	for (const FPCGTaggedData& Input : Inputs)
 	{

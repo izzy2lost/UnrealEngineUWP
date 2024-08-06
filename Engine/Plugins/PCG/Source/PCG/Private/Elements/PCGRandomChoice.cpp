@@ -216,13 +216,6 @@ bool FPCGRandomChoiceElement::ExecuteInternal(FPCGContext* Context) const
 			}
 		}
 
-		auto AddToOutput = [&ShuffledIndexes, &CurrentInput, &Outputs, &ChooseFunc, Context](const int StartIndex, const int Count, const FName Label)
-		{
-			FPCGTaggedData& ChosenOutput = Outputs.Add_GetRef(CurrentInput);
-			ChosenOutput.Data = ChooseFunc(CurrentInput.Data, MakeArrayView(ShuffledIndexes.GetData() + StartIndex, Count), Context);
-			ChosenOutput.Pin = PCGRandomChoiceConstants::ChosenEntriesLabel;
-		};
-
 		FPCGTaggedData& ChosenOutput = Outputs.Add_GetRef(CurrentInput);
 		ChosenOutput.Data = ChooseFunc(CurrentInput.Data, MakeArrayView(ShuffledIndexes.GetData(), NumOfElementsToKeep), Context);
 		ChosenOutput.Pin = PCGRandomChoiceConstants::ChosenEntriesLabel;

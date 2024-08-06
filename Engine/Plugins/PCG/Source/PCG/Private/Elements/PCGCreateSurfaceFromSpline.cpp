@@ -22,6 +22,8 @@ TArray<FPCGPinProperties> UPCGCreateSurfaceFromSplineSettings::InputPinPropertie
 {
 	TArray<FPCGPinProperties> PinProperties;
 	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Spline, /*bAllowMultipleConnections=*/true, /*bAllowMultipleData=*/true);
+	PinProperties[0].SetRequiredPin();
+
 	return PinProperties;
 }
 

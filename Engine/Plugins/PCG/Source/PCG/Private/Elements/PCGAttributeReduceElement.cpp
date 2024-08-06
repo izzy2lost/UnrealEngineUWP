@@ -240,7 +240,8 @@ FString UPCGAttributeReduceSettings::GetAdditionalTitleInformation() const
 TArray<FPCGPinProperties> UPCGAttributeReduceSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;
-	PinProperties.Emplace(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	FPCGPinProperties& InputPin = PinProperties.Emplace_GetRef(PCGPinConstants::DefaultInputLabel, EPCGDataType::Any);
+	InputPin.SetRequiredPin();
 
 	return PinProperties;
 }
@@ -401,6 +402,12 @@ bool FPCGAttributeReduceElement::ExecuteInternal(FPCGContext* Context) const
 	}
 
 	return true;
+}
+
+EPCGElementExecutionLoopMode FPCGAttributeReduceElement::ExecutionLoopMode(const UPCGSettings* InSettings) const
+{
+	const UPCGAttributeReduceSettings* Settings = Cast<UPCGAttributeReduceSettings>(InSettings);
+	return (!Settings || !Settings->bMergeOutputAttributes) ? EPCGElementExecutionLoopMode::SinglePrimaryPin : EPCGElementExecutionLoopMode::NotALoop;
 }
 
 #undef LOCTEXT_NAMESPACE

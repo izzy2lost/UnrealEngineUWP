@@ -122,11 +122,11 @@ struct FPCGAttributeNoiseContext : public FPCGContext
 	TUniquePtr<IPCGAttributeAccessorKeys> OutputKeys;
 };
 
-class FPCGAttributeNoiseElement : public IPCGElement
+class FPCGAttributeNoiseElement : public IPCGElementWithCustomContext<FPCGAttributeNoiseContext>
 {
 protected:
-	virtual FPCGContext* CreateContext() override;
 	virtual bool ExecuteInternal(FPCGContext* Context) const override;
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
