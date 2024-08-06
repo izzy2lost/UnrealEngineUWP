@@ -1435,6 +1435,18 @@ void FHLSLMaterialTranslator::TranslateMaterial()
 			bSubstrateWritesAmbientOcclusion |= SubstrateCtx.bSubstrateWritesAmbientOcclusion;
 		}
 		CurrentSubstrateCompilationContext = ESubstrateCompilationContext::SCC_Default;
+
+		//Clear the stacks as they may be referencing scoped chunks that are lost before the compile step.
+		//Skips the Vertex shader because this is handled whilst resetting custom vertex interpolation below.
+		for (int iFrequency = EShaderFrequency::SF_Vertex + 1; iFrequency < EShaderFrequency::SF_NumFrequencies; iFrequency++)
+		{
+			while (FunctionStacks[iFrequency].Num() > 1)
+			{
+				FMaterialFunctionCompileState* Stack = FunctionStacks[iFrequency].Pop(EAllowShrinking::No);
+				delete Stack;
+			}
+			FunctionStacks[iFrequency][0]->Reset();
+		}
 	}
 
 	// Generate code:
@@ -4475,23 +4487,17 @@ int32 FHLSLMaterialTranslator::CallExpression(FMaterialExpressionKey ExpressionK
 		ExpressionKey.MaterialAttributeID = FGuid(0, 0, 0, 0);
 	}
 
-
-	// Substrate BSDF expression should not be de-duplicated using expression output hash. 
-	// This is automatically handled via the compiler SubstrateTreeStack.
-	// It means that a node can be blended at multiple point of the graph (allowing acyclic graph instead of tree, e.g. a Slab can be used into multiple input).
-	// We do this for all SubstrateData which can be output from BSDF nodes (slabs) or other nodes such as material functions.
-	bool bExpressionIsSubstrate = false;
-	if(Substrate::IsSubstrateEnabled() && ExpressionKey.Expression)
-	{
-		bExpressionIsSubstrate = ExpressionKey.Expression->IsResultSubstrateMaterial(ExpressionKey.OutputIndex) 
-							|| ExpressionKey.Expression->ForceSubstrateExpressionRecompile(Compiler, ExpressionKey.OutputIndex);
-	}
-
 	// Some expressions can discard output indices and share compiles with a swizzle/mask
 	if (ExpressionKey.Expression && ExpressionKey.Expression->CanIgnoreOutputIndex())
 	{
 		ExpressionKey.OutputIndex = INDEX_NONE;
 	}
+
+	// Substrate BSDF expression should not be de-duplicated using expression output hash. 
+	// This is automatically handled via the compiler SubstrateTreeStack.
+	// It means that a node can be blended at multiple point of the graph (allowing acyclic graph instead of tree, e.g. a Slab can be used into multiple input).
+	// We do this for all SubstrateData which can be output from BSDF nodes (slabs) or other nodes such as material functions.
+	const bool bExpressionIsSubstrate = ExpressionKey.Expression && ExpressionKey.Expression->IsResultSubstrateMaterial(ExpressionKey.OutputIndex);
 
 	// Check if this expression has already been translated.
 	check(ShaderFrequency < SF_NumFrequencies);

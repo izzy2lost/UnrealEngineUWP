@@ -329,12 +329,6 @@ class UMaterialExpression : public UObject
 	ENGINE_API bool IsUsingNewHLSLGenerator() const;
 
 	/**
-	* For now this call is only needed for resolving Static values, but can be expanded in future as needed.
-	* Essentially this forces the HLSLMaterialTranslator to skip cached code chunks and use the static bool logic in place for resolving switches etc.
-	*/
-	ENGINE_API virtual bool ForceSubstrateExpressionRecompile(class FMaterialCompiler* Compiler, int32 OutputIndex);
-
-	/**
 	 * Builds this expression's material IR.
 	 * 
 	 * This function is responsible for doing the semantic analysis on this error, error checking and reporting and
