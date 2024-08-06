@@ -39,6 +39,11 @@ public:
 
 	JSONUTILITIES_API bool JsonObjectToString(FString& Str) const;
 	JSONUTILITIES_API bool JsonObjectFromString(const FString& Str);
+
+	/**
+	 * Returns the memory allocated by this object in Bytes, should NOT include sizeof(*this).
+	 */
+	JSONUTILITIES_API SIZE_T GetAllocatedSize() const;
 };
 
 template<>

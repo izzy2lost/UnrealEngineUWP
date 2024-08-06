@@ -264,6 +264,15 @@ public:
 	JSON_API void SetObjectField(FString&& FieldName, const TSharedPtr<FJsonObject>& JsonObject);
 	JSON_API void SetObjectField(const FString& FieldName, const TSharedPtr<FJsonObject>& JsonObject);
 
+	/**
+	 * Returns the memory footprint for this object in Bytes, including sizeof(*this) and allocated memory.
+	 */
+	SIZE_T GetMemoryFootprint() const { return sizeof(*this) + GetAllocatedSize(); }
+private:
+	/** Helper to calculate allocated size of the Values map and its contents */
+	JSON_API SIZE_T GetAllocatedSize() const;
+
+public:
 	static JSON_API void Duplicate(const TSharedPtr<const FJsonObject>& Source, const TSharedPtr<FJsonObject>& Dest);
 	static JSON_API void Duplicate(const TSharedPtr<FJsonObject>& Source, TSharedPtr<FJsonObject>& Dest);
 

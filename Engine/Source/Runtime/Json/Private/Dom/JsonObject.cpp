@@ -234,6 +234,20 @@ void FJsonObject::SetObjectField(const FString& FieldName, const TSharedPtr<FJso
 	SetObjectField(CopyTemp(FieldName), JsonObject);
 }
 
+SIZE_T FJsonObject::GetAllocatedSize() const
+{
+	SIZE_T SizeBytes = 0;
+
+	SizeBytes += Values.GetAllocatedSize();
+	for (const TPair<FString, TSharedPtr<FJsonValue>>& KV : Values)
+	{
+		SizeBytes += KV.Key.GetAllocatedSize();
+		SizeBytes += KV.Value.IsValid() ? KV.Value->GetMemoryFootprint() : 0;
+	}
+
+	return SizeBytes;
+}
+
 void FJsonObject::Duplicate(const TSharedPtr<const FJsonObject>& Source, const TSharedPtr<FJsonObject>& Dest)
 {
 	if (Source && Dest)
