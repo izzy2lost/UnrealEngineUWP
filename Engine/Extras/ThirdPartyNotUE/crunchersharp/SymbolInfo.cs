@@ -12,44 +12,41 @@ namespace CruncherSharp
         public string Name { get; private set; }
         public string TypeName { get; set; }
         public ulong Size { get; set; }
-        public ulong NewSize { get; set; }
-        public ulong EndPadding { get; set; }
-        public ulong Padding => (ulong)((long)EndPadding + Members.Sum(info => (long)info.PaddingBefore)); // This is the local (intrinsic) padding
-
+        public ulong? NewSize { get; set; }
+        public uint EndPadding { get; set; }
+        public uint Padding => (uint)(EndPadding + Members.Sum(info => info.PaddingBefore)); // This is the local (intrinsic) padding
 		public uint? MinAlignment { get; set; }
-
-		public ulong PaddingZonesCount => (ulong)((EndPadding > 0 ? 1 : 0) + Members.Sum(info => info.PaddingBefore > 0 ? 1 : 0));
-        public ulong? TotalPadding { get; set; } // Includes padding from base classes and members
+		public uint PaddingZonesCount => (uint)((EndPadding > 0 ? 1 : 0) + Members.Sum(info => info.PaddingBefore > 0 ? 1 : 0));
+        public uint? TotalPadding { get; set; } // Includes padding from base classes and members
 		public ulong? PotentialSaving { get; set; }
 		public ulong NumInstances { get; set; }
         public ulong TotalCount { get; set; }
 		public ulong LowerMemPool { get; set; }
 		public ulong CurrentMemPool { get; set; }
 
-		public ulong NewMemPool { get; set; }
+		public ulong? NewMemPool { get; set; }
 		public bool IsAbstract { get; set; }
         public bool IsTemplate { get; set; }
 		public bool IsImportedFromCSV { get; set; }
 		public List<SymbolMemberInfo> Members { get; set; }
         public List<SymbolFunctionInfo> Functions { get; set; }
-        public List<SymbolInfo> DerivedClasses { get; set; }
-
-        private const string PaddingMarker = "****Padding";
+        public List<SymbolInfo> DerivedClasses { get; set; }		       
 
         public SymbolInfo(string name, string typeName, ulong size, List<uint> MemPools)
         {
             Name = name;
             TypeName = typeName;
             Size = size;
-            EndPadding = 0;
+			NewSize = null;
+			EndPadding = 0;
 			LowerMemPool = 0;
 			CurrentMemPool = 0;
-			NewMemPool = 0;
+			NewMemPool = null;
 			MinAlignment = null;
 			TotalPadding = null;
 			PotentialSaving = null;
             Members = new List<SymbolMemberInfo>();
-            Functions = new List<SymbolFunctionInfo>();
+            Functions = null;
             IsAbstract = false;
 			IsImportedFromCSV = false;
 
@@ -66,6 +63,10 @@ namespace CruncherSharp
 
         public void AddFunction(SymbolFunctionInfo function)
         {
+			if (Functions == null)
+			{
+				Functions = new List<SymbolFunctionInfo>();
+			}
             Functions.Add(function);
 			if (function.IsPure)
 			{
@@ -92,14 +93,16 @@ namespace CruncherSharp
 				CurrentMemPool = Size;
 			}
 
-			if (NewSize > 0)
-			{
-				SetNewMemPools(MemPools); 
-			}
+
+			SetNewMemPools(MemPools); 
+			
 		}
 
 		public void SetNewMemPools(List<uint> MemPools)
 		{
+			if (!NewSize.HasValue)
+				return;
+	
 			foreach (var memPool in MemPools)
 			{
 				if (NewSize > memPool)
@@ -255,18 +258,18 @@ namespace CruncherSharp
             return (uint)(8 * Members[index].Size) - (Members[index].BitPosition + Members[index].BitSize);
         }
 
-        private ulong ComputeEndPadding()
+        private uint ComputeEndPadding()
         {
             return ComputePadding(Members.Count);
         }
 
-        public ulong ComputeTotalPadding()
+        public uint ComputeTotalPadding()
         {
             if (TotalPadding.HasValue)
             {
                 return TotalPadding.Value;
             }
-            TotalPadding = (ulong)((long)Padding + Members.Sum(info =>
+            TotalPadding = (uint)((uint)Padding + Members.Sum(info =>
             {
                 if (info.AlignWithPrevious)
                     return 0;
@@ -278,7 +281,7 @@ namespace CruncherSharp
                 {
                     return 0;
                 }
-                return (long)info.TypeInfo.ComputeTotalPadding();
+                return info.TypeInfo.ComputeTotalPadding();
             }));
             return TotalPadding.Value;
         }
@@ -455,6 +458,8 @@ namespace CruncherSharp
 
 		public long ComputeTotalMempoolDelta()
 		{
+			if (!NewMemPool.HasValue)
+				return 0;
 			long TotalUsage = ((long)NewMemPool - (long)CurrentMemPool) * (long)NumInstances;
 			if (DerivedClasses != null)
 			{
@@ -627,6 +632,8 @@ namespace CruncherSharp
             sw.WriteLine($"Total padding: {TotalPadding}");
             sw.WriteLine("Members:");
             sw.WriteLine("-------");
+
+			const string PaddingMarker = "****Padding";
 
             foreach (var member in Members)
             {

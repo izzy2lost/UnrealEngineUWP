@@ -14,7 +14,6 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement.ProgressBar;
 
 namespace CruncherSharp
 {
-
 	public partial class CruncherSharpForm : Form
 	{
 		public enum SearchType
@@ -93,15 +92,13 @@ namespace CruncherSharp
 				mB2ToolStripMenuItem.Checked = true;
 			}
 
-			string Alignment = ConfigurationManager.AppSettings.Get("Alignment");
-			if (Alignment.Length > 0)
+			NameValueCollection customSection = (NameValueCollection)ConfigurationManager.GetSection("Alignment");
+			if (customSection != null)
 			{
-				var values = Alignment.Split(',');
-				for (int i = 0; i < values.Length; i+=2)
+				foreach (string Key in customSection.AllKeys)
 				{
-					var key = values[i];
-					var align = uint.Parse(values[i+1]);
-					CurrentSymbolAnalyzer.ConfigAlignment.Add(key, align);
+					uint align = uint.Parse(customSection.Get(Key));
+					CurrentSymbolAnalyzer.ConfigAlignment.Add(Key, align);
 				}
 			}
 		}
@@ -390,8 +387,12 @@ namespace CruncherSharp
             row[TotalCountRowName] = symbolInfo.TotalCount;
             row[TotalSizeRowName] = symbolInfo.TotalCount * symbolInfo.Size;
             row[TotalWasteRowName] = symbolInfo.TotalCount * symbolInfo.PotentialSaving;
-			row[NewSizeRowName] = symbolInfo.NewSize;
-			row[DeltaRowName] = (long)symbolInfo.NewSize - (long)symbolInfo.Size;
+			if (_HasSecondPDB)
+			{
+				row[NewSizeRowName] = symbolInfo.NewSize;
+				row[DeltaRowName] = (long)symbolInfo.NewSize - (long)symbolInfo.Size;
+			}
+
 			if (_HasInstancesCount && symbolInfo.NumInstances > 0)
 			{
 				if (_HasMemPools)
@@ -693,7 +694,7 @@ namespace CruncherSharp
                         prevCacheBoundaryOffset = cacheLineOffset;
                     }
 
-                    if (cacheLines.Count > 3 && chkSmartCacheLines.Checked)
+                    if (cacheLines.Count > 3 && checkBoxSmartCacheLines.Checked)
                     {
                         string[] firstBoundaryRow =
                         {
@@ -759,7 +760,7 @@ namespace CruncherSharp
                     (member.BitField ? member.BitPosition.ToString() : string.Empty),
                     member.BitField ? (member.BitSize.ToString() + (member.BitSize == 1 ? " bit" : " bits")) : (member.Size.ToString() + (member.Size == 1 ? " byte" : " bytes")),
 					member.MinAlignment.ToString(),
-					member.TypeInfo?.TotalPadding.ToString() ?? "0",
+					member.TypeInfo?.Padding.ToString() ?? "0",
 					PotentialSaving
 				};
                 dataGridViewSymbolInfo.Rows.Add(row);
@@ -794,22 +795,26 @@ namespace CruncherSharp
                     string.Empty, 
 					string.Empty, 
 					PaddingRowName, 
-					endPaddingOffset.ToString(), 
+					endPaddingOffset.ToString(),
+					string.Empty,
 					symbol.EndPadding.ToString()
                 };
                 dataGridViewSymbolInfo.Rows.Add(paddingRow);
             }
 
-            foreach (var function in symbol.Functions)
-            {
-                object[] row =
-                {
-                    function.DisplayName, function.Virtual, function.IsPure, function.IsOverride, function.IsOverloaded,
-                    function.IsMasking
-                };
-                dataGridViewFunctionsInfo.Rows.Add(row);
-                dataGridViewFunctionsInfo.Rows[dataGridViewFunctionsInfo.Rows.Count - 1].Tag = function;
-            }
+			if (symbol.Functions != null)
+			{
+				foreach (var function in symbol.Functions)
+				{
+					object[] row =
+					{
+					function.DisplayName, function.Virtual, function.IsPure, function.IsOverride, function.IsOverloaded,
+					function.IsMasking
+				};
+					dataGridViewFunctionsInfo.Rows.Add(row);
+					dataGridViewFunctionsInfo.Rows[dataGridViewFunctionsInfo.Rows.Count - 1].Tag = function;
+				}
+			}
         }
 
         private void dataGridSymbols_SortCompare(object sender, DataGridViewSortCompareEventArgs e)
@@ -941,7 +946,12 @@ namespace CruncherSharp
 
         private void checkBoxCacheLines_CheckedChanged(object sender, EventArgs e)
         {
-            if (dataGridViewSymbolInfo.SelectedRows.Count != 0)
+			checkBoxSmartCacheLines.Enabled = checkBoxCacheLines.Checked;
+			checkBoxShowOverlap.Enabled = checkBoxCacheLines.Checked;
+			textBoxCache.Enabled = checkBoxCacheLines.Checked;
+			labelCacheLine.Enabled = checkBoxCacheLines.Checked;
+
+			if (dataGridViewSymbolInfo.SelectedRows.Count != 0)
             {
                 var selectedRow = dataGridViewSymbolInfo.SelectedRows[0];
                 RefreshSymbolGrid(selectedRow.Index);
@@ -1015,7 +1025,7 @@ namespace CruncherSharp
 			UpdateFilter();
 		}
 
-        private void chkSmartCacheLines_CheckedChanged(object sender, EventArgs e)
+        private void checkBoxSmartCacheLines_CheckedChanged(object sender, EventArgs e)
         {
             ShowSelectedSymbolInfo();
         }
@@ -1285,7 +1295,7 @@ namespace CruncherSharp
         private void Reset_Click(object sender, EventArgs e)
         {
             chkShowTemplates.Checked = false;
-            chkSmartCacheLines.Checked = true;
+            checkBoxSmartCacheLines.Checked = true;
 			checkBoxSubclasses.Checked = false;
 			checkBoxMember.Checked = false;
 

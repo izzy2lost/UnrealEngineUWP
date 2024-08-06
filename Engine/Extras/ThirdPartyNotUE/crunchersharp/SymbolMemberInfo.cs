@@ -114,7 +114,7 @@ namespace CruncherSharp
             Volatile = false;
             Expanded = false;
 
-			if (TypeName.Contains('['))
+			if (TypeName.EndsWith("]"))
 			{
 				try
 				{
