@@ -12,6 +12,7 @@ class FODSCThread;
 class UMaterialInstance;
 class FMaterialShaderMap;
 class FMaterialShaderMapId;
+class FPrimitiveSceneInfo;
 
 /**
  * Responsible for processing shader compile responses from the ODSC Thread.
@@ -114,8 +115,11 @@ public:
 	static void UnregisterMaterialName(const FMaterial* Material);
 	static void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
 	static FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId);
+	static void SetCurrentPrimitiveSceneInfo(FPrimitiveSceneInfo* PrimitiveSceneInfo);
+	static void ResetCurrentPrimitiveSceneInfo();
 
 private:
+	friend class FODSCManagerAccess;
 
 	ENGINE_API void OnEnginePreExit();
 	ENGINE_API void StopThread();
@@ -137,6 +141,19 @@ private:
 	FString ErrorMessage;
 
 	FName MaterialNameToRecompile;
+};
+
+struct FODSCPrimitiveSceneInfoScope
+{
+	FODSCPrimitiveSceneInfoScope(FPrimitiveSceneInfo* PrimitiveSceneInfo)
+	{
+		FODSCManager::SetCurrentPrimitiveSceneInfo(PrimitiveSceneInfo);
+	}
+
+	~FODSCPrimitiveSceneInfoScope()
+	{
+		FODSCManager::ResetCurrentPrimitiveSceneInfo();
+	}
 };
 
 struct FODSCSuspendForceRecompileScope

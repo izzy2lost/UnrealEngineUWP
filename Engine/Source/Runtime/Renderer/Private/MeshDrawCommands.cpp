@@ -13,6 +13,9 @@ MeshDrawCommandSetup.cpp: Mesh draw command setup.
 #include "StaticMeshBatch.h"
 #include "SceneDefinitions.h"
 #include "MeshDrawCommandStats.h"
+#if WITH_ODSC
+#include "ODSC/ODSCManager.h"
+#endif
 
 TGlobalResource<FPrimitiveIdVertexBufferPool> GPrimitiveIdVertexBufferPool;
 
@@ -617,6 +620,9 @@ void GenerateDynamicMeshDrawCommands(
 			{
 				const FMeshBatchAndRelevance& MeshAndRelevance = DynamicMeshElements[MeshIndex];
 				const uint64 BatchElementMask = ~0ull;
+#if WITH_ODSC
+				FODSCPrimitiveSceneInfoScope ODSCPrimitiveSceneInfoScope(MeshAndRelevance.PrimitiveSceneProxy ? MeshAndRelevance.PrimitiveSceneProxy->GetPrimitiveSceneInfo() : nullptr);
+#endif
 
 				PassMeshProcessor->AddMeshBatch(*MeshAndRelevance.Mesh, BatchElementMask, MeshAndRelevance.PrimitiveSceneProxy);
 			}
@@ -636,6 +642,10 @@ void GenerateDynamicMeshDrawCommands(
 			const FStaticMeshBatch* StaticMeshBatch = DynamicMeshCommandBuildRequests[MeshIndex];
 			const uint64 DefaultBatchElementMask = ~0ul;
 			const int32 StartCommandIndex = VisibleCommands.Num();
+
+#if WITH_ODSC
+			FODSCPrimitiveSceneInfoScope ODSCPrimitiveSceneInfoScope(StaticMeshBatch->PrimitiveSceneInfo);
+#endif
 
 			if (StaticMeshBatch->bViewDependentArguments)
 			{

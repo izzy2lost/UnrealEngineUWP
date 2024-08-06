@@ -10,6 +10,7 @@
 #include "UObject/CoreRedirects.h"
 #include "PackageTools.h"
 #include "WorldPartition/WorldPartitionHelpers.h"
+#include "WorldPartition/ContentBundle/ContentBundlePaths.h"
 
 
 int32 GODSCShaderMapsLifetime = 25;
@@ -39,6 +40,12 @@ static FAutoConsoleVariableRef CVarODSCExludedClasses(
 
 namespace UE::Cook
 {
+
+class FODSCClientDataAccess
+{
+public:
+	static FODSCClientData::FWorldPartitionAssets* TryFindInContentBundle(FSoftObjectPath& AssetSoftPath);
+};
 
 void FODSCClientData::OnClientConnected(const void* ConnectionPtr)
 {
@@ -132,17 +139,54 @@ void FODSCClientData::CleanupWorldPartitionAssets()
 		PackagesToUnloadArray.Add(Package);
 	}
 
-	UPackageTools::UnloadPackages(PackagesToUnloadArray);
+	FText OutErrorMessage;
+	// bUnloadDirtyPackages=true because some systems (UPCGGraphInstance::RefreshParameters for example) mark the package dirty 
+	// and prevent the unloading from happening
+	UPackageTools::UnloadPackages(PackagesToUnloadArray, OutErrorMessage, true /*bUnloadDirtyPackages*/);
+
+	if (!OutErrorMessage.IsEmpty())
+	{
+		UE_LOG(LogShaders, Error, TEXT("UPackageTools::UnloadPackages: %s"), *OutErrorMessage.ToString());
+	}
 }
 
-bool ExtractMaterialPath(FSoftObjectPath& MaterialPath, const FString& MaterialKey)
+bool ExtractMaterialPath(FSoftObjectPath& MaterialPath, FSoftObjectPath& ActorPath, const FString& MaterialKey)
 {
-	FString MaterialPathString = MaterialKey;
+	FString MaterialPathString;
+	FString ActorPathString;
+	int32 ActorSeparatorIndex = MaterialKey.Find(":::");
+	if (ActorSeparatorIndex != INDEX_NONE)
+	{
+		MaterialPathString = MaterialKey.Left(ActorSeparatorIndex);
+		ActorPathString = MaterialKey.Right(MaterialKey.Len() - ActorSeparatorIndex - 3);
+	}
+	else
+	{
+		MaterialPathString = MaterialKey;
+	}
+
+	bool bValidActorPath = false;
+	if (!ActorPathString.IsEmpty())
+	{
+		if (!FWorldPartitionHelpers::ConvertRuntimePathToEditorPath(ActorPathString, ActorPath))
+		{
+			ActorPathString.ReplaceInline(TEXT("/_Generated_/"), TEXT("/"));
+			ActorPath = ActorPathString;
+		}
+		else
+		{
+			bValidActorPath = true;
+		}
+	}
+
 	if (!FWorldPartitionHelpers::ConvertRuntimePathToEditorPath(MaterialPathString, MaterialPath))
 	{
 		MaterialPathString.ReplaceInline(TEXT("/_Generated_/"), TEXT("/"));
 		MaterialPath = MaterialPathString;
-		return false;
+		if (!bValidActorPath)
+		{
+			return false;
+		}
 	}
 	return true;
 }
@@ -172,13 +216,14 @@ UMaterialInterface* FODSCClientData::FindMaterial(const FString& InMaterialKey)
 	};
 
 	FSoftObjectPath MaterialPath;
-	bool bIsWorldPartitionPath = ExtractMaterialPath(MaterialPath, InMaterialKey);
+	FSoftObjectPath ActorPath;
+	bool bIsWorldPartitionPath = ExtractMaterialPath(MaterialPath, ActorPath, InMaterialKey);
 
 	UMaterialInterface* MaterialInterface = nullptr;
 
 	if (bIsWorldPartitionPath)
 	{
-		MaterialInterface = TryFindWorldPartitionMaterial(MaterialPath);
+		MaterialInterface = TryFindWorldPartitionMaterial(MaterialPath, ActorPath);
 		if (MaterialInterface)
 		{
 			return MaterialInterface;
@@ -196,65 +241,169 @@ UMaterialInterface* FODSCClientData::FindMaterial(const FString& InMaterialKey)
 	return MaterialInterface;
 }
 
-FString GetWorldPartitionActorPath(const FString& MaterialEditorFullPath)
+FSoftObjectPath GetWorldPartitionActorPath(const FSoftObjectPath& InMaterialSoftPath)
 {
-	FString PathToProxy = MaterialEditorFullPath;
+	FString PathToProxy = InMaterialSoftPath.ToString();
 	// Remove the landscape prefix since Landscape MIC are embedded in the package of their proxy
 	FString LandscapeMaterialInstanceConstantClassName = ULandscapeMaterialInstanceConstant::StaticClass()->GetFName().ToString();
 	int32 SubObjectNameChopIndex = PathToProxy.Find(FString(".") + LandscapeMaterialInstanceConstantClassName, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 	if (SubObjectNameChopIndex != INDEX_NONE)
 	{
 		PathToProxy.LeftChopInline(PathToProxy.Len() - SubObjectNameChopIndex);
+		return FSoftObjectPath(PathToProxy);
 	}
 
-	return PathToProxy;
+	return FSoftObjectPath();
 }
 
-UMaterialInterface* FODSCClientData::TryFindWorldPartitionMaterial(const FSoftObjectPath& MaterialSoftPath)
+FODSCClientData::FWorldPartitionAssets* FODSCClientDataAccess::TryFindInContentBundle(FSoftObjectPath& AssetSoftPath)
 {
-	FString AssetPath = MaterialSoftPath.GetAssetPath().GetPackageName().ToString();
+	TStringBuilder<256> ActualMountPointPackageName;
+	TStringBuilder<256> ActualMountPointFilePath;
+	TStringBuilder<256> ActualRelPath;
 
-	bool bAlreadySeenPath;
-	ScannedWorldPartitionPaths.FindOrAdd(AssetPath, &bAlreadySeenPath);
-	if (!bAlreadySeenPath)
+	FPackageName::TryGetMountPointForPath(AssetSoftPath.ToString(), ActualMountPointPackageName, ActualMountPointFilePath, ActualRelPath);
+
+	FString ActualRelPathString(ActualRelPath);
+	
+	FODSCClientData::FWorldPartitionAssets* DynamicMaterialData = nullptr;
+	// WP actors with a path like /MyMountPoint/CB/ have their paths actually remapped to /Game/
+	if (ActualRelPathString.StartsWith(TEXT("CB/")))
 	{
-		ScanWorldPartitionAssets(AssetPath);
+		FString ActualRelPathStringCopy(TEXT("/Game"));
+		ActualRelPathStringCopy += ActualRelPathString.Right(ActualRelPathString.Len() - 2);
+		DynamicMaterialData = FODSCClientData::WorldPartitionAssets.Find(ActualRelPathStringCopy);
+		if (DynamicMaterialData)
+		{
+			AssetSoftPath.SetPath(ActualRelPathStringCopy);
+		}
 	}
 
-	FString MaterialEditorFullPath = *MaterialSoftPath.ToString();
-	FString PathToProxy = GetWorldPartitionActorPath(MaterialEditorFullPath);
+	return DynamicMaterialData;
+}
 
-	FWorldPartitionAssets* DynamicMaterialData = WorldPartitionAssets.Find(PathToProxy);
+
+UMaterialInterface* FODSCClientData::TryFindWorldPartitionMaterial(const FSoftObjectPath& InMaterialSoftPath, const FSoftObjectPath& InActorSoftPath)
+{
+	FSoftObjectPath ActorSoftPath(InActorSoftPath);
+	FSoftObjectPath MaterialSoftPath(InMaterialSoftPath);
+
+	ScanWorldPartitionAssets(MaterialSoftPath.GetAssetPath().GetPackageName().ToString());
+	ScanWorldPartitionAssets(ActorSoftPath.GetAssetPath().GetPackageName().ToString());
+
+	FWorldPartitionAssets* DynamicMaterialData = WorldPartitionAssets.Find(*MaterialSoftPath.ToString());
+	// Landscape sometimes issues requests without actors. Try to reconstruct the path 
+	if (DynamicMaterialData == nullptr && !ActorSoftPath.IsValid())
+	{
+		ActorSoftPath = GetWorldPartitionActorPath(MaterialSoftPath);
+	}
+
+	if (DynamicMaterialData == nullptr && ActorSoftPath.IsValid())
+	{
+		DynamicMaterialData = WorldPartitionAssets.Find(ActorSoftPath.ToString());
+	}
+
+	if (DynamicMaterialData == nullptr && MaterialSoftPath.IsValid())
+	{
+		DynamicMaterialData = FODSCClientDataAccess::TryFindInContentBundle(MaterialSoftPath);
+	}
+
+	if (DynamicMaterialData == nullptr && ActorSoftPath.IsValid())
+	{
+		DynamicMaterialData = FODSCClientDataAccess::TryFindInContentBundle(ActorSoftPath);
+	}
+
 	if (DynamicMaterialData == nullptr)
 	{
 		return nullptr;
 	}
 
-	if (DynamicMaterialData->PackagePtr == nullptr)
+	if (!DynamicMaterialData->PackagePtr)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FODSCClientData_LoadPackage %s"), *DynamicMaterialData->PackageName));
 		DynamicMaterialData->PackagePtr = LoadPackage(nullptr, *DynamicMaterialData->PackageName, LOAD_None);
 	}
 
-	return FindObject<UMaterialInterface>(nullptr, *MaterialEditorFullPath);
+	TArray<FString> MaterialPathsToTry;
+	MaterialPathsToTry.Add(MaterialSoftPath.ToString());
+
+	{
+		// When the provided material path doesn't work, try to replace the base path by the package's
+		FTopLevelAssetPath MaterialTopPath;
+		MaterialTopPath.TrySetPath(FName(DynamicMaterialData->PackageName), MaterialSoftPath.GetAssetPath().GetAssetName());
+		FSoftObjectPath MaterialSoftPathCopy(MaterialTopPath, MaterialSoftPath.GetSubPathString());
+		MaterialPathsToTry.Add(MaterialSoftPathCopy.ToString());
+	}
+
+	UMaterialInterface* MaterialInterface = nullptr;
+	for (const FString& MaterialPathToTry : MaterialPathsToTry)
+	{
+		MaterialInterface = FindObject<UMaterialInterface>(nullptr, *MaterialPathToTry);
+		if (MaterialInterface)
+		{
+			return MaterialInterface;
+		}
+	}
+
+	for (const FString& MaterialPathToTry : MaterialPathsToTry)
+	{
+		MaterialInterface = LoadObject<UMaterialInterface>(nullptr, *MaterialPathToTry);
+		if (MaterialInterface)
+		{
+			return MaterialInterface;
+		}
+	}
+
+	return MaterialInterface;
+
 }
 
-void FODSCClientData::ScanWorldPartitionAssets(const FString& AssetPath)
+void FODSCClientData::ScanWorldPartitionAssets(const FString& InAssetPath)
 {
-	if (AssetPath.IsEmpty())
+	if (InAssetPath.IsEmpty())
 	{
 		return;
 	}
+
+	bool bAlreadySeenPath;
+	ScannedWorldPartitionPaths.FindOrAdd(InAssetPath, &bAlreadySeenPath);
+	if (bAlreadySeenPath)
+	{
+		return;
+	}
+
+	FString AssetPath = InAssetPath;
 
 	TArray<FString> PathsToScan;
 	PathsToScan.Add(AssetPath);
 	PathsToScan.Append(ULevel::GetExternalObjectsPaths(AssetPath));
 
+	{
+		TStringBuilder<256> ActualMountPointPackageName;
+		TStringBuilder<256> ActualMountPointFilePath;
+		TStringBuilder<256> ActualRelPath;
+
+		FPackageName::TryGetMountPointForPath(InAssetPath, ActualMountPointPackageName, ActualMountPointFilePath, ActualRelPath);
+
+		// If we have /MyOtherMountPoint/CB/ as a base path, try scanning the external folders' content bundle as well
+		FString ActualMountPointPackageNameString(ActualMountPointPackageName);
+		if (!ActualMountPointPackageNameString.StartsWith(TEXT("/Game/")))
+		{
+			FString ActualRelPathStr(ActualRelPath);
+			if (ActualRelPathStr.StartsWith(TEXT("CB/")))
+			{
+				PathsToScan.Add(ActualMountPointPackageNameString + FPackagePath::GetExternalActorsFolderName() + TEXT("/ContentBundle/"));
+				PathsToScan.Add(ActualMountPointPackageNameString + FPackagePath::GetExternalObjectsFolderName() + TEXT("/ContentBundle/"));
+			}
+		}
+	}
+
+
 	// Do a synchronous scan of the level external actors path.					
 	IAssetRegistry& AssetRegistry = IAssetRegistry::GetChecked();
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FODSCClientData_ScanSynchronous);
-		AssetRegistry.ScanSynchronous(PathsToScan, TArray<FString>());
+		AssetRegistry.ScanSynchronous(PathsToScan, TArray<FString>(), UE::AssetRegistry::EScanFlags::IgnoreInvalidPathWarning);
 	}
 
 	FARFilter Filter;

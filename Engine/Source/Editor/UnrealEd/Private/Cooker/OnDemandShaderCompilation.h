@@ -22,12 +22,13 @@ public:
 
 private:
 	
-	static UMaterialInterface* TryFindWorldPartitionMaterial(const FSoftObjectPath& MaterialSoftPath);
+	friend class FODSCClientDataAccess;
+	static UMaterialInterface* TryFindWorldPartitionMaterial(const FSoftObjectPath& MaterialSoftPath, const FSoftObjectPath& ActorSoftPath);
 
 	static void ScanWorldPartitionAssets(const FString& AssetPath);
 	static void SetupClassExclusionList();
 
-	void CleanupWorldPartitionAssets();
+	static void CleanupWorldPartitionAssets();
 	struct FWorldPartitionAssets
 	{
 		FString PackageName;

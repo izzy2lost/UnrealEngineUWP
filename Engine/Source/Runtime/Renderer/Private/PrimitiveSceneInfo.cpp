@@ -39,6 +39,7 @@
 #include "InstanceDataSceneProxy.h"
 #include "DecalRenderingCommon.h"
 #include "RendererPrivateUtils.h"
+#include "ODSC/ODSCManager.h"
 
 extern int32 GGPUSceneInstanceClearList;
 
@@ -527,6 +528,10 @@ void FPrimitiveSceneInfo::CacheMeshDrawCommands(FScene* Scene, TArrayView<FPrimi
 						FStaticMeshBatchRelevance& MeshRelevance = SceneInfo->StaticMeshRelevances[MeshAndInfo.MeshIndex];
 
 						check(!MeshRelevance.CommandInfosMask.Get(PassType));
+
+#if WITH_ODSC
+						FODSCPrimitiveSceneInfoScope ODSCPrimitiveSceneInfoScope(SceneInfo);
+#endif
 
 						uint64 BatchElementMask = ~0ull;
 						// NOTE: AddMeshBatch calls FCachedPassMeshDrawListContext::FinalizeCommand

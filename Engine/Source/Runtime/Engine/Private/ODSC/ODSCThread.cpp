@@ -8,6 +8,8 @@
 #include "MaterialShared.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/UObjectIterator.h"
+#include "PrimitiveSceneInfo.h"
+#include "Components/PrimitiveComponent.h"
 
 FODSCRequestPayload::FODSCRequestPayload(
 	EShaderPlatform InShaderPlatform,
@@ -329,6 +331,25 @@ FMaterialShaderMap* FODSCThread::FindMaterialShaderMap(const FString& MaterialNa
 	return nullptr;
 }
 
+void FODSCThread::RetrieveMissedMaterials(TArray<FString>& OutMaterialPaths) const
+{
+	FReadScopeLock ReadLock(RequestHashesRWLock);
+	for (auto Iter = RequestHashes.CreateConstIterator(); Iter; ++Iter)
+	{
+		const FODSCShaderMapData& ODSCShaderMapData = Iter.Value();
+		if (!ODSCShaderMapData.CurrentRequests.IsEmpty())
+		{
+			FString MaterialKey(Iter.Key().ToString());
+			if (ODSCShaderMapData.ActorPath.IsValid())
+			{
+				MaterialKey += ":::";
+				MaterialKey += ODSCShaderMapData.ActorPath.ToString();
+			}
+			OutMaterialPaths.Add(MaterialKey);
+		}
+	}
+}
+
 void FODSCThread::AddRequest(const TArray<FString>& MaterialsToCompile, const FString& ShaderTypesToLoad, EShaderPlatform ShaderPlatform, ERHIFeatureLevel::Type FeatureLevel, EMaterialQualityLevel::Type QualityLevel, ODSCRecompileCommand RecompileCommandType)
 {
 	PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, RecompileCommandType));
@@ -339,6 +360,7 @@ void FODSCThread::AddShaderPipelineRequest(
 	ERHIFeatureLevel::Type FeatureLevel,
 	EMaterialQualityLevel::Type QualityLevel,
 	const FMaterial* Material,
+	const FPrimitiveSceneInfo* PrimitiveSceneInfo,
 	const FString& VertexFactoryName,
 	const FString& PipelineName,
 	const TArray<FString>& ShaderTypeNames,
@@ -347,6 +369,8 @@ void FODSCThread::AddShaderPipelineRequest(
 )
 {
 	bool bShouldAddRequest = false;
+
+	FString ActorPath;
 	{
 		FWriteScopeLock WriteLock(RequestHashesRWLock);
 
@@ -367,6 +391,25 @@ void FODSCThread::AddShaderPipelineRequest(
 				bShouldAddRequest = true;
 			}
 		}
+
+		if (bShouldAddRequest)
+		{
+#if WITH_ODSC
+			if (PrimitiveSceneInfo)
+			{
+				AActor* OwningActor = PrimitiveSceneInfo->GetComponentForDebugOnly() ? PrimitiveSceneInfo->GetComponentForDebugOnly()->GetOwner() : nullptr;
+				if (OwningActor)
+				{
+					ActorPath = OwningActor->GetPathName();
+				}
+			}
+#endif
+		}
+
+		if (!ActorPath.IsEmpty())
+		{
+			ODSCShaderMapData.ActorPath = FName(ActorPath);
+		}
 	}
 
 	if (bShouldAddRequest)
@@ -374,6 +417,13 @@ void FODSCThread::AddShaderPipelineRequest(
 		SCOPED_NAMED_EVENT(AddShaderPipelineRequest_AddRequest, FColor::Emerald);
 
 		FString MaterialName = Material->GetFullPath();
+
+		if (!ActorPath.IsEmpty())
+		{
+			MaterialName += ":::";
+			MaterialName += ActorPath;
+		}
+
 		FString RequestString = (MaterialName + VertexFactoryName + PipelineName);
 		for (const auto& ShaderTypeName : ShaderTypeNames)
 		{
@@ -545,6 +595,7 @@ void FODSCThread::Process()
 		{
 			PendingRequestsPipeline.Add(NextRequest);
 		}
+		NumPendingMaterialsShaders -= NextRequest->NumPayloads();
 	}
 
 	NumPendingMaterialsShaders.store(0, std::memory_order_release);

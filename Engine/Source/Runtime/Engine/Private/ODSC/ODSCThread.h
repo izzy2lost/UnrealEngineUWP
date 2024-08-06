@@ -14,6 +14,7 @@ class FEvent;
 class FRunnableThread;
 class FMaterialShaderMap;
 class FMaterialShaderMapId;
+class FPrimitiveSceneInfo;
 
 namespace UE
 {
@@ -141,6 +142,7 @@ public:
 		ERHIFeatureLevel::Type FeatureLevel,
 		EMaterialQualityLevel::Type QualityLevel,
 		const FMaterial* Material,
+		const FPrimitiveSceneInfo* PrimitiveSceneInfo,
 		const FString& VertexFactoryName,
 		const FString& PipelineName,
 		const TArray<FString>& ShaderTypeNames,
@@ -175,6 +177,8 @@ public:
 	void UnregisterMaterialName(const FMaterial* Material);
 	void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
 	FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId) const;
+
+	void RetrieveMissedMaterials(TArray<FString>& OutMaterialPaths) const;
 
 protected:
 
@@ -264,6 +268,8 @@ private:
 		TArray<TRefCountPtr<FMaterialShaderMap>> MaterialShaderMaps;
     	/** Hashes for all Pending or Completed requests.  This is so we avoid making the same request multiple times. */
 		TSet<FODSCShaderId> CurrentRequests;
+		
+		FName ActorPath;
 	};
 
     /** Requests seen for a given material name */

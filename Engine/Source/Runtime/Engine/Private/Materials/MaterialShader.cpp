@@ -2095,6 +2095,12 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 		FMaterialShaderMapData& MaterialShaderMapData = MaterialShaderMapDataArray.Emplace_GetRef();
 		Ar << MaterialShaderMapData.MaterialName;
 
+		int32 ActorSeparator = MaterialShaderMapData.MaterialName.Find(TEXT(":::"));
+		if (ActorSeparator != INDEX_NONE)
+		{
+			MaterialShaderMapData.MaterialName.LeftInline(ActorSeparator);
+		}
+
 		int32 NumShaderMaps = 0;
 		Ar << NumShaderMaps;
 

@@ -16,6 +16,10 @@
 // For GetCachedScalabilityCVars
 #include "UnrealEngine.h"
 
+#include "Engine/Console.h"
+#include "Engine/GameViewportClient.h"
+#include "EngineUtils.h"
+
 DEFINE_LOG_CATEGORY(LogODSC);
 
 // FODSCManager
@@ -30,10 +34,53 @@ static TAutoConsoleVariable<int32> CVarODSCRecompileMode(
 
 FODSCManager* GODSCManager = nullptr;
 
+class FODSCManagerAccess
+{
+public:
+	static void ODSCLogMissedMaterials(const TArray<FString>& Args)
+	{
+#if WITH_ODSC
+		if (FODSCManager::IsODSCActive())
+		{
+			TArray<FString> MaterialPaths;
+			GODSCManager->Thread->RetrieveMissedMaterials(MaterialPaths);
+			UConsole* ViewportConsole = (GEngine->GameViewport != nullptr) ? GEngine->GameViewport->ViewportConsole : nullptr;
+			FConsoleOutputDevice StrOut(ViewportConsole);
+
+			for (const FString& MaterialKey : MaterialPaths)
+			{
+				StrOut.CategorizedLogf(LogODSC.GetCategoryName(), ELogVerbosity::Error, TEXT("ODSC missed material: %s"), *MaterialKey);
+			}
+		}
+#endif
+	}
+};
+
+static FAutoConsoleCommand ODSCLogMissedMaterialsCmd(
+	TEXT("odsc.logmissedmaterials"),
+	TEXT("Logs materials that were not found by the ODSC server"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&FODSCManagerAccess::ODSCLogMissedMaterials)
+);
+
 namespace ODSCManagerPrivate
 {
 #if WITH_ODSC
 	static thread_local int32 ODSCSuspendForceRecompileCount=0;
+	static thread_local FPrimitiveSceneInfo* CurrentPrimitiveSceneInfo=nullptr;
+#endif
+}
+
+void FODSCManager::SetCurrentPrimitiveSceneInfo(FPrimitiveSceneInfo* PrimitiveSceneInfo)
+{
+#if WITH_ODSC
+	ODSCManagerPrivate::CurrentPrimitiveSceneInfo = PrimitiveSceneInfo;
+#endif
+}
+
+void FODSCManager::ResetCurrentPrimitiveSceneInfo()
+{
+#if WITH_ODSC
+	ODSCManagerPrivate::CurrentPrimitiveSceneInfo = nullptr;
 #endif
 }
 
@@ -201,10 +248,13 @@ void FODSCManager::AddThreadedShaderPipelineRequest(
 	int32 PermutationId,
 	const TArray<FShaderId>& RequestShaderIds)
 {
-	if (IsHandlingRequests())
+#if WITH_ODSC
+	// Testing ODSCManagerPrivate::ODSCSuspendForceRecompileCount since a map from ODSC may actually be in use and we request PSO precaching
+	if (IsHandlingRequests() && ODSCManagerPrivate::ODSCSuspendForceRecompileCount == 0)
 	{
-		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, Material, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestShaderIds);
+		Thread->AddShaderPipelineRequest(ShaderPlatform, FeatureLevel, QualityLevel, Material, ODSCManagerPrivate::CurrentPrimitiveSceneInfo, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestShaderIds);
 	}
+#endif
 }
 
 void FODSCManager::RegisterMaterialInstance(const UMaterialInstance* MaterialInstance)
