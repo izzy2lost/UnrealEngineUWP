@@ -5,6 +5,7 @@
 #include "Replication/Client/Online/RemoteClient.h"
 
 #include "Replication/AuthorityConflictSharedUtils.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 
 #include "Delegates/Delegate.h"
 #include "Misc/ObjectPathHierarchy.h"
@@ -27,7 +28,7 @@ namespace UE::MultiUserClient::Replication
 	 */
 	class FGlobalAuthorityCache
 		: public FNoncopyable
-		, ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		, ConcertSyncCore::Replication::IReplicationGroundTruth
 	{
 	public:
 

@@ -5,6 +5,7 @@
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 
 namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 {

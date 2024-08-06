@@ -1,6 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ConcertLogGlobal.h"
+
+#include "ConcertMessageData.h"
 #include "ConcertServerReplicationManager.h"
 #include "ConcertServer/Private/ConcertServerSession.h"
 #include "Replication/IReplicationWorkspace.h"
@@ -9,17 +11,12 @@
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ReplicationActivity.h"
 #include "Replication/Misc/ReplicationStreamUtils.h"
+#include "Replication/Misc/StreamAndAuthorityPredictionUtils.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
 	namespace RestoreContentPrivate
 	{
-		/** @return Whether to consider the client infos equal for the purposes of restoring content */
-		static bool EqualsClientInfo(const FConcertClientInfo& Left, const FConcertClientInfo& Right)
-		{
-			return Left.DisplayName == Right.DisplayName && Left.DeviceName == Right.DeviceName;
-		}
-
 		/** Checks whether the request should fail according to EConcertReplicationRestoreContentFlags::ValidateUniqueClient. */
 		static bool HasNameConflict(
 			const FConcertSessionClientInfo& SenderInfo,
@@ -39,7 +36,7 @@ namespace UE::ConcertSyncServer::Replication
 
 				if (ensure(bFoundClient)
 					&& OtherInfo.ClientEndpointId != SenderInfo.ClientEndpointId
-					&& EqualsClientInfo(SenderInfo.ClientInfo, OtherInfo.ClientInfo))
+					&& ConcertSyncCore::Replication::AreLogicallySameClients(SenderInfo.ClientInfo, OtherInfo.ClientInfo))
 				{
 					return true;
 				}

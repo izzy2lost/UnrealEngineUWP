@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/AuthorityConflictSharedUtils.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 
 #include "Containers/Array.h"
 #include "Containers/Map.h"
@@ -27,7 +28,7 @@ namespace UE::ConcertSyncServer::Replication
 	 * This is useful if you want to validate i.e. that no authority conflicts happen if the injected clients were present. 
 	 */
 	class FGroundTruthOverride
-		: public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		: public ConcertSyncCore::Replication::IReplicationGroundTruth
 		, public FNoncopyable
 	{
 	public:

@@ -8,13 +8,14 @@
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
+#include "Replication/Misc/IReplicationGroundTruth.h"
 #include "Util/GroundTruthOverride.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
 	namespace Private
 	{
-		class FServerGroundTruth : public ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth
+		class FServerGroundTruth : public ConcertSyncCore::Replication::IReplicationGroundTruth
 		{
 			const FAuthorityManager& Owner;
 			const IRegistrationEnumerator& Getters;
@@ -74,7 +75,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 
 		const FConcertObjectReplicationMap* FindClientReplicationMapById(
-			const ConcertSyncCore::Replication::AuthorityConflictUtils::IReplicationGroundTruth& Getters,
+			const ConcertSyncCore::Replication::IReplicationGroundTruth& Getters,
 			const FGuid& ClientId,
 			const FGuid& StreamId
 			)
