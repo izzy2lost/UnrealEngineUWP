@@ -13,12 +13,12 @@ namespace UE::MultiUserClient::Replication
 		: StreamSynchronizer(InStreamSynchronizer)
 	{
 		// Refresh locally recorded changes when the server state changes, e.g. after a request has been served.
-		StreamSynchronizer.OnServerStreanChanged().AddRaw(this, &FFrequencyChangeTracker::RefreshChanges);
+		StreamSynchronizer.OnServerStreamChanged().AddRaw(this, &FFrequencyChangeTracker::RefreshChanges);
 	}
 
 	FFrequencyChangeTracker::~FFrequencyChangeTracker()
 	{
-		StreamSynchronizer.OnServerStreanChanged().RemoveAll(this);
+		StreamSynchronizer.OnServerStreamChanged().RemoveAll(this);
 	}
 
 	void FFrequencyChangeTracker::AddOverride(FSoftObjectPath Object, FConcertObjectReplicationSettings NewSettings)

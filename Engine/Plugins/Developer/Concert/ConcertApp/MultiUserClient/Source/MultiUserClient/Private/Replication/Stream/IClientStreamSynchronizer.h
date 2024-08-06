@@ -31,8 +31,25 @@ namespace UE::MultiUserClient::Replication
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been updated. */
-		virtual FOnServerStateChanged& OnServerStreanChanged() = 0;
+		virtual FOnServerStateChanged& OnServerStreamChanged() = 0;
 		
 		virtual ~IClientStreamSynchronizer() = default;
+	};
+
+	/** Util base class for implementing the events */
+	class FStreamSynchronizer_Base
+		: public IClientStreamSynchronizer
+		, public FNoncopyable
+	{
+	public:
+
+		//~ Begin IClientStreamSynchronizer Interface
+		virtual FOnServerStateChanged& OnServerStreamChanged() override { return OnServerStateChangedDelegate; }
+		//~ End IClientStreamSynchronizer Interface
+
+	protected:
+
+		/** Triggered by subclasses when the authority state changes. */
+		FOnServerStateChanged OnServerStateChangedDelegate;
 	};
 }
