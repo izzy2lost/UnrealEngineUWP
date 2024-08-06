@@ -359,6 +359,9 @@ public:
 	/** Selects the specified assets and paths. */
 	void SyncToLegacy( TArrayView<const FAssetData> AssetDataList, TArrayView<const FString> FolderList, const bool bFocusOnSync = true );
 
+	/** Setup Deferred Pending Sync for recently added PendingSyncItems. */
+	void InitDeferredPendingSyncItems();
+
 	/** Sets the state of the asset view to the one described by the history data */
 	void ApplyHistoryData( const FHistoryData& History );
 
@@ -1001,6 +1004,12 @@ private:
 
 	/** The list of items to sync next frame */
 	FSelectionData PendingSyncItems;
+
+	/** The list of items used to ensure all the pending sync items are selected due to async nature of filtering*/
+	FSelectionData DeferredPendingSyncItems;
+
+	/** A Timeout counter to safeguard against infinite deferement of pending sync items*/
+	int32 DeferredSyncTimeoutFrames = 0;
 
 	/** Should we take focus when the PendingSyncAssets are processed? */
 	bool bPendingFocusOnSync;

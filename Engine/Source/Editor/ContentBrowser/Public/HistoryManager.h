@@ -33,6 +33,14 @@ struct FSelectionData
 	{
 		SelectedVirtualPaths.Empty();
 	}
+
+	void AddMissingVirtualPaths(const FSelectionData& SelectionData)
+	{
+		for (const FName& SelectedVirtualPath : SelectionData.SelectedVirtualPaths)
+		{
+			SelectedVirtualPaths.Add(SelectedVirtualPath);
+		}
+	}
 };
 
 /** The history data object, storing all important history data */

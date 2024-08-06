@@ -94,6 +94,9 @@ namespace UE::AssetView
 	/** Time delay between performing the last jump, and the jump term being reset */
 	constexpr double JumpDelaySeconds = 2.0;
 
+	/** Number of frames a deferred pending list will wait before clearing out the data.*/
+	constexpr int32 DeferredSyncTimeoutFramesCount = 30;
+
 	bool AllowAsync = true;
 	FAutoConsoleVariableRef CVarAllowAsync(
 		TEXT("AssetView.AllowAsync"),
@@ -1648,7 +1651,7 @@ void SAssetView::SyncToItems(TArrayView<const FContentBrowserItem> ItemsToSync, 
 	{
 		PendingSyncItems.SelectedVirtualPaths.Add(Item.GetVirtualPath());
 	}
-
+	InitDeferredPendingSyncItems();	
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -1659,7 +1662,7 @@ void SAssetView::SyncToVirtualPaths(TArrayView<const FName> VirtualPathsToSync, 
 	{
 		PendingSyncItems.SelectedVirtualPaths.Add(VirtualPathToSync);
 	}
-
+	InitDeferredPendingSyncItems();
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -1667,8 +1670,14 @@ void SAssetView::SyncToLegacy(TArrayView<const FAssetData> AssetDataList, TArray
 {
 	PendingSyncItems.Reset();
 	ContentBrowserUtils::ConvertLegacySelectionToVirtualPaths(AssetDataList, FolderList, /*UseFolderPaths*/false, PendingSyncItems.SelectedVirtualPaths);
-
+	InitDeferredPendingSyncItems();
 	bPendingFocusOnSync = bFocusOnSync;
+}
+
+void SAssetView::InitDeferredPendingSyncItems()
+{
+	DeferredPendingSyncItems.AddMissingVirtualPaths(PendingSyncItems);
+	DeferredSyncTimeoutFrames = UE::AssetView::DeferredSyncTimeoutFramesCount;
 }
 
 void SAssetView::SyncToSelection( const bool bFocusOnSync )
@@ -1683,7 +1692,6 @@ void SAssetView::SyncToSelection( const bool bFocusOnSync )
 			PendingSyncItems.SelectedVirtualPaths.Add(Item->GetItem().GetVirtualPath());
 		}
 	}
-
 	bPendingFocusOnSync = bFocusOnSync;
 }
 
@@ -2054,8 +2062,11 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 			const auto& Item = *ItemIt;
 			if(Item.IsValid())
 			{
-				if (PendingSyncItems.SelectedVirtualPaths.Contains(Item->GetItem().GetVirtualPath()))
+				const FName ItemVirtualPath = Item->GetItem().GetVirtualPath();
+				if (PendingSyncItems.SelectedVirtualPaths.Contains(ItemVirtualPath))
 				{
+					DeferredPendingSyncItems.SelectedVirtualPaths.Remove(ItemVirtualPath);
+
 					SetItemSelection(Item, true, ESelectInfo::OnNavigation);
 					
 					// Scroll the first item in the list that can be shown into view
@@ -2070,19 +2081,32 @@ void SAssetView::Tick( const FGeometry& AllottedGeometry, const double InCurrent
 	
 		bBulkSelecting = false;
 
-		if (bShouldNotifyNextAssetSync && !bUserSearching)
+		if (DeferredSyncTimeoutFrames > 0)
 		{
-			AssetSelectionChanged(TSharedPtr<FAssetViewItem>(), ESelectInfo::Direct);
+			DeferredSyncTimeoutFrames--;
+
+			if (DeferredSyncTimeoutFrames == 0)
+			{
+				DeferredPendingSyncItems.Reset();
+			}
 		}
 
-		// Default to always notifying
-		bShouldNotifyNextAssetSync = true;
-
-		PendingSyncItems.Reset();
-
-		if (bAllowFocusOnSync && bPendingFocusOnSync)
+		if (DeferredPendingSyncItems.Num() == 0)
 		{
-			FocusList();
+			if (bShouldNotifyNextAssetSync && !bUserSearching)
+			{
+				AssetSelectionChanged(TSharedPtr<FAssetViewItem>(), ESelectInfo::Direct);
+			}
+
+			// Default to always notifying
+			bShouldNotifyNextAssetSync = true;
+			
+			PendingSyncItems.Reset();
+
+			if (bAllowFocusOnSync && bPendingFocusOnSync)
+			{
+				FocusList();
+			}
 		}
 	}
 
