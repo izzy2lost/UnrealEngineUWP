@@ -177,11 +177,25 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Disable CPU throttling during graph execution"))
 	bool bDisableCPUThrottlingDuringGraphExecution = false;
 
+	/** Controls whether the "Pause PCG" button will be display in the editor menu */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Show PCG pause button in the editor (requires restart)"))
 	bool bShowPauseButton = false;
 
+	/** Controls whether PCG tasks will be cancelled when unpausing PCG, which might result in dirty/stale content, but will not require significant time. */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Unpausing cancels all PCG tasks"))
 	bool bUnpauseCancelsAll = false;
+
+	/** Controls whether the alternate PCG pause button is shown instead of the default PCG icon. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Use alternate pause button icon", EditCondition = "bShowPauseButton", EditConditionHides))
+	bool bUseAlternatePauseButton = false;
+
+	/** Overrides the label of the pause button while PCG is not currently being paused. The default is empty or None, which will use the default label then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Overrides default name for the 'currently paused' button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FName OverridePausedButtonLabel = NAME_None;
+
+	/** Overrides the label of the pause button while PCG is currently paused. The default is empty or None, which will use the default label then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Overrides default name for the 'not currently paused' button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FName OverrideNotPausedButtonLabel = NAME_None;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

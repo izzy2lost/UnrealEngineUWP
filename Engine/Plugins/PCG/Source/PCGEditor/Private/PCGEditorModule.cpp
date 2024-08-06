@@ -371,17 +371,44 @@ void FPCGEditorModule::RegisterMenuExtensions()
 					),
 					TAttribute<FText>::CreateLambda([]()
 					{
+						const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>();
+
 						if(PCGSystemSwitches::CVarPausePCGExecution.GetValueOnAnyThread())
 						{
-							return LOCTEXT("PCGPauseButton_Off", "Paused");
+							if (EditorSettings && EditorSettings->OverridePausedButtonLabel != NAME_None)
+							{
+								return FText::FromName(EditorSettings->OverridePausedButtonLabel);
+							}
+							else
+							{
+								return LOCTEXT("PCGPauseButton_Off", "Paused");
+							}
 						}
 						else
 						{
-							return LOCTEXT("PCGPauseButton_On", "PCG");
+							if (EditorSettings && EditorSettings->OverrideNotPausedButtonLabel != NAME_None)
+							{
+								return FText::FromName(EditorSettings->OverrideNotPausedButtonLabel);
+							}
+							else
+							{
+								return LOCTEXT("PCGPauseButton_On", "PCG");
+							}
 						}
 					}),
 					LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause and cancel all tasks.\nUse Alt to unpause without cancelling tasks."),
-					FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.EditorIcon"),
+					TAttribute<FSlateIcon>::CreateLambda([]()
+					{
+						const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>();
+						if (EditorSettings && EditorSettings->bUseAlternatePauseButton)
+						{
+							return FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Editor.AlternatePause");
+						}
+						else
+						{
+							return FSlateIcon(FPCGEditorStyle::Get().GetStyleSetName(), "PCG.Editor.Pause");
+						}
+					}),
 					EUserInterfaceActionType::ToggleButton
 				);
 				PCGPauseButton.StyleNameOverride = "CalloutToolbar"; // used to show the button text
