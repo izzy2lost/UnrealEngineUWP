@@ -104,6 +104,24 @@ static FAutoConsoleVariableRef CVarNaniteStreamingMaxPageInstallsPerFrame(
 	ECVF_RenderThreadSafe | ECVF_ReadOnly
 );
 
+static int32 GNaniteStreamingGPURequestsBufferMinSize = 128 * 1024;
+static FAutoConsoleVariableRef CVarNaniteStreamingGPURequestsBufferMinSize(
+	TEXT("r.Nanite.Streaming.GPURequestsBufferMinSize"),
+	GNaniteStreamingGPURequestsBufferMinSize,
+	TEXT("The minimum number of elements in the buffer used for GPU feedback.")
+	TEXT("Setting Min=Max disables any dynamic buffer size adjustment."),
+	ECVF_RenderThreadSafe
+);
+
+static int32 GNaniteStreamingGPURequestsBufferMaxSize = 1024 * 1024;
+static FAutoConsoleVariableRef CVarNaniteStreamingGPURequestsBufferMaxSize(
+	TEXT("r.Nanite.Streaming.GPURequestsBufferMaxSize"),
+	GNaniteStreamingGPURequestsBufferMaxSize,
+	TEXT("The maximum number of elements in the buffer used for GPU feedback.")
+	TEXT("Setting Min=Max disables any dynamic buffer size adjustment."),
+	ECVF_RenderThreadSafe
+);
+
 static int32 GNaniteStreamingAsyncCompute = 1;
 static FAutoConsoleVariableRef CVarNaniteStreamingAsyncCompute(
 	TEXT("r.Nanite.Streaming.AsyncCompute"),
@@ -198,6 +216,10 @@ DECLARE_FLOAT_COUNTER_STAT(		TEXT("Visible Streaming Data Size (MB)"),	STAT_Nani
 DECLARE_FLOAT_COUNTER_STAT(		TEXT("    Streaming Pool Percentage"),		STAT_NaniteStreaming31_VisibleStreamingPoolPercentage,	STATGROUP_NaniteStreaming);
 
 DECLARE_FLOAT_COUNTER_STAT(		TEXT("IO Request Size (MB)"),				STAT_NaniteStreaming40_IORequestSizeMB,					STATGROUP_NaniteStreaming);
+
+DECLARE_DWORD_COUNTER_STAT(		TEXT("Readback Size"),						STAT_NaniteStreaming41_ReadbackSize,					STATGROUP_NaniteStreaming);
+DECLARE_DWORD_COUNTER_STAT(		TEXT("Readback Buffer Size"),				STAT_NaniteStreaming42_ReadbackBufferSize,				STATGROUP_NaniteStreaming);
+
 
 DECLARE_CYCLE_STAT(				TEXT("BeginAsyncUpdate"),					STAT_NaniteStreaming_BeginAsyncUpdate,					STATGROUP_NaniteStreaming);
 DECLARE_CYCLE_STAT(				TEXT("AsyncUpdate"),						STAT_NaniteStreaming_AsyncUpdate,						STATGROUP_NaniteStreaming);
@@ -728,106 +750,290 @@ private:
 	}
 };
 
-FStreamingManager::FHierarchyDepthManager::FHierarchyDepthManager(uint32 MaxDepth)
+class FHierarchyDepthManager
 {
-	DepthHistogram.SetNumZeroed(MaxDepth + 1);
-}
-
-void FStreamingManager::FHierarchyDepthManager::Add(uint32 Depth)
-{
-	DepthHistogram[Depth]++;
-}
-
-void FStreamingManager::FHierarchyDepthManager::Remove(uint32 Depth)
-{
-	uint32& Count = DepthHistogram[Depth];
-	check(Count > 0u);
-	Count--;
-}
-
-uint32 FStreamingManager::FHierarchyDepthManager::CalculateNumLevels() const
-{
-	for (int32 Depth = uint32(DepthHistogram.Num() - 1); Depth >= 0; Depth--)
+public:
+	FHierarchyDepthManager(uint32 MaxDepth)
 	{
-		if (DepthHistogram[Depth] != 0u)
-		{
-			return uint32(Depth) + 1u;
-		}
+		DepthHistogram.SetNumZeroed(MaxDepth + 1);
 	}
-	return 0u;
-}
 
-void FStreamingManager::FRingBufferAllocator::Init(uint32 Size)
-{
-	BufferSize = Size;
-	ReadOffset = 0u;
-	WriteOffset = 0u;
-}
-
-bool FStreamingManager::FRingBufferAllocator::TryAllocate(uint32 Size, uint32& AllocatedOffset)
-{
-	if (WriteOffset < ReadOffset)
+	void Add(uint32 Depth)
 	{
-		if (Size + 1u > ReadOffset - WriteOffset)	// +1 to leave one element free, so we can distinguish between full and empty
-		{
-			return false;
-		}
+		DepthHistogram[Depth]++;
 	}
-	else
+	void Remove(uint32 Depth)
 	{
-		// WriteOffset >= ReadOffset
-		if (Size + (ReadOffset == 0u ? 1u : 0u) > BufferSize - WriteOffset)
+		uint32& Count = DepthHistogram[Depth];
+		check(Count > 0u);
+		Count--;
+	}
+
+	uint32 CalculateNumLevels() const
+	{
+		for (int32 Depth = uint32(DepthHistogram.Num() - 1); Depth >= 0; Depth--)
 		{
-			// Doesn't fit at the end. Try from the beginning
-			if (Size + 1u > ReadOffset)
+			if (DepthHistogram[Depth] != 0u)
+			{
+				return uint32(Depth) + 1u;
+			}
+		}
+		return 0u;
+	}
+private:
+	TArray<uint32> DepthHistogram;
+};
+
+class FRingBufferAllocator
+{
+public:
+	FRingBufferAllocator(uint32 Size):
+		BufferSize(Size),
+		ReadOffset(0u),
+		WriteOffset(0u)
+	{
+	}
+
+	bool TryAllocate(uint32 Size, uint32& AllocatedOffset)
+	{
+		if (WriteOffset < ReadOffset)
+		{
+			if (Size + 1u > ReadOffset - WriteOffset)	// +1 to leave one element free, so we can distinguish between full and empty
 			{
 				return false;
 			}
-			WriteOffset = 0u;
+		}
+		else
+		{
+			// WriteOffset >= ReadOffset
+			if (Size + (ReadOffset == 0u ? 1u : 0u) > BufferSize - WriteOffset)
+			{
+				// Doesn't fit at the end. Try from the beginning
+				if (Size + 1u > ReadOffset)
+				{
+					return false;
+				}
+				WriteOffset = 0u;
+			}
+		}
+
+#if DO_CHECK
+		SizeQueue.Enqueue(Size);
+#endif
+		AllocatedOffset = WriteOffset;
+		WriteOffset += Size;
+		check(AllocatedOffset + Size <= BufferSize);
+		return true;
+	}
+
+	void Free(uint32 Size)
+	{
+#if DO_CHECK
+		uint32 QueuedSize;
+		bool bNonEmpty = SizeQueue.Dequeue(QueuedSize);
+		check(bNonEmpty);
+		check(QueuedSize == Size);
+#endif
+		const uint32 Next = ReadOffset + Size;
+		ReadOffset = (Next <= BufferSize) ? Next : Size;
+	}
+private:
+	uint32 BufferSize;
+	uint32 ReadOffset;
+	uint32 WriteOffset;
+#if DO_CHECK
+	TQueue<uint32> SizeQueue;
+#endif
+};
+
+struct FGPUStreamingRequest
+{
+	uint32	RuntimeResourceID_Magic;
+	uint32	PageIndex_NumPages_Magic;
+	uint32	Priority_Magic;
+};
+
+class FReadbackManager
+{
+public:
+	FReadbackManager(uint32 InNumBuffers):
+		NumBuffers(InNumBuffers)
+	{
+		ReadbackBuffers.SetNum(NumBuffers);
+	}
+
+	void PrepareRequestsBuffer(FRDGBuilder& GraphBuilder)
+	{
+		const uint32 BufferSize = RoundUpToSignificantBits(BufferSizeManager.GetSize(), 2);
+
+		SET_DWORD_STAT(STAT_NaniteStreaming42_ReadbackBufferSize, BufferSize);
+	
+		if (!RequestsBuffer.IsValid() || RequestsBuffer->Desc.NumElements != BufferSize)
+		{
+			// Init and clear StreamingRequestsBuffer.
+			FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FGPUStreamingRequest), BufferSize);
+			Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_SourceCopy);
+			FRDGBufferRef RequestsBufferRef = GraphBuilder.CreateBuffer(Desc, TEXT("Nanite.StreamingRequests"));
+
+			AddPass_ClearStreamingRequestCount(GraphBuilder, GraphBuilder.CreateUAV(RequestsBufferRef));
+
+			RequestsBuffer = GraphBuilder.ConvertToExternalBuffer(RequestsBufferRef);
 		}
 	}
 
-#if DO_CHECK
-	SizeQueue.Enqueue(Size);
-#endif
-	AllocatedOffset = WriteOffset;
-	WriteOffset += Size;
-	check(AllocatedOffset + Size <= BufferSize);
-	return true;
-}
+	FGPUStreamingRequest* LockLatest(uint32& OutNumStreamingRequests)
+	{
+		OutNumStreamingRequests = 0u;
+		check(LatestBuffer == nullptr);
 
-void FStreamingManager::FRingBufferAllocator::Free(uint32 Size)
-{
-#if DO_CHECK
-	uint32 QueuedSize;
-	bool bNonEmpty = SizeQueue.Dequeue(QueuedSize);
-	check(bNonEmpty);
-	check(QueuedSize == Size);
-#endif
-	const uint32 Next = ReadOffset + Size;
-	ReadOffset = (Next <= BufferSize) ? Next : Size;
-}
+		// Find latest buffer that is ready
+		while (NumPendingBuffers > 0)
+		{
+			if (ReadbackBuffers[NextReadBufferIndex].Buffer->IsReady())
+			{
+				LatestBuffer = &ReadbackBuffers[NextReadBufferIndex];
+				NextReadBufferIndex = (NextReadBufferIndex + 1u) % NumBuffers;
+				NumPendingBuffers--;
+			}
+			else
+			{
+				break;
+			}
+		}
 
-FStreamingManager::FStreamingManager() :
-	HierarchyDepthManager(NANITE_MAX_CLUSTER_HIERARCHY_DEPTH),
-	MaxHierarchyLevels(0u),
-	StreamingRequestsBufferVersion(0),
-	MaxStreamingPages(0),
-	MaxPendingPages(0),
-	MaxPageInstallsPerUpdate(0),
-	MaxStreamingReadbackBuffers(4u),
-	ReadbackBuffersWriteIndex(0),
-	ReadbackBuffersNumPending(0),
-	NumResources(0),
-	NumPendingPages(0),
-	NextPendingPageIndex(0),
-	StatNumRootPages(0),
-	StatPeakRootPages(0),
-	StatVisibleSetSize(0),
-	StatPrevUpdateTime(0),
-	PrevUpdateTick(0)
+		if (LatestBuffer)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(LockBuffer);
+			uint32* Ptr = (uint32*)LatestBuffer->Buffer->Lock(LatestBuffer->NumElements * sizeof(FGPUStreamingRequest));
+			check(LatestBuffer->NumElements > 0u);
+			
+			const uint32 NumRequests = Ptr[0];
+			BufferSizeManager.Update(NumRequests);
+
+			SET_DWORD_STAT(STAT_NaniteStreaming41_ReadbackSize, NumRequests);
+			
+			OutNumStreamingRequests = FMath::Min(NumRequests, LatestBuffer->NumElements - 1u);
+			return (FGPUStreamingRequest*)Ptr + 1;
+		}
+		return nullptr;
+	}
+
+	void Unlock()
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(UnlockBuffer);
+		check(LatestBuffer);
+		LatestBuffer->Buffer->Unlock();
+		LatestBuffer = nullptr;
+	}
+
+	void QueueReadback(FRDGBuilder& GraphBuilder)
+	{
+		if (NumPendingBuffers == NumBuffers)
+		{
+			// Return when queue is full. It is NOT safe to EnqueueCopy on a buffer that already has a pending copy.
+			return;
+		}
+
+		const uint32 WriteBufferIndex = (NextReadBufferIndex + NumPendingBuffers) % NumBuffers;
+		FReadbackBuffer& ReadbackBuffer = ReadbackBuffers[WriteBufferIndex];
+
+		if (ReadbackBuffer.Buffer == nullptr)
+		{
+			ReadbackBuffer.Buffer = MakeUnique<FRHIGPUBufferReadback>(TEXT("Nanite.StreamingRequestReadback"));
+		}
+		ReadbackBuffer.NumElements = RequestsBuffer->Desc.NumElements;
+
+		FRDGBufferRef RDGRequestsBuffer = GraphBuilder.RegisterExternalBuffer(RequestsBuffer);
+
+		AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), RDGRequestsBuffer,
+			[&GPUReadback = ReadbackBuffer.Buffer, RDGRequestsBuffer](FRHICommandList& RHICmdList)
+			{
+				GPUReadback->EnqueueCopy(RHICmdList, RDGRequestsBuffer->GetRHI(), 0u);
+			});
+
+		AddPass_ClearStreamingRequestCount(GraphBuilder, GraphBuilder.CreateUAV(RDGRequestsBuffer));
+
+		NumPendingBuffers++;
+		BufferVersion++;
+	}
+
+	FRDGBuffer* GetStreamingRequestsBuffer(FRDGBuilder& GraphBuilder) const
+	{
+		return GraphBuilder.RegisterExternalBuffer(RequestsBuffer);
+	}
+
+	uint32 GetBufferVersion() const
+	{
+		return BufferVersion;
+	}
+
+private:
+	struct FReadbackBuffer
+	{
+		TUniquePtr<class FRHIGPUBufferReadback>	Buffer;
+		uint32									NumElements = 0u;
+	};
+
+	class FBufferSizeManager
+	{
+	public:
+		FBufferSizeManager() :
+			CurrentSize((float)GNaniteStreamingGPURequestsBufferMinSize)
+		{
+		}
+
+		void Update(uint32 NumRequests)
+		{
+			const uint32 Target = uint32(NumRequests * 1.25f);			// Target 25% headroom
+
+			const bool bOverBudget = Target > CurrentSize;
+			const bool bUnderBudget = NumRequests < CurrentSize * 0.5f;	// Only consider shrinking when less than half the buffer is used
+
+			OverBudgetCounter	= bOverBudget  ? (OverBudgetCounter  + 1u) : 0u;
+			UnderBudgetCounter	= bUnderBudget ? (UnderBudgetCounter + 1u) : 0u;
+			
+			if (OverBudgetCounter >= 2u)		// Ignore single frames that are over budget
+			{
+				CurrentSize = FMath::Max(CurrentSize, Target);
+			}
+			else if (UnderBudgetCounter >= 30u)	// Only start shrinking when we have been under budget for a while
+			{
+				CurrentSize *= 0.98f;
+			}
+
+			const int32 LimitMinSize = 4u * 1024;
+			const int32 LimitMaxSize = 1024u * 1024;
+			const int32 MinSize = FMath::Clamp(GNaniteStreamingGPURequestsBufferMinSize, LimitMinSize, LimitMaxSize);
+			const int32 MaxSize = FMath::Clamp(GNaniteStreamingGPURequestsBufferMaxSize, MinSize, LimitMaxSize);
+
+			CurrentSize = FMath::Clamp(CurrentSize, (float)MinSize, (float)MaxSize);
+		}
+
+		uint32 GetSize()
+		{
+			return uint32(CurrentSize);
+		}
+	private:
+		float CurrentSize;
+		uint32 OverBudgetCounter = 0;
+		uint32 UnderBudgetCounter = 0;
+	};
+
+	TRefCountPtr<FRDGPooledBuffer>	RequestsBuffer;
+	TArray<FReadbackBuffer>			ReadbackBuffers;
+
+	FReadbackBuffer*				LatestBuffer = nullptr;
+	uint32							NumBuffers = 0;
+	uint32							NumPendingBuffers = 0;
+	uint32							NextReadBufferIndex = 0;
+	uint32							BufferVersion = 0;
+
+	FBufferSizeManager				BufferSizeManager;
+};
+
+FStreamingManager::FStreamingManager()
 #if WITH_EDITOR
-	,RequestOwner(nullptr)
+	: RequestOwner(nullptr)
 #endif
 {
 }
@@ -840,6 +1046,9 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 	}
 
 	LLM_SCOPE_BYTAG(Nanite);
+
+	HierarchyDepthManager = MakePimpl<FHierarchyDepthManager>(NANITE_MAX_CLUSTER_HIERARCHY_DEPTH);
+	ReadbackManager = MakePimpl<FReadbackManager>(4);
 
 	const uint32 MaxPoolSizeInMB		= GetMaxPagePoolSizeInMB();
 	const uint32 StreamingPoolSizeInMB	= GNaniteStreamingPoolSize;
@@ -868,8 +1077,6 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 	MaxPendingPages = GNaniteStreamingMaxPendingPages;
 	MaxPageInstallsPerUpdate = (uint32)FMath::Min(GNaniteStreamingMaxPageInstallsPerFrame, GNaniteStreamingMaxPendingPages);
 
-	StreamingRequestReadbackBuffers.SetNumZeroed( MaxStreamingReadbackBuffers );
-
 	RegisteredPages.SetNum(MaxStreamingPages);
 	RegisteredPageDependencies.SetNum(MaxStreamingPages);
 	
@@ -887,9 +1094,10 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 	PendingPages.SetNum(MaxPendingPages);
 
 	PendingPageStagingMemory.SetNumUninitialized(MaxPendingPages * NANITE_ESTIMATED_MAX_PAGE_DISK_SIZE);
-	PendingPageStagingAllocator.Init(PendingPageStagingMemory.Num());
+	
+	PendingPageStagingAllocator = MakePimpl<FRingBufferAllocator>(PendingPageStagingMemory.Num());
 
-	PageUploader		= new FStreamingPageUploader();
+	PageUploader = MakePimpl<FStreamingPageUploader>();
 
 	FRDGBufferDesc ClusterDataBufferDesc = {};
 	if (GRHIGlobals.ReservedResources.Supported && GNaniteStreamingReservedResources)
@@ -903,9 +1111,9 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 		ClusterDataBufferDesc = FRDGBufferDesc::CreateByteAddressDesc(4);
 	}
 
-	ImposterData.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.ImposterDataInitial"));
-	ClusterPageData.DataBuffer = AllocatePooledBuffer(ClusterDataBufferDesc, TEXT("Nanite.StreamingManager.ClusterPageDataInitial"));
-	Hierarchy.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.HierarchyDataInitial"));
+	ImposterData.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.ImposterData"));
+	ClusterPageData.DataBuffer = AllocatePooledBuffer(ClusterDataBufferDesc, TEXT("Nanite.StreamingManager.ClusterPageData"));
+	Hierarchy.DataBuffer = AllocatePooledBuffer(FRDGBufferDesc::CreateByteAddressDesc(4), TEXT("Nanite.StreamingManager.HierarchyData"));
 
 #if WITH_EDITOR
 	RequestOwner = new FRequestOwner(EPriority::Normal);
@@ -925,15 +1133,6 @@ void FStreamingManager::ReleaseRHI()
 #endif
 
 	LLM_SCOPE_BYTAG(Nanite);
-	for (FRHIGPUBufferReadback*& ReadbackBuffer : StreamingRequestReadbackBuffers)
-	{
-		if (ReadbackBuffer != nullptr)
-		{
-			delete ReadbackBuffer;
-			ReadbackBuffer = nullptr;
-		}
-	}
-
 	for (FFixupChunk* FixupChunk : ResidentPageFixupChunks)
 	{
 		FMemory::Free(FixupChunk);
@@ -942,11 +1141,11 @@ void FStreamingManager::ReleaseRHI()
 	ImposterData.Release();
 	ClusterPageData.Release();
 	Hierarchy.Release();
-	StreamingRequestsBuffer.SafeRelease();
+	ReadbackManager.Reset();
 
 	PendingPages.Empty();	// Make sure IO handles are released before IO system is shut down
 
-	delete PageUploader;
+	PageUploader.Reset();
 }
 
 void FStreamingManager::Add( FResources* Resources )
@@ -1096,7 +1295,7 @@ void FStreamingManager::Remove( FResources* Resources )
 
 			if (RootPageInfo.MaxHierarchyDepth != 0xFFu)
 			{
-				HierarchyDepthManager.Remove(RootPageInfo.MaxHierarchyDepth);
+				HierarchyDepthManager->Remove(RootPageInfo.MaxHierarchyDepth);
 				RootPageInfo.MaxHierarchyDepth = 0xFFu;
 			}
 		}
@@ -1162,7 +1361,7 @@ FStreamingManager::FRootPageInfo* FStreamingManager::GetRootPage(uint32 RuntimeR
 
 FRDGBuffer* FStreamingManager::GetStreamingRequestsBuffer(FRDGBuilder& GraphBuilder) const
 {
-	return GraphBuilder.RegisterExternalBuffer(StreamingRequestsBuffer);
+	return ReadbackManager->GetStreamingRequestsBuffer(GraphBuilder);
 }
 
 FRDGBufferSRV* FStreamingManager::GetHierarchySRV(FRDGBuilder& GraphBuilder) const
@@ -1490,7 +1689,7 @@ void FStreamingManager::InstallReadyPages( uint32 NumReadyPages )
 						//check(Resources->NumResidentClusters <= Resources->NumClusters); // Temporary workaround: NumClusters from cooked data is not always correct for Geometry Collections: UE-194917
 						ModifiedResources.Add(ResidentPage.Key.RuntimeResourceID, Resources->NumResidentClusters);
 					}
-					HierarchyDepthManager.Remove(ResidentPage.MaxHierarchyDepth);
+					HierarchyDepthManager->Remove(ResidentPage.MaxHierarchyDepth);
 				}
 
 				ResidentPage.Key.RuntimeResourceID = INDEX_NONE;	// Only uninstall it the first time.
@@ -1575,7 +1774,7 @@ void FStreamingManager::InstallReadyPages( uint32 NumReadyPages )
 				FFixupChunk* FixupChunk = (FFixupChunk*)FMemory::Realloc(ResidentPageFixupChunks[PendingPage.GPUPageIndex], FixupChunkSize, sizeof(uint16));	// TODO: Get rid of this alloc. Can we come up with a tight conservative bound, so we could preallocate?
 				ResidentPageFixupChunks[PendingPage.GPUPageIndex] = FixupChunk;
 				ResidentPage->MaxHierarchyDepth = PageStreamingState.MaxHierarchyDepth;
-				HierarchyDepthManager.Add(ResidentPage->MaxHierarchyDepth);
+				HierarchyDepthManager->Add(ResidentPage->MaxHierarchyDepth);
 
 				FMemory::Memcpy(FixupChunk, SrcPtr, FixupChunkSize);
 
@@ -1797,7 +1996,6 @@ void FStreamingManager::ProcessNewResources( FRDGBuilder& GraphBuilder)
 				const uint32 HierarchyNodeIndex = Fixup.GetNodeIndex();
 				check(HierarchyNodeIndex < (uint32)Resources->HierarchyNodes.Num());
 				const uint32 ChildIndex = Fixup.GetChildIndex();
-				const uint32 GroupStartIndex = Fixup.GetClusterGroupPartStartIndex();
 				const uint32 TargetGPUPageIndex = MaxStreamingPages + Resources->RootPageIndex + Fixup.GetPageIndex();
 				const uint32 ChildStartReference = (TargetGPUPageIndex << NANITE_MAX_CLUSTERS_PER_PAGE_BITS) | Fixup.GetClusterGroupPartStartIndex();
 
@@ -1811,7 +2009,7 @@ void FStreamingManager::ProcessNewResources( FRDGBuilder& GraphBuilder)
 			RootPageInfo.RuntimeResourceID = Resources->RuntimeResourceID;
 			RootPageInfo.NumClusters = NumClusters;
 			RootPageInfo.MaxHierarchyDepth = PageStreamingState.MaxHierarchyDepth;
-			HierarchyDepthManager.Add(PageStreamingState.MaxHierarchyDepth);
+			HierarchyDepthManager->Add(PageStreamingState.MaxHierarchyDepth);
 
 			Resources->NumResidentClusters += NumClusters; // clusters in root pages are always streamed in
 		}
@@ -1984,7 +2182,7 @@ uint32 FStreamingManager::DetermineReadyPages(uint32& TotalPageSize)
 
 			if(bFreePageFromStagingAllocator)
 			{
-				PendingPageStagingAllocator.Free(PendingPage.RequestBuffer.DataSize());
+				PendingPageStagingAllocator->Free(PendingPage.RequestBuffer.DataSize());
 			}
 
 			FResources* Resources = GetResources(PendingPage.InstallKey.RuntimeResourceID);
@@ -2104,19 +2302,6 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder)
 	AsyncState = FAsyncState {};
 	AsyncState.bUpdateActive = true;
 
-	if (!StreamingRequestsBuffer.IsValid())
-	{
-		// Init and clear StreamingRequestsBuffer.
-		// Can't do this in InitRHI as RHICmdList doesn't have a valid context yet.
-		FRDGBufferDesc Desc = FRDGBufferDesc::CreateStructuredDesc(sizeof(FStreamingRequest), NANITE_MAX_STREAMING_REQUESTS);
-		Desc.Usage = EBufferUsageFlags(Desc.Usage | BUF_SourceCopy);
-		FRDGBufferRef StreamingRequestsBufferRef = GraphBuilder.CreateBuffer(Desc, TEXT("Nanite.StreamingRequests"));
-		
-		AddPass_ClearStreamingRequestCount(GraphBuilder, GraphBuilder.CreateUAV(StreamingRequestsBufferRef));
-
-		StreamingRequestsBuffer = GraphBuilder.ConvertToExternalBuffer(StreamingRequestsBufferRef);
-	}
-
 	ProcessNewResources(GraphBuilder);
 
 	CSV_CUSTOM_STAT(NaniteStreaming, RootAllocationMB, StatNumAllocatedRootPages * (NANITE_ROOT_PAGE_GPU_SIZE / 1048576.0f), ECsvCustomStatOp::Set);
@@ -2133,31 +2318,10 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder)
 		Hierarchy.UploadBuffer.Init(GraphBuilder, 2 * NumPages * NANITE_MAX_CLUSTERS_PER_PAGE, sizeof(uint32), false, TEXT("Nanite.HierarchyUploadBuffer"));	// Allocate enough to load all selected pages and evict old pages
 		check(ClusterLeafFlagUpdates.Num() == 0);
 	}
+	
+	AsyncState.GPUStreamingRequestsPtr = ReadbackManager->LockLatest(AsyncState.NumGPUStreamingRequests);
+	ReadbackManager->PrepareRequestsBuffer(GraphBuilder);
 
-	// Find latest most recent ready readback buffer
-	{
-		// Find latest buffer that is ready
-		while (ReadbackBuffersNumPending > 0)
-		{
-			uint32 Index = (ReadbackBuffersWriteIndex + MaxStreamingReadbackBuffers - ReadbackBuffersNumPending) % MaxStreamingReadbackBuffers;
-			if (StreamingRequestReadbackBuffers[Index]->IsReady())	//TODO: process all buffers or just the latest?
-			{
-				ReadbackBuffersNumPending--;
-				AsyncState.LatestReadbackBuffer = StreamingRequestReadbackBuffers[Index];
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-
-	// Lock buffer
-	if (AsyncState.LatestReadbackBuffer)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(LockBuffer);
-		AsyncState.LatestReadbackBufferPtr = (const uint32*)AsyncState.LatestReadbackBuffer->Lock(NANITE_MAX_STREAMING_REQUESTS * sizeof(uint32) * 3);
-	}
 
 	// Start async processing
 	FStreamingUpdateParameters Parameters;
@@ -2267,15 +2431,13 @@ void FStreamingManager::AddPendingGPURequests()
 	SCOPE_CYCLE_COUNTER(STAT_NaniteStreaming_ProcessGPURequests);
 
 	// Update priorities
-	const uint32* BufferPtr = AsyncState.LatestReadbackBufferPtr;
-	const uint32 NumStreamingRequests = FMath::Min(BufferPtr[0], NANITE_MAX_STREAMING_REQUESTS - 1u);	// First request is reserved for counter
-
+	const uint32 NumStreamingRequests = AsyncState.NumGPUStreamingRequests;
 	if (NumStreamingRequests == 0)
 	{
 		return;
 	}
 
-	const FGPUStreamingRequest* StreamingRequestsPtr = ((const FGPUStreamingRequest*)BufferPtr + 1);
+	const FGPUStreamingRequest* StreamingRequestsPtr = AsyncState.GPUStreamingRequestsPtr;
 #if NANITE_SANITY_CHECK_STREAMING_REQUESTS
 	SanityCheckStreamingRequests(StreamingRequestsPtr, NumStreamingRequests);
 #endif
@@ -2383,7 +2545,7 @@ void FStreamingManager::AddParentRequests()
 	SCOPE_CYCLE_COUNTER(STAT_NaniteStreaming_AddParentRequests);
 	
 	// Process new pages first as they might add references to already registered pages.
-	// An already registred page will never have a dependency on a new page.
+	// An already registered page will never have a dependency on a new page.
 	if (RequestedNewPages.Num() > 0)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NaniteStreaming_AddParentNewRequests);
@@ -2586,13 +2748,13 @@ void FStreamingManager::AsyncUpdate()
 
 	check(AsyncState.bUpdateActive);
 	InstallReadyPages(AsyncState.NumReadyPages);
-	MaxHierarchyLevels = HierarchyDepthManager.CalculateNumLevels();
+	MaxHierarchyLevels = HierarchyDepthManager->CalculateNumLevels();
 	SET_DWORD_STAT(STAT_NaniteStreaming08_MaxHierarchyLevels, MaxHierarchyLevels);
 
 	const uint32 StartTime = FPlatformTime::Cycles();
 
 
-	if (AsyncState.LatestReadbackBuffer)
+	if (AsyncState.GPUStreamingRequestsPtr)
 	{
 		RequestedRegisteredPages.Reset();
 		RequestedNewPages.Reset();
@@ -2701,7 +2863,7 @@ void FStreamingManager::AsyncUpdate()
 #endif
 					{
 						uint32 AllocatedOffset;
-						if (!PendingPageStagingAllocator.TryAllocate(PageStreamingState.BulkSize, AllocatedOffset))
+						if (!PendingPageStagingAllocator->TryAllocate(PageStreamingState.BulkSize, AllocatedOffset))
 						{
 							// Staging ring buffer full. Postpone any remaining pages to next frame.
 							// UE_LOG(LogNaniteStreaming, Verbose, TEXT("This should be a rare event."));
@@ -2811,10 +2973,9 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 
 	AsyncTaskEvents.Empty();
 
-	// Unlock readback buffer
-	if (AsyncState.LatestReadbackBuffer)
+	if (AsyncState.GPUStreamingRequestsPtr)
 	{
-		AsyncState.LatestReadbackBuffer->Unlock();
+		ReadbackManager->Unlock();
 	}
 
 	// Issue GPU copy operations
@@ -2839,6 +3000,7 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 void FStreamingManager::SubmitFrameStreamingRequests(FRDGBuilder& GraphBuilder)
 {
 	check(IsInRenderingThread());
+	check(!AsyncState.bUpdateActive);
 	if (!DoesPlatformSupportNanite(GMaxRHIShaderPlatform))
 	{
 		return;
@@ -2848,32 +3010,7 @@ void FStreamingManager::SubmitFrameStreamingRequests(FRDGBuilder& GraphBuilder)
 	RDG_GPU_STAT_SCOPE(GraphBuilder, NaniteReadback);
 	RDG_EVENT_SCOPE(GraphBuilder, "Nanite::Readback");
 
-	if (ReadbackBuffersNumPending == MaxStreamingReadbackBuffers)
-	{
-		// Return when queue is full. It is NOT safe to EnqueueCopy on a buffer that already has a pending copy.
-		return;
-	}
-
-	if (StreamingRequestReadbackBuffers[ReadbackBuffersWriteIndex] == nullptr)
-	{
-		FRHIGPUBufferReadback* GPUBufferReadback = new FRHIGPUBufferReadback(TEXT("Nanite.StreamingRequestReadBack"));
-		StreamingRequestReadbackBuffers[ReadbackBuffersWriteIndex] = GPUBufferReadback;
-	}
-
-	FRDGBufferRef Buffer = GraphBuilder.RegisterExternalBuffer(StreamingRequestsBuffer);
-	FRHIGPUBufferReadback* ReadbackBuffer = StreamingRequestReadbackBuffers[ReadbackBuffersWriteIndex];
-
-	AddReadbackBufferPass(GraphBuilder, RDG_EVENT_NAME("Readback"), Buffer,
-		[ReadbackBuffer, Buffer](FRHICommandList& RHICmdList)
-	{
-		ReadbackBuffer->EnqueueCopy(RHICmdList, Buffer->GetRHI(), 0u);
-	});
-
-	AddPass_ClearStreamingRequestCount(GraphBuilder, GraphBuilder.CreateUAV(Buffer));
-
-	ReadbackBuffersWriteIndex = ( ReadbackBuffersWriteIndex + 1u ) % MaxStreamingReadbackBuffers;
-	ReadbackBuffersNumPending = FMath::Min( ReadbackBuffersNumPending + 1u, MaxStreamingReadbackBuffers );
-	StreamingRequestsBufferVersion++;
+	ReadbackManager->QueueReadback(GraphBuilder);
 }
 
 bool FStreamingManager::IsAsyncUpdateInProgress()
@@ -2903,6 +3040,11 @@ void FStreamingManager::RequestNanitePages(TArrayView<uint32> RequestData)
 	{
 		PendingExplicitRequests.Append(RequestData.GetData(), RequestData.Num());
 	}
+}
+
+uint32 FStreamingManager::GetStreamingRequestsBufferVersion() const
+{
+	return ReadbackManager->GetBufferVersion();
 }
 
 #if WITH_EDITOR

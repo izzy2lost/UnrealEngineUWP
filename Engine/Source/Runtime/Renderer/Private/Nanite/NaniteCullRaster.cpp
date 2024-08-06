@@ -956,6 +956,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FNodeAndClusterCullSharedParameters,)
 	SHADER_PARAMETER(uint32, MaxNodes)
 	SHADER_PARAMETER(uint32, LargePageRectThreshold)
 	SHADER_PARAMETER(uint32, StreamingRequestsBufferVersion)
+	SHADER_PARAMETER(uint32, StreamingRequestsBufferSize)
 	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteStats>, OutStatsBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
@@ -3857,6 +3858,7 @@ void FRenderer::AddPass_NodeAndClusterCull( uint32 CullingPass, bool bMultiView 
 
 	SharedParameters.LargePageRectThreshold = CVarLargePageRectThreshold.GetValueOnRenderThread();
 	SharedParameters.StreamingRequestsBufferVersion = GStreamingManager.GetStreamingRequestsBufferVersion();
+	SharedParameters.StreamingRequestsBufferSize = StreamingRequests->Desc.NumElements;
 
 	check(ViewsBuffer);
 

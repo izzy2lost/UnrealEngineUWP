@@ -18,7 +18,6 @@ namespace UE
 }
 
 class FRDGBuilder;
-class FRHIGPUBufferReadback;
 
 namespace Nanite
 {
@@ -60,9 +59,6 @@ struct FStreamingRequest
 	}
 };
 
-class FRequestsHashTable;
-class FStreamingPageUploader;
-
 /*
  * Streaming manager for Nanite.
  */
@@ -87,10 +83,7 @@ public:
 	ENGINE_API FRDGBufferSRV* GetClusterPageDataSRV(FRDGBuilder& GraphBuilder) const;
 	ENGINE_API FRDGBufferSRV* GetImposterDataSRV(FRDGBuilder& GraphBuilder) const;
 
-	uint32 GetStreamingRequestsBufferVersion() const
-	{
-		return StreamingRequestsBufferVersion;
-	}
+	ENGINE_API uint32 GetStreamingRequestsBufferVersion() const;
 	
 	uint32 GetMaxStreamingPages() const	
 	{
@@ -119,16 +112,8 @@ public:
 	ENGINE_API void		SetRequestRecordBuffer(uint64 Handle);
 #endif
 
-
 private:
 	friend class FStreamingUpdateTask;
-
-	struct FGPUStreamingRequest
-	{
-		uint32	RuntimeResourceID_Magic;
-		uint32	PageIndex_NumPages_Magic;
-		uint32	Priority_Magic;
-	};
 
 	struct FResourcePrefetch
 	{
@@ -138,11 +123,11 @@ private:
 
 	struct FAsyncState
 	{
-		FRHIGPUBufferReadback*	LatestReadbackBuffer = nullptr;
-		const uint32*			LatestReadbackBufferPtr = nullptr;
-		uint32					NumReadyPages = 0;
-		bool					bUpdateActive = false;
-		bool					bBuffersTransitionedToWrite = false;
+		struct FGPUStreamingRequest*	GPUStreamingRequestsPtr = nullptr;
+		uint32							NumGPUStreamingRequests = 0;
+		uint32							NumReadyPages = 0;
+		bool							bUpdateActive = false;
+		bool							bBuffersTransitionedToWrite = false;
 	};
 
 	struct FPendingPage
@@ -180,32 +165,6 @@ private:
 			UploadBuffer = {};
 			DataBuffer = {};
 		}
-	};
-
-	class FHierarchyDepthManager
-	{
-	public:
-		FHierarchyDepthManager(uint32 MaxDepth);
-		void Add(uint32 Depth);
-		void Remove(uint32 Depth);
-
-		uint32 CalculateNumLevels() const;
-	private:
-		TArray<uint32> DepthHistogram;
-	};
-
-	class FRingBufferAllocator
-	{
-		uint32 BufferSize;
-		uint32 ReadOffset;
-		uint32 WriteOffset;
-#if DO_CHECK
-		TQueue<uint32> SizeQueue;
-#endif
-	public:		
-		void Init(uint32 Size);
-		bool TryAllocate(uint32 Size, uint32& AllocatedOffset);
-		void Free(uint32 Size);
 	};
 
 	struct FVirtualPage
@@ -253,36 +212,29 @@ private:
 	FHeapBuffer				ClusterPageData;	// FPackedCluster*, GeometryData { Index, Position, TexCoord, TangentX, TangentZ }*
 	FHeapBuffer				Hierarchy;
 	FHeapBuffer				ImposterData;
-	TRefCountPtr< FRDGPooledBuffer > StreamingRequestsBuffer;
 	TArray<uint32>			ClusterLeafFlagUpdates;
 	
-	FHierarchyDepthManager	HierarchyDepthManager;
-	uint32					MaxHierarchyLevels;
+	TPimplPtr<class FHierarchyDepthManager>	HierarchyDepthManager;
+	uint32					MaxHierarchyLevels = 0;
 
-	uint32					StreamingRequestsBufferVersion;
-	uint32					MaxStreamingPages;
-	uint32					MaxRootPages;
-	uint32					NumInitialRootPages;
-	uint32					MaxPendingPages;
-	uint32					MaxPageInstallsPerUpdate;
-	uint32					MaxStreamingReadbackBuffers;
+	uint32					MaxStreamingPages = 0;
+	uint32					MaxRootPages = 0;
+	uint32					NumInitialRootPages = 0;
+	uint32					MaxPendingPages = 0;
+	uint32					MaxPageInstallsPerUpdate = 0;
 
-	uint32					ReadbackBuffersWriteIndex;
-	uint32					ReadbackBuffersNumPending;
+	uint32					NumResources = 0;
+	uint32					NumPendingPages = 0;
+	uint32					NextPendingPageIndex = 0;
 
-	uint32					NumResources;
-	uint32					NumPendingPages;
-	uint32					NextPendingPageIndex;
+	uint32					StatNumRootPages = 0;
+	uint32					StatPeakRootPages = 0;
+	uint32					StatVisibleSetSize = 0;
+	uint32					StatPrevUpdateTime = 0;
+	uint32					StatNumAllocatedRootPages = 0;
+	
+	uint64					PrevUpdateTick = 0;
 
-	uint32					StatNumRootPages;
-	uint32					StatPeakRootPages;
-	uint32					StatVisibleSetSize;
-	uint32					StatPrevUpdateTime;
-	uint32					StatNumAllocatedRootPages;
-
-	uint64					PrevUpdateTick;
-
-	TArray<FRHIGPUBufferReadback*>		StreamingRequestReadbackBuffers;
 	TArray<FResources*>					PendingAdds;
 
 	TMultiMap<uint32, FResources*>		PersistentHashResourceMap;			// TODO: MultiMap to handle potential collisions and issues with there temporarily being two meshes with the same hash because of unordered add/remove.
@@ -308,10 +260,10 @@ private:
 
 	TArray<FPendingPage>				PendingPages;
 	TArray<uint8>						PendingPageStagingMemory;
-	FRingBufferAllocator				PendingPageStagingAllocator;
+	TPimplPtr<class FRingBufferAllocator>	PendingPageStagingAllocator;
 	
-
-	FStreamingPageUploader*				PageUploader = nullptr;
+	TPimplPtr<class FStreamingPageUploader>	PageUploader;
+	TPimplPtr<class FReadbackManager>	ReadbackManager;
 
 	FGraphEventArray					AsyncTaskEvents;
 	FAsyncState							AsyncState;
@@ -366,7 +318,7 @@ private:
 	void AsyncUpdate();
 
 #if NANITE_SANITY_CHECK_STREAMING_REQUESTS
-	void SanityCheckStreamingRequests(const FGPUStreamingRequest* StreamingRequestsPtr, const uint32 NumStreamingRequests);
+	void SanityCheckStreamingRequests(const struct FGPUStreamingRequest* StreamingRequestsPtr, const uint32 NumStreamingRequests);
 #endif
 
 #if WITH_EDITOR
