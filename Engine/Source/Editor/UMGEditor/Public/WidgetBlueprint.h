@@ -302,6 +302,9 @@ public:
 	/**  */
 	TValueOrError<void, UWidget*> HasCircularReferences() const;
 
+	TValueOrError<void, TSet<UWidget*>> HasConflictingWidgetNamesFromInheritance() const;
+
+
 	static bool ValidateGeneratedClass(const UClass* InClass);
 	
 	static TSharedPtr<FKismetCompilerContext> GetCompilerForWidgetBP(UBlueprint* BP, FCompilerResultsLog& InMessageLog, const FKismetCompilerOptions& InCompileOptions);

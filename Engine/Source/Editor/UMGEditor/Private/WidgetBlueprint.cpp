@@ -1242,6 +1242,47 @@ bool HasCircularReferences(const UClass* CurrentClass, TArray<const UClass*, TIn
 
 	return false;
 }
+
+const UWidgetBlueprint* GetGeneratedWidgetBlueprintFromClass(const UClass* CurrentClass)
+{
+	if (const UWidgetBlueprintGeneratedClass* GeneratedClass = Cast<const UWidgetBlueprintGeneratedClass>(CurrentClass))
+	{
+		return Cast<const UWidgetBlueprint>(GeneratedClass->ClassGeneratedBy);
+	}
+	return nullptr;
+}
+
+bool TryBuildSetNameForWidgets(const UClass* CurrentClass, TSet<FName>& InOutWidgetNames, TSet<UWidget*>& InOutConflictingWidgets)
+{
+	if (const UWidgetBlueprint* WidgetBP = GetGeneratedWidgetBlueprintFromClass(CurrentClass))
+	{
+		// only search in parent class if this class isn't overwriting the root
+		if (WidgetBP->WidgetTree->RootWidget == nullptr)
+		{
+			if (!TryBuildSetNameForWidgets(WidgetBP->ParentClass, InOutWidgetNames, InOutConflictingWidgets))
+			{
+				return false;
+			}
+		}
+
+		if (WidgetBP->WidgetTree)
+		{
+			WidgetBP->WidgetTree->ForEachWidget([&InOutWidgetNames,&InOutConflictingWidgets](UWidget* Widget) {
+				FName WidgetName = Widget->GetFName();
+				if (InOutWidgetNames.Contains(WidgetName))
+				{
+					InOutConflictingWidgets.Add(Widget);
+				}
+				else
+				{
+					InOutWidgetNames.Add(Widget->GetFName());
+				}
+				});
+		}
+	}
+	return InOutConflictingWidgets.IsEmpty();
+}
+
 }
 
 TValueOrError<void, UWidget*> UWidgetBlueprint::HasCircularReferences() const
@@ -1253,6 +1294,28 @@ TValueOrError<void, UWidget*> UWidgetBlueprint::HasCircularReferences() const
 		if (UE::UMG::Private::HasCircularReferences(GeneratedClass, DiscoveredBlueprint, Result))
 		{
 			return MakeError(Result);
+		}
+	}
+	return MakeValue();
+}
+
+TValueOrError<void, TSet<UWidget*>> UWidgetBlueprint::HasConflictingWidgetNamesFromInheritance() const
+{
+	if (GeneratedClass)
+	{
+		// we search for conflicting widget names when the parent is also a generated widgetblueprint
+		// this allows bailing out early on most compilations
+		if (const UWidgetBlueprint* WidgetBP = UE::UMG::Private::GetGeneratedWidgetBlueprintFromClass(GeneratedClass) )
+		{
+			if (Cast<const UWidgetBlueprintGeneratedClass>(WidgetBP->ParentClass) != nullptr)
+			{
+				TSet<FName> WidgetNames;
+				TSet<UWidget*> Result;
+				if (!UE::UMG::Private::TryBuildSetNameForWidgets(GeneratedClass, WidgetNames, Result))
+				{
+					return MakeError(Result);
+				}
+			}
 		}
 	}
 	return MakeValue();

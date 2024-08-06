@@ -134,6 +134,9 @@ public:
 
 	UPROPERTY(Transient)
 	TSet<FName> NamedSlotsWithContentInSameTree;
+
+	UPROPERTY(Transient)
+	TSet<FName> NameClashingInHierarchy;
 #endif
 
 	/**

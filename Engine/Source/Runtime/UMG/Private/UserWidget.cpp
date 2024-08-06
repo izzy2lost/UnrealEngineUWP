@@ -223,21 +223,38 @@ void UUserWidget::DuplicateAndInitializeFromWidgetTree(UWidgetTree* InWidgetTree
 		TArray<UWidget*> AllNamedSlotContentWidgets;
 		NamedSlotContentToMerge.GenerateValueArray(AllNamedSlotContentWidgets);
 
-		auto SetContentWidgetForNamedSlot = [this](FName NamedSlotName, UWidget* TemplateSlotContent)
+		TSet<FName> const* ConflictingWidgetNames = nullptr;
+#if WITH_EDITOR
+		if (UWidgetBlueprintGeneratedClass* BGClass = Cast<UWidgetBlueprintGeneratedClass>(GetClass()))
+		{
+			ConflictingWidgetNames = &(BGClass->NameClashingInHierarchy);
+		}
+#endif
+
+		auto SetContentWidgetForNamedSlot = [this,&ConflictingWidgetNames](FName NamedSlotName, UWidget* TemplateSlotContent)
 		{
 			FObjectInstancingGraph NamedSlotInstancingGraph;
 			// We need to add a mapping from the template's widget tree to the new widget tree, that way
 			// as we instance the widget hierarchy it's grafted onto the new widget tree.
 			NamedSlotInstancingGraph.AddNewObject(WidgetTree, TemplateSlotContent->GetTypedOuter<UWidgetTree>());
 
-			// Instance the new widget from the foreign tree, but do it in a way that grafts it onto the tree we're instancing.
-			UWidget* Content = NewObject<UWidget>(WidgetTree, TemplateSlotContent->GetClass(), TemplateSlotContent->GetFName(), RF_Transactional, TemplateSlotContent, false, &NamedSlotInstancingGraph);
-			Content->SetFlags(RF_Transient | RF_DuplicateTransient);
+			FName TemplateSlotContentName = TemplateSlotContent->GetFName();
+			// ConflictingWidgetNames is an optional parameter. If we find an item with the name we were about to create in the widget tree, we remove the NamedSlot to avoid the corrupted tree we would get otherwise
+			if (ConflictingWidgetNames == nullptr || !ConflictingWidgetNames->Contains(TemplateSlotContentName))
+			{
+				// Instance the new widget from the foreign tree, but do it in a way that grafts it onto the tree we're instancing.
+				UWidget* Content = NewObject<UWidget>(WidgetTree, TemplateSlotContent->GetClass(), TemplateSlotContentName, RF_Transactional, TemplateSlotContent, false, &NamedSlotInstancingGraph);
+				Content->SetFlags(RF_Transient | RF_DuplicateTransient);
 
-			// Insert the newly constructed widget into the named slot that corresponds.  The above creates
-			// it as if it was always part of the widget tree, but this actually puts it into a widget's
-			// slot for the named slot.
-			SetContentForSlot(NamedSlotName, Content);
+				// Insert the newly constructed widget into the named slot that corresponds.  The above creates
+				// it as if it was always part of the widget tree, but this actually puts it into a widget's
+				// slot for the named slot.
+				SetContentForSlot(NamedSlotName, Content);
+			}
+			else
+			{
+				SetContentForSlot(NamedSlotName, nullptr);
+			}
 		};
 
 		// This block controls merging named slot content specified in a child class for the widget we're templated after.

@@ -893,6 +893,35 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 			}
 		}
 
+		{
+#if WITH_EDITOR
+			BPGClass->NameClashingInHierarchy.Reset();
+#endif
+			TValueOrError<void, TSet<UWidget*>> HasConflictingWidgetNames = WidgetBP->HasConflictingWidgetNamesFromInheritance();
+			if (HasConflictingWidgetNames.HasError())
+			{
+				TSet<UWidget*>& ConflictingNames = HasConflictingWidgetNames.GetError();
+				for (UWidget* ConflictingWidget : ConflictingNames)
+				{
+#if WITH_EDITOR
+					FName ConflictingWidgetName = ConflictingWidget->GetFName();
+					BPGClass->NameClashingInHierarchy.Add(ConflictingWidgetName);
+#endif
+					if (UWidget* FoundConflictingWidget = BPGClass->GetWidgetTreeArchetype()->FindWidget(ConflictingWidget->GetFName()))
+					{
+						BPGClass->GetWidgetTreeArchetype()->RemoveWidget(FoundConflictingWidget);
+					}
+
+					MessageLog.Error(*FText::Format(LOCTEXT("WidgetTreeDuplicateNames", "The WidgetTree '{0}' already contains a widget named '{1}'."),
+						FText::FromString(WidgetBP->WidgetTree->GetPathName()),
+						FText::FromString(ConflictingWidget->GetName())
+					).ToString());
+				}
+			}
+		}
+
+
+
 		int32 AnimIndex = 0;
 		for ( const UWidgetAnimation* Animation : WidgetBP->Animations )
 		{
@@ -1236,7 +1265,6 @@ void FWidgetBlueprintCompilerContext::FinishCompilingClass(UClass* Class)
 			InExtension->FinishCompilingClass(BPGClass);
 		});
 }
-
 
 class FBlueprintCompilerLog : public IWidgetCompilerLog
 {
