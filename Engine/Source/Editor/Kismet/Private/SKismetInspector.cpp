@@ -405,6 +405,7 @@ void SKismetInspector::Construct(const FArguments& InArgs)
 	DetailsViewArgs.ViewIdentifier = InArgs._ViewIdentifier;
 	DetailsViewArgs.ExternalScrollbar = InArgs._ExternalScrollbar;
 	DetailsViewArgs.ScrollbarAlignment = InArgs._ScrollbarAlignment;
+	DetailsViewArgs.bShowSectionSelector = InArgs._ShowSectionSelector;
 	if (Kismet2.IsValid())
 	{
 		TSharedPtr<IClassViewerFilter> ImportedClassFilter = Kismet2->GetImportedClassViewerFilter();
