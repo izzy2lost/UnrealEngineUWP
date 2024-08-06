@@ -5,7 +5,6 @@
 #include "CookOnTheFly.h"
 #include "CookOnTheFlyPackageStore.h"
 #include "HAL/FileManagerGeneric.h"
-#include "HAL/IPlatformFileModule.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "Misc/CoreDelegates.h"
@@ -303,15 +302,22 @@ TUniquePtr<FArchive> FStorageServerPlatformFile::TryFindProjectStoreMarkerFile(I
 		return nullptr;
 	}
 
-	FString RelativeStagedPath = TEXT("../../../");
-	FString RootPath = FPaths::RootDir();
-	FString PlatformName = FPlatformProperties::PlatformName();
-	FString CookedOutputPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved"), TEXT("Cooked"), PlatformName);
-
 	TArray<FString> PotentialProjectStorePaths;
-	PotentialProjectStorePaths.Add(RelativeStagedPath);
-	PotentialProjectStorePaths.Add(CookedOutputPath);
-	PotentialProjectStorePaths.Add(RootPath);
+	if (CustomProjectStorePath.IsEmpty())
+	{
+		FString RelativeStagedPath = TEXT("../../../");
+		FString RootPath = FPaths::RootDir();
+		FString PlatformName = FPlatformProperties::PlatformName();
+		FString CookedOutputPath = FPaths::Combine(FPaths::ProjectDir(), TEXT("Saved"), TEXT("Cooked"), PlatformName);
+
+		PotentialProjectStorePaths.Add(RelativeStagedPath);
+		PotentialProjectStorePaths.Add(CookedOutputPath);
+		PotentialProjectStorePaths.Add(RootPath);
+	}
+	else
+	{
+		PotentialProjectStorePaths.Add(CustomProjectStorePath);
+	}
 
 	for (const FString& ProjectStorePath : PotentialProjectStorePaths)
 	{
@@ -468,7 +474,10 @@ bool FStorageServerPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* C
 					const TSharedPtr<FJsonObject>& ZenServerObject = *ZenServerObjectPtr;
 					ServerProject = ZenServerObject->GetStringField(TEXT("projectid"));
 					ServerPlatform = ZenServerObject->GetStringField(TEXT("oplogid"));
-					BaseURI = ZenServerObject->GetStringField(TEXT("baseuri"));
+					if (!ZenServerObject->TryGetStringField(TEXT("baseuri"), BaseURI))
+					{
+						BaseURI.Empty();
+					}
 					UE_LOG(LogStorageServerPlatformFile, Display, TEXT("Using settings from ue.projectstore: ServerProject='%s' and ServerPlatform='%s'"), *ServerProject, *ServerPlatform);
 				}
 			}
@@ -508,23 +517,27 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 	{
 		if (SendGetFileListMessage())
 		{
-			FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
-			TSharedRef<FStorageServerIoDispatcherBackend> IoDispatcherBackend = MakeShared<FStorageServerIoDispatcherBackend>(*Connection.Get());
-			IoDispatcher.Mount(IoDispatcherBackend);
+			if (bAllowPackageIo)
+			{
+				FIoDispatcher& IoDispatcher = FIoDispatcher::Get();
+				TSharedRef<FStorageServerIoDispatcherBackend> IoDispatcherBackend = MakeShared<FStorageServerIoDispatcherBackend>(*Connection.Get());
+				IoDispatcher.Mount(IoDispatcherBackend);
 #if WITH_COTF
-			if (CookOnTheFlyServerConnection)
-			{
-				FPackageStore::Get().Mount(MakeShared<FCookOnTheFlyPackageStoreBackend>(*CookOnTheFlyServerConnection.Get()));
-			}
-			else
+				if (CookOnTheFlyServerConnection)
+				{
+					FPackageStore::Get().Mount(MakeShared<FCookOnTheFlyPackageStoreBackend>(*CookOnTheFlyServerConnection.Get()));
+				}
+				else
 #endif
-			{
-				FPackageStore::Get().Mount(MakeShared<FStorageServerPackageStoreBackend>(*Connection.Get()));
+				{
+					FPackageStore::Get().Mount(MakeShared<FStorageServerPackageStoreBackend>(*Connection.Get()));
+				}
 			}
 		}
 		else
 		{
-			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%s'"), *Connection->GetHostAddr());
+			FStringView HostAddr = Connection->GetHostAddr();
+			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%.*s'"), HostAddr.Len(), HostAddr.GetData());
 		}
 	}
 	else
@@ -1049,6 +1062,16 @@ bool FStorageServerPlatformFile::SendMessageToServer(const TCHAR* Message, IPlat
 	return false;
 }
 
+FStringView FStorageServerPlatformFile::GetHostAddr() const
+{
+	return Connection->GetHostAddr();
+}
+
+void FStorageServerPlatformFile::GetAndResetConnectionStats(FConnectionStats& OutStats)
+{
+	return Connection->GetAndResetStats(OutStats);
+}
+
 #if WITH_COTF
 void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTheFlyMessage& Message)
 {
@@ -1080,19 +1103,5 @@ void FStorageServerPlatformFile::OnCookOnTheFlyMessage(const UE::Cook::FCookOnTh
 	}
 }
 #endif
-
-class FStorageServerClientFileModule
-	: public IPlatformFileModule
-{
-public:
-
-	virtual IPlatformFile* GetPlatformFile() override
-	{
-		static TUniquePtr<IPlatformFile> AutoDestroySingleton = MakeUnique<FStorageServerPlatformFile>();
-		return AutoDestroySingleton.Get();
-	}
-};
-
-IMPLEMENT_MODULE(FStorageServerClientFileModule, StorageServerClient);
 
 #endif

@@ -5,11 +5,12 @@
 #include "CoreMinimal.h"
 #include "Engine/Canvas.h"
 #include <vector>
+#include "IStorageServerPlatformFile.h"
 
-#include "DebugStorageServerConnection.generated.h"
+#include "StorageServerConnectionDebug.generated.h"
 
 UCLASS()
-class UDebugStorageServerConnection : public UObject
+class UStorageServerConnectionDebug : public UObject
 {
 	GENERATED_BODY()
 
@@ -17,11 +18,17 @@ public:
 	void StartDrawing();
 	void StopDrawing();
 
-	void AddTimingInstance(double duration, uint64 bytes);
-
-	void SetHostAddress(FString Address)
+	void SetPlatformFile(IStorageServerPlatformFile* InStorageServerPlatformFile)
 	{
-		HostAddress = Address;
+		StorageServerPlatformFile = InStorageServerPlatformFile;
+		if (StorageServerPlatformFile != nullptr)
+		{
+			HostAddress = InStorageServerPlatformFile->GetHostAddr();
+		}
+		else
+		{
+			HostAddress.Reset();
+		}
 	}
 
 	static void ShowGraph(FOutputDevice&);
@@ -45,13 +52,8 @@ private:
 
 	static constexpr float UpdateStatsTimer = 1.0;
 	double UpdateStatsTime = 0.0;
-	uint64 AccumulatedBytes = 0;
-	uint32 RequestCount = 0;
 
-	double MinRequestThroughput = 0.0;
-	double MaxRequestThroughput = 0.0;
-
-	FCriticalSection StatsCS;
+	IStorageServerPlatformFile* StorageServerPlatformFile = nullptr;
 	FString HostAddress;
 
 	static bool ShowGraphs;

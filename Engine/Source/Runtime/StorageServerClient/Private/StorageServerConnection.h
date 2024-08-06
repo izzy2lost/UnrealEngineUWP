@@ -12,8 +12,8 @@
 #include "SocketTypes.h"
 #include "HAL/PlatformTime.h"
 #include "StorageServerHttpClient.h"
-#include "DebugStorageServerConnection.h"
 #include "IO/IoChunkId.h"
+#include "IStorageServerPlatformFile.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -25,7 +25,7 @@ class FStorageServerConnection
 {
 public:
 	FStorageServerConnection() = default;
-	~FStorageServerConnection();
+	~FStorageServerConnection() = default;
 
 	bool Initialize(TArrayView<const FString> HostAddresses, const int32 Port, const FAnsiStringView& InBaseURI);
 
@@ -48,16 +48,23 @@ public:
 		TFunctionRef<void(TIoStatusOr<FIoBuffer> Data)> OnResponse
 	);
 
-	FString GetHostAddr() const
+	FStringView GetHostAddr() const
 	{
 		return CurrentHostAddr;
 	}
+
+	void GetAndResetStats(IStorageServerPlatformFile::FConnectionStats& OutStats);
 
 private:
 	TUniquePtr<IStorageServerHttpClient> HttpClient;
 	FAnsiString BaseURI;
 	FString CurrentHostAddr;
-	UDebugStorageServerConnection* StatsObject = nullptr;
+
+	// Stats
+	std::atomic<uint64> AccumulatedBytes = 0;
+	std::atomic<uint32> RequestCount = 0;
+	std::atomic<double> MinRequestThroughput = DBL_MAX;
+	std::atomic<double> MaxRequestThroughput = -DBL_MAX;
 
 	TArray<FString> SortHostAddressesByLocalSubnet(TArrayView<const FString> HostAddresses, const int32 Port);
 	static bool IsPlatformSocketAddress(const FString Address); 

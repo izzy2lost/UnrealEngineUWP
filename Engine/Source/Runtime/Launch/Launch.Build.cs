@@ -247,6 +247,7 @@ public class Launch : ModuleRules
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
 		{
 			PrivateDependencyModuleNames.Add("StorageServerClient");
+			PrivateDependencyModuleNames.Add("StorageServerClientDebug");
 
 			if (Target.Type != TargetType.Program)
 			{

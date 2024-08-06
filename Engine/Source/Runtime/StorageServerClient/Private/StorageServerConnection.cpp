@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StorageServerConnection.h"
-#include "DebugStorageServerConnection.h"
 
 #include "IO/IoDispatcher.h"
 #include "IPAddress.h"
@@ -20,22 +19,13 @@
 #include "BuiltInHttpClient/BuiltInHttpClient.h"
 #include "BuiltInHttpClient/BuiltInHttpClientFSocket.h"
 #include "BuiltInHttpClient/BuiltInHttpClientPlatformSocket.h"
-#include "Engine/Engine.h"
+#include "HAL/PlatformMath.h"
 
 #if !UE_BUILD_SHIPPING
 
 DEFINE_LOG_CATEGORY(LogStorageServerConnection);
 
 TRACE_DECLARE_MEMORY_COUNTER(ZenHttpClientSerializedBytes, TEXT("ZenClient/SerializedBytes"));
-
-FStorageServerConnection::~FStorageServerConnection()
-{
-	if (StatsObject)
-	{
-		StatsObject->StopDrawing();
-		StatsObject->RemoveFromRoot();
-	}
-}
 
 bool FStorageServerConnection::Initialize(TArrayView<const FString> HostAddresses, const int32 Port, const FAnsiStringView& InBaseURI)
 {
@@ -48,10 +38,6 @@ bool FStorageServerConnection::Initialize(TArrayView<const FString> HostAddresse
 		CurrentHostAddr = HostAddress;
 		if (HandshakeRequest())
 		{
-			if (StatsObject)
-			{
-				StatsObject->SetHostAddress(CurrentHostAddr);
-			}
 			return true;
 		}
 	}
@@ -205,6 +191,14 @@ void FStorageServerConnection::ReadChunkRequestAsync(
 
 		OnResponse(ResultBuffer);
 	}, *ResourceBuilder);
+}
+
+void FStorageServerConnection::GetAndResetStats(IStorageServerPlatformFile::FConnectionStats& OutStats)
+{
+	OutStats.AccumulatedBytes = AccumulatedBytes.exchange(0, std::memory_order_relaxed);
+	OutStats.RequestCount = RequestCount.exchange(0, std::memory_order_relaxed);
+	OutStats.MinRequestThroughput = MinRequestThroughput.exchange(DBL_MAX, std::memory_order_relaxed);
+	OutStats.MaxRequestThroughput = MaxRequestThroughput.exchange(-DBL_MAX, std::memory_order_relaxed);
 }
 
 TArray<FString> FStorageServerConnection::SortHostAddressesByLocalSubnet(TArrayView<const FString> HostAddresses, const int32 Port)
@@ -544,17 +538,24 @@ uint64 FStorageServerConnection::GetCompressedOffset(const FCompressedBuffer& Bu
 
 void FStorageServerConnection::AddTimingInstance(const double Duration, const uint64 Bytes)
 {
-	if (StatsObject == nullptr && UObjectInitialized())
+	if ((Duration >= 0.0))
 	{
-		StatsObject = NewObject<UDebugStorageServerConnection>();
-		StatsObject->SetHostAddress(CurrentHostAddr);
-		StatsObject->AddToRoot();
-		StatsObject->StartDrawing();
-	}
+		double tr = ((double)(Bytes * 8) / Duration) / 1000000.0; //Mbps
 
-	if (StatsObject)
-	{
-		StatsObject->AddTimingInstance(Duration, Bytes);
+		AccumulatedBytes.fetch_add(Bytes, std::memory_order_relaxed);
+		RequestCount.fetch_add(1, std::memory_order_relaxed);
+
+		double MinTemp = MinRequestThroughput.load(std::memory_order_relaxed);
+		while (!MinRequestThroughput.compare_exchange_weak(MinTemp, FMath::Min(MinTemp, tr), std::memory_order_relaxed))
+		{
+			MinTemp = MinRequestThroughput.load(std::memory_order_relaxed);
+		}
+
+		double MaxTemp = MaxRequestThroughput.load(std::memory_order_relaxed);
+		while (!MaxRequestThroughput.compare_exchange_weak(MaxTemp, FMath::Max(MaxTemp, tr), std::memory_order_relaxed))
+		{
+			MaxTemp = MaxRequestThroughput.load(std::memory_order_relaxed);
+		}
 	}
 }
 

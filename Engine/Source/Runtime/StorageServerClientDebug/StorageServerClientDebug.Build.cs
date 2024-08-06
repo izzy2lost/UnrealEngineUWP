@@ -2,16 +2,17 @@
 
 using UnrealBuildTool;
 
-public class StorageServerClient : ModuleRules
+public class StorageServerClientDebug : ModuleRules
 {
-	public StorageServerClient(ReadOnlyTargetRules Target) : base(Target)
+	public StorageServerClientDebug(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
 				"Core",
 				"CoreUObject",
+				"Engine",		// For on-screen debug messages
 				"Sockets",
-				"CookOnTheFly",
+				"StorageServerClient",
 				"Json"
 			}
 		);

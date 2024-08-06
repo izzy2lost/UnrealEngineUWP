@@ -1,11 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "DebugStorageServerConnection.h"
-#include "StorageServerConnection.h"
+#include "StorageServerConnectionDebug.h"
 
 #include "Debug/DebugDrawService.h"
 #include "Engine/GameEngine.h"
+#include "Modules/ModuleInterface.h"
+#include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "Templates/UniquePtr.h"
+#include "StorageServerClientModule.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -16,18 +19,18 @@ CSV_DEFINE_STAT(ZenServerStats, MaxReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, MinReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, RequestCountPerSec);
 
-bool UDebugStorageServerConnection::ShowGraphs = false;
+bool UStorageServerConnectionDebug::ShowGraphs = false;
 
-void UDebugStorageServerConnection::StartDrawing()
+void UStorageServerConnectionDebug::StartDrawing()
 {
 	if (DrawHandle.IsValid())
 	{
 		return;
 	}
-	DrawHandle = UDebugDrawService::Register(TEXT("Game"),FDebugDrawDelegate::CreateUObject(this, &UDebugStorageServerConnection::Draw));
+	DrawHandle = UDebugDrawService::Register(TEXT("Game"),FDebugDrawDelegate::CreateUObject(this, &UStorageServerConnectionDebug::Draw));
 }
 
-void UDebugStorageServerConnection::StopDrawing()
+void UStorageServerConnectionDebug::StopDrawing()
 {
 	if (!DrawHandle.IsValid())
 	{
@@ -38,31 +41,7 @@ void UDebugStorageServerConnection::StopDrawing()
 	DrawHandle.Reset();
 }
 
-void UDebugStorageServerConnection::AddTimingInstance(double duration, uint64 bytes)
-{
-	if ((duration >= 0.0))
-	{
-		double tr = ((double)(bytes * 8) / duration) / 1000000.0; //Mbps
-
-		{
-			FScopeLock Lock(&StatsCS);
-			AccumulatedBytes += bytes;
-			RequestCount++;
-
-			if ((MinRequestThroughput == 0.0) || (tr < MinRequestThroughput))
-			{
-				MinRequestThroughput = tr;
-			}
-
-			if ((MaxRequestThroughput == 0.0) || (tr > MaxRequestThroughput))
-			{
-				MaxRequestThroughput = tr;
-			}
-		}
-	}
-}
-
-void UDebugStorageServerConnection::Draw(UCanvas* Canvas, APlayerController*)
+void UStorageServerConnectionDebug::Draw(UCanvas* Canvas, APlayerController*)
 {
 	static constexpr double FrameSeconds = 1.0;
 	static constexpr float  ViewXRel = 0.2f;
@@ -87,22 +66,19 @@ void UDebugStorageServerConnection::Draw(UCanvas* Canvas, APlayerController*)
 	static double Throughput = 0.0;
 
 	//Persistent debug message and CSV stats
-	if ((Duration > UpdateStatsTimer) && (GEngine))
+	if ((Duration > UpdateStatsTimer) && (GEngine) && StorageServerPlatformFile)
 	{
 		UpdateStatsTime = StatsTimeNow;
 
+		IStorageServerPlatformFile::FConnectionStats Stats;
+		StorageServerPlatformFile->GetAndResetConnectionStats(Stats);
+		if (Stats.MaxRequestThroughput > Stats.MinRequestThroughput)
 		{
-			FScopeLock Lock(&StatsCS);
-			MaxReqThroughput = MaxRequestThroughput;
-			MinReqThroughput = MinRequestThroughput;
+			MaxReqThroughput = Stats.MaxRequestThroughput;
+			MinReqThroughput = Stats.MinRequestThroughput;
 		
-			Throughput = ((double)(AccumulatedBytes * 8) / Duration) / 1000000.0; //Mbps
-			ReqCount = ceil((double)RequestCount / Duration);
-
-			AccumulatedBytes = 0;
-			RequestCount = 0;
-			MinRequestThroughput = 0.0;
-			MaxRequestThroughput = 0.0;
+			Throughput = ((double)(Stats.AccumulatedBytes * 8) / Duration) / 1000000.0; //Mbps
+			ReqCount = ceil((double)Stats.RequestCount / Duration);
 		}
 
 		FString ZenConnectionDebugMsg;
@@ -218,12 +194,12 @@ void UDebugStorageServerConnection::Draw(UCanvas* Canvas, APlayerController*)
 	}
 }
 
-void UDebugStorageServerConnection::ShowGraph(FOutputDevice&)
+void UStorageServerConnectionDebug::ShowGraph(FOutputDevice&)
 {
 	ShowGraphs = true;
 }
 
-void UDebugStorageServerConnection::HideGraph(FOutputDevice&)
+void UStorageServerConnectionDebug::HideGraph(FOutputDevice&)
 {
 	ShowGraphs = false;
 }
@@ -232,12 +208,47 @@ static FAutoConsoleCommandWithOutputDevice
 	GShowDebugConnectionStatsCmd(
 		TEXT("r.ZenServerStatsShow"),
 		TEXT("Show ZenServer Stats Graph."),
-		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UDebugStorageServerConnection::ShowGraph));
+		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UStorageServerConnectionDebug::ShowGraph));
 
 static FAutoConsoleCommandWithOutputDevice
 	GHideDebugConnectionStatsCmd(
 		TEXT("r.ZenServerStatsHide"),
 		TEXT("Hide ZenServer Stats Graph."),
-		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UDebugStorageServerConnection::HideGraph));
+		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UStorageServerConnectionDebug::HideGraph));
+
+
+class FStorageServerClientDebugModule
+	: public IModuleInterface
+{
+public:
+	virtual void StartupModule() override
+	{
+		FCoreDelegates::OnPostEngineInit.AddLambda([this]
+		{
+			if (IStorageServerPlatformFile* StorageServerPlatformFile = IStorageServerClientModule::FindStorageServerPlatformFile())
+			{
+				ConnectionDebug = NewObject<UStorageServerConnectionDebug>();
+				ConnectionDebug->SetPlatformFile(StorageServerPlatformFile);
+				ConnectionDebug->AddToRoot();
+				ConnectionDebug->StartDrawing();
+			}
+		});
+	}
+
+	virtual void ShutdownModule() override
+	{
+		if (ConnectionDebug)
+		{
+			ConnectionDebug->SetPlatformFile(nullptr);
+			ConnectionDebug->StopDrawing();
+			ConnectionDebug->RemoveFromRoot();
+			ConnectionDebug = nullptr;
+		}
+	}
+
+	UStorageServerConnectionDebug* ConnectionDebug = nullptr;
+};
+
+IMPLEMENT_MODULE(FStorageServerClientDebugModule, StorageServerClientDebug);
 
 #endif

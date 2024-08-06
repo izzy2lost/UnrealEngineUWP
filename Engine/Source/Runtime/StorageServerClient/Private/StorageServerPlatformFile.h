@@ -6,6 +6,7 @@
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "Containers/StringView.h"
 #include "IO/IoDispatcher.h"
+#include "IStorageServerPlatformFile.h"
 
 #if !UE_BUILD_SHIPPING
 
@@ -59,7 +60,7 @@ private:
 };
 
 class FStorageServerPlatformFile
-	: public IPlatformFile
+	: public IStorageServerPlatformFile
 {
 public:
 	FStorageServerPlatformFile();
@@ -105,6 +106,17 @@ public:
 	virtual FString ConvertToAbsolutePathForExternalAppForRead(const TCHAR* Filename) override;
 	virtual bool SendMessageToServer(const TCHAR* Message, IPlatformFile::IFileServerMessageHandler* Handler) override;
 
+	FStringView GetHostAddr() const override;
+	void GetAndResetConnectionStats(FConnectionStats& OutStats) override;
+
+	void SetAllowPackageIo(bool bInAllowPackageIo)
+	{
+		bAllowPackageIo = bInAllowPackageIo;
+	}
+	void SetCustomProjectStorePath(FStringView InProjectStorePath)
+	{
+		CustomProjectStorePath = InProjectStorePath;
+	}
 private:
 	friend class FStorageServerFileHandle;
 
@@ -122,6 +134,7 @@ private:
 	TUniquePtr<FArchive> TryFindProjectStoreMarkerFile(IPlatformFile* Inner) const;
 	FAnsiString MakeBaseURI();
 
+	FString CustomProjectStorePath;
 	TSet<FName> ExcludedNonServerExtensions;
 	TSet<FName> AssumedImmutableTimeStampExtensions;
 	IPlatformFile* LowerLevel = nullptr;
@@ -137,6 +150,7 @@ private:
 	FString BaseURI;
 	mutable TArray<FString> HostAddrs;
 	mutable uint16 HostPort = 8558;
+	bool bAllowPackageIo = true;
 };
 
 #endif
