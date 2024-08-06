@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorWiggle.generated.h"
 
 /**
  * Applies an additive random wiggle movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorWiggle : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorWiggle : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 

@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 
 #include "Properties/PropertyAnimatorFloatContext.h"
 #include "Properties/PropertyAnimatorRotatorContext.h"
@@ -10,14 +10,14 @@
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 
 #if WITH_EDITOR
-void UPropertyAnimatorFloatBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
+void UPropertyAnimatorNumericBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
 
 	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
 
-	static const FName RandomTimeOffsetName = GET_MEMBER_NAME_CHECKED(UPropertyAnimatorFloatBase, bRandomTimeOffset);
-	static const FName SeedName = GET_MEMBER_NAME_CHECKED(UPropertyAnimatorFloatBase, Seed);
+	static const FName RandomTimeOffsetName = GET_MEMBER_NAME_CHECKED(UPropertyAnimatorNumericBase, bRandomTimeOffset);
+	static const FName SeedName = GET_MEMBER_NAME_CHECKED(UPropertyAnimatorNumericBase, Seed);
 
 	if (MemberName == SeedName
 		|| MemberName == RandomTimeOffsetName)
@@ -27,7 +27,7 @@ void UPropertyAnimatorFloatBase::PostEditChangeProperty(FPropertyChangedEvent& I
 }
 #endif
 
-void UPropertyAnimatorFloatBase::SetMagnitude(float InMagnitude)
+void UPropertyAnimatorNumericBase::SetMagnitude(float InMagnitude)
 {
 	if (FMath::IsNearlyEqual(Magnitude, InMagnitude))
 	{
@@ -38,7 +38,7 @@ void UPropertyAnimatorFloatBase::SetMagnitude(float InMagnitude)
 	OnMagnitudeChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetCycleDuration(float InCycleDuration)
+void UPropertyAnimatorNumericBase::SetCycleDuration(float InCycleDuration)
 {
 	if (FMath::IsNearlyEqual(CycleDuration, InCycleDuration))
 	{
@@ -49,7 +49,7 @@ void UPropertyAnimatorFloatBase::SetCycleDuration(float InCycleDuration)
 	OnCycleDurationChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
+void UPropertyAnimatorNumericBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
 {
 	if (CycleMode == InMode)
 	{
@@ -60,7 +60,7 @@ void UPropertyAnimatorFloatBase::SetCycleMode(EPropertyAnimatorCycleMode InMode)
 	OnCycleModeChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetTimeOffset(double InOffset)
+void UPropertyAnimatorNumericBase::SetTimeOffset(double InOffset)
 {
 	if (FMath::IsNearlyEqual(TimeOffset, InOffset))
 	{
@@ -71,7 +71,7 @@ void UPropertyAnimatorFloatBase::SetTimeOffset(double InOffset)
 	OnTimeOffsetChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetRandomTimeOffset(bool bInOffset)
+void UPropertyAnimatorNumericBase::SetRandomTimeOffset(bool bInOffset)
 {
 	if (bRandomTimeOffset == bInOffset)
 	{
@@ -82,7 +82,7 @@ void UPropertyAnimatorFloatBase::SetRandomTimeOffset(bool bInOffset)
 	OnSeedChanged();
 }
 
-void UPropertyAnimatorFloatBase::SetSeed(int32 InSeed)
+void UPropertyAnimatorNumericBase::SetSeed(int32 InSeed)
 {
 	if (Seed == InSeed)
 	{
@@ -93,7 +93,7 @@ void UPropertyAnimatorFloatBase::SetSeed(int32 InSeed)
 	OnSeedChanged();
 }
 
-TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorFloatBase::GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty)
+TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorNumericBase::GetPropertyContextClass(const FPropertyAnimatorCoreData& InProperty)
 {
 	if (InProperty.IsA<FStructProperty>())
 	{
@@ -113,7 +113,7 @@ TSubclassOf<UPropertyAnimatorCoreContext> UPropertyAnimatorFloatBase::GetPropert
 	return UPropertyAnimatorFloatContext::StaticClass();
 }
 
-EPropertyAnimatorPropertySupport UPropertyAnimatorFloatBase::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
+EPropertyAnimatorPropertySupport UPropertyAnimatorNumericBase::IsPropertySupported(const FPropertyAnimatorCoreData& InPropertyData) const
 {
 	const FName TypeName = InPropertyData.GetLeafPropertyTypeName();
 
@@ -150,7 +150,7 @@ EPropertyAnimatorPropertySupport UPropertyAnimatorFloatBase::IsPropertySupported
 	return Super::IsPropertySupported(InPropertyData);
 }
 
-void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InParameters)
+void UPropertyAnimatorNumericBase::EvaluateProperties(FInstancedPropertyBag& InParameters)
 {
 	const float AnimatorMagnitude = Magnitude * InParameters.GetValueFloat(MagnitudeParameterName).GetValue();
 	double TimeElapsed = InParameters.GetValueDouble(TimeElapsedParameterName).GetValue();
@@ -235,7 +235,7 @@ void UPropertyAnimatorFloatBase::EvaluateProperties(FInstancedPropertyBag& InPar
 	});
 }
 
-void UPropertyAnimatorFloatBase::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport)
+void UPropertyAnimatorNumericBase::OnPropertyLinked(UPropertyAnimatorCoreContext* InLinkedProperty, EPropertyAnimatorPropertySupport InSupport)
 {
 	Super::OnPropertyLinked(InLinkedProperty, InSupport);
 

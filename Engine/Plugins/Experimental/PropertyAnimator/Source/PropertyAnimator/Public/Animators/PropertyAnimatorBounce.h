@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorBounce.generated.h"
 
 /**
  * Applies an additive bounce movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorBounce : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorBounce : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 

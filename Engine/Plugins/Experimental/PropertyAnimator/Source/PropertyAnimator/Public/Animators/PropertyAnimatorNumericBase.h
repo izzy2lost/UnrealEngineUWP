@@ -3,9 +3,7 @@
 #pragma once
 
 #include "Animators/PropertyAnimatorCoreBase.h"
-#include "PropertyAnimatorFloatBase.generated.h"
-
-class UPropertyAnimatorFloatContext;
+#include "PropertyAnimatorNumericBase.generated.h"
 
 UENUM(BlueprintType)
 enum class EPropertyAnimatorCycleMode : uint8
@@ -19,10 +17,10 @@ enum class EPropertyAnimatorCycleMode : uint8
 };
 
 /**
- * Animate supported float properties with various options
+ * Animate supported numeric properties with various options
  */
 UCLASS(MinimalAPI, Abstract, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorFloatBase : public UPropertyAnimatorCoreBase
+class UPropertyAnimatorNumericBase : public UPropertyAnimatorCoreBase
 {
 	GENERATED_BODY()
 

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorShared.h"
 #include "PropertyAnimatorPulse.generated.h"
 
@@ -12,7 +12,7 @@
  * Applies an additive pulse movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorPulse : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorPulse : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 

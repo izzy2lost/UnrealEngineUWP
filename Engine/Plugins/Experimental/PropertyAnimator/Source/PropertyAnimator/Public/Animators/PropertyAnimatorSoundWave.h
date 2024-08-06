@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorSoundWave.generated.h"
 
 class ULoudnessNRT;
@@ -12,7 +12,7 @@ class USoundWave;
  * Applies a sampled sound wave movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorSoundWave : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorSoundWave : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 

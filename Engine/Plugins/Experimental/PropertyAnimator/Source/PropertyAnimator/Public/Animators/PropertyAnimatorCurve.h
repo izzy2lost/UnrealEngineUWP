@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
-#include "PropertyAnimatorCurveWave.generated.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
+#include "PropertyAnimatorCurve.generated.h"
 
 class UPropertyAnimatorEaseCurve;
 class UPropertyAnimatorWaveCurve;
@@ -24,14 +24,14 @@ struct FPropertyAnimatorCurveEasing
  * Applies a wave movement from a curve on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorCurveWave : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorCurve : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* DefaultAnimatorName = TEXT("CurveWave");
+	static constexpr const TCHAR* DefaultAnimatorName = TEXT("Curve");
 
-	UPropertyAnimatorCurveWave();
+	UPropertyAnimatorCurve();
 
 	void SetWaveCurve(UPropertyAnimatorWaveCurve* InCurve);
 
@@ -40,11 +40,25 @@ public:
 		return WaveCurve;
 	}
 
+	void SetEaseInEnabled(bool bInEnabled);
+
+	bool GetEaseInEnabled() const
+	{
+		return bEaseInEnabled;
+	}
+
 	void SetEaseIn(const FPropertyAnimatorCurveEasing& InEasing);
 
 	const FPropertyAnimatorCurveEasing& GetEaseIn() const
 	{
 		return EaseIn;
+	}
+
+	void SetEaseOutEnabled(bool bInEnabled);
+
+	bool GetEaseOutEnabled() const
+	{
+		return bEaseOutEnabled;
 	}
 
 	void SetEaseOut(const FPropertyAnimatorCurveEasing& InEasing);
@@ -73,11 +87,17 @@ protected:
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
 	TObjectPtr<UPropertyAnimatorWaveCurve> WaveCurve;
 
+	UPROPERTY(EditInstanceOnly, Setter="SetEaseInEnabled", Getter="GetEaseInEnabled", Category="Animator", meta=(InlineEditConditionToggle))
+	bool bEaseInEnabled = false;
+
 	/** Ease in for this effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bEaseInEnabled"))
 	FPropertyAnimatorCurveEasing EaseIn;
 
+	UPROPERTY(EditInstanceOnly, Setter="SetEaseOutEnabled", Getter="GetEaseOutEnabled", Category="Animator", meta=(InlineEditConditionToggle))
+	bool bEaseOutEnabled = false;
+
 	/** Ease out for this effect */
-	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(EditCondition="bEaseOutEnabled"))
     FPropertyAnimatorCurveEasing EaseOut;
 };

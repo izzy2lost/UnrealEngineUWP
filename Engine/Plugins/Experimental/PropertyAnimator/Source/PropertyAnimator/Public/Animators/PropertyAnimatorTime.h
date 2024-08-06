@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorTime.generated.h"
 
 /**
  * Applies an additive time movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorTime : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorTime : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 

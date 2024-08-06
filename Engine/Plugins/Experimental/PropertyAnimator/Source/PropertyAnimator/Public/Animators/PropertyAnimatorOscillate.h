@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Animators/PropertyAnimatorFloatBase.h"
+#include "Animators/PropertyAnimatorNumericBase.h"
 #include "PropertyAnimatorOscillate.generated.h"
 
 UENUM(BlueprintType)
@@ -20,7 +20,7 @@ enum class EPropertyAnimatorOscillateFunction : uint8
  * Applies an additive regular oscillate movement with various options on supported float properties
  */
 UCLASS(MinimalAPI, AutoExpandCategories=("Animator"))
-class UPropertyAnimatorOscillate : public UPropertyAnimatorFloatBase
+class UPropertyAnimatorOscillate : public UPropertyAnimatorNumericBase
 {
 	GENERATED_BODY()
 
