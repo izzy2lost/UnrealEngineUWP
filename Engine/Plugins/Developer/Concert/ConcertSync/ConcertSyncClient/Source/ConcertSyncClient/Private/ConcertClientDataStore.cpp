@@ -239,7 +239,7 @@ int32 FConcertClientDataStore::GetCacheSize() const
 // required for normal usage. The code below provides a way to instantiate
 // a FConcertClientDataStore and look into its cache.
 //------------------------------------------------------------------------------
-namespace ConcertDataStoreTestUtils
+namespace UE::ConcertSyncTests::DatastoreTests
 {
 
 // This class is private and is meant to be indirectly used by the ConcertSyncTest module only.

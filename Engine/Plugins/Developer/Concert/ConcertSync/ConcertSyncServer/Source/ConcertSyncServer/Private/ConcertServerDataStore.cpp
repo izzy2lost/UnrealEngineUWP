@@ -136,7 +136,7 @@ void FConcertServerDataStore::FireContentReplicationEvent(const FGuid& Instigato
 	}
 }
 
-namespace ConcertDataStoreTestUtils
+namespace UE::ConcertSyncTests::DatastoreTests
 {
 
 // This function is private and declared "extern" in the ConcertSyncTest module. It enables creating a server data store to test the client/server

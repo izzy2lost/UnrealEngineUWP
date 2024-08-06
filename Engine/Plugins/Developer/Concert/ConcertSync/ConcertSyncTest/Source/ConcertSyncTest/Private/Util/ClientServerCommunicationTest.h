@@ -4,6 +4,7 @@
 
 #include "ConcertMessages.h"
 #include "IConcertSession.h"
+#include "Mock/MockUtils.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/Paths.h"
 #include "Scratchpad/ConcertScratchpad.h"
@@ -12,10 +13,6 @@
 
 namespace UE::ConcertSyncTests
 {
-	// Utility functions used to detect when a non-mocked function is called, so that we can mock it properly when required.
-	template<typename T> T NotMocked(T Ret) { check(false); return Ret; }
-	template<typename T> T NotMocked()      { check(false); return T(); }
-
 	inline FString GetTestSessionRootPath()
 	{
 		return FPaths::ProjectIntermediateDir() / TEXT("ConcertDataStoreTest");
