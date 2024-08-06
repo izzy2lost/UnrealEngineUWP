@@ -128,18 +128,6 @@ public:
 	}
 };
 
-class FUnknownEnumNames
-{
-public:
-	struct FInfo
-	{
-		TSet<FName> Names;
-		bool bHasFlags = false;
-	};
-
-	TMap<FPropertyTypeName, FInfo> Enums;
-};
-
 void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
 {
 	delete Tree;
@@ -558,6 +546,13 @@ void FPropertyBagRepository::AddUnknownEnumName(const UObject* Owner, const UEnu
 		BagData.EnumNames = new FUnknownEnumNames;
 	}
 
+	BagData.EnumNames->Add(Enum, EnumTypeName, EnumValueName);
+}
+
+void FUnknownEnumNames::Add(const UEnum* Enum, FPropertyTypeName EnumTypeName, FName EnumValueName)
+{
+	check(Enum || !EnumTypeName.IsEmpty());
+
 	if (EnumTypeName.IsEmpty())
 	{
 		FPropertyTypeNameBuilder Builder;
@@ -565,7 +560,7 @@ void FPropertyBagRepository::AddUnknownEnumName(const UObject* Owner, const UEnu
 		EnumTypeName = Builder.Build();
 	}
 
-	FUnknownEnumNames::FInfo& Info = BagData.EnumNames->Enums.FindOrAdd(EnumTypeName);
+	FUnknownEnumNames::FInfo& Info = Enums.FindOrAdd(EnumTypeName);
 
 	TStringBuilder<128> EnumValueString(InPlace, EnumValueName);
 	if (String::FindFirstChar(EnumValueString, TEXT('|')) == INDEX_NONE)
@@ -598,22 +593,34 @@ void FPropertyBagRepository::AddUnknownEnumName(const UObject* Owner, const UEnu
 	}
 }
 
-void FPropertyBagRepository::FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags)
+void FPropertyBagRepository::FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags) const
 {
-	check(Owner);
 	checkf(!EnumTypeName.IsEmpty(), TEXT("FindUnknownEnumNames requires an enum type name. Owner: %s"), *Owner->GetPathName());
 
 	OutNames.Empty();
 	bOutHasFlags = false;
 
-	FPropertyBagRepositoryLock LockRepo(this);
-	FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
-	if (!BagData || !BagData->EnumNames)
+	if (const FUnknownEnumNames* EnumNames = FindUnknownEnumNames(Owner))
 	{
-		return;
+		EnumNames->Find(EnumTypeName, OutNames, bOutHasFlags);
 	}
+}
 
-	if (const FUnknownEnumNames::FInfo* Info = BagData->EnumNames->Enums.Find(EnumTypeName))
+const FUnknownEnumNames* FPropertyBagRepository::FindUnknownEnumNames(const UObject* Owner) const
+{
+	check(Owner);
+
+	FPropertyBagRepositoryLock LockRepo(this);
+	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Owner);
+	return BagData ? BagData->EnumNames : nullptr;
+}
+
+void FUnknownEnumNames::Find(FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags) const
+{
+	OutNames.Empty();
+	bOutHasFlags = false;
+
+	if (const FUnknownEnumNames::FInfo* Info = Enums.Find(EnumTypeName))
 	{
 		OutNames = Info->Names.Array();
 		bOutHasFlags = Info->bHasFlags;
@@ -828,9 +835,10 @@ void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(UObject* Owner, FPro
 {
 	check(!BagData.InstanceDataObject);	// No repeated calls
 	const FPropertyPathNameTree* PropertyTree = BagData.Tree;
+	const FUnknownEnumNames* EnumNames = BagData.EnumNames;
 	// construct InstanceDataObject class
 	// TODO: should we put the InstanceDataObject or it's class in a package?
-	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, Owner->GetClass(), GetTransientPackage());
+	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyTree, EnumNames, Owner->GetClass(), GetTransientPackage());
 
 	BagData.bNeedsFixup = StructContainsLooseProperties(InstanceDataObjectClass);
 

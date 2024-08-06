@@ -92,6 +92,15 @@ public:
 	}
 
 	/**
+	 * Set the UEnum of this property.
+	 * @note Internal! Used for creation of enums that use impersonation.
+	 */
+	UE_INTERNAL FORCEINLINE void SetEnumForImpersonation(UEnum* InEnum)
+	{
+		Enum = InEnum;
+	}
+
+	/**
 	 * Returns a pointer to the UEnum of this property.
 	 */
 	FORCEINLINE UEnum* GetEnum() const

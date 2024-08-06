@@ -197,12 +197,94 @@ namespace UE
 		return Struct->GetBoolMetaData(NAME_ContainsLoosePropertiesMetadata);
 	}
 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree);
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames);
 
 	template <typename StructType>
-	StructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
+	StructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
 	{
-		return CastChecked<StructType>(CreateInstanceDataObjectStructRec(StructType::StaticClass(), TemplateStruct, Outer, PropertyTree));
+		return CastChecked<StructType>(CreateInstanceDataObjectStructRec(StructType::StaticClass(), TemplateStruct, Outer, PropertyTree, EnumNames));
+	}
+
+	UEnum* FindOrCreateInstanceDataObjectEnum(UEnum* TemplateEnum, UObject* Outer, const FProperty* Property, const FUnknownEnumNames* EnumNames)
+	{
+		if (!TemplateEnum || !EnumNames)
+		{
+			return TemplateEnum;
+		}
+
+		TArray<FName> UnknownNames;
+		bool bHasFlags = false;
+
+		// Use the original type name because the template may be a fallback enum or an IDO.
+		FPropertyTypeName EnumTypeName = FindOriginalType(Property);
+		if (EnumTypeName.IsEmpty())
+		{
+			FPropertyTypeNameBuilder Builder;
+			Builder.AddPath(TemplateEnum);
+			EnumTypeName = Builder.Build();
+		}
+
+		EnumNames->Find(EnumTypeName, UnknownNames, bHasFlags);
+		if (UnknownNames.IsEmpty())
+		{
+			return TemplateEnum;
+		}
+
+		int64 MaxEnumValue = -1;
+		int64 CombinedEnumValues = 0;
+		TArray<TPair<FName, int64>> EnumValueNames;
+		TStringBuilder<128> EnumName(InPlace, EnumTypeName.GetName());
+
+		const auto MakeFullEnumName = [&EnumName, Form = TemplateEnum->GetCppForm()](FName Name) -> FName
+		{
+			if (Form == UEnum::ECppForm::Regular)
+			{
+				return Name;
+			}
+			return FName(WriteToString<128>(EnumName, TEXTVIEW("::"), Name));
+		};
+
+		const auto MakeNextEnumValue = [&MaxEnumValue, &CombinedEnumValues, bHasFlags]() -> int64
+		{
+			if (!bHasFlags)
+			{
+				return ++MaxEnumValue;
+			}
+			const int64 NextEnumValue = ~CombinedEnumValues & (CombinedEnumValues + 1);
+			CombinedEnumValues |= NextEnumValue;
+			return NextEnumValue;
+		};
+
+		// Copy existing values except for MAX.
+		const bool bContainsExistingMax = TemplateEnum->ContainsExistingMax();
+		for (int32 Index = 0, Count = TemplateEnum->NumEnums() - (bContainsExistingMax ? 1 : 0); Index < Count; ++Index)
+		{
+			FName EnumValueName = TemplateEnum->GetNameByIndex(Index);
+			int64 EnumValue = TemplateEnum->GetValueByIndex(Index);
+			EnumValueNames.Emplace(EnumValueName, EnumValue);
+			MaxEnumValue = FMath::Max(MaxEnumValue, EnumValue);
+			CombinedEnumValues |= EnumValue;
+		}
+
+		// Copy unknown names and assign values sequentially.
+		for (FName UnknownName : UnknownNames)
+		{
+			EnumValueNames.Emplace(MakeFullEnumName(UnknownName), MakeNextEnumValue());
+		}
+
+		// Copy or create MAX with a new value.
+		const FName MaxEnumName = bContainsExistingMax ? TemplateEnum->GetNameByIndex(TemplateEnum->NumEnums() - 1) : MakeFullEnumName("MAX");
+		EnumValueNames.Emplace(MaxEnumName, bHasFlags ? CombinedEnumValues : MaxEnumValue);
+
+		// Construct a transient type that impersonates the original type.
+		const FName InstanceDataObjectName(WriteToString<128>(EnumName, TEXTVIEW("_InstanceDataObject")));
+		UEnum* Enum = NewObject<UEnum>(Outer, MakeUniqueObjectName(nullptr, UEnum::StaticClass(), InstanceDataObjectName));
+		Enum->SetEnums(EnumValueNames, TemplateEnum->GetCppForm(), bHasFlags ? EEnumFlags::Flags : EEnumFlags::None, /*bAddMaxKeyIfMissing*/ false);
+		Enum->SetMetaData(*WriteToString<32>(NAME_OriginalType), *WriteToString<128>(EnumTypeName));
+
+		// TODO: Detect out-of-bounds values and increase the size of the underlying type accordingly.
+
+		return Enum;
 	}
 
 	static FString UnmanglePropertyName(const FName MaybeMangledName, bool& bOutNameWasMangled)
@@ -222,7 +304,7 @@ namespace UE
 	}
 
 	// recursively re-instances all structs contained by this property to include loose properties
-	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
+	static void ConvertToInstanceDataObjectProperty(FProperty* Property, FPropertyTypeName PropertyType, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
 	{
 		if (!Property->HasMetaData(NAME_DisplayName))
 		{
@@ -260,7 +342,7 @@ namespace UE
 					OriginalName = WriteToString<256>(OriginalNameBuilder.Build()).ToView();
 				}
 
-				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, PropertyTree);
+				UInstanceDataObjectStruct* Struct = CreateInstanceDataObjectStructRec<UInstanceDataObjectStruct>(AsStructProperty->Struct, Outer, PropertyTree, EnumNames);
 				if (const FName StructGuidName = PropertyType.GetParameterName(1); !StructGuidName.IsNone())
 				{
 					FGuid::Parse(StructGuidName.ToString(), Struct->Guid);
@@ -274,14 +356,22 @@ namespace UE
 				TrySetContainsLooseProperties(AsStructProperty, AsStructProperty->Struct);
 			}
 		}
+		else if (FByteProperty* AsByteProperty = CastField<FByteProperty>(Property))
+		{
+			AsByteProperty->Enum = FindOrCreateInstanceDataObjectEnum(AsByteProperty->Enum, Outer, Property, EnumNames);
+		}
+		else if (FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
+		{
+			AsEnumProperty->SetEnumForImpersonation(FindOrCreateInstanceDataObjectEnum(AsEnumProperty->GetEnum(), Outer, Property, EnumNames));
+		}
 		else if (FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, PropertyTree);
+			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 			TrySetContainsLooseProperties(AsArrayProperty, AsArrayProperty->Inner);
 		}
 		else if (FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, PropertyTree);
+			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 			TrySetContainsLooseProperties(AsSetProperty, AsSetProperty->ElementProp);
 		}
 		else if (FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
@@ -299,14 +389,14 @@ namespace UE
 				Path.Pop();
 			}
 
-			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, KeyTree);
+			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, PropertyType.GetParameter(0), Outer, KeyTree, EnumNames);
 			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->KeyProp);
-			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, ValueTree);
+			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, PropertyType.GetParameter(1), Outer, ValueTree, EnumNames);
 			TrySetContainsLooseProperties(AsMapProperty, AsMapProperty->ValueProp);
 		}
 		else if (FOptionalProperty* AsOptionalProperty = CastField<FOptionalProperty>(Property))
 		{
-			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, PropertyTree);
+			ConvertToInstanceDataObjectProperty(AsOptionalProperty->GetValueProperty(), PropertyType.GetParameter(0), Outer, PropertyTree, EnumNames);
 			TrySetContainsLooseProperties(AsOptionalProperty, AsOptionalProperty->GetValueProperty());
 		}
 
@@ -363,7 +453,7 @@ namespace UE
 	}
 
 	// constructs an InstanceDataObject struct by merging the properties in 
-	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree)
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct, UObject* Outer, const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames)
 	{
 		TSet<FPropertyPathName> SuperPropertyPathsFromTree;
 
@@ -409,7 +499,7 @@ namespace UE
 					}
 				}
 
-				ConvertToInstanceDataObjectProperty(SuperProperty, Type, Super, SubTree);
+				ConvertToInstanceDataObjectProperty(SuperProperty, Type, Super, SubTree, EnumNames);
 			}
 
 			// AddCppProperty expects reverse property order for StaticLink to work correctly
@@ -460,7 +550,7 @@ namespace UE
 							// skip loose types that have been explicitly excluded from IDOs
 							continue;
 						}
-						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetNode().GetSubTree());
+						ConvertToInstanceDataObjectProperty(Property, Type, Result, It.GetNode().GetSubTree(), EnumNames);
 						MarkPropertyAsLoose(Property);	// note: make sure not to mark until AFTER conversion, as this can mutate property flags on nested struct fields
 						LooseInstanceDataObjectProperties.Add(Property);
 						continue;
@@ -542,9 +632,9 @@ namespace UE
 			CLASS_EditInlineNew | CLASS_CollapseCategories | CLASS_Const | CLASS_CompiledFromBlueprint | CLASS_HasInstancedReference);
 	}
 
-	UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer)
+	UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames, UClass* OwnerClass, UObject* Outer)
 	{
-		UClass* Result = CreateInstanceDataObjectStructRec<UInstanceDataObjectClass>(OwnerClass, Outer, PropertyTree);
+		UClass* Result = CreateInstanceDataObjectStructRec<UInstanceDataObjectClass>(OwnerClass, Outer, PropertyTree, EnumNames);
 		if (const FString& DisplayName = OwnerClass->GetMetaData(NAME_DisplayName); !DisplayName.IsEmpty())
 		{
 			Result->SetMetaData(NAME_DisplayName, *DisplayName);

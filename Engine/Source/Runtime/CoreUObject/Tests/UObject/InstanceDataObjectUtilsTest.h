@@ -121,6 +121,22 @@ enum class ETestInstanceDataObjectDirectionAlternate : uint16
 
 ENUM_CLASS_FLAGS(ETestInstanceDataObjectDirectionAlternate);
 
+UENUM(Flags)
+enum class ETestInstanceDataObjectFullFlags : uint8
+{
+	None = 0,
+	Flag0 = 1 << 0,
+	Flag1 = 1 << 1,
+	Flag2 = 1 << 2,
+	// Flag3 skipped for testing insertion of an unknown flag in the middle.
+	Flag4 = 1 << 4,
+	Flag5 = 1 << 5,
+	Flag6 = 1 << 6,
+	Flag7 = 1 << 7,
+};
+
+ENUM_CLASS_FLAGS(ETestInstanceDataObjectFullFlags);
+
 USTRUCT()
 struct FTestInstanceDataObjectPoint
 {
@@ -185,6 +201,9 @@ public:
 
 	UPROPERTY()
 	ETestInstanceDataObjectDirection Direction = ETestInstanceDataObjectDirection::None;
+
+	UPROPERTY()
+	ETestInstanceDataObjectFullFlags FullFlags = ETestInstanceDataObjectFullFlags::None;
 
 	UPROPERTY()
 	TEnumAsByte<ETestInstanceDataObjectGrain::Type> GrainFromEnumClass = ETestInstanceDataObjectGrain::None;

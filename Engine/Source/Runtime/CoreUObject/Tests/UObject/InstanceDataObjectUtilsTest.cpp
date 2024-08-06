@@ -26,7 +26,17 @@ namespace UE
 TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::InstanceDataObjectUtils", "[CoreUObject][EngineFilter]")
 {
 	UTestInstanceDataObjectClass* BaseObject = NewObject<UTestInstanceDataObjectClass>();
-	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, BaseObject->GetClass(), BaseObject->GetOuter());
+
+	FPropertyBagRepository& Repo = FPropertyBagRepository::Get();
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectBird>(), {}, "TIDOB_Pigeon");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectGrain::Type>(), {}, "Rye");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectFruit>(), {}, "Cherry");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectDirection>(), {}, "Up");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectFullFlags>(), {}, "Flag3");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectFullFlags>(), {}, "Flag8");
+	Repo.AddUnknownEnumName(BaseObject, StaticEnum<ETestInstanceDataObjectFullFlags>(), {}, "Flag9");
+
+	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, Repo.FindUnknownEnumNames(BaseObject), BaseObject->GetClass(), BaseObject->GetOuter());
 
 	FIntProperty* Int32Property = FindFProperty<FIntProperty>(TestClass, TEXT("Int32"));
 	FStructProperty* StructProperty = FindFProperty<FStructProperty>(TestClass, TEXT("Struct"));
@@ -42,6 +52,26 @@ TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::Insta
 	REQUIRE(BProperty);
 	REQUIRE(CProperty);
 	REQUIRE(DProperty);
+
+	FByteProperty* BirdProperty = FindFProperty<FByteProperty>(StructProperty->Struct, TEXT("Bird"));
+	FByteProperty* GrainProperty = FindFProperty<FByteProperty>(StructProperty->Struct, TEXT("Grain"));
+	FEnumProperty* FruitProperty = FindFProperty<FEnumProperty>(StructProperty->Struct, TEXT("Fruit"));
+	FEnumProperty* DirectionProperty = FindFProperty<FEnumProperty>(StructProperty->Struct, TEXT("Direction"));
+	FEnumProperty* FullFlagsProperty = FindFProperty<FEnumProperty>(StructProperty->Struct, TEXT("FullFlags"));
+	REQUIRE(BirdProperty);
+	REQUIRE(GrainProperty);
+	REQUIRE(FruitProperty);
+	REQUIRE(DirectionProperty);
+	REQUIRE(FullFlagsProperty);
+
+	CHECK(BirdProperty->Enum->GetIndexByName("TIDOB_Pigeon") != INDEX_NONE);
+	CHECK(GrainProperty->Enum->GetIndexByName("ETestInstanceDataObjectGrain::Rye") != INDEX_NONE);
+	CHECK(FruitProperty->GetEnum()->GetIndexByName("ETestInstanceDataObjectFruit::Cherry") != INDEX_NONE);
+	CHECK(DirectionProperty->GetEnum()->GetIndexByName("ETestInstanceDataObjectDirection::Up") != INDEX_NONE);
+	CHECK(FullFlagsProperty->GetEnum()->GetIndexByName("ETestInstanceDataObjectFullFlags::Flag3") != INDEX_NONE);
+	CHECK(FullFlagsProperty->GetEnum()->GetIndexByName("ETestInstanceDataObjectFullFlags::Flag8") != INDEX_NONE);
+	CHECK(FullFlagsProperty->GetEnum()->GetIndexByName("ETestInstanceDataObjectFullFlags::Flag9") != INDEX_NONE);
+	CHECK(FullFlagsProperty->GetEnum()->GetMaxEnumValue() == 0b11'1111'1111);
 
 	FName TestObjectName = MakeUniqueObjectName(nullptr, TestClass, FName(WriteToString<128>(TestClass->GetFName(), TEXT("_Instance"))));
 	UObject* Owner = NewObject<UObject>(GetTransientPackage(), TestClass, TestObjectName);
@@ -92,7 +122,7 @@ TEST_CASE_NAMED(FInstanceDataObjectUtilsTest, "CoreUObject::Serialization::Insta
 TEST_CASE_NAMED(FTrackInitializedPropertiesTest, "CoreUObject::Serialization::TrackInitializedProperties", "[CoreUObject][EngineFilter]")
 {
 	UTestInstanceDataObjectClass* BaseObject = NewObject<UTestInstanceDataObjectClass>();
-	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, BaseObject->GetClass(), BaseObject->GetOuter());
+	UClass* TestClass = CreateInstanceDataObjectClass(nullptr, nullptr, BaseObject->GetClass(), BaseObject->GetOuter());
 
 	FStructProperty* StructProperty = FindFProperty<FStructProperty>(TestClass, TEXT("Struct"));
 	REQUIRE(StructProperty);

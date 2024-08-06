@@ -15,6 +15,7 @@ class UObject;
 class UStruct;
 
 namespace UE { class FPropertyPathNameTree; }
+namespace UE { class FUnknownEnumNames; }
 
 namespace UE
 {
@@ -29,7 +30,7 @@ bool StructContainsLooseProperties(const UStruct* Struct);
 bool IsClassOfInstanceDataObjectClass(UStruct* Class);
 
 /** Generate a UClass that contains the union of the properties of PropertyTree and OwnerClass. */
-UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, UClass* OwnerClass, UObject* Outer);
+UClass* CreateInstanceDataObjectClass(const FPropertyPathNameTree* PropertyTree, const FUnknownEnumNames* EnumNames, UClass* OwnerClass, UObject* Outer);
 
 /** Notify that a property in an struct was set when the struct was deserialized. */
 void MarkPropertyValueSerialized(const UStruct* Struct, void* StructData, const FProperty* Property, int32 ArrayIndex = 0);

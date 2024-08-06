@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "HAL/CriticalSection.h"
 #include "UObject/GCObject.h"
+#include "UObject/PropertyTypeName.h"
 #include "Templates/FunctionFwd.h"
 
 class UObject;
@@ -17,7 +18,6 @@ namespace UE
 #if WITH_EDITORONLY_DATA
 
 class FPropertyPathNameTree;
-class FPropertyTypeName;
 class FUnknownEnumNames;
 
 // Singleton class tracking property bag association with objects
@@ -88,7 +88,12 @@ public:
 	 * @param OutNames		Array to assign the unknown names to. Empty on return if no names are found.
 	 * @param bOutHasFlags	Assigned to true if the enum is known to have flags, otherwise false.
 	 */
-	void FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags);
+	void FindUnknownEnumNames(const UObject* Owner, FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags) const;
+
+	/**
+	 * Finds tracked unknown enum names associated with the object, otherwise null.
+	 */
+	const FUnknownEnumNames* FindUnknownEnumNames(const UObject* Owner) const;
 
 	/**
 	 * Resets tracked unknown enum names associated with the object.
@@ -197,6 +202,22 @@ private:
 
 	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
 	void CreateInstanceDataObjectUnsafe(UObject* Owner, FPropertyBagAssociationData& BagData, FArchive* Archive = nullptr);
+};
+
+class FUnknownEnumNames
+{
+public:
+	void Add(const UEnum* Enum, FPropertyTypeName EnumTypeName, FName EnumValueName);
+	void Find(FPropertyTypeName EnumTypeName, TArray<FName>& OutNames, bool& bOutHasFlags) const;
+
+private:
+	struct FInfo
+	{
+		TSet<FName> Names;
+		bool bHasFlags = false;
+	};
+
+	TMap<FPropertyTypeName, FInfo> Enums;
 };
 
 #endif // WITH_EDITORONLY_DATA
