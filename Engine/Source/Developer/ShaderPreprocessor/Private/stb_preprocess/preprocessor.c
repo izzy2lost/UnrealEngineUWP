@@ -4747,7 +4747,6 @@ void init_preprocessor_scanner(void)
 	pp_char_class['\''] = PP_CHAR_CLASS_apostrophe;
 	pp_char_class['\\'] = PP_CHAR_CLASS_backslash;
 
-	pp_char_class['@'] = PP_CHAR_CLASS_idtype;	// RADC extension
 	pp_char_class['#'] = PP_CHAR_CLASS_hash;
 
 	// the scanner does the same as above, but doesn't stop on identifiers
