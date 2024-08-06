@@ -18,6 +18,7 @@
 #include "Components/BillboardComponent.h"
 
 #include "Engine/Engine.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/Texture2D.h"
 
 #include "SceneManagement.h"
@@ -148,49 +149,13 @@ TMap<FName, FPhysicsControlLimbBones> UPhysicsControlComponent::GetLimbBonesFrom
 		return Result;
 	}
 
-	TSet<FName> AllBones;
-
-	// Now walk through each limb, picking up bones, ignoring any that we have already encountered.
-	// This requires the setup data to have been ordered properly.
-	for (const FPhysicsControlLimbSetupData& LimbSetupData : LimbSetupDatas)
+	const FReferenceSkeleton& RefSkeleton = SkeletalMeshComponent->GetSkeletalMeshAsset()->GetRefSkeleton();
+	Result = UE::PhysicsControl::GetLimbBones(LimbSetupDatas, RefSkeleton, PhysicsAsset);
+	for (TPair<FName, FPhysicsControlLimbBones>& Pair : Result)
 	{
-		FPhysicsControlLimbBones& LimbBones = Result.Add(LimbSetupData.LimbName);
-		LimbBones.SkeletalMeshComponent = SkeletalMeshComponent;
-		LimbBones.bCreateBodyModifiers = LimbSetupData.bCreateBodyModifiers;
-		LimbBones.bCreateWorldSpaceControls = LimbSetupData.bCreateWorldSpaceControls;
-		LimbBones.bCreateParentSpaceControls = LimbSetupData.bCreateParentSpaceControls;
-
-		if (LimbSetupData.bIncludeParentBone)
-		{
-			LimbBones.bFirstBoneIsAdditional = true;
-			const FName ParentBoneName = UE::PhysicsControl::GetPhysicalParentBone(
-				SkeletalMeshComponent, LimbSetupData.StartBone);
-			if (!ParentBoneName.IsNone())
-			{
-				LimbBones.BoneNames.Add(ParentBoneName);
-				AllBones.Add(ParentBoneName);
-			}
-		}
-		else
-		{
-			LimbBones.bFirstBoneIsAdditional = false;
-		}
-
-		SkeletalMeshComponent->ForEachBodyBelow(
-			LimbSetupData.StartBone, true, /*bSkipCustomType=*/false,
-			[PhysicsAsset, &AllBones, &LimbBones](const FBodyInstance* BI)
-			{
-				if (USkeletalBodySetup* BodySetup = Cast<USkeletalBodySetup>(BI->BodySetup.Get()))
-				{
-					const FName BoneName = PhysicsAsset->SkeletalBodySetups[BI->InstanceBodyIndex]->BoneName;
-					if (!AllBones.Find(BoneName))
-					{
-						LimbBones.BoneNames.Add(BoneName);
-						AllBones.Add(BoneName);
-					}
-				}
-			});
+		Pair.Value.SkeletalMeshComponent = SkeletalMeshComponent;
 	}
+
 	return Result;
 }
 
@@ -1574,9 +1539,7 @@ FName UPhysicsControlComponent::CreateBodyModifier(
 	const FName                       Set,
 	const FPhysicsControlModifierData BodyModifierData)
 {
-	TSet<FName> Keys;
-	BodyModifierRecords.GetKeys(Keys);
-	const FName Name = UE::PhysicsControl::GetUniqueBodyModifierName(BoneName, Keys, TEXT(""));
+	const FName Name = UE::PhysicsControl::GetUniqueBodyModifierName(BoneName, BodyModifierRecords, TEXT(""));
 	if (CreateNamedBodyModifier(Name, Component, BoneName, Set, BodyModifierData))
 	{
 		return Name;

@@ -258,8 +258,11 @@ void FAnimNode_RigidBodyWithControl::UpdateBodyIndicesInControlRecord(FRigidBody
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::CreateControl(
-	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
+bool FAnimNode_RigidBodyWithControl::CreateNamedControl(
+	const FName                ControlName, 
+	const FName                ParentBoneName, 
+	const FName                ChildBoneName, 
+	const FPhysicsControlData& ControlData)
 {
 	FPhysicsControl Control;
 	Control.ParentBoneName = ParentBoneName;
@@ -285,13 +288,24 @@ FName FAnimNode_RigidBodyWithControl::CreateControl(
 	{
 		UE_LOG(LogPhysicsControl, Warning,
 			TEXT("Unable to create world space control constraint for bone %s"), *ChildBoneName.ToString());
-		return FName();
+		return false;
 	}
 
-	FName ControlName = GetUniqueControlName(Control.ParentBoneName, Control.ChildBoneName);
 	ControlRecords.Add(ControlName, FRigidBodyControlRecord(Control, JointHandle));
+	return true;
+}
 
-	return ControlName;
+
+//======================================================================================================================
+FName FAnimNode_RigidBodyWithControl::CreateControl(
+	const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData)
+{
+	FName ControlName = GetUniqueControlName(ParentBoneName, ChildBoneName);
+	if (CreateNamedControl(ControlName, ParentBoneName, ChildBoneName, ControlData))
+	{
+		return ControlName;
+	}
+	return FName();
 }
 
 //======================================================================================================================
@@ -333,18 +347,29 @@ FName FAnimNode_RigidBodyWithControl::GetUniqueControlName(const FName ParentBon
 }
 
 //======================================================================================================================
-FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
+bool FAnimNode_RigidBodyWithControl::CreateNamedBodyModifier(
+	const FName ModifierName, const FName BoneName, const FPhysicsControlModifierData& ModifierData)
 {
-	FName Name;
 	ImmediatePhysics::FActorHandle* const ActorHandle = FindBodyFromBoneName(BoneName);
 	if (ActorHandle)
 	{
-		Name = GetUniqueBodyModifierName(BoneName);
 		FPhysicsBodyModifier BodyModifier(BoneName, ModifierData);
-		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(Name, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
+		FRigidBodyModifierRecord& Modifier = ModifierRecords.Add(
+			ModifierName, FRigidBodyModifierRecord(BodyModifier, ActorHandle));
+		return true;
 	}
+	return false;
+}
 
-	return Name;
+//======================================================================================================================
+FName FAnimNode_RigidBodyWithControl::CreateBodyModifier(FName BoneName, const FPhysicsControlModifierData& ModifierData)
+{
+	FName ModifierName = GetUniqueBodyModifierName(BoneName);
+	if (CreateNamedBodyModifier(ModifierName, BoneName, ModifierData))
+	{
+		return ModifierName;
+	}
+	return FName();
 }
 
 //======================================================================================================================

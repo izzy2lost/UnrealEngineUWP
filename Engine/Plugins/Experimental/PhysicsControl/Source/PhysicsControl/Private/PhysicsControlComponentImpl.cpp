@@ -662,6 +662,9 @@ void UPhysicsControlComponent::ApplyBodyModifier(FPhysicsBodyModifierRecord& Rec
 		BodyInstance->PhysicsBlendWeight = Record.BodyModifier.ModifierData.PhysicsBlendWeight;
 		BodyInstance->SetUpdateKinematicFromSimulation(Record.BodyModifier.ModifierData.bUpdateKinematicFromSimulation);
 
+		// On the shapes, this determines whether there is actually collision. Note that the bodies
+		// need to also have "collision enabled" in order to even be allowed to simulate, which is
+		// normally done via the skeletal mesh.
 		UBodySetup* BodySetup = BodyInstance->GetBodySetup();
 		if (BodySetup)
 		{

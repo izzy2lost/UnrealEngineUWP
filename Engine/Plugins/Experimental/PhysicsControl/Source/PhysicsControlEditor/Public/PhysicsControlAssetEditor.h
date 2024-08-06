@@ -40,6 +40,7 @@ public:
 	friend class FPhysicsControlAssetProfileDetailsCustomization;
 	friend class FPhysicsControlAssetPreviewDetailsCustomization;
 	friend class FPhysicsControlAssetSetupDetailsCustomization;
+	friend class FPhysicsControlAssetInfoDetailsCustomization;
 
 public:
 	/** Initialize the asset editor. This will register the application mode, init the preview scene, etc. */

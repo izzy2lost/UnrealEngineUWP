@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "PhysicsControlAssetEditorProfilesTabSummoners.h"
+#include "PhysicsControlAssetEditorTabSummoners.h"
 #include "IDocumentation.h"
 #include "PhysicsControlAssetEditor.h"
 #include "PhysicsControlAsset.h"
@@ -9,8 +9,9 @@
 #include "PhysicsControlAssetSetupDetailsCustomization.h"
 #include "PhysicsControlAssetProfileDetailsCustomization.h"
 #include "PhysicsControlAssetPreviewDetailsCustomization.h"
+#include "PhysicsControlAssetInfoDetailsCustomization.h"
 
-#define LOCTEXT_NAMESPACE "PhysicsControlAssetEditorProfilesTabSummoner"
+#define LOCTEXT_NAMESPACE "PhysicsControlAssetEditorTabSummoner"
 
 //======================================================================================================================
 FName FPhysicsControlAssetEditorSetupTabSummoner::TabName = FName(
@@ -19,6 +20,10 @@ FName FPhysicsControlAssetEditorProfileTabSummoner::TabName = FName(
 	"PhysicsControlAssetEditorProfileTab");
 FName FPhysicsControlAssetEditorPreviewTabSummoner::TabName = FName(
 	"PhysicsControlAssetEditorPreviewTab");
+FName FPhysicsControlAssetEditorControlSetsTabSummoner::TabName = FName(
+	"PhysicsControlAssetEditorControlSetsTab");
+FName FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::TabName = FName(
+	"PhysicsControlAssetEditorBodyModifierSetsTab");
 
 //======================================================================================================================
 FPhysicsControlAssetEditorSetupTabSummoner::FPhysicsControlAssetEditorSetupTabSummoner(
@@ -166,5 +171,108 @@ TSharedRef<SWidget> FPhysicsControlAssetEditorPreviewTabSummoner::CreateTabBody(
 	DetailsView->SetObject(PhysicsControlAsset.Get());
 	return DetailsView;
 }
+
+//======================================================================================================================
+FPhysicsControlAssetEditorControlSetsTabSummoner::FPhysicsControlAssetEditorControlSetsTabSummoner(
+	TSharedPtr<FAssetEditorToolkit> InHostingApp, UPhysicsControlAsset* InPhysicsControlAsset)
+	: FWorkflowTabFactory(FPhysicsControlAssetEditorControlSetsTabSummoner::TabName, InHostingApp)
+	, PhysicsControlAsset(InPhysicsControlAsset)
+{
+	TabLabel = LOCTEXT("PhysicsControlAssetEditorControlSetsTabTitle", "ControlSets");
+	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "PhysicsAssetEditor.Tabs.Profiles");
+
+	bIsSingleton = true;
+
+	ViewMenuDescription = LOCTEXT("PhysicsControlAssetEditorControlSets", "ControlSets");
+	ViewMenuTooltip = LOCTEXT("PhysicsControlAssetEditorControlSets_ToolTip", "Shows the Control Asset ControlSets tab");
+}
+
+//======================================================================================================================
+TSharedPtr<SToolTip> FPhysicsControlAssetEditorControlSetsTabSummoner::CreateTabToolTipWidget(
+	const FWorkflowTabSpawnInfo& Info) const
+{
+	return IDocumentation::Get()->CreateToolTip(LOCTEXT(
+		"PhysicsControlAssetEditorControlSetsToolTip",
+		"The Physics Control Asset Control Sets tab lets you see the control sets."),
+		NULL,
+		TEXT("Shared/Editors/PhysicsControlAssetEditor"), TEXT("PhysicsControlAssetProfiles_Window"));
+}
+
+//======================================================================================================================
+TSharedRef<SWidget> FPhysicsControlAssetEditorControlSetsTabSummoner::CreateTabBody(
+	const FWorkflowTabSpawnInfo& Info) const
+{
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bHideSelectionTip = true;
+	DetailsViewArgs.bAllowSearch = false;
+
+	FPropertyEditorModule& PropertyEditorModule =
+		FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor =
+		StaticCastSharedPtr<FPhysicsControlAssetEditor>(HostingApp.Pin());
+	DetailsView->RegisterInstancedCustomPropertyLayout(
+		UPhysicsControlAsset::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(
+			&FPhysicsControlAssetInfoDetailsCustomization::MakeInstance, 
+			PhysicsControlAssetEditor,
+			FPhysicsControlAssetInfoDetailsCustomization::EInfoType::Controls));
+	DetailsView->SetObject(PhysicsControlAsset.Get());
+	return DetailsView;
+}
+
+//======================================================================================================================
+FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::FPhysicsControlAssetEditorBodyModifierSetsTabSummoner(
+	TSharedPtr<FAssetEditorToolkit> InHostingApp, UPhysicsControlAsset* InPhysicsControlAsset)
+	: FWorkflowTabFactory(FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::TabName, InHostingApp)
+	, PhysicsControlAsset(InPhysicsControlAsset)
+{
+	TabLabel = LOCTEXT("PhysicsControlAssetEditorBodyModifierSetsTabTitle", "BodyModifierSets");
+	TabIcon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "PhysicsAssetEditor.Tabs.Profiles");
+
+	bIsSingleton = true;
+
+	ViewMenuDescription = LOCTEXT("PhysicsControlAssetEditorBodyModifierSets", "BodyModifierSets");
+	ViewMenuTooltip = LOCTEXT("PhysicsControlAssetEditorBodyModifierSets_ToolTip", "Shows the Control Asset BodyModifierSets tab");
+}
+
+//======================================================================================================================
+TSharedPtr<SToolTip> FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::CreateTabToolTipWidget(
+	const FWorkflowTabSpawnInfo& Info) const
+{
+	return IDocumentation::Get()->CreateToolTip(LOCTEXT(
+		"PhysicsControlAssetEditorBodyModifierSetsToolTip",
+		"The Physics Control Asset Control Sets tab lets you see the body modifier sets."),
+		NULL,
+		TEXT("Shared/Editors/PhysicsControlAssetEditor"), TEXT("PhysicsControlAssetProfiles_Window"));
+}
+
+//======================================================================================================================
+TSharedRef<SWidget> FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::CreateTabBody(
+	const FWorkflowTabSpawnInfo& Info) const
+{
+	FDetailsViewArgs DetailsViewArgs;
+	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	DetailsViewArgs.bHideSelectionTip = true;
+	DetailsViewArgs.bAllowSearch = false;
+
+	FPropertyEditorModule& PropertyEditorModule =
+		FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
+
+	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor =
+		StaticCastSharedPtr<FPhysicsControlAssetEditor>(HostingApp.Pin());
+	DetailsView->RegisterInstancedCustomPropertyLayout(
+		UPhysicsControlAsset::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(
+			&FPhysicsControlAssetInfoDetailsCustomization::MakeInstance,
+			PhysicsControlAssetEditor,
+			FPhysicsControlAssetInfoDetailsCustomization::EInfoType::BodyModifiers));
+	DetailsView->SetObject(PhysicsControlAsset.Get());
+	return DetailsView;
+}
+
 
 #undef LOCTEXT_NAMESPACE

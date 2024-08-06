@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
 #include "Types/SlateEnums.h"
-#include "Input/Reply.h"
 
 class FPhysicsControlAssetEditor;
 class IDetailLayoutBuilder;
@@ -15,13 +14,25 @@ class IPropertyHandle;
 class FUICommandList;
 class SEditableTextBox;
 
-class FPhysicsControlAssetPreviewDetailsCustomization : public IDetailCustomization
+class FPhysicsControlAssetInfoDetailsCustomization : public IDetailCustomization
 {
 public:
-	// Makes a new instance of this detail layout class for a specific detail view requesting it
-	static TSharedRef<IDetailCustomization> MakeInstance(TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor);
+	enum class EInfoType : uint8
+	{
+		Controls,
+		BodyModifiers
+	};
 
-	FPhysicsControlAssetPreviewDetailsCustomization(TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor);
+	// Makes a new instance of this detail layout class for a specific detail view requesting it
+	static TSharedRef<IDetailCustomization> MakeInstance(
+		TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor, EInfoType InfoType);
+
+	FPhysicsControlAssetInfoDetailsCustomization(
+		TWeakPtr<FPhysicsControlAssetEditor> InPhysicsControlAssetEditor,
+		EInfoType                            InInfoType)
+		: PhysicsControlAssetEditor(InPhysicsControlAssetEditor)
+		, InfoType(InInfoType)
+	{}
 
 	//~ Begin IDetailCustomization
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
@@ -29,12 +40,12 @@ public:
 	//~ End IDetailCustomization
 
 protected:
-	FReply InvokeControlProfile(FName ProfileName);
-
 	void OnControlAssetCompiled(bool bProfileListChanged);
 
-private:
+protected:
 	TWeakPtr<FPhysicsControlAssetEditor> PhysicsControlAssetEditor;
 
 	TWeakPtr<IDetailLayoutBuilder> DetailLayoutBuilderWeak;
+
+	EInfoType InfoType;
 };

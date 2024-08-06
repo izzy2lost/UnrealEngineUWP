@@ -2,7 +2,7 @@
 
 #include "PhysicsControlAssetApplicationMode.h"
 #include "PhysicsControlAssetEditor.h"
-#include "PhysicsControlAssetEditorProfilesTabSummoners.h"
+#include "PhysicsControlAssetEditorTabSummoners.h"
 #include "PhysicsControlAsset.h"
 
 #include "PersonaModule.h"
@@ -13,8 +13,6 @@
 #define LOCTEXT_NAMESPACE "PhysicsControlAssetApplicationMode"
 
 FName FPhysicsControlAssetApplicationMode::ModeName("PhysicsControlAssetEditMode");
-
-static const FName PhysicsControlAssetEditorTabName("PhysicsControlAssetEditorTab");
 
 //======================================================================================================================
 FPhysicsControlAssetApplicationMode::FPhysicsControlAssetApplicationMode(
@@ -74,50 +72,85 @@ FPhysicsControlAssetApplicationMode::FPhysicsControlAssetApplicationMode(
 			CastChecked<UPhysicsControlAsset>(
 				(*PhysicsControlAssetEditorSharedRef->GetObjectsCurrentlyBeingEdited())[0])));
 
+	TabFactories.RegisterFactory(
+		MakeShared<FPhysicsControlAssetEditorControlSetsTabSummoner>(
+			InHostingApp,
+			CastChecked<UPhysicsControlAsset>(
+				(*PhysicsControlAssetEditorSharedRef->GetObjectsCurrentlyBeingEdited())[0])));
+
+	TabFactories.RegisterFactory(
+		MakeShared<FPhysicsControlAssetEditorBodyModifierSetsTabSummoner>(
+			InHostingApp,
+			CastChecked<UPhysicsControlAsset>(
+				(*PhysicsControlAssetEditorSharedRef->GetObjectsCurrentlyBeingEdited())[0])));
 
 	// For standard tabs, these are provided by Persona. For custom tabs, the contents of the tab is
 	// provided by a summoner. When Summoners are made, they register their name in the constructor.
-	// These names then hook into the tab names below. See MLDeformerApplicationMode.cpp - that puts
-	// the names into a TabID field in the summoner.
+	// These names then hook into the tab names below.
 
 	// Create tab layout.
-	TabLayout = FTabManager::NewLayout("Standalone_PhysicsControlAssetEditor_Layout_v1.0")
+	TabLayout = FTabManager::NewLayout("Standalone_PhysicsControlAssetEditor_Layout_v1.1")
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()
-			->SetOrientation(Orient_Vertical)
+			->SetOrientation(Orient_Horizontal)
 			->Split
 			(
+				// Control/modifier sets
 				FTabManager::NewSplitter()
-				->SetSizeCoefficient(0.32f)
-				->SetOrientation(Orient_Horizontal)
+				->SetSizeCoefficient(0.3f)
+				->SetOrientation(Orient_Vertical)
 				->Split
 				(
-					FTabManager::NewSplitter()
+					FTabManager::NewStack()
 					->SetSizeCoefficient(1.0f)
-					->SetOrientation(Orient_Vertical)
-					->Split
-					(
-						FTabManager::NewStack()
-						->SetSizeCoefficient(0.7f)
-						->SetHideTabWell(true)
-						->AddTab(FPersonaTabs::PreviewViewportID, ETabState::OpenedTab)
-						->AddTab(FPersonaTabs::SkeletonTreeViewID, ETabState::OpenedTab)
-					)
+					->AddTab(
+						FPhysicsControlAssetEditorBodyModifierSetsTabSummoner::TabName, ETabState::OpenedTab)
 				)
 				->Split
 				(
 					FTabManager::NewStack()
-					->SetSizeCoefficient(0.3f)
-					//->AddTab(FPersonaTabs::DetailsID, ETabState::OpenedTab)
+					->SetSizeCoefficient(2.0f)
+					->AddTab(
+						FPhysicsControlAssetEditorControlSetsTabSummoner::TabName, ETabState::OpenedTab)
+				)
+			)
+			->Split
+			(
+				// Skeleton
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.3f)
+				->AddTab(FPersonaTabs::SkeletonTreeViewID, ETabState::OpenedTab)
+			)
+			->Split
+			(
+				// Preview window
+				FTabManager::NewStack()
+				->SetSizeCoefficient(1.0f)
+				->AddTab(FPersonaTabs::PreviewViewportID, ETabState::OpenedTab)
+			)
+			->Split
+			(
+				// the profile and detail panels
+				FTabManager::NewSplitter()
+				->SetSizeCoefficient(0.5f)
+				->SetOrientation(Orient_Vertical)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(1.0f)
 					->AddTab(FPersonaTabs::AdvancedPreviewSceneSettingsID, ETabState::OpenedTab)
 					->AddTab(
 						FPhysicsControlAssetEditorSetupTabSummoner::TabName, ETabState::OpenedTab)
 					->AddTab(
 						FPhysicsControlAssetEditorProfileTabSummoner::TabName, ETabState::OpenedTab)
+					->SetForegroundTab(FPhysicsControlAssetEditorSetupTabSummoner::TabName)
+				)
+				->Split(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.6f)
 					->AddTab(
 						FPhysicsControlAssetEditorPreviewTabSummoner::TabName, ETabState::OpenedTab)
-					->SetForegroundTab(FPhysicsControlAssetEditorSetupTabSummoner::TabName)
 				)
 			)
 		);

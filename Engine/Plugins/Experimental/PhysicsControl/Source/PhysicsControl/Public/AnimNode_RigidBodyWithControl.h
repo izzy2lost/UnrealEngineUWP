@@ -419,8 +419,12 @@ private:
 public:
 	const FTransform GetBodyTransform(const int32 BodyIndex) const;
 
+	bool CreateNamedControl(
+		const FName ControlName, const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
 	FName CreateControl(const FName ParentBoneName, const FName ChildBoneName, const FPhysicsControlData& ControlData);
 
+	bool CreateNamedBodyModifier(
+		const FName ModifierName, const FName BoneName, const FPhysicsControlModifierData& ModifierData);
 	FName CreateBodyModifier(const FName BoneName, const FPhysicsControlModifierData& ModifierData);
 
 private:

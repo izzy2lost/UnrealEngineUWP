@@ -53,13 +53,13 @@ void FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(
 //======================================================================================================================
 void FPhysicsControlAssetPreviewDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayoutBuilder)
 {
-	DetailLayoutBuilder.HideCategory(TEXT("PreviewMesh"));
+	TArray<FName> CategoryNames;
+	DetailLayoutBuilder.GetCategoryNames(CategoryNames);
+	for (FName Category : CategoryNames)
+	{
+		DetailLayoutBuilder.HideCategory(Category);
+	}
 	DetailLayoutBuilder.HideCategory(TEXT("Actions"));
-	DetailLayoutBuilder.HideCategory(TEXT("Inheritance"));
-	DetailLayoutBuilder.HideCategory(TEXT("Setup"));
-	DetailLayoutBuilder.HideCategory(TEXT("Profiles"));
-	DetailLayoutBuilder.HideCategory(TEXT("ProfileEditing"));
-	DetailLayoutBuilder.HideCategory(TEXT("SetupEditing"));
 
 	TSharedPtr<FPhysicsControlAssetEditorData> EditorData = PhysicsControlAssetEditor.Pin()->GetEditorData();
 	UPhysicsControlAsset* PCA = EditorData->PhysicsControlAsset.Get();

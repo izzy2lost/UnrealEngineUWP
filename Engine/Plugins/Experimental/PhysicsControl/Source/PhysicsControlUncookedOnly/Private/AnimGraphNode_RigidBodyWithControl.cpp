@@ -360,7 +360,7 @@ TArray<TPair<FName, TArray<FName>>> UAnimGraphNode_RigidBodyWithControl::Generat
 
 		// Get the list of modifier and control names, based on the setup data
 		UE::PhysicsControl::CollectOperatorNames(
-			&Node, SetupData, AdditionalControlAndBodyModifierCreationDatas,
+			SetupData, AdditionalControlAndBodyModifierCreationDatas,
 			AllLimbBones, RefSkeleton, Node.OverridePhysicsAsset.Get(), BodyModifierNames, ControlNames, NameRecords);
 
 		// Create any additional sets that have been requested
