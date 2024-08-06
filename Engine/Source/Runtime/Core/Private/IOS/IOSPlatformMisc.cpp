@@ -1545,7 +1545,7 @@ void FIOSPlatformMisc::GetValidTargetPlatforms(TArray<FString>& TargetPlatformNa
 #endif
 }
 
-ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
+static inline ENetworkConnectionType CheckNetworkConnectionType()
 {
 	struct sockaddr_in ZeroAddress;
 	FMemory::Memzero(&ZeroAddress, sizeof(ZeroAddress));
@@ -1585,6 +1585,24 @@ ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
         return ENetworkConnectionType::AirplaneMode;
     }
     return ENetworkConnectionType::None;
+}
+
+ENetworkConnectionType FIOSPlatformMisc::GetNetworkConnectionType()
+{
+	static TOptional<ENetworkConnectionType> ConnectionType = {};
+	static double LastCheckTime = 0;
+
+	const double CurrentTime = FPlatformTime::Seconds();
+	const double CheckInterval = 0.2;
+
+	if (!ConnectionType.IsSet() || CurrentTime >= LastCheckTime + CheckInterval)
+	{
+		ConnectionType = CheckNetworkConnectionType();
+		LastCheckTime = CurrentTime;
+	}
+
+	ensure(ConnectionType.IsSet());
+	return ConnectionType.GetValue();
 }
 
 bool FIOSPlatformMisc::HasActiveWiFiConnection()
