@@ -46,7 +46,6 @@ ONLINESERVICESINTERFACE_API extern const FName ItchioJwt;
 ONLINESERVICESINTERFACE_API extern const FName ItchioKey;
 ONLINESERVICESINTERFACE_API extern const FName EpicIdToken;
 ONLINESERVICESINTERFACE_API extern const FName AmazonAccessToken;
-ONLINESERVICESINTERFACE_API extern const FName AccountIdHash;
 }
 
 namespace ExternalServerAuthTicketType
