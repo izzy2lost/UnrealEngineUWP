@@ -489,6 +489,7 @@ public:
 	void PruneWeights(const float Threshold, const TArray<BoneIndex>& BonesToPrune);
 	void AverageWeights(const float Strength);
 	void NormalizeWeights();
+	void HammerWeights();
 	void TransferWeights();
 	
 	// method to set weights directly (numeric input, for example)

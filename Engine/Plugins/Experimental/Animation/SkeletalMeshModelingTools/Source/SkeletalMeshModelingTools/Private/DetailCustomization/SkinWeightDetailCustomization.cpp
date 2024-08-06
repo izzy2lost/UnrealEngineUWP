@@ -1033,6 +1033,27 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 				return FReply::Handled();
 			})
 		]
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Text(LOCTEXT("HammerWeightsButtonLabel", "Hammer"))
+			.ToolTipText(LOCTEXT("HammerWeightsTooltip",
+					"Copies the weight of the nearest non-selected vertex.\n"
+					"This command operates on the selected vertices."))
+			.IsEnabled_Lambda([this]()
+			{
+				return ToolSettings->EditingMode == EWeightEditMode::Mesh;
+			})
+			.OnClicked_Lambda([this]()
+			{
+				Tool->HammerWeights();
+				return FReply::Handled();
+			})
+		]
 	];
 
 	// PRUNE WEIGHTS category
