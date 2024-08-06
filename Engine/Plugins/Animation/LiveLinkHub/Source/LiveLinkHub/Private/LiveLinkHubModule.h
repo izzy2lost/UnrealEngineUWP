@@ -14,7 +14,6 @@ class FLiveLinkHubSubjectController;
 class FUICommandList;
 class ILiveLinkHubSessionManager;
 
-
 class FLiveLinkHubModule : public ILiveLinkHubModule
 {
 public:
@@ -40,9 +39,6 @@ public:
 	TSharedPtr<FLiveLinkHubSubjectController> GetSubjectController() const;
 	/** Get the subject controller. */
     TSharedPtr<ILiveLinkHubSessionManager> GetSessionManager() const;
-
-	/** Launch livelink hub. */
-	void OpenLiveLinkHub() const;
 
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */

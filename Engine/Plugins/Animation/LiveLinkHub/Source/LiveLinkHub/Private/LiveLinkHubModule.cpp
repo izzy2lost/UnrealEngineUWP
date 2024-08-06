@@ -15,8 +15,6 @@
 #include "Settings/LiveLinkHubSettingsCustomization.h"
 #include "Subjects/LiveLinkHubSubjectSettingsDetailsCustomization.h"
 #include "HAL/FileManager.h"
-#include "Misc/AsyncTaskNotification.h"
-#include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubModule"
 
@@ -46,16 +44,6 @@ void FLiveLinkHubModule::ShutdownLiveLinkHub()
 
 void FLiveLinkHubModule::StartupModule()
 {
-	FToolMenuOwnerScoped OwnerScoped(this);
-	UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
-	FToolMenuSection& Section = Menu->AddSection("VirtualProductionSection", LOCTEXT("VirtualProductionSection", "Virtual Production"));
-
-	Section.AddMenuEntry("LiveLinkHub",
-		LOCTEXT("LiveLinkHubLabel", "LiveLink Hub"),
-		LOCTEXT("LiveLinkHubTooltip", "Launch the LiveLink Hub app."),
-		FSlateIcon("LiveLinkStyle", "LiveLinkClient.Common.Icon.Small"),
-		FUIAction(FExecuteAction::CreateRaw(this, &FLiveLinkHubModule::OpenLiveLinkHub)));
-
 	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 	PropertyModule.RegisterCustomClassLayout(ULiveLinkHubSettings::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FLiveLinkHubSettingsCustomization::MakeInstance));
@@ -70,8 +58,6 @@ void FLiveLinkHubModule::StartupModule()
 
 void FLiveLinkHubModule::ShutdownModule()
 {
-	UToolMenus::UnregisterOwner(this);
-
 	if (FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
 		PropertyEditorModule->UnregisterCustomClassLayout(ULiveLinkHubSettings::StaticClass()->GetFName());
@@ -106,75 +92,6 @@ TSharedPtr<FLiveLinkHubRecordingListController> FLiveLinkHubModule::GetRecording
 TSharedPtr<FLiveLinkHubPlaybackController> FLiveLinkHubModule::GetPlaybackController() const
 {
 	return LiveLinkHub ? LiveLinkHub->PlaybackController : nullptr;
-}
-
-void FLiveLinkHubModule::OpenLiveLinkHub() const
-{
-	FAsyncTaskNotificationConfig NotificationConfig;
-	NotificationConfig.bKeepOpenOnFailure = true;
-	NotificationConfig.TitleText = LOCTEXT("LaunchingLiveLinkHub", "Launching LiveLink Hub...");
-	NotificationConfig.LogCategory = &LogLiveLinkHub;
-
-	FAsyncTaskNotification Notification(NotificationConfig);
-
-	// Find livelink hub executable location for our build configuration
-	FString LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), FApp::GetBuildConfiguration());
-
-	// Validate it exists and fall back to development if it doesn't.
-	if (!IFileManager::Get().FileExists(*LiveLinkHubPath))
-	{
-		LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), EBuildConfiguration::Development);
-
-		// If it still doesn't exist, fall back to the shipping executable.
-		if (!IFileManager::Get().FileExists(*LiveLinkHubPath))
-		{
-			LiveLinkHubPath = FPlatformProcess::GenerateApplicationPath(TEXT("LiveLinkHub"), EBuildConfiguration::Shipping);
-		}
-	}
-
-	const FText LaunchLiveLinkHubErrorTitle = LOCTEXT("LaunchLiveLinkHubErrorTitle", "Failed to Launch LiveLinkhub.");
-	if (!IFileManager::Get().FileExists(*LiveLinkHubPath))
-	{
-		Notification.SetComplete(
-			LaunchLiveLinkHubErrorTitle,
-			LOCTEXT("LaunchLiveLinkHubError_ExecutableMissing", "Could not find the executable. Have you compiled the LiveLink Hub app?"),
-			false
-			);
-
-		return;
-	}
-
-	// Validate we do not have it running locally
-	const FString AppName = FPaths::GetCleanFilename(LiveLinkHubPath);
-	if (FPlatformProcess::IsApplicationRunning(*AppName))
-	{
-		Notification.SetComplete(
-			LaunchLiveLinkHubErrorTitle,
-			LOCTEXT("LaunchLiveLinkHubError_AlreadyRunning", "A LiveLinkHub instance is already running."),
-			false
-			);
-		return;
-	}
-
-	constexpr bool bLaunchDetached = true;
-	constexpr bool bLaunchHidden = false;
-	constexpr bool bLaunchReallyHidden = false;
-
-	const FProcHandle ProcHandle = FPlatformProcess::CreateProc(*LiveLinkHubPath, TEXT(""), bLaunchDetached, bLaunchHidden, bLaunchReallyHidden, nullptr, 0, nullptr, nullptr, nullptr);
-	if (ProcHandle.IsValid())
-	{
-		Notification.SetComplete(
-			LOCTEXT("LaunchedLiveLinkHub", "Launched LiveLink Hub"), FText(), true);
-
-		return;
-	}
-	else // Very unlikely in practice, but possible in theory.
-	{
-		Notification.SetComplete(
-			LaunchLiveLinkHubErrorTitle,
-			LOCTEXT("LaunchLiveLinkHubError_InvalidHandle", "Failed to create the LiveLink Hub process."),
-			false);
-	}
 }
 
 TSharedPtr<FLiveLinkHubSubjectController> FLiveLinkHubModule::GetSubjectController() const
