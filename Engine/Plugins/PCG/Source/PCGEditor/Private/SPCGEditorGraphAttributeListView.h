@@ -209,6 +209,7 @@ private:
 
 	void OnColumnSortModeChanged(const EColumnSortPriority::Type SortPriority, const FName& ColumnId, const EColumnSortMode::Type InSortMode);
 	EColumnSortMode::Type GetColumnSortMode(const FName InColumnId) const;
+	TSharedRef<SWidget> GenerateColumnMenu(FName ColumnId);
 
 	void OnFilterTextChanged(const FText& InFilterText);
 	void OnFilterTextCommitted(const FText& NewText, ETextCommit::Type CommitInfo);

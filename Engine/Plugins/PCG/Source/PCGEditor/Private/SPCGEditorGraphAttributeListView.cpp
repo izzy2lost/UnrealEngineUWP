@@ -1217,10 +1217,37 @@ void SPCGEditorGraphAttributeListView::AddColumn(const UPCGData* InPCGData, cons
 	Arguments.SortMode(this, &SPCGEditorGraphAttributeListView::GetColumnSortMode, InColumnInfo.Id);
 	Arguments.OnSort(this, &SPCGEditorGraphAttributeListView::OnColumnSortModeChanged);
 	Arguments.OverflowPolicy(ETextOverflowPolicy::Ellipsis);
+	Arguments.HeaderComboVisibility(EHeaderComboVisibility::Never);
+	Arguments.MenuContent()
+	[
+		GenerateColumnMenu(InColumnInfo.Id)
+	];
 
 	SHeaderRow::FColumn* NewColumn = new SHeaderRow::FColumn(Arguments);
 	NewColumn->bIsVisible = !HiddenAttributes.Contains(InColumnInfo.Id);
 	ListViewHeader->AddColumn(*NewColumn);
+}
+
+TSharedRef<SWidget> SPCGEditorGraphAttributeListView::GenerateColumnMenu(FName ColumnId)
+{
+	FMenuBuilder MenuBuilder(/*bShouldCloseAfterMenuSelection=*/true, nullptr);
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("CopyAttributeNameToClipboard", "Copy attribute name"),
+		LOCTEXT("CopyAttributeNameToClipboardTooltip", "Copies the attribute name to the clipboard."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateLambda([ColumnId]()
+		{
+			FString ColumnIdString = ColumnId.ToString();
+
+			// TODO[UE-221219]: until we support @None as an actual valid token, we need to replace it with None.
+			ColumnIdString = ColumnIdString.Replace(TEXT("@None"), TEXT("None"));
+
+			FPlatformApplicationMisc::ClipboardCopy(*ColumnIdString);
+		})),
+		NAME_None,
+		EUserInterfaceActionType::Button);
+
+	return MenuBuilder.MakeWidget();
 }
 
 void SPCGEditorGraphAttributeListView::CopySelectionToClipboard() const
