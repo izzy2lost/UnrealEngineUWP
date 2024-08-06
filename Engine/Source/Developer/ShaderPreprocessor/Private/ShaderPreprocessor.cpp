@@ -179,7 +179,7 @@ struct FStbPreprocessContext
 		return HasIncludedHeader(PlatformHeader);
 	}
 
-	void ShaderPrintGenerate(char* PreprocessFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas);
+	void ShaderPrintGenerate(char*& PreprocessFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas);
 };
 
 static void StbLoadedIncludeTrimPaddingChecked(FStbLoadedInclude* ContentsCached)
@@ -574,7 +574,7 @@ static void StbCustomMacroEnd(const char* OriginalText, void* RawContext, const 
 	}
 }
 
-void FStbPreprocessContext::ShaderPrintGenerate(char* PreprocessedFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
+void FStbPreprocessContext::ShaderPrintGenerate(char*& PreprocessedFile, TArray<FShaderDiagnosticData>* OutDiagnosticDatas)
 {
 	// Check if ShaderPrintCommon.ush was included, to decide whether to add the shader print generated code
 	static FString ShaderPrintHeader("/Engine/Private/ShaderPrintCommon.ush");
@@ -630,7 +630,7 @@ void FStbPreprocessContext::ShaderPrintGenerate(char* PreprocessedFile, TArray<F
 	TArray<ANSICHAR> TextCharsAnsi;
 	CopyStringToAnsiCharArray(*TextChars, TextChars.Len(), TextCharsAnsi);
 
-	preprocessor_file_append(PreprocessedFile, TextCharsAnsi.GetData(), TextCharsAnsi.Num() - 1);
+	PreprocessedFile = preprocessor_file_append(PreprocessedFile, TextCharsAnsi.GetData(), TextCharsAnsi.Num() - 1);
 
 	// 4. Insert assert data into shader compilation output for runtime CPU lookup
 	if (OutDiagnosticDatas && TextAssertCount > 0)

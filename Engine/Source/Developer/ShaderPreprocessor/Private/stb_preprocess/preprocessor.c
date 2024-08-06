@@ -5056,7 +5056,7 @@ int preprocessor_file_capacity(char* text)
 	return text ? arrcap(text) : 0;
 }
 
-void preprocessor_file_append(char* text, const char* appended_text, int appended_text_len)
+char* preprocessor_file_append(char* text, const char* appended_text, int appended_text_len)
 {
 	if (text)
 	{
@@ -5071,6 +5071,8 @@ void preprocessor_file_append(char* text, const char* appended_text, int appende
 		// And add a new null terminator
 		text[text_len + appended_text_len - 1] = 0;
 	}
+
+	return text;
 }
 
 void preprocessor_file_free(char* text, pp_diagnostic* pd)

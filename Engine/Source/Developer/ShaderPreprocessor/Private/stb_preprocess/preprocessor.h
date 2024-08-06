@@ -114,7 +114,7 @@ STB_PP_DEF int preprocessor_file_capacity(char* text);
 
 // Append text to the end of a file generated with preprocess_file.  Can save reallocation overhead relative
 // to appending the text later, as there will usually be slack space available.
-STB_PP_DEF void preprocessor_file_append(char* text, const char* appended_text, int appended_text_len);
+STB_PP_DEF char* preprocessor_file_append(char* text, const char* appended_text, int appended_text_len);
 
 // frees memory allocated by preprocess_file (preprocessed results and diagnostic messages)
 STB_PP_DEF void preprocessor_file_free(char* text, pp_diagnostic* pd);
