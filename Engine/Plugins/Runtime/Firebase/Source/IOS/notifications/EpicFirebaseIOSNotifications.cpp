@@ -92,11 +92,11 @@ NSString* KEY_FIREBASE_TOKEN = @"firebasetoken";
     // wrapped in dispatch_async to avoid locking up if we're on the main thread
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^(void)
     {
-        [[FIRInstanceID instanceID] instanceIDWithHandler:^(FIRInstanceIDResult * _Nullable result, NSError * _Nullable error)
+        [[FIRMessaging messaging] tokenWithCompletion:^(NSString *firebaseToken, NSError *error)
          {
-            if (error == nil && result != nil)
+            if (error == nil && firebaseToken != nil)
             {
-                FString Token = FString(result.token);
+                FString Token = FString(firebaseToken);
                 FFirebaseIOSNotifications::SetFirebaseToken(Token);
 #if !UE_BUILD_SHIPPING
                 UE_LOG(LogFirebase, Log, TEXT("Firebase Token : %s"), *Token);
