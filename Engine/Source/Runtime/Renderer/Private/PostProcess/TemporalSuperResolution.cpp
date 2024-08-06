@@ -666,6 +666,7 @@ class FTSRDilateVelocityCS : public FTSRShader
 		SHADER_PARAMETER(float, ReprojectionFieldAntiAliasVelocityThreshold)
 		SHADER_PARAMETER(int32, bReprojectionField)
 		SHADER_PARAMETER(int32, bOutputIsMovingTexture)
+		SHADER_PARAMETER(int32, ReprojectionVectorOutputIndex)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneVelocityTexture)
@@ -715,9 +716,9 @@ class FTSRDecimateHistoryCS : public FTSRShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
 		SHADER_PARAMETER(FMatrix44f, RotationalClipToPrevClip)
 
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputSceneColorTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectionVectorTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, DilatedReprojectionVectorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, DilateMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, DepthErrorTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, PrevAtomicTextureArray)
 
@@ -731,7 +732,6 @@ class FTSRDecimateHistoryCS : public FTSRShader
 		SHADER_PARAMETER(FVector2f, ResurrectionGuideUVViewportBilinearMin)
 		SHADER_PARAMETER(FVector2f, ResurrectionGuideUVViewportBilinearMax)
 		SHADER_PARAMETER(FVector3f, HistoryGuideQuantizationError)
-		SHADER_PARAMETER(float, ParallaxRejectionMaskThreshold)
 		SHADER_PARAMETER(float, ResurrectionFrameIndex)
 		SHADER_PARAMETER(float, PrevFrameIndex)
 		SHADER_PARAMETER(FMatrix44f, ClipToResurrectionClip)
@@ -811,7 +811,6 @@ class FTSRRejectShadingCS : public FTSRConvolutionNetworkShader
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ReprojectedHistoryMoireTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryGuideTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ResurrectedHistoryGuideMetadataTexture)
-		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, DilateMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DecimateMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, IsMovingMaskTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ClosestDepthTexture)
@@ -1881,7 +1880,8 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 	// Dilate the velocity texture & scatter reprojection into previous frame
 	FRDGTextureRef ReprojectionFieldTexture;
-	FRDGTextureSRVRef ReprojectionVectorTexture;
+	FRDGTextureSRVRef DilatedReprojectionVectorTexture;
+	FRDGTextureSRVRef ReprojectionVectorTexture   = nullptr;
 	FRDGTextureSRVRef ReprojectionBoundaryTexture = nullptr;
 	FRDGTextureSRVRef ReprojectionJacobianTexture = nullptr;
 	FRDGTextureRef ClosestDepthTexture;
@@ -1929,22 +1929,34 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			}
 		}
 
+		if (bReprojectionField)
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
 				InputExtent,
 				PF_R32_UINT,
 				FClearValueBinding::None,
 				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
-				/* ArraySize = */ bReprojectionField ? 3 : 1);
+				/* ArraySize = */ 4);
 
-			ReprojectionFieldTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Reprojection.Vector"));
+			ReprojectionFieldTexture = GraphBuilder.CreateTexture(Desc, bReprojectionField ? TEXT("TSR.ReprojectionField") : TEXT("TSR.Reprojection.DilatedVector"));
+
 			ReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 0));
+			ReprojectionJacobianTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 1));
+			ReprojectionBoundaryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 2));
+			DilatedReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 3));
+		}
+		else
+		{
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
+				InputExtent,
+				PF_R32_UINT,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
+				/* ArraySize = */ 1);
 
-			if (bReprojectionField)
-			{
-				ReprojectionBoundaryTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 1));
-				ReprojectionJacobianTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 2));
-			}
+			ReprojectionFieldTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Reprojection.DilatedVector"));
+
+			DilatedReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 0));
 		}
 
 		int32 TileSize = 8;
@@ -1965,6 +1977,7 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		
 		PassParameters->SceneDepthTexture = PassInputs.SceneDepth.Texture;
 		PassParameters->SceneVelocityTexture = PassInputs.SceneVelocity.Texture;
+		PassParameters->ReprojectionVectorOutputIndex = DilatedReprojectionVectorTexture->Desc.FirstArraySlice;
 
 		PassParameters->ClosestDepthOutput = GraphBuilder.CreateUAV(ClosestDepthTexture);
 		PassParameters->PrevAtomicOutput = GraphBuilder.CreateUAV(PrevAtomicTextureArray);
@@ -2064,9 +2077,9 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->CommonParameters = CommonParameters;
 		PassParameters->RotationalClipToPrevClip = RotationalClipToPrevClip;
 
-		PassParameters->InputSceneColorTexture = PassInputs.SceneColor.Texture;
-		PassParameters->ReprojectionVectorTexture = ReprojectionVectorTexture;
+		PassParameters->DilatedReprojectionVectorTexture = DilatedReprojectionVectorTexture;
 		PassParameters->ClosestDepthTexture = ClosestDepthTexture;
+		PassParameters->DilateMaskTexture = DilateMaskTexture;
 		PassParameters->DepthErrorTexture = DepthErrorTexture;
 		PassParameters->PrevAtomicTextureArray = PrevAtomicTextureArray;
 
@@ -2089,7 +2102,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->ResurrectionGuideUVViewportBilinearMin = GetScreenPassTextureViewportParameters(ResurrectionGuideViewport).UVViewportBilinearMin;
 			PassParameters->ResurrectionGuideUVViewportBilinearMax = GetScreenPassTextureViewportParameters(ResurrectionGuideViewport).UVViewportBilinearMax;
 			PassParameters->HistoryGuideQuantizationError = ComputePixelFormatQuantizationError(ReprojectedHistoryGuideTexture->Desc.Format);
-			PassParameters->ParallaxRejectionMaskThreshold = 1.0f - 0.25f * OutputToInputResolutionFraction;
 		}
 
 		PassParameters->ResurrectionFrameIndex = ResurrectionFrameSliceIndex;
@@ -2101,7 +2113,26 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		{
 			PassParameters->ReprojectedHistoryMoireOutput = GraphBuilder.CreateUAV(ReprojectedHistoryMoireTexture);
 		}
-		PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
+		if (bReprojectionField)
+		{
+			FRDGTextureUAVDesc ReprojectionFieldUAVDesc(ReprojectionFieldTexture);
+			ReprojectionFieldUAVDesc.NumArraySlices = 2;
+			PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldUAVDesc);
+		}
+		else
+		{
+			// Create a new reprojection vector texture
+			FRDGTextureDesc Desc = FRDGTextureDesc::Create2DArray(
+				InputExtent,
+				PF_R32_UINT,
+				FClearValueBinding::None,
+				/* InFlags = */ TexCreate_ShaderResource | TexCreate_UAV,
+				/* ArraySize = */ 1);
+
+			ReprojectionFieldTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.Reprojection.HollFilledVector"));
+			ReprojectionVectorTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(ReprojectionFieldTexture, 0));
+			PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
+		}
 		PassParameters->DecimateMaskOutput = GraphBuilder.CreateUAV(DecimateMaskTexture);
 		PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.DecimateHistory"));
 
@@ -2264,7 +2295,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->ResurrectedHistoryGuideTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 			PassParameters->ResurrectedHistoryGuideMetadataTexture = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackDummy));
 		}
-		PassParameters->DilateMaskTexture = DilateMaskTexture;
 		PassParameters->DecimateMaskTexture = DecimateMaskTexture;
 		PassParameters->IsMovingMaskTexture = IsMovingMaskTexture ? IsMovingMaskTexture : GraphBuilder.CreateSRV(FRDGTextureSRVDesc(BlackUintDummy));
 		PassParameters->ClosestDepthTexture = ClosestDepthTexture;
@@ -2316,7 +2346,16 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->HistoryRejectionOutput = GraphBuilder.CreateUAV(HistoryRejectionTexture);
 
 			// Amends how the history should be reprojected
-			PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
+			if (bReprojectionField)
+			{
+				FRDGTextureUAVDesc ReprojectionFieldUAVDesc(ReprojectionFieldTexture);
+				ReprojectionFieldUAVDesc.NumArraySlices = 2;
+				PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldUAVDesc);
+			}
+			else
+			{
+				PassParameters->ReprojectionFieldOutput = GraphBuilder.CreateUAV(ReprojectionFieldTexture);
+			}
 
 			// Output the composed translucency and opaque scene color to speed up HistoryUpdate
 			PassParameters->InputSceneColorOutput = bComputeInputSceneColorTexture

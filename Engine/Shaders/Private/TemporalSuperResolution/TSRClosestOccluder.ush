@@ -19,7 +19,6 @@
 
 float2 PrevOutputBufferUVMin;
 float2 PrevOutputBufferUVMax;
-float ParallaxRejectionMaskThreshold;
 
 
 //------------------------------------------------------- HOLE FILLING VELOCITY ENCODING
@@ -297,7 +296,6 @@ void ProcessPrevAtomicTexturesSamples(
 
 	HoleFillingPixelVelocity = CartesianHoleFillingVelocity(HoleFillingPixelAngle, HoleFillingPixelLength);
 	bCanHoleFill = bIsValidHoleFillingPixelVelocity && bIsEncodablePixelLength;
-	//bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
 
 	// Dim down the parallax rejection mask if the hole fill velocity matches
 	FLATTEN
@@ -329,5 +327,5 @@ void ProcessPrevAtomicTexturesSamples(
 		ParallaxRejectionMask = max(ParallaxRejectionMask, tsr_half(MinParallaxRejectionMask));
 	}
 
-	bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(ParallaxRejectionMaskThreshold);
+	bIsParallaxDisocclusion = !bIsOffScreen && ParallaxRejectionMask < tsr_half(0.5);
 } // ProcessPrevAtomicTexturesSamples()

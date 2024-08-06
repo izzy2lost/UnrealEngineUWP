@@ -27,6 +27,7 @@ float InvFlickeringMaxParralaxVelocity;
 float ReprojectionFieldAntiAliasVelocityThreshold;
 uint bReprojectionField;
 uint bOutputIsMovingTexture;
+uint ReprojectionVectorOutputIndex;
 
 Texture2D<float> SceneDepthTexture;
 Texture2D<float4> SceneVelocityTexture;
@@ -164,6 +165,7 @@ void MainCS(
 	uint EncodedReprojectionJacobian;
 	uint EncodedDeviceZError;
 	bool bHasPixelAnimation;
+	bool bHasReprojectionOffset;
 	tsr_half ReprojectionEdge;
 	BRANCH
 	if (bReprojectionField)
@@ -213,7 +215,8 @@ void MainCS(
 				DevizeZNeighborhood,
 				/* out */ ClosestDeviceZ,
 				/* out */ ReprojectionOffset);
-		}
+			bHasReprojectionOffset = any(ReprojectionOffset != tsr_short(0));
+;		}
 
 		float2 ScreenVelocity;
 		ISOLATE
@@ -232,7 +235,7 @@ void MainCS(
 				/* out */ DilatedScreenVelocity,
 				/* out */ bDildatedHasPixelAnimation);
 		}
-	
+		
 		ReprojectionEdge = ComputeReprojectionEdge(ScreenVelocity, DilatedScreenVelocity.xy);
 		
 		// Compute the reprojection boundary using a depth spatial anti-aliaser
@@ -264,10 +267,13 @@ void MainCS(
 		}
 		
 		tsr_short2 ReprojectionOffset;
-		FindClosestDepthOffset(
-			DevizeZNeighborhood,
-			/* out */ ClosestDeviceZ,
-			/* out */ ReprojectionOffset);
+		{
+			FindClosestDepthOffset(
+				DevizeZNeighborhood,
+				/* out */ ClosestDeviceZ,
+				/* out */ ReprojectionOffset);
+			bHasReprojectionOffset = any(ReprojectionOffset != tsr_short(0));
+		}
 	
 		// Compute the parallax depth error
 		float ParallaxDepthError = ComputeDepthError(DevizeZNeighborhood);
@@ -280,7 +286,7 @@ void MainCS(
 		FetchAndComputeScreenVelocity(
 			SceneVelocityTexture,
 			InputPixelPos,
-			ClosestDeviceZ,
+			DeviceZ,
 			/* ReprojectionOffset = */ tsr_short2(0, 0),
 			/* out */ ScreenVelocity,
 			/* out */ bHasPixelAnimation);
@@ -294,7 +300,7 @@ void MainCS(
 			ReprojectionOffset,
 			/* out */ DilatedScreenVelocity,
 			/* out */ bDilatedHasPixelAnimation);
-			
+		
 		ReprojectionEdge = ComputeReprojectionEdge(ScreenVelocity.xy, DilatedScreenVelocity.xy);
 		
 		// Encode the device z error.
@@ -357,7 +363,7 @@ void MainCS(
 
 		ClosestDepthOutput[OutputPixelPos] = float2(select(bHasPixelAnimation, -PrevClosestDeviceZ, PrevClosestDeviceZ), ClosestDeviceZ);
 
-		R8Output[uint3(OutputPixelPos, 0)] = uint(round(ReprojectionEdge * 255.0));
+		R8Output[uint3(OutputPixelPos, 0)] = uint(round(ReprojectionEdge * 127.0)) | select(bHasReprojectionOffset, 0x80u, 0x00u);
 		R8Output[uint3(OutputPixelPos, 1)] = EncodedDeviceZError;
 		BRANCH
 		if (bOutputIsMovingTexture)
@@ -366,12 +372,12 @@ void MainCS(
 		}
 
 		// Output the reprojection field
-		ReprojectionFieldOutput[uint3(OutputPixelPos, 0)] = EncodeReprojectionVector(DilatedScreenVelocity.xy);
+		ReprojectionFieldOutput[uint3(OutputPixelPos, ReprojectionVectorOutputIndex)] = EncodeReprojectionVector(DilatedScreenVelocity.xy);
 		BRANCH
 		if (bReprojectionField)
 		{
-			ReprojectionFieldOutput[uint3(OutputPixelPos, 1)] = EncodedReprojectionBoundary;
-			ReprojectionFieldOutput[uint3(OutputPixelPos, 2)] = EncodedReprojectionJacobian;
+			ReprojectionFieldOutput[uint3(OutputPixelPos, kReprojectionJacobianOutputIndex)] = EncodedReprojectionJacobian;
+			ReprojectionFieldOutput[uint3(OutputPixelPos, kReprojectionBoundaryOutputIndex)] = EncodedReprojectionBoundary;
 		}
 
 		// Output motion blur velocity flatten

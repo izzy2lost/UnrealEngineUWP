@@ -5,6 +5,13 @@
 #include "TSRCommon.ush"
 
 
+//------------------------------------------------------- CONSTANTS
+
+static const uint kReprojectionVectorOutputIndex = 0;
+static const uint kReprojectionJacobianOutputIndex = 1;
+static const uint kReprojectionBoundaryOutputIndex = 2;
+
+
 //------------------------------------------------------- REPROJECTION's DILATING OFFSET & BOUNDARY
 
 static const tsr_half2 kFullDilateBoundary = tsr_half2(0.0, 1.0);

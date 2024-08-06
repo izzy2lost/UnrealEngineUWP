@@ -55,7 +55,6 @@ Texture2D<tsr_half4> ReprojectedHistoryMoireTexture;
 	Texture2D<tsr_half4> ResurrectedHistoryGuideTexture;
 	Texture2D<tsr_half>  ResurrectedHistoryGuideMetadataTexture;
 #endif
-Texture2D<uint> DilateMaskTexture;
 Texture2D<tsr_half2> DecimateMaskTexture;
 Texture2D<tsr_ushort> IsMovingMaskTexture;
 Texture2D<float2> ClosestDepthTexture;
@@ -129,12 +128,11 @@ void FetchDecimateMask(
 	{
 		tsr_short2 ClampedFetchPixelPos = PixelPos.GetElement(ElementIndex);
 		
-		uint DilateMask = DilateMaskTexture[ClampedFetchPixelPos];
 		tsr_half2 DecimateMask = DecimateMaskTexture[ClampedFetchPixelPos];
 
 		tsr_ushort BitMask = tsr_ushort(DecimateMask.r * tsr_half(255.0));
 
-		VelocityEdge.SetElement(ElementIndex, saturate(tsr_half(tsr_ushort(DilateMask)) * tsr_half(rcp(255.0))));
+		VelocityEdge.SetElement(ElementIndex, DecimateMask.g);
 		bIsDisoccluded.SetElement(ElementIndex,     (BitMask & tsr_ushort(0x3)) != tsr_ushort(0));
 		bHasPixelAnimation.SetElement(ElementIndex, (BitMask & tsr_ushort(0x4)) != tsr_ushort(0));
 		bIsResurrectionOffScreen.SetElement(ElementIndex, (BitMask & tsr_ushort(0x10)) != tsr_ushort(0));
@@ -349,8 +347,8 @@ void OverwriteReprojectionFieldWithResurrection(tsr_tensor_bool bResurrectHistor
 			tsr_short2 OutputPixelPos = ComputeElementOutputPixelPos(ElementIndex);
 			OutputPixelPos.x = select(bResurrectHistory.GetElement(ElementIndex), OutputPixelPos.x, tsr_short(-1));
 
-			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, 0)] = EncodedReprojectionVector[ElementIndex];
-			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, 2)] = EncodedReprojectionJacobian[ElementIndex];
+			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, kReprojectionVectorOutputIndex)]   = EncodedReprojectionVector[ElementIndex];
+			ReprojectionFieldOutput[tsr_short3(OutputPixelPos, kReprojectionJacobianOutputIndex)] = EncodedReprojectionJacobian[ElementIndex];
 		}
 	}
 } // OverwriteReprojectionFieldWithResurrection()

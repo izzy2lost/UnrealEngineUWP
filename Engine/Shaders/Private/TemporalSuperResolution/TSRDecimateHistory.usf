@@ -25,12 +25,13 @@
 
 float4x4 RotationalClipToPrevClip;
 
-Texture2D<uint> ReprojectionVectorTexture;
+Texture2D<uint> DilatedReprojectionVectorTexture;
 #if CONFIG_RESURRECTION_REPROJECTION
 	Texture2D<float2> ClosestDepthTexture;
 #else
 	Texture2D<float> ClosestDepthTexture;
 #endif
+Texture2D<uint> DilateMaskTexture;
 Texture2D<uint> DepthErrorTexture;
 Texture2DArray<uint> PrevAtomicTextureArray;
 
@@ -245,9 +246,13 @@ void MainCS(
 	float PrevDeviceZ;
 	float DeviceZError;
 	bool bHasPixelAnimation;
+	bool bHasReprojectionOffset;
+	tsr_half ReprojectionEdge;
 	ISOLATE
 	{
-		//uint EncodedReprojectionVectorNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
+		uint EncodedReprojectionVectorNeighborhood[CONFIG_BUTTERFLY_SAMPLES];
+		
+		tsr_half PremilinaryReprojectionEdge;
 
 		// Issue texture fetechs
 		ISOLATE
@@ -255,7 +260,8 @@ void MainCS(
 			tsr_ushort2 InputPixelPos = (
 				Map8x8Tile2x2Lane(GroupThreadIndex) +
 				(tsr_ushort2(InputInfo_ViewportMin) + tsr_ushort2(GroupId) * tsr_ushort2(TILE_SIZE, TILE_SIZE)));
-			
+
+			uint EncodedDilateMask = DilateMaskTexture[InputPixelPos];
 			uint EncodedDeviceZError = DepthErrorTexture[InputPixelPos];
 			#if CONFIG_RESURRECTION_REPROJECTION
 				float2 DeviceZAndPrevDeviceZ = ClosestDepthTexture[InputPixelPos];
@@ -265,13 +271,14 @@ void MainCS(
 				DeviceZ = 0.0;
 			#endif
 			
+			bHasReprojectionOffset = (EncodedDilateMask & 0x80u) != 0u;
+			PremilinaryReprojectionEdge = tsr_half(tsr_ushort(EncodedDilateMask & 0x7Fu)) * rcp(tsr_half(127.0));
 			PrevDeviceZ = abs(DeviceZAndPrevDeviceZ.r);
 			bHasPixelAnimation = DeviceZAndPrevDeviceZ.r < 0.0;
 			DeviceZError = DecodeDeviceZError(PrevDeviceZ, EncodedDeviceZError);
 
-			//FetchReprojectionNeighborhood(ReprojectionVectorTexture, InputPixelPos, /* out */ EncodedReprojectionVectorNeighborhood);
-			//DilatedEncodedReprojectionVector = EncodedReprojectionVectorNeighborhood[0];
-			DilatedEncodedReprojectionVector = ReprojectionFieldOutput[tsr_ushort3(InputPixelPos, 0)];
+			FetchReprojectionNeighborhood(DilatedReprojectionVectorTexture, InputPixelPos, /* out */ EncodedReprojectionVectorNeighborhood);
+			DilatedEncodedReprojectionVector = AccessNeighborhoodCenter(EncodedReprojectionVectorNeighborhood);
 		}
 
 		// LDS spill to save VGPR on the history texture fetches.
@@ -284,15 +291,15 @@ void MainCS(
 		#endif
 		
 		// Detect whether is on velocity edge to clamp the high frequencies
-		#if 0
 		ISOLATE
 		{
-			float2 PixelVelocityNeighborhood[CONFIG_VELOCITY_PRE_FETCH_SAMPLES];
+			float2 PixelVelocityNeighborhood[CONFIG_BUTTERFLY_SAMPLES];
 			ComputePixelVelocityNeighborhood(EncodedReprojectionVectorNeighborhood, /* out */ PixelVelocityNeighborhood);
 
-			ComputeReprojectionEdge(PixelVelocityNeighborhood, /* out */ VelocityEdge);
+			ReprojectionEdge = ComputeReprojectionEdge(PixelVelocityNeighborhood);
+			ReprojectionEdge = select(PremilinaryReprojectionEdge > tsr_half(0.9), PremilinaryReprojectionEdge, ReprojectionEdge);
+			ReprojectionEdge = select(bHasReprojectionOffset, ReprojectionEdge, tsr_half(1.0));
 		}
-		#endif
 	}
 	
 	// Sample the previous frame information
@@ -469,19 +476,18 @@ void MainCS(
 		}
 		#endif
 		
-		DecimateMaskOutput[OutputPixelPos] = tsr_half2(tsr_half(DecimateBitMask) * rcp(tsr_half(255.0)), 0.0);
+		DecimateMaskOutput[OutputPixelPos] = tsr_half2(tsr_half(DecimateBitMask) * rcp(tsr_half(255.0)), ReprojectionEdge);
 
 		// Selectively overwrite the reprojection field
 		{
-			bool bOverwriteReprojectionField = bReprojectionHollFill;
+			bool bWriteReprojectionVector   = bReprojectionHollFill || true;
+			bool bWriteReprojectionJacobian = bReprojectionHollFill;
 
 			// Disable the reprojection's jacobian since this is to extrude disoccluded area we don't know how they look anyway.
 			const uint EncodedReprojectionJacobian = EncodeReprojectionJacobian(tsr_half2x2(tsr_half(0.0).xxxx));
 
-			tsr_short2 ReprojectionFieldOutputPixelPos = OutputPixelPos;
-			ReprojectionFieldOutputPixelPos.x = select(bOverwriteReprojectionField, ReprojectionFieldOutputPixelPos.x, -tsr_short(1));
-			ReprojectionFieldOutput[tsr_short3(ReprojectionFieldOutputPixelPos, 0)] = DilatedEncodedReprojectionVector;
-			ReprojectionFieldOutput[tsr_short3(ReprojectionFieldOutputPixelPos, 2)] = EncodedReprojectionJacobian;
+			ReprojectionFieldOutput[tsr_short3(select(bWriteReprojectionVector,   OutputPixelPos.x, -tsr_short(1)), OutputPixelPos.y, kReprojectionVectorOutputIndex)]   = DilatedEncodedReprojectionVector;
+			ReprojectionFieldOutput[tsr_short3(select(bWriteReprojectionJacobian, OutputPixelPos.x, -tsr_short(1)), OutputPixelPos.y, kReprojectionJacobianOutputIndex)] = EncodedReprojectionJacobian;
 		}
 
 		#if DEBUG_OUTPUT
