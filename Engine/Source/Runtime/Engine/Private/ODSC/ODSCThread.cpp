@@ -394,7 +394,7 @@ void FODSCThread::AddShaderPipelineRequest(
 
 		if (bShouldAddRequest)
 		{
-#if WITH_ODSC
+#if WITH_ODSC && IS_MONOLITHIC
 			if (PrimitiveSceneInfo)
 			{
 				AActor* OwningActor = PrimitiveSceneInfo->GetComponentForDebugOnly() ? PrimitiveSceneInfo->GetComponentForDebugOnly()->GetOwner() : nullptr;

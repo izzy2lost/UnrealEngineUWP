@@ -115,8 +115,8 @@ public:
 	static void UnregisterMaterialName(const FMaterial* Material);
 	static void RegisterMaterialShaderMaps(const FString& MaterialName, const TArray<TRefCountPtr<FMaterialShaderMap>>& LoadedShaderMaps);
 	static FMaterialShaderMap* FindMaterialShaderMap(const FString& MaterialName, const FMaterialShaderMapId& ShaderMapId);
-	static void SetCurrentPrimitiveSceneInfo(FPrimitiveSceneInfo* PrimitiveSceneInfo);
-	static void ResetCurrentPrimitiveSceneInfo();
+	ENGINE_API static void SetCurrentPrimitiveSceneInfo(FPrimitiveSceneInfo* PrimitiveSceneInfo);
+	ENGINE_API static void ResetCurrentPrimitiveSceneInfo();
 
 private:
 	friend class FODSCManagerAccess;
