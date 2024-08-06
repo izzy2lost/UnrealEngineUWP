@@ -152,7 +152,7 @@ struct FNaniteView
 	float		NearPlane;
 	float		LODScale;
 	float		LODScaleHW;
-	float		MinBoundsRadiusSq;
+	float		CullingViewMinRadiusTestFactorSq;
 	uint		StreamingPriorityCategory;
 	uint		Flags;
 	int			TargetLayerIndex;
@@ -748,7 +748,7 @@ FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 	NaniteView.NearPlane					= PackedView.NearPlane;
 	NaniteView.LODScale						= PackedView.LODScales.x;
 	NaniteView.LODScaleHW					= PackedView.LODScales.y;
-	NaniteView.MinBoundsRadiusSq			= PackedView.MinBoundsRadiusSq;
+	NaniteView.CullingViewMinRadiusTestFactorSq			= PackedView.CullingViewMinRadiusTestFactorSq;
 	NaniteView.CullingViewScreenMultiple	= PackedView.CullingViewScreenMultiple;
 	NaniteView.StreamingPriorityCategory	= PackedView.StreamingPriorityCategory_AndFlags & NANITE_STREAMING_PRIORITY_CATEGORY_MASK;
 	NaniteView.Flags						= PackedView.StreamingPriorityCategory_AndFlags >> NANITE_NUM_STREAMING_PRIORITY_CATEGORY_BITS;
@@ -783,34 +783,34 @@ FNaniteView GetNaniteView( uint ViewIndex )
 
 	FNaniteView NaniteView;
 
-	NaniteView.SVPositionToTranslatedWorld  = LocalView.SVPositionToTranslatedWorld;
-	NaniteView.ViewToTranslatedWorld		= LocalView.ViewToTranslatedWorld;
-	NaniteView.ViewOriginHigh				= LocalView.ViewOriginHigh;
+	NaniteView.SVPositionToTranslatedWorld		= LocalView.SVPositionToTranslatedWorld;
+	NaniteView.ViewToTranslatedWorld			= LocalView.ViewToTranslatedWorld;
+	NaniteView.ViewOriginHigh					= LocalView.ViewOriginHigh;
 
-	NaniteView.TranslatedWorldToView		= LocalView.TranslatedWorldToView;
-	NaniteView.TranslatedWorldToClip		= LocalView.TranslatedWorldToClip;
-	NaniteView.ViewToClip					= LocalView.ViewToClip;
-	NaniteView.ClipToWorld					= LocalView.ClipToWorld;
+	NaniteView.TranslatedWorldToView			= LocalView.TranslatedWorldToView;
+	NaniteView.TranslatedWorldToClip			= LocalView.TranslatedWorldToClip;
+	NaniteView.ViewToClip						= LocalView.ViewToClip;
+	NaniteView.ClipToWorld						= LocalView.ClipToWorld;
 	
-	NaniteView.PrevTranslatedWorldToView	= LocalView.PrevTranslatedWorldToView;
-	NaniteView.PrevTranslatedWorldToClip	= LocalView.PrevTranslatedWorldToClip;
-	NaniteView.PrevViewToClip				= LocalView.PrevViewToClip;
-	NaniteView.PrevClipToWorld				= LocalView.PrevClipToWorld;
+	NaniteView.PrevTranslatedWorldToView		= LocalView.PrevTranslatedWorldToView;
+	NaniteView.PrevTranslatedWorldToClip		= LocalView.PrevTranslatedWorldToClip;
+	NaniteView.PrevViewToClip					= LocalView.PrevViewToClip;
+	NaniteView.PrevClipToWorld					= LocalView.PrevClipToWorld;
 
-	NaniteView.TranslatedGlobalClipPlane	= LocalView.GlobalClippingPlane;
+	NaniteView.TranslatedGlobalClipPlane		= LocalView.GlobalClippingPlane;
 
-	NaniteView.ViewSizeAndInvSize			= LocalView.ViewSizeAndInvSize;
-	NaniteView.ViewRect						= int4(int2(LocalView.ViewRectMin.xy + 0.5f), int2(LocalView.ViewRectMin.xy + LocalView.ViewSizeAndInvSize.xy + 0.5f));
-	NaniteView.PreViewTranslation			= LocalView.PreViewTranslation;
-	NaniteView.PrevPreViewTranslation		= LocalView.PrevPreViewTranslation;
-	NaniteView.WorldCameraOrigin			= LocalView.WorldCameraOrigin;
-	NaniteView.ViewForward					= LocalView.ViewForward;
-	NaniteView.NearPlane					= LocalView.NearPlane;
-	NaniteView.LODScale						= 1.0f;
-	NaniteView.LODScaleHW					= 1.0f;
-	NaniteView.MinBoundsRadiusSq			= 0;
-	NaniteView.StreamingPriorityCategory	= 3;
-	NaniteView.Flags						= NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP;
+	NaniteView.ViewSizeAndInvSize				= LocalView.ViewSizeAndInvSize;
+	NaniteView.ViewRect							= int4(int2(LocalView.ViewRectMin.xy + 0.5f), int2(LocalView.ViewRectMin.xy + LocalView.ViewSizeAndInvSize.xy + 0.5f));
+	NaniteView.PreViewTranslation				= LocalView.PreViewTranslation;
+	NaniteView.PrevPreViewTranslation			= LocalView.PrevPreViewTranslation;
+	NaniteView.WorldCameraOrigin				= LocalView.WorldCameraOrigin;
+	NaniteView.ViewForward						= LocalView.ViewForward;
+	NaniteView.NearPlane						= LocalView.NearPlane;
+	NaniteView.LODScale							= 1.0f;
+	NaniteView.LODScaleHW						= 1.0f;
+	NaniteView.CullingViewMinRadiusTestFactorSq	= 0.0f;
+	NaniteView.StreamingPriorityCategory		= 3;
+	NaniteView.Flags							= NANITE_VIEW_FLAG_HZBTEST | NANITE_VIEW_FLAG_NEAR_CLIP;
 	
 	NaniteView.TargetLayerIndex = -1;		// INDEX_NONE
 	NaniteView.TargetMipLevel = 0;

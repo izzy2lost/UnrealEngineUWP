@@ -12,6 +12,11 @@
 #define CULLING_PASS CULLING_PASS_NO_OCCLUSION
 #endif
 
+// Allow enabling this code path for only the non-nanite rendering
+#ifndef NANITE_CULLING_ENABLE_MIN_RADIUS_CULL 
+#define NANITE_CULLING_ENABLE_MIN_RADIUS_CULL 0
+#endif
+
 #include "../SceneData.ush"
 #include "NaniteDataDecode.ush"
 #include "NaniteHZBCull.ush"
@@ -53,6 +58,7 @@ struct FBoxCull
 	bool		bNeedsClipping;
 	bool		bEnableWPO;
 	bool		bFallbackRaster;
+	bool		bMinScreenRadiusCull;
 
 #if VIRTUAL_TEXTURE_TARGET
 	uint		PageFlagMask;
@@ -79,11 +85,12 @@ struct FBoxCull
 		LocalToTranslatedWorld		= InLocalToTranslatedWorld;
 		PrevLocalToTranslatedWorld	= InPrevLocalToTranslatedWorld;
 
-		bIsOrtho		= IsOrthoProjection( NaniteView.ViewToClip );
-		bNearClip		= (NaniteView.Flags & NANITE_VIEW_FLAG_NEAR_CLIP) != 0u;
-		bViewHZB		= (NaniteView.Flags & NANITE_VIEW_FLAG_HZBTEST) != 0u;
-		bDistanceCull	= (NaniteView.Flags & NANITE_VIEW_FLAG_DISTANCE_CULL) != 0u;
-		bIsViewUncached	= (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED) != 0u;
+		bIsOrtho				= IsOrthoProjection( NaniteView.ViewToClip );
+		bNearClip				= (NaniteView.Flags & NANITE_VIEW_FLAG_NEAR_CLIP) != 0u;
+		bViewHZB				= (NaniteView.Flags & NANITE_VIEW_FLAG_HZBTEST) != 0u;
+		bDistanceCull			= (NaniteView.Flags & NANITE_VIEW_FLAG_DISTANCE_CULL) != 0u;
+		bIsViewUncached			= (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED) != 0u;
+		bMinScreenRadiusCull	= NANITE_CULLING_ENABLE_MIN_RADIUS_CULL != 0 && (NaniteView.Flags & NANITE_VIEW_MIN_SCREEN_RADIUS_CULL) != 0u;
 
 	#if DEBUG_FLAGS
 		bSkipCullFrustum					= (DebugFlags & NANITE_DEBUG_FLAG_DISABLE_CULL_FRUSTUM) != 0u;
@@ -264,7 +271,7 @@ struct FBoxCull
 	bool ScreenSize(float MinScreenSize, float MaxScreenSize)
 	{
 		BRANCH
-		if (bIsVisible && MinScreenSize != MaxScreenSize)
+		if (bIsVisible && (MinScreenSize != MaxScreenSize || bMinScreenRadiusCull))
 		{
 			// Needs to match C++ logic in ComputeLODForMeshes() and ComputeBoundsScreenRadiusSquared() so that culling matches the submitted range of Lods.
 			// Differences to that code which shouldn't affect the result are:
@@ -272,12 +279,28 @@ struct FBoxCull
 			// * ScreenMultiple has the inverse LODDistanceScale baked in, and so it doesn't need applying to the ScreenSize.
 			float3 CenterTranslatedWorld = mul(float4(LocalBoxCenter, 1.0f), LocalToTranslatedWorld).xyz;
 			float InstanceDrawDistSq = length2(CenterTranslatedWorld - NaniteView.CullingViewOriginTranslatedWorld);
-			float RadiusSq = length2(LocalBoxExtent);
-			float ScreenMultiple = NaniteView.CullingViewScreenMultiple;
-			float ScreenSizeSq = ScreenMultiple * ScreenMultiple * RadiusSq / max(InstanceDrawDistSq, 1.0f);
-			float MinScreenSizeSq = MinScreenSize * MinScreenSize;
-			float MaxScreenSizeSq = MaxScreenSize * MaxScreenSize;
-			bIsVisible = ScreenSizeSq >= MinScreenSizeSq && (MaxScreenSize == 0 || ScreenSizeSq < MaxScreenSizeSq);
+			const float RadiusSq = length2( LocalBoxExtent * NonUniformScale.xyz );
+
+#if NANITE_CULLING_ENABLE_MIN_RADIUS_CULL
+			if (bMinScreenRadiusCull)
+			{
+				// implements: ScreenRadius < MinRadius, where ScreenRadius = Radius / (LodDistanceFactor * Distance)
+				if (RadiusSq < NaniteView.CullingViewMinRadiusTestFactorSq * InstanceDrawDistSq)
+				{
+					bIsVisible = false;
+					return bIsVisible;
+				}
+			}
+			// Only perform this test if enabled
+			if (MinScreenSize != MaxScreenSize)
+#endif
+			{
+				float ScreenMultiple = NaniteView.CullingViewScreenMultiple;
+				float ScreenSizeSq = ScreenMultiple * ScreenMultiple * RadiusSq / max(InstanceDrawDistSq, 1.0f);
+				float MinScreenSizeSq = MinScreenSize * MinScreenSize;
+				float MaxScreenSizeSq = MaxScreenSize * MaxScreenSize;
+				bIsVisible = ScreenSizeSq >= MinScreenSizeSq && (MaxScreenSize == 0 || ScreenSizeSq < MaxScreenSizeSq);
+			}
 		}
 
 		return bIsVisible;

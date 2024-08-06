@@ -30,6 +30,9 @@
 #include "../LightmapData.ush"
 #include "InstanceCullingCommon.ush"
 #include "InstanceCompactionCommon.ush"
+
+// Turn on the logic for culling based on min screen radius (used in NaniteCullingCommon.ush)
+#define NANITE_CULLING_ENABLE_MIN_RADIUS_CULL 1
 #include "../Nanite/NaniteCullingCommon.ush"
 #include "../WaveOpUtil.ush"
 #include "../ComputeShaderUtils.ush"

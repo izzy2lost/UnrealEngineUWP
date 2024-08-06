@@ -53,7 +53,7 @@ struct FPackedView
 	FVector3f	PrevPreViewTranslationHigh;
 	float		ViewOriginHighY;
 	FVector3f	PrevPreViewTranslationLow;
-	float		MinBoundsRadiusSq;
+	float		CullingViewMinRadiusTestFactorSq;
 	FVector3f	ViewOriginLow;
 	float		ViewOriginHighZ;
 	FVector3f	CullingViewOriginTranslatedWorld;
@@ -170,6 +170,7 @@ struct FPackedViewParams
 	bool bUseCullingViewOverrides = false;
 	FVector CullingViewOrigin = FVector::ZeroVector;
 	float CullingViewScreenMultiple = -1.0f;
+	float CullingViewMinRadiusTestFactorSq = 0.0f;  // not used unless the flag NANITE_VIEW_MIN_SCREEN_RADIUS_CULL is set and support is compiled into the culling shader
 
 	FPlane GlobalClippingPlane = {0.0f, 0.0f, 0.0f, 0.0f};
 

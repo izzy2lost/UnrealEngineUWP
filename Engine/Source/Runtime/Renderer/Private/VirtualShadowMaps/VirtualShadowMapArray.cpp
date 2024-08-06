@@ -41,6 +41,7 @@ extern int32 GForceInvalidateDirectionalVSM;
 extern int32 GVSMMaxPageAgeSinceLastRequest;
 extern TAutoConsoleVariable<float> CVarNaniteMaxPixelsPerEdge;
 extern TAutoConsoleVariable<float> CVarNaniteMinPixelsPerEdgeHW;
+extern float GMinScreenRadiusForShadowCaster;
 
 int32 GVSMShowLightDrawEvents = 0;
 FAutoConsoleVariableRef CVarVSMShowLightDrawEvents(
@@ -216,6 +217,13 @@ TAutoConsoleVariable<int32> CVarDoNonNaniteBatching(
 	TEXT("r.Shadow.Virtual.NonNanite.Batch"),
 	1,
 	TEXT("."),
+	ECVF_RenderThreadSafe
+);
+
+TAutoConsoleVariable<int32> CVarNonNaniteUseRadiusThreshold(
+	TEXT("r.Shadow.Virtual.NonNanite.UseRadiusThreshold"),
+	1,
+	TEXT("If enabled (default) the r.Shadow.RadiusThreshold cvar is also used for uncached virtual shadow maps to cull small non-nanite instances."),
 	ECVF_RenderThreadSafe
 );
 
@@ -435,7 +443,7 @@ void FVirtualShadowMapArray::Initialize(
 	bCullBackfacingPixels = CVarCullBackfacingPixels.GetValueOnRenderThread() != 0;
 	bUseHzbOcclusion = CVarShadowsVirtualUseHZB.GetValueOnRenderThread() != 0;
 	bUseTwoPassHzbOcclusion = CVarShadowsVirtualUseHZB.GetValueOnRenderThread() == 2;
-
+	bNonNaniteUseRadiusThreshold = CVarNonNaniteUseRadiusThreshold.GetValueOnRenderThread() != 0;
 	UniformParameters.NumFullShadowMaps = 0;
 	UniformParameters.NumSinglePageShadowMaps = 0;
 	UniformParameters.NumShadowMapSlots = 0;
@@ -3293,8 +3301,6 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 	BaseParams.TargetMipLevel = 0;
 	BaseParams.TargetMipCount = 1;	// No mips for clipmaps
 	BaseParams.Flags = 0u;
-	
-	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
 	if (Clipmap->GetLightSceneInfo().Proxy)
 	{
@@ -3310,6 +3316,14 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const TSharedPtr<FVirtualShadowMap
 		// Enable the force-uncaching to remove needless caching overhead if there is nothing to cache (the light is constantly invalidated).
 		BaseParams.Flags |= CacheEntry->IsUncached() ? NANITE_VIEW_FLAG_UNCACHED : 0u;
 	}
+	
+	if (bNonNaniteUseRadiusThreshold && (!CacheEntry.IsValid() || CacheEntry->IsUncached()))
+	{
+		BaseParams.Flags |= NANITE_VIEW_MIN_SCREEN_RADIUS_CULL;
+		BaseParams.MinBoundsRadius = GMinScreenRadiusForShadowCaster;
+	}
+
+	Nanite::SetCullingViewOverrides(CullingView, BaseParams);
 
 	for (int32 ClipmapLevelIndex = 0; ClipmapLevelIndex < Clipmap->GetLevelCount(); ++ClipmapLevelIndex)
 	{
@@ -3392,13 +3406,18 @@ uint32 FVirtualShadowMapArray::AddRenderViews(const FProjectedShadowInfo* Projec
 			}
 		}
 	}
-	Nanite::SetCullingViewOverrides(&Views[ClosestCullingViewIndex], BaseParams);
-
 	TSharedPtr<FVirtualShadowMapPerLightCacheEntry> CacheEntry = ProjectedShadowInfo->VirtualShadowMapPerLightCacheEntry;
 	check(CacheEntry.IsValid())
 	CacheEntry->MarkRendered(Scene.GetFrameNumber());
+
+	if (bNonNaniteUseRadiusThreshold && CacheEntry->IsUncached())
+	{
+		BaseParams.Flags |= NANITE_VIEW_MIN_SCREEN_RADIUS_CULL;
+		BaseParams.MinBoundsRadius = GMinScreenRadiusForShadowCaster;
+	}
 	BaseParams.Flags |= CacheEntry->IsUncached() ? NANITE_VIEW_FLAG_UNCACHED : 0U;
 
+	Nanite::SetCullingViewOverrides(&Views[ClosestCullingViewIndex], BaseParams);
 	int32 NumMaps = ProjectedShadowInfo->bOnePassPointLightShadow ? 6 : 1;
 	for (int32 Index = 0; Index < NumMaps; ++Index)
 	{

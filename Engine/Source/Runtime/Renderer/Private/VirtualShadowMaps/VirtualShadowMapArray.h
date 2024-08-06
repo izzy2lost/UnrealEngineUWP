@@ -459,6 +459,7 @@ private:
 	//
 	bool bUseHzbOcclusion = true;
 	bool bUseTwoPassHzbOcclusion = true;
+	bool bNonNaniteUseRadiusThreshold = true;
 
 	bool bInitialized = false;
 

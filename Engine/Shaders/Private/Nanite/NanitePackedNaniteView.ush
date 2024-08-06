@@ -26,7 +26,7 @@ struct FPackedNaniteView
 	float3		PrevPreViewTranslationHigh;
 	float		ViewOriginHighY;
 	float3		PrevPreViewTranslationLow;
-	float		MinBoundsRadiusSq;
+	float		CullingViewMinRadiusTestFactorSq;
 	float3		ViewOriginLow;
 	float		ViewOriginHighZ;
 	float3		CullingViewOriginTranslatedWorld;

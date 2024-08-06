@@ -99,6 +99,7 @@ void SetCullingViewOverrides(FViewInfo const* InCullingView, Nanite::FPackedView
 		// We bake the view lod scales into ScreenMultiple since the two things are always used together.
 		const float LODDistanceScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * InCullingView->LODDistanceFactor;
 		InOutParams.CullingViewScreenMultiple /= LODDistanceScale;
+		InOutParams.CullingViewMinRadiusTestFactorSq = FMath::Square(InCullingView->LODDistanceFactor * InOutParams.MinBoundsRadius);
 	}
 	else
 	{
@@ -147,6 +148,7 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	PackedView.ViewOriginHighZ				= AbsoluteViewOrigin.High.Z;
 	PackedView.RangeBasedCullingDistance	= Params.RangeBasedCullingDistance;
 	PackedView.CullingViewScreenMultiple	= CullingViewScreenMulitple;
+	PackedView.CullingViewMinRadiusTestFactorSq	= Params.bUseCullingViewOverrides ? Params.CullingViewMinRadiusTestFactorSq : FMath::Square(Params.ViewLODDistanceFactor * Params.MinBoundsRadius);
 
 	PackedView.PrevTranslatedWorldToView	= FMatrix44f(Params.PrevViewMatrices.GetOverriddenTranslatedViewMatrix()); // LWC_TODO: Precision loss? (and below)
 	PackedView.PrevTranslatedWorldToClip	= FMatrix44f(Params.PrevViewMatrices.GetTranslatedViewProjectionMatrix());
@@ -179,7 +181,6 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 
 	check(Params.StreamingPriorityCategory <= NANITE_STREAMING_PRIORITY_CATEGORY_MASK);
 	PackedView.StreamingPriorityCategory_AndFlags = (Params.Flags << NANITE_NUM_STREAMING_PRIORITY_CATEGORY_BITS) | Params.StreamingPriorityCategory;
-	PackedView.MinBoundsRadiusSq = Params.MinBoundsRadius * Params.MinBoundsRadius;
 	PackedView.UpdateLODScales(NaniteMaxPixelsPerEdge, NaniteMinPixelsPerEdgeHW);
 
 	PackedView.TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ.X = Params.TargetLayerIndex;
