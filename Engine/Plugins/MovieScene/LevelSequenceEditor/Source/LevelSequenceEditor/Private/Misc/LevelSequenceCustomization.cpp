@@ -200,10 +200,21 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 
 				if (!bMultipleBindings)
 				{
+					TArray<FSequencerChangeBindingInfo> Bindings;
+					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+					for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
+					{
+						int32 BindingIndex = 0;
+						for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
+						{
+							Bindings.Add({ Reference.ID, BindingIndex++ });
+						}
+					}
+
 					MenuBuilder.AddSubMenu(
 						LOCTEXT("ChangeClassLabel", "Change Class"),
 						LOCTEXT("ChangeClassTooltip", "Change the class (object template) that this spawns from"),
-						FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), ObjectBindingID, 0, TFunction<void()>()); }));
+						FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>()); }));
 				}
 			}
 
@@ -219,7 +230,7 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 			LOCTEXT("ConvertBindingLabelTooltip", "Convert selected bindings into another binding type"),
 			FNewMenuDelegate::CreateLambda([Sequencer, Sequence](FMenuBuilder& MenuBuilder) 
 			{ 
-					TArray<FSequencerConvertBindingInfo> Bindings;
+					TArray<FSequencerChangeBindingInfo> Bindings;
 					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
 					for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
 					{

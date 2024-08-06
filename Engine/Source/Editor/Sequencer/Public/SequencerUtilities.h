@@ -171,7 +171,7 @@ struct FMovieScenePasteBindingsParams
 };
 
 USTRUCT()
-struct FSequencerConvertBindingInfo
+struct FSequencerChangeBindingInfo
 {
 	GENERATED_BODY()
 
@@ -286,7 +286,7 @@ struct SEQUENCER_API FSequencerUtilities
 	static TRange<FFrameNumber> GetTimeBounds(TSharedRef<ISequencer> Sequencer);
 
 	// Functions allowing menus to be built for modifying bindings
-	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
-	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, FGuid Guid, int32 BindingIndex, TFunction<void()> OnBindingChanged);
-	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerConvertBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
+	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
+	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
+	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 };

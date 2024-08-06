@@ -242,7 +242,7 @@ TSharedRef<SWidget> FMovieSceneBindingPropertyInfoListCustomization::OnGetConver
 
 	if (Sequencer.IsValid() && BindingList)
 	{
-		TArray<FSequencerConvertBindingInfo> Bindings;
+		TArray<FSequencerChangeBindingInfo> Bindings;
 		for (int32 BindingIndex = 0; BindingIndex < BindingList->Bindings.Num(); ++BindingIndex)
 		{
 			Bindings.Add({ BindingGuid, BindingIndex });
@@ -391,7 +391,10 @@ TSharedRef<SWidget> FMovieSceneBindingPropertyInfoDetailCustomization::OnGetChan
 	TSharedPtr<ISequencer> Sequencer = SequencerPtr.Pin();
 	if (Sequencer.IsValid() && StructPropertyHandle->IsValidHandle())
 	{
-		FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), BindingGuid, BindingIndex, [this, &StructBuilder, &CustomizationUtils]()
+		TArray<FSequencerChangeBindingInfo> Bindings;
+		Bindings.Add(FSequencerChangeBindingInfo(BindingGuid, BindingIndex));
+
+		FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, [this, &StructBuilder, &CustomizationUtils]()
 			{
 				if (IDetailsView* DetailsView = StructBuilder.GetParentCategory().GetParentLayout().GetDetailsView())
 				{
@@ -971,7 +974,10 @@ bool ULevelSequenceEditorSubsystem::ChangeActorTemplateClass(const FMovieSceneBi
 
 	bool bSuccess = false;
 
-	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), ObjectBinding.BindingID, 0, [&bSuccess](){bSuccess=true;});
+	TArray<FSequencerChangeBindingInfo> Bindings;
+	Bindings.Add(FSequencerChangeBindingInfo(ObjectBinding.BindingID, 0));
+
+	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), Bindings, [&bSuccess](){bSuccess=true;});
 
 	return bSuccess;
 }
