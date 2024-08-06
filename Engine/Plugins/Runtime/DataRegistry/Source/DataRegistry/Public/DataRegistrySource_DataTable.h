@@ -95,6 +95,7 @@ protected:
 
 #if WITH_EDITOR
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	virtual void EditorRefreshSource() override;
 #endif
 };
 

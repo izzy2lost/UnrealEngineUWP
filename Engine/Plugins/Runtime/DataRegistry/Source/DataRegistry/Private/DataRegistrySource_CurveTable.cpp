@@ -345,6 +345,11 @@ void UDataRegistrySource_CurveTable::PreSave(FObjectPreSaveContext ObjectSaveCon
 	SetCachedTable(true);
 }
 
+void UDataRegistrySource_CurveTable::EditorRefreshSource()
+{
+	SetCachedTable(false);
+}
+
 #endif // WITH_EDITOR
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

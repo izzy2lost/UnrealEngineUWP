@@ -344,6 +344,11 @@ void UDataRegistrySource_DataTable::PreSave(FObjectPreSaveContext ObjectSaveCont
 	SetCachedTable(true);
 }
 
+void UDataRegistrySource_DataTable::EditorRefreshSource()
+{
+	SetCachedTable(false);
+}
+
 #endif // WITH_EDITOR
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
