@@ -25,17 +25,10 @@ namespace UE::StateTree::BooleanPropertyFunctions::Internal
 			RightValue = UE::StateTree::DescHelpers::GetBoolText(InstanceData.bRight, Formatting);
 		}
 
-		const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
-			? LOCTEXT("BoolFuncRich", "({Left} <s>{Operation}</> {Right})")
-			: LOCTEXT("BoolFunc", "({Left} {Operation} {Right})");
-
-		return FText::FormatNamed(Format,
-			TEXT("Left"), LeftValue,
-			TEXT("Operation"), OperationText,
-			TEXT("Right"), RightValue);
+		return UE::StateTree::DescHelpers::GetMathOperationText(OperationText, LeftValue, RightValue, Formatting);
 	}
 #endif // WITH_EDITOR
-}
+} // namespace UE::StateTree::BooleanPropertyFunctions::Internal
 
 void FStateTreeBooleanAndPropertyFunction::Execute(FStateTreeExecutionContext& Context) const
 {
@@ -60,6 +53,44 @@ void FStateTreeBooleanOrPropertyFunction::Execute(FStateTreeExecutionContext& Co
 FText FStateTreeBooleanOrPropertyFunction::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
 {
 	return UE::StateTree::BooleanPropertyFunctions::Internal::GetDescriptionForOperation(LOCTEXT("BoolOr", "or"), ID, InstanceDataView, BindingLookup, Formatting);
+}
+#endif // WITH_EDITOR
+
+void FStateTreeBooleanXOrPropertyFunction::Execute(FStateTreeExecutionContext& Context) const
+{
+	FStateTreeBooleanOperationPropertyFunctionInstanceData& InstanceData = Context.GetInstanceData(*this);
+	InstanceData.bResult = InstanceData.bLeft ^ InstanceData.bRight;
+}
+
+#if WITH_EDITOR
+FText FStateTreeBooleanXOrPropertyFunction::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	return UE::StateTree::BooleanPropertyFunctions::Internal::GetDescriptionForOperation(LOCTEXT("BoolXOr", "xor"), ID, InstanceDataView, BindingLookup, Formatting);
+}
+#endif // WITH_EDITOR
+
+void FStateTreeBooleanNotPropertyFunction::Execute(FStateTreeExecutionContext& Context) const
+{
+	FStateTreeBooleanNotOperationPropertyFunctionInstanceData& InstanceData = Context.GetInstanceData(*this);
+	InstanceData.bResult = !InstanceData.bInput;
+}
+
+#if WITH_EDITOR
+FText FStateTreeBooleanNotPropertyFunction::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	const FStateTreeBooleanNotOperationPropertyFunctionInstanceData& InstanceData = InstanceDataView.Get<FStateTreeBooleanNotOperationPropertyFunctionInstanceData>();
+
+	FText InputValue = BindingLookup.GetBindingSourceDisplayName(FStateTreePropertyPath(ID, GET_MEMBER_NAME_CHECKED(FStateTreeBooleanNotOperationPropertyFunctionInstanceData, bInput)), Formatting);
+	if (InputValue.IsEmpty())
+	{
+		InputValue = UE::StateTree::DescHelpers::GetBoolText(InstanceData.bInput, Formatting);
+	}
+
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("BoolNotFuncRich", "(<s>Not</> {Input})")
+		: LOCTEXT("BoolNotFunc", "(Not {Input})");
+
+	return FText::FormatNamed(Format, TEXT("Input"), InputValue);
 }
 #endif // WITH_EDITOR
 

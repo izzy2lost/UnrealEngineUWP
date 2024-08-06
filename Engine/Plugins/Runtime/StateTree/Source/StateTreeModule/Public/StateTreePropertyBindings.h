@@ -201,6 +201,10 @@ struct STATETREEMODULE_API FStateTreeBindableStructDesc
 	/** In Editor path to State containting the data. */
 	UPROPERTY(Transient)
 	FString StatePath;
+
+	/** Category of the bindable struct. Can be used to display the category in a menu. */
+	UPROPERTY()
+	FString Category;
 #endif
 };
 

@@ -519,6 +519,7 @@ EStateTreeVisitor UStateTreeEditorData::EnumerateBindablePropertyFunctionNodes(T
 					Desc.DataSource = EStateTreeBindableStructSource::PropertyFunction;
 					Desc.Name = FName(NodeStruct->GetDisplayNameText().ToString());
 					Desc.StatePath = UE::StateTree::Editor::PropertyFunctionStateName;
+					Desc.Category = NodeStruct->GetMetaData(TEXT("Category"));
 
 					if (InFunc(NodeStruct, Desc, FStateTreeDataView(InstanceDataStruct, nullptr)) == EStateTreeVisitor::Break)
 					{

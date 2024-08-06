@@ -1518,6 +1518,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 				FBindingContextStruct& ContextStruct = BindingContextStructs.AddDefaulted_GetRef();
 				ContextStruct.DisplayText = FText::FromString(StructDesc.Name.ToString());
 				ContextStruct.Struct = const_cast<UStruct*>(Struct);
+				ContextStruct.Category = StructDesc.Category;
 
 				// Mare sure same section names get exact same FText representation (binding widget uses IsIdentical() to compare the section names).
 				if (const FText* SectionText = SectionNames.Find(StructDesc.StatePath))

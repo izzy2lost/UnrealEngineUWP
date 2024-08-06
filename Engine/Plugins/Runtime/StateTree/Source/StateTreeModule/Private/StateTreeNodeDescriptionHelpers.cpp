@@ -164,6 +164,50 @@ FText GetExactMatchText(bool bExactMatch, EStateTreeNodeFormatting Formatting)
 	}
 	return bExactMatch ? LOCTEXT("Exactly", "exactly ") : FText::GetEmpty();
 }
+
+FText GetText(const FVector& Value, EStateTreeNodeFormatting Formatting)
+{
+	return Value.ToCompactText();
+}
+
+FText GetText(float Value, EStateTreeNodeFormatting Formatting)
+{
+	return FText::AsNumber(Value);
+}
+
+FText GetText(int32 Value, EStateTreeNodeFormatting Formatting)
+{
+	return FText::AsNumber(Value);
+}
+
+FText GetText(const UObject* Value, EStateTreeNodeFormatting Formatting)
+{
+	return FText::FromName(GetFNameSafe(Value));
+}
+
+FText GetMathOperationText(const FText& OperationText, const FText& LeftValue, const FText& RightValue, EStateTreeNodeFormatting Formatting)
+{
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("MathFuncRich", "({Left} <s>{Operation}</> {Right})")
+		: LOCTEXT("MathFunc", "({Left} {Operation} {Right})");
+
+	return FText::FormatNamed(Format,
+		TEXT("Left"), LeftValue,
+		TEXT("Operation"), OperationText,
+		TEXT("Right"), RightValue);
+}
+
+FText GetSingleParamFunctionText(const FText& FunctionText, const FText& ParamText, EStateTreeNodeFormatting Formatting)
+{
+	const FText Format = (Formatting == EStateTreeNodeFormatting::RichText)
+		? LOCTEXT("SingleParamFuncRich", "<s>{Function}</>({Input})")
+		: LOCTEXT("SingleParamFunc", "{Function}({Input})");
+
+	return FText::FormatNamed(Format,
+		TEXT("Function"), FunctionText,
+		TEXT("Input"), ParamText);
+}
+
 } // UE::StateTree::Helpers
 
 #undef LOCTEXT_NAMESPACE
