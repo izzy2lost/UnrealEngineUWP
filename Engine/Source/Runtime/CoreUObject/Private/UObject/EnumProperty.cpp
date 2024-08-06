@@ -500,8 +500,7 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 	if (*TagType == NAME_EnumProperty)
 	{
 	#if WITH_EDITORONLY_DATA
-		FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
-		if (UNLIKELY(SerializeContext->bTrackUnknownEnumNames && !CanSerializeFromTypeName(Tag.GetType())))
+		if (UNLIKELY(FUObjectThreadContext::Get().GetSerializeContext()->bTrackUnknownProperties && !CanSerializeFromTypeName(Tag.GetType())))
 		{
 			FName EnumValueName;
 			int64 EnumValue = 0;
@@ -526,8 +525,6 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 	default:
 		return EConvertFromTypeResult::UseSerializeItem;
 	case NAME_ByteProperty:
-	{
-		uint8 PreviousValue = 0;
 		if (Tag.GetType().GetParameterCount() == 0)
 		{
 			// A nested property would lose its enum name on previous versions. Handle this case for backward compatibility reasons.
@@ -544,23 +541,23 @@ EConvertFromTypeResult FEnumProperty::ConvertFromType(const FPropertyTag& Tag, F
 				InnerPropertyTag.Name = Tag.Name;
 				InnerPropertyTag.ArrayIndex = 0;
 
-				PreviousValue = (uint8)FNumericProperty::ReadEnumAsInt64(Slot, DefaultsStruct, InnerPropertyTag);
+				int64 PreviousValue = FNumericProperty::ReadEnumAsInt64(Slot, DefaultsStruct, InnerPropertyTag);
+				UnderlyingProp->SetIntPropertyValue(ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex), PreviousValue);
 			}
 			else
 			{
-				// a byte property gained an enum
-				Slot << PreviousValue;
+				// A byte property gained an enum.
+				UE::CoreUObject::Private::ConvertIntToEnumProperty<uint8>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
 			}
 		}
 		else
 		{
-			PreviousValue = (uint8)FNumericProperty::ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
+			FName EnumValueName;
+			int64 EnumValue = 0;
+			TryLoadEnumValueByName(Slot, Slot.GetUnderlyingArchive(), Enum, EnumValueName, EnumValue);
+			UnderlyingProp->SetIntPropertyValue(ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex), EnumValue);
 		}
-
-		// now copy the value into the object's address space
-		UnderlyingProp->SetIntPropertyValue(ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex), (uint64)PreviousValue);
 		return EConvertFromTypeResult::Converted;
-	}
 	case NAME_Int8Property:
 		UE::CoreUObject::Private::ConvertIntToEnumProperty<int8>(Slot, this, UnderlyingProp, Enum, ContainerPtrToValuePtr<void>(Data, Tag.ArrayIndex));
 		return EConvertFromTypeResult::Converted;

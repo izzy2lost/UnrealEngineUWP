@@ -313,9 +313,8 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
 	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
-	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
-	//CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
-	//CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Point.X == 0);
 	CHECK(StructData.Point.Y == 0);
 	CHECK(StructData.Point.Z == 0);
@@ -360,15 +359,14 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 		#endif
 		}
 	}
-	// TODO: Enum type name changes are not recorded as a conversion.
-	//{
-	//	FSerializedPropertyPathScope Path(SerializeContext, {"GrainTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("GrainTypeChange")))});
-	//	CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
-	//}
-	//{
-	//	FSerializedPropertyPathScope Path(SerializeContext, {"FruitTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("FruitTypeChange")))});
-	//	CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
-	//}
+	{
+		FSerializedPropertyPathScope Path(SerializeContext, {"GrainTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("GrainTypeChange")))});
+		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	}
+	{
+		FSerializedPropertyPathScope Path(SerializeContext, {"FruitTypeChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("FruitTypeChange")))});
+		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
+	}
 	{
 		FSerializedPropertyPathScope Path(SerializeContext, {"GrainTypeAndPropertyChange", SavePropertyTypeName(FindFProperty<FProperty>(StaticStruct<FTestInstanceDataObjectStructAlternate>(), TEXT("GrainTypeAndPropertyChange")))});
 		CHECK(Tree->Find(SerializeContext->SerializedPropertyPath));
@@ -399,9 +397,8 @@ TEST_CASE_NAMED(FTrackUnknownPropertiesTest, "CoreUObject::Serialization::TrackU
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection::North | ETestInstanceDataObjectDirection::West));
 	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
-	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
-	//CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
-	//CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainTypeAndPropertyChange == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitTypeAndPropertyChange == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.Point.X == 0);
 	CHECK(StructData.Point.Y == 0);
 	CHECK(StructData.Point.Z == 0);
@@ -493,9 +490,8 @@ TEST_CASE_NAMED(FTrackUnknownEnumNamesTest, "CoreUObject::Serialization::TrackUn
 	CHECK(StructData.Grain == (ETestInstanceDataObjectGrain::Type)((uint8)ETestInstanceDataObjectGrain::Wheat + 1));
 	CHECK(StructData.Fruit == (ETestInstanceDataObjectFruit)((uint8)ETestInstanceDataObjectFruit::Orange + 1));
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection)MAX_uint16);
-	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
-	//CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
-	//CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
 
@@ -560,9 +556,8 @@ TEST_CASE_NAMED(FTrackUnknownEnumNamesTest, "CoreUObject::Serialization::TrackUn
 	CHECK(StructData.Grain == (ETestInstanceDataObjectGrain::Type)((uint8)ETestInstanceDataObjectGrain::Wheat + 1));
 	CHECK(StructData.Fruit == (ETestInstanceDataObjectFruit)((uint8)ETestInstanceDataObjectFruit::Orange + 1));
 	CHECK(StructData.Direction == (ETestInstanceDataObjectDirection)MAX_uint16);
-	// TODO: ConvertFromType incorrectly assigns numeric values based on the saved enum type.
-	//CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
-	//CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
+	CHECK(StructData.GrainFromEnumClass == ETestInstanceDataObjectGrain::Corn);
+	CHECK(StructData.FruitFromNamespace == ETestInstanceDataObjectFruit::Orange);
 	CHECK(StructData.GrainTypeChange == ETestInstanceDataObjectGrain::Corn);
 	CHECK(StructData.FruitTypeChange == ETestInstanceDataObjectFruit::Orange);
 

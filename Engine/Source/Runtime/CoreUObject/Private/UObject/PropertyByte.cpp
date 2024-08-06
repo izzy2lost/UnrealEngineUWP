@@ -240,7 +240,6 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 	default:
 		return EConvertFromTypeResult::UseSerializeItem;
 	case NAME_ByteProperty:
-	{
 		if ((Tag.GetType().GetParameterCount() == 0) != (Enum == nullptr))
 		{
 			// A byte property gained or lost an enum.
@@ -265,16 +264,32 @@ EConvertFromTypeResult FByteProperty::ConvertFromType(const FPropertyTag& Tag, F
 			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
 			return EConvertFromTypeResult::Converted;
 		}
+	#if WITH_EDITORONLY_DATA
+		if (UNLIKELY(Enum && FUObjectThreadContext::Get().GetSerializeContext()->bTrackUnknownProperties && !CanSerializeFromTypeName(Tag.GetType())))
+		{
+			FName EnumValueName;
+			int64 EnumValue = 0;
+			TryLoadEnumValueByName(Slot, Slot.GetUnderlyingArchive(), Enum, EnumValueName, EnumValue);
+			SetPropertyValue_InContainer(Data, IntCastChecked<uint8>(EnumValue), Tag.ArrayIndex);
+			return EConvertFromTypeResult::Converted;
+		}
+	#endif
 		return EConvertFromTypeResult::UseSerializeItem;
-	}
 	case NAME_EnumProperty:
-	{
-		// Attempt to find the enum from the tag and find the byte value from the enum.
-		uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
-
-		SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
+		if (Enum)
+		{
+			FName EnumValueName;
+			int64 EnumValue = 0;
+			TryLoadEnumValueByName(Slot, Slot.GetUnderlyingArchive(), Enum, EnumValueName, EnumValue);
+			SetPropertyValue_InContainer(Data, IntCastChecked<uint8>(EnumValue), Tag.ArrayIndex);
+		}
+		else
+		{
+			// Attempt to find the enum from the tag and find the byte value from the enum.
+			uint8 PreviousValue = (uint8)ReadEnumAsInt64(Slot, DefaultsStruct, Tag);
+			SetPropertyValue_InContainer(Data, PreviousValue, Tag.ArrayIndex);
+		}
 		return EConvertFromTypeResult::Converted;
-	}
 	case NAME_Int8Property:
 		if (Enum)
 		{
