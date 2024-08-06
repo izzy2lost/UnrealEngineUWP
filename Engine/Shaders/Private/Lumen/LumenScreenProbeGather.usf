@@ -1192,7 +1192,8 @@ void ScreenProbeIntegrateCS(
 		if (IsValid(Material))
 		{
 			const float2 ScreenUV = (Coord.SvPosition + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const float3 WorldPosition = GetWorldPositionFromScreenUV(ScreenUV, Material.SceneDepth);
+			const float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.SceneDepth);
+			const float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			const float3 WorldNormal = Material.WorldNormal;
 
 			float2 NoiseOffset = 0.0f;
@@ -1277,7 +1278,7 @@ void ScreenProbeIntegrateCS(
 			}
 			#endif // STOCHASTIC_PROBE_INTERPOLATION
 
-			float3 V = -GetCameraVectorFromWorldPosition(WorldPosition);
+			float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 			float3 UnitBentNormal = Material.WorldNormal;
 			float AO = 1.0f;
 			float3 DiffuseLighting = 0;

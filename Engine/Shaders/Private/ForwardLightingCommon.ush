@@ -129,8 +129,6 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	float InDirectionalLightCloudShadow, float3 InDirectionalLightAtmosphereTransmittance, inout float OutDirectionalLightShadow,
 	bool bSeparateMainDirLightLuminance, inout float3 SeparatedMainDirLightLuminance, bool bSkipDirLightVirtualShadowMapEvaluation)
 {
-	float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
-
 	float4 DynamicShadowFactors = 1;
 
 	#if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED

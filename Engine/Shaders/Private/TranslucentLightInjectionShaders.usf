@@ -147,7 +147,6 @@ void InjectMainPS(
 
 		TranslatedWorldPosition = float3(View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].xy + Input.Vertex.UV / View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].xy - .5f * View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w, ZPosition);
 	}
-	float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 	// compute UVW of the position we shade in the volume
 	float3 VolumeUVs = float3(Input.Vertex.UV, (Input.LayerIndex + .5f) * View.TranslucencyLightingVolumeMin[VolumeCascadeIndex].w);
@@ -181,12 +180,10 @@ void InjectMainPS(
 	float3 NormalizedLightVector = GetNormalizedLightVector(TranslatedWorldPosition);
 
 	float3 TranslatedWorldPositionForLighting;
-	float3 WorldPositionForLighting;
 	{
 		float VoxelSize = View.TranslucencyLightingVolumeInvSize[VolumeCascadeIndex].w;
 		float3 LightingOffset = 1 * GetBoxPushout(NormalizedLightVector, .5f * VoxelSize);
 
-		WorldPositionForLighting = WorldPosition + LightingOffset;
 		TranslatedWorldPositionForLighting = TranslatedWorldPosition + LightingOffset;
 	}
 

@@ -340,8 +340,8 @@ void ReconstructVolumetricRenderTargetPS(
 				int2 NeightboorsOffset[8] = { int2(1,0), int2(1,1), int2(0,1), int2(-1,1), int2(-1,0), int2(-1,-1), int2(0,-1), int2(1,-1)};
 
 				const float ReconstructDepthZ = HalfResDepthTexture.Load(int3(SVPos.xy + ViewViewRectMin, 0)).r;
-				const float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(CenterSample, ReconstructDepthZ, 1.0)));
-				const float PixelDistanceFromViewKm = length(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * CENTIMETER_TO_KILOMETER;
+				const float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(float4(CenterSample, ReconstructDepthZ, 1.0));
+				const float PixelDistanceFromViewKm = length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) * CENTIMETER_TO_KILOMETER;
 
 				RGBA = HistoryRGBA;
 				DepthData = HistoryDepthData;
@@ -543,8 +543,6 @@ float4 ApplyFogToCloudSampleFromVPosAndDepth(float2 SVPos, float DepthKilometer,
 	const float2 SVPosition = SVPos;
 	const float DistanceToPoint = DepthKilometer * KILOMETER_TO_CENTIMETER;
 
-	//float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(SVPosition, 0.5, 1.0)));
-	//const float3 FogSampleWorldPositionRelativeToCameraCm = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * DistanceToPoint;// +DFHackToFloat(PrimaryView.WorldCameraOrigin);
 	const float3 FogSampleWorldPositionRelativeToCameraCm = normalize(SvPositionToTranslatedWorld(float4(SVPosition, 0.5f, 1.0f))) * DistanceToPoint;
 
 #if PERMUTATION_APPLY_FOG
@@ -684,10 +682,11 @@ void ComposeVolumetricRTOverScenePS(
 
 	float PixelLinearDepth = ConvertFromDeviceZ(WaterLinearDepthTexture.SampleLevel(WaterLinearDepthSampler, WaterDepthScreenUV, 0).r);
 
-	float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(SVPos.xy, 0.5, 1.0)));
-	WorldPosition = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * PixelLinearDepth + DFHackToFloat(PrimaryView.WorldCameraOrigin);
 
-	float4 ClipPosition = mul(float4(WorldPosition,1.0), DFHackToFloat(PrimaryView.WorldToClip));
+	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(float4(SVPos.xy, 0.5, 1.0));
+	TranslatedWorldPosition = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) * PixelLinearDepth + PrimaryView.TranslatedWorldCameraOrigin;
+
+	float4 ClipPosition = mul(float4(TranslatedWorldPosition,1.0), PrimaryView.TranslatedWorldToClip);
 	ClipPosition /= ClipPosition.w;
 	float PixelDeviceZ = ClipPosition.z;
 

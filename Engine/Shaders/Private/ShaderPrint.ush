@@ -187,9 +187,17 @@ int2 GetCursorPos()
 {
 	return GetCursorPos(InitShaderPrintContext());
 }
-void AddFilledTriangleWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
+void AddFilledTriangleTWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
 {
 	AddFilledTriangleTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Color); 
+}
+void AddFilledTriangleWS(float3 Pos0, float3 Pos1, float3 Pos2, float4 Color)
+{
+	AddFilledTriangleWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Color); 
+}
+void AddFilledQuadTWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
+{ 
+	AddFilledQuadTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
 }
 void AddFilledQuadWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
 { 
@@ -231,6 +239,10 @@ void AddQuadWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color)
 {
 	AddQuadWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
 }
+void AddQuadTWS(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
+{
+	AddQuadTWS(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
+}
 void AddQuad(float3 Pos0, float3 Pos1, float3 Pos2, float3 Pos3, float4 Color) 
 {
 	AddQuad(InitShaderPrintContext(), Pos0, Pos1, Pos2, Pos3, Color);
@@ -255,6 +267,10 @@ void AddCrossWS(float3 Pos, float Size, float4 Color)
 {
 	AddCrossWS(InitShaderPrintContext(), Pos, Size, Color);
 }
+void AddCrossTWS(float3 Pos, float Size, float4 Color) 
+{
+	AddCrossTWS(InitShaderPrintContext(), Pos, Size, Color);
+}
 void AddCross(float3 Pos, float Size, float4 Color) 
 {
 	AddCross(InitShaderPrintContext(), Pos, Size, Color);
@@ -274,6 +290,22 @@ void AddReferentialWS(float3 Pos, float3 TangentZ, float Scale = 1)
 void AddReferentialWS(float3 Pos, float3 T, float3 B, float3 N, float Scale = 1)
 {
 	AddReferentialWS(InitShaderPrintContext(), Pos, T, B, N, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3x3 InM, float Scale = 1)
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, InM, Scale);
+}
+void AddReferentialTWS(float4x4 InM, float Scale = 1) 
+{
+	AddReferentialTWS(InitShaderPrintContext(), InM, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3 TangentZ, float Scale = 1) 
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, TangentZ, Scale);
+}
+void AddReferentialTWS(float3 Pos, float3 T, float3 B, float3 N, float Scale = 1)
+{
+	AddReferentialTWS(InitShaderPrintContext(), Pos, T, B, N, Scale);
 }
 void AddReferential(float3 Pos, float3x3 InM, float Scale = 1) 
 {
@@ -295,6 +327,10 @@ void AddLineTriangleWS(float3 P0, float3 P1, float3 P2, float4 Color)
 {
 	AddLineTriangleWS(InitShaderPrintContext(), P0, P1, P2, Color);
 }
+void AddLineTriangleTWS(float3 P0, float3 P1, float3 P2, float4 Color) 
+{
+	AddLineTriangleTWS(InitShaderPrintContext(), P0, P1, P2, Color);
+}
 void AddLineTriangle(float3 P0, float3 P1, float3 P2, float4 Color) 
 {
 	AddLineTriangle(InitShaderPrintContext(), P0, P1, P2, Color);
@@ -302,6 +338,10 @@ void AddLineTriangle(float3 P0, float3 P1, float3 P2, float4 Color)
 void AddOBBWS(float3 Min, float3 Max, float4 Color, float4x4 Transform)
 {
 	AddOBBWS(InitShaderPrintContext(), Min, Max, Color, Transform);
+}
+void AddOBBTWS(float3 Min, float3 Max, float4 Color, float4x4 Transform)
+{
+	AddOBBTWS(InitShaderPrintContext(), Min, Max, Color, Transform);
 }
 void AddOBB(float3 Min, float3 Max, float4 Color, float4x4 Transform) 
 {

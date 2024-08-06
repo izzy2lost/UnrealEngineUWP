@@ -83,17 +83,6 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, Unused);
 }
 
-float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset, out float SceneDepth)
-{
-	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth) - DFHackToFloat(PrimaryView.PreViewTranslation);
-}
-
-float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset)
-{
-	float Unused;
-	return ComputeCellWorldPosition(GridCoordinate, CellOffset, Unused);
-}
-
 float3 RaleighScattering()
 {
 	float3 Wavelengths = float3(650.0f, 510.0f, 475.0f);
@@ -143,7 +132,7 @@ void MaterialSetupCS(
 	// Center of the voxel
 	float VoxelOffset = .5f;
 	 
-	float3 WorldPosition = ComputeCellWorldPosition(GridCoordinate, VoxelOffset);
+	float3 WorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, VoxelOffset) - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 	float GlobalDensityFirst = FogStruct.ExponentialFogParameters3.x * exp2(-FogStruct.ExponentialFogParameters.y * (WorldPosition.z - FogStruct.ExponentialFogParameters3.y));
 	float GlobalDensitySecond = FogStruct.ExponentialFogParameters2.z * exp2(-FogStruct.ExponentialFogParameters2.y * (WorldPosition.z - FogStruct.ExponentialFogParameters2.w));
@@ -403,7 +392,6 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 
 			float SceneDepth;
 			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			float3 CameraVector = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));

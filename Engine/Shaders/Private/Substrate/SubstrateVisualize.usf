@@ -1174,7 +1174,6 @@ void EvaluateLighting(
 	in float ThicknessRatio,
 	inout float4 OutColor)
 {
-	float3 AbsoluteWorldPosition = DFHackToFloat(PrimaryView.WorldCameraOrigin);
 	float3 TranslatedWorldPosition = PrimaryView.TranslatedWorldCameraOrigin;
 	float SceneDepth = 0.0;
 

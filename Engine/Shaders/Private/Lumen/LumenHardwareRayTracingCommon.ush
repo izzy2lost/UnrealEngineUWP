@@ -859,7 +859,7 @@ FRayTracedLightingResult TraceAndCalculateRayTracedLighting(
 							const float RoughnessSq = LumenMaterial.TopLayerRoughness * LumenMaterial.TopLayerRoughness;
 							const float SpecularOcclusion = GetSpecularOcclusion(NoV, RoughnessSq, 1.0);
 							Radiance += EnvBRDF(LumenMaterial.TopLayerSpecularColor, LumenMaterial.TopLayerRoughness, NoV) * SpecularOcclusion * (1.0f - NextReflectionRayAlpha) *
-								CompositeReflectionCapturesAndSkylight(
+								CompositeReflectionCapturesAndSkylightTWS(
 									1.0, // CompositeAlpha
 									RayHitTranslatedWorldPosition,
 									R,

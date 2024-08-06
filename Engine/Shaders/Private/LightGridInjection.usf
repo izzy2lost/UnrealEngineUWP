@@ -191,8 +191,6 @@ void LightGridInjectionCS(
 
 		float3 ViewTileCenter = .5f * (ViewTileMin + ViewTileMax);
 		float3 ViewTileExtent = ViewTileMax - ViewTileCenter;
-		float3 WorldTileCenter = mul(float4(ViewTileCenter, 1), View.ViewToTranslatedWorld).xyz - DFHackToFloat(PrimaryView.PreViewTranslation);
-		float4 WorldTileBoundingSphere = float4(WorldTileCenter, length(ViewTileExtent));
 
 		uint NumAvailableLinks = NumGridCells * MaxCulledLightsPerCell * NUM_CULLED_GRID_PRIMITIVE_TYPES;
 

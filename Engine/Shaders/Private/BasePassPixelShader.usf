@@ -1393,7 +1393,7 @@ void FPixelShaderInOut_MainPS(
 	if (TranslucentBasePass.ApplyVolumetricCloudOnTransparent > 0.0f)
 	{
 		Fogging = GetCloudLuminanceTransmittanceOverFog(
-			NDCPosition, WSHackToFloat(GetWorldPosition(MaterialParameters)), DFHackToFloat(ResolvedView.WorldCameraOrigin),
+			NDCPosition, GetTranslatedWorldPosition(MaterialParameters), ResolvedView.TranslatedWorldCameraOrigin,
 			TranslucentBasePass.VolumetricCloudColor, TranslucentBasePass.VolumetricCloudColorSampler,
 			TranslucentBasePass.VolumetricCloudDepth, TranslucentBasePass.VolumetricCloudDepthSampler,
 			OneOverPreExposure, Fogging, TranslucentBasePass.SoftBlendingDistanceKm);

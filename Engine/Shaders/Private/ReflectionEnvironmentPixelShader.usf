@@ -391,9 +391,8 @@ void ReflectionEnvironmentSkyLighting(
 		float DeviceZ = SampleDeviceZFromSceneTextures(BufferUV);
 		float SceneDepth = ConvertFromDeviceZ(DeviceZ);
 
-		float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 		float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-		float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
+		float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 		float3 V = -CameraToPixel;
 
 		// Sample the ambient occlusion that is dynamically generated every frame.

@@ -103,8 +103,8 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float3 Reflection = 0.0f;
 
 			// TODO MAKE COMMON WITH ReflectionEnvironment?
-			float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
-			float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
+			float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), View.ScreenToTranslatedWorld).xyz;
+			float3 CameraToPixel = GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
 			float3 ReflectionVector = reflect(CameraToPixel, WorldNormal);
 			float IndirectIrradiance = 0.0;
 			float IndirectSpecularOcclusion = 1.0f;
@@ -131,9 +131,9 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			// Point lobe in off-specular peak direction
 			R = GetOffSpecularPeakReflectionDir(N, R, SafeRoughness);
 			const bool bCompositeSkylight = true;
-			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylight(
+			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylightTWS(
 				1,
-				WorldPosition,
+				TranslatedWorldPosition,
 				R,
 				SafeRoughness,
 				IndirectIrradiance,
@@ -206,7 +206,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			// Point lobe in off-specular peak direction
 			R = GetOffSpecularPeakReflectionDir(N, R, GBuffer.Roughness);
 			const bool bCompositeSkylight = true;
-			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylight(
+			Reflection += View.PreExposure * CompositeReflectionCapturesAndSkylightTWS(
 				1,
 				TranslatedWorldPosition,
 				R,
