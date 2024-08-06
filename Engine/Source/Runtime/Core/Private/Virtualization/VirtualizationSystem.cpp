@@ -166,6 +166,7 @@ public:
 };
 
 TUniquePtr<IVirtualizationSystem> GVirtualizationSystem = nullptr;
+FName GVirtualizationSystemName;
 
 /**
  * Utility to check if either cmd is present in the command line. Useful when transitioning from one
@@ -329,6 +330,7 @@ void Initialize(const FInitParams& InitParams, EInitializationFlags Flags)
 			{
 				check(!IVirtualizationSystem::IsInitialized());
 				GVirtualizationSystem = MoveTemp(NewSystem);
+				GVirtualizationSystemName = SystemName;
 			}
 			else
 			{
@@ -375,6 +377,11 @@ FAnalyticsRecordEvent& GetAnalyticsRecordEvent()
 bool IVirtualizationSystem::IsInitialized()
 {
 	return GVirtualizationSystem != nullptr;
+}
+
+FName IVirtualizationSystem::GetSystemName()
+{
+	return GVirtualizationSystemName;
 }
 
 IVirtualizationSystem& IVirtualizationSystem::Get()

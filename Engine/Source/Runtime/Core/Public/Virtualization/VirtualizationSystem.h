@@ -605,6 +605,9 @@ public:
 	/** Returns true if a virtualization system has been initialized and false if not */
 	CORE_API static bool IsInitialized();
 
+	/** Returns the name of the currently initialized system, will be NAME_None if initialization failed or the system is not enabled */
+	CORE_API static FName GetSystemName();
+
 	/** 
 	 * Gain access to the current virtualization system active for the project. If the system has not yet been 
 	 * initialized then calling this method will initialize it.
