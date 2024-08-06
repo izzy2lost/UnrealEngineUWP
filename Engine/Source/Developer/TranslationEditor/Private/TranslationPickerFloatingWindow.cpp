@@ -235,41 +235,15 @@ void STranslationPickerFloatingWindow::Tick( const FGeometry& AllottedGeometry, 
 				}
 			}
 
-			TSharedRef<SVerticalBox> TextsBox = SNew(SVerticalBox);
-
-			// Add a new Translation Picker Edit Widget for each picked text
-			for (FText PickedText : PickedTexts)
-			{
-				TextsBox->AddSlot()
-					.AutoHeight()
-					.Padding(FMargin(5))
-					[
-						SNew(SBorder)
-						[
-							SNew(STranslationPickerEditWidget)
-							.PickedText(PickedText)
-							.bAllowEditing(false)
-						]
-					];
-			}
-
 			WindowContents->SetContentWidget(
 				SNew(SVerticalBox)
-				
+
 				+SVerticalBox::Slot()
-				.Padding(0)
-				.FillHeight(1)
-				.Padding(FMargin(5))
+				.FillHeight(1.0f)		// Stretch the list vertically to fill up the user-resizable space
 				[
-					SNew(SScrollBox)
-					.Orientation(EOrientation::Orient_Vertical)
-					.ScrollBarAlwaysVisible(true)
-					
-					+SScrollBox::Slot()
-					.Padding(FMargin(0))
-					[
-						TextsBox
-					]
+					SAssignNew(TextListView, STextListView)
+						.ListItemsSource(&TextListItems)
+						.OnGenerateRow(this, &STranslationPickerFloatingWindow::TextListView_OnGenerateWidget)
 				]
 
 				+SVerticalBox::Slot()
@@ -282,6 +256,8 @@ void STranslationPickerFloatingWindow::Tick( const FGeometry& AllottedGeometry, 
 					.Justification(ETextJustify::Center)
 				]
 			);
+
+			UpdateListItems();
 		}
 	}
 
@@ -484,4 +460,28 @@ UWorld* STranslationPickerFloatingWindow::GetWorld() const
 	return nullptr;
 }
 
+void STranslationPickerFloatingWindow::UpdateListItems()
+{
+	TextListItems.Reset();
+
+	for (const FText& PickedText : PickedTexts)
+	{
+		TSharedPtr<FTranslationPickerTextItem> Item = FTranslationPickerTextItem::BuildTextItem(PickedText, false);
+
+		TextListItems.Add(Item);
+	}
+
+	// Update the list view if we have one
+	if (TextListView.IsValid())
+	{
+		TextListView->RequestListRefresh();
+	}
+}
+
+TSharedRef<ITableRow> STranslationPickerFloatingWindow::TextListView_OnGenerateWidget(TSharedPtr<FTranslationPickerTextItem> InItem, const TSharedRef<STableViewBase>& OwnerTable)
+{
+	return SNew(STranslationPickerEditWidget, OwnerTable, InItem);
+}
+
 #undef LOCTEXT_NAMESPACE
+

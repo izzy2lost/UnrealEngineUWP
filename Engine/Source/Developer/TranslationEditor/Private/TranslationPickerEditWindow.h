@@ -13,19 +13,24 @@
 #include "UObject/UObjectGlobals.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
+#include "Widgets/Views/SListView.h"
+#include "Widgets/Views/STableRow.h"
 
 #include "TranslationPickerEditWindow.generated.h"
 
 struct FGeometry;
 struct FKeyEvent;
+class ITableRow;
+class SBox;
+class SMultiLineEditableTextBox;
+class SSearchBox;
+class STableViewBase;
+class SWindow;
+class UTranslationUnit;
 
 #define LOCTEXT_NAMESPACE "TranslationPicker"
 
 class FTranslationPickerEditInputProcessor;
-class SBox;
-class SMultiLineEditableTextBox;
-class SWindow;
-class UTranslationUnit;
 
 UCLASS(config = TranslationPickerSettings)
 class UTranslationPickerSettings : public UObject
@@ -85,23 +90,18 @@ private:
 	UTranslationPickerSettings* TranslationPickerSettingsObject;
 };
 
-/** Translation picker edit Widget to handle the display and editing of a single selected FText */
-class STranslationPickerEditWidget : public SCompoundWidget, public FGCObject
+/** A text item in the item list */
+struct FTranslationPickerTextItem : public FGCObject
 {
-	SLATE_BEGIN_ARGS(STranslationPickerEditWidget) {}
+	FTranslationPickerTextItem(const FText& InText, bool bAllowEditing) : PickedText(InText), bAllowEditing(bAllowEditing) {}
 
-	SLATE_ARGUMENT(FText, PickedText)
-
-	SLATE_ARGUMENT(bool, bAllowEditing)
-
-	SLATE_END_ARGS()
-
-	void Construct(const FArguments& InArgs);
+	/** Create new text item */
+	static TSharedPtr<FTranslationPickerTextItem> BuildTextItem(const FText& InText, bool bAllowEditing);
 
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 	virtual FString GetReferencerName() const override
 	{
-		return TEXT("STranslationPickerEditWidget");
+		return TEXT("FTranslationPickerTextItem");
 	}
 
 	/** Return the translation unit for this text, with any modifications */
@@ -113,31 +113,41 @@ class STranslationPickerEditWidget : public SCompoundWidget, public FGCObject
 		return bAllowEditing && bHasRequiredLocalizationInfoForSaving;
 	}
 
-private:
-
-	virtual bool SupportsKeyboardFocus() const override
-	{
-		return true;
-	}
-
-	FReply SaveAndPreview();
-
-	FReply CopyNamespaceAndKey();
-
 	/** The FText that we are using this widget to translate */
 	FText PickedText;
+
+	/** Whether or not to show the save button*/
+	bool bAllowEditing = true;
+
+	/** Whether or not we were able to find the necessary info for saving */
+	bool bHasRequiredLocalizationInfoForSaving = true;
+
+	FTextId TextId;
+	FString SourceString;
+	FString TranslationString;
+	FString LocTargetName;
+	FString LocResCultureName;
+	FString CleanNamespace;
 
 	/** The translation we're editing represented in a UTranslationUnit object */
 	TObjectPtr<UTranslationUnit> TranslationUnit;
 
 	/** The text box for entering/modifying a translation */
 	TSharedPtr<SMultiLineEditableTextBox> TextBox;
+};
 
-	/** Whether or not to show the save button*/
-	bool bAllowEditing;
+class STranslationPickerEditWidget : public STableRow<TSharedPtr<FTranslationPickerTextItem>>
+{
+public:
 
-	/** Whether or not we were able to find the necessary info for saving */
-	bool bHasRequiredLocalizationInfoForSaving = true;
+	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTable, TSharedPtr<FTranslationPickerTextItem> InListItem);
+
+private:
+	FReply SaveAndPreview();
+
+	FReply CopyNamespaceAndKey();
+
+	TSharedPtr<FTranslationPickerTextItem> Item;
 };
 
 /** Translation picker edit window to allow you to translate selected FTexts in place */
@@ -170,7 +180,24 @@ private:
 		return true;
 	}
 
-	/** Input processor used to capture the 'Esc' key */
+	/** Return to picker floating window */
+	FReply RestorePicker();
+
+	/** Save all translations and close */
+	FReply SaveAllAndClose();
+
+	/** Update text list items */
+	void UpdateListItems();
+
+	/** Filters the widgets when the user changes the search text box */
+	void FilterBox_OnTextChanged(const FText& InText);
+
+	/** Filters the widgets when the user hits enter or clears the search box */
+	void FilterBox_OnTextCommitted(const FText& InText, ETextCommit::Type CommitInfo);
+
+	TSharedRef<ITableRow> TextListView_OnGenerateRow(TSharedPtr<FTranslationPickerTextItem> InItem, const TSharedRef<STableViewBase>& OwnerTable);
+
+	/** Input processor used to capture key and mouse events */
 	TSharedPtr<FTranslationPickerEditInputProcessor> InputProcessor;
 
 	/** Handle to the window that contains this widget */
@@ -182,14 +209,19 @@ private:
 	/** The FTexts that we have found under the cursor */
 	TArray<FText> PickedTexts;
 
-	/** All of our current edit widgets */
-	TArray<TSharedRef<STranslationPickerEditWidget>> EditWidgets;
+	/** Full unfiltered list of items */
+	TArray<TSharedPtr<FTranslationPickerTextItem>> AllItems;
 
-	/** Return to picker floating window */
-	FReply RestorePicker();
+	/** Filtered list of items */
+	TArray<TSharedPtr<FTranslationPickerTextItem>> FilteredItems;
 
-	/** Save all translations and close */
-	FReply SaveAllAndClose();
+	/** List view control */
+	typedef SListView<TSharedPtr<FTranslationPickerTextItem>> STextListView;
+	TSharedPtr<STextListView> TextListView;
+
+	/** Box to filter by text */
+	TSharedPtr<SSearchBox> FilterBox;
+	FText FilterText;
 };
 
 #undef LOCTEXT_NAMESPACE
