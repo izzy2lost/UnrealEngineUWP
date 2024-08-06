@@ -5,8 +5,6 @@
 #include "Containers/StringFwd.h"
 #include "HAL/PlatformFile.h"
 
-#if !UE_BUILD_SHIPPING
-
 class IStorageServerPlatformFile : public IPlatformFile
 {
 public:
@@ -23,5 +21,3 @@ public:
 
 	virtual void GetAndResetConnectionStats(FConnectionStats& OutStats) = 0;
 };
-
-#endif // !UE_BUILD_SHIPPING

@@ -10,8 +10,6 @@
 #include "Templates/UniquePtr.h"
 #include "StorageServerClientModule.h"
 
-#if !UE_BUILD_SHIPPING
-
 CSV_DEFINE_CATEGORY(ZenServerStats, true);
 
 CSV_DEFINE_STAT(ZenServerStats, ThroughputMbps);
@@ -221,6 +219,7 @@ class FStorageServerClientDebugModule
 	: public IModuleInterface
 {
 public:
+#if !UE_BUILD_SHIPPING
 	virtual void StartupModule() override
 	{
 		FCoreDelegates::OnPostEngineInit.AddLambda([this]
@@ -245,10 +244,9 @@ public:
 			ConnectionDebug = nullptr;
 		}
 	}
+#endif // !UE_BUILD_SHIPPING
 
 	UStorageServerConnectionDebug* ConnectionDebug = nullptr;
 };
 
 IMPLEMENT_MODULE(FStorageServerClientDebugModule, StorageServerClientDebug);
-
-#endif
