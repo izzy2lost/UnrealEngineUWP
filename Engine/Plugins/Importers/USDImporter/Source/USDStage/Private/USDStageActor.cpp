@@ -2108,7 +2108,7 @@ UUsdPrimTwin* AUsdStageActor::ExpandPrim(
 				SchemaTranslator->UpdateComponents(TwinSceneComponent);
 			}
 
-			bExpandChildren = !SchemaTranslator->CollapsesChildren(ECollapsingType::Components);
+			bExpandChildren = bResync && !SchemaTranslator->CollapsesChildren(ECollapsingType::Components);
 		}
 	}
 
