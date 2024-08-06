@@ -51,6 +51,7 @@ namespace uba
 		u32 fontSize = 13;
 		TString fontName;
 		u32 maxActiveVisible = 5;
+		u32 maxActiveProcessHeight = 16;
 
 		#define UBA_VISUALIZER_FLAG(name, defaultValue, desc) bool show##name = defaultValue;
 		UBA_VISUALIZER_FLAGS1
@@ -120,7 +121,7 @@ namespace uba
 		int GetTimelineTop(const RECT& clientRect);
 		void HitTest(HitTestResult& outResult, const POINT& pos);
 
-		void WriteProcessStats(Logger& out, TraceView::Process& process);
+		void WriteProcessStats(Logger& out, const TraceView::Process& process);
 		void CopyTextToClipboard(const TString& str);
 		void UnselectAndRedraw();
 		bool UpdateAutoscroll();
@@ -140,13 +141,14 @@ namespace uba
 			HFONT handle = 0;
 			HFONT handleUnderlined = 0;
 			int height = 0;
+			int offset = 0;
 		};
 
 		void UpdateFont(Font& font, int height, bool createUnderline);
 		void UpdateDefaultFont();
 		void UpdateProcessFont();
 		void ChangeFontSize(int offset);
-		void Redraw();
+		void Redraw(bool now);
 		void SetActiveFont(const Font& font);
 
 		StringBuffer<256> m_namedTrace;
@@ -196,6 +198,8 @@ namespace uba
 		Font m_processFont;
 		Font m_timelineFont;
 		Font m_popupFont;
+
+		int m_processFontOffsetY = 0;
 
 		Font m_activeProcessFont[32];
 		u32 m_activeProcessCountHistory[5];

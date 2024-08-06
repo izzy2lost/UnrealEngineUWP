@@ -8,9 +8,18 @@
 
 namespace uba
 {
-	TraceView::Process* TraceView::GetProcess(const ProcessLocation& loc)
+	const TraceView::Process& TraceView::GetProcess(const ProcessLocation& loc)
 	{
-		return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]);
+		static TraceView::Process emptyProcess;
+		if (loc.sessionIndex >= sessions.size())
+			return emptyProcess;
+		auto& session = sessions[loc.sessionIndex];
+		if (loc.processorIndex >= session.processors.size())
+			return emptyProcess;
+		auto& processor = session.processors[loc.processorIndex];
+		if (loc.processIndex >= processor.processes.size())
+			return emptyProcess;
+		return processor.processes[loc.processIndex];
 	}
 
 	void TraceView::Clear()

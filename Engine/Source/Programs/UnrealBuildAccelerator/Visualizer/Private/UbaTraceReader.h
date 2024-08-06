@@ -126,7 +126,7 @@ namespace uba
 			bool success = false;
 		};
 
-		Process* GetProcess(const ProcessLocation& loc);
+		const Process& GetProcess(const ProcessLocation& loc);
 		void Clear();
 
 		Vector<Session> sessions;
