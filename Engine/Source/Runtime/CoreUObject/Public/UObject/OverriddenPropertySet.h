@@ -3,13 +3,12 @@
 #pragma once
 
 #include "UObject/Object.h"
-#include "Serialization/ArchiveSerializedPropertyChain.h"
 
 #include "OverriddenPropertySet.generated.h"
 
 COREUOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogOverridableObject, Warning, All);
 
-struct FPropertyChangedChainEvent;
+struct FArchiveSerializedPropertyChain;
 
 /*
  *************************************************************************************
@@ -222,33 +221,30 @@ public:
 
 	/**
 	 * Retrieve the overridable operation from the specified the edit property chain node
-	 * @param PropertyEvent only needed to know about the container item index in any
-	 * @param PropertyNode leading to the property interested in, null will return the operation of the object itself
+	 * @param PropertyIterator leading to the property interested in, invalid iterator will return the operation of the object itself
 	 * @param bOutInheritedOperation optional parameter to know if the state returned was inherited from a parent property
 	 * @return the current type of override operation on the property */
-	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation = nullptr) const;
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation = nullptr) const;
 
 	/**
 	 * Clear any properties from the serialized property chain node
-	 * @param PropertyEvent only needed to know about the container item index in any
-	 * @param PropertyNode leading to the property to clear, null will clear the overrides on the object itself
+	 * @param PropertyIterator leading to the property to clear, invalid iterator will clear the overrides on the object itself
 	 * @return if the operation was successful */
-	bool ClearOverriddenProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
+	bool ClearOverriddenProperty(FPropertyVisitorPath::Iterator PropertyIterator);
 
 	/**
 	 * Utility methods that call NotifyPropertyChange(Pre/PostEdit)
-	 * @param PropertyEvent information about the type of change
-	 * @param PropertyNode leading to the property that is changing, null means it is the object itself that is changing
+	 * @param PropertyIterator leading to the property that is changing, invalid iterator means it is the object itself that is changing
 	 * @param Data memory of the current property */
-	void OverrideProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
+	void OverrideProperty(FPropertyVisitorPath::Iterator PropertyIterator, const void* Data);
 
 	/**
 	 * Handling and storing modification on a property of an object
 	 * @param Notification type either pre/post property overridden
-	 * @param PropertyEvent information about the type of change
-	 * @param PropertyNode leading to the property that is changing, null means it is the object itself that is changing
+	 * @param PropertyIterator leading to the property that is changing, null means it is the object itself that is changing
+	 * @param ChangeType of the current operation
 	 * @param Data memory of the current property */
-	void NotifyPropertyChange(const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
+	void NotifyPropertyChange(const EPropertyNotificationType Notification, FPropertyVisitorPath::Iterator PropertyIterator, const EPropertyChangeType::Type ChangeType, const void* Data);
 
 	/**
 	 * Retrieve the overridable operation from the specified the serialized property chain and the specified property
@@ -314,15 +310,15 @@ protected:
 
 	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
 
-	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation, const void* Data) const;
-	bool ClearOverriddenProperty(FOverriddenPropertyNode& ParentPropertyNode, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
-	void NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data, bool& bNeedsCleanup);
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation, const void* Data) const;
+	bool ClearOverriddenProperty(FOverriddenPropertyNode& ParentPropertyNode, FPropertyVisitorPath::Iterator PropertyIterator, const void* Data);
+	void NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, FPropertyVisitorPath::Iterator PropertyIterator, const EPropertyChangeType::Type ChangeType, const void* Data, bool& bNeedsCleanup);
 
 	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property) const;
 	FOverriddenPropertyNode* SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property);
 	const FOverriddenPropertyNode* GetOverriddenPropertyNode(const FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain) const;
 
-	void RemoveOverriddenSubProperties(FOverriddenPropertyNode& PropertyNode);
+	void RemoveOverriddenSubProperties(FOverriddenPropertyNode& PropertyIterator);
 
 
 private:

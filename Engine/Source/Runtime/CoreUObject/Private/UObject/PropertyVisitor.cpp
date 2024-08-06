@@ -6,6 +6,10 @@
 #include "UObject/UnrealType.h"
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 
+//----------------------------------------------------------------------//
+// FPropertyVisitorInfo 
+//----------------------------------------------------------------------//
+
 bool FPropertyVisitorInfo::Identical(const FPropertyVisitorInfo& Other) const
 {
 	return Property == Other.Property
@@ -13,6 +17,54 @@ bool FPropertyVisitorInfo::Identical(const FPropertyVisitorInfo& Other) const
 		&& Index == Other.Index
 		&& PropertyInfo == Other.PropertyInfo
 		&& bContainsInnerProperties == Other.bContainsInnerProperties;
+}
+
+//----------------------------------------------------------------------//
+// FPropertyVisitorPath 
+//----------------------------------------------------------------------//
+
+FPropertyVisitorPath::Iterator FPropertyVisitorPath::InvalidIterator()
+{
+	static FPropertyVisitorPath EmptyPath;
+	return Iterator(EmptyPath.GetPath());
+}
+
+FPropertyVisitorPath::FPropertyVisitorPath(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+{
+	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead();
+	while(PropertyIterator)
+	{
+		const FProperty* CurrentProperty = PropertyIterator->GetValue();
+		int32 ArrayIndex = PropertyEvent.GetArrayIndex(CurrentProperty->GetName());
+		if (ArrayIndex == INDEX_NONE)
+		{
+			Push(FPropertyVisitorInfo{CurrentProperty});
+		}
+		else if (CurrentProperty->ArrayDim > 1)
+		{
+			Push(FPropertyVisitorInfo{CurrentProperty, ArrayIndex, EPropertyVisitorInfoType::StaticArrayIndex});
+		}
+		else
+		{
+			// Only container is left, no easy way yet to know if we are editing a Key/value of a map
+			Push(FPropertyVisitorInfo{CurrentProperty, ArrayIndex, EPropertyVisitorInfoType::ContainerIndex});
+		}
+		PropertyIterator = PropertyIterator->GetNextNode();
+	}
+}
+
+FPropertyVisitorPath::FPropertyVisitorPath(const FArchiveSerializedPropertyChain& PropertyChain)
+{
+	TArray<class FProperty*, TInlineAllocator<8>>::TConstIterator PropertyIterator = PropertyChain.GetRootIterator();
+	while (PropertyIterator)
+	{
+		const FProperty* CurrentProperty = (*PropertyIterator);
+
+		// @todo add container index eventually if we ever have this information
+		Push(FPropertyVisitorInfo{CurrentProperty});
+
+		++PropertyIterator;
+	}
 }
 
 FString FPropertyVisitorPath::ToString(const TCHAR* Separator /*= TEXT(".")*/) const
@@ -162,6 +214,7 @@ FArchiveSerializedPropertyChain PropertyVisitorHelpers::PathToSerializedProperty
 	FArchiveSerializedPropertyChain Chain;
 	for (const FPropertyVisitorInfo& Info : Path)
 	{
+		// @todo add container index eventually if we ever have this information
 		Chain.PushProperty(const_cast<FProperty*>(Info.Property), Info.Property->IsEditorOnlyProperty());
 	}
 	return Chain;

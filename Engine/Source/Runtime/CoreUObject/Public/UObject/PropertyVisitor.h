@@ -6,6 +6,8 @@
 #include "Containers/ArrayView.h"
 
 class FProperty;
+class FEditPropertyChain;
+struct FPropertyChangedEvent;
 struct FArchiveSerializedPropertyChain;
 
 enum class EPropertyVisitorControlFlow : uint8
@@ -106,6 +108,9 @@ public:
 		Path = InPath;
 	}
 
+	explicit COREUOBJECT_API FPropertyVisitorPath(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain);
+	explicit COREUOBJECT_API FPropertyVisitorPath(const FArchiveSerializedPropertyChain& PropertyChain);
+
 	void Push(const FPropertyVisitorInfo& Info)
 	{
 		Path.Push(Info);
@@ -169,10 +174,23 @@ public:
 	 */
 	COREUOBJECT_API void* GetPropertyDataPtr(UObject* Object) const;
 
-	TArray<FPropertyVisitorInfo>::TConstIterator GetRootIterator() const
+	/** Iterator for a property visitor path */
+	using Iterator = TArray<FPropertyVisitorInfo>::TConstIterator;
+
+	/**
+	 * Returns an iterator on the root path node, useful when calling methods that are recursive
+	 * @return an iterator on the root path node
+	 */
+	Iterator GetRootIterator() const
 	{
-		return Path.CreateConstIterator();
+		return Iterator(Path);
 	}
+
+	/**
+	 * Invalid iterator pointing to an empty path
+	 * @return an iterator to an empty path
+	 */
+	COREUOBJECT_API static Iterator InvalidIterator();
 
 	/**
 	 * Converts path to an archive serialized property chain

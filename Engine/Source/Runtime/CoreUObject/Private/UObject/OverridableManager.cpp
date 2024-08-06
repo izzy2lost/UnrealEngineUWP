@@ -161,7 +161,7 @@ void FOverridableManager::OverrideObject(UObject& Object)
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		// Passing no property node means we are overriding the object itself
-		ThisObjectOverriddenProperties->OverrideProperty(FPropertyChangedEvent(nullptr), /*PropertyNode*/nullptr, &Object);
+		ThisObjectOverriddenProperties->OverrideProperty(FPropertyVisitorPath::InvalidIterator(), &Object);
 	}
 #endif // WITH_EDITORONLY_DATA
 }
@@ -189,42 +189,42 @@ void FOverridableManager::PropagateOverrideToInstancedSubObjects(UObject& Object
 #endif // WITH_EDITORONLY_DATA
 }
 
-void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyVisitorPath& PropertyPath)
 {
 #if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		ThisObjectOverriddenProperties->OverrideProperty(PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead(), &Object);
+		ThisObjectOverriddenProperties->OverrideProperty(PropertyPath.GetRootIterator(), &Object);
 	}
 #endif // WITH_EDITORONLY_DATA
 }
 
-bool FOverridableManager::ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+bool FOverridableManager::ClearOverriddenProperty(UObject& Object, FPropertyVisitorPath::Iterator PropertyIterator)
 {
 #if WITH_EDITORONLY_DATA
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyEvent, PropertyNode);
+		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyIterator);
 	}
 #endif // WITH_EDITORONLY_DATA
 	return false;
 }
 
-void FOverridableManager::PreOverrideProperty(UObject& Object, const FEditPropertyChain& PropertyChain)
+void FOverridableManager::PreOverrideProperty(UObject& Object, const FPropertyVisitorPath& PropertyPath)
 {
 #if WITH_EDITORONLY_DATA
-	NotifyPropertyChange(EPropertyNotificationType::PreEdit, Object, FPropertyChangedEvent(nullptr), PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead());
+	NotifyPropertyChange(EPropertyNotificationType::PreEdit, Object, PropertyPath.GetRootIterator(), EPropertyChangeType::Unspecified);
 #endif // WITH_EDITORONLY_DATA
 }
 
-void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyVisitorPath& PropertyPath, const EPropertyChangeType::Type ChangeType)
 {
 #if WITH_EDITORONLY_DATA
-	NotifyPropertyChange(EPropertyNotificationType::PostEdit, Object, PropertyEvent, PropertyChain.GetActiveMemberNode() ? PropertyChain.GetActiveMemberNode() : PropertyChain.GetHead());
+	NotifyPropertyChange(EPropertyNotificationType::PostEdit, Object, PropertyPath.GetRootIterator(), ChangeType);
 #endif // WITH_EDITORONLY_DATA
 }
 
-void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, FPropertyVisitorPath::Iterator PropertyIterator, const EPropertyChangeType::Type ChangeType)
 {
 #if WITH_EDITORONLY_DATA
 	if (UE::IsClassOfInstanceDataObjectClass(Object.GetClass()))
@@ -234,17 +234,17 @@ void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType N
 	}
 	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		ThisObjectOverriddenProperties->NotifyPropertyChange(Notification, PropertyEvent, PropertyNode, &Object);
+		ThisObjectOverriddenProperties->NotifyPropertyChange(Notification, PropertyIterator, ChangeType, &Object);
 	}
 #endif // WITH_EDITORONLY_DATA
 }
 
-EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedOperation)
+EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, FPropertyVisitorPath::Iterator PropertyIterator, bool* bOutInheritedOperation)
 {
 #if WITH_EDITORONLY_DATA
 	if (const FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyEvent, PropertyNode, bOutInheritedOperation);
+		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyIterator, bOutInheritedOperation);
 	}
 #endif // WITH_EDITORONLY_DATA
 	return EOverriddenPropertyOperation::None;
