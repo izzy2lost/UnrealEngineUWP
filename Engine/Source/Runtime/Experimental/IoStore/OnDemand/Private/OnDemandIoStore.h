@@ -189,15 +189,6 @@ TBitArray<> FOnDemandContainer::GetReferencedChunkEntries() const
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-namespace Private
-{
-	static FIoStatus DecodeContainerChunk(
-		FSharedOnDemandContainer Container,
-		const FOnDemandChunkEntry& Entry,
-		FMemoryView EncodedHeaderChunk,
-		FIoBuffer& OutRawChunk);
-}
-
 struct FOnDemandChunkInfo
 {
 	FOnDemandChunkInfo()
@@ -213,17 +204,15 @@ struct FOnDemandChunkInfo
 	inline TConstArrayView<uint32>			Blocks() const;
 	inline TConstArrayView<FIoBlockHash>	BlockHashes() const;
 	FAnsiStringView							ChunksDirectory() const { return SharedContainer->ChunksDirectory; }
+	const FOnDemandChunkEntry&				ChunkEntry() const { return Entry; }
 
 	bool									IsValid() const { return SharedContainer.IsValid(); }
 	operator								bool() const { return IsValid(); }
+	
+	inline static FOnDemandChunkInfo		Find(FSharedOnDemandContainer Container, const FIoChunkId& ChunkId);
 
 private:
 	friend class FOnDemandIoStore;
-	friend FIoStatus Private::DecodeContainerChunk(
-		FSharedOnDemandContainer Container,
-		const FOnDemandChunkEntry& Entry,
-		FMemoryView EncodedHeaderChunk,
-		FIoBuffer& OutRawChunk);
 
 	FOnDemandChunkInfo(FSharedOnDemandContainer InContainer, const FOnDemandChunkEntry& InEntry)
 		: SharedContainer(InContainer)
@@ -244,6 +233,17 @@ TConstArrayView<FIoBlockHash> FOnDemandChunkInfo::BlockHashes() const
 	return SharedContainer->BlockHashes.IsEmpty()
 		? TConstArrayView<FIoBlockHash>()
 		: TConstArrayView<FIoBlockHash>(SharedContainer->BlockHashes.GetData() + Entry.BlockOffset, Entry.BlockCount);
+}
+
+FOnDemandChunkInfo FOnDemandChunkInfo::Find(FSharedOnDemandContainer Container, const FIoChunkId& ChunkId)
+{
+	check(Container.IsValid());
+	if (const FOnDemandChunkEntry* Entry = Container->FindChunkEntry(ChunkId))
+	{
+		return FOnDemandChunkInfo(Container, *Entry);
+	}
+
+	return FOnDemandChunkInfo();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -291,13 +291,13 @@ public:
 
 private:
 	FIoStatus				GetContainersForInstall(
-		FStringView MountId,
-		TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-		TSet<FSharedOnDemandContainer>& OutContainersWithMountId);
+								FStringView MountId,
+								TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
+								TSet<FSharedOnDemandContainer>& OutContainersWithMountId);
 	FIoStatus				GetContainersAndPackagesForInstall(
-		const FOnDemandInstallArgsCommon& Args,
-		TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-		TSet<FPackageId>& OutPackageIdsToInstall);
+								const FOnDemandInstallArgsCommon& Args,
+								TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
+								TSet<FPackageId>& OutPackageIdsToInstall);
 	void					OnPostFork(EForkProcessRole ProcessRole);
 	FIoStatus				InitializeOnDemandInstallCache();
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
@@ -305,9 +305,9 @@ private:
 	void					TickLoop();
 	bool					Tick();
 	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
-	void					OnMountRequestComplete(FMountRequest& MountRequest, FOnDemandMountResult&& MountResult);
+	void					CompleteMountRequest(FMountRequest& MountRequest, FOnDemandMountResult&& MountResult);
 	FIoStatus				TickInstallRequest(FInstallRequest& InstallRequest);
-	void					OnInstallRequestComplete(FInstallRequest& InstallRequest, FOnDemandInstallResult&& InstallResult);
+	void					CompleteInstallRequest(FInstallRequest& InstallRequest, FOnDemandInstallResult&& InstallResult);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,
@@ -319,7 +319,7 @@ private:
 	FSharedPackageStoreBackend			PackageStoreBackend;
 	FDelegateHandle						OnMountPakHandle;
 	TArray<FSharedOnDemandContainer>	Containers;
-	TMap<FString, FIoBuffer>			EncodedContainerHeaders;
+	TMap<FString, FIoBuffer>			PendingContainerHeaders;
 	UE::FMutex							ContainerMutex;
 
 	TArray<FSharedMountRequest>			MountRequests;

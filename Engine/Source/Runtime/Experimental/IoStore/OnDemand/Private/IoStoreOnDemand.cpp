@@ -1259,6 +1259,7 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		if (MountArgs)
 		{
 			MountArgs.GetValue().Options = EOnDemandMountOptions::InstallOnDemand;
+			MountArgs.GetValue().Url = EndpointConfig.ServiceUrls[0] / EndpointConfig.TocPath;
 
 			static FOnDemandContentHandle ContentHandle = FOnDemandContentHandle::Create(TEXT("AllContent"));
 			InstallArgs.Emplace();
