@@ -43,7 +43,7 @@ FLightTargetPDF InitLightTargetPDF()
 	return LightTargetPDF;
 }
 
-FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FManyLightMaterial Material, uint2 ScreenCoord, inout FDebug Debug)
+FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 TranslatedWorldPosition, FMegaLightsMaterial Material, uint2 ScreenCoord, inout FDebug Debug)
 {
 	FLightTargetPDF LightTargetPDF = InitLightTargetPDF();
 
@@ -133,7 +133,7 @@ void GenerateLightSamplesCS(
 		{
 			uint2 ScreenCoord = DownsampledScreenCoordToScreenCoord(DownsampledScreenCoord);	
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
@@ -188,7 +188,7 @@ void GenerateLightSamplesCS(
 			}
 
 			const float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-			const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
+			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
 			float WeightSum = 0.0f;
 

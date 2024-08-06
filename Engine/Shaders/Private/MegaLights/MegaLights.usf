@@ -47,7 +47,7 @@ void TileClassificationCS(
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 		uint2 EffectiveScreenCoord = ScreenCoord;
 #endif
-		FManyLightMaterial Material = LoadMaterial(ScreenUV, EffectiveScreenCoord);
+		FMegaLightsMaterial Material = LoadMaterial(ScreenUV, EffectiveScreenCoord);
 
 		if (!Material.IsValid())
 		{
@@ -180,7 +180,7 @@ void InitCompositeUpsampleWeightsCS(
 	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-		const FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
+		const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 
 		int2 DownsampledScreenCoord00 = floor(ScreenUV * View.BufferSizeAndInvSize.xy / DOWNSAMPLE_FACTOR - 0.5f);

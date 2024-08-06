@@ -116,7 +116,7 @@ float2 DownsampledScreenCoordToScreenUV(uint2 DownsampledScreenCoord)
 	return ScreenUV;
 }
 
-struct FManyLightMaterial
+struct FMegaLightsMaterial
 {
 	float  Depth;
 	float3 WorldNormal;
@@ -151,11 +151,11 @@ struct FManyLightMaterial
 	#endif
 };
 
-FManyLightMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForceSimpleShading=false)
+FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForceSimpleShading=false)
 #if SUBSTRATE_ENABLED
 {
 	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(ScreenCoord, 0)));
-	FManyLightMaterial Out = (FManyLightMaterial)0;
+	FMegaLightsMaterial Out = (FMegaLightsMaterial)0;
 	Out.WorldNormal   = TopLayerData.WorldNormal;
 	Out.Depth         = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(ScreenCoord, 0)).r);
 	Out.Roughness     = TopLayerData.Roughness;
@@ -210,7 +210,7 @@ FManyLightMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForceS
 		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
 	}
 
-	FManyLightMaterial Out = (FManyLightMaterial)0;
+	FMegaLightsMaterial Out = (FMegaLightsMaterial)0;
 	Out.bIsValid      = bIsLit;
 	Out.bIsSimple     = GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT;
 	Out.bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
@@ -225,7 +225,7 @@ FManyLightMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForceS
 #endif
 
 // Remove texture detail before denoising
-void DemodulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
+void DemodulateLighting(FMegaLightsMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
 {
 	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
@@ -238,7 +238,7 @@ void DemodulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPosit
 }
 
 // Restore texture detail after denoising
-void ModulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
+void ModulateLighting(FMegaLightsMaterial Material, float3 TranslatedWorldPosition, inout float3 DiffuseLighting, inout float3 SpecularLighting)
 {
 	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
@@ -253,7 +253,7 @@ void ModulateLighting(FManyLightMaterial Material, float3 TranslatedWorldPositio
 FDeferredLightingSplit GetMegaLightsSplitLighting(
 	float3 TranslatedWorldPosition, 
 	float3 CameraVector, 
-	FManyLightMaterial Material, 
+	FMegaLightsMaterial Material, 
 	float AmbientOcclusion, 
 	FDeferredLightData LightData, 
 	float4 LightAttenuation, 

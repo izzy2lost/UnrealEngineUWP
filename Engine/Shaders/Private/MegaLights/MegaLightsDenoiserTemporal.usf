@@ -207,7 +207,7 @@ void DenoiserTemporalCS(
 	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 	{
 		float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-		FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
+		FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 
 		const float DeviceZ = SceneDepthTexture[ScreenCoord].x;
 		Material.SetDepth(ConvertFromDeviceZ(DeviceZ));

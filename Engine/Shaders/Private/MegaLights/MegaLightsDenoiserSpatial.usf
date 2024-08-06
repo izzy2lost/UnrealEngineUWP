@@ -44,7 +44,7 @@ void DenoiserSpatialCS(
 
 		if (IsLightingValid(CenterDiffuseLightingAndSecondMoment.xyz))
 		{
-			FManyLightMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
+			FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord);
 
 			float CenterDiffuseStdDev = sqrt(max(CenterDiffuseLightingAndSecondMoment.w - Pow2(Luminance(CenterDiffuseLightingAndSecondMoment.xyz)), 0.0f));
 			float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
@@ -79,7 +79,7 @@ void DenoiserSpatialCS(
 					{
 						// Depth weight
 						float2 NeighborScreenUV = (NeighborCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
-						const FManyLightMaterial NeighborMaterial = LoadMaterial(NeighborScreenUV, NeighborCoord);
+						const FMegaLightsMaterial NeighborMaterial = LoadMaterial(NeighborScreenUV, NeighborCoord);
 						const float3 NeighborTranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(NeighborScreenUV, NeighborMaterial.Depth);
 						float PlaneDistance = abs(dot(float4(NeighborTranslatedWorldPosition, -1), ScenePlane));
 						float RelativeDepthDifference = PlaneDistance / Material.Depth;
