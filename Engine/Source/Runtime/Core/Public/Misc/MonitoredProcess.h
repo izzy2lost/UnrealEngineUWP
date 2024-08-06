@@ -229,7 +229,7 @@ protected:
 	// Holds the handle to the process. */
 	FProcHandle ProcessHandle;
 
-	// Holds the read pipe. */
+	// Holds the non-inheritable read end of stdout pipe. */
 	void* ReadPipe = nullptr;
 
 	// Holds the return code. */
@@ -250,7 +250,7 @@ protected:
 	// Holds the URL of the working dir for the process. */
 	FString WorkingDir;
 
-	// Holds the write pipe. */
+	// Holds the inheritable write end of stdout pipe. */
 	void* WritePipe = nullptr;
 
 	// Holds if we should create pipes
