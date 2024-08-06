@@ -1265,17 +1265,25 @@ bool ResolveName2(UObject*& InPackage, FStringBuilderBase& InOutName, bool Creat
 		{
 			// Try to find the package in memory first, should be faster than attempting to load or create
 			InPackage = InPackage ? nullptr : StaticFindObjectFast(UPackage::StaticClass(), InPackage, *PartialName);
+			
 			if (!bIsScriptPackage && !InPackage)
 			{
-				InPackage = LoadPackage(Cast<UPackage>(InPackage), *PartialName, LoadFlags, nullptr, InstancingContext);
+				UE_AUTORTFM_OPEN2
+				{
+					InPackage = LoadPackage(Cast<UPackage>(InPackage), *PartialName, LoadFlags, nullptr, InstancingContext);
+				};
 			}
+
 			if (!InPackage)
 			{
-				InPackage = CreatePackage(*PartialName);
-				if (bIsScriptPackage)
+				UE_AUTORTFM_OPEN2
 				{
-					Cast<UPackage>(InPackage)->SetPackageFlags(PKG_CompiledIn);
-				}
+					InPackage = CreatePackage(*PartialName);
+					if (bIsScriptPackage)
+					{
+						Cast<UPackage>(InPackage)->SetPackageFlags(PKG_CompiledIn);
+					}
+				};
 			}
 
 			check(InPackage);

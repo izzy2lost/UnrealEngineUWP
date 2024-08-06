@@ -458,74 +458,77 @@ uint32 FWindowsPlatformStackWalk::CaptureStackBackTrace( uint64* BackTrace, uint
 
 void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfo( uint64 ProgramCounter, FProgramCounterSymbolInfo& out_SymbolInfo )
 {
-	UE::TUniqueLock GlobalLock(GStackWalkingLock);
+	UE_AUTORTFM_OPEN2
+	{
+		UE::TUniqueLock GlobalLock(GStackWalkingLock);
 
-	// Initialize stack walking as it loads up symbol information which we require.
-	InitStackWalking();
+		// Initialize stack walking as it loads up symbol information which we require.
+		InitStackWalking();
 
 #if ON_DEMAND_SYMBOL_LOADING
-	// Load symbols for the module
-	bool bShouldReloadModuleMissingDebugSymbols = !FPlatformProperties::IsMonolithicBuild() && FPlatformStackWalk::WantsDetailedCallstacksInNonMonolithicBuilds();
-	LoadSymbolsForModuleByAddress(ProgramCounter, GetSymbolSearchPath(), bShouldReloadModuleMissingDebugSymbols);
+		// Load symbols for the module
+		bool bShouldReloadModuleMissingDebugSymbols = !FPlatformProperties::IsMonolithicBuild() && FPlatformStackWalk::WantsDetailedCallstacksInNonMonolithicBuilds();
+		LoadSymbolsForModuleByAddress(ProgramCounter, GetSymbolSearchPath(), bShouldReloadModuleMissingDebugSymbols);
 #endif
 
-	// Set the program counter.
-	out_SymbolInfo.ProgramCounter = ProgramCounter;
+		// Set the program counter.
+		out_SymbolInfo.ProgramCounter = ProgramCounter;
 
-	uint32 LastError = 0;
-	HANDLE ProcessHandle = GProcessHandle;
+		uint32 LastError = 0;
+		HANDLE ProcessHandle = GProcessHandle;
 
-	// Initialize symbol.
-	ANSICHAR SymbolBuffer[sizeof( SYMBOL_INFO ) + FProgramCounterSymbolInfo::MAX_NAME_LENGTH] = {0};
-	SYMBOL_INFO* Symbol = (SYMBOL_INFO*)SymbolBuffer;
-	Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-	Symbol->MaxNameLen = FProgramCounterSymbolInfo::MAX_NAME_LENGTH;
+		// Initialize symbol.
+		ANSICHAR SymbolBuffer[sizeof( SYMBOL_INFO ) + FProgramCounterSymbolInfo::MAX_NAME_LENGTH] = {0};
+		SYMBOL_INFO* Symbol = (SYMBOL_INFO*)SymbolBuffer;
+		Symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+		Symbol->MaxNameLen = FProgramCounterSymbolInfo::MAX_NAME_LENGTH;
 
-	// Get function name.
-	if( SymFromAddr( ProcessHandle, ProgramCounter, nullptr, Symbol ) )
-	{
-		// Skip any funky chars in the beginning of a function name.
-		int32 Offset = 0;
-		while( Symbol->Name[Offset] < 32 || Symbol->Name[Offset] > 127 )
+		// Get function name.
+		if( SymFromAddr( ProcessHandle, ProgramCounter, nullptr, Symbol ) )
 		{
-			Offset++;
+			// Skip any funky chars in the beginning of a function name.
+			int32 Offset = 0;
+			while( Symbol->Name[Offset] < 32 || Symbol->Name[Offset] > 127 )
+			{
+				Offset++;
+			}
+
+			// Write out function name.
+			FCStringAnsi::Strncpy( out_SymbolInfo.FunctionName, Symbol->Name + Offset, FProgramCounterSymbolInfo::MAX_NAME_LENGTH ); 
+			FCStringAnsi::Strncat( out_SymbolInfo.FunctionName, "()", FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+		}
+		else
+		{
+			// No symbol found for this address.
+			LastError = GetLastError();
 		}
 
-		// Write out function name.
-		FCStringAnsi::Strncpy( out_SymbolInfo.FunctionName, Symbol->Name + Offset, FProgramCounterSymbolInfo::MAX_NAME_LENGTH ); 
-		FCStringAnsi::Strncat( out_SymbolInfo.FunctionName, "()", FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-	}
-	else
-	{
-		// No symbol found for this address.
-		LastError = GetLastError();
-	}
+		// Get filename and line number.
+		IMAGEHLP_LINE64	ImageHelpLine = {0};
+		ImageHelpLine.SizeOfStruct = sizeof( ImageHelpLine );
+		if( SymGetLineFromAddr64( ProcessHandle, ProgramCounter, (::DWORD *)&out_SymbolInfo.SymbolDisplacement, &ImageHelpLine ) )
+		{
+			FCStringAnsi::Strncpy( out_SymbolInfo.Filename, ImageHelpLine.FileName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+			out_SymbolInfo.LineNumber = ImageHelpLine.LineNumber;
+		}
+		else
+		{
+			LastError = GetLastError();
+		}
 
-	// Get filename and line number.
-	IMAGEHLP_LINE64	ImageHelpLine = {0};
-	ImageHelpLine.SizeOfStruct = sizeof( ImageHelpLine );
-	if( SymGetLineFromAddr64( ProcessHandle, ProgramCounter, (::DWORD *)&out_SymbolInfo.SymbolDisplacement, &ImageHelpLine ) )
-	{
-		FCStringAnsi::Strncpy( out_SymbolInfo.Filename, ImageHelpLine.FileName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-		out_SymbolInfo.LineNumber = ImageHelpLine.LineNumber;
-	}
-	else
-	{
-		LastError = GetLastError();
-	}
-
-	// Get module name.
-	IMAGEHLP_MODULE64 ImageHelpModule = {0};
-	ImageHelpModule.SizeOfStruct = sizeof( ImageHelpModule );
-	if( SymGetModuleInfo64( ProcessHandle, ProgramCounter, &ImageHelpModule) )
-	{
-		// Write out module information.
-		FCStringAnsi::Strncpy( out_SymbolInfo.ModuleName, ImageHelpModule.ImageName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
-	}
-	else
-	{
-		LastError = GetLastError();
-	}
+		// Get module name.
+		IMAGEHLP_MODULE64 ImageHelpModule = {0};
+		ImageHelpModule.SizeOfStruct = sizeof( ImageHelpModule );
+		if( SymGetModuleInfo64( ProcessHandle, ProgramCounter, &ImageHelpModule) )
+		{
+			// Write out module information.
+			FCStringAnsi::Strncpy( out_SymbolInfo.ModuleName, ImageHelpModule.ImageName, FProgramCounterSymbolInfo::MAX_NAME_LENGTH );
+		}
+		else
+		{
+			LastError = GetLastError();
+		}
+	};
 }
 
 void FWindowsPlatformStackWalk::ProgramCounterToSymbolInfoEx(uint64 ProgramCounter, FProgramCounterSymbolInfoEx& out_SymbolInfo)
