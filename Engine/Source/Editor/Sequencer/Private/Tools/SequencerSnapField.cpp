@@ -41,11 +41,11 @@ struct FSnapGridVisitor : ISequencerEntityVisitor, UE::Sequencer::ISnapField
 
 				const int32 StartNum = Snaps.Num();
 				const int32 NumKeys = TimesScratch.Num();
-				Snaps.SetNum(Snaps.Num() + NumKeys);
+				Snaps.Reserve(StartNum + NumKeys);
 
 				for (int32 Index = 0; Index < NumKeys; ++Index)
 				{
-					Snaps[StartNum + Index] = FSnapPoint(FSnapPoint::Key, TimesScratch[Index]);
+					Snaps.Emplace(FSnapPoint::Key, TimesScratch[Index]);
 				}
 			}
 		}

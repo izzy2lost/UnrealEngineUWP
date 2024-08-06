@@ -552,6 +552,12 @@ namespace UE::Core::Private::Function
 		// A pointer to the callable object
 		void* Ptr = nullptr;
 	};
+
+	template <typename FunctorType> auto ResolveFuncPtrTypeIfPossible(FunctorType&&, int) -> decltype(+std::declval<FunctorType>());
+	template <typename FunctorType> auto ResolveFuncPtrTypeIfPossible(FunctorType&&, ...) -> FunctorType&&;
+
+	template <typename FunctorType>
+	using TFuncPtrTypeIfPossible_T = decltype(ResolveFuncPtrTypeIfPossible(std::declval<FunctorType&&>(), 0));
 }
 
 /**
@@ -625,6 +631,9 @@ public:
 		: Super(Forward<FunctorType>(InFunc))
 	{
 		// This constructor is disabled for TFunctionRef types so it isn't incorrectly selected as copy/move constructors.
+
+		// Unlike TFunction and TUniqueFunction, we do not coerce the function type to a pointer here because the functionref would
+		// end up pointing to the temporary pointer we created on the stack.
 	}
 
 	/////////////////////////////////////////////////////
@@ -714,7 +723,7 @@ public:
 		)
 	>
 	TFunction(FunctorType&& InFunc)
-		: Super(Forward<FunctorType>(InFunc))
+		: Super(static_cast<UE::Core::Private::Function::TFuncPtrTypeIfPossible_T<FunctorType>>(InFunc))
 	{
 		// This constructor is disabled for TFunction types so it isn't incorrectly selected as copy/move constructors.
 
@@ -826,7 +835,7 @@ public:
 		)
 	>
 	TUniqueFunction(FunctorType&& InFunc)
-		: Super(Forward<FunctorType>(InFunc))
+		: Super(static_cast<UE::Core::Private::Function::TFuncPtrTypeIfPossible_T<FunctorType>>(InFunc))
 	{
 		// This constructor is disabled for TUniqueFunction types so it isn't incorrectly selected as copy/move constructors.
 
