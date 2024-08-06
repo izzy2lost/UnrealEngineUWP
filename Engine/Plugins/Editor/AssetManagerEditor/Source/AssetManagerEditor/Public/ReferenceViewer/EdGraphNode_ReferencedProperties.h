@@ -64,7 +64,6 @@ private:
 };
 
 
-
 /**
  * A node to display a list of Node properties which are referencing another Node/Asset
  */
@@ -90,6 +89,9 @@ public:
 	 */
 	void RefreshLocation(const FVector2f& InNodeSize = FVector2f::Zero());
 
+	DECLARE_MULTICAST_DELEGATE(FOnPropertiesDescriptionUpdated)
+	FOnPropertiesDescriptionUpdated& OnPropertiesDescriptionUpdated() { return OnPropertiesDescriptionUpdatedDelegate; }
+
 private:
 	TArray<FReferencingPropertyDescription> ReferencedPropertyDescription;
 
@@ -98,4 +100,6 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UEdGraphNode_Reference> ReferencedNode;
+
+	FOnPropertiesDescriptionUpdated OnPropertiesDescriptionUpdatedDelegate;
 };

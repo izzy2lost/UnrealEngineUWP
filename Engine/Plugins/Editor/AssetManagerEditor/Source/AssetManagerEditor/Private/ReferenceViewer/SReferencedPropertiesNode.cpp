@@ -36,7 +36,20 @@ void SReferencedPropertiesNode::Construct(const FArguments& InArgs, UEdGraphNode
 	GraphNode = InReferencedPropertiesNode;
 	SetCursor(EMouseCursor::CardinalCross);
 
+	if (InReferencedPropertiesNode)
+	{
+		InReferencedPropertiesNode->OnPropertiesDescriptionUpdated().AddRaw(this, &SReferencedPropertiesNode::UpdateGraphNode);
+	}
+
 	UpdateGraphNode();
+}
+
+SReferencedPropertiesNode::~SReferencedPropertiesNode()
+{
+	if (UEdGraphNode_ReferencedProperties* ReferencedProperties = Cast<UEdGraphNode_ReferencedProperties>(GraphNode))
+	{
+		ReferencedProperties->OnPropertiesDescriptionUpdated().RemoveAll(this);
+	}
 }
 
 void SReferencedPropertiesNode::UpdateGraphNode()

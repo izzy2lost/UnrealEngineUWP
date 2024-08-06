@@ -23,6 +23,8 @@ public:
 
 	void Construct(const FArguments& InArgs, UEdGraphNode_ReferencedProperties* InReferencedPropertiesNode);
 
+	~SReferencedPropertiesNode();
+
 	// ~Begin SGraphNode
 	virtual void UpdateGraphNode() override;
 	virtual bool IsNodeEditable() const override { return false; }

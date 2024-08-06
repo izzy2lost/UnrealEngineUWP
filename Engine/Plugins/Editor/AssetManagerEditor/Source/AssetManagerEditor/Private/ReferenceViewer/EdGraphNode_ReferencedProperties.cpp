@@ -38,6 +38,11 @@ void UEdGraphNode_ReferencedProperties::SetupReferencedPropertiesNode(const TArr
 	ReferencingNode = InReferencingNode;
 	ReferencedNode = InReferencedNode;
 
+	if (OnPropertiesDescriptionUpdated().IsBound())
+	{
+		OnPropertiesDescriptionUpdated().Broadcast();
+	}
+
 	RefreshLocation();
 }
 
