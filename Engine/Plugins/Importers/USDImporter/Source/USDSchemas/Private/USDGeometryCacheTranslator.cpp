@@ -83,7 +83,7 @@ namespace UsdGeometryCacheTranslatorImpl
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		UGeometryCache& GeometryCache,
 		UUsdAssetCache3& AssetCache,
-		UUsdPrimLinkCache& PrimLinkCache,
+		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
 		bool bShareAssetsForIdenticalPrims
@@ -93,7 +93,7 @@ namespace UsdGeometryCacheTranslatorImpl
 			UsdPrim,
 			LODIndexToMaterialInfo,
 			AssetCache,
-			PrimLinkCache,
+			*InfoCache,
 			Flags,
 			bShareAssetsForIdenticalPrims
 		);
@@ -913,7 +913,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 					MeshTranslationImpl::RecordSourcePrimsForMaterialSlots(LODIndexToMaterialInfo, UserData);
 				}
 
-				if (bIsNew && Context->UsdAssetCache && Context->PrimLinkCache)
+				if (bIsNew)
 				{
 					// Only the original creator of the prim at creation time gets to set the material assignments
 					// directly on the geometry cache, all others prims ensure their materials via material overrides on the
@@ -922,18 +922,18 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 						GetPrim(),
 						LODIndexToMaterialInfo,
 						*GeometryCache,
-						*Context->UsdAssetCache,
-						*Context->PrimLinkCache,
+						*Context->UsdAssetCache.Get(),
+						Context->InfoCache.Get(),
 						Context->Time,
 						Context->ObjectFlags,
 						Context->bShareAssetsForIdenticalPrims
 					);
 				}
 
-				if (Context->PrimLinkCache)
+				if (Context->InfoCache)
 				{
 					const UE::FSdfPath& TargetPath = AlternativePrimToLinkAssetsTo.IsSet() ? AlternativePrimToLinkAssetsTo.GetValue() : PrimPath;
-					Context->PrimLinkCache->LinkAssetToPrim(TargetPath, GeometryCache.Get());
+					Context->InfoCache->LinkAssetToPrim(TargetPath, GeometryCache.Get());
 				}
 			}
 
@@ -1032,9 +1032,9 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 
 	if (UGeometryCacheComponent* Component = Cast<UGeometryCacheComponent>(SceneComponent))
 	{
-		if (Context->PrimLinkCache && Context->UsdAssetCache)
+		if (Context->InfoCache && Context->UsdAssetCache)
 		{
-			if (UGeometryCache* GeometryCache = Context->PrimLinkCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath))
+			if (UGeometryCache* GeometryCache = Context->InfoCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath))
 			{
 				// Geometry caches don't support LODs
 				const bool bAllowInterpretingLODs = false;
@@ -1044,8 +1044,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 					GeometryCache->Materials,
 					*Component,
 					*Context->UsdAssetCache,
-					*Context->UsdInfoCache,
-					*Context->PrimLinkCache,
+					*Context->InfoCache,
 					Context->Time,
 					Context->ObjectFlags,
 					bAllowInterpretingLODs,
@@ -1060,7 +1059,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 					UsdGroomTranslatorUtils::CreateGroomBindingAsset(
 						GetPrim(),
 						*Context->UsdAssetCache,
-						*Context->PrimLinkCache,
+						*Context->InfoCache,
 						Context->ObjectFlags,
 						Context->bShareAssetsForIdenticalPrims
 					);
@@ -1109,9 +1108,9 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 	if (GeometryCacheComponent)
 	{
 		UGeometryCache* GeometryCache = nullptr;
-		if (Context->PrimLinkCache)
+		if (Context->InfoCache)
 		{
-			GeometryCache = Context->PrimLinkCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath);
+			GeometryCache = Context->InfoCache->GetSingleAssetForPrim<UGeometryCache>(PrimPath);
 		}
 
 		bool bShouldRegister = false;
@@ -1181,7 +1180,7 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 		// If the prim has a GroomBinding schema, apply the target groom to its associated GroomComponent
 		if (UsdUtils::PrimHasSchema(GetPrim(), UnrealIdentifiers::GroomBindingAPI))
 		{
-			UsdGroomTranslatorUtils::SetGroomFromPrim(GetPrim(), *Context->PrimLinkCache, SceneComponent);
+			UsdGroomTranslatorUtils::SetGroomFromPrim(GetPrim(), *Context->InfoCache, SceneComponent);
 		}
 
 		const bool bIsImporting = GForceImport || Context->bIsImporting;
@@ -1240,7 +1239,7 @@ TSet<UE::FSdfPath> FUsdGeometryCacheTranslator::CollectAuxiliaryPrims() const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	if (ShouldSkipSkinnablePrim())
@@ -1265,8 +1264,8 @@ TSet<UE::FSdfPath> FUsdGeometryCacheTranslator::CollectAuxiliaryPrims() const
 
 bool FUsdGeometryCacheTranslator::IsPotentialGeometryCacheRoot() const
 {
-	// The logic to check for GeometryCache is completely in the UsdInfoCache
-	return Context->UsdInfoCache->IsPotentialGeometryCacheRoot(PrimPath);
+	// The logic to check for GeometryCache is completely in the InfoCache
+	return Context->InfoCache->IsPotentialGeometryCacheRoot(PrimPath);
 }
 
 #endif	  // #if USE_USD_SDK

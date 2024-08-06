@@ -157,7 +157,7 @@ namespace UsdGeomMeshTranslatorImpl
 		}
 
 		// We want Nanite because the mesh is large enough for the threshold, which is set to something valid
-		if (!bHasNaniteOverrideEnabled)
+		if (!bHasNaniteOverrideEnabled && Context.InfoCache.IsValid())
 		{
 			const int32 NumTriangles = LODIndexToMeshDescription[0].Triangles().Num();
 			if (NumTriangles >= Context.NaniteTriangleThreshold)
@@ -202,9 +202,9 @@ namespace UsdGeomMeshTranslatorImpl
 			return false;
 		}
 
-		if (Context.UsdInfoCache)
+		if (Context.InfoCache.IsValid())
 		{
-			TOptional<uint64> SubtreeSectionCount = Context.UsdInfoCache->GetSubtreeMaterialSlotCount(PrimPath);
+			TOptional<uint64> SubtreeSectionCount = Context.InfoCache->GetSubtreeMaterialSlotCount(PrimPath);
 
 			if (!SubtreeSectionCount.IsSet() || SubtreeSectionCount.GetValue() > NANITE_MAX_CLUSTER_MATERIALS)
 			{
@@ -240,12 +240,17 @@ namespace UsdGeomMeshTranslatorImpl
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& LODIndexToMaterialInfo,
 		UStaticMesh& StaticMesh,
 		UUsdAssetCache3& AssetCache,
-		UUsdPrimLinkCache& PrimLinkCache,
+		FUsdInfoCache* InfoCache,
 		float Time,
 		EObjectFlags Flags,
 		bool bShareAssetsForIdenticalPrims
 	)
 	{
+		if (!InfoCache)
+		{
+			return false;
+		}
+
 		bool bMaterialAssignementsHaveChanged = false;
 
 		TArray<UMaterialInterface*> ExistingAssignments;
@@ -258,7 +263,7 @@ namespace UsdGeomMeshTranslatorImpl
 			UsdPrim,
 			LODIndexToMaterialInfo,
 			AssetCache,
-			PrimLinkCache,
+			*InfoCache,
 			Flags,
 			bShareAssetsForIdenticalPrims
 		);
@@ -1621,10 +1626,10 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 
 		   if (StaticMesh)
 		   {
-			   if (Context->PrimLinkCache)
+			   if (Context->InfoCache)
 			   {
 				   const UE::FSdfPath& TargetPath = AlternativePrimToLinkAssetsTo.IsSet() ? AlternativePrimToLinkAssetsTo.GetValue() : PrimPath;
-				   Context->PrimLinkCache->LinkAssetToPrim(TargetPath, StaticMesh);
+				   Context->InfoCache->LinkAssetToPrim(TargetPath, StaticMesh);
 			   }
 
 			   if (UUsdMeshAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdMeshAssetUserData>(StaticMesh))
@@ -1664,7 +1669,7 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 			   // Only the original creator of the prim at creation time gets to set the material assignments
 			   // directly on the mesh, all others prims ensure their materials via material overrides on the
 			   // components
-			   if (bIsNew && Context->UsdAssetCache && Context->PrimLinkCache)
+			   if (bIsNew)
 			   {
 #if WITH_EDITOR
 				   StaticMesh->NaniteSettings.bEnabled = bShouldEnableNanite;
@@ -1676,8 +1681,8 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 					   GetPrim(),
 					   LODIndexToMaterialInfo,
 					   *StaticMesh,
-					   *Context->UsdAssetCache,
-					   *Context->PrimLinkCache,
+					   *Context->UsdAssetCache.Get(),
+					   Context->InfoCache.Get(),
 					   Context->Time,
 					   Context->ObjectFlags,
 					   Context->bShareAssetsForIdenticalPrims
@@ -1779,7 +1784,7 @@ void FBuildStaticMeshTaskChain::SetupTasks()
 						 "were degenerate)"),
 					*PrimPath.GetString()
 				);
-				UsdUnreal::TranslatorUtils::AbandonFailedAsset(StaticMesh, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
+				UsdUnreal::TranslatorUtils::AbandonFailedAsset(StaticMesh, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
 				return false;
 			}
 
@@ -2098,7 +2103,7 @@ TSet<UE::FSdfPath> FUsdGeomMeshTranslator::CollectAuxiliaryPrims() const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	TSet<UE::FSdfPath> Result;

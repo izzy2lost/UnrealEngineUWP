@@ -78,9 +78,9 @@ void FMdlUsdShadeMaterialTranslator::CreateAssets()
 		return;
 	}
 
-	if (Context->bTranslateOnlyUsedMaterials && Context->UsdInfoCache)
+	if (Context->bTranslateOnlyUsedMaterials && Context->InfoCache)
 	{
-		if (!Context->UsdInfoCache->IsMaterialUsed(PrimPath))
+		if (!Context->InfoCache->IsMaterialUsed(PrimPath))
 		{
 			UE_LOG(
 				LogUsd,

@@ -173,7 +173,7 @@ void FUsdMediaSpatialAudioTranslator::CreateAssets()
 
 	using namespace UE::UsdMediaSpatialAudioTranslator::Private;
 
-	if (!Context->UsdAssetCache || !Context->PrimLinkCache)
+	if (!Context->UsdAssetCache || !Context->InfoCache)
 	{
 		return;
 	}
@@ -231,7 +231,7 @@ void FUsdMediaSpatialAudioTranslator::CreateAssets()
 
 	if (SoundWave)
 	{
-		Context->PrimLinkCache->LinkAssetToPrim(PrimPath, SoundWave);
+		Context->InfoCache->LinkAssetToPrim(PrimPath, SoundWave);
 
 		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdAssetUserData>(SoundWave))
 		{

@@ -332,10 +332,10 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 	// Note how we don't have to handle geometry caches in here as they're handled by the geometry cache translator now
 	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
 	{
-		if (Context->PrimLinkCache)
+		if (Context->InfoCache)
 		{
 			UE::FSdfPath PrototypePath = GetPrototypePrimPath();
-			if (UStaticMesh* StaticMesh = Context->PrimLinkCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath))
+			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath))
 			{
 				TArray<UMaterialInterface*> ExistingAssignments;
 				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
@@ -347,9 +347,8 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 					GetPrim(),
 					ExistingAssignments,
 					*StaticMeshComponent,
-					*Context->UsdAssetCache,
-					*Context->UsdInfoCache,
-					*Context->PrimLinkCache,
+					*Context->UsdAssetCache.Get(),
+					*Context->InfoCache.Get(),
 					Context->Time,
 					Context->ObjectFlags,
 					Context->bAllowInterpretingLODs,
@@ -665,7 +664,7 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdGeomXformableTranslator::UpdateComponents);
 
-	if (SceneComponent && Context->PrimLinkCache)
+	if (SceneComponent && Context->InfoCache)
 	{
 		SceneComponent->Modify();
 
@@ -684,7 +683,7 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
 		{
 			UE::FSdfPath PrototypePath = GetPrototypePrimPath();
-			UStaticMesh* PrimStaticMesh = Context->PrimLinkCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath);
+			UStaticMesh* PrimStaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath);
 
 			if (PrimStaticMesh)
 			{
@@ -795,7 +794,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 		UE::FUsdPrim Prim,
 		UUsdDrawModeComponent* DrawModeComponent,
 		UUsdAssetCache3& AssetCache,
-		UUsdPrimLinkCache& PrimLinkCache
+		FUsdInfoCache& InfoCache
 	)
 	{
 		if (!Prim)
@@ -818,7 +817,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 		// Collect textures from the info cache (they will all be linked to this Prim but will have within their AssetUserData the attribute
 		// that they originated from).
 		// The info cache may have old textures in case we're changing editing the stage, so we track multiple textures per attribute.
-		TArray<UTexture2D*> Textures = PrimLinkCache.GetAssetsForPrim<UTexture2D>(Prim.GetPrimPath());
+		TArray<UTexture2D*> Textures = InfoCache.GetAssetsForPrim<UTexture2D>(Prim.GetPrimPath());
 		std::unordered_map<pxr::SdfPath, TArray<UTexture2D*>, pxr::SdfPath::Hash> AttrPathToTextures;
 		for (UTexture2D* Texture : Textures)
 		{
@@ -940,7 +939,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateAlternativeDrawModeComponent
 		case EUsdDrawMode::Cards:
 		{
 			UUsdDrawModeComponent* Component = Cast<UUsdDrawModeComponent>(CreateComponentsEx({UUsdDrawModeComponent::StaticClass()}, bNeedsActor));
-			if (ensure(Component) && Context->UsdAssetCache && Context->PrimLinkCache)
+			if (ensure(Component) && Context->UsdAssetCache && Context->InfoCache)
 			{
 				// For now we only assign textures when creating components, not when updating. Maybe in the future we can
 				// add support for "texture animations"
@@ -948,7 +947,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateAlternativeDrawModeComponent
 					GetPrim(),
 					Component,
 					*Context->UsdAssetCache,
-					*Context->PrimLinkCache
+					*Context->InfoCache
 				);
 			}
 			return Component;
@@ -969,7 +968,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 {
 	// Currently we just use this function to create the textures that we're going to use on the bounds components,
 	// if applicable
-	if (DrawMode != EUsdDrawMode::Cards || !Context->UsdAssetCache || !Context->PrimLinkCache)
+	if (DrawMode != EUsdDrawMode::Cards || !Context->UsdAssetCache || !Context->InfoCache)
 	{
 		return;
 	}
@@ -1028,7 +1027,7 @@ void FUsdGeomXformableTranslator::CreateAlternativeDrawModeAssets(EUsdDrawMode D
 				// We link the textures to the prim, so that if the prim is reloaded the AUsdStageActor knows to potentially
 				// drop the textures. However we put the full attribute path on AssetUserData, so that when we're filling in
 				// our UUsdDrawModeComponent later, we know which texture came from which attribute
-				Context->PrimLinkCache->LinkAssetToPrim(PrimPath, Texture);
+				Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
 				if (UUsdAssetUserData* TextureUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Texture))
 				{
 					TextureUserData->PrimPaths.AddUnique(UsdToUnreal::ConvertPath(Attr.GetPath()));
@@ -1089,7 +1088,7 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->DoesPathCollapseChildren(PrimPath, CollapsingType);
+		return Context->InfoCache->DoesPathCollapseChildren(PrimPath, CollapsingType);
 	}
 
 	// If we have a custom draw mode, it means we should draw bounds/cards/etc. instead
@@ -1121,7 +1120,7 @@ bool FUsdGeomXformableTranslator::CollapsesChildren(ECollapsingType CollapsingTy
 		if (bCollapsesChildren)
 		{
 			// This indicates whether the subtree *can* be collapsed
-			TOptional<bool> bSubtreeCanBeCollapsed = Context->UsdInfoCache->CanXformableSubtreeBeCollapsed(PrimPath, *Context);
+			TOptional<bool> bSubtreeCanBeCollapsed = Context->InfoCache->CanXformableSubtreeBeCollapsed(PrimPath, *Context);
 			if (bSubtreeCanBeCollapsed.IsSet())
 			{
 				return bSubtreeCanBeCollapsed.GetValue();
@@ -1155,10 +1154,10 @@ TSet<UE::FSdfPath> FUsdGeomXformableTranslator::CollectAuxiliaryPrims() const
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
-	if (!Context->UsdInfoCache->DoesPathCollapseChildren(PrimPath, ECollapsingType::Assets))
+	if (!Context->InfoCache->DoesPathCollapseChildren(PrimPath, ECollapsingType::Assets))
 	{
 		return {};
 	}

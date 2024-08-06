@@ -50,7 +50,7 @@ bool USDTestsBlueprintLibrary::RecompileBlueprintStageActor(AUsdStageActor* Blue
 		UE_LOG(LogUsd, Error, TEXT("Blueprint failed to compile (%s)"), *BP->GetName());
 		return false;
 	}
-
+	
 	UE_LOG(LogUsd, Error, TEXT("Blueprint is in an unexpected state after compiling (%s)"), *BP->GetName());
 #endif	  // WITH_EDITOR
 	return false;
@@ -92,7 +92,7 @@ int64 USDTestsBlueprintLibrary::GetSubtreeVertexCount(AUsdStageActor* StageActor
 {
 	if (StageActor)
 	{
-		if (UUsdInfoCache* Cache = StageActor->UsdInfoCache)
+		if (TSharedPtr<FUsdInfoCache> Cache = StageActor->GetInfoCache())
 		{
 			TOptional<uint64> Result = Cache->GetSubtreeVertexCount(UE::FSdfPath{*PrimPath});
 			if (Result.IsSet())
@@ -114,7 +114,7 @@ int64 USDTestsBlueprintLibrary::GetSubtreeMaterialSlotCount(AUsdStageActor* Stag
 {
 	if (StageActor)
 	{
-		if (UUsdInfoCache* Cache = StageActor->UsdInfoCache)
+		if (TSharedPtr<FUsdInfoCache> Cache = StageActor->GetInfoCache())
 		{
 			TOptional<uint64> Result = Cache->GetSubtreeMaterialSlotCount(UE::FSdfPath{*PrimPath});
 			if (Result.IsSet())

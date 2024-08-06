@@ -233,9 +233,9 @@ protected:
 					}
 				}
 
-				if (GroomAsset && Context->PrimLinkCache)
+				if (GroomAsset && Context->InfoCache)
 				{
-					Context->PrimLinkCache->LinkAssetToPrim(PrimPath, GroomAsset);
+					Context->InfoCache->LinkAssetToPrim(PrimPath, GroomAsset);
 				}
 
 				// Next step is to parse the GroomCache data if it was determined that the groom has animated attributes
@@ -248,12 +248,12 @@ protected:
 			ESchemaTranslationLaunchPolicy::Async,
 			[this]() -> bool
 			{
-				if (!Context->PrimLinkCache)
+				if (!Context->InfoCache)
 				{
 					return false;
 				}
 
-				GroomAsset = Context->PrimLinkCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
+				GroomAsset = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
 				if (!GroomAsset)
 				{
 					return false;
@@ -303,9 +303,9 @@ protected:
 					&bGroomCacheIsNew
 				);
 
-				if (GroomCache && Context->PrimLinkCache)
+				if (GroomCache && Context->InfoCache)
 				{
-					Context->PrimLinkCache->LinkAssetToPrim(PrimPath, GroomCache);
+					Context->InfoCache->LinkAssetToPrim(PrimPath, GroomCache);
 
 					if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(GroomCache))
 					{
@@ -450,7 +450,7 @@ protected:
 					const FString StrandsGroomCachePrimPath = UsdGroomTranslatorUtils::GetStrandsGroomCachePrimPath(PrimPath);
 					UE_LOG(LogUsd, Warning, TEXT("Failed to create GroomCache for prim '%s'"), *StrandsGroomCachePrimPath);
 
-					UsdUnreal::TranslatorUtils::AbandonFailedAsset(GroomCache, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
+					UsdUnreal::TranslatorUtils::AbandonFailedAsset(GroomCache, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
 				}
 
 				return bSuccess;
@@ -539,9 +539,9 @@ void FUsdGroomTranslator::UpdateComponents(USceneComponent* SceneComponent)
 			GroomComponent->Modify();
 
 			UGroomAsset* Groom = nullptr;
-			if (Context->PrimLinkCache)
+			if (Context->InfoCache)
 			{
-				Groom = Context->PrimLinkCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
+				Groom = Context->InfoCache->GetSingleAssetForPrim<UGroomAsset>(PrimPath);
 			}
 
 			bool bShouldRegister = false;
@@ -558,7 +558,7 @@ void FUsdGroomTranslator::UpdateComponents(USceneComponent* SceneComponent)
 
 				if (Groom)
 				{
-					UGroomCache* GroomCache = Context->PrimLinkCache->GetSingleAssetForPrim<UGroomCache>(PrimPath);
+					UGroomCache* GroomCache = Context->InfoCache->GetSingleAssetForPrim<UGroomCache>(PrimPath);
 					if (GroomCache != GroomComponent->GroomCache.Get())
 					{
 						GroomComponent->SetGroomCache(GroomCache);
@@ -612,10 +612,10 @@ TSet<UE::FSdfPath> FUsdGroomTranslator::CollectAuxiliaryPrims() const
 
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
-	if (!Context->UsdInfoCache->DoesPathCollapseChildren(PrimPath, ECollapsingType::Assets))
+	if (!Context->InfoCache->DoesPathCollapseChildren(PrimPath, ECollapsingType::Assets))
 	{
 		return {};
 	}

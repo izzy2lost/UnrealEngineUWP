@@ -150,9 +150,9 @@ USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 	// Handle material overrides
 	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
 	{
-		if (Context->PrimLinkCache)
+		if (Context->InfoCache)
 		{
-			if (UStaticMesh* StaticMesh = Context->PrimLinkCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath))
+			if (UStaticMesh* StaticMesh = Context->InfoCache->GetSingleAssetForPrim<UStaticMesh>(PrimPath))
 			{
 				TArray<UMaterialInterface*> ExistingAssignments;
 				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
@@ -164,9 +164,8 @@ USceneComponent* FUsdGeomPrimitiveTranslator::CreateComponents()
 					GetPrim(),
 					ExistingAssignments,
 					*StaticMeshComponent,
-					*Context->UsdAssetCache,
-					*Context->UsdInfoCache,
-					*Context->PrimLinkCache,
+					*Context->UsdAssetCache.Get(),
+					*Context->InfoCache.Get(),
 					Context->Time,
 					Context->ObjectFlags,
 					Context->bAllowInterpretingLODs,
@@ -219,7 +218,7 @@ TSet<UE::FSdfPath> FUsdGeomPrimitiveTranslator::CollectAuxiliaryPrims() const
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	// Let's assume we can't specify UsdGeomSubsets on primitives for now

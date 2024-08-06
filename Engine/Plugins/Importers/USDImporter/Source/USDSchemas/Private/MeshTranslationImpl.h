@@ -19,8 +19,6 @@ class FUsdInfoCache;
 class UMaterialInterface;
 class UMeshComponent;
 class UUsdAssetCache3;
-class UUsdPrimLinkCache;
-class UUsdInfoCache;
 class UUsdMeshAssetUserData;
 namespace UsdUtils
 {
@@ -36,7 +34,7 @@ namespace MeshTranslationImpl
 		const pxr::UsdPrim& UsdPrim,
 		const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& AssignmentInfo,
 		UUsdAssetCache3& AssetCache,
-		UUsdPrimLinkCache& PrimLinkCache,
+		FUsdInfoCache& InfoCache,
 		EObjectFlags Flags,
 		bool bShareAssetsForIdenticalPrims
 	);
@@ -50,8 +48,7 @@ namespace MeshTranslationImpl
 		const TArray<UMaterialInterface*>& ExistingAssignments,
 		UMeshComponent& MeshComponent,
 		UUsdAssetCache3& AssetCache,
-		UUsdInfoCache& UsdInfoCache,
-		UUsdPrimLinkCache& PrimLinkCache,
+		FUsdInfoCache& InfoCache,
 		float Time,
 		EObjectFlags Flags,
 		bool bInterpretLODs,

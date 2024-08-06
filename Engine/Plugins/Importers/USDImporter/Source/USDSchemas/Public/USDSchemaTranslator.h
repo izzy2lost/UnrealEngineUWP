@@ -8,10 +8,8 @@
 #include "USDAssetCache2.h"
 #include "USDAssetCache3.h"
 #include "USDInfoCache.h"
-#include "USDInfoCache.h"
 #include "USDMemory.h"
 #include "USDMetadataImportOptions.h"
-#include "USDPrimLinkCache.h"
 #include "USDSkeletalDataConversion.h"
 
 #include "UsdWrappers/SdfPath.h"
@@ -236,21 +234,12 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** Where the translated assets will be stored */
 	TStrongObjectPtr<UUsdAssetCache3> UsdAssetCache;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Where the translated assets will be stored */
 	UE_DEPRECATED(5.5, "Use the 'UsdAssetCache' member instead, which is of the new UUsdAssetCache3 type")
 	TStrongObjectPtr<UUsdAssetCache2> AssetCache;
 
 	/** Caches various information about prims that are expensive to query */
-	UE_DEPRECATED(5.5, "Use the 'UsdInfoCache' member instead, which is of the new UUsdInfoCache type")
 	TSharedPtr<FUsdInfoCache> InfoCache;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-	/** Caches various information about prims that are expensive to query */
-	TStrongObjectPtr<UUsdInfoCache> UsdInfoCache;
-
-	/** Caches which assets were generated from which USD prims */
-	TStrongObjectPtr<UUsdPrimLinkCache> PrimLinkCache;
 
 	/** Bounding box cache used for the USD stage in case we have to spawn bounds components */
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;

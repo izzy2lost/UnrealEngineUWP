@@ -40,7 +40,7 @@ namespace UE::UsdShadeTranslator::Private
 		TSet<UMaterialInterface*>& NewMaterials
 	)
 	{
-		if (!Context->UsdAssetCache || !Context->PrimLinkCache)
+		if (!Context->UsdAssetCache || !Context->InfoCache)
 		{
 			return;
 		}
@@ -136,7 +136,7 @@ namespace UE::UsdShadeTranslator::Private
 		  // Don't spell out MID directly, as at runtime we may be trying to upgrade a packaged MIC
 							if (UMaterialInstance* MI = Cast<UMaterialInstance>(UserMaterial))
 							{
-								TArray<UE::FSdfPath> PrimsForAsset = Context->PrimLinkCache->GetPrimsForAsset(MI);
+								TArray<UE::FSdfPath> PrimsForAsset = Context->InfoCache->GetPrimsForAsset(MI);
 								const FString Hash = Context->UsdAssetCache->GetHashForAsset(MI);
 
 								// For MID we can't swap the reference material, so we need to remove the old material from the cache,
@@ -180,7 +180,7 @@ namespace UE::UsdShadeTranslator::Private
 
 								for (const UE::FSdfPath& PrimPath : PrimsForAsset)
 								{
-									Context->PrimLinkCache->LinkAssetToPrim(PrimPath, NewMID);
+									Context->InfoCache->LinkAssetToPrim(PrimPath, NewMID);
 								}
 								NewMaterials.Add(NewMID);
 
@@ -282,9 +282,9 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 		return;
 	}
 
-	if (Context->bTranslateOnlyUsedMaterials && Context->UsdInfoCache)
+	if (Context->bTranslateOnlyUsedMaterials && Context->InfoCache)
 	{
-		if (!Context->UsdInfoCache->IsMaterialUsed(PrimPath))
+		if (!Context->InfoCache->IsMaterialUsed(PrimPath))
 		{
 			UE_LOG(
 				LogUsd,
@@ -378,7 +378,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 			);
 			if (!bSuccess)
 			{
-				UsdUnreal::TranslatorUtils::AbandonFailedAsset(MIC, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
+				UsdUnreal::TranslatorUtils::AbandonFailedAsset(MIC, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
 				return;
 			}
 
@@ -486,7 +486,7 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 			);
 			if (!bSuccess)
 			{
-				UsdUnreal::TranslatorUtils::AbandonFailedAsset(MI, Context->UsdAssetCache.Get(), Context->PrimLinkCache.Get());
+				UsdUnreal::TranslatorUtils::AbandonFailedAsset(MI, Context->UsdAssetCache.Get(), Context->InfoCache.Get());
 				return;
 			}
 
@@ -509,9 +509,9 @@ void FUsdShadeMaterialTranslator::CreateAssets()
 
 			// We must stash our material and textures *before* we call UpgradeMaterialsAndTexturesToVT, as that
 			// is what will actually swap our reference with a VT one if needed
-			if (Context->PrimLinkCache)
+			if (Context->InfoCache)
 			{
-				Context->PrimLinkCache->LinkAssetToPrim(PrimPath, MI);
+				Context->InfoCache->LinkAssetToPrim(PrimPath, MI);
 			}
 			for (UTexture* Texture : VTTextures.Union(NonVTTextures))
 			{
@@ -546,7 +546,7 @@ bool FUsdShadeMaterialTranslator::CanBeCollapsed(ECollapsingType CollapsingType)
 
 void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& PrefixedMaterialHash, UMaterialInterface* ImportedMaterial)
 {
-	if (!ImportedMaterial || !Context->PrimLinkCache || !Context->UsdAssetCache)
+	if (!ImportedMaterial || !Context->InfoCache || !Context->UsdAssetCache)
 	{
 		return;
 	}
@@ -574,7 +574,7 @@ void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& PrefixedMate
 
 	// Note that this needs to run even if we found this material in the asset cache already, otherwise we won't
 	// re-register the prim asset links when we reload a stage
-	Context->PrimLinkCache->LinkAssetToPrim(PrimPath, ImportedMaterial);
+	Context->InfoCache->LinkAssetToPrim(PrimPath, ImportedMaterial);
 
 	// Also link the textures to the same material prim. Our textures should all come from USDShadeConversion.cpp or
 	// MaterialX or MDL translators, so they should already be tracked by the same asset cache the material is tracked by.
@@ -591,7 +591,7 @@ void FUsdShadeMaterialTranslator::PostImportMaterial(const FString& PrefixedMate
 			if (bIsTrackedByCache)
 			{
 				Context->UsdAssetCache->TouchAssetPath(Texture);
-				Context->PrimLinkCache->LinkAssetToPrim(PrimPath, Texture);
+				Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
 
 				if (UUsdAssetUserData* TextureUserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData(Texture))
 				{
@@ -606,7 +606,7 @@ TSet<UE::FSdfPath> FUsdShadeMaterialTranslator::CollectAuxiliaryPrims() const
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	TSet<UE::FSdfPath> Result;

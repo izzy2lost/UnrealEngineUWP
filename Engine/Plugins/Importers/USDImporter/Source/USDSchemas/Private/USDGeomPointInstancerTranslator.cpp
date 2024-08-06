@@ -301,10 +301,11 @@ USceneComponent* FUsdGeomPointInstancerTranslator::CreateComponents()
 			return MainSceneComponent;
 		}
 
-		if (!Context->UsdInfoCache)
+		if (!Context->InfoCache.IsValid())
 		{
 			return MainSceneComponent;
 		}
+		FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
 
 		// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get
 		// automatically attached to it as children
@@ -403,10 +404,12 @@ void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointIn
 			return;
 		}
 
-		if (!Context->UsdAssetCache.IsValid() || !Context->PrimLinkCache || !Context->UsdInfoCache)
+		if (!Context->UsdAssetCache.IsValid() || !Context->InfoCache.IsValid())
 		{
 			return;
 		}
+		UUsdAssetCache3& AssetCache = *Context->UsdAssetCache.Get();
+		FUsdInfoCache& InfoCache = *Context->InfoCache.Get();
 
 		// Lets pretend ParentComponent is pointing to the parent USceneComponent while we create the child HISMs, so they get
 		// automatically attached to it as children
@@ -427,7 +430,7 @@ void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointIn
 		// prototype, as we translate these with task pools and some of those prototypes may have generated nullptr.
 		// We always put the prototype path on the asset import data though, so here we use that to figure out where
 		// each mesh should go
-		TArray<UStaticMesh*> PrototypeMeshArr = Context->PrimLinkCache->GetAssetsForPrim<UStaticMesh>(PrimPath);
+		TArray<UStaticMesh*> PrototypeMeshArr = InfoCache.GetAssetsForPrim<UStaticMesh>(PrimPath);
 		std::unordered_map<pxr::SdfPath, UStaticMesh*, pxr::SdfPath::Hash> PrototypeMeshes;
 		PrototypeMeshes.reserve(PrototypeMeshArr.Num());
 		for (UStaticMesh* PrototypeMesh : PrototypeMeshArr)
@@ -536,9 +539,8 @@ void FUsdGeomPointInstancerTranslator::UpdateComponents(USceneComponent* PointIn
 					PrototypeUsdPrim.Get(),
 					ExistingAssignments,
 					*HISMComponent,
-					*Context->UsdAssetCache,
-					*Context->UsdInfoCache,
-					*Context->PrimLinkCache,
+					AssetCache,
+					InfoCache,
 					Context->Time,
 					Context->ObjectFlags,
 					Context->bAllowInterpretingLODs,
@@ -574,7 +576,7 @@ TSet<UE::FSdfPath> FUsdGeomPointInstancerTranslator::CollectAuxiliaryPrims() con
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	FScopedUsdAllocs UsdAllocs;

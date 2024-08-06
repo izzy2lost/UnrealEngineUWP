@@ -290,9 +290,14 @@ namespace UE::USDStageImporter::Private
 
 	void CacheCollapsingState(FUsdSchemaTranslationContext& TranslationContext)
 	{
+		if (!TranslationContext.InfoCache.IsValid())
+		{
+			TranslationContext.InfoCache = MakeShared<FUsdInfoCache>();
+		}
+
 		// It's better to always rebuild the info cache because our import options may have changed
 		// from the options used when the cache was first built, which could change collapsing states, etc.
-		TranslationContext.UsdInfoCache->RebuildCacheForSubtree(TranslationContext.Stage.GetPseudoRoot(), TranslationContext);
+		TranslationContext.InfoCache->RebuildCacheForSubtree(TranslationContext.Stage.GetPseudoRoot(), TranslationContext);
 	}
 
 	void ImportMaterials(FUsdStageImportContext& ImportContext, FUsdSchemaTranslationContext& TranslationContext)
@@ -676,7 +681,11 @@ namespace UE::USDStageImporter::Private
 			// rename our asset to its target package too
 			else
 			{
-				ensure(Asset->Rename(*TargetAssetName, Package, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty));
+				ensure(Asset->Rename(
+					*TargetAssetName,
+					Package,
+					REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty
+				));
 				MovedAsset = Asset;
 			}
 
@@ -694,7 +703,9 @@ namespace UE::USDStageImporter::Private
 		else
 		{
 			// We can't dirty the package here. Read the comment around MarkPackageDirty, below
-			ensure(Asset->Rename(*TargetAssetName, Package, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty));
+			ensure(
+				Asset->Rename(*TargetAssetName, Package, REN_DontCreateRedirectors | REN_NonTransactional | REN_DoNotDirty)
+			);
 			MovedAsset = Asset;
 		}
 
@@ -1887,14 +1898,9 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	// content browser and can instead just be renamed by the stageimporter directly into the import location
 	TGuardValue<FString> AssetCacheTransientGuard{ImportContext.UsdAssetCache->AssetDirectory.Path, GetTransientPackage()->GetPathName()};
 
-	UObject* Outer = GetTransientPackage();
-	const FName Name = NAME_None;
-	const EObjectFlags Flags = EObjectFlags::RF_Transient;
-	TStrongObjectPtr<UUsdPrimLinkCache> PrimLinkCache{NewObject<UUsdPrimLinkCache>(Outer, Name, Flags)};
-	TStrongObjectPtr<UUsdInfoCache> UsdInfoCache{NewObject<UUsdInfoCache>(Outer, Name, Flags)};
-
+	TSharedPtr<FUsdInfoCache> InfoCache = MakeShared<FUsdInfoCache>();
 	ImportContext.UsdAssetCache->MarkAssetsAsStale();
-	ImportContext.LevelSequenceHelper.SetPrimLinkCache(PrimLinkCache.Get());
+	ImportContext.LevelSequenceHelper.SetInfoCache(InfoCache);
 	ImportContext.LevelSequenceHelper.Init(ImportContext.Stage);	// Must happen after the context gets an InfoCache!
 	ImportContext.LevelSequenceHelper.SetRootMotionHandling(ImportContext.ImportOptions->RootMotionHandling);
 
@@ -1954,8 +1960,7 @@ void UUsdStageImporter::ImportFromFile(FUsdStageImportContext& ImportContext)
 	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
 	TranslationContext->bAllowParsingSounds = ImportContext.ImportOptions->bImportSounds;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
-	TranslationContext->UsdInfoCache = UsdInfoCache;
-	TranslationContext->PrimLinkCache = PrimLinkCache;
+	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;
 	TranslationContext->BlendShapesByPath = &BlendShapesByPath;
 	TranslationContext->GroomInterpolationSettings = ImportContext.ImportOptions->GroomInterpolationSettings;
@@ -2101,14 +2106,9 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	// content browser and can instead just be renamed by the stageimporter directly into the import location
 	TGuardValue<FString> AssetCacheTransientGuard{ImportContext.UsdAssetCache->AssetDirectory.Path, GetTransientPackage()->GetPathName()};
 
-	UObject* Outer = GetTransientPackage();
-	const FName Name = NAME_None;
-	const EObjectFlags Flags = EObjectFlags::RF_Transient;
-	TStrongObjectPtr<UUsdPrimLinkCache> PrimLinkCache{NewObject<UUsdPrimLinkCache>(Outer, Name, Flags)};
-	TStrongObjectPtr<UUsdInfoCache> UsdInfoCache{NewObject<UUsdInfoCache>(Outer, Name, Flags)};
-
+	TSharedPtr<FUsdInfoCache> InfoCache = MakeShared<FUsdInfoCache>();
 	ImportContext.UsdAssetCache->MarkAssetsAsStale();
-	ImportContext.LevelSequenceHelper.SetPrimLinkCache(PrimLinkCache.Get());
+	ImportContext.LevelSequenceHelper.SetInfoCache(InfoCache);
 	ImportContext.LevelSequenceHelper.Init(ImportContext.Stage);	// Must happen after the context gets an InfoCache!
 	ImportContext.LevelSequenceHelper.SetRootMotionHandling(ImportContext.ImportOptions->RootMotionHandling);
 
@@ -2166,8 +2166,7 @@ bool UUsdStageImporter::ReimportSingleAsset(
 	TranslationContext->bAllowParsingSparseVolumeTextures = ImportContext.ImportOptions->bImportSparseVolumeTextures;
 	TranslationContext->bAllowParsingSounds = ImportContext.ImportOptions->bImportSounds;
 	TranslationContext->bTranslateOnlyUsedMaterials = ImportContext.ImportOptions->bImportOnlyUsedMaterials;
-	TranslationContext->UsdInfoCache = UsdInfoCache;
-	TranslationContext->PrimLinkCache = PrimLinkCache;
+	TranslationContext->InfoCache = InfoCache;
 	TranslationContext->BBoxCache = ImportContext.BBoxCache;
 	TranslationContext->BlendShapesByPath = &BlendShapesByPath;
 	TranslationContext->GroomInterpolationSettings = ImportContext.ImportOptions->GroomInterpolationSettings;
