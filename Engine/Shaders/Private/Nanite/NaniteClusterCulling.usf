@@ -210,8 +210,14 @@ void TransformNodeCullingBounds(
 			0.0f, 0.0f, 0.0f, 1.0f);
 		const float4x4 LocalToDeformedLocal = mul(mul(LocalToTranslatedWorld, WorldToDeformedWorld), TranslatedWorldToLocal);
 
-		Bounds.BoxCenter = mul(float4(Bounds.BoxCenter, 1.0f), LocalToDeformedLocal).xyz;
-		Bounds.BoxExtent = abs(Bounds.BoxExtent.x * LocalToDeformedLocal[0].xyz) + abs(Bounds.BoxExtent.y * LocalToDeformedLocal[1].xyz) + abs(Bounds.BoxExtent.z * LocalToDeformedLocal[2].xyz);
+		const float3 FirstPersonBoxCenter = mul(float4(Bounds.BoxCenter, 1.0f), LocalToDeformedLocal).xyz;
+		const float3 FirstPersonBoxExtent = abs(Bounds.BoxExtent.x * LocalToDeformedLocal[0].xyz) + abs(Bounds.BoxExtent.y * LocalToDeformedLocal[1].xyz) + abs(Bounds.BoxExtent.z * LocalToDeformedLocal[2].xyz);
+
+		// Create final bounds as a union of the bounds before and after the first person transform. Materials can lerp the first person effect on per-vertex basis, so we need to be conservative here.
+		const float3 BoxMin = min(Bounds.BoxCenter - Bounds.BoxExtent, FirstPersonBoxCenter - FirstPersonBoxExtent);
+		const float3 BoxMax = max(Bounds.BoxCenter + Bounds.BoxExtent, FirstPersonBoxCenter + FirstPersonBoxExtent);
+		Bounds.BoxCenter = (BoxMin + BoxMax) * 0.5f;
+		Bounds.BoxExtent = BoxMax - Bounds.BoxCenter;
 	}
 #endif // SUPPORT_FIRST_PERSON_RENDERING
 }

@@ -1663,12 +1663,11 @@ bool FSingleLayerWaterDepthPrepassMeshProcessor::TryAddMeshBatch(
 		const ERasterizerFillMode MeshFillMode = ComputeMeshFillMode(Material, OverrideSettings);
 		const ERasterizerCullMode MeshCullMode = ComputeMeshCullMode(Material, OverrideSettings);
 		const bool bVFTypeSupportsNullPixelShader = MeshBatch.VertexFactory->SupportsNullPixelShader();
-		const bool bEvaluateWPO = Material.MaterialModifiesMeshPosition_RenderThread()
-			&& (!ShouldOptimizedWPOAffectNonNaniteShaderSelection() || PrimitiveSceneProxy->EvaluateWorldPositionOffset());
+		const bool bModifiesMeshPosition = DoMaterialAndPrimitiveModifyMeshPosition(Material, PrimitiveSceneProxy);
 
 		if (IsOpaqueBlendMode(Material)
 			&& MeshBatch.VertexFactory->SupportsPositionOnlyStream()
-			&& !bEvaluateWPO
+			&& !bModifiesMeshPosition
 			&& Material.WritesEveryPixel(false, bVFTypeSupportsNullPixelShader))
 		{
 			const FMaterialRenderProxy& DefaultProxy = *UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();
@@ -1681,7 +1680,7 @@ bool FSingleLayerWaterDepthPrepassMeshProcessor::TryAddMeshBatch(
 			const FMaterialRenderProxy* EffectiveMaterialRenderProxy = &MaterialRenderProxy;
 			const FMaterial* EffectiveMaterial = &Material;
 
-			if (!bMaterialMasked && !bEvaluateWPO)
+			if (!bMaterialMasked && !bModifiesMeshPosition)
 			{
 				// Override with the default material for opaque materials that are not two sided
 				EffectiveMaterialRenderProxy = UMaterial::GetDefaultMaterial(MD_Surface)->GetRenderProxy();

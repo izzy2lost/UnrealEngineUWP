@@ -15,6 +15,7 @@
 #include "Materials/MaterialExpressionVertexInterpolator.h"
 #include "Materials/MaterialExpressionSceneColor.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureOutput.h"
+#include "Materials/MaterialExpressionFirstPersonOutput.h"
 #include "Materials/MaterialExpressionLandscapeGrassOutput.h"
 #include "Materials/MaterialExpressionSetMaterialAttributes.h"
 #include "Materials/MaterialExpressionMakeMaterialAttributes.h"
@@ -54,6 +55,7 @@ FMaterialCachedExpressionData::FMaterialCachedExpressionData()
 	: FunctionInfosStateCRC(0xffffffff)
 	, bHasMaterialLayers(false)
 	, bHasRuntimeVirtualTextureOutput(false)
+	, bHasFirstPersonOutput(false)
 	, bHasSceneColor(false)
 	, bHasPerInstanceCustomData(false)
 	, bHasPerInstanceRandom(false)
@@ -449,6 +451,10 @@ void FMaterialCachedExpressionData::UpdateForExpressions(const FMaterialCachedEx
 		else if (Expression->IsA(UMaterialExpressionRuntimeVirtualTextureOutput::StaticClass()))
 		{
 			bHasRuntimeVirtualTextureOutput = true;
+		}
+		else if (Expression->IsA(UMaterialExpressionFirstPersonOutput::StaticClass()))
+		{
+			bHasFirstPersonOutput = true;
 		}
 		else if (Expression->IsA(UMaterialExpressionSceneColor::StaticClass()))
 		{

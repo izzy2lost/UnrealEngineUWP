@@ -1193,7 +1193,7 @@ bool FMaterial::MaterialMayModifyMeshPosition() const
 {
 	// Conservative estimate when called before material translation has occurred. 
 	// This function is only intended for use in deciding whether or not shader permutations are required.
-	return HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected();
+	return HasVertexPositionOffsetConnected() || HasPixelDepthOffsetConnected() || HasDisplacementConnected() || HasFirstPersonOutput();
 }
 
 bool FMaterial::MaterialUsesPixelDepthOffset_GameThread() const
@@ -2288,6 +2288,11 @@ bool FMaterialResource::HasVertexInterpolator() const
 bool FMaterialResource::HasRuntimeVirtualTextureOutput() const
 {
 	return GetCachedExpressionData().bHasRuntimeVirtualTextureOutput;
+}
+
+bool FMaterialResource::HasFirstPersonOutput() const
+{
+	return GetCachedExpressionData().bHasFirstPersonOutput;
 }
 
 bool FMaterialResource::CastsRayTracedShadows() const
