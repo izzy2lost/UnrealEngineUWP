@@ -1123,9 +1123,23 @@ bool SContentBrowser::IsCollectionViewDocked() const
 	return GetDefault<UContentBrowserSettings>()->GetDockCollections();
 }
 
+void SContentBrowser::AddFolderFavorite(const TArray<FString>& FolderPaths)
+{
+	for (const FString& FolderPath : FolderPaths)
+	{
+		const FContentBrowserItemPath ItemPath(FolderPath, EContentBrowserPathType::Virtual);
+		if (!ContentBrowserUtils::IsFavoriteFolder(ItemPath))
+		{
+			ContentBrowserUtils::AddFavoriteFolder(ItemPath);
+		}
+	}
+
+	SaveAndShowNewFolderFavorites(FolderPaths);
+}
+
 void SContentBrowser::ToggleFolderFavorite(const TArray<FString>& FolderPaths)
 {
-	bool bAddedFavorite = false;
+	TArray<FString> FolderPathsAdded;
 	for (const FString& FolderPath : FolderPaths)
 	{
 		const FContentBrowserItemPath ItemPath(FolderPath, EContentBrowserPathType::Virtual);
@@ -1136,14 +1150,19 @@ void SContentBrowser::ToggleFolderFavorite(const TArray<FString>& FolderPaths)
 		else
 		{
 			ContentBrowserUtils::AddFavoriteFolder(ItemPath);
-			bAddedFavorite = true;
+			FolderPathsAdded.Add(FolderPath);
 		}
 	}
 
+	SaveAndShowNewFolderFavorites(FolderPathsAdded);
+}
+
+void SContentBrowser::SaveAndShowNewFolderFavorites(const TArray<FString>& FolderPaths)
+{
 	FavoritePathViewPtr->SaveSettings(GEditorPerProjectIni, SettingsIniSection, InstanceName.ToString() + TEXT(".Favorites"));
-	
 	FavoritePathViewPtr->Populate();
-	if (bAddedFavorite)
+
+	if (!FolderPaths.IsEmpty())
 	{	
 		FavoritePathViewPtr->SetSelectedPaths(FolderPaths);
 		if (GetFavoriteFolderVisibility() == EVisibility::Collapsed)
@@ -1453,7 +1472,7 @@ void SContentBrowser::SetFavoritesExpanded(bool bExpanded)
 TSharedRef<SWidget> SContentBrowser::CreateFavoritesView(const FContentBrowserConfig* Config)
 {
 	// clang-format off
-	return
+	TSharedRef<SExpandableArea> FavoritesViewWidget = 
 		SAssignNew(FavoritesArea, SExpandableArea)
 		.BorderImage(FAppStyle::Get().GetBrush("Brushes.Header"))
 		.BodyBorderImage(FAppStyle::Get().GetBrush("Brushes.Recessed"))
@@ -1513,6 +1532,9 @@ TSharedRef<SWidget> SContentBrowser::CreateFavoritesView(const FContentBrowserCo
 			]
 		];
 	// clang-format on
+	
+	FavoritePathViewPtr->SetOnFolderFavoriteAdd(SFavoritePathView::FOnFolderFavoriteAdd::CreateSP(this, &SContentBrowser::AddFolderFavorite));
+	return FavoritesViewWidget; 
 }
 
 void SContentBrowser::SetPathViewExpanded(bool bExpanded)

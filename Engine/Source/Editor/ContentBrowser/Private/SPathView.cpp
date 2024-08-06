@@ -10,6 +10,7 @@
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/StringView.h"
 #include "ContentBrowserConfig.h"
+#include "ContentBrowserDataDragDropOp.h"
 #include "ContentBrowserDataSource.h"
 #include "ContentBrowserDataSubsystem.h"
 #include "ContentBrowserItemData.h"
@@ -2792,6 +2793,75 @@ void SFavoritePathView::LoadSettings(const FString& IniFilename, const FString& 
 		}
 	}
 }
+
+
+TSharedPtr<FContentBrowserDataDragDropOp> SFavoritePathView::GetContentBrowserDragDropOpFromEvent(const FDragDropEvent& DragDropEvent) const
+{
+	TSharedPtr<FDragDropOperation> Operation = DragDropEvent.GetOperation();
+	if (Operation.IsValid() && OnFolderFavoriteAdd.IsBound())
+	{
+		if (Operation->IsOfType<FContentBrowserDataDragDropOp>())
+		{
+			TSharedPtr<FContentBrowserDataDragDropOp> DragDropOp = StaticCastSharedPtr<FContentBrowserDataDragDropOp>(Operation);
+
+			// Only agree to the operation if the drag op only contains folders, since favorites cannot contain files. 
+			if (DragDropOp &&
+				!DragDropOp->GetDraggedFolders().IsEmpty() && 
+				DragDropOp->GetDraggedFiles().IsEmpty())
+			{
+				return DragDropOp;
+			}
+		}
+	}
+
+	return {};
+}
+
+
+void SFavoritePathView::OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	// If we don't have the appropriate drop content, indicate to the user that nothing will happen.
+	if (!GetContentBrowserDragDropOpFromEvent(DragDropEvent))
+	{
+		DragDropEvent.GetOperation()->SetCursorOverride(EMouseCursor::SlashedCircle);
+	}
+}
+
+void SFavoritePathView::OnDragLeave(const FDragDropEvent& DragDropEvent)
+{
+	TSharedPtr<FDragDropOperation> Operation = DragDropEvent.GetOperation();
+	if (Operation.IsValid())
+	{
+		Operation->SetCursorOverride(TOptional<EMouseCursor::Type>());
+	}	
+}
+
+FReply SFavoritePathView::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	TSharedPtr<FContentBrowserDataDragDropOp> DragDropOp = GetContentBrowserDragDropOpFromEvent(DragDropEvent);
+	if (!DragDropOp.IsValid())
+	{
+		return FReply::Unhandled();
+	}
+
+	if (OnFolderFavoriteAdd.IsBound())
+	{
+		TArray<FString> FolderPaths;
+		for (const FContentBrowserItem& BrowserItem: DragDropOp->GetDraggedFolders())
+		{
+			FolderPaths.Add(BrowserItem.GetVirtualPath().ToString());
+		}
+		OnFolderFavoriteAdd.Execute(FolderPaths);
+	}
+	
+	return FReply::Handled();
+}
+
+void SFavoritePathView::SetOnFolderFavoriteAdd(const FOnFolderFavoriteAdd& InOnFolderFavoriteAdd)
+{
+	OnFolderFavoriteAdd = InOnFolderFavoriteAdd;
+}
+
 
 TSharedRef<ITableRow> SFavoritePathView::GenerateTreeRow(TSharedPtr<FTreeItem> TreeItem, const TSharedRef<STableViewBase>& OwnerTable)
 {

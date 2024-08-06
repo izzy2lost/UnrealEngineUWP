@@ -77,7 +77,7 @@ private:
 private:
 	FName FolderBrushName;
 	FName FolderShadowBrushName;
-	FLinearColor FolderColorOverride;
+	FLinearColor FolderColorOverride = FLinearColor::Gray;
 	TArray<FContentBrowserItem> DraggedItems;
 	TArray<FContentBrowserItem> DraggedFiles;
 	TArray<FContentBrowserItem> DraggedFolders;

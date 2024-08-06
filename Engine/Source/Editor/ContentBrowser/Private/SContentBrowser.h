@@ -568,8 +568,14 @@ private:
 	/** Whether or not the collections view is docked or exists in its own panel in the same area as the sources view */
 	bool IsCollectionViewDocked() const;
 
+	/** Set favorite status of an array of folders unless they're already favorited */
+	void AddFolderFavorite(const TArray<FString>& FolderPaths);
+
 	/** Toggles the favorite status of an array of folders*/
 	void ToggleFolderFavorite(const TArray<FString>& FolderPaths);
+
+	/** Save the favorite paths to settings and optionally select and show the paths passed in */
+	void SaveAndShowNewFolderFavorites(const TArray<FString>& FolderPaths);
 
 	/* Toggles the private show private content state of an array of folders*/
 	void TogglePrivateContentEdit(const TArray<FString>& FolderPaths);

@@ -40,6 +40,7 @@
 #include "Widgets/Views/STableViewBase.h"
 #include "Widgets/Views/STreeView.h"
 
+class FContentBrowserDataDragDropOp;
 class FContentBrowserItemData;
 class FContentBrowserItemDataUpdate;
 class FContentBrowserPluginFilter;
@@ -569,7 +570,7 @@ class SFavoritePathView : public SPathView
 public:
 	SFavoritePathView();
 	virtual ~SFavoritePathView();
-
+	
 	/** Constructs this widget with InArgs */
 	virtual void Construct(const FArguments& InArgs) override;
 
@@ -581,9 +582,21 @@ public:
 	/** Loads any settings to config that should be persistent between editor sessions */
 	virtual void LoadSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) override;
 
+	/** Validate that the drop operation is valid for the favorites. Accept FAssetDragDropOp objects with folders only. */
+	virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
+
+	/** Restore any cursor overrides, in case once was set for invalid drop in OnDragEnter. */
+	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
+	
+	/** Detect if a folder was dropped in the favorites view and add that folder (or folders) to favorites */
+	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
+
 	/** Updates favorites based on an external change. */
 	void FixupFavoritesFromExternalChange(TArrayView<const AssetViewUtils::FMovedContentFolder> MovedFolders);
 
+	DECLARE_DELEGATE_OneParam(FOnFolderFavoriteAdd, const TArray<FString>& /*FoldersToAdd*/)
+	void SetOnFolderFavoriteAdd(const FOnFolderFavoriteAdd& InOnFolderFavoriteAdd);
+	
 private:
 	virtual TSharedRef<ITableRow> GenerateTreeRow(TSharedPtr<FTreeItem> TreeItem, const TSharedRef<STableViewBase>& OwnerTable) override;
 
@@ -594,8 +607,13 @@ private:
 
 	virtual void ConfigureTreeView(STreeView<TSharedPtr<FTreeItem>>::FArguments& InArgs) override;
 
+	/** Returns an FContentBrowserDataDragDropOp object but only if it qualifies as a proper droppable content browser drag drop op */
+	TSharedPtr<FContentBrowserDataDragDropOp> GetContentBrowserDragDropOpFromEvent(const FDragDropEvent& DragDropEvent) const; 
+
 private:
 	TArray<FString> RemovedByFolderMove;
 	FDelegateHandle OnFavoritesChangedHandle;
+	
+	FOnFolderFavoriteAdd OnFolderFavoriteAdd; 
 	bool bIsLoadingSettings = false;
 };
