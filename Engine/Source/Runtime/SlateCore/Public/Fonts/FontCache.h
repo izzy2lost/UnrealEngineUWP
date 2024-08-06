@@ -130,7 +130,7 @@ struct FSdfGlyphFontAtlasData
 	FMetrics Metrics;
 	/** Index to a specific texture in the font cache. */
 	uint8 TextureIndex = 0;
-	/** True if the glyph is available in the face but sdf generation was not possible/successfull */
+	/** True if the glyph is available in the face but sdf generation was not possible/successful */
 	bool bSupportsSdf = false;
 	/** True if the SDF is a placeholder and the task for its final version hasn't been spawned yet (due to too many running tasks) */
 	bool bPendingRespawn = false;
@@ -761,7 +761,7 @@ public:
 	SLATECORE_API virtual FSlateShaderResource* GetAtlasPageResource(const int32 InIndex) const override;
 	SLATECORE_API virtual bool IsAtlasPageResourceAlphaOnly(const int32 InIndex) const override;
 #if WITH_ATLAS_DEBUGGING
-	virtual FAtlasSlotInfo GetAtlasSlotInfoAtPosition(FIntPoint InPosition, int32 AtlasIndex) const override { return FAtlasSlotInfo(); }
+	virtual FAtlasSlotInfo GetAtlasSlotInfoAtPosition(FIntPoint InPosition, int32 AtlasIndex) const override;
 #endif
 	/** 
 	 * Performs text shaping on the given string using the given font info. Returns you the shaped text sequence to use for text rendering via FSlateDrawElement::MakeShapedText.

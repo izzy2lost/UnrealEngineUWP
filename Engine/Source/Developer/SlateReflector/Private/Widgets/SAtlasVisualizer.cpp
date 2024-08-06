@@ -461,10 +461,13 @@ void SAtlasVisualizer::RebuildToolTip(const FAtlasSlotInfo& Info)
 
 		TArray<FName> Resources = FSlateStyleRegistry::GetSylesUsingBrush(Info.TextureName);
 
-		Builder.AppendLine(LOCTEXT("AtlasDebuggingToolTipTitle", "\nUsed by:"));
-		for (FName Name : Resources)
+		if (!Resources.IsEmpty())
 		{
-			Builder.AppendLine(Name);
+			Builder.AppendLine(LOCTEXT("AtlasDebuggingToolTipTitle", "\nUsed by:"));
+			for (FName Name : Resources)
+			{
+				Builder.AppendLine(Name);
+			}
 		}
 
 		SetToolTipText(Builder.ToText());
