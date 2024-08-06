@@ -2254,7 +2254,7 @@ bool FVirtualizationManager::ShouldVirtualizePackage(const FPackagePath& Package
 	return ShouldVirtualizeAsDefault();
 }
 
-bool FVirtualizationManager::ShouldVirtualize(const FString& Context) const
+bool FVirtualizationManager::ShouldVirtualize(FStringView Context) const
 {
 	// First see if we can convert the context from a raw string to a valid package path.
 	// If we can extract a package path then we should use the package filtering code
@@ -2358,6 +2358,26 @@ void FVirtualizationManager::GatherAnalytics(TArray<FAnalyticsEventAttribute>& A
 		FString AttrName = BaseName + TEXT("_Pull_TotalBytes");
 		Attributes.Emplace(MoveTemp(AttrName), (double)PayloadActivityInfo.Pull.TotalBytes);
 	}
+}
+
+EPayloadFilterReason FVirtualizationManager::FixFilterFlags(FStringView PackagePath, uint64 SizeOnDisk, EPayloadFilterReason CurrentFilterFlags)
+{
+	// We only apply new filters if the payload does not curently have any as stored filtered reasons would be checked first before
+	// we ever got to this part of the virtualization process.
+	if (CurrentFilterFlags == EPayloadFilterReason::None)
+	{
+		if (static_cast<int64>(SizeOnDisk) < MinPayloadLength)
+		{
+			return EPayloadFilterReason::MinSize;
+		}
+
+		if (!ShouldVirtualize(PackagePath))
+		{
+			return EPayloadFilterReason::Path;
+		}
+	}
+
+	return CurrentFilterFlags;
 }
 
 FString FVirtualizationManager::GetConnectionHelpUrl()
