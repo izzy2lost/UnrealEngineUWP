@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "HAL/Platform.h"
 #include "Misc/Timespan.h"
 #include "PropertyAnimatorClock.generated.h"
 
@@ -26,6 +27,10 @@ class UPropertyAnimatorClock : public UPropertyAnimatorCoreBase
 
 public:
 	static constexpr const TCHAR* DefaultControllerName = TEXT("Clock");
+
+	static void RegisterFormat(TCHAR InChar, TFunction<FString(const FDateTime&)> InFormatter);
+	static void UnregisterFormat(TCHAR InChar);
+	static FString FormatDateTime(const FDateTime& InDateTime, const FString& InDisplayFormat);
 
 	UPropertyAnimatorClock();
 
@@ -52,16 +57,24 @@ protected:
 	 * %b - Month, eg) Jan
 	 * %B - Month, eg) January
 	 * %m - Month, 01-12
+	 * %n - Month, 1-12
 	 * %d - Day, 01-31
 	 * %e - Day, 1-31
+	 * %j - Day of the Year, 001-366
+	 * %J - Day of the Year, 1-366
 	 * %l - 12h Hour, 1-12
 	 * %I - 12h Hour, 01-12
 	 * %H - 24h Hour, 00-23
+	 * %h - 24h Hour, 0-23
 	 * %M - Minute, 00-59
+	 * %N - Minute, 0-59
 	 * %S - Second, 00-60
+	 * %s - Second, 0-60
+	 * %f - Millisecond, 000-999
+	 * %F - Millisecond, 0-999
 	 * %p - AM or PM
 	 * %P - am or PM
-	 * %j - Day of the Year, 001-366
+	 * %t - Ticks since midnight, January 1, 0001
 	 */
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Setter, Getter, Category="Animator")
 	FString DisplayFormat = TEXT("%H:%M:%S");
