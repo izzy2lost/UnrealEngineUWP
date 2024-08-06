@@ -31,7 +31,7 @@ namespace UE::MultiUserClient::Replication
 		ClientManager.OnPostRemoteClientAdded().RemoveAll(this);
 		ClientManager.ForEachClient([this](FOnlineClient& Client)
 		{
-			Client.GetStreamSynchronizer().OnServerStateChanged().RemoveAll(this);
+			Client.GetStreamSynchronizer().OnServerStreanChanged().RemoveAll(this);
 			return EBreakBehavior::Continue;
 		});
 		FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
@@ -73,7 +73,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		IClientStreamSynchronizer& StreamSynchronizer = Client.GetStreamSynchronizer();
 		TrackProperties(StreamSynchronizer.GetServerState());
-		StreamSynchronizer.OnServerStateChanged().AddRaw(this, &FUserPropertySelector::OnServerStateChanged, Client.GetEndpointId());
+		StreamSynchronizer.OnServerStreanChanged().AddRaw(this, &FUserPropertySelector::OnServerStateChanged, Client.GetEndpointId());
 	}
 
 	void FUserPropertySelector::OnServerStateChanged(const FGuid ClientId)

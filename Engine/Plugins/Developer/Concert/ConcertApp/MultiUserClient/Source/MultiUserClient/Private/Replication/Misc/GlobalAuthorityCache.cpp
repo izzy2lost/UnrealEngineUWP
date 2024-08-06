@@ -214,14 +214,14 @@ namespace UE::MultiUserClient::Replication
 	void FGlobalAuthorityCache::RegisterForClientEvents(const FOnlineClient& Client)
 	{
 		const FGuid& ClientEndpointId = Client.GetEndpointId();
-		Client.GetAuthoritySynchronizer().OnServerStateChanged().AddRaw(this, &FGlobalAuthorityCache::OnPostAuthorityChanged, ClientEndpointId);
-		Client.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FGlobalAuthorityCache::OnStreamChanged, ClientEndpointId);
+		Client.GetAuthoritySynchronizer().OnServerAuthorityChanged().AddRaw(this, &FGlobalAuthorityCache::OnPostAuthorityChanged, ClientEndpointId);
+		Client.GetStreamSynchronizer().OnServerStreanChanged().AddRaw(this, &FGlobalAuthorityCache::OnStreamChanged, ClientEndpointId);
 	}
 
 	void FGlobalAuthorityCache::UnregisterFromClientEvents(const FOnlineClient& Client) const
 	{
-		Client.GetAuthoritySynchronizer().OnServerStateChanged().RemoveAll(this);
-		Client.GetStreamSynchronizer().OnServerStateChanged().RemoveAll(this);
+		Client.GetAuthoritySynchronizer().OnServerAuthorityChanged().RemoveAll(this);
+		Client.GetStreamSynchronizer().OnServerStreanChanged().RemoveAll(this);
 	}
 
 	void FGlobalAuthorityCache::AddClient(const FGuid& ClientId)

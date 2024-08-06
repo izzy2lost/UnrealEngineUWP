@@ -60,7 +60,7 @@ namespace UE::MultiUserClient::Replication
 		LocalAuthorityDiffer.OnChangedOwnedObjects().AddRaw(this, &FOnlineClient::DeferOnModelChanged);
 
 		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FOnlineClient::OnAuthoritySubmissionCompleted);
-		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FOnlineClient::OnServerStateChanged);
+		StreamSynchronizer->OnServerStreanChanged().AddRaw(this, &FOnlineClient::OnServerStateChanged);
 
 		LevelModificationHandler.OnHierarchyNeedsRefresh().AddLambda([this]()
 		{

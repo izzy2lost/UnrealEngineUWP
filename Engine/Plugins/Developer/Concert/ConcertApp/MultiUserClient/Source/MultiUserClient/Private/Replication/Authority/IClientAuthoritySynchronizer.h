@@ -22,7 +22,7 @@ namespace UE::MultiUserClient::Replication
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when authority state has been updated. */
-		virtual FOnServerStateChanged& OnServerStateChanged() = 0;
+		virtual FOnServerStateChanged& OnServerAuthorityChanged() = 0;
 
 		virtual ~IClientAuthoritySynchronizer() = default;
 	};
@@ -35,7 +35,7 @@ namespace UE::MultiUserClient::Replication
 	public:
 
 		//~ Begin IClientAuthoritySynchronizer Interface
-		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
+		virtual FOnServerStateChanged& OnServerAuthorityChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientAuthoritySynchronizer Interface
 
 	protected:

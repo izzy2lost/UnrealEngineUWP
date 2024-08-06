@@ -23,7 +23,7 @@ namespace UE::MultiUserClient::Replication
 		virtual FGuid GetStreamId() const override { return LocalClientStreamId; }
 		virtual const FConcertObjectReplicationMap& GetServerState() const override;
 		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const override;
-		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
+		virtual FOnServerStateChanged& OnServerStreanChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
 
 	private:

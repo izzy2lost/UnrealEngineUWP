@@ -31,7 +31,7 @@ namespace UE::MultiUserClient::Replication
 
 		DECLARE_MULTICAST_DELEGATE(FOnServerStateChanged);
 		/** @return Event executed when the result of GetServerState has been updated. */
-		virtual FOnServerStateChanged& OnServerStateChanged() = 0;
+		virtual FOnServerStateChanged& OnServerStreanChanged() = 0;
 		
 		virtual ~IClientStreamSynchronizer() = default;
 	};
