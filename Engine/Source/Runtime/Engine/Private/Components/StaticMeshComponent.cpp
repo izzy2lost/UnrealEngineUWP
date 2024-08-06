@@ -34,7 +34,8 @@
 #include "HierarchicalLODUtilitiesModule.h"
 #include "Rendering/StaticLightingSystemInterface.h"
 #include "Streaming/ActorTextureStreamingBuildDataComponent.h"
-#endif
+#include "Templates/UnrealTemplate.h"
+#endif // WITH_EDITOR
 #include "LightMap.h"
 #include "ShadowMap.h"
 #include "AI/Navigation/NavCollisionBase.h"
@@ -226,6 +227,7 @@ UStaticMeshComponent::UStaticMeshComponent(const FObjectInitializer& ObjectIniti
 	bDisplayVertexColors = false;
 	bDisplayPhysicalMaterialMasks = false;
 	bDisplayNaniteFallbackMesh = false;
+	bRegistering = false;
 #endif
 }
 
@@ -731,6 +733,10 @@ void UStaticMeshComponent::PostEditImport()
 
 void UStaticMeshComponent::OnRegister()
 {
+#if WITH_EDITORONLY_DATA
+	FGuardValue_Bitfield(bRegistering, true);
+#endif
+
 	NotifyIfStaticMeshChanged();
 
 	UpdateCollisionFromStaticMesh();
@@ -3212,6 +3218,13 @@ void UStaticMeshComponent::UpdateBounds()
 
 void UStaticMeshComponent::PostStaticMeshCompilation()
 {
+	// Flag indicates that the component is currently registering and all the following actions
+	// are going to be handled by the registration itself. No need to perform them in that case.
+	if (bRegistering)
+	{
+		return;
+	}
+
 	CachePaintedDataIfNecessary();
 
 	FixupOverrideColorsIfNecessary(true);
@@ -3222,10 +3235,10 @@ void UStaticMeshComponent::PostStaticMeshCompilation()
 
 	RecreatePhysicsState();
 
-	FNavigationSystem::UpdateComponentData(*this);
-
 	if (IsRegistered())
 	{
+		FNavigationSystem::UpdateComponentData(*this);
+
 		FStaticLightingSystemInterface::OnPrimitiveComponentUnregistered.Broadcast(this);
 		if (HasValidSettingsForStaticLighting(false))
 		{

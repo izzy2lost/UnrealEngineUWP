@@ -19,6 +19,7 @@
 #include "WaterBodyStaticMeshComponent.h"
 #include "WaterModule.h"
 #include "WaterVersion.h"
+#include "AI/NavigationSystemBase.h"
 #include "Algo/RemoveIf.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyActor)
@@ -684,12 +685,23 @@ void AWaterBody::PostRegisterAllComponents()
 #endif // WITH_EDITOR
 
 		WaterBodyComponent->OnPostRegisterAllComponents();
+
+		// Now that all components are registered and setup we can notify the navigation system.
+		FNavigationSystem::UpdateActorAndComponentData(*this);
 	}
 }
 
 bool AWaterBody::IsHLODRelevant() const
 {
 	return true;
+}
+
+bool AWaterBody::IsComponentRelevantForNavigation(UActorComponent* Component) const
+{
+	// Wait for the whole setup to be completed before making child components relevant to navigation (i.e. PostRegisterAllComponents).
+	// Then we update the actor and all its components (i.e. FNavigationSystem::UpdateActorAndComponentData).
+	// This reduces the number of redundant processing in the navigation system while setting up the components.
+	return HasActorRegisteredAllComponents();
 }
 
 #if WITH_EDITOR

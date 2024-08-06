@@ -289,7 +289,15 @@ public:
 	/** For Nanite enabled meshes, we'll only show the proxy mesh if this is true */
 	UPROPERTY()
 	uint8 bDisplayNaniteFallbackMesh:1;
-#endif
+
+	/**
+	 * Transient flag used during registration to handle edge case with mesh compilation completion callback.
+	 * We perform actions to register the mesh properly when it gets called async, but we end up doing those
+	 * twice when it gets called while the registration is not completed.
+	 */
+	UPROPERTY(transient)
+	uint8 bRegistering : 1;
+#endif // WITH_EDITORONLY_DATA
 
 	/** Enable dynamic sort mesh's triangles to remove ordering issue when rendered with a translucent material */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category = Lighting, meta = (UIMin = "0", UIMax = "1", DisplayName = "Sort Triangles"))

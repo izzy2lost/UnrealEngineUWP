@@ -2555,11 +2555,18 @@ void UActorComponent::HandleCanEverAffectNavigationChange(bool bForceUpdate)
 	{
 		if (bCanEverAffectNavigation)
 		{
+			// Update cached value
 			bNavigationRelevant = IsNavigationRelevant();
+
+			// Notify the navigation system
 			FNavigationSystem::OnComponentRegistered(*this);
 		}
 		else
 		{
+			// Update cached value
+			bNavigationRelevant = false;
+
+			// Notify the navigation system
 			FNavigationSystem::OnComponentUnregistered(*this);
 		}
 	}

@@ -1422,6 +1422,12 @@ void USceneComponent::UpdateBounds()
 		}
 	}
 
+	// Refresh navigation data if component is relevant to navigation.
+	// Note that 'UpdateNavigationData' will ignore unregistered components.
+	if (bNavigationRelevant)
+	{
+		UpdateNavigationData();
+	}
 
 #if ENABLE_NAN_DIAGNOSTIC
 	if (Bounds.ContainsNaN())
@@ -2326,10 +2332,13 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 			}
 		}
 
-		// Update overlaps, in case location changed or overlap state depends on attachment.
 		if (IsRegistered())
 		{
+			// Update overlaps, in case location changed or overlap state depends on attachment.
 			UpdateOverlaps();
+
+			// Update our owner actor in the navigation system since its associated bounds have changed
+			FNavigationSystem::UpdateActorAndComponentData(*GetOwner());
 		}
 
 		return true;

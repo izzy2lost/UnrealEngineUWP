@@ -314,7 +314,10 @@ void UNavLinkCustomComponent::SetLinkData(const FVector& RelativeStart, const FV
 	LinkRelativeStart = RelativeStart;
 	LinkRelativeEnd = RelativeEnd;
 	LinkDirection = Direction;
-	
+
+	// Link start and end positions have changed, we need to update the bounds
+	UpdateNavigationBounds();
+
 	RefreshNavigationModifiers();
 }
 

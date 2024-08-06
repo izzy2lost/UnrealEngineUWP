@@ -1508,7 +1508,11 @@ void UWaterBodyComponent::UpdateAll(const FOnWaterBodyChangedParams& InParams)
 			}
 
 			MarkOwningWaterZoneForRebuild(RebuildFlags);
+		}
 
+		// 'UpdateWaterBody' creates/updates collision components so we need to update the navigation data
+		if (IsRegistered() && IsNavigationRelevant())
+		{
 			FNavigationSystem::UpdateActorAndComponentData(*WaterBodyOwner);
 		}
 

@@ -18,12 +18,15 @@ namespace UE::Navigation::ModVolume::Private
 {
 	void OnNavAreaRegistrationChanged(ANavModifierVolume& ModifierVolume, const UWorld& World, const UClass* NavAreaClass)
 	{
-		if (NavAreaClass && NavAreaClass == ModifierVolume.GetAreaClass() && &World == ModifierVolume.GetWorld())
+		if (NavAreaClass
+			&& NavAreaClass == ModifierVolume.GetAreaClass()
+			&& &World == ModifierVolume.GetWorld()
+			&& ModifierVolume.HasActorRegisteredAllComponents()) // Update only required after initial registration was completed
 		{
 			FNavigationSystem::UpdateActorData(ModifierVolume);
 		}
 	}
-} // UE::Navigation::ModVolumne::Private
+} // UE::Navigation::ModVolume::Private
 #endif // WITH_EDITOR
 
 //----------------------------------------------------------------------//

@@ -73,6 +73,7 @@ public:
 	virtual void PostLoad() override;
 	virtual void PostRegisterAllComponents() override;
 	virtual bool IsHLODRelevant() const override;
+	virtual bool IsComponentRelevantForNavigation(UActorComponent* Component) const override;
 
 #if WITH_EDITOR
 	virtual void SetActorHiddenInGame(bool bNewHidden) override;
