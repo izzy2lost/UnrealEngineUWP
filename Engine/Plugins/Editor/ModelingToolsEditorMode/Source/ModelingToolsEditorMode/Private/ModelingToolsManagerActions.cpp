@@ -257,6 +257,7 @@ void FModelingToolsManagerCommands::RegisterCommands()
 		REGISTER_MODELING_TOOL_COMMAND(BeginUVSeamEditTool, "SeamEd", "Add UV seams");
 		REGISTER_MODELING_TOOL_COMMAND(BeginTransformUVIslandsTool, "XFormUV", "Transform UV islands in UV space");
 		REGISTER_MODELING_TOOL_COMMAND(BeginUVLayoutTool, "Layout", "Transform and Repack existing UVs");
+		REGISTER_MODELING_TOOL_COMMAND(BeginUVTransferTool, "Transfer", "Transfer UVs from a simplified mesh to a higher resolution mesh");
 	}
 	else
 	{
@@ -265,6 +266,7 @@ void FModelingToolsManagerCommands::RegisterCommands()
 		REGISTER_MODELING_TOOL_COMMAND(BeginUVSeamEditTool, "Edit UV Seams", "Add UV seams");
 		REGISTER_MODELING_TOOL_COMMAND(BeginTransformUVIslandsTool, "Transform UVs", "Transform UV islands in UV space");
 		REGISTER_MODELING_TOOL_COMMAND(BeginUVLayoutTool, "Layout UVs", "Transform and Repack existing UVs");
+		REGISTER_MODELING_TOOL_COMMAND(BeginUVTransferTool, "Transfer UVs", "Transfer UVs from a simplified mesh to a higher resolution mesh");
 	}
 
 	// Baking

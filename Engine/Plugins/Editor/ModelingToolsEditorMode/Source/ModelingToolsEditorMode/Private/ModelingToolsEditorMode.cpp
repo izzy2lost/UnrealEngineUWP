@@ -71,6 +71,7 @@
 #include "TransformMeshesTool.h"
 #include "UVProjectionTool.h"
 #include "UVLayoutTool.h"
+#include "UVTransferTool.h"
 #include "EditMeshMaterialsTool.h"
 #include "AddPivotActorTool.h"
 #include "EditPivotTool.h"
@@ -722,6 +723,9 @@ void UModelingToolsEditorMode::Enter()
 
 	auto UVLayoutToolBuilder = NewObject<UUVLayoutToolBuilder>();
 	RegisterTool(ToolManagerCommands.BeginUVLayoutTool, TEXT("BeginUVLayoutTool"), UVLayoutToolBuilder);
+
+	auto UVTransferToolBuilder = NewObject<UUVTransferToolBuilder>();
+	RegisterTool(ToolManagerCommands.BeginUVTransferTool, TEXT("BeginUVTransferTool"), UVTransferToolBuilder);
 
 #if WITH_PROXYLOD
 	auto MergeMeshesToolBuilder = NewObject<UMergeMeshesToolBuilder>();

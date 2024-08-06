@@ -219,3 +219,13 @@ void UMeshElementsVisualizer::NotifyMeshChanged()
 {
 	WireframeComponent->UpdateWireframe();
 }
+
+void UMeshElementsVisualizerProperties::ShowAllElements(bool bShow)
+{
+	bShowWireframe = bShow;
+	bShowBorders = bShow;
+	bShowUVSeams = bShow;
+	bShowNormalSeams = bShow;
+	bShowTangentSeams = bShow;
+	bShowColorSeams = bShow;
+}

@@ -408,7 +408,8 @@ void FModelingToolsEditorModeToolkit::RegisterPalettes()
 		Commands.BeginUVProjectionTool,
 		Commands.BeginUVSeamEditTool,
 		Commands.BeginTransformUVIslandsTool,
-		Commands.BeginUVLayoutTool
+		Commands.BeginUVLayoutTool,
+		Commands.BeginUVTransferTool
 	});
 	if (IModularFeatures::Get().IsModularFeatureAvailable(IUVEditorModularFeature::GetModularFeatureName()))
 	{
@@ -1968,6 +1969,7 @@ void FModelingToolsEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class
 		ToolbarBuilder.AddToolBarButton(Commands.BeginUVSeamEditTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginTransformUVIslandsTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginUVLayoutTool);
+		ToolbarBuilder.AddToolBarButton(Commands.BeginUVTransferTool);
 
 		// Handle the inclusion of the optional UVEditor button if the UVEditor plugin has been found
 		if (IModularFeatures::Get().IsModularFeatureAvailable(IUVEditorModularFeature::GetModularFeatureName()))

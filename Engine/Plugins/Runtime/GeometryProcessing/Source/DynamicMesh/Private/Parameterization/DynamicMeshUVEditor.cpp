@@ -552,21 +552,42 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromExpMap(
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, FUVEditResult* Result)
 {
-	return SetTriangleUVsFromFreeBoundaryConformal(Triangles, false, Result);
+	return SetTriangleUVsFromFreeBoundaryConformal(Triangles, false,  Result);
 }
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, FUVEditResult* Result) 
 {
-	return SetTriangleUVsFromConformal(Triangles, bUseExistingUVTopology, false, false, Result);
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = bUseExistingUVTopology;
+	Options.bUseSpectral = false;
+	Options.bPreserveIrregularity = false;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
+}
+
+bool UE::Geometry::FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundaryConformal(const TArray<int32>& Triangles, 
+	const TSet<int32>& PinnedElementIDs, FUVEditResult* Result)
+{
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = true;
+	Options.bUseSpectral = false;
+	Options.bPreserveIrregularity = false;
+	Options.PinnedElementIDs = &PinnedElementIDs;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
 }
 
 bool FDynamicMeshUVEditor::SetTriangleUVsFromFreeBoundarySpectralConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bPreserveIrregularity, FUVEditResult* Result) 
 {
-	return SetTriangleUVsFromConformal(Triangles, bUseExistingUVTopology, true, bPreserveIrregularity, Result);
+	FSetUVsFromConformalOptions Options;
+	Options.bUseExistingUVTopology = bUseExistingUVTopology;
+	Options.bUseSpectral = true;
+	Options.bPreserveIrregularity = bPreserveIrregularity;
+	return SetTriangleUVsFromConformal(Triangles, Options, Result);
 }
 
-bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bUseSpectral, bool bPreserveIrregularity, FUVEditResult* Result)
+bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Triangles, const FSetUVsFromConformalOptions& Options, FUVEditResult* Result)
 {
+	bool bUseExistingUVTopology = Options.bUseExistingUVTopology;
+
 	if (ensure(UVOverlay) == false) return false;
 	if (Triangles.Num() == 0) return false;
 
@@ -624,9 +645,12 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 	const TArray<int32>& ConstrainLoop = Loops[LongestLoopIndex].Vertices;
 	int32 LoopNum = ConstrainLoop.Num();
 
-	if (bUseSpectral) 
+	// Potentially used in the non-spectral case
+	TOptional<TPair<int32, FVector2f>> SinglePinnedElement;
+
+	if (Options.bUseSpectral) 
 	{
-		Solver = UE::MeshDeformation::ConstructSpectralConformalParamSolver(Submesh, bPreserveIrregularity);
+		Solver = UE::MeshDeformation::ConstructSpectralConformalParamSolver(Submesh, Options.bPreserveIrregularity);
 		
 		for (int32 Idx = 0; Idx < LoopNum; ++Idx)
 		{
@@ -639,32 +663,81 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 	{
 		Solver = UE::MeshDeformation::ConstructNaturalConformalParamSolver(Submesh);
 
-		// Find a pair of vertices to constrain. The standard procedure is to find the two furthest-apart vertices 
-		// on the largest boundary loop. 
-		FIndex2i MaxDistPair = FIndex2i::Invalid();
-		double MaxDistSqr = 0;
-		for (int32 Idx = 0; Idx < LoopNum; ++Idx)
+		// There are three options for constraints.
+		// 1. No pinned elements: the standard thing is to constrain the two furthest boundary vertices (this is supposed
+		//   to be a geodesic distance, but for now we just do euclidean).
+		// 2. One pinned element: we can do the same thing as 1, except translate afterward to put the pinned element 
+		//   in the desired coordinate.
+		// 3. More than one pinned element: constrain all the pinned elements.
+
+		int32 PinnedElementCount = 0;
+
+		if (Options.PinnedElementIDs)
 		{
-			for (int32 NextIdx = Idx + 1; NextIdx < LoopNum; ++NextIdx)
+			for (int32 ElementID : *Options.PinnedElementIDs)
 			{
-				const double DistSqr = DistanceSquared(Submesh.GetVertex(ConstrainLoop[Idx]), 
-													   Submesh.GetVertex(ConstrainLoop[NextIdx]));
-				if (DistSqr > MaxDistSqr)
+				if (!UVOverlay->IsElement(ElementID))
 				{
-					MaxDistSqr = DistSqr;
-					MaxDistPair = FIndex2i(ConstrainLoop[Idx], ConstrainLoop[NextIdx]);
+					continue;
+				}
+				int32 BaseVert = bUseExistingUVTopology ? ElementID : UVOverlay->GetParentVertex(ElementID);
+				int32* SubmeshVert = BaseToSubmeshV.Find(BaseVert);
+				if (!SubmeshVert)
+				{
+					continue;
+				}
+
+				Solver->AddConstraint(*SubmeshVert, 1.0, FVector2d(UVOverlay->GetElement(ElementID)), false);
+
+				++PinnedElementCount;
+
+				if (!SinglePinnedElement.IsSet())
+				{
+					// We'll clear this later if we have more than one element
+					SinglePinnedElement.Emplace(*SubmeshVert, UVOverlay->GetElement(ElementID));
 				}
 			}
 		}
 
-		if (ensure(MaxDistPair != FIndex2i::Invalid()) == false)
+		if (PinnedElementCount > 1)
 		{
-			return false;
+			// We don't want to trigger our whole island translation code further below
+			SinglePinnedElement.Reset();
 		}
 
-		// pin those vertices
-		Solver->AddConstraint(MaxDistPair.A, 1.0, FVector2d(0.0, 0.5), false);
-		Solver->AddConstraint(MaxDistPair.B, 1.0, FVector2d(1.0, 0.5), false);
+		// Pick our constraints if we have fewer than 2.
+		if (PinnedElementCount < 2)
+		{
+			// In case we had one pinned element, we'll constrain it with our own translation afterward
+			Solver->ClearConstraints(); 
+			
+			// Find a pair of vertices to constrain. The standard procedure is to find the two furthest-apart vertices 
+			// on the largest boundary loop. 
+			FIndex2i MaxDistPair = FIndex2i::Invalid();
+			double MaxDistSqr = 0;
+			for (int32 Idx = 0; Idx < LoopNum; ++Idx)
+			{
+				for (int32 NextIdx = Idx + 1; NextIdx < LoopNum; ++NextIdx)
+				{
+					const double DistSqr = DistanceSquared(Submesh.GetVertex(ConstrainLoop[Idx]), 
+														   Submesh.GetVertex(ConstrainLoop[NextIdx]));
+					if (DistSqr > MaxDistSqr)
+					{
+						MaxDistSqr = DistSqr;
+						MaxDistPair = FIndex2i(ConstrainLoop[Idx], ConstrainLoop[NextIdx]);
+					}
+				}
+			}
+
+			if (ensure(MaxDistPair != FIndex2i::Invalid()) == false)
+			{
+				return false;
+			}
+
+			// pin those vertices
+			Solver->AddConstraint(MaxDistPair.A, 1.0, FVector2d(0.0, 0.5), false);
+			Solver->AddConstraint(MaxDistPair.B, 1.0, FVector2d(1.0, 0.5), false);
+		}
 	}
 
 	// solve for UVs
@@ -674,6 +747,19 @@ bool FDynamicMeshUVEditor::SetTriangleUVsFromConformal(const TArray<int32>& Tria
 		return false;
 	}
 
+	// Handle the single-constrained-element case for the natural conformal solver
+	if (SinglePinnedElement.IsSet())
+	{
+		FVector2d DeltaToApply = FVector2d(SinglePinnedElement->Value) - UVBuffer[SinglePinnedElement->Key];
+		if (!DeltaToApply.IsZero())
+		{
+			int32 NumSubVerts = SubmeshToBaseV.Num();
+			for (int32 k = 0; k < NumSubVerts; ++k)
+			{
+				UVBuffer[k] += DeltaToApply;
+			}
+		}
+	}
 
 	int32 NumFailed = 0;
 	if (bUseExistingUVTopology)

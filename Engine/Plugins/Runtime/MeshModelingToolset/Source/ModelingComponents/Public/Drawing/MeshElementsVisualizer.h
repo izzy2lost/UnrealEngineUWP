@@ -47,6 +47,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = MeshElementVisualization, meta = (EditCondition = "bVisible"))
 	bool bShowColorSeams = true;
 
+	/** Helper function to set all the bShow... booleans to the same value. */
+	void ShowAllElements(bool bShow);
+
 	/** Multiplier on edge thicknesses */
 	UPROPERTY(EditAnywhere, Category = MeshElementVisualization, AdvancedDisplay, meta = (UIMin = 0.1, UIMax = 10.0, EditCondition = "bVisible"))
 	float ThicknessScale = 1.0;
