@@ -1419,6 +1419,12 @@ namespace UnrealBuildTool
 			{
 				return false;
 			}
+
+			if (ModuleCompileEnvironment.bEnableAutoRTFMInstrumentation != CompileEnvironment.bEnableAutoRTFMInstrumentation)
+			{
+				return false;
+			}
+
 			return true;
 		}
 
@@ -1462,6 +1468,17 @@ namespace UnrealBuildTool
 				else
 				{
 					Variant += ".NonRTTI";
+				}
+			}
+			if (CompileEnvironment.bEnableAutoRTFMInstrumentation != BaseCompileEnvironment.bEnableAutoRTFMInstrumentation)
+			{
+				if (CompileEnvironment.bEnableAutoRTFMInstrumentation)
+				{
+					Variant += ".AutoRTFM";
+				}
+				else
+				{
+					Variant += ".NonAutoRTFM";
 				}
 			}
 			if (CompileEnvironment.bEnableExceptions != BaseCompileEnvironment.bEnableExceptions)

@@ -390,8 +390,8 @@ namespace UnrealBuildTool
 				// Validate PCH inputs by content if mtime check fails
 				Arguments.Add("-fpch-validate-input-files-content");
 			}
-
-			if (!CompileEnvironment.bDisableAutoRTFMInstrumentation && CompileEnvironment.bUseAutoRTFMCompiler)
+			
+			if (CompileEnvironment.bEnableAutoRTFMInstrumentation)
 			{
 				Arguments.Add("-fautortfm");
 			}
