@@ -1826,6 +1826,11 @@ void UPCGSubsystem::ExecuteBeginTickActions()
 	}
 }
 
+IPCGGraphCache* UPCGSubsystem::GetCache()
+{
+	return GraphExecutor ? &(GraphExecutor->GetCache()) : nullptr;
+}
+
 void UPCGSubsystem::FlushCache()
 {
 	if (GraphExecutor)

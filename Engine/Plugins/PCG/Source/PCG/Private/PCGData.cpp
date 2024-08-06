@@ -437,6 +437,12 @@ void FPCGDataCollection::ComputeCrcs(bool bFullDataCrc)
 	}
 }
 
+void FPCGDataCollection::AddData(const FPCGTaggedData& InData, const FPCGCrc& InDataCrc)
+{
+	TaggedData.Add(InData);
+	DataCrcs.Add(InDataCrc);
+}
+
 void FPCGDataCollection::AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs)
 {
 	TaggedData.Append(InData);

@@ -47,12 +47,17 @@ FPCGGraphCache::~FPCGGraphCache()
 	ClearCache();
 }
 
-bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const UPCGComponent* InComponent, FPCGDataCollection& OutOutput) const
+bool FPCGGraphCache::GetFromCache(const FPCGGetFromCacheParams& Params, FPCGDataCollection& OutOutput) const
 {
 	if (!CVarCacheEnabled.GetValueOnAnyThread())
 	{
 		return false;
 	}
+
+	const UPCGNode* InNode = Params.Node;
+	const IPCGElement* InElement = Params.Element;
+	const UPCGComponent* InComponent = Params.Component;
+	const FPCGCrc& InDependenciesCrc = Params.Crc;
 
 	if(!InDependenciesCrc.IsValid())
 	{
@@ -64,7 +69,7 @@ bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InE
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::GetFromCache);
-		FReadScopeLock ScopedReadLock(CacheLock);
+		UE::TScopeLock ScopedLock(CacheLock);
 
 		FPCGCacheEntryKey CacheKey(InElement, InDependenciesCrc);
 		if (const FPCGDataCollection* Value = const_cast<FPCGGraphCache*>(this)->CacheData.FindAndTouch(CacheKey))
@@ -91,12 +96,15 @@ bool FPCGGraphCache::GetFromCache(const UPCGNode* InNode, const IPCGElement* InE
 	}
 }
 
-void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& InDependenciesCrc, const FPCGDataCollection& InOutput)
+void FPCGGraphCache::StoreInCache(const FPCGStoreInCacheParams& Params, const FPCGDataCollection& InOutput)
 {
 	if (!CVarCacheEnabled.GetValueOnAnyThread())
 	{
 		return;
 	}
+
+	const IPCGElement* InElement = Params.Element;
+	const FPCGCrc& InDependenciesCrc = Params.Crc;
 
 	if (!ensure(InDependenciesCrc.IsValid()))
 	{
@@ -105,7 +113,7 @@ void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& I
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::StoreInCache);
-		FWriteScopeLock ScopedWriteLock(CacheLock);
+		UE::TScopeLock ScopedLock(CacheLock);
 
 		if (CacheData.Num() == CacheData.Max())
 		{
@@ -121,7 +129,7 @@ void FPCGGraphCache::StoreInCache(const IPCGElement* InElement, const FPCGCrc& I
 
 void FPCGGraphCache::ClearCache()
 {
-	FWriteScopeLock ScopedWriteLock(CacheLock);
+	UE::TScopeLock ScopedLock(CacheLock);
 
 	MemoryRecords.Empty();
 	TotalMemoryUsed = 0;
@@ -150,7 +158,7 @@ bool FPCGGraphCache::EnforceMemoryBudget()
 	}
 
 	{
-		FWriteScopeLock ScopeWriteLock(CacheLock);
+		UE::TScopeLock ScopedLock(CacheLock);
 		const float MemoryCleanupRatio = FMath::Clamp(CVarCacheMemoryCleanupRatio.GetValueOnAnyThread(), 0.0f, 1.0f);
 		const uint64 TargetCacheMemoryUsage = static_cast<uint64>(MemoryCleanupRatio * MemoryBudget);
 
@@ -178,7 +186,7 @@ void FPCGGraphCache::CleanFromCache(const IPCGElement* InElement, const UPCGSett
 	}
 
 	{
-		FWriteScopeLock ScopeWriteLock(CacheLock);
+		UE::TScopeLock ScopedLock(CacheLock);
 
 		TArray<FPCGCacheEntryKey> Keys;
 		CacheData.GetKeys(Keys);
@@ -202,7 +210,7 @@ void FPCGGraphCache::CleanFromCache(const IPCGElement* InElement, const UPCGSett
 uint32 FPCGGraphCache::GetGraphCacheEntryCount(IPCGElement* InElement) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::GetFromCache);
-	FReadScopeLock ScopedReadLock(CacheLock);
+	UE::TScopeLock ScopedLock(CacheLock);
 
 	uint32 Count = 0;
 
@@ -224,7 +232,7 @@ uint32 FPCGGraphCache::GetGraphCacheEntryCount(IPCGElement* InElement) const
 void FPCGGraphCache::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphCache::AddReferencedObjects);
-	FReadScopeLock ScopedReadLock(CacheLock);
+	UE::TScopeLock ScopedLock(CacheLock);
 
 	for (FPCGDataCollection& CacheEntry : CacheData)
 	{

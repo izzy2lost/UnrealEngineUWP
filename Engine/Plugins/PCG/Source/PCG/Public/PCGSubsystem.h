@@ -22,6 +22,7 @@ class FPCGRuntimeGenScheduler;
 enum class EPCGComponentDirtyFlag : uint8;
 enum class ETickableTickType : uint8;
 
+class IPCGGraphCache;
 class FPCGGraphCompiler;
 class FPCGGraphExecutor;
 struct FPCGContext;
@@ -209,6 +210,9 @@ public:
 
 	TSet<UPCGComponent*> GetAllRegisteredPartitionedComponents() const { return ActorAndComponentMapping.GetAllRegisteredPartitionedComponents(); }
 	TSet<UPCGComponent*> GetAllRegisteredComponents() const { return ActorAndComponentMapping.GetAllRegisteredComponents(); }
+
+	/** Returns the interface to the cache, required for element per-data caching */
+	IPCGGraphCache* GetCache();
 
 	/** Flushes the graph cache completely, use only for debugging */
 	void FlushCache();

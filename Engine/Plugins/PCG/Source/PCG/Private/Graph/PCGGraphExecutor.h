@@ -357,9 +357,6 @@ private:
 	TArray<TSharedPtr<FPCGGraphActiveTask>> SleepingTasks;
 	bool bNeedToCheckSleepingTasks = false;
 
-	// Used to keep GC references to in flight caching results (not yet stored to output and might not be in cache anymore)
-	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CollectGCCachingResults;
-
 	/** Lock level 3 */
 	UE::FSpinLock CollectGCReferenceTasksLock;
 	TSet<TSharedPtr<FPCGGraphActiveTask>> CollectGCReferenceTasks;
@@ -376,6 +373,11 @@ private:
 		// Culled
 		bool bCulled = false;
 	};
+
+	/** Lock level 4 */
+	UE::FSpinLock CachingResultsLock;
+	// Used to keep GC references to in flight caching results (not yet stored to output and might not be in cache anymore)
+	TMap<FPCGTaskId, TUniquePtr<FCachedResult>> CollectGCCachingResults;
 
 	/** Lock level 4 */
 	UE::FSpinLock TaskOutputsLock;

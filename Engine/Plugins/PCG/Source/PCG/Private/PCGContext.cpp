@@ -401,6 +401,12 @@ void FPCGContext::AddStructReferencedObjects(FReferenceCollector& Collector)
 	InputData.AddReferences(Collector);
 	OutputData.AddReferences(Collector);
 
+	for (TPair<FPCGDataCollection, FPCGDataCollection>& CachedIOResult : CachedInputToOutputInternalResults)
+	{
+		CachedIOResult.Key.AddReferences(Collector);
+		CachedIOResult.Value.AddReferences(Collector);
+	}
+
 	if (SettingsWithOverride)
 	{
 		Collector.AddReferencedObject(SettingsWithOverride);

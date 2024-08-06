@@ -12,6 +12,7 @@ struct FPCGCrc;
 struct FPCGDataCollection;
 
 class IPCGElement;
+class IPCGGraphCache;
 class UPCGComponent;
 class UPCGSettings;
 class UPCGNode;
@@ -61,6 +62,34 @@ namespace EPCGElementLogMode
 #define PCGE_LOG_C(Verbosity, LogMode, CustomContext, Message) PCGE_LOG_BASE(Verbosity, CustomContext, Message)
 #endif
 
+enum EPCGElementExecutionLoopMode : uint8
+{
+	/** Not a trivial input -> output mapping, with respect to caching. */
+	NotALoop,
+	/** Loops on (singular) required pin. */
+	SinglePrimaryPin, 
+	/** Loops on matching indices on required pin(s). */
+	MatchingPrimaryPins,
+	/** Cartesian loop on required pins. */
+	// CartesianPins // TODO
+};
+
+enum EPCGCachingStatus : uint8
+{
+	NotCacheable,
+	NotInCache,
+	Cached
+};
+
+namespace PCGElementHelpers
+{
+	/** Breaks down the input data collection (InCollection) in a set of primary inputs (OutPrimaryCollections) and a set of fixed data per-itereation (OutCommonCollection), based on the provided mode. 
+	* This is needed to perform per-data caching in nodes that support it, either in single-primary-pin-loops or in matching-pins loops.
+	* Note that this uses the settings to drive the selection of the "primary" pins by testing if they are required.
+	*/
+	bool PCG_API SplitDataPerPrimaryPin(const UPCGSettings* Settings, const FPCGDataCollection& InCollection, EPCGElementExecutionLoopMode Mode, TArray<FPCGDataCollection>& OutPrimaryCollections, FPCGDataCollection& OutCommonCollection);
+};
+
 /**
 * Base class for the processing bit of a PCG node/settings
 */
@@ -90,6 +119,9 @@ public:
 	 * Crc and the Crc can either be computed during execution, or afterwards based on output data.
 	 */
 	virtual void GetDependenciesCrc(const FPCGDataCollection& InInput, const UPCGSettings* InSettings, UPCGComponent* InComponent, FPCGCrc& OutCrc) const;
+
+	/** Gather input data (pre-context creation) and tries to retrieve matching data from the cache if the element is cacheable. */
+	EPCGCachingStatus RetrieveResultsFromCache(IPCGGraphCache* Cache, const UPCGNode* Node, const FPCGDataCollection& Input, UPCGComponent* Component, FPCGDataCollection& Output, FPCGCrc* OutCrc = nullptr) const;
 
 	/** Public function that executes the element on the appropriately created context.
 	* The caller should call the Execute function until it returns true.
@@ -131,6 +163,15 @@ protected:
 
 	/** Passes through data when the element is Disabled. Can be implemented to override what gets passed through. */
 	virtual void DisabledPassThroughData(FPCGContext* Context) const;
+
+	/** Describes internal execution behavior, which is used to break down inputs/outputs for caching purposes. */
+	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const { return EPCGElementExecutionLoopMode::NotALoop; }
+
+	/** Implements input breakdown for caching purposes, if the ExecutionLoopMode is set to something else than not a loop. */
+	virtual void PreExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const;
+
+	/** Implements output breakdown for caching purposes, if the ExecutionLoopMode is set to something else than not a loop. */
+	virtual void PostExecutePrimaryLoopElement(FPCGContext* Context, const UPCGSettings* Settings) const;
 
 	/** Let each element optionally act as a concrete factory for its own context */
 	virtual FPCGContext* CreateContext();

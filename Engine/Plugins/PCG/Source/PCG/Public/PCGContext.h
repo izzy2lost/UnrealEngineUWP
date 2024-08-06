@@ -16,7 +16,6 @@ class UPCGComponent;
 class UPCGGraphInterface;
 class UPCGSettingsInterface;
 class UPCGSpatialData;
-struct FPCGGraphCache;
 struct FPCGSettingsOverridableParam;
 struct FPCGStack;
 
@@ -71,7 +70,7 @@ struct PCG_API FPCGContext
 	bool bIsPaused = false;
 
 	EPCGExecutionPhase CurrentPhase = EPCGExecutionPhase::NotExecuted;
-	int32 BypassedOutputCount = 0;
+	TArray<TPair<FPCGDataCollection, FPCGDataCollection>> CachedInputToOutputInternalResults;
 
 	/** The current call stack. */
 	const FPCGStack* Stack = nullptr;

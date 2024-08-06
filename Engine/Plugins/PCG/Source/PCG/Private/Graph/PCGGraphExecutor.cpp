@@ -268,27 +268,31 @@ FPCGGraphActiveTask::~FPCGGraphActiveTask()
 void FPCGGraphActiveTask::StartExecuting()
 {
 	check(!bIsExecutingTask);
-	bIsExecutingTask = true;
 	++NumExecuting;
 
-	// @todo_pcg this should be merged through some kind of visitor pattern with AddStructReferencedObjects
-	// We need to keep a immutable list of references prior to execution mainly so that TaggedData contents don't change while we are running GC
+	auto GatherReferences = [this](const FPCGDataCollection& Collection)
 	{
-		ExecutingReferences.Reserve(Context->InputData.TaggedData.Num() + Context->OutputData.TaggedData.Num() + 1);
-		for (const FPCGTaggedData& TaggedInputData : Context->InputData.TaggedData)
+		for (const FPCGTaggedData& TaggedInputData : Collection.TaggedData)
 		{
 			if (TaggedInputData.Data)
 			{
 				ExecutingReferences.Add(TaggedInputData.Data);
 			}
 		}
+	};
 
-		for (const FPCGTaggedData& TaggedOutputData : Context->OutputData.TaggedData)
+	// @todo_pcg this should be merged through some kind of visitor pattern with AddStructReferencedObjects
+	// We need to keep a immutable list of references prior to execution mainly so that TaggedData contents don't change while we are running GC
+	{
+		ExecutingReferences.Reserve(Context->InputData.TaggedData.Num() + Context->OutputData.TaggedData.Num() + 1);
+		GatherReferences(Context->InputData);
+		GatherReferences(Context->OutputData);
+
+		// Additional cached per-data
+		for (TPair<FPCGDataCollection, FPCGDataCollection>& CachedInputToOutput : Context->CachedInputToOutputInternalResults)
 		{
-			if (TaggedOutputData.Data)
-			{
-				ExecutingReferences.Add(TaggedOutputData.Data);
-			}
+			GatherReferences(CachedInputToOutput.Key);
+			GatherReferences(CachedInputToOutput.Value);
 		}
 
 		if (Context->SettingsWithOverride)
@@ -296,6 +300,8 @@ void FPCGGraphActiveTask::StartExecuting()
 			ExecutingReferences.Add(Context->SettingsWithOverride);
 		}
 	}
+
+	bIsExecutingTask = true;
 }
 
 void FPCGGraphActiveTask::StopExecuting()
@@ -932,6 +938,7 @@ bool FPCGGraphExecutor::ProcessScheduledTasks()
 	{
 		PCGGraphExecutor::TScopeLock ScopeLock(TasksLock);
 		PCGGraphExecutor::TScopeLock ChildScopeLock(LiveTasksLock);
+		PCGGraphExecutor::TScopeLock CachingResultsScopeLock(CachingResultsLock);
 		// This is a safeguard to check if we're in a stuck state
 		if (CollectGCCachingResults.Num() == 0 && ReadyTasks.Num() == 0 && ActiveTasks.Num() == 0 && ActiveTasksGameThreadOnly.Num() == 0 && SleepingTasks.Num() == 0 && Tasks.Num() > 0)
 		{
@@ -1051,23 +1058,6 @@ void FPCGGraphExecutor::PostTaskExecute(TSharedPtr<FPCGGraphActiveTask> ActiveTa
 #if WITH_EDITOR
 			SendInactivePinNotification(ActiveTask.Context->Node, ActiveTask.StackContext->GetStack(ActiveTask.StackIndex), InactivePinMask);
 #endif
-		}
-	}
-
-	if (bTaskFullyExecuted && !bTaskWasBypassed)
-	{
-		// Store result in cache as needed - done here because it needs to be done on the main thread
-
-		// Don't store if errors or warnings present
-#if WITH_EDITOR
-		const bool bHasErrorOrWarning = ActiveTask.Context->Node && (ActiveTask.Context->HasVisualLogs());
-#else
-		const bool bHasErrorOrWarning = false;
-#endif
-
-		if (ActiveTaskSettingsInterface && !bHasErrorOrWarning && ActiveTask.Element->IsCacheableInstance(ActiveTaskSettingsInterface))
-		{
-			GraphCache.StoreInCache(ActiveTask.Element.Get(), ActiveTask.Context->DependenciesCrc, ActiveTask.Context->OutputData);
 		}
 	}
 
@@ -1222,31 +1212,20 @@ void FPCGGraphExecutor::PrepareForExecute(FPCGGraphTask& Task, FCachedResult*& O
 	// there is an execution mode that would prevent us from doing so.
 	const UPCGSettingsInterface* TaskSettingsInterface = Task.TaskInput.GetSettingsInterface(Task.Node ? Task.Node->GetSettingsInterface() : nullptr);
 	const UPCGSettings* TaskSettings = TaskSettingsInterface ? TaskSettingsInterface->GetSettings() : nullptr;
-	const bool bCacheable = Task.Element->IsCacheableInstance(TaskSettingsInterface);
 
 	// Calculate Crc of dependencies (input data Crcs, settings) and use this as the key in the cache lookup
 	FPCGCrc DependenciesCrc;
-	if (TaskSettings && bCacheable)
-	{
-		Task.Element->GetDependenciesCrc(Task.TaskInput, TaskSettings, Task.SourceComponent.Get(), DependenciesCrc);
-	}
+	EPCGCachingStatus CacheStatus = EPCGCachingStatus::NotInCache;
+	bool bResultAlreadyInCache = false;
 
-	if (!bCacheable)
+	// This section requires the lock on the caching results to prevent interaction between different tasks and the GC.
 	{
-		PCGGraphExecutionLogging::LogTaskExecuteCachingDisabled(Task);
-	}
-		
-	auto GetFromCache = [this, bLiveTasksLockAlreadyLocked, &Task, &DependenciesCrc, &OutCachedResult]() -> bool
-	{
-		// Lock LiveTasksLock if not already done so that we don't have a window where Cache can get cleaned on mainthread and GC runs while we have a unreferenced FPCGDataCollection
-		if(!bLiveTasksLockAlreadyLocked)
-		{
-			LiveTasksLock.Lock();
-		}
-		
+		PCGGraphExecutor::TScopeLock ScopeLock(CachingResultsLock);
 		FCachedResult LocalCachedResult;
-		const bool bFoundInCache = GraphCache.GetFromCache(Task.Node, Task.Element.Get(), DependenciesCrc, Task.SourceComponent.Get(), LocalCachedResult.Output);
-		if (bFoundInCache)
+		CacheStatus = Task.Element->RetrieveResultsFromCache(&GraphCache, Task.Node, Task.TaskInput, Task.SourceComponent.Get(), LocalCachedResult.Output, &DependenciesCrc);
+
+		bResultAlreadyInCache = (CacheStatus == EPCGCachingStatus::Cached);
+		if (bResultAlreadyInCache)
 		{
 			check(!CollectGCCachingResults.Contains(Task.NodeId));
 			TUniquePtr<FCachedResult>& CachingResultPtr = CollectGCCachingResults.Add(Task.NodeId, MakeUnique<FCachedResult>());
@@ -1254,16 +1233,13 @@ void FPCGGraphExecutor::PrepareForExecute(FPCGGraphTask& Task, FCachedResult*& O
 			OutCachedResult->TaskId = Task.NodeId;
 			OutCachedResult->Output = MoveTemp(LocalCachedResult.Output);
 		}
+	}
 
-		if (!bLiveTasksLockAlreadyLocked)
-		{
-			LiveTasksLock.Unlock();
-		}
+	if (CacheStatus == EPCGCachingStatus::NotCacheable)
+	{
+		PCGGraphExecutionLogging::LogTaskExecuteCachingDisabled(Task);
+	}
 
-		return bFoundInCache;
-	};
-
-	const bool bResultAlreadyInCache = bCacheable && DependenciesCrc.IsValid() && GetFromCache();
 #if WITH_EDITOR
 	const bool bNeedsToCreateActiveTask = !bResultAlreadyInCache || TaskSettingsInterface->bDebug;
 #else
@@ -2058,7 +2034,7 @@ TArray<FPCGTaskId> FPCGGraphExecutor::ProcessCachedResultsInternal(TArray<FCache
 
 	if (CachedResults.Num() > 0)
 	{
-		PCGGraphExecutor::TScopeLock ScopeLock(LiveTasksLock);
+		PCGGraphExecutor::TScopeLock ScopeLock(CachingResultsLock);
 		for (const FCachedResult* CachedResult : CachedResults)
 		{
 			check(CollectGCCachingResults.Contains(CachedResult->TaskId));
@@ -2572,7 +2548,10 @@ void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
 		Algo::ForEach(ActiveTasks, AddReferencesActiveTask);
 		Algo::ForEach(ActiveTasksGameThreadOnly, AddReferencesActiveTask);
 		Algo::ForEach(SleepingTasks, AddReferencesActiveTask);
+	}
 
+	{
+		PCGGraphExecutor::TScopeLock ScopeLock(CachingResultsLock);
 		Algo::ForEach(CollectGCCachingResults, [&Collector](auto& CachingResult)
 		{
 			CachingResult.Value->Output.AddReferences(Collector);

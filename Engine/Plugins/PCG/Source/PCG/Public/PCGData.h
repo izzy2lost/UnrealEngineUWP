@@ -104,6 +104,9 @@ struct PCG_API FPCGTaggedData
 	UPROPERTY()
 	bool bPinlessData = false;
 
+	// Used to re-order elements when using per-data caching
+	int32 OriginalIndex = INDEX_NONE;
+
 	bool operator==(const FPCGTaggedData& Other) const;
 	bool operator!=(const FPCGTaggedData& Other) const;
 
@@ -197,6 +200,8 @@ struct PCG_API FPCGDataCollection
 	/** Computes CRCs for all data items. */
 	void ComputeCrcs(bool bFullDataCrc);
 
+	/** Add data and CRC to collection. */
+	void AddData(const FPCGTaggedData& InData, const FPCGCrc& InDataCrc);
 	/** Add data and CRCs to collection. */
 	void AddData(const TConstArrayView<FPCGTaggedData>& InData, const TConstArrayView<FPCGCrc>& InDataCrcs);
 	/** Add data and CRCs to collection with pin label combined into the CRC. */
