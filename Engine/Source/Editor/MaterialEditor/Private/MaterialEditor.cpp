@@ -78,6 +78,7 @@
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSampleParameter.h"
 #include "Materials/MaterialExpressionSparseVolumeTextureSample.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionStaticComponentMaskParameter.h"
 #include "Materials/MaterialExpressionStaticSwitchParameter.h"
 #include "Materials/MaterialExpressionTextureSampleParameter.h"
@@ -852,15 +853,30 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 									if(UMaterialExpressionMaterialFunctionCall* BlendFunctionCall = Cast<UMaterialExpressionMaterialFunctionCall>(CreateNewMaterialExpression(UMaterialExpressionMaterialFunctionCall::StaticClass(), FVector2D(-100, 300), false, false)))
 									{
 										BlendFunctionCall->Function = MaterialFunction;
-										InputTop->MaterialExpressionEditorX = -500;
-										InputBottom->MaterialExpressionEditorX = -500;
+										InputTop->MaterialExpressionEditorX = -800;
+										InputBottom->MaterialExpressionEditorX = -800;
+
 										if (BlendFunctionCall->SetMaterialFunction(DefaultBlendFunction))
 										{
-											if (BlendFunctionCall->FunctionInputs.Num() >= 2 && BlendFunctionCall->FunctionOutputs.Num() > 0)
+											if (BlendFunctionCall->FunctionInputs.Num() >= 8 && BlendFunctionCall->FunctionOutputs.Num() > 0)
 											{
 												BlendFunctionCall->FunctionInputs[0].Input.Connect(0, InputBottom);
 												BlendFunctionCall->FunctionInputs[1].Input.Connect(0, InputTop);
 												UMaterialEditingLibrary::ConnectMaterialExpressions(BlendFunctionCall, FString(), Expression, FString());
+
+												int32 StartIndex = 3;
+												int32 EndIndex = 7;
+												int32 BoolYPosition = 500;
+												for (int32 FunctionCallIndex = StartIndex; FunctionCallIndex <= EndIndex; FunctionCallIndex++)
+												{
+													UMaterialExpressionStaticBool* ThisBool = Cast<UMaterialExpressionStaticBool>(CreateNewMaterialExpression(UMaterialExpressionStaticBool::StaticClass(), FVector2D(-450, BoolYPosition), false, false));
+													if (ThisBool)
+													{
+														BlendFunctionCall->FunctionInputs[FunctionCallIndex].Input.Connect(0, ThisBool);
+														BoolYPosition += 80;		
+													}
+												}
+
 												bMaterialDirty = true;
 											}
 										}

@@ -20,6 +20,16 @@ namespace EMaterialAttributeBlend
 	};
 }
 
+UENUM()
+namespace EMaterialAttributeBlendFunction
+{
+	enum Type : int
+	{
+		Horizontal,
+		Vertical
+	};
+}
+
 UCLASS(collapsecategories, hidecategories = Object, MinimalAPI)
 class UMaterialExpressionBlendMaterialAttributes : public UMaterialExpression
 {
@@ -57,4 +67,38 @@ class UMaterialExpressionBlendMaterialAttributes : public UMaterialExpression
 	virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
 #endif
 	//~ End UMaterialExpression Interface
+};
+
+
+UCLASS(collapsecategories, hidecategories = Object, MinimalAPI)
+class UMaterialExpressionLegacyBlendMaterialAttributes : public UMaterialExpressionBlendMaterialAttributes
+{
+	GENERATED_UCLASS_BODY()
+
+	UPROPERTY()
+	FExpressionInput VertexAttribute_UseA;
+
+	UPROPERTY()
+	FExpressionInput VertexAttribute_UseB;
+
+	UPROPERTY()
+	FExpressionInput PixelAttribute_UseA;
+
+	UPROPERTY()
+	FExpressionInput PixelAttribute_UseB;
+
+	UPROPERTY(EditAnywhere, Category = MaterialAttributes)
+	TEnumAsByte<EMaterialAttributeBlendFunction::Type> BlendFunctionType;
+
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+#if WITH_EDITOR
+	virtual void GetCaption(TArray<FString>& OutCaptions) const override;
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+	virtual FExpressionInput* GetInput(int32 InputIndex) override;
+	virtual FName GetInputName(int32 InputIndex) const override;
+	virtual bool IsInputConnectionRequired(int32 InputIndex) const override;
+	virtual uint32 GetInputType(int32 InputIndex) override;
+	virtual int32 Compile(class FMaterialCompiler* Compiler, int32 OutputIndex) override;
+#endif // WITH_EDITOR
+#endif //ENABLE_MATERIAL_LAYER_PROTOTYPE
 };
