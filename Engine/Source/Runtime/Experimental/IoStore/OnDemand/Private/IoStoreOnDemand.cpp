@@ -1072,7 +1072,7 @@ void FIoStoreOnDemandModule::Mount(FOnDemandMountArgs&& Args, FOnDemandMountComp
 	IoStore->Mount(MoveTemp(Args), MoveTemp(OnCompleted));
 }
 
-void FIoStoreOnDemandModule::Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted)
+void FIoStoreOnDemandModule::Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress /*= nullptr*/)
 {
 	if (IoStore.IsValid() == false)
 	{
@@ -1085,7 +1085,7 @@ void FIoStoreOnDemandModule::Install(FOnDemandInstallArgs&& Args, FOnDemandInsta
 		}
 	}
 
-	IoStore->Install(MoveTemp(Args), MoveTemp(OnCompleted));
+	IoStore->Install(MoveTemp(Args), MoveTemp(OnCompleted), MoveTemp(OnProgress));
 }
 
 FIoStatus FIoStoreOnDemandModule::Unmount(FStringView MountId)

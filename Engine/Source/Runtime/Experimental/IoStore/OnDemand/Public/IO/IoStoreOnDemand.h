@@ -338,6 +338,20 @@ struct FOnDemandInstallArgs
 	EOnDemandInstallOptions Options = EOnDemandInstallOptions::None;
 };
 
+/** Holds information about progress for an install request. */
+struct FOnDemandInstallProgress
+{
+	/** The total size of the requested content. */
+	uint64 TotalContentSize = 0;
+	/** The total size to be installed/downloaded (<= TotalContentSize). */
+	uint64 TotalInstallSize = 0;
+	/** The size currently installed/downloaded (<= TotalInstallSize). */
+	uint64 CurrentInstallSize = 0;
+};
+
+/** Install Progress callback. */
+using FOnDemandInstallProgressed = TFunction<void(FOnDemandInstallProgress)>;
+
 /** Holds information about an install request. */
 struct FOnDemandInstallResult
 {
@@ -345,10 +359,8 @@ struct FOnDemandInstallResult
 	FIoStatus Status;
 	/** Duration in seconds. */
 	double DurationInSeconds = 0.0;
-	/** The total size of the requested content. */
-	uint64 TotalContentSize = 0;
-	/** The total installed/downloaded size. */
-	uint64 TotalInstallSize = 0;
+	/** Final progress for the install request. */
+	FOnDemandInstallProgress Progress;
 };
 
 /** Install completion callback. */
@@ -390,7 +402,7 @@ public:
 	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
 
 	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
-	UE_API void Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted);
+	UE_API void Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress = nullptr);
 	UE_API FIoStatus Unmount(FStringView MountId);
 
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;

@@ -263,9 +263,7 @@ class FOnDemandIoStore
 	{
 		FOnDemandInstallArgs		Args;
 		FOnDemandInstallCompleted	OnCompleted;
-		double						DurationInSeconds = 0.0;
-		uint64						TotalContentSize = 0;
-		uint64						TotalInstallSize = 0;
+		FOnDemandInstallProgressed	OnProgressed;
 	};
 
 	using FSharedInstallRequest	= TSharedPtr<FInstallRequest>;
@@ -280,7 +278,7 @@ public:
 
 	FIoStatus				Initialize();
 	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
-	void					Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted);
+	void					Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress = nullptr);
 	FIoStatus				Unmount(FStringView MountId);
 	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FIoStatus				GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const;
@@ -308,8 +306,9 @@ private:
 	bool					Tick();
 	FIoStatus				TickMountRequest(FMountRequest& MountRequest);
 	void					CompleteMountRequest(FMountRequest& MountRequest, FOnDemandMountResult&& MountResult);
-	FIoStatus				TickInstallRequest(FInstallRequest& InstallRequest);
+	FOnDemandInstallResult	TickInstallRequest(const FInstallRequest& InstallRequest);
 	void					CompleteInstallRequest(FInstallRequest& InstallRequest, FOnDemandInstallResult&& InstallResult);
+	void					ProgressInstallRequest(const FInstallRequest& InstallRequest, const FOnDemandInstallProgress& Progress);
 	void					OnEncryptionKeyAdded(const FGuid& Id, const FAES::FAESKey& Key);
 	static void				CreateContainersFromToc(
 								FStringView MountId,

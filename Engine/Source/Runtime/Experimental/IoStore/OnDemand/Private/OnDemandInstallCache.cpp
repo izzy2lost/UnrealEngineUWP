@@ -1178,7 +1178,7 @@ FIoStatus FOnDemandInstallCache::PutChunk(FIoBuffer&& Chunk, const FIoHash& Chun
 	}
 
 	PendingChunks->Append(MoveTemp(Chunk), ChunkHash);
-	return FIoStatus::Ok;;
+	return FIoStatus::Ok;
 }
 
 FIoStatus FOnDemandInstallCache::Purge(TMap<FIoHash, uint64>&& ChunksToIntall) 
@@ -1308,7 +1308,7 @@ FIoStatus FOnDemandInstallCache::Flush()
 	}
 
 	Cas.Compact();
-	return FIoStatus::Ok;;
+	return FIoStatus::Ok;
 }
 
 FIoStatus FOnDemandInstallCache::FlushPendingChunks(FPendingChunks& Chunks)
@@ -1396,7 +1396,7 @@ FIoStatus FOnDemandInstallCache::FlushPendingChunks(FPendingChunks& Chunks)
 		}
 	}
 
-	return FIoStatus::Ok;;
+	return FIoStatus::Ok;
 }
 
 void FOnDemandInstallCache::CompleteRequest(FChunkRequest& ChunkRequest)
