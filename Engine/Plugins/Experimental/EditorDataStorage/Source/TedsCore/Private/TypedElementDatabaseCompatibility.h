@@ -21,10 +21,14 @@
 
 class ITypedElementDataStorageInterface;
 struct FMassActorManager;
-class FTypedElementDatabaseEnvironment;
 class UTypedElementMementoSystem;
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8;
+
+namespace UE::Editor::DataStorage
+{
+	class FEnvironment;
+} // namespace UE::Editor::DataStorage
 
 UCLASS()
 class TEDSCORE_API UTypedElementDatabaseCompatibility
@@ -33,9 +37,9 @@ class TEDSCORE_API UTypedElementDatabaseCompatibility
 {
 	GENERATED_BODY()
 
-	friend struct UE::EditorDataStorage::FCommandProcessor;
-	friend struct UE::EditorDataStorage::FPatchData;
-	friend struct UE::EditorDataStorage::FPrepareCommands;
+	friend struct UE::Editor::DataStorage::FCommandProcessor;
+	friend struct UE::Editor::DataStorage::FPatchData;
+	friend struct UE::Editor::DataStorage::FPrepareCommands;
 public:
 	~UTypedElementDatabaseCompatibility() override = default;
 
@@ -45,9 +49,9 @@ public:
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
 	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
 	void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) override;
-	FDelegateHandle RegisterObjectAddedCallback(UE::EditorDataStorage::ObjectAddedCallback&& OnObjectAdded);
+	FDelegateHandle RegisterObjectAddedCallback(UE::Editor::DataStorage::ObjectAddedCallback&& OnObjectAdded);
 	void UnregisterObjectAddedCallback(FDelegateHandle Handle);
-	FDelegateHandle RegisterObjectRemovedCallback(UE::EditorDataStorage::ObjectRemovedCallback&& OnObjectRemoved);
+	FDelegateHandle RegisterObjectRemovedCallback(UE::Editor::DataStorage::ObjectRemovedCallback&& OnObjectRemoved);
 	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
 	
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
@@ -121,8 +125,8 @@ private:
 	void OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain);
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnObjectModified(UObject* Object);
-	void TriggerOnObjectAdded(const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
-	void TriggerOnPreObjectRemoved(const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
+	void TriggerOnObjectAdded(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
+	void TriggerOnPreObjectRemoved(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
 	void OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects);
 
 	void OnPostGcUnreachableAnalysis();
@@ -187,8 +191,8 @@ private:
 		void Reset();
 	};
 
-	UE::EditorDataStorage::CompatibilityCommandBuffer QueuedCommands;
-	UE::EditorDataStorage::CompatibilityCommandBuffer::FCollection PendingCommands;
+	UE::Editor::DataStorage::CompatibilityCommandBuffer QueuedCommands;
+	UE::Editor::DataStorage::CompatibilityCommandBuffer::FCollection PendingCommands;
 	PendingRegistration<TWeakObjectPtr<UObject>> UObjectsPendingRegistration;
 	PendingRegistration<ExternalObjectRegistration> ExternalObjectsPendingRegistration;
 	TArray<TypedElementDataStorage::RowHandle> RowScratchBuffer;
@@ -197,8 +201,8 @@ private:
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
 	using TypeToTableMapType = TMap<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>;
 	TypeToTableMapType TypeToTableMap;
-	TArray<TPair<UE::EditorDataStorage::ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
-	TArray<TPair<UE::EditorDataStorage::ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
+	TArray<TPair<UE::Editor::DataStorage::ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
+	TArray<TPair<UE::Editor::DataStorage::ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
 	TypedElementDataStorage::TableHandle StandardActorTable{ TypedElementDataStorage::InvalidTableHandle };
 	TypedElementDataStorage::TableHandle StandardActorWithTransformTable{ TypedElementDataStorage::InvalidTableHandle };
@@ -234,7 +238,7 @@ private:
 	FDelegateHandle ObjectReinstancedDelegateHandle;
 	FDelegateHandle PostGcUnreachableAnalysisHandle;
 	
-	TSharedPtr<FTypedElementDatabaseEnvironment> Environment;
+	TSharedPtr<UE::Editor::DataStorage::FEnvironment> Environment;
 	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
 	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
 	TypedElementDataStorage::QueryHandle UObjectQuery;

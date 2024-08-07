@@ -12,7 +12,7 @@
 UTypedElementMementoSystem::UTypedElementMementoSystem(ITypedElementDataStorageInterface& InDataStorage)
 	: DataStorage(InDataStorage)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
@@ -41,7 +41,7 @@ UTypedElementMementoSystem::UTypedElementMementoSystem(ITypedElementDataStorageI
 TypedElementRowHandle UTypedElementMementoSystem::CreateMemento(TypedElementDataStorage::RowHandle SourceRow)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
 
@@ -52,7 +52,7 @@ TypedElementRowHandle UTypedElementMementoSystem::CreateMemento(TypedElementData
 
 void UTypedElementMementoSystem::CreateMemento(TypedElementDataStorage::RowHandle ReservedMementoRow, TypedElementDataStorage::RowHandle SourceRow)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
 	
@@ -63,7 +63,7 @@ void UTypedElementMementoSystem::CreateMemento(TypedElementDataStorage::RowHandl
 void UTypedElementMementoSystem::CreateMementoInternal(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle SourceRow)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	for (const UTypedElementMementoTranslatorBase* Translator : MementoTranslators)
 	{
@@ -90,7 +90,7 @@ void UTypedElementMementoSystem::CreateMementoInternal(TypedElementDataStorage::
 
 void UTypedElementMementoSystem::RestoreMemento(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle TargetRow)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
 

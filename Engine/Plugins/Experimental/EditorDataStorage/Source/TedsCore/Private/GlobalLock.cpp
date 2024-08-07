@@ -2,7 +2,7 @@
 
 #include "GlobalLock.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	//
 	// FGlobalLock
@@ -136,4 +136,4 @@ namespace UE::EditorDataStorage
 	{
 		FGlobalLock::Unlock(Scope);
 	}
-} // UE::EditorDataStorage
+} // UE::Editor::DataStorage

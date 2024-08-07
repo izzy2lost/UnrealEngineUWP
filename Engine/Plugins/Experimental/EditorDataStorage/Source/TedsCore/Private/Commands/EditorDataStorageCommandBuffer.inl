@@ -3,7 +3,7 @@
 #include "Algo/BinarySearch.h"
 #include "HAL/UnrealMemory.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	//
 	// FCommandBuffer::FCollection
@@ -381,7 +381,7 @@ namespace UE::EditorDataStorage
 	//
 
 	template<typename... TCommand>
-	void FCommandBuffer<TCommand...>::Initialize(FTypedElementDatabaseScratchBuffer& InScratchBuffer)
+	void FCommandBuffer<TCommand...>::Initialize(FScratchBuffer& InScratchBuffer)
 	{
 		ScratchBuffer = &InScratchBuffer;
 		CommandFront = ScratchBuffer->Emplace<FCommandInstance>();
@@ -440,4 +440,4 @@ namespace UE::EditorDataStorage
 
 		return Result;
 	}
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage

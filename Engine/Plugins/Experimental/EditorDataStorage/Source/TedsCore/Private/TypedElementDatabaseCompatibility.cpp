@@ -67,7 +67,7 @@ static const FName CompatibilityUsesCommandBufferExtensionName(TEXT("Compatiblit
 void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(InStorage, TEXT("TEDS Compatibility is being initialized with an invalid storage target."));
 	
@@ -95,7 +95,7 @@ void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InSto
 void UTypedElementDatabaseCompatibility::Deinitialize()
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 	
@@ -118,7 +118,7 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 
 void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegistrationFilter Filter)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 	ObjectRegistrationFilters.Add(MoveTemp(Filter));
@@ -126,7 +126,7 @@ void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegist
 
 void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 	ObjectToRowDialiasers.Add(MoveTemp(Dealiaser));
@@ -135,11 +135,11 @@ void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDe
 void UTypedElementDatabaseCompatibility::RegisterTypeTableAssociation(
 	TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
-		QueuedCommands.AddCommand(UE::EditorDataStorage::FRegisterTypeTableAssociation{ .TypeInfo = TypeInfo, .Table = Table });
+		QueuedCommands.AddCommand(UE::Editor::DataStorage::FRegisterTypeTableAssociation{ .TypeInfo = TypeInfo, .Table = Table });
 	}
 	else
 	{
@@ -148,14 +148,14 @@ void UTypedElementDatabaseCompatibility::RegisterTypeTableAssociation(
 	}
 }
 
-FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(UE::EditorDataStorage::ObjectAddedCallback&& OnObjectAdded)
+FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(UE::Editor::DataStorage::ObjectAddedCallback&& OnObjectAdded)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
-		QueuedCommands.AddCommand(UE::EditorDataStorage::FRegisterObjectAddedCallback{ .Callback = MoveTemp(OnObjectAdded), .Handle = Handle });
+		QueuedCommands.AddCommand(UE::Editor::DataStorage::FRegisterObjectAddedCallback{ .Callback = MoveTemp(OnObjectAdded), .Handle = Handle });
 	}
 	else
 	{
@@ -167,26 +167,26 @@ FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(
 
 void UTypedElementDatabaseCompatibility::UnregisterObjectAddedCallback(FDelegateHandle Handle)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
-		QueuedCommands.AddCommand(UE::EditorDataStorage::FUnregisterObjectAddedCallback{ .Handle = Handle });
+		QueuedCommands.AddCommand(UE::Editor::DataStorage::FUnregisterObjectAddedCallback{ .Handle = Handle });
 	}
 	else
 	{
 		FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 		ObjectAddedCallbackList.RemoveAll(
-			[Handle](const TPair<UE::EditorDataStorage::ObjectAddedCallback, FDelegateHandle>& Element)->bool
+			[Handle](const TPair<UE::Editor::DataStorage::ObjectAddedCallback, FDelegateHandle>& Element)->bool
 			{
 				return Element.Value == Handle;
 			});
 	}
 }
 
-FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallback(UE::EditorDataStorage::ObjectRemovedCallback&& OnObjectAdded)
+FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallback(UE::Editor::DataStorage::ObjectRemovedCallback&& OnObjectAdded)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
@@ -198,12 +198,12 @@ FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallbac
 
 void UTypedElementDatabaseCompatibility::UnregisterObjectRemovedCallback(FDelegateHandle Handle)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// Since removing object has be immediately executed in some situation, adding the callback can not be delayed through the command buffer.
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
-	PreObjectRemovedCallbackList.RemoveAll([Handle](const TPair<UE::EditorDataStorage::ObjectRemovedCallback, FDelegateHandle>& Element)->bool
+	PreObjectRemovedCallbackList.RemoveAll([Handle](const TPair<UE::Editor::DataStorage::ObjectRemovedCallback, FDelegateHandle>& Element)->bool
 	{
 		return Element.Value == Handle;
 	});
@@ -222,7 +222,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	checkf(Storage, TEXT("Trying to add an object to Typed Element's Data Storage before the storage is available."));
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
@@ -252,7 +252,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject*
 void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 
@@ -281,7 +281,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (Object && Storage && Storage->IsAvailable())
 	{
@@ -402,7 +402,7 @@ void UTypedElementDatabaseCompatibility::RegisterTypeInformationQueries()
 bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) const
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
 
@@ -422,7 +422,7 @@ bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) 
 TypedElementDataStorage::TableHandle UTypedElementDatabaseCompatibility::FindBestMatchingTable(const UStruct* TypeInfo) const
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
 
@@ -442,7 +442,7 @@ template<bool bEnableTransactions>
 TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicitTransactionable(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
@@ -475,7 +475,7 @@ template<bool bEnableTransactions>
 void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(const UObject* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage,
 		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
@@ -508,7 +508,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 	const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage,
 		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
@@ -563,7 +563,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UO
 
 void UTypedElementDatabaseCompatibility::Tick()
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	TEDS_EVENT_SCOPE(TEXT("Compatibility Tick"))
 	
@@ -615,7 +615,7 @@ void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::Process(
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (bHasPendingUpdate)
 	{
@@ -856,7 +856,7 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Reset
 
 void UTypedElementDatabaseCompatibility::TickPendingCommands()
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementDataStorage;
 
 	// Thread safe because it's only called from functions that already lock.
@@ -998,7 +998,7 @@ void UTypedElementDatabaseCompatibility::TickObjectSync()
 
 void UTypedElementDatabaseCompatibility::OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
@@ -1016,7 +1016,7 @@ void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
 	UObject* Object,
 	FPropertyChangedEvent& PropertyChangedEvent)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
@@ -1043,7 +1043,7 @@ void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
 
 void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
@@ -1062,9 +1062,9 @@ void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
 }
 
 void UTypedElementDatabaseCompatibility::TriggerOnObjectAdded(
-	const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
+	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// Thread safe because it's only called from functions that already lock.
 
@@ -1076,9 +1076,9 @@ void UTypedElementDatabaseCompatibility::TriggerOnObjectAdded(
 }
 
 void UTypedElementDatabaseCompatibility::TriggerOnPreObjectRemoved(
-	const void* Object, UE::EditorDataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
+	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// Thread safe because it's only called from functions that already lock.
 
@@ -1091,7 +1091,7 @@ void UTypedElementDatabaseCompatibility::TriggerOnPreObjectRemoved(
 
 void UTypedElementDatabaseCompatibility::OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	if (TypedElementDataStorage::bUseCommandBuffer)
 	{
@@ -1118,7 +1118,7 @@ void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (bIntegrateWithGC)
 	{
@@ -1179,7 +1179,7 @@ void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
 
 void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
@@ -1190,7 +1190,7 @@ void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World
 
 void UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy(UWorld* World)
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
@@ -1234,7 +1234,7 @@ UTypedElementDatabaseCompatibility::FRegistrationCommandChange::~FRegistrationCo
 	{
 		if (TypedElementDataStorage::bUseCommandBuffer)
 		{
-			DataStorageCompat->QueuedCommands.AddCommand(UE::EditorDataStorage::FDestroyMemento{ .MementoRow = MementoRow});
+			DataStorageCompat->QueuedCommands.AddCommand(UE::Editor::DataStorage::FDestroyMemento{ .MementoRow = MementoRow});
 		}
 		else
 		{
@@ -1246,7 +1246,7 @@ UTypedElementDatabaseCompatibility::FRegistrationCommandChange::~FRegistrationCo
 void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object, 
 		TEXT("Applying registration transaction command within TEDS Compat was called after TEDS is not longer available."));
@@ -1271,7 +1271,7 @@ void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObje
 void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object,
 		TEXT("Reverting registration transaction command within TEDS Compat was called after TEDS is not longer available."));
@@ -1315,7 +1315,7 @@ UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistratio
 	, TargetObject(InTargetObject)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	ITypedElementDataStorageInterface* DataStorage = InOwner->Storage;
 
@@ -1336,7 +1336,7 @@ UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistratio
 
 UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::~FDeregistrationCommandChange()
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// There's no memento row if target object was never registered with TEDS Compat.
 	if (UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
@@ -1371,7 +1371,7 @@ void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Apply(UOb
 void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Revert(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object,
 		TEXT("Reverting deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));

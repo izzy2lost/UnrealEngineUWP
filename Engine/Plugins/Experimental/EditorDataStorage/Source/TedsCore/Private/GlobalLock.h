@@ -8,7 +8,7 @@
 
 class UTypedElementDatabase;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	enum class EGlobalLockStatus : uint8
 	{
@@ -84,4 +84,4 @@ namespace UE::EditorDataStorage
 	private:
 		EGlobalLockScope Scope;
 	};
-} // UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage

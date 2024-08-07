@@ -3,111 +3,113 @@
 #include "TypedElementDatabaseEnvironment.h"
 #include "TypedElementDatabase.h"
 
-FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(UTypedElementDatabase& InDataStorage,
-	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
-	: DataStorage(InDataStorage)
-	, DirectDeferredCommands(*this)
-	, MementoSystem(InDataStorage)
-	, DynamicTagManager(DynamicColumnGenerator)
-	, MassEntityManager(InMassEntityManager)
-	, MassPhaseManager(InMassPhaseManager)
+namespace UE::Editor::DataStorage
 {
-}
+	FEnvironment::FEnvironment(UTypedElementDatabase& InDataStorage,
+		FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
+		: DataStorage(InDataStorage)
+		, DirectDeferredCommands(*this)
+		, MementoSystem(InDataStorage)
+		, DynamicTagManager(DynamicColumnGenerator)
+		, MassEntityManager(InMassEntityManager)
+		, MassPhaseManager(InMassPhaseManager)
+	{
+	}
 
-FTypedElementDatabaseCommandBuffer& FTypedElementDatabaseEnvironment::GetDirectDeferredCommands()
-{
-	return DirectDeferredCommands;
-}
+	Legacy::FCommandBuffer& FEnvironment::GetDirectDeferredCommands()
+	{
+		return DirectDeferredCommands;
+	}
 
-const FTypedElementDatabaseCommandBuffer& FTypedElementDatabaseEnvironment::GetDirectDeferredCommands() const
-{
-	return DirectDeferredCommands;
-}
+	const Legacy::FCommandBuffer& FEnvironment::GetDirectDeferredCommands() const
+	{
+		return DirectDeferredCommands;
+	}
 
-FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetIndexTable()
-{
-	return IndexTable;
-}
+	FIndexTable& FEnvironment::GetIndexTable()
+	{
+		return IndexTable;
+	}
 
-const FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetIndexTable() const
-{
-	return IndexTable;
-}
+	const FIndexTable& FEnvironment::GetIndexTable() const
+	{
+		return IndexTable;
+	}
 
-FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer()
-{
-	return ScratchBuffer;
-}
+	FScratchBuffer& FEnvironment::GetScratchBuffer()
+	{
+		return ScratchBuffer;
+	}
 
-const FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer() const
-{
-	return ScratchBuffer;
-}
+	const FScratchBuffer& FEnvironment::GetScratchBuffer() const
+	{
+		return ScratchBuffer;
+	}
 
-FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore()
-{
-	return Queries;
-}
+	FExtendedQueryStore& FEnvironment::GetQueryStore()
+	{
+		return Queries;
+	}
 
-const FTypedElementExtendedQueryStore& FTypedElementDatabaseEnvironment::GetQueryStore() const
-{
-	return Queries;
-}
+	const FExtendedQueryStore& FEnvironment::GetQueryStore() const
+	{
+		return Queries;
+	}
 
-UTypedElementMementoSystem& FTypedElementDatabaseEnvironment::GetMementoSystem()
-{
-	return MementoSystem;
-}
+	UTypedElementMementoSystem& FEnvironment::GetMementoSystem()
+	{
+		return MementoSystem;
+	}
 
-const UTypedElementMementoSystem& FTypedElementDatabaseEnvironment::GetMementoSystem() const
-{
-	return MementoSystem;
-}
+	const UTypedElementMementoSystem& FEnvironment::GetMementoSystem() const
+	{
+		return MementoSystem;
+	}
 
-FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager()
-{
-	return MassEntityManager;
-}
+	FMassEntityManager& FEnvironment::GetMassEntityManager()
+	{
+		return MassEntityManager;
+	}
 
-const FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager() const
-{
-	return MassEntityManager;
-}
+	const FMassEntityManager& FEnvironment::GetMassEntityManager() const
+	{
+		return MassEntityManager;
+	}
 
-FMassArchetypeHandle FTypedElementDatabaseEnvironment::LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const
-{
-	return DataStorage.LookupArchetype(TableHandle);
-}
+	FMassArchetypeHandle FEnvironment::LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const
+	{
+		return DataStorage.LookupArchetype(TableHandle);
+	}
 
-FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhaseManager()
-{
-	return MassPhaseManager;
-}
+	FMassProcessingPhaseManager& FEnvironment::GetMassPhaseManager()
+	{
+		return MassPhaseManager;
+	}
 
-const FMassProcessingPhaseManager& FTypedElementDatabaseEnvironment::GetMassPhaseManager() const
-{
-	return MassPhaseManager;
-}
-FConstSharedStruct GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
-const UScriptStruct* GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag);
-FConstSharedStruct FTypedElementDatabaseEnvironment::GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value)
-{
-	return DynamicTagManager.GenerateDynamicTag(Tag, Value);
-}
+	const FMassProcessingPhaseManager& FEnvironment::GetMassPhaseManager() const
+	{
+		return MassPhaseManager;
+	}
 
-const UScriptStruct* FTypedElementDatabaseEnvironment::GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag)
-{
-	return DynamicTagManager.GenerateColumnType(Tag);
-}
+	FConstSharedStruct FEnvironment::GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value)
+	{
+		return DynamicTagManager.GenerateDynamicTag(Tag, Value);
+	}
 
-void FTypedElementDatabaseEnvironment::NextUpdateCycle()
-{
-	Queries.UpdateActivatableQueries();
-	ScratchBuffer.BatchDelete();
-	UpdateCycleId++;
-}
+	const UScriptStruct* FEnvironment::GenerateColumnType(const FDynamicTag& Tag)
+	{
+		return DynamicTagManager.GenerateColumnType(Tag);
+	}
 
-uint64 FTypedElementDatabaseEnvironment::GetUpdateCycleId() const
-{
-	return UpdateCycleId;
-}
+	void FEnvironment::NextUpdateCycle()
+	{
+		Queries.UpdateActivatableQueries();
+		ScratchBuffer.BatchDelete();
+		UpdateCycleId++;
+	}
+
+	uint64 FEnvironment::GetUpdateCycleId() const
+	{
+		return UpdateCycleId;
+	}
+} // namespace UE::Editor::DataStorage

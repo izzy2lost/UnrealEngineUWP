@@ -14,7 +14,7 @@ class ITypedElementDataStorageInterface;
 class UTypedElementDatabaseCompatibility;
 class UTypedElementMementoSystem;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	struct FObjectTypeInfo;
 }
@@ -33,7 +33,7 @@ private:
 	void UpdateCompleted();
 	void HandleOnObjectPreRemoved(
 		const void* Object, 
-		const UE::EditorDataStorage::FObjectTypeInfo& TypeInfo, 
+		const UE::Editor::DataStorage::FObjectTypeInfo& TypeInfo, 
 		TypedElementDataStorage::RowHandle ObjectRow);
 	void HandleOnObjectsReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap);
 

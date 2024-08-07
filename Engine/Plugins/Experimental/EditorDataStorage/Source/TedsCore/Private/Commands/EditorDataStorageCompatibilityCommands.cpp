@@ -14,7 +14,7 @@
 #include "TypedElementDatabaseEnvironment.h"
 #include "TypedElementDatabaseScratchBuffer.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	UScriptStruct* FAddSyncFromWorldTag::GetType()
 	{
@@ -154,7 +154,7 @@ namespace UE::EditorDataStorage
 	}
 
 	void FPatchData::RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UTypedElementDatabaseCompatibility& StorageCompat,
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer)
+		FScratchBuffer& ScratchBuffer)
 	{
 		using namespace TypedElementDataStorage;
 
@@ -837,7 +837,7 @@ namespace UE::EditorDataStorage
 	//
 
 	FCommandOptimizer::FCommandOptimizer(
-		CompatibilityCommandBuffer::FOptimizer& InOptimizer, FTypedElementDatabaseScratchBuffer& InScratchBuffer)
+		CompatibilityCommandBuffer::FOptimizer& InOptimizer, FScratchBuffer& InScratchBuffer)
 		: Optimizer(InOptimizer)
 		, ScratchBuffer(InScratchBuffer)
 	{}
@@ -1143,7 +1143,7 @@ namespace UE::EditorDataStorage
 		}
 	}
 
-	void FCommandOptimizer::Run(CompatibilityCommandBuffer::FCollection& Commands, FTypedElementDatabaseScratchBuffer& ScratchBuffer)
+	void FCommandOptimizer::Run(CompatibilityCommandBuffer::FCollection& Commands, FScratchBuffer& ScratchBuffer)
 	{
 		CompatibilityCommandBuffer::FOptimizer Optimizer(Commands);
 		FCommandOptimizer OptimizationSelector(Optimizer, ScratchBuffer);
@@ -1154,4 +1154,4 @@ namespace UE::EditorDataStorage
 			Optimizer.ResetRightNextToLeft();
 		}
 	}
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage

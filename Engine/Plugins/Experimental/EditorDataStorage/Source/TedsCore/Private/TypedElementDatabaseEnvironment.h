@@ -13,53 +13,56 @@
 
 class UTypedElementDatabase;
 
-class FTypedElementDatabaseEnvironment final
+namespace UE::Editor::DataStorage
 {
-public:
-	FTypedElementDatabaseEnvironment(UTypedElementDatabase& InDataStorage, 
-		FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
+	class FEnvironment final
+	{
+	public:
+		FEnvironment(UTypedElementDatabase& InDataStorage,
+			FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
 
-	FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands();
-	const FTypedElementDatabaseCommandBuffer& GetDirectDeferredCommands() const;
-	
-	FTypedElementDatabaseIndexTable& GetIndexTable();
-	const FTypedElementDatabaseIndexTable& GetIndexTable() const;
+		Legacy::FCommandBuffer& GetDirectDeferredCommands();
+		const Legacy::FCommandBuffer& GetDirectDeferredCommands() const;
 
-	FTypedElementDatabaseScratchBuffer& GetScratchBuffer();
-	const FTypedElementDatabaseScratchBuffer& GetScratchBuffer() const;
+		FIndexTable& GetIndexTable();
+		const FIndexTable& GetIndexTable() const;
 
-	FTypedElementExtendedQueryStore& GetQueryStore();
-	const FTypedElementExtendedQueryStore& GetQueryStore() const;
+		FScratchBuffer& GetScratchBuffer();
+		const FScratchBuffer& GetScratchBuffer() const;
 
-	UTypedElementMementoSystem& GetMementoSystem();
-	const UTypedElementMementoSystem& GetMementoSystem() const;
+		FExtendedQueryStore& GetQueryStore();
+		const FExtendedQueryStore& GetQueryStore() const;
 
-	FMassEntityManager& GetMassEntityManager();
-	const FMassEntityManager& GetMassEntityManager() const;
+		UTypedElementMementoSystem& GetMementoSystem();
+		const UTypedElementMementoSystem& GetMementoSystem() const;
 
-	FMassArchetypeHandle LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const;
-	
-	FMassProcessingPhaseManager& GetMassPhaseManager();
-	const FMassProcessingPhaseManager& GetMassPhaseManager() const;
+		FMassEntityManager& GetMassEntityManager();
+		const FMassEntityManager& GetMassEntityManager() const;
 
-	FConstSharedStruct GenerateDynamicTag(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
-	const UScriptStruct* GenerateColumnType(const UE::EditorDataStorage::FDynamicTag& Tag);
+		FMassArchetypeHandle LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const;
 
-	void NextUpdateCycle();
-	uint64 GetUpdateCycleId() const;
+		FMassProcessingPhaseManager& GetMassPhaseManager();
+		const FMassProcessingPhaseManager& GetMassPhaseManager() const;
 
-private:
-	UTypedElementDatabase& DataStorage;
-	FTypedElementDatabaseCommandBuffer DirectDeferredCommands;
-	FTypedElementDatabaseIndexTable IndexTable;
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
-	FTypedElementExtendedQueryStore Queries;
-	UTypedElementMementoSystem MementoSystem;
-	UE::EditorDataStorage::FDynamicColumnGenerator DynamicColumnGenerator;
-	UE::EditorDataStorage::FDynamicTagManager DynamicTagManager;
+		FConstSharedStruct GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value);
+		const UScriptStruct* GenerateColumnType(const FDynamicTag& Tag);
 
-	FMassEntityManager& MassEntityManager;
-	FMassProcessingPhaseManager& MassPhaseManager;
+		void NextUpdateCycle();
+		uint64 GetUpdateCycleId() const;
 
-	uint64 UpdateCycleId = 0;
-};
+	private:
+		UTypedElementDatabase& DataStorage;
+		Legacy::FCommandBuffer DirectDeferredCommands;
+		FIndexTable IndexTable;
+		FScratchBuffer ScratchBuffer;
+		FExtendedQueryStore Queries;
+		UTypedElementMementoSystem MementoSystem;
+		FDynamicColumnGenerator DynamicColumnGenerator;
+		FDynamicTagManager DynamicTagManager;
+
+		FMassEntityManager& MassEntityManager;
+		FMassProcessingPhaseManager& MassPhaseManager;
+
+		uint64 UpdateCycleId = 0;
+	};
+} // namespace UE::Editor::DataStorage

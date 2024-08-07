@@ -7,7 +7,7 @@
 #include "Templates/Function.h"
 #include "TypedElementDatabaseScratchBuffer.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	/** Empty command that does nothing. Can be used as placeholder or to disable an existing command. */
 	struct FNopCommand final {};
@@ -96,7 +96,7 @@ namespace UE::EditorDataStorage
 		private:
 			TArray<TCommandVariant*> CommandReferences;
 			uint32 CommandCount[sizeof...(TCommand) + 1];
-			FTypedElementDatabaseScratchBuffer* ScratchBuffer = nullptr;
+			FScratchBuffer* ScratchBuffer = nullptr;
 		};
 
 		/** Utility class to help optimize a collection of commands. */
@@ -200,7 +200,7 @@ namespace UE::EditorDataStorage
 			FCommandBuffer::FCollection& Commands;
 		};
 
-		void Initialize(FTypedElementDatabaseScratchBuffer& InScratchBuffer);
+		void Initialize(FScratchBuffer& InScratchBuffer);
 
 		/** Adds a command the command buffer in a thread-safe manner. T has to be one of the provided commands or TNopCommand. */
 		template<typename T>
@@ -231,8 +231,8 @@ namespace UE::EditorDataStorage
 		FCommandInstance* CommandFront = nullptr;
 		std::atomic<FCommandInstance*> CommandBack = nullptr;
 
-		FTypedElementDatabaseScratchBuffer* ScratchBuffer = nullptr;
+		FScratchBuffer* ScratchBuffer = nullptr;
 	};
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage
 
 #include "Commands/EditorDataStorageCommandBuffer.inl"

@@ -10,14 +10,15 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class ITypedElementDataStorageInterface;
-class FTypedElementDatabaseScratchBuffer;
 class UTypedElementMementoSystem;
 class UScriptStruct;
 class UTypedElementDatabaseCompatibility;
 class UObject;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
+	class FScratchBuffer;
+
 	enum class EObjectType : uint8
 	{
 		Struct,
@@ -221,7 +222,7 @@ namespace UE::EditorDataStorage
 
 		static bool IsPatchingRequired(const CompatibilityCommandBuffer::FCollection& Commands);
 		static void RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UTypedElementDatabaseCompatibility& StorageCompat,
-			FTypedElementDatabaseScratchBuffer& ScratchBuffer);
+			FScratchBuffer& ScratchBuffer);
 	};
 
 	/** Prepares each command for further processing, e.g. resolving the target table. */
@@ -359,7 +360,7 @@ namespace UE::EditorDataStorage
 	{
 		// TODO: Allow [add object + restore memento] to be folded into one and [create memento + remove object].
 		//		Not sure how that will fit into the batch add though.
-		FCommandOptimizer(CompatibilityCommandBuffer::FOptimizer& InOptimizer, FTypedElementDatabaseScratchBuffer& InScratchBuffer);
+		FCommandOptimizer(CompatibilityCommandBuffer::FOptimizer& InOptimizer, FScratchBuffer& InScratchBuffer);
 
 		template<typename T>
 		void operator()(const T&) {}
@@ -372,7 +373,7 @@ namespace UE::EditorDataStorage
 		void operator()(const FAddSyncFromWorldTag& Command);
 
 		CompatibilityCommandBuffer::FOptimizer& Optimizer;
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer;
+		FScratchBuffer& ScratchBuffer;
 
 		template<typename AddCommandType>
 		int32 FoldCommandsForAdd(const AddCommandType& Command);
@@ -384,6 +385,6 @@ namespace UE::EditorDataStorage
 		CompatibilityCommandBuffer::FOptimizer CreateRangeOptimizer(TypedElementDataStorage::RowHandle RowCluster);
 		/** Keeps processing a subset of commands until the right no longer has a command with the provided source row. */
 		void RunRightOnRowCluster(TypedElementDataStorage::RowHandle RowCluster);
-		static void Run(CompatibilityCommandBuffer::FCollection& Commands, FTypedElementDatabaseScratchBuffer& ScratchBuffer);
+		static void Run(CompatibilityCommandBuffer::FCollection& Commands, FScratchBuffer& ScratchBuffer);
 	};
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage

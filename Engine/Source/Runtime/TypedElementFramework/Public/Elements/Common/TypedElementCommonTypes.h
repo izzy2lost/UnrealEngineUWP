@@ -45,7 +45,7 @@ namespace UE
 
 namespace UE
 {
-	namespace EditorDataStorage
+	namespace Editor::DataStorage
 	{
 		/**
 		 * Defines a dynamic type for a dynamic tag

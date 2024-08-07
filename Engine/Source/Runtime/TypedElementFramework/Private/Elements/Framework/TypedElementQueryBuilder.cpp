@@ -139,7 +139,7 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value)
+	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& Value)
 	{
 		Query->DynamicTags.Emplace(
 			TypedElementDataStorage::FQueryDescription::FDynamicTagData
@@ -152,7 +152,7 @@ namespace TypedElementQueryBuilder
 
 	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum)
 	{
-		using namespace UE::EditorDataStorage;
+		using namespace UE::Editor::DataStorage;
 		return All(FDynamicTag(Enum.GetFName()));
 	}
 
@@ -164,23 +164,23 @@ namespace TypedElementQueryBuilder
 			UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Invalid value '%lld' for enum '%s'"), Value, *Enum.GetName());
 			return *this;
 		}
-		using namespace UE::EditorDataStorage;
+		using namespace UE::Editor::DataStorage;
 		return All(FDynamicTag(Enum.GetFName()), ValueName);
 	}
 
 	template <>
-	FSimpleQuery& FSimpleQuery::All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag)
+	FSimpleQuery& FSimpleQuery::All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag)
 	{
-		return All(UE::EditorDataStorage::FDynamicTag(Tag));
+		return All(UE::Editor::DataStorage::FDynamicTag(Tag));
 	}
 
 	template <>
-	FSimpleQuery& FSimpleQuery::All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag, const FName& Value)
+	FSimpleQuery& FSimpleQuery::All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag, const FName& Value)
 	{
-		return All(UE::EditorDataStorage::FDynamicTag(Tag), Value);
+		return All(UE::Editor::DataStorage::FDynamicTag(Tag), Value);
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::EditorDataStorage::FDynamicTag& Tag)
+	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicTag& Tag)
 	{
 		return All(Tag, NAME_None);
 	}

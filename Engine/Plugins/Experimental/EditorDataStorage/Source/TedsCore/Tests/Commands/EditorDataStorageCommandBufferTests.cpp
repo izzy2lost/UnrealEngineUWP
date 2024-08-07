@@ -15,7 +15,7 @@ enum class ETestCommandType
 	Nop, A, B, C
 };
 
-using TestCommandBuffer = UE::EditorDataStorage::FCommandBuffer<FTestCommandA, FTestCommandB, FTestCommandC>;
+using TestCommandBuffer = UE::Editor::DataStorage::FCommandBuffer<FTestCommandA, FTestCommandB, FTestCommandC>;
 
 constexpr const TCHAR* TypeToString(ETestCommandType Type)
 {
@@ -43,7 +43,7 @@ struct FSequenceTestingProcessor
 	TArray<ETestCommandType> CommandTypes;
 	int Index = 0;
 
-	void operator()(const UE::EditorDataStorage::FNopCommand&)
+	void operator()(const UE::Editor::DataStorage::FNopCommand&)
 	{
 		REQUIRE_MESSAGE(TEXT("An additional NOP command was issued when no more commands were expected."), Index < CommandTypes.Num());
 		if (CommandTypes[Index] != ETestCommandType::Nop)
@@ -83,9 +83,9 @@ struct FSequenceTestingProcessor
 
 TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer, "EditorDataStorage::Command Buffer", "[ApplicationContextMask][EngineFilter]")
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
+	FScratchBuffer ScratchBuffer;
 
 	SECTION("Initialize")
 	{
@@ -131,9 +131,9 @@ TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer, "EditorDataStorage::Command Bu
 
 TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FCollection, "EditorDataStorage::Command Buffer::FCollection", "[ApplicationContextMask][EngineFilter]")
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
+	FScratchBuffer ScratchBuffer;
 	TestCommandBuffer CommandBuffer;
 	CommandBuffer.Initialize(ScratchBuffer);
 
@@ -403,9 +403,9 @@ TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FCollection, "EditorDataStorage
 
 TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FOptimizer, "EditorDataStorage::Command Buffer::FOptimizer", "[ApplicationContextMask][EngineFilter]")
 {
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
+	FScratchBuffer ScratchBuffer;
 	TestCommandBuffer CommandBuffer;
 	CommandBuffer.Initialize(ScratchBuffer);
 

@@ -229,7 +229,7 @@ static FAutoConsoleCommand CVarAddDynamicTag(
 	TEXT("Argument: Row, Tag, Value\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
-		using namespace UE::EditorDataStorage;
+		using namespace UE::Editor::DataStorage;
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() != 3)
@@ -277,13 +277,13 @@ static FAutoConsoleCommand CVarRemoveDynamicTag(
 		constexpr bool bUseTemplateSugar = true;
 		if constexpr (bUseTemplateSugar)
 		{
-			using namespace UE::EditorDataStorage;
+			using namespace UE::Editor::DataStorage;
 			const FName Tag = *Args[1];
 			DataStorage->RemoveColumn<FDynamicTag>(Row, Tag);
 		}
 		else
 		{
-			const UE::EditorDataStorage::FDynamicTag Tag(*Args[1]);
+			const UE::Editor::DataStorage::FDynamicTag Tag(*Args[1]);
 			DataStorage->RemoveColumn(Row, Tag);
 		}		
 	}),
@@ -296,7 +296,7 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 	{
 		using namespace TypedElementQueryBuilder;
 		using DSI = ITypedElementDataStorageInterface;
-		using namespace UE::EditorDataStorage;
+		using namespace UE::Editor::DataStorage;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
@@ -409,7 +409,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 	{
 		using namespace TypedElementQueryBuilder;
 		using DSI = ITypedElementDataStorageInterface;
-		using namespace UE::EditorDataStorage;
+		using namespace UE::Editor::DataStorage;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 

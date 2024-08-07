@@ -169,10 +169,10 @@ namespace TypedElementQueryBuilder
 		// Dynamic Tags
 		// ============
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::EditorDataStorage::FDynamicTag& Tag);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::Editor::DataStorage::FDynamicTag& Tag);
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
 		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::EditorDataStorage::FDynamicTag& Tag, const FName& Value);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& Value);
 		
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum, int64 Value);
@@ -186,11 +186,11 @@ namespace TypedElementQueryBuilder
 
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
 		template<>
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag);
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
 		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
 		template<>
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::EditorDataStorage::FDynamicTag>(const FName& Tag, const FName& Value);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag, const FName& Value);
 		
 		template<TypedElementDataStorage::TEnumType EnumT>
 		FSimpleQuery& All();

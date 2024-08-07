@@ -59,7 +59,7 @@ namespace TypedElementDataStorage
 		struct FDynamicTagData
 		{
 			// The Tag maps to a Mass ConstSharedFragment object
-			UE::EditorDataStorage::FDynamicTag Tag;
+			UE::Editor::DataStorage::FDynamicTag Tag;
 
 			// The MatchValue specifies the value that the fragment must have to be matched
 			// If MatchValue is NAME_None, then TEDS will match all values

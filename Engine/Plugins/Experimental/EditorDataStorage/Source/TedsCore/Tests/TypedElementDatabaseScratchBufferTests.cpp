@@ -24,14 +24,15 @@ static void WaitForFinalization(std::condition_variable& WaitVariable, std::mute
 	REQUIRE(CompletedThreadCount == ThreadCount);
 }
 
-TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE("TEDS::Scratch Buffer - MT (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
 {
+	using namespace UE::Editor::DataStorage;
 	SECTION("Stress test without recycling.")
 	{
 		using namespace std::chrono_literals;
 		constexpr uint32 ThreadCount = 8;
 
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 
 		std::atomic<bool> bKeepRunning = true;
 		std::atomic<uint32> FailedAllocations = 0;
@@ -76,7 +77,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 
 		constexpr uint32 ThreadCount = 8;
 
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 
 		std::atomic<bool> bKeepRunning = true;
 		std::atomic<uint32> FailedAllocations = 0;
@@ -137,30 +138,31 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 	}
 }
 
-TEST_CASE("TypedElementsDataStorage::Scratch Buffer (FTypedElementDatabaseScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE("TEDS::Scratch Buffer (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
 {
+	using namespace UE::Editor::DataStorage;
 	SECTION("Create and destroy buffer")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 	}
 
 	SECTION("Allocate small block")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 		void* Data = Buffer.Allocate(4, 4);
 		CHECK(Data != nullptr);
 	}
 
 	SECTION("Allocate over-sized block")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 		void* Data = Buffer.Allocate(Buffer.MaxAllocationSize() * 4, 4);
 		CHECK(Data != nullptr);
 	}
 
 	SECTION("Alignment respected")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 		void* Data1 = Buffer.Allocate(1, 1);
 		void* Data2 = Buffer.Allocate(4, 4);
 
@@ -172,7 +174,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer (FTypedElementDatabaseScratc
 
 	SECTION("Multiple blocks used.")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 
 		int32 IncrementCount = (Buffer.MaxAllocationSize() * 4 /* Fill 4 blocks*/) / 64 /* With 64 byte allocations */;
 		for (int32 Counter = 0; Counter < IncrementCount; ++Counter)
@@ -184,7 +186,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer (FTypedElementDatabaseScratc
 
 	SECTION("Recycle full blocks.")
 	{
-		FTypedElementDatabaseScratchBuffer Buffer;
+		FScratchBuffer Buffer;
 
 		for (int32 Iterations = 0; Iterations < 16; ++Iterations)
 		{

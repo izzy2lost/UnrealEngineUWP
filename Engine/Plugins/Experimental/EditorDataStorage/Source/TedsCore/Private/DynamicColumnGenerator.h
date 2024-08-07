@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -18,7 +18,7 @@ class UScriptStruct;
 // The template struct that is used to generate the DynamicTag column
 // It is safe to reinterpret a DynamicTag column to this template to access the Value
 USTRUCT()
-struct FTypedElementDataStorageDynamicTagTemplate : public FTedsSharedColumn
+struct FTedsDynamicTagColumn : public FTedsSharedColumn
 {
 	GENERATED_BODY()
 	
@@ -26,8 +26,10 @@ struct FTypedElementDataStorageDynamicTagTemplate : public FTedsSharedColumn
 	FName Value;
 };
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
+	using FDynamicTagColumn = FTedsDynamicTagColumn;
+
 	struct FDynamicColumnInfo
 	{
 		const UScriptStruct* Type;
@@ -83,7 +85,7 @@ namespace UE::EditorDataStorage
 			}
 		};
 		// Looks up generated column index by the parameters used to generate it
-		// Used to deduplicate
+		// Used to de-duplicate
 		TMap<FGeneratedColumnKey, int32> GenerationParamsLookup;
 		// Looks up generated column index by name
 		TMap<FName, int32> NameLookup;
@@ -108,4 +110,4 @@ namespace UE::EditorDataStorage
 
 		FDynamicColumnGenerator& ColumnGenerator;
 	};
-}
+} // namespace UE::Editor::DataStorage

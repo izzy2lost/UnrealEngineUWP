@@ -19,7 +19,7 @@ UTypedElementObjectReinstancingManager::UTypedElementObjectReinstancingManager()
 void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
 {
 	using namespace TypedElementDataStorage;
-	using namespace UE::EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	Database = &InDatabase;
 	DataStorageCompatibility = &InDataStorageCompatibility;
@@ -59,7 +59,7 @@ void UTypedElementObjectReinstancingManager::UpdateCompleted()
 
 void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(
 	const void* Object, 
-	const UE::EditorDataStorage::FObjectTypeInfo& TypeInfo, 
+	const UE::Editor::DataStorage::FObjectTypeInfo& TypeInfo, 
 	TypedElementDataStorage::RowHandle ObjectRow)
 {
 	// This is the chance to record the old object to memento

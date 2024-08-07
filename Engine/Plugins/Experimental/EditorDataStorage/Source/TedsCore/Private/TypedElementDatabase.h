@@ -15,11 +15,14 @@
 
 struct FMassEntityManager;
 struct FMassProcessingPhaseManager;
-class FTypedElementDatabaseEnvironment;
 class UTypedElementDataStorageFactory;
 class FOutputDevice;
 class UWorld;
 
+namespace UE::Editor::DataStorage
+{
+	class FEnvironment;
+} // namespace UE::Editor::DataStorage
 
 UCLASS()
 class TEDSCORE_API UTypedElementDatabase
@@ -66,7 +69,7 @@ public:
 	FactoryConstIterator CreateFactoryIterator() const;
 
 	/** Returns factory instance given the type of factory */
-	const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const override;
+	virtual const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const override;
 	/** Helper for FindFactory(const UClass*) */
 	template<typename FactoryTypeT>
 	const FactoryTypeT* FindFactory() const;
@@ -81,80 +84,80 @@ public:
 	TSharedPtr<FMassEntityManager> GetActiveMutableEditorEntityManager();
 	TSharedPtr<const FMassEntityManager> GetActiveEditorEntityManager() const;
 
-	TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
-	TypedElementDataStorage::TableHandle RegisterTable(
+	virtual TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
+	virtual TypedElementDataStorage::TableHandle RegisterTable(
 		TypedElementDataStorage::TableHandle SourceTable, TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
-	TypedElementDataStorage::TableHandle FindTable(const FName Name) override;
+	virtual TypedElementDataStorage::TableHandle FindTable(const FName Name) override;
 
-	TypedElementDataStorage::RowHandle ReserveRow() override;
-	void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) override;
-	void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) override;
-	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
+	virtual TypedElementDataStorage::RowHandle ReserveRow() override;
+	virtual void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) override;
+	virtual void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) override;
+	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override;
-	bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) override;
-	bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
+	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) override;
+	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
-	bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count, 
+	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count,
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
-	bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
+	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
 		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
-	void RemoveRow(TypedElementDataStorage::RowHandle Row) override;
-	bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override;
-	bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
+	virtual void RemoveRow(TypedElementDataStorage::RowHandle Row) override;
+	virtual bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override;
+	virtual bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
 
-	void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	void AddColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag, const FName& InValue) override;
-	void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+	virtual void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual void AddColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue) override;
+	virtual void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
 		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
 		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) override;
-	void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	void RemoveColumn(TypedElementRowHandle Row, const UE::EditorDataStorage::FDynamicTag& Tag) override;
-	void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const override;
-	void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
-	void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
-	void AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual void RemoveColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag) override;
+	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const override;
+	virtual void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
+	virtual void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
+	virtual void AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	void BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	virtual void BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
-	bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
-	void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const;
-	void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback);
-	bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
+	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
+	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const;
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback);
+	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
 
 	void RegisterTickGroup(FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread);
 	void UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase);
 
 	TypedElementQueryHandle RegisterQuery(FQueryDescription&& Query) override;
-	void UnregisterQuery(TypedElementQueryHandle Query) override;
-	const FQueryDescription& GetQueryDescription(TypedElementQueryHandle Query) const override;
-	FName GetQueryTickGroupName(EQueryTickGroups Group) const override;
-	FQueryResult RunQuery(TypedElementQueryHandle Query) override;
-	FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) override;
-	void ActivateQueries(FName ActivationName) override;
+	virtual void UnregisterQuery(TypedElementQueryHandle Query) override;
+	virtual const FQueryDescription& GetQueryDescription(TypedElementQueryHandle Query) const override;
+	virtual FName GetQueryTickGroupName(EQueryTickGroups Group) const override;
+	virtual FQueryResult RunQuery(TypedElementQueryHandle Query) override;
+	virtual FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) override;
+	virtual void ActivateQueries(FName ActivationName) override;
 
-	TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
-	void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
-	void BatchIndexRows(
+	virtual TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
+	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
+	virtual void BatchIndexRows(
 		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs) override;
-	void ReindexRow(
+	virtual void ReindexRow(
 		TypedElementDataStorage::IndexHash OriginalIndex, 
 		TypedElementDataStorage::IndexHash NewIndex, 
 		TypedElementDataStorage::RowHandle Row) override;
-	void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
+	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
 
-	FTypedElementOnDataStorageUpdate& OnUpdate() override;
-	FTypedElementOnDataStorageUpdate& OnUpdateCompleted() override;
-	bool IsAvailable() const override;
-	void* GetExternalSystemAddress(UClass* Target) override;
+	virtual FTypedElementOnDataStorageUpdate& OnUpdate() override;
+	virtual FTypedElementOnDataStorageUpdate& OnUpdateCompleted() override;
+	virtual bool IsAvailable() const override;
+	virtual void* GetExternalSystemAddress(UClass* Target) override;
 
-	bool SupportsExtension(FName Extension) const override;
-	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
+	virtual bool SupportsExtension(FName Extension) const override;
+	virtual void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
 	
-	TSharedPtr<FTypedElementDatabaseEnvironment> GetEnvironment();
-	TSharedPtr<const FTypedElementDatabaseEnvironment> GetEnvironment() const;
+	TSharedPtr<UE::Editor::DataStorage::FEnvironment> GetEnvironment();
+	TSharedPtr<const UE::Editor::DataStorage::FEnvironment> GetEnvironment() const;
 
 	FMassArchetypeHandle LookupArchetype(TypedElementDataStorage::TableHandle InTableHandle) const;
 
@@ -191,7 +194,7 @@ private:
 	// Ordered array of factories by the return value of GetOrder()
 	TArray<FFactoryTypePair> Factories;
 
-	TSharedPtr<FTypedElementDatabaseEnvironment> Environment;
+	TSharedPtr<UE::Editor::DataStorage::FEnvironment> Environment;
 	
 	FTypedElementOnDataStorageUpdate OnUpdateDelegate;
 	FTypedElementOnDataStorageUpdate OnUpdateCompletedDelegate;
