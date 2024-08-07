@@ -448,6 +448,8 @@ TEST_CASE("Tests.AVXMaskedStore")
 }
 #endif // PLATFORM_CPU_X86_FAMILY
 
+#if PLATFORM_WINDOWS
+
 TEST_CASE("Tests.__local_stdio_printf_options")
 {
 	unsigned __int64* NonTransactional = __local_stdio_printf_options();
@@ -473,3 +475,5 @@ TEST_CASE("Tests.__local_stdio_scanf_options")
 
 	REQUIRE(NonTransactional == Transactional);
 }
+
+#endif // PLATFORM_WINDOWS

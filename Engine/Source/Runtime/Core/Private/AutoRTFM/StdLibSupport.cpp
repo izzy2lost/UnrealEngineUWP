@@ -26,6 +26,23 @@ namespace AutoRTFM
 namespace
 {
 
+// A helper that opens a FILE to "/dev/null" on first call to Get()
+// and automatically closes the file on static destruction.
+class FNullFile
+{
+public:
+    static FILE* Get()
+    {
+        static FNullFile Instance;
+        return Instance.File;
+    }
+
+private:
+    FNullFile() : File(fopen("/dev/null", "wb")) {}
+    ~FNullFile() { fclose(File); }
+    FILE* const File;
+};
+
 void ThrowErrorFormatContainsPercentN()
 {
     UE_LOG(LogAutoRTFM, Warning, TEXT("AutoRTFM does not support format strings containing '%%n'"));
@@ -303,6 +320,7 @@ UE_AUTORTFM_REGISTER_SELF_FUNCTION(fmodf);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(fmodl);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(rand);
 UE_AUTORTFM_REGISTER_SELF_FUNCTION(modff);
+UE_AUTORTFM_REGISTER_SELF_FUNCTION(modfl);
 
 // FIXME: Does not currently support %n format specifiers.
 int RTFM_vsnprintf(char* Str, size_t Size, const char* Format, va_list ArgList)
@@ -337,11 +355,18 @@ int RTFM_vswprintf(wchar_t* Str, size_t Size, const wchar_t* Format, va_list Arg
         va_list ArgList2;
         va_copy(ArgList2, ArgList);
 
-        FContext* Context = FContext::Get();
+#if PLATFORM_WINDOWS
         int Count = vswprintf(nullptr, 0, Format, ArgList2);
-        if (Count >= 0)
+#else
+        // vswprintf(nullptr, 0, ...) will return -1.
+        int Count = vfwprintf(FNullFile::Get(), Format, ArgList2);
+#endif
+
+        size_t NumChars = FMath::Min<size_t>(Size, (1 + FMath::Max(Count, 0)));
+        size_t NumBytes = NumChars * sizeof(wchar_t);
+        if (NumBytes >= 0)
         {
-            size_t NumBytes = FMath::Min<size_t>(Size, (1 + Count)) * sizeof(wchar_t);
+            FContext* Context = FContext::Get();
             Context->RecordWrite(Str, NumBytes);
         }
     }
@@ -351,6 +376,21 @@ int RTFM_vswprintf(wchar_t* Str, size_t Size, const wchar_t* Format, va_list Arg
 UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(
     static_cast<int(*)(wchar_t*, size_t, const wchar_t*, va_list)>(&vswprintf),
     RTFM_vswprintf);
+
+// FIXME: Does not currently support %n format specifiers.
+int RTFM_swprintf(wchar_t* Buffer, size_t BufferCount, wchar_t const* Format, ...)
+{
+    va_list ArgList;
+
+    va_start(ArgList, Format);
+    int Count = RTFM_vswprintf(Buffer, BufferCount, Format, ArgList);
+    va_end(ArgList);
+
+    return Count;
+}
+UE_AUTORTFM_REGISTER_OPEN_FUNCTION_EXPLICIT(
+    static_cast<int(*)(wchar_t*, size_t, wchar_t const*, ...)>(&swprintf),
+    RTFM_swprintf);
 
 // FIXME: Does not currently support %n format specifiers.
 int RTFM_snprintf(char* Str, size_t Size, const char* Format, ...)

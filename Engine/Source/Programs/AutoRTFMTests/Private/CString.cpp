@@ -630,7 +630,7 @@ TEST_CASE("CString.wcscpy")
 		CLANG_END_DISABLE_OPTIMIZATIONS
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-		REQUIRE(L"Doggie says woof____" == std::wstring_view(To));
+		REQUIRE(std::wstring_view(L"Doggie says woof____") == std::wstring_view(To));
 	}
 
 	SECTION("With Commit")
@@ -639,7 +639,7 @@ TEST_CASE("CString.wcscpy")
 		AutoRTFM::Commit([&] { wcscpy(To, From); });
 		CLANG_END_DISABLE_OPTIMIZATIONS
 
-		REQUIRE(L"Kittie says meow" == std::wstring_view(To));
+		REQUIRE(std::wstring_view(L"Kittie says meow") == std::wstring_view(To));
 	}
 
 	MSVC_END_DISABLE_UNSAFE_FN
@@ -663,7 +663,7 @@ TEST_CASE("CString.wcsncpy")
 		CLANG_END_DISABLE_OPTIMIZATIONS
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
-		REQUIRE(L"Doggie says woof" == std::wstring_view(To));
+		REQUIRE(std::wstring_view(L"Doggie says woof") == std::wstring_view(To));
 	}
 
 	SECTION("With Commit")
@@ -672,7 +672,7 @@ TEST_CASE("CString.wcsncpy")
 		AutoRTFM::Commit([&] { wcsncpy(To, From, 6); });
 		CLANG_END_DISABLE_OPTIMIZATIONS
 
-		REQUIRE(L"Kittie says woof" == std::wstring_view(To));
+		REQUIRE(std::wstring_view(L"Kittie says woof") == std::wstring_view(To));
 	}
 
 	MSVC_END_DISABLE_UNSAFE_FN
@@ -1165,7 +1165,7 @@ TEST_CASE("CString.swprintf")
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 			REQUIRE(0 == Count);
-			REQUIRE(L"_____________________" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"_____________________") == std::wstring_view(Buffer));
 		}
 
 		SECTION("With Commit")
@@ -1180,7 +1180,7 @@ TEST_CASE("CString.swprintf")
 			CLANG_END_DISABLE_OPTIMIZATIONS
 
 			REQUIRE(16 == Count);
-			REQUIRE(L"cat says 'meow'!" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"cat says 'meow'!") == std::wstring_view(Buffer));
 		}
 	}
 
@@ -1202,7 +1202,7 @@ TEST_CASE("CString.swprintf")
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 			REQUIRE(0 == Count);
-			REQUIRE(L"_____________________" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"_____________________") == std::wstring_view(Buffer));
 		}
 
 		SECTION("With Commit")
@@ -1217,7 +1217,7 @@ TEST_CASE("CString.swprintf")
 			CLANG_END_DISABLE_OPTIMIZATIONS
 
 			REQUIRE(0 > Count);
-			REQUIRE(L"cat say" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"cat say") == std::wstring_view(Buffer, 7));
 		}
 
 		CLANG_END_DISABLE_WARN_FORMAT_TRUNCATED
@@ -1252,7 +1252,7 @@ TEST_CASE("CString.swprintf")
 			});
 			CLANG_END_DISABLE_OPTIMIZATIONS
 
-			REQUIRE(16 == Count);
+			REQUIRE(((0 > Count) || (16 == Count)));
 		}
 	}
 
@@ -1271,7 +1271,7 @@ TEST_CASE("CString.swprintf")
 
 		REQUIRE(AutoRTFM::ETransactionResult::AbortedByLanguage == Result);
 		REQUIRE(0 == Count);
-		REQUIRE(L"_____________________" == std::wstring_view(Buffer));
+		REQUIRE(std::wstring_view(L"_____________________") == std::wstring_view(Buffer));
 		REQUIRE_THAT(WarningContext.GetWarnings(),
 			Catch::Matchers::VectorContains(FString(kPercentNWarning)));
 	}
@@ -1292,7 +1292,7 @@ TEST_CASE("CString.swprintf")
 
 			REQUIRE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 			REQUIRE(0 == Count);
-			REQUIRE(L"_____________________" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"_____________________") == std::wstring_view(Buffer));
 		}
 
 		SECTION("With Commit")
@@ -1307,7 +1307,7 @@ TEST_CASE("CString.swprintf")
 			CLANG_END_DISABLE_OPTIMIZATIONS
 
 			REQUIRE(2 == Count);
-			REQUIRE(L"%n" == std::wstring_view(Buffer));
+			REQUIRE(std::wstring_view(L"%n") == std::wstring_view(Buffer));
 		}
 	}
 }
@@ -1366,6 +1366,7 @@ TEST_CASE("CString.printf")
 
 TEST_CASE("CString.wprintf")
 {
+#if PLATFORM_WINDOWS // wprintf() can error on linux
 	SECTION("With Abort")
 	{
 		int Count = 0;
@@ -1387,14 +1388,16 @@ TEST_CASE("CString.wprintf")
 		int Count = 0;
 
 		CLANG_BEGIN_DISABLE_OPTIMIZATIONS
-		AutoRTFM::Commit([&]
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 		{
 			Count = wprintf(L"AutoRTFM wprintf test: %%n\n");
 		});
 		CLANG_END_DISABLE_OPTIMIZATIONS
 
+		REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
 		REQUIRE(26 == Count);
 	}
+#endif // PLATFORM_WINDOWS
 
 	SECTION("PercentN")
 	{

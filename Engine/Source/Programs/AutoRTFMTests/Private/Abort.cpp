@@ -525,15 +525,19 @@ TEST_CASE("Abort.OnAbortTiming")
 	REQUIRE(bOnAbortRan == true);
 }
 
+static void FnHasNoClosed()
+{
+	(void)fopen("fopen() is not supported in a closed transaction", "rb");
+}
+
 TEST_CASE("Abort.Language")
 {
 	bool bTouched = false;
-	std::atomic_bool bThingie = false;
 
 	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 		{
 			bTouched = true;
-			bThingie = true;
+			FnHasNoClosed();
 		});
 
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByLanguage == Result);
@@ -543,7 +547,6 @@ TEST_CASE("Abort.Language")
 TEST_CASE("Abort.LanguageThroughOpen")
 {
 	bool bTouched = false;
-	std::atomic_bool bThingie = false;
 
 	const AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
 		{
@@ -553,7 +556,7 @@ TEST_CASE("Abort.LanguageThroughOpen")
 				{
 					const AutoRTFM::EContextStatus Status = AutoRTFM::Close([&]
 						{
-							bThingie = true;
+							FnHasNoClosed();
 						});
 
 					REQUIRE(AutoRTFM::EContextStatus::AbortedByLanguage == Status);
