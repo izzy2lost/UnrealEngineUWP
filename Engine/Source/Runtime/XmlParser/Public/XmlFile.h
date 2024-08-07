@@ -75,6 +75,15 @@ public:
 	 */
 	XMLPARSER_API bool Save(const FString& Path);
 
+	/**
+	 * Turns on a specific hack that is only used by the crash report client in order
+	 * to retain newlines for callstacks. This is important on the server side when we 
+	 * display the callstacks to content creators. Without the content-whitespace,
+	 * they're bascially illegible. Neither version of the DOM we create is technically
+	 * true to the XML spec.
+	 */
+	XMLPARSER_API void EnableAttemptToPreserveWhitespaceHack();
+
 private:
 
 	/** Pre-processes the file doing anything necessary (such as removing comments) */
@@ -111,4 +120,7 @@ private:
 	bool bFileLoaded;
 	/** Flag for whether the node creation process failed or not */
 	bool bCreationFailed;
+
+	/** Flag for the whitespace hack used in the crash report client */
+	bool bHackAttemptToPreserveWhitespace = false;
 };

@@ -194,14 +194,21 @@ void FPrimaryCrashProperties::UpdateIDs()
 void FPrimaryCrashProperties::ReadXML( const FString& CrashContextFilepath, const TCHAR* Buffer  )
 {
 	XmlFilepath = CrashContextFilepath;
+
+	XmlFile = new FXmlFile();
+
+	// Special hack to work around some whitespace issues in multi-line element-content blocks like callstacks
+	XmlFile->EnableAttemptToPreserveWhitespaceHack();
+
 	if (Buffer)
 	{
-		XmlFile = new FXmlFile(Buffer, EConstructMethod::ConstructFromBuffer);
+		XmlFile->LoadFile(Buffer, EConstructMethod::ConstructFromBuffer);
 	}
 	else
 	{
-		XmlFile = new FXmlFile(XmlFilepath);
+		XmlFile->LoadFile(XmlFilepath);
 	}
+
 	if (XmlFile->IsValid())
 	{
 		TimeOfCrash = FDateTime::UtcNow().GetTicks();
