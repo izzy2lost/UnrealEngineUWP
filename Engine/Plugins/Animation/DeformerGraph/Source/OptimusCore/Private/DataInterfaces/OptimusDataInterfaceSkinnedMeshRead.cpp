@@ -133,7 +133,7 @@ enum class EOptimusSkinnedMeshReadReadableOutputBuffer: uint32
 	Position = 1<<0,
 	Tangents = 1<<1,
 	VertexColor = 1<<2,
-	NumPermutations = Position | Tangents | VertexColor
+	NumPermutations = 1 << 3
 };
 ENUM_CLASS_FLAGS(EOptimusSkinnedMeshReadReadableOutputBuffer);
 
