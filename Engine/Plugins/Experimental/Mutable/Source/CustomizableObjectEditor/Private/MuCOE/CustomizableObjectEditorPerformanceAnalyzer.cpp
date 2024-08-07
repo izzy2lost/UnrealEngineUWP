@@ -96,7 +96,7 @@ TSharedRef<SWidget> SInstanceUpdateDataRow::GenerateWidgetForColumn(const FName&
 	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceTriangleCount)
 	{
 		return SNew(STextBlock)
-			.Text(FText::FromString(FString::Printf(TEXT("%u"),InstanceUpdateElement->UpdateStats.TriangleCount)));
+			.Text( FText::AsNumber(InstanceUpdateElement->UpdateStats.TriangleCount));
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::InstanceDescriptorColumnID)
 	{
@@ -126,7 +126,6 @@ TSharedRef<SWidget> SInstanceUpdateDataRow::GenerateWidgetForColumn(const FName&
 		return SNew(STextBlock)
 			  .Text(UEnum::GetDisplayValueAsText( InstanceUpdateElement->UpdateStats.UpdateResult))
 			  .ColorAndOpacity(TextColor);
-		
 	}
 	else if (InColumnName == InstanceUpdatesMainDataColumns::QueueTimeColumnID)
 	{
