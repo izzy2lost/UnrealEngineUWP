@@ -594,6 +594,15 @@ bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)
 	{
 		const FDMUpdateGuard Guard;
 		InLayer->SetMaterialProperty(NewPropertyType);
+
+		UDynamicMaterialModel* MaterialModel = nullptr;
+
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = GetMaterialModelEditorOnlyData())
+		{
+			MaterialModel = EditorOnlyData->GetMaterialModel();
+		}
+
+		InLayer->PostEditorDuplicate(MaterialModel, this);
 	}
 
 	LayerObjects.Add(InLayer);

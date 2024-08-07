@@ -293,6 +293,7 @@ void UDMMaterialValue::PostEditorDuplicate(UDynamicMaterialModel* InMaterialMode
 	if (GetOuter() == InMaterialModel)
 	{
 		Super::PostEditorDuplicate(InMaterialModel, InParent);
+		UpdateCachedParameterName();
 		return;
 	}
 
