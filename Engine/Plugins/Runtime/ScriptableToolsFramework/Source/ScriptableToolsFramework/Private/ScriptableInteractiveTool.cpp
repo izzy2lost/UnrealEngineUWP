@@ -204,10 +204,6 @@ void UScriptableInteractiveTool::Setup()
 	RenderHelper = NewObject<UScriptableTool_RenderAPI>();
 	DrawHUDHelper = NewObject<UScriptableTool_HUDAPI>();
 
-	OnScriptSetup();
-
-
-
 	ToolDrawableGeometry = NewObject<UPreviewGeometry>();
 	ToolDrawableGeometry->CreateInWorld(GetWorld(), FTransform::Identity);
 
@@ -219,6 +215,8 @@ void UScriptableInteractiveTool::Setup()
 
 	DefaultTriangleSet = NewObject<UScriptableToolTriangleSet>();
 	DefaultTriangleSet->Initialize(ToolDrawableGeometry);
+
+	OnScriptSetup();
 }
 
 void UScriptableInteractiveTool::OnTick(float DeltaTime)
