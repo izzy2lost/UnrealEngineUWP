@@ -1010,6 +1010,7 @@ TEST_CASE_NAMED(FCbWriterStreamTest, "System::Core::Serialization::CbWriter::Str
 		Writer << ANSITEXTVIEW("Integers");
 		Writer.BeginArray();
 		Writer << int32(-1) << int64(-1) << uint32(1) << uint64(1);
+		Writer << SSIZE_T(-1) << SIZE_T(-1) << PTRINT(-1) << UPTRINT(-1);
 		Writer.EndArray();
 
 		Writer << ANSITEXTVIEW("Float32") << 1.0f;
