@@ -229,10 +229,10 @@ void UNiagaraNodeUsageSelector::AllocateDefaultPins()
 	NumOptionsPerVariable = (int32) ENiagaraScriptGroup::Max;
 	for (int64 i = 0; i < NumOptionsPerVariable; i++)
 	{
-		const FString PathSuffix = ENiagaraScriptGroupEnum ? ( FString::Printf(TEXT(" if %s"), *ENiagaraScriptGroupEnum->GetNameStringByValue((int64)i))) : TEXT("Error Unknown!");
+		const FString PathSuffix = ENiagaraScriptGroupEnum ? ( FString::Printf(TEXT(" if %s"), *ENiagaraScriptGroupEnum->GetNameStringByValue(i))) : TEXT("Error Unknown!");
 		for (FNiagaraVariable& Var : OutputVars)
 		{
-			AddOptionPin(Var, i);
+			AddOptionPin(Var, static_cast<int32>(i));
 		}
 	}
 

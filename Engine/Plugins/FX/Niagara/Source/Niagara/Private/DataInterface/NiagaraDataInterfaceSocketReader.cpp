@@ -191,7 +191,7 @@ namespace NDISocketReaderLocal
 				const uint64 InitialDataSize = InstanceData.DataToUpload.Num() * InstanceData.DataToUpload.GetTypeSize();
 				const uint64 BufferSize = Align(InitialDataSize, 16);
 
-				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressDesc(BufferSize);
+				FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateByteAddressDesc(IntCastChecked<uint32>(BufferSize));
 				ResizeBufferIfNeeded(GraphBuilder, InstanceData.PooledBuffer, BufferDesc, TEXT("NiagaraSocketReader"));
 
 				GraphBuilder.QueueBufferUpload(

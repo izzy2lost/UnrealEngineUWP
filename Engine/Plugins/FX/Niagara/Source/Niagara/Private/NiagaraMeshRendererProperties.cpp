@@ -123,7 +123,7 @@ public:
 		return FVector3f(
 			LODLevel < MaxLODLevel ? RenderData->ScreenSize[LODLevel + 1].GetValue() : 0.0f,
 			RenderData->ScreenSize[LODLevel].GetValue(),
-			RenderData->Bounds.SphereRadius
+			static_cast<float>(RenderData->Bounds.SphereRadius)
 		);
 	}
 

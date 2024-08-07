@@ -157,8 +157,8 @@ bool FNiagaraRendererLayout::SetVariable(const FNiagaraDataSetCompiledData* Comp
 		{
 			//For CPU Sims we pack just the required data tightly in a GPU buffer we upload. For GPU sims the data is there already so we just provide the real data location.
 			GPULocation = CompiledData->SimTarget == ENiagaraSimTarget::CPUSim ? TotalVFComponents : Offset;
-			check(int32(TotalVFComponents ) + NumComponents <= TNumericLimits<uint16>::Max());
-			TotalVFComponents += NumComponents;
+			check(static_cast<int32>(TotalVFComponents) + NumComponents <= TNumericLimits<uint16>::Max());
+			TotalVFComponents += static_cast<uint16>(NumComponents);
 		}
 	}
 

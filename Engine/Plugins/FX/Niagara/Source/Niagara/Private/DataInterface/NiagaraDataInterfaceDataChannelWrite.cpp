@@ -799,7 +799,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagara
 		Sig.AddInput(EmitVar);
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")));
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
-		Sig.RequiredInputs = Sig.Inputs.Num();//The user defines what we write in the graph.
+		Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
 		OutFunctions.Add(Sig);
 	}
 	{
@@ -812,7 +812,7 @@ void UNiagaraDataInterfaceDataChannelWrite::GetFunctionsInternal(TArray<FNiagara
 		Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("DataChannel interface")));
 		Sig.AddInput(EmitVar);
 		Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")));
-		Sig.RequiredInputs = Sig.Inputs.Num();//The user defines what we write in the graph.
+		Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());//The user defines what we write in the graph.
 		OutFunctions.Add(Sig);
 	}
 }

@@ -198,7 +198,7 @@ TMap<TStatIdData const*, float> FNiagaraScriptExecutionContextBase::ReportStats(
 		uint64 ExecCycles = ScopeData.ExecutionCycleCount.exchange(0);
 		if (ExecCycles > 0)
 		{
-			ExecutionTimings.FindOrAdd(ScopeData.StatId.GetRawPointer()) = ExecCycles;
+			ExecutionTimings.FindOrAdd(ScopeData.StatId.GetRawPointer()) = static_cast<float>(ExecCycles);
 		}
 	}
 	return ExecutionTimings;

@@ -778,10 +778,10 @@ void UNiagaraComponent::ReleaseToPool()
 uint32 UNiagaraComponent::GetApproxMemoryUsage() const
 {
 	uint32 MemoryBytes = sizeof(UNiagaraComponent);
-	MemoryBytes += OverrideParameters.GetResourceSize();
+	MemoryBytes += static_cast<uint32>(OverrideParameters.GetResourceSize());
 	if (SystemInstanceController)
 	{
-		MemoryBytes += uint32(SystemInstanceController->GetTotalBytesUsed());
+		MemoryBytes += static_cast<uint32>(SystemInstanceController->GetTotalBytesUsed());
 	}
 	return MemoryBytes;
 }

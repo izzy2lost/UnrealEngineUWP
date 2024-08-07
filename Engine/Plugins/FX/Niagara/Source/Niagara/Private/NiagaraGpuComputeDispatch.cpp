@@ -845,9 +845,9 @@ void FNiagaraGpuComputeDispatch::PrepareTicksForProxy(FRHICommandListImmediate& 
 					FNiagaraGpuDispatchInstance& DispatchInstance = DispatchGroup.DispatchInstances.Emplace_GetRef(Tick, InstanceData);
 					FNiagaraSimStageData& SimStageData = DispatchInstance.SimStageData;
 					SimStageData.bFirstStage = bFirstStage;
-					SimStageData.StageIndex = SimStageIndex;
-					SimStageData.NumIterations = NumIterations;
-					SimStageData.IterationIndex = IterationIndex;
+					SimStageData.StageIndex = IntCastChecked<uint16>(SimStageIndex);
+					SimStageData.NumIterations = IntCastChecked<uint16>(NumIterations);
+					SimStageData.IterationIndex = IntCastChecked<uint16>(IterationIndex);
 					SimStageData.NumLoops = PerStageInfo.NumLoops;
 					SimStageData.LoopIndex = PerStageInfo.LoopIndex;
 					SimStageData.DispatchArgs.ElementCount = PerStageInfo.ElementCountXYZ;

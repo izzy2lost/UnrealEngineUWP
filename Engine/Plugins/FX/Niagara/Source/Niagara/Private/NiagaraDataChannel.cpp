@@ -237,7 +237,7 @@ void FNiagaraDataChannelGameData::WriteToDataSet(FNiagaraDataBuffer* DestBuffer,
 						for (int32 i = 0; i < NumInstances; ++i)
 						{
 							double* Src = reinterpret_cast<double*>((SrcData + i * SrcVarSize));
-							*Dest++ = *Src;
+							*Dest++ = static_cast<float>(*Src);
 						}
 					}
 					else if (SrcProperty->IsA(FFloatProperty::StaticClass()))

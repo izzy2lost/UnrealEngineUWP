@@ -669,7 +669,7 @@ namespace NDIDynamicMeshLocal
 			// Setup TexCoord Data
 			if (InstanceData->TexCoordOffset != INDEX_NONE)
 			{
-				StaticMeshData.NumTexCoords = InstanceData->NumTexCoords;
+				StaticMeshData.NumTexCoords = IntCastChecked<uint8>(InstanceData->NumTexCoords);
 				for (uint32 i=0; i < InstanceData->NumTexCoords; ++i)
 				{
 					StaticMeshData.TextureCoordinates.Emplace(&InstanceData->VertexBuffer, /*InstanceData->TexCoordOffset + (i * sizeof(FVector2f))*/0, int32(sizeof(FVector2f) * InstanceData->NumTexCoords), VET_Float2, EVertexStreamUsage::ManualFetch);

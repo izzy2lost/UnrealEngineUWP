@@ -250,7 +250,7 @@ TArray<int32> UNiagaraNodeStaticSwitch::GetOptionValues() const
 		{
 			if (FNiagaraEditorUtilities::IsEnumIndexVisible(Enum, EnumIndex))
 			{
-				OptionValues.Add(Enum->GetValueByIndex(EnumIndex));
+				OptionValues.Add(static_cast<int32>(Enum->GetValueByIndex(EnumIndex)));
 			}
 		}
 	}

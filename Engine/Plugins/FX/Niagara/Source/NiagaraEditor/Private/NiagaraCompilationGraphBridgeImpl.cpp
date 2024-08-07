@@ -116,7 +116,7 @@ void FNiagaraCompilationGraphBridge::CustomHlslReferencesTokens(const FCustomHls
 	TArray<FStringView> StringTokens;
 	UNiagaraNodeCustomHlsl::GetTokensFromString(CustomNode->GetCustomHlsl(), StringTokens, false, false);
 
-	for (SIZE_T i = 0; i < TokenStrings.Num(); i++)
+	for (int32 i = 0; i < TokenStrings.Num(); i++)
 	{
 		FNameBuilder NameBuilder(TokenStrings[i]);
 		FStringView NameString(NameBuilder.ToView());

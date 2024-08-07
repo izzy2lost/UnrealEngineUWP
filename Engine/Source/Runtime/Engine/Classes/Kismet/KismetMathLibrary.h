@@ -510,15 +510,9 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Power"), Category = "Math|Float")
 	static ENGINE_API double MultiplyMultiply_FloatFloat(double Base, double Exp);
 
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API float Multiply_FloatFloat(float A, float B);
-
 	/** Multiplication (A * B) */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "int * float", CompactNodeTitle = "*", Keywords = "* multiply"), Category = "Math|Float")
 	static ENGINE_API double Multiply_IntFloat(int32 A, double B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API float Divide_FloatFloat(float A, float B = 1.f);
 
 	UFUNCTION(BlueprintPure, CustomThunk, meta = (DisplayName = "% (Float)", CompactNodeTitle = "%", Keywords = "% modulus"), Category = "Math|Float")
 	static ENGINE_API double Percent_FloatFloat(double A, double B = 1.f);
@@ -583,27 +577,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Equal (Float)", CompactNodeTitle = "==", Keywords = "== equal"), Category = "Math|Float")
 	static ENGINE_API bool EqualEqual_DoubleDouble(double A, double B);
 
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API float Add_FloatFloat(float A, float B = 1.f);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API float Subtract_FloatFloat(float A, float B = 1.f);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool Less_FloatFloat(float A, float B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool Greater_FloatFloat(float A, float B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool LessEqual_FloatFloat(float A, float B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool GreaterEqual_FloatFloat(float A, float B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool EqualEqual_FloatFloat(float A, float B);
-
 	/** Returns true if A is nearly equal to B (|A - B| < ErrorTolerance) */
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Nearly Equal (Float)", Keywords = "== equal"), Category = "Math|Float")
 	static ENGINE_API bool NearlyEqual_FloatFloat(double A, double B, double ErrorTolerance = 1.e-6);
@@ -611,9 +584,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	/** Returns true if A does not equal B (A != B)*/
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Not Equal (Float)", CompactNodeTitle = "!=", Keywords = "!= not equal"), Category = "Math|Float")
 	static ENGINE_API bool NotEqual_DoubleDouble(double A, double B);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API bool NotEqual_FloatFloat(float A, float B);
 
 	/** Returns true if value is between Min and Max (V >= Min && V <= Max)
 	 * If InclusiveMin is true, value needs to be equal or larger than Min, else it needs to be larger
@@ -848,9 +818,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "Division (Whole and Remainder) to Integer64"), Category = "Math|Float")
 	static ENGINE_API int64 FMod64(double Dividend, double Divisor, double& Remainder);
 
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API int32 FMod(float Dividend, float Divisor, float& Remainder);
-
 	/** Sign (float, returns -1 if A < 0, 0 if A is zero, and +1 if A > 0) */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "Sign (Float)"), Category="Math|Float")
 	static ENGINE_API double SignOfFloat(double A);
@@ -1015,9 +982,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	/** Makes a 2d vector {X, Y} */
 	UFUNCTION(BlueprintPure, Category = "Math|Vector2D", meta = (Keywords = "construct build", NativeMakeFunc))
 	static ENGINE_API FVector2D MakeVector2D(double X, double Y);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API void BreakVector2D(FVector2D InVec, float& X, float& Y);
 
 	/** Breaks a 2D vector apart into X, Y. */
 	UFUNCTION(BlueprintPure, Category = "Math|Vector2D", meta = (NativeBreakFunc))
@@ -1245,9 +1209,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	UFUNCTION(BlueprintPure, meta = (DisplayName = "To Direction And Length", ScriptMethod = "ToDirectionAndLength"), Category = "Math|Vector2D")
 	static ENGINE_API void ToDirectionAndLength2D(FVector2D A, FVector2D &OutDir, double &OutLength);
 
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API void ToDirectionAndLength2D(FVector2D A, FVector2D& OutDir, float& OutLength);
-
 	/**
 	 * Get this vector as a vector where each component has been rounded to the nearest int.
 	 *
@@ -1339,9 +1300,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	 */
 	UFUNCTION(BlueprintCallable, meta = (ScriptMethod = "Set"), Category = "Math|Vector")
 	static ENGINE_API void Vector_Set(UPARAM(ref) FVector& A, double X, double Y, double Z);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API void BreakVector(FVector InVec, float& X, float& Y, float& Z);
 
 	/** Breaks a vector apart into X, Y, Z */
 	UFUNCTION(BlueprintPure, Category="Math|Vector", meta=(NativeBreakFunc))
@@ -2084,9 +2042,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	/** Makes a 4D vector {X, Y, Z, W} */
 	UFUNCTION(BlueprintPure, meta = (Keywords = "construct build", NativeMakeFunc), Category = "Math|Vector4")
 	static ENGINE_API FVector4 MakeVector4(double X, double Y, double Z, double W);
-
-	UE_DEPRECATED(5.0, "This method has been deprecated and will be removed. Use the double version instead.")
-	static ENGINE_API void BreakVector4(const FVector4& InVec, float& X, float& Y, float& Z, float& W);
 
 	/** Breaks a 4D vector apart into X, Y, Z, W. */
 	UFUNCTION(BlueprintPure, meta = (NativeBreakFunc), Category = "Math|Vector4")
@@ -4342,20 +4297,6 @@ class UKismetMathLibrary : public UBlueprintFunctionLibrary
 	//
 	// Geometry
 	//
-
-	/**  
-	 * Finds the minimum area rectangle that encloses all of the points in InVerts
-	 * Uses algorithm found in http://www.geometrictools.com/Documentation/MinimumAreaRectangle.pdf
-	 *	
-	 * @param		InVerts	- Points to enclose in the rectangle
-	 * @outparam	OutRectCenter - Center of the enclosing rectangle
-	 * @outparam	OutRectSideA - Vector oriented and sized to represent one edge of the enclosing rectangle, orthogonal to OutRectSideB
-	 * @outparam	OutRectSideB - Vector oriented and sized to represent one edge of the enclosing rectangle, orthogonal to OutRectSideA
-	*/
-	UE_DEPRECATED(5.0, "Use MinAreaRectangle instead. This deprecated version incorrectly returns the average of all input points as the rectangle center.")
-	UFUNCTION(BlueprintCallable, Category="Math|Geometry", meta=(WorldContext="WorldContextObject", CallableWithoutWorldContext,
-		DeprecatedFunction, DeprecationMessage = "Use 'Min Area Rectangle' instead; this deprecated version incorrectly returns the average of all input points as the rectangle center."))
-	static ENGINE_API void MinimumAreaRectangle(UObject* WorldContextObject, const TArray<FVector>& InVerts, const FVector& SampleSurfaceNormal, FVector& OutRectCenter, FRotator& OutRectRotation, float& OutSideLengthX, float& OutSideLengthY, bool bDebugDraw = false);
 
 	/**
 	 * Finds the minimum area rectangle that encloses a set of coplanar points.

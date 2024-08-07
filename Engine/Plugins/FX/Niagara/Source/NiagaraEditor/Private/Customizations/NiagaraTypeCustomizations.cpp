@@ -2599,7 +2599,7 @@ public:
 		{
 			FVector2D ChildSize = ChildSlot.GetWidget()->GetDesiredSize();
 
-			float XVal = FMath::Max(MinWidthVal, ChildSize.X);
+			double XVal = FMath::Max(MinWidthVal, ChildSize.X);
 			if (MaxWidthVal > MinWidthVal)
 			{
 				XVal = FMath::Min(MaxWidthVal, XVal);

@@ -860,9 +860,9 @@ void FNiagaraTypeLayoutInfo::GenerateLayoutInfo(const UScriptStruct* Struct)
 	int32 Int32Count = 0;
 	int32 HalfCount = 0;
 	GenerateLayoutInfoInternal(Struct, FloatCount, Int32Count, HalfCount, true);
-	NumFloatComponents = FloatCount;
-	NumInt32Components = Int32Count;
-	NumHalfComponents = HalfCount;
+	NumFloatComponents = IntCastChecked<uint16>(FloatCount);
+	NumInt32Components = IntCastChecked<uint16>(Int32Count);
+	NumHalfComponents = IntCastChecked<uint16>(HalfCount);
 
 	FloatCount = 0;
 	Int32Count = 0;

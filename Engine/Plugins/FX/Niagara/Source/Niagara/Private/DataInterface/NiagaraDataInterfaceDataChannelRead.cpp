@@ -146,7 +146,7 @@ namespace NDIDataChannelReadLocal
 			Sig.AddInput(FNiagaraVariable(FNiagaraTypeDefinition(UNiagaraDataInterfaceDataChannelRead::StaticClass()), TEXT("DataChannel interface")));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), 0, LOCTEXT("ConsumeIndexInputDesc", "The index to read."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
-			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
+			Sig.RequiredOutputs = IntCastChecked<int16>(Sig.Outputs.Num()); //The user defines what we read in the graph.			
 		}
 		return Sig;
 	}
@@ -167,7 +167,7 @@ namespace NDIDataChannelReadLocal
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Consume")), FNiagaraBool(true), LOCTEXT("ConsumeInputDesc", "True if this instance (particle/emitter etc) should consume data from the data channel in this call."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Success")), LOCTEXT("ConsumeSuccessOutputDesc", "True if all reads succeeded."));
 			Sig.AddOutput(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Index")), LOCTEXT("ConsumeIndexOutputDesc", "The index we actually read from. If reading failed this can be -1. This allows subsequent reads of the data channel at this index."));
-			Sig.RequiredOutputs = Sig.Outputs.Num();//The user defines what we read in the graph.			
+			Sig.RequiredOutputs = IntCastChecked<int16>(Sig.Outputs.Num()); //The user defines what we read in the graph.			
 		}
 		return Sig;
 	}
@@ -192,7 +192,7 @@ namespace NDIDataChannelReadLocal
 		For compound data types that contain multiple component floats or ints, comparissons are done on a per component basis.\n\
 		For example if you add a Vector condition parameter it will be compared against each component of the corresponding Vector in the Data Channel.\n\
 		Result = (Param.X == ChannelValue.X) && (Param.Y == ChannelValue.Y) && (Param.Z == ChannelValue.Z)");
-			Sig.FunctionVersion = (uint32)FunctionVersion_SpawnConditional::EmitterIDParameter;
+			Sig.FunctionVersion = static_cast<uint32>(FunctionVersion_SpawnConditional::EmitterIDParameter);
 #endif
 			Sig.bMemberFunction = true;
 			Sig.bExperimental = true;
@@ -205,7 +205,7 @@ namespace NDIDataChannelReadLocal
 			Sig.AddInput(FNiagaraVariable(StaticEnum<ENiagaraConditionalOperator>(), TEXT("Operator")), LOCTEXT("SpawnCondOpInputDesc", "The comparison operator to use when comparing values in the data channel to conditional parameters."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Min Spawn Count")), 1, LOCTEXT("MinSpawnCountInputDesc", "Minimum number of particles to spawn for each element in the data channel."));
 			Sig.AddInputWithDefault(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Max Spawn Count")), 1, LOCTEXT("MaxSpawnCountInputDesc", "Maximum number of particles to spawn for each element in the data channel."));
-			Sig.RequiredInputs = Sig.Inputs.Num();
+			Sig.RequiredInputs = IntCastChecked<int16>(Sig.Inputs.Num());
 		}
 		return Sig;
 	}
@@ -1734,7 +1734,7 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnConditional(FVectorVMExternalFun
 template<typename T> 
 float NDCValueSize(const T& Value){ return 1.0f; }
 
-template<> float NDCValueSize<int32>(const int32& Value){ return FMath::Abs(Value); }
+template<> float NDCValueSize<int32>(const int32& Value){ return static_cast<float>(FMath::Abs(Value)); }
 template<> float NDCValueSize<float>(const float& Value) { return FMath::Abs(Value); }
 template<> float NDCValueSize<FVector2f>(const FVector2f& Value) { return Value.Size(); }
 template<> float NDCValueSize<FVector3f>(const FVector3f& Value) { return Value.Size(); }
@@ -1833,7 +1833,7 @@ void UNiagaraDataInterfaceDataChannelRead::SpawnDirect(FVectorVMExternalFunction
 			TSimType NDCValue = ValueData.GetSafe(DataChannelIndex, NDCValueDefault<TSimType>());
 			double VarSize = NDCValueSize(NDCValue);
 			float Scale = RandHelper.RandRange(DataChannelIndex, RandMinScale, RandMaxScale);
-			int32 ScaledCount = VarSize * Scale;
+			int32 ScaledCount = FMath::TruncToInt32(VarSize * Scale);
 			int32 FinalCount = FMath::Clamp(ScaledCount, ClampMin, ClampMax);
 
 			if (Mode == ENDIDataChannelSpawnMode::Accumulate)

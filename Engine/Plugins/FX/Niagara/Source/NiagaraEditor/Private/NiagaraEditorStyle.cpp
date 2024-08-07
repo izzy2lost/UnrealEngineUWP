@@ -558,7 +558,7 @@ void FNiagaraEditorStyle::InitStackWidgets()
 	FTextBlockStyle NoteHeaderStyle;
 	
 	FFontOutlineSettings NoteHeaderOutlineSettings;
-	NoteHeaderOutlineSettings.OutlineSize = 1.f;
+	NoteHeaderOutlineSettings.OutlineSize = 1;
 	NoteHeaderStyle.SetFont(DEFAULT_FONT("Regular", 12.f, NoteHeaderOutlineSettings));
 	NoteHeaderStyle.SetColorAndOpacity(FSlateColor(FStyleColors::White));
 	FInlineEditableTextBlockStyle NoteHeaderInlineEditableStyle;

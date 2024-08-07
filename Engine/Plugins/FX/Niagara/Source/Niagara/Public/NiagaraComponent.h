@@ -69,17 +69,17 @@ class UNiagaraComponent : public UFXSystemComponent
 public:
 
 	/********* UFXSystemComponent *********/
-	NIAGARA_API void SetBoolParameter(FName ParameterName, bool Param) override;
-	NIAGARA_API void SetIntParameter(FName ParameterName, int Param) override;
-	NIAGARA_API void SetFloatParameter(FName ParameterName, float Param) override;
-	NIAGARA_API void SetVectorParameter(FName ParameterName, FVector Param) override;
-	NIAGARA_API void SetColorParameter(FName ParameterName, FLinearColor Param) override;
-	NIAGARA_API void SetActorParameter(FName ParameterName, class AActor* Param) override;
+	NIAGARA_API virtual void SetBoolParameter(FName ParameterName, bool Param) override;
+	NIAGARA_API virtual void SetIntParameter(FName ParameterName, int Param) override;
+	NIAGARA_API virtual void SetFloatParameter(FName ParameterName, float Param) override;
+	NIAGARA_API virtual void SetVectorParameter(FName ParameterName, FVector Param) override;
+	NIAGARA_API virtual void SetColorParameter(FName ParameterName, FLinearColor Param) override;
+	NIAGARA_API virtual void SetActorParameter(FName ParameterName, class AActor* Param) override;
 
 	NIAGARA_API virtual UFXSystemAsset* GetFXSystemAsset() const override;
-	NIAGARA_API void SetEmitterEnable(FName EmitterName, bool bNewEnableState) override;
-	NIAGARA_API void ReleaseToPool() override;
-	NIAGARA_API uint32 GetApproxMemoryUsage() const override;
+	NIAGARA_API virtual void SetEmitterEnable(FName EmitterName, bool bNewEnableState) override;
+	NIAGARA_API virtual void ReleaseToPool() override;
+	NIAGARA_API virtual uint32 GetApproxMemoryUsage() const override;
 	NIAGARA_API virtual void ActivateSystem(bool bFlagAsJustAttached = false) override;
 	/********* UFXSystemComponent *********/
 

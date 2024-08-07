@@ -51,9 +51,9 @@ int32 FNiagaraStackItemPropertyHeaderValue::GetEnumValue() const
 			}
 			else
 			{
-				ValuePtr = (uint8*)OwnerObject + EnumProperty->GetOffset_ForInternal();
+				ValuePtr = reinterpret_cast<uint8*>(OwnerObject) + EnumProperty->GetOffset_ForInternal();
 			}
-			EnumValueCache = EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr);
+			EnumValueCache = static_cast<uint32>(EnumProperty->GetUnderlyingProperty()->GetSignedIntPropertyValue(ValuePtr));
 		}
 		else
 		{

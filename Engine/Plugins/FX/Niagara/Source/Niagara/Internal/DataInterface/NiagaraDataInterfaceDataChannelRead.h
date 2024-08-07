@@ -212,8 +212,12 @@ private:
 	float Scale = 1.0f;
 
 public:
-	uint32 Get()const { return Count * Scale; }
-	
+	uint32 Get() const
+	{
+		float Value = Count * Scale;
+		return static_cast<uint32>(Value > MAX_int32 ? MAX_int32 : Value);
+	}
+
 	void SetCount(uint32 NewCount) { Count = NewCount; }
 	void Append(uint32 NewCount) { Count += NewCount; }
 	void SetScale(float NewScale) { Scale = NewScale; }

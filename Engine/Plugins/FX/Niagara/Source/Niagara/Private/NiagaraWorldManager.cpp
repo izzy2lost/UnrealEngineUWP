@@ -1530,7 +1530,7 @@ FVector::FReal FNiagaraWorldManager::GetLODDistance(FVector Location)const
 			const FVector::FReal DistanceToEffectSqr = FVector(ViewInfo.ViewToWorld.GetOrigin() - Location).SizeSquared();
 			LODDistanceSqr = FMath::Min(LODDistanceSqr, DistanceToEffectSqr);
 		}
-		LODDistance = FVector::FReal(FMath::Sqrt(LODDistanceSqr));
+		LODDistance = FMath::Sqrt(LODDistanceSqr);
 	}
 	else
 	{
@@ -1871,11 +1871,11 @@ void FNiagaraWorldManager::ViewBasedCulling(UNiagaraEffectType* EffectType, cons
 	float TimeSinceInsideView = 0.0f;
 	if (bInsideAnyView)
 	{
-		OutState.LastVisibleTime = World->GetTimeSeconds();
+		OutState.LastVisibleTime = static_cast<float>(World->GetTimeSeconds());
 	}
 	else
 	{
-		TimeSinceInsideView = World->GetTimeSeconds() - OutState.LastVisibleTime;
+		TimeSinceInsideView = static_cast<float>(World->GetTimeSeconds() - OutState.LastVisibleTime);
 	}
 
 	bool bCullByOutsideViewFrustum = ScalabilitySettings.VisibilityCulling.bCullByViewFrustum &&
@@ -1883,7 +1883,6 @@ void FNiagaraWorldManager::ViewBasedCulling(UNiagaraEffectType* EffectType, cons
 		TimeSinceInsideView > ScalabilitySettings.VisibilityCulling.MaxTimeOutsideViewFrustum;
 
 	//Check for the component having been rendered recently. If the app doesn't have focus we skip this to avoid issues when alt-tabbing away from the game/editor.
-	float TimeSinceWorldRendered = World->GetTimeSeconds() - World->LastRenderTime;	
 	bool bCullByNotRendered =	bAppHasFocus && 
 								ScalabilitySettings.VisibilityCulling.bCullWhenNotRendered && 
 		ComponentTimeSinceRendered > ScalabilitySettings.VisibilityCulling.MaxTimeWithoutRender;

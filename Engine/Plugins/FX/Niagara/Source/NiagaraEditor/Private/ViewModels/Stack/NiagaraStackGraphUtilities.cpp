@@ -196,8 +196,8 @@ void FNiagaraStackGraphUtilities::RelayoutGraph(UEdGraph& Graph)
 			for (UEdGraphNode* Node : TraversalLevel)
 			{
 				Node->Modify();
-				Node->NodePosX = CurrentXOffset;
-				Node->NodePosY = CurrentYOffset;
+				Node->NodePosX = FMath::RoundToInt(CurrentXOffset);
+				Node->NodePosY = FMath::RoundToInt(CurrentYOffset);
 				int NumInputPins = 0;
 				int NumOutputPins = 0;
 				for (UEdGraphPin* Pin : Node->GetAllPins())

@@ -768,7 +768,7 @@ void FNiagaraSystemInstance::Reset(EResetMode Mode)
 	// Wait for any async operations, can complete the system
 	WaitForConcurrentTickAndFinalize();
 
-	LastRenderTime = World->GetTimeSeconds();
+	LastRenderTime = static_cast<float>(World->GetTimeSeconds());
 
 	SetPaused(false);
 
@@ -1827,7 +1827,8 @@ float FNiagaraSystemInstance::GetLODDistance()
 	const FVector EffectLocation = WorldTransform.GetLocation() + (FVector(LWCTile) * FLargeWorldRenderScalar::GetTileSize());
 	LODDistance = DefaultLODDistance;
 
-	LODDistance = WorldManager->GetLODDistance(EffectLocation);
+	// truncation to float here with precision loss seems ok for LOD distance
+	LODDistance = static_cast<float>(WorldManager->GetLODDistance(EffectLocation));
 
 	bLODDistanceIsValid = true;
 	return LODDistance;

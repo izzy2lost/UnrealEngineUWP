@@ -19,7 +19,7 @@ FNiagaraInputParameterCustomization FNiagaraInputParameterCustomization::MakeFro
 		{
 			FString TypeString = PropertyHandle->GetMetaData(WidgetTypeName);
 			UEnum* TypeEnum = StaticEnum<ENiagaraInputWidgetType>();
-			int32 Value = TypeEnum->GetValueByNameString(TypeString);
+			int32 Value = static_cast<int32>(TypeEnum->GetValueByNameString(TypeString));
 			if (Value != INDEX_NONE)
 			{
 				ParameterCustomization.WidgetType = static_cast<ENiagaraInputWidgetType>(Value);

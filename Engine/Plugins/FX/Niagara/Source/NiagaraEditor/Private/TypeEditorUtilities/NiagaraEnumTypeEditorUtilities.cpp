@@ -140,7 +140,7 @@ void FNiagaraEditorEnumTypeUtilities::UpdateVariableWithDefaultValue(FNiagaraVar
 	checkf(Enum != nullptr, TEXT("Variable is not an enum type."));
 
 	FNiagaraInt32 EnumIntValue;
-	EnumIntValue.Value = Enum->GetValueByIndex(0);
+	EnumIntValue.Value = static_cast<int32>(Enum->GetValueByIndex(0));
 
 	Variable.SetValue<FNiagaraInt32>(EnumIntValue);
 }

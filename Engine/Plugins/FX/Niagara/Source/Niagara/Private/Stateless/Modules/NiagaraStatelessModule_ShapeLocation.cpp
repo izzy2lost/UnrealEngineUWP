@@ -74,7 +74,7 @@ namespace NSMShapeLocationPrivate
 			const float Radius = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, 0, RadiusScale, RadiusBias);
 			const float U = ParticleSimulationContext.RandomScaleBiasFloat(iInstance, 1, UDistributionScale, UDistributionBias);
 	
-			return FVector3f(cos(U) * Radius, sin(U) * Radius, 0.0f);
+			return FVector3f(cosf(U) * Radius, sinf(U) * Radius, 0.0f);
 		}
 	
 		// ENSM_ShapePrimitive::Sphere:
