@@ -207,7 +207,7 @@ IDetailPropertyRow* FDetailLayoutBuilderImpl::EditDefaultProperty(TSharedPtr<IPr
 			{
 				Category = CustomCategoryMap.FindRef(CategoryFName);
 			}
-			else if (!Category.IsValid())
+			if (!Category.IsValid())
 			{
 				Category = SubCategoryMap.FindRef(CategoryFName);
 			}
