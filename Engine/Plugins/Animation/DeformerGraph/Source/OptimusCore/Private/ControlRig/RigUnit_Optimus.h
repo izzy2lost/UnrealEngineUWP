@@ -69,7 +69,7 @@ struct OPTIMUSCORE_API FRigVMTrait_OptimusVariableBase: public FRigVMTrait
 {
 	GENERATED_BODY()
 
-	virtual void SetValue(UOptimusDeformerInstance* InInstance) const PURE_VIRTUAL(FRigVMTrait_OptimusVariableBase::SetValue, {});
+	virtual void SetValue(UOptimusDeformerInstance* InInstance) const {};
 };
 
 USTRUCT(BlueprintType)
