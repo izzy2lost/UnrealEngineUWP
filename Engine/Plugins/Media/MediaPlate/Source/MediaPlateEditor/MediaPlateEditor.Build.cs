@@ -19,6 +19,7 @@ public class MediaPlateEditor : ModuleRules
 			new string[]
 			{
 				"AssetDefinition",
+				"ApplicationCore",
 				"CinematicCamera",
 				"CoreUObject",
 				"DesktopWidgets",

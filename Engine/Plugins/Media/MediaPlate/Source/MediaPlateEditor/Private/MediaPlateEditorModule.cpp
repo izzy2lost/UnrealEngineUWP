@@ -4,6 +4,7 @@
 
 #include "Editor.h"
 #include "EngineAnalytics.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "HoldoutCompositeComponent.h"
 #include "IPlacementModeModule.h"
 #include "ISequencerModule.h"
@@ -17,6 +18,7 @@
 #include "MediaPlateResourceCustomization.h"
 #include "MediaSoundComponent.h"
 #include "MediaSource.h"
+#include "MediaTexture.h"
 #include "Models/MediaPlateEditorCommands.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
@@ -474,6 +476,25 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 								, MediaPlateActor)
 						);
 
+						FUIAction Action_CopyMediaTextureReference(
+							FExecuteAction::CreateLambda([](AMediaPlate* InMediaPlateActor)
+								{
+									if (!IsValid(InMediaPlateActor))
+									{
+										return;
+									}
+
+									if (UMediaPlateComponent* MediaPlateComponent = InMediaPlateActor->MediaPlateComponent)
+									{
+										if (const UMediaTexture* MediaTexture = MediaPlateComponent->GetMediaTexture(0))
+										{
+											FPlatformApplicationMisc::ClipboardCopy(*FAssetData(MediaTexture).GetExportTextName());
+										}
+									}
+								}
+								, MediaPlateActor)
+						);
+
 						MenuBuilder.BeginSection("MediaPlate", LOCTEXT("MediaPlateHeading", "Media Plate"));
 						MenuBuilder.AddMenuEntry(
 							LOCTEXT("AddHoldoutComposite", "Apply Holdout Composite (Preferred)"),
@@ -499,6 +520,14 @@ TSharedRef<FExtender> FMediaPlateEditorModule::ExtendLevelViewportContextMenuFor
 							LOCTEXT("ResetDefaultMats_Tooltip", "Reverts the media plate to its default materials. Note that we also globally disable r.Translucency.ScreenPercentage.Basis if previously enabled."),
 							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
 							Action_ResetDefault
+						);
+
+						MenuBuilder.AddSeparator();
+						MenuBuilder.AddMenuEntry(
+							LOCTEXT("CopyMediaTextureReference", "Copy Media Texture Reference"),
+							LOCTEXT("CopyMediaTextureReference_Tooltip", "Copy Embedded Media Texture Reference to Clipboard."),
+							FSlateIcon(Style->GetStyleSetName(), "ClassIcon.MediaPlate"),
+							Action_CopyMediaTextureReference
 						);
 
 						MenuBuilder.EndSection();
