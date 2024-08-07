@@ -3,6 +3,7 @@
 #include "ChaosCloth/ChaosClothConfig.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Chaos/PBDLongRangeConstraints.h"  // For Tether modes
+#include "Chaos/PBDBendingConstraintsBase.h" // For ERestAngleConstructionType
 #include "GeometryCollection/ManagedArrayCollection.h"
 
 namespace Chaos
@@ -91,6 +92,13 @@ namespace Chaos
 					const int32 BucklingStiffnessIndex = Property->AddProperty(TEXT("BucklingStiffness"), AnimatablePropertyFlags);
 					Property->SetWeightedValue(BucklingStiffnessIndex, ClothConfig->BucklingStiffnessWeighted.Low, ClothConfig->BucklingStiffnessWeighted.High);
 					Property->SetStringValue(BucklingStiffnessIndex, TEXT("BucklingStiffness"));
+
+					const int32 RestAngleTypeIndex = Property->AddProperty(TEXT("RestAngleType"), NonAnimatablePropertyFlags);
+					Property->SetValue(RestAngleTypeIndex, (int32)Chaos::Softs::FPBDBendingConstraintsBase::ERestAngleConstructionType::FlatnessRatio);
+
+					const int32 FlatnessRatioIndex = Property->AddProperty(TEXT("FlatnessRatio"), NonAnimatablePropertyFlags);
+					Property->SetWeightedValue(FlatnessRatioIndex, ClothConfig->FlatnessRatio.Low, ClothConfig->FlatnessRatio.High);
+					Property->SetStringValue(FlatnessRatioIndex, TEXT("FlatnessRatio"));
 				}
 				else  // Not using bending elements
 				{

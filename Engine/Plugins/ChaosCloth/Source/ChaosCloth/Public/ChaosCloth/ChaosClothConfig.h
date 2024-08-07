@@ -161,6 +161,17 @@ public:
 	FChaosClothWeightedValue BucklingStiffnessWeighted = { 1.f, 1.f };
 
 	/**
+	* Calculate rest angles as a ratio between completely flat and whatever is the 3D rest angle.
+	* When FlatnessRatio = 0, the rest angle will match the input mesh..
+	* When FlatnessRatio = 1, the rest angle will be 0 (completely flat).
+	* If an enabled Weight Map (Mask with values in the range [0;1]) targeting the "Flatness Ratio" is added to the cloth, 
+	* then both the Low and High values will be used in conjunction with the per particle Weight stored in the Weight Map to interpolate the final value from them.
+	* Otherwise only the Low value is meaningful and sufficient to enable this constraint.
+	*/
+	UPROPERTY(EditAnywhere, Category = "Material Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1", EditCondition = "bUseBendingElements"))
+	FChaosClothWeightedValue FlatnessRatio = { 0.f, 1.f };
+
+	/**
 	 * The stiffness of the surface area preservation constraints. Increase the iteration count for stiffer materials.
 	 * If an enabled Weight Map (Mask with values in the range [0;1]) targeting the "Bend Stiffness" is added to the cloth, 
 	 * then both the Low and High values will be used in conjunction with the per particle Weight stored in the Weight Map to interpolate the final value from them.
