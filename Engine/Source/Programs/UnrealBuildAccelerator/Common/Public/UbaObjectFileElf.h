@@ -20,4 +20,6 @@ namespace uba
 
 		static UnorderedSymbols PotentiallyDuplicatedSymbols;
 	};
+
+	bool IsElfFile(const u8* data, u64 dataSize);
 }

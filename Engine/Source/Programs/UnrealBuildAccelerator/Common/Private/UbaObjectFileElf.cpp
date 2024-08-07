@@ -112,6 +112,13 @@ namespace uba
 #endif
 	};
 
+	bool IsElfFile(const u8* data, u64 dataSize)
+	{
+		constexpr u8 magic[] = { 0x7f, 'E', 'L', 'F' };
+		return dataSize > 4 && memcmp(data, magic, sizeof(magic)) == 0;
+	}
+
+
 	ObjectFileElf::ObjectFileElf()
 	{
 		m_type = ObjectFileType_Elf;

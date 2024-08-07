@@ -45,4 +45,6 @@ namespace uba
 		static UnorderedSymbols PotentiallyDuplicatedSymbols;
 		static UnorderedSymbols ExportsToKeep;
 	};
+
+	bool IsCoffFile(const u8* data, u64 dataSize);
 }

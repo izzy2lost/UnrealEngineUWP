@@ -5,6 +5,7 @@
 #include "UbaFileAccessor.h"
 #include "UbaObjectFileCoff.h"
 #include "UbaObjectFileElf.h"
+#include "UbaObjectFileLLVMIR.h"
 
 namespace uba
 {
@@ -29,16 +30,19 @@ namespace uba
 
 	ObjectFile* ObjectFile::Parse(Logger& logger, u8* data, u64 dataSize, const tchar* hint)
 	{
-		if (dataSize < 4)
-			return nullptr;
-
 		ObjectFile* objectFile = nullptr;
 
-		constexpr u8 elfMagic[] = { 0x7f, 'E', 'L', 'F' };
-		if (memcmp(data, elfMagic, sizeof(elfMagic)) == 0)
+		if (IsElfFile(data, dataSize))
 			objectFile = new ObjectFileElf();
-		else
+		else if (IsLLVMIRFile(data, dataSize))
+			objectFile = new ObjectFileLLVMIR();
+		else if (IsCoffFile(data, dataSize))
 			objectFile = new ObjectFileCoff();
+		else
+		{
+			logger.Error(TC("Unknown object file format. Maybe msvc FE IL? (%s)"), hint);
+			return nullptr;
+		}
 
 		objectFile->m_data = data;
 		objectFile->m_dataSize = dataSize;

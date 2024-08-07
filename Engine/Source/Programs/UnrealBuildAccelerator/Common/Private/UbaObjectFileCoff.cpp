@@ -174,19 +174,7 @@ namespace uba
 #endif
 	};
 
-	template<typename SymbolType>
-	ObjectFile::StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
-	{
-		if (symbol.N.Name.Short == 0)
-		{
-			auto name = (const char*)(data + stringTableMemPos + symbol.N.Name.Long);
-			return { name, name + strlen(name) };
-		}
-		auto shortName = (char*)symbol.N.ShortName;
-		return { shortName, shortName + strnlen(shortName, ImageSizeofShortName) };
-	}
-
-	bool IsBigObj(u8* data, u64 size)
+	bool IsBigObj(const u8* data, u64 size)
 	{
 		if (size < sizeof(AnonObjectHeaderBigobj))
 			return false;
@@ -201,6 +189,38 @@ namespace uba
 		if (header.ClassID != *(const Guid*)bigObjClassId)
 			return false;
 		return true;
+	}
+
+	bool IsCoffFile(const u8* data, u64 dataSize)
+	{
+		if (IsBigObj(data, dataSize))
+			return true;
+		if (dataSize < sizeof(ImageFileHeader) + 8)
+			return false;
+
+		// TODO: This is not a solid way to identify a coff file.. don't know how this should be done
+		auto header = *(ImageFileHeader*)data;
+		if (header.Machine != 0x8664) // TODO: Add whatever other machines supported (ARM)
+			return false;
+		if (header.SizeOfOptionalHeader != 0) // Should always be 0
+			return false;
+		if (header.Characteristics != 0) // Should always be 0
+			return false;
+		// We expect .text or .drectve sections first.. this is also hacky.. but don't know how to verify that a file is a coff file
+		const u8* firstSection = data + sizeof(ImageFileHeader);
+		return memcmp(firstSection, ".text", 5) == 0 || memcmp(firstSection, ".drectve", 8) == 0;
+	}
+
+	template<typename SymbolType>
+	ObjectFile::StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
+	{
+		if (symbol.N.Name.Short == 0)
+		{
+			auto name = (const char*)(data + stringTableMemPos + symbol.N.Name.Long);
+			return { name, name + strlen(name) };
+		}
+		auto shortName = (char*)symbol.N.ShortName;
+		return { shortName, shortName + strnlen(shortName, ImageSizeofShortName) };
 	}
 
 	ObjectFileCoff::ObjectFileCoff()
