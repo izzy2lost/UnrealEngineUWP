@@ -11,6 +11,7 @@
 #include "ProfilingDebugging/LoadTimeTracker.h"
 #include "ProfilingDebugging/ScopedDebugInfo.h"
 #include "Stats/StatsTrace.h"
+#include "RHIUtilities.h"
 
 #if STATS
 int64 GUITextureMemory = 0;
@@ -250,7 +251,7 @@ void FStreamableTextureResource::RefreshSamplerStates()
 		AddressV,
 		AddressW,
 		MipBias,
-		MaxAniso
+		ComputeAnisotropyRT(MaxAniso) // Need this in case anisotropy is changed at runtime
 	);
 	SamplerStateRHI = GetOrCreateSamplerState(SamplerStateInitializer);
 
