@@ -37,6 +37,8 @@ public:
 
 	int UVLayerIndex = 0;
 	int TextureResolution = 128;
+	bool bPreserveScale = false;
+	bool bPreserveRotation = false;
 	bool bAllowFlips = false;
 	bool bAlwaysSplitBowties = true;
 	float UVScaleFactor = 1.0;
