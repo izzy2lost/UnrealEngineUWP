@@ -635,19 +635,6 @@ bool UTG_Pin::SetValue(FString Value)
 	return false;
 }
 
-bool UTG_Pin::SetValue(FName Value)
-{
-	if (IsArgString())
-	{
-		Modify();
-		EditSelfVar()->EditAs<FString>() = Value.GetPlainNameString();
-		NotifyPinSelfVarChanged();
-
-		return true;
-	}
-	return false;
-}
-
 bool UTG_Pin::SetValue(const FLinearColor& Value)
 {
 	if (IsArgColor())

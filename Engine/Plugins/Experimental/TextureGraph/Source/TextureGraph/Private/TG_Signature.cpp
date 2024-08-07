@@ -21,7 +21,6 @@ bool FTG_Argument::IsBool() const
 bool FTG_Argument::IsString() const
 {
 	return CPPTypeName == TEXT("FString") || 
-		CPPTypeName == TEXT("FName") || 
 		CPPTypeName == TEXT("FText");
 }
 
