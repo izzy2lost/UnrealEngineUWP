@@ -13,6 +13,10 @@
 // When loading SSS checkerboard pixel, do not adjust DiffuseColor/SpecularColor to preserve specular and diffuse lighting values for each pixel
 #define ALLOW_SSS_MATERIAL_OVERRIDE 0
 
+// Disable hair backlit during sample generation as Hair's TT term creates too much false positive: 
+// the TT terms is very strong, and is in most case occluded by underlying geometry (head/body/...)
+#define HAIR_BSDF_BACKLIT 0
+
 #include "../Common.ush"
 #include "../BlueNoise.ush"
 #include "MegaLights.ush"
@@ -338,7 +342,7 @@ void GenerateLightSamplesCS(
 			}
 
 			RWDownsampledSceneDepth[DownsampledScreenCoord] = SceneDepth;
-			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(Material.WorldNormal);
+			RWDownsampledSceneWorldNormal[DownsampledScreenCoord] = EncodeNormal(Material.WorldNormalForPositionBias);
 
 			for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 			{

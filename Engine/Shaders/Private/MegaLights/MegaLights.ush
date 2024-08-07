@@ -26,6 +26,7 @@
 #include "../Substrate/Substrate.ush"
 #include "../Substrate/SubstrateEvaluation.ush"
 #include "../Substrate/SubstrateDeferredLighting.ush"
+#include "../HairStrands/HairStrandsEnvironmentLightingCommon.ush"
 
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
@@ -124,9 +125,11 @@ struct FMegaLightsMaterial
 {
 	float  Depth;
 	float3 WorldNormal;
+	float3 WorldNormalForPositionBias;
 	float  Roughness;
 	bool   bIsValid;
 	bool   bIsSimple;
+	bool   bIsHair;
 	bool   bNeedsSeparateSubsurfaceLightAccumulation;
 	bool   bAllowSpatialFilter;
 
@@ -162,6 +165,7 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 	const FSubstrateTopLayerData TopLayerData = SubstrateUnpackTopLayerData(Substrate.TopLayerTexture.Load(uint3(ScreenCoord, 0)));
 	FMegaLightsMaterial Out = (FMegaLightsMaterial)0;
 	Out.WorldNormal   = TopLayerData.WorldNormal;
+	Out.WorldNormalForPositionBias = TopLayerData.WorldNormal;
 	Out.Depth         = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(ScreenCoord, 0)).r);
 	Out.Roughness     = TopLayerData.Roughness;
 	Out.bAllowSpatialFilter = true;
@@ -177,6 +181,7 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 
 	Out.bIsValid      = SubstratePixelHeader.IsSubstrateMaterial();
 	Out.bIsSimple     = SubstratePixelHeader.ClosureCount == 1;	
+	Out.bIsHair       = SubstratePixelHeader.IsHair();
 	Substrate_for(uint ClosureIndex = 0, ClosureIndex < SubstratePixelHeader.ClosureCount, ++ClosureIndex)
 	{
 		FSubstrateBSDF BSDF = UnpackSubstrateBSDF(Substrate.MaterialTextureArray, SubstrateAddressing, SubstratePixelHeader);
@@ -225,14 +230,25 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 	FMegaLightsMaterial Out = (FMegaLightsMaterial)0;
 	Out.bIsValid      = bIsLit;
 	Out.bIsSimple     = GBuffer.ShadingModelID == SHADINGMODELID_DEFAULT_LIT;
+	Out.bIsHair       = GBuffer.ShadingModelID == SHADINGMODELID_HAIR;
 	Out.bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
 	Out.WorldNormal   = GBuffer.WorldNormal;
+	Out.WorldNormalForPositionBias = GBuffer.WorldNormal;
 	Out.Depth         = GBuffer.Depth;
 	Out.Roughness     = GBuffer.Roughness;
 	Out.DiffuseColor  = GBuffer.DiffuseColor;
 	Out.SpecularColor = GBuffer.SpecularColor;
 	Out.GBuffer       = GBuffer;
 	Out.bAllowSpatialFilter = true;
+
+	if (GBuffer.ShadingModelID == SHADINGMODELID_HAIR)
+	{
+		const float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Out.Depth);
+		const float3 V = -GetCameraVectorFromTranslatedWorldPosition(TranslatedWorldPosition);
+		float3 FakeNormal = normalize(V - Out.WorldNormal * dot(V, Out.WorldNormal));
+		Out.WorldNormalForPositionBias = FakeNormal;
+	}
+
 	return Out;
 }
 #endif
@@ -243,7 +259,16 @@ void DemodulateLighting(FMegaLightsMaterial Material, float3 TranslatedWorldPosi
 	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 	const float NoV = saturate(dot(N, V));
-	const float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
+	float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
+	
+	// Hair should technically use the follow function, but it is expansive and does not improve visuals/stability. 
+	#if 0
+	if (Material.bIsHair)
+	{
+		float3 L = 0;
+		SpecularEnv = EvaluateEnvHair(Material.GBuffer, V, N, L /*out*/);
+	}
+	#endif
 
 	// #ml_todo: demodulate earlier during BRDF evaluation
 	DiffuseLighting = DiffuseLighting / max(Material.DiffuseColor, 0.001f);
@@ -256,7 +281,16 @@ void ModulateLighting(FMegaLightsMaterial Material, float3 TranslatedWorldPositi
 	const float3 N = Material.WorldNormal;
 	const float3 V = normalize(View.TranslatedWorldCameraOrigin - TranslatedWorldPosition);
 	const float NoV = saturate(dot(N, V));
-	const float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
+	float3 SpecularEnv = EnvBRDF(Material.SpecularColor, Material.Roughness, NoV);
+
+	// Hair should technically use the follow function, but it is expansive and does not improve visuals/stability. 
+	#if 0
+	if (Material.bIsHair)
+	{
+		float3 L = 0;
+		SpecularEnv = EvaluateEnvHair(Material.GBuffer, V, N, L /*out*/);
+	}
+	#endif
 
 	// Final pass outputs composites irradiance and outputs it to scene color
 	DiffuseLighting = DiffuseLighting * max(Material.DiffuseColor, 0.001f);

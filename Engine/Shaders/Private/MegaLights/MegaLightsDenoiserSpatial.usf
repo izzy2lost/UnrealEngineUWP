@@ -61,7 +61,7 @@ void DenoiserSpatialCS(
 			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, MegaLightsStateFrameIndex)).xy;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
-			float4 ScenePlane = float4(Material.WorldNormal, dot(TranslatedWorldPosition, Material.WorldNormal));
+			float4 ScenePlane = float4(Material.WorldNormalForPositionBias, dot(TranslatedWorldPosition, Material.WorldNormalForPositionBias));
 
 			// #ml_todo: expose as CVars
 			float MinStdDev = 0.1f;
@@ -87,7 +87,7 @@ void DenoiserSpatialCS(
 
 						// #sdl_todo: separate weight for specular accounting for roughness and expose as CVars
 						// Normal weight
-						float AngleBetweenNormals = acosFast(saturate(dot(ScenePlane.xyz, NeighborMaterial.WorldNormal)));
+						float AngleBetweenNormals = acosFast(saturate(dot(ScenePlane.xyz, NeighborMaterial.WorldNormalForPositionBias)));
 						float NormalWeight = 1.0f - saturate(AngleBetweenNormals);
 
 						// Diffuse

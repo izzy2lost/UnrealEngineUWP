@@ -14,6 +14,10 @@
 #include "ParticipatingMediaCommon.ush"
 #include "ColorSpace.ush"
 
+#ifndef HAIR_BSDF_BACKLIT
+#define HAIR_BSDF_BACKLIT 1
+#endif
+
 #if SHADING_PATH_MOBILE
 #include "MobileGGX.ush"
 
@@ -144,7 +148,7 @@ struct FShadowTerms
 };
 FDirectLighting HairBxDF(FGBufferData GBuffer, half3 N, half3 V, half3 L, float Falloff, half NoL, FAreaLight AreaLight, FShadowTerms Shadow)
 {
-	const float3 BsdfValue = HairShading(GBuffer, L, V, N, Shadow.TransmissionShadow, Shadow.HairTransmittance, 1, 0, uint2(0, 0));
+	const float3 BsdfValue = HairShading(GBuffer, L, V, N, Shadow.TransmissionShadow, Shadow.HairTransmittance, HAIR_BSDF_BACKLIT, 0, uint2(0, 0));
 
 	FDirectLighting Lighting;
 	Lighting.Diffuse = 0;
