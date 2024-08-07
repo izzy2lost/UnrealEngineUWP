@@ -10,12 +10,93 @@
 #include "Math/Float16.h"
 #include "RenderTargetPool.h"
 #include "ClearQuad.h"
-#include "LTC.h"
 #include "Math/PackedVector.h"
 #include "GlobalRenderResources.h"
+#include "Engine/Texture2D.h"
+#include "Engine/Engine.h"
 
 /*-----------------------------------------------------------------------------
-SystemTextures
+ Export System textures (LTC / EnergyConservation / Hair LUT / ...)
+-----------------------------------------------------------------------------*/
+#define EXPORT_SYSTEM_TEXTURES 0
+
+#if EXPORT_SYSTEM_TEXTURES
+#include "LTC.h"
+#include "ImageUtils.h"
+
+static void SaveEXR(const FString& Filename, const FIntPoint& DataSize, const TArray<FFloat16Color>& Data)
+{
+	const FString RelativeFilepath = FPaths::EngineSavedDir() + Filename + TEXT(".exr");
+	const FString AbsoluteFilepath = FPaths::ConvertRelativePathToFull(RelativeFilepath);
+	FImageView ImageView(Data.GetData(), DataSize.X, DataSize.Y);
+	const bool bSucceed = FImageUtils::SaveImageByExtension(*AbsoluteFilepath, ImageView);
+	check(bSucceed)
+}
+
+static void ExportSystemTextures()
+{
+	// LTC Textures	(used by Rect Lights and/or BSDF evaluation)
+	// GGX - LTC matrix coefficients (4-coefficients)
+	{ 
+		const FIntPoint DataSize(GGX_LTC_Size, GGX_LTC_Size);
+		TArray<FFloat16Color> RawPixels;
+		RawPixels.SetNum(DataSize.X * DataSize.Y);
+		for (int32 y = 0; y < GGX_LTC_Size; ++y)
+		{
+			for (int32 x = 0; x < GGX_LTC_Size; ++x)
+			{
+				FFloat16Color& Dest = RawPixels[x + y * DataSize.X];
+				Dest.R = FFloat16(GGX_LTC_Mat[4 * (x + y * GGX_LTC_Size) + 0]);
+				Dest.G = FFloat16(GGX_LTC_Mat[4 * (x + y * GGX_LTC_Size) + 1]);
+				Dest.B = FFloat16(GGX_LTC_Mat[4 * (x + y * GGX_LTC_Size) + 2]);
+				Dest.A = FFloat16(GGX_LTC_Mat[4 * (x + y * GGX_LTC_Size) + 3]);
+			}
+		}
+		SaveEXR(TEXT("GGX_LTCMat"), DataSize, RawPixels);
+	}
+
+	// GGX - Split-Sum Amplitude coefficients (2-components)
+	{
+		const FIntPoint DataSize(GGX_LTC_Size, GGX_LTC_Size);
+		TArray<FFloat16Color> RawPixels;
+		RawPixels.SetNum(DataSize.X * DataSize.Y);
+		for (int32 y = 0; y < GGX_LTC_Size; ++y)
+		{
+			for (int32 x = 0; x < GGX_LTC_Size; ++x)
+			{
+				FFloat16Color& Dest = RawPixels[x + y * DataSize.X];
+				Dest.R = FFloat16(GGX_LTC_Amp[4 * (x + y * GGX_LTC_Size) + 0]);
+				Dest.G = FFloat16(GGX_LTC_Amp[4 * (x + y * GGX_LTC_Size) + 1]);
+				Dest.B = 0;
+				Dest.A = 0;
+			}
+		}
+		SaveEXR(TEXT("GGX_LTCAmp"), DataSize, RawPixels);
+	}
+
+	// Sheen - Matrix & directional albedo (3-components)
+	{
+		const FIntPoint DataSize(Sheen_LTC_Size, Sheen_LTC_Size);
+		TArray<FFloat16Color> RawPixels;
+		RawPixels.SetNum(DataSize.X * DataSize.Y);
+		for (int32 y = 0; y < DataSize.Y; ++y)
+		{
+			for (int32 x = 0; x < DataSize.X; ++x)
+			{
+				FFloat16Color& Dest = RawPixels[x + y * DataSize.X];
+				Dest.R = FFloat16(Sheen_LTC_Volume[x][y][0]);
+				Dest.G = FFloat16(Sheen_LTC_Volume[x][y][1]);
+				Dest.B = FFloat16(Sheen_LTC_Volume[x][y][2]);
+				Dest.A = FFloat16(0);
+			}
+		}
+		SaveEXR(TEXT("Sheen_LTC"), DataSize, RawPixels);
+	}
+}
+#endif // EXPORT_SYSTEM_TEXTURES
+
+/*-----------------------------------------------------------------------------
+ SystemTextures
 -----------------------------------------------------------------------------*/
 
 RDG_REGISTER_BLACKBOARD_STRUCT(FRDGSystemTextures);
@@ -81,6 +162,12 @@ void FSystemTextures::InitializeTextures(FRHICommandListImmediate& RHICmdList, c
 		InitializeFeatureLevelDependentTextures(RHICmdList, InFeatureLevel);
 	}
 	// there's no needed setup for those feature levels lower or identical to the current one
+
+	// Initialized resources depending on GEngine data
+	if (!bEngineDependentTexturesInitialized && GEngine)
+	{
+		InitializeEngineDependentTextures(RHICmdList);
+	}
 }
 
 template <typename DataType>
@@ -102,6 +189,57 @@ void SetDummyTextureArrayData(FRHITexture* Texture, const DataType& DummyData)
 }
 
 const static FLazyName SystemTexturesName(TEXT("FSystemTextures"));
+
+static TRefCountPtr<IPooledRenderTarget> CreateTexture(FRHICommandListImmediate& RHICmdList, TObjectPtr<class UTexture2D>& InCPUTexture, EPixelFormat InFormat, const TCHAR* InName)
+{
+	check(InCPUTexture->Availability == ETextureAvailability::CPU);
+	FSharedImageConstRef Data = InCPUTexture->GetCPUCopy();
+	check(Data && Data->Format == ERawImageFormat::RGBA16F);
+	const TArrayView64<const FFloat16Color> DataView = Data->AsRGBA16F();
+
+	const FIntPoint DataSize(Data->SizeX, Data->SizeY);
+
+	const FRHITextureCreateDesc Desc =
+	FRHITextureCreateDesc::Create2D(InName, DataSize.X, DataSize.Y, InFormat)
+	.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM)
+	.SetClassName(SystemTexturesName);
+
+	FTextureRHIRef Texture = RHICreateTexture(Desc);
+
+	check(InFormat == PF_FloatRGBA || InFormat == PF_G16R16F);
+	const uint32 ComponentCount = InFormat == PF_G16R16F ? 2u: 4u;
+
+	// Write the contents of the texture.
+	uint32 DestStride;
+	uint8* DestBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
+	for (int32 y = 0; y < DataSize.Y; ++y)
+	{
+		for (int32 x = 0; x < DataSize.X; ++x)
+		{
+			uint16* Dest = (uint16*)(DestBuffer + x * ComponentCount * sizeof(uint16) + y * DestStride);
+
+			const FFloat16Color Value = DataView[x + y * DataSize.X];
+			Dest[0] = Value.R.Encoded;
+			if (ComponentCount > 1) { Dest[1] = Value.G.Encoded; }
+			if (ComponentCount > 2) { Dest[2] = Value.B.Encoded; }
+			if (ComponentCount > 3) { Dest[3] = Value.A.Encoded; }
+		}
+	}
+	RHICmdList.UnlockTexture2D(Texture, 0, false);
+
+	// Release CPU data which are no longer needed
+	#if !WITH_EDITORONLY_DATA
+	InCPUTexture->RemoveFromRoot();
+	InCPUTexture = nullptr;
+	#endif
+
+	return CreateRenderTarget(Texture, Desc.DebugName);
+}
+
+static bool IsTextureDataValid(UTexture2D* In)
+{
+	return In && In->GetPlatformData();
+}
 
 void FSystemTextures::InitializeCommonTextures(FRHICommandListImmediate& RHICmdList)
 {
@@ -669,97 +807,6 @@ void FSystemTextures::InitializeFeatureLevelDependentTextures(FRHICommandListImm
 			PerlinNoise3D = CreateRenderTarget(Texture3D, Desc.DebugName);
 
 		} // end Create the PerlinNoise3D texture
-
-		// LTC Textures	(used by Rect Lights and/or BSDF evaluation)
-		{
-			// GGX - LTC matrix coefficients (4-coefficients)
-			{
-				const FRHITextureCreateDesc Desc =
-					FRHITextureCreateDesc::Create2D(TEXT("GGX.LTCMat"), GGX_LTC_Size, GGX_LTC_Size, PF_FloatRGBA)
-					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM)
-					.SetClassName(SystemTexturesName);
-
-				FTextureRHIRef Texture = RHICreateTexture(Desc);
-
-				// Write the contents of the texture.
-				uint32 DestStride;
-				uint8* DestBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
-    
-				for (int32 y = 0; y < GGX_LTC_Size; ++y)
-				{
-					for (int32 x = 0; x < GGX_LTC_Size; ++x)
-					{
-						uint16* Dest = (uint16*)(DestBuffer + x * 4 * sizeof(uint16) + y * DestStride);
-    
-						for (int k = 0; k < 4; k++)
-						{
-							Dest[k] = FFloat16(GGX_LTC_Mat[4 * (x + y * GGX_LTC_Size) + k]).Encoded;
-						}
-					}
-				}
-				RHICmdList.UnlockTexture2D(Texture, 0, false);
-
-				GGXLTCMat = CreateRenderTarget(Texture, Desc.DebugName);
-			}
-
-			// GGX - Split-Sum Amplitude coefficients (2-components)
-			{
-				const FRHITextureCreateDesc Desc =
-					FRHITextureCreateDesc::Create2D(TEXT("GGX.LTCAmp"), GGX_LTC_Size, GGX_LTC_Size, PF_G16R16F)
-					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM)
-					.SetClassName(SystemTexturesName);
-
-				FTextureRHIRef Texture = RHICreateTexture(Desc);
-
-				// Write the contents of the texture.
-				uint32 DestStride;
-				uint8* DestBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
-
-				for (int32 y = 0; y < GGX_LTC_Size; ++y)
-				{
-					for (int32 x = 0; x < GGX_LTC_Size; ++x)
-					{
-						uint16* Dest = (uint16*)(DestBuffer + x * 2 * sizeof(uint16) + y * DestStride);
-
-						for (int k = 0; k < 2; k++)
-						{
-							Dest[k] = FFloat16(GGX_LTC_Amp[4 * (x + y * GGX_LTC_Size) + k]).Encoded;
-						}
-					}
-				}
-				RHICmdList.UnlockTexture2D(Texture, 0, false);
-
-				GGXLTCAmp = CreateRenderTarget(Texture, Desc.DebugName);
-			}
-
-			// Sheen - Matrix & directional albedo (3-components)
-			{
-				const FRHITextureCreateDesc Desc =
-					FRHITextureCreateDesc::Create2D(TEXT("Sheen.LTC"), Sheen_LTC_Size, Sheen_LTC_Size, PF_FloatRGBA)
-					.SetFlags(ETextureCreateFlags::ShaderResource | ETextureCreateFlags::FastVRAM);
-
-				FTextureRHIRef Texture = RHICreateTexture(Desc);
-
-				// Write the contents of the texture.
-				uint32 DestStride;
-				uint8* DestBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
-
-				for (int32 y = 0; y < Sheen_LTC_Size; ++y)
-				{
-					for (int32 x = 0; x < Sheen_LTC_Size; ++x)
-					{
-						uint16* Dest = (uint16*)(DestBuffer + x * 4 * sizeof(uint16) + y * DestStride);
-						Dest[0] = FFloat16(Sheen_LTC_Volume[x][y][0]).Encoded;
-						Dest[1] = FFloat16(Sheen_LTC_Volume[x][y][1]).Encoded;
-						Dest[2] = FFloat16(Sheen_LTC_Volume[x][y][2]).Encoded;
-						Dest[3] = 0;
-					}
-				}
-				RHICmdList.UnlockTexture2D(Texture, 0, false);
-
-				SheenLTC = CreateRenderTarget(Texture, Desc.DebugName);
-			}
-		}
 	}
 
 	// Create the SSAO randomization texture
@@ -942,8 +989,39 @@ void FSystemTextures::InitializeFeatureLevelDependentTextures(FRHICommandListImm
         ZeroUIntArrayAtomicCompatDummy = CreateRenderTarget(Texture, Desc.DebugName);
     }
     
+#if EXPORT_SYSTEM_TEXTURES
+	ExportSystemTextures();
+#endif
+
 	// Initialize textures only once.
 	FeatureLevelInitializedTo = InFeatureLevel;
+}
+
+void FSystemTextures::InitializeEngineDependentTextures(FRHICommandListImmediate& RHICmdList)
+{	
+	if (GEngine)
+	{
+		// LTC Textures	(used by Rect Lights and/or BSDF evaluation)
+
+		// GGX - LTC matrix coefficients (4-coefficients)
+		if (IsTextureDataValid(GEngine->GGXLTCMatTexture))
+		{
+			GGXLTCMat = CreateTexture(RHICmdList, GEngine->GGXLTCMatTexture, PF_FloatRGBA, TEXT("GGX.LTCMat"));
+		}
+		// GGX - Split-Sum Amplitude coefficients (2-components)
+		if (IsTextureDataValid(GEngine->GGXLTCAmpTexture))
+		{
+			GGXLTCAmp = CreateTexture(RHICmdList, GEngine->GGXLTCAmpTexture, PF_G16R16F, TEXT("GGX.LTCAmp"));
+		}
+		// Sheen - Matrix & directional albedo (3-components)
+		if (IsTextureDataValid(GEngine->SheenLTCTexture))
+		{
+			SheenLTC  = CreateTexture(RHICmdList, GEngine->SheenLTCTexture,  PF_FloatRGBA, TEXT("Sheen.LTC"));
+		}
+	}
+
+	// Initialize textures only once.
+	bEngineDependentTexturesInitialized = true;
 }
 
 void FSystemTextures::ReleaseRHI()

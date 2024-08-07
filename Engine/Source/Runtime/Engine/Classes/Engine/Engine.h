@@ -1349,11 +1349,62 @@ public:
 	/** Path of the tiled blue-noise texture */
 	UPROPERTY(globalconfig)
 	FSoftObjectPath BlueNoiseVec2TextureName;
-	
+
+	/** Texture used for GGX LTC integration (Amplitude Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXLTCAmpTexture;
+	/** Path of the texture used for GGX LTC integration (Amplitude Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXLTCAmpTextureName;
+
+	/** Texture used for GGX LTC integration (Matrix Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXLTCMatTexture;
+	/** Path of the texture used for GGX LTC integration (Matrix Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXLTCMatTextureName;
+
+	/** Texture used for Sheen LTC integration (Matrix Texture) */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> SheenLTCTexture;	
+	/** Path of the texture used for Sheen LTC integration (Matrix Texture) */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenLTCTextureName;
+
+	/** Texture used for specular reflection energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXReflectionEnergyTexture;
+	/** Path of the texture used for specular reflection energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXReflectionEnergyTextureName;
+
+	/** Texture used for specular transmission energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> GGXTransmissionEnergyTexture;
+	/** Path of the texture used for specular transmission energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath GGXTransmissionEnergyTextureName;
+		
+	/** Texture used for sheen energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> SheenEnergyTexture;
+	/** Path of the texture used for sheen energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenLegacyEnergyTextureName;		
+	/** Path of the texture used for sheen energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath SheenEnergyTextureName;
+		
+	/** Texture used for rough diffuse energy conservation */
+	UPROPERTY()
+	TObjectPtr<class UTexture2D> DiffuseEnergyTexture;
+	/** Path of the texture used for rough diffuse energy conservation */
+	UPROPERTY(globalconfig)
+	FSoftObjectPath DiffuseEnergyTextureName;
+
 	/** Stable glint BSDF texture */
 	UPROPERTY()
 	TObjectPtr<class UTexture2DArray> GlintTexture;
-	
 	/** Stable glint BSDF texture with more variety to cover slope space and avoid circular artifact */
 	UPROPERTY()
 	TObjectPtr<class UTexture2DArray> GlintTexture2;
@@ -1930,6 +1981,12 @@ public:
 
 	/** Conditionally load this texture for a platform. Always loaded in Editor */
 	ENGINE_API void ConditionallyLoadPreIntegratedSkinBRDFTexture();
+
+	/** Delay loading the LTC texture until it is needed by the renderer. */
+	ENGINE_API void LoadLTCTextures();
+
+	/** Delay loading the energy shading texture until it is needed by the renderer. */
+	ENGINE_API void LoadEnergyTextures();
 
 	/** Delay loading the glint texture until it is needed by the renderer.
 	* This texture is not going to be streamed to be available right away.

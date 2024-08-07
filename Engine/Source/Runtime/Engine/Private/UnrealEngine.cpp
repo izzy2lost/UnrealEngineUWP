@@ -3235,6 +3235,8 @@ void UEngine::InitializeObjectReferences()
 	LoadEngineTexture(WeightMapArrayPlaceholderTexture,  *WeightMapArrayPlaceholderTextureName.ToString());
 	LoadEngineTexture(LightMapDensityTexture, *LightMapDensityTextureName.ToString());
 	ConditionallyLoadPreIntegratedSkinBRDFTexture();
+	LoadLTCTextures();
+	LoadEnergyTextures();
 
 #if WITH_EDITOR
 	// Avoid breaking some engine textures that might be cached very early (i.e. BlueNoise)
@@ -3434,6 +3436,68 @@ void UEngine::ConditionallyLoadPreIntegratedSkinBRDFTexture()
 		if (GIsEditor || (ShadingModelsMask & SkinShadingMask) != 0)
 		{
 			LoadEngineTexture(PreIntegratedSkinBRDFTexture, *PreIntegratedSkinBRDFTextureName.ToString());
+		}
+	}
+}
+
+void UEngine::LoadLTCTextures()
+{
+	static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Substrate"));
+	const bool bSubstrateEnabled = CVar && CVar->GetValueOnAnyThread() > 0;
+
+	const bool bGGX = true;
+	const bool bSheen = bSubstrateEnabled;
+	if (bGGX && GGXLTCAmpTexture == nullptr && GGXLTCAmpTextureName.IsValid())
+	{
+		LoadEngineTexture(GGXLTCAmpTexture, *GGXLTCAmpTextureName.ToString());
+	}
+	if (bGGX && GGXLTCMatTexture == nullptr && GGXLTCMatTextureName.IsValid())
+	{
+		LoadEngineTexture(GGXLTCMatTexture, *GGXLTCMatTextureName.ToString());
+	}
+	if (bSheen && SheenLTCTexture == nullptr && SheenLTCTextureName.IsValid())
+	{
+		LoadEngineTexture(SheenLTCTexture, *SheenLTCTextureName.ToString());
+	}
+}
+
+void UEngine::LoadEnergyTextures()
+{
+	#if RHI_RAYTRACING
+	static const auto CVarPT = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PathTracing"));
+	const bool bPathTracingEnabled = CVarPT && CVarPT->GetValueOnAnyThread() > 0;
+	#else
+	const bool bPathTracingEnabled = false;
+	#endif
+
+	static const auto CVarSubstrate = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Substrate"));
+	const bool bSubstrateEnabled = CVarSubstrate && CVarSubstrate->GetValueOnAnyThread() > 0;
+
+	if ((bPathTracingEnabled || bSubstrateEnabled) && GGXReflectionEnergyTexture == nullptr && GGXReflectionEnergyTextureName.IsValid())
+	{
+		LoadEngineTexture(GGXReflectionEnergyTexture, *GGXReflectionEnergyTextureName.ToString());
+	}
+
+	if (bPathTracingEnabled)
+	{
+		if (GGXTransmissionEnergyTexture == nullptr && GGXTransmissionEnergyTextureName.IsValid())
+		{
+			LoadEngineTexture(GGXTransmissionEnergyTexture, *GGXTransmissionEnergyTextureName.ToString());
+		}
+
+		if (!bSubstrateEnabled && SheenEnergyTexture == nullptr && SheenLegacyEnergyTextureName.IsValid())
+		{
+			LoadEngineTexture(SheenEnergyTexture, *SheenLegacyEnergyTextureName.ToString());
+		}
+
+		if (bSubstrateEnabled && SheenEnergyTexture == nullptr && SheenEnergyTextureName.IsValid())
+		{
+			LoadEngineTexture(SheenEnergyTexture, *SheenEnergyTextureName.ToString());
+		}
+
+		if (bSubstrateEnabled && DiffuseEnergyTexture == nullptr && DiffuseEnergyTextureName.IsValid())
+		{
+			LoadEngineTexture(DiffuseEnergyTexture, *DiffuseEnergyTextureName.ToString());
 		}
 	}
 }

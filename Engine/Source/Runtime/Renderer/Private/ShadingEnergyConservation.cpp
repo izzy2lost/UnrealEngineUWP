@@ -11,6 +11,8 @@
 #include "ScenePrivate.h"
 #include "PixelShaderUtils.h"
 #include "Substrate/Substrate.h"
+#include "Engine/VolumeTexture.h"
+#include "Engine/Engine.h"
 
 static TAutoConsoleVariable<int32> CVarShadingEnergyConservation(
 	TEXT("r.Shading.EnergyConservation"),
@@ -60,38 +62,153 @@ static TAutoConsoleVariable<int32> CVarMaterialEnergyConservation(
 
 namespace ShadingEnergyConservationData
 {
-	#include "ShadingEnergyConservationData.h"
-
-	template<typename TDataType>
-	void LockCopyTexture2D(FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, const TDataType* InSrcBuffer, uint32 NumComponents)
+	static TRefCountPtr<IPooledRenderTarget> CreateTexture2D(FRHICommandListImmediate& RHICmdList, TObjectPtr<class UTexture2D>& InCPUTexture, EPixelFormat InFormat, const TCHAR* InName)
 	{
-		const uint8* SrcBuffer = (const uint8*)InSrcBuffer;
-		const uint32 SrcBytesPerPixel = sizeof(TDataType) * NumComponents;
-
-		uint32 SrcStride = SrcBytesPerPixel * SHADING_ENERGY_CONSERVATION_TABLE_RESOLUTION;
-		uint32 DstStride;
-		uint8* DstBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DstStride, false);
-		for (uint32 y = 0; y < SHADING_ENERGY_CONSERVATION_TABLE_RESOLUTION; ++y)
+		if (!InCPUTexture || !InCPUTexture->GetPlatformData())
 		{
-			const uint8* Src = SrcBuffer + y * SrcStride;
-			uint8* Dst = DstBuffer + y * DstStride;
-			FMemory::Memcpy(Dst, Src, SrcStride);
+			return nullptr;
+		}
+
+		check(InCPUTexture->Availability == ETextureAvailability::CPU);
+		FSharedImageConstRef Data = InCPUTexture->GetCPUCopy();
+		check(Data && Data->Format == ERawImageFormat::RGBA16F);
+		const TArrayView64<const FFloat16Color> DataView = Data->AsRGBA16F();
+
+		const FIntPoint DataSize(Data->SizeX, Data->SizeY);
+		TRefCountPtr<IPooledRenderTarget> OutTexture = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create2D(DataSize, InFormat, FClearValueBinding::None, TexCreate_ShaderResource), InName);
+
+		FTextureRHIRef Texture = OutTexture->GetRHI();
+
+		check(InFormat == PF_G16R16 || InFormat == PF_R8G8 || InFormat == PF_G16 || InFormat == PF_R8);
+		const uint32 ComponentCount = InFormat == PF_G16R16 || InFormat == PF_R8G8 ? 2u: 1u;
+		const bool b8bit = InFormat == PF_R8G8 || InFormat == PF_R8;
+		const uint32 DstBytesPerPixel = (b8bit? 1u : 2u) * ComponentCount;
+
+		// Write the contents of the texture with transcoding
+		uint32 DestStride;
+		uint8* DestBuffer = (uint8*)RHICmdList.LockTexture2D(Texture, 0, RLM_WriteOnly, DestStride, false);
+		for (int32 y = 0; y < DataSize.Y; ++y)
+		{
+			for (int32 x = 0; x < DataSize.X; ++x)
+			{		
+				const FFloat16Color Value = DataView[x + y * DataSize.X];
+				if (b8bit)
+				{
+					uint8* Dest  = (uint8*)(DestBuffer + x * DstBytesPerPixel + y * DestStride);
+					{
+						Dest[0] = uint8(FMath::Clamp(float(Value.R) * 0xFF, 0u, 0xFF));
+					}
+					if (ComponentCount > 1)
+					{
+						Dest[1] = uint8(FMath::Clamp(float(Value.G) * 0xFF, 0u, 0xFF));
+					}
+				}
+				else
+				{
+					uint16* Dest = (uint16*)(DestBuffer + x * DstBytesPerPixel + y * DestStride);
+					{
+						Dest[0] = uint16(FMath::Clamp(float(Value.R) * 0xFFFF, 0u, 0xFFFF));
+					}
+					if (ComponentCount > 1)
+					{
+						Dest[1] = uint16(FMath::Clamp(float(Value.G) * 0xFFFF, 0u, 0xFFFF));
+					}
+				}
+			}
 		}
 		RHICmdList.UnlockTexture2D(Texture, 0, false);
+
+		// Release CPU data which are no longer needed
+		#if !WITH_EDITORONLY_DATA
+		InCPUTexture->RemoveFromRoot();
+		InCPUTexture = nullptr;
+		#endif
+
+		return OutTexture;
 	}
 
-	template<typename TDataType>
-	void LockCopyTexture3D(FRHICommandListImmediate& RHICmdList, FRHITexture* Texture, const TDataType* InSrcBuffer, uint32 NumComponents)
+	static TRefCountPtr<IPooledRenderTarget> CreateTexture3D(FRHICommandListImmediate& RHICmdList, TObjectPtr<class UTexture2D>& InCPUTexture, EPixelFormat InFormat, const TCHAR* InName)
 	{
-		const uint8* SrcBuffer = (const uint8*)InSrcBuffer;
-		const uint32 SrcBytesPerPixel = sizeof(TDataType) * NumComponents;
+		if (!InCPUTexture || !InCPUTexture->GetPlatformData())
+		{
+			return nullptr;
+		}
 
-		const FIntVector Extent(SHADING_ENERGY_CONSERVATION_TABLE_RESOLUTION, SHADING_ENERGY_CONSERVATION_TABLE_RESOLUTION, SHADING_ENERGY_CONSERVATION_TABLE_RESOLUTION);
-		FUpdateTextureRegion3D Region(0, 0, 0, 0, 0, 0, Extent.X, Extent.Y, Extent.Z);
-		RHICmdList.UpdateTexture3D(Texture, 0, Region, Extent.X * SrcBytesPerPixel, Extent.X * Extent.Y * SrcBytesPerPixel, SrcBuffer);
+		check(InCPUTexture->Availability == ETextureAvailability::CPU);
+		FSharedImageConstRef Data = InCPUTexture->GetCPUCopy();
+		#if 0
+		typedef FFloat16Color TColorType;
+		check(Data && Data->Format == ERawImageFormat::RGBA16F);
+		const TArrayView64<const FFloat16Color> DataView = Data->AsRGBA16F();
+		#else
+		typedef FLinearColor TColorType;
+		check(Data && Data->Format == ERawImageFormat::RGBA32F);
+		const TArrayView64<const FLinearColor> DataView = Data->AsRGBA32F();
+		#endif
+
+		// Stored as an array of 2D slices
+		const FIntVector DataSize(Data->SizeX, Data->SizeX, Data->SizeY / Data->SizeX);
+		TRefCountPtr<IPooledRenderTarget> OutTexture = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create3D(DataSize, InFormat, FClearValueBinding::None, TexCreate_ShaderResource), InName);
+
+		FTextureRHIRef Texture = OutTexture->GetRHI();
+
+		check(InFormat == PF_G16R16 || InFormat == PF_R8G8 || InFormat == PF_G16 || InFormat == PF_R8);
+		const uint32 ComponentCount = InFormat == PF_G16R16 || InFormat == PF_R8G8 ? 2u: 1u;
+		const bool b8bit = InFormat == PF_R8G8 || InFormat == PF_R8;
+		const uint32 DstBytesPerPixel = (b8bit? 1u : 2u) * ComponentCount;
+
+		// Transcoded data before uploading data to the GPU
+		TArray<uint8> TranscodedData;
+		TranscodedData.SetNum(DataSize.X * DataSize.Y * DataSize.Z * DstBytesPerPixel);
+		uint32 DestStrideY = DataSize.X * DstBytesPerPixel;
+		uint32 DestStrideZ = DataSize.X * DataSize.Y * DstBytesPerPixel;
+		uint8* DestBuffer = (uint8*)TranscodedData.GetData();
+		for (int32 z = 0; z < DataSize.Z; ++z)
+		{
+			for (int32 y = 0; y < DataSize.Y; ++y)
+			{
+				for (int32 x = 0; x < DataSize.X; ++x)
+				{		
+					const TColorType Value = DataView[x + y * DataSize.X + z * DataSize.X * DataSize.Y];
+					if (b8bit)
+					{
+						uint8* Dest  = (uint8*)(DestBuffer + x * DstBytesPerPixel + y * DestStrideY + z * DestStrideZ);
+						{
+							Dest[0] = uint8(FMath::Clamp(float(Value.R) * 0xFF, 0u, 0xFF));
+						}
+						if (ComponentCount > 1)
+						{
+							Dest[1] = uint8(FMath::Clamp(float(Value.G) * 0xFF, 0u, 0xFF));
+						}
+					}
+					else
+					{
+						uint16* Dest = (uint16*)(DestBuffer + x * DstBytesPerPixel + y * DestStrideY + z * DestStrideZ);
+						{
+							Dest[0] = uint16(FMath::Clamp(float(Value.R) * 0xFFFF, 0u, 0xFFFF));
+						}
+						if (ComponentCount > 1)
+						{
+							Dest[1] = uint16(FMath::Clamp(float(Value.G) * 0xFFFF, 0u, 0xFFFF));
+						}
+					}
+				}
+			}
+		}
+
+		FUpdateTextureRegion3D Region(0, 0, 0, 0, 0, 0, DataSize.X, DataSize.Y, DataSize.Z);
+		RHICmdList.UpdateTexture3D(Texture, 0, Region, DataSize.X * DstBytesPerPixel, DataSize.X * DataSize.Y * DstBytesPerPixel, TranscodedData.GetData());
 
 		// UpdateTexture3D before and after state is currently undefined
 		RHICmdList.Transition(FRHITransitionInfo(Texture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
+
+		// Release CPU data which are no longer needed
+		#if !WITH_EDITORONLY_DATA
+		InCPUTexture->RemoveFromRoot();
+		InCPUTexture = nullptr;
+		#endif
+
+		return OutTexture;
 	}
 }
 
@@ -204,22 +321,6 @@ IMPLEMENT_SHADER_TYPE(, FBuildShadingEnergyConservationTableCS, TEXT("/Engine/Pr
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-struct FTranscode
-{
-	FTranscode(const uint16* InData, uint32 InElementCount)
-	{
-		const uint32 ElementCount = sizeof(ShadingEnergyConservationData::GGXSpecValues) / sizeof(uint16);
-		Data.SetNum(InElementCount);
-		for (uint32 It = 0; It < InElementCount; ++It)
-		{
-			Data[It] = uint8(FMath::Clamp((float(InData[It]) / 65535.f) * 0xFF, 0u, 0xFF));
-		}
-	}
-	TArray<uint8> Data;
-};
-
-#define TRANSCODE_16_TO_8(T) (FTranscode(T, sizeof(T) / sizeof(uint16)).Data.GetData())
-
 namespace ShadingEnergyConservation
 {
 
@@ -230,11 +331,6 @@ bool IsEnable()
 
 void Init(FRDGBuilder& GraphBuilder, FViewInfo& View)
 {
-	FRDGTextureRef GGXSpecEnergyTexture = nullptr;
-	FRDGTextureRef GGXGlassEnergyTexture = nullptr;
-	FRDGTextureRef ClothEnergyTexture = nullptr;
-	FRDGTextureRef DiffuseEnergyTexture = nullptr;
-
 	// Enabled based on settings
 	const bool bMaterialEnergyConservationEnabled = CVarMaterialEnergyConservation.GetValueOnRenderThread() > 0;
 	const bool bIsEnergyConservationEnabled = CVarShadingEnergyConservation.GetValueOnRenderThread() > 0;
@@ -275,10 +371,10 @@ void Init(FRDGBuilder& GraphBuilder, FViewInfo& View)
 
 			if (bRuntimeGeneration)
 			{			
-				GGXSpecEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.GGXSpecEnergy"),   ERDGTextureFlags::MultiFrame);
-				GGXGlassEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create3D(FIntVector(Size, Size, Size), SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.GGXGlassEnergy"),  ERDGTextureFlags::MultiFrame);
-				ClothEnergyTexture		= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.ClothSpecEnergy"), ERDGTextureFlags::MultiFrame);
-				DiffuseEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        DiffFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.DiffuseEnergy"),   ERDGTextureFlags::MultiFrame);
+				FRDGTextureRef GGXSpecEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.GGXSpecEnergy"),   ERDGTextureFlags::MultiFrame);
+				FRDGTextureRef GGXGlassEnergyTexture= GraphBuilder.CreateTexture(FRDGTextureDesc::Create3D(FIntVector(Size, Size, Size), SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.GGXGlassEnergy"),  ERDGTextureFlags::MultiFrame);
+				FRDGTextureRef ClothEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.ClothSpecEnergy"), ERDGTextureFlags::MultiFrame);
+				FRDGTextureRef DiffuseEnergyTexture	= GraphBuilder.CreateTexture(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        DiffFormat, FClearValueBinding::None, TexCreate_ShaderResource | TexCreate_UAV), TEXT("Shading.DiffuseEnergy"),   ERDGTextureFlags::MultiFrame);
 			
 				const uint32 NumSamples = 1u << 14u;
 
@@ -357,46 +453,17 @@ void Init(FRDGBuilder& GraphBuilder, FViewInfo& View)
 				check(SpecFormat == PF_G16R16 || SpecFormat == PF_R8G8);
 				check(DiffFormat == PF_G16 || DiffFormat == PF_R8);
 
-				View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture  = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource), TEXT("Shading.GGXSpecEnergy"));
-				View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create3D(FIntVector(Size, Size, Size), SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource), TEXT("Shading.GGXGlassEnergy"));
-				View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture    = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        SpecFormat, FClearValueBinding::None, TexCreate_ShaderResource), TEXT("Shading.ClothSpecEnergy"));
-				View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture  = GRenderTargetPool.FindFreeElement(FRDGTextureDesc::Create2D(FIntPoint(Size, Size),        DiffFormat,	FClearValueBinding::None, TexCreate_ShaderResource), TEXT("Shading.DiffuseEnergy"));
+				View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture  = ShadingEnergyConservationData::CreateTexture2D(GraphBuilder.RHICmdList, GEngine->GGXReflectionEnergyTexture,   SpecFormat, TEXT("Shading.GGXReflectionEnergy"));
+				View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture = ShadingEnergyConservationData::CreateTexture3D(GraphBuilder.RHICmdList, GEngine->GGXTransmissionEnergyTexture, SpecFormat, TEXT("Shading.GGXTransmissionEnergy"));
+				View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture    = ShadingEnergyConservationData::CreateTexture2D(GraphBuilder.RHICmdList, GEngine->SheenEnergyTexture,           SpecFormat, TEXT("Shading.SheenEnergy"));
+				View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture  = ShadingEnergyConservationData::CreateTexture2D(GraphBuilder.RHICmdList, GEngine->DiffuseEnergyTexture,         DiffFormat, TEXT("Shading.DiffuseEnergy"));
 
-
-				if (bRG16Supported)
-				{
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture->GetRHI(),  ShadingEnergyConservationData::GGXSpecValues, 2);
-					ShadingEnergyConservationData::LockCopyTexture3D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture->GetRHI(), ShadingEnergyConservationData::GGXGlassValues, 2);
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture->GetRHI(),    Substrate::IsSubstrateEnabled() ? ShadingEnergyConservationData::SubstrateClothSpecValues : ShadingEnergyConservationData::ClothSpecValues, 2);
-				}
-				else
-				{
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture->GetRHI(),  TRANSCODE_16_TO_8(ShadingEnergyConservationData::GGXSpecValues), 2);
-					ShadingEnergyConservationData::LockCopyTexture3D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture->GetRHI(), TRANSCODE_16_TO_8(ShadingEnergyConservationData::GGXGlassValues), 2);
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture->GetRHI(),    Substrate::IsSubstrateEnabled() ? TRANSCODE_16_TO_8(ShadingEnergyConservationData::SubstrateClothSpecValues) : TRANSCODE_16_TO_8(ShadingEnergyConservationData::ClothSpecValues), 2);
-				}
-
-				if (bR16Supported)
-				{
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture->GetRHI(),  ShadingEnergyConservationData::DiffuseValues, 1);
-				}
-				else
-				{
-					ShadingEnergyConservationData::LockCopyTexture2D(GraphBuilder.RHICmdList, View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture->GetRHI(),  TRANSCODE_16_TO_8(ShadingEnergyConservationData::DiffuseValues), 1);
-				}
-
-				GGXSpecEnergyTexture  = GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture);
-				GGXGlassEnergyTexture = GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture);
-				ClothEnergyTexture    = GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture);
-				DiffuseEnergyTexture  = GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture);
+				// Fallback
+				if (!View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture ) { View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture  = GSystemTextures.BlackDummy; }
+				if (!View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture) { View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture = GSystemTextures.VolumetricBlackDummy; }
+				if (!View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture   ) { View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture    = GSystemTextures.BlackDummy; }
+				if (!View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture ) { View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture  = GSystemTextures.BlackDummy; }
 			}
-		}
-		else
-		{
-			GGXSpecEnergyTexture	= GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.GGXSpecEnergyTexture);
-			GGXGlassEnergyTexture	= GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.GGXGlassEnergyTexture);
-			ClothEnergyTexture		= GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.ClothEnergyTexture);
-			DiffuseEnergyTexture	= GraphBuilder.RegisterExternalTexture(View.ViewState->ShadingEnergyConservationData.DiffuseEnergyTexture);
 		}
 
 		View.ViewState->ShadingEnergyConservationData.bEnergyConservation = bIsEnergyConservationEnabled;
