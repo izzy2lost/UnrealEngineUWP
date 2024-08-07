@@ -2402,6 +2402,11 @@ private:
 	 *  are still empty.
 	 */
 	void PostLoadRecoverConvertLODModelsToMeshDescription();
+
+	/** 
+	 *  Check if Quality and Platform MinLOD settings are valid 
+	 */
+	void CheckForValidMinLODs(FPerQualityLevelInt& QualityLocalMinLOD, FPerPlatformInt& LocalMinLOD, int32& OutMinAvailableLOD, TArray<TPair<int32, FName>>& OutInvalidMinLODs) const;
 		
 public:
 	/*
