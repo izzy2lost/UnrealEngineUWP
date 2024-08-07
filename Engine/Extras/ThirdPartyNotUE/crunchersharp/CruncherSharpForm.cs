@@ -1592,6 +1592,8 @@ namespace CruncherSharp
 						AddSymbolToTable(symbolInfo);
 					break;
 				case SearchType.UnusedVirtual:
+					if (symbolInfo.Functions == null)
+						break;
 					foreach (var function in symbolInfo.Functions)
 						if (function.UnusedVirtual)
 							if (!_FunctionsToIgnore.Contains(function.Name))
@@ -1602,6 +1604,8 @@ namespace CruncherSharp
 
 					break;
 				case SearchType.MaskingFunction:
+					if (symbolInfo.Functions == null)
+						break;
 					foreach (var function in symbolInfo.Functions)
 						if (function.IsMasking)
 							if (!_FunctionsToIgnore.Contains(function.Name))
@@ -1612,6 +1616,8 @@ namespace CruncherSharp
 
 					break;
 				case SearchType.RemovedInline:
+					if (symbolInfo.Functions == null)
+						break;
 					foreach (var function in symbolInfo.Functions)
 						if (function.WasInlineRemoved)
 							if (!_FunctionsToIgnore.Contains(function.Name))
@@ -1619,7 +1625,6 @@ namespace CruncherSharp
 								AddSymbolToTable(symbolInfo);
 								break;
 							}
-
 					break;
 			}
 		}
