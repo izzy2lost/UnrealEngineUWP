@@ -5171,7 +5171,11 @@ FPropertyAccess::Result FPropertyHandleArray::SetValueFromFormattedString(const 
 			
 			const TSharedRef<IPropertyHandle> Property = GetElement( NumElements - 1 );
 			ensure(!Property->AsStruct());
-			if (Property->IsValidHandle() && Property->SetValueFromFormattedString(Value, Flags) == FPropertyAccess::Fail)
+
+			// Trim ""
+			FString FormattedString = Value.TrimQuotes();
+			
+			if (Property->IsValidHandle() && Property->SetValueFromFormattedString(FormattedString, Flags) == FPropertyAccess::Fail)
 			{
 				Result = FPropertyAccess::Fail;
 			}
