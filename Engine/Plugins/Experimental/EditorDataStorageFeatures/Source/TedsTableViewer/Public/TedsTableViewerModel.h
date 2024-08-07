@@ -6,6 +6,7 @@
 #include "Delegates/Delegate.h"
 #include "Elements/Common/TypedElementHandles.h"
 #include "Templates/SharedPointer.h"
+#include "TypedElementUITypes.h"
 #include "UObject/NameTypes.h"
 
 class ITypedElementDataStorageCompatibilityInterface;
@@ -16,21 +17,9 @@ namespace UE::EditorDataStorage
 {
 	class FTedsTableViewerColumn;
 	class IQueryStackNode_Row;
-	
-	// Struct representing a row in the table viewer's UI
-	struct TedsTableViewerItem
-	{
-		TypedElementDataStorage::RowHandle RowHandle;
 
-		TedsTableViewerItem(TypedElementDataStorage::RowHandle InRowHandle)
-			: RowHandle(InRowHandle)
-		{
-			
-		}
-	};
-	
 	// Typedef for an item in the table viewer
-	typedef TSharedPtr<TedsTableViewerItem> TableViewerItemPtr;
+	using TableViewerItemPtr = UIRowType;
 
 	// Model class for the Teds Table Viewer that can be plugged into any widget that is a UI representation of data in Teds
 	// @see STedsTableViewer

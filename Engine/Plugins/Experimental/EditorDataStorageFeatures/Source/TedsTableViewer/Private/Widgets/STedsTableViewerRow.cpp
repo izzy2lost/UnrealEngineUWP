@@ -23,7 +23,7 @@ namespace UE::EditorDataStorage
 	{
 		if(TSharedPtr<FTedsTableViewerColumn> Column = TableViewerModel->GetColumn(ColumnName))
 		{
-			if(TSharedPtr<SWidget> RowWidget = Column->ConstructRowWidget(Item->RowHandle))
+			if(TSharedPtr<SWidget> RowWidget = Column->ConstructRowWidget(Item))
 			{
 				return SNew(SBox)
 						.MinDesiredHeight(20.0f)

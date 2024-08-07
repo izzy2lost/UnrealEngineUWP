@@ -4,6 +4,11 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Widgets/SCompoundWidget.h"
 
+namespace UE::EditorDataStorage
+{
+	class SRowDetails;
+}
+
 class ISceneOutliner;
 class SSceneOutliner;
 class SHorizontalBox;
@@ -51,6 +56,10 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 
 		// Custom column for the table viewer to display row handles
 		TSharedPtr<UE::EditorDataStorage::FTedsTableViewerColumn> RowHandleColumn;
+
+		// Widget that displays details of a row
+		TSharedPtr<UE::EditorDataStorage::SRowDetails> RowDetailsWidget;
+
 	};
 
 	

@@ -12,6 +12,7 @@
 #include "QueryEditor/TedsQueryEditorModel.h"
 #include "QueryStack/FQueryStackNode_RowView.h"
 #include "Widgets/STedsTableViewer.h"
+#include "Widgets/SRowDetails.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "TedsDebuggerModule"
@@ -31,23 +32,43 @@ void SResultsView::Construct(const FArguments& InArgs, FTedsQueryEditorModel& In
 
 	// Create a custom column for the table viewer to display row handles
 	CreateRowHandleColumn();
-
-	RowQueryStack = MakeShared<UE::EditorDataStorage::FQueryStackNode_RowView>(&TableViewerRows);
+	
+	RowQueryStack = MakeShared<FQueryStackNode_RowView>(&TableViewerRows);
 
 	ChildSlot
 	[
 		SNew(SVerticalBox)
 		+SVerticalBox::Slot()
-		.AutoHeight()
 		[
-			SNew(SWarningOrErrorBox)
-			.MessageStyle(EMessageStyle::Warning)
-			.Message(LOCTEXT("QueryEditor_TableViewUnreliable", "Integration of table view is WIP. Currently Unreliable"))
-		]
-		+SVerticalBox::Slot()
-		[
-			SAssignNew(TableViewer, UE::EditorDataStorage::STedsTableViewer)
-			.QueryStack(RowQueryStack)
+			SNew(SSplitter)
+			+SSplitter::Slot()
+			.Value(0.5f)
+			[
+				SAssignNew(TableViewer, UE::EditorDataStorage::STedsTableViewer)
+				.QueryStack(RowQueryStack)
+				.OnSelectionChanged(STedsTableViewer::FOnSelectionChanged::CreateLambda(
+					[this](TypedElementDataStorage::RowHandle RowHandle)
+						{
+							if(RowDetailsWidget)
+							{
+								if(RowHandle != TypedElementDataStorage::InvalidRowHandle)
+								{
+									RowDetailsWidget->SetRow(RowHandle);
+								}
+								else
+								{
+									RowDetailsWidget->ClearRow();
+								}
+								
+							}
+						}))
+			]
+			+SSplitter::Slot()
+			.Value(0.5f)
+			[
+				SAssignNew(RowDetailsWidget, UE::EditorDataStorage::SRowDetails)
+			]
+			
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()

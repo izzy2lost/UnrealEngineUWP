@@ -103,15 +103,6 @@ protected:
 		TypedElementRowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
 	
-	/** Setup default columns on the widget row
-	 *  TEDS UI TODO - This should be moved to a processor or maybe core TEDS UI
-	 */
-	TYPEDELEMENTFRAMEWORK_API void SetupDebugColumns(
-		TypedElementRowHandle Row,
-		ITypedElementDataStorageInterface* DataStorage,
-		ITypedElementDataStorageUiInterface* DataStorageUi,
-		const TSharedPtr<SWidget>& Widget);
-
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;

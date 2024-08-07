@@ -135,7 +135,6 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 	return ContainerWidget;
 }
 
-
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	TypedElementRowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
@@ -150,7 +149,6 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Widget))
 			{
-				SetupDebugColumns(Row, DataStorage, DataStorageUi, Widget);
 				return Widget;
 			}
 		}
@@ -198,26 +196,4 @@ bool FTypedElementWidgetConstructor::FinalizeWidget(
 	const TSharedPtr<SWidget>& Widget)
 {
 	return true;
-}
-
-void FTypedElementWidgetConstructor::SetupDebugColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, const TSharedPtr<SWidget>& Widget)
-{
-	bool bAddLabelColumn = true;
-
-	const FString WidgetLabel(GetWidgetLabel(Widget));
-
-	// Only add the label column for widgets that are not created for other widgets. This is to prevent recursively displaying widgets for widgets
-	// in the TEDS-Debugger - we only want top level widgets to be displayed
-	if (const FTypedElementRowReferenceColumn* RowReference = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row))
-	{
-		if (DataStorage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(RowReference->Row))
-		{
-			bAddLabelColumn = false;
-		}
-	}
-
-	if(bAddLabelColumn)
-	{
-		DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );
-	}
 }

@@ -13,6 +13,8 @@ namespace UE::EditorDataStorage
 {
 	void STedsTableViewer::Construct(const FArguments& InArgs)
 	{
+		OnSelectionChanged = InArgs._OnSelectionChanged;
+		
 		Model = MakeShared<FTedsTableViewerModel>(InArgs._QueryStack, InArgs._Columns, InArgs._CellWidgetPurposes,
 			FTedsTableViewerModel::FIsItemVisible::CreateSP(this, &STedsTableViewer::IsItemVisible));
 		
@@ -22,7 +24,9 @@ namespace UE::EditorDataStorage
 		ListView = SNew(SListView<TableViewerItemPtr>)
 			.HeaderRow(HeaderRowWidget)
 			.ListItemsSource(&Model->GetItems())
-			.OnGenerateRow(this, &STedsTableViewer::MakeTableRowWidget);
+			.OnGenerateRow(this, &STedsTableViewer::MakeTableRowWidget)
+			.OnSelectionChanged(this, &STedsTableViewer::OnListSelectionChanged)
+			.SelectionMode(ESelectionMode::Single); // We only support single selection for now in the table viewer
 		
 		AssignChildSlot();
 		
@@ -86,6 +90,14 @@ namespace UE::EditorDataStorage
 		});
 
 		AssignChildSlot();
+	}
+
+	void STedsTableViewer::OnListSelectionChanged(TableViewerItemPtr Item, ESelectInfo::Type SelectInfo)
+	{
+		if(OnSelectionChanged.IsBound())
+		{
+			OnSelectionChanged.Execute(Item);
+		}
 	}
 
 	void STedsTableViewer::SetColumns(const TArray<TWeakObjectPtr<const UScriptStruct>>& Columns)

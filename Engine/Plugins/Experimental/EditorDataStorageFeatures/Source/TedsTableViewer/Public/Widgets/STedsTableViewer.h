@@ -27,6 +27,11 @@ namespace UE::EditorDataStorage
 	 */
 	class STedsTableViewer : public SCompoundWidget
 	{
+	public:
+		
+		// Delegate fired when the selection in the table viewer changes
+		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TypedElementDataStorage::RowHandle)
+
 		SLATE_BEGIN_ARGS(STedsTableViewer)
 			: _CellWidgetPurposes({TEXT("General.Cell")})
 		{
@@ -43,6 +48,9 @@ namespace UE::EditorDataStorage
 
 		// The widget purposes to use to create the widgets
 		SLATE_ARGUMENT(TArray<FName>, CellWidgetPurposes)
+		
+		// Delegate called when the selection changes
+		SLATE_ARGUMENT(FOnSelectionChanged, OnSelectionChanged)
 
 		SLATE_END_ARGS()
 
@@ -67,6 +75,8 @@ namespace UE::EditorDataStorage
 
 		void RefreshColumnWidgets();
 
+		void OnListSelectionChanged(TableViewerItemPtr Item, ESelectInfo::Type SelectInfo);
+
 	private:
 
 		// The actual ListView widget that displays the rows
@@ -77,5 +87,8 @@ namespace UE::EditorDataStorage
 
 		// Our model class
 		TSharedPtr<FTedsTableViewerModel> Model;
+
+		// Delegate fired when the selection changes
+		FOnSelectionChanged OnSelectionChanged;
 	};
 }

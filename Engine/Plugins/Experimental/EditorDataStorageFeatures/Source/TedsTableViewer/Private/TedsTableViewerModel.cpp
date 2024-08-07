@@ -44,7 +44,7 @@ namespace UE::EditorDataStorage
 		
 		for(TypedElementDataStorage::RowHandle RowHandle : RowQueryStack->GetOrderedRowList())
 		{
-			Items.Add(MakeShared<TedsTableViewerItem>(RowHandle));
+			Items.Add(RowHandle);
 		}
 
 		CachedRowQueryStackRevision = RowQueryStack->GetRevisionId();
@@ -240,7 +240,7 @@ namespace UE::EditorDataStorage
 		// Table Viewer TODO: We can probably store a map of the items instead but this works for now
 		for(const TableViewerItemPtr& Item : Items)
 		{
-			if(Item->RowHandle == InRowHandle)
+			if(Item == InRowHandle)
 			{
 				return IsItemVisible.Execute(Item);
 			}

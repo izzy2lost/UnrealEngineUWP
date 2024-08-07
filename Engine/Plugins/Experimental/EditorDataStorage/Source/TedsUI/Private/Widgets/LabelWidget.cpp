@@ -216,7 +216,6 @@ TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Result))
 			{
-				SetupDebugColumns(Row, DataStorage, DataStorageUi, Result);
 				return Result;
 			}
 		}
