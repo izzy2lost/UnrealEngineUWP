@@ -60,8 +60,8 @@ public:
 	static void CalculateDifferenceFromParentLOD(int32 LODIndex, TArray<FGenerationLODData>& GenerationLODData);
 
 	// For each LOD :
-	// Check the excluded bones in LOD(N) contain all the bones excluded in LOD(N-1)
-	static bool CheckExcludedBones(const int32 NumLODs
+	// Check the excluded and required bones in LOD(N) contain all the bones excluded in LOD(N-1)
+	static bool CheckExcludedAndRequiredBones(const int32 NumLODs
 		, const TArray<FGenerationLODData>& GenerationLODData
 		, const USkeletalMesh* SkeletalMesh);
 
