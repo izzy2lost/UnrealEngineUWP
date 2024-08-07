@@ -3,6 +3,7 @@
 #include "../Common.ush"
 
 Texture2D<float4> HeterogeneousVolumeRadiance;
+Texture2D<float> HeterogeneousVolumeHoldout;
 RWTexture2D<float4> RWColorTexture;
 int DownsampleFactor;
 
@@ -22,7 +23,16 @@ void HeterogeneousVolumesCompositeCS(
 	float4 Result;
 	float HeterogeneousVolumeTransmittance = HeterogeneousVolumeRadiance[PixelCoord].a;
 	Result.rgb = HeterogeneousVolumeRadiance[PixelCoord].rgb + RWColorTexture[ViewPixelCoord].rgb * HeterogeneousVolumeTransmittance;
+#if POST_PROCESS_ALPHA
+	if (View.RenderingReflectionCaptureMask == 0.0f)
+	{
+		float SurfaceOpacity = RWColorTexture[ViewPixelCoord].a * HeterogeneousVolumeTransmittance;
+		float VolumeOpacity = HeterogeneousVolumeHoldout[PixelCoord];
+		Result.a = SurfaceOpacity + VolumeOpacity;
+	}
+#else
 	Result.a = RWColorTexture[ViewPixelCoord].a * HeterogeneousVolumeTransmittance;
+#endif
 
 	RWColorTexture[ViewPixelCoord] = Result;
 }

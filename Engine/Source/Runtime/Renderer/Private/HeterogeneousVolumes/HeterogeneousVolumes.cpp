@@ -4,6 +4,7 @@
 #include "HeterogeneousVolumeInterface.h"
 
 #include "PixelShaderUtils.h"
+#include "PostProcess/PostProcessing.h"
 #include "RayTracingDefinitions.h"
 #include "RayTracingInstance.h"
 #include "RayTracingInstanceBufferUtil.h"
@@ -612,6 +613,11 @@ namespace HeterogeneousVolumes
 		LightingCacheResolution.Z = FMath::Clamp(LightingCacheResolution.Z, 1, 512);
 		return LightingCacheResolution;
 	}
+
+	bool IsHoldout(const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface)
+	{
+		return IsPostProcessingWithAlphaChannelSupported() && HeterogeneousVolumeInterface->IsHoldout();
+	}
 }
 
 bool ShouldBuildVoxelGrids(const FScene* Scene)
@@ -776,7 +782,8 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 	TRDGUniformBufferRef<FOrthoVoxelGridUniformBufferParameters> OrthoGridUniformBuffer = HeterogeneousVolumes::GetOrthoVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
 	TRDGUniformBufferRef<FFrustumVoxelGridUniformBufferParameters> FrustumGridUniformBuffer = HeterogeneousVolumes::GetFrustumVoxelGridUniformBuffer(GraphBuilder, Views[0].ViewState);
 
-	FRDGTextureRef HeterogeneousVolumeRadiance = nullptr;
+	FRDGTextureRef HeterogeneousVolumeRadiance = GSystemTextures.GetBlackDummy(GraphBuilder);
+	FRDGTextureRef HeterogeneousVolumeHoldout = GSystemTextures.GetBlackDummy(GraphBuilder);
 	if (ShouldRenderHeterogeneousVolumesForAnyView(Views))
 	{
 		FRDGTextureDesc Desc = SceneTextures.Color.Target->Desc;
@@ -784,6 +791,13 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 		Desc.Flags &= ~(TexCreate_FastVRAM);
 		HeterogeneousVolumeRadiance = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolumes"));
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(HeterogeneousVolumeRadiance), FLinearColor::Black);
+
+		if (IsPostProcessingWithAlphaChannelSupported())
+		{
+			Desc.Format = PF_R8;
+			HeterogeneousVolumeHoldout = GraphBuilder.CreateTexture(Desc, TEXT("HeterogeneousVolume.Holdout"));
+			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(HeterogeneousVolumeHoldout), FLinearColor::Black);
+		}
 	}
 
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
@@ -939,13 +953,15 @@ void FDeferredShadingSceneRenderer::RenderHeterogeneousVolumes(
 							// Transmittance accleration
 							LightingCacheTexture,
 							// Output
-							HeterogeneousVolumeRadiance
+							HeterogeneousVolumeRadiance,
+							HeterogeneousVolumeHoldout
 						);
 					}
 				}
 			}
 
 			View.HeterogeneousVolumeRadiance = HeterogeneousVolumeRadiance;
+			View.HeterogeneousVolumeHoldout = HeterogeneousVolumeHoldout;
 		}
 	}
 }
@@ -961,6 +977,7 @@ class FHeterogeneousVolumesCompositeCS : public FGlobalShader
 
 		// Volume data
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, HeterogeneousVolumeRadiance)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, HeterogeneousVolumeHoldout)
 
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
@@ -1021,6 +1038,7 @@ void FDeferredShadingSceneRenderer::CompositeHeterogeneousVolumes(
 				PassParameters->View = View.ViewUniformBuffer;
 				// Volume data
 				PassParameters->HeterogeneousVolumeRadiance = View.HeterogeneousVolumeRadiance;
+				PassParameters->HeterogeneousVolumeHoldout = View.HeterogeneousVolumeHoldout;
 				// Dispatch data
 				PassParameters->GroupCount = GroupCount;
 				PassParameters->DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();

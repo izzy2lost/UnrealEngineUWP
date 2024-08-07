@@ -131,6 +131,7 @@ namespace HeterogeneousVolumes
 	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
 	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
 	float CalcLODFactor(float LOD);
+	bool IsHoldout(const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface);
 
 	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex);
 	bool IsDynamicShadow(const FVisibleLightInfo* VisibleLightInfo);
@@ -512,7 +513,8 @@ void RenderWithLiveShading(
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 );
 
 void RenderWithPreshading(

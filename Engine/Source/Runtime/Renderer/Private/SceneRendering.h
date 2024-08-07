@@ -1426,6 +1426,7 @@ public:
 	FVolumetricFogViewResources VolumetricFogResources;
 
 	FRDGTextureRef HeterogeneousVolumeRadiance = nullptr;
+	FRDGTextureRef HeterogeneousVolumeHoldout = nullptr;
 
 	// Size of the HZB's mipmap 0
 	// NOTE: the mipmap 0 is downsampled version of the depth buffer

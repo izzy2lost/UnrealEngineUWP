@@ -70,6 +70,7 @@ int3 VoxelMin;
 int3 VoxelMax;
 
 // Lighting
+int bHoldout;
 int bApplyEmissionAndTransmittance;
 int bApplyDirectLighting;
 int bApplyShadowTransmittance;
@@ -100,6 +101,7 @@ int DownsampleFactor;
 // Output
 RWTexture2D<float4> RWLightingTexture;
 RWTexture2D<float4> RWVelocityTexture;
+RWTexture2D<float> RWHoldoutTexture;
 
 struct FDebugOutput
 {
@@ -595,11 +597,25 @@ void RenderSingleScatteringWithLiveShading(
 #endif
 
 		// Radiance
+#if POST_PROCESS_ALPHA
+		if (bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+		{
+			Radiance *= 0;
+		}
+#endif
 		RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
+
 		if (bApplyEmissionAndTransmittance)
 		{
 			float Opacity = Luminance(1.0 - Transmittance);
 			RWLightingTexture[PixelCoord].a = Luminance(Transmittance);
+
+#if POST_PROCESS_ALPHA
+			if (bHoldout && View.RenderingReflectionCaptureMask == 0.0f)
+			{
+				RWHoldoutTexture[PixelCoord] += Luminance(PrevTransmittance) - Luminance(Transmittance);
+			}
+#endif
 
 #if DIM_WRITE_VELOCITY
 			bool bWriteVelocity =

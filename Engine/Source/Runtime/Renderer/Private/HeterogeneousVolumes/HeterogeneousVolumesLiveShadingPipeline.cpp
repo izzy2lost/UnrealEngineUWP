@@ -6,6 +6,7 @@
 #include "LightRendering.h"
 #include "LocalVertexFactory.h"
 #include "MeshPassUtils.h"
+#include "PostProcess/PostProcessing.h"
 #include "PixelShaderUtils.h"
 #include "RayTracingDefinitions.h"
 #include "RayTracingInstance.h"
@@ -344,6 +345,7 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 		SHADER_PARAMETER_STRUCT_REF(FBlueNoise, BlueNoise)
 
 		// Light data
+		SHADER_PARAMETER(int, bHoldout)
 		SHADER_PARAMETER(int, bApplyEmissionAndTransmittance)
 		SHADER_PARAMETER(int, bApplyDirectLighting)
 		SHADER_PARAMETER(int, bApplyShadowTransmittance)
@@ -401,6 +403,7 @@ class FRenderSingleScatteringWithLiveShadingCS : public FMeshMaterialShader
 
 		// Output
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWLightingTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWHoldoutTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWVelocityTexture)
 		//SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<Volumes::FDebugOutput>, RWDebugOutputBuffer)
 	END_SHADER_PARAMETER_STRUCT()
@@ -671,7 +674,7 @@ static void RenderLightingCacheWithLiveShading(
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 		// Light data
-		check(LightSceneInfo != nullptr)
+		check(LightSceneInfo != nullptr);
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
 		PassParameters->bApplyDirectLighting = bApplyDirectLighting;
 		PassParameters->bApplyShadowTransmittance = bApplyShadowTransmittance;
@@ -1025,7 +1028,8 @@ void RenderSingleScatteringWithLiveShading(
 	FRDGTextureRef LightingCacheTexture,
 	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeTexture
+	FRDGTextureRef& HeterogeneousVolumeRadianceTexture,
+	FRDGTextureRef& HeterogeneousVolumeHoldoutTexture
 )
 {
 	typedef FRenderSingleScatteringWithLiveShadingCS<DispatchMode> FRenderSingleScatteringWithLiveShadingDispatchTypeCS;
@@ -1073,6 +1077,7 @@ void RenderSingleScatteringWithLiveShading(
 
 		// Light data
 		float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
+		PassParameters->bHoldout = HeterogeneousVolumes::IsHoldout(HeterogeneousVolumeInterface);
 		PassParameters->bApplyEmissionAndTransmittance = bApplyEmissionAndTransmittance;
 		PassParameters->bApplyDirectLighting = bApplyDirectLighting;
 		PassParameters->bApplyShadowTransmittance = bApplyShadowTransmittance;
@@ -1195,7 +1200,11 @@ void RenderSingleScatteringWithLiveShading(
 		}
 
 		// Output
-		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeTexture);
+		PassParameters->RWLightingTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeRadianceTexture);
+		if (IsPostProcessingWithAlphaChannelSupported())
+		{
+			PassParameters->RWHoldoutTexture = GraphBuilder.CreateUAV(HeterogeneousVolumeHoldoutTexture);
+		}
 		if (bWriteVelocity)
 		{
 			PassParameters->RWVelocityTexture = GraphBuilder.CreateUAV(SceneTextures.Velocity);
@@ -1254,7 +1263,8 @@ static void RenderWithTransmittanceVolumePipeline(
 	FRDGTextureRef LightingCacheTexture,
 	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
 	// Light culling
@@ -1346,7 +1356,8 @@ static void RenderWithTransmittanceVolumePipeline(
 				LightingCacheTexture,
 				AmbientOcclusionTexture,
 				// Output
-				HeterogeneousVolumeRadiance
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
 			);
 		}
 		else
@@ -1375,7 +1386,8 @@ static void RenderWithTransmittanceVolumePipeline(
 				LightingCacheTexture,
 				AmbientOcclusionTexture,
 				// Output
-				HeterogeneousVolumeRadiance
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
 			);
 		}
 	}
@@ -1398,67 +1410,72 @@ static void RenderWithInscatteringVolumePipeline(
 	FRDGTextureRef LightingCacheTexture,
 	FRDGTextureRef AmbientOcclusionTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
-	// Light culling
-	TArray<FLightSceneInfoCompact, TInlineAllocator<64>> LightSceneInfoCompact;
-	for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
+	bool bRenderLightingCache = !HeterogeneousVolumes::IsHoldout(HeterogeneousVolumeInterface);
+	if (bRenderLightingCache)
 	{
-		if (LightIt->AffectsPrimitive(HeterogeneousVolumeInterface->GetBounds(), HeterogeneousVolumeInterface->GetPrimitiveSceneProxy()))
+		// Light culling
+		TArray<FLightSceneInfoCompact, TInlineAllocator<64>> LightSceneInfoCompact;
+		for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
 		{
-			LightSceneInfoCompact.Add(*LightIt);
-		}
-	}
-
-	// Light loop:
-	int32 NumPasses = LightSceneInfoCompact.Num();
-	for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
-	{
-		bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
-		bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
-		bool bApplyShadowTransmittance = false;
-
-		uint32 LightType = 0;
-		FLightSceneInfo* LightSceneInfo = nullptr;
-		const FVisibleLightInfo* VisibleLightInfo = nullptr;
-		if (bApplyDirectLighting)
-		{
-			LightType = LightSceneInfoCompact[PassIndex].LightType;
-			LightSceneInfo = LightSceneInfoCompact[PassIndex].LightSceneInfo;
-			check(LightSceneInfo != nullptr);
-
-			bApplyDirectLighting = (LightSceneInfo != nullptr);
-			if (LightSceneInfo)
+			if (LightIt->AffectsPrimitive(HeterogeneousVolumeInterface->GetBounds(), HeterogeneousVolumeInterface->GetPrimitiveSceneProxy()))
 			{
-				VisibleLightInfo = &VisibleLightInfos[LightSceneInfo->Id];
-				bApplyShadowTransmittance = LightSceneInfo->Proxy->CastsVolumetricShadow();
+				LightSceneInfoCompact.Add(*LightIt);
 			}
 		}
 
-		RenderLightingCacheWithLiveShading(
-			GraphBuilder,
-			// Scene data
-			Scene,
-			View,
-			SceneTextures,
-			// Light data
-			bApplyEmissionAndTransmittance,
-			bApplyDirectLighting,
-			bApplyShadowTransmittance,
-			LightType,
-			LightSceneInfo,
-			// Shadow data
-			VisibleLightInfo,
-			VirtualShadowMapArray,
-			// Object data
-			HeterogeneousVolumeInterface,
-			MaterialRenderProxy,
-			PersistentPrimitiveIndex,
-			LocalBoxSphereBounds,
-			// Output
-			LightingCacheTexture
-		);
+		// Light loop:
+		int32 NumPasses = LightSceneInfoCompact.Num();
+		for (int32 PassIndex = 0; PassIndex < NumPasses; ++PassIndex)
+		{
+			bool bApplyEmissionAndTransmittance = (PassIndex == (NumPasses - 1));
+			bool bApplyDirectLighting = !LightSceneInfoCompact.IsEmpty();
+			bool bApplyShadowTransmittance = false;
+
+			uint32 LightType = 0;
+			FLightSceneInfo* LightSceneInfo = nullptr;
+			const FVisibleLightInfo* VisibleLightInfo = nullptr;
+			if (bApplyDirectLighting)
+			{
+				LightType = LightSceneInfoCompact[PassIndex].LightType;
+				LightSceneInfo = LightSceneInfoCompact[PassIndex].LightSceneInfo;
+				check(LightSceneInfo != nullptr);
+
+				bApplyDirectLighting = (LightSceneInfo != nullptr);
+				if (LightSceneInfo)
+				{
+					VisibleLightInfo = &VisibleLightInfos[LightSceneInfo->Id];
+					bApplyShadowTransmittance = LightSceneInfo->Proxy->CastsVolumetricShadow();
+				}
+			}
+
+			RenderLightingCacheWithLiveShading(
+				GraphBuilder,
+				// Scene data
+				Scene,
+				View,
+				SceneTextures,
+				// Light data
+				bApplyEmissionAndTransmittance,
+				bApplyDirectLighting,
+				bApplyShadowTransmittance,
+				LightType,
+				LightSceneInfo,
+				// Shadow data
+				VisibleLightInfo,
+				VirtualShadowMapArray,
+				// Object data
+				HeterogeneousVolumeInterface,
+				MaterialRenderProxy,
+				PersistentPrimitiveIndex,
+				LocalBoxSphereBounds,
+				// Output
+				LightingCacheTexture
+			);
+		}
 	}
 
 	// Direct volume integrator
@@ -1497,7 +1514,8 @@ static void RenderWithInscatteringVolumePipeline(
 				LightingCacheTexture,
 				AmbientOcclusionTexture,
 				// Output
-				HeterogeneousVolumeRadiance
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
 			);
 		}
 		else
@@ -1526,7 +1544,8 @@ static void RenderWithInscatteringVolumePipeline(
 				LightingCacheTexture,
 				AmbientOcclusionTexture,
 				// Output
-				HeterogeneousVolumeRadiance
+				HeterogeneousVolumeRadiance,
+				HeterogeneousVolumeHoldout
 			);
 		}
 	}
@@ -1548,7 +1567,8 @@ void RenderWithLiveShading(
 	// Transmittance acceleration
 	FRDGTextureRef LightingCacheTexture,
 	// Output
-	FRDGTextureRef& HeterogeneousVolumeRadiance
+	FRDGTextureRef& HeterogeneousVolumeRadiance,
+	FRDGTextureRef& HeterogeneousVolumeHoldout
 )
 {
 	FRDGTextureRef AmbientOcclusionTexture;
@@ -1586,7 +1606,8 @@ void RenderWithLiveShading(
 			LightingCacheTexture,
 			AmbientOcclusionTexture,
 			// Output
-			HeterogeneousVolumeRadiance
+			HeterogeneousVolumeRadiance,
+			HeterogeneousVolumeHoldout
 		);
 	}
 	else
@@ -1608,7 +1629,8 @@ void RenderWithLiveShading(
 			LightingCacheTexture,
 			AmbientOcclusionTexture,
 			// Output
-			HeterogeneousVolumeRadiance
+			HeterogeneousVolumeRadiance,
+			HeterogeneousVolumeHoldout
 		);
 	}
 }

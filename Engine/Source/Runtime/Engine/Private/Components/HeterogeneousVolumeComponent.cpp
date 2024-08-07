@@ -107,6 +107,7 @@ FHeterogeneousVolumeSceneProxy::FHeterogeneousVolumeSceneProxy(UHeterogeneousVol
 	HeterogeneousVolumeData.LightingDownsampleFactor = InComponent->LightingDownsampleFactor;
 	HeterogeneousVolumeData.MipBias = InComponent->StreamingMipBias;
 	HeterogeneousVolumeData.bPivotAtCentroid = InComponent->bPivotAtCentroid;
+	HeterogeneousVolumeData.bHoldout = InComponent->bHoldout;
 
 	// Initialize vertex buffer data for a quad
 	StaticMeshVertexBuffers.PositionVertexBuffer.Init(4);

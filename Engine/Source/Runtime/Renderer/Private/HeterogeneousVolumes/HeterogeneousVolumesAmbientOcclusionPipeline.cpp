@@ -737,7 +737,8 @@ void RenderAmbientOcclusionWithLiveShading(
 	FRDGTextureRef& AmbientOcclusionTexture
 )
 {
-	if (!HeterogeneousVolumes::EnableAmbientOcclusion() || !HeterogeneousVolumes::UseIndirectLighting())
+	bool bRenderAmbientOcclusion = HeterogeneousVolumes::EnableAmbientOcclusion() && HeterogeneousVolumes::UseIndirectLighting();
+	if (!bRenderAmbientOcclusion || HeterogeneousVolumeInterface->IsHoldout())
 	{
 		FRDGTextureDesc AmbientOcclusionDesc = FRDGTextureDesc::Create3D(
 			FIntVector(1),
