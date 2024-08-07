@@ -614,11 +614,15 @@ namespace UE
 		Buffer.Reserve(Source->GetClass()->GetStructureSize());
 		FObjectWriter Writer(Buffer);
 		Writer.ArNoDelta = true;
+		Writer.StartSerializingDefaults();
 		Source->GetClass()->SerializeTaggedProperties(Writer, (uint8*)Source, Source->GetClass(), nullptr);
+		Writer.StopSerializingDefaults();
 
 		FObjectReader Reader(Buffer);
 		Reader.ArMergeOverrides = true;
+		Reader.StartSerializingDefaults();
 		Dest->GetClass()->SerializeTaggedProperties(Reader, (uint8*)Dest, Dest->GetClass(), nullptr);
+		Reader.StopSerializingDefaults();
 	}
 
 	static void SetClassFlags(UClass* IDOClass, const UClass* OwnerClass)
