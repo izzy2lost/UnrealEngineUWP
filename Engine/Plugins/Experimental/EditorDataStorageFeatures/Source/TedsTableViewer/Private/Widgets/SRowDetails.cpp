@@ -25,7 +25,7 @@ namespace UE::EditorDataStorage
 	//
 	// SRowDetails
 	//
-	
+
 	void SRowDetails::Construct(const FArguments& InArgs)
 	{
 		bShowAllDetails = InArgs._ShowAllDetails;
@@ -178,6 +178,16 @@ namespace UE::EditorDataStorage
 			return SNew(STextBlock)
 					.Text(LOCTEXT("InvalidColumnType", "Invalid Column Type")); 
 		}
+	}
+
+	// FRowDetailsItem
+	FRowDetailsItem::FRowDetailsItem(const TWeakObjectPtr<const UScriptStruct>& InColumnType,
+		TUniquePtr<FTypedElementWidgetConstructor> InWidgetConstructor, TypedElementDataStorage::RowHandle InRow)
+		: ColumnType(InColumnType)
+		, WidgetConstructor(MoveTemp(InWidgetConstructor))
+		, Row(InRow)
+	{
+	
 	}
 	
 } // namespace UE::EditorDataStorage

@@ -23,6 +23,9 @@ namespace UE::EditorDataStorage
 		
 		TypedElementDataStorage::RowHandle Row = TypedElementDataStorage::InvalidRowHandle;
 		TypedElementDataStorage::RowHandle WidgetRow = TypedElementDataStorage::InvalidRowHandle;
+
+		FRowDetailsItem(const TWeakObjectPtr<const UScriptStruct>& InColumnType, TUniquePtr<FTypedElementWidgetConstructor> InWidgetConstructor,
+			TypedElementDataStorage::RowHandle InRow);
 	};
 	
 	using RowDetailsItemPtr = TSharedPtr<FRowDetailsItem>;
