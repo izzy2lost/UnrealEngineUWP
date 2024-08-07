@@ -590,7 +590,8 @@ void UGameFrameworkComponentManager::SendGameFrameworkComponentExtensionEvent(AA
 {
 	if (UGameFrameworkComponentManager* GFCM = GetForActor(Receiver, bOnlyInGameWorlds))
 	{
-		GFCM->SendExtensionEvent(Receiver, EventName);
+		// bOnlyInGameWorlds and the null check is handled by GetForActor, so skip the check in SendExtensionEvent
+		GFCM->SendExtensionEventInternal(Receiver, EventName);
 	}
 }
 
