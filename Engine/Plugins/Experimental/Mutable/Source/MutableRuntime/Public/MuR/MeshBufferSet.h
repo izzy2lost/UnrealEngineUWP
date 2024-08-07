@@ -11,10 +11,8 @@
 
 namespace mu::MemoryCounters
 {
-	struct MUTABLERUNTIME_API FMeshMemoryCounter
-	{
-		static inline std::atomic<SSIZE_T> Counter{0};
-	};
+	struct FMeshMemoryCounterTag {};
+	using FMeshMemoryCounter = TMemoryCounter<FMeshMemoryCounterTag>;
 }
 
 namespace mu

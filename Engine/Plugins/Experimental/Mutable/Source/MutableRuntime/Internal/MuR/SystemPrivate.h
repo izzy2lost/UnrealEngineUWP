@@ -23,10 +23,8 @@
 
 namespace mu::MemoryCounters
 {
-	struct MUTABLERUNTIME_API  FInternalMemoryCounter
-	{
-		static inline std::atomic<SSIZE_T> Counter {0};
-	};
+	struct FMemoryTrackerInternalMemoryCounterTag {};
+	using FMemoryTrackerInternalMemoryCounter = TMemoryCounter<FMemoryTrackerInternalMemoryCounterTag>;
 }
 
 namespace mu
@@ -219,7 +217,7 @@ namespace mu
 	template<class DATA>
 	class CodeContainer
 	{
-		using MemoryCounter = MemoryCounters::FInternalMemoryCounter;
+		using MemoryCounter = MemoryCounters::FMemoryTrackerInternalMemoryCounter;
 		using ArrayDataContainerType = TArray<DATA, FDefaultMemoryTrackingAllocator<MemoryCounter>>;
 		using MapDataContainerType = TMap<FCacheAddress, DATA, FDefaultMemoryTrackingSetAllocator<MemoryCounter>>;
 
@@ -451,7 +449,7 @@ namespace mu
 	{
 	public:
 
-		using AllocType = FDefaultMemoryTrackingAllocator<MemoryCounters::FInternalMemoryCounter>;
+		using AllocType = FDefaultMemoryTrackingAllocator<MemoryCounters::FMemoryTrackerInternalMemoryCounter>;
 
 		template<class Type, class Alloc = AllocType >
 		using TMemoryTrackedArray = TArray<Type, Alloc>;
@@ -1129,7 +1127,7 @@ namespace mu
     /** Struct to manage all the memory allocated for resources used during mutable operation. */
     struct FWorkingMemoryManager
     {	
-		using MemoryCounter = MemoryCounters::FInternalMemoryCounter;
+		using MemoryCounter = MemoryCounters::FMemoryTrackerInternalMemoryCounter;
 
 		template<class Type>
 		using TMemoryTrackedArray = TArray<Type, FDefaultMemoryTrackingAllocator<MemoryCounter>>;

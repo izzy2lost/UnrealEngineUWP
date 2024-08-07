@@ -25,10 +25,8 @@
 
 namespace mu::MemoryCounters
 {
-	struct MUTABLERUNTIME_API FStreamingMemoryCounter
-	{
-		static inline std::atomic<SSIZE_T> Counter {0};
-	};
+	struct FStreamingMemoryCounterTag {};
+	using  FStreamingMemoryCounter = TMemoryCounter<FStreamingMemoryCounterTag>;
 }
 
 namespace  mu

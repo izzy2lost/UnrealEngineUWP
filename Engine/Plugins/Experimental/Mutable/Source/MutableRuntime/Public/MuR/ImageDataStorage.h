@@ -9,14 +9,10 @@
 #include "Containers/ArrayView.h"
 #include "Containers/StaticArray.h"
 
-#include <atomic>
-
 namespace mu::MemoryCounters
 {
-	struct MUTABLERUNTIME_API FImageMemoryCounter
-	{
-		static inline std::atomic<SSIZE_T> Counter {0};
-	};
+	struct FImageMemoryCounterTag {};
+	using FImageMemoryCounter = TMemoryCounter<FImageMemoryCounterTag>;
 }
 
 namespace mu

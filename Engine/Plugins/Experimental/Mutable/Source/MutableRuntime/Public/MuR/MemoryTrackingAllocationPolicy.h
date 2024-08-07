@@ -11,19 +11,22 @@
 
 namespace mu
 {
-	
-	/**
-	 * CounterType is expected to be of the following form:
-	 * struct FCounterTypeName
-	 * {
-	 *     static inline std::atomic<SSIZE_T> Counter {0}; 		
-	 * };
-	 */
+	template<typename TagType>
+	struct TMemoryCounter
+	{
+		alignas(8) static inline std::atomic<SSIZE_T> Counter{ 0 };
+	};
+
+	template<typename Type>
+	struct TIsAMemoryCounter : std::false_type {};
+
+	template<typename TagType>
+	struct TIsAMemoryCounter<TMemoryCounter<TagType>> : std::true_type {};
 
 	template<typename BaseAlloc, typename CounterType>
-	class TMemoryTrackingAllocatorWrapper
+	class FMemoryTrackingAllocatorWrapper
 	{
-		static_assert(std::is_same_v<decltype(CounterType::Counter.load()), SSIZE_T>, "CounterType::Counter must be signed.");
+		static_assert(TIsAMemoryCounter<CounterType>::value);
 
 	public:
 		using SizeType = typename BaseAlloc::SizeType;
@@ -31,14 +34,7 @@ namespace mu
 		enum { NeedsElementType = BaseAlloc::NeedsElementType };
 		enum { RequireRangeCheck = BaseAlloc::RequireRangeCheck };
 
-		/** 
-		 * ForAnyElementType is privately inherited from the wrapped allocator ForAnyElementType so 
-		 * the base class members must be explicitly defined to compile. This way if any new method 
-		 * is added to the allocator interface, it forces its addition here. This is useful in case 
-		 * the new method needs to do some memory tracking, otherwise a simple using declaration may 
-		 * suffice.
-		 */
-		class ForAnyElementType : private BaseAlloc::ForAnyElementType 
+		class ForAnyElementType 
 		{
 		public:
 			ForAnyElementType() 
@@ -60,9 +56,14 @@ namespace mu
 			ForAnyElementType(const ForAnyElementType&) = delete;
 			ForAnyElementType& operator=(const ForAnyElementType&) = delete;
 
+			FORCEINLINE decltype(auto) GetAllocation() const
+			{
+				return Base.GetAllocation();
+			}
+
 			FORCEINLINE void MoveToEmpty(ForAnyElementType& Other)
 			{
-				BaseAlloc::ForAnyElementType::MoveToEmpty(Other);
+				Base.MoveToEmpty(Other.Base);
 
 				CounterType::Counter.fetch_sub(AllocSize, std::memory_order_relaxed);
 
@@ -80,10 +81,9 @@ namespace mu
 				SIZE_T NumBytesPerElement
 			)
 			{
-				BaseAlloc::ForAnyElementType::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement);
+				Base.ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement);
 
-				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NumElements, NumBytesPerElement); 
-				const SSIZE_T Differential = AllocatedSize - AllocSize;
+				const SSIZE_T Differential = SSIZE_T(NumElements * NumBytesPerElement) - AllocSize;
 				const SSIZE_T PrevCounterValue = CounterType::Counter.fetch_add(Differential, std::memory_order_relaxed);
 				check(PrevCounterValue >= AllocSize);
 
@@ -91,21 +91,19 @@ namespace mu
 				FGlobalMemoryCounter::Update(Differential);
 #endif
 
-				AllocSize = AllocatedSize;
+				AllocSize = NumElements * NumBytesPerElement;
 			}
 
-			template<class T = BaseAlloc>
-			FORCEINLINE typename TEnableIf<TAllocatorTraits<T>::SupportsElementAlignment, void>::Type ResizeAllocation(
+			FORCEINLINE typename TEnableIf<TAllocatorTraits<BaseAlloc>::SupportsElementAlignment, void>::Type ResizeAllocation(
 				SizeType PreviousNumElements,
 				SizeType NumElements,
 				SIZE_T NumBytesPerElement,
 				uint32 AlignmentOfElement
 			)
 			{
-				BaseAlloc::ForAnyElementType::ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement, AlignmentOfElement);
+				Base.ResizeAllocation(PreviousNumElements, NumElements, NumBytesPerElement, AlignmentOfElement);
 
-				const SSIZE_T AllocatedSize = (SSIZE_T)BaseAlloc::ForAnyElementType::GetAllocatedSize(NumElements, NumBytesPerElement); 
-				const SSIZE_T Differential = AllocatedSize - AllocSize;
+				const SSIZE_T Differential = SSIZE_T(NumElements * NumBytesPerElement) - AllocSize;
 				const SSIZE_T PrevCounterValue = CounterType::Counter.fetch_add(Differential, std::memory_order_relaxed);
 				check(PrevCounterValue >= AllocSize);
 
@@ -113,35 +111,104 @@ namespace mu
 				FGlobalMemoryCounter::Update(Differential);
 #endif
 
-				AllocSize = AllocatedSize;
+				AllocSize = NumElements * NumBytesPerElement;
 			}
 
-			// Explicitly incorporate pass-through base allocator member functions.
-			using BaseAlloc::ForAnyElementType::GetAllocation;
-			using BaseAlloc::ForAnyElementType::CalculateSlackReserve;
-			using BaseAlloc::ForAnyElementType::CalculateSlackShrink;
-			using BaseAlloc::ForAnyElementType::CalculateSlackGrow;
-			using BaseAlloc::ForAnyElementType::GetAllocatedSize;
-			using BaseAlloc::ForAnyElementType::HasAllocation;
-			using BaseAlloc::ForAnyElementType::GetInitialCapacity;
+			FORCEINLINE SizeType CalculateSlackReserve(
+				SizeType NumElements,
+				SIZE_T NumBytesPerElement
+			) const
+			{
+				return Base.CalculateSlackReserve(NumElements, NumBytesPerElement);
+			}
+
+			FORCEINLINE typename TEnableIf<TAllocatorTraits<BaseAlloc>::SupportsElementAlignment, SizeType>::Type CalculateSlackReserve(
+				SizeType NumElements,
+				SIZE_T NumBytesPerElement,
+				uint32 AlignmentOfElement
+			) const
+			{
+				return Base.CalculateSlackReserve(NumElements, NumBytesPerElement, AlignmentOfElement);
+			}
+
+			FORCEINLINE SizeType CalculateSlackShrink(
+				SizeType NumElements,
+				SizeType CurrentNumSlackElements,
+				SIZE_T NumBytesPerElement
+			) const
+			{
+				return Base.CalculateSlackShrink(NumElements, CurrentNumSlackElements, NumBytesPerElement);
+			}
+
+			FORCEINLINE typename TEnableIf<TAllocatorTraits<BaseAlloc>::SupportsElementAlignment, SizeType>::Type CalculateSlackShrink(
+				SizeType NumElements,
+				SizeType CurrentNumSlackElements,
+				SIZE_T NumBytesPerElement,
+				uint32 AlignmentOfElement
+			) const
+			{
+				return Base.CalculateSlackShrink(NumElements, CurrentNumSlackElements, NumBytesPerElement, AlignmentOfElement);
+			}
+
+			SizeType CalculateSlackGrow(
+				SizeType NumElements,
+				SizeType CurrentNumSlackElements,
+				SIZE_T NumBytesPerElement
+			) const
+			{
+				return Base.CalculateSlackGrow(NumElements, CurrentNumSlackElements, NumBytesPerElement);
+			}
+
+			FORCEINLINE typename TEnableIf<TAllocatorTraits<BaseAlloc>::SupportsElementAlignment, SizeType>::Type CalculateSlackGrow(
+				SizeType NumElements,
+				SizeType CurrentNumSlackElements,
+				SIZE_T NumBytesPerElement,
+				uint32 AlignmentOfElement
+			) const
+			{
+				return Base.CalculateSlackGrow(NumElements, CurrentNumSlackElements, NumBytesPerElement, AlignmentOfElement);
+			}
+
+			FORCEINLINE SIZE_T GetAllocatedSize(
+				SizeType NumAllocatedElements, 
+				SIZE_T NumBytesPerElement
+			) const
+			{
+				return Base.GetAllocatedSize(NumAllocatedElements, NumBytesPerElement);
+			}
+
+			FORCEINLINE bool HasAllocation() const
+			{
+				return Base.HasAllocation();
+			}
+
+			FORCEINLINE SizeType GetInitialCapacity() const
+			{
+				return Base.GetInitialCapacity();
+			}
 
 #if UE_ENABLE_ARRAY_SLACK_TRACKING
 			FORCEINLINE void SlackTrackerLogNum(SizeType NewNumUsed)
 			{
 				if constexpr (TAllocatorTraits<BaseAlloc>::SupportsSlackTracking)
 				{
-					BaseAlloc::ForElementType::SlackTrackerLogNum(NewNumUsed);	
+					Base.SlackTrackerLogNum(NewNumUsed);
 				}
 			}
 #endif
 
 		private:
+			typename BaseAlloc::ForAnyElementType Base;
 			SSIZE_T AllocSize = 0;
 		};
 
 		template<typename ElementType>
 		class ForElementType : public ForAnyElementType
 		{
+			// Some Allocators, e.g, TAlignedHeapAllocator do some static checks. Instanciate the BaseAlloc::ForElementType
+			// at compile time so those warnings are emitted. 
+			using BaseTypeInstantaitionType = decltype(DeclVal<typename BaseAlloc::template ForElementType<ElementType>>());
+
 		public:
 			ForElementType()
 			{
@@ -152,14 +219,13 @@ namespace mu
 				return (ElementType*)ForAnyElementType::GetAllocation();
 			}
 		};
-
 	};
 
 
-	/** Default memory tracking allocators needed for TArray and TMap. */
+	// Default memory tarcking allocator needed for TArray and TMap.
 
 	template<typename CounterType>
-	using FDefaultMemoryTrackingAllocator = TMemoryTrackingAllocatorWrapper<FDefaultAllocator, CounterType>;
+	using FDefaultMemoryTrackingAllocator = FMemoryTrackingAllocatorWrapper<FDefaultAllocator, CounterType>;
 
 	template<typename CounterType>
 	using FDefaultMemoryTrackingBitArrayAllocator = TInlineAllocator<4, FDefaultMemoryTrackingAllocator<CounterType>>;
@@ -179,8 +245,11 @@ namespace mu
 }
 
 template<typename BaseAlloc, typename Counter>
-struct TAllocatorTraits<mu::TMemoryTrackingAllocatorWrapper<BaseAlloc, Counter>> : public TAllocatorTraits<BaseAlloc>
+struct TAllocatorTraits<mu::FMemoryTrackingAllocatorWrapper<BaseAlloc, Counter>> : public TAllocatorTraitsBase<mu::FMemoryTrackingAllocatorWrapper<BaseAlloc, Counter>>
 {
+	enum { SupportsElementAlignment = TAllocatorTraits<BaseAlloc>::SupportsElementAlignment };
+	enum { SupportsSlackTracking = TAllocatorTraits<BaseAlloc>::SupportsSlackTracking };
 	enum { SupportsMoveFromOtherAllocator = false };
 };
+
 
