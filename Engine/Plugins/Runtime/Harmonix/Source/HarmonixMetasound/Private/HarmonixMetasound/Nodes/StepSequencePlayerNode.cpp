@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "HarmonixMetasound/Nodes/StepSequencePlayerNode.h"
+
 #include "MetasoundExecutableOperator.h"
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
@@ -337,6 +339,8 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 	{
 		MidiOutPin->PrepareBlock();
 
+		CheckForUpdatedSequenceTable();
+
 		// if we have no sequence table there is nothing to do. 
 		// Make sure the notes are all off and return.
 		if (!SequenceTable)
@@ -348,8 +352,6 @@ namespace HarmonixMetasound::Nodes::StepSequencePlayer
 			}
 			return;
 		}
-
-		CheckForUpdatedSequenceTable();
 
 		// We need to cache this to avoid avoid a crash if the value in the 
 		// sequence table asset changes while we are in the middle of rendering. 

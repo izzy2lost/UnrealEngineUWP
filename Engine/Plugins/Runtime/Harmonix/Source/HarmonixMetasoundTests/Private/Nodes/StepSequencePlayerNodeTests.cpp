@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NodeTestGraphBuilder.h"
-#include "HarmonixDsp/AudioBuffer.h"
-#include "HarmonixMetasound/Common.h"
+#include "HarmonixMetasound/DataTypes/MidiStepSequence.h"
+#include "HarmonixMetasound/DataTypes/MidiStream.h"
+#include "HarmonixMetasound/Nodes/StepSequencePlayerNode.h"
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -10,32 +11,103 @@
 namespace HarmonixMetasoundTests::StepSequencePlayerNode
 {
 	using GraphBuilder = Metasound::Test::FNodeTestGraphBuilder;
-	using namespace Metasound;
-	using namespace Metasound::Frontend;
-	using namespace HarmonixMetasound;
 
 	IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-		FStepSequencePlayerCreateNodeTest,
-		"Harmonix.Metasound.Nodes.StepSequencePlayerNode.CreateNode",
+		FStepSequencePlayerNoStuckNotesOnTransposeTest,
+		"Harmonix.Metasound.Nodes.StepSequencePlayerNode.NoStuckNotesOnTranspose",
 		EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-		bool FStepSequencePlayerCreateNodeTest::RunTest(const FString&)
+		bool FStepSequencePlayerNoStuckNotesOnTransposeTest::RunTest(const FString&)
 	{
+		using namespace HarmonixMetasound::Nodes::StepSequencePlayer;
+		
 		// Build the graph.
 		constexpr int32 NumSamplesPerBlock = 256;
-		const TUniquePtr<FMetasoundGenerator> Generator = GraphBuilder::MakeSingleNodeGraph(
-			{ HarmonixMetasound::HarmonixNodeNamespace, "StepSequencePlayer", "" },
-			0,
+		const TUniquePtr<Metasound::FMetasoundGenerator> Generator = GraphBuilder::MakeSingleNodeGraph(
+			GetClassName(),
+			GetCurrentMajorVersion(),
 			48000,
 			NumSamplesPerBlock);
 		UTEST_TRUE("Graph successfully built", Generator.IsValid());
 
-		// execute a block
+		// Start the clock
+		auto ClockInput = Generator->GetInputWriteReference<HarmonixMetasound::FMidiClock>(Inputs::MidiClockName);
+		UTEST_TRUE("Got clock", ClockInput.IsSet());
+		(*ClockInput)->SetTransportState(0, HarmonixMetasound::EMusicPlayerTransportState::Playing);
+
+		// Start the transport
+		auto TransportInput = Generator->GetInputWriteReference<HarmonixMetasound::FMusicTransportEventStream>(Inputs::TransportName);
+		UTEST_TRUE("Got transport", TransportInput.IsSet());
+		(*TransportInput)->AddTransportRequest(HarmonixMetasound::EMusicPlayerTransportRequest::Play, 0);
+
+		// Create a sequence asset with a cell turned on
+		auto SequenceAssetInput = Generator->GetInputWriteReference<HarmonixMetasound::FMidiStepSequenceAsset>(Inputs::SequenceAssetName);
+		UTEST_TRUE("Got sequence asset", SequenceAssetInput.IsSet());
+
+		UMidiStepSequence* SequenceAsset = NewObject<UMidiStepSequence>();
+		SequenceAsset->SetCell(0, 0, true);
+		**SequenceAssetInput = SequenceAsset->CreateProxyData({});
+
+		// Render once, should get a note on in the output
+		(*ClockInput)->PrepareBlock();
+		(*ClockInput)->Advance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
+		Metasound::FAudioBuffer Buffer{ NumSamplesPerBlock };
+		Generator->OnGenerateAudio(Buffer.GetData(), Buffer.Num());
+
+		auto MidiOutput = Generator->GetOutputReadReference<HarmonixMetasound::FMidiStream>(Outputs::MidiStreamName);
+		UTEST_TRUE("Got MIDI output", MidiOutput.IsSet());
+
+		uint8 Channel = Harmonix::Midi::Constants::GNumChannels;
+		uint8 NoteNumber = Harmonix::Midi::Constants::GMaxNote + 1;
+		FMidiVoiceId VoiceId = FMidiVoiceId::None();
+		
+		for (const auto& Event : (*MidiOutput)->GetEventsInBlock())
 		{
-			TAudioBuffer<float> Buffer{ Generator->GetNumChannels(), NumSamplesPerBlock, EAudioBufferCleanupMode::Delete};
-			Generator->OnGenerateAudio(Buffer.GetRawChannelData(0), Buffer.GetNumTotalValidSamples());
+			if (Event.MidiMessage.IsNoteOn())
+			{
+				Channel = Event.MidiMessage.GetStdChannel();
+				NoteNumber = Event.MidiMessage.GetStdData1();
+				VoiceId = Event.GetVoiceId();
+				break;
+			}
 		}
 
-		// No output to validate, finish test
+		UTEST_LESS("Note on: Channel was valid", Channel, Harmonix::Midi::Constants::GNumChannels);
+		UTEST_LESS("Note on: Note number was valid", NoteNumber, Harmonix::Midi::Constants::GMaxNote + 1);
+		UTEST_NOT_EQUAL("Note on: voice id was valid", VoiceId, FMidiVoiceId::None());
+
+		// Transpose and render until we get the note off, it should have the same voice id as the note on
+		auto AdditionalOctavesInput = Generator->GetInputWriteReference<float>(Inputs::AdditionalOctavesName);
+		UTEST_TRUE("Got additional octaves", AdditionalOctavesInput.IsSet());
+
+		constexpr float AdditionalOctaves = 2;
+		**AdditionalOctavesInput = AdditionalOctaves;
+
+		constexpr int32 MaxTries = 1000;
+		bool GotNoteOff = false;
+
+		for (int i = 0; i < MaxTries; ++i)
+		{
+			(*ClockInput)->PrepareBlock();
+			(*ClockInput)->Advance(0, Generator->OperatorSettings.GetNumFramesPerBlock());
+			Generator->OnGenerateAudio(Buffer.GetData(), Buffer.Num());
+
+			for (const auto& Event : (*MidiOutput)->GetEventsInBlock())
+			{
+				if (Event.MidiMessage.IsNoteOff())
+				{
+					UTEST_EQUAL("Correct channel", Event.MidiMessage.GetStdChannel(), Channel);
+					// NB: the actual message doesn't matter for note offs
+					UTEST_EQUAL("Correct voice id", Event.GetVoiceId(), VoiceId);
+					GotNoteOff = true;
+					break;
+				}
+			}
+
+			if (GotNoteOff)
+			{
+				break;
+			}
+		}
 
 		return true;
 	}
