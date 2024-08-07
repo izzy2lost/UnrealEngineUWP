@@ -18,11 +18,12 @@
 
 class UDEditorParameterValue;
 class UMaterial;
+class UMaterialInterface;
 class UMaterialInstanceConstant;
 struct FPropertyChangedEvent;
 
 UCLASS(hidecategories = Object, collapsecategories, MinimalAPI)
-class UMaterialEditorPreviewParameters : public UObject
+class UMaterialEditorPreviewParameters : public UMaterialEditorParameters
 {
 	GENERATED_BODY()
 
@@ -39,13 +40,6 @@ public:
 	UPROPERTY()
 	TObjectPtr<class UMaterial> OriginalMaterial;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY()
-	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredLayerPreviews;
-
-	UPROPERTY()
-	TArray<TObjectPtr<class UMaterialInstanceConstant>> StoredBlendPreviews;
-#endif
 
 	//~ Begin UObject Interface.
 	UNREALED_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
@@ -55,11 +49,13 @@ public:
 	//~ End UObject Interface.
 
 	/** Regenerates the parameter arrays. */
-	UNREALED_API void RegenerateArrays();
+	UNREALED_API void RegenerateArrays() override;
+	
+	TObjectPtr<UMaterialInterface> GetMaterialInterface() override;
 
 protected:
 	/** Copies the parameter array values back to the source instance. */
-	UNREALED_API void CopyToSourceInstance();
+	UNREALED_API void CopyToSourceInstance(const bool bForceStaticPermutationUpdate = false) override;
 
 	UNREALED_API void ApplySourceFunctionChanges();
 

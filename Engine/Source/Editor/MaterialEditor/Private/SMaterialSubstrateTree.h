@@ -32,10 +32,12 @@ class SMaterialSubstrateTree : public STreeView<FSortedParamDataPtr>
 public:
 	SLATE_BEGIN_ARGS(SMaterialSubstrateTree)
 		: _InMaterialEditorInstance(nullptr)
+		, _InGenerator(nullptr)
 	{}
 
-	SLATE_ARGUMENT(UMaterialEditorInstanceConstant*, InMaterialEditorInstance)
+	SLATE_ARGUMENT(UMaterialEditorParameters*, InMaterialEditorInstance)
 	SLATE_ARGUMENT(SMaterialLayersFunctionsInstanceWrapper*, InWrapper)
+	SLATE_ARGUMENT(TSharedPtr<class IPropertyRowGenerator>, InGenerator)
 	SLATE_ARGUMENT(FGetShowHiddenParameters, InShowHiddenDelegate)
 	SLATE_END_ARGS()
 
@@ -69,7 +71,7 @@ public:
 	TSharedPtr<class FAssetThumbnailPool> GetTreeThumbnailPool();
 
 	/** Object that stores all of the possible parameters we can edit */
-	UMaterialEditorInstanceConstant* MaterialEditorInstance;
+	UMaterialEditorParameters* MaterialEditorInstance;
 
 	/** Builds the custom parameter groups category */
 	void CreateGroupsWidget();
@@ -122,7 +124,7 @@ public:
 
 	/** The item content. */
 	SLATE_ARGUMENT(FSortedParamDataPtr, StackParameterData)
-	SLATE_ARGUMENT(UMaterialEditorInstanceConstant*, MaterialEditorInstance)
+	SLATE_ARGUMENT(UMaterialEditorParameters*, MaterialEditorInstance)
 	SLATE_ARGUMENT(SMaterialSubstrateTree*, InTree)
 	SLATE_ATTRIBUTE( FMargin, Padding )
 	SLATE_END_ARGS()
@@ -190,7 +192,7 @@ public:
 
 	SMaterialSubstrateTree* Tree;
 
-	UMaterialEditorInstanceConstant* MaterialEditorInstance;
+	UMaterialEditorParameters* MaterialEditorInstance;
 
 	FString GetInstancePath(SMaterialSubstrateTree* InTree) const;
 };

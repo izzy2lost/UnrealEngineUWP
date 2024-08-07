@@ -401,7 +401,12 @@ FReply SMaterialSubstrateTreeItem::OnLayerDrop(const FDragDropEvent& DragDropEve
 
 			if (OriginalIndex != NewIndex)
 			{
-				Tree->MaterialEditorInstance->SourceInstance->SwapLayerParameterIndices(OriginalIndex, NewIndex);
+				if (Tree->MaterialEditorInstance->GetMaterialInterface()->IsA<UMaterialInstanceConstant>())
+				{
+					UMaterialInstanceConstant* MaterialConstant = Cast<UMaterialInstanceConstant>(Tree->MaterialEditorInstance->GetMaterialInterface());
+					MaterialConstant->SwapLayerParameterIndices(OriginalIndex, NewIndex);	
+				}
+				
 
 				// Need to save the moving and target expansion states before swapping
 				const bool bOriginalSwappableExpansion = IsItemExpanded();
@@ -443,7 +448,7 @@ FGetShowHiddenParameters SMaterialSubstrateTree::GetShowHiddenDelegate() const
 
 void  SMaterialSubstrateTreeItem::OnOverrideParameter(bool NewValue, class UDEditorParameterValue* Parameter)
 {
-	FMaterialPropertyHelpers::OnOverrideParameter(NewValue, Parameter, MaterialEditorInstance);
+	FMaterialPropertyHelpers::OnOverrideParameter(NewValue, Parameter, Cast<UMaterialEditorInstanceConstant>(MaterialEditorInstance));
 }
 
 void  SMaterialSubstrateTreeItem::OnOverrideParameter(bool NewValue, TObjectPtr<UDEditorParameterValue> Parameter)
@@ -826,6 +831,7 @@ void SMaterialSubstrateTree::Construct(const FArguments& InArgs)
 	ColumnSizeData.SetValueColumnWidth(0.5f);
 
 	MaterialEditorInstance = InArgs._InMaterialEditorInstance;
+	Generator = InArgs._InGenerator;
 	Wrapper = InArgs._InWrapper;
 	ShowHiddenDelegate = InArgs._InShowHiddenDelegate;
 	CreateGroupsWidget();
@@ -868,7 +874,14 @@ void SMaterialSubstrateTree::Construct(const FArguments& InArgs)
 }
 void SMaterialSubstrateTree::OnSelectionChangedMaterialSubstrateView(TSharedPtr<FSortedParamData> InSelectedItem, ESelectInfo::Type SelectInfo)
 {
-	MaterialEditorInstance->DetailsView.Pin()->ForceRefresh();
+	if (MaterialEditorInstance->IsA<UMaterialEditorInstanceConstant>())
+	{
+		UMaterialEditorInstanceConstant* MaterialEditorInstanceConstant = Cast<UMaterialEditorInstanceConstant>(MaterialEditorInstance);
+		if (TSharedPtr<IDetailsView> DetailsViewPinned = MaterialEditorInstanceConstant->DetailsView.Pin())
+		{
+			DetailsViewPinned->ForceRefresh();
+		}
+	}
 }
 TSharedRef< ITableRow > SMaterialSubstrateTree::OnGenerateRowMaterialLayersFunctionsTreeView(TSharedPtr<FSortedParamData> Item, const TSharedRef< STableViewBase >& OwnerTable)
 {
@@ -887,19 +900,20 @@ void SMaterialSubstrateTree::OnGetChildrenMaterialLayersFunctionsTreeView(TShare
 
 void SMaterialSubstrateTree::OnExpansionChanged(TSharedPtr<FSortedParamData> Item, bool bIsExpanded)
 {
-	bool* ExpansionValue = MaterialEditorInstance->SourceInstance->LayerParameterExpansion.Find(Item->NodeKey);
+	UMaterialInterface* MaterialInterface = MaterialEditorInstance->GetMaterialInterface();
+	bool* ExpansionValue = MaterialInterface->LayerParameterExpansion.Find(Item->NodeKey);
 	if (ExpansionValue == nullptr)
 	{
-		MaterialEditorInstance->SourceInstance->LayerParameterExpansion.Add(Item->NodeKey, bIsExpanded);
+		MaterialInterface->LayerParameterExpansion.Add(Item->NodeKey, bIsExpanded);
 	}
 	else if (*ExpansionValue != bIsExpanded)
 	{
-		MaterialEditorInstance->SourceInstance->LayerParameterExpansion.Emplace(Item->NodeKey, bIsExpanded);
+		MaterialInterface->LayerParameterExpansion.Emplace(Item->NodeKey, bIsExpanded);
 	}
 	// Expand any children that are also expanded
 	for (auto Child : Item->Children)
 	{
-		bool* ChildExpansionValue = MaterialEditorInstance->SourceInstance->LayerParameterExpansion.Find(Child->NodeKey);
+		bool* ChildExpansionValue = MaterialInterface->LayerParameterExpansion.Find(Child->NodeKey);
 		if (ChildExpansionValue != nullptr && *ChildExpansionValue == true)
 		{
 			SetItemExpansion(Child, true);
@@ -909,11 +923,13 @@ void SMaterialSubstrateTree::OnExpansionChanged(TSharedPtr<FSortedParamData> Ite
 
 void SMaterialSubstrateTree::SetParentsExpansionState()
 {
+	UMaterialInterface* MaterialInterface = MaterialEditorInstance->GetMaterialInterface();
+	
 	for (const auto& Pair : LayerProperties)
 	{
 		if (Pair->Children.Num())
 		{
-			bool* bIsExpanded = MaterialEditorInstance->SourceInstance->LayerParameterExpansion.Find(Pair->NodeKey);
+			bool* bIsExpanded = MaterialInterface->LayerParameterExpansion.Find(Pair->NodeKey);
 			if (bIsExpanded)
 			{
 				SetItemExpansion(Pair, *bIsExpanded);
@@ -941,10 +957,13 @@ void SMaterialSubstrateTree::RefreshOnAssetChange(const struct FAssetData& InAss
 
 void SMaterialSubstrateTree::ResetAssetToDefault(TSharedPtr<FSortedParamData> InData)
 {
-	FMaterialPropertyHelpers::ResetLayerAssetToDefault(InData->Parameter, InData->ParameterInfo.Association, InData->ParameterInfo.Index, MaterialEditorInstance);
-	UpdateThumbnailMaterial(InData->ParameterInfo.Association, InData->ParameterInfo.Index, false);
-	CreateGroupsWidget();
-	RequestTreeRefresh();
+	if (MaterialEditorInstance->IsA<UMaterialEditorInstanceConstant>())
+	{
+		FMaterialPropertyHelpers::ResetLayerAssetToDefault(InData->Parameter, InData->ParameterInfo.Association, InData->ParameterInfo.Index, Cast<UMaterialEditorInstanceConstant>(MaterialEditorInstance));
+		UpdateThumbnailMaterial(InData->ParameterInfo.Association, InData->ParameterInfo.Index, false);
+		CreateGroupsWidget();
+		RequestTreeRefresh();
+	}
 }
 
 void SMaterialSubstrateTree::AddNodeLayer(int32 InParent)
@@ -977,8 +996,14 @@ void SMaterialSubstrateTree::RemoveNodeLayer(int32 InNodeId)
 	auto NodePayload = FunctionInstance->GetNodePayload(InNodeId);
 
 	FunctionInstance->RemoveLayerNodeAt(InNodeId);
-	
-	MaterialEditorInstance->SourceInstance->RemoveLayerParameterIndex(NodePayload.Layer);
+	if (MaterialEditorInstance->IsA<UMaterialEditorInstanceConstant>())
+	{
+		UMaterialEditorInstanceConstant* MaterialEditorInstanceConstant = Cast<UMaterialEditorInstanceConstant>(MaterialEditorInstance);
+		if (MaterialEditorInstanceConstant && MaterialEditorInstanceConstant->SourceInstance)
+		{
+			MaterialEditorInstanceConstant->SourceInstance->RemoveLayerParameterIndex(NodePayload.Layer);
+		}
+	}
 	FunctionInstanceHandle->NotifyPostChange(EPropertyChangeType::ArrayRemove);
 	CreateGroupsWidget();
 	RequestTreeRefresh();
@@ -1007,7 +1032,7 @@ FReply SMaterialSubstrateTree::RelinkLayersToParent()
 
 EVisibility SMaterialSubstrateTree::GetUnlinkLayerVisibility(int32 Index) const
 {
-	if (FunctionInstance->IsLayerLinkedToParent(Index))
+	if (FunctionInstance->IsLayerLinkedToParent(Index) && MaterialEditorInstance->IsA<UMaterialEditorInstanceConstant>())
 	{
 		return EVisibility::Visible;
 	}
@@ -1186,13 +1211,17 @@ void SMaterialSubstrateTree::RecursiveCreateWidgets(FRecursiveCreateWidgetsConte
 void SMaterialSubstrateTree::CreateGroupsWidget()
 {
 	check(MaterialEditorInstance);
-	MaterialEditorInstance->RegenerateArrays();
+	if (MaterialEditorInstance->IsA<UMaterialEditorInstanceConstant>())
+	{
+		MaterialEditorInstance->RegenerateArrays();
+	}
 	NonLayerProperties.Empty();
 	LayerProperties.Empty();
 	FunctionParameter = nullptr;
 	TSharedPtr<IPropertyHandle> FunctionParameterHandle;
 
 	FPropertyEditorModule& Module = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
 	if (!Generator.IsValid())
 	{
 		FPropertyRowGeneratorArgs Args;
@@ -1214,7 +1243,7 @@ void SMaterialSubstrateTree::CreateGroupsWidget()
 		Objects.Add(MaterialEditorInstance);
 		Generator->SetObjects(Objects);
 	}
-
+	
 
 	TSharedPtr<IDetailTreeNode> ParameterGroups = FindParameterGroupsNode(Generator);
 	if (ParameterGroups.IsValid())

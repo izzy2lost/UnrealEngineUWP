@@ -109,6 +109,11 @@ void FMaterialLayersFunctionsCustomization::RebuildChildren()
 void FMaterialLayersFunctionsCustomization::GenerateHeaderRowContent(FDetailWidgetRow& NodeRow)
 {
 
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	// early out if the new prototype is enabled as we only want to edit FMaterialLayersFunctions through the new Substrate tree UI
+	return;
+#endif
+	
 	TAttribute<bool>::FGetter IsResetButtonEnabledDelegate = TAttribute<bool>::FGetter::CreateSP(this, &FMaterialLayersFunctionsCustomization::IsResetToDefaultVisible);
 	TAttribute<bool> IsEnabledAttribute = TAttribute<bool>::Create(IsResetButtonEnabledDelegate);
 
@@ -145,6 +150,11 @@ void FMaterialLayersFunctionsCustomization::GenerateHeaderRowContent(FDetailWidg
 
 void FMaterialLayersFunctionsCustomization::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	// early out if the new prototype is enabled as we only want to edit FMaterialLayersFunctions through the new Substrate tree UI
+	return;
+#endif
+	
 	uint32 LayerChildren;
 	LayerHandle->GetNumChildren(LayerChildren);
 	uint32 BlendChildren;

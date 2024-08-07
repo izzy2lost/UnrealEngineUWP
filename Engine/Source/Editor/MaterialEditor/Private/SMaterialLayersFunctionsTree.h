@@ -102,26 +102,33 @@ class SMaterialLayersFunctionsInstanceWrapper : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SMaterialLayersFunctionsInstanceWrapper)
 		: _InMaterialEditorInstance(nullptr),
+		_InGenerator(nullptr),
 		_InShowHiddenDelegate()
 	{}
 
-	SLATE_ARGUMENT(UMaterialEditorInstanceConstant*, InMaterialEditorInstance)
+	SLATE_ARGUMENT(UMaterialEditorParameters*, InMaterialEditorInstance)
+	SLATE_ARGUMENT(TSharedPtr<class IPropertyRowGenerator>, InGenerator)
 	SLATE_ARGUMENT(FGetShowHiddenParameters, InShowHiddenDelegate)
 
 	SLATE_END_ARGS()
 	void Refresh();
 	void Construct(const FArguments& InArgs);
-	void SetEditorInstance(UMaterialEditorInstanceConstant* InMaterialEditorInstance);
-
+	void SetEditorInstance(UMaterialEditorParameters* InMaterialEditorInstance);
+	
+	TSharedPtr<class IPropertyRowGenerator> GetGenerator();
 	TAttribute<ECheckBoxState> IsParamChecked;
 	TWeakObjectPtr<class UDEditorParameterValue> LayerParameter;
-	class UMaterialEditorInstanceConstant* MaterialEditorInstance;
+	class UMaterialEditorParameters* MaterialEditorInstance;
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
 	TSharedPtr<class SMaterialSubstrateTree> NestedTree;
 #else
 	TSharedPtr<class SMaterialLayersFunctionsInstanceTree> NestedTree;
 #endif
 	FSimpleDelegate OnLayerPropertyChanged;
+	
+	
+private:
+	TWeakPtr<class IPropertyRowGenerator> Generator;
 };
 
 class SMaterialLayersFunctionsInstanceTree : public STreeView<TSharedPtr<FSortedParamData>>

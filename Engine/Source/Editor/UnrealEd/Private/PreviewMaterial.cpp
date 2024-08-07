@@ -257,6 +257,35 @@ void UMaterialEditorPreviewParameters::PostEditChangeProperty(FPropertyChangedEv
 		FProperty* PropertyThatChanged = PropertyChangedEvent.Property;
 		if (OriginalFunction == nullptr)
 		{
+			bool bLayersParameterChanged = false;
+			// If a material layers parameter changed we need to update it on the source instance
+			// immediately so parameters contained within the new functions can be collected
+			for (FEditorParameterGroup& Group : ParameterGroups)
+			{
+				for (UDEditorParameterValue* Parameter : Group.Parameters)
+				{
+					if (UDEditorMaterialLayersParameterValue* LayersParam = Cast<UDEditorMaterialLayersParameterValue>(Parameter))
+					{
+						UMaterialExpressionMaterialAttributeLayers* LayersNode = nullptr;
+						for(UMaterialExpression* Expression : PreviewMaterial->GetExpressions())
+						{
+							if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
+							{
+								LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+								LayersNode->DefaultLayers = LayersParam->ParameterValue;
+								bLayersParameterChanged = true;
+								break;
+							}
+						}
+					}
+				}
+			}
+
+			if (bLayersParameterChanged)
+			{
+				RegenerateArrays();
+			}
+			
 			CopyToSourceInstance();
 			PreviewMaterial->PostEditChangeProperty(PropertyChangedEvent);
 		}
@@ -396,6 +425,7 @@ void UMaterialEditorPreviewParameters::RegenerateArrays()
 			break;
 		}
 	}
+
 	if (ParameterDefaultGroups.Num() > 0)
 	{
 		ParameterGroups.Append(ParameterDefaultGroups);
@@ -403,11 +433,17 @@ void UMaterialEditorPreviewParameters::RegenerateArrays()
 
 }
 
-void UMaterialEditorPreviewParameters::CopyToSourceInstance()
+TObjectPtr<UMaterialInterface> UMaterialEditorPreviewParameters::GetMaterialInterface()
+{
+	return Cast<UMaterialInterface>(PreviewMaterial);
+}
+
+void UMaterialEditorPreviewParameters::CopyToSourceInstance(const bool bForceStaticPermutationUpdate/* = false*/)
 {
 	if (PreviewMaterial->IsTemplate(RF_ClassDefaultObject) == false && OriginalMaterial != nullptr)
 	{
 		OriginalMaterial->MarkPackageDirty();
+
 		// Scalar Parameters
 		for (int32 GroupIdx = 0; GroupIdx < ParameterGroups.Num(); GroupIdx++)
 		{
@@ -421,6 +457,19 @@ void UMaterialEditorPreviewParameters::CopyToSourceInstance()
 					if (Parameter->GetValue(EditorValue))
 					{
 						PreviewMaterial->SetParameterValueEditorOnly(Parameter->ParameterInfo.Name, EditorValue);
+					}
+					else if (UDEditorMaterialLayersParameterValue* LayersParameter = Cast<UDEditorMaterialLayersParameterValue>(Parameter))
+					{
+						// find material expression material attribute layer and update it's default/param layers
+						for(UMaterialExpression* Expression : PreviewMaterial->GetExpressions())
+						{
+							if(Expression->IsA<UMaterialExpressionMaterialAttributeLayers>())
+							{
+								UMaterialExpressionMaterialAttributeLayers* LayersNode = Cast<UMaterialExpressionMaterialAttributeLayers>(Expression);
+								LayersNode->DefaultLayers = LayersParameter->ParameterValue;
+								break;
+							}
+						}
 					}
 				}
 			}
@@ -584,6 +633,16 @@ void  UMaterialEditorInstanceConstant::AssignParameterToGroup(UDEditorParameterV
 	CurrentGroup.GroupAssociation = ParameterValue->ParameterInfo.Association;
 	ParameterValue->SetFlags(RF_Transactional);
 	CurrentGroup.Parameters.Add(ParameterValue);
+}
+
+TObjectPtr<UMaterialInterface> UMaterialEditorInstanceConstant::GetMaterialInterface()
+{
+	return Cast<UMaterialInterface>(SourceInstance);
+}
+
+TObjectPtr<UMaterialInterface> UMaterialEditorInstanceConstant::GetParentMaterialInterface()
+{
+	return SourceInstance ? SourceInstance->Parent : nullptr;
 }
 
 void UMaterialEditorInstanceConstant::RegenerateArrays()

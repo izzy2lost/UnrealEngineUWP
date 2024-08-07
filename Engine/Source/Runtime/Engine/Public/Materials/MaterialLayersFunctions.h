@@ -352,7 +352,7 @@ struct FMaterialLayersFunctionsRuntimeData
 	TArray<TObjectPtr<class UMaterialFunctionInterface>> Blends;
 
 	// ENABLE_MATERIAL_LAYER_PROTOTYPE : UProperty describing the tree data structure
-	UPROPERTY(EditAnywhere, Category = MaterialLayers)
+	UPROPERTY()
 	FMaterialLayersFunctionsTree Tree;
 
 	FMaterialLayersFunctionsRuntimeData() = default;

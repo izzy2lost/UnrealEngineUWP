@@ -1023,6 +1023,12 @@ void FMaterialEditor::UpdateGenerator()
 		TArray<UObject*> Objects;
 		Objects.Add(MaterialEditorInstance);
 		Generator->SetObjects(Objects);
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+		if (MaterialLayersFunctionsInstance.IsValid())
+		{
+		 	MaterialLayersFunctionsInstance->SetEditorInstance(MaterialEditorInstance);
+		}
+#endif
 	}
 }
 
@@ -1756,10 +1762,15 @@ void FMaterialEditor::CreateInternalWidgets()
 	Generator->OnRowsRefreshed().AddSP(this, &FMaterialEditor::GeneratorRowsRefreshed);
 	MaterialCustomPrimitiveDataWidget = SNew(SMaterialCustomPrimitiveDataPanel, MaterialEditorInstance);
 
-	MaterialLayersFunctionsInstance = SNew(SMaterialLayersFunctionsMaterialWrapper)
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
+	MaterialLayersFunctionsInstance = SNew(SMaterialLayersFunctionsInstanceWrapper)
 		.InMaterialEditorInstance(MaterialEditorInstance)
 		.InGenerator(Generator);
-
+#else
+	MaterialLayersFunctionsInstance = SNew(SMaterialLayersFunctionsMaterialWrapper)
+			.InMaterialEditorInstance(MaterialEditorInstance)
+			.InGenerator(Generator);
+#endif
 	Palette = SNew(SMaterialPalette, SharedThis(this));
 
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
@@ -1871,10 +1882,12 @@ void FMaterialEditor::OnChangeBreadCrumbGraph(UEdGraph* InGraph)
 void FMaterialEditor::GeneratorRowsRefreshed()
 {
 	MaterialParametersOverviewWidget->Refresh();
+#ifndef ENABLE_MATERIAL_LAYER_PROTOTYPE
 	if (MaterialLayersFunctionsInstance)
 	{
 		MaterialLayersFunctionsInstance->Refresh();
 	}
+#endif
 }
 
 FName FMaterialEditor::GetToolkitFName() const

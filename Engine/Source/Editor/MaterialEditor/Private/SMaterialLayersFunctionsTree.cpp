@@ -1783,16 +1783,16 @@ void SMaterialLayersFunctionsInstanceWrapper::Refresh()
 	TSharedPtr<SHorizontalBox> HeaderBox;
 	NestedTree->CreateGroupsWidget();
 	LayerParameter = NestedTree->FunctionParameter;
-	FOnClicked 	OnChildButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, ImplicitConv<UMaterialInterface*>(MaterialEditorInstance->SourceInstance), ImplicitConv<UObject*>(MaterialEditorInstance));
-	FOnClicked	OnSiblingButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->SourceInstance->Parent, ImplicitConv<UObject*>(MaterialEditorInstance));
+	FOnClicked 	OnChildButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->GetMaterialInterface(), ImplicitConv<UObject*>(MaterialEditorInstance));
+	FOnClicked	OnSiblingButtonClicked = FOnClicked::CreateStatic(&FMaterialPropertyHelpers::OnClickedSaveNewMaterialInstance, MaterialEditorInstance->GetParentMaterialInterface(), ImplicitConv<UObject*>(MaterialEditorInstance));
 
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
 	const float ThumbnailSize = 64.0f;
 	TSharedPtr<SBox> ThumbnailBox;
-	UObject* ThumbnailObject = MaterialEditorInstance->SourceInstance.Get();
+	UObject* ThumbnailObject = MaterialEditorInstance->GetMaterialInterface().Get();
 	const TSharedPtr<FAssetThumbnail> AssetThumbnail = MakeShareable(new FAssetThumbnail(ThumbnailObject, ThumbnailSize, ThumbnailSize, NestedTree->GetTreeThumbnailPool()));
 	TSharedRef<SWidget> ThumbnailWidget = AssetThumbnail->MakeThumbnailWidget();
-	FText MaterialName = FText::FromName(MaterialEditorInstance->SourceInstance->GetFName());
+	FText MaterialName = FText::FromName(MaterialEditorInstance->GetMaterialInterface()->GetFName());
 	
 #endif
 	
@@ -1946,11 +1946,12 @@ void SMaterialLayersFunctionsInstanceWrapper::Construct(const FArguments& InArgs
 #if ENABLE_MATERIAL_LAYER_PROTOTYPE
 	NestedTree = SNew(SMaterialSubstrateTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
+		.InGenerator(InArgs._InGenerator)
 		.InWrapper(this)
 		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
 #else
 	NestedTree = SNew(SMaterialLayersFunctionsInstanceTree)
-		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
+		.InMaterialEditorInstance(Cast<UMaterialEditorInstanceConstant>(InArgs._InMaterialEditorInstance))
 		.InWrapper(this)
 		.InShowHiddenDelegate(InArgs._InShowHiddenDelegate);
 #endif
@@ -1963,10 +1964,20 @@ void SMaterialLayersFunctionsInstanceWrapper::Construct(const FArguments& InArgs
 
 }
 
-void SMaterialLayersFunctionsInstanceWrapper::SetEditorInstance(UMaterialEditorInstanceConstant* InMaterialEditorInstance)
+void SMaterialLayersFunctionsInstanceWrapper::SetEditorInstance(UMaterialEditorParameters* InMaterialEditorInstance)
 {
+#if ENABLE_MATERIAL_LAYER_PROTOTYPE
 	NestedTree->MaterialEditorInstance = InMaterialEditorInstance;
+#else
+	NestedTree->MaterialEditorInstance = Cast<UMaterialEditorInstanceConstant>(InMaterialEditorInstance);
+#endif
+	
 	Refresh();
+}
+
+TSharedPtr<IPropertyRowGenerator> SMaterialLayersFunctionsInstanceWrapper::GetGenerator()
+{
+	return Generator.Pin();
 }
 
 
@@ -3232,9 +3243,11 @@ void SMaterialLayersFunctionsMaterialWrapper::Construct(const FArguments& InArgs
 	TSharedPtr<IPropertyRowGenerator> InGenerator = InArgs._InGenerator;
 	Generator = InGenerator;
 
+
 	NestedTree = SNew(SMaterialLayersFunctionsMaterialTree)
 		.InMaterialEditorInstance(InArgs._InMaterialEditorInstance)
 		.InWrapper(this);
+
 
 	LayerParameter = NestedTree->FunctionParameter;
 

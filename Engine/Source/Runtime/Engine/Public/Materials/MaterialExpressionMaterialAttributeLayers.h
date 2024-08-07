@@ -21,7 +21,7 @@ class UMaterialExpressionMaterialAttributeLayers : public UMaterialExpression
 
 	UPROPERTY()
 	FMaterialAttributesInput Input;
-
+	
 	UPROPERTY(EditAnywhere, Category=Layers)
 	FMaterialLayersFunctions DefaultLayers;
 
