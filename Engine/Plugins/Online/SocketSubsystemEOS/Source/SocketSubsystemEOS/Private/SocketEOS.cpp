@@ -105,14 +105,6 @@ bool FSocketEOS::Bind(const FInternetAddr& Addr)
 		return false;
 	}
 
-	// Ensure we called Initialize so we know who we are
-	if (LocalAddress.GetRemoteUserId() != nullptr)
-	{
-		UE_LOG(LogSocketSubsystemEOS, Warning, TEXT("Attempted to bind on a socket that was not initialized. Address = (%s)"), *Addr.ToString(true));
-		SocketSubsystem.SetLastSocketError(ESocketErrors::SE_NOTINITIALISED);
-		return false;
-	}
-
 	// If we have a remote user id, we're already bound
 	if (LocalAddress.GetRemoteUserId() != nullptr)
 	{

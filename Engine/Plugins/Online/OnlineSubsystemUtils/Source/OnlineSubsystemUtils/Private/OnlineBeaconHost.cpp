@@ -102,11 +102,12 @@ bool AOnlineBeaconHost::InitHost()
 	{
 		if (InitBase() && NetDriver)
 		{
+			NetDriver->SetWorld(GetWorld());
+
 			FString Error;
 			if (NetDriver->InitListen(this, URL, bReuseAddressAndPort, Error))
 			{
 				ListenPort = URL.Port;
-				NetDriver->SetWorld(GetWorld());
 				NetDriver->Notify = this;
 				NetDriver->InitialConnectTimeout = BeaconConnectionInitialTimeout;
 				NetDriver->ConnectionTimeout = BeaconConnectionTimeout;

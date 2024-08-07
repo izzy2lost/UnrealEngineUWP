@@ -151,6 +151,8 @@ bool AOnlineBeaconClient::InitClient(FURL& URL)
 	{
 		if (InitBase() && NetDriver)
 		{
+			NetDriver->SetWorld(GetWorld());
+
 			FString Error;
 			if (NetDriver->InitConnect(this, URL, Error))
 			{
@@ -192,7 +194,6 @@ bool AOnlineBeaconClient::InitClient(FURL& URL)
 
 					if (NetDriver)
 					{
-						NetDriver->SetWorld(World);
 						NetDriver->Notify = this;
 						NetDriver->InitialConnectTimeout = BeaconConnectionInitialTimeout;
 						NetDriver->ConnectionTimeout = BeaconConnectionTimeout;

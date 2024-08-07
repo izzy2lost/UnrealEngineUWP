@@ -3177,7 +3177,7 @@ static bool GetConnectStringFromSessionInfo(TSharedPtr<FOnlineSessionInfoEOS>& S
 
 	if (PortOverride != 0)
 	{
-		ConnectInfo = FString::Printf(TEXT("%s:%d"), *SessionInfo->HostAddr->ToString(false), PortOverride);
+		ConnectInfo = FString::Printf(TEXT("[%s]:%d"), *SessionInfo->HostAddr->ToString(false), PortOverride);
 	}
 	else
 	{
@@ -4073,7 +4073,9 @@ uint32 FOnlineSessionEOS::CreateLobbySession(int32 HostingPlayerNum, FNamedOnlin
 				Session->SessionState = EOnlineSessionState::Pending;
 
 				TSharedPtr<FOnlineSessionInfoEOS> SessionInfo = MakeShared<FOnlineSessionInfoEOS>(FOnlineSessionInfoEOS::Create(FUniqueNetIdEOSLobby::Create(UTF8_TO_TCHAR(Data->LobbyId))));
-				SessionInfo->HostAddr = MakeShared<FInternetAddrEOS>(LocalProductUserId, SessionName.ToString(), FURL::UrlConfig.DefaultPort);
+				
+				const FName NetDriverName = GetDefault<UNetDriverEOS>()->NetDriverName;
+				SessionInfo->HostAddr = MakeShared<FInternetAddrEOS>(LocalProductUserId, NetDriverName.ToString(), FURL::UrlConfig.DefaultPort);
 
 				Session->SessionInfo = SessionInfo;
 
@@ -4751,10 +4753,8 @@ void FOnlineSessionEOS::AddLobbySearchResult(const TSharedRef<FLobbyDetailsEOS>&
 
 		TSharedPtr<FOnlineSessionInfoEOS> SessionInfo = MakeShared<FOnlineSessionInfoEOS>(FOnlineSessionInfoEOS::Create(FUniqueNetIdEOSLobby::Create(UTF8_TO_TCHAR(LobbyDetailsInfo->LobbyId)), LobbyDetails));
 
-		// This will set the host address and port
-		// Because some platforms remap ports, we will use the ID of the name of the net driver to be our port instead
 		const FName NetDriverName = GetDefault<UNetDriverEOS>()->NetDriverName;
-		SessionInfo->HostAddr = MakeShared<FInternetAddrEOS>(LobbyDetailsInfo->LobbyOwnerUserId, NetDriverName.ToString(), GetTypeHash(NetDriverName.ToString()));
+		SessionInfo->HostAddr = MakeShared<FInternetAddrEOS>(LobbyDetailsInfo->LobbyOwnerUserId, NetDriverName.ToString(), FURL::UrlConfig.DefaultPort);
 
 		SearchResult.Session.SessionInfo = SessionInfo;
 

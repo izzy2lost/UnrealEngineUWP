@@ -5,6 +5,7 @@
 #include "SocketEOS.h"
 #include "SocketSubsystemEOS.h"
 #include "Engine/Engine.h"
+#include "OnlineSubsystemUtils.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NetDriverEOSBase)
 
@@ -58,7 +59,6 @@ bool UNetDriverEOSBase::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 		return false;
 	}
 
-
 	FUniqueSocket NewSocket = SocketSubsystem->CreateUniqueSocket(NAME_DGram, TEXT("UE4"), NAME_None);
 	TSharedPtr<FSocket> SharedSocket(NewSocket.Release(), FSocketDeleter(NewSocket.GetDeleter()));
 
@@ -72,8 +72,7 @@ bool UNetDriverEOSBase::InitBase(bool bInitAsClient, FNetworkNotify* InNotify, c
 
 	// Store our local address and set our port
 	TSharedRef<FInternetAddrEOS> EOSLocalAddress = StaticCastSharedRef<FInternetAddrEOS>(LocalAddress);
-	// Because some platforms remap ports, we will use the ID of the name of the net driver to be our channel
-	EOSLocalAddress->SetChannel(GetTypeHash(NetDriverName.ToString()));
+	EOSLocalAddress->SetChannel((uint8)URL.Port);
 	// Set our net driver name so we don't accept connections across net driver types
 	EOSLocalAddress->SetSocketName(NetDriverName.ToString());
 
@@ -97,6 +96,7 @@ bool UNetDriverEOSBase::InitConnect(FNetworkNotify* InNotify, const FURL& Connec
 	bool bIsValid = false;
 	TSharedRef<FInternetAddrEOS> RemoteHost = MakeShared<FInternetAddrEOS>();
 	RemoteHost->SetIp(*ConnectURL.Host, bIsValid);
+	RemoteHost->SetPort(ConnectURL.Port);
 	if (!bIsValid || ConnectURL.Port < 0)
 	{
 		Error = TEXT("Invalid remote address");
