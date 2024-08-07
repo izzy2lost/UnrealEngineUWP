@@ -187,6 +187,7 @@ public:
 
 	FDelegateHandle OnObjectsReinstancedHandle;
 	FDelegateHandle OnUserDefinedStructReinstancedHandle;
+	FDelegateHandle OnPreBeginPIEHandle;
 #endif
 
 	/** Hash of the editor data from last compile. Also used to detect mismatching events from recorded traces. */

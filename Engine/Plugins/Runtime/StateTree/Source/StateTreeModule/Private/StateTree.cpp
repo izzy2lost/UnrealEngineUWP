@@ -18,6 +18,7 @@
 
 #if WITH_EDITOR
 #include "Editor.h"
+#include "StateTreeModuleImpl.h"
 #include "StructUtils/UserDefinedStruct.h"
 #include "StructUtilsDelegates.h"
 #endif
@@ -250,27 +251,23 @@ void UStateTree::PostInitProperties()
 {
 	Super::PostInitProperties();
 	
-	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
-	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
-	FEditorDelegates::PreBeginPIE.AddUObject(this, &UStateTree::OnPreBeginPIE);
+	if (!HasAnyFlags(RF_ClassDefaultObject))
+	{
+		FStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<FStateTreeModule>("StateTreeModule");
+		OnObjectsReinstancedHandle = StateTreeModule.OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
+		OnUserDefinedStructReinstancedHandle = StateTreeModule.OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
+		OnPreBeginPIEHandle = StateTreeModule.OnPreBeginPIE.AddUObject(this, &UStateTree::OnPreBeginPIE);
+	}
 }
 
 void UStateTree::BeginDestroy()
 {
-	if (OnObjectsReinstancedHandle.IsValid())
+	if (FStateTreeModule* StateTreeModule = FModuleManager::GetModulePtr<FStateTreeModule>("StateTreeModule"))
 	{
-		FCoreUObjectDelegates::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
-		OnObjectsReinstancedHandle.Reset();
+		StateTreeModule->OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
+		StateTreeModule->OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
+		StateTreeModule->OnPreBeginPIE.Remove(OnPreBeginPIEHandle);
 	}
-	if (OnUserDefinedStructReinstancedHandle.IsValid())
-	{
-		UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
-		OnUserDefinedStructReinstancedHandle.Reset();
-	}
-	
-#if WITH_EDITOR
-	FEditorDelegates::PreBeginPIE.RemoveAll(this);
-#endif // WITH_EDITOR
 
 	Super::BeginDestroy();
 }

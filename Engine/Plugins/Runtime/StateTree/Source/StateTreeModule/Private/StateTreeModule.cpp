@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "StateTreeModule.h"
+#include "StateTreeModuleImpl.h"
 
 #include "StateTreeTypes.h"
 
@@ -27,68 +28,43 @@
 #include "StateTreeInstanceData.h"
 #endif // WITH_EDITORONLY_DATA
 
+#if WITH_EDITOR
+#include "StructUtilsDelegates.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "StateTree"
 
-class FStateTreeModule : public IStateTreeModule
-{
-	// Begin IModuleInterface
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
-
-	virtual bool StartTraces(int32& OutTraceId) override;
-	virtual bool IsTracing() const override;
-	virtual void StopTraces() override;
-
 #if WITH_STATETREE_TRACE_DEBUGGER
-	/**
-	 * Gets the store client.
-	 */
-	virtual UE::Trace::FStoreClient* GetStoreClient() override
+UE::Trace::FStoreClient* FStateTreeModule::GetStoreClient()
+{
+	if (!StoreClient.IsValid())
 	{
-		if (!StoreClient.IsValid())
-		{
-			StoreClient = TUniquePtr<UE::Trace::FStoreClient>(UE::Trace::FStoreClient::Connect(TEXT("localhost")));
-		}
-		return StoreClient.Get();
+		StoreClient = TUniquePtr<UE::Trace::FStoreClient>(UE::Trace::FStoreClient::Connect(TEXT("localhost")));
 	}
-
-	TSharedPtr<TraceServices::IAnalysisService> TraceAnalysisService;
-	TSharedPtr<TraceServices::IModuleService> TraceModuleService;
-
-	/** The client used to connect to the trace store. */
-	TUniquePtr<UE::Trace::FStoreClient> StoreClient;
-
-	FStateTreeTraceModule StateTreeTraceModule;
+	return StoreClient.Get();
+}
 #endif // WITH_STATETREE_TRACE_DEBUGGER
 
+FStateTreeModule::FStateTreeModule()
 #if WITH_STATETREE_TRACE
-	TArray<const FString> ChannelsToRestore;
-
-	/** Keep track if StartTraces was explicitly called. */
-	bool bIsTracing = false;
-
-	FAutoConsoleCommand StartDebuggerTracesCommand = FAutoConsoleCommand(
+	: StartDebuggerTracesCommand(FAutoConsoleCommand(
 		TEXT("statetree.startdebuggertraces"),
 		TEXT("Turns on StateTree debugger traces if not already active."),
 		FConsoleCommandDelegate::CreateLambda([]
 			{
-				IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
 				int32 TraceId = 0;
-				StateTreeModule.StartTraces(TraceId);
-			}));
-
-	FAutoConsoleCommand StopDebuggerTracesCommand = FAutoConsoleCommand(
+				IStateTreeModule::Get().StartTraces(TraceId);
+			})))
+	, StopDebuggerTracesCommand(FAutoConsoleCommand(
 		TEXT("statetree.stopdebuggertraces"),
 		TEXT("Turns off StateTree debugger traces if active."),
 		FConsoleCommandDelegate::CreateLambda([]
 			{
-				IStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<IStateTreeModule>("StateTreeModule");
-				StateTreeModule.StopTraces();
-			}));
+				IStateTreeModule::Get().StopTraces();
+			})))
 #endif // WITH_STATETREE_TRACE
-};
-
-IMPLEMENT_MODULE(FStateTreeModule, StateTreeModule)
+{
+}
 
 void FStateTreeModule::StartupModule()
 {
@@ -118,10 +94,23 @@ void FStateTreeModule::StartupModule()
 #if WITH_EDITORONLY_DATA
 	UE::StateTree::RegisterInstanceDataForLocalization();
 #endif // WITH_EDITORONLY_DATA
+
+#if WITH_EDITOR
+	// Register thread safe delegates, which allows the StateTree objects to safely register to these delegates e.g. in PostInitProperties() which may be called from another thread.
+	OnObjectsReinstancedHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddRaw(this, &FStateTreeModule::HandleObjectsReinstanced);
+	OnUserDefinedStructReinstancedHandle = UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.AddRaw(this, &FStateTreeModule::HandleUserDefinedStructReinstanced);
+	OnPreBeginPIEHandle = FEditorDelegates::PreBeginPIE.AddRaw(this, &FStateTreeModule::HandlePreBeginPIE);
+#endif //WITH_EDITOR
 }
 
 void FStateTreeModule::ShutdownModule()
 {
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
+	UE::StructUtils::Delegates::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
+	FEditorDelegates::PreBeginPIE.Remove(OnPreBeginPIEHandle);
+#endif //WITH_EDITOR
+
 #if WITH_STATETREE_TRACE
 	StopTraces();
 
@@ -260,5 +249,24 @@ void FStateTreeModule::StopTraces()
 	}
 #endif // WITH_STATETREE_TRACE
 }
+
+#if WITH_EDITOR
+void FStateTreeModule::HandleObjectsReinstanced(const FReplacementObjectMap& ObjectMap)
+{
+	OnObjectsReinstanced.Broadcast(ObjectMap);
+}
+
+void FStateTreeModule::HandlePreBeginPIE(const bool bIsSimulating)
+{
+	OnPreBeginPIE.Broadcast(bIsSimulating);
+}
+
+void FStateTreeModule::HandleUserDefinedStructReinstanced(const UUserDefinedStruct& UserDefinedStruct)
+{
+	OnUserDefinedStructReinstanced.Broadcast(UserDefinedStruct);
+}
+#endif
+
+IMPLEMENT_MODULE(FStateTreeModule, StateTreeModule)
 
 #undef LOCTEXT_NAMESPACE
