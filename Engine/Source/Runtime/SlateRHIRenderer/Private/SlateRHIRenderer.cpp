@@ -100,12 +100,6 @@ static TAutoConsoleVariable<float> CVarDrawToVRRenderTarget(
 	TEXT("If enabled while in VR. Slate UI will be drawn into the render target texture where the VR imagery for either eye was rendered, allow the viewer of the HMD to see the UI (for better or worse.)  This render target will then be cropped/scaled into the back buffer, if mirroring is enabled.  When disabled, Slate UI will be drawn on top of the backbuffer (not to the HMD) after the mirror texture has been cropped/scaled into the backbuffer."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarMemorylessDepthStencil(
-	TEXT("Slate.MemorylessDepthStencil"),
-	0,
-	TEXT("Whether to use memoryless DepthStencil target for Slate. Reduces memory usage and implies that DepthStencil state can't be preserved between Slate renderpasses"),
-	ECVF_RenderThreadSafe);
-
 static TAutoConsoleVariable<int32> CVarCopyBackbufferToSlatePostRenderTargets(
 	TEXT("Slate.CopyBackbufferToSlatePostRenderTargets"),
 	0,
@@ -181,12 +175,10 @@ void FViewportInfo::ConditionallyUpdateDepthBuffer(bool bInRequiresStencilTest, 
 {
 	check(IsInRenderingThread());
 
-	bool bWantsMemorylessDepthStencil = (CVarMemorylessDepthStencil.GetValueOnAnyThread() != 0);
-
 	bool bDepthStencilStale =
 		bInRequiresStencilTest &&
 		(!bRequiresStencilTest ||
-		(DepthStencil.IsValid() && (DepthStencil->GetSizeX() != InWidth || DepthStencil->GetSizeY() != InHeight || IsMemorylessTexture(DepthStencil) != bWantsMemorylessDepthStencil)));
+		(DepthStencil.IsValid() && (DepthStencil->GetSizeX() != InWidth || DepthStencil->GetSizeY() != InHeight)));
 
 	bRequiresStencilTest = bInRequiresStencilTest;
 
@@ -204,12 +196,7 @@ void FViewportInfo::RecreateDepthBuffer_RenderThread()
 	if (bRequiresStencilTest)
 	{
 		ETextureCreateFlags TargetableTextureFlags = TexCreate_DepthStencilTargetable;
-		if (CVarMemorylessDepthStencil.GetValueOnAnyThread() != 0)
-		{
-			// Use Memoryless target, expecting that DepthStencil content is intermediate and can't be preserved between renderpasses
-			TargetableTextureFlags|= TexCreate_Memoryless;
-		}
-		
+	
 		const FRHITextureCreateDesc Desc =
 			FRHITextureCreateDesc::Create2D(TEXT("SlateViewportDepthStencil"))
 			.SetExtent(Width, Height)
@@ -222,16 +209,6 @@ void FViewportInfo::RecreateDepthBuffer_RenderThread()
 		check(IsValidRef(DepthStencil));
 	}
 }
-
-bool IsMemorylessTexture(const FTextureRHIRef& Tex)
-{
-	if (Tex)
-	{
-		return EnumHasAnyFlags(Tex->GetFlags(), TexCreate_Memoryless);
-	}
-	return false;
-}
-
 
 FSlateRHIRenderer::FSlateRHIRenderer(TSharedRef<FSlateFontServices> InSlateFontServices, TSharedRef<FSlateRHIResourceManager> InResourceManager)
 	: FSlateRenderer(InSlateFontServices)
@@ -989,7 +966,7 @@ void RenderSlateBatch(FTextureRHIRef SlateRenderTarget, bool bClear, bool bIsHDR
 	{
 		check(IsValidRef(ViewportInfo.DepthStencil));
 
-		ERenderTargetActions StencilAction = IsMemorylessTexture(ViewportInfo.DepthStencil) ? ERenderTargetActions::DontLoad_DontStore : ERenderTargetActions::DontLoad_Store;
+		ERenderTargetActions StencilAction = ERenderTargetActions::DontLoad_Store;
 		RPInfo.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(ERenderTargetActions::DontLoad_DontStore, StencilAction);
 		RPInfo.DepthStencilRenderTarget.DepthStencilTarget = ViewportInfo.DepthStencil;
 		RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil = FExclusiveDepthStencil::DepthNop_StencilWrite;
@@ -1002,7 +979,7 @@ void RenderSlateBatch(FTextureRHIRef SlateRenderTarget, bool bClear, bool bIsHDR
 		if (ViewportInfo.bRequiresStencilTest)
 		{
 			// Reset the backbuffer as our color render target and also set a depth stencil buffer
-			ERenderTargetActions StencilAction = IsMemorylessTexture(ViewportInfo.DepthStencil) ? ERenderTargetActions::Clear_DontStore : ERenderTargetActions::Clear_Store;
+			ERenderTargetActions StencilAction = ERenderTargetActions::Clear_Store;
 			RPInfo.DepthStencilRenderTarget.Action = MakeDepthStencilTargetActions(ERenderTargetActions::Load_Store, StencilAction);
 			RPInfo.DepthStencilRenderTarget.DepthStencilTarget = ViewportInfo.DepthStencil;
 			RPInfo.DepthStencilRenderTarget.ExclusiveDepthStencil = FExclusiveDepthStencil::DepthWrite_StencilWrite;
