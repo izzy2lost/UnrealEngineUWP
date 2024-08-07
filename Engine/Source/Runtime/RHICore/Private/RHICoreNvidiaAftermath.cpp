@@ -393,37 +393,49 @@ namespace UE::RHICore::Nvidia::Aftermath
 					*Engine,
 					*Client);
 
-				if (FaultInfo.bHasResourceInfo)
+				if (FaultInfo.resourceInfoCount > 0)
 				{
-					CrashResult.OutputLog += FString::Printf(
-						TEXT("\n\t\tResource:")
-						TEXT("\n\t\t\tGPU VA              : 0x%016llx")
-						TEXT("\n\t\t\tSize                : 0x%016llx")
-						TEXT("\n\t\t\tWidth               : %d")
-						TEXT("\n\t\t\tHeight              : %d")
-						TEXT("\n\t\t\tDepth               : %d")
-						TEXT("\n\t\t\tMipLevels           : %d")
-						TEXT("\n\t\t\tFormat              : %d")
-						TEXT("\n\t\t\tIs Buffer           : %s")
-						TEXT("\n\t\t\tIs Texture Heap     : %s")
-						TEXT("\n\t\t\tIs RTV/DSV Heap     : %s")
-						TEXT("\n\t\t\tPlaced Resource     : %s")
-						TEXT("\n\t\t\tWas Destroyed       : %s")
-						TEXT("\n\t\t\tCreate/Destroy Count: %d"),
-						FaultInfo.resourceInfo.gpuVa,
-						FaultInfo.resourceInfo.size,
-						FaultInfo.resourceInfo.width,
-						FaultInfo.resourceInfo.height,
-						FaultInfo.resourceInfo.depth,
-						FaultInfo.resourceInfo.mipLevels,
-						FaultInfo.resourceInfo.format,
-						FaultInfo.resourceInfo.bIsBufferHeap                         ? TEXT("True") : TEXT("False"),
-						FaultInfo.resourceInfo.bIsStaticTextureHeap                  ? TEXT("True") : TEXT("False"),
-						FaultInfo.resourceInfo.bIsRenderTargetOrDepthStencilViewHeap ? TEXT("True") : TEXT("False"),
-						FaultInfo.resourceInfo.bPlacedResource                       ? TEXT("True") : TEXT("False"),
-						FaultInfo.resourceInfo.bWasDestroyed                         ? TEXT("True") : TEXT("False"),
-						FaultInfo.resourceInfo.createDestroyTickCount
-					);
+					TArray<GFSDK_Aftermath_GpuCrashDump_ResourceInfo> FaultResources;
+					FaultResources.SetNum(FaultInfo.resourceInfoCount);
+					GFSDK_Aftermath_GpuCrashDump_GetPageFaultResourceInfo(Decoder, FaultInfo.resourceInfoCount, &FaultResources[0]);
+
+					for (uint32 ResIdx = 0; ResIdx < FaultInfo.resourceInfoCount; ++ResIdx)
+					{
+						const GFSDK_Aftermath_GpuCrashDump_ResourceInfo& FaultResInfo = FaultResources[ResIdx];
+						CrashResult.OutputLog += FString::Printf(
+							TEXT("\n\t\tResource %d/%d:")
+							TEXT("\n\t\t\tName                : '%s'")
+							TEXT("\n\t\t\tGPU VA              : 0x%016llx")
+							TEXT("\n\t\t\tSize                : 0x%016llx")
+							TEXT("\n\t\t\tWidth               : %d")
+							TEXT("\n\t\t\tHeight              : %d")
+							TEXT("\n\t\t\tDepth               : %d")
+							TEXT("\n\t\t\tMipLevels           : %d")
+							TEXT("\n\t\t\tFormat              : %d")
+							TEXT("\n\t\t\tIs Buffer           : %s")
+							TEXT("\n\t\t\tIs Texture Heap     : %s")
+							TEXT("\n\t\t\tIs RTV/DSV Heap     : %s")
+							TEXT("\n\t\t\tPlaced Resource     : %s")
+							TEXT("\n\t\t\tWas Destroyed       : %s")
+							TEXT("\n\t\t\tCreate/Destroy Count: %d"),
+							ResIdx,
+							FaultInfo.resourceInfoCount,
+							FaultResInfo.debugName,
+							FaultResInfo.gpuVa,
+							FaultResInfo.size,
+							FaultResInfo.width,
+							FaultResInfo.height,
+							FaultResInfo.depth,
+							FaultResInfo.mipLevels,
+							FaultResInfo.format,
+							FaultResInfo.bIsBufferHeap ? TEXT("True") : TEXT("False"),
+							FaultResInfo.bIsStaticTextureHeap ? TEXT("True") : TEXT("False"),
+							FaultResInfo.bIsRenderTargetOrDepthStencilViewHeap ? TEXT("True") : TEXT("False"),
+							FaultResInfo.bPlacedResource ? TEXT("True") : TEXT("False"),
+							FaultResInfo.bWasDestroyed ? TEXT("True") : TEXT("False"),
+							FaultResInfo.createDestroyTickCount
+						);
+					}
 				}
 				else
 				{

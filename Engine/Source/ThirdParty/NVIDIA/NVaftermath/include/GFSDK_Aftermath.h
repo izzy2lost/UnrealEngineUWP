@@ -1,126 +1,126 @@
 /*
-* Copyright (c) 2017-2023, NVIDIA CORPORATION.  All rights reserved.
-*
-* NVIDIA CORPORATION and its licensors retain all intellectual property
-* and proprietary rights in and to this software, related documentation
-* and any modifications thereto.  Any use, reproduction, disclosure or
-* distribution of this software and related documentation without an express
-* license agreement from NVIDIA CORPORATION is strictly prohibited.
-*/
+ * Copyright (c) 2017-2023, NVIDIA CORPORATION.  All rights reserved.
+ *
+ * NVIDIA CORPORATION and its licensors retain all intellectual property
+ * and proprietary rights in and to this software, related documentation
+ * and any modifications thereto.  Any use, reproduction, disclosure or
+ * distribution of this software and related documentation without an express
+ * license agreement from NVIDIA CORPORATION is strictly prohibited.
+ */
 
 /*
-*   █████  █████ ██████ ████  ████   ███████   ████  ██████ ██   ██
-*   ██  ██ ██      ██   ██    ██  ██ ██ ██ ██ ██  ██   ██   ██   ██
-*   ██  ██ ██      ██   ██    ██  ██ ██ ██ ██ ██  ██   ██   ██   ██
-*   ██████ ████    ██   ████  █████  ██ ██ ██ ██████   ██   ███████
-*   ██  ██ ██      ██   ██    ██  ██ ██    ██ ██  ██   ██   ██   ██
-*   ██  ██ ██      ██   █████ ██  ██ ██    ██ ██  ██   ██   ██   ██   DEBUGGER
-*                                                           ██   ██
-*  ████████████████████████████████████████████████████████ ██ █ ██ ████████████
-*
-*
-*  HOW TO USE AFTERMATH for DX11 and DX12
-*  --------------------------------------
-*
-*  NOTE: Some of the Aftermath 1.x functionality will go away in a future release.
-*        The functions and structures to be removed are indicated with a DEPRECATED
-*        comment. The supported method for accessing this data is provided via the
-*        GPU crash dump functionality. Please refer to the
-*        'GFSDK_Aftermath_GpuCrashDump.h' header file for more details.
-*
-*  NOTE: Aftermath does not support UWP applications.
-*
-*  Call 'GFSDK_Aftermath_DXxx_Initialize', to initialize the library and to enable
-*  the desired Aftermath feature set. See 'GFSDK_Aftermath_FeatureFlags' below for
-*  the list of supported features.
-*  This must be done before any other library calls are made, and the method must
-*  return 'GFSDK_Aftermath_Result_Success' for initialization to be complete.
-*
-*  Initialization of Aftermath may fail for a variety of reasons, including:
-*
-*  o) The initialization function was already called for the device:
-*       'GFSDK_Aftermath_Result_FAIL_AlreadyInitialized'.
-*
-*
-*  o) Aftermath isn't supported on the GPU associated with the device or the NVIDIA
-*     display driver version installed:
-*       'GFSDK_Aftermath_Result_FAIL_InvalidAdapter'
-*       'GFSDK_Aftermath_Result_FAIL_DriverInitFailed',
-*       'GFSDK_Aftermath_Result_FAIL_DriverVersionNotSupported',
-*       'GFSDK_Aftermath_Result_FAIL_NvApiIncompatible'.
-*
-*
-*  o) A D3D API debug layer, such as PIX or other graphics debuggers, was detected
-*     that is incompatible with Aftermath:
-*       'GFSDK_Aftermath_Result_FAIL_D3dDllInterceptionNotSupported'
-*
-*
-*  o) Aftermath was disabled on the system by the current user setting the
-*     'HKEY_CURRENT_USER\Software\NVIDIA Corporation\Nsight Aftermath\ForceOff'
-*     Windows registry key: 'GFSDK_Aftermath_Result_FAIL_Disabled'
-*
-*
-*  After detecting D3D device lost (TDR):
-*
-*  o)  To query the fault reason after TDR, use the 'GFSDK_Aftermath_GetDeviceStatus'
-*      call. See 'GFSDK_Aftermath_Device_Status', for the full list of possible
-*      status.
-*
-*
-*  o)  In the event of a GPU page fault, use the 'GFSDK_Aftermath_GetPageFaultInformation'
-*      method to return more information about what might of gone wrong. A GPU
-*      virtual address (VA) is returned, along with the resource descriptor of the
-*      resource that VA lands in.
-*      NOTE: It's not 100% certain that this is the resource is related to the fault,
-*      only that the faulting VA lands within this resource in memory. It is always
-*      possible that due to a bug or due to faulty dependency a random GPU VA is
-*      accessed by a shader.
-*
-*
-*  Optionally, instrument the application with Aftermath event markers:
-*
-*  1)  For each DX12 command list or DX11 device context you expect to use with
-*      Aftermath, initialize them using the 'GFSDK_Aftermath_DXxx_CreateContextHandle'
-*      function. DX12 command lists must be in the recording state when this function
-*      is called, but the returned context handle will remain valid through subsequent
-*      command list closes and resets.
-*
-*
-*  2)  Call 'GFSDK_Aftermath_SetEventMarker' to inject an event marker directly into
-*      the command stream at that point. DX12 command lists must be in the recording
-*      state when this function is called.
-*
-*      PERFORMANCE TIP:
-*
-*      Do not use 'GFSDK_Aftermath_SetEventMarker' in high frequency code paths.
-*      Injecting event markers introduces considerable CPU overhead. For reduced
-*      CPU overhead, use 'GFSDK_Aftermath_SetEventMarker' with 'markerDataSize = 0'.
-*      This instructs Aftermath not to allocate and copy off memory internally,
-*      relying on the application to manage marker pointers itself.
-*
-*
-*  3)  Once TDR/hang occurs, call the 'GFSDK_Aftermath_GetData' API to fetch the
-*      event marker last processed by the GPU for each context. This API also
-*      supports fetching the current execution state for each the GPU.
-*
-*
-*  4)  Before the app shuts down, each Aftermath context handle must be cleaned
-*      up, this is done with the 'GFSDK_Aftermath_ReleaseContextHandle' call.
-*
-*
-*
-*  HOW TO USE AFTERMATH for Vulkan
-*  -------------------------------
-*
-*  For Vulkan use the 'VK_NV_device_diagnostics_config' extension to initialize and
-*  configure the Aftermath feature set to use. The meaning of the flag bits
-*  defined by 'VkDeviceDiagnosticsConfigFlagBitsNV' correspond to the features
-*  defined by 'GFSDK_Aftermath_FeatureFlags' for DX11/DX12 below.
-*
-*  Use the 'VK_NV_device_diagnostic_checkpoints' extension to add event markers into
-*  the command stream.
-*
-*/
+ *   █████  █████ ██████ ████  ████   ███████   ████  ██████ ██   ██
+ *   ██  ██ ██      ██   ██    ██  ██ ██ ██ ██ ██  ██   ██   ██   ██
+ *   ██  ██ ██      ██   ██    ██  ██ ██ ██ ██ ██  ██   ██   ██   ██
+ *   ██████ ████    ██   ████  █████  ██ ██ ██ ██████   ██   ███████
+ *   ██  ██ ██      ██   ██    ██  ██ ██    ██ ██  ██   ██   ██   ██
+ *   ██  ██ ██      ██   █████ ██  ██ ██    ██ ██  ██   ██   ██   ██   DEBUGGER
+ *                                                           ██   ██
+ *  ████████████████████████████████████████████████████████ ██ █ ██ ████████████
+ *
+ *
+ *  HOW TO USE AFTERMATH for DX11 and DX12
+ *  --------------------------------------
+ *
+ *  NOTE: Some of the Aftermath 1.x functionality will go away in a future release.
+ *        The functions and structures to be removed are indicated with a DEPRECATED
+ *        comment. The supported method for accessing this data is provided via the
+ *        GPU crash dump functionality. Please refer to the
+ *        'GFSDK_Aftermath_GpuCrashDump.h' header file for more details.
+ *
+ *  NOTE: Aftermath does not support UWP applications.
+ *
+ *  Call 'GFSDK_Aftermath_DXxx_Initialize', to initialize the library and to enable
+ *  the desired Aftermath feature set. See 'GFSDK_Aftermath_FeatureFlags' below for
+ *  the list of supported features.
+ *  This must be done before any other library calls are made, and the method must
+ *  return 'GFSDK_Aftermath_Result_Success' for initialization to be complete.
+ *
+ *  Initialization of Aftermath may fail for a variety of reasons, including:
+ *
+ *  o) The initialization function was already called for the device:
+ *       'GFSDK_Aftermath_Result_FAIL_AlreadyInitialized'.
+ *
+ *
+ *  o) Aftermath isn't supported on the GPU associated with the device or the NVIDIA
+ *     display driver version installed:
+ *       'GFSDK_Aftermath_Result_FAIL_InvalidAdapter'
+ *       'GFSDK_Aftermath_Result_FAIL_DriverInitFailed',
+ *       'GFSDK_Aftermath_Result_FAIL_DriverVersionNotSupported',
+ *       'GFSDK_Aftermath_Result_FAIL_NvApiIncompatible'.
+ *
+ *
+ *  o) A D3D API debug layer, such as PIX or other graphics debuggers, was detected
+ *     that is incompatible with Aftermath:
+ *       'GFSDK_Aftermath_Result_FAIL_D3dDllInterceptionNotSupported'
+ *
+ *
+ *  o) Aftermath was disabled on the system by the current user setting the
+ *     'HKEY_CURRENT_USER\Software\NVIDIA Corporation\Nsight Aftermath\ForceOff'
+ *     Windows registry key: 'GFSDK_Aftermath_Result_FAIL_Disabled'
+ *
+ *
+ *  After detecting D3D device lost (TDR):
+ *
+ *  o)  To query the fault reason after TDR, use the 'GFSDK_Aftermath_GetDeviceStatus'
+ *      call. See 'GFSDK_Aftermath_Device_Status', for the full list of possible
+ *      status.
+ *
+ *
+ *  o)  In the event of a GPU page fault, use the 'GFSDK_Aftermath_GetPageFaultInformation'
+ *      method to return more information about what might of gone wrong. A GPU
+ *      virtual address (VA) is returned, along with the resource descriptor of the
+ *      resource that VA lands in.
+ *      NOTE: It's not 100% certain that this is the resource is related to the fault,
+ *      only that the faulting VA lands within this resource in memory. It is always
+ *      possible that due to a bug or due to faulty dependency a random GPU VA is
+ *      accessed by a shader.
+ *
+ *
+ *  Optionally, instrument the application with Aftermath event markers:
+ *
+ *  1)  For each DX12 command list or DX11 device context you expect to use with
+ *      Aftermath, initialize them using the 'GFSDK_Aftermath_DXxx_CreateContextHandle'
+ *      function. DX12 command lists must be in the recording state when this function
+ *      is called, but the returned context handle will remain valid through subsequent
+ *      command list closes and resets.
+ *
+ *
+ *  2)  Call 'GFSDK_Aftermath_SetEventMarker' to inject an event marker directly into
+ *      the command stream at that point. DX12 command lists must be in the recording
+ *      state when this function is called.
+ *
+ *      PERFORMANCE TIP:
+ *
+ *      Do not use 'GFSDK_Aftermath_SetEventMarker' in high frequency code paths.
+ *      Injecting event markers introduces considerable CPU overhead. For reduced
+ *      CPU overhead, use 'GFSDK_Aftermath_SetEventMarker' with 'markerDataSize = 0'.
+ *      This instructs Aftermath not to allocate and copy off memory internally,
+ *      relying on the application to manage marker pointers itself.
+ *
+ *
+ *  3)  Once TDR/hang occurs, call the 'GFSDK_Aftermath_GetData' API to fetch the
+ *      event marker last processed by the GPU for each context. This API also
+ *      supports fetching the current execution state for each the GPU.
+ *
+ *
+ *  4)  Before the app shuts down, each Aftermath context handle must be cleaned
+ *      up, this is done with the 'GFSDK_Aftermath_ReleaseContextHandle' call.
+ *
+ *
+ *
+ *  HOW TO USE AFTERMATH for Vulkan
+ *  -------------------------------
+ *
+ *  For Vulkan use the 'VK_NV_device_diagnostics_config' extension to initialize and
+ *  configure the Aftermath feature set to use. The meaning of the flag bits
+ *  defined by 'VkDeviceDiagnosticsConfigFlagBitsNV' correspond to the features
+ *  defined by 'GFSDK_Aftermath_FeatureFlags' for DX11/DX12 below.
+ *
+ *  Use the 'VK_NV_device_diagnostic_checkpoints' extension to add event markers into
+ *  the command stream.
+ *
+ */
 
 #ifndef GFSDK_Aftermath_H
 #define GFSDK_Aftermath_H
@@ -147,8 +147,7 @@ extern "C" {
 // configuration flag bits in the 'Readme.md' file.
 //
 /////////////////////////////////////////////////////////////////////////
-GFSDK_AFTERMATH_DECLARE_ENUM(FeatureFlags)
-{
+GFSDK_AFTERMATH_DECLARE_ENUM(FeatureFlags){
     // The minimal flag only allows use of the 'GFSDK_Aftermath_GetDeviceStatus'
     // entry point and GPU crash dump generation with basic information about the
     // GPU fault.
@@ -572,7 +571,7 @@ GFSDK_Aftermath_API GFSDK_Aftermath_GetPageFaultInformation(GFSDK_Aftermath_Page
 //
 /////////////////////////////////////////////////////////////////////////
 #if defined(__d3d12_h__)
-GFSDK_Aftermath_API GFSDK_Aftermath_DX12_RegisterResource(ID3D12Resource* const pResource, GFSDK_Aftermath_ResourceHandle* pOutResourceHandle);
+GFSDK_Aftermath_API GFSDK_Aftermath_DX12_RegisterResource(ID3D12Resource* const pApiResource, GFSDK_Aftermath_ResourceHandle* pOutResourceHandle);
 #endif
 
 /////////////////////////////////////////////////////////////////////////
@@ -604,24 +603,24 @@ GFSDK_Aftermath_API GFSDK_Aftermath_DX12_UnregisterResource(const GFSDK_Aftermat
 //
 /////////////////////////////////////////////////////////////////////////
 #if defined(__d3d11_h__)
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX11_Initialize)(GFSDK_Aftermath_Version version, uint32_t flags, ID3D11Device* const pDx11Device);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX11_CreateContextHandle)(ID3D11DeviceContext* const pDx11DeviceContext, GFSDK_Aftermath_ContextHandle* pOutContextHandle);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX11_Initialize)(GFSDK_Aftermath_Version version, uint32_t flags, ID3D11Device* const pDx11Device);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX11_CreateContextHandle)(ID3D11DeviceContext* const pDx11DeviceContext, GFSDK_Aftermath_ContextHandle* pOutContextHandle);
 #endif
 
 #if defined(__d3d12_h__)
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX12_Initialize)(GFSDK_Aftermath_Version version, uint32_t flags, ID3D12Device* const pDx12Device);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX12_CreateContextHandle)(IUnknown* const pDx12CommandList, GFSDK_Aftermath_ContextHandle* pOutContextHandle);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX12_RegisterResource)(ID3D12Resource* const pResource, GFSDK_Aftermath_ResourceHandle* pOutResourceHandle);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_DX12_UnregisterResource)(const GFSDK_Aftermath_ResourceHandle resourceHandle);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX12_Initialize)(GFSDK_Aftermath_Version version, uint32_t flags, ID3D12Device* const pDx12Device);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX12_CreateContextHandle)(IUnknown* const pDx12CommandList, GFSDK_Aftermath_ContextHandle* pOutContextHandle);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX12_RegisterResource)(ID3D12Resource* const pApiResource, GFSDK_Aftermath_ResourceHandle* pOutResourceHandle);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_DX12_UnregisterResource)(const GFSDK_Aftermath_ResourceHandle resourceHandle);
 #endif
 
 #if defined(__d3d11_h__) || defined(__d3d12_h__)
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_ReleaseContextHandle)(const GFSDK_Aftermath_ContextHandle contextHandle);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_SetEventMarker)(const GFSDK_Aftermath_ContextHandle contextHandle, const void* markerData, const uint32_t markerDataSize);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_GetData)(const uint32_t numContexts, const GFSDK_Aftermath_ContextHandle* ppContextHandles, GFSDK_Aftermath_ContextData* pOutContextData);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_GetContextError)(const GFSDK_Aftermath_ContextData* pContextData);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_GetDeviceStatus)(GFSDK_Aftermath_Device_Status* pOutStatus);
-GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL *PFN_GFSDK_Aftermath_GetPageFaultInformation)(GFSDK_Aftermath_PageFaultInformation* pOutPageFaultInformation);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_ReleaseContextHandle)(const GFSDK_Aftermath_ContextHandle contextHandle);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_SetEventMarker)(const GFSDK_Aftermath_ContextHandle contextHandle, const void* markerData, const uint32_t markerDataSize);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_GetData)(const uint32_t numContexts, const GFSDK_Aftermath_ContextHandle* ppContextHandles, GFSDK_Aftermath_ContextData* pOutContextData);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_GetContextError)(const GFSDK_Aftermath_ContextData* pContextData);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_GetDeviceStatus)(GFSDK_Aftermath_Device_Status* pOutStatus);
+GFSDK_Aftermath_PFN(GFSDK_AFTERMATH_CALL* PFN_GFSDK_Aftermath_GetPageFaultInformation)(GFSDK_Aftermath_PageFaultInformation* pOutPageFaultInformation);
 #endif
 
 #endif // defined(__d3d11_h__) || defined(__d3d12_h__)
