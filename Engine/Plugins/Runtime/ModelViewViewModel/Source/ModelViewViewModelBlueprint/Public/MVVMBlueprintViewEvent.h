@@ -15,7 +15,10 @@ class UMVVMK2Node_AreSourcesValidForEvent;
 class UWidgetBlueprint;
 
 /**
- *
+ * Binding for an event that MVVM will listen too. Does not imply 
+ * the MVVM graph itself will use events.
+ * 
+ * Ex: UButton::OnClick 
  */
 UCLASS(Within = MVVMBlueprintView)
 class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewEvent : public UObject

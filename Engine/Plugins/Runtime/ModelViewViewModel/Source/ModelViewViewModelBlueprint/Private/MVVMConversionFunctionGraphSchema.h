@@ -7,7 +7,7 @@
 #include "MVVMConversionFunctionGraphSchema.generated.h"
 
 /**
- *
+ * Schema for conversion functions, adds pin metadata needed on connections for MVVM
  */
 UCLASS()
 class UMVVMConversionFunctionGraphSchema : public UEdGraphSchema_K2
