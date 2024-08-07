@@ -652,11 +652,15 @@ TIoStatusOr<uint64> FOnDemandIoStore::GetInstallSize(const FOnDemandGetInstallSi
 
 	TSet<FSharedOnDemandContainer> ContainersForInstallation;
 	TSet<FPackageId> PackageIdsToInstall;
-	FIoStatus GetContainersStatus = const_cast<FOnDemandIoStore*>(this)->GetContainersAndPackagesForInstall(
-		Args, ContainersForInstallation, PackageIdsToInstall);
-	if (!GetContainersStatus.IsOk())
+
+	if (FIoStatus Status = GetContainersAndPackagesForInstall(
+		Args.MountId,
+		Args.TagSets,
+		Args.PackageIds,
+		ContainersForInstallation,
+		PackageIdsToInstall); !Status.IsOk())
 	{
-		return GetContainersStatus;
+		return Status;
 	}
 
 	Private::FInstallData InstallData;
@@ -681,11 +685,15 @@ FIoStatus FOnDemandIoStore::GetInstallSizesByMountId(const FOnDemandGetInstallSi
 
 	TSet<FSharedOnDemandContainer> ContainersForInstallation;
 	TSet<FPackageId> PackageIdsToInstall;
-	FIoStatus GetContainersStatus = const_cast<FOnDemandIoStore*>(this)->GetContainersAndPackagesForInstall(
-		Args, ContainersForInstallation, PackageIdsToInstall);
-	if (!GetContainersStatus.IsOk())
+
+	if (FIoStatus Status = GetContainersAndPackagesForInstall(
+		Args.MountId,
+		Args.TagSets,
+		Args.PackageIds,
+		ContainersForInstallation,
+		PackageIdsToInstall); !Status.IsOk())
 	{
-		return GetContainersStatus;
+		return Status;
 	}
 
 	Private::FInstallData InstallData;
@@ -1179,7 +1187,9 @@ FIoStatus FOnDemandIoStore::TickInstallRequest(FInstallRequest& InstallRequest)
 	TSet<FPackageId> PackageIdsToInstall;
 
 	if (FIoStatus Status = GetContainersAndPackagesForInstall(
-		InstallRequest.Args,
+		InstallRequest.Args.MountId,
+		InstallRequest.Args.TagSets,
+		InstallRequest.Args.PackageIds,
 		ContainersForInstallation,
 		PackageIdsToInstall); !Status.IsOk())
 	{
@@ -1535,7 +1545,7 @@ void FOnDemandIoStore::CreateContainersFromToc(
 FIoStatus FOnDemandIoStore::GetContainersForInstall(
 	FStringView MountId,
 	TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-	TSet<FSharedOnDemandContainer>& OutContainersWithMountId)
+	TSet<FSharedOnDemandContainer>& OutContainersWithMountId) const
 {
 	// Only install content from non-streaming container(s)
 	TSet<FSharedOnDemandContainer> ContainersForInstallation;
@@ -1579,25 +1589,27 @@ FIoStatus FOnDemandIoStore::GetContainersForInstall(
 }
 
 FIoStatus FOnDemandIoStore::GetContainersAndPackagesForInstall(
-	const FOnDemandInstallArgsCommon& Args, 
+	FStringView MountId,
+	const TArray<FString>& TagSets,
+	const TArray<FPackageId>& PackageIds,
 	TSet<FSharedOnDemandContainer>& OutContainersForInstallation, 
-	TSet<FPackageId>& OutPackageIdsToInstall)
+	TSet<FPackageId>& OutPackageIdsToInstall) const
 {
 	TSet<FSharedOnDemandContainer> ContainersForInstallation;
 	TSet<FSharedOnDemandContainer> ContainersWithMountId;
 
 	if (FIoStatus Status = GetContainersForInstall(
-		Args.MountId,
+		MountId,
 		ContainersForInstallation,
 		ContainersWithMountId); !Status.IsOk())
 	{
 		return Status;
 	}
 
-	TSet<FPackageId> PackageIdsToInstall(Args.PackageIds);
+	TSet<FPackageId> PackageIdsToInstall(PackageIds);
 
 	// Install all packages if no tag set(s) was specified
-	if (Args.TagSets.IsEmpty())
+	if (TagSets.IsEmpty())
 	{
 		for (const FSharedOnDemandContainer& Container : ContainersWithMountId)
 		{
@@ -1615,7 +1627,7 @@ FIoStatus FOnDemandIoStore::GetContainersAndPackagesForInstall(
 	else
 	{
 		const TSet<FSharedOnDemandContainer>& SearchContainers =
-			Args.MountId.IsEmpty() ? ContainersForInstallation : ContainersWithMountId;
+			MountId.IsEmpty() ? ContainersForInstallation : ContainersWithMountId;
 
 		for (const FSharedOnDemandContainer& Container : SearchContainers)
 		{
@@ -1624,7 +1636,7 @@ FIoStatus FOnDemandIoStore::GetContainersAndPackagesForInstall(
 				continue;;
 			}
 
-			for (const FString& Tag : Args.TagSets)
+			for (const FString& Tag : TagSets)
 			{
 				for (const FOnDemandTagSet& TagSet : Container->TagSets)
 				{

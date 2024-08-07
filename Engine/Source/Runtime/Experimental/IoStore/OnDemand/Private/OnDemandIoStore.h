@@ -293,11 +293,13 @@ private:
 	FIoStatus				GetContainersForInstall(
 								FStringView MountId,
 								TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-								TSet<FSharedOnDemandContainer>& OutContainersWithMountId);
+								TSet<FSharedOnDemandContainer>& OutContainersWithMountId) const;
 	FIoStatus				GetContainersAndPackagesForInstall(
-								const FOnDemandInstallArgsCommon& Args,
+								FStringView MountId,
+								const TArray<FString>& TagSets,
+								const TArray<FPackageId>& PackageIds,
 								TSet<FSharedOnDemandContainer>& OutContainersForInstallation,
-								TSet<FPackageId>& OutPackageIdsToInstall);
+								TSet<FPackageId>& OutPackageIdsToInstall) const;
 	void					OnPostFork(EForkProcessRole ProcessRole);
 	FIoStatus				InitializeOnDemandInstallCache();
 	FOnDemandChunkInfo		GetChunkInfo(const FIoChunkId& ChunkId, EOnDemandContainerFlags ContainerFlags);
@@ -320,7 +322,7 @@ private:
 	FDelegateHandle						OnMountPakHandle;
 	TArray<FSharedOnDemandContainer>	Containers;
 	TMap<FString, FIoBuffer>			PendingContainerHeaders;
-	UE::FMutex							ContainerMutex;
+	mutable UE::FMutex					ContainerMutex;
 
 	TArray<FSharedMountRequest>			MountRequests;
 	TArray<FSharedInstallRequest>		InstallRequests;

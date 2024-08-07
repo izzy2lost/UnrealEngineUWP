@@ -321,7 +321,8 @@ enum class EOnDemandInstallOptions
 };
 ENUM_CLASS_FLAGS(EOnDemandInstallOptions);
 
-struct FOnDemandInstallArgsCommon
+/** Arguments for installing/downloading on-demand content. */
+struct FOnDemandInstallArgs 
 {
 	/** Install all content from containers matching this mount ID. */
 	FString MountId;
@@ -329,11 +330,6 @@ struct FOnDemandInstallArgsCommon
 	TArray<FString> TagSets;
 	/** Package ID's to install. */
 	TArray<FPackageId> PackageIds;
-};
-
-/** Arguments for installing/downloading on-demand content. */
-struct FOnDemandInstallArgs : public FOnDemandInstallArgsCommon
-{
 	/** URL from where to download the chunks. */
 	FString Url;
 	/** Content handle. */
@@ -358,9 +354,15 @@ struct FOnDemandInstallResult
 /** Install completion callback. */
 using FOnDemandInstallCompleted = TUniqueFunction<void(FOnDemandInstallResult)>;
 
-/** Arguments for getting the size of on-demand content */
-struct FOnDemandGetInstallSizeArgs : public FOnDemandInstallArgsCommon
+/** Arguments for getting the size of on-demand content. */
+struct FOnDemandGetInstallSizeArgs 
 {
+	/** Get total install size for containers matching this mount ID. */
+	FString MountId;
+	/** Get total install size for the specified tag(s) and optionally matching the mount ID. */
+	TArray<FString> TagSets;
+	/** Get total intall size for the specified package IDs. */
+	TArray<FPackageId> PackageIds;
 };
 
 class FIoStoreOnDemandModule
