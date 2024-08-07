@@ -5,6 +5,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/Engine.h"
 #include "HoldoutCompositeModule.h"
+#include "HoldoutCompositeSettings.h"
 #include "HoldoutCompositeSubsystem.h"
 
 #if WITH_EDITOR
@@ -13,6 +14,61 @@
 #endif
 
 #define LOCTEXT_NAMESPACE "HoldoutComposite"
+
+namespace
+{
+	// Ensure that the primitive class is allowed by checking against plugin settings.
+	bool IsAllowedPrimitiveClass(const UPrimitiveComponent* InPrimitiveComponent)
+	{
+		const UHoldoutCompositeSettings* Settings = GetDefault<UHoldoutCompositeSettings>();
+		if (ensure(Settings))
+		{
+			for (const FSoftClassPath& ObjectClass : Settings->DisabledPrimitiveClasses)
+			{
+				UClass* TransactionClass = ObjectClass.TryLoadClass<UObject>();
+				if (TransactionClass && InPrimitiveComponent->IsA(TransactionClass))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	// Find list of primitives from the parent component and its children. We need to traverse children to support objects such as UText3DComponent.
+	static TArray<TSoftObjectPtr<UPrimitiveComponent>> FindPrimitiveComponents(USceneComponent* InParentComponent)
+	{
+		TArray<TSoftObjectPtr<UPrimitiveComponent>> OutPrimitiveComponents;
+
+		if (IsValid(InParentComponent))
+		{
+			if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(InParentComponent))
+			{
+				if (IsAllowedPrimitiveClass(PrimitiveComponent))
+				{
+					OutPrimitiveComponents.Add(PrimitiveComponent);
+				}
+			}
+
+			TArray<USceneComponent*> ParentChildComponents;
+			InParentComponent->GetChildrenComponents(true /*bIncludeAllDescendants*/, ParentChildComponents);
+
+			for (USceneComponent* ParentChild : ParentChildComponents)
+			{
+				if (UPrimitiveComponent* PrimitiveComponent = Cast<UPrimitiveComponent>(ParentChild))
+				{
+					if (IsAllowedPrimitiveClass(PrimitiveComponent))
+					{
+						OutPrimitiveComponents.Add(PrimitiveComponent);
+					}
+				}
+			}
+		}
+
+		return OutPrimitiveComponents;
+	}
+}
 
 UHoldoutCompositeComponent::UHoldoutCompositeComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -47,46 +103,48 @@ void UHoldoutCompositeComponent::OnAttachmentChanged()
 
 	UnregisterCompositeImpl();
 
-	const USceneComponent* SceneComponent = GetAttachParent();
+	USceneComponent* SceneComponent = GetAttachParent();
 	if (IsValid(SceneComponent))
 	{
-		const UPrimitiveComponent* ParentPrimitiveComponent = Cast<UPrimitiveComponent>(SceneComponent);
-		if (IsValid(ParentPrimitiveComponent))
-		{
-			RegisterCompositeImpl();
-		}
-		else
+		TArray<TSoftObjectPtr<UPrimitiveComponent>> ParentPrimitives = FindPrimitiveComponents(SceneComponent);
+		if (ParentPrimitives.IsEmpty())
 		{
 #if WITH_EDITOR
 			FNotificationInfo Info(LOCTEXT("CompositeParentNotification",
-				"The composite component must be parented to a primitive component."));
+				"The composite component must be parented to a primitive component (or one that has primitives)."));
 			Info.ExpireDuration = 5.0f;
 
 			FSlateNotificationManager::Get().AddNotification(Info);
 #endif
 		}
+		else
+		{
+			RegisterCompositeImpl();
+		}
 	}
+
+
 }
 
 void UHoldoutCompositeComponent::RegisterCompositeImpl()
 {
 	UHoldoutCompositeSubsystem* Subsystem = UWorld::GetSubsystem<UHoldoutCompositeSubsystem>(GetWorld());
-	UPrimitiveComponent* ParentPrimitiveComponent = Cast<UPrimitiveComponent>(GetAttachParent());
+	TArray<TSoftObjectPtr<UPrimitiveComponent>> ParentPrimitives = FindPrimitiveComponents(GetAttachParent());
 
-	if (IsValid(Subsystem) && IsValid(ParentPrimitiveComponent))
+	if (IsValid(Subsystem) && !ParentPrimitives.IsEmpty())
 	{
-		Subsystem->RegisterPrimitive(ParentPrimitiveComponent);
+		Subsystem->RegisterPrimitives(ParentPrimitives);
 	}
 }
 
 void UHoldoutCompositeComponent::UnregisterCompositeImpl()
 {
 	UHoldoutCompositeSubsystem* Subsystem = UWorld::GetSubsystem<UHoldoutCompositeSubsystem>(GetWorld());
-	UPrimitiveComponent* ParentPrimitiveComponent = Cast<UPrimitiveComponent>(GetAttachParent());
+	TArray<TSoftObjectPtr<UPrimitiveComponent>> ParentPrimitives = FindPrimitiveComponents(GetAttachParent());
 
-	if (IsValid(Subsystem) && IsValid(ParentPrimitiveComponent))
+	if (IsValid(Subsystem) && !ParentPrimitives.IsEmpty())
 	{
-		Subsystem->UnregisterPrimitive(ParentPrimitiveComponent);
+		Subsystem->UnregisterPrimitives(ParentPrimitives);
 	}
 }
 

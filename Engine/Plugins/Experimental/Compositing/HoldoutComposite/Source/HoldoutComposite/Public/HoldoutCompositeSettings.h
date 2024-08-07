@@ -12,8 +12,8 @@
 /**
  * Settings for the HoldoutComposite module.
  */
-UCLASS(config = Engine)
-class HOLDOUTCOMPOSITE_API UHoldoutCompositeSettings : public UDeveloperSettings
+UCLASS(config = HoldoutComposite, defaultconfig, meta = (DisplayName = "Holdout Composite"), MinimalAPI)
+class UHoldoutCompositeSettings : public UDeveloperSettings
 {
 	GENERATED_BODY()
 
@@ -36,5 +36,9 @@ public:
 	/** Composite (scene view extension) pass priority, which defaults to before OpenColorIO. */
 	UPROPERTY(config, EditAnywhere, Category = General, AdvancedDisplay)
 	int32 SceneViewExtensionPriority;
+
+	/** Primitive component classes that do not support the holdout composite.*/
+	UPROPERTY(config, EditAnywhere, Category = General)
+	TArray<FSoftClassPath> DisabledPrimitiveClasses;
 };
 
