@@ -6,6 +6,7 @@
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/SListView.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -16,6 +17,7 @@
 #include "MaterialStatsGrid.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Styling/StyleColors.h"
+#include "HAL/PlatformApplicationMisc.h"
 
 #define LOCTEXT_NAMESPACE "MaterialEditorStatsWidget"
 
@@ -639,6 +641,20 @@ void SMaterialEditorStatsWidget::ClearMessages()
 	MessageBoxWidget->ClearChildren();
 }
 
+FReply SMaterialEditorStatsWidget::OnButtonClick(EAppReturnType::Type ButtonID)
+{
+	auto MaterialStats = MaterialStatsWPtr.Pin();
+	if (!MaterialStats.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	FString ShadersStats = MaterialStats->GetShadersStats();
+	FPlatformApplicationMisc::ClipboardCopy(*ShadersStats);
+
+	return FReply::Handled();
+}
+
 void SMaterialEditorStatsWidget::Construct(const FArguments& InArgs)
 {
 	MaterialStatsWPtr = InArgs._MaterialStatsWPtr;
@@ -681,6 +697,16 @@ void SMaterialEditorStatsWidget::Construct(const FArguments& InArgs)
 			[
 				SNullWidget::NullWidget
 			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.ContentPadding(0)
+				.Text(LOCTEXT("CopyStats", "CopyStats"))
+				.ToolTipText(LOCTEXT("CopyStatsTooltip", "Copy all stats to the clipboard"))
+				.OnClicked(this, &SMaterialEditorStatsWidget::OnButtonClick, EAppReturnType::Cancel)
+			] 
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			[

@@ -453,8 +453,16 @@ extern SHADERCOMPILERCOMMON_API void DumpDebugShaderBinary(const FShaderCompiler
 extern SHADERCOMPILERCOMMON_API void DumpDebugShaderDisassembledSpirv(const FShaderCompilerInput& Input, void* InData, int32 InDataByteSize, const FString& FileExtension);
 extern SHADERCOMPILERCOMMON_API void DumpDebugShaderDisassembledDxil(const FShaderCompilerInput& Input, void* InData, int32 InDataByteSize, const FString& FileExtension);
 
-// calls 'Mali Offline Compiler' to compile the glsl source code and extract the generated instruction count
+UE_DEPRECATED(5.5, "CompileOfflineMali is no longer used; CompileShaderOffline is used instead to support different compilers instead of Mali itself.")
 extern SHADERCOMPILERCOMMON_API void CompileOfflineMali(const FShaderCompilerInput &Input, FShaderCompilerOutput& ShaderOutput, const ANSICHAR* ShaderSource, const int32 SourceSize, bool bVulkanSpirV, const ANSICHAR* VulkanSpirVEntryPoint = nullptr);
+
+// calls 'Offline Compiler' to compile the source code and extract the stats
+extern SHADERCOMPILERCOMMON_API void CompileShaderOffline(const FShaderCompilerInput& Input,
+	FShaderCompilerOutput& ShaderOutput,
+	const ANSICHAR* ShaderSource,
+	const int32 SourceSize,
+	bool bVulkanSpirV,
+	const ANSICHAR* VulkanSpirVEntryPoint = nullptr);
 
 // Cross compiler support/common functionality
 namespace CrossCompiler

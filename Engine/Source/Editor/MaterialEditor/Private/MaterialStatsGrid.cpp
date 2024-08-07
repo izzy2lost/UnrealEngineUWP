@@ -778,6 +778,11 @@ void FMaterialStatsGrid::BuildShaderRows()
 			VertShaderRow->CreateRow(StatsManager);
 
 			VertexShaderRows.Add(VertShaderRow);
+
+			TSharedPtr<FStatsGridRow> VertShaderRow2 = MakeShareable(new FStatsGridRow_Shaders((ERepresentativeShader)i, false, false));
+			VertShaderRow2->CreateRow(StatsManager);
+
+			VertexShaderRows.Add(VertShaderRow2);			
 		}
 	}
 }

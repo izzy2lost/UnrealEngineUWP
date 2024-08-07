@@ -468,7 +468,7 @@ static void BuildShaderOutput(
 	{
 		if (InternalState.SupportsOfflineCompiler())
 		{
-			CompileOfflineMali(ShaderInput, ShaderOutput, (const ANSICHAR*)SerializedOutput.Spirv.GetByteData(), SerializedOutput.Spirv.GetByteSize(), true, SerializedOutput.SpirvEntryPointName);
+			CompileShaderOffline(ShaderInput, ShaderOutput, (const ANSICHAR*)SerializedOutput.Spirv.GetByteData(), SerializedOutput.Spirv.GetByteSize(), true, SerializedOutput.SpirvEntryPointName);
 		}
 	}
 

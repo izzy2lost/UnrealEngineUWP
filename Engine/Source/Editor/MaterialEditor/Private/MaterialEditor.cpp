@@ -2426,7 +2426,7 @@ void FMaterialEditor::DrawMaterialInfoStrings(
 
 		for (int32 InstructionIndex = 0; InstructionIndex < Descriptions.Num(); InstructionIndex++)
 		{
-			FString InstructionCountString = FString::Printf(TEXT("%s: %u instructions"), *Descriptions[InstructionIndex].ShaderDescription, Descriptions[InstructionIndex].InstructionCount);
+			FString InstructionCountString = FString::Printf(TEXT("%s: %u instructions\nStats: %s"), *Descriptions[InstructionIndex].ShaderDescription, Descriptions[InstructionIndex].InstructionCount, *Descriptions[InstructionIndex].ShaderStatisticsString);
 			Canvas->DrawShadowedString(5, DrawPositionY, *InstructionCountString, FontToUse, FLinearColor(1, 1, 0));
 			DrawPositionY += SpacingBetweenLines;
 		}
@@ -3269,10 +3269,10 @@ void FMaterialEditor::UpdateMaterialinfoList_Old()
 
 			for (int32 InstructionIndex = 0; InstructionIndex < Results.Num(); InstructionIndex++)
 			{
-				FString InstructionCountString = FString::Printf(TEXT("%s: %u instructions"), *Results[InstructionIndex].ShaderDescription, Results[InstructionIndex].InstructionCount);
+					FString InstructionCountString = FString::Printf(TEXT("%s: %u instructions\nStats: %s"), *Results[InstructionIndex].ShaderDescription, Results[InstructionIndex].InstructionCount, *Results[InstructionIndex].ShaderStatisticsString);
 				if (bBuiltinStats)
 				{
-					InstructionCountString += FString::Printf(TEXT(" - Built-in instructions: %u"), EmptyMaterialResults[InstructionIndex].InstructionCount);
+						InstructionCountString += FString::Printf(TEXT(" - Built-in instructions: %u\nStats: %s"), EmptyMaterialResults[InstructionIndex].InstructionCount, *EmptyMaterialResults[InstructionIndex].ShaderStatisticsString);
 				}
 				TempMaterialInfoList.Add(MakeShareable(new FMaterialInfo(InstructionCountString, FLinearColor::Yellow)));
 				TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Info);

@@ -18,7 +18,7 @@
 void FMaterialResourceStats::SetupExtraCompilationSettings(const EShaderPlatform Platform, FExtraShaderCompilerSettings& Settings) const
 {
 	Settings.bExtractShaderSource = true;
-	Settings.OfflineCompilerPath = FMaterialStatsUtils::GetPlatformOfflineCompilerPath(Platform);
+	FMaterialStatsUtils::GetPlatformOfflineCompilerSettings(Platform, Settings);
 }
 
 /*end FMaterialResourceStats functions*/
@@ -138,22 +138,52 @@ FString FMaterialStatsUtils::ShaderPlatformTypeName(const EShaderPlatform Platfo
 
 FString FMaterialStatsUtils::GetPlatformOfflineCompilerPath(const EShaderPlatform ShaderPlatform)
 {
+	FExtraShaderCompilerSettings SCSettings;
+	GetPlatformOfflineCompilerSettings(ShaderPlatform, SCSettings);
+	return SCSettings.OfflineCompilerPath;
+}
+
+void FMaterialStatsUtils::GetPlatformOfflineCompilerSettings(const EShaderPlatform ShaderPlatform, FExtraShaderCompilerSettings& SCSettings)
+{
+	auto GetSCType = [](EOfflineShaderCompiler SC)
+	{
+		switch (SC)
+		{
+		case EOfflineShaderCompiler::Mali:
+			return EOfflineShaderCompilerType::Mali;
+			break;
+		case EOfflineShaderCompiler::Adreno:
+			return EOfflineShaderCompilerType::Adreno;
+			break;
+		default:
+			return EOfflineShaderCompilerType::Num;
+		}
+	};
 	if (FDataDrivenShaderPlatformInfo::GetNeedsOfflineCompiler(ShaderPlatform))
 	{
 		if (FDataDrivenShaderPlatformInfo::GetIsAndroidOpenGLES(ShaderPlatform)
 			|| (FDataDrivenShaderPlatformInfo::GetIsLanguageVulkan(ShaderPlatform) && FDataDrivenShaderPlatformInfo::GetIsMobile(ShaderPlatform)))
 		{
-			return FPaths::ConvertRelativePathToFull(GetDefault<UMaterialEditorSettings>()->MaliOfflineCompilerPath.FilePath);
+			SCSettings.OfflineCompiler = GetSCType(GetDefault<UMaterialEditorSettings>()->OfflineCompiler);
+			SCSettings.OfflineCompilerPath = FPaths::ConvertRelativePathToFull(GetDefault<UMaterialEditorSettings>()->OfflineCompilerPath.FilePath);
+			SCSettings.GPUTarget = GetDefault<UMaterialEditorSettings>()->GPUTarget;
+			SCSettings.bDumpAll = GetDefault<UMaterialEditorSettings>()->bDumpAll;
+			SCSettings.bSaveCompilerStatsFiles = GetDefault<UMaterialEditorSettings>()->bSaveCompilerStatsFiles;
+			static const auto CVarMobileMultiView = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("vr.MobileMultiView"));
+			SCSettings.bMobileMultiView = (CVarMobileMultiView && CVarMobileMultiView->GetValueOnAnyThread() != 0);
+			return;
 		}
 	}
-	return FString();
+	SCSettings.OfflineCompiler = EOfflineShaderCompilerType::Num;
+	return;
 }
 
 bool FMaterialStatsUtils::IsPlatformOfflineCompilerAvailable(const EShaderPlatform ShaderPlatform)
 {
-	FString CompilerPath = GetPlatformOfflineCompilerPath(ShaderPlatform);
+	FExtraShaderCompilerSettings Settings;
+	GetPlatformOfflineCompilerSettings(ShaderPlatform, Settings);
 
-	bool bCompilerExists = FPaths::FileExists(CompilerPath);
+	bool bCompilerExists = FPaths::FileExists(Settings.OfflineCompilerPath);
 
 	return bCompilerExists;
 }
@@ -686,7 +716,7 @@ void FMaterialStatsUtils::ExtractMatertialStatsInfo(EShaderPlatform ShaderPlatfo
 
 			Content.StrDescription = ShaderInstructionInfo[InstructionIndex].InstructionCount > 0 ? FString::Printf(TEXT("%u"), ShaderInstructionInfo[InstructionIndex].InstructionCount) : TEXT("n/a");
 			Content.StrDescriptionLong = ShaderInstructionInfo[InstructionIndex].InstructionCount > 0 ?
-				FString::Printf(TEXT("%s: %u instructions"), *ShaderInstructionInfo[InstructionIndex].ShaderDescription, ShaderInstructionInfo[InstructionIndex].InstructionCount) :
+				FString::Printf(TEXT("%s: %u instructions\nStats: %s"), *ShaderInstructionInfo[InstructionIndex].ShaderDescription, ShaderInstructionInfo[InstructionIndex].InstructionCount, *ShaderInstructionInfo[InstructionIndex].ShaderStatisticsString) :
 				TEXT("Offline shader compiler not available or an error was encountered!");
 
 			OutInfo.ShaderInstructionCount.Add(ShaderInstructionInfo[InstructionIndex].ShaderType, Content);

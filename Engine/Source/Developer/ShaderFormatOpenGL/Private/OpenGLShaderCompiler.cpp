@@ -3305,6 +3305,6 @@ static void PlatformCompileOfflineInternal(const FShaderCompilerInput& Input, FS
 {
 	if (ShaderVersion == GLSL_ES3_1_ANDROID)
 	{
-		CompileOfflineMali(Input, ShaderOutput, ShaderSource, FPlatformString::Strlen(ShaderSource), false);
+		CompileShaderOffline(Input, ShaderOutput, ShaderSource, FPlatformString::Strlen(ShaderSource), false);
 	}
 }
