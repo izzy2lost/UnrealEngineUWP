@@ -314,6 +314,19 @@ class ImportSnapshot(unreal.zencmd.ZenUtilityBaseCmd):
 
         return self.run_zen_utility(args)
 
+    def perform_clean_post_import(self, snapshot):
+        target_oplogid = self.args.oplog or snapshot['targetplatform']
+
+        ue_context = self.get_unreal_context()
+        target_dir = ue_context.get_project().get_dir() / f"Saved/Cooked/{self.conform_to_cook_forms(target_oplogid)}"
+
+        for fsentry in os.scandir(target_dir):
+            if fsentry.is_dir(follow_symlinks=False):
+                shutil.rmtree(fsentry.path)
+            else:
+                if fsentry.name != 'ue.projectstore':
+                    os.unlink(fsentry.path)
+
 
     @unrealcmd.Cmd.summarise
     def main(self):
@@ -331,4 +344,8 @@ class ImportSnapshot(unreal.zencmd.ZenUtilityBaseCmd):
             self.print_error(f"Error creating import target location")
             return False
 
-        return self.perform_import(snapshot)
+        import_result = self.perform_import(snapshot)
+        if import_result == 0:
+            self.perform_clean_post_import(snapshot)
+        return import_result
+

@@ -79,6 +79,26 @@ prompt to enter a search string and will display the latest command with a match
 Further Ctrl-R hits will step backwards through commands that match the search
 string (with Ctrl-S stepping forwards). History searching is case-sensitive.
 
+# Integrating with UnrealGameSync
+
+UGS supports additional tools deployable via Perforce via the UGS setting
+`DeploymentSettings/ToolsDepotPath`. By adding a `Tools/ushell/ushell.ini` file
+users can enable a ushell status panel link via `Options > Application
+Settings`. An example `ushell.ini` follows;
+
+```
+[Settings]
+Id=922EED87-E732-464C-92DC-5A8F7ED955E2
+Name=ushell
+Description=ushell
+SafeWhenBusy=1
++StatusPanelLinks=(Label="ushell", FileName="$(COMSPEC)", Arguments="/c \"\"$(BranchDir)\\Engine\\Extras\\ushell\\ushell.bat\" --project=\"$(ProjectFile)\"\"", WorkingDir="$(ProjectDir)")
+```
+
+It is also possible to distribute a copy of ushell as a `ushell.zip` file
+alongside `ushell.ini`. This can be useful to deploy ushell to users regardless
+of which branch they may be working on.
+
 # Scripting
 
 There is modest support for scripting ushell with Batch scripts. This can be

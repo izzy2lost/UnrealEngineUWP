@@ -3,6 +3,7 @@
 import os
 import flow.cmd
 
+#-------------------------------------------------------------------------------
 class Prompt(flow.cmd.Cmd):
     """ Used to collect key/value pairs for tags in the prompt. """
     format = flow.cmd.Opt("none", "Output format. Options; none,sh")

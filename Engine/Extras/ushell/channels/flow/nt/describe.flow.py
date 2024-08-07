@@ -4,9 +4,9 @@ import flow.describe
 
 #-------------------------------------------------------------------------------
 clink = flow.describe.Tool()
-clink.version("1.0.0a4")
+clink.version("1.0.0a5")
 clink.payload("https://github.com/mridgers/clink/releases/download/$VERSION/clink-$VERSION.zip")
-clink.sha1("6a642bc48e21a3093698067f0fe09eff3ccdfaa5")
+clink.sha1("70289e92e3313a2b0e8dee801901eae61f8992a3")
 clink.platform("win32")
 clink.bin("clink_x64.exe")
 

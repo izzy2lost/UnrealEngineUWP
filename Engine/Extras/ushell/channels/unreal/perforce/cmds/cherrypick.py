@@ -337,9 +337,9 @@ class Cherrypick(flow.cmd.Cmd):
                 stream_info = P4.stream(stream, o=True).run()
                 parent = stream_info.Parent
                 while parent.startswith("//"):
-                    stream_info = P4.stream(parent, o=True).run()
                     if stream_info.Type != "virtual":
                         break
+                    stream_info = P4.stream(parent, o=True).run()
                     parent = stream_info.Parent
                 return parent
 
