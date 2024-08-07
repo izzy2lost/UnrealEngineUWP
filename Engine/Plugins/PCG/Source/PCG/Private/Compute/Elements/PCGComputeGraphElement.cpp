@@ -189,7 +189,8 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			for (const FComputeKernelCompileMessage& Message : NodeAndCompileMessages.Get<1>())
 			{
-				// Currently failure messages can come through with Log severity, pattern match for now.
+				// Some error messages were getting lost, and we were only getting the final 'failed' message. Treat this as failure and report for now.
+				// TODO: Revert the 'failed' part once we're happy all relevant issues are bubbling up.
 				if (Message.Type == FComputeKernelCompileMessage::EMessageType::Error || Message.Text.Contains(TEXT("failed"), ESearchCase::IgnoreCase))
 				{
 					return true;
@@ -304,7 +305,9 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 				}
 				else if (Message.Text.Contains(TEXT("failed"), ESearchCase::IgnoreCase))
 				{
-					// Currently failure messages can come through with Log verbosity.
+					// Some error messages were getting lost, and we were only getting the final 'failed' message.
+					// Treat this as failure and report for now.
+					// TODO: Revert this once we're happy all relevant issues are bubbling up.
 					Verbosity = ELogVerbosity::Error;
 				}
 
@@ -315,18 +318,25 @@ void FPCGComputeGraphElement::LogCompilationMessages(FPCGComputeGraphContext* In
 						FPCGStack StackWithNode = *InContext->Stack;
 						StackWithNode.PushFrame(NodeAndCompileMessages.Get<0>().ResolveObjectPtr());
 
+						FText LogText;
+
 						if (Message.Line != INDEX_NONE)
 						{
-							Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, FText::Format(
-								LOCTEXT("ErrorWithLineFormat", "[{0},{1}] {2}"),
-								Message.Line,
-								Message.ColumnStart,
-								FText::FromString(Message.Text)));
+							if (Message.ColumnStart != INDEX_NONE)
+							{
+								LogText = FText::Format(LOCTEXT("ErrorWithLineColFormat", "[{0},{1}] {2}"), Message.Line, Message.ColumnStart, FText::FromString(Message.Text));
+							}
+							else
+							{
+								LogText = FText::Format(LOCTEXT("ErrorWithLineFormat", "[{0}] {1}"), Message.Line, FText::FromString(Message.Text));
+							}
 						}
 						else
 						{
-							Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, FText::FromString(Message.Text));
+							LogText = FText::FromString(Message.Text);
 						}
+
+						Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, Verbosity, LogText);
 					}
 				}
 			}

@@ -1552,7 +1552,7 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 			"	if (ThreadIndex >= GetNumThreads().x) return;\n"
 			"%s\n" // HeaderWriters
 			"%s\n" // KernelSpecificPreamble
-			"#line 0 \"%s\"\n\n" // ShaderPathName
+			"#line 0 \"%s\"\n" // ShaderPathName
 			"%s\n" // Source
 			"}\n"),
 			*Includes, *Functions, *KernelFunc, *UnWrappedDispatchThreadId, *HeaderWriters, *KernelSpecificPreamble, *ShaderPathName, *Source);

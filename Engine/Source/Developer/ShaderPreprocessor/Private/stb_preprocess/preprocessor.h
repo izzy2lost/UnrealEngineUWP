@@ -24,6 +24,8 @@ enum
 	PP_RESULT_undef_of_predefined_macro,
 	PP_RESULT_identifier_too_long,
 	PP_RESULT_malformed_pragma_message,
+	PP_RESULT_malformed_line_filename,
+	PP_RESULT_invalid_line_linenumber,
 
 	PP_RESULT_count
 };

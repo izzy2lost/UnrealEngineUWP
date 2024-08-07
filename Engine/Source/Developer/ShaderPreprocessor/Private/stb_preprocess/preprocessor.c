@@ -4,6 +4,7 @@
 #include "preprocessor.h"
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3963,15 +3964,59 @@ static void process_directive(parse_state* cs, conditional_state* cons)
 		}
 
 		case HASH_line:
-			// copy line directive through to output... existing code will output the newline, so don't do it here
+		{
+			// parse line number and file name and apply these to the parser state. this will trigger a line directive to be emitted with the correct format.
+
+			p = preprocessor_skip_whitespace_simple(p);
+			if (strlen(p) == 0)
+				return;
+
+			char* number_end = NULL;
+			long long int line_number = strtoll(p, &number_end, 10);
+			if (!number_end || number_end == p || llabs(line_number) >= INT_MAX)
 			{
-				size_t out_length = strlen(p);
-				size_t s = arraddnindex(cs->dest, 6);
-				memcpy(cs->dest + s, "#line ", 6);
-				s = arraddnindex(cs->dest, out_length);
-				memcpy(cs->dest + s, p, out_length);
+				do_error_code(cs, PP_RESULT_invalid_line_linenumber, "Invalid #line line number");
+				return;
 			}
+
+			cs->src_line_number = (int)line_number;
+
+			p = preprocessor_skip_whitespace_simple(number_end);
+
+			// file path next. optional - we're done if nothing provided.
+			if (char_is_end_of_line(*p))
+				return;
+
+			// file path should be surrounded by quotes.
+			if (!char_is_quote(*p++))
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			// find end of file path
+			const char* path_end = p;
+			while (*path_end != '"' && !char_is_end_of_line(*path_end))
+				path_end++;
+
+			if (*path_end != '"')
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			ptrdiff_t len = path_end - p;
+			if (len <= 0)
+			{
+				do_error_code(cs, PP_RESULT_malformed_line_filename, "Malformed #line file name");
+				return;
+			}
+
+			// apply new file path
+			cs->filename = stb_arena_alloc_string_length(&c->macro_arena, p, len);
+
 			return;
+		}
 
 		case HASH_pragma:
 		{
