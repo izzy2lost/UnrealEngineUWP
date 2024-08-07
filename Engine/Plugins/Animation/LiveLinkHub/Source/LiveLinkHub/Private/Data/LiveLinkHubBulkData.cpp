@@ -15,12 +15,18 @@ FLiveLinkHubBulkData::FScopedBulkDataMemoryReader::FScopedBulkDataMemoryReader(c
 
 FLiveLinkHubBulkData::~FLiveLinkHubBulkData()
 {
-	CloseFileReader();
+	UnloadBulkData();
 }
 
 void FLiveLinkHubBulkData::CloseFileReader()
 {
 	RecordingFileReader.Reset();
+}
+
+void FLiveLinkHubBulkData::UnloadBulkData()
+{
+	CloseFileReader();
+	BulkData.UnloadBulkData();
 }
 
 void FLiveLinkHubBulkData::ReadBulkData(const int64 InBytesToRead, uint8* InMemory)

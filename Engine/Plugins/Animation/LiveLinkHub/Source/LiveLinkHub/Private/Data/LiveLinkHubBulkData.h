@@ -40,6 +40,9 @@ public:
 
 	/** Close the file reader if it is open. */
 	void CloseFileReader();
+
+	/** Unloads the bulk data. */
+	void UnloadBulkData();
 	
 	/** Read data using sizeof(T). */
 	template<typename T>

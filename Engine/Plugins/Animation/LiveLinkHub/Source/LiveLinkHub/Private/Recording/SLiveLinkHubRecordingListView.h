@@ -4,13 +4,17 @@
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
+#include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
 #include "Delegates/DelegateCombinations.h"
+#include "Framework/Commands/GenericCommands.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IContentBrowserSingleton.h"
 #include "Implementations/LiveLinkUAssetRecording.h"
-#include "LiveLinkHub.h"
+#include "LiveLinkHubModule.h"
+#include "Recording/LiveLinkHubPlaybackController.h"
 #include "Recording/LiveLinkRecording.h"
+#include "UObject/SavePackage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/Text/STextBlock.h"
@@ -206,15 +210,17 @@ private:
 
 			AssetPickerConfig.Filter = MakeAssetFilter();
 			AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateRaw(this, &SLiveLinkHubRecordingListView::OnImportRecording);
+			AssetPickerConfig.OnGetAssetContextMenu = FOnGetAssetContextMenu::CreateRaw(this, &SLiveLinkHubRecordingListView::GetAssetContextMenu);
 		}
 
 		MenuBuilder.BeginSection(NAME_None, LOCTEXT("ImportRecording_MenuSection", "Import Recording"));
 		{
+			AssetPicker = ContentBrowser.CreateAssetPicker(AssetPickerConfig);
 			TSharedRef<SWidget> PresetPicker = SNew(SBox)
 			.VAlign(VAlign_Fill)
 			.HAlign(HAlign_Fill)
 			[
-				ContentBrowser.CreateAssetPicker(AssetPickerConfig)
+				AssetPicker.ToSharedRef()
 			];
 
 			MenuBuilder.AddWidget(PresetPicker, FText(), true, false);
@@ -236,6 +242,83 @@ private:
 		return Filter;
 	}
 
+	TSharedPtr<SWidget> GetAssetContextMenu(const TArray<FAssetData>& SelectedAssets) const
+	{
+		if (SelectedAssets.Num() <= 0)
+		{
+			return nullptr;
+		}
+
+		TWeakObjectPtr<UObject> SelectedAsset = SelectedAssets[0].GetAsset();
+		if (!SelectedAsset.IsValid())
+		{
+			return nullptr;
+		}
+
+		FMenuBuilder MenuBuilder(true, MakeShared<FUICommandList>());
+
+		MenuBuilder.BeginSection(TEXT("Recording"), LOCTEXT("RecordingSectionLabel", "Recording"));
+		{
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("RenameRecordingLabel", "Rename"),
+				LOCTEXT("RenameRecordingTooltip", "Rename the recording"),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Rename"),
+				FUIAction(
+					FExecuteAction::CreateLambda([SelectedAsset, this] ()
+					{
+						if (SelectedAsset.IsValid())
+						{
+							const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+							ContentBrowserModule.Get().ExecuteRename(AssetPicker);
+						}
+					}),
+					FCanExecuteAction::CreateLambda([] () { return true; })
+				)
+			);
+			
+			MenuBuilder.AddMenuEntry(
+				LOCTEXT("DuplicateRecordingLabel", "Duplicate"),
+				LOCTEXT("DuplicateRecordingTooltip", "Duplicate the recording"),
+				FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Duplicate"),
+				FUIAction(
+					FExecuteAction::CreateLambda([SelectedAsset] ()
+					{
+						if (SelectedAsset.IsValid())
+						{
+							IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
+							
+							FString TargetName;
+							FString TargetPackageName;
+							IAssetTools::Get().CreateUniqueAssetName(SelectedAsset->GetOutermost()->GetName(), TEXT("_Copy"), TargetPackageName, TargetName);
+
+							// Duplicate the asset.
+							UObject* NewAsset = AssetTools.DuplicateAsset(TargetName, FPackageName::GetLongPackagePath(TargetPackageName), SelectedAsset.Get());
+							FSavePackageArgs SavePackageArgs;
+							SavePackageArgs.TopLevelFlags = RF_Public | RF_Standalone;
+							SavePackageArgs.Error = GLog;
+
+							// Save the package.
+							const FString PackageFileName = FPackageName::LongPackageNameToFilename(TargetPackageName, FPackageName::GetAssetPackageExtension());
+							UPackage::SavePackage(NewAsset->GetPackage(), NewAsset, *PackageFileName, MoveTemp(SavePackageArgs));
+
+							// Unload the source recording data, as the bulk data would have been fully loaded to duplicate.
+							const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+							const TStrongObjectPtr<ULiveLinkRecording> PlaybackRecording = LiveLinkHubModule.GetPlaybackController()->GetRecording();
+							if (PlaybackRecording.Get() != SelectedAsset)
+							{
+								CastChecked<ULiveLinkUAssetRecording>(SelectedAsset)->UnloadRecordingData();
+							}
+						}
+					}),
+					FCanExecuteAction::CreateLambda([] () { return true; })
+				)
+			);
+		}
+		MenuBuilder.EndSection();
+
+		return MenuBuilder.MakeWidget();
+	}
+	
 	/** The text to display when no assets are found. */
 	static FText GetNoAssetsWarningText()
 	{
@@ -249,6 +332,8 @@ private:
 	FOnEject OnEjectDelegate;
 	/** Delegate used to determine a recording can be ejected. */
 	FCanEject OnCanEjectDelegate;
+	/** The asset picker used for selecting recordings. */
+	TSharedPtr<SWidget> AssetPicker;
 	
 	/** Handle for when an asset is added to the asset registry. */
 	FDelegateHandle OnAssetAddedHandle;

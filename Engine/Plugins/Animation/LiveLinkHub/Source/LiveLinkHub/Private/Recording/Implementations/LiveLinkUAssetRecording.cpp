@@ -179,7 +179,7 @@ void ULiveLinkUAssetRecording::UnloadRecordingData()
 
 	bPerformedInitialLoad = false;
 
-	AnimationData.CloseFileReader();
+	AnimationData.UnloadBulkData();
 
 	FrameFileData.Empty();
 	RecordingMaxFrames = 0;
