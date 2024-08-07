@@ -1029,11 +1029,7 @@ void UCommonSessionSubsystem::OnFindSessionsComplete(bool bWasSuccessful)
 
 		for (const FOnlineSessionSearchResult& Result : SearchSettingsV1.SearchResults)
 		{
-			// TODO: The check should exist, but we'll comment it for now as it will always be hit for EOS sessions.
-			// The reason for this is the way in which EOS sessions stores and retrieves search results vs joined sessions.
-			// We'll un-comment the check after the corresponding EOS fix.
-
-			//check(Result.IsValid());
+			check(Result.IsValid());
 
 			UCommonSession_SearchResult* Entry = NewObject<UCommonSession_SearchResult>(SearchSettingsV1.SearchRequest);
 			Entry->Result = Result;

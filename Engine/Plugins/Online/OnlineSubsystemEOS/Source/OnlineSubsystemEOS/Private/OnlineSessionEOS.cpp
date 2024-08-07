@@ -4863,6 +4863,12 @@ void FOnlineSessionEOS::CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyD
 
 							CopyLobbyMemberAttributes(*LobbyDetails, It.Key(), MemberSettings);
 						}
+
+						// We'll update the search result to make sure the data is updated in all copies of the session
+						if (FOnlineSessionSearchResult* SearchResult = GetSearchResultFromLobbyId(*LobbyId))
+						{
+							SearchResult->Session = *Session;
+						}
 					}
 
 					const bool bWasSuccessful = Session != nullptr;
@@ -4890,6 +4896,12 @@ void FOnlineSessionEOS::CopyLobbyData(const TSharedRef<FLobbyDetailsEOS>& LobbyD
 					{
 						Session->OwningUserId = *OwnerNetId;
 						Session->OwningUserName = EOSSubsystem->UserManager->GetPlayerNickname(**OwnerNetId);
+					}
+
+					// We'll update the search result to make sure the data is updated in all copies of the session
+					if (FOnlineSessionSearchResult* SearchResult = GetSearchResultFromLobbyId(*LobbyId))
+					{
+						SearchResult->Session = *Session;
 					}
 				}
 
