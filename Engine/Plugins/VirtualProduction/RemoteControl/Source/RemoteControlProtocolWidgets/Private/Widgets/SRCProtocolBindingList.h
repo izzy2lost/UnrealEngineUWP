@@ -59,9 +59,6 @@ private:
 	/** Retrieves the appropriate tooltip based on the active protocol. */
 	FText HandleAddBindingToolTipText() const;
 
-	/** Called to get the visibility of the scrollbar based on options, needs to be dynamic to avoid layout changing on expansion */
-	EVisibility GetScrollBarVisibility() const;
-
 	/** Primary Column is between Input and Output values. */
 	float OnGetPrimaryLeftColumnWidth() const
 	{
