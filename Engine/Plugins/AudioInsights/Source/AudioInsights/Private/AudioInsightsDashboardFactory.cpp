@@ -52,7 +52,7 @@ namespace UE::Audio::Insights
 			]
 			+ SVerticalBox::Slot()
 			[
-				DashboardTabManager->RestoreFrom(TabLayout->AsShared(), Args.GetOwnerWindow()).ToSharedRef()
+				DashboardTabManager->RestoreFrom(TabLayout->AsShared(), TSharedPtr<SWindow>()).ToSharedRef()
 			];
 
 		DockTab->SetContent(TabContent);
