@@ -8,6 +8,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "SceneCulling/SceneCulling.h"
+#include "Rendering/NaniteStreamingManager.h"
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 #include "DynamicPrimitiveDrawing.h"
@@ -100,7 +101,7 @@ FShadowSceneRenderer::FShadowSceneRenderer(FDeferredShadingSceneRenderer& InScen
 
 float FShadowSceneRenderer::ComputeNaniteShadowsLODScaleFactor()
 {
-	return FMath::Pow(2.0f, -CVarNaniteShadowsLODBias.GetValueOnRenderThread());
+	return FMath::Pow(2.0f, -CVarNaniteShadowsLODBias.GetValueOnRenderThread()) * Nanite::GStreamingManager.GetQualityScaleFactor();
 }
 
 namespace

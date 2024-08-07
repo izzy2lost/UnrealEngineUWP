@@ -1288,10 +1288,13 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 			}
 
 			float MaxPixelsPerEdgeMultipler = 1.0f / LODScaleFactor;
+
+			float QualityScale = Nanite::GStreamingManager.GetQualityScaleFactor();
 			if (GDynamicNaniteScalingPrimary.GetSettings().IsEnabled())
 			{
-				MaxPixelsPerEdgeMultipler *= 1.0f / DynamicResolutionFractions[GDynamicNaniteScalingPrimary];
+				QualityScale = FMath::Min(QualityScale, DynamicResolutionFractions[GDynamicNaniteScalingPrimary]);
 			}
+			MaxPixelsPerEdgeMultipler /= QualityScale;
 
 			TArray<FConvexVolume> ViewsToRenderCullingVolumes;
 			Nanite::FPackedViewArray* NaniteViewsToRender = CreateNaniteViews(View, ViewIndex, RasterTextureSize, MaxPixelsPerEdgeMultipler, ViewsToRenderCullingVolumes);

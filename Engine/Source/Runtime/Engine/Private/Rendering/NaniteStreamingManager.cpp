@@ -122,6 +122,33 @@ static FAutoConsoleVariableRef CVarNaniteStreamingGPURequestsBufferMaxSize(
 	ECVF_RenderThreadSafe
 );
 
+// Controls for dynamically adjusting quality (pixels per edge) when the streaming pool is being overcommitted.
+// This should be a rare condition in practice, but can happen when rendering scenes with lots of unique geometry at high resolutions.
+static float GNaniteStreamingQualityScaleMinPoolPercentage = 70.0f;
+static FAutoConsoleVariableRef CVarNaniteStreamingQualityScaleMinPoolPercentage(
+	TEXT("r.Nanite.Streaming.QualityScale.MinPoolPercentage"),
+	GNaniteStreamingQualityScaleMinPoolPercentage,
+	TEXT("Adjust quality up whenever the streaming pool load percentage goes below this threshold."),
+	ECVF_RenderThreadSafe
+);
+
+static float GNaniteStreamingQualityScaleMaxPoolPercentage = 85.0f;
+static FAutoConsoleVariableRef CVarNaniteStreamingQualityScaleMaxPoolPercentage(
+	TEXT("r.Nanite.Streaming.QualityScale.MaxPoolPercentage"),
+	GNaniteStreamingQualityScaleMaxPoolPercentage,
+	TEXT("Adjust quality down whenever the streaming pool load percentage goes above this threshold."),
+	ECVF_RenderThreadSafe
+);
+
+static float GNaniteStreamingQualityScaleMinQuality = 0.3f;
+static FAutoConsoleVariableRef CVarNaniteStreamingQualityScaleMinQuality(
+	TEXT("r.Nanite.Streaming.QualityScale.MinQuality"),
+	GNaniteStreamingQualityScaleMinQuality,
+	TEXT("Quality scaling will never go below this limit. 1.0 disables any scaling."),
+	ECVF_RenderThreadSafe
+);
+
+
 static int32 GNaniteStreamingAsyncCompute = 1;
 static FAutoConsoleVariableRef CVarNaniteStreamingAsyncCompute(
 	TEXT("r.Nanite.Streaming.AsyncCompute"),
@@ -214,6 +241,8 @@ DECLARE_DWORD_COUNTER_STAT(		TEXT("    New"),							STAT_NaniteStreaming27_PageR
 
 DECLARE_FLOAT_COUNTER_STAT(		TEXT("Visible Streaming Data Size (MB)"),	STAT_NaniteStreaming30_VisibleStreamingDataSizeMB,		STATGROUP_NaniteStreaming);
 DECLARE_FLOAT_COUNTER_STAT(		TEXT("    Streaming Pool Percentage"),		STAT_NaniteStreaming31_VisibleStreamingPoolPercentage,	STATGROUP_NaniteStreaming);
+DECLARE_FLOAT_COUNTER_STAT(		TEXT("    Quality Scale"),					STAT_NaniteStreaming32_VisibleStreamingQualityScale,	STATGROUP_NaniteStreaming);
+
 
 DECLARE_FLOAT_COUNTER_STAT(		TEXT("IO Request Size (MB)"),				STAT_NaniteStreaming40_IORequestSizeMB,					STATGROUP_NaniteStreaming);
 
@@ -1031,6 +1060,42 @@ private:
 	FBufferSizeManager				BufferSizeManager;
 };
 
+class FQualityScalingManager
+{
+public:
+	float Update(float StreamingPoolPercentage)
+	{
+		const float MinPercentage = FMath::Clamp(GNaniteStreamingQualityScaleMinPoolPercentage, 10.0f, 100.0f);
+		const float MaxPercentage = FMath::Clamp(GNaniteStreamingQualityScaleMaxPoolPercentage, MinPercentage, 100.0f);
+
+		const bool bOverBudget = (StreamingPoolPercentage > MaxPercentage);
+		const bool bUnderBudget = (StreamingPoolPercentage < MinPercentage);
+
+		OverBudgetCounter = bOverBudget ? (OverBudgetCounter + 1u) : 0u;
+		UnderBudgetCounter = bUnderBudget ? (UnderBudgetCounter + 1u) : 0u;
+
+		if (OverBudgetCounter >= 2u)
+		{
+			// Ignore single frames that could be because of temporary disocclusion.
+			// When we are over budget for more than on frame, adjust quality down rapidly.
+			Scale *= 0.97f;
+		}
+		else if (UnderBudgetCounter >= 30u)
+		{
+			// If we are under budget, slowly start increasing quality again.
+			Scale *= 1.01f;
+		}
+
+		const float MinScale = FMath::Clamp(GNaniteStreamingQualityScaleMinQuality, 0.1f, 1.0f);
+		Scale = FMath::Clamp(Scale, MinScale, 1.0f);
+		return Scale;
+	}
+private:
+	float Scale = 1.0f;
+	uint32 OverBudgetCounter = 0u;
+	uint32 UnderBudgetCounter = 0u;
+};
+
 FStreamingManager::FStreamingManager()
 #if WITH_EDITOR
 	: RequestOwner(nullptr)
@@ -1049,6 +1114,7 @@ void FStreamingManager::InitRHI(FRHICommandListBase&)
 
 	HierarchyDepthManager = MakePimpl<FHierarchyDepthManager>(NANITE_MAX_CLUSTER_HIERARCHY_DEPTH);
 	ReadbackManager = MakePimpl<FReadbackManager>(4);
+	QualityScalingManager = MakePimpl<FQualityScalingManager>();
 
 	const uint32 MaxPoolSizeInMB		= GetMaxPagePoolSizeInMB();
 	const uint32 StreamingPoolSizeInMB	= GNaniteStreamingPoolSize;
@@ -2675,8 +2741,8 @@ void FStreamingManager::SelectHighestPriorityPagesAndUpdateLRU(uint32 MaxSelecte
 
 	StatVisibleSetSize = NumUniqueRequests;
 
-	const float StreamingPoolPercentage = NumUniqueRequests / float(MaxStreamingPages) * 100.0f;
-	SET_FLOAT_STAT(STAT_NaniteStreaming31_VisibleStreamingPoolPercentage, StreamingPoolPercentage);
+	StatStreamingPoolPercentage = NumUniqueRequests / float(MaxStreamingPages) * 100.0f;
+	QualityScaleFactor = QualityScalingManager->Update(StatStreamingPoolPercentage);
 
 	{
 		SCOPE_CYCLE_COUNTER(STAT_NaniteStreaming_Heapify);
@@ -2946,6 +3012,9 @@ void FStreamingManager::AsyncUpdate()
 	SET_FLOAT_STAT(STAT_NaniteStreaming30_VisibleStreamingDataSizeMB, VisibleStreamingDataSizeMB);
 	CSV_CUSTOM_STAT(NaniteStreamingDetail, VisibleStreamingDataSizeMB, VisibleStreamingDataSizeMB, ECsvCustomStatOp::Set);
 	CSV_CUSTOM_STAT(NaniteStreamingDetail, AsyncUpdateMs, 1000.0f * FPlatformTime::ToSeconds(FPlatformTime::Cycles() - StartTime), ECsvCustomStatOp::Set);
+
+	SET_FLOAT_STAT(STAT_NaniteStreaming31_VisibleStreamingPoolPercentage, StatStreamingPoolPercentage);
+	SET_FLOAT_STAT(STAT_NaniteStreaming32_VisibleStreamingQualityScale, QualityScaleFactor);
 }
 
 void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)

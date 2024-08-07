@@ -85,6 +85,11 @@ public:
 
 	ENGINE_API uint32 GetStreamingRequestsBufferVersion() const;
 	
+	float GetQualityScaleFactor() const
+	{
+		return QualityScaleFactor;
+	}
+	
 	uint32 GetMaxStreamingPages() const	
 	{
 		return MaxStreamingPages;
@@ -226,12 +231,14 @@ private:
 	uint32					NumResources = 0;
 	uint32					NumPendingPages = 0;
 	uint32					NextPendingPageIndex = 0;
+	float					QualityScaleFactor = 1.0f;
 
 	uint32					StatNumRootPages = 0;
 	uint32					StatPeakRootPages = 0;
 	uint32					StatVisibleSetSize = 0;
 	uint32					StatPrevUpdateTime = 0;
 	uint32					StatNumAllocatedRootPages = 0;
+	float					StatStreamingPoolPercentage = 0.0f;
 	
 	uint64					PrevUpdateTick = 0;
 
@@ -264,6 +271,8 @@ private:
 	
 	TPimplPtr<class FStreamingPageUploader>	PageUploader;
 	TPimplPtr<class FReadbackManager>	ReadbackManager;
+
+	TPimplPtr<class FQualityScalingManager>		QualityScalingManager;
 
 	FGraphEventArray					AsyncTaskEvents;
 	FAsyncState							AsyncState;
