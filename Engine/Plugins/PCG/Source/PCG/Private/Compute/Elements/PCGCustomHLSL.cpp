@@ -246,6 +246,11 @@ int UPCGCustomHLSLSettings::ComputeKernelThreadCount(const UPCGDataBinding* Bind
 		checkNoEntry();
 	}
 
+	if (IsThreadCountMultiplierInUse())
+	{
+		ThreadCount *= ThreadCountMultiplier;
+	}
+
 	return ThreadCount;
 }
 
@@ -1082,6 +1087,15 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 				PCG_LOG_VALIDATION(FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
 				return false;
 			}
+		}
+	}
+
+	if (IsThreadCountMultiplierInUse())
+	{
+		if (ThreadCountMultiplier < 1)
+		{
+			PCG_LOG_VALIDATION(FText::Format(LOCTEXT("InvalidThreadCountMultiplier", "Thread Count Multiplier has invalid value ({0}). Must be greater than 0."), ThreadCountMultiplier));
+			return false;
 		}
 	}
 

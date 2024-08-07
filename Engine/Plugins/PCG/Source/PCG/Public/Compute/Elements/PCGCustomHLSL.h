@@ -162,6 +162,9 @@ public:
 protected:
 	bool AreKernelAttributesValid(FPCGContext* InContext, FText* OutErrorText) const;
 
+	/** Will the ThreadCountMultiplier value be applied when calculating the dispatch thread count. */
+	bool IsThreadCountMultiplierInUse() const { return KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed; }
+
 protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")
 	EPCGKernelType KernelType = EPCGKernelType::PointProcessor;
