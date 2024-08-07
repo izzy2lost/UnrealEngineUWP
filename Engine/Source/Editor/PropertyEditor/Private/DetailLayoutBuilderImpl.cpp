@@ -202,11 +202,19 @@ IDetailPropertyRow* FDetailLayoutBuilderImpl::EditDefaultProperty(TSharedPtr<IPr
 			FName CategoryFName = FObjectEditorUtils::GetCategoryFName(Property);
 
 			// Get the layout builder's category builder
-			TSharedPtr<FDetailCategoryImpl> DefaultCategory = DefaultCategoryMap.FindRef(CategoryFName);
-
-			if(DefaultCategory.IsValid())
+			TSharedPtr<FDetailCategoryImpl> Category = DefaultCategoryMap.FindRef(CategoryFName);
+			if (!Category.IsValid())
 			{
-				FDetailLayoutCustomization* Customization = DefaultCategory->GetDefaultCustomization(PropertyNode.ToSharedRef());
+				Category = CustomCategoryMap.FindRef(CategoryFName);
+			}
+			else if (!Category.IsValid())
+			{
+				Category = SubCategoryMap.FindRef(CategoryFName);
+			}
+
+			if(Category.IsValid())
+			{
+				FDetailLayoutCustomization* Customization = Category->GetDefaultCustomization(PropertyNode.ToSharedRef());
 				if (Customization)
 				{
 					return Customization->PropertyRow.Get();

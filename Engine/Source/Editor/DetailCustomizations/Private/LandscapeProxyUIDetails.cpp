@@ -432,15 +432,12 @@ void FLandscapeProxyUIDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBui
 				{
 					IDetailPropertyRow* DetailRow = DetailBuilder.EditDefaultProperty(PropertyHandle);
 
-					if (DetailRow != nullptr)
-					{
-						// Extend the tool tip to indicate this property is inherited
-						FText ToolTipText = PropertyHandle->GetToolTipText();
-						DetailRow->ToolTip(FText::Format(LOCTEXT("InheritedProperty", "{0} This property is inherited from the parent Landscape proxy."), ToolTipText));
+					// Extend the tool tip to indicate this property is inherited
+					FText ToolTipText = PropertyHandle->GetToolTipText();
+					DetailRow->ToolTip(FText::Format(LOCTEXT("InheritedProperty", "{0} This property is inherited from the parent Landscape proxy."), ToolTipText));
 
-						// Disable the property editing
-						DetailRow->IsEnabled(false);
-					}
+					// Disable the property editing
+					DetailRow->IsEnabled(false);
 				}
 			}
 			else if (LandscapeStreamingProxy->IsPropertyOverridable(Property))
