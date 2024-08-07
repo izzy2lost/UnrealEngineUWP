@@ -1102,8 +1102,8 @@ void PopulateViewModesMenu(UToolMenu* InMenu)
 	{
 		FToolMenuSection& Section = InMenu->AddSection("ViewMode", LOCTEXT("ViewModeHeader", "View Mode"));
 		{
-			ViewModesSubmenu::AddModeIfSupported(IsViewModeSupported, Section, BaseViewportActions.UnlitMode, VMI_Unlit);
 			ViewModesSubmenu::AddModeIfSupported(IsViewModeSupported, Section, BaseViewportActions.LitMode, VMI_Lit);
+			ViewModesSubmenu::AddModeIfSupported(IsViewModeSupported, Section, BaseViewportActions.UnlitMode, VMI_Unlit);
 			ViewModesSubmenu::AddModeIfSupported(
 				IsViewModeSupported, Section, BaseViewportActions.WireframeMode, VMI_BrushWireframe
 			);
