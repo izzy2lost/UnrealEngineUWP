@@ -64,7 +64,7 @@ struct OPTIMUSCORE_API FRigUnit_AddOptimusDeformer: public FRigUnitMutable
 
 
 
-USTRUCT(meta=(Abstract))
+USTRUCT()
 struct OPTIMUSCORE_API FRigVMTrait_OptimusVariableBase: public FRigVMTrait
 {
 	GENERATED_BODY()
