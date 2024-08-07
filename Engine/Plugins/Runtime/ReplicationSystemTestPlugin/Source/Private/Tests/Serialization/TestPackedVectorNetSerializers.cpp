@@ -168,10 +168,11 @@ UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerialize)
 	TestSerialize(1.0f, 1);
 }
 
-UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerializeBadValues)
-{
-	TestSerializeBadValues();
-}
+// Disabled until we figured out how to silence errors when it is intentional.
+//UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerializeBadValues)
+//{
+//	TestSerializeBadValues();
+//}
 
 UE_NET_TEST_FIXTURE(FTestVectorNetQuantizeNetSerializer, TestSerializeDelta)
 {
