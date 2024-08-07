@@ -152,6 +152,7 @@ struct FRayTracedLightingContext
 	bool bIsShadowRay;
 	bool bUseBookmark;
 	bool bMeshSectionVisibilityTest;
+	bool bForceClosestHitShader;
 	
 	// Hit-lighting
 	float HitLightingShadowMaxTraceDistance;
@@ -191,6 +192,7 @@ FRayTracedLightingContext CreateRayTracedLightingContext(
 	Context.bIsShadowRay = false;
 	Context.bUseBookmark = false;
 	Context.bMeshSectionVisibilityTest = bMeshSectionVisibilityTest;
+	Context.bForceClosestHitShader = false;
 	
 	Context.HitLightingShadowMode = 1;
 	Context.bHitLightingDirectLighting = true;
@@ -405,7 +407,7 @@ FLumenMinimalRayResult TraceLumenMinimalRay(
 	RayFlags |= Context.bMeshSectionVisibilityTest ? 0 : RAY_FLAG_FORCE_OPAQUE;
 
 	// Alpha masking is done through a re-trace so need to sample surface cache if alpha masking is enabled
-	if (Context.bIsShadowRay && !SURFACE_CACHE_ALPHA_MASKING)
+	if (Context.bIsShadowRay && !Context.bForceClosestHitShader && !SURFACE_CACHE_ALPHA_MASKING)
 	{
 		RayFlags |= RAY_FLAG_SKIP_CLOSEST_HIT_SHADER;
 	}

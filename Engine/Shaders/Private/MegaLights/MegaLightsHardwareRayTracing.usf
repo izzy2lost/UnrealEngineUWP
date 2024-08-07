@@ -89,6 +89,11 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 		LightingContext.InstanceMask = RAY_TRACING_MASK_OPAQUE_SHADOW;
 		LightingContext.bIsShadowRay = true;
 
+#if DEBUG_MODE
+		// by default bIsShadowRay causes RAY_FLAG_SKIP_CLOSEST_HIT_SHADER to be used, but for visualizations we need CHS to run to get hit data such as HitT
+		LightingContext.bForceClosestHitShader = bDebug && DebugMode == DEBUG_MODE_VISUALIZE_TRACING;
+#endif
+
 #if MANY_LIGHTS_EVALUATE_MATERIALS
 		FLumenMinimalRayResult TraceResult = (FLumenMinimalRayResult)0;
 		{
