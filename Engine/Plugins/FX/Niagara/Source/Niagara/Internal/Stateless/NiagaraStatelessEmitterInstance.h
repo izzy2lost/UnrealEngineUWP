@@ -115,6 +115,7 @@ private:
 	TArray<FNiagaraStatelessRuntimeSpawnInfo>	SpawnInfos;
 	TArray<FActiveSpawnRate>					ActiveSpawnRates;
 
+	ENiagaraExecutionState						InternalExecutionState = ENiagaraExecutionState::Active;
 	ENiagaraExecutionStateManagement			ScalabilityState = ENiagaraExecutionStateManagement::Awaken;
 	int32										LoopCount = 0;
 	float										CurrentLoopDuration = 0.0f;
