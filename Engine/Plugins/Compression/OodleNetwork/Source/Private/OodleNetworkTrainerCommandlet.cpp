@@ -867,8 +867,18 @@ bool FOodleNetworkDictionaryGenerator::ReadPackets(const TArray<FString>& InputC
 
 	for (TUniquePtr<FPacketCaptureArchive>& CurArc : BoundArchives)
 	{
-		while (CurArc->Tell() < CurArc->TotalSize() && PacketIdx < (uint32)PacketCount)
+		const uint32 PacketCountInCurArc = CurArc->GetPacketCount();
+
+		// We go by the packet count in the header if present.
+		// In some cases captures can contain extra packets past that point,
+		// but stay with the "official" (properly flushed) count in the header.
+		// Files that don't have the header did an earlier pass over the file
+		// contents to count complete packets.
+		for (uint32 PacketInCurArcIndex = 0; PacketInCurArcIndex < PacketCountInCurArc; ++PacketInCurArcIndex)
 		{
+			// PacketCount was determined from the sum of GetPacketCount() values earlier,
+			// so we should be in bounds unless something went badly wrong.
+			check(PacketIdx < (uint32)PacketCount);
 			uint32 PacketSize = BufferSize;
 
 			CurArc->SerializePacket(ReadBuffer, PacketSize);
