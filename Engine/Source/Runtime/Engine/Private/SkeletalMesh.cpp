@@ -1557,8 +1557,8 @@ EDataValidationResult USkeletalMesh::IsDataValid(FDataValidationContext& Context
 			}
 
 			//Validate transform do not contains nan
-			FMatrix RefPoseMatrix = GetRefPoseMatrix(BoneIndex);
-			if (RefPoseMatrix.ContainsNaN())
+			const FTransform& BoneTransform = RawRefBonePose[BoneIndex];
+			if (BoneTransform.ContainsNaN())
 			{
 				Context.AddError(LOCTEXT("SkeletalMeshValidation_PoseMatrixContainNan", "This skeletal mesh asset has NAN (invalid float number) value in the pose matrix. Asset is corrupted and must be re-create"));
 				ValidationResult = EDataValidationResult::Invalid;
