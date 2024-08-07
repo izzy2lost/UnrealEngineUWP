@@ -126,6 +126,8 @@ extern const size_t ChannelOffsets[4];
 extern float LandscapeNaniteBuildLag;
 
 ULandscapeLayerInfoObject* ALandscapeProxy::VisibilityLayer = nullptr;
+
+FOnLandscapeProxyFixupSharedDataDelegate ALandscapeProxy::OnLandscapeProxyFixupSharedDataDelegate;
 #endif //WITH_EDITOR
 
 void ULandscapeComponent::Init(int32 InBaseX, int32 InBaseY, int32 InComponentSizeQuads, int32 InNumSubsections, int32 InSubsectionSizeQuads)

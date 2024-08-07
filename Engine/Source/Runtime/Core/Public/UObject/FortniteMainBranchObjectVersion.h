@@ -514,6 +514,9 @@ struct FFortniteMainBranchObjectVersion
 		// Enable SkipOnlyEditorOnly style cooking of UStaticMeshComponent::MeshPaintTexture
 		MeshPaintTextureUsesEditorOnly,
 
+		// Fixup and synchronize some landscape properties that have moved to the property sharing/overriding system :
+		LandscapeBodyInstanceAsSharedProperty,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

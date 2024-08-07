@@ -68,6 +68,15 @@ LANDSCAPE_API extern bool GLandscapeEditModeActive;
 extern int32 GGrassMapUseRuntimeGeneration;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyComponentDataChanged, ALandscapeProxy*, const FLandscapeProxyComponentDataChangedParams&);
+
+struct FOnLandscapeProxyFixupSharedDataParams
+{
+	/** Parent landscape actor for the landscape proxy on which OnLandscapeProxyFixupSharedData is triggered */
+	ALandscape* Landscape = nullptr;
+	/** Indicates whether UpgradeSharedProperties has been called on this proxy already (before this call) */
+	bool bUpgradeSharedPropertiesPerformed = false;
+};
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnLandscapeProxyFixupSharedDataDelegate, ALandscapeProxy* /*InProxy*/, const FOnLandscapeProxyFixupSharedDataParams& /*InParams*/);
 #endif // WITH_EDITOR
 
 
@@ -462,6 +471,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = Nanite, AdvancedDisplay, meta = (EditCondition = "bEnableNanite", LandscapeInherited))
 	float NaniteMaxEdgeLengthFactor = 16.0f;
+
+	static FOnLandscapeProxyFixupSharedDataDelegate OnLandscapeProxyFixupSharedDataDelegate;
 #endif // WITH_EDITORONLY_DATA
 
 	/** Disable runtime grass data generation.  If disabled, the grass maps will be serialized at cook time. Do not set directly, use ALandscape::SetDisableRuntimeGrassMapGeneration to ensure it is set on all loaded proxies. */
@@ -817,7 +828,7 @@ public:
 	int32 SimpleCollisionMipLevel;
 
 	/** Collision profile settings for this landscape */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Collision, meta=(ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Collision, meta = (LandscapeOverridable))
 	FBodyInstance BodyInstance;
 
 	/**
@@ -1246,6 +1257,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Modifies the override state of the property given as argument.
 	virtual void SetSharedPropertyOverride(const FName& InPropertyName, const bool bIsOverriden) { }
+
+	/** Delegate that will be called whenever FixupSharedData is called, to inject some custom logic */
+	LANDSCAPE_API static FOnLandscapeProxyFixupSharedDataDelegate::RegistrationType& OnLandscapeProxyFixupSharedData() { return OnLandscapeProxyFixupSharedDataDelegate; }
 #endif // WITH_EDITOR
 
 	// Get Landscape Material assigned to this Landscape
