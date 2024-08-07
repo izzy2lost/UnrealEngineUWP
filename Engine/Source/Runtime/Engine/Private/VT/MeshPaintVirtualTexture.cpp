@@ -5,6 +5,7 @@
 #include "ComponentRecreateRenderStateContext.h"
 #include "Components/PrimitiveComponent.h"
 #include "EngineModule.h"
+#include "Interfaces/ITargetPlatform.h"
 #include "RendererInterface.h"
 #include "RenderUtils.h"
 #include "ShaderPlatformCachedIniValue.h"
@@ -52,6 +53,24 @@ namespace MeshPaintVirtualTexture
 	{
 		static FShaderPlatformCachedIniValue<bool> CPlatformVarMeshPaintVirtualTextureSupport(CVarMeshPaintVirtualTextureSupport.AsVariable());
 		return CPlatformVarMeshPaintVirtualTextureSupport.Get(InShaderPlatform) && UseVirtualTexturing(InShaderPlatform);
+	}
+
+	bool IsSupported(ITargetPlatform const* InTargetPlatform)
+	{
+		if (InTargetPlatform != nullptr)
+		{
+			TArray<FName> DesiredShaderFormats;
+			InTargetPlatform->GetAllTargetedShaderFormats(DesiredShaderFormats);
+			for (int32 FormatIndex = 0; FormatIndex < DesiredShaderFormats.Num(); FormatIndex++)
+			{
+				const EShaderPlatform ShaderPlatform = ShaderFormatToLegacyShaderPlatform(DesiredShaderFormats[FormatIndex]);
+				if (IsSupported(ShaderPlatform))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	static bool IsEnabled()
@@ -260,7 +279,7 @@ void UMeshPaintVirtualTexture::BeginCacheForCookedPlatformData(const ITargetPlat
 	// Even though we skip the cook of this object for non VT platforms in URuntimeVirtualTexture::Serialize()
 	// we still load the object at cook time and kick off the DDC build. This will trigger an error in the texture DDC code.
 	// Either we need to make the DDC code more robust for non VT platforms or we can skip the process here...
-	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform) || !MeshPaintVirtualTexture::IsSupported(GMaxRHIShaderPlatform))
+	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform))
 	{
 		return;
 	}
@@ -270,7 +289,7 @@ void UMeshPaintVirtualTexture::BeginCacheForCookedPlatformData(const ITargetPlat
 
 bool UMeshPaintVirtualTexture::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform)
 {
-	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform) || !MeshPaintVirtualTexture::IsSupported(GMaxRHIShaderPlatform))
+	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform))
 	{
 		return true;
 	}
@@ -280,7 +299,7 @@ bool UMeshPaintVirtualTexture::IsCachedCookedPlatformDataLoaded(const ITargetPla
 
 void UMeshPaintVirtualTexture::ClearCachedCookedPlatformData(const ITargetPlatform* TargetPlatform)
 {
-	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform) || !MeshPaintVirtualTexture::IsSupported(GMaxRHIShaderPlatform))
+	if (!UseVirtualTexturing(GMaxRHIShaderPlatform, TargetPlatform))
 	{
 		return;
 	}

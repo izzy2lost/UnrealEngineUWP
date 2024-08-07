@@ -2702,7 +2702,7 @@ void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InCom
 	SetMaterialRelevance(InComponent->GetMaterialRelevance(World->GetFeatureLevel()));
 	SetCollisionResponseToChannels(InComponent->GetCollisionResponseToChannels());
 
-	MeshPaintTexture = InComponent->MeshPaintTextureOverride ? InComponent->MeshPaintTextureOverride : InComponent->MeshPaintTexture;
+	MeshPaintTexture = InComponent->MeshPaintTextureOverride ? InComponent->MeshPaintTextureOverride.Get() : InComponent->GetMeshPaintTexture();
 }
 
 FPrimitiveSceneProxy* UStaticMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)

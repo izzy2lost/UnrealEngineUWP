@@ -313,9 +313,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
 	uint8 bOverrideMeshPaintTextureCoordinateIndex : 1;
 
+#if WITH_EDITORONLY_DATA
 	/** Texture containing mesh painting for this mesh component. */
 	UPROPERTY(VisibleAnywhere, Category = "Mesh Painting")
 	TObjectPtr<UTexture> MeshPaintTexture;
+#endif
+
+	/** Cooked pointer to texture containing mesh painting for this mesh component. This will be taken from MeshPaintTexture but can be empty on some platforms if we choose to strip the data. */
+	UPROPERTY(SkipSerialization)
+	TObjectPtr<UTexture> MeshPaintTextureCooked;
 
 	/** Set this to override the locally stored mesh paint texture. */
 	UPROPERTY(Transient)

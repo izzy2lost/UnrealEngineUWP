@@ -510,7 +510,10 @@ struct FFortniteMainBranchObjectVersion
 		// Deprecation of the bPlaying flag on FTimeline struct types in favor of a better
 		// PlayingStateTracker type to improve replication reliability 
 		TimelinePlayingStateTrackerDeprecation,
-		
+
+		// Enable SkipOnlyEditorOnly style cooking of UStaticMeshComponent::MeshPaintTexture
+		MeshPaintTextureUsesEditorOnly,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

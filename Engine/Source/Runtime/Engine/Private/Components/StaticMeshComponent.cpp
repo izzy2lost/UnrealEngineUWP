@@ -49,6 +49,7 @@
 #include "Rendering/NaniteResources.h"
 #include "NaniteVertexFactory.h"
 #include "StaticMeshSceneProxyDesc.h"
+#include "VT/MeshPaintVirtualTexture.h"
 #include "WorldPartition/ActorInstanceGuids.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StaticMeshComponent)
@@ -418,6 +419,46 @@ void UStaticMeshComponent::Serialize(FArchive& Ar)
 	if (Ar.IsLoading())
 	{
 		bInitialEvaluateWorldPositionOffset = bEvaluateWorldPositionOffset;
+	}
+
+	// Handle stripping the MeshPaintTexture resource from the cook for platforms where MeshPaintVirtualTexture is not supported.
+	const bool bMeshPaintTextureUsesEditorOnly = Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::MeshPaintTextureUsesEditorOnly;
+	if (bMeshPaintTextureUsesEditorOnly)
+	{
+		bool bSerializeAsCookedData = Ar.IsCooking();
+		Ar << bSerializeAsCookedData;
+
+		if (bSerializeAsCookedData)
+		{
+			// In cooked data we serialize a UObject* here in the native serializer.
+			if (Ar.IsSaving())
+			{
+#if WITH_EDITORONLY_DATA
+				// If we are choosing to strip from cook because of platform support then serialize nullptr.
+				const bool bCookMeshPaintTexture = MeshPaintVirtualTexture::IsSupported(Ar.CookingTarget());
+				UObject* SavedMeshPaintTexture = bCookMeshPaintTexture ? MeshPaintTexture : nullptr;
+#else
+				// Use MeshPaintTextureCooked.
+				UObject* SavedMeshPaintTexture = MeshPaintTextureCooked;
+#endif
+				Ar << SavedMeshPaintTexture;
+			}
+			else
+			{
+#if WITH_EDITORONLY_DATA
+				// If we are loading a cooked package in an environment that has EditorOnlyData, load into MeshPaintTexture.
+				Ar << MeshPaintTexture;
+#else
+				// Use MeshPaintTextureCooked.
+				Ar << MeshPaintTextureCooked;
+#endif
+			}
+		}
+		else
+		{
+			// In non-cooked data we do not serialize a UObject* here.
+			// Note that the EditorOnlyData MeshPaintTexture is serialized through default property serialization.
+		}
 	}
 }
 
@@ -1136,9 +1177,9 @@ void UStaticMeshComponent::GetStreamingRenderAssetInfo(FStreamingTextureLevelCon
 
 void UStaticMeshComponent::GetUsedTextures(TArray<UTexture*>& OutTextures, EMaterialQualityLevel::Type QualityLevel)
 {
-	if (MeshPaintTexture)
+	if (UTexture* Texture = GetMeshPaintTexture())
 	{
-		OutTextures.AddUnique(MeshPaintTexture);
+		OutTextures.AddUnique(Texture);
 	}
 
 	Super::GetUsedTextures(OutTextures, QualityLevel);
@@ -3103,14 +3144,22 @@ bool UStaticMeshComponent::PrestreamMeshLODs(float Seconds)
 
 UTexture* UStaticMeshComponent::GetMeshPaintTexture() const 
 {
-	return MeshPaintTexture; 
+#if WITH_EDITORONLY_DATA
+	return MeshPaintTexture;
+#else
+	return MeshPaintTextureCooked;
+#endif
 }
 
 void UStaticMeshComponent::SetMeshPaintTexture(UTexture* InTexture)
 {
-	if (MeshPaintTexture != InTexture)
+	if (GetMeshPaintTexture() != InTexture)
 	{
+#if WITH_EDITORONLY_DATA
 		MeshPaintTexture = InTexture;
+#else
+		MeshPaintTextureCooked = InTexture;
+#endif
 		MarkRenderStateDirty();
 	}
 }

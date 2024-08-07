@@ -38,6 +38,8 @@ namespace MeshPaintVirtualTexture
 {
 	/** Returns per platform support of mesh paint virtual textures. */
 	ENGINE_API bool IsSupported(EShaderPlatform InShaderPlatform);
+	/** Returns per target platform support of mesh paint virtual textures. (This combines the ShaderPlatform results for a TargetPlatform). */
+	ENGINE_API bool IsSupported(ITargetPlatform const* InTargetPlatform);
 
 	/** Returns the fallback color to use for unmapped virtual textures. Use white (same as default vertex color). */
 	inline uint32 GetDefaultFallbackColor() { return 0xFFFFFFFF; }
