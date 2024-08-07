@@ -526,12 +526,11 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfos(float InitializationAge)
 	{
 		if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Rate)
 		{
-			float SpawnRate = EvaluateDistribution(SpawnInfo.Rate, RandomStream, RendererBindings, DefaultSpawnRate) * EmitterData->SpawnCountScale;
-			SpawnRate = FMath::Max(SpawnRate, 0.0f);
-			if (SpawnRate > 0.0f)
+			FActiveSpawnRate& ActiveSpawnRate	= ActiveSpawnRates.AddDefaulted_GetRef();
+			ActiveSpawnRate.SpawnRate			= SpawnInfo.Rate;
+			if (SpawnInfo.bSpawnProbabilityEnabled)
 			{
-				FActiveSpawnRate& ActiveSpawnRate = ActiveSpawnRates.AddDefaulted_GetRef();
-				ActiveSpawnRate.Rate = SpawnRate;
+				ActiveSpawnRate.SpawnProbability = SpawnInfo.SpawnProbability;
 			}
 		}
 	}
@@ -552,10 +551,27 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float Initializatio
 	// Add the next chunk for any active spawn rates
 	for (FActiveSpawnRate& SpawnInfo : ActiveSpawnRates)
 	{
+		// Unlike stateful emitters we evaluate the spawn probability & rate per loop
+		if (SpawnInfo.SpawnProbability.IsSet())
+		{
+			float SpawnProbability = EvaluateDistribution(SpawnInfo.SpawnProbability.GetValue(), RandomStream, RendererBindings, DefaultSpawnProbability);
+			SpawnProbability = FMath::Clamp(SpawnProbability, 0.0f, 1.0f);
+			if (SpawnProbability < RandomStream.FRand())
+			{
+				continue;
+			}
+		}
+
+		const float SpawnRate = EvaluateDistribution(SpawnInfo.SpawnRate, RandomStream, RendererBindings, DefaultSpawnRate) * EmitterData->SpawnCountScale;
+		if (SpawnRate <= 0.0f)
+		{
+			continue;
+		}
+
 		const float SpawnAgeStart	= FMath::Min(InitializationAge + CurrentLoopDelay - SpawnInfo.ResidualSpawnTime, CurrentLoopAgeEnd);
 		const float ActiveDuration	= CurrentLoopAgeEnd - SpawnAgeStart;
-		const int32 NumSpawned		= FMath::FloorToInt(ActiveDuration * SpawnInfo.Rate);
-		const float SpawnAgeEnd		= SpawnAgeStart + (float(NumSpawned) / SpawnInfo.Rate);
+		const int32 NumSpawned		= FMath::FloorToInt(ActiveDuration * SpawnRate);
+		const float SpawnAgeEnd		= SpawnAgeStart + (float(NumSpawned) / SpawnRate);
 
 		if ( NumSpawned > 0 )
 		{
@@ -565,7 +581,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float Initializatio
 			if ( SpawnInfos.Num() > 0 )
 			{
 				FNiagaraStatelessRuntimeSpawnInfo& ExistingInfo = SpawnInfos.Last();
-				if ( (ExistingInfo.Type == ENiagaraStatelessSpawnInfoType::Rate) && (ExistingInfo.Rate == SpawnInfo.Rate) && (ExistingInfo.SpawnTimeEnd == SpawnAgeStart))
+				if ( (ExistingInfo.Type == ENiagaraStatelessSpawnInfoType::Rate) && (ExistingInfo.Rate == SpawnRate) && (ExistingInfo.SpawnTimeEnd == SpawnAgeStart))
 				{
 					if (ExistingInfo.UniqueOffset + ExistingInfo.Amount == UniqueIndexOffset)
 					{
@@ -584,7 +600,7 @@ void FNiagaraStatelessEmitterInstance::InitSpawnInfosForLoop(float Initializatio
 				NewSpawnInfo.UniqueOffset	= UniqueIndexOffset;
 				NewSpawnInfo.SpawnTimeStart	= SpawnAgeStart;
 				NewSpawnInfo.SpawnTimeEnd	= SpawnAgeEnd;
-				NewSpawnInfo.Rate			= SpawnInfo.Rate;
+				NewSpawnInfo.Rate			= SpawnRate;
 				NewSpawnInfo.Amount			= NumSpawned;
 			}
 
