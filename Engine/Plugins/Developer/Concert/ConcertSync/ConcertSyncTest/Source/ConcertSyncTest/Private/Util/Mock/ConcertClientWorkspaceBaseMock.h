@@ -33,6 +33,7 @@ namespace UE::ConcertSyncTests::Replication
 		virtual bool FindTransactionEvent(const int64 TransactionEventId, FConcertSyncTransactionEvent& OutTransactionEvent, const bool bMetaDataOnly) const override { return NotMocked<bool>(); }
 		virtual TFuture<TOptional<FConcertSyncTransactionEvent>> FindOrRequestTransactionEvent(const int64 TransactionEventId, const bool bMetaDataOnly) override { return NotMocked<TFuture<TOptional<FConcertSyncTransactionEvent>>>(); }
 		virtual bool FindPackageEvent(const int64 PackageEventId, FConcertSyncPackageEventMetaData& OutPackageEvent) const override { return NotMocked<bool>(); }
+		virtual bool FindReplicationEvent(const int64 ReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const override { return NotMocked<bool>(); }
 		virtual FOnWorkspaceSynchronized& OnWorkspaceSynchronized() override { return NotMocked<FOnWorkspaceSynchronized&>(OnWorkspaceSynchronizedDelegate); }
 		virtual FOnFinalizeWorkspaceSyncCompleted& OnFinalizeWorkspaceSyncCompleted() override { return NotMocked<FOnFinalizeWorkspaceSyncCompleted&>(OnFinalizeWorkspaceSyncCompletedDelegate); }
 		virtual void AddWorkspaceFinalizeDelegate(FName InDelegateName, FCanFinalizeWorkspaceDelegate InDelegate) override { NotMocked<void>(); }

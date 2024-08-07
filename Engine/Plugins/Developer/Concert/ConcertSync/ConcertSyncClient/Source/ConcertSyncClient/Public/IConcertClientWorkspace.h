@@ -14,6 +14,8 @@ class ISourceControlProvider;
 class IConcertClientSession;
 class IConcertClientDataStore;
 
+struct FConcertSyncReplicationEvent;
+
 DECLARE_DELEGATE_RetVal(bool, FCanFinalizeWorkspaceDelegate);
 DECLARE_DELEGATE_RetVal(bool, FCanProcessPendingPackages);
 
@@ -118,7 +120,7 @@ public:
 	 * @return true if dirty event should be ignored for said package.
 	 */
 	virtual bool ShouldIgnorePackageDirtyEvent(class UPackage* InPackage) const = 0;
-
+	
 	/**
 	 * Lookup the specified transaction event.
 	 * @param[in] TransactionEventId ID of the transaction to look for.
@@ -149,6 +151,14 @@ public:
 	 * @return Whether the package event meta data was found.
 	 */
 	virtual bool FindPackageEvent(const int64 PackageEventId, FConcertSyncPackageEventMetaData& OutPackageEvent) const = 0;
+
+	/**
+	 * Lookup the specified replication event.
+	 * @param[in] ReplicationEventId ID of the replication event to look for.
+	 * @param[out] OutReplicationEvent The replication event corresponding to ReplicationEventId if found.
+	 * @return Whether the replication event was found and requested data available. 
+	 */
+	virtual bool FindReplicationEvent(const int64 ReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const = 0;
 
 	/**
 	 * @return the delegate called every time the workspace is synced. This is when the server has indicated that all

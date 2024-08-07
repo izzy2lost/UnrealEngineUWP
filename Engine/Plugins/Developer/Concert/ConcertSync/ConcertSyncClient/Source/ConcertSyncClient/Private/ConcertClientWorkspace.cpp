@@ -22,6 +22,7 @@
 #include "ConcertClientLiveTransactionAuthors.h"
 #include "IConcertSession.h"
 #include "IConcertFileSharingService.h"
+#include "Replication/Messages/ReplicationActivity.h"
 
 #include "Algo/AllOf.h"
 #include "Containers/ArrayBuilder.h"
@@ -43,7 +44,6 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/World.h"
 #include "Engine/Engine.h"
-#include "Replication/Messages/ReplicationActivity.h"
 
 #if WITH_EDITOR
 	#include "Editor.h"
@@ -444,6 +444,11 @@ TFuture<TOptional<FConcertSyncTransactionEvent>> FConcertClientWorkspace::FindOr
 bool FConcertClientWorkspace::FindPackageEvent(const int64 PackageEventId, FConcertSyncPackageEventMetaData& OutPackageEvent) const
 {
 	return LiveSession->GetSessionDatabase().GetPackageEventMetaData(PackageEventId, OutPackageEvent.PackageRevision, OutPackageEvent.PackageInfo);
+}
+
+bool FConcertClientWorkspace::FindReplicationEvent(const int64 ReplicationEventId, FConcertSyncReplicationEvent& OutReplicationEvent) const
+{
+	return LiveSession->GetSessionDatabase().GetReplicationEvent(ReplicationEventId, OutReplicationEvent);
 }
 
 bool FConcertClientWorkspace::IsTransactionEventPartiallySynced(const FConcertSyncTransactionEvent& TransactionEvent) const
