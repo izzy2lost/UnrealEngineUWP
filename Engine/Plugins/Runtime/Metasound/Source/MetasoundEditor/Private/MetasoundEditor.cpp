@@ -1076,10 +1076,14 @@ namespace Metasound
 
 			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ObjectToEdit))
 			{
-				if (MetaSoundAsset->VersionAsset(Builder->GetBuilder()))
+				FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
+				if (MetaSoundAsset->VersionAsset(DocBuilder))
 				{
 					MetaSoundAsset->SetVersionedOnLoad();
 				}
+
+				constexpr bool bForceNodeCreation = false;
+				FInputNodeTemplate::GetChecked().Inject(DocBuilder, bForceNodeCreation);
 
 				// Ensures validation is re-run on re-opening of the editor.
 				// This is needed to refresh errors potentially caused by unloading of
