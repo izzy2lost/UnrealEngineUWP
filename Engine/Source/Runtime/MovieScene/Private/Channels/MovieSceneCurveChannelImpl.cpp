@@ -501,7 +501,7 @@ UE::MovieScene::Interpolation::FCachedInterpolation TMovieSceneCurveChannelImpl<
 	{
 	case RCIM_Cubic:
 		{
-			if (V1 == V2)
+			if (V1 == V2 && T1 == 0 && T2 == 0 && W1 == 0 && W2 == 0)
 			{
 				return FCachedInterpolation(Range, FConstantValue(Time1, V1));
 			}
