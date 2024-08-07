@@ -37,10 +37,10 @@ struct LEARNINGAGENTS_API FLearningAgentsActionObjectElement
 };
 
 /** Comparison operator for Action Object Elements */
-bool operator==(const FLearningAgentsActionObjectElement& Lhs, const FLearningAgentsActionObjectElement& Rhs);
+LEARNINGAGENTS_API bool operator==(const FLearningAgentsActionObjectElement& Lhs, const FLearningAgentsActionObjectElement& Rhs);
 
 /** Hashing operator for Action Object Elements */
-uint32 GetTypeHash(const FLearningAgentsActionObjectElement& Element);
+LEARNINGAGENTS_API uint32 GetTypeHash(const FLearningAgentsActionObjectElement& Element);
 
 template<>
 struct TStructOpsTypeTraits<FLearningAgentsActionObjectElement> : public TStructOpsTypeTraitsBase2<FLearningAgentsActionObjectElement>

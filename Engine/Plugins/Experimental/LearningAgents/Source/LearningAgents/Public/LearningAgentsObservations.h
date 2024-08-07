@@ -40,10 +40,10 @@ struct LEARNINGAGENTS_API FLearningAgentsObservationObjectElement
 };
 
 /** Comparison operator for Observation Object Elements */
-bool operator==(const FLearningAgentsObservationObjectElement& Lhs, const FLearningAgentsObservationObjectElement& Rhs);
+LEARNINGAGENTS_API bool operator==(const FLearningAgentsObservationObjectElement& Lhs, const FLearningAgentsObservationObjectElement& Rhs);
 
 /** Hashing operator for Observation Object Elements */
-uint32 GetTypeHash(const FLearningAgentsObservationObjectElement& Element);
+LEARNINGAGENTS_API uint32 GetTypeHash(const FLearningAgentsObservationObjectElement& Element);
 
 template<>
 struct TStructOpsTypeTraits<FLearningAgentsObservationObjectElement> : public TStructOpsTypeTraitsBase2<FLearningAgentsObservationObjectElement>
