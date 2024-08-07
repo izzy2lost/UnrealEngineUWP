@@ -7,6 +7,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UClass* FCQTestBlueprintHelper::GetBlueprintClass(const FString& Directory, const FString& Name)
 {
 	const FString FileName = FString::Printf(TEXT("%s.%s"), *Name, *Name);
@@ -34,7 +35,7 @@ UObject* FCQTestBlueprintHelper::FindDataBlueprint(const FString& Directory, con
 		{
 			BlueprintCache.Add(Data.GetAsset()->GetFName().ToString(), Data);
 		}
-	
+
 		LoadedDirectories.Add(Directory);
 	}
 
@@ -45,3 +46,4 @@ UObject* FCQTestBlueprintHelper::FindDataBlueprint(const FString& Directory, con
 
 	return nullptr;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

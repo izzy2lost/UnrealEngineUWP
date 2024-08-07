@@ -484,8 +484,6 @@ public:
 	 * Build the FPIENetworkComponent with the provided data.
 	 *
 	 * @param OutNetwork - Reference to the FPIENetworkComponent.
-	 * 
-	 * @return a reference to this
 	 */
 	void Build(FPIENetworkComponent<NetworkDataType>& OutNetwork);
 

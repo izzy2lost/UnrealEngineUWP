@@ -4,7 +4,10 @@
 
 #if WITH_AUTOMATION_TESTS
 
-#include "Components/CQTestBlueprintHelper.h"
+#include "Helpers/CQTestAssetFilterBuilder.h"
+#include "Helpers/CQTestAssetHelper.h"
+
+#include "Engine/DataAsset.h"
 #include "Equipment/LyraEquipmentManagerComponent.h"
 #include "Equipment/LyraPickupDefinition.h"
 #include "Misc/Paths.h"
@@ -28,8 +31,8 @@
  */
 ACTOR_ANIMATION_TEST(InputCrouchAnimationTest, "Project.Functional Tests.ShooterTests.Actor.Animation")
 {
-	// Make a call to our base Constructor to set the directory and name of the level to load
-	InputCrouchAnimationTest() : ShooterTestsActorAnimationTest(TEXT("/ShooterTests/Maps"), TEXT("L_ShooterTest_Basic"))
+	// Make a call to our base Constructor to set the name of the level to load
+	InputCrouchAnimationTest() : ShooterTestsActorAnimationTest(TEXT("L_ShooterTest_Basic"))
 	{
 	}
 	
@@ -101,12 +104,10 @@ ACTOR_ANIMATION_TEST(InputCrouchAnimationTest, "Project.Functional Tests.Shooter
  */
 ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Tests.ShooterTests.Actor.Animation", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 {
-	FCQTestBlueprintHelper BlueprintHelper;
-
 	ALyraWeaponSpawner* WeaponSpawnerPad{ nullptr };
 
-	// Make a call to our base Constructor to set the directory and name of the level to load
-	WeaponMeleeAnimationTest() : ShooterTestsActorAnimationTest(TEXT("/ShooterTests/Maps"), TEXT("L_ShooterTest_Basic"))
+	// Make a call to our base Constructor to set the name of the level to load
+	WeaponMeleeAnimationTest() : ShooterTestsActorAnimationTest(TEXT("L_ShooterTest_Basic"))
 	{
 	}
 	
@@ -126,13 +127,20 @@ ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Te
 	}
 	
 	// Spawns the weapon pad with the appropriate weapon to be picked up by the Player
-	void SpawnWeaponSpawnerPad(const FString& WeaponDataAssetPath, const FString& WeaponDataAsset)
+	void SpawnWeaponSpawnerPad(const FString& WeaponDataAsset)
 	{
-		const FString PadDirectory = TEXT("/ShooterCore/Blueprint");
-		const FString WeaponDirectory = FPaths::Combine(TEXT("/ShooterCore/Weapons"), WeaponDataAssetPath);
-	
-		UClass* WeaponSpawnerPadBp = BlueprintHelper.GetBlueprintClass(PadDirectory, TEXT("B_WeaponSpawner"));
-		ULyraWeaponPickupDefinition* WeaponDefinition = Cast<ULyraWeaponPickupDefinition>(BlueprintHelper.FindDataBlueprint(WeaponDirectory, WeaponDataAsset));
+		// Generate our DataAsset filter used to find our weapon assets
+		FARFilter DataAssetFilter = CQTestAssetHelper::FAssetFilterBuilder()
+			.WithClassPath(UDataAsset::StaticClass()->GetClassPathName())
+			.IncludeRecursiveClasses()
+			.Build();
+
+		UClass* WeaponSpawnerPadBp = CQTestAssetHelper::GetBlueprintClass(TEXT("B_WeaponSpawner"));
+		ASSERT_THAT(IsNotNull(WeaponSpawnerPadBp));
+
+		UObject* WeaponData = CQTestAssetHelper::FindDataBlueprint(DataAssetFilter, WeaponDataAsset);
+		ASSERT_THAT(IsNotNull(WeaponData));
+		ULyraWeaponPickupDefinition* WeaponDefinition = Cast<ULyraWeaponPickupDefinition>(WeaponData);
 		ASSERT_THAT(IsNotNull(WeaponDefinition));
 	
 		WeaponSpawnerPad = &TObjectBuilder<ALyraWeaponSpawner>(*Spawner, WeaponSpawnerPadBp)
@@ -143,9 +151,11 @@ ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Te
 	}
 
 	// Waits until the weapon is spawned and equipped
-	void EquipSpawnedWeapon(const FString& WeaponDataAssetPath, const FString& WeaponDataAsset, FString&& EquippedWeaponInstanceName)
+	void EquipSpawnedWeapon(const FString& WeaponName)
 	{
-		SpawnWeaponSpawnerPad(WeaponDataAssetPath, WeaponDataAsset);
+		FString WeaponDataAsset = FString::Printf(TEXT("WeaponPickupData_%s"), *WeaponName);
+		FString EquippedWeaponInstanceName = FString::Printf(TEXT("B_WeaponInstance_%s_C"), *WeaponName);
+		SpawnWeaponSpawnerPad(WeaponDataAsset);
 
 		TestCommandBuilder
 			.StartWhen([this, EquippedWeaponInstanceName = MoveTemp(EquippedWeaponInstanceName)]() { return IsCurrentlyEquippedWeapon(EquippedWeaponInstanceName); });
@@ -157,19 +167,19 @@ ACTOR_ANIMATION_TEST_WITH_FLAGS(WeaponMeleeAnimationTest, "Project.Functional Te
 	 */
 	TEST_METHOD(WeaponMelee_Pistol)
 	{
-		EquipSpawnedWeapon(TEXT("/Pistol/"), TEXT("WeaponPickupData_Pistol"), TEXT("B_WeaponInstance_Pistol_C"));
+		EquipSpawnedWeapon(TEXT("Pistol"));
 		TestInputActionAnimation(FShooterTestsAnimationTestHelper::PistolMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 	
 	TEST_METHOD(WeaponMelee_Rifle)
 	{
-		EquipSpawnedWeapon(TEXT("/Rifle/"), TEXT("WeaponPickupData_Rifle"), TEXT("B_WeaponInstance_Rifle_C"));
+		EquipSpawnedWeapon(TEXT("Rifle"));
 		TestInputActionAnimation(FShooterTestsAnimationTestHelper::RifleMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 	
 	TEST_METHOD(WeaponMelee_Shotgun)
 	{
-		EquipSpawnedWeapon(TEXT("/Shotgun/"), TEXT("WeaponPickupData_Shotgun"), TEXT("B_WeaponInstance_Shotgun_C"));
+		EquipSpawnedWeapon(TEXT("Shotgun"));
 		TestInputActionAnimation(FShooterTestsAnimationTestHelper::ShotgunMeleeAnimationName, [this]() { PawnActions->PerformMelee(); });
 	}
 };

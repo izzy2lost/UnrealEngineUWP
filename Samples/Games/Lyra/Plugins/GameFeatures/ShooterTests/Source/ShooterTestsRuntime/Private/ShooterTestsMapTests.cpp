@@ -8,8 +8,8 @@
 #include "AbilitySystem/Attributes/LyraHealthSet.h"
 #include "Character/LyraCharacter.h"
 #include "Character/LyraHealthComponent.h"
-#include "Components/CQTestBlueprintHelper.h"
 #include "Components/MapTestSpawner.h"
+#include "Helpers/CQTestAssetHelper.h"
 #include "LyraGameplayTags.h"
 #include "ObjectBuilder.h"
 #include "System/LyraAssetManager.h"
@@ -33,7 +33,6 @@
 TEST_CLASS_WITH_FLAGS(AbilitySpawnerMapTest, "Project.Functional Tests.ShooterTests.GameplayAbility", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 {
 	TUniquePtr<FMapTestSpawner> Spawner;
-	FCQTestBlueprintHelper BlueprintHelper;
 
 	ALyraCharacter* Player{ nullptr };
 	AActor* GameplayEffectPad{ nullptr };
@@ -54,11 +53,12 @@ TEST_CLASS_WITH_FLAGS(AbilitySpawnerMapTest, "Project.Functional Tests.ShooterTe
 	// Attempts to spawn a gameplay pad with a specified effect
 	void SpawnGameplayPad(const FString& EffectName)
 	{
-		const FString GameplayDirectory = TEXT("/Game/Environments/Gameplay");
-		UClass* DesiredEffect = BlueprintHelper.GetBlueprintClass(GameplayDirectory, EffectName);
+		UClass* DesiredEffect = CQTestAssetHelper::GetBlueprintClass(EffectName);
 		ASSERT_THAT(IsNotNull(DesiredEffect));
 
-		UClass* GameplayEffectPadBp = BlueprintHelper.GetBlueprintClass(GameplayDirectory, TEXT("BP_GameplayEffectPad"));
+		UClass* GameplayEffectPadBp = CQTestAssetHelper::GetBlueprintClass(TEXT("BP_GameplayEffectPad"));
+		ASSERT_THAT(IsNotNull(GameplayEffectPadBp));
+
 		GameplayEffectPad = &TObjectBuilder<AActor>(*Spawner, GameplayEffectPadBp)
 			.SetParam("GameplayEffectToApply", DesiredEffect)
 			.Spawn(Player->GetTransform());
@@ -78,7 +78,11 @@ TEST_CLASS_WITH_FLAGS(AbilitySpawnerMapTest, "Project.Functional Tests.ShooterTe
 	 */
 	BEFORE_EACH()
 	{
-		Spawner = MakeUnique<FMapTestSpawner>(TEXT("/ShooterTests/Maps"), TEXT("L_ShooterTest_Basic"));
+		const FString LevelName = TEXT("L_ShooterTest_Basic");
+
+		TOptional<FString> PackagePath = CQTestAssetHelper::FindAssetPackagePathByName(LevelName);
+		ASSERT_THAT(IsTrue(PackagePath.IsSet(), "Could not find the level package."));
+		Spawner = MakeUnique<FMapTestSpawner>(PackagePath.GetValue(), LevelName);
 		Spawner->AddWaitUntilLoadedCommand(TestRunner);
 
 		const FTimespan LoadingScreenTimeout = FTimespan::FromSeconds(30);

@@ -30,19 +30,23 @@ UAnimationAsset* FShooterTestsAnimationTestHelper::FindAnimationAsset(USkeletalM
 {
 	check(SkeletalMeshComponent);
 
-	const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset();
-	const USkeleton* Skeleton = SkeletalMesh->GetSkeleton();
-	for (TObjectIterator<UAnimationAsset> Itr; Itr; ++Itr)
+	if (const USkeletalMesh* SkeletalMesh = SkeletalMeshComponent->GetSkeletalMeshAsset()) 
 	{
-		UAnimationAsset* AnimationAsset = (*Itr);
-		if (!IsValid(AnimationAsset))
+		if (const USkeleton* Skeleton = SkeletalMesh->GetSkeleton()) 
 		{
-			continue;
-		}
+			for (TObjectIterator<UAnimationAsset> Itr; Itr; ++Itr) 
+			{
+				UAnimationAsset* AnimationAsset = (*Itr);
+				if (!IsValid(AnimationAsset)) 
+				{
+					continue;
+				}
 
-		if (Skeleton == (*Itr)->GetSkeleton() && (*Itr)->GetName().Equals(AnimationName))
-		{
-			return (*Itr);
+				if (Skeleton == AnimationAsset->GetSkeleton() && AnimationAsset->GetName().Equals(AnimationName)) 
+				{
+					return AnimationAsset;
+				}
+			}
 		}
 	}
 

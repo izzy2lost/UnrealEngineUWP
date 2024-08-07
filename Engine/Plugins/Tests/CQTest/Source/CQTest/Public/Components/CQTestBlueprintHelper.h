@@ -30,7 +30,7 @@ TEST_CLASS_WITH_FLAGS(MyFixtureName, "BlueprintHelper.Example", EAutomationTestF
 */
 
 /** Utilities for working with Blueprint in C++ Tests */
-struct CQTEST_API FCQTestBlueprintHelper
+struct UE_DEPRECATED(5.5, "Use Helpers/CQTestAssetHelper.h instead") CQTEST_API FCQTestBlueprintHelper
 {
 	/**
 	 * Finds the UObject given a directory and asset name to find.

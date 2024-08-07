@@ -11,6 +11,7 @@
 #include "Editor/UnrealEdEngine.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/NetConnection.h"
+#include "GameModes/LyraExperienceManagerComponent.h"
 #include "GameModes/LyraGameMode.h"
 #include "Kismet/GameplayStatics.h"
 #include "LevelEditor.h"
@@ -327,6 +328,37 @@ private:
 	}
 
 	/**
+	 * Check to make sure that the specified world has fully loaded.
+	 *
+	 * @param World - Pointer to the World instance.
+	 *
+	 * @return true if the world has been loaded, false otherwise.
+	 *
+	 * @note Method is expected to be used within the `Until` latent command to then wait until the world has loaded.
+	 */
+	bool HasWorldLoaded(const UWorld* World)
+	{
+		if (!IsValid(World))
+		{
+			return false;
+		}
+
+		AGameStateBase* GameState = World->GetGameState();
+		if (GameState == nullptr)
+		{
+			return false;
+		}
+
+		ULyraExperienceManagerComponent* ExperienceComponent = GameState->FindComponentByClass<ULyraExperienceManagerComponent>();
+		if (ExperienceComponent == nullptr)
+		{
+			return false;
+		}
+
+		return ExperienceComponent->IsExperienceLoaded();
+	}
+
+	/**
 	* Check to make sure that the specified world has a valid local player.
 	*
 	* @param World - Pointer to the World instance where the local player will be fetched from.
@@ -424,7 +456,8 @@ private:
 	 */
 	void WaitForLocalPlayerSpawn(FShooterTestsNetworkState<NetworkActorType>& NetworkState)
 	{
-		CommandBuilder->StartWhen(TEXT("Check if player is loaded"), [this, &NetworkState]() { return HasValidLocalPlayer(NetworkState.World); }, LoadingScreenTimeout)
+		CommandBuilder->StartWhen(TEXT("Check if world is loaded"), [this, &NetworkState]() { return HasWorldLoaded(NetworkState.World); }, LoadingScreenTimeout)
+			.Until(TEXT("Check if player is loaded"), [this, &NetworkState]() { return HasValidLocalPlayer(NetworkState.World); })
 			.Then(TEXT("Prepare player"), [this, &NetworkState]() {
 				FString Error;
 				const bool bWasPlayerFound = FetchLocalPlayer(NetworkState, Error);

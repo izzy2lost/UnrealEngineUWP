@@ -10,6 +10,8 @@
 #include "Character/LyraCharacter.h"
 #include "Components/MapTestSpawner.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameModes/LyraExperienceManagerComponent.h"
+#include "Helpers/CQTestAssetHelper.h"
 #include "ShooterTestsAnimationTestHelper.h"
 #include "ShooterTestsInputTestHelper.h"
 
@@ -34,18 +36,44 @@ struct ShooterTestsActorBaseTest : public TTest<Derived, AsserterType>
 	/**
 	 * Construct the Base Actor Test.
 	 *
-	 * @param MapDirectory - The directory which the map resides in.
 	 * @param MapName - Name of the map.
 	 */
-	ShooterTestsActorBaseTest(const FString& MapDirectory, const FString& MapName)
+	ShooterTestsActorBaseTest(const FString& MapName)
 	{
-		// Check if the framework is initializing to avoid premature creation of the MapTestSpawner
+		// Don't load assets during initialization
 		if (TestRunner->bInitializing)
 		{
 			return;
 		}
+		
+		TOptional<FString> PackagePath = CQTestAssetHelper::FindAssetPackagePathByName(MapName);
+		ASSERT_THAT(IsTrue(PackagePath.IsSet(), "Could not find the map package."));
+		Spawner = MakeUnique<FMapTestSpawner>(PackagePath.GetValue(), MapName);
+	}
 
-		Spawner = MakeUnique<FMapTestSpawner>(MapDirectory, MapName);
+	/**
+	 * Check to make sure that the specified world has fully loaded.
+	 *
+	 * @return true if the world is fully loaded.
+	 * 
+	 * @note Method is expected to be used within the `Until` latent command to then wait until the world has loaded.
+	 */
+	bool HasWorldLoaded()
+	{
+		UWorld& World = Spawner->GetWorld();
+		AGameStateBase* GameState = World.GetGameState();
+		if (GameState == nullptr)
+		{
+			return false;
+		}
+
+		ULyraExperienceManagerComponent* ExperienceComponent = GameState->FindComponentByClass<ULyraExperienceManagerComponent>();
+		if (ExperienceComponent == nullptr)
+		{
+			return false;
+		}
+
+		return ExperienceComponent->IsExperienceLoaded();
 	}
 
 	/** Get our Lyra Player Pawn and all associated systems and functionality needed for our Player. */
@@ -80,7 +108,8 @@ struct ShooterTestsActorBaseTest : public TTest<Derived, AsserterType>
 
 		const FTimespan LoadingScreenTimeout = FTimespan::FromSeconds(30);
 		TestCommandBuilder
-			.StartWhen([this]() { return nullptr != Spawner->FindFirstPlayerPawn(); }, LoadingScreenTimeout)
+			.StartWhen([this]() { return HasWorldLoaded(); }, LoadingScreenTimeout)
+			.Until([this]() { return nullptr != Spawner->FindFirstPlayerPawn(); })
 			.Then([this]() { PreparePlayerPawn(); })
 			.Until([this]() { return IsPlayerPawnFullySpawned(); });
 	}
@@ -121,10 +150,9 @@ struct ShooterTestsActorAnimationTest : public ShooterTestsActorBaseTest<Derived
 	/**
 	 * Construct the Actor Animation Test.
 	 *
-	 * @param MapDirectory - The directory which the map resides in.
 	 * @param MapName - Name of the map.
 	 */
-	ShooterTestsActorAnimationTest(const FString& MapDirectory, const FString& MapName) : ShooterTestsActorBaseTest<Derived, AsserterType>(MapDirectory, MapName) { }
+	ShooterTestsActorAnimationTest(const FString& MapName) : ShooterTestsActorBaseTest<Derived, AsserterType>(MapName) { }
 
 	/**
 	 * Calls the parent method to get our Lyra Player Pawn and all associated systems and functionality needed for our Player before setting up functionality needed for input handling and animations.

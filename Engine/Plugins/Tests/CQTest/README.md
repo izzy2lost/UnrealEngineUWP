@@ -291,6 +291,16 @@ This testing framework embraces composition over inheritence.  Creating new comp
  - `InputTestActions` - Allows tests to inject `InputActions` to the `Pawn`.
  - `CQTestSlateComponent` - Allows tests to get notified when the UI has been updated.
 
+### Deprecated Components
+- `CQTestBlueprintHelper` - **DEPRECATED IN 5.5** Eases the ability for a test to spawn Blueprint objects, intended to be used with `MapTestSpawner`.
+   - **NOTE:** Loading Blueprint assets is only intended to work within the Editor context.  Tests that make use of the `CQTestBlueprintHelper` should specify the `EAutomationTestFlags::EditorContext` flag.
+
+## Test Helpers
+
+This testing framework provides the following helper objects and methods:
+ - `FAssetFilterBuilder` - Helps create an asset filter to be used with either the `CQTestAssetHelper` namespace methods or when searching through the `AssetRegistry` directly.
+ - `CQTestAssetHelper` - Namespace with helper methods used to search for either asset package paths or Blueprints by name or by building a filter from the `FAssetFilterBuilder`.
+
 ## Assertions
 
 Not all platforms support exceptions, and so the assertions are unable to rely on them.
