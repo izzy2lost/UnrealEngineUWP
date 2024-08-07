@@ -19,6 +19,8 @@
 #define LOCTEXT_NAMESPACE "DataflowEditor"
 
 const FColor FDataflowEditorModule::SurfaceColor = FLinearColor(0.6, 0.6, 0.6).ToRGBE();
+static const FName ScalarVertexPropertyGroupName = TEXT("ScalarVertexPropertyGroup");
+static const FName DataflowFunctionPropertyName = TEXT("DataflowFunctionProperty");
 
 void FDataflowEditorModule::StartupModule()
 {
@@ -27,8 +29,8 @@ void FDataflowEditorModule::StartupModule()
 	// Register type customizations
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
-		PropertyModule->RegisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FScalarVertexPropertyGroupCustomization::MakeInstance));
-		PropertyModule->RegisterCustomPropertyTypeLayout(FDataflowFunctionProperty::StaticStruct()->GetFName(), FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FFunctionPropertyCustomization::MakeInstance));
+		PropertyModule->RegisterCustomPropertyTypeLayout(ScalarVertexPropertyGroupName, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FScalarVertexPropertyGroupCustomization::MakeInstance));
+		PropertyModule->RegisterCustomPropertyTypeLayout(DataflowFunctionPropertyName, FOnGetPropertyTypeCustomizationInstance::CreateStatic(&Dataflow::FFunctionPropertyCustomization::MakeInstance));
 	}
 
 	Dataflow::RenderingCallbacks();
@@ -41,8 +43,8 @@ void FDataflowEditorModule::ShutdownModule()
 	// Deregister type customizations
 	if (FPropertyEditorModule* const PropertyModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
 	{
-		PropertyModule->UnregisterCustomPropertyTypeLayout(FScalarVertexPropertyGroup::StaticStruct()->GetFName());
-		PropertyModule->UnregisterCustomPropertyTypeLayout(FDataflowFunctionProperty::StaticStruct()->GetFName());
+		PropertyModule->UnregisterCustomPropertyTypeLayout(ScalarVertexPropertyGroupName);
+		PropertyModule->UnregisterCustomPropertyTypeLayout(DataflowFunctionPropertyName);
 	}
 }
 
