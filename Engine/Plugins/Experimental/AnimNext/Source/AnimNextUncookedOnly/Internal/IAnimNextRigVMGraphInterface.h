@@ -31,6 +31,7 @@ public:
 
 private:
 	friend class UAnimNextModule_EditorData;
+	friend class UAnimNextRigVMAssetEditorData;
 
 	// Set the RigVM graph
 	virtual void SetRigVMGraph(URigVMGraph* InGraph) = 0;

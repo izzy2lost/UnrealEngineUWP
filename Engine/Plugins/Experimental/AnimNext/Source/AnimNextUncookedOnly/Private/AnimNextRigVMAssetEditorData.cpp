@@ -386,6 +386,15 @@ void UAnimNextRigVMAssetEditorData::HandleRigVMGraphRemoved(const FRigVMClient* 
 {
 	if(URigVMGraph* RigVMGraph = InClient->GetModel(InNodePath))
 	{
+		if (UAnimNextRigVMAssetEntry* Entry = FindEntryForRigVMGraph(RigVMGraph))
+		{
+			if (IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(Entry))
+			{
+				GraphInterface->SetRigVMGraph(nullptr);
+			}
+		}
+		GraphModels.Remove(RigVMGraph);
+
 		RemoveEdGraph(RigVMGraph);
 		RecompileVM();
 
@@ -742,13 +751,6 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntry(UAnimNextRigVMAssetEntry* InEntr
 
 	// Remove from internal array
 	UAnimNextRigVMAssetEntry* EntryToRemove = *EntryToRemovePtr;
-	Entries.Remove(EntryToRemove);
-	RefreshExternalModels();
-
-	if (bSetupUndoRedo)
-	{
-		EntryToRemove->Modify();
-	}
 
 	bool bResult = true;
 	if(const IAnimNextRigVMGraphInterface* GraphInterface = Cast<IAnimNextRigVMGraphInterface>(EntryToRemove))
@@ -761,6 +763,13 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntry(UAnimNextRigVMAssetEntry* InEntr
 			bResult = RigVMClient.RemoveModel(RigVMGraph->GetNodePath(), bSetupUndoRedo);
 		}
 	}
+
+	if (bSetupUndoRedo)
+	{
+		EntryToRemove->Modify();
+	}
+	Entries.Remove(EntryToRemove);
+	RefreshExternalModels();
 
 	// This will cause any external package to be removed when saved
 	EntryToRemove->MarkAsGarbage();
