@@ -348,11 +348,11 @@ struct FBlueprintCookedComponentInstancingData
 	UPROPERTY()
 	TArray<struct FBlueprintComponentChangedPropertyInfo> ChangedPropertyList;
 
-	/** Source template object name (recorded at load time and used for instancing). */
-	FName ComponentTemplateName;
-
 	/** Source template object class (recorded at load time and used for instancing). */
 	UClass* ComponentTemplateClass;
+
+	/** Source template object name (recorded at load time and used for instancing). */
+	FName ComponentTemplateName;
 
 	/** Source template object flags (recorded at load time and used for instancing). */
 	TEnumAsByte<EObjectFlags> ComponentTemplateFlags;
