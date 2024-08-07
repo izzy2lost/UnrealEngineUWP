@@ -1299,7 +1299,7 @@ void FLiveCodingModule::UpdateModules(bool bAllowStarting)
 			}
 		}
 
-		if (EnableModules.Num() > 0)
+		if (!EnableModules.IsEmpty() || !LazyLoadModules.IsEmpty())
 		{
 			TArray<const TCHAR*> EnableModuleFileNames;
 			for (const FString& EnableModule : EnableModules)
