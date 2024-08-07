@@ -175,7 +175,7 @@ bool UEditorDialogLibrary::ShowObjectsDetailsView(const FText& Title, const TArr
 				.MinWidth(MinSize.X)
 				.MinHeight(MinSize.Y)
 				.ClientSize(Options.bAllowResizing ? MinSize : FVector2D())
-				.AutoCenter(EAutoCenter::PrimaryWorkArea)
+				.AutoCenter(EAutoCenter::PreferredWorkArea)
 				.SupportsMinimize(false)
 				.SupportsMaximize(false);
 				
