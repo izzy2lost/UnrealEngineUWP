@@ -33,5 +33,15 @@ class UGeneratePayloadManifestCommandlet
 
 private:
 
-	bool bLocalOnly = false;
+	enum class EPayloadFilter
+	{
+		None = 0,
+		LocalOnly		=  1 << 0,
+		PendingOnly		= (1 << 1) | LocalOnly,
+		FilteredOnly	= (1 << 2) | LocalOnly,
+		VirtualizedOnly	= (1 << 3)
+	};
+	FRIEND_ENUM_CLASS_FLAGS(EPayloadFilter);
+
+	EPayloadFilter Filter = EPayloadFilter::None;
 };
