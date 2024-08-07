@@ -440,6 +440,7 @@ UActorComponent::UActorComponent(const FObjectInitializer& ObjectInitializer /*=
 	PrimaryComponentTick.TickGroup = TG_DuringPhysics;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bAllowTickBatching = true;
 	PrimaryComponentTick.SetTickFunctionEnable(false);
 
 	MarkedForEndOfFrameUpdateArrayIndex = INDEX_NONE;

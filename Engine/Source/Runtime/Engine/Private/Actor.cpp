@@ -185,6 +185,7 @@ void AActor::InitializeDefaults()
 	// Default to no tick function, but if we set 'never ticks' to false (so there is a tick function) it is enabled by default
 	PrimaryActorTick.bCanEverTick = false;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+	PrimaryActorTick.bAllowTickBatching = true;
 	PrimaryActorTick.SetTickFunctionEnable(false); 
 	bAsyncPhysicsTickEnabled = false;
 
