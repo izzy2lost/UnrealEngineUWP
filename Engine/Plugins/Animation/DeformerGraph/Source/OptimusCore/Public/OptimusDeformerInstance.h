@@ -186,7 +186,7 @@ protected:
  * It contains the per instance deformer variable state and local state for each of the graphs in the deformer.
  */
 UCLASS(BlueprintType)
-class UOptimusDeformerInstance : public UObject
+class UOptimusDeformerInstance : public UMeshDeformerInstance
 {
 	GENERATED_BODY()
 
@@ -322,10 +322,11 @@ public:
 protected:
 	friend class UOptimusDeformerDynamicInstanceManager;
 
-	void AllocateResources();
-	void ReleaseResources();
-	void EnqueueWork(UMeshDeformerInstance::FEnqueueWorkDesc const& InDesc);
-	EMeshDeformerOutputBuffer GetOutputBuffers() const;
+	void AllocateResources() override;
+	void ReleaseResources() override;
+	void EnqueueWork(FEnqueueWorkDesc const& InDesc) override;
+	EMeshDeformerOutputBuffer GetOutputBuffers() const override;
+	UMeshDeformerInstance* GetInstanceForSourceDeformer() override {return this;};
 
 private:
 	/** The Mesh Component that owns this Mesh Deformer Instance. */

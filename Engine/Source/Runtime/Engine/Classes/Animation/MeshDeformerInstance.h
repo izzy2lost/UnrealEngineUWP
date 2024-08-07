@@ -79,4 +79,9 @@ public:
 	
 	/** Return the buffers that this deformer can potentially write to */
 	ENGINE_API virtual EMeshDeformerOutputBuffer GetOutputBuffers() const PURE_VIRTUAL(, return EMeshDeformerOutputBuffer::None; );
+
+	/** Returns the specific instance that directly represents the source deformer, this is needed as a deformer may create intermediate instances that aren't
+	 * necessarily user-facing.
+	 */
+	ENGINE_API virtual UMeshDeformerInstance* GetInstanceForSourceDeformer() PURE_VIRTUAL(, return this; ); 
 };

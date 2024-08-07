@@ -39,6 +39,9 @@ public:
 	/** Return the buffers that this deformer can potentially write to */
 	EMeshDeformerOutputBuffer GetOutputBuffers() const override;
 
+	/** InstanceManager is an intermediate instance, call this function to get the instance for the deformer that created this instance manager */
+	UMeshDeformerInstance* GetInstanceForSourceDeformer() override;
+
 	/** Remove associated deformer instances when the rig is removed */
 	void OnControlRigBeginDestroy(UControlRig* InControlRig);
 

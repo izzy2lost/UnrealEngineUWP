@@ -120,6 +120,11 @@ EMeshDeformerOutputBuffer UOptimusDeformerDynamicInstanceManager::GetOutputBuffe
 	return Result;
 }
 
+UMeshDeformerInstance* UOptimusDeformerDynamicInstanceManager::GetInstanceForSourceDeformer()
+{
+	return DefaultInstance;
+}
+
 
 void UOptimusDeformerDynamicInstanceManager::OnControlRigBeginDestroy(UControlRig* InControlRig)
 {

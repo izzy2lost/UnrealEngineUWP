@@ -2482,7 +2482,7 @@ void USkinnedMeshComponent::CreateMeshDeformerInstances(const FMeshDeformerSet& 
 
 UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstance() const
 {
-	return MeshDeformerInstances.DeformerInstances.Num() > 0 ? MeshDeformerInstances.DeformerInstances[0] : nullptr;
+	return MeshDeformerInstances.DeformerInstances.Num() > 0 ? MeshDeformerInstances.DeformerInstances[0]->GetInstanceForSourceDeformer() : nullptr;
 }
 
 UMeshDeformerInstance* USkinnedMeshComponent::GetMeshDeformerInstanceForLOD(int32 LODIndex) const
