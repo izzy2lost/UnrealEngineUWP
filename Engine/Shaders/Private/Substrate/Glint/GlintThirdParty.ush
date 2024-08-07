@@ -47,7 +47,7 @@ FGlintLutParams GetGlintParams()
 #define USE_GLINT_AA (!RAYCALLABLESHADER && !RAYHITGROUPSHADER && !RAYGENSHADER && !RAYMISSSHADER)
 
 // Geometric Glint Anti-Aliasing parameters
-#define KernelSize						0.5
+#define GGAAKernelSize						0.5
 #define GGAAFilter						1
 #define UseHemisDerivatives				true
 
@@ -285,8 +285,8 @@ float P22_M(
 		float2 transformed_slope_dy = mul(slope_dy, invM);
 
 		// Scale the kernel by user parameter
-		transformed_slope_dx *= KernelSize;
-		transformed_slope_dy *= KernelSize;
+		transformed_slope_dx *= GGAAKernelSize;
+		transformed_slope_dy *= GGAAKernelSize;
 
 		P_20_o = View.GlintTexture.SampleGrad(
 			View.GlintSampler,

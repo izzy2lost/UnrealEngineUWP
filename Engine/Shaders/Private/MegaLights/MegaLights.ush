@@ -7,6 +7,10 @@
 
 #include "../LightGridCommon.ush"
 
+// Allow complex special materials (Glints, Specular LUT, ...)
+// TODO: Make many light use Substrate's tiles for better occupancy
+#define SUBSTRATE_COMPLEXSPECIALPATH 1
+
 #define SUPPORT_CONTACT_SHADOWS 0
 #define NON_DIRECTIONAL_DIRECT_LIGHTING 0
 #include "../DeferredLightingCommon.ush"
@@ -124,6 +128,7 @@ struct FMegaLightsMaterial
 	bool   bIsValid;
 	bool   bIsSimple;
 	bool   bNeedsSeparateSubsurfaceLightAccumulation;
+	bool   bAllowSpatialFilter;
 
 	float3 DiffuseColor;
 	float3 SpecularColor;
@@ -159,6 +164,7 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 	Out.WorldNormal   = TopLayerData.WorldNormal;
 	Out.Depth         = ConvertFromDeviceZ(SceneTexturesStruct.SceneDepthTexture.Load(int3(ScreenCoord, 0)).r);
 	Out.Roughness     = TopLayerData.Roughness;
+	Out.bAllowSpatialFilter = true;
 
 	#if SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
 
@@ -194,6 +200,12 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 		{
 			Out.bNeedsSeparateSubsurfaceLightAccumulation = true;
 		}
+		#if SUBSTRATE_FASTPATH==0
+		if (SubstratePixelHeader.IsComplexSpecialMaterial() && BSDF_GETHASGLINT(BSDF))
+		{
+			Out.bAllowSpatialFilter = false;
+		}
+		#endif
 	}
 	#endif //SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE
 
@@ -220,6 +232,7 @@ FMegaLightsMaterial LoadMaterial(float2 ScreenUV, uint2 ScreenCoord, bool bForce
 	Out.DiffuseColor  = GBuffer.DiffuseColor;
 	Out.SpecularColor = GBuffer.SpecularColor;
 	Out.GBuffer       = GBuffer;
+	Out.bAllowSpatialFilter = true;
 	return Out;
 }
 #endif

@@ -67,7 +67,7 @@ void DenoiserSpatialCS(
 			float MinStdDev = 0.1f;
 
 			#if SPATIAL_FILTER
-			if (SpatialFilterKernelRadius > 0.0f && (CenterDiffuseStdDev > MinStdDev || CenterSpecularStdDev > MinStdDev))
+			if (Material.bAllowSpatialFilter && SpatialFilterKernelRadius > 0.0f && (CenterDiffuseStdDev > MinStdDev || CenterSpecularStdDev > MinStdDev))
 			{
 				for (uint NeighborIndex = 0; NeighborIndex < SpatialFilterNumSamples; ++NeighborIndex)
 				{
