@@ -137,7 +137,7 @@ void FFbxExporter::ExportAnimSequenceToFbx(const UAnimSequence* AnimSeq, const U
 				}
 				else if (AttributeType == FFloatAnimationAttribute::StaticStruct())
 				{
-					FbxProperty AnimCurveFbxProp = FbxProperty::Create(CurrentBoneNode, FbxFloatDT, TCHAR_TO_UTF8(*AttributeName.ToString()));
+					FbxProperty AnimCurveFbxProp = FbxProperty::Create(CurrentBoneNode, FbxDoubleDT, TCHAR_TO_UTF8(*AttributeName.ToString()));
 					AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eAnimatable, true);
 					AnimCurveFbxProp.ModifyFlag(FbxPropertyFlags::eUserDefined, true);
 

@@ -886,6 +886,7 @@ FProcessRecordedTimeParams GetTimecodeRecordingParameters()
 	FString SecondsName = GetDefault<UMovieSceneTakeSettings>()->SecondsName;
 	FString FramesName = GetDefault<UMovieSceneTakeSettings>()->FramesName;
 	FString SubFramesName = GetDefault<UMovieSceneTakeSettings>()->SubFramesName;
+	FString RateName = GetDefault<UMovieSceneTakeSettings>()->RateName;
 	FString SlateName = GetDefault<UMovieSceneTakeSettings>()->SlateName;
 
 	return FProcessRecordedTimeParams {
@@ -894,6 +895,7 @@ FProcessRecordedTimeParams GetTimecodeRecordingParameters()
 		.SecondsName = SecondsName,
 		.FramesName = FramesName,
 		.SubFramesName = SubFramesName,
+		.RateName = RateName,
 		.SlateName = SlateName
 	};
 }
