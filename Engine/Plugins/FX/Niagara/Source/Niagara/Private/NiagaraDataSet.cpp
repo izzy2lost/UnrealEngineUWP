@@ -1450,9 +1450,12 @@ void FNiagaraDataBuffer::PushCPUBuffersToGPU(const TArray<FNiagaraDataBufferRef>
 	}
 }
 
-void FNiagaraDataBuffer::TransferGPUToCPUImmediate(FRHICommandList& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, FNiagaraDataBuffer* CPUBuffer) const
+void FNiagaraDataBuffer::TransferGPUToCPUImmediate(FRHICommandListImmediate& RHICmdList, FNiagaraGpuComputeDispatchInterface* ComputeInterface, FNiagaraDataBuffer* CPUBuffer) const
 {
 	check(GetOwner()->GetCompiledData().GetLayoutHash() == CPUBuffer->GetOwner()->GetCompiledData().GetLayoutHash());
+
+	// Note: On some RHIs we need block until idle or the lock opersations will have the wrong information
+	RHICmdList.BlockUntilGPUIdle();
 
 	uint32 GPUNumInstances = 0;
 	if (GPUInstanceCountBufferOffset != INDEX_NONE)
