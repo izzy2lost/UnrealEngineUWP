@@ -17,6 +17,7 @@ struct FNDIWater_InstanceData
 {
 	bool								bFindClosestBody = false;
 	TWeakObjectPtr<UWaterBodyComponent>	WaterBodyComponent;
+	uint32								WaterBodyChangeId = 0;
 	FNiagaraLWCConverter				LWCConverter;
 };
 
@@ -299,8 +300,9 @@ int32 UNiagaraDataInterfaceWater::PerInstanceDataSize() const
 bool UNiagaraDataInterfaceWater::InitPerInstanceData(void* PerInstanceData, FNiagaraSystemInstance* SystemInstance)
 {
 	FNDIWater_InstanceData* InstData = new (PerInstanceData) FNDIWater_InstanceData();
-	InstData->bFindClosestBody		= SourceBodyComponent == nullptr && bFindWaterBodyOnSpawn;
-	InstData->WaterBodyComponent	= SourceBodyComponent;
+	InstData->bFindClosestBody		= bFindWaterBodyOnSpawn;
+	InstData->WaterBodyComponent	= nullptr;
+	InstData->WaterBodyChangeId		= SourceBodyChangeId - 1;
 	InstData->LWCConverter			= SystemInstance->GetLWCConverter();
 
 	return true;
@@ -317,18 +319,23 @@ bool UNiagaraDataInterfaceWater::PerInstanceTick(void* PerInstanceData, FNiagara
 	check(SystemInstance);
 	FNDIWater_InstanceData* InstData = static_cast<FNDIWater_InstanceData*>(PerInstanceData);
 
-	// If the search for closest was enabled, perform the search
-	// Note: we do this here rather than in Init as the system might be auto activate and the user parameter not set until after the spawn
-	if (SourceBodyComponent == nullptr && InstData->bFindClosestBody)
+	// Do we need to update the water body component?
+	if (InstData->WaterBodyChangeId != SourceBodyChangeId)
 	{
-		const FVector QueryLocation = SystemInstance->GetWorldTransform().GetTranslation();
-		InstData->WaterBodyComponent = NDIWaterPrivate::FindClosestWaterBody(SystemInstance->GetWorld(), QueryLocation);
+		// If the search for closest was enabled, perform the search
+		// Note: we do this here rather than in Init as the system might be auto activate and the user parameter not set until after the spawn
+		if (SourceBodyComponent == nullptr && InstData->bFindClosestBody)
+		{
+			const FVector QueryLocation = SystemInstance->GetWorldTransform().GetTranslation();
+			InstData->WaterBodyComponent = NDIWaterPrivate::FindClosestWaterBody(SystemInstance->GetWorld(), QueryLocation);
+		}
+		else
+		{
+			InstData->WaterBodyComponent = SourceBodyComponent;
+		}
+		InstData->bFindClosestBody = false;
+		InstData->WaterBodyChangeId = SourceBodyChangeId;
 	}
-	else
-	{
-		InstData->WaterBodyComponent = SourceBodyComponent;
-	}
-	InstData->bFindClosestBody = false;
 
 	return false;
 }

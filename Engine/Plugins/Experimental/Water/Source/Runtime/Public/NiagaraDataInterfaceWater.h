@@ -39,7 +39,11 @@ public:
 	void GetWaveParamLookupTableOffset(FVectorVMExternalFunctionContext& Context);
 
 	/** Sets the current water body to be used by this data interface */
-	void SetWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent) { SourceBodyComponent = InWaterBodyComponent; }
+	void SetWaterBodyComponent(UWaterBodyComponent* InWaterBodyComponent)
+	{
+		SourceBodyComponent = InWaterBodyComponent;
+		++SourceBodyChangeId;
+	}
 
 protected:
 #if WITH_EDITORONLY_DATA
@@ -52,6 +56,8 @@ private:
 
 	UPROPERTY(EditAnywhere, Category = "Water") 
 	TObjectPtr<UWaterBodyComponent> SourceBodyComponent;
+
+	uint32 SourceBodyChangeId = 0;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
