@@ -4383,7 +4383,7 @@ void UCookOnTheFlyServer::ProcessUnsolicitedPackages(TArray<FName>* OutDiscovere
 		}
 		else if (bSkipOnlyEditorOnly &&
 					(Instigator.Category == EInstigator::ForceExplorableSaveTimeSoftDependency ||
-						(PackageTracker->NeverCookPackageList.Contains(PackageData->GetFileName()) &&
+						(PackageTracker->NeverCookPackageList.Contains(PackageData->GetPackageName()) &&
 							INDEX_NONE != UE::String::FindFirst(WriteToString<256>(PackageData->GetPackageName()),
 								ULevel::GetExternalActorsFolderName(), ESearchCase::IgnoreCase))))
 		{
@@ -4545,7 +4545,7 @@ void UCookOnTheFlyServer::PumpSaves(UE::Cook::FTickStackData& StackData, uint32 
 		// asset registry at the end of the cook
 		PackageTracker->UncookedEditorOnlyPackages.Remove(Package->GetFName());
 
-		if (PackageTracker->NeverCookPackageList.Contains(PackageData.GetFileName()))
+		if (PackageTracker->NeverCookPackageList.Contains(Package->GetFName()))
 		{
 			// refuse to save this package, it's clearly one of the undesirables
 			DemoteToIdle(PackageData, ESendFlags::QueueAdd, ESuppressCookReason::NeverCook);
@@ -9271,11 +9271,10 @@ void UCookOnTheFlyServer::CollectFilesToCook(TArray<FName>& FilesInPath, TMap<FN
 
 		for (FName NeverCookPackage : PackagesToNeverCook)
 		{
-			const FName StandardPackageFilename = PackageDatas->GetFileNameByFlexName(NeverCookPackage);
-
-			if (!StandardPackageFilename.IsNone())
+			FName PackageName;
+			if (PackageDatas->TryGetNamesByFlexName(NeverCookPackage, &PackageName, nullptr, true /* bRequireExists */))
 			{
-				PackageTracker->NeverCookPackageList.Add(StandardPackageFilename);
+				PackageTracker->NeverCookPackageList.Add(PackageName);
 			}
 		}
 	}
@@ -9329,11 +9328,10 @@ void UCookOnTheFlyServer::CollectFilesToCook(TArray<FName>& FilesInPath, TMap<FN
 
 		for (FName NeverCookPackage : PackagesToNeverCook)
 		{
-			FName StandardPackageFilename = PackageDatas->GetFileNameByFlexName(NeverCookPackage);
-
-			if (!StandardPackageFilename.IsNone())
+			FName PackageName;
+			if (PackageDatas->TryGetNamesByFlexName(NeverCookPackage, &PackageName, nullptr, true /* bRequireExists */))
 			{
-				PackageTracker->NeverCookPackageList.Add(StandardPackageFilename);
+				PackageTracker->NeverCookPackageList.Add(PackageName);
 			}
 		}
 	}
@@ -11158,7 +11156,7 @@ void FBeginCookConfigSettings::LoadNeverCookLocal(FBeginCookContext& BeginContex
 	{
 		ExtraNeverCookDirectories = BeginContext.StartupOptions->NeverCookDirectories;
 	}
-	for (FName NeverCookPackage : BeginContext.COTFS.GetNeverCookPackageFileNames(ExtraNeverCookDirectories))
+	for (FName NeverCookPackage : BeginContext.COTFS.GetNeverCookPackageNames(ExtraNeverCookDirectories))
 	{
 		NeverCookPackageList.Add(NeverCookPackage);
 	}
@@ -11185,9 +11183,9 @@ void UCookOnTheFlyServer::SetNeverCookPackageConfigSettings(FBeginCookContext& B
 {
 	UE::Cook::FThreadSafeSet<FName>& NeverCookPackageList = PackageTracker->NeverCookPackageList;
 	NeverCookPackageList.Empty();
-	for (FName FileName : Settings.NeverCookPackageList)
+	for (FName PackageName : Settings.NeverCookPackageList)
 	{
-		NeverCookPackageList.Add(FileName);
+		NeverCookPackageList.Add(PackageName);
 	}
 	PackageTracker->PlatformSpecificNeverCookPackages = MoveTemp(Settings.PlatformSpecificNeverCookPackages);
 }
@@ -12565,8 +12563,7 @@ void UCookOnTheFlyServer::UnregisterCookByTheBookDelegates()
 	}
 }
 
-
-TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageFileNames(TArrayView<const FString> ExtraNeverCookDirectories) const
+TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageNames(TArrayView<const FString> ExtraNeverCookDirectories) const
 {
 	TArray<FString> NeverCookDirectories(ExtraNeverCookDirectories);
 
@@ -12616,7 +12613,7 @@ TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageFileNames(TArrayView<const
 		NeverCookDirectories.Add(MoveTemp(FullExternalActorsPath));
 	}
 
-	TArray<FString> NeverCookPackagesPaths;
+	TArray<FName> NeverCookPackages;
 	if (AssetRegistry->IsSearchAllAssets() && !AssetRegistry->IsLoadingAssets())
 	{
 		TDirectoryTree<int32> NeverCookDirectoryTree;
@@ -12631,25 +12628,12 @@ TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageFileNames(TArrayView<const
 
 		FString PackageNameStr;
 		AssetRegistry->EnumerateAllPackages(
-			[&NeverCookPackagesPaths, &NeverCookDirectoryTree, &PackageNameStr](FName PackageName, const FAssetPackageData& PackageData)
+			[&NeverCookPackages, &NeverCookDirectoryTree, &PackageNameStr](FName PackageName, const FAssetPackageData& PackageData)
 			{
 				PackageName.ToString(PackageNameStr);
 				if (NeverCookDirectoryTree.ContainsPathOrParent(PackageNameStr))
 				{
-					FString LocalFileName;
-					if (PackageData.Extension != EPackageExtension::Unspecified && PackageData.Extension != EPackageExtension::Custom)
-					{
-						FString Extension = LexToString(PackageData.Extension);
-						FPackageName::TryConvertLongPackageNameToFilename(PackageNameStr, LocalFileName, Extension);
-					}
-					else
-					{
-						FPackageName::DoesPackageExist(PackageNameStr, &LocalFileName);
-					}
-					if (!LocalFileName.IsEmpty())
-					{
-						NeverCookPackagesPaths.Add(LocalFileName);
-					}
+					NeverCookPackages.Add(PackageName);
 				}
 			});
 	}
@@ -12671,16 +12655,21 @@ TArray<FName> UCookOnTheFlyServer::GetNeverCookPackageFileNames(TArrayView<const
 
 		if (bUseDirectoryScanFallback)
 		{
-			FPackageName::FindPackagesInDirectories(NeverCookPackagesPaths, NeverCookDirectories);
+			TArray<FString> ResultFilePathsToNeverCook;
+			FPackageName::FindPackagesInDirectories(ResultFilePathsToNeverCook, NeverCookDirectories);
+			NeverCookPackages.Reserve(ResultFilePathsToNeverCook.Num());
+			FString PackageName;
+			for (FString& FilePath : ResultFilePathsToNeverCook)
+			{
+				if (FPackageName::TryConvertFilenameToLongPackageName(FilePath, PackageName))
+				{
+					NeverCookPackages.Add(FName(PackageName));
+				}
+			}
 		}
 	}
 
-	TArray<FName> NeverCookNormalizedFileNames;
-	for (const FString& NeverCookPackagePath : NeverCookPackagesPaths)
-	{
-		NeverCookNormalizedFileNames.Add(UE::Cook::FPackageDatas::GetStandardFileName(NeverCookPackagePath));
-	}
-	return NeverCookNormalizedFileNames;
+	return NeverCookPackages;
 }
 
 bool UCookOnTheFlyServer::RecompileChangedShaders(const TArray<const ITargetPlatform*>& TargetPlatforms)

@@ -1254,7 +1254,8 @@ public:
 	 *                     the extension is set to .umap, if false, it is set to .uasset.
 	 * @return Local WorkspaceDomain path in FPaths::MakeStandardFilename form, or NAME_None if it does not exist.
 	 */
-	FName GetFileNameByFlexName(FName PackageOrFileName, bool bRequireExists = true, bool bCreateAsMap = false);
+	bool TryGetNamesByFlexName(FName PackageOrFileName, FName* OutPackageName = nullptr, FName* OutFileName = nullptr,
+		bool bRequireExists = true, bool bCreateAsMap = false);
 
 	/**
 	 * Uncached; reads the AssetRegistry and disk to find the filename for the given PackageName.

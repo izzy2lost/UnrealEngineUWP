@@ -1508,7 +1508,7 @@ bool UWorld::EncroachingBlockingGeometry(const AActor* TestActor, FVector TestLo
 }
 
 
-void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* FilenamesToSkip)
+void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* PackageNamesToSkip)
 {
 	check( GIsEditor );
 
@@ -1527,14 +1527,10 @@ void UWorld::LoadSecondaryLevels(bool bForce, TSet<FName>* FilenamesToSkip)
 				// If we are cooking don't cook sub levels multiple times if they've already been cooked
 				FString PackageFilename;
 				const FString StreamingLevelWorldAssetPackageName = StreamingLevel->GetWorldAssetPackageName();
-				if (FilenamesToSkip)
+				if (PackageNamesToSkip)
 				{
-					if (FPackageName::DoesPackageExist(StreamingLevelWorldAssetPackageName, &PackageFilename))
-					{
-						bSkipFile |= FilenamesToSkip->Contains( FName(*PackageFilename) );
-					}
+					bSkipFile |= PackageNamesToSkip->Contains(StreamingLevel->GetWorldAssetPackageFName());
 				}
-
 
 				bool bAlreadyLoaded = false;
 				UPackage* LevelPackage = FindObject<UPackage>(NULL, *StreamingLevelWorldAssetPackageName,true);

@@ -2189,7 +2189,7 @@ void FRequestCluster::IsRequestCookable(const ITargetPlatform* Platform, FName P
 	};
 
 	FName FileName = PackageData.GetFileName();
-	if (InCOTFS.PackageTracker->NeverCookPackageList.Contains(FileName))
+	if (InCOTFS.PackageTracker->NeverCookPackageList.Contains(PackageName))
 	{
 		if (INDEX_NONE != UE::String::FindFirst(NameBuffer, ULevel::GetExternalActorsFolderName(), 
 			ESearchCase::IgnoreCase))

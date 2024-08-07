@@ -3772,7 +3772,7 @@ public:
 	 *
 	 * @param bForce	If true, load the levels even is a commandlet
 	 */
-	void LoadSecondaryLevels(bool bForce = false, TSet<FName>* FilenamesToSkip = NULL);
+	void LoadSecondaryLevels(bool bForce = false, TSet<FName>* PackageNamesToSkip = nullptr);
 
 	/** Utility for returning the ULevelStreaming object for a particular sub-level, specified by package name */
 	ULevelStreaming* GetLevelStreamingForPackageName(FName PackageName);

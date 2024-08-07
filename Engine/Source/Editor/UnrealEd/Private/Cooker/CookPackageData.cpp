@@ -2385,14 +2385,29 @@ FName FPackageDatas::GetFileNameByPackageName(FName PackageName, bool bRequireEx
 	return PackageData ? PackageData->GetFileName() : NAME_None;
 }
 
-FName FPackageDatas::GetFileNameByFlexName(FName PackageOrFileName, bool bRequireExists, bool bCreateAsMap)
+bool FPackageDatas::TryGetNamesByFlexName(FName PackageOrFileName, FName* OutPackageName, FName* OutFileName,
+	bool bRequireExists, bool bCreateAsMap)
 {
 	FString Buffer = PackageOrFileName.ToString();
 	if (!FPackageName::TryConvertFilenameToLongPackageName(Buffer, Buffer))
 	{
-		return NAME_None;
+		return false;
 	}
-	return GetFileNameByPackageName(FName(Buffer), bRequireExists, bCreateAsMap);
+	FName PackageName = FName(Buffer);
+	FName FileName = GetFileNameByPackageName(PackageName, bRequireExists, bCreateAsMap);
+	if (FileName.IsNone())
+	{
+		return false;
+	}
+	if (OutPackageName)
+	{
+		*OutPackageName = PackageName;
+	}
+	if (OutFileName)
+	{
+		*OutFileName = FileName;
+	}
+	return true;
 }
 
 FName FPackageDatas::LookupFileNameOnDisk(FName PackageName, bool bRequireExists, bool bCreateAsMap)

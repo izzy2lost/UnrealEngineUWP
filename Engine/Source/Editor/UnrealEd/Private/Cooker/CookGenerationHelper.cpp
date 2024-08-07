@@ -1351,7 +1351,7 @@ void FGenerationHelper::FetchExternalActorDependencies()
 			{
 				return true;
 			}
-			bool bIsNeverCook = NeverCookPackageList.Contains(PackageData->GetFileName());
+			bool bIsNeverCook = NeverCookPackageList.Contains(PackageData->GetPackageName());
 			return !bIsNeverCook;
 		});
 	ExternalActorDependencies.Shrink();
