@@ -4503,7 +4503,6 @@ void UAssetRegistryImpl::PackageDeleted(UPackage* DeletedPackage)
 
 bool UAssetRegistryImpl::IsLoadingAssets() const
 {
-	UE::AssetRegistry::FInterfaceReadScopeLock InterfaceScopeLock(InterfaceLock);
 	return GuardedData.IsLoadingAssets();
 }
 
@@ -4535,7 +4534,22 @@ UE::AssetRegistry::Impl::EGatherStatus UAssetRegistryImpl::TickOnBackgroundThrea
 			GetInheritanceContextWithRequiredLock(InterfaceScopeLock, InitializeContext.InheritanceContext, InitializeContext.InheritanceBuffer);
 
 			UE::AssetRegistry::Impl::FInterruptionContext::ShouldExitEarlyCallbackType EarlyExitHelper = 
-				[this]()->bool { return InterfaceLock.HasWaiters() || IsBackgroundProcessingPaused(); };
+				[this]()->bool
+				{
+					if (InterfaceLock.HasWaiters() || IsBackgroundProcessingPaused())
+					{
+#if WITH_EDITOR
+						// During EngineStartup many packages are loading and need to query the AssetRegistry; do not
+						// count them in the metric for backgroundtick interruptions.
+						if (IsEngineStartupModuleLoadingComplete())
+						{
+							++GuardedData.GetBackgroundTickInterruptionsCount();
+						}
+#endif
+						return true;
+					}
+					return false;
+				};
 
 			UE::AssetRegistry::Impl::FTickContext TickContext(EventContext, InheritanceContext);
 			TickContext.InterruptionContext.SetLimitedTickTime(FPlatformTime::Seconds(),
@@ -5144,13 +5158,19 @@ void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
 	Telemetry.NumCachedAssetFiles = Diagnostics.NumCachedAssetFiles;
 	Telemetry.NumUncachedAssetFiles = Diagnostics.NumUncachedAssetFiles;
 	FTelemetryRouter::Get().ProvideTelemetry(Telemetry);
-	UE_LOG(LogAssetRegistry, Log, TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs. Wall time %0.4fs.")
+#if !NO_LOGGING
+	TStringBuilder<256> Message;
+	Message.Appendf(TEXT("AssetRegistryGather time %.4fs: AssetDataDiscovery %0.4fs, AssetDataGather %0.4fs, StoreResults %0.4fs. Wall time %0.4fs.")
 		TEXT("\n\tNumCachedDirectories %d. NumUncachedDirectories %d. NumCachedFiles %d. NumUncachedFiles %d."),
 		Total, Diagnostics.DiscoveryTimeSeconds, Diagnostics.GatherTimeSeconds, StoreGatherResultsTimeSeconds,
 		Diagnostics.WallTimeSeconds, Diagnostics.NumCachedDirectories, Diagnostics.NumUncachedDirectories,
 		Diagnostics.NumCachedAssetFiles, Diagnostics.NumUncachedAssetFiles);
+#if WITH_EDITOR
+	Message.Appendf(TEXT("\n\tBackgroundTickInterruptions %d."), BackgroundTickInterruptionsCount);
+#endif // WITH_EDITOR
 
-#if !NO_LOGGING
+	UE_LOG(LogAssetRegistry, Log, TEXT("%s"), *Message);
+
 	if (bVerboseLogging)
 	{
 		UE_LOG(LogAssetRegistry, Verbose, TEXT("TagMemoryUse:"));
@@ -5166,7 +5186,7 @@ void FAssetRegistryImpl::LogSearchDiagnostics(double StartTime)
 				*Pair.Key.ToString(), (float)Pair.Value / (1000.f * 1000.f));
 		}
 	}
-#endif
+#endif // !NO_LOGGING
 }
 
 void FAssetRegistryImpl::TickGatherPackage(Impl::FEventContext& EventContext, const FString& PackageName, const FString& LocalPath)
@@ -8222,13 +8242,13 @@ void UAssetRegistryImpl::OnGetExtraObjectTags(FAssetRegistryTagsContext Context)
 {
 	if (bAddMetaDataTagsToOnGetExtraObjectTags)
 	{
-		// It is critical that bIncludeOnlyOnDiskAssets=true otherwise this will cause an infinite loop
-		const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath::ConstructFromObject(Context.GetObject()), /*bIncludeOnlyOnDiskAssets=*/true);
 		// Adding metadata tags from disk is only necessary for cooked assets; uncooked assets still have the metadata and add them elsewhere
 		// in UObject::GetAssetRegistryTags. Adding the tags from disk into uncooked assets would make the tags impossible to remove when
 		// the uncooked assets are resaved.
-		if ((AssetData.PackageFlags & PKG_Cooked) != 0)
+		if (Context.GetObject()->GetPackage()->HasAnyPackageFlags(PKG_Cooked))
 		{
+			// It is critical that bIncludeOnlyOnDiskAssets=true otherwise this will cause an infinite loop
+			const FAssetData AssetData = GetAssetByObjectPath(FSoftObjectPath::ConstructFromObject(Context.GetObject()), /*bIncludeOnlyOnDiskAssets=*/true);
 			TSet<FName>& MetaDataTags = UObject::GetMetaDataTagsForAssetRegistry();
 			for (const FName MetaDataTag : MetaDataTags)
 			{

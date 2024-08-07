@@ -399,6 +399,7 @@ public:
 	void RequestPauseBackgroundProcessing();
 	void RequestResumeBackgroundProcessing();
 	bool IsBackgroundProcessingPaused() const;
+	uint32& GetBackgroundTickInterruptionsCount();
 
 #endif
 private:
@@ -639,6 +640,12 @@ private:
 	/** A map from directoryname to packagename of Packages that have CalculatedDependencies on packages in the directory. */
 	TMultiMap<FString, FName> DirectoryReferencers;
 
+	/**
+	 * Number of times during the startup scan that TickOnBackgroundThread was interrupted by a request for the
+	 * AssetRegistry's lock from another thread.
+	 */
+	uint32 BackgroundTickInterruptionsCount = 0;
+
 	/** A map of per asset class dependency gatherer called in LoadCalculatedDependencies */
 	TMultiMap<FTopLevelAssetPath, UE::AssetDependencyGatherer::Private::FRegisteredAssetDependencyGatherer*> RegisteredDependencyGathererClasses;
 	mutable FRWLock RegisteredDependencyGathererClassesLock;
@@ -840,5 +847,19 @@ void EnumerateMemoryAssets(const FARCompiledFilter& InFilter, TSet<FName>& OutPa
 	TFunctionRef<bool(FAssetData&&)> Callback, bool bSkipARFilteredAssets);
 
 } // namespace Utils within namespace UE::AssetRegistry
+
+
+///////////////////////////////////////////////////////
+// Inline implementations
+///////////////////////////////////////////////////////
+
+
+#if WITH_EDITOR
+inline uint32& FAssetRegistryImpl::GetBackgroundTickInterruptionsCount()
+{
+	return BackgroundTickInterruptionsCount;
+}
+#endif
+
 
 } // namespace UE::AssetRegistry
