@@ -6,6 +6,9 @@
 #include "IPropertyTypeCustomization.h"
 #include "SGraphPin.h"
 
+class UDataRegistry;
+struct FDataRegistryType;
+
 /** Data Registry type, reads list from subsystem */
 class FDataRegistryTypeCustomization : public IPropertyTypeCustomization
 {
@@ -24,8 +27,19 @@ private:
 	/** Handle to the struct property being customized */
 	TSharedPtr<IPropertyHandle> StructPropertyHandle;
 
+	/** Returns the data of the underlying property */
+	const FDataRegistryType* GetPropertyValue() const;
+
+	/** Returns the data registry associated with this registry type, if there is one */
+	UDataRegistry* GetDataRegistry() const;
+
 	/** Creates the string list */
 	void GenerateComboBoxStrings(TArray< TSharedPtr<FString> >& OutComboBoxStrings, TArray<TSharedPtr<class SToolTip>>& OutToolTips, TArray<bool>& OutRestrictedItems);
+
+	/** Functionality for the "open asset" button */
+	FReply OnClickOpenAsset();
+	EVisibility GetOpenAssetVisibility() const;
+	FText GetOpenAssetTooltip() const;
 
 };
 
