@@ -17,10 +17,6 @@ class UWorldPartitionRuntimeLevelStreamingCell : public UWorldPartitionRuntimeCe
 {
 	GENERATED_UCLASS_BODY()
 
-	//~Begin UObject interface
-	virtual void BeginDestroy() override;
-	//~End UObject interface
-
 	//~Begin UWorldPartitionRuntimeCell interface
 	ENGINE_API virtual void Load() const override;
 	ENGINE_API virtual void Unload() const override;

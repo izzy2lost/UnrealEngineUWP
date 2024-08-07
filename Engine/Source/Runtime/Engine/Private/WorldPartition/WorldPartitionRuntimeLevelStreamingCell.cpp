@@ -26,17 +26,6 @@ UWorldPartitionRuntimeLevelStreamingCell::UWorldPartitionRuntimeLevelStreamingCe
 	, LevelStreaming(nullptr)
 {}
 
-void UWorldPartitionRuntimeLevelStreamingCell::BeginDestroy()
-{
-	if (LevelStreaming)
-	{
-		LevelStreaming->OnLevelShown.RemoveAll(this);
-		LevelStreaming->OnLevelHidden.RemoveAll(this);
-	}
-
-	Super::BeginDestroy();
-}
-
 EWorldPartitionRuntimeCellState UWorldPartitionRuntimeLevelStreamingCell::GetCurrentState() const
 {
 	if (LevelStreaming)
@@ -117,13 +106,6 @@ TArray<FName> UWorldPartitionRuntimeLevelStreamingCell::GetActors() const
 
 void UWorldPartitionRuntimeLevelStreamingCell::CreateAndSetLevelStreaming(const FString& InPackageName, const FSoftObjectPath& InWorldAsset)
 {
-	// Temporary test while we investigate issue PLAY-45493
-	if (!ensureMsgf(!LevelStreaming, TEXT("StreamingCell already had an assigned LevelStreaming object '%s'"), *LevelStreaming->GetPathName()))
-	{
-		LevelStreaming->OnLevelShown.RemoveAll(this);
-		LevelStreaming->OnLevelHidden.RemoveAll(this);
-	}
-
 	LevelStreaming = CreateLevelStreaming(InPackageName, InWorldAsset);
 }
 
