@@ -124,13 +124,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Rendering|Components|Decal")
 	ENGINE_API virtual class UMaterialInstanceDynamic* CreateDynamicMaterialInstance();
 
+public:
 #if UE_WITH_PSO_PRECACHING
-protected:
-	/** Graph event used to track all the PSO precache events - used for delayed proxy creation */
-	FGraphEventRef PSOPrecacheCompileEvent;
+	/** Atomic bool to track all the PSO precache events - used for delayed proxy creation */
+	std::atomic<bool> bPSOPrecacheFinished = true;
 #endif
 
-public:
 	/** The decal proxy. */
 	FDeferredDecalProxy* SceneProxy;
 

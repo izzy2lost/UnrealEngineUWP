@@ -331,7 +331,7 @@ void UDecalComponent::PrecachePSOs()
 	}
 
 	// clear the current request data
-	PSOPrecacheCompileEvent = nullptr;
+	bPSOPrecacheFinished = true;
 
 	if (DecalMaterial && !DecalMaterial->HasAnyFlags(RF_NeedPostLoad))
 	{
@@ -346,7 +346,31 @@ void UDecalComponent::PrecachePSOs()
 		// Request recreate of the render state when the PSO compilation is ready (if we want to delay proxy creation)
 		if (GraphEvents.Num() > 0 && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 		{
-			PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this);
+			struct FPSODecalPrecacheFinishedTask
+			{
+				explicit FPSODecalPrecacheFinishedTask(UDecalComponent* InDecalComponent)
+					: WeakDecalComponent(InDecalComponent)
+				{
+				}
+
+				static TStatId GetStatId() { return TStatId(); }
+				static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
+				static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
+
+				void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
+				{
+					if (UDecalComponent* DC = WeakDecalComponent.Get())
+					{
+						DC->bPSOPrecacheFinished = true;
+						DC->MarkRenderStateDirty();
+					}
+				}
+
+				TWeakObjectPtr<UDecalComponent> WeakDecalComponent;
+			};
+
+			bPSOPrecacheFinished = false;
+			TGraphTask<FPSODecalPrecacheFinishedTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this);
 		}
 	}
 #endif
@@ -393,11 +417,10 @@ FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 	LLM_SCOPE(ELLMTag::SceneRender);
 
 #if UE_WITH_PSO_PRECACHING
-	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
+	if (!bPSOPrecacheFinished && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		return nullptr;
 	}
-	PSOPrecacheCompileEvent = nullptr;
 #endif // UE_WITH_PSO_PRECACHING
 
 	return new FDeferredDecalProxy(this);

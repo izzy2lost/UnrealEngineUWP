@@ -4780,7 +4780,7 @@ void UPrimitiveComponent::PrecachePSOs()
 
 	// clear the current request data
 	MaterialPSOPrecacheRequestIDs.Empty();
-	PSOPrecacheCompileEvent = nullptr;
+	bPSOPrecacheFinished = true;
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// Collect the data from the derived classes
@@ -4796,19 +4796,31 @@ void UPrimitiveComponent::PrecachePSOs()
 #endif
 }
 
-class FPSOPrecacheFinishedTask : public FMarkActorRenderStateDirtyTask
+#if UE_WITH_PSO_PRECACHING
+struct FPSOPrecacheFinishedTask
 {
-public:
-	explicit FPSOPrecacheFinishedTask(UActorComponent* InActorComponent)
-		: FMarkActorRenderStateDirtyTask(InActorComponent)
-	{ }
+	explicit FPSOPrecacheFinishedTask(UPrimitiveComponent* InPrimitiveComponent)
+		: WeakPrimitiveComponent(InPrimitiveComponent)
+	{
+	}
+
+	static TStatId GetStatId() { return TStatId(); }
+	static ENamedThreads::Type GetDesiredThread() { return ENamedThreads::GameThread; }
+	static ESubsequentsMode::Type GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
 
 	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_PSOPrecacheFinishedTask);
-		FMarkActorRenderStateDirtyTask::DoTask(CurrentThread, MyCompletionGraphEvent);
+		if (UPrimitiveComponent* PC = WeakPrimitiveComponent.Get())
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_PSOPrecacheFinishedTask);
+			PC->bPSOPrecacheFinished = true;
+			PC->MarkRenderStateDirty();
+		}
 	}
+
+	TWeakObjectPtr<UPrimitiveComponent> WeakPrimitiveComponent;
 };
+#endif
 
 void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(const FGraphEventArray& PSOPrecacheCompileEvents)
 {
@@ -4817,7 +4829,8 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
 	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
 	{
-		PSOPrecacheCompileEvent = TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
+		bPSOPrecacheFinished = false;
+		TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
 	}
 
 	bPSOPrecacheCalled = true;
@@ -4836,7 +4849,7 @@ bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
 bool UPrimitiveComponent::IsPSOPrecaching() const
 {
 #if UE_WITH_PSO_PRECACHING
-	return PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete();
+	return !bPSOPrecacheFinished;
 #else
 	return false;
 #endif // UE_WITH_PSO_PRECACHING
@@ -4857,7 +4870,9 @@ bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriorit
 	ensure(!IsComponentPSOPrecachingEnabled() || bPSOPrecacheCalled);
 	check(NewPSOPrecachePriority == EPSOPrecachePriority::High || NewPSOPrecachePriority == EPSOPrecachePriority::Highest);
 
-	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete())
+	bool bIsPSOPrecaching = IsPSOPrecaching();
+
+	if (bIsPSOPrecaching)
 	{
 		if (PSOPrecacheRequestPriority< NewPSOPrecachePriority)
 		{
@@ -4865,12 +4880,8 @@ bool UPrimitiveComponent::CheckPSOPrecachingAndBoostPriority(EPSOPrecachePriorit
 			PSOPrecacheRequestPriority = NewPSOPrecachePriority;
 		}
 	}
-	else
-	{
-		PSOPrecacheCompileEvent = nullptr;
-	}
 
-	return IsPSOPrecaching();
+	return bIsPSOPrecaching;
 #else
 	return false;
 #endif

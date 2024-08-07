@@ -3566,7 +3566,7 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 	check(IsInGameThread() || IsInParallelGameThread());
 
 	MaterialPSOPrecacheRequestIDs.Empty();
-	PSOPrecacheCompileEvent = nullptr;
+	bPSOPrecacheFinished = true;
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// The asset will keep the Precache events alive, but these might be over. Avoid delaying scene proxy creation if everything is finished
