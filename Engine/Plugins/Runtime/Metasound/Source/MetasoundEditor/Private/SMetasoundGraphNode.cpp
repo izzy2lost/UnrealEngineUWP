@@ -914,7 +914,7 @@ namespace Metasound
 
 									if (!bUseAudioMaterialWidgets)
 									{
-										InputWidget->SetDesiredSizeOverride(SliderDesiredSizeVertical);
+										InputWidget->SetDesiredSizeOverride(FVector2D(SliderDesiredSizeVertical.Y, SliderDesiredSizeVertical.X));
 									}
 								}
 
