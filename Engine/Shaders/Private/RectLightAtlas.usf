@@ -220,6 +220,7 @@ uint  FreeCount;
 int2  OutputResolution;
 uint  AtlasMIPIndex;
 uint  AtlasSourceTextureMIPBias;
+uint  AtlasFormat;
 
 SamplerState AtlasSampler;
 Texture2D<float4> AtlasTexture;
@@ -280,7 +281,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		Newline(Context);
 
 		Print(Context, TEXT("Atlas format     : "), FontSilver);
-		Print(Context, TEXT("PF_FloatR11G11B10"), FontOrange);
+		if (AtlasFormat == 0) 
+		{ Print(Context, TEXT("PF_FloatR11G11B10"), FontOrange); }
+		else if (AtlasFormat == 1) 
+		{ Print(Context, TEXT("PF_FloatRGBA"), FontOrange); }
+		else  
+		{ Print(Context, TEXT("Unknown"), FontOrange); }
 		Newline(Context);
 	}
 
