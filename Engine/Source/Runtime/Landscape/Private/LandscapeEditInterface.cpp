@@ -1471,10 +1471,10 @@ void FLandscapeEditDataInterface::GetHeightDataInternal(int32& ValidX1, int32& V
 			ComponentSizeX, ComponentSizeY, CornerValues,
 			NoBorderY1, NoBorderY2, ComponentDataExist, StoreData);
 		// Update valid region
-		ValidX1 = FMath::Max<int32>(X1, ValidX1);
-		ValidX2 = FMath::Min<int32>(X2, ValidX2);
-		ValidY1 = FMath::Max<int32>(Y1, ValidY1);
-		ValidY2 = FMath::Min<int32>(Y2, ValidY2);
+		ValidX1 = FMath::Min<int32>(X1, ValidX1);
+		ValidX2 = FMath::Max<int32>(X2, ValidX2);
+		ValidY1 = FMath::Min<int32>(Y1, ValidY1);
+		ValidY2 = FMath::Max<int32>(Y2, ValidY2);
 	}
 	else
 	{

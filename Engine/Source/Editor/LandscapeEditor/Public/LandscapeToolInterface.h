@@ -273,7 +273,8 @@ public:
 	TArray<FName> ValidBrushes;
 };
 
-namespace LandscapeTool
+namespace UE::Landscape::Editor::Tool
 {
 	UMaterialInstance* CreateMaterialInstance(UMaterialInterface* BaseMaterial);
 }
+// namespace UE::Landscape::Editor::Tool

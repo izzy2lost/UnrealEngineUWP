@@ -66,7 +66,7 @@ protected:
 	/** Protected so that only subclasses can create instances of this class. */
 	FLandscapeBrushCircle(FEdModeLandscape* InEdMode, UMaterialInterface* InBrushMaterial)
 		: LastMousePosition(0, 0)
-		, BrushMaterial(LandscapeTool::CreateMaterialInstance(InBrushMaterial))
+		, BrushMaterial(UE::Landscape::Editor::Tool::CreateMaterialInstance(InBrushMaterial))
 		, bCanPaint(false)
 		, EdMode(InEdMode)
 	{
@@ -324,23 +324,23 @@ public:
 			InteractorPositions = InInteractorPositions;
 		}
 
-		FIntRect Bounds;
+		FIntRect InclusiveBounds;
 		for (const FLandscapeToolInteractorPosition& InteractorPosition : InteractorPositions)
 		{
-			FIntRect SpotBounds;
-			SpotBounds.Min.X = FMath::FloorToInt32(InteractorPosition.Position.X - TotalRadius);
-			SpotBounds.Min.Y = FMath::FloorToInt32(InteractorPosition.Position.Y - TotalRadius);
-			SpotBounds.Max.X = FMath::CeilToInt32( InteractorPosition.Position.X + TotalRadius);
-			SpotBounds.Max.Y = FMath::CeilToInt32( InteractorPosition.Position.Y + TotalRadius);
+			FIntRect SpotInclusiveBounds;
+			SpotInclusiveBounds.Min.X = FMath::FloorToInt32(InteractorPosition.Position.X - TotalRadius);
+			SpotInclusiveBounds.Min.Y = FMath::FloorToInt32(InteractorPosition.Position.Y - TotalRadius);
+			SpotInclusiveBounds.Max.X = FMath::CeilToInt32(InteractorPosition.Position.X + TotalRadius);
+			SpotInclusiveBounds.Max.Y = FMath::CeilToInt32(InteractorPosition.Position.Y + TotalRadius);
 
-			if (Bounds.IsEmpty())
+			if (InclusiveBounds.IsEmpty())
 			{
-				Bounds = SpotBounds;
+				InclusiveBounds = SpotInclusiveBounds;
 			}
 			else
 			{
-				Bounds.Min = Bounds.Min.ComponentMin(SpotBounds.Min);
-				Bounds.Max = Bounds.Max.ComponentMax(SpotBounds.Max);
+				InclusiveBounds.Min = InclusiveBounds.Min.ComponentMin(SpotInclusiveBounds.Min);
+				InclusiveBounds.Max = InclusiveBounds.Max.ComponentMax(SpotInclusiveBounds.Max);
 			}
 		}
 
@@ -351,23 +351,24 @@ public:
 			// Landscape has no components somehow
 			return FLandscapeBrushData();
 		}
-		Bounds.Clip(FIntRect(MinX, MinY, MaxX + 1, MaxY + 1));
+		InclusiveBounds.Clip(FIntRect(MinX, MinY, MaxX, MaxY));
 
-		FLandscapeBrushData BrushData(Bounds);
+		// FLandscapeBrushData requires exclusive bounds : 
+		FLandscapeBrushData BrushData(FIntRect(InclusiveBounds.Min, InclusiveBounds.Max + 1));
 
 		for (const FLandscapeToolInteractorPosition& InteractorPosition : InteractorPositions)
 		{
-			FIntRect SpotBounds;
-			SpotBounds.Min.X = FMath::Max(FMath::FloorToInt32(InteractorPosition.Position.X - TotalRadius), Bounds.Min.X);
-			SpotBounds.Min.Y = FMath::Max(FMath::FloorToInt32(InteractorPosition.Position.Y - TotalRadius), Bounds.Min.Y);
-			SpotBounds.Max.X = FMath::Min(FMath::CeilToInt32( InteractorPosition.Position.X + TotalRadius), Bounds.Max.X);
-			SpotBounds.Max.Y = FMath::Min(FMath::CeilToInt32( InteractorPosition.Position.Y + TotalRadius), Bounds.Max.Y);
+			FIntRect SpotInclusiveBounds;
+			SpotInclusiveBounds.Min.X = FMath::Max(FMath::FloorToInt32(InteractorPosition.Position.X - TotalRadius), InclusiveBounds.Min.X);
+			SpotInclusiveBounds.Min.Y = FMath::Max(FMath::FloorToInt32(InteractorPosition.Position.Y - TotalRadius), InclusiveBounds.Min.Y);
+			SpotInclusiveBounds.Max.X = FMath::Min(FMath::CeilToInt32(InteractorPosition.Position.X + TotalRadius), InclusiveBounds.Max.X);
+			SpotInclusiveBounds.Max.Y = FMath::Min(FMath::CeilToInt32(InteractorPosition.Position.Y + TotalRadius), InclusiveBounds.Max.Y);
 
-			for (int32 Y = SpotBounds.Min.Y; Y < SpotBounds.Max.Y; Y++)
+			for (int32 Y = SpotInclusiveBounds.Min.Y; Y <= SpotInclusiveBounds.Max.Y; Y++)
 			{
 				float* Scanline = BrushData.GetDataPtr(FIntPoint(0, Y));
 
-				for (int32 X = SpotBounds.Min.X; X < SpotBounds.Max.X; X++)
+				for (int32 X = SpotInclusiveBounds.Min.X; X <= SpotInclusiveBounds.Max.X; X++)
 				{
 					float PrevAmount = Scanline[X];
 					if (PrevAmount < 1.0f)
@@ -431,7 +432,7 @@ public:
 		, EdMode(InEdMode)
 	{
 		UMaterial* BaseBrushMaterial = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial.SelectBrushMaterial"));
-		BrushMaterial = LandscapeTool::CreateMaterialInstance(BaseBrushMaterial);
+		BrushMaterial = UE::Landscape::Editor::Tool::CreateMaterialInstance(BaseBrushMaterial);
 	}
 
 	// FGCObject interface
@@ -542,7 +543,7 @@ public:
 		// Selection Brush only works for 
 		ULandscapeInfo* LandscapeInfo = EdMode->CurrentToolTarget.LandscapeInfo.Get();
 
-		FIntRect Bounds;
+		FIntRect ExclusiveBounds(INT_MAX, INT_MAX, INT_MIN, INT_MIN);
 
 		// The add component tool needs the raw bounds of the brush rather than the bounds of the actually existing components under the brush
 		if (EdMode->CurrentTool->GetToolName() == FName("AddComponent"))
@@ -554,10 +555,10 @@ public:
 			const int32 ComponentIndexX = FMath::FloorToInt(BrushOriginX);
 			const int32 ComponentIndexY = FMath::FloorToInt(BrushOriginY);
 
-			Bounds.Min.X = (ComponentIndexX) * LandscapeInfo->ComponentSizeQuads;
-			Bounds.Min.Y = (ComponentIndexY) * LandscapeInfo->ComponentSizeQuads;
-			Bounds.Max.X = (ComponentIndexX + BrushSize) * LandscapeInfo->ComponentSizeQuads + 1;
-			Bounds.Max.Y = (ComponentIndexY + BrushSize) * LandscapeInfo->ComponentSizeQuads + 1;
+			ExclusiveBounds.Min.X = (ComponentIndexX) * LandscapeInfo->ComponentSizeQuads;
+			ExclusiveBounds.Min.Y = (ComponentIndexY) * LandscapeInfo->ComponentSizeQuads;
+			ExclusiveBounds.Max.X = (ComponentIndexX + BrushSize) * LandscapeInfo->ComponentSizeQuads + 1;
+			ExclusiveBounds.Max.Y = (ComponentIndexY + BrushSize) * LandscapeInfo->ComponentSizeQuads + 1;
 		}
 		else
 		{
@@ -567,30 +568,25 @@ public:
 			}
 
 			// Get extent for all components
-			Bounds.Min.X = INT_MAX;
-			Bounds.Min.Y = INT_MAX;
-			Bounds.Max.X = INT_MIN;
-			Bounds.Max.Y = INT_MIN;
-
 			for (ULandscapeComponent* Component : BrushMaterialComponents)
 			{
 				if (ensure(Component))
 				{
-					Component->GetComponentExtent(Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y);
+					Component->GetComponentExtent(ExclusiveBounds.Min.X, ExclusiveBounds.Min.Y, ExclusiveBounds.Max.X, ExclusiveBounds.Max.Y);
 				}
 			}
 
 			// GetComponentExtent returns an inclusive max bound
-			Bounds.Max += FIntPoint(1, 1);
+			ExclusiveBounds.Max += FIntPoint(1, 1);
 		}
 
-		FLandscapeBrushData BrushData(Bounds);
+		FLandscapeBrushData BrushData(ExclusiveBounds);
 
-		for (int32 Y = Bounds.Min.Y; Y < Bounds.Max.Y; Y++)
+		for (int32 Y = ExclusiveBounds.Min.Y; Y < ExclusiveBounds.Max.Y; Y++)
 		{
 			float* Scanline = BrushData.GetDataPtr(FIntPoint(0, Y));
 
-			for (int32 X = Bounds.Min.X; X < Bounds.Max.X; X++)
+			for (int32 X = ExclusiveBounds.Min.X; X < ExclusiveBounds.Max.X; X++)
 			{
 				const int32 ComponentIndexX = FMath::FloorToInt(static_cast<float>(X) / LandscapeInfo->ComponentSizeQuads);
 				const int32 ComponentIndexY = FMath::FloorToInt(static_cast<float>(Y) / LandscapeInfo->ComponentSizeQuads);
@@ -646,7 +642,7 @@ public:
 		, EdMode(InEdMode)
 	{
 		UMaterialInterface* GizmoMaterial = LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/MaskBrushMaterial_Gizmo.MaskBrushMaterial_Gizmo"));
-		BrushMaterial = UMaterialInstanceDynamic::Create(LandscapeTool::CreateMaterialInstance(GizmoMaterial), nullptr);
+		BrushMaterial = UMaterialInstanceDynamic::Create(UE::Landscape::Editor::Tool::CreateMaterialInstance(GizmoMaterial), nullptr);
 	}
 
 	// FGCObject interface
@@ -799,21 +795,16 @@ public:
 		float ScaleXY = static_cast<float>(FMath::Abs(LandscapeInfo->DrawScale.X));
 
 		// Get extent for all components
-		FIntRect Bounds;
-		Bounds.Min.X = INT_MAX;
-		Bounds.Min.Y = INT_MAX;
-		Bounds.Max.X = INT_MIN;
-		Bounds.Max.Y = INT_MIN;
-
+		FIntRect ExclusiveBounds(INT_MAX, INT_MAX, INT_MIN, INT_MIN);
 		for (ULandscapeComponent* Component : BrushMaterialComponents)
 		{
 			if (ensure(Component))
 			{
-				Component->GetComponentExtent(Bounds.Min.X, Bounds.Min.Y, Bounds.Max.X, Bounds.Max.Y);
+				Component->GetComponentExtent(ExclusiveBounds.Min.X, ExclusiveBounds.Min.Y, ExclusiveBounds.Max.X, ExclusiveBounds.Max.Y);
 			}
 		}
 
-		FLandscapeBrushData BrushData(Bounds);
+		FLandscapeBrushData BrushData(ExclusiveBounds);
 
 		//FMatrix LandscapeToGizmoLocal = Landscape->LocalToWorld() * Gizmo->WorldToLocal();
 		const float LW = Gizmo->GetWidth() / (2 * ScaleXY);
@@ -827,11 +818,11 @@ public:
 		float W = Gizmo->GetWidth() / ScaleXY; //Gizmo->GetWidth() / (Gizmo->DrawScale * Gizmo->DrawScale3D.X);
 		float H = Gizmo->GetHeight() / ScaleXY; //Gizmo->GetHeight() / (Gizmo->DrawScale * Gizmo->DrawScale3D.Y);
 
-		for (int32 Y = Bounds.Min.Y; Y < Bounds.Max.Y; Y++)
+		for (int32 Y = ExclusiveBounds.Min.Y; Y < ExclusiveBounds.Max.Y; Y++)
 		{
 			float* Scanline = BrushData.GetDataPtr(FIntPoint(0, Y));
 
-			for (int32 X = Bounds.Min.X; X < Bounds.Max.X; X++)
+			for (int32 X = ExclusiveBounds.Min.X; X < ExclusiveBounds.Max.X; X++)
 			{
 				FVector GizmoLocal = LandscapeToGizmoLocal.TransformPosition(FVector(X, Y, 0));
 				if (GizmoLocal.X < W && GizmoLocal.X > 0 && GizmoLocal.Y < H && GizmoLocal.Y > 0)
@@ -1167,12 +1158,11 @@ public:
 		int32 SizeY = EdMode->UISettings->AlphaTextureSizeY;
 		check(EdMode->UISettings->HasValidAlphaTextureData() && (SizeX > 0) && (SizeY > 0)); // See CanPaint() above : if we can paint, these must all be valid
 
-		FIntRect Bounds;
-		Bounds.Min.X = FMath::FloorToInt(LastMousePosition.X - TotalRadius);
-		Bounds.Min.Y = FMath::FloorToInt(LastMousePosition.Y - TotalRadius);
-		Bounds.Max.X = FMath::CeilToInt( LastMousePosition.X + TotalRadius);
-		Bounds.Max.Y = FMath::CeilToInt( LastMousePosition.Y + TotalRadius);
-
+		FIntRect InclusiveBounds;
+		InclusiveBounds.Min.X = FMath::FloorToInt(LastMousePosition.X - TotalRadius);
+		InclusiveBounds.Min.Y = FMath::FloorToInt(LastMousePosition.Y - TotalRadius);
+		InclusiveBounds.Max.X = FMath::CeilToInt(LastMousePosition.X + TotalRadius);
+		InclusiveBounds.Max.Y = FMath::CeilToInt(LastMousePosition.Y + TotalRadius);
 
 		// Clamp to landscape bounds
 		int32 MinX, MaxX, MinY, MaxY;
@@ -1181,15 +1171,16 @@ public:
 			// Landscape has no components somehow
 			return FLandscapeBrushData();
 		}
-		Bounds.Clip(FIntRect(MinX, MinY, MaxX + 1, MaxY + 1));
+		InclusiveBounds.Clip(FIntRect(MinX, MinY, MaxX, MaxY));
 
-		FLandscapeBrushData BrushData(Bounds);
+		// FLandscapeBrushData requires exclusive bounds : 
+		FLandscapeBrushData BrushData(FIntRect(InclusiveBounds.Min, InclusiveBounds.Max + 1));
 
-		for (int32 Y = Bounds.Min.Y; Y < Bounds.Max.Y; Y++)
+		for (int32 Y = InclusiveBounds.Min.Y; Y <= InclusiveBounds.Max.Y; Y++)
 		{
 			float* Scanline = BrushData.GetDataPtr(FIntPoint(0, Y));
 
-			for (int32 X = Bounds.Min.X; X < Bounds.Max.X; X++)
+			for (int32 X = InclusiveBounds.Min.X; X <= InclusiveBounds.Max.X; X++)
 			{
 				float Angle;
 				FVector2D Scale;
@@ -1445,11 +1436,11 @@ public:
 			check(bIsValid && !FMath::IsNearlyZero(AlphaBrushScale) && !FMath::IsNearlyZero(Radius) && (SizeX > 0) && (SizeY > 0)); // See CanPaint() function above : if bCanPaint, AlphaBrushScale should be non-zero
 
 			const float BrushAngle = EdMode->UISettings->bAlphaBrushAutoRotate ? LastMouseAngle : FMath::DegreesToRadians(EdMode->UISettings->AlphaBrushRotation);
-			FIntRect Bounds;
-			Bounds.Min.X = FMath::FloorToInt(LastMousePosition.X - Radius);
-			Bounds.Min.Y = FMath::FloorToInt(LastMousePosition.Y - Radius);
-			Bounds.Max.X = FMath::CeilToInt( LastMousePosition.X + Radius);
-			Bounds.Max.Y = FMath::CeilToInt( LastMousePosition.Y + Radius);
+			FIntRect InclusiveBounds;
+			InclusiveBounds.Min.X = FMath::FloorToInt(LastMousePosition.X - Radius);
+			InclusiveBounds.Min.Y = FMath::FloorToInt(LastMousePosition.Y - Radius);
+			InclusiveBounds.Max.X = FMath::CeilToInt(LastMousePosition.X + Radius);
+			InclusiveBounds.Max.Y = FMath::CeilToInt(LastMousePosition.Y + Radius);
 
 			// Clamp to landscape bounds
 			int32 MinX, MaxX, MinY, MaxY;
@@ -1458,15 +1449,16 @@ public:
 				// Landscape has no components somehow
 				return FLandscapeBrushData();
 			}
-			Bounds.Clip(FIntRect(MinX, MinY, MaxX + 1, MaxY + 1));
+			InclusiveBounds.Clip(FIntRect(MinX, MinY, MaxX, MaxY));
 
-			FLandscapeBrushData BrushData(Bounds);
+			// FLandscapeBrushData requires exclusive bounds : 
+			FLandscapeBrushData BrushData(FIntRect(InclusiveBounds.Min, InclusiveBounds.Max + 1));
 
-			for (int32 Y = Bounds.Min.Y; Y < Bounds.Max.Y; Y++)
+			for (int32 Y = InclusiveBounds.Min.Y; Y <= InclusiveBounds.Max.Y; Y++)
 			{
 				float* Scanline = BrushData.GetDataPtr(FIntPoint(0, Y));
 
-				for (int32 X = Bounds.Min.X; X < Bounds.Max.X; X++)
+				for (int32 X = InclusiveBounds.Min.X; X <= InclusiveBounds.Max.X; X++)
 				{
 					// Find alphamap sample location
 					float ScaleSampleX = ((float)X - LastMousePosition.X) / AlphaBrushScale;

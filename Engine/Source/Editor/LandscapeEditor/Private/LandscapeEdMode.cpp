@@ -75,7 +75,7 @@ void FLandscapeTool::SetEditRenderType()
 	GLandscapeEditRenderMode = ELandscapeEditRenderMode::SelectRegion | (GLandscapeEditRenderMode & ELandscapeEditRenderMode::BitMaskForMask);
 }
 
-namespace LandscapeTool
+namespace UE::Landscape::Editor::Tool
 {
 	UMaterialInstance* CreateMaterialInstance(UMaterialInterface* BaseMaterial)
 	{
@@ -88,12 +88,22 @@ namespace LandscapeTool
 		MaterialInstance->PostEditChange();
 		return MaterialInstance;
 	}
+}
+// namespace UE::Landscape::Editor::Tool
 
+namespace UE::Landscape::Editor::Private
+{
 	/** Indicates the user is currently moving the landscape gizmo object by dragging the mouse. */
 	bool GIsGizmoDragging = false;
 	/** Indicates the user is currently changing the landscape brush radius/falloff by dragging the mouse. */
 	bool GIsAdjustingBrush = false;
+
+	static FAutoConsoleVariable CVarVisualLogShowBrushPhysics(
+		TEXT("landscape.VisualLog.ShowBrushPhysics"),
+		false,
+		TEXT("When visual log is active, allows to leave a visual log of the physics queries made for the purpose of the landscape brush"));
 }
+// namespace UE::Landscape::Editor::Private
 
 //
 // FEdModeLandscape
@@ -122,14 +132,16 @@ FEdModeLandscape::FEdModeLandscape()
 	, bNeedsUpdateShownLayerList(false)
 	, bUpdatingLandscapeInfo(false)
 {
-	GLayerDebugColorMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LayerVisMaterial.LayerVisMaterial")));
-	GSelectionColorMaterial  = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_Selected.SelectBrushMaterial_Selected")));
-	GSelectionRegionMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_SelectedRegion.SelectBrushMaterial_SelectedRegion")));
-	GMaskRegionMaterial      = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/MaskBrushMaterial_MaskedRegion.MaskBrushMaterial_MaskedRegion")));
-	GColorMaskRegionMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/ColorMaskBrushMaterial_MaskedRegion.ColorMaskBrushMaterial_MaskedRegion")));
-	GLandscapeDirtyMaterial		 = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeDirtyMaterial.LandscapeDirtyMaterial")));
-	GLandscapeBlackTexture   = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/Black.Black"));
-	GLandscapeLayerUsageMaterial = LandscapeTool::CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeLayerUsageMaterial.LandscapeLayerUsageMaterial")));
+	using namespace UE::Landscape::Editor::Tool;
+
+	GLayerDebugColorMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LayerVisMaterial.LayerVisMaterial")));
+	GSelectionColorMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_Selected.SelectBrushMaterial_Selected")));
+	GSelectionRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/SelectBrushMaterial_SelectedRegion.SelectBrushMaterial_SelectedRegion")));
+	GMaskRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/MaskBrushMaterial_MaskedRegion.MaskBrushMaterial_MaskedRegion")));
+	GColorMaskRegionMaterial = CreateMaterialInstance(LoadObject<UMaterialInstanceConstant>(nullptr, TEXT("/Engine/EditorLandscapeResources/ColorMaskBrushMaterial_MaskedRegion.ColorMaskBrushMaterial_MaskedRegion")));
+	GLandscapeDirtyMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeDirtyMaterial.LandscapeDirtyMaterial")));
+	GLandscapeBlackTexture = LoadObject<UTexture2D>(nullptr, TEXT("/Engine/EngineResources/Black.Black"));
+	GLandscapeLayerUsageMaterial = CreateMaterialInstance(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorLandscapeResources/LandscapeLayerUsageMaterial.LandscapeLayerUsageMaterial")));
 	
 	// Initialize modes
 	UpdateToolModes();
@@ -432,6 +444,8 @@ int32 FEdModeLandscape::GetNewLandscapeResolutionY() const
 /** FEdMode: Called when the mode is entered */
 void FEdModeLandscape::Enter()
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	ErrorReasonOnMouseUp = FText::GetEmpty();
 
 	// Call parent implementation
@@ -643,16 +657,18 @@ void FEdModeLandscape::Enter()
 	}
 
 	// Reset mouse tracking info : 
-	LandscapeTool::GIsGizmoDragging = false;
-	LandscapeTool::GIsAdjustingBrush  = false;
+	GIsGizmoDragging = false;
+	GIsAdjustingBrush  = false;
 }
 
 /** FEdMode: Called when the mode is exited */
 void FEdModeLandscape::Exit()
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	// Reset mouse tracking info : 
-	LandscapeTool::GIsGizmoDragging = false;
-	LandscapeTool::GIsAdjustingBrush  = false;
+	GIsGizmoDragging = false;
+	GIsAdjustingBrush  = false;
 
 	if (UWorld* World = GetWorld())
 	{
@@ -1074,14 +1090,16 @@ bool FEdModeLandscape::CapturedMouseMove(FEditorViewportClient* ViewportClient, 
 /** FEdMode: Called when a mouse button is pressed */
 bool FEdModeLandscape::StartTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	if (CurrentGizmoActor.IsValid() && CurrentGizmoActor->IsSelected() && GLandscapeEditRenderMode & ELandscapeEditRenderMode::Gizmo)
 	{
-		LandscapeTool::GIsGizmoDragging = true;
+		GIsGizmoDragging = true;
 		return true;
 	}
 	else if (IsAdjustingBrush(InViewportClient))
 	{ 
-		LandscapeTool::GIsAdjustingBrush = true;
+		GIsAdjustingBrush = true;
 		// We're adjusting the brush via mouse tracking, return true in order to prevent the viewport client from doing any mouse dragging operation while we're doing it
 		return true;
 	}
@@ -1093,14 +1111,16 @@ bool FEdModeLandscape::StartTracking(FEditorViewportClient* InViewportClient, FV
 /** FEdMode: Called when the a mouse button is released */
 bool FEdModeLandscape::EndTracking(FEditorViewportClient* InViewportClient, FViewport* InViewport)
 {
-	if (LandscapeTool::GIsGizmoDragging)
+	using namespace UE::Landscape::Editor::Private;
+
+	if (GIsGizmoDragging)
 	{
-		LandscapeTool::GIsGizmoDragging = false;
+		GIsGizmoDragging = false;
 		return true;
 	}
-	if (LandscapeTool::GIsAdjustingBrush)
+	if (GIsAdjustingBrush)
 	{
-		LandscapeTool::GIsAdjustingBrush = false;
+		GIsAdjustingBrush = false;
 		return true;
 	}
 	return false;
@@ -1188,6 +1208,8 @@ bool FEdModeLandscape::ProcessLandscapeTraceHits(const TArray<FHitResult>& InRes
 
 bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector& InRayEnd, const FVector& InDirection, FVector& OutHitLocation)
 {
+	using namespace UE::Landscape::Editor::Private;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(FEdModeLandscape_LandscapeTrace);
 	if (!CurrentTool || !CurrentToolTarget.LandscapeInfo.IsValid())
 	{
@@ -1220,14 +1242,14 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			{
 				OutHitLocation = ProcessResult.LandscapeProxy->LandscapeActorToWorld().InverseTransformPosition(ProcessResult.HitLocation);
 			
-				UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(100,255,100), 4, TEXT("landscape:ray-hit"));
-				UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose,  ProcessResult.LandscapeProxy->LandscapeActorToWorld().TransformPosition(OutHitLocation), 20.0,  FColor(100,100,255), TEXT("landscape:point-hit"));
+				UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(100,255,100), 4, TEXT("landscape:ray-hit"));
+				UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose,  ProcessResult.LandscapeProxy->LandscapeActorToWorld().TransformPosition(OutHitLocation), 20.0,  FColor(100,100,255), TEXT("landscape:point-hit"));
 				return true;
 			}
 		}
 	}
 
-	UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(255,100,100), 2, TEXT("landscape:ray-miss"));
+	UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, InRayOrigin, InRayEnd, FColor(255,100,100), 2, TEXT("landscape:ray-miss"));
 		
 	if (CurrentTool->UseSphereTrace())
 	{
@@ -1262,8 +1284,8 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			{
 				if (FProcessLandscapeTraceHitsResult ProcessResult; ProcessLandscapeTraceHits(Results, ProcessResult))
 				{
-					UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(100, 255, 100), 4, TEXT("landscape:ray-hit"));
-					UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, ProcessResult.HitLocation, 20.0, FColor(100, 100, 255), TEXT("landscape:point-hit"));
+					UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(100, 255, 100), 4, TEXT("landscape:ray-hit"));
+					UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, ProcessResult.HitLocation, 20.0, FColor(100, 100, 255), TEXT("landscape:point-hit"));
 
 					HitDistance = (ProcessResult.HitLocation - Start).Length();
 					return ProcessResult;
@@ -1271,7 +1293,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			}
 			else
 			{
-				UE_VLOG_SEGMENT_THICK(World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(255, 100, 100), 2, TEXT("landscape:ray-miss"));
+				UE_CVLOG_SEGMENT_THICK(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, AdjustedRayStart, AdjustedRayEnd, FColor(255, 100, 100), 2, TEXT("landscape:ray-miss"));
 			}
 			return TOptional<FProcessLandscapeTraceHitsResult>();
 		};
@@ -1323,7 +1345,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			MeanHeight /= (float)Count;
 			PointOnPlane.Z = MeanHeight;
 
-			UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, PointOnPlane, 10.0, FColor(100, 100, 255), TEXT("landscape:point-on-plane"));
+			UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, PointOnPlane, 10.0, FColor(100, 100, 255), TEXT("landscape:point-on-plane"));
 
 			if (FMath::Abs(FVector::DotProduct(InDirection, FVector::ZAxisVector)) < SMALL_NUMBER)
 			{
@@ -1335,7 +1357,7 @@ bool FEdModeLandscape::LandscapeTrace(const FVector& InRayOrigin, const FVector&
 			FVector EstimatedHitLocation = FMath::RayPlaneIntersection(Start, InDirection, Plane);
 			check(!EstimatedHitLocation.ContainsNaN());
 
-			UE_VLOG_LOCATION(World, LogLandscapeEdMode, VeryVerbose, EstimatedHitLocation, 10.0, FColor(100, 100, 255), TEXT("landscape:estimated-hit-location"));
+			UE_CVLOG_LOCATION(CVarVisualLogShowBrushPhysics->GetBool(), World, LogLandscapeEdMode, VeryVerbose, EstimatedHitLocation, 10.0, FColor(100, 100, 255), TEXT("landscape:estimated-hit-location"));
 
 			OutHitLocation = BestHitResult->LandscapeProxy->LandscapeActorToWorld().InverseTransformPosition(EstimatedHitLocation);
 			return true;
