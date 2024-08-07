@@ -3,6 +3,7 @@
 #include "LiveLinkHubModule.h"
 
 #include "Clients/LiveLinkHubProvider.h"
+#include "Editor/EditorPerformanceSettings.h"
 #include "LiveLinkHubApplication.h"
 #include "LiveLinkHubLog.h"
 #include "LiveLinkHubSubjectSettings.h"
@@ -31,6 +32,9 @@ void FLiveLinkHubModule::StartLiveLinkHub()
 	checkf(LiveLinkHub, TEXT("Ensure PreinitializeLiveLinkHub was called first"));
 
 	LiveLinkHub->Initialize();
+
+	// Disable throttling for the hub
+	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;
 
 #if IS_PROGRAM
 	LiveLinkHubLoop(LiveLinkHub);

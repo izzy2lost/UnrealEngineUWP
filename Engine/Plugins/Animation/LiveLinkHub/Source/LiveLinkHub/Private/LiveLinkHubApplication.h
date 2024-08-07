@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Commandlets/Commandlet.h"
-#include "Editor/EditorPerformanceSettings.h"
 #include "Engine/Engine.h"
 #include "Framework/Application/SlateApplication.h"
 #include "LiveLinkHub.h"
@@ -24,9 +23,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkHubApplication, Log, All);
 
 void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 {
-	// Disable throttling for the hub
-	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;
-
 	const bool bTickOnGameThread = GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread;
 
 	check(FSlateApplication::IsInitialized());
