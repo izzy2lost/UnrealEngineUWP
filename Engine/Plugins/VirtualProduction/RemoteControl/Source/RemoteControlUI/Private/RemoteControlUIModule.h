@@ -11,10 +11,12 @@
 #include "PropertyHandle.h"
 #include "PropertyPath.h"
 
+class IRCPanelExposedEntitiesListSettingsForProtocol;
 class IToolkitHost;
 class SRemoteControlPanel;
 class UMeshComponent;
 class URemoteControlPreset;
+enum class ERCPanelMode : uint8;
 
 /**
  * A Remote Control module that allows exposing objects and properties from the editor.
@@ -58,6 +60,14 @@ public:
 	virtual uint32 GetRemoteControlAssetCategory() const override;
 	virtual void RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
 	virtual void UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) override;
+	virtual void RegisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) override;
+	virtual void UnregisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) override;
+	virtual void RegisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) override;
+	virtual void UnregisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) override;
+	virtual void RegisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) override;
+	virtual void UnregisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) override;
+	virtual void RegisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) override;
+	virtual void UnregisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) override;
 	virtual void RegisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType, const FOnGenerateRCWidget& OnGenerateRCWidgetDelegate) override;
 	virtual void UnregisterWidgetFactoryForType(UScriptStruct* RemoteControlEntityType) override;
 	virtual void HighlightPropertyInDetailsPanel(const FPropertyPath& Path) const override;
@@ -86,6 +96,20 @@ public:
 	{
 		return SignatureCustomizations;
 	}
+
+	TConstArrayView<TSharedRef<IRCExposedEntitiesPanelExtender>> GetExposedEntitiesPanelExtenders() const
+	{
+		return ExposedEntitiesPanelExtenders;
+	}
+
+	/** Returns the exposed entity list settings for a protocol, or nullptr if no entities list settings could be found */
+	const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>* GetExposedEntitiesListSettingsForProtocol(const FName& ProtocolName) const;
+
+	/** Returns the exposed entities group widget factory, or nullptr if no widget factory is registered for the specified protocol and column name. */
+	const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>* GetExposedEntitiesGroupWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const;
+
+	/** Returns the exposed entity widget factory, or nullptr if no widget factory is registered for the specified protocol and column name. */
+	const TSharedRef<IRCPanelExposedEntityWidgetFactory>* GetExposedEntityWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const;
 
 public:
 	static const FName RemoteControlPanelTabName;
@@ -277,6 +301,18 @@ private:
 
 	/** Registered Signature Customizations */
 	TArray<TSharedRef<IRCSignatureCustomization>> SignatureCustomizations; 
+
+	/** Registered Exposed Entities List Settings for Protocols */
+	TArray<TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>> ExposedEntitiesListSettingsForProtocols;
+
+	/** Registered Exposed Entities Panel Extenders */
+	TArray<TSharedRef<IRCExposedEntitiesPanelExtender>> ExposedEntitiesPanelExtenders;
+
+	/** Registered Exposed Entities Group Widget Factories */
+	TArray<TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>> ExposedEntitiesGroupWidgetFactories;
+
+	/** Registered Exposed Entity Widget Factories */
+	TArray<TSharedRef<IRCPanelExposedEntityWidgetFactory>> ExposedEntityWidgetFactories;
 
 	TMap<TWeakObjectPtr<UScriptStruct>, FOnGenerateRCWidget> GenerateWidgetDelegates;
 

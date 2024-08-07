@@ -8,14 +8,15 @@
 #include "Action/RCPropertyAction.h"
 #include "RCActionModel.h"
 #include "RemoteControlPreset.h"
+#include "SDropTarget.h"
 #include "SlateOptMacros.h"
 #include "SRCActionPanel.h"
-#include "SDropTarget.h"
 #include "Styling/RemoteControlStyles.h"
 #include "UI/Action/Bind/RCActionBindModel.h"
 #include "UI/Action/Conditional/RCActionConditionalModel.h"
 #include "UI/BaseLogicUI/SRCLogicPanelListBase.h"
 #include "UI/Behaviour/RCBehaviourModel.h"
+#include "UI/RCFieldGroupType.h"
 #include "UI/RCUIHelpers.h"
 #include "UI/RemoteControlPanelStyle.h"
 #include "UI/SRCPanelExposedEntitiesGroup.h"
@@ -379,9 +380,9 @@ private:
 						{
 							if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(ExposedEntity))
 							{
-								const EFieldGroupType GroupType = FieldGroup->GetGroupType();
+								const ERCFieldGroupType GroupType = FieldGroup->GetGroupType();
 								// Property Id group
-								if (GroupType == EFieldGroupType::PropertyId)
+								if (GroupType == ERCFieldGroupType::PropertyId)
 								{
 									if (bBehaviorSupportPropertyId)
 									{
@@ -389,7 +390,7 @@ private:
 									}
 								}
 								// Owner group
-								else if (GroupType == EFieldGroupType::Owner)
+								else if (GroupType == ERCFieldGroupType::Owner)
 								{
 									TArray<TSharedPtr<SRCPanelTreeNode>> OwnerGroupChildren;
 									FieldGroup->GetNodeChildren(OwnerGroupChildren);
@@ -485,9 +486,9 @@ private:
 						{
 							if (const TSharedPtr<SRCPanelExposedEntitiesGroup>& FieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(ExposedEntity))
 							{
-								const EFieldGroupType GroupType = FieldGroup->GetGroupType();
+								const ERCFieldGroupType GroupType = FieldGroup->GetGroupType();
 								// Property Id Group
-								if (GroupType == EFieldGroupType::PropertyId)
+								if (GroupType == ERCFieldGroupType::PropertyId)
 								{
 									if (bBehaviorSupportPropertyId)
 									{
@@ -495,7 +496,7 @@ private:
 									}
 								}
 								// Owner Group
-								else if (GroupType == EFieldGroupType::Owner)
+								else if (GroupType == ERCFieldGroupType::Owner)
 								{
 									TArray<TSharedPtr<SRCPanelTreeNode>> OwnerGroupChildren;
 									FieldGroup->GetNodeChildren(OwnerGroupChildren);

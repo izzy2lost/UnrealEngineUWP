@@ -3,13 +3,15 @@
 #include "SRCPanelExposedEntitiesGroup.h"
 
 #include "RemoteControlPreset.h"
+#include "RemoteControlUIModule.h"
 #include "SRCPanelExposedField.h"
-#include "Widgets/Layout/SBox.h"
+#include "UI/IRCPanelExposedEntitiesGroupWidgetFactory.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "SRCPanelExposedEntitiesGroup"
 
-void SRCPanelExposedEntitiesGroup::Construct(const FArguments& InArgs, EFieldGroupType InFieldGroupType, URemoteControlPreset* Preset)
+void SRCPanelExposedEntitiesGroup::Construct(const FArguments& InArgs, ERCFieldGroupType InFieldGroupType, URemoteControlPreset* Preset)
 {
 	FieldKey = InArgs._FieldKey;
 	GroupType = InFieldGroupType;
@@ -18,6 +20,25 @@ void SRCPanelExposedEntitiesGroup::Construct(const FArguments& InArgs, EFieldGro
 
 	const FMakeNodeWidgetArgs Args = CreateNodeWidgetArgs();
 	MakeNodeWidget(Args);
+}
+
+TSharedRef<SWidget> SRCPanelExposedEntitiesGroup::GetWidget(const FName ForColumnName, const FName InActiveProtocol)
+{
+	const FRemoteControlUIModule& RemoteControlUIModule = FModuleManager::GetModuleChecked<FRemoteControlUIModule>("RemoteControlUI");
+	const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>* CustomFactoryPtr = RemoteControlUIModule.GetExposedEntitiesGroupWidgetFactory(ForColumnName, InActiveProtocol);
+	if (CustomFactoryPtr)
+	{
+		const FRCPanelExposedEntitiesGroupWidgetFactoryArgs Args(
+			PresetWeak,
+			GetChildProperties()
+		);
+
+		return (*CustomFactoryPtr)->MakeWidget(Args);
+	}
+	else
+	{
+		return SRCPanelTreeNode::GetWidget(ForColumnName, InActiveProtocol);
+	}
 }
 
 SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntitiesGroup::CreateNodeWidgetArgs()
@@ -48,11 +69,11 @@ SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntitiesGroup::CreateNodeWi
 
 	switch (GroupType)
 	{
-	case EFieldGroupType::PropertyId:
+	case ERCFieldGroupType::PropertyId:
 		GroupText = LOCTEXT("GroupPropertyId", "Group by Id");
 		break;
 
-	case EFieldGroupType::Owner:
+	case ERCFieldGroupType::Owner:
 		GroupText = LOCTEXT("GroupOwner", "Group by Owner");
 		break;
 	}
@@ -129,8 +150,8 @@ void SRCPanelExposedEntitiesGroup::AssignChildren(const TArray<TSharedPtr<SRCPan
 			const FName FieldOwnerName  = ExposedField->GetOwnerName();
 			const FName FieldPropertyId = ExposedField->GetPropertyId();
 
-			const bool bOwnerMatch = GroupType == EFieldGroupType::Owner && FieldOwnerName == FieldKey;
-			const bool bPropertyIdMatch = GroupType == EFieldGroupType::PropertyId && FieldPropertyId == FieldKey;
+			const bool bOwnerMatch = GroupType == ERCFieldGroupType::Owner && FieldOwnerName == FieldKey;
+			const bool bPropertyIdMatch = GroupType == ERCFieldGroupType::PropertyId && FieldPropertyId == FieldKey;
 
 			if (bOwnerMatch || bPropertyIdMatch)
 			{
@@ -146,6 +167,30 @@ void SRCPanelExposedEntitiesGroup::GetNodeChildren(TArray<TSharedPtr<SRCPanelTre
 {
 	OutChildren.Append(ChildWidgets);
 	SRCPanelTreeNode::GetNodeChildren(OutChildren);
+}
+
+TArray<TSharedRef<FRemoteControlProperty>> SRCPanelExposedEntitiesGroup::GetChildProperties() const
+{
+	URemoteControlPreset* Preset = PresetWeak.Get();
+	if (!Preset)
+	{
+		return {};
+	}
+
+	TArray<TSharedPtr<SRCPanelTreeNode>> Children;
+	GetNodeChildren(Children);
+
+	TArray<TSharedRef<FRemoteControlProperty>> ChildProperties;
+	for (const TSharedPtr<SRCPanelTreeNode>& Child : Children)
+	{
+		const TWeakPtr<FRemoteControlProperty> WeakProperty = Child.IsValid() ? Preset->GetExposedEntity<FRemoteControlProperty>(Child->GetRCId()) : nullptr;
+		if (WeakProperty.IsValid())
+		{
+			ChildProperties.Add(WeakProperty.Pin().ToSharedRef());
+		}
+	}
+
+	return ChildProperties;
 }
 
 #undef LOCTEXT_NAMESPACE

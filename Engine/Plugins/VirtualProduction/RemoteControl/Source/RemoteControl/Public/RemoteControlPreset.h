@@ -3,8 +3,8 @@
 
 #include "Algo/Transform.h"
 #include "CoreTypes.h"
-#include "RemoteControlField.h"
 #include "RemoteControlEntity.h"
+#include "RemoteControlField.h"
 #include "RemoteControlPropertyIdRegistry.h"
 #include "Templates/PimplPtr.h"
 #include "Templates/UnrealTypeTraits.h"
@@ -725,6 +725,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Remote Control Preset")
 	TArray<TObjectPtr<URemoteControlBinding>> Bindings;
 
+	/** This preset's user data */
+	UPROPERTY()
+	TArray<TObjectPtr<UObject>> UserData;
+
 #if WITH_EDITOR
 	/** Current selected world used only in the editor to let you switch world */
 	TWeakObjectPtr<const UWorld> SelectedWorld = nullptr;
@@ -1066,7 +1070,6 @@ public:
 #endif
 
 private:
-
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	TArray<FName> DetailsTabIdentifierOverrides;

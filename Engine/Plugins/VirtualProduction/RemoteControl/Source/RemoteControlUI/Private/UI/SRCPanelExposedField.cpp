@@ -5,6 +5,7 @@
 #include "Algo/Transform.h"
 #include "Components/MeshComponent.h"
 #include "Components/SceneComponent.h"
+#include "Editor/UnrealEdEngine.h"
 #include "EditorFontGlyphs.h"
 #include "Factories/IRCDefaultValueFactory.h"
 #include "Framework/Application/SlateApplication.h"
@@ -21,14 +22,15 @@
 #include "RemoteControlPanelStyle.h"
 #include "RemoteControlPreset.h"
 #include "RemoteControlSettings.h"
+#include "RemoteControlUIModule.h"
+#include "ScopedTransaction.h"
 #include "SRCPanelTreeNode.h"
 #include "SResetToDefaultPropertyEditor.h"
-#include "ScopedTransaction.h"
-#include "UnrealEdGlobals.h"
-#include "Editor/UnrealEdEngine.h"
 #include "Styling/AppStyle.h"
 #include "Styling/RemoteControlStyles.h"
 #include "Styling/SlateBrush.h"
+#include "UI/IRCPanelExposedEntityWidgetFactory.h"
+#include "UnrealEdGlobals.h"
 #include "UObject/Object.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -124,7 +126,10 @@ namespace ExposedFieldUtils
 
 TSharedPtr<SRCPanelTreeNode> SRCPanelExposedField::MakeInstance(const FGenerateWidgetArgs& Args)
 {
-	return SNew(SRCPanelExposedField, StaticCastSharedPtr<FRemoteControlField>(Args.Entity), Args.ColumnSizeData, Args.WidgetRegistry).Preset(Args.Preset).LiveMode(Args.bIsInLiveMode).HighlightText(Args.HighlightText);
+	return SNew(SRCPanelExposedField, StaticCastSharedPtr<FRemoteControlField>(Args.Entity), Args.ColumnSizeData, Args.WidgetRegistry)
+		.Preset(Args.Preset)
+		.LiveMode(Args.bIsInLiveMode)
+		.HighlightText(Args.HighlightText);
 }
 
 void SRCPanelExposedField::Construct(const FArguments& InArgs, TWeakPtr<FRemoteControlField> InField, FRCColumnSizeData InColumnSizeData, TWeakPtr<FRCPanelWidgetRegistry> InWidgetRegistry)
@@ -232,85 +237,101 @@ void SRCPanelExposedField::SetIsHovered(bool bInIsHovered)
 
 TSharedRef<SWidget> SRCPanelExposedField::GetProtocolWidget(const FName ForColumnName, const FName InProtocolName)
 {
-	if (TSharedPtr<FRemoteControlField> RCField = WeakField.Pin())
+	const TSharedPtr<FRemoteControlField> RCField = WeakField.Pin();
+	const TSharedPtr<FRemoteControlProperty> RCProperty = RCField.IsValid() ? StaticCastSharedPtr<FRemoteControlProperty>(RCField) : nullptr;
+	if (!RCProperty.IsValid())
 	{
-		if (const TSharedPtr<FRemoteControlProperty> RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(RCField))
+		return SNullWidget::NullWidget;
+	}
+
+	// If a custom widget factory for this protocol and column exists, let it create the widget.
+	const FRemoteControlUIModule& RemoteControlUIModule = FModuleManager::GetModuleChecked<FRemoteControlUIModule>("RemoteControlUI");
+	const TSharedRef<IRCPanelExposedEntityWidgetFactory>* CustomFactoryPtr = RemoteControlUIModule.GetExposedEntityWidgetFactory(ForColumnName, InProtocolName);
+	if (CustomFactoryPtr)
+	{
+		const FRCPanelExposedPropertyWidgetArgs Args(
+			Preset,
+			RCProperty.ToSharedRef()
+		);
+
+		return (*CustomFactoryPtr)->MakePropertyWidget(Args);
+	}
+	
+	for (const FRemoteControlProtocolBinding& RCProtocolIter : RCProperty->ProtocolBindings)
+	{
+		if (RCProtocolIter.GetProtocolName() == InProtocolName)
 		{
-			for (const FRemoteControlProtocolBinding& RCProtocolIter : RCProperty->ProtocolBindings)
+			if (TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> RCProtocolEntityPtr = RCProtocolIter.GetRemoteControlProtocolEntityPtr())
 			{
-				if (RCProtocolIter.GetProtocolName() == InProtocolName)
+				// Create a binding status widget
+				if (ForColumnName == RemoteControlPresetColumns::BindingStatus)
 				{
-					if (TSharedPtr<TStructOnScope<FRemoteControlProtocolEntity>> RCProtocolEntityPtr = RCProtocolIter.GetRemoteControlProtocolEntityPtr())
-					{
-						if (ForColumnName == RemoteControlPresetColumns::BindingStatus)
-						{
-							TSharedPtr<SWidget> BindingStatusWidget = SNew(SButton)
-								.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-								.ToolTipText(LOCTEXT("RecordingButtonToolTip", "Status of the protocol entity binding"))
-								.ForegroundColor(FSlateColor::UseForeground())
-								.OnClicked_Lambda([RCProtocolEntityPtr]()
-									{
-										const ERCBindingStatus BindingStatus = (*RCProtocolEntityPtr)->ToggleBindingStatus();
-
-										IRemoteControlProtocolWidgetsModule& RCProtocolWidgetsModule = IRemoteControlProtocolWidgetsModule::Get();
-
-										if (TSharedPtr<IRCProtocolBindingList> RCProtocolBindingList = RCProtocolWidgetsModule.GetProtocolBindingList())
-										{
-											if (BindingStatus == ERCBindingStatus::Awaiting)
-											{
-												RCProtocolBindingList->OnStartRecording(RCProtocolEntityPtr);
-											}
-											else if (BindingStatus == ERCBindingStatus::Bound)
-											{
-												RCProtocolBindingList->OnStopRecording(RCProtocolEntityPtr);
-											}
-											else
-											{
-												checkNoEntry();
-											}
-										}
-
-										return FReply::Handled();
-									}
-								)
-								.Content()
-								[
-									SNew(SImage)
-									.ColorAndOpacity_Lambda([RCProtocolEntityPtr]()
-										{
-											const ERCBindingStatus ActiveBindingStatus = (*RCProtocolEntityPtr)->GetBindingStatus();
-
-											switch (ActiveBindingStatus)
-											{
-												case ERCBindingStatus::Awaiting:
-													return FLinearColor::Red;
-												case ERCBindingStatus::Bound:
-													return FLinearColor::Green;
-												case ERCBindingStatus::Unassigned:
-													return FLinearColor::Gray;
-												default:
-													checkNoEntry();
-											}
-
-											return FLinearColor::Black;
-										}
-									)
-									.Image(FAppStyle::Get().GetBrush(TEXT("Icons.FilledCircle")))
-								];
-
-							return BindingStatusWidget.ToSharedRef();
-						}
-						else if (TSharedPtr<FRCPanelWidgetRegistry> Registry = WidgetRegistry.Pin())
-						{
-							if (TSharedPtr<IDetailTreeNode> Node = Registry->GetStructTreeNode(RCProtocolEntityPtr, (*RCProtocolEntityPtr)->GetPropertyName(ForColumnName).ToString(), ERCFindNodeMethod::Name))
+					TSharedPtr<SWidget> BindingStatusWidget = SNew(SButton)
+						.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+						.ToolTipText(LOCTEXT("RecordingButtonToolTip", "Status of the protocol entity binding"))
+						.ForegroundColor(FSlateColor::UseForeground())
+						.OnClicked_Lambda([RCProtocolEntityPtr]()
 							{
-								FNodeWidgets NodeWidgets = Node->CreateNodeWidgets();
+								const ERCBindingStatus BindingStatus = (*RCProtocolEntityPtr)->ToggleBindingStatus();
 
-								if (NodeWidgets.ValueWidget)
+								IRemoteControlProtocolWidgetsModule& RCProtocolWidgetsModule = IRemoteControlProtocolWidgetsModule::Get();
+
+								if (TSharedPtr<IRCProtocolBindingList> RCProtocolBindingList = RCProtocolWidgetsModule.GetProtocolBindingList())
 								{
-									return NodeWidgets.ValueWidget.ToSharedRef();
+									if (BindingStatus == ERCBindingStatus::Awaiting)
+									{
+										RCProtocolBindingList->OnStartRecording(RCProtocolEntityPtr);
+									}
+									else if (BindingStatus == ERCBindingStatus::Bound)
+									{
+										RCProtocolBindingList->OnStopRecording(RCProtocolEntityPtr);
+									}
+									else
+									{
+										checkNoEntry();
+									}
 								}
+
+								return FReply::Handled();
 							}
+						)
+						.Content()
+						[
+							SNew(SImage)
+							.ColorAndOpacity_Lambda([RCProtocolEntityPtr]()
+								{
+									const ERCBindingStatus ActiveBindingStatus = (*RCProtocolEntityPtr)->GetBindingStatus();
+
+									switch (ActiveBindingStatus)
+									{
+										case ERCBindingStatus::Awaiting:
+											return FLinearColor::Red;
+										case ERCBindingStatus::Bound:
+											return FLinearColor::Green;
+										case ERCBindingStatus::Unassigned:
+											return FLinearColor::Gray;
+										default:
+											checkNoEntry();
+									}
+
+									return FLinearColor::Black;
+								}
+							)
+							.Image(FAppStyle::Get().GetBrush(TEXT("Icons.FilledCircle")))
+						];
+
+					return BindingStatusWidget.ToSharedRef();
+				}
+				else if (TSharedPtr<FRCPanelWidgetRegistry> Registry = WidgetRegistry.Pin())
+				{
+					// Create a common property widget
+					if (TSharedPtr<IDetailTreeNode> Node = Registry->GetStructTreeNode(RCProtocolEntityPtr, (*RCProtocolEntityPtr)->GetPropertyName(ForColumnName).ToString(), ERCFindNodeMethod::Name))
+					{
+						FNodeWidgets NodeWidgets = Node->CreateNodeWidgets();
+
+						if (NodeWidgets.ValueWidget)
+						{
+							return NodeWidgets.ValueWidget.ToSharedRef();
 						}
 					}
 				}

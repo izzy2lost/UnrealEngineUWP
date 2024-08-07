@@ -16,6 +16,10 @@ class FRCPanelWidgetRegistry;
 class IDetailCategoryBuilder;
 class IDetailLayoutBuilder;
 class IPropertyHandle;
+class IRCPanelExposedEntitiesGroupWidgetFactory;
+class IRCPanelExposedEntitiesListSettingsForProtocol;
+class IRCExposedEntitiesPanelExtender;
+class IRCPanelExposedEntityWidgetFactory;
 class IRCSignatureCustomization;
 class URCVirtualPropertyBase;
 class URemoteControlPreset;
@@ -168,8 +172,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnAddControllerExtensionColumn, TArray<FNam
  */
 class IRemoteControlUIModule : public IModuleInterface
 {
-public:
-	
+public:	
 	/**
 	 * Singleton-like access to this module's interface.  This is just for convenience!
 	 * Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
@@ -237,15 +240,63 @@ public:
 
 	/**
 	 * Register the given signature customization to extend the Signature Panel capabilities like Drag/Drop handling
-	 * @param InCustomization the signature customization instance to register
+	 * @param InCustomization	The signature customization instance to register
 	 */
 	virtual void RegisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) = 0;
 
 	/**
 	 * Unregisters the given signature customization
-	 * @param InCustomization the signature customization instance to unregister
+	 * @param InCustomization	The signature customization instance to unregister
 	 */
 	virtual void UnregisterSignatureCustomization(const TSharedPtr<IRCSignatureCustomization>& InCustomization) = 0;
+
+	/**
+	 * Registers the given settings for an exposed entities list.
+	 * @param InSettings		The exposed entities list settings instance to register.
+	 */
+	virtual void RegisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) = 0;
+	
+	/**
+	 * Unregisters the given settings for an exposed entities list.
+	 * @param InSettings		The exposed entities list settings instance to unregister.
+	 */
+	virtual void UnregisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings) = 0;
+
+	/**
+	 * Registers the given customization for an exposed entities panel.
+	 * @param InExtender		The exposed entities panel extender instance to register.
+	 */
+	virtual void RegisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) = 0;
+
+	/**
+	 * Unregisters the given exposed entities panel customization.
+	 * @param InExtender		The exposed entities panel extender instance to unregister.
+	 */
+	virtual void UnregisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender) = 0;
+
+	/**
+	 * Registers a widget factory a column in an exposed entities group row.
+	 * @param InFactory			The widget factory to register.
+	 */
+	virtual void RegisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) = 0;
+
+	/**
+	 * Unregisters the given widget factory.
+	 * @param InFactory			The factory to unregister.
+	 */
+	virtual void UnregisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory) = 0;
+
+	/**
+	 * Registers a widget factory a column in an exposed entity row.
+	 * @param InFactory			The widget factory to register.
+	 */
+	virtual void RegisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) = 0;
+
+	/**
+	 * Unregisters the given customization for a exposed entity.
+	 * @param InFactory			The factory to unregister.
+	 */
+	virtual void UnregisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory) = 0;
 
 	/**
 	 * Register a widget factory to handle creating a widget in the control panel.

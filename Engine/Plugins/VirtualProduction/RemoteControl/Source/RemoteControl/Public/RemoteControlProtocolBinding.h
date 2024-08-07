@@ -437,14 +437,15 @@ public:
 	virtual bool HasMask(ERCMask InMaskBit) const;
 
 #if WITH_EDITOR
-
 	/** Retrieves the name of property corresponding to the given column name. */
 	const FName GetPropertyName(const FName& ForColumnName);
 	
 	/** Register(s) all the properties (to be exposed) of this protocol entity. */
 	virtual void RegisterProperties() {};
-
 #endif // WITH_EDITOR
+
+	/** Returns the preset that owns this protocol entity */
+	const TWeakObjectPtr<URemoteControlPreset>& GetOwner() const { return Owner; }
 
 public:
 	/** Container for range and mapping value pointers, and an optional number of elements (arrays, strings). */

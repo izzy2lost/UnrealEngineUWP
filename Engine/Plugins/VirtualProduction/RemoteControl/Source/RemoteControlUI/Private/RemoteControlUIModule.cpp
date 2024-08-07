@@ -18,8 +18,8 @@
 #include "Engine/StaticMesh.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/PlatformApplicationMisc.h"
-#include "IRemoteControlModule.h"
 #include "Interfaces/IMainFrameModule.h"
+#include "IRemoteControlModule.h"
 #include "Kismet2/ComponentEditorUtils.h"
 #include "LevelEditorSubsystem.h"
 #include "MaterialDomain.h"
@@ -44,6 +44,9 @@
 #include "UI/Customizations/NetworkAddressCustomization.h"
 #include "UI/Customizations/RCAssetPathElementCustomization.h"
 #include "UI/Customizations/RemoteControlEntityCustomization.h"
+#include "UI/IRCPanelExposedEntitiesGroupWidgetFactory.h"
+#include "UI/IRCPanelExposedEntitiesListSettingsForProtocol.h"
+#include "UI/IRCPanelExposedEntityWidgetFactory.h"
 #include "UI/RemoteControlExposeMenuStyle.h"
 #include "UI/RemoteControlPanelStyle.h"
 #include "UI/SRCPanelExposedActor.h"
@@ -614,6 +617,46 @@ void FRemoteControlUIModule::UnregisterSignatureCustomization(const TSharedPtr<I
 	{
 		SignatureCustomizations.Remove(InCustomization.ToSharedRef());
 	}
+}
+
+void FRemoteControlUIModule::RegisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings)
+{
+	ExposedEntitiesListSettingsForProtocols.AddUnique(InSettings);
+}
+
+void FRemoteControlUIModule::UnregisterExposedEntitiesListSettingsForProtocol(const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& InSettings)
+{
+	ExposedEntitiesListSettingsForProtocols.RemoveSingle(InSettings);
+}
+
+void FRemoteControlUIModule::RegisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender)
+{
+	ExposedEntitiesPanelExtenders.AddUnique(InExtender);
+}
+
+void FRemoteControlUIModule::UnregisterExposedEntitiesPanelExtender(const TSharedRef<IRCExposedEntitiesPanelExtender>& InExtender)
+{
+	ExposedEntitiesPanelExtenders.RemoveSingle(InExtender);
+}
+
+void FRemoteControlUIModule::RegisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory)
+{
+	ExposedEntitiesGroupWidgetFactories.AddUnique(InFactory);
+}
+
+void FRemoteControlUIModule::UnregisterExposedEntitiesGroupWidgetFactory(const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& InFactory)
+{
+	ExposedEntitiesGroupWidgetFactories.RemoveSingle(InFactory);
+}
+
+void FRemoteControlUIModule::RegisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory)
+{
+	ExposedEntityWidgetFactories.AddUnique(InFactory);
+}
+
+void FRemoteControlUIModule::UnregisterExposedEntityWidgetFactory(const TSharedRef<IRCPanelExposedEntityWidgetFactory>& InFactory)
+{
+	ExposedEntityWidgetFactories.RemoveSingle(InFactory);
 }
 
 void FRemoteControlUIModule::RegisterAssetTools()
@@ -1630,6 +1673,50 @@ void FRemoteControlUIModule::UnregisterRemoteControlPanel(SRemoteControlPanel* P
 			return;
 		}
 	}
+}
+
+const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>* FRemoteControlUIModule::GetExposedEntitiesListSettingsForProtocol(const FName& ProtocolName) const
+{
+	return Algo::FindByPredicate(ExposedEntitiesListSettingsForProtocols, [&ProtocolName, this](const TSharedRef<IRCPanelExposedEntitiesListSettingsForProtocol>& Settings)
+		{
+			return Settings->GetProtocolName() == ProtocolName;
+		});
+}
+
+const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>* FRemoteControlUIModule::GetExposedEntitiesGroupWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const
+{
+	return Algo::FindByPredicate(ExposedEntitiesGroupWidgetFactories, [&ForColumnName, &InActiveProtocol](const TSharedRef<IRCPanelExposedEntitiesGroupWidgetFactory>& WidgetFactory)
+		{
+			if (WidgetFactory->GetColumnName() == ForColumnName)
+			{
+				const FName ProtocolName = WidgetFactory->GetProtocolName();
+
+				// Customize the column for any protcol if the protocol name is none
+				return 
+					ProtocolName == InActiveProtocol || 
+					ProtocolName == NAME_None;
+			}
+			
+			return false;
+		});
+}
+
+const TSharedRef<IRCPanelExposedEntityWidgetFactory>* FRemoteControlUIModule::GetExposedEntityWidgetFactory(const FName& ForColumnName, const FName& InActiveProtocol) const
+{
+	return Algo::FindByPredicate(ExposedEntityWidgetFactories, [&ForColumnName, &InActiveProtocol](const TSharedRef<IRCPanelExposedEntityWidgetFactory>& ExposedEntityCustomization)
+		{
+			if (ExposedEntityCustomization->GetColumnName() == ForColumnName)
+			{
+				const FName ProtocolName = ExposedEntityCustomization->GetProtocolName();
+
+				// Customize the column for any protcol if the protocol name is none
+				return
+					ProtocolName == InActiveProtocol ||
+					ProtocolName == NAME_None;
+			}
+
+			return false;
+		});
 }
 
 IMPLEMENT_MODULE(FRemoteControlUIModule, RemoteControlUI);

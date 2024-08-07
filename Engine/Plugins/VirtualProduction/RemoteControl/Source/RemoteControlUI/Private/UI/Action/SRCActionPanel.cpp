@@ -604,7 +604,7 @@ FReply SRCActionPanel::OnAddAllSelectedFields()
 				{
 					if (const TSharedPtr<SRCPanelExposedEntitiesGroup> RCFieldGroup = StaticCastSharedPtr<SRCPanelExposedEntitiesGroup>(RCEntity))
 					{
-						if (RCFieldGroup->GetGroupType() == EFieldGroupType::PropertyId)
+						if (RCFieldGroup->GetGroupType() == ERCFieldGroupType::PropertyId)
 						{
 							const URCBehaviour* Behaviour = BehaviourItem->GetBehaviour();
 							if (Behaviour && Behaviour->SupportPropertyId())
