@@ -283,9 +283,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer", meta = (InlineEditConditionToggle))
 	bool bSetMeshDeformer = false;
 
-	/** The mesh deformer to use. If no mesh deformer is set from here or the SkeletalMesh, then we fall back to the fixed function deformation. */
+	/** The mesh deformer to use. If no mesh deformer is set from here or the SkeletalMesh, then we fall back to the fixed function deformation, unless AlwaysUseMeshDeformer is turned on. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer", meta = (editcondition = "bSetMeshDeformer"))
 	TObjectPtr<UMeshDeformer> MeshDeformer;
+
+	/** If true, and if no mesh deformer is set from here or the SkeletalMesh, fall back to the default deformer specified in the project settings, unless DefaultMode is set to "Never" in project settings*/
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Deformer")
+	bool bAlwaysUseMeshDeformer = false;
 
 	/** Set the MeshDeformer and update the internal MeshDeformerInstance. */
 	ENGINE_API void SetMeshDeformer(bool bInSetMeshDeformer, UMeshDeformer* InMeshDeformer);
@@ -322,7 +326,7 @@ public:
 	 * 
 	 * This function takes GetMeshDeformerMaxLOD() into account, so there's no need to call both.
 	 */
-	UMeshDeformerInstance* GetMeshDeformerInstanceForLOD(int32 LODIndex) const;
+	ENGINE_API UMeshDeformerInstance* GetMeshDeformerInstanceForLOD(int32 LODIndex) const;
 
 	/** Max LOD at which to update or apply the MeshDeformer. */
 	ENGINE_API int32 GetMeshDeformerMaxLOD() const;
@@ -1078,6 +1082,20 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
 	ENGINE_API void UnsetMeshDeformer();
 
+	/**
+	 * Always use a MeshDeformer as long as one can be found in the project settings
+	 *
+	 * @param bShouldAlwaysUseMeshDeformer Always use mesh deformer for this component
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API void SetAlwaysUseMeshDeformer(bool bShouldAlwaysUseMeshDeformer);
+
+	/**
+	 * Returns whether the component is set to always use a mesh deformer if one can be found in the project settings
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Components|SkinnedMesh")
+	ENGINE_API bool GetAlwaysUseMeshDeformer() const;
+	
 	/** 
 	 * Get Parent Bone of the input bone
 	 * 

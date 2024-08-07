@@ -48,6 +48,7 @@ bool UAdditiveControlRig::Execute_Internal(const FName& InEventName)
 	{
 		FControlRigExecuteContext ExecuteContext;
 		ExecuteContext.Hierarchy = GetHierarchy();
+		ExecuteContext.ControlRig = this;
 		ExecuteContext.SetEventName(InEventName);
 		ExecuteContext.UnitContext = FRigUnitContext();
 

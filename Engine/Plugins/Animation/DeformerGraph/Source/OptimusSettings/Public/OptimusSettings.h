@@ -30,7 +30,7 @@ class OPTIMUSSETTINGS_API UOptimusSettings : public UDeveloperSettings
 
 	/** Set when skinned meshes should have a default deformer applied. */
 	UPROPERTY(config, EditAnywhere, Category = DeformerGraph)
-	EOptimusDefaultDeformerMode DefaultMode = EOptimusDefaultDeformerMode::Never;
+	EOptimusDefaultDeformerMode DefaultMode = EOptimusDefaultDeformerMode::OptIn;
 
 	/** A default deformer that will be used on a skinned mesh if no other deformer has been set. */
 	UPROPERTY(config, EditAnywhere, Category = DeformerGraph, meta = (AllowedClasses = "/Script/OptimusCore.OptimusDeformer", EditCondition = "DefaultMode != EOptimusDefaultDeformerMode::Never"))

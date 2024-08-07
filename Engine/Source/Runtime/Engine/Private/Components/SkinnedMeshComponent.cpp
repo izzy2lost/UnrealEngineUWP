@@ -1341,7 +1341,8 @@ void USkinnedMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Proper
 	if (const FProperty* Property = PropertyChangedEvent.Property)
 	{
 		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, MeshDeformer) ||
-			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bSetMeshDeformer))
+			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bSetMeshDeformer) ||
+			Property->GetFName() == GET_MEMBER_NAME_CHECKED(USkinnedMeshComponent, bAlwaysUseMeshDeformer))
 		{
 			const FMeshDeformerSet ActiveDeformers = GetActiveMeshDeformers();
 
@@ -2381,19 +2382,34 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 	// If there's no user-specified deformer, find out if we need to set a default deformer for
 	// Unlimited Bone Influences.
 	const bool bIsDeformerRequiredForUBI = FGPUBaseSkinVertexFactory::GetAlwaysUseDeformerForUnlimitedBoneInfluences(GetScene()->GetShaderPlatform());
-	if (bIsDeformerRequiredForUBI && !ActiveDeformer)
+
+	if (!bIsDeformerRequestedByUser)
 	{
-		bool bMeshUsesUBI = false;
-		for (const FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
+		bool bShouldStillUseMeshDeformer = false;
+		
+		if (bAlwaysUseMeshDeformer)
 		{
-			if (LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence)
+			bShouldStillUseMeshDeformer = true;
+		}
+		else if (bIsDeformerRequiredForUBI)
+		{
+			bool bMeshUsesUBI = false;
+			for (const FSkeletalMeshLODRenderData& LODRenderData : RenderData->LODRenderData)
 			{
-				bMeshUsesUBI = true;
-				break;
+				if (LODRenderData.SkinWeightVertexBuffer.GetBoneInfluenceType() == UnlimitedBoneInfluence)
+				{
+					bMeshUsesUBI = true;
+					break;
+				}
+			}
+
+			if (bMeshUsesUBI)
+			{
+				bShouldStillUseMeshDeformer = true;
 			}
 		}
 
-		if (bMeshUsesUBI)
+		if (bShouldStillUseMeshDeformer)
 		{
 			static IMeshDeformerProvider* MeshDeformerProvider = IMeshDeformerProvider::Get();
 
@@ -2438,7 +2454,8 @@ FMeshDeformerSet USkinnedMeshComponent::GetActiveMeshDeformers() const
 		// There should be a LODInfo entry for this LOD, but if not, default to allowing the deformer
 		const bool bAllowedByLODInfo = Index >= NumLODs || GetSkinnedAsset()->GetLODInfo(Index)->bAllowMeshDeformer;
 
-		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || (bIsDeformerRequestedByUser && bAllowedByMaxLOD && bAllowedByLODInfo);
+		// Always enable for UBI requests, conditional if it is either user requested or triggered by AlwaysUseMeshDeformer 
+		const bool bDeformerEnabledForThisLOD = bRequiredForUBI || ((bIsDeformerRequestedByUser || bAlwaysUseMeshDeformer) && bAllowedByMaxLOD && bAllowedByLODInfo);
 		Result.DeformerIndexForLOD[Index] = bDeformerEnabledForThisLOD ? 0 : INDEX_NONE;
 	}
 
@@ -2512,6 +2529,18 @@ void USkinnedMeshComponent::SetMeshDeformer(UMeshDeformer* InMeshDeformer)
 void USkinnedMeshComponent::UnsetMeshDeformer()
 {
 	SetMeshDeformer(false, nullptr);
+}
+
+void USkinnedMeshComponent::SetAlwaysUseMeshDeformer(bool bShouldAlwaysUseMeshDeformer)
+{
+	bAlwaysUseMeshDeformer = bShouldAlwaysUseMeshDeformer;
+	// Refresh active deformer 
+	SetMeshDeformer(bSetMeshDeformer, MeshDeformer);
+}
+
+bool USkinnedMeshComponent::GetAlwaysUseMeshDeformer() const
+{
+	return bAlwaysUseMeshDeformer;
 }
 
 static TAutoConsoleVariable<int32> CVarMeshDeformerMaxLod(

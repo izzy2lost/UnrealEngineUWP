@@ -799,6 +799,7 @@ FRigModuleInstance* UModularRig::AddModuleInstance(const FName& InModuleName, TS
 		NewModuleRig->bCopyHierarchyBeforeConstruction = false;
 		NewModuleRig->SetDynamicHierarchy(Hierarchy);
 		ModulePublicContext.Hierarchy = Hierarchy;
+		ModulePublicContext.ControlRig = this;
 		ModulePublicContext.RigModuleNameSpace = NewModuleRig->GetRigModuleNameSpace();
 		ModulePublicContext.RigModuleNameSpaceHash = GetTypeHash(ModulePublicContext.RigModuleNameSpace);
 		NewModuleRig->SetElementKeyRedirector(FRigElementKeyRedirector(InConnectionMap, Hierarchy));

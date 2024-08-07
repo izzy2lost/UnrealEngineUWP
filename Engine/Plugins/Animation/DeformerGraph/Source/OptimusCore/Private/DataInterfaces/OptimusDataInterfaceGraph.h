@@ -111,7 +111,6 @@ public:
 
 	//~ Begin IOptimusDeformerInstanceAccessor Interface
 	void SetDeformerInstance(UOptimusDeformerInstance* InInstance) override;
-	UOptimusDeformerInstance* GetDeformerInstance() const override;
 	//~ End IOptimusDeformerInstanceAccessor Interface
 
 private:

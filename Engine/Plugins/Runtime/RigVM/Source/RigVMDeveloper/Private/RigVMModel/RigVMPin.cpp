@@ -849,13 +849,15 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 	}
 	else if (IsStruct())
 	{
+		static const FString EmptyStructDefaultValue = TEXT("()");
+		
+		// for trait pins, there are cases where a pin is not created for a property (see ShouldCreatePinForProperty())
+		// so we store the value of that property in the default value of the struct pin containing that property
+		// as a result, to retrieve the default value we need to combine the default value on the struct pin, with additional overrides in the available sub pins
 		if (SubPins.Num() > 0 || IsTraitPin())
 		{
-			TArray<FString> MemberDefaultValues;
-			if(IsTraitPin())
-			{
-				MemberDefaultValues.Add(FString::Printf(TEXT("Name=\"%s\""), *GetName()));
-			}
+			FString FinalDefaultValue = DefaultValue;
+
 			for (const URigVMPin* SubPin : SubPins)
 			{
 				FString MemberDefaultValue = SubPin->GetDefaultValue(InOverride, bAdaptValueForPinType);
@@ -867,18 +869,16 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 				{
 					continue;
 				}
-				MemberDefaultValues.Add(FString::Printf(TEXT("%s=%s"), *SubPin->GetName(), *MemberDefaultValue));
+
+				URigVMController::OverrideDefaultValueMember(SubPin->GetName(), MemberDefaultValue, FinalDefaultValue);
 			}
-			if (MemberDefaultValues.Num() == 0)
-			{
-				return TEXT("()");
-			}
-			return FString::Printf(TEXT("(%s)"), *FString::Join(MemberDefaultValues, TEXT(",")));
+
+			return !FinalDefaultValue.IsEmpty() ? FinalDefaultValue : EmptyStructDefaultValue;
 		}
 
 		// special case certain pin types to adapt their values from
 		// alternative representations.
-		static const FString EmptyStructDefaultValue = TEXT("()");
+		
 		if(bAdaptValueForPinType && !DefaultValue.IsEmpty() && DefaultValue != EmptyStructDefaultValue)
 		{
 			if(GetScriptStruct() == TBaseStructure<FQuat>::Get())

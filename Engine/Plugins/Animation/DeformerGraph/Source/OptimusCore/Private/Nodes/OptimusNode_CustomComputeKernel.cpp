@@ -1772,7 +1772,7 @@ void UOptimusNode_CustomComputeKernel::PostLoadExtractExecutionDomain()
 {
 	ExecutionDomain = {};
 	// Check if there's an execution node connected and grab the domain from it.
-	FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(Optimus::GetTypeName(TBaseStructure<FIntVector3>::Get()));
+	FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(TBaseStructure<FIntVector3>::Get());
 
 	for (UOptimusNodePin* Pin: GetPins())
 	{

@@ -205,6 +205,14 @@ public:
 	virtual void BeginDestroy() override;
 	// END UObject interface
 
+	DECLARE_EVENT_OneParam(UControlRig, FControlRigBeginDestroyEvent, class UControlRig*);
+	FControlRigBeginDestroyEvent& OnBeginDestroy() {return BeginDestroyEvent;};
+private:
+	/** Broadcasts a notification just before the controlrig is destroyed. */
+	FControlRigBeginDestroyEvent BeginDestroyEvent;
+	
+public:	
+	
 	UPROPERTY(transient)
 	ERigExecutionType ExecutionType;
 

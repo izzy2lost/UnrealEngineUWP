@@ -26,6 +26,7 @@ class USkeletalMesh;
 class UOptimusActionStack;
 class UOptimusComputeGraph;
 class UOptimusDeformer;
+class UOptimusDeformerInstance;
 class UOptimusResourceDescription;
 class UOptimusVariableDescription;
 class UOptimusFunctionNodeGraph;
@@ -321,6 +322,12 @@ public:
 		UMeshComponent* InMeshComponent,
 		UMeshDeformerInstanceSettings* InSettings
 		) override;
+	
+	
+	UOptimusDeformerInstance* CreateOptimusInstance(
+		UMeshComponent* InMeshComponent,
+		UMeshDeformerInstanceSettings* InSettings
+		);
 	
 	// IInterface_PreviewMeshProvider overrides
 	void SetPreviewMesh(USkeletalMesh* PreviewMesh, bool bMarkAsDirty = true) override;

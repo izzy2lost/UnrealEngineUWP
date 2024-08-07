@@ -57,6 +57,7 @@
 
 #include <limits>
 
+#include "OptimusDeformerDynamicInstanceManager.h"
 #include "OptimusFunctionNodeGraphHeader.h"
 #include "Nodes/OptimusNode_FunctionReference.h"
 #include "Nodes/OptimusNode_SubGraphReference.h"
@@ -3357,7 +3358,7 @@ void UOptimusDeformer::PostLoadRemoveDeprecatedExecutionNodes()
 				const UOptimusNodePin* PrimaryGroupPin = KernelNode->GetPrimaryGroupPin();
 
 				UOptimusNode_ComponentSource* ComponentSourceNode = nullptr;
-				FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(Optimus::GetTypeName(TBaseStructure<FIntVector3>::Get()));
+				FOptimusDataTypeHandle IntVector3Type = FOptimusDataTypeRegistry::Get().FindType(TBaseStructure<FIntVector3>::Get());
 				
 				for (const UOptimusNodePin* Pin : PrimaryGroupPin->GetSubPins())
 				{
@@ -3614,7 +3615,17 @@ UMeshDeformerInstance* UOptimusDeformer::CreateInstance(
 		return nullptr;
 	}
 
-	const FName InstanceName(GetName() + TEXT("_Instance"));
+	UOptimusDeformerDynamicInstanceManager* InstanceManager = NewObject<UOptimusDeformerDynamicInstanceManager>(InMeshComponent);
+	
+	InstanceManager->DefaultInstance = CreateOptimusInstance(InMeshComponent, InSettings);
+	
+	return InstanceManager;
+}
+
+UOptimusDeformerInstance* UOptimusDeformer::CreateOptimusInstance(UMeshComponent* InMeshComponent, UMeshDeformerInstanceSettings* InSettings)
+{
+	const FName InstanceName = Optimus::GetUniqueNameForScope(InMeshComponent ,*(GetName() + TEXT("_Instance")));
+	
 	UOptimusDeformerInstance* Instance = NewObject<UOptimusDeformerInstance>(InMeshComponent, InstanceName);
 	Instance->SetMeshComponent(InMeshComponent);
 	Instance->SetInstanceSettings(Cast<UOptimusDeformerInstanceSettings>(InSettings));

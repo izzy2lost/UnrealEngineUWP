@@ -129,6 +129,9 @@ void UControlRig::ResetRecordedTransforms(const FName& InEventName)
 
 void UControlRig::BeginDestroy()
 {
+	BeginDestroyEvent.Broadcast(this);
+	BeginDestroyEvent.Clear();
+	
 	Super::BeginDestroy();
 	SetRigVMExtendedExecuteContext(nullptr);
 
@@ -854,6 +857,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	Context.InteractionType = InteractionType;
 	Context.ElementsBeingInteracted = ElementsBeingInteracted;
 	PublicContext.Hierarchy = GetHierarchy();
+	PublicContext.ControlRig = this;
 
 	// allow access to the hierarchy
 	Context.HierarchySettings = HierarchySettings;

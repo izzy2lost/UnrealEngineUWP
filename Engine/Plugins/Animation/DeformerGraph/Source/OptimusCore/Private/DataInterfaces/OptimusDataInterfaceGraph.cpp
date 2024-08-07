@@ -190,11 +190,6 @@ void UOptimusGraphDataProvider::SetDeformerInstance(UOptimusDeformerInstance* In
 	DeformerInstance = InInstance;
 }
 
-UOptimusDeformerInstance* UOptimusGraphDataProvider::GetDeformerInstance() const
-{
-	return DeformerInstance;
-}
-
 FOptimusGraphDataProviderProxy::FOptimusGraphDataProviderProxy(
 	UOptimusDeformerInstance const* DeformerInstance,
 	TArray<FOptimusGraphVariableDescription> const& Variables,

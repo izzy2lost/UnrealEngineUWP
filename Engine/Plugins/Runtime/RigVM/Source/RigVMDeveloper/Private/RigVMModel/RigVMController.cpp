@@ -9214,6 +9214,7 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 	const FString ClampedDefaultValue = InPin->IsRootPin() ? InPin->ClampDefaultValueFromMetaData(InDefaultValue) : InDefaultValue;
 
 	bool bSetPinDefaultValueSucceeded = false;
+	bool bFoundSkippedDefaultValue = false;
 	if (InPin->IsArray())
 	{
 		if (GetSchema()->CanUnfoldPin(this, InPin))
@@ -9269,7 +9270,11 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 			if (MemberValuePair.Split(TEXT("="), &MemberName, &MemberValue))
 			{
 				URigVMPin* SubPin = InPin->FindSubPin(MemberName);
-				if (SubPin && !MemberValue.IsEmpty())
+				if (!SubPin)
+				{
+					bFoundSkippedDefaultValue = true;
+				}
+				else if( !MemberValue.IsEmpty())
 				{
 					PostProcessDefaultValue(SubPin, MemberValue);
 					if (!MemberValue.IsEmpty())
@@ -9282,31 +9287,28 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 		}
 	}
 	
-	if(!bSetPinDefaultValueSucceeded)
+	// set default value on the current pin if there is no subpin to store some of the default values
+	if(!bSetPinDefaultValueSucceeded || bFoundSkippedDefaultValue)
 	{
-		// no need to send notifications if not changing the value
-		if (InPin->GetSubPins().IsEmpty())
+		// always mark the pin's default value type as user provided
+		// even if the value didn't change. this is done to remember
+		// the value when switching versions of nodes / functions.
+		const ERigVMPinDefaultValueType NewDefaultValueType = GetDefaultValueType(InPin, ClampedDefaultValue);
+		if(InPin->DefaultValueType != NewDefaultValueType)
 		{
-			// always mark the pin's default value type as user provided
-			// even if the value didn't change. this is done to remember
-			// the value when switching versions of nodes / functions.
-			const ERigVMPinDefaultValueType NewDefaultValueType = GetDefaultValueType(InPin, ClampedDefaultValue);
-			if(InPin->DefaultValueType != NewDefaultValueType)
+			InPin->DefaultValueType = NewDefaultValueType;
+			bSetPinDefaultValueSucceeded = true;
+		}
+		// no need to send notifications if not changing the value
+		if(InPin->DefaultValue != ClampedDefaultValue)
+		{
+			InPin->DefaultValue = ClampedDefaultValue;
+			Notify(ERigVMGraphNotifType::PinDefaultValueChanged, InPin);
+			if (!bSuspendNotifications)
 			{
-				InPin->DefaultValueType = NewDefaultValueType;
-				bSetPinDefaultValueSucceeded = true;
+				(void)Graph->MarkPackageDirty();
 			}
-
-			if(InPin->DefaultValue != ClampedDefaultValue)
-			{
-				InPin->DefaultValue = ClampedDefaultValue;
-				Notify(ERigVMGraphNotifType::PinDefaultValueChanged, InPin);
-				if (!bSuspendNotifications)
-				{
-					(void)Graph->MarkPackageDirty();
-				}
-				bSetPinDefaultValueSucceeded = true;
-			}
+			bSetPinDefaultValueSucceeded = true;
 		}
 	}
 
@@ -15701,17 +15703,19 @@ FName URigVMController::AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScrip
 	TSharedPtr<FStructOnScope> TraitScope(new FStructOnScope(InTraitScriptStruct));
 	FRigVMTrait* Trait = (FRigVMTrait*)TraitScope->GetStructMemory();
 
-	if(!InDefaultValue.IsEmpty())
+	FString DefaultValue = InDefaultValue;
+	// Combine user overrides with struct defaults into a single default value string
+	CreateDefaultValueForStructIfRequired(InTraitScriptStruct, DefaultValue);
+	OverrideDefaultValueMember(TEXT("Name"), TEXT("\"")+ValidTraitName.ToString()+TEXT("\""), DefaultValue);
+	
+	FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
 	{
-		FRigVMPinDefaultValueImportErrorContext ErrorPipe(ELogVerbosity::Verbose);
-		{
-			// force logging to the error pipe for error detection
-			LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
-			InTraitScriptStruct->ImportText(*InDefaultValue, Trait, nullptr, PPF_None, &ErrorPipe, InTraitScriptStruct->GetName()); 
-		}
+		// force logging to the error pipe for error detection
+		LOG_SCOPE_VERBOSITY_OVERRIDE(LogExec, ErrorPipe.GetMaxVerbosity()); 
+		InTraitScriptStruct->ImportText(*DefaultValue, Trait, nullptr, PPF_None, &ErrorPipe, InTraitScriptStruct->GetName()); 
 	}
 
-	Trait->Name = ValidTraitName.ToString();
+	check(Trait->Name == ValidTraitName.ToString());
 
 	FString FailureReason;
 	if(!Trait->CanBeAddedToNode(InNode, &FailureReason))
@@ -15725,7 +15729,7 @@ FName URigVMController::AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScrip
 	{
 		Action.SetTitle(FString::Printf(TEXT("Add Trait")));
 		GetActionStack()->BeginAction(Action);
-		GetActionStack()->AddAction(FRigVMAddTraitAction(this, InNode, ValidTraitName, InTraitScriptStruct, InDefaultValue, InPinIndex == INDEX_NONE ? InNode->GetPins().Num() : InPinIndex));
+		GetActionStack()->AddAction(FRigVMAddTraitAction(this, InNode, ValidTraitName, InTraitScriptStruct, DefaultValue, InPinIndex == INDEX_NONE ? InNode->GetPins().Num() : InPinIndex));
 	}
 
 	InNode->TraitRootPinNames.Add(ValidTraitName.ToString());
@@ -15737,14 +15741,15 @@ FName URigVMController::AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScrip
 	TraitPin->CPPTypeObject = InTraitScriptStruct;
 	TraitPin->CPPTypeObjectPath = *TraitPin->CPPTypeObject->GetPathName();
 	TraitPin->Direction = ERigVMPinDirection::Input;
+	TraitPin->DefaultValue = DefaultValue;
 
 	AddNodePin(InNode, TraitPin);
 	Notify(ERigVMGraphNotifType::PinAdded, TraitPin);
 	
-	AddPinsForStruct(InTraitScriptStruct, InNode, TraitPin, TraitPin->GetDirection(), InDefaultValue, true);
+	AddPinsForStruct(InTraitScriptStruct, InNode, TraitPin, TraitPin->GetDirection(), DefaultValue, true);
 
 	FRigVMPinInfoArray ProgrammaticPins;
-	Trait->GetProgrammaticPins(this, INDEX_NONE, InDefaultValue, ProgrammaticPins);
+	Trait->GetProgrammaticPins(this, INDEX_NONE, DefaultValue, ProgrammaticPins);
 
 	const FRigVMRegistry& Registry = FRigVMRegistry::Get();
 	const FRigVMPinInfoArray PreviousPins;
@@ -18481,6 +18486,34 @@ void URigVMController::PostProcessDefaultValue(const URigVMPin* Pin, FString& Ou
 			OutDefaultValue = FName(NAME_None).ToString();
 		}
 	}
+}
+
+void URigVMController::OverrideDefaultValueMember(const FString& InMemberName, const FString& InMemberValue, FString& InOutDefaultValue)
+{
+	FString NewMemberValuePair = FString::Printf(TEXT("%s=%s"), *InMemberName, *InMemberValue);
+	TArray<FString> DefaultValues = URigVMPin::SplitDefaultValue(InOutDefaultValue);
+	
+	bool bFound = false;
+	for (FString& MemberNameValuePair : DefaultValues)
+	{
+		FString MemberName, MemberValue;
+		if (MemberNameValuePair.Split(TEXT("="), &MemberName, &MemberValue))
+		{
+			if (MemberName == InMemberName)
+			{
+				MemberNameValuePair = NewMemberValuePair;
+				bFound = true;
+				break;
+			}
+		}
+	}
+
+	if (!bFound)
+	{
+		DefaultValues.Add(NewMemberValuePair);
+	}
+	
+	InOutDefaultValue = FString::Printf(TEXT("(%s)"), *FString::Join(DefaultValues, TEXT(",")));	
 }
 
 void URigVMController::ResolveTemplateNodeMetaData(URigVMTemplateNode* InNode, bool bSetupUndoRedo)

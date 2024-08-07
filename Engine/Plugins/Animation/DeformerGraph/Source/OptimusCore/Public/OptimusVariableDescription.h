@@ -71,8 +71,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = VariableDefinition)
 	FOptimusValueContainerStruct DefaultValueStruct;
 	
-	/** Cached shader value binary data. */
-	UPROPERTY()
+	/**	Runtime container for variable values in a deformer instance*/
+	UPROPERTY(Transient)
 	FShaderValueContainer CachedShaderValue;
 
 	void PostLoad();

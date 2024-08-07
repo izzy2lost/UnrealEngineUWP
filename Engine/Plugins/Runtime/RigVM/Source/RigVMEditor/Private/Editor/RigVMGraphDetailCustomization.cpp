@@ -2103,17 +2103,20 @@ FText FRigVMWrappedNodeDetailCustomization::GetNameListText(const FNameProperty*
 	FText FirstText;
 	for(TWeakObjectPtr<URigVMDetailsViewWrapperObject> ObjectBeingCustomized : ObjectsBeingCustomized)
 	{
-		if (FName* Value = InProperty->ContainerPtrToValuePtr<FName>(ObjectBeingCustomized.Get()))
+		if (ObjectBeingCustomized.IsValid())
 		{
-			FText Text = FText::FromName(*Value);
-			if(FirstText.IsEmpty())
+			if (FName* Value = InProperty->ContainerPtrToValuePtr<FName>(ObjectBeingCustomized.Get()))
 			{
-				FirstText = Text;
-			}
-			else if(!FirstText.EqualTo(Text))
-			{
-				return RigVMGraphDetailCustomizationMultipleValues;
-			}
+				FText Text = FText::FromName(*Value);
+				if(FirstText.IsEmpty())
+				{
+					FirstText = Text;
+				}
+				else if(!FirstText.EqualTo(Text))
+				{
+					return RigVMGraphDetailCustomizationMultipleValues;
+				}
+			}	
 		}
 	}
 	return FirstText;

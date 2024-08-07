@@ -339,6 +339,9 @@ struct FRigVMExecuteContext
 
 	/** The current component this VM is owned by */
 	const USceneComponent* GetOwningComponent() const { return OwningComponent; }
+	
+	/** The current component this VM is owned by */
+	USceneComponent* GetMutableOwningComponent() const { return const_cast<USceneComponent*>(OwningComponent); }
 
 	/** The current actor this VM is owned by */
 	const AActor* GetOwningActor() const { return OwningActor; }

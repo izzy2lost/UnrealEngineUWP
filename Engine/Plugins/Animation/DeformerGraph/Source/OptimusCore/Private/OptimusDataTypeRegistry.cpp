@@ -100,7 +100,7 @@ EOptimusDataTypeUsageFlags FOptimusDataTypeRegistry::GetStructTypeUsageFlag(UScr
         		return EOptimusDataTypeUsageFlags::None;
         	}
         	
-        	FOptimusDataTypeHandle DataType = Get().FindType(Optimus::GetTypeName(InStruct));
+        	FOptimusDataTypeHandle DataType = Get().FindType(InStruct);
         	if (DataType.IsValid())
         	{
         		PropertyValueConvertFuncT ConvertFunc = Get().FindPropertyValueConvertFunc(DataType->TypeName);
@@ -223,7 +223,7 @@ EOptimusDataTypeUsageFlags FOptimusDataTypeRegistry::GetStructTypeUsageFlag(UScr
 			EOptimusDataTypeUsageFlags::Resource | EOptimusDataTypeUsageFlags::Variable | EOptimusDataTypeUsageFlags::AnimAttributes | EOptimusDataTypeUsageFlags::DataInterfaceOutput | EOptimusDataTypeUsageFlags::PinType;
     };
 
-	if (FOptimusDataTypeHandle DataType = Get().FindType(Optimus::GetTypeName(InStruct)))
+	if (FOptimusDataTypeHandle DataType = Get().FindType(InStruct))
 	{
 		return DataType->UsageFlags;
 	}
@@ -496,6 +496,32 @@ void FOptimusDataTypeRegistry::RegisterBuiltinTypes()
 
 FOptimusDataTypeRegistry::~FOptimusDataTypeRegistry()
 {
+}
+
+
+FName FOptimusDataTypeRegistry::GetTypeName(const FFieldClass& InFieldClass)
+{
+	return InFieldClass.GetFName();
+}
+
+FName FOptimusDataTypeRegistry::GetTypeName(UScriptStruct* InStruct)
+{
+	return Optimus::GetTypeName(InStruct, true);
+}
+
+FName FOptimusDataTypeRegistry::GetArrayTypeName(const FFieldClass& InFieldClass)
+{
+	return GetArrayTypeName(GetTypeName(InFieldClass));
+}
+
+FName FOptimusDataTypeRegistry::GetArrayTypeName(UScriptStruct* InStruct)
+{
+	return GetArrayTypeName(GetTypeName(InStruct));
+}
+
+FName FOptimusDataTypeRegistry::GetArrayTypeName(FName InElementTypeName)
+{
+	return *(TEXT("TArray<") + InElementTypeName.ToString() + TEXT(">"));	
 };
 
 FOptimusDataTypeRegistry& FOptimusDataTypeRegistry::Get()
@@ -556,7 +582,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 
 	FText DisplayName = Optimus::GetTypeDisplayName(InStructType);
 
-	FName TypeName = Optimus::GetTypeName(InStructType);
+	FName TypeName = GetTypeName(InStructType);
 
 	const bool bIsHashable = IsStructHashable(InStructType);
 
@@ -943,7 +969,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 
 	{
 		*ArrayDataType = *InElementDataType;
-		ArrayDataType->TypeName = *(TEXT("TArray<") + InElementDataType->TypeName.ToString() + TEXT(">"));
+		ArrayDataType->TypeName = GetArrayTypeName(InElementDataType->TypeName);
 		ArrayDataType->DisplayName = FText::FromString(InElementDataType->DisplayName.ToString() + TEXT(" Array"));
 		ArrayDataType->ShaderValueType = FShaderValueType::MakeDynamicArrayType(InnerDataTypeForStructuredBuffer->ShaderValueType);
 		
@@ -961,7 +987,7 @@ bool FOptimusDataTypeRegistry::RegisterArrayTypeIfApplicable(FOptimusDataTypeHan
 
 void FOptimusDataTypeRegistry::RefreshStructType(UUserDefinedStruct* InStructType)
 {
-	FName TypeName = Optimus::GetTypeName(InStructType);
+	FName TypeName = GetTypeName(InStructType);
 	if (RegisteredTypes.Contains(TypeName))
 	{
 		UnregisterType(TypeName);
@@ -981,8 +1007,8 @@ bool FOptimusDataTypeRegistry::RegisterType(
 	EOptimusDataTypeUsageFlags InUsageFlags
 	)
 {
-	return RegisterType(InFieldType.GetFName(), [&](FOptimusDataType& InDataType) {
-		InDataType.TypeName = InFieldType.GetFName();
+	return RegisterType(GetTypeName(InFieldType), [&](FOptimusDataType& InDataType) {
+		InDataType.TypeName = GetTypeName(InFieldType);
 		InDataType.DisplayName = InDisplayName;
 		InDataType.ShaderValueType = InShaderValueType;
 		InDataType.ShaderValueSize = InShaderValueType->GetResourceElementSize();
@@ -1041,7 +1067,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			}
 		}
 
-		const FName TypeName = Optimus::GetTypeName(InStructType);
+		const FName TypeName = GetTypeName(InStructType);
 
 		PropertyCreateFuncT PropertyCreateFunc;
 		PropertyValueConvertFuncT PropertyValueConvertFunc;
@@ -1202,7 +1228,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			}
 		}
 
-		const FName TypeName = Optimus::GetTypeName(InStructType, true);
+		const FName TypeName = GetTypeName(InStructType);
 
 		PropertyCreateFuncT PropertyCreateFunc;
 		const int32 ExpectedShaderValueSize = InShaderValueType->GetResourceElementSize();
@@ -1260,7 +1286,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 {
 	if (ensure(InStructType))
 	{
-		const FName TypeName = Optimus::GetTypeName(InStructType, true);
+		const FName TypeName = GetTypeName(InStructType);
 
 		PropertyCreateFuncT PropertyCreateFunc;
 		if (EnumHasAnyFlags(InUsageFlags, EOptimusDataTypeUsageFlags::Variable))
@@ -1388,7 +1414,7 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const FProperty& InPro
 {
 	if (const FStructProperty* StructProperty = CastField<const FStructProperty>(&InProperty))
 	{
-		const FName TypeName = Optimus::GetTypeName(StructProperty->Struct);
+		const FName TypeName = GetTypeName(StructProperty->Struct);
 		return FindType(TypeName);
 	}
 	else if (const FObjectProperty* ObjectProperty = CastField<const FObjectProperty>(&InProperty))
@@ -1419,10 +1445,30 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const FProperty& InPro
 #endif
 }
 
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindArrayType(const FProperty& InProperty) const
+{
+	if(FOptimusDataTypeHandle Type = FindType(InProperty))
+	{
+		return FindType(GetArrayTypeName(Type->TypeName));
+	}
+
+	return {};	
+}
+
 
 FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const FFieldClass& InFieldType) const
 {
 	return FindType(InFieldType.GetFName());
+}
+
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindArrayType(const FFieldClass& InFieldType) const
+{
+	if(FOptimusDataTypeHandle Type = FindType(InFieldType))
+	{
+		return FindType(GetArrayTypeName(Type->TypeName));
+	}
+
+	return {};	
 }
 
 
@@ -1432,11 +1478,36 @@ FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(const UClass& InClassT
 	return FindType(TypeName);
 }
 
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindArrayType(const UClass& InClassType) const
+{
+	if(FOptimusDataTypeHandle Type = FindType(InClassType))
+	{
+		return FindType(GetArrayTypeName(Type->TypeName));
+	}
+
+	return {};	
+}
+
 
 FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(FName InTypeName) const
 {
 	const FTypeInfo* InfoPtr = RegisteredTypes.Find(InTypeName);
 	return InfoPtr ? InfoPtr->DataType : FOptimusDataTypeHandle();
+}
+
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindArrayType(FName InTypeName) const
+{
+	return FindType(GetArrayTypeName(InTypeName));
+}
+
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindType(UScriptStruct* InStruct) const
+{
+	return FindType(GetTypeName(InStruct));
+}
+
+FOptimusDataTypeHandle FOptimusDataTypeRegistry::FindArrayType(UScriptStruct* InStruct) const
+{
+	return FindArrayType(GetTypeName(InStruct));
 }
 
 
@@ -1518,7 +1589,7 @@ void FOptimusDataTypeRegistry::OnFilesLoaded()
 		
 		if (ScriptStruct && !BuiltInAttributeTypeArray.Contains(ScriptStruct))
 		{
-			FOptimusDataTypeHandle DataType = FindType(Optimus::GetTypeName(ScriptStruct));
+			FOptimusDataTypeHandle DataType = FindType(ScriptStruct);
 
 			if (!DataType.IsValid())
 			{
@@ -1534,7 +1605,7 @@ void FOptimusDataTypeRegistry::OnAssetRemoved(const FAssetData& InAssetData)
 	{
 		if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InAssetData.GetAsset()))
 		{
-			FName TypeName = Optimus::GetTypeName(UserDefinedStruct);
+			FName TypeName = GetTypeName(UserDefinedStruct);
 			UnregisterType(TypeName);
 		}
 	}
@@ -1544,7 +1615,7 @@ void FOptimusDataTypeRegistry::OnAssetRenamed(const FAssetData& InAssetData, con
 {
 	if (UUserDefinedStruct* UserDefinedStruct = Cast<UUserDefinedStruct>(InAssetData.GetAsset()))
 	{
-		FName TypeName = Optimus::GetTypeName(UserDefinedStruct);
+		FName TypeName = GetTypeName(UserDefinedStruct);
 
 		if (FOptimusDataTypeHandle DataTypeHandle = FindType(TypeName))
 		{
@@ -1563,7 +1634,7 @@ void FOptimusDataTypeRegistry::OnAnimationAttributeRegistryChanged(const UScript
 	{
 		
 		UScriptStruct* ScriptStruct = const_cast<UScriptStruct*>(InScriptStruct);
-		FOptimusDataTypeHandle DataType = FindType(Optimus::GetTypeName(ScriptStruct));
+		FOptimusDataTypeHandle DataType = FindType(ScriptStruct);
 		
 		if (bIsAdded)
 		{
