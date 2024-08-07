@@ -701,30 +701,32 @@ FString FDataflowNode::StripContainerIndexFromPropertyFullName(const FString& In
 FText FDataflowNode::GetPropertyDisplayNameText(const TArray<const FProperty*>& PropertyChain, int32 ContainerIndex)
 {
 #if WITH_EDITORONLY_DATA  // GetDisplayNameText() is only available if WITH_EDITORONLY_DATA
+	static const FTextFormat TextFormat(NSLOCTEXT("DataflowNode", "PropertyDisplayNameTextConcatenator", "{0}.{1}"));
 	FText PropertyText;
+	bool bIsPropertyTextEmpty = true;
 	bool bFoundArrayProperty = false;
 	for (int32 Index = PropertyChain.Num() - 1; Index >= 0; --Index)
 	{
 		const FProperty* const Property = PropertyChain[Index];
-		FText PropertyDisplayName = Property->GetDisplayNameText();
+		if (!Property->HasMetaData(FName(TEXT("SkipInDisplayNameChain"))))
+		{
+			FText PropertyDisplayName = Property->GetDisplayNameText();
+			PropertyText = bIsPropertyTextEmpty ?
+				MoveTemp(PropertyDisplayName) :
+				FText::Format(TextFormat, PropertyText, MoveTemp(PropertyDisplayName));
+			bIsPropertyTextEmpty = false;
+		}
 		if (const FArrayProperty* const ArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			if (ContainerIndex != INDEX_NONE)
-			{
-				check(!bFoundArrayProperty); // We only expect to find one array to substitute in.
-				bFoundArrayProperty = true;	
-				static const FTextFormat TextFormatContainer(NSLOCTEXT("DataflowNode", "PropertyDisplayNameTextContainer", "{0}[{1}]"));
-				PropertyDisplayName = FText::Format(TextFormatContainer, PropertyDisplayName, ContainerIndex);
-			}
-
-			// Skip ElemProperty. Otherwise you get names like "MyFloatArray[0].MyFloatArray" when you just want "MyFloatArray[0]"
-			--Index;
+			check(!bFoundArrayProperty); // We only expect to find one array to substitute in.
+			bFoundArrayProperty = (ContainerIndex != INDEX_NONE);
+			--Index;  // Skip ElemProperty. Otherwise you get names like "MyFloatArray[0].MyFloatArray" when you just want "MyFloatArray[0]"
 		}
-
-		static const FTextFormat TextFormat(NSLOCTEXT("DataflowNode", "PropertyDisplayNameTextConcatenator", "{0}.{1}"));
-		PropertyText = PropertyText.IsEmpty() ?
-			PropertyDisplayName :
-			FText::Format(TextFormat, PropertyText, PropertyDisplayName);
+	}
+	if (bFoundArrayProperty)
+	{
+		static const FTextFormat TextFormatContainer(NSLOCTEXT("DataflowNode", "PropertyDisplayNameTextContainer", "{0}[{1}]"));
+		PropertyText = FText::Format(TextFormatContainer, PropertyText, ContainerIndex);
 	}
 
 	return PropertyText;

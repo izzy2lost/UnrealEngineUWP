@@ -35,7 +35,7 @@ public:
 	FManagedArrayCollection Collection;
 
 	/** Selection filter set used to restrict a selection of render vertices to a selection of simulation mesh triangles. Right click and do AddOptionPin to add more selection sets .*/
-	UPROPERTY(EditAnywhere, EditFixedSize, Category = "ProxyDeformer")
+	UPROPERTY(EditAnywhere, EditFixedSize, Category = "ProxyDeformer", Meta = (SkipInDisplayNameChain))
 	TArray<FChaosClothAssetSelectionFilterSet> SelectionFilterSets;
 
 	/** Whether using multiple simulation mesh triangles to influence the position of the deformed render vertex. */

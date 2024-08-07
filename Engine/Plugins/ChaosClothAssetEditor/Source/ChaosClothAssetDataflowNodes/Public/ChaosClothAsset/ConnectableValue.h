@@ -13,7 +13,7 @@ struct FChaosClothAssetConnectableStringValue
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The value for this property. */
-	UPROPERTY(EditAnywhere, Category = "Value")
+	UPROPERTY(EditAnywhere, Category = "Value", Meta = (SkipInDisplayNameChain))
 	FString StringValue;
 
 	UE_DEPRECATED(5.5, "Override properties are no longer used.")
@@ -29,7 +29,7 @@ struct FChaosClothAssetConnectableIStringValue
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The value for this property. */
-	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput))
+	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput, SkipInDisplayNameChain))
 	FString StringValue;
 
 	/**
@@ -55,7 +55,7 @@ struct FChaosClothAssetConnectableOStringValue
 	GENERATED_BODY()
 
 	/** The value for this property. */
-	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowOutput))
+	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowOutput, SkipInDisplayNameChain))
 	FString StringValue;
 };
 
@@ -67,7 +67,7 @@ struct FChaosClothAssetConnectableIOStringValue
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** The value for this property. */
-	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "StringValue"))
+	UPROPERTY(EditAnywhere, Category = "Value", Meta = (DataflowInput, DataflowOutput, DataflowPassthrough = "StringValue", SkipInDisplayNameChain))
 	FString StringValue;
 
 	UE_DEPRECATED(5.5, "Override properties are no longer used.")
